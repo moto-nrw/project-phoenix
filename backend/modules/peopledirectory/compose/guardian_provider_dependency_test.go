@@ -41,7 +41,7 @@ func TestNew_TakesTheGuardianProvider(t *testing.T) {
 		Guardians: primaryPhoneGuardians{primary: &primary}, Runtime: directTenantTx{runs: &runs},
 		PermissionGranted: func(any) bool { return true },
 	}
-	module, err := New(deps)
+	module, err := New(deps, nil)
 	require.NoError(t, err)
 	phoneID := int64(len(t.Name()))
 	require.NoError(t, module.SetPrimaryGuardianPhone(context.Background(), phoneID))
@@ -49,6 +49,6 @@ func TestNew_TakesTheGuardianProvider(t *testing.T) {
 	require.Equal(t, 1, runs)
 
 	deps.GuardianProvider = &GuardianDirectoryProvider{Guardians: primaryPhoneGuardians{primary: &primary}, Runtime: directTenantTx{runs: &runs}}
-	_, err = New(deps)
+	_, err = New(deps, nil)
 	require.ErrorContains(t, err, "guardian provider needs")
 }

@@ -29,7 +29,7 @@ func TestStaffAbsenceListContract(t *testing.T) {
 			Status:      workforce.AbsenceStatusReported,
 			CreatedBy:   staff.ID,
 		}
-		_, err := repo.CreateStaffAbsence(ctx, absence)
+		_, err := repo.CreateStaffAbsence(ctx, &absence)
 		require.NoError(t, err)
 
 		absences, err := repo.ListStaffAbsences(ctx, workforce.StaffAbsenceFilter{})
@@ -48,7 +48,7 @@ func TestStaffAbsenceListContract(t *testing.T) {
 			Status:      workforce.AbsenceStatusReported,
 			CreatedBy:   staff.ID,
 		}
-		_, err := repo.CreateStaffAbsence(ctx, absence)
+		_, err := repo.CreateStaffAbsence(ctx, &absence)
 		require.NoError(t, err)
 
 		options := workforce.StaffAbsenceFilter{Limit: 10}

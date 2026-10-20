@@ -18,8 +18,8 @@ import (
 // of row into two tenants and assert that reads, locks and deletes through
 // the capability never cross that boundary.
 
-func testAbsence(staffID int64, absenceType, status string, day calendar.Date) workforce.StaffAbsence {
-	return workforce.StaffAbsence{
+func testAbsence(staffID int64, absenceType, status string, day calendar.Date) *workforce.StaffAbsence {
+	return &workforce.StaffAbsence{
 		StaffID: staffID, AbsenceType: absenceType, Status: status,
 		DateStart: day.String(), DateEnd: day.String(), CreatedBy: staffID,
 	}

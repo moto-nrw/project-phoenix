@@ -11,7 +11,6 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/api"
 	"github.com/moto-nrw/project-phoenix/modules/workforce"
-	workforceCompose "github.com/moto-nrw/project-phoenix/modules/workforce/compose"
 	"github.com/moto-nrw/project-phoenix/modules/workforce/internal/application/timetracking"
 	owners "github.com/moto-nrw/project-phoenix/roots/owners"
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
@@ -95,7 +94,7 @@ func newAuditLogFixture(t *testing.T) *auditLogFixture {
 		CreatedBy: staffA.ID,
 	}
 	session.SetTenantID(tenantID)
-	require.NoError(t, workforceCompose.NewTimeTrackingTestRows(workTime).Sessions.Create(ctx, session))
+	createSessionFixture(t, workTime, ctx, session)
 	oldIn, newIn := "08:00", "08:30"
 	oldOut, newOut := "16:00", "15:00"
 	note := "Korrektur nach Rücksprache"
@@ -122,7 +121,10 @@ func newAuditLogFixture(t *testing.T) *auditLogFixture {
 		CreatedBy:   admin.ID,
 	}
 	absence.SetTenantID(tenantID)
-	require.NoError(t, reposAbsences.StaffAbsence.Create(ctx, absence))
+	absenceCommand1 := timetracking.StaffAbsenceToCapability(absence)
+	createdTimeRecord1, err := reposAbsences.StaffAbsence.CreateStaffAbsence(ctx, &absenceCommand1)
+	require.NoError(t, err)
+	*absence = *timetracking.AbsenceRecord(createdTimeRecord1)
 	fromStatus := workforce.AbsenceStatusReported
 	absenceAudit := &timetracking.StaffAbsenceAudit{
 		AbsenceID:  absence.ID,
@@ -132,7 +134,7 @@ func newAuditLogFixture(t *testing.T) *auditLogFixture {
 		Note:       "Attest liegt vor",
 	}
 	absenceAudit.TenantID = tenantID
-	require.NoError(t, workforceCompose.NewStaffAbsenceAuditRepository(workTime).Create(ctx, absenceAudit))
+	require.NoError(t, recordAbsenceAudit(ctx, workTime, absenceAudit))
 
 	// Balance adjustment for staffA (stays) and one for staffB (deleted below).
 	makeAdjustment := func(staffID int64, day int) *timetracking.StaffBalanceAdjustment {
@@ -146,7 +148,9 @@ func newAuditLogFixture(t *testing.T) *auditLogFixture {
 			DecidedAt:     time.Date(2025, time.August, day, 12, 0, 0, 0, time.UTC),
 		}
 		adj.SetTenantID(tenantID)
-		require.NoError(t, workforceCompose.NewTimeTrackingTestRows(workTime).Adjustments.Create(ctx, adj))
+		createdTimeRecord2, err := workTime.CreateStaffBalanceAdjustment(ctx, timetracking.StaffBalanceAdjustmentToCapability(adj))
+		require.NoError(t, err)
+		*adj = *timetracking.BalanceAdjustmentRecord(createdTimeRecord2)
 		return adj
 	}
 	makeAdjustment(staffA.ID, 10)
@@ -166,7 +170,7 @@ func newAuditLogFixture(t *testing.T) *auditLogFixture {
 
 	// Delete staffB's adjustment through the real service path so the
 	// tombstone write is covered end to end.
-	adjustSvc := timetracking.NewStaffBalanceAdjustmentService(workforceCompose.NewTimeTrackingTestRows(workTime).Adjustments, nil, wtmIntSettings{accountStart: "2025-01-01"}, nil, timetracking.WithAdjustmentUnitOfWork(testpkg.RunInTenantTransaction),
+	adjustSvc := timetracking.NewStaffBalanceAdjustmentService(workTime, nil, wtmIntSettings{accountStart: "2025-01-01"}, nil, timetracking.WithAdjustmentUnitOfWork(testpkg.RunInTenantTransaction),
 
 		timetracking.WithAdjustmentDeletionAudit(owners.NewTimeTrackingDeletionAudit(owners.NewTestAuditPersistence(testpkg.NewDatabase(t, db), nil).TimeTrackingDeletion)))
 	require.NoError(t, adjustSvc.DeleteAdjustment(ctx, staffB.ID, doomed.ID, admin.ID))

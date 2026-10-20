@@ -14,7 +14,6 @@ import (
 	"github.com/moto-nrw/project-phoenix/api"
 	"github.com/moto-nrw/project-phoenix/modules/settings/settingstest"
 	"github.com/moto-nrw/project-phoenix/modules/workforce"
-	workforceCompose "github.com/moto-nrw/project-phoenix/modules/workforce/compose"
 	"github.com/moto-nrw/project-phoenix/modules/workforce/internal/application/timetracking"
 	owners "github.com/moto-nrw/project-phoenix/roots/owners"
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
@@ -109,7 +108,9 @@ func newDatevFixture(t *testing.T) *overviewFixture {
 			DecidedAt:     time.Now(),
 		}
 		adjustment.SetTenantID(f.tenantID)
-		require.NoError(t, workforceCompose.NewTimeTrackingTestRows(f.workforce).Adjustments.Create(f.ctx, adjustment))
+		createdTimeRecord1, err := f.workforce.CreateStaffBalanceAdjustment(f.ctx, timetracking.StaffBalanceAdjustmentToCapability(adjustment))
+		require.NoError(t, err)
+		*adjustment = *timetracking.BalanceAdjustmentRecord(createdTimeRecord1)
 	}
 	return f
 }

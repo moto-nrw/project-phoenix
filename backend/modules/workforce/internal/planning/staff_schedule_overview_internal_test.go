@@ -20,9 +20,9 @@ func testClock(t *testing.T, value string) time.Time {
 	return calendar.NormalizeWallClock(parsed)
 }
 
-func testShift(t *testing.T, staffID int64, date calendar.Date, start, end string) *StaffShift {
+func testShift(t *testing.T, staffID int64, date calendar.Date, start, end string) *workforce.ShiftRecord {
 	t.Helper()
-	return &StaffShift{
+	return &workforce.ShiftRecord{
 		StaffID:   staffID,
 		Date:      calendar.Date(date),
 		StartTime: testClock(t, start),
@@ -42,7 +42,7 @@ func formattedGaps(gaps []timetable.ShiftCoverageInterval) [][2]string {
 }
 
 type fakeShiftReader struct {
-	rows      []*StaffShift
+	rows      []*workforce.ShiftRecord
 	err       error
 	calls     int
 	from      calendar.Date
@@ -52,7 +52,7 @@ type fakeShiftReader struct {
 	usedWeeks []calendar.Date
 }
 
-func (f *fakeShiftReader) FindByStaffIDsAndDates(_ context.Context, staffIDs []int64, dates []calendar.Date) ([]*StaffShift, error) {
+func (f *fakeShiftReader) FindByStaffIDsAndDates(_ context.Context, staffIDs []int64, dates []calendar.Date) ([]*workforce.ShiftRecord, error) {
 	f.calls++
 	f.staffIDs = append([]int64(nil), staffIDs...)
 	f.dates = make([]calendar.Date, len(dates))
@@ -94,7 +94,7 @@ func (f *fakeShiftReader) FindUsedCalendarWeeks(_ context.Context, from, to cale
 	return converted, nil
 }
 
-func (f *fakeShiftReader) FindByDateRange(_ context.Context, from, to calendar.Date) ([]*StaffShift, error) {
+func (f *fakeShiftReader) FindByDateRange(_ context.Context, from, to calendar.Date) ([]*workforce.ShiftRecord, error) {
 	f.calls++
 	f.from, f.to = calendar.Date(from), calendar.Date(to)
 	return f.rows, f.err
@@ -308,7 +308,7 @@ func TestStaffScheduleOverview_BatchesAndProjectsEffectiveDailyAssignments(t *te
 		{InstanceID: 31, StaffID: 3},
 		{InstanceID: 32, StaffID: 1},
 	}}
-	shifts := &fakeShiftReader{rows: []*StaffShift{
+	shifts := &fakeShiftReader{rows: []*workforce.ShiftRecord{
 		testShift(t, 2, date, "08:00", "12:00"),
 		testShift(t, 3, date, "08:00", "10:00"),
 		testShift(t, 3, date, "10:00", "12:00"),
@@ -368,7 +368,7 @@ func TestStaffScheduleOverview_UsesTenantShiftWeeksPerISOWeek(t *testing.T) {
 	}}
 	instances.rows[0].ID = 41
 	instances.rows[1].ID = 42
-	shifts := &fakeShiftReader{rows: []*StaffShift{{Date: monday.AddDays(5), StaffID: 99}}}
+	shifts := &fakeShiftReader{rows: []*workforce.ShiftRecord{{Date: monday.AddDays(5), StaffID: 99}}}
 	staff := fakeStaff(1, "Ada", "Lovelace")
 	staff.ID = 1
 	service := NewStaffScheduleOverviewService(StaffScheduleOverviewDependencies{
@@ -429,4 +429,9 @@ func TestStaffScheduleOverview_PropagatesReadErrors(t *testing.T) {
 
 func (f *fakeStaffReader) ListMembershipsWithPerson(ctx context.Context) ([]*workforce.PlanStaff, error) {
 	return f.ListAllWithPerson(ctx)
+}
+
+func (f *fakeShiftReader) ListStaffShifts(ctx context.Context, filter workforce.StaffShiftFilter) ([]workforce.StaffShift, error) {
+	rows, err := f.FindByDateRange(ctx, calendar.Date(filter.From), calendar.Date(filter.To))
+	return ShiftCapabilities(rows), err
 }

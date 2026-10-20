@@ -138,7 +138,9 @@ func (s *staffAbsenceService) unrealizedCompTimeDeduction(ctx context.Context, s
 // end] that actually reserve balance (reported/approved) — the set a create
 // over the same range would merge with.
 func (s *staffAbsenceService) effectiveCompTimeAbsences(ctx context.Context, staffID int64, start, end calendar.Date) ([]*StaffAbsence, error) {
-	rows, err := s.absenceRepo.GetByStaffAndDateRange(ctx, staffID, start, end)
+	absenceValues, err := s.absenceRepo.ListStaffAbsences(ctx, workforce.StaffAbsenceFilter{StaffID: staffID, OverlapFrom: start.String(), OverlapTo: end.String(), Order: []workforce.StaffAbsenceOrder{{Field: workforce.StaffAbsenceOrderDateStart}}})
+	rows := absencesToRecord(absenceValues)
+	err = rowReadError("get absences by staff and date range", err, nil)
 	if err != nil {
 		return nil, fmt.Errorf("failed to load existing comp_time absences: %w", err)
 	}

@@ -3,9 +3,6 @@
 package api
 
 import (
-	"context"
-
-	"github.com/moto-nrw/project-phoenix/modules/peopledirectory"
 	peoplePorts "github.com/moto-nrw/project-phoenix/modules/peopledirectory/ports"
 	owners "github.com/moto-nrw/project-phoenix/roots/owners"
 
@@ -44,12 +41,8 @@ func mustStaffReinstatement(db transactionruntime.Database) *schoolmembership.Of
 // NewStudentDirectory adapts the People Directory's directory read to the
 // retained model-typed contract, for suites that may not import the owner's
 // composition.
-func NewStudentDirectory(directory interface {
-	peopledirectory.StudentDirectoryQuery
-	peopledirectory.StudentDirectoryCommand
-	LockEnrollmentClassWrites(context.Context) error
-}) peoplePorts.StudentDirectoryAccess {
-	return peopleCompose.NewStudentDirectory(directory)
+func NewStudentDirectory(directory *peopleCompose.Directory) peoplePorts.StudentDirectoryAccess {
+	return directory.StudentDirectory
 }
 
 // NewEducationGroupRepository is the retained group store on the tenant

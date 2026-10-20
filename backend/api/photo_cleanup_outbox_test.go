@@ -42,7 +42,7 @@ func TestPhotoCleanupOutboxSharesEveryDetachingTransaction(t *testing.T) {
 			db := testpkg.SetupTestDB(t)
 			ctx := testpkg.WithTenantRuntime(t, testpkg.Ctx(t), db)
 			cleanup := fileStorageCompose.NewUploadCleanup(db, "student-photos")
-			photos, err := peopleCompose.New(peopleCompose.Dependencies{DB: db, StudentDirectory: testpkg.StudentDirectory{}, Observe: func(peopleCompose.Observation) {}, StudentPhotos: photoCleanupRuntime{enqueue: cleanup.Queue}})
+			photos, err := peopleCompose.New(peopleCompose.Dependencies{DB: db, StudentDirectory: testpkg.StudentDirectory{}, Observe: func(peopleCompose.Observation) {}, StudentPhotos: photoCleanupRuntime{enqueue: cleanup.Queue}}, nil)
 			require.NoError(t, err)
 			student := testpkg.CreateTestStudent(t, db, "Atomic", "Photo", "1a")
 			oldURL := "/uploads/student-photos/old-photo.jpg"

@@ -5,6 +5,8 @@ import (
 	"fmt"
 	"slices"
 
+	"github.com/moto-nrw/project-phoenix/modules/workforce"
+
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 )
 
@@ -97,7 +99,9 @@ func indexOverviewStaff(staffMembers []OverviewStaff) ([]int64, map[int64]*Staff
 // their breaks.
 func (s *staffOverviewService) prefetchSessionRows(ctx context.Context, prefetch *monthPrefetch, staffIDs []int64) (err error) {
 	end := prefetch.to.AddDays(1).BerlinMidnight()
-	if prefetch.sessions, err = s.sessionRepo.ListOverlappingByStaffIDs(ctx, staffIDs, prefetch.from.BerlinMidnight(), &end); err != nil {
+	sessionRecords, err := s.sessionRepo.ListOverlappingWorkSessions(ctx, staffIDs, prefetch.from.BerlinMidnight(), &end)
+	prefetch.sessions = workSessionsByStaff(sessionRecords)
+	if err = rowReadError("list overlapping by staff IDs", err, nil); err != nil {
 		return fmt.Errorf("failed to prefetch work sessions: %w", err)
 	}
 	// Breaks are keyed by session ID, so they can only be loaded once the
@@ -109,7 +113,14 @@ func (s *staffOverviewService) prefetchSessionRows(ctx context.Context, prefetch
 			sessionIDs = append(sessionIDs, session.ID)
 		}
 	}
-	if prefetch.breaks, err = s.breakRepo.GetBySessionIDs(ctx, sessionIDs); err != nil {
+	var breakRecords []workforce.WorkSessionBreak
+	var breakErr error
+	if len(sessionIDs) > 0 {
+		breakRecords, breakErr = s.breakRepo.ListWorkSessionBreaks(ctx, workforce.WorkSessionBreakFilter{SessionIDs: sessionIDs})
+	}
+	err = breakErr
+	prefetch.breaks = workBreaksBySession(breakRecords)
+	if err = rowReadError("get breaks by session IDs", err, nil); err != nil {
 		return fmt.Errorf("failed to prefetch work-session breaks: %w", err)
 	}
 	return nil
@@ -119,10 +130,16 @@ func (s *staffOverviewService) prefetchSessionRows(ctx context.Context, prefetch
 // the window.
 func (s *staffOverviewService) prefetchCreditRows(ctx context.Context, prefetch *monthPrefetch, staffIDs []int64) (err error) {
 	from, to := prefetch.from, prefetch.to
-	if prefetch.absences, err = s.absenceRepo.GetByStaffIDsAndDateRange(ctx, staffIDs, from, to); err != nil {
+	absenceValues, err := s.absenceRepo.ListStaffAbsences(ctx, workforce.StaffAbsenceFilter{StaffIDs: staffIDs, OverlapFrom: from.String(), OverlapTo: to.String(), Order: []workforce.StaffAbsenceOrder{{Field: workforce.StaffAbsenceOrderStaffID}, {Field: workforce.StaffAbsenceOrderDateStart}}})
+	prefetch.absences = staffAbsencesByID(absenceValues)
+	err = rowReadError("get absences by staff IDs and date range", err, nil)
+	if err != nil {
 		return fmt.Errorf("failed to prefetch absences: %w", err)
 	}
-	if prefetch.adjustments, err = s.adjustmentRepo.GetByStaffIDsAndDateRange(ctx, staffIDs, from, to); err != nil {
+	adjustmentValues, err := s.adjustmentRepo.ListStaffBalanceAdjustments(ctx, workforce.StaffBalanceAdjustmentFilter{StaffIDs: staffIDs, EffectiveFrom: from.String(), EffectiveTo: to.String()})
+	prefetch.adjustments = staffAdjustmentsByID(adjustmentValues)
+	err = rowReadError("get balance adjustments by staff IDs+range", err, nil)
+	if err != nil {
 		return fmt.Errorf("failed to prefetch balance adjustments: %w", err)
 	}
 	if prefetch.shifts, err = s.shiftRepo.FindByStaffIDsAndDateRange(ctx, staffIDs, calendar.Date(from), calendar.Date(to)); err != nil {

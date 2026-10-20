@@ -80,7 +80,7 @@ func TestCustomAbsenceAllowanceSummarizesOnlyItsOwnType(t *testing.T) {
 			CreatedBy: staff.ID,
 		},
 	} {
-		_, err := svc.CreateStaffAbsence(ctx, absence)
+		_, err := svc.CreateStaffAbsence(ctx, &absence)
 		require.NoError(t, err)
 	}
 

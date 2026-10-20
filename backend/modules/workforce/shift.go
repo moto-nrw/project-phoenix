@@ -226,7 +226,7 @@ type ShiftCommand interface {
 
 // StaffShiftCommand writes the concrete shift rows.
 type StaffShiftCommand interface {
-	CreateStaffShift(context.Context, StaffShift) (StaffShift, error)
+	CreateStaffShift(context.Context, *StaffShift) (StaffShift, error)
 	// CreateStaffShifts materializes many rows in one statement.
 	CreateStaffShifts(context.Context, []StaffShift) ([]StaffShift, error)
 	// UpdateStaffShift rewrites every column of the row.
@@ -296,7 +296,10 @@ func (m *Module) UsedStaffShiftWeeks(ctx context.Context, from, to string) ([]st
 	return m.engine.UsedStaffShiftWeeks(ctx, from, to)
 }
 
-func (m *Module) CreateStaffShift(ctx context.Context, shift StaffShift) (StaffShift, error) {
+func (m *Module) CreateStaffShift(ctx context.Context, shift *StaffShift) (StaffShift, error) {
+	if shift == nil {
+		return StaffShift{}, errors.New("StaffShift cannot be nil or zero value")
+	}
 	return m.engine.CreateStaffShift(ctx, shift)
 }
 

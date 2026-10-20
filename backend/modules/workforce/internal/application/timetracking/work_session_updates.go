@@ -2,6 +2,7 @@ package timetracking
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"log/slog"
 	"strconv"
@@ -41,7 +42,9 @@ func (s *workSessionService) UpdateSession(ctx context.Context, staffID int64, s
 	if err := s.lockStaffBalanceWrites(ctx, staffID); err != nil {
 		return nil, err
 	}
-	session, err := s.repo.FindByID(ctx, sessionID)
+	sessionRecords, err := s.repo.FindWorkSession(ctx, sessionID)
+	session := workSessionReadRecord(sessionRecords, err)
+	err = rowReadError("find by id", err, workforce.ErrWorkSessionNotFound)
 	if err != nil {
 		return nil, s.handleSessionNotFoundError(err)
 	}
@@ -121,7 +124,9 @@ func (s *workSessionService) UpdateSessionAsAdmin(ctx context.Context, editorSta
 	if err := s.lockStaffBalanceWrites(ctx, targetStaffID); err != nil {
 		return nil, err
 	}
-	session, err := s.repo.FindByID(ctx, sessionID)
+	sessionRecords, err := s.repo.FindWorkSession(ctx, sessionID)
+	session := workSessionReadRecord(sessionRecords, err)
+	err = rowReadError("find by id", err, workforce.ErrWorkSessionNotFound)
 	if err != nil {
 		return nil, s.handleSessionNotFoundError(err)
 	}
@@ -172,9 +177,15 @@ func (s *workSessionService) applySessionUpdate(ctx context.Context, editorStaff
 		return nil, err
 	}
 
-	if err := s.repo.Update(ctx, session); err != nil {
+	stored, err := s.repo.UpdateWorkSession(ctx, WorkSessionToCapability(session))
+	err = workSessionWriteError("update", err)
+	if errors.Is(err, workforce.ErrWorkSessionNotFound) {
+		err = rowsAffectedError("update WorkSession")
+	}
+	if err != nil {
 		return nil, fmt.Errorf("failed to update session: %w", err)
 	}
+	applyWorkSessionToRecord(session, stored)
 
 	if len(uc.auditEdits) > 0 {
 		for _, edit := range uc.auditEdits {
@@ -222,9 +233,12 @@ func (s *workSessionService) CreateSessionAsAdmin(ctx context.Context, editorSta
 		return nil, fmt.Errorf(errInvalidSessionData, err)
 	}
 
-	if err := s.repo.Create(ctx, session); err != nil {
+	stored, err := s.repo.CreateWorkSession(ctx, WorkSessionToCapability(session))
+	err = workSessionWriteError("create", err)
+	if err != nil {
 		return nil, fmt.Errorf("failed to create session: %w", err)
 	}
+	applyWorkSessionToRecord(session, stored)
 
 	edits := adminCreateAuditEdits(session.ID, targetStaffID, editorStaffID, date, req, tenant.FromContext(ctx))
 	if err := s.auditRepo.CreateBatch(ctx, edits); err != nil {
@@ -304,7 +318,9 @@ func adminCreateAuditEdits(sessionID, targetStaffID, editorStaffID int64, date c
 // that started days earlier and is still running, so the query asks the
 // database for exactly the intersecting rows instead.
 func (s *workSessionService) assertNoBlockOverlap(ctx context.Context, staffID int64, excludeID int64, checkIn time.Time, checkOut *time.Time) error {
-	siblings, err := s.repo.ListOverlappingByStaffID(ctx, staffID, checkIn, checkOut)
+	siblingsRecords, err := s.repo.ListOverlappingWorkSessions(ctx, []int64{staffID}, checkIn, checkOut)
+	siblings := workSessionsToRecords(siblingsRecords)
+	err = rowReadError("list overlapping by staff ID", err, nil)
 	if err != nil {
 		return fmt.Errorf("failed to load sessions for overlap check: %w", err)
 	}
@@ -332,7 +348,8 @@ func (s *workSessionService) closeStaleOpenBlock(ctx context.Context, session *W
 			slog.Int64("session_id", session.ID),
 			slog.String("error", err.Error()))
 	}
-	if _, err := s.repo.CloseSession(ctx, session.ID, at, true); err != nil {
+	_, err := s.repo.CloseWorkSession(ctx, session.ID, at, true)
+	if err = workSessionWriteError("close session", err); err != nil {
 		return fmt.Errorf("failed to close stale work session %d: %w", session.ID, err)
 	}
 	s.getLogger().InfoContext(ctx, "closed stale open work session before new check-in",
@@ -468,7 +485,9 @@ func (s *workSessionService) applyBreakUpdates(ctx context.Context, uc *sessionU
 }
 
 func (s *workSessionService) processIndividualBreakUpdates(ctx context.Context, uc *sessionUpdateContext, breaks []BreakDurationUpdate, strPtr func(string) *string) error {
-	sessionBreaks, err := s.breakRepo.GetBySessionID(ctx, uc.sessionID)
+	sessionBreaksRecords, err := s.breakRepo.ListWorkSessionBreaks(ctx, workforce.WorkSessionBreakFilter{SessionID: uc.sessionID})
+	sessionBreaks := workSessionBreaksToRecords(sessionBreaksRecords)
+	err = rowReadError("get breaks by session ID", err, nil)
 	if err != nil {
 		return fmt.Errorf("failed to load session breaks: %w", err)
 	}
@@ -518,7 +537,9 @@ func (s *workSessionService) updateSingleBreak(ctx context.Context, uc *sessionU
 
 	oldVal := strconv.Itoa(brk.DurationMinutes)
 	newEndedAt := brk.StartedAt.Add(time.Duration(bu.DurationMinutes) * time.Minute)
-	if err := s.breakRepo.UpdateDuration(ctx, bu.ID, bu.DurationMinutes, newEndedAt); err != nil {
+	_, err := s.breakRepo.SetWorkSessionBreakDuration(ctx, bu.ID, bu.DurationMinutes, newEndedAt)
+	err = workSessionWriteError("update columns WorkSessionBreak", err)
+	if err != nil {
 		return fmt.Errorf("failed to update break %d: %w", bu.ID, err)
 	}
 	brk.DurationMinutes = bu.DurationMinutes

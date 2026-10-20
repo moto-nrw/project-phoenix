@@ -273,7 +273,7 @@ func assertConcurrentPlanningRejected(t *testing.T, operation string) {
 		go func() {
 			writerDone <- tenant.WithinCurrentTenant(ctx, func(writerCtx context.Context) error {
 				if operation == "shift" {
-					_, err := sc.workTime.CreateStaffShift(writerCtx, workforce.StaffShift{StaffID: staff.ID, Date: testpkg.TodayDate().AddDays(1).String(), StartTime: "08:00:00", EndTime: "12:00:00", CreatedBy: staff.ID})
+					_, err := sc.workTime.CreateStaffShift(writerCtx, &workforce.StaffShift{StaffID: staff.ID, Date: testpkg.TodayDate().AddDays(1).String(), StartTime: "08:00:00", EndTime: "12:00:00", CreatedBy: staff.ID})
 					return err
 				}
 				if operation == "move_history" {
@@ -1198,7 +1198,7 @@ func TestOffboardStaff_RemovesPendingAndFutureAbsences(t *testing.T) {
 	today := calendar.TodayDate()
 
 	makeAbsence := func(absenceType, status string, start, end calendar.Date) workforce.StaffAbsence {
-		absence, err := sc.workTime.CreateStaffAbsence(sc.ctx, workforce.StaffAbsence{
+		absence, err := sc.workTime.CreateStaffAbsence(sc.ctx, &workforce.StaffAbsence{
 			StaffID:     staff.ID,
 			AbsenceType: absenceType,
 			DateStart:   start.String(),
@@ -1267,7 +1267,7 @@ func TestOffboardStaff_AbsenceAuditFailureRollsBackOffboarding(t *testing.T) {
 
 	staff := testpkg.CreateTestStaff(t, sc.db, "Audit", "Rollback")
 	today := calendar.TodayDate()
-	absence, err := sc.workTime.CreateStaffAbsence(sc.ctx, workforce.StaffAbsence{
+	absence, err := sc.workTime.CreateStaffAbsence(sc.ctx, &workforce.StaffAbsence{
 		StaffID:     staff.ID,
 		AbsenceType: workforce.AbsenceTypeVacation,
 		DateStart:   today.AddDays(1).String(),

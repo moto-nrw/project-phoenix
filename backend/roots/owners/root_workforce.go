@@ -41,7 +41,7 @@ func BuildWorkSessionSide(
 	employment := workforceCompose.MustNewStaffEmployment(db.Pool())
 	audits := audit.Persistence
 	ports := TimeTrackingPorts(workTime, workforceCompose.TimeTrackingPorts{
-		Absences: NewStaffAbsenceRepository(workTime, membership, persons), AbsenceAudits: workforceCompose.NewStaffAbsenceAuditRepository(workTime),
+		Absences: NewStaffAbsenceRepository(workTime, membership, persons), AbsenceAudits: workTime,
 		Staff:        WorkSessionStaff(people.Staff, employment, membership),
 		Supervisions: supervisions, SessionRecords: sessions, Holidays: schoolCalendarCompose.NewNonWorkingDays(calendar),
 		Events:       TimeTrackingEvents(hub),

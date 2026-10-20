@@ -100,7 +100,13 @@ func (s *staffAbsenceService) RequestVacation(ctx context.Context, staffID int64
 	if err := s.ensureVacationFits(ctx, absence, 0, true); err != nil {
 		return nil, err
 	}
-	if err := s.absenceRepo.Create(ctx, absence); err != nil {
+	absenceCommand := StaffAbsenceToCapability(absence)
+	createdAbsence, err := s.absenceRepo.CreateStaffAbsence(ctx, &absenceCommand)
+	err = absenceWriteError("create", err)
+	if err == nil {
+		applyAbsenceToRecord(absence, createdAbsence)
+	}
+	if err != nil {
 		return nil, fmt.Errorf("failed to create vacation request: %w", err)
 	}
 	if err := s.notifyAbsenceRequested(ctx, absence); err != nil {
@@ -111,14 +117,18 @@ func (s *staffAbsenceService) RequestVacation(ctx context.Context, staffID int64
 }
 
 func (s *staffAbsenceService) ApproveAbsence(ctx context.Context, absenceID int64, actorAccountID int64, decidedByStaffID int64, note string) (*StaffAbsenceResponse, error) {
-	absence, err := s.absenceRepo.FindByID(ctx, absenceID)
+	storedAbsence, err := s.absenceRepo.FindStaffAbsence(ctx, absenceID)
+	absence := absenceToRecord(storedAbsence)
+	err = rowReadError("find by id", err, workforce.ErrStaffAbsenceNotFound)
 	if err != nil {
 		return nil, workforce.ErrAbsenceNotFound
 	}
 	if err := s.lockStaffAbsenceWrites(ctx, absence.StaffID); err != nil {
 		return nil, err
 	}
-	absence, err = s.absenceRepo.FindByID(ctx, absenceID)
+	storedAbsence2, err := s.absenceRepo.FindStaffAbsence(ctx, absenceID)
+	absence = absenceToRecord(storedAbsence2)
+	err = rowReadError("find by id", err, workforce.ErrStaffAbsenceNotFound)
 	if err != nil {
 		return nil, workforce.ErrAbsenceNotFound
 	}
@@ -144,7 +154,12 @@ func (s *staffAbsenceService) ApproveAbsence(ctx context.Context, absenceID int6
 	absence.DecisionNote = note
 	absence.UpdatedAt = now
 
-	if err := s.absenceRepo.Update(ctx, absence); err != nil {
+	updatedAbsence, err := s.absenceRepo.UpdateStaffAbsence(ctx, StaffAbsenceToCapability(absence))
+	err = absenceUpdateError(err)
+	if err == nil {
+		applyAbsenceToRecord(absence, updatedAbsence)
+	}
+	if err != nil {
 		return nil, fmt.Errorf("failed to approve absence: %w", err)
 	}
 	if err := s.createAudit(ctx, absence.ID, actorAccountID, fromStatus, absence.Status, note); err != nil {
@@ -161,14 +176,18 @@ func (s *staffAbsenceService) DenyAbsence(ctx context.Context, absenceID int64, 
 	if reason == "" {
 		return nil, workforce.ErrAbsenceDeclineNoteRequired
 	}
-	absence, err := s.absenceRepo.FindByID(ctx, absenceID)
+	storedAbsence, err := s.absenceRepo.FindStaffAbsence(ctx, absenceID)
+	absence := absenceToRecord(storedAbsence)
+	err = rowReadError("find by id", err, workforce.ErrStaffAbsenceNotFound)
 	if err != nil {
 		return nil, workforce.ErrAbsenceNotFound
 	}
 	if err := s.lockStaffAbsenceWrites(ctx, absence.StaffID); err != nil {
 		return nil, err
 	}
-	absence, err = s.absenceRepo.FindByID(ctx, absenceID)
+	storedAbsence2, err := s.absenceRepo.FindStaffAbsence(ctx, absenceID)
+	absence = absenceToRecord(storedAbsence2)
+	err = rowReadError("find by id", err, workforce.ErrStaffAbsenceNotFound)
 	if err != nil {
 		return nil, workforce.ErrAbsenceNotFound
 	}
@@ -184,7 +203,12 @@ func (s *staffAbsenceService) DenyAbsence(ctx context.Context, absenceID int64, 
 	absence.DecisionNote = reason
 	absence.UpdatedAt = now
 
-	if err := s.absenceRepo.Update(ctx, absence); err != nil {
+	updatedAbsence, err := s.absenceRepo.UpdateStaffAbsence(ctx, StaffAbsenceToCapability(absence))
+	err = absenceUpdateError(err)
+	if err == nil {
+		applyAbsenceToRecord(absence, updatedAbsence)
+	}
+	if err != nil {
 		return nil, fmt.Errorf("failed to decline absence: %w", err)
 	}
 	if err := s.createAudit(ctx, absence.ID, actorAccountID, fromStatus, absence.Status, reason); err != nil {
@@ -202,14 +226,18 @@ func (s *staffAbsenceService) QuestionAbsence(ctx context.Context, absenceID int
 	if note == "" {
 		return nil, workforce.ErrAbsenceQuestionNoteRequired
 	}
-	absence, err := s.absenceRepo.FindByID(ctx, absenceID)
+	storedAbsence, err := s.absenceRepo.FindStaffAbsence(ctx, absenceID)
+	absence := absenceToRecord(storedAbsence)
+	err = rowReadError("find by id", err, workforce.ErrStaffAbsenceNotFound)
 	if err != nil {
 		return nil, workforce.ErrAbsenceNotFound
 	}
 	if err := s.lockStaffAbsenceWrites(ctx, absence.StaffID); err != nil {
 		return nil, err
 	}
-	absence, err = s.absenceRepo.FindByID(ctx, absenceID)
+	storedAbsence2, err := s.absenceRepo.FindStaffAbsence(ctx, absenceID)
+	absence = absenceToRecord(storedAbsence2)
+	err = rowReadError("find by id", err, workforce.ErrStaffAbsenceNotFound)
 	if err != nil {
 		return nil, workforce.ErrAbsenceNotFound
 	}
@@ -223,7 +251,12 @@ func (s *staffAbsenceService) QuestionAbsence(ctx context.Context, absenceID int
 	absence.DecisionNote = note
 	absence.UpdatedAt = time.Now()
 
-	if err := s.absenceRepo.Update(ctx, absence); err != nil {
+	updatedAbsence, err := s.absenceRepo.UpdateStaffAbsence(ctx, StaffAbsenceToCapability(absence))
+	err = absenceUpdateError(err)
+	if err == nil {
+		applyAbsenceToRecord(absence, updatedAbsence)
+	}
+	if err != nil {
 		return nil, fmt.Errorf("failed to question absence: %w", err)
 	}
 	if err := s.createAudit(ctx, absence.ID, actorAccountID, fromStatus, absence.Status, note); err != nil {
@@ -244,7 +277,9 @@ func (s *staffAbsenceService) ResubmitAbsence(ctx context.Context, staffID int64
 	if err := s.lockStaffAbsenceWrites(ctx, staffID); err != nil {
 		return nil, err
 	}
-	absence, err := s.absenceRepo.FindByID(ctx, absenceID)
+	storedAbsence, err := s.absenceRepo.FindStaffAbsence(ctx, absenceID)
+	absence := absenceToRecord(storedAbsence)
+	err = rowReadError("find by id", err, workforce.ErrStaffAbsenceNotFound)
 	if err != nil {
 		return nil, workforce.ErrAbsenceNotFound
 	}
@@ -262,7 +297,12 @@ func (s *staffAbsenceService) ResubmitAbsence(ctx context.Context, staffID int64
 	absence.RequestedAt = now
 	absence.UpdatedAt = now
 
-	if err := s.absenceRepo.Update(ctx, absence); err != nil {
+	updatedAbsence, err := s.absenceRepo.UpdateStaffAbsence(ctx, StaffAbsenceToCapability(absence))
+	err = absenceUpdateError(err)
+	if err == nil {
+		applyAbsenceToRecord(absence, updatedAbsence)
+	}
+	if err != nil {
 		return nil, fmt.Errorf("failed to resubmit absence: %w", err)
 	}
 	if err := s.createAudit(ctx, absence.ID, actorAccountID, fromStatus, absence.Status, note); err != nil {
@@ -280,7 +320,9 @@ func (s *staffAbsenceService) CancelAbsence(ctx context.Context, staffID int64, 
 	if err := s.lockStaffAbsenceWrites(ctx, staffID); err != nil {
 		return err
 	}
-	absence, err := s.absenceRepo.FindByID(ctx, absenceID)
+	storedAbsence, err := s.absenceRepo.FindStaffAbsence(ctx, absenceID)
+	absence := absenceToRecord(storedAbsence)
+	err = rowReadError("find by id", err, workforce.ErrStaffAbsenceNotFound)
 	if err != nil {
 		return workforce.ErrAbsenceNotFound
 	}
@@ -302,7 +344,12 @@ func (s *staffAbsenceService) CancelAbsence(ctx context.Context, staffID int64, 
 	fromStatus := absence.Status
 	absence.Status = AbsenceStatusCanceled
 	absence.UpdatedAt = time.Now()
-	if err := s.absenceRepo.Update(ctx, absence); err != nil {
+	updatedAbsence, err := s.absenceRepo.UpdateStaffAbsence(ctx, StaffAbsenceToCapability(absence))
+	err = absenceUpdateError(err)
+	if err == nil {
+		applyAbsenceToRecord(absence, updatedAbsence)
+	}
+	if err != nil {
 		return fmt.Errorf("failed to cancel absence: %w", err)
 	}
 	if err := s.createAudit(ctx, absence.ID, actorAccountID, fromStatus, absence.Status, ""); err != nil {
@@ -323,7 +370,15 @@ func (s *staffAbsenceService) createAudit(ctx context.Context, absenceID int64, 
 		ActorID:    actorAccountID,
 		Note:       note,
 	}
-	return s.auditRepo.Create(ctx, audit)
+	if err := audit.Validate(); err != nil {
+		return err
+	}
+	value, err := s.auditRepo.RecordStaffAbsenceAudit(ctx, absenceAuditValue(audit))
+	if err != nil {
+		return absenceWriteError("create staff absence audit", err)
+	}
+	applyAbsenceAudit(audit, value)
+	return nil
 }
 
 func isBeforeLocalToday(date calendar.Date, now time.Time) bool {
@@ -335,7 +390,9 @@ func (s *staffAbsenceService) lockVacationRequestRange(ctx context.Context, staf
 		return err
 	}
 
-	existing, err := s.absenceRepo.GetByStaffAndDateRange(ctx, staffID, dateStart, dateEnd)
+	absenceValues, err := s.absenceRepo.ListStaffAbsences(ctx, workforce.StaffAbsenceFilter{StaffID: staffID, OverlapFrom: dateStart.String(), OverlapTo: dateEnd.String(), Order: []workforce.StaffAbsenceOrder{{Field: workforce.StaffAbsenceOrderDateStart}}})
+	existing := absencesToRecord(absenceValues)
+	err = rowReadError("get absences by staff and date range", err, nil)
 	if err != nil {
 		return fmt.Errorf("failed to check existing absences: %w", err)
 	}

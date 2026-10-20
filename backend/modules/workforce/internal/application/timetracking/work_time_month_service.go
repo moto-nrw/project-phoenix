@@ -436,7 +436,9 @@ func (s *workTimeMonthService) GetBalanceAdjustmentMinutes(ctx context.Context, 
 	if s.adjustmentRepo == nil {
 		return 0, nil
 	}
-	adjustments, err := s.adjustmentRepo.GetByStaffAndDateRange(ctx, staffID, from, to)
+	adjustmentValues, err := s.adjustmentRepo.ListStaffBalanceAdjustments(ctx, workforce.StaffBalanceAdjustmentFilter{StaffID: staffID, EffectiveFrom: from.String(), EffectiveTo: to.String()})
+	adjustments := adjustmentsToRecords(adjustmentValues)
+	err = rowReadError("get balance adjustments by staff+range", err, nil)
 	if err != nil {
 		return 0, fmt.Errorf("failed to load balance adjustments: %w", err)
 	}

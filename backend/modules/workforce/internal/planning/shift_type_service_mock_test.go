@@ -10,6 +10,7 @@ import (
 	"errors"
 	"testing"
 
+	"github.com/moto-nrw/project-phoenix/modules/workforce"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"github.com/uptrace/bun/driver/pgdriver"
@@ -29,30 +30,30 @@ func (rowNotFoundError) Error() string       { return "repository: not found" }
 func (rowNotFoundError) RepositoryNotFound() {}
 
 type shiftTypeMockRepo struct {
-	createFunc        func(ctx context.Context, st *ShiftType) error
-	findByIDFunc      func(ctx context.Context, id any) (*ShiftType, error)
-	updateFunc        func(ctx context.Context, st *ShiftType) error
+	createFunc        func(ctx context.Context, st *workforce.ShiftTypeRecord) error
+	findByIDFunc      func(ctx context.Context, id any) (*workforce.ShiftTypeRecord, error)
+	updateFunc        func(ctx context.Context, st *workforce.ShiftTypeRecord) error
 	deleteFunc        func(ctx context.Context, id any) error
-	listAllFunc       func(ctx context.Context) ([]*ShiftType, error)
-	createIfAbsentFn  func(ctx context.Context, st *ShiftType) (bool, error)
+	listAllFunc       func(ctx context.Context) ([]*workforce.ShiftTypeRecord, error)
+	createIfAbsentFn  func(ctx context.Context, st *workforce.ShiftTypeRecord) (bool, error)
 	createIfAbsentHit int
 }
 
-func (m *shiftTypeMockRepo) Create(ctx context.Context, st *ShiftType) error {
+func (m *shiftTypeMockRepo) Create(ctx context.Context, st *workforce.ShiftTypeRecord) error {
 	if m.createFunc != nil {
 		return m.createFunc(ctx, st)
 	}
 	return nil
 }
 
-func (m *shiftTypeMockRepo) FindByID(ctx context.Context, id any) (*ShiftType, error) {
+func (m *shiftTypeMockRepo) FindByID(ctx context.Context, id any) (*workforce.ShiftTypeRecord, error) {
 	if m.findByIDFunc != nil {
 		return m.findByIDFunc(ctx, id)
 	}
 	return nil, errRowNotFound
 }
 
-func (m *shiftTypeMockRepo) Update(ctx context.Context, st *ShiftType) error {
+func (m *shiftTypeMockRepo) Update(ctx context.Context, st *workforce.ShiftTypeRecord) error {
 	if m.updateFunc != nil {
 		return m.updateFunc(ctx, st)
 	}
@@ -66,14 +67,14 @@ func (m *shiftTypeMockRepo) Delete(ctx context.Context, id any) error {
 	return nil
 }
 
-func (m *shiftTypeMockRepo) ListAll(ctx context.Context) ([]*ShiftType, error) {
+func (m *shiftTypeMockRepo) ListAll(ctx context.Context) ([]*workforce.ShiftTypeRecord, error) {
 	if m.listAllFunc != nil {
 		return m.listAllFunc(ctx)
 	}
 	return nil, nil
 }
 
-func (m *shiftTypeMockRepo) CreateIfAbsent(ctx context.Context, st *ShiftType) (bool, error) {
+func (m *shiftTypeMockRepo) CreateIfAbsent(ctx context.Context, st *workforce.ShiftTypeRecord) (bool, error) {
 	m.createIfAbsentHit++
 	if m.createIfAbsentFn != nil {
 		return m.createIfAbsentFn(ctx, st)
@@ -81,8 +82,8 @@ func (m *shiftTypeMockRepo) CreateIfAbsent(ctx context.Context, st *ShiftType) (
 	return true, nil
 }
 
-func validShiftType() *ShiftType {
-	return &ShiftType{Name: "Betreuung", Color: "#83CD2D", IsActive: true}
+func validShiftType() *workforce.ShiftTypeRecord {
+	return &workforce.ShiftTypeRecord{Name: "Betreuung", Color: "#83CD2D", IsActive: true}
 }
 
 // ----------------------------------------------------------------------------
@@ -102,7 +103,7 @@ func TestShiftTypeService_GetShiftType_Branches(t *testing.T) {
 
 	t.Run("a missing row maps to not found", func(t *testing.T) {
 		svc := NewShiftTypeService(&shiftTypeMockRepo{
-			findByIDFunc: func(context.Context, any) (*ShiftType, error) {
+			findByIDFunc: func(context.Context, any) (*workforce.ShiftTypeRecord, error) {
 				return nil, errRowNotFound
 			},
 		}, nil)
@@ -112,7 +113,7 @@ func TestShiftTypeService_GetShiftType_Branches(t *testing.T) {
 
 	t.Run("generic repo error is wrapped", func(t *testing.T) {
 		svc := NewShiftTypeService(&shiftTypeMockRepo{
-			findByIDFunc: func(context.Context, any) (*ShiftType, error) {
+			findByIDFunc: func(context.Context, any) (*workforce.ShiftTypeRecord, error) {
 				return nil, errors.New("db down")
 			},
 		}, nil)
@@ -124,7 +125,7 @@ func TestShiftTypeService_GetShiftType_Branches(t *testing.T) {
 
 	t.Run("nil row is not found", func(t *testing.T) {
 		svc := NewShiftTypeService(&shiftTypeMockRepo{
-			findByIDFunc: func(context.Context, any) (*ShiftType, error) {
+			findByIDFunc: func(context.Context, any) (*workforce.ShiftTypeRecord, error) {
 				return nil, nil
 			},
 		}, nil)
@@ -136,7 +137,7 @@ func TestShiftTypeService_GetShiftType_Branches(t *testing.T) {
 		want := validShiftType()
 		want.ID = 5
 		svc := NewShiftTypeService(&shiftTypeMockRepo{
-			findByIDFunc: func(context.Context, any) (*ShiftType, error) {
+			findByIDFunc: func(context.Context, any) (*workforce.ShiftTypeRecord, error) {
 				return want, nil
 			},
 		}, nil)
@@ -149,9 +150,9 @@ func TestShiftTypeService_GetShiftType_Branches(t *testing.T) {
 func TestShiftTypeService_ListShiftTypes_Delegates(t *testing.T) {
 	t.Parallel()
 
-	rows := []*ShiftType{validShiftType()}
+	rows := []*workforce.ShiftTypeRecord{validShiftType()}
 	svc := NewShiftTypeService(&shiftTypeMockRepo{
-		listAllFunc: func(context.Context) ([]*ShiftType, error) { return rows, nil },
+		listAllFunc: func(context.Context) ([]*workforce.ShiftTypeRecord, error) { return rows, nil },
 	}, nil)
 	got, err := svc.ListShiftTypes(context.Background())
 	require.NoError(t, err)
@@ -169,13 +170,13 @@ func TestShiftTypeService_CreateShiftType_Branches(t *testing.T) {
 
 	t.Run("invalid input is rejected before hitting the repo", func(t *testing.T) {
 		svc := NewShiftTypeService(&shiftTypeMockRepo{}, nil)
-		_, err := svc.CreateShiftType(ctx, &ShiftType{Name: "   "})
+		_, err := svc.CreateShiftType(ctx, &workforce.ShiftTypeRecord{Name: "   "})
 		require.ErrorIs(t, err, ErrShiftTypeInvalid)
 	})
 
 	t.Run("name-check repo error propagates", func(t *testing.T) {
 		svc := NewShiftTypeService(&shiftTypeMockRepo{
-			listAllFunc: func(context.Context) ([]*ShiftType, error) {
+			listAllFunc: func(context.Context) ([]*workforce.ShiftTypeRecord, error) {
 				return nil, errors.New("list failed")
 			},
 		}, nil)
@@ -188,8 +189,8 @@ func TestShiftTypeService_CreateShiftType_Branches(t *testing.T) {
 		existing := validShiftType()
 		existing.ID = 9
 		svc := NewShiftTypeService(&shiftTypeMockRepo{
-			listAllFunc: func(context.Context) ([]*ShiftType, error) {
-				return []*ShiftType{existing}, nil
+			listAllFunc: func(context.Context) ([]*workforce.ShiftTypeRecord, error) {
+				return []*workforce.ShiftTypeRecord{existing}, nil
 			},
 		}, nil)
 		_, err := svc.CreateShiftType(ctx, validShiftType())
@@ -198,7 +199,7 @@ func TestShiftTypeService_CreateShiftType_Branches(t *testing.T) {
 
 	t.Run("non-conflict repo error propagates verbatim", func(t *testing.T) {
 		svc := NewShiftTypeService(&shiftTypeMockRepo{
-			createFunc: func(context.Context, *ShiftType) error {
+			createFunc: func(context.Context, *workforce.ShiftTypeRecord) error {
 				return errors.New("insert boom")
 			},
 		}, nil)
@@ -210,7 +211,7 @@ func TestShiftTypeService_CreateShiftType_Branches(t *testing.T) {
 
 	t.Run("success returns the created row", func(t *testing.T) {
 		svc := NewShiftTypeService(&shiftTypeMockRepo{
-			createFunc: func(_ context.Context, st *ShiftType) error {
+			createFunc: func(_ context.Context, st *workforce.ShiftTypeRecord) error {
 				st.ID = 11
 				return nil
 			},
@@ -229,7 +230,7 @@ func TestShiftTypeService_UpdateShiftType_Branches(t *testing.T) {
 	t.Parallel()
 
 	ctx := context.Background()
-	withID := func(id int64) *ShiftType {
+	withID := func(id int64) *workforce.ShiftTypeRecord {
 		st := validShiftType()
 		st.ID = id
 		return st
@@ -243,7 +244,7 @@ func TestShiftTypeService_UpdateShiftType_Branches(t *testing.T) {
 
 	t.Run("missing row is not found", func(t *testing.T) {
 		svc := NewShiftTypeService(&shiftTypeMockRepo{
-			findByIDFunc: func(context.Context, any) (*ShiftType, error) {
+			findByIDFunc: func(context.Context, any) (*workforce.ShiftTypeRecord, error) {
 				return nil, errRowNotFound
 			},
 		}, nil)
@@ -253,7 +254,7 @@ func TestShiftTypeService_UpdateShiftType_Branches(t *testing.T) {
 
 	t.Run("lookup error is wrapped", func(t *testing.T) {
 		svc := NewShiftTypeService(&shiftTypeMockRepo{
-			findByIDFunc: func(context.Context, any) (*ShiftType, error) {
+			findByIDFunc: func(context.Context, any) (*workforce.ShiftTypeRecord, error) {
 				return nil, errors.New("db down")
 			},
 		}, nil)
@@ -264,7 +265,7 @@ func TestShiftTypeService_UpdateShiftType_Branches(t *testing.T) {
 
 	t.Run("nil existing row is not found", func(t *testing.T) {
 		svc := NewShiftTypeService(&shiftTypeMockRepo{
-			findByIDFunc: func(context.Context, any) (*ShiftType, error) {
+			findByIDFunc: func(context.Context, any) (*workforce.ShiftTypeRecord, error) {
 				return nil, nil
 			},
 		}, nil)
@@ -274,7 +275,7 @@ func TestShiftTypeService_UpdateShiftType_Branches(t *testing.T) {
 
 	t.Run("invalid input is rejected", func(t *testing.T) {
 		svc := NewShiftTypeService(&shiftTypeMockRepo{
-			findByIDFunc: func(context.Context, any) (*ShiftType, error) {
+			findByIDFunc: func(context.Context, any) (*workforce.ShiftTypeRecord, error) {
 				return withID(5), nil
 			},
 		}, nil)
@@ -287,10 +288,10 @@ func TestShiftTypeService_UpdateShiftType_Branches(t *testing.T) {
 	t.Run("name-check error propagates", func(t *testing.T) {
 		calls := 0
 		svc := NewShiftTypeService(&shiftTypeMockRepo{
-			findByIDFunc: func(context.Context, any) (*ShiftType, error) {
+			findByIDFunc: func(context.Context, any) (*workforce.ShiftTypeRecord, error) {
 				return withID(5), nil
 			},
-			listAllFunc: func(context.Context) ([]*ShiftType, error) {
+			listAllFunc: func(context.Context) ([]*workforce.ShiftTypeRecord, error) {
 				calls++
 				return nil, errors.New("list failed")
 			},
@@ -305,11 +306,11 @@ func TestShiftTypeService_UpdateShiftType_Branches(t *testing.T) {
 		other := validShiftType()
 		other.ID = 99
 		svc := NewShiftTypeService(&shiftTypeMockRepo{
-			findByIDFunc: func(context.Context, any) (*ShiftType, error) {
+			findByIDFunc: func(context.Context, any) (*workforce.ShiftTypeRecord, error) {
 				return withID(5), nil
 			},
-			listAllFunc: func(context.Context) ([]*ShiftType, error) {
-				return []*ShiftType{other}, nil
+			listAllFunc: func(context.Context) ([]*workforce.ShiftTypeRecord, error) {
+				return []*workforce.ShiftTypeRecord{other}, nil
 			},
 		}, nil)
 		_, err := svc.UpdateShiftType(ctx, withID(5))
@@ -318,10 +319,10 @@ func TestShiftTypeService_UpdateShiftType_Branches(t *testing.T) {
 
 	t.Run("non-conflict update error propagates", func(t *testing.T) {
 		svc := NewShiftTypeService(&shiftTypeMockRepo{
-			findByIDFunc: func(context.Context, any) (*ShiftType, error) {
+			findByIDFunc: func(context.Context, any) (*workforce.ShiftTypeRecord, error) {
 				return withID(5), nil
 			},
-			updateFunc: func(context.Context, *ShiftType) error {
+			updateFunc: func(context.Context, *workforce.ShiftTypeRecord) error {
 				return errors.New("update boom")
 			},
 		}, nil)
@@ -335,7 +336,7 @@ func TestShiftTypeService_UpdateShiftType_Branches(t *testing.T) {
 		existing := withID(5)
 		existing.TenantID = 77
 		svc := NewShiftTypeService(&shiftTypeMockRepo{
-			findByIDFunc: func(context.Context, any) (*ShiftType, error) {
+			findByIDFunc: func(context.Context, any) (*workforce.ShiftTypeRecord, error) {
 				return existing, nil
 			},
 		}, nil)
@@ -365,7 +366,7 @@ func TestShiftTypeService_DeleteShiftType_Branches(t *testing.T) {
 
 	t.Run("missing row is not found", func(t *testing.T) {
 		svc := NewShiftTypeService(&shiftTypeMockRepo{
-			findByIDFunc: func(context.Context, any) (*ShiftType, error) {
+			findByIDFunc: func(context.Context, any) (*workforce.ShiftTypeRecord, error) {
 				return nil, errRowNotFound
 			},
 		}, nil)
@@ -374,7 +375,7 @@ func TestShiftTypeService_DeleteShiftType_Branches(t *testing.T) {
 
 	t.Run("lookup error is wrapped", func(t *testing.T) {
 		svc := NewShiftTypeService(&shiftTypeMockRepo{
-			findByIDFunc: func(context.Context, any) (*ShiftType, error) {
+			findByIDFunc: func(context.Context, any) (*workforce.ShiftTypeRecord, error) {
 				return nil, errors.New("db down")
 			},
 		}, nil)
@@ -385,7 +386,7 @@ func TestShiftTypeService_DeleteShiftType_Branches(t *testing.T) {
 
 	t.Run("nil existing row is not found", func(t *testing.T) {
 		svc := NewShiftTypeService(&shiftTypeMockRepo{
-			findByIDFunc: func(context.Context, any) (*ShiftType, error) {
+			findByIDFunc: func(context.Context, any) (*workforce.ShiftTypeRecord, error) {
 				return nil, nil
 			},
 		}, nil)
@@ -394,7 +395,7 @@ func TestShiftTypeService_DeleteShiftType_Branches(t *testing.T) {
 
 	t.Run("delete error propagates", func(t *testing.T) {
 		svc := NewShiftTypeService(&shiftTypeMockRepo{
-			findByIDFunc: func(context.Context, any) (*ShiftType, error) {
+			findByIDFunc: func(context.Context, any) (*workforce.ShiftTypeRecord, error) {
 				return existing, nil
 			},
 			deleteFunc: func(context.Context, any) error { return errors.New("delete boom") },
@@ -406,7 +407,7 @@ func TestShiftTypeService_DeleteShiftType_Branches(t *testing.T) {
 
 	t.Run("success", func(t *testing.T) {
 		svc := NewShiftTypeService(&shiftTypeMockRepo{
-			findByIDFunc: func(context.Context, any) (*ShiftType, error) {
+			findByIDFunc: func(context.Context, any) (*workforce.ShiftTypeRecord, error) {
 				return existing, nil
 			},
 		}, nil)
@@ -425,7 +426,7 @@ func TestShiftTypeService_CreateDefaults_Branches(t *testing.T) {
 
 	t.Run("initial list error propagates", func(t *testing.T) {
 		svc := NewShiftTypeService(&shiftTypeMockRepo{
-			listAllFunc: func(context.Context) ([]*ShiftType, error) {
+			listAllFunc: func(context.Context) ([]*workforce.ShiftTypeRecord, error) {
 				return nil, errors.New("list failed")
 			},
 		}, nil)
@@ -436,8 +437,8 @@ func TestShiftTypeService_CreateDefaults_Branches(t *testing.T) {
 
 	t.Run("create-if-absent error propagates", func(t *testing.T) {
 		svc := NewShiftTypeService(&shiftTypeMockRepo{
-			listAllFunc: func(context.Context) ([]*ShiftType, error) { return nil, nil },
-			createIfAbsentFn: func(context.Context, *ShiftType) (bool, error) {
+			listAllFunc: func(context.Context) ([]*workforce.ShiftTypeRecord, error) { return nil, nil },
+			createIfAbsentFn: func(context.Context, *workforce.ShiftTypeRecord) (bool, error) {
 				return false, errors.New("seed boom")
 			},
 		}, nil)
@@ -447,10 +448,10 @@ func TestShiftTypeService_CreateDefaults_Branches(t *testing.T) {
 	})
 
 	t.Run("skips defaults whose name already exists", func(t *testing.T) {
-		present := &ShiftType{Name: "Pause", Color: "#6B7280", IsActive: true}
+		present := &workforce.ShiftTypeRecord{Name: "Pause", Color: "#6B7280", IsActive: true}
 		repo := &shiftTypeMockRepo{
-			listAllFunc: func(context.Context) ([]*ShiftType, error) {
-				return []*ShiftType{present}, nil
+			listAllFunc: func(context.Context) ([]*workforce.ShiftTypeRecord, error) {
+				return []*workforce.ShiftTypeRecord{present}, nil
 			},
 		}
 		svc := NewShiftTypeService(repo, nil)
@@ -472,4 +473,41 @@ func TestIsShiftTypeNameConflict(t *testing.T) {
 	assert.False(t, isShiftTypeNameConflict(errors.New("plain")), "a plain error is not a pg conflict")
 	// A bare driver error is not the Workforce store's name conflict.
 	assert.False(t, isShiftTypeNameConflict(pgdriver.Error{}), "a pg error without 23505 is not a conflict")
+}
+
+func (m *shiftTypeMockRepo) CreateShiftType(ctx context.Context, v workforce.ShiftType) (workforce.ShiftType, error) {
+	row := shiftTypeToRow(v)
+	err := m.Create(ctx, row)
+	return shiftTypeRowToCapability(row), err
+}
+func (m *shiftTypeMockRepo) FindShiftType(ctx context.Context, id int64) (workforce.ShiftType, error) {
+	row, err := m.FindByID(ctx, id)
+	if row == nil {
+		if err == nil {
+			err = workforce.ErrShiftTypeNotFound
+		}
+		return workforce.ShiftType{}, err
+	}
+	return shiftTypeRowToCapability(row), err
+}
+func (m *shiftTypeMockRepo) UpdateShiftType(ctx context.Context, v workforce.ShiftType) (workforce.ShiftType, error) {
+	row := shiftTypeToRow(v)
+	err := m.Update(ctx, row)
+	return shiftTypeRowToCapability(row), err
+}
+func (m *shiftTypeMockRepo) DeleteShiftType(ctx context.Context, id int64) error {
+	return m.Delete(ctx, id)
+}
+func (m *shiftTypeMockRepo) ListShiftTypes(ctx context.Context) ([]workforce.ShiftType, error) {
+	rows, err := m.ListAll(ctx)
+	result := make([]workforce.ShiftType, 0, len(rows))
+	for _, row := range rows {
+		result = append(result, shiftTypeRowToCapability(row))
+	}
+	return result, err
+}
+func (m *shiftTypeMockRepo) CreateShiftTypeIfAbsent(ctx context.Context, v workforce.ShiftType) (workforce.ShiftType, bool, error) {
+	row := shiftTypeToRow(v)
+	inserted, err := m.CreateIfAbsent(ctx, row)
+	return shiftTypeRowToCapability(row), inserted, err
 }

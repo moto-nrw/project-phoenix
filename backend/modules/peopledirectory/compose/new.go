@@ -80,19 +80,18 @@ type Dependencies struct {
 	GuardianProvider *GuardianDirectoryProvider
 }
 
-// New composes People Directory without Identity & Access account projections.
-// Graphs that need the parents-app reachability capability use
-// NewWithGuardianMemberships so those owner queries stay at the composition seam.
-func New(dependencies Dependencies) (*peopledirectory.Module, error) {
-	return NewWithGuardianMemberships(dependencies, nil)
+// Directory keeps the public capability and its native services in one owner
+// composition. Retained same-owner services use the native operations directly.
+type Directory struct {
+	*peopledirectory.Module
+	students         *application.StudentService
+	PersonWrites     peoplePorts.PersonWriter
+	StudentDirectory peoplePorts.StudentDirectoryAccess
 }
 
-// NewWithGuardianMemberships composes People Directory with the Identity &
-// Access projection that identifies active accounts, guardian roles, and
-// active school memberships. It is a constructor argument rather than a
-// Dependencies field: only the guardian reachability read needs it, while
-// all other People Directory graphs stay independent of Identity & Access.
-func NewWithGuardianMemberships(dependencies Dependencies, memberships GuardianMembershipQuery) (*peopledirectory.Module, error) {
+// New composes the public capability and native same-owner operations. The
+// optional guardian-account projection is supplied explicitly by its root.
+func New(dependencies Dependencies, memberships GuardianMembershipQuery) (*Directory, error) {
 	if dependencies.DB == nil || dependencies.Observe == nil || dependencies.StudentDirectory == nil {
 		return nil, errors.New("people directory compose: all dependencies are required")
 	}
@@ -129,20 +128,28 @@ func NewWithGuardianMemberships(dependencies Dependencies, memberships GuardianM
 		noteStore, postgres.New(database),
 		postgres.NewStudentStore(database, dependencies.StudentDirectory, owners.LockClassWrites, dependencies.StudentClassWriteGateQuery),
 		transaction{}, noteDeletionAudit, observe)
-	return newModule(application.NewEngine(application.EngineServices{
+	module, err := newModule(application.NewEngine(application.EngineServices{
 		Service: service, Students: students, Guardians: guardians,
 		StudentAudit: studentAudit, StudentConsents: studentConsents,
 		StudentPhotos: studentPhotos, StudentNotes: studentNotes, Observe: observe,
 		GuardianLifecycle: application.NewGuardianLifecycle(guardians, dependencies.GuardianRolePresets),
 	}), dependencies.GuardianProvider)
+	if err != nil {
+		return nil, err
+	}
+	return &Directory{
+		Module: module, students: students,
+		PersonWrites:     application.NewPersonRows(service),
+		StudentDirectory: application.NewStudentDirectoryRows(students, studentPhotos),
+	}, nil
 }
 
 // MustNewReads composes the People Directory unobserved and without its write
 // owners or audit seams, for the student reads and the row lock other owners'
 // compositions take. Composing only fails on a missing dependency, which is a
 // programming error at wiring time.
-func MustNewReads(db *bun.DB, students StudentDirectoryRows) *peopledirectory.Module {
-	module, err := New(Dependencies{DB: db, StudentDirectory: students, Observe: func(Observation) {}})
+func MustNewReads(db *bun.DB, students StudentDirectoryRows) *Directory {
+	module, err := New(Dependencies{DB: db, StudentDirectory: students, Observe: func(Observation) {}}, nil)
 	if err != nil {
 		panic(fmt.Sprintf("compose people directory reads: %v", err))
 	}

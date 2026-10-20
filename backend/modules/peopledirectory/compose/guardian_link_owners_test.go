@@ -43,9 +43,9 @@ func (o failingGuardianLinkOwners) GrantGuardianStudentAccess(ctx context.Contex
 
 func buildModuleWithLinkOwners(t *testing.T, db *bun.DB, owners GuardianLinkOwners) *peopledirectory.Module {
 	t.Helper()
-	module, err := NewWithGuardianMemberships(Dependencies{StudentDirectory: testpkg.StudentDirectory{}, DB: db, Observe: func(Observation) {}, GuardianLinkOwners: owners, GuardianLinkRows: testpkg.GuardianLinks{}}, testPortalMemberships(db))
+	module, err := New(Dependencies{StudentDirectory: testpkg.StudentDirectory{}, DB: db, Observe: func(Observation) {}, GuardianLinkOwners: owners, GuardianLinkRows: testpkg.GuardianLinks{}}, testPortalMemberships(db))
 	require.NoError(t, err)
-	return module
+	return module.Module
 }
 
 func countLinkHalves(t *testing.T, db *bun.DB, studentID, guardianID int64) int {

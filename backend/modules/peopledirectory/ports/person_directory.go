@@ -12,10 +12,10 @@ import (
 // person directory.
 type PersonDirectoryDependencies struct {
 	// PersonDirectory is the owner's person write path (#3349); the
-	// composition root binds NewPersonWrites.
+	// composition root binds Directory.PersonWrites.
 	PersonDirectory PersonWriter
 	// StudentDirectory is the owner's locked child read (#3349); the
-	// composition root binds NewStudentDirectory.
+	// composition root binds Directory.StudentDirectory.
 	StudentDirectory StudentLocker
 	// Repository dependencies
 	PersonRepo    PersonRepository

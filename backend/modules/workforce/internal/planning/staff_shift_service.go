@@ -37,18 +37,18 @@ var (
 // StaffShiftService manages planned per-date staff shifts (Dienstplan).
 type StaffShiftService interface {
 	// ListShifts returns all staff shifts in the range (admin week view).
-	ListShifts(ctx context.Context, start, end calendar.Date) ([]*StaffShift, error)
+	ListShifts(ctx context.Context, start, end calendar.Date) ([]*workforce.ShiftRecord, error)
 	// ListShiftsForStaff returns one staff member's shifts in the range.
-	ListShiftsForStaff(ctx context.Context, staffID int64, start, end calendar.Date) ([]*StaffShift, error)
+	ListShiftsForStaff(ctx context.Context, staffID int64, start, end calendar.Date) ([]*workforce.ShiftRecord, error)
 	// CreateShift validates and persists a new shift.
-	CreateShift(ctx context.Context, shift *StaffShift) (*StaffShift, error)
+	CreateShift(ctx context.Context, shift *workforce.ShiftRecord) (*workforce.ShiftRecord, error)
 	// UpdateShift validates and persists changes to an existing shift.
-	UpdateShift(ctx context.Context, shift *StaffShift) (*StaffShift, error)
+	UpdateShift(ctx context.Context, shift *workforce.ShiftRecord) (*workforce.ShiftRecord, error)
 	// UpdateShiftWithOptions validates and persists changes with update-specific merge options.
-	UpdateShiftWithOptions(ctx context.Context, shift *StaffShift, opts StaffShiftUpdateOptions) (*StaffShift, error)
+	UpdateShiftWithOptions(ctx context.Context, shift *workforce.ShiftRecord, opts StaffShiftUpdateOptions) (*workforce.ShiftRecord, error)
 	// MoveShift atomically and retry-safely moves one concrete shift to another
 	// person and/or slot while preserving its identity and metadata.
-	MoveShift(ctx context.Context, input MoveShiftInput) (*StaffShift, error)
+	MoveShift(ctx context.Context, input MoveShiftInput) (*workforce.ShiftRecord, error)
 	// DeleteShift removes a shift.
 	DeleteShift(ctx context.Context, id int64) error
 	// ApplyCancellation atomically cancels (or reactivates) a shift and replaces
@@ -69,7 +69,7 @@ type StaffShiftOption func(*staffShiftService)
 // (#1889). When set, deleting a series-backed shift records the date as a
 // series exception so re-plans never regenerate the removed occurrence.
 // Optional so unit tests without series stay unchanged.
-func WithStaffShiftSeriesExceptions(repo staffShiftSeriesExceptionRows) StaffShiftOption {
+func WithStaffShiftSeriesExceptions(repo seriesExceptionOperations) StaffShiftOption {
 	return func(s *staffShiftService) { s.exceptionRepo = repo }
 }
 
@@ -107,10 +107,10 @@ type StaffShiftUpdateOptions struct {
 }
 
 type staffShiftService struct {
-	repo          staffShiftRows
+	repo          staffShiftOperations
 	staffRepo     staffDirectory
 	shiftTypes    ShiftTypeService
-	exceptionRepo staffShiftSeriesExceptionRows
+	exceptionRepo seriesExceptionOperations
 	// shiftMoveAudit appends shift_moved Änderungsprotokoll rows (#1884).
 	// Optional so unit tests without audit stay unchanged; production wiring
 	// always sets it, making the event write fail-closed there (an audit
@@ -135,7 +135,7 @@ type staffShiftService struct {
 // handle, and a nil lock (unit tests) skips it. shiftTypes resolves the active
 // flag when a shift is assigned a type; it may be nil in unit tests that never
 // attach a shift type.
-func NewStaffShiftService(repo staffShiftRows, staffRepo staffDirectory, shiftTypes ShiftTypeService, lockStaffShifts func(ctx context.Context, staffID int64) error, logger *slog.Logger, opts ...StaffShiftOption) StaffShiftService {
+func NewStaffShiftService(repo staffShiftOperations, staffRepo staffDirectory, shiftTypes ShiftTypeService, lockStaffShifts func(ctx context.Context, staffID int64) error, logger *slog.Logger, opts ...StaffShiftOption) StaffShiftService {
 	service := &staffShiftService{repo: repo, staffRepo: staffRepo, shiftTypes: shiftTypes, lockStaffShifts: lockStaffShifts, logger: logger}
 	for _, opt := range opts {
 		if opt != nil {
@@ -217,11 +217,12 @@ func validateShiftRange(start, end calendar.Date) error {
 	return nil
 }
 
-func (s *staffShiftService) ListShifts(ctx context.Context, start, end calendar.Date) ([]*StaffShift, error) {
+func (s *staffShiftService) ListShifts(ctx context.Context, start, end calendar.Date) ([]*workforce.ShiftRecord, error) {
 	if err := validateShiftRange(start, end); err != nil {
 		return nil, err
 	}
-	shifts, err := s.repo.FindByDateRange(ctx, start, end)
+	shifts, err := s.repo.ReadShifts(ctx, workforce.StaffShiftFilter{From: start.String(), To: end.String(), Order: shiftOrder(workforce.StaffShiftOrderDate, workforce.StaffShiftOrderStaffID, workforce.StaffShiftOrderStartTime)})
+	err = shiftReadError("find staff shifts by date range", err, nil)
 	if err != nil {
 		return nil, err
 	}
@@ -231,14 +232,15 @@ func (s *staffShiftService) ListShifts(ctx context.Context, start, end calendar.
 	return shifts, nil
 }
 
-func (s *staffShiftService) ListShiftsForStaff(ctx context.Context, staffID int64, start, end calendar.Date) ([]*StaffShift, error) {
+func (s *staffShiftService) ListShiftsForStaff(ctx context.Context, staffID int64, start, end calendar.Date) ([]*workforce.ShiftRecord, error) {
 	if staffID <= 0 {
 		return nil, fmt.Errorf("%w: staff ID is required", ErrShiftInvalid)
 	}
 	if err := validateShiftRange(start, end); err != nil {
 		return nil, err
 	}
-	shifts, err := s.repo.FindByStaffAndDateRange(ctx, staffID, start, end)
+	shifts, err := s.repo.ReadShifts(ctx, workforce.StaffShiftFilter{StaffID: staffID, From: start.String(), To: end.String(), Order: shiftOrder(workforce.StaffShiftOrderDate, workforce.StaffShiftOrderStartTime)})
+	err = shiftReadError("find staff shifts by staff and date range", err, nil)
 	if err != nil {
 		return nil, err
 	}
@@ -249,14 +251,14 @@ func (s *staffShiftService) ListShiftsForStaff(ctx context.Context, staffID int6
 }
 
 // attachShiftTypes resolves each shift's ShiftTypeID to its Schichtart (name +
-// color) and sets StaffShift.ShiftType, so a reader who cannot call the
+// color) and sets workforce.ShiftRecord.ShiftType, so a reader who cannot call the
 // admin-only /api/shift-types endpoint still gets the label (#1844). One tenant
 // has a handful of shift types, so a single ListShiftTypes call is cheaper than
 // per-shift lookups. A nil shiftTypes dependency (unit tests) is a no-op; a
 // lookup error propagates — these reads run inside TenantTxMiddleware, where a
 // failed statement can abort the transaction, so swallowing it would return a
 // 200 whose commit then fails after the response was written.
-func (s *staffShiftService) attachShiftTypes(ctx context.Context, shifts []*StaffShift) error {
+func (s *staffShiftService) attachShiftTypes(ctx context.Context, shifts []*workforce.ShiftRecord) error {
 	if s.shiftTypes == nil || len(shifts) == 0 {
 		return nil
 	}
@@ -274,7 +276,7 @@ func (s *staffShiftService) attachShiftTypes(ctx context.Context, shifts []*Staf
 	if err != nil {
 		return fmt.Errorf("failed to resolve shift types: %w", err)
 	}
-	byID := make(map[int64]*ShiftType, len(types))
+	byID := make(map[int64]*workforce.ShiftTypeRecord, len(types))
 	for _, t := range types {
 		byID[t.ID] = t
 	}
@@ -291,11 +293,12 @@ func (s *staffShiftService) attachShiftTypes(ctx context.Context, shifts []*Staf
 // shift does not take place, so it neither blocks other shifts nor is blocked
 // by them (#1841): a replacement or a shortened return can reuse the freed
 // window.
-func (s *staffShiftService) checkOverlap(ctx context.Context, shift *StaffShift) error {
+func (s *staffShiftService) checkOverlap(ctx context.Context, shift *workforce.ShiftRecord) error {
 	if shift.Cancelled {
 		return nil
 	}
-	existing, err := s.repo.FindByStaffAndDateRange(ctx, shift.StaffID, shift.Date, shift.Date)
+	existing, err := s.repo.ReadShifts(ctx, workforce.StaffShiftFilter{StaffID: shift.StaffID, From: shift.Date.String(), To: shift.Date.String(), Order: shiftOrder(workforce.StaffShiftOrderDate, workforce.StaffShiftOrderStartTime)})
+	err = shiftReadError("find staff shifts by staff and date range", err, nil)
 	if err != nil {
 		return err
 	}
@@ -313,8 +316,9 @@ func (s *staffShiftService) checkOverlap(ctx context.Context, shift *StaffShift)
 // loadOriginShift reads a replacement's origin shift, mapping a missing row
 // (FindByID is tenant-scoped, so a cross-tenant origin also reads as not found)
 // to ErrShiftInvalid.
-func (s *staffShiftService) loadOriginShift(ctx context.Context, originID int64) (*StaffShift, error) {
-	origin, err := s.repo.FindByID(ctx, originID)
+func (s *staffShiftService) loadOriginShift(ctx context.Context, originID int64) (*workforce.ShiftRecord, error) {
+	origin, err := s.repo.ReadShift(ctx, originID)
+	err = shiftReadError("find by id", err, workforce.ErrStaffShiftNotFound)
 	if err != nil {
 		if isRecordNotFound(err) {
 			return nil, fmt.Errorf("%w: origin shift not found", ErrShiftInvalid)
@@ -368,7 +372,7 @@ func (s *staffShiftService) lockStaffWritesOrdered(ctx context.Context, staffIDs
 // lock means a reactivation that committed before we acquired the lock is now
 // visible, so a stale "cancelled" read cannot slip through. A nil origin is a
 // normal shift and needs no check.
-func (s *staffShiftService) validateOriginLink(ctx context.Context, shift *StaffShift) error {
+func (s *staffShiftService) validateOriginLink(ctx context.Context, shift *workforce.ShiftRecord) error {
 	if shift.OriginShiftID == nil {
 		return nil
 	}
@@ -402,7 +406,7 @@ func (s *staffShiftService) validateOriginLink(ctx context.Context, shift *Staff
 	return nil
 }
 
-func (s *staffShiftService) CreateShift(ctx context.Context, shift *StaffShift) (*StaffShift, error) {
+func (s *staffShiftService) CreateShift(ctx context.Context, shift *workforce.ShiftRecord) (*workforce.ShiftRecord, error) {
 	// A create always assigns the type fresh, so no deactivated type is
 	// grandfathered in (nil allowlist).
 	created, err := s.createShift(ctx, shift, nil)
@@ -413,23 +417,32 @@ func (s *staffShiftService) CreateShift(ctx context.Context, shift *StaffShift) 
 	return created, nil
 }
 
+// validateShiftStaff keeps a missing tenant member distinct from a failed
+// directory lookup before any shift or replacement locks are acquired.
+func validateShiftStaff(staff *workforce.PlanStaff, err error) error {
+	if err != nil {
+		if isRecordNotFound(err) {
+			return fmt.Errorf("%w: staff member not found", ErrShiftInvalid)
+		}
+		return fmt.Errorf("find staff member for shift: %w", err)
+	}
+	if staff == nil {
+		return fmt.Errorf("%w: staff member not found", ErrShiftInvalid)
+	}
+	return nil
+}
+
 // createShift is the shared create path. allowedInactiveTypes grandfathers a set
 // of deactivated shift-type ids (a rebuilt cover set re-sends each cover's own,
 // possibly since-deactivated, type — see ApplyCancellation); pass nil for an
 // ordinary create, where every assigned type must still be active (#1841).
-func (s *staffShiftService) createShift(ctx context.Context, shift *StaffShift, allowedInactiveTypes map[int64]bool) (*StaffShift, error) {
+func (s *staffShiftService) createShift(ctx context.Context, shift *workforce.ShiftRecord, allowedInactiveTypes map[int64]bool) (*workforce.ShiftRecord, error) {
 	if err := shift.Validate(); err != nil {
 		return nil, fmt.Errorf("%w: %s", ErrShiftInvalid, err.Error())
 	}
 	staff, err := s.staffRepo.FindByID(ctx, shift.StaffID)
-	if err != nil {
-		if isRecordNotFound(err) {
-			return nil, fmt.Errorf("%w: staff member not found", ErrShiftInvalid)
-		}
-		return nil, fmt.Errorf("find staff member for shift: %w", err)
-	}
-	if staff == nil {
-		return nil, fmt.Errorf("%w: staff member not found", ErrShiftInvalid)
+	if err := validateShiftStaff(staff, err); err != nil {
+		return nil, err
 	}
 	if err := s.ensureShiftTypeAssignable(ctx, shift.ShiftTypeID, allowedInactiveTypes); err != nil {
 		return nil, err
@@ -465,9 +478,14 @@ func (s *staffShiftService) createShift(ctx context.Context, shift *StaffShift, 
 	if err := s.checkOverlap(ctx, shift); err != nil {
 		return nil, err
 	}
-	if err := s.repo.Create(ctx, shift); err != nil {
+	record := ShiftCapability(shift)
+	written, err := s.repo.CreateStaffShift(ctx, &record)
+	if err != nil {
+		err = shiftWriteError("create", err)
+
 		return nil, err
 	}
+	applyShiftToRow(shift, written)
 	s.getLogger().Info("staff shift created",
 		"shift_id", shift.ID,
 		"staff_id", shift.StaffID,
@@ -476,11 +494,11 @@ func (s *staffShiftService) createShift(ctx context.Context, shift *StaffShift, 
 	return shift, nil
 }
 
-func (s *staffShiftService) UpdateShift(ctx context.Context, shift *StaffShift) (*StaffShift, error) {
+func (s *staffShiftService) UpdateShift(ctx context.Context, shift *workforce.ShiftRecord) (*workforce.ShiftRecord, error) {
 	return s.UpdateShiftWithOptions(ctx, shift, StaffShiftUpdateOptions{})
 }
 
-func (s *staffShiftService) UpdateShiftWithOptions(ctx context.Context, shift *StaffShift, opts StaffShiftUpdateOptions) (*StaffShift, error) {
+func (s *staffShiftService) UpdateShiftWithOptions(ctx context.Context, shift *workforce.ShiftRecord, opts StaffShiftUpdateOptions) (*workforce.ShiftRecord, error) {
 	updated, err := s.updateShiftWithOptions(ctx, shift, opts)
 	if err != nil {
 		return nil, err
@@ -491,7 +509,7 @@ func (s *staffShiftService) UpdateShiftWithOptions(ctx context.Context, shift *S
 	return updated, nil
 }
 
-func (s *staffShiftService) updateShiftWithOptions(ctx context.Context, shift *StaffShift, opts StaffShiftUpdateOptions) (*StaffShift, error) {
+func (s *staffShiftService) updateShiftWithOptions(ctx context.Context, shift *workforce.ShiftRecord, opts StaffShiftUpdateOptions) (*workforce.ShiftRecord, error) {
 	if shift.ID <= 0 {
 		return nil, ErrShiftNotFound
 	}
@@ -528,9 +546,11 @@ func (s *staffShiftService) updateShiftWithOptions(ctx context.Context, shift *S
 	if err := s.checkOverlap(ctx, shift); err != nil {
 		return nil, err
 	}
-	if err := s.repo.Update(ctx, shift); err != nil {
+	written, err := s.repo.UpdateStaffShift(ctx, ShiftCapability(shift))
+	if err = staffShiftUpdateError(err); err != nil {
 		return nil, err
 	}
+	applyShiftToRow(shift, written)
 	s.getLogger().Info("staff shift updated",
 		"shift_id", shift.ID,
 		"staff_id", shift.StaffID,
@@ -541,8 +561,9 @@ func (s *staffShiftService) updateShiftWithOptions(ctx context.Context, shift *S
 
 // findShiftOrNotFound loads one shift and maps a missing row to
 // ErrShiftNotFound; other read errors are wrapped with op.
-func (s *staffShiftService) findShiftOrNotFound(ctx context.Context, id int64, op string) (*StaffShift, error) {
-	shift, err := s.repo.FindByID(ctx, id)
+func (s *staffShiftService) findShiftOrNotFound(ctx context.Context, id int64, op string) (*workforce.ShiftRecord, error) {
+	shift, err := s.repo.ReadShift(ctx, id)
+	err = shiftReadError("find by id", err, workforce.ErrStaffShiftNotFound)
 	if err != nil {
 		if isRecordNotFound(err) {
 			return nil, ErrShiftNotFound
@@ -557,7 +578,7 @@ func (s *staffShiftService) findShiftOrNotFound(ctx context.Context, id int64, o
 
 // mergeStoredShiftState copies the fields an ordinary edit never changes from
 // the stored row onto the update request, plus the fields opts preserves.
-func mergeStoredShiftState(shift, existing *StaffShift, opts StaffShiftUpdateOptions) {
+func mergeStoredShiftState(shift, existing *workforce.ShiftRecord, opts StaffShiftUpdateOptions) {
 	// Staff assignment is immutable; the shift stays with its staff member.
 	shift.StaffID = existing.StaffID
 	shift.CreatedBy = existing.CreatedBy
@@ -607,7 +628,7 @@ func mergeStoredShiftState(shift, existing *StaffShift, opts StaffShiftUpdateOpt
 // so a same-day extension past the gap is now rejected too. A pure
 // notes/type/break edit that leaves date and window untouched still skips the
 // extra origin read (#1841).
-func originLinkNeedsRevalidation(shift, existing *StaffShift) bool {
+func originLinkNeedsRevalidation(shift, existing *workforce.ShiftRecord) bool {
 	return shift.OriginShiftID != nil &&
 		(shift.Date != existing.Date ||
 			!calendar.SameClockTime(shift.StartTime, existing.StartTime) ||
@@ -619,7 +640,7 @@ func originLinkNeedsRevalidation(shift, existing *StaffShift) bool {
 // stable sorted order so concurrent cross-covering edits never lock the same
 // pair in opposite orders (#1841 deadlock). The origin is read first only to
 // discover its lock.
-func (s *staffShiftService) lockShiftEdit(ctx context.Context, shift *StaffShift, revalidateOrigin bool) error {
+func (s *staffShiftService) lockShiftEdit(ctx context.Context, shift *workforce.ShiftRecord, revalidateOrigin bool) error {
 	lockIDs := []int64{shift.StaffID}
 	if revalidateOrigin {
 		origin, err := s.loadOriginShift(ctx, *shift.OriginShiftID)
@@ -638,7 +659,7 @@ func (s *staffShiftService) lockShiftEdit(ctx context.Context, shift *StaffShift
 // including a same-person date/window move: otherwise the stale edit payload
 // would silently move the row back. UpdatedAt additionally catches other
 // concurrent whole-row updates while this request waited.
-func (s *staffShiftService) ensureShiftUnchangedWhileLocking(ctx context.Context, id int64, existing *StaffShift) error {
+func (s *staffShiftService) ensureShiftUnchangedWhileLocking(ctx context.Context, id int64, existing *workforce.ShiftRecord) error {
 	lockedExisting, err := s.findShiftOrNotFound(ctx, id, "reload staff shift after lock")
 	if err != nil {
 		return err
@@ -660,13 +681,14 @@ func (s *staffShiftService) ensureShiftUnchangedWhileLocking(ctx context.Context
 // touching the origin, so this check never fires there), so here reject any
 // date or window change while covers still hang off this shift. The cover load
 // is skipped entirely when neither the date nor the window moved (#1841).
-func (s *staffShiftService) ensureCoversFitEditedOrigin(ctx context.Context, shift, existing *StaffShift) error {
+func (s *staffShiftService) ensureCoversFitEditedOrigin(ctx context.Context, shift, existing *workforce.ShiftRecord) error {
 	originWindowChanged := !calendar.SameClockTime(shift.StartTime, existing.StartTime) ||
 		!calendar.SameClockTime(shift.EndTime, existing.EndTime)
 	if shift.OriginShiftID != nil || (shift.Date == existing.Date && !originWindowChanged) {
 		return nil
 	}
-	covers, err := s.repo.FindByOriginShiftID(ctx, shift.ID)
+	covers, err := s.repo.ReadShifts(ctx, workforce.StaffShiftFilter{OriginShiftID: shift.ID, Order: shiftOrder(workforce.StaffShiftOrderStartTime)})
+	err = shiftReadError("find staff shifts by origin shift id", err, nil)
 	if err != nil {
 		return fmt.Errorf("check covers before origin edit: %w", err)
 	}
@@ -707,7 +729,7 @@ func (s *staffShiftService) DeleteShift(ctx context.Context, id int64) error {
 		return fmt.Errorf("%w: staff assignment changed", ErrShiftConflict)
 	}
 	existing = lockedExisting
-	if err := s.repo.Delete(ctx, id); err != nil {
+	if err := shiftWriteError("delete", s.repo.DeleteStaffShift(ctx, id)); err != nil {
 		return err
 	}
 	// Deleting a series-backed row records the date as a series exception so

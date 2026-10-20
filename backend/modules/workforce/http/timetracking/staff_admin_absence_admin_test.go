@@ -17,6 +17,7 @@ import (
 	"time"
 
 	"github.com/moto-nrw/project-phoenix/api/testutil"
+	"github.com/moto-nrw/project-phoenix/modules/workforce"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -103,7 +104,7 @@ func TestAdminCreateStaffAbsence_SickCascades(t *testing.T) {
 	// Absence persisted with subject/creator separation.
 	ctx := testpkg.Ctx(t)
 	repos := newWorkforceTestRepositories(t, tc.db)
-	absences, err := repos.StaffAbsence.GetByStaffAndDateRange(ctx, subjectID, tomorrow, tomorrow)
+	absences, err := repos.StaffAbsence.ListStaffAbsences(ctx, workforce.StaffAbsenceFilter{StaffID: subjectID, OverlapFrom: tomorrow.String(), OverlapTo: tomorrow.String(), Order: []workforce.StaffAbsenceOrder{{Field: workforce.StaffAbsenceOrderDateStart}}})
 	require.NoError(t, err)
 	require.Len(t, absences, 1)
 	assert.Equal(t, absenceTypeSick, absences[0].AbsenceType)
@@ -123,7 +124,7 @@ func TestAdminCreateStaffAbsence_SickCascades(t *testing.T) {
 	tc.router.ServeHTTP(rec2, req)
 	require.Equal(t, http.StatusNoContent, rec2.Code, rec2.Body.String())
 
-	remaining, err := repos.StaffAbsence.GetByStaffAndDateRange(ctx, subjectID, tomorrow, tomorrow)
+	remaining, err := repos.StaffAbsence.ListStaffAbsences(ctx, workforce.StaffAbsenceFilter{StaffID: subjectID, OverlapFrom: tomorrow.String(), OverlapTo: tomorrow.String(), Order: []workforce.StaffAbsenceOrder{{Field: workforce.StaffAbsenceOrderDateStart}}})
 	require.NoError(t, err)
 	assert.Empty(t, remaining)
 	shift, err = repos.FindShift(ctx, shiftID)
@@ -149,12 +150,7 @@ func TestAdminCreateStaffAbsence_CompTimeAllowedForManager(t *testing.T) {
 	require.Equal(t, http.StatusCreated, rec.Code, rec.Body.String())
 
 	ctx := testpkg.Ctx(t)
-	absences, err := newWorkforceTestRepositories(t, tc.db).StaffAbsence.GetByStaffAndDateRange(
-		ctx,
-		subjectID,
-		tomorrow,
-		tomorrow,
-	)
+	absences, err := newWorkforceTestRepositories(t, tc.db).StaffAbsence.ListStaffAbsences(ctx, workforce.StaffAbsenceFilter{StaffID: subjectID, OverlapFrom: tomorrow.String(), OverlapTo: tomorrow.String(), Order: []workforce.StaffAbsenceOrder{{Field: workforce.StaffAbsenceOrderDateStart}}})
 	require.NoError(t, err)
 	require.Len(t, absences, 1)
 	assert.Equal(t, absenceTypeCompTime, absences[0].AbsenceType)

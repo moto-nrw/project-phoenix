@@ -113,7 +113,7 @@ type adjustmentFreezeReader interface {
 type staffBalanceAdjustmentService struct {
 	runInTx        func(context.Context, func(context.Context) error) error
 	todayFunc      func() calendar.Date
-	adjustmentRepo StaffBalanceAdjustmentRepository
+	adjustmentRepo BalanceAdjustmentRecords
 	monthService   WorkTimeMonthService
 	settings       monthSettingsResolver
 	snapshotRepo   adjustmentFreezeReader
@@ -127,7 +127,7 @@ func (s *staffBalanceAdjustmentService) broadcastTimeTrackingChanged(ctx context
 }
 
 func NewStaffBalanceAdjustmentService(
-	adjustmentRepo StaffBalanceAdjustmentRepository,
+	adjustmentRepo BalanceAdjustmentRecords,
 	monthService WorkTimeMonthService,
 	settings monthSettingsResolver,
 	logger *slog.Logger,
@@ -204,7 +204,11 @@ func (s *staffBalanceAdjustmentService) ListAdjustments(ctx context.Context, sta
 	if from.IsZero() || to.IsZero() || to.Before(from) {
 		return nil, fmt.Errorf("%w: from and to must form a valid range", ErrAdjustmentInvalid)
 	}
-	return s.adjustmentRepo.GetByStaffAndDateRange(ctx, staffID, from, to)
+	values, err := s.adjustmentRepo.ListStaffBalanceAdjustments(ctx, workforce.StaffBalanceAdjustmentFilter{StaffID: staffID, EffectiveFrom: from.String(), EffectiveTo: to.String()})
+	if err != nil {
+		return nil, rowReadError("get balance adjustments by staff+range", err, nil)
+	}
+	return adjustmentsToRecords(values), nil
 }
 
 func (s *staffBalanceAdjustmentService) CreateAdjustment(ctx context.Context, staffID, decidedBy int64, req CreateBalanceAdjustmentRequest) (*StaffBalanceAdjustment, error) {
@@ -236,7 +240,15 @@ func (s *staffBalanceAdjustmentService) CreateAdjustment(ctx context.Context, st
 		DecidedBy:     decidedBy,
 		DecidedAt:     time.Now(),
 	}
-	if err := s.adjustmentRepo.Create(ctx, adjustment); err != nil {
+	createdAdjustment, err := workforce.StaffBalanceAdjustment{}, adjustment.Validate()
+	if err == nil {
+		createdAdjustment, err = s.adjustmentRepo.CreateStaffBalanceAdjustment(ctx, StaffBalanceAdjustmentToCapability(adjustment))
+		err = workSessionWriteError("create", err)
+	}
+	if err == nil {
+		applyAdjustmentToRecord(adjustment, createdAdjustment)
+	}
+	if err != nil {
 		return nil, fmt.Errorf("failed to create balance adjustment: %w", err)
 	}
 	s.getLogger().Info("balance adjustment created",
@@ -337,7 +349,8 @@ func (s *staffBalanceAdjustmentService) DeleteAdjustment(ctx context.Context, st
 	if err := s.writeAdjustmentDeletionAudit(ctx, staffID, deletedBy, adjustment); err != nil {
 		return err
 	}
-	if err := s.adjustmentRepo.Delete(ctx, adjustmentID); err != nil {
+	if err := s.adjustmentRepo.DeleteStaffBalanceAdjustment(ctx, adjustmentID); err != nil {
+		err = workSessionWriteError("delete", err)
 		return fmt.Errorf("failed to delete balance adjustment: %w", err)
 	}
 	s.getLogger().Info("balance adjustment deleted",
@@ -353,7 +366,9 @@ func (s *staffBalanceAdjustmentService) DeleteAdjustment(ctx context.Context, st
 // loadStaffAdjustment returns the staff member's adjustment, or
 // ErrAdjustmentNotFound when it is missing or belongs to somebody else.
 func (s *staffBalanceAdjustmentService) loadStaffAdjustment(ctx context.Context, staffID, adjustmentID int64) (*StaffBalanceAdjustment, error) {
-	adjustment, err := s.adjustmentRepo.FindByID(ctx, adjustmentID)
+	storedAdjustment, err := s.adjustmentRepo.FindStaffBalanceAdjustment(ctx, adjustmentID)
+	adjustment := adjustmentToRecord(storedAdjustment)
+	err = rowReadError("find by id", err, workforce.ErrStaffBalanceAdjustmentNotFound)
 	if err != nil {
 		// Only a genuine missing row is a 404; a database or transaction
 		// failure must stay a 500 (#1420 review).
@@ -476,7 +491,15 @@ func (s *staffBalanceAdjustmentService) ResetBalance(ctx context.Context, staffI
 		DecidedBy:     decidedBy,
 		DecidedAt:     time.Now(),
 	}
-	if err := s.adjustmentRepo.Create(ctx, adjustment); err != nil {
+	createdAdjustment, err := workforce.StaffBalanceAdjustment{}, adjustment.Validate()
+	if err == nil {
+		createdAdjustment, err = s.adjustmentRepo.CreateStaffBalanceAdjustment(ctx, StaffBalanceAdjustmentToCapability(adjustment))
+		err = workSessionWriteError("create", err)
+	}
+	if err == nil {
+		applyAdjustmentToRecord(adjustment, createdAdjustment)
+	}
+	if err != nil {
 		if isUniqueViolationOn(err, resetUniqueConstraintName) {
 			return nil, fmt.Errorf("%w: %s", ErrBalanceAlreadyReset, effectiveDate.String())
 		}
@@ -590,7 +613,15 @@ func (s *staffBalanceAdjustmentService) CreateOpeningBalance(ctx context.Context
 		DecidedBy:     decidedBy,
 		DecidedAt:     time.Now(),
 	}
-	if err := s.adjustmentRepo.Create(ctx, adjustment); err != nil {
+	createdAdjustment, err := workforce.StaffBalanceAdjustment{}, adjustment.Validate()
+	if err == nil {
+		createdAdjustment, err = s.adjustmentRepo.CreateStaffBalanceAdjustment(ctx, StaffBalanceAdjustmentToCapability(adjustment))
+		err = workSessionWriteError("create", err)
+	}
+	if err == nil {
+		applyAdjustmentToRecord(adjustment, createdAdjustment)
+	}
+	if err != nil {
 		if isUniqueViolationOn(err, openingUniqueConstraintName) {
 			return nil, fmt.Errorf("%w: %s", ErrOpeningAlreadyExists, effectiveDate.String())
 		}
@@ -686,9 +717,11 @@ func (s *staffBalanceAdjustmentService) rejectConflictingRebaselines(ctx context
 // listOpenings lists all opening bookings for a staff member regardless of
 // date — the one-opening-ever guard (#2132).
 func (s *staffBalanceAdjustmentService) listOpenings(ctx context.Context, staffID int64) ([]*StaffBalanceAdjustment, error) {
-	openings, err := s.adjustmentRepo.ListWithFilter(ctx, workforce.StaffBalanceAdjustmentFilter{
+	adjustmentValues, err := s.adjustmentRepo.ListStaffBalanceAdjustments(ctx, workforce.StaffBalanceAdjustmentFilter{
 		StaffID: staffID, Types: []string{BalanceAdjustmentTypeOpening},
 	})
+	openings := adjustmentsToRecords(adjustmentValues)
+	err = rowReadError("list with options", err, nil)
 	if err != nil {
 		return nil, fmt.Errorf("failed to check existing opening balances: %w", err)
 	}
@@ -715,10 +748,12 @@ func (s *staffBalanceAdjustmentService) hasDependentReset(ctx context.Context, a
 // silently shift the balance they pinned — the shared dependent-booking
 // guard treats them identically (#1420, #2132).
 func (s *staffBalanceAdjustmentService) listRebaselinesOnOrAfter(ctx context.Context, staffID int64, effectiveDate calendar.Date) ([]*StaffBalanceAdjustment, error) {
-	resets, err := s.adjustmentRepo.ListWithFilter(ctx, workforce.StaffBalanceAdjustmentFilter{
+	adjustmentValues, err := s.adjustmentRepo.ListStaffBalanceAdjustments(ctx, workforce.StaffBalanceAdjustmentFilter{
 		StaffID: staffID, Types: []string{BalanceAdjustmentTypeReset, BalanceAdjustmentTypeOpening},
 		EffectiveFrom: effectiveDate.String(),
 	})
+	resets := adjustmentsToRecords(adjustmentValues)
+	err = rowReadError("list with options", err, nil)
 	if err != nil {
 		return nil, fmt.Errorf("failed to check dependent balance resets: %w", err)
 	}

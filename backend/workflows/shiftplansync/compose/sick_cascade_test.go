@@ -120,7 +120,7 @@ func (e *sickCascadeEnv) createShift(t *testing.T, staffID int64, date calendar.
 	if mutate != nil {
 		mutate(&shift)
 	}
-	created, err := e.shifts.CreateStaffShift(e.ctx, shift)
+	created, err := e.shifts.CreateStaffShift(e.ctx, &shift)
 	require.NoError(t, err)
 	return created
 }
@@ -597,7 +597,7 @@ func TestSickCascade_MarkWaitsForConcurrentShiftWrite(t *testing.T) {
 			if err := e.Lock(ctx, e.subject.ID); err != nil {
 				return err
 			}
-			shift, err := e.shifts.CreateStaffShift(ctx, workforce.StaffShift{
+			shift, err := e.shifts.CreateStaffShift(ctx, &workforce.StaffShift{
 				StaffID: e.subject.ID, Date: day.String(), StartTime: clock("08:00"),
 				EndTime: clock("09:00"), CreatedBy: e.admin.ID,
 			})
@@ -651,7 +651,7 @@ func TestSickCascade_ClearWaitsForConcurrentReplacement(t *testing.T) {
 			if err := e.Lock(ctx, e.subject.ID); err != nil {
 				return err
 			}
-			cover, err := e.shifts.CreateStaffShift(ctx, workforce.StaffShift{
+			cover, err := e.shifts.CreateStaffShift(ctx, &workforce.StaffShift{
 				StaffID: e.sub.ID, Date: day.String(), StartTime: clock("08:00"),
 				EndTime: clock("10:00"), CreatedBy: e.admin.ID, OriginShiftID: &origin.ID,
 			})

@@ -55,7 +55,8 @@ func workforceShifts(values []workforceModule.StaffShift) []timetablePorts.Workf
 }
 
 func (r workforceShiftRecords) CreateStaffShift(ctx context.Context, shift timetablePorts.WorkforceShift) (timetablePorts.WorkforceShift, error) {
-	created, err := r.capability.CreateStaffShift(ctx, workforceModule.StaffShift(shift))
+	record := workforceModule.StaffShift(shift)
+	created, err := r.capability.CreateStaffShift(ctx, &record)
 	return timetablePorts.WorkforceShift(created), workforceShiftError(err)
 }
 

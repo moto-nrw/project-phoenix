@@ -111,8 +111,8 @@ type retentionSettingsResolver interface {
 }
 
 type timeTrackingCleanupService struct {
-	workSessionRepo  WorkSessionRepository
-	staffAbsenceRepo StaffAbsenceRepository
+	workSessionRepo  WorkSessionRecords
+	staffAbsenceRepo AbsenceRecords
 	auditRepo        DeletionAudit
 	settings         retentionSettingsResolver
 	logger           *slog.Logger
@@ -122,8 +122,8 @@ type timeTrackingCleanupService struct {
 // receives a per-staff data_deletions row per cleanup run; settings may be
 // nil in tests, in which case retention resolves to the last-resort default.
 func NewTimeTrackingCleanupService(
-	workSessionRepo WorkSessionRepository,
-	staffAbsenceRepo StaffAbsenceRepository,
+	workSessionRepo WorkSessionRecords,
+	staffAbsenceRepo AbsenceRecords,
 	auditRepo DeletionAudit,
 	settings retentionSettingsResolver,
 	logger *slog.Logger,
@@ -168,13 +168,15 @@ func (s *timeTrackingCleanupService) CleanupExpiredTimeTrackingData(ctx context.
 	}
 
 	// 3. Delete work_sessions (CASCADE removes breaks + audit edits).
-	sessionsDeleted, err := s.workSessionRepo.DeleteOlderThan(ctx, workSessionDateColumn, cutoff)
+	sessionsDeleted, err := s.workSessionRepo.DeleteWorkSessionsOlderThan(ctx, workSessionDateColumn, cutoff.String())
+	err = workSessionWriteError("delete older than", err)
 	if err != nil {
 		return nil, fmt.Errorf("delete work_sessions: %w", err)
 	}
 
 	// 4. Delete staff_absences (independent table).
-	absencesDeleted, err := s.staffAbsenceRepo.DeleteOlderThan(ctx, staffAbsenceDateColumn, cutoff)
+	absencesDeleted, err := s.staffAbsenceRepo.DeleteStaffAbsencesOlderThan(ctx, staffAbsenceDateColumn, cutoff.String())
+	err = absenceWriteError("delete older than", err)
 	if err != nil {
 		return nil, fmt.Errorf("delete staff_absences: %w", err)
 	}
@@ -213,11 +215,13 @@ func (s *timeTrackingCleanupService) PreviewExpiredTimeTrackingData(ctx context.
 	retentionDays := s.resolveRetentionDays(ctx)
 	cutoff := cutoffForDays(retentionDays)
 
-	sessionsToDelete, err := s.workSessionRepo.CountWithFilter(ctx, sessionsBefore(cutoff))
+	sessionsToDelete, err := s.workSessionRepo.CountWorkSessions(ctx, sessionsBefore(cutoff))
+	err = rowReadError("count with options", err, nil)
 	if err != nil {
 		return nil, fmt.Errorf("count work_sessions: %w", err)
 	}
-	absencesToDelete, err := s.staffAbsenceRepo.CountWithFilter(ctx, absencesBefore(cutoff))
+	absencesToDelete, err := s.staffAbsenceRepo.CountStaffAbsences(ctx, absencesBefore(cutoff))
+	err = rowReadError("count with options", err, nil)
 	if err != nil {
 		return nil, fmt.Errorf("count staff_absences: %w", err)
 	}
@@ -229,11 +233,16 @@ func (s *timeTrackingCleanupService) PreviewExpiredTimeTrackingData(ctx context.
 	}
 	staffAffected := len(staffCounts)
 
-	oldestSession, err := s.workSessionRepo.OldestBefore(ctx, workSessionDateColumn, &cutoff)
+	oldestSession, err := workSessionDateResult(s.workSessionRepo.OldestWorkSessionDate(ctx, workSessionDateColumn, cutoff.String()))
 	if err != nil {
 		return nil, fmt.Errorf("oldest work_session: %w", err)
 	}
-	oldestAbsence, err := s.staffAbsenceRepo.OldestBefore(ctx, staffAbsenceDateColumn, &cutoff)
+	oldestAbsenceValue, err := s.staffAbsenceRepo.OldestStaffAbsenceDate(ctx, staffAbsenceDateColumn, optionalAbsenceDate(&cutoff))
+	oldestAbsence, absenceDateErr := absenceDate(oldestAbsenceValue)
+	err = rowReadError("oldest before", err, nil)
+	if err == nil {
+		err = absenceDateErr
+	}
 	if err != nil {
 		return nil, fmt.Errorf("oldest staff_absence: %w", err)
 	}
@@ -260,20 +269,27 @@ func (s *timeTrackingCleanupService) GetStats(ctx context.Context) (*TimeTrackin
 	retentionDays := s.resolveRetentionDays(ctx)
 	cutoff := cutoffForDays(retentionDays)
 
-	totalSessions, err := s.workSessionRepo.CountWithFilter(ctx, workforce.WorkSessionFilter{})
+	totalSessions, err := s.workSessionRepo.CountWorkSessions(ctx, workforce.WorkSessionFilter{})
+	err = rowReadError("count with options", err, nil)
 	if err != nil {
 		return nil, fmt.Errorf("count sessions: %w", err)
 	}
-	totalAbsences, err := s.staffAbsenceRepo.CountWithFilter(ctx, workforce.StaffAbsenceFilter{})
+	totalAbsences, err := s.staffAbsenceRepo.CountStaffAbsences(ctx, workforce.StaffAbsenceFilter{})
+	err = rowReadError("count with options", err, nil)
 	if err != nil {
 		return nil, fmt.Errorf("count absences: %w", err)
 	}
 
-	oldestSession, err := s.workSessionRepo.OldestBefore(ctx, workSessionDateColumn, nil)
+	oldestSession, err := workSessionDateResult(s.workSessionRepo.OldestWorkSessionDate(ctx, workSessionDateColumn, ""))
 	if err != nil {
 		return nil, fmt.Errorf("oldest session: %w", err)
 	}
-	oldestAbsence, err := s.staffAbsenceRepo.OldestBefore(ctx, staffAbsenceDateColumn, nil)
+	oldestAbsenceValue, err := s.staffAbsenceRepo.OldestStaffAbsenceDate(ctx, staffAbsenceDateColumn, optionalAbsenceDate(nil))
+	oldestAbsence, absenceDateErr := absenceDate(oldestAbsenceValue)
+	err = rowReadError("oldest before", err, nil)
+	if err == nil {
+		err = absenceDateErr
+	}
 	if err != nil {
 		return nil, fmt.Errorf("oldest absence: %w", err)
 	}
@@ -355,7 +371,9 @@ func (s *timeTrackingCleanupService) collectStaffImpact(
 	// The (staff_id, id) order is what the audit sample bookkeeping relies on.
 	sessionFilter := sessionsBefore(cutoff)
 	sessionFilter.Order = []workforce.WorkSessionOrder{{Field: workforce.WorkSessionOrderStaffID}, {Field: workforce.WorkSessionOrderID}}
-	sessions, err := s.workSessionRepo.ListWithFilter(ctx, sessionFilter)
+	sessionsRecords, err := s.workSessionRepo.ListWorkSessions(ctx, sessionFilter)
+	sessions := workSessionsToRecords(sessionsRecords)
+	err = rowReadError("list with options", err, nil)
 	if err != nil {
 		return nil, nil, fmt.Errorf("scan work_sessions: %w", err)
 	}
@@ -370,7 +388,9 @@ func (s *timeTrackingCleanupService) collectStaffImpact(
 
 	absenceFilter := absencesBefore(cutoff)
 	absenceFilter.Order = []workforce.StaffAbsenceOrder{{Field: workforce.StaffAbsenceOrderStaffID}, {Field: workforce.StaffAbsenceOrderID}}
-	absences, err := s.staffAbsenceRepo.ListWithFilter(ctx, absenceFilter)
+	absenceValues, err := s.staffAbsenceRepo.ListStaffAbsences(ctx, absenceFilter)
+	absences := absencesToRecord(absenceValues)
+	err = rowReadError("list with options", err, nil)
 	if err != nil {
 		return nil, nil, fmt.Errorf("scan staff_absences: %w", err)
 	}

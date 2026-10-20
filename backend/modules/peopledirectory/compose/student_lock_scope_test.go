@@ -15,7 +15,7 @@ func TestStudentLocksRequireCallerTransaction(t *testing.T) {
 	t.Parallel()
 	db := testpkg.SetupTestDB(t)
 	ctx := testpkg.Ctx(t)
-	module, err := New(Dependencies{DB: db, StudentDirectory: testpkg.StudentDirectory{}, StudentOwners: lockTestOwners{}, Observe: func(Observation) {}})
+	module, err := New(Dependencies{DB: db, StudentDirectory: testpkg.StudentDirectory{}, StudentOwners: lockTestOwners{}, Observe: func(Observation) {}}, nil)
 	require.NoError(t, err)
 	own := testpkg.CreateTestStudent(t, db, "Lock", "Own", "1a")
 	otherSchool := testpkg.UniqueTestTenantID(t)

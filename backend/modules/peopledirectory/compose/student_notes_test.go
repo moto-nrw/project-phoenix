@@ -36,9 +36,9 @@ func notesModuleWithDeletionAudit(
 	module, err := New(Dependencies{
 		StudentDirectory: testpkg.StudentDirectory{},
 		DB:               db, StudentOwners: owners, StudentNoteDeletionAudit: audit, Observe: func(Observation) {},
-	})
+	}, nil)
 	require.NoError(t, err)
-	return module
+	return module.Module
 }
 
 type testStudentNoteDeletionAudit struct{ Db *testpkg.DB }

@@ -8,7 +8,6 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/api"
 	"github.com/moto-nrw/project-phoenix/modules/workforce"
-	workforceCompose "github.com/moto-nrw/project-phoenix/modules/workforce/compose"
 	"github.com/moto-nrw/project-phoenix/modules/workforce/internal/application/timetracking"
 	owners "github.com/moto-nrw/project-phoenix/roots/owners"
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
@@ -63,15 +62,15 @@ func newVacationOpeningFixture(t *testing.T) *vacationOpeningFixture {
 	})
 
 	svc := timetracking.NewStaffAbsenceService(
-		reposAbsences.StaffAbsence, workforceCompose.NewTimeTrackingTestRows(workTime).Sessions, workforceCompose.NewTimeTrackingTestRows(workTime).VacationQuotas,
-		workforceCompose.NewStaffAbsenceAuditRepository(workTime), wtmIntSettings{}, nil, timetracking.WithAbsenceUnitOfWork(testpkg.
+		reposAbsences.StaffAbsence, workTime, workTime,
+		workTime, wtmIntSettings{}, nil, timetracking.WithAbsenceUnitOfWork(testpkg.
 			RunInTenantTransaction,
 		),
 
 		timetracking.WithAbsenceToday(func() calendar.Date { return calendar.NewDate(2026, 8, 24) }),
 		timetracking.WithAbsenceShiftPlanSyncer(noSickCascade{}),
 		// Wired exactly like services/factory.go does.
-		timetracking.WithVacationOpenings(workforceCompose.NewTimeTrackingTestRows(workTime).VacationOpenings),
+		timetracking.WithVacationOpenings(workTime),
 		timetracking.WithAbsenceDeletionAudit(owners.NewTimeTrackingDeletionAudit(owners.NewTestAuditPersistence(testpkg.NewDatabase(t, db), nil).TimeTrackingDeletion)),
 	)
 
@@ -128,7 +127,10 @@ func (f *vacationOpeningFixture) addVacationAbsence(t *testing.T, status string,
 		CreatedBy:   f.staff,
 	}
 	absence.SetTenantID(f.tenantID)
-	require.NoError(t, f.repos.StaffAbsence.Create(f.ctx, absence))
+	absenceCommand1 := timetracking.StaffAbsenceToCapability(absence)
+	createdTimeRecord1, err := f.repos.StaffAbsence.CreateStaffAbsence(f.ctx, &absenceCommand1)
+	require.NoError(t, err)
+	*absence = *timetracking.AbsenceRecord(createdTimeRecord1)
 }
 
 func (f *vacationOpeningFixture) set(remainingDays float64) (*timetracking.StaffVacationOpening, error) {
@@ -279,7 +281,10 @@ func TestSetVacationOpening_IgnoresDeclinedAndLaterAbsences(t *testing.T) {
 		CreatedBy:   f.staff,
 	}
 	sick.SetTenantID(f.tenantID)
-	require.NoError(t, f.repos.StaffAbsence.Create(f.ctx, sick))
+	absenceCommand2 := timetracking.StaffAbsenceToCapability(sick)
+	createdTimeRecord2, err := f.repos.StaffAbsence.CreateStaffAbsence(f.ctx, &absenceCommand2)
+	require.NoError(t, err)
+	*sick = *timetracking.AbsenceRecord(createdTimeRecord2)
 
 	opening, err := f.set(12)
 	require.NoError(t, err)
@@ -441,7 +446,7 @@ func TestVacationOpeningRepository_BatchAndListReads(t *testing.T) {
 	t.Parallel()
 
 	f := newVacationOpeningFixture(t)
-	repo := workforceCompose.NewTimeTrackingTestRows(f.workforce).VacationOpenings
+	repo := f.workforce
 
 	_, err := f.svc.SetVacationOpening(f.ctx, f.staff, f.admin, timetracking.SetVacationOpeningRequest{
 		EffectiveDate: f.cutoff,
@@ -451,7 +456,7 @@ func TestVacationOpeningRepository_BatchAndListReads(t *testing.T) {
 	require.NoError(t, err)
 
 	t.Run("batched lookup keyed by staff", func(t *testing.T) {
-		byStaff, err := repo.GetByStaffIDsAndYear(f.ctx, []int64{f.staff, f.admin}, f.cutoff.Year())
+		byStaff, err := vacationOpeningRowsByStaff(f.ctx, repo, []int64{f.staff, f.admin}, f.cutoff.Year())
 		require.NoError(t, err)
 		require.Contains(t, byStaff, f.staff)
 		assert.NotContains(t, byStaff, f.admin, "staff without a takeover stay absent from the map")
@@ -459,13 +464,13 @@ func TestVacationOpeningRepository_BatchAndListReads(t *testing.T) {
 	})
 
 	t.Run("empty batch short-circuits", func(t *testing.T) {
-		byStaff, err := repo.GetByStaffIDsAndYear(f.ctx, nil, f.cutoff.Year())
+		byStaff, err := vacationOpeningRowsByStaff(f.ctx, repo, nil, f.cutoff.Year())
 		require.NoError(t, err)
 		assert.Empty(t, byStaff)
 	})
 
 	t.Run("another year is empty", func(t *testing.T) {
-		byStaff, err := repo.GetByStaffIDsAndYear(f.ctx, []int64{f.staff, f.admin}, f.cutoff.Year()-1)
+		byStaff, err := vacationOpeningRowsByStaff(f.ctx, repo, []int64{f.staff, f.admin}, f.cutoff.Year()-1)
 
 		require.NoError(t, err)
 		assert.Empty(t, byStaff)

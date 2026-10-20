@@ -284,7 +284,7 @@ func TestEmergencySnapshotPersonIdentityFilteringMatchesRetainedReader(t *testin
 	db := testpkg.SetupTestDB(t)
 	ctx := testpkg.Ctx(t)
 	student := testpkg.CreateTestStudent(t, db, "Filtering", "Parity", "3a")
-	people, err := peopleCompose.New(peopleCompose.Dependencies{StudentDirectory: testpkg.StudentDirectory{}, DB: db, Observe: func(peopleCompose.Observation) {}})
+	people, err := peopleCompose.New(peopleCompose.Dependencies{StudentDirectory: testpkg.StudentDirectory{}, DB: db, Observe: func(peopleCompose.Observation) {}}, nil)
 	require.NoError(t, err)
 	old := peopleCompose.NewPersonRepository(db, nil)
 	ids := []int64{student.PersonID}
@@ -415,7 +415,7 @@ func TestEmergencySnapshotInputsEnforceRLS(t *testing.T) {
 		})
 	}
 
-	people, err := peopleCompose.New(peopleCompose.Dependencies{StudentDirectory: testpkg.StudentDirectory{}, DB: db, Observe: func(peopleCompose.Observation) {}})
+	people, err := peopleCompose.New(peopleCompose.Dependencies{StudentDirectory: testpkg.StudentDirectory{}, DB: db, Observe: func(peopleCompose.Observation) {}}, nil)
 	require.NoError(t, err)
 	facilitiesModule, err := facilitiesCompose.NewUnobserved(db)
 	require.NoError(t, err)
@@ -460,7 +460,7 @@ func newEmergencyOwnerStudents(t *testing.T, db *bun.DB) emergencyOwnerStudents 
 	directory, err := peopleCompose.New(peopleCompose.Dependencies{
 		StudentDirectory: testpkg.StudentDirectory{},
 		DB:               db, Observe: func(peopleCompose.Observation) {},
-	})
+	}, nil)
 	require.NoError(t, err)
 	return emergencyOwnerStudents{directory: directory}
 }

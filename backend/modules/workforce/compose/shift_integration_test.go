@@ -19,8 +19,8 @@ import (
 // reads, updates, deletes and caps through the capability never cross that
 // boundary, and that the row rules the legacy repositories enforced hold.
 
-func testShift(staffID int64, day calendar.Date, start, end string) workforce.StaffShift {
-	return workforce.StaffShift{
+func testShift(staffID int64, day calendar.Date, start, end string) *workforce.StaffShift {
+	return &workforce.StaffShift{
 		StaffID: staffID, Date: day.String(), StartTime: start, EndTime: end, CreatedBy: staffID,
 	}
 }
@@ -149,10 +149,10 @@ func TestStaffShiftRowRulesMatchTheLegacyRepository(t *testing.T) {
 	cancelledOnly := testShift(staff.ID, thirdMonday, "08:00:00", "12:00:00")
 	cancelledOnly.Cancelled = true
 	rows, err := capability.CreateStaffShifts(ctx, []workforce.StaffShift{
-		testShift(staff.ID, saturday, "08:00:00", "12:00:00"),
-		testShift(staff.ID, nextMonday, "08:00:00", "12:00:00"),
-		testShift(other.ID, monday, "08:00:00", "12:00:00"),
-		cancelledOnly,
+		*testShift(staff.ID, saturday, "08:00:00", "12:00:00"),
+		*testShift(staff.ID, nextMonday, "08:00:00", "12:00:00"),
+		*testShift(other.ID, monday, "08:00:00", "12:00:00"),
+		*cancelledOnly,
 	})
 	require.NoError(t, err)
 	require.Len(t, rows, 4)
@@ -224,7 +224,7 @@ func TestStaffShiftSeriesLifecycleStaysInTheTenant(t *testing.T) {
 		shift := testShift(staff.ID, day, "09:00:00", "12:00:00")
 		shift.SeriesID = &seriesID
 		shift.SeriesOccurrenceDate = day.String()
-		materialized = append(materialized, shift)
+		materialized = append(materialized, *shift)
 	}
 	rows, err := capability.CreateStaffShifts(ctx, materialized)
 	require.NoError(t, err)
@@ -415,7 +415,7 @@ func TestSeriesPlanRollsBackWithTheCallerTransaction(t *testing.T) {
 		shift := testShift(staff.ID, monday, "09:00:00", "12:00:00")
 		shift.SeriesID = &series.ID
 		shift.SeriesOccurrenceDate = monday.String()
-		if _, err := capability.CreateStaffShifts(txCtx, []workforce.StaffShift{shift}); err != nil {
+		if _, err := capability.CreateStaffShifts(txCtx, []workforce.StaffShift{*shift}); err != nil {
 			return 0, err
 		}
 		if failAfter == "shifts" {

@@ -10,6 +10,8 @@ import (
 	"errors"
 	"testing"
 
+	"github.com/moto-nrw/project-phoenix/modules/workforce"
+
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -40,7 +42,7 @@ func newBreakDays() *fakeNonWorkingDays {
 
 type plannedDates struct{ dates []calendar.Date }
 
-func (p *plannedDates) bulkCreate(_ context.Context, created []*StaffShift) error {
+func (p *plannedDates) bulkCreate(_ context.Context, created []*workforce.ShiftRecord) error {
 	for _, shift := range created {
 		p.dates = append(p.dates, shift.Date)
 	}

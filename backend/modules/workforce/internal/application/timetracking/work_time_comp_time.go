@@ -6,6 +6,8 @@ import (
 	"fmt"
 	"sort"
 
+	"github.com/moto-nrw/project-phoenix/modules/workforce"
+
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 )
 
@@ -77,7 +79,9 @@ func (s *workTimeMonthService) addAdjustmentReductionCheckpoints(
 	if s.adjustmentRepo == nil {
 		return nil
 	}
-	adjustments, err := s.adjustmentRepo.GetByStaffAndDateRange(ctx, staffID, effectiveDate, last)
+	adjustmentValues, err := s.adjustmentRepo.ListStaffBalanceAdjustments(ctx, workforce.StaffBalanceAdjustmentFilter{StaffID: staffID, EffectiveFrom: effectiveDate.String(), EffectiveTo: last.String()})
+	adjustments := adjustmentsToRecords(adjustmentValues)
+	err = rowReadError("get balance adjustments by staff+range", err, nil)
 	if err != nil {
 		return fmt.Errorf("failed to load balance adjustments for reduction validation: %w", err)
 	}
@@ -118,7 +122,9 @@ func (s *workTimeMonthService) addCompTimeReductionCheckpoints(
 	if s.absenceRepo == nil {
 		return nil, nil
 	}
-	absences, err := s.absenceRepo.GetByStaffAndDateRange(ctx, staffID, effectiveDate, last)
+	absenceValues, err := s.absenceRepo.ListStaffAbsences(ctx, workforce.StaffAbsenceFilter{StaffID: staffID, OverlapFrom: effectiveDate.String(), OverlapTo: last.String(), Order: []workforce.StaffAbsenceOrder{{Field: workforce.StaffAbsenceOrderDateStart}}})
+	absences := absencesToRecord(absenceValues)
+	err = rowReadError("get absences by staff and date range", err, nil)
 	if err != nil {
 		return nil, fmt.Errorf("failed to load comp-time absences for reduction validation: %w", err)
 	}
@@ -351,7 +357,9 @@ func (s *workTimeMonthService) getDailyActualMinutes(
 	from, to calendar.Date,
 ) (map[calendar.Date]int, error) {
 	end := to.AddDays(1).BerlinMidnight()
-	sessions, err := s.sessionRepo.ListOverlappingByStaffID(ctx, staffID, from.BerlinMidnight(), &end)
+	sessionsRecords, err := s.sessionRepo.ListOverlappingWorkSessions(ctx, []int64{staffID}, from.BerlinMidnight(), &end)
+	sessions := workSessionsToRecords(sessionsRecords)
+	err = rowReadError("list overlapping by staff ID", err, nil)
 	if err != nil {
 		return nil, fmt.Errorf("failed to load work sessions for daily balance calculation: %w", err)
 	}
@@ -395,7 +403,9 @@ func (s *workTimeMonthService) getDailyAbsenceCredits(
 	from, to, through calendar.Date,
 	resolver *dailyTargetResolver,
 ) (map[calendar.Date]int, error) {
-	absences, err := s.absenceRepo.GetByStaffAndDateRange(ctx, staffID, from, to)
+	absenceValues, err := s.absenceRepo.ListStaffAbsences(ctx, workforce.StaffAbsenceFilter{StaffID: staffID, OverlapFrom: from.String(), OverlapTo: to.String(), Order: []workforce.StaffAbsenceOrder{{Field: workforce.StaffAbsenceOrderDateStart}}})
+	absences := absencesToRecord(absenceValues)
+	err = rowReadError("get absences by staff and date range", err, nil)
 	if err != nil {
 		return nil, fmt.Errorf("failed to load absences for daily credits: %w", err)
 	}
@@ -416,7 +426,9 @@ func (s *workTimeMonthService) addDailyAdjustments(
 	if s.adjustmentRepo == nil {
 		return nil
 	}
-	adjustments, err := s.adjustmentRepo.GetByStaffAndDateRange(ctx, staffID, from, to)
+	adjustmentValues, err := s.adjustmentRepo.ListStaffBalanceAdjustments(ctx, workforce.StaffBalanceAdjustmentFilter{StaffID: staffID, EffectiveFrom: from.String(), EffectiveTo: to.String()})
+	adjustments := adjustmentsToRecords(adjustmentValues)
+	err = rowReadError("get balance adjustments by staff+range", err, nil)
 	if err != nil {
 		return fmt.Errorf("failed to load adjustments for daily reduction validation: %w", err)
 	}

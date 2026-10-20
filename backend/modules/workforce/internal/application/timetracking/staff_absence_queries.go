@@ -34,7 +34,9 @@ func (s *staffAbsenceService) ListAbsences(ctx context.Context, staffID int64, f
 		query.Order = []workforce.StaffAbsenceOrder{{Field: workforce.StaffAbsenceOrderRequestedAt, Descending: true}}
 	}
 
-	absences, err := s.absenceRepo.ListWithFilter(ctx, query)
+	absenceValues, err := s.absenceRepo.ListStaffAbsences(ctx, query)
+	absences := absencesToRecord(absenceValues)
+	err = rowReadError("list with options", err, nil)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get absences: %w", err)
 	}
@@ -48,7 +50,9 @@ func (s *staffAbsenceService) ListAbsences(ctx context.Context, staffID int64, f
 }
 
 func (s *staffAbsenceService) GetAbsencesForRange(ctx context.Context, staffID int64, from, to calendar.Date) ([]*StaffAbsenceResponse, error) {
-	absences, err := s.absenceRepo.GetByStaffAndDateRange(ctx, staffID, from, to)
+	absenceValues, err := s.absenceRepo.ListStaffAbsences(ctx, workforce.StaffAbsenceFilter{StaffID: staffID, OverlapFrom: from.String(), OverlapTo: to.String(), Order: []workforce.StaffAbsenceOrder{{Field: workforce.StaffAbsenceOrderDateStart}}})
+	absences := absencesToRecord(absenceValues)
+	err = rowReadError("get absences by staff and date range", err, nil)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get absences: %w", err)
 	}
@@ -62,7 +66,9 @@ func (s *staffAbsenceService) GetAbsencesForRange(ctx context.Context, staffID i
 }
 
 func (s *staffAbsenceService) HasAbsenceOnDate(ctx context.Context, staffID int64, date calendar.Date) (bool, *StaffAbsence, error) {
-	absence, err := s.absenceRepo.GetByStaffAndDate(ctx, staffID, date)
+	absenceValues, err := s.absenceRepo.ListStaffAbsences(ctx, workforce.StaffAbsenceFilter{StaffID: staffID, OverlapFrom: date.String(), OverlapTo: date.String(), Statuses: []string{workforce.AbsenceStatusReported, workforce.AbsenceStatusApproved}, Limit: 1})
+	absence := firstAbsence(absenceValues)
+	err = rowReadError("get absence by staff and date", err, nil)
 	if err != nil {
 		return false, nil, fmt.Errorf("failed to check absence: %w", err)
 	}
@@ -171,10 +177,12 @@ func (s *staffAbsenceService) ListAbsenceRequests(ctx context.Context, req Absen
 }
 
 func (s *staffAbsenceService) ListPendingRequests(ctx context.Context) ([]*StaffAbsenceResponse, error) {
-	rows, err := s.absenceRepo.ListByStatuses(ctx, []string{
+	absenceValues, err := s.absenceRepo.ListStaffAbsences(ctx, workforce.StaffAbsenceFilter{Statuses: []string{
 		AbsenceStatusRequested,
 		AbsenceStatusQuestion,
-	})
+	}, Order: []workforce.StaffAbsenceOrder{{Field: workforce.StaffAbsenceOrderRequestedAt}}})
+	rows := absencesToRecord(absenceValues)
+	err = rowReadError("list absences by statuses", err, nil)
 	if err != nil {
 		return nil, fmt.Errorf("failed to list pending requests: %w", err)
 	}

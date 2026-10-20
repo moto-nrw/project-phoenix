@@ -83,8 +83,8 @@ func NewWorkforceTestModule(db transactionruntime.Database, unit tenant.UnitOfWo
 	settingsService := settings.Settings
 	realtimeHub := deliveryCompose.NewRealtimeHub(logger)
 	usersService := peopleCompose.NewPersonDirectory(peoplePorts.PersonDirectoryDependencies{
-		PersonDirectory:  peopleCompose.NewPersonWrites(owners.MustNewPeopleDirectory(db)),
-		StudentDirectory: peopleCompose.NewStudentDirectory(owners.MustNewPeopleDirectory(db)),
+		PersonDirectory:  owners.MustNewPeopleDirectory(db).PersonWrites,
+		StudentDirectory: owners.MustNewPeopleDirectory(db).StudentDirectory,
 		PersonRepo:       members.Person, RFIDRepo: owners.NewPeopleIdentityAccess(db, nil), AccountExists: identityaccessCompose.AccountExists(identityAccess), StudentRepo: members.Student,
 		TeacherRepo:    members.Teacher,
 		StaffDirectory: peopleCompose.NewStaffDirectory(peoplePorts.StaffDirectoryDependencies{Runtime: peopleCompose.NewLegacyRepositoryRuntime(db.Pool()), Persons: members.Person, Staff: members.Staff, Teachers: members.Teacher, LehrkraftRoles: identityAccess, MayManageStaff: StaffAdministrationPermitted}),

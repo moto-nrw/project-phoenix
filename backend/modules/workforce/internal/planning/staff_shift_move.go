@@ -36,7 +36,7 @@ type MoveShiftInput struct {
 // MoveShift applies a move as one row update inside the caller's tenant
 // transaction. Keeping the row ID makes PUT retries naturally idempotent and
 // avoids the duplicate/lost-shift states of client-side create/delete.
-func (s *staffShiftService) MoveShift(ctx context.Context, input MoveShiftInput) (*StaffShift, error) {
+func (s *staffShiftService) MoveShift(ctx context.Context, input MoveShiftInput) (*workforce.ShiftRecord, error) {
 	if input.ShiftID <= 0 {
 		return nil, ErrShiftNotFound
 	}
@@ -73,9 +73,11 @@ func (s *staffShiftService) MoveShift(ctx context.Context, input MoveShiftInput)
 		return nil, err
 	}
 
-	if err := s.repo.Update(ctx, &moved); err != nil {
+	written, err := s.repo.UpdateStaffShift(ctx, ShiftCapability(&moved))
+	if err = staffShiftUpdateError(err); err != nil {
 		return nil, err
 	}
+	applyShiftToRow(&moved, written)
 	if err := s.logShiftMovedEvent(ctx, existing, &moved, input.ActorAccountID); err != nil {
 		return nil, err
 	}
@@ -91,7 +93,7 @@ func (s *staffShiftService) MoveShift(ctx context.Context, input MoveShiftInput)
 
 // lockMoveStaff locks the source, the target and — for a replacement — the
 // origin's staff in one stable order.
-func (s *staffShiftService) lockMoveStaff(ctx context.Context, existing *StaffShift, input MoveShiftInput) error {
+func (s *staffShiftService) lockMoveStaff(ctx context.Context, existing *workforce.ShiftRecord, input MoveShiftInput) error {
 	lockIDs := []int64{input.SourceStaffID, input.TargetStaffID}
 	if existing.OriginShiftID != nil {
 		origin, err := s.loadOriginShift(ctx, *existing.OriginShiftID)
@@ -106,7 +108,7 @@ func (s *staffShiftService) lockMoveStaff(ctx context.Context, existing *StaffSh
 // reloadLockedMoveSource re-reads the shift under the lock. It reports
 // alreadyApplied with the stored row when a retry finds its own completed
 // cross-person move.
-func (s *staffShiftService) reloadLockedMoveSource(ctx context.Context, input MoveShiftInput) (*StaffShift, bool, error) {
+func (s *staffShiftService) reloadLockedMoveSource(ctx context.Context, input MoveShiftInput) (*workforce.ShiftRecord, bool, error) {
 	existing, err := s.findShiftForMove(ctx, input.ShiftID)
 	if err != nil {
 		return nil, false, err
@@ -139,7 +141,7 @@ func (s *staffShiftService) ensureMoveTargetStaff(ctx context.Context, targetSta
 }
 
 // movedShift applies the requested slot to a copy of the stored row.
-func movedShift(existing *StaffShift, input MoveShiftInput) StaffShift {
+func movedShift(existing *workforce.ShiftRecord, input MoveShiftInput) workforce.ShiftRecord {
 	moved := *existing
 	moved.StaffID = input.TargetStaffID
 	moved.Date = input.Date
@@ -154,7 +156,7 @@ func movedShift(existing *StaffShift, input MoveShiftInput) StaffShift {
 }
 
 // validateMove checks the moved row's shape, type, origin link and overlap.
-func (s *staffShiftService) validateMove(ctx context.Context, existing, moved *StaffShift) error {
+func (s *staffShiftService) validateMove(ctx context.Context, existing, moved *workforce.ShiftRecord) error {
 	if err := moved.Validate(); err != nil {
 		return fmt.Errorf("%w: %s", ErrShiftInvalid, err.Error())
 	}
@@ -174,7 +176,7 @@ func (s *staffShiftService) validateMove(ctx context.Context, existing, moved *S
 
 // applyMoveSeriesRules consumes a vacated series occurrence and sets the moved
 // row's series fields. The caller only reaches it with a changed slot.
-func (s *staffShiftService) applyMoveSeriesRules(ctx context.Context, existing, moved *StaffShift) error {
+func (s *staffShiftService) applyMoveSeriesRules(ctx context.Context, existing, moved *workforce.ShiftRecord) error {
 	vacatesSeriesOccurrence := existing.SeriesID != nil &&
 		(existing.StaffID != moved.StaffID || seriesOccurrenceDate(existing) != moved.Date)
 	if vacatesSeriesOccurrence {
@@ -205,7 +207,7 @@ func (s *staffShiftService) applyMoveSeriesRules(ctx context.Context, existing, 
 // audit is wired: an audit failure aborts the move. The audit is optional
 // only for unit tests constructed without audit wiring — production always
 // sets it.
-func (s *staffShiftService) logShiftMovedEvent(ctx context.Context, existing, moved *StaffShift, actorAccountID *int64) error {
+func (s *staffShiftService) logShiftMovedEvent(ctx context.Context, existing, moved *workforce.ShiftRecord, actorAccountID *int64) error {
 	if s.shiftMoveAudit == nil {
 		return nil
 	}
@@ -233,7 +235,7 @@ func (s *staffShiftService) logShiftMovedEvent(ctx context.Context, existing, mo
 }
 
 // shiftMoveSlot snapshots the audit-relevant slot of one shift state.
-func shiftMoveSlot(shift *StaffShift) map[string]any {
+func shiftMoveSlot(shift *workforce.ShiftRecord) map[string]any {
 	return map[string]any{
 		"staff_id":   shift.StaffID,
 		"date":       shift.Date.String(),
@@ -242,7 +244,7 @@ func shiftMoveSlot(shift *StaffShift) map[string]any {
 	}
 }
 
-func staffShiftMoveChanged(existing, moved *StaffShift) bool {
+func staffShiftMoveChanged(existing, moved *workforce.ShiftRecord) bool {
 	return existing.StaffID != moved.StaffID ||
 		existing.Date != moved.Date ||
 		!calendar.SameClockTime(existing.StartTime, moved.StartTime) ||
@@ -254,15 +256,16 @@ func staffShiftMoveChanged(existing, moved *StaffShift) bool {
 // seriesOccurrenceDate returns the immutable recurrence slot for a materialized
 // row. The Date fallback keeps mock-built and pre-migration in-memory rows safe;
 // migration 1.15.202 backfills every persisted series row.
-func seriesOccurrenceDate(shift *StaffShift) calendar.Date {
+func seriesOccurrenceDate(shift *workforce.ShiftRecord) calendar.Date {
 	if shift.SeriesOccurrenceDate != nil {
 		return *shift.SeriesOccurrenceDate
 	}
 	return shift.Date
 }
 
-func (s *staffShiftService) findShiftForMove(ctx context.Context, id int64) (*StaffShift, error) {
-	shift, err := s.repo.FindByID(ctx, id)
+func (s *staffShiftService) findShiftForMove(ctx context.Context, id int64) (*workforce.ShiftRecord, error) {
+	shift, err := s.repo.ReadShift(ctx, id)
+	err = shiftReadError("find by id", err, workforce.ErrStaffShiftNotFound)
 	if err != nil {
 		if isRecordNotFound(err) {
 			return nil, ErrShiftNotFound
@@ -275,7 +278,7 @@ func (s *staffShiftService) findShiftForMove(ctx context.Context, id int64) (*St
 	return shift, nil
 }
 
-func moveAlreadyApplied(shift *StaffShift, input MoveShiftInput) bool {
+func moveAlreadyApplied(shift *workforce.ShiftRecord, input MoveShiftInput) bool {
 	return shift.StaffID == input.TargetStaffID &&
 		shift.Date == input.Date &&
 		calendar.SameClockTime(shift.StartTime, input.StartTime) &&
@@ -285,7 +288,7 @@ func moveAlreadyApplied(shift *StaffShift, input MoveShiftInput) bool {
 		shift.SeriesID == nil
 }
 
-func (s *staffShiftService) validateMovedOrigin(ctx context.Context, existing, moved *StaffShift) error {
+func (s *staffShiftService) validateMovedOrigin(ctx context.Context, existing, moved *workforce.ShiftRecord) error {
 	if moved.OriginShiftID != nil {
 		return s.validateOriginLink(ctx, moved)
 	}
@@ -294,7 +297,8 @@ func (s *staffShiftService) validateMovedOrigin(ctx context.Context, existing, m
 	if moved.StaffID == existing.StaffID && moved.Date == existing.Date && !windowChanged {
 		return nil
 	}
-	covers, err := s.repo.FindByOriginShiftID(ctx, existing.ID)
+	covers, err := s.repo.ReadShifts(ctx, workforce.StaffShiftFilter{OriginShiftID: existing.ID, Order: shiftOrder(workforce.StaffShiftOrderStartTime)})
+	err = shiftReadError("find staff shifts by origin shift id", err, nil)
 	if err != nil {
 		return fmt.Errorf("check covers before shift move: %w", err)
 	}
@@ -304,12 +308,12 @@ func (s *staffShiftService) validateMovedOrigin(ctx context.Context, existing, m
 	return nil
 }
 
-func (s *staffShiftService) recordSeriesException(ctx context.Context, shift *StaffShift, date calendar.Date) error {
+func (s *staffShiftService) recordSeriesException(ctx context.Context, shift *workforce.ShiftRecord, date calendar.Date) error {
 	exception := &StaffShiftSeriesException{
 		SeriesID:  *shift.SeriesID,
 		Date:      date,
 		CreatedBy: shift.CreatedBy,
 	}
 	exception.TenantID = shift.TenantID
-	return s.exceptionRepo.Create(ctx, exception)
+	return shiftWriteError("create staff shift series exception", s.exceptionRepo.RecordSeriesException(ctx, workforce.StaffShiftSeriesException{ID: exception.ID, TenantID: exception.TenantID, SeriesID: exception.SeriesID, Date: exception.Date.String(), CreatedBy: exception.CreatedBy, CreatedAt: exception.CreatedAt}))
 }

@@ -952,7 +952,7 @@ func newEnrollmentResource(
 // the meal plan under /api.
 func mountPeopleRoutes(
 	tenant chi.Router, db transactionruntime.Database, logger *slog.Logger, reports owners.PresenceReports, renderer *lists.RendererService,
-	persons *peopledirectory.Module, guardians peoplePorts.GuardianService, identity *identityaccess.Module, caller *owners.CallerRows,
+	persons *peopleCompose.Directory, guardians peoplePorts.GuardianService, identity *identityaccess.Module, caller *owners.CallerRows,
 	feedback *feedbackModule.Module, mealPlan *mealplanModule.Module, birthdays peopledirectory.Birthdays,
 	emergency emergencysnapshot.Query,
 ) {

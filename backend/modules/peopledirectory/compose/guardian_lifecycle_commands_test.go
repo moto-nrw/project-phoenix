@@ -35,13 +35,13 @@ func lifecyclePresets() ports.GuardianRolePresetFuncs {
 
 func buildLifecycleModule(t *testing.T, db *bun.DB) *peopledirectory.Module {
 	t.Helper()
-	module, err := NewWithGuardianMemberships(Dependencies{
+	module, err := New(Dependencies{
 		StudentDirectory: testpkg.StudentDirectory{}, DB: db, Observe: func(Observation) {},
 		GuardianLinkOwners: testGuardianLinkOwners{Db: db}, GuardianLinkRows: testpkg.GuardianLinks{},
 		GuardianRolePresets: lifecyclePresets(),
 	}, testPortalMemberships(db))
 	require.NoError(t, err)
-	return module
+	return module.Module
 }
 
 func legalGuardianPermissions() map[string]any {

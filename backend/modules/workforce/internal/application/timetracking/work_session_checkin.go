@@ -108,7 +108,9 @@ func validateCheckInChannel(status, source string) error {
 // is clocked in, and whether the new block would overlap an existing one.
 // Stale open blocks among them are closed before they are returned.
 func (s *workSessionService) presentSiblings(ctx context.Context, staffID int64, now time.Time) ([]*WorkSession, error) {
-	siblings, err := s.repo.ListOverlappingByStaffID(ctx, staffID, now, nil)
+	siblingsRecords, err := s.repo.ListOverlappingWorkSessions(ctx, []int64{staffID}, now, nil)
+	siblings := workSessionsToRecords(siblingsRecords)
+	err = rowReadError("list overlapping by staff ID", err, nil)
 	if err != nil {
 		return nil, fmt.Errorf("failed to check existing session: %w", err)
 	}
@@ -170,9 +172,12 @@ func (s *workSessionService) createCheckInSession(ctx context.Context, staffID i
 	}
 
 	session.SetTenantID(tenant.FromContext(ctx))
-	if err := s.repo.Create(ctx, session); err != nil {
+	stored, err := s.repo.CreateWorkSession(ctx, WorkSessionToCapability(session))
+	err = workSessionWriteError("create", err)
+	if err != nil {
 		return nil, fmt.Errorf("failed to create work session: %w", err)
 	}
+	applyWorkSessionToRecord(session, stored)
 	return session, nil
 }
 
@@ -254,7 +259,9 @@ func (s *workSessionService) EnsureCheckedIn(ctx context.Context, staffID int64,
 	// Check if already checked in. Across all days, like the check-in guard:
 	// a block that crossed Berlin midnight is still running, and starting a
 	// supervision must return it instead of running into "already checked in".
-	currentSession, err := s.repo.GetLatestOpenByStaffID(ctx, staffID)
+	currentSessionRecords, err := s.repo.LatestOpenWorkSession(ctx, staffID)
+	currentSession := workSessionReadRecord(currentSessionRecords, err)
+	err = rowReadError("get latest open by staff ID", err, workforce.ErrWorkSessionNotFound)
 	if err != nil && !isRecordNotFound(err) {
 		return nil, fmt.Errorf("failed to check current session: %w", err)
 	}

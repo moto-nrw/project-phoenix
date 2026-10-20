@@ -83,10 +83,10 @@ func (m *seriesMockExceptionRepo) RepointToSeriesFrom(ctx context.Context, fromI
 // injection for the series-specific bulk operations.
 type seriesShiftMockRepo struct {
 	shiftMockRepo
-	bulkCreateFn        func(ctx context.Context, shifts []*StaffShift) error
+	bulkCreateFn        func(ctx context.Context, shifts []*workforce.ShiftRecord) error
 	deleteNonDetachedFn func(ctx context.Context, seriesID int64, from calendar.Date) (int64, error)
 	repointDetachedFn   func(ctx context.Context, fromID, toID int64, from calendar.Date) (int64, error)
-	findDetachedFn      func(ctx context.Context, seriesID int64, from calendar.Date) ([]*StaffShift, error)
+	findDetachedFn      func(ctx context.Context, seriesID int64, from calendar.Date) ([]*workforce.ShiftRecord, error)
 	deleteFn            func(ctx context.Context, id any) error
 }
 
@@ -95,17 +95,17 @@ type seriesShiftMockRepo struct {
 // unexpected call fail loudly.
 type seriesOccurrenceUpdaterMock struct {
 	StaffShiftService
-	updateFn func(context.Context, *StaffShift, StaffShiftUpdateOptions) (*StaffShift, error)
+	updateFn func(context.Context, *workforce.ShiftRecord, StaffShiftUpdateOptions) (*workforce.ShiftRecord, error)
 }
 
-func (m *seriesOccurrenceUpdaterMock) UpdateShiftWithOptions(ctx context.Context, shift *StaffShift, opts StaffShiftUpdateOptions) (*StaffShift, error) {
+func (m *seriesOccurrenceUpdaterMock) UpdateShiftWithOptions(ctx context.Context, shift *workforce.ShiftRecord, opts StaffShiftUpdateOptions) (*workforce.ShiftRecord, error) {
 	if m.updateFn == nil {
 		return shift, nil
 	}
 	return m.updateFn(ctx, shift, opts)
 }
 
-func (m *seriesShiftMockRepo) BulkCreate(ctx context.Context, shifts []*StaffShift) error {
+func (m *seriesShiftMockRepo) BulkCreate(ctx context.Context, shifts []*workforce.ShiftRecord) error {
 	if m.bulkCreateFn != nil {
 		return m.bulkCreateFn(ctx, shifts)
 	}
@@ -126,7 +126,7 @@ func (m *seriesShiftMockRepo) RepointDetachedSeriesFrom(ctx context.Context, fro
 	return 0, nil
 }
 
-func (m *seriesShiftMockRepo) FindDetachedBySeriesFrom(ctx context.Context, seriesID int64, from calendar.Date) ([]*StaffShift, error) {
+func (m *seriesShiftMockRepo) FindDetachedBySeriesFrom(ctx context.Context, seriesID int64, from calendar.Date) ([]*workforce.ShiftRecord, error) {
 	if m.findDetachedFn != nil {
 		return m.findDetachedFn(ctx, seriesID, from)
 	}
@@ -304,7 +304,7 @@ func TestCreateSeriesUnit_ErrorBranches(t *testing.T) {
 	t.Run("existing shift read failure", func(t *testing.T) {
 		service := newSeriesServiceForTest(seriesServiceMocks{
 			shifts: &seriesShiftMockRepo{shiftMockRepo: shiftMockRepo{
-				findByStaffAndDateRangeFunc: func(context.Context, int64, calendar.Date, calendar.Date) ([]*StaffShift, error) {
+				findByStaffAndDateRangeFunc: func(context.Context, int64, calendar.Date, calendar.Date) ([]*workforce.ShiftRecord, error) {
 					return nil, dbErr
 				},
 			}},
@@ -315,7 +315,7 @@ func TestCreateSeriesUnit_ErrorBranches(t *testing.T) {
 
 	t.Run("bulk insert failure", func(t *testing.T) {
 		service := newSeriesServiceForTest(seriesServiceMocks{
-			shifts: &seriesShiftMockRepo{bulkCreateFn: func(context.Context, []*StaffShift) error {
+			shifts: &seriesShiftMockRepo{bulkCreateFn: func(context.Context, []*workforce.ShiftRecord) error {
 				return dbErr
 			}},
 		})
@@ -350,7 +350,7 @@ func TestUpdateTodayOccurrence(t *testing.T) {
 	today := calendar.NewDate(2026, 8, 24)
 	occurrenceDate := calendar.Date(today)
 	seriesID := int64(12)
-	occurrence := &StaffShift{
+	occurrence := &workforce.ShiftRecord{
 		StaffID:              5,
 		Date:                 occurrenceDate,
 		StartTime:            seriesClockForMockTest(t, "09:00"),
@@ -394,7 +394,7 @@ func TestUpdateTodayOccurrence(t *testing.T) {
 			t.Run(name, func(t *testing.T) {
 				service := &staffShiftSeriesService{
 					shiftRepo: &seriesShiftMockRepo{shiftMockRepo: shiftMockRepo{
-						findByIDFunc: func(context.Context, any) (*StaffShift, error) {
+						findByIDFunc: func(context.Context, any) (*workforce.ShiftRecord, error) {
 							return nil, findErr
 						},
 					}},
@@ -419,7 +419,7 @@ func TestUpdateTodayOccurrence(t *testing.T) {
 		wrong.SeriesID = &wrongSeriesID
 		service := &staffShiftSeriesService{
 			shiftRepo: &seriesShiftMockRepo{shiftMockRepo: shiftMockRepo{
-				findByIDFunc: func(context.Context, any) (*StaffShift, error) {
+				findByIDFunc: func(context.Context, any) (*workforce.ShiftRecord, error) {
 					return &wrong, nil
 				},
 			}},
@@ -433,7 +433,7 @@ func TestUpdateTodayOccurrence(t *testing.T) {
 	})
 
 	t.Run("updates the concrete row and propagates update failures", func(t *testing.T) {
-		var updated *StaffShift
+		var updated *workforce.ShiftRecord
 		shiftTypeID := int64(7)
 		notes := "Updated permanent note"
 		inputWithType := input
@@ -442,12 +442,12 @@ func TestUpdateTodayOccurrence(t *testing.T) {
 		inputWithType.Notes = &notes
 		service := &staffShiftSeriesService{
 			shiftRepo: &seriesShiftMockRepo{shiftMockRepo: shiftMockRepo{
-				findByIDFunc: func(_ context.Context, id any) (*StaffShift, error) {
+				findByIDFunc: func(_ context.Context, id any) (*workforce.ShiftRecord, error) {
 					assert.Equal(t, int64(44), id)
 					return occurrence, nil
 				},
 			}},
-			shiftService: &seriesOccurrenceUpdaterMock{updateFn: func(_ context.Context, shift *StaffShift, opts StaffShiftUpdateOptions) (*StaffShift, error) {
+			shiftService: &seriesOccurrenceUpdaterMock{updateFn: func(_ context.Context, shift *workforce.ShiftRecord, opts StaffShiftUpdateOptions) (*workforce.ShiftRecord, error) {
 				updated = shift
 				assert.True(t, opts.SuppressTimeTrackingBroadcast)
 				return nil, errors.New("write failed")
@@ -469,10 +469,10 @@ func TestUpdateTodayOccurrence(t *testing.T) {
 		assert.Equal(t, input.ActorStaffID, *updated.UpdatedBy)
 	})
 
-	for name, mutate := range map[string]func(*StaffShift){
-		"detached occurrence":  func(shift *StaffShift) { shift.Detached = true },
-		"moved occurrence":     func(shift *StaffShift) { shift.Date = calendar.Date(today.AddDays(1)) },
-		"cancelled occurrence": func(shift *StaffShift) { shift.Cancelled = true },
+	for name, mutate := range map[string]func(*workforce.ShiftRecord){
+		"detached occurrence":  func(shift *workforce.ShiftRecord) { shift.Detached = true },
+		"moved occurrence":     func(shift *workforce.ShiftRecord) { shift.Date = calendar.Date(today.AddDays(1)) },
+		"cancelled occurrence": func(shift *workforce.ShiftRecord) { shift.Cancelled = true },
 	} {
 		t.Run("preserves "+name, func(t *testing.T) {
 			preserved := *occurrence
@@ -480,11 +480,11 @@ func TestUpdateTodayOccurrence(t *testing.T) {
 			updates := 0
 			service := &staffShiftSeriesService{
 				shiftRepo: &seriesShiftMockRepo{shiftMockRepo: shiftMockRepo{
-					findByIDFunc: func(context.Context, any) (*StaffShift, error) {
+					findByIDFunc: func(context.Context, any) (*workforce.ShiftRecord, error) {
 						return &preserved, nil
 					},
 				}},
-				shiftService: &seriesOccurrenceUpdaterMock{updateFn: func(context.Context, *StaffShift, StaffShiftUpdateOptions) (*StaffShift, error) {
+				shiftService: &seriesOccurrenceUpdaterMock{updateFn: func(context.Context, *workforce.ShiftRecord, StaffShiftUpdateOptions) (*workforce.ShiftRecord, error) {
 					updates++
 					return nil, nil
 				}},
@@ -503,11 +503,11 @@ func TestUpdateTodayOccurrence(t *testing.T) {
 		updates := 0
 		service := &staffShiftSeriesService{
 			shiftRepo: &seriesShiftMockRepo{shiftMockRepo: shiftMockRepo{
-				findByIDFunc: func(context.Context, any) (*StaffShift, error) {
+				findByIDFunc: func(context.Context, any) (*workforce.ShiftRecord, error) {
 					return &retained, nil
 				},
 			}},
-			shiftService: &seriesOccurrenceUpdaterMock{updateFn: func(context.Context, *StaffShift, StaffShiftUpdateOptions) (*StaffShift, error) {
+			shiftService: &seriesOccurrenceUpdaterMock{updateFn: func(context.Context, *workforce.ShiftRecord, StaffShiftUpdateOptions) (*workforce.ShiftRecord, error) {
 				updates++
 				return nil, nil
 			}},
@@ -522,7 +522,7 @@ func TestUpdateTodayOccurrence(t *testing.T) {
 	t.Run("returns nil after a successful update", func(t *testing.T) {
 		service := &staffShiftSeriesService{
 			shiftRepo: &seriesShiftMockRepo{shiftMockRepo: shiftMockRepo{
-				findByIDFunc: func(context.Context, any) (*StaffShift, error) {
+				findByIDFunc: func(context.Context, any) (*workforce.ShiftRecord, error) {
 					return occurrence, nil
 				},
 			}},
@@ -728,7 +728,7 @@ func TestSplitSeriesUnit_ErrorBranches(t *testing.T) {
 		today := calendar.NewDate(2026, 8, 24)
 		occurrenceDate := calendar.Date(today)
 		seriesID := int64(12)
-		occurrence := &StaffShift{
+		occurrence := &workforce.ShiftRecord{
 			StaffID:              5,
 			Date:                 occurrenceDate,
 			SeriesID:             &seriesID,
@@ -746,7 +746,7 @@ func TestSplitSeriesUnit_ErrorBranches(t *testing.T) {
 		service := newSeriesServiceForTest(seriesServiceMocks{
 			series: repo,
 			shifts: &seriesShiftMockRepo{shiftMockRepo: shiftMockRepo{
-				findByIDFunc: func(context.Context, any) (*StaffShift, error) {
+				findByIDFunc: func(context.Context, any) (*workforce.ShiftRecord, error) {
 					return occurrence, nil
 				},
 			},
@@ -777,7 +777,7 @@ func TestSplitSeriesUnit_ErrorBranches(t *testing.T) {
 		today := calendar.NewDate(2026, 8, 24)
 		occurrenceDate := calendar.Date(today)
 		seriesID := int64(12)
-		occurrence := &StaffShift{
+		occurrence := &workforce.ShiftRecord{
 			StaffID:              5,
 			Date:                 occurrenceDate,
 			SeriesID:             &seriesID,
@@ -801,11 +801,11 @@ func TestSplitSeriesUnit_ErrorBranches(t *testing.T) {
 		service := newSeriesServiceForTest(seriesServiceMocks{
 			series: repo,
 			shifts: &seriesShiftMockRepo{shiftMockRepo: shiftMockRepo{
-				findByIDFunc: func(context.Context, any) (*StaffShift, error) {
+				findByIDFunc: func(context.Context, any) (*workforce.ShiftRecord, error) {
 					return occurrence, nil
 				},
 			}},
-			occurrenceUpdater: &seriesOccurrenceUpdaterMock{updateFn: func(_ context.Context, updated *StaffShift, _ StaffShiftUpdateOptions) (*StaffShift, error) {
+			occurrenceUpdater: &seriesOccurrenceUpdaterMock{updateFn: func(_ context.Context, updated *workforce.ShiftRecord, _ StaffShiftUpdateOptions) (*workforce.ShiftRecord, error) {
 				updates++
 				assert.Equal(t, "10:00", calendar.NormalizeWallClock(updated.StartTime).Format("15:04"))
 				return updated, nil
@@ -824,7 +824,7 @@ func TestSplitSeriesUnit_ErrorBranches(t *testing.T) {
 		today := calendar.NewDate(2026, 8, 24)
 		occurrenceDate := calendar.Date(today)
 		seriesID := int64(12)
-		occurrence := &StaffShift{
+		occurrence := &workforce.ShiftRecord{
 			StaffID:              5,
 			Date:                 occurrenceDate,
 			SeriesID:             &seriesID,
@@ -844,11 +844,11 @@ func TestSplitSeriesUnit_ErrorBranches(t *testing.T) {
 		service := newSeriesServiceForTest(seriesServiceMocks{
 			series: repo,
 			shifts: &seriesShiftMockRepo{shiftMockRepo: shiftMockRepo{
-				findByIDFunc: func(context.Context, any) (*StaffShift, error) {
+				findByIDFunc: func(context.Context, any) (*workforce.ShiftRecord, error) {
 					return occurrence, nil
 				},
 			}},
-			occurrenceUpdater: &seriesOccurrenceUpdaterMock{updateFn: func(context.Context, *StaffShift, StaffShiftUpdateOptions) (*StaffShift, error) {
+			occurrenceUpdater: &seriesOccurrenceUpdaterMock{updateFn: func(context.Context, *workforce.ShiftRecord, StaffShiftUpdateOptions) (*workforce.ShiftRecord, error) {
 				updates++
 				return nil, nil
 			}},
@@ -965,4 +965,61 @@ func TestGetSeriesUnit(t *testing.T) {
 		assert.ErrorIs(t, err, dbErr)
 		assert.NotErrorIs(t, err, ErrSeriesNotFound)
 	})
+}
+
+func (m *seriesMockRepo) CreateStaffShiftSeries(ctx context.Context, v workforce.StaffShiftSeries) (workforce.StaffShiftSeries, error) {
+	row := seriesToRow(v)
+	err := m.Create(ctx, row)
+	return seriesRowToCapability(row), err
+}
+func (m *seriesMockRepo) FindStaffShiftSeries(ctx context.Context, id int64) (workforce.StaffShiftSeries, error) {
+	row, err := m.FindByID(ctx, id)
+	if row == nil {
+		if err == nil {
+			err = workforce.ErrShiftSeriesNotFound
+		}
+		return workforce.StaffShiftSeries{}, err
+	}
+	return seriesRowToCapability(row), err
+}
+func (m *seriesMockRepo) CapStaffShiftSeries(ctx context.Context, id int64, until string) error {
+	return m.CapValidUntil(ctx, id, calendar.Date(until))
+}
+func (m *seriesMockRepo) FindOverlappingSeriesInLineage(ctx context.Context, rootID, excludeID int64, from string) (workforce.StaffShiftSeries, error) {
+	row, err := m.FindOverlappingInLineage(ctx, rootID, excludeID, calendar.Date(from))
+	if row == nil {
+		if err == nil {
+			err = workforce.ErrShiftSeriesNotFound
+		}
+		return workforce.StaffShiftSeries{}, err
+	}
+	return seriesRowToCapability(row), err
+}
+func (m *seriesMockExceptionRepo) RecordSeriesException(ctx context.Context, v workforce.StaffShiftSeriesException) error {
+	return m.Create(ctx, &StaffShiftSeriesException{ID: v.ID, SeriesID: v.SeriesID, TenantID: v.TenantID, Date: calendar.Date(v.Date), CreatedBy: v.CreatedBy, CreatedAt: v.CreatedAt})
+}
+func (m *seriesMockExceptionRepo) SeriesExceptionDates(ctx context.Context, id int64) ([]string, error) {
+	dates, err := m.FindDatesBySeriesID(ctx, id)
+	result := make([]string, len(dates))
+	for i, d := range dates {
+		result[i] = d.String()
+	}
+	return result, err
+}
+func (m *seriesMockExceptionRepo) RepointSeriesExceptions(ctx context.Context, fromID, toID int64, from string) (int64, error) {
+	return m.RepointToSeriesFrom(ctx, fromID, toID, calendar.Date(from))
+}
+func (m *seriesShiftMockRepo) CreateStaffShifts(ctx context.Context, values []workforce.StaffShift) ([]workforce.StaffShift, error) {
+	rows := shiftsToRows(values)
+	err := m.BulkCreate(ctx, rows)
+	return ShiftCapabilities(rows), err
+}
+func (m *seriesShiftMockRepo) DeleteRegenerableSeriesShifts(ctx context.Context, id int64, from string) (int64, error) {
+	return m.DeleteNonDetachedBySeriesFrom(ctx, id, calendar.Date(from))
+}
+func (m *seriesShiftMockRepo) RepointDetachedSeriesShifts(ctx context.Context, fromID, toID int64, from string) (int64, error) {
+	return m.RepointDetachedSeriesFrom(ctx, fromID, toID, calendar.Date(from))
+}
+func (m *seriesShiftMockRepo) DeleteStaffShift(ctx context.Context, id int64) error {
+	return m.Delete(ctx, id)
 }

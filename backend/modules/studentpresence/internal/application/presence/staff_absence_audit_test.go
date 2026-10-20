@@ -20,7 +20,7 @@ func TestRecordStaffAbsenceAuditReturnsIDAndTenant(t *testing.T) {
 	staff, account := testpkg.CreateTestStaffWithAccount(t, db, "Audit", "Actor")
 	ctx := testpkg.TenantContext(staff.TenantID)
 	today := calendar.TodayDate().String()
-	absence, err := workTime.CreateStaffAbsence(ctx, workforce.StaffAbsence{
+	absence, err := workTime.CreateStaffAbsence(ctx, &workforce.StaffAbsence{
 		StaffID:     staff.ID,
 		AbsenceType: workforce.AbsenceTypeVacation,
 		DateStart:   today,

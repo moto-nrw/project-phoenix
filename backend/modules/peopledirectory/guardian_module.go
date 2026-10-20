@@ -143,7 +143,7 @@ func (m *Module) ListGuardianLinksByAccount(ctx context.Context, accountID int64
 }
 
 func (m *Module) ListGuardiansByAccount(ctx context.Context, accountIDs []int64) ([]Guardian, error) {
-	accountIDs = uniquePositive(accountIDs)
+	accountIDs = PositiveIDs(accountIDs)
 	if len(accountIDs) == 0 {
 		return []Guardian{}, nil
 	}
@@ -151,7 +151,7 @@ func (m *Module) ListGuardiansByAccount(ctx context.Context, accountIDs []int64)
 }
 
 func (m *Module) ListGuardiansByID(ctx context.Context, ids []int64) ([]Guardian, error) {
-	ids = uniquePositive(ids)
+	ids = PositiveIDs(ids)
 	if len(ids) == 0 {
 		return []Guardian{}, nil
 	}
@@ -159,7 +159,7 @@ func (m *Module) ListGuardiansByID(ctx context.Context, ids []int64) ([]Guardian
 }
 
 func (m *Module) CountGuardianLinks(ctx context.Context, guardianIDs []int64) (map[int64]int, error) {
-	guardianIDs = uniquePositive(guardianIDs)
+	guardianIDs = PositiveIDs(guardianIDs)
 	if len(guardianIDs) == 0 {
 		return map[int64]int{}, nil
 	}
@@ -167,7 +167,7 @@ func (m *Module) CountGuardianLinks(ctx context.Context, guardianIDs []int64) (m
 }
 
 func (m *Module) StudentsWithPortalGuardian(ctx context.Context, studentIDs []int64) (map[int64]bool, error) {
-	studentIDs = uniquePositive(studentIDs)
+	studentIDs = PositiveIDs(studentIDs)
 	if len(studentIDs) == 0 {
 		return map[int64]bool{}, nil
 	}

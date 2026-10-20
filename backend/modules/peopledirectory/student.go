@@ -150,7 +150,7 @@ type studentEngine interface {
 }
 
 func (m *Module) ListStudentsByID(ctx context.Context, ids []int64) ([]Student, error) {
-	ids = uniquePositive(ids)
+	ids = PositiveIDs(ids)
 	if len(ids) == 0 {
 		return []Student{}, nil
 	}
@@ -158,7 +158,7 @@ func (m *Module) ListStudentsByID(ctx context.Context, ids []int64) ([]Student, 
 }
 
 func (m *Module) ListStudentNamesByID(ctx context.Context, ids []int64) ([]StudentName, error) {
-	ids = uniquePositive(ids)
+	ids = PositiveIDs(ids)
 	if len(ids) == 0 {
 		return []StudentName{}, nil
 	}
@@ -166,7 +166,7 @@ func (m *Module) ListStudentNamesByID(ctx context.Context, ids []int64) ([]Stude
 }
 
 func (m *Module) ListStudentsAcrossTenantsByID(ctx context.Context, ids []int64) ([]Student, error) {
-	ids = uniquePositive(ids)
+	ids = PositiveIDs(ids)
 	if len(ids) == 0 {
 		return []Student{}, nil
 	}
@@ -174,7 +174,7 @@ func (m *Module) ListStudentsAcrossTenantsByID(ctx context.Context, ids []int64)
 }
 
 func (m *Module) ListStudentsByClasses(ctx context.Context, classes []string) ([]Student, error) {
-	classes = uniqueClasses(classes)
+	classes = SchoolClasses(classes)
 	if len(classes) == 0 {
 		return []Student{}, nil
 	}
@@ -182,7 +182,7 @@ func (m *Module) ListStudentsByClasses(ctx context.Context, classes []string) ([
 }
 
 func (m *Module) ListStudentsByPersonID(ctx context.Context, personIDs []int64) ([]Student, error) {
-	personIDs = uniquePositive(personIDs)
+	personIDs = PositiveIDs(personIDs)
 	if len(personIDs) == 0 {
 		return []Student{}, nil
 	}
@@ -221,7 +221,8 @@ func validStatusFlag(status string) bool {
 	return status == "sick" || status == "excused"
 }
 
-func uniqueClasses(classes []string) []string {
+// SchoolClasses trims class names and preserves their distinct order.
+func SchoolClasses(classes []string) []string {
 	result := make([]string, 0, len(classes))
 	seen := make(map[string]struct{}, len(classes))
 	for _, class := range classes {

@@ -4,6 +4,8 @@ import (
 	"context"
 	"time"
 
+	"github.com/moto-nrw/project-phoenix/modules/workforce"
+
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 )
 
@@ -188,25 +190,24 @@ type monthShiftReader interface {
 	FindByStaffAndDateRange(ctx context.Context, staffID int64, start, end calendar.Date) ([]*TimeTrackingShift, error)
 }
 
-// monthSessionReader is implemented by WorkSessionRepository.
+// monthSessionReader is implemented by WorkSessionRecords.
 type monthSessionReader interface {
-	ListOverlappingByStaffID(ctx context.Context, staffID int64, from time.Time, to *time.Time) ([]*WorkSession, error)
+	ListOverlappingWorkSessions(ctx context.Context, staffIDs []int64, from time.Time, to *time.Time) ([]workforce.WorkSession, error)
 }
 
-// monthBreakReader is implemented by WorkSessionBreakRepository.
+// monthBreakReader is implemented by WorkSessionBreakRecords.
 type monthBreakReader interface {
-	GetBySessionID(ctx context.Context, sessionID int64) ([]*WorkSessionBreak, error)
-	GetBySessionIDs(ctx context.Context, sessionIDs []int64) (map[int64][]*WorkSessionBreak, error)
+	ListWorkSessionBreaks(ctx context.Context, filter workforce.WorkSessionBreakFilter) ([]workforce.WorkSessionBreak, error)
 }
 
-// monthAbsenceReader is implemented by StaffAbsenceRepository.
+// monthAbsenceReader is implemented by AbsenceRecords.
 type monthAbsenceReader interface {
-	GetByStaffAndDateRange(ctx context.Context, staffID int64, from, to calendar.Date) ([]*StaffAbsence, error)
+	ListStaffAbsences(context.Context, workforce.StaffAbsenceFilter) ([]workforce.StaffAbsence, error)
 }
 
-// monthAdjustmentReader is implemented by StaffBalanceAdjustmentRepository.
+// monthAdjustmentReader is implemented by BalanceAdjustmentRecords.
 type monthAdjustmentReader interface {
-	GetByStaffAndDateRange(ctx context.Context, staffID int64, from, to calendar.Date) ([]*StaffBalanceAdjustment, error)
+	ListStaffBalanceAdjustments(context.Context, workforce.StaffBalanceAdjustmentFilter) ([]workforce.StaffBalanceAdjustment, error)
 }
 
 // monthSnapshotReader is implemented by

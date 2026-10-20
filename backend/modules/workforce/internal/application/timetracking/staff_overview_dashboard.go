@@ -122,7 +122,8 @@ func (s *staffOverviewService) addTodayCounters(
 	}
 	summary.CurrentlyClockedIn = clockedIn
 
-	absences, err := s.absenceRepo.GetAbsenceMapForDate(ctx, today)
+	absences, err := s.absenceRepo.StaffAbsenceMapForDate(ctx, today.String())
+	err = rowReadError("get effective absences for date", err, nil)
 	if err != nil {
 		return fmt.Errorf("failed to load absence map: %w", err)
 	}
@@ -138,7 +139,8 @@ func (s *staffOverviewService) addTodayCounters(
 
 // clockedInCount counts the active staff members at work right now.
 func (s *staffOverviewService) clockedInCount(ctx context.Context, activeIDs map[int64]bool, today calendar.Date) (int, error) {
-	presence, err := s.sessionRepo.GetTodayPresenceMap(ctx)
+	presence, err := s.sessionRepo.WorkPresenceMap(ctx)
+	err = rowReadError("get today presence map", err, nil)
 	if err != nil {
 		return 0, fmt.Errorf("failed to load presence map: %w", err)
 	}
@@ -156,7 +158,9 @@ func (s *staffOverviewService) clockedInCount(ctx context.Context, activeIDs map
 	}
 	// A session opened before midnight and never closed is still someone at
 	// work, but it is not in today's presence map.
-	openSessions, err := s.sessionRepo.GetOpenSessions(ctx, today)
+	openSessionsRecords, err := s.sessionRepo.ListWorkSessions(ctx, workforce.WorkSessionFilter{DateBefore: today.String(), Open: boolPointer(true)})
+	openSessions := workSessionsToRecords(openSessionsRecords)
+	err = rowReadError("get open sessions", err, nil)
 	if err != nil {
 		return 0, fmt.Errorf("failed to load open sessions: %w", err)
 	}
@@ -217,9 +221,10 @@ func (s *staffOverviewService) expectedClockedIn(
 // ListPendingRequests returns, counted through the generic filter API so no
 // rows are loaded.
 func (s *staffOverviewService) countPendingRequests(ctx context.Context) (int, error) {
-	count, err := s.absenceRepo.CountWithFilter(ctx, workforce.StaffAbsenceFilter{
+	count, err := s.absenceRepo.CountStaffAbsences(ctx, workforce.StaffAbsenceFilter{
 		Statuses: []string{AbsenceStatusRequested, AbsenceStatusQuestion},
 	})
+	err = rowReadError("count with options", err, nil)
 	if err != nil {
 		return 0, fmt.Errorf("failed to count pending absence requests: %w", err)
 	}

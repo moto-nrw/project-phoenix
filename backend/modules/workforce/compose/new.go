@@ -11,6 +11,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/modules/workforce"
 	"github.com/moto-nrw/project-phoenix/modules/workforce/internal/adapters/postgres"
 	"github.com/moto-nrw/project-phoenix/modules/workforce/internal/application"
+	"github.com/moto-nrw/project-phoenix/modules/workforce/internal/planning"
 	"github.com/moto-nrw/project-phoenix/modules/workforce/internal/ports"
 	"github.com/moto-nrw/project-phoenix/tenant"
 	"github.com/uptrace/bun"
@@ -40,16 +41,23 @@ type Dependencies struct {
 	StatutoryHolidays func(ctx context.Context, from, to string) (map[string]bool, error)
 }
 
+// WorkTime is the owner composition: its public capability and native shift
+// reads share one application service, transaction runtime and observer.
+type WorkTime struct {
+	*workforce.Module
+	planning.ShiftReads
+}
+
 // New composes the Workforce work-time module. Every operation runs on the
 // caller's ambient tenant transaction when one exists and otherwise opens one,
 // so row-level security decides visibility exactly as it did for the legacy
 // repositories.
-func New(dependencies Dependencies) (*workforce.Module, error) {
+func New(dependencies Dependencies) (*WorkTime, error) {
 	service, err := newApplication(dependencies)
 	if err != nil {
 		return nil, err
 	}
-	return workforce.NewModule(application.NewEngine(service)), nil
+	return &WorkTime{Module: workforce.NewModule(application.NewEngine(service)), ShiftReads: service}, nil
 }
 
 func newApplication(dependencies Dependencies) (*application.Service, error) {
