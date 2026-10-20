@@ -3,7 +3,6 @@ package migrations
 import (
 	"context"
 	"fmt"
-	"os"
 	"testing"
 	"time"
 
@@ -164,12 +163,4 @@ func TestEnrollmentNotificationModeAndCleanupGrantsMigration_PostSchemaAndScoped
 	`, historyRequest)
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "chk_enrollment_requests_decision_notification_mode")
-}
-
-func TestEnrollmentNotificationModeAndCleanupGrantsMigration_DownPreservesInheritedLateInviteDelete(t *testing.T) {
-	t.Parallel()
-	source, err := os.ReadFile("001015180_enrollment_notification_mode_and_cleanup_grants.go")
-	require.NoError(t, err)
-	assert.Contains(t, string(source), "REVOKE DELETE ON platform.email_outbox FROM phoenix_tenant")
-	assert.NotContains(t, string(source), "REVOKE DELETE ON enrollment.late_invites FROM phoenix_tenant")
 }

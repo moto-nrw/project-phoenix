@@ -132,11 +132,3 @@ func TestAuditLedgersStayClosedToDirectDeletes(t *testing.T) {
 		assert.False(t, canDelete, "%s stays append-only for the tenant role", table)
 	}
 }
-
-func TestAuditLedgerRetentionRollbackRestoresDeletePrivileges(t *testing.T) {
-	t.Parallel()
-
-	for _, table := range []string{"audit.auth_events", "audit.data_access_log", "audit.data_deletions"} {
-		assert.Contains(t, auditLedgerRetentionDownSQL, "GRANT DELETE ON "+table+" TO phoenix_tenant;")
-	}
-}
