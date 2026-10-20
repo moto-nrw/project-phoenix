@@ -20,7 +20,7 @@ import (
 
 // SchoolTestModule is the Identity & Access side of the school portal.
 type SchoolTestModule struct {
-	Auth *identityaccess.Module
+	Auth identityaccess.Owner
 	MFA  identityaccess.AccountMFA
 	// SchoolAuth and SchoolMFA are the portal runtimes the composition root
 	// binds, so a router test drives the same scope binding production has.

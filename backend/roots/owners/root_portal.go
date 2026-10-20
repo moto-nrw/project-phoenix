@@ -44,7 +44,7 @@ func BuildParentPortal(
 	people PeopleRows, portal carePlanCompose.ParentPortalRepositories, messaging parentStore.MessagingRepositories,
 	presence PresenceOwner, carePlanRows CarePlanRows, carePlan careplan.Capability, persons peopledirectory.Capability,
 	mealPlan mealplanModule.Capability, schedules CarePlanSchedules, requests CarePlanRequests, services PeopleServices,
-	emitter eventContract.Emitter, notifications DeliveryNotifications, identity *identityaccess.Module,
+	emitter eventContract.Emitter, notifications DeliveryNotifications, identity identityaccess.Owner,
 	enrollment EnrollmentRows, notices EnrollmentNotices,
 ) (*parentportal.Portal, error) {
 	profiles, err := carePlanCompose.NewStudentProfiles(db.Pool(), studentDirectoryView.NewReader(), func(carePlanCompose.Observation) {})
@@ -98,7 +98,7 @@ func BuildParentPortal(
 // construction, the store reads the announcements and the guardian
 // audience of the parents portal.
 func BuildFileStore(
-	db transactionruntime.Database, env RootEnvironment, objects filestorageCompose.ObjectBackend, identity *identityaccess.Module,
+	db transactionruntime.Database, env RootEnvironment, objects filestorageCompose.ObjectBackend, identity identityaccess.Owner,
 	persons peopledirectory.Capability, settings settingsCompose.SettingsService, audit AuditOwner,
 	announcements communication.ParentAnnouncementCapability, parent *parentportal.Portal,
 ) (filestorageModule.Capability, error) {

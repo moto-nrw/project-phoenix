@@ -5,6 +5,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess/internal/domain"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -33,15 +34,15 @@ func (f *lifecycleFixture) openInvitation(profileID, studentID int64, status str
 	})
 }
 
-func bulkRequest(studentIDs ...int64) domain.BulkInviteRequest {
-	return domain.BulkInviteRequest{StudentIDs: studentIDs, CreatedBy: relativeActor}
+func bulkRequest(studentIDs ...int64) identityaccess.BulkInviteRequest {
+	return identityaccess.BulkInviteRequest{StudentIDs: studentIDs, CreatedBy: relativeActor}
 }
 
 func TestBulkInvite_ValidatesTheRequest(t *testing.T) {
 	t.Parallel()
 	f := newLifecycleFixture(t)
 
-	for name, req := range map[string]domain.BulkInviteRequest{
+	for name, req := range map[string]identityaccess.BulkInviteRequest{
 		"created by":  {StudentIDs: []int64{1}},
 		"no students": {CreatedBy: relativeActor},
 		"negative id": {CreatedBy: relativeActor, StudentIDs: []int64{1, -2}},
@@ -49,7 +50,7 @@ func TestBulkInvite_ValidatesTheRequest(t *testing.T) {
 	} {
 		_, err := f.lifecycle.BulkInviteToStudents(tenantContext(), req)
 		require.Error(t, err, name)
-		var validation *domain.GuardianInvitationValidationError
+		var validation *identityaccess.GuardianInvitationValidationError
 		require.ErrorAs(t, err, &validation, name)
 	}
 }
@@ -86,7 +87,7 @@ func TestBulkInvite_SkipsActiveRestrictedAndOpen(t *testing.T) {
 	result, err := f.lifecycle.BulkInviteToStudents(tenantContext(), bulkRequest(11, 12))
 
 	require.NoError(t, err)
-	assert.Equal(t, domain.BulkInviteResult{SkippedActive: 1, SkippedRestricted: 2, SkippedOpen: 1, Problems: []domain.BulkInviteProblem{}}, *result)
+	assert.Equal(t, identityaccess.BulkInviteResult{SkippedActive: 1, SkippedRestricted: 2, SkippedOpen: 1, Problems: []identityaccess.BulkInviteProblem{}}, *result)
 	assert.Empty(t, f.delivery.emails)
 	assert.Empty(t, f.guardians.promoted, "a bulk run never upgrades a restrictive contact")
 }
@@ -209,7 +210,7 @@ func TestBulkInvite_ReportsAddressProblemsWithTheChild(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, 1, result.Invited, "a shared address is mailed once")
 	require.Len(t, result.Problems, 3)
-	assert.Equal(t, domain.BulkInviteProblem{
+	assert.Equal(t, identityaccess.BulkInviteProblem{
 		GuardianProfileID: missing.ID, GuardianName: missing.FullName(), StudentNames: []string{"Mia Brenner"},
 		Reason: domain.BulkInviteProblemMissingEmail,
 	}, result.Problems[0])

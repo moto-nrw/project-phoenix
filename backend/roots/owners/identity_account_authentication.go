@@ -56,7 +56,7 @@ func SessionRepositoriesOf(people LifecycleRepositories, organizations organizat
 // invitations, the operator links and the demo access. A nil part of base
 // composes the module without that flow, as the cleanup roots and the
 // repository fixtures do.
-func NewIdentityAccessWithSessions(base identityaccessCompose.Dependencies, repos sessionRepositories, codec identityaccessCompose.SignedIdentityTokens, settings settingsCompose.SettingsService, audit auditModels.Command, logger *slog.Logger) (*identityaccess.Module, error) {
+func NewIdentityAccessWithSessions(base identityaccessCompose.Dependencies, repos sessionRepositories, codec identityaccessCompose.SignedIdentityTokens, settings settingsCompose.SettingsService, audit auditModels.Command, logger *slog.Logger) (identityaccess.Owner, error) {
 	if repos.schools.Schools == nil || repos.persons == nil || repos.authEvents == nil || repos.pushSubscriptions == nil || codec == nil || audit == nil {
 		return nil, errors.New("identity access composition: repositories, token codec and audit command are required")
 	}

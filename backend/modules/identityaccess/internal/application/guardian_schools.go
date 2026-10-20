@@ -17,6 +17,7 @@ func NewGuardianSchools(service *Service, store ports.GuardianSchoolStore) *Guar
 }
 
 func (s *GuardianSchools) ListGuardianSchoolIDs(ctx context.Context, accountID int64) (ids []int64, err error) {
+	defer func() { err = MapError(err) }()
 	err = s.service.run(ctx, s.service.tx.RunAdmin, "list_guardian_schools", func(txCtx context.Context, stats *domain.OperationStats) error {
 		var queryStats domain.OperationStats
 		var queryErr error

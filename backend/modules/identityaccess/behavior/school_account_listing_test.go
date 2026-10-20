@@ -93,4 +93,4 @@ func TestOperatorAccountListingCaregiverEnrichment(t *testing.T) {
 	require.False(t, rows[0].IsActiveCaregiver)
 }
 
-var _ identityaccess.SchoolAccountListings = (*identityaccess.Module)(nil)
+var _ identityaccess.SchoolAccountListings = (identityaccess.Owner)(nil)

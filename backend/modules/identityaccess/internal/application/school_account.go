@@ -2,13 +2,16 @@ package application
 
 import (
 	"context"
+	"fmt"
 	"strings"
 
+	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess/internal/domain"
 )
 
-func (s *Service) FindSchoolAccountByEmail(ctx context.Context, email string) (result domain.Account, err error) {
-	err = s.run(ctx, s.withinSchoolRead, "find_school_account_by_email", func(txCtx context.Context, stats *domain.OperationStats) error {
+func (s *Service) FindSchoolAccountByEmail(ctx context.Context, email string) (identityaccess.Account, error) {
+	var result domain.Account
+	err := s.run(ctx, s.withinSchoolRead, "find_school_account_by_email", func(txCtx context.Context, stats *domain.OperationStats) error {
 		account, found, queryStats, queryErr := s.store.FindAccountByEmail(txCtx, strings.ToLower(strings.TrimSpace(email)))
 		stats.Add(queryStats)
 		if queryErr != nil {
@@ -28,7 +31,10 @@ func (s *Service) FindSchoolAccountByEmail(ctx context.Context, email string) (r
 		result = account
 		return nil
 	})
-	return result, err
+	if err != nil {
+		return identityaccess.Account{}, fmt.Errorf("identity access: find school account: %w", MapError(err))
+	}
+	return identityaccess.Account(result), nil
 }
 
 // withinSchoolRead rejects tenantless reads before the transaction adapter can

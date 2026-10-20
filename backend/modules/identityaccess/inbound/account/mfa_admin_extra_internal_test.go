@@ -20,9 +20,9 @@ import (
 )
 
 // adminAuthStub embeds the unrelated account capability. These MFA handlers
-// must not call it; the zero module fails closed if that boundary changes.
+// must not call it; the nil owner fails closed if that boundary changes.
 type adminAuthStub struct {
-	identityaccess.Module
+	identityaccess.Owner
 }
 
 // adminMFAStub is a focused MFAService stub for the admin handlers.

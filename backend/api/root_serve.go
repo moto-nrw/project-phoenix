@@ -97,7 +97,7 @@ func composeServeRoot(
 		calendar         schoolcalendar.Days
 		workTime         workforceCompose.WorkTime
 		people           owners.PeopleRows
-		peopleIdentity   *identityaccess.Module
+		peopleIdentity   identityaccess.Owner
 		guardian         peoplePorts.GuardianService
 		photoRuntime     owners.StudentPhotoRuntime
 		persons          *peopleCompose.Directory
@@ -126,7 +126,7 @@ func composeServeRoot(
 		enrollment       owners.EnrollmentRows
 		delivery         owners.DeliveryRuntime
 		mailIdentity     email.ReplyToResolver
-		identity         *identityaccess.Module
+		identity         identityaccess.Owner
 		caller           *owners.CallerRows
 		portalReads      carePlanCompose.ParentPortalRepositories
 		messaging        parentStore.MessagingRepositories

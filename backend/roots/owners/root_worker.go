@@ -66,7 +66,7 @@ import (
 func workerRetentionOf(
 	db transactionruntime.Database, logger *slog.Logger, settings settingsCompose.BatchSettingsService, audit auditCommand,
 	fleet devicefleet.Capability, carePlan carePlanModule.Owner, parentMessages communication.ParentMessageCleanup,
-	rejected enrollmentOwner.RejectedEnrollmentCleaner, studentDeletion *studentdeletion.Workflow, identity *identityaccess.Module,
+	rejected enrollmentOwner.RejectedEnrollmentCleaner, studentDeletion *studentdeletion.Workflow, identity identityaccess.Owner,
 	announcements communication.ParentAnnouncementCapability,
 ) (workerRetention, error) {
 	announcementRetention, ok := announcements.(communication.ParentAnnouncementRetention)
@@ -217,7 +217,7 @@ func ComposeWorker(db transactionruntime.Database, env RootEnvironment, hub *rea
 		calendar         schoolcalendar.Days
 		workTime         workforceCompose.WorkTime
 		people           PeopleRows
-		peopleIdentity   *identityaccess.Module
+		peopleIdentity   identityaccess.Owner
 		guardian         peoplePorts.GuardianService
 		photoRuntime     StudentPhotoRuntime
 		persons          *peopleCompose.Directory
@@ -244,7 +244,7 @@ func ComposeWorker(db transactionruntime.Database, env RootEnvironment, hub *rea
 		enrollment       EnrollmentRows
 		delivery         DeliveryRuntime
 		mailIdentity     email.ReplyToResolver
-		identity         *identityaccess.Module
+		identity         identityaccess.Owner
 		caller           *CallerRows
 		portalReads      carePlanCompose.ParentPortalRepositories
 		messaging        parentStore.MessagingRepositories

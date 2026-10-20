@@ -139,7 +139,7 @@ func mailTemplateNumbers(value any) any {
 // TransactionalMailRenderer preserves the feature's snapshot and reports real
 // transport attempts through the existing Identity & Access delivery records.
 type TransactionalMailRenderer struct {
-	Identity *identityaccess.Module
+	Identity identityaccess.Owner
 	Logger   *slog.Logger
 }
 

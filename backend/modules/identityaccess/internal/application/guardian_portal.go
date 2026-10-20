@@ -7,6 +7,7 @@ import (
 )
 
 func (q *AccountRoleQueries) FindActiveGuardianMemberships(ctx context.Context, accountIDs []int64) (result map[int64][]int64, err error) {
+	defer func() { err = MapError(err) }()
 	if len(accountIDs) == 0 {
 		return map[int64][]int64{}, nil
 	}
@@ -21,6 +22,7 @@ func (q *AccountRoleQueries) FindActiveGuardianMemberships(ctx context.Context, 
 }
 
 func (q *AccountRoleQueries) FindLoginReadyGuardianMemberships(ctx context.Context, accountIDs []int64) (result map[int64][]int64, err error) {
+	defer func() { err = MapError(err) }()
 	if len(accountIDs) == 0 {
 		return map[int64][]int64{}, nil
 	}

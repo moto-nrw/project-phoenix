@@ -25,7 +25,7 @@ import (
 type loginGateScenario struct {
 	t         *testing.T
 	db        *bun.DB
-	svc       *identityaccess.Module
+	svc       identityaccess.Owner
 	mfa       identityaccess.AccountMFA
 	accountID int64
 	email     string

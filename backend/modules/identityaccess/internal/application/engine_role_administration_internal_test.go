@@ -71,7 +71,7 @@ func internalTwin(public error) error {
 func TestModuleWithoutLifecycleReportsRoleAdministrationUnavailable(t *testing.T) {
 	t.Parallel()
 
-	module := identityaccess.NewModule(engine{})
+	var module identityaccess.Owner = engine{}
 	ctx := t.Context()
 
 	_, err := module.GetRole(ctx, 7)

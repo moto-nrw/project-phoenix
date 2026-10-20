@@ -1,7 +1,5 @@
 package identityaccess
 
-import "context"
-
 // Reasons a guardian with a full role could not be invited in a bulk run.
 const (
 	BulkInviteProblemMissingEmail   = "missing_email"
@@ -42,8 +40,4 @@ type BulkInviteResult struct {
 	SkippedOpen           int
 	SkippedRestricted     int
 	Problems              []BulkInviteProblem
-}
-
-func (m *Module) BulkInviteToStudents(ctx context.Context, req BulkInviteRequest) (*BulkInviteResult, error) {
-	return m.engine.BulkInviteToStudents(ctx, req)
 }

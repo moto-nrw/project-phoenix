@@ -34,8 +34,7 @@ func newAccountProvisioning(
 		Profiles:  application.StaffDirectory{Source: deps.Staff},
 		Passwords: deps.Passwords,
 		Runtime:   tenantRuntime{attach: sessions.TenantRuntime, runner: application.NewTransactionRunner()},
+		Attach:    sessions.TenantRuntime,
 		Logger:    deps.Logger,
 	})
 }
-
-// --- engine methods --------------------------------------------------------

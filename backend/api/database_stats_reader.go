@@ -36,7 +36,7 @@ func DatabaseStatsPermissions() []string {
 // (#4013): the retained student, staff and group rows, the rooms, the
 // activities, the roles and permissions and the devices. It redacts every
 // count the caller's permissions do not cover.
-func newDatabaseStats(people peopleCompose.Repositories, groups owners.EducationGroupRows, roomOwner facilitiesModule.Capability, timetable timetableCompose.Repositories, identity *identityaccess.Module, deviceOwner devicefleet.Capability, logger *slog.Logger) DatabaseStatsReader {
+func newDatabaseStats(people peopleCompose.Repositories, groups owners.EducationGroupRows, roomOwner facilitiesModule.Capability, timetable timetableCompose.Repositories, identity identityaccess.Owner, deviceOwner devicefleet.Capability, logger *slog.Logger) DatabaseStatsReader {
 	rooms := facilitiesCompose.NewRoomRepository(roomOwner)
 	devices := devicefleetRepositoryAdapter.NewDeviceRepository(deviceOwner)
 	stats := transactionruntime.NewDatabaseStats(statsContract.StatsDependencies{
