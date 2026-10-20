@@ -473,19 +473,27 @@ func (s *FixedSeeder) seedStaff(_ context.Context, result *FixedResult) error {
 		}
 		result.StaffCount++
 	}
+	if s.verbose {
+		fmt.Printf("  ✓ %d staff created (%d teachers)\n", result.StaffCount, len(s.teacherIDs))
+	}
+	return nil
+}
+
+func (s *FixedSeeder) retireFormerStaff() error {
 	former := DemoStaff[formerDemoStaffIndex]
 	formerKey := fmt.Sprintf("%s %s", former.FirstName, former.LastName)
-	formerStaffID := s.staffIDs[formerKey]
+	formerStaffID, found := s.staffIDs[formerKey]
+	if !found {
+		return nil
+	}
 	if formerStaffID == 0 {
 		return fmt.Errorf("former demo staff %s not available", formerKey)
 	}
 	if _, err := s.client.Delete(fmt.Sprintf("/api/staff/%d", formerStaffID)); err != nil {
 		return fmt.Errorf("failed to retire demo staff %s: %w", formerKey, err)
 	}
-
-	if s.verbose {
-		fmt.Printf("  ✓ %d staff created (%d teachers)\n", result.StaffCount, len(s.teacherIDs))
-	}
+	delete(s.staffIDs, formerKey)
+	delete(s.teacherIDs, formerKey)
 	return nil
 }
 

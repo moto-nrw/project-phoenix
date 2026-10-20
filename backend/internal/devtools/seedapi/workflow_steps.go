@@ -127,6 +127,12 @@ func (s buildStateStep) Run(ctx context.Context, rt *Runtime) error {
 	if rt.FixedSeeder == nil {
 		return fmt.Errorf("fixed seeder not available")
 	}
+	if !rt.DeferredSeedPending {
+		rt.Client.BindAuth(rt.TenantAuth)
+		if err := rt.FixedSeeder.retireFormerStaff(); err != nil {
+			return err
+		}
+	}
 
 	state := s.seeder.collectSeedState(rt.FixedSeeder, rt.StaffPIN, rt.Bootstrap)
 	state.DeferredSeedPending = rt.DeferredSeedPending
