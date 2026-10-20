@@ -3,6 +3,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { TenantPage } from "~/components/ui/tenant-page";
 import { ParentPageHeader } from "~/components/parent/parent-page";
 import { HELP_TOPICS, type HelpTopicId } from "~/lib/help-topics";
+import { MobilePageHelpPortal } from "./mobile-page-help-portal";
 import { MobilePageHelpLink } from "./mobile-page-help-link";
 
 const state = vi.hoisted(() => ({
@@ -39,9 +40,16 @@ beforeEach(() => {
 });
 
 describe("mobile page help", () => {
-  it("opens staff help from the page header, preserving filters and return path", () => {
-    render(<TenantPage title="Kinder" />);
-    const link = screen.getByRole("link", { name: "Hilfe zu dieser Seite" });
+  it("opens staff help from the page header, preserving filters and return path", async () => {
+    render(
+      <>
+        <MobilePageHelpPortal />
+        <TenantPage title="Kinder" />
+      </>,
+    );
+    const link = await screen.findByRole("link", {
+      name: "Hilfe zu dieser Seite",
+    });
     expect(link.closest("header")).toContainElement(
       screen.getByRole("heading"),
     );
@@ -57,12 +65,19 @@ describe("mobile page help", () => {
 
   it.each(["/parents/children/12", "/children/12"])(
     "opens parent help in the parent page header for %s",
-    (pathname) => {
+    async (pathname) => {
       state.mode = "parent";
       state.roles = ["guardian"];
       state.pathname = pathname;
-      render(<ParentPageHeader title="Mein Kind" />);
-      const link = screen.getByRole("link", { name: "Hilfe zu dieser Seite" });
+      render(
+        <>
+          <MobilePageHelpPortal />
+          <ParentPageHeader title="Mein Kind" />
+        </>,
+      );
+      const link = await screen.findByRole("link", {
+        name: "Hilfe zu dieser Seite",
+      });
       expect(link.closest("header")).toContainElement(
         screen.getByRole("heading"),
       );

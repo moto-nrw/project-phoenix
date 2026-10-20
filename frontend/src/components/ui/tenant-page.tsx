@@ -1,7 +1,6 @@
 "use client";
 
 import Link from "~/components/ui/navigation-link";
-import { MobilePageHelpLink } from "~/components/help/mobile-page-help-link";
 import { ChevronDown, Info } from "lucide-react";
 import type {
   InputHTMLAttributes,
@@ -499,7 +498,7 @@ export function TenantPage({
             )}
           >
             {actions}
-            <MobilePageHelpLink />
+            <div data-mobile-page-help-target className="contents" />
           </div>
         </div>
 

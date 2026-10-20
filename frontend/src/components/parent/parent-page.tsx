@@ -1,7 +1,6 @@
 "use client";
 
 import type React from "react";
-import { MobilePageHelpLink } from "~/components/help/mobile-page-help-link";
 import { BackLink } from "~/components/ui/back-link";
 import { Skeleton } from "~/components/ui/skeleton";
 
@@ -88,10 +87,10 @@ export function ParentPageHeader({
             <div className="flex shrink-0 flex-wrap items-center gap-2 max-sm:order-last max-sm:basis-full">
               {actions}
             </div>
-            <MobilePageHelpLink />
+            <div data-mobile-page-help-target className="contents" />
           </div>
         ) : (
-          <MobilePageHelpLink />
+          <div data-mobile-page-help-target className="contents" />
         )}
       </div>
     </header>

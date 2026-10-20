@@ -14,6 +14,7 @@ import { ParentBottomNav } from "./parent-bottom-nav";
 import { ParentSidebar } from "./parent-sidebar";
 import { ParentFirstSteps } from "~/components/parent/onboarding/parent-first-steps";
 import { useShellAuth } from "~/lib/shell-auth-context";
+import { MobilePageHelpPortal } from "~/components/help/mobile-page-help-portal";
 
 /**
  * Die Huelle der Eltern-App.
@@ -97,6 +98,7 @@ export function ParentShell({
           />
         }
       >
+        <MobilePageHelpPortal />
         {children}
       </PortalShell>
       {authenticated && shellAuth.user?.id && linkedChildren ? (

@@ -8,6 +8,7 @@ import { useShellAuthSafe } from "~/lib/shell-auth-context";
 import { Header } from "./header";
 import { Sidebar } from "./sidebar";
 import { MobileBottomNav } from "./mobile-bottom-nav";
+import { MobilePageHelpPortal } from "~/components/help/mobile-page-help-portal";
 
 interface AppShellProps {
   readonly children: React.ReactNode;
@@ -76,6 +77,7 @@ export function AppShell({ children }: AppShellProps) {
         sidebar={<Sidebar className="hidden min-h-0! lg:block" />}
         bottomNav={<MobileBottomNav />}
       >
+        <MobilePageHelpPortal />
         {children}
       </PortalShell>
     </div>

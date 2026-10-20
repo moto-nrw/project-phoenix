@@ -28,7 +28,6 @@ import {
   useState,
 } from "react";
 import { useSwrLoadError } from "~/lib/hooks/use-swr-load-error";
-import { MobilePageHelpLink } from "~/components/help/mobile-page-help-link";
 import { Button } from "~/components/ui/button";
 import { EmptyState } from "~/components/ui/empty-state";
 import { LoadErrorAlert } from "~/components/ui/form-error-alert";
@@ -484,7 +483,7 @@ export function TagesplanView() {
             >
               <ChevronRight className="h-4 w-4" aria-hidden="true" />
             </Button>
-            <MobilePageHelpLink />
+            <div data-mobile-page-help-target className="contents" />
           </div>
         }
       >

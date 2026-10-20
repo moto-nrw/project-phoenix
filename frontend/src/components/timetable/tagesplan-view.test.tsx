@@ -17,6 +17,7 @@ import type { PlannedTimetableInstance } from "~/lib/timetable-operations-types"
 import { TagesplanView } from "./tagesplan-view";
 import { ApiError } from "~/lib/api-error";
 import { catalogText } from "~/test/error-catalog-text";
+import { MobilePageHelpPortal } from "~/components/help/mobile-page-help-portal";
 
 // Starten ist eine Aktion ohne Formular: Fehler gehen als Toast über
 // useApiErrorDisplay (#2516). Ladefehler laufen über den echten Hook.
@@ -153,12 +154,19 @@ describe("TagesplanView", () => {
     expect(replace).toHaveBeenLastCalledWith("/tagesplan?d=2026-07-20");
   });
 
-  it("shows contextual help for the active day plan on phones and tablets", () => {
+  it("shows contextual help for the active day plan on phones and tablets", async () => {
     searchParams.current = new URLSearchParams("d=2026-07-15");
 
-    render(<TagesplanView />);
+    render(
+      <>
+        <MobilePageHelpPortal />
+        <TagesplanView />
+      </>,
+    );
 
-    const help = screen.getByRole("link", { name: "Hilfe zu dieser Seite" });
+    const help = await screen.findByRole("link", {
+      name: "Hilfe zu dieser Seite",
+    });
     const url = new URL(help.getAttribute("href")!, "https://moto.invalid");
     expect(url.pathname).toBe("/help/tagesplan-ansehen");
     expect(url.searchParams.get("return_to")).toBe("/tagesplan?d=2026-07-15");
