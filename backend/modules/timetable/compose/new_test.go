@@ -30,7 +30,7 @@ func (l *observationLog) record(observation Observation) {
 	l.seen = append(l.seen, observation)
 }
 
-func buildModule(t *testing.T, db *bun.DB, observers ...func(Observation)) *timetable.Module {
+func buildModule(t *testing.T, db *bun.DB, observers ...func(Observation)) timetable.Owner {
 	t.Helper()
 	observe := func(Observation) {}
 	if len(observers) > 0 {
@@ -44,7 +44,7 @@ func buildModule(t *testing.T, db *bun.DB, observers ...func(Observation)) *time
 	return module
 }
 
-func createCategory(t *testing.T, ctx context.Context, module *timetable.Module, name string) timetable.Category {
+func createCategory(t *testing.T, ctx context.Context, module timetable.Owner, name string) timetable.Category {
 	t.Helper()
 	category, err := module.CreateCategory(ctx, timetable.CreateCategory{Name: name, Color: "#abc"})
 	require.NoError(t, err)
@@ -370,7 +370,7 @@ func TestTemplateArchiveRollsBackAndRetries(t *testing.T) {
 	assert.Zero(t, rows)
 }
 
-func assertTemplateOfferingSource(t *testing.T, ctx context.Context, module *timetable.Module, id int64, offeringIDs []int64, grades []int) {
+func assertTemplateOfferingSource(t *testing.T, ctx context.Context, module timetable.Owner, id int64, offeringIDs []int64, grades []int) {
 	t.Helper()
 	group, err := module.FindGroup(ctx, id)
 	require.NoError(t, err)
@@ -378,7 +378,7 @@ func assertTemplateOfferingSource(t *testing.T, ctx context.Context, module *tim
 	assert.Equal(t, grades, group.SourceGradeLevels)
 }
 
-func createTemplate(t *testing.T, ctx context.Context, module *timetable.Module, categoryID int64, name string, sourceIDs []int64) timetable.Group {
+func createTemplate(t *testing.T, ctx context.Context, module timetable.Owner, categoryID int64, name string, sourceIDs []int64) timetable.Group {
 	t.Helper()
 	input := timetable.GroupInput{Name: name, CategoryID: categoryID, IsTemplate: true}
 	if len(sourceIDs) > 0 {
@@ -790,7 +790,7 @@ func (s *fixedSessions) RunningSessionsByInstance(context.Context, []int64) (map
 }
 
 // buildModuleWithSessions composes the owner over the given session facts.
-func buildModuleWithSessions(t *testing.T, db *bun.DB, sessions timetable.SessionFacts) *timetable.Module {
+func buildModuleWithSessions(t *testing.T, db *bun.DB, sessions timetable.SessionFacts) timetable.Owner {
 	t.Helper()
 	students := directoryPorts.StudentDirectoryFunc(func(context.Context) ([]directoryPorts.TargetStudent, error) {
 		return []directoryPorts.TargetStudent{}, nil

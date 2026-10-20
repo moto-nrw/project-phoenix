@@ -221,7 +221,7 @@ func ComposeWorker(db transactionruntime.Database, env RootEnvironment, hub *rea
 		guardian         peoplePorts.GuardianService
 		photoRuntime     StudentPhotoRuntime
 		persons          *peopleCompose.Directory
-		timetableOwner   *timetable.Module
+		timetableOwner   timetable.Owner
 		timetableRepos   TimetableRepositories
 		carePlan         *carePlanModule.Module
 		appointments     appointmentsModule.Capability

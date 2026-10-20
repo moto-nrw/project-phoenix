@@ -4,6 +4,7 @@ import (
 	"context"
 	"time"
 
+	"github.com/moto-nrw/project-phoenix/modules/timetable"
 	"github.com/moto-nrw/project-phoenix/modules/timetable/internal/domain"
 	"github.com/uptrace/bun"
 	"github.com/uptrace/bun/dialect/pgdialect"
@@ -73,7 +74,7 @@ const enrollmentDisplayValidityFilter = `
 			AND sourced_template.source_care_offering_ids IS NOT NULL
 	)))`
 
-func (s *Store) ListTemplateRows(ctx context.Context, templateID *int64, today string) ([]domain.TemplateListRow, domain.OperationStats, error) {
+func (s *Store) ListTemplateRows(ctx context.Context, templateID *int64, today string) ([]timetable.TemplateListRow, domain.OperationStats, error) {
 	const query = templateListSelect + `
 	LEFT JOIN (
 		SELECT activity_group_id, COUNT(*) AS count,
@@ -110,7 +111,7 @@ func (s *Store) ListTemplateRows(ctx context.Context, templateID *int64, today s
 	return scanTemplateRows(ctx, db.NewRaw(query, tenantID, today, tenantID, tenantID, templateID, templateID))
 }
 
-func (s *Store) ListTemplateRowsForTemplatePeriod(ctx context.Context, templateID, periodID int64, today string) ([]domain.TemplateListRow, domain.OperationStats, error) {
+func (s *Store) ListTemplateRowsForTemplatePeriod(ctx context.Context, templateID, periodID int64, today string) ([]timetable.TemplateListRow, domain.OperationStats, error) {
 	const query = templateListSelect + `
 	LEFT JOIN (
 		SELECT activity_group_id, COUNT(*) AS count,
@@ -159,7 +160,7 @@ func (s *Store) ListTemplateRowsForTemplatePeriod(ctx context.Context, templateI
 	))
 }
 
-func (s *Store) ListTemplateRowsForPeriod(ctx context.Context, periodID *int64, today string) ([]domain.TemplateListRow, domain.OperationStats, error) {
+func (s *Store) ListTemplateRowsForPeriod(ctx context.Context, periodID *int64, today string) ([]timetable.TemplateListRow, domain.OperationStats, error) {
 	const query = templateListSelect + `
 	LEFT JOIN (
 		SELECT activity_group_id, COUNT(*) AS count,
@@ -203,14 +204,85 @@ type rawScanner interface {
 	Scan(context.Context, ...interface{}) error
 }
 
-func scanTemplateRows(ctx context.Context, query rawScanner) ([]domain.TemplateListRow, domain.OperationStats, error) {
-	rows := make([]domain.TemplateListRow, 0)
+func scanTemplateRows(ctx context.Context, query rawScanner) ([]timetable.TemplateListRow, domain.OperationStats, error) {
+	rows := make([]templateListRow, 0)
 	stats := domain.OperationStats{Queries: 1}
 	started := time.Now()
 	err := query.Scan(ctx, &rows)
 	stats.StatementDuration = time.Since(started)
 	stats.Rows = int64(len(rows))
-	return rows, stats, err
+	result := make([]timetable.TemplateListRow, 0, len(rows))
+	for _, row := range rows {
+		result = append(result, timetable.TemplateListRow(row))
+	}
+	return result, stats, err
+}
+
+// The template read rows scan by these column names; the public types they
+// convert to carry no persistence tags.
+type templateListRow struct {
+	TemplateID                int64   `bun:"template_id"`
+	Name                      string  `bun:"name"`
+	Type                      string  `bun:"type"`
+	CategoryID                int64   `bun:"category_id"`
+	CategoryName              string  `bun:"category_name"`
+	PlanningTrackID           *int64  `bun:"planning_track_id"`
+	PlanningTrackName         string  `bun:"planning_track_name"`
+	PlanningTrackColor        string  `bun:"planning_track_color"`
+	PlanningTrackOrder        *int64  `bun:"planning_track_sort_order"`
+	RoomID                    *int64  `bun:"room_id"`
+	RoomName                  *string `bun:"room_name"`
+	EducationGroupID          *int64  `bun:"education_group_id"`
+	EducationGroupName        *string `bun:"education_group_name"`
+	IsOpen                    bool    `bun:"is_open"`
+	MaxParticipants           int     `bun:"max_participants"`
+	RequiredStaff             *int64  `bun:"required_staff"`
+	TemplateCalendarPeriodID  *int64  `bun:"template_calendar_period_id"`
+	TargetGroupType           string  `bun:"target_group_type"`
+	TargetGradeLevel          *int16  `bun:"target_grade_level"`
+	TargetSchoolClass         *string `bun:"target_school_class"`
+	SourceCareOfferingIDsJSON string  `bun:"source_care_offering_ids_json"`
+	SourceGradeLevelsJSON     string  `bun:"source_grade_levels_json"`
+	SourceSchoolClassesJSON   string  `bun:"source_school_classes_json"`
+	ListKind                  *string `bun:"list_kind"`
+	Notes                     *string `bun:"notes"`
+	IncludeClosingDays        bool    `bun:"include_closing_days"`
+	SeriesLastDay             *string `bun:"series_last_day"`
+	ShiftTypeID               *int64  `bun:"shift_type_id"`
+	ShiftTypeName             string  `bun:"shift_type_name"`
+	ShiftTypeColor            string  `bun:"shift_type_color"`
+	EnrollmentCount           int     `bun:"enrollment_count"`
+	SupervisorCount           int     `bun:"supervisor_count"`
+	CapacityEnrollmentCount   int     `bun:"capacity_enrollment_count"`
+	CapacitySupervisorCount   int     `bun:"capacity_supervisor_count"`
+	CapacityOccurrenceFound   bool    `bun:"-"`
+	StudentIDs                []int64 `bun:"student_ids,array"`
+	StaffIDs                  []int64 `bun:"staff_ids,array"`
+	PrimaryStaffID            *int64  `bun:"primary_staff_id"`
+	ScheduleID                int64   `bun:"schedule_id"`
+	Weekday                   int     `bun:"weekday"`
+	StartTime                 *string `bun:"start_time"`
+	EndTime                   *string `bun:"end_time"`
+	WeekPattern               int     `bun:"week_pattern"`
+	CalendarPeriodID          *int64  `bun:"calendar_period_id"`
+	ScheduleValidFrom         *string `bun:"schedule_valid_from"`
+	ScheduleValidUntil        *string `bun:"schedule_valid_until"`
+}
+
+type templateWeekdayRosterRow struct {
+	TemplateID int64  `bun:"template_id"`
+	Weekday    int    `bun:"weekday"`
+	Kind       string `bun:"kind"`
+	PersonID   int64  `bun:"person_id"`
+	IsPrimary  bool   `bun:"is_primary"`
+}
+
+type templateCapacityOccurrenceRow struct {
+	TemplateID       int64  `bun:"template_id"`
+	CalendarPeriodID int64  `bun:"calendar_period_id"`
+	OccurrenceDate   string `bun:"occurrence_date"`
+	EnrollmentCount  int    `bun:"enrollment_count"`
+	SupervisorCount  int    `bun:"supervisor_count"`
 }
 
 const templateWeekdayRosterQuery = `
@@ -320,12 +392,12 @@ const templateWeekdayRosterQuery = `
 	GROUP BY enrollment.activity_group_id, template_day.weekday, enrollment.student_id
 	ORDER BY template_id ASC, weekday ASC, kind ASC, is_primary DESC, person_id ASC`
 
-func (s *Store) ListTemplateWeekdayRoster(ctx context.Context, templateID, periodID *int64, today string) ([]domain.TemplateWeekdayRosterRow, domain.OperationStats, error) {
+func (s *Store) ListTemplateWeekdayRoster(ctx context.Context, templateID, periodID *int64, today string) ([]timetable.TemplateWeekdayRosterRow, domain.OperationStats, error) {
 	db, tenantID, err := s.database(ctx)
 	if err != nil {
 		return nil, domain.OperationStats{}, err
 	}
-	rows := make([]domain.TemplateWeekdayRosterRow, 0)
+	rows := make([]templateWeekdayRosterRow, 0)
 	stats := domain.OperationStats{Queries: 1}
 	started := time.Now()
 	err = db.NewRaw(templateWeekdayRosterQuery,
@@ -333,7 +405,11 @@ func (s *Store) ListTemplateWeekdayRoster(ctx context.Context, templateID, perio
 	).Scan(ctx, &rows)
 	stats.StatementDuration = time.Since(started)
 	stats.Rows = int64(len(rows))
-	return rows, stats, err
+	result := make([]timetable.TemplateWeekdayRosterRow, 0, len(rows))
+	for _, row := range rows {
+		result = append(result, timetable.TemplateWeekdayRosterRow(row))
+	}
+	return result, stats, err
 }
 
 const templateCapacityOccurrencesQuery = `
@@ -431,14 +507,14 @@ const templateCapacityOccurrencesQuery = `
 	GROUP BY template_id, calendar_period_id, occurrence_date
 	ORDER BY template_id ASC, occurrence_date ASC, calendar_period_id ASC`
 
-func (s *Store) ListTemplateCapacityOccurrences(ctx context.Context, periodID *int64, templateIDs []int64, periods []domain.TemplateCapacityPeriod, dynamicStudents map[int64][]int64) ([]domain.TemplateCapacityOccurrence, domain.OperationStats, error) {
+func (s *Store) ListTemplateCapacityOccurrences(ctx context.Context, periodID *int64, templateIDs []int64, periods []timetable.TemplateCapacityPeriod, dynamicStudents map[int64][]int64) ([]timetable.TemplateCapacityOccurrence, domain.OperationStats, error) {
 	db, tenantID, err := s.database(ctx)
 	if err != nil {
 		return nil, domain.OperationStats{}, err
 	}
 	periodIDs, starts, ends, cycles, anchors := templateCapacityPeriodColumns(periods, tenantID)
 	dynamicTemplateIDs, dynamicStudentIDs := templateDynamicStudentColumns(templateIDs, dynamicStudents)
-	rows := make([]domain.TemplateCapacityOccurrence, 0)
+	rows := make([]templateCapacityOccurrenceRow, 0)
 	stats := domain.OperationStats{Queries: 1}
 	started := time.Now()
 	err = db.NewRaw(templateCapacityOccurrencesQuery,
@@ -449,10 +525,14 @@ func (s *Store) ListTemplateCapacityOccurrences(ctx context.Context, periodID *i
 	).Scan(ctx, &rows)
 	stats.StatementDuration = time.Since(started)
 	stats.Rows = int64(len(rows))
-	return rows, stats, err
+	result := make([]timetable.TemplateCapacityOccurrence, 0, len(rows))
+	for _, row := range rows {
+		result = append(result, timetable.TemplateCapacityOccurrence(row))
+	}
+	return result, stats, err
 }
 
-func templateCapacityPeriodColumns(periods []domain.TemplateCapacityPeriod, tenantID int64) (ids []int64, starts, ends []string, cycles []int64, anchors []string) {
+func templateCapacityPeriodColumns(periods []timetable.TemplateCapacityPeriod, tenantID int64) (ids []int64, starts, ends []string, cycles []int64, anchors []string) {
 	for _, period := range periods {
 		if period.TenantID != tenantID {
 			continue

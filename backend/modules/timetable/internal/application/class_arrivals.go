@@ -12,10 +12,10 @@ import (
 )
 
 type ClassArrivalRecords interface {
-	ListClassArrivalPlans(context.Context, []string) ([]domain.ClassArrivalPlan, domain.OperationStats, error)
-	ListClassArrivalExceptionRecords(context.Context, []string, string, string) ([]domain.ClassArrivalException, domain.OperationStats, error)
-	SaveClassArrivalPlan(context.Context, domain.ClassArrivalPlan) (domain.ClassArrivalPlan, domain.OperationStats, error)
-	SaveClassArrivalException(context.Context, domain.ClassArrivalException) (domain.ClassArrivalException, domain.OperationStats, error)
+	ListClassArrivalPlans(context.Context, []string) ([]timetable.ClassArrivalPlan, domain.OperationStats, error)
+	ListClassArrivalExceptionRecords(context.Context, []string, string, string) ([]timetable.ClassArrivalException, domain.OperationStats, error)
+	SaveClassArrivalPlan(context.Context, timetable.ClassArrivalPlan) (timetable.ClassArrivalPlan, domain.OperationStats, error)
+	SaveClassArrivalException(context.Context, timetable.ClassArrivalException) (timetable.ClassArrivalException, domain.OperationStats, error)
 	RemoveClassArrivalException(context.Context, string, string) (bool, domain.OperationStats, error)
 	LockClassArrivalPlan(context.Context, string) (domain.OperationStats, error)
 }
@@ -32,28 +32,28 @@ type classArrivalCommands struct {
 	tx internalports.Transaction
 }
 
-func (c classArrivalCommands) ListClassArrivalPlans(ctx context.Context, classes []string) (result []domain.ClassArrivalPlan, stats domain.OperationStats, err error) {
+func (c classArrivalCommands) ListClassArrivalPlans(ctx context.Context, classes []string) (result []timetable.ClassArrivalPlan, stats domain.OperationStats, err error) {
 	err = c.tx.RunWrite(ctx, false, func(txCtx context.Context) error {
 		result, stats, err = c.ClassArrivalRecords.ListClassArrivalPlans(txCtx, classes)
 		return err
 	})
 	return
 }
-func (c classArrivalCommands) ListClassArrivalExceptionRecords(ctx context.Context, classes []string, from, to string) (result []domain.ClassArrivalException, stats domain.OperationStats, err error) {
+func (c classArrivalCommands) ListClassArrivalExceptionRecords(ctx context.Context, classes []string, from, to string) (result []timetable.ClassArrivalException, stats domain.OperationStats, err error) {
 	err = c.tx.RunWrite(ctx, false, func(txCtx context.Context) error {
 		result, stats, err = c.ClassArrivalRecords.ListClassArrivalExceptionRecords(txCtx, classes, from, to)
 		return err
 	})
 	return
 }
-func (c classArrivalCommands) SaveClassArrivalPlan(ctx context.Context, row domain.ClassArrivalPlan) (result domain.ClassArrivalPlan, stats domain.OperationStats, err error) {
+func (c classArrivalCommands) SaveClassArrivalPlan(ctx context.Context, row timetable.ClassArrivalPlan) (result timetable.ClassArrivalPlan, stats domain.OperationStats, err error) {
 	err = c.tx.RunWrite(ctx, false, func(txCtx context.Context) error {
 		result, stats, err = c.ClassArrivalRecords.SaveClassArrivalPlan(txCtx, row)
 		return err
 	})
 	return
 }
-func (c classArrivalCommands) SaveClassArrivalException(ctx context.Context, row domain.ClassArrivalException) (result domain.ClassArrivalException, stats domain.OperationStats, err error) {
+func (c classArrivalCommands) SaveClassArrivalException(ctx context.Context, row timetable.ClassArrivalException) (result timetable.ClassArrivalException, stats domain.OperationStats, err error) {
 	err = c.tx.RunWrite(ctx, false, func(txCtx context.Context) error {
 		result, stats, err = c.ClassArrivalRecords.SaveClassArrivalException(txCtx, row)
 		return err
@@ -144,7 +144,7 @@ func (s classArrivalExceptions) UpsertClassArrivalException(ctx context.Context,
 		return timetable.ClassArrivalException{}, timetable.ErrInvalidClassArrivalException
 	}
 	started := time.Now()
-	row, stats, err := s.store.SaveClassArrivalException(ctx, domain.ClassArrivalException{SchoolClass: input.SchoolClass, Date: input.Date,
+	row, stats, err := s.store.SaveClassArrivalException(ctx, timetable.ClassArrivalException{SchoolClass: input.SchoolClass, Date: input.Date,
 		ArrivalTime: input.ArrivalTime, Reason: input.Reason, CreatedBy: input.CreatedBy, Origin: input.Origin})
 	s.observe(internalports.Observation{Operation: "upsert_class_arrival_exception", Duration: time.Since(started), Stats: stats, Err: err})
 	if err != nil {
@@ -167,7 +167,7 @@ func (s classArrivalExceptions) DeleteClassArrivalException(ctx context.Context,
 	return deleted, err
 }
 
-func nativeClassArrivalException(row domain.ClassArrivalException) timetable.ClassArrivalException {
+func nativeClassArrivalException(row timetable.ClassArrivalException) timetable.ClassArrivalException {
 	return timetable.ClassArrivalException{ID: row.ID, TenantID: row.TenantID, CreatedAt: row.CreatedAt, UpdatedAt: row.UpdatedAt,
 		SchoolClass: row.SchoolClass, Date: row.Date, ArrivalTime: row.ArrivalTime, Reason: row.Reason, CreatedBy: row.CreatedBy, Origin: row.Origin}
 }
@@ -187,7 +187,7 @@ func (s classArrivalExceptions) UpsertClassArrivalPlan(ctx context.Context, inpu
 		return timetable.ClassArrivalPlan{}, timetable.ErrInvalidClassArrivalPlan
 	}
 	started := time.Now()
-	row, stats, err := s.store.SaveClassArrivalPlan(ctx, domain.ClassArrivalPlan{SchoolClass: input.SchoolClass, ArrivalTimes: input.ArrivalTimes, UpdatedBy: input.UpdatedBy})
+	row, stats, err := s.store.SaveClassArrivalPlan(ctx, timetable.ClassArrivalPlan{SchoolClass: input.SchoolClass, ArrivalTimes: input.ArrivalTimes, UpdatedBy: input.UpdatedBy})
 	s.observe(internalports.Observation{Operation: "upsert_class_arrival_plan", Duration: time.Since(started), Stats: stats, Err: err})
 	if err != nil {
 		return timetable.ClassArrivalPlan{}, err
@@ -195,7 +195,7 @@ func (s classArrivalExceptions) UpsertClassArrivalPlan(ctx context.Context, inpu
 	return nativeClassArrivalPlan(row), nil
 }
 
-func nativeClassArrivalPlan(row domain.ClassArrivalPlan) timetable.ClassArrivalPlan {
+func nativeClassArrivalPlan(row timetable.ClassArrivalPlan) timetable.ClassArrivalPlan {
 	return timetable.ClassArrivalPlan{ID: row.ID, TenantID: row.TenantID, CreatedAt: row.CreatedAt, UpdatedAt: row.UpdatedAt,
 		SchoolClass: row.SchoolClass, ArrivalTimes: row.ArrivalTimes, UpdatedBy: row.UpdatedBy}
 }

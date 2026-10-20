@@ -7,12 +7,13 @@ import (
 	"strings"
 	"time"
 
+	"github.com/moto-nrw/project-phoenix/modules/timetable"
 	"github.com/moto-nrw/project-phoenix/modules/timetable/internal/domain"
 )
 
 var leadingGrade = regexp.MustCompile(`[0-9]+`)
 
-func matchTargetStudents(targets map[int64][]domain.GroupTarget, students []domain.TargetStudent, today string) map[int64][]int64 {
+func matchTargetStudents(targets map[int64][]timetable.GroupTarget, students []domain.TargetStudent, today string) map[int64][]int64 {
 	result := make(map[int64][]int64, len(targets))
 	for groupID, rules := range targets {
 		for _, student := range students {
@@ -27,7 +28,7 @@ func matchTargetStudents(targets map[int64][]domain.GroupTarget, students []doma
 	return result
 }
 
-func matchesAnyTarget(rules []domain.GroupTarget, student domain.TargetStudent) bool {
+func matchesAnyTarget(rules []timetable.GroupTarget, student domain.TargetStudent) bool {
 	for _, rule := range rules {
 		switch rule.TargetGroupType {
 		case "jahrgang":

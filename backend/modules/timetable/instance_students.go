@@ -154,31 +154,3 @@ type InstanceStudentCapability interface {
 	InstanceStudentQuery
 	InstanceStudentCommand
 }
-
-func validInstanceStudent(input InstanceStudentInput) bool {
-	return input.InstanceID > 0 && input.StudentID > 0 && (input.RoomID == nil || *input.RoomID > 0)
-}
-
-func validInstanceStudentFilter(filter InstanceStudentFilter) bool {
-	orders := 0
-	for _, ordered := range []bool{filter.OrderByCreated, filter.OrderByInstanceStudent,
-		filter.OrderByStudentActivityTime, filter.OrderByActivityDateTime} {
-		if ordered {
-			orders++
-		}
-	}
-	return filter.Limit >= 0 && filter.Offset >= 0 && orders <= 1 &&
-		!hasInvalidID(filter.IDs) && !hasInvalidID(filter.InstanceIDs) && !hasInvalidID(filter.StudentIDs) &&
-		validOptionalDate(filter.Date) && validOptionalDate(filter.FromDate) && validOptionalDate(filter.ToDate) &&
-		(filter.CurrentTime == nil || (filter.Date != nil && validClock(*filter.CurrentTime))) &&
-		(filter.FromClock == nil || validClock(*filter.FromClock))
-}
-
-func validRosterArchiveEntries(entries []RosterArchiveEntry) bool {
-	for _, entry := range entries {
-		if entry.ParticipantID <= 0 || entry.Attendance.Status == "" {
-			return false
-		}
-	}
-	return true
-}

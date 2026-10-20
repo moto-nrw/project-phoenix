@@ -7,6 +7,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/moto-nrw/project-phoenix/modules/timetable"
 	"github.com/moto-nrw/project-phoenix/modules/timetable/internal/domain"
 	"github.com/uptrace/bun"
 	"github.com/uptrace/bun/dialect/pgdialect"
@@ -26,10 +27,10 @@ type recurrenceRuleRow struct {
 	Count         *int       `bun:"count"`
 }
 
-func (s *Store) FindRecurrenceRule(ctx context.Context, id int64) (domain.RecurrenceRule, bool, domain.OperationStats, error) {
+func (s *Store) FindRecurrenceRule(ctx context.Context, id int64) (timetable.RecurrenceRule, bool, domain.OperationStats, error) {
 	db, tenantID, err := s.database(ctx)
 	if err != nil {
-		return domain.RecurrenceRule{}, false, domain.OperationStats{}, err
+		return timetable.RecurrenceRule{}, false, domain.OperationStats{}, err
 	}
 	row := recurrenceRuleRow{}
 	found, stats, err := scanOne(ctx, recurrenceRuleSelect(db, &row, tenantID).
@@ -37,7 +38,7 @@ func (s *Store) FindRecurrenceRule(ctx context.Context, id int64) (domain.Recurr
 	return recurrenceRuleToDomain(row), found, stats, err
 }
 
-func (s *Store) ListRecurrenceRules(ctx context.Context, filter domain.RecurrenceRuleFilter) ([]domain.RecurrenceRule, domain.OperationStats, error) {
+func (s *Store) ListRecurrenceRules(ctx context.Context, filter timetable.RecurrenceRuleFilter) ([]timetable.RecurrenceRule, domain.OperationStats, error) {
 	db, tenantID, err := s.database(ctx)
 	if err != nil {
 		return nil, domain.OperationStats{}, err
@@ -48,7 +49,7 @@ func (s *Store) ListRecurrenceRules(ctx context.Context, filter domain.Recurrenc
 	if err != nil {
 		return nil, stats, err
 	}
-	result := make([]domain.RecurrenceRule, 0, len(rows))
+	result := make([]timetable.RecurrenceRule, 0, len(rows))
 	for _, row := range rows {
 		result = append(result, recurrenceRuleToDomain(row))
 	}
@@ -56,7 +57,7 @@ func (s *Store) ListRecurrenceRules(ctx context.Context, filter domain.Recurrenc
 	return result, stats, nil
 }
 
-func filterRecurrenceRules(query *bun.SelectQuery, filter domain.RecurrenceRuleFilter) *bun.SelectQuery {
+func filterRecurrenceRules(query *bun.SelectQuery, filter timetable.RecurrenceRuleFilter) *bun.SelectQuery {
 	if filter.Frequency != "" {
 		query = query.Where(`LOWER("recurrence_rule".frequency) = LOWER(?)`, filter.Frequency)
 	}
@@ -128,10 +129,10 @@ func lowerStrings(values []string) []string {
 	return result
 }
 
-func (s *Store) CreateRecurrenceRule(ctx context.Context, fields domain.RecurrenceRuleFields) (domain.RecurrenceRule, domain.OperationStats, error) {
+func (s *Store) CreateRecurrenceRule(ctx context.Context, fields timetable.RecurrenceRuleInput) (timetable.RecurrenceRule, domain.OperationStats, error) {
 	db, tenantID, err := s.database(ctx)
 	if err != nil {
-		return domain.RecurrenceRule{}, domain.OperationStats{}, err
+		return timetable.RecurrenceRule{}, domain.OperationStats{}, err
 	}
 	row := recurrenceRuleRow{TenantID: tenantID}
 	applyRecurrenceRuleFields(&row, fields)
@@ -140,16 +141,16 @@ func (s *Store) CreateRecurrenceRule(ctx context.Context, fields domain.Recurren
 	err = db.NewInsert().Model(&row).ModelTableExpr(`schedule.recurrence_rules`).Returning("*").Scan(ctx)
 	stats.StatementDuration = time.Since(started)
 	if err != nil {
-		return domain.RecurrenceRule{}, stats, classifyWriteError("create recurrence rule", err, &stats)
+		return timetable.RecurrenceRule{}, stats, classifyWriteError("create recurrence rule", err, &stats)
 	}
 	stats.Rows = 1
 	return recurrenceRuleToDomain(row), stats, nil
 }
 
-func (s *Store) UpdateRecurrenceRule(ctx context.Context, id int64, fields domain.RecurrenceRuleFields) (domain.RecurrenceRule, bool, domain.OperationStats, error) {
+func (s *Store) UpdateRecurrenceRule(ctx context.Context, id int64, fields timetable.RecurrenceRuleInput) (timetable.RecurrenceRule, bool, domain.OperationStats, error) {
 	db, tenantID, err := s.database(ctx)
 	if err != nil {
-		return domain.RecurrenceRule{}, false, domain.OperationStats{}, err
+		return timetable.RecurrenceRule{}, false, domain.OperationStats{}, err
 	}
 	row := recurrenceRuleRow{}
 	stats := domain.OperationStats{Queries: 1}
@@ -161,10 +162,10 @@ func (s *Store) UpdateRecurrenceRule(ctx context.Context, id int64, fields domai
 		Where("id = ?", id).Where("tenant_id = ?", tenantID).Returning("*").Scan(ctx)
 	stats.StatementDuration = time.Since(started)
 	if errors.Is(err, sql.ErrNoRows) {
-		return domain.RecurrenceRule{}, false, stats, nil
+		return timetable.RecurrenceRule{}, false, stats, nil
 	}
 	if err != nil {
-		return domain.RecurrenceRule{}, false, stats, classifyWriteError("update recurrence rule", err, &stats)
+		return timetable.RecurrenceRule{}, false, stats, classifyWriteError("update recurrence rule", err, &stats)
 	}
 	stats.Rows = 1
 	return recurrenceRuleToDomain(row), true, stats, nil
@@ -184,14 +185,14 @@ func recurrenceRuleSelect(db bun.IDB, model any, tenantID int64) *bun.SelectQuer
 		ColumnExpr(`"recurrence_rule".*`).Where(`"recurrence_rule".tenant_id = ?`, tenantID)
 }
 
-func applyRecurrenceRuleFields(row *recurrenceRuleRow, fields domain.RecurrenceRuleFields) {
+func applyRecurrenceRuleFields(row *recurrenceRuleRow, fields timetable.RecurrenceRuleInput) {
 	row.Frequency, row.IntervalCount = fields.Frequency, fields.IntervalCount
 	row.Weekdays, row.MonthDays = fields.Weekdays, fields.MonthDays
 	row.EndDate, row.Count = fields.EndDate, fields.Count
 }
 
-func recurrenceRuleToDomain(row recurrenceRuleRow) domain.RecurrenceRule {
-	return domain.RecurrenceRule{ID: row.ID, TenantID: row.TenantID, CreatedAt: row.CreatedAt, UpdatedAt: row.UpdatedAt,
+func recurrenceRuleToDomain(row recurrenceRuleRow) timetable.RecurrenceRule {
+	return timetable.RecurrenceRule{ID: row.ID, TenantID: row.TenantID, CreatedAt: row.CreatedAt, UpdatedAt: row.UpdatedAt,
 		Frequency: row.Frequency, IntervalCount: row.IntervalCount, Weekdays: row.Weekdays, MonthDays: row.MonthDays,
 		EndDate: row.EndDate, Count: row.Count}
 }
