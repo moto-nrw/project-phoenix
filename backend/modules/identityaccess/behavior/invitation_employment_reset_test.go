@@ -16,8 +16,8 @@ import (
 func TestInvitationEmploymentResets(t *testing.T) {
 	t.Parallel()
 	for _, tc := range []struct {
-		name                                                                     string
-		master, qualifications, work, active, numberTaken, failAudit, oldOpening bool
+		name                                                                                     string
+		master, qualifications, work, active, numberTaken, failAudit, oldOpening, futureVacation bool
 	}{
 		{name: "unchanged"}, {name: "master data", master: true}, {name: "qualifications", qualifications: true},
 		{name: "work time after closed month", work: true}, {name: "all", master: true, qualifications: true, work: true},
@@ -25,6 +25,7 @@ func TestInvitationEmploymentResets(t *testing.T) {
 		{name: "reassigned number audited", master: true, numberTaken: true},
 		{name: "rollback and retry", master: true, qualifications: true, work: true, failAudit: true},
 		{name: "previous vacation opening stays in audit", work: true, oldOpening: true},
+		{name: "future vacation spends the new entitlement", work: true, futureVacation: true},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			testpkg.OwnTenant(t)
@@ -40,6 +41,10 @@ func TestInvitationEmploymentResets(t *testing.T) {
 			require.NoError(t, err)
 			former, account := testpkg.CreateTestStaffWithAccount(t, db, "Return", "Reset")
 			seedReturningEmployment(t, db, former.ID)
+			if tc.futureVacation {
+				_, err := db.ExecContext(ctx, `INSERT INTO active.staff_absences (tenant_id, staff_id, absence_type, date_start, date_end, status, created_by, working_days) VALUES (?, ?, 'vacation', '2026-11-02', '2026-11-05', 'approved', ?, 4)`, testpkg.Tenant(t), former.ID, former.ID)
+				require.NoError(t, err)
+			}
 			if tc.oldOpening {
 				_, err := db.ExecContext(ctx, `INSERT INTO active.staff_vacation_openings (tenant_id, staff_id, year, effective_date, taken_before_days, entered_remaining_days, note, decided_by) VALUES (?, ?, 2026, '2026-02-01', 3, 31, 'Frühere Übernahme', ?)`, testpkg.Tenant(t), former.ID, former.ID)
 				require.NoError(t, err)
@@ -139,7 +144,11 @@ func TestInvitationEmploymentResets(t *testing.T) {
 				require.Equal(t, 30.0, opening.EnteredRemainingDays)
 				var absences int
 				require.NoError(t, db.NewRaw(`SELECT count(*) FROM active.staff_absences WHERE staff_id = ?`, former.ID).Scan(ctx, &absences))
-				require.Equal(t, 1, absences, "the previous vacation remains evidence")
+				expectedAbsences := 1
+				if tc.futureVacation {
+					expectedAbsences++
+				}
+				require.Equal(t, expectedAbsences, absences, "vacations remain evidence")
 				var modelAudit int
 				require.NoError(t, db.NewRaw(`SELECT count(*) FROM audit.staff_master_data_changes WHERE staff_id = ? AND field_name IN ('work_time_model_id', 'rotation_anchor_date') AND old_value <> '' AND new_value = ''`, former.ID).Scan(ctx, &modelAudit))
 				require.Equal(t, 2, modelAudit)

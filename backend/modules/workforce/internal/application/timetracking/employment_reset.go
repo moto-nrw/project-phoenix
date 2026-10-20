@@ -57,7 +57,9 @@ func resetEmploymentVacation(ctx context.Context, deps Dependencies, in workforc
 	if err := deps.VacationQuotas.UpsertStaffVacationQuota(ctx, workforce.StaffVacationQuota{StaffID: in.StaffID, Year: today.Year(), EntitledDays: inputs.entitled, CarryoverDays: 0, ChangeReason: note, ChangedBy: in.StaffID}); err != nil {
 		return err
 	}
-	summary := computeVacationQuotaSummary(in.StaffID, today.Year(), inputs.entitled, 0, inputs.absences, nil)
+	// Future absences remain bookings of the resumed employment and must spend
+	// its new entitlement. Only the period before the return day is historical.
+	summary := computeVacationQuotaSummaryThrough(in.StaffID, today.Year(), inputs.entitled, 0, today.AddDays(-1), inputs.absences, nil)
 	// Credit the days from the previous employment instead of deleting its
 	// absences. Later corrections stay visible, just like balance resets.
 	opening := &StaffVacationOpening{StaffID: in.StaffID, Year: today.Year(), EffectiveDate: today, TakenBeforeDays: -summary.TakenDays - summary.ReservedDays, EnteredRemainingDays: inputs.entitled, Note: note, DecidedBy: in.StaffID, DecidedAt: time.Now()}
