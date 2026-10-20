@@ -531,7 +531,7 @@ func (rs *Resource) updateStudentTxErrorRenderer(err error) render.Renderer {
 		return common.ErrorForbidden(err)
 	// Companion input the client should not have sent: a day the child's own
 	// plan does not allow, a duplicate, a self-link, an unknown child. All 4xx,
-	// with the German sentinel text going straight to the UI.
+	// with diagnostic detail; the UI shows the catalog text for the code.
 	case errors.Is(err, careplan.ErrCompanionNotFound):
 		return common.ErrorNotFound(err)
 	case errors.Is(err, careplan.ErrCompanionDayNotAllowed),

@@ -10,17 +10,17 @@ var (
 	ErrGroupNotFound           = errors.New("education group not found")
 	ErrTeacherNotFound         = errors.New("teacher not found")
 	ErrStaffNotFound           = errors.New("staff member not found")
-	ErrEmptySchoolClass        = errors.New("Klassenname darf nicht leer sein") //nolint:staticcheck // ST1005: user-facing German message
+	ErrEmptySchoolClass        = errors.New("klassenname darf nicht leer sein")
 	ErrGroupTeacherNotFound    = errors.New("group-teacher relationship not found")
 	ErrSubstitutionNotFound    = errors.New("substitution not found")
 	ErrRoomNotFound            = errors.New("room not found")
-	ErrDuplicateGroup          = errors.New("Eine Gruppe mit diesem Namen existiert bereits") //nolint:staticcheck // ST1005: user-facing German message
+	ErrDuplicateGroup          = errors.New("eine Gruppe mit diesem Namen existiert bereits")
 	ErrDuplicateTeacherInGroup = errors.New("this teacher is already assigned to the group")
 	ErrSubstitutionConflict    = errors.New("substitution conflicts with an existing one")
 	ErrInvalidDateRange        = errors.New("invalid date range")
 	ErrSubstitutionBackdated   = errors.New("substitutions cannot be created or updated for past dates")
-	ErrGroupHasStudents        = errors.New("Gruppe kann nicht gelöscht werden: Gruppe hat noch zugewiesene Kinder")                              //nolint:staticcheck // ST1005: user-facing German message
-	ErrGroupHasHandover        = errors.New("Gruppe kann nicht gelöscht werden: Eine laufende oder geplante Übergabe muss zuerst beendet werden") //nolint:staticcheck // ST1005: user-facing German message
+	ErrGroupHasStudents        = errors.New("gruppe kann nicht gelöscht werden: Gruppe hat noch zugewiesene Kinder")
+	ErrGroupHasHandover        = errors.New("gruppe kann nicht gelöscht werden: Eine laufende oder geplante Übergabe muss zuerst beendet werden")
 )
 
 // EducationError represents an error that occurred in the education service

@@ -61,7 +61,7 @@ func TestErrorRenderer_ConflictErrors(t *testing.T) {
 		baseErr error
 		wantMsg string
 	}{
-		{"ErrDuplicateGroup", education.ErrDuplicateGroup, "Eine Gruppe mit diesem Namen"},
+		{"ErrDuplicateGroup", education.ErrDuplicateGroup, "eine Gruppe mit diesem Namen"},
 		{"ErrGroupHasStudents", education.ErrGroupHasStudents, ""},
 		{"ErrGroupHasHandover", education.ErrGroupHasHandover, "Übergabe muss zuerst beendet werden"},
 	}

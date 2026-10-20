@@ -396,7 +396,7 @@ func TestTemplateSplitHandler_IncompatibleCareLinkRollsBackOn400(t *testing.T) {
 		splitBody(s, "Tpl-Split-Rollback-Nachfolger", calendar.TodayDate().AddDays(7)))
 	require.Equal(t, http.StatusBadRequest, w.Code, "body=%s", w.Body.String())
 	assert.Contains(t, w.Body.String(), `"code":"timetable.template_care_offering_conflict"`)
-	assert.Contains(t, w.Body.String(), "Die Änderung ist nicht möglich")
+	assert.Contains(t, w.Body.String(), "die Änderung ist nicht möglich")
 	assert.NotContains(t, w.Body.String(), "linked care offering")
 
 	schedules := templateSchedules(t, s, created.TemplateID)

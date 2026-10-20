@@ -70,29 +70,29 @@ var (
 	ErrOnlySupervisorRequiresReplacement = errors.New("cannot remove the only supervisor from an activity without a replacement")
 
 	// ErrSystemActivityProtected is returned when trying to delete or rename a system activity (Schulhof Freispiel, WC).
-	ErrSystemActivityProtected = errors.New("Systemaktivität kann nicht gelöscht oder umbenannt werden") //nolint:staticcheck // ST1005: user-facing German message
+	ErrSystemActivityProtected = errors.New("systemaktivität kann nicht gelöscht oder umbenannt werden")
 
 	// ErrTimetableTemplateProtected prevents the legacy activities API from
 	// bypassing recurring-template locks, lineage checks, and care-offering
 	// validation. Timetable templates must be mutated through /timetables.
-	ErrTimetableTemplateProtected = errors.New("Regeltermine müssen im Betreuungsplan bearbeitet werden") //nolint:staticcheck // ST1005: user-facing German message
+	ErrTimetableTemplateProtected = errors.New("regeltermine müssen im Betreuungsplan bearbeitet werden")
 
 	// ErrSystemCategoryProtected is returned when a write targets an
 	// auto-provisioned system category (Schulhof, WC). Those are infrastructure
 	// the kiosk flows resolve by name (#2131).
-	ErrSystemCategoryProtected = errors.New("Systemkategorie kann nicht bearbeitet oder archiviert werden") //nolint:staticcheck // ST1005: user-facing German message
+	ErrSystemCategoryProtected = errors.New("systemkategorie kann nicht bearbeitet oder archiviert werden")
 
 	// ErrSystemCategoryNameReserved prevents school-owned categories from
 	// occupying names that the WC and Schulhof infrastructure provisions.
-	ErrSystemCategoryNameReserved = errors.New("Dieser Name ist für eine Systemkategorie reserviert") //nolint:staticcheck // ST1005: user-facing German message
+	ErrSystemCategoryNameReserved = errors.New("dieser Name ist für eine Systemkategorie reserviert")
 
 	// ErrCategoryNameExists is returned when a create, rename, or restore would
 	// produce two active categories with the same name in one tenant.
-	ErrCategoryNameExists = errors.New("Eine Kategorie mit diesem Namen existiert bereits") //nolint:staticcheck // ST1005: user-facing German message
+	ErrCategoryNameExists = errors.New("eine Kategorie mit diesem Namen existiert bereits")
 
 	// ErrCategoryArchived is returned when an edit targets an archived
 	// category. It has to be restored first.
-	ErrCategoryArchived = errors.New("Archivierte Kategorie muss zuerst wiederhergestellt werden") //nolint:staticcheck // ST1005: user-facing German message
+	ErrCategoryArchived = errors.New("archivierte Kategorie muss zuerst wiederhergestellt werden")
 )
 
 // ActivityError represents an activity-related error

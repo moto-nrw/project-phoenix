@@ -120,7 +120,7 @@ func (rs *Resource) schoolStudentSheet(w http.ResponseWriter, r *http.Request) {
 	}
 	if !onRoster {
 		common.RenderError(w, r, common.ErrorForbidden(
-			errors.New("Dieses Kind gehört nicht zu dieser Aufsicht"), //nolint:staticcheck // ST1005: user-facing German message
+			errors.New("dieses Kind gehört nicht zu dieser Aufsicht"),
 		))
 		return
 	}

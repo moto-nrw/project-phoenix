@@ -209,7 +209,7 @@ func TestCareExitHandlers_ValidateCareExitDatesAndReasonNote(t *testing.T) {
 	})
 	missingDateResponse := authExec(t, tc, missingDate, claims, []string{"admin:*"})
 	assert.Equal(t, http.StatusBadRequest, missingDateResponse.Code)
-	assert.Contains(t, missingDateResponse.Body.String(), "Bitte geben Sie den letzten Betreuungstag an.")
+	assert.Contains(t, missingDateResponse.Body.String(), "bitte geben Sie den letzten Betreuungstag an")
 
 	longNote := testutil.NewAuthenticatedRequest(t, http.MethodPost, "/care-end/preview", map[string]any{
 		"student_ids": []string{fmt.Sprintf("%d", student.ID)}, "last_care_day": calendar.TodayDate().String(),
@@ -217,7 +217,7 @@ func TestCareExitHandlers_ValidateCareExitDatesAndReasonNote(t *testing.T) {
 	})
 	longNoteResponse := authExec(t, tc, longNote, claims, []string{"admin:*"})
 	assert.Equal(t, http.StatusBadRequest, longNoteResponse.Code)
-	assert.Contains(t, longNoteResponse.Body.String(), "Die Begründung ist zu lang.")
+	assert.Contains(t, longNoteResponse.Body.String(), "die Begründung ist zu lang.")
 }
 
 func flipCareExitTokenHex(t *testing.T, token string) string {

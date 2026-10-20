@@ -39,9 +39,8 @@ func companionPlanErrorRenderer(err error) render.Renderer {
 	switch {
 	// Removing the day would leave the OTHER child with an accompanied
 	// departure plan and no "mit wem" detail at all. Nothing was written; the
-	// user has to give that child a note (or another link) first. The German
-	// sentinel text goes straight to the UI, and the code lets the client tell
-	// this expected refusal apart from any other 400 the write can produce.
+	// user has to give that child a note (or another link) first. The code
+	// selects the catalog text; the sentinel text is diagnostic detail.
 	case errors.Is(err, careplan.ErrCompanionWouldLoseDeparture), errors.Is(err, departure.ErrCompanionWouldLoseDeparture):
 		return common.ErrorInvalidRequestWithCode(err, common.CodeStudentsCompanionWouldLoseDeparture)
 	// A linked child was being edited elsewhere and this transaction could not
@@ -339,7 +338,7 @@ func (e *companionConflictError) Error() string {
 // errCompanionExtendForbidden is returned when the caller may edit the child in
 // front of them but not the companion whose departure plan the confirmation
 // would widen.
-var errCompanionExtendForbidden = errors.New("Für ein verknüpftes Kind fehlt die Berechtigung, den Heimweg zu ändern.") //nolint:staticcheck // ST1005: user-facing German message
+var errCompanionExtendForbidden = errors.New("für ein verknüpftes Kind fehlt die Berechtigung, den Heimweg zu ändern")
 
 // checkCompanionConflicts runs the COMPLETE companion validation before the
 // update writes anything: link shape, count, the subject's own weekdays,

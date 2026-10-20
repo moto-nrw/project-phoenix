@@ -35,10 +35,10 @@ var (
 	ErrInvalidCategory               = errors.New("invalid activity category")
 	ErrInvalidCareExitEnrollment     = errors.New("invalid care-exit activity enrollment")
 	ErrUnknownCategoryIDs            = errors.New("one or more category IDs do not exist in this tenant")
-	ErrSystemCategoryProtected       = errors.New("Systemkategorie kann nicht bearbeitet oder archiviert werden") //nolint:staticcheck // ST1005: stable user-facing contract
-	ErrSystemCategoryName            = errors.New("Dieser Name ist für eine Systemkategorie reserviert")          //nolint:staticcheck // ST1005: stable user-facing contract
-	ErrCategoryNameExists            = errors.New("Eine Kategorie mit diesem Namen existiert bereits")            //nolint:staticcheck // ST1005: stable user-facing contract
-	ErrCategoryArchived              = errors.New("Archivierte Kategorie muss zuerst wiederhergestellt werden")   //nolint:staticcheck // ST1005: stable user-facing contract
+	ErrSystemCategoryProtected       = errors.New("systemkategorie kann nicht bearbeitet oder archiviert werden")
+	ErrSystemCategoryName            = errors.New("dieser Name ist für eine Systemkategorie reserviert")
+	ErrCategoryNameExists            = errors.New("eine Kategorie mit diesem Namen existiert bereits")
+	ErrCategoryArchived              = errors.New("archivierte Kategorie muss zuerst wiederhergestellt werden")
 	ErrGroupNotFound                 = errors.New("activity group not found")
 	ErrInvalidGroup                  = errors.New("invalid activity group")
 	ErrInvalidGroupQuery             = errors.New("invalid activity group query")

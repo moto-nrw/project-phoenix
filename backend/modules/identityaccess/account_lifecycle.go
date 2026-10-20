@@ -18,15 +18,15 @@ var (
 
 	ErrStaffOffboardingConflict = errors.New("account access changed since offboarding preview")
 
-	ErrSchoolIdentityNamesRequired   = errors.New("Vor- und Nachname sind erforderlich, um ein Konto als Personal anzulegen")                                                //nolint:staticcheck // ST1005: user-facing German message
-	ErrSchoolIdentityPersonIsStudent = errors.New("Dieses Konto ist mit dem Datensatz eines Kindes verknüpft und kann nicht als Personal angelegt werden")                   //nolint:staticcheck // ST1005: user-facing German message
-	ErrSchoolIdentityTagUnknown      = errors.New("Der angegebene Transponder ist an dieser Schule nicht bekannt")                                                           //nolint:staticcheck // ST1005: user-facing German message
-	ErrSchoolIdentityTagConflict     = errors.New("Diese Person trägt an dieser Schule bereits einen anderen Transponder; dieser wird über die Personalverwaltung geändert") //nolint:staticcheck // ST1005: user-facing German message
-	ErrSchoolIdentityTagTaken        = errors.New("Dieser Transponder ist an dieser Schule bereits einer anderen Person zugeordnet")                                         //nolint:staticcheck // ST1005: user-facing German message
+	ErrSchoolIdentityNamesRequired   = errors.New("vor- und Nachname sind erforderlich, um ein Konto als Personal anzulegen")
+	ErrSchoolIdentityPersonIsStudent = errors.New("dieses Konto ist mit dem Datensatz eines Kindes verknüpft und kann nicht als Personal angelegt werden")
+	ErrSchoolIdentityTagUnknown      = errors.New("der angegebene Transponder ist an dieser Schule nicht bekannt")
+	ErrSchoolIdentityTagConflict     = errors.New("diese Person trägt an dieser Schule bereits einen anderen Transponder; dieser wird über die Personalverwaltung geändert")
+	ErrSchoolIdentityTagTaken        = errors.New("dieser Transponder ist an dieser Schule bereits einer anderen Person zugeordnet")
 
 	ErrParentAccountNotFound = errors.New("parent account not found")
-	ErrEmailAlreadyExists    = errors.New("Diese E-Mail-Adresse ist bereits registriert") //nolint:staticcheck // ST1005: user-facing German message
-	ErrUsernameAlreadyExists = errors.New("Dieser Benutzername ist bereits vergeben")     //nolint:staticcheck // ST1005: user-facing German message
+	ErrEmailAlreadyExists    = errors.New("diese E-Mail-Adresse ist bereits registriert")
+	ErrUsernameAlreadyExists = errors.New("dieser Benutzername ist bereits vergeben")
 
 	// ErrPasswordTooWeak reports a credential that does not meet the
 	// complexity requirements Security Runtime owns. The module reports it
@@ -37,7 +37,7 @@ var (
 	ErrCannotRemovePrimaryGuardian      = errors.New("the primary guardian cannot be removed by a parent")
 	ErrCannotRemoveStaffManagedGuardian = errors.New("staff-managed guardian contacts cannot be removed by a parent")
 	ErrCannotRemoveOwnAccess            = errors.New("a parent cannot remove their own access to a child")
-	ErrCannotRemovePayerGuardian        = errors.New("Diese Person ist als Zahler für das Kind eingetragen und kann nicht entfernt werden. Bitte wenden Sie sich an die Schule.") //nolint:staticcheck // ST1005: user-facing German message
+	ErrCannotRemovePayerGuardian        = errors.New("diese Person ist als Zahler für das Kind eingetragen und kann nicht entfernt werden. Bitte wenden Sie sich an die Schule")
 	ErrInviteSocialWorkerManaged        = errors.New("a social-worker contact is managed by the school and cannot be invited to the parents portal")
 	ErrGuardianInvitationNotFound       = errors.New("invitation not found")
 	ErrGuardianInvitationExpired        = errors.New("invitation has expired")

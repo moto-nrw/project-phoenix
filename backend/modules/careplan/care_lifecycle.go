@@ -31,24 +31,23 @@ const (
 	WithdrawalUrgencyOverdue = "overdue"
 )
 
-// The care lifecycle sentinels. Their German messages reach the user
-// unchanged, so the text is part of the contract.
+// Care lifecycle sentinels carry diagnostic detail; clients show the code catalog.
 var (
-	ErrCareExitNoStudents            = errors.New("Bitte wählen Sie mindestens ein Kind aus.")                                                                                 //nolint:staticcheck // ST1005: user-facing German message
-	ErrCareExitTooManyStudents       = errors.New("Es können höchstens 500 Kinder auf einmal beendet werden.")                                                                 //nolint:staticcheck // ST1005: user-facing German message
-	ErrCareExitDayInPast             = errors.New("Der letzte Betreuungstag darf nicht in der Vergangenheit liegen.")                                                          //nolint:staticcheck // ST1005: user-facing German message
-	ErrCareExitPreviewChanged        = errors.New("Die Betreuung wurde nicht beendet. Die Daten haben sich seit der Vorschau geändert. Bitte prüfen Sie die Vorschau erneut.") //nolint:staticcheck // ST1005: user-facing German message
-	ErrCareExitBlocked               = errors.New("Die Betreuung wurde nicht beendet.")                                                                                        //nolint:staticcheck // ST1005: user-facing German message
-	ErrCareExitNotPlanned            = errors.New("Für dieses Kind ist kein Ende der Betreuung geplant.")                                                                      //nolint:staticcheck // ST1005: user-facing German message
-	ErrCareExitAlreadyEffective      = errors.New("Die Betreuung ist bereits beendet und kann nicht mehr storniert werden. Nutzen Sie „Betreuung wieder aufnehmen“.")          //nolint:staticcheck // ST1005: user-facing German message
-	ErrCareResumeNotEnded            = errors.New("Die Betreuung dieses Kindes läuft noch.")                                                                                   //nolint:staticcheck // ST1005: user-facing German message
-	ErrCareResumeMissing             = errors.New(CareBlockerResumeMissing)                                                                                                    //nolint:staticcheck // ST1005: user-facing German message
-	ErrCareResumeStartInPast         = errors.New("Der neue Beginn darf nicht in der Vergangenheit liegen.")                                                                   //nolint:staticcheck // ST1005: user-facing German message
-	ErrCareResumeNotChecked          = errors.New("Bitte bestätigen Sie zuerst die Prüfung. Gruppe, Angebote, Wochenplan und Zeiten bleiben sonst ungeprüft.")                 //nolint:staticcheck // ST1005: user-facing German message
-	ErrCareWithdrawalNotFound        = errors.New("Diese Abmeldung gibt es nicht oder nicht mehr.")                                                                            //nolint:staticcheck // ST1005: user-facing German message
-	ErrCareWithdrawalAfterGap        = errors.New("Der letzte Betreuungstag muss vor dem ersten Tag ohne Buchung liegen.")                                                     //nolint:staticcheck // ST1005: user-facing German message
-	ErrCareWithdrawalAlreadyResolved = errors.New("Die Abmeldung wurde bereits erledigt oder ist nicht mehr aktuell.")                                                         //nolint:staticcheck // ST1005: user-facing German message
-	ErrBookingAuthorityBlocked       = errors.New("Der Buchungsmodus kann nicht aktiviert werden. Für mindestens ein aktuell betreutes Kind ist kein Betreuungstag gebucht.")  //nolint:staticcheck // ST1005: user-facing German message
+	ErrCareExitNoStudents            = errors.New("bitte wählen Sie mindestens ein Kind aus")
+	ErrCareExitTooManyStudents       = errors.New("es können höchstens 500 Kinder auf einmal beendet werden")
+	ErrCareExitDayInPast             = errors.New("der letzte Betreuungstag darf nicht in der Vergangenheit liegen")
+	ErrCareExitPreviewChanged        = errors.New("die Betreuung wurde nicht beendet. Die Daten haben sich seit der Vorschau geändert. Bitte prüfen Sie die Vorschau erneut")
+	ErrCareExitBlocked               = errors.New("die Betreuung wurde nicht beendet")
+	ErrCareExitNotPlanned            = errors.New("für dieses Kind ist kein Ende der Betreuung geplant")
+	ErrCareExitAlreadyEffective      = errors.New("die Betreuung ist bereits beendet und kann nicht mehr storniert werden. Nutzen Sie „Betreuung wieder aufnehmen“")
+	ErrCareResumeNotEnded            = errors.New("die Betreuung dieses Kindes läuft noch")
+	ErrCareResumeMissing             = errors.New("für dieses Kind ist keine beendete Betreuung hinterlegt")
+	ErrCareResumeStartInPast         = errors.New("der neue Beginn darf nicht in der Vergangenheit liegen")
+	ErrCareResumeNotChecked          = errors.New("bitte bestätigen Sie zuerst die Prüfung. Gruppe, Angebote, Wochenplan und Zeiten bleiben sonst ungeprüft")
+	ErrCareWithdrawalNotFound        = errors.New("diese Abmeldung gibt es nicht oder nicht mehr")
+	ErrCareWithdrawalAfterGap        = errors.New("der letzte Betreuungstag muss vor dem ersten Tag ohne Buchung liegen")
+	ErrCareWithdrawalAlreadyResolved = errors.New("die Abmeldung wurde bereits erledigt oder ist nicht mehr aktuell")
+	ErrBookingAuthorityBlocked       = errors.New("der Buchungsmodus kann nicht aktiviert werden. Für mindestens ein aktuell betreutes Kind ist kein Betreuungstag gebucht")
 )
 
 // Per-child blocker sentences. They name the child's own situation, never a

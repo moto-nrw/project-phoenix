@@ -17,10 +17,10 @@ import (
 var (
 	// ErrClassListEntryDuplicate reports a class-list entry that already
 	// carries the row's name and class.
-	ErrClassListEntryDuplicate = errors.New("Ein Eintrag mit diesem Namen existiert in dieser Klasse bereits") //nolint:staticcheck // ST1005: user-facing German message
+	ErrClassListEntryDuplicate = newCopyError("Ein Eintrag mit diesem Namen existiert in dieser Klasse bereits")
 	// ErrClassListEntryStudentExists reports a regular student that already
 	// carries the row's name and class; the child needs no list entry.
-	ErrClassListEntryStudentExists = errors.New("Ein Kind mit diesem Namen ist in dieser Klasse bereits angelegt") //nolint:staticcheck // ST1005: user-facing German message
+	ErrClassListEntryStudentExists = newCopyError("Ein Kind mit diesem Namen ist in dieser Klasse bereits angelegt")
 )
 
 // ClassListImportConfig implements ports.ImportConfig for class-list entries.
@@ -178,7 +178,7 @@ func (c *ClassListImportConfig) createEntry(ctx context.Context, row importModel
 // Update is not supported: an entry has nothing to update from a re-import —
 // the import mode is create-only.
 func (c *ClassListImportConfig) Update(_ context.Context, _ int64, _ importModels.ClassListEntryImportRow) error {
-	return errors.New("Klassenlisteneinträge werden beim Import nicht aktualisiert") //nolint:staticcheck // ST1005: user-facing German message
+	return newCopyError("Klassenlisteneinträge werden beim Import nicht aktualisiert")
 }
 
 // EntityName returns the entity type name for logging and error messages.

@@ -187,7 +187,7 @@ func TestCreateRoomKeepsReservedColorUserMessage(t *testing.T) {
 	_, err := module.CreateRoom(context.Background(), facilities.CreateRoom{Name: "Igelraum", Color: &color})
 
 	require.ErrorIs(t, err, facilities.ErrRoomColorReserved)
-	assert.Equal(t, "Diese Farbe ist für Statusbadges reserviert und kann nicht für Räume verwendet werden", err.Error())
+	assert.Equal(t, "diese Farbe ist für Statusbadges reserviert und kann nicht für Räume verwendet werden", err.Error())
 }
 
 func TestCreateRoomKeepsInvalidColorUserMessage(t *testing.T) {

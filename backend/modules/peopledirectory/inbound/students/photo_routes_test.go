@@ -378,8 +378,8 @@ func TestUploadStudentPhoto_MissingConsent(t *testing.T) {
 
 	rr := testutil.ExecuteRequest(tc.router(), req)
 	assert.Equal(t, http.StatusBadRequest, rr.Code, "Body: %s", rr.Body.String())
-	assert.Contains(t, rr.Body.String(), "Einwilligung",
-		"German error message must surface so the OGS UI can display it verbatim")
+	assert.Contains(t, rr.Body.String(), "einwilligung",
+		"diagnostic detail must name the missing consent; the UI uses the code catalog")
 
 	assert.Equal(t, "", readStudentPhotoPath(t, tc, student.ID),
 		"refused upload must not persist a photo_path")

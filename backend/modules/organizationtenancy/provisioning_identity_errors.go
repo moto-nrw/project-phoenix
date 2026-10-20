@@ -35,9 +35,9 @@ const OpCreateInvitation = "create invitation"
 // The identity refusals the operator provisioning routes classify on.
 var (
 	// ErrAccountEmailExists reports an address that is already registered.
-	ErrAccountEmailExists = errors.New("Diese E-Mail-Adresse ist bereits registriert") //nolint:staticcheck // ST1005: user-facing German message
+	ErrAccountEmailExists = errors.New("diese E-Mail-Adresse ist bereits registriert")
 	// ErrAccountUsernameExists reports a name that is already taken.
-	ErrAccountUsernameExists = errors.New("Dieser Benutzername ist bereits vergeben") //nolint:staticcheck // ST1005: user-facing German message
+	ErrAccountUsernameExists = errors.New("dieser Benutzername ist bereits vergeben")
 	// ErrAccountNotFound reports an account the operator named that is gone.
 	ErrAccountNotFound = errors.New("account not found")
 	// ErrInvitationNameRequired reports an acceptance without both names.

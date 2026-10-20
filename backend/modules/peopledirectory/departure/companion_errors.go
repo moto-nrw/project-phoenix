@@ -15,7 +15,7 @@ var (
 	// companion_student_id in the request body decodes to. A sentinel, not a
 	// fresh error: the handler's error table maps it to a 400, whereas an
 	// untyped error would leak malformed client input as a 500.
-	ErrCompanionStudentIDRequired = errors.New("Bitte ein Kind für die Laufgemeinschaft auswählen.") //nolint:staticcheck // user-facing German message
+	ErrCompanionStudentIDRequired = errors.New("bitte ein Kind für die Laufgemeinschaft auswählen")
 
 	// ErrCompanionWouldLoseDeparture indicates that removing a link would leave
 	// the OTHER child with an accompanied ("Anderes Kind") departure plan and no
@@ -24,9 +24,9 @@ var (
 	// never change another child's departure permissions, and leaving the
 	// contradiction in place would block every later edit of that child.
 	//
-	// The German text goes straight to the UI; the retained model layer
-	// re-exports the same value so existing errors.Is call sites keep matching.
-	ErrCompanionWouldLoseDeparture = errors.New("Ein verknüpftes Kind hätte danach keine Angabe mehr dazu, mit wem es nach Hause geht. Bitte zuerst den Heimweg dieses Kindes anpassen.") //nolint:staticcheck // ST1005: user-facing German message
+	// The text is diagnostic detail; clients show the code catalog. The retained
+	// model layer re-exports the same value for existing errors.Is call sites.
+	ErrCompanionWouldLoseDeparture = errors.New("ein verknüpftes Kind hätte danach keine Angabe mehr dazu, mit wem es nach Hause geht. Bitte zuerst den Heimweg dieses Kindes anpassen")
 
 	// ErrCompanionLockBusy indicates that a linked child's row is currently
 	// locked by another transaction that this one may NOT wait for without
@@ -38,5 +38,5 @@ var (
 	// It is a transient, retriable conflict, not a data problem: the same
 	// request succeeds once the other edit commits. Mapped to 409 so the client
 	// can say "please try again" instead of showing a 500 for a legitimate edit.
-	ErrCompanionLockBusy = errors.New("Ein verknüpftes Kind wird gerade an anderer Stelle bearbeitet. Bitte in einem Moment erneut speichern.") //nolint:staticcheck // ST1005: user-facing German message
+	ErrCompanionLockBusy = errors.New("ein verknüpftes Kind wird gerade an anderer Stelle bearbeitet. Bitte in einem Moment erneut speichern")
 )
