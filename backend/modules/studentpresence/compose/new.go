@@ -36,7 +36,11 @@ func New(deps Dependencies) (studentpresence.Owner, error) {
 		return nil, errors.New("student presence compose: all dependencies are required")
 	}
 	store := postgres.New(databaseRuntime(deps.DB))
-	return application.New(store, transaction{}, deps.Observe, sessionAttendancePorts(deps), deps.Now), nil
+	now := deps.Now
+	if now == nil {
+		now = time.Now
+	}
+	return application.New(store, transaction{}, deps.Observe, sessionAttendancePorts(deps), now), nil
 }
 
 func sessionAttendancePorts(deps Dependencies) ports.AttendanceRulePorts {

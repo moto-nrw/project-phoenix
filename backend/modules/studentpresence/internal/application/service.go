@@ -24,14 +24,10 @@ type Service struct {
 
 // New builds the service. The attendance rule ports may be nil in a
 // composition that serves no attendance rules; the rules that need one then
-// fail with a configuration error. now is the clock of the day-bound reads;
-// nil uses time.Now.
+// fail with a configuration error. now is the clock of the day-bound reads.
 func New(store ports.Store, tx ports.Transaction, observe func(ports.Observation), rules ports.AttendanceRulePorts, now func() time.Time) *Service {
-	if store == nil || tx == nil || observe == nil {
+	if store == nil || tx == nil || observe == nil || now == nil {
 		panic("student presence: all application dependencies are required")
-	}
-	if now == nil {
-		now = time.Now
 	}
 	return &Service{store: store, tx: tx, observe: observe, roster: rules.Roster, carePlan: rules.CarePlan, careDays: rules.CareDays, now: now}
 }
