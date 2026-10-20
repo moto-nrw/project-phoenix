@@ -48,15 +48,15 @@ staff, err := rs.UsersService.GetStaffByPersonID(ctx, personID)
 
 ### Enforcement — CI ratchet, currently at ZERO violations
 
-`backend/test/handler_layer_ratchet_test.go` (`TestHandlerLayerRatchet`) fails any PR that reintroduces one of five patterns, all with empty allowlists:
+`backend/test/handler_layer_ratchet_test.go` (`TestHandlerLayerRatchet`) fails any PR that reintroduces one of three patterns, all with empty allowlists:
 
 1. Repo-typed declarations in `api/`, outside the root's test composition hooks (`api/*_test_helpers.go`, #4005), which build the retained repositories for tests and serve no request
-2. `.XxxRepository()` getter calls (backend-wide except `database/` and `test/`)
-3. Query construction (`NewSelect` etc.) in `api/`
-4. `database/repositories` imports in `api/` beyond `base.go` + `testutil/`
-5. Test-only handler accessor wrappers in `api/`
+2. Query construction (`NewSelect` etc.) in `api/`
+3. Test-only handler accessor wrappers in `api/`
 
-Patterns 1, 3, 4 and 5 also scan the handlers #2580 moved out of `api/` (`modules/*/http`, `modules/*/inbound`, `workflows/*/http`, nested layouts included) with registers of their own, all empty when #4071 added them; no file there is exempt.
+The `.XxxRepository()` getters and the production `database/repositories` packages no longer exist, so neither shape compiles and the ratchet no longer scans for them (#4427).
+
+All three patterns also scan the handlers #2580 moved out of `api/` (`modules/*/http`, `modules/*/inbound`, `workflows/*/http`, nested layouts included) with registers of their own, all empty when #4071 added them; no file there is exempt.
 
 `scripts/backend-architecture.sh check` evaluates the strict target policy in
 `backend/architecture/policy.json` against production, internal-test, and
@@ -143,11 +143,11 @@ type TenantModel struct { TenantID int64 `bun:"tenant_id,notnull"` }
 func (t *TenantModel) GetTenantID() int64 / SetTenantID(id int64)
 ```
 
-The shared base shapes provide `GetID()`/`GetCreatedAt()`/`GetUpdatedAt()` — never redeclare them per entity. Audit models keep their honest timestamp fields (`AccessedAt`, `DeletedAt`, `OccurredAt`, or `ChangedAt`) and do not pretend to implement the conventional timestamp contract. The generic repository has no method constraint because Bun performs CRUD from mappings rather than accessors. The same goes for GORM-style `TableName()` methods: bun never calls them; table names come from struct tags and `ModelTableExpr` strings. Both patterns are CI-ratcheted to zero by `TestModelCeremonyRatchet` (`backend/test/model_ceremony_ratchet_test.go`).
+The shared base shapes provide `GetID()`/`GetCreatedAt()`/`GetUpdatedAt()` — never redeclare them per entity. Audit models keep their honest timestamp fields (`AccessedAt`, `DeletedAt`, `OccurredAt`, or `ChangedAt`) and do not pretend to implement the conventional timestamp contract. The generic repository has no method constraint because Bun performs CRUD from mappings rather than accessors. The same goes for GORM-style `TableName()` methods: bun never calls them; table names come from struct tags and `ModelTableExpr` strings. `models/` holds no production code any more, so no ratchet scans for either pattern (#4427).
 
 ### A note on `BeforeAppendModel`
 
-The old per-entity `BeforeAppendModel(query any) error` hooks never ran: bun's hook interface is `BeforeAppendModel(ctx context.Context, query schema.Query) error`, dispatched via a reflection `Implements()` check the one-arg signature never matched. All 93 copies were deleted in the 2026-07 audit cleanup; repositories set `ModelTableExpr` explicitly, which is the actual mechanism. If a model genuinely needs a bun append hook, use the correct two-arg signature — the dead one-arg shape is CI-ratcheted to zero by `TestModelCeremonyRatchet` (M3).
+The old per-entity `BeforeAppendModel(query any) error` hooks never ran: bun's hook interface is `BeforeAppendModel(ctx context.Context, query schema.Query) error`, dispatched via a reflection `Implements()` check the one-arg signature never matched. All 93 copies were deleted in the 2026-07 audit cleanup; repositories set `ModelTableExpr` explicitly, which is the actual mechanism. If a model genuinely needs a bun append hook, use the correct two-arg signature.
 
 ---
 
@@ -159,7 +159,7 @@ The old per-entity `BeforeAppendModel(query any) error` hooks never ran: bun's h
 gocognit -over 15 backend/api/
 ```
 
-**CI-enforced since 2026-07-12** (issue #575 B0): `TestHandlerComplexityRatchet` (`backend/test/handler_complexity_ratchet_test.go`) fails any function under `api/` scoring over 15 that is not in its shrink-only allowlist; the root's test composition hooks (`api/*_test_helpers.go`, #4005) are no handlers and stay outside the scan (seeded with the 75 offenders existing at ratchet time; keys match `gocognit -over 15 api/` output 1:1). When a refactor lowers a score, ratchet the entry down; never raise one or add one. Since #4071 the same threshold applies to `modules/*/http`, `modules/*/inbound` and `workflows/*/http` with its own register (one entry when the scan was added).
+**CI-enforced since 2026-07-12** (issue #575 B0): `TestHandlerComplexityRatchet` (`backend/test/handler_complexity_ratchet_test.go`) fails any function under `api/` scoring over 15 that is not in its shrink-only allowlist; the root's test composition hooks (`api/*_test_helpers.go`, #4005) are no handlers and stay outside the scan (seeded with the 75 offenders existing at ratchet time; keys match `gocognit -over 15 api/` output 1:1). When a refactor lowers a score, ratchet the entry down; never raise one or add one. The handlers under `modules/*/http`, `modules/*/inbound` and `workflows/*/http` are held to the same threshold by `TestModuleComplexityRatchet`, which scans all of `modules/` and `workflows/`.
 
 Two shapes that keep handlers under the threshold without hiding logic:
 
@@ -261,9 +261,9 @@ err := s.txHandler.RunInTx(ctx, func(ctx context.Context, tx bun.Tx) error {
 })
 ```
 
-### Enforcement — CI ratchet
+### Enforcement — architecture policy
 
-`backend/test/architecture_ratchet_test.go` (`TestServiceRepositoryRatchet`) fails any new query-construction site in `services/` — including driver-level `Exec`/`Query`/`QueryRow` calls, not just query-builder calls. Its `serviceQueryRatchetAllowlist` is the source of truth for the tolerated remainder: a shrink-only, per-file count covering exclusively transaction-control statements (SAVEPOINT triplets, `pg_advisory_xact_lock`, `LOCK TABLE`) — transaction orchestration is legitimately service-layer. Allowlist numbers may only ever go down.
+`scripts/backend-architecture.sh check` enforces this through `backend/architecture/policy.json`: a package may import the `orm-sql` class (`github.com/uptrace/bun`, `database/sql`) only when a production rule grants it. The `postgres`, `migration` and `test-support` roles have one; the `http` role has none, and an `application` package has one only where a named owner rule grants it. Without the import, a package cannot build a query. The former text ratchet `TestServiceRepositoryRatchet` scanned only `modules/schedulerruntime/internal/application`, which has no grant, and was removed in #4427.
 
 ### Exceptions
 
@@ -336,7 +336,7 @@ Placement rules: mocks for `models/*` interfaces go in `test/` (imports models o
 
 ## 14. Calendar Fixtures Must Not Depend on the Wall Clock
 
-**RULE: Calendar-date, date-range, weekday, and ISO-week expectations in backend tests use fixed Berlin dates or instants.** Do not derive them from `time.Now()` or `timezone.TodayDate()`: a test that is green at noon can cross midnight or Sunday/Monday in CI. Prefer `timezone.NewDate(...).BerlinMidnight()` for a Berlin instant, `timezone.NewDate(...)` for a calendar date, or `time.Date(...)` for an explicit instant.
+**RULE: Calendar-date, date-range, weekday, and ISO-week expectations in backend tests use fixed Berlin dates or instants.** Do not derive them from `time.Now()` or `calendar.TodayDate()`: a test that is green at noon can cross midnight or Sunday/Monday in CI. Prefer `calendar.NewDate(...).BerlinMidnight()` for a Berlin instant, `calendar.NewDate(...)` for a calendar date, or `time.Date(...)` for an explicit instant.
 
 `backend/test/calendar_fixture_ratchet_test.go` (`TestCalendarFixtureClockRatchet`) parses imports and Go syntax in `_test.go` files. It follows imported aliases, assigned values, and package-local test helpers across files. The ratchet rejects live-clock values used in date conversion, date-range calls or structs, date assertions, day/ISO-week operations, and weekly-summary fixture times. Comments, strings, shadowed import names, unrelated `Now` methods, fixed values, and non-test files are ignored. The check is part of the existing CI command:
 
@@ -368,7 +368,7 @@ testpkg.AssertQueryBudget(t, "api.students.list", counter.Queries())
 
 **RULE: Size, complexity, facade width, and layering are measured under `backend/modules/` and `backend/workflows/` too, not only up to the `api/` and `models/` boundaries.** Migration #2580 moved 228,306 of 638,717 production LOC into those trees, where no gate in this document reached them: a file could pass every threshold above by being moved rather than by being written.
 
-Eight ratchets freeze the state measured on **2026-09-18 at merge commit `ecf0003369`**; the eighth is structural since #4070, and #4071 extended three of them on 2026-10-15 (development `c49b81c3a9`) to where code went instead of where it left. The first seed was taken at `19feca2822`; five of the eight were re-measured after the merge of `origin/development` (`a47f77b2c3`), which brought in PR #3408 (issue #3350) and with it the new legacy subtree `modules/careplan/legacy/carelifecycle`. They repair nothing today. **Every entry may only fall — lower a number when a refactor earns it, delete it when the offender is gone; never raise one and never add one.** Each test file's header records its exact measurement command and the semantics of its four failure cases. `scripts/backend-architecture.sh check` enforces this against the pull request's base for every ratchet file in `backend/test/`: a raised integer constant, a raised `map[string]int` value or sum, a grown `map[string]string` exception register, and a measurement that disappears or can no longer be evaluated fail unless the change adds a new-numbered ADR the entry cites. Rename a register only with `renamed from <old name>` in the new declaration's comment (ADR 0057 point 5; `backend/architecture/README.md`, "Source ratchet budgets").
+Six ratchets freeze the state measured on **2026-09-18 at merge commit `ecf0003369`**, and #4071 extended three of them on 2026-10-15 (development `c49b81c3a9`) to where code went instead of where it left. The first seed was taken at `19feca2822`; five of them were re-measured after the merge of `origin/development` (`a47f77b2c3`), which brought in PR #3408 (issue #3350) and with it the new legacy subtree `modules/careplan/legacy/carelifecycle`. They repair nothing today. **Every entry may only fall — lower a number when a refactor earns it, delete it when the offender is gone; never raise one and never add one.** Each test file's header records its exact measurement command and the semantics of its four failure cases. `scripts/backend-architecture.sh check` enforces this against the pull request's base for every ratchet file in `backend/test/`: a raised integer constant, a raised `map[string]int` value or sum, a grown `map[string]string` exception register, and a measurement that disappears or can no longer be evaluated fail unless the change adds a new-numbered ADR the entry cites. Rename a register only with `renamed from <old name>` in the new declaration's comment (ADR 0057 point 5; `backend/architecture/README.md`, "Source ratchet budgets").
 
 | Rule | Threshold | Test — `backend/test/…` | Seed on 2026-09-18 |
 |---|---|---|---|
@@ -377,16 +377,14 @@ Eight ratchets freeze the state measured on **2026-09-18 at merge commit `ecf000
 | Cognitive complexity (Rule 4, extended) | `gocognit` ≤ 15 | `TestModuleComplexityRatchet` — `module_complexity_ratchet_test.go` | 444 functions |
 | Facade width | 12 methods per exported interface in a module's public package | `TestModuleFacadeWidthRatchet` — `module_facade_width_ratchet_test.go` | 36 interfaces of 421; widest 33 |
 | Pass-through methods (Rule 8) | budget per module directory over its application layer and its compositions (`*/compose/**`, `*/composition/**`) together (ADR 0061), with a total | `TestModulePassthroughRatchet` — `module_passthrough_ratchet_test.go` | 704 methods in 21 modules; compositions 2,394 in 34 (2026-10-15); merged per module 3,109 (ADR 0061) |
-| ORM in the inbound role | zero `github.com/uptrace/bun` imports under `*/http`, `*/inbound` | `TestModuleHTTPORMRatchet` — `module_http_orm_ratchet_test.go` | 23 files; target is 0 |
 | Legacy LOC budget | per topmost `legacy/` tree, per `legacy_*.go` file outside one, per owner composition package, each with a total | `TestModuleLegacyBudgetRatchet` — `module_legacy_budget_ratchet_test.go` | 12 trees, 92,928 LOC; on 2026-10-15 22 `legacy_*.go` files, 3,862 LOC, and 61 compose packages, 90,627 LOC (#4084) |
-| Temporary policy rules | none: a rule with a transition marker or an `issue` field fails | `TestPolicyTemporaryRulesRatchet` — `policy_temporary_rules_ratchet_test.go` | structural since #4070 (ADR 0057); 0 rules |
 | Root structs of several owners (ADR 0059) | no key the base lacks | composition surface in `scripts/backend-architecture.sh check` — `internal/architecture/composition_ratchet.go` | 139 → 1,732 keys on 2026-10-15 when #4071 counted every `api`, `cmd` and `.` struct holding values of two owners; 0 since #4080 |
 
 The seed column is history. The current budgets are the constants in each test file; driving them to 0 is #3423, and the pass-through decision is #4403.
 
-Scope for the first seven: non-test `.go` files under `modules/` and `workflows/`, **`legacy/` subtrees included** — a migration must not be able to silence a gate by moving code into `legacy/`. The pass-through ratchet is the deliberate exception and scans `*/internal/application/**` and the owner compositions, without `legacy/`. The `legacy_*.go` register scans the whole backend outside `legacy/` trees.
+Scope: non-test `.go` files under `modules/` and `workflows/`, **`legacy/` subtrees included** — a migration must not be able to silence a gate by moving code into `legacy/`. The pass-through ratchet is the deliberate exception and scans `*/internal/application/**` and the owner compositions, without `legacy/`. The `legacy_*.go` register scans the whole backend outside `legacy/` trees.
 
-The last one keeps temporary allow-rules out of `backend/architecture/policy.json`. Such a rule hides the import edges it covers from the exact tuples in `backend/architecture/legacy.jsonl`, so converting debt into a rule looked like progress in the only number CI prints. #4070 (ADR 0057) converted every rule that was not target into exact keys with open carriers; the test is structural since then and has no seed. The evaluator rejects the same rules when it loads the policy.
+Two former rows are gone (#4427). The `bun` import in `*/http` and `*/inbound` is an `orm-sql` import the `http` role has no rule for, so `scripts/backend-architecture.sh check` rejects it. Temporary allow-rules in `policy.json` (a transition marker or an `issue` field) are rejected by the evaluator when it loads the policy (`validateTargetOnlyRule`, `internal/architecture/target_rule.go`, ADR 0057).
 
 ---
 
@@ -401,13 +399,13 @@ The last one keeps temporary allow-rules out of `backend/architecture/policy.jso
 - [ ] Errors use `api/common` helpers, not local copies
 - [ ] Services encapsulate business logic, don't just delegate
 - [ ] Auth code matches the `backend/auth/` (primitives) vs `modules/identityaccess/` (flows) layering
-- [ ] No query construction in `services/` (CI: `TestServiceRepositoryRatchet`)
+- [ ] No query construction outside packages the policy grants `orm-sql` (CI: `scripts/backend-architecture.sh check`)
 - [ ] Models hold data, not decisions — no `Mark*/End*/Activate*` mutations, no RBAC, no magic thresholds
 - [ ] Searched for existing helpers before writing a new one (`rg` before `func`)
 - [ ] No new hand-rolled mock/fixture where a shared test double exists (Rule 13 table)
 - [ ] Calendar/date/week test fixtures use fixed Berlin values, or have an exact-function live-clock exception with a reviewed reason
 - [ ] New list endpoint → query-budget test via `testpkg.CaptureQueries` + register entry in `test/query_budgets.go`; no hand-rolled `BeforeQuery` hooks (CI: `TestQueryBudgetRatchet`)
-- [ ] Code under `modules/`/`workflows/` stays inside the Rule 16 ratchets — no new file over 800 lines, function over 60 lines or `gocognit` 15, interface over 12 methods, `bun` import in an inbound package, grown `legacy/` tree, or new temporary policy rule; entries lowered where the change earned it, never raised
+- [ ] Code under `modules/`/`workflows/` stays inside the Rule 16 ratchets — no new file over 800 lines, function over 60 lines or `gocognit` 15, interface over 12 methods, or grown `legacy/` tree; entries lowered where the change earned it, never raised
 
 ## Detection commands (one-shot health check)
 
@@ -415,10 +413,10 @@ The last one keeps temporary allow-rules out of `backend/architecture/policy.jso
 cd backend
 
 # Rules 1 + 11 — the authoritative checks are the ratchet tests:
-go test ./test/ -run 'TestHandlerLayerRatchet|TestServiceRepositoryRatchet' -v
+go test ./test/ -run 'TestHandlerLayerRatchet' -v
 
-# Rule 16 — the eight modules/ + workflows/ ratchets (authoritative; no database needed)
-go test ./test/ -run 'TestModule|TestPolicyTemporaryRules' -count=1
+# Rule 16 — the modules/ + workflows/ ratchets (authoritative; no database needed)
+go test ./test/ -run 'TestModule' -count=1
 
 # Rule 1 — manual sweep (should be zero)
 rg --type go -g '!*_test.go' '^\s+\w+\s+[\w\.]*Repository\b|\.\w+Repository\(\)' api/

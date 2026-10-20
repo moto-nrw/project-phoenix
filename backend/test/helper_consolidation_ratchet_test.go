@@ -1,9 +1,7 @@
 package test
 
 import (
-	"bufio"
 	"fmt"
-	"os"
 	"path/filepath"
 	"regexp"
 	"sort"
@@ -108,97 +106,62 @@ func TestHelperConsolidationRatchet(t *testing.T) {
 // scanRatchetPattern counts non-comment pattern hits per non-test Go file
 // under root/subdir, skipping files where skip(relPath) is true.
 func scanRatchetPattern(backendRoot, subdir string, pattern *regexp.Regexp, skip func(string) bool) (map[string]int, error) {
-	counts := make(map[string]int)
-	err := filepath.WalkDir(filepath.Join(backendRoot, subdir), func(path string, d os.DirEntry, err error) error {
-		if err != nil {
-			return err
-		}
-		if d.IsDir() || !strings.HasSuffix(path, ".go") || strings.HasSuffix(path, "_test.go") {
-			return nil
-		}
-		rel, err := filepath.Rel(backendRoot, path)
-		if err != nil {
-			return err
-		}
-		rel = filepath.ToSlash(rel)
-		if skip(rel) {
-			return nil
-		}
-		hits, err := countNonCommentHits(path, pattern)
-		if err != nil {
-			return err
-		}
-		if hits > 0 {
-			counts[rel] = hits
-		}
-		return nil
-	})
+	files, err := goSourceIndex(backendRoot)
 	if err != nil {
 		return nil, err
 	}
-	return counts, nil
-}
-
-func countNonCommentHits(path string, pattern *regexp.Regexp) (int, error) {
-	f, err := os.Open(path) // #nosec G304 -- test scans repo-local source files
-	if err != nil {
-		return 0, err
+	prefix := ""
+	if subdir != "." {
+		prefix = filepath.ToSlash(subdir) + "/"
 	}
-	defer func() { _ = f.Close() }()
-
-	hits := 0
-	scanner := bufio.NewScanner(f)
-	scanner.Buffer(make([]byte, 1024*1024), 1024*1024)
-	for scanner.Scan() {
-		line := scanner.Text()
-		if strings.HasPrefix(strings.TrimSpace(line), "//") {
+	counts := make(map[string]int)
+	for _, f := range files {
+		if !strings.HasPrefix(f.rel, prefix) || strings.HasSuffix(f.rel, "_test.go") || skip(f.rel) {
 			continue
 		}
-		hits += len(pattern.FindAllString(line, -1))
+		hits := countContentHits(f.content, func(line string) int {
+			return len(pattern.FindAllString(line, -1))
+		})
+		if hits > 0 {
+			counts[f.rel] = hits
+		}
 	}
-	return hits, scanner.Err()
+	return counts, nil
 }
 
 // scanMultiLineGetLoggers returns files whose getLogger() method still
 // carries a nil-check body instead of the one-line cmp.Or form.
 func scanMultiLineGetLoggers(backendRoot string) ([]string, error) {
-	var files []string
-	err := filepath.WalkDir(backendRoot, func(path string, d os.DirEntry, err error) error {
-		if err != nil {
-			return err
-		}
-		if d.IsDir() {
-			if d.Name() == "node_modules" || d.Name() == ".git" {
-				return filepath.SkipDir
-			}
-			return nil
-		}
-		if !strings.HasSuffix(path, ".go") || strings.HasSuffix(path, "_test.go") {
-			return nil
-		}
-		content, err := os.ReadFile(path) // #nosec G304 -- test scans repo-local source files
-		if err != nil {
-			return err
-		}
-		lines := strings.Split(string(content), "\n")
-		for i, line := range lines {
-			if !getLoggerHeadPattern.MatchString(line) {
-				continue
-			}
-			if i+1 < len(lines) && getLoggerNilCheckLine.MatchString(lines[i+1]) {
-				rel, relErr := filepath.Rel(backendRoot, path)
-				if relErr != nil {
-					return relErr
-				}
-				files = append(files, filepath.ToSlash(rel))
-				break
-			}
-		}
-		return nil
-	})
+	sources, err := goSourceIndex(backendRoot)
 	if err != nil {
 		return nil, err
 	}
+	var files []string
+	for _, f := range sources {
+		if !strings.HasSuffix(f.rel, "_test.go") && !inSkippedDir(f.rel) && hasMultiLineGetLogger(string(f.content)) {
+			files = append(files, f.rel)
+		}
+	}
 	sort.Strings(files)
 	return files, nil
+}
+
+func inSkippedDir(rel string) bool {
+	parts := strings.Split(rel, "/")
+	for _, part := range parts[:len(parts)-1] {
+		if part == "node_modules" || part == ".git" {
+			return true
+		}
+	}
+	return false
+}
+
+func hasMultiLineGetLogger(content string) bool {
+	lines := strings.Split(content, "\n")
+	for i, line := range lines {
+		if getLoggerHeadPattern.MatchString(line) && i+1 < len(lines) && getLoggerNilCheckLine.MatchString(lines[i+1]) {
+			return true
+		}
+	}
+	return false
 }

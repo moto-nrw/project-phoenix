@@ -17,15 +17,15 @@ import (
 // modules and application workflows.
 //
 // Why a second ratchet instead of a wider api/ one: migration #2580 moved
-// 228,306 of 638,717 production LOC into modules/ and workflows/, and every
-// existing quality gate stops at the api/ and models/ directory boundary.
-// Moved code left the ratchet's reach without a single line changing. This
+// 228,306 of 638,717 production LOC into modules/ and workflows/, and the
+// api/ ratchet stopped at its directory boundary. Moved code left the
+// ratchet's reach without a single line changing. This
 // test closes that gap by freezing today's state under the new roots.
 //
-// TestHandlerComplexityRatchet stays separate and stays at zero. Its empty
-// allowlist is a hard-won result (75 offenders retired since 2026-07-12);
-// merging the two registers would bury that zero inside a four-hundred-entry
-// map, where nobody would notice it growing back.
+// TestHandlerComplexityRatchet keeps api/ separate and at zero (75 offenders
+// retired since 2026-07-12). This ratchet also scores the module handlers
+// (modules/*/http, modules/*/inbound, workflows/*/http) against the same
+// threshold; they have no register of their own.
 //
 // Allowlist semantics (per function, not per file), identical to the api/
 // ratchet:
@@ -62,10 +62,8 @@ const moduleComplexityThreshold = 15
 // entries rose, three functions entered at 16, and two entries fell: the
 // register's sum went from 5,460 to 5,527 over 228 entries. This is a tool
 // rebaseline, not new debt; ADR 0072 records why the functions were not
-// refactored instead. Every entry keeps falling from here.
-//
-// Sorted by key, with a blank line between owner modules so gofmt aligns each
-// block on its own and removing an entry reflows only that module's block.
+// refactored instead. The register is empty now: every function stays at or
+// below the threshold.
 var moduleComplexityAllowlist = map[string]int{}
 
 func TestModuleComplexityRatchet(t *testing.T) {

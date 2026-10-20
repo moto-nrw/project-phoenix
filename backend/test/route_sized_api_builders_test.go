@@ -13,11 +13,10 @@ import (
 )
 
 const (
-	rootServicesImport = "github.com/moto-nrw/project-phoenix/services"
-	testutilImport     = "github.com/moto-nrw/project-phoenix/api/testutil"
-	chiImport          = "github.com/go-chi/chi/v5"
-	httpImport         = "net/http"
-	projectImportRoot  = "github.com/moto-nrw/project-phoenix"
+	testutilImport    = "github.com/moto-nrw/project-phoenix/api/testutil"
+	chiImport         = "github.com/go-chi/chi/v5"
+	httpImport        = "net/http"
+	projectImportRoot = "github.com/moto-nrw/project-phoenix"
 )
 
 type routeBuilderKind uint8
@@ -44,7 +43,6 @@ type routeBuilderTypeDecl struct {
 }
 
 type routeBuilderResult struct {
-	hasFactory bool
 	hasRoute   bool
 	hasUntyped bool
 }
@@ -106,45 +104,13 @@ func inspectRouteBuilderFunction(source routeBuilderFile, function *ast.FuncDecl
 	kind := classifyRouteBuilder(name)
 	result := inspectRouteBuilderResults(source, function.Type.Results)
 	var violations []string
-	if result.hasFactory {
-		violations = append(violations, source.relPath+"#"+name+" returns services.Factory")
-	}
 	if kind != notRouteBuilder && result.hasUntyped {
 		violations = append(violations, source.relPath+"#"+name+" returns an untyped capability")
 	}
 	if kind == routeBuilder && !result.hasRoute {
 		violations = append(violations, source.relPath+"#"+name+" does not return a router, handler, or API resource")
 	}
-	return append(violations, broadCompositionCalls(source, function)...)
-}
-
-func broadCompositionCalls(source routeBuilderFile, function *ast.FuncDecl) []string {
-	var violations []string
-	name := function.Name.Name
-	ast.Inspect(function.Body, func(node ast.Node) bool {
-		selector, ok := node.(*ast.SelectorExpr)
-		identifier, identifierOK := selectorIdentifier(selector)
-		if !ok || !identifierOK {
-			return true
-		}
-		importPath := source.imports[identifier.Name]
-		if importPath == testutilImport && selector.Sel.Name == "SetupAPITest" {
-			violations = append(violations, source.relPath+"#"+name+" calls SetupAPITest outside a route/module builder")
-		}
-		if importPath == rootServicesImport && selector.Sel.Name == "NewFactory" {
-			violations = append(violations, source.relPath+"#"+name+" calls services.NewFactory outside a route/module builder")
-		}
-		return true
-	})
 	return violations
-}
-
-func selectorIdentifier(selector *ast.SelectorExpr) (*ast.Ident, bool) {
-	if selector == nil {
-		return nil, false
-	}
-	identifier, ok := selector.X.(*ast.Ident)
-	return identifier, ok
 }
 
 func parseRouteBuilderFiles(backendRoot string) ([]routeBuilderFile, error) {
@@ -343,12 +309,11 @@ func inspectRouteBuilderSelector(source routeBuilderFile, selector *ast.Selector
 	}
 	importPath := source.imports[identifier.Name]
 	result := routeBuilderResult{
-		hasFactory: importPath == rootServicesImport && selector.Sel.Name == "Factory",
 		hasRoute: (importPath == chiImport && selector.Sel.Name == "Router") ||
 			(importPath == httpImport && selector.Sel.Name == "Handler") ||
 			(isHTTPResourceImport(importPath) && strings.HasSuffix(selector.Sel.Name, "Resource")),
 	}
-	if result.hasFactory || result.hasRoute {
+	if result.hasRoute {
 		return result
 	}
 	declaration, ok := source.typesByImportPath[importPath][selector.Sel.Name]
@@ -368,7 +333,7 @@ func inspectRouteBuilderSelector(source routeBuilderFile, selector *ast.Selector
 	result.hasUntyped = inspectImportedCarrierUntyped(nested, declaration.expression, make(map[string]bool))
 	if typed, isInterface := declaration.expression.(*ast.InterfaceType); isInterface &&
 		typed.Methods != nil && len(typed.Methods.List) > 0 {
-		return routeBuilderResult{hasFactory: result.hasFactory, hasUntyped: result.hasUntyped}
+		return routeBuilderResult{hasUntyped: result.hasUntyped}
 	}
 	return result
 }
@@ -537,7 +502,6 @@ func inspectRouteBuilderFieldList(source routeBuilderFile, fields *ast.FieldList
 }
 
 func mergeRouteBuilderResult(target *routeBuilderResult, source routeBuilderResult) {
-	target.hasFactory = target.hasFactory || source.hasFactory
 	target.hasRoute = target.hasRoute || source.hasRoute
 	target.hasUntyped = target.hasUntyped || source.hasUntyped
 }

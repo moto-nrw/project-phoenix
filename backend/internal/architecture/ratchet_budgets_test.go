@@ -293,21 +293,20 @@ func TestCompareRatchetBudgetsRejectsAmbiguousRenames(t *testing.T) {
 	}
 }
 
-// The three temporary-rule registers ADR 0057 made structural may end; every
-// other measurement still needs an ADR the change adds, even when a comment
-// cites an existing one, and a raise stays forbidden.
-func TestCompareRatchetBudgetsRetiresOnlyTheListedRegisters(t *testing.T) {
+// A measurement that disappears needs an ADR the change adds, even when a
+// comment cites an existing one. The one-time ADR 0057 exception for the
+// temporary-rule registers is gone, so their file has no exception either.
+func TestCompareRatchetBudgetsRetiresOnlyUnderAnAddedADR(t *testing.T) {
 	t.Parallel()
 	const temporaryRules = "package test\n\nconst (\n\tpolicyTempRulesTotal = 2\n\tpolicyTempRulesCompatTotal = 49\n)\n\nvar policyTempRulesFamilies = map[string]int{\"a\": 1, \"b\": 1}\n"
 	for _, tt := range []struct {
 		name, file, base, candidate, want string
 		adrs                              map[string]bool
 	}{
-		{"listed registers end", "test/policy_temporary_rules_ratchet_test.go", temporaryRules, "package test\n", "", nil},
-		{"listed names in another file", "test/other_ratchet_test.go", temporaryRules, "package test\n", "constant policyTempRulesTotal (2 at base) disappeared", nil},
-		{"other register with an existing ADR", "test/example_ratchet_test.go", ratchetBudgetBase, strings.Replace(ratchetBudgetBase, "// Budgets is a register.\nvar Budgets = map[string]int{\n\t\"a\": 2,\n\t\"b\": 3,\n}\n", "// Budgets is retired under ADR 0057.\n", 1), "register Budgets (sum 5 at base) disappeared", nil},
-		{"other register with an added ADR", "test/example_ratchet_test.go", ratchetBudgetBase, strings.Replace(ratchetBudgetBase, "// Budgets is a register.\nvar Budgets = map[string]int{\n\t\"a\": 2,\n\t\"b\": 3,\n}\n", "// Budgets is retired under ADR 0999.\n", 1), "", map[string]bool{"0999": true}},
-		{"listed register raised", "test/policy_temporary_rules_ratchet_test.go", temporaryRules, strings.Replace(temporaryRules, "policyTempRulesTotal = 2", "// Raised under ADR 0057.\n\tpolicyTempRulesTotal = 3", 1), "constant policyTempRulesTotal: 2 -> 3", nil},
+		{"former exception file", "test/policy_temporary_rules_ratchet_test.go", temporaryRules, "package test\n", "constant policyTempRulesTotal (2 at base) disappeared", nil},
+		{"register with an existing ADR", "test/example_ratchet_test.go", ratchetBudgetBase, strings.Replace(ratchetBudgetBase, "// Budgets is a register.\nvar Budgets = map[string]int{\n\t\"a\": 2,\n\t\"b\": 3,\n}\n", "// Budgets is retired under ADR 0057.\n", 1), "register Budgets (sum 5 at base) disappeared", nil},
+		{"register with an added ADR", "test/example_ratchet_test.go", ratchetBudgetBase, strings.Replace(ratchetBudgetBase, "// Budgets is a register.\nvar Budgets = map[string]int{\n\t\"a\": 2,\n\t\"b\": 3,\n}\n", "// Budgets is retired under ADR 0999.\n", 1), "", map[string]bool{"0999": true}},
+		{"raise under an existing ADR", "test/policy_temporary_rules_ratchet_test.go", temporaryRules, strings.Replace(temporaryRules, "policyTempRulesTotal = 2", "// Raised under ADR 0057.\n\tpolicyTempRulesTotal = 3", 1), "constant policyTempRulesTotal: 2 -> 3", nil},
 	} {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
