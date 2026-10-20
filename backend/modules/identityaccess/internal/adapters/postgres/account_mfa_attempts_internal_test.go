@@ -1,4 +1,4 @@
-package behavior_test
+package postgres
 
 import (
 	"context"
@@ -36,7 +36,7 @@ func TestNativeAccount_IncrementMFAAttempts_AtomicUnderRace(t *testing.T) {
 
 	acc := testpkg.CreateTestAccount(t, db, "mfa-atomic-counter")
 
-	repo := nativeMFARecords(t, db)
+	repo := mfaTestRecords(t, db)
 
 	const (
 		concurrency = 12
@@ -96,7 +96,7 @@ func TestNativeAccount_ResetMFAAttempts_ClearsCounterAndLock(t *testing.T) {
 
 	acc := testpkg.CreateTestAccount(t, db, "mfa-atomic-reset")
 
-	repo := nativeMFARecords(t, db)
+	repo := mfaTestRecords(t, db)
 
 	// Drive the counter past the threshold so a lock is in place.
 	for i := 0; i < 6; i++ {

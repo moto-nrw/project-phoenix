@@ -106,12 +106,6 @@ func NewDateframe(configure func(*Dateframe)) *Dateframe {
 	return value
 }
 
-func FrequencyDaily() string { return records.FrequencyDaily }
-
-func FrequencyMonthly() string { return records.FrequencyMonthly }
-
-func FrequencyWeekly() string { return records.FrequencyWeekly }
-
 // InstanceStaff is a test fixture over the owner's native row, not a second row schema.
 type InstanceStaff struct{ records.InstanceStaff }
 
@@ -174,28 +168,6 @@ func PeriodTypeCustom() string { return records.PeriodTypeCustom }
 func PeriodTypeHoliday() string { return records.PeriodTypeHoliday }
 
 func PeriodTypeSchoolYear() string { return records.PeriodTypeSchoolYear }
-
-// PlanningTrack is a test fixture over the owner's native row, not a second row schema.
-type PlanningTrack struct{ records.PlanningTrack }
-
-func NewPlanningTrack(configure func(*PlanningTrack)) *PlanningTrack {
-	value := new(PlanningTrack)
-	if configure != nil {
-		configure(value)
-	}
-	return value
-}
-
-// RecurrenceRule is a test fixture over the owner's native row, not a second row schema.
-type RecurrenceRule struct{ records.RecurrenceRule }
-
-func NewRecurrenceRule(configure func(*RecurrenceRule)) *RecurrenceRule {
-	value := new(RecurrenceRule)
-	if configure != nil {
-		configure(value)
-	}
-	return value
-}
 
 // ScheduledInstanceRow is a test fixture over the owner's native row, not a second row schema.
 type ScheduledInstanceRow struct{ records.ScheduledInstanceRow }

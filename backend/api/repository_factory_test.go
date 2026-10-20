@@ -55,8 +55,6 @@ func TestNewRepositoryFactory(t *testing.T) {
 	t.Run("schedule repositories", func(t *testing.T) {
 		assert.NotNil(t, factorySchedules.Dateframe)
 		assert.NotNil(t, timetable.Timeframe)
-		assert.NotNil(t, timetable.PlanningTrack)
-		assert.NotNil(t, timetable.RecurrenceRule)
 	})
 
 	// Verify activities repositories are initialized
@@ -70,8 +68,6 @@ func TestNewRepositoryFactory(t *testing.T) {
 		assert.NotNil(t, timetable.ActivitySupervisor)
 		assert.NotNil(t, timetable.StudentEnrollment)
 		assert.NotNil(t, timetable.Timeframe)
-		assert.NotNil(t, timetable.PlanningTrack)
-		assert.NotNil(t, timetable.RecurrenceRule)
 	})
 
 	// Verify active repositories are initialized

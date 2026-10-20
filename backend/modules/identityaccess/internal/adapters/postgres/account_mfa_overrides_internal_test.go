@@ -1,4 +1,4 @@
-package behavior_test
+package postgres
 
 // Native persistence tests for auth.mfa_overrides.
 //
@@ -23,13 +23,14 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
-	identityPorts "github.com/moto-nrw/project-phoenix/modules/identityaccess/ports"
+	"github.com/moto-nrw/project-phoenix/modules/identityaccess/internal/domain"
+	"github.com/moto-nrw/project-phoenix/modules/identityaccess/internal/ports"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 )
 
 func newOverrideRepoTestFixtures(t *testing.T) (
 	ctx context.Context,
-	repo identityPorts.AccountMFARecords,
+	repo ports.AccountMFARecords,
 	accountID, tenantID int64,
 ) {
 	t.Helper()
@@ -40,7 +41,7 @@ func newOverrideRepoTestFixtures(t *testing.T) (
 	tenantID = testpkg.UniqueTestTenantID(t)
 	testpkg.EnsureTestTenant(t, db, tenantID)
 
-	repo = nativeMFARecords(t, db)
+	repo = mfaTestRecords(t, db)
 
 	return ctx, repo, account.ID, tenantID
 }
@@ -52,7 +53,7 @@ func TestNativeMFAOverride_UpsertGlobal_HappyPath(t *testing.T) {
 
 	ctx, repo, accountID, _ := newOverrideRepoTestFixtures(t)
 
-	require.NoError(t, repo.UpsertGlobalOverride(ctx, identityaccess.AccountMFAOverride{
+	require.NoError(t, repo.UpsertGlobalOverride(ctx, domain.AccountMFAOverride{
 		AccountID: accountID,
 		Override:  identityaccess.MFAAdminOverrideForceOff,
 		SetBy:     42,
@@ -73,14 +74,14 @@ func TestNativeMFAOverride_UpsertGlobal_UpdatesExistingRow(t *testing.T) {
 
 	ctx, repo, accountID, _ := newOverrideRepoTestFixtures(t)
 
-	require.NoError(t, repo.UpsertGlobalOverride(ctx, identityaccess.AccountMFAOverride{
+	require.NoError(t, repo.UpsertGlobalOverride(ctx, domain.AccountMFAOverride{
 		AccountID: accountID,
 		Override:  identityaccess.MFAAdminOverrideForceOff,
 		SetBy:     42,
 		SetByType: "operator",
 		Reason:    "initial",
 	}))
-	require.NoError(t, repo.UpsertGlobalOverride(ctx, identityaccess.AccountMFAOverride{
+	require.NoError(t, repo.UpsertGlobalOverride(ctx, domain.AccountMFAOverride{
 		AccountID: accountID,
 		Override:  identityaccess.MFAAdminOverrideForceOn,
 		SetBy:     77,
@@ -106,7 +107,7 @@ func TestNativeMFAOverride_UpsertGlobal_ValidationBranches(t *testing.T) {
 	ctx, repo, accountID, tenantID := newOverrideRepoTestFixtures(t)
 
 	tid := tenantID
-	cases := map[string]identityaccess.AccountMFAOverride{
+	cases := map[string]domain.AccountMFAOverride{
 		"account_id zero": {
 			Override:  identityaccess.MFAAdminOverrideForceOff,
 			SetByType: "operator",
@@ -142,7 +143,7 @@ func TestNativeMFAOverride_UpsertTenant_HappyPath(t *testing.T) {
 
 	ctx, repo, accountID, tenantID := newOverrideRepoTestFixtures(t)
 
-	require.NoError(t, repo.UpsertTenantOverride(ctx, identityaccess.AccountMFAOverride{
+	require.NoError(t, repo.UpsertTenantOverride(ctx, domain.AccountMFAOverride{
 		AccountID: accountID,
 		TenantID:  &tenantID,
 		Override:  identityaccess.MFAAdminOverrideForceOn,
@@ -165,12 +166,12 @@ func TestNativeMFAOverride_UpsertTenant_UpdatesExistingRow(t *testing.T) {
 
 	ctx, repo, accountID, tenantID := newOverrideRepoTestFixtures(t)
 
-	require.NoError(t, repo.UpsertTenantOverride(ctx, identityaccess.AccountMFAOverride{
+	require.NoError(t, repo.UpsertTenantOverride(ctx, domain.AccountMFAOverride{
 		AccountID: accountID, TenantID: &tenantID,
 		Override: identityaccess.MFAAdminOverrideForceOn, SetByType: "account",
 		Reason: "first",
 	}))
-	require.NoError(t, repo.UpsertTenantOverride(ctx, identityaccess.AccountMFAOverride{
+	require.NoError(t, repo.UpsertTenantOverride(ctx, domain.AccountMFAOverride{
 		AccountID: accountID, TenantID: &tenantID,
 		Override: identityaccess.MFAAdminOverrideForceOff, SetByType: "account",
 		Reason: "second",
@@ -190,7 +191,7 @@ func TestNativeMFAOverride_UpsertTenant_ValidationBranches(t *testing.T) {
 
 	zero := int64(0)
 	tid := tenantID
-	cases := map[string]identityaccess.AccountMFAOverride{
+	cases := map[string]domain.AccountMFAOverride{
 		"account_id zero": {
 			TenantID:  &tid,
 			Override:  identityaccess.MFAAdminOverrideForceOn,
@@ -251,7 +252,7 @@ func TestNativeMFAOverride_FindByAccountAndTenant_TenantIDZeroIsBlocked(t *testi
 	// Write a global row so a buggy implementation would surface it
 	// through the zero-tenant path. Repository must short-circuit
 	// before the query so the global row stays invisible here.
-	require.NoError(t, repo.UpsertGlobalOverride(ctx, identityaccess.AccountMFAOverride{
+	require.NoError(t, repo.UpsertGlobalOverride(ctx, domain.AccountMFAOverride{
 		AccountID: accountID,
 		Override:  identityaccess.MFAAdminOverrideForceOff,
 		SetByType: "operator",
@@ -269,7 +270,7 @@ func TestNativeMFAOverride_DeleteGlobal_RemovesRow(t *testing.T) {
 
 	ctx, repo, accountID, _ := newOverrideRepoTestFixtures(t)
 
-	require.NoError(t, repo.UpsertGlobalOverride(ctx, identityaccess.AccountMFAOverride{
+	require.NoError(t, repo.UpsertGlobalOverride(ctx, domain.AccountMFAOverride{
 		AccountID: accountID,
 		Override:  identityaccess.MFAAdminOverrideForceOff,
 		SetByType: "operator",
@@ -295,7 +296,7 @@ func TestNativeMFAOverride_DeleteTenant_RemovesRow(t *testing.T) {
 
 	ctx, repo, accountID, tenantID := newOverrideRepoTestFixtures(t)
 
-	require.NoError(t, repo.UpsertTenantOverride(ctx, identityaccess.AccountMFAOverride{
+	require.NoError(t, repo.UpsertTenantOverride(ctx, domain.AccountMFAOverride{
 		AccountID: accountID, TenantID: &tenantID,
 		Override: identityaccess.MFAAdminOverrideForceOn, SetByType: "account",
 	}))
