@@ -1,5 +1,9 @@
 # Request-child storage Backfill: operation and evidence
 
+> **Historical.** The Contract migration of this move runs in every environment. The
+> backfill commands this runbook names (`backfill …`, `migrate backfill …`,
+> `migrate presence-backfill`) were removed in #4441; there is no manual step left.
+
 This guide describes the pre-cutover stage. After migration 1.15.385, use
 the [cutover guide](enrollment-storage-cutover-2714.md); the backfill refuses
 to overwrite owner data from the compatibility view.

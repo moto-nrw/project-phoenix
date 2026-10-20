@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 
+	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess/internal/domain"
 )
 
@@ -15,18 +16,24 @@ import (
 
 // ChangeOperatorStatus deactivates or reactivates another operator's account
 // and records the change in the operator ledger.
-func (p *OperatorProvisioning) ChangeOperatorStatus(ctx context.Context, change domain.OperatorStatusChange) (domain.Operator, error) {
-	if change.Active {
-		return p.reactivateOperator(ctx, change)
+func (p *OperatorProvisioning) ChangeOperatorStatus(ctx context.Context, change identityaccess.OperatorStatusChange) (identityaccess.Operator, error) {
+	if p == nil {
+		return identityaccess.Operator{}, errOperatorProvisioningUnavailable
 	}
-	return p.deactivateOperator(ctx, change)
+	ctx = bindRuntime(p.attach, ctx)
+	apply := p.deactivateOperator
+	if change.Active {
+		apply = p.reactivateOperator
+	}
+	operator, err := apply(ctx, change)
+	return identityaccess.Operator(operator), operatorProvisioningError(err)
 }
 
 // deactivateOperator locks another operator's account and ends its sessions.
 // Deactivating an inactive account keeps its original deactivation time.
-func (p *OperatorProvisioning) deactivateOperator(ctx context.Context, change domain.OperatorStatusChange) (domain.Operator, error) {
+func (p *OperatorProvisioning) deactivateOperator(ctx context.Context, change identityaccess.OperatorStatusChange) (domain.Operator, error) {
 	if change.OperatorID == change.ActorID {
-		return domain.Operator{}, domain.ErrOperatorSelfDeactivation
+		return domain.Operator{}, identityaccess.ErrOperatorSelfDeactivation
 	}
 	return p.changeOperatorStatus(ctx, change, domain.OperatorAuditActionDeactivated, func(txCtx context.Context, operator *domain.Operator) error {
 		if operator.Active {
@@ -38,7 +45,7 @@ func (p *OperatorProvisioning) deactivateOperator(ctx context.Context, change do
 }
 
 // reactivateOperator lets a deactivated operator sign in again.
-func (p *OperatorProvisioning) reactivateOperator(ctx context.Context, change domain.OperatorStatusChange) (domain.Operator, error) {
+func (p *OperatorProvisioning) reactivateOperator(ctx context.Context, change identityaccess.OperatorStatusChange) (domain.Operator, error) {
 	return p.changeOperatorStatus(ctx, change, domain.OperatorAuditActionReactivated, func(_ context.Context, operator *domain.Operator) error {
 		operator.Active = true
 		operator.DeactivatedAt = nil
@@ -50,6 +57,11 @@ func (p *OperatorProvisioning) reactivateOperator(ctx context.Context, change do
 // operator ledger cutoff and reports how many went. Platform rows go only in
 // an administrative transaction; the hourly cleanup hands its own in.
 func (p *OperatorProvisioning) DeleteDeactivatedOperators(ctx context.Context) (deleted int, err error) {
+	if p == nil {
+		return 0, errOperatorProvisioningUnavailable
+	}
+	defer func() { err = operatorProvisioningError(err) }()
+	ctx = bindRuntime(p.attach, ctx)
 	err = p.runtime.WithAdminTx(ctx, func(txCtx context.Context) error {
 		deleted, err = p.operators.deleteDeactivatedOperators(txCtx)
 		return err
@@ -59,23 +71,23 @@ func (p *OperatorProvisioning) DeleteDeactivatedOperators(ctx context.Context) (
 
 // changeOperatorStatus locks the operator's row, applies and records the
 // change, then stores the result in one administrative transaction.
-func (p *OperatorProvisioning) changeOperatorStatus(ctx context.Context, status domain.OperatorStatusChange, action string, change func(context.Context, *domain.Operator) error) (domain.Operator, error) {
+func (p *OperatorProvisioning) changeOperatorStatus(ctx context.Context, status identityaccess.OperatorStatusChange, action string, change func(context.Context, *domain.Operator) error) (domain.Operator, error) {
 	var result domain.Operator
 	err := p.runtime.WithAdminTx(ctx, func(txCtx context.Context) error {
-		operator, err := p.operators.FindOperatorForUpdate(txCtx, status.OperatorID)
+		operator, err := p.operators.findOperatorForUpdate(txCtx, status.OperatorID)
 		if err != nil {
 			return err
 		}
 		if err := change(txCtx, &operator); err != nil {
 			return err
 		}
-		if _, err := p.operators.UpdateOperator(txCtx, operator); err != nil {
+		if _, err := p.operators.UpdateOperator(txCtx, identityaccess.Operator(operator)); err != nil {
 			return err
 		}
 		if err := p.recordStatusChange(txCtx, status, action); err != nil {
 			return fmt.Errorf("record operator status change: %w", err)
 		}
-		updated, err := p.operators.FindOperator(txCtx, operator.ID)
+		updated, err := p.operators.findOperatorByID(txCtx, operator.ID)
 		if err != nil {
 			return err
 		}
@@ -85,7 +97,7 @@ func (p *OperatorProvisioning) changeOperatorStatus(ctx context.Context, status 
 	return result, err
 }
 
-func (p *OperatorProvisioning) recordStatusChange(ctx context.Context, change domain.OperatorStatusChange, action string) error {
+func (p *OperatorProvisioning) recordStatusChange(ctx context.Context, change identityaccess.OperatorStatusChange, action string) error {
 	operatorID := change.OperatorID
 	return p.audit.RecordOperatorAction(ctx, domain.OperatorAuditEntry{
 		OperatorID: change.ActorID, Action: action,

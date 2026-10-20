@@ -1,5 +1,9 @@
 # Staff owner storage Contract (#2754)
 
+> **Historical.** The Contract migration of this move runs in every environment. The
+> backfill commands this runbook names (`backfill …`, `migrate backfill …`,
+> `migrate presence-backfill`) were removed in #4441; there is no manual step left.
+
 Migration `1.15.427` removes the staff compatibility storage that Cutover
 `1.15.409` ([#2753](staff-owner-storage-cutover.md)) kept for previous-image
 rollback. It follows the [student-owner cleanup](student-owner-storage-contract.md)

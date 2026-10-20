@@ -27,7 +27,7 @@ import (
 // from the caller, which holds the audit service.
 func NewCareLifecycleOwners(
 	students CareStudentRows, persons CarePersonRows, membership CareMembershipCommands, people peopledirectory.Capability,
-	timetables timetable.Capability, calendar schoolcalendar.Query, presence *studentpresence.Module,
+	timetables timetable.Capability, calendar schoolcalendar.Query, presence studentpresence.Owner,
 	planReads presenceProjectionReads, enrollment EnrollmentBookingProjection, changeTrail carePlanCompose.CareEndRecorder,
 ) carePlanCompose.CareLifecycleOwners {
 	return carePlanCompose.CareLifecycleOwners{

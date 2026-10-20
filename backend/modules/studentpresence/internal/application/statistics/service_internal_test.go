@@ -90,9 +90,9 @@ func (p periodList) StatisticsHolidayPeriods(context.Context, calendar.Date, cal
 	return p, nil
 }
 
-type retentionSettings []ports.StudentRetentionSetting
+type retentionSettings []studentpresence.StudentRetentionSetting
 
-func (s retentionSettings) ListAcceptedRetentionSettings(context.Context) ([]ports.StudentRetentionSetting, error) {
+func (s retentionSettings) ListAcceptedRetentionSettings(context.Context) ([]studentpresence.StudentRetentionSetting, error) {
 	return s, nil
 }
 

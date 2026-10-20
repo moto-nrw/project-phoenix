@@ -7,15 +7,16 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
 	"github.com/moto-nrw/project-phoenix/modules/studentpresence/internal/ports"
 )
 
-func (s *Store) ListCombinedGroups(ctx context.Context, filter ports.CombinedGroupFilter) ([]ports.CombinedGroup, ports.Stats, error) {
+func (s *Store) ListCombinedGroups(ctx context.Context, filter studentpresence.CombinedGroupFilter) ([]studentpresence.CombinedGroup, ports.Stats, error) {
 	db, tenantID, err := s.database(ctx)
 	if err != nil {
 		return nil, ports.Stats{}, err
 	}
-	rows := []ports.CombinedGroup{}
+	rows := []studentpresence.CombinedGroup{}
 	q := db.NewSelect().Table("active.combined_groups").Column("id", "tenant_id", "created_at", "updated_at", "start_time", "end_time").Where("tenant_id = ?", tenantID).Order("id")
 	if filter.ID != nil {
 		q = q.Where("id = ?", *filter.ID)
@@ -71,50 +72,50 @@ func (s *Store) EndCombination(ctx context.Context, id int64, at time.Time) (por
 	return stats, nil
 }
 
-func (s *Store) GetCombinedGroup(ctx context.Context, id int64) (ports.CombinedGroup, ports.Stats, error) {
+func (s *Store) GetCombinedGroup(ctx context.Context, id int64) (studentpresence.CombinedGroup, ports.Stats, error) {
 	db, tenantID, err := s.database(ctx)
 	if err != nil {
-		return ports.CombinedGroup{}, ports.Stats{}, err
+		return studentpresence.CombinedGroup{}, ports.Stats{}, err
 	}
-	var row ports.CombinedGroup
+	var row studentpresence.CombinedGroup
 	started := time.Now()
 	err = db.NewSelect().Table("active.combined_groups").Column("id", "tenant_id", "created_at", "updated_at", "start_time", "end_time").Where("tenant_id = ? AND id = ?", tenantID, id).Scan(ctx, &row)
 	stats := ports.Stats{Queries: 1, StatementDuration: time.Since(started)}
 	if errors.Is(err, sql.ErrNoRows) {
-		return ports.CombinedGroup{}, stats, ports.ErrCombinedGroupNotFound
+		return studentpresence.CombinedGroup{}, stats, studentpresence.ErrCombinedGroupNotFound
 	}
 	if err != nil {
-		return ports.CombinedGroup{}, stats, fmt.Errorf("get combined group: %w", err)
+		return studentpresence.CombinedGroup{}, stats, fmt.Errorf("get combined group: %w", err)
 	}
 	stats.Rows = 1
 	return row, stats, nil
 }
-func (s *Store) RecordCombination(ctx context.Context, start time.Time, end *time.Time) (ports.CombinedGroup, ports.Stats, error) {
+func (s *Store) RecordCombination(ctx context.Context, start time.Time, end *time.Time) (studentpresence.CombinedGroup, ports.Stats, error) {
 	db, tenantID, err := s.database(ctx)
 	if err != nil {
-		return ports.CombinedGroup{}, ports.Stats{}, err
+		return studentpresence.CombinedGroup{}, ports.Stats{}, err
 	}
-	var row ports.CombinedGroup
+	var row studentpresence.CombinedGroup
 	started := time.Now()
 	err = db.NewRaw("INSERT INTO active.combined_groups (tenant_id,start_time,end_time) VALUES (?,?,?) RETURNING id,tenant_id,created_at,updated_at,start_time,end_time", tenantID, start, end).Scan(ctx, &row)
 	stats := ports.Stats{Queries: 1, StatementDuration: time.Since(started)}
 	if err != nil {
-		return ports.CombinedGroup{}, stats, fmt.Errorf("record combination: %w", err)
+		return studentpresence.CombinedGroup{}, stats, fmt.Errorf("record combination: %w", err)
 	}
 	stats.Rows = 1
 	return row, stats, nil
 }
-func (s *Store) ReviseCombination(ctx context.Context, id int64, start time.Time, end *time.Time) (ports.CombinedGroup, ports.Stats, error) {
+func (s *Store) ReviseCombination(ctx context.Context, id int64, start time.Time, end *time.Time) (studentpresence.CombinedGroup, ports.Stats, error) {
 	db, tenantID, err := s.database(ctx)
 	if err != nil {
-		return ports.CombinedGroup{}, ports.Stats{}, err
+		return studentpresence.CombinedGroup{}, ports.Stats{}, err
 	}
-	var row ports.CombinedGroup
+	var row studentpresence.CombinedGroup
 	started := time.Now()
 	err = db.NewRaw("UPDATE active.combined_groups SET start_time = ?,end_time = ?,updated_at = NOW() WHERE tenant_id = ? AND id = ? RETURNING id,tenant_id,created_at,updated_at,start_time,end_time", start, end, tenantID, id).Scan(ctx, &row)
 	stats := ports.Stats{Queries: 1, StatementDuration: time.Since(started)}
 	if err != nil {
-		return ports.CombinedGroup{}, stats, fmt.Errorf("revise combination: %w", err)
+		return studentpresence.CombinedGroup{}, stats, fmt.Errorf("revise combination: %w", err)
 	}
 	stats.Rows = 1
 	return row, stats, nil

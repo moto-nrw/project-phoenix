@@ -272,7 +272,7 @@ func TestEmergencySnapshotOwnerFailuresSurface(t *testing.T) {
 
 // --- Database-backed adapters ---
 
-func emergencyPresenceModule(t *testing.T, db *bun.DB) *studentpresence.Module {
+func emergencyPresenceModule(t *testing.T, db *bun.DB) studentpresence.Owner {
 	t.Helper()
 	module, err := presenceCompose.New(presenceCompose.Dependencies{DB: db, Observe: func(presenceCompose.Observation) {}})
 	require.NoError(t, err)

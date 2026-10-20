@@ -454,7 +454,7 @@ func (m *mockGroupSupervisorRepository) FindActiveByStaffIDForUpdate(ctx context
 	return m.FindActiveByStaffID(ctx, staffID)
 }
 
-func (m *mockGroupSupervisorRepository) ListActiveSupervisedRooms(ctx context.Context) ([]ports.StaffRoomSupervision, error) {
+func (m *mockGroupSupervisorRepository) ListActiveSupervisedRooms(ctx context.Context) ([]studentpresence.StaffRoomSupervision, error) {
 	return nil, nil
 }
 
