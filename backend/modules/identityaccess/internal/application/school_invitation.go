@@ -416,7 +416,7 @@ func (s *SchoolInvitation) verifyOwner(account domain.LoginAccount, accessToken 
 		return domain.ErrInvitationOwnerMismatch
 	}
 	if !account.Active {
-		return domain.ErrAccountInactive
+		return identityaccess.ErrAccountInactive
 	}
 	return nil
 }

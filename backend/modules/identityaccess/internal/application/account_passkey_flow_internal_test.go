@@ -12,6 +12,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess/internal/domain"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess/internal/ports"
 )
@@ -344,7 +345,7 @@ func TestAccountPasskeyBeginRegistrationErrors(t *testing.T) {
 				AccountID: inactive.ID, ExpectedOrigin: "http://localhost:3000",
 			},
 			directory: directoryOf(inactive),
-			wantErr:   domain.ErrAccountInactive,
+			wantErr:   identityaccess.ErrAccountInactive,
 		},
 		{
 			name: "credential lookup fails while building the user",
@@ -458,7 +459,7 @@ func TestAccountPasskeyFinishRegistrationRejectsInvalidSessionState(t *testing.T
 	}{
 		{
 			name:      "no pending ceremony",
-			wantErr:   domain.ErrPasskeySessionInvalid,
+			wantErr:   identityaccess.ErrPasskeySessionInvalid,
 			committed: true,
 		},
 		{
@@ -471,7 +472,7 @@ func TestAccountPasskeyFinishRegistrationRejectsInvalidSessionState(t *testing.T
 			session: &domain.AccountPasskeySession{
 				SessionJSON: json.RawMessage(`{}`), ExpectedOrigin: "http://localhost:3000",
 			},
-			wantErr:   domain.ErrPasskeySessionInvalid,
+			wantErr:   identityaccess.ErrPasskeySessionInvalid,
 			committed: true,
 		},
 		{
@@ -480,7 +481,7 @@ func TestAccountPasskeyFinishRegistrationRejectsInvalidSessionState(t *testing.T
 				AccountID: &otherAccountID, SessionJSON: json.RawMessage(`{}`),
 				ExpectedOrigin: "http://localhost:3000",
 			},
-			wantErr:   domain.ErrPasskeySessionInvalid,
+			wantErr:   identityaccess.ErrPasskeySessionInvalid,
 			committed: true,
 		},
 		{
@@ -527,7 +528,7 @@ func TestAccountPasskeyFinishRegistrationRejectsInvalidSessionState(t *testing.T
 				ExpectedOrigin: "http://localhost:3000",
 			},
 			directory: directoryOf(account),
-			wantErr:   domain.ErrPasskeySessionInvalid,
+			wantErr:   identityaccess.ErrPasskeySessionInvalid,
 			committed: true,
 		},
 	}
@@ -572,7 +573,7 @@ func TestAccountPasskeyFinishLoginRejectsInvalidSessionState(t *testing.T) {
 	}{
 		{
 			name:      "no pending ceremony",
-			wantErr:   domain.ErrPasskeySessionInvalid,
+			wantErr:   identityaccess.ErrPasskeySessionInvalid,
 			committed: true,
 		},
 		{
@@ -585,7 +586,7 @@ func TestAccountPasskeyFinishLoginRejectsInvalidSessionState(t *testing.T) {
 			session: &domain.AccountPasskeySession{
 				SessionJSON: json.RawMessage(`{}`), ExpectedOrigin: "http://localhost:3000",
 			},
-			wantErr:   domain.ErrPasskeySessionInvalid,
+			wantErr:   identityaccess.ErrPasskeySessionInvalid,
 			committed: true,
 		},
 		{
@@ -602,7 +603,7 @@ func TestAccountPasskeyFinishLoginRejectsInvalidSessionState(t *testing.T) {
 				TenantID: &tenantID, SessionJSON: json.RawMessage(`{}`),
 				ExpectedOrigin: "http://localhost:3000",
 			},
-			wantErr:   domain.ErrPasskeySessionInvalid,
+			wantErr:   identityaccess.ErrPasskeySessionInvalid,
 			committed: true,
 		},
 	}
@@ -678,7 +679,7 @@ func TestAccountPasskeyFinishLoginCredentialLookup(t *testing.T) {
 		{
 			name:      "unknown credential",
 			store:     &fakeAccountPasskeyStore{},
-			wantErr:   domain.ErrInvalidCredentials,
+			wantErr:   identityaccess.ErrInvalidCredentials,
 			committed: true,
 		},
 		{
@@ -691,14 +692,14 @@ func TestAccountPasskeyFinishLoginCredentialLookup(t *testing.T) {
 			name:      "account gone",
 			store:     &fakeAccountPasskeyStore{rows: []domain.AccountPasskeyCredential{registered}},
 			directory: directoryOf(),
-			wantErr:   domain.ErrInvalidCredentials,
+			wantErr:   identityaccess.ErrInvalidCredentials,
 			committed: true,
 		},
 		{
 			name:      "signature does not verify",
 			store:     &fakeAccountPasskeyStore{rows: []domain.AccountPasskeyCredential{registered}},
 			directory: directoryOf(account),
-			wantErr:   domain.ErrInvalidCredentials,
+			wantErr:   identityaccess.ErrInvalidCredentials,
 			committed: true,
 		},
 	}
@@ -780,12 +781,12 @@ func TestAccountPasskeyCredentialErrors(t *testing.T) {
 
 	err = failing.RevokeCredential(context.Background(), account.ID, 2)
 	require.ErrorIs(t, err, errPasskeyStore, "a store failure is not a missing passkey")
-	require.NotErrorIs(t, err, domain.ErrPasskeyNotFound)
+	require.NotErrorIs(t, err, identityaccess.ErrPasskeyNotFound)
 
 	_, err = failing.passkeyUser(context.Background(), account)
 	require.ErrorIs(t, err, errPasskeyStore)
 
 	gone := newAccountPasskeyFlows(t, &fakeAccountPasskeyStore{alreadyGone: true}, directoryOf(account), nil, nil, nil)
 	err = gone.RevokeCredential(context.Background(), account.ID, 2)
-	require.ErrorIs(t, err, domain.ErrPasskeyNotFound, "a passkey that is gone, revoked or foreign is not found")
+	require.ErrorIs(t, err, identityaccess.ErrPasskeyNotFound, "a passkey that is gone, revoked or foreign is not found")
 }

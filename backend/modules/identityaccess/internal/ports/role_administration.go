@@ -3,6 +3,7 @@ package ports
 import (
 	"context"
 
+	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess/internal/domain"
 )
 
@@ -85,8 +86,8 @@ type InvitationIdentity interface {
 // SessionRevocation revokes an account's sessions at the school on the
 // caller's transaction and queues the push cleanup once it committed.
 type SessionRevocation interface {
-	DeleteAccountSessionsWithAudit(ctx context.Context, accountID int64, reason, ipAddress, userAgent string) ([]domain.AccountSession, error)
-	QueuePushCleanup(ctx context.Context, accountID int64, sessions []domain.AccountSession, reason string)
+	DeleteAccountSessionsWithAudit(ctx context.Context, accountID int64, reason, ipAddress, userAgent string) ([]identityaccess.AccountSession, error)
+	QueuePushCleanup(ctx context.Context, accountID int64, sessions []identityaccess.AccountSession, reason string)
 }
 
 // CaregiverProfiles answers whether the account's identity at the tenant in

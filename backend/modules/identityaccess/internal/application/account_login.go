@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/gofrs/uuid"
+	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess/internal/domain"
 )
 
@@ -17,7 +18,7 @@ import (
 // refresh token pair. tenantSlug is optional: when non-empty the account is
 // resolved to the matching school; when empty the first active mapping is
 // used.
-func (s *AccountAuthentication) LoginWithAudit(ctx context.Context, email, password, ipAddress, userAgent, tenantSlug string) (string, string, error) {
+func (s *AccountAuthentication) loginWithAudit(ctx context.Context, email, password, ipAddress, userAgent, tenantSlug string) (string, string, error) {
 	account, err := s.validateLoginCredentials(ctx, email, password, ipAddress, userAgent)
 	if err != nil {
 		return "", "", err
@@ -34,11 +35,11 @@ func (s *AccountAuthentication) LoginWithAudit(ctx context.Context, email, passw
 	// Dual-role accounts pass through unchanged.
 	if domain.IsGuardianOnly(metadata.RoleNames) {
 		s.logFailedLogin(ctx, account.ID, ipAddress, userAgent, "Guardian-only account at tenant login")
-		return "", "", failed("login", domain.ErrParentMustUseParentPortal)
+		return "", "", failed("login", identityaccess.ErrParentMustUseParentPortal)
 	}
 	if domain.IsSchoolPortalOnly(metadata.Roles) {
 		s.logFailedLogin(ctx, account.ID, ipAddress, userAgent, "School-portal-only account at tenant login")
-		return "", "", failed("login", domain.ErrMustUseSchoolPortal)
+		return "", "", failed("login", identityaccess.ErrMustUseSchoolPortal)
 	}
 	session, err := s.createRefreshSession(ctx, account, metadata.TenantID, metadata.Scope)
 	if err != nil {
@@ -52,7 +53,7 @@ func (s *AccountAuthentication) LoginWithAudit(ctx context.Context, email, passw
 // successful credential check it consults the MFA gate and returns either a
 // token pair, a challenge token or an enrollment token. trustedDeviceCookie
 // may be empty; when set and verifiable, MFA is skipped.
-func (s *AccountAuthentication) LoginWithMFAGate(ctx context.Context, email, password, ipAddress, userAgent, tenantSlug, trustedDeviceCookie string) (*domain.LoginResult, error) {
+func (s *AccountAuthentication) loginWithMFAGate(ctx context.Context, email, password, ipAddress, userAgent, tenantSlug, trustedDeviceCookie string) (*domain.LoginResult, error) {
 	account, err := s.validateLoginCredentials(ctx, email, password, ipAddress, userAgent)
 	if err != nil {
 		return nil, err
@@ -63,11 +64,11 @@ func (s *AccountAuthentication) LoginWithMFAGate(ctx context.Context, email, pas
 	}
 	if domain.IsGuardianOnly(metadata.RoleNames) {
 		s.logFailedLogin(ctx, account.ID, ipAddress, userAgent, "Guardian-only account at tenant login")
-		return nil, failed("login", domain.ErrParentMustUseParentPortal)
+		return nil, failed("login", identityaccess.ErrParentMustUseParentPortal)
 	}
 	if domain.IsSchoolPortalOnly(metadata.Roles) {
 		s.logFailedLogin(ctx, account.ID, ipAddress, userAgent, "School-portal-only account at tenant login")
-		return nil, failed("login", domain.ErrMustUseSchoolPortal)
+		return nil, failed("login", identityaccess.ErrMustUseSchoolPortal)
 	}
 
 	mfaRequired, enrolled, err := s.resolveTenantMFAGate(ctx, account, metadata)
@@ -104,11 +105,11 @@ func (s *AccountAuthentication) resolveTenantMFAGate(ctx context.Context, accoun
 	}
 	required, err = s.mfa.IsRequired(ctx, account.ID, account.Email, metadata.RoleNames, metadata.TenantID)
 	if err != nil {
-		return false, false, failed("check mfa required", domain.ErrMFAStatusUnavailable)
+		return false, false, failed("check mfa required", identityaccess.ErrMFAStatusUnavailable)
 	}
 	enrolled, err = s.mfa.HasEnrollment(ctx, account.ID)
 	if err != nil {
-		return false, false, failed("check mfa enrollment", domain.ErrMFAStatusUnavailable)
+		return false, false, failed("check mfa enrollment", identityaccess.ErrMFAStatusUnavailable)
 	}
 	return required, enrolled, nil
 }
@@ -165,7 +166,12 @@ func (s *AccountAuthentication) mfaChallengeResult(ctx context.Context, account 
 // passkey). It skips the credential check but otherwise reuses the login
 // pipeline, so the session is indistinguishable from a password login.
 // tenantID is the school carried in the MFA challenge.
-func (s *AccountAuthentication) IssueTokensForAuthenticatedAccount(ctx context.Context, accountID, tenantID int64, ipAddress, userAgent string) (string, string, error) {
+func (s *AccountAuthentication) IssueTokensForAuthenticatedAccount(ctx context.Context, accountID, tenantID int64, ipAddress, userAgent string) (_ string, _ string, err error) {
+	if s == nil {
+		return "", "", errAccountAuthenticationUnavailable
+	}
+	defer func() { err = authenticationError(err) }()
+	ctx = bindRuntime(s.attach, ctx)
 	account, err := s.authenticatedAccount(ctx, "issue tokens", accountID)
 	if err != nil {
 		return "", "", err
@@ -176,11 +182,11 @@ func (s *AccountAuthentication) IssueTokensForAuthenticatedAccount(ctx context.C
 	}
 	if domain.IsGuardianOnly(metadata.RoleNames) {
 		s.logFailedLogin(ctx, account.ID, ipAddress, userAgent, "Guardian-only account at tenant token issue")
-		return "", "", failed("issue tokens", domain.ErrParentMustUseParentPortal)
+		return "", "", failed("issue tokens", identityaccess.ErrParentMustUseParentPortal)
 	}
 	if domain.IsSchoolPortalOnly(metadata.Roles) {
 		s.logFailedLogin(ctx, account.ID, ipAddress, userAgent, "School-portal-only account at tenant token issue")
-		return "", "", failed("issue tokens", domain.ErrMustUseSchoolPortal)
+		return "", "", failed("issue tokens", identityaccess.ErrMustUseSchoolPortal)
 	}
 	session, err := s.createRefreshSession(ctx, account, metadata.TenantID, metadata.Scope)
 	if err != nil {
@@ -199,7 +205,7 @@ func (s *AccountAuthentication) authenticatedAccount(ctx context.Context, operat
 		return domain.LoginAccount{}, failed(operation, domain.ErrAccountNotFound)
 	}
 	if !account.Active {
-		return domain.LoginAccount{}, failed(operation, domain.ErrAccountInactive)
+		return domain.LoginAccount{}, failed(operation, identityaccess.ErrAccountInactive)
 	}
 	return account, nil
 }
@@ -227,18 +233,18 @@ func (s *AccountAuthentication) validateLoginCredentials(ctx context.Context, em
 	}
 	if !account.Active {
 		s.logFailedLogin(ctx, account.ID, ipAddress, userAgent, "Account inactive")
-		return domain.LoginAccount{}, failed("login", domain.ErrAccountInactive)
+		return domain.LoginAccount{}, failed("login", identityaccess.ErrAccountInactive)
 	}
 	return account, nil
 }
 
 func (s *AccountAuthentication) verifyPassword(account domain.LoginAccount, password string) error {
 	if account.PasswordHash == "" {
-		return failed("login", domain.ErrInvalidCredentials)
+		return failed("login", identityaccess.ErrInvalidCredentials)
 	}
 	valid, err := s.passwords.VerifyPassword(password, account.PasswordHash)
 	if err != nil || !valid {
-		return failed("login", domain.ErrInvalidCredentials)
+		return failed("login", identityaccess.ErrInvalidCredentials)
 	}
 	return nil
 }
@@ -320,11 +326,11 @@ func (s *AccountAuthentication) persistSessionInTransaction(ctx context.Context,
 		// The tenant comes from the database resolution, never from the
 		// context: login is a public route.
 		session.TenantID = tenantID
-		created, err := s.sessions.CreateAccountSession(txCtx, session)
+		created, err := s.sessions.CreateAccountSession(txCtx, identityaccess.AccountSession(session))
 		if err != nil {
 			return err
 		}
-		stored = created
+		stored = domain.AccountSession(created)
 		if err := s.sessions.DeleteExpiredRotatedAccountSessions(txCtx, account.ID, time.Now()); err != nil {
 			s.logger.Warn("failed to clean up refresh-token handoffs",
 				slog.Int64("account_id", account.ID),
@@ -360,10 +366,11 @@ func (s *AccountAuthentication) capSessionsUnlessDemo(ctx context.Context, accou
 // enforcePortalSessionCap keeps at most five active sessions in this portal
 // group; other portals keep their own sessions.
 func (s *AccountAuthentication) enforcePortalSessionCap(ctx context.Context, accountID int64, portalScope string) ([]domain.AccountSession, error) {
-	evicted, err := s.sessions.EnforceAccountSessionCap(ctx, accountID, portalScope, domain.MaxActiveSessionsPerPortal)
+	capped, err := s.sessions.EnforceAccountSessionCap(ctx, accountID, portalScope, domain.MaxActiveSessionsPerPortal)
 	if err != nil {
 		return nil, fmt.Errorf("enforce active session cap: %w", err)
 	}
+	evicted := domainAccountSessions(capped)
 	if err := s.auditRevokedSessions(ctx, evicted, "session_cap", "", ""); err != nil {
 		return nil, err
 	}
@@ -430,7 +437,7 @@ func (s *AccountAuthentication) loadAccountMetadataForTenantInTx(ctx context.Con
 		// A school hard-deleted between issuance and this load answers with
 		// re-login, not retry.
 		if !found || school.Deleted {
-			return nil, failed("load metadata for tenant", domain.ErrTenantNotFound)
+			return nil, failed("load metadata for tenant", identityaccess.ErrTenantNotFound)
 		}
 		orgID = school.OrganizationID
 	}
@@ -579,21 +586,21 @@ func (s *AccountAuthentication) resolveAccountTenantBySlug(ctx context.Context, 
 		s.logger.Warn("tenant slug not found",
 			slog.Int64("account_id", accountID),
 			slog.String("tenant_slug", tenantSlug))
-		return 0, 0, failed("resolve tenant", domain.ErrTenantNotFound)
+		return 0, 0, failed("resolve tenant", identityaccess.ErrTenantNotFound)
 	}
 	if school.Deleted {
 		s.logger.Warn("tenant is soft-deleted",
 			slog.Int64("account_id", accountID),
 			slog.String("tenant_slug", tenantSlug),
 			slog.Int64("tenant_id", school.ID))
-		return 0, 0, failed("resolve tenant", domain.ErrTenantNotFound)
+		return 0, 0, failed("resolve tenant", identityaccess.ErrTenantNotFound)
 	}
 	if !school.Active {
 		s.logger.Warn("tenant is inactive",
 			slog.Int64("account_id", accountID),
 			slog.String("tenant_slug", tenantSlug),
 			slog.Int64("tenant_id", school.ID))
-		return 0, 0, failed("resolve tenant", domain.ErrTenantNotFound)
+		return 0, 0, failed("resolve tenant", identityaccess.ErrTenantNotFound)
 	}
 	callerScope := s.runtime.Scope(ctx)
 	callerOrgID := s.runtime.OrgID(ctx)
@@ -606,7 +613,7 @@ func (s *AccountAuthentication) resolveAccountTenantBySlug(ctx context.Context, 
 			slog.Int64("school_org_id", school.OrganizationID),
 			slog.Int64("caller_org_id", callerOrgID),
 			slog.String("tenant_slug", tenantSlug))
-		return 0, 0, failed("resolve tenant", domain.ErrTenantAccessDenied)
+		return 0, 0, failed("resolve tenant", identityaccess.ErrTenantAccessDenied)
 	}
 	exists, _, err := s.store.HasActiveAccountTenant(ctx, accountID, school.ID)
 	if err != nil {
@@ -614,14 +621,14 @@ func (s *AccountAuthentication) resolveAccountTenantBySlug(ctx context.Context, 
 			slog.Int64("account_id", accountID),
 			slog.Int64("tenant_id", school.ID),
 			slog.Any("error", err))
-		return 0, 0, failed("resolve tenant", domain.ErrTenantAccessDenied)
+		return 0, 0, failed("resolve tenant", identityaccess.ErrTenantAccessDenied)
 	}
 	if !exists {
 		s.logger.Warn("account does not have access to requested tenant",
 			slog.Int64("account_id", accountID),
 			slog.Int64("tenant_id", school.ID),
 			slog.String("tenant_slug", tenantSlug))
-		return 0, 0, failed("resolve tenant", domain.ErrTenantAccessDenied)
+		return 0, 0, failed("resolve tenant", identityaccess.ErrTenantAccessDenied)
 	}
 	return school.ID, school.OrganizationID, nil
 }
@@ -637,7 +644,7 @@ func (s *AccountAuthentication) resolveAccountTenantDefaultInTransaction(ctx con
 		return 0, 0, fmt.Errorf("resolve account tenants: %w", err)
 	}
 	if len(tenantIDs) == 0 {
-		return 0, 0, failed("resolve tenant", domain.ErrTenantNotFound)
+		return 0, 0, failed("resolve tenant", identityaccess.ErrTenantNotFound)
 	}
 	schools, err := s.schools.ListActiveSchoolsByID(ctx, tenantIDs)
 	if err != nil {
@@ -652,7 +659,7 @@ func (s *AccountAuthentication) resolveAccountTenantDefaultInTransaction(ctx con
 			return tenantID, organizationID, nil
 		}
 	}
-	return 0, 0, failed("resolve tenant", domain.ErrTenantNotFound)
+	return 0, 0, failed("resolve tenant", identityaccess.ErrTenantNotFound)
 }
 
 // buildClaims constructs the access and refresh claims from the account, the
