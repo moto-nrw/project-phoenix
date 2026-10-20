@@ -102,7 +102,7 @@ func BuildSchoolCalendarRecords(db transactionruntime.Database, observe func(sch
 
 // BuildServeWorkforce composes Workforce over School Membership; a
 // Sonderarbeitszeit never sets a target on a statutory holiday.
-func BuildServeWorkforce(db transactionruntime.Database, membership schoolmembership.Capability, calendar schoolcalendar.Days) (*workforceModule.Module, error) {
+func BuildServeWorkforce(db transactionruntime.Database, membership schoolmembership.Capability, calendar schoolcalendar.Days) (*workforceCompose.WorkTime, error) {
 	return workforceCompose.New(workforceCompose.Dependencies{
 		LockStaffAssignment: WorkforceStaffAssignmentLock(membership),
 		DB:                  db.Pool(),
@@ -129,7 +129,7 @@ func BuildServeAppointments(db transactionruntime.Database) (appointmentsModule.
 // companion slice and student profiles are constructible from the database
 // alone, so the directory's write path gets them here rather than waiting
 // for the full Care Plan, which needs this directory.
-func BuildPeopleDirectory(db transactionruntime.Database, observe func(peopleCompose.Observation), photos peopleCompose.StudentPhotoRuntime, guardians *peopleCompose.GuardianDirectoryProvider) (*peopledirectory.Module, error) {
+func BuildPeopleDirectory(db transactionruntime.Database, observe func(peopleCompose.Observation), photos peopleCompose.StudentPhotoRuntime, guardians *peopleCompose.GuardianDirectoryProvider) (*peopleCompose.Directory, error) {
 	companions, err := careplanCompose.NewCompanionRecords(db.Pool(), func(careplanCompose.Observation) {})
 	if err != nil {
 		return nil, err

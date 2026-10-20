@@ -39,7 +39,7 @@ func (f *overviewFixture) newWorkSessionService() timetracking.WorkSessionServic
 	// nil settings: the F9 deviation checks are opt-in and irrelevant for
 	// reading export rows.
 	return timetracking.NewWorkSessionService(
-		workforceCompose.NewTimeTrackingTestRows(f.workforce).Sessions, workforceCompose.NewTimeTrackingTestRows(f.workforce).Breaks, owners.NewWorkSessionAudit(owners.NewTestAuditPersistence(testpkg.MustDatabase(f.db), nil).WorkSessionEdit),
+		f.workforce, f.workforce, owners.NewWorkSessionAudit(owners.NewTestAuditPersistence(testpkg.MustDatabase(f.db), nil).WorkSessionEdit),
 		f.reposAbsences.StaffAbsence, f.reposPresence.GroupSupervisor, f.reposPresence.ActiveGroup, owners.WorkSessionStaff(f.repos.Staff, api.MustNewStaffEmployment(testpkg.MustDatabase(f.db)), f.reposMembership.Membership),
 		owners.NewWorkSessionSchedules(owners.NewStaffWorkScheduleRepository(f.workforce)), owners.NewWorkSessionTimeModels(owners.NewWorkTimeModelRepository(f.workforce)),
 		nil,
@@ -118,7 +118,9 @@ func TestMonthExportRows_MatchMonthSummary(t *testing.T) {
 			DecidedAt:     time.Now(),
 		}
 		adjustment.SetTenantID(f.tenantID)
-		require.NoError(t, workforceCompose.NewTimeTrackingTestRows(f.workforce).Adjustments.Create(f.ctx, adjustment))
+		createdTimeRecord1, err := f.workforce.CreateStaffBalanceAdjustment(f.ctx, timetracking.StaffBalanceAdjustmentToCapability(adjustment))
+		require.NoError(t, err)
+		*adjustment = *balanceAdjustmentRecord(createdTimeRecord1)
 	}
 
 	rows, err := testpkg.TenantQuery2(t, f.ctx, f.db, f.svc.GetMonthExportRows, f.today.Year(), int(f.today.Month()))
@@ -180,10 +182,10 @@ func TestMonthExportRows_ClosedMonthCarriesFrozenValue(t *testing.T) {
 		accountStart: calendar.NewDate(closedMonth.Year(), closedMonth.Month(), 1).String(),
 	}
 	monthSvc := timetracking.NewWorkTimeMonthService(
-		workforceCompose.NewTimeTrackingTestRows(f.workforce).Sessions, workforceCompose.NewTimeTrackingTestRows(f.workforce).Breaks, f.reposAbsences.StaffAbsence, workforceCompose.StaffScheduleAssignments(api.MustNewStaffEmployment(testpkg.NewDatabase(t, f.db))),
+		f.workforce, f.workforce, f.reposAbsences.StaffAbsence, workforceCompose.StaffScheduleAssignments(api.MustNewStaffEmployment(testpkg.NewDatabase(t, f.db))),
 		owners.NewWorkScheduleTargets(owners.NewStaffWorkScheduleRepository(f.workforce)), owners.NewWorkTimeTargetModels(owners.NewWorkTimeModelRepository(f.workforce)), workforceCompose.NewTimeTrackingShifts(f.workforce),
 		settings, nil,
-		timetracking.WithMonthAdjustments(workforceCompose.NewTimeTrackingTestRows(f.workforce).Adjustments),
+		timetracking.WithMonthAdjustments(f.workforce),
 		timetracking.WithMonthSnapshots(timetracking.MonthSnapshotCapability(f.workforce)),
 	)
 	closeSvc := timetracking.NewStaffMonthCloseService(timetracking.MonthSnapshotCapability(f.workforce), monthSvc, owners.MonthCloseStaff(f.repos.Staff), settings, nil, timetracking.WithMonthCloseUnitOfWork(testpkg.

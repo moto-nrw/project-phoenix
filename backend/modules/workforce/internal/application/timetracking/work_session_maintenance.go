@@ -7,12 +7,15 @@ import (
 	"math"
 	"time"
 
+	"github.com/moto-nrw/project-phoenix/modules/workforce"
+
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 	"github.com/moto-nrw/project-phoenix/tenant"
 )
 
 func (s *workSessionService) GetTodayPresenceMap(ctx context.Context) (map[int64]string, error) {
-	presenceMap, err := s.repo.GetTodayPresenceMap(ctx)
+	presenceMap, err := s.repo.WorkPresenceMap(ctx)
+	err = rowReadError("get today presence map", err, nil)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get today's presence map: %w", err)
 	}
@@ -26,7 +29,9 @@ func (s *workSessionService) CleanupOpenSessions(ctx context.Context) (int, erro
 
 	// Keep sessions opened yesterday available through today. A night block
 	// may cross midnight and must not be closed by the first cleanup run.
-	openSessions, err := s.repo.GetOpenSessions(ctx, today.AddDays(-1))
+	openSessionsRecords, err := s.repo.ListWorkSessions(ctx, workforce.WorkSessionFilter{DateBefore: today.AddDays(-1).String(), Open: boolPointer(true)})
+	openSessions := workSessionsToRecords(openSessionsRecords)
+	err = rowReadError("get open sessions", err, nil)
 	if err != nil {
 		return 0, fmt.Errorf("failed to get open sessions: %w", err)
 	}
@@ -47,7 +52,8 @@ func (s *workSessionService) CleanupOpenSessions(ctx context.Context) (int, erro
 			// Continue cleanup even if break ending fails
 		}
 
-		closed, err := s.repo.CloseSession(ctx, session.ID, endOfDay, true)
+		closed, err := s.repo.CloseWorkSession(ctx, session.ID, endOfDay, true)
+		err = workSessionWriteError("close session", err)
 		if err != nil {
 			return count, fmt.Errorf("failed to close session %d: %w", session.ID, err)
 		}
@@ -71,7 +77,9 @@ func (s *workSessionService) AutoCheckoutDueSessions(ctx context.Context, grace 
 	// GetOpenSessions filters date < beforeDate; passing tomorrow includes
 	// today's open sessions, which is where forgotten checkouts live.
 	tomorrow := calendar.DateFromTime(now).AddDays(1)
-	openSessions, err := s.repo.GetOpenSessions(ctx, tomorrow)
+	openSessionsRecords, err := s.repo.ListWorkSessions(ctx, workforce.WorkSessionFilter{DateBefore: tomorrow.String(), Open: boolPointer(true)})
+	openSessions := workSessionsToRecords(openSessionsRecords)
+	err = rowReadError("get open sessions", err, nil)
 	if err != nil {
 		return 0, fmt.Errorf("failed to get open sessions: %w", err)
 	}
@@ -164,7 +172,9 @@ func latestUncancelledShiftPerStaff(shifts []*TimeTrackingShift) map[int64]*Time
 // that is due, and reports whether it did. A session that is already closed,
 // not yet due, or crossed by a break is skipped without an error.
 func (s *workSessionService) autoCheckoutSession(ctx context.Context, run autoCheckoutRun, listedSession *WorkSession) (bool, error) {
-	session, err := s.repo.LockOpenByIDForUpdate(ctx, listedSession.ID)
+	sessionRecords, err := s.repo.LockOpenWorkSession(ctx, listedSession.ID)
+	session := workSessionReadRecord(sessionRecords, err)
+	err = rowReadError("lock open session by ID", err, workforce.ErrWorkSessionNotFound)
 	if err != nil {
 		if isRecordNotFound(err) {
 			s.getLogger().InfoContext(ctx, "skipping auto-checkout side effects because session was already closed",
@@ -183,7 +193,8 @@ func (s *workSessionService) autoCheckoutSession(ctx context.Context, run autoCh
 		return false, nil
 	}
 
-	closed, err := s.repo.CloseSession(ctx, session.ID, closeAt, true)
+	closed, err := s.repo.CloseWorkSession(ctx, session.ID, closeAt, true)
+	err = workSessionWriteError("close session", err)
 	if err != nil {
 		return false, fmt.Errorf("failed to auto-checkout session %d: %w", session.ID, err)
 	}
@@ -222,7 +233,9 @@ func (run autoCheckoutRun) dueCloseAt(session *WorkSession) (time.Time, bool) {
 // breakBlocksAutoCheckout reports whether the session's breaks cannot be
 // inspected or a break crosses the planned shift end; both skip the session.
 func (s *workSessionService) breakBlocksAutoCheckout(ctx context.Context, sessionID int64, closeAt time.Time) bool {
-	breaks, err := s.breakRepo.GetBySessionID(ctx, sessionID)
+	breaksRecords, err := s.breakRepo.ListWorkSessionBreaks(ctx, workforce.WorkSessionBreakFilter{SessionID: sessionID})
+	breaks := workSessionBreaksToRecords(breaksRecords)
+	err = rowReadError("get breaks by session ID", err, nil)
 	if err != nil {
 		s.getLogger().WarnContext(ctx, "failed to inspect breaks during auto-checkout",
 			slog.Int64("session_id", sessionID),
@@ -250,7 +263,9 @@ func (s *workSessionService) breakBlocksAutoCheckout(ctx context.Context, sessio
 // finishAutoCheckout runs the side effects of a closed auto-checkout: it ends
 // the running break and open supervisions and writes the audit entry.
 func (s *workSessionService) finishAutoCheckout(ctx context.Context, session *WorkSession, closeAt time.Time, tenantID int64) error {
-	breaks, err := s.breakRepo.GetBySessionID(ctx, session.ID)
+	breaksRecords, err := s.breakRepo.ListWorkSessionBreaks(ctx, workforce.WorkSessionBreakFilter{SessionID: session.ID})
+	breaks := workSessionBreaksToRecords(breaksRecords)
+	err = rowReadError("get breaks by session ID", err, nil)
 	if err != nil {
 		return fmt.Errorf("failed to re-inspect breaks after auto-checkout close for session %d: %w", session.ID, err)
 	}
@@ -324,7 +339,9 @@ func activeBreakAndLateBreakAfter(breaks []*WorkSessionBreak, closeAt time.Time)
 
 func (s *workSessionService) endActiveBreak(ctx context.Context, sessionID int64, activeBreak *WorkSessionBreak, endAt time.Time) error {
 	duration := int(math.Round(endAt.Sub(activeBreak.StartedAt).Minutes()))
-	if err := s.breakRepo.EndBreak(ctx, activeBreak.ID, endAt, duration); err != nil {
+	affected, err := s.breakRepo.EndWorkSessionBreak(ctx, activeBreak.ID, endAt, duration)
+	err = breakMutationError("end break", affected, err)
+	if err != nil {
 		return fmt.Errorf("failed to end active break: %w", err)
 	}
 

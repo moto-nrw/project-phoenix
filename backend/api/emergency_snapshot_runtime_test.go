@@ -29,7 +29,7 @@ func TestEmergencySnapshotRuntimeEvidence(t *testing.T) {
 	room := testpkg.CreateTestRoom(t, db, "Runtime-room")
 	activity := testpkg.CreateTestActivityGroup(t, db, "Runtime-activity")
 	group := testpkg.CreateTestActiveGroup(t, db, activity.ID, room.ID)
-	people, err := peopleCompose.New(peopleCompose.Dependencies{StudentDirectory: testpkg.StudentDirectory{}, DB: db, Observe: func(peopleCompose.Observation) {}})
+	people, err := peopleCompose.New(peopleCompose.Dependencies{StudentDirectory: testpkg.StudentDirectory{}, DB: db, Observe: func(peopleCompose.Observation) {}}, nil)
 	require.NoError(t, err)
 	rooms, err := facilitiesCompose.NewUnobserved(db)
 	require.NoError(t, err)

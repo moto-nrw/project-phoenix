@@ -96,7 +96,9 @@ func (s *staffAbsenceService) admitAbsenceRange(ctx context.Context, subjectStaf
 // storeAbsence checks for overlapping absences, merges if same type, rejects
 // if different type, and otherwise creates a new absence.
 func (s *staffAbsenceService) storeAbsence(ctx context.Context, subjectStaffID, createdByStaffID int64, selectedType *StaffAbsenceType, dateStart, dateEnd calendar.Date, req CreateAbsenceRequest) (*StaffAbsenceResponse, error) {
-	existing, err := s.absenceRepo.GetByStaffAndDateRange(ctx, subjectStaffID, dateStart, dateEnd)
+	absenceValues, err := s.absenceRepo.ListStaffAbsences(ctx, workforce.StaffAbsenceFilter{StaffID: subjectStaffID, OverlapFrom: dateStart.String(), OverlapTo: dateEnd.String(), Order: []workforce.StaffAbsenceOrder{{Field: workforce.StaffAbsenceOrderDateStart}}})
+	existing := absencesToRecord(absenceValues)
+	err = rowReadError("get absences by staff and date range", err, nil)
 	if err != nil {
 		return nil, fmt.Errorf("failed to check existing absences: %w", err)
 	}
@@ -183,19 +185,20 @@ func (s *staffAbsenceService) mergeOverlappingAbsences(
 	}
 	primary.UpdatedAt = time.Now()
 
-	if err := s.absenceRepo.Update(ctx, primary); err != nil {
+	updatedAbsence, err := s.absenceRepo.UpdateStaffAbsence(ctx, StaffAbsenceToCapability(primary))
+	err = absenceUpdateError(err)
+	if err == nil {
+		applyAbsenceToRecord(primary, updatedAbsence)
+	}
+	if err != nil {
 		return nil, fmt.Errorf("failed to merge absence: %w", err)
 	}
 
 	// The secondaries are about to be deleted; their plan stamps must move to
 	// the surviving primary or its eventual deletion would miss those rows
 	// (#1843). Fail closed — a dangling stamp breaks the reversal invariant.
-	if primary.AbsenceType == AbsenceTypeSick {
-		for _, secondary := range existing[1:] {
-			if err := s.shiftPlanSyncer.ReassignSickStamps(ctx, secondary.ID, primary.ID); err != nil {
-				return nil, fmt.Errorf("failed to merge absence — plan stamp reassignment failed: %w", err)
-			}
-		}
+	if err := s.reassignMergedSickStamps(ctx, primary, existing[1:]); err != nil {
+		return nil, err
 	}
 
 	// Delete remaining overlapping absences. The reassigned provenance and the
@@ -205,6 +208,18 @@ func (s *staffAbsenceService) mergeOverlappingAbsences(
 	}
 
 	return s.withLabel(ctx, toAbsenceResponse(primary)), nil
+}
+
+func (s *staffAbsenceService) reassignMergedSickStamps(ctx context.Context, primary *StaffAbsence, secondaries []*StaffAbsence) error {
+	if primary.AbsenceType != AbsenceTypeSick {
+		return nil
+	}
+	for _, secondary := range secondaries {
+		if err := s.shiftPlanSyncer.ReassignSickStamps(ctx, secondary.ID, primary.ID); err != nil {
+			return fmt.Errorf("failed to merge absence — plan stamp reassignment failed: %w", err)
+		}
+	}
+	return nil
 }
 
 // validateSameMergeDuration rejects merging half-day with full-day rows for
@@ -337,7 +352,8 @@ func (s *staffAbsenceService) deleteRemainingAbsences(ctx context.Context, absen
 		if err := s.writeAbsenceDeletionAudit(ctx, e, actorStaffID); err != nil {
 			return fmt.Errorf("failed to audit merged absence %d: %w", e.ID, err)
 		}
-		if err := s.absenceRepo.Delete(ctx, e.ID); err != nil {
+		if err := s.absenceRepo.DeleteStaffAbsence(ctx, e.ID); err != nil {
+			err = absenceWriteError("delete", err)
 			return fmt.Errorf("failed to delete merged absence %d: %w", e.ID, err)
 		}
 	}
@@ -346,7 +362,9 @@ func (s *staffAbsenceService) deleteRemainingAbsences(ctx context.Context, absen
 
 // warnIfWorkSessionsExist logs a warning if work sessions exist in the date range.
 func (s *staffAbsenceService) warnIfWorkSessionsExist(ctx context.Context, staffID int64, dateStart, dateEnd calendar.Date) {
-	sessions, err := s.workSessionRepo.GetHistoryByStaffID(ctx, staffID, dateStart, dateEnd)
+	sessionsRecords, err := s.workSessionRepo.ListWorkSessions(ctx, workforce.WorkSessionFilter{StaffID: staffID, DateFrom: dateStart.String(), DateTo: dateEnd.String(), Order: workSessionOrder(workforce.WorkSessionOrderDate, workforce.WorkSessionOrderCheckInTime)})
+	sessions := workSessionsToRecords(sessionsRecords)
+	err = rowReadError("get history by staff ID", err, nil)
 	if err == nil && len(sessions) > 0 {
 		slog.Default().WarnContext(ctx, "work sessions exist in absence range",
 			slog.Int("session_count", len(sessions)),
@@ -381,7 +399,13 @@ func (s *staffAbsenceService) createNewAbsence(
 	absence.UpdatedAt = now
 
 	absence.SetTenantID(tenant.FromContext(ctx))
-	if err := s.absenceRepo.Create(ctx, absence); err != nil {
+	absenceCommand := StaffAbsenceToCapability(absence)
+	createdAbsence, err := s.absenceRepo.CreateStaffAbsence(ctx, &absenceCommand)
+	err = absenceWriteError("create", err)
+	if err == nil {
+		applyAbsenceToRecord(absence, createdAbsence)
+	}
+	if err != nil {
 		return nil, fmt.Errorf("failed to create absence: %w", err)
 	}
 

@@ -27,16 +27,16 @@ func TestStaffAbsenceRepository_Create(t *testing.T) {
 		staff := testpkg.CreateTestStaff(t, db, "Test", "Staff")
 		today := calendar.TodayDate()
 		tomorrow := today.AddDays(1)
-		absence := &api.StaffAbsenceRow{
+		absence := workforce.StaffAbsence{
 			StaffID:     staff.ID,
 			AbsenceType: workforce.AbsenceTypeSick,
-			DateStart:   today,
-			DateEnd:     tomorrow,
+			DateStart:   today.String(),
+			DateEnd:     tomorrow.String(),
 			Status:      workforce.AbsenceStatusReported,
 			CreatedBy:   staff.ID,
 		}
 
-		err := repo.Create(ctx, absence)
+		absence, err := repo.CreateStaffAbsence(ctx, &absence)
 		require.NoError(t, err)
 		assert.NotZero(t, absence.ID)
 
@@ -46,16 +46,16 @@ func TestStaffAbsenceRepository_Create(t *testing.T) {
 		staff := testpkg.CreateTestStaff(t, db, "Test", "Staff")
 		today := calendar.TodayDate()
 		nextWeek := today.AddDays(7)
-		absence := &api.StaffAbsenceRow{
+		absence := workforce.StaffAbsence{
 			StaffID:     staff.ID,
 			AbsenceType: workforce.AbsenceTypeVacation,
-			DateStart:   today,
-			DateEnd:     nextWeek,
+			DateStart:   today.String(),
+			DateEnd:     nextWeek.String(),
 			Status:      workforce.AbsenceStatusApproved,
 			CreatedBy:   staff.ID,
 		}
 
-		err := repo.Create(ctx, absence)
+		absence, err := repo.CreateStaffAbsence(ctx, &absence)
 		require.NoError(t, err)
 		assert.NotZero(t, absence.ID)
 		assert.Equal(t, workforce.AbsenceTypeVacation, absence.AbsenceType)
@@ -65,17 +65,17 @@ func TestStaffAbsenceRepository_Create(t *testing.T) {
 	t.Run("creates half-day absence", func(t *testing.T) {
 		staff := testpkg.CreateTestStaff(t, db, "Test", "Staff")
 		today := calendar.TodayDate()
-		absence := &api.StaffAbsenceRow{
+		absence := workforce.StaffAbsence{
 			StaffID:     staff.ID,
 			AbsenceType: workforce.AbsenceTypeTraining,
-			DateStart:   today,
-			DateEnd:     today,
+			DateStart:   today.String(),
+			DateEnd:     today.String(),
 			HalfDay:     true,
 			Status:      workforce.AbsenceStatusReported,
 			CreatedBy:   staff.ID,
 		}
 
-		err := repo.Create(ctx, absence)
+		absence, err := repo.CreateStaffAbsence(ctx, &absence)
 		require.NoError(t, err)
 		assert.NotZero(t, absence.ID)
 		assert.True(t, absence.HalfDay)
@@ -83,7 +83,7 @@ func TestStaffAbsenceRepository_Create(t *testing.T) {
 	})
 
 	t.Run("create with nil absence should fail", func(t *testing.T) {
-		err := repo.Create(ctx, nil)
+		_, err := repo.CreateStaffAbsence(ctx, nil)
 		assert.Error(t, err)
 		assert.Contains(t, err.Error(), "cannot be nil")
 	})
@@ -91,31 +91,31 @@ func TestStaffAbsenceRepository_Create(t *testing.T) {
 	t.Run("create with invalid absence type should fail", func(t *testing.T) {
 		staff := testpkg.CreateTestStaff(t, db, "Test", "Staff")
 		today := calendar.TodayDate()
-		absence := &api.StaffAbsenceRow{
+		absence := workforce.StaffAbsence{
 			StaffID:     staff.ID,
 			AbsenceType: "invalid_type",
-			DateStart:   today,
-			DateEnd:     today,
+			DateStart:   today.String(),
+			DateEnd:     today.String(),
 			CreatedBy:   staff.ID,
 		}
 
-		err := repo.Create(ctx, absence)
+		absence, err := repo.CreateStaffAbsence(ctx, &absence)
 		assert.Error(t, err)
 	})
 
 	t.Run("create with invalid status should fail", func(t *testing.T) {
 		staff := testpkg.CreateTestStaff(t, db, "Test", "Staff")
 		today := calendar.TodayDate()
-		absence := &api.StaffAbsenceRow{
+		absence := workforce.StaffAbsence{
 			StaffID:     staff.ID,
 			AbsenceType: workforce.AbsenceTypeSick,
-			DateStart:   today,
-			DateEnd:     today,
+			DateStart:   today.String(),
+			DateEnd:     today.String(),
 			Status:      "invalid_status",
 			CreatedBy:   staff.ID,
 		}
 
-		err := repo.Create(ctx, absence)
+		absence, err := repo.CreateStaffAbsence(ctx, &absence)
 		assert.Error(t, err)
 		assert.Contains(t, err.Error(), "invalid absence status")
 	})
@@ -123,16 +123,16 @@ func TestStaffAbsenceRepository_Create(t *testing.T) {
 	t.Run("create with missing staff ID should fail", func(t *testing.T) {
 		staff := testpkg.CreateTestStaff(t, db, "Test", "Staff")
 		today := calendar.TodayDate()
-		absence := &api.StaffAbsenceRow{
+		absence := workforce.StaffAbsence{
 			StaffID:     0, // Invalid
 			AbsenceType: workforce.AbsenceTypeSick,
-			DateStart:   today,
-			DateEnd:     today,
+			DateStart:   today.String(),
+			DateEnd:     today.String(),
 			Status:      workforce.AbsenceStatusReported,
 			CreatedBy:   staff.ID,
 		}
 
-		err := repo.Create(ctx, absence)
+		absence, err := repo.CreateStaffAbsence(ctx, &absence)
 		assert.Error(t, err)
 		assert.Contains(t, err.Error(), "staff ID is required")
 	})
@@ -141,16 +141,16 @@ func TestStaffAbsenceRepository_Create(t *testing.T) {
 		staff := testpkg.CreateTestStaff(t, db, "Test", "Staff")
 		today := calendar.TodayDate()
 		yesterday := today.AddDays(-1)
-		absence := &api.StaffAbsenceRow{
+		absence := workforce.StaffAbsence{
 			StaffID:     staff.ID,
 			AbsenceType: workforce.AbsenceTypeSick,
-			DateStart:   today,
-			DateEnd:     yesterday, // Before start
+			DateStart:   today.String(),
+			DateEnd:     yesterday.String(), // Before start
 			Status:      workforce.AbsenceStatusReported,
 			CreatedBy:   staff.ID,
 		}
 
-		err := repo.Create(ctx, absence)
+		absence, err := repo.CreateStaffAbsence(ctx, &absence)
 		assert.Error(t, err)
 	})
 }
@@ -172,18 +172,22 @@ func TestStaffAbsenceRepository_GetByStaffAndDate(t *testing.T) {
 		today := calendar.TodayDate()
 		tomorrow := today.AddDays(1)
 
-		absence := &api.StaffAbsenceRow{
+		absence := workforce.StaffAbsence{
 			StaffID:     staff.ID,
 			AbsenceType: workforce.AbsenceTypeSick,
-			DateStart:   today,
-			DateEnd:     tomorrow,
+			DateStart:   today.String(),
+			DateEnd:     tomorrow.String(),
 			Status:      workforce.AbsenceStatusReported,
 			CreatedBy:   staff.ID,
 		}
-		err := repo.Create(ctx, absence)
+		absence, err := repo.CreateStaffAbsence(ctx, &absence)
 		require.NoError(t, err)
 
-		found, err := repo.GetByStaffAndDate(ctx, staff.ID, today)
+		values, err := repo.ListStaffAbsences(ctx, workforce.StaffAbsenceFilter{StaffID: staff.ID, OverlapFrom: today.String(), OverlapTo: today.String(), Statuses: []string{workforce.AbsenceStatusReported, workforce.AbsenceStatusApproved}, Limit: 1})
+		var found *workforce.StaffAbsence
+		if len(values) > 0 {
+			found = &values[0]
+		}
 		require.NoError(t, err)
 		require.NotNil(t, found)
 		assert.Equal(t, absence.ID, found.ID)
@@ -192,7 +196,11 @@ func TestStaffAbsenceRepository_GetByStaffAndDate(t *testing.T) {
 	t.Run("returns nil when no absence for date", func(t *testing.T) {
 		staff := testpkg.CreateTestStaff(t, db, "Test", "Staff")
 		futureDate := calendar.TodayDate().AddDays(365)
-		found, err := repo.GetByStaffAndDate(ctx, staff.ID, futureDate)
+		values, err := repo.ListStaffAbsences(ctx, workforce.StaffAbsenceFilter{StaffID: staff.ID, OverlapFrom: futureDate.String(), OverlapTo: futureDate.String(), Statuses: []string{workforce.AbsenceStatusReported, workforce.AbsenceStatusApproved}, Limit: 1})
+		var found *workforce.StaffAbsence
+		if len(values) > 0 {
+			found = &values[0]
+		}
 		require.NoError(t, err)
 		assert.Nil(t, found)
 	})
@@ -205,19 +213,23 @@ func TestStaffAbsenceRepository_GetByStaffAndDate(t *testing.T) {
 			workforce.AbsenceStatusCanceled,
 			workforce.AbsenceStatusDeclined,
 		} {
-			absence := &api.StaffAbsenceRow{
+			absence := workforce.StaffAbsence{
 				StaffID:     staff.ID,
 				AbsenceType: workforce.AbsenceTypeVacation,
-				DateStart:   today,
-				DateEnd:     today,
+				DateStart:   today.String(),
+				DateEnd:     today.String(),
 				Status:      status,
 				CreatedBy:   staff.ID,
 			}
-			err := repo.Create(ctx, absence)
+			absence, err := repo.CreateStaffAbsence(ctx, &absence)
 			require.NoError(t, err)
 		}
 
-		found, err := repo.GetByStaffAndDate(ctx, staff.ID, today)
+		values, err := repo.ListStaffAbsences(ctx, workforce.StaffAbsenceFilter{StaffID: staff.ID, OverlapFrom: today.String(), OverlapTo: today.String(), Statuses: []string{workforce.AbsenceStatusReported, workforce.AbsenceStatusApproved}, Limit: 1})
+		var found *workforce.StaffAbsence
+		if len(values) > 0 {
+			found = &values[0]
+		}
 		require.NoError(t, err)
 		assert.Nil(t, found)
 	})

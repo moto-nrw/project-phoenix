@@ -243,33 +243,18 @@ func NewModule(engine engine, guardians ...GuardianProvider) *Module {
 }
 
 func (m *Module) CreatePerson(ctx context.Context, input CreatePerson) (Person, error) {
-	input.FirstName, input.LastName = normalizeNames(input.FirstName, input.LastName)
-	input.TagID = normalizeTag(input.TagID)
-	if err := validateNames(input.FirstName, input.LastName); err != nil {
-		return Person{}, err
-	}
-	if err := validateReferences(input.TagID, input.AccountID); err != nil {
-		return Person{}, err
-	}
-	if err := validateBirthday(input.Birthday); err != nil {
+	var err error
+	input, err = NormalizePersonCreate(input)
+	if err != nil {
 		return Person{}, err
 	}
 	return m.engine.Create(ctx, input)
 }
 
 func (m *Module) UpdatePerson(ctx context.Context, input UpdatePerson) (Person, error) {
-	input.FirstName, input.LastName = normalizeNames(input.FirstName, input.LastName)
-	input.TagID = normalizeTag(input.TagID)
-	if input.ID <= 0 {
-		return Person{}, invalid("person ID is required")
-	}
-	if err := validateNames(input.FirstName, input.LastName); err != nil {
-		return Person{}, err
-	}
-	if err := validateReferences(input.TagID, input.AccountID); err != nil {
-		return Person{}, err
-	}
-	if err := validateBirthday(input.Birthday); err != nil {
+	var err error
+	input, err = NormalizePersonUpdate(input)
+	if err != nil {
 		return Person{}, err
 	}
 	return m.engine.Update(ctx, input)
@@ -312,7 +297,7 @@ func (m *Module) FindPersonByTag(ctx context.Context, tagID string) (Person, err
 }
 
 func (m *Module) ListPersonsByID(ctx context.Context, ids []int64) ([]Person, error) {
-	ids = uniquePositive(ids)
+	ids = PositiveIDs(ids)
 	if len(ids) == 0 {
 		return []Person{}, nil
 	}
@@ -320,7 +305,7 @@ func (m *Module) ListPersonsByID(ctx context.Context, ids []int64) ([]Person, er
 }
 
 func (m *Module) ListPersonsAcrossTenantsByID(ctx context.Context, ids []int64) ([]Person, error) {
-	ids = uniquePositive(ids)
+	ids = PositiveIDs(ids)
 	if len(ids) == 0 {
 		return []Person{}, nil
 	}
@@ -328,7 +313,7 @@ func (m *Module) ListPersonsAcrossTenantsByID(ctx context.Context, ids []int64) 
 }
 
 func (m *Module) ListPersonsByTenantIDs(ctx context.Context, tenantIDs []int64) ([]Person, error) {
-	tenantIDs = uniquePositive(tenantIDs)
+	tenantIDs = PositiveIDs(tenantIDs)
 	if len(tenantIDs) == 0 {
 		return []Person{}, nil
 	}
@@ -336,7 +321,7 @@ func (m *Module) ListPersonsByTenantIDs(ctx context.Context, tenantIDs []int64) 
 }
 
 func (m *Module) ListPersonsByAccount(ctx context.Context, accountIDs []int64) ([]Person, error) {
-	accountIDs = uniquePositive(accountIDs)
+	accountIDs = PositiveIDs(accountIDs)
 	if len(accountIDs) == 0 {
 		return []Person{}, nil
 	}
@@ -350,7 +335,7 @@ func (m *Module) SearchPersons(ctx context.Context, filter PersonFilter) ([]Pers
 	filter.LastNameEquals = strings.TrimSpace(filter.LastNameEquals)
 	filter.FullNameContains = strings.TrimSpace(filter.FullNameContains)
 	filter.TagID = NormalizeTagID(filter.TagID)
-	filter.AccountIDs = uniquePositive(filter.AccountIDs)
+	filter.AccountIDs = PositiveIDs(filter.AccountIDs)
 	if filter.Page < 0 || filter.PageSize < 0 {
 		return nil, invalid("page and page size must not be negative")
 	}
@@ -394,7 +379,7 @@ func (m *Module) UnlinkTag(ctx context.Context, personID int64) error {
 }
 
 func (m *Module) ReleaseTags(ctx context.Context, personIDs []int64) ([]ReleasedTag, error) {
-	personIDs = uniquePositive(personIDs)
+	personIDs = PositiveIDs(personIDs)
 	if len(personIDs) == 0 {
 		return []ReleasedTag{}, nil
 	}
@@ -468,7 +453,8 @@ func validateBirthday(birthday string) error {
 	return nil
 }
 
-func uniquePositive(ids []int64) []int64 {
+// PositiveIDs preserves the order of distinct positive identifiers.
+func PositiveIDs(ids []int64) []int64 {
 	result := make([]int64, 0, len(ids))
 	seen := make(map[int64]struct{}, len(ids))
 	for _, id := range ids {
@@ -509,4 +495,39 @@ func ErrorCode(err error) string {
 	default:
 		return "internal_error"
 	}
+}
+
+// NormalizePersonCreate applies the person command's input contract.
+func NormalizePersonCreate(input CreatePerson) (CreatePerson, error) {
+	input.FirstName, input.LastName = normalizeNames(input.FirstName, input.LastName)
+	input.TagID = normalizeTag(input.TagID)
+	if err := validateNames(input.FirstName, input.LastName); err != nil {
+		return input, err
+	}
+	if err := validateReferences(input.TagID, input.AccountID); err != nil {
+		return input, err
+	}
+	if err := validateBirthday(input.Birthday); err != nil {
+		return input, err
+	}
+	return input, nil
+}
+
+// NormalizePersonUpdate applies the person command's input contract.
+func NormalizePersonUpdate(input UpdatePerson) (UpdatePerson, error) {
+	input.FirstName, input.LastName = normalizeNames(input.FirstName, input.LastName)
+	input.TagID = normalizeTag(input.TagID)
+	if input.ID <= 0 {
+		return input, invalid("person ID is required")
+	}
+	if err := validateNames(input.FirstName, input.LastName); err != nil {
+		return input, err
+	}
+	if err := validateReferences(input.TagID, input.AccountID); err != nil {
+		return input, err
+	}
+	if err := validateBirthday(input.Birthday); err != nil {
+		return input, err
+	}
+	return input, nil
 }

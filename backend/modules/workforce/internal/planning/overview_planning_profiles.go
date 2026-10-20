@@ -9,7 +9,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 )
 
-func weeksWithShifts(shifts []*StaffShift) []calendar.Date {
+func weeksWithShifts(shifts []*workforce.ShiftRecord) []calendar.Date {
 	seen := make(map[calendar.Date]bool)
 	weeks := make([]calendar.Date, 0)
 	for _, shift := range shifts {

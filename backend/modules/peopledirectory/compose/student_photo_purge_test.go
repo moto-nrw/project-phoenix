@@ -39,9 +39,9 @@ func buildPhotoModule(t *testing.T, db *bun.DB) (*peopledirectory.Module, *enabl
 		DB:               db,
 		Observe:          func(Observation) {},
 		StudentPhotos:    runtime,
-	})
+	}, nil)
 	require.NoError(t, err)
-	return module, runtime
+	return module.Module, runtime
 }
 
 func setStudentPhotoPath(t *testing.T, db *bun.DB, studentID int64, path *string) {

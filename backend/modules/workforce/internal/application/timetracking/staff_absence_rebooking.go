@@ -198,7 +198,9 @@ func validateRebookingRequest(req RebookAbsencesRequest, reason string) ([]int64
 func (s *staffAbsenceService) loadRebookedAbsences(ctx context.Context, staffID int64, ids []int64, baseType string, typeID *int64) ([]rebookedAbsence, error) {
 	entries := make([]rebookedAbsence, 0, len(ids))
 	for _, id := range ids {
-		absence, err := s.absenceRepo.FindByID(ctx, id)
+		storedAbsence, err := s.absenceRepo.FindStaffAbsence(ctx, id)
+		absence := absenceToRecord(storedAbsence)
+		err = rowReadError("find by id", err, workforce.ErrStaffAbsenceNotFound)
 		if err != nil {
 			if isRecordNotFound(err) {
 				return nil, workforce.ErrAbsenceNotFound
@@ -237,7 +239,9 @@ func (s *staffAbsenceService) loadRebookedAbsences(ctx context.Context, staffID 
 // overlap check and the balance preview.
 func (s *staffAbsenceService) loadRebookingAbsences(ctx context.Context, staffID int64, entries []rebookedAbsence) ([]*StaffAbsence, error) {
 	start, end := rebookedDateRange(entries)
-	absences, err := s.absenceRepo.GetByStaffAndDateRange(ctx, staffID, start, end)
+	absenceValues, err := s.absenceRepo.ListStaffAbsences(ctx, workforce.StaffAbsenceFilter{StaffID: staffID, OverlapFrom: start.String(), OverlapTo: end.String(), Order: []workforce.StaffAbsenceOrder{{Field: workforce.StaffAbsenceOrderDateStart}}})
+	absences := absencesToRecord(absenceValues)
+	err = rowReadError("get absences by staff and date range", err, nil)
 	if err != nil {
 		return nil, fmt.Errorf("failed to check existing absences for rebooking: %w", err)
 	}
@@ -486,21 +490,28 @@ func (s *staffAbsenceService) writeRebookedAbsences(ctx context.Context, actorAc
 		if err := after.Validate(); err != nil {
 			return &workforce.TimeTrackingError{Kind: workforce.ErrAbsenceInvalid, Cause: fmt.Errorf("invalid absence data: %w", err)}
 		}
-		if err := s.absenceRepo.Update(ctx, after); err != nil {
+		updatedAbsence, err := s.absenceRepo.UpdateStaffAbsence(ctx, StaffAbsenceToCapability(after))
+		err = absenceUpdateError(err)
+		if err == nil {
+			applyAbsenceToRecord(after, updatedAbsence)
+		}
+		if err != nil {
 			return fmt.Errorf("failed to rebook absence: %w", err)
 		}
 		status := after.Status
-		if err := s.auditRepo.Create(ctx, &StaffAbsenceAudit{
-			AbsenceID:  after.ID,
-			FromStatus: &status,
-			ToStatus:   status,
-			ActorID:    actorAccountID,
-			Note:       reason,
-			TypeChange: &StaffAbsenceTypeChange{
-				FromType: entry.before.AbsenceType, FromTypeID: entry.before.AbsenceTypeID,
-				ToType: after.AbsenceType, ToTypeID: after.AbsenceTypeID,
-			},
-		}); err != nil {
+		audit := &StaffAbsenceAudit{
+			AbsenceID: after.ID, FromStatus: &status, ToStatus: status, ActorID: actorAccountID, Note: reason,
+			TypeChange: &StaffAbsenceTypeChange{FromType: entry.before.AbsenceType, FromTypeID: entry.before.AbsenceTypeID, ToType: after.AbsenceType, ToTypeID: after.AbsenceTypeID},
+		}
+		if err := audit.Validate(); err != nil {
+			return fmt.Errorf("failed to audit absence rebooking: %w", err)
+		}
+		recordedAudit, err := s.auditRepo.RecordStaffAbsenceAudit(ctx, absenceAuditValue(audit))
+		err = absenceWriteError("create staff absence audit", err)
+		if err == nil {
+			applyAbsenceAudit(audit, recordedAudit)
+		}
+		if err != nil {
 			return fmt.Errorf("failed to audit absence rebooking: %w", err)
 		}
 	}

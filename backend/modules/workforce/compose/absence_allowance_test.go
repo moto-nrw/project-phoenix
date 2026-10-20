@@ -32,7 +32,7 @@ func TestAllowanceSummaryNativeContract(t *testing.T) {
 	} {
 		row.StaffID, row.CreatedBy, row.AbsenceTypeID = staff.ID, staff.ID, &absenceType.ID
 		row.AbsenceType = workforce.AbsenceTypeOther
-		_, err := capability.CreateStaffAbsence(ctx, row)
+		_, err := capability.CreateStaffAbsence(ctx, &row)
 		require.NoError(t, err)
 	}
 	summary, err := capability.AllowanceSummary(ctx, staff.ID, absenceType.ID, 2026)

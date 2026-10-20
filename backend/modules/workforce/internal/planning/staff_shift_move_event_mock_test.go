@@ -36,10 +36,10 @@ func TestMoveShift_LogsShiftMovedEvent(t *testing.T) {
 
 	existing := validShift(7)
 	existing.ID = 5
-	repo.findByIDFunc = func(_ context.Context, _ any) (*StaffShift, error) {
+	repo.findByIDFunc = func(_ context.Context, _ any) (*workforce.ShiftRecord, error) {
 		return existing, nil
 	}
-	repo.updateFunc = func(_ context.Context, _ *StaffShift) error { return nil }
+	repo.updateFunc = func(_ context.Context, _ *workforce.ShiftRecord) error { return nil }
 
 	actor := int64(99)
 	moved, err := svc.MoveShift(context.Background(), MoveShiftInput{
@@ -78,7 +78,7 @@ func TestMoveShift_NoOpMoveLogsNothing(t *testing.T) {
 
 	existing := validShift(7)
 	existing.ID = 5
-	repo.findByIDFunc = func(_ context.Context, _ any) (*StaffShift, error) {
+	repo.findByIDFunc = func(_ context.Context, _ any) (*workforce.ShiftRecord, error) {
 		return existing, nil
 	}
 
@@ -105,10 +105,10 @@ func TestMoveShift_EventWriteFailureAbortsMove(t *testing.T) {
 
 	existing := validShift(7)
 	existing.ID = 5
-	repo.findByIDFunc = func(_ context.Context, _ any) (*StaffShift, error) {
+	repo.findByIDFunc = func(_ context.Context, _ any) (*workforce.ShiftRecord, error) {
 		return existing, nil
 	}
-	repo.updateFunc = func(_ context.Context, _ *StaffShift) error { return nil }
+	repo.updateFunc = func(_ context.Context, _ *workforce.ShiftRecord) error { return nil }
 
 	_, err := svc.MoveShift(context.Background(), MoveShiftInput{
 		ShiftID:       existing.ID,

@@ -8,6 +8,8 @@ import (
 	"strconv"
 	"time"
 
+	"github.com/moto-nrw/project-phoenix/modules/workforce"
+
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 )
 
@@ -123,7 +125,9 @@ func (s *workSessionService) exportAbsences(ctx context.Context, staffID int64, 
 	if s.absenceRepo == nil {
 		return nil, nil
 	}
-	absences, err := s.absenceRepo.GetByStaffAndDateRange(ctx, staffID, from, to)
+	absenceValues, err := s.absenceRepo.ListStaffAbsences(ctx, workforce.StaffAbsenceFilter{StaffID: staffID, OverlapFrom: from.String(), OverlapTo: to.String(), Order: []workforce.StaffAbsenceOrder{{Field: workforce.StaffAbsenceOrderDateStart}}})
+	absences := absencesToRecord(absenceValues)
+	err = rowReadError("get absences by staff and date range", err, nil)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get absences for export: %w", err)
 	}

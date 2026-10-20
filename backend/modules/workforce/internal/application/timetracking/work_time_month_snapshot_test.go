@@ -59,7 +59,7 @@ func (snapshotSessionSettings) TimeTrackingRetentionDays(context.Context) (int, 
 // closed month, wired exactly as services/factory.go does.
 func (f *snapshotFixture) newAdminSessionService() timetracking.WorkSessionService {
 	return timetracking.NewWorkSessionService(
-		workforceCompose.NewTimeTrackingTestRows(f.workforce).Sessions, workforceCompose.NewTimeTrackingTestRows(f.workforce).Breaks, owners.NewWorkSessionAudit(owners.NewTestAuditPersistence(testpkg.MustDatabase(f.db), nil).WorkSessionEdit), f.reposAbsences.StaffAbsence,
+		f.workforce, f.workforce, owners.NewWorkSessionAudit(owners.NewTestAuditPersistence(testpkg.MustDatabase(f.db), nil).WorkSessionEdit), f.reposAbsences.StaffAbsence,
 		f.reposPresence.GroupSupervisor, f.reposPresence.ActiveGroup, owners.WorkSessionStaff(f.repos.Staff, api.MustNewStaffEmployment(testpkg.MustDatabase(f.db)), f.reposMembership.Membership), owners.NewWorkSessionSchedules(owners.NewStaffWorkScheduleRepository(f.workforce)), owners.NewWorkSessionTimeModels(owners.NewWorkTimeModelRepository(f.workforce)),
 		snapshotSessionSettings{}, nil, f.db, owners.RenderTimeTrackingPDF,
 		owners.RenderTimeTrackingWorkbook,
@@ -116,22 +116,22 @@ func newSnapshotFixture(t *testing.T) *snapshotFixture {
 		CreatedBy: staff.ID,
 	}
 	session.SetTenantID(tenantID)
-	require.NoError(t, workforceCompose.NewTimeTrackingTestRows(workTime).Sessions.Create(ctx, session))
+	createSessionFixture(t, workTime, ctx, session)
 
 	settings := wtmIntSettings{accountStart: "2025-01-01"}
 	monthSvc := timetracking.NewWorkTimeMonthService(
-		workforceCompose.NewTimeTrackingTestRows(workTime).Sessions, workforceCompose.NewTimeTrackingTestRows(workTime).Breaks, reposAbsences.StaffAbsence, workforceCompose.StaffScheduleAssignments(api.MustNewStaffEmployment(testpkg.NewDatabase(t, db))),
+		workTime, workTime, reposAbsences.StaffAbsence, workforceCompose.StaffScheduleAssignments(api.MustNewStaffEmployment(testpkg.NewDatabase(t, db))),
 		owners.NewWorkScheduleTargets(owners.NewStaffWorkScheduleRepository(workTime)), owners.NewWorkTimeTargetModels(owners.NewWorkTimeModelRepository(workTime)), workforceCompose.NewTimeTrackingShifts(workTime),
 		settings, nil,
 		timetracking.WithMonthSnapshots(timetracking.MonthSnapshotCapability(workTime)),
-		timetracking.WithMonthAdjustments(workforceCompose.NewTimeTrackingTestRows(workTime).Adjustments),
+		timetracking.WithMonthAdjustments(workTime),
 	)
 
 	closeSvc := timetracking.NewStaffMonthCloseService(
 		timetracking.MonthSnapshotCapability(workTime), monthSvc, owners.MonthCloseStaff(reposPeople.Staff), settings, nil, timetracking.WithMonthCloseUnitOfWork(testpkg.RunInTenantTransaction),
 	)
 	adjustSvc := timetracking.NewStaffBalanceAdjustmentService(
-		workforceCompose.NewTimeTrackingTestRows(workTime).Adjustments, monthSvc, settings, nil, timetracking.WithAdjustmentUnitOfWork(testpkg.RunInTenantTransaction),
+		workTime, monthSvc, settings, nil, timetracking.WithAdjustmentUnitOfWork(testpkg.RunInTenantTransaction),
 
 		timetracking.WithAdjustmentSnapshots(timetracking.MonthSnapshotCapability(workTime)),
 	)

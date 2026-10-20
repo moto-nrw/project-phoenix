@@ -229,7 +229,7 @@ func NewCareScheduleSuiteRepositories(db transactionruntime.Database) *CareSched
 // StaffAbsenceSuiteRepositories are the Workforce absence rows the retained
 // suites drive.
 type StaffAbsenceSuiteRepositories struct {
-	StaffAbsence workforceCompose.StaffAbsenceRepository
+	StaffAbsence workforceCompose.AbsenceRequestRecords
 }
 
 // NewStaffAbsenceSuiteRepositories composes the absence rows over the

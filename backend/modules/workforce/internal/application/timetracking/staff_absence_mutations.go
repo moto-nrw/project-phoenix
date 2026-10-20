@@ -43,7 +43,12 @@ func (s *staffAbsenceService) UpdateAbsence(ctx context.Context, staffID int64, 
 		return nil, &workforce.TimeTrackingError{Kind: workforce.ErrAbsenceInvalid, Cause: fmt.Errorf("invalid absence data: %w", err)}
 	}
 
-	if err := s.absenceRepo.Update(ctx, absence); err != nil {
+	updatedAbsence, err := s.absenceRepo.UpdateStaffAbsence(ctx, StaffAbsenceToCapability(absence))
+	err = absenceUpdateError(err)
+	if err == nil {
+		applyAbsenceToRecord(absence, updatedAbsence)
+	}
+	if err != nil {
 		return nil, fmt.Errorf("failed to update absence: %w", err)
 	}
 
@@ -61,7 +66,9 @@ func (s *staffAbsenceService) loadSelfEditableAbsence(ctx context.Context, staff
 	if err := s.lockStaffAbsenceWrites(ctx, staffID); err != nil {
 		return nil, err
 	}
-	absence, err := s.absenceRepo.FindByID(ctx, absenceID)
+	storedAbsence, err := s.absenceRepo.FindStaffAbsence(ctx, absenceID)
+	absence := absenceToRecord(storedAbsence)
+	err = rowReadError("find by id", err, workforce.ErrStaffAbsenceNotFound)
 	if err != nil {
 		return nil, workforce.ErrAbsenceNotFound
 	}
@@ -251,7 +258,9 @@ func applyAbsenceUpdates(absence *StaffAbsence, req UpdateAbsenceRequest) error 
 
 // checkOverlapExcludingSelf checks for overlapping absences, excluding the given absence ID.
 func (s *staffAbsenceService) checkOverlapExcludingSelf(ctx context.Context, staffID, absenceID int64, dateStart, dateEnd calendar.Date) error {
-	existing, err := s.absenceRepo.GetByStaffAndDateRange(ctx, staffID, dateStart, dateEnd)
+	absenceValues, err := s.absenceRepo.ListStaffAbsences(ctx, workforce.StaffAbsenceFilter{StaffID: staffID, OverlapFrom: dateStart.String(), OverlapTo: dateEnd.String(), Order: []workforce.StaffAbsenceOrder{{Field: workforce.StaffAbsenceOrderDateStart}}})
+	existing := absencesToRecord(absenceValues)
+	err = rowReadError("get absences by staff and date range", err, nil)
 	if err != nil {
 		return fmt.Errorf("failed to check existing absences: %w", err)
 	}
@@ -281,7 +290,9 @@ func (s *staffAbsenceService) deleteAbsenceFor(ctx context.Context, subjectStaff
 	if err := s.lockStaffAbsenceWrites(ctx, subjectStaffID); err != nil {
 		return err
 	}
-	absence, err := s.absenceRepo.FindByID(ctx, absenceID)
+	storedAbsence, err := s.absenceRepo.FindStaffAbsence(ctx, absenceID)
+	absence := absenceToRecord(storedAbsence)
+	err = rowReadError("find by id", err, workforce.ErrStaffAbsenceNotFound)
 	if err != nil {
 		return workforce.ErrAbsenceNotFound
 	}
@@ -316,7 +327,8 @@ func (s *staffAbsenceService) deleteAbsenceFor(ctx context.Context, subjectStaff
 	if err := s.writeAbsenceDeletionAudit(ctx, absence, actorStaffID); err != nil {
 		return err
 	}
-	if err := s.absenceRepo.Delete(ctx, absenceID); err != nil {
+	if err := s.absenceRepo.DeleteStaffAbsence(ctx, absenceID); err != nil {
+		err = absenceWriteError("delete", err)
 		return fmt.Errorf("failed to delete absence: %w", err)
 	}
 

@@ -41,9 +41,9 @@ func TestStaffAbsenceMapContract(t *testing.T) {
 			CreatedBy:   staff2.ID,
 		}
 
-		_, err := repo.CreateStaffAbsence(ctx, absence1)
+		_, err := repo.CreateStaffAbsence(ctx, &absence1)
 		require.NoError(t, err)
-		_, err = repo.CreateStaffAbsence(ctx, absence2)
+		_, err = repo.CreateStaffAbsence(ctx, &absence2)
 		require.NoError(t, err)
 
 		absenceMap, err := repo.StaffAbsenceMapForDate(ctx, today.String())
@@ -75,9 +75,9 @@ func TestStaffAbsenceMapContract(t *testing.T) {
 			CreatedBy:   staff3.ID,
 		}
 
-		_, err := repo.CreateStaffAbsence(ctx, absence1)
+		_, err := repo.CreateStaffAbsence(ctx, &absence1)
 		require.NoError(t, err)
-		_, err = repo.CreateStaffAbsence(ctx, absence2)
+		_, err = repo.CreateStaffAbsence(ctx, &absence2)
 		require.NoError(t, err)
 
 		absenceMap, err := repo.StaffAbsenceMapForDate(ctx, today.String())
@@ -98,7 +98,7 @@ func TestStaffAbsenceMapContract(t *testing.T) {
 			CreatedBy:   staff1.ID,
 		}
 
-		_, createErr := repo.CreateStaffAbsence(ctx, absence)
+		_, createErr := repo.CreateStaffAbsence(ctx, &absence)
 		require.NoError(t, createErr)
 
 		absenceMap, err := repo.StaffAbsenceMapForDate(ctx, requestedDate.String())
@@ -133,9 +133,9 @@ func TestStaffAbsenceMapContract(t *testing.T) {
 			Status:      workforce.AbsenceStatusApproved,
 			CreatedBy:   staff1.ID,
 		}
-		_, err = repo.CreateStaffAbsence(ctx, customAbsence)
+		_, err = repo.CreateStaffAbsence(ctx, &customAbsence)
 		require.NoError(t, err)
-		_, err = repo.CreateStaffAbsence(ctx, standardAbsence)
+		_, err = repo.CreateStaffAbsence(ctx, &standardAbsence)
 		require.NoError(t, err)
 
 		absenceMap, err := repo.StaffAbsenceMapForDate(ctx, today.String())

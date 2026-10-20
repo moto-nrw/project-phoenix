@@ -263,7 +263,7 @@ func (s *failingBalanceMonthService) GetClosingBalanceAsOf(ctx context.Context, 
 	return s.recordingBalanceMonthService.GetClosingBalanceAsOf(ctx, staffID, date)
 }
 
-func newOpeningTestService(events *[]string, repo StaffBalanceAdjustmentRepository, month WorkTimeMonthService) StaffBalanceAdjustmentService {
+func newOpeningTestService(events *[]string, repo BalanceAdjustmentRecords, month WorkTimeMonthService) StaffBalanceAdjustmentService {
 	return NewStaffBalanceAdjustmentService(
 		repo,
 		month,

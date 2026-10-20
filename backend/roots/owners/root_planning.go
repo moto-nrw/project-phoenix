@@ -36,7 +36,7 @@ func BuildActivities(owner TimetableOwner, timetableOwner timetable.Capability, 
 // arrive in the Timetable owner's public vocabulary (#3424); the shift_moved
 // Änderungsprotokoll entry (#1884) and the SSE invalidation are bound here.
 func BuildShiftPlanning(
-	db transactionruntime.Database, env RootEnvironment, hub *realtime.Hub, workTime workforceModule.Capability,
+	db transactionruntime.Database, env RootEnvironment, hub *realtime.Hub, workTime *workforceCompose.WorkTime,
 	people PeopleRows, calendar schoolcalendar.Days, audit AuditOwner, owner TimetableOwner, rooms facilitiesModule.Catalog,
 	activities activityContract.ActivityService,
 ) (*workforceCompose.ShiftPlanning, error) {

@@ -57,7 +57,7 @@ func newTimetableCleanupService(db transactionruntime.Database, schools organiza
 // the Audit composition.
 func newTimeTrackingCleanupService(db transactionruntime.Database, schools organizationtenancy.Capability, workTime workforce.Capability, logger *slog.Logger, command auditModels.Command) workforceCompose.TimeTrackingCleanupService {
 	service, err := workforceCompose.NewTimeTrackingCleanup(workforceCompose.TimeTrackingCleanupDependencies{
-		Workforce: workTime, Absences: workforceCompose.NewStaffAbsenceRepository(workTime), Audit: owners.NewTimeTrackingRetentionAudit(newCleanupAudits(db, command).DataDeletion),
+		Workforce: workTime, Absences: workTime, Audit: owners.NewTimeTrackingRetentionAudit(newCleanupAudits(db, command).DataDeletion),
 		Settings: settingsCompose.PresenceSettings(newCleanupSettingsService(db, schools, logger)), Logger: logger,
 	})
 	if err != nil {

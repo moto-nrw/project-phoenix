@@ -9,13 +9,20 @@ import (
 )
 
 func (e Engine) FindStaffShift(ctx context.Context, id int64) (workforce.StaffShift, error) {
-	value, err := e.service.FindStaffShift(ctx, id)
-	return shiftToPublic(value), mapShiftError(err)
+	value, err := e.service.ReadShift(ctx, id)
+	var missing interface{ RepositoryNotFound() }
+	if errors.As(err, &missing) {
+		return workforce.StaffShift{}, workforce.ErrStaffShiftNotFound
+	}
+	return shiftReadToPublic(value), err
 }
 
 func (e Engine) ListStaffShifts(ctx context.Context, filter workforce.StaffShiftFilter) ([]workforce.StaffShift, error) {
-	values, err := e.service.ListStaffShifts(ctx, shiftFilterToDomain(filter))
-	return shiftsToPublic(values), mapShiftError(err)
+	values, err := e.service.ReadShifts(ctx, filter)
+	if values == nil {
+		return nil, err
+	}
+	return shiftReadsToPublic(values), err
 }
 
 func (e Engine) UsedStaffShiftWeeks(ctx context.Context, from, to string) ([]string, error) {
@@ -23,8 +30,8 @@ func (e Engine) UsedStaffShiftWeeks(ctx context.Context, from, to string) ([]str
 	return values, mapShiftError(err)
 }
 
-func (e Engine) CreateStaffShift(ctx context.Context, shift workforce.StaffShift) (workforce.StaffShift, error) {
-	created, err := e.service.CreateStaffShift(ctx, shiftToDomain(shift))
+func (e Engine) CreateStaffShift(ctx context.Context, shift *workforce.StaffShift) (workforce.StaffShift, error) {
+	created, err := e.service.CreateStaffShift(ctx, shiftToDomain(*shift))
 	return shiftToPublic(created), mapShiftError(err)
 }
 

@@ -25,7 +25,7 @@ func carryoverType(t *testing.T, svc workforce.Capability, name string) workforc
 
 func bookAllowanceDay(t *testing.T, svc workforce.Capability, staffID, typeID int64, day string, enteredAt time.Time) {
 	t.Helper()
-	_, err := svc.CreateStaffAbsence(testpkg.Ctx(t), workforce.StaffAbsence{
+	_, err := svc.CreateStaffAbsence(testpkg.Ctx(t), &workforce.StaffAbsence{
 		StaffID: staffID, CreatedBy: staffID, AbsenceType: workforce.AbsenceTypeOther, AbsenceTypeID: &typeID,
 		Status: workforce.AbsenceStatusReported, DateStart: day, DateEnd: day, CreatedAt: enteredAt,
 	})

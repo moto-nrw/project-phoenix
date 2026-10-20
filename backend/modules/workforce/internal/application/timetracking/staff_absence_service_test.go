@@ -394,7 +394,7 @@ func TestListAbsenceRequestsStampsCustomTypeLabels(t *testing.T) {
 }
 
 // ============================================================================
-// Mocks for StaffAbsenceRepository (prefixed with abs)
+// Mocks for AbsenceRecords (prefixed with abs)
 // ============================================================================
 
 type absStaffAbsenceRepoMock struct {
@@ -492,7 +492,7 @@ func (m *absStaffAbsenceRepoMock) GetAbsenceMapForDate(ctx context.Context, date
 	return nil, nil
 }
 
-// ListByStaffAndStatuses + ListByStatuses are part of the StaffAbsenceRepository
+// ListByStaffAndStatuses + ListByStatuses are part of the AbsenceRecords
 // interface added in the Tranche 4 vacation-workflow spike. No-op defaults so
 // tests that don't exercise the vacation inbox still satisfy the interface.
 func (m *absStaffAbsenceRepoMock) ListByStaffAndStatuses(_ context.Context, _ int64, _ []string) ([]*StaffAbsence, error) {

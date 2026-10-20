@@ -19,30 +19,30 @@ import (
 // every dependency operation the capability is allowed to perform.
 type planningShifts struct {
 	planning.StaffShiftService
-	create func(context.Context, *planning.StaffShift) (*planning.StaffShift, error)
-	update func(context.Context, *planning.StaffShift, planning.StaffShiftUpdateOptions) (*planning.StaffShift, error)
-	move   func(context.Context, planning.MoveShiftInput) (*planning.StaffShift, error)
+	create func(context.Context, *workforce.ShiftRecord) (*workforce.ShiftRecord, error)
+	update func(context.Context, *workforce.ShiftRecord, planning.StaffShiftUpdateOptions) (*workforce.ShiftRecord, error)
+	move   func(context.Context, planning.MoveShiftInput) (*workforce.ShiftRecord, error)
 	cancel func(context.Context, planning.CancelShiftInput) (*planning.CancelShiftResult, error)
-	list   func(context.Context, int64, calendar.Date, calendar.Date) ([]*planning.StaffShift, error)
+	list   func(context.Context, int64, calendar.Date, calendar.Date) ([]*workforce.ShiftRecord, error)
 	remove func(context.Context, int64) error
 }
 
-func (s planningShifts) CreateShift(c context.Context, v *planning.StaffShift) (*planning.StaffShift, error) {
+func (s planningShifts) CreateShift(c context.Context, v *workforce.ShiftRecord) (*workforce.ShiftRecord, error) {
 	return s.create(c, v)
 }
-func (s planningShifts) UpdateShiftWithOptions(c context.Context, v *planning.StaffShift, o planning.StaffShiftUpdateOptions) (*planning.StaffShift, error) {
+func (s planningShifts) UpdateShiftWithOptions(c context.Context, v *workforce.ShiftRecord, o planning.StaffShiftUpdateOptions) (*workforce.ShiftRecord, error) {
 	return s.update(c, v, o)
 }
-func (s planningShifts) MoveShift(c context.Context, v planning.MoveShiftInput) (*planning.StaffShift, error) {
+func (s planningShifts) MoveShift(c context.Context, v planning.MoveShiftInput) (*workforce.ShiftRecord, error) {
 	return s.move(c, v)
 }
 func (s planningShifts) ApplyCancellation(c context.Context, v planning.CancelShiftInput) (*planning.CancelShiftResult, error) {
 	return s.cancel(c, v)
 }
-func (s planningShifts) ListShifts(c context.Context, a, b calendar.Date) ([]*planning.StaffShift, error) {
+func (s planningShifts) ListShifts(c context.Context, a, b calendar.Date) ([]*workforce.ShiftRecord, error) {
 	return s.list(c, 0, a, b)
 }
-func (s planningShifts) ListShiftsForStaff(c context.Context, id int64, a, b calendar.Date) ([]*planning.StaffShift, error) {
+func (s planningShifts) ListShiftsForStaff(c context.Context, id int64, a, b calendar.Date) ([]*workforce.ShiftRecord, error) {
 	return s.list(c, id, a, b)
 }
 func (s planningShifts) DeleteShift(c context.Context, id int64) error { return s.remove(c, id) }
@@ -104,10 +104,10 @@ func TestPlanningPreservesShiftEditsAndCancellation(t *testing.T) {
 	staff := testpkg.CreateTestStaff(t, db, "Planning", "Contract")
 	ctx := testpkg.Ctx(t)
 	input := workforce.StaffShiftInput{StaffID: staff.ID, ActorStaffID: staff.ID, Date: "2026-09-21", StartTime: "08:30:00", EndTime: "14:45:00", BreakMinutes: 30}
-	var saved *planning.StaffShift
+	var saved *workforce.ShiftRecord
 	calls := 0
 	p := newPlanningFacade(planning.PlanningDependencies{Shifts: planningShifts{
-		create: func(c context.Context, v *planning.StaffShift) (*planning.StaffShift, error) {
+		create: func(c context.Context, v *workforce.ShiftRecord) (*workforce.ShiftRecord, error) {
 			require.Equal(t, ctx, c)
 			require.Equal(t, staff.ID, v.CreatedBy)
 			require.Equal(t, staff.ID, v.StaffID)
@@ -118,13 +118,13 @@ func TestPlanningPreservesShiftEditsAndCancellation(t *testing.T) {
 			saved = v
 			return v, nil
 		},
-		update: func(_ context.Context, v *planning.StaffShift, o planning.StaffShiftUpdateOptions) (*planning.StaffShift, error) {
+		update: func(_ context.Context, v *workforce.ShiftRecord, o planning.StaffShiftUpdateOptions) (*workforce.ShiftRecord, error) {
 			require.Equal(t, staff.ID, *v.UpdatedBy)
 			require.Equal(t, planning.StaffShiftUpdateOptions{PreserveExistingNotes: true, PreserveExistingShiftType: true, PreserveExistingChangeReason: true, PreserveExistingCancelled: true}, o)
 			calls++
 			return v, nil
 		},
-		move: func(_ context.Context, v planning.MoveShiftInput) (*planning.StaffShift, error) {
+		move: func(_ context.Context, v planning.MoveShiftInput) (*workforce.ShiftRecord, error) {
 			require.Equal(t, staff.ID, v.TargetStaffID)
 			require.Equal(t, "2026-09-22", v.Date.String())
 			require.Equal(t, "09:00", v.StartTime.Format("15:04"))
@@ -139,14 +139,14 @@ func TestPlanningPreservesShiftEditsAndCancellation(t *testing.T) {
 			require.Equal(t, staff.ID, v.Replacements[0].StaffID)
 			require.Equal(t, "11:00", v.Replacements[0].StartTime.Format("15:04"))
 			calls++
-			return &planning.CancelShiftResult{Shift: saved, Replacements: []*planning.StaffShift{saved, nil}}, nil
+			return &planning.CancelShiftResult{Shift: saved, Replacements: []*workforce.ShiftRecord{saved, nil}}, nil
 		},
-		list: func(_ context.Context, id int64, a, b calendar.Date) ([]*planning.StaffShift, error) {
+		list: func(_ context.Context, id int64, a, b calendar.Date) ([]*workforce.ShiftRecord, error) {
 			require.Contains(t, []int64{0, staff.ID}, id)
 			require.Equal(t, "2026-09-21", a.String())
 			require.Equal(t, "2026-09-25", b.String())
 			calls++
-			return []*planning.StaffShift{nil, saved}, nil
+			return []*workforce.ShiftRecord{nil, saved}, nil
 		},
 		remove: func(_ context.Context, id int64) error { require.Equal(t, staff.ID, id); calls++; return nil },
 	}})

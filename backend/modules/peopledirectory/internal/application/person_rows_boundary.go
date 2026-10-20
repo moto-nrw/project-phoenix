@@ -5,35 +5,20 @@ import (
 	"errors"
 
 	peopleModule "github.com/moto-nrw/project-phoenix/modules/peopledirectory"
+	"github.com/moto-nrw/project-phoenix/modules/peopledirectory/internal/domain"
 )
 
-// This file is the translation seam of the person write path (#3349): People
-// Directory owns users.persons, and the retained person service still carries
-// users.Person rows. The seam carries values; the rules — name trimming, the
-// tag and account conflicts, the soft delete — are the owner's.
+// PersonRows maps persisted person values at the retained directory boundary.
+// It calls the native service instead of looping through this owner's facade.
+type PersonRows struct{ directory *Service }
 
-// PersonWriteCapability is the owner surface this seam translates to.
-type PersonWriteCapability interface {
-	CreatePerson(context.Context, peopleModule.CreatePerson) (peopleModule.Person, error)
-	UpdatePerson(context.Context, peopleModule.UpdatePerson) (peopleModule.Person, error)
-	DeletePerson(context.Context, int64) error
-}
-
-// RetainedPersonWrites adapts the owner's person writes to the retained model-typed
-// contract (PersonWriter, satisfied structurally).
-type RetainedPersonWrites struct{ directory PersonWriteCapability }
-
-// NewRetainedPersonWrites binds the owner's person writes behind the retained
-// PersonWriter contract.
-func NewRetainedPersonWrites(directory PersonWriteCapability) *RetainedPersonWrites {
-	return &RetainedPersonWrites{directory: directory}
-}
+func NewPersonRows(directory *Service) *PersonRows { return &PersonRows{directory: directory} }
 
 // CreatePerson writes the row and reflects the stored values — the owner
 // assigns the id and the timestamps, and trims the names — back onto the
 // caller's struct, which is the contract the retained handlers rely on.
-func (d *RetainedPersonWrites) CreatePerson(ctx context.Context, person *peopleModule.DirectoryPersonSnapshot) error {
-	created, err := d.directory.CreatePerson(ctx, peopleModule.CreatePerson{
+func (d *PersonRows) CreatePerson(ctx context.Context, person *peopleModule.DirectoryPersonSnapshot) error {
+	input, err := peopleModule.NormalizePersonCreate(peopleModule.CreatePerson{
 		FirstName: person.FirstName,
 		LastName:  person.LastName,
 		Birthday:  personBirthday(person),
@@ -41,14 +26,18 @@ func (d *RetainedPersonWrites) CreatePerson(ctx context.Context, person *peopleM
 		AccountID: person.AccountID,
 	})
 	if err != nil {
-		return translatePersonWriteError(err)
+		return translatePersonWriteError(MapError(err))
 	}
-	applyPersonRecord(person, created)
+	created, err := d.directory.Create(ctx, domain.CreatePerson(input))
+	if err != nil {
+		return translatePersonWriteError(MapError(err))
+	}
+	applyPersonRecord(person, toPublic(created))
 	return nil
 }
 
-func (d *RetainedPersonWrites) UpdatePerson(ctx context.Context, person *peopleModule.DirectoryPersonSnapshot) error {
-	updated, err := d.directory.UpdatePerson(ctx, peopleModule.UpdatePerson{
+func (d *PersonRows) UpdatePerson(ctx context.Context, person *peopleModule.DirectoryPersonSnapshot) error {
+	input, err := peopleModule.NormalizePersonUpdate(peopleModule.UpdatePerson{
 		ID:        person.ID,
 		FirstName: person.FirstName,
 		LastName:  person.LastName,
@@ -57,14 +46,21 @@ func (d *RetainedPersonWrites) UpdatePerson(ctx context.Context, person *peopleM
 		AccountID: person.AccountID,
 	})
 	if err != nil {
-		return translatePersonWriteError(err)
+		return translatePersonWriteError(MapError(err))
 	}
-	applyPersonRecord(person, updated)
+	updated, err := d.directory.Update(ctx, domain.UpdatePerson(input))
+	if err != nil {
+		return translatePersonWriteError(MapError(err))
+	}
+	applyPersonRecord(person, toPublic(updated))
 	return nil
 }
 
-func (d *RetainedPersonWrites) DeletePerson(ctx context.Context, id int64) error {
-	return translatePersonWriteError(d.directory.DeletePerson(ctx, id))
+func (d *PersonRows) DeletePerson(ctx context.Context, id int64) error {
+	if id <= 0 {
+		return &peopleModule.InvalidPersonError{Reason: "person ID is required"}
+	}
+	return translatePersonWriteError(MapError(d.directory.Delete(ctx, id)))
 }
 
 func personBirthday(person *peopleModule.DirectoryPersonSnapshot) string {

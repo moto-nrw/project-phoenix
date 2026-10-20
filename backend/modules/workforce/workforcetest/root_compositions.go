@@ -13,7 +13,6 @@ import (
 	"github.com/uptrace/bun"
 
 	"github.com/moto-nrw/project-phoenix/modules/workforce"
-	workforceCompose "github.com/moto-nrw/project-phoenix/modules/workforce/compose"
 )
 
 // AdminCapabilities are the public Workforce contracts the staff
@@ -31,13 +30,16 @@ type AdminCapabilities struct {
 	TimeExport         workforce.StaffTimeExport
 }
 
-// Rows read back the retained rows the route suites assert on: the staff
+// Rows read back the native values the route suites assert on: the staff
 // absences, and the shift and staff fields the absence cascade and the
 // schedule writes change.
 type Rows struct {
-	StaffAbsence workforceCompose.StaffAbsenceRepository
-	FindShift    func(ctx context.Context, shiftID int64) (*ShiftRow, error)
-	FindStaff    func(ctx context.Context, staffID int64) (*StaffRow, error)
+	StaffAbsence interface {
+		FindStaffAbsence(context.Context, int64) (workforce.StaffAbsence, error)
+		ListStaffAbsences(context.Context, workforce.StaffAbsenceFilter) ([]workforce.StaffAbsence, error)
+	}
+	FindShift func(ctx context.Context, shiftID int64) (*ShiftRow, error)
+	FindStaff func(ctx context.Context, staffID int64) (*StaffRow, error)
 }
 
 // ShiftRow is the part of a planned shift the absence cascade changes.

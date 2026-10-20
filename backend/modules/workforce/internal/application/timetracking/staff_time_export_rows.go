@@ -4,7 +4,10 @@ import (
 	"context"
 	"fmt"
 	"slices"
+
 	"time"
+
+	"github.com/moto-nrw/project-phoenix/modules/workforce"
 
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 )
@@ -163,14 +166,18 @@ func (s *workSessionService) DayExportRowsByStaffIDs(ctx context.Context, staffI
 		return result, nil
 	}
 
-	sessionsByStaff, err := s.repo.GetHistoryByStaffIDs(ctx, staffIDs, from, to)
+	sessionsByStaffRecords, err := s.repo.ListWorkSessions(ctx, workforce.WorkSessionFilter{StaffIDs: staffIDs, DateFrom: from.String(), DateTo: to.String(), Order: workSessionOrder(workforce.WorkSessionOrderStaffID, workforce.WorkSessionOrderDate, workforce.WorkSessionOrderCheckInTime)})
+	sessionsByStaff := workSessionsByStaff(sessionsByStaffRecords)
+	err = rowReadError("get history by staff IDs", err, nil)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get sessions for export: %w", err)
 	}
 
 	absencesByStaff := make(map[int64][]*StaffAbsence, len(staffIDs))
 	if s.absenceRepo != nil {
-		absencesByStaff, err = s.absenceRepo.GetByStaffIDsAndDateRange(ctx, staffIDs, from, to)
+		absenceValues, err := s.absenceRepo.ListStaffAbsences(ctx, workforce.StaffAbsenceFilter{StaffIDs: staffIDs, OverlapFrom: from.String(), OverlapTo: to.String(), Order: []workforce.StaffAbsenceOrder{{Field: workforce.StaffAbsenceOrderStaffID}, {Field: workforce.StaffAbsenceOrderDateStart}}})
+		absencesByStaff = staffAbsencesByID(absenceValues)
+		err = rowReadError("get absences by staff IDs and date range", err, nil)
 		if err != nil {
 			return nil, fmt.Errorf("failed to get absences for export: %w", err)
 		}
@@ -221,7 +228,9 @@ func (s *workSessionService) buildDayExportSessionResponses(ctx context.Context,
 
 	breaksBySession := make(map[int64][]*WorkSessionBreak, len(sessions))
 	if len(sessionIDs) > 0 {
-		breaksBySession, err = s.breakRepo.GetBySessionIDs(ctx, sessionIDs)
+		breaksBySessionRecords, err := s.breakRepo.ListWorkSessionBreaks(ctx, workforce.WorkSessionBreakFilter{SessionIDs: sessionIDs})
+		breaksBySession = workBreaksBySession(breaksBySessionRecords)
+		err = rowReadError("get breaks by session IDs", err, nil)
 		if err != nil {
 			return nil, fmt.Errorf("failed to get breaks for export: %w", err)
 		}

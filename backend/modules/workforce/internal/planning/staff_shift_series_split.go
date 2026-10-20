@@ -2,6 +2,7 @@ package planning
 
 import (
 	"context"
+	"errors"
 	"fmt"
 
 	"github.com/moto-nrw/project-phoenix/modules/workforce"
@@ -126,9 +127,13 @@ func (s *staffShiftSeriesService) buildSplitSuccessor(
 // Keep the new segment strictly before that successor, but never reopen a
 // segment that a current successor has already superseded.
 func (s *staffShiftSeriesService) boundSuccessorByLineage(ctx context.Context, successor *StaffShiftSeries, rootID, oldID int64, effective calendar.Date) error {
-	next, err := s.seriesRepo.FindOverlappingInLineage(ctx, rootID, oldID, effective)
-	if err != nil {
-		return err
+	nextValue, err := s.seriesRepo.FindOverlappingSeriesInLineage(ctx, rootID, oldID, effective.String())
+	if err != nil && !errors.Is(err, workforce.ErrShiftSeriesNotFound) {
+		return shiftReadError("find overlapping staff shift series in lineage", err, nil)
+	}
+	var next *StaffShiftSeries
+	if err == nil {
+		next = seriesToRow(nextValue)
 	}
 	if next != nil && !effective.Before(next.ValidFrom) {
 		return fmt.Errorf("%w: series segment has already been superseded", ErrSeriesInvalid)
@@ -167,20 +172,27 @@ func (s *staffShiftSeriesService) retainTodayOccurrence(ctx context.Context, old
 // submit the capped segment ID and a second permanent edit would be rejected
 // as superseded.
 func (s *staffShiftSeriesService) replaceSeriesSegment(ctx context.Context, oldID int64, successor *StaffShiftSeries, effective, repointFrom calendar.Date) (int64, error) {
-	if err := s.seriesRepo.CapValidUntil(ctx, oldID, effective); err != nil {
+	if err := shiftWriteError("cap staff shift series valid_until", s.seriesRepo.CapStaffShiftSeries(ctx, oldID, effective.String())); err != nil {
 		return 0, err
 	}
-	deleted, err := s.shiftRepo.DeleteNonDetachedBySeriesFrom(ctx, oldID, effective)
+	deleted, err := s.shiftRepo.DeleteRegenerableSeriesShifts(ctx, oldID, effective.String())
+	err = shiftWriteError("delete non-detached staff shifts by series", err)
 	if err != nil {
 		return 0, err
 	}
-	if err := s.seriesRepo.Create(ctx, successor); err != nil {
+	written, err := s.seriesRepo.CreateStaffShiftSeries(ctx, seriesRowToCapability(successor))
+	if err != nil {
+		err = shiftWriteError("create", err)
+
 		return 0, err
 	}
-	if _, err := s.shiftRepo.RepointDetachedSeriesFrom(ctx, oldID, successor.ID, repointFrom); err != nil {
+	applySeriesToRow(successor, written)
+	if _, err := s.shiftRepo.RepointDetachedSeriesShifts(ctx, oldID, successor.ID, repointFrom.String()); err != nil {
+		err = shiftWriteError("repoint detached staff shifts to successor series", err)
 		return 0, err
 	}
-	if _, err := s.exceptionRepo.RepointToSeriesFrom(ctx, oldID, successor.ID, effective); err != nil {
+	if _, err := s.exceptionRepo.RepointSeriesExceptions(ctx, oldID, successor.ID, effective.String()); err != nil {
+		err = shiftWriteError("repoint staff shift series exceptions", err)
 		return 0, err
 	}
 	return deleted, nil

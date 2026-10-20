@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/moto-nrw/project-phoenix/modules/workforce"
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 )
 
@@ -43,8 +44,8 @@ type CancelShiftInput struct {
 
 // CancelShiftResult reports the updated origin and the freshly created covers.
 type CancelShiftResult struct {
-	Shift        *StaffShift
-	Replacements []*StaffShift
+	Shift        *workforce.ShiftRecord
+	Replacements []*workforce.ShiftRecord
 }
 
 // ApplyCancellation cancels/reactivates a shift and rebuilds its replacement set
@@ -139,8 +140,9 @@ func (s *staffShiftService) ApplyCancellation(ctx context.Context, input CancelS
 // never lock the same pair in opposite orders (#1841 deadlock). The
 // per-replacement createShift calls re-lock a subset of this same set;
 // advisory xact locks are re-grantable, so those are no-ops.
-func (s *staffShiftService) lockCancellationStaff(ctx context.Context, existing *StaffShift, replacements []ShiftReplacementInput) (map[int64]bool, error) {
-	discoveredCovers, err := s.repo.FindByOriginShiftID(ctx, existing.ID)
+func (s *staffShiftService) lockCancellationStaff(ctx context.Context, existing *workforce.ShiftRecord, replacements []ShiftReplacementInput) (map[int64]bool, error) {
+	discoveredCovers, err := s.repo.ReadShifts(ctx, workforce.StaffShiftFilter{OriginShiftID: existing.ID, Order: shiftOrder(workforce.StaffShiftOrderStartTime)})
+	err = shiftReadError("find staff shifts by origin shift id", err, nil)
 	if err != nil {
 		return nil, fmt.Errorf("discover existing replacements: %w", err)
 	}
@@ -172,7 +174,7 @@ func (s *staffShiftService) lockCancellationStaff(ctx context.Context, existing 
 // the covers on the stale date. Re-read the locked origin and build from that
 // state (#1841). StaffID is immutable, so the lock set computed before is still
 // correct.
-func (s *staffShiftService) reloadLockedCancellationOrigin(ctx context.Context, shiftID, lockedStaffID int64) (*StaffShift, error) {
+func (s *staffShiftService) reloadLockedCancellationOrigin(ctx context.Context, shiftID, lockedStaffID int64) (*workforce.ShiftRecord, error) {
 	existing, err := s.findShiftOrNotFound(ctx, shiftID, "find staff shift")
 	if err != nil {
 		return nil, err
@@ -191,8 +193,9 @@ func (s *staffShiftService) reloadLockedCancellationOrigin(ctx context.Context, 
 // reason match), and removing the current covers first lets the origin's flag
 // flip without its old replacements interfering with the reactivation overlap
 // check.
-func (s *staffShiftService) reloadLockedCovers(ctx context.Context, originID int64, lockedStaffIDs map[int64]bool) ([]*StaffShift, error) {
-	covers, err := s.repo.FindByOriginShiftID(ctx, originID)
+func (s *staffShiftService) reloadLockedCovers(ctx context.Context, originID int64, lockedStaffIDs map[int64]bool) ([]*workforce.ShiftRecord, error) {
+	covers, err := s.repo.ReadShifts(ctx, workforce.StaffShiftFilter{OriginShiftID: originID, Order: shiftOrder(workforce.StaffShiftOrderStartTime)})
+	err = shiftReadError("find staff shifts by origin shift id", err, nil)
 	if err != nil {
 		return nil, fmt.Errorf("reload existing replacements: %w", err)
 	}
@@ -210,9 +213,9 @@ func (s *staffShiftService) reloadLockedCovers(ctx context.Context, originID int
 
 // deleteCovers removes the origin's current replacements before the origin's
 // flag flips.
-func (s *staffShiftService) deleteCovers(ctx context.Context, covers []*StaffShift) error {
+func (s *staffShiftService) deleteCovers(ctx context.Context, covers []*workforce.ShiftRecord) error {
 	for _, cover := range covers {
-		if err := s.repo.Delete(ctx, cover.ID); err != nil {
+		if err := shiftWriteError("delete", s.repo.DeleteStaffShift(ctx, cover.ID)); err != nil {
 			return fmt.Errorf("remove existing replacement: %w", err)
 		}
 	}
@@ -228,7 +231,7 @@ func (s *staffShiftService) deleteCovers(ctx context.Context, covers []*StaffShi
 // the type — otherwise a brand-new cover, or one transferring the inactive type
 // to a different person, would pass validation merely because an unrelated old
 // cover used the same id (#1841).
-func grandfatheredCoverTypes(covers []*StaffShift) map[int64]map[int64]bool {
+func grandfatheredCoverTypes(covers []*workforce.ShiftRecord) map[int64]map[int64]bool {
 	grandfatheredTypesByStaff := make(map[int64]map[int64]bool)
 	for _, cover := range covers {
 		if cover.ShiftTypeID == nil {
@@ -250,8 +253,8 @@ func grandfatheredCoverTypes(covers []*StaffShift) map[int64]map[int64]bool {
 // to the stored values but are overwritten with the caller's edits when
 // supplied, so an edit made in the same save is honoured and a reactivation's
 // overlap check runs against the edited window (#1841).
-func cancellationOriginUpdate(existing *StaffShift, input CancelShiftInput) (*StaffShift, StaffShiftUpdateOptions) {
-	originUpdate := &StaffShift{
+func cancellationOriginUpdate(existing *workforce.ShiftRecord, input CancelShiftInput) (*workforce.ShiftRecord, StaffShiftUpdateOptions) {
+	originUpdate := &workforce.ShiftRecord{
 		Date:         existing.Date,
 		StartTime:    existing.StartTime,
 		EndTime:      existing.EndTime,
@@ -285,15 +288,15 @@ func cancellationOriginUpdate(existing *StaffShift, input CancelShiftInput) (*St
 // already carried it.
 func (s *staffShiftService) rebuildReplacements(
 	ctx context.Context,
-	existing *StaffShift,
+	existing *workforce.ShiftRecord,
 	input CancelShiftInput,
-	covers []*StaffShift,
+	covers []*workforce.ShiftRecord,
 	grandfatheredTypesByStaff map[int64]map[int64]bool,
-) ([]*StaffShift, error) {
-	var created []*StaffShift
+) ([]*workforce.ShiftRecord, error) {
+	var created []*workforce.ShiftRecord
 	coverConsumed := make([]bool, len(covers))
 	for _, r := range input.Replacements {
-		replacement := &StaffShift{
+		replacement := &workforce.ShiftRecord{
 			StaffID:       r.StaffID,
 			Date:          existing.Date,
 			StartTime:     r.StartTime,
@@ -322,7 +325,7 @@ func (s *staffShiftService) rebuildReplacements(
 // the existing cover it corresponds to (same staff + wall-clock window) and
 // carry that reason across; a genuinely new cover takes the origin's reason.
 // coverConsumed prevents two identical rows from both claiming one cover (#1841).
-func matchedCoverReason(covers []*StaffShift, coverConsumed []bool, r ShiftReplacementInput, originReason *string) *string {
+func matchedCoverReason(covers []*workforce.ShiftRecord, coverConsumed []bool, r ShiftReplacementInput, originReason *string) *string {
 	for i, cover := range covers {
 		if coverConsumed[i] || cover.StaffID != r.StaffID {
 			continue

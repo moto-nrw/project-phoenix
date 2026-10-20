@@ -36,7 +36,7 @@ type staffDateKey struct {
 
 // uncoveredShiftIntervals returns the gaps of the assignment window the
 // shifts leave uncovered (timetable.UncoveredShiftIntervals).
-func uncoveredShiftIntervals(start, end time.Time, shifts []*StaffShift) []timetable.ShiftCoverageInterval {
+func uncoveredShiftIntervals(start, end time.Time, shifts []*workforce.ShiftRecord) []timetable.ShiftCoverageInterval {
 	windows := make([]timetable.ShiftWindow, 0, len(shifts))
 	for _, shift := range shifts {
 		if shift != nil {
@@ -47,8 +47,8 @@ func uncoveredShiftIntervals(start, end time.Time, shifts []*StaffShift) []timet
 }
 
 // indexShifts groups shifts by staff member and calendar day.
-func indexShifts(shifts []*StaffShift) map[staffDateKey][]*StaffShift {
-	index := make(map[staffDateKey][]*StaffShift)
+func indexShifts(shifts []*workforce.ShiftRecord) map[staffDateKey][]*workforce.ShiftRecord {
+	index := make(map[staffDateKey][]*workforce.ShiftRecord)
 	for _, shift := range shifts {
 		if shift != nil {
 			key := staffDateKey{shift.StaffID, shift.Date}

@@ -65,7 +65,7 @@ func TestWorkTimeMonthSummary_DB(t *testing.T) {
 		CreatedBy: staff.ID,
 	}
 	session.SetTenantID(tenantID)
-	require.NoError(t, workforceCompose.NewTimeTrackingTestRows(workTime).Sessions.Create(ctx, session))
+	createSessionFixture(t, workTime, ctx, session)
 
 	// Reported sick day on Monday June 15, 2026 → credits 480.
 	absence := &timetracking.StaffAbsence{
@@ -77,10 +77,13 @@ func TestWorkTimeMonthSummary_DB(t *testing.T) {
 		CreatedBy:   staff.ID,
 	}
 	absence.SetTenantID(tenantID)
-	require.NoError(t, repos.StaffAbsence.Create(ctx, absence))
+	absenceCommand1 := timetracking.StaffAbsenceToCapability(absence)
+	createdTimeRecord1, err := repos.StaffAbsence.CreateStaffAbsence(ctx, &absenceCommand1)
+	require.NoError(t, err)
+	*absence = *timetracking.AbsenceRecord(createdTimeRecord1)
 
 	svc := timetracking.NewWorkTimeMonthService(
-		workforceCompose.NewTimeTrackingTestRows(workTime).Sessions, workforceCompose.NewTimeTrackingTestRows(workTime).Breaks, repos.StaffAbsence, workforceCompose.StaffScheduleAssignments(api.MustNewStaffEmployment(testpkg.NewDatabase(t, db))),
+		workTime, workTime, repos.StaffAbsence, workforceCompose.StaffScheduleAssignments(api.MustNewStaffEmployment(testpkg.NewDatabase(t, db))),
 		owners.NewWorkScheduleTargets(owners.NewStaffWorkScheduleRepository(workTime)), owners.NewWorkTimeTargetModels(owners.NewWorkTimeModelRepository(workTime)), workforceCompose.NewTimeTrackingShifts(workTime),
 		wtmIntSettings{accountStart: "2026-06-01"}, nil,
 	)
@@ -111,7 +114,7 @@ func TestWorkTimeMonthSummary_DB(t *testing.T) {
 		CreatedBy: staff.ID,
 	}
 	lateSession.SetTenantID(tenantID)
-	require.NoError(t, workforceCompose.NewTimeTrackingTestRows(workTime).Sessions.Create(ctx, lateSession))
+	createSessionFixture(t, workTime, ctx, lateSession)
 
 	julyAfter, err := svc.GetMonthSummary(ctx, staff.ID, 2026, 7)
 	require.NoError(t, err)

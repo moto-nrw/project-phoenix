@@ -66,7 +66,7 @@ func TestGuardianPortalContactsBatchProfilesAndRelationships(t *testing.T) {
 	require.Empty(t, contacts, "a linked profile cannot substitute for active school access")
 
 	failure := errors.New("identity projection failed")
-	failing, err := NewWithGuardianMemberships(Dependencies{StudentDirectory: testpkg.StudentDirectory{}, DB: db, Observe: func(Observation) {}, GuardianLinkRows: testpkg.GuardianLinks{}},
+	failing, err := New(Dependencies{StudentDirectory: testpkg.StudentDirectory{}, DB: db, Observe: func(Observation) {}, GuardianLinkRows: testpkg.GuardianLinks{}},
 		func(context.Context, []int64) (map[int64][]int64, error) { return nil, failure })
 	require.NoError(t, err)
 	contacts, err = failing.ListGuardianPortalContacts(ctx, []int64{guardianID}, nil)
@@ -104,7 +104,7 @@ func TestStudentsWithPortalGuardianNeedsAccountAndPortalAccess(t *testing.T) {
 	assert.Empty(t, empty)
 
 	projectionFailure := errors.New("portal membership lookup failed")
-	failing, err := NewWithGuardianMemberships(Dependencies{StudentDirectory: testpkg.StudentDirectory{}, DB: db, Observe: func(Observation) {}, GuardianLinkRows: testpkg.GuardianLinks{}},
+	failing, err := New(Dependencies{StudentDirectory: testpkg.StudentDirectory{}, DB: db, Observe: func(Observation) {}, GuardianLinkRows: testpkg.GuardianLinks{}},
 		func(context.Context, []int64) (map[int64][]int64, error) { return nil, projectionFailure })
 	require.NoError(t, err)
 	failed, err := failing.StudentsWithPortalGuardian(ctx, []int64{reachable})

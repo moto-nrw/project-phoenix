@@ -5,6 +5,8 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/moto-nrw/project-phoenix/modules/workforce"
+
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 )
 
@@ -16,7 +18,9 @@ func (s *workTimeMonthService) addAdjustments(ctx context.Context, staffID int64
 	if s.adjustmentRepo == nil {
 		return nil
 	}
-	adjustments, err := s.adjustmentRepo.GetByStaffAndDateRange(ctx, staffID, first, last)
+	adjustmentValues, err := s.adjustmentRepo.ListStaffBalanceAdjustments(ctx, workforce.StaffBalanceAdjustmentFilter{StaffID: staffID, EffectiveFrom: first.String(), EffectiveTo: last.String()})
+	adjustments := adjustmentsToRecords(adjustmentValues)
+	err = rowReadError("get balance adjustments by staff+range", err, nil)
 	if err != nil {
 		return fmt.Errorf("failed to load balance adjustments: %w", err)
 	}
@@ -40,7 +44,9 @@ func (s *workTimeMonthService) addAdjustments(ctx context.Context, staffID int64
 // after-midnight part from the following day's balance.
 func (s *workTimeMonthService) addActualMinutes(ctx context.Context, staffID int64, first, last, today calendar.Date, aggregates map[monthKey]*monthAggregates) error {
 	end := last.AddDays(1).BerlinMidnight()
-	sessions, err := s.sessionRepo.ListOverlappingByStaffID(ctx, staffID, first.BerlinMidnight(), &end)
+	sessionsRecords, err := s.sessionRepo.ListOverlappingWorkSessions(ctx, []int64{staffID}, first.BerlinMidnight(), &end)
+	sessions := workSessionsToRecords(sessionsRecords)
+	err = rowReadError("list overlapping by staff ID", err, nil)
 	if err != nil {
 		return fmt.Errorf("failed to load work sessions: %w", err)
 	}
@@ -72,7 +78,14 @@ func (s *workTimeMonthService) breaksBySessionID(ctx context.Context, sessions [
 	if len(ids) == 0 {
 		return map[int64][]*WorkSessionBreak{}, nil
 	}
-	breaks, err := s.breakRepo.GetBySessionIDs(ctx, ids)
+	var breaksRecords []workforce.WorkSessionBreak
+	var breakErr error
+	if len(ids) > 0 {
+		breaksRecords, breakErr = s.breakRepo.ListWorkSessionBreaks(ctx, workforce.WorkSessionBreakFilter{SessionIDs: ids})
+	}
+	err := breakErr
+	breaks := workBreaksBySession(breaksRecords)
+	err = rowReadError("get breaks by session IDs", err, nil)
 	if err != nil {
 		return nil, fmt.Errorf("failed to load work session breaks: %w", err)
 	}
@@ -97,7 +110,9 @@ func sessionEndUpTo(session *WorkSession, now time.Time) time.Time {
 // Day counters are schedule-aware: a vacation day only counts when the day
 // actually had a target (> 0), so part-timers aren't charged for days off.
 func (s *workTimeMonthService) addAbsenceCredits(ctx context.Context, staffID int64, first, last, today calendar.Date, resolver *dailyTargetResolver, aggregates map[monthKey]*monthAggregates) error {
-	absences, err := s.absenceRepo.GetByStaffAndDateRange(ctx, staffID, first, last)
+	absenceValues, err := s.absenceRepo.ListStaffAbsences(ctx, workforce.StaffAbsenceFilter{StaffID: staffID, OverlapFrom: first.String(), OverlapTo: last.String(), Order: []workforce.StaffAbsenceOrder{{Field: workforce.StaffAbsenceOrderDateStart}}})
+	absences := absencesToRecord(absenceValues)
+	err = rowReadError("get absences by staff and date range", err, nil)
 	if err != nil {
 		return fmt.Errorf("failed to load absences: %w", err)
 	}

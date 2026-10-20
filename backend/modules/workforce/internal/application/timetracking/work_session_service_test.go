@@ -440,10 +440,10 @@ func (m *wsMockWorkSessionEditRepository) CountManualBySessionIDs(ctx context.Co
 }
 
 // ============================================================================
-// Mock for StaffAbsenceRepository (prefixed with ws)
+// Mock for AbsenceRecords (prefixed with ws)
 // ============================================================================
 
-type wsMockStaffAbsenceRepository struct {
+type wsMockAbsenceRecords struct {
 	createFunc                    func(ctx context.Context, entity *StaffAbsence) error
 	findByIDFunc                  func(ctx context.Context, id any) (*StaffAbsence, error)
 	updateFunc                    func(ctx context.Context, entity *StaffAbsence) error
@@ -456,89 +456,89 @@ type wsMockStaffAbsenceRepository struct {
 	getAbsenceMapForDateFunc      func(ctx context.Context, date Date) (map[int64]string, error)
 }
 
-func (m *wsMockStaffAbsenceRepository) LockStaffAbsenceWrites(context.Context, int64) error {
+func (m *wsMockAbsenceRecords) LockStaffAbsenceWrites(context.Context, int64) error {
 	return nil
 }
 
-func (m *wsMockStaffAbsenceRepository) Create(ctx context.Context, entity *StaffAbsence) error {
+func (m *wsMockAbsenceRecords) Create(ctx context.Context, entity *StaffAbsence) error {
 	if m.createFunc != nil {
 		return m.createFunc(ctx, entity)
 	}
 	return nil
 }
 
-func (m *wsMockStaffAbsenceRepository) FindByID(ctx context.Context, id any) (*StaffAbsence, error) {
+func (m *wsMockAbsenceRecords) FindByID(ctx context.Context, id any) (*StaffAbsence, error) {
 	if m.findByIDFunc != nil {
 		return m.findByIDFunc(ctx, id)
 	}
 	return nil, nil
 }
 
-func (m *wsMockStaffAbsenceRepository) Update(ctx context.Context, entity *StaffAbsence) error {
+func (m *wsMockAbsenceRecords) Update(ctx context.Context, entity *StaffAbsence) error {
 	if m.updateFunc != nil {
 		return m.updateFunc(ctx, entity)
 	}
 	return nil
 }
 
-func (m *wsMockStaffAbsenceRepository) Delete(ctx context.Context, id any) error {
+func (m *wsMockAbsenceRecords) Delete(ctx context.Context, id any) error {
 	if m.deleteFunc != nil {
 		return m.deleteFunc(ctx, id)
 	}
 	return nil
 }
 
-func (m *wsMockStaffAbsenceRepository) ListWithFilter(ctx context.Context, filter workforce.StaffAbsenceFilter) ([]*StaffAbsence, error) {
+func (m *wsMockAbsenceRecords) ListWithFilter(ctx context.Context, filter workforce.StaffAbsenceFilter) ([]*StaffAbsence, error) {
 	if m.listFunc != nil {
 		return m.listFunc(ctx, filter)
 	}
 	return nil, nil
 }
 
-func (m *wsMockStaffAbsenceRepository) GetByStaffAndDateRange(ctx context.Context, staffID int64, from, to Date) ([]*StaffAbsence, error) {
+func (m *wsMockAbsenceRecords) GetByStaffAndDateRange(ctx context.Context, staffID int64, from, to Date) ([]*StaffAbsence, error) {
 	if m.getByStaffAndDateRangeFunc != nil {
 		return m.getByStaffAndDateRangeFunc(ctx, staffID, from, to)
 	}
 	return nil, nil
 }
 
-func (m *wsMockStaffAbsenceRepository) GetByStaffAndDate(ctx context.Context, staffID int64, date Date) (*StaffAbsence, error) {
+func (m *wsMockAbsenceRecords) GetByStaffAndDate(ctx context.Context, staffID int64, date Date) (*StaffAbsence, error) {
 	if m.getByStaffAndDateFunc != nil {
 		return m.getByStaffAndDateFunc(ctx, staffID, date)
 	}
 	return nil, nil
 }
 
-func (m *wsMockStaffAbsenceRepository) GetByDateRange(ctx context.Context, from, to Date) ([]*StaffAbsence, error) {
+func (m *wsMockAbsenceRecords) GetByDateRange(ctx context.Context, from, to Date) ([]*StaffAbsence, error) {
 	if m.getByDateRangeFunc != nil {
 		return m.getByDateRangeFunc(ctx, from, to)
 	}
 	return nil, nil
 }
 
-func (m *wsMockStaffAbsenceRepository) GetAbsenceTypeIDMapForDate(_ context.Context, _ Date) (map[int64]int64, error) {
+func (m *wsMockAbsenceRecords) GetAbsenceTypeIDMapForDate(_ context.Context, _ Date) (map[int64]int64, error) {
 	return nil, nil
 }
 
-func (m *wsMockStaffAbsenceRepository) GetAbsenceMapForDate(ctx context.Context, date Date) (map[int64]string, error) {
+func (m *wsMockAbsenceRecords) GetAbsenceMapForDate(ctx context.Context, date Date) (map[int64]string, error) {
 	if m.getAbsenceMapForDateFunc != nil {
 		return m.getAbsenceMapForDateFunc(ctx, date)
 	}
 	return nil, nil
 }
 
-// ListByStaffAndStatuses + ListByStatuses are part of the StaffAbsenceRepository
+// ListByStaffAndStatuses + ListByStatuses are part of the AbsenceRecords
 // interface added in the Tranche 4 vacation-workflow spike. No-op defaults so
 // work-session tests still satisfy the interface.
-func (m *wsMockStaffAbsenceRepository) ListByStaffAndStatuses(_ context.Context, _ int64, _ []string) ([]*StaffAbsence, error) {
+func (m *wsMockAbsenceRecords) ListByStaffAndStatuses(_ context.Context, _ int64, _ []string) ([]*StaffAbsence, error) {
 	return nil, nil
 }
 
-func (m *wsMockStaffAbsenceRepository) ListByStatuses(_ context.Context, _ []string) ([]*StaffAbsence, error) {
+func (m *wsMockAbsenceRecords) ListByStatuses(_ context.Context, _ []string) ([]*StaffAbsence, error) {
 	return nil, nil
 }
 
-func (m *wsMockStaffAbsenceRepository) ListRequests(_ context.Context, _ AbsenceRequestFilter) ([]*AbsenceRequestRow, error) {
+func (m *wsMockAbsenceRecords) ListRequests(_ context.Context, _ AbsenceRequestFilter) ([]*AbsenceRequestRow, error) {
 	return nil, nil
 }
 
@@ -675,7 +675,7 @@ func wsCreateTestService() (*workSessionService, *wsMockWorkSessionRepository, *
 	sessionRepo := &wsMockWorkSessionRepository{}
 	breakRepo := &wsMockWorkSessionBreakRepository{}
 	auditRepo := &wsMockWorkSessionEditRepository{}
-	absenceRepo := &wsMockStaffAbsenceRepository{}
+	absenceRepo := &wsMockAbsenceRecords{}
 	supervisorRepo := &wsMockGroupSupervisorRepository{}
 
 	service := &workSessionService{
@@ -2940,15 +2940,15 @@ func (m *wsMockWorkSessionRepository) DeleteOlderThan(context.Context, string, D
 	return 0, nil
 }
 
-func (m *wsMockStaffAbsenceRepository) CountWithFilter(context.Context, workforce.StaffAbsenceFilter) (int, error) {
+func (m *wsMockAbsenceRecords) CountWithFilter(context.Context, workforce.StaffAbsenceFilter) (int, error) {
 	return 0, nil
 }
 
-func (m *wsMockStaffAbsenceRepository) OldestBefore(context.Context, string, *Date) (*Date, error) {
+func (m *wsMockAbsenceRecords) OldestBefore(context.Context, string, *Date) (*Date, error) {
 	return nil, nil
 }
 
-func (m *wsMockStaffAbsenceRepository) DeleteOlderThan(context.Context, string, Date) (int64, error) {
+func (m *wsMockAbsenceRecords) DeleteOlderThan(context.Context, string, Date) (int64, error) {
 	return 0, nil
 }
 
@@ -3768,7 +3768,7 @@ func (m *wsMockWorkSessionBreakRepository) GetBySessionIDs(ctx context.Context, 
 
 // GetByStaffIDsAndDateRange satisfies the batched interface method (#1417); this mock
 // exercises the single-staff path only.
-func (m *wsMockStaffAbsenceRepository) GetByStaffIDsAndDateRange(ctx context.Context, staffIDs []int64, from, to Date) (map[int64][]*StaffAbsence, error) {
+func (m *wsMockAbsenceRecords) GetByStaffIDsAndDateRange(ctx context.Context, staffIDs []int64, from, to Date) (map[int64][]*StaffAbsence, error) {
 	if m.getByStaffIDsAndDateRangeFunc != nil {
 		return m.getByStaffIDsAndDateRangeFunc(ctx, staffIDs, from, to)
 	}

@@ -38,7 +38,9 @@ func (s *workSessionService) CheckOut(ctx context.Context, staffID int64, reason
 // performs next says "no active session found" on its own, and keeping that
 // one authority avoids two lookups disagreeing about whether a stamp exists.
 func (s *workSessionService) openBlockDay(ctx context.Context, staffID int64) (calendar.Date, error) {
-	open, err := s.repo.GetLatestOpenByStaffID(ctx, staffID)
+	openRecords, err := s.repo.LatestOpenWorkSession(ctx, staffID)
+	open := workSessionReadRecord(openRecords, err)
+	err = rowReadError("get latest open by staff ID", err, workforce.ErrWorkSessionNotFound)
 	if err != nil && !isRecordNotFound(err) {
 		return calendar.Date(""), fmt.Errorf(errGetCurrentSession, err)
 	}
@@ -77,7 +79,8 @@ func (s *workSessionService) CheckOutOn(ctx context.Context, staffID int64, day 
 	}
 
 	// Close the session using repository method
-	closed, err := s.repo.CloseSession(ctx, session.ID, now, false)
+	closed, err := s.repo.CloseWorkSession(ctx, session.ID, now, false)
+	err = workSessionWriteError("close session", err)
 	if err != nil {
 		return nil, fmt.Errorf("failed to close session: %w", err)
 	}
@@ -95,7 +98,9 @@ func (s *workSessionService) CheckOutOn(ctx context.Context, staffID int64, day 
 	s.endActiveSupervisionsOnCheckout(ctx, staffID)
 
 	// Re-fetch the updated session
-	updatedSession, err := s.repo.FindByID(ctx, session.ID)
+	updatedSessionRecords, err := s.repo.FindWorkSession(ctx, session.ID)
+	updatedSession := workSessionReadRecord(updatedSessionRecords, err)
+	err = rowReadError("find by id", err, workforce.ErrWorkSessionNotFound)
 	if err != nil {
 		return nil, fmt.Errorf("failed to retrieve updated session: %w", err)
 	}
@@ -107,7 +112,9 @@ func (s *workSessionService) CheckOutOn(ctx context.Context, staffID int64, day 
 // openSessionForCheckout returns the open session of the requested day, or
 // ErrNoActiveSession when there is none.
 func (s *workSessionService) openSessionForCheckout(ctx context.Context, staffID int64, day calendar.Date) (*WorkSession, error) {
-	session, err := s.repo.GetOpenByStaffAndDate(ctx, staffID, day)
+	sessionRecords, err := s.repo.OpenWorkSessionOn(ctx, staffID, day.String())
+	session := workSessionReadRecord(sessionRecords, err)
+	err = rowReadError("get current by staff ID", err, workforce.ErrWorkSessionNotFound)
 	if err != nil {
 		if isRecordNotFound(err) {
 			return nil, workforce.ErrNoActiveSession
@@ -222,7 +229,9 @@ func (s *workSessionService) recordDeviationReason(ctx context.Context, session 
 // recalculates break minutes. endAt must not be after the session's checkout
 // time, or break rows end up ending after check_out_time.
 func (s *workSessionService) endActiveBreakIfExists(ctx context.Context, sessionID int64, endAt time.Time) error {
-	activeBreak, err := s.breakRepo.GetActiveBySessionID(ctx, sessionID)
+	activeBreakRecords, err := s.breakRepo.ListWorkSessionBreaks(ctx, workforce.WorkSessionBreakFilter{SessionID: sessionID, Active: boolPointer(true), Limit: 1})
+	activeBreak := firstWorkSessionBreak(activeBreakRecords)
+	err = rowReadError("get active break by session ID", err, nil)
 	if err != nil {
 		return fmt.Errorf("failed to check active break: %w", err)
 	}
@@ -236,7 +245,9 @@ func (s *workSessionService) endActiveBreakIfExists(ctx context.Context, session
 		endAt = activeBreak.StartedAt
 	}
 	duration := int(math.Round(endAt.Sub(activeBreak.StartedAt).Minutes()))
-	if err := s.breakRepo.EndBreak(ctx, activeBreak.ID, endAt, duration); err != nil {
+	affected, err := s.breakRepo.EndWorkSessionBreak(ctx, activeBreak.ID, endAt, duration)
+	err = breakMutationError("end break", affected, err)
+	if err != nil {
 		return fmt.Errorf("failed to end active break: %w", err)
 	}
 

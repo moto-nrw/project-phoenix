@@ -51,8 +51,8 @@ func (e Engine) LockStaffAbsenceWrites(ctx context.Context, staffID int64) error
 	return MapError(e.service.LockStaffAbsenceWrites(ctx, staffID))
 }
 
-func (e Engine) CreateStaffAbsence(ctx context.Context, value workforce.StaffAbsence) (workforce.StaffAbsence, error) {
-	created, err := e.service.CreateStaffAbsence(ctx, absenceToDomain(value))
+func (e Engine) CreateStaffAbsence(ctx context.Context, value *workforce.StaffAbsence) (workforce.StaffAbsence, error) {
+	created, err := e.service.CreateStaffAbsence(ctx, absenceToDomain(*value))
 	return AbsenceToPublic(created), MapError(err)
 }
 

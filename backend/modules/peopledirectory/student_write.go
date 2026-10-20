@@ -95,7 +95,7 @@ func (m *Module) VerifyStudentStrandingBatch(ctx context.Context) error {
 }
 
 func (m *Module) ListStudentCareEnds(ctx context.Context, ids []int64) (map[int64]string, error) {
-	ids = uniquePositive(ids)
+	ids = PositiveIDs(ids)
 	if len(ids) == 0 {
 		return map[int64]string{}, nil
 	}

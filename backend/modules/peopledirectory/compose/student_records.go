@@ -16,7 +16,7 @@ type StudentRepositoryDependencies struct {
 	DB       *bun.DB
 	Students usersRepo.StudentDirectoryRows
 	// Directory is the People Directory owner of the child's row.
-	Directory application.StudentRepositoryOwner
+	Directory *Directory
 	// Enrollment is the School Membership status of the child's enrollment.
 	Enrollment application.StudentEnrollmentStatus
 	// TeacherGroupIDs and TeacherStaffGroupIDs resolve the groups a teacher
@@ -29,5 +29,5 @@ type StudentRepositoryDependencies struct {
 
 func NewStudentRepository(dependencies StudentRepositoryDependencies) peoplePorts.StudentRepository {
 	repository := usersRepo.NewStudentRepository(NewLegacyRepositoryRuntime(dependencies.DB), dependencies.Students)
-	return application.NewBoundStudentRepository(repository, dependencies.Directory, dependencies.Enrollment, dependencies.TeacherGroupIDs, dependencies.TeacherStaffGroupIDs)
+	return application.NewStudentRecords(repository, dependencies.Directory.students, dependencies.Enrollment, dependencies.TeacherGroupIDs, dependencies.TeacherStaffGroupIDs)
 }

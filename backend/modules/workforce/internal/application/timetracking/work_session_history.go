@@ -15,7 +15,9 @@ import (
 )
 
 func (s *workSessionService) GetCurrentSession(ctx context.Context, staffID int64) (*WorkSession, error) {
-	session, err := s.repo.GetCurrentByStaffID(ctx, staffID)
+	sessionRecords, err := s.repo.TodayOpenWorkSession(ctx, staffID)
+	session := workSessionReadRecord(sessionRecords, err)
+	err = rowReadError("get current by staff ID", err, workforce.ErrWorkSessionNotFound)
 	if err != nil {
 		if isRecordNotFound(err) {
 			return nil, nil
@@ -27,7 +29,9 @@ func (s *workSessionService) GetCurrentSession(ctx context.Context, staffID int6
 }
 
 func (s *workSessionService) GetLatestOpenSession(ctx context.Context, staffID int64) (*WorkSession, error) {
-	session, err := s.repo.GetLatestOpenByStaffID(ctx, staffID)
+	sessionRecords, err := s.repo.LatestOpenWorkSession(ctx, staffID)
+	session := workSessionReadRecord(sessionRecords, err)
+	err = rowReadError("get latest open by staff ID", err, workforce.ErrWorkSessionNotFound)
 	if err != nil {
 		if isRecordNotFound(err) {
 			return nil, nil
@@ -39,7 +43,9 @@ func (s *workSessionService) GetLatestOpenSession(ctx context.Context, staffID i
 }
 
 func (s *workSessionService) GetHistory(ctx context.Context, staffID int64, from, to calendar.Date) (*HistoryResponse, error) {
-	sessions, err := s.repo.GetHistoryByStaffID(ctx, staffID, from, to)
+	sessionsRecords, err := s.repo.ListWorkSessions(ctx, workforce.WorkSessionFilter{StaffID: staffID, DateFrom: from.String(), DateTo: to.String(), Order: workSessionOrder(workforce.WorkSessionOrderDate, workforce.WorkSessionOrderCheckInTime)})
+	sessions := workSessionsToRecords(sessionsRecords)
+	err = rowReadError("get history by staff ID", err, nil)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get session history: %w", err)
 	}
@@ -48,7 +54,9 @@ func (s *workSessionService) GetHistory(ctx context.Context, staffID int64, from
 
 func (s *workSessionService) GetHistoryIntersecting(ctx context.Context, staffID int64, from, to calendar.Date) (*HistoryResponse, error) {
 	end := to.AddDays(1).BerlinMidnight()
-	sessions, err := s.repo.ListOverlappingByStaffID(ctx, staffID, from.BerlinMidnight(), &end)
+	sessionsRecords, err := s.repo.ListOverlappingWorkSessions(ctx, []int64{staffID}, from.BerlinMidnight(), &end)
+	sessions := workSessionsToRecords(sessionsRecords)
+	err = rowReadError("list overlapping by staff ID", err, nil)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get intersecting session history: %w", err)
 	}
@@ -78,7 +86,14 @@ func (s *workSessionService) historyResponse(ctx context.Context, staffID int64,
 	if err != nil {
 		return nil, fmt.Errorf("failed to get audit counts: %w", err)
 	}
-	breaksBySession, err := s.breakRepo.GetBySessionIDs(ctx, sessionIDs)
+	var breaksBySessionRecords []workforce.WorkSessionBreak
+	var breakErr error
+	if len(sessionIDs) > 0 {
+		breaksBySessionRecords, breakErr = s.breakRepo.ListWorkSessionBreaks(ctx, workforce.WorkSessionBreakFilter{SessionIDs: sessionIDs})
+	}
+	err = breakErr
+	breaksBySession := workBreaksBySession(breaksBySessionRecords)
+	err = rowReadError("get breaks by session IDs", err, nil)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get breaks: %w", err)
 	}
@@ -394,7 +409,9 @@ func summaryKeysOf(targets map[calendar.Date]int) map[summaryWeekKey]int {
 
 func (s *workSessionService) GetSessionEdits(ctx context.Context, staffID, sessionID int64) ([]*WorkSessionEditView, error) {
 	// Verify ownership: session must belong to requesting staff
-	session, err := s.repo.FindByID(ctx, sessionID)
+	sessionRecords, err := s.repo.FindWorkSession(ctx, sessionID)
+	session := workSessionReadRecord(sessionRecords, err)
+	err = rowReadError("find by id", err, workforce.ErrWorkSessionNotFound)
 	if err != nil {
 		return nil, s.handleSessionNotFoundError(err)
 	}
@@ -406,7 +423,9 @@ func (s *workSessionService) GetSessionEdits(ctx context.Context, staffID, sessi
 }
 
 func (s *workSessionService) GetSessionEditsForStaff(ctx context.Context, staffID, sessionID int64) ([]*WorkSessionEditView, error) {
-	session, err := s.repo.FindByID(ctx, sessionID)
+	sessionRecords, err := s.repo.FindWorkSession(ctx, sessionID)
+	session := workSessionReadRecord(sessionRecords, err)
+	err = rowReadError("find by id", err, workforce.ErrWorkSessionNotFound)
 	if err != nil {
 		return nil, s.handleSessionNotFoundError(err)
 	}

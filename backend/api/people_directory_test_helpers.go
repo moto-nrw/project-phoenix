@@ -34,8 +34,8 @@ type TestPersonDirectorySources struct {
 func NewTestPersonDirectory(db transactionruntime.Database, sources TestPersonDirectorySources) peoplePorts.PersonDirectory {
 	people := owners.MustNewPeopleDirectory(db)
 	deps := peoplePorts.PersonDirectoryDependencies{
-		PersonDirectory:  peopleCompose.NewPersonWrites(people),
-		StudentDirectory: peopleCompose.NewStudentDirectory(people),
+		PersonDirectory:  people.PersonWrites,
+		StudentDirectory: people.StudentDirectory,
 		PersonRepo:       sources.Persons,
 		RFIDRepo:         sources.RFIDCards,
 		AccountExists:    sources.AccountExists,

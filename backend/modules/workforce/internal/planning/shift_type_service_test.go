@@ -8,15 +8,14 @@ import (
 	"testing"
 	"time"
 
+	"github.com/moto-nrw/project-phoenix/modules/workforce"
 	planning "github.com/moto-nrw/project-phoenix/modules/workforce/internal/planning"
 	api "github.com/moto-nrw/project-phoenix/roots/owners"
-
-	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
-
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 	"github.com/moto-nrw/project-phoenix/tenant"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 	"github.com/uptrace/bun"
 )
 
@@ -36,17 +35,17 @@ func TestShiftTypeService_CreateValidationAndNameTaken(t *testing.T) {
 	ctx := testpkg.Ctx(t)
 
 	name := uniqueName("Betreuung")
-	created, err := svc.CreateShiftType(ctx, &planning.ShiftType{Name: name, Color: "#83CD2D", IsActive: true})
+	created, err := svc.CreateShiftType(ctx, &workforce.ShiftTypeRecord{Name: name, Color: "#83CD2D", IsActive: true})
 	require.NoError(t, err)
 	defer func() { _ = svc.DeleteShiftType(ctx, created.ID) }()
 	assert.Equal(t, "#83CD2D", created.Color)
 
 	// Same name (different case) must be rejected before hitting the DB.
-	_, err = svc.CreateShiftType(ctx, &planning.ShiftType{Name: " " + name + " ", Color: "#5080D8"})
+	_, err = svc.CreateShiftType(ctx, &workforce.ShiftTypeRecord{Name: " " + name + " ", Color: "#5080D8"})
 	require.ErrorIs(t, err, planning.ErrShiftTypeNameTaken)
 
 	// Empty name is an input error.
-	_, err = svc.CreateShiftType(ctx, &planning.ShiftType{Name: "   ", Color: "#5080D8"})
+	_, err = svc.CreateShiftType(ctx, &workforce.ShiftTypeRecord{Name: "   ", Color: "#5080D8"})
 	require.ErrorIs(t, err, planning.ErrShiftTypeInvalid)
 }
 
@@ -59,7 +58,7 @@ func TestShiftTypeService_UpdateAndDelete(t *testing.T) {
 	svc := planning.NewShiftTypeService(repos.ShiftType, slog.Default())
 	ctx := testpkg.Ctx(t)
 
-	created, err := svc.CreateShiftType(ctx, &planning.ShiftType{Name: uniqueName("Pause"), Color: "#6B7280", IsActive: true})
+	created, err := svc.CreateShiftType(ctx, &workforce.ShiftTypeRecord{Name: uniqueName("Pause"), Color: "#6B7280", IsActive: true})
 	require.NoError(t, err)
 
 	created.Name = uniqueName("Pause-neu")
@@ -125,11 +124,11 @@ func TestShiftTypeService_DeleteNullsReferencingShift(t *testing.T) {
 
 	staff := testpkg.CreateTestStaff(t, db, "ShiftType", "FKNull")
 
-	st, err := svc.CreateShiftType(ctx, &planning.ShiftType{Name: uniqueName("ToDelete"), Color: "#F78C10", IsActive: true})
+	st, err := svc.CreateShiftType(ctx, &workforce.ShiftTypeRecord{Name: uniqueName("ToDelete"), Color: "#F78C10", IsActive: true})
 	require.NoError(t, err)
 
 	// A shift that references the type.
-	shift := &planning.StaffShift{
+	shift := &workforce.ShiftRecord{
 		StaffID:     staff.ID,
 		Date:        calendar.NewDate(2026, time.July, 6),
 		StartTime:   time.Date(1, 1, 1, 8, 0, 0, 0, time.UTC),
@@ -166,7 +165,7 @@ func TestShiftTypeService_CreateInactivePersists(t *testing.T) {
 	svc := planning.NewShiftTypeService(repos.ShiftType, slog.Default())
 	ctx := testpkg.Ctx(t)
 
-	created, err := svc.CreateShiftType(ctx, &planning.ShiftType{
+	created, err := svc.CreateShiftType(ctx, &workforce.ShiftTypeRecord{
 		Name:     uniqueName("Inaktiv"),
 		Color:    "#6B7280",
 		IsActive: false,
@@ -183,11 +182,11 @@ func TestShiftTypeService_CreateInactivePersists(t *testing.T) {
 // shiftTypeTestRows serves the retained shift and shift-type rows over the
 // Workforce capability, as the composition root does (#3418).
 type shiftTypeTestRows struct {
-	StaffShift *planning.ShiftRows
-	ShiftType  *planning.ShiftTypeRows
+	StaffShift *shiftFixtureStore
+	ShiftType  workforce.Capability
 }
 
 func newShiftTypeTestRows(db *bun.DB) shiftTypeTestRows {
 	workforce := api.MustNewWorkforce(testpkg.MustDatabase(db))
-	return shiftTypeTestRows{StaffShift: planning.NewShiftRows(workforce), ShiftType: planning.NewShiftTypeRows(workforce)}
+	return shiftTypeTestRows{StaffShift: newShiftFixtureStore(workforce), ShiftType: workforce}
 }

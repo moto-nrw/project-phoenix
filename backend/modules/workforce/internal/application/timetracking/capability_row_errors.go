@@ -18,27 +18,6 @@ func rowsAffectedError(op string) error {
 	return recordErrors.WrapRecordError(op, fmt.Errorf("expected %d rows affected, got %d", 1, 0))
 }
 
-// legacyID accepts the integer shapes the generic repository's untyped id
-// parameter carried.
-func legacyID(id any) (int64, error) {
-	switch value := id.(type) {
-	case int64:
-		return value, nil
-	case int:
-		return int64(value), nil
-	case int32:
-		return int64(value), nil
-	case uint:
-		return int64(value), nil
-	case uint32:
-		return int64(value), nil
-	case uint64:
-		return int64(value), nil
-	default:
-		return 0, fmt.Errorf("unsupported id type %T", id)
-	}
-}
-
 // rowReadError restores the legacy read error shape: a missing row is the
 // retained not-found error, every other failure keeps its cause behind the
 // operation.

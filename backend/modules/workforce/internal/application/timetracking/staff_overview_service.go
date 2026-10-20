@@ -9,6 +9,8 @@ import (
 	"strings"
 	"time"
 
+	"github.com/moto-nrw/project-phoenix/modules/workforce"
+
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 )
 
@@ -145,11 +147,11 @@ type StaffOverviewService interface {
 
 type staffOverviewService struct {
 	staffRepo      OverviewStaffQuery
-	sessionRepo    WorkSessionRepository
-	breakRepo      WorkSessionBreakRepository
-	absenceRepo    StaffAbsenceRepository
-	adjustmentRepo StaffBalanceAdjustmentRepository
-	quotaRepo      StaffVacationQuotaRepository
+	sessionRepo    WorkSessionRecords
+	breakRepo      WorkSessionBreakRecords
+	absenceRepo    AbsenceRecords
+	adjustmentRepo BalanceAdjustmentRecords
+	quotaRepo      VacationQuotaRecords
 	snapshotRepo   MonthSnapshots
 	scheduleRepo   OverviewWorkSchedules
 	workModelRepo  OverviewWorkTimeModels
@@ -159,7 +161,7 @@ type staffOverviewService struct {
 	overrideReader TargetOverrideReader
 	// openingRepo carries the vacation takeover rows (#2132); supplied by
 	// WithOverviewVacationOpenings, nil in bare unit fixtures.
-	openingRepo StaffVacationOpeningRepository
+	openingRepo VacationOpeningRecords
 	logger      *slog.Logger
 
 	// todayFunc is a test hook; production uses timezone.TodayDate.
@@ -168,11 +170,11 @@ type staffOverviewService struct {
 
 func NewStaffOverviewService(
 	staffRepo OverviewStaffQuery,
-	sessionRepo WorkSessionRepository,
-	breakRepo WorkSessionBreakRepository,
-	absenceRepo StaffAbsenceRepository,
-	adjustmentRepo StaffBalanceAdjustmentRepository,
-	quotaRepo StaffVacationQuotaRepository,
+	sessionRepo WorkSessionRecords,
+	breakRepo WorkSessionBreakRecords,
+	absenceRepo AbsenceRecords,
+	adjustmentRepo BalanceAdjustmentRecords,
+	quotaRepo VacationQuotaRecords,
 	snapshotRepo MonthSnapshots,
 	scheduleRepo OverviewWorkSchedules,
 	workModelRepo OverviewWorkTimeModels,
@@ -316,7 +318,9 @@ type overviewVacation struct {
 // in the year of the SELECTED month, not of today: a December view opened in
 // January must not show the new year's quota.
 func (s *staffOverviewService) prefetchOverviewVacation(ctx context.Context, staffIDs []int64, key monthKey, today calendar.Date) (overviewVacation, error) {
-	quotas, err := s.quotaRepo.GetByStaffIDsAndYear(ctx, staffIDs, key.Year)
+	quotaValues, err := s.quotaRepo.ListStaffVacationQuotas(ctx, workforce.StaffVacationFilter{StaffIDs: staffIDs, Year: key.Year})
+	quotas := quotasByStaff(quotaValues)
+	err = rowReadError("get vacation quotas by staff IDs+year", err, nil)
 	if err != nil {
 		return overviewVacation{}, fmt.Errorf("failed to prefetch vacation quotas: %w", err)
 	}
@@ -329,10 +333,9 @@ func (s *staffOverviewService) prefetchOverviewVacation(ctx context.Context, sta
 	if key.before(monthOf(today)) {
 		vacationThrough = key.lastDay()
 	}
-	vacationAbsences, err := s.absenceRepo.GetByStaffIDsAndDateRange(ctx, staffIDs,
-		calendar.NewDate(key.Year, time.January, 1),
-		vacationThrough,
-	)
+	absenceValues, err := s.absenceRepo.ListStaffAbsences(ctx, workforce.StaffAbsenceFilter{StaffIDs: staffIDs, OverlapFrom: calendar.NewDate(key.Year, time.January, 1).String(), OverlapTo: vacationThrough.String(), Order: []workforce.StaffAbsenceOrder{{Field: workforce.StaffAbsenceOrderStaffID}, {Field: workforce.StaffAbsenceOrderDateStart}}})
+	vacationAbsences := staffAbsencesByID(absenceValues)
+	err = rowReadError("get absences by staff IDs and date range", err, nil)
 	if err != nil {
 		return overviewVacation{}, fmt.Errorf("failed to prefetch vacation absences: %w", err)
 	}
@@ -399,7 +402,9 @@ func (s *staffOverviewService) prefetchVacationOpenings(ctx context.Context, sta
 	if s.openingRepo == nil {
 		return map[int64]*StaffVacationOpening{}, nil
 	}
-	openings, err := s.openingRepo.GetByStaffIDsAndYear(ctx, staffIDs, year)
+	openingValues, err := s.openingRepo.ListStaffVacationOpenings(ctx, workforce.StaffVacationFilter{StaffIDs: staffIDs, Year: year})
+	openings := openingsByStaff(openingValues)
+	err = rowReadError("get vacation openings by staff IDs+year", err, nil)
 	if err != nil {
 		return nil, fmt.Errorf("failed to prefetch vacation openings: %w", err)
 	}

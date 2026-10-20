@@ -215,12 +215,12 @@ func ComposeWorker(db transactionruntime.Database, env RootEnvironment, hub *rea
 		bookings         *enrollmentOwner.BookingProjection
 		settings         SettingsOwner
 		calendar         *schoolcalendar.Records
-		workTime         *workforceModule.Module
+		workTime         *workforceCompose.WorkTime
 		people           PeopleRows
 		peopleIdentity   *identityaccess.Module
 		guardian         peoplePorts.GuardianService
 		photoRuntime     StudentPhotoRuntime
-		persons          *peopledirectory.Module
+		persons          *peopleCompose.Directory
 		timetableOwner   *timetable.Module
 		timetableRepos   TimetableRepositories
 		carePlan         *carePlanModule.Module

@@ -102,10 +102,10 @@ func TimeTrackingRows(capability workforce.Capability) Rows {
 		TargetOverrides:  capability,
 		MonthSnapshots:   MonthSnapshotCapability(capability),
 		AbsenceTypes:     AbsenceTypes(capability),
-		Sessions:         NewWorkSessionRows(capability),
-		Breaks:           NewWorkSessionBreakRows(capability),
-		Adjustments:      NewBalanceAdjustmentRows(capability),
-		VacationQuotas:   NewVacationQuotaRows(capability),
-		VacationOpenings: NewVacationOpeningRows(capability),
+		Sessions:         capability,
+		Breaks:           capability,
+		Adjustments:      capability,
+		VacationQuotas:   capability,
+		VacationOpenings: capability,
 	}
 }

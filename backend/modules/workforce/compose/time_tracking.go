@@ -87,7 +87,7 @@ func NewWorkSessionSide(capability workforce.Capability, ports TimeTrackingPorts
 type TimeTrackingCleanupDependencies struct {
 	Workforce workforce.Capability
 	// Absences serves the staff absence rows with their retained relations.
-	Absences StaffAbsenceRepository
+	Absences AbsenceRecords
 	// Audit records the deletion evidence; nil runs without it.
 	Audit    DeletionAudit
 	Settings TimeTrackingCleanupSettings
@@ -101,7 +101,7 @@ func NewTimeTrackingCleanup(deps TimeTrackingCleanupDependencies) (TimeTrackingC
 		return nil, errors.New("time tracking cleanup: the Workforce capability is required")
 	}
 	return timetracking.NewCleanup(timetracking.CleanupDependencies{
-		Sessions: timetracking.NewWorkSessionRows(deps.Workforce), Absences: deps.Absences, Audit: deps.Audit, Settings: deps.Settings, Logger: deps.Logger,
+		Sessions: deps.Workforce, Absences: deps.Absences, Audit: deps.Audit, Settings: deps.Settings, Logger: deps.Logger,
 	})
 }
 

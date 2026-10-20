@@ -1,31 +1,38 @@
 package compose
 
 import (
+	"context"
+	"errors"
+
 	"github.com/moto-nrw/project-phoenix/modules/workforce"
 	"github.com/moto-nrw/project-phoenix/modules/workforce/internal/application/timetracking"
 )
 
-// The root wraps the absence rows with the School Membership and People
-// Directory lookups of the request listing and names them through the
-// aliases below.
-
-// The staff absence row contracts the root's decorators and their suites name.
-type (
-	StaffAbsence                = timetracking.StaffAbsence
-	StaffAbsenceRepository      = timetracking.StaffAbsenceRepository
-	StaffAbsenceAuditRepository = timetracking.StaffAbsenceAuditRepository
-	AbsenceRequestFilter        = timetracking.AbsenceRequestFilter
-	AbsenceRequestRow           = timetracking.AbsenceRequestRow
-)
-
-// NewStaffAbsenceRepository serves StaffAbsenceRepository from the Workforce
-// capability.
-func NewStaffAbsenceRepository(capability workforce.Capability) StaffAbsenceRepository {
-	return timetracking.NewStaffAbsenceRows(capability)
+// AbsenceRequestRecords is the enriched request-list port supplied by the root.
+type AbsenceRequestRecords interface {
+	AbsenceRecords
+	ListRequests(context.Context, AbsenceRequestFilter) ([]*AbsenceRequestRow, error)
 }
 
-// NewStaffAbsenceAuditRepository serves StaffAbsenceAuditRepository from the
-// Workforce capability.
-func NewStaffAbsenceAuditRepository(capability workforce.Capability) StaffAbsenceAuditRepository {
-	return timetracking.NewStaffAbsenceAuditRows(capability)
+type (
+	StaffAbsence         = timetracking.StaffAbsence
+	AbsenceRecords       = timetracking.AbsenceRecords
+	AbsenceAuditRecords  = timetracking.AbsenceAuditRecords
+	AbsenceRequestFilter = timetracking.AbsenceRequestFilter
+	AbsenceRequestRow    = timetracking.AbsenceRequestRow
+)
+
+// AbsenceRequestRows maps the native list result for root-owned person enrichment.
+func AbsenceRequestRows(values []workforce.StaffAbsence, err error) ([]*AbsenceRequestRow, error) {
+	if err != nil {
+		if errors.Is(err, workforce.ErrInvalidStaffAbsence) {
+			return nil, errors.New(err.Error())
+		}
+		return nil, timetracking.AbsenceRequestReadError(err)
+	}
+	rows := make([]*AbsenceRequestRow, 0, len(values))
+	for _, value := range values {
+		rows = append(rows, &AbsenceRequestRow{StaffAbsence: timetracking.AbsenceRecord(value)})
+	}
+	return rows, nil
 }

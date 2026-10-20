@@ -11,7 +11,6 @@ import (
 	careplanCompose "github.com/moto-nrw/project-phoenix/modules/careplan/compose"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
 	identityCompose "github.com/moto-nrw/project-phoenix/modules/identityaccess/compose"
-	"github.com/moto-nrw/project-phoenix/modules/peopledirectory"
 	peopleCompose "github.com/moto-nrw/project-phoenix/modules/peopledirectory/compose"
 	peoplePorts "github.com/moto-nrw/project-phoenix/modules/peopledirectory/ports"
 	membershipCompose "github.com/moto-nrw/project-phoenix/modules/schoolmembership/compose"
@@ -31,14 +30,14 @@ var GuardianRolePresets = peoplePorts.GuardianRolePresetFuncs{
 // NewPeopleDirectory composes the person and student owner for test graphs
 // and CLI roots, without guardian provider and photo runtime. The serve root
 // composes the observed instance through buildPeopleDirectory.
-func NewPeopleDirectory(db transactionruntime.Database) (peopledirectory.Capability, error) {
+func NewPeopleDirectory(db transactionruntime.Database) (*peopleCompose.Directory, error) {
 	return NewPeopleDirectoryWithObserver(db, func(peopleCompose.Observation) {}, nil, nil)
 }
 
 // MustNewPeopleDirectory is NewPeopleDirectory for composition seams that
 // cannot return an error; composing only fails on missing dependencies, which
 // is a programming error at wiring time.
-func MustNewPeopleDirectory(db transactionruntime.Database) peopledirectory.Capability {
+func MustNewPeopleDirectory(db transactionruntime.Database) *peopleCompose.Directory {
 	capability, err := NewPeopleDirectory(db)
 	if err != nil {
 		panic(fmt.Sprintf("compose people directory: %v", err))
@@ -54,7 +53,7 @@ func MustNewPeopleDirectory(db transactionruntime.Database) peopledirectory.Capa
 func NewPeopleDirectoryWithObserver(
 	db transactionruntime.Database, observe func(peopleCompose.Observation),
 	guardians *peopleCompose.GuardianDirectoryProvider, photos peopleCompose.StudentPhotoRuntime,
-) (*peopledirectory.Module, error) {
+) (*peopleCompose.Directory, error) {
 	// Care Plan's companion slice is constructible from the database alone, so
 	// the directory's write path gets it here rather than waiting for the full
 	// Care Plan — which needs this directory and therefore cannot be built yet.

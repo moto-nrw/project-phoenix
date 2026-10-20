@@ -27,7 +27,7 @@ func TestFutureCompTimeCommitmentQueryBudget(t *testing.T) {
 
 	testpkg.CreateTestStaffWorkScheduleForTenant(t, db, tenantID, staff.ID, timetracking.DayMonday, 480, scheduleValidFrom)
 	service := timetracking.NewWorkTimeMonthService(
-		workforceCompose.NewTimeTrackingTestRows(workTime).Sessions, workforceCompose.NewTimeTrackingTestRows(workTime).Breaks, repos.StaffAbsence, workforceCompose.StaffScheduleAssignments(api.MustNewStaffEmployment(testpkg.NewDatabase(t, db))),
+		workTime, workTime, repos.StaffAbsence, workforceCompose.StaffScheduleAssignments(api.MustNewStaffEmployment(testpkg.NewDatabase(t, db))),
 		owners.NewWorkScheduleTargets(owners.NewStaffWorkScheduleRepository(workTime)), owners.NewWorkTimeTargetModels(owners.NewWorkTimeModelRepository(workTime)), workforceCompose.NewTimeTrackingShifts(workTime),
 		wtmIntSettings{accountStart: "2020-01-01"}, nil,
 	)
@@ -41,7 +41,10 @@ func TestFutureCompTimeCommitmentQueryBudget(t *testing.T) {
 				CreatedBy: staff.ID,
 			}
 			absence.SetTenantID(tenantID)
-			require.NoError(t, repos.StaffAbsence.Create(ctx, absence))
+			absenceCommand1 := timetracking.StaffAbsenceToCapability(absence)
+			createdTimeRecord1, err := repos.StaffAbsence.CreateStaffAbsence(ctx, &absenceCommand1)
+			require.NoError(t, err)
+			*absence = *timetracking.AbsenceRecord(createdTimeRecord1)
 		}
 	}
 	add(0, 3)

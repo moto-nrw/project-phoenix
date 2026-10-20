@@ -26,12 +26,12 @@ func TestCustomAbsenceAllowanceCannotDropBelowUsedDays(t *testing.T) {
 	}
 	_, err = svc.SetAllowance(ctx, claim)
 	require.NoError(t, err)
-	_, err = svc.CreateStaffAbsence(ctx, workforce.StaffAbsence{
+	_, err = svc.CreateStaffAbsence(ctx, &workforce.StaffAbsence{
 		StaffID: staff.ID, CreatedBy: admin.ID, AbsenceType: workforce.AbsenceTypeOther, AbsenceTypeID: &typ.ID,
 		Status: workforce.AbsenceStatusReported, DateStart: "2026-09-07", DateEnd: "2026-09-07",
 	})
 	require.NoError(t, err)
-	_, err = svc.CreateStaffAbsence(ctx, workforce.StaffAbsence{
+	_, err = svc.CreateStaffAbsence(ctx, &workforce.StaffAbsence{
 		StaffID: staff.ID, CreatedBy: staff.ID, AbsenceType: workforce.AbsenceTypeOther, AbsenceTypeID: &typ.ID,
 		Status: workforce.AbsenceStatusRequested, DateStart: "2026-09-08", DateEnd: "2026-09-08", HalfDay: true,
 		StartHalfDay: true, EndHalfDay: true,

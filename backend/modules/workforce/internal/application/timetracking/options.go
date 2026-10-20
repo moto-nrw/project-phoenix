@@ -108,7 +108,7 @@ func WithAbsenceEvents(publisher EventPublisher) StaffAbsenceOption {
 
 // WithVacationOpenings supplies the vacation takeover repository (#2132).
 // Without it summaries carry no takeover and the write paths fail loudly.
-func WithVacationOpenings(repo StaffVacationOpeningRepository) StaffAbsenceOption {
+func WithVacationOpenings(repo VacationOpeningRecords) StaffAbsenceOption {
 	return func(s *staffAbsenceService) { s.openingRepo = repo }
 }
 
@@ -163,7 +163,7 @@ func WithOverviewTargetOverrides(reader TargetOverrideReader) StaffOverviewOptio
 
 // WithOverviewVacationOpenings supplies the vacation takeover reader (#2132).
 // Without it the overview ignores takeovers.
-func WithOverviewVacationOpenings(repo StaffVacationOpeningRepository) StaffOverviewOption {
+func WithOverviewVacationOpenings(repo VacationOpeningRecords) StaffOverviewOption {
 	return func(s *staffOverviewService) { s.openingRepo = repo }
 }
 

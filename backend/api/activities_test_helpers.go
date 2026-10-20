@@ -39,8 +39,8 @@ func NewActivitiesTestModule(db transactionruntime.Database) (ActivitiesTestModu
 	}
 	// Activities consumes the owner's timeframe reads and staff-directory reads only.
 	users := peopleCompose.NewPersonDirectory(peoplePorts.PersonDirectoryDependencies{
-		PersonDirectory:  peopleCompose.NewPersonWrites(owners.MustNewPeopleDirectory(db)),
-		StudentDirectory: peopleCompose.NewStudentDirectory(owners.MustNewPeopleDirectory(db)),
+		PersonDirectory:  owners.MustNewPeopleDirectory(db).PersonWrites,
+		StudentDirectory: owners.MustNewPeopleDirectory(db).StudentDirectory,
 		PersonRepo:       members.Person, TeacherRepo: members.Teacher,
 		StaffDirectory: peopleCompose.NewStaffDirectory(peoplePorts.StaffDirectoryDependencies{Runtime: peopleCompose.NewLegacyRepositoryRuntime(db.Pool()), Persons: members.Person, Staff: members.Staff, Teachers: members.Teacher, MayManageStaff: StaffAdministrationPermitted}),
 	})

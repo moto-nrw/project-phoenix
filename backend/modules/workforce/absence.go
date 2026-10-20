@@ -256,7 +256,7 @@ type AbsenceCommand interface {
 	// member inside the ambient transaction. It takes the shared staff
 	// balance lock first, because effective absences change the Stundenkonto.
 	LockStaffAbsenceWrites(context.Context, int64) error
-	CreateStaffAbsence(context.Context, StaffAbsence) (StaffAbsence, error)
+	CreateStaffAbsence(context.Context, *StaffAbsence) (StaffAbsence, error)
 	// UpdateStaffAbsence rewrites every column of the absence.
 	UpdateStaffAbsence(context.Context, StaffAbsence) (StaffAbsence, error)
 	DeleteStaffAbsence(context.Context, int64) error
@@ -425,7 +425,10 @@ func (m *Module) LockStaffAbsenceWrites(ctx context.Context, staffID int64) erro
 	return m.engine.LockStaffAbsenceWrites(ctx, staffID)
 }
 
-func (m *Module) CreateStaffAbsence(ctx context.Context, absence StaffAbsence) (StaffAbsence, error) {
+func (m *Module) CreateStaffAbsence(ctx context.Context, absence *StaffAbsence) (StaffAbsence, error) {
+	if absence == nil {
+		return StaffAbsence{}, errors.New("StaffAbsence cannot be nil or zero value")
+	}
 	return m.engine.CreateStaffAbsence(ctx, absence)
 }
 

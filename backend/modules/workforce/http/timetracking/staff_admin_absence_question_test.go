@@ -58,7 +58,7 @@ func TestQuestionAbsence_Success(t *testing.T) {
 	rec := postQuestion(t, tc, token, absenceID, "Bitte Vertretung klären")
 	require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
 
-	updated, err := newWorkforceTestRepositories(t, tc.db).StaffAbsence.FindByID(testpkg.Ctx(t), absenceID)
+	updated, err := newWorkforceTestRepositories(t, tc.db).StaffAbsence.FindStaffAbsence(testpkg.Ctx(t), absenceID)
 	require.NoError(t, err)
 	assert.Equal(t, absenceStatusQuestn, updated.Status)
 	assert.Equal(t, "Bitte Vertretung klären", updated.DecisionNote)

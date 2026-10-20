@@ -6,12 +6,14 @@ package planning
 import (
 	"testing"
 
+	"github.com/moto-nrw/project-phoenix/modules/workforce"
+
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
-func typedShift(t *testing.T, staffID int64, date calendar.Date, start, end string, typeID int64) *StaffShift {
+func typedShift(t *testing.T, staffID int64, date calendar.Date, start, end string, typeID int64) *workforce.ShiftRecord {
 	t.Helper()
 	shift := testShift(t, staffID, date, start, end)
 	shift.ShiftTypeID = &typeID
@@ -34,7 +36,7 @@ func TestPlannedShiftMinutesByType_SplitsTheWeeklyTotal(t *testing.T) {
 	cancelled.Cancelled = true
 	otherStaff := typedShift(t, 8, monday, "08:00", "09:00", 2)
 
-	shifts := []*StaffShift{ganztag, vertretung, verfuegung, untyped, cancelled, otherStaff}
+	shifts := []*workforce.ShiftRecord{ganztag, vertretung, verfuegung, untyped, cancelled, otherStaff}
 	byType := plannedShiftMinutesByType(shifts)
 	key := staffDateKey{StaffID: 7, Date: monday}
 
