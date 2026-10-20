@@ -3,6 +3,7 @@ package application
 import (
 	"testing"
 
+	"github.com/moto-nrw/project-phoenix/modules/timetable"
 	"github.com/moto-nrw/project-phoenix/modules/timetable/internal/domain"
 	"github.com/stretchr/testify/assert"
 )
@@ -12,7 +13,7 @@ func TestMatchTargetStudents(t *testing.T) {
 	grade := int16(2)
 	class := "2b"
 	educationGroupID := int64(len(t.Name()))
-	targets := map[int64][]domain.GroupTarget{
+	targets := map[int64][]timetable.GroupTarget{
 		10: {{TargetGroupType: "jahrgang", TargetGradeLevel: &grade}},
 		20: {{TargetGroupType: "klasse", TargetSchoolClass: &class}},
 		30: {{TargetGroupType: "gruppe", EducationGroupID: &educationGroupID}},

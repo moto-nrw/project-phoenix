@@ -101,7 +101,7 @@ func composeServeRoot(
 		guardian         peoplePorts.GuardianService
 		photoRuntime     owners.StudentPhotoRuntime
 		persons          *peopleCompose.Directory
-		timetableOwner   *timetable.Module
+		timetableOwner   timetable.Owner
 		timetableRepos   owners.TimetableRepositories
 		carePlan         *carePlanModule.Module
 		appointments     appointmentsModule.Capability

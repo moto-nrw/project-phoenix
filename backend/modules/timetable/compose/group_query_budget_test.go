@@ -44,7 +44,7 @@ func assertQueryCountStable(t *testing.T, small, large map[string][]string, scen
 	assert.Equal(t, len(small[scenario]), len(large[scenario]), "%s must not grow with group count", scenario)
 }
 
-func addBudgetGroups(t *testing.T, ctx context.Context, module *timetable.Module, categoryID int64, from, to int) []int64 {
+func addBudgetGroups(t *testing.T, ctx context.Context, module timetable.Owner, categoryID int64, from, to int) []int64 {
 	t.Helper()
 	groupIDs := make([]int64, 0, to-from)
 	for i := from; i < to; i++ {
@@ -59,7 +59,7 @@ func addBudgetGroups(t *testing.T, ctx context.Context, module *timetable.Module
 	return groupIDs
 }
 
-func captureGroupQueries(t *testing.T, ctx context.Context, module *timetable.Module, counter *testpkg.QueryCounter, groupIDs []int64) map[string][]string {
+func captureGroupQueries(t *testing.T, ctx context.Context, module timetable.Owner, counter *testpkg.QueryCounter, groupIDs []int64) map[string][]string {
 	t.Helper()
 	result := make(map[string][]string, 3)
 	counter.Reset()

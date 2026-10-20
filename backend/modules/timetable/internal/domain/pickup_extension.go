@@ -1,7 +1,5 @@
 package domain
 
-import "errors"
-
 // Date is a calendar day in the Timetable domain. The module's public
 // capability owns string API boundaries and cannot import internal/timezone
 // under the architecture policy, so composition converts validated ISO dates
@@ -10,11 +8,6 @@ type Date string
 
 func (d Date) IsZero() bool   { return d == "" }
 func (d Date) String() string { return string(d) }
-
-var (
-	ErrPickupExtensionNotFound  = errors.New("pickup extension task not found")
-	ErrPickupExtensionBlockGone = errors.New("pickup extension block is no longer available")
-)
 
 // PickupExtensionTask is one stored later-pickup decision (#3261). Exactly
 // one of Date (day task) or Weekday/EffectiveFrom (weekday task) is set.
