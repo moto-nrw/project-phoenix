@@ -376,9 +376,9 @@ export function Header() {
 
           {/* Right section: Actions + Profile */}
           <div className="ml-auto flex flex-shrink-0 items-center space-x-2">
-            {/* Das Fragezeichen steht bei den Aktionen (#4345, 01.16): direkt
-                hinter der Brotkrume las es sich als Teil des Seitennamens
-                oder als Darstellungsfehler. */}
+            {/* Das Fragezeichen steht bei den Aktionen (#4345): direkt hinter
+                der Brotkrume las es sich als Teil des Seitennamens oder als
+                Darstellungsfehler. */}
             {contextualHelpTopic ? (
               <ContextHelpLink
                 topic={contextualHelpTopic}
