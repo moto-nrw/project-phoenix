@@ -61,6 +61,12 @@ type CareLifecycle struct {
 	today                 func() calendar.Date
 }
 
+// Resume refusals remain internal failures; preview blocker copy stays separate.
+var (
+	errCareResumeUnknownStudent = errors.New("dieses Kind gibt es in Ihrer Schule nicht (mehr)")
+	errCareResumeAlumnus        = errors.New("dieses Kind wurde beim Jahrgangswechsel abgemeldet. Sie finden es unter Jahrgangswechsel, Bereich Abgänge")
+)
+
 var _ careplan.CareLifecycle = (*CareLifecycle)(nil)
 
 // NewCareLifecycle validates the wiring and builds the lifecycle.
@@ -403,10 +409,10 @@ func (s *CareLifecycle) resumeCare(ctx context.Context, input careplan.CareResum
 	}
 	student, found := locked[input.StudentID]
 	if !found {
-		return errors.New(careplan.CareBlockerUnknown) //nolint:staticcheck // ST1005: user-facing German message
+		return errCareResumeUnknownStudent
 	}
 	if student.IsAlumnus() {
-		return errors.New(careplan.CareBlockerAlumnus) //nolint:staticcheck // ST1005: user-facing German message
+		return errCareResumeAlumnus
 	}
 	if !student.CareEndedOn(today) {
 		return careplan.ErrCareResumeNotEnded

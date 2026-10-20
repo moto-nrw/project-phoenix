@@ -37,7 +37,7 @@ func TestCarePlanDecisionErrorsGolden(t *testing.T) {
 			{careplan.ErrOfferingChangeCapacityFull, http.StatusConflict, "students.offering_change_capacity_full", "enrollment: care offering is at capacity"},
 			{careplan.ErrOfferingChangeNoEnrollment, http.StatusConflict, "students.offering_changes_no_enrollment", "enrollment: child has no approved enrollment"},
 			{careplan.ErrOfferingChangeDateOutOfRange, http.StatusBadRequest, "students.offering_change_date_out_of_range", "enrollment: confirmed effective date is out of range"},
-			{careplan.ErrCompleteWithdrawalConfirmationRequired, http.StatusConflict, "enrollment.complete_withdrawal_confirmation_required", "Alle Betreuungstage werden entfernt. Bitte bestätigen Sie die Komplett-Abmeldung."},
+			{careplan.ErrCompleteWithdrawalConfirmationRequired, http.StatusConflict, "enrollment.complete_withdrawal_confirmation_required", "alle Betreuungstage werden entfernt. Bitte bestätigen Sie die Komplett-Abmeldung"},
 			{careplan.ErrOfferingChangeInvalid, http.StatusBadRequest, "", "enrollment: invalid offering change request"},
 			{careplan.ErrOfferingAdjustmentInvalid, http.StatusBadRequest, "", "offering adjustment is invalid"},
 		} {
@@ -53,7 +53,7 @@ func TestCarePlanDecisionErrorsGolden(t *testing.T) {
 			{careplan.ErrPickupAdjustmentFutureManualReset, http.StatusConflict, "pickup.future_manual_reset", "pickup adjustment: manual pickup times can only be reset today"},
 			{careplan.ErrOfferingChangeCapacityFull, http.StatusConflict, "pickup.offering_capacity_full", "enrollment: care offering is at capacity"},
 			{careplan.ErrCareOfferingsDisabled, http.StatusConflict, "pickup.offerings_disabled", "care offerings are disabled for this tenant"},
-			{careplan.ErrCompleteWithdrawalConfirmationRequired, http.StatusConflict, "enrollment.complete_withdrawal_confirmation_required", "Alle Betreuungstage werden entfernt. Bitte bestätigen Sie die Komplett-Abmeldung."},
+			{careplan.ErrCompleteWithdrawalConfirmationRequired, http.StatusConflict, "enrollment.complete_withdrawal_confirmation_required", "alle Betreuungstage werden entfernt. Bitte bestätigen Sie die Komplett-Abmeldung"},
 			{careplan.ErrOfferingChangeDateOutOfRange, http.StatusBadRequest, "pickup.invalid", "enrollment: confirmed effective date is out of range"},
 			{careplan.ErrOfferingChangeInvalid, http.StatusBadRequest, "pickup.invalid", "enrollment: invalid offering change request"},
 			{careplan.ErrPickupAdjustmentInvalid, http.StatusBadRequest, "pickup.invalid", "pickup adjustment: invalid input"},

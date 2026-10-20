@@ -224,11 +224,9 @@ func GermanUploadError(err error, maxFileSize int64) error {
 	errors.As(err, &refusal)
 	switch {
 	case errors.Is(err, ErrUploadTooLarge), refusal.code == CodeFilesFileTooLarge:
-		//nolint:staticcheck // ST1005: user-facing German message
-		return fmt.Errorf("Diese Datei ist zu groß. Erlaubt sind bis zu %d MB.", uploadLimitMB(maxFileSize))
+		return fmt.Errorf("diese Datei ist zu groß. Erlaubt sind bis zu %d MB", uploadLimitMB(maxFileSize))
 	case errors.Is(err, ErrUploadMissing), refusal.code == CodeFilesFileMissing:
-		//nolint:staticcheck // ST1005: user-facing German message
-		return errors.New("Es wurde keine Datei ausgewählt.")
+		return errors.New("es wurde keine Datei ausgewählt")
 	default:
 		return err
 	}

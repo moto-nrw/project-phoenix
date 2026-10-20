@@ -43,7 +43,7 @@ var (
 	ErrPersonnelNumberConflict = errors.New("personnel number is already assigned")
 	// ErrStaffStillReferenced refuses offboarding a staff member other rows
 	// still point at. It is user-facing copy and keeps its capital letter.
-	ErrStaffStillReferenced = errors.New("Personal kann nicht gelöscht werden: Mitarbeiter/in wird noch in anderen Bereichen referenziert") //nolint:staticcheck // ST1005: user-facing German message
+	ErrStaffStillReferenced = errors.New("personal kann nicht gelöscht werden: Mitarbeiter/in wird noch in anderen Bereichen referenziert")
 )
 
 // InvalidMembershipError carries the validation reason; it unwraps to

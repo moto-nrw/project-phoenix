@@ -27,14 +27,14 @@ var (
 	// non-admin: it reaches siblings the caller may not supervise.
 	ErrGuardianForceDeleteRequiresAdmin = errors.New("only administrators can fully delete a guardian linked to students")
 	// ErrGuardianDeletePreviewChanged reports that the links changed since
-	// the admin confirmed the preview. The text is rendered verbatim.
-	ErrGuardianDeletePreviewChanged = errors.New("Die Verknüpfungen haben sich seit der Vorschau geändert. Bitte erneut prüfen.") //nolint:staticcheck // ST1005: user-facing German message
+	// the admin confirmed the preview. The text is diagnostic detail.
+	ErrGuardianDeletePreviewChanged = errors.New("die Verknüpfungen haben sich seit der Vorschau geändert. Bitte erneut prüfen")
 	// ErrGuardianLinkConflict marks a delete that tripped the RESTRICT link
 	// constraint because a link was added after the check.
 	ErrGuardianLinkConflict = errors.New("guardian is linked to students")
 	// ErrPayerRemovalRequiresFinancial refuses to unlink the child's payer
-	// without the financial permission. The text is rendered verbatim.
-	ErrPayerRemovalRequiresFinancial = errors.New("Diese Person ist als Zahler für das Kind eingetragen. Zum Entfernen ist die Berechtigung für Bankverbindungen nötig. Bitte wenden Sie sich an die Schulleitung.") //nolint:staticcheck // ST1005: user-facing German message
+	// without the financial permission. The text is diagnostic detail.
+	ErrPayerRemovalRequiresFinancial = errors.New("diese Person ist als Zahler für das Kind eingetragen. Zum Entfernen ist die Berechtigung für Bankverbindungen nötig. Bitte wenden Sie sich an die Schulleitung")
 
 	// Payment input errors (#2608); each one maps to a German sentence in the
 	// HTTP adapter.

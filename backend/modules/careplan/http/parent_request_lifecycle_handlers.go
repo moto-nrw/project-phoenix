@@ -112,8 +112,8 @@ type correctRequestBody struct {
 }
 
 // correctionUnsupportedReasons names, per kind, why a decision cannot be
-// reverted. The message reaches the reviewer verbatim, so it says what to do
-// instead rather than only that it failed.
+// reverted. These messages are diagnostic detail; the reviewer sees the
+// catalog text selected by the error code.
 var correctionUnsupportedReasons = map[string]string{
 	requestTypeOffering: "Angebote speichern keinen Stand von vor der Entscheidung. " +
 		"Bitte ändern Sie die Buchung des Kindes direkt.",

@@ -148,7 +148,7 @@ func TestCreateStudent_GuardianFailureRollsBackStudent(t *testing.T) {
 	// surrounding transaction rolls back so no orphaned student survives.
 	assert.Equal(t, http.StatusBadRequest, rr.Code,
 		"invalid guardian email must return 400. Body: %s", rr.Body.String())
-	assert.Contains(t, rr.Body.String(), "Erziehungsberechtigte",
+	assert.Contains(t, rr.Body.String(), "erziehungsberechtigte",
 		"400 body should name the offending guardian, not a generic server error")
 
 	ctx := context.Background()

@@ -26,9 +26,9 @@ const (
 )
 
 // Sentinels shared by the bulk, resolve, decide, correct and mark-done routes
-// of every request kind. The routes render their text verbatim, so the
-// strings are part of the wire contract and predate the move of the
-// coordination into Care Plan (#3354).
+// of every request kind. The routes send their text as diagnostic detail;
+// clients show the code catalog. They predate the move of the coordination
+// into Care Plan (#3354).
 var (
 	// ErrInvalidBulkRequest means the bulk command itself is malformed.
 	ErrInvalidBulkRequest = errors.New("parent requests: invalid bulk approval")

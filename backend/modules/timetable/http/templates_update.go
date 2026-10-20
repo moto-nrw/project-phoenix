@@ -610,26 +610,23 @@ func renderUpdateTemplateError(w http.ResponseWriter, r *http.Request, err error
 }
 
 // renderTemplateStartPullError maps the pull-forward series-start rejections
-// (#2226) to German 400s. Like the care-offering conflict above, the message
-// itself is user-facing German — the planner shows it verbatim.
+// (#2226) to 400s with German diagnostic detail. The planner shows the
+// catalog text selected by the code.
 func renderTemplateStartPullError(w http.ResponseWriter, r *http.Request, err error) bool {
 	switch {
 	case errors.Is(err, timetableModule.ErrTemplateStartNotEarlier):
 		common.RenderError(w, r, common.ErrorInvalidRequestWithCode(
-			//nolint:staticcheck // ST1005: user-facing German message
-			errors.New("Der Serienbeginn kann nur auf ein früheres Datum vorgezogen werden."),
+			errors.New("der Serienbeginn kann nur auf ein früheres Datum vorgezogen werden"),
 			common.CodeTimetableTemplateStartNotEarlier,
 		))
 	case errors.Is(err, timetableModule.ErrTemplateStartInPast):
 		common.RenderError(w, r, common.ErrorInvalidRequestWithCode(
-			//nolint:staticcheck // ST1005: user-facing German message
-			errors.New("Der neue Serienbeginn darf nicht in der Vergangenheit liegen."),
+			errors.New("der neue Serienbeginn darf nicht in der Vergangenheit liegen"),
 			common.CodeTimetableTemplateStartInPast,
 		))
 	case errors.Is(err, timetableModule.ErrTemplateStartPredecessorOverlap):
 		common.RenderError(w, r, common.ErrorInvalidRequestWithCode(
-			//nolint:staticcheck // ST1005: user-facing German message
-			errors.New("Der neue Serienbeginn überschneidet sich mit dem vorherigen Serienteil. Bitte wählen Sie ein Datum ab dessen Ende."),
+			errors.New("der neue Serienbeginn überschneidet sich mit dem vorherigen Serienteil. Bitte wählen Sie ein Datum ab dessen Ende"),
 			common.CodeTimetableTemplateStartPredecessorOverlap,
 		))
 	default:

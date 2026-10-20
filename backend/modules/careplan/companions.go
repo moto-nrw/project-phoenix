@@ -24,48 +24,48 @@ const MaxStudentCompanions = 10
 // display order. The stored weekday is the 1-based position.
 var CompanionWeekdays = []string{"mon", "tue", "wed", "thu", "fri"}
 
-// The companion sentinels. The German messages reach the user unchanged.
+// Companion sentinels carry diagnostic detail; clients show the code catalog.
 var (
 	// ErrCompanionStudentNotFound indicates the child being edited does not
 	// exist in this tenant.
 	ErrCompanionStudentNotFound = errors.New("student not found")
 	// ErrCompanionNotFound indicates a submitted companion is not a child of
 	// this school.
-	ErrCompanionNotFound = errors.New("Ein ausgewähltes Kind wurde nicht gefunden.") //nolint:staticcheck // ST1005: user-facing German message
+	ErrCompanionNotFound = errors.New("ein ausgewähltes Kind wurde nicht gefunden")
 	// ErrDuplicateCompanion indicates the same child was submitted twice.
-	ErrDuplicateCompanion = errors.New("Ein Kind kann nur einmal in der Laufgemeinschaft stehen.") //nolint:staticcheck // ST1005: user-facing German message
+	ErrDuplicateCompanion = errors.New("ein Kind kann nur einmal in der Laufgemeinschaft stehen")
 	// ErrCompanionWeekdayRequired indicates a link without any weekday: a
 	// link that applies on no day is not a link.
-	ErrCompanionWeekdayRequired = errors.New("Bitte mindestens einen Wochentag auswählen.") //nolint:staticcheck // ST1005: user-facing German message
+	ErrCompanionWeekdayRequired = errors.New("bitte mindestens einen Wochentag auswählen")
 	// ErrCompanionDayNotAllowed indicates a link on a weekday the child's own
 	// departure plan does not permit leaving with another child.
-	ErrCompanionDayNotAllowed = errors.New("An diesem Tag ist \"Anderes Kind\" als Heimweg nicht erlaubt.") //nolint:staticcheck // ST1005: user-facing German message
+	ErrCompanionDayNotAllowed = errors.New("an diesem Tag ist \"Anderes Kind\" als Heimweg nicht erlaubt")
 	// ErrTooManyCompanions indicates more companions than MaxStudentCompanions.
-	ErrTooManyCompanions = errors.New("Es können höchstens 10 Kinder verknüpft werden.") //nolint:staticcheck // ST1005: user-facing German message
+	ErrTooManyCompanions = errors.New("es können höchstens 10 Kinder verknüpft werden")
 	// ErrCompanionAtLimit indicates the cap is already reached at the FAR end
 	// of a submitted link: an edge counts for both children.
-	ErrCompanionAtLimit = errors.New("Ein ausgewähltes Kind ist bereits mit 10 Kindern verknüpft.") //nolint:staticcheck // ST1005: user-facing German message
+	ErrCompanionAtLimit = errors.New("ein ausgewähltes Kind ist bereits mit 10 Kindern verknüpft")
 	// ErrCompanionSelfLink indicates a child linked to itself.
 	ErrCompanionSelfLink = errors.New("a child cannot be its own departure companion")
 	// ErrCompanionInvalidWeekday indicates a weekday outside Mon..Fri.
 	ErrCompanionInvalidWeekday = errors.New("companion weekday must be one of mon/tue/wed/thu/fri")
 	// ErrCompanionStudentIDRequired indicates a link without a usable child id.
-	ErrCompanionStudentIDRequired = errors.New("Bitte ein Kind für die Laufgemeinschaft auswählen.") //nolint:staticcheck // ST1005: user-facing German message
+	ErrCompanionStudentIDRequired = errors.New("bitte ein Kind für die Laufgemeinschaft auswählen")
 	// ErrCompanionWouldLoseDeparture indicates that removing a link would leave
 	// the OTHER child with an accompanied ("Anderes Kind") departure plan and
 	// no remaining detail. Refused rather than silently narrowing that child's
 	// plan: one child's edit must never change another child's departure
 	// permissions.
-	ErrCompanionWouldLoseDeparture = errors.New("Ein verknüpftes Kind hätte danach keine Angabe mehr dazu, mit wem es nach Hause geht. Bitte zuerst den Heimweg dieses Kindes anpassen.") //nolint:staticcheck // ST1005: user-facing German message
+	ErrCompanionWouldLoseDeparture = errors.New("ein verknüpftes Kind hätte danach keine Angabe mehr dazu, mit wem es nach Hause geht. Bitte zuerst den Heimweg dieses Kindes anpassen")
 	// ErrCompanionLockBusy indicates a linked child's row was locked by another
 	// edit that this transaction may not wait for without risking a deadlock.
 	// Transient: the same request succeeds on retry.
-	ErrCompanionLockBusy = errors.New("Ein verknüpftes Kind wird gerade an anderer Stelle bearbeitet. Bitte in einem Moment erneut speichern.") //nolint:staticcheck // ST1005: user-facing German message
+	ErrCompanionLockBusy = errors.New("ein verknüpftes Kind wird gerade an anderer Stelle bearbeitet. Bitte in einem Moment erneut speichern")
 	// ErrCompanionsChanged indicates the submitted list was built on a
 	// snapshot that is no longer the stored one. The list REPLACES the stored
 	// one, so without this check two staff members editing the same child
 	// would silently delete each other's links. Retriable after a reload.
-	ErrCompanionsChanged = errors.New("Die Laufgemeinschaft dieses Kindes wurde zwischenzeitlich geändert. Bitte neu laden und noch einmal speichern.") //nolint:staticcheck // ST1005: user-facing German message
+	ErrCompanionsChanged = errors.New("die Laufgemeinschaft dieses Kindes wurde zwischenzeitlich geändert. Bitte neu laden und noch einmal speichern")
 	// ErrCompanionExtensionNotAuthorized indicates the write path was asked to
 	// widen a companion's departure plan the caller was never authorized for.
 	// Not user-facing: it can only fire if the authorization pass and the

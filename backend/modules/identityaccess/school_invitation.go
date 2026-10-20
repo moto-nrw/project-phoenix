@@ -67,11 +67,11 @@ var (
 	ErrInvitationPasswordMismatch = errors.New("passwords don't match")
 	// ErrRoleGrantNotPermitted reports an inviter handing out a role beyond
 	// its own authority: an admin-tier grant requires users:manage.
-	ErrRoleGrantNotPermitted = errors.New("Du darfst diese Rolle nicht vergeben") //nolint:staticcheck // ST1005: user-facing German message
+	ErrRoleGrantNotPermitted = errors.New("du darfst diese Rolle nicht vergeben")
 	// ErrLehrkraftNoCaregiver refuses the combination of the Lehrkraft role
 	// with the caregiver upgrade, which would defeat the role's class-scoped
 	// read-only design (#1772).
-	ErrLehrkraftNoCaregiver = errors.New("Die Rolle 'Lehrkraft' kann nicht mit Betreuungsrechten kombiniert werden") //nolint:staticcheck // ST1005: user-facing German message
+	ErrLehrkraftNoCaregiver = errors.New("die Rolle 'Lehrkraft' kann nicht mit Betreuungsrechten kombiniert werden")
 )
 
 // InvitationPortal names where an invitation is accepted.

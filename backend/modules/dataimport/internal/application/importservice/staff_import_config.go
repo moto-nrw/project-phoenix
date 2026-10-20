@@ -652,7 +652,7 @@ func parseStaffQualification(part string) (StaffQualificationEntry, error) {
 		entry.Name = strings.TrimSpace(part[:open])
 		inner := strings.TrimSpace(part[open+1 : len(part)-1])
 		if entry.Name == "" {
-			return StaffQualificationEntry{}, fmt.Errorf("Qualifikation ohne Namen: '%s'", part) //nolint:staticcheck // ST1005: user-facing German message
+			return StaffQualificationEntry{}, copyErrorf("Qualifikation ohne Namen: '%s'", part)
 		}
 		acquired, expires, err := parseStaffQualificationDates(entry.Name, inner)
 		if err != nil {
@@ -674,14 +674,14 @@ func parseStaffQualificationDates(name, inner string) (*timezone.Date, *timezone
 	}
 	acquired, err := parseOptionalQualificationDate(from)
 	if err != nil {
-		return nil, nil, fmt.Errorf("Qualifikation '%s': ungültiges Datum '%s'. Format: Name (TT.MM.JJJJ bis TT.MM.JJJJ)", name, strings.TrimSpace(from)) //nolint:staticcheck // ST1005: user-facing German message
+		return nil, nil, copyErrorf("Qualifikation '%s': ungültiges Datum '%s'. Format: Name (TT.MM.JJJJ bis TT.MM.JJJJ)", name, strings.TrimSpace(from))
 	}
 	expires, err := parseOptionalQualificationDate(until)
 	if err != nil {
-		return nil, nil, fmt.Errorf("Qualifikation '%s': ungültiges Datum '%s'. Format: Name (TT.MM.JJJJ bis TT.MM.JJJJ)", name, strings.TrimSpace(until)) //nolint:staticcheck // ST1005: user-facing German message
+		return nil, nil, copyErrorf("Qualifikation '%s': ungültiges Datum '%s'. Format: Name (TT.MM.JJJJ bis TT.MM.JJJJ)", name, strings.TrimSpace(until))
 	}
 	if acquired != nil && expires != nil && expires.Before(*acquired) {
-		return nil, nil, fmt.Errorf("Qualifikation '%s': Ablaufdatum liegt vor dem Erwerbsdatum", name) //nolint:staticcheck // ST1005: user-facing German message
+		return nil, nil, copyErrorf("Qualifikation '%s': Ablaufdatum liegt vor dem Erwerbsdatum", name)
 	}
 	return acquired, expires, nil
 }

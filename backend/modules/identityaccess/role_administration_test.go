@@ -119,7 +119,7 @@ func TestAssignableSchoolRoleAuthorizationGrantData(t *testing.T) {
 	require.Equal(t, []string{"groups:read"}, role.Permissions)
 }
 
-// The texts are the wire contract the RBAC routes render.
+// Import role copy stays exact; other sentinel text is diagnostic detail.
 func TestRoleAdministrationSentinelTexts(t *testing.T) {
 	t.Parallel()
 
@@ -127,5 +127,8 @@ func TestRoleAdministrationSentinelTexts(t *testing.T) {
 	require.EqualError(t, identityaccess.ErrPermissionNotFound, "permission not found")
 	require.EqualError(t, identityaccess.ErrRoleNotFound, "role not found")
 	require.EqualError(t, identityaccess.ErrRoleNotAssignable, "Die angegebene Rolle existiert nicht")
-	require.EqualError(t, identityaccess.ErrLehrkraftRoleImmutable, "Ein Lehrkraft-Konto kann nicht umgestellt werden")
+	require.EqualError(t, identityaccess.ErrRoleForeignTenant, "Diese Rolle existiert an der Zielschule nicht")
+	require.EqualError(t, identityaccess.ErrRoleGuardianNotAssignable, "Sorgeberechtigten-Zugänge werden über den Einladungs-Flow für Sorgeberechtigte vergeben")
+	require.EqualError(t, identityaccess.ErrRoleLegacyTeacherNotAssignable, "Die alte Rolle 'teacher' wird nicht mehr vergeben; bitte die Rolle 'user' verwenden")
+	require.EqualError(t, identityaccess.ErrLehrkraftRoleImmutable, "ein Lehrkraft-Konto kann nicht umgestellt werden")
 }

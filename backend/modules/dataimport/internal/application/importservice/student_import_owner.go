@@ -249,7 +249,7 @@ func (c *StudentImportConfig) createPrivacyConsentIfMissing(ctx context.Context,
 	}
 	consents, err := c.PrivacyConsents.ListPrivacyConsents(ctx, studentID)
 	if err != nil {
-		return fmt.Errorf("Datenschutz-Einwilligung laden: %w", err) //nolint:staticcheck // ST1005: user-facing German message
+		return copyErrorf("Datenschutz-Einwilligung laden: %w", err)
 	}
 	if len(consents) > 0 {
 		return nil
@@ -270,9 +270,9 @@ func (c *StudentImportConfig) Update(ctx context.Context, studentID int64, row i
 		record, err := c.Students.ReadEnrollmentStudent(ctx, studentID, "update")
 		if err != nil {
 			if errors.Is(err, ports.ErrStudentNotFound) {
-				return errors.New("Kind nicht gefunden") //nolint:staticcheck // ST1005: user-facing German message
+				return newCopyError("Kind nicht gefunden")
 			}
-			return fmt.Errorf("Kind laden: %w", err) //nolint:staticcheck // ST1005: user-facing German message
+			return copyErrorf("Kind laden: %w", err)
 		}
 		return c.updateAllEntities(ctx, record, row)
 	})
@@ -283,9 +283,9 @@ func (c *StudentImportConfig) updateAllEntities(ctx context.Context, record port
 	person, err := c.Persons.FindPerson(ctx, record.PersonID)
 	if err != nil {
 		if errors.Is(err, ports.ErrPersonNotFound) {
-			return errors.New("Person nicht gefunden") //nolint:staticcheck // ST1005: user-facing German message
+			return newCopyError("Person nicht gefunden")
 		}
-		return fmt.Errorf("Person laden: %w", err) //nolint:staticcheck // ST1005: user-facing German message
+		return copyErrorf("Person laden: %w", err)
 	}
 
 	if err := c.updatePersonFromRow(ctx, person, row); err != nil {
@@ -329,7 +329,7 @@ func (c *StudentImportConfig) updatePersonFromRow(ctx context.Context, person po
 		return nil
 	}
 	if _, err := c.Persons.UpdatePerson(ctx, input); err != nil {
-		return fmt.Errorf("Person aktualisieren: %w", err) //nolint:staticcheck // ST1005: user-facing German message
+		return copyErrorf("Person aktualisieren: %w", err)
 	}
 	return nil
 }
@@ -397,7 +397,7 @@ func (c *StudentImportConfig) updateStudentFromRow(ctx context.Context, record p
 	if renewal.SchoolClass != record.SchoolClass || renewal.Status != record.Status ||
 		renewal.EnrolledFrom != record.EnrolledFrom || renewal.EnrolledUntil != record.EnrolledUntil {
 		if err := c.Students.RenewEnrollmentStudent(ctx, record.ID, renewal); err != nil {
-			return fmt.Errorf("Kind aktualisieren: %w", err) //nolint:staticcheck // ST1005: user-facing German message
+			return copyErrorf("Kind aktualisieren: %w", err)
 		}
 	}
 
@@ -415,7 +415,7 @@ func (c *StudentImportConfig) updateStudentFromRow(ctx context.Context, record p
 
 	if changed {
 		if err := c.Students.ApplyEnrollmentProfile(ctx, record.ID, patch); err != nil {
-			return fmt.Errorf("Kind aktualisieren: %w", err) //nolint:staticcheck // ST1005: user-facing German message
+			return copyErrorf("Kind aktualisieren: %w", err)
 		}
 	}
 	if c.ConsentHistory != nil {
@@ -423,7 +423,7 @@ func (c *StudentImportConfig) updateStudentFromRow(ctx context.Context, record p
 		if err := ports.ObserveCommand(ctx, "audit-platform", "record_consent_transitions", func() error {
 			return c.ConsentHistory.RecordTransitions(ctx, before, after, consents.ConsentSourceImport, nil, time.Now())
 		}); err != nil {
-			return fmt.Errorf("Einwilligungsverlauf aktualisieren: %w", err) //nolint:staticcheck // ST1005: user-facing German message
+			return copyErrorf("Einwilligungsverlauf aktualisieren: %w", err)
 		}
 	}
 	return nil
@@ -531,7 +531,7 @@ func applyStudentDeparture(record ports.EnrollmentRecord, row importModels.Stude
 		}
 		departure, err := importDeparturePatch(allowed, note)
 		if err != nil {
-			return false, fmt.Errorf("Kind aktualisieren: %w", err) //nolint:staticcheck // ST1005: user-facing German message
+			return false, copyErrorf("Kind aktualisieren: %w", err)
 		}
 		patch.DepartureSet = true
 		patch.AllowedDepartureModes = departure.AllowedDepartureModes

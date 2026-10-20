@@ -16,20 +16,20 @@ import (
 // the API renders them verbatim, so they are part of the contract, not
 // developer prose.
 var (
-	ErrClassListEntryNotFound = errors.New("Klassenlisteneintrag nicht gefunden") //nolint:staticcheck // ST1005: user-facing German message
+	ErrClassListEntryNotFound = errors.New("klassenlisteneintrag nicht gefunden")
 	// ErrClassListEntryDuplicate: an entry with the same name already exists
 	// in the same class (case-insensitive, backed by the DB unique index).
-	ErrClassListEntryDuplicate = errors.New("Ein Eintrag mit diesem Namen existiert in dieser Klasse bereits") //nolint:staticcheck // ST1005: user-facing German message
+	ErrClassListEntryDuplicate = errors.New("ein Eintrag mit diesem Namen existiert in dieser Klasse bereits")
 	// ErrClassListEntryStudentExists: a regular student with the same name
 	// already exists in the same class — the child is already on the class
 	// list, a duplicate entry would list them twice.
-	ErrClassListEntryStudentExists = errors.New("Ein Kind mit diesem Namen ist in dieser Klasse bereits angelegt") //nolint:staticcheck // ST1005: user-facing German message
+	ErrClassListEntryStudentExists = errors.New("ein Kind mit diesem Namen ist in dieser Klasse bereits angelegt")
 	// ErrClassListEntryStudentNotFound: the resolve target does not exist.
-	ErrClassListEntryStudentNotFound = errors.New("Das ausgewählte Kind wurde nicht gefunden") //nolint:staticcheck // ST1005: user-facing German message
+	ErrClassListEntryStudentNotFound = errors.New("das ausgewählte Kind wurde nicht gefunden")
 	// ErrClassListEntryAssignMismatch: the resolve target is a real student
 	// but does not carry the entry's name and class — resolving the entry
 	// into it would delete one child's row in favor of a different child.
-	ErrClassListEntryAssignMismatch = errors.New("Das ausgewählte Kind stimmt nicht mit dem Eintrag überein: Name und Klasse müssen übereinstimmen") //nolint:staticcheck // ST1005: user-facing German message
+	ErrClassListEntryAssignMismatch = errors.New("das ausgewählte Kind stimmt nicht mit dem Eintrag überein: Name und Klasse müssen übereinstimmen")
 )
 
 // ClassListEntry is one class-list-only child. SchoolClass keeps the display

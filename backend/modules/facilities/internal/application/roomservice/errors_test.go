@@ -113,7 +113,7 @@ func TestFacilitiesError_AllOperations(t *testing.T) {
 			name: "create operation",
 			op:   "CreateRoom",
 			err:  ErrDuplicateRoom,
-			want: "facilities error during CreateRoom: Ein Raum mit diesem Namen existiert bereits",
+			want: "facilities error during CreateRoom: ein Raum mit diesem Namen existiert bereits",
 		},
 		{
 			name: "read operation",
@@ -143,7 +143,7 @@ func TestFacilitiesError_AllOperations(t *testing.T) {
 			name: "system room protection",
 			op:   "DeleteRoom",
 			err:  ErrSystemRoomProtected,
-			want: "facilities error during DeleteRoom: Systemraum kann nicht gelöscht oder umbenannt werden",
+			want: "facilities error during DeleteRoom: systemraum kann nicht gelöscht oder umbenannt werden",
 		},
 	}
 
