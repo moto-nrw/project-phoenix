@@ -282,7 +282,7 @@ func newTestPeople(db *bun.DB) *peopledirectory.Module {
 	return people.Module
 }
 
-func newTestGroups(db *bun.DB) *schoolstructure.Module {
+func newTestGroups(db *bun.DB) schoolstructure.Owner {
 	groups, err := schoolStructureCompose.New(schoolStructureCompose.Dependencies{DB: db, Observe: func(schoolStructureCompose.Observation) {}})
 	if err != nil {
 		panic(err)

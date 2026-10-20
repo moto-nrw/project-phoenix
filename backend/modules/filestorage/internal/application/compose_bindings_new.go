@@ -7,14 +7,6 @@ import (
 	ports "github.com/moto-nrw/project-phoenix/modules/filestorage/internal/ports"
 )
 
-// Observer reports every observation with the public error.
-func Observer(observe func(ports.Observation)) func(ports.Observation) {
-	return func(observation ports.Observation) {
-		observation.Err = MapPublicError(observation.Err)
-		observe(observation)
-	}
-}
-
 type ObjectStore struct {
 	Kind    string
 	Backend ObjectBackend

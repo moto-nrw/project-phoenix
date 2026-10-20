@@ -6,17 +6,9 @@ import (
 	"fmt"
 	"io"
 
+	"github.com/moto-nrw/project-phoenix/modules/filestorage"
 	"github.com/moto-nrw/project-phoenix/modules/filestorage/internal/domain"
 )
-
-// AttachmentDigest identifies one attachment by its content.
-type AttachmentDigest struct {
-	AttachmentID int64
-	Filename     string
-	ContentType  string
-	SizeBytes    int64
-	SHA256       string
-}
 
 // AttachmentDigests reads every live attachment of an announcement through
 // the caller's digest function, oldest id first. File Storage only reads; the
@@ -24,10 +16,10 @@ type AttachmentDigest struct {
 // an Erklärung freezes these digests together with its publication (#3430),
 // so a file that cannot be read fails the publication instead of producing a
 // version whose attachment nobody can verify.
-func (s *Service) AttachmentDigests(ctx context.Context, announcementID int64, digest func(io.Reader) (string, int64, error)) (digests []AttachmentDigest, err error) {
+func (s *Service) AttachmentDigests(ctx context.Context, announcementID int64, digest func(io.Reader) (string, int64, error)) (digests []filestorage.AttachmentDigest, err error) {
 	err = s.runRead(ctx, "attachment_digests", func(ctx context.Context, o *op) error {
 		if announcementID <= 0 {
-			return fmt.Errorf("%w: announcement id is required", domain.ErrInvalid)
+			return fmt.Errorf("%w: announcement id is required", filestorage.ErrInvalid)
 		}
 		if digest == nil {
 			return errors.New("attachment digests: digest function is required")
@@ -38,7 +30,7 @@ func (s *Service) AttachmentDigests(ctx context.Context, announcementID int64, d
 			return err
 		}
 		tenantID := s.deps.Tx.TenantID(ctx)
-		digests = make([]AttachmentDigest, 0, len(attachments))
+		digests = make([]filestorage.AttachmentDigest, 0, len(attachments))
 		for i := len(attachments) - 1; i >= 0; i-- { // ListByOwner is newest first
 			entry, err := s.digestAttachment(ctx, tenantID, attachments[i], digest)
 			if err != nil {
@@ -48,20 +40,23 @@ func (s *Service) AttachmentDigests(ctx context.Context, announcementID int64, d
 		}
 		return nil
 	})
-	return digests, err
+	if err != nil {
+		return nil, err
+	}
+	return digests, nil
 }
 
-func (s *Service) digestAttachment(ctx context.Context, tenantID int64, attachment domain.Document, digest func(io.Reader) (string, int64, error)) (AttachmentDigest, error) {
+func (s *Service) digestAttachment(ctx context.Context, tenantID int64, attachment domain.Document, digest func(io.Reader) (string, int64, error)) (filestorage.AttachmentDigest, error) {
 	object, err := s.openObject(ctx, s.attachments(), tenantID, attachment)
 	if err != nil {
-		return AttachmentDigest{}, err
+		return filestorage.AttachmentDigest{}, err
 	}
 	defer func() { _ = object.Close() }()
 	sum, size, err := digest(object)
 	if err != nil {
-		return AttachmentDigest{}, fmt.Errorf("digest attachment %d: %w", attachment.ID, err)
+		return filestorage.AttachmentDigest{}, fmt.Errorf("digest attachment %d: %w", attachment.ID, err)
 	}
-	return AttachmentDigest{
+	return filestorage.AttachmentDigest{
 		AttachmentID: attachment.ID, Filename: attachment.FilenameDisplay, ContentType: attachment.ContentType,
 		SizeBytes: size, SHA256: sum,
 	}, nil

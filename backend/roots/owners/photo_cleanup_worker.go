@@ -16,7 +16,7 @@ import (
 // tenant-scoped cleanup tick, including inactive schools.
 type workerFileCleanup func(context.Context) (int, error)
 
-func newFileStoreCleaner(db transactionruntime.Database, files *fileStorage.Module, logger *slog.Logger) workerFileCleanup {
+func newFileStoreCleaner(db transactionruntime.Database, files fileStorage.Capability, logger *slog.Logger) workerFileCleanup {
 	remover := peopledirectory.NewPhotoUnlinker(logger, "public", nativeUploads.UploadFiles{})
 	photos := fileStorageCompose.NewUploadCleanup(db.Pool(), fileStorage.CleanupStudentPhotos)
 	legal := fileStorageCompose.NewUploadCleanup(db.Pool(), fileStorage.CleanupEnrollmentLegalDocuments)

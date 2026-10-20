@@ -28,7 +28,7 @@ func withTenant(t *testing.T, db *bun.DB, fn func(ctx context.Context) error) {
 }
 
 // draftWith stores a draft with the given mappings and returns it.
-func draftWith(t *testing.T, ctx context.Context, module *schoolstructure.Module, academicYear string, createdBy int64, mappings ...schoolstructure.TransitionMappingInput) schoolstructure.Transition {
+func draftWith(t *testing.T, ctx context.Context, module schoolstructure.Owner, academicYear string, createdBy int64, mappings ...schoolstructure.TransitionMappingInput) schoolstructure.Transition {
 	t.Helper()
 	transition, err := module.CreateTransition(ctx, schoolstructure.TransitionDraft{
 		AcademicYear: academicYear, CreatedBy: createdBy, Mappings: mappings,

@@ -32,21 +32,19 @@ type Dependencies struct {
 	Observe       func(Observation)
 }
 
-func New(dependencies Dependencies, audience ports.Audience) (*communication.Module, error) {
+func New(dependencies Dependencies, audience ports.Audience) (communication.Capability, error) {
 	if audience == nil || dependencies.DB == nil || dependencies.Organizations == nil || dependencies.Viewers == nil || dependencies.Audit == nil || dependencies.Observe == nil {
 		return nil, errors.New("communication compose: all dependencies are required")
 	}
-	store := postgres.New(AnnouncementDatabase())
-	service := application.New(
-		store,
+	return application.New(
+		postgres.New(AnnouncementDatabase()),
 		audience,
 		application.NewTargets(dependencies.Organizations),
 		dependencies.Viewers,
 		application.NewAudit(dependencies.Audit),
 		transaction{},
-		application.NewAnnouncementObserver(dependencies.Observe),
-	)
-	return communication.NewModule(application.NewAnnouncementEngine(service, dependencies.Observe)), nil
+		dependencies.Observe,
+	), nil
 }
 
 type transaction struct{}
@@ -55,13 +53,15 @@ func (transaction) RunAdmin(ctx context.Context, callback func(context.Context) 
 	return tenant.WithinAdminRetry(ctx, callback)
 }
 
-func AudienceMapping() contract.Rows[domain.Announcement, domain.AnnouncementViewDetail, domain.OperationStats] {
-	return contract.Rows[domain.Announcement, domain.AnnouncementViewDetail, domain.OperationStats]{
-		Announcement: func(row contract.Announcement) domain.Announcement { return domain.Announcement(row) },
-		Target: func(value domain.Announcement) contract.Target {
+func AudienceMapping() contract.Rows[communication.Announcement, communication.AnnouncementViewDetail, domain.OperationStats] {
+	return contract.Rows[communication.Announcement, communication.AnnouncementViewDetail, domain.OperationStats]{
+		Announcement: func(row contract.Announcement) communication.Announcement { return communication.Announcement(row) },
+		Target: func(value communication.Announcement) contract.Target {
 			return contract.Target{PublishedAt: value.PublishedAt, TargetRoles: value.TargetRoles, TargetOrgIDs: value.TargetOrgIDs, TargetTenantIDs: value.TargetTenantIDs}
 		},
-		View: func(row contract.ViewDetail) domain.AnnouncementViewDetail { return domain.AnnouncementViewDetail(row) },
+		View: func(row contract.ViewDetail) communication.AnnouncementViewDetail {
+			return communication.AnnouncementViewDetail(row)
+		},
 		Stats: func(stats contract.Stats) domain.OperationStats {
 			return domain.OperationStats{Queries: stats.Queries, Rows: stats.Rows, StatementDuration: stats.StatementDuration}
 		},
