@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
 	"github.com/moto-nrw/project-phoenix/modules/studentpresence/internal/ports"
 	"github.com/uptrace/bun"
 )
@@ -18,12 +19,12 @@ type openRoomSessionRow struct {
 	SupervisorStaffIDs []int64 `bun:"supervisor_staff_ids,array"`
 }
 
-func (s *Store) ListOpenRoomSessions(ctx context.Context, ids []int64) ([]ports.OpenRoomSession, ports.Stats, error) {
+func (s *Store) ListOpenRoomSessions(ctx context.Context, ids []int64) ([]studentpresence.OpenRoomSession, ports.Stats, error) {
 	db, tenantID, err := s.database(ctx)
 	if err != nil {
 		return nil, ports.Stats{}, err
 	}
-	result := []ports.OpenRoomSession{}
+	result := []studentpresence.OpenRoomSession{}
 	if len(ids) == 0 {
 		return result, ports.Stats{}, nil
 	}
@@ -39,7 +40,7 @@ func (s *Store) ListOpenRoomSessions(ctx context.Context, ids []int64) ([]ports.
 		return nil, stats, fmt.Errorf("list open room sessions: %w", err)
 	}
 	for _, row := range rows {
-		result = append(result, ports.OpenRoomSession(row))
+		result = append(result, studentpresence.OpenRoomSession(row))
 	}
 	return result, stats, nil
 }

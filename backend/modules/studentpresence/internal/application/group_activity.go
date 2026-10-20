@@ -5,9 +5,12 @@ import (
 	"errors"
 	"time"
 
+	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
 	"github.com/moto-nrw/project-phoenix/modules/studentpresence/internal/ports"
+	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 )
 
+// RecordGroupActivity stamps activity only while the tenant's session remains open.
 func (s *Service) RecordGroupActivity(ctx context.Context, id int64, at time.Time) error {
 	return s.runWrite(ctx, "record_group_activity", func(txCtx context.Context) (ports.Stats, error) {
 		if id <= 0 || at.IsZero() {
@@ -26,7 +29,7 @@ func (s *Service) DeleteGroup(ctx context.Context, id int64) error {
 	})
 }
 
-func (s *Service) ReviseGroup(ctx context.Context, group ports.LiveGroup) (result ports.LiveGroup, err error) {
+func (s *Service) ReviseGroup(ctx context.Context, group studentpresence.LiveGroup) (result studentpresence.LiveGroup, err error) {
 	err = s.runWrite(ctx, "revise_group", func(txCtx context.Context) (ports.Stats, error) {
 		if group.ID <= 0 || group.RoomID <= 0 || group.StartTime.IsZero() {
 			return ports.Stats{}, errors.New("student presence: invalid group")
@@ -44,7 +47,7 @@ func (s *Service) ReviseGroup(ctx context.Context, group ports.LiveGroup) (resul
 	return result, err
 }
 
-func (s *Service) RecordGroup(ctx context.Context, group ports.LiveGroup) (result ports.LiveGroup, err error) {
+func (s *Service) RecordGroup(ctx context.Context, group studentpresence.LiveGroup) (result studentpresence.LiveGroup, err error) {
 	err = s.runWrite(ctx, "record_group", func(txCtx context.Context) (ports.Stats, error) {
 		if group.ID != 0 || group.RoomID <= 0 || group.StartTime.IsZero() {
 			return ports.Stats{}, errors.New("student presence: invalid new group")
@@ -62,7 +65,11 @@ func (s *Service) RecordGroup(ctx context.Context, group ports.LiveGroup) (resul
 	return result, err
 }
 
-func (s *Service) EndSupervisionOn(ctx context.Context, id int64, date ports.Date) (count int, err error) {
+func (s *Service) EndSupervisionOn(ctx context.Context, id int64, value string) (count int, err error) {
+	date, err := calendar.ParseDate(value)
+	if err != nil {
+		return 0, err
+	}
 	err = s.runWrite(ctx, "id_end_supervision", func(txCtx context.Context) (ports.Stats, error) {
 		if id <= 0 {
 			return ports.Stats{}, errors.New("student presence: invalid supervision id")
@@ -74,7 +81,11 @@ func (s *Service) EndSupervisionOn(ctx context.Context, id int64, date ports.Dat
 	return count, err
 }
 
-func (s *Service) EndStaffSupervisionsOn(ctx context.Context, id int64, date ports.Date) (count int, err error) {
+func (s *Service) EndStaffSupervisionsOn(ctx context.Context, id int64, value string) (count int, err error) {
+	date, err := calendar.ParseDate(value)
+	if err != nil {
+		return 0, err
+	}
 	err = s.runWrite(ctx, "staff_id_end_supervision", func(txCtx context.Context) (ports.Stats, error) {
 		if id <= 0 {
 			return ports.Stats{}, errors.New("student presence: invalid supervision staff_id")

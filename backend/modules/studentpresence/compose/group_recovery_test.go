@@ -14,7 +14,7 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-var _ studentpresence.GroupRecovery = (*studentpresence.Module)(nil)
+var _ studentpresence.GroupRecovery = (studentpresence.Owner)(nil)
 
 func TestGroupRecoveryPreservesTenantAndRollsBackSnapshotMismatch(t *testing.T) {
 	t.Parallel()

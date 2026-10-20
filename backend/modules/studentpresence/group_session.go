@@ -46,10 +46,6 @@ type SessionStartCommand interface {
 	LockSessionStart(context.Context, int64) error
 }
 
-func (m *Module) LockSessionStart(ctx context.Context, activityID int64) error {
-	return m.engine.LockSessionStart(ctx, activityID)
-}
-
 type GroupSessionCommand interface {
 	SessionStartCommand
 	// LockGroup reads the group FOR UPDATE and returns ErrGroupNotFound when
@@ -72,20 +68,4 @@ type GroupSessionCommand interface {
 	// or runs in its own, like the visit transfer beside it. An already ended
 	// group fails with ErrGroupEnded; a missing one with ErrGroupNotFound.
 	EndGroup(context.Context, int64, time.Time) error
-}
-
-func (m *Module) EndGroup(ctx context.Context, activeGroupID int64, at time.Time) error {
-	return m.engine.EndGroup(ctx, activeGroupID, at)
-}
-
-func (m *Module) LockGroup(ctx context.Context, activeGroupID int64) (LiveGroup, error) {
-	return m.engine.LockGroup(ctx, activeGroupID)
-}
-
-func (m *Module) EndGroupSession(ctx context.Context, activeGroupID int64, at time.Time) (EndedGroupSession, error) {
-	return m.engine.EndGroupSession(ctx, activeGroupID, at)
-}
-
-func (m *Module) EndGroupSessions(ctx context.Context, activeGroupIDs []int64, at time.Time) (EndedGroupSessions, error) {
-	return m.engine.EndGroupSessions(ctx, activeGroupIDs, at)
 }

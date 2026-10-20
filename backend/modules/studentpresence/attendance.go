@@ -81,16 +81,3 @@ type AttendanceCommand interface {
 	EnsureAttendance(context.Context, Attendance) (Attendance, bool, error)
 	CloseAttendance(context.Context, AttendanceCheckout) ([]Attendance, error)
 }
-
-func (m *Module) FindAttendance(ctx context.Context, id int64) (*Attendance, error) {
-	return m.engine.FindAttendance(ctx, id)
-}
-func (m *Module) ListAttendance(ctx context.Context, filter AttendanceFilter) ([]Attendance, error) {
-	return m.engine.ListAttendance(ctx, filter)
-}
-func (m *Module) EnsureAttendance(ctx context.Context, attendance Attendance) (Attendance, bool, error) {
-	return m.engine.EnsureAttendance(ctx, attendance)
-}
-func (m *Module) CloseAttendance(ctx context.Context, checkout AttendanceCheckout) ([]Attendance, error) {
-	return m.engine.CloseAttendance(ctx, checkout)
-}

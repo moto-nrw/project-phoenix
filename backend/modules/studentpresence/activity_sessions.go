@@ -115,39 +115,3 @@ type ActivitySessionCommand interface {
 	// session before they change the planning status.
 	DiscardActivitySession(context.Context, int64) error
 }
-
-func (m *Module) FindActivitySession(ctx context.Context, instanceID int64) (ActivitySession, error) {
-	return m.engine.FindActivitySession(ctx, instanceID)
-}
-
-func (m *Module) ListActivitySessions(ctx context.Context, filter ActivitySessionFilter) ([]ActivitySession, error) {
-	return m.engine.ListActivitySessions(ctx, filter)
-}
-
-func (m *Module) SessionExecution(ctx context.Context, filter SessionExecutionFilter) (SessionExecution, error) {
-	return m.engine.SessionExecution(ctx, filter)
-}
-
-func (m *Module) StartActivitySession(ctx context.Context, start ActivitySessionStart) (ActivitySession, error) {
-	return m.engine.StartActivitySession(ctx, start)
-}
-
-func (m *Module) CompleteActivitySession(ctx context.Context, completion ActivitySessionCompletion) (ActivitySession, error) {
-	return m.engine.CompleteActivitySession(ctx, completion)
-}
-
-func (m *Module) RecordActivitySessionCompleted(ctx context.Context, instanceID int64, at time.Time) error {
-	return m.engine.RecordActivitySessionCompleted(ctx, instanceID, at)
-}
-
-func (m *Module) ReopenActivitySession(ctx context.Context, instanceID, activeGroupID int64) (ActivitySession, error) {
-	return m.engine.ReopenActivitySession(ctx, instanceID, activeGroupID)
-}
-
-func (m *Module) CompleteActivitySessionsByGroups(ctx context.Context, activeGroupIDs []int64, at time.Time) (int64, error) {
-	return m.engine.CompleteActivitySessionsByGroups(ctx, activeGroupIDs, at)
-}
-
-func (m *Module) DiscardActivitySession(ctx context.Context, instanceID int64) error {
-	return m.engine.DiscardActivitySession(ctx, instanceID)
-}

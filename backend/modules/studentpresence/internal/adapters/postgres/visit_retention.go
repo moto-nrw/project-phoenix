@@ -4,6 +4,7 @@ import (
 	"context"
 	"time"
 
+	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
 	"github.com/moto-nrw/project-phoenix/modules/studentpresence/internal/ports"
 	"github.com/uptrace/bun"
 )
@@ -25,7 +26,7 @@ func expiredVisitsQuery(db bun.IDB, tenantID int64, defaultDays int) *bun.Select
 		Where("v.created_at < NOW() - make_interval(days => "+retentionDaysExpr+")", defaultDays)
 }
 
-func (s *Store) ListVisitRetentionCounts(ctx context.Context, defaultDays int) ([]ports.VisitRetentionCount, ports.Stats, error) {
+func (s *Store) ListVisitRetentionCounts(ctx context.Context, defaultDays int) ([]studentpresence.VisitRetentionCount, ports.Stats, error) {
 	db, tenantID, err := s.database(ctx)
 	if err != nil {
 		return nil, ports.Stats{}, err
@@ -38,9 +39,9 @@ func (s *Store) ListVisitRetentionCounts(ctx context.Context, defaultDays int) (
 		ColumnExpr("v.student_id, COUNT(*) AS visit_count").ColumnExpr(retentionDaysExpr+" AS retention_days", defaultDays).
 		GroupExpr("v.student_id, cw.data_retention_days").OrderExpr("v.student_id").Scan(ctx, &rows)
 	stats := ports.Stats{Queries: 1, Rows: int64(len(rows)), StatementDuration: time.Since(started)}
-	result := make([]ports.VisitRetentionCount, 0, len(rows))
+	result := make([]studentpresence.VisitRetentionCount, 0, len(rows))
 	for _, row := range rows {
-		result = append(result, ports.VisitRetentionCount(row))
+		result = append(result, studentpresence.VisitRetentionCount(row))
 	}
 	return result, stats, err
 }
@@ -66,7 +67,7 @@ func (s *Store) OldestExpiredVisitDate(ctx context.Context, defaultDays int) (*t
 	return oldest, ports.Stats{Queries: 1, Rows: 1, StatementDuration: time.Since(started)}, err
 }
 
-func (s *Store) ListExpiredVisitMonths(ctx context.Context, defaultDays int) ([]ports.VisitMonthCount, ports.Stats, error) {
+func (s *Store) ListExpiredVisitMonths(ctx context.Context, defaultDays int) ([]studentpresence.VisitMonthCount, ports.Stats, error) {
 	db, tenantID, err := s.database(ctx)
 	if err != nil {
 		return nil, ports.Stats{}, err
@@ -76,9 +77,9 @@ func (s *Store) ListExpiredVisitMonths(ctx context.Context, defaultDays int) ([]
 	err = expiredVisitsQuery(db, tenantID, defaultDays).ColumnExpr("TO_CHAR(v.created_at, 'YYYY-MM') AS month, COUNT(*) AS count").
 		GroupExpr("TO_CHAR(v.created_at, 'YYYY-MM')").Scan(ctx, &rows)
 	stats := ports.Stats{Queries: 1, Rows: int64(len(rows)), StatementDuration: time.Since(started)}
-	result := make([]ports.VisitMonthCount, 0, len(rows))
+	result := make([]studentpresence.VisitMonthCount, 0, len(rows))
 	for _, row := range rows {
-		result = append(result, ports.VisitMonthCount(row))
+		result = append(result, studentpresence.VisitMonthCount(row))
 	}
 	return result, stats, err
 }

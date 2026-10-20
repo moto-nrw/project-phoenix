@@ -3,6 +3,8 @@ package ports
 import (
 	"context"
 	"time"
+
+	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
 )
 
 // ActiveGroupRepository reads and writes room sessions with the display
@@ -73,7 +75,7 @@ type GroupSupervisorRepository interface {
 
 	// ListActiveSupervisedRooms returns one (staff_id, room_id) pair per
 	// currently supervised room in the tenant, for every staff member at once.
-	ListActiveSupervisedRooms(ctx context.Context) ([]StaffRoomSupervision, error)
+	ListActiveSupervisedRooms(ctx context.Context) ([]studentpresence.StaffRoomSupervision, error)
 
 	// FindByActiveGroupID finds supervisors for a specific active group
 	// If activeOnly is true, only returns supervisors whose date interval includes today.
@@ -112,30 +114,30 @@ type GroupSupervisorRepository interface {
 // ActiveGroupRecords is the owner's session record store the session
 // repository reads and writes through.
 type ActiveGroupRecords interface {
-	QueryLiveGroups(context.Context, LiveGroupFilter) ([]LiveGroup, error)
-	ListLiveGroups(context.Context, []int64) ([]LiveGroup, error)
-	LockGroup(context.Context, int64) (LiveGroup, error)
-	RecordGroup(context.Context, LiveGroup) (LiveGroup, error)
-	ReviseGroup(context.Context, LiveGroup) (LiveGroup, error)
+	QueryLiveGroups(context.Context, studentpresence.LiveGroupFilter) ([]studentpresence.LiveGroup, error)
+	ListLiveGroups(context.Context, []int64) ([]studentpresence.LiveGroup, error)
+	LockGroup(context.Context, int64) (studentpresence.LiveGroup, error)
+	RecordGroup(context.Context, studentpresence.LiveGroup) (studentpresence.LiveGroup, error)
+	ReviseGroup(context.Context, studentpresence.LiveGroup) (studentpresence.LiveGroup, error)
 	DeleteGroup(context.Context, int64) error
 	RecordGroupActivity(context.Context, int64, time.Time) error
 	OccupiedActivityGroupIDs(context.Context, []int64) ([]int64, error)
-	ListGroupSupervisions(context.Context, int64) ([]GroupSupervision, error)
+	ListGroupSupervisions(context.Context, int64) ([]studentpresence.GroupSupervision, error)
 }
 
 // SupervisionRecords is the owner's supervision record store the supervision
 // repository reads and writes through.
 type SupervisionRecords interface {
-	QueryGroupSupervisions(context.Context, GroupSupervisionFilter) ([]GroupSupervision, error)
-	RecordSupervision(context.Context, GroupSupervision) (GroupSupervision, error)
-	ReviseSupervision(context.Context, GroupSupervision) (GroupSupervision, error)
+	QueryGroupSupervisions(context.Context, studentpresence.GroupSupervisionFilter) ([]studentpresence.GroupSupervision, error)
+	RecordSupervision(context.Context, studentpresence.GroupSupervision) (studentpresence.GroupSupervision, error)
+	ReviseSupervision(context.Context, studentpresence.GroupSupervision) (studentpresence.GroupSupervision, error)
 	RemoveSupervision(context.Context, int64) error
-	SetSupervisionEnd(context.Context, int64, Date, time.Time) (int64, error)
-	EndOpenGroupSupervisions(context.Context, int64, int64, Date) (int, error)
-	EndStaffSupervisionsOn(context.Context, int64, Date) (int, error)
-	EndSupervisionOn(context.Context, int64, Date) (int, error)
-	SupervisedRoomsOn(context.Context, Date) ([]StaffRoomSupervision, error)
-	StaffIDsWithSupervisionOn(context.Context, Date) ([]int64, error)
+	SetSupervisionEnd(context.Context, int64, string, time.Time) (int64, error)
+	EndOpenGroupSupervisions(context.Context, int64, int64, string) (int, error)
+	EndStaffSupervisionsOn(context.Context, int64, string) (int, error)
+	EndSupervisionOn(context.Context, int64, string) (int, error)
+	SupervisedRoomsOn(context.Context, string) ([]studentpresence.StaffRoomSupervision, error)
+	StaffIDsWithSupervisionOn(context.Context, string) ([]int64, error)
 }
 
 // RecordErrors keeps the retained repository error representation of the

@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
 	"github.com/moto-nrw/project-phoenix/modules/studentpresence/internal/ports"
 )
 
@@ -80,19 +81,19 @@ LEFT JOIN room_days d ON d.room_id = s.room_id
 GROUP BY s.room_id, d.days_used, p.peak_occupancy
 ORDER BY s.room_id`
 
-func (s *Store) RoomUtilization(ctx context.Context, windows []ports.StudentVisitWindow) ([]ports.RoomUtilization, ports.Stats, error) {
+func (s *Store) RoomUtilization(ctx context.Context, windows []studentpresence.StudentVisitWindow) ([]studentpresence.RoomUtilization, ports.Stats, error) {
 	db, tenantID, err := s.database(ctx)
 	if err != nil {
 		return nil, ports.Stats{}, err
 	}
 	if len(windows) == 0 {
-		return []ports.RoomUtilization{}, ports.Stats{}, nil
+		return []studentpresence.RoomUtilization{}, ports.Stats{}, nil
 	}
 	input, err := json.Marshal(windows)
 	if err != nil {
 		return nil, ports.Stats{}, err
 	}
-	var rows []ports.RoomUtilization
+	var rows []studentpresence.RoomUtilization
 	started := time.Now()
 	err = db.NewRaw(roomUtilizationQuery, string(input), tenantID, tenantID, tenantID).Scan(ctx, &rows)
 	stats := ports.Stats{Queries: 1, Rows: int64(len(rows)), StatementDuration: time.Since(started)}

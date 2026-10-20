@@ -8,6 +8,8 @@ import (
 	"github.com/moto-nrw/project-phoenix/modules/studentpresence/internal/ports"
 )
 
+// LockOpenSupervisors holds every still-open supervisor of the group so
+// completion snapshots the same rows the session end closes.
 func (s *Service) LockOpenSupervisors(ctx context.Context, groupID int64) error {
 	return s.run("lock_open_supervisors", func() (ports.Stats, error) {
 		if groupID <= 0 {
@@ -20,6 +22,8 @@ func (s *Service) LockOpenSupervisors(ctx context.Context, groupID int64) error 
 	})
 }
 
+// LockSupervisors holds the snapshot supervisor rows during reopen so a
+// concurrent staffing change cannot hide from the unchanged-row check.
 func (s *Service) LockSupervisors(ctx context.Context, ids []int64) error {
 	return s.run("lock_supervisors", func() (ports.Stats, error) {
 		if !validIDs(ids) {
@@ -32,6 +36,8 @@ func (s *Service) LockSupervisors(ctx context.Context, ids []int64) error {
 	})
 }
 
+// RestoreGroup reopens exactly the ended active group in a completion
+// snapshot. A mismatch fails the surrounding recovery transaction.
 func (s *Service) RestoreGroup(ctx context.Context, groupID int64, now time.Time) error {
 	return s.run("restore_group", func() (ports.Stats, error) {
 		if groupID <= 0 || now.IsZero() {
@@ -44,6 +50,8 @@ func (s *Service) RestoreGroup(ctx context.Context, groupID int64, now time.Time
 	})
 }
 
+// RestoreSupervisors reopens exactly the ended supervisors in a completion
+// snapshot. A mismatch fails the surrounding recovery transaction.
 func (s *Service) RestoreSupervisors(ctx context.Context, ids []int64) error {
 	return s.run("restore_supervisors", func() (ports.Stats, error) {
 		if !validIDs(ids) {
