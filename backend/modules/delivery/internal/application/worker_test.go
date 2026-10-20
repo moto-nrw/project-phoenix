@@ -8,6 +8,7 @@ import (
 	"testing"
 	"time"
 
+	deliveryContract "github.com/moto-nrw/project-phoenix/modules/delivery/contract"
 	"github.com/moto-nrw/project-phoenix/modules/delivery/internal/domain"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -28,7 +29,7 @@ type workerStore struct {
 	renewToken          string
 	cancelledBeforeSend bool
 	deferredToken       string
-	statuses            []domain.EmailDeliveryStatus
+	statuses            []deliveryContract.EmailDeliveryStatus
 	expiredDispatches   int64
 	expiredDispatchErr  error
 }
@@ -108,7 +109,7 @@ func (*workerStore) ReplaceEmailDeliveries(context.Context, int64, string, int64
 func (*workerStore) DeleteEmailDeliveries(context.Context, int64, string, int64) (int64, error) {
 	return 0, nil
 }
-func (s *workerStore) EmailDeliveryStatuses(context.Context, int64, string, int64) ([]domain.EmailDeliveryStatus, error) {
+func (s *workerStore) EmailDeliveryStatuses(context.Context, int64, string, int64) ([]deliveryContract.EmailDeliveryStatus, error) {
 	return s.statuses, nil
 }
 func (*workerStore) AttachEmailOutbox(context.Context, int64, int64, int64) error { return nil }
@@ -122,10 +123,10 @@ type workerProvider struct {
 	hasDeadline bool
 }
 
-func (p *workerProvider) Send(ctx context.Context, _ domain.Intent) (domain.ProviderResult, error) {
+func (p *workerProvider) Send(ctx context.Context, _ domain.Intent) (deliveryContract.ProviderResult, error) {
 	p.calls++
 	_, p.hasDeadline = ctx.Deadline()
-	return domain.ProviderResult{MessageID: "provider-1"}, p.err
+	return deliveryContract.ProviderResult{MessageID: "provider-1"}, p.err
 }
 
 func claimedEmail(attempts int) domain.Intent {
@@ -319,7 +320,7 @@ func TestWorkerRejectsInvalidRetryLimitBeforeClaim(t *testing.T) {
 			worker := NewWorker(&workerStore{}, &workerProvider{}, func(domain.Observation) { t.Error("invalid policy must not start work") })
 			stats, err := worker.RunOnce(context.Background(), 1, limit)
 			require.EqualError(t, err, "delivery worker: max attempts must be positive")
-			assert.Equal(t, domain.WorkerStats{}, stats)
+			assert.Equal(t, deliveryContract.WorkerStats{}, stats)
 		})
 	}
 }
@@ -351,16 +352,16 @@ type blockedRetryProvider struct {
 	release chan struct{}
 }
 
-func (p blockedRetryProvider) Send(ctx context.Context, intent domain.Intent) (domain.ProviderResult, error) {
+func (p blockedRetryProvider) Send(ctx context.Context, intent domain.Intent) (deliveryContract.ProviderResult, error) {
 	if intent.Transport == domain.TransportEmail {
 		p.started <- struct{}{}
 		select {
 		case <-p.release:
 		case <-ctx.Done():
-			return domain.ProviderResult{}, ctx.Err()
+			return deliveryContract.ProviderResult{}, ctx.Err()
 		}
 	}
-	return domain.ProviderResult{}, errors.New("provider rejected")
+	return deliveryContract.ProviderResult{}, errors.New("provider rejected")
 }
 
 func TestWorkerConcurrentRunsKeepIndependentRetryLimits(t *testing.T) {
@@ -370,7 +371,7 @@ func TestWorkerConcurrentRunsKeepIndependentRetryLimits(t *testing.T) {
 	provider := blockedRetryProvider{started: make(chan struct{}, 2), release: make(chan struct{})}
 	worker := NewWorker(&concurrentRetryStore{}, provider, func(domain.Observation) {})
 	type result struct {
-		stats domain.WorkerStats
+		stats deliveryContract.WorkerStats
 		err   error
 	}
 	low, high := make(chan result, 1), make(chan result, 1)
@@ -394,6 +395,6 @@ func TestWorkerConcurrentRunsKeepIndependentRetryLimits(t *testing.T) {
 	first, second := <-low, <-high
 	require.NoError(t, first.err)
 	require.NoError(t, second.err)
-	assert.Equal(t, domain.WorkerStats{Claimed: 2, DeadLettered: 2}, first.stats)
-	assert.Equal(t, domain.WorkerStats{Claimed: 2, Retried: 2}, second.stats)
+	assert.Equal(t, deliveryContract.WorkerStats{Claimed: 2, DeadLettered: 2}, first.stats)
+	assert.Equal(t, deliveryContract.WorkerStats{Claimed: 2, Retried: 2}, second.stats)
 }

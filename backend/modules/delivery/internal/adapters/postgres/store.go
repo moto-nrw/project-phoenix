@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"time"
 
+	deliveryContract "github.com/moto-nrw/project-phoenix/modules/delivery/contract"
 	"github.com/moto-nrw/project-phoenix/modules/delivery/internal/domain"
 	"github.com/uptrace/bun"
 )
@@ -687,7 +688,7 @@ func (s *Store) ClaimFailedEmailDelivery(ctx context.Context, tenantID, delivery
 	return count == 1, nil
 }
 
-func (s *Store) EmailDeliveryStatuses(ctx context.Context, tenantID int64, relatedType string, relatedID int64) ([]domain.EmailDeliveryStatus, error) {
+func (s *Store) EmailDeliveryStatuses(ctx context.Context, tenantID int64, relatedType string, relatedID int64) ([]deliveryContract.EmailDeliveryStatus, error) {
 	db, err := s.tenantDB(ctx, tenantID)
 	if err != nil {
 		return nil, err
@@ -710,9 +711,9 @@ func (s *Store) EmailDeliveryStatuses(ctx context.Context, tenantID int64, relat
 		ORDER BY delivery.id`, tenantID, relatedType, relatedID).Scan(ctx, &rows); err != nil {
 		return nil, fmt.Errorf("delivery postgres: list email delivery statuses: %w", err)
 	}
-	statuses := make([]domain.EmailDeliveryStatus, 0, len(rows))
+	statuses := make([]deliveryContract.EmailDeliveryStatus, 0, len(rows))
 	for _, row := range rows {
-		statuses = append(statuses, domain.EmailDeliveryStatus{
+		statuses = append(statuses, deliveryContract.EmailDeliveryStatus{
 			DeliveryID: row.DeliveryID, GuardianProfileID: row.GuardianProfileID, AccountID: row.AccountID,
 			RecipientEmail: row.RecipientEmail,
 			Reachability:   row.Reachability, EmailStatus: row.EmailStatus, LastError: row.LastError,

@@ -11,7 +11,7 @@ import (
 
 // DurablePushOutbox serves the notification channels' durable push outbox
 // over the Delivery module.
-type DurablePushOutbox struct{ Module *delivery.Module }
+type DurablePushOutbox struct{ Module delivery.Capability }
 
 // CancelPendingByRelatedEntity cancels the pending pushes of an entity of
 // the school in context.

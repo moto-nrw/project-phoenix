@@ -116,7 +116,7 @@ type recordingOutbox struct {
 }
 
 type failAfterDurableEnqueue struct {
-	module *deliveryModule.Module
+	module deliveryModule.Capability
 	err    error
 	failAt int
 	calls  int
