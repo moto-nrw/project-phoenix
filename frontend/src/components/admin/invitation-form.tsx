@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Mail } from "lucide-react";
 import { useApiFormError, useToast } from "~/contexts/ToastContext";
+import { EmploymentCarryover } from "./invitation-employment-carryover";
 import { Alert } from "~/components/ui/alert";
 import { SegmentedControl } from "~/components/ui/segmented-control";
 import { CustomSelect } from "~/components/ui/custom-select";
@@ -100,14 +101,20 @@ function FormerEmploymentHint({
   formerEmployment,
   action,
   onActionChange,
+  reset,
+  onResetChange,
   disabled,
 }: {
   readonly formerEmployment: FormerEmployment;
   readonly action: EmploymentAction;
   readonly onActionChange: (action: EmploymentAction) => void;
   readonly disabled: boolean;
+  readonly reset: CreateInvitationRequest;
+  readonly onResetChange: (
+    key: "resetMasterData" | "resetQualifications" | "resetWorkTime",
+    value: boolean,
+  ) => void;
 }) {
-  const resumes = formerEmploymentParts(formerEmployment.resumes);
   const notReturning = formerEmploymentParts(formerEmployment.notReturning);
   return (
     <Alert
@@ -137,13 +144,12 @@ function FormerEmploymentHint({
               Stammdaten, Qualifikationen, Stundenkonto und Urlaub beginnen neu.
             </p>
           ) : null}
-          {action === "resume" && resumes ? (
-            <p>
-              <span className="font-semibold">
-                Kommt bei Wiederaufnahme zurück:
-              </span>{" "}
-              <span>{resumes}</span>
-            </p>
+          {action === "resume" ? (
+            <EmploymentCarryover
+              value={reset}
+              onChange={onResetChange}
+              disabled={disabled}
+            />
           ) : null}
           {notReturning ? (
             <p>
@@ -238,7 +244,14 @@ export function InvitationForm({
     (key: keyof CreateInvitationRequest) => (value: string | undefined) => {
       setForm((prev) => ({
         ...prev,
-        ...(key === "email" ? { employmentAction: undefined } : {}),
+        ...(key === "email"
+          ? {
+              employmentAction: undefined,
+              resetMasterData: undefined,
+              resetQualifications: undefined,
+              resetWorkTime: undefined,
+            }
+          : {}),
         [key]: value,
       }));
     };
@@ -261,7 +274,16 @@ export function InvitationForm({
         lastName: toOptional(form.lastName),
         position: toOptional(form.position),
         ...(formerEmployment
-          ? { employmentAction: form.employmentAction ?? "resume" }
+          ? {
+              employmentAction: form.employmentAction ?? "resume",
+              ...((form.employmentAction ?? "resume") === "resume"
+                ? {
+                    resetMasterData: form.resetMasterData ?? false,
+                    resetQualifications: form.resetQualifications ?? false,
+                    resetWorkTime: form.resetWorkTime ?? false,
+                  }
+                : {}),
+            }
           : {}),
       });
 
@@ -349,6 +371,10 @@ export function InvitationForm({
           <FormerEmploymentHint
             formerEmployment={formerEmployment}
             action={form.employmentAction ?? "resume"}
+            reset={form}
+            onResetChange={(key, value) =>
+              setForm((prev) => ({ ...prev, [key]: value }))
+            }
             onActionChange={(employmentAction) =>
               setForm((prev) => ({ ...prev, employmentAction }))
             }

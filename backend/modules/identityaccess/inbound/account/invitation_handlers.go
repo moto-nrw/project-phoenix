@@ -23,15 +23,24 @@ import (
 const errInvitationServiceUnavailable = "invitation service unavailable"
 
 type CreateInvitationRequest struct {
-	EmploymentAction identityaccess.EmploymentAction `json:"employment_action"`
-	Email            string                          `json:"email"`
-	RoleID           common.JSONID                   `json:"role_id"`
-	FirstName        string                          `json:"first_name"`
-	LastName         string                          `json:"last_name"`
-	Position         string                          `json:"position"`
+	EmploymentAction    identityaccess.EmploymentAction `json:"employment_action"`
+	ResetMasterData     bool                            `json:"reset_master_data"`
+	ResetQualifications bool                            `json:"reset_qualifications"`
+	ResetWorkTime       bool                            `json:"reset_work_time"`
+	Email               string                          `json:"email"`
+	RoleID              common.JSONID                   `json:"role_id"`
+	FirstName           string                          `json:"first_name"`
+	LastName            string                          `json:"last_name"`
+	Position            string                          `json:"position"`
 }
 
 func (req *CreateInvitationRequest) Bind(_ *http.Request) error {
+	noResetForNew := validation.By(func(value interface{}) error {
+		if reset, ok := value.(bool); ok && reset && req.EmploymentAction == identityaccess.EmploymentActionNew {
+			return errors.New("resets require resumption")
+		}
+		return nil
+	})
 	req.Email = strings.TrimSpace(strings.ToLower(req.Email))
 	req.FirstName = strings.TrimSpace(req.FirstName)
 	req.LastName = strings.TrimSpace(req.LastName)
@@ -49,27 +58,33 @@ func (req *CreateInvitationRequest) Bind(_ *http.Request) error {
 		validation.Field(&req.FirstName, validation.Length(0, 100)),
 		validation.Field(&req.LastName, validation.Length(0, 100)),
 		validation.Field(&req.Position, validation.Length(0, 100)),
+		validation.Field(&req.ResetMasterData, noResetForNew),
+		validation.Field(&req.ResetQualifications, noResetForNew),
+		validation.Field(&req.ResetWorkTime, noResetForNew),
 		validation.Field(&req.EmploymentAction, validation.In(identityaccess.EmploymentAction(""), identityaccess.EmploymentActionResume, identityaccess.EmploymentActionNew)),
 	)
 }
 
 type InvitationResponse struct {
-	EmploymentAction identityaccess.EmploymentAction `json:"employment_action"`
-	ID               int64                           `json:"id"`
-	Email            string                          `json:"email"`
-	RoleID           int64                           `json:"role_id,string"`
-	RoleName         string                          `json:"role_name,omitempty"`
-	Token            string                          `json:"token,omitempty"`
-	ExpiresAt        time.Time                       `json:"expires_at"`
-	FirstName        *string                         `json:"first_name,omitempty"`
-	LastName         *string                         `json:"last_name,omitempty"`
-	Position         *string                         `json:"position,omitempty"`
-	CreatedBy        int64                           `json:"created_by"`
-	Creator          string                          `json:"creator,omitempty"`
-	DeliveryStatus   string                          `json:"delivery_status"`
-	EmailSentAt      *time.Time                      `json:"email_sent_at,omitempty"`
-	EmailError       *string                         `json:"email_error,omitempty"`
-	EmailRetryCount  int                             `json:"email_retry_count"`
+	EmploymentAction    identityaccess.EmploymentAction `json:"employment_action"`
+	ResetMasterData     bool                            `json:"reset_master_data"`
+	ResetQualifications bool                            `json:"reset_qualifications"`
+	ResetWorkTime       bool                            `json:"reset_work_time"`
+	ID                  int64                           `json:"id"`
+	Email               string                          `json:"email"`
+	RoleID              int64                           `json:"role_id,string"`
+	RoleName            string                          `json:"role_name,omitempty"`
+	Token               string                          `json:"token,omitempty"`
+	ExpiresAt           time.Time                       `json:"expires_at"`
+	FirstName           *string                         `json:"first_name,omitempty"`
+	LastName            *string                         `json:"last_name,omitempty"`
+	Position            *string                         `json:"position,omitempty"`
+	CreatedBy           int64                           `json:"created_by"`
+	Creator             string                          `json:"creator,omitempty"`
+	DeliveryStatus      string                          `json:"delivery_status"`
+	EmailSentAt         *time.Time                      `json:"email_sent_at,omitempty"`
+	EmailError          *string                         `json:"email_error,omitempty"`
+	EmailRetryCount     int                             `json:"email_retry_count"`
 }
 
 // InvitationValidationResponse is the public-safe view of a redeemable
@@ -119,6 +134,7 @@ func (rs *Resource) createInvitation(w http.ResponseWriter, r *http.Request) {
 func (rs *Resource) buildInvitationRequest(r *http.Request, req *CreateInvitationRequest, claims sessiontoken.AppClaims) identityaccess.SchoolInvitationRequest {
 	invitationReq := identityaccess.SchoolInvitationRequest{
 		EmploymentAction: req.EmploymentAction,
+		ResetMasterData:  req.ResetMasterData, ResetQualifications: req.ResetQualifications, ResetWorkTime: req.ResetWorkTime,
 		Email:            req.Email,
 		RoleID:           req.RoleID.Int64(),
 		CreatedBy:        int64(claims.ID),
@@ -190,21 +206,22 @@ func renderCreateInvitationError(w http.ResponseWriter, r *http.Request, err err
 func toInvitationResponse(invitation identityaccess.SchoolInvitation) InvitationResponse {
 	return InvitationResponse{
 		EmploymentAction: invitation.EmploymentAction,
-		ID:               invitation.ID,
-		Email:            invitation.Email,
-		RoleID:           invitation.RoleID,
-		RoleName:         invitation.RoleName,
-		Token:            invitation.Token,
-		ExpiresAt:        invitation.ExpiresAt,
-		FirstName:        invitation.FirstName,
-		LastName:         invitation.LastName,
-		Position:         invitation.Position,
-		CreatedBy:        invitationCreatedByValue(invitation.CreatedBy),
-		Creator:          invitation.CreatorEmail,
-		DeliveryStatus:   deriveDeliveryStatus(invitation.Delivery.SentAt, invitation.Delivery.Error),
-		EmailSentAt:      invitation.Delivery.SentAt,
-		EmailError:       invitation.Delivery.Error,
-		EmailRetryCount:  invitation.Delivery.RetryCount,
+		ResetMasterData:  invitation.ResetMasterData, ResetQualifications: invitation.ResetQualifications, ResetWorkTime: invitation.ResetWorkTime,
+		ID:              invitation.ID,
+		Email:           invitation.Email,
+		RoleID:          invitation.RoleID,
+		RoleName:        invitation.RoleName,
+		Token:           invitation.Token,
+		ExpiresAt:       invitation.ExpiresAt,
+		FirstName:       invitation.FirstName,
+		LastName:        invitation.LastName,
+		Position:        invitation.Position,
+		CreatedBy:       invitationCreatedByValue(invitation.CreatedBy),
+		Creator:         invitation.CreatorEmail,
+		DeliveryStatus:  deriveDeliveryStatus(invitation.Delivery.SentAt, invitation.Delivery.Error),
+		EmailSentAt:     invitation.Delivery.SentAt,
+		EmailError:      invitation.Delivery.Error,
+		EmailRetryCount: invitation.Delivery.RetryCount,
 	}
 }
 

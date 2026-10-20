@@ -408,3 +408,23 @@ func TestInvitationEmploymentActionWireContract(t *testing.T) {
 	require.NoError(t, err)
 	require.Contains(t, string(body), `"employment_action":"new"`)
 }
+
+func TestInvitationResetWireContract(t *testing.T) {
+	t.Parallel()
+	for _, action := range []identityaccess.EmploymentAction{"", identityaccess.EmploymentActionResume, identityaccess.EmploymentActionNew} {
+		req := CreateInvitationRequest{Email: "return@example.test", RoleID: 42, EmploymentAction: action, ResetMasterData: true, ResetQualifications: true, ResetWorkTime: true}
+		err := req.Bind(httptest.NewRequest(http.MethodPost, "/auth/invitations", nil))
+		if action == identityaccess.EmploymentActionNew {
+			require.Error(t, err)
+			continue
+		}
+		require.NoError(t, err)
+		mapped := (&Resource{}).buildInvitationRequest(httptest.NewRequest(http.MethodPost, "/auth/invitations", nil), &req, testutil.DefaultTestClaims())
+		require.True(t, mapped.ResetMasterData)
+		require.True(t, mapped.ResetQualifications)
+		require.True(t, mapped.ResetWorkTime)
+	}
+	body, err := json.Marshal(toInvitationValidationResponse(identityaccess.InvitationPreview{}))
+	require.NoError(t, err)
+	require.NotContains(t, string(body), "reset_")
+}
