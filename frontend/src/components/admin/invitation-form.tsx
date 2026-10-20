@@ -37,6 +37,7 @@ const EMPTY_POSITIONS: readonly string[] = [];
 // would ask once per keystroke pause.
 const COMPLETE_ADDRESS = /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/;
 const FORMER_EMPLOYMENT_DEBOUNCE_MS = 400;
+const FORMER_EMPLOYMENT_LOOKUP_TIMEOUT_MS = 5_000;
 
 /**
  * The former employment an invitation to the typed address would continue
@@ -57,20 +58,29 @@ function useFormerEmployment(email: string): {
   useEffect(() => {
     if (!COMPLETE_ADDRESS.test(address)) return;
     let cancelled = false;
-    findFormerEmployment(address)
+    const controller = new AbortController();
+    const timeoutID = window.setTimeout(
+      () => controller.abort(),
+      FORMER_EMPLOYMENT_LOOKUP_TIMEOUT_MS,
+    );
+    findFormerEmployment(address, controller.signal)
       .then((formerEmployment) => {
         if (!cancelled) setAnswer({ address, formerEmployment });
       })
       .catch((err: unknown) => {
         // Without a successful lookup there is no choice to offer. Keep the
         // existing invitation behavior; sending reports its own form errors.
-        if (!cancelled) setAnswer({ address, formerEmployment: null });
+        if (cancelled) return;
+        setAnswer({ address, formerEmployment: null });
         logger.warn("former_employment_lookup_failed", {
           error: err instanceof Error ? err.message : String(err),
         });
-      });
+      })
+      .finally(() => window.clearTimeout(timeoutID));
     return () => {
       cancelled = true;
+      window.clearTimeout(timeoutID);
+      controller.abort();
     };
   }, [address]);
 

@@ -2,9 +2,16 @@
  * Tests for InvitationForm Component
  * Tests the rendering and submission of invitation form
  */
-import { render, screen, waitFor, fireEvent } from "@testing-library/react";
+import {
+  act,
+  render,
+  screen,
+  waitFor,
+  fireEvent,
+} from "@testing-library/react";
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { ApiError } from "~/lib/api-error";
+import { releaseFakeTimers } from "~/test/clock";
 import { InvitationForm } from "./invitation-form";
 
 // Mock dependencies. The form reports errors through the real
@@ -29,8 +36,8 @@ vi.mock("~/lib/auth-service", () => ({
 
 vi.mock("~/lib/invitation-api", () => ({
   createInvitation: (data: unknown): unknown => mockCreateInvitation(data),
-  findFormerEmployment: (email: unknown): unknown =>
-    mockFindFormerEmployment(email),
+  findFormerEmployment: (email: unknown, signal?: AbortSignal): unknown =>
+    mockFindFormerEmployment(email, signal),
 }));
 
 vi.mock("~/lib/auth-helpers", () => {
@@ -622,7 +629,10 @@ describe("InvitationForm former employment hint", () => {
     expect(
       await screen.findByText("Diese Person war schon bei Ihnen beschäftigt"),
     ).toBeInTheDocument();
-    expect(mockFindFormerEmployment).toHaveBeenCalledWith("former@example.com");
+    expect(mockFindFormerEmployment).toHaveBeenCalledWith(
+      "former@example.com",
+      expect.any(AbortSignal),
+    );
     expect(
       screen.getByText("In moto eingetragen vom 01.08.2024 bis 31.07.2026."),
     ).toBeInTheDocument();
@@ -642,7 +652,10 @@ describe("InvitationForm former employment hint", () => {
     await typeEmail("new@example.com");
 
     await waitFor(() => {
-      expect(mockFindFormerEmployment).toHaveBeenCalledWith("new@example.com");
+      expect(mockFindFormerEmployment).toHaveBeenCalledWith(
+        "new@example.com",
+        expect.any(AbortSignal),
+      );
     });
     expect(
       screen.queryByText("Diese Person war schon bei Ihnen beschäftigt"),
@@ -706,6 +719,50 @@ describe("InvitationForm former employment hint", () => {
     await waitFor(() => {
       expect(screen.getByText("Einladung senden")).not.toBeDisabled();
     });
+  });
+
+  it("falls back to the existing invitation behavior when the lookup times out", async () => {
+    let lookupSignal: AbortSignal | undefined;
+    mockFindFormerEmployment.mockImplementation(
+      (_email: string, signal?: AbortSignal) => {
+        lookupSignal = signal;
+        return new Promise((_, reject) => {
+          signal?.addEventListener("abort", () => reject(new Error("aborted")));
+        });
+      },
+    );
+
+    let usesFakeTimers = false;
+    try {
+      render(<InvitationForm />);
+      await waitFor(() =>
+        expect(screen.getByLabelText("Rolle")).not.toBeDisabled(),
+      );
+      vi.useFakeTimers();
+      usesFakeTimers = true;
+      fireEvent.change(screen.getByLabelText("E-Mail-Adresse"), {
+        target: { value: "former@example.com" },
+      });
+
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(400);
+      });
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(5_000);
+      });
+
+      expect(lookupSignal?.aborted).toBe(true);
+      expect(screen.getByText("Einladung senden")).not.toBeDisabled();
+      fireEvent.click(screen.getByText("Einladung senden"));
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(0);
+      });
+      expect(mockCreateInvitation).toHaveBeenCalledWith(
+        expect.not.objectContaining({ employmentAction: expect.anything() }),
+      );
+    } finally {
+      if (usesFakeTimers) releaseFakeTimers();
+    }
   });
 });
 

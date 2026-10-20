@@ -165,6 +165,7 @@ export async function createInvitation(
  */
 export async function findFormerEmployment(
   email: string,
+  signal?: AbortSignal,
 ): Promise<FormerEmployment | null> {
   const response = await transportFetch("/api/invitations/former-employment", {
     method: "POST",
@@ -173,6 +174,7 @@ export async function findFormerEmployment(
     },
     body: JSON.stringify({ email }),
     credentials: "include",
+    signal,
   });
   if (!response.ok) {
     throw await createApiError(
