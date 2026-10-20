@@ -46,7 +46,7 @@ type transferRow struct {
 // buildModule wires the capability exactly as production does, with the one
 // exception the test cannot avoid: the counterpart is on loopback, which the
 // production address policy refuses on purpose.
-func buildModule(t *testing.T, db *bun.DB, server sftptest.Server, dir string) *exporttransfer.Module {
+func buildModule(t *testing.T, db *bun.DB, server sftptest.Server, dir string) exporttransfer.Capability {
 	t.Helper()
 	settings := staticSettings(server, dir)
 	module, err := newModule(Dependencies{
@@ -298,7 +298,7 @@ func TestProductionWiringRefusesALoopbackCounterpart(t *testing.T) {
 func transferInTenantTx(
 	t *testing.T,
 	ctx context.Context,
-	module *exporttransfer.Module,
+	module exporttransfer.Capability,
 	request exporttransfer.Request,
 ) (exporttransfer.Outcome, error) {
 	t.Helper()

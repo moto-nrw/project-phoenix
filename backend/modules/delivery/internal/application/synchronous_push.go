@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"time"
 
+	deliveryContract "github.com/moto-nrw/project-phoenix/modules/delivery/contract"
 	"github.com/moto-nrw/project-phoenix/modules/delivery/internal/domain"
 )
 
@@ -88,7 +89,7 @@ func (w *Worker) deliverPushOnce(ctx context.Context, intent domain.Intent) erro
 	return w.finalizeSynchronousPush(finalizeCtx, intent, token, result)
 }
 
-func (w *Worker) finalizeSynchronousPush(finalizeCtx context.Context, intent domain.Intent, token string, result domain.ProviderResult) error {
+func (w *Worker) finalizeSynchronousPush(finalizeCtx context.Context, intent domain.Intent, token string, result deliveryContract.ProviderResult) error {
 	encoded, err := json.Marshal(result)
 	if err != nil {
 		return fmt.Errorf("delivery: encode synchronous push result: %w", err)
