@@ -904,8 +904,7 @@ interface MealParticipationDay {
 
 // How the school's parents register (#3873): until one deadline per day, with
 // a separate cancellation deadline, or once for the school year.
-export type MealRegistrationModel =
-  "ongoing_single" | "ongoing_split" | "annual";
+type MealRegistrationModel = "ongoing_single" | "ongoing_split" | "annual";
 
 export interface MealParticipation {
   readonly weekdays: number[];

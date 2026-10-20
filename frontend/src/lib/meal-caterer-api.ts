@@ -6,8 +6,7 @@
 import { apiErrorFromResponse } from "./api-error";
 import { sessionFetch } from "./session-cache";
 
-export type MealCatererInvitationStatus =
-  "open" | "accepted" | "revoked" | "expired";
+type MealCatererInvitationStatus = "open" | "accepted" | "revoked" | "expired";
 
 export interface MealCatererInvitation {
   id: string;
@@ -19,7 +18,7 @@ export interface MealCatererInvitation {
   createdAt: string;
 }
 
-export interface MealCatererSupply {
+interface MealCatererSupply {
   catererName: string;
   deliveryAddress: string;
   startedAt: string;

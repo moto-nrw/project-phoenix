@@ -52,7 +52,7 @@ export interface BackendCatererOrders {
   days: BackendOrderDay[];
 }
 
-export type CatererOrderStatus = "open" | "ordered" | "confirmed" | "unordered";
+type CatererOrderStatus = "open" | "ordered" | "confirmed" | "unordered";
 
 export interface CatererSchool {
   id: string;
@@ -71,7 +71,7 @@ export interface CatererOrderChild {
   schoolClass: string;
 }
 
-export interface CatererOrderChange {
+interface CatererOrderChange {
   sequence: number;
   child: CatererOrderChild;
   delta: number;
@@ -117,7 +117,7 @@ function mapChild(child: BackendChild): CatererOrderChild {
   };
 }
 
-export function mapCatererOrders(data: BackendCatererOrders): CatererOrders {
+function mapCatererOrders(data: BackendCatererOrders): CatererOrders {
   return {
     school: data.school,
     deliveryAddress: data.delivery_address,

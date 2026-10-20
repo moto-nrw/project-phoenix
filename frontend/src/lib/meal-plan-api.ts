@@ -277,7 +277,7 @@ export function workWeekDates(mondayISO: string): string[] {
 }
 
 /** Where a day's order stands (#3873). */
-export type MealOrderStatus = "open" | "ordered" | "confirmed" | "unordered";
+type MealOrderStatus = "open" | "ordered" | "confirmed" | "unordered";
 
 export interface MealOrderDay {
   date: string;
