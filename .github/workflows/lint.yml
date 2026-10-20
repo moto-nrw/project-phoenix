@@ -67,8 +67,9 @@ jobs:
             backend/tools/go.sum
 
       - name: Backend quality (shared with pre-push)
-        # Source ratchets run once per PR: test.yml always selects ./test for
-        # backend changes, and ci-scripts covers toolchain-only changes.
+        # Source ratchets run once per PR: test.yml selects ./test for every
+        # backend test change, and ci-scripts covers toolchain-filter changes.
+        # Lint-only inputs (quality scripts, .golangci.yml) feed no ratchet.
         env:
           SKIP_SOURCE_RATCHETS: 'true'
         run: bash scripts/check-quality.sh backend
