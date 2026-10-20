@@ -137,7 +137,7 @@ describe("TimetableRosterContent section order (#4353)", () => {
 });
 
 describe("TimetableRosterContent student meta (#4356)", () => {
-  it("shows class and group as separate lines with an icon each", () => {
+  it("shows class and group with an icon each, like the room cards", () => {
     renderRoster(roster([rosterRow("1", "Anna", { currentlyPresent: true })]));
 
     for (const label of ["2a", "Gruppe: Sonnengruppe"]) {

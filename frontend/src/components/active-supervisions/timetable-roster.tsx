@@ -105,7 +105,7 @@ function RosterStudentMeta({
   const showUnplanned = row.isUnplanned && !instanceIsSpontaneous;
   if (!row.schoolClass && !showGroup && !showUnplanned) return null;
   return (
-    <div className="flex flex-wrap items-center gap-x-3">
+    <div>
       {row.schoolClass ? (
         <StudentInfoRow icon={<SchoolClassIcon />}>
           {row.schoolClass}
@@ -117,9 +117,7 @@ function RosterStudentMeta({
         </StudentInfoRow>
       ) : null}
       {showUnplanned ? (
-        <span className="mt-1 text-xs font-medium text-gray-500">
-          ungeplant
-        </span>
+        <div className="mt-1 text-xs font-medium text-gray-500">ungeplant</div>
       ) : null}
     </div>
   );
