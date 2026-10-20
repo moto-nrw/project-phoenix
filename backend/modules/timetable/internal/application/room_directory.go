@@ -9,11 +9,11 @@ import (
 
 type roomDirectory struct{ query timetable.RoomDirectory }
 
-func (d roomDirectory) LockRoomsByID(ctx context.Context, ids []int64) ([]domain.RoomRef, domain.OperationStats, error) {
+func (d roomDirectory) LockRoomsByID(ctx context.Context, ids []int64) ([]timetable.RoomRef, domain.OperationStats, error) {
 	values, err := d.query.LockRoomsByID(ctx, ids)
-	result := make([]domain.RoomRef, 0, len(values))
+	result := make([]timetable.RoomRef, 0, len(values))
 	for _, value := range values {
-		result = append(result, domain.RoomRef(value))
+		result = append(result, timetable.RoomRef(value))
 	}
 	return result, domain.OperationStats{}, err
 }

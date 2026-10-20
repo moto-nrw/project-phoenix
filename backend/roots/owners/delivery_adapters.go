@@ -31,7 +31,7 @@ func (r GuardianDisplayResolver) ResolveGuardianDisplays(ctx context.Context, id
 	return result, nil
 }
 
-type announcementDeliveryAdapter struct{ module *delivery.Module }
+type announcementDeliveryAdapter struct{ module delivery.Capability }
 
 func (a announcementDeliveryAdapter) ReplaceForEntity(ctx context.Context, tenantID int64, relatedType string, relatedID int64, rows []announcement.ParentAnnouncementEmailDelivery) error {
 	values := make([]deliveryContract.EmailDelivery, 0, len(rows))
@@ -75,7 +75,7 @@ func (a announcementDeliveryAdapter) ClaimFailedDelivery(ctx context.Context, te
 
 // enrollmentDeliveryAdapter counts and cancels the mails of an application
 // of the school in context.
-type enrollmentDeliveryAdapter struct{ module *delivery.Module }
+type enrollmentDeliveryAdapter struct{ module delivery.Capability }
 
 func (a enrollmentDeliveryAdapter) CountRelatedEmails(ctx context.Context, relatedType string, relatedID int64) (int, error) {
 	tenantID, err := tenant.TenantFromContext(ctx)

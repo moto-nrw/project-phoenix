@@ -1,32 +1,16 @@
 package domain
 
 import (
-	"errors"
 	"time"
 )
 
-var ErrOffboardingConflict = errors.New("timetable changed since offboarding preview")
-
-type OffboardingCounts struct {
-	InstanceAssignments int64
-	PlannedSupervisors  int64
-}
-
-type OffboardingPreview struct {
-	Counts   OffboardingCounts
-	Revision string
-}
-
+// OffboardingInstance is one locked instance staff assignment an offboarding
+// preview may remove, with the version facts its revision encodes.
 type OffboardingInstance struct {
-	Assignment        InstanceStaff
-	Date              string
-	Status            string
-	InstanceUpdatedAt time.Time
-}
-
-type OffboardingSnapshot struct {
-	StaffID     int64
-	From        string
-	Instances   []OffboardingInstance
-	Supervisors []PlannedSupervisor
+	AssignmentID        int64
+	AssignmentUpdatedAt time.Time
+	InstanceID          int64
+	Date                string
+	Status              string
+	InstanceUpdatedAt   time.Time
 }

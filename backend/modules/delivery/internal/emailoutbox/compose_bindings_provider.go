@@ -93,7 +93,7 @@ func (p *MailPushProvider) SendPush(ctx context.Context, intent deliveryContract
 
 // DurableEmails serves the e-mail outbox's durable store over the Delivery
 // module.
-type DurableEmails struct{ Module *delivery.Module }
+type DurableEmails struct{ Module delivery.Capability }
 
 // EnqueueEmail stores an e-mail intent and reports whether it was a
 // duplicate.
