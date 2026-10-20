@@ -279,7 +279,7 @@ describe("/staff — Berechtigungs-Split", () => {
 
     expect(screen.getByRole("button", { name: /Lesen Test/ })).toBeEnabled();
     fireEvent.click(screen.getByRole("button", { name: /Lesen Test/ }));
-    expect(routerPush).toHaveBeenCalledWith("/staff/42");
+    expect(routerPush).toHaveBeenCalledWith("/staff/42?tab=konto");
   });
 
   it.each([
