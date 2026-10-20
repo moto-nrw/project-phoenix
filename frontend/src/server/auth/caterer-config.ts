@@ -22,7 +22,7 @@ import {
   performCatererLogin,
   createOperatorLoginError, // generic CredentialsSignin wrapper — reused
   refreshTokenExpiry,
-  operatorRedirectCallback, // generic origin/subdomain check — reused
+  schoolRedirectCallback, // host-only session: exact origin only
   sharedJwtCallback,
   sharedSessionCallback,
   _resetRefreshState,
@@ -116,7 +116,7 @@ export const catererAuthConfig = {
   ],
   basePath: "/api/caterer/auth",
   callbacks: {
-    redirect: operatorRedirectCallback,
+    redirect: schoolRedirectCallback,
     jwt: sharedJwtCallback,
     session: sharedSessionCallback,
   },
