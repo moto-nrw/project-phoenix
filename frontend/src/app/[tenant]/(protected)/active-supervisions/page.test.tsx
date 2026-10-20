@@ -3639,7 +3639,7 @@ describe("MeinRaumPage (Active Supervisions) (5/5)", () => {
       expect(screen.getByText("Aktiv")).toBeInTheDocument();
       expect(screen.getByText("Teilnehmende (1)")).toBeInTheDocument();
       expect(screen.getByText("2a")).toBeInTheDocument();
-      expect(screen.getByText("Gruppe: Sonnengruppe")).toBeInTheDocument();
+      expect(screen.getByText("Sonnengruppe")).toBeInTheDocument();
       expect(screen.queryByText("Ungeplant (1)")).not.toBeInTheDocument();
       expect(screen.queryByText("ungeplant")).not.toBeInTheDocument();
     });

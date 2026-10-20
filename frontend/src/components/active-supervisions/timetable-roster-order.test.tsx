@@ -1,4 +1,4 @@
-import { render, screen } from "@testing-library/react";
+import { render, screen, within } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 
 import { TimetableRosterContent } from "./timetable-roster";
@@ -137,13 +137,16 @@ describe("TimetableRosterContent section order (#4353)", () => {
 });
 
 describe("TimetableRosterContent student meta (#4356)", () => {
-  it("shows class and group with an icon each, like the room cards", () => {
+  it("shows class and group with an icon each on the line of the name", () => {
     renderRoster(roster([rosterRow("1", "Anna", { currentlyPresent: true })]));
 
-    for (const label of ["2a", "Gruppe: Sonnengruppe"]) {
-      const line = screen.getByText(label).parentElement;
-      expect(line?.querySelector("svg")).not.toBeNull();
+    const nameLine = screen.getByText("Anna").parentElement as HTMLElement;
+    for (const value of ["2a", "Sonnengruppe"]) {
+      const entry = within(nameLine).getByText(value);
+      expect(entry.querySelector("svg")).not.toBeNull();
     }
+    expect(nameLine).toHaveTextContent(/Klasse 2a\s*Gruppe Sonnengruppe/);
+    expect(screen.queryByText(/Gruppe:/)).not.toBeInTheDocument();
   });
 
   it("keeps the unplanned marker and leaves out missing values", () => {
@@ -160,8 +163,9 @@ describe("TimetableRosterContent student meta (#4356)", () => {
       ]),
     );
 
-    expect(screen.getByText("2a")).toBeInTheDocument();
-    expect(screen.getByText("ungeplant")).toBeInTheDocument();
-    expect(screen.queryByText(/^Gruppe:/)).not.toBeInTheDocument();
+    const nameLine = screen.getByText("Emil").parentElement as HTMLElement;
+    expect(within(nameLine).getByText("2a")).toBeInTheDocument();
+    expect(within(nameLine).getByText("ungeplant")).toBeInTheDocument();
+    expect(within(nameLine).queryByText("Gruppe")).not.toBeInTheDocument();
   });
 });

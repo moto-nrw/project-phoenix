@@ -19,11 +19,7 @@ import { Input } from "~/components/ui/input";
 import { OccupancyBadges } from "~/components/ui/occupancy-badges";
 import type { PresentChildrenPickerProps } from "~/components/active-supervisions/present-children-picker";
 import { SectionCard } from "~/components/ui/section-card";
-import {
-  GroupIcon,
-  SchoolClassIcon,
-  StudentInfoRow,
-} from "~/components/students/student-card";
+import { GroupIcon, SchoolClassIcon } from "~/components/students/student-card";
 import { overbookedHintFor, type Occupancy } from "~/lib/activity-occupancy";
 import { useNFCEnabled } from "~/lib/tenant-context";
 import {
@@ -95,33 +91,39 @@ export function moveNoticeFromRoster(
     : `${name} wurde aus einer anderen Aktivität hierher geholt.`;
 }
 
-// Class and group carry the same icons as the room cards (#4356); a group
-// named like the class is not repeated.
+// Class and group follow the name on its line, with the icons of the room
+// cards (#4356); the hidden words keep them apart for screen readers. A
+// group named like the class is not repeated.
 function RosterStudentMeta({
   row,
   instanceIsSpontaneous,
 }: Readonly<{ row: TimetableRosterRow; instanceIsSpontaneous: boolean }>) {
   const showGroup = row.groupName && row.groupName !== row.schoolClass;
-  const showUnplanned = row.isUnplanned && !instanceIsSpontaneous;
-  if (!row.schoolClass && !showGroup && !showUnplanned) return null;
   return (
-    <div>
+    <>
       {row.schoolClass ? (
-        <StudentInfoRow icon={<SchoolClassIcon />}>
+        <span className={ROSTER_META_CLASS}>
+          <SchoolClassIcon />
+          <span className="sr-only">Klasse </span>
           {row.schoolClass}
-        </StudentInfoRow>
+        </span>
       ) : null}
       {showGroup ? (
-        <StudentInfoRow icon={<GroupIcon />}>
-          Gruppe: {row.groupName}
-        </StudentInfoRow>
+        <span className={ROSTER_META_CLASS}>
+          <GroupIcon />
+          <span className="sr-only">Gruppe </span>
+          {row.groupName}
+        </span>
       ) : null}
-      {showUnplanned ? (
-        <div className="mt-1 text-xs font-medium text-gray-500">ungeplant</div>
+      {row.isUnplanned && !instanceIsSpontaneous ? (
+        <span className="text-xs font-medium text-gray-500">ungeplant</span>
       ) : null}
-    </div>
+    </>
   );
 }
+
+const ROSTER_META_CLASS =
+  "inline-flex items-center gap-1 text-xs font-medium text-gray-500";
 
 function RosterSummaryStat({
   label,
@@ -418,55 +420,57 @@ function TimetableRosterStudentRow({
   );
 
   return (
-    <div className="flex flex-col gap-3 border-b border-gray-100 px-4 py-3 last:border-b-0 sm:flex-row sm:items-start sm:justify-between">
+    <div className="flex flex-col gap-2 border-b border-gray-100 px-4 py-2.5 last:border-b-0 sm:flex-row sm:items-start sm:justify-between">
       <div className="min-w-0 flex-1">
-        {onOpenStudent ? (
-          <button
-            type="button"
-            onClick={() => onOpenStudent(row)}
-            className="text-left font-medium text-gray-900 underline decoration-gray-300 underline-offset-4 hover:decoration-gray-600"
-          >
-            {row.studentName || `Kind ${row.studentId}`}
-          </button>
-        ) : (
-          <div className="font-medium text-gray-900">
-            {row.studentName || `Kind ${row.studentId}`}
-          </div>
-        )}
-        <RosterStudentMeta
-          row={row}
-          instanceIsSpontaneous={instanceIsSpontaneous}
-        />
+        <div className="flex flex-wrap items-center gap-x-3 gap-y-0.5">
+          {onOpenStudent ? (
+            <button
+              type="button"
+              onClick={() => onOpenStudent(row)}
+              className="text-left font-medium text-gray-900 underline decoration-gray-300 underline-offset-4 hover:decoration-gray-600"
+            >
+              {row.studentName || `Kind ${row.studentId}`}
+            </button>
+          ) : (
+            <div className="font-medium text-gray-900">
+              {row.studentName || `Kind ${row.studentId}`}
+            </div>
+          )}
+          <RosterStudentMeta
+            row={row}
+            instanceIsSpontaneous={instanceIsSpontaneous}
+          />
+        </div>
         {pickupTimeLabel === null ? null : (
-          <div className="mt-1 text-sm font-medium text-gray-700">
+          <div className="mt-0.5 text-sm font-medium text-gray-700">
             Gehzeit: {pickupTimeLabel}
           </div>
         )}
         {arrivalTime ? (
-          <div className="mt-1 text-sm font-medium text-gray-700">
+          <div className="mt-0.5 text-sm font-medium text-gray-700">
             Kommt um {arrivalTime} Uhr
           </div>
         ) : null}
         {classException && expectsArrival ? (
-          <div className="mt-1 text-sm text-gray-700">
+          <div className="mt-0.5 text-sm text-gray-700">
             {classException.message}
           </div>
         ) : null}
         {planningNotes.map((warning) => (
           <div
             key={`${warning.kind}:${warning.message}`}
-            className="text-moto-amber-strong mt-1 text-sm"
+            className="text-moto-amber-strong mt-0.5 text-sm"
           >
             {warning.message}
           </div>
         ))}
         {attendanceDetail ? (
-          <div className="text-moto-amber-strong mt-1 text-sm">
+          <div className="text-moto-amber-strong mt-0.5 text-sm">
             {attendanceDetail}
           </div>
         ) : null}
         {row.parallelPresentIn ? (
-          <div className="text-moto-amber-strong mt-1 text-sm">
+          <div className="text-moto-amber-strong mt-0.5 text-sm">
             {`Auch in „${row.parallelPresentIn.title}“ (${row.parallelPresentIn.startTime}–${row.parallelPresentIn.endTime}) als anwesend eingetragen`}
           </div>
         ) : null}
