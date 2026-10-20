@@ -9,14 +9,6 @@ import (
 	"github.com/uptrace/bun"
 )
 
-type presenceBatchObservation struct{ poolWait, lockWait time.Duration }
-
-// The monitor has its own connection so a blocked worker can still be sampled.
-// Fail rather than silently report zero when the pool cannot supply a monitor.
-func monitorPresenceLocks(ctx context.Context, db *bun.DB, pid int) (func() (time.Duration, error), time.Duration, error) {
-	return monitorBackfillLocks(ctx, db, pid)
-}
-
 // monitorBackfillLocks is shared by the Presence and Staff storage copies.
 func monitorBackfillLocks(ctx context.Context, db *bun.DB, pid int) (func() (time.Duration, error), time.Duration, error) {
 	acquireCtx, acquireCancel := context.WithTimeout(ctx, time.Second)
