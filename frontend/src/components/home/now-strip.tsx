@@ -14,6 +14,7 @@ import { formatStatusDate } from "~/lib/date-helpers";
 import type { HomeBlockAccess, HomeBlockContext } from "~/lib/home-blocks";
 import { formatMinutesAhead } from "~/lib/home-clock";
 import { blockEndLine, blockTimeRange } from "~/lib/block-children";
+import { BlockRoom } from "~/components/timetable/block-row-parts";
 import {
   deriveHomeNow,
   nowActions,
@@ -242,7 +243,9 @@ function NowText({
             </>
           }
           detail={[
-            block.roomName,
+            block.roomName ? (
+              <BlockRoom key="room" room={block.roomName} />
+            ) : null,
             blockEndLine(block),
             next
               ? `danach ${next.startTime} ${next.title}`
@@ -267,7 +270,12 @@ function NowText({
               )}
             </>
           }
-          detail={[blockTimeRange(block), block.roomName]}
+          detail={[
+            blockTimeRange(block),
+            block.roomName ? (
+              <BlockRoom key="room" room={block.roomName} />
+            ) : null,
+          ]}
         />
       );
     }
@@ -352,9 +360,14 @@ function Lines({
 }: {
   readonly headline: string;
   readonly badges?: ReactNode;
-  readonly detail: readonly string[];
+  // Raumangaben tragen ihr Symbol wie in den Blockzeilen (#4350).
+  readonly detail: readonly ReactNode[];
 }) {
-  const text = detail.filter(Boolean).join(" · ");
+  const parts = detail.filter(Boolean);
+  const text =
+    parts.length > 0
+      ? parts.flatMap((part, index) => (index === 0 ? [part] : [" · ", part]))
+      : null;
   return (
     <div className="min-w-0 flex-1">
       {/* Auf dem Handy darf der Satz umbrechen; erst nebeneinander mit den

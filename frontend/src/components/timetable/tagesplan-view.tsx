@@ -33,9 +33,14 @@ import { EmptyState } from "~/components/ui/empty-state";
 import { LoadErrorAlert } from "~/components/ui/form-error-alert";
 import { SectionCard } from "~/components/ui/section-card";
 import { Skeleton } from "~/components/ui/skeleton";
-import { MotoConceptIcon } from "~/components/ui/moto-concept-icon";
 import { StatusColorBadge } from "~/components/ui/status-color-badge";
-import { TIMETABLE_UNTYPED_EDGE_COLOR } from "~/components/timetable/timetable-style";
+import {
+  BlockRoom,
+  BlockStaff,
+  OwnBlockHint,
+  blockRowStyle,
+  blockStaffNames,
+} from "~/components/timetable/block-row-parts";
 import { PlanningDisabledState } from "~/components/planning/planning-disabled-state";
 import { useApiErrorDisplay } from "~/contexts/ToastContext";
 import { blockChildrenLabel, blockEndLine } from "~/lib/block-children";
@@ -106,18 +111,6 @@ function readScrollPosition(day: string): number | null {
   }
 }
 
-function staffLine(instance: PlannedTimetableInstance): string | null {
-  const names = instance.staffNames ?? [];
-  if (names.length === 0) return null;
-  return names
-    .map((entry) =>
-      entry.isSubstitute
-        ? `${entry.displayName} (Vertretung)`
-        : entry.displayName,
-    )
-    .join(", ");
-}
-
 // Kinderzahl so knapp wie möglich — der Tagesplan soll sich in einem Blick
 // lesen, nicht in Sätzen ("4 Kinder" statt "4 Kinder erwartet"). Laufend
 // zählt, wer gerade da ist, und wer gegangen ist, steht daneben (#3921).
@@ -148,12 +141,6 @@ function NowDivider({ nowHHMM }: Readonly<{ nowHHMM: string }>) {
     </li>
   );
 }
-
-// Raum- und Personalsymbol in den Textzeilen einer Zeile (#4350).
-const META_ICON = {
-  size: 14,
-  className: "mr-1 inline-block align-[-2px]",
-} as const;
 
 function TagesplanRow({
   instance,
@@ -198,7 +185,7 @@ function TagesplanRow({
     instance.status === "completed" ||
     ended ||
     (cancelled && (dayIsPast || (isToday && instance.endTime <= nowHHMM)));
-  const staff = staffLine(instance);
+  const staff = blockStaffNames(instance);
   // Eigener Block (#4350): die Zeile ist in ihrer Blockfarbe hinterlegt, wie
   // ein PlanBlock im Raster; Vorleseprogramme hören "Mein Block". isAssigned
   // gilt auch für eine Vertretung, nur wer abwesend gemeldet ist, fällt
@@ -212,12 +199,7 @@ function TagesplanRow({
     instance.status === "completed" ? "Beendet" : null,
     missed ? "Nicht gestartet" : null,
     isDuty ? "Dienst" : null,
-    room ? (
-      <Fragment key="room">
-        <MotoConceptIcon concept="rooms" {...META_ICON} />
-        {room}
-      </Fragment>
-    ) : null,
+    room ? <BlockRoom key="room" room={room} /> : null,
     instance.groupName,
     cancelled || isDuty ? null : childrenShort(instance),
   ].filter(Boolean);
@@ -239,7 +221,7 @@ function TagesplanRow({
           className={`block truncate text-sm text-gray-900 ${running ? "font-semibold" : "font-medium"}`}
         >
           {instance.title}
-          {mine ? <span className="sr-only"> · Mein Block</span> : null}
+          <OwnBlockHint mine={mine} />
           {instance.planningTrackName ? (
             <span className="ml-2 text-xs font-normal text-gray-500">
               {instance.planningTrackName}
@@ -263,8 +245,7 @@ function TagesplanRow({
         </span>
         {staff && !cancelled ? (
           <span className="block truncate text-xs text-gray-400">
-            <MotoConceptIcon concept="staff" {...META_ICON} />
-            {staff}
+            <BlockStaff names={staff} />
           </span>
         ) : null}
       </span>
@@ -276,14 +257,8 @@ function TagesplanRow({
     </>
   );
 
-  const edgeColor = cancelled
-    ? LOCATION_COLORS.DANGER
-    : (instance.planningTrackColor ?? TIMETABLE_UNTYPED_EDGE_COLOR);
   const edgeStyle = {
-    borderLeftColor: edgeColor,
-    // Dieselbe Tönung wie PlanBlock (ui/plan-block.tsx); eine Absage bleibt
-    // dort wie hier ungetönt.
-    ...(mine && !cancelled ? { backgroundColor: `${edgeColor}1A` } : {}),
+    ...blockRowStyle(instance, mine),
     ...(over ? { opacity: 0.9 } : {}),
   };
 

@@ -1,6 +1,7 @@
 "use client";
 
 import { ChevronRight } from "lucide-react";
+import type { ReactNode } from "react";
 
 import { Button } from "~/components/ui/button";
 import { EmptyState } from "~/components/ui/empty-state";
@@ -10,6 +11,12 @@ import { SectionCard } from "~/components/ui/section-card";
 import { Skeleton } from "~/components/ui/skeleton";
 import { StatusBadge } from "~/components/ui/status-badge";
 import { BlockState } from "~/components/home/day-flow-block";
+import {
+  BlockRoom,
+  BlockStaff,
+  blockRowStyle,
+  blockStaffNames,
+} from "~/components/timetable/block-row-parts";
 import { HOME_CARD_BODY, HomeCardIcon } from "~/components/home/home-card";
 import {
   HomeCardLink,
@@ -249,26 +256,19 @@ function BlockRow({
     : isDuty
       ? "Dienst"
       : blockChildrenLabel(block);
-  const staff = (block.staffNames ?? [])
-    .map((entry) =>
-      entry.isSubstitute
-        ? `${entry.displayName} (Vertretung)`
-        : entry.displayName,
-    )
-    .join(", ");
+  const staff = blockStaffNames(block);
   // Was vorbei ist, steht als Wort in der Zeile, nicht als Marke rechts:
   // auf dem Handy nähme die Marke dem Namen den Platz, und „Beendet" muss
   // niemandem ins Auge springen. Rechts steht nur, was JETZT zählt.
-  const meta = [
+  // Raum und Personal tragen ihre Konzeptsymbole wie im Tagesplan (#4350).
+  const meta: ReactNode[] = [
     block.status === "completed" ? "Beendet" : null,
     missed ? "Nicht gestartet" : null,
-    room,
+    room ? <BlockRoom key="room" room={room} /> : null,
     block.groupName,
     children,
-    staff || null,
-  ]
-    .filter(Boolean)
-    .join(" · ");
+    staff ? <BlockStaff key="staff" names={staff} /> : null,
+  ].filter(Boolean);
 
   return (
     <li>
@@ -277,10 +277,13 @@ function BlockRow({
           <NowLine now={now} />
         </div>
       )}
+      {/* Kante in der Blockfarbe wie im Tagesplan (#4350). Getönt wird
+          nichts: hier steht ohnehin nur die eigene Einteilung. */}
       <div
-        className={`flex items-center gap-3 rounded-xl bg-gray-50/50 px-3 py-2 sm:py-1 ${
+        className={`flex items-center gap-3 rounded-l-sm rounded-r-xl border-l-4 bg-gray-50/50 px-3 py-2 sm:py-1 ${
           over ? "opacity-60" : ""
         }`}
+        style={blockRowStyle(block, false)}
       >
         <Link
           href={href}
@@ -309,7 +312,9 @@ function BlockRow({
             <span className="block truncate text-xs text-gray-500">
               {cancelled && block.cancelReason
                 ? `Fällt aus · ${block.cancelReason}`
-                : meta}
+                : meta.flatMap((part, index) =>
+                    index === 0 ? [part] : [" · ", part],
+                  )}
             </span>
           </span>
         </Link>

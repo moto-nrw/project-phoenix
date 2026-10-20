@@ -278,6 +278,46 @@ describe("PlannedNowSection", () => {
     expect(screen.queryByLabelText(/Planungs-Hinweis/)).toBeNull();
   });
 
+  // #4350: dieselbe Markierung wie im Tagesplan. Ob ein Block der eigene ist,
+  // zeigt die Tönung der Karte; eine Pille gibt es nur noch für eine Rolle.
+  it("tints the caller's own cards and keeps pills only for a role (#4350)", () => {
+    render(
+      <PlannedNowSection
+        plannedNow={[
+          { ...plannedInstance, id: "own", title: "Basteln", isPrimary: false },
+          {
+            ...plannedInstance,
+            id: "sub",
+            title: "Hausaufgaben",
+            isPrimary: false,
+            isSubstitute: true,
+          },
+          {
+            ...plannedInstance,
+            id: "foreign",
+            title: "Fußball-AG",
+            isAssigned: false,
+            isPrimary: false,
+          },
+        ]}
+        isStartingInstance={null}
+        onStart={vi.fn()}
+      />,
+    );
+
+    const card = (title: string) =>
+      screen
+        .getByRole("heading", { name: new RegExp(title) })
+        .closest("article") as HTMLElement;
+    expect(card("Basteln").style.backgroundColor).not.toBe("");
+    expect(card("Basteln")).toHaveTextContent("Mein Block");
+    expect(card("Fußball-AG").style.backgroundColor).toBe("");
+    expect(card("Fußball-AG")).not.toHaveTextContent("Mein Block");
+    expect(screen.getByText("Vertretung")).toBeInTheDocument();
+    expect(screen.queryByText("Zugewiesen")).toBeNull();
+    expect(screen.queryByText("Info")).toBeNull();
+  });
+
   it("keeps slots the caller is not assigned to collapsed until opened", () => {
     render(
       <PlannedNowSection
