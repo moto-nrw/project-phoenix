@@ -1,7 +1,6 @@
 package enrollment
 
 import (
-	"context"
 	"time"
 )
 
@@ -15,21 +14,4 @@ type ChangeRequestMessage struct {
 	AuthorAccountID *int64    `json:"author_account_id,omitempty"`
 	Body            string    `json:"body"`
 	InternalOnly    bool      `json:"internal_only"`
-}
-
-func (m *Module) InsertChangeRequestMessage(ctx context.Context, message *ChangeRequestMessage) error {
-	if err := m.transactions.RequireTransaction(ctx); err != nil {
-		return err
-	}
-	return m.engine.InsertChangeRequestMessage(ctx, message)
-}
-
-func (m *Module) ChangeRequestMessages(ctx context.Context, ids []int64, includeInternal bool) ([]*ChangeRequestMessage, error) {
-	if len(ids) == 0 {
-		return nil, nil
-	}
-	if err := m.transactions.RequireTransaction(ctx); err != nil {
-		return nil, err
-	}
-	return m.engine.ChangeRequestMessages(ctx, ids, includeInternal)
 }

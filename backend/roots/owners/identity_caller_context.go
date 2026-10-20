@@ -32,7 +32,7 @@ type CallerSettings interface {
 // granted and the parent request review policy reports itself unconfigured.
 func NewCallerContext(
 	tokens TokenAdapter, accounts identityaccess.AccountProfiles, persons CallerPersons, membership schoolmembership.Capability,
-	staffGroups schoolstructure.StaffGroupQuery, activities identityCompose.CallerActivities, presence *studentpresence.Module,
+	staffGroups schoolstructure.StaffGroupQuery, activities identityCompose.CallerActivities, presence studentpresence.Owner,
 	settings CallerSettings, logger *slog.Logger,
 ) (identityaccess.CallerContext, error) {
 	if accounts == nil || persons.Rows == nil || persons.People == nil || membership == nil || staffGroups == nil ||
@@ -150,7 +150,7 @@ func (s callerStructure) SchoolClasses(ctx context.Context, staffID int64) ([]st
 	return s.groups.ListSchoolClassesByStaff(ctx, staffID)
 }
 
-type callerSessions struct{ presence *studentpresence.Module }
+type callerSessions struct{ presence studentpresence.Owner }
 
 func (s callerSessions) OpenSessionIDsForActivities(ctx context.Context, activityGroupIDs []int64) ([]int64, error) {
 	if len(activityGroupIDs) == 0 {
@@ -193,7 +193,7 @@ func liveGroupIDs(sessions []studentpresence.LiveGroup) []int64 {
 	return ids
 }
 
-type callerLiveTopics struct{ presence *studentpresence.Module }
+type callerLiveTopics struct{ presence studentpresence.Owner }
 
 func (t callerLiveTopics) OpenSessionIDs(ctx context.Context) ([]int64, error) {
 	groups, err := ssePresence{groups: t.presence}.ListSSEGroups(ctx)

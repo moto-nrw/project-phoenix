@@ -404,7 +404,7 @@ func (s *AccountAuthentication) demoTenantLock(ctx context.Context, account doma
 		return failed("switch tenant", err)
 	}
 	if demo {
-		return failed("switch tenant", domain.ErrDemoSessionTenantLocked)
+		return failed("switch tenant", identityaccess.ErrDemoSessionTenantLocked)
 	}
 	return nil
 }

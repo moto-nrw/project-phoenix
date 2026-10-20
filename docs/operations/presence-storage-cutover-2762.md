@@ -1,5 +1,9 @@
 # Presence storage cutover and rollback window (#2762)
 
+> **Historical.** The Contract migration of this move runs in every environment. The
+> backfill commands this runbook names (`backfill …`, `migrate backfill …`,
+> `migrate presence-backfill`) were removed in #4441; there is no manual step left.
+
 The rollback window ended with the
 [Contract (#2763)](presence-storage-contract-2763.md): migration 1.15.432
 removed the mirrored columns, the triggers and the counter described below.
@@ -7,7 +11,7 @@ This runbook and its observation SQL apply only to databases between 1.15.415
 and 1.15.432.
 
 Migration 1.15.415 applies the final delta of the
-[Timetable → Presence backfill](../presence-backfill.md) under one write lock,
+Timetable → Presence backfill (#2761) under one write lock,
 verifies every school, and makes the two Presence targets authoritative:
 
 - `active.activity_sessions` owns the execution of a block: `status`

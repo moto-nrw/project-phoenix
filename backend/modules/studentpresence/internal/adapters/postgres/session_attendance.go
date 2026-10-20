@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
 	"github.com/moto-nrw/project-phoenix/modules/studentpresence/internal/ports"
 	"github.com/uptrace/bun"
 	"github.com/uptrace/bun/dialect/pgdialect"
@@ -32,8 +33,8 @@ type sessionAttendanceRow struct {
 	PickupExceptionID  *int64     `bun:"pickup_exception_id"`
 }
 
-func (row *sessionAttendanceRow) record() ports.SessionAttendance {
-	return ports.SessionAttendance{ID: row.ID, TenantID: row.TenantID, CreatedAt: row.CreatedAt, UpdatedAt: row.UpdatedAt,
+func (row *sessionAttendanceRow) record() studentpresence.SessionAttendance {
+	return studentpresence.SessionAttendance{ID: row.ID, TenantID: row.TenantID, CreatedAt: row.CreatedAt, UpdatedAt: row.UpdatedAt,
 		ParticipantID: row.ParticipantID, Status: row.Status, Substatus: row.Substatus, Note: row.Note,
 		CheckedInAt: row.CheckedInAt, CheckedOutAt: row.CheckedOutAt, IsUnplanned: row.IsUnplanned,
 		NotScheduled: row.NotScheduled, ManualStatusAt: row.ManualStatusAt,
@@ -49,23 +50,23 @@ func sessionAttendanceSelect(db bun.IDB, model any, tenantID int64) *bun.SelectQ
 		Where(`"attendance".tenant_id = ?`, tenantID).OrderExpr(`"attendance".instance_student_id ASC`)
 }
 
-func (s *Store) listSessionAttendance(ctx context.Context, query *bun.SelectQuery, rows *[]sessionAttendanceRow, operation string) ([]ports.SessionAttendance, ports.Stats, error) {
+func (s *Store) listSessionAttendance(ctx context.Context, query *bun.SelectQuery, rows *[]sessionAttendanceRow, operation string) ([]studentpresence.SessionAttendance, ports.Stats, error) {
 	started := time.Now()
 	err := query.Scan(ctx)
 	stats := ports.Stats{Queries: 1, Rows: int64(len(*rows)), StatementDuration: time.Since(started)}
 	if err != nil {
 		return nil, stats, fmt.Errorf("%s: %w", operation, err)
 	}
-	result := make([]ports.SessionAttendance, 0, len(*rows))
+	result := make([]studentpresence.SessionAttendance, 0, len(*rows))
 	for i := range *rows {
 		result = append(result, (*rows)[i].record())
 	}
 	return result, stats, nil
 }
 
-func (s *Store) ListSessionAttendance(ctx context.Context, participantIDs []int64) ([]ports.SessionAttendance, ports.Stats, error) {
+func (s *Store) ListSessionAttendance(ctx context.Context, participantIDs []int64) ([]studentpresence.SessionAttendance, ports.Stats, error) {
 	if len(participantIDs) == 0 {
-		return []ports.SessionAttendance{}, ports.Stats{}, nil
+		return []studentpresence.SessionAttendance{}, ports.Stats{}, nil
 	}
 	db, tenantID, err := s.database(ctx)
 	if err != nil {
@@ -76,7 +77,7 @@ func (s *Store) ListSessionAttendance(ctx context.Context, participantIDs []int6
 		Where(`"attendance".instance_student_id IN (?)`, bun.List(participantIDs)), &rows, "list session attendance")
 }
 
-func (s *Store) ListSessionAttendanceByStatusDay(ctx context.Context, statusDayID int64) ([]ports.SessionAttendance, ports.Stats, error) {
+func (s *Store) ListSessionAttendanceByStatusDay(ctx context.Context, statusDayID int64) ([]studentpresence.SessionAttendance, ports.Stats, error) {
 	db, tenantID, err := s.database(ctx)
 	if err != nil {
 		return nil, ports.Stats{}, err
@@ -86,7 +87,7 @@ func (s *Store) ListSessionAttendanceByStatusDay(ctx context.Context, statusDayI
 		Where(`"attendance".student_status_day_id = ?`, statusDayID), &rows, "list session attendance by status day")
 }
 
-func (s *Store) ListSessionAttendanceByPickupException(ctx context.Context, pickupExceptionID int64) ([]ports.SessionAttendance, ports.Stats, error) {
+func (s *Store) ListSessionAttendanceByPickupException(ctx context.Context, pickupExceptionID int64) ([]studentpresence.SessionAttendance, ports.Stats, error) {
 	db, tenantID, err := s.database(ctx)
 	if err != nil {
 		return nil, ports.Stats{}, err
@@ -96,20 +97,20 @@ func (s *Store) ListSessionAttendanceByPickupException(ctx context.Context, pick
 		Where(`"attendance".pickup_exception_id = ?`, pickupExceptionID), &rows, "list session attendance by pickup exception")
 }
 
-func (s *Store) FindSessionAttendance(ctx context.Context, participantID int64) (ports.SessionAttendance, bool, ports.Stats, error) {
+func (s *Store) FindSessionAttendance(ctx context.Context, participantID int64) (studentpresence.SessionAttendance, bool, ports.Stats, error) {
 	db, tenantID, err := s.database(ctx)
 	if err != nil {
-		return ports.SessionAttendance{}, false, ports.Stats{}, err
+		return studentpresence.SessionAttendance{}, false, ports.Stats{}, err
 	}
 	row := sessionAttendanceRow{}
 	started := time.Now()
 	err = sessionAttendanceSelect(db, &row, tenantID).Where(`"attendance".instance_student_id = ?`, participantID).Scan(ctx)
 	stats := ports.Stats{Queries: 1, StatementDuration: time.Since(started)}
 	if errors.Is(err, sql.ErrNoRows) {
-		return ports.SessionAttendance{}, false, stats, nil
+		return studentpresence.SessionAttendance{}, false, stats, nil
 	}
 	if err != nil {
-		return ports.SessionAttendance{}, false, stats, fmt.Errorf("find session attendance: %w", err)
+		return studentpresence.SessionAttendance{}, false, stats, fmt.Errorf("find session attendance: %w", err)
 	}
 	stats.Rows = 1
 	return row.record(), true, stats, nil
@@ -203,7 +204,7 @@ func (s *Store) ReconcileParticipantInterval(ctx context.Context, participantID 
 
 // PatchSessionAttendance applies a manual decision to an existing row or
 // writes the decision over expected attendance when no row exists yet.
-func (s *Store) PatchSessionAttendance(ctx context.Context, participantID int64, patch ports.SessionAttendancePatch, at time.Time) (ports.Stats, error) {
+func (s *Store) PatchSessionAttendance(ctx context.Context, participantID int64, patch studentpresence.SessionAttendancePatch, at time.Time) (ports.Stats, error) {
 	db, tenantID, err := s.database(ctx)
 	if err != nil {
 		return ports.Stats{}, err
@@ -239,7 +240,7 @@ func (s *Store) PatchSessionAttendance(ctx context.Context, participantID int64,
 
 // sessionAttendancePatchSets adds the patched columns to the update and
 // reports whether the patch decides the status or substatus by hand.
-func sessionAttendancePatchSets(query *bun.UpdateQuery, patch ports.SessionAttendancePatch, at time.Time) (*bun.UpdateQuery, bool) {
+func sessionAttendancePatchSets(query *bun.UpdateQuery, patch studentpresence.SessionAttendancePatch, at time.Time) (*bun.UpdateQuery, bool) {
 	decided := false
 	if patch.Status != nil {
 		query = query.Set(`status = ?`, *patch.Status).Set(`not_scheduled = FALSE`)
@@ -263,7 +264,7 @@ func sessionAttendancePatchSets(query *bun.UpdateQuery, patch ports.SessionAtten
 	return query.Set(`updated_at = ?`, at), decided
 }
 
-func sessionAttendancePatchRow(tenantID, participantID int64, patch ports.SessionAttendancePatch, at time.Time, decided bool) sessionAttendanceRow {
+func sessionAttendancePatchRow(tenantID, participantID int64, patch studentpresence.SessionAttendancePatch, at time.Time, decided bool) sessionAttendanceRow {
 	row := sessionAttendanceRow{TenantID: tenantID, ParticipantID: participantID, Status: "expected", UpdatedAt: at}
 	if patch.Status != nil {
 		row.Status = *patch.Status
@@ -323,7 +324,7 @@ func (s *Store) MarkParticipantsNotScheduled(ctx context.Context, participantIDs
 		tenantID, pgdialect.Array(participantIDs)))
 }
 
-func (s *Store) RestoreSessionAttendance(ctx context.Context, row ports.SessionAttendanceRestore) (ports.Stats, error) {
+func (s *Store) RestoreSessionAttendance(ctx context.Context, row studentpresence.SessionAttendanceRestore) (ports.Stats, error) {
 	db, tenantID, err := s.database(ctx)
 	if err != nil {
 		return ports.Stats{}, err
@@ -350,7 +351,7 @@ func (s *Store) RestoreSessionAttendance(ctx context.Context, row ports.SessionA
 	return stats, nil
 }
 
-func (s *Store) ReconnectParticipantPickupExceptions(ctx context.Context, links []ports.ParticipantPickupException) (ports.Stats, error) {
+func (s *Store) ReconnectParticipantPickupExceptions(ctx context.Context, links []studentpresence.ParticipantPickupException) (ports.Stats, error) {
 	if len(links) == 0 {
 		return ports.Stats{}, nil
 	}

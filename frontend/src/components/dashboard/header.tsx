@@ -243,8 +243,8 @@ export function Header() {
           : getAccountRoleLabel(userRoles, user?.roleIsSystem);
 
   // Beim Scrollen bekommt die Kopfzeile nur noch einen Schatten (Hysterese
-  // gegen Flackern). Die Höhe bleibt fest: der frühere Scroll-Zustand von
-  // 48px ist seit #2827 der Normalzustand.
+  // gegen Flackern). Die Höhe bleibt beim Scrollen fest: 48px auf dem Telefon
+  // (#2827), ab Desktop 64px (#4345).
   useEffect(() => {
     const handleScroll = () => {
       const y = globalThis.window.scrollY;
@@ -295,7 +295,10 @@ export function Header() {
       }`}
     >
       <div className="w-full px-4 sm:px-6 lg:px-8">
-        <div className="flex h-12 w-full items-center">
+        {/* Ab Desktop höher (#4345), auf dem Telefon bleibt die kompakte
+            Höhe aus #2827. Die klebenden Seitenleisten (top-[73px]) hängen
+            an dieser Höhe. */}
+        <div className="flex h-12 w-full items-center lg:h-16">
           {/* Left section: Logo + Brand + Context — must be allowed to
               shrink (min-w-0) so long tenant names / breadcrumbs truncate
               instead of pushing the header past the viewport (#2011) */}

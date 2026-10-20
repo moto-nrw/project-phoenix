@@ -1,7 +1,6 @@
 package domain
 
 import (
-	"errors"
 	"slices"
 	"strings"
 	"time"
@@ -11,16 +10,6 @@ import (
 // schools an existing account may reach and with which role. The data model
 // has always allowed one account to hold different roles at several schools;
 // these flows create, change and revoke those mappings.
-var (
-	// ErrAccountTenantAccessNotFound reports an account without an active
-	// mapping to the school an operation targets.
-	ErrAccountTenantAccessNotFound = errors.New("account has no active access to this school")
-	// ErrAccountTenantAccessExists refuses a grant for a school the account
-	// already reaches.
-	ErrAccountTenantAccessExists = errors.New("account already has access to this school")
-	ErrSchoolNotFound            = errors.New("school not found")
-	ErrSchoolDeleted             = errors.New("school is soft-deleted")
-)
 
 // Base roles and the retired system role the access rules recognise.
 const (
@@ -127,20 +116,6 @@ type AccountPersonIdentity struct {
 	LastName  string
 	Deleted   bool
 	IsStudent bool
-}
-
-// GrantAccountTenantAccess carries a grant: the school, the role and the
-// optional person data used when the account has no person record anywhere
-// yet.
-type GrantAccountTenantAccess struct {
-	AccountID  int64
-	SchoolID   int64
-	RoleID     int64
-	FirstName  string
-	LastName   string
-	Position   string
-	OperatorID int64
-	ClientIP   string
 }
 
 // SchoolIdentityRequest describes the identity chain a school access

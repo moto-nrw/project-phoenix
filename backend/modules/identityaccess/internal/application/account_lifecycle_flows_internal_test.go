@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"testing"
 
+	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess/internal/domain"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -142,15 +143,15 @@ func TestStartStaffPreviewRefusesTargetsWithoutATenantPortal(t *testing.T) {
 		target   int64
 		want     error
 	}{
-		{name: "no school", tenantID: 0, target: previewTarget, want: domain.ErrTenantNotFound},
+		{name: "no school", tenantID: 0, target: previewTarget, want: identityaccess.ErrTenantNotFound},
 		{name: "self", tenantID: lifecycleTenant, target: previewAdmin, want: domain.ErrPreviewSelf},
 		{name: "unknown account", tenantID: lifecycleTenant, target: 404, want: domain.ErrAccountNotFound},
-		{name: "inactive account", tenantID: lifecycleTenant, target: previewTarget, want: domain.ErrAccountInactive, arrange: func(f *lifecycleFixture) {
+		{name: "inactive account", tenantID: lifecycleTenant, target: previewTarget, want: identityaccess.ErrAccountInactive, arrange: func(f *lifecycleFixture) {
 			account := f.store.accounts[previewTarget]
 			account.Active = false
 			f.store.accounts[previewTarget] = account
 		}},
-		{name: "no membership", tenantID: lifecycleTenant, target: previewTarget, want: domain.ErrTenantAccessDenied, arrange: func(f *lifecycleFixture) {
+		{name: "no membership", tenantID: lifecycleTenant, target: previewTarget, want: identityaccess.ErrTenantAccessDenied, arrange: func(f *lifecycleFixture) {
 			f.store.inactive[mappingKey{previewTarget, lifecycleTenant}] = true
 		}},
 		{name: "no role", tenantID: lifecycleTenant, target: previewTarget, want: domain.ErrPreviewTargetNotStaff, arrange: func(f *lifecycleFixture) {
@@ -159,7 +160,7 @@ func TestStartStaffPreviewRefusesTargetsWithoutATenantPortal(t *testing.T) {
 		{name: "guardian only", tenantID: lifecycleTenant, target: previewTarget, want: domain.ErrPreviewTargetNotStaff, arrange: func(f *lifecycleFixture) {
 			f.store.roles[mappingKey{previewTarget, lifecycleTenant}] = []domain.RoleAssignment{guardianRole()}
 		}},
-		{name: "lehrkraft only", tenantID: lifecycleTenant, target: previewTarget, want: domain.ErrMustUseSchoolPortal, arrange: func(f *lifecycleFixture) {
+		{name: "lehrkraft only", tenantID: lifecycleTenant, target: previewTarget, want: identityaccess.ErrMustUseSchoolPortal, arrange: func(f *lifecycleFixture) {
 			f.store.roles[mappingKey{previewTarget, lifecycleTenant}] = []domain.RoleAssignment{lehrkraftRole()}
 		}},
 	}

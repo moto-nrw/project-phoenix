@@ -351,11 +351,7 @@ func CreateTestStaff(tb testing.TB, db *bun.DB, firstName, lastName string) *Sta
 // insertTestStaff stores a staff fixture in its owners: the School Membership
 // row (tenant, person, lifecycle) and its Workforce employment profile. The
 // membership id is the staff id every dependent table references (#2754).
-// A test that restored the pre-cutover world gets the historical table.
 func insertTestStaff(ctx context.Context, db bun.IDB, staff *Staff) error {
-	if historical, err := insertHistoricalStaff(ctx, db, staff); err != nil || historical {
-		return err
-	}
 	return db.RunInTx(ctx, nil, func(ctx context.Context, tx bun.Tx) error {
 		if err := tx.NewRaw(`INSERT INTO users.staff_school_memberships (tenant_id, person_id, deleted_at)
 			VALUES (?, ?, ?) RETURNING id, created_at, updated_at`,
@@ -2587,16 +2583,6 @@ func CreateTestActivityInstanceForTenant(tb testing.TB, db *bun.DB, tenantID int
 	}
 	row.TenantID = tenantID
 
-	if !presenceStorageContracted(tb, db) {
-		// A migration test restored the old execution columns in its own
-		// clone; they are the storage there.
-		_, err := db.NewInsert().
-			Model(row).
-			ModelTableExpr(`schedule.activity_instances`).
-			Exec(ctx)
-		require.NoError(tb, err, "Failed to create test activity instance")
-		return row
-	}
 	// Timetable plans the block, Student Presence runs it (#2762, #2763): a
 	// running or completed block is a planned row plus its session.
 	InsertActivityInstanceRow(tb, ctx, db, row)
@@ -2813,16 +2799,6 @@ func CreateTestInstanceStudent(tb testing.TB, db *bun.DB, instanceID, studentID 
 	}
 	row.TenantID = fixtureTenantID(tb)
 
-	if !presenceStorageContracted(tb, db) {
-		// A migration test restored the old attendance columns in its own
-		// clone; they are the storage there.
-		_, err := db.NewInsert().
-			Model(row).
-			ModelTableExpr(`schedule.instance_students`).
-			Exec(ctx)
-		require.NoError(tb, err, "Failed to create test instance student")
-		return row
-	}
 	// Timetable plans the participant, Student Presence records the
 	// attendance (#2762, #2763). A missing attendance row means expected.
 	InsertInstanceStudentRow(tb, ctx, db, row)

@@ -6,6 +6,7 @@ import (
 	"slices"
 	"time"
 
+	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
 	"github.com/moto-nrw/project-phoenix/modules/studentpresence/internal/ports"
 )
 
@@ -13,6 +14,20 @@ var (
 	ErrPlannedRosterUnbound     = errors.New("student presence: planned roster is not bound")
 	ErrCarePlanDirectoryUnbound = errors.New("student presence: care plan directory is not bound")
 )
+
+// sessionAttendanceError reports a missing participant and an unbound rule
+// port to the caller as the bare public sentinels.
+func sessionAttendanceError(err error) error {
+	switch {
+	case errors.Is(err, studentpresence.ErrSessionAttendanceNotFound):
+		return studentpresence.ErrSessionAttendanceNotFound
+	case errors.Is(err, ErrPlannedRosterUnbound):
+		return studentpresence.ErrSessionAttendanceRoster
+	case errors.Is(err, ErrCarePlanDirectoryUnbound):
+		return studentpresence.ErrSessionAttendanceCarePlan
+	}
+	return err
+}
 
 func (s *Service) plannedRoster() (ports.PlannedRoster, error) {
 	if s.roster == nil {
@@ -35,7 +50,7 @@ func (s *Service) completedInstanceIDs(ctx context.Context, instanceIDs []int64,
 	if len(instanceIDs) == 0 {
 		return result, nil
 	}
-	sessions, sessionStats, err := s.store.ListActivitySessions(ctx, ports.ActivitySessionFilter{InstanceIDs: instanceIDs, Status: ports.ActivitySessionCompleted})
+	sessions, sessionStats, err := s.store.ListActivitySessions(ctx, studentpresence.ActivitySessionFilter{InstanceIDs: instanceIDs, Status: ports.ActivitySessionCompleted})
 	addStats(stats, sessionStats)
 	if err != nil {
 		return nil, err
@@ -123,7 +138,7 @@ func (s *Service) ApplyStatusDay(ctx context.Context, studentID int64, date stri
 		rows = int(applyStats.Rows)
 		return stats, err
 	})
-	return rows, err
+	return rows, sessionAttendanceError(err)
 }
 
 // attendanceRulePorts binds the three ports every attendance rule needs.
@@ -189,7 +204,7 @@ func (s *Service) ReleaseStatusDay(ctx context.Context, statusDayID int64) (rows
 		rows = int(changed)
 		return stats, s.replayPartialAbsences(txCtx, carePlan, released.StudentID, released.Date, &stats)
 	})
-	return rows, err
+	return rows, sessionAttendanceError(err)
 }
 
 // lockedStatusDay locks the child's exception day and re-reads the day
@@ -225,7 +240,7 @@ func (s *Service) releaseStatusDayRows(ctx context.Context, statusDayID int64, r
 // statusDayReleases decides the next state of every owned participant. With
 // keepCompleted, a participant of a finished block stays absent even without
 // a replacement, which is what the old release did for reported day statuses.
-func (s *Service) statusDayReleases(ctx context.Context, owned []ports.SessionAttendance, replacement *ports.StudentStatusDay, keepCompleted bool, stats *ports.Stats) ([]ports.StatusDayRelease, error) {
+func (s *Service) statusDayReleases(ctx context.Context, owned []studentpresence.SessionAttendance, replacement *ports.StudentStatusDay, keepCompleted bool, stats *ports.Stats) ([]ports.StatusDayRelease, error) {
 	if len(owned) == 0 {
 		return nil, nil
 	}
@@ -356,7 +371,7 @@ func (s *Service) ApplyActiveStatusDaysForInstance(ctx context.Context, instance
 		rows = int(applyStats.Rows)
 		return stats, err
 	})
-	return rows, err
+	return rows, sessionAttendanceError(err)
 }
 
 func lockStudentDays(ctx context.Context, locks ports.CareDayLocker, studentIDs []int64, date string) error {
@@ -417,7 +432,7 @@ func (s *Service) ApplyPartialAbsence(ctx context.Context, pickupExceptionID int
 		rows = int(updated)
 		return stats, err
 	})
-	return rows, err
+	return rows, sessionAttendanceError(err)
 }
 
 func (s *Service) ReleasePartialAbsence(ctx context.Context, pickupExceptionID int64) (rows int, err error) {
@@ -442,7 +457,7 @@ func (s *Service) ReleasePartialAbsence(ctx context.Context, pickupExceptionID i
 		rows = int(released)
 		return stats, err
 	})
-	return rows, err
+	return rows, sessionAttendanceError(err)
 }
 
 // lockedPickupException locks the child's exception day and re-reads the
@@ -502,7 +517,7 @@ func (s *Service) ApplyActivePartialAbsencesForInstance(ctx context.Context, ins
 		rows = int(applyStats.Rows)
 		return stats, err
 	})
-	return rows, err
+	return rows, sessionAttendanceError(err)
 }
 
 // excusalCutoffs indexes the excusals of the day that name a cutoff by
@@ -555,8 +570,12 @@ func sortedKeys(values map[int64]ports.PickupException) []int64 {
 // live group carried: every still expected participant of a running session
 // on those groups is marked absent, except the excluded (student, instance)
 // pairs the caller spared as not booked.
-func (s *Service) MarkExpectedAbsentByActiveGroupIDs(ctx context.Context, activeGroupIDs []int64, at time.Time, exclusions []ports.PlannedParticipant) error {
-	return s.runWrite(ctx, "mark_expected_absent_by_active_groups", func(txCtx context.Context) (ports.Stats, error) {
+func (s *Service) MarkExpectedAbsentByActiveGroupIDs(ctx context.Context, activeGroupIDs []int64, at time.Time, refs []studentpresence.PlannedParticipantRef) error {
+	exclusions := make([]ports.PlannedParticipant, 0, len(refs))
+	for _, ref := range refs {
+		exclusions = append(exclusions, ports.PlannedParticipant{StudentID: ref.StudentID, InstanceID: ref.InstanceID})
+	}
+	return sessionAttendanceError(s.runWrite(ctx, "mark_expected_absent_by_active_groups", func(txCtx context.Context) (ports.Stats, error) {
 		var stats ports.Stats
 		if !validIDs(activeGroupIDs) || at.IsZero() {
 			return stats, errors.New("student presence: invalid session end")
@@ -579,7 +598,7 @@ func (s *Service) MarkExpectedAbsentByActiveGroupIDs(ctx context.Context, active
 		transitionStats, err := s.store.TransitionParticipants(txCtx, ids, "expected", "absent", &at)
 		addStats(&stats, transitionStats)
 		return stats, err
-	})
+	}))
 }
 
 func (s *Service) CloseOpenCheckoutsByActiveGroupIDs(ctx context.Context, activeGroupIDs []int64, at time.Time) (rows int, err error) {
@@ -597,7 +616,7 @@ func (s *Service) CloseOpenCheckoutsByActiveGroupIDs(ctx context.Context, active
 		rows = int(closeStats.Rows)
 		return stats, err
 	})
-	return rows, err
+	return rows, sessionAttendanceError(err)
 }
 
 // groupParticipants resolves the planned participants of the instances whose
@@ -610,7 +629,7 @@ func (s *Service) groupParticipants(ctx context.Context, activeGroupIDs []int64,
 	if err != nil {
 		return nil, err
 	}
-	sessions, sessionStats, err := s.store.ListActivitySessions(ctx, ports.ActivitySessionFilter{ActiveGroupIDs: activeGroupIDs, Status: status})
+	sessions, sessionStats, err := s.store.ListActivitySessions(ctx, studentpresence.ActivitySessionFilter{ActiveGroupIDs: activeGroupIDs, Status: status})
 	addStats(stats, sessionStats)
 	if err != nil {
 		return nil, err

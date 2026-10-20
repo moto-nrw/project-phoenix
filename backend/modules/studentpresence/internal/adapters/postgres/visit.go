@@ -7,11 +7,12 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
 	"github.com/moto-nrw/project-phoenix/modules/studentpresence/internal/ports"
 	"github.com/uptrace/bun"
 )
 
-func (s *Store) FindVisit(ctx context.Context, id int64) (*ports.Visit, ports.Stats, error) {
+func (s *Store) FindVisit(ctx context.Context, id int64) (*studentpresence.Visit, ports.Stats, error) {
 	db, tenantID, err := s.database(ctx)
 	if err != nil {
 		return nil, ports.Stats{}, err
@@ -28,7 +29,7 @@ func (s *Store) FindVisit(ctx context.Context, id int64) (*ports.Visit, ports.St
 	return row.record(), stats, nil
 }
 
-func visitQuery(db bun.IDB, tenantID int64, rows any, filter ports.VisitFilter) *bun.SelectQuery {
+func visitQuery(db bun.IDB, tenantID int64, rows any, filter studentpresence.VisitFilter) *bun.SelectQuery {
 	query := db.NewSelect().Model(rows).ModelTableExpr(`active.visits AS "visit"`).Where("visit.tenant_id = ?", tenantID)
 	if filter.IDs != nil {
 		query = query.Where("visit.id IN (?)", bun.List(filter.IDs))
@@ -77,14 +78,14 @@ func visitQuery(db bun.IDB, tenantID int64, rows any, filter ports.VisitFilter) 
 	return query
 }
 
-func (s *Store) ListVisits(ctx context.Context, filter ports.VisitFilter) ([]*ports.Visit, ports.Stats, error) {
+func (s *Store) ListVisits(ctx context.Context, filter studentpresence.VisitFilter) ([]*studentpresence.Visit, ports.Stats, error) {
 	db, tenantID, err := s.database(ctx)
 	if err != nil {
 		return nil, ports.Stats{}, err
 	}
 	rows := []*visitRow{}
 	if (filter.IDs != nil && len(filter.IDs) == 0) || (filter.StudentIDs != nil && len(filter.StudentIDs) == 0) || (filter.ActiveGroupIDs != nil && len(filter.ActiveGroupIDs) == 0) {
-		return []*ports.Visit{}, ports.Stats{}, nil
+		return []*studentpresence.Visit{}, ports.Stats{}, nil
 	}
 	started := time.Now()
 	err = visitQuery(db, tenantID, &rows, filter).Scan(ctx)
@@ -99,7 +100,7 @@ func (s *Store) ListVisits(ctx context.Context, filter ports.VisitFilter) ([]*po
 // that allows one open visit per student and tenant.
 const openVisitPerStudentIndex = "uniq_active_visits_open_per_student"
 
-func (s *Store) RecordVisit(ctx context.Context, row *ports.Visit) (ports.Stats, error) {
+func (s *Store) RecordVisit(ctx context.Context, row *studentpresence.Visit) (ports.Stats, error) {
 	db, tenantID, err := s.database(ctx)
 	if err != nil {
 		return ports.Stats{}, err
@@ -123,7 +124,7 @@ func (s *Store) RecordVisit(ctx context.Context, row *ports.Visit) (ports.Stats,
 	return stats, err
 }
 
-func (s *Store) ReviseVisit(ctx context.Context, row *ports.Visit) (ports.Stats, error) {
+func (s *Store) ReviseVisit(ctx context.Context, row *studentpresence.Visit) (ports.Stats, error) {
 	db, tenantID, err := s.database(ctx)
 	if err != nil {
 		return ports.Stats{}, err
@@ -165,14 +166,14 @@ func (s *Store) DeleteVisit(ctx context.Context, id int64) (ports.Stats, error) 
 }
 
 // CloseVisits absorbs concurrent retries without reopening completed intervals.
-func (s *Store) CloseVisits(ctx context.Context, ids []int64, at time.Time) ([]*ports.Visit, ports.Stats, error) {
+func (s *Store) CloseVisits(ctx context.Context, ids []int64, at time.Time) ([]*studentpresence.Visit, ports.Stats, error) {
 	db, tenantID, err := s.database(ctx)
 	if err != nil {
 		return nil, ports.Stats{}, err
 	}
 	rows := []*visitRow{}
 	if len(ids) == 0 {
-		return []*ports.Visit{}, ports.Stats{}, nil
+		return []*studentpresence.Visit{}, ports.Stats{}, nil
 	}
 	started := time.Now()
 	err = db.NewUpdate().Model((*visitRow)(nil)).ModelTableExpr(`active.visits AS "visit"`).

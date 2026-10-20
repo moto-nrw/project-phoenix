@@ -76,15 +76,6 @@ const trustedDeviceHKDFInfo = "mfa-trusted-device-v1"
 // MFA errors. The messages are generic on purpose; the detail stays in the
 // logs.
 var (
-	ErrMFAChallengeTokenInvalid = errors.New("invalid or expired challenge token")
-	ErrMFACodeInvalid           = errors.New("invalid or expired code")
-	ErrMFALocked                = errors.New("account locked due to too many failed attempts")
-	ErrMFARateLimited           = errors.New("too many code requests, please wait")
-	ErrMFANotEnrolled           = errors.New("mfa not enrolled for this account")
-	ErrMFAAlreadyEnrolled       = errors.New("mfa already enrolled for this account")
-	ErrMFAPermissionDenied      = errors.New("permission denied")
-	ErrMFAInvalidOverride       = errors.New("invalid mfa override value")
-	ErrMFAUnsupportedScope      = errors.New("operator-scope MFA is wired up in a separate phase")
 	// ErrMFAReasonRequired reports an admin override without a reason.
 	ErrMFAReasonRequired = errors.New("reason is required for admin override")
 	// ErrMFAGlobalReasonRequired reports a platform-wide override without a

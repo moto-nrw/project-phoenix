@@ -48,8 +48,7 @@ func newOperatorProvisioning(
 	}
 	var delivery OperatorLinkDelivery
 	if deps.DeliveryFor != nil {
-		// The recorder answers like the module: its engine holds the tokens alone.
-		delivery = deps.DeliveryFor(identityaccess.NewModule(application.NewEngine(application.EngineParts{Tokens: tokens})))
+		delivery = deps.DeliveryFor(tokens)
 	}
 	if delivery == nil || deps.Format == nil {
 		return nil, errors.New("identity access compose: every operator provisioning dependency is required")
@@ -63,6 +62,7 @@ func newOperatorProvisioning(
 		Invites:   application.OperatorInvitationDelivery{Source: delivery, Expiry: deps.InvitationExpiry},
 		Changes:   application.OperatorEmailChangeDelivery{Source: delivery, Expiry: deps.EmailChangeExpiry},
 		Runtime:   tenantRuntime{attach: sessions.TenantRuntime, runner: tenant.NewTransactionRunner()},
+		Attach:    sessions.TenantRuntime,
 		Expiry: application.OperatorProvisioningExpiry{
 			Invitation: deps.InvitationExpiry, EmailChange: deps.EmailChangeExpiry,
 		},

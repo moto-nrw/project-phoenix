@@ -16,7 +16,7 @@ func NewEnrollmentBookings() *enrollment.BookingProjection {
 	return ComposeEnrollmentBookings(enrollmentCompose.New())
 }
 
-func ComposeEnrollmentBookings(owner *enrollment.Module) *enrollment.BookingProjection {
+func ComposeEnrollmentBookings(owner enrollment.Owner) *enrollment.BookingProjection {
 	return enrollment.NewBookingProjection(owner, enrollmentBookingRows{bookings: carePlanCompose.NewOfferingBookings()})
 }
 

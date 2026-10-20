@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
 	"github.com/moto-nrw/project-phoenix/modules/studentpresence/internal/ports"
 )
 
@@ -18,7 +19,7 @@ type roomHistoryRow struct {
 	StudentCount       int
 }
 
-func (s *Store) ListRoomSessionHistory(ctx context.Context, roomID int64, start, end time.Time, staffID *int64) ([]ports.RoomSessionHistory, ports.Stats, error) {
+func (s *Store) ListRoomSessionHistory(ctx context.Context, roomID int64, start, end time.Time, staffID *int64) ([]studentpresence.RoomSessionHistory, ports.Stats, error) {
 	db, tenantID, err := s.database(ctx)
 	if err != nil {
 		return nil, ports.Stats{}, err
@@ -41,9 +42,9 @@ func (s *Store) ListRoomSessionHistory(ctx context.Context, roomID int64, start,
 	if err != nil {
 		return nil, stats, fmt.Errorf("room session history: %w", err)
 	}
-	result := make([]ports.RoomSessionHistory, 0, len(rows))
+	result := make([]studentpresence.RoomSessionHistory, 0, len(rows))
 	for _, row := range rows {
-		result = append(result, ports.RoomSessionHistory(row))
+		result = append(result, studentpresence.RoomSessionHistory(row))
 	}
 	return result, stats, nil
 }

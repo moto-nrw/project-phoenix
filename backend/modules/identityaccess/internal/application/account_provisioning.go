@@ -7,6 +7,7 @@ import (
 	"log/slog"
 	"strings"
 
+	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess/internal/domain"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess/internal/ports"
 )
@@ -164,7 +165,7 @@ func (s *AccountProvisioning) LinkSchoolAccount(ctx context.Context, request dom
 		return domain.ProvisionedAccount{}, failed(opLinkAccount, domain.ErrAccountNotFound)
 	}
 	if !account.Active {
-		return domain.ProvisionedAccount{}, failed(opLinkAccount, domain.ErrAccountInactive)
+		return domain.ProvisionedAccount{}, failed(opLinkAccount, identityaccess.ErrAccountInactive)
 	}
 
 	var identity *domain.SchoolIdentity

@@ -256,7 +256,7 @@ func NewAccountSuiteRepositories(db transactionruntime.Database) *AccountSuiteRe
 // EnrollmentSuiteRepositories serve the Enrollment booking projection of the
 // retained suites.
 type EnrollmentSuiteRepositories struct {
-	enrollment *enrollmentModule.Module
+	enrollment enrollmentModule.Owner
 }
 
 // Enrollment is the Enrollment booking projection.

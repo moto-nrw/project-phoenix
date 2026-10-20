@@ -5,6 +5,7 @@ import (
 	"errors"
 	"time"
 
+	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
 	"github.com/moto-nrw/project-phoenix/modules/studentpresence/internal/ports"
 )
 
@@ -13,7 +14,7 @@ var (
 	errInvalidAttendanceTime = errors.New("student presence: invalid attendance instant")
 )
 
-func (s *Service) ListSessionAttendance(ctx context.Context, participantIDs []int64) (result []ports.SessionAttendance, err error) {
+func (s *Service) ListSessionAttendance(ctx context.Context, participantIDs []int64) (result []studentpresence.SessionAttendance, err error) {
 	err = s.runWrite(ctx, "list_session_attendance", func(ctx context.Context) (ports.Stats, error) {
 		if !validIDs(participantIDs) {
 			return ports.Stats{}, errInvalidParticipants
@@ -22,7 +23,7 @@ func (s *Service) ListSessionAttendance(ctx context.Context, participantIDs []in
 		result, stats, err = s.store.ListSessionAttendance(ctx, participantIDs)
 		return stats, err
 	})
-	return result, err
+	return listResult(result, err)
 }
 
 func (s *Service) participantWrite(ctx context.Context, operation string, participantIDs []int64, at time.Time, fn func(context.Context) (ports.Stats, error)) (int64, error) {
@@ -47,7 +48,7 @@ func (s *Service) CheckInParticipants(ctx context.Context, participantIDs []int6
 	})
 }
 
-func (s *Service) CheckInWalkIn(ctx context.Context, participantID int64, at time.Time) (result ports.SessionAttendance, err error) {
+func (s *Service) CheckInWalkIn(ctx context.Context, participantID int64, at time.Time) (result studentpresence.SessionAttendance, err error) {
 	err = s.runWrite(ctx, "check_in_walk_in", func(txCtx context.Context) (ports.Stats, error) {
 		if participantID <= 0 {
 			return ports.Stats{}, errInvalidParticipants
@@ -66,12 +67,15 @@ func (s *Service) CheckInWalkIn(ctx context.Context, participantID int64, at tim
 			return stats, findErr
 		}
 		if !found {
-			return stats, ports.ErrSessionAttendanceNotFound
+			return stats, studentpresence.ErrSessionAttendanceNotFound
 		}
 		result = value
 		return stats, nil
 	})
-	return result, err
+	if err != nil {
+		return studentpresence.SessionAttendance{}, sessionAttendanceError(err)
+	}
+	return result, nil
 }
 
 func (s *Service) CheckOutParticipants(ctx context.Context, participantIDs []int64, at time.Time) (int64, error) {
@@ -98,7 +102,7 @@ func (s *Service) ReconcileParticipantInterval(ctx context.Context, participantI
 	return updated, err
 }
 
-func (s *Service) PatchSessionAttendance(ctx context.Context, participantID int64, patch ports.SessionAttendancePatch) error {
+func (s *Service) PatchSessionAttendance(ctx context.Context, participantID int64, patch studentpresence.SessionAttendancePatch) error {
 	return s.runWrite(ctx, "patch_session_attendance", func(txCtx context.Context) (ports.Stats, error) {
 		if participantID <= 0 || !validSessionAttendancePatch(patch) {
 			return ports.Stats{}, errors.New("student presence: invalid session attendance patch")
@@ -107,7 +111,7 @@ func (s *Service) PatchSessionAttendance(ctx context.Context, participantID int6
 	})
 }
 
-func validSessionAttendancePatch(patch ports.SessionAttendancePatch) bool {
+func validSessionAttendancePatch(patch studentpresence.SessionAttendancePatch) bool {
 	if patch.Status == nil && patch.Substatus == nil && !patch.SubstatusClear && patch.Note == nil && !patch.NoteClear {
 		return false
 	}
@@ -164,7 +168,7 @@ func (s *Service) MarkParticipantsNotScheduled(ctx context.Context, participantI
 	})
 }
 
-func (s *Service) RestoreSessionAttendance(ctx context.Context, rows []ports.SessionAttendanceRestore) error {
+func (s *Service) RestoreSessionAttendance(ctx context.Context, rows []studentpresence.SessionAttendanceRestore) error {
 	return s.runWrite(ctx, "restore_session_attendance", func(txCtx context.Context) (ports.Stats, error) {
 		var stats ports.Stats
 		for _, row := range rows {
@@ -183,7 +187,7 @@ func (s *Service) RestoreSessionAttendance(ctx context.Context, rows []ports.Ses
 	})
 }
 
-func (s *Service) ReconnectParticipantPickupExceptions(ctx context.Context, links []ports.ParticipantPickupException) error {
+func (s *Service) ReconnectParticipantPickupExceptions(ctx context.Context, links []studentpresence.ParticipantPickupException) error {
 	return s.runWrite(ctx, "reconnect_participant_pickup_exceptions", func(txCtx context.Context) (ports.Stats, error) {
 		for _, link := range links {
 			if link.ParticipantID <= 0 || link.PickupExceptionID <= 0 {
