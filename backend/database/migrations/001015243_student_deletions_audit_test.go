@@ -30,13 +30,8 @@ func TestStudentDeletionsAuditMigration(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	ctx := context.Background()
 
-	// Exercise the migration from a clean relation and leave the fully migrated
-	// schema behind for packages sharing the test database.
+	// Exercise the migration from a clean relation.
 	require.NoError(t, studentDeletionsAuditDown(ctx, db))
-	t.Cleanup(func() {
-		require.NoError(t, studentDeletionsAuditUp(context.Background(), db))
-		require.NoError(t, studentDeletionGraduatePurgeReasonUp(context.Background(), db))
-	})
 	require.NoError(t, studentDeletionsAuditUp(ctx, db))
 	require.NoError(t, studentDeletionsAuditUp(ctx, db), "up must be idempotent")
 
