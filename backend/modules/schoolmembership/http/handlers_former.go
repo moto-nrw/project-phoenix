@@ -29,7 +29,9 @@ type formerStaffResponse struct {
 // transaction; the name filters apply as on the current list.
 func (rs *Resource) listFormerStaff(w http.ResponseWriter, r *http.Request, filters listStaffFilters) {
 	ctx := r.Context()
-	members, err := rs.membership.ListStaff(ctx, schoolmembership.StaffFilter{IncludeDeleted: true, MembershipOnly: true})
+	members, err := rs.membership.ListStaff(ctx, schoolmembership.StaffFilter{
+		IncludeDeleted: true, IncludeInactiveGuests: true, MembershipOnly: true,
+	})
 	if err != nil {
 		rs.internal(w, r, err)
 		return

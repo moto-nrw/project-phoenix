@@ -423,7 +423,7 @@ func TestModuleFiltersGuestListings(t *testing.T) {
 	assert.Empty(t, empty)
 }
 
-func TestModuleKeepsGuestMarkerAfterActivityWindow(t *testing.T) {
+func TestModuleListsGuestMarkerAfterActivityWindowWhenRequested(t *testing.T) {
 	t.Parallel()
 	db := testpkg.SetupTestDB(t)
 	module := buildModule(t, db)
@@ -446,9 +446,12 @@ func TestModuleKeepsGuestMarkerAfterActivityWindow(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	loaded, err := module.FindStaff(ctx, staff.ID)
+	loaded, err := module.ListStaff(ctx, schoolmembership.StaffFilter{
+		IDs: []int64{staff.ID}, IncludeInactiveGuests: true,
+	})
 	require.NoError(t, err)
-	assert.True(t, loaded.IsGuest,
+	require.Len(t, loaded, 1)
+	assert.True(t, loaded[0].IsGuest,
 		"the guest marker identifies an external caregiver even after the activity window")
 }
 

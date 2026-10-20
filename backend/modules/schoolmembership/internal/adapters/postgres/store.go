@@ -96,7 +96,7 @@ func (s *Store) FindStaff(ctx context.Context, id int64, lock string, includeDel
 		return domain.Staff{}, false, domain.OperationStats{}, err
 	}
 	row := &staffRow{}
-	query := withTenant(staffSelect(db, row).Where(`"staff".id = ?`, id), "staff", scope)
+	query := withTenant(staffSelect(db, row, false).Where(`"staff".id = ?`, id), "staff", scope)
 	if !includeDeleted {
 		query = query.Where(`"staff".deleted_at IS NULL`)
 	}
@@ -116,7 +116,7 @@ func (s *Store) FindStaffByPerson(ctx context.Context, personID int64) (domain.S
 		return domain.Staff{}, false, domain.OperationStats{}, err
 	}
 	row := &staffRow{}
-	query := withTenant(staffSelect(db, row).
+	query := withTenant(staffSelect(db, row, false).
 		Where(`"staff".person_id = ?`, personID).
 		Where(`"staff".deleted_at IS NULL`).
 		OrderExpr(`"staff".id ASC`).
@@ -134,7 +134,7 @@ func (s *Store) ListStaff(ctx context.Context, filter domain.StaffFilter) ([]dom
 		return nil, domain.OperationStats{}, err
 	}
 	rows := []staffRow{}
-	query := withTenant(staffSelect(db, &rows), "staff", scope)
+	query := withTenant(staffSelect(db, &rows, filter.IncludeInactiveGuests), "staff", scope)
 	if !filter.IncludeDeleted {
 		query = query.Where(`"staff".deleted_at IS NULL`)
 	}
@@ -610,15 +610,22 @@ func (s *Store) DeleteGuest(ctx context.Context, id int64) (domain.OperationStat
 // --- helpers ---
 
 // staffSelect reads the membership row together with its guest marker. The
-// marker deliberately ignores a guest's activity window, so the former
-// employment handler can identify an external caregiver after that window
-// ended. The guest columns are correlated subqueries rather than a join, so
-// FOR UPDATE locks stay on the membership row alone.
-func staffSelect(db bun.IDB, model any) *bun.SelectQuery {
-	return db.NewSelect().Model(model).ModelTableExpr(`users.staff_school_memberships AS "staff"`).
-		ColumnExpr(`"staff".*`).
-		ColumnExpr(`EXISTS (SELECT 1 FROM users.guests AS "guest" WHERE "guest".tenant_id = "staff".tenant_id AND "guest".staff_id = "staff".id) AS is_guest`).
-		ColumnExpr(`COALESCE((SELECT "guest".organization FROM users.guests AS "guest" WHERE "guest".tenant_id = "staff".tenant_id AND "guest".staff_id = "staff".id), '') AS guest_organization`)
+// marker normally follows the guest's activity window; historical readers
+// may retain it after that window ended. The guest columns are correlated
+// subqueries rather than a join, so FOR UPDATE locks stay on the membership
+// row alone.
+func staffSelect(db bun.IDB, model any, includeInactiveGuests bool) *bun.SelectQuery {
+	query := db.NewSelect().Model(model).ModelTableExpr(`users.staff_school_memberships AS "staff"`).
+		ColumnExpr(`"staff".*`)
+	if includeInactiveGuests {
+		return query.
+			ColumnExpr(`EXISTS (SELECT 1 FROM users.guests AS "guest" WHERE "guest".tenant_id = "staff".tenant_id AND "guest".staff_id = "staff".id) AS is_guest`).
+			ColumnExpr(`COALESCE((SELECT "guest".organization FROM users.guests AS "guest" WHERE "guest".tenant_id = "staff".tenant_id AND "guest".staff_id = "staff".id), '') AS guest_organization`)
+	}
+	today := calendar.TodayDate()
+	return query.
+		ColumnExpr(`EXISTS (SELECT 1 FROM users.guests AS "guest" WHERE "guest".tenant_id = "staff".tenant_id AND "guest".staff_id = "staff".id AND ("guest".start_date IS NULL OR "guest".start_date <= ?) AND ("guest".end_date IS NULL OR "guest".end_date >= ?)) AS is_guest`, today, today).
+		ColumnExpr(`COALESCE((SELECT "guest".organization FROM users.guests AS "guest" WHERE "guest".tenant_id = "staff".tenant_id AND "guest".staff_id = "staff".id AND ("guest".start_date IS NULL OR "guest".start_date <= ?) AND ("guest".end_date IS NULL OR "guest".end_date >= ?)), '') AS guest_organization`, today, today)
 }
 
 func teacherSelect(db bun.IDB, model any) *bun.SelectQuery {

@@ -46,7 +46,8 @@ func (e Engine) FindStaffMembershipByPerson(ctx context.Context, personID int64)
 func (e Engine) ListStaff(ctx context.Context, filter schoolmembership.StaffFilter) ([]schoolmembership.Staff, error) {
 	values, err := e.service.ListStaff(ctx, domain.StaffFilter{
 		IDs: filter.IDs, PersonIDs: filter.PersonIDs,
-		TenantIDs: filter.TenantIDs, IncludeDeleted: filter.IncludeDeleted, MembershipOnly: filter.MembershipOnly,
+		TenantIDs: filter.TenantIDs, IncludeDeleted: filter.IncludeDeleted,
+		IncludeInactiveGuests: filter.IncludeInactiveGuests, MembershipOnly: filter.MembershipOnly,
 	})
 	if err != nil {
 		return nil, MapError(err)
