@@ -83,35 +83,3 @@ type StudentAuditError struct{ Err error }
 func (e *StudentAuditError) Error() string { return e.Err.Error() }
 
 func (e *StudentAuditError) Unwrap() error { return e.Err }
-
-func (m *Module) ListStudentChangeHistory(ctx context.Context, studentID int64) ([]StudentFieldEdit, error) {
-	if studentID <= 0 {
-		return nil, invalidStudent("student ID is required")
-	}
-	return m.engine.ListStudentChangeHistory(ctx, studentID)
-}
-
-func (m *Module) RecordStudentChanges(
-	ctx context.Context,
-	before, after StudentAuditSnapshot,
-	editedBy int64,
-	editedByName string,
-) error {
-	if after.StudentID <= 0 {
-		return invalidStudent("student ID is required")
-	}
-	return m.engine.RecordStudentChanges(ctx, before, after, editedBy, editedByName)
-}
-
-func (m *Module) RecordStudentPickupPlan(
-	ctx context.Context,
-	studentID int64,
-	before, after, result, reason string,
-	editedBy int64,
-	editedByName string,
-) error {
-	if studentID <= 0 {
-		return invalidStudent("student ID is required")
-	}
-	return m.engine.RecordStudentPickupPlan(ctx, studentID, before, after, result, reason, editedBy, editedByName)
-}

@@ -4,17 +4,18 @@ import (
 	"context"
 	"slices"
 
+	"github.com/moto-nrw/project-phoenix/modules/peopledirectory"
 	"github.com/moto-nrw/project-phoenix/modules/peopledirectory/internal/domain"
 )
 
-func (s *GuardianService) ListPortalContacts(ctx context.Context, guardianIDs, studentIDs []int64) (result []domain.GuardianPortalContact, err error) {
+func (s *GuardianService) ListPortalContacts(ctx context.Context, guardianIDs, studentIDs []int64) (result []peopledirectory.GuardianPortalContact, err error) {
 	err = observeRun(ctx, s.observe, "list_guardian_portal_contacts", s.tx.RunRead, func(txCtx context.Context, stats *domain.OperationStats) error {
 		candidates, queryStats, queryErr := s.store.ListPortalContacts(txCtx, guardianIDs, studentIDs)
 		stats.Add(queryStats)
 		if queryErr != nil {
 			return queryErr
 		}
-		result = []domain.GuardianPortalContact{}
+		result = []peopledirectory.GuardianPortalContact{}
 		if len(candidates) == 0 {
 			return nil
 		}
@@ -36,7 +37,7 @@ func (s *GuardianService) ListPortalContacts(ctx context.Context, guardianIDs, s
 	return result, nil
 }
 
-func portalContactAccountIDs(contacts []domain.GuardianPortalContact) []int64 {
+func portalContactAccountIDs(contacts []peopledirectory.GuardianPortalContact) []int64 {
 	ids := make([]int64, 0, len(contacts))
 	seen := make(map[int64]bool)
 	for _, contact := range contacts {

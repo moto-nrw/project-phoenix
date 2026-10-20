@@ -83,7 +83,7 @@ type Dependencies struct {
 // Directory keeps the public capability and its native services in one owner
 // composition. Retained same-owner services use the native operations directly.
 type Directory struct {
-	*peopledirectory.Module
+	peopledirectory.Owner
 	students         *application.StudentService
 	PersonWrites     peoplePorts.PersonWriter
 	StudentDirectory peoplePorts.StudentDirectoryAccess
@@ -98,7 +98,6 @@ func New(dependencies Dependencies, memberships GuardianMembershipQuery) (*Direc
 	database := postgres.NewDatabase()
 
 	observe := application.NewObserver(dependencies.Observe)
-	service := application.New(postgres.New(database), transaction{}, observe)
 	var companions internalports.StudentCompanions
 	if dependencies.StudentCompanions != nil {
 		companions = application.NewStudentCompanions(dependencies.StudentCompanions)
@@ -128,17 +127,18 @@ func New(dependencies Dependencies, memberships GuardianMembershipQuery) (*Direc
 		noteStore, postgres.New(database),
 		postgres.NewStudentStore(database, dependencies.StudentDirectory, owners.LockClassWrites, dependencies.StudentClassWriteGateQuery),
 		transaction{}, noteDeletionAudit, observe)
-	module, err := newModule(application.NewEngine(application.EngineServices{
-		Service: service, Students: students, Guardians: guardians,
-		StudentAudit: studentAudit, StudentConsents: studentConsents,
-		StudentPhotos: studentPhotos, StudentNotes: studentNotes, Observe: observe,
-		GuardianLifecycle: application.NewGuardianLifecycle(guardians, dependencies.GuardianRolePresets),
-	}), dependencies.GuardianProvider)
+	providers, err := guardianProviders(dependencies.GuardianProvider)
 	if err != nil {
 		return nil, err
 	}
+	service := application.New(postgres.New(database), transaction{}, observe, application.Services{
+		Students: students, Guardians: guardians,
+		StudentAudit: studentAudit, StudentConsents: studentConsents,
+		StudentPhotos: studentPhotos, StudentNotes: studentNotes,
+		GuardianLifecycle: application.NewGuardianLifecycle(guardians, dependencies.GuardianRolePresets),
+	}, providers...)
 	return &Directory{
-		Module: module, students: students,
+		Owner: service, students: students,
 		PersonWrites:     application.NewPersonRows(service),
 		StudentDirectory: application.NewStudentDirectoryRows(students, studentPhotos),
 	}, nil

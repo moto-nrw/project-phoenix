@@ -107,7 +107,7 @@ interpreting a successful migration as evidence of application compatibility.
 
 | Evidence | Status |
 | --- | --- |
-| Local migrated-clone column/FK/RLS/default/rollback tests | Automated in `001015377_instance_students_tenant_key_test.go` and `001015378_presence_expand_test.go` |
+| Local migrated-clone column/FK/RLS/default/rollback tests | Automated in `001015378_presence_expand_test.go` |
 | Local old SQL shape preservation | Automated, including planning/attendance writes and empty-target assertions |
 | Staging old image digest and workload result | Pending deployment; local SQL tests do not prove this |
 | Staging migration durations, lock waits, blocked sessions, deadlock deltas | Pending deployment; no values fabricated |

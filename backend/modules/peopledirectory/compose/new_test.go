@@ -14,7 +14,7 @@ import (
 	"github.com/uptrace/bun"
 )
 
-func buildModule(t *testing.T, db *bun.DB, observations ...func(Observation)) *peopledirectory.Module {
+func buildModule(t *testing.T, db *bun.DB, observations ...func(Observation)) peopledirectory.Owner {
 	t.Helper()
 	observe := func(Observation) {}
 	if len(observations) > 0 {
@@ -22,7 +22,7 @@ func buildModule(t *testing.T, db *bun.DB, observations ...func(Observation)) *p
 	}
 	module, err := New(Dependencies{StudentDirectory: testpkg.StudentDirectory{}, DB: db, Observe: observe, GuardianLinkOwners: testGuardianLinkOwners{Db: db}, GuardianLinkRows: testpkg.GuardianLinks{}}, testPortalMemberships(db))
 	require.NoError(t, err)
-	return module.Module
+	return module.Owner
 }
 
 func testPortalMemberships(db *bun.DB) GuardianMembershipQuery {

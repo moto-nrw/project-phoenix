@@ -3,10 +3,11 @@ package application
 import (
 	"context"
 
+	"github.com/moto-nrw/project-phoenix/modules/peopledirectory"
 	"github.com/moto-nrw/project-phoenix/modules/peopledirectory/internal/domain"
 )
 
-func (s *StudentService) ReadEnrollment(ctx context.Context, id int64, lock string) (result domain.EnrollmentRecord, err error) {
+func (s *StudentService) ReadEnrollment(ctx context.Context, id int64, lock string) (result peopledirectory.EnrollmentRecord, err error) {
 	run := s.tx.RunRead
 	if lock != "" {
 		run = func(ctx context.Context, fn func(context.Context) error) error {
@@ -74,7 +75,7 @@ func (s *StudentService) ApplyEnrollmentProfile(ctx context.Context, id int64, i
 	})
 }
 
-func (s *StudentService) CreateEnrollment(ctx context.Context, input domain.EnrollmentStudent) (result domain.Student, err error) {
+func (s *StudentService) CreateEnrollment(ctx context.Context, input domain.EnrollmentStudent) (result peopledirectory.Student, err error) {
 	err = s.run(ctx, "create_enrollment_student", s.runStudentWrite, func(txCtx context.Context, stats *domain.OperationStats) error {
 		var queryStats domain.OperationStats
 		result, queryStats, err = s.store.CreateEnrollment(txCtx, input)
