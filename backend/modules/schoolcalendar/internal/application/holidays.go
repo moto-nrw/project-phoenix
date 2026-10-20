@@ -1,17 +1,14 @@
-package domain
+package application
 
 import (
 	"fmt"
 	"sort"
 	"time"
 
+	"github.com/moto-nrw/project-phoenix/modules/schoolcalendar"
+
 	"github.com/wlbr/feiertage"
 )
-
-type Holiday struct {
-	Date string
-	Name string
-}
 
 var holidayRegions = map[string]func(int, ...bool) feiertage.Region{
 	"DE-BW": feiertage.BadenWürttemberg,
@@ -46,7 +43,7 @@ func ValidHolidayRegion(region string) bool {
 	return ok
 }
 
-func HolidaysInRange(region, from, to string) ([]Holiday, error) {
+func HolidaysInRange(region, from, to string) ([]schoolcalendar.Holiday, error) {
 	fn, ok := holidayRegions[region]
 	if !ok {
 		return nil, fmt.Errorf("unknown federal state region %q", region)
@@ -60,7 +57,7 @@ func HolidaysInRange(region, from, to string) ([]Holiday, error) {
 		return nil, fmt.Errorf("parse holiday range end: %w", err)
 	}
 
-	var result []Holiday
+	var result []schoolcalendar.Holiday
 	for year := fromDate.Year(); year <= toDate.Year(); year++ {
 		for _, holiday := range fn(year).Feiertage {
 			y, m, d := holiday.Date()
@@ -72,7 +69,7 @@ func HolidaysInRange(region, from, to string) ([]Holiday, error) {
 			if display, found := holidayDisplayNames[name]; found {
 				name = display
 			}
-			result = append(result, Holiday{Date: date.Format("2006-01-02"), Name: name})
+			result = append(result, schoolcalendar.Holiday{Date: date.Format("2006-01-02"), Name: name})
 		}
 	}
 	sort.Slice(result, func(i, j int) bool { return result[i].Date < result[j].Date })

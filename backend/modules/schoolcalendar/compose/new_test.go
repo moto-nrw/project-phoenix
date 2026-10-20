@@ -36,7 +36,7 @@ func (l *observationLog) operations() []string {
 	return names
 }
 
-func buildModule(t *testing.T, db *bun.DB, observations ...func(Observation)) *schoolcalendar.Module {
+func buildModule(t *testing.T, db *bun.DB, observations ...func(Observation)) schoolcalendar.Calendar {
 	t.Helper()
 	observe := func(Observation) {}
 	if len(observations) > 0 {
@@ -55,7 +55,7 @@ func unboundFederalState(context.Context) (string, error) {
 // the fixed calendar day.
 func buildCalendar(t *testing.T, db *bun.DB, observe func(Observation), federalState func(context.Context) (string, error),
 	gate func(context.Context) error, guard func(context.Context, int64, *schoolcalendar.CalendarPeriodFields) error,
-) *schoolcalendar.Module {
+) schoolcalendar.Calendar {
 	t.Helper()
 	records, err := NewRecords(RecordsDependencies{DB: db, Observe: observe, FederalState: federalState})
 	require.NoError(t, err)
@@ -80,14 +80,14 @@ func periodFields(name string, start, end string, active bool) schoolcalendar.Ca
 	}
 }
 
-func createPeriod(t *testing.T, ctx context.Context, module *schoolcalendar.Module, fields schoolcalendar.CalendarPeriodFields) schoolcalendar.CalendarPeriod {
+func createPeriod(t *testing.T, ctx context.Context, module schoolcalendar.Calendar, fields schoolcalendar.CalendarPeriodFields) schoolcalendar.CalendarPeriod {
 	t.Helper()
 	period, err := module.CreateCalendarPeriod(ctx, schoolcalendar.CreateCalendarPeriod{CalendarPeriodFields: fields})
 	require.NoError(t, err)
 	return period
 }
 
-func createClosingDay(t *testing.T, ctx context.Context, module *schoolcalendar.Module, start, end, reason string) schoolcalendar.ClosingDay {
+func createClosingDay(t *testing.T, ctx context.Context, module schoolcalendar.Calendar, start, end, reason string) schoolcalendar.ClosingDay {
 	t.Helper()
 	day, err := module.CreateClosingDay(ctx, schoolcalendar.CreateClosingDay{ClosingDayFields: schoolcalendar.ClosingDayFields{
 		StartDate: start, EndDate: end, Reason: reason,

@@ -27,7 +27,7 @@ func (s settingsStub) FeedbackRetentionDays(context.Context) (int, error) {
 	return s.retention, s.retentionErr
 }
 
-func buildModule(t *testing.T, db *bun.DB, settings settingsStub, observations ...func(Observation)) *feedback.Module {
+func buildModule(t *testing.T, db *bun.DB, settings settingsStub, observations ...func(Observation)) feedback.Capability {
 	t.Helper()
 	observe := func(Observation) {}
 	if len(observations) > 0 {

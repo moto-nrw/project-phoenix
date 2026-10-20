@@ -13,7 +13,8 @@ func PublicSchoolInvitation(invitation domain.SchoolInvitation) identityaccess.S
 		ID: invitation.ID, TenantID: invitation.TenantID, Email: invitation.Email, Token: invitation.Token,
 		RoleID: invitation.RoleID, RoleName: invitation.RoleName, ExpiresAt: invitation.ExpiresAt, UsedAt: invitation.UsedAt,
 		CreatedBy: invitation.CreatedBy, CreatorEmail: invitation.CreatorEmail, FirstName: invitation.FirstName, LastName: invitation.LastName,
-		Position: invitation.Position, CaregiverEnabled: invitation.CaregiverEnabled, PersonID: invitation.PersonID,
+		EmploymentAction: identityaccess.EmploymentAction(invitation.EmploymentAction),
+		Position:         invitation.Position, CaregiverEnabled: invitation.CaregiverEnabled, PersonID: invitation.PersonID,
 		Delivery: identityaccess.TokenDelivery(invitation.Delivery), CreatedAt: invitation.CreatedAt,
 	}
 }
@@ -27,7 +28,8 @@ func (e engine) CreateSchoolInvitation(ctx context.Context, request identityacce
 	invitation, err := e.invitations.CreateInvitation(e.attach(ctx), domain.SchoolInvitationRequest{
 		Email: request.Email, RoleID: request.RoleID, TenantID: request.TenantID, FirstName: request.FirstName,
 		LastName: request.LastName, Position: request.Position, CaregiverEnabled: request.CaregiverEnabled,
-		PersonID: request.PersonID, CreatedBy: request.CreatedBy, SchoolName: request.SchoolName,
+		EmploymentAction: domain.EmploymentAction(request.EmploymentAction),
+		PersonID:         request.PersonID, CreatedBy: request.CreatedBy, SchoolName: request.SchoolName,
 		ActorPermissions: request.ActorPermissions, OperatorGrant: request.OperatorGrant,
 	})
 	return PublicSchoolInvitation(invitation), invitationError(err)

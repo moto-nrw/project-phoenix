@@ -210,11 +210,11 @@ func ComposeWorker(db transactionruntime.Database, env RootEnvironment, hub *rea
 		pushVAPID        deliveryCompose.VAPIDConfig
 		organizations    organizationtenancy.Capability
 		groups           schoolstructure.Owner
-		rooms            *facilitiesModule.Rooms
+		rooms            facilitiesModule.Catalog
 		membership       schoolMembershipModule.Owner
 		bookings         *enrollmentOwner.BookingProjection
 		settings         SettingsOwner
-		calendar         *schoolcalendar.Records
+		calendar         schoolcalendar.Days
 		workTime         workforceCompose.WorkTime
 		people           PeopleRows
 		peopleIdentity   *identityaccess.Module
@@ -227,9 +227,9 @@ func ComposeWorker(db transactionruntime.Database, env RootEnvironment, hub *rea
 		appointments     appointmentsModule.Capability
 		operatorAuditLog OperatorAuditEntries
 		mealPlanSettings *mealplanCompose.Settings
-		mealPlan         *mealplanModule.Module
+		mealPlan         mealplanModule.Capability
 		feedbackSettings *feedbackCompose.Settings
-		feedback         *feedbackModule.Module
+		feedback         feedbackModule.Capability
 		structure        StructureRows
 		presencePeople   PresencePeopleReads
 		careRows         TimetableCareRows
@@ -283,7 +283,7 @@ func ComposeWorker(db transactionruntime.Database, env RootEnvironment, hub *rea
 		deliveryDevices  DeliveryDevices
 		reminders        reminder.Module
 		studentDeletion  *studentdeletion.Workflow
-		facilities       *facilitiesModule.Module
+		facilities       facilitiesModule.Capability
 		outbox           *deliveryModule.Worker
 		staffGroups      schoolstructure.StaffGroupQuery
 	)

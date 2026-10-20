@@ -1,7 +1,6 @@
 package domain
 
 import (
-	"sort"
 	"time"
 
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
@@ -56,13 +55,6 @@ type ParticipationPlan struct {
 	Days          []ParticipationDay
 }
 
-type DailyCandidate struct {
-	StudentID   int64
-	FirstName   string
-	LastName    string
-	SchoolClass string
-}
-
 type DailyParticipation struct {
 	Regular        bool
 	Override       *bool
@@ -70,36 +62,8 @@ type DailyParticipation struct {
 	SickClearedAt  *time.Time
 }
 
-type DailyParticipant struct {
-	StudentID   int64
-	FirstName   string
-	LastName    string
-	SchoolClass string
-}
-
-type DailyList struct {
-	Date         Date
-	CutoffTime   string
-	Participants []DailyParticipant
-}
-
 // SortDailyParticipants orders the kitchen list by class, last name, first
 // name and student ID.
-func SortDailyParticipants(participants []DailyParticipant) {
-	sort.SliceStable(participants, func(left, right int) bool {
-		a, b := participants[left], participants[right]
-		if a.SchoolClass != b.SchoolClass {
-			return a.SchoolClass < b.SchoolClass
-		}
-		if a.LastName != b.LastName {
-			return a.LastName < b.LastName
-		}
-		if a.FirstName != b.FirstName {
-			return a.FirstName < b.FirstName
-		}
-		return a.StudentID < b.StudentID
-	})
-}
 
 func CutoffAt(date Date, cutoffTime string) time.Time {
 	clock, _ := time.Parse("15:04", cutoffTime)
