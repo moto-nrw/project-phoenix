@@ -18,7 +18,7 @@ import (
 // row so children can be inserted against a real FK chain.
 func setupRequestChildRepoTest(t *testing.T) (
 	*bun.DB,
-	*capability.Module,
+	capability.Owner,
 	int64,
 	int64,
 	int64,

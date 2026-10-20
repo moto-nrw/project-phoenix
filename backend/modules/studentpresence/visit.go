@@ -43,26 +43,3 @@ type VisitCommand interface {
 	DeleteVisit(context.Context, int64) error
 	CloseVisits(context.Context, []int64, time.Time) ([]Visit, error)
 }
-
-func (m *Module) FindVisit(ctx context.Context, id int64) (*Visit, error) {
-	return m.engine.FindVisit(ctx, id)
-}
-func (m *Module) ListVisits(ctx context.Context, filter VisitFilter) ([]Visit, error) {
-	return m.engine.ListVisits(ctx, filter)
-}
-func (m *Module) RecordVisit(ctx context.Context, value Visit) (Visit, error) {
-	return m.engine.RecordVisit(ctx, value)
-}
-func (m *Module) ReviseVisit(ctx context.Context, value Visit) (Visit, error) {
-	return m.engine.ReviseVisit(ctx, value)
-}
-func (m *Module) DeleteVisit(ctx context.Context, id int64) error {
-	return m.engine.DeleteVisit(ctx, id)
-}
-func (m *Module) CloseVisits(ctx context.Context, ids []int64, at time.Time) ([]Visit, error) {
-	return m.engine.CloseVisits(ctx, ids, at)
-}
-
-func (m *Module) ListOpenVisitStudentIDs(ctx context.Context, hostingTenantID int64) ([]int64, error) {
-	return m.engine.ListOpenVisitStudentIDs(ctx, hostingTenantID)
-}

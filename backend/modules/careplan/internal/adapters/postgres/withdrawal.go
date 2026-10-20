@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/moto-nrw/project-phoenix/modules/careplan"
 	"github.com/moto-nrw/project-phoenix/modules/careplan/internal/domain"
 )
 
@@ -40,14 +41,14 @@ func (s *Store) FindPendingWithdrawalStudent(ctx context.Context, completionID i
 	err = query.Scan(ctx, &row)
 	stats.StatementDuration = time.Since(started)
 	if errors.Is(err, sql.ErrNoRows) {
-		return 0, stats, domain.ErrWithdrawalNotFound
+		return 0, stats, careplan.ErrWithdrawalNotFound
 	}
 	if err != nil {
 		return 0, stats, fmt.Errorf("care plan postgres: find pending withdrawal: %w", err)
 	}
 	stats.Rows = 1
 	if row.State != withdrawalStatePending || row.StudentID == nil || *row.StudentID <= 0 {
-		return 0, stats, domain.ErrWithdrawalNotPending
+		return 0, stats, careplan.ErrWithdrawalNotPending
 	}
 	return *row.StudentID, stats, nil
 }

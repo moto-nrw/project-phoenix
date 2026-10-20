@@ -112,7 +112,7 @@ func (k *kiosk) roomWithSession(t *testing.T, name string) (roomID, activityID, 
 	return room.ID, activity.ID, session.ID
 }
 
-func (k *kiosk) presence(t *testing.T) *studentpresence.Module {
+func (k *kiosk) presence(t *testing.T) studentpresence.Owner {
 	t.Helper()
 	module, err := api.NewCheckinTestPresence(testpkg.NewDatabase(t, k.db))
 	require.NoError(t, err)

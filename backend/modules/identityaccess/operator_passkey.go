@@ -4,7 +4,6 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
-	"fmt"
 	"time"
 )
 
@@ -89,58 +88,4 @@ type OperatorPasskeyCommand interface {
 type OperatorPasskeyRecords interface {
 	OperatorPasskeyQuery
 	OperatorPasskeyCommand
-}
-
-func (m *Module) ListActiveOperatorPasskeys(ctx context.Context, operatorID int64) ([]OperatorPasskeyCredential, error) {
-	credentials, err := m.engine.ListActiveOperatorPasskeys(ctx, operatorID)
-	if err != nil {
-		return nil, fmt.Errorf("identity access: list active operator passkeys: %w", err)
-	}
-	return credentials, nil
-}
-
-func (m *Module) FindActiveOperatorPasskey(ctx context.Context, credentialID, userHandle []byte) (OperatorPasskeyCredential, error) {
-	credential, err := m.engine.FindActiveOperatorPasskey(ctx, credentialID, userHandle)
-	if err != nil {
-		return OperatorPasskeyCredential{}, fmt.Errorf("identity access: find active operator passkey: %w", err)
-	}
-	return credential, nil
-}
-
-func (m *Module) CreateOperatorPasskey(ctx context.Context, credential OperatorPasskeyCredential) (OperatorPasskeyCredential, error) {
-	stored, err := m.engine.CreateOperatorPasskey(ctx, credential)
-	if err != nil {
-		return OperatorPasskeyCredential{}, fmt.Errorf("identity access: create operator passkey: %w", err)
-	}
-	return stored, nil
-}
-
-func (m *Module) RecordOperatorPasskeyUse(ctx context.Context, id int64, credentialJSON json.RawMessage, usedAt time.Time) error {
-	if err := m.engine.RecordOperatorPasskeyUse(ctx, id, credentialJSON, usedAt); err != nil {
-		return fmt.Errorf("identity access: record operator passkey use: %w", err)
-	}
-	return nil
-}
-
-func (m *Module) RevokeOperatorPasskey(ctx context.Context, operatorID, id int64, revokedAt time.Time) error {
-	if err := m.engine.RevokeOperatorPasskey(ctx, operatorID, id, revokedAt); err != nil {
-		return fmt.Errorf("identity access: revoke operator passkey: %w", err)
-	}
-	return nil
-}
-
-func (m *Module) CreateOperatorPasskeySession(ctx context.Context, session OperatorPasskeySession) (OperatorPasskeySession, error) {
-	stored, err := m.engine.CreateOperatorPasskeySession(ctx, session)
-	if err != nil {
-		return OperatorPasskeySession{}, fmt.Errorf("identity access: create operator passkey session: %w", err)
-	}
-	return stored, nil
-}
-
-func (m *Module) ConsumeOperatorPasskeySession(ctx context.Context, id, purpose string, consumedAt time.Time) (OperatorPasskeySession, error) {
-	session, err := m.engine.ConsumeOperatorPasskeySession(ctx, id, purpose, consumedAt)
-	if err != nil {
-		return OperatorPasskeySession{}, fmt.Errorf("identity access: consume operator passkey session: %w", err)
-	}
-	return session, nil
 }

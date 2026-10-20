@@ -3,6 +3,7 @@ package application
 import (
 	"context"
 	"errors"
+	"fmt"
 	"io/fs"
 	"log/slog"
 	"os"
@@ -43,7 +44,7 @@ func (r *AccountRetention) EraseUnusedAccounts(ctx context.Context) (int, error)
 	txCtx := r.attach(ctx)
 	erased, _, err := r.store.EraseUnusedAccounts(txCtx)
 	if err != nil {
-		return 0, failed("erase unused accounts", err)
+		return 0, fmt.Errorf("identity access: erase unused accounts: %w", failed("erase unused accounts", err))
 	}
 	r.afterCommit(txCtx, func() { r.removeAvatars(ctx, erased) })
 	if len(erased) > 0 {

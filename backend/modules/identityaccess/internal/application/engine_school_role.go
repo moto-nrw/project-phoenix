@@ -7,7 +7,7 @@ import (
 )
 
 func (e engine) ListSchoolRoles(ctx context.Context) ([]*identityaccess.SchoolRole, error) {
-	roles, err := e.service.ListSchoolRoles(ctx)
+	roles, err := e.Service.ListSchoolRoles(ctx)
 	if err != nil {
 		return nil, MapError(err)
 	}
@@ -20,7 +20,7 @@ func (e engine) ListSchoolRoles(ctx context.Context) ([]*identityaccess.SchoolRo
 }
 
 func (e engine) FindSchoolRoleByName(ctx context.Context, name string) (*identityaccess.SchoolRole, error) {
-	role, err := e.service.FindSchoolRoleByName(ctx, name)
+	role, err := e.Service.FindSchoolRoleByName(ctx, name)
 	if err != nil {
 		return nil, MapError(err)
 	}
@@ -29,6 +29,6 @@ func (e engine) FindSchoolRoleByName(ctx context.Context, name string) (*identit
 }
 
 func (e engine) FindRolePermissions(ctx context.Context, id int64) ([]string, error) {
-	names, err := e.service.FindRolePermissions(ctx, id)
+	names, err := e.Service.FindRolePermissions(ctx, id)
 	return names, MapError(err)
 }

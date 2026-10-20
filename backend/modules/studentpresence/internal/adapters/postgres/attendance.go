@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
 	"github.com/moto-nrw/project-phoenix/modules/studentpresence/internal/ports"
 	"github.com/uptrace/bun"
 )
@@ -28,7 +29,7 @@ func (s *Store) FindAttendance(ctx context.Context, id int64) (*ports.Attendance
 	return row.record(), stats, nil
 }
 
-func attendanceQuery(db bun.IDB, tenantID int64, rows any, filter ports.AttendanceFilter) *bun.SelectQuery {
+func attendanceQuery(db bun.IDB, tenantID int64, rows any, filter studentpresence.AttendanceFilter) *bun.SelectQuery {
 	query := db.NewSelect().Model(rows).ModelTableExpr(`active.attendance AS "attendance"`).Where("attendance.tenant_id = ?", tenantID)
 	if filter.IDs != nil {
 		query = query.Where("attendance.id IN (?)", bun.List(filter.IDs))
@@ -65,7 +66,7 @@ func attendanceQuery(db bun.IDB, tenantID int64, rows any, filter ports.Attendan
 	return query
 }
 
-func (s *Store) ListAttendance(ctx context.Context, filter ports.AttendanceFilter) ([]*ports.Attendance, ports.Stats, error) {
+func (s *Store) ListAttendance(ctx context.Context, filter studentpresence.AttendanceFilter) ([]*ports.Attendance, ports.Stats, error) {
 	db, tenantID, err := s.database(ctx)
 	if err != nil {
 		return nil, ports.Stats{}, err
@@ -115,7 +116,7 @@ func (s *Store) insertAttendance(ctx context.Context, row *ports.Attendance, ifA
 	return stats.Rows > 0, stats, nil
 }
 
-func (s *Store) CloseAttendance(ctx context.Context, checkout ports.AttendanceCheckout) ([]*ports.Attendance, ports.Stats, error) {
+func (s *Store) CloseAttendance(ctx context.Context, checkout studentpresence.AttendanceCheckout) ([]*ports.Attendance, ports.Stats, error) {
 	db, tenantID, err := s.database(ctx)
 	if err != nil {
 		return nil, ports.Stats{}, err

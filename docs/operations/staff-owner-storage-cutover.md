@@ -1,5 +1,9 @@
 # Staff owner storage Cutover (#2753)
 
+> **Historical.** The Contract migration of this move runs in every environment. The
+> backfill commands this runbook names (`backfill …`, `migrate backfill …`,
+> `migrate presence-backfill`) were removed in #4441; there is no manual step left.
+
 Migration `1.15.409` applies the last backfill delta under one bounded write
 lock, proves per school that the two owner tables reproduce `users.staff`,
 moves every staff foreign key onto `users.staff_school_memberships`, archives

@@ -124,7 +124,7 @@ func bookingsAuthoritative(settings settingsCompose.SettingsService) func(contex
 func BuildCarePlanSchedules(
 	db transactionruntime.Database, logger *slog.Logger, carePlan careplan.Capability, persons peopledirectory.Capability,
 	rows CarePlanRows, classArrivals timetable.ClassArrivals, approved careplan.ApprovedBookingReader,
-	settings settingsCompose.SettingsService, lockRecurrence func(context.Context) error, presence *studentpresence.Module,
+	settings settingsCompose.SettingsService, lockRecurrence func(context.Context) error, presence studentpresence.Owner,
 ) (CarePlanSchedules, error) {
 	authoritative := bookingsAuthoritative(settings)
 	lifecycle, err := carePlanCompose.NewCareLifecycle(carePlanCompose.CareLifecycleDependencies{
@@ -162,7 +162,7 @@ func BuildCarePlanSchedules(
 
 // buildCarePlanPlans binds the pickup auto excusal, the pickup and arrival
 // schedules and the partial absences over the baselines.
-func buildCarePlanPlans(db transactionruntime.Database, logger *slog.Logger, carePlan careplan.Capability, rows CarePlanRows, presence *studentpresence.Module, schedules CarePlanSchedules) (CarePlanSchedules, error) {
+func buildCarePlanPlans(db transactionruntime.Database, logger *slog.Logger, carePlan careplan.Capability, rows CarePlanRows, presence studentpresence.Owner, schedules CarePlanSchedules) (CarePlanSchedules, error) {
 	excusal, err := carePlanCompose.NewPickupAutoExcusal(carePlanCompose.PickupExcusalDependencies{
 		DB: db.Pool(), Records: carePlan, Baselines: schedules.PickupBaselines, Blocks: presence,
 		Preview: rows.PickupExcusalTimetable, Extensions: rows.PickupExcusalTimetable,

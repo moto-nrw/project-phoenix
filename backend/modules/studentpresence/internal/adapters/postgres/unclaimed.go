@@ -7,16 +7,17 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
 	"github.com/moto-nrw/project-phoenix/modules/studentpresence/internal/ports"
 )
 
-func (s *Store) UnclaimedGroups(ctx context.Context, date ports.Date) ([]ports.UnclaimedGroup, ports.Stats, error) {
+func (s *Store) UnclaimedGroups(ctx context.Context, date ports.Date) ([]studentpresence.UnclaimedGroup, ports.Stats, error) {
 	db, tenantID, err := s.database(ctx)
 	if err != nil {
 		return nil, ports.Stats{}, err
 	}
 	started := time.Now()
-	rows := make([]ports.UnclaimedGroup, 0)
+	rows := make([]studentpresence.UnclaimedGroup, 0)
 	err = db.NewRaw(`SELECT g.id, g.tenant_id, g.created_at, g.updated_at, g.start_time,
 		g.end_time, g.last_activity, g.timeout_minutes, g.group_id, g.device_id, g.room_id
 		FROM active.groups g WHERE g.tenant_id = ? AND g.end_time IS NULL
@@ -41,13 +42,13 @@ func (s *Store) ClaimGroup(ctx context.Context, claim ports.GroupClaim) (row por
 	stats.Queries++
 	err = db.NewRaw(`SELECT end_time FROM active.groups WHERE tenant_id = ? AND id = ? FOR UPDATE`, tenantID, claim.GroupID).Scan(ctx, &endTime)
 	if errors.Is(err, sql.ErrNoRows) {
-		return row, stats, ports.ErrGroupNotFound
+		return row, stats, studentpresence.ErrGroupNotFound
 	}
 	if err != nil {
 		return row, stats, fmt.Errorf("claim group: lock lifecycle: %w", err)
 	}
 	if endTime != nil {
-		return row, stats, ports.ErrGroupEnded
+		return row, stats, studentpresence.ErrGroupEnded
 	}
 	var duplicate bool
 	stats.Queries++
@@ -58,7 +59,7 @@ func (s *Store) ClaimGroup(ctx context.Context, claim ports.GroupClaim) (row por
 		return row, stats, fmt.Errorf("claim group: read supervisors: %w", err)
 	}
 	if duplicate {
-		return row, stats, ports.ErrAlreadySupervising
+		return row, stats, studentpresence.ErrAlreadySupervising
 	}
 	stats.Queries++
 	err = db.NewRaw(`INSERT INTO active.group_supervisors (tenant_id, group_id, staff_id, role, start_date)

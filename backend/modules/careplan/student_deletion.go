@@ -30,34 +30,3 @@ type StudentDeletionCommand interface {
 	// returns how many it queued.
 	QueueCareDocumentCleanupForDeletedStudent(ctx context.Context, studentID int64, at time.Time) (int, error)
 }
-
-func (m *Module) FindPendingWithdrawalStudent(ctx context.Context, completionID int64, lock bool) (int64, error) {
-	if completionID <= 0 {
-		return 0, ErrWithdrawalNotFound
-	}
-	return m.engine.FindPendingWithdrawalStudent(ctx, completionID, lock)
-}
-
-func (m *Module) ResolvePendingWithdrawalAsDeleted(ctx context.Context, completionID, actorAccountID int64, at time.Time) (bool, error) {
-	if completionID <= 0 || actorAccountID <= 0 || at.IsZero() {
-		return false, ErrInvalidCareExit
-	}
-	return m.engine.ResolvePendingWithdrawalAsDeleted(ctx, completionID, actorAccountID, at)
-}
-
-// RedactWithdrawalsForDeletedStudent redacts the withdrawal tasks of a child
-// the student deletion removes. An actorAccountID of 0 is the nightly
-// retention run (#3962): it resolves a pending task without an actor.
-func (m *Module) RedactWithdrawalsForDeletedStudent(ctx context.Context, studentID, actorAccountID int64, at time.Time) (int, error) {
-	if studentID <= 0 || actorAccountID < 0 || at.IsZero() {
-		return 0, ErrInvalidCareExit
-	}
-	return m.engine.RedactWithdrawalsForDeletedStudent(ctx, studentID, actorAccountID, at)
-}
-
-func (m *Module) QueueCareDocumentCleanupForDeletedStudent(ctx context.Context, studentID int64, at time.Time) (int, error) {
-	if studentID <= 0 || at.IsZero() {
-		return 0, ErrInvalidCareDocument
-	}
-	return m.engine.QueueCareDocumentCleanupForDeletedStudent(ctx, studentID, at)
-}

@@ -41,7 +41,7 @@ func TestOperatorMFAAdminWritesRunUnderTheNamedSchool(t *testing.T) {
 
 	const schoolID = int64(4711)
 	recorder := &tenantRecordingAccountMFA{}
-	e := engine{mfaFlows: MFAFlows{Capability: recorder}}
+	e := newAccountMFACapability(recorder)
 
 	require.NoError(t, e.OperatorDisableMFA(context.Background(), 1, schoolID, 2, "reason"))
 	require.NoError(t, e.OperatorSetMFAOverride(context.Background(), 1, schoolID, 2, identityaccess.MFAAdminOverrideForceOff, "reason"))
@@ -55,7 +55,7 @@ func TestOperatorMFAAdminWritesLeaveAMissingSchoolToTheApplication(t *testing.T)
 	t.Parallel()
 
 	recorder := &tenantRecordingAccountMFA{}
-	e := engine{mfaFlows: MFAFlows{Capability: recorder}}
+	e := newAccountMFACapability(recorder)
 
 	require.NoError(t, e.OperatorDisableMFA(context.Background(), 1, 0, 2, "reason"))
 	require.NoError(t, e.OperatorSetMFAOverride(context.Background(), 1, 0, 2, identityaccess.MFAAdminOverrideForceOff, "reason"))

@@ -1,5 +1,9 @@
 # Request-child storage cutover and rollback window
 
+> **Historical.** The Contract migration of this move runs in every environment. The
+> backfill commands this runbook names (`backfill …`, `migrate backfill …`,
+> `migrate presence-backfill`) were removed in #4441; there is no manual step left.
+
 **Historical.** The rollback window closed with migration 1.15.414
 ([cleanup, #2719](enrollment-storage-contract-2719.md)), which removed the
 compatibility view, archive, functions, counters and the repair CLI described

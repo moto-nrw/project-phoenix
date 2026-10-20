@@ -1,7 +1,6 @@
 package enrollment
 
 import (
-	"context"
 	"time"
 )
 
@@ -18,32 +17,4 @@ type RequestGuardian struct {
 	Phone             *string   `json:"phone,omitempty"`
 	GuardianProfileID *int64    `json:"guardian_profile_id,omitempty"`
 	SortOrder         int       `json:"sort_order"`
-}
-
-func (m *Module) CreateRequestGuardian(ctx context.Context, guardian *RequestGuardian) error {
-	if err := m.transactions.RequireTransaction(ctx); err != nil {
-		return err
-	}
-	return m.engine.CreateRequestGuardian(ctx, guardian)
-}
-
-func (m *Module) RequestGuardians(ctx context.Context, requestIDs []int64) ([]*RequestGuardian, error) {
-	if err := m.transactions.RequireTransaction(ctx); err != nil {
-		return nil, err
-	}
-	return m.engine.RequestGuardians(ctx, requestIDs)
-}
-
-func (m *Module) DeleteRequestGuardians(ctx context.Context, requestID int64) error {
-	if err := m.transactions.RequireTransaction(ctx); err != nil {
-		return err
-	}
-	return m.engine.DeleteRequestGuardians(ctx, requestID)
-}
-
-func (m *Module) StampRequestGuardianProfile(ctx context.Context, id, profileID int64) error {
-	if err := m.transactions.RequireTransaction(ctx); err != nil {
-		return err
-	}
-	return m.engine.StampRequestGuardianProfile(ctx, id, profileID)
 }

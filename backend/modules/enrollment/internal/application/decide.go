@@ -42,7 +42,8 @@ type decisionTarget struct {
 // any new status to an already-terminal child (approved/rejected/
 // withdrawn) returns ErrDecisionAlreadyTerminal - admins must use
 // dedicated revoke/promote flows for those (deferred).
-func (d *Decisions) Decide(ctx context.Context, input enrollmentNative.DecideInput) (*enrollmentNative.DecideOutcome, error) {
+func (d *Decisions) Decide(ctx context.Context, input enrollmentNative.DecideInput) (publicResult *enrollmentNative.DecideOutcome, publicErr error) {
+	defer func() { publicErr = PublicError(publicErr) }()
 	if err := validateDecideInput(input); err != nil {
 		return nil, err
 	}

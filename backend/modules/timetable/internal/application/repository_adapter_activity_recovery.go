@@ -43,11 +43,11 @@ func RetainedActivityRecovery(assignments ports.InstanceStudentRecords) (Assignm
 	}
 	// The recovery locks and restores through the same Student Presence
 	// module the assignment adapter composes.
-	presence, ok := owner.presence.(*studentpresence.Module)
+	presence, ok := owner.presence.(studentpresence.Capability)
 	if !ok {
 		panic("activity recovery: the assignment adapter must compose the Student Presence module")
 	}
-	return recoveryAssignments{capability: owner.timetable, presence: presence}, recoveryPresence{Module: presence}
+	return recoveryAssignments{capability: owner.timetable, presence: presence}, recoveryPresence{Capability: presence}
 }
 
 // recoveryAssignments locks the attendance of one block in both owners so a
@@ -78,8 +78,8 @@ func (r recoveryAssignments) LockAttendance(ctx context.Context, instanceID int6
 }
 
 // recoveryPresence serves the recovery's Student Presence port from the
-// owner module.
-type recoveryPresence struct{ *studentpresence.Module }
+// owner capability.
+type recoveryPresence struct{ studentpresence.Capability }
 
 // RestoreAttendance writes the completion snapshot back. The snapshot never
 // carried the walk-in and manual markers, so the rows keep the ones they

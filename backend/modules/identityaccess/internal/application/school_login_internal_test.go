@@ -5,6 +5,7 @@ import (
 	"errors"
 	"testing"
 
+	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess/internal/domain"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess/internal/ports"
 	"github.com/stretchr/testify/assert"
@@ -73,23 +74,23 @@ func TestSchoolMintGuard_Refusals(t *testing.T) {
 	}{
 		"revoked membership": {
 			arrange: func(f *authFixture) { f.store.inactive[mappingKey{1, 10}] = true },
-			want:    domain.ErrTenantAccessDenied,
+			want:    identityaccess.ErrTenantAccessDenied,
 		},
 		"revoked portal role": {
 			arrange: func(f *authFixture) { f.store.roles[mappingKey{1, 10}] = nil },
-			want:    domain.ErrAccountNoSchoolPortalRole,
+			want:    identityaccess.ErrAccountNoSchoolPortalRole,
 		},
 		"deactivated school": {
 			arrange: func(f *authFixture) { f.schools.add(10, 100, "school-10", false, false) },
-			want:    domain.ErrTenantNotFound,
+			want:    identityaccess.ErrTenantNotFound,
 		},
 		"soft-deleted school": {
 			arrange: func(f *authFixture) { f.schools.add(10, 100, "school-10", true, true) },
-			want:    domain.ErrTenantNotFound,
+			want:    identityaccess.ErrTenantNotFound,
 		},
 		"deactivated account": {
 			arrange: func(f *authFixture) { f.store.addAccount(1, "teacher@example.com", "hash:secret", false) },
-			want:    domain.ErrAccountInactive,
+			want:    identityaccess.ErrAccountInactive,
 		},
 		"vanished account": {
 			arrange: func(f *authFixture) { delete(f.store.accounts, 1) },
@@ -132,7 +133,7 @@ func TestCreateRefreshSessionGuarded_GuardRefusalWritesNoToken(t *testing.T) {
 	var claims *domain.AccountClaimsPayload
 
 	_, err := f.auth.createRefreshSessionGuarded(context.Background(), account, 10, domain.ScopeSchool, f.auth.schoolMintGuard(account.ID, 10, &claims), "")
-	require.ErrorIs(t, err, domain.ErrTenantAccessDenied, "the guard's sentinel surfaces verbatim")
+	require.ErrorIs(t, err, identityaccess.ErrTenantAccessDenied, "the guard's sentinel surfaces verbatim")
 	assert.Empty(t, f.store.sessionsOf(account.ID), "a refused mint persists nothing")
 	assert.NotContains(t, f.store.calls, "RecordAccountLogin", "a refused mint records no login")
 	assert.NotContains(t, f.store.calls, "InsertAccountSession")
@@ -172,7 +173,7 @@ func TestSchoolMintGuard_UnreadableMFAPolicyFailsClosed(t *testing.T) {
 	f, account := newSchoolMintFixture(t)
 
 	claims, err := runSchoolMintGuard(t, f, account, withMFAGateRecheck(staticPolicy(false, errDB)))
-	require.ErrorIs(t, err, domain.ErrMFAStatusUnavailable)
+	require.ErrorIs(t, err, identityaccess.ErrMFAStatusUnavailable)
 	assert.Nil(t, claims)
 }
 
@@ -198,7 +199,7 @@ func TestSchoolMintGuard_UnavailableMFAPolicyLockFailsClosed(t *testing.T) {
 	f.mfaLock.err = errors.New("lock unavailable")
 
 	claims, err := runSchoolMintGuard(t, f, account, withMFAGateRecheck(staticPolicy(false, nil)))
-	require.ErrorIs(t, err, domain.ErrMFAStatusUnavailable)
+	require.ErrorIs(t, err, identityaccess.ErrMFAStatusUnavailable)
 	assert.Nil(t, claims)
 	assert.Equal(t, []string{"LockMFAPolicy"}, f.store.calls, "a failed policy lock must abort before the mint touches any row")
 }
@@ -225,7 +226,7 @@ func TestSchoolRefreshMintGuard_ReportsRevokedPortalRoleAsAccessDenied(t *testin
 	err := f.runtime.WithAdminTx(context.Background(), func(txCtx context.Context) error {
 		return f.auth.schoolRefreshMintGuard(account.ID, 10, &claims)(txCtx, account)
 	})
-	require.ErrorIs(t, err, domain.ErrTenantAccessDenied, "the refresh route maps the access-denied sentinel")
+	require.ErrorIs(t, err, identityaccess.ErrTenantAccessDenied, "the refresh route maps the access-denied sentinel")
 	assert.Nil(t, claims)
 }
 

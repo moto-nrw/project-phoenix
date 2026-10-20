@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess/internal/domain"
 )
 
@@ -122,9 +123,9 @@ func (f *AccountMFAFlows) setTenantOverride(ctx context.Context, actorType strin
 		TargetAccountID: targetAccountID, Action: "set_override", Override: override, Reason: reason,
 	}
 	if !domain.IsValidMFAAdminOverride(override) {
-		failure.ErrMsg = domain.ErrMFAInvalidOverride.Error()
+		failure.ErrMsg = identityaccess.ErrMFAInvalidOverride.Error()
 		f.recordAdminFailure(ctx, failure)
-		return domain.ErrMFAInvalidOverride
+		return identityaccess.ErrMFAInvalidOverride
 	}
 	reason = strings.TrimSpace(reason)
 	if reason == "" {
@@ -170,9 +171,9 @@ func (f *AccountMFAFlows) OperatorSetGlobalMFAOverride(ctx context.Context, oper
 		TargetAccountID: targetAccountID, Action: "set_global_override", Override: override, Reason: reason,
 	}
 	if !domain.IsValidMFAAdminOverride(override) {
-		failure.ErrMsg = domain.ErrMFAInvalidOverride.Error()
+		failure.ErrMsg = identityaccess.ErrMFAInvalidOverride.Error()
 		f.recordAdminFailure(ctx, failure)
-		return domain.ErrMFAInvalidOverride
+		return identityaccess.ErrMFAInvalidOverride
 	}
 	reason = strings.TrimSpace(reason)
 	if reason == "" {
@@ -263,7 +264,7 @@ func (f *AccountMFAFlows) requireAdminPermission(ctx context.Context, actorPermi
 	}
 	failure.ErrMsg = "permission denied"
 	f.recordAdminFailure(ctx, failure)
-	return domain.ErrMFAPermissionDenied
+	return identityaccess.ErrMFAPermissionDenied
 }
 
 // requireSchoolMembership mirrors the route-level check inside the flow, so
@@ -275,7 +276,7 @@ func (f *AccountMFAFlows) requireSchoolMembership(ctx context.Context, actorType
 	if schoolID == 0 {
 		failure.ErrMsg = "missing school_id"
 		f.recordAdminFailure(ctx, failure)
-		return domain.ErrMFAPermissionDenied
+		return identityaccess.ErrMFAPermissionDenied
 	}
 	exists, err := f.records.AccountBelongsToTenant(ctx, targetAccountID, schoolID)
 	if err != nil {
@@ -286,7 +287,7 @@ func (f *AccountMFAFlows) requireSchoolMembership(ctx context.Context, actorType
 	if !exists {
 		failure.ErrMsg = "account is not a member of school"
 		f.recordAdminFailure(ctx, failure)
-		return domain.ErrMFAPermissionDenied
+		return identityaccess.ErrMFAPermissionDenied
 	}
 	return nil
 }

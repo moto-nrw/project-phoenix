@@ -756,32 +756,6 @@ func GuardianOwnerBackfillStatus(ctx context.Context, db *bun.DB) (*GuardianOwne
 	return report, nil
 }
 
-// ResetGuardianOwnerBackfill discards every target row and checkpoint so the
-// backfill restarts from zero. It refuses once users.students_guardians is no
-// longer the authoritative base table, because after Cutover the targets hold
-// live data.
-func ResetGuardianOwnerBackfill(ctx context.Context, db *bun.DB) error {
-	if db == nil {
-		return errors.New("guardian owner backfill: database is required")
-	}
-	release, err := lockStorageBackfill(ctx, db, GuardianOwnerBackfillName)
-	if err != nil {
-		return err
-	}
-	defer release()
-	if err := assertGuardianSourceIsBaseTable(ctx, db); err != nil {
-		return err
-	}
-	return db.RunInTx(ctx, nil, func(ctx context.Context, tx bun.Tx) error {
-		if _, err := tx.ExecContext(ctx, `
-			TRUNCATE auth.guardian_student_access, users.student_guardian_pickup_permissions, users.student_guardian_relationships;
-			DELETE FROM platform.storage_backfill_checkpoints WHERE backfill = ?;`, GuardianOwnerBackfillName); err != nil {
-			return fmt.Errorf("guardian owner backfill: reset targets: %w", err)
-		}
-		return nil
-	})
-}
-
 // assertGuardianSourceIsBaseTable guards every target-only write: after
 // Cutover (#2756) users.students_guardians is only a rollback mirror of the
 // targets, which are authoritative and must not be overwritten from the old

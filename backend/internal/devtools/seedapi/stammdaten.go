@@ -489,6 +489,15 @@ func (s *FixedSeeder) retireFormerStaff() error {
 	if formerStaffID == 0 {
 		return fmt.Errorf("former demo staff %s not available", formerKey)
 	}
+	// Keep visible examples for the invitation's three carryover choices.
+	for section, data := range map[string]map[string]any{
+		"kontakt":         {"address_city": "Osnabrück", "phone": "+49 541 1234567", "note": "Frühere Kontaktdaten für die Wiederaufnahme"},
+		"qualifikationen": {"qualifikationen": []map[string]any{{"name": "Erste Hilfe"}}, "note": "Frühere Qualifikation für die Wiederaufnahme"},
+	} {
+		if _, err := s.client.Put(fmt.Sprintf("/api/staff/%d/stammdaten/%s", formerStaffID, section), data); err != nil {
+			return fmt.Errorf("seed former staff %s: %w", section, err)
+		}
+	}
 	if _, err := s.client.Delete(fmt.Sprintf("/api/staff/%d", formerStaffID)); err != nil {
 		return fmt.Errorf("failed to retire demo staff %s: %w", formerKey, err)
 	}

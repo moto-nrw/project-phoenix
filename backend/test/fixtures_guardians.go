@@ -79,17 +79,8 @@ func CreateTestStudentGuardianLinkForTenant(tb testing.TB, db *bun.DB, tenantID,
 // statement: People Directory's relationship, Care Plan's pickup permission
 // and Identity & Access's portal access bound to the guardian's account. It
 // fills the link's ID and timestamps. A zero ID draws from the relationship
-// sequence. In a world restored before the Cutover
-// (RestoreGuardianStorageBeforeCutover) it writes the then authoritative
-// users.students_guardians instead.
+// sequence.
 func InsertTestStudentGuardian(ctx context.Context, db bun.IDB, link *StudentGuardian) error {
-	historical, err := guardianStorageBeforeCutover(ctx, db)
-	if err != nil {
-		return err
-	}
-	if historical {
-		return db.NewInsert().Model(link).ModelTableExpr(`users.students_guardians`).Scan(ctx)
-	}
 	permissions := []byte(`{}`)
 	if link.Permissions != nil {
 		var err error
@@ -170,28 +161,10 @@ func (GuardianLinks) GuardianLinkModelRows(db bun.IDB, tenantID int64, model any
 	return query
 }
 
-// guardianStorageBeforeCutover reports whether a test restored
-// users.students_guardians as the authoritative base table it was before the
-// Cutover (RestoreGuardianStorageBeforeCutover).
-func guardianStorageBeforeCutover(ctx context.Context, db bun.IDB) (bool, error) {
-	var historical bool
-	err := db.NewRaw(`SELECT to_regclass('users.students_guardians') IS NOT NULL AND NOT EXISTS (
-		SELECT 1 FROM pg_trigger WHERE tgname = 'students_guardians_route_compatibility'
-		AND tgrelid = to_regclass('users.students_guardians'))`).Scan(ctx, &historical)
-	return historical, err
-}
-
-// LoadTestStudentGuardian reads one link joined from its owners, or from users.students_guardians before the Cutover.
+// LoadTestStudentGuardian reads one link joined from its owners.
 func LoadTestStudentGuardian(ctx context.Context, db bun.IDB, linkID int64) (*StudentGuardian, error) {
-	historical, err := guardianStorageBeforeCutover(ctx, db)
-	if err != nil {
-		return nil, err
-	}
 	var link StudentGuardian
 	query := db.NewSelect().Model(&link).ModelTableExpr(studentGuardianLinkSource)
-	if historical {
-		query = db.NewSelect().Model(&link).ModelTableExpr(`users.students_guardians AS "student_guardian"`)
-	}
 	if err := query.Where(`"student_guardian".id = ?`, linkID).Scan(ctx); err != nil {
 		return nil, err
 	}
@@ -199,37 +172,19 @@ func LoadTestStudentGuardian(ctx context.Context, db bun.IDB, linkID int64) (*St
 }
 
 // SetTestStudentGuardianPermissions replaces the portal permissions of a
-// stored link on its Identity & Access row, or on users.students_guardians
-// before the Cutover.
+// stored link on its Identity & Access row.
 func SetTestStudentGuardianPermissions(ctx context.Context, db bun.IDB, linkID int64, permissions map[string]interface{}) error {
-	historical, err := guardianStorageBeforeCutover(ctx, db)
-	if err != nil {
-		return err
-	}
 	encoded, err := json.Marshal(permissions)
 	if err != nil {
 		return err
 	}
-	statement := `UPDATE auth.guardian_student_access SET permissions = ?::jsonb WHERE relationship_id = ?`
-	if historical {
-		statement = `UPDATE users.students_guardians SET permissions = ?::jsonb WHERE id = ?`
-	}
-	_, err = db.ExecContext(ctx, statement, string(encoded), linkID)
+	_, err = db.ExecContext(ctx, `UPDATE auth.guardian_student_access SET permissions = ?::jsonb WHERE relationship_id = ?`, string(encoded), linkID)
 	return err
 }
 
-// setTestStudentGuardianRole writes a link's role on its relationship, or on
-// users.students_guardians before the Cutover.
+// setTestStudentGuardianRole writes a link's role on its relationship.
 func setTestStudentGuardianRole(ctx context.Context, db bun.IDB, linkID int64, role string) error {
-	historical, err := guardianStorageBeforeCutover(ctx, db)
-	if err != nil {
-		return err
-	}
-	statement := `UPDATE users.student_guardian_relationships SET guardian_role = ? WHERE id = ?`
-	if historical {
-		statement = `UPDATE users.students_guardians SET guardian_role = ? WHERE id = ?`
-	}
-	_, err = db.ExecContext(ctx, statement, role, linkID)
+	_, err := db.ExecContext(ctx, `UPDATE users.student_guardian_relationships SET guardian_role = ? WHERE id = ?`, role, linkID)
 	return err
 }
 
