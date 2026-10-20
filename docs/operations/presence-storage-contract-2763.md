@@ -1,5 +1,9 @@
 # Presence storage Contract (#2763)
 
+> **Historical.** The Contract migration of this move runs in every environment. The
+> backfill commands this runbook names (`backfill …`, `migrate backfill …`,
+> `migrate presence-backfill`) were removed in #4441; there is no manual step left.
+
 Migration `1.15.432` removes the rollback mirror that Cutover `1.15.415`
 ([#2762](presence-storage-cutover-2762.md)) kept for previous-image rollback.
 It follows the [student](student-owner-storage-contract.md),

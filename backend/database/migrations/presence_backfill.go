@@ -49,18 +49,6 @@ type PresenceBackfillReport struct {
 	PlannedAssignmentChecksum string                     `json:"planned_assignment_checksum"`
 }
 
-// PresenceBackfillStatus reads the durable checkpoint without running a delta.
-func PresenceBackfillStatus(ctx context.Context, db *bun.DB, tenantID int64) (PresenceBackfillReport, error) {
-	if db == nil || tenantID <= 0 {
-		return PresenceBackfillReport{}, fmt.Errorf("database and positive tenant ID are required")
-	}
-	report, err := readPresenceCheckpoint(ctx, db, tenantID, false)
-	if errors.Is(err, sql.ErrNoRows) {
-		return PresenceBackfillReport{TenantID: tenantID, Phase: "not_started"}, nil
-	}
-	return report, err
-}
-
 func readPresenceCheckpoint(ctx context.Context, db bun.IDB, tenantID int64, lock bool) (PresenceBackfillReport, error) {
 	var data []byte
 	var err error
