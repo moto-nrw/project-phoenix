@@ -9,7 +9,6 @@ import (
 	"golang.org/x/sync/singleflight"
 
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
-	"github.com/moto-nrw/project-phoenix/modules/identityaccess/internal/application/rotation"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess/internal/domain"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess/internal/ports"
 	identityPorts "github.com/moto-nrw/project-phoenix/modules/identityaccess/ports"
@@ -34,8 +33,11 @@ type AccountAuthentication struct {
 	push      ports.PushSubscriptionCleanup
 	runtime   ports.Runtime
 	attach    func(context.Context) context.Context
-	rotation  ports.Rotation
-	logger    *slog.Logger
+	// withRecoveryProof binds a refresh-token recovery proof to the request
+	// context, where the rotation policy reads its hash.
+	withRecoveryProof func(ctx context.Context, proof string) context.Context
+	rotation          ports.Rotation
+	logger            *slog.Logger
 	// refreshSF deduplicates concurrent refresh calls for the same refresh
 	// token and recovery proof.
 	refreshSF singleflight.Group
@@ -54,9 +56,12 @@ type AccountAuthenticationDependencies struct {
 	Push      ports.PushSubscriptionCleanup
 	Runtime   ports.Runtime
 	// Attach binds the composed unit of work ahead of every public flow.
-	Attach   func(context.Context) context.Context
-	Rotation ports.Rotation
-	Logger   *slog.Logger
+	Attach func(context.Context) context.Context
+	// WithRecoveryProof binds a refresh-token recovery proof to the request
+	// context, where the rotation policy reads its hash.
+	WithRecoveryProof func(ctx context.Context, proof string) context.Context
+	Rotation          ports.Rotation
+	Logger            *slog.Logger
 }
 
 // NewAccountAuthentication composes the flows over the session service that
@@ -95,7 +100,7 @@ func NewAccountAuthentication(sessions *Service, deps AccountAuthenticationDepen
 	return &AccountAuthentication{
 		sessions: sessions, store: deps.Store, schools: deps.Schools, persons: deps.Persons, passwords: deps.Passwords,
 		codec: deps.Codec, mfa: deps.MFA, mfaLock: deps.MFALock, audit: deps.Audit, push: deps.Push,
-		runtime: deps.Runtime, attach: deps.Attach, rotation: deps.Rotation, logger: logger,
+		runtime: deps.Runtime, attach: deps.Attach, withRecoveryProof: deps.WithRecoveryProof, rotation: deps.Rotation, logger: logger,
 	}, nil
 }
 
@@ -294,7 +299,9 @@ func (s *AccountAuthentication) RefreshTokenWithAudit(ctx context.Context, refre
 	if s == nil {
 		return "", "", errAccountAuthenticationUnavailable
 	}
-	ctx = rotation.WithRecoveryProof(ctx, recoveryProof)
+	if s.withRecoveryProof != nil {
+		ctx = s.withRecoveryProof(ctx, recoveryProof)
+	}
 	access, refresh, err := s.refreshTokenWithAudit(bindRuntime(s.attach, ctx), refreshToken, ipAddress, userAgent)
 	return access, refresh, authenticationError(err)
 }

@@ -39,8 +39,8 @@ func newAccountAuthentication(service *application.Service, store ports.AccountL
 		Push:      deps.Push,
 		Runtime:   tenantRuntime{attach: attach, runner: application.NewTransactionRunner()},
 		Attach:    attach,
-		Rotation:  rotation.RotationPolicy{},
-		Logger:    deps.Logger,
+		Rotation:  rotation.RotationPolicy{}, WithRecoveryProof: rotation.WithRecoveryProof,
+		Logger: deps.Logger,
 	})
 }
 
