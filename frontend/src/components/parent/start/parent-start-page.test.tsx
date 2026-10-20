@@ -43,6 +43,7 @@ vi.mock("~/lib/personal-calendar-api", () => ({
 
 vi.mock("~/lib/shell-auth-context", () => ({
   useShellAuth: () => ({ profile: { firstName: "Sabine" } }),
+  useShellAuthSafe: () => undefined,
 }));
 
 vi.mock("~/components/parent/news/news-components", async (importOriginal) => {
