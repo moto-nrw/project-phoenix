@@ -3,7 +3,6 @@ package peopledirectory
 import (
 	"context"
 	"errors"
-	"strings"
 )
 
 var (
@@ -43,27 +42,4 @@ type FamilyProtectionCommand interface {
 	// current. ErrFamilyProtectionUnchanged accompanies an unchanged state,
 	// ErrStudentNotFound a missing or graduated child.
 	SetFamilyProtection(context.Context, SetFamilyProtection) (bool, error)
-}
-
-// CurrentFamilyProtection returns the latest event's flag for each requested
-// child in the tenant. Children without events are absent, meaning unprotected.
-func (m *Module) CurrentFamilyProtection(ctx context.Context, studentIDs []int64) (map[int64]bool, error) {
-	for _, id := range studentIDs {
-		if id <= 0 {
-			return nil, &InvalidStudentError{Reason: "family protection requires positive student IDs"}
-		}
-	}
-	if len(studentIDs) == 0 {
-		return map[int64]bool{}, nil
-	}
-	return m.engine.CurrentFamilyProtection(ctx, PositiveIDs(studentIDs))
-}
-
-func (m *Module) SetFamilyProtection(ctx context.Context, input SetFamilyProtection) (bool, error) {
-	input.Reason = strings.TrimSpace(input.Reason)
-	if input.StudentID <= 0 || input.ActorAccountID <= 0 || input.Reason == "" ||
-		len([]rune(input.Reason)) > MaxFamilyProtectionReasonRunes {
-		return false, ErrFamilyProtectionInvalid
-	}
-	return m.engine.SetFamilyProtection(ctx, input)
 }

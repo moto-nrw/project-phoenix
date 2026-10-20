@@ -99,7 +99,7 @@
     "module": "people-directory",
     "contract_package": "modules/peopledirectory",
     "test_file": "modules/peopledirectory/peopledirectory_test.go",
-    "test": "TestCreatePersonNormalizesNamesAndTag"
+    "test": "TestErrorCodeIsStable"
   },
   {
     "module": "scheduler-runtime",

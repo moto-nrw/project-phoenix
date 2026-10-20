@@ -41,11 +41,11 @@ func (o failingGuardianLinkOwners) GrantGuardianStudentAccess(ctx context.Contex
 	return o.testGuardianLinkOwners.GrantGuardianStudentAccess(ctx, tenantID, relationshipID, accountID, permissions)
 }
 
-func buildModuleWithLinkOwners(t *testing.T, db *bun.DB, owners GuardianLinkOwners) *peopledirectory.Module {
+func buildModuleWithLinkOwners(t *testing.T, db *bun.DB, owners GuardianLinkOwners) peopledirectory.Owner {
 	t.Helper()
 	module, err := New(Dependencies{StudentDirectory: testpkg.StudentDirectory{}, DB: db, Observe: func(Observation) {}, GuardianLinkOwners: owners, GuardianLinkRows: testpkg.GuardianLinks{}}, testPortalMemberships(db))
 	require.NoError(t, err)
-	return module.Module
+	return module.Owner
 }
 
 func countLinkHalves(t *testing.T, db *bun.DB, studentID, guardianID int64) int {
