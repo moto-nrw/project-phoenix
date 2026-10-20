@@ -8,6 +8,7 @@ import (
 	"sort"
 	"time"
 
+	"github.com/moto-nrw/project-phoenix/modules/schoolmembership"
 	"github.com/moto-nrw/project-phoenix/modules/schoolmembership/internal/adapters/displayorder"
 	"github.com/moto-nrw/project-phoenix/modules/schoolmembership/internal/domain"
 	"github.com/uptrace/bun"
@@ -30,10 +31,10 @@ type classListEntryRow struct {
 	CreatedBy     *int64    `bun:"created_by"`
 }
 
-func (s *Store) FindClassListEntry(ctx context.Context, id int64, lock string) (domain.ClassListEntry, bool, domain.OperationStats, error) {
+func (s *Store) FindClassListEntry(ctx context.Context, id int64, lock string) (schoolmembership.ClassListEntry, bool, domain.OperationStats, error) {
 	db, scope, err := s.database(ctx)
 	if err != nil {
-		return domain.ClassListEntry{}, false, domain.OperationStats{}, err
+		return schoolmembership.ClassListEntry{}, false, domain.OperationStats{}, err
 	}
 	row := &classListEntryRow{}
 	query := withTenant(classListEntrySelect(db, row).Where(`"class_list_entry".id = ?`, id), "class_list_entry", scope)
@@ -42,14 +43,14 @@ func (s *Store) FindClassListEntry(ctx context.Context, id int64, lock string) (
 	}
 	found, stats, err := scanOne(ctx, query, "find class list entry")
 	if err != nil || !found {
-		return domain.ClassListEntry{}, found, stats, err
+		return schoolmembership.ClassListEntry{}, found, stats, err
 	}
-	return classListEntryToDomain(*row), true, stats, nil
+	return classListEntryToPublic(*row), true, stats, nil
 }
 
 // ListClassListEntries orders by case-folded last name, first name and ID:
 // the order the legacy class lookup produced, stable across equal names.
-func (s *Store) ListClassListEntries(ctx context.Context, filter domain.ClassListEntryFilter) ([]domain.ClassListEntry, domain.OperationStats, error) {
+func (s *Store) ListClassListEntries(ctx context.Context, filter schoolmembership.ClassListEntryFilter) ([]schoolmembership.ClassListEntry, domain.OperationStats, error) {
 	db, scope, err := s.database(ctx)
 	if err != nil {
 		return nil, domain.OperationStats{}, err
@@ -58,7 +59,7 @@ func (s *Store) ListClassListEntries(ctx context.Context, filter domain.ClassLis
 	query := withTenant(classListEntrySelect(db, &rows), "class_list_entry", scope)
 	if filter.IDs != nil {
 		if len(filter.IDs) == 0 {
-			return []domain.ClassListEntry{}, domain.OperationStats{}, nil
+			return []schoolmembership.ClassListEntry{}, domain.OperationStats{}, nil
 		}
 		query = query.Where(`"class_list_entry".id IN (?)`, bun.List(filter.IDs))
 	}
@@ -76,9 +77,9 @@ func (s *Store) ListClassListEntries(ctx context.Context, filter domain.ClassLis
 	if err != nil {
 		return nil, stats, err
 	}
-	result := make([]domain.ClassListEntry, 0, len(rows))
+	result := make([]schoolmembership.ClassListEntry, 0, len(rows))
 	for _, row := range rows {
-		result = append(result, classListEntryToDomain(row))
+		result = append(result, classListEntryToPublic(row))
 	}
 	stats.Rows = int64(len(result))
 	return result, stats, nil
@@ -88,7 +89,7 @@ func (s *Store) ListClassListEntries(ctx context.Context, filter domain.ClassLis
 // read in: class first (grade-aware), then the names in German dictionary
 // order. PostgreSQL cannot express either leg, so the rows are fetched with
 // the plain listing and ordered here.
-func (s *Store) ListClassListEntriesInDisplayOrder(ctx context.Context, filter domain.ClassListEntryFilter) ([]domain.ClassListEntry, domain.OperationStats, error) {
+func (s *Store) ListClassListEntriesInDisplayOrder(ctx context.Context, filter schoolmembership.ClassListEntryFilter) ([]schoolmembership.ClassListEntry, domain.OperationStats, error) {
 	entries, stats, err := s.ListClassListEntries(ctx, filter)
 	if err != nil {
 		return nil, stats, err
@@ -99,13 +100,13 @@ func (s *Store) ListClassListEntriesInDisplayOrder(ctx context.Context, filter d
 	return entries, stats, nil
 }
 
-func (s *Store) CreateClassListEntry(ctx context.Context, fields domain.ClassListEntryFields, createdBy *int64) (domain.ClassListEntry, domain.OperationStats, error) {
+func (s *Store) CreateClassListEntry(ctx context.Context, fields schoolmembership.ClassListEntryFields, createdBy *int64) (schoolmembership.ClassListEntry, domain.OperationStats, error) {
 	db, scope, err := s.database(ctx)
 	if err != nil {
-		return domain.ClassListEntry{}, domain.OperationStats{}, err
+		return schoolmembership.ClassListEntry{}, domain.OperationStats{}, err
 	}
 	if scope.TenantID <= 0 {
-		return domain.ClassListEntry{}, domain.OperationStats{}, errors.New("school membership postgres: tenant is required to create a class list entry")
+		return schoolmembership.ClassListEntry{}, domain.OperationStats{}, errors.New("school membership postgres: tenant is required to create a class list entry")
 	}
 	row := classListEntryRow{
 		TenantID: scope.TenantID, FirstName: fields.FirstName, LastName: fields.LastName,
@@ -116,16 +117,16 @@ func (s *Store) CreateClassListEntry(ctx context.Context, fields domain.ClassLis
 	err = db.NewInsert().Model(&row).ModelTableExpr(`users.class_list_entries`).Returning("*").Scan(ctx)
 	stats.StatementDuration = time.Since(started)
 	if err != nil {
-		return domain.ClassListEntry{}, stats, wrapClassListEntryWriteError("create", err)
+		return schoolmembership.ClassListEntry{}, stats, wrapClassListEntryWriteError("create", err)
 	}
 	stats.Rows = 1
-	return classListEntryToDomain(row), stats, nil
+	return classListEntryToPublic(row), stats, nil
 }
 
-func (s *Store) UpdateClassListEntry(ctx context.Context, id int64, fields domain.ClassListEntryFields) (domain.ClassListEntry, domain.OperationStats, error) {
+func (s *Store) UpdateClassListEntry(ctx context.Context, id int64, fields schoolmembership.ClassListEntryFields) (schoolmembership.ClassListEntry, domain.OperationStats, error) {
 	db, scope, err := s.database(ctx)
 	if err != nil {
-		return domain.ClassListEntry{}, domain.OperationStats{}, err
+		return schoolmembership.ClassListEntry{}, domain.OperationStats{}, err
 	}
 	row := classListEntryRow{ID: id, FirstName: fields.FirstName, LastName: fields.LastName, SchoolClass: fields.SchoolClass}
 	query := withTenant(db.NewUpdate().Model(&row).
@@ -138,13 +139,13 @@ func (s *Store) UpdateClassListEntry(ctx context.Context, id int64, fields domai
 	err = query.Returning("*").Scan(ctx)
 	stats.StatementDuration = time.Since(started)
 	if errors.Is(err, sql.ErrNoRows) {
-		return domain.ClassListEntry{}, stats, domain.ErrClassListEntryNotFound
+		return schoolmembership.ClassListEntry{}, stats, schoolmembership.ErrClassListEntryNotFound
 	}
 	if err != nil {
-		return domain.ClassListEntry{}, stats, wrapClassListEntryWriteError("update", err)
+		return schoolmembership.ClassListEntry{}, stats, wrapClassListEntryWriteError("update", err)
 	}
 	stats.Rows = 1
-	return classListEntryToDomain(row), stats, nil
+	return classListEntryToPublic(row), stats, nil
 }
 
 func (s *Store) DeleteClassListEntry(ctx context.Context, id int64) (domain.OperationStats, error) {
@@ -167,13 +168,13 @@ func (s *Store) DeleteClassListEntry(ctx context.Context, id int64) (domain.Oper
 		return stats, fmt.Errorf("school membership postgres: delete class list entry: count rows: %w", err)
 	}
 	if rows != 1 {
-		return stats, domain.ErrClassListEntryNotFound
+		return stats, schoolmembership.ErrClassListEntryNotFound
 	}
 	stats.Rows = rows
 	return stats, nil
 }
 
-func displayOrderKey(entry domain.ClassListEntry) displayorder.ClassListEntry {
+func displayOrderKey(entry schoolmembership.ClassListEntry) displayorder.ClassListEntry {
 	return displayorder.ClassListEntry{
 		SchoolClass: entry.SchoolClass, LastName: entry.LastName, FirstName: entry.FirstName, ID: entry.ID,
 	}
@@ -183,20 +184,19 @@ func classListEntrySelect(db bun.IDB, model any) *bun.SelectQuery {
 	return db.NewSelect().Model(model).ModelTableExpr(`users.class_list_entries AS "class_list_entry"`)
 }
 
-func classListEntryToDomain(row classListEntryRow) domain.ClassListEntry {
-	return domain.ClassListEntry{
+func classListEntryToPublic(row classListEntryRow) schoolmembership.ClassListEntry {
+	return schoolmembership.ClassListEntry{
 		ID: row.ID, TenantID: row.TenantID, CreatedAt: row.CreatedAt, UpdatedAt: row.UpdatedAt,
 		FirstName: row.FirstName, LastName: row.LastName, SchoolClass: row.SchoolClass, CreatedBy: row.CreatedBy,
 	}
 }
 
-// wrapClassListEntryWriteError classifies the unique-index collision but
-// keeps the driver error in the chain: the legacy repository contract lets
-// callers recognize the collision by the index name, and the service maps
-// it to its documented duplicate response.
+// wrapClassListEntryWriteError classifies the unique-index collision as the
+// documented duplicate refusal. The sentinel's text is the screen's message,
+// so the driver error does not travel with it.
 func wrapClassListEntryWriteError(operation string, err error) error {
 	if isUniqueViolationOn(err, classListEntryNameIndex) {
-		return fmt.Errorf("%w: %w", domain.ErrClassListEntryDuplicate, err)
+		return schoolmembership.ErrClassListEntryDuplicate
 	}
 	return fmt.Errorf("school membership postgres: %s class list entry: %w", operation, err)
 }

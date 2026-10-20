@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/moto-nrw/project-phoenix/modules/schoolmembership"
 	"github.com/moto-nrw/project-phoenix/modules/schoolmembership/internal/domain"
 )
 
@@ -12,10 +13,10 @@ import (
 // context erased: the one with the lowest ID above afterID whose staff
 // member left before the cutoff and is not erased yet. It locks the row and
 // skips one a concurrent run holds. found is false when none is due.
-func (s *Store) MarkNextRetiredStaffErased(ctx context.Context, before time.Time, afterID int64) (domain.RetiredStaffErasure, bool, domain.OperationStats, error) {
+func (s *Store) MarkNextRetiredStaffErased(ctx context.Context, before time.Time, afterID int64) (schoolmembership.RetiredStaffErasure, bool, domain.OperationStats, error) {
 	db, scope, err := s.database(ctx)
 	if err != nil {
-		return domain.RetiredStaffErasure{}, false, domain.OperationStats{}, err
+		return schoolmembership.RetiredStaffErasure{}, false, domain.OperationStats{}, err
 	}
 	due := withTenant(db.NewSelect().
 		TableExpr(`users.staff_school_memberships AS "due"`).
@@ -25,7 +26,7 @@ func (s *Store) MarkNextRetiredStaffErased(ctx context.Context, before time.Time
 		Where(`"due".deleted_at < ?`, before).
 		Where(`"due".personal_data_erased_at IS NULL`).
 		OrderExpr(`"due".id ASC`).Limit(1).For("UPDATE SKIP LOCKED"), "due", scope)
-	var rows []domain.RetiredStaffErasure
+	var rows []schoolmembership.RetiredStaffErasure
 	query := withTenant(db.NewUpdate().Model((*staffRow)(nil)).
 		ModelTableExpr(`users.staff_school_memberships AS "staff"`).
 		Set(`personal_data_erased_at = NOW()`).
@@ -37,10 +38,10 @@ func (s *Store) MarkNextRetiredStaffErased(ctx context.Context, before time.Time
 	_, err = query.Exec(ctx, &rows)
 	stats.StatementDuration = time.Since(started)
 	if err != nil {
-		return domain.RetiredStaffErasure{}, false, stats, fmt.Errorf("school membership postgres: mark next retired staff erased: %w", err)
+		return schoolmembership.RetiredStaffErasure{}, false, stats, fmt.Errorf("school membership postgres: mark next retired staff erased: %w", err)
 	}
 	if len(rows) == 0 {
-		return domain.RetiredStaffErasure{}, false, stats, nil
+		return schoolmembership.RetiredStaffErasure{}, false, stats, nil
 	}
 	stats.Rows = 1
 	return rows[0], true, stats, nil

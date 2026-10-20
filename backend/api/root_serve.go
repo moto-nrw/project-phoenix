@@ -90,8 +90,8 @@ func composeServeRoot(
 		organizations    organizationtenancy.Capability
 		groups           *schoolstructure.Module
 		rooms            *facilitiesModule.Rooms
-		membership       *schoolMembershipModule.Module
-		classListEntries *schoolMembershipModule.Module
+		membership       schoolMembershipModule.Owner
+		classListEntries schoolMembershipModule.Owner
 		bookings         *enrollmentOwner.BookingProjection
 		settings         owners.SettingsOwner
 		calendar         *schoolcalendar.Records

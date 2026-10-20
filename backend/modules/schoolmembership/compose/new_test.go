@@ -24,7 +24,7 @@ const (
 	afterWindow    = "2026-04-01"
 )
 
-func buildModule(t *testing.T, db *bun.DB, observations ...func(Observation)) *schoolmembership.Module {
+func buildModule(t *testing.T, db *bun.DB, observations ...func(Observation)) schoolmembership.Owner {
 	t.Helper()
 	observe := func(Observation) {}
 	if len(observations) > 0 {
@@ -44,7 +44,7 @@ func otherTenantContext(t *testing.T, db *bun.DB) (context.Context, int64) {
 
 // createStaff gives the new staff member a person of their own and creates the
 // membership row through the module under test.
-func createStaff(t *testing.T, ctx context.Context, db *bun.DB, module *schoolmembership.Module, firstName, lastName string, fields schoolmembership.StaffFields) schoolmembership.Staff {
+func createStaff(t *testing.T, ctx context.Context, db *bun.DB, module schoolmembership.Owner, firstName, lastName string, fields schoolmembership.StaffFields) schoolmembership.Staff {
 	t.Helper()
 	person := testpkg.CreateTestPerson(t, db, firstName, lastName)
 	fields.PersonID = person.ID

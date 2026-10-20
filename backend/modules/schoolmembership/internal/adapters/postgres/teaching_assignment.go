@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/moto-nrw/project-phoenix/modules/schoolmembership"
 	"github.com/moto-nrw/project-phoenix/modules/schoolmembership/internal/domain"
 	"github.com/uptrace/bun"
 )
@@ -31,7 +32,7 @@ type groupAssignmentRow struct {
 	TeacherID     int64     `bun:"teacher_id,notnull"`
 }
 
-func (s *Store) ListClassAssignments(ctx context.Context, filter domain.ClassAssignmentFilter) ([]domain.ClassAssignment, domain.OperationStats, error) {
+func (s *Store) ListClassAssignments(ctx context.Context, filter schoolmembership.ClassAssignmentFilter, forUpdate bool) ([]schoolmembership.ClassAssignment, domain.OperationStats, error) {
 	db, scope, err := s.database(ctx)
 	if err != nil {
 		return nil, domain.OperationStats{}, err
@@ -40,45 +41,45 @@ func (s *Store) ListClassAssignments(ctx context.Context, filter domain.ClassAss
 	query := withTenant(classAssignmentSelect(db, &rows), "class_assignment", scope)
 	if filter.IDs != nil {
 		if len(filter.IDs) == 0 {
-			return []domain.ClassAssignment{}, domain.OperationStats{}, nil
+			return []schoolmembership.ClassAssignment{}, domain.OperationStats{}, nil
 		}
 		query = query.Where(`"class_assignment".id IN (?)`, bun.List(filter.IDs))
 	}
 	if filter.StaffIDs != nil {
 		if len(filter.StaffIDs) == 0 {
-			return []domain.ClassAssignment{}, domain.OperationStats{}, nil
+			return []schoolmembership.ClassAssignment{}, domain.OperationStats{}, nil
 		}
 		query = query.Where(`"class_assignment".staff_id IN (?)`, bun.List(filter.StaffIDs))
 	}
 	if filter.ClassKeys != nil {
 		if len(filter.ClassKeys) == 0 {
-			return []domain.ClassAssignment{}, domain.OperationStats{}, nil
+			return []schoolmembership.ClassAssignment{}, domain.OperationStats{}, nil
 		}
 		query = query.Where(`LOWER(BTRIM("class_assignment".school_class)) IN (?)`, bun.List(filter.ClassKeys))
 	}
 	query = query.OrderExpr(`LOWER(BTRIM("class_assignment".school_class)) ASC, "class_assignment".id ASC`)
-	if filter.ForUpdate {
+	if forUpdate {
 		query = query.OrderExpr(`"class_assignment".id ASC`).For("UPDATE OF class_assignment")
 	}
 	stats, err := scanAll(ctx, query, "list class assignments")
 	if err != nil {
 		return nil, stats, err
 	}
-	result := make([]domain.ClassAssignment, 0, len(rows))
+	result := make([]schoolmembership.ClassAssignment, 0, len(rows))
 	for _, row := range rows {
-		result = append(result, classAssignmentToDomain(row))
+		result = append(result, classAssignmentToPublic(row))
 	}
 	stats.Rows = int64(len(result))
 	return result, stats, nil
 }
 
-func (s *Store) CreateClassAssignment(ctx context.Context, staffID int64, schoolClass string) (domain.ClassAssignment, domain.OperationStats, error) {
+func (s *Store) CreateClassAssignment(ctx context.Context, staffID int64, schoolClass string) (schoolmembership.ClassAssignment, domain.OperationStats, error) {
 	db, scope, err := s.database(ctx)
 	if err != nil {
-		return domain.ClassAssignment{}, domain.OperationStats{}, err
+		return schoolmembership.ClassAssignment{}, domain.OperationStats{}, err
 	}
 	if scope.TenantID <= 0 {
-		return domain.ClassAssignment{}, domain.OperationStats{}, errors.New("school membership postgres: tenant is required to create a class assignment")
+		return schoolmembership.ClassAssignment{}, domain.OperationStats{}, errors.New("school membership postgres: tenant is required to create a class assignment")
 	}
 	row := classAssignmentRow{TenantID: scope.TenantID, StaffID: staffID, SchoolClass: schoolClass}
 	stats := domain.OperationStats{Queries: 1}
@@ -86,16 +87,16 @@ func (s *Store) CreateClassAssignment(ctx context.Context, staffID int64, school
 	err = db.NewInsert().Model(&row).ModelTableExpr(`education.class_teachers`).Returning("*").Scan(ctx)
 	stats.StatementDuration = time.Since(started)
 	if err != nil {
-		return domain.ClassAssignment{}, stats, wrapClassAssignmentWriteError("create", err)
+		return schoolmembership.ClassAssignment{}, stats, wrapClassAssignmentWriteError("create", err)
 	}
 	stats.Rows = 1
-	return classAssignmentToDomain(row), stats, nil
+	return classAssignmentToPublic(row), stats, nil
 }
 
-func (s *Store) UpdateClassAssignment(ctx context.Context, id, staffID int64, schoolClass string) (domain.ClassAssignment, domain.OperationStats, error) {
+func (s *Store) UpdateClassAssignment(ctx context.Context, id, staffID int64, schoolClass string) (schoolmembership.ClassAssignment, domain.OperationStats, error) {
 	db, scope, err := s.database(ctx)
 	if err != nil {
-		return domain.ClassAssignment{}, domain.OperationStats{}, err
+		return schoolmembership.ClassAssignment{}, domain.OperationStats{}, err
 	}
 	row := classAssignmentRow{ID: id, StaffID: staffID, SchoolClass: schoolClass}
 	query := withTenant(db.NewUpdate().Model(&row).
@@ -107,13 +108,13 @@ func (s *Store) UpdateClassAssignment(ctx context.Context, id, staffID int64, sc
 	err = query.Returning("*").Scan(ctx)
 	stats.StatementDuration = time.Since(started)
 	if errors.Is(err, sql.ErrNoRows) {
-		return domain.ClassAssignment{}, stats, domain.ErrClassAssignmentNotFound
+		return schoolmembership.ClassAssignment{}, stats, schoolmembership.ErrClassAssignmentNotFound
 	}
 	if err != nil {
-		return domain.ClassAssignment{}, stats, wrapClassAssignmentWriteError("update", err)
+		return schoolmembership.ClassAssignment{}, stats, wrapClassAssignmentWriteError("update", err)
 	}
 	stats.Rows = 1
-	return classAssignmentToDomain(row), stats, nil
+	return classAssignmentToPublic(row), stats, nil
 }
 
 func (s *Store) DeleteClassAssignment(ctx context.Context, id int64) (domain.OperationStats, error) {
@@ -138,35 +139,35 @@ func (s *Store) DeleteClassAssignmentsByStaff(ctx context.Context, staffID int64
 	return execDelete(ctx, query, "delete class assignments by staff")
 }
 
-func (s *Store) ListGroupAssignments(ctx context.Context, filter domain.GroupAssignmentFilter) ([]domain.GroupAssignment, domain.OperationStats, error) {
+func (s *Store) ListGroupAssignments(ctx context.Context, filter schoolmembership.GroupAssignmentFilter, forUpdate bool) ([]schoolmembership.GroupAssignment, domain.OperationStats, error) {
 	db, scope, err := s.database(ctx)
 	if err != nil {
 		return nil, domain.OperationStats{}, err
 	}
 	rows := []groupAssignmentRow{}
-	query, ok := groupAssignmentListQuery(withTenant(groupAssignmentSelect(db, &rows), "group_assignment", scope), filter)
+	query, ok := groupAssignmentListQuery(withTenant(groupAssignmentSelect(db, &rows), "group_assignment", scope), filter, forUpdate)
 	if !ok {
-		return []domain.GroupAssignment{}, domain.OperationStats{}, nil
+		return []schoolmembership.GroupAssignment{}, domain.OperationStats{}, nil
 	}
 	stats, err := scanAll(ctx, query, "list group assignments")
 	if err != nil {
 		return nil, stats, err
 	}
-	result := make([]domain.GroupAssignment, 0, len(rows))
+	result := make([]schoolmembership.GroupAssignment, 0, len(rows))
 	for _, row := range rows {
-		result = append(result, groupAssignmentToDomain(row))
+		result = append(result, groupAssignmentToPublic(row))
 	}
 	stats.Rows = int64(len(result))
 	return result, stats, nil
 }
 
-func (s *Store) CreateGroupAssignment(ctx context.Context, groupID, teacherID int64) (domain.GroupAssignment, domain.OperationStats, error) {
+func (s *Store) CreateGroupAssignment(ctx context.Context, groupID, teacherID int64) (schoolmembership.GroupAssignment, domain.OperationStats, error) {
 	db, scope, err := s.database(ctx)
 	if err != nil {
-		return domain.GroupAssignment{}, domain.OperationStats{}, err
+		return schoolmembership.GroupAssignment{}, domain.OperationStats{}, err
 	}
 	if scope.TenantID <= 0 {
-		return domain.GroupAssignment{}, domain.OperationStats{}, errors.New("school membership postgres: tenant is required to create a group assignment")
+		return schoolmembership.GroupAssignment{}, domain.OperationStats{}, errors.New("school membership postgres: tenant is required to create a group assignment")
 	}
 	row := groupAssignmentRow{TenantID: scope.TenantID, GroupID: groupID, TeacherID: teacherID}
 	stats := domain.OperationStats{Queries: 1}
@@ -174,16 +175,16 @@ func (s *Store) CreateGroupAssignment(ctx context.Context, groupID, teacherID in
 	err = db.NewInsert().Model(&row).ModelTableExpr(`education.group_teacher`).Returning("*").Scan(ctx)
 	stats.StatementDuration = time.Since(started)
 	if err != nil {
-		return domain.GroupAssignment{}, stats, wrapGroupAssignmentWriteError("create", err)
+		return schoolmembership.GroupAssignment{}, stats, wrapGroupAssignmentWriteError("create", err)
 	}
 	stats.Rows = 1
-	return groupAssignmentToDomain(row), stats, nil
+	return groupAssignmentToPublic(row), stats, nil
 }
 
-func (s *Store) UpdateGroupAssignment(ctx context.Context, id, groupID, teacherID int64) (domain.GroupAssignment, domain.OperationStats, error) {
+func (s *Store) UpdateGroupAssignment(ctx context.Context, id, groupID, teacherID int64) (schoolmembership.GroupAssignment, domain.OperationStats, error) {
 	db, scope, err := s.database(ctx)
 	if err != nil {
-		return domain.GroupAssignment{}, domain.OperationStats{}, err
+		return schoolmembership.GroupAssignment{}, domain.OperationStats{}, err
 	}
 	row := groupAssignmentRow{ID: id, GroupID: groupID, TeacherID: teacherID}
 	query := withTenant(db.NewUpdate().Model(&row).
@@ -195,13 +196,13 @@ func (s *Store) UpdateGroupAssignment(ctx context.Context, id, groupID, teacherI
 	err = query.Returning("*").Scan(ctx)
 	stats.StatementDuration = time.Since(started)
 	if errors.Is(err, sql.ErrNoRows) {
-		return domain.GroupAssignment{}, stats, domain.ErrGroupAssignmentNotFound
+		return schoolmembership.GroupAssignment{}, stats, schoolmembership.ErrGroupAssignmentNotFound
 	}
 	if err != nil {
-		return domain.GroupAssignment{}, stats, wrapGroupAssignmentWriteError("update", err)
+		return schoolmembership.GroupAssignment{}, stats, wrapGroupAssignmentWriteError("update", err)
 	}
 	stats.Rows = 1
-	return groupAssignmentToDomain(row), stats, nil
+	return groupAssignmentToPublic(row), stats, nil
 }
 
 func (s *Store) DeleteGroupAssignment(ctx context.Context, id int64) (domain.OperationStats, error) {
@@ -252,15 +253,15 @@ func groupAssignmentSelect(db bun.IDB, model any) *bun.SelectQuery {
 	return db.NewSelect().Model(model).ModelTableExpr(`education.group_teacher AS "group_assignment"`)
 }
 
-func classAssignmentToDomain(row classAssignmentRow) domain.ClassAssignment {
-	return domain.ClassAssignment{
+func classAssignmentToPublic(row classAssignmentRow) schoolmembership.ClassAssignment {
+	return schoolmembership.ClassAssignment{
 		ID: row.ID, TenantID: row.TenantID, CreatedAt: row.CreatedAt, UpdatedAt: row.UpdatedAt,
 		StaffID: row.StaffID, SchoolClass: row.SchoolClass,
 	}
 }
 
-func groupAssignmentToDomain(row groupAssignmentRow) domain.GroupAssignment {
-	return domain.GroupAssignment{
+func groupAssignmentToPublic(row groupAssignmentRow) schoolmembership.GroupAssignment {
+	return schoolmembership.GroupAssignment{
 		ID: row.ID, TenantID: row.TenantID, CreatedAt: row.CreatedAt, UpdatedAt: row.UpdatedAt,
 		GroupID: row.GroupID, TeacherID: row.TeacherID,
 	}
@@ -284,14 +285,14 @@ func execDelete(ctx context.Context, query *bun.DeleteQuery, operation string) (
 
 func wrapClassAssignmentWriteError(operation string, err error) error {
 	if isUniqueViolationOn(err, "uniq_class_teachers_staff_class") {
-		return fmt.Errorf("%w: %w", domain.ErrClassAssignmentConflict, err)
+		return fmt.Errorf("%w: %w", schoolmembership.ErrClassAssignmentConflict, err)
 	}
 	return fmt.Errorf("school membership postgres: %s class assignment: %w", operation, err)
 }
 
 func wrapGroupAssignmentWriteError(operation string, err error) error {
 	if isUniqueViolationOn(err, "idx_group_teacher_tenant", "uk_group_teacher") {
-		return fmt.Errorf("%w: %w", domain.ErrGroupAssignmentConflict, err)
+		return fmt.Errorf("%w: %w", schoolmembership.ErrGroupAssignmentConflict, err)
 	}
 	return fmt.Errorf("school membership postgres: %s group assignment: %w", operation, err)
 }

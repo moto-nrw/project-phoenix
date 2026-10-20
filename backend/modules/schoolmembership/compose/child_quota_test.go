@@ -40,7 +40,7 @@ func (q *childQuotas) ChildQuotaLimit(ctx context.Context) (int, bool, error) {
 	return limit, ok, nil
 }
 
-func quotaModule(t *testing.T, db *bun.DB, quotas *childQuotas) *schoolmembership.Module {
+func quotaModule(t *testing.T, db *bun.DB, quotas *childQuotas) schoolmembership.Owner {
 	t.Helper()
 	module, err := New(Dependencies{DB: db, Observe: func(Observation) {}, Employment: testEmployment, ChildQuota: quotas})
 	require.NoError(t, err)
