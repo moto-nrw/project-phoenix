@@ -59,7 +59,7 @@ func fakeXLSX(t *testing.T) []byte {
 type apiContext struct {
 	t                     *testing.T
 	db                    *bun.DB
-	files                 *filestorageModule.Module
+	files                 filestorageModule.Capability
 	setStaffUploadEnabled func() error
 	router                chi.Router
 	// admin holds admin:*; member holds only a plain permission.

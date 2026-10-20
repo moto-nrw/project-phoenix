@@ -6,14 +6,17 @@ import (
 	"slices"
 	"strings"
 
+	"github.com/moto-nrw/project-phoenix/modules/filestorage"
 	"github.com/moto-nrw/project-phoenix/modules/filestorage/internal/domain"
 	"github.com/moto-nrw/project-phoenix/modules/filestorage/internal/ports"
 )
 
 // ListFolders returns the folders the actor may see plus what the actor may
 // do, so the UI never has to guess authority.
-func (s *Service) ListFolders(ctx context.Context, actor domain.Actor) (overview domain.Overview, err error) {
-	err = s.runRead(ctx, "list_folders", func(ctx context.Context, o *op) error {
+func (s *Service) ListFolders(ctx context.Context, who filestorage.Actor) (filestorage.FolderOverview, error) {
+	actor := s.actor(who)
+	var overview domain.Overview
+	err := s.runRead(ctx, "list_folders", func(ctx context.Context, o *op) error {
 		overview = domain.Overview{Folders: []domain.FolderView{}, CanManage: actor.Manager}
 		viewer, active, err := s.viewer(ctx, actor)
 		if err != nil {
@@ -41,22 +44,27 @@ func (s *Service) ListFolders(ctx context.Context, actor domain.Actor) (overview
 		}
 		return nil
 	})
-	return overview, err
+	if err != nil {
+		return filestorage.FolderOverview{}, err
+	}
+	return toFolderOverview(overview), nil
 }
 
 // CreateFolder creates a folder with its share list and records the event.
-func (s *Service) CreateFolder(ctx context.Context, input domain.FolderInput, actor domain.Actor) (view domain.FolderView, err error) {
-	err = s.run("create_folder", func(o *op) error {
+func (s *Service) CreateFolder(ctx context.Context, value filestorage.FolderInput, who filestorage.Actor) (filestorage.Folder, error) {
+	input, actor := value, s.actor(who)
+	var view domain.FolderView
+	err := s.run("create_folder", func(o *op) error {
 		if err := requireManager(actor); err != nil {
 			return err
 		}
 		if err := requireActor(actor); err != nil {
 			return err
 		}
-		if err := input.Normalize(); err != nil {
+		if err := normalizeFolderInput(&input); err != nil {
 			return err
 		}
-		audience := input.Audience()
+		audience := domain.Audience{RoleIDs: input.RoleIDs, AccountIDs: input.AccountIDs}
 		return s.write(ctx, o, func(txCtx context.Context, o *op) error {
 			if err := s.validateAudience(txCtx, audience); err != nil {
 				return err
@@ -75,34 +83,37 @@ func (s *Service) CreateFolder(ctx context.Context, input domain.FolderInput, ac
 			return s.record(txCtx, actor, ports.EventFolderCreated, &folder.ID, nil, nil, folderEventDetail(folder, audience))
 		})
 	})
-	return view, err
+	return toFolder(view), err
 }
 
 // UpdateFolder rewrites name, visibility and share list of a folder.
-func (s *Service) UpdateFolder(ctx context.Context, folderID int64, input domain.FolderInput, actor domain.Actor) (view domain.FolderView, err error) {
-	err = s.run("update_folder", func(o *op) error {
+func (s *Service) UpdateFolder(ctx context.Context, folderID int64, value filestorage.FolderInput, who filestorage.Actor) (filestorage.Folder, error) {
+	input, actor := value, s.actor(who)
+	var view domain.FolderView
+	err := s.run("update_folder", func(o *op) error {
 		if err := requireManager(actor); err != nil {
 			return err
 		}
 		if err := requireActor(actor); err != nil {
 			return err
 		}
-		if err := input.Normalize(); err != nil {
+		if err := normalizeFolderInput(&input); err != nil {
 			return err
 		}
-		audience := input.Audience()
+		audience := domain.Audience{RoleIDs: input.RoleIDs, AccountIDs: input.AccountIDs}
 		return s.write(ctx, o, func(txCtx context.Context, o *op) error {
 			var updateErr error
 			view, updateErr = s.updateFolderRecord(txCtx, o, folderID, input, actor, audience)
 			return updateErr
 		})
 	})
-	return view, err
+	return toFolder(view), err
 }
 
 // DeleteFolder queues cleanup for every file still on disk and removes the
 // folder; the file rows cascade. Bytes are removed by the sweep.
-func (s *Service) DeleteFolder(ctx context.Context, folderID int64, actor domain.Actor) error {
+func (s *Service) DeleteFolder(ctx context.Context, folderID int64, who filestorage.Actor) error {
+	actor := s.actor(who)
 	return s.run("delete_folder", func(o *op) error {
 		if err := requireManager(actor); err != nil {
 			return err
@@ -117,28 +128,61 @@ func (s *Service) DeleteFolder(ctx context.Context, folderID int64, actor domain
 }
 
 // ListAudienceOptions returns the roles and persons a folder can be shared with.
-func (s *Service) ListAudienceOptions(ctx context.Context, actor domain.Actor) (roles []domain.AudienceRole, accounts []domain.AudienceAccount, err error) {
-	err = s.runRead(ctx, "list_audience_options", func(ctx context.Context, _ *op) error {
+func (s *Service) ListAudienceOptions(ctx context.Context, who filestorage.Actor) (filestorage.AudienceOptions, error) {
+	actor := s.actor(who)
+	var roles []filestorage.AudienceRole
+	var accounts []filestorage.AudienceAccount
+	err := s.runRead(ctx, "list_audience_options", func(ctx context.Context, _ *op) error {
 		if err := requireManager(actor); err != nil {
 			return err
 		}
+		var err error
 		if roles, err = s.audienceRoles(ctx); err != nil {
 			return err
 		}
 		accounts, err = s.audienceAccounts(ctx)
 		return err
 	})
-	return roles, accounts, err
+	if err != nil {
+		return filestorage.AudienceOptions{}, err
+	}
+	return filestorage.AudienceOptions{
+		Roles:    append(make([]filestorage.AudienceRole, 0, len(roles)), roles...),
+		Accounts: append(make([]filestorage.AudienceAccount, 0, len(accounts)), accounts...),
+	}, nil
+}
+
+// normalizeFolderInput trims and validates the input and drops the share
+// lists when the visibility does not use them.
+func normalizeFolderInput(input *filestorage.FolderInput) error {
+	input.Name = strings.TrimSpace(input.Name)
+	if input.Name == "" {
+		return fmt.Errorf("%w: name is required", filestorage.ErrInvalid)
+	}
+	if len([]rune(input.Name)) > domain.MaxFolderNameLength {
+		return fmt.Errorf("%w: name is too long", filestorage.ErrInvalid)
+	}
+	if !domain.IsValidVisibility(input.Visibility) {
+		return fmt.Errorf("%w: unknown visibility", filestorage.ErrInvalid)
+	}
+	input.RoleIDs = domain.DedupeIDs(input.RoleIDs)
+	input.AccountIDs = domain.DedupeIDs(input.AccountIDs)
+	if input.Visibility != domain.VisibilitySelected {
+		input.RoleIDs, input.AccountIDs = nil, nil
+	} else if len(input.RoleIDs) == 0 && len(input.AccountIDs) == 0 {
+		return fmt.Errorf("%w: a selected folder needs at least one role or person", filestorage.ErrInvalid)
+	}
+	return nil
 }
 
 // audienceRoles lists the shareable roles by name. The guardian tier is
 // dropped because parents never reach the tenant portal.
-func (s *Service) audienceRoles(ctx context.Context) ([]domain.AudienceRole, error) {
+func (s *Service) audienceRoles(ctx context.Context) ([]filestorage.AudienceRole, error) {
 	roles, err := s.deps.Identity.ListShareableRoles(ctx)
 	if err != nil {
 		return nil, err
 	}
-	slices.SortStableFunc(roles, func(left, right domain.AudienceRole) int {
+	slices.SortStableFunc(roles, func(left, right filestorage.AudienceRole) int {
 		return strings.Compare(strings.ToLower(left.Name), strings.ToLower(right.Name))
 	})
 	return roles, nil
@@ -147,12 +191,12 @@ func (s *Service) audienceRoles(ctx context.Context) ([]domain.AudienceRole, err
 // audienceAccounts keeps the picker on accounts that are backed by a person of
 // the school and orders them by name, so it shows names rather than e-mail
 // addresses.
-func (s *Service) audienceAccounts(ctx context.Context) ([]domain.AudienceAccount, error) {
+func (s *Service) audienceAccounts(ctx context.Context) ([]filestorage.AudienceAccount, error) {
 	ids, err := s.deps.Identity.ListActiveAccountIDs(ctx)
 	if err != nil {
 		return nil, err
 	}
-	result := make([]domain.AudienceAccount, 0, len(ids))
+	result := make([]filestorage.AudienceAccount, 0, len(ids))
 	if len(ids) == 0 {
 		return result, nil
 	}
@@ -165,9 +209,9 @@ func (s *Service) audienceAccounts(ctx context.Context) ([]domain.AudienceAccoun
 		if !found {
 			continue
 		}
-		result = append(result, domain.AudienceAccount{AccountID: id, FirstName: name.FirstName, LastName: name.LastName})
+		result = append(result, filestorage.AudienceAccount{AccountID: id, FirstName: name.FirstName, LastName: name.LastName})
 	}
-	slices.SortStableFunc(result, func(left, right domain.AudienceAccount) int {
+	slices.SortStableFunc(result, func(left, right filestorage.AudienceAccount) int {
 		if order := strings.Compare(strings.ToLower(left.LastName), strings.ToLower(right.LastName)); order != 0 {
 			return order
 		}
@@ -193,7 +237,7 @@ func (s *Service) validateAudience(ctx context.Context, audience domain.Audience
 		}
 		for _, id := range audience.AccountIDs {
 			if _, ok := allowed[id]; !ok {
-				return fmt.Errorf("%w: unknown person", domain.ErrInvalid)
+				return fmt.Errorf("%w: unknown person", filestorage.ErrInvalid)
 			}
 		}
 	}
@@ -223,7 +267,7 @@ func (s *Service) validateAudienceRoles(ctx context.Context, roleIDs []int64) er
 		}
 		for _, id := range roleIDs {
 			if _, ok := allowed[id]; !ok {
-				return fmt.Errorf("%w: unknown role", domain.ErrInvalid)
+				return fmt.Errorf("%w: unknown role", filestorage.ErrInvalid)
 			}
 		}
 	}
@@ -261,7 +305,7 @@ func (s *Service) deleteFolderRecord(txCtx context.Context, o *op, folderID int6
 		return err
 	}
 	if !found {
-		return domain.ErrNotFound
+		return filestorage.ErrNotFound
 	}
 	// Every object still on disk gets an immediately eligible intent
 	// BEFORE the rows cascade away; the intents are all that survive.
@@ -290,14 +334,14 @@ func (s *Service) deleteFolderRecord(txCtx context.Context, o *op, folderID int6
 		fmt.Sprintf("Ordner „%s“ gelöscht (%d Dateien)", folder.Name, len(pending)))
 }
 
-func (s *Service) updateFolderRecord(txCtx context.Context, o *op, folderID int64, input domain.FolderInput, actor domain.Actor, audience domain.Audience) (view domain.FolderView, err error) {
+func (s *Service) updateFolderRecord(txCtx context.Context, o *op, folderID int64, input filestorage.FolderInput, actor domain.Actor, audience domain.Audience) (view domain.FolderView, err error) {
 	existing, found, stats, err := s.deps.Folders.FindByID(txCtx, folderID)
 	o.add(stats)
 	if err != nil {
 		return view, err
 	}
 	if !found {
-		return view, domain.ErrNotFound
+		return view, filestorage.ErrNotFound
 	}
 	if err := s.validateAudience(txCtx, audience); err != nil {
 		return view, err

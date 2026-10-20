@@ -12,7 +12,7 @@ import (
 // owners the grade transition workflow writes through, over the shared
 // database and without observation, as the workflow composition did before
 // (#4004, ADR 0059 point 6).
-func NewGradeTransitionOwners(db transactionruntime.Database) (*schoolstructure.Module, *studentpresence.Module, error) {
+func NewGradeTransitionOwners(db transactionruntime.Database) (schoolstructure.Owner, *studentpresence.Module, error) {
 	structure, err := schoolStructureCompose.New(schoolStructureCompose.Dependencies{DB: db.Pool(), Observe: func(schoolStructureCompose.Observation) {}})
 	if err != nil {
 		return nil, nil, err
