@@ -47,7 +47,7 @@ func BuildTimetableOwner(
 	if err != nil {
 		return TimetableOwner{}, fmt.Errorf("compose timetable recurrence lock: %w", err)
 	}
-	calendarPeriods := arrivalTimetable.NewCalendarPeriodRepository(calendar, arrivalTimetable.NewPlanningCalendarPeriodUsage(enrollment.Module, owner))
+	calendarPeriods := arrivalTimetable.NewCalendarPeriodRepository(calendar, arrivalTimetable.NewPlanningCalendarPeriodUsage(enrollment.Owner, owner))
 	return TimetableOwner{
 		Repositories:        repos,
 		EducationGroupNames: TimetableEducationGroupNames(groups),

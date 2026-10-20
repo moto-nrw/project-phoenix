@@ -33,7 +33,8 @@ import (
 // same tenant transaction; if it fails the restore rolls back with it.
 // Joins the handler transaction, or starts one for a standalone caller; an
 // invalid request id or a missing audit trail is refused before either.
-func (d *Decisions) RestoreWithdrawn(ctx context.Context, requestID, restoredBy int64) (*enrollmentNative.RestoreOutcome, error) {
+func (d *Decisions) RestoreWithdrawn(ctx context.Context, requestID, restoredBy int64) (publicResult *enrollmentNative.RestoreOutcome, publicErr error) {
+	defer func() { publicErr = publicError(publicErr) }()
 	if requestID <= 0 {
 		return nil, careplan.ErrBookingRequestNotFound
 	}

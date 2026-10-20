@@ -33,8 +33,7 @@ type Decisions struct {
 	capacity *OfferingCapacity
 }
 
-// The public Decisions capability is served by compose.PublicDecisions,
-// which adds the owner's read state of the queue (#3778).
+// Decisions also serves the owner's read state of the queue (#3778).
 var _ enrollmentNative.ApprovedChildChanges = (*Decisions)(nil)
 
 // NewDecisions composes the decision flow over its owners.
@@ -62,7 +61,8 @@ func (d *Decisions) logger() *slog.Logger {
 }
 
 // DecisionRequests lists the requests of the admin queue.
-func (d *Decisions) DecisionRequests(ctx context.Context, filters enrollmentNative.DecisionRequestFilters) ([]*enrollmentNative.DecisionSummary, error) {
+func (d *Decisions) DecisionRequests(ctx context.Context, filters enrollmentNative.DecisionRequestFilters) (publicResult []*enrollmentNative.DecisionSummary, publicErr error) {
+	defer func() { publicErr = publicError(publicErr) }()
 	return d.listDecisionRequests(ctx, enrollmentNative.RequestListFilters{
 		PhaseID:     filters.PhaseID,
 		ChildStatus: filters.ChildStatus,
@@ -71,7 +71,8 @@ func (d *Decisions) DecisionRequests(ctx context.Context, filters enrollmentNati
 
 // StudentDecisionRequests lists the requests whose children created the
 // student, keeping only those children.
-func (d *Decisions) StudentDecisionRequests(ctx context.Context, studentID int64) ([]*enrollmentNative.DecisionSummary, error) {
+func (d *Decisions) StudentDecisionRequests(ctx context.Context, studentID int64) (publicResult []*enrollmentNative.DecisionSummary, publicErr error) {
+	defer func() { publicErr = publicError(publicErr) }()
 	if studentID <= 0 {
 		return nil, fmt.Errorf("decision: student_id required")
 	}
@@ -127,7 +128,8 @@ func filterSummaryChildren(summary *enrollmentNative.DecisionSummary, studentID 
 
 // DecisionRequest loads one request with its children, guardians and the
 // late invite it was submitted through.
-func (d *Decisions) DecisionRequest(ctx context.Context, requestID int64) (*enrollmentNative.DecisionSummary, error) {
+func (d *Decisions) DecisionRequest(ctx context.Context, requestID int64) (publicResult *enrollmentNative.DecisionSummary, publicErr error) {
+	defer func() { publicErr = publicError(publicErr) }()
 	req, err := d.deps.Requests.RequestByID(ctx, requestID, false)
 	if err == nil {
 		_, err = requestValue(req)

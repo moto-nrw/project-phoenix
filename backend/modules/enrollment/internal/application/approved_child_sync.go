@@ -12,7 +12,8 @@ import (
 
 // ListOfferingAdjustments lists the audit trail of one child's offering
 // adjustments for the admin request detail.
-func (d *Decisions) ListOfferingAdjustments(ctx context.Context, requestID, requestChildID int64) ([]*enrollmentNative.OfferingAdjustmentRecord, error) {
+func (d *Decisions) ListOfferingAdjustments(ctx context.Context, requestID, requestChildID int64) (publicResult []*enrollmentNative.OfferingAdjustmentRecord, publicErr error) {
+	defer func() { publicErr = publicError(publicErr) }()
 	if d.deps.Adjustments == nil {
 		return nil, fmt.Errorf("decision: offering adjustment repo not configured")
 	}
