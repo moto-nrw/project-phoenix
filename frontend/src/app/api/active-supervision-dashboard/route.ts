@@ -131,6 +131,7 @@ interface WirePlannedInstance {
   pickup_times_loaded?: boolean;
   pickup_times_redacted?: boolean;
   roster_preview?: WireRosterRow[];
+  planning_track_color?: string | null;
 }
 
 interface WireRosterRow {
@@ -384,6 +385,8 @@ interface ActiveSupervisionDashboardResponse {
     startExpiresAt: string;
     pickupTimesLoaded?: boolean;
     pickupTimesRedacted?: boolean;
+    /** Farbe der Planungsspur des Blocks (#4413). */
+    planningTrackColor: string | null;
     rosterPreview: Array<{
       studentId: string;
       studentName: string;
@@ -559,6 +562,7 @@ function mapDashboard(wire: WireDashboard): ActiveSupervisionDashboardResponse {
       startExpiresAt: i.start_expires_at ?? "",
       pickupTimesLoaded: i.pickup_times_loaded,
       pickupTimesRedacted: i.pickup_times_redacted,
+      planningTrackColor: i.planning_track_color ?? null,
       rosterPreview: (i.roster_preview ?? []).map((row) => ({
         studentId: row.student_id.toString(),
         studentName: row.student_name,

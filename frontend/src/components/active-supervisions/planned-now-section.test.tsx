@@ -318,6 +318,54 @@ describe("PlannedNowSection", () => {
     expect(screen.queryByText("Info")).toBeNull();
   });
 
+  it("tints only the own card in its track colour, without a coloured left edge (#4413)", () => {
+    render(
+      <PlannedNowSection
+        plannedNow={[
+          {
+            ...plannedInstance,
+            id: "own",
+            title: "Basteln",
+            planningTrackColor: "#5080D8",
+          },
+          {
+            ...plannedInstance,
+            id: "foreign",
+            title: "Fußball-AG",
+            isAssigned: false,
+            isPrimary: false,
+            planningTrackColor: "#5080D8",
+          },
+          {
+            ...plannedInstance,
+            id: "cancelled",
+            title: "Chor",
+            status: "cancelled",
+            planningTrackColor: "#5080D8",
+          },
+        ]}
+        isStartingInstance={null}
+        onStart={vi.fn()}
+      />,
+    );
+
+    const card = (title: string) =>
+      screen
+        .getByRole("heading", { name: new RegExp(title) })
+        .closest("article") as HTMLElement;
+    const own = card("Basteln");
+    const tint = document.createElement("div");
+    tint.style.backgroundColor = "#5080D81A";
+    expect(own.style.backgroundColor).toBe(tint.style.backgroundColor);
+    expect(own.style.borderLeftColor).toBe("");
+    expect(own).not.toHaveClass("border-l-4");
+    for (const title of ["Fußball-AG", "Chor"]) {
+      expect(card(title).style.backgroundColor).toBe("");
+      expect(card(title).style.borderLeftColor).toBe("");
+      expect(card(title)).not.toHaveClass("border-l-4");
+    }
+  });
+
   it("keeps slots the caller is not assigned to collapsed until opened", () => {
     render(
       <PlannedNowSection

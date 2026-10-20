@@ -6,7 +6,7 @@ import { MotoConceptIcon } from "~/components/ui/moto-concept-icon";
 import {
   BlockRoom,
   OwnBlockHint,
-  blockRowStyle,
+  blockTintStyle,
 } from "~/components/timetable/block-row-parts";
 import { Alert } from "~/components/ui/alert";
 import type { MotoConceptKey } from "~/lib/moto-concepts";
@@ -215,8 +215,8 @@ export function PlannedNowSection({
               return (
                 <article
                   key={instance.id}
-                  className="moto-content-surface overflow-hidden rounded-xl border border-l-4 shadow-sm"
-                  style={blockRowStyle(instance, instance.isAssigned)}
+                  className="moto-content-surface overflow-hidden rounded-xl border shadow-sm"
+                  style={blockTintStyle(instance, instance.isAssigned)}
                 >
                   <div className="p-4">
                     <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">

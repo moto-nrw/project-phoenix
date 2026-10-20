@@ -1,7 +1,8 @@
 // Gemeinsame Teile der Blockzeilen im Tagesbetrieb (#4350): Tagesplan,
 // "Mein Tag", "Ablauf des Tages" und "Als Nächstes" in der Aufsicht zeigen
-// denselben Block, also mit derselben Kante, derselben Markierung für den
-// eigenen Block und denselben Symbolen für Raum und Personal.
+// denselben Block, also mit derselben Markierung für den eigenen Block und
+// denselben Symbolen für Raum und Personal. Die farbige Kante tragen die
+// Zeilen; die Karte in "Als Nächstes" ist nur getönt (#4413).
 
 import type { CSSProperties } from "react";
 import { MotoConceptIcon } from "~/components/ui/moto-concept-icon";
@@ -21,21 +22,28 @@ function blockEdgeColor(block: BlockColorFields): string {
 }
 
 /**
- * Linke Kante und, für den eigenen Block, die Tönung in seiner Farbe. Die
- * Tönung ist dieselbe wie bei PlanBlock (ui/plan-block.tsx); eine Absage
- * bleibt ungetönt. `mine` setzt nur, wer eigene und fremde Blöcke
- * nebeneinander zeigt: wo alles eigen ist, sagte die Tönung nichts.
+ * Die Tönung des eigenen Blocks in seiner Farbe, dieselbe wie bei PlanBlock
+ * (ui/plan-block.tsx); eine Absage bleibt ungetönt. `mine` setzt nur, wer
+ * eigene und fremde Blöcke nebeneinander zeigt: wo alles eigen ist, sagte
+ * die Tönung nichts. Ohne Kante für Karten wie „Als Nächstes“ (#4413).
  */
+export function blockTintStyle(
+  block: BlockColorFields,
+  mine: boolean,
+): CSSProperties {
+  return mine && block.status !== "cancelled"
+    ? { backgroundColor: `${blockEdgeColor(block)}1A` }
+    : {};
+}
+
+/** Linke Kante in der Farbe des Blocks und die Tönung des eigenen Blocks. */
 export function blockRowStyle(
   block: BlockColorFields,
   mine: boolean,
 ): CSSProperties {
-  const edge = blockEdgeColor(block);
   return {
-    borderLeftColor: edge,
-    ...(mine && block.status !== "cancelled"
-      ? { backgroundColor: `${edge}1A` }
-      : {}),
+    borderLeftColor: blockEdgeColor(block),
+    ...blockTintStyle(block, mine),
   };
 }
 
