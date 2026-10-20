@@ -537,8 +537,8 @@ function asideClasses(collapsed: boolean, className: string): string {
   } ${SIDEBAR_WIDTH_TRANSITION} ${className}`;
 }
 
-// Der klebende Innenbereich beginnt unter der Kopfzeile (48px + 1px Rand,
-// #2827) plus 8px Luft und trägt dieselbe Breite und dieselbe Bewegung wie
+// Der klebende Innenbereich beginnt unter der Kopfzeile (ab lg 64px + 1px Rand,
+// #4345) plus 8px Luft und trägt dieselbe Breite und dieselbe Bewegung wie
 // die Hülle.
 //
 // Mitarbeiter-Vorschau (#2893): der feste Hinweisstreifen (h-12 = 48px)

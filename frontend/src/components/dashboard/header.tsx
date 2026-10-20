@@ -243,8 +243,8 @@ export function Header() {
           : getAccountRoleLabel(userRoles, user?.roleIsSystem);
 
   // Beim Scrollen bekommt die Kopfzeile nur noch einen Schatten (Hysterese
-  // gegen Flackern). Die Höhe bleibt fest: der frühere Scroll-Zustand von
-  // 48px ist seit #2827 der Normalzustand.
+  // gegen Flackern). Die Höhe bleibt beim Scrollen fest: 48px auf dem Telefon
+  // (#2827), ab Desktop 64px (#4345).
   useEffect(() => {
     const handleScroll = () => {
       const y = globalThis.window.scrollY;
