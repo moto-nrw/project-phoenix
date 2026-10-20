@@ -56,7 +56,7 @@ type Dependencies struct {
 // destinations only. The address policy is the guard that keeps a settings
 // field from becoming a way to reach the internal network, so nothing here
 // exposes a way to relax it.
-func New(dependencies Dependencies) (*exporttransfer.Module, error) {
+func New(dependencies Dependencies) (exporttransfer.Capability, error) {
 	// No parameter for the address policy on purpose: the public-only default
 	// IS the guard, and a production caller must have no way to weaken it.
 	return newModule(dependencies)
@@ -65,7 +65,7 @@ func New(dependencies Dependencies) (*exporttransfer.Module, error) {
 // newModule is the single wiring path. The integration test calls it with the
 // loopback policy appended, so the test exercises exactly what production
 // builds — minus the one rule it cannot satisfy from a test server.
-func newModule(dependencies Dependencies, transportOptions ...sftp.Option) (*exporttransfer.Module, error) {
+func newModule(dependencies Dependencies, transportOptions ...sftp.Option) (exporttransfer.Capability, error) {
 	if dependencies.DB == nil || !dependencies.Settings.complete() {
 		return nil, errors.New("export transfer compose: DB and all settings resolvers are required")
 	}
@@ -74,10 +74,9 @@ func newModule(dependencies Dependencies, transportOptions ...sftp.Option) (*exp
 	}
 
 	resolver := application.SettingsResolver{Settings: application.Settings(dependencies.Settings), Keys: application.SettingKeys(dependencies.Keys)}
-	service := application.New(resolver, retainedUploader{Client: sftp.New(transportOptions...)}, postgres.New(retainedDatabase()), ports.CommandRuntime{
+	return application.New(resolver, retainedUploader{Client: sftp.New(transportOptions...)}, postgres.New(retainedDatabase()), ports.CommandRuntime{
 		Active:       tenant.HasAfterCommitHooks,
 		Detached:     retainedNewDetachedContext(),
 		WithinTenant: tenant.WithinCurrentTenant,
-	}, dependencies.Logger)
-	return exporttransfer.NewModule(retainedEngine{Service: service}), nil
+	}, dependencies.Logger), nil
 }

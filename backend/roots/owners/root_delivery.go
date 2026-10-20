@@ -41,7 +41,7 @@ type DeliveryNotifications struct {
 // Consent rows back both the notification preferences and the opt-in "Neue
 // Anmeldung" mail of the intake.
 func BuildDeliveryNotifications(
-	db transactionruntime.Database, unit rootUnitOfWork, env RootEnvironment, pushVAPID deliveryCompose.VAPIDConfig, hub *realtime.Hub, module *deliveryModule.Module,
+	db transactionruntime.Database, unit rootUnitOfWork, env RootEnvironment, pushVAPID deliveryCompose.VAPIDConfig, hub *realtime.Hub, module deliveryModule.Capability,
 	settings settingsCompose.BatchSettingsService, consent communication.NotificationConsentCapability,
 	identity identityaccess.Owner, people PeopleRows, structure StructureRows, workTime workforce.Capability,
 	messaging parentStore.MessagingRepositories,

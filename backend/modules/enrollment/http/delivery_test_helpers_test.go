@@ -16,7 +16,7 @@ import (
 	orm "github.com/uptrace/bun"
 )
 
-type testEnrollmentDelivery struct{ module *delivery.Module }
+type testEnrollmentDelivery struct{ module delivery.Capability }
 
 func newTestEnrollmentDelivery(t *testing.T, db *orm.DB) testEnrollmentDelivery {
 	t.Helper()

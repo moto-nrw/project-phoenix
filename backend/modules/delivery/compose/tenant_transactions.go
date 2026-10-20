@@ -10,7 +10,7 @@ import (
 )
 
 // NewDurablePushOutbox binds the push outbox to module.
-func NewDurablePushOutbox(module *delivery.Module) DurablePushOutbox {
+func NewDurablePushOutbox(module delivery.Capability) DurablePushOutbox {
 	return DurablePushOutbox{DurablePushOutbox: notifications.DurablePushOutbox{Module: module}}
 }
 

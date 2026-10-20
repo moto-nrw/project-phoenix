@@ -29,37 +29,6 @@ const (
 	StateCancelled  State = "cancelled"
 )
 
-type RelatedEntity struct {
-	Type string
-	ID   int64
-}
-
-type EnqueueInput struct {
-	TenantID       int64
-	Transport      Transport
-	Template       string
-	IdempotencyKey string
-	Related        RelatedEntity
-	Recipient      json.RawMessage
-	Payload        json.RawMessage
-	DeliverAfter   time.Time
-}
-
-type ProviderResult struct {
-	MessageID  string          `json:"message_id,omitempty"`
-	StatusCode int             `json:"status_code,omitempty"`
-	Details    json.RawMessage `json:"details,omitempty"`
-}
-
-type WorkerStats struct {
-	Claimed      int
-	Sent         int
-	Cancelled    int
-	Retried      int
-	DeadLettered int
-	LeaseLost    int
-}
-
 type EmailDelivery struct {
 	ID                int64
 	TenantID          int64
@@ -72,26 +41,6 @@ type EmailDelivery struct {
 	Reachability      string
 	CreatedAt         time.Time
 	UpdatedAt         time.Time
-}
-
-type EmailDeliveryStatus struct {
-	DeliveryID        int64
-	GuardianProfileID *int64
-	AccountID         *int64
-	FirstName         string
-	LastName          string
-	RecipientEmail    *string
-	Reachability      string
-	EmailStatus       string
-	LastError         *string
-	SentAt            *time.Time
-	Attempts          int
-}
-
-type GuardianDisplay struct {
-	GuardianProfileID int64
-	FirstName         string
-	LastName          string
 }
 
 type Intent struct {

@@ -20,7 +20,7 @@ import (
 const reminderPushKind = "parent_appointment_reminder"
 
 type reminderPushOutbox struct {
-	module     *delivery.Module
+	module     delivery.Capability
 	dispatcher *delivery.PushDispatcher
 }
 
