@@ -12,6 +12,7 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/moto-nrw/project-phoenix/modules/filestorage"
 	"github.com/moto-nrw/project-phoenix/modules/filestorage/internal/domain"
 	"github.com/uptrace/bun"
 	"github.com/uptrace/bun/driver/pgdriver"
@@ -27,7 +28,7 @@ func requireTenant(db Database, ctx context.Context) (bun.IDB, int64, error) {
 		return nil, 0, err
 	}
 	if tenantID <= 0 {
-		return nil, 0, fmt.Errorf("file storage postgres: %w", domain.ErrTenantRequired)
+		return nil, 0, fmt.Errorf("file storage postgres: %w", filestorage.ErrTenantRequired)
 	}
 	return idb, tenantID, nil
 }
@@ -45,7 +46,7 @@ func classifyWriteError(err error) error {
 		return err
 	}
 	if postgresError.Field('n') == folderNameUniqueConstraint {
-		return domain.ErrFolderNameTaken
+		return filestorage.ErrFolderNameTaken
 	}
 	return err
 }

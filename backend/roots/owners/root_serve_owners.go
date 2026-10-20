@@ -48,7 +48,7 @@ func BuildServeOrganizations(db transactionruntime.Database) (organizationtenanc
 }
 
 // BuildServeSchoolStructure composes School Structure.
-func BuildServeSchoolStructure(db transactionruntime.Database) (*schoolstructure.Module, error) {
+func BuildServeSchoolStructure(db transactionruntime.Database) (schoolstructure.Owner, error) {
 	return schoolStructureCompose.New(schoolStructureCompose.Dependencies{
 		DB: db.Pool(),
 		Observe: func(observation schoolStructureCompose.Observation) {

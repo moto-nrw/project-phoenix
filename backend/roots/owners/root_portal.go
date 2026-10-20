@@ -101,7 +101,7 @@ func BuildFileStore(
 	db transactionruntime.Database, env RootEnvironment, objects filestorageCompose.ObjectBackend, identity *identityaccess.Module,
 	persons peopledirectory.Capability, settings settingsCompose.SettingsService, audit AuditOwner,
 	announcements communication.ParentAnnouncementCapability, parent *parentportal.Portal,
-) (*filestorageModule.Module, error) {
+) (filestorageModule.Capability, error) {
 	return filestorageCompose.New(filestorageCompose.Dependencies{
 		DB: db.Pool(), Objects: objects, Identity: identity, People: persons,
 		Settings: FileStorageSettings{Service: settings}, Events: FileStorageEvents{Repo: audit.Persistence.FileEvent},

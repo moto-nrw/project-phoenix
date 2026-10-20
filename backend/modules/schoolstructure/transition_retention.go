@@ -19,12 +19,3 @@ type GradeTransitionRetention interface {
 // positive: nothing is deleted on a wrong period, and the run is caught up
 // once the setting is fixed.
 var ErrGradeTransitionRetentionWindow = errors.New("grade transition retention window must be positive")
-
-// DeleteExpiredGradeTransitions runs the retention the module was composed
-// with.
-func (m *Module) DeleteExpiredGradeTransitions(ctx context.Context, retentionDays int) (int, error) {
-	if m.retention == nil {
-		return 0, errors.New("school structure: the grade transition retention is not composed")
-	}
-	return m.retention.DeleteExpiredGradeTransitions(ctx, retentionDays)
-}

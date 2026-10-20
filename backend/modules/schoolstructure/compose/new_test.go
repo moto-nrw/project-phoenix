@@ -33,7 +33,7 @@ func (l *observationLog) operations() []string {
 	return names
 }
 
-func buildModule(t *testing.T, db *bun.DB, observe func(Observation)) *schoolstructure.Module {
+func buildModule(t *testing.T, db *bun.DB, observe func(Observation)) schoolstructure.Owner {
 	t.Helper()
 	module, err := New(Dependencies{DB: db, Observe: observe})
 	require.NoError(t, err)

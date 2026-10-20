@@ -209,7 +209,7 @@ func ComposeWorker(db transactionruntime.Database, env RootEnvironment, hub *rea
 		mailFrom         email.Email
 		pushVAPID        deliveryCompose.VAPIDConfig
 		organizations    organizationtenancy.Capability
-		groups           *schoolstructure.Module
+		groups           schoolstructure.Owner
 		rooms            facilitiesModule.Catalog
 		membership       *schoolMembershipModule.Module
 		bookings         *enrollmentOwner.BookingProjection
@@ -275,7 +275,7 @@ func ComposeWorker(db transactionruntime.Database, env RootEnvironment, hub *rea
 		chat             CommunicationMessaging
 		calendarApp      calendarCompose.Application
 		parent           *parentportal.Portal
-		fileStore        *filestorageModule.Module
+		fileStore        filestorageModule.Capability
 		planExport       planexport.Service
 		workforce        WorkforcePlanning
 		staffAdmin       *workforceModule.StaffAdmin

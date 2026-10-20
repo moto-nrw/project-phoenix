@@ -30,6 +30,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/moto-nrw/project-phoenix/modules/filestorage"
 	"github.com/moto-nrw/project-phoenix/modules/filestorage/internal/domain"
 	"github.com/moto-nrw/project-phoenix/modules/filestorage/internal/ports"
 )
@@ -55,10 +56,13 @@ type Dependencies struct {
 	StoredNames        ports.StoredNames
 	Observe            ports.Observer
 	Logger             ports.Logger
-	Now                func() time.Time
+	// HasPermission decides whether an actor's permissions include the
+	// manager permission.
+	HasPermission func(required string, permissions []string) bool
+	Now           func() time.Time
 }
 
-// Service implements the file storage over its ports.
+// Service implements the public File Storage capability over its ports.
 type Service struct {
 	deps Dependencies
 }
@@ -74,10 +78,21 @@ func New(deps Dependencies) *Service {
 		deps.FileObjects == nil || deps.AttachmentObjects == nil ||
 		deps.Identity == nil || deps.People == nil || deps.Settings == nil ||
 		deps.Events == nil || deps.Tx == nil || deps.StoredNames == nil ||
-		deps.Observe == nil || deps.Logger == nil || deps.Now == nil {
+		deps.Observe == nil || deps.Logger == nil || deps.HasPermission == nil || deps.Now == nil {
 		panic("file storage application: all dependencies are required")
 	}
 	return &Service{deps: deps}
+}
+
+var _ filestorage.Capability = (*Service)(nil)
+
+// actor resolves the public actor: managers hold files:manage.
+func (s *Service) actor(value filestorage.Actor) domain.Actor {
+	return domain.Actor{
+		AccountID: value.AccountID,
+		Name:      value.Name,
+		Manager:   s.deps.HasPermission("files:manage", value.Permissions),
+	}
 }
 
 // op accumulates the persistence stats of one observed operation.
@@ -110,14 +125,14 @@ func (s *Service) write(ctx context.Context, o *op, fn func(context.Context, *op
 
 func requireManager(actor domain.Actor) error {
 	if !actor.Manager {
-		return fmt.Errorf("%w: files:manage required", domain.ErrForbidden)
+		return fmt.Errorf("%w: files:manage required", filestorage.ErrForbidden)
 	}
 	return nil
 }
 
 func requireActor(actor domain.Actor) error {
 	if actor.AccountID <= 0 {
-		return fmt.Errorf("%w: actor account id is required", domain.ErrInvalid)
+		return fmt.Errorf("%w: actor account id is required", filestorage.ErrInvalid)
 	}
 	return nil
 }
@@ -152,14 +167,14 @@ func (s *Service) requireVisible(ctx context.Context, o *op, folderID int64, act
 		return domain.Folder{}, err
 	}
 	if !found {
-		return domain.Folder{}, domain.ErrNotFound
+		return domain.Folder{}, filestorage.ErrNotFound
 	}
 	viewer, active, err := s.viewer(ctx, actor)
 	if err != nil {
 		return domain.Folder{}, err
 	}
 	if !active {
-		return domain.Folder{}, domain.ErrNotFound
+		return domain.Folder{}, filestorage.ErrNotFound
 	}
 	visible, stats, err := s.deps.Folders.IsVisible(ctx, folderID, viewer)
 	o.add(stats)
@@ -167,7 +182,7 @@ func (s *Service) requireVisible(ctx context.Context, o *op, folderID int64, act
 		return domain.Folder{}, err
 	}
 	if !visible {
-		return domain.Folder{}, domain.ErrNotFound
+		return domain.Folder{}, filestorage.ErrNotFound
 	}
 	return folder, nil
 }
@@ -339,7 +354,7 @@ func (s *Service) releaseFailedUpload(ctx context.Context, k kind, tenantID, own
 // queueIntent records the intent to remove one object before it is written.
 func (s *Service) queueIntent(ctx context.Context, k kind, ownerID int64, storedName string, retryAfter time.Time) error {
 	if ownerID <= 0 || strings.TrimSpace(storedName) == "" {
-		return fmt.Errorf("%w: cleanup intent details are required", domain.ErrInvalid)
+		return fmt.Errorf("%w: cleanup intent details are required", filestorage.ErrInvalid)
 	}
 	return s.deps.Tx.RunWrite(ctx, func(txCtx context.Context) error {
 		_, err := k.cleanups.Queue(txCtx, ownerID, storedName, retryAfter)
@@ -348,11 +363,11 @@ func (s *Service) queueIntent(ctx context.Context, k kind, ownerID int64, stored
 }
 
 // openObject resolves the bytes of a document. Missing bytes are
-// domain.ErrObjectNotFound: the row exists, the object does not.
+// filestorage.ErrObjectNotFound: the row exists, the object does not.
 func (s *Service) openObject(ctx context.Context, k kind, tenantID int64, document domain.Document) (ports.Object, error) {
 	object, err := k.objects.Open(ctx, tenantID, document.FilenameStored)
 	if err != nil {
-		return nil, fmt.Errorf("%w: %w", domain.ErrObjectNotFound, err)
+		return nil, fmt.Errorf("%w: %w", filestorage.ErrObjectNotFound, err)
 	}
 	return object, nil
 }
