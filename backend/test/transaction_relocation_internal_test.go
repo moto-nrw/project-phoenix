@@ -1,6 +1,8 @@
 package test
 
 import (
+	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 )
@@ -54,7 +56,7 @@ func TestTransactionRegisterRelocationsStayStrict(t *testing.T) {
 				}
 				return "unchanged body", nil
 			}
-			err := transactionScopeSubset(current, previous, moves, fingerprint)
+			err := transactionScopeSubset(current, previous, moves, fingerprint, nil)
 			if (err == nil) != tc.pass {
 				t.Fatalf("pass=%t, got %v", tc.pass, err)
 			}
@@ -82,5 +84,83 @@ func TestTransactionBodyFingerprintDoesNotIncludeFilePath(t *testing.T) {
 	}
 	if old["run"] == changed["run"] {
 		t.Fatal("changed operation body kept its fingerprint")
+	}
+}
+
+func TestTransactionEngineReceiverRelocationsStayStrict(t *testing.T) {
+	t.Parallel()
+	const pkg = "modules/fleet/internal/application"
+	const old = pkg + "/engine.go:Engine.FindDevice:e.service.deps.Tx.AdminScope#1"
+	const moved = pkg + "/queries.go:*Service.FindDevice:s.deps.Tx.AdminScope#1"
+	const reason = "existing discovery"
+	for _, tc := range []struct {
+		name, key, reason, retained string
+		oldCount, newCount          int
+		copy, pass                  bool
+	}{
+		{name: "same operation and scope", pass: true},
+		{name: "multiple occurrences", oldCount: 2, newCount: 2, pass: true},
+		{name: "renamed operation", key: strings.Replace(moved, "FindDevice", "LookupDevice", 1)},
+		{name: "changed scope", key: strings.Replace(moved, "AdminScope", "RunWrite", 1)},
+		{name: "different package", key: strings.Replace(moved, "/fleet/", "/other/", 1)},
+		{name: "extra scope", newCount: 2},
+		{name: "dropped scope", oldCount: 2},
+		{name: "changed occurrence", key: strings.Replace(moved, "#1", "#2", 1)},
+		{name: "changed reason", reason: "different discovery"},
+		{name: "value service receiver", key: strings.Replace(moved, "*Service", "Service", 1)},
+		{name: "other receiver", key: strings.Replace(moved, "*Service", "*Worker", 1)},
+		{name: "Engine method retained in another file", retained: "func (e Engine) FindDevice() {}"},
+		{name: "pointer Engine method retained", retained: "func (e *Engine) FindDevice() {}"},
+		{name: "other Engine method retained", retained: "func (e Engine) Other() {}", pass: true},
+		{name: "copied allowance", copy: true},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			root := t.TempDir()
+			dir := filepath.Join(root, pkg)
+			if err := os.MkdirAll(dir, 0o755); err != nil {
+				t.Fatal(err)
+			}
+			key := tc.key
+			if key == "" {
+				key = moved
+			}
+			file, operation, _ := strings.Cut(key, ":")
+			method := strings.Split(operation, ":")[0]
+			receiver, name, _ := strings.Cut(method, ".")
+			if err := os.MkdirAll(filepath.Dir(filepath.Join(root, file)), 0o755); err != nil {
+				t.Fatal(err)
+			}
+			code := "package application\nfunc (s " + receiver + ") " + name + "() { s.deps.Tx.AdminScope(ctx, work) }\n"
+			if err := os.WriteFile(filepath.Join(root, file), []byte(code), 0o600); err != nil {
+				t.Fatal(err)
+			}
+			if tc.retained != "" {
+				if err := os.WriteFile(filepath.Join(dir, "retained.go"), []byte("package application\n"+tc.retained), 0o600); err != nil {
+					t.Fatal(err)
+				}
+			}
+			previous := map[string]string{old: reason}
+			currentReason := reason
+			if tc.reason != "" {
+				currentReason = tc.reason
+			}
+			current := map[string]string{key: currentReason}
+			if tc.oldCount == 2 {
+				previous[strings.Replace(old, "#1", "#2", 1)] = reason
+			}
+			if tc.newCount == 2 {
+				current[strings.Replace(key, "#1", "#2", 1)] = currentReason
+			}
+			if tc.copy {
+				current[old] = reason
+			}
+			fingerprint := transactionFingerprints(root, "base", func(...string) ([]byte, error) {
+				return []byte("package application\nfunc (e Engine) FindDevice() { e.service.deps.Tx.AdminScope(ctx, work) }"), nil
+			})
+			err := transactionScopeSubset(current, previous, nil, fingerprint, removedTransactionReceiverMethods(root))
+			if (err == nil) != tc.pass {
+				t.Fatalf("pass=%t, got %v", tc.pass, err)
+			}
+		})
 	}
 }

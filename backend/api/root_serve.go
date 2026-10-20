@@ -144,7 +144,7 @@ func composeServeRoot(
 		activities       activityContract.ActivityService
 		yard             FacilitiesYard
 		shifts           *workforceCompose.ShiftPlanning
-		deviceFleet      *devicefleetModule.Module
+		deviceFleet      devicefleetModule.Capability
 		materialization  timetable.MaterializationCapability
 		lifecycle        owners.TimetableLifecycle
 		structureViews   StructureServices

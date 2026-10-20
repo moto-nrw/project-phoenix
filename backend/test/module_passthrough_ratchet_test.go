@@ -217,7 +217,7 @@ const modulePassthroughApplicationSegment = "/internal/application/"
 // modulePassthroughComposeBudgetTotal. Shrink-only, like every entry; raised
 // by ADR 0063 and by ADR 0064 (3,011 to 3,091), and by ADR 0073 (one each
 // for modules/communication and modules/schoolcalendar).
-const modulePassthroughOwnerBudgetTotal = 2500
+const modulePassthroughOwnerBudgetTotal = 2477
 
 // modulePassthroughOwnerBudgets is the register: module directory →
 // pass-throughs measured in its application layer and its compositions
@@ -238,7 +238,7 @@ var modulePassthroughOwnerBudgets = map[string]int{
 	"modules/communication":       58,
 	"modules/dataimport":          1,
 	"modules/delivery":            12,
-	"modules/devicefleet":         58,
+	"modules/devicefleet":         35,
 	"modules/devicescan":          41,
 	"modules/enrollment":          35,
 	"modules/exporttransfer":      1,
