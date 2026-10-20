@@ -4,6 +4,7 @@ import (
 	"context"
 	"time"
 
+	"github.com/moto-nrw/project-phoenix/modules/workforce"
 	"github.com/moto-nrw/project-phoenix/modules/workforce/internal/domain"
 )
 
@@ -57,68 +58,68 @@ type Store interface {
 // active.staff_vacation_openings and active.staff_vacation_quota. A missing
 // row reports found=false; a rejected duplicate reports domain.ConflictError.
 type WorkSessionStore interface {
-	FindWorkSession(context.Context, int64) (domain.WorkSession, bool, domain.OperationStats, error)
+	FindWorkSession(context.Context, int64) (workforce.WorkSession, bool, domain.OperationStats, error)
 	// LockOpenWorkSession returns and row-locks a still running block.
-	LockOpenWorkSession(context.Context, int64) (domain.WorkSession, bool, domain.OperationStats, error)
+	LockOpenWorkSession(context.Context, int64) (workforce.WorkSession, bool, domain.OperationStats, error)
 	// OpenWorkSessionOn returns the running block of a staff member filed on
 	// the day, optionally row-locked.
-	OpenWorkSessionOn(ctx context.Context, staffID int64, date string, lock bool) (domain.WorkSession, bool, domain.OperationStats, error)
+	OpenWorkSessionOn(ctx context.Context, staffID int64, date string, lock bool) (workforce.WorkSession, bool, domain.OperationStats, error)
 	// LatestOpenWorkSession returns the most recent block that is still
 	// running inside the live window as of now, whatever day it was filed on;
 	// today is the calendar day of now.
-	LatestOpenWorkSession(ctx context.Context, staffID int64, today string, now time.Time) (domain.WorkSession, bool, domain.OperationStats, error)
-	ListWorkSessions(context.Context, domain.WorkSessionFilter) ([]domain.WorkSession, domain.OperationStats, error)
+	LatestOpenWorkSession(ctx context.Context, staffID int64, today string, now time.Time) (workforce.WorkSession, bool, domain.OperationStats, error)
+	ListWorkSessions(context.Context, workforce.WorkSessionFilter) ([]workforce.WorkSession, domain.OperationStats, error)
 	// ListOverlappingWorkSessions returns the blocks of the staff members
 	// whose [check-in, check-out) interval intersects [from, to); a nil to is
 	// open-ended. Ordered by staff, then check-in.
-	ListOverlappingWorkSessions(ctx context.Context, staffIDs []int64, from time.Time, to *time.Time) ([]domain.WorkSession, domain.OperationStats, error)
-	CountWorkSessions(context.Context, domain.WorkSessionFilter) (int, domain.OperationStats, error)
+	ListOverlappingWorkSessions(ctx context.Context, staffIDs []int64, from time.Time, to *time.Time) ([]workforce.WorkSession, domain.OperationStats, error)
+	CountWorkSessions(context.Context, workforce.WorkSessionFilter) (int, domain.OperationStats, error)
 	OldestWorkSessionDate(ctx context.Context, before string) (string, domain.OperationStats, error)
 	DeleteWorkSessionsOlderThan(ctx context.Context, cutoff string) (int64, domain.OperationStats, error)
 	// WorkPresenceMap maps staff to their work status as of now: the status of
 	// a live open block, otherwise checked_out for a block filed today.
 	WorkPresenceMap(ctx context.Context, today string, now time.Time) (map[int64]string, domain.OperationStats, error)
-	CreateWorkSession(context.Context, domain.WorkSession) (domain.WorkSession, domain.OperationStats, error)
-	UpdateWorkSession(context.Context, domain.WorkSession) (domain.WorkSession, bool, domain.OperationStats, error)
+	CreateWorkSession(context.Context, workforce.WorkSession) (workforce.WorkSession, domain.OperationStats, error)
+	UpdateWorkSession(context.Context, workforce.WorkSession) (workforce.WorkSession, bool, domain.OperationStats, error)
 	DeleteWorkSession(context.Context, int64) (domain.OperationStats, error)
 	SetWorkSessionBreakMinutes(ctx context.Context, id int64, minutes int) (int64, domain.OperationStats, error)
 	// CloseWorkSession stamps the check-out on a still open block; closed
 	// reports whether a row was actually closed.
 	CloseWorkSession(ctx context.Context, id int64, checkOut time.Time, autoCheckedOut bool) (bool, domain.OperationStats, error)
 
-	FindWorkSessionBreak(context.Context, int64) (domain.WorkSessionBreak, bool, domain.OperationStats, error)
-	ListWorkSessionBreaks(context.Context, domain.WorkSessionBreakFilter) ([]domain.WorkSessionBreak, domain.OperationStats, error)
+	FindWorkSessionBreak(context.Context, int64) (workforce.WorkSessionBreak, bool, domain.OperationStats, error)
+	ListWorkSessionBreaks(context.Context, workforce.WorkSessionBreakFilter) ([]workforce.WorkSessionBreak, domain.OperationStats, error)
 	// ExpiredWorkSessionBreaks returns the running breaks whose planned end
 	// has passed.
-	ExpiredWorkSessionBreaks(ctx context.Context, before time.Time) ([]domain.WorkSessionBreak, domain.OperationStats, error)
-	CreateWorkSessionBreak(context.Context, domain.WorkSessionBreak) (domain.WorkSessionBreak, domain.OperationStats, error)
-	UpdateWorkSessionBreak(context.Context, domain.WorkSessionBreak) (domain.WorkSessionBreak, bool, domain.OperationStats, error)
+	ExpiredWorkSessionBreaks(ctx context.Context, before time.Time) ([]workforce.WorkSessionBreak, domain.OperationStats, error)
+	CreateWorkSessionBreak(context.Context, workforce.WorkSessionBreak) (workforce.WorkSessionBreak, domain.OperationStats, error)
+	UpdateWorkSessionBreak(context.Context, workforce.WorkSessionBreak) (workforce.WorkSessionBreak, bool, domain.OperationStats, error)
 	DeleteWorkSessionBreak(context.Context, int64) (domain.OperationStats, error)
 	// EndWorkSessionBreak stamps the end on a still running break only.
 	EndWorkSessionBreak(ctx context.Context, id int64, endedAt time.Time, durationMinutes int) (int64, domain.OperationStats, error)
 	// SetWorkSessionBreakDuration rewrites the length and end of a break.
 	SetWorkSessionBreakDuration(ctx context.Context, id int64, durationMinutes int, endedAt time.Time) (int64, domain.OperationStats, error)
 
-	FindStaffBalanceAdjustment(context.Context, int64) (domain.StaffBalanceAdjustment, bool, domain.OperationStats, error)
-	ListStaffBalanceAdjustments(context.Context, domain.StaffBalanceAdjustmentFilter) ([]domain.StaffBalanceAdjustment, domain.OperationStats, error)
-	CreateStaffBalanceAdjustment(context.Context, domain.StaffBalanceAdjustment) (domain.StaffBalanceAdjustment, domain.OperationStats, error)
-	UpdateStaffBalanceAdjustment(context.Context, domain.StaffBalanceAdjustment) (domain.StaffBalanceAdjustment, bool, domain.OperationStats, error)
+	FindStaffBalanceAdjustment(context.Context, int64) (workforce.StaffBalanceAdjustment, bool, domain.OperationStats, error)
+	ListStaffBalanceAdjustments(context.Context, workforce.StaffBalanceAdjustmentFilter) ([]workforce.StaffBalanceAdjustment, domain.OperationStats, error)
+	CreateStaffBalanceAdjustment(context.Context, workforce.StaffBalanceAdjustment) (workforce.StaffBalanceAdjustment, domain.OperationStats, error)
+	UpdateStaffBalanceAdjustment(context.Context, workforce.StaffBalanceAdjustment) (workforce.StaffBalanceAdjustment, bool, domain.OperationStats, error)
 	DeleteStaffBalanceAdjustment(context.Context, int64) (domain.OperationStats, error)
 
 	FindStaffVacationOpening(context.Context, int64) (domain.StaffVacationOpening, bool, domain.OperationStats, error)
-	ListStaffVacationOpenings(context.Context, domain.StaffVacationFilter) ([]domain.StaffVacationOpening, domain.OperationStats, error)
+	ListStaffVacationOpenings(context.Context, workforce.StaffVacationFilter) ([]domain.StaffVacationOpening, domain.OperationStats, error)
 	CreateStaffVacationOpening(context.Context, domain.StaffVacationOpening) (domain.StaffVacationOpening, domain.OperationStats, error)
 	UpdateStaffVacationOpening(context.Context, domain.StaffVacationOpening) (domain.StaffVacationOpening, bool, domain.OperationStats, error)
 	DeleteStaffVacationOpening(context.Context, int64) (domain.OperationStats, error)
 
-	FindStaffVacationQuota(context.Context, int64) (domain.StaffVacationQuota, bool, domain.OperationStats, error)
-	ListStaffVacationQuotas(context.Context, domain.StaffVacationFilter) ([]domain.StaffVacationQuota, domain.OperationStats, error)
-	CreateStaffVacationQuota(context.Context, domain.StaffVacationQuota) (domain.StaffVacationQuota, domain.OperationStats, error)
-	UpdateStaffVacationQuota(context.Context, domain.StaffVacationQuota) (domain.StaffVacationQuota, bool, domain.OperationStats, error)
+	FindStaffVacationQuota(context.Context, int64) (workforce.StaffVacationQuota, bool, domain.OperationStats, error)
+	ListStaffVacationQuotas(context.Context, workforce.StaffVacationFilter) ([]workforce.StaffVacationQuota, domain.OperationStats, error)
+	CreateStaffVacationQuota(context.Context, workforce.StaffVacationQuota) (workforce.StaffVacationQuota, domain.OperationStats, error)
+	UpdateStaffVacationQuota(context.Context, workforce.StaffVacationQuota) (workforce.StaffVacationQuota, bool, domain.OperationStats, error)
 	DeleteStaffVacationQuota(context.Context, int64) (domain.OperationStats, error)
 	// UpsertStaffVacationQuota writes the entitlement of one staff member and
 	// year, replacing the day counts of an existing row.
-	UpsertStaffVacationQuota(context.Context, domain.StaffVacationQuota) (domain.OperationStats, error)
+	UpsertStaffVacationQuota(context.Context, workforce.StaffVacationQuota) (domain.OperationStats, error)
 }
 
 // StaffRecordStore is the persistence port over users.staff_master_data,

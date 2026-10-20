@@ -62,11 +62,12 @@ func NewSessionRecords(deps SessionRecordDependencies) (SessionRecords, error) {
 	if deps.DB == nil || deps.Observe == nil || deps.Errors == nil {
 		return nil, errors.New("student presence session records: database, observer and error representation are required")
 	}
-	records := application.New(postgres.New(databaseRuntime(deps.DB)), transaction{}, deps.Observe, ports.AttendanceRulePorts{})
 	var clocks []func() time.Time
+	now := time.Now
 	if deps.Now != nil {
-		clocks = append(clocks, deps.Now)
+		clocks, now = append(clocks, deps.Now), deps.Now
 	}
+	records := application.New(postgres.New(databaseRuntime(deps.DB)), transaction{}, deps.Observe, ports.AttendanceRulePorts{}, now)
 	return application.NewSessionRecords(
 		postgres.NewSessionRepository(records, deps.Errors, postgres.SessionDirectories{Devices: deps.Devices, Rooms: deps.Rooms, Activities: deps.Activities}),
 		postgres.NewSupervisionRepository(records, deps.Errors, deps.Staff, calendar.CalendarDateClock(clocks...)), deps.Staff), nil

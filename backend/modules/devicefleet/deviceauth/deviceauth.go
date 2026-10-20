@@ -21,7 +21,7 @@ import (
 type Middleware = func(http.Handler) http.Handler
 
 // Fleet is the part of the Device Fleet capability device authentication
-// reads and writes. *devicefleet.Module satisfies it.
+// reads and writes. devicefleet.Capability satisfies it.
 type Fleet interface {
 	FindDeviceByAPIKey(context.Context, string) (devicefleet.Device, error)
 	UpdateDeviceLastSeen(context.Context, int64, time.Time) error

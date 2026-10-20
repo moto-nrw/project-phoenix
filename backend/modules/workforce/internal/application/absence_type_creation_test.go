@@ -5,6 +5,7 @@ import (
 	"errors"
 	"testing"
 
+	"github.com/moto-nrw/project-phoenix/modules/workforce"
 	"github.com/moto-nrw/project-phoenix/modules/workforce/internal/domain"
 	"github.com/moto-nrw/project-phoenix/modules/workforce/internal/ports"
 	"github.com/stretchr/testify/assert"
@@ -48,14 +49,14 @@ func TestCreateAbsenceTypePreservesFailureContracts(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			store := &absenceTypeCreationStore{listErr: tc.listErr, createErr: tc.createErr}
 			service := &Service{store: store, transaction: absenceTypeCreationTransaction{}, observe: func(ports.Observation) {}}
-			created, err := service.CreateAbsenceType(context.Background(), domain.StaffAbsenceTypeFields{Name: "Custom"})
+			created, err := service.CreateAbsenceType(context.Background(), workforce.CreateAbsenceType{Name: "Custom"})
 			require.ErrorIs(t, err, failure)
 			assert.Zero(t, created)
 			assert.Equal(t, tc.creates, store.creates)
 			if tc.message != "" {
 				assert.EqualError(t, err, tc.message)
 			} else {
-				require.ErrorIs(t, err, domain.ErrAbsenceTypeNameTaken)
+				require.ErrorIs(t, err, workforce.ErrAbsenceTypeNameTaken)
 			}
 		})
 	}

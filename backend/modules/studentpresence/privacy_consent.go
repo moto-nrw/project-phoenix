@@ -46,25 +46,9 @@ type PrivacyConsentCommand interface {
 	RecordPrivacyConsent(context.Context, PrivacyConsent) (PrivacyConsent, error)
 }
 
-func (m *Module) ListPrivacyConsents(ctx context.Context, studentID int64) ([]PrivacyConsent, error) {
-	return m.engine.ListPrivacyConsents(ctx, studentID)
-}
-
-func (m *Module) RecordPrivacyConsent(ctx context.Context, value PrivacyConsent) (PrivacyConsent, error) {
-	return m.engine.RecordPrivacyConsent(ctx, value)
-}
-
 type StudentRetentionSetting struct {
 	StudentID         int64
 	DataRetentionDays int
-}
-
-func (m *Module) ListAcceptedRetentionSettings(ctx context.Context) ([]StudentRetentionSetting, error) {
-	return m.engine.ListAcceptedRetentionSettings(ctx)
-}
-
-func (m *Module) RevisePrivacyConsent(ctx context.Context, value PrivacyConsent) (PrivacyConsent, error) {
-	return m.engine.RevisePrivacyConsent(ctx, value)
 }
 
 // DataRetentionDaysOrDefault is the retention window a child without a

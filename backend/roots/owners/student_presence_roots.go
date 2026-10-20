@@ -25,7 +25,7 @@ import (
 // rules bound to an unobserved Timetable owner over the same database. Every
 // root composes its presence module through it so every attendance rule sees
 // the same planned roster.
-func NewStudentPresence(db transactionruntime.Database, observe func(presenceCompose.Observation)) (*studentpresence.Module, error) {
+func NewStudentPresence(db transactionruntime.Database, observe func(presenceCompose.Observation)) (studentpresence.Owner, error) {
 	pool := db.Pool()
 	// The roster reads and the care-day row lock are People Directory reads;
 	// they need none of the owner's write owners or audit seams.
@@ -54,7 +54,7 @@ func NewStudentPresence(db transactionruntime.Database, observe func(presenceCom
 
 // NewUnloggedStudentPresence composes the Student Presence owner that logs
 // only its failed operations.
-func NewUnloggedStudentPresence(db transactionruntime.Database) *studentpresence.Module {
+func NewUnloggedStudentPresence(db transactionruntime.Database) studentpresence.Owner {
 	module, err := NewStudentPresence(db, presenceCompose.FailureLogger())
 	if err != nil {
 		panic(err)
@@ -64,7 +64,7 @@ func NewUnloggedStudentPresence(db transactionruntime.Database) *studentpresence
 
 // NewLoggedStudentPresence composes the Student Presence owner with its
 // operations logged at debug level.
-func NewLoggedStudentPresence(db transactionruntime.Database, logger *slog.Logger) *studentpresence.Module {
+func NewLoggedStudentPresence(db transactionruntime.Database, logger *slog.Logger) studentpresence.Owner {
 	module, err := NewStudentPresence(db, presenceCompose.DebugLogger(logger))
 	if err != nil {
 		panic(err)

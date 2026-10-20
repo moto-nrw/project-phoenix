@@ -6,12 +6,18 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/moto-nrw/project-phoenix/modules/workforce"
 	"github.com/moto-nrw/project-phoenix/modules/workforce/internal/domain"
 )
 
 // --- staff absences ---
 
-func (s *Service) FindStaffAbsence(ctx context.Context, id int64) (result domain.StaffAbsence, err error) {
+func (s *Service) FindStaffAbsence(ctx context.Context, id int64) (workforce.StaffAbsence, error) {
+	if id <= 0 {
+		return workforce.StaffAbsence{}, invalidAbsence("staff absence ID is required")
+	}
+	var result domain.StaffAbsence
+	var err error
 	err = s.run(ctx, "find_staff_absence", func(ctx context.Context, stats *domain.OperationStats) error {
 		var found bool
 		var queryStats domain.OperationStats
@@ -22,50 +28,70 @@ func (s *Service) FindStaffAbsence(ctx context.Context, id int64) (result domain
 		}
 		return err
 	})
-	return result, err
+	return AbsenceToPublic(result), MapError(err)
 }
 
-func (s *Service) ListStaffAbsences(ctx context.Context, filter domain.StaffAbsenceFilter) (result []domain.StaffAbsence, err error) {
-	if validationErr := filter.Validate(); validationErr != nil {
-		return nil, validationErr
+func (s *Service) ListStaffAbsences(ctx context.Context, filter workforce.StaffAbsenceFilter) ([]workforce.StaffAbsence, error) {
+	storedFilter := absenceFilterToDomain(filter)
+	var result []domain.StaffAbsence
+	var err error
+	if validationErr := storedFilter.Validate(); validationErr != nil {
+		return absencesToPublic(nil), MapError(validationErr)
 	}
 	err = s.run(ctx, "list_staff_absences", func(ctx context.Context, stats *domain.OperationStats) error {
 		var queryStats domain.OperationStats
-		result, queryStats, err = s.store.ListStaffAbsences(ctx, filter)
+		result, queryStats, err = s.store.ListStaffAbsences(ctx, storedFilter)
 		stats.Add(queryStats)
 		return err
 	})
-	return result, err
+	return absencesToPublic(result), MapError(err)
 }
 
-func (s *Service) CountStaffAbsences(ctx context.Context, filter domain.StaffAbsenceFilter) (result int, err error) {
-	if validationErr := filter.Validate(); validationErr != nil {
-		return 0, validationErr
+func (s *Service) CountStaffAbsences(ctx context.Context, filter workforce.StaffAbsenceFilter) (int, error) {
+	storedFilter := absenceFilterToDomain(filter)
+	var result int
+	var err error
+	if validationErr := storedFilter.Validate(); validationErr != nil {
+		return 0, MapError(validationErr)
 	}
 	err = s.run(ctx, "count_staff_absences", func(ctx context.Context, stats *domain.OperationStats) error {
 		var queryStats domain.OperationStats
-		result, queryStats, err = s.store.CountStaffAbsences(ctx, filter)
+		result, queryStats, err = s.store.CountStaffAbsences(ctx, storedFilter)
 		stats.Add(queryStats)
 		return err
 	})
-	return result, err
+	return result, MapError(err)
 }
 
-func (s *Service) ListStaffAbsenceRequests(ctx context.Context, filter domain.StaffAbsenceRequestFilter) (result []domain.StaffAbsence, err error) {
+func (s *Service) ListStaffAbsenceRequests(ctx context.Context, filter workforce.StaffAbsenceRequestFilter) ([]workforce.StaffAbsence, error) {
+	if len(filter.Statuses) == 0 {
+		return nil, invalidAbsence("at least one status is required")
+	}
+	if filter.FilterSubjects && len(filter.SubjectStaffIDs) == 0 {
+		return []workforce.StaffAbsence{}, nil
+	}
+	storedFilter := domain.StaffAbsenceRequestFilter{
+		Statuses: filter.Statuses, Types: filter.Types, FilterSubjects: filter.FilterSubjects,
+		SubjectStaffIDs: filter.SubjectStaffIDs, Limit: filter.Limit, Decided: filter.Decided,
+	}
+	var result []domain.StaffAbsence
+	var err error
 	err = s.run(ctx, "list_staff_absence_requests", func(ctx context.Context, stats *domain.OperationStats) error {
 		var queryStats domain.OperationStats
-		result, queryStats, err = s.store.ListStaffAbsenceRequests(ctx, filter)
+		result, queryStats, err = s.store.ListStaffAbsenceRequests(ctx, storedFilter)
 		stats.Add(queryStats)
 		return err
 	})
-	return result, err
+	return absencesToPublic(result), MapError(err)
 }
 
 // StaffAbsenceMapForDate returns staff ID -> canonical type of the winning
 // effective absence on the day.
-func (s *Service) StaffAbsenceMapForDate(ctx context.Context, date string) (result map[int64]string, err error) {
+func (s *Service) StaffAbsenceMapForDate(ctx context.Context, date string) (map[int64]string, error) {
+	var result map[int64]string
+	var err error
 	if validationErr := domain.ValidateDate(date, "date"); validationErr != nil {
-		return nil, validationErr
+		return nil, MapError(validationErr)
 	}
 	err = s.run(ctx, "staff_absence_map_for_date", func(ctx context.Context, stats *domain.OperationStats) error {
 		candidates, queryStats, queryErr := s.store.EffectiveStaffAbsencesOn(ctx, date)
@@ -80,15 +106,17 @@ func (s *Service) StaffAbsenceMapForDate(ctx context.Context, date string) (resu
 		}
 		return nil
 	})
-	return result, err
+	return result, MapError(err)
 }
 
 // StaffAbsenceTypeIDMapForDate returns staff ID -> school-defined type of the
 // same winning absence StaffAbsenceMapForDate picks; only winners carrying
 // one appear. Both read the same ordered query so they agree under ties.
-func (s *Service) StaffAbsenceTypeIDMapForDate(ctx context.Context, date string) (result map[int64]int64, err error) {
+func (s *Service) StaffAbsenceTypeIDMapForDate(ctx context.Context, date string) (map[int64]int64, error) {
+	var result map[int64]int64
+	var err error
 	if validationErr := domain.ValidateDate(date, "date"); validationErr != nil {
-		return nil, validationErr
+		return nil, MapError(validationErr)
 	}
 	err = s.run(ctx, "staff_absence_type_id_map_for_date", func(ctx context.Context, stats *domain.OperationStats) error {
 		candidates, queryStats, queryErr := s.store.EffectiveStaffAbsencesOn(ctx, date)
@@ -105,15 +133,17 @@ func (s *Service) StaffAbsenceTypeIDMapForDate(ctx context.Context, date string)
 		}
 		return nil
 	})
-	return result, err
+	return result, MapError(err)
 }
 
-func (s *Service) OldestStaffAbsenceDate(ctx context.Context, column, before string) (result string, err error) {
+func (s *Service) OldestStaffAbsenceDate(ctx context.Context, column, before string) (string, error) {
+	var result string
+	var err error
 	if validationErr := domain.ValidateDateColumn(column); validationErr != nil {
-		return "", validationErr
+		return "", MapError(validationErr)
 	}
 	if validationErr := domain.ValidateDate(before, "before"); validationErr != nil {
-		return "", validationErr
+		return "", MapError(validationErr)
 	}
 	err = s.run(ctx, "oldest_staff_absence_date", func(ctx context.Context, stats *domain.OperationStats) error {
 		var queryStats domain.OperationStats
@@ -121,23 +151,32 @@ func (s *Service) OldestStaffAbsenceDate(ctx context.Context, column, before str
 		stats.Add(queryStats)
 		return err
 	})
-	return result, err
+	return result, MapError(err)
 }
 
 // LockStaffAbsenceWrites takes the shared staff balance lock and then the
 // absence lock, in that order, inside the caller's ambient transaction.
 func (s *Service) LockStaffAbsenceWrites(ctx context.Context, staffID int64) error {
-	return s.observeOperation("lock_staff_absence_writes", func(*domain.OperationStats) error {
+	if staffID <= 0 {
+		return invalidAbsence("staff ID is required")
+	}
+	return MapError(s.observeOperation("lock_staff_absence_writes", func(*domain.OperationStats) error {
 		if err := s.transaction.LockStaffBalance(ctx, staffID); err != nil {
 			return err
 		}
 		return s.transaction.LockStaffAbsence(ctx, staffID)
-	})
+	}))
 }
 
-func (s *Service) CreateStaffAbsence(ctx context.Context, value domain.StaffAbsence) (result domain.StaffAbsence, err error) {
+func (s *Service) CreateStaffAbsence(ctx context.Context, absence *workforce.StaffAbsence) (workforce.StaffAbsence, error) {
+	if absence == nil {
+		return workforce.StaffAbsence{}, errors.New("workforce.StaffAbsence cannot be nil or zero value")
+	}
+	value := absenceToDomain(*absence)
+	var result domain.StaffAbsence
+	var err error
 	if validationErr := value.Validate(); validationErr != nil {
-		return domain.StaffAbsence{}, validationErr
+		return AbsenceToPublic(domain.StaffAbsence{}), MapError(validationErr)
 	}
 	err = s.run(ctx, "create_staff_absence", func(ctx context.Context, stats *domain.OperationStats) error {
 		return s.transaction.RunWrite(ctx, func(txCtx context.Context) error {
@@ -152,12 +191,18 @@ func (s *Service) CreateStaffAbsence(ctx context.Context, value domain.StaffAbse
 			return err
 		})
 	})
-	return result, err
+	return AbsenceToPublic(result), MapError(err)
 }
 
-func (s *Service) UpdateStaffAbsence(ctx context.Context, value domain.StaffAbsence) (result domain.StaffAbsence, err error) {
+func (s *Service) UpdateStaffAbsence(ctx context.Context, absence workforce.StaffAbsence) (workforce.StaffAbsence, error) {
+	if absence.ID <= 0 {
+		return workforce.StaffAbsence{}, invalidAbsence("staff absence ID is required")
+	}
+	value := absenceToDomain(absence)
+	var result domain.StaffAbsence
+	var err error
 	if validationErr := value.Validate(); validationErr != nil {
-		return domain.StaffAbsence{}, validationErr
+		return AbsenceToPublic(domain.StaffAbsence{}), MapError(validationErr)
 	}
 	err = s.run(ctx, "update_staff_absence", func(ctx context.Context, stats *domain.OperationStats) error {
 		return s.transaction.RunWrite(ctx, func(txCtx context.Context) error {
@@ -176,22 +221,30 @@ func (s *Service) UpdateStaffAbsence(ctx context.Context, value domain.StaffAbse
 			return err
 		})
 	})
-	return result, err
+	return AbsenceToPublic(result), MapError(err)
 }
 
 func (s *Service) DeleteStaffAbsence(ctx context.Context, id int64) error {
-	return s.run(ctx, "delete_staff_absence", func(ctx context.Context, stats *domain.OperationStats) error {
+	if id <= 0 {
+		return invalidAbsence("staff absence ID is required")
+	}
+	return MapError(s.run(ctx, "delete_staff_absence", func(ctx context.Context, stats *domain.OperationStats) error {
 		return s.transaction.RunWrite(ctx, func(txCtx context.Context) error {
 			writeStats, err := s.store.DeleteStaffAbsence(txCtx, id)
 			stats.Add(writeStats)
 			return err
 		})
-	})
+	}))
 }
 
-func (s *Service) DeleteNonHistoricalStaffAbsences(ctx context.Context, staffID int64, from string) (result int64, err error) {
+func (s *Service) DeleteNonHistoricalStaffAbsences(ctx context.Context, staffID int64, from string) (int64, error) {
+	if staffID <= 0 {
+		return 0, invalidAbsence("staff ID is required")
+	}
+	var result int64
+	var err error
 	if validationErr := requireDate(from, "from"); validationErr != nil {
-		return 0, validationErr
+		return 0, MapError(validationErr)
 	}
 	err = s.run(ctx, "delete_non_historical_staff_absences", func(ctx context.Context, stats *domain.OperationStats) error {
 		return s.transaction.RunWrite(ctx, func(txCtx context.Context) error {
@@ -201,15 +254,17 @@ func (s *Service) DeleteNonHistoricalStaffAbsences(ctx context.Context, staffID 
 			return err
 		})
 	})
-	return result, err
+	return result, MapError(err)
 }
 
-func (s *Service) DeleteStaffAbsencesOlderThan(ctx context.Context, column, cutoff string) (result int64, err error) {
+func (s *Service) DeleteStaffAbsencesOlderThan(ctx context.Context, column, cutoff string) (int64, error) {
+	var result int64
+	var err error
 	if validationErr := domain.ValidateDateColumn(column); validationErr != nil {
-		return 0, validationErr
+		return 0, MapError(validationErr)
 	}
 	if validationErr := requireDate(cutoff, "cutoff"); validationErr != nil {
-		return 0, validationErr
+		return 0, MapError(validationErr)
 	}
 	err = s.run(ctx, "delete_staff_absences_older_than", func(ctx context.Context, stats *domain.OperationStats) error {
 		return s.transaction.RunWrite(ctx, func(txCtx context.Context) error {
@@ -219,7 +274,7 @@ func (s *Service) DeleteStaffAbsencesOlderThan(ctx context.Context, column, cuto
 			return err
 		})
 	})
-	return result, err
+	return result, MapError(err)
 }
 
 // requireDate is ValidateDate for a field a write cannot do without.
@@ -232,22 +287,40 @@ func requireDate(value, field string) error {
 
 // --- absence types ---
 
-func (s *Service) ListStaffAbsenceTypes(ctx context.Context) (result []domain.StaffAbsenceType, err error) {
+func (s *Service) ListStaffAbsenceTypes(ctx context.Context) ([]workforce.StaffAbsenceType, error) {
+	var result []domain.StaffAbsenceType
+	var err error
 	err = s.run(ctx, "list_staff_absence_types", func(ctx context.Context, stats *domain.OperationStats) error {
 		var queryStats domain.OperationStats
 		result, queryStats, err = s.store.ListStaffAbsenceTypes(ctx)
 		stats.Add(queryStats)
 		return err
 	})
-	return result, err
+	values, storedErr := result, err
+	if values == nil {
+		return nil, MapError(storedErr)
+	}
+	storedResult := make([]workforce.StaffAbsenceType, 0, len(values))
+	for _, value := range values {
+		storedResult = append(storedResult, absenceTypeToPublic(value))
+	}
+	return storedResult, MapError(storedErr)
 }
 
-func (s *Service) FindStaffAbsenceType(ctx context.Context, id int64) (domain.StaffAbsenceType, error) {
-	return s.findStaffAbsenceType(ctx, "find_staff_absence_type", id, false)
+func (s *Service) FindStaffAbsenceType(ctx context.Context, id int64) (workforce.StaffAbsenceType, error) {
+	if id <= 0 {
+		return workforce.StaffAbsenceType{}, workforce.ErrAbsenceTypeNotFound
+	}
+	value, err := s.findStaffAbsenceType(ctx, "find_staff_absence_type", id, false)
+	return absenceTypeToPublic(value), MapError(err)
 }
 
-func (s *Service) LockStaffAbsenceType(ctx context.Context, id int64) (domain.StaffAbsenceType, error) {
-	return s.findStaffAbsenceType(ctx, "lock_staff_absence_type", id, true)
+func (s *Service) LockStaffAbsenceType(ctx context.Context, id int64) (workforce.StaffAbsenceType, error) {
+	if id <= 0 {
+		return workforce.StaffAbsenceType{}, workforce.ErrAbsenceTypeNotFound
+	}
+	value, err := s.findStaffAbsenceType(ctx, "lock_staff_absence_type", id, true)
+	return absenceTypeToPublic(value), MapError(err)
 }
 
 func (s *Service) findStaffAbsenceType(ctx context.Context, operation string, id int64, lock bool) (result domain.StaffAbsenceType, err error) {
@@ -264,29 +337,37 @@ func (s *Service) findStaffAbsenceType(ctx context.Context, operation string, id
 	return result, err
 }
 
-func (s *Service) StaffAbsenceTypeInUse(ctx context.Context, id int64) (result bool, err error) {
+func (s *Service) StaffAbsenceTypeInUse(ctx context.Context, id int64) (bool, error) {
+	if id <= 0 {
+		return false, nil
+	}
+	var result bool
+	var err error
 	err = s.run(ctx, "staff_absence_type_in_use", func(ctx context.Context, stats *domain.OperationStats) error {
 		var queryStats domain.OperationStats
 		result, queryStats, err = s.store.StaffAbsenceTypeInUse(ctx, id)
 		stats.Add(queryStats)
 		return err
 	})
-	return result, err
+	return result, MapError(err)
 }
 
 // CreateAbsenceType applies administration rules before the storage write.
 // The unique index remains the final arbiter when concurrent names race.
-func (s *Service) CreateAbsenceType(ctx context.Context, fields domain.StaffAbsenceTypeFields) (domain.StaffAbsenceType, error) {
+func (s *Service) CreateAbsenceType(ctx context.Context, input workforce.CreateAbsenceType) (workforce.StaffAbsenceType, error) {
+	fields := domain.StaffAbsenceTypeFields{
+		Name: input.Name, AllowanceEnabled: input.AllowanceEnabled, CarryoverUntil: input.CarryoverUntil,
+	}
 	fields.BaseType, fields.IsActive = domain.AbsenceTypeOther, true
 	if err := fields.Normalize(); err != nil {
-		return domain.StaffAbsenceType{}, err
+		return absenceTypeToPublic(domain.StaffAbsenceType{}), MapError(err)
 	}
 	if err := s.checkAbsenceTypeName(ctx, fields.Name, 0); err != nil {
-		return domain.StaffAbsenceType{}, err
+		return absenceTypeToPublic(domain.StaffAbsenceType{}), MapError(err)
 	}
-	created, err := s.CreateStaffAbsenceType(ctx, fields)
+	created, err := s.CreateStaffAbsenceType(ctx, workforce.StaffAbsenceTypeFields(fields))
 	if err != nil {
-		return domain.StaffAbsenceType{}, fmt.Errorf("database error during create: %w", err)
+		return absenceTypeToPublic(domain.StaffAbsenceType{}), MapError(fmt.Errorf("database error during create: %w", err))
 	}
 	return created, nil
 }
@@ -309,16 +390,21 @@ func (s *Service) checkAbsenceTypeName(ctx context.Context, candidate string, ex
 	return nil
 }
 
-func (s *Service) UpdateAbsenceType(ctx context.Context, id int64, name *string, isActive, allowanceEnabled *bool, carryoverUntil *string) (domain.StaffAbsenceType, error) {
+func (s *Service) UpdateAbsenceType(ctx context.Context, input workforce.UpdateAbsenceType) (workforce.StaffAbsenceType, error) {
+	id := input.ID
+	name := input.Name
+	isActive := input.IsActive
+	allowanceEnabled := input.AllowanceEnabled
+	carryoverUntil := input.CarryoverUntil
 	if id <= 0 {
-		return domain.StaffAbsenceType{}, domain.ErrAbsenceTypeNotFound
+		return absenceTypeToPublic(domain.StaffAbsenceType{}), MapError(domain.ErrAbsenceTypeNotFound)
 	}
 	existing, err := s.LockStaffAbsenceType(ctx, id)
-	if errors.Is(err, domain.ErrAbsenceTypeNotFound) {
-		return domain.StaffAbsenceType{}, domain.ErrAbsenceTypeNotFound
+	if errors.Is(err, workforce.ErrAbsenceTypeNotFound) {
+		return absenceTypeToPublic(domain.StaffAbsenceType{}), MapError(domain.ErrAbsenceTypeNotFound)
 	}
 	if err != nil {
-		return domain.StaffAbsenceType{}, fmt.Errorf("lock absence type: database error during lock staff absence type: %w", err)
+		return absenceTypeToPublic(domain.StaffAbsenceType{}), MapError(fmt.Errorf("lock absence type: database error during lock staff absence type: %w", err))
 	}
 	fields := domain.StaffAbsenceTypeFields{
 		Name: existing.Name, BaseType: existing.BaseType, IsActive: existing.IsActive,
@@ -326,23 +412,23 @@ func (s *Service) UpdateAbsenceType(ctx context.Context, id int64, name *string,
 	}
 	if name != nil {
 		if err := s.renameAbsenceType(ctx, id, existing.Name, *name, &fields); err != nil {
-			return domain.StaffAbsenceType{}, err
+			return absenceTypeToPublic(domain.StaffAbsenceType{}), MapError(err)
 		}
 	}
 	applyAbsenceTypeSettings(&fields, isActive, allowanceEnabled, carryoverUntil)
 	if err := fields.Normalize(); err != nil {
-		return domain.StaffAbsenceType{}, err
+		return absenceTypeToPublic(domain.StaffAbsenceType{}), MapError(err)
 	}
 	existing.Name, existing.IsActive = fields.Name, fields.IsActive
 	existing.AllowanceEnabled, existing.CarryoverUntil = fields.AllowanceEnabled, fields.CarryoverUntil
 	updated, err := s.UpdateStaffAbsenceType(ctx, existing)
 	if err != nil {
-		if errors.Is(err, domain.ErrAbsenceTypeNotFound) {
+		if errors.Is(err, workforce.ErrAbsenceTypeNotFound) {
 			// A row disappearing after the lock was a failed write, not a
 			// missing-resource response, in the retained administration API.
 			err = errors.New("expected 1 rows affected, got 0")
 		}
-		return domain.StaffAbsenceType{}, fmt.Errorf("database error during update staff absence type: %w", err)
+		return absenceTypeToPublic(domain.StaffAbsenceType{}), MapError(fmt.Errorf("database error during update staff absence type: %w", err))
 	}
 	return updated, nil
 }
@@ -384,35 +470,50 @@ func applyAbsenceTypeSettings(fields *domain.StaffAbsenceTypeFields, isActive, a
 	}
 }
 
-func (s *Service) CreateStaffAbsenceType(ctx context.Context, fields domain.StaffAbsenceTypeFields) (result domain.StaffAbsenceType, err error) {
-	if validationErr := fields.Normalize(); validationErr != nil {
-		return domain.StaffAbsenceType{}, validationErr
+func (s *Service) CreateStaffAbsenceType(ctx context.Context, fields workforce.StaffAbsenceTypeFields) (workforce.StaffAbsenceType, error) {
+	storedFields := domain.StaffAbsenceTypeFields{
+		Name: fields.Name, BaseType: fields.BaseType, IsActive: fields.IsActive,
+		AllowanceEnabled: fields.AllowanceEnabled, CarryoverUntil: fields.CarryoverUntil,
+	}
+	var result domain.StaffAbsenceType
+	var err error
+	if validationErr := storedFields.Normalize(); validationErr != nil {
+		return absenceTypeToPublic(domain.StaffAbsenceType{}), MapError(validationErr)
 	}
 	err = s.run(ctx, "create_staff_absence_type", func(ctx context.Context, stats *domain.OperationStats) error {
 		return s.transaction.RunWrite(ctx, func(txCtx context.Context) error {
 			var writeStats domain.OperationStats
-			result, writeStats, err = s.store.CreateStaffAbsenceType(txCtx, fields)
+			result, writeStats, err = s.store.CreateStaffAbsenceType(txCtx, storedFields)
 			stats.Add(writeStats)
 			return err
 		})
 	})
-	return result, err
+	return absenceTypeToPublic(result), MapError(err)
 }
 
-func (s *Service) UpdateStaffAbsenceType(ctx context.Context, value domain.StaffAbsenceType) (result domain.StaffAbsenceType, err error) {
-	fields := domain.StaffAbsenceTypeFields{
-		Name: value.Name, BaseType: value.BaseType, IsActive: value.IsActive,
+func (s *Service) UpdateStaffAbsenceType(ctx context.Context, value workforce.StaffAbsenceType) (workforce.StaffAbsenceType, error) {
+	if value.ID <= 0 {
+		return workforce.StaffAbsenceType{}, workforce.ErrAbsenceTypeNotFound
+	}
+	storedValue := domain.StaffAbsenceType{
+		ID: value.ID, TenantID: value.TenantID, Name: value.Name, BaseType: value.BaseType, IsActive: value.IsActive,
 		AllowanceEnabled: value.AllowanceEnabled, CarryoverUntil: value.CarryoverUntil,
 	}
-	if validationErr := fields.Normalize(); validationErr != nil {
-		return domain.StaffAbsenceType{}, validationErr
+	var result domain.StaffAbsenceType
+	var err error
+	fields := domain.StaffAbsenceTypeFields{
+		Name: storedValue.Name, BaseType: storedValue.BaseType, IsActive: storedValue.IsActive,
+		AllowanceEnabled: storedValue.AllowanceEnabled, CarryoverUntil: storedValue.CarryoverUntil,
 	}
-	value.Name, value.BaseType = fields.Name, fields.BaseType
+	if validationErr := fields.Normalize(); validationErr != nil {
+		return absenceTypeToPublic(domain.StaffAbsenceType{}), MapError(validationErr)
+	}
+	storedValue.Name, storedValue.BaseType = fields.Name, fields.BaseType
 	err = s.run(ctx, "update_staff_absence_type", func(ctx context.Context, stats *domain.OperationStats) error {
 		return s.transaction.RunWrite(ctx, func(txCtx context.Context) error {
 			var found bool
 			var writeStats domain.OperationStats
-			result, found, writeStats, err = s.store.UpdateStaffAbsenceType(txCtx, value)
+			result, found, writeStats, err = s.store.UpdateStaffAbsenceType(txCtx, storedValue)
 			stats.Add(writeStats)
 			if err == nil && !found {
 				return domain.ErrAbsenceTypeNotFound
@@ -420,14 +521,26 @@ func (s *Service) UpdateStaffAbsenceType(ctx context.Context, value domain.Staff
 			return err
 		})
 	})
-	return result, err
+	return absenceTypeToPublic(result), MapError(err)
 }
 
 // --- audit ---
 
-func (s *Service) RecordStaffAbsenceAudit(ctx context.Context, value domain.StaffAbsenceAudit) (result domain.StaffAbsenceAudit, err error) {
+func (s *Service) RecordStaffAbsenceAudit(ctx context.Context, audit workforce.StaffAbsenceAudit) (workforce.StaffAbsenceAudit, error) {
+	value := domain.StaffAbsenceAudit{
+		ID: audit.ID, TenantID: audit.TenantID, AbsenceID: audit.AbsenceID, FromStatus: audit.FromStatus,
+		ToStatus: audit.ToStatus, ActorID: audit.ActorID, Note: audit.Note, ChangedAt: audit.ChangedAt,
+		TypeChange: (*domain.AbsenceTypeChange)(audit.TypeChange),
+	}
+	var result domain.StaffAbsenceAudit
+	var err error
 	if validationErr := value.Validate(); validationErr != nil {
-		return domain.StaffAbsenceAudit{}, validationErr
+		recorded, storedErr := domain.StaffAbsenceAudit{}, validationErr
+		return workforce.StaffAbsenceAudit{
+			ID: recorded.ID, TenantID: recorded.TenantID, AbsenceID: recorded.AbsenceID, FromStatus: recorded.FromStatus,
+			ToStatus: recorded.ToStatus, ActorID: recorded.ActorID, Note: recorded.Note, ChangedAt: recorded.ChangedAt,
+			TypeChange: (*workforce.AbsenceTypeChange)(recorded.TypeChange),
+		}, MapError(storedErr)
 	}
 	err = s.run(ctx, "record_staff_absence_audit", func(ctx context.Context, stats *domain.OperationStats) error {
 		return s.transaction.RunWrite(ctx, func(txCtx context.Context) error {
@@ -437,5 +550,10 @@ func (s *Service) RecordStaffAbsenceAudit(ctx context.Context, value domain.Staf
 			return err
 		})
 	})
-	return result, err
+	recorded, storedErr := result, err
+	return workforce.StaffAbsenceAudit{
+		ID: recorded.ID, TenantID: recorded.TenantID, AbsenceID: recorded.AbsenceID, FromStatus: recorded.FromStatus,
+		ToStatus: recorded.ToStatus, ActorID: recorded.ActorID, Note: recorded.Note, ChangedAt: recorded.ChangedAt,
+		TypeChange: (*workforce.AbsenceTypeChange)(recorded.TypeChange),
+	}, MapError(storedErr)
 }

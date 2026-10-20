@@ -55,6 +55,7 @@ func newOperatorFlows(service *application.Service, store *postgres.Store, token
 		Audit:       application.OperatorAudit{Source: deps.Audit},
 		Credentials: tokens,
 		Runtime:     runtime,
+		Attach:      sessions.TenantRuntime,
 		Rotation:    rotationBindings.RotationPolicy{},
 		Logger:      deps.Logger,
 	})
@@ -73,6 +74,7 @@ func newOperatorFlows(service *application.Service, store *postgres.Store, token
 		Audit:         application.AuthAudit{Source: sessions.Audit},
 		OperatorAudit: application.OperatorAudit{Source: deps.Audit},
 		Runtime:       runtime,
+		Attach:        sessions.TenantRuntime,
 		Logger:        deps.Logger,
 	})
 	if err != nil {
@@ -80,7 +82,3 @@ func newOperatorFlows(service *application.Service, store *postgres.Store, token
 	}
 	return operatorAuth, accountAccess, nil
 }
-
-// Engine methods: every operator flow answers
-// ErrOperatorAuthenticationUnavailable when the module was composed without
-// operator dependencies.

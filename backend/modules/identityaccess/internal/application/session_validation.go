@@ -33,14 +33,14 @@ func (s *AccountAuthentication) ValidateSessionTokens(ctx context.Context, acces
 }
 
 func (s *AccountAuthentication) validateOperatorSession(ctx context.Context, claims domain.SessionClaims, refreshClaims *domain.RefreshClaims) error {
-	operator, err := s.sessions.FindOperator(ctx, claims.AccountID)
+	operator, err := s.sessions.findOperatorByID(ctx, claims.AccountID)
 	if err != nil || !operator.Active {
 		return domain.ErrInvalidToken
 	}
 	if refreshClaims == nil {
 		return nil
 	}
-	session, err := s.sessions.FindOperatorSessionForUpdate(ctx, refreshClaims.Token)
+	session, err := s.sessions.findOperatorSessionForUpdate(ctx, refreshClaims.Token)
 	if err != nil || session.OperatorID != operator.ID || !session.Expiry.After(time.Now()) || session.RotatedAt != nil || session.ReplacementToken != nil || session.FamilyID != claims.FamilyID {
 		return domain.ErrInvalidToken
 	}

@@ -2,56 +2,10 @@ package ports
 
 import (
 	"context"
-	"errors"
 	"time"
+
+	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
 )
-
-var ErrSessionAttendanceNotFound = errors.New("session attendance not found")
-
-// SessionAttendance is the persistence-independent attendance of one planned
-// participant. A participant without a stored row is expected attendance.
-type SessionAttendance struct {
-	ID, TenantID         int64
-	CreatedAt, UpdatedAt time.Time
-	ParticipantID        int64
-	Status               string
-	Substatus            *string
-	Note                 *string
-	CheckedInAt          *time.Time
-	CheckedOutAt         *time.Time
-	IsUnplanned          bool
-	NotScheduled         bool
-	ManualStatusAt       *time.Time
-	StudentStatusDayID   *int64
-	PickupExceptionID    *int64
-}
-
-type SessionAttendancePatch struct {
-	Status         *string
-	Substatus      *string
-	SubstatusClear bool
-	Note           *string
-	NoteClear      bool
-}
-
-type SessionAttendanceRestore struct {
-	ParticipantID      int64
-	Status             string
-	Substatus          *string
-	Note               *string
-	CheckedInAt        *time.Time
-	CheckedOutAt       *time.Time
-	IsUnplanned        bool
-	NotScheduled       bool
-	ManualStatusAt     *time.Time
-	StudentStatusDayID *int64
-	PickupExceptionID  *int64
-}
-
-type ParticipantPickupException struct {
-	ParticipantID     int64
-	PickupExceptionID int64
-}
 
 // StatusDayAbsence marks one participant absent for a reported day status.
 type StatusDayAbsence struct {
@@ -80,26 +34,26 @@ type PartialAbsence struct {
 // take participant ids the application resolved through the planned roster;
 // each treats a missing row as expected attendance.
 type SessionAttendanceStore interface {
-	ListSessionAttendance(context.Context, []int64) ([]SessionAttendance, Stats, error)
-	ListSessionAttendanceByStatusDay(context.Context, int64) ([]SessionAttendance, Stats, error)
-	ListSessionAttendanceByPickupException(context.Context, int64) ([]SessionAttendance, Stats, error)
+	ListSessionAttendance(context.Context, []int64) ([]studentpresence.SessionAttendance, Stats, error)
+	ListSessionAttendanceByStatusDay(context.Context, int64) ([]studentpresence.SessionAttendance, Stats, error)
+	ListSessionAttendanceByPickupException(context.Context, int64) ([]studentpresence.SessionAttendance, Stats, error)
 	CheckInParticipants(context.Context, []int64, time.Time, bool) (Stats, error)
 	CheckOutParticipants(context.Context, []int64, time.Time) (Stats, error)
 	CloseOpenParticipants(context.Context, []int64, time.Time) (Stats, error)
 	ReconcileParticipantInterval(context.Context, int64, time.Time, *time.Time, time.Time, *time.Time) (Stats, error)
-	PatchSessionAttendance(context.Context, int64, SessionAttendancePatch, time.Time) (Stats, error)
+	PatchSessionAttendance(context.Context, int64, studentpresence.SessionAttendancePatch, time.Time) (Stats, error)
 	// TransitionParticipants stamps updated_at with the given instant, or with
 	// the transaction time when nil.
 	TransitionParticipants(context.Context, []int64, string, string, *time.Time) (Stats, error)
 	MarkParticipantsNotScheduled(context.Context, []int64) (Stats, error)
-	RestoreSessionAttendance(context.Context, SessionAttendanceRestore) (Stats, error)
-	ReconnectParticipantPickupExceptions(context.Context, []ParticipantPickupException) (Stats, error)
+	RestoreSessionAttendance(context.Context, studentpresence.SessionAttendanceRestore) (Stats, error)
+	ReconnectParticipantPickupExceptions(context.Context, []studentpresence.ParticipantPickupException) (Stats, error)
 	LockSessionAttendance(context.Context, []int64) (Stats, error)
 	ApplyStatusDayAbsences(context.Context, []StatusDayAbsence, time.Time) (Stats, error)
 	ReleaseStatusDay(context.Context, int64, []StatusDayRelease, time.Time) (Stats, error)
 	ApplyPartialAbsences(context.Context, []PartialAbsence, time.Time) (Stats, error)
 	ReleasePartialAbsence(context.Context, int64, []StatusDayRelease, time.Time) (Stats, error)
-	FindSessionAttendance(context.Context, int64) (SessionAttendance, bool, Stats, error)
+	FindSessionAttendance(context.Context, int64) (studentpresence.SessionAttendance, bool, Stats, error)
 }
 
 // PlannedParticipant is one planned participant of one instance as the

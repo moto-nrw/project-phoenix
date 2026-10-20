@@ -3006,7 +3006,7 @@ func newApprovedOfferingProjection(db *bun.DB) careplan.ApprovedBookingReader {
 	return projection
 }
 
-func newSlotListPresence(db *bun.DB) *studentpresence.Module {
+func newSlotListPresence(db *bun.DB) studentpresence.Owner {
 	module, err := presenceCompose.New(presenceCompose.Dependencies{DB: db, Observe: func(presenceCompose.Observation) {}})
 	if err != nil {
 		panic(err)
@@ -3066,7 +3066,7 @@ func (r slotListTimetableRows) ListRoster(ctx context.Context, instanceIDs []int
 // the tests through the two owners.
 type slotListInstanceStudents struct {
 	timetable timetable.Capability
-	presence  *studentpresence.Module
+	presence  studentpresence.Owner
 	rows      owners.TimetableTestLegacyRows
 }
 

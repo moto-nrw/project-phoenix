@@ -99,39 +99,3 @@ type OperatorProvisioning interface {
 	// can request a new one, then deletes the rows nobody counts any more.
 	CleanupOperatorEmailChanges(ctx context.Context) (int, error)
 }
-
-func (m *Module) InviteOperator(ctx context.Context, request OperatorInvitationRequest) error {
-	return m.engine.InviteOperator(ctx, request)
-}
-
-func (m *Module) ValidateOperatorInvitation(ctx context.Context, token string) (OperatorInvitationPreview, error) {
-	return m.engine.ValidateOperatorInvitation(ctx, token)
-}
-
-func (m *Module) AcceptOperatorInvitation(ctx context.Context, acceptance OperatorInvitationAcceptance) (Operator, error) {
-	return m.engine.AcceptOperatorInvitation(ctx, acceptance)
-}
-
-func (m *Module) ListPendingOperatorInvitations(ctx context.Context) ([]OperatorInvitation, error) {
-	return m.engine.ListPendingOperatorInvitations(ctx)
-}
-
-func (m *Module) RevokeOperatorInvitationByActor(ctx context.Context, invitationID, actorID int64, ipAddress string) error {
-	return m.engine.RevokeOperatorInvitationByActor(ctx, invitationID, actorID, ipAddress)
-}
-
-func (m *Module) ResendOperatorInvitationByActor(ctx context.Context, invitationID, actorID int64, ipAddress string) error {
-	return m.engine.ResendOperatorInvitationByActor(ctx, invitationID, actorID, ipAddress)
-}
-
-func (m *Module) InitiateOperatorEmailChange(ctx context.Context, request OperatorEmailChangeRequest) error {
-	return m.engine.InitiateOperatorEmailChange(ctx, request)
-}
-
-func (m *Module) ConfirmOperatorEmailChange(ctx context.Context, token, ipAddress string) (OperatorEmailChangeResult, error) {
-	return m.engine.ConfirmOperatorEmailChange(ctx, token, ipAddress)
-}
-
-func (m *Module) CleanupOperatorEmailChanges(ctx context.Context) (int, error) {
-	return m.engine.CleanupOperatorEmailChanges(ctx)
-}
