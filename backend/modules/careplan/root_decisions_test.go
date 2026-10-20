@@ -1,7 +1,6 @@
 package careplan
 
 import (
-	"context"
 	"testing"
 	"time"
 
@@ -71,15 +70,6 @@ func TestParticipationBoundaryTakesTheEarlierEnd(t *testing.T) {
 	assert.Equal(t, calendar.Date("2026-09-15"), boundary)
 	_, found = ParticipationBoundary("", nil)
 	assert.False(t, found)
-}
-
-func TestStatusDayRetentionRefusesAWindowThatIsNotPositive(t *testing.T) {
-	t.Parallel()
-	module := NewModule(&recordingEngine{})
-	for _, days := range []int{0, -3} {
-		_, err := module.DeleteExpiredStudentStatusDays(context.Background(), days)
-		require.ErrorIs(t, err, ErrStatusDayRetentionWindow)
-	}
 }
 
 func TestClassKeyIgnoresCaseAndSpacing(t *testing.T) {

@@ -103,7 +103,7 @@ func composeServeRoot(
 		persons          *peopleCompose.Directory
 		timetableOwner   timetable.Owner
 		timetableRepos   owners.TimetableRepositories
-		carePlan         *carePlanModule.Module
+		carePlan         carePlanModule.Owner
 		appointments     appointmentsModule.Capability
 		operatorAuditLog owners.OperatorAuditEntries
 		communication    communicationModule.Capability

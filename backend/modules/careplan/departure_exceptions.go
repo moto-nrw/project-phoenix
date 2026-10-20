@@ -54,26 +54,3 @@ func ValidDepartureMode(mode string) bool {
 		return false
 	}
 }
-
-func validateDepartureException(v DepartureException) bool {
-	return v.StudentID > 0 && !v.ExceptionDate.IsZero() && ValidDepartureMode(v.DepartureMode) &&
-		validText(v.Reason, 255) && v.CreatedBy != nil && *v.CreatedBy > 0
-}
-
-func (m *Module) ListDepartureExceptions(ctx context.Context, filter StudentScheduleFilter) ([]DepartureException, error) {
-	return m.engine.ListDepartureExceptions(ctx, normalizeStudentScheduleFilter(filter))
-}
-
-func (m *Module) SaveDepartureException(ctx context.Context, v DepartureException) (DepartureException, error) {
-	if !validateDepartureException(v) {
-		return DepartureException{}, scheduleInvalid()
-	}
-	return m.engine.SaveDepartureException(ctx, v)
-}
-
-func (m *Module) DeleteDepartureException(ctx context.Context, id int64) error {
-	if id <= 0 {
-		return scheduleInvalid()
-	}
-	return m.engine.DeleteDepartureException(ctx, id)
-}

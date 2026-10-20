@@ -24,8 +24,8 @@ type offeringPendingFacts struct {
 	requests  map[int64]careplan.OfferingReviewRequest
 	phases    map[int64]careplan.OfferingReviewPhase
 	current   map[int64][]careplan.OfferingReviewBooking
-	active    map[int64]map[int64]domain.CareOffering
-	catalog   map[int64]domain.CareOffering
+	active    map[int64]map[int64]careplan.CareOffering
+	catalog   map[int64]careplan.CareOffering
 	requested map[int64][]careplan.OfferingReviewSelection
 	reviews   map[int64]*offeringPendingReview
 }
@@ -33,8 +33,8 @@ type offeringPendingFacts struct {
 func newOfferingPendingFacts() *offeringPendingFacts {
 	return &offeringPendingFacts{
 		children: map[int64]careplan.OfferingReviewChild{}, requests: map[int64]careplan.OfferingReviewRequest{}, phases: map[int64]careplan.OfferingReviewPhase{},
-		current: map[int64][]careplan.OfferingReviewBooking{}, active: map[int64]map[int64]domain.CareOffering{},
-		catalog: map[int64]domain.CareOffering{}, requested: map[int64][]careplan.OfferingReviewSelection{}, reviews: map[int64]*offeringPendingReview{},
+		current: map[int64][]careplan.OfferingReviewBooking{}, active: map[int64]map[int64]careplan.CareOffering{},
+		catalog: map[int64]careplan.CareOffering{}, requested: map[int64][]careplan.OfferingReviewSelection{}, reviews: map[int64]*offeringPendingReview{},
 	}
 }
 
@@ -45,7 +45,7 @@ func (s *OfferingReviews) pendingFacts(ctx context.Context, rows []careplan.Offe
 		return nil, err
 	}
 	dates := facts.seedReviews(rows, today)
-	active, err := s.Catalog.ListCareOfferings(ctx, domain.CareOfferingFilter{PhaseIDs: phaseIDs, ActiveOnly: true})
+	active, err := s.Catalog.ListCareOfferings(ctx, careplan.CareOfferingFilter{PhaseIDs: phaseIDs, ActiveOnly: true})
 	if err != nil {
 		return nil, fmt.Errorf("load active offerings: %w", err)
 	}
@@ -56,7 +56,7 @@ func (s *OfferingReviews) pendingFacts(ctx context.Context, rows []careplan.Offe
 	}
 	allIDs = facts.indexCurrent(current, allIDs)
 	allIDs = facts.indexRequested(rows, allIDs)
-	catalog, err := s.Catalog.ListCareOfferings(ctx, domain.CareOfferingFilter{IDs: allIDs})
+	catalog, err := s.Catalog.ListCareOfferings(ctx, careplan.CareOfferingFilter{IDs: allIDs})
 	if err != nil {
 		return nil, fmt.Errorf("load queue offerings: %w", err)
 	}
@@ -125,11 +125,11 @@ func (facts *offeringPendingFacts) seedReviews(rows []careplan.OfferingChangeReq
 	return dates
 }
 
-func (facts *offeringPendingFacts) indexActive(active []domain.CareOffering) []int64 {
+func (facts *offeringPendingFacts) indexActive(active []careplan.CareOffering) []int64 {
 	allIDs := make([]int64, 0, len(active))
 	for _, offering := range active {
 		if facts.active[offering.PhaseID] == nil {
-			facts.active[offering.PhaseID] = map[int64]domain.CareOffering{}
+			facts.active[offering.PhaseID] = map[int64]careplan.CareOffering{}
 		}
 		facts.active[offering.PhaseID][offering.ID] = offering
 		allIDs = append(allIDs, offering.ID)
@@ -202,8 +202,8 @@ func (s *OfferingReviews) pendingReviews(ctx context.Context, rows []careplan.Of
 
 // allowedOfferings is the phase's active catalog plus every offering the
 // child currently holds.
-func (facts *offeringPendingFacts) allowedOfferings(phaseID, childID int64) map[int64]domain.CareOffering {
-	allowed := make(map[int64]domain.CareOffering, len(facts.active[phaseID])+len(facts.current[childID]))
+func (facts *offeringPendingFacts) allowedOfferings(phaseID, childID int64) map[int64]careplan.CareOffering {
+	allowed := make(map[int64]careplan.CareOffering, len(facts.active[phaseID])+len(facts.current[childID]))
 	for id, offering := range facts.active[phaseID] {
 		allowed[id] = offering
 	}
@@ -245,7 +245,7 @@ func (facts *offeringPendingFacts) rowDiff(row careplan.OfferingChangeRequest) (
 	return diff, true
 }
 
-func (d *offeringCourseDiff) applyShares(shares map[int64]selection.AutomaticShare, catalog map[int64]domain.CareOffering) {
+func (d *offeringCourseDiff) applyShares(shares map[int64]selection.AutomaticShare, catalog map[int64]careplan.CareOffering) {
 	for i := range d.entries {
 		entry := &d.entries[i]
 		share := shares[entry.OfferingID]
@@ -258,7 +258,7 @@ func (d *offeringCourseDiff) applyShares(shares map[int64]selection.AutomaticSha
 
 // annotate records unchanged booked lines and the withdrawal flag on the
 // review, and appends a course ref for every newly booked requested line.
-func (d *offeringCourseDiff) annotate(catalog map[int64]domain.CareOffering, refs []careplan.OfferingReviewCourseRef) []careplan.OfferingReviewCourseRef {
+func (d *offeringCourseDiff) annotate(catalog map[int64]careplan.CareOffering, refs []careplan.OfferingReviewCourseRef) []careplan.OfferingReviewCourseRef {
 	review := d.review
 	held, remains := false, false
 	for i := range d.entries {
@@ -304,7 +304,7 @@ func (d offeringCourseDiff) finish(groups map[int64][]careplan.OfferingReviewCou
 	d.review.diff = entries
 }
 
-func offeringSelectionCatalog(catalog map[int64]domain.CareOffering) (map[int64]*selection.Offering, error) {
+func offeringSelectionCatalog(catalog map[int64]careplan.CareOffering) (map[int64]*selection.Offering, error) {
 	result := make(map[int64]*selection.Offering, len(catalog))
 	for id, offering := range catalog {
 		var rule *selection.AvailabilityRule
@@ -323,7 +323,7 @@ func offeringSelectionCatalog(catalog map[int64]domain.CareOffering) (map[int64]
 	return result, nil
 }
 
-func materializeOfferingReview(child careplan.OfferingReviewChild, phase careplan.OfferingReviewPhase, requested []careplan.OfferingReviewSelection, current []careplan.OfferingReviewBooking, catalog map[int64]domain.CareOffering, confirmed bool) ([]selection.Selection, error) {
+func materializeOfferingReview(child careplan.OfferingReviewChild, phase careplan.OfferingReviewPhase, requested []careplan.OfferingReviewSelection, current []careplan.OfferingReviewBooking, catalog map[int64]careplan.CareOffering, confirmed bool) ([]selection.Selection, error) {
 	submit, err := offeringReviewSubmission(child, requested, catalog)
 	if err != nil {
 		return nil, err
@@ -342,7 +342,7 @@ func materializeOfferingReview(child careplan.OfferingReviewChild, phase carepla
 
 // offeringReviewSubmission turns the requested selections into one child
 // submission; every offering must be in the bookable catalog.
-func offeringReviewSubmission(child careplan.OfferingReviewChild, requested []careplan.OfferingReviewSelection, catalog map[int64]domain.CareOffering) (selection.Child, error) {
+func offeringReviewSubmission(child careplan.OfferingReviewChild, requested []careplan.OfferingReviewSelection, catalog map[int64]careplan.CareOffering) (selection.Child, error) {
 	submit := selection.Child{TargetGradeLevel: child.Grade}
 	for _, item := range requested {
 		if item.OfferingID <= 0 {
@@ -364,7 +364,7 @@ func offeringReviewSubmission(child careplan.OfferingReviewChild, requested []ca
 
 // offeringReviewGrandfathered marks the child's current manual and automatic
 // bookings and reports whether any current care booking covers days.
-func offeringReviewGrandfathered(current []careplan.OfferingReviewBooking, catalog map[int64]domain.CareOffering) (selection.Grandfathered, bool) {
+func offeringReviewGrandfathered(current []careplan.OfferingReviewBooking, catalog map[int64]careplan.CareOffering) (selection.Grandfathered, bool) {
 	grandfathered := selection.Grandfathered{Manual: map[int64]bool{}, Automatic: map[int64]bool{}}
 	hadCareDays := false
 	for _, booking := range current {
@@ -381,7 +381,7 @@ func offeringReviewGrandfathered(current []careplan.OfferingReviewBooking, catal
 	return grandfathered, hadCareDays
 }
 
-func offeringBookingHasCareDays(offering domain.CareOffering, booking careplan.OfferingReviewBooking) bool {
+func offeringBookingHasCareDays(offering careplan.CareOffering, booking careplan.OfferingReviewBooking) bool {
 	if !offering.CountsAsCare {
 		return false
 	}
@@ -391,7 +391,7 @@ func offeringBookingHasCareDays(offering domain.CareOffering, booking careplan.O
 	return len(booking.SelectedDays) > 0
 }
 
-func offeringReviewDiff(current []careplan.OfferingReviewBooking, desired []selection.Selection, catalog map[int64]domain.CareOffering) ([]careplan.OfferingReviewDiffEntry, map[int64]bool) {
+func offeringReviewDiff(current []careplan.OfferingReviewBooking, desired []selection.Selection, catalog map[int64]careplan.CareOffering) ([]careplan.OfferingReviewDiffEntry, map[int64]bool) {
 	ids := make([]int64, 0, len(current)+len(desired))
 	before, after := map[int64][]string{}, map[int64][]string{}
 	for _, booking := range current {

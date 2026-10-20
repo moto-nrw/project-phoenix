@@ -65,7 +65,7 @@ import (
 // staff deletions and every owner's retention step.
 func workerRetentionOf(
 	db transactionruntime.Database, logger *slog.Logger, settings settingsCompose.BatchSettingsService, audit auditCommand,
-	fleet devicefleet.Capability, carePlan *carePlanModule.Module, parentMessages communication.ParentMessageCleanup,
+	fleet devicefleet.Capability, carePlan carePlanModule.Owner, parentMessages communication.ParentMessageCleanup,
 	rejected enrollmentOwner.RejectedEnrollmentCleaner, studentDeletion *studentdeletion.Workflow, identity *identityaccess.Module,
 	announcements communication.ParentAnnouncementCapability,
 ) (workerRetention, error) {
@@ -223,7 +223,7 @@ func ComposeWorker(db transactionruntime.Database, env RootEnvironment, hub *rea
 		persons          *peopleCompose.Directory
 		timetableOwner   timetable.Owner
 		timetableRepos   TimetableRepositories
-		carePlan         *carePlanModule.Module
+		carePlan         carePlanModule.Owner
 		appointments     appointmentsModule.Capability
 		operatorAuditLog OperatorAuditEntries
 		mealPlanSettings *mealplanCompose.Settings
