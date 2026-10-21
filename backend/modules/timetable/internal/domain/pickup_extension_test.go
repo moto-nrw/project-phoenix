@@ -10,10 +10,11 @@ import (
 func TestPickupExtensionCalendarDatesAreTyped(t *testing.T) {
 	t.Parallel()
 
-	assert.NotEqual(t, "string", reflect.TypeOf(PickupExtensionTask{}.Date).Name())
-	assert.NotEqual(t, "string", reflect.TypeOf(PickupExtensionTask{}.EffectiveFrom).Name())
-	assert.NotEqual(t, "string", reflect.TypeOf(PickupExtensionBlock{}.ValidFrom).Name())
-	assert.NotEqual(t, "string", reflect.TypeOf(PickupExtensionInstance{}.Date).Name())
+	dateType := reflect.TypeFor[Date]()
+	assert.Equal(t, dateType, reflect.TypeOf(PickupExtensionTask{}.Date))
+	assert.Equal(t, dateType, reflect.TypeOf(PickupExtensionTask{}.EffectiveFrom))
+	assert.Equal(t, dateType, reflect.TypeOf(PickupExtensionBlock{}.ValidFrom))
+	assert.Equal(t, dateType, reflect.TypeOf(PickupExtensionInstance{}.Date))
 }
 
 func TestOpenPickupExtensionBlocks(t *testing.T) {

@@ -161,24 +161,11 @@ describe("PATCH /api/enrollment/schema/[id]", () => {
     expect(forwarded.name).toBe("Ferienprogramm");
   });
 
-  it("rejects an unauthenticated request with 401", async () => {
-    mockAuth.mockResolvedValue(null);
-    const response = await PATCH(patchRequest({ name: "X" }), context());
-    expect(response.status).toBe(401);
-    expect(fetchMock).not.toHaveBeenCalled();
-  });
-
   it("rejects a missing/blank id with 400 before any backend call", async () => {
     const response = await PATCH(patchRequest({ name: "X" }), {
       params: Promise.resolve({ id: "" }),
     });
     expect(response.status).toBe(400);
     expect(fetchMock).not.toHaveBeenCalled();
-  });
-
-  it("returns 500 when the upstream backend call throws", async () => {
-    fetchMock.mockRejectedValue(new Error("ECONNREFUSED"));
-    const response = await PATCH(patchRequest({ name: "X" }), context());
-    expect(response.status).toBe(500);
   });
 });

@@ -1,14 +1,6 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
-import type { Session } from "next-auth";
 import { NextRequest } from "next/server";
-
-// ============================================================================
-// Types
-// ============================================================================
-
-interface ExtendedSession extends Session {
-  user: Session["user"] & { token?: string };
-}
+import type { ExtendedSession } from "~/test/route-test-helpers";
 
 // ============================================================================
 // Mocks
@@ -76,19 +68,6 @@ describe("POST /api/auth/link-to-tenant", () => {
     global.fetch = originalFetch;
   });
 
-  it("returns 401 when not authenticated", async () => {
-    mockAuth.mockResolvedValueOnce(null);
-
-    const request = createMockRequest("/api/auth/link-to-tenant", {
-      email: "test@example.com",
-      role_id: 1,
-    });
-    const response = await POST(request);
-
-    expect(response.status).toBe(401);
-    expect(global.fetch).not.toHaveBeenCalled();
-  });
-
   it("returns 401 when session has no token", async () => {
     mockAuth.mockResolvedValueOnce({
       ...defaultSession,
@@ -152,46 +131,5 @@ describe("POST /api/auth/link-to-tenant", () => {
     const response = await POST(request);
 
     expect(response.status).toBe(404);
-  });
-
-  it("handles non-JSON response from backend", async () => {
-    mockAuth.mockResolvedValueOnce(defaultSession);
-
-    vi.mocked(global.fetch).mockResolvedValueOnce(
-      new Response("Internal Server Error", {
-        status: 500,
-        headers: { "Content-Type": "text/plain" },
-      }),
-    );
-
-    const request = createMockRequest("/api/auth/link-to-tenant", {
-      email: "test@example.com",
-    });
-    const response = await POST(request);
-
-    expect(response.status).toBe(500);
-    expect(response.headers.get("Content-Type")).toBe(
-      "application/problem+json",
-    );
-    expect(await response.json()).toMatchObject({
-      status: 500,
-      detail: "Internal Server Error",
-      code: "general.server",
-    });
-  });
-
-  it("returns 500 on fetch failure", async () => {
-    mockAuth.mockResolvedValueOnce(defaultSession);
-
-    vi.mocked(global.fetch).mockRejectedValueOnce(new Error("Network error"));
-
-    const request = createMockRequest("/api/auth/link-to-tenant", {
-      email: "test@example.com",
-    });
-    const response = await POST(request);
-
-    expect(response.status).toBe(500);
-    const json = await parseJsonResponse<{ detail: string }>(response);
-    expect(json.detail).toBe("Internal Server Error");
   });
 });

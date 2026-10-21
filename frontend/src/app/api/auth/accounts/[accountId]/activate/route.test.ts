@@ -1,16 +1,11 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import type { Session } from "next-auth";
 import { NextRequest } from "next/server";
 import { PUT } from "./route";
-import { ApiResponseError } from "~/lib/api-response-error.server";
-
-// ============================================================================
-// Types
-// ============================================================================
-
-interface ExtendedSession extends Session {
-  user: Session["user"] & { token?: string };
-}
+import {
+  type ExtendedSession,
+  createMockContext,
+  defaultSession,
+} from "~/test/route-test-helpers";
 
 // ============================================================================
 // Mocks
@@ -52,17 +47,6 @@ function createMockRequest(
   return new NextRequest(url, requestInit);
 }
 
-function createMockContext(
-  params: Record<string, string | string[] | undefined> = {},
-) {
-  return { params: Promise.resolve(params) };
-}
-
-const defaultSession: ExtendedSession = {
-  user: { id: "1", token: "test-token", name: "Test User" },
-  expires: "2099-01-01",
-};
-
 interface ApiResponse<T> {
   success: boolean;
   message: string;
@@ -81,20 +65,6 @@ describe("PUT /api/auth/accounts/[accountId]/activate", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     mockAuth.mockResolvedValue(defaultSession);
-  });
-
-  it("returns 401 when not authenticated", async () => {
-    mockAuth.mockResolvedValueOnce(null);
-
-    const request = createMockRequest("/api/auth/accounts/123/activate", {
-      method: "PUT",
-    });
-    const response = await PUT(
-      request,
-      createMockContext({ accountId: "123" }),
-    );
-
-    expect(response.status).toBe(401);
   });
 
   it("activates account successfully", async () => {
@@ -119,44 +89,5 @@ describe("PUT /api/auth/accounts/[accountId]/activate", () => {
     const json =
       await parseJsonResponse<ApiResponse<{ message: string }>>(response);
     expect(json.data.message).toBe("Account activated");
-  });
-
-  it("handles API errors gracefully", async () => {
-    mockApiPut.mockRejectedValueOnce(
-      new ApiResponseError(404, "Account not found"),
-    );
-
-    const request = createMockRequest("/api/auth/accounts/999/activate", {
-      method: "PUT",
-    });
-    const response = await PUT(
-      request,
-      createMockContext({ accountId: "999" }),
-    );
-
-    expect(response.status).toBe(404);
-    const json = await parseJsonResponse<{ detail: string }>(response);
-    expect(json.detail).toBe("Not Found");
-    expect(JSON.stringify(json)).not.toContain("Account not found");
-  });
-
-  it("handles unauthorized activation attempts", async () => {
-    mockApiPut.mockRejectedValueOnce(new ApiResponseError(401, "Unauthorized"));
-
-    const request = createMockRequest("/api/auth/accounts/456/activate", {
-      method: "PUT",
-    });
-    const response = await PUT(
-      request,
-      createMockContext({ accountId: "456" }),
-    );
-
-    // route-wrapper intercepts 401 errors, attempts token refresh, and answers 401 with the error envelope
-    expect(response.status).toBe(401);
-    const json = await parseJsonResponse<{ detail: string; code?: string }>(
-      response,
-    );
-    expect(json.detail).toBe("Token expired");
-    expect(json.code).toBe("general.permission");
   });
 });

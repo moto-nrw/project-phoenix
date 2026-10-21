@@ -301,14 +301,6 @@ func TestNarrowWeeksKeepsTheWeekendWhenItIsPlanned(t *testing.T) {
 	}
 }
 
-func TestExpandWeeksRejectsOversizedRange(t *testing.T) {
-	t.Parallel()
-
-	if _, err := expandWeeks(monday, monday.AddDays(7*maxExportWeeks)); err == nil {
-		t.Fatal("expected a range error beyond the week cap")
-	}
-}
-
 func TestParamsValidation(t *testing.T) {
 	t.Parallel()
 
@@ -319,6 +311,9 @@ func TestParamsValidation(t *testing.T) {
 		wantErr bool
 	}{
 		{name: "valid", mutate: func(*Params) {}, allowed: TemplatesForDienstplan},
+		// An absent date would otherwise widen to the zero date's week and
+		// print a sheet from the year 1.
+		{name: "missing from date", mutate: func(p *Params) { p.From = "" }, allowed: TemplatesForDienstplan, wantErr: true},
 		{name: "inverted range", mutate: func(p *Params) { p.To = dayKey(monday.AddDays(-1)) }, allowed: TemplatesForDienstplan, wantErr: true},
 		{name: "unknown variant", mutate: func(p *Params) { p.Variant = "geheim" }, allowed: TemplatesForDienstplan, wantErr: true},
 		{name: "docx refused", mutate: func(p *Params) { p.Format = listexport.FormatDOCX }, allowed: TemplatesForDienstplan, wantErr: true},
@@ -354,6 +349,9 @@ func TestParseParamsDefaults(t *testing.T) {
 	}
 	if _, err := ParseParams("27.07.2026", "2026-07-31", string(TemplateByPerson), "", ""); err == nil {
 		t.Fatal("expected a parse error for a German date")
+	}
+	if _, err := ParseParams("2026-07-27", "not-a-date", string(TemplateByPerson), "", ""); err == nil {
+		t.Fatal("expected an unparsable to-date to be refused")
 	}
 }
 

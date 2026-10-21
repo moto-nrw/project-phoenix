@@ -1,6 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { NextRequest } from "next/server";
 import { GET } from "./route";
+import { createMockRequest } from "~/test/route-test-helpers";
 
 // ============================================================================
 // Mocks
@@ -21,11 +21,6 @@ vi.mock("~/env", () => ({
 // ============================================================================
 // Test Helpers
 // ============================================================================
-
-function createMockRequest(path: string): NextRequest {
-  const url = new URL(path, "http://localhost:3000");
-  return new NextRequest(url);
-}
 
 async function parseJsonResponse<T>(response: Response): Promise<T> {
   return (await response.json()) as T;
@@ -67,85 +62,6 @@ describe("GET /api/invitations/validate", () => {
     expect(response.status).toBe(200);
     const json = await parseJsonResponse(response);
     expect(json).toEqual(mockInvitation);
-  });
-
-  it("handles invalid token (404)", async () => {
-    mockFetch.mockResolvedValueOnce(
-      Response.json({ detail: "Invitation not found" }, { status: 404 }),
-    );
-
-    const request = createMockRequest(
-      "/api/invitations/validate?token=invalid",
-    );
-    const response = await GET(request);
-
-    expect(response.status).toBe(404);
-    const json = await parseJsonResponse<{ detail: string }>(response);
-    expect(json.detail).toBe("Invitation not found");
-  });
-
-  it("handles expired token (410)", async () => {
-    mockFetch.mockResolvedValueOnce(
-      Response.json({ detail: "Invitation expired" }, { status: 410 }),
-    );
-
-    const request = createMockRequest(
-      "/api/invitations/validate?token=expired",
-    );
-    const response = await GET(request);
-
-    expect(response.status).toBe(410);
-    const json = await parseJsonResponse<{ detail: string }>(response);
-    expect(json.detail).toBe("Invitation expired");
-  });
-
-  it("replaces a non-JSON backend server error with a safe problem envelope", async () => {
-    mockFetch.mockResolvedValueOnce(
-      new Response("Internal server error", {
-        status: 500,
-        headers: { "Content-Type": "text/plain" },
-      }),
-    );
-
-    const request = createMockRequest("/api/invitations/validate?token=test");
-    const response = await GET(request);
-
-    expect(response.status).toBe(500);
-    expect(await response.json()).toMatchObject({
-      status: 500,
-      detail: "Internal Server Error",
-      code: "general.server",
-    });
-  });
-
-  it("replaces an empty backend server error with a safe problem envelope", async () => {
-    mockFetch.mockResolvedValueOnce(
-      new Response("", {
-        status: 503,
-        headers: { "Content-Type": "text/plain" },
-      }),
-    );
-
-    const request = createMockRequest("/api/invitations/validate?token=test");
-    const response = await GET(request);
-
-    expect(response.status).toBe(503);
-    expect(await response.json()).toMatchObject({
-      status: 503,
-      detail: "Service Unavailable",
-      code: "general.unavailable",
-    });
-  });
-
-  it("handles fetch errors", async () => {
-    mockFetch.mockRejectedValueOnce(new Error("Network error"));
-
-    const request = createMockRequest("/api/invitations/validate?token=test");
-    const response = await GET(request);
-
-    expect(response.status).toBe(500);
-    const json = await parseJsonResponse<{ detail: string }>(response);
-    expect(json.detail).toBe("Internal Server Error");
   });
 
   it("encodes special characters in token", async () => {

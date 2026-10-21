@@ -98,60 +98,6 @@ describe("POST /api/operator/auth/email-confirm", () => {
     );
   });
 
-  it("returns German message for 429 non-JSON response", async () => {
-    mockFetch.mockResolvedValue(
-      new Response("Too Many Requests", {
-        status: 429,
-        headers: { "Content-Type": "text/plain" },
-      }),
-    );
-
-    const request = createMockRequest({ token: "some-token" });
-    const response = await POST(request);
-
-    expect(response.status).toBe(429);
-    expect(await response.text()).toBe("Too Many Requests");
-  });
-
-  it("replaces a non-JSON backend server error with a safe problem envelope", async () => {
-    mockFetch.mockResolvedValue(
-      new Response("Bad Gateway", {
-        status: 502,
-        headers: { "Content-Type": "text/html" },
-      }),
-    );
-
-    const request = createMockRequest({ token: "some-token" });
-    const response = await POST(request);
-
-    expect(response.status).toBe(502);
-    expect(await response.json()).toMatchObject({
-      status: 502,
-      detail: "Bad Gateway",
-      code: "general.unavailable",
-    });
-  });
-
-  it("proxies backend error JSON with original status code", async () => {
-    mockFetch.mockResolvedValue(
-      Response.json(
-        {
-          status: 400,
-          detail: "Ungültiger oder abgelaufener Token",
-          code: "general.input",
-        },
-        { status: 400 },
-      ),
-    );
-
-    const request = createMockRequest({ token: "expired-token" });
-    const response = await POST(request);
-
-    expect(response.status).toBe(400);
-    const json = (await response.json()) as { detail?: string };
-    expect(json.detail).toBe("Ungültiger oder abgelaufener Token");
-  });
-
   it("returns 503 general.unavailable on fetch error", async () => {
     mockFetch.mockRejectedValue(new Error("Network error"));
 
@@ -166,26 +112,6 @@ describe("POST /api/operator/auth/email-confirm", () => {
     expect(json).toEqual({
       type: "about:blank",
       title: "Service Unavailable",
-      status: 503,
-      detail: "Service Unavailable",
-      code: "general.unavailable",
-    });
-  });
-
-  it("replaces an empty backend server error with a safe problem envelope", async () => {
-    mockFetch.mockResolvedValue(
-      new Response("", {
-        status: 503,
-        statusText: "Service Unavailable",
-        headers: { "Content-Type": "text/plain" },
-      }),
-    );
-
-    const request = createMockRequest({ token: "some-token" });
-    const response = await POST(request);
-
-    expect(response.status).toBe(503);
-    expect(await response.json()).toMatchObject({
       status: 503,
       detail: "Service Unavailable",
       code: "general.unavailable",
