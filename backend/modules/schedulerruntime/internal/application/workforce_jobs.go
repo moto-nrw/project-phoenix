@@ -113,7 +113,7 @@ func (s *Scheduler) checkAndRunAutoCheckout(ctx context.Context, task *Scheduled
 	defer cancel()
 
 	s.forEachTenantSettings(ctx, "auto-checkout", func(tenantCtx context.Context, tenantID int64) error {
-		// Opt-in per tenant; no env var fallback (new feature, settings-only).
+		// Opt-in per tenant.
 		enabled := s.resolveBoolSetting(tenantCtx, settingTrackingAutoCheckoutEnabled, false)
 		if !enabled {
 			return nil

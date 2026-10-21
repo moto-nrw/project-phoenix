@@ -103,7 +103,7 @@ func (s *Scheduler) checkAndRunAutoStart(ctx context.Context, task *ScheduledTas
 	defer cancel()
 
 	s.forEachTenantSettings(ctx, "timetable-auto-start", func(tenantCtx context.Context, tenantID int64) error {
-		if !s.resolveBoolSetting(tenantCtx, settingTimetableEnabled, false) {
+		if !s.resolveBoolSetting(tenantCtx, settingTimetableEnabled, true) {
 			return nil
 		}
 		if !s.resolveBoolSetting(tenantCtx, settingTimetableAutoStartPlanned, false) {

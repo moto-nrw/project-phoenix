@@ -1759,6 +1759,19 @@ func TestResolveSettings_OverrideWins(t *testing.T) {
 	assert.Equal(t, 45, timeout)
 }
 
+func TestResolveSettings_OverrideEqualToDefaultWins(t *testing.T) {
+	t.Parallel()
+	s := unitScheduler(&unitSchedulerDependencies{
+		settings: registrySettings{
+			overrides: map[string]any{settingSessionEndTime: "18:00"},
+			defaults:  map[string]any{settingSessionEndTime: "18:00"},
+		},
+		logger: slog.Default()})
+	s.getenv = envEverywhere("17:00")
+
+	assert.Equal(t, "18:00", s.resolveStringSetting(context.Background(), settingSessionEndTime, "16:00"))
+}
+
 func TestResolveSettings_WithoutOverrideUseRegistryDefault(t *testing.T) {
 	t.Parallel()
 	// The call-site literals differ from the registry on purpose: only a
