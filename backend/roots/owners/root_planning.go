@@ -24,7 +24,7 @@ import (
 func BuildActivities(owner TimetableOwner, timetableOwner timetable.Capability, sessions presenceCompose.SessionRecords, people PeopleRows) (activityContract.ActivityService, error) {
 	repos := owner.Repositories
 	return arrivalTimetable.NewService(
-		timetableOwner, repos.ActivitySchedule, repos.ActivitySupervisor, repos.StudentEnrollment,
+		timetableOwner, repos.ActivitySchedule, repos.Directories,
 		sessions, NewTimetableStaff(people.Staff), NewTimetableRosterStudents(people.Students),
 	)
 }

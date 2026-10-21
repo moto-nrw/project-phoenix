@@ -243,6 +243,7 @@ func templateEndUnitService(
 ) *TemplateSplitService {
 	return &TemplateSplitService{
 		deps: TemplateSplitDependencies{
+			Directories:    fakeDirectories(),
 			GroupRepo:      groupRepo,
 			ScheduleRepo:   scheduleRepo,
 			EnrollmentRepo: enrollmentRepo,
@@ -320,17 +321,17 @@ func (r *templateEndUnitScheduleRepo) CapScheduleValidUntil(_ context.Context, g
 }
 
 type templateEndUnitEnrollmentRepo struct {
-	ports.ActivityEnrollmentRecords
+	timetable.StudentEnrollmentCapability
 	capped  int64
 	err     error
 	groupID int64
 }
 
-func (r *templateEndUnitEnrollmentRepo) FindByGroupID(_ context.Context, _ int64) ([]*activityContract.StudentEnrollment, error) {
+func (r *templateEndUnitEnrollmentRepo) ListStudentEnrollments(context.Context, timetable.StudentEnrollmentFilter) ([]timetable.StudentEnrollment, error) {
 	return nil, nil
 }
 
-func (r *templateEndUnitEnrollmentRepo) CapActiveByGroup(_ context.Context, groupID int64, _ activityContract.Date) (int64, error) {
+func (r *templateEndUnitEnrollmentRepo) CapActiveStudentEnrollments(_ context.Context, groupID int64, _ string) (int64, error) {
 	r.groupID = groupID
 	if r.err != nil {
 		return 0, r.err
@@ -339,17 +340,17 @@ func (r *templateEndUnitEnrollmentRepo) CapActiveByGroup(_ context.Context, grou
 }
 
 type templateEndUnitSupervisorRepo struct {
-	ports.PlannedSupervisorRecords
+	timetable.PlannedSupervisorCapability
 	capped  int64
 	err     error
 	groupID int64
 }
 
-func (r *templateEndUnitSupervisorRepo) FindByGroupID(_ context.Context, _ int64) ([]*activityContract.SupervisorPlanned, error) {
+func (r *templateEndUnitSupervisorRepo) ListPlannedSupervisors(context.Context, timetable.PlannedSupervisorFilter) ([]timetable.PlannedSupervisor, error) {
 	return nil, nil
 }
 
-func (r *templateEndUnitSupervisorRepo) CapActiveByGroup(_ context.Context, groupID int64, _ activityContract.Date) (int64, error) {
+func (r *templateEndUnitSupervisorRepo) CapActivePlannedSupervisors(_ context.Context, groupID int64, _ string) (int64, error) {
 	r.groupID = groupID
 	if r.err != nil {
 		return 0, r.err

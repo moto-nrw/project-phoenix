@@ -6,6 +6,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/moto-nrw/project-phoenix/modules/timetable"
 	activityContract "github.com/moto-nrw/project-phoenix/modules/timetable/activitycontract"
 
 	"github.com/moto-nrw/project-phoenix/modules/timetable/ports"
@@ -17,23 +18,29 @@ import (
 var errConversionMock = errors.New("conversion mock failure")
 
 type conversionEnrollmentRepo struct {
-	ports.ActivityEnrollmentRecords
+	timetable.StudentEnrollmentCapability
 	rows []*activityContract.StudentEnrollment
 	err  error
 }
 
-func (r *conversionEnrollmentRepo) FindByGroupID(context.Context, int64) ([]*activityContract.StudentEnrollment, error) {
-	return r.rows, r.err
+func (r *conversionEnrollmentRepo) ListStudentEnrollments(context.Context, timetable.StudentEnrollmentFilter) ([]timetable.StudentEnrollment, error) {
+	if r.err != nil {
+		return nil, r.err
+	}
+	return fakeEnrollments(r.rows), nil
 }
 
 type conversionSupervisorRepo struct {
-	ports.PlannedSupervisorRecords
+	timetable.PlannedSupervisorCapability
 	rows []*activityContract.SupervisorPlanned
 	err  error
 }
 
-func (r *conversionSupervisorRepo) FindByGroupID(context.Context, int64) ([]*activityContract.SupervisorPlanned, error) {
-	return r.rows, r.err
+func (r *conversionSupervisorRepo) ListPlannedSupervisors(context.Context, timetable.PlannedSupervisorFilter) ([]timetable.PlannedSupervisor, error) {
+	if r.err != nil {
+		return nil, r.err
+	}
+	return fakeSupervisors(r.rows), nil
 }
 
 // conversionGroupTargetRepo reaches target students, so templateAssignmentsOn
@@ -99,6 +106,7 @@ func TestTemplateAssignmentsOn_EnrollmentLoadError(t *testing.T) {
 	t.Parallel()
 
 	svc := NewTemplateService(TemplateServiceDependencies{
+		Directories:            fakeDirectories(),
 		StudentEnrollmentRepo:  &conversionEnrollmentRepo{err: errConversionMock},
 		ActivitySupervisorRepo: &conversionSupervisorRepo{},
 		ActivityGroupRepo:      &conversionPlainGroupRepo{},
@@ -114,6 +122,7 @@ func TestTemplateAssignmentsOn_SupervisorLoadError(t *testing.T) {
 
 	from := conversionValidFrom()
 	svc := NewTemplateService(TemplateServiceDependencies{
+		Directories:            fakeDirectories(),
 		StudentEnrollmentRepo:  &conversionEnrollmentRepo{rows: []*activityContract.StudentEnrollment{}},
 		ActivitySupervisorRepo: &conversionSupervisorRepo{err: errConversionMock},
 		ActivityGroupRepo:      &conversionPlainGroupRepo{},
@@ -129,6 +138,7 @@ func TestTemplateAssignmentsOn_TargetStudentLoadError(t *testing.T) {
 
 	from := conversionValidFrom()
 	svc := NewTemplateService(TemplateServiceDependencies{
+		Directories:            fakeDirectories(),
 		StudentEnrollmentRepo:  &conversionEnrollmentRepo{},
 		ActivitySupervisorRepo: &conversionSupervisorRepo{},
 		ActivityGroupRepo:      &conversionGroupTargetRepo{err: errConversionMock},
@@ -167,6 +177,7 @@ func TestTemplateAssignmentsOn_FiltersDuplicatesTargetsAndInvalidRows(t *testing
 	}
 
 	svc := NewTemplateService(TemplateServiceDependencies{
+		Directories:            fakeDirectories(),
 		StudentEnrollmentRepo:  &conversionEnrollmentRepo{rows: enrollments},
 		ActivitySupervisorRepo: &conversionSupervisorRepo{rows: supervisors},
 		ActivityGroupRepo: &conversionGroupTargetRepo{
@@ -186,6 +197,7 @@ func TestTemplateAssignmentsOn_SkipsTargetBranchWithoutTargetRepo(t *testing.T) 
 
 	from := conversionValidFrom()
 	svc := NewTemplateService(TemplateServiceDependencies{
+		Directories: fakeDirectories(),
 		StudentEnrollmentRepo: &conversionEnrollmentRepo{
 			rows: []*activityContract.StudentEnrollment{conversionEnrollment(41, from)},
 		},

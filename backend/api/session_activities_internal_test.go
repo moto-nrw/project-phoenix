@@ -22,7 +22,7 @@ func TestSessionActivitiesPreserveTimetableWireProjection(t *testing.T) {
 	ctx := testpkg.Ctx(t)
 	directory := owners.NewSessionActivities(reposTimetable.GroupReads())
 	// The activities service serves the retained activity group rows.
-	activities, err := timetableCompose.NewService(reposTimetable.Timetable, nil, nil, nil, nil, nil, nil)
+	activities, err := timetableCompose.NewService(reposTimetable.Timetable, nil, reposTimetable.Directories, nil, nil, nil)
 	require.NoError(t, err)
 	want, err := activities.GetGroup(ctx, fixture.ID)
 	require.NoError(t, err)

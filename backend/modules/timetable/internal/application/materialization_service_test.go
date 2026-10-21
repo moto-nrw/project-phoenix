@@ -559,11 +559,11 @@ func (r materializationFakeScheduleRepo) ListSchedules(context.Context, timetabl
 }
 
 type materializationFakeEnrollmentRepo struct {
-	ports.ActivityEnrollmentRecords
+	timetable.StudentEnrollmentQuery
 	err error
 }
 
-func (r materializationFakeEnrollmentRepo) FindByGroupID(context.Context, int64) ([]*activityContract.StudentEnrollment, error) {
+func (r materializationFakeEnrollmentRepo) ListStudentEnrollments(context.Context, timetable.StudentEnrollmentFilter) ([]timetable.StudentEnrollment, error) {
 	if r.err != nil {
 		return nil, r.err
 	}
@@ -571,11 +571,11 @@ func (r materializationFakeEnrollmentRepo) FindByGroupID(context.Context, int64)
 }
 
 type materializationFakeSupervisorRepo struct {
-	ports.PlannedSupervisorRecords
+	timetable.PlannedSupervisorQuery
 	err error
 }
 
-func (r materializationFakeSupervisorRepo) FindByGroupID(context.Context, int64) ([]*activityContract.SupervisorPlanned, error) {
+func (r materializationFakeSupervisorRepo) ListPlannedSupervisors(context.Context, timetable.PlannedSupervisorFilter) ([]timetable.PlannedSupervisor, error) {
 	if r.err != nil {
 		return nil, r.err
 	}
@@ -1204,8 +1204,8 @@ func TestScheduleNotStartedOn(t *testing.T) {
 func newMaterializationForTest(
 	groupRepo timetable.ActivityGroupQuery,
 	scheduleRepo timetable.ScheduleQuery,
-	enrollmentRepo ports.ActivityEnrollmentRecords,
-	supervisorRepo ports.PlannedSupervisorRecords,
+	enrollmentRepo timetable.StudentEnrollmentQuery,
+	supervisorRepo timetable.PlannedSupervisorQuery,
 	periodRepo ports.CalendarPeriodRecords,
 	instanceRepo ports.ActivityInstanceRecords,
 	staffRepo ports.InstanceStaffRecords,
@@ -1221,6 +1221,7 @@ func newMaterializationForTest(
 		ScheduleRepo:   scheduleRepo,
 		EnrollmentRepo: enrollmentRepo,
 		SupervisorRepo: supervisorRepo,
+		Directories:    fakeDirectories(),
 		PeriodRepo:     periodRepo,
 		InstanceRepo:   instanceRepo,
 		StaffRepo:      staffRepo,

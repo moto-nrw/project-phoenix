@@ -12,10 +12,10 @@ import (
 
 // ActivityService implements the activityContract.ActivityService interface
 type ActivityService struct {
-	timetable       timetable.Capability
-	scheduleRepo    timetable.ScheduleCapability
-	supervisorRepo  ports.PlannedSupervisorRecords
-	enrollmentRepo  ports.ActivityEnrollmentRecords
+	timetable    timetable.Capability
+	scheduleRepo timetable.ScheduleCapability
+	// directories name the supervisors' persons and the enrolled children.
+	directories     ports.RepositoryDirectories
 	activeGroupRepo ActivityOccupancy
 	staffRepo       ports.LifecycleStaff
 	studentRepo     ActivityStudents
@@ -29,8 +29,7 @@ type ActivityOccupancy interface {
 func NewActivityService(
 	timetableCapability timetable.Capability,
 	scheduleRepo timetable.ScheduleCapability,
-	supervisorRepo ports.PlannedSupervisorRecords,
-	enrollmentRepo ports.ActivityEnrollmentRecords,
+	directories ports.RepositoryDirectories,
 	activeGroupRepo ActivityOccupancy,
 	staffRepo ports.LifecycleStaff,
 	studentRepo ActivityStudents,
@@ -38,8 +37,7 @@ func NewActivityService(
 	return &ActivityService{
 		timetable:       timetableCapability,
 		scheduleRepo:    scheduleRepo,
-		supervisorRepo:  supervisorRepo,
-		enrollmentRepo:  enrollmentRepo,
+		directories:     directories,
 		activeGroupRepo: activeGroupRepo,
 		staffRepo:       staffRepo,
 		studentRepo:     studentRepo,
@@ -175,7 +173,7 @@ func (s *ActivityService) createSupervisorsInTx(ctx context.Context, txService a
 			return &activityContract.ActivityError{Op: opValidateSupervisor, Err: err}
 		}
 
-		if err := txService.(*ActivityService).supervisorRepo.Create(ctx, supervisor); err != nil {
+		if err := createLegacyPlannedSupervisor(ctx, txService.(*ActivityService).timetable, supervisor); err != nil {
 			return &activityContract.ActivityError{Op: opCreateSupervisor, Err: err}
 		}
 	}
@@ -348,12 +346,20 @@ func deleteGroupRows[E any](ctx context.Context, groupID int64, find func(contex
 
 // deleteGroupEnrollments deletes all enrollments for a group
 func deleteGroupEnrollments(ctx context.Context, service *ActivityService, groupID int64) error {
-	return deleteGroupRows(ctx, groupID, service.enrollmentRepo.FindByGroupID, func(row *activityContract.StudentEnrollment) int64 { return row.ID }, service.enrollmentRepo.Delete)
+	return deleteGroupRows(ctx, groupID, func(ctx context.Context, id int64) ([]*activityContract.StudentEnrollment, error) {
+		return groupStudentEnrollments(ctx, service.timetable, service.directories, id)
+	}, func(row *activityContract.StudentEnrollment) int64 { return row.ID }, func(ctx context.Context, id int64) error {
+		return deleteLegacyStudentEnrollment(ctx, service.timetable, id)
+	})
 }
 
 // deleteGroupSupervisors deletes all supervisors for a group
 func deleteGroupSupervisors(ctx context.Context, service *ActivityService, groupID int64) error {
-	return deleteGroupRows(ctx, groupID, service.supervisorRepo.FindByGroupID, func(row *activityContract.SupervisorPlanned) int64 { return row.ID }, service.supervisorRepo.Delete)
+	return deleteGroupRows(ctx, groupID, func(ctx context.Context, id int64) ([]*activityContract.SupervisorPlanned, error) {
+		return groupPlannedSupervisors(ctx, service.timetable, service.directories, id)
+	}, func(row *activityContract.SupervisorPlanned) int64 { return row.ID }, func(ctx context.Context, id int64) error {
+		return deleteLegacyPlannedSupervisor(ctx, service.timetable, id)
+	})
 }
 
 // deleteGroupSchedules deletes all schedules for a group
@@ -460,7 +466,7 @@ func (s *ActivityService) GetGroupWithDetails(ctx context.Context, id int64) (*a
 		group.Category = LegacyServiceCategory(category)
 	}
 
-	supervisors, err := s.supervisorRepo.FindByGroupID(ctx, id)
+	supervisors, err := groupPlannedSupervisors(ctx, s.timetable, s.directories, id)
 	if err != nil {
 		return nil, nil, nil, &activityContract.ActivityError{Op: "get supervisors", Err: err}
 	}
@@ -528,7 +534,7 @@ func (s *ActivityService) CanModifyActivity(ctx context.Context, groupID int64, 
 	}
 
 	// Check if user is a supervisor
-	supervisors, err := s.supervisorRepo.FindByGroupID(ctx, groupID)
+	supervisors, err := groupPlannedSupervisors(ctx, s.timetable, s.directories, groupID)
 	if err != nil {
 		slog.Default().WarnContext(ctx, "failed to load supervisors for permission check",
 			slog.String("error", err.Error()))

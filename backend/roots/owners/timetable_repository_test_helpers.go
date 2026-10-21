@@ -191,7 +191,7 @@ func NewTimetableRoomRows(db transactionruntime.Database) (TimetableRoomRows, er
 // repository set (#3424 slice S2), for suites that compose a grade
 // transition or the Enrollment resync.
 func (r TimetableTestRepositories) RosterMaintenance(logger *slog.Logger, now func() time.Time) timetable.RosterMaintenance {
-	return timetableCompose.NewRosterReconciler(r.ActivityInstance, r.InstanceStudent, r.StudentEnrollment, logger, now)
+	return timetableCompose.NewRosterReconciler(r.ActivityInstance, r.InstanceStudent, r.StudentEnrollment, r.Directories, logger, now)
 }
 
 // NewTimetableTestRecurrenceLock composes the Timetable owner's tenant
@@ -218,7 +218,7 @@ func MustNewTimetableRecurrenceLock(db transactionruntime.Database) timetable.Re
 func (r TimetableTestRepositories) TimetableTemplateRows() timetableCompose.TemplateRows {
 	return timetableCompose.TemplateRows{
 		Groups: r.Timetable, Categories: r.ActivityCategory, Schedules: r.ActivitySchedule,
-		Enrollments: r.StudentEnrollment, Supervisors: r.ActivitySupervisor, Instances: r.ActivityInstance,
+		Enrollments: r.StudentEnrollment, Supervisors: r.ActivitySupervisor, Directories: r.Directories, Instances: r.ActivityInstance,
 		InstanceStaff: r.InstanceStaff, Participants: r.InstanceStudent, Timeframes: r.Timeframe,
 		CalendarPeriods: r.CalendarPeriod, Exceptions: r.ActivityException, EducationGroups: r.educationGroups,
 	}

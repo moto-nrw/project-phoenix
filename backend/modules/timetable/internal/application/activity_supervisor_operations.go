@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 
+	"github.com/moto-nrw/project-phoenix/modules/timetable"
 	activityContract "github.com/moto-nrw/project-phoenix/modules/timetable/activitycontract"
 )
 
@@ -29,7 +30,7 @@ func (s *ActivityService) addSupervisorInTx(ctx context.Context, txService activ
 		return nil, err
 	}
 
-	existingSupervisors, err := txService.(*ActivityService).supervisorRepo.FindByGroupID(ctx, groupID)
+	existingSupervisors, err := groupPlannedSupervisors(ctx, txService.(*ActivityService).timetable, txService.(*ActivityService).directories, groupID)
 	if err != nil {
 		return nil, &activityContract.ActivityError{Op: "get existing supervisors", Err: err}
 	}
@@ -52,11 +53,11 @@ func (s *ActivityService) addSupervisorInTx(ctx context.Context, txService activ
 		return nil, err
 	}
 
-	if err := txService.(*ActivityService).supervisorRepo.Create(ctx, supervisor); err != nil {
+	if err := createLegacyPlannedSupervisor(ctx, txService.(*ActivityService).timetable, supervisor); err != nil {
 		return nil, &activityContract.ActivityError{Op: opCreateSupervisor, Err: err}
 	}
 
-	createdSupervisor, err := txService.(*ActivityService).supervisorRepo.FindByID(ctx, supervisor.ID)
+	createdSupervisor, err := findLegacyPlannedSupervisor(ctx, txService.(*ActivityService).timetable, supervisor.ID)
 	if err != nil {
 		return nil, &activityContract.ActivityError{Op: "retrieve created supervisor", Err: err}
 	}
@@ -83,7 +84,7 @@ func (s *ActivityService) unsetPrimarySupervisorsInTx(ctx context.Context, txSer
 	for _, existing := range existingSupervisors {
 		if existing.IsPrimary {
 			existing.IsPrimary = false
-			if err := txService.(*ActivityService).supervisorRepo.Update(ctx, existing); err != nil {
+			if err := updateLegacyPlannedSupervisor(ctx, txService.(*ActivityService).timetable, existing); err != nil {
 				return &activityContract.ActivityError{Op: "update existing supervisor", Err: err}
 			}
 		}
@@ -104,25 +105,28 @@ func (s *ActivityService) validateStaffExists(ctx context.Context, staffID int64
 
 // GetSupervisor retrieves a supervisor by ID
 func (s *ActivityService) GetSupervisor(ctx context.Context, id int64) (*activityContract.SupervisorPlanned, error) {
-	supervisor, err := s.supervisorRepo.FindByID(ctx, id)
+	value, err := s.timetable.FindPlannedSupervisor(ctx, id)
 	if err != nil {
+		err = legacyPlannedSupervisorError("find by id", err)
 		// Convert "no rows" (bare or DatabaseError-wrapped) to our own error
 		if isRepositoryNotFound(err) {
 			return nil, &activityContract.ActivityError{Op: opGetSupervisor, Err: activityContract.ErrSupervisorNotFound}
 		}
 		return nil, &activityContract.ActivityError{Op: opGetSupervisor, Err: err}
 	}
-
-	return supervisor, nil
+	return legacyPlannedSupervisor(value), nil
 }
 
 // GetGroupSupervisors retrieves all supervisors for a group
 func (s *ActivityService) GetGroupSupervisors(ctx context.Context, groupID int64) ([]*activityContract.SupervisorPlanned, error) {
-	supervisors, err := s.supervisorRepo.FindByGroupID(ctx, groupID)
+	values, err := s.timetable.ListPlannedSupervisors(ctx, timetable.PlannedSupervisorFilter{GroupIDs: []int64{groupID}})
+	if err != nil {
+		return nil, &activityContract.ActivityError{Op: "get group supervisors", Err: legacyPlannedSupervisorError("find by group ID", err)}
+	}
+	supervisors, err := namePlannedSupervisors(ctx, s.directories, legacyPlannedSupervisors(values))
 	if err != nil {
 		return nil, &activityContract.ActivityError{Op: "get group supervisors", Err: err}
 	}
-
 	return supervisors, nil
 }
 
@@ -132,7 +136,7 @@ func (s *ActivityService) GetSupervisorsForGroups(ctx context.Context, groupIDs 
 		return make(map[int64][]*activityContract.SupervisorPlanned), nil
 	}
 
-	supervisors, err := s.supervisorRepo.FindByGroupIDs(ctx, groupIDs)
+	supervisors, err := groupsPlannedSupervisors(ctx, s.timetable, s.directories, groupIDs)
 	if err != nil {
 		return nil, &activityContract.ActivityError{Op: "get supervisors for groups", Err: err}
 	}
@@ -167,11 +171,11 @@ func (s *ActivityService) UpdateSupervisor(ctx context.Context, supervisor *acti
 		return nil, &activityContract.ActivityError{Op: opUpdateSupervisor, Err: err}
 	}
 
-	if err := s.supervisorRepo.Update(ctx, supervisor); err != nil {
+	if err := updateLegacyPlannedSupervisor(ctx, s.timetable, supervisor); err != nil {
 		return nil, &activityContract.ActivityError{Op: opUpdateSupervisor, Err: err}
 	}
 
-	updatedSupervisor, err := s.supervisorRepo.FindByID(ctx, supervisor.ID)
+	updatedSupervisor, err := findLegacyPlannedSupervisor(ctx, s.timetable, supervisor.ID)
 	if err != nil {
 		return nil, &activityContract.ActivityError{Op: opUpdateSupervisor, Err: err}
 	}
@@ -181,7 +185,7 @@ func (s *ActivityService) UpdateSupervisor(ctx context.Context, supervisor *acti
 
 // findExistingSupervisor finds and validates that a supervisor exists
 func (s *ActivityService) findExistingSupervisor(ctx context.Context, txService activityContract.ActivityService, supervisorID int64) (*activityContract.SupervisorPlanned, error) {
-	existingSupervisor, err := txService.(*ActivityService).supervisorRepo.FindByID(ctx, supervisorID)
+	existingSupervisor, err := findLegacyPlannedSupervisor(ctx, txService.(*ActivityService).timetable, supervisorID)
 	if err != nil {
 		if isRepositoryNotFound(err) {
 			return nil, activityContract.ErrSupervisorNotFound
@@ -201,7 +205,7 @@ func (s *ActivityService) handlePrimaryStatusChangeInTx(ctx context.Context, txS
 		return &activityContract.ActivityError{Op: opUpdateSupervisor, Err: errors.New("at least one supervisor must remain primary")}
 	}
 
-	otherSupervisors, err := txService.(*ActivityService).supervisorRepo.FindByGroupID(ctx, supervisor.GroupID)
+	otherSupervisors, err := groupPlannedSupervisors(ctx, txService.(*ActivityService).timetable, txService.(*ActivityService).directories, supervisor.GroupID)
 	if err != nil {
 		return &activityContract.ActivityError{Op: opFindGroupSupervisors, Err: err}
 	}
@@ -209,7 +213,7 @@ func (s *ActivityService) handlePrimaryStatusChangeInTx(ctx context.Context, txS
 	for _, other := range otherSupervisors {
 		if other.ID != supervisor.ID && other.IsPrimary {
 			other.IsPrimary = false
-			if err := txService.(*ActivityService).supervisorRepo.Update(ctx, other); err != nil {
+			if err := updateLegacyPlannedSupervisor(ctx, txService.(*ActivityService).timetable, other); err != nil {
 				return &activityContract.ActivityError{Op: "update other supervisor", Err: err}
 			}
 		}
@@ -220,7 +224,7 @@ func (s *ActivityService) handlePrimaryStatusChangeInTx(ctx context.Context, txS
 
 // DeleteSupervisor deletes a supervisor
 func (s *ActivityService) DeleteSupervisor(ctx context.Context, id int64) error {
-	supervisor, err := s.supervisorRepo.FindByID(ctx, id)
+	supervisor, err := findLegacyPlannedSupervisor(ctx, s.timetable, id)
 	if err != nil {
 		if isRepositoryNotFound(err) {
 			return &activityContract.ActivityError{Op: opDeleteSupervisor, Err: activityContract.ErrSupervisorNotFound}
@@ -235,7 +239,7 @@ func (s *ActivityService) DeleteSupervisor(ctx context.Context, id int64) error 
 		return &activityContract.ActivityError{Op: opDeleteSupervisor, Err: err}
 	}
 
-	if err := s.supervisorRepo.Delete(ctx, id); err != nil {
+	if err := deleteLegacyPlannedSupervisor(ctx, s.timetable, id); err != nil {
 		return &activityContract.ActivityError{Op: opDeleteSupervisor, Err: err}
 	}
 
@@ -355,7 +359,7 @@ func (s *ActivityService) handlePrimaryDeletionInTx(ctx context.Context, txServi
 		return nil
 	}
 
-	allSupervisors, err := txService.(*ActivityService).supervisorRepo.FindByGroupID(ctx, supervisor.GroupID)
+	allSupervisors, err := groupPlannedSupervisors(ctx, txService.(*ActivityService).timetable, txService.(*ActivityService).directories, supervisor.GroupID)
 	if err != nil {
 		return &activityContract.ActivityError{Op: opFindGroupSupervisors, Err: err}
 	}
@@ -366,7 +370,7 @@ func (s *ActivityService) handlePrimaryDeletionInTx(ctx context.Context, txServi
 	}
 
 	newPrimary.IsPrimary = true
-	if err := txService.(*ActivityService).supervisorRepo.Update(ctx, newPrimary); err != nil {
+	if err := updateLegacyPlannedSupervisor(ctx, txService.(*ActivityService).timetable, newPrimary); err != nil {
 		return &activityContract.ActivityError{Op: "promote new primary supervisor", Err: err}
 	}
 
@@ -385,7 +389,7 @@ func (s *ActivityService) findNewPrimarySupervisor(supervisors []*activityContra
 
 // SetPrimarySupervisor sets a supervisor as primary and unsets others
 func (s *ActivityService) SetPrimarySupervisor(ctx context.Context, id int64) error {
-	supervisor, err := s.supervisorRepo.FindByID(ctx, id)
+	supervisor, err := findLegacyPlannedSupervisor(ctx, s.timetable, id)
 	if err != nil {
 		if isRepositoryNotFound(err) {
 			return &activityContract.ActivityError{Op: "set primary supervisor", Err: activityContract.ErrSupervisorNotFound}
@@ -396,7 +400,7 @@ func (s *ActivityService) SetPrimarySupervisor(ctx context.Context, id int64) er
 		return &activityContract.ActivityError{Op: "set primary supervisor", Err: err}
 	}
 
-	supervisors, err := s.supervisorRepo.FindByGroupID(ctx, supervisor.GroupID)
+	supervisors, err := groupPlannedSupervisors(ctx, s.timetable, s.directories, supervisor.GroupID)
 	if err != nil {
 		return &activityContract.ActivityError{Op: "set primary supervisor", Err: err}
 	}
@@ -417,7 +421,7 @@ func (s *ActivityService) updateSupervisorPrimaryStatusInTx(ctx context.Context,
 		}
 
 		sup.IsPrimary = newPrimaryStatus
-		if err := txService.(*ActivityService).supervisorRepo.Update(ctx, sup); err != nil {
+		if err := updateLegacyPlannedSupervisor(ctx, txService.(*ActivityService).timetable, sup); err != nil {
 			return &activityContract.ActivityError{Op: "update supervisor primary status", Err: err}
 		}
 	}
@@ -432,7 +436,7 @@ func (s *ActivityService) UpdateGroupSupervisors(ctx context.Context, groupID in
 		return &activityContract.ActivityError{Op: "UpdateGroupSupervisors", Err: err}
 	}
 
-	supervisors, err := s.supervisorRepo.FindByGroupID(ctx, groupID)
+	supervisors, err := groupPlannedSupervisors(ctx, s.timetable, s.directories, groupID)
 	if err != nil {
 		return &activityContract.ActivityError{Op: "update group supervisors", Err: err}
 	}
@@ -477,7 +481,7 @@ func (s *ActivityService) removeUnwantedSupervisorsInTx(ctx context.Context, txS
 
 	for staffID, supervisorID := range currentStaffIDs {
 		if !newStaffIDs[staffID] {
-			if err := txService.(*ActivityService).supervisorRepo.Delete(ctx, supervisorID); err != nil {
+			if err := deleteLegacyPlannedSupervisor(ctx, txService.(*ActivityService).timetable, supervisorID); err != nil {
 				return &activityContract.ActivityError{Op: opDeleteSupervisor, Err: err}
 			}
 		}
@@ -501,7 +505,7 @@ func (s *ActivityService) addNewSupervisorsInTx(ctx context.Context, txService a
 				StaffID:   staffID,
 				IsPrimary: isPrimary,
 			}
-			if err := txService.(*ActivityService).supervisorRepo.Create(ctx, supervisor); err != nil {
+			if err := createLegacyPlannedSupervisor(ctx, txService.(*ActivityService).timetable, supervisor); err != nil {
 				return &activityContract.ActivityError{Op: opCreateSupervisor, Err: err}
 			}
 		}
@@ -515,7 +519,7 @@ func (s *ActivityService) ensurePrimarySupervisorInTx(ctx context.Context, txSer
 		return nil
 	}
 
-	updatedSupervisors, err := txService.(*ActivityService).supervisorRepo.FindByGroupID(ctx, groupID)
+	updatedSupervisors, err := groupPlannedSupervisors(ctx, txService.(*ActivityService).timetable, txService.(*ActivityService).directories, groupID)
 	if err != nil {
 		return &activityContract.ActivityError{Op: "get updated supervisors", Err: err}
 	}
@@ -528,7 +532,7 @@ func (s *ActivityService) ensurePrimarySupervisorInTx(ctx context.Context, txSer
 		}
 
 		supervisor.IsPrimary = shouldBePrimary
-		if err := txService.(*ActivityService).supervisorRepo.Update(ctx, supervisor); err != nil {
+		if err := updateLegacyPlannedSupervisor(ctx, txService.(*ActivityService).timetable, supervisor); err != nil {
 			if shouldBePrimary {
 				return &activityContract.ActivityError{Op: "set primary supervisor", Err: err}
 			}

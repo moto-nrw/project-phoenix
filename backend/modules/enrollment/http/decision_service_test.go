@@ -4535,7 +4535,7 @@ func TestDecisionService_UpdateChildOfferings_RemovesLegacyUnsourcedEnrollmentAf
 	for _, row := range rows {
 		assert.NotEqual(t, initialRows[0].ID, row.ID, "legacy materialized row must be removed")
 	}
-	manual, err := env.reposTimetable.StudentEnrollment.FindByID(ctx, manualEnrollment.ID)
+	manual, err := env.reposTimetable.StudentEnrollment.FindStudentEnrollment(ctx, manualEnrollment.ID)
 	require.NoError(t, err)
 	assert.Nil(t, manual.EnrollmentRequestChildID)
 	newRows := 0

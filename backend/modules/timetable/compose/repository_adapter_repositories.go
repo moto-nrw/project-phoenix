@@ -34,8 +34,8 @@ type Repositories struct {
 	Directories         ports.RepositoryDirectories
 	ActivityCategory    ports.CategoryRows
 	ActivitySchedule    timetable.ScheduleCapability
-	ActivitySupervisor  ports.PlannedSupervisorRecords
-	StudentEnrollment   ports.ActivityEnrollmentRecords
+	ActivitySupervisor  timetable.PlannedSupervisorCapability
+	StudentEnrollment   timetable.StudentEnrollmentCapability
 	Timeframe           timetable.TimeframeCapability
 	ActivityException   timetable.ActivityExceptionCapability
 	ActivityInstance    ports.ActivityInstanceRecords
@@ -49,11 +49,10 @@ type Repositories struct {
 // participant adapters over the database and Student Presence here.
 func NewRepositories(dependencies RepositoryDependencies, reads application.PresenceReads) Repositories {
 	capability := dependencies.Timetable
-	rows := application.NewCapabilityRepositories(capability, dependencies.Directories)
 	return Repositories{
 		Timetable: capability, Directories: dependencies.Directories,
 		ActivityCategory: capability, ActivitySchedule: capability, Timeframe: capability, ActivityException: capability, InstanceIdempotency: capability,
-		ActivitySupervisor: rows.ActivitySupervisor, StudentEnrollment: rows.StudentEnrollment, InstanceStaff: rows.InstanceStaff,
+		ActivitySupervisor: capability, StudentEnrollment: capability, InstanceStaff: application.NewInstanceStaffRecords(capability),
 		ActivityInstance: application.NewActivityInstanceRepository(reads, capability, dependencies.Presence),
 		InstanceStudent:  application.NewInstanceStudentRepository(reads, capability, dependencies.Presence, dependencies.PartialAbsences),
 	}

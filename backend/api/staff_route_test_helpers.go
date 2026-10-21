@@ -12,6 +12,7 @@ import (
 	facilitiesCompose "github.com/moto-nrw/project-phoenix/modules/facilities/compose"
 	"github.com/moto-nrw/project-phoenix/modules/peopledirectory"
 	timetableCompose "github.com/moto-nrw/project-phoenix/modules/timetable/compose"
+	timetablePorts "github.com/moto-nrw/project-phoenix/modules/timetable/ports"
 	transactionruntime "github.com/moto-nrw/project-phoenix/modules/transactionruntime/compose"
 	"github.com/moto-nrw/project-phoenix/modules/workforce"
 	workforceCompose "github.com/moto-nrw/project-phoenix/modules/workforce/compose"
@@ -99,7 +100,7 @@ type ShiftTypeTestModule struct {
 // It returns the administration with the Timetable side it runs over.
 func NewShiftTypeTestModule(db transactionruntime.Database) (workforce.ShiftTypeAdministration, ShiftTypeTestModule, error) {
 	repos := NewShiftTypeTestRepositories(db, owners.MustNewMembershipTestRepositories(db))
-	linker, err := timetableCompose.NewService(repos.Timetable, nil, nil, nil, nil, nil, nil)
+	linker, err := timetableCompose.NewService(repos.Timetable, nil, timetablePorts.RepositoryDirectories{}, nil, nil, nil)
 	if err != nil {
 		return nil, ShiftTypeTestModule{}, err
 	}

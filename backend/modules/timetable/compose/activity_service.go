@@ -11,11 +11,10 @@ import (
 func NewService(
 	capability timetable.Capability,
 	schedules timetable.ScheduleCapability,
-	supervisors ports.PlannedSupervisorRecords,
-	enrollments ports.ActivityEnrollmentRecords,
+	directories ports.RepositoryDirectories,
 	occupancy application.ActivityOccupancy,
 	staff ports.LifecycleStaff,
 	students RosterStudents,
 ) (activityContract.ActivityService, error) {
-	return application.NewActivityService(capability, schedules, supervisors, enrollments, occupancy, staff, students)
+	return application.NewActivityService(capability, schedules, directories, occupancy, staff, students)
 }

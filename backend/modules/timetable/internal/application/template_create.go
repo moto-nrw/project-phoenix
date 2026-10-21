@@ -539,7 +539,7 @@ func (s *TemplateService) createTemplateRoster(
 		return &ports.ScheduleError{Op: "create template: resolve roster", Err: err}
 	}
 
-	if err := s.deps.StudentEnrollmentRepo.CloseOpenByGroupAndPeriod(ctx, groupID, in.CalendarPeriodID, activityContract.Date(in.RosterValidFrom)); err != nil {
+	if err := closeOpenLegacyStudentEnrollments(ctx, s.deps.StudentEnrollmentRepo, groupID, in.CalendarPeriodID, activityContract.Date(in.RosterValidFrom)); err != nil {
 		return &ports.ScheduleError{Op: "create template: close enrollments", Err: err}
 	}
 	for _, row := range roster.Students {
@@ -551,12 +551,12 @@ func (s *TemplateService) createTemplateRoster(
 			Weekday:          weekdayScopePtr(row.Weekday),
 		}
 		enrollment.SetTenantID(tenantID)
-		if err := s.deps.StudentEnrollmentRepo.Create(ctx, enrollment); err != nil {
+		if err := createLegacyStudentEnrollment(ctx, s.deps.StudentEnrollmentRepo, enrollment); err != nil {
 			return &ports.ScheduleError{Op: "create template: create enrollment", Err: err}
 		}
 	}
 
-	if err := s.deps.ActivitySupervisorRepo.CloseOpenByGroupAndPeriod(ctx, groupID, in.CalendarPeriodID, activityContract.Date(in.RosterValidFrom)); err != nil {
+	if err := closeOpenLegacyPlannedSupervisors(ctx, s.deps.ActivitySupervisorRepo, groupID, in.CalendarPeriodID, activityContract.Date(in.RosterValidFrom)); err != nil {
 		return &ports.ScheduleError{Op: "create template: close supervisors", Err: err}
 	}
 	for _, row := range roster.Staff {
@@ -569,7 +569,7 @@ func (s *TemplateService) createTemplateRoster(
 			Weekday:          weekdayScopePtr(row.Weekday),
 		}
 		supervisor.SetTenantID(tenantID)
-		if err := s.deps.ActivitySupervisorRepo.Create(ctx, supervisor); err != nil {
+		if err := createLegacyPlannedSupervisor(ctx, s.deps.ActivitySupervisorRepo, supervisor); err != nil {
 			return &ports.ScheduleError{Op: "create template: create supervisor", Err: err}
 		}
 	}

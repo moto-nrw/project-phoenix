@@ -198,18 +198,21 @@ type TemplateServiceDependencies struct {
 	ActivityCategoryRepo   timetable.CategoryQuery
 	PlanningTracks         ports.PlanningTrackAssignments
 	ActivityGroupRepo      ports.GroupRows
-	ActivitySupervisorRepo ports.PlannedSupervisorRecords
-	StudentEnrollmentRepo  ports.ActivityEnrollmentRecords
-	TimeframeRepo          timetable.TimeframeCapability
-	EducationGroups        ports.EducationGroupDirectory
-	CareOfferings          ports.CareOfferingChecks
-	ResyncOfferingRoster   func(context.Context, timetable.OfferingRosterResyncInput) error
-	RecurrenceLock         timetable.RecurrenceWriteLock
-	SchoolClasses          ports.SchoolClassRules
-	Staffing               ports.StaffingAnnouncer
-	Logger                 *slog.Logger
-	Transactions           ports.TenantTransactions
-	Today                  func() calendar.Date
+	ActivitySupervisorRepo timetable.PlannedSupervisorCapability
+	StudentEnrollmentRepo  timetable.StudentEnrollmentCapability
+	// Directories name the planned supervisors' persons and the enrolled
+	// children with their alumni state.
+	Directories          ports.RepositoryDirectories
+	TimeframeRepo        timetable.TimeframeCapability
+	EducationGroups      ports.EducationGroupDirectory
+	CareOfferings        ports.CareOfferingChecks
+	ResyncOfferingRoster func(context.Context, timetable.OfferingRosterResyncInput) error
+	RecurrenceLock       timetable.RecurrenceWriteLock
+	SchoolClasses        ports.SchoolClassRules
+	Staffing             ports.StaffingAnnouncer
+	Logger               *slog.Logger
+	Transactions         ports.TenantTransactions
+	Today                func() calendar.Date
 }
 
 // TemplateService holds the template writes (create, update, archive, the
@@ -244,7 +247,7 @@ func (s *TemplateService) lockRecurrence(ctx context.Context, op string) error {
 // newRosterReconciler builds the roster maintenance the template writes use
 // to align already-materialized occurrences.
 func (s *TemplateService) newRosterReconciler() *RosterReconciler {
-	return NewRosterReconciler(s.deps.ActivityInstanceRepo, s.deps.InstanceStudentRepo, s.deps.StudentEnrollmentRepo, s.deps.Logger)
+	return NewRosterReconciler(s.deps.ActivityInstanceRepo, s.deps.InstanceStudentRepo, s.deps.StudentEnrollmentRepo, s.deps.Directories, s.deps.Logger)
 }
 
 // OrDefaultLogger falls back to slog.Default for services a test builds

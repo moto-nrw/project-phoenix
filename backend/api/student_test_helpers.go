@@ -207,7 +207,7 @@ func newStudentTestModule(db transactionruntime.Database, unit tenant.UnitOfWork
 	if err != nil {
 		return StudentTestModule{}, ActiveTestModule{}, StudentTestPeople{}, nil, nil, nil, err
 	}
-	rosterReconciler := timetableCompose.NewRosterReconciler(reposTimetable.ActivityInstance, reposTimetable.InstanceStudent, reposTimetable.StudentEnrollment, logger, now)
+	rosterReconciler := timetableCompose.NewRosterReconciler(reposTimetable.ActivityInstance, reposTimetable.InstanceStudent, reposTimetable.StudentEnrollment, reposTimetable.Directories, logger, now)
 	recurrenceLock, err := owners.NewTimetableTestRecurrenceLock(db)
 	if err != nil {
 		return StudentTestModule{}, ActiveTestModule{}, StudentTestPeople{}, nil, nil, nil, err

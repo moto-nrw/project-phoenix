@@ -62,11 +62,13 @@ func (r OwnerRows) SickCascadeRows(dayLock func(context.Context, calendar.Date) 
 // template writes and materialization run over (#3424 slice S2). The
 // composition root fills them from its repository set.
 type TemplateRows struct {
-	Groups          ports.GroupRows
-	Categories      timetable.CategoryQuery
-	Schedules       timetable.ScheduleCapability
-	Enrollments     ports.ActivityEnrollmentRecords
-	Supervisors     ports.PlannedSupervisorRecords
+	Groups      ports.GroupRows
+	Categories  timetable.CategoryQuery
+	Schedules   timetable.ScheduleCapability
+	Enrollments timetable.StudentEnrollmentCapability
+	Supervisors timetable.PlannedSupervisorCapability
+	// Directories name the enrolled children and the supervisors' persons.
+	Directories     ports.RepositoryDirectories
 	Instances       ports.ActivityInstanceRecords
 	InstanceStaff   ports.InstanceStaffRecords
 	Participants    ports.InstanceStudentRecords

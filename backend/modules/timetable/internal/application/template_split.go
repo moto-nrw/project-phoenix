@@ -49,8 +49,9 @@ type TemplateSplitDependencies struct {
 	CategoryRepo         timetable.CategoryQuery
 	PlanningTracks       ports.PlanningTrackAssignments
 	ScheduleRepo         timetable.ScheduleCapability
-	EnrollmentRepo       ports.ActivityEnrollmentRecords
-	SupervisorRepo       ports.PlannedSupervisorRecords
+	EnrollmentRepo       timetable.StudentEnrollmentCapability
+	SupervisorRepo       timetable.PlannedSupervisorCapability
+	Directories          ports.RepositoryDirectories
 	InstanceRepo         ports.ActivityInstanceRecords
 	TimeframeRepo        timetable.TimeframeCapability
 	Materialization      timetable.MaterializationCapability
@@ -576,10 +577,10 @@ func (s *TemplateSplitService) capSplitSource(
 	if _, err := capLegacySchedules(ctx, s.deps.ScheduleRepo, groupID, effectiveDate.String()); err != nil {
 		return &ports.ScheduleError{Op: "split template: cap schedules", Err: err}
 	}
-	if _, err := s.deps.EnrollmentRepo.CapActiveByGroup(ctx, groupID, activityContract.Date(effectiveDate)); err != nil {
+	if _, err := capLegacyStudentEnrollments(ctx, s.deps.EnrollmentRepo, groupID, activityContract.Date(effectiveDate)); err != nil {
 		return &ports.ScheduleError{Op: "split template: cap enrollments", Err: err}
 	}
-	if _, err := s.deps.SupervisorRepo.CapActiveByGroup(ctx, groupID, activityContract.Date(effectiveDate)); err != nil {
+	if _, err := capLegacyPlannedSupervisors(ctx, s.deps.SupervisorRepo, groupID, activityContract.Date(effectiveDate)); err != nil {
 		return &ports.ScheduleError{Op: "split template: cap supervisors", Err: err}
 	}
 	if _, err := s.capBoundedSegmentEnrollments(ctx, enrollments, sourceValidUntil, effectiveDate); err != nil {
