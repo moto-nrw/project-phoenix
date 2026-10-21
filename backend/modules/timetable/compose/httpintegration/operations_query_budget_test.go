@@ -95,13 +95,13 @@ func newPlannedNowBudgetOperations(t *testing.T, db *bun.DB, staffFixture *testp
 	rows := compose.OwnerRows{
 		Instances:       timetableRepos.ActivityInstance,
 		InstanceStaff:   timetableRepos.InstanceStaff,
-		Participants:    fixtures.IntoInstanceStudentRecords(fixtures.FromInstanceStudentRecords(timetableRepos.InstanceStudent)),
+		Participants:    timetableRepos.InstanceStudent,
 		Templates:       timetableRepos.Timetable,
 		Students:        owners.NewTimetableRosterStudents(repos.Student),
 		EducationGroups: owners.TimetableEducationGroupNames(reposStructure.Group),
 		Rooms:           owners.NewTimetableRoomNames(rooms),
 	}
-	deps.Instances, deps.InstanceStaff, deps.Participants = rows.Instances.Reads, rows.InstanceStaff, fixtures.IntoOperationParticipants(fixtures.FromInstanceStudentRecords(rows.Participants))
+	deps.Instances, deps.InstanceStaff, deps.Participants = rows.Instances.Reads, rows.InstanceStaff, rows.Participants
 	deps.Templates, deps.Students = rows.Templates, rows.Students
 	deps.EducationGroups, deps.Rooms = rows.EducationGroups, rows.Rooms
 	deps.BlockMetadata = api.NewTimetableBlockDisplayForTests(testpkg.MustDatabase(db))

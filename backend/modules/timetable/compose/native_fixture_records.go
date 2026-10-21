@@ -28,3 +28,8 @@ func NativeTimeframeRecords(timeframes timetable.TimeframeCapability) ports.Nati
 func (r Repositories) NativeInstances() ports.NativeInstanceRecords {
 	return application.NativeInstanceRecords(r.ActivityInstance)
 }
+
+// NativeParticipants serves the fixtures' legacy participant rows.
+func (r Repositories) NativeParticipants() ports.NativeParticipantRecords {
+	return application.NativeParticipantRecords(r.InstanceStudent, r.partialAbsences)
+}

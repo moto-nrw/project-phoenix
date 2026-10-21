@@ -30,7 +30,7 @@ type timetableData struct {
 
 // NewTimetableData composes the planner's reads of the Timetable owner.
 func NewTimetableData(deps ports.TimetableDataDependencies) (timetable.TimetableDataCapability, error) {
-	if deps.Instances == nil || deps.InstanceStaff == nil || deps.Participants == nil || deps.PickupExceptions == nil ||
+	if deps.Instances == nil || deps.InstanceStaff == nil || noParticipantRows(deps.Participants) || deps.PickupExceptions == nil ||
 		deps.ArrivalExceptions == nil || deps.Visits == nil || deps.Templates == nil || deps.Groups == nil || deps.Categories == nil ||
 		deps.Rooms == nil || deps.RoomOccupancy == nil || deps.DeviationEvents == nil || deps.ConflictAcks == nil {
 		return nil, errors.New("timetable data: required dependency is nil")
@@ -83,7 +83,7 @@ func (d *timetableData) ListScheduledInstanceRows(ctx context.Context, instances
 	for _, row := range staffRows {
 		rows.Staff[row.InstanceID] = append(rows.Staff[row.InstanceID], instanceStaffOf(row))
 	}
-	participantRows, err := d.deps.Participants.FindByInstanceIDs(ctx, ids)
+	participantRows, err := participantsOfInstances(ctx, d.deps.Participants.Reads, ids)
 	if err != nil {
 		return nil, fmt.Errorf("load students for instances: %w", err)
 	}
@@ -165,7 +165,7 @@ func (d *timetableData) ListBlockStaff(ctx context.Context, instanceID int64) ([
 }
 
 func (d *timetableData) ListBlockParticipants(ctx context.Context, instanceID int64) ([]timetable.ScheduledParticipant, error) {
-	rows, err := d.deps.Participants.FindByInstanceID(ctx, instanceID)
+	rows, err := participantsOfInstance(ctx, d.deps.Participants.Reads, instanceID)
 	if err != nil {
 		return nil, err
 	}
@@ -173,7 +173,7 @@ func (d *timetableData) ListBlockParticipants(ctx context.Context, instanceID in
 }
 
 func (d *timetableData) ListCareDayCandidates(ctx context.Context, instanceIDs []int64) ([]timetable.ScheduledParticipant, error) {
-	rows, err := d.deps.Participants.FindNotScheduledCandidatesByInstanceIDs(ctx, instanceIDs)
+	rows, err := notScheduledCandidatesOf(ctx, d.deps.Participants.Reads, instanceIDs)
 	if err != nil {
 		return nil, err
 	}
@@ -181,7 +181,7 @@ func (d *timetableData) ListCareDayCandidates(ctx context.Context, instanceIDs [
 }
 
 func (d *timetableData) FindBlockParticipant(ctx context.Context, instanceID, studentID int64) (*timetable.ScheduledParticipant, error) {
-	row, err := d.deps.Participants.FindByInstanceAndStudent(ctx, instanceID, studentID)
+	row, err := participantOf(ctx, d.deps.Participants.Reads, instanceID, studentID)
 	if domain.IsRecordNotFound(err) {
 		return nil, nil
 	}
@@ -210,7 +210,7 @@ func (d *timetableData) LockBlockAttendance(ctx context.Context, instanceID int6
 }
 
 func (d *timetableData) PatchSlotAttendance(ctx context.Context, participantID int64, patch timetable.AttendancePatch) error {
-	return d.deps.Participants.UpdateAttendanceFields(ctx, participantID, attendanceFieldPatch(patch))
+	return patchAttendanceFields(ctx, d.deps.Participants.Presence, participantID, attendanceFieldPatch(patch))
 }
 
 func scheduledInstancesOf(rows []*scheduleModels.ActivityInstance) []timetable.ScheduledInstance {

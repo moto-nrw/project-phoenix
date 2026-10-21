@@ -353,7 +353,7 @@ func (s *InstanceLifecycleService) syncAbsorbedVisitAttendance(ctx context.Conte
 	if err != nil {
 		return fmt.Errorf("load absorbed visits from group %d: %w", activeGroupID, err)
 	}
-	existingRows, err := s.deps.InstanceStudents.FindByInstanceIDs(ctx, []int64{instanceID})
+	existingRows, err := participantsOfInstances(ctx, s.deps.InstanceStudents.Reads, []int64{instanceID})
 	if err != nil {
 		return fmt.Errorf("load absorbed attendance for instance %d: %w", instanceID, err)
 	}
@@ -365,14 +365,14 @@ func (s *InstanceLifecycleService) syncAbsorbedVisitAttendance(ctx context.Conte
 		if visit.ExitTime != nil {
 			continue
 		}
-		updated, err := s.deps.InstanceStudents.UpdateAttendanceFromCheckin(ctx, instanceID, visit.StudentID, visit.EntryTime)
+		updated, err := checkInParticipant(ctx, s.deps.InstanceStudents, instanceID, visit.StudentID, visit.EntryTime)
 		if err != nil {
 			return fmt.Errorf("mark absorbed student %d present: %w", visit.StudentID, err)
 		}
 		if updated || existingByStudent[visit.StudentID] != nil {
 			continue
 		}
-		if _, err := s.deps.InstanceStudents.CreateUnplannedPresentIfAbsent(ctx, instanceID, visit.StudentID, visit.EntryTime); err != nil {
+		if _, err := createUnplannedPresentIfAbsent(ctx, s.deps.InstanceStudents, instanceID, visit.StudentID, visit.EntryTime); err != nil {
 			return fmt.Errorf("create absorbed student %d attendance: %w", visit.StudentID, err)
 		}
 	}

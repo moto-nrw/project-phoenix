@@ -24,7 +24,7 @@ func (s *operations) PatchAttendance(ctx context.Context, accountID int64, isAdm
 	if err := s.lockOpenBlockAttendance(ctx, instanceID); err != nil {
 		return nil, err
 	}
-	row, err := s.deps.Participants.FindByInstanceAndStudent(ctx, instanceID, studentID)
+	row, err := participantOf(ctx, s.deps.Participants.Reads, instanceID, studentID)
 	if err != nil {
 		return nil, err
 	}
@@ -38,7 +38,7 @@ func (s *operations) PatchAttendance(ctx context.Context, accountID int64, isAdm
 	if verrs := timetable.ValidateAttendancePatch(patch, current); len(verrs) > 0 {
 		return nil, &timetable.AttendanceValidationError{Fields: verrs}
 	}
-	if err := s.deps.Participants.UpdateAttendanceFields(ctx, row.ID, attendanceFieldPatch(patch)); err != nil {
+	if err := patchAttendanceFields(ctx, s.deps.Participants.Presence, row.ID, attendanceFieldPatch(patch)); err != nil {
 		return nil, err
 	}
 	s.broadcastAttendanceChanged(ctx, instanceID)

@@ -30,7 +30,7 @@ func TestAutoEnd_UsesAtomicManualCompletionPath(t *testing.T) {
 	require.NoError(t, err)
 
 	visit := testpkg.CreateTestVisit(t, s.db, s.student1, started.ActiveGroupID, autoEndNow.Add(-time.Hour), nil)
-	updated, err := fixtures.FromInstanceStudentRecords(s.timetable.InstanceStudent).UpdateAttendanceFromCheckin(
+	updated, err := fixtures.FromInstanceStudentRecords(s.timetable.NativeParticipants()).UpdateAttendanceFromCheckin(
 		s.ctx, instance.ID, s.student1, visit.EntryTime,
 	)
 	require.NoError(t, err)
@@ -66,7 +66,7 @@ func TestAutoEnd_UsesAtomicManualCompletionPath(t *testing.T) {
 	require.Len(t, supervisors, 1)
 	require.NotNil(t, supervisors[0].EndDate)
 
-	attendance, err := fixtures.FromInstanceStudentRecords(s.timetable.InstanceStudent).FindByInstanceAndStudent(s.ctx, instance.ID, s.student1)
+	attendance, err := fixtures.FromInstanceStudentRecords(s.timetable.NativeParticipants()).FindByInstanceAndStudent(s.ctx, instance.ID, s.student1)
 	require.NoError(t, err)
 	assert.Equal(t, fixtures.AttendanceStatusPresent(), attendance.Status)
 	require.NotNil(t, attendance.CheckedOutAt)

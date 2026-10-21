@@ -15,13 +15,12 @@ import (
 	carePlanPorts "github.com/moto-nrw/project-phoenix/modules/careplan/ports"
 	"github.com/moto-nrw/project-phoenix/modules/peopledirectory"
 	peopleCompose "github.com/moto-nrw/project-phoenix/modules/peopledirectory/compose"
-	timetableCompose "github.com/moto-nrw/project-phoenix/modules/timetable/compose"
 	timetablePorts "github.com/moto-nrw/project-phoenix/modules/timetable/ports"
 	transactionruntime "github.com/moto-nrw/project-phoenix/modules/transactionruntime/compose"
 )
 
-func NewCarePlan(db transactionruntime.Database, students peopledirectory.Capability, slots timetablePorts.StatusSlotRows) (careplan.Capability, error) {
-	if students == nil || slots == nil {
+func NewCarePlan(db transactionruntime.Database, students peopledirectory.Capability, slots timetablePorts.ParticipantRows) (careplan.Capability, error) {
+	if students == nil || slots.Presence == nil {
 		return nil, errors.New("compose Care Plan: People Directory and instance-student repository are required")
 	}
 	profiles, err := carePlanCompose.NewStudentProfiles(db.Pool(), studentDirectoryView.NewReader(), func(carePlanCompose.Observation) {})
@@ -58,10 +57,10 @@ func NewCarePlan(db transactionruntime.Database, students peopledirectory.Capabi
 }
 
 // NewUnobservedCarePlan composes Care Plan over the People Directory
-// students, reading the participant slots through the Timetable adapter over
+// students, reading the participant slots through the Timetable participant rows over
 // the Timetable capability and an unobserved Student Presence owner, as the
 // test graphs need it.
 func NewUnobservedCarePlan(db transactionruntime.Database, capability timetable.Capability, students peopledirectory.Capability) (careplan.Capability, error) {
-	slots := timetableCompose.NewInstanceStudentRepository(MustPresenceReads(db), capability, NewUnloggedStudentPresence(db), NewPartialAbsencePreview(db))
+	slots := timetablePorts.ParticipantRows{Plans: capability, Presence: NewUnloggedStudentPresence(db), Reads: MustPresenceReads(db)}
 	return NewCarePlan(db, students, slots)
 }

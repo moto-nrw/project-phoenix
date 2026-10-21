@@ -82,7 +82,7 @@ type InstanceLifecycleDependencies struct {
 	InstanceRepo        InstanceRows
 	IdempotencyRepo     timetable.ActivityInstanceCommand
 	InstanceStaffRepo   timetable.InstanceStaffCapability
-	InstanceStudents    InstanceStudentRecords
+	InstanceStudents    ParticipantRows
 	ExceptionRepo       timetable.ActivityExceptionCapability
 	CalendarPeriodRepo  CalendarPeriodRecords
 	RecoveryRepo        ActivityRecoveryRecords

@@ -668,8 +668,8 @@ No non-constructor functions.
 | `PresenceDatabase` | [presence_reads.go:26](../../../backend/modules/timetable/compose/presence_reads.go#L26) | direct binding | `postgresNative.DatabaseRuntime` |
 | `Repositories.InstanceReads` | [repositories_test_helpers.go:8](../../../backend/modules/timetable/compose/repositories_test_helpers.go#L8) | test-only | `application.NewTimetableInstanceReads` |
 | `Repositories.InstanceStaffReads` | [repositories_test_helpers.go:12](../../../backend/modules/timetable/compose/repositories_test_helpers.go#L12) | test-only | `application.NewTimetableInstanceStaffReads` |
-| `Repositories.GroupReads` | [repository_adapter_repositories.go:84](../../../backend/modules/timetable/compose/repository_adapter_repositories.go#L84) | direct binding | `application.NewTimetableGroupReads` |
-| `Repositories.NativeRecords` | [repository_adapter_repositories.go:89](../../../backend/modules/timetable/compose/repository_adapter_repositories.go#L89) | direct binding | none |
+| `Repositories.GroupReads` | [repositories.go:71](../../../backend/modules/timetable/compose/repositories.go#L71) | direct binding | `application.NewTimetableGroupReads` |
+| `Repositories.NativeRecords` | [repositories.go:76](../../../backend/modules/timetable/compose/repositories.go#L76) | direct binding | none |
 | `ActivityInstanceDate` | [retained_rows.go:18](../../../backend/modules/timetable/compose/retained_rows.go#L18) | direct binding | `calendar.Date` |
 | `ParseActivityInstanceDate` | [retained_rows.go:23](../../../backend/modules/timetable/compose/retained_rows.go#L23) | direct binding | `application.ParseActivityInstanceDate` |
 | `WrapDatabaseError` | [retained_rows.go:28](../../../backend/modules/timetable/compose/retained_rows.go#L28) | direct binding | `application.WrapDatabaseError` |

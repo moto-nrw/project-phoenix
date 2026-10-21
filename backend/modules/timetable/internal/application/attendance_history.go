@@ -8,15 +8,15 @@ import (
 )
 
 type AttendanceHistory struct {
-	records ports.AttendanceHistoryRecords
+	reads ports.LegacyParticipantReads
 }
 
-func NewAttendanceHistory(records ports.AttendanceHistoryRecords) *AttendanceHistory {
-	return &AttendanceHistory{records: records}
+func NewAttendanceHistory(reads ports.LegacyParticipantReads) *AttendanceHistory {
+	return &AttendanceHistory{reads: reads}
 }
 
 func (r *AttendanceHistory) Slots(ctx context.Context, studentID int64, from, to string) ([]*ports.AttendanceHistorySlot, error) {
-	rows, err := r.records.FindInstancesWithAttendanceByStudentAndDateRange(ctx, studentID, calendar.Date(from), calendar.Date(to))
+	rows, err := scheduledInstancesForStudent(ctx, r.reads, studentID, calendar.Date(from), calendar.Date(to))
 	if rows == nil {
 		return nil, err
 	}
@@ -44,5 +44,9 @@ func (r *AttendanceHistory) Slots(ctx context.Context, studentID int64, from, to
 }
 
 func (r *AttendanceHistory) HasPlannedSlots(ctx context.Context, from, to string) (bool, error) {
-	return r.records.HasPlannedSlotsInRange(ctx, calendar.Date(from), calendar.Date(to))
+	result, err := r.reads.HasPlannedSlotsInRange(ctx, calendar.Date(from).String(), calendar.Date(to).String())
+	if err != nil {
+		return false, WrapDatabaseError("check planned slots in range", err)
+	}
+	return result, nil
 }

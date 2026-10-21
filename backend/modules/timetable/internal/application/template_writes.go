@@ -191,7 +191,7 @@ func samePlanningTrackID(left, right *int64) bool {
 // with the offering's approved enrollments (#2137) and is Enrollment's,
 // bound late at the root.
 type TemplateServiceDependencies struct {
-	InstanceStudentRepo    ports.InstanceStudentRecords
+	InstanceStudentRepo    ports.ParticipantRows
 	ActivityInstanceRepo   ports.InstanceRows
 	ActivityScheduleRepo   timetable.ScheduleCapability
 	InstanceStaffRepo      timetable.InstanceStaffCapability

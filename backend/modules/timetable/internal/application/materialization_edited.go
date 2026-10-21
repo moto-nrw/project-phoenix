@@ -301,7 +301,7 @@ func (s *materializationService) staffRosterByInstance(ctx context.Context, ids 
 // instance. Membership is derived from the row's existence; attendance state
 // is kept so unrestored present/absent can be reported separately (#2225).
 func (s *materializationService) studentRosterByInstance(ctx context.Context, ids []int64) (map[int64][]*schedule.InstanceStudent, error) {
-	rows, err := s.studentRepo.FindByInstanceIDs(ctx, ids)
+	rows, err := participantsOfInstances(ctx, s.studentRepo.Reads, ids)
 	if err != nil {
 		return nil, &ports.ScheduleError{Op: "detect edited: load student rosters", Err: err}
 	}

@@ -307,7 +307,7 @@ func TestPatchInstanceStudent_ClearNoteWithExplicitNull(t *testing.T) {
 	s := buildPatchSetup(t)
 	// Pre-populate note so the clear is observable.
 	initial := "pre"
-	_, _ = mustTimetableTestRepositories(s.db).InstanceStudent.UpdateAttendanceFromCheckin(s.ctx, s.instanceID, s.studentID, time.Now())
+	_, _ = mustTimetableTestRepositories(s.db).NativeParticipants().UpdateAttendanceFromCheckin(s.ctx, s.instanceID, s.studentID, time.Now())
 	// Directly set note via the owner's update-fields path to be sure.
 	require.NoError(t, s.data.PatchSlotAttendance(s.ctx, s.rowID, timetable.AttendancePatch{
 		Note: &initial,
