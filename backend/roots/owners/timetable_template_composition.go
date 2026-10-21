@@ -24,6 +24,7 @@ func TimetableMaterializationDependencies(
 		ScheduleRepo:   rows.Schedules,
 		EnrollmentRepo: rows.Enrollments,
 		SupervisorRepo: rows.Supervisors,
+		Directories:    rows.Directories,
 		PeriodRepo:     rows.CalendarPeriods,
 		InstanceRepo:   rows.Instances,
 		StaffRepo:      rows.InstanceStaff,

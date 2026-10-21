@@ -10,7 +10,6 @@ import (
 	"github.com/moto-nrw/project-phoenix/modules/timetable/ports"
 	"github.com/uptrace/bun"
 
-	"github.com/moto-nrw/project-phoenix/modules/schoolcalendar"
 	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
 	"github.com/moto-nrw/project-phoenix/modules/timetable"
 	"github.com/moto-nrw/project-phoenix/modules/timetable/internal/application"
@@ -24,19 +23,19 @@ type RepositoryDependencies struct {
 	Presence studentpresence.Owner
 	// PartialAbsences previews the blocks an earlier pickup excuses.
 	PartialAbsences application.PartialAbsences
-	// Calendar lists the active calendar periods of the template capacity.
-	Calendar    schoolcalendar.Query
-	Directories ports.RepositoryDirectories
+	Directories     ports.RepositoryDirectories
 }
 
 // Repositories are the retained repositories of the Timetable owner; the
-// capability-typed entries are the owner capability itself.
+// capability-typed entries are the owner capability itself. Directories are
+// the names other owners hold, which the Vorlagen list shows.
 type Repositories struct {
+	Timetable           timetable.Capability
+	Directories         ports.RepositoryDirectories
 	ActivityCategory    ports.CategoryRows
-	ActivityGroup       ports.ActivityGroupRecords
 	ActivitySchedule    timetable.ScheduleCapability
-	ActivitySupervisor  ports.PlannedSupervisorRecords
-	StudentEnrollment   ports.ActivityEnrollmentRecords
+	ActivitySupervisor  timetable.PlannedSupervisorCapability
+	StudentEnrollment   timetable.StudentEnrollmentCapability
 	Timeframe           timetable.TimeframeCapability
 	ActivityException   timetable.ActivityExceptionCapability
 	ActivityInstance    ports.ActivityInstanceRecords
@@ -50,10 +49,10 @@ type Repositories struct {
 // participant adapters over the database and Student Presence here.
 func NewRepositories(dependencies RepositoryDependencies, reads application.PresenceReads) Repositories {
 	capability := dependencies.Timetable
-	rows := application.NewCapabilityRepositories(capability, dependencies.Calendar, dependencies.Directories)
 	return Repositories{
+		Timetable: capability, Directories: dependencies.Directories,
 		ActivityCategory: capability, ActivitySchedule: capability, Timeframe: capability, ActivityException: capability, InstanceIdempotency: capability,
-		ActivityGroup: rows.ActivityGroup, ActivitySupervisor: rows.ActivitySupervisor, StudentEnrollment: rows.StudentEnrollment, InstanceStaff: rows.InstanceStaff,
+		ActivitySupervisor: capability, StudentEnrollment: capability, InstanceStaff: application.NewInstanceStaffRecords(capability),
 		ActivityInstance: application.NewActivityInstanceRepository(reads, capability, dependencies.Presence),
 		InstanceStudent:  application.NewInstanceStudentRepository(reads, capability, dependencies.Presence, dependencies.PartialAbsences),
 	}
@@ -66,16 +65,9 @@ func NewActivityInstanceRepository(reads application.PresenceReads, capability t
 	return application.NewActivityInstanceRepository(reads, capability, presence)
 }
 
-// NewActivityGroupRecords serves the activity group rows of the owner
-// without the name enrichment, for readers that only load groups by ID or
-// list them with their category.
-func NewActivityGroupRecords(capability timetable.Capability) ports.ActivityGroupRecords {
-	return application.NewActivityGroupRecords(capability)
-}
-
 // GroupReads are the template reads of the same consumers.
 func (r Repositories) GroupReads() application.TimetableGroupReads {
-	return application.NewTimetableGroupReads(r.ActivityGroup)
+	return application.NewTimetableGroupReads(r.Timetable)
 }
 
 // NativeRecords exposes native session and template ports over these same wiring values.
@@ -83,5 +75,5 @@ func (r Repositories) NativeRecords() interface {
 	timetable.SessionRecords
 	timetable.TemplateCatalog
 } {
-	return application.SessionRecords{Instances: r.ActivityInstance, Staff: r.InstanceStaff, Groups: r.ActivityGroup}
+	return application.SessionRecords{Instances: r.ActivityInstance, Staff: r.InstanceStaff, Groups: r.Timetable}
 }

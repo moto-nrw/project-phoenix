@@ -120,9 +120,11 @@ func replaceScenarioTarget(t *testing.T, s *scenarioSetup, targetType string) {
 			Exec(s.ctx)
 		require.NoError(t, err)
 	}
-	targetRepo, ok := api.NewUnobservedTimetableRepositories(testpkg.MustDatabase(s.db)).ActivityGroup.(fixtures.GroupTargets)
-	require.True(t, ok)
-	require.NoError(t, targetRepo.ReplaceTargets(s.ctx, s.template.ID, []*activityContract.GroupTarget{target}))
+	groups := api.NewUnobservedTimetableRepositories(testpkg.MustDatabase(s.db)).Timetable
+	require.NoError(t, groups.ReplaceGroupTargets(s.ctx, s.template.ID, []timetable.GroupTargetInput{{
+		TargetGroupType: target.TargetGroupType, TargetGradeLevel: target.TargetGradeLevel,
+		TargetSchoolClass: target.TargetSchoolClass, EducationGroupID: target.EducationGroupID,
+	}}))
 }
 
 func TestDetectEditedInWindow_TitleEdit(t *testing.T) {

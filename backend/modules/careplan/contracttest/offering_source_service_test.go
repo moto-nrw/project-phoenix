@@ -48,7 +48,7 @@ func createSourcedTemplate(
 	group.SourceCareOfferingIDs = []int64{offeringID}
 	group.SourceGradeLevels = gradeLevels
 	group.CalendarPeriodID = &periodID
-	require.NoError(t, timetableCompose.NativeGroupRecords(testTimetableRepositories(env.db).ActivityGroup).Update(testpkg.Ctx(t), group))
+	require.NoError(t, timetableCompose.NativeGroupRecords(testTimetableRepositories(env.db).Timetable).Update(testpkg.Ctx(t), group))
 	createCareOfferingTemplateSchedule(t, env.db, group.ID, timetable.WeekdayMonday, &periodID)
 	return group
 }
@@ -479,7 +479,7 @@ func TestResyncTemplateOfferingRoster_LegacyProtectionFollowsSplitLineage(t *tes
 	// predecessor, only the lineage connects it to the successor.
 	successor := createCareOfferingTemplateGroup(t, env.db, "LineageNachfolger")
 	successor.SeriesRootID = &predecessor.ID
-	require.NoError(t, timetableCompose.NativeGroupRecords(env.timetable.ActivityGroup).Update(testpkg.Ctx(t), successor))
+	require.NoError(t, timetableCompose.NativeGroupRecords(env.timetable.Timetable).Update(testpkg.Ctx(t), successor))
 	createCareOfferingTemplateSchedule(t, env.db, successor.ID, timetable.WeekdayMonday, &period.ID)
 
 	carried := predecessorRows[0]
@@ -902,7 +902,7 @@ func TestOfferingDelete_DegradesSourcedTemplate(t *testing.T) {
 		Exec(ctx)
 	require.NoError(t, err, "deleting an offering with a grade-filtered sourced template must not fail")
 
-	degraded, err := timetableCompose.NativeGroupRecords(testTimetableRepositories(env.db).ActivityGroup).FindByID(ctx, template.ID)
+	degraded, err := timetableCompose.NativeGroupRecords(testTimetableRepositories(env.db).Timetable).FindByID(ctx, template.ID)
 	require.NoError(t, err)
 	assert.Empty(t, degraded.SourceCareOfferingIDs)
 	assert.Empty(t, degraded.SourceGradeLevels)
@@ -950,7 +950,7 @@ func TestOfferingDetach_KeepsRemainingSources(t *testing.T) {
 	offeringB := createSourceOffering(t, env, "DetachQuelleB", nil)
 	template := createSourcedTemplate(t, env, "DetachTermin", offeringA.ID, nil, period.ID)
 	template.SourceCareOfferingIDs = []int64{offeringA.ID, offeringB.ID}
-	require.NoError(t, timetableCompose.NativeGroupRecords(testTimetableRepositories(env.db).ActivityGroup).Update(ctx, template))
+	require.NoError(t, timetableCompose.NativeGroupRecords(testTimetableRepositories(env.db).Timetable).Update(ctx, template))
 
 	studentA, _ := submitAndApproveOfferingChild(t, env, offeringA.ID, "detach-a@example.com", "Alwa", 2)
 	studentB, _ := submitAndApproveOfferingChild(t, env, offeringB.ID, "detach-b@example.com", "Bodo", 2)
@@ -968,7 +968,7 @@ func TestOfferingDetach_KeepsRemainingSources(t *testing.T) {
 	require.True(t, ok)
 	require.NoError(t, detacher.DetachTemplatesSourcedFromOffering(ctx, offeringA.ID, offeringResyncToday))
 
-	kept, err := timetableCompose.NativeGroupRecords(testTimetableRepositories(env.db).ActivityGroup).FindByID(ctx, template.ID)
+	kept, err := timetableCompose.NativeGroupRecords(testTimetableRepositories(env.db).Timetable).FindByID(ctx, template.ID)
 	require.NoError(t, err)
 	assert.Equal(t, []int64{offeringB.ID}, kept.SourceCareOfferingIDs,
 		"the template must stay sourced by the remaining offering")
@@ -1024,7 +1024,7 @@ func TestOfferingDetach_KeepsRemainingSourcesWhenSiblingDrifted(t *testing.T) {
 	offeringB := createSourceOffering(t, env, "DriftQuelleB", nil)
 	template := createSourcedTemplate(t, env, "DriftTermin", offeringA.ID, []int{2}, period.ID)
 	template.SourceCareOfferingIDs = []int64{offeringA.ID, offeringB.ID}
-	require.NoError(t, timetableCompose.NativeGroupRecords(testTimetableRepositories(env.db).ActivityGroup).Update(ctx, template))
+	require.NoError(t, timetableCompose.NativeGroupRecords(testTimetableRepositories(env.db).Timetable).Update(ctx, template))
 
 	onlyA, _ := submitAndApproveOfferingChild(t, env, offeringA.ID, "drift-only-a@example.com", "Anke", 2)
 	onlyB, _ := submitAndApproveOfferingChild(t, env, offeringB.ID, "drift-only-b@example.com", "Bern", 2)
@@ -1047,13 +1047,13 @@ func TestOfferingDetach_KeepsRemainingSourcesWhenSiblingDrifted(t *testing.T) {
 		calendar.NewDate(2030, 1, 1),
 		calendar.NewDate(2030, 1, 31))
 	template.CalendarPeriodID = &shortPeriod.ID
-	require.NoError(t, timetableCompose.NativeGroupRecords(testTimetableRepositories(env.db).ActivityGroup).Update(ctx, template))
+	require.NoError(t, timetableCompose.NativeGroupRecords(testTimetableRepositories(env.db).Timetable).Update(ctx, template))
 
 	detacher, ok := env.bookings.(enrollmentTest.SourcedTemplateResyncer)
 	require.True(t, ok)
 	require.NoError(t, detacher.DetachTemplatesSourcedFromOffering(ctx, offeringA.ID, offeringResyncToday))
 
-	kept, err := timetableCompose.NativeGroupRecords(testTimetableRepositories(env.db).ActivityGroup).FindByID(ctx, template.ID)
+	kept, err := timetableCompose.NativeGroupRecords(testTimetableRepositories(env.db).Timetable).FindByID(ctx, template.ID)
 	require.NoError(t, err)
 	assert.Equal(t, []int64{offeringB.ID}, kept.SourceCareOfferingIDs,
 		"a drifted sibling must not strip the remaining valid source")
@@ -1082,7 +1082,7 @@ func TestResync_UnionAcrossOfferings_PlansSharedChildOnce(t *testing.T) {
 	offeringB := createSourceOffering(t, env, "UnionQuelleB", nil)
 	template := createSourcedTemplate(t, env, "UnionTermin", offeringA.ID, nil, period.ID)
 	template.SourceCareOfferingIDs = []int64{offeringA.ID, offeringB.ID}
-	require.NoError(t, timetableCompose.NativeGroupRecords(testTimetableRepositories(env.db).ActivityGroup).Update(ctx, template))
+	require.NoError(t, timetableCompose.NativeGroupRecords(testTimetableRepositories(env.db).Timetable).Update(ctx, template))
 
 	// One child holds BOTH offerings (same request), one child only offering B.
 	grade := int16(2)
@@ -1169,7 +1169,7 @@ func TestDecide_FansOutToMultiSourceTemplate(t *testing.T) {
 	offeringB := createSourceOffering(t, env, "FanoutQuelleB", nil)
 	template := createSourcedTemplate(t, env, "FanoutMultiTermin", offeringA.ID, nil, period.ID)
 	template.SourceCareOfferingIDs = []int64{offeringA.ID, offeringB.ID}
-	require.NoError(t, timetableCompose.NativeGroupRecords(testTimetableRepositories(env.db).ActivityGroup).Update(ctx, template))
+	require.NoError(t, timetableCompose.NativeGroupRecords(testTimetableRepositories(env.db).Timetable).Update(ctx, template))
 
 	studentID, _ := submitAndApproveOfferingChild(t, env, offeringB.ID, "fanout-multi@example.com", "Mio", 2)
 
@@ -1211,7 +1211,7 @@ func TestOfferingDetach_DriftedSiblingCapsExclusiveCoverage(t *testing.T) {
 
 	template := createSourcedTemplate(t, env, "DriftBreitTermin", offeringA.ID, nil, period.ID)
 	template.SourceCareOfferingIDs = []int64{offeringA.ID, offeringB.ID}
-	require.NoError(t, timetableCompose.NativeGroupRecords(testTimetableRepositories(env.db).ActivityGroup).Update(ctx, template))
+	require.NoError(t, timetableCompose.NativeGroupRecords(testTimetableRepositories(env.db).Timetable).Update(ctx, template))
 
 	// One child holds BOTH offerings; the approval fan-out seeds the union
 	// row shaped by A (first in the array): Mo–Fr.
@@ -1263,7 +1263,7 @@ func TestOfferingDetach_DriftedSiblingCapsExclusiveCoverage(t *testing.T) {
 	require.True(t, ok)
 	require.NoError(t, detacher.DetachTemplatesSourcedFromOffering(ctx, offeringA.ID, offeringResyncToday))
 
-	kept, err := timetableCompose.NativeGroupRecords(testTimetableRepositories(env.db).ActivityGroup).FindByID(ctx, template.ID)
+	kept, err := timetableCompose.NativeGroupRecords(testTimetableRepositories(env.db).Timetable).FindByID(ctx, template.ID)
 	require.NoError(t, err)
 	assert.Equal(t, []int64{offeringB.ID}, kept.SourceCareOfferingIDs)
 
@@ -1299,7 +1299,7 @@ func TestDecide_MultiSourceFanOutSeedsFromPhaseStart(t *testing.T) {
 	offeringB := createSourceOffering(t, env, "LaufendQuelleB", nil)
 	template := createSourcedTemplate(t, env, "LaufendMultiTermin", offeringA.ID, nil, period.ID)
 	template.SourceCareOfferingIDs = []int64{offeringA.ID, offeringB.ID}
-	require.NoError(t, timetableCompose.NativeGroupRecords(testTimetableRepositories(env.db).ActivityGroup).Update(ctx, template))
+	require.NoError(t, timetableCompose.NativeGroupRecords(testTimetableRepositories(env.db).Timetable).Update(ctx, template))
 
 	submitAndApproveOfferingChild(t, env, offeringB.ID, "laufend-multi@example.com", "Lars", 2)
 
@@ -1333,7 +1333,7 @@ func TestUpdateChildOfferings_UndatedCorrectionKeepsPhaseStartOnMultiSource(t *t
 	offeringB := createSourceOffering(t, env, "KorrekturQuelleB", nil)
 	template := createSourcedTemplate(t, env, "KorrekturMultiTermin", offeringA.ID, nil, period.ID)
 	template.SourceCareOfferingIDs = []int64{offeringA.ID, offeringB.ID}
-	require.NoError(t, timetableCompose.NativeGroupRecords(testTimetableRepositories(env.db).ActivityGroup).Update(ctx, template))
+	require.NoError(t, timetableCompose.NativeGroupRecords(testTimetableRepositories(env.db).Timetable).Update(ctx, template))
 
 	_, childID := submitAndApproveOfferingChild(t, env, offeringA.ID, "korrektur-multi@example.com", "Kim", 2)
 	child, err := readOwnerChildForTest(ctx, env.reposEnrollment.Enrollment(), childID)
@@ -1379,7 +1379,7 @@ func TestDecide_MultiSourceResyncRespectsCareOfferingsDisabled(t *testing.T) {
 	offeringB := createSourceOffering(t, env, "GateQuelleB", nil)
 	template := createSourcedTemplate(t, env, "GateMultiTermin", offeringA.ID, nil, period.ID)
 	template.SourceCareOfferingIDs = []int64{offeringA.ID, offeringB.ID}
-	require.NoError(t, timetableCompose.NativeGroupRecords(testTimetableRepositories(env.db).ActivityGroup).Update(ctx, template))
+	require.NoError(t, timetableCompose.NativeGroupRecords(testTimetableRepositories(env.db).Timetable).Update(ctx, template))
 
 	submitAndApproveOfferingChild(t, env, offeringB.ID, "gate-multi@example.com", "Gero", 2)
 
@@ -1443,7 +1443,7 @@ func TestPhaseDelete_RetiresSourcedRosterRows(t *testing.T) {
 		"the not-yet-effective sourced rows must be retired with the phase")
 	assert.Empty(t, loadSourcedInstanceStudents(t, env, planned.ID),
 		"the child's still-planned occurrence row must be removed with the phase")
-	degraded, err := timetableCompose.NativeGroupRecords(timetableRepos.ActivityGroup).FindByID(ctx, template.ID)
+	degraded, err := timetableCompose.NativeGroupRecords(timetableRepos.Timetable).FindByID(ctx, template.ID)
 	require.NoError(t, err)
 	assert.Empty(t, degraded.SourceCareOfferingIDs, "the cascade flips the now source-less template to a manual roster")
 }
@@ -1492,7 +1492,7 @@ func createSourcedTemplateSegment(
 	group.SourceCareOfferingIDs = []int64{offeringID}
 	group.SourceGradeLevels = gradeLevels
 	group.CalendarPeriodID = &periodID
-	require.NoError(t, timetableCompose.NativeGroupRecords(testTimetableRepositories(env.db).ActivityGroup).Update(testpkg.Ctx(t), group))
+	require.NoError(t, timetableCompose.NativeGroupRecords(testTimetableRepositories(env.db).Timetable).Update(testpkg.Ctx(t), group))
 	createBoundedTemplateSchedule(t, env, group.ID, timetable.WeekdayMonday, &periodID, validFrom, validUntil)
 	return group
 }

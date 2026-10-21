@@ -350,7 +350,9 @@ func TestCapacityOccurrencesReadPeriodsThroughTheCalendarOwner(t *testing.T) {
 	period := testpkg.CreateTestCalendarPeriod(t, db, "Kapazität", testpkg.Date(2030, time.September, 2), testpkg.Date(2030, time.September, 6))
 	testpkg.SetCalendarPeriodActive(t, db, period, true)
 
-	occurrences, err := factory.ActivityGroup.ListTemplateCapacityOccurrences(ctx, &period.ID, []int64{missingID(period.ID)})
+	periods, err := factory.Directories.ActivePeriods(ctx)
+	require.NoError(t, err)
+	occurrences, err := factory.Timetable.ListTemplateCapacityOccurrences(ctx, &period.ID, []int64{missingID(period.ID)}, periods)
 	require.NoError(t, err, "the owner query is bound by the test repositories; an unknown template yields no rows")
 	assert.Empty(t, occurrences)
 }

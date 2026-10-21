@@ -43,6 +43,7 @@ func NewTemplateAdministration(deps ports.TemplateAdministrationDependencies) (t
 		ScheduleRepo:         deps.Schedules,
 		EnrollmentRepo:       deps.Enrollments,
 		SupervisorRepo:       deps.Supervisors,
+		Directories:          deps.Directories,
 		InstanceRepo:         deps.Instances,
 		TimeframeRepo:        deps.Timeframes,
 		Materialization:      deps.Materialization,
@@ -103,7 +104,7 @@ func (s *TemplateService) TemplateAssignmentsOn(
 	if err != nil {
 		return timetable.TemplateAssignments{}, err
 	}
-	supervisors, err := s.deps.ActivitySupervisorRepo.FindByGroupID(ctx, templateID)
+	supervisors, err := groupPlannedSupervisors(ctx, s.deps.ActivitySupervisorRepo, s.deps.Directories, templateID)
 	if err != nil {
 		return timetable.TemplateAssignments{}, &ports.ScheduleError{Op: "derive template assignments: load supervisors", Err: err}
 	}
@@ -121,7 +122,7 @@ func (s *TemplateService) TemplateAssignmentsOn(
 // templateStudentsOn returns the enrolled, non-graduated children valid on
 // the date followed by the template's dynamic target students.
 func (s *TemplateService) templateStudentsOn(ctx context.Context, templateID int64, date calendar.Date, periodID int64, planWeekday int) ([]int64, error) {
-	enrollments, err := s.deps.StudentEnrollmentRepo.FindByGroupID(ctx, templateID)
+	enrollments, err := groupStudentEnrollments(ctx, s.deps.StudentEnrollmentRepo, s.deps.Directories, templateID)
 	if err != nil {
 		return nil, &ports.ScheduleError{Op: "derive template assignments: load enrollments", Err: err}
 	}
@@ -133,11 +134,7 @@ func (s *TemplateService) templateStudentsOn(ctx context.Context, templateID int
 		}
 		studentIDs = appendUnseen(studentIDs, seenStudents, enrollment.StudentID)
 	}
-	targetRepo, ok := s.deps.ActivityGroupRepo.(ports.ActivityGroupTargets)
-	if !ok {
-		return studentIDs, nil
-	}
-	targetStudentIDs, err := targetRepo.FindTargetStudentIDs(ctx, templateID)
+	targetStudentIDs, err := listTargetStudentIDs(ctx, s.deps.ActivityGroupRepo, templateID)
 	if err != nil {
 		return nil, &ports.ScheduleError{Op: "derive template assignments: load target students", Err: err}
 	}
@@ -298,6 +295,7 @@ func newTemplateAdministrationService(deps ports.TemplateAdministrationDependenc
 		ActivityGroupRepo:      deps.Groups,
 		ActivitySupervisorRepo: deps.Supervisors,
 		StudentEnrollmentRepo:  deps.Enrollments,
+		Directories:            deps.Directories,
 		TimeframeRepo:          deps.Timeframes,
 		EducationGroups:        deps.EducationGroups,
 		CareOfferings:          deps.CareOfferings,

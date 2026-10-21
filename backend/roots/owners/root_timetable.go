@@ -54,14 +54,14 @@ func BuildTimetableOwner(
 		PlanningTracks:      arrivalTimetable.NewPlanningTrackAdministration(owner, pool),
 		RecurrenceLock:      recurrenceLock,
 		TemplateRows: arrivalTimetable.TemplateRows{
-			Groups: repos.ActivityGroup, Categories: repos.ActivityCategory, Schedules: repos.ActivitySchedule,
-			Enrollments: repos.StudentEnrollment, Supervisors: repos.ActivitySupervisor, Instances: repos.ActivityInstance,
+			Groups: repos.Timetable, Categories: repos.ActivityCategory, Schedules: repos.ActivitySchedule,
+			Enrollments: repos.StudentEnrollment, Supervisors: repos.ActivitySupervisor, Directories: repos.Directories, Instances: repos.ActivityInstance,
 			InstanceStaff: repos.InstanceStaff, Participants: repos.InstanceStudent, Timeframes: repos.Timeframe,
 			CalendarPeriods: calendarPeriods, Exceptions: repos.ActivityException, EducationGroups: groups,
 		},
 		// Reconciles already-materialized future timetable rosters when a
 		// grade transition graduates or restores students (#405).
-		RosterReconciler: arrivalTimetable.NewRosterReconciler(repos.ActivityInstance, repos.InstanceStudent, repos.StudentEnrollment, logger, now),
+		RosterReconciler: arrivalTimetable.NewRosterReconciler(repos.ActivityInstance, repos.InstanceStudent, repos.StudentEnrollment, repos.Directories, logger, now),
 		BlockMetadata:    arrivalTimetable.NewBlockDisplayMetadata(pool, blockDisplayCompose.List),
 	}, nil
 }

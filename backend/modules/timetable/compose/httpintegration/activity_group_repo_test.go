@@ -4,6 +4,7 @@ import (
 	"testing"
 
 	"github.com/moto-nrw/project-phoenix/api"
+	timetableCompose "github.com/moto-nrw/project-phoenix/modules/timetable/compose"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 
 	"github.com/stretchr/testify/assert"
@@ -13,7 +14,7 @@ import (
 func TestTimetableGroupAdapterPreservesDatabaseErrorBehavior(t *testing.T) {
 	t.Parallel()
 	db := testpkg.SetupTestDB(t)
-	repository := api.NewUnobservedTimetableRepositories(testpkg.MustDatabase(db)).ActivityGroup
+	repository := timetableCompose.NewTimetableGroupReads(api.NewUnobservedTimetableRepositories(testpkg.MustDatabase(db)).Timetable)
 
 	group, err := repository.FindByID(testpkg.Ctx(t), int64(9_223_372_036_854_775_000))
 

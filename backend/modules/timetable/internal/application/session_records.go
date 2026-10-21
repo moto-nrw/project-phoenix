@@ -15,21 +15,15 @@ import (
 type SessionRecords struct {
 	Instances ports.ActivityInstanceRecords
 	Staff     ports.InstanceStaffRecords
-	Groups    ports.ActivityGroupRecords
+	Groups    timetable.ActivityGroupQuery
 }
 
 func (r SessionRecords) ListTemplateGroups(ctx context.Context) ([]timetable.Group, error) {
-	rows, err := r.Groups.ListWithCategory(ctx, nil)
+	groups, err := r.Groups.ListGroups(ctx, timetable.GroupFilter{})
 	if err != nil {
-		return nil, err
+		return nil, legacyGroupReadError("list", err)
 	}
-	result := make([]timetable.Group, 0, len(rows))
-	for _, row := range rows {
-		if row != nil {
-			result = append(result, CatalogGroup(row))
-		}
-	}
-	return result, nil
+	return groups, nil
 }
 
 func (r SessionRecords) FindSessionInstance(ctx context.Context, activeGroupID int64) (*timetable.ScheduledInstance, error) {

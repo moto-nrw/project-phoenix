@@ -226,7 +226,7 @@ func composeTestRootWith(db transactionruntime.Database, logger *slog.Logger, cf
 			portalReads = owners.NewParentPortalReads(db, persons, peopleIdentity, enrollmentCompose.New(), organizations)
 			identity, caller, err = owners.BuildIdentityAccess(db, unit, env, tokens, organizations, persons, membership, settings.Service,
 				audit, operatorAuditLog, mailSender, mailDispatcher, mailFrom, delivery.Runtime, mailIdentity, delivery.Enqueuer(), people, portalReads.ParentEnrollmentRequest,
-				structure.Groups, staffGroups, arrivalTimetable.NewCallerActivityGroups(timetableRepos.ActivityGroup),
+				structure.Groups, staffGroups, arrivalTimetable.NewCallerActivityGroups(timetableRepos.Timetable),
 				presence.SessionRecords, presence.Presence, workTime, calendar)
 			return
 		},

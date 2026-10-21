@@ -114,27 +114,29 @@ func (p *helperPeople) GetStaffWithPersonByIDs(context.Context, []int64) (map[in
 }
 
 type helperTemplates struct {
+	timetable.ActivityGroupQuery
 	byID map[int64]*activityContract.Group
 	err  error
 }
 
-func (r *helperTemplates) FindByID(_ context.Context, id int64) (*activityContract.Group, error) {
+// FindGroup reports a missing group with the owner's not-found sentinel.
+func (r *helperTemplates) FindGroup(_ context.Context, id int64) (timetable.Group, error) {
 	if r.err != nil {
-		return nil, r.err
+		return timetable.Group{}, r.err
 	}
 	group := r.byID[id]
 	if group == nil {
-		return nil, helperNotFound{}
+		return timetable.Group{}, timetable.ErrGroupNotFound
 	}
-	return group, nil
+	return CatalogGroup(group), nil
 }
 
-func (r *helperTemplates) FindByIDs(context.Context, []int64) ([]*activityContract.Group, error) {
+func (r *helperTemplates) ListGroups(context.Context, timetable.GroupFilter) ([]timetable.Group, error) {
 	return nil, r.err
 }
 
-func (r *helperTemplates) FindTargetsByGroupIDs(context.Context, []int64) (map[int64][]*activityContract.GroupTarget, error) {
-	return map[int64][]*activityContract.GroupTarget{}, r.err
+func (r *helperTemplates) ListGroupTargets(context.Context, []int64) (map[int64][]timetable.GroupTarget, error) {
+	return map[int64][]timetable.GroupTarget{}, r.err
 }
 
 // helperSettings answers every policy as unset; stringErr fails them all.

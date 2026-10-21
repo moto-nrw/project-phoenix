@@ -6,8 +6,6 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/modules/timetable/ports"
 
-	activityContract "github.com/moto-nrw/project-phoenix/modules/timetable/activitycontract"
-
 	"github.com/moto-nrw/project-phoenix/modules/timetable"
 	scheduleModels "github.com/moto-nrw/project-phoenix/modules/timetable/internal/domain/schedulerecords"
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
@@ -179,29 +177,28 @@ func publicInstanceStaff(row *scheduleModels.InstanceStaff) *timetable.InstanceS
 // TimetableGroupReads serves the activity groups (Angebote) an assignment
 // belongs to.
 type TimetableGroupReads struct {
-	groups ports.ActivityGroupRecords
+	groups timetable.ActivityGroupQuery
 }
 
-// NewTimetableGroupReads binds the group reads to the retained activity
-// group repository.
-func NewTimetableGroupReads(groups ports.ActivityGroupRecords) TimetableGroupReads {
+// NewTimetableGroupReads binds the group reads to the owner's group
+// capability.
+func NewTimetableGroupReads(groups timetable.ActivityGroupQuery) TimetableGroupReads {
 	if groups == nil {
-		panic("timetable group reads: the activity group repository is required")
+		panic("timetable group reads: the activity group capability is required")
 	}
 	return TimetableGroupReads{groups: groups}
 }
 
 // FindByIDs returns the groups with the given IDs.
 func (r TimetableGroupReads) FindByIDs(ctx context.Context, ids []int64) ([]*timetable.Group, error) {
-	rows, err := r.groups.FindByIDs(ctx, ids)
+	if len(ids) == 0 {
+		return []*timetable.Group{}, nil
+	}
+	groups, err := r.groups.ListGroups(ctx, timetable.GroupFilter{IDs: ids})
 	if err != nil {
-		return nil, err
+		return nil, legacyGroupReadError("find groups by ids", err)
 	}
-	result := make([]*timetable.Group, 0, len(rows))
-	for _, row := range rows {
-		result = append(result, publicGroup(row))
-	}
-	return result, nil
+	return groupPointers(groups), nil
 }
 
 // FindByID returns the group with the given ID.
@@ -210,49 +207,26 @@ func (r TimetableGroupReads) FindByID(ctx context.Context, id any) (*timetable.G
 	if !ok {
 		return nil, legacyDatabaseError("find by id", fmt.Errorf("invalid activity group id %T", id))
 	}
-	row, err := r.groups.FindByID(ctx, groupID)
-	return publicGroup(row), err
+	group, err := r.groups.FindGroup(ctx, groupID)
+	if err != nil {
+		return nil, legacyGroupReadError("find by id", err)
+	}
+	return &group, nil
 }
 
 // ListWithCategory returns every group with its category.
 func (r TimetableGroupReads) ListWithCategory(ctx context.Context) ([]*timetable.Group, error) {
-	rows, err := r.groups.ListWithCategory(ctx, nil)
-	return publicGroups(rows), err
+	groups, err := r.groups.ListGroups(ctx, timetable.GroupFilter{})
+	if err != nil {
+		return nil, legacyGroupReadError("list", err)
+	}
+	return groupPointers(groups), nil
 }
 
-func publicGroups(rows []*activityContract.Group) []*timetable.Group {
-	if rows == nil {
-		return nil
-	}
-	result := make([]*timetable.Group, len(rows))
-	for index, row := range rows {
-		result[index] = publicGroup(row)
-	}
-	return result
-}
-
-func publicGroup(group *activityContract.Group) *timetable.Group {
-	if group == nil {
-		return nil
-	}
-	result := &timetable.Group{
-		ID: group.ID, TenantID: group.TenantID, CreatedAt: group.CreatedAt, UpdatedAt: group.UpdatedAt,
-		Name: group.Name, MaxParticipants: group.MaxParticipants, RequiredStaff: group.RequiredStaff,
-		IsOpen: group.IsOpen, CategoryID: group.CategoryID, PlanningTrackID: group.PlanningTrackID,
-		PlannedRoomID: group.PlannedRoomID, CreatedBy: group.CreatedBy, Type: group.Type,
-		EducationGroupID: group.EducationGroupID, ListKind: group.ListKind, IsTemplate: group.IsTemplate,
-		IsSystem: group.IsSystem, ArchivedAt: group.ArchivedAt, SeriesRootID: group.SeriesRootID,
-		CalendarPeriodID: group.CalendarPeriodID, TargetGroupType: group.TargetGroupType,
-		TargetGradeLevel: group.TargetGradeLevel, TargetSchoolClass: group.TargetSchoolClass,
-		SourceCareOfferingIDs: group.SourceCareOfferingIDs, SourceGradeLevels: group.SourceGradeLevels,
-		SourceSchoolClasses: group.SourceSchoolClasses, Notes: group.Notes,
-	}
-	if category := group.Category; category != nil {
-		result.Category = &timetable.Category{
-			ID: category.ID, TenantID: category.TenantID, CreatedAt: category.CreatedAt, UpdatedAt: category.UpdatedAt,
-			Name: category.Name, Description: category.Description, Color: category.Color,
-			IsSystem: category.IsSystem, ShiftTypeID: category.ShiftTypeID, ArchivedAt: category.ArchivedAt,
-		}
+func groupPointers(groups []timetable.Group) []*timetable.Group {
+	result := make([]*timetable.Group, len(groups))
+	for index := range groups {
+		result[index] = &groups[index]
 	}
 	return result
 }

@@ -81,7 +81,7 @@ func TestOperationsCreateAndStartSpontaneousResolvesActivityAgainstRealRepositor
 	createdGroupID := start(newTitle)
 
 	assert.NotEqual(t, existingGroup.ID, createdGroupID)
-	createdGroup, err := repos.ActivityGroup.FindByID(testpkg.Ctx(t), createdGroupID)
+	createdGroup, err := repos.Timetable.FindGroup(testpkg.Ctx(t), createdGroupID)
 	require.NoError(t, err)
 	assert.Equal(t, newTitle, createdGroup.Name)
 	category, err := testpkg.TenantQuery1(t, testpkg.Ctx(t), db, repos.ActivityCategory.FindCategoryByNameForAssignment, "Spontan")
