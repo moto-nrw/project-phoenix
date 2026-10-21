@@ -9,11 +9,13 @@ import (
 )
 
 // PresenceOperations binds the presence application service to the
-// operations port the active routes consume. Every method translates the
-// session rows into the Student Presence owner's public values and passes the
-// operation errors through unchanged, so the routes keep their exact error
-// classification.
+// operations port the active routes consume. The embedded service serves the
+// operations whose values already are the owner's public ones; every method
+// declared here translates the session rows into those values through
+// active, the same service. Operation errors pass through unchanged, so the
+// routes keep their exact error classification.
 type PresenceOperations struct {
+	Service
 	active   Service
 	sessions studentpresence.SessionReads
 	atSchool AtSchoolCounter
@@ -37,7 +39,7 @@ func NewPresenceOperations(value studentpresence.Presence, atSchool AtSchoolCoun
 	if logger == nil {
 		logger = slog.Default()
 	}
-	return PresenceOperations{active: service, sessions: value, atSchool: atSchool, logger: logger}, nil
+	return PresenceOperations{Service: service, active: service, sessions: value, atSchool: atSchool, logger: logger}, nil
 }
 
 func (p PresenceOperations) StartSession(ctx context.Context, group studentpresence.LiveGroup) (studentpresence.LiveGroup, error) {
@@ -56,18 +58,6 @@ func (p PresenceOperations) ReviseSession(ctx context.Context, group studentpres
 	return liveGroup(row), nil
 }
 
-func (p PresenceOperations) RemoveSession(ctx context.Context, id int64) error {
-	return p.active.DeleteActiveGroup(ctx, id)
-}
-
-func (p PresenceOperations) EndSession(ctx context.Context, id int64) error {
-	return p.active.EndActiveGroupSession(ctx, id)
-}
-
-func (p PresenceOperations) TouchSession(ctx context.Context, id int64) error {
-	return p.active.UpdateSessionActivity(ctx, id)
-}
-
 func (p PresenceOperations) AdmitVisit(ctx context.Context, visit studentpresence.Visit) (studentpresence.Visit, error) {
 	if err := p.active.CreateVisit(ctx, &visit); err != nil {
 		return studentpresence.Visit{}, err
@@ -77,18 +67,6 @@ func (p PresenceOperations) AdmitVisit(ctx context.Context, visit studentpresenc
 
 func (p PresenceOperations) AmendVisit(ctx context.Context, visit studentpresence.Visit) error {
 	return p.active.UpdateVisit(ctx, &visit)
-}
-
-func (p PresenceOperations) RemoveVisit(ctx context.Context, id int64) error {
-	return p.active.DeleteVisit(ctx, id)
-}
-
-func (p PresenceOperations) EndVisit(ctx context.Context, id int64) error {
-	return p.active.EndVisit(ctx, id)
-}
-
-func (p PresenceOperations) PresenceMode(ctx context.Context) (string, error) {
-	return p.active.GetPresenceMode(ctx)
 }
 
 func (p PresenceOperations) AssignSupervision(ctx context.Context, row studentpresence.GroupSupervision) (studentpresence.GroupSupervision, error) {
@@ -108,14 +86,6 @@ func (p PresenceOperations) AmendSupervision(ctx context.Context, row studentpre
 		return err
 	}
 	return p.active.UpdateGroupSupervisor(ctx, supervisor)
-}
-
-func (p PresenceOperations) RemoveSupervisionRecord(ctx context.Context, id int64) error {
-	return p.active.DeleteGroupSupervisor(ctx, id)
-}
-
-func (p PresenceOperations) EndSupervision(ctx context.Context, id int64) error {
-	return p.active.EndSupervision(ctx, id)
 }
 
 func (p PresenceOperations) ClaimSupervision(ctx context.Context, groupID, staffID int64, role string) (studentpresence.ClaimedSupervision, error) {
@@ -164,14 +134,6 @@ func (p PresenceOperations) AmendCombination(ctx context.Context, group studentp
 		return studentpresence.CombinedGroup{}, err
 	}
 	return group, nil
-}
-
-func (p PresenceOperations) RemoveCombination(ctx context.Context, id int64) error {
-	return p.active.DeleteCombinedGroup(ctx, id)
-}
-
-func (p PresenceOperations) CloseCombination(ctx context.Context, id int64) error {
-	return p.active.EndCombinedGroup(ctx, id)
 }
 
 func attendanceStatus(status *AttendanceStatus) *studentpresence.AttendanceStatus {
@@ -359,8 +321,4 @@ func (p PresenceOperations) CrossTenantStudents(ctx context.Context, hostingTena
 		})
 	}
 	return result, nil
-}
-
-func (p PresenceOperations) TrackingIndicators(ctx context.Context, studentIDs []int64, labels []string) (map[int64][]bool, error) {
-	return p.active.GetTrackingIndicators(ctx, studentIDs, labels)
 }

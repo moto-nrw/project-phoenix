@@ -33,7 +33,7 @@ composition-budget additions:
   `NewStaffPersonMerge` (11 lines).
 - `workflows/staffpersonmerge/compose`: a new 31-line entry for construction,
   the ambient administrative-transaction guard and the school repair lock.
-- `moduleComposeBudgetTotal`: 12,382 to 12,435, the same 53 lines in total.
+- `moduleComposeBudgetTotal`: 12,355 to 12,408, the same 53 lines in total.
 
 This permits the named constructors and runtime binding only. It does not
 raise a forwarding budget, authorize foreign implementation imports, move

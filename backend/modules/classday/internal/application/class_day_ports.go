@@ -147,9 +147,10 @@ type (
 	EffectiveDayTimes interface {
 		EffectivePickups(ctx context.Context, studentIDs []int64, date calendar.Date) (map[int64]EffectivePickup, error)
 		EffectiveArrivals(ctx context.Context, studentIDs []int64, date calendar.Date) (map[int64]EffectiveArrival, error)
-		// DayDepartureModes maps each child with an Abholart for this one
-		// day (#3945) to it; a missing entry keeps the weekly plan.
-		DayDepartureModes(ctx context.Context, studentIDs []int64, date calendar.Date) (map[int64]string, error)
+		// GetBulkDayDepartureModesForDate maps each child with an Abholart
+		// for this one day (#3945) to it; a missing entry keeps the weekly
+		// plan.
+		GetBulkDayDepartureModesForDate(ctx context.Context, studentIDs []int64, date calendar.Date) (map[int64]string, error)
 	}
 	// ClassArrivalExceptions reads and writes the class-wide arrival day
 	// exceptions (#2962). Refusals answer errors.Is for the classday

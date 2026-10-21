@@ -10,14 +10,12 @@ import (
 	peopledirectory "github.com/moto-nrw/project-phoenix/modules/peopledirectory"
 )
 
-type IdentityAdapter struct{ Module Identity }
-
-func (i IdentityAdapter) HasActiveMembership(ctx context.Context, accountID int64) (bool, error) {
-	return i.Module.HasActiveSchoolMembership(ctx, accountID)
-}
-
-func (i IdentityAdapter) ListAccountRoleIDs(ctx context.Context, accountID int64) ([]int64, error) {
-	return i.Module.ListAccountRoleIDs(ctx, accountID)
+// IdentityAdapter serves the membership and role reads straight from
+// Identity & Access and adds the shareable role list, read through Module,
+// the same value.
+type IdentityAdapter struct {
+	Identity
+	Module Identity
 }
 
 // ListShareableRoles drops the guardian tier: parents never reach the tenant
@@ -35,10 +33,6 @@ func (i IdentityAdapter) ListShareableRoles(ctx context.Context) ([]filestorage.
 		result = append(result, filestorage.AudienceRole{ID: role.ID, Name: role.Name})
 	}
 	return result, nil
-}
-
-func (i IdentityAdapter) ListActiveAccountIDs(ctx context.Context) ([]int64, error) {
-	return i.Module.ListActiveSchoolAccountIDs(ctx)
 }
 
 type Identity interface {

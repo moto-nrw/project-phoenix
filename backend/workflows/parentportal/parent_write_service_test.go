@@ -540,7 +540,7 @@ func TestSubmitSickNote_FutureWriteSerializesWithStaffConflictCheck(t *testing.T
 	require.Len(t, conflictErr.Conflicts, 1)
 	assert.Equal(t, absencerecords.StudentStatusDaySick, conflictErr.Conflicts[0].Status)
 
-	rows, err := statusSvc.GetActiveByStudentAndDateRange(testpkg.TenantContext(chain.TenantID), chain.StudentID, date, date)
+	rows, err := statusSvc.FindActiveByStudentAndDateRange(testpkg.TenantContext(chain.TenantID), chain.StudentID, date, date)
 	require.NoError(t, err)
 	require.Len(t, rows, 1)
 	assert.Equal(t, absencerecords.StudentStatusDaySick, rows[0].Status,

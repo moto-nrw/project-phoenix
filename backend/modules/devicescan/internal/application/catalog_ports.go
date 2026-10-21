@@ -28,11 +28,11 @@ type SessionOperations interface {
 	// activity, creating a device-less one next to running activity
 	// sessions (ADR 0018). It does not report whether it created the row.
 	EnsureRoomSession(ctx context.Context, session devicescan.NewSession) (devicescan.Session, error)
-	Delete(ctx context.Context, sessionID int64) error
+	DeleteActiveGroup(ctx context.Context, sessionID int64) error
 	// End closes a session; an already ended session is not an error.
 	End(ctx context.Context, sessionID int64) error
-	// Touch refreshes the session heartbeat.
-	Touch(ctx context.Context, sessionID int64) error
+	// UpdateSessionActivity refreshes the session heartbeat.
+	UpdateSessionActivity(ctx context.Context, sessionID int64) error
 	Supervisors(ctx context.Context, sessionID int64) ([]devicescan.Supervisor, error)
 	ReplaceSupervisors(ctx context.Context, sessionID int64, staffIDs []int64) error
 }

@@ -16,7 +16,7 @@ type testRoomOccupancy struct {
 	sessions studentpresence.SessionRecords
 }
 
-func (o testRoomOccupancy) RoomOccupied(ctx context.Context, roomID int64) (bool, error) {
+func (o testRoomOccupancy) SpontaneousRoomOccupied(ctx context.Context, roomID int64) (bool, error) {
 	occupied, _, err := o.sessions.CheckRoomConflict(ctx, roomID, 0)
 	return occupied, err
 }

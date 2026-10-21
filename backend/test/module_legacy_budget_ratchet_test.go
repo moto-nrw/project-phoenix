@@ -139,7 +139,7 @@ var moduleLegacyFileBudgets = map[string]int{}
 // like every entry; raised by ADR 0063 and by ADR 0073 (the parent
 // announcement retention of modules/communication/composition).
 // Raised by ADR 0076: the restricted staff person repair compositions (+53).
-const moduleComposeBudgetTotal = 12435
+const moduleComposeBudgetTotal = 12408
 
 // moduleComposeBudgets maps every owner composition package to its production
 // LOC, first measured on 2026-10-15 on top of development c49b81c3a9: 61
@@ -195,13 +195,13 @@ var moduleComposeBudgets = map[string]int{
 	"modules/timetableenrollmentprovenance/compose":   10,
 	"modules/timetableprojection/compose":             7,
 	"modules/transactionruntime/compose":              133,
-	"modules/workforce/compose":                       919,
+	"modules/workforce/compose":                       895,
 	"workflows/gradetransition/compose":               49,
 	"workflows/openroommove/compose":                  46,
 	"workflows/parentportal/compose":                  279,
 	"workflows/reminderdelivery/compose":              30,
 	"workflows/sessionend/compose":                    59,
-	"workflows/shiftplansync/compose":                 127,
+	"workflows/shiftplansync/compose":                 124,
 	"workflows/staffclock/compose":                    36,
 	"workflows/staffoffboarding/compose":              79,
 	// Added by ADR 0076: construction and the ambient transaction guard.

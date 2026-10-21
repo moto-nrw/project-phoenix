@@ -25,6 +25,7 @@ import (
 type timetableData struct {
 	timetable.ConflictAckCapability
 	ports.DeviationEventReader
+	ports.RoomOccupancy
 	deps ports.TimetableDataDependencies
 }
 
@@ -35,7 +36,7 @@ func NewTimetableData(deps ports.TimetableDataDependencies) (timetable.Timetable
 		deps.Rooms == nil || deps.RoomOccupancy == nil || deps.DeviationEvents == nil || deps.ConflictAcks == nil {
 		return nil, errors.New("timetable data: required dependency is nil")
 	}
-	records := &timetableData{ConflictAckCapability: deps.ConflictAcks, DeviationEventReader: deps.DeviationEvents, deps: deps}
+	records := &timetableData{ConflictAckCapability: deps.ConflictAcks, DeviationEventReader: deps.DeviationEvents, RoomOccupancy: deps.RoomOccupancy, deps: deps}
 	return &timetableCommands{records, records}, nil
 }
 

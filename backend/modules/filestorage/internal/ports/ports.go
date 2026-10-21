@@ -97,17 +97,17 @@ type Objects interface {
 
 // Identity supplies the account and role facts of the school in context.
 type Identity interface {
-	// HasActiveMembership reports whether the account still holds an active
-	// mapping to the school.
-	HasActiveMembership(ctx context.Context, accountID int64) (bool, error)
+	// HasActiveSchoolMembership reports whether the account still holds an
+	// active mapping to the school.
+	HasActiveSchoolMembership(ctx context.Context, accountID int64) (bool, error)
 	// ListAccountRoleIDs returns the roles the account holds at this school.
 	ListAccountRoleIDs(ctx context.Context, accountID int64) ([]int64, error)
 	// ListShareableRoles returns the roles a folder can be shared with, by
 	// name: the school's own roles plus the system roles, without the
 	// guardian tier.
 	ListShareableRoles(ctx context.Context) ([]filestorage.AudienceRole, error)
-	// ListActiveAccountIDs returns every account with an active mapping.
-	ListActiveAccountIDs(ctx context.Context) ([]int64, error)
+	// ListActiveSchoolAccountIDs returns every account with an active mapping.
+	ListActiveSchoolAccountIDs(ctx context.Context) ([]int64, error)
 }
 
 // PersonName is the display name behind an account.

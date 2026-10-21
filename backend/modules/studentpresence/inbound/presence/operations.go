@@ -16,23 +16,23 @@ type PresenceOperations interface {
 	// Sessions
 	StartSession(context.Context, studentpresence.LiveGroup) (studentpresence.LiveGroup, error)
 	ReviseSession(context.Context, studentpresence.LiveGroup) (studentpresence.LiveGroup, error)
-	RemoveSession(context.Context, int64) error
-	EndSession(context.Context, int64) error
-	// TouchSession refreshes the session's last activity so web check-ins
+	DeleteActiveGroup(context.Context, int64) error
+	EndActiveGroupSession(context.Context, int64) error
+	// UpdateSessionActivity refreshes the session's last activity so web check-ins
 	// keep the session from timing out.
-	TouchSession(context.Context, int64) error
+	UpdateSessionActivity(context.Context, int64) error
 
 	// Visits
 	AdmitVisit(context.Context, studentpresence.Visit) (studentpresence.Visit, error)
 	AmendVisit(context.Context, studentpresence.Visit) error
-	RemoveVisit(context.Context, int64) error
+	DeleteVisit(context.Context, int64) error
 	EndVisit(context.Context, int64) error
-	PresenceMode(context.Context) (string, error)
+	GetPresenceMode(context.Context) (string, error)
 
 	// Supervision
 	AssignSupervision(context.Context, studentpresence.GroupSupervision) (studentpresence.GroupSupervision, error)
 	AmendSupervision(context.Context, studentpresence.GroupSupervision) error
-	RemoveSupervisionRecord(context.Context, int64) error
+	DeleteGroupSupervisor(context.Context, int64) error
 	EndSupervision(context.Context, int64) error
 	ClaimSupervision(context.Context, int64, int64, string) (studentpresence.ClaimedSupervision, error)
 	UnclaimedSessions(context.Context) ([]studentpresence.UnclaimedSession, error)
@@ -40,8 +40,8 @@ type PresenceOperations interface {
 	// Combinations
 	CreateCombination(context.Context, studentpresence.CombinedGroup, []int64) (studentpresence.CombinedGroup, error)
 	AmendCombination(context.Context, studentpresence.CombinedGroup) (studentpresence.CombinedGroup, error)
-	RemoveCombination(context.Context, int64) error
-	CloseCombination(context.Context, int64) error
+	DeleteCombinedGroup(context.Context, int64) error
+	EndCombinedGroup(context.Context, int64) error
 
 	// Attendance
 	StudentAttendanceStatus(context.Context, int64) (*studentpresence.AttendanceStatus, error)
@@ -58,7 +58,7 @@ type PresenceOperations interface {
 	SessionRooms(context.Context, []int64) ([]studentpresence.SessionRoomSummary, error)
 	DashboardAnalytics(context.Context) (studentpresence.DashboardAnalytics, error)
 	CrossTenantStudents(context.Context, int64) ([]studentpresence.CrossTenantStudent, error)
-	TrackingIndicators(context.Context, []int64, []string) (map[int64][]bool, error)
+	GetTrackingIndicators(context.Context, []int64, []string) (map[int64][]bool, error)
 }
 
 // presenceError names the failed presence read together with its cause. Its

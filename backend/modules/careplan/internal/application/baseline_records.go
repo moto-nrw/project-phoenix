@@ -29,10 +29,15 @@ type ArrivalBaselineDependencies struct {
 
 // NewArrivalBaselines projects the arrival baselines from deps.
 func NewArrivalBaselines(deps ArrivalBaselineDependencies) careplan.ArrivalBaselineReader {
-	return NewArrivalBaselineQueries(arrivalBaselineSource{deps})
+	return NewArrivalBaselineQueries(arrivalBaselineSource{deps.Bookings, deps})
 }
 
-type arrivalBaselineSource struct{ deps ArrivalBaselineDependencies }
+// arrivalBaselineSource reads the booking rows straight from the approved
+// booking reader.
+type arrivalBaselineSource struct {
+	careplan.ApprovedBookingReader
+	deps ArrivalBaselineDependencies
+}
 
 func (s arrivalBaselineSource) StoredArrivalRows(ctx context.Context, ids []int64) ([]*careplan.ArrivalSchedule, error) {
 	if len(ids) == 0 {
@@ -108,10 +113,6 @@ func (s arrivalBaselineSource) BookingsAuthoritative(ctx context.Context) (bool,
 	return value, nil
 }
 
-func (s arrivalBaselineSource) BookingRows(ctx context.Context, ids []int64, from, to calendar.Date) ([]*careplan.ApprovedBooking, error) {
-	return s.deps.Bookings.ListApprovedByStudentIDsInRange(ctx, ids, from, to)
-}
-
 func (s arrivalBaselineSource) OfferingRows(ctx context.Context, links []*careplan.ApprovedBooking) (map[int64]*careplan.CareOffering, error) {
 	rows, err := baselineOfferingRows(ctx, s.deps.Records, links)
 	if err != nil {
@@ -123,12 +124,14 @@ func (s arrivalBaselineSource) OfferingRows(ctx context.Context, links []*carepl
 // NewPickupBaselines projects the pickup baselines from the stored schedules,
 // the approved bookings and the booking mode.
 func NewPickupBaselines(records carePlanPorts.PickupBaselineRecords, links careplan.ApprovedBookingReader, authoritative func(context.Context) (bool, error)) careplan.PickupBaselineReader {
-	return NewPickupBaselineQueries(pickupBaselineSource{records, links, authoritative})
+	return NewPickupBaselineQueries(pickupBaselineSource{links, records, authoritative})
 }
 
+// pickupBaselineSource reads the booking rows straight from the approved
+// booking reader.
 type pickupBaselineSource struct {
+	careplan.ApprovedBookingReader
 	records       carePlanPorts.PickupBaselineRecords
-	links         careplan.ApprovedBookingReader
 	authoritative func(context.Context) (bool, error)
 }
 
@@ -153,10 +156,6 @@ func (s pickupBaselineSource) BookingsAuthoritative(ctx context.Context) (bool, 
 		return false, fmt.Errorf("project pickup baselines: resolve booking mode: %w", err)
 	}
 	return result, nil
-}
-
-func (s pickupBaselineSource) BookingRows(ctx context.Context, ids []int64, from, to calendar.Date) ([]*careplan.ApprovedBooking, error) {
-	return s.links.ListApprovedByStudentIDsInRange(ctx, ids, from, to)
 }
 
 func (s pickupBaselineSource) OfferingRows(ctx context.Context, links []*careplan.ApprovedBooking) (map[int64]*careplan.CareOffering, error) {

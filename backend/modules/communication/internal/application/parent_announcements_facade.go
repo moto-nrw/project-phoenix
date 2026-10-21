@@ -46,10 +46,10 @@ func (a parentAnnouncementDeliveryAdapter) ListForEntity(ctx context.Context, te
 	return result, nil
 }
 
-type parentAnnouncements struct{ service StaffService }
-
-func (p *parentAnnouncements) DeleteExpiredParentAnnouncements(ctx context.Context, retentionDays int) (int, error) {
-	return p.service.DeleteExpiredParentAnnouncements(ctx, retentionDays)
+// parentAnnouncements promotes the service's retention unchanged.
+type parentAnnouncements struct {
+	communication.ParentAnnouncementRetention
+	service StaffService
 }
 
 func (p *parentAnnouncements) ListParentAnnouncements(ctx context.Context, includeInactive bool) ([]communication.ParentAnnouncement, error) {
@@ -333,7 +333,7 @@ func mapParentAnnouncementError(err error) error {
 }
 
 func NewParentAnnouncementFacade(service StaffService) communication.ParentAnnouncementCapability {
-	return &parentAnnouncements{service: service}
+	return &parentAnnouncements{ParentAnnouncementRetention: service, service: service}
 }
 func NewParentAnnouncementDeliveryAdapter(recorder ParentAnnouncementDeliveryRecorder) DeliveryRecorder {
 	return parentAnnouncementDeliveryAdapter{ParentAnnouncementDeliveryRecorder: recorder}

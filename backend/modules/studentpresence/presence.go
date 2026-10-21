@@ -216,10 +216,19 @@ type StudentHistory interface {
 // StatusDayReads reads the reported status days (sick / excused / class
 // trip). Care Plan owns the rows; presence reads them through its adapters.
 type StatusDayReads interface {
-	GetActiveByStudentIDsAndDate(ctx context.Context, studentIDs []int64, date calendar.Date) ([]*absencerecords.StudentStatusDay, error)
-	GetSignedOffByStudentIDsAndDate(ctx context.Context, studentIDs []int64, date calendar.Date) ([]*absencerecords.StudentStatusDay, error)
-	GetActiveByStudentAndDateRange(ctx context.Context, studentID int64, startDate, endDate calendar.Date) ([]*absencerecords.StudentStatusDay, error)
-	GetByStudentAndDateRange(ctx context.Context, studentID int64, startDate, endDate calendar.Date) ([]*absencerecords.StudentStatusDay, error)
+	// FindActiveByStudentIDsAndDate returns the active status rows of many
+	// students for one calendar date.
+	FindActiveByStudentIDsAndDate(ctx context.Context, studentIDs []int64, date calendar.Date) ([]*absencerecords.StudentStatusDay, error)
+	// FindSignedOffByStudentIDsAndDate returns the status rows of many
+	// students that count as a registered sign-off for one date: active rows
+	// plus rows the end-of-day scheduler archived.
+	FindSignedOffByStudentIDsAndDate(ctx context.Context, studentIDs []int64, date calendar.Date) ([]*absencerecords.StudentStatusDay, error)
+	// FindActiveByStudentAndDateRange returns a student's active status rows
+	// within the date range.
+	FindActiveByStudentAndDateRange(ctx context.Context, studentID int64, startDate, endDate calendar.Date) ([]*absencerecords.StudentStatusDay, error)
+	// FindByStudentAndDateRange returns ALL (including cleared) status rows
+	// of a student within the date range.
+	FindByStudentAndDateRange(ctx context.Context, studentID int64, startDate, endDate calendar.Date) ([]*absencerecords.StudentStatusDay, error)
 }
 
 // StatusDayWrites records and clears status days. The writes persist through

@@ -377,7 +377,7 @@ func (rs *Resource) listPhases(w http.ResponseWriter, r *http.Request) {
 
 	var phases []*enrollmentOwner.Phase
 	err := rs.runInTenantTx(r, func(ctx context.Context) error {
-		list, listErr := rs.PhaseService.AllPhases(ctx)
+		list, listErr := rs.PhaseService.Phases(ctx)
 		phases = list
 		return listErr
 	})

@@ -81,7 +81,7 @@ func (q *ArrivalBaselineQueries) careDays(ctx context.Context, ids []int64, from
 	if err != nil || !authoritative {
 		return nil, err
 	}
-	links, err := q.source.BookingRows(ctx, ids, from, to)
+	links, err := q.source.ListApprovedByStudentIDsInRange(ctx, ids, from, to)
 	if err != nil {
 		return nil, fmt.Errorf("project arrival baselines: load booking links: %w", err)
 	}
@@ -114,7 +114,7 @@ func (q *PickupBaselineQueries) Project(ctx context.Context, ids []int64, from, 
 	if err != nil {
 		return nil, err
 	}
-	links, err := q.source.BookingRows(ctx, ids, from, to)
+	links, err := q.source.ListApprovedByStudentIDsInRange(ctx, ids, from, to)
 	if err != nil {
 		return nil, fmt.Errorf("project pickup baselines: load booking links: %w", err)
 	}
@@ -158,7 +158,7 @@ func (q *PickupBaselineQueries) HasBookedOfferingPickupForWeekday(ctx context.Co
 	if weekday < 1 || weekday > 5 {
 		return false, nil
 	}
-	links, err := q.source.BookingRows(ctx, []int64{id}, calendar.TodayDate(), calendar.NewDate(9999, time.December, 31))
+	links, err := q.source.ListApprovedByStudentIDsInRange(ctx, []int64{id}, calendar.TodayDate(), calendar.NewDate(9999, time.December, 31))
 	if err != nil {
 		return false, fmt.Errorf("find booked offering pickup: %w", err)
 	}

@@ -21,5 +21,5 @@ type FeedCancellation struct {
 // require a tenant and participate in its ambient transaction.
 type FeedHistory interface {
 	ListForStaffSince(context.Context, int64, time.Time) ([]FeedCancellation, error)
-	DeleteBefore(context.Context, time.Time) (int, error)
+	DeleteFeedCancellationsBefore(context.Context, time.Time) (int, error)
 }

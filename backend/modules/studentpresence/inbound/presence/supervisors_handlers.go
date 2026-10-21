@@ -221,7 +221,7 @@ func (rs *Resource) deleteSupervisor(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Delete supervisor
-	if err := rs.Operations.RemoveSupervisionRecord(r.Context(), id); err != nil {
+	if err := rs.Operations.DeleteGroupSupervisor(r.Context(), id); err != nil {
 		common.RenderError(w, r, ErrorRenderer(err))
 		return
 	}

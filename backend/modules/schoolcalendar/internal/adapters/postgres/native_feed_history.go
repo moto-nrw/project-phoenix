@@ -7,12 +7,13 @@ import (
 	"github.com/moto-nrw/project-phoenix/modules/schoolcalendar"
 )
 
-func NewNativeFeedHistory(store *Store) schoolcalendar.FeedHistory { return feedHistory{store: store} }
+func NewNativeFeedHistory(store *Store) schoolcalendar.FeedHistory { return feedHistory{Store: store} }
 
-type feedHistory struct{ store *Store }
+// feedHistory promotes DeleteFeedCancellationsBefore from the store unchanged.
+type feedHistory struct{ *Store }
 
 func (h feedHistory) ListForStaffSince(ctx context.Context, staffID int64, since time.Time) ([]schoolcalendar.FeedCancellation, error) {
-	rows, err := h.store.ListFeedCancellations(ctx, staffID, since)
+	rows, err := h.ListFeedCancellations(ctx, staffID, since)
 	if err != nil {
 		return nil, err
 	}
@@ -25,8 +26,4 @@ func (h feedHistory) ListForStaffSince(ctx context.Context, staffID int64, since
 		})
 	}
 	return values, nil
-}
-
-func (h feedHistory) DeleteBefore(ctx context.Context, before time.Time) (int, error) {
-	return h.store.DeleteFeedCancellationsBefore(ctx, before)
 }

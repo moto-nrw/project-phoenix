@@ -65,7 +65,7 @@ func lifecycleCollaboratorsWired(deps ports.InstanceLifecycleDependencies) bool 
 // machinery (#1840) to the template split, which preserves Vertretungsplan
 // overrides with it.
 func (s *InstanceLifecycleService) SeriesDeviations() ports.SeriesDeviations {
-	return seriesDeviationPreserver{lifecycle: s}
+	return s
 }
 
 func (s *InstanceLifecycleService) now() time.Time {
@@ -100,10 +100,10 @@ func (s *InstanceLifecycleService) acquireTenantDayLock(ctx context.Context, ten
 	return s.deps.Database.AcquireTransactionLock(ctx, timetable.SubstituteDayLockKey(tenantID, date))
 }
 
-// acquireSubstituteDayLocks takes the day lock of every date in [from, to]
-// inclusive, in ascending order, so two overlapping windows can never
-// deadlock (#1840).
-func (s *InstanceLifecycleService) acquireSubstituteDayLocks(ctx context.Context, tenantID int64, from, to calendar.Date) error {
+// LockDeviationDays takes the substitute day lock of every date in
+// [from, to] inclusive, in ascending order, so two overlapping windows can
+// never deadlock (#1840).
+func (s *InstanceLifecycleService) LockDeviationDays(ctx context.Context, tenantID int64, from, to calendar.Date) error {
 	for d := from; !d.After(to); d = d.AddDays(1) {
 		if err := s.acquireTenantDayLock(ctx, tenantID, d); err != nil {
 			return err
@@ -113,7 +113,7 @@ func (s *InstanceLifecycleService) acquireSubstituteDayLocks(ctx context.Context
 }
 
 // acquireSubstituteDayLockPair takes the day lock of two dates (deduped) in
-// ascending order, sharing the total order of acquireSubstituteDayLocks so
+// ascending order, sharing the total order of LockDeviationDays so
 // a planned edit that moves a block never deadlocks against a re-plan or a
 // deviation save (#1840).
 func (s *InstanceLifecycleService) acquireSubstituteDayLockPair(ctx context.Context, tenantID int64, a, b calendar.Date) error {
