@@ -183,6 +183,9 @@ type Runtime struct {
 	UpdateStaff func(context.Context, UpdateStaffInput) (UpdateStaffResult, error)
 	Offboard    func(context.Context, int64, string) error
 
+	// ParseIDParam reads an int64 path parameter: api/common.ParseIDParam.
+	ParseIDParam func(*http.Request, string) (int64, error)
+
 	Log *slog.Logger
 }
 
@@ -208,7 +211,7 @@ func NewResource(membership schoolmembership.Capability, runtime Runtime) *Resou
 		runtime.TeacherGroups == nil || runtime.SchoolClasses == nil || runtime.SetSchoolClasses == nil ||
 		runtime.ActiveCaregivers == nil || runtime.StaffByRoles == nil ||
 		runtime.CreateStaff == nil || runtime.UpdateStaff == nil || runtime.Offboard == nil ||
-		runtime.Log == nil {
+		runtime.ParseIDParam == nil || runtime.Log == nil {
 		panic("staff HTTP: all dependencies are required")
 	}
 	return &Resource{membership: membership, runtime: runtime}

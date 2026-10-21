@@ -3,9 +3,7 @@ package operator
 import (
 	"errors"
 	"net/http"
-	"strconv"
 
-	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/render"
 	"github.com/moto-nrw/project-phoenix/api/common"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
@@ -24,7 +22,7 @@ func (rs *InvitationsResource) ReactivateOperator(w http.ResponseWriter, r *http
 }
 
 func (rs *InvitationsResource) changeOperatorStatus(w http.ResponseWriter, r *http.Request, active bool) {
-	operatorID, err := strconv.ParseInt(chi.URLParam(r, "id"), 10, 64)
+	operatorID, err := common.ParseIDParam(r, "id")
 	if err != nil || operatorID <= 0 {
 		common.RenderError(w, r, common.OperatorInvalidRequest(errors.New("invalid operator ID")))
 		return

@@ -32,6 +32,8 @@ type Runtime struct {
 	Success         func(http.ResponseWriter, *http.Request, int, any, string)
 	Failure         func(http.ResponseWriter, *http.Request, Failure)
 	ObserveResponse func(int, string)
+	// ParseIDParam reads an int64 path parameter: api/common.ParseIDParam.
+	ParseIDParam func(*http.Request, string) (int64, error)
 }
 
 type Resource struct {
@@ -40,7 +42,8 @@ type Resource struct {
 }
 
 func NewResource(module feedbackModule.Capability, runtime Runtime) *Resource {
-	if module == nil || runtime.Protected == nil || runtime.Permission == nil || runtime.Success == nil || runtime.Failure == nil || runtime.ObserveResponse == nil {
+	if module == nil || runtime.Protected == nil || runtime.Permission == nil || runtime.Success == nil || runtime.Failure == nil || runtime.ObserveResponse == nil ||
+		runtime.ParseIDParam == nil {
 		panic("feedback HTTP: all dependencies are required")
 	}
 	return &Resource{module: module, runtime: runtime}
@@ -152,7 +155,7 @@ func (rs *Resource) listFeedback(w http.ResponseWriter, r *http.Request) {
 }
 
 func (rs *Resource) getFeedback(w http.ResponseWriter, r *http.Request) {
-	id, err := parseID(r)
+	id, err := rs.parseID(r)
 	if err != nil {
 		rs.invalid(w, r, errors.New("invalid feedback ID"))
 		return
@@ -175,7 +178,7 @@ func (rs *Resource) getStudentFeedback(w http.ResponseWriter, r *http.Request) {
 		rs.failure(w, r, Failure{Status: http.StatusForbidden, Err: ErrFeatureDisabled}, "feature_disabled")
 		return
 	}
-	studentID, err := parseID(r)
+	studentID, err := rs.parseID(r)
 	if err != nil {
 		rs.invalid(w, r, errors.New("invalid student ID"))
 		return
@@ -283,7 +286,7 @@ func (rs *Resource) createBatchFeedback(w http.ResponseWriter, r *http.Request) 
 }
 
 func (rs *Resource) deleteFeedback(w http.ResponseWriter, r *http.Request) {
-	id, err := parseID(r)
+	id, err := rs.parseID(r)
 	if err != nil {
 		rs.invalid(w, r, errors.New("invalid feedback ID"))
 		return
@@ -302,8 +305,8 @@ func (request FeedbackRequest) toInput() feedbackModule.CreateEntry {
 	}
 }
 
-func parseID(r *http.Request) (int64, error) {
-	id, err := strconv.ParseInt(chi.URLParam(r, "id"), 10, 64)
+func (rs *Resource) parseID(r *http.Request) (int64, error) {
+	id, err := rs.runtime.ParseIDParam(r, "id")
 	if err != nil || id <= 0 {
 		return 0, errors.New("invalid ID")
 	}

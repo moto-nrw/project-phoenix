@@ -169,6 +169,7 @@ func newUsersResource(module peopleModule.Capability, accountEmails func(context
 		ObserveResponse: func(status int, code string) {
 			observability.ObservePeopleDirectoryHTTPResponse(status, code)
 		},
+		ParseIDParam: apiCommon.ParseIDParam,
 	})
 }
 
@@ -191,5 +192,6 @@ func newFeedbackResource(module feedbackModule.Capability) *feedbackAPI.Resource
 		ObserveResponse: func(status int, code string) {
 			observability.ObserveFeedbackHTTPResponse("staff", status, code)
 		},
+		ParseIDParam: apiCommon.ParseIDParam,
 	})
 }

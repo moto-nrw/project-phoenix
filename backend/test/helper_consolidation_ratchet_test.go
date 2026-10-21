@@ -2,6 +2,8 @@ package test
 
 import (
 	"fmt"
+	"maps"
+	"os"
 	"path/filepath"
 	"regexp"
 	"sort"
@@ -14,8 +16,10 @@ import (
 //
 //  1. The PostgreSQL unique-violation code "23505" hard-coded outside
 //     modules/transactionruntime/internal/adapters/postgres — use transactionruntime.IsUniqueViolation / transactionruntime.IsUniqueViolationOn.
-//  2. Hand-rolled strconv.ParseInt(chi.URLParam(...)) in api/ — use
-//     common.ParseInt64IDWithError / ParsePositiveInt64IDWithError.
+//  2. Hand-rolled strconv.ParseInt(chi.URLParam(...)) in a handler package
+//     (api/, modules/*/{http,inbound}, workflows/*/{http,inbound}) — use
+//     common.ParseIDParam and its wrappers, or the ParseIDParam the root
+//     injects where api/common is out of reach.
 //  3. Multi-line nil-check getLogger bodies — use cmp.Or(logger, slog.Default()).
 //
 // Allowlists are shrink-only: never add an entry, never raise a count.
@@ -23,7 +27,7 @@ var (
 	// Non-comment "23505" references outside modules/transactionruntime/internal/adapters/postgres and migrations.
 	uniqueViolationLiteralAllowlist = map[string]int{}
 
-	// strconv.ParseInt(chi.URLParam(...)) sites in api/ outside
+	// strconv.ParseInt(chi.URLParam(...)) sites in handler packages outside
 	// api/common/request.go (which implements the shared helper).
 	handRolledParseIntAllowlist = map[string]int{}
 )
@@ -78,14 +82,12 @@ func TestHelperConsolidationRatchet(t *testing.T) {
 	check(counts23505, uniqueViolationLiteralAllowlist, `"23505" literal`,
 		"Use transactionruntime.IsUniqueViolation / transactionruntime.IsUniqueViolationOn (modules/transactionruntime/internal/adapters/postgres/unique_violation.go).")
 
-	countsParseInt, err := scanRatchetPattern(backendRoot, "api", parseIntURLPattern, func(rel string) bool {
-		return rel == "api/common/request.go"
-	})
+	countsParseInt, err := scanHandRolledParseInt(backendRoot)
 	if err != nil {
 		t.Fatalf("scanning for hand-rolled ParseInt sites failed: %v", err)
 	}
 	check(countsParseInt, handRolledParseIntAllowlist, "hand-rolled URL-param ParseInt",
-		"Use common.ParseInt64IDWithError / common.ParsePositiveInt64IDWithError.")
+		"Use common.ParseIDParam / ParseInt64IDWithError / ParsePositiveInt64IDWithError, or the root-injected Runtime.ParseIDParam.")
 
 	multiLineGetLoggers, err := scanMultiLineGetLoggers(backendRoot)
 	if err != nil {
@@ -127,6 +129,67 @@ func scanRatchetPattern(backendRoot, subdir string, pattern *regexp.Regexp, skip
 		}
 	}
 	return counts, nil
+}
+
+// scanHandRolledParseInt counts strconv.ParseInt(chi.URLParam(...)) sites per
+// handler-package file outside the shared helper.
+func scanHandRolledParseInt(backendRoot string) (map[string]int, error) {
+	return scanRatchetPattern(backendRoot, ".", parseIntURLPattern, func(rel string) bool {
+		return !isHandlerPackageFile(rel) || rel == "api/common/request.go"
+	})
+}
+
+// isHandlerPackageFile reports whether rel lies in a package that serves
+// HTTP: the legacy api/ tree or an owner's http/inbound adapter below
+// modules/<owner>/ or workflows/<workflow>/.
+func isHandlerPackageFile(rel string) bool {
+	parts := strings.Split(rel, "/")
+	if len(parts) >= 2 && parts[0] == "api" {
+		return true
+	}
+	return len(parts) >= 4 && (parts[0] == "modules" || parts[0] == "workflows") &&
+		(parts[2] == "http" || parts[2] == "inbound")
+}
+
+func TestHandRolledParseIntScanCoversHandlerPackages(t *testing.T) {
+	t.Parallel()
+
+	root := t.TempDir()
+	site := "package x\n\nfunc f() { _, _ = strconv.ParseInt(chi.URLParam(r, \"id\"), 10, 64) }\n"
+	for _, rel := range []string{
+		"api/a.go",
+		"api/common/request.go",
+		"modules/feedback/http/api.go",
+		"modules/schoolmembership/http/classlistentries/api.go",
+		"modules/identityaccess/inbound/operator/status.go",
+		"workflows/openroommove/http/api.go",
+		"modules/feedback/http/api_test.go",
+		"modules/feedback/internal/adapters/postgres/repo.go",
+		"test/http_api_adapter.go",
+	} {
+		file := filepath.Join(root, filepath.FromSlash(rel))
+		if err := os.MkdirAll(filepath.Dir(file), 0o750); err != nil {
+			t.Fatal(err)
+		}
+		if err := os.WriteFile(file, []byte(site), 0o600); err != nil {
+			t.Fatal(err)
+		}
+	}
+
+	counts, err := scanHandRolledParseInt(root)
+	if err != nil {
+		t.Fatal(err)
+	}
+	want := map[string]int{
+		"api/a.go":                     1,
+		"modules/feedback/http/api.go": 1,
+		"modules/schoolmembership/http/classlistentries/api.go": 1,
+		"modules/identityaccess/inbound/operator/status.go":     1,
+		"workflows/openroommove/http/api.go":                    1,
+	}
+	if !maps.Equal(counts, want) {
+		t.Fatalf("scanHandRolledParseInt = %v, want %v", counts, want)
+	}
 }
 
 // scanMultiLineGetLoggers returns files whose getLogger() method still

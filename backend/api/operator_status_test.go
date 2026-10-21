@@ -75,6 +75,7 @@ func TestOperatorStatusChangeRefusals(t *testing.T) {
 		code   string
 	}{
 		{name: "invalid id", id: "abc", status: http.StatusBadRequest, code: "general.input"},
+		{name: "non-positive id", id: "0", status: http.StatusBadRequest, code: "general.input"},
 		{name: "unknown operator", id: "7", err: identityaccess.ErrOperatorNotFound, status: http.StatusNotFound, code: "identity.account_not_found"},
 		{name: "own account", id: "42", err: identityaccess.ErrOperatorSelfDeactivation, status: http.StatusConflict, code: "identity.operator_self_deactivation"},
 	}

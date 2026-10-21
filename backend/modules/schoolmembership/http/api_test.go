@@ -16,6 +16,7 @@ import (
 	"github.com/go-chi/render"
 	"github.com/moto-nrw/project-phoenix/modules/schoolmembership"
 	staffHTTP "github.com/moto-nrw/project-phoenix/modules/schoolmembership/http"
+	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -222,6 +223,7 @@ func newHarness(t *testing.T, membership *fakeMembership) *harness {
 		ObserveResponse: func(status int, code string) {
 			h.observed = append(h.observed, http.StatusText(status)+":"+code)
 		},
+		ParseIDParam: testpkg.ParseHTTPIDParam,
 		ServeAvatar: func(w http.ResponseWriter, _ *http.Request, path string) {
 			h.servedAvatar = path
 			_, _ = io.WriteString(w, "image-bytes")
@@ -545,6 +547,9 @@ func TestGetStaffSplitsTeacherAndStaffBranch(t *testing.T) {
 	invalid := h.do(t, http.MethodGet, "/staff/abc", nil)
 	assert.Equal(t, http.StatusBadRequest, invalid.Code)
 	assert.Equal(t, "invalid staff ID", decodeError(t, invalid).Detail)
+	nonPositive := h.do(t, http.MethodGet, "/staff/0", nil)
+	assert.Equal(t, http.StatusBadRequest, nonPositive.Code)
+	assert.Equal(t, "invalid staff ID", decodeError(t, nonPositive).Detail)
 	assert.Contains(t, h.observed, "Bad Request:invalid_parameters")
 }
 
