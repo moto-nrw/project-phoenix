@@ -292,3 +292,12 @@ func TestCheckpointCannotDeclareMissingRawEvidence(t *testing.T) {
 		})
 	}
 }
+
+func architectureBackendRoot(t *testing.T) string {
+	t.Helper()
+	workingDirectory, err := os.Getwd()
+	if err != nil {
+		t.Fatal(err)
+	}
+	return filepath.Clean(filepath.Join(workingDirectory, "..", ".."))
+}

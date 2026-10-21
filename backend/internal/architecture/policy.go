@@ -445,16 +445,11 @@ func (p *Policy) validateCanonicalOwners() error {
 		return nil
 	}
 	platformOwners := []string{
-		"audit-platform", "delivery-platform", "document-rendering", "observability",
-		"scheduler-runtime", "security-runtime", "settings-platform",
+		"audit-platform", "delivery-platform", "document-rendering", "export-transfer",
+		"observability", "scheduler-runtime", "security-runtime", "settings-platform",
 		"tenant-runtime", "transaction-runtime",
 	}
-	decision := "ADR 0010"
-	if p.PolicyEpoch >= 2 {
-		platformOwners = append(platformOwners, "export-transfer")
-		slices.Sort(platformOwners)
-		decision = "ADRs 0010 and 0012"
-	}
+	const decision = "ADRs 0010 and 0012"
 	canonicalOwners := []struct {
 		kind string
 		ids  []string

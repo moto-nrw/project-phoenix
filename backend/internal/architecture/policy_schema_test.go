@@ -37,7 +37,7 @@ func TestToolSchemaImmutableBaseUsesOrdinaryStrictness(t *testing.T) {
 	if base.SchemaVersion != 5 || !slices.Equal(base.Owners, candidate.Owners) || !slices.Equal(base.Packages, candidate.Packages) {
 		t.Fatal("wire upgrade changed owner identities, package ownership or roles")
 	}
-	if err := comparePolicyStrictness(base, candidate, nil, nil, nil, nil, nil, nil); err != nil {
+	if err := comparePolicyStrictness(base, candidate, nil, nil, nil, nil, nil); err != nil {
 		t.Fatalf("same tooling permissions across schemas: %v", err)
 	}
 	for _, change := range []string{"owner kind", "package owner", "production permission"} {
@@ -64,7 +64,7 @@ func TestToolSchemaImmutableBaseUsesOrdinaryStrictness(t *testing.T) {
 					}
 				}
 			}
-			if err := comparePolicyStrictness(base, widened, nil, nil, nil, nil, nil, nil); err == nil {
+			if err := comparePolicyStrictness(base, widened, nil, nil, nil, nil, nil); err == nil {
 				t.Fatalf("schema upgrade bypassed %s strictness", change)
 			}
 		})
@@ -127,7 +127,7 @@ func TestHistoricalHTTPInboundNeverBecomesATool(t *testing.T) {
 			t.Fatal("historical HTTP or tooling owner was silently reclassified")
 		}
 	}
-	if err := comparePolicyStrictness(base, repositoryPolicy(t), nil, nil, nil, nil, nil, nil); err == nil {
+	if err := comparePolicyStrictness(base, repositoryPolicy(t), nil, nil, nil, nil, nil); err == nil {
 		t.Fatal("old HTTP inventory bypassed ordinary ownership guards")
 	}
 }

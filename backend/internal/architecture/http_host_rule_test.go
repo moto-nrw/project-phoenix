@@ -15,12 +15,12 @@ func TestHTTPHostPermissionsRequireReviewedEpoch(t *testing.T) {
 	if len(candidate.Rules)-len(base.Rules) != len(httpHostRules) {
 		t.Fatalf("expected %d standing HTTP host rules, found %d", len(httpHostRules), len(candidate.Rules)-len(base.Rules))
 	}
-	if err := comparePolicyStrictness(&base, candidate, noCreated(), noCreated(), noCreated(), noCreated(), noCreated(), nil); err != nil {
+	if err := comparePolicyStrictness(&base, candidate, noCreated(), noCreated(), noCreated(), noCreated(), nil); err != nil {
 		t.Fatalf("reviewed HTTP host rules: %v", err)
 	}
 	unreviewed := *candidate
 	unreviewed.PolicyEpoch = base.PolicyEpoch
-	if err := comparePolicyStrictness(&base, &unreviewed, noCreated(), noCreated(), noCreated(), noCreated(), noCreated(), nil); err == nil {
+	if err := comparePolicyStrictness(&base, &unreviewed, noCreated(), noCreated(), noCreated(), noCreated(), nil); err == nil {
 		t.Fatal("new HTTP host permissions passed without an epoch")
 	}
 }
@@ -40,7 +40,7 @@ func TestHTTPHostEpochGrantsOnlyTheNamedPoints(t *testing.T) {
 		base.PolicyEpoch--
 		widened := *candidate
 		widened.Rules = append(slices.Clone(candidate.Rules), rule)
-		err := comparePolicyStrictness(&base, &widened, noCreated(), noCreated(), noCreated(), noCreated(), noCreated(), nil)
+		err := comparePolicyStrictness(&base, &widened, noCreated(), noCreated(), noCreated(), noCreated(), nil)
 		if err == nil || !strings.Contains(err.Error(), rule.ID) {
 			t.Fatalf("%s escaped the guard: %v", rule.ID, err)
 		}

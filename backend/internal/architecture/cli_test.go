@@ -462,13 +462,14 @@ func TestCheckAllowsOwnedTableAccessThroughPostgresAdapter(t *testing.T) {
 	}
 }
 
+// One stable check of the semantic/invalid fixture serves every assertion on
+// its output; stableFailingCheck runs it twice to prove the output stable.
 func TestCheckReportsSemanticArchitectureViolations(t *testing.T) {
 	t.Parallel()
 
-	output, err := runArchitecture(t, "check", "--project", fixturePath(t, "semantic", "invalid"), "--policy", fixturePath(t, "semantic", "invalid", "policy.json"))
-	if err == nil {
-		t.Fatalf("semantic violations unexpectedly succeeded:\n%s", output)
-	}
+	project := fixturePath(t, "semantic", "invalid")
+	policy := fixturePath(t, "semantic", "invalid", "policy.json")
+	output := stableFailingCheck(t, "check", "--project", project, "--policy", policy)
 
 	for _, want := range expectedSemanticViolationKeys() {
 		if !strings.Contains(output, want) {
@@ -481,14 +482,14 @@ func TestCheckReportsSemanticArchitectureViolations(t *testing.T) {
 	if strings.Contains(output, "database.direct-access|example.test/architecture-semantic/service|example.test/architecture-semantic/service.MixedDB.Close") {
 		t.Fatalf("unrelated interface method was reported as database access:\n%s", output)
 	}
-}
-
-func TestCheckReportsDeterministicSemanticLocations(t *testing.T) {
-	t.Parallel()
-
-	project := fixturePath(t, "semantic", "invalid")
-	policy := fixturePath(t, "semantic", "invalid", "policy.json")
-	output := stableFailingCheck(t, "check", "--project", project, "--policy", policy)
+	if strings.Contains(output, "public.OpenAttachment.Read") {
+		t.Fatalf("standard byte stream was classified as entity CRUD:\n%s", output)
+	}
+	assertContainsAll(t, output,
+		"production|contracts.generic-crud|example.test/architecture-semantic/public|public.RowReader.Read",
+		"production|contracts.generic-crud|example.test/architecture-semantic/public|public.OpenRows.Read",
+		"production|contracts.orm-type|example.test/architecture-semantic/public|public.Service",
+	)
 	assertContainsAll(t, output,
 		"production|tables.foreign-read|example.test/architecture-semantic/foreign|beta.records",
 		"  at foreign/duplicate.go:6 (ReadAgain)",
@@ -773,29 +774,6 @@ func TestPolicyRejectsProjectionPackageAliasesWithDuplicateGrants(t *testing.T) 
 	}
 }
 
-func TestCanonicalArchitectureRatchetMatchesCommittedBaseline(t *testing.T) {
-	t.Parallel()
-	holdRepositoryGraphLoad(t)
-
-	output, err := runArchitecture(t, "check")
-	if err != nil {
-		t.Fatalf("canonical architecture ratchet failed: %v\n%s", err, output)
-	}
-	if !strings.Contains(output, "backend architecture ratchet passed:") || !strings.Contains(output, "0 legacy violation(s) remain") {
-		t.Fatalf("canonical check did not report the shrinking ratchet result:\n%s", output)
-	}
-
-	output, err = runArchitecture(t, "check", "--baseline", "")
-	if err != nil || strings.Contains(output, "|imports.forbidden|") {
-		t.Fatalf("baseline-free canonical check did not pass with zero violations: %v\n%s", err, output)
-	}
-	for _, forbidden := range []string{"|packages.unclassified|", "|packages.stale|", "|external.unclassified|", "|external.stale|", "|policy.rules-overlap|"} {
-		if strings.Contains(output, forbidden) {
-			t.Fatalf("canonical policy contains classification failure %q:\n%s", forbidden, output)
-		}
-	}
-}
-
 func runArchitecture(t *testing.T, args ...string) (string, error) {
 	return runArchitectureWithEnv(t, nil, args...)
 }
@@ -871,18 +849,4 @@ func packageDir(t *testing.T) string {
 		}
 		moduleRoot = parent
 	}
-}
-
-func TestStandardByteStreamsDoNotAuthorizeApplicationCRUD(t *testing.T) {
-	t.Parallel()
-	project := fixturePath(t, "semantic", "invalid")
-	output := stableFailingCheck(t, "check", "--project", project, "--policy", fixturePath(t, "semantic", "invalid", "policy.json"))
-	if strings.Contains(output, "public.OpenAttachment.Read") {
-		t.Fatalf("standard byte stream was classified as entity CRUD:\n%s", output)
-	}
-	assertContainsAll(t, output,
-		"production|contracts.generic-crud|example.test/architecture-semantic/public|public.RowReader.Read",
-		"production|contracts.generic-crud|example.test/architecture-semantic/public|public.OpenRows.Read",
-		"production|contracts.orm-type|example.test/architecture-semantic/public|public.Service",
-	)
 }

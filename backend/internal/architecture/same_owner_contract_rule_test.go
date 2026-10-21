@@ -62,12 +62,12 @@ func TestSameOwnerContractRulesRequireReviewedEpoch(t *testing.T) {
 	if len(candidate.Rules)-len(base.Rules) != len(sameOwnerContractRules) {
 		t.Fatalf("expected the %d same-owner contract rules, found %d", len(sameOwnerContractRules), len(candidate.Rules)-len(base.Rules))
 	}
-	if err := comparePolicyStrictness(&base, candidate, noCreated(), noCreated(), noCreated(), noCreated(), noCreated(), nil); err != nil {
+	if err := comparePolicyStrictness(&base, candidate, noCreated(), noCreated(), noCreated(), noCreated(), nil); err != nil {
 		t.Fatalf("reviewed same-owner contract reach: %v", err)
 	}
 	unreviewed := *candidate
 	unreviewed.PolicyEpoch = base.PolicyEpoch
-	if err := comparePolicyStrictness(&base, &unreviewed, noCreated(), noCreated(), noCreated(), noCreated(), noCreated(), nil); err == nil {
+	if err := comparePolicyStrictness(&base, &unreviewed, noCreated(), noCreated(), noCreated(), noCreated(), nil); err == nil {
 		t.Fatal("new same-owner contract permissions passed without an epoch")
 	}
 }
