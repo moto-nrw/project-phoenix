@@ -280,6 +280,16 @@ describe("SubstitutionPage", () => {
     expect(screen.getByText("Lesezeit")).toBeInTheDocument();
   });
 
+  // #4365: die Übergaben füllen die Breite der Karte „Gruppen“ als Raster.
+  it("lays the group handovers out as a grid", () => {
+    render(<SubstitutionPage />);
+
+    const handover = screen
+      .getByRole("button", { name: "Beenden" })
+      .closest("li");
+    expect(handover?.parentElement?.className).toContain("grid-cols");
+  });
+
   it("ends a group handover through the module", async () => {
     render(<SubstitutionPage />);
 

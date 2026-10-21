@@ -3,7 +3,10 @@
 import { useLayoutEffect, useRef, useState } from "react";
 
 import { Button } from "~/components/ui/button";
-import { CollectionGrid } from "~/components/ui/collection-grid";
+import {
+  CollectionGrid,
+  CollectionGridTile,
+} from "~/components/ui/collection-grid";
 import { StatusBadge } from "~/components/ui/status-badge";
 import { useApiErrorDisplay } from "~/contexts/ToastContext";
 import { createLogger } from "~/lib/logger";
@@ -73,52 +76,54 @@ export function TodayNoticeList({
     latestConfirmRef.current = (notice) => void confirm(notice);
   });
 
-  const items = notices.map((notice) => (
-    <li
-      key={notice.id}
-      className={
-        grid ? "rounded-xl border border-gray-100 bg-gray-50/70 p-4" : undefined
-      }
-    >
-      <div className="flex flex-wrap items-center gap-2">
-        <h3 className="text-[15px] font-semibold text-gray-900">
-          {notice.title}
-        </h3>
-        {notice.priority === "important" && (
-          <StatusBadge label="Wichtig" tone="orange" />
-        )}
-        <span className="text-xs text-gray-500">
-          {describeRecurrence(notice)}
-        </span>
-      </div>
-
-      {notice.body && (
-        <p className="mt-1 max-w-3xl text-sm leading-6 whitespace-pre-line text-gray-600">
-          {notice.body}
-        </p>
-      )}
-
-      {notice.requires_acknowledgement && (
-        <div className="mt-2">
-          {notice.acknowledged_at ? (
-            <StatusBadge label="Zur Kenntnis genommen" tone="green" />
-          ) : (
-            <Button
-              type="button"
-              variant="outline"
-              size="md"
-              disabled={pending === notice.id}
-              onClick={() => void confirm(notice)}
-            >
-              {pending === notice.id
-                ? "Wird gespeichert …"
-                : "Zur Kenntnis nehmen"}
-            </Button>
+  const items = notices.map((notice) => {
+    const content = (
+      <>
+        <div className="flex flex-wrap items-center gap-2">
+          <h3 className="text-[15px] font-semibold text-gray-900">
+            {notice.title}
+          </h3>
+          {notice.priority === "important" && (
+            <StatusBadge label="Wichtig" tone="orange" />
           )}
+          <span className="text-xs text-gray-500">
+            {describeRecurrence(notice)}
+          </span>
         </div>
-      )}
-    </li>
-  ));
+
+        {notice.body && (
+          <p className="mt-1 max-w-3xl text-sm leading-6 whitespace-pre-line text-gray-600">
+            {notice.body}
+          </p>
+        )}
+
+        {notice.requires_acknowledgement && (
+          <div className="mt-2">
+            {notice.acknowledged_at ? (
+              <StatusBadge label="Zur Kenntnis genommen" tone="green" />
+            ) : (
+              <Button
+                type="button"
+                variant="outline"
+                size="md"
+                disabled={pending === notice.id}
+                onClick={() => void confirm(notice)}
+              >
+                {pending === notice.id
+                  ? "Wird gespeichert …"
+                  : "Zur Kenntnis nehmen"}
+              </Button>
+            )}
+          </div>
+        )}
+      </>
+    );
+    return grid ? (
+      <CollectionGridTile key={notice.id}>{content}</CollectionGridTile>
+    ) : (
+      <li key={notice.id}>{content}</li>
+    );
+  });
 
   return grid ? (
     <CollectionGrid as="ul">{items}</CollectionGrid>

@@ -60,3 +60,32 @@ export function CollectionGrid({
     </Element>
   );
 }
+
+/**
+ * Ein Feld im `CollectionGrid`, wenn die Einträge keine eigene Karte sind:
+ * kurze Hinweise, Übergaben, Einwilligungen in einer Karte, die sonst bis
+ * zur Unterkante leer bliebe (#4365). Leicht abgesetzt statt weiß gerahmt,
+ * damit es nicht als Karte in der Karte liest. Nur Anzeige: anklickbare
+ * Kacheln nehmen `TileCard`.
+ */
+export function CollectionGridTile({
+  as = "li",
+  className,
+  children,
+}: Readonly<{
+  as?: "li" | "div";
+  className?: string;
+  children: ReactNode;
+}>) {
+  const Element = as;
+  return (
+    <Element
+      className={cn(
+        "rounded-xl border border-gray-100 bg-gray-50/70 p-4",
+        className,
+      )}
+    >
+      {children}
+    </Element>
+  );
+}
