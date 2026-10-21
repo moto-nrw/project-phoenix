@@ -17,14 +17,14 @@ type GroupRoutePeople struct {
 	persons peoplePorts.PersonDirectory
 }
 
-// groupStudentCounts is the directory read the group routes take as it is.
+// groupStudentCounts is the student row count the group routes take as it is.
 type groupStudentCounts interface {
-	CountStudentsByGroupIDs(ctx context.Context, groupIDs []int64) (map[int64]int, error)
+	CountByGroupIDs(ctx context.Context, groupIDs []int64) (map[int64]int, error)
 }
 
 // NewGroupRoutePeople binds the retained person directory.
 func NewGroupRoutePeople(persons peoplePorts.PersonDirectory) GroupRoutePeople {
-	return GroupRoutePeople{groupStudentCounts: persons, persons: persons}
+	return GroupRoutePeople{groupStudentCounts: persons.StudentRows(), persons: persons}
 }
 
 // GroupStudents returns the children of a group.

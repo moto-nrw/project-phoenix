@@ -381,11 +381,6 @@ func (s *RetainedPersonDirectory) UnlinkFromRFIDCard(ctx context.Context, person
 // flows branch on sql.ErrNoRows and PyrePortal substring-matches the rendered
 // error bodies.
 
-// GetStudentByID retrieves a student by ID.
-func (s *RetainedPersonDirectory) GetStudentByID(ctx context.Context, id int64) (*peopleValues.StudentState, error) {
-	return s.deps.StudentRepo.FindByID(ctx, id)
-}
-
 // GetStudentByIDForUpdate retrieves a student by ID under a row lock held until
 // the caller's transaction ends. Callers that validate the status before writing
 // a row that references the student need it: an unlocked read can be obsolete
@@ -496,11 +491,6 @@ func studentStartedOnDate(enrolledFrom, enrolledUntil *calendar.Date, status str
 		return false
 	}
 	return true
-}
-
-// CountStudentsByGroupIDs counts students per group in a single query.
-func (s *RetainedPersonDirectory) CountStudentsByGroupIDs(ctx context.Context, groupIDs []int64) (map[int64]int, error) {
-	return s.deps.StudentRepo.CountByGroupIDs(ctx, groupIDs)
 }
 
 // GetAllStudentsWithGroups retrieves all students with their group info

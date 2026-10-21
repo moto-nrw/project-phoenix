@@ -12,7 +12,6 @@ type attendanceRoutePeopleSource interface {
 	StaffRows() peoplePorts.StaffRepository
 	TeacherRows() peoplePorts.TeacherRepository
 	StudentRows() peoplePorts.StudentRepository
-	GetStudentByID(context.Context, int64) (*peopleValues.StudentState, error)
 }
 
 type AttendanceRoutePeople struct{ source attendanceRoutePeopleSource }
@@ -55,7 +54,7 @@ func (p AttendanceRoutePeople) GetTeacherByStaffID(ctx context.Context, id int64
 }
 
 func (p AttendanceRoutePeople) GetStudentByID(ctx context.Context, id int64) (int64, *int64, bool, error) {
-	row, err := p.source.GetStudentByID(ctx, id)
+	row, err := p.source.StudentRows().FindByID(ctx, id)
 	if row == nil {
 		return 0, nil, false, err
 	}

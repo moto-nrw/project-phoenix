@@ -134,7 +134,7 @@ func (p TimetablePeople) AttendingStudentPersons(ctx context.Context, studentIDs
 // StudentAttends reports whether the child exists and still attends on day.
 // The person service's not-found error passes through unchanged.
 func (p TimetablePeople) StudentAttends(ctx context.Context, studentID int64, day calendar.Date) (bool, error) {
-	student, err := p.persons.GetStudentByID(ctx, studentID)
+	student, err := p.persons.StudentRows().FindByID(ctx, studentID)
 	if err != nil {
 		return false, err
 	}
