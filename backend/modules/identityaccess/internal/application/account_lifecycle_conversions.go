@@ -15,13 +15,6 @@ func roleFacts(role *identityaccess.RoleFacts) *domain.RoleFacts {
 	return &facts
 }
 
-func parentAccount(value domain.ParentAccount) identityaccess.ParentAccount {
-	return identityaccess.ParentAccount{
-		ID: value.ID, TenantID: value.TenantID, Email: value.Email, Username: value.Username, Active: value.Active,
-		CreatedAt: value.CreatedAt, UpdatedAt: value.UpdatedAt,
-	}
-}
-
 func publicGuardianInvitations(invitations []domain.GuardianInvitation) []identityaccess.GuardianInvitation {
 	if invitations == nil {
 		return nil

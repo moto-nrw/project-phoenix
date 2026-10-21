@@ -1067,9 +1067,8 @@ candidate from source and rejects every key the candidate adds. A key is
 `scope|field|package|Struct.Field` or `scope|setter|package|Function->Target`.
 It counts:
 
-- the fields of the central aggregates: `database/repositories.Factory`,
-  `api.API` and `api.serviceGraph`, which also names the fields of the deleted
-  `services.Factory`;
+- the fields of the central aggregates: `services.Factory`,
+  `database/repositories.Factory` and `api.API`, each under its own name;
 - setters, assignments to the dependency fields of a receiver or pointer
   parameter after construction;
 - since #4071, every field of every struct a `root-composition` package
@@ -2811,9 +2810,10 @@ module; `api/auth` and the operator identity routes
 directly, while `api/parent`, the school portal and the SSE routes keep the
 delegation
 because no target rule lets those inbound packages import the identity-access
-public package. The legacy `auth.accounts_parents` model, repository and its
-six `/auth/parent-accounts` routes stay unchanged; the table has no target
-owner and that conflict stays open under #2720.
+public package. Migration 1.15.471 (#4329) removes the obsolete
+`auth.accounts_parents` model, repository, table and six
+`/auth/parent-accounts` routes. The current parent login continues to use
+`auth.accounts`.
 
 The role and permission administration (#3314) lives in the module's
 application layer as the public `RoleAdministration` capability
@@ -3058,11 +3058,11 @@ The `people-directory.module-behavior-test.deletion.*` permissions bind the
 real composition in the workflow's hermetic tests; they are test-only.
 
 Under ADR 0013 this data-less workflow registration raises the policy epoch
-from 7 to 8 and uses only candidate-created packages. The same epoch adopts
-`users.persons_guardians` into People Directory through the ADR 0015 path:
-its one recorded `tables.unclassified` finding named a package already
-classified under that owner, and the deletion unlinks the legacy guardian rows
-through the owner command. Existing owner/import guards remain unchanged.
+from 7 to 8 and uses only candidate-created packages. That epoch adopted
+`users.persons_guardians` into People Directory through the ADR 0015 path.
+Migration 1.15.471 (#4329) now removes that legacy table; the deletion
+workflow uses the current guardian relationships instead. Existing
+owner/import guards remain unchanged.
 
 The grade transition workflow (`workflows/gradetransition`, owner
 `grade-transition`, kind `workflow`, #2711,
@@ -3674,7 +3674,8 @@ migration. It is pinned to evidence commit
 - the Serve, embedded Worker, and CLI roots, plus the affected packages'
   discoverable `TestMain` roots and one smoke test per root;
 - every Cobra command path and scheduler job ID;
-- every typed legacy-composition reference reported by this evaluator;
+- every typed legacy-composition reference this evaluator reported at the
+  evidence commit;
 - every call to the evidence-only `api.New` (deleted by #2745) and
   `api.NewServer`, the current
   `api.WithRuntime`, the evidence-only `repositories.NewFactory` (deleted by #2743),
@@ -3689,23 +3690,23 @@ migration. It is pinned to evidence commit
   full backend-suite duration measured at the evidence commit.
 
 `evidence_legacy_callers` and `evidence_constructor_calls` preserve the exact
-files, declarations, and lines from that commit. The unprefixed caller lists
-mirror the current tree so the tests still reject newly unlisted callers after
-the evidence commit; they must not be presented as historical measurements.
+files, declarations, and lines from that commit. `constructor_calls` mirrors
+the current tree so the test still rejects newly unlisted callers after the
+evidence commit; it must not be presented as a historical measurement. The
+live typed legacy caller list is gone (#4440): `legacy_composition` is empty,
+so every `composition.legacy-reference` finding already fails
+`scripts/backend-architecture.sh check`.
 
 The runtime measurements are comparison evidence, not timing thresholds. The
 composition tests fail when a root, caller, command, or job drifts. Typed
 legacy references come from the architecture evaluator's existing `go/types`
 analysis; the constructor inventory does not reimplement that analyzer.
 
-After an intentional caller migration, regenerate the typed legacy locations,
-then the discovered test-root, constructor-caller, and job sections with:
+After an intentional caller migration, regenerate the discovered test-root,
+constructor-caller, and job sections with:
 
 ```bash
 cd backend
-go test ./internal/architecture \
-  -run '^TestCompositionLegacyCallerInventory$' \
-  -update-composition-legacy
 go test ./test -run '^TestCompositionInventory$' \
   -update-composition-inventory
 ```
@@ -4200,7 +4201,9 @@ ADR 0053 point 8 puts it:
   employment profile, the schedule and work-time-template adapters over the
   rows of `repositoryadapter`, and today's work presence
   (`time_tracking_planned_shifts.go`, `time_tracking_staff_schedule.go`,
-  `time_tracking_work_schedules.go`, `work_presence.go`).
+  `time_tracking_work_schedules.go`, `work_presence.go`). #4522 later deleted
+  `work_presence.go`: the reminder scheduler and the staff recipient resolver
+  read `WorkPresenceMap` on the Workforce capability.
 - **The root** (`api`) holds the cross-owner glue: the staff absence
   decorators over School Membership and the People Directory, the time-tracking
   ports over the staff rows, the Audit trails, the settings, Delivery and
@@ -4519,9 +4522,10 @@ entry `services.Factory` and the 69 rules only `services` used (1,415 → 1,346
 rules); the epoch stays 44. The baseline goes from 39 to 34: `services -> bun`
 and `services -> tenant` (#2747) and `api -> services`, `cmd -> services` and
 the composition reference `api -> services.Factory` (#2750). The composition
-ratchet counts `api.serviceGraph` as a central aggregate and compares a base's
-`services.Factory` fields with it (`relocatedAggregate`), so the moved fields
-stay shrink-only and a new one fails the check. Measured after merging #2749,
+ratchet counted `api.serviceGraph` as a central aggregate and compared a base's
+`services.Factory` fields with it, so the moved fields stayed shrink-only and a
+new one failed the check. No base carries `services.Factory` any more, and
+#4440 removed that mapping. Measured after merging #2749,
 the surface goes from 140 to 139: the setter `EnableStudentPhotos` is gone. `cycles --graph target` is unchanged at 58
 owners, 335 edges and one component of 32 members. The caller inventory
 `callers/service-factory-2747.json` (`scripts/backend-service-factory-callers`)
@@ -4914,6 +4918,8 @@ pairs, not other additions in the same candidate. Without the old grant in the
 immutable base, the exception cannot activate again. Epoch 16 performs this
 cutover without changing the baseline or composition surface. Epoch 20 (#3427)
 has since removed `care-exit-view`; its reads live in `student-directory-view`.
+#4440 deleted the exception: no base still holds the three projections at
+their old packages with a `users.students` grant.
 
 Reviewed data-less workflow additions may register new workflow owners when
 all their packages are candidate-created and the policy epoch increases
@@ -5064,7 +5070,10 @@ generic store's unresolved expression: the base records a
 `tables.unresolved` finding for a package the candidate no longer
 classifies, and an analysis of the candidate with the table assigned to a
 non-existent owner shows it named statically by packages of the adopting
-owner and no other.
+owner and no other. #4440 deleted both adoption paths: `legacy.jsonl` is
+empty, so no base records the `tables.unclassified` or `tables.unresolved`
+debt they start from. A new `data_objects` entry for an existing table is a
+loosening again, and an owned table still cannot change hands.
 
 ## Appendix: principle traceability
 
@@ -5118,7 +5127,7 @@ numbered decision of the principle ADR.
 | Everything else is an exact key with one open carrier; a cutover never keeps old reach as a rule | ADR 0057 point 2 and consequences, ADR 0030, ADR 0035 to ADR 0038, ADR 0052 | 0070 point 2 |
 | `models/*` carry `legacy-model`, which no foreign owner imports | ADR 0057 point 4 | 0070 point 3 |
 | Ratchet budgets only fall; a raise needs an ADR the change adds | ADR 0057 point 5, ADR 0063, ADR 0064, ADR 0072, ADR 0073 | 0070 point 4 |
-| Pass-throughs count per owner; moved code stays in the scan; four shapes form the floor | ADR 0061, ADR 0064, ADR 0075 | 0070 point 5 |
+| Pass-throughs count per owner; moved code stays in the scan; five shapes and four named exceptions form the floor, and every budget equals it | ADR 0061, ADR 0064, ADR 0075 | 0070 point 5 |
 | A relocation renames keys and grants nothing | ADR 0020 | 0070 point 6 |
 | The epoch rises only for a reviewed decision with a finite, tested acceptor; dead acceptors are deleted | ADR 0053 point 9, ADR 0013, ADR 0015, ADR 0045, ADR 0057 point 7, ADR 0074 | 0070 point 7 |
 | Exact package selectors only narrow | ADR 0057 addendum of 2026-10-16 | 0070 point 8 |

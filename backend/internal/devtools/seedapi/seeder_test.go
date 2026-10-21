@@ -464,29 +464,6 @@ func TestFormatProfileError(t *testing.T) {
 	assert.ErrorIs(t, err, assert.AnError)
 }
 
-func TestNewSeeder(t *testing.T) {
-	t.Parallel()
-
-	s := NewSeeder(newSeedTestAdapter("http://localhost:8080"), newSeedTestRandom(), true, SeedOptions{})
-	assert.NotNil(t, s.client)
-	assert.True(t, s.verbose)
-	assert.Equal(t, "http://localhost:8080", s.client.baseURL)
-}
-
-func TestNewSeeder_WithOptions(t *testing.T) {
-	t.Parallel()
-
-	opts := SeedOptions{
-		TenantSlug:    "my-school",
-		StaffPassword: "MyPass1!",
-		AdminEmail:    "admin@test.com",
-	}
-	s := NewSeeder(newSeedTestAdapter("http://localhost:8080"), newSeedTestRandom(), false, opts)
-	assert.Equal(t, "my-school", s.options.TenantSlug)
-	assert.Equal(t, "MyPass1!", s.options.StaffPassword)
-	assert.Equal(t, "admin@test.com", s.options.AdminEmail)
-}
-
 func TestBootstrapTenant_DefaultProfileIdentityIsStable(t *testing.T) {
 	t.Parallel()
 
@@ -552,43 +529,6 @@ func TestSeeder_DefaultProfileRepeatReturnsClearConflict(t *testing.T) {
 	assert.Contains(t, err.Error(), `demo school profile "vollbetrieb"`)
 	assert.Contains(t, err.Error(), "409 Conflict")
 	assert.Contains(t, err.Error(), "docker compose run server go run . migrate reset")
-}
-
-func TestSeedResult_ZeroValues(t *testing.T) {
-	t.Parallel()
-
-	r := &SeedResult{}
-	assert.Nil(t, r.Fixed)
-}
-
-func TestNewFixedSeeder_InitializesMaps(t *testing.T) {
-	t.Parallel()
-
-	fs := NewFixedSeeder(nil, true, "")
-	assert.NotNil(t, fs.roomIDs)
-	assert.NotNil(t, fs.personIDs)
-	assert.NotNil(t, fs.staffIDs)
-	assert.NotNil(t, fs.teacherIDs)
-	assert.NotNil(t, fs.studentIDs)
-	assert.NotNil(t, fs.studentIDByIndex)
-	assert.NotNil(t, fs.studentRFID)
-	assert.NotNil(t, fs.groupIDs)
-	assert.NotNil(t, fs.activityIDs)
-	assert.NotNil(t, fs.activityRoomIDs)
-	assert.NotNil(t, fs.categoryIDs)
-	assert.NotNil(t, fs.deviceKeys)
-	assert.NotNil(t, fs.roleIDs)
-	assert.NotNil(t, fs.guardianIDs)
-	assert.NotNil(t, fs.staffCredentials)
-	assert.True(t, fs.verbose)
-	assert.Empty(t, fs.staffPassword)
-}
-
-func TestNewFixedSeeder_WithStaffPassword(t *testing.T) {
-	t.Parallel()
-
-	fs := NewFixedSeeder(nil, false, "SharedPass1!")
-	assert.Equal(t, "SharedPass1!", fs.staffPassword)
 }
 
 func TestFullDemoWorkflowSeedsParentLetterAfterParentAccounts(t *testing.T) {
@@ -1094,20 +1034,15 @@ func fullSeedAPIMock(t *testing.T, traces ...*fullSeedAPITrace) *seedHTTPTestSer
 		if trace != nil && trace.enforceDevicePIN && serveDevicePIN(t, trace, w, r) {
 			return
 		}
-		// The duplicate-review demo reads the retained person's real shape
-		// before creating the synthetic retired employment (#3397).
-		if r.Method == seedHTTPMethodGet && strings.HasPrefix(r.URL.Path, "/api/staff/") {
-			suffix := strings.TrimPrefix(r.URL.Path, "/api/staff/")
-			var staffID int64
-			if !strings.Contains(suffix, "/") {
-				if _, err := fmt.Sscan(suffix, &staffID); err == nil && staffID > 0 {
-					require.NoError(t, json.NewEncoder(w).Encode(map[string]any{"status": "success", "data": map[string]any{"id": fmt.Sprint(staffID), "person": map[string]any{"id": staffID + 2000, "first_name": DemoStaff[0].FirstName, "last_name": DemoStaff[0].LastName}}}))
-					return
-				}
-			}
-		}
-		if r.Method == seedHTTPMethodGet && strings.HasPrefix(r.URL.Path, "/operator/staff-person-merges/") {
-			require.NoError(t, json.NewEncoder(w).Encode(map[string]any{"status": "success", "data": []any{}}))
+		if r.Method == seedHTTPMethodPost && r.URL.Path == "/api/enrollment/legal-documents" {
+			// Handle this multipart response before the profile mocks decode JSON.
+			idCounter++
+			w.Header().Set("Content-Type", "application/json")
+			_ = json.NewEncoder(w).Encode(map[string]any{
+				"status": "success", "data": map[string]any{
+					"document_url": fmt.Sprintf("/uploads/enrollment-form-legal-documents/1_%d.pdf", idCounter),
+				},
+			})
 			return
 		}
 		if marketingMock.serve(t, w, r) {
@@ -1782,30 +1717,6 @@ func fullSeedAPIMock(t *testing.T, traces ...*fullSeedAPITrace) *seedHTTPTestSer
 			})
 		}
 	})
-}
-
-func TestFixedResult_Fields(t *testing.T) {
-	t.Parallel()
-
-	r := &FixedResult{
-		RoomCount:        12,
-		PersonCount:      20,
-		StaffCount:       20,
-		AccountCount:     20,
-		GroupCount:       10,
-		StudentCount:     100,
-		SickStudentCount: 5,
-		GuardianCount:    45,
-		ActivityCount:    10,
-		DeviceCount:      10,
-		StaffCredentials: []StaffCredentials{
-			{Email: "demo1@mail.de", Name: "Anna"},
-		},
-	}
-
-	assert.Equal(t, 12, r.RoomCount)
-	assert.Equal(t, 100, r.StudentCount)
-	assert.Len(t, r.StaffCredentials, 1)
 }
 
 func TestTruncateSeedSubdomain(t *testing.T) {

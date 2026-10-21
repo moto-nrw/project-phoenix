@@ -262,6 +262,10 @@
       "kind": "workflow"
     },
     {
+      "id": "staff-person-merge",
+      "kind": "workflow"
+    },
+    {
       "id": "student-deletion",
       "kind": "workflow"
     },
@@ -284,10 +288,6 @@
     {
       "id": "school-setup",
       "kind": "projection"
-    },
-    {
-      "id": "staff-person-merge",
-      "kind": "workflow"
     }
   ],
   "roles": [
@@ -3023,6 +3023,20 @@
       "external_test_role": "adapter-test"
     },
     {
+      "path": "workflows/staffpersonmerge",
+      "owner": "staff-person-merge",
+      "role": "public",
+      "internal_test_role": "workflow-decision-test",
+      "external_test_role": "workflow-integration-test"
+    },
+    {
+      "path": "workflows/staffpersonmerge/compose",
+      "owner": "staff-person-merge",
+      "role": "compose",
+      "internal_test_role": "workflow-integration-test",
+      "external_test_role": "workflow-integration-test"
+    },
+    {
       "path": "sharedkernel/calendar",
       "owner": "shared-kernel",
       "role": "contract",
@@ -3315,6 +3329,13 @@
       "role": "http",
       "internal_test_role": "adapter-test",
       "external_test_role": "adapter-test"
+    },
+    {
+      "path": "workflows/staffpersonmerge/http",
+      "owner": "staff-person-merge",
+      "role": "http",
+      "internal_test_role": "module-internal-test",
+      "external_test_role": "module-behavior-test"
     },
     {
       "path": "modules/settings/records",
@@ -3616,27 +3637,6 @@
       "role": "compose",
       "internal_test_role": "module-internal-test",
       "external_test_role": "module-behavior-test"
-    },
-    {
-      "path": "workflows/staffpersonmerge",
-      "owner": "staff-person-merge",
-      "role": "public",
-      "internal_test_role": "workflow-decision-test",
-      "external_test_role": "workflow-integration-test"
-    },
-    {
-      "path": "workflows/staffpersonmerge/compose",
-      "owner": "staff-person-merge",
-      "role": "compose",
-      "internal_test_role": "workflow-integration-test",
-      "external_test_role": "workflow-integration-test"
-    },
-    {
-      "path": "workflows/staffpersonmerge/http",
-      "owner": "staff-person-merge",
-      "role": "http",
-      "internal_test_role": "module-internal-test",
-      "external_test_role": "module-behavior-test"
     }
   ],
   "data_objects": [
@@ -3894,10 +3894,6 @@
     },
     {
       "name": "auth.accounts",
-      "write_owner": "identity-access"
-    },
-    {
-      "name": "auth.accounts_parents",
       "write_owner": "identity-access"
     },
     {
@@ -4655,10 +4651,6 @@
     {
       "name": "documents.folders",
       "write_owner": "file-storage"
-    },
-    {
-      "name": "users.persons_guardians",
-      "write_owner": "people-directory"
     },
     {
       "name": "users.guardian_financial_data",
@@ -15714,9 +15706,7 @@
     {
       "id": "staff-person-merge.public.people-directory.public",
       "description": "Repair explicitly reviewed staff person duplicates through owner capabilities (#3397).",
-      "scopes": [
-        "production"
-      ],
+      "scopes": ["production"],
       "source_owner": "staff-person-merge",
       "source_role": "public",
       "target_owner": "people-directory",
@@ -15725,9 +15715,7 @@
     {
       "id": "staff-person-merge.public.school-membership.public",
       "description": "Repair explicitly reviewed staff person duplicates through owner capabilities (#3397).",
-      "scopes": [
-        "production"
-      ],
+      "scopes": ["production"],
       "source_owner": "staff-person-merge",
       "source_role": "public",
       "target_owner": "school-membership",
@@ -15736,9 +15724,7 @@
     {
       "id": "staff-person-merge.compose.people-directory.public",
       "description": "Repair explicitly reviewed staff person duplicates through owner capabilities (#3397).",
-      "scopes": [
-        "production"
-      ],
+      "scopes": ["production"],
       "source_owner": "staff-person-merge",
       "source_role": "compose",
       "target_owner": "people-directory",
@@ -15747,9 +15733,7 @@
     {
       "id": "staff-person-merge.compose.school-membership.public",
       "description": "Repair explicitly reviewed staff person duplicates through owner capabilities (#3397).",
-      "scopes": [
-        "production"
-      ],
+      "scopes": ["production"],
       "source_owner": "staff-person-merge",
       "source_role": "compose",
       "target_owner": "school-membership",
@@ -15758,9 +15742,7 @@
     {
       "id": "staff-person-merge.compose.tenant-runtime.public",
       "description": "Repair explicitly reviewed staff person duplicates through owner capabilities (#3397).",
-      "scopes": [
-        "production"
-      ],
+      "scopes": ["production"],
       "source_owner": "staff-person-merge",
       "source_role": "compose",
       "target_owner": "tenant-runtime",
@@ -15769,9 +15751,7 @@
     {
       "id": "staff-person-merge.http.tenant-runtime.http",
       "description": "Expose operator-reviewed staff person repair through the shared HTTP runtime.",
-      "scopes": [
-        "production"
-      ],
+      "scopes": ["production"],
       "source_owner": "staff-person-merge",
       "source_role": "http",
       "target_owner": "tenant-runtime",
@@ -15780,9 +15760,7 @@
     {
       "id": "staff-person-merge.http.staff-person-merge.public",
       "description": "Expose operator-reviewed staff person repair through the shared HTTP runtime.",
-      "scopes": [
-        "production"
-      ],
+      "scopes": ["production"],
       "source_owner": "staff-person-merge",
       "source_role": "http",
       "target_owner": "staff-person-merge",
@@ -15791,9 +15769,7 @@
     {
       "id": "staff-person-merge.public.fingerprint",
       "description": "Fingerprint reviewed person and employment snapshots with SHA-256.",
-      "scopes": [
-        "production"
-      ],
+      "scopes": ["production"],
       "source_owner": "staff-person-merge",
       "source_role": "public",
       "target_class": "crypto"
@@ -15801,9 +15777,7 @@
     {
       "id": "root-composition.test.staff-person-merge.public",
       "description": "The typed HTTP root tests verify the staff repair public contract through its real router and owner compositions.",
-      "scopes": [
-        "internal_test"
-      ],
+      "scopes": ["internal_test"],
       "source_owner": "root-composition",
       "source_role": "module-internal-test",
       "target_owner": "staff-person-merge",

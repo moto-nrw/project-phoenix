@@ -24,7 +24,6 @@ var (
 	ErrSchoolIdentityTagConflict     = errors.New("diese Person trägt an dieser Schule bereits einen anderen Transponder; dieser wird über die Personalverwaltung geändert")
 	ErrSchoolIdentityTagTaken        = errors.New("dieser Transponder ist an dieser Schule bereits einer anderen Person zugeordnet")
 
-	ErrParentAccountNotFound = errors.New("parent account not found")
 	ErrEmailAlreadyExists    = errors.New("diese E-Mail-Adresse ist bereits registriert")
 	ErrUsernameAlreadyExists = errors.New("dieser Benutzername ist bereits vergeben")
 
@@ -274,40 +273,6 @@ type SchoolIdentityProvisioning interface {
 	HasLiveCaregiverProfile(ctx context.Context, accountID int64) (bool, error)
 }
 
-// ParentAccount is one parent authentication account of the school in
-// context.
-type ParentAccount struct {
-	ID        int64
-	TenantID  int64
-	Email     string
-	Username  string
-	Active    bool
-	CreatedAt time.Time
-	UpdatedAt time.Time
-}
-
-// ParentAccountFilter narrows ListParentAccounts. Zero values do not filter.
-type ParentAccountFilter struct {
-	Email  string
-	Active *bool
-}
-
-// ParentAccountAccess manages parent accounts. Lookups report
-// ErrParentAccountNotFound for an unknown account; creation refuses a taken
-// address or username with the retained German sentinels. Calls require the
-// tenant transaction that scopes the parent-account rows.
-type ParentAccountAccess interface {
-	CreateParentAccount(ctx context.Context, email, username, password string) (ParentAccount, error)
-	GetParentAccountByID(ctx context.Context, id int64) (ParentAccount, error)
-	GetParentAccountByEmail(ctx context.Context, email string) (ParentAccount, error)
-	// UpdateParentAccount writes e-mail, username and active flag; the
-	// stored credential is kept.
-	UpdateParentAccount(ctx context.Context, account ParentAccount) error
-	ActivateParentAccount(ctx context.Context, id int64) error
-	DeactivateParentAccount(ctx context.Context, id int64) error
-	ListParentAccounts(ctx context.Context, filter ParentAccountFilter) ([]ParentAccount, error)
-}
-
 // InviteToStudentRequest is the unified "invite an email to a child" input,
 // used by both the staff "Erziehungsberechtigte" tab and the parents portal.
 // The caller resolves RequireApproval from the tenant setting and performs
@@ -413,7 +378,6 @@ type AccountLifecycle interface {
 	StaffPreview
 	StaffOffboardingAccess
 	SchoolIdentityProvisioning
-	ParentAccountAccess
 	GuardianRelativeAccess
 	GuardianInvitations
 }
