@@ -1045,6 +1045,10 @@ func fullSeedAPIMock(t *testing.T, traces ...*fullSeedAPITrace) *seedHTTPTestSer
 			})
 			return
 		}
+		if r.Method == seedHTTPMethodGet && strings.HasPrefix(r.URL.Path, "/operator/staff-person-merges/") {
+			_ = json.NewEncoder(w).Encode(map[string]any{"status": "success", "data": []any{}})
+			return
+		}
 		if marketingMock.serve(t, w, r) {
 			return
 		}
@@ -1059,7 +1063,6 @@ func fullSeedAPIMock(t *testing.T, traces ...*fullSeedAPITrace) *seedHTTPTestSer
 			_ = json.NewEncoder(w).Encode(map[string]any{"status": "success", "data": []any{}})
 			return
 		}
-
 		if r.Method == seedHTTPMethodPut && ((manualAuth && strings.HasPrefix(r.URL.Path, "/api/settings/values/")) || strings.Contains(r.URL.Path, "/operator/schools/2/settings/values/")) {
 			var body struct {
 				Value json.RawMessage `json:"value"`

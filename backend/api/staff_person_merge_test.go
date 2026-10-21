@@ -60,11 +60,10 @@ func (p uncommittedNamesakePeople) RetireMergedStaffPerson(ctx context.Context, 
 	if _, err := tx.NewRaw(`INSERT INTO users.persons (tenant_id, first_name, last_name) VALUES (?, ?, ?)`, p.schoolID, p.first, p.last).Exec(context.Background()); err != nil {
 		return err
 	}
-	retireErr := p.StaffPersonMerge.RetireMergedStaffPerson(ctx, schoolID, donorID, keeperID)
 	if err := tx.Commit(); err != nil {
 		return err
 	}
-	return retireErr
+	return p.StaffPersonMerge.RetireMergedStaffPerson(ctx, schoolID, donorID, keeperID)
 }
 
 func (m *namesakeBeforeRetirementMemberships) ReassignStaffPerson(ctx context.Context, input schoolmembership.StaffPersonReassignment) error {
@@ -81,12 +80,13 @@ func (m *namesakeBeforeRetirementMemberships) ReassignStaffPerson(ctx context.Co
 func newStaffMergeHarness(t *testing.T) staffMergeHarness {
 	t.Helper()
 	db := testpkg.SetupTestDB(t)
+	schoolID := testpkg.OwnTenant(t)
 	handler, err := newStaffPersonMergeRoutes(testpkg.NewDatabase(t, db))
 	require.NoError(t, err)
 	router := chi.NewRouter()
 	router.Mount("/", handler)
 	operator := testpkg.CreateTestOperator(t, db)
-	return staffMergeHarness{db: db, schoolID: testpkg.Tenant(t), operatorID: operator.ID, router: router}
+	return staffMergeHarness{db: db, schoolID: schoolID, operatorID: operator.ID, router: router}
 }
 func (h staffMergeHarness) request(t *testing.T, method string, schoolID int64, body any) *httptest.ResponseRecorder {
 	t.Helper()
@@ -295,7 +295,7 @@ func TestStaffPersonMergeRejectsNamesakeAddedBeforeRetirement(t *testing.T) {
 	assert.Zero(t, audits)
 }
 
-func TestStaffPersonMergeRejectsNamesakeCommittedDuringFinalCheck(t *testing.T) {
+func TestStaffPersonMergeRejectsNamesakeCommittedBeforeFinalCheck(t *testing.T) {
 	t.Parallel()
 	h := newStaffMergeHarness(t)
 	_, donor := h.pair(t, "Gleichzeitig")

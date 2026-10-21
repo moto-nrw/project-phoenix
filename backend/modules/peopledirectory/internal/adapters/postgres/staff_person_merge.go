@@ -51,12 +51,9 @@ func (s *Store) RetireMergedStaffPerson(ctx context.Context, schoolID, donorID, 
 		return errors.New("staff person merge requires an administrative transaction")
 	}
 	// The final group check must not miss an uncommitted person write. Hold the
-	// table lock through the administrative transaction; a concurrent write
-	// either waits until this repair completes or rejects this stale preview.
-	if _, err := db.NewRaw(`LOCK TABLE users.persons IN SHARE ROW EXCLUSIVE MODE NOWAIT`).Exec(ctx); err != nil {
-		if isLockNotAvailable(err) {
-			return peopledirectory.ErrStaffPersonMergeNoLongerEligible
-		}
+	// table lock through the administrative transaction. A concurrent write
+	// completes before the final group check, or waits for this repair.
+	if _, err := db.NewRaw(`LOCK TABLE users.persons IN SHARE ROW EXCLUSIVE MODE`).Exec(ctx); err != nil {
 		return err
 	}
 	people, err := s.StaffMergePeople(ctx, schoolID, true)

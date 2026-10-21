@@ -14,13 +14,10 @@ func TestSeedStaffPersonMergeStepDoesNotDuplicateExistingExample(t *testing.T) {
 
 	for _, tc := range []struct {
 		name     string
-		wireID   string
-		personID string
+		personID int64
 	}{
-		{name: "numeric person ID", wireID: "11", personID: "11"},
-		{name: "quoted person ID", wireID: `"11"`, personID: "11"},
-		{name: "large numeric person ID", wireID: "9007199254740993", personID: "9007199254740993"},
-		{name: "large quoted person ID", wireID: `"9007199254740993"`, personID: "9007199254740993"},
+		{name: "person ID", personID: 11},
+		{name: "large person ID", personID: 9007199254740993},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
@@ -31,12 +28,9 @@ func TestSeedStaffPersonMergeStepDoesNotDuplicateExistingExample(t *testing.T) {
 			srv := newSeedHTTPTestServer(func(w seedHTTPResponseWriter, r *seedHTTPRequest) {
 				w.Header().Set("Content-Type", "application/json")
 				switch {
-				case r.Method == http.MethodGet && r.URL.Path == "/api/staff/1":
-					_, _ = fmt.Fprintf(w, `{"data":{"person":{"id":%s,"first_name":%q,"last_name":%q}}}`,
-						tc.wireID, staff.FirstName, staff.LastName)
 				case r.Method == http.MethodGet && r.URL.Path == "/operator/staff-person-merges/42":
 					if hasExample {
-						_, _ = fmt.Fprintf(w, `{"data":[{"keeper":{"person":{"id":%q}}}]}`, tc.personID)
+						_, _ = fmt.Fprintf(w, `{"data":[{"keeper":{"person":{"id":%q}}}]}`, fmt.Sprint(tc.personID))
 						return
 					}
 					_, _ = fmt.Fprint(w, `{"data":[]}`)
@@ -61,7 +55,7 @@ func TestSeedStaffPersonMergeStepDoesNotDuplicateExistingExample(t *testing.T) {
 				Bootstrap:    &bootstrapSeedState{SchoolID: 42},
 				FixedSeeder: &FixedSeeder{staffIDs: map[string]int64{
 					fmt.Sprintf("%s %s", staff.FirstName, staff.LastName): 1,
-				}},
+				}, personIDs: map[string]int64{fmt.Sprintf("%s %s", staff.FirstName, staff.LastName): tc.personID}},
 			}
 			step := seedStaffPersonMergeStep{}
 			require.NoError(t, step.Run(t.Context(), rt))

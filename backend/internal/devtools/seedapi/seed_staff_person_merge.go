@@ -15,47 +15,20 @@ type seedStaffPersonMergeStep struct{}
 func (seedStaffPersonMergeStep) Name() string { return "Seeding a reviewed staff duplicate example" }
 
 func (seedStaffPersonMergeStep) Run(_ context.Context, rt *Runtime) error {
-	staffIDs := orderedSeedStaffIDs(rt.FixedSeeder)
-	if len(staffIDs) == 0 {
-		return fmt.Errorf("staff duplicate example requires active staff")
+	staff, personID, err := staffPersonMergeSeedTarget(rt.FixedSeeder)
+	if err != nil {
+		return err
 	}
 	rt.Client.BindAuth(rt.TenantAuth)
-	raw, err := rt.Client.Get(fmt.Sprintf("/api/staff/%d", staffIDs[0]))
+	alreadySeeded, err := hasSeededStaffPersonMerge(rt, personID)
 	if err != nil {
-		return fmt.Errorf("read staff duplicate example: %w", err)
+		return err
 	}
-	var existing struct {
-		Data struct {
-			Person struct {
-				ID        json.Number `json:"id"`
-				FirstName string      `json:"first_name"`
-				LastName  string      `json:"last_name"`
-			} `json:"person"`
-		} `json:"data"`
+	if alreadySeeded {
+		return nil
 	}
-	if err := json.Unmarshal(raw, &existing); err != nil {
-		return fmt.Errorf("decode staff duplicate example: %w", err)
-	}
-	if existing.Data.Person.FirstName == "" || existing.Data.Person.LastName == "" {
-		return fmt.Errorf("staff duplicate example has no person name")
-	}
-	// The staff detail embeds a numeric person ID; operator previews use
-	// decimal strings. Decode either representation without a float64 round trip.
-	personID, err := existing.Data.Person.ID.Int64()
-	if err != nil {
-		return fmt.Errorf("decode staff duplicate person ID: %w", err)
-	}
-	if personID > 0 {
-		alreadySeeded, err := hasSeededStaffPersonMerge(rt, personID)
-		if err != nil {
-			return err
-		}
-		if alreadySeeded {
-			return nil
-		}
-	}
-	raw, err = rt.Client.Post("/api/staff/externals", map[string]any{
-		"first_name": existing.Data.Person.FirstName, "last_name": existing.Data.Person.LastName, "organization": "Demo: frühere Beschäftigung für die Dublettenprüfung",
+	raw, err := rt.Client.Post("/api/staff/externals", map[string]any{
+		"first_name": staff.FirstName, "last_name": staff.LastName, "organization": "Demo: frühere Beschäftigung für die Dublettenprüfung",
 	})
 	if err != nil {
 		return fmt.Errorf("create staff duplicate example: %w", err)
@@ -71,6 +44,24 @@ func (seedStaffPersonMergeStep) Run(_ context.Context, rt *Runtime) error {
 		return fmt.Errorf("retire duplicate employment: %w", err)
 	}
 	return nil
+}
+
+func staffPersonMergeSeedTarget(seeder *FixedSeeder) (DemoStaffMember, int64, error) {
+	if seeder == nil {
+		return DemoStaffMember{}, 0, fmt.Errorf("staff duplicate example requires active staff")
+	}
+	for _, staff := range DemoStaff {
+		key := fmt.Sprintf("%s %s", staff.FirstName, staff.LastName)
+		if seeder.staffIDs[key] == 0 {
+			continue
+		}
+		personID := seeder.personIDs[key]
+		if personID == 0 {
+			return DemoStaffMember{}, 0, fmt.Errorf("staff duplicate example has no person ID for %s", key)
+		}
+		return staff, personID, nil
+	}
+	return DemoStaffMember{}, 0, fmt.Errorf("staff duplicate example requires active staff")
 }
 
 // hasSeededStaffPersonMerge recognizes the example by its account-bearing
