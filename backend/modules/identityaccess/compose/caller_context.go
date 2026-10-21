@@ -87,8 +87,8 @@ func NewCallerContext(deps CallerContextDependencies) (identityaccess.CallerCont
 	appDeps := application.CallerContextDependencies{
 		Caller:     application.NewCallerReader(deps.Caller),
 		Memo:       application.RequestMemo(deps.Memo),
-		Accounts:   application.CallerAccounts{Profiles: deps.Accounts},
-		People:     application.CallerPeople{People: deps.People},
+		Accounts:   application.CallerAccounts{AccountProfiles: deps.Accounts},
+		People:     application.CallerPeople{CallerPeople: deps.People},
 		Membership: deps.Membership,
 		Structure:  deps.Structure,
 		Activities: deps.Activities,
@@ -101,7 +101,7 @@ func NewCallerContext(deps CallerContextDependencies) (identityaccess.CallerCont
 		appDeps.LiveTopics = deps.LiveTopics
 	}
 	if deps.Overview != nil {
-		appDeps.Overview = application.CallerOverview{Overview: deps.Overview}
+		appDeps.Overview = deps.Overview
 	}
 	app, err := application.NewCallerContext(appDeps)
 	if err != nil {

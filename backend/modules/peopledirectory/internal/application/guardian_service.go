@@ -518,22 +518,6 @@ func (s *RetainedGuardianService) SearchGuardiansForPicker(ctx context.Context, 
 	return matches, nil
 }
 
-// GetGuardiansWithoutAccount retrieves guardians who don't have portal accounts
-func (s *RetainedGuardianService) GetGuardiansWithoutAccount(ctx context.Context) ([]*peopleValues.GuardianProfileSnapshot, error) {
-	return s.GuardianProfileRepo.FindWithoutAccount(ctx)
-}
-
-// GetInvitableGuardians retrieves guardians who can be invited
-func (s *RetainedGuardianService) GetInvitableGuardians(ctx context.Context) ([]*peopleValues.GuardianProfileSnapshot, error) {
-	return s.GuardianProfileRepo.FindInvitable(ctx)
-}
-
-// GetPendingInvitations retrieves the guardian invitations whose link can
-// still be spent.
-func (s *RetainedGuardianService) GetPendingInvitations(ctx context.Context) ([]peoplePorts.GuardianInvitationRecord, error) {
-	return s.GuardianInvitations.ListRedeemable(ctx)
-}
-
 // ============================================================================
 // Phone Number Management
 // ============================================================================
@@ -542,4 +526,16 @@ func (s *RetainedGuardianService) GetPendingInvitations(ctx context.Context) ([]
 // reads, for the directory reads that look a profile up by e-mail.
 func (s *RetainedGuardianService) GuardianProfiles() peoplePorts.GuardianProfileRepository {
 	return s.GuardianProfileRepo
+}
+
+// GuardianPhoneNumbers is the retained phone number repository the service
+// reads, for the directory's phone reads.
+func (s *RetainedGuardianService) GuardianPhoneNumbers() peoplePorts.GuardianPhoneNumberRepository {
+	return s.GuardianPhoneNumberRepo
+}
+
+// GuardianInvitationReads is the invitation port the service reads, for the
+// overview of the redeemable invitations.
+func (s *RetainedGuardianService) GuardianInvitationReads() peoplePorts.GuardianInvitations {
+	return s.GuardianInvitations
 }

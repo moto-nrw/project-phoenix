@@ -918,7 +918,7 @@ func mountSchoolRoutes(
 // root builds the form schemas, the captcha and the phase expiry warnings
 // here, over the settings and the owners it composed (#4012).
 func newEnrollmentResource(
-	logger *slog.Logger, settings settingsCompose.SettingsService, careOfferings carePlanModule.CareOfferingCapability,
+	logger *slog.Logger, settings settingsCompose.SettingsService, turnstile TurnstileKeys, careOfferings carePlanModule.CareOfferingCapability,
 	flows owners.EnrollmentFlows, phases enrollmentOwner.PhaseAdministration, decisions enrollmentOwner.Decisions,
 	deletions enrollmentOwner.EnrollmentDeletions, identity identityaccess.Owner,
 	guardianProfiles *peopleCompose.GuardianProfileLoader, organizations organizationtenancy.Query,
@@ -928,7 +928,7 @@ func newEnrollmentResource(
 		newEnrollmentFormSchemas(settings, logger),
 		enrollmentAPI.NewCareOfferingCatalog(NewEnrollmentCareOfferingValues(careOfferings)),
 		enrollmentAPI.NewRequestService(flows.Intake),
-		newEnrollmentCaptcha(settings, logger),
+		newEnrollmentCaptcha(settings, turnstile, logger),
 		phases,
 		enrollmentAPI.NewDecisionService(decisions),
 		flows.Reports,

@@ -75,7 +75,7 @@ func (p TimetablePeople) AccountPersonName(ctx context.Context, accountID int64)
 
 // StaffPersonID returns the person id of a staff member, 0 when unknown.
 func (p TimetablePeople) StaffPersonID(ctx context.Context, staffID int64) (int64, error) {
-	staff, err := p.persons.GetStaffByID(ctx, staffID)
+	staff, err := p.persons.StaffRows().FindByID(ctx, staffID)
 	if err != nil {
 		return 0, err
 	}
@@ -88,7 +88,7 @@ func (p TimetablePeople) StaffPersonID(ctx context.Context, staffID int64) (int6
 // PersonStaffID returns the staff id of a person, 0 when the person is no
 // staff member.
 func (p TimetablePeople) PersonStaffID(ctx context.Context, personID int64) (int64, error) {
-	staff, err := p.persons.GetStaffByPersonID(ctx, personID)
+	staff, err := p.persons.StaffRows().FindByPersonID(ctx, personID)
 	if err != nil {
 		return 0, err
 	}
@@ -100,7 +100,7 @@ func (p TimetablePeople) PersonStaffID(ctx context.Context, personID int64) (int
 
 // StaffNames maps staff ids to their person's display name in one read.
 func (p TimetablePeople) StaffNames(ctx context.Context, staffIDs []int64) (map[int64]string, error) {
-	staffByID, err := p.persons.GetStaffWithPersonByIDs(ctx, staffIDs)
+	staffByID, err := p.persons.StaffRows().FindWithPersonByIDs(ctx, staffIDs)
 	if err != nil {
 		return nil, err
 	}
@@ -117,7 +117,7 @@ func (p TimetablePeople) StaffNames(ctx context.Context, staffIDs []int64) (map[
 // day to their person ids. Graduates and children past their end of care
 // drop out (#405, #2487).
 func (p TimetablePeople) AttendingStudentPersons(ctx context.Context, studentIDs []int64, day calendar.Date) (map[int64]int64, error) {
-	students, err := p.persons.GetStudentsByIDs(ctx, studentIDs)
+	students, err := p.persons.StudentRows().FindByIDs(ctx, studentIDs)
 	if err != nil {
 		return nil, err
 	}

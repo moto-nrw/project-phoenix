@@ -4,6 +4,7 @@ import (
 	"context"
 
 	"github.com/moto-nrw/project-phoenix/modules/peopledirectory"
+	"github.com/moto-nrw/project-phoenix/modules/peopledirectory/ports"
 )
 
 // The People Directory read ports the root binds for the room snapshot
@@ -19,7 +20,7 @@ type PersonNameSource interface {
 // export reads.
 type RoomSnapshotSource interface {
 	PersonNameSource
-	GetStudentsByIDs(ctx context.Context, ids []int64) (map[int64]*peopledirectory.StudentState, error)
+	StudentRows() ports.StudentRepository
 }
 
 // RoomSnapshotPeople serves the Students port of the room snapshot export
@@ -37,7 +38,7 @@ func NewRoomSnapshotPeople(source RoomSnapshotSource) RoomSnapshotPeople {
 
 // StudentsByIDs returns the students for ids, keyed by student id.
 func (p RoomSnapshotPeople) StudentsByIDs(ctx context.Context, ids []int64) (map[int64]peopledirectory.Student, error) {
-	students, err := p.source.GetStudentsByIDs(ctx, ids)
+	students, err := p.source.StudentRows().FindByIDs(ctx, ids)
 	if err != nil {
 		return nil, err
 	}
