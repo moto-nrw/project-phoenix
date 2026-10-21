@@ -1395,6 +1395,25 @@ func CreateTestPrivacyConsent(tb testing.TB, db *bun.DB, prefix string) *Privacy
 	return consent
 }
 
+// CreateTestParentAccount creates a legacy guardian-link account and returns its ID.
+func CreateTestParentAccount(tb testing.TB, db *bun.DB, email string) int64 {
+	tb.Helper()
+
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	// Make email unique
+	uniqueEmail := fmt.Sprintf(testEmailFormat, email, uniqueFixtureSuffix())
+	username := fmt.Sprintf("parent-%d", uniqueFixtureSuffix())
+
+	var accountID int64
+	err := db.NewRaw(`INSERT INTO auth.accounts_parents (tenant_id, email, username, active)
+		VALUES (?, ?, ?, TRUE) RETURNING id`, fixtureTenantID(tb), uniqueEmail, username).Scan(ctx, &accountID)
+	require.NoError(tb, err, "Failed to create test parent account")
+
+	return accountID
+}
+
 // ============================================================================
 // Schedule Domain Fixtures
 // ============================================================================
