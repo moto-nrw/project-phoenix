@@ -23,23 +23,27 @@ function PersonDetails({
   label,
 }: Readonly<{ side: MergeSide; label: string }>) {
   return (
-    <div>
+    <div className="space-y-3 text-sm leading-6">
       <p className="font-medium">
         {label}: {side.name}
       </p>
-      <p>
-        Person {side.personId} · erstellt am {formatDate(side.createdAt)}
-      </p>
-      <p>{side.accountId ? `Konto ${side.accountId}` : "Ohne Konto"}</p>
-      <p>
-        Beschäftigung {side.staffId} · angelegt am{" "}
-        {formatDate(side.staffCreatedAt)}
-      </p>
-      <p>
-        {side.retiredAt
-          ? `Ausgetreten am ${formatDate(side.retiredAt)}`
-          : "Aktuell beschäftigt"}
-      </p>
+      <div className="space-y-1">
+        <p>
+          Person {side.personId} · erstellt am {formatDate(side.createdAt)}
+        </p>
+        <p>{side.accountId ? `Konto ${side.accountId}` : "Ohne Konto"}</p>
+      </div>
+      <div className="space-y-1">
+        <p>
+          Beschäftigung {side.staffId} · angelegt am{" "}
+          {formatDate(side.staffCreatedAt)}
+        </p>
+        <p>
+          {side.retiredAt
+            ? `Ausgetreten am ${formatDate(side.retiredAt)}`
+            : "Aktuell beschäftigt"}
+        </p>
+      </div>
       {side.birthday && <p>Geburtsdatum: {formatDate(side.birthday)}</p>}
     </div>
   );
@@ -102,8 +106,26 @@ export function StaffPersonMerge({
     <SectionCard
       title="Doppelte Personaleinträge prüfen"
       description="Prüfen Sie mit der Schule, ob beide Einträge denselben Menschen meinen."
+      className="mt-6"
+      bodyClassName="mt-6 space-y-6"
+      action={
+        <Button
+          type="button"
+          variant="outline"
+          size="md"
+          disabled={saving || isLoading}
+          onClick={() => {
+            setSelected(new Set());
+            setConfirmed(false);
+            clearFailure();
+            void mutate();
+          }}
+        >
+          Vorschläge neu laden
+        </Button>
+      }
     >
-      <p className="mb-3 text-sm">
+      <p className="text-sm leading-6">
         Der Eintrag mit Konto bleibt erhalten. Beide Beschäftigungen bleiben
         bestehen. Zeitkonten, Urlaub und Historie werden nicht zusammengelegt.
       </p>
@@ -113,32 +135,17 @@ export function StaffPersonMerge({
         <p role="status">Die ausgewählten Personen wurden zusammengeführt.</p>
       )}
       <FormErrorAlert message={failure} />
-      <Button
-        variant="outline"
-        size="sm"
-        disabled={saving || isLoading}
-        onClick={() => {
-          setSelected(new Set());
-          setConfirmed(false);
-          clearFailure();
-          void mutate();
-        }}
-      >
-        Vorschläge neu laden
-      </Button>
-      {data?.length === 0 && (
-        <p className="mt-3">Keine passenden Doppelsätze gefunden.</p>
-      )}
+      {data?.length === 0 && <p>Keine passenden Doppelsätze gefunden.</p>}
       {data && data.length > 0 && (
         <>
-          <p className="my-3 text-sm">
+          <p className="text-sm leading-6">
             Namensgleichheit ist kein Nachweis. Wählen Sie jeden Fall erst nach
             Sichtprüfung aus. Unklare Fälle bleiben unverändert.
           </p>
-          <ul className="space-y-4">
+          <ul className="space-y-8">
             {data.map((candidate) => (
-              <li key={candidate.revision}>
-                <div className="grid gap-3 text-sm sm:grid-cols-2">
+              <li key={candidate.revision} className="space-y-4">
+                <div className="grid gap-6 sm:grid-cols-2">
                   <PersonDetails
                     side={candidate.keeper}
                     label="Bleibt erhalten"
@@ -148,8 +155,9 @@ export function StaffPersonMerge({
                     label="Wird zusammengeführt"
                   />
                 </div>
-                <label className="mt-2 flex items-center gap-2 text-sm">
+                <label className="flex items-start gap-3 py-1 text-sm leading-6">
                   <Checkbox
+                    className="mt-0.5"
                     checked={selected.has(candidate.revision)}
                     disabled={saving}
                     onChange={(event) =>
@@ -161,29 +169,37 @@ export function StaffPersonMerge({
                       })
                     }
                   />
-                  Ich habe geprüft: Beide Einträge von {candidate.keeper.name}{" "}
-                  gehören derselben Person.
+                  <span>
+                    Ich habe geprüft: Beide Einträge von {candidate.keeper.name}{" "}
+                    gehören derselben Person.
+                  </span>
                 </label>
               </li>
             ))}
           </ul>
-          <label className="my-4 flex items-center gap-2 text-sm">
-            <Checkbox
-              checked={confirmed}
-              disabled={saving}
-              onChange={(event) => setConfirmed(event.target.checked)}
-            />
-            Die Zusammenführung der ausgewählten Fälle ist mit {schoolName}{" "}
-            abgestimmt.
-          </label>
-          <Button
-            variant="danger"
-            disabled={!confirmed || selected.size === 0 || saving || !!error}
-            isLoading={saving}
-            onClick={() => void merge()}
-          >
-            {selected.size} geprüfte Fälle zusammenführen
-          </Button>
+          <div className="space-y-4">
+            <label className="flex items-start gap-3 py-1 text-sm leading-6">
+              <Checkbox
+                className="mt-0.5"
+                checked={confirmed}
+                disabled={saving}
+                onChange={(event) => setConfirmed(event.target.checked)}
+              />
+              <span>
+                Die Zusammenführung der ausgewählten Fälle ist mit {schoolName}{" "}
+                abgestimmt.
+              </span>
+            </label>
+            <Button
+              type="button"
+              variant="danger"
+              disabled={!confirmed || selected.size === 0 || saving || !!error}
+              isLoading={saving}
+              onClick={() => void merge()}
+            >
+              {selected.size} geprüfte Fälle zusammenführen
+            </Button>
+          </div>
         </>
       )}
     </SectionCard>
