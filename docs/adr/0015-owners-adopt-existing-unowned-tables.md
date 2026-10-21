@@ -76,5 +76,5 @@ is a narrow evaluator permission, not a rebuild of legacy findings.
 
 ## Subsequent change
 
-Migration 1.15.470 (#4329) removes `auth.accounts_parents` and
+Migration 1.15.471 (#4329) removes `auth.accounts_parents` and
 `users.persons_guardians`. They are no longer candidates for owner adoption.

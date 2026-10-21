@@ -2811,7 +2811,7 @@ module; `api/auth` and the operator identity routes
 directly, while `api/parent`, the school portal and the SSE routes keep the
 delegation
 because no target rule lets those inbound packages import the identity-access
-public package. Migration 1.15.470 (#4329) removes the obsolete
+public package. Migration 1.15.471 (#4329) removes the obsolete
 `auth.accounts_parents` model, repository, table and six
 `/auth/parent-accounts` routes. The current parent login continues to use
 `auth.accounts`.
@@ -3061,7 +3061,7 @@ real composition in the workflow's hermetic tests; they are test-only.
 Under ADR 0013 this data-less workflow registration raises the policy epoch
 from 7 to 8 and uses only candidate-created packages. That epoch adopted
 `users.persons_guardians` into People Directory through the ADR 0015 path.
-Migration 1.15.470 (#4329) now removes that legacy table; the deletion
+Migration 1.15.471 (#4329) now removes that legacy table; the deletion
 workflow uses the current guardian relationships instead. Existing
 owner/import guards remain unchanged.
 
