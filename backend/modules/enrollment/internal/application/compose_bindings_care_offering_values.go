@@ -9,14 +9,15 @@ import (
 // CareOfferingValues serves Care Plan's catalog administration to the
 // enrollment routes in Enrollment's public offering values (#2734). Every
 // operation runs through the row translation of CareOfferingRows, so the
-// stored columns and the marked refusals are those of the rows.
+// stored columns and the marked refusals are those of the rows. Delete and
+// ListBookingStats need no value translation and are served by the rows.
 type CareOfferingValues struct {
-	Rows *CareOfferingRows
+	*CareOfferingRows
 }
 
 // List lists the tenant's catalog.
 func (v *CareOfferingValues) List(ctx context.Context) ([]*enrollment.CareOffering, error) {
-	rows, err := v.Rows.List(ctx)
+	rows, err := v.CareOfferingRows.List(ctx)
 	if err != nil {
 		return nil, err
 	}
@@ -25,7 +26,7 @@ func (v *CareOfferingValues) List(ctx context.Context) ([]*enrollment.CareOfferi
 
 // ListByPhase lists the catalog of one phase.
 func (v *CareOfferingValues) ListByPhase(ctx context.Context, phaseID int64) ([]*enrollment.CareOffering, error) {
-	rows, err := v.Rows.ListByPhase(ctx, phaseID)
+	rows, err := v.CareOfferingRows.ListByPhase(ctx, phaseID)
 	if err != nil {
 		return nil, err
 	}
@@ -34,7 +35,7 @@ func (v *CareOfferingValues) ListByPhase(ctx context.Context, phaseID int64) ([]
 
 // GetByID loads one offering.
 func (v *CareOfferingValues) GetByID(ctx context.Context, id int64) (*enrollment.CareOffering, error) {
-	row, err := v.Rows.GetByID(ctx, id)
+	row, err := v.CareOfferingRows.GetByID(ctx, id)
 	if err != nil {
 		return nil, err
 	}
@@ -47,7 +48,7 @@ func (v *CareOfferingValues) Create(ctx context.Context, offering *enrollment.Ca
 	if err != nil {
 		return nil, err
 	}
-	stored, err := v.Rows.Create(ctx, row)
+	stored, err := v.CareOfferingRows.Create(ctx, row)
 	if err != nil {
 		return nil, err
 	}
@@ -60,28 +61,18 @@ func (v *CareOfferingValues) Update(ctx context.Context, offering *enrollment.Ca
 	if err != nil {
 		return err
 	}
-	if err := v.Rows.Update(ctx, row); err != nil {
+	if err := v.CareOfferingRows.Update(ctx, row); err != nil {
 		return err
 	}
 	*offering = *PublicCareOffering(row)
 	return nil
 }
 
-// Delete deletes an offering.
-func (v *CareOfferingValues) Delete(ctx context.Context, id int64) error {
-	return v.Rows.Delete(ctx, id)
-}
-
 // Clone copies an offering into a target phase.
 func (v *CareOfferingValues) Clone(ctx context.Context, sourceID, targetPhaseID int64) (*enrollment.CareOffering, error) {
-	row, err := v.Rows.Clone(ctx, sourceID, targetPhaseID)
+	row, err := v.CareOfferingRows.Clone(ctx, sourceID, targetPhaseID)
 	if err != nil {
 		return nil, err
 	}
 	return PublicCareOffering(row), nil
-}
-
-// ListBookingStats reports how full each offering of the phase is.
-func (v *CareOfferingValues) ListBookingStats(ctx context.Context, phaseID int64) ([]enrollment.CareOfferingBookingStat, error) {
-	return v.Rows.ListBookingStats(ctx, phaseID)
 }

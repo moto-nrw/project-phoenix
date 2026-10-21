@@ -141,7 +141,7 @@ func requireActor(actor domain.Actor) error {
 // caller without an active mapping to the school sees nothing: a token can
 // outlive a membership change, so the tenant claim alone is not enough.
 func (s *Service) viewer(ctx context.Context, actor domain.Actor) (domain.Viewer, bool, error) {
-	active, err := s.deps.Identity.HasActiveMembership(ctx, actor.AccountID)
+	active, err := s.deps.Identity.HasActiveSchoolMembership(ctx, actor.AccountID)
 	if err != nil {
 		return domain.Viewer{}, false, err
 	}

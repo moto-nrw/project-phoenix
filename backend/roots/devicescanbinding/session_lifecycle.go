@@ -41,7 +41,10 @@ type lifecycleSupervisionQuery interface {
 	ActiveSupervisions(context.Context, int64) ([]devicescan.Supervision, error)
 }
 
+// lifecycleStore promotes CountActiveVisitsByActiveGroupID unchanged; the
+// other lifecycle steps go through active, the same service.
 type lifecycleStore struct {
+	studentpresence.Presence
 	active   studentpresence.Presence
 	presence lifecycleSupervisionQuery
 }
@@ -126,10 +129,6 @@ func (s lifecycleStore) Supervisors(ctx context.Context, sessionID int64) ([]por
 func (s lifecycleStore) ReplaceSupervisors(ctx context.Context, sessionID int64, ids []int64) (ports.LifecycleSession, error) {
 	group, err := s.active.UpdateActiveGroupSupervisors(ctx, sessionID, ids)
 	return lifecycleSession(group), classifyPresence(err)
-}
-
-func (s lifecycleStore) CountStudents(ctx context.Context, sessionID int64) (int, error) {
-	return s.active.CountActiveVisitsByActiveGroupID(ctx, sessionID)
 }
 
 func (s lifecycleStore) Touch(ctx context.Context, sessionID int64) error {

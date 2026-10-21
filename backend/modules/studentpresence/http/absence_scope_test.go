@@ -113,7 +113,7 @@ func TestDirectAbsenceScopeRestrictsExistingReportsOnNextRequest(t *testing.T) {
 		"student_ids": []int64{student.ID, other.ID}, "status": "sick", "from": date, "to": date,
 	}), claims, perms)
 	require.Equal(t, http.StatusForbidden, rr.Code, rr.Body.String())
-	rows, err := tc.resource.StudentStatusDayService.GetActiveByStudentAndDateRange(testpkg.Ctx(t), other.ID, calendar.DateFromTime(fixedCalendarClock()), calendar.DateFromTime(fixedCalendarClock()).AddDays(5))
+	rows, err := tc.resource.StudentStatusDayService.FindActiveByStudentAndDateRange(testpkg.Ctx(t), other.ID, calendar.DateFromTime(fixedCalendarClock()), calendar.DateFromTime(fixedCalendarClock()).AddDays(5))
 	require.NoError(t, err)
 	require.Empty(t, rows, "denied bulk write must not partially commit")
 
@@ -161,7 +161,7 @@ func TestDirectAbsenceScopeFailsClosed(t *testing.T) {
 				"status": "sick", "dates": []string{calendar.DateFromTime(fixedCalendarClock()).AddDays(1).String()},
 			}), claims, perms)
 			require.Contains(t, []int{http.StatusForbidden, http.StatusUnauthorized}, rr.Code, rr.Body.String())
-			rows, err := tc.resource.StudentStatusDayService.GetActiveByStudentAndDateRange(testpkg.Ctx(t), student.ID, calendar.DateFromTime(fixedCalendarClock()), calendar.DateFromTime(fixedCalendarClock()).AddDays(2))
+			rows, err := tc.resource.StudentStatusDayService.FindActiveByStudentAndDateRange(testpkg.Ctx(t), student.ID, calendar.DateFromTime(fixedCalendarClock()), calendar.DateFromTime(fixedCalendarClock()).AddDays(2))
 			require.NoError(t, err)
 			require.Empty(t, rows)
 		})

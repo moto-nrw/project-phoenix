@@ -63,9 +63,10 @@ type DataCategories interface {
 	CreateCategory(ctx context.Context, input timetable.CreateCategory) (timetable.Category, error)
 }
 
-// RoomOccupancy reports another open Student Presence session in a room.
+// RoomOccupancy reports another open Student Presence session in a room;
+// the planner serves its spontaneous-start check with it unchanged.
 type RoomOccupancy interface {
-	RoomOccupied(ctx context.Context, roomID int64) (bool, error)
+	SpontaneousRoomOccupied(ctx context.Context, roomID int64) (bool, error)
 }
 
 // DeviationEventReader is the consumer-owned port to the Audit Platform's

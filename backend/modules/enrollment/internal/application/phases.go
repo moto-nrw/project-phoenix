@@ -55,7 +55,9 @@ func (s *PhaseResponseSources) complete() bool {
 }
 
 // Phases is the phase administration.
+// Phases lists every phase straight from the records.
 type Phases struct {
+	PhaseList
 	deps   PhaseDependencies
 	logger *slog.Logger
 }
@@ -67,7 +69,7 @@ func newPhases(deps PhaseDependencies) *Phases {
 	if logger == nil {
 		logger = slog.Default()
 	}
-	return &Phases{deps: deps, logger: logger}
+	return &Phases{PhaseList: deps.Records, deps: deps, logger: logger}
 }
 
 // NewResyncingPhases builds the phase administration over the
@@ -143,11 +145,6 @@ func (s *Phases) translatePhaseWriteError(err error) error {
 	default:
 		return err
 	}
-}
-
-// AllPhases returns every phase of the tenant.
-func (s *Phases) AllPhases(ctx context.Context) ([]*enrollment.Phase, error) {
-	return s.deps.Records.Phases(ctx)
 }
 
 // ListPublicOpen returns the active phases whose enrollment window is open

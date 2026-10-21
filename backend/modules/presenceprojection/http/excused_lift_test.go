@@ -39,7 +39,7 @@ func TestUpdateStudent_LiftFailsWhenStatusDayResponseCannotBeVerified(t *testing
 	assert.Equal(t, http.StatusInternalServerError, lift.Code, lift.Body.String())
 
 	tc.resource.StudentStatusDayService = statusDays
-	rows, err := statusDays.GetActiveByStudentAndDateRange(testpkg.Ctx(t), student.ID, today, today)
+	rows, err := statusDays.FindActiveByStudentAndDateRange(testpkg.Ctx(t), student.ID, today, today)
 	require.NoError(t, err)
 	require.Len(t, rows, 1)
 	assert.Equal(t, statusDay.ID, rows[0].ID, "the failed response verification rolls back the lift")
@@ -50,7 +50,7 @@ type statusDayResponseFailure struct {
 	err error
 }
 
-func (s statusDayResponseFailure) GetActiveByStudentAndDateRange(
+func (s statusDayResponseFailure) FindActiveByStudentAndDateRange(
 	_ context.Context,
 	_ int64,
 	_, _ calendar.Date,

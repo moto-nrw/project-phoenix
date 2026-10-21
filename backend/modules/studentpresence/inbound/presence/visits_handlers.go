@@ -203,7 +203,7 @@ func (rs *Resource) createVisit(w http.ResponseWriter, r *http.Request) {
 
 	// Binary mode deliberately succeeds without creating a room visit.
 	if admitted.ID == 0 {
-		mode, err := rs.Operations.PresenceMode(r.Context())
+		mode, err := rs.Operations.GetPresenceMode(r.Context())
 		if err != nil {
 			common.RenderError(w, r, common.ErrorInternalServer(presenceQueryError("GetPresenceMode", err)))
 			return
@@ -283,7 +283,7 @@ func (rs *Resource) deleteVisit(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Delete visit
-	if err := rs.Operations.RemoveVisit(r.Context(), id); err != nil {
+	if err := rs.Operations.DeleteVisit(r.Context(), id); err != nil {
 		common.RenderError(w, r, ErrorRenderer(err))
 		return
 	}

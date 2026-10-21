@@ -81,6 +81,21 @@ describe("staff navigation tree", () => {
     expect(STAFF_NAV_DEFAULT_OPEN_GROUPS).toEqual(["tagesbetrieb"]);
   });
 
+  it("puts Alle Kinder directly below Meine Gruppen in the Tagesbetrieb (#4348)", () => {
+    const tagesbetrieb = STAFF_NAV_GROUPS.find(
+      (group) => group.key === "tagesbetrieb",
+    );
+    const entries = (tagesbetrieb?.entries ?? []).map((entry) =>
+      entry.kind === "page" ? entry.href : entry.section,
+    );
+    expect(entries.slice(0, 4)).toEqual([
+      STAFF_FLAT_PAGES.tagesplan.href,
+      "groups",
+      STAFF_FLAT_PAGES.studentSearch.href,
+      "supervisions",
+    ]);
+  });
+
   it("names no two groups with a shared word stem", () => {
     const labels = STAFF_NAV_GROUPS.map((group) => group.label.toLowerCase());
     for (const label of labels) {

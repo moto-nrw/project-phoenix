@@ -15,5 +15,5 @@ func (s *service) CleanupExpiredFeedTombstones(ctx context.Context) (int, error)
 		return 0, fmt.Errorf("%w: calendar feed cleanup not configured", ErrInvalidRequest)
 	}
 	cutoff := time.Now().AddDate(0, 0, -feedTombstoneDays)
-	return s.cfg.StaffFeedTombstoneRepo.DeleteBefore(ctx, cutoff)
+	return s.cfg.StaffFeedTombstoneRepo.DeleteFeedCancellationsBefore(ctx, cutoff)
 }

@@ -19,7 +19,7 @@ type fixedWorkPresence struct {
 	err      error
 }
 
-func (p fixedWorkPresence) GetTodayPresenceMap(context.Context) (map[int64]string, error) {
+func (p fixedWorkPresence) WorkPresenceMap(context.Context) (map[int64]string, error) {
 	return p.presence, p.err
 }
 

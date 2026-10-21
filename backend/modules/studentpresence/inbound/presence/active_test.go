@@ -43,9 +43,9 @@ type recordingEndActiveGroupService struct {
 	endCalls int
 }
 
-func (s *recordingEndActiveGroupService) EndSession(ctx context.Context, id int64) error {
+func (s *recordingEndActiveGroupService) EndActiveGroupSession(ctx context.Context, id int64) error {
 	s.endCalls++
-	return s.PresenceOperations.EndSession(ctx, id)
+	return s.PresenceOperations.EndActiveGroupSession(ctx, id)
 }
 
 // setupActiveRoute creates test resources for active handler tests

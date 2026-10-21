@@ -39,14 +39,14 @@ func TestFeedHistoryTenantIsolationAndRollback(t *testing.T) {
 		invisible, err := history.ListForStaffSince(txCtx, staff.ID, cutoff.Add(-time.Second))
 		require.NoError(t, err)
 		assert.Empty(t, invisible)
-		count, err := history.DeleteBefore(txCtx, cutoff)
+		count, err := history.DeleteFeedCancellationsBefore(txCtx, cutoff)
 		require.NoError(t, err)
 		assert.Zero(t, count)
 		return nil
 	}))
 	rollback := errors.New("rollback retention")
 	err = tenant.WithTenantTx(ctx, db, testpkg.Tenant(t), func(txCtx context.Context, _ bun.Tx) error {
-		count, err := history.DeleteBefore(txCtx, cutoff)
+		count, err := history.DeleteFeedCancellationsBefore(txCtx, cutoff)
 		require.NoError(t, err)
 		assert.Equal(t, 1, count)
 		return rollback
@@ -55,7 +55,7 @@ func TestFeedHistoryTenantIsolationAndRollback(t *testing.T) {
 	rows, err = testpkg.TenantQuery2(t, ctx, db, history.ListForStaffSince, staff.ID, cutoff.Add(-time.Second))
 	require.NoError(t, err)
 	require.Len(t, rows, 2)
-	count, err := testpkg.TenantQuery1(t, ctx, db, history.DeleteBefore, cutoff)
+	count, err := testpkg.TenantQuery1(t, ctx, db, history.DeleteFeedCancellationsBefore, cutoff)
 	require.NoError(t, err)
 	assert.Equal(t, 1, count)
 	rows, err = testpkg.TenantQuery2(t, ctx, db, history.ListForStaffSince, staff.ID, cutoff)
@@ -63,7 +63,7 @@ func TestFeedHistoryTenantIsolationAndRollback(t *testing.T) {
 	require.Len(t, rows, 1)
 	assert.Equal(t, cutoff, rows[0].CancelledAt.UTC())
 
-	_, err = history.DeleteBefore(context.Background(), cutoff)
+	_, err = history.DeleteFeedCancellationsBefore(context.Background(), cutoff)
 	require.ErrorContains(t, err, "tenant is required")
 	_, err = history.ListForStaffSince(context.Background(), staff.ID, cutoff)
 	require.ErrorContains(t, err, "tenant is required")

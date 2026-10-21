@@ -54,8 +54,11 @@ func classifyPresence(err error) error {
 	return err
 }
 
-// visits binds the room stay transitions to the retained presence service.
+// visits binds the room stay transitions to the retained presence service;
+// EndVisit is promoted unchanged, the other transitions go through active,
+// the same service.
 type visits struct {
+	studentpresence.Presence
 	active studentpresence.Presence
 	clock  clock
 }
@@ -81,8 +84,6 @@ func (v visits) Current(ctx context.Context, studentID int64) (*ports.CurrentVis
 	return current, nil
 }
 
-func (v visits) End(ctx context.Context, visitID int64) error { return v.active.EndVisit(ctx, visitID) }
-
 func (v visits) Record(ctx context.Context, studentID, sessionID int64) (int64, error) {
 	visit := &studentpresence.Visit{StudentID: studentID, ActiveGroupID: sessionID, EntryTime: v.clock.Now()}
 	if err := v.active.CreateVisit(ctx, visit); err != nil {
@@ -105,8 +106,10 @@ func (v visits) Record(ctx context.Context, studentID, sessionID int64) (int64, 
 }
 
 // sessions binds the room session transitions to the retained presence
-// service.
+// service; DeleteActiveGroup and UpdateSessionActivity are promoted unchanged,
+// the other transitions go through active, the same service.
 type sessions struct {
+	studentpresence.Presence
 	active   studentpresence.Presence
 	presence roomSessionQuery
 	clock    clock
@@ -199,20 +202,12 @@ func (s sessions) EnsureRoomSession(ctx context.Context, input devicescan.NewSes
 	return sessionFromGroup(group), nil
 }
 
-func (s sessions) Delete(ctx context.Context, sessionID int64) error {
-	return s.active.DeleteActiveGroup(ctx, sessionID)
-}
-
 func (s sessions) End(ctx context.Context, sessionID int64) error {
 	err := s.active.EndActiveGroupSession(ctx, sessionID)
 	if err != nil && !errors.Is(err, studentpresence.ErrGroupAlreadyEnded) {
 		return err
 	}
 	return nil
-}
-
-func (s sessions) Touch(ctx context.Context, sessionID int64) error {
-	return s.active.UpdateSessionActivity(ctx, sessionID)
 }
 
 func (s sessions) Supervisors(ctx context.Context, sessionID int64) ([]devicescan.Supervisor, error) {
