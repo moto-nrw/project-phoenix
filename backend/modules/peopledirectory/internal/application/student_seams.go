@@ -13,7 +13,7 @@ import (
 // NewStudentCompanions adapts Care Plan's companion seam to the module's
 // port.
 func NewStudentCompanions(seam ports.StudentCompanions) internalports.StudentCompanions {
-	return studentCompanions{seam: seam}
+	return studentCompanions{companionCoverage: seam, seam: seam}
 }
 
 // StudentOwnerWrites are the root's enrollment and care owners behind the
@@ -29,15 +29,17 @@ func NewStudentOwners(owners ports.StudentOwners) StudentOwnerWrites {
 	return studentOwners{owners: owners}
 }
 
-// NewStudentNoteDeletionAudit adapts the Audit Platform's note deletion
-// ledger to the module's port.
-func NewStudentNoteDeletionAudit(audit ports.StudentNoteDeletionAudit) internalports.StudentNoteDeletionAudit {
-	return studentNoteDeletionAudit{audit: audit}
-}
-
 // studentCompanions adapts the composition root's public-typed seam to the
 // module's internal port.
-type studentCompanions struct{ seam ports.StudentCompanions }
+type studentCompanions struct {
+	companionCoverage
+	seam ports.StudentCompanions
+}
+
+// companionCoverage is the seam read the port takes as it is.
+type companionCoverage interface {
+	CompanionDaysCoveredExcluding(ctx context.Context, studentIDs []int64, excludeID int64) (map[int64]map[string]bool, error)
+}
 
 func (a studentCompanions) ListForStudent(ctx context.Context, studentID int64) ([]domain.CompanionEdge, error) {
 	edges, err := a.seam.ListCompanionEdgesForStudent(ctx, studentID)
@@ -49,14 +51,6 @@ func (a studentCompanions) ListForStudent(ctx context.Context, studentID int64) 
 		result = append(result, domain.CompanionEdge(edge))
 	}
 	return result, nil
-}
-
-func (a studentCompanions) DaysCoveredExcluding(
-	ctx context.Context,
-	studentIDs []int64,
-	excludeID int64,
-) (map[int64]map[string]bool, error) {
-	return a.seam.CompanionDaysCoveredExcluding(ctx, studentIDs, excludeID)
 }
 
 // DeleteEdges removes the edges and records that this write touched
@@ -104,15 +98,3 @@ func (s studentOwners) SaveCare(ctx context.Context, membershipID int64, record 
 		AllowedDepartureModes: plan.AllowedDepartureModes, DepartureDays: plan.DepartureDays, BusDays: plan.BusDays, PickupDays: plan.PickupDays,
 	}, note, touched)
 }
-
-type studentNoteDeletionAudit struct {
-	audit ports.StudentNoteDeletionAudit
-}
-
-func (a studentNoteDeletionAudit) RecordStudentNoteDeletion(
-	ctx context.Context, studentID, noteID, actorAccountID int64,
-) error {
-	return a.audit.RecordStudentNoteDeletion(ctx, studentID, noteID, actorAccountID)
-}
-
-var _ internalports.StudentNoteDeletionAudit = studentNoteDeletionAudit{}

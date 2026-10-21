@@ -13,17 +13,23 @@ import (
 // only translates the retained rows into the owner's public types and changes
 // nothing about which reads run.
 type GroupRoutePeople struct {
+	groupStudentCounts
 	persons peoplePorts.PersonDirectory
+}
+
+// groupStudentCounts is the directory read the group routes take as it is.
+type groupStudentCounts interface {
+	CountStudentsByGroupIDs(ctx context.Context, groupIDs []int64) (map[int64]int, error)
 }
 
 // NewGroupRoutePeople binds the retained person directory.
 func NewGroupRoutePeople(persons peoplePorts.PersonDirectory) GroupRoutePeople {
-	return GroupRoutePeople{persons: persons}
+	return GroupRoutePeople{groupStudentCounts: persons, persons: persons}
 }
 
 // GroupStudents returns the children of a group.
 func (p GroupRoutePeople) GroupStudents(ctx context.Context, groupID int64) ([]peopleModule.StudentRecord, error) {
-	students, err := p.persons.GetStudentsByGroupID(ctx, groupID)
+	students, err := p.persons.StudentRows().FindByGroupID(ctx, groupID)
 	if err != nil {
 		return nil, err
 	}
@@ -34,11 +40,6 @@ func (p GroupRoutePeople) GroupStudents(ctx context.Context, groupID int64) ([]p
 		}
 	}
 	return result, nil
-}
-
-// CountStudentsByGroupIDs counts the children of each group.
-func (p GroupRoutePeople) CountStudentsByGroupIDs(ctx context.Context, groupIDs []int64) (map[int64]int, error) {
-	return p.persons.CountStudentsByGroupIDs(ctx, groupIDs)
 }
 
 // FindPerson returns one person.

@@ -83,12 +83,8 @@ func (m MFAMail) NotifyTrustedDeviceAdded(ctx context.Context, message domain.Tr
 // mfaAuditTrail routes the account events to the authentication ledger and
 // the operator entries to the operator action log.
 type MFAAuditTrail struct {
-	Events   AuthAudit
+	AuthAudit
 	Operator identityPorts.OperatorActionLog
-}
-
-func (t MFAAuditTrail) RecordAuthEvent(ctx context.Context, event domain.AuthEvent) error {
-	return t.Events.RecordAuthEvent(ctx, event)
 }
 
 func (t MFAAuditTrail) RecordOperatorAction(ctx context.Context, entry domain.OperatorAuditEntry) error {

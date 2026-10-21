@@ -57,10 +57,10 @@ func newOperatorProvisioning(
 		Tokens:    tokens,
 		Passwords: sessions.Passwords,
 		Hasher:    operators.Passwords,
-		Format:    application.EmailFormat{Source: deps.Format},
+		Format:    deps.Format,
 		Audit:     application.OperatorAudit{Source: operators.Audit},
 		Invites:   application.OperatorInvitationDelivery{Source: delivery, Expiry: deps.InvitationExpiry},
-		Changes:   application.OperatorEmailChangeDelivery{Source: delivery, Expiry: deps.EmailChangeExpiry},
+		Changes:   application.OperatorEmailChangeDelivery{OperatorEmailChangeDelivery: delivery, Expiry: deps.EmailChangeExpiry},
 		Runtime:   tenantRuntime{attach: sessions.TenantRuntime, runner: tenant.NewTransactionRunner()},
 		Attach:    sessions.TenantRuntime,
 		Expiry: application.OperatorProvisioningExpiry{

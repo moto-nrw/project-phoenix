@@ -49,5 +49,5 @@ type AccountAdministrationStore interface {
 // administrator with no account to manage, which is the refusal the
 // retained repository applied.
 type ManageableSchools interface {
-	ManageableSchoolIDs(ctx context.Context, organizationID int64) ([]int64, error)
+	ListManageableSchoolIDs(ctx context.Context, organizationID int64) ([]int64, error)
 }

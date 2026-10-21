@@ -63,8 +63,7 @@ type staffDirectoryCapability struct {
 // personnel-record contract serves.
 type staffRecordPeople interface {
 	FindByAccountID(ctx context.Context, accountID int64) (*peopleValues.DirectoryPersonSnapshot, error)
-	GetStaffByPersonID(ctx context.Context, personID int64) (*peopleValues.Staff, error)
-	GetStaffByID(ctx context.Context, staffID int64) (*peopleValues.Staff, error)
+	StaffRows() peoplePorts.StaffRepository
 	ResolveStaffIDByAccountID(ctx context.Context, accountID int64) (int64, error)
 }
 
@@ -86,7 +85,7 @@ func (c staffDirectoryCapability) PersonByAccountID(ctx context.Context, account
 }
 
 func (c staffDirectoryCapability) StaffByPersonID(ctx context.Context, personID int64) (*workforceModule.StaffProfile, error) {
-	staff, err := c.people.GetStaffByPersonID(ctx, personID)
+	staff, err := c.people.StaffRows().FindByPersonID(ctx, personID)
 	if err != nil {
 		return nil, err
 	}
@@ -94,7 +93,7 @@ func (c staffDirectoryCapability) StaffByPersonID(ctx context.Context, personID 
 }
 
 func (c staffDirectoryCapability) StaffByID(ctx context.Context, staffID int64) (*workforceModule.StaffProfile, error) {
-	staff, err := c.people.GetStaffByID(ctx, staffID)
+	staff, err := c.people.StaffRows().FindByID(ctx, staffID)
 	if err != nil {
 		return nil, err
 	}

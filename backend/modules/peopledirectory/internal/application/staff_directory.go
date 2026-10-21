@@ -13,13 +13,13 @@ import (
 
 // The staff and teacher half of the person service left services/users in
 // #3752. users.staff and users.teachers belong to School Membership and
-// Workforce, so the lookups and the staff write orchestration are bound here
-// over the retained repositories and injected into the person service through
-// the StaffDirectory port.
+// Workforce, so the staff write orchestration is bound here over the retained
+// repositories and injected into the person service through the
+// StaffDirectory port, which hands the repositories to the lookups.
 //
-// Reads return the repository result and error verbatim: callers (IoT device
-// flows, PyrePortal) branch on sql.ErrNoRows and render err.Error() into
-// response bodies.
+// Lookups read the repositories directly, so their result and error stay
+// verbatim: callers (IoT device flows, PyrePortal) branch on sql.ErrNoRows and
+// render err.Error() into response bodies.
 
 type staffMembershipDirectory struct {
 	runtime        peoplePorts.TenantTxRunner
@@ -44,45 +44,11 @@ func NewStaffDirectory(deps peoplePorts.StaffDirectoryDependencies) peoplePorts.
 	}
 }
 
-func (s *staffMembershipDirectory) GetStaffByID(ctx context.Context, id int64) (*peopleValues.Staff, error) {
-	return s.staff.FindByID(ctx, id)
-}
+// StaffRows returns the retained staff repository.
+func (s *staffMembershipDirectory) StaffRows() peoplePorts.StaffRepository { return s.staff }
 
-func (s *staffMembershipDirectory) GetStaffByPersonID(ctx context.Context, personID int64) (*peopleValues.Staff, error) {
-	return s.staff.FindByPersonID(ctx, personID)
-}
-
-func (s *staffMembershipDirectory) GetStaffWithPersonByIDs(ctx context.Context, ids []int64) (map[int64]*peopleValues.Staff, error) {
-	return s.staff.FindWithPersonByIDs(ctx, ids)
-}
-
-func (s *staffMembershipDirectory) ListStaffWithPerson(ctx context.Context) ([]*peopleValues.Staff, error) {
-	return s.staff.ListAllWithPerson(ctx)
-}
-
-func (s *staffMembershipDirectory) ListStaffByRoles(ctx context.Context, roles []string) ([]*peopleValues.StaffWithRoleInfo, error) {
-	return s.staff.ListStaffByRoles(ctx, roles)
-}
-
-func (s *staffMembershipDirectory) GetTeacherByStaffID(ctx context.Context, staffID int64) (*peopleValues.Teacher, error) {
-	return s.teachers.FindByStaffID(ctx, staffID)
-}
-
-func (s *staffMembershipDirectory) GetTeachersByStaffIDs(ctx context.Context, staffIDs []int64) (map[int64]*peopleValues.Teacher, error) {
-	return s.teachers.FindByStaffIDs(ctx, staffIDs)
-}
-
-func (s *staffMembershipDirectory) GetTeachersBySpecialization(ctx context.Context, specialization string) ([]*peopleValues.Teacher, error) {
-	return s.teachers.FindBySpecialization(ctx, specialization)
-}
-
-func (s *staffMembershipDirectory) GetTeacherWithStaffAndPerson(ctx context.Context, id int64) (*peopleValues.Teacher, error) {
-	return s.teachers.FindWithStaffAndPerson(ctx, id)
-}
-
-func (s *staffMembershipDirectory) ListTeachersWithStaffAndPerson(ctx context.Context) ([]*peopleValues.Teacher, error) {
-	return s.teachers.ListAllWithStaffAndPerson(ctx)
-}
+// TeacherRows returns the retained teacher repository.
+func (s *staffMembershipDirectory) TeacherRows() peoplePorts.TeacherRepository { return s.teachers }
 
 // CreateStaffWithTeacher creates a staff record and, when requested, a teacher
 // record in one tenant transaction. A failed teacher creation is deliberately

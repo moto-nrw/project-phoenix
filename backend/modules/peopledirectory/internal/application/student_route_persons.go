@@ -90,7 +90,7 @@ func (p StudentRoutePersons) ListStudentsForDay(ctx context.Context, groupIDs []
 // StaffIDForPerson resolves the staff member of a person; a person who is no
 // staff member is reported as not found rather than as an error.
 func (p StudentRoutePersons) StaffIDForPerson(ctx context.Context, personID int64) (int64, bool, error) {
-	staff, err := p.persons.GetStaffByPersonID(ctx, personID)
+	staff, err := p.persons.StaffRows().FindByPersonID(ctx, personID)
 	if err != nil {
 		var notFound interface{ RepositoryNotFound() }
 		if errors.As(err, &notFound) {
