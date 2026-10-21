@@ -546,6 +546,63 @@ describe("Token Refresh and Retry Logic", () => {
     });
   });
 
+  it("retries a body handler (PUT) with the refreshed token and the same body", async () => {
+    mockAuth.mockResolvedValueOnce(defaultSession);
+    mockAuth.mockResolvedValueOnce({
+      user: { id: "1", token: "refreshed-token", name: "Test User" },
+      expires: "2099-01-01",
+    });
+    const mockHandler = vi
+      .fn()
+      .mockRejectedValueOnce(new ApiResponseError(401, "Unauthorized"))
+      .mockResolvedValueOnce({ id: 7, active: true });
+
+    const handler = createPutHandler(mockHandler);
+    const request = createMockRequest("/api/test/7", {
+      method: "PUT",
+      body: { active: true },
+    });
+    const response = await handler(request, createMockContext({ id: "7" }));
+
+    expect(mockHandler).toHaveBeenCalledTimes(2);
+    expect(mockHandler.mock.calls[0]?.slice(1, 3)).toEqual([
+      { active: true },
+      "test-token",
+    ]);
+    expect(mockHandler.mock.calls[1]?.slice(1, 3)).toEqual([
+      { active: true },
+      "refreshed-token",
+    ]);
+    expect(response.status).toBe(200);
+    const json =
+      await parseJsonResponse<ApiSuccessResponse<{ id: number }>>(response);
+    expect(json.data).toEqual({ id: 7, active: true });
+  });
+
+  it("returns the 401 envelope from a body handler (PUT) when the token was not refreshed", async () => {
+    mockAuth.mockResolvedValueOnce(defaultSession);
+    mockAuth.mockResolvedValueOnce(defaultSession);
+    const mockHandler = vi
+      .fn()
+      .mockRejectedValue(new ApiResponseError(401, "Unauthorized"));
+
+    const handler = createPutHandler(mockHandler);
+    const request = createMockRequest("/api/test/7", {
+      method: "PUT",
+      body: { active: true },
+    });
+    const response = await handler(request, createMockContext({ id: "7" }));
+
+    expect(mockHandler).toHaveBeenCalledOnce();
+    expect(response.status).toBe(401);
+    const json = await parseJsonResponse<ApiErrorResponse>(response);
+    expect(json).toMatchObject({
+      status: 401,
+      detail: "Token expired",
+      code: "general.permission",
+    });
+  });
+
   it("does not retry for non-401 errors", async () => {
     mockAuth.mockResolvedValueOnce(defaultSession);
 
