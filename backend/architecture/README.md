@@ -1067,9 +1067,8 @@ candidate from source and rejects every key the candidate adds. A key is
 `scope|field|package|Struct.Field` or `scope|setter|package|Function->Target`.
 It counts:
 
-- the fields of the central aggregates: `database/repositories.Factory`,
-  `api.API` and `api.serviceGraph`, which also names the fields of the deleted
-  `services.Factory`;
+- the fields of the central aggregates: `services.Factory`,
+  `database/repositories.Factory` and `api.API`, each under its own name;
 - setters, assignments to the dependency fields of a receiver or pointer
   parameter after construction;
 - since #4071, every field of every struct a `root-composition` package
@@ -3674,7 +3673,8 @@ migration. It is pinned to evidence commit
 - the Serve, embedded Worker, and CLI roots, plus the affected packages'
   discoverable `TestMain` roots and one smoke test per root;
 - every Cobra command path and scheduler job ID;
-- every typed legacy-composition reference reported by this evaluator;
+- every typed legacy-composition reference this evaluator reported at the
+  evidence commit;
 - every call to the evidence-only `api.New` (deleted by #2745) and
   `api.NewServer`, the current
   `api.WithRuntime`, the evidence-only `repositories.NewFactory` (deleted by #2743),
@@ -3689,23 +3689,23 @@ migration. It is pinned to evidence commit
   full backend-suite duration measured at the evidence commit.
 
 `evidence_legacy_callers` and `evidence_constructor_calls` preserve the exact
-files, declarations, and lines from that commit. The unprefixed caller lists
-mirror the current tree so the tests still reject newly unlisted callers after
-the evidence commit; they must not be presented as historical measurements.
+files, declarations, and lines from that commit. `constructor_calls` mirrors
+the current tree so the test still rejects newly unlisted callers after the
+evidence commit; it must not be presented as a historical measurement. The
+live typed legacy caller list is gone (#4440): `legacy_composition` is empty,
+so every `composition.legacy-reference` finding already fails
+`scripts/backend-architecture.sh check`.
 
 The runtime measurements are comparison evidence, not timing thresholds. The
 composition tests fail when a root, caller, command, or job drifts. Typed
 legacy references come from the architecture evaluator's existing `go/types`
 analysis; the constructor inventory does not reimplement that analyzer.
 
-After an intentional caller migration, regenerate the typed legacy locations,
-then the discovered test-root, constructor-caller, and job sections with:
+After an intentional caller migration, regenerate the discovered test-root,
+constructor-caller, and job sections with:
 
 ```bash
 cd backend
-go test ./internal/architecture \
-  -run '^TestCompositionLegacyCallerInventory$' \
-  -update-composition-legacy
 go test ./test -run '^TestCompositionInventory$' \
   -update-composition-inventory
 ```
@@ -4521,9 +4521,10 @@ entry `services.Factory` and the 69 rules only `services` used (1,415 → 1,346
 rules); the epoch stays 44. The baseline goes from 39 to 34: `services -> bun`
 and `services -> tenant` (#2747) and `api -> services`, `cmd -> services` and
 the composition reference `api -> services.Factory` (#2750). The composition
-ratchet counts `api.serviceGraph` as a central aggregate and compares a base's
-`services.Factory` fields with it (`relocatedAggregate`), so the moved fields
-stay shrink-only and a new one fails the check. Measured after merging #2749,
+ratchet counted `api.serviceGraph` as a central aggregate and compared a base's
+`services.Factory` fields with it, so the moved fields stayed shrink-only and a
+new one failed the check. No base carries `services.Factory` any more, and
+#4440 removed that mapping. Measured after merging #2749,
 the surface goes from 140 to 139: the setter `EnableStudentPhotos` is gone. `cycles --graph target` is unchanged at 58
 owners, 335 edges and one component of 32 members. The caller inventory
 `callers/service-factory-2747.json` (`scripts/backend-service-factory-callers`)
@@ -4916,6 +4917,8 @@ pairs, not other additions in the same candidate. Without the old grant in the
 immutable base, the exception cannot activate again. Epoch 16 performs this
 cutover without changing the baseline or composition surface. Epoch 20 (#3427)
 has since removed `care-exit-view`; its reads live in `student-directory-view`.
+#4440 deleted the exception: no base still holds the three projections at
+their old packages with a `users.students` grant.
 
 Reviewed data-less workflow additions may register new workflow owners when
 all their packages are candidate-created and the policy epoch increases
@@ -5066,7 +5069,10 @@ generic store's unresolved expression: the base records a
 `tables.unresolved` finding for a package the candidate no longer
 classifies, and an analysis of the candidate with the table assigned to a
 non-existent owner shows it named statically by packages of the adopting
-owner and no other.
+owner and no other. #4440 deleted both adoption paths: `legacy.jsonl` is
+empty, so no base records the `tables.unclassified` or `tables.unresolved`
+debt they start from. A new `data_objects` entry for an existing table is a
+loosening again, and an owned table still cannot change hands.
 
 ## Appendix: principle traceability
 

@@ -682,34 +682,3 @@ func TestRunFullDay_LoginFails(t *testing.T) {
 	assert.Error(t, err)
 	assert.Contains(t, err.Error(), "admin login")
 }
-
-// =============================================================================
-// FullDayOptions Tests
-// =============================================================================
-
-func TestFullDayOptions_Defaults(t *testing.T) {
-	t.Parallel()
-
-	opts := FullDayOptions{Client: newTestClientFactory,
-		StatePath: ".seed-state.json",
-		Close:     false,
-		Verbose:   false,
-	}
-
-	assert.Equal(t, ".seed-state.json", opts.StatePath)
-	assert.False(t, opts.Close)
-	assert.False(t, opts.Verbose)
-}
-
-func TestFullDayOptions_WithClose(t *testing.T) {
-	t.Parallel()
-
-	opts := FullDayOptions{Client: newTestClientFactory,
-		StatePath: "/tmp/state.json",
-		Close:     true,
-		Verbose:   true,
-	}
-
-	assert.True(t, opts.Close)
-	assert.True(t, opts.Verbose)
-}
