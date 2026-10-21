@@ -6,8 +6,6 @@ import (
 	"log/slog"
 	"testing"
 
-	"github.com/moto-nrw/project-phoenix/modules/timetable/ports"
-
 	activityContract "github.com/moto-nrw/project-phoenix/modules/timetable/activitycontract"
 
 	"github.com/moto-nrw/project-phoenix/modules/timetable"
@@ -17,7 +15,6 @@ import (
 )
 
 type legacyWeekendCleanerTestRepo struct {
-	ports.ActivityInstanceRecords
 	calls     int
 	template  int64
 	weekdays  []int
@@ -44,7 +41,7 @@ func TestDeleteRemovedLegacyWeekendInstances(t *testing.T) {
 
 	t.Run("deletes only removed legacy weekend days", func(t *testing.T) {
 		repo := &legacyWeekendCleanerTestRepo{}
-		svc := NewTemplateService(TemplateServiceDependencies{ActivityInstanceRepo: repo})
+		svc := NewTemplateService(TemplateServiceDependencies{ActivityInstanceRepo: fakeInstanceRows(repo)})
 
 		err := svc.deleteRemovedLegacyWeekendInstances(context.Background(), templateID, previous, []int{activityContract.WeekdayFriday, activityContract.WeekdaySunday})
 
@@ -58,7 +55,7 @@ func TestDeleteRemovedLegacyWeekendInstances(t *testing.T) {
 		announcer := &recordingStaffingAnnouncer{}
 		repo := &legacyWeekendCleanerTestRepo{deleted: 2}
 		svc := NewTemplateService(TemplateServiceDependencies{
-			ActivityInstanceRepo: repo,
+			ActivityInstanceRepo: fakeInstanceRows(repo),
 			Staffing:             announcer,
 			Logger:               slog.Default(),
 		})
@@ -71,7 +68,7 @@ func TestDeleteRemovedLegacyWeekendInstances(t *testing.T) {
 
 	t.Run("skips cleanup when all legacy days remain", func(t *testing.T) {
 		repo := &legacyWeekendCleanerTestRepo{}
-		svc := NewTemplateService(TemplateServiceDependencies{ActivityInstanceRepo: repo})
+		svc := NewTemplateService(TemplateServiceDependencies{ActivityInstanceRepo: fakeInstanceRows(repo)})
 
 		require.NoError(t, svc.deleteRemovedLegacyWeekendInstances(context.Background(), templateID, previous, []int{activityContract.WeekdayFriday, activityContract.WeekdaySaturday, activityContract.WeekdaySunday}))
 		assert.Zero(t, repo.calls)
@@ -79,7 +76,7 @@ func TestDeleteRemovedLegacyWeekendInstances(t *testing.T) {
 
 	t.Run("wraps cleanup failures", func(t *testing.T) {
 		repo := &legacyWeekendCleanerTestRepo{deleteErr: errors.New("delete failed")}
-		svc := NewTemplateService(TemplateServiceDependencies{ActivityInstanceRepo: repo})
+		svc := NewTemplateService(TemplateServiceDependencies{ActivityInstanceRepo: fakeInstanceRows(repo)})
 
 		err := svc.deleteRemovedLegacyWeekendInstances(context.Background(), templateID, previous, []int{activityContract.WeekdayFriday})
 

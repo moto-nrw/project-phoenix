@@ -403,7 +403,7 @@ func (s *TemplateService) reconcileManualRosterInstances(
 	if len(in.Fields.SourceCareOfferingIDs) == 0 && len(previousSourceOfferingIDs) == 0 {
 		return nil
 	}
-	if s.deps.ActivityInstanceRepo == nil || s.deps.InstanceStudentRepo == nil || s.deps.StudentEnrollmentRepo == nil {
+	if noInstanceRows(s.deps.ActivityInstanceRepo) || noParticipantRows(s.deps.InstanceStudentRepo) || s.deps.StudentEnrollmentRepo == nil {
 		return nil // read-only test facades have no occurrences to reconcile
 	}
 	studentIDs := unionStudentIDs(manualRosterStudentIDs(in), retiredStudentIDs)
@@ -487,10 +487,6 @@ func validateLegacyTemplateWeekdays(existing []*activityContract.Schedule, reque
 	return nil
 }
 
-type legacyWeekendInstanceCleaner interface {
-	DeletePlannedMaterializedWeekendInstances(context.Context, int64, []int) (int64, error)
-}
-
 func (s *TemplateService) deleteRemovedLegacyWeekendInstances(ctx context.Context, templateID int64, previous []*activityContract.Schedule, requested []int) error {
 	requestedWeekdays := make(map[int]struct{}, len(requested))
 	for _, weekday := range requested {
@@ -504,11 +500,10 @@ func (s *TemplateService) deleteRemovedLegacyWeekendInstances(ctx context.Contex
 			}
 		}
 	}
-	cleaner, ok := s.deps.ActivityInstanceRepo.(legacyWeekendInstanceCleaner)
-	if !ok || len(removed) == 0 {
+	if noInstanceRows(s.deps.ActivityInstanceRepo) || len(removed) == 0 {
 		return nil
 	}
-	deleted, err := cleaner.DeletePlannedMaterializedWeekendInstances(ctx, templateID, removed)
+	deleted, err := deleteRemovedWeekendInstances(ctx, s.deps.ActivityInstanceRepo.Plans, templateID, removed)
 	if err != nil {
 		return &ports.ScheduleError{Op: "update template: delete removed legacy weekend instances", Err: err}
 	}
@@ -636,11 +631,11 @@ func (s *TemplateService) propagateListKindToInstances(
 	templateID int64,
 	previousKind, newKind *string,
 ) error {
-	if s.deps.ActivityInstanceRepo == nil || sameListKind(previousKind, newKind) {
+	if noInstanceRows(s.deps.ActivityInstanceRepo) || sameListKind(previousKind, newKind) {
 		return nil
 	}
-	if _, err := s.deps.ActivityInstanceRepo.PropagateListKindToFutureInstances(
-		ctx, templateID, previousKind, newKind, calendar.Date(s.deps.Today()),
+	if _, err := propagateInstanceListKind(
+		ctx, s.deps.ActivityInstanceRepo.Plans, templateID, previousKind, newKind, calendar.Date(s.deps.Today()),
 	); err != nil {
 		return &ports.ScheduleError{Op: "update template: propagate list kind", Err: err}
 	}

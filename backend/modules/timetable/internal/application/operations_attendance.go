@@ -177,7 +177,7 @@ func (s *operations) moveStudentFromOtherSession(ctx context.Context, staffID in
 // block's title, else the session's activity name, else its room. Purely
 // cosmetic — every failure degrades to an empty label.
 func (s *operations) resolveActiveGroupLabel(ctx context.Context, activeGroupID int64) string {
-	if inst, err := s.deps.Instances.FindByActiveGroupID(ctx, activeGroupID); err == nil && inst != nil {
+	if inst, err := sessionInstance(ctx, s.deps.Instances, activeGroupID); err == nil && inst != nil {
 		return inst.Title
 	}
 	group, err := s.deps.Sessions.FindSession(ctx, activeGroupID)
@@ -196,12 +196,12 @@ func (s *operations) resolveActiveGroupLabel(ctx context.Context, activeGroupID 
 }
 
 func (s *operations) markPlannedStudentPresent(ctx context.Context, instanceID, studentID int64) error {
-	row, err := s.deps.Participants.FindByInstanceAndStudent(ctx, instanceID, studentID)
+	row, err := participantOf(ctx, s.deps.Participants.Reads, instanceID, studentID)
 	if err != nil || row == nil {
 		return err
 	}
 	status := scheduleModels.AttendanceStatusPresent
-	return s.deps.Participants.UpdateAttendanceFields(ctx, row.ID, scheduleModels.AttendanceFieldPatch{
+	return patchAttendanceFields(ctx, s.deps.Participants.Presence, row.ID, scheduleModels.AttendanceFieldPatch{
 		Status:         &status,
 		SubstatusClear: true,
 		NoteClear:      true,
@@ -273,7 +273,7 @@ func (s *operations) requireRosterStudent(ctx context.Context, inst *scheduleMod
 // blockHoldsStudent is the same union the roster renders: a planned row, or
 // a visit in the running session.
 func (s *operations) blockHoldsStudent(ctx context.Context, inst *scheduleModels.ActivityInstance, instanceID, studentID int64) (bool, error) {
-	planned, err := s.deps.Participants.FindByInstanceID(ctx, instanceID)
+	planned, err := participantsOfInstance(ctx, s.deps.Participants.Reads, instanceID)
 	if err != nil {
 		return false, err
 	}

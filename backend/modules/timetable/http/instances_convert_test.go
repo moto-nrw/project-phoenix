@@ -195,7 +195,7 @@ func TestConvertInstanceToSeries_LinksExistingOccurrenceAndRejectsRetry(t *testi
 
 	// Materializer marker: seed must carry the template period so resync and
 	// FindPlannedTemplateBackedFrom treat it as a series occurrence.
-	seed, err := mustTimetableTestRepositories(s.db).ActivityInstance.FindByID(s.ctx, instance.ID)
+	seed, err := mustTimetableTestRepositories(s.db).NativeInstances().FindByID(s.ctx, instance.ID)
 	require.NoError(t, err)
 	require.NotNil(t, seed.CalendarPeriodID)
 	assert.Equal(t, period.ID, *seed.CalendarPeriodID)
@@ -377,7 +377,7 @@ func TestConvertInstanceToSeries_RollsBackOrphanSeriesOn4xxLinkFailure(t *testin
 			"TenantTxMiddleware must roll back the new series on a 4xx link failure")
 	}
 
-	seed, err := mustTimetableTestRepositories(s.db).ActivityInstance.FindByID(s.ctx, instance.ID)
+	seed, err := mustTimetableTestRepositories(s.db).NativeInstances().FindByID(s.ctx, instance.ID)
 	require.NoError(t, err)
 	assert.Nil(t, seed.ActivityGroupID, "seed must stay unlinked when convert rolls back")
 	assert.True(t, seed.IsSpontaneous)

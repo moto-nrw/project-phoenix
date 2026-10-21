@@ -11,6 +11,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
 	"github.com/moto-nrw/project-phoenix/modules/timetable"
 	timetableCompose "github.com/moto-nrw/project-phoenix/modules/timetable/compose"
+	timetablePorts "github.com/moto-nrw/project-phoenix/modules/timetable/ports"
 	transactionruntime "github.com/moto-nrw/project-phoenix/modules/transactionruntime/compose"
 )
 
@@ -20,8 +21,8 @@ import (
 func NewAttendanceSyncTestRepositories(db transactionruntime.Database, capability timetable.Capability) TimetableOwnerRows {
 	presence := owners.NewUnloggedStudentPresence(db)
 	return timetableCompose.NewNativeMirrorRows(timetableCompose.OwnerRows{
-		Instances:    timetableCompose.NewActivityInstanceRepository(owners.MustPresenceReads(db), capability, presence),
-		Participants: timetableCompose.NewInstanceStudentRepository(owners.MustPresenceReads(db), capability, presence, owners.NewPartialAbsencePreview(db)),
+		Instances:    timetablePorts.InstanceRows{Plans: capability, Sessions: presence, Reads: owners.MustPresenceReads(db)},
+		Participants: timetablePorts.ParticipantRows{Plans: capability, Presence: presence, Reads: owners.MustPresenceReads(db)},
 	})
 }
 

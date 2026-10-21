@@ -63,7 +63,7 @@ func BuildPresenceReports(
 		),
 		AbsenceOverview: presenceservice.NewStatusDayOverviews(carePlanRows.StatusDays, StatusDayOverviewPeople(users)),
 		StudentHistory: presenceservice.NewStudentHistory(presence.Presence, historyRoomNames(rooms),
-			NewDataAccessAudit(audit.Persistence.DataAccessLog), NewHistorySlots(owner.Repositories.InstanceStudent)),
+			NewDataAccessAudit(audit.Persistence.DataAccessLog), NewHistorySlots(owner.Repositories.InstanceStudent.Reads)),
 		Statistics: newStatisticsReports(db, carePlan, calendar, people.Students, rooms, env.Logger, env.Now)(audit.Persistence.DataAccessLog, settings),
 	}
 }
@@ -80,7 +80,7 @@ func BuildCalendarApp(
 	repos, links := owner.Repositories, env.Links
 	cfg := NewCalendarFacts(people.Staff, people.Students, NewCalendarGuardianDirectory(people.GuardianProfiles, persons), people.StudentGuardians,
 		carePlanCompose.NewParentChildLinks(portal.ParentChild), structure.Groups)
-	cfg = BindCalendarScheduleFacts(cfg, repos.InstanceStaff, repos.ActivityInstance, facilitiesCompose.NewRoomRecords(rooms),
+	cfg = BindCalendarScheduleFacts(cfg, repos.InstanceStaff, repos.ActivityInstance.Reads, facilitiesCompose.NewRoomRecords(rooms),
 		newWorkforceShiftRows(workTime), newWorkforceShiftTypeRows(workTime))
 	cfg = BindCalendarFeedFacts(cfg, organizations, identity, identity, people.Persons)
 	cfg = BindCalendarCaller(cfg, caller)
@@ -189,9 +189,9 @@ func BuildPlanExport(env RootEnvironment, shifts *workforceCompose.ShiftPlanning
 	repos := owner.Repositories
 	return newPlanExport(planExportSources{
 		Overview: shifts.Overview, ShiftTypes: workTime,
-		Instances:     arrivalTimetable.NewTimetableInstanceReads(repos.ActivityInstance),
+		Instances:     arrivalTimetable.NewTimetableInstanceReads(repos.ActivityInstance.Reads),
 		InstanceStaff: arrivalTimetable.NewTimetableInstanceStaffReads(repos.InstanceStaff),
-		Students:      repos.InstanceStudent, Rooms: rooms, Staff: planExportStaffNames{staff: people.Staff},
+		Students:      repos.ParticipantCounts(), Rooms: rooms, Staff: planExportStaffNames{staff: people.Staff},
 		ActivityGroups: arrivalTimetable.NewTimetableGroupReads(repos.Timetable), PlanningTracks: timetableOwner,
 		ClosingDays: planExportClosingDays{calendar: calendar}, Holidays: planExportHolidays{calendar: calendar},
 		Renderer: renderer, Logger: env.Logger.With("service", "plan_export"),

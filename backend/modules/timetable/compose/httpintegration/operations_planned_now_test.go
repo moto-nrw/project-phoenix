@@ -222,7 +222,7 @@ func TestTimetableOperationsPlannedNowErrorBranches(t *testing.T) {
 
 		result, err := deps.service.PlannedNow(context.Background(), 622, false, calendar.DateFromTime(now), now, timetable.PlannedNowOptions{})
 
-		require.EqualError(t, err, "date query failed")
+		require.EqualError(t, err, "database error during find by tenant and date: date query failed")
 		assert.Nil(t, result)
 	})
 
@@ -236,7 +236,7 @@ func TestTimetableOperationsPlannedNowErrorBranches(t *testing.T) {
 
 		result, err := deps.service.PlannedNow(context.Background(), 623, false, calendar.DateFromTime(now), now, timetable.PlannedNowOptions{})
 
-		require.EqualError(t, err, "staff query failed")
+		require.EqualError(t, err, "database error during find by instance ids: staff query failed")
 		assert.Nil(t, result)
 	})
 
@@ -250,7 +250,7 @@ func TestTimetableOperationsPlannedNowErrorBranches(t *testing.T) {
 
 		result, err := deps.service.PlannedNow(context.Background(), 624, false, calendar.DateFromTime(now), now, timetable.PlannedNowOptions{})
 
-		require.EqualError(t, err, "student query failed")
+		require.EqualError(t, err, "database error during find by instance ids: student query failed")
 		assert.Nil(t, result)
 	})
 

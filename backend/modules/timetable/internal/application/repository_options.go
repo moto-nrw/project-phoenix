@@ -5,6 +5,7 @@ import (
 	"time"
 
 	"github.com/moto-nrw/project-phoenix/modules/timetable/internal/domain"
+	activitiesModels "github.com/moto-nrw/project-phoenix/modules/timetable/internal/domain/activityrecords"
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 )
 
@@ -39,3 +40,13 @@ func WrapNotFoundDatabaseError(operation string) error {
 func InstanceStudentDay(at time.Time) string {
 	return calendar.DateFromTime(at).String()
 }
+
+func legacyDatabaseError(operation string, err error) error {
+	return activitiesModels.WrapDatabaseError(operation, err)
+}
+
+func legacyNotFoundError(operation string) error {
+	return activitiesModels.WrapNotFoundDatabaseError(operation)
+}
+
+func SetDate[D ~string](target *D, value string) { *target = D(value) }

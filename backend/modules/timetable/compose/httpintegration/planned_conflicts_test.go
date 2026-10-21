@@ -331,9 +331,9 @@ func newConflictDetection(t *testing.T, db *bun.DB, repos owners.TimetableTestRe
 	presence, err := api.NewTimetablePresenceRows(testpkg.NewDatabase(t, db), repos, members)
 	require.NoError(t, err)
 	detection, err := owners.NewTimetableConflictDetection(timetablePorts.ConflictDetectionDependencies{
-		Instances:         fixtures.IntoConflictInstances(fixtures.FromActivityInstanceRecords(repos.ActivityInstance)),
-		InstanceStaff:     fixtures.IntoConflictInstanceStaff(fixtures.FromInstanceStaffRecords(repos.InstanceStaff)),
-		InstanceStudents:  fixtures.IntoConflictInstanceStudents(fixtures.FromInstanceStudentRecords(repos.InstanceStudent)),
+		Instances:         repos.ActivityInstance.Reads,
+		InstanceStaff:     repos.InstanceStaff,
+		InstanceStudents:  repos.InstanceStudent,
 		Exceptions:        repos.ActivityException,
 		Schedules:         repos.ActivitySchedule,
 		Staff:             owners.NewTimetableStaff(members.Staff),

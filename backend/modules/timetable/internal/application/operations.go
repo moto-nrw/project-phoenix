@@ -34,7 +34,7 @@ func NewOperations(deps ports.OperationDependencies, caller ports.OperationCalle
 	if deps.Session == nil {
 		return nil, errors.New("timetable operations: the request session is required")
 	}
-	if caller == nil || deps.Instances == nil || deps.InstanceStaff == nil || deps.Participants == nil || deps.Templates == nil ||
+	if caller == nil || deps.Instances == nil || deps.InstanceStaff == nil || noParticipantRows(deps.Participants) || deps.Templates == nil ||
 		deps.Sessions == nil || deps.Supervisions == nil || deps.Visits == nil || deps.Attendance == nil ||
 		deps.Students == nil || deps.People == nil || deps.EducationGroups == nil || deps.Rooms == nil || deps.BlockMetadata == nil ||
 		deps.Settings == nil || deps.CareDays == nil || deps.Arrivals == nil || deps.Pickups == nil ||
@@ -63,7 +63,7 @@ func (s *operations) logger() *slog.Logger {
 }
 
 func (s *operations) loadInstance(ctx context.Context, instanceID int64) (*scheduleModels.ActivityInstance, error) {
-	inst, err := s.deps.Instances.FindByID(ctx, instanceID)
+	inst, err := findLegacyInstance(ctx, s.deps.Instances, instanceID)
 	if err != nil {
 		if domain.IsRecordNotFound(err) {
 			return nil, timetable.ErrTimetableOperationNotFound

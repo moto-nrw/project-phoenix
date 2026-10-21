@@ -148,7 +148,7 @@ func newLifecycle(t *testing.T, deps timetablePorts.InstanceLifecycleDependencie
 // as the composition root does.
 func newLifecycleAutoEnd(t *testing.T, instances fixtures.ActivityInstanceRecords, lifecycle timetable.InstanceLifecycle) timetable.InstanceAutoEnd {
 	t.Helper()
-	autoEnd, err := compose.NewInstanceAutoEnd(fixtures.IntoActivityInstanceRecords(instances), lifecycle)
+	autoEnd, err := compose.NewInstanceAutoEnd(fixtures.InstanceReadsOf(instances), lifecycle)
 	require.NoError(t, err)
 	return autoEnd
 }
@@ -156,7 +156,7 @@ func newLifecycleAutoEnd(t *testing.T, instances fixtures.ActivityInstanceRecord
 // lifecycleDependencies is the dependency set instanceServiceWithBroadcaster
 // wires, for tests that add an optional collaborator before construction.
 func lifecycleDependencies(s *lifecycleSetup, broadcaster realtime.Broadcaster, recovery ...fixtures.ActivityRecoveryRecords) timetablePorts.InstanceLifecycleDependencies {
-	recoveryRepo := fixtures.FromActivityRecoveryRecords(compose.NewRetainedActivityRecoveryRepository(s.db, fixtures.IntoInstanceStudentRecords(fixtures.FromInstanceStudentRecords(s.timetable.InstanceStudent))))
+	recoveryRepo := fixtures.FromActivityRecoveryRecords(compose.NewRetainedActivityRecoveryRepository(s.db, s.timetable.InstanceStudent))
 	if len(recovery) > 0 {
 		recoveryRepo = recovery[0]
 	}
@@ -174,10 +174,10 @@ func lifecycleDependencies(s *lifecycleSetup, broadcaster realtime.Broadcaster, 
 		StartConflicts:      lifecycleStartConflicts(s),
 		SubstituteConflicts: s.timetableData.Deviations,
 		Presence:            s.presence,
-		InstanceRepo:        fixtures.IntoActivityInstanceRecords(fixtures.FromActivityInstanceRecords(s.timetable.ActivityInstance)),
+		InstanceRepo:        s.timetable.ActivityInstance,
 		IdempotencyRepo:     s.timetable.InstanceIdempotency,
-		InstanceStaffRepo:   fixtures.IntoInstanceStaffRecords(fixtures.FromInstanceStaffRecords(s.timetable.InstanceStaff)),
-		InstanceStudents:    fixtures.IntoInstanceStudentRecords(fixtures.FromInstanceStudentRecords(s.timetable.InstanceStudent)),
+		InstanceStaffRepo:   s.timetable.InstanceStaff,
+		InstanceStudents:    s.timetable.InstanceStudent,
 		ExceptionRepo:       s.timetable.ActivityException,
 		ActiveGroupRepo:     s.repos.ActiveGroup,
 		SupervisorRepo:      s.repos.GroupSupervisor,
@@ -208,7 +208,7 @@ func lifecycleDependencies(s *lifecycleSetup, broadcaster realtime.Broadcaster, 
 // presence; the lifecycle only consumes its start check.
 func lifecycleStartConflicts(s *lifecycleSetup) timetable.StartConflictQuery {
 	detection, err := owners.NewTimetableConflictDetection(timetablePorts.ConflictDetectionDependencies{
-		Instances: fixtures.IntoConflictInstances(fixtures.FromActivityInstanceRecords(s.timetable.ActivityInstance)), InstanceStaff: fixtures.IntoConflictInstanceStaff(fixtures.FromInstanceStaffRecords(s.timetable.InstanceStaff)), InstanceStudents: fixtures.IntoConflictInstanceStudents(fixtures.FromInstanceStudentRecords(s.timetable.InstanceStudent)),
+		Instances: s.timetable.ActivityInstance.Reads, InstanceStaff: s.timetable.InstanceStaff, InstanceStudents: s.timetable.InstanceStudent,
 		Exceptions: s.timetable.ActivityException, Schedules: s.timetable.ActivitySchedule, Staff: owners.NewTimetableStaff(s.reposPeople.Staff),
 		CalendarPeriods: fixtures.IntoConflictCalendarPeriods(fixtures.FromCalendarPeriodRecords(s.reposSchedules.CalendarPeriod)), ArrivalExceptions: fixtures.IntoConflictArrivalExceptions(fixtures.FromStudentArrivalExceptionRecords(s.reposSchedules.StudentArrivalException)),
 		Sessions: s.repos.ActiveGroup, Shifts: fixtures.IntoConflictShifts(unusedShiftRows{}), Presence: s.presence,
@@ -396,7 +396,7 @@ func forceSetInstanceStatus(t *testing.T, s *lifecycleSetup, id int64, status st
 // lifecycle's public view does not carry.
 func reloadInstance(t *testing.T, s *lifecycleSetup, id int64) *fixtures.ActivityInstance {
 	t.Helper()
-	row, err := fixtures.FromActivityInstanceRecords(s.timetable.ActivityInstance).FindByID(s.ctx, id)
+	row, err := fixtures.FromActivityInstanceRecords(s.timetable.NativeInstances()).FindByID(s.ctx, id)
 	require.NoError(t, err)
 	require.NotNil(t, row)
 	return row

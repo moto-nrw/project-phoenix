@@ -70,8 +70,8 @@ func (s *Scheduler) runStatusFlagClear(ctx context.Context, task *ScheduledTask)
 		if wasRunToday(&s.lastStatusFlagClear, tenantID) {
 			return nil
 		}
-		sickMode := s.resolveStringSetting(tenantCtx, settingSickClearMode, "", clearModeEndOfDay)
-		excusedMode := s.resolveStringSetting(tenantCtx, settingExcusedClearMode, "", clearModeEndOfDay)
+		sickMode := s.resolveStringSetting(tenantCtx, settingSickClearMode, clearModeEndOfDay)
+		excusedMode := s.resolveStringSetting(tenantCtx, settingExcusedClearMode, clearModeEndOfDay)
 		succeeded := sickMode != clearModeEndOfDay || s.clearEndOfDayFlag(tenantCtx, tenantID, "sick", "sick_since")
 		if excusedMode == clearModeEndOfDay && !s.clearEndOfDayFlag(tenantCtx, tenantID, "excused", "excused_since") {
 			succeeded = false

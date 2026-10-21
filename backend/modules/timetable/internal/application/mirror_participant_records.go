@@ -46,35 +46,41 @@ func mirrorParticipantRow(value *timetable.ScheduledParticipant) *models.Instanc
 	row.ID, row.TenantID, row.CreatedAt, row.UpdatedAt = value.ID, value.TenantID, value.CreatedAt, value.UpdatedAt
 	return row
 }
-func NativeMirrorParticipants(rows ports.InstanceStudentRecords) *ports.MirrorParticipantRecords {
-	if rows == nil {
+func NativeMirrorParticipants(rows ports.ParticipantRows) *ports.MirrorParticipantRecords {
+	if noParticipantRows(rows) {
 		return nil
 	}
 	return &ports.MirrorParticipantRecords{MirrorParticipants: &ports.MirrorParticipants{FindByInstanceAndStudent: func(ctx context.Context, instanceID, studentID int64) (*timetable.ScheduledParticipant, error) {
-		value, err := rows.FindByInstanceAndStudent(ctx, instanceID, studentID)
+		value, err := participantOf(ctx, rows.Reads, instanceID, studentID)
 		return mirrorParticipant(value), err
 	}, FindCurrentCandidates: func(ctx context.Context, studentID int64, date calendar.Date, at time.Time) ([]*timetable.ScheduledParticipant, error) {
-		value, err := rows.FindCurrentCandidates(ctx, studentID, calendar.Date(date), at)
+		value, err := currentCandidates(ctx, rows.Reads, studentID, date, at)
 		return mirrorParticipants(value), err
 	}, FindCurrentCandidatesByStudentIDs: func(ctx context.Context, studentIDs []int64, date calendar.Date, at time.Time) ([]*timetable.ScheduledParticipant, error) {
-		value, err := rows.FindCurrentCandidatesByStudentIDs(ctx, studentIDs, calendar.Date(date), at)
+		value, err := currentCandidatesOfStudents(ctx, rows.Reads, studentIDs, date, at)
 		return mirrorParticipants(value), err
 	}, FindByStudentAndDateRange: func(ctx context.Context, studentID int64, from, to calendar.Date) ([]*timetable.ScheduledParticipant, error) {
-		value, err := rows.FindByStudentAndDateRange(ctx, studentID, calendar.Date(from), calendar.Date(to))
+		value, err := participantsOfStudentBetween(ctx, rows.Reads, studentID, from, to)
 		return mirrorParticipants(value), err
 	}, FindByStudentIDsAndDate: func(ctx context.Context, studentIDs []int64, date calendar.Date) ([]*timetable.ScheduledParticipant, error) {
-		value, err := rows.FindByStudentIDsAndDate(ctx, studentIDs, calendar.Date(date))
+		value, err := participantsOfStudentsOn(ctx, rows.Reads, studentIDs, date)
 		return mirrorParticipants(value), err
 	}, CreateUnplannedPresentIfAbsent: func(ctx context.Context, instanceID, studentID int64, at time.Time) (*timetable.ScheduledParticipant, error) {
-		value, err := rows.CreateUnplannedPresentIfAbsent(ctx, instanceID, studentID, at)
+		value, err := createUnplannedPresentIfAbsent(ctx, rows, instanceID, studentID, at)
 		return mirrorParticipant(value), err
-	}, UpdateAttendanceFromCheckin: rows.UpdateAttendanceFromCheckin, UpdateAttendanceFromCheckinBatch: func(ctx context.Context, keys []timetable.InstanceStudentKey, at time.Time) error {
-		return rows.UpdateAttendanceFromCheckinBatch(ctx, mirrorLegacyKeys(keys), at)
-	}, UpdateAttendanceCheckout: rows.UpdateAttendanceCheckout, UpdateAttendanceCheckoutBatch: func(ctx context.Context, keys []timetable.InstanceStudentKey, at time.Time) error {
-		return rows.UpdateAttendanceCheckoutBatch(ctx, mirrorLegacyKeys(keys), at)
-	}, ReconcileAttendanceInterval: rows.ReconcileAttendanceInterval}, Create: func(ctx context.Context, value *timetable.ScheduledParticipant) error {
+	}, UpdateAttendanceFromCheckin: func(ctx context.Context, instanceID, studentID int64, at time.Time) (bool, error) {
+		return checkInParticipant(ctx, rows, instanceID, studentID, at)
+	}, UpdateAttendanceFromCheckinBatch: func(ctx context.Context, keys []timetable.InstanceStudentKey, at time.Time) error {
+		return checkInParticipants(ctx, rows, mirrorLegacyKeys(keys), at)
+	}, UpdateAttendanceCheckout: func(ctx context.Context, instanceID, studentID int64, at time.Time) error {
+		return checkOutParticipant(ctx, rows, instanceID, studentID, at)
+	}, UpdateAttendanceCheckoutBatch: func(ctx context.Context, keys []timetable.InstanceStudentKey, at time.Time) error {
+		return checkOutParticipants(ctx, rows, mirrorLegacyKeys(keys), at)
+	}, ReconcileAttendanceInterval: func(ctx context.Context, instanceID, studentID int64, previousCheckIn time.Time, previousCheckOut *time.Time, updatedCheckIn time.Time, updatedCheckOut *time.Time) (bool, error) {
+		return reconcileAttendanceInterval(ctx, rows, instanceID, studentID, previousCheckIn, previousCheckOut, updatedCheckIn, updatedCheckOut)
+	}}, Create: func(ctx context.Context, value *timetable.ScheduledParticipant) error {
 		row := mirrorParticipantRow(value)
-		err := rows.Create(ctx, row)
+		err := createLegacyParticipant(ctx, rows, row)
 		if value != nil && row != nil {
 			*value = *mirrorParticipant(row)
 		}
@@ -84,11 +90,11 @@ func NativeMirrorParticipants(rows ports.InstanceStudentRecords) *ports.MirrorPa
 		if !ok {
 			return nil, WrapDatabaseError("find by id", fmt.Errorf("invalid instance student id %T", id))
 		}
-		row, err := rows.FindByID(ctx, recordID)
+		row, err := findLegacyParticipant(ctx, rows.Reads, recordID)
 		return mirrorParticipant(row), err
 	}, FindInstancesWithAttendanceByStudentAndDateRange: func(ctx context.Context, studentID int64, from, to calendar.Date) ([]*timetable.StudentWeekEntry, error) {
-		rows, err := rows.FindInstancesWithAttendanceByStudentAndDateRange(ctx, studentID, calendar.Date(from), calendar.Date(to))
-		return mirrorWeekEntries(rows), err
+		entries, err := scheduledInstancesForStudent(ctx, rows.Reads, studentID, from, to)
+		return mirrorWeekEntries(entries), err
 	}}
 }
 

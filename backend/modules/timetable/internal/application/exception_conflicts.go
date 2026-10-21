@@ -40,7 +40,7 @@ func (d *conflictDetection) DetectExceptionConflicts(ctx context.Context, from, 
 	if len(exceptions) == 0 {
 		return []timetable.ExceptionConflict{}, nil
 	}
-	instances, err := d.deps.Instances.FindByTenantAndDateRange(ctx, calendar.Date(from), calendar.Date(to))
+	instances, err := instancesBetween(ctx, d.deps.Instances, calendar.Date(from), calendar.Date(to))
 	if err != nil {
 		return nil, err
 	}
@@ -48,7 +48,7 @@ func (d *conflictDetection) DetectExceptionConflicts(ctx context.Context, from, 
 	if len(affected) == 0 {
 		return []timetable.ExceptionConflict{}, nil
 	}
-	expectedStudents, err := d.deps.InstanceStudents.FindExpectedByInstanceIDs(ctx, uniqueAffectedInstanceIDs(affected))
+	expectedStudents, err := expectedParticipantsOf(ctx, d.deps.InstanceStudents.Reads, uniqueAffectedInstanceIDs(affected))
 	if err != nil {
 		return nil, err
 	}

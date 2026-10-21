@@ -175,7 +175,7 @@ func idempotentCreateResult(existing *scheduleModel.ActivityInstance, fingerprin
 
 func (s *InstanceLifecycleService) insertCreatedInstance(ctx context.Context, inst *scheduleModel.ActivityInstance) (*scheduleModel.ActivityInstance, bool, error) {
 	if inst.IdempotencyKey == nil {
-		if err := s.deps.InstanceRepo.Create(ctx, inst); err != nil {
+		if err := createLegacyInstance(ctx, s.deps.InstanceRepo, inst); err != nil {
 			return nil, false, &ports.ScheduleError{Op: "create instance: insert", Err: duplicateTemplateInstance(err)}
 		}
 		return inst, true, nil
@@ -202,7 +202,7 @@ func (s *InstanceLifecycleService) insertCreatedInstance(ctx context.Context, in
 }
 
 func (s *InstanceLifecycleService) findCreateByIdempotencyKey(ctx context.Context, key string) (*scheduleModel.ActivityInstance, error) {
-	instances, err := listInstances(ctx, s.deps.InstanceRepo, ports.LegacyInstanceFilter{IdempotencyKey: key, Limit: 1})
+	instances, err := listLegacyInstances(ctx, s.deps.InstanceRepo.Reads, ports.LegacyInstanceFilter{IdempotencyKey: key, Limit: 1}, "list with options")
 	if err != nil || len(instances) == 0 {
 		return nil, err
 	}
@@ -214,7 +214,7 @@ func (s *InstanceLifecycleService) assignCreatedInstanceRoster(ctx context.Conte
 		// A nil RoomID falls back to the block's room at runtime.
 		row := &scheduleModel.InstanceStaff{InstanceID: inst.ID, StaffID: staffID, IsPrimary: false}
 		row.SetTenantID(tenantID)
-		if err := s.deps.InstanceStaffRepo.Create(ctx, row); err != nil {
+		if err := createLegacyInstanceStaff(ctx, s.deps.InstanceStaffRepo, row); err != nil {
 			return &ports.ScheduleError{Op: "create instance: assign staff", Err: err}
 		}
 	}
@@ -235,14 +235,14 @@ func (s *InstanceLifecycleService) assignInstanceStudents(ctx context.Context, i
 			Status:     scheduleModel.AttendanceStatusExpected,
 		}
 		row.SetTenantID(tenantID)
-		if err := s.deps.InstanceStudents.Create(ctx, row); err != nil {
+		if err := createLegacyParticipant(ctx, s.deps.InstanceStudents, row); err != nil {
 			return &ports.ScheduleError{Op: op + ": assign student", Err: err}
 		}
 	}
-	if _, err := s.deps.InstanceStudents.ApplyActiveStatusDaysForInstance(ctx, inst.ID, inst.Date); err != nil {
+	if _, err := applyActiveStatusDaysToInstance(ctx, s.deps.InstanceStudents.Presence, inst.ID, inst.Date); err != nil {
 		return &ports.ScheduleError{Op: op + ": apply student status days", Err: err}
 	}
-	if _, err := s.deps.InstanceStudents.ApplyActivePartialAbsencesForInstance(ctx, inst.ID, inst.Date); err != nil {
+	if _, err := applyActivePartialAbsencesToInstance(ctx, s.deps.InstanceStudents.Presence, inst.ID, inst.Date); err != nil {
 		return &ports.ScheduleError{Op: op + ": apply student partial absences", Err: err}
 	}
 	return nil
@@ -286,7 +286,7 @@ func (s *InstanceLifecycleService) createIdempotentInstance(ctx context.Context,
 	if !inserted {
 		return false, nil
 	}
-	stored, err := s.deps.InstanceRepo.FindByID(ctx, created.ID)
+	stored, err := findLegacyInstance(ctx, s.deps.InstanceRepo.Reads, created.ID)
 	if err != nil {
 		return true, err
 	}

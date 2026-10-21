@@ -66,7 +66,8 @@ an architecture issue for an ADR decision before continuing.
 
 Read `.claude/rules/backend-conventions.md` for repository generics, model
 conventions, and CI ratchets. They constrain code inside an owner; the policy
-defines the module boundary.
+defines the module boundary. Pass-throughs (Rule 8): the shapes that may stay
+and the floor per owner are in `docs/adr/0075-pass-throughs-keep-a-per-owner-floor.md`.
 
 **Query budgets (#2940)**: every list endpoint has a scenario in `test/query_budgets.go` and a test that counts its statements with `testpkg.CaptureQueries` and calls `testpkg.AssertQueryBudget`. The register is shrink-only; `TestQueryBudgetRatchet` rejects unreferenced entries and hand-rolled `BeforeQuery` hooks in tests. Rule 15 in `.claude/rules/backend-conventions.md` has the pattern.
 

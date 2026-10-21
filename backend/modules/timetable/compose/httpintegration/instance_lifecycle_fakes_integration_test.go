@@ -61,8 +61,8 @@ func newFakeLifecycle(t *testing.T, deps timetablePorts.InstanceLifecycleDepende
 	deps.ContentHash = securityruntime.Fingerprint
 	deps.Database = compose.NewTenantDatabase(testpkg.SetupTestDB(t))
 	deps.Logger = slog.New(slog.DiscardHandler)
-	if fixtures.FromInstanceStaffRecords(deps.InstanceStaffRepo) == nil {
-		deps.InstanceStaffRepo = fixtures.IntoInstanceStaffRecords(fakeNoInstanceStaff{})
+	if deps.InstanceStaffRepo == nil {
+		deps.InstanceStaffRepo = fakeNoInstanceStaff{}
 	}
 	if deps.Rooms == nil {
 		deps.Rooms = fakeLockableRoom{}
@@ -76,8 +76,8 @@ func newFakeLifecycle(t *testing.T, deps timetablePorts.InstanceLifecycleDepende
 	if deps.SupervisorRepo == nil {
 		deps.SupervisorRepo = &absorbSupervisorRepo{}
 	}
-	if fixtures.FromInstanceStudentRecords(deps.InstanceStudents) == nil {
-		deps.InstanceStudents = fixtures.IntoInstanceStudentRecords(&absorbInstanceStudentRepo{})
+	if deps.InstanceStudents.Reads == nil {
+		deps.InstanceStudents = absorbParticipantRows(&absorbInstanceStudentRepo{})
 	}
 	if fixtures.FromActivityRecoveryRecords(deps.RecoveryRepo) == nil {
 		deps.RecoveryRepo = fixtures.IntoActivityRecoveryRecords(fakeRecovery{})
@@ -92,11 +92,10 @@ func (noStartConflicts) DetectStartConflicts(context.Context, timetable.StartCon
 }
 
 type fakeNoInstanceStaff struct {
-	fixtures.
-		InstanceStaffRecords
+	timetable.InstanceStaffCapability
 }
 
-func (fakeNoInstanceStaff) FindByInstanceID(context.Context, int64) ([]*fixtures.InstanceStaff, error) {
+func (fakeNoInstanceStaff) ListInstanceStaff(context.Context, timetable.InstanceStaffFilter) ([]timetable.InstanceStaff, error) {
 	return nil, nil
 }
 
@@ -249,12 +248,11 @@ func (r *absorbVisitRepo) ListVisits(_ context.Context, filter studentpresence.V
 }
 
 type absorbInstanceStudentRepo struct {
-	fixtures.
-		InstanceStudentRecords
 	unplannedStudentID int64
 	updates            []absorbedAttendanceUpdate
 	lookups            []absorbedAttendanceUpdate
 	creates            []absorbedAttendanceUpdate
+	pairs              map[int64]absorbedAttendanceUpdate
 }
 
 type absorbedAttendanceUpdate struct {
@@ -263,36 +261,21 @@ type absorbedAttendanceUpdate struct {
 	checkedIn  time.Time
 }
 
-func (r *absorbInstanceStudentRepo) UpdateAttendanceFromCheckin(
-	_ context.Context, instanceID, studentID int64, checkedIn time.Time,
-) (bool, error) {
-	r.updates = append(r.updates, absorbedAttendanceUpdate{
-		instanceID: instanceID,
-		studentID:  studentID,
-		checkedIn:  checkedIn,
-	})
-	return studentID != r.unplannedStudentID, nil
+// absorbParticipantRows serves the absorb fake as the owner's participant
+// rows: the plan lists every child the start resolves, Student Presence
+// checks in the planned ones and walks in the others.
+func absorbParticipantRows(r *absorbInstanceStudentRepo) timetablePorts.ParticipantRows {
+	return fixtures.ParticipantRowsOf(r, absorbParticipantPlans{repo: r}, absorbParticipantPresence{repo: r})
 }
 
+// FindByInstanceAndStudent resolves the child's participant on the block.
 func (r *absorbInstanceStudentRepo) FindByInstanceAndStudent(
 	_ context.Context, instanceID, studentID int64,
 ) (*fixtures.InstanceStudent, error) {
-	r.lookups = append(r.lookups, absorbedAttendanceUpdate{
-		instanceID: instanceID,
-		studentID:  studentID,
-	})
-	return nil, nil
-}
-
-func (r *absorbInstanceStudentRepo) CreateUnplannedPresentIfAbsent(
-	_ context.Context, instanceID, studentID int64, checkedIn time.Time,
-) (*fixtures.InstanceStudent, error) {
-	r.creates = append(r.creates, absorbedAttendanceUpdate{
-		instanceID: instanceID,
-		studentID:  studentID,
-		checkedIn:  checkedIn,
-	})
 	return fixtures.NewInstanceStudent(func(fixtureRow *fixtures.InstanceStudent) {
+		fixtureRow.ID = r.participant(instanceID, studentID)
+		fixtureRow.InstanceID = instanceID
+		fixtureRow.StudentID = studentID
 	}), nil
 }
 
@@ -303,6 +286,55 @@ func (r *absorbInstanceStudentRepo) FindByInstanceIDs(_ context.Context, instanc
 			studentID:  r.unplannedStudentID,
 		})
 	}
+	return nil, nil
+}
+
+func (r *absorbInstanceStudentRepo) participant(instanceID, studentID int64) int64 {
+	if r.pairs == nil {
+		r.pairs = map[int64]absorbedAttendanceUpdate{}
+	}
+	id := int64(len(r.pairs) + 1)
+	r.pairs[id] = absorbedAttendanceUpdate{instanceID: instanceID, studentID: studentID}
+	return id
+}
+
+type absorbParticipantPlans struct {
+	timetable.InstanceStudentCapability
+	repo *absorbInstanceStudentRepo
+}
+
+func (p absorbParticipantPlans) EnsureInstanceStudent(_ context.Context, instanceID, studentID int64) (timetable.InstanceStudent, bool, error) {
+	return timetable.InstanceStudent{ID: p.repo.participant(instanceID, studentID), InstanceID: instanceID, StudentID: studentID}, true, nil
+}
+
+type absorbParticipantPresence struct {
+	timetablePorts.ParticipantPresence
+	repo *absorbInstanceStudentRepo
+}
+
+// CheckInParticipants records the check-in of the resolved children; only
+// the planned ones change.
+func (p absorbParticipantPresence) CheckInParticipants(_ context.Context, ids []int64, checkedIn time.Time) (int64, error) {
+	var changed int64
+	for _, id := range ids {
+		update := p.repo.pairs[id]
+		update.checkedIn = checkedIn
+		p.repo.updates = append(p.repo.updates, update)
+		if update.studentID != p.repo.unplannedStudentID {
+			changed++
+		}
+	}
+	return changed, nil
+}
+
+func (p absorbParticipantPresence) CheckInWalkIn(_ context.Context, id int64, checkedIn time.Time) (studentpresence.SessionAttendance, error) {
+	create := p.repo.pairs[id]
+	create.checkedIn = checkedIn
+	p.repo.creates = append(p.repo.creates, create)
+	return studentpresence.SessionAttendance{ParticipantID: id}, nil
+}
+
+func (p absorbParticipantPresence) ListSessionAttendance(context.Context, []int64) ([]studentpresence.SessionAttendance, error) {
 	return nil, nil
 }
 
@@ -321,8 +353,8 @@ func TestInstanceStart_DoesNotAbsorbGroupMovedAfterCandidateLookup(t *testing.T)
 	}
 	visitRepo := &absorbVisitRepo{}
 	svc := newFakeLifecycle(t, timetablePorts.InstanceLifecycleDependencies{
-		InstanceRepo:     fixtures.IntoActivityInstanceRecords(&absorbInstanceRepo{planned: absorbPlannedInstance(9, 42)}),
-		InstanceStudents: fixtures.IntoInstanceStudentRecords(&absorbInstanceStudentRepo{}),
+		InstanceRepo:     lifecycleInstanceRows(&absorbInstanceRepo{planned: absorbPlannedInstance(9, 42)}),
+		InstanceStudents: absorbParticipantRows(&absorbInstanceStudentRepo{}),
 		ActiveGroupRepo:  groupRepo,
 		SupervisorRepo:   &absorbSupervisorRepo{},
 		Presence:         visitRepo,
@@ -395,8 +427,8 @@ func TestInstanceStart_AbsorbsUnsupervisedOpenGroups(t *testing.T) {
 	systemActivity := &timetable.Group{ID: systemActivityID, IsSystem: true}
 
 	svc := newFakeLifecycle(t, timetablePorts.InstanceLifecycleDependencies{
-		InstanceRepo:      fixtures.IntoActivityInstanceRecords(instanceRepo),
-		InstanceStudents:  fixtures.IntoInstanceStudentRecords(instanceStudents),
+		InstanceRepo:      lifecycleInstanceRows(instanceRepo),
+		InstanceStudents:  absorbParticipantRows(instanceStudents),
 		ActiveGroupRepo:   groupRepo,
 		ActivityGroupRepo: &absorbActivityGroupRepo{byID: map[int64]*timetable.Group{systemActivityID: systemActivity}},
 		SupervisorRepo:    supervisorRepo,
@@ -544,7 +576,7 @@ func TestLockReopenSnapshotStudents_LocksSortedUniqueStudents(t *testing.T) {
 	students := &reopenStudentLockStub{}
 	broadcaster := testpkg.NewRecordingBroadcaster()
 	deps := timetablePorts.InstanceLifecycleDependencies{
-		InstanceRepo: fixtures.IntoActivityInstanceRecords(reopenCompletedInstance(t, []int64{22, 20, 21})),
+		InstanceRepo: lifecycleInstanceRows(reopenCompletedInstance(t, []int64{22, 20, 21})),
 		Presence: &reopenVisitStub{byGroup: map[int64][]studentpresence.Visit{
 			90: {visitA, visitB, visitDup},
 		}},
@@ -577,7 +609,7 @@ func TestLockReopenSnapshotStudents_RejectsActiveVisit(t *testing.T) {
 	current := studentpresence.Visit{StudentID: 52}
 	current.ID = 99
 	svc := newFakeLifecycle(t, timetablePorts.InstanceLifecycleDependencies{
-		InstanceRepo: fixtures.IntoActivityInstanceRecords(reopenCompletedInstance(t, []int64{20})),
+		InstanceRepo: lifecycleInstanceRows(reopenCompletedInstance(t, []int64{20})),
 		Presence: &reopenVisitStub{
 			byGroup: map[int64][]studentpresence.Visit{90: {visit}},
 			current: map[int64]studentpresence.Visit{52: current},
@@ -588,4 +620,24 @@ func TestLockReopenSnapshotStudents_RejectsActiveVisit(t *testing.T) {
 
 	_, err := svc.Reopen(testpkg.Ctx(t), 5, 0, true)
 	require.ErrorIs(t, err, timetable.ErrTimetableOperationConflict)
+}
+
+// lifecycleInstanceRows serves a fake instance repository as instance rows
+// whose sessions start and complete without a Student Presence store.
+func lifecycleInstanceRows(fake fixtures.ActivityInstanceRecords) timetablePorts.InstanceRows {
+	rows := fixtures.InstanceRowsOf(fake)
+	rows.Sessions = acceptingSessions{InstanceSessions: rows.Sessions}
+	return rows
+}
+
+type acceptingSessions struct {
+	timetablePorts.InstanceSessions
+}
+
+func (acceptingSessions) StartActivitySession(context.Context, studentpresence.ActivitySessionStart) (studentpresence.ActivitySession, error) {
+	return studentpresence.ActivitySession{}, nil
+}
+
+func (acceptingSessions) CompleteActivitySession(context.Context, studentpresence.ActivitySessionCompletion) (studentpresence.ActivitySession, error) {
+	return studentpresence.ActivitySession{}, nil
 }

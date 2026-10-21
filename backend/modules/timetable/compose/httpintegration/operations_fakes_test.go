@@ -158,9 +158,9 @@ func newTimetableOpsDeps() *timetableOpsTestDeps {
 // clock as in production.
 func (deps *timetableOpsTestDeps) dependencies() timetablePorts.OperationDependencies {
 	return timetablePorts.OperationDependencies{
-		Instances:            fixtures.IntoOperationInstances(deps.instanceRepo),
-		InstanceStaff:        fixtures.IntoOperationInstanceStaff(deps.staffRepo),
-		Participants:         fixtures.IntoOperationParticipants(deps.studentRepo),
+		Instances:            fixtures.InstanceReadsOf(deps.instanceRepo),
+		InstanceStaff:        deps.staffRepo,
+		Participants:         fixtures.ParticipantRowsOf(deps.studentRepo, nil, opsParticipantPresence{repo: deps.studentRepo}),
 		Templates:            deps.activityGroups,
 		PlanningTracks:       deps.tracks,
 		Sessions:             deps.activeGroups,
@@ -221,29 +221,26 @@ func (r *fakeOpsInstanceRepo) FindByActiveGroupID(_ context.Context, activeGroup
 }
 
 type fakeOpsStaffRepo struct {
+	timetable.InstanceStaffQuery
 	byInstance map[int64][]*fixtures.InstanceStaff
 	err        error
 }
 
-func (r *fakeOpsStaffRepo) FindByInstanceID(_ context.Context, instanceID int64) ([]*fixtures.InstanceStaff, error) {
+// ListInstanceStaff answers one instance's read with its seeded rows and
+// the batched read with the seeded rows stamped with their instance, the
+// way the owner returns them.
+func (r *fakeOpsStaffRepo) ListInstanceStaff(_ context.Context, filter timetable.InstanceStaffFilter) ([]timetable.InstanceStaff, error) {
 	if r.err != nil {
 		return nil, r.err
 	}
-	return r.byInstance[instanceID], nil
-}
-
-// FindByInstanceIDs answers the batched read with the seeded rows, stamped
-// with their instance the way the repository returns them.
-func (r *fakeOpsStaffRepo) FindByInstanceIDs(_ context.Context, instanceIDs []int64) ([]*fixtures.InstanceStaff, error) {
-	if r.err != nil {
-		return nil, r.err
-	}
-	var rows []*fixtures.InstanceStaff
-	for _, instanceID := range instanceIDs {
+	var rows []timetable.InstanceStaff
+	for _, instanceID := range filter.InstanceIDs {
 		for _, row := range r.byInstance[instanceID] {
-			stamped := *row
-			stamped.InstanceID = instanceID
-			rows = append(rows, &stamped)
+			value := fixtures.PublicInstanceStaff(row)
+			if filter.OrderByInstanceAndCreated {
+				value.InstanceID = instanceID
+			}
+			rows = append(rows, value)
 		}
 	}
 	return rows, nil
@@ -322,11 +319,21 @@ func (r *fakeOpsInstanceStudentRepo) FindByInstanceAndStudent(_ context.Context,
 	return r.byInstanceStudent[instanceStudentKey{instanceID, studentID}], nil
 }
 
-func (r *fakeOpsInstanceStudentRepo) UpdateAttendanceFields(_ context.Context, id int64, patch fixtures.AttendanceFieldPatch) error {
-	if r.updateErr != nil {
-		return r.updateErr
+// opsParticipantPresence records the attendance patches the operations
+// write to Student Presence in the fake's patch shape.
+type opsParticipantPresence struct {
+	timetablePorts.ParticipantPresence
+	repo *fakeOpsInstanceStudentRepo
+}
+
+func (p opsParticipantPresence) PatchSessionAttendance(_ context.Context, id int64, written studentpresence.SessionAttendancePatch) error {
+	if p.repo.updateErr != nil {
+		return p.repo.updateErr
 	}
-	r.updates = append(r.updates, attendanceUpdate{rowID: id, patch: patch})
+	var patch fixtures.AttendanceFieldPatch
+	patch.Status, patch.Substatus, patch.SubstatusClear = written.Status, written.Substatus, written.SubstatusClear
+	patch.Note, patch.NoteClear = written.Note, written.NoteClear
+	p.repo.updates = append(p.repo.updates, attendanceUpdate{rowID: id, patch: patch})
 	return nil
 }
 

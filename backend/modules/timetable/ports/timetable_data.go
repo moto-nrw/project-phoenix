@@ -10,22 +10,6 @@ import (
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 )
 
-// DataInstances reads blocks from the retained activity instance repository.
-type DataInstances interface {
-	FindByID(ctx context.Context, id int64) (*scheduleModels.ActivityInstance, error)
-	FindByTenantAndDateRange(ctx context.Context, from, to calendar.Date) ([]*scheduleModels.ActivityInstance, error)
-}
-
-// DataParticipants reads and patches the participant rows of blocks.
-type DataParticipants interface {
-	FindByInstanceID(ctx context.Context, instanceID int64) ([]*scheduleModels.InstanceStudent, error)
-	FindByInstanceIDs(ctx context.Context, instanceIDs []int64) ([]*scheduleModels.InstanceStudent, error)
-	FindNotScheduledCandidatesByInstanceIDs(ctx context.Context, instanceIDs []int64) ([]*scheduleModels.InstanceStudent, error)
-	FindByInstanceAndStudent(ctx context.Context, instanceID, studentID int64) (*scheduleModels.InstanceStudent, error)
-	FindInstancesWithAttendanceByStudentAndDateRange(ctx context.Context, studentID int64, from, to calendar.Date) ([]*scheduleModels.ScheduledInstanceRow, error)
-	UpdateAttendanceFields(ctx context.Context, id int64, patch scheduleModels.AttendanceFieldPatch) error
-}
-
 // DataPickupExceptions reads the dated pickup exceptions of children.
 type DataPickupExceptions interface {
 	FindByStudentIDsAndDate(ctx context.Context, studentIDs []int64, date calendar.Date) ([]*scheduleModels.StudentPickupException, error)
@@ -103,9 +87,9 @@ type AdvisoryLocks interface {
 // Every other collaborator is required.
 type TimetableDataDependencies struct {
 	RunInTx           func(context.Context, func(context.Context) error) error
-	Instances         DataInstances
-	InstanceStaff     OperationInstanceStaff
-	Participants      DataParticipants
+	Instances         LegacyInstanceReads
+	InstanceStaff     timetable.InstanceStaffQuery
+	Participants      ParticipantRows
 	PickupExceptions  DataPickupExceptions
 	ArrivalExceptions DataArrivalExceptions
 	ArrivalBaselines  ArrivalBaselineProjector

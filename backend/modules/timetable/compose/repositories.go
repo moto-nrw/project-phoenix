@@ -1,10 +1,10 @@
 package compose
 
-// The retained activities and schedule repository contracts are served over
-// the Timetable & Activities owner (#2743). The instance and participant
-// adapters also compose Student Presence, which owns the execution and the
-// attendance since #2762; what other owners hold arrives through the
-// consumer-owned RepositoryDirectories.
+// The retained activities and schedule rows are served over the Timetable &
+// Activities owner (#2743). The instance and participant rows also compose
+// Student Presence, which owns the execution and the attendance since #2762;
+// what other owners hold arrives through the consumer-owned
+// RepositoryDirectories.
 
 import (
 	"github.com/moto-nrw/project-phoenix/modules/timetable/ports"
@@ -15,13 +15,13 @@ import (
 	"github.com/moto-nrw/project-phoenix/modules/timetable/internal/application"
 )
 
-// RepositoryDependencies are what the retained Timetable adapters compose.
+// RepositoryDependencies are what the retained Timetable rows compose.
 type RepositoryDependencies struct {
 	DB        *bun.DB
 	Timetable timetable.Capability
 	// Presence runs the blocks and records their attendance.
 	Presence studentpresence.Owner
-	// PartialAbsences previews the blocks an earlier pickup excuses.
+	// PartialAbsences previews pickup excusals for the fixtures' participants.
 	PartialAbsences application.PartialAbsences
 	Directories     ports.RepositoryDirectories
 }
@@ -38,31 +38,42 @@ type Repositories struct {
 	StudentEnrollment   timetable.StudentEnrollmentCapability
 	Timeframe           timetable.TimeframeCapability
 	ActivityException   timetable.ActivityExceptionCapability
-	ActivityInstance    ports.ActivityInstanceRecords
+	ActivityInstance    ports.InstanceRows
 	InstanceIdempotency timetable.ActivityInstanceCommand
-	InstanceStaff       ports.InstanceStaffRecords
-	InstanceStudent     ports.InstanceStudentRecords
+	InstanceStaff       timetable.InstanceStaffCapability
+	InstanceStudent     ports.ParticipantRows
+	// partialAbsences previews pickup excusals for the fixtures' participants.
+	partialAbsences application.PartialAbsences
 }
 
-// NewRepositories builds the retained schedule adapters over the Timetable
-// owner: the capability-only adapters from the application, the instance and
-// participant adapters over the database and Student Presence here.
+// NewRepositories builds the retained schedule rows over the Timetable
+// owner: the capability itself, and the instance and participant rows over
+// the joined reads and Student Presence.
 func NewRepositories(dependencies RepositoryDependencies, reads application.PresenceReads) Repositories {
 	capability := dependencies.Timetable
 	return Repositories{
 		Timetable: capability, Directories: dependencies.Directories,
 		ActivityCategory: capability, ActivitySchedule: capability, Timeframe: capability, ActivityException: capability, InstanceIdempotency: capability,
-		ActivitySupervisor: capability, StudentEnrollment: capability, InstanceStaff: application.NewInstanceStaffRecords(capability),
-		ActivityInstance: application.NewActivityInstanceRepository(reads, capability, dependencies.Presence),
-		InstanceStudent:  application.NewInstanceStudentRepository(reads, capability, dependencies.Presence, dependencies.PartialAbsences),
+		ActivitySupervisor: capability, StudentEnrollment: capability, InstanceStaff: capability,
+		ActivityInstance: ports.InstanceRows{Plans: capability, Sessions: dependencies.Presence, Reads: reads},
+		InstanceStudent:  ports.ParticipantRows{Plans: capability, Presence: dependencies.Presence, Reads: reads},
+		partialAbsences:  dependencies.PartialAbsences,
 	}
 }
 
-// NewActivityInstanceRepository serves the retained activity instance
-// repository over the Timetable owner and Student Presence, which runs the
-// blocks since #2762.
-func NewActivityInstanceRepository(reads application.PresenceReads, capability timetable.ActivityInstanceCapability, presence application.ActivityInstanceSessions) ports.ActivityInstanceRecords {
-	return application.NewActivityInstanceRepository(reads, capability, presence)
+// NewSessionInstanceCompletion completes the blocks of sessions a cleanup ends.
+func NewSessionInstanceCompletion(sessions ports.InstanceSessions) application.SessionInstanceCompletion {
+	return application.NewSessionInstanceCompletion(sessions)
+}
+
+// ParticipantCounts count the children per block for the Betreuungsplan.
+func (r Repositories) ParticipantCounts() application.ParticipantCounts {
+	return application.NewParticipantCounts(r.InstanceStudent.Reads)
+}
+
+// ParticipantCheckouts close the open presence of the sessions a cleanup ends.
+func (r Repositories) ParticipantCheckouts() application.ParticipantCheckouts {
+	return application.NewParticipantCheckouts(r.InstanceStudent)
 }
 
 // GroupReads are the template reads of the same consumers.

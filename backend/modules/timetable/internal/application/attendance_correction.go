@@ -35,7 +35,7 @@ type attendanceCorrections struct {
 
 // NewAttendanceCorrections composes the correction of completed blocks.
 func NewAttendanceCorrections(deps ports.AttendanceCorrectionDependencies) (timetable.AttendanceCorrections, error) {
-	if deps.Participants == nil || deps.Instances == nil {
+	if noParticipantRows(deps.Participants) || noInstanceRows(deps.Instances) {
 		return nil, errors.New("timetable attendance corrections: required repository is nil")
 	}
 	return &attendanceCorrections{deps: deps}, nil
@@ -102,7 +102,7 @@ func (s *attendanceCorrections) checkCorrectionPreconditions(reason string) (str
 // same instance state, checks that the block is completed and re-reads the
 // locked row.
 func (s *attendanceCorrections) loadCorrectableEntry(ctx context.Context, instanceID, studentID int64) (*scheduleModel.InstanceStudent, error) {
-	current, err := s.deps.Participants.FindByInstanceAndStudent(ctx, instanceID, studentID)
+	current, err := participantOf(ctx, s.deps.Participants.Reads, instanceID, studentID)
 	if err != nil {
 		if domain.IsRecordNotFound(err) {
 			return nil, timetable.ErrAttendanceEntryNotFound
@@ -126,7 +126,7 @@ func (s *attendanceCorrections) loadCorrectableEntry(ctx context.Context, instan
 	// stale: whatever wrote between then and the lock would otherwise end up in
 	// the trail as this correction's "before" value — the one thing the trail
 	// exists to state correctly.
-	current, err = s.deps.Participants.FindByInstanceAndStudent(ctx, instanceID, studentID)
+	current, err = participantOf(ctx, s.deps.Participants.Reads, instanceID, studentID)
 	if err != nil {
 		return nil, fmt.Errorf("reload attendance entry: %w", err)
 	}
@@ -138,7 +138,7 @@ func (s *attendanceCorrections) loadCorrectableEntry(ctx context.Context, instan
 
 // requireCompletedInstance accepts only a completed block.
 func (s *attendanceCorrections) requireCompletedInstance(ctx context.Context, instanceID int64) error {
-	instance, err := s.deps.Instances.FindByID(ctx, instanceID)
+	instance, err := findLegacyInstance(ctx, s.deps.Instances.Reads, instanceID)
 	if err != nil {
 		if domain.IsRecordNotFound(err) {
 			return timetable.ErrCorrectionInstanceNotFound
@@ -167,13 +167,13 @@ func (s *attendanceCorrections) writeCorrection(
 	patch scheduleModel.AttendanceFieldPatch,
 	corrections []ports.AttendanceCorrectionRecord,
 ) (timetable.CorrectedAttendance, error) {
-	if err := s.deps.Participants.UpdateAttendanceFields(ctx, current.ID, patch); err != nil {
+	if err := patchAttendanceFields(ctx, s.deps.Participants.Presence, current.ID, patch); err != nil {
 		return timetable.CorrectedAttendance{}, fmt.Errorf("update attendance: %w", err)
 	}
 	if err := s.deps.Trail.RecordAttendanceCorrections(ctx, corrections); err != nil {
 		return timetable.CorrectedAttendance{}, fmt.Errorf("record attendance correction: %w", err)
 	}
-	updated, err := s.deps.Participants.FindByInstanceAndStudent(ctx, current.InstanceID, current.StudentID)
+	updated, err := participantOf(ctx, s.deps.Participants.Reads, current.InstanceID, current.StudentID)
 	if err != nil || updated == nil {
 		return timetable.CorrectedAttendance{}, fmt.Errorf("reload corrected attendance: %w", err)
 	}

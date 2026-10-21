@@ -32,7 +32,7 @@ func instanceStudentFactory(t *testing.T, db *bun.DB) *api.RepositoryTestFactory
 
 func instanceStudentRepository(t *testing.T, db *bun.DB) fixtures.InstanceStudentRecords {
 	t.Helper()
-	return fixtures.FromInstanceStudentRecords(api.NewUnobservedTimetableRepositories(testpkg.MustDatabase(db)).InstanceStudent)
+	return fixtures.FromInstanceStudentRecords(api.NewUnobservedTimetableRepositories(testpkg.MustDatabase(db)).NativeParticipants())
 }
 
 func TestInstanceStudentRepository_Create_and_FindByInstanceID(t *testing.T) {
@@ -1086,7 +1086,7 @@ func TestInstanceStudentRepository_MarkExpectedAbsentByActiveGroupIDs_PairScoped
 
 	ctx := testpkg.Ctx(t)
 	repo := instanceStudentRepository(t, db)
-	instanceRepo := fixtures.FromActivityInstanceRecords(api.NewUnobservedTimetableRepositories(testpkg.MustDatabase(db)).ActivityInstance)
+	instanceRepo := fixtures.FromActivityInstanceRecords(api.NewUnobservedTimetableRepositories(testpkg.MustDatabase(db)).NativeInstances())
 
 	fx := newActivityInstanceFixtures(t, db, "mark-pairs")
 	defer fx.cleanup()
@@ -1823,7 +1823,7 @@ func TestInstanceStudentRepository_RestoreArchivedByTransition_SkipsFrozen(t *te
 
 	ctx := testpkg.Ctx(t)
 	repo := instanceStudentRepository(t, db)
-	instanceRepo := fixtures.FromActivityInstanceRecords(api.NewUnobservedTimetableRepositories(testpkg.MustDatabase(db)).ActivityInstance)
+	instanceRepo := fixtures.FromActivityInstanceRecords(api.NewUnobservedTimetableRepositories(testpkg.MustDatabase(db)).NativeInstances())
 
 	account := testpkg.CreateTestAccount(t, db, "roster-restore-frozen@test.local")
 	transition := testpkg.CreateTestGradeTransition(t, db, "2025-2026", account.ID)
@@ -2278,7 +2278,7 @@ func TestInstanceStudentRepository_FindPresentInOtherActiveInstances(t *testing.
 
 	ctx := testpkg.Ctx(t)
 	repo := instanceStudentRepository(t, db)
-	instRepo := fixtures.FromActivityInstanceRecords(api.NewUnobservedTimetableRepositories(testpkg.MustDatabase(db)).ActivityInstance)
+	instRepo := fixtures.FromActivityInstanceRecords(api.NewUnobservedTimetableRepositories(testpkg.MustDatabase(db)).NativeInstances())
 
 	student := testpkg.CreateTestStudent(t, db, "Paula", fmt.Sprintf("Parallel-%d", time.Now().UnixNano()), "1a")
 	other := testpkg.CreateTestStudent(t, db, "Otto", fmt.Sprintf("Parallel-%d", time.Now().UnixNano()+1), "1a")
@@ -2434,4 +2434,96 @@ func TestInstanceStudentRepository_BatchAttendanceMirrors(t *testing.T) {
 	require.NoError(t, err)
 	require.NotNil(t, gotB.CheckedOutAt)
 	assert.WithinDuration(t, batchCheckout, *gotB.CheckedOutAt, time.Second)
+}
+
+func createInstanceFixture(t *testing.T, db *bun.DB, prefix string, date calendar.Date) (*fixtures.ActivityInstance, func()) {
+	t.Helper()
+
+	fx := newActivityInstanceFixtures(t, db, prefix)
+
+	repo := fixtures.FromActivityInstanceRecords(api.NewUnobservedTimetableRepositories(testpkg.MustDatabase(db)).NativeInstances())
+	ctx := testpkg.Ctx(t)
+
+	inst := buildInstance(testpkg.Tenant(t), fx.roomID, &fx.activityID, date,
+		time.Date(2024, 1, 1, 14, 0, 0, 0, time.UTC),
+		time.Date(2024, 1, 1, 15, 0, 0, 0, time.UTC),
+		fmt.Sprintf("Instance-%s-%d", prefix, time.Now().UnixNano()),
+	)
+	require.NoError(t, repo.Create(ctx, inst))
+
+	cleanup := func() {
+		fx.cleanup()
+	}
+
+	return inst, cleanup
+}
+
+type activityInstanceFixtures struct {
+	roomID     int64
+	activityID int64
+	cleanup    func()
+}
+
+func newActivityInstanceFixtures(t *testing.T, db *bun.DB, prefix string) *activityInstanceFixtures {
+	t.Helper()
+	room := testpkg.CreateTestRoom(t, db, fmt.Sprintf("Room-%s-%d", prefix, time.Now().UnixNano()))
+	activity := testpkg.CreateTestActivityGroup(t, db, fmt.Sprintf("Template-%s-%d", prefix, time.Now().UnixNano()))
+	return &activityInstanceFixtures{
+		roomID:     room.ID,
+		activityID: activity.ID,
+		cleanup: func() {
+		},
+	}
+}
+
+func buildInstance(tenantID, roomID int64, activityID *int64, date calendar.Date, start, end time.Time, title string) *fixtures.ActivityInstance {
+	inst := fixtures.NewActivityInstance(func(fixtureRow *fixtures.ActivityInstance) {
+		fixtureRow.Date = date
+		fixtureRow.ActivityGroupID = activityID
+		fixtureRow.Title = title
+		fixtureRow.StartTime = start
+		fixtureRow.EndTime = end
+		fixtureRow.RoomID = roomID
+		fixtureRow.Status = fixtures.InstanceStatusPlanned()
+	})
+
+	inst.SetTenantID(tenantID)
+	return inst
+}
+
+// moveInstanceTo carries the block into status the way the composition
+// root's instance repository routes the transition: a planning status is a
+// column patch on the plan, an execution status is the block's Student
+// Presence session, started for a live group of the block's template and, for
+// completed, ended again.
+func moveInstanceTo(t *testing.T, db *bun.DB, inst *fixtures.ActivityInstance, status string) {
+	t.Helper()
+	ctx := testpkg.Ctx(t)
+	repo := fixtures.FromActivityInstanceRecords(api.NewUnobservedTimetableRepositories(testpkg.MustDatabase(db)).NativeInstances())
+	if status == fixtures.InstanceStatusActive() || status == fixtures.InstanceStatusCompleted() {
+		require.NotNil(t, inst.ActivityGroupID, "an execution needs the block's template")
+		group := testpkg.CreateTestActiveGroup(t, db, *inst.ActivityGroupID, inst.RoomID)
+		startedAt := time.Now()
+		inst.Status, inst.ActiveGroupID, inst.StartedAt = fixtures.InstanceStatusActive(), &group.ID, &startedAt
+		_, err := repo.UpdateColumns(ctx, inst, "status", "active_group_id", "started_at")
+		require.NoError(t, err)
+		if status == fixtures.InstanceStatusActive() {
+			return
+		}
+		completedAt := time.Now()
+		inst.CompletedAt = &completedAt
+	}
+	inst.Status = status
+	_, err := repo.UpdateColumns(ctx, inst, "status")
+	require.NoError(t, err)
+}
+
+func createRepositoryTestStaffID(tb testing.TB, db *bun.DB) int64 {
+	tb.Helper()
+
+	staff := testpkg.CreateTestStaff(tb, db, "Schedule", fmt.Sprintf("Creator-%d", time.Now().UnixNano()))
+	tb.Cleanup(func() {
+	})
+
+	return staff.ID
 }

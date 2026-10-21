@@ -61,39 +61,6 @@ func fromNative5(value []*records.ScheduledInstanceRow) []*ScheduledInstanceRow 
 	return result
 }
 
-func toNative5(value []*ScheduledInstanceRow) []*records.ScheduledInstanceRow {
-	if value == nil {
-		return nil
-	}
-	result := make([]*records.ScheduledInstanceRow, len(value))
-	for index, row := range value {
-		result[index] = toNative47(row)
-	}
-	return result
-}
-
-func fromNative6(value []*records.InstanceStaff) []*InstanceStaff {
-	if value == nil {
-		return nil
-	}
-	result := make([]*InstanceStaff, len(value))
-	for index, row := range value {
-		result[index] = fromNative31(row)
-	}
-	return result
-}
-
-func toNative6(value []*InstanceStaff) []*records.InstanceStaff {
-	if value == nil {
-		return nil
-	}
-	result := make([]*records.InstanceStaff, len(value))
-	for index, row := range value {
-		result[index] = toNative31(row)
-	}
-	return result
-}
-
 func fromNative7(value *records.CalendarPeriod) *CalendarPeriod {
 	if value == nil {
 		return nil
@@ -346,10 +313,6 @@ func toNative27(value *InstanceStudent) *records.InstanceStudent {
 	return &value.InstanceStudent
 }
 
-func fromNative28(value records.AttendanceFieldPatch) AttendanceFieldPatch {
-	return AttendanceFieldPatch{value}
-}
-
 func toNative28(value AttendanceFieldPatch) records.AttendanceFieldPatch {
 	return value.AttendanceFieldPatch
 }
@@ -390,20 +353,6 @@ func toNative30(value []StudentInstanceRef) []records.StudentInstanceRef {
 	return result
 }
 
-func fromNative31(value *records.InstanceStaff) *InstanceStaff {
-	if value == nil {
-		return nil
-	}
-	return &InstanceStaff{*value}
-}
-
-func toNative31(value *InstanceStaff) *records.InstanceStaff {
-	if value == nil {
-		return nil
-	}
-	return &value.InstanceStaff
-}
-
 func fromNative32(value []records.ParallelPresence) []ParallelPresence {
 	if value == nil {
 		return nil
@@ -422,17 +371,6 @@ func toNative32(value []ParallelPresence) []records.ParallelPresence {
 	result := make([]records.ParallelPresence, len(value))
 	for index, row := range value {
 		result[index] = toNative50(row)
-	}
-	return result
-}
-
-func fromNative33(value []records.InstanceStudentKey) []InstanceStudentKey {
-	if value == nil {
-		return nil
-	}
-	result := make([]InstanceStudentKey, len(value))
-	for index, row := range value {
-		result[index] = fromNative51(row)
 	}
 	return result
 }
@@ -494,13 +432,6 @@ func fromNative47(value *records.ScheduledInstanceRow) *ScheduledInstanceRow {
 	return &ScheduledInstanceRow{*value}
 }
 
-func toNative47(value *ScheduledInstanceRow) *records.ScheduledInstanceRow {
-	if value == nil {
-		return nil
-	}
-	return &value.ScheduledInstanceRow
-}
-
 func fromNative48(value records.CalendarPeriodUsage) CalendarPeriodUsage {
 	return CalendarPeriodUsage{value}
 }
@@ -523,10 +454,6 @@ func fromNative50(value records.ParallelPresence) ParallelPresence {
 
 func toNative50(value ParallelPresence) records.ParallelPresence {
 	return value.ParallelPresence
-}
-
-func fromNative51(value records.InstanceStudentKey) InstanceStudentKey {
-	return InstanceStudentKey{value}
 }
 
 func toNative51(value InstanceStudentKey) records.InstanceStudentKey {

@@ -138,8 +138,8 @@ var moduleLegacyFileBudgets = map[string]int{}
 // moduleComposeBudgetTotal is the sum of moduleComposeBudgets. Shrink-only,
 // like every entry; raised by ADR 0063 and by ADR 0073 (the parent
 // announcement retention of modules/communication/composition).
-// Raised by ADR 0075: the restricted staff person repair compositions (+53).
-const moduleComposeBudgetTotal = 12444
+// Raised by ADR 0076: the restricted staff person repair compositions (+53).
+const moduleComposeBudgetTotal = 12435
 
 // moduleComposeBudgets maps every owner composition package to its production
 // LOC, first measured on 2026-10-15 on top of development c49b81c3a9: 61
@@ -174,14 +174,14 @@ var moduleComposeBudgets = map[string]int{
 	"modules/mealplan/compose":                      69,
 	"modules/organizationtenancy/compose":           253,
 	"modules/parentrequestfeedprojection/compose":   11,
-	// Raised by ADR 0075: the restricted administrative repair constructor.
+	// Raised by ADR 0076: the restricted administrative repair constructor.
 	"modules/peopledirectory/compose":       974,
 	"modules/presenceprojection/compose":    7,
 	"modules/requestreview/compose":         12,
 	"modules/schedulerruntime/compose":      45,
 	"modules/schoolcalendar/compose":        148,
 	"modules/schoolcalendar/portal/compose": 112,
-	// Raised by ADR 0075: the restricted administrative repair constructor.
+	// Raised by ADR 0076: the restricted administrative repair constructor.
 	"modules/schoolmembership/compose":                196,
 	"modules/schoolsetup/compose":                     56,
 	"modules/schoolstructure/compose":                 594,
@@ -190,7 +190,7 @@ var moduleComposeBudgets = map[string]int{
 	"modules/studentpresence/compose":                 243,
 	"modules/studentpresence/compose/presenceservice": 110,
 	"modules/supervisiondashboard/compose":            11,
-	"modules/timetable/compose":                       1157,
+	"modules/timetable/compose":                       1148,
 	"modules/timetableblockdisplay/compose":           9,
 	"modules/timetableenrollmentprovenance/compose":   10,
 	"modules/timetableprojection/compose":             7,
@@ -204,7 +204,7 @@ var moduleComposeBudgets = map[string]int{
 	"workflows/shiftplansync/compose":                 127,
 	"workflows/staffclock/compose":                    36,
 	"workflows/staffoffboarding/compose":              79,
-	// Added by ADR 0075: construction and the ambient transaction guard.
+	// Added by ADR 0076: construction and the ambient transaction guard.
 	"workflows/staffpersonmerge/compose": 31,
 	"workflows/studentdeletion/compose":  74,
 }

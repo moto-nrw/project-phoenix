@@ -30,7 +30,7 @@ type timetableData struct {
 
 // NewTimetableData composes the planner's reads of the Timetable owner.
 func NewTimetableData(deps ports.TimetableDataDependencies) (timetable.TimetableDataCapability, error) {
-	if deps.Instances == nil || deps.InstanceStaff == nil || deps.Participants == nil || deps.PickupExceptions == nil ||
+	if deps.Instances == nil || deps.InstanceStaff == nil || noParticipantRows(deps.Participants) || deps.PickupExceptions == nil ||
 		deps.ArrivalExceptions == nil || deps.Visits == nil || deps.Templates == nil || deps.Groups == nil || deps.Categories == nil ||
 		deps.Rooms == nil || deps.RoomOccupancy == nil || deps.DeviationEvents == nil || deps.ConflictAcks == nil {
 		return nil, errors.New("timetable data: required dependency is nil")
@@ -40,23 +40,25 @@ func NewTimetableData(deps ports.TimetableDataDependencies) (timetable.Timetable
 }
 
 func (d *timetableData) FindScheduledInstance(ctx context.Context, id int64) (timetable.ScheduledInstance, error) {
-	row, err := d.deps.Instances.FindByID(ctx, id)
+	notFound := fmt.Errorf("%w: %w", timetable.ErrActivityInstanceNotFound, WrapNotFoundDatabaseError("find by id"))
+	if id <= 0 {
+		return timetable.ScheduledInstance{}, notFound
+	}
+	rows, err := d.deps.Instances.ListLegacyInstances(ctx, ports.LegacyInstanceFilter{IDs: []int64{id}})
 	if err != nil {
-		if domain.IsRecordNotFound(err) {
-			return timetable.ScheduledInstance{}, fmt.Errorf("%w: %w", timetable.ErrActivityInstanceNotFound, err)
-		}
-		return timetable.ScheduledInstance{}, err
+		return timetable.ScheduledInstance{}, WrapDatabaseError("find by id", err)
 	}
-	if row == nil {
-		return timetable.ScheduledInstance{}, timetable.ErrActivityInstanceNotFound
+	if len(rows) == 0 || rows[0] == nil {
+		return timetable.ScheduledInstance{}, notFound
 	}
-	return ScheduledInstanceOf(row), nil
+	return ScheduledInstanceOf(rows[0]), nil
 }
 
 func (d *timetableData) ListScheduledInstances(ctx context.Context, from, to calendar.Date) ([]timetable.ScheduledInstance, error) {
-	rows, err := d.deps.Instances.FindByTenantAndDateRange(ctx, calendar.Date(from), calendar.Date(to))
+	fromDay, toDay := from.String(), to.String()
+	rows, err := d.deps.Instances.ListLegacyInstances(ctx, ports.LegacyInstanceFilter{FromDate: &fromDay, ToDate: &toDay, OrderByDateAndTime: true})
 	if err != nil {
-		return nil, err
+		return nil, WrapDatabaseError("find by tenant and date range", err)
 	}
 	return scheduledInstancesOf(rows), nil
 }
@@ -74,14 +76,14 @@ func (d *timetableData) ListScheduledInstanceRows(ctx context.Context, instances
 	for _, instance := range instances {
 		ids = append(ids, instance.ID)
 	}
-	staffRows, err := d.deps.InstanceStaff.FindByInstanceIDs(ctx, ids)
+	staffRows, err := staffOfInstances(ctx, d.deps.InstanceStaff, ids)
 	if err != nil {
 		return nil, fmt.Errorf("load staff for instances: %w", err)
 	}
 	for _, row := range staffRows {
 		rows.Staff[row.InstanceID] = append(rows.Staff[row.InstanceID], instanceStaffOf(row))
 	}
-	participantRows, err := d.deps.Participants.FindByInstanceIDs(ctx, ids)
+	participantRows, err := participantsOfInstances(ctx, d.deps.Participants.Reads, ids)
 	if err != nil {
 		return nil, fmt.Errorf("load students for instances: %w", err)
 	}
@@ -152,19 +154,18 @@ func (d *timetableData) partialAbsenceCutoffs(ctx context.Context, studentIDs []
 }
 
 func (d *timetableData) ListBlockStaff(ctx context.Context, instanceID int64) ([]timetable.InstanceStaff, error) {
-	rows, err := d.deps.InstanceStaff.FindByInstanceID(ctx, instanceID)
+	staff, err := d.deps.InstanceStaff.ListInstanceStaff(ctx, timetable.InstanceStaffFilter{InstanceIDs: []int64{instanceID}, OrderByCreated: true})
 	if err != nil {
-		return nil, err
+		return nil, WrapDatabaseError("find by instance id", err)
 	}
-	staff := make([]timetable.InstanceStaff, 0, len(rows))
-	for _, row := range rows {
-		staff = append(staff, instanceStaffOf(row))
+	if staff == nil {
+		staff = []timetable.InstanceStaff{}
 	}
 	return staff, nil
 }
 
 func (d *timetableData) ListBlockParticipants(ctx context.Context, instanceID int64) ([]timetable.ScheduledParticipant, error) {
-	rows, err := d.deps.Participants.FindByInstanceID(ctx, instanceID)
+	rows, err := participantsOfInstance(ctx, d.deps.Participants.Reads, instanceID)
 	if err != nil {
 		return nil, err
 	}
@@ -172,7 +173,7 @@ func (d *timetableData) ListBlockParticipants(ctx context.Context, instanceID in
 }
 
 func (d *timetableData) ListCareDayCandidates(ctx context.Context, instanceIDs []int64) ([]timetable.ScheduledParticipant, error) {
-	rows, err := d.deps.Participants.FindNotScheduledCandidatesByInstanceIDs(ctx, instanceIDs)
+	rows, err := notScheduledCandidatesOf(ctx, d.deps.Participants.Reads, instanceIDs)
 	if err != nil {
 		return nil, err
 	}
@@ -180,7 +181,7 @@ func (d *timetableData) ListCareDayCandidates(ctx context.Context, instanceIDs [
 }
 
 func (d *timetableData) FindBlockParticipant(ctx context.Context, instanceID, studentID int64) (*timetable.ScheduledParticipant, error) {
-	row, err := d.deps.Participants.FindByInstanceAndStudent(ctx, instanceID, studentID)
+	row, err := participantOf(ctx, d.deps.Participants.Reads, instanceID, studentID)
 	if domain.IsRecordNotFound(err) {
 		return nil, nil
 	}
@@ -209,7 +210,7 @@ func (d *timetableData) LockBlockAttendance(ctx context.Context, instanceID int6
 }
 
 func (d *timetableData) PatchSlotAttendance(ctx context.Context, participantID int64, patch timetable.AttendancePatch) error {
-	return d.deps.Participants.UpdateAttendanceFields(ctx, participantID, attendanceFieldPatch(patch))
+	return patchAttendanceFields(ctx, d.deps.Participants.Presence, participantID, attendanceFieldPatch(patch))
 }
 
 func scheduledInstancesOf(rows []*scheduleModels.ActivityInstance) []timetable.ScheduledInstance {

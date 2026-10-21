@@ -30,14 +30,14 @@ func (s *operations) Roster(ctx context.Context, accountID int64, isAdmin bool, 
 }
 
 func (s *operations) RosterByActiveGroup(ctx context.Context, accountID int64, isAdmin bool, activeGroupID int64) (*timetable.OperationRoster, error) {
-	inst, err := s.deps.Instances.FindByActiveGroupID(ctx, activeGroupID)
+	rows, err := s.deps.Instances.ListLegacyInstances(ctx, ports.LegacyInstanceFilter{ActiveGroupIDs: []int64{activeGroupID}, Limit: 1})
 	if err != nil {
-		return nil, err
+		return nil, WrapDatabaseError("find by active group id", err)
 	}
-	if inst == nil {
+	if len(rows) == 0 || rows[0] == nil {
 		return nil, timetable.ErrTimetableOperationNotFound
 	}
-	return s.Roster(ctx, accountID, isAdmin, inst.ID)
+	return s.Roster(ctx, accountID, isAdmin, rows[0].ID)
 }
 
 // rosterWithActionAccess adds the caller's action rights; reads and write
@@ -126,7 +126,7 @@ func (s *operations) loadRosterSources(ctx context.Context, instanceID int64) (r
 		return rosterSources{}, err
 	}
 	src := rosterSources{inst: inst}
-	if src.planned, err = s.deps.Participants.FindByInstanceID(ctx, instanceID); err != nil {
+	if src.planned, err = participantsOfInstance(ctx, s.deps.Participants.Reads, instanceID); err != nil {
 		return rosterSources{}, err
 	}
 	if inst.ActiveGroupID != nil {
@@ -363,7 +363,7 @@ func (s *operations) parallelPresenceByStudent(ctx context.Context, inst *schedu
 	if inst.Status != scheduleModels.InstanceStatusActive || len(studentIDs) == 0 {
 		return nil, nil
 	}
-	found, err := s.deps.Participants.FindPresentInOtherActiveInstances(ctx, inst.ID, inst.Date, studentIDs)
+	found, err := parallelPresence(ctx, s.deps.Participants.Reads, inst.ID, inst.Date, studentIDs)
 	if err != nil {
 		return nil, err
 	}

@@ -62,7 +62,7 @@ func (s *InstanceLifecycleService) BulkCancelPlanned(ctx context.Context, from, 
 // bulkCancelCandidates loads the occurrences of [from, to] with the closing
 // day flag and name of their series: one instance and one group query.
 func (s *InstanceLifecycleService) bulkCancelCandidates(ctx context.Context, from, to calendar.Date) ([]timetable.BulkCancelCandidate, error) {
-	rows, err := s.deps.InstanceRepo.FindByTenantAndDateRange(ctx, calendar.Date(from), calendar.Date(to))
+	rows, err := instancesBetween(ctx, s.deps.InstanceRepo.Reads, calendar.Date(from), calendar.Date(to))
 	if err != nil {
 		return nil, &ports.ScheduleError{Op: "bulk cancel: load instances", Err: err}
 	}

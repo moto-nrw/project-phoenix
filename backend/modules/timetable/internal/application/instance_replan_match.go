@@ -27,9 +27,9 @@ func (s *InstanceLifecycleService) matchRegeneratedInstances(
 		dateKeys[i] = day.String()
 	}
 	spontaneous := false
-	candidates, err := listInstances(ctx, s.deps.InstanceRepo, ports.LegacyInstanceFilter{
+	candidates, err := listLegacyInstances(ctx, s.deps.InstanceRepo.Reads, ports.LegacyInstanceFilter{
 		ActivityGroupIDs: groupIDs, Dates: dateKeys, Status: scheduleModel.InstanceStatusPlanned, IsSpontaneous: &spontaneous,
-	})
+	}, "list with options")
 	if err != nil {
 		return nil, err
 	}

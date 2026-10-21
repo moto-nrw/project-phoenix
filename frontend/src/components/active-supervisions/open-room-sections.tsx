@@ -25,6 +25,7 @@ import { PresentChildrenPicker } from "~/components/active-supervisions/present-
 import { TimetableRosterContent } from "~/components/active-supervisions/timetable-roster";
 import { useTimetableActions } from "~/components/active-supervisions/use-timetable-actions";
 import { useTimetableRoster } from "~/components/active-supervisions/use-timetable-roster";
+import type { TimetableRosterRow } from "~/lib/timetable-operations-types";
 import type {
   ActiveSupervisionStudent,
   OpenRoomBlockSection,
@@ -48,6 +49,8 @@ export type OpenRoomBlockContext = Omit<
   readonly canReadPresentChildren: boolean;
   /** Offers „Rest des Tages“ when the caller may record partial absences. */
   readonly canExcuseRestOfDay: boolean;
+  /** Address of the child's page for „Profil ansehen“; absent without `users:read`. */
+  readonly studentProfileHref?: (row: TimetableRosterRow) => string;
   /** The school-wide overview lets the caller read every running roster. */
   readonly overviewEnabled: boolean;
   readonly onAddSupervisor: (activeGroupId: string) => void;
@@ -234,6 +237,7 @@ function OpenRoomBlock({
     showTimetableCounts,
     canReadPresentChildren,
     canExcuseRestOfDay,
+    studentProfileHref,
     overviewEnabled,
     onAddSupervisor,
     onRosterGroups,
@@ -352,6 +356,7 @@ function OpenRoomBlock({
           onExcuseRestOfDay={
             canExcuseRestOfDay ? actions.handleExcuseRestOfDay : undefined
           }
+          studentProfileHref={studentProfileHref}
           onSearchChange={actions.handleAddStudentSearchChange}
           rowFilter={rosterRowFilter}
         />

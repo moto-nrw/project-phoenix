@@ -36,7 +36,7 @@ func (d *timetableData) StudentWeek(ctx context.Context, studentID int64, from, 
 }
 
 func (d *timetableData) loadStudentWeekBlocks(ctx context.Context, week *timetable.StudentWeek, studentID int64, from, to calendar.Date) error {
-	enrolled, err := d.deps.Participants.FindInstancesWithAttendanceByStudentAndDateRange(ctx, studentID, calendar.Date(from), calendar.Date(to))
+	enrolled, err := scheduledInstancesForStudent(ctx, d.deps.Participants.Reads, studentID, from, to)
 	if err != nil {
 		return fmt.Errorf("load enrolled instances: %w", err)
 	}
@@ -46,7 +46,7 @@ func (d *timetableData) loadStudentWeekBlocks(ctx context.Context, week *timetab
 			Instance: ScheduledInstanceOf(row.Instance), Attendance: ScheduledParticipantOf(row.Attendance),
 		})
 	}
-	instances, err := d.deps.Instances.FindByTenantAndDateRange(ctx, calendar.Date(from), calendar.Date(to))
+	instances, err := instancesBetween(ctx, d.deps.Instances, calendar.Date(from), calendar.Date(to))
 	if err != nil {
 		return fmt.Errorf("load all tenant instances: %w", err)
 	}

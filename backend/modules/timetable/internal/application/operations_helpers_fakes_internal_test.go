@@ -35,7 +35,7 @@ func newTimetableOpsDeps() *timetableOpsTestDeps {
 		announcer:      &helperAnnouncer{},
 	}
 	deps.service = &operations{caller: sessionlessCaller{}, deps: ports.OperationDependencies{
-		Instances: deps.instanceRepo,
+		Instances: legacyInstanceReads{fake: deps.instanceRepo},
 		People:    deps.personService,
 		Templates: deps.activityGroups,
 		Settings:  deps.settings,

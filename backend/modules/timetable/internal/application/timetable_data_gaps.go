@@ -9,7 +9,7 @@ import (
 )
 
 func (d *timetableData) ListUnderstaffedInstances(ctx context.Context, from, to calendar.Date) ([]timetable.UnderstaffedInstance, error) {
-	instances, err := d.deps.Instances.FindByTenantAndDateRange(ctx, calendar.Date(from), calendar.Date(to))
+	instances, err := instancesBetween(ctx, d.deps.Instances, calendar.Date(from), calendar.Date(to))
 	if err != nil {
 		return nil, err
 	}
@@ -19,7 +19,7 @@ func (d *timetableData) ListUnderstaffedInstances(ctx context.Context, from, to 
 			candidates = append(candidates, inst)
 		}
 	}
-	staffRows, err := d.deps.InstanceStaff.FindByInstanceIDs(ctx, retainedInstanceIDs(candidates))
+	staffRows, err := staffOfInstances(ctx, d.deps.InstanceStaff, retainedInstanceIDs(candidates))
 	if err != nil {
 		return nil, err
 	}

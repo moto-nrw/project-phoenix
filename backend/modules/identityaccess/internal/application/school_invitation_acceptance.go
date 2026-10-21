@@ -68,7 +68,7 @@ func (s *SchoolInvitation) provisionInvitationIdentity(ctx context.Context, invi
 	if invitation.Position != nil {
 		position = *invitation.Position
 	}
-	identity, err := s.identity.EnsureSchoolIdentity(ctx, domain.SchoolIdentityInput{
+	identity, err := s.identity.EnsureSchoolIdentityChain(ctx, domain.SchoolIdentityInput{
 		AccountID: accountID, TenantID: invitation.TenantID, Role: &facts,
 		FirstName: firstName, LastName: lastName, Position: position,
 		// The staff import created the person before the invitation went out;

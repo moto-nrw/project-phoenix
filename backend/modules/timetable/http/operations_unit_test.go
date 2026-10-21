@@ -1023,13 +1023,10 @@ func (f *fakeSpontaneousActivity) resolve(_ context.Context, title string, reque
 // constructor and panic if wrongly called.
 type (
 	stubOpInstances struct {
-		timetablePorts.OperationInstances
+		timetablePorts.LegacyInstanceReads
 	}
 	stubOpInstanceStaff struct {
-		timetablePorts.OperationInstanceStaff
-	}
-	stubOpParticipants struct {
-		timetablePorts.OperationParticipants
+		timetable.InstanceStaffQuery
 	}
 	stubOpTemplates struct {
 		timetable.ActivityGroupQuery
@@ -1152,7 +1149,7 @@ func newRealSpontaneousOpsService(t *testing.T, instanceSvc timetable.InstanceLi
 	operations, err := timetableCompose.NewOperations(timetablePorts.OperationDependencies{
 		Instances:            stubOpInstances{},
 		InstanceStaff:        stubOpInstanceStaff{},
-		Participants:         stubOpParticipants{},
+		Participants:         stubParticipantRows(),
 		Templates:            stubOpTemplates{},
 		Sessions:             stubOpSessions{},
 		Supervisions:         stubOpSupervisions{},

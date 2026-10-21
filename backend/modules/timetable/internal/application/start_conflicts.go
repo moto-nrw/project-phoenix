@@ -55,7 +55,7 @@ func (d *conflictDetection) DetectStartConflicts(ctx context.Context, subject ti
 // cannot be resolved the warning stays: an undetermined room counts as "not
 // certainly the same room".
 func (d *conflictDetection) staffStartConflicts(ctx context.Context, subject timetable.StartConflictSubject) []timetable.InstanceConflictWarning {
-	staffRows, err := d.deps.InstanceStaff.FindByInstanceID(ctx, subject.InstanceID)
+	staffRows, err := staffOfInstance(ctx, d.deps.InstanceStaff, subject.InstanceID)
 	if err != nil {
 		d.logger.Warn("conflict detection: load instance_staff failed",
 			slog.Int64("instance_id", subject.InstanceID),
@@ -118,7 +118,7 @@ func staffStartWarning(staffID int64, message string) timetable.InstanceConflict
 // history. The visits are read in one batch: per-student lookups would issue
 // N queries inside the tenant transaction.
 func (d *conflictDetection) studentStartConflicts(ctx context.Context, instanceID int64) ([]timetable.InstanceConflictWarning, error) {
-	studentRows, err := d.deps.InstanceStudents.FindByInstanceID(ctx, instanceID)
+	studentRows, err := participantsOfInstance(ctx, d.deps.InstanceStudents.Reads, instanceID)
 	if err != nil {
 		return nil, fmt.Errorf("load students: %w", err)
 	}
@@ -208,13 +208,6 @@ func (d *conflictDetection) loadActiveStaffConflicts(ctx context.Context, assign
 	return d.loadActiveStaffConflictRooms(ctx, result, groupIDs)
 }
 
-// activeGroupInstanceLister is the retained repository's options read the
-// bridged-instance lookup needs; the instance repository serves it beside
-// ConflictInstances.
-type activeGroupInstanceLister interface {
-	ListInstances(ctx context.Context, filter ports.LegacyInstanceFilter) ([]*scheduleModels.ActivityInstance, error)
-}
-
 func (d *conflictDetection) loadActiveStaffConflictRooms(ctx context.Context, result activeStaffConflicts, groupIDs []int64) activeStaffConflicts {
 	groups, err := d.deps.Sessions.FindByIDs(ctx, groupIDs)
 	if err != nil {
@@ -235,7 +228,7 @@ func (d *conflictDetection) loadActiveStaffConflictRooms(ctx context.Context, re
 			result.instances[*instance.ActiveGroupID] = instance
 		}
 	}
-	rows, err := d.deps.InstanceStaff.FindByInstanceIDs(ctx, instanceIDs)
+	rows, err := staffOfInstances(ctx, d.deps.InstanceStaff, instanceIDs)
 	if err != nil {
 		d.logger.Warn("conflict detection: bridged instance_staff batch lookup failed", slog.String("error", err.Error()))
 		return result
@@ -248,11 +241,7 @@ func (d *conflictDetection) loadActiveStaffConflictRooms(ctx context.Context, re
 
 // bridgedInstances lists the blocks bridged to the given running sessions.
 func (d *conflictDetection) bridgedInstances(ctx context.Context, groupIDs []int64) ([]*scheduleModels.ActivityInstance, error) {
-	lister, ok := d.deps.Instances.(activeGroupInstanceLister)
-	if !ok {
-		return nil, fmt.Errorf("legacy list capability is not configured for %T", d.deps.Instances)
-	}
-	return lister.ListInstances(ctx, ports.LegacyInstanceFilter{ActiveGroupIDs: groupIDs})
+	return listLegacyInstances(ctx, d.deps.Instances, ports.LegacyInstanceFilter{ActiveGroupIDs: groupIDs}, "list with options")
 }
 
 func distinctPresentStaffIDs(rows []*scheduleModels.InstanceStaff) []int64 {

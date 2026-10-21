@@ -18,9 +18,9 @@ import (
 // Änderungsprotokoll the owner may not name itself arrive as the ports the
 // root binds over those owners.
 type OwnerRows struct {
-	Instances     ports.ActivityInstanceRecords
-	InstanceStaff ports.InstanceStaffRecords
-	Participants  ports.InstanceStudentRecords
+	Instances     ports.InstanceRows
+	InstanceStaff timetable.InstanceStaffCapability
+	Participants  ports.ParticipantRows
 	Templates     ports.DataTemplates
 	// Directories name what other owners hold on the Vorlagen list.
 	Directories       ports.RepositoryDirectories
@@ -44,17 +44,11 @@ type OwnerRooms interface {
 	ports.LifecycleRooms
 }
 
-// EndedSessionInstances is the session listing of the ended-session
-// completion.
-func NewEndedSessionInstances(rows ports.ActivityInstanceRecords) (ports.EndedSessionInstances, error) {
-	return application.NewEndedSessionInstances(rows)
-}
-
 // SickCascadeRows are the Betreuungsplan rows the #1843 sick cascade reads,
 // with the day-wide staffing lock (#1840) the caller supplies.
 func (r OwnerRows) SickCascadeRows(dayLock func(context.Context, calendar.Date) error) application.SickCascadeTimetableRows {
 	return application.NewSickCascadeTimetableRows(
-		r.Instances, r.InstanceStaff, dayLock,
+		r.Instances.Reads, r.InstanceStaff, dayLock,
 	)
 }
 
@@ -69,9 +63,9 @@ type TemplateRows struct {
 	Supervisors timetable.PlannedSupervisorCapability
 	// Directories name the enrolled children and the supervisors' persons.
 	Directories     ports.RepositoryDirectories
-	Instances       ports.ActivityInstanceRecords
-	InstanceStaff   ports.InstanceStaffRecords
-	Participants    ports.InstanceStudentRecords
+	Instances       ports.InstanceRows
+	InstanceStaff   timetable.InstanceStaffCapability
+	Participants    ports.ParticipantRows
 	Timeframes      timetable.TimeframeCapability
 	CalendarPeriods ports.CalendarPeriodRecords
 	Exceptions      timetable.ActivityExceptionCapability

@@ -94,7 +94,7 @@ func setupTestSessionCleanup(t *testing.T) (transactionruntime.Database, organiz
 			},
 			updateRoomID: devices.UpdateRoomID,
 		},
-		TimetableBridgeCompleter: api.NewUnobservedTimetableRepositories(testpkg.NewDatabase(t, db)).ActivityInstance,
+		TimetableBridgeCompleter: api.NewUnobservedTimetableRepositories(testpkg.NewDatabase(t, db)).NativeInstances(),
 		DB:                       db,
 		Logger:                   slog.Default(),
 	}, presenceservice.WithPresenceSettings(detailedPresenceSettings{}))

@@ -25,9 +25,9 @@ type TemplateAdministrationDependencies struct {
 	// Directories name the enrolled children with their alumni state and
 	// the planned supervisors' persons.
 	Directories          RepositoryDirectories
-	Instances            ActivityInstanceRecords
-	InstanceStaff        InstanceStaffRecords
-	Participants         InstanceStudentRecords
+	Instances            InstanceRows
+	InstanceStaff        timetable.InstanceStaffCapability
+	Participants         ParticipantRows
 	Timeframes           timetable.TimeframeCapability
 	PlanningTracks       PlanningTrackAssignments
 	EducationGroups      EducationGroupDirectory

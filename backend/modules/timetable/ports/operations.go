@@ -7,32 +7,8 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
 	"github.com/moto-nrw/project-phoenix/modules/timetable"
-	scheduleModels "github.com/moto-nrw/project-phoenix/modules/timetable/internal/domain/schedulerecords"
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 )
-
-// OperationInstances reads the blocks of the retained activity instance
-// repository.
-type OperationInstances interface {
-	FindByID(ctx context.Context, id int64) (*scheduleModels.ActivityInstance, error)
-	FindByTenantAndDate(ctx context.Context, date calendar.Date) ([]*scheduleModels.ActivityInstance, error)
-	FindByActiveGroupID(ctx context.Context, activeGroupID int64) (*scheduleModels.ActivityInstance, error)
-}
-
-// OperationInstanceStaff reads the staff rows of blocks.
-type OperationInstanceStaff interface {
-	FindByInstanceID(ctx context.Context, instanceID int64) ([]*scheduleModels.InstanceStaff, error)
-	FindByInstanceIDs(ctx context.Context, instanceIDs []int64) ([]*scheduleModels.InstanceStaff, error)
-}
-
-// OperationParticipants reads and patches the participant rows of blocks.
-type OperationParticipants interface {
-	FindByInstanceID(ctx context.Context, instanceID int64) ([]*scheduleModels.InstanceStudent, error)
-	FindByInstanceIDs(ctx context.Context, instanceIDs []int64) ([]*scheduleModels.InstanceStudent, error)
-	FindByInstanceAndStudent(ctx context.Context, instanceID, studentID int64) (*scheduleModels.InstanceStudent, error)
-	FindPresentInOtherActiveInstances(ctx context.Context, excludeInstanceID int64, date calendar.Date, studentIDs []int64) ([]scheduleModels.ParallelPresence, error)
-	UpdateAttendanceFields(ctx context.Context, id int64, patch scheduleModels.AttendanceFieldPatch) error
-}
 
 // OperationSessions reads and touches the Student Presence live sessions.
 type OperationSessions interface {
@@ -191,9 +167,9 @@ type RequestClaims struct {
 // optional too. Every other collaborator is required. BlockMetadata names
 // the room and planning track of the planned blocks (#4413).
 type OperationDependencies struct {
-	Instances            OperationInstances
-	InstanceStaff        OperationInstanceStaff
-	Participants         OperationParticipants
+	Instances            LegacyInstanceReads
+	InstanceStaff        timetable.InstanceStaffQuery
+	Participants         ParticipantRows
 	Templates            timetable.ActivityGroupQuery
 	PlanningTracks       timetable.PlanningTrackQuery
 	Sessions             OperationSessions

@@ -30,7 +30,7 @@ type endedSessionCompletion struct {
 // NewEndedSessionCompletion composes the Timetable owner's completion of
 // blocks behind ended live sessions.
 func NewEndedSessionCompletion(deps ports.EndedSessionCompletionDependencies) (timetable.EndedSessionCompletion, error) {
-	if deps.Instances == nil || deps.Participants == nil {
+	if noInstanceRows(deps.Instances) || noParticipantRows(deps.Participants) {
 		return nil, errors.New("ended session completion: instances and participants are required")
 	}
 	return &endedSessionCompletion{deps: deps}, nil
@@ -50,13 +50,13 @@ func (c *endedSessionCompletion) CompleteActiveByActiveGroupIDs(ctx context.Cont
 	// Stamp the non-booking marker before sparing those rows the absence:
 	// the spared rows must carry the reason themselves, or later writers of
 	// `status` cannot tell them from ordinary expected rows (#1747 review).
-	if err := c.deps.Participants.MarkNotScheduled(ctx, notScheduled); err != nil {
+	if err := markParticipantsNotScheduled(ctx, c.deps.Participants, notScheduled); err != nil {
 		return 0, fmt.Errorf("complete bridged instances: mark not scheduled: %w", err)
 	}
-	if err := c.deps.Participants.MarkExpectedAbsentByActiveGroupIDs(ctx, activeGroupIDs, completedAt, notScheduled); err != nil {
+	if err := markExpectedAbsentBySessions(ctx, c.deps.Participants.Presence, activeGroupIDs, completedAt, notScheduled); err != nil {
 		return 0, fmt.Errorf("complete bridged instances: mark absent: %w", err)
 	}
-	completed, err := c.deps.Instances.CompleteActiveByActiveGroupIDs(ctx, activeGroupIDs, completedAt)
+	completed, err := completeSessionInstances(ctx, c.deps.Instances.Sessions, activeGroupIDs, completedAt)
 	if err != nil {
 		return 0, err
 	}
@@ -74,7 +74,7 @@ func (c *endedSessionCompletion) CompleteActiveByActiveGroupIDs(ctx context.Cont
 // the timeout or the nightly close, and their mirrored block's end is only
 // the placeholder hour the mirror wrote.
 func (c *endedSessionCompletion) recordSpontaneousEnds(ctx context.Context, activeGroupIDs []int64, completedAt time.Time) error {
-	instances, err := c.deps.Instances.ListInstances(ctx, ports.LegacyInstanceFilter{ActiveGroupIDs: activeGroupIDs})
+	instances, err := listLegacyInstances(ctx, c.deps.Instances.Reads, ports.LegacyInstanceFilter{ActiveGroupIDs: activeGroupIDs}, "list with options")
 	if err != nil {
 		return fmt.Errorf("complete bridged instances: load spontaneous blocks: %w", err)
 	}
@@ -84,7 +84,7 @@ func (c *endedSessionCompletion) recordSpontaneousEnds(ctx context.Context, acti
 			continue
 		}
 		instance.EndTime = end
-		if _, err := c.deps.Instances.UpdateColumns(ctx, instance, "end_time"); err != nil {
+		if _, err := updateLegacyInstanceColumns(ctx, c.deps.Instances, instance, "end_time"); err != nil {
 			return fmt.Errorf("complete bridged instances: record spontaneous end: %w", err)
 		}
 	}
@@ -116,7 +116,7 @@ func (c *endedSessionCompletion) notScheduledForEndedSessions(ctx context.Contex
 	// status day owning the row. Ending the block resolves that, and
 	// MarkNotScheduled only undoes the false absence on rows this read
 	// returns (#1747 review).
-	rows, err := c.deps.Participants.FindNotScheduledCandidatesByInstanceIDs(ctx, instanceIDs)
+	rows, err := notScheduledCandidatesOf(ctx, c.deps.Participants.Reads, instanceIDs)
 	if err != nil {
 		return nil, fmt.Errorf("complete bridged instances: load candidate students: %w", err)
 	}
@@ -144,7 +144,7 @@ func (c *endedSessionCompletion) notScheduledForEndedSessions(ctx context.Contex
 // endedInstanceDates maps each block bridged to one of the sessions to its
 // date.
 func (c *endedSessionCompletion) endedInstanceDates(ctx context.Context, activeGroupIDs []int64) (map[int64]calendar.Date, error) {
-	instances, err := c.deps.Instances.ListInstances(ctx, ports.LegacyInstanceFilter{ActiveGroupIDs: activeGroupIDs})
+	instances, err := listLegacyInstances(ctx, c.deps.Instances.Reads, ports.LegacyInstanceFilter{ActiveGroupIDs: activeGroupIDs}, "list with options")
 	if err != nil {
 		return nil, fmt.Errorf("complete bridged instances: load instances: %w", err)
 	}

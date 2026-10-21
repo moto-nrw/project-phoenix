@@ -107,8 +107,9 @@ func TestTransactionEngineReceiverRelocationsStayStrict(t *testing.T) {
 		{name: "dropped scope", oldCount: 2},
 		{name: "changed occurrence", key: strings.Replace(moved, "#1", "#2", 1)},
 		{name: "changed reason", reason: "different discovery"},
-		{name: "value service receiver", key: strings.Replace(moved, "*Service", "Service", 1)},
-		{name: "other receiver", key: strings.Replace(moved, "*Service", "*Worker", 1)},
+		// #4495: any receiver type of the owner tree may take the boundary.
+		{name: "value service receiver", key: strings.Replace(moved, "*Service", "Service", 1), pass: true},
+		{name: "other receiver", key: strings.Replace(moved, "*Service", "*Worker", 1), pass: true},
 		{name: "Engine method retained in another file", retained: "func (e Engine) FindDevice() {}"},
 		{name: "pointer Engine method retained", retained: "func (e *Engine) FindDevice() {}"},
 		{name: "other Engine method retained", retained: "func (e Engine) Other() {}", pass: true},
@@ -178,7 +179,7 @@ func TestTransactionModuleReceiverMovesWithinOwnerStayStrict(t *testing.T) {
 		{name: "public Module to application Service", key: moved, pass: true},
 		{name: "Engine source package deleted", key: moved, deletedSource: true, pass: true},
 		{name: "cross owner", key: strings.Replace(moved, "/enrollment/", "/other/", 1)},
-		{name: "outside internal application", key: strings.Replace(moved, "/internal/application/", "/compose/", 1)},
+		{name: "outside internal application", key: strings.Replace(moved, "/internal/application/", "/compose/", 1), pass: true},
 		{name: "source Module method remains", key: moved, retained: "func (m *Module) PublishSchema() {}"},
 		{name: "source value Module method remains", key: moved, retained: "func (m Module) PublishSchema() {}"},
 	} {
@@ -213,6 +214,87 @@ func TestTransactionModuleReceiverMovesWithinOwnerStayStrict(t *testing.T) {
 				return []byte("package enrollment\nfunc (m " + receiver + ") PublishSchema(){ m.runtime.RunWrite(ctx,work) }"), nil
 			})
 			err := transactionScopeSubset(map[string]string{tc.key: reason}, map[string]string{source: reason}, nil, fingerprint, removedTransactionReceiverMethods(root))
+			if (err == nil) != tc.pass {
+				t.Fatalf("pass=%t, got %v", tc.pass, err)
+			}
+		})
+	}
+}
+
+func TestTransactionReceiverMovesBetweenAnyTypesStayStrict(t *testing.T) {
+	t.Parallel()
+	const pkg = "modules/access/internal/application"
+	const old = pkg + "/engine_roles.go:engine.GetRole:e.roles.runtime.RunInTx#1"
+	const moved = pkg + "/roles.go:*Roles.GetRole:r.runtime.RunInTx#1"
+	const reason = "existing role read"
+	for _, tc := range []struct {
+		name, key, reason, retained string
+		oldCount, newCount          int
+		copy, pass                  bool
+	}{
+		{name: "non-Service target", pass: true},
+		{name: "value receiver target", key: strings.Replace(moved, "*Roles", "Roles", 1), pass: true},
+		{name: "public package target in the owner tree", key: "modules/access/roles.go:*Roles.GetRole:r.runtime.RunInTx#1", pass: true},
+		{name: "multiple occurrences", oldCount: 2, newCount: 2, pass: true},
+		{name: "cross owner", key: strings.Replace(moved, "/access/", "/other/", 1)},
+		{name: "cross owner public package", key: "modules/other/roles.go:*Roles.GetRole:r.runtime.RunInTx#1"},
+		{name: "source method still declared", retained: "func (e engine) GetRole() {}"},
+		{name: "source pointer method still declared", retained: "func (e *engine) GetRole() {}"},
+		{name: "other source method retained", retained: "func (e engine) Other() {}", pass: true},
+		{name: "same receiver type", key: pkg + "/roles.go:engine.GetRole:e.runtime.RunInTx#1", retained: "type engine struct{}"},
+		{name: "renamed operation", key: strings.Replace(moved, "GetRole", "FindRole", 1)},
+		{name: "changed scope kind", key: strings.Replace(moved, "RunInTx", "WithAdminTx", 1)},
+		{name: "changed occurrence", key: strings.Replace(moved, "#1", "#2", 1)},
+		{name: "extra scope", newCount: 2},
+		{name: "dropped scope", oldCount: 2},
+		{name: "changed reason", reason: "different read"},
+		{name: "copied allowance", copy: true},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			root := t.TempDir()
+			dir := filepath.Join(root, pkg)
+			if err := os.MkdirAll(dir, 0o755); err != nil {
+				t.Fatal(err)
+			}
+			key := tc.key
+			if key == "" {
+				key = moved
+			}
+			file, operation, _ := strings.Cut(key, ":")
+			method := strings.Split(operation, ":")[0]
+			receiver, name, _ := strings.Cut(method, ".")
+			scope := operation[strings.LastIndex(operation, ".")+1 : strings.LastIndex(operation, "#")]
+			if err := os.MkdirAll(filepath.Dir(filepath.Join(root, file)), 0o755); err != nil {
+				t.Fatal(err)
+			}
+			code := "package application\nfunc (r " + receiver + ") " + name + "() { r.runtime." + scope + "(ctx, work) }\n"
+			if err := os.WriteFile(filepath.Join(root, file), []byte(code), 0o600); err != nil {
+				t.Fatal(err)
+			}
+			if tc.retained != "" {
+				if err := os.WriteFile(filepath.Join(dir, "retained.go"), []byte("package application\n"+tc.retained), 0o600); err != nil {
+					t.Fatal(err)
+				}
+			}
+			previous := map[string]string{old: reason}
+			currentReason := reason
+			if tc.reason != "" {
+				currentReason = tc.reason
+			}
+			current := map[string]string{key: currentReason}
+			if tc.oldCount == 2 {
+				previous[strings.Replace(old, "#1", "#2", 1)] = reason
+			}
+			if tc.newCount == 2 {
+				current[strings.Replace(key, "#1", "#2", 1)] = currentReason
+			}
+			if tc.copy {
+				current[old] = reason
+			}
+			fingerprint := transactionFingerprints(root, "base", func(...string) ([]byte, error) {
+				return []byte("package application\nfunc (e engine) GetRole() { e.roles.runtime.RunInTx(ctx, work) }"), nil
+			})
+			err := transactionScopeSubset(current, previous, nil, fingerprint, removedTransactionReceiverMethods(root))
 			if (err == nil) != tc.pass {
 				t.Fatalf("pass=%t, got %v", tc.pass, err)
 			}

@@ -3,6 +3,7 @@ package application
 import (
 	"testing"
 
+	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess/internal/domain"
 	"github.com/stretchr/testify/require"
 )
@@ -14,7 +15,7 @@ func TestGuardianInvitationLocksProfileBeforeWriting(t *testing.T) {
 		fixture := newLifecycleFixture(t)
 		profile := fixture.guardians.addProfile(domain.GuardianProfile{TenantID: lifecycleTenant, Email: "parent@example.invalid"})
 
-		_, err := fixture.lifecycle.CreateGuardianInvitation(tenantContext(), domain.GuardianInvitationRequest{
+		_, err := fixture.lifecycle.CreateGuardianInvitation(tenantContext(), identityaccess.GuardianInvitationRequest{
 			GuardianProfileID: profile.ID,
 			CreatedBy:         1,
 		})

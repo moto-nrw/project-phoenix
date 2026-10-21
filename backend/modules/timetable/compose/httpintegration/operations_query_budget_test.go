@@ -93,15 +93,15 @@ func newPlannedNowBudgetOperations(t *testing.T, db *bun.DB, staffFixture *testp
 	deps.PlanningTracks = nil
 	deps.Now = func() time.Time { return now }
 	rows := compose.OwnerRows{
-		Instances:       fixtures.IntoActivityInstanceRecords(fixtures.FromActivityInstanceRecords(timetableRepos.ActivityInstance)),
-		InstanceStaff:   fixtures.IntoInstanceStaffRecords(fixtures.FromInstanceStaffRecords(timetableRepos.InstanceStaff)),
-		Participants:    fixtures.IntoInstanceStudentRecords(fixtures.FromInstanceStudentRecords(timetableRepos.InstanceStudent)),
+		Instances:       timetableRepos.ActivityInstance,
+		InstanceStaff:   timetableRepos.InstanceStaff,
+		Participants:    timetableRepos.InstanceStudent,
 		Templates:       timetableRepos.Timetable,
 		Students:        owners.NewTimetableRosterStudents(repos.Student),
 		EducationGroups: owners.TimetableEducationGroupNames(reposStructure.Group),
 		Rooms:           owners.NewTimetableRoomNames(rooms),
 	}
-	deps.Instances, deps.InstanceStaff, deps.Participants = fixtures.IntoOperationInstances(fixtures.FromActivityInstanceRecords(rows.Instances)), fixtures.IntoOperationInstanceStaff(fixtures.FromInstanceStaffRecords(rows.InstanceStaff)), fixtures.IntoOperationParticipants(fixtures.FromInstanceStudentRecords(rows.Participants))
+	deps.Instances, deps.InstanceStaff, deps.Participants = rows.Instances.Reads, rows.InstanceStaff, rows.Participants
 	deps.Templates, deps.Students = rows.Templates, rows.Students
 	deps.EducationGroups, deps.Rooms = rows.EducationGroups, rows.Rooms
 	deps.BlockMetadata = api.NewTimetableBlockDisplayForTests(testpkg.MustDatabase(db))
