@@ -4,20 +4,21 @@ import (
 	"context"
 
 	peopleValues "github.com/moto-nrw/project-phoenix/modules/peopledirectory"
+	peoplePorts "github.com/moto-nrw/project-phoenix/modules/peopledirectory/ports"
 
 	"github.com/moto-nrw/project-phoenix/modules/communication"
 )
 
 // BindParentMessagePeople uses the same owner reads and original predicates.
 func BindParentMessagePeople(source interface {
-	GetStudentByID(context.Context, int64) (*peopleValues.StudentState, error)
+	StudentRows() peoplePorts.StudentRepository
 	FindByAccountID(context.Context, int64) (*peopleValues.DirectoryPersonSnapshot, error)
 }) communication.ParentMessagePeople {
 	if source == nil {
 		return nil
 	}
 	return communication.NewParentMessagePeople(func(ctx context.Context, id int64) (*communication.ParentMessageStudent, error) {
-		row, err := source.GetStudentByID(ctx, id)
+		row, err := source.StudentRows().FindByID(ctx, id)
 		if row == nil {
 			return nil, err
 		}
