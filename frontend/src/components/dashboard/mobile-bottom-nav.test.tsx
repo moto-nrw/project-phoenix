@@ -1275,6 +1275,30 @@ describe("MobileBottomNav", () => {
       expect(hrefs).toContain("/active-supervisions");
     });
 
+    it("injects the admin Aufsicht tab after Suchen, like the sidebar (#4348)", () => {
+      mockIsAdmin.mockReturnValue(true);
+      mockUseSession.mockReturnValue(createMockSession(true));
+      mockUseSupervision.mockReturnValue({
+        hasGroups: true,
+        isSupervising: true,
+        isLoadingGroups: false,
+        isLoadingSupervision: false,
+        overviewEnabled: true,
+        supervisedRooms: [{ id: "1", name: "Room A", groupId: "g1" }],
+        groups: [],
+        refresh: vi.fn(),
+      });
+
+      render(<MobileBottomNav />);
+
+      const hrefs = screen
+        .getAllByRole("link")
+        .map((link) => link.getAttribute("href"));
+      expect(hrefs.indexOf("/students/search")).toBeLessThan(
+        hrefs.indexOf("/active-supervisions"),
+      );
+    });
+
     it("does not inject Aufsicht tab for admin while supervision is still loading", () => {
       mockIsAdmin.mockReturnValue(true);
       mockUseSession.mockReturnValue(createMockSession(true));

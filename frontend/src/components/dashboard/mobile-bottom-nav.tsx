@@ -770,14 +770,15 @@ export function MobileBottomNav({ className = "" }: MobileBottomNavProps) {
   // supervisions.
   // STAFF_MAIN_ITEMS already contains /active-supervisions, so only inject
   // when it is missing (i.e. for admin-only users whose baseline is
-  // ADMIN_MAIN_ITEMS) to avoid duplicate React keys.
+  // ADMIN_MAIN_ITEMS) to avoid duplicate React keys. It goes after Start and
+  // Suchen, matching the sidebar order (#4348).
   const alreadyHasSupervisionTab = baseMain.some(
     (item) => item.href === "/active-supervisions",
   );
   const filteredMainItems =
     !isLoadingSupervision && overviewEnabled && !alreadyHasSupervisionTab
       ? [
-          ...baseMain.slice(0, 1),
+          ...baseMain.slice(0, 2),
           {
             href: "/active-supervisions",
             label: "Aufsicht",
@@ -785,7 +786,7 @@ export function MobileBottomNav({ className = "" }: MobileBottomNavProps) {
             concept: "supervision" as const,
             alwaysShow: true,
           },
-          ...baseMain.slice(1),
+          ...baseMain.slice(2),
         ]
       : baseMain;
 
