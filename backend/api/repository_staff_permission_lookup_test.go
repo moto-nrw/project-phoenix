@@ -15,7 +15,7 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func TestListStaffWithPermission_DirectGrant(t *testing.T) {
+func TestListStaffWithPermission_RoleGrantOnly(t *testing.T) {
 	t.Parallel()
 
 	db := testpkg.SetupTestDB(t)
@@ -23,7 +23,8 @@ func TestListStaffWithPermission_DirectGrant(t *testing.T) {
 	ctx := testpkg.Ctx(t)
 
 	// Staff WITH an active tenant mapping (calendar helper adds mapping + base
-	// user role) plus a direct vacation:approve grant.
+	// user role); vacation:approve arrives first as a retired direct grant,
+	// then through a role.
 	approver, approverAccount := testpkg.CreateTestCalendarStaff(t, db, "Lena", "Approver")
 	// Staff without the permission — must not appear.
 	bystander, _ := testpkg.CreateTestCalendarStaff(t, db, "Bodo", "Bystander")
@@ -53,14 +54,21 @@ func TestListStaffWithPermission_DirectGrant(t *testing.T) {
 			Where("account_id = ?", approverAccount.ID).Exec(context.Background())
 	})
 
-	result, err := testpkg.TenantQuery1(t, ctx, db, repo.ListStaffWithPermission, "vacation:approve")
-	require.NoError(t, err)
-
-	ids := make(map[int64]string)
-	for _, info := range result {
-		ids[info.StaffID] = info.Email
+	listed := func() map[int64]string {
+		t.Helper()
+		result, err := testpkg.TenantQuery1(t, ctx, db, repo.ListStaffWithPermission, "vacation:approve")
+		require.NoError(t, err)
+		ids := make(map[int64]string)
+		for _, info := range result {
+			ids[info.StaffID] = info.Email
+		}
+		return ids
 	}
-	require.Contains(t, ids, approver.ID, "directly granted staff must be listed")
+	require.NotContains(t, listed(), approver.ID, "a retired direct grant no longer qualifies (#4485)")
+
+	testpkg.GrantTestPermission(t, db, testpkg.Tenant(t), approverAccount.ID, "vacation:approve")
+	ids := listed()
+	require.Contains(t, ids, approver.ID, "staff granted through a role must be listed")
 	assert.Equal(t, approverAccount.Email, ids[approver.ID], "email must come from the account")
 	assert.NotContains(t, ids, bystander.ID, "staff without the permission must not be listed")
 }

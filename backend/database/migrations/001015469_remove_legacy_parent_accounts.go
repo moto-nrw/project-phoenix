@@ -11,8 +11,8 @@ import (
 
 func init() {
 	MigrationRegistry.Register(&Migration{
-		Version: "1.15.468", Description: "Remove unused legacy parent accounts and person links (#4329)",
-		DependsOn:    []string{"1.15.467", "1.15.57"},
+		Version: "1.15.469", Description: "Remove unused legacy parent accounts and person links (#4329)",
+		DependsOn:    []string{"1.15.468", "1.15.57"},
 		Precondition: legacyParentAccountsPrecondition,
 	})
 	Migrations.MustRegister(removeLegacyParentAccountsUp, removeLegacyParentAccountsDown)

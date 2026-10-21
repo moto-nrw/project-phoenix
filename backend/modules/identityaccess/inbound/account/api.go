@@ -399,15 +399,6 @@ func (rs *Resource) mountAccountRoutes(r chi.Router) {
 		r.With(common.RequiresPermission(permUsersManage)).Delete("/{roleId}", common.TwoIDAction("accountId", common.MsgInvalidAccountID, "roleId", common.MsgInvalidRoleID, rs.removeRoleFromAccount, accountRoleErrorRenderer))
 	})
 
-	// Permission assignments
-	r.Route(pathPermissions, func(r chi.Router) {
-		r.With(common.RequiresPermission(permUsersManage)).Get("/", rs.getAccountPermissions)
-		r.With(common.RequiresPermission(permUsersManage)).Get("/direct", rs.getAccountDirectPermissions)
-		r.With(common.RequiresPermission(permUsersManage)).Post(pathPermissionID+"/grant", common.TwoIDAction("accountId", common.MsgInvalidAccountID, "permissionId", common.MsgInvalidPermissionID, rs.grantPermissionToAccount, accountRoleErrorRenderer))
-		r.With(common.RequiresPermission(permUsersManage)).Post(pathPermissionID+"/deny", common.TwoIDAction("accountId", common.MsgInvalidAccountID, "permissionId", common.MsgInvalidPermissionID, rs.denyPermissionToAccount, accountRoleErrorRenderer))
-		r.With(common.RequiresPermission(permUsersManage)).Delete(pathPermissionID, common.TwoIDAction("accountId", common.MsgInvalidAccountID, "permissionId", common.MsgInvalidPermissionID, rs.removePermissionFromAccount, accountRoleErrorRenderer))
-	})
-
 	// Token management
 	r.Route("/tokens", func(r chi.Router) {
 		r.With(common.RequiresPermission(permUsersManage)).Get("/", rs.getActiveTokens)

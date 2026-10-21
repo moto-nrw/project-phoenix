@@ -51,8 +51,8 @@ func (s *Store) ListActiveAccountIDsForTenant(ctx context.Context, tenantID int6
 
 // FindEffectivePermissionNamesByAccountIDsForTenant resolves the effective
 // permission names (resource:action) of every given account at one tenant:
-// role-granted UNION directly-granted. Direct denials do not remove role
-// grants in this projection. Names stay raw for the caller's wildcard matcher.
+// the permissions of its roles. Direct account grants are retired (#4485).
+// Names stay raw for the caller's wildcard matcher.
 func (s *Store) FindEffectivePermissionNamesByAccountIDsForTenant(ctx context.Context, accountIDs []int64, tenantID int64) (map[int64][]string, domain.OperationStats, error) {
 	result := make(map[int64][]string, len(accountIDs))
 	if tenantID <= 0 || len(accountIDs) == 0 {
@@ -69,23 +69,14 @@ func (s *Store) FindEffectivePermissionNamesByAccountIDsForTenant(ctx context.Co
 		TableExpr(`auth.account_roles AS "account_role"`).
 		Join(`JOIN auth.role_permissions AS "role_permission" ON "role_permission".role_id = "account_role".role_id`).
 		Where(`"account_role".tenant_id = ?`, tenantID).
-		Where(`"account_role".account_id IN (?)`, bun.List(accountIDs)).
-		UnionAll(
-			db.NewSelect().
-				ColumnExpr(`"account_permission".account_id AS account_id`).
-				ColumnExpr(`"account_permission".permission_id AS permission_id`).
-				TableExpr(`auth.account_permissions AS "account_permission"`).
-				Where(`"account_permission".granted = ?`, true).
-				Where(`"account_permission".tenant_id = ?`, tenantID).
-				Where(`"account_permission".account_id IN (?)`, bun.List(accountIDs)),
-		)
+		Where(`"account_role".account_id IN (?)`, bun.List(accountIDs))
 
 	var rows []struct {
 		AccountID      int64  `bun:"account_id"`
 		PermissionName string `bun:"permission_name"`
 	}
-	// The union is joined as a derived table so the evaluator resolves every
-	// table this read touches.
+	// The role grants are joined as a derived table so the evaluator resolves
+	// every table this read touches.
 	err = db.NewSelect().
 		ColumnExpr(`DISTINCT "effective_permission".account_id AS account_id`).
 		ColumnExpr(`("permission".resource || ':' || "permission".action) AS permission_name`).

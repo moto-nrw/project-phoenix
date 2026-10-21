@@ -1545,62 +1545,27 @@ func TestAccountRoleAssignment(t *testing.T) {
 // ACCOUNT PERMISSION TESTS
 // ============================================================================
 
-// TestAccountPermissionManagement tests account permission management endpoints
-func TestAccountPermissionManagement(t *testing.T) {
+// TestAccountPermissionRoutesAreRetired pins that the direct account
+// permission endpoints are gone (#4485): rights come only from roles.
+func TestAccountPermissionRoutesAreRetired(t *testing.T) {
 	t.Parallel()
 	tc, router := setupProtectedRouter(t)
 	adminClaims := testutil.AdminTestClaims(1)
+	account := testpkg.CreateTestAccount(t, tc.db, fmt.Sprintf("retiredperms%d", time.Now().UnixNano()))
+	permission := testpkg.CreateTestPermission(t, tc.db, "RetiredDirect", "test", "read")
 
-	t.Run("get account permissions", func(t *testing.T) {
-		account := testpkg.CreateTestAccount(t, tc.db, fmt.Sprintf("accperms%d", time.Now().UnixNano()))
-
-		req := testutil.NewJSONRequest(t, "GET", fmt.Sprintf("/auth/accounts/%d/permissions", account.ID), nil)
+	for _, route := range []struct{ method, path string }{
+		{http.MethodGet, fmt.Sprintf("/auth/accounts/%d/permissions", account.ID)},
+		{http.MethodGet, fmt.Sprintf("/auth/accounts/%d/permissions/direct", account.ID)},
+		{http.MethodPost, fmt.Sprintf("/auth/accounts/%d/permissions/%d/grant", account.ID, permission.ID)},
+		{http.MethodPost, fmt.Sprintf("/auth/accounts/%d/permissions/%d/deny", account.ID, permission.ID)},
+		{http.MethodDelete, fmt.Sprintf("/auth/accounts/%d/permissions/%d", account.ID, permission.ID)},
+	} {
+		req := testutil.NewJSONRequest(t, route.method, route.path, nil)
 		rr := testutil.ExecuteWithAuthPermissions(t, router, req, adminClaims, []string{"users:manage"})
-
-		testutil.AssertSuccessResponse(t, rr, http.StatusOK)
-	})
-
-	t.Run("get account direct permissions", func(t *testing.T) {
-		account := testpkg.CreateTestAccount(t, tc.db, fmt.Sprintf("directperms%d", time.Now().UnixNano()))
-
-		req := testutil.NewJSONRequest(t, "GET", fmt.Sprintf("/auth/accounts/%d/permissions/direct", account.ID), nil)
-		rr := testutil.ExecuteWithAuthPermissions(t, router, req, adminClaims, []string{"users:manage"})
-
-		testutil.AssertSuccessResponse(t, rr, http.StatusOK)
-	})
-
-	t.Run("grant and remove permission from account", func(t *testing.T) {
-		account := testpkg.CreateTestAccount(t, tc.db, fmt.Sprintf("grantperm%d", time.Now().UnixNano()))
-		permission := testpkg.CreateTestPermission(t, tc.db, "GrantToAcc", "test", "read")
-
-		// Grant permission
-		req := testutil.NewJSONRequest(t, "POST", fmt.Sprintf("/auth/accounts/%d/permissions/%d/grant", account.ID, permission.ID), nil)
-		rr := testutil.ExecuteWithAuthPermissions(t, router, req, adminClaims, []string{"users:manage"})
-		assert.Equal(t, http.StatusNoContent, rr.Code, "Grant failed: %s", rr.Body.String())
-
-		// Remove permission
-		req = testutil.NewJSONRequest(t, "DELETE", fmt.Sprintf("/auth/accounts/%d/permissions/%d", account.ID, permission.ID), nil)
-		rr = testutil.ExecuteWithAuthPermissions(t, router, req, adminClaims, []string{"users:manage"})
-		assert.Equal(t, http.StatusNoContent, rr.Code, "Remove failed: %s", rr.Body.String())
-	})
-
-	t.Run("deny permission endpoint responds", func(t *testing.T) {
-		// Note: Deny permission has a known database schema issue
-		// This test just verifies the endpoint is accessible
-		account := testpkg.CreateTestAccount(t, tc.db, fmt.Sprintf("denyperm%d", time.Now().UnixNano()))
-		permission := testpkg.CreateTestPermission(t, tc.db, "DenyToAcc", "test", "read")
-		req := testutil.NewJSONRequest(t, "POST", fmt.Sprintf("/auth/accounts/%d/permissions/%d/deny", account.ID, permission.ID), nil)
-		rr := testutil.ExecuteWithAuthPermissions(t, router, req, adminClaims, []string{"users:manage"})
-		// Accept 204 (success) or 500 (known schema issue)
-		assert.True(t, rr.Code == http.StatusNoContent || rr.Code == http.StatusInternalServerError,
-			"Expected 204 or 500, got %d: %s", rr.Code, rr.Body.String())
-	})
-
-	t.Run("permission operations forbidden without permission", func(t *testing.T) {
-		req := testutil.NewJSONRequest(t, "GET", "/auth/accounts/1/permissions", nil)
-		rr := testutil.ExecuteWithAuthPermissions(t, router, req, adminClaims, []string{})
-		testutil.AssertForbidden(t, rr)
-	})
+		assert.Contains(t, []int{http.StatusNotFound, http.StatusMethodNotAllowed}, rr.Code,
+			"%s %s must be retired, got %d: %s", route.method, route.path, rr.Code, rr.Body.String())
+	}
 }
 
 // ============================================================================

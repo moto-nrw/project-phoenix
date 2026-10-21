@@ -1115,22 +1115,29 @@ func AssignLehrkraftSystemRole(tb testing.TB, db *bun.DB, accountID, tenantID in
 }
 
 // GrantTestPermission grants a seeded permission (by name, e.g.
-// "config:manage") directly to an account at one school, the way a school
-// hands one right to one person.
+// "config:manage") to an account at one school through a dedicated school
+// role, the way a school hands one right to one person. Direct account grants
+// are retired (#4485), so the right always travels through a role.
 func GrantTestPermission(tb testing.TB, db *bun.DB, tenantID, accountID int64, permissionName string) {
 	tb.Helper()
+
+	role := CreateTestRoleForTenant(tb, db, "grant-"+permissionName, tenantID)
 
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 
 	result, err := db.ExecContext(ctx, `
-		INSERT INTO auth.account_permissions (tenant_id, account_id, permission_id, granted)
-		SELECT ?, ?, id, TRUE FROM auth.permissions WHERE name = ?`,
-		tenantID, accountID, permissionName)
+		INSERT INTO auth.role_permissions (role_id, permission_id)
+		SELECT ?, id FROM auth.permissions WHERE name = ?`,
+		role.ID, permissionName)
 	require.NoError(tb, err, "Failed to grant test permission")
 	rows, err := result.RowsAffected()
 	require.NoError(tb, err)
 	require.EqualValues(tb, 1, rows, "the seeded permission %s must exist", permissionName)
+	_, err = db.ExecContext(ctx,
+		"INSERT INTO auth.account_roles (account_id, role_id, tenant_id) VALUES (?, ?, ?)",
+		accountID, role.ID, tenantID)
+	require.NoError(tb, err, "Failed to assign test permission role")
 }
 
 // CreateTestPermission creates a permission in the database.

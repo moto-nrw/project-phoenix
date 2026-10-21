@@ -196,36 +196,6 @@ func (e engine) GetRolePermissions(ctx context.Context, roleID int64) (value0 []
 	return
 }
 
-func (e engine) GetAccountPermissions(ctx context.Context, accountID int64) (value0 []identityaccess.Permission, err error) {
-	if e.roles == nil {
-		return nil, errRoleAdministrationUnavailable
-	}
-	operation := func(ctx context.Context) ([]identityaccess.Permission, error) {
-		permissions, err := e.roles.GetAccountPermissions(e.attach(ctx), accountID)
-		return publicPermissions(permissions), roleError(err)
-	}
-	err = e.roles.runtime.RunInTx(ctx, func(txCtx context.Context) error {
-		value0, err = operation(txCtx)
-		return err
-	})
-	return
-}
-
-func (e engine) GetAccountDirectPermissions(ctx context.Context, accountID int64) (value0 []identityaccess.Permission, err error) {
-	if e.roles == nil {
-		return nil, errRoleAdministrationUnavailable
-	}
-	operation := func(ctx context.Context) ([]identityaccess.Permission, error) {
-		permissions, err := e.roles.GetAccountDirectPermissions(e.attach(ctx), accountID)
-		return publicPermissions(permissions), roleError(err)
-	}
-	err = e.roles.runtime.RunInTx(ctx, func(txCtx context.Context) error {
-		value0, err = operation(txCtx)
-		return err
-	})
-	return
-}
-
 var roleSentinels = []struct {
 	internal error
 	public   error

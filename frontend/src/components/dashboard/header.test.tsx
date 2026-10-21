@@ -47,8 +47,18 @@ vi.mock("~/components/ui/logout-modal", () => ({
 }));
 
 vi.mock("~/components/help/context-help-link", () => ({
-  ContextHelpLink: ({ topic }: { topic: string }) => (
-    <a href={`/help/${topic}`} data-testid="context-help-link">
+  ContextHelpLink: ({
+    topic,
+    containerClassName,
+  }: {
+    topic: string;
+    containerClassName?: string;
+  }) => (
+    <a
+      href={`/help/${topic}`}
+      className={containerClassName}
+      data-testid="context-help-link"
+    >
       Hilfe
     </a>
   ),
@@ -311,6 +321,10 @@ describe("Header", () => {
       "href",
       "/help/kindersuche",
     );
+    expect(screen.getByTestId("context-help-link")).toHaveClass(
+      "hidden",
+      "lg:inline-flex",
+    );
   });
 
   it("groups the help link with the header actions, not with the page name", () => {
@@ -351,6 +365,9 @@ describe("Header", () => {
     expect(screen.getByTestId("context-help-link")).toHaveAttribute(
       "href",
       "/help/meine-aufsichten-ansehen",
+    );
+    expect(screen.getByTestId("context-help-link")).not.toHaveAttribute(
+      "class",
     );
   });
 

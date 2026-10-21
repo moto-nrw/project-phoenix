@@ -19,7 +19,7 @@ func TestLegacyParentRemovalRefusesDataAndUnexpectedDependencies(t *testing.T) {
 	require.NoError(t, err)
 
 	runner := migrate.NewMigrator(db, Migrations)
-	removal := legacyParentMigration(t, "1.15.468")
+	removal := legacyParentMigration(t, "1.15.469")
 	parents := legacyParentMigration(t, "1.0.9")
 	linksMigration := legacyParentMigration(t, "1.2.6")
 	// Restore the original legacy schema, including its real FK and trigger.
@@ -27,19 +27,19 @@ func TestLegacyParentRemovalRefusesDataAndUnexpectedDependencies(t *testing.T) {
 	require.NoError(t, linksMigration.Up(ctx, runner, linksMigration))
 	var legacyID int64
 	require.NoError(t, db.NewRaw(`INSERT INTO auth.accounts_parents (email, username) VALUES ('legacy@example.test', 'legacy') RETURNING id`).Scan(ctx, &legacyID))
-	require.ErrorContains(t, MigrationRegistry["1.15.468"].Precondition(ctx, db), "auth.accounts_parents has 1 rows")
+	require.ErrorContains(t, MigrationRegistry["1.15.469"].Precondition(ctx, db), "auth.accounts_parents has 1 rows")
 	require.ErrorContains(t, removal.Up(ctx, runner, removal), "auth.accounts_parents has 1 rows")
 	person := testpkg.CreateTestPerson(t, db, "Legacy", "Link")
 	_, err = db.ExecContext(ctx, `INSERT INTO users.persons_guardians (person_id, guardian_account_id, relationship_type) VALUES (?, ?, 'parent')`, person.ID, legacyID)
 	require.NoError(t, err)
-	require.ErrorContains(t, MigrationRegistry["1.15.468"].Precondition(ctx, db), "users.persons_guardians has 1 rows")
+	require.ErrorContains(t, MigrationRegistry["1.15.469"].Precondition(ctx, db), "users.persons_guardians has 1 rows")
 	require.ErrorContains(t, removal.Up(ctx, runner, removal), "users.persons_guardians has 1 rows")
 	var links int
 	require.NoError(t, db.NewRaw(`SELECT COUNT(*) FROM users.persons_guardians`).Scan(ctx, &links))
 	require.Equal(t, 1, links, "refusal preserves the legacy data")
 	_, err = db.ExecContext(ctx, `DELETE FROM auth.accounts_parents WHERE id = ?`, legacyID)
 	require.NoError(t, err)
-	require.NoError(t, MigrationRegistry["1.15.468"].Precondition(ctx, db))
+	require.NoError(t, MigrationRegistry["1.15.469"].Precondition(ctx, db))
 	_, err = db.ExecContext(ctx, `CREATE VIEW auth.legacy_parent_dependency AS SELECT id FROM auth.accounts_parents`)
 	require.NoError(t, err)
 	require.Error(t, removal.Up(ctx, runner, removal), "unexpected dependencies must not be cascaded away")
