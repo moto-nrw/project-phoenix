@@ -109,6 +109,11 @@ import (
 //     entry with today's count and shrink from there.
 //   - Budget with no hits → the entry is stale; remove it.
 //
+// Which counted shapes may stay is ADR 0075: a floor per owner of four
+// shapes (transaction and observation wrapper, consumer-port adapter, the
+// #4480 section 5 Timetable adapters, known limitation 5 below). The floor is
+// a record, not a budget; every hit outside it is listed there.
+//
 // Seed: measured 2026-09-18 at commit 19feca2822 by the scan below, over 203
 // non-test files: 704 pass-throughs in 21 modules. Re-measure with
 //
