@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useId, useLayoutEffect, useRef, useState } from "react";
+import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { ArrowLeft } from "lucide-react";
 import {
   StudentChoiceList,
@@ -10,6 +10,7 @@ import {
 import { Button } from "~/components/ui/button";
 import {
   SlideOver,
+  SlideOverBody,
   SlideOverCloseButton,
   SlideOverContent,
   SlideOverDescription,
@@ -65,7 +66,6 @@ export function NewMessageModal({
 }) {
   const hasPreset = Boolean(presetStudentId);
 
-  const formId = useId();
   const [search, setSearch] = useState("");
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const { load, error: loadError } = useStudentChoices(!hasPreset);
@@ -196,11 +196,10 @@ export function NewMessageModal({
         {/* STEP 1 — pick a child (skipped when a preset child is given) */}
         {!student && (
           <form
-            id={formId}
             onSubmit={handlePickStudent}
             className="flex min-h-0 flex-1 flex-col"
           >
-            <div className="flex min-h-0 flex-1 flex-col gap-3 px-5 py-4">
+            <SlideOverBody className="flex min-h-0 flex-col gap-3">
               <StudentChoiceList
                 load={load}
                 loadError={loadError}
@@ -213,11 +212,10 @@ export function NewMessageModal({
                 autoFocus
                 fillHeight
               />
-            </div>
+            </SlideOverBody>
             <SlideOverFooter className="flex-row justify-end">
               <Button
                 type="submit"
-                form={formId}
                 variant="success"
                 size="md"
                 disabled={!target}

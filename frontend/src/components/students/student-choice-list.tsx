@@ -9,6 +9,7 @@ import { Input } from "~/components/ui/input";
 import { Loading } from "~/components/ui/loading";
 import { Radio } from "~/components/ui/radio";
 import { useApiLoadError } from "~/contexts/ToastContext";
+import { errorStatus } from "~/lib/expected-failure";
 import { createLogger } from "~/lib/logger";
 import { fetchStudents } from "~/lib/student-api";
 import type { Student } from "~/lib/student-helpers";
@@ -93,6 +94,7 @@ export function useStudentChoices(
         if (cancelled) return;
         logger.warn("student_choices_load_failed", {
           error: err instanceof Error ? err.message : String(err),
+          status: errorStatus(err),
         });
         setResult({ kind: "failed", scope });
         void showError(err, {
