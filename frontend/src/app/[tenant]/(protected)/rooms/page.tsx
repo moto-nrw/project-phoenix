@@ -42,6 +42,8 @@ import {
 } from "lucide-react";
 import { MotoConceptIcon } from "~/components/ui/moto-concept-icon";
 import { SectionHeader } from "~/components/ui/concept-section-header";
+import { SectionCard } from "~/components/ui/section-card";
+import { StatusBadge } from "~/components/ui/status-badge";
 import { RoomStatusBadge } from "~/components/rooms/room-status-badge";
 
 import { BinaryModeGuard } from "~/components/tenant/binary-mode-guard";
@@ -68,6 +70,8 @@ interface Room {
   supervisorName?: string;
   deviceId?: string;
   studentCount?: number;
+  /** Freigegeben als offener Raum (#3065), unabhängig von der Belegung. */
+  isOpenRoom?: boolean;
 }
 
 /** Die Sammlung dieser Seite, für den Rückweg aus der Raumseite (`?from=`). */
@@ -101,6 +105,134 @@ function TransitAssignmentCard({
         }
       />
     </TileCard>
+  );
+}
+
+function RoomTile({
+  room,
+  href,
+}: {
+  readonly room: Room;
+  readonly href: string;
+}) {
+  return (
+    <TileCard href={href} ariaLabel={room.name} padding="none">
+      <div className="relative p-4 sm:p-5">
+        <div className="relative flex min-h-[120px] flex-col">
+          <div className="mb-3 flex items-start justify-between gap-3">
+            <div className="min-w-0 flex-1">
+              <div className="flex items-center gap-2">
+                <h3 className="truncate text-base font-bold text-gray-900">
+                  {room.name}
+                </h3>
+                <ChevronRight
+                  className="h-4 w-4 flex-shrink-0 text-gray-300 transition-colors duration-200 md:group-hover:text-gray-500"
+                  aria-hidden="true"
+                />
+              </div>
+              {(room.building !== undefined || room.floor !== undefined) && (
+                <p className="mt-0.5 truncate text-xs text-gray-500">
+                  {room.building &&
+                    room.floor !== undefined &&
+                    `${room.building} · ${formatFloor(room.floor)}`}
+                  {room.building && room.floor === undefined && room.building}
+                  {!room.building &&
+                    room.floor !== undefined &&
+                    formatFloor(room.floor)}
+                </p>
+              )}
+            </div>
+            <RoomStatusBadge
+              isOccupied={room.isOccupied}
+              size="sm"
+              className="font-bold"
+            />
+          </div>
+          <div className="flex-1 space-y-2">
+            {room.isOccupied && room.groupName && (
+              <div className="text-sm text-gray-700">
+                <span className="font-medium">Aktuelle Aktivität:</span>{" "}
+                {room.groupName}
+              </div>
+            )}
+            {room.isOccupied &&
+              ((room.studentCount !== undefined && room.studentCount > 0) ||
+                room.supervisorName) && (
+                <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-sm text-gray-600">
+                  {room.studentCount !== undefined && room.studentCount > 0 && (
+                    <span className="flex items-center gap-1">
+                      <MotoConceptIcon concept="children" size={16} />
+                      {room.studentCount}{" "}
+                      {room.studentCount === 1 ? "Kind" : "Kinder"}
+                    </span>
+                  )}
+                  {room.supervisorName && (
+                    <span className="flex items-center gap-1">
+                      <MotoConceptIcon concept="staff" size={16} />
+                      {room.supervisorName}
+                    </span>
+                  )}
+                </div>
+              )}
+            {!room.isOccupied && (
+              <>
+                <div className="text-sm text-gray-600">
+                  Für Aktivitäten buchbar
+                </div>
+                {room.capacity !== undefined && room.capacity > 0 && (
+                  <div className="text-sm text-gray-600">
+                    Kapazität: {room.capacity} Plätze
+                  </div>
+                )}
+              </>
+            )}
+          </div>
+          <div className="absolute right-3 bottom-3 h-3 w-3 rounded-full bg-white/30"></div>
+        </div>
+      </div>
+    </TileCard>
+  );
+}
+
+function RoomTileGrid({
+  rooms,
+  roomHref,
+}: {
+  readonly rooms: readonly Room[];
+  readonly roomHref: (roomId: string) => string;
+}) {
+  return (
+    <CollectionGrid>
+      {rooms.map((room) => (
+        <RoomTile key={room.id} room={room} href={roomHref(room.id)} />
+      ))}
+    </CollectionGrid>
+  );
+}
+
+/**
+ * Eine Raumgruppe der Übersicht: offene Räume oben, die übrigen darunter.
+ * Beide lassen sich einklappen, damit eine lange Liste übersichtlich bleibt.
+ * Mit eigener Fläche, weil die Gruppe Titel und Text trägt (BAUARTEN-SPEC,
+ * Teil 3 §1: kein `bare` mit Titel).
+ */
+function RoomGroup({
+  title,
+  rooms,
+  roomHref,
+}: {
+  readonly title: string;
+  readonly rooms: readonly Room[];
+  readonly roomHref: (roomId: string) => string;
+}) {
+  return (
+    <SectionCard
+      collapsible
+      title={title}
+      titleBadge={<StatusBadge label={String(rooms.length)} tone="gray" />}
+    >
+      <RoomTileGrid rooms={rooms} roomHref={roomHref} />
+    </SectionCard>
   );
 }
 
@@ -250,6 +382,17 @@ function RoomsPageContent() {
 
     return filtered;
   }, [roomsData, searchTerm, buildingFilter, occupiedFilter]);
+
+  // Offene Räume stehen oben und hervorgehoben, die übrigen darunter
+  // (#4372, Punkt 01.14). „Offen“ ist die Freigabe, nicht die Belegung.
+  const [openRooms, otherRooms] = useMemo(() => {
+    const open: Room[] = [];
+    const other: Room[] = [];
+    for (const room of filteredRooms) {
+      (room.isOpenRoom ? open : other).push(room);
+    }
+    return [open, other];
+  }, [filteredRooms]);
 
   const exportRoomIds = useMemo(() => {
     return filteredRooms
@@ -508,108 +651,27 @@ function RoomsPageContent() {
             />
           ) : null}
 
-          {filteredRooms.length > 0 ? (
-            <CollectionGrid>
-              {filteredRooms.map((room) => (
-                <TileCard
-                  key={room.id}
-                  href={roomHref(room.id)}
-                  ariaLabel={room.name}
-                  padding="none"
-                >
-                  <div className="relative p-4 sm:p-5">
-                    <div className="relative flex min-h-[120px] flex-col">
-                      <div className="mb-3 flex items-start justify-between gap-3">
-                        <div className="min-w-0 flex-1">
-                          <div className="flex items-center gap-2">
-                            <h3 className="truncate text-base font-bold text-gray-900">
-                              {room.name}
-                            </h3>
-                            <ChevronRight
-                              className="h-4 w-4 flex-shrink-0 text-gray-300 transition-colors duration-200 md:group-hover:text-gray-500"
-                              aria-hidden="true"
-                            />
-                          </div>
-                          {(room.building !== undefined ||
-                            room.floor !== undefined) && (
-                            <p className="mt-0.5 truncate text-xs text-gray-500">
-                              {room.building &&
-                                room.floor !== undefined &&
-                                `${room.building} · ${formatFloor(room.floor)}`}
-                              {room.building &&
-                                room.floor === undefined &&
-                                room.building}
-                              {!room.building &&
-                                room.floor !== undefined &&
-                                formatFloor(room.floor)}
-                            </p>
-                          )}
-                        </div>
-
-                        <RoomStatusBadge
-                          isOccupied={room.isOccupied}
-                          size="sm"
-                          className="font-bold"
-                        />
-                      </div>
-
-                      <div className="flex-1 space-y-2">
-                        {room.isOccupied && room.groupName && (
-                          <div className="text-sm text-gray-700">
-                            <span className="font-medium">
-                              Aktuelle Aktivität:
-                            </span>{" "}
-                            {room.groupName}
-                          </div>
-                        )}
-                        {room.isOccupied &&
-                          ((room.studentCount !== undefined &&
-                            room.studentCount > 0) ||
-                            room.supervisorName) && (
-                            <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-sm text-gray-600">
-                              {room.studentCount !== undefined &&
-                                room.studentCount > 0 && (
-                                  <span className="flex items-center gap-1">
-                                    <MotoConceptIcon
-                                      concept="children"
-                                      size={16}
-                                    />
-                                    {room.studentCount}{" "}
-                                    {room.studentCount === 1
-                                      ? "Kind"
-                                      : "Kinder"}
-                                  </span>
-                                )}
-                              {room.supervisorName && (
-                                <span className="flex items-center gap-1">
-                                  <MotoConceptIcon concept="staff" size={16} />
-                                  {room.supervisorName}
-                                </span>
-                              )}
-                            </div>
-                          )}
-
-                        {!room.isOccupied && (
-                          <>
-                            <div className="text-sm text-gray-600">
-                              Für Aktivitäten buchbar
-                            </div>
-                            {room.capacity !== undefined &&
-                              room.capacity > 0 && (
-                                <div className="text-sm text-gray-600">
-                                  Kapazität: {room.capacity} Plätze
-                                </div>
-                              )}
-                          </>
-                        )}
-                      </div>
-
-                      <div className="absolute right-3 bottom-3 h-3 w-3 rounded-full bg-white/30"></div>
-                    </div>
-                  </div>
-                </TileCard>
-              ))}
-            </CollectionGrid>
+          {openRooms.length > 0 ? (
+            // Als Gitter wächst die letzte Gruppe nicht bis zur Unterkante
+            // (TENANT-PAGE-SPEC Regel 6): eingeklappt bliebe sonst eine
+            // leere weiße Fläche über den halben Bildschirm stehen.
+            <div className="compact:gap-4 grid gap-6 max-sm:gap-3">
+              <RoomGroup
+                title="Offene Räume"
+                rooms={openRooms}
+                roomHref={roomHref}
+              />
+              {otherRooms.length > 0 ? (
+                <RoomGroup
+                  title="Weitere Räume"
+                  rooms={otherRooms}
+                  roomHref={roomHref}
+                />
+              ) : null}
+            </div>
+          ) : null}
+          {openRooms.length === 0 && filteredRooms.length > 0 ? (
+            <RoomTileGrid rooms={filteredRooms} roomHref={roomHref} />
           ) : null}
         </>
       )}
