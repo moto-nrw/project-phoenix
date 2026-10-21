@@ -71,15 +71,6 @@ func parseClock(value string) (time.Time, error) {
 	return time.Parse(clockLayout+".999999999", value)
 }
 
-func timeframeInput(start time.Time, end *time.Time, isActive bool, description string) timetableModule.TimeframeInput {
-	input := timetableModule.TimeframeInput{StartTime: clockOf(start), IsActive: isActive, Description: description}
-	if end != nil {
-		clock := clockOf(*end)
-		input.EndTime = &clock
-	}
-	return input
-}
-
 // overlappingTimeframes lists the timeframes touching [start, end].
 func overlappingTimeframes(ctx context.Context, timeframes timetableModule.TimeframeQuery, start, end time.Time) ([]timeframeSlot, error) {
 	from, to := clockOf(start), clockOf(end)
@@ -88,18 +79,6 @@ func overlappingTimeframes(ctx context.Context, timeframes timetableModule.Timef
 		return nil, err
 	}
 	return timeframesToSlots(values)
-}
-
-// checkTimeframeConflict reports whether any timeframe overlaps the range.
-func checkTimeframeConflict(ctx context.Context, timeframes timetableModule.TimeframeQuery, start, end time.Time) (bool, []timeframeSlot, error) {
-	if !end.IsZero() && start.After(end) {
-		return false, nil, timetableModule.ErrInvalidTimeRange
-	}
-	conflicting, err := overlappingTimeframes(ctx, timeframes, start, end)
-	if err != nil {
-		return false, nil, err
-	}
-	return len(conflicting) > 0, conflicting, nil
 }
 
 // availableTimeframeSlots finds the gaps of at least duration between the
