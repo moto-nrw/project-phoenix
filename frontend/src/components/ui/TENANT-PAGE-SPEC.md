@@ -81,11 +81,13 @@ Gerenderte Reihenfolge, fest, nicht verhandelbar:
    Ein Filter mit Mehrfachauswahl (`type: "buttons"`, `multiSelect`) rendert
    als Chip-Reihe, ein Einfachfilter als `SegmentedControl`: eine
    Filterreihe darf nie aussehen wie eine zweite Reiterleiste.
-   **Ausnahme:** Beginnt die Liste weit unter der Kopfkarte, weil andere
-   Flächen davor stehen, steht dieselbe Zeile als `TenantPageListSearch`
-   direkt über der Liste und nicht im Kopf. Einziger Fall: die Aktuelle
-   Aufsicht (#4353), wo Als Nächstes, Kinder unterwegs und der Kopf des
-   Blocks die Suche sonst weit von den Kinderlisten trennen.
+   **Suche über der Liste:** Beginnt die Liste weit unter der Kopfkarte,
+   weil andere Flächen des Gerüsts davor stehen, steht dieselbe Zeile als
+   `TenantPageListSearch` direkt über der Liste und nicht im Kopf. Das ist
+   keine Ausnahmeseite: Gerüst, Kopf und Reihenfolge bleiben, nur die
+   Suchzeile rückt an ihre Liste. Bisher gilt das für die Aktuelle Aufsicht
+   (#4353), wo Als Nächstes, Kinder unterwegs und der Kopf des Blocks die
+   Suche sonst weit von den Kinderlisten trennen.
 6. **Zustände kommen aus dem Gerüst**: `error`, `loading`, `empty`. Kein
    `return null`, kein freier Spinner, kein „Wird geladen…"-Fließtext, kein
    Fehler-Alert, der nur auf einem Breakpoint sichtbar ist. Alle drei stehen
@@ -238,16 +240,16 @@ Desktop-Wert unvariiert als Grundwert (`p-5`, nicht `sm:p-5`) — sonst
 stehen zwei Varianten-Regeln für dieselbe Eigenschaft nebeneinander und
 welche gewinnt, hängt an der internen Sortierung von Tailwind.
 
-| Mass | Desktop | `compact` | Telefon |
-|---|---|---|---|
-| Seitenrand der Hülle | 32 px | 20 px | 16 px |
-| Kopfkarte, `SectionCard`, `InfoCard` | 20/24 px | 16 px | 16 px |
-| `StatCard`, `TileCard` | 20 px | 16 px | 12/16 px |
-| Titel (`prominent`) | 28 px | 24 px | 24 px |
-| Titel (Standard) | 24 px | 20 px | 20 px |
-| Rumpf-Rhythmus | 24 px | 16 px | 12 px |
-| Reiterband | 12 px, `text-base` | 8 px, `text-sm` | Pillen |
-| Tabellenzelle senkrecht | 12 px | 8 px | 12 px |
+| Mass                                 | Desktop            | `compact`       | Telefon  |
+| ------------------------------------ | ------------------ | --------------- | -------- |
+| Seitenrand der Hülle                 | 32 px              | 20 px           | 16 px    |
+| Kopfkarte, `SectionCard`, `InfoCard` | 20/24 px           | 16 px           | 16 px    |
+| `StatCard`, `TileCard`               | 20 px              | 16 px           | 12/16 px |
+| Titel (`prominent`)                  | 28 px              | 24 px           | 24 px    |
+| Titel (Standard)                     | 24 px              | 20 px           | 20 px    |
+| Rumpf-Rhythmus                       | 24 px              | 16 px           | 12 px    |
+| Reiterband                           | 12 px, `text-base` | 8 px, `text-sm` | Pillen   |
+| Tabellenzelle senkrecht              | 12 px              | 8 px            | 12 px    |
 
 Nicht in der Stufe: die Bedienhöhe. 768–1023 px ist genau der Tablet-
 Bereich, und ein 36-px-Knopf unterschreitet dort das Touch-Mass. Regel 17

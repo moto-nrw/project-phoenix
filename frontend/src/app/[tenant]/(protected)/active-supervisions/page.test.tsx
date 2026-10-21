@@ -1532,6 +1532,10 @@ describe("Enhanced rendering: action buttons and search/filter interaction", () 
     fireEvent.change(searchInput, { target: { value: "Eri" } });
     expect(screen.getAllByTestId("student-card")).toHaveLength(1);
     expect(screen.getByText("Erika Schmidt")).toBeInTheDocument();
+
+    // „Alle löschen“ in the same row brings every child back.
+    fireEvent.click(within(searchArea).getByTestId("clear-btn"));
+    expect(screen.getAllByTestId("student-card")).toHaveLength(2);
   });
 
   it("shows EmptyStudentResults when search matches no students", async () => {
