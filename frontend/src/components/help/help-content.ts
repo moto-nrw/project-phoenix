@@ -1585,7 +1585,8 @@ function parentMessageTopic(): HelpTopic {
         steps: [
           "Öffnen Sie unter `Eltern` den Bereich `Nachrichten`.",
           "Wählen Sie `Neue Nachricht`.",
-          "Suchen Sie das Kind und wählen Sie die passende Bezugsperson.",
+          "Wählen Sie das Kind aus der Liste. Über das Suchfeld finden Sie es schneller.",
+          "Wählen Sie `Weiter` und dann die passende Bezugsperson.",
           "Schreiben Sie Ihre Nachricht in das Textfeld.",
           "Wählen Sie `Senden`.",
         ],
