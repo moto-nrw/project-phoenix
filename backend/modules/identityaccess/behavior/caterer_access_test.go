@@ -383,3 +383,44 @@ func TestCatererAccountJoinsNoSchool(t *testing.T) {
 	})
 	require.ErrorIs(t, err, identityaccess.ErrEmailAlreadyExists)
 }
+
+// Refreshing must use the same live schools as login and the portal. A
+// rejected rotation leaves the refresh token usable for another live school.
+func TestCatererRefreshRequiresLiveSchool(t *testing.T) {
+	t.Parallel()
+	for _, state := range []string{"inactive", "deleted"} {
+		t.Run(state, func(t *testing.T) {
+			t.Parallel()
+			testpkg.OwnTenant(t)
+			db := testpkg.SetupTestDB(t)
+			module := setupAuthFactory(t, db)
+			caterers := module.Caterers()
+			first := testpkg.Tenant(t)
+			staff := testpkg.CreateTestAccount(t, db, "caterer-refresh-liveness")
+			email := fmt.Sprintf("refresh-live-%d@example.com", time.Now().UnixNano())
+			registration := identityaccess.CatererRegistration{Password: catererPassword, ConfirmPassword: catererPassword}
+			accepted, err := accept(t, db, caterers, first, invite(t, db, caterers, first, staff.ID, email), registration)
+			require.NoError(t, err)
+			forgetCaterer(t, db, accepted)
+			_, refresh, err := caterers.LoginCatererWithAudit(context.Background(), email, catererPassword, "", "")
+			require.NoError(t, err)
+			if state == "inactive" {
+				_, err = db.ExecContext(context.Background(), `UPDATE platform.schools SET active = false WHERE id = ?`, first)
+			} else {
+				_, err = db.ExecContext(context.Background(), `UPDATE platform.schools SET deleted_at = NOW() WHERE id = ?`, first)
+			}
+			require.NoError(t, err)
+			_, _, err = module.RefreshTokenWithAudit(context.Background(), refresh, "", "", "")
+			require.ErrorIs(t, err, identityaccess.ErrCatererWithoutSchool)
+
+			second, _ := testpkg.CreateTestTenant(t, db)
+			_, err = accept(t, db, caterers, second, invite(t, db, caterers, second, staff.ID, email), registration)
+			require.NoError(t, err)
+			_, _, err = module.RefreshTokenWithAudit(context.Background(), refresh, "", "", "")
+			require.NoError(t, err, "a failed rotation must not consume the token")
+			var pinned int64
+			require.NoError(t, db.NewRaw(`SELECT tenant_id FROM auth.tokens WHERE account_id = ? ORDER BY id DESC LIMIT 1`, accepted.AccountID).Scan(context.Background(), &pinned))
+			assert.Equal(t, second, pinned, "the successor session is pinned to a live school")
+		})
+	}
+}

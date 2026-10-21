@@ -2,7 +2,7 @@
 // ohne Namen. meals:read erzwingt das Backend.
 import type { NextRequest } from "next/server";
 
-import { auth } from "~/server/auth";
+import { auth, uncachedAuth } from "~/server/auth";
 import { withTenantAuth } from "~/server/auth/tenant-route";
 import { getServerApiUrl } from "~/lib/server-api-url";
 import { forwardBackendResponse } from "~/lib/backend-proxy-response.server";
@@ -14,10 +14,21 @@ export const GET = withTenantAuth(
     if (!session?.user?.token) {
       return problemResponse(401, "Unauthorized", request);
     }
-    const response = await fetch(
-      `${getServerApiUrl()}/api/meal-caterer/orders/export${request.nextUrl.search}`,
-      { headers: { Authorization: `Bearer ${session.user.token}` } },
-    );
+    const makeRequest = (token: string) =>
+      fetch(
+        `${getServerApiUrl()}/api/meal-caterer/orders/export${request.nextUrl.search}`,
+        { headers: { Authorization: `Bearer ${token}` } },
+      );
+    let response = await makeRequest(session.user.token);
+    if (response.status === 401) {
+      const refreshed = await uncachedAuth();
+      if (
+        refreshed?.user?.token &&
+        refreshed.user.token !== session.user.token
+      ) {
+        response = await makeRequest(refreshed.user.token);
+      }
+    }
     if (!response.ok) {
       return forwardBackendResponse(response, request);
     }

@@ -138,8 +138,8 @@ func (s *AccountAuthentication) catererRefreshClaims(ctx context.Context, accoun
 }
 
 // catererSessionSchool is the school a caterer's successor session is pinned
-// to: the current one while it still supplies the caterer, else the first
-// school it supplies. A caterer whose last school ended its supply has
+// to: the current live school while its supply is active, else the first
+// live school it supplies. A caterer without a live supplied school has
 // nothing left to see (ADR 0075).
 func (s *AccountAuthentication) catererSessionSchool(ctx context.Context, accountID, pinned int64) (int64, error) {
 	caterer, isCaterer, _, err := s.caterers.FindCatererOfAccount(ctx, accountID)
@@ -153,8 +153,17 @@ func (s *AccountAuthentication) catererSessionSchool(ctx context.Context, accoun
 	if err != nil {
 		return 0, fmt.Errorf("list caterer schools: %w", err)
 	}
+	active, err := s.schools.ListActiveSchoolsByID(ctx, schools)
+	if err != nil {
+		return 0, fmt.Errorf("resolve caterer schools: %w", err)
+	}
+	live := make(map[int64]bool, len(active))
+	for _, school := range active {
+		live[school.ID] = true
+	}
+	schools = slices.DeleteFunc(schools, func(id int64) bool { return !live[id] })
 	if len(schools) == 0 {
-		return 0, domain.ErrCatererWithoutSchool
+		return 0, identityaccess.ErrCatererWithoutSchool
 	}
 	if slices.Contains(schools, pinned) {
 		return pinned, nil
