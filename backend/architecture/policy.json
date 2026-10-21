@@ -3872,10 +3872,6 @@
       "write_owner": "identity-access"
     },
     {
-      "name": "auth.accounts_parents",
-      "write_owner": "identity-access"
-    },
-    {
       "name": "auth.demo_accesses",
       "write_owner": "identity-access"
     },
@@ -4630,10 +4626,6 @@
     {
       "name": "documents.folders",
       "write_owner": "file-storage"
-    },
-    {
-      "name": "users.persons_guardians",
-      "write_owner": "people-directory"
     },
     {
       "name": "users.guardian_financial_data",

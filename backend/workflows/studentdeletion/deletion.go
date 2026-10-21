@@ -698,9 +698,6 @@ func (w *Workflow) mutate(ctx context.Context, actor Actor, preview Preview, rea
 	if deletedAssignments != int64(preview.Counts.TimetableAssignments) {
 		return result, ErrPreviewChanged
 	}
-	if _, err := w.deps.Directory.DeleteLegacyGuardianLinks(ctx, preview.PersonID); err != nil {
-		return result, err
-	}
 	if err := w.releaseDependents(ctx, actor, preview, now, &result); err != nil {
 		return result, err
 	}

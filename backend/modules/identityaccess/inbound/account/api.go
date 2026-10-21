@@ -45,7 +45,6 @@ type AccountSessions interface {
 // name the owner's contract, as the session routes already do.
 type AccountLifecycle interface {
 	identityaccess.StaffPreview
-	identityaccess.ParentAccountAccess
 }
 
 // Resource defines the auth resource
@@ -343,7 +342,7 @@ func (rs *Resource) mountAdminRoutes(r chi.Router) {
 		r.With(common.RequiresPermission("admin:*")).Delete("/expired", rs.cleanupExpiredTokens)
 	})
 
-	rs.mountInvitationAndParentAccountRoutes(r)
+	rs.mountInvitationRoutes(r)
 }
 
 // mountRoleAndPermissionRoutes registers the role and permission catalog
@@ -425,9 +424,9 @@ func (rs *Resource) mountAccountRoutes(r chi.Router) {
 	})
 }
 
-// mountInvitationAndParentAccountRoutes registers the staff and guardian
-// invitation admin routes and the parent account management routes.
-func (rs *Resource) mountInvitationAndParentAccountRoutes(r chi.Router) {
+// mountInvitationRoutes registers the staff and guardian
+// invitation admin routes.
+func (rs *Resource) mountInvitationRoutes(r chi.Router) {
 	r.Route("/invitations", func(r chi.Router) {
 		// users:manage, not users:create: the "user" role carries
 		// users:create globally (migration 1.5.3, so Betreuer can
@@ -456,14 +455,5 @@ func (rs *Resource) mountInvitationAndParentAccountRoutes(r chi.Router) {
 	})
 
 	// Parent account management
-	r.Route("/parent-accounts", func(r chi.Router) {
-		r.With(common.RequiresPermission(permUsersCreate)).Post("/", rs.createParentAccount)
-		r.With(common.RequiresPermission(permUsersList)).Get("/", rs.listParentAccounts)
-		r.Route("/{id}", func(r chi.Router) {
-			r.With(common.RequiresPermission("users:read")).Get("/", rs.getParentAccountByID)
-			r.With(common.RequiresPermission(permUsersUpdate)).Put("/", rs.updateParentAccount)
-			r.With(common.RequiresPermission(permUsersUpdate)).Put("/activate", common.IDAction("id", common.MsgInvalidParentAccountID, rs.AuthService.ActivateParentAccount, common.ErrorInternalServer))
-			r.With(common.RequiresPermission(permUsersUpdate)).Put("/deactivate", common.IDAction("id", common.MsgInvalidParentAccountID, rs.AuthService.DeactivateParentAccount, common.ErrorInternalServer))
-		})
-	})
+
 }

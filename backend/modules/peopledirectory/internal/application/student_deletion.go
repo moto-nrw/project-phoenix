@@ -21,16 +21,6 @@ func (s *StudentService) CountGuardianLinks(ctx context.Context, studentID, pers
 	return count, err
 }
 
-func (s *StudentService) DeleteLegacyGuardianLinks(ctx context.Context, personID int64) (rows int64, err error) {
-	err = s.run(ctx, "delete_legacy_guardian_links", s.tx.RunWrite, func(txCtx context.Context, stats *domain.OperationStats) error {
-		var writeStats domain.OperationStats
-		rows, writeStats, err = s.store.DeleteLegacyGuardianLinks(txCtx, personID)
-		stats.Add(writeStats)
-		return err
-	})
-	return rows, err
-}
-
 func (s *StudentService) Delete(ctx context.Context, id int64) (rows int64, err error) {
 	err = s.run(ctx, "delete_student", s.tx.RunWrite, func(txCtx context.Context, stats *domain.OperationStats) error {
 		var writeStats domain.OperationStats

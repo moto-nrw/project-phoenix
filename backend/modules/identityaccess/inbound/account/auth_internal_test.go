@@ -3,7 +3,6 @@
 package account
 
 import (
-	"context"
 	"net/http"
 	"net/http/httptest"
 	"testing"
@@ -564,13 +563,6 @@ func TestUpdateRoleRequest_Bind_BaseRoleValidation(t *testing.T) {
 	})
 }
 
-// parentAccountRouteStub satisfies the two method values the parent-account
-// routes bind while the router builds; none of them is called here.
-type parentAccountRouteStub struct{ AccountLifecycle }
-
-func (parentAccountRouteStub) ActivateParentAccount(context.Context, int64) error   { return nil }
-func (parentAccountRouteStub) DeactivateParentAccount(context.Context, int64) error { return nil }
-
 // TestRouterWithAuthRateLimiter pins which routes the production composition
 // throttles: the public credential and second-factor exchanges, and nothing
 // else. The route golden builds the router without a limiter, so this is the
@@ -583,7 +575,7 @@ func TestRouterWithAuthRateLimiter(t *testing.T) {
 			w.WriteHeader(http.StatusTooManyRequests)
 		})
 	}
-	router := NewResource(parentAccountRouteStub{}, nil, nil, nil, nil, transactionFailures.IsConstraintViolation).RouterWithAuthRateLimiter(throttled, scopeTestTenantSession(testpkg.TenantSessionGates()))
+	router := NewResource(nil, nil, nil, nil, nil, transactionFailures.IsConstraintViolation).RouterWithAuthRateLimiter(throttled, scopeTestTenantSession(testpkg.TenantSessionGates()))
 
 	for _, path := range []string{
 		"/login",

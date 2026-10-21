@@ -82,9 +82,11 @@ Für zwei Datenarten passt keine Frist, weil ihre Zeilen kein Ende haben. Die Sc
 
 ## Offene Lücken ohne Ticket
 
-Der Wächtertest führt außerdem Tabellen mit Personenbezug, für die es weder einen Löschweg noch ein Ticket der Spec gibt (Klasse `open gap`, Stand 19.10.2026: 1 Tabelle). Sie brauchen eine Entscheidung, bevor der AVV sie zusagen kann:
+Der Wächtertest führt keine Tabellen mehr in der Klasse `open gap` (Stand 21.10.2026).
 
-- **Alte Eltern-Konten** (`auth.accounts_parents`): Sie haben noch einen Weg zum Anlegen über die Alt-API, aber keinen zum Löschen. Tabelle und Alt-API sollen ganz entfallen (#4329).
+Die alten Eltern-Konten (`auth.accounts_parents`) und ihre alten Personen-Verknüpfungen (`users.persons_guardians`) entfallen mit Migration 1.15.468 (#4329). Auch die Alt-API zum Anlegen und Verwalten dieser Konten entfällt. Die Migration bricht ab, falls eine der Tabellen noch Daten enthält. Die heutige Elternanmeldung verwendet `auth.accounts` und behält ihren Löschweg.
+
+Die Produktionsprüfung am 21.10.2026 um 08:34 CEST ergab je 0 Zeilen in beiden Alt-Tabellen (SSH-Datenbanktunnel, `transaction_read_only = on`, nur Zähl- und Katalogabfragen). Der einzige Fremdschlüssel auf `auth.accounts_parents` kam aus `users.persons_guardians`. Im Repository und im benachbarten PyrePortal gab es keine produktiven Aufrufer der Alt-API. Externe Aufrufer sind noch nicht abschließend geprüft: Die zugänglichen Caddy-Journale enthalten nur Proxy-Fehler und belegen keine vollständige Zugriffshistorie. Diese Prüfung bleibt vor der Auslieferung offen.
 
 Die Liste darf nur schrumpfen. Die genaue Zuordnung je Tabelle steht in `tableRetentions`.
 

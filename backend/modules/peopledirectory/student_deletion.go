@@ -17,13 +17,9 @@ var ErrStudentLockBusy = errors.New("student row is locked by another transactio
 // coordinating workflow holds the student and person locks (see
 // ReadEnrollmentStudent and FindPersonForMutation) and decides the order.
 type StudentDeletionCommand interface {
-	// CountStudentGuardianLinks counts the current and legacy guardian links
+	// CountStudentGuardianLinks counts the guardian relationships
 	// the deletion removes, for the preview and its locked recheck.
 	CountStudentGuardianLinks(ctx context.Context, studentID, personID int64) (int, error)
-	// DeleteLegacyGuardianLinks removes the person-based guardian links. They
-	// do not cascade from the student row because the anonymized person
-	// tombstone remains.
-	DeleteLegacyGuardianLinks(ctx context.Context, personID int64) (int64, error)
 	// DeleteStudent hard-deletes the student row and returns 1, or 0 when the
 	// row was already gone.
 	DeleteStudent(ctx context.Context, studentID int64) (int64, error)
