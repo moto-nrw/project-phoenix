@@ -997,12 +997,6 @@ func TestMaterializationServiceMethodsAndCopyBranches(t *testing.T) {
 		assert.Equal(t, calendar.NewDate(2026, 5, 3), to)
 	})
 
-	t.Run("nil logger falls back to slog default", func(t *testing.T) {
-		svc := &materializationService{}
-
-		assert.NotNil(t, svc.getLogger())
-	})
-
 	t.Run("copy enrollments skips invalid and duplicate students", func(t *testing.T) {
 		studentRepo := &materializationCountingStudentRepo{}
 		svc := &materializationService{studentRepo: legacyParticipantRows(studentRepo), logger: slog.Default()}

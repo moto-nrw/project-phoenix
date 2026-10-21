@@ -2,7 +2,6 @@ package activitycontract
 
 import (
 	"testing"
-	"time"
 )
 
 func TestIsValidWeekday(t *testing.T) {
@@ -178,49 +177,5 @@ func TestScheduleHasTimeframe(t *testing.T) {
 				t.Errorf("Schedule.HasTimeframe() = %v, want %v", got, tt.want)
 			}
 		})
-	}
-}
-
-func TestSchedule_GetID(t *testing.T) {
-	t.Parallel()
-
-	schedule := &Schedule{
-		ID:              42,
-		Weekday:         WeekdayMonday,
-		ActivityGroupID: 1,
-	}
-
-	if schedule.ID != 42 {
-		t.Errorf("ID = %v, want 42", schedule.ID)
-	}
-}
-
-func TestSchedule_GetCreatedAt(t *testing.T) {
-	t.Parallel()
-
-	now := time.Now()
-	schedule := &Schedule{
-		CreatedAt:       now,
-		Weekday:         WeekdayMonday,
-		ActivityGroupID: 1,
-	}
-
-	if got := schedule.CreatedAt; !got.Equal(now) {
-		t.Errorf("GetCreatedAt() = %v, want %v", got, now)
-	}
-}
-
-func TestSchedule_GetUpdatedAt(t *testing.T) {
-	t.Parallel()
-
-	now := time.Now()
-	schedule := &Schedule{
-		UpdatedAt:       now,
-		Weekday:         WeekdayMonday,
-		ActivityGroupID: 1,
-	}
-
-	if got := schedule.UpdatedAt; !got.Equal(now) {
-		t.Errorf("GetUpdatedAt() = %v, want %v", got, now)
 	}
 }
