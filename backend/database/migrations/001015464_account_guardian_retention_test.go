@@ -263,7 +263,7 @@ func TestAccountGuardianRetentionRollsBack(t *testing.T) {
 		return err
 	}
 
-	// The caterer tables of 1.15.474 fence their account references with
+	// The caterer tables of 1.15.475 fence their account references with
 	// this migration's trigger function; they go first and come back last.
 	require.NoError(t, mealCaterersDown(ctx, db))
 	t.Cleanup(func() { require.NoError(t, mealCaterersUp(ctx, db)) })
