@@ -226,8 +226,13 @@ export function LeaveRequestsCard() {
       <SectionCard
         title="Urlaub"
         description="Urlaubsanträge stellen, Status verfolgen und stornieren."
+        // Ohne shrink-0 staucht die Flex-Spalte der Seite die Karte auf die
+        // Kopfhöhe: unten fehlt der Innenabstand und die Kacheln (#4363).
+        className="shrink-0"
         actions={
-          <>
+          // min-h-13 ist die Höhe von Titel und Untertitel; so stehen Jahr
+          // und Knopf auf deren Mitte statt an der Oberkante.
+          <div className="flex items-center gap-2 sm:min-h-13">
             <span className="text-xs text-gray-400">{year}</span>
             <Button
               type="button"
@@ -238,9 +243,9 @@ export function LeaveRequestsCard() {
             >
               Urlaub beantragen
             </Button>
-          </>
+          </div>
         }
-        bodyClassName="mt-5"
+        bodyClassName="compact:mt-4 mt-5 max-sm:mt-4"
       >
         {load.error ? (
           <LoadErrorAlert error={load.error} />
