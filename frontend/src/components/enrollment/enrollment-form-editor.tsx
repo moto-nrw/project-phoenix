@@ -2834,7 +2834,9 @@ function hasStandardLegalBlockOverride(
     block.text !== standardBlock.text ||
     block.required !== standardBlock.required ||
     legalBlockDisplayMode(block) !== legalBlockDisplayMode(standardBlock) ||
-    (block.document_url ?? "") !== (standardBlock.document_url ?? "")
+    (block.document_url ?? "") !== (standardBlock.document_url ?? "") ||
+    JSON.stringify(block.attachments ?? []) !==
+      JSON.stringify(standardBlock.attachments ?? [])
   );
 }
 
