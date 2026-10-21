@@ -103,10 +103,10 @@ func (s *Scheduler) checkAndRunAutoStart(ctx context.Context, task *ScheduledTas
 	defer cancel()
 
 	s.forEachTenantSettings(ctx, "timetable-auto-start", func(tenantCtx context.Context, tenantID int64) error {
-		if !s.resolveBoolSetting(tenantCtx, settingTimetableEnabled, "", false) {
+		if !s.resolveBoolSetting(tenantCtx, settingTimetableEnabled, false) {
 			return nil
 		}
-		if !s.resolveBoolSetting(tenantCtx, settingTimetableAutoStartPlanned, "", false) {
+		if !s.resolveBoolSetting(tenantCtx, settingTimetableAutoStartPlanned, false) {
 			return nil
 		}
 
@@ -167,7 +167,7 @@ func (s *Scheduler) runTimetableCleanupForTenant(tenantCtx context.Context, tena
 		slog.String("cleanup_time", cleanupTime),
 	)
 
-	timeoutMinutes := s.resolveIntSetting(tenantCtx, settingDataCleanupTimeoutMinutes, "CLEANUP_SCHEDULER_TIMEOUT_MINUTES", 30)
+	timeoutMinutes := s.resolveIntSetting(tenantCtx, settingDataCleanupTimeoutMinutes, 30)
 	cleanupCtx, cleanupCancel := context.WithTimeout(tenantCtx, time.Duration(timeoutMinutes)*time.Minute)
 	defer cleanupCancel()
 
@@ -210,15 +210,13 @@ func (s *Scheduler) runTimetableCleanupForTenant(tenantCtx context.Context, tena
 
 func (s *Scheduler) runMaterializationForTenant(tenantCtx context.Context, tenantID int64, now time.Time) error {
 
-	enabled := s.resolveBoolSetting(tenantCtx, settingTimetableMaterializationEnabled, "", true)
+	enabled := s.resolveBoolSetting(tenantCtx, settingTimetableMaterializationEnabled, true)
 	if !enabled {
 		return nil
 	}
 
-	// Registry default is 5 (Friday, ISO 8601). The helper goes through
-	// HasTenantOverride → ResolveInt → env → default, exactly matching
-	// the documented fallback pattern.
-	targetWeekday := s.resolveIntSetting(tenantCtx, settingTimetableMaterializationWeekday, "", 5)
+	// Registry default is 5 (Friday, ISO 8601).
+	targetWeekday := s.resolveIntSetting(tenantCtx, settingTimetableMaterializationWeekday, 5)
 	if !isoWeekdayMatches(targetWeekday, now) {
 		return nil
 	}
@@ -228,7 +226,7 @@ func (s *Scheduler) runMaterializationForTenant(tenantCtx context.Context, tenan
 	}
 	s.markRunAtAfterCommit(tenantCtx, &s.lastMaterialization, tenantID, now)
 
-	weeksAhead := s.resolveIntSetting(tenantCtx, settingTimetableMaterializationWeeksAhead, "", 1)
+	weeksAhead := s.resolveIntSetting(tenantCtx, settingTimetableMaterializationWeeksAhead, 1)
 	from, to := s.materializer.ResolveWindow(calendar.DateFromTime(now), weeksAhead)
 
 	s.getLogger().Info("running timetable materialization for tenant",

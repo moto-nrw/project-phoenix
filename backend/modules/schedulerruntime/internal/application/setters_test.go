@@ -640,36 +640,16 @@ func TestCheckAndRunAutoEnd_UsesEnabledTimetableDefault(t *testing.T) {
 	s := unitScheduler(&unitSchedulerDependencies{
 		autoEnd: svc,
 		logger:  slog.Default(),
-		settings: &keyedBoolSettingsResolver{values: map[string]bool{
-			settingTimetableAutoEndEnabled: true,
-		}}})
+		settings: registrySettings{
+			overrides: map[string]any{settingTimetableAutoEndEnabled: true},
+			defaults:  map[string]any{settingTimetableEnabled: true},
+		}})
 
 	s.checkAndRunAutoEnd(context.Background(), &ScheduledTask{Name: "timetable-auto-end"})
 
 	svc.mu.Lock()
 	defer svc.mu.Unlock()
 	assert.Equal(t, 1, svc.calls)
-}
-
-type keyedBoolSettingsResolver struct {
-	values map[string]bool
-}
-
-func (s *keyedBoolSettingsResolver) HasTenantOverride(_ context.Context, key string) (bool, error) {
-	_, ok := s.values[key]
-	return ok, nil
-}
-
-func (s *keyedBoolSettingsResolver) ResolveBool(_ context.Context, key string) (bool, error) {
-	return s.values[key], nil
-}
-
-func (*keyedBoolSettingsResolver) ResolveString(context.Context, string) (string, error) {
-	return "", nil
-}
-
-func (*keyedBoolSettingsResolver) ResolveInt(context.Context, string) (int, error) {
-	return 0, nil
 }
 
 // emitInstanceOverdue's broadcaster-failure branch: spy with fail=true so the
@@ -814,8 +794,8 @@ func TestForEachTenantSettings_NoTenantConfig_RejectsWork(t *testing.T) {
 }
 
 // -----------------------------------------------------------------------------
-// resolveStringSetting — override path (HasTenantOverride returns true).
-// resolveBoolSetting, resolveIntSetting — override check fails (err path).
+// resolveStringSetting, resolveBoolSetting, resolveIntSetting — resolved value
+// and failed-read paths.
 // -----------------------------------------------------------------------------
 
 type stubSettingsResolver struct {
@@ -849,19 +829,19 @@ func TestResolveStringSetting_TenantOverride(t *testing.T) {
 		settings: &stubSettingsResolver{hasOverride: true, stringVal: "override-value"},
 		logger:   slog.Default()})
 
-	val := s.resolveStringSetting(context.Background(), "some.key", "SOME_ENV", "default")
+	val := s.resolveStringSetting(context.Background(), "some.key", "default")
 	assert.Equal(t, "override-value", val)
 }
 
-func TestResolveStringSetting_OverrideCheckError(t *testing.T) {
+func TestResolveStringSetting_ResolveError(t *testing.T) {
 	t.Parallel()
 
-	// When HasTenantOverride returns err, fall through to env/default.
+	// A failed read answers the call-site default.
 	s := unitScheduler(&unitSchedulerDependencies{
-		settings: &stubSettingsResolver{hasOverrideErr: errors.New("db down")},
+		settings: &stubSettingsResolver{stringVal: "unused", stringErr: errors.New("db down")},
 		logger:   slog.Default()})
 
-	val := s.resolveStringSetting(context.Background(), "some.key", "SOME_ENV_NEVER_SET_XYZ", "fallback")
+	val := s.resolveStringSetting(context.Background(), "some.key", "fallback")
 	assert.Equal(t, "fallback", val)
 }
 
@@ -873,7 +853,7 @@ func TestResolveStringSetting_OverrideEmptyString(t *testing.T) {
 		settings: &stubSettingsResolver{hasOverride: true, stringVal: ""},
 		logger:   slog.Default()})
 
-	val := s.resolveStringSetting(context.Background(), "some.key", "NEVER_SET_YYZ", "fallback")
+	val := s.resolveStringSetting(context.Background(), "some.key", "fallback")
 	assert.Equal(t, "fallback", val)
 }
 
@@ -884,18 +864,18 @@ func TestResolveBoolSetting_TenantOverride(t *testing.T) {
 		settings: &stubSettingsResolver{hasOverride: true, boolVal: true},
 		logger:   slog.Default()})
 
-	val := s.resolveBoolSetting(context.Background(), "some.key", "NEVER_SET_BBB", false)
+	val := s.resolveBoolSetting(context.Background(), "some.key", false)
 	assert.True(t, val)
 }
 
-func TestResolveBoolSetting_OverrideCheckError(t *testing.T) {
+func TestResolveBoolSetting_ResolveError(t *testing.T) {
 	t.Parallel()
 
 	s := unitScheduler(&unitSchedulerDependencies{
-		settings: &stubSettingsResolver{hasOverrideErr: errors.New("db down")},
+		settings: &stubSettingsResolver{boolErr: errors.New("db down")},
 		logger:   slog.Default()})
 
-	val := s.resolveBoolSetting(context.Background(), "some.key", "NEVER_SET_CCC", true)
+	val := s.resolveBoolSetting(context.Background(), "some.key", true)
 	assert.True(t, val)
 }
 
@@ -906,31 +886,31 @@ func TestResolveIntSetting_TenantOverride(t *testing.T) {
 		settings: &stubSettingsResolver{hasOverride: true, intVal: 99},
 		logger:   slog.Default()})
 
-	val := s.resolveIntSetting(context.Background(), "some.key", "NEVER_SET_III", 5)
+	val := s.resolveIntSetting(context.Background(), "some.key", 5)
 	assert.Equal(t, 99, val)
 }
 
-func TestResolveIntSetting_OverrideCheckError(t *testing.T) {
+func TestResolveIntSetting_ResolveError(t *testing.T) {
 	t.Parallel()
 
 	s := unitScheduler(&unitSchedulerDependencies{
-		settings: &stubSettingsResolver{hasOverrideErr: errors.New("db down")},
+		settings: &stubSettingsResolver{intVal: 99, intErr: errors.New("db down")},
 		logger:   slog.Default()})
 
-	val := s.resolveIntSetting(context.Background(), "some.key", "NEVER_SET_DDD", 7)
+	val := s.resolveIntSetting(context.Background(), "some.key", 7)
 	assert.Equal(t, 7, val)
 }
 
 func TestResolveIntSetting_OverrideZeroFallsThrough(t *testing.T) {
 	t.Parallel()
 
-	// When override resolves to 0 (or negative), resolveIntSetting falls
-	// through to env/default — documented invariant.
+	// When the setting resolves to 0 (or negative), resolveIntSetting falls
+	// through to the call-site default — documented invariant.
 	s := unitScheduler(&unitSchedulerDependencies{
 		settings: &stubSettingsResolver{hasOverride: true, intVal: 0},
 		logger:   slog.Default()})
 
-	val := s.resolveIntSetting(context.Background(), "some.key", "NEVER_SET_EEE", 11)
+	val := s.resolveIntSetting(context.Background(), "some.key", 11)
 	assert.Equal(t, 11, val)
 }
 
@@ -943,7 +923,7 @@ func TestResolveRequiredPositiveIntSetting(t *testing.T) {
 			settings: &stubSettingsResolver{intVal: 30},
 			logger:   slog.Default()})
 
-		val, err := s.resolveRequiredPositiveIntSetting(context.Background(), "some.key", "NEVER_SET_REQUIRED_POSITIVE")
+		val, err := s.resolveRequiredPositiveIntSetting(context.Background(), "some.key")
 
 		require.NoError(t, err)
 		assert.Equal(t, 30, val)
@@ -955,7 +935,7 @@ func TestResolveRequiredPositiveIntSetting(t *testing.T) {
 			settings: &stubSettingsResolver{intErr: errors.New("db down")},
 			logger:   slog.Default()})
 
-		_, err := s.resolveRequiredPositiveIntSetting(context.Background(), "some.key", "NEVER_SET_REQUIRED_ERROR")
+		_, err := s.resolveRequiredPositiveIntSetting(context.Background(), "some.key")
 
 		require.Error(t, err)
 		assert.Contains(t, err.Error(), "db down")
@@ -967,7 +947,7 @@ func TestResolveRequiredPositiveIntSetting(t *testing.T) {
 			settings: &stubSettingsResolver{intVal: 0},
 			logger:   slog.Default()})
 
-		_, err := s.resolveRequiredPositiveIntSetting(context.Background(), "some.key", "NEVER_SET_REQUIRED_ZERO")
+		_, err := s.resolveRequiredPositiveIntSetting(context.Background(), "some.key")
 
 		require.Error(t, err)
 		assert.Contains(t, err.Error(), "must be positive")
@@ -983,7 +963,7 @@ func TestResolveNonNegativeIntSetting_OverrideZeroHonored(t *testing.T) {
 		settings: &stubSettingsResolver{hasOverride: true, intVal: 0},
 		logger:   slog.Default()})
 
-	val := s.resolveNonNegativeIntSetting(context.Background(), "some.key", "NEVER_SET_FFF", 15)
+	val := s.resolveNonNegativeIntSetting(context.Background(), "some.key", 15)
 	assert.Equal(t, 0, val)
 }
 
@@ -994,7 +974,7 @@ func TestResolveNonNegativeIntSetting_NegativeFallsThrough(t *testing.T) {
 		settings: &stubSettingsResolver{hasOverride: true, intVal: -3},
 		logger:   slog.Default()})
 
-	val := s.resolveNonNegativeIntSetting(context.Background(), "some.key", "NEVER_SET_GGG", 15)
+	val := s.resolveNonNegativeIntSetting(context.Background(), "some.key", 15)
 	assert.Equal(t, 15, val)
 }
 
@@ -1005,6 +985,6 @@ func TestResolveNonNegativeIntSetting_PositiveOverride(t *testing.T) {
 		settings: &stubSettingsResolver{hasOverride: true, intVal: 30},
 		logger:   slog.Default()})
 
-	val := s.resolveNonNegativeIntSetting(context.Background(), "some.key", "NEVER_SET_HHH", 15)
+	val := s.resolveNonNegativeIntSetting(context.Background(), "some.key", 15)
 	assert.Equal(t, 30, val)
 }

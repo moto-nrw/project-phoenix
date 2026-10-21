@@ -349,13 +349,6 @@ func (s *Scheduler) registerTask(name, schedule string, runner func(*ScheduledTa
 	s.wg.Go(func() { runner(task) })
 }
 
-// --- Settings-aware helpers ---
-//
-// Fallback chain: tenant DB override → env var → registry default.
-// The settings service's Resolve* returns the registry default when no tenant
-// override exists, which would skip the env var. We use HasTenantOverride to
-// distinguish "tenant explicitly set a value" from "returning registry default".
-
 // waitUntilNextMinute keeps the wall-clock alignment while checking again on
 // takeover. It returns the next acquisition signal for the aligned tick loop.
 func (s *Scheduler) waitUntilNextMinute(acquired <-chan struct{}, onAcquire func()) (<-chan struct{}, bool) {

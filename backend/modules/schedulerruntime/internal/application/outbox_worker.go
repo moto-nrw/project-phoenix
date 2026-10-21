@@ -31,7 +31,7 @@ func (s *Scheduler) runOutboxWorkerTaskPolling(task *ScheduledTask) {
 // to 30s when no override exists. Same fallback chain pattern as the
 // activate-students interval.
 func (s *Scheduler) resolveOutboxInterval() time.Duration {
-	seconds := s.resolveIntSetting(context.Background(), settingEnrollmentOutboxWorkerIntervalSeconds, "", 30)
+	seconds := s.resolveIntSetting(context.Background(), settingEnrollmentOutboxWorkerIntervalSeconds, 30)
 	if seconds < 1 {
 		seconds = 30
 	}
@@ -63,7 +63,7 @@ func (s *Scheduler) runOutboxOnce(ctx context.Context, task *ScheduledTask) {
 		task.mu.Unlock()
 	}()
 
-	maxAttempts := s.resolveIntSetting(context.Background(), settingEnrollmentOutboxMaxAttempts, "", 6)
+	maxAttempts := s.resolveIntSetting(context.Background(), settingEnrollmentOutboxMaxAttempts, 6)
 
 	ctx, cancel := s.taskContext(ctx, 5*time.Minute)
 	defer cancel()
