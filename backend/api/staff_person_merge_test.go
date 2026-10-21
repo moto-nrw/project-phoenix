@@ -8,6 +8,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"testing"
+	"time"
 
 	"github.com/go-chi/chi/v5"
 	"github.com/moto-nrw/project-phoenix/api/testutil"
@@ -402,6 +403,49 @@ func TestStaffPersonMergeSerializesConcurrentConfirmation(t *testing.T) {
 	var audits int
 	require.NoError(t, h.db.NewRaw(`SELECT count(*) FROM platform.operator_audit_log WHERE operator_id = ? AND action = 'merge'`, h.operatorID).Scan(testpkg.Ctx(t), &audits))
 	assert.Equal(t, 1, audits)
+}
+
+func TestStaffPersonMergeDoesNotBlockOtherSchoolsPersonWrites(t *testing.T) {
+	t.Parallel()
+	h := newStaffMergeHarness(t)
+	h.pair(t, "Andere Schule")
+	input := mergeSelection(h.preview(t))
+	otherSchoolID, _ := testpkg.CreateTestTenant(t, h.db)
+	reachedAudit := make(chan struct{})
+	releaseAudit := make(chan struct{})
+	audit, err := auditCompose.NewPersistence(auditCompose.PersistenceDependencies{DB: h.db})
+	require.NoError(t, err)
+	workflow, err := mergeCompose.New(peopleCompose.NewStaffPersonMerge(), membershipCompose.NewStaffPersonMerge(), staffPersonMergeAudit{create: func(ctx context.Context, entry *auditRecords.OperatorAuditEntry) error {
+		close(reachedAudit)
+		<-releaseAudit
+		return audit.OperatorAuditLog.Create(ctx, entry)
+	}}, operatorIDFromSession)
+	require.NoError(t, err)
+	h.router = chi.NewRouter()
+	h.router.Mount("/", mergeHTTP.Router(workflow, TenantScopeMiddleware))
+
+	status := make(chan int, 1)
+	go func() {
+		status <- h.request(t, http.MethodPost, h.schoolID, input).Code
+	}()
+	select {
+	case <-reachedAudit:
+	case <-time.After(time.Second):
+		t.Fatal("merge did not reach the audit while holding its locks")
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), time.Second)
+	defer cancel()
+	_, err = h.db.NewRaw(`INSERT INTO users.persons (tenant_id, first_name, last_name) VALUES (?, 'Andere', 'Person')`, otherSchoolID).Exec(ctx)
+	require.NoError(t, err, "a merge must not block person writes of another school")
+
+	close(releaseAudit)
+	select {
+	case code := <-status:
+		assert.Equal(t, http.StatusOK, code)
+	case <-time.After(time.Second):
+		t.Fatal("merge did not complete after its audit was released")
+	}
 }
 
 func TestStaffPersonMergePreviewUsesTwoBulkReads(t *testing.T) {

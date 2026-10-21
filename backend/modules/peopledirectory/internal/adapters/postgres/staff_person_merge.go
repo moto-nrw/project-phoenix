@@ -50,12 +50,8 @@ func (s *Store) RetireMergedStaffPerson(ctx context.Context, schoolID, donorID, 
 	if !scope.AcrossSchools {
 		return errors.New("staff person merge requires an administrative transaction")
 	}
-	// The final group check must not miss an uncommitted person write. Hold the
-	// table lock through the administrative transaction. A concurrent write
-	// completes before the final group check, or waits for this repair.
-	if _, err := db.NewRaw(`LOCK TABLE users.persons IN SHARE ROW EXCLUSIVE MODE`).Exec(ctx); err != nil {
-		return err
-	}
+	// The workflow's transaction-scoped school lock orders new persons with
+	// this final check. Existing live people are locked by StaffMergePeople.
 	people, err := s.StaffMergePeople(ctx, schoolID, true)
 	if err != nil {
 		return err

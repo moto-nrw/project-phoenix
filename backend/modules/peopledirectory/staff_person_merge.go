@@ -3,11 +3,19 @@ package peopledirectory
 import (
 	"context"
 	"errors"
+	"fmt"
 )
 
 // ErrStaffPersonMergeNoLongerEligible reports a live person group that no
 // longer satisfies the reviewed repair predicates.
 var ErrStaffPersonMergeNoLongerEligible = errors.New("staff person merge no longer eligible")
+
+// StaffPersonMergeLockKey serializes a reviewed repair with creating a person
+// in the same school. The merge takes it exclusively; person creation takes it
+// shared, so different schools remain independent.
+func StaffPersonMergeLockKey(schoolID int64) string {
+	return fmt.Sprintf("staff-person-merge:%d", schoolID)
+}
 
 // StaffMergePerson is a live person considered for an operator-reviewed repair.
 // Student profiles, including former ones, always exclude a person.

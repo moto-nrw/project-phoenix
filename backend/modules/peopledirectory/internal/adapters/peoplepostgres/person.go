@@ -511,6 +511,9 @@ func (r *personRepository) Create(ctx context.Context, person *users.Person) err
 	if databaseErr12 != nil {
 		return databaseErr12
 	}
+	if _, err := ambientDB12.NewRaw("SELECT pg_advisory_xact_lock_shared(hashtextextended(?, 0))", directory.StaffPersonMergeLockKey(person.TenantID)).Exec(ctx); err != nil {
+		return &ports.DatabaseError{Op: "lock person creation", Err: err}
+	}
 	if _, err := ambientDB12.NewInsert().Model(person).ModelTableExpr(`users.persons`).Exec(ctx); err != nil {
 		return &ports.DatabaseError{Op: "create", Err: err}
 	}
