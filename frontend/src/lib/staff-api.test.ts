@@ -1355,6 +1355,35 @@ describe("staff-api", () => {
       expect(result.externalOrganization).toBe("Musikschule Bergstadt");
     });
 
+    it("addresses the profile picture through the staff avatar route", async () => {
+      vi.mocked(globalThis.fetch).mockResolvedValueOnce({
+        ok: true,
+        json: () =>
+          Promise.resolve({
+            data: {
+              ...sampleBackendStaff,
+              avatar: "/uploads/avatars/global/lea.png",
+            },
+          }),
+      } as Response);
+
+      const staff = await staffService.getStaffById("1");
+
+      expect(staff.avatarUrl).toBe("/api/staff/1/avatar");
+    });
+
+    it("leaves the profile picture empty without a stored avatar", async () => {
+      vi.mocked(globalThis.fetch).mockResolvedValueOnce({
+        ok: true,
+        json: () =>
+          Promise.resolve({ data: { ...sampleBackendStaff, avatar: null } }),
+      } as Response);
+
+      const staff = await staffService.getStaffById("1");
+
+      expect(staff.avatarUrl).toBeUndefined();
+    });
+
     it("throws when the staff member request fails", async () => {
       const mockFetch = globalThis.fetch as ReturnType<typeof vi.fn>;
       mockFetch.mockResolvedValueOnce({

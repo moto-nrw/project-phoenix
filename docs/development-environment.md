@@ -213,7 +213,7 @@ The existing architecture command and hooks use this path automatically.
 On 2026-10-14, the same 64 GiB / 16-core Mac compared binaries built from
 `b1fafeb0b8ea7a37c95fafd7f87423c8024f87da` with isolated Go build overlays for
 each candidate. Every binary checked the same frozen working tree against
-that base, with warm caches, pinned Go 1.27.2, `GOFLAGS=-p=4` and
+that base, with warm caches, pinned Go 1.27.3, `GOFLAGS=-p=4` and
 `GOMAXPROCS=4`. Runs were sequential in forward/reverse order; the table gives
 three-run medians, excluding the initial warm-up.
 
