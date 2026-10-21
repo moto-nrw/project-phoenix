@@ -13,6 +13,7 @@ import {
   waitFor,
   cleanup,
   fireEvent,
+  within,
 } from "@testing-library/react";
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 
@@ -3636,7 +3637,8 @@ describe("MeinRaumPage (Active Supervisions) (5/5)", () => {
 
     await waitFor(() => {
       expect(screen.getByText("Malen")).toBeInTheDocument();
-      expect(screen.getByText("Aktiv")).toBeInTheDocument();
+      // Der Zustand des Blocks steht im Seitenkopf, nicht in der Karte (#4354).
+      expect(screen.getByText("Läuft")).toBeInTheDocument();
       expect(screen.getByText("Teilnehmende (1)")).toBeInTheDocument();
       expect(screen.getByText("2a")).toBeInTheDocument();
       expect(screen.getByText("Sonnengruppe")).toBeInTheDocument();
@@ -3644,6 +3646,74 @@ describe("MeinRaumPage (Active Supervisions) (5/5)", () => {
       expect(screen.queryByText("ungeplant")).not.toBeInTheDocument();
     });
   });
+
+  it.each([
+    ["active", "Läuft"],
+    ["completed", "Beendet"],
+  ] as const)(
+    "shows whether the opened block runs in the page head, not twice in its card (#4354, %s)",
+    async (instanceStatus, label) => {
+      // Stable references: a fresh object per SWR call re-renders forever.
+      const dashboardData = {
+        supervisedGroups: [
+          { id: "1", name: "Aula", room: { id: "10", name: "Aula" } },
+        ],
+        unclaimedGroups: [],
+        currentStaff: { id: "1" },
+        educationalGroups: [],
+        firstRoomVisits: [],
+        firstRoomId: "10",
+      };
+      const rosterData = {
+        instance: {
+          id: "99",
+          title: "Malen",
+          status: instanceStatus,
+          activeGroupId: "1",
+          isSpontaneous: false,
+        },
+        rows: [],
+      };
+      vi.mocked(useSWRAuth).mockImplementation(((key: string | null) => {
+        if (key?.startsWith("active-supervision-dashboard")) {
+          return {
+            data: dashboardData,
+            isLoading: false,
+            error: null,
+            mutate: mockMutate,
+            isValidating: false,
+          };
+        }
+        if (key?.startsWith("timetable-roster-active-group")) {
+          return {
+            data: rosterData,
+            isLoading: false,
+            error: null,
+            mutate: mockMutate,
+            isValidating: false,
+          };
+        }
+        return {
+          data: null,
+          isLoading: false,
+          error: null,
+          mutate: mockMutate,
+          isValidating: false,
+        };
+      }) as never);
+
+      const { container } = render(<MeinRaumPage />);
+
+      await waitFor(() => {
+        expect(screen.getByText("Malen")).toBeInTheDocument();
+      });
+      const head = container.querySelector("header");
+      expect(head).not.toBeNull();
+      expect(within(head as HTMLElement).getByText(label)).toBeInTheDocument();
+      expect(screen.getAllByText(label)).toHaveLength(1);
+      expect(screen.queryByText("Aktiv")).not.toBeInTheDocument();
+    },
+  );
 
   it("keeps not-scheduled children out of Erwartet and the bulk confirm (#1747)", async () => {
     const dashboardData = {
