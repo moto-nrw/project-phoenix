@@ -113,14 +113,14 @@ func (s *Scheduler) checkAndRunAutoCheckout(ctx context.Context, task *Scheduled
 	defer cancel()
 
 	s.forEachTenantSettings(ctx, "auto-checkout", func(tenantCtx context.Context, tenantID int64) error {
-		// Opt-in per tenant; no env var fallback (new feature, settings-only).
-		enabled := s.resolveBoolSetting(tenantCtx, settingTrackingAutoCheckoutEnabled, "", false)
+		// Opt-in per tenant.
+		enabled := s.resolveBoolSetting(tenantCtx, settingTrackingAutoCheckoutEnabled, false)
 		if !enabled {
 			return nil
 		}
 
 		// Zero is valid here: grace 0 means checkout exactly at shift end.
-		graceMinutes := s.resolveNonNegativeIntSetting(tenantCtx, settingTrackingAutoCheckoutGraceMinutes, "", 15)
+		graceMinutes := s.resolveNonNegativeIntSetting(tenantCtx, settingTrackingAutoCheckoutGraceMinutes, 15)
 		count, err := s.autoCheckouter.AutoCheckoutDueSessions(tenantCtx, time.Duration(graceMinutes)*time.Minute)
 		if err != nil {
 			return err
@@ -172,11 +172,11 @@ func (s *Scheduler) checkAndRunAutoEnd(ctx context.Context, task *ScheduledTask)
 }
 
 func (s *Scheduler) runAutoEndForTenant(ctx context.Context, tenantID int64) error {
-	if !s.resolveBoolSetting(ctx, settingTimetableEnabled, "", true) ||
-		!s.resolveBoolSetting(ctx, settingTimetableAutoEndEnabled, "", false) {
+	if !s.resolveBoolSetting(ctx, settingTimetableEnabled, true) ||
+		!s.resolveBoolSetting(ctx, settingTimetableAutoEndEnabled, false) {
 		return nil
 	}
-	graceMinutes := s.resolveIntSetting(ctx, settingTimetableAutoEndGraceMinutes, "", 0)
+	graceMinutes := s.resolveIntSetting(ctx, settingTimetableAutoEndGraceMinutes, 0)
 	result, err := s.autoEnd.RunForTenant(ctx, time.Now(), time.Duration(graceMinutes)*time.Minute)
 	if err != nil {
 		return fmt.Errorf("auto-end tenant %d: %w", tenantID, err)

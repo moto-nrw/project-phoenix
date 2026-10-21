@@ -48,12 +48,12 @@ func (s *Scheduler) checkAndRunSessionEnd(ctx context.Context, task *ScheduledTa
 	defer cancel()
 
 	s.forEachTenantSettings(ctx, "session-end-check", func(tenantCtx context.Context, tenantID int64) error {
-		enabled := s.resolveBoolSetting(tenantCtx, settingSessionEndEnabled, "SESSION_END_SCHEDULER_ENABLED", true)
+		enabled := s.resolveBoolSetting(tenantCtx, settingSessionEndEnabled, true)
 		if !enabled {
 			return nil
 		}
 
-		endTime := s.resolveStringSetting(tenantCtx, settingSessionEndTime, "SESSION_END_TIME", "18:00")
+		endTime := s.resolveStringSetting(tenantCtx, settingSessionEndTime, "18:00")
 		if !timeMatchesNow(endTime) {
 			return nil
 		}
@@ -86,7 +86,7 @@ func (s *Scheduler) checkAndRunSessionEnd(ctx context.Context, task *ScheduledTa
 // returned so the caller's tenant transaction rolls back. ok is true only on
 // full success — callers use it to decide whether to mark today as done.
 func (s *Scheduler) executeSessionEndForTenant(ctx context.Context, tenantID int64) (bool, error) {
-	timeoutMinutes := s.resolveIntSetting(ctx, settingSessionEndTimeoutMinutes, "SESSION_END_TIMEOUT_MINUTES", 10)
+	timeoutMinutes := s.resolveIntSetting(ctx, settingSessionEndTimeoutMinutes, 10)
 	endCtx, endCancel := context.WithTimeout(ctx, time.Duration(timeoutMinutes)*time.Minute)
 	defer endCancel()
 
@@ -120,9 +120,10 @@ func (s *Scheduler) executeSessionEndForTenant(ctx context.Context, tenantID int
 // scheduleSessionCleanupTask schedules the abandoned session cleanup task.
 // Uses a fixed 5-minute polling interval, resolves per-tenant settings on each tick.
 func (s *Scheduler) scheduleSessionCleanupTask() {
-	// Quick check: if globally disabled via env and no settings service, skip
-	if s.settings == nil && s.env("SESSION_CLEANUP_ENABLED") == "false" {
-		s.getLogger().Info("session cleanup is disabled")
+	// The per-school switch and windows live in the settings; without them
+	// there is nothing to schedule.
+	if s.settings == nil {
+		s.getLogger().Info("session cleanup not configured (no settings resolver)")
 		return
 	}
 
@@ -162,13 +163,13 @@ func (s *Scheduler) checkAndRunSessionCleanup(ctx context.Context, task *Schedul
 
 func (s *Scheduler) runSessionCleanupForTenant(tenantCtx context.Context, tenantID int64) error {
 
-	enabled := s.resolveBoolSetting(tenantCtx, settingSessionCleanupEnabled, "SESSION_CLEANUP_ENABLED", true)
+	enabled := s.resolveBoolSetting(tenantCtx, settingSessionCleanupEnabled, false)
 	if !enabled {
 		return nil
 	}
 
-	intervalMinutes := s.resolveIntSetting(tenantCtx, settingSessionCleanupIntervalMinutes, "SESSION_CLEANUP_INTERVAL_MINUTES", 15)
-	thresholdMinutes := s.resolveIntSetting(tenantCtx, settingSessionAbandonedThresholdMin, "SESSION_ABANDONED_THRESHOLD_MINUTES", 60)
+	intervalMinutes := s.resolveIntSetting(tenantCtx, settingSessionCleanupIntervalMinutes, 15)
+	thresholdMinutes := s.resolveIntSetting(tenantCtx, settingSessionAbandonedThresholdMin, 60)
 
 	// Check if enough time has passed since last run for this tenant
 	if val, ok := s.lastSessionCleanup.Load(tenantID); ok {
