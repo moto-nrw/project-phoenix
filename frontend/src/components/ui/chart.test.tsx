@@ -279,7 +279,7 @@ describe("ChartTooltipContent", () => {
     });
 
     expect(screen.getByText("Revenue")).toBeInTheDocument();
-    expect(screen.getByText("1,234")).toBeInTheDocument();
+    expect(screen.getByText((1234).toLocaleString())).toBeInTheDocument();
   });
 
   it("shows label from config when label matches a config key", () => {
@@ -482,7 +482,7 @@ describe("ChartTooltipContent", () => {
     });
 
     expect(screen.getByText("January")).toBeInTheDocument();
-    expect(screen.getByText("1,000")).toBeInTheDocument();
+    expect(screen.getByText((1000).toLocaleString())).toBeInTheDocument();
     expect(screen.getByText("500")).toBeInTheDocument();
   });
 
@@ -617,7 +617,7 @@ describe("ChartTooltipContent", () => {
     });
 
     // Should still render without crashing; label falls back to item.name
-    expect(screen.getByText("1,234")).toBeInTheDocument();
+    expect(screen.getByText((1234).toLocaleString())).toBeInTheDocument();
   });
 
   it("uses index as key when itemDataKey is undefined (function dataKey)", () => {
