@@ -61,24 +61,27 @@ export function StaffList({ groupDefinitions, objectHref }: StaffListProps) {
     <DatabaseListLayout>
       <GroupedList
         groups={groupDefinitions}
-        renderItem={(teacher) => (
-          <DatabaseListItem
-            // Profilbild, ohne Bild die Initialen (#4432). Der Name steht
-            // daneben, der Avatar ist also rein schmückend.
-            leadingAccessory={
-              <Avatar
-                imageUrl={staffAvatarUrl(teacher.id, teacher.avatar)}
-                name={getStaffDisplayName(teacher)}
-                size="sm"
-                decorative
-              />
-            }
-            title={getStaffDisplayName(teacher)}
-            subtitle={buildSubtitle(teacher)}
-            isSelected={false}
-            href={objectHref(teacher)}
-          />
-        )}
+        renderItem={(teacher) => {
+          const displayName = getStaffDisplayName(teacher);
+          return (
+            <DatabaseListItem
+              // Profilbild, ohne Bild die Initialen (#4432). Der Name steht
+              // daneben, der Avatar ist also rein schmückend.
+              leadingAccessory={
+                <Avatar
+                  imageUrl={staffAvatarUrl(teacher.id, teacher.avatar)}
+                  name={displayName}
+                  size="sm"
+                  decorative
+                />
+              }
+              title={displayName}
+              subtitle={buildSubtitle(teacher)}
+              isSelected={false}
+              href={objectHref(teacher)}
+            />
+          );
+        }}
         keyFor={keyForTeacher}
         emptyState={
           <div className="text-center text-sm text-gray-500">

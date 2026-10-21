@@ -23,7 +23,7 @@ export interface BackendStaffResponse {
   role: string | null;
   qualifications: string | null;
   account_role?: string | null;
-  /** Stored avatar path of the account; only its presence is read. */
+  /** Gespeicherter Avatar-Pfad des Kontos; nur ob er da ist, zählt. */
   avatar?: string | null;
   tag_id: string | null;
   staff_notes: string | null;
