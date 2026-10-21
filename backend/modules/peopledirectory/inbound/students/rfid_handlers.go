@@ -137,7 +137,7 @@ func (rs *Resource) unassignRFIDTag(w http.ResponseWriter, r *http.Request) {
 	removedTag := *person.TagID
 
 	// Unlink the RFID tag
-	if err := rs.Persons.UnassignTag(r.Context(), person.ID); err != nil {
+	if err := rs.Persons.UnlinkFromRFIDCard(r.Context(), person.ID); err != nil {
 		renderError(w, r, common.ErrorInternalServer(err))
 		return
 	}
