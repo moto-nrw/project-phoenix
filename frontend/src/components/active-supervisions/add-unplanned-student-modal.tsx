@@ -213,21 +213,27 @@ export function AddUnplannedStudentModal({
           <Loading message="Kinder werden geladen..." fullPage={false} />
         ) : null}
         {load.kind === "failed" ? <LoadErrorAlert error={loadError} /> : null}
-        {load.kind === "loaded" && visible.length === 0 ? (
-          <EmptyState
-            variant="compact"
-            title={
-              term
-                ? "Kein Kind mit diesem Namen gefunden."
-                : "Es sind noch keine Kinder angelegt."
-            }
-          />
-        ) : null}
-        {visible.length > 0 ? (
-          <fieldset className="space-y-2">
-            <legend className="text-sm text-gray-600">
+        {/* Die Zahl und der leere Treffer werden beim Tippen angesagt. */}
+        <div role="status">
+          {load.kind === "loaded" && visible.length === 0 ? (
+            <EmptyState
+              variant="compact"
+              title={
+                term
+                  ? "Kein Kind mit diesem Namen gefunden."
+                  : "Es sind noch keine Kinder angelegt."
+              }
+            />
+          ) : null}
+          {visible.length > 0 ? (
+            <p className="text-sm text-gray-600">
               {visible.length === 1 ? "1 Kind" : `${visible.length} Kinder`}
-            </legend>
+            </p>
+          ) : null}
+        </div>
+        {visible.length > 0 ? (
+          <fieldset>
+            <legend className="sr-only">Kind auswählen</legend>
             <ul className="grid max-h-80 gap-2 overflow-y-auto">
               {visible.map((child) => {
                 const inBlock = inBlockStudentIds.has(child.id);
