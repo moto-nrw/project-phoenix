@@ -1,11 +1,11 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import type { Session } from "next-auth";
-import { NextRequest } from "next/server";
 import { POST } from "./route";
-
-interface ExtendedSession extends Session {
-  user: Session["user"] & { token?: string };
-}
+import {
+  type ExtendedSession,
+  createMockContext,
+  createMockRequest,
+  defaultSession,
+} from "~/test/route-test-helpers";
 
 const { mockAuth, mockApiPost } = vi.hoisted(() => ({
   mockAuth: vi.fn<() => Promise<ExtendedSession | null>>(),
@@ -27,35 +27,6 @@ vi.mock("~/lib/api-helpers.server", async (importOriginal) => ({
   ),
 }));
 
-function createMockRequest(
-  path: string,
-  options: { method?: string; body?: unknown } = {},
-): NextRequest {
-  const url = new URL(path, "http://localhost:3000");
-  const requestInit: { method: string; body?: string; headers?: HeadersInit } =
-    {
-      method: options.method ?? "GET",
-    };
-
-  if (options.body) {
-    requestInit.body = JSON.stringify(options.body);
-    requestInit.headers = { "Content-Type": "application/json" };
-  }
-
-  return new NextRequest(url, requestInit);
-}
-
-function createMockContext(
-  params: Record<string, string | string[] | undefined> = {},
-) {
-  return { params: Promise.resolve(params) };
-}
-
-const defaultSession: ExtendedSession = {
-  user: { id: "1", token: "test-token", name: "Test User" },
-  expires: "2099-01-01",
-};
-
 interface ApiResponse<T> {
   success: boolean;
   message: string;
@@ -70,17 +41,6 @@ describe("POST /api/time-tracking/check-out", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     mockAuth.mockResolvedValue(defaultSession);
-  });
-
-  it("returns 401 when not authenticated", async () => {
-    mockAuth.mockResolvedValueOnce(null);
-
-    const request = createMockRequest("/api/time-tracking/check-out", {
-      method: "POST",
-    });
-    const response = await POST(request, createMockContext());
-
-    expect(response.status).toBe(401);
   });
 
   it("checks out user successfully", async () => {

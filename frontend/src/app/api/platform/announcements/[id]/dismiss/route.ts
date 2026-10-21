@@ -1,17 +1,6 @@
-import type { NextRequest } from "next/server";
-import { apiPost } from "~/lib/api-helpers.server";
-import { createPostHandler, isStringParam } from "~/lib/route-wrapper.server";
+import { proxyPost } from "~/lib/route-proxy.server";
+import { requirePathSegmentParam } from "~/lib/route-wrapper-utils.server";
 
-export const POST = createPostHandler<null, Record<string, never>>(
-  async (_request: NextRequest, _body, token: string, params) => {
-    if (!isStringParam(params.id)) {
-      throw new Error("Invalid announcement ID");
-    }
-    await apiPost(
-      `/api/platform/announcements/${params.id}/dismiss`,
-      token,
-      {},
-    );
-    return null;
-  },
+export const POST = proxyPost(
+  (p) => `/api/platform/announcements/${requirePathSegmentParam(p)}/dismiss`,
 );

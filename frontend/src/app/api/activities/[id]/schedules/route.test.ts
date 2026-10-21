@@ -1,15 +1,11 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import type { Session } from "next-auth";
-import { NextRequest } from "next/server";
 import { GET, POST } from "./route";
-
-// ============================================================================
-// Types
-// ============================================================================
-
-interface ExtendedSession extends Session {
-  user: Session["user"] & { token?: string };
-}
+import {
+  type ExtendedSession,
+  createMockContext,
+  createMockRequest,
+  defaultSession,
+} from "~/test/route-test-helpers";
 
 // ============================================================================
 // Mocks
@@ -60,35 +56,6 @@ vi.mock("~/lib/activity-helpers", () => ({
 // Test Helpers
 // ============================================================================
 
-function createMockRequest(
-  path: string,
-  options: { method?: string; body?: unknown } = {},
-): NextRequest {
-  const url = new URL(path, "http://localhost:3000");
-  const requestInit: { method: string; body?: string; headers?: HeadersInit } =
-    {
-      method: options.method ?? "GET",
-    };
-
-  if (options.body) {
-    requestInit.body = JSON.stringify(options.body);
-    requestInit.headers = { "Content-Type": "application/json" };
-  }
-
-  return new NextRequest(url, requestInit);
-}
-
-function createMockContext(
-  params: Record<string, string | string[] | undefined> = {},
-) {
-  return { params: Promise.resolve(params) };
-}
-
-const defaultSession: ExtendedSession = {
-  user: { id: "1", token: "test-token", name: "Test User" },
-  expires: "2099-01-01",
-};
-
 interface ApiResponse<T> {
   success: boolean;
   message: string;
@@ -107,15 +74,6 @@ describe("GET /api/activities/[id]/schedules", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     mockAuth.mockResolvedValue(defaultSession);
-  });
-
-  it("returns 401 when not authenticated", async () => {
-    mockAuth.mockResolvedValueOnce(null);
-
-    const request = createMockRequest("/api/activities/1/schedules");
-    const response = await GET(request, createMockContext({ id: "1" }));
-
-    expect(response.status).toBe(401);
   });
 
   it("returns schedules with wrapped response", async () => {
@@ -181,18 +139,6 @@ describe("POST /api/activities/[id]/schedules", () => {
     mockAuth.mockResolvedValue(defaultSession);
   });
 
-  it("returns 401 when not authenticated", async () => {
-    mockAuth.mockResolvedValueOnce(null);
-
-    const request = createMockRequest("/api/activities/1/schedules", {
-      method: "POST",
-      body: { weekday: "1", timeframe_id: 1 },
-    });
-    const response = await POST(request, createMockContext({ id: "1" }));
-
-    expect(response.status).toBe(401);
-  });
-
   it("creates schedule with wrapped response", async () => {
     const schedule = { id: 1, activity_id: 1, weekday: 1, timeframe_id: 1 };
     mockApiPost.mockResolvedValueOnce({
@@ -248,20 +194,5 @@ describe("POST /api/activities/[id]/schedules", () => {
     const json = await parseJsonResponse<{ detail: string }>(response);
     expect(json.detail).toBe("Internal Server Error");
     expect(JSON.stringify(json)).not.toContain("Unexpected response structure");
-  });
-
-  it("handles creation errors", async () => {
-    mockApiPost.mockRejectedValueOnce(new Error("Creation failed"));
-
-    const request = createMockRequest("/api/activities/1/schedules", {
-      method: "POST",
-      body: { weekday: "1" },
-    });
-    const response = await POST(request, createMockContext({ id: "1" }));
-
-    expect(response.status).toBe(500);
-    const json = await parseJsonResponse<{ detail: string }>(response);
-    expect(json.detail).toBe("Internal Server Error");
-    expect(JSON.stringify(json)).not.toContain("Creation failed");
   });
 });

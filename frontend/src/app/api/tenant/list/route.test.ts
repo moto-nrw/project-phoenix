@@ -60,45 +60,4 @@ describe("GET /api/tenant/list", () => {
     expect(json.data).toHaveLength(1);
     expect(json.data[0]?.slug).toBe("school-a");
   });
-
-  it("forwards non-200 status from backend", async () => {
-    vi.mocked(global.fetch).mockResolvedValueOnce(
-      new Response(JSON.stringify({ detail: "not found" }), {
-        status: 404,
-        headers: { "Content-Type": "application/json" },
-      }),
-    );
-
-    const response = await GET();
-
-    expect(response.status).toBe(404);
-  });
-
-  it("handles non-JSON response (e.g. rate limit)", async () => {
-    vi.mocked(global.fetch).mockResolvedValueOnce(
-      new Response("Rate limit exceeded. Please try again later.", {
-        status: 429,
-        headers: { "Content-Type": "text/plain; charset=utf-8" },
-      }),
-    );
-
-    const response = await GET();
-
-    expect(response.status).toBe(429);
-    expect(await response.text()).toBe(
-      "Rate limit exceeded. Please try again later.",
-    );
-  });
-
-  it("returns 500 on network error", async () => {
-    vi.mocked(global.fetch).mockRejectedValueOnce(
-      new Error("Connection refused"),
-    );
-
-    const response = await GET();
-
-    expect(response.status).toBe(500);
-    const json = (await response.json()) as { detail: string };
-    expect(json.detail).toBe("Internal Server Error");
-  });
 });

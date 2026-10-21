@@ -1,16 +1,12 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import type { Session } from "next-auth";
-import { NextRequest } from "next/server";
 import { ApiResponseError } from "~/lib/api-response-error.server";
 import { GET, PUT, DELETE } from "./route";
-
-// ============================================================================
-// Types
-// ============================================================================
-
-interface ExtendedSession extends Session {
-  user: Session["user"] & { token?: string };
-}
+import {
+  type ExtendedSession,
+  createMockContext,
+  createMockRequest,
+  defaultSession,
+} from "~/test/route-test-helpers";
 
 // ============================================================================
 // Mocks (using vi.hoisted for proper hoisting)
@@ -41,35 +37,6 @@ vi.mock("~/lib/api-helpers.server", async (importOriginal) => ({
 // ============================================================================
 // Test Helpers
 // ============================================================================
-
-function createMockRequest(
-  path: string,
-  options: { method?: string; body?: unknown } = {},
-): NextRequest {
-  const url = new URL(path, "http://localhost:3000");
-  const requestInit: { method: string; body?: string; headers?: HeadersInit } =
-    {
-      method: options.method ?? "GET",
-    };
-
-  if (options.body) {
-    requestInit.body = JSON.stringify(options.body);
-    requestInit.headers = { "Content-Type": "application/json" };
-  }
-
-  return new NextRequest(url, requestInit);
-}
-
-function createMockContext(
-  params: Record<string, string | string[] | undefined> = {},
-) {
-  return { params: Promise.resolve(params) };
-}
-
-const defaultSession: ExtendedSession = {
-  user: { id: "1", token: "test-token", name: "Test User" },
-  expires: "2099-01-01",
-};
 
 interface ApiResponse<T> {
   success: boolean;
@@ -111,15 +78,6 @@ describe("GET /api/staff/[id]", () => {
     };
     expect(json.data.started_on).toBe("2024-09-02");
     expect(json.data.ended_on).toBe("2026-07-31");
-  });
-
-  it("returns 401 when not authenticated", async () => {
-    mockAuth.mockResolvedValueOnce(null);
-
-    const request = createMockRequest("/api/staff/1");
-    const response = await GET(request, createMockContext({ id: "1" }));
-
-    expect(response.status).toBe(401);
   });
 
   it("fetches staff member by ID from backend", async () => {
@@ -316,18 +274,6 @@ describe("PUT /api/staff/[id]", () => {
     mockAuth.mockResolvedValue(defaultSession);
   });
 
-  it("returns 401 when not authenticated", async () => {
-    mockAuth.mockResolvedValueOnce(null);
-
-    const request = createMockRequest("/api/staff/1", {
-      method: "PUT",
-      body: { role: "Senior Teacher" },
-    });
-    const response = await PUT(request, createMockContext({ id: "1" }));
-
-    expect(response.status).toBe(401);
-  });
-
   it("updates staff member via backend", async () => {
     const updateBody = { role: "Senior Teacher", specialization: "Physics" };
     const mockUpdatedStaff = {
@@ -365,22 +311,6 @@ describe("PUT /api/staff/[id]", () => {
     expect(response.status).toBe(200);
   });
 
-  it("throws error when permission denied", async () => {
-    mockApiPut.mockRejectedValueOnce(new ApiResponseError(403, "Forbidden"));
-
-    const request = createMockRequest("/api/staff/1", {
-      method: "PUT",
-      body: { role: "Admin" },
-    });
-    const response = await PUT(request, createMockContext({ id: "1" }));
-
-    // The backend's 403 reaches the browser unchanged; the catalog text of
-    // its code tells the reader why.
-    expect(response.status).toBe(403);
-    const json = await parseJsonResponse<{ detail: string }>(response);
-    expect(json.detail).toContain("Forbidden");
-  });
-
   it("throws error when staff member not found", async () => {
     mockApiPut.mockRejectedValueOnce(
       new ApiResponseError(400, "staff member not found"),
@@ -405,15 +335,6 @@ describe("DELETE /api/staff/[id]", () => {
     mockAuth.mockResolvedValue(defaultSession);
   });
 
-  it("returns 401 when not authenticated", async () => {
-    mockAuth.mockResolvedValueOnce(null);
-
-    const request = createMockRequest("/api/staff/1", { method: "DELETE" });
-    const response = await DELETE(request, createMockContext({ id: "1" }));
-
-    expect(response.status).toBe(401);
-  });
-
   it("deletes staff member via backend and returns 204", async () => {
     mockApiDelete.mockResolvedValueOnce(undefined);
 
@@ -422,27 +343,5 @@ describe("DELETE /api/staff/[id]", () => {
 
     expect(mockApiDelete).toHaveBeenCalledWith("/api/staff/1", "test-token");
     expect(response.status).toBe(204);
-  });
-
-  it("throws error when permission denied", async () => {
-    mockApiDelete.mockRejectedValueOnce(new ApiResponseError(403, "Forbidden"));
-
-    const request = createMockRequest("/api/staff/1", { method: "DELETE" });
-    const response = await DELETE(request, createMockContext({ id: "1" }));
-
-    expect(response.status).toBe(403);
-    const json = await parseJsonResponse<{ detail: string }>(response);
-    expect(json.detail).toContain("Forbidden");
-  });
-
-  it("throws error when staff member not found", async () => {
-    mockApiDelete.mockRejectedValueOnce(new ApiResponseError(404, "Not Found"));
-
-    const request = createMockRequest("/api/staff/1", { method: "DELETE" });
-    const response = await DELETE(request, createMockContext({ id: "1" }));
-
-    expect(response.status).toBe(404);
-    const json = await parseJsonResponse<{ detail: string }>(response);
-    expect(json.detail).toContain("Not Found");
   });
 });

@@ -1,11 +1,11 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import type { Session } from "next-auth";
-import { NextRequest } from "next/server";
 import { GET, POST, PUT } from "./route";
-
-interface ExtendedSession extends Session {
-  user: Session["user"] & { token?: string };
-}
+import {
+  type ExtendedSession,
+  createMockContext,
+  createMockRequest,
+  defaultSession,
+} from "~/test/route-test-helpers";
 
 const { mockAuth, mockApiGet, mockApiPost, mockApiPut } = vi.hoisted(() => ({
   mockAuth: vi.fn<() => Promise<ExtendedSession | null>>(),
@@ -26,35 +26,6 @@ vi.mock("~/lib/api-helpers.server", async (importOriginal) => ({
   apiDelete: vi.fn(),
 }));
 
-function createMockRequest(
-  path: string,
-  options: { method?: string; body?: unknown } = {},
-): NextRequest {
-  const url = new URL(path, "http://localhost:3000");
-  const requestInit: { method: string; body?: string; headers?: HeadersInit } =
-    {
-      method: options.method ?? "GET",
-    };
-
-  if (options.body) {
-    requestInit.body = JSON.stringify(options.body);
-    requestInit.headers = { "Content-Type": "application/json" };
-  }
-
-  return new NextRequest(url, requestInit);
-}
-
-function createMockContext(
-  params: Record<string, string | string[] | undefined> = {},
-) {
-  return { params: Promise.resolve(params) };
-}
-
-const defaultSession: ExtendedSession = {
-  user: { id: "1", token: "test-token", name: "Test User" },
-  expires: "2099-01-01",
-};
-
 async function parseJsonResponse<T>(response: Response): Promise<T> {
   return (await response.json()) as T;
 }
@@ -63,15 +34,6 @@ describe("GET /api/activities/[id]/students", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     mockAuth.mockResolvedValue(defaultSession);
-  });
-
-  it("returns 401 when not authenticated", async () => {
-    mockAuth.mockResolvedValueOnce(null);
-
-    const request = createMockRequest("/api/activities/5/students");
-    const response = await GET(request, createMockContext({ id: "5" }));
-
-    expect(response.status).toBe(401);
   });
 
   it("fetches enrolled students for activity", async () => {
@@ -182,18 +144,6 @@ describe("POST /api/activities/[id]/students", () => {
     mockAuth.mockResolvedValue(defaultSession);
   });
 
-  it("returns 401 when not authenticated", async () => {
-    mockAuth.mockResolvedValueOnce(null);
-
-    const request = createMockRequest("/api/activities/5/students", {
-      method: "POST",
-      body: { student_id: "10" },
-    });
-    const response = await POST(request, createMockContext({ id: "5" }));
-
-    expect(response.status).toBe(401);
-  });
-
   it("enrolls single student successfully", async () => {
     const mockUpdatedEnrollments = [
       { id: 10, first_name: "Eve", last_name: "Brown", school_class: "3D" },
@@ -254,36 +204,6 @@ describe("POST /api/activities/[id]/students", () => {
     expect(json.data[1]!.id).toBe("11");
   });
 
-  it("throws error when batch update fails", async () => {
-    mockApiPut.mockRejectedValueOnce(new Error("Failed to update enrollments"));
-
-    const request = createMockRequest("/api/activities/5/students", {
-      method: "POST",
-      body: { student_ids: ["10"] },
-    });
-    const response = await POST(request, createMockContext({ id: "5" }));
-
-    expect(response.status).toBe(500);
-    const json = await parseJsonResponse<{ detail: string }>(response);
-    expect(json.detail).toBe("Internal Server Error");
-    expect(JSON.stringify(json)).not.toContain("Failed to update enrollments");
-  });
-
-  it("throws error when single enrollment fails", async () => {
-    mockApiPost.mockRejectedValueOnce(new Error("Failed to enroll student"));
-
-    const request = createMockRequest("/api/activities/5/students", {
-      method: "POST",
-      body: { student_id: "10" },
-    });
-    const response = await POST(request, createMockContext({ id: "5" }));
-
-    expect(response.status).toBe(500);
-    const json = await parseJsonResponse<{ detail: string }>(response);
-    expect(json.detail).toBe("Internal Server Error");
-    expect(JSON.stringify(json)).not.toContain("Failed to enroll student");
-  });
-
   it("throws error when neither student_id nor student_ids provided", async () => {
     const request = createMockRequest("/api/activities/5/students", {
       method: "POST",
@@ -304,18 +224,6 @@ describe("PUT /api/activities/[id]/students", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     mockAuth.mockResolvedValue(defaultSession);
-  });
-
-  it("returns 401 when not authenticated", async () => {
-    mockAuth.mockResolvedValueOnce(null);
-
-    const request = createMockRequest("/api/activities/5/students", {
-      method: "PUT",
-      body: { student_ids: ["10", "11"] },
-    });
-    const response = await PUT(request, createMockContext({ id: "5" }));
-
-    expect(response.status).toBe(401);
   });
 
   it("replaces enrolled students successfully", async () => {

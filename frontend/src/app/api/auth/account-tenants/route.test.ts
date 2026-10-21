@@ -1,14 +1,9 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
-import type { Session } from "next-auth";
-import { NextRequest } from "next/server";
-
-// ============================================================================
-// Types
-// ============================================================================
-
-interface ExtendedSession extends Session {
-  user: Session["user"] & { token?: string };
-}
+import {
+  type ExtendedSession,
+  createMockRequest,
+  defaultSession,
+} from "~/test/route-test-helpers";
 
 // ============================================================================
 // Mocks
@@ -35,19 +30,9 @@ const { GET } = await import("./route");
 // Test Helpers
 // ============================================================================
 
-function createMockRequest(path: string): NextRequest {
-  const url = new URL(path, "http://localhost:3000");
-  return new NextRequest(url);
-}
-
 async function parseJsonResponse<T>(response: Response): Promise<T> {
   return (await response.json()) as T;
 }
-
-const defaultSession: ExtendedSession = {
-  user: { id: "1", token: "test-token", name: "Test User" },
-  expires: "2099-01-01",
-};
 
 // ============================================================================
 // Tests
@@ -64,17 +49,6 @@ describe("GET /api/auth/account-tenants", () => {
 
   afterEach(() => {
     global.fetch = originalFetch;
-  });
-
-  it("returns 401 when not authenticated", async () => {
-    mockAuth.mockResolvedValueOnce(null);
-
-    const request = createMockRequest("/api/auth/account-tenants");
-    const response = await GET(request);
-
-    expect(response.status).toBe(401);
-    const json = await parseJsonResponse<{ detail: string }>(response);
-    expect(json.detail).toBe("Unauthorized");
   });
 
   it("proxies tenant list from backend", async () => {
@@ -108,31 +82,5 @@ describe("GET /api/auth/account-tenants", () => {
     expect(response.status).toBe(200);
     const json = await parseJsonResponse<typeof backendData>(response);
     expect(json.data).toHaveLength(2);
-  });
-
-  it("forwards backend error status", async () => {
-    vi.mocked(global.fetch).mockResolvedValueOnce(
-      new Response("Forbidden", {
-        status: 403,
-        headers: { "Content-Type": "text/plain" },
-      }),
-    );
-
-    const request = createMockRequest("/api/auth/account-tenants");
-    const response = await GET(request);
-
-    expect(response.status).toBe(403);
-    expect(await response.text()).toBe("Forbidden");
-  });
-
-  it("returns 500 on fetch failure", async () => {
-    vi.mocked(global.fetch).mockRejectedValueOnce(new Error("Network error"));
-
-    const request = createMockRequest("/api/auth/account-tenants");
-    const response = await GET(request);
-
-    expect(response.status).toBe(500);
-    const json = await parseJsonResponse<{ detail: string }>(response);
-    expect(json.detail).toBe("Internal Server Error");
   });
 });

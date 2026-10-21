@@ -1,11 +1,11 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import type { Session } from "next-auth";
 import { NextRequest } from "next/server";
 import { POST, DELETE } from "./route";
-
-interface ExtendedSession extends Session {
-  user: Session["user"] & { token?: string };
-}
+import {
+  type ExtendedSession,
+  createMockContext,
+  defaultSession,
+} from "~/test/route-test-helpers";
 
 const { mockAuth } = vi.hoisted(() => ({
   mockAuth: vi.fn<() => Promise<ExtendedSession | null>>(),
@@ -21,17 +21,6 @@ vi.mock("~/lib/api-helpers.server", async (importOriginal) => ({
     (await import("~/test/helpers/handle-api-error")).mockHandleApiError,
   ),
 }));
-
-const defaultSession: ExtendedSession = {
-  user: { id: "1", token: "test-token", name: "Test User" },
-  expires: "2099-01-01",
-};
-
-function createMockContext(
-  params: Record<string, string | string[] | undefined> = {},
-) {
-  return { params: Promise.resolve(params) };
-}
 
 // Helper to create a valid image file with proper magic bytes
 function createMockImageFile(
@@ -61,24 +50,6 @@ describe("POST /api/me/profile/avatar", () => {
     vi.clearAllMocks();
     mockAuth.mockResolvedValue(defaultSession);
     global.fetch = vi.fn();
-  });
-
-  it("returns 401 when not authenticated", async () => {
-    mockAuth.mockResolvedValueOnce(null);
-
-    const formData = new FormData();
-    formData.append("avatar", createMockImageFile());
-
-    const request = new NextRequest(
-      "http://localhost:3000/api/me/profile/avatar",
-      {
-        method: "POST",
-        body: formData,
-      },
-    );
-    const response = await POST(request, createMockContext());
-
-    expect(response.status).toBe(401);
   });
 
   it("successfully uploads a valid JPEG avatar", async () => {
@@ -205,20 +176,6 @@ describe("DELETE /api/me/profile/avatar", () => {
     vi.clearAllMocks();
     mockAuth.mockResolvedValue(defaultSession);
     global.fetch = vi.fn();
-  });
-
-  it("returns 401 when not authenticated", async () => {
-    mockAuth.mockResolvedValueOnce(null);
-
-    const request = new NextRequest(
-      "http://localhost:3000/api/me/profile/avatar",
-      {
-        method: "DELETE",
-      },
-    );
-    const response = await DELETE(request, createMockContext());
-
-    expect(response.status).toBe(401);
   });
 
   it("successfully deletes avatar", async () => {

@@ -1,17 +1,4 @@
-import type { NextRequest } from "next/server";
-import { apiPost } from "~/lib/api-helpers.server";
-import { createPostHandler } from "~/lib/route-wrapper.server";
+import { proxyPost } from "~/lib/route-proxy.server";
 
-/**
- * POST /api/time-tracking/break/end
- * End the current active break
- */
-export const POST = createPostHandler<unknown>(
-  async (_request: NextRequest, _body: unknown, token: string) => {
-    const response = await apiPost<{ data: unknown }>(
-      "/api/time-tracking/break/end",
-      token,
-    );
-    return response.data;
-  },
-);
+/** POST /api/time-tracking/break/end — end the current active break. */
+export const POST = proxyPost("/api/time-tracking/break/end");

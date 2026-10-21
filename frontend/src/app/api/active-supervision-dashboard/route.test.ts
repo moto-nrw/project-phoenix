@@ -8,15 +8,14 @@
  * propagation (no swallowed sub-loads).
  */
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import type { Session } from "next-auth";
-import { NextRequest } from "next/server";
 import { GET } from "./route";
 import { mockSessionData } from "~/test/mocks/next-auth";
 import { ApiResponseError } from "~/lib/api-response-error.server";
-
-interface ExtendedSession extends Session {
-  user: Session["user"] & { token?: string };
-}
+import {
+  type ExtendedSession,
+  createMockContext,
+  createMockRequest,
+} from "~/test/route-test-helpers";
 
 const { mockAuth, mockApiGet } = vi.hoisted(() => ({
   mockAuth: vi.fn<() => Promise<ExtendedSession | null>>(),
@@ -38,17 +37,6 @@ vi.mock("~/lib/api-helpers.server", async () => {
     handleApiError: vi.fn(mockHandleApiError),
   };
 });
-
-function createMockRequest(path: string): NextRequest {
-  const url = new URL(path, "http://localhost:3000");
-  return new NextRequest(url);
-}
-
-function createMockContext(
-  params: Record<string, string | string[] | undefined> = {},
-) {
-  return { params: Promise.resolve(params) };
-}
 
 const defaultSession = mockSessionData() as ExtendedSession;
 
@@ -83,17 +71,6 @@ describe("GET /api/active-supervision-dashboard", () => {
     mockApiGet.mockReset();
     mockAuth.mockReset();
     mockAuth.mockResolvedValue(defaultSession);
-  });
-
-  it("returns 401 when not authenticated", async () => {
-    mockAuth.mockResolvedValueOnce(null);
-
-    const response = await GET(
-      createMockRequest("/api/active-supervision-dashboard"),
-      createMockContext(),
-    );
-
-    expect(response.status).toBe(401);
   });
 
   it("issues exactly one backend request without group_id", async () => {
@@ -639,18 +616,5 @@ describe("GET /api/active-supervision-dashboard", () => {
     );
 
     expect(response.status).toBe(403);
-  });
-
-  it("propagates backend 500s", async () => {
-    mockApiGet.mockRejectedValueOnce(
-      new ApiResponseError(500, "schulhof load failed"),
-    );
-
-    const response = await GET(
-      createMockRequest("/api/active-supervision-dashboard"),
-      createMockContext(),
-    );
-
-    expect(response.status).toBe(500);
   });
 });

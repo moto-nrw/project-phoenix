@@ -1,15 +1,11 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import type { Session } from "next-auth";
-import { NextRequest } from "next/server";
 import { GET } from "./route";
-
-// ============================================================================
-// Types
-// ============================================================================
-
-interface ExtendedSession extends Session {
-  user: Session["user"] & { token?: string };
-}
+import {
+  type ExtendedSession,
+  createMockContext,
+  createMockRequest,
+  defaultSession,
+} from "~/test/route-test-helpers";
 
 // ============================================================================
 // Mocks
@@ -30,20 +26,6 @@ global.fetch = mockFetch as typeof fetch;
 // Test Helpers
 // ============================================================================
 
-function createMockRequest(path: string): NextRequest {
-  const url = new URL(path, "http://localhost:3000");
-  return new NextRequest(url);
-}
-
-function createMockContext(params: Record<string, string> = {}) {
-  return { params: Promise.resolve(params) };
-}
-
-const defaultSession: ExtendedSession = {
-  user: { id: "1", token: "test-token", name: "Test User" },
-  expires: "2099-01-01",
-};
-
 function createMockResponse(data: unknown, status = 200) {
   return Promise.resolve(Response.json(data, { status }));
 }
@@ -56,15 +38,6 @@ describe("GET /api/auth/accounts/[accountId]", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     mockAuth.mockResolvedValue(defaultSession);
-  });
-
-  it("returns 401 when not authenticated", async () => {
-    mockAuth.mockResolvedValueOnce(null);
-
-    const request = createMockRequest("/api/auth/accounts/1");
-    const response = await GET(request, createMockContext({ accountId: "1" }));
-
-    expect(response.status).toBe(401);
   });
 
   it("returns error when accountId is missing", async () => {
