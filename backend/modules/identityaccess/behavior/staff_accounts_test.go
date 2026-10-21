@@ -82,8 +82,8 @@ func TestStaffAccountQueriesScopeAndTransaction(t *testing.T) {
 	require.NoError(t, err)
 	names, err := identity.FindEffectivePermissionNamesByAccountIDsForTenant(ctx, []int64{account.ID}, school)
 	require.NoError(t, err)
-	require.ElementsMatch(t, []string{roleGrant.Resource + ":read", directGrant.Resource + ":read"}, names[account.ID],
-		"staff projection keeps role grants despite a direct denial, and excludes foreign direct grants")
+	require.ElementsMatch(t, []string{roleGrant.Resource + ":read"}, names[account.ID],
+		"staff projection keeps role grants despite a direct denial and ignores retired direct grants (#4485)")
 
 	require.NoError(t, testpkg.WithTenantTx(t, ctx, db, school, func(txCtx context.Context, _ bun.Tx) error {
 		counts, queryErr := identity.CountRoleNameMatchesByAccountIDs(txCtx, ids, []string{role.Name})
@@ -121,7 +121,7 @@ func TestStaffAccountQueriesScopeAndTransaction(t *testing.T) {
 		require.Empty(t, accounts)
 		names, queryErr := identity.FindEffectivePermissionNamesByAccountIDsForTenant(txCtx, []int64{account.ID}, school)
 		require.NoError(t, queryErr)
-		require.Equal(t, []string{directGrant.Resource + ":read"}, names[account.ID])
+		require.Empty(t, names[account.ID], "without roles a retired direct grant leaves no permission (#4485)")
 		return rollback
 	})
 	require.ErrorIs(t, err, rollback)

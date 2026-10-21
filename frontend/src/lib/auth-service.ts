@@ -1011,68 +1011,6 @@ export const authService = {
       },
     ),
 
-  getAccountPermissions: async (accountId: string): Promise<Permission[]> =>
-    authFetchList<BackendPermission, Permission>(
-      `/auth/accounts/${accountId}/permissions`,
-      mapPermissionResponse,
-      {
-        extractData: extractNestedPermissions,
-        errorPrefix: "Get account permissions",
-      },
-    ),
-
-  getAccountDirectPermissions: async (
-    accountId: string,
-  ): Promise<Permission[]> =>
-    authFetchList<BackendPermission, Permission>(
-      `/auth/accounts/${accountId}/permissions/direct`,
-      mapPermissionResponse,
-      {
-        extractData: extractNestedPermissions,
-        errorPrefix: "Get account direct permissions",
-      },
-    ),
-
-  grantPermissionToAccount: async (
-    accountId: string,
-    permissionId: string,
-  ): Promise<void> =>
-    authFetchVoid(
-      `/auth/accounts/${accountId}/permissions/${permissionId}/grant`,
-      {
-        method: "POST",
-        errorPrefix: "Grant permission to account",
-      },
-    ),
-
-  denyPermissionToAccount: async (
-    accountId: string,
-    permissionId: string,
-  ): Promise<void> =>
-    authFetchVoid(
-      `/auth/accounts/${accountId}/permissions/${permissionId}/deny`,
-      {
-        method: "POST",
-        errorPrefix: "Deny permission to account",
-      },
-    ),
-
-  removePermissionFromAccount: async (
-    accountId: string,
-    permissionId: string,
-  ): Promise<void> =>
-    authFetchVoid(`/auth/accounts/${accountId}/permissions/${permissionId}`, {
-      method: "DELETE",
-      errorPrefix: "Remove permission from account",
-    }),
-
-  assignPermissionToAccount: async (
-    accountId: string,
-    permissionId: string,
-  ): Promise<void> =>
-    // Use the grant endpoint for assigning permissions
-    authService.grantPermissionToAccount(accountId, permissionId),
-
   // Get all available permissions for assignment
   getAvailablePermissions: async (): Promise<Permission[]> =>
     authFetchList<BackendPermission, Permission>(

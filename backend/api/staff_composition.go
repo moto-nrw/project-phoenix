@@ -212,7 +212,6 @@ func newStaffResource(module schoolMembershipModule.Capability, people peopleMod
 		AccountHasRole:      runtime.AccountHasRole,
 		AccountsHoldingRole: runtime.AccountsHoldingRole,
 
-		GrantDefaultPermissions:     runtime.GrantDefaultPermissions,
 		RetryQueuedDocumentCleanups: staffAdmin.RetryQueuedStaffDocumentCleanups,
 
 		TeacherGroups:    staffTeacherGroups(runtime),

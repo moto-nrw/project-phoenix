@@ -20,6 +20,7 @@ const { mockRecordUpdate, mockUpdateTeacher, mockDeleteTeacher } = vi.hoisted(
 const detailRequest = vi.hoisted(() => ({
   error: null as unknown,
   endedOn: null as string | null,
+  avatarUrl: undefined as string | undefined,
   mutate: vi.fn(),
 }));
 
@@ -98,6 +99,7 @@ vi.mock("~/lib/swr", () => ({
           id: "42",
           startedOn: "2024-09-02",
           endedOn: detailRequest.endedOn,
+          avatarUrl: detailRequest.avatarUrl,
           name: "Mila Muster",
           firstName: "Mila",
           lastName: "Muster",
@@ -260,10 +262,35 @@ describe("StaffDetailContent permissions", () => {
     vi.clearAllMocks();
     detailRequest.error = null;
     detailRequest.endedOn = null;
+    detailRequest.avatarUrl = undefined;
     searchParams.delete("from");
     searchParams.delete("tab");
     searchParams.delete("date");
     window.scrollTo = vi.fn();
+  });
+
+  // #4432: the redesign in #1310 dropped the picture and left the initials.
+  it("shows the uploaded profile picture in the header", () => {
+    detailRequest.avatarUrl = "/api/staff/42/avatar";
+    vi.mocked(useSession).mockReturnValue({
+      data: {
+        user: {
+          id: "7",
+          token: "test-token",
+          roles: ["admin"],
+          permissions: ["admin:*"],
+        },
+        expires: "2099-01-01T00:00:00.000Z",
+      },
+      status: "authenticated",
+      update: vi.fn(),
+    });
+
+    const { container } = render(<StaffDetailContent />);
+
+    expect(container.querySelector("img")?.getAttribute("src")).toMatch(
+      /\/api\/staff\/42\/avatar$/,
+    );
   });
 
   it("shows overview and time tracking to managers without admin role", () => {

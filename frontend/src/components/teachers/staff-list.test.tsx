@@ -66,6 +66,32 @@ describe("StaffList", () => {
     ).not.toBeInTheDocument();
   });
 
+  // #4432: the uploaded picture, initials only for people without one.
+  it("shows the uploaded profile picture and initials without one", () => {
+    const { container } = render(
+      <StaffList
+        groupDefinitions={[
+          {
+            id: "teacher",
+            title: "Betreuung",
+            items: [
+              makeTeacher("1", { avatar: "/uploads/avatars/global/1.png" }),
+              makeTeacher("2", { avatar: null }),
+            ],
+          },
+        ]}
+        objectHref={(teacher) => `/staff/${teacher.id}`}
+      />,
+    );
+
+    const images = container.querySelectorAll("img");
+    expect(images).toHaveLength(1);
+    expect(images[0]?.getAttribute("src")).toMatch(/\/api\/staff\/1\/avatar$/);
+    expect(screen.getByRole("link", { name: /Person 2/ })).toHaveTextContent(
+      "P2",
+    );
+  });
+
   it("falls back to the e-mail and then a dash for the second line", () => {
     render(
       <StaffList

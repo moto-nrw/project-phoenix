@@ -403,7 +403,8 @@ function appOverviewTopic(): HelpTopic {
       {
         title: "Hilfe öffnen",
         steps: [
-          "Sehen Sie am Computer oben rechts ein Fragezeichen? Wählen Sie es, um die passende Anleitung zu öffnen.",
+          "Sehen Sie oben rechts ein Fragezeichen? Es öffnet die passende Anleitung.",
+          "Am Handy oder Tablet steht es rechts im Seitenkopf.",
           "Oder wählen Sie `Hilfe`: am Computer unten in der Seitenleiste, auf dem Handy unter `Mehr`.",
         ],
       },

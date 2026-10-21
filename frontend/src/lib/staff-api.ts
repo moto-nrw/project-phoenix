@@ -10,6 +10,18 @@ import {
 
 const logger = createLogger({ component: "StaffAPI" });
 
+/**
+ * Adresse des Profilbilds einer Kollegin, `undefined` ohne hochgeladenes Bild
+ * (#4432). Das Bild kommt über die schulbezogene Staff-Route, nie über den
+ * gespeicherten Pfad selbst.
+ */
+export function staffAvatarUrl(
+  staffId: string,
+  avatar: string | null | undefined,
+): string | undefined {
+  return avatar ? `/api/staff/${staffId}/avatar` : undefined;
+}
+
 // Backend response types (already mapped by the API route handler)
 export interface BackendStaffResponse {
   started_on?: string;
@@ -22,6 +34,8 @@ export interface BackendStaffResponse {
   role: string | null;
   qualifications: string | null;
   account_role?: string | null;
+  /** Gespeicherter Avatar-Pfad des Kontos; nur ob er da ist, zählt. */
+  avatar?: string | null;
   tag_id: string | null;
   staff_notes: string | null;
   created_at: string;
@@ -74,6 +88,8 @@ export interface Staff {
   firstName: string;
   lastName: string;
   email?: string;
+  /** Profilbild über `/api/staff/[id]/avatar`, fehlt ohne Bild (#4432). */
+  avatarUrl?: string;
   role?: string; // Display role (custom position from teacher profile)
   accountRole?: string; // Auth role (Admin/Betreuer/Extern)
   specialization?: string;
@@ -528,6 +544,7 @@ class StaffService {
       lastName:
         staff.lastName ?? staff.name?.split(" ").slice(1).join(" ") ?? "",
       email: undefined,
+      avatarUrl: staffAvatarUrl(staff.id, staff.avatar),
       role: staff.role ?? undefined,
       accountRole: staff.account_role ?? undefined,
       specialization: staff.specialization?.trim() ?? undefined,

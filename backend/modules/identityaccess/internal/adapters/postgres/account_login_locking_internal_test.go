@@ -32,7 +32,7 @@ func lockingStore(db *bun.DB, tenantID int64) *Store {
 // for a full AUTH_JWT_EXPIRY. Locking the account row is not enough: a bare
 // permission revocation touches neither the account nor its role rows and
 // would commit straight through the mint's window. These cases fail if the
-// FOR SHARE clauses are ever dropped from either statement. Moved from the
+// FOR SHARE clause is ever dropped. Direct grants are retired (#4485). Moved from the
 // retired PermissionRepository.LockAccountPermissionSourcesForTenant (#3225).
 func TestLockAccountPermissionSources(t *testing.T) {
 	t.Parallel()
@@ -45,7 +45,6 @@ func TestLockAccountPermissionSources(t *testing.T) {
 	unique := time.Now().UnixNano()
 	account := testpkg.CreateTestAccount(t, db, fmt.Sprintf("perm-lock-%d", unique))
 	role := testpkg.CreateTestRoleForTenant(t, db, fmt.Sprintf("perm-lock-%d", unique), tenantID)
-	directPermission := testpkg.CreateTestPermission(t, db, fmt.Sprintf("perm-lock-direct-%d", unique), "perm_lock_direct", "read")
 	rolePermission := testpkg.CreateTestPermission(t, db, fmt.Sprintf("perm-lock-role-%d", unique), "perm_lock_role", "read")
 	testpkg.MapAccountToTenant(t, db, account.ID, tenantID)
 
@@ -57,11 +56,6 @@ func TestLockAccountPermissionSources(t *testing.T) {
 		`INSERT INTO auth.role_permissions (role_id, permission_id, created_at, updated_at) VALUES (?, ?, NOW(), NOW())`,
 		role.ID, rolePermission.ID)
 	require.NoError(t, err)
-	_, err = db.ExecContext(ctx,
-		`INSERT INTO auth.account_permissions (account_id, permission_id, tenant_id, granted, created_at, updated_at)
-		 VALUES (?, ?, ?, true, NOW(), NOW())`,
-		account.ID, directPermission.ID, tenantID)
-	require.NoError(t, err)
 
 	hold := func(t *testing.T) bun.Tx {
 		t.Helper()
@@ -72,23 +66,6 @@ func TestLockAccountPermissionSources(t *testing.T) {
 		require.NoError(t, err)
 		return holder
 	}
-
-	t.Run("a direct grant cannot be revoked while the lock is held", func(t *testing.T) {
-		holder := hold(t)
-		revoke := func(tx bun.Tx) error {
-			_, execErr := tx.ExecContext(ctx,
-				`DELETE FROM auth.account_permissions WHERE account_id = ? AND permission_id = ? AND tenant_id = ?`,
-				account.ID, directPermission.ID, tenantID)
-			return execErr
-		}
-
-		err := runWithLockTimeout(ctx, db, "200ms", revoke)
-		require.Error(t, err, "revoking a direct grant must wait for the mint transaction")
-		assert.True(t, isLockTimeoutError(err), "expected lock_timeout error, got: %v", err)
-
-		require.NoError(t, holder.Rollback())
-		require.NoError(t, runWithLockTimeout(ctx, db, "200ms", revoke), "the revocation goes through once the mint released the lock")
-	})
 
 	t.Run("a role permission cannot be revoked while the lock is held", func(t *testing.T) {
 		hold(t)

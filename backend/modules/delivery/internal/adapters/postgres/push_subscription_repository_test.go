@@ -679,7 +679,7 @@ func TestPushSubscriptionRepositoryEffectiveAdmins(t *testing.T) {
 
 	subs, err := testpkg.TenantQuery0(t, ctx, db, repo.FindForTenantAdmins)
 	require.NoError(t, err)
-	assert.NotEmpty(t, subscriptionsForAccount(subs, directAdmin.ID), "direct admin:* permission must grant admin push")
+	assert.Empty(t, subscriptionsForAccount(subs, directAdmin.ID), "a retired direct admin:* grant no longer grants admin push (#4485)")
 	assert.NotEmpty(t, subscriptionsForAccount(subs, roleAdmin.ID), "role-based *:* permission must grant admin push")
 	assert.Empty(t, subscriptionsForAccount(subs, ordinary.ID), "ordinary staff must not receive admin push")
 
@@ -689,6 +689,6 @@ func TestPushSubscriptionRepositoryEffectiveAdmins(t *testing.T) {
 		return err
 	})
 	require.NoError(t, err)
-	assert.NotEmpty(t, subscriptionsForAccount(tenantRoleSubs, directAdmin.ID))
+	assert.Empty(t, subscriptionsForAccount(tenantRoleSubs, directAdmin.ID))
 	assert.NotEmpty(t, subscriptionsForAccount(tenantRoleSubs, roleAdmin.ID))
 }

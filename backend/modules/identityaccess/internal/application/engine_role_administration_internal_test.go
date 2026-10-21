@@ -85,9 +85,6 @@ func TestModuleWithoutLifecycleReportsRoleAdministrationUnavailable(t *testing.T
 	require.ErrorIs(t, module.AssignRoleToAccount(ctx, 7, 8), identityaccess.ErrRoleAdministrationUnavailable)
 	require.ErrorIs(t, module.RemoveRoleFromAccount(ctx, 7, 8), identityaccess.ErrRoleAdministrationUnavailable)
 	require.ErrorIs(t, module.ReplaceRolePermissions(ctx, 7, nil), identityaccess.ErrRoleAdministrationUnavailable)
-	_, err = module.GetAccountPermissions(ctx, 7)
-	require.ErrorIs(t, err, identityaccess.ErrRoleAdministrationUnavailable)
 	_, err = module.HasLiveCaregiverProfile(ctx, 7)
 	require.ErrorIs(t, err, identityaccess.ErrAccountLifecycleUnavailable)
-	module.GrantStaffDefaultPermission(ctx, 7, false, "groups:read")
 }

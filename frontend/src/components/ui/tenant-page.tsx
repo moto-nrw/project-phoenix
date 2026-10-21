@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "~/components/ui/navigation-link";
+import { MobilePageHelpTarget } from "~/components/help/mobile-page-help-target";
 import { ChevronDown, Info } from "lucide-react";
 import type {
   InputHTMLAttributes,
@@ -429,20 +430,20 @@ export function TenantPage({
           einer CSS-Layer stehen. */}
       <header className="moto-content-surface compact:p-4 rounded-2xl border p-5 shadow-sm max-sm:p-4">
         {back && <TenantBackLink href={backHref} label={backLabel} />}
-        <div className="flex flex-wrap items-start justify-between gap-x-4 gap-y-2">
+        <div className="flex flex-wrap items-start justify-between gap-x-4 gap-y-2 max-sm:gap-x-2">
           {/* `flex-1 basis-0`: der Titelblock nimmt, was die Aktionen übrig
               lassen, statt mit seiner natürlichen Breite zu ringen. Vorher
               schob eine zweizeilige Statuszeile auf dem Telefon selbst das
               einzelne Kebab-Menü in eine eigene, linksbündige Zeile -- und
               die Kopfkarte wuchs um genau den toten Streifen, den sie auf
               dem Desktop nicht mehr hat. */}
-          <div className="flex min-w-0 flex-1 basis-0 items-center gap-3 max-sm:min-w-[11rem]">
+          <div className="flex min-w-0 flex-1 basis-0 items-center gap-3 max-sm:min-w-[6rem]">
             {leading}
             <div className="min-w-0">
               <div className="flex items-center gap-1">
                 <h1
                   className={cn(
-                    "min-w-0 font-semibold tracking-tight text-balance text-gray-900",
+                    "min-w-0 font-semibold tracking-tight text-balance break-words text-gray-900",
                     // Auch auf dem Telefon sichtbar: unter lg gibt es keine
                     // Shell-Kopfzeile mehr (wie in der Eltern-App), die
                     // Kopfkarte ist die einzige Trägerin des Seitennamens.
@@ -472,32 +473,34 @@ export function TenantPage({
               )}
             </div>
           </div>
-          {actions && (
-            // Eine Bedienhöhe im Kopf. Ohne diese Klammer stehen dort 32,
-            // 36 und 40 px nebeneinander, je nachdem welches Kit-Bauteil
-            // eine Seite gerade greift.
-            <div
-              className={cn(
-                // Die Aktionen stehen neben dem Titel, solange sie neben
-                // seiner Mindestbreite (11rem unter sm) Platz haben; sonst
-                // brechen sie als Gruppe in eine eigene Zeile um und stehen
-                // dort rechts (`ml-auto`), wie auf dem Desktop. Linksbündig
-                // stand der tote Raum rechts neben den Knöpfen.
-                "ml-auto flex shrink-0 flex-wrap items-center justify-end gap-2",
-                // Unter sm gilt: JEDE Zeile ist voll. Textknöpfe bekommen
-                // eine eigene, volle Zeile (auch ein einzelner — rechtsbündig
-                // neben Leerraum las er sich als toter Bereich); reine
-                // Symbolknöpfe (das Kebab-Menü, `Button size="icon"`, per
-                // `data-icon-only`) behalten ihr Maß und bleiben in der
-                // Titel-/Statuszeile, die ihr Text füllt.
-                "max-sm:contents",
-                "max-sm:[&>*:not([data-icon-only])]:order-last max-sm:[&>*:not([data-icon-only])]:basis-full",
-                CONTROL_HEIGHT,
-              )}
-            >
-              {actions}
-            </div>
-          )}
+          {/* Eine Bedienhöhe und eine gemeinsame Mitte für Seitenaktionen
+              und Hilfe. Symbolhüllen sind flex, damit die Text-Grundlinie
+              keinen zusätzlichen Abstand unter dem Knopf erzeugt. */}
+          <div
+            className={cn(
+              // Die Aktionen stehen neben dem Titel, solange sie neben
+              // seiner Mindestbreite (6rem unter sm) Platz haben; sonst
+              // brechen sie als Gruppe in eine eigene Zeile um und stehen
+              // dort rechts (`ml-auto`), wie auf dem Desktop. Linksbündig
+              // stand der tote Raum rechts neben den Knöpfen.
+              actions
+                ? "ml-auto flex shrink-0 flex-wrap items-center justify-end gap-2"
+                : "contents",
+              "[&>div[data-icon-only]]:inline-flex",
+              // Unter sm gilt: JEDE Zeile ist voll. Textknöpfe bekommen
+              // eine eigene, volle Zeile (auch ein einzelner — rechtsbündig
+              // neben Leerraum las er sich als toter Bereich); reine
+              // Symbolknöpfe (das Kebab-Menü, `Button size="icon"`, per
+              // `data-icon-only`) behalten ihr Maß und bleiben in der
+              // Titel-/Statuszeile, die ihr Text füllt.
+              "max-sm:contents",
+              "max-sm:[&>*:not([data-icon-only])]:order-last max-sm:[&>*:not([data-icon-only])]:basis-full",
+              CONTROL_HEIGHT,
+            )}
+          >
+            {actions}
+            <MobilePageHelpTarget />
+          </div>
         </div>
 
         {/* Der Reiter bestimmt, WAS man ansieht; die Suche filtert DARIN.
