@@ -10,7 +10,7 @@ import {
 import { UserPlus, Users } from "lucide-react";
 import { MotoConceptIcon } from "~/components/ui/moto-concept-icon";
 import { Alert } from "~/components/ui/alert";
-import { Button } from "~/components/ui/button";
+import { Button, ButtonLink } from "~/components/ui/button";
 import { ChoiceModal } from "~/components/ui/choice-modal";
 import type { FormErrorInput } from "~/components/ui/form-error";
 import { FormModal } from "~/components/ui/form-modal";
@@ -261,10 +261,24 @@ interface RosterRowActionsProps {
     action: RosterAction,
     row: TimetableRosterRow,
   ) => Promise<void>;
+  /** Adresse der Kinderseite; ohne sie gibt es den Knopf „Profil ansehen“ nicht. */
+  readonly profileHref?: string;
 }
 
-function RosterRowActions({ row, onAction, access }: RosterRowActionsProps) {
-  if (!access.attendance && !access.statuses && !access.absence) return null;
+function RosterRowActions({
+  row,
+  onAction,
+  access,
+  profileHref,
+}: RosterRowActionsProps) {
+  if (
+    !access.attendance &&
+    !access.statuses &&
+    !access.absence &&
+    !profileHref
+  ) {
+    return null;
+  }
   const runAction = async (action: RosterAction) => {
     await onAction(action, row);
   };
@@ -347,6 +361,18 @@ function RosterRowActions({ row, onAction, access }: RosterRowActionsProps) {
           Zurück auf erwartet
         </Button>
       ) : null}
+      {/* Ein Link, kein Anwesenheitsknopf: er öffnet nur die Kinderseite
+          (#4356). Der Name im Label unterscheidet die Links der Liste. */}
+      {profileHref ? (
+        <ButtonLink
+          href={profileHref}
+          variant="outline"
+          size="md"
+          aria-label={`Profil ansehen: ${row.studentName || `Kind ${row.studentId}`}`}
+        >
+          Profil ansehen
+        </ButtonLink>
+      ) : null}
     </div>
   );
 }
@@ -367,6 +393,7 @@ interface TimetableRosterRowProps {
    * sieht auch nicht antippbar aus.
    */
   readonly onOpenStudent?: (row: TimetableRosterRow) => void;
+  readonly studentProfileHref?: (row: TimetableRosterRow) => string;
 }
 
 function TimetableRosterStudentRow({
@@ -379,6 +406,7 @@ function TimetableRosterStudentRow({
   row,
   onAction,
   onOpenStudent,
+  studentProfileHref,
 }: TimetableRosterRowProps) {
   const pickupTimeLabel = rosterPickupTimeLabel(
     row.pickupTime,
@@ -475,7 +503,12 @@ function TimetableRosterStudentRow({
           </div>
         ) : null}
       </div>
-      <RosterRowActions row={row} onAction={onAction} access={actionAccess} />
+      <RosterRowActions
+        row={row}
+        onAction={onAction}
+        access={actionAccess}
+        profileHref={studentProfileHref?.(row)}
+      />
     </div>
   );
 }
@@ -491,6 +524,7 @@ interface TimetableRosterSectionProps {
   readonly pickupTimesRedacted?: boolean;
   readonly onAction: RosterRowActionsProps["onAction"];
   readonly onOpenStudent?: (row: TimetableRosterRow) => void;
+  readonly studentProfileHref?: (row: TimetableRosterRow) => string;
   readonly rows: TimetableRosterRow[];
   readonly showTimetableCounts: boolean;
   readonly title: string;
@@ -506,6 +540,7 @@ function TimetableRosterSection({
   pickupTimesRedacted,
   onAction,
   onOpenStudent,
+  studentProfileHref,
   rows,
   showTimetableCounts,
   title,
@@ -538,6 +573,7 @@ function TimetableRosterSection({
           row={row}
           onAction={onAction}
           onOpenStudent={onOpenStudent}
+          studentProfileHref={studentProfileHref}
         />
       ))}
     </section>
@@ -973,6 +1009,12 @@ interface TimetableRosterContentProps {
    */
   readonly onExcuseRestOfDay?: (row: TimetableRosterRow) => Promise<void>;
   readonly onOpenStudent?: (row: TimetableRosterRow) => void;
+  /**
+   * Adresse der Kinderseite für den Knopf „Profil ansehen“ (#4356). Nur wer
+   * die Kinderseite öffnen darf (`users:read`), bekommt sie; ohne sie fehlt
+   * der Knopf.
+   */
+  readonly studentProfileHref?: (row: TimetableRosterRow) => string;
   readonly onSearchChange: (value: string) => void;
   /**
    * Suche und Filter der Seite (#3889). Sie engen die Abschnitte ein, die
@@ -1076,6 +1118,7 @@ export function TimetableRosterContent({
   onRosterAction,
   onExcuseRestOfDay,
   onOpenStudent,
+  studentProfileHref,
   onSearchChange,
   rowFilter = null,
   addStudentError,
@@ -1192,6 +1235,7 @@ export function TimetableRosterContent({
     pickupTimesRedacted: roster.pickupTimesRedacted,
     onAction: handleRosterAction,
     onOpenStudent,
+    studentProfileHref,
     showTimetableCounts,
   };
 

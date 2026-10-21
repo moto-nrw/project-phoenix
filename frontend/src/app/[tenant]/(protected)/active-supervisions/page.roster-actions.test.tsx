@@ -15,6 +15,7 @@ import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 
 const navigationMockState = vi.hoisted(() => ({
   roomParam: null as string | null,
+  permissions: [] as string[],
 }));
 
 // Mock auth-utils with hasRole that reads session roles
@@ -28,7 +29,8 @@ vi.mock("~/lib/auth-utils", () => ({
     if (role === "user") return !(session?.user?.isAdmin ?? false);
     return false;
   },
-  hasPermission: () => false,
+  hasPermission: (_session: unknown, permission: string) =>
+    navigationMockState.permissions.includes(permission),
 }));
 
 // Mock next-auth/react
@@ -410,6 +412,7 @@ describe("MeinRaumPage roster actions", () => {
     vi.mocked(useAttendanceWebEnabled).mockReturnValue(true);
     vi.mocked(useShowTimetableCounts).mockReturnValue(true);
     navigationMockState.roomParam = null;
+    navigationMockState.permissions = [];
     window.innerWidth = 800;
     localStorage.clear();
     primaryRosterRows = [expectedRow];
@@ -475,6 +478,23 @@ describe("MeinRaumPage roster actions", () => {
       );
     });
     expect(timetableOperationsApi.checkIn).toHaveBeenCalledWith("99", "100");
+  });
+
+  it("links each block row to the child's profile with users:read (#4356)", async () => {
+    navigationMockState.permissions = ["users:read"];
+
+    render(<MeinRaumPage />);
+
+    expect(
+      await screen.findByRole("link", { name: "Profil ansehen: Marie Muster" }),
+    ).toHaveAttribute("href", "/students/100?from=/active-supervisions");
+  });
+
+  it("offers no profile link without users:read (#4356)", async () => {
+    render(<MeinRaumPage />);
+
+    await screen.findByRole("button", { name: "Einchecken" });
+    expect(screen.queryByRole("link", { name: /Profil ansehen/ })).toBeNull();
   });
 
   it("shows no notice when the check-in involved no move", async () => {
