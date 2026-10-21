@@ -45,9 +45,20 @@ type ServeConfig struct {
 	// error reports go to (#3645); empty when the backend runs without
 	// Sentry.
 	SentryPyrePortalDSN string
+	// Turnstile holds the keys of the one Cloudflare Turnstile widget that
+	// protects the public enrollment form of every school.
+	Turnstile TurnstileKeys
 	// Process selects what this root runs (#2726). The zero value keeps the
 	// HTTP API with its embedded Worker.
 	Process ServeProcess
+}
+
+// TurnstileKeys are the platform's Cloudflare Turnstile keys. The site key
+// is public and rendered in the parent's browser; the secret key stays on
+// the server for the siteverify call.
+type TurnstileKeys struct {
+	SiteKey   string
+	SecretKey string
 }
 
 // ServeProcess is what one Serve root runs. Every Worker, embedded or
@@ -144,6 +155,9 @@ func newRuntime(config ServeConfig) (*Runtime, error) {
 	}
 	if strings.TrimSpace(config.PublicAPIURL) == "" {
 		return nil, fmt.Errorf("serve dependency public API URL is required")
+	}
+	if strings.TrimSpace(config.Turnstile.SiteKey) == "" || strings.TrimSpace(config.Turnstile.SecretKey) == "" {
+		return nil, fmt.Errorf("serve dependency Turnstile site and secret key are required")
 	}
 	if err := validateServeProcess(config.Process); err != nil {
 		return nil, err

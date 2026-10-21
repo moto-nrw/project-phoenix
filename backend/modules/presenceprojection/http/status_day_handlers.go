@@ -34,7 +34,7 @@ func (rs *Resource) getStudentStatusDays(w http.ResponseWriter, r *http.Request)
 		return
 	}
 
-	rows, err := rs.StudentStatusDayService.GetActiveByStudentAndDateRange(r.Context(), student.ID, from, to)
+	rows, err := rs.StudentStatusDayService.FindActiveByStudentAndDateRange(r.Context(), student.ID, from, to)
 	if err != nil {
 		renderError(w, r, common.ErrorInternalServerWrap("failed to fetch student status days", err))
 		return

@@ -98,14 +98,14 @@ func (b BlockStartBinding) EarliestPlannedBlockStartForClass(ctx context.Context
 
 // dayTimeBinding reads Care Plan's effective pickup and arrival times and
 // the Abholart of single days.
+// The pickup reader is embedded: its GetBulkDayDepartureModesForDate already
+// answers the day report's Abholart read. Pickups is the same reader.
 type DayTimeBinding struct {
+	ClassDayPickupReader
 	Pickups  ClassDayPickupReader
 	Arrivals ArrivalTimeReader
 }
 
-func (b DayTimeBinding) DayDepartureModes(ctx context.Context, studentIDs []int64, date calendar.Date) (map[int64]string, error) {
-	return b.Pickups.GetBulkDayDepartureModesForDate(ctx, studentIDs, date)
-}
 func (b DayTimeBinding) EffectivePickups(ctx context.Context, studentIDs []int64, date calendar.Date) (map[int64]EffectivePickup, error) {
 	effective, err := b.Pickups.GetBulkEffectivePickupTimesForDate(ctx, studentIDs, date)
 	if err != nil {
@@ -138,19 +138,17 @@ func (b DayTimeBinding) EffectiveArrivals(ctx context.Context, studentIDs []int6
 	return out, nil
 }
 
-type CallerBinding struct{ Context CallerReader }
+// CallerBinding embeds the reader, whose GetMySchoolClasses already answers
+// the Caller port; CurrentStaffID below refuses an account without a staff row.
+type CallerBinding struct{ CallerReader }
 
-func (b CallerBinding) AssignedClasses(ctx context.Context) ([]string, error) {
-	return b.Context.GetMySchoolClasses(ctx)
-}
-
-// StaffID resolves the caller's users.staff row (every school-portal account
+// CurrentStaffID resolves the caller's users.staff row (every school-portal account
 // has one, EnsureSchoolIdentity). An account without one is refused with the
 // sentinel: the entry would be attributed to nobody. Any other failure of the
 // lookup is a server error, not a missing record — the caller must not be
 // told to fix their account for a database outage.
-func (b CallerBinding) StaffID(ctx context.Context) (int64, error) {
-	staffID, found, err := b.Context.CurrentStaffID(ctx)
+func (b CallerBinding) CurrentStaffID(ctx context.Context) (int64, error) {
+	staffID, found, err := b.CallerReader.CurrentStaffID(ctx)
 	switch {
 	case err != nil:
 		return 0, err

@@ -50,6 +50,7 @@ import {
   hasOwnBlock,
   occupiedRoomIdsForSpontaneousStart,
   openRoomSections,
+  rosterRunState,
   schulhofHeadActionsApply,
   sessionsOutsideOpenRooms,
   supervisionTabLabel,
@@ -475,6 +476,15 @@ function MeinRaumPageContent() {
 
   // Abzeichen in der Kopfkarte: ein offener Raum heißt dort „Offener Raum",
   // die eigene Aufsicht „Eigene Aufsicht" (#3065). Keine Erklärzeile.
+  // Ob der geöffnete Block läuft, steht zuerst (#4354); er kommt aus dem
+  // Roster, den nur eine eigene Aufsicht hier lädt. Im offenen Raum trägt
+  // jeder Block seinen Zustand in der eigenen Karte.
+  const runState = currentTimetableRoster
+    ? rosterRunState(currentTimetableRoster.instance.status)
+    : null;
+  const runStateBadge = runState ? (
+    <StatusBadge label={runState.label} tone={runState.tone} />
+  ) : null;
   const openRoomBadge = currentOpenRoom ? (
     <StatusBadge label="Offener Raum" tone="blue" />
   ) : null;
@@ -506,6 +516,7 @@ function MeinRaumPageContent() {
       ? spontaneousStartBlockedReason
       : undefined;
   const hasHeadActions = Boolean(
+    runStateBadge ??
     openRoomBadge ??
     ownSupervisionBadge ??
     addSupervisorButton ??
@@ -673,6 +684,7 @@ function MeinRaumPageContent() {
             isConfirmingExpected={actions.isConfirmingExpected}
             roster={currentTimetableRoster}
             showTimetableCounts={showTimetableCounts}
+            statusInPageHead
             occupancy={supervisionOccupancy}
             onAddStudent={actions.handleAddUnplannedStudent}
             onAddPresentStudents={
@@ -737,8 +749,9 @@ function MeinRaumPageContent() {
             {/* Die Abzeichen sind eine Zeile: das Gerüst gibt unter sm jedem
                 Kopf-Element eine eigene volle Zeile, zwei gestreckte Pillen
                 untereinander läsen sich wie zwei Knöpfe. */}
-            {openRoomBadge || ownSupervisionBadge ? (
+            {runStateBadge || openRoomBadge || ownSupervisionBadge ? (
               <span className="flex items-center gap-2">
+                {runStateBadge}
                 {openRoomBadge}
                 {ownSupervisionBadge}
               </span>

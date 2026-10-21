@@ -11,13 +11,21 @@ type AttendanceRouteStaffSource interface {
 	HasCurrentStaff(context.Context) (bool, error)
 }
 
+// currentStaffPresence is the half of the source the routes read as it is.
+type currentStaffPresence interface {
+	HasCurrentStaff(context.Context) (bool, error)
+}
+
 // AttendanceRouteStaff answers the attendance routes' current-staff question
 // over the request-memoized current-staff lookup.
-type AttendanceRouteStaff struct{ source AttendanceRouteStaffSource }
+type AttendanceRouteStaff struct {
+	currentStaffPresence
+	source AttendanceRouteStaffSource
+}
 
 // NewAttendanceRouteStaff retains the request-memoized current-staff lookup.
 func NewAttendanceRouteStaff(source AttendanceRouteStaffSource) AttendanceRouteStaff {
-	return AttendanceRouteStaff{source: source}
+	return AttendanceRouteStaff{currentStaffPresence: source, source: source}
 }
 
 // GetCurrentStaff reports the caller's staff member in the request's
@@ -30,10 +38,4 @@ func (p AttendanceRouteStaff) GetCurrentStaff(ctx context.Context) (int64, int64
 		return 0, 0, false, err
 	}
 	return staffID, tenant.FromContext(ctx), true, nil
-}
-
-// HasCurrentStaff reports whether the caller is a staff member of the
-// request's tenant.
-func (p AttendanceRouteStaff) HasCurrentStaff(ctx context.Context) (bool, error) {
-	return p.source.HasCurrentStaff(ctx)
 }

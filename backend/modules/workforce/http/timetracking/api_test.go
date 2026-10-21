@@ -112,7 +112,7 @@ func (m *mockWorkSessionService) SessionEditsForStaff(ctx context.Context, staff
 	}
 	return nil, nil
 }
-func (m *mockWorkSessionService) TodayPresenceMap(ctx context.Context) (map[int64]string, error) {
+func (m *mockWorkSessionService) GetTodayPresenceMap(ctx context.Context) (map[int64]string, error) {
 	if m.getTodayPresenceFn != nil {
 		return m.getTodayPresenceFn(ctx)
 	}

@@ -569,7 +569,7 @@ func (rs *Resource) deleteActiveGroup(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Delete active group
-	if err := rs.Operations.RemoveSession(r.Context(), id); err != nil {
+	if err := rs.Operations.DeleteActiveGroup(r.Context(), id); err != nil {
 		common.RenderError(w, r, ErrorRenderer(err))
 		return
 	}
@@ -587,7 +587,7 @@ func (rs *Resource) endActiveGroup(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// End active group session
-	if err := rs.Operations.EndSession(r.Context(), id); err != nil {
+	if err := rs.Operations.EndActiveGroupSession(r.Context(), id); err != nil {
 		common.RenderError(w, r, ErrorRenderer(err))
 		return
 	}

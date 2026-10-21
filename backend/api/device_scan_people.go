@@ -16,13 +16,10 @@ type deviceScanUserRows interface {
 	FindByTagID(ctx context.Context, tagID string) (*peopledirectory.DirectoryPersonSnapshot, error)
 	LinkToRFIDCard(ctx context.Context, personID int64, tagID string) error
 	UnlinkFromRFIDCard(ctx context.Context, personID int64) error
-	GetStaffByID(ctx context.Context, id int64) (*peopledirectory.Staff, error)
-	GetStaffByPersonID(ctx context.Context, personID int64) (*peopledirectory.Staff, error)
-	GetStaffWithPersonByIDs(ctx context.Context, ids []int64) (map[int64]*peopledirectory.Staff, error)
-	GetTeacherByStaffID(ctx context.Context, staffID int64) (*peopledirectory.Teacher, error)
-	ListTeachersWithStaffAndPerson(ctx context.Context) ([]*peopledirectory.Teacher, error)
+	StaffRows() peoplePorts.StaffRepository
+	TeacherRows() peoplePorts.TeacherRepository
+	StudentRows() peoplePorts.StudentRepository
 	GetStudentByIDForUpdate(ctx context.Context, id int64) (*peopledirectory.StudentState, error)
-	GetStudentByPersonID(ctx context.Context, personID int64) (*peopledirectory.StudentState, error)
 	GetStudentsWithGroupsByTeacherStaffIDs(ctx context.Context, staffIDs []int64) ([]peopledirectory.StudentRosterEntry, error)
 	GetAllStudentsWithGroups(ctx context.Context) ([]peopledirectory.StudentRosterEntry, error)
 }
@@ -61,17 +58,17 @@ func (p DeviceScanPeople) UnlinkFromRFIDCard(ctx context.Context, personID int64
 }
 
 func (p DeviceScanPeople) GetStaffByID(ctx context.Context, id int64) (*devicescan.ScanStaff, error) {
-	staff, err := p.Users.GetStaffByID(ctx, id)
+	staff, err := p.Users.StaffRows().FindByID(ctx, id)
 	return scanStaff(staff), err
 }
 
 func (p DeviceScanPeople) GetStaffByPersonID(ctx context.Context, personID int64) (*devicescan.ScanStaff, error) {
-	staff, err := p.Users.GetStaffByPersonID(ctx, personID)
+	staff, err := p.Users.StaffRows().FindByPersonID(ctx, personID)
 	return scanStaff(staff), err
 }
 
 func (p DeviceScanPeople) GetStaffWithPersonByIDs(ctx context.Context, ids []int64) (map[int64]*devicescan.ScanStaff, error) {
-	rows, err := p.Users.GetStaffWithPersonByIDs(ctx, ids)
+	rows, err := p.Users.StaffRows().FindWithPersonByIDs(ctx, ids)
 	if rows == nil {
 		return nil, err
 	}
@@ -83,12 +80,12 @@ func (p DeviceScanPeople) GetStaffWithPersonByIDs(ctx context.Context, ids []int
 }
 
 func (p DeviceScanPeople) GetTeacherByStaffID(ctx context.Context, staffID int64) (*devicescan.ScanTeacher, error) {
-	teacher, err := p.Users.GetTeacherByStaffID(ctx, staffID)
+	teacher, err := p.Users.TeacherRows().FindByStaffID(ctx, staffID)
 	return scanTeacher(teacher), err
 }
 
 func (p DeviceScanPeople) ListTeachersWithStaffAndPerson(ctx context.Context) ([]*devicescan.ScanTeacher, error) {
-	rows, err := p.Users.ListTeachersWithStaffAndPerson(ctx)
+	rows, err := p.Users.TeacherRows().ListAllWithStaffAndPerson(ctx)
 	if rows == nil {
 		return nil, err
 	}
@@ -105,7 +102,7 @@ func (p DeviceScanPeople) GetStudentByIDForUpdate(ctx context.Context, id int64)
 }
 
 func (p DeviceScanPeople) GetStudentByPersonID(ctx context.Context, personID int64) (*devicescan.ScanStudent, error) {
-	student, err := p.Users.GetStudentByPersonID(ctx, personID)
+	student, err := p.Users.StudentRows().FindByPersonID(ctx, personID)
 	return scanStudent(student), err
 }
 

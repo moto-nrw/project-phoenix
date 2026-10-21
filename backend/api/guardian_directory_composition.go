@@ -208,7 +208,7 @@ func guardianInvitationFlows(invitations GuardianDirectoryInvitations, runtime p
 // pendingGuardianInvitations lists the tenant's open invitations.
 func pendingGuardianInvitations(guardians peoplePorts.GuardianService) func(context.Context) ([]PendingGuardianInvitation, error) {
 	return func(ctx context.Context) ([]PendingGuardianInvitation, error) {
-		invitations, err := guardians.GetPendingInvitations(ctx)
+		invitations, err := guardians.GuardianInvitationReads().ListRedeemable(ctx)
 		if err != nil {
 			return nil, err
 		}

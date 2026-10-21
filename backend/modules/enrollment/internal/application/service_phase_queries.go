@@ -2,17 +2,7 @@ package application
 
 import (
 	"context"
-
-	"github.com/moto-nrw/project-phoenix/modules/enrollment"
 )
-
-// OpenPhaseCandidates supplies the parent workflow's phase discovery candidates.
-// Unlike the anonymous list, it includes restricted audiences for that workflow
-// to authorize against guardian relationships. Cross-school discovery requires
-// the caller's authorized admin transaction.
-func (m *Service) OpenPhaseCandidates(ctx context.Context) ([]*enrollment.Phase, error) {
-	return m.store.OpenPhaseCandidates(ctx)
-}
 
 // CountPhaseSchemaReferences counts phases pinned to any of the supplied versions.
 func (m *Service) CountPhaseSchemaReferences(ctx context.Context, schemaIDs []int64) (int, error) {

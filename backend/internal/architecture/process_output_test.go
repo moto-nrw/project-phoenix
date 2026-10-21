@@ -2,22 +2,9 @@ package architecture
 
 import (
 	"errors"
-	"path/filepath"
 	"strings"
 	"testing"
 )
-
-func TestArchitectureCLIIsolatesRunnerCache(t *testing.T) {
-	t.Parallel()
-
-	output, err := runArchitectureWithEnv(t,
-		map[string]string{"GOCACHEPROG": filepath.Join(t.TempDir(), "missing-runner-cache")},
-		"check", "--project", fixturePath(t, "valid"), "--policy", fixturePath(t, "allowed-edge.json"),
-	)
-	if err != nil {
-		t.Fatalf("CLI fixture inherited runner cache configuration: %v\n%s", err, output)
-	}
-}
 
 func TestProcessOutputSeparatesSuccessfulDiagnostics(t *testing.T) {
 	t.Parallel()

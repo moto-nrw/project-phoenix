@@ -171,7 +171,7 @@ var tableRetentions = map[string]tableRetention{
 	"calendar.appointment_targets":                          notPersonal("appointment target configuration"),
 	"calendar.appointments":                                 own("nightly retention steps appointment_retention, AppointmentRetention.DeleteExpiredAppointments (school window gdpr.timetable_retention_days after the last day; endless series stay, #4045), and appointment_tombstone_retention, DeleteFeedTombstonesBefore (90 days after cancellation or deletion)"),
 	"calendar.recurrence_rules":                             notPersonal("recurrence configuration"),
-	"calendar.staff_feed_tombstones":                        own("nightly timetable-cleanup step CleanupExpiredFeedTombstones -> StaffFeedTombstoneRepo.DeleteBefore (90 days)"),
+	"calendar.staff_feed_tombstones":                        own("nightly timetable-cleanup step CleanupExpiredFeedTombstones -> StaffFeedTombstoneRepo.DeleteFeedCancellationsBefore (90 days)"),
 	"config.home_block_policies":                            notPersonal("home dashboard block policy configuration"),
 	"config.home_layouts":                                   parent("auth.accounts"),
 	"config.school_setup_dismissals":                        parent("auth.accounts"),

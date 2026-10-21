@@ -545,7 +545,7 @@ func composeServeRoot(
 				careOfferings, planExport, chat, persons, notifications, deliveryDevices, classDay, identity)
 		},
 		func() error {
-			enrollmentResource := newEnrollmentResource(logger, settings.Service, careOfferings, flows, phases,
+			enrollmentResource := newEnrollmentResource(logger, settings.Service, config.Turnstile, careOfferings, flows, phases,
 				enrollmentCompose.PublicDecisions(decisions), notices.Deletions, identity, guardianProfiles, organizations, renderer, persons, carePlan)
 			mountSchoolRoutes(tenant, db, logger, facilities, facilitiesRooms, settings.Service, caller, active, services.Users,
 				structureViews.Education, renderer, activities, timetableOwner, iot, calendarAdmin, planning, careOfferings, settingsWrites,

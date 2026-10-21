@@ -110,8 +110,10 @@ export const STAFF_NAV_GROUPS: readonly StaffNavGroup[] = [
       // ganz oben im Tagesbetrieb (#2180).
       page(STAFF_FLAT_PAGES.tagesplan.href),
       section("groups"),
-      section("supervisions"),
+      // Alle Kinder gehört zu den meistgenutzten Einträgen und steht deshalb
+      // direkt unter Meine Gruppen, vor den aufklappbaren Aufsichten (#4348).
       page(STAFF_FLAT_PAGES.studentSearch.href),
+      section("supervisions"),
       page(STAFF_FLAT_PAGES.rooms.href),
       page(STAFF_FLAT_PAGES.activities.href),
       page(STAFF_FLAT_PAGES.substitutions.href),

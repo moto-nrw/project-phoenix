@@ -320,6 +320,8 @@ func TestFullProductionRouterGolden(t *testing.T) {
 		PublicAPIURL:        "http://api.invalid",
 		Logger:              slog.Default(),
 		SentryPyrePortalDSN: sentryFake.dsn(relayTestProjectID),
+		// Cloudflare's documented always-passing Turnstile test keys.
+		Turnstile: TurnstileKeys{SiteKey: "1x00000000000000000000AA", SecretKey: "1x0000000000000000000000000000000AA"},
 	}, func(runtime *Runtime) error {
 		called = true
 		require.NotNil(t, runtime.worker)

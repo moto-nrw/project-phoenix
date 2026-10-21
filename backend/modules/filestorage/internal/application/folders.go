@@ -192,7 +192,7 @@ func (s *Service) audienceRoles(ctx context.Context) ([]filestorage.AudienceRole
 // the school and orders them by name, so it shows names rather than e-mail
 // addresses.
 func (s *Service) audienceAccounts(ctx context.Context) ([]filestorage.AudienceAccount, error) {
-	ids, err := s.deps.Identity.ListActiveAccountIDs(ctx)
+	ids, err := s.deps.Identity.ListActiveSchoolAccountIDs(ctx)
 	if err != nil {
 		return nil, err
 	}

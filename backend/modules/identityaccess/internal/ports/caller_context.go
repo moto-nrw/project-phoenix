@@ -66,8 +66,10 @@ type CallerLiveTopics interface {
 	StaffSessionIDs(ctx context.Context, staffID int64) ([]int64, error)
 }
 
-// StaffPresence answers whether the caller is a verified staff member.
-type StaffPresence interface {
+// StaffPresence answers whether the caller is a verified staff member. It
+// is the parameter type of the public CallerOverview, so the root's overview
+// serves this port as it is.
+type StaffPresence = interface {
 	HasCurrentStaff(context.Context) (bool, error)
 }
 

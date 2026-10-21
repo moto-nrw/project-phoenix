@@ -31,7 +31,7 @@ func newAccountProvisioning(
 		Roles:     postgres.NewRoleStore(store),
 		Policy:    application.RoleAssignmentPolicy{},
 		Identity:  lifecycle,
-		Profiles:  application.StaffDirectory{Source: deps.Staff},
+		Profiles:  application.StaffDirectory{StaffDirectory: deps.Staff},
 		Passwords: deps.Passwords,
 		Runtime:   tenantRuntime{attach: sessions.TenantRuntime, runner: application.NewTransactionRunner()},
 		Attach:    sessions.TenantRuntime,

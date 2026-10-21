@@ -128,12 +128,12 @@ func TestInternalReachRulesRequireReviewedEpoch(t *testing.T) {
 	if removed := len(candidate.Rules) - len(base.Rules); removed < 2 {
 		t.Fatalf("expected at least the two generic own-public rules in the reach, found %d", removed)
 	}
-	if err := comparePolicyStrictness(&base, candidate, noCreated(), noCreated(), noCreated(), noCreated(), noCreated(), nil); err != nil {
+	if err := comparePolicyStrictness(&base, candidate, noCreated(), noCreated(), noCreated(), noCreated(), nil); err != nil {
 		t.Fatalf("reviewed internal reach rules: %v", err)
 	}
 	unreviewed := *candidate
 	unreviewed.PolicyEpoch = base.PolicyEpoch
-	if err := comparePolicyStrictness(&base, &unreviewed, noCreated(), noCreated(), noCreated(), noCreated(), noCreated(), nil); err == nil {
+	if err := comparePolicyStrictness(&base, &unreviewed, noCreated(), noCreated(), noCreated(), noCreated(), nil); err == nil {
 		t.Fatal("new internal reach permissions passed without an epoch")
 	}
 }
@@ -147,7 +147,7 @@ func TestInternalReachEpochGrantsOnlyTheReach(t *testing.T) {
 	base.PolicyEpoch--
 	widened := *candidate
 	widened.Rules = append(slices.Clone(candidate.Rules), accepted)
-	if err := comparePolicyStrictness(&base, &widened, noCreated(), noCreated(), noCreated(), noCreated(), noCreated(), nil); err != nil {
+	if err := comparePolicyStrictness(&base, &widened, noCreated(), noCreated(), noCreated(), noCreated(), nil); err != nil {
 		t.Fatalf("%s was rejected: %v", accepted.ID, err)
 	}
 	for _, rule := range []Rule{
@@ -159,7 +159,7 @@ func TestInternalReachEpochGrantsOnlyTheReach(t *testing.T) {
 	} {
 		widened := *candidate
 		widened.Rules = append(slices.Clone(candidate.Rules), rule)
-		err := comparePolicyStrictness(&base, &widened, noCreated(), noCreated(), noCreated(), noCreated(), noCreated(), nil)
+		err := comparePolicyStrictness(&base, &widened, noCreated(), noCreated(), noCreated(), noCreated(), nil)
 		if err == nil || !strings.Contains(err.Error(), rule.ID) {
 			t.Fatalf("%s escaped the guard: %v", rule.ID, err)
 		}

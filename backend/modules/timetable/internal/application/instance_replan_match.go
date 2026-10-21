@@ -93,23 +93,16 @@ func matchRegeneratedCandidate(candidates []*scheduleModel.ActivityInstance, sta
 	return nil
 }
 
-// seriesDeviationPreserver serves the template split's deviation port from
-// the lifecycle's snapshot and reapply machinery.
-type seriesDeviationPreserver struct {
-	lifecycle *InstanceLifecycleService
-}
-
-func (p seriesDeviationPreserver) LockDeviationDays(ctx context.Context, tenantID int64, from, to calendar.Date) error {
-	return p.lifecycle.acquireSubstituteDayLocks(ctx, tenantID, from, to)
-}
-
-func (p seriesDeviationPreserver) SnapshotDeviations(ctx context.Context, from, to calendar.Date, templateID int64) (ports.PreservedDeviations, error) {
+// SnapshotDeviations serves the template split's deviation port from the
+// lifecycle's snapshot and reapply machinery: it snapshots the template's
+// Vertretungsplan overrides in [from, to] for the successor.
+func (s *InstanceLifecycleService) SnapshotDeviations(ctx context.Context, from, to calendar.Date, templateID int64) (ports.PreservedDeviations, error) {
 	id := templateID
-	snapshots, occurrences, err := p.lifecycle.snapshotDeviations(ctx, from, to, &id)
+	snapshots, occurrences, err := s.snapshotDeviations(ctx, from, to, &id)
 	if err != nil {
 		return nil, err
 	}
-	return seriesDeviationSnapshot{lifecycle: p.lifecycle, snapshots: snapshots, occurrences: occurrences}, nil
+	return seriesDeviationSnapshot{lifecycle: s, snapshots: snapshots, occurrences: occurrences}, nil
 }
 
 // seriesDeviationSnapshot is one snapshot of SnapshotDeviations.

@@ -4,14 +4,14 @@ import (
 	"context"
 
 	peopleValues "github.com/moto-nrw/project-phoenix/modules/peopledirectory"
+	peoplePorts "github.com/moto-nrw/project-phoenix/modules/peopledirectory/ports"
 )
 
 type attendanceRoutePeopleSource interface {
 	FindByAccountID(context.Context, int64) (*peopleValues.DirectoryPersonSnapshot, error)
-	GetStaffByPersonID(context.Context, int64) (*peopleValues.Staff, error)
-	GetStudentByPersonID(context.Context, int64) (*peopleValues.StudentState, error)
-	GetTeacherByStaffID(context.Context, int64) (*peopleValues.Teacher, error)
-	GetStudentByID(context.Context, int64) (*peopleValues.StudentState, error)
+	StaffRows() peoplePorts.StaffRepository
+	TeacherRows() peoplePorts.TeacherRepository
+	StudentRows() peoplePorts.StudentRepository
 }
 
 type AttendanceRoutePeople struct{ source attendanceRoutePeopleSource }
@@ -30,7 +30,7 @@ func (p AttendanceRoutePeople) FindByAccountID(ctx context.Context, id int64) (i
 }
 
 func (p AttendanceRoutePeople) GetStaffByPersonID(ctx context.Context, id int64) (int64, int64, bool, error) {
-	row, err := p.source.GetStaffByPersonID(ctx, id)
+	row, err := p.source.StaffRows().FindByPersonID(ctx, id)
 	if row == nil {
 		return 0, 0, false, err
 	}
@@ -38,7 +38,7 @@ func (p AttendanceRoutePeople) GetStaffByPersonID(ctx context.Context, id int64)
 }
 
 func (p AttendanceRoutePeople) GetStudentByPersonID(ctx context.Context, id int64) (int64, *int64, bool, error) {
-	row, err := p.source.GetStudentByPersonID(ctx, id)
+	row, err := p.source.StudentRows().FindByPersonID(ctx, id)
 	if row == nil {
 		return 0, nil, false, err
 	}
@@ -46,7 +46,7 @@ func (p AttendanceRoutePeople) GetStudentByPersonID(ctx context.Context, id int6
 }
 
 func (p AttendanceRoutePeople) GetTeacherByStaffID(ctx context.Context, id int64) (int64, bool, error) {
-	row, err := p.source.GetTeacherByStaffID(ctx, id)
+	row, err := p.source.TeacherRows().FindByStaffID(ctx, id)
 	if row == nil {
 		return 0, false, err
 	}
@@ -54,7 +54,7 @@ func (p AttendanceRoutePeople) GetTeacherByStaffID(ctx context.Context, id int64
 }
 
 func (p AttendanceRoutePeople) GetStudentByID(ctx context.Context, id int64) (int64, *int64, bool, error) {
-	row, err := p.source.GetStudentByID(ctx, id)
+	row, err := p.source.StudentRows().FindByID(ctx, id)
 	if row == nil {
 		return 0, nil, false, err
 	}

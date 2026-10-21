@@ -18,7 +18,7 @@ func newCatererAccess(auth *application.AccountAuthentication, store *postgres.S
 		Delivery:  lifecycle.Caterers,
 		Passwords: lifecycle.Passwords,
 		Verifier:  sessions.Passwords,
-		Schools:   application.SchoolDirectory{Source: sessions.Schools},
+		Schools:   application.SchoolDirectory{SchoolDirectory: sessions.Schools},
 		Runtime:   tenantRuntime{attach: sessions.TenantRuntime, runner: application.NewTransactionRunner()},
 		Attach:    sessions.TenantRuntime,
 		Logger:    lifecycle.Logger,

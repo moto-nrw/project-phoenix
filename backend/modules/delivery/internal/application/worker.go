@@ -68,9 +68,6 @@ func (w *Worker) RunOnce(ctx context.Context, batchSize, maxAttempts int) (stats
 	return stats, err
 }
 
-// Backlog counts the intents still waiting for delivery.
-func (w *Worker) Backlog(ctx context.Context) (int, error) { return w.store.Backlog(ctx) }
-
 func (w *Worker) runTransport(ctx context.Context, transport domain.Transport, limit, maxAttempts int, stats *deliveryContract.WorkerStats) error {
 	now := time.Now()
 	unknown, err := w.store.DeadLetterExpiredDispatches(ctx, transport, now)

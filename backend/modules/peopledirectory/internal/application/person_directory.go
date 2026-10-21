@@ -381,11 +381,6 @@ func (s *RetainedPersonDirectory) UnlinkFromRFIDCard(ctx context.Context, person
 // flows branch on sql.ErrNoRows and PyrePortal substring-matches the rendered
 // error bodies.
 
-// GetStudentByID retrieves a student by ID.
-func (s *RetainedPersonDirectory) GetStudentByID(ctx context.Context, id int64) (*peopleValues.StudentState, error) {
-	return s.deps.StudentRepo.FindByID(ctx, id)
-}
-
 // GetStudentByIDForUpdate retrieves a student by ID under a row lock held until
 // the caller's transaction ends. Callers that validate the status before writing
 // a row that references the student need it: an unlocked read can be obsolete
@@ -403,24 +398,9 @@ func (s *RetainedPersonDirectory) GetStudentByIDForUpdate(ctx context.Context, i
 // reported rather than panicked so it cannot abort a request mid-transaction.
 var errStudentDirectoryUnwired = errors.New("student directory is not configured")
 
-// GetStudentByPersonID retrieves the student record belonging to a person.
-func (s *RetainedPersonDirectory) GetStudentByPersonID(ctx context.Context, personID int64) (*peopleValues.StudentState, error) {
-	return s.deps.StudentRepo.FindByPersonID(ctx, personID)
-}
-
-// GetStudentsByIDs retrieves multiple students by ID.
-func (s *RetainedPersonDirectory) GetStudentsByIDs(ctx context.Context, ids []int64) (map[int64]*peopleValues.StudentState, error) {
-	return s.deps.StudentRepo.FindByIDs(ctx, ids)
-}
-
-// GetStudentsByGroupID retrieves the students of a group.
-func (s *RetainedPersonDirectory) GetStudentsByGroupID(ctx context.Context, groupID int64) ([]*peopleValues.StudentState, error) {
-	return s.deps.StudentRepo.FindByGroupID(ctx, groupID)
-}
-
-// GetStudentsByGroupIDs retrieves the students of multiple groups.
-func (s *RetainedPersonDirectory) GetStudentsByGroupIDs(ctx context.Context, groupIDs []int64) ([]*peopleValues.StudentState, error) {
-	return s.deps.StudentRepo.FindByGroupIDs(ctx, groupIDs)
+// StudentRows returns the retained student repository.
+func (s *RetainedPersonDirectory) StudentRows() peoplePorts.StudentRepository {
+	return s.deps.StudentRepo
 }
 
 // GetParticipationCandidatesByGroupIDs includes alumni so the shared dated
@@ -513,11 +493,6 @@ func studentStartedOnDate(enrolledFrom, enrolledUntil *calendar.Date, status str
 	return true
 }
 
-// CountStudentsByGroupIDs counts students per group in a single query.
-func (s *RetainedPersonDirectory) CountStudentsByGroupIDs(ctx context.Context, groupIDs []int64) (map[int64]int, error) {
-	return s.deps.StudentRepo.CountByGroupIDs(ctx, groupIDs)
-}
-
 // GetAllStudentsWithGroups retrieves all students with their group info
 func (s *RetainedPersonDirectory) GetAllStudentsWithGroups(ctx context.Context) ([]peopleValues.StudentRosterEntry, error) {
 	studentsWithGroups, err := s.deps.StudentRepo.FindAllWithGroups(ctx)
@@ -590,7 +565,7 @@ func (s *RetainedPersonDirectory) ResolveStaffIDByAccountID(ctx context.Context,
 	if err != nil {
 		return 0, fmt.Errorf("person not found for account: %w", err)
 	}
-	staff, err := s.GetStaffByPersonID(ctx, person.ID)
+	staff, err := s.StaffRows().FindByPersonID(ctx, person.ID)
 	if err != nil {
 		return 0, fmt.Errorf("staff not found for editor account: %w", err)
 	}

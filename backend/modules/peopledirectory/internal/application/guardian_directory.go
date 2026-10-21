@@ -67,7 +67,7 @@ func (p *GuardianDirectory) ListGuardians(ctx context.Context, page, pageSize in
 }
 
 func (p *GuardianDirectory) ListGuardiansWithoutAccount(ctx context.Context) ([]peopledirectory.Guardian, error) {
-	profiles, err := p.guardians.GetGuardiansWithoutAccount(ctx)
+	profiles, err := p.guardians.GuardianProfiles().FindWithoutAccount(ctx)
 	if err != nil {
 		return nil, mapGuardianError(err)
 	}
@@ -75,7 +75,7 @@ func (p *GuardianDirectory) ListGuardiansWithoutAccount(ctx context.Context) ([]
 }
 
 func (p *GuardianDirectory) ListInvitableGuardians(ctx context.Context) ([]peopledirectory.Guardian, error) {
-	profiles, err := p.guardians.GetInvitableGuardians(ctx)
+	profiles, err := p.guardians.GuardianProfiles().FindInvitable(ctx)
 	if err != nil {
 		return nil, mapGuardianError(err)
 	}
@@ -106,7 +106,7 @@ func (p *GuardianDirectory) GuardianDeleteImpact(ctx context.Context, id int64) 
 }
 
 func (p *GuardianDirectory) ListGuardianPhones(ctx context.Context, guardianID int64) ([]peopledirectory.GuardianPhone, error) {
-	phones, err := p.guardians.GetGuardianPhoneNumbers(ctx, guardianID)
+	phones, err := p.guardians.GuardianPhoneNumbers().FindByGuardianID(ctx, guardianID)
 	if err != nil {
 		return nil, mapGuardianError(err)
 	}
@@ -114,7 +114,7 @@ func (p *GuardianDirectory) ListGuardianPhones(ctx context.Context, guardianID i
 }
 
 func (p *GuardianDirectory) FindGuardianPhone(ctx context.Context, phoneID int64) (peopledirectory.GuardianPhone, error) {
-	phone, err := p.guardians.GetPhoneNumberByID(ctx, phoneID)
+	phone, err := p.guardians.GuardianPhoneNumbers().FindByID(ctx, phoneID)
 	if err != nil {
 		return peopledirectory.GuardianPhone{}, mapGuardianPhoneError(err)
 	}

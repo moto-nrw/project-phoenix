@@ -24,13 +24,15 @@ func (personRecordsFake) UpdatePerson(context.Context, peopleModule.UpdatePerson
 	return peopleModule.Person{}, errPersonRecordsFakeUnset
 }
 
-func (personRecordsFake) DeletePerson(context.Context, int64) error { return errPersonRecordsFakeUnset }
+func (personRecordsFake) Delete(context.Context, interface{}) error { return errPersonRecordsFakeUnset }
 
 func (personRecordsFake) AssignStudentTag(context.Context, int64, string) error {
 	return errPersonRecordsFakeUnset
 }
 
-func (personRecordsFake) UnassignTag(context.Context, int64) error { return errPersonRecordsFakeUnset }
+func (personRecordsFake) UnlinkFromRFIDCard(context.Context, int64) error {
+	return errPersonRecordsFakeUnset
+}
 
 func (f personRecordsFake) ListStudentsForDay(ctx context.Context, groupIDs []int64, date, today calendar.Date) ([]peopleModule.StudentRecord, error) {
 	if f.listStudentsForDay == nil {

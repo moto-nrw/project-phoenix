@@ -214,7 +214,7 @@ const STAFF_MAIN_ITEMS: NavItem[] = [
     // Eine Seite, auf der man landet, muss die Leiste unten auch kennen,
     // sonst findet man nicht zurück. Die Aktivitäten wandern dafür ins
     // Mehr-Menü: fünf Reiter sind die Grenze, und der laufende Tag (Tagesplan,
-    // Gruppe, Aufsicht, Suchen) steht näher am Alltag.
+    // Gruppe, Suchen, Aufsicht) steht näher am Alltag.
     href: "/home",
     label: "Start",
     iconKey: "home",
@@ -238,16 +238,17 @@ const STAFF_MAIN_ITEMS: NavItem[] = [
     alwaysShow: true,
   },
   {
+    // Wie in der Seitenleiste direkt nach der Gruppe (#4348).
+    href: "/students/search",
+    label: "Suchen",
+    iconKey: "search",
+    alwaysShow: true,
+  },
+  {
     href: "/active-supervisions",
     label: "Aufsicht",
     iconKey: "supervision",
     concept: "supervision",
-    alwaysShow: true,
-  },
-  {
-    href: "/students/search",
-    label: "Suchen",
-    iconKey: "search",
     alwaysShow: true,
   },
 ];
@@ -770,14 +771,15 @@ export function MobileBottomNav({ className = "" }: MobileBottomNavProps) {
   // supervisions.
   // STAFF_MAIN_ITEMS already contains /active-supervisions, so only inject
   // when it is missing (i.e. for admin-only users whose baseline is
-  // ADMIN_MAIN_ITEMS) to avoid duplicate React keys.
+  // ADMIN_MAIN_ITEMS) to avoid duplicate React keys. It goes after Start and
+  // Suchen, matching the sidebar order (#4348).
   const alreadyHasSupervisionTab = baseMain.some(
     (item) => item.href === "/active-supervisions",
   );
   const filteredMainItems =
     !isLoadingSupervision && overviewEnabled && !alreadyHasSupervisionTab
       ? [
-          ...baseMain.slice(0, 1),
+          ...baseMain.slice(0, 2),
           {
             href: "/active-supervisions",
             label: "Aufsicht",
@@ -785,7 +787,7 @@ export function MobileBottomNav({ className = "" }: MobileBottomNavProps) {
             concept: "supervision" as const,
             alwaysShow: true,
           },
-          ...baseMain.slice(1),
+          ...baseMain.slice(2),
         ]
       : baseMain;
 

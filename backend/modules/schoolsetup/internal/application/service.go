@@ -17,9 +17,10 @@ import (
 	"github.com/moto-nrw/project-phoenix/modules/schoolsetup"
 )
 
-// Service implements schoolsetup.Service.
+// Service implements schoolsetup.Service. SetDismissed is the store's,
+// promoted unchanged.
 type Service struct {
-	store    schoolsetup.Store
+	schoolsetup.Store
 	progress schoolsetup.Progress
 	settings schoolsetup.Settings
 	now      func() time.Time
@@ -32,16 +33,16 @@ func New(store schoolsetup.Store, progress schoolsetup.Progress, settings school
 	if store == nil || progress == nil || settings == nil || now == nil {
 		return nil, errors.New("school setup service: all dependencies are required")
 	}
-	return &Service{store: store, progress: progress, settings: settings, now: now}, nil
+	return &Service{Store: store, progress: progress, settings: settings, now: now}, nil
 }
 
 // Status returns the wizard for the calling person.
 func (s *Service) Status(ctx context.Context, tenantID, accountID int64) (schoolsetup.Status, error) {
-	state, err := s.store.SetupOfSchool(ctx)
+	state, err := s.SetupOfSchool(ctx)
 	if err != nil {
 		return schoolsetup.Status{}, err
 	}
-	dismissed, err := s.store.IsDismissed(ctx, accountID)
+	dismissed, err := s.IsDismissed(ctx, accountID)
 	if err != nil {
 		return schoolsetup.Status{}, err
 	}
@@ -99,15 +100,10 @@ func (s *Service) Complete(ctx context.Context, tenantID, accountID int64) error
 	})
 }
 
-// SetDismissed hides the wizard for the calling person, or brings it back.
-func (s *Service) SetDismissed(ctx context.Context, tenantID, accountID int64, dismissed bool) error {
-	return s.store.SetDismissed(ctx, tenantID, accountID, dismissed)
-}
-
 // update applies change to the school's state and stores it. A new school
 // gets its state on the first write; a completed school refuses every write.
 func (s *Service) update(ctx context.Context, tenantID, accountID int64, change func(*schoolsetup.State)) error {
-	state, err := s.store.SetupOfSchool(ctx)
+	state, err := s.SetupOfSchool(ctx)
 	if err != nil {
 		return err
 	}
@@ -119,7 +115,7 @@ func (s *Service) update(ctx context.Context, tenantID, accountID int64, change 
 	}
 	change(state)
 	state.UpdatedBy = &accountID
-	return s.store.StoreSetup(ctx, state)
+	return s.StoreSetup(ctx, state)
 }
 
 func (s *Service) basics(ctx context.Context) (schoolsetup.Basics, error) {

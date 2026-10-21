@@ -69,7 +69,8 @@ measured the registers again:
    contraction (2026-10-20, base 12,419 lines) they measure the same 5 and
    29 lines: `modules/mealplan/compose` from 69 to 74, and with ADR 0077 the
    total is 12,534. On the base after the Identity & Access collapse
-   (12,407 lines) the total with ADR 0077 is 12,522.
+   (12,407 lines) the total with ADR 0077 is 12,522; on the base of
+   2026-10-21 (12,355 lines) it is 12,470.
    `modulePassthroughOwnerBudgets["workflows/parentportal"]` rises from 17
    to 18 for the adapter's week method.
 4. `modulePassthroughOwnerBudgets["modules/mealplan"]` stays at 15 and the

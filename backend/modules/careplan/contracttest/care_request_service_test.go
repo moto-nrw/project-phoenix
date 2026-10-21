@@ -315,7 +315,7 @@ func TestDecide_ApproveAppliesModeArrivalPickup(t *testing.T) {
 	require.Len(t, pickups, 1)
 	assert.Equal(t, "16:00", pickups[0].PickupTime.Format("15:04"))
 
-	student, err := f.services.Users.GetStudentByID(ctx, f.chain.StudentID)
+	student, err := f.services.Users.StudentRows().FindByID(ctx, f.chain.StudentID)
 	require.NoError(t, err)
 	assert.Equal(t, peopleValues.DeparturePickup, student.DepartureDays["mon"])
 
@@ -344,7 +344,7 @@ func TestDecide_ApproveMergesPreservingOtherDaysAndModes(t *testing.T) {
 
 	// Seed a multi-mode Tuesday directly on the student (a request can only carry
 	// one mode per day, so this can't be produced through CreateRequest).
-	student, err := f.services.Users.GetStudentByID(ctx, f.chain.StudentID)
+	student, err := f.services.Users.StudentRows().FindByID(ctx, f.chain.StudentID)
 	require.NoError(t, err)
 	student.AllowedDepartureModes = peopleValues.AllowedDepartureModes{
 		"tue": []peopleValues.DepartureMode{peopleValues.DepartureBus, peopleValues.DeparturePickup},
@@ -381,7 +381,7 @@ func TestDecide_ApproveMergesPreservingOtherDaysAndModes(t *testing.T) {
 	assert.Equal(t, "08:15", byDay[1], "the requested Monday arrival is applied")
 
 	// The multi-mode Tuesday survives the Monday-only confirm.
-	reloaded, err := f.services.Users.GetStudentByID(ctx, f.chain.StudentID)
+	reloaded, err := f.services.Users.StudentRows().FindByID(ctx, f.chain.StudentID)
 	require.NoError(t, err)
 	assert.ElementsMatch(t,
 		[]peopleValues.DepartureMode{peopleValues.DepartureBus, peopleValues.DeparturePickup},
@@ -411,7 +411,7 @@ func TestDecide_ApproveInactiveCareDayRemovesWeeklyPlan(t *testing.T) {
 	pickups, err := testpkg.TenantQuery1(t, ctx, f.db, f.schedules.Pickups.GetStudentPickupSchedules, f.chain.StudentID)
 	require.NoError(t, err)
 	assert.Empty(t, pickups)
-	student, err := f.services.Users.GetStudentByID(ctx, f.chain.StudentID)
+	student, err := f.services.Users.StudentRows().FindByID(ctx, f.chain.StudentID)
 	require.NoError(t, err)
 	assert.NotContains(t, student.AllowedDepartureModes, "tue")
 }
@@ -450,7 +450,7 @@ func TestDecide_InactiveCareDayRollsBackWhenPickupDeleteFails(t *testing.T) {
 	pickups, err := testpkg.TenantQuery1(t, ctx, f.db, f.schedules.Pickups.GetStudentPickupSchedules, f.chain.StudentID)
 	require.NoError(t, err)
 	require.Len(t, pickups, 1)
-	student, err := f.services.Users.GetStudentByID(ctx, f.chain.StudentID)
+	student, err := f.services.Users.StudentRows().FindByID(ctx, f.chain.StudentID)
 	require.NoError(t, err)
 	assert.Equal(t, []peopleValues.DepartureMode{peopleValues.DeparturePickup}, student.AllowedDepartureModes["tue"])
 	pending, _, err := testpkg.TenantQueryPair1(t, ctx, f.db, f.svc.GetPendingForStudent, f.chain.StudentID)
@@ -501,7 +501,7 @@ func TestDecide_InactiveCareDayRejectsOfferingManagedPickup(t *testing.T) {
 
 func seedCareDay(t *testing.T, f *careFixture, ctx context.Context, weekday int) {
 	t.Helper()
-	student, err := f.services.Users.GetStudentByID(ctx, f.chain.StudentID)
+	student, err := f.services.Users.StudentRows().FindByID(ctx, f.chain.StudentID)
 	require.NoError(t, err)
 	student.AllowedDepartureModes = peopleValues.AllowedDepartureModes{
 		peopleValues.PickupDayOrder[weekday-1]: {peopleValues.DeparturePickup},

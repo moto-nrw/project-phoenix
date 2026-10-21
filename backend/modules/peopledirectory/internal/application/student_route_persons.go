@@ -17,12 +17,20 @@ import (
 // member behind a person. It only translates between the owner's public types
 // and the retained rows.
 type StudentRoutePersons struct {
+	studentRoutePersonRows
 	persons peoplePorts.PersonDirectory
+}
+
+// studentRoutePersonRows are the directory writes the student routes take as
+// they are: the person delete and the bracelet release.
+type studentRoutePersonRows interface {
+	Delete(ctx context.Context, id interface{}) error
+	UnlinkFromRFIDCard(ctx context.Context, personID int64) error
 }
 
 // NewStudentRoutePersons binds the retained person directory.
 func NewStudentRoutePersons(persons peoplePorts.PersonDirectory) StudentRoutePersons {
-	return StudentRoutePersons{persons: persons}
+	return StudentRoutePersons{studentRoutePersonRows: persons, persons: persons}
 }
 
 // CreatePerson validates and inserts the person through the retained directory.
@@ -52,11 +60,6 @@ func (p StudentRoutePersons) UpdatePerson(ctx context.Context, input peopleModul
 	return studentRoutePerson(person), nil
 }
 
-// DeletePerson removes the person through the retained directory.
-func (p StudentRoutePersons) DeletePerson(ctx context.Context, personID int64) error {
-	return p.persons.Delete(ctx, personID)
-}
-
 // AssignStudentTag links the bracelet to the child's person. The retained
 // refusals of a graduated or missing child become the owner's not-found.
 func (p StudentRoutePersons) AssignStudentTag(ctx context.Context, studentID int64, tagID string) error {
@@ -65,11 +68,6 @@ func (p StudentRoutePersons) AssignStudentTag(ctx context.Context, studentID int
 		return errors.Join(peopleModule.ErrStudentNotFound, err)
 	}
 	return err
-}
-
-// UnassignTag releases the person's bracelet.
-func (p StudentRoutePersons) UnassignTag(ctx context.Context, personID int64) error {
-	return p.persons.UnlinkFromRFIDCard(ctx, personID)
 }
 
 // ListStudentsForDay returns the group children whose care covers the day.
@@ -90,7 +88,7 @@ func (p StudentRoutePersons) ListStudentsForDay(ctx context.Context, groupIDs []
 // StaffIDForPerson resolves the staff member of a person; a person who is no
 // staff member is reported as not found rather than as an error.
 func (p StudentRoutePersons) StaffIDForPerson(ctx context.Context, personID int64) (int64, bool, error) {
-	staff, err := p.persons.GetStaffByPersonID(ctx, personID)
+	staff, err := p.persons.StaffRows().FindByPersonID(ctx, personID)
 	if err != nil {
 		var notFound interface{ RepositoryNotFound() }
 		if errors.As(err, &notFound) {

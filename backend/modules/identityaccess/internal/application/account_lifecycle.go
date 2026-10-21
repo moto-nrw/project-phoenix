@@ -5,7 +5,6 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
-	"time"
 
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess/internal/domain"
@@ -103,72 +102,52 @@ func NewAccountLifecycle(sessions *Service, auth *AccountAuthentication, deps Ac
 	}, nil
 }
 
-type StaffDirectory struct{ Source identityPorts.StaffDirectory }
+type StaffDirectory struct{ identityPorts.StaffDirectory }
 
 func (d StaffDirectory) FindStaff(ctx context.Context, staffID int64) (domain.StaffMember, bool, error) {
-	staff, found, err := d.Source.FindStaff(ctx, staffID)
+	staff, found, err := d.StaffDirectory.FindStaff(ctx, staffID)
 	return domain.StaffMember(staff), found, err
 }
 
 func (d StaffDirectory) FindPerson(ctx context.Context, personID int64) (domain.PersonRecord, bool, error) {
-	person, found, err := d.Source.FindPerson(ctx, personID)
+	person, found, err := d.StaffDirectory.FindPerson(ctx, personID)
 	return domain.PersonRecord(person), found, err
 }
 
 func (d StaffDirectory) FindPersonByAccount(ctx context.Context, accountID int64) (domain.PersonRecord, bool, error) {
-	person, found, err := d.Source.FindPersonByAccount(ctx, accountID)
+	person, found, err := d.StaffDirectory.FindPersonByAccount(ctx, accountID)
 	return domain.PersonRecord(person), found, err
 }
 
 func (d StaffDirectory) FindPersonByTag(ctx context.Context, tagID string) (domain.PersonRecord, bool, error) {
-	person, found, err := d.Source.FindPersonByTag(ctx, tagID)
+	person, found, err := d.StaffDirectory.FindPersonByTag(ctx, tagID)
 	return domain.PersonRecord(person), found, err
 }
 
 func (d StaffDirectory) FindPersonNames(ctx context.Context, accountIDs []int64) (map[int64]domain.PersonName, error) {
-	names, err := d.Source.FindPersonNames(ctx, accountIDs)
+	names, err := d.StaffDirectory.FindPersonNames(ctx, accountIDs)
 	return personNames(names), err
 }
 
 func (d StaffDirectory) CreatePerson(ctx context.Context, person domain.PersonRecord) (int64, error) {
-	return d.Source.CreatePerson(ctx, identityPorts.PersonRecord(person))
-}
-
-func (d StaffDirectory) LinkPersonToAccount(ctx context.Context, personID, accountID int64) error {
-	return d.Source.LinkPersonToAccount(ctx, personID, accountID)
+	return d.StaffDirectory.CreatePerson(ctx, identityPorts.PersonRecord(person))
 }
 
 func (d StaffDirectory) MoveAccountLink(ctx context.Context, fromPersonID, toPersonID, accountID int64) error {
-	if err := d.Source.UnlinkPersonFromAccount(ctx, fromPersonID); err != nil {
+	if err := d.UnlinkPersonFromAccount(ctx, fromPersonID); err != nil {
 		return err
 	}
-	return d.Source.LinkPersonToAccount(ctx, toPersonID, accountID)
-}
-
-func (d StaffDirectory) LinkPersonToRFIDCard(ctx context.Context, personID int64, tagID string) error {
-	return d.Source.LinkPersonToRFIDCard(ctx, personID, tagID)
-}
-
-func (d StaffDirectory) IsStudentPerson(ctx context.Context, personID int64) (bool, error) {
-	return d.Source.IsStudentPerson(ctx, personID)
+	return d.LinkPersonToAccount(ctx, toPersonID, accountID)
 }
 
 func (d StaffDirectory) FindStaffByPerson(ctx context.Context, personID int64) (domain.StaffMember, bool, error) {
-	staff, found, err := d.Source.FindStaffByPerson(ctx, personID)
+	staff, found, err := d.StaffDirectory.FindStaffByPerson(ctx, personID)
 	return domain.StaffMember(staff), found, err
 }
 
-func (d StaffDirectory) CreateStaff(ctx context.Context, tenantID, personID int64, retiredStaffID *int64) (int64, error) {
-	return d.Source.CreateStaff(ctx, tenantID, personID, retiredStaffID)
-}
-
 func (d StaffDirectory) FindCaregiverProfile(ctx context.Context, staffID int64) (domain.CaregiverProfile, bool, error) {
-	profile, found, err := d.Source.FindCaregiverProfile(ctx, staffID)
+	profile, found, err := d.StaffDirectory.FindCaregiverProfile(ctx, staffID)
 	return domain.CaregiverProfile(profile), found, err
-}
-
-func (d StaffDirectory) CreateCaregiverProfile(ctx context.Context, tenantID, staffID int64, position string) (int64, error) {
-	return d.Source.CreateCaregiverProfile(ctx, tenantID, staffID, position)
 }
 
 // rolePolicy binds the public role classification to the application port.
@@ -182,58 +161,48 @@ func (RolePolicy) RoleNeedsCaregiverProfile(role *domain.RoleFacts) bool {
 	return identityaccess.RoleNeedsCaregiverProfile(publicRoleFacts(role))
 }
 
-type PreviewAudit struct{ Source identityPorts.PreviewAudit }
+type PreviewAudit struct{ identityPorts.PreviewAudit }
 
 func (a PreviewAudit) RecordStaffPreviewStart(ctx context.Context, event domain.StaffPreviewEvent) error {
-	return a.Source.RecordStaffPreviewStart(ctx, identityPorts.StaffPreviewEvent(event))
+	return a.PreviewAudit.RecordStaffPreviewStart(ctx, identityPorts.StaffPreviewEvent(event))
 }
 
 func (a PreviewAudit) RecordStaffPreviewEndOnce(ctx context.Context, event domain.StaffPreviewEvent) (bool, error) {
-	return a.Source.RecordStaffPreviewEndOnce(ctx, identityPorts.StaffPreviewEvent(event))
-}
-
-func (a PreviewAudit) LockStaffPreview(ctx context.Context, adminAccountID int64, previewID string) error {
-	return a.Source.LockStaffPreview(ctx, adminAccountID, previewID)
-}
-
-func (a PreviewAudit) StaffPreviewEnded(ctx context.Context, adminAccountID int64, previewID string) (bool, error) {
-	return a.Source.StaffPreviewEnded(ctx, adminAccountID, previewID)
+	return a.PreviewAudit.RecordStaffPreviewEndOnce(ctx, identityPorts.StaffPreviewEvent(event))
 }
 
 func (c TokenCodec) IssueAccessToken(claims domain.SessionClaims) (string, error) {
-	return c.Source.IssueAccessToken(identityaccess.SessionClaims(claims))
+	return c.TokenCodec.IssueAccessToken(identityaccess.SessionClaims(claims))
 }
 
 func (c TokenCodec) ParseAccessTokenAllowExpired(token string) (domain.SessionClaims, error) {
-	claims, err := c.Source.ParseAccessTokenAllowExpired(token)
+	claims, err := c.TokenCodec.ParseAccessTokenAllowExpired(token)
 	return domain.SessionClaims(claims), err
 }
 
-func (c TokenCodec) AccessExpiry() time.Duration { return c.Source.AccessExpiry() }
-
 type GuardianDirectory struct {
-	Source identityPorts.GuardianDirectory
+	identityPorts.GuardianDirectory
 }
 
 func (d GuardianDirectory) FindGuardianProfileByEmail(ctx context.Context, email string) (domain.GuardianProfile, bool, error) {
-	profile, found, err := d.Source.FindGuardianProfileByEmail(ctx, email)
+	profile, found, err := d.GuardianDirectory.FindGuardianProfileByEmail(ctx, email)
 	return domain.GuardianProfile(profile), found, err
 }
 
 func (d GuardianDirectory) FindGuardianProfile(ctx context.Context, id int64) (domain.GuardianProfile, bool, error) {
-	profile, found, err := d.Source.FindGuardianProfile(ctx, id)
+	profile, found, err := d.GuardianDirectory.FindGuardianProfile(ctx, id)
 	return domain.GuardianProfile(profile), found, err
 }
 
 func (d GuardianDirectory) LockGuardianProfile(ctx context.Context, id int64) (domain.GuardianProfile, bool, error) {
-	locked, err := d.Source.LockGuardianProfile(ctx, id)
+	locked, err := d.GuardianDirectory.LockGuardianProfile(ctx, id)
 	if err != nil {
 		return domain.GuardianProfile{}, false, fmt.Errorf("lock guardian profile: %w", err)
 	}
 	if !locked {
 		return domain.GuardianProfile{}, false, nil
 	}
-	profile, found, err := d.Source.FindGuardianProfile(ctx, id)
+	profile, found, err := d.GuardianDirectory.FindGuardianProfile(ctx, id)
 	if err != nil {
 		return domain.GuardianProfile{}, false, fmt.Errorf("read locked guardian profile: %w", err)
 	}
@@ -241,7 +210,7 @@ func (d GuardianDirectory) LockGuardianProfile(ctx context.Context, id int64) (d
 }
 
 func (d GuardianDirectory) FindGuardianProfiles(ctx context.Context, ids []int64) (map[int64]domain.GuardianProfile, error) {
-	profiles, err := d.Source.FindGuardianProfiles(ctx, ids)
+	profiles, err := d.GuardianDirectory.FindGuardianProfiles(ctx, ids)
 	if err != nil {
 		return nil, err
 	}
@@ -253,50 +222,34 @@ func (d GuardianDirectory) FindGuardianProfiles(ctx context.Context, ids []int64
 }
 
 func (d GuardianDirectory) CreateGuardianProfile(ctx context.Context, profile domain.GuardianProfile) (int64, error) {
-	return d.Source.CreateGuardianProfile(ctx, identityPorts.GuardianProfile(profile))
-}
-
-func (d GuardianDirectory) DeleteGuardianProfile(ctx context.Context, id int64) error {
-	return d.Source.DeleteGuardianProfile(ctx, id)
-}
-
-func (d GuardianDirectory) LinkGuardianProfileToAccount(ctx context.Context, profileID, accountID int64) error {
-	return d.Source.LinkGuardianProfileToAccount(ctx, profileID, accountID)
+	return d.GuardianDirectory.CreateGuardianProfile(ctx, identityPorts.GuardianProfile(profile))
 }
 
 func (d GuardianDirectory) FindStudentGuardianLinkForUpdate(ctx context.Context, studentID, guardianProfileID int64) (domain.StudentGuardianLink, bool, error) {
-	link, found, err := d.Source.FindStudentGuardianLinkForUpdate(ctx, studentID, guardianProfileID)
+	link, found, err := d.GuardianDirectory.FindStudentGuardianLinkForUpdate(ctx, studentID, guardianProfileID)
 	return domain.StudentGuardianLink(link), found, err
 }
 
 func (d GuardianDirectory) LinkStudentGuardianIfAbsent(ctx context.Context, link domain.StudentGuardianLink) (bool, error) {
-	return d.Source.LinkStudentGuardianIfAbsent(ctx, identityPorts.StudentGuardianLink(link))
-}
-
-func (d GuardianDirectory) PromoteStudentGuardianLink(ctx context.Context, linkID int64) error {
-	return d.Source.PromoteStudentGuardianLink(ctx, linkID)
+	return d.GuardianDirectory.LinkStudentGuardianIfAbsent(ctx, identityPorts.StudentGuardianLink(link))
 }
 
 func (d GuardianDirectory) ListStudentGuardianLinksByStudents(ctx context.Context, studentIDs []int64) ([]domain.StudentGuardianLink, error) {
-	links, err := d.Source.ListStudentGuardianLinksByStudents(ctx, studentIDs)
+	links, err := d.GuardianDirectory.ListStudentGuardianLinksByStudents(ctx, studentIDs)
 	return studentGuardianLinks(links), err
 }
 
 func (d GuardianDirectory) ListStudentGuardianLinksByProfile(ctx context.Context, guardianProfileID int64) ([]domain.StudentGuardianLink, error) {
-	links, err := d.Source.ListStudentGuardianLinksByProfile(ctx, guardianProfileID)
+	links, err := d.GuardianDirectory.ListStudentGuardianLinksByProfile(ctx, guardianProfileID)
 	return studentGuardianLinks(links), err
 }
 
-func (d GuardianDirectory) DeleteStudentGuardianLink(ctx context.Context, linkID int64) error {
-	return d.Source.DeleteStudentGuardianLink(ctx, linkID)
-}
-
 func (d GuardianDirectory) GuardianRoleClass(role string) domain.GuardianRoleClass {
-	return domain.GuardianRoleClass(d.Source.GuardianRoleClass(role))
+	return domain.GuardianRoleClass(d.GuardianDirectory.GuardianRoleClass(role))
 }
 
 func (d GuardianDirectory) FindStudents(ctx context.Context, ids []int64) (map[int64]domain.Student, error) {
-	students, err := d.Source.FindStudents(ctx, ids)
+	students, err := d.GuardianDirectory.FindStudents(ctx, ids)
 	if err != nil {
 		return nil, err
 	}
@@ -307,12 +260,8 @@ func (d GuardianDirectory) FindStudents(ctx context.Context, ids []int64) (map[i
 	return result, nil
 }
 
-func (d GuardianDirectory) LockStudent(ctx context.Context, studentID int64) error {
-	return d.Source.LockStudent(ctx, studentID)
-}
-
 func (d GuardianDirectory) FindPersonNamesByIDs(ctx context.Context, personIDs []int64) (map[int64]domain.PersonName, error) {
-	names, err := d.Source.FindPersonNamesByIDs(ctx, personIDs)
+	names, err := d.GuardianDirectory.FindPersonNamesByIDs(ctx, personIDs)
 	return personNames(names), err
 }
 
@@ -331,23 +280,15 @@ func (c GuardianEnrollmentClaims) ClaimGuardianEnrollments(ctx context.Context, 
 }
 
 type GuardianInvitationDelivery struct {
-	Source identityPorts.GuardianInvitationDelivery
-}
-
-func (d GuardianInvitationDelivery) InvitationExpiry(ctx context.Context) time.Duration {
-	return d.Source.InvitationExpiry(ctx)
-}
-
-func (d GuardianInvitationDelivery) SchoolName(ctx context.Context, tenantID int64) string {
-	return d.Source.SchoolName(ctx, tenantID)
+	identityPorts.GuardianInvitationDelivery
 }
 
 func (d GuardianInvitationDelivery) EnqueueInvitationEmail(ctx context.Context, invitation domain.GuardianInvitation, profile domain.GuardianProfile, schoolName string) (int64, bool) {
-	return d.Source.EnqueueInvitationEmail(ctx, identityaccess.GuardianInvitation(invitation), identityPorts.GuardianProfile(profile), schoolName)
+	return d.GuardianInvitationDelivery.EnqueueInvitationEmail(ctx, identityaccess.GuardianInvitation(invitation), identityPorts.GuardianProfile(profile), schoolName)
 }
 
 func (d GuardianInvitationDelivery) EnqueueExistingAccountEmail(ctx context.Context, profile domain.GuardianProfile, schoolName string) (int64, bool) {
-	return d.Source.EnqueueExistingAccountEmail(ctx, identityPorts.GuardianProfile(profile), schoolName)
+	return d.GuardianInvitationDelivery.EnqueueExistingAccountEmail(ctx, identityPorts.GuardianProfile(profile), schoolName)
 }
 
 func personNames(names map[int64]identityPorts.PersonName) map[int64]domain.PersonName {

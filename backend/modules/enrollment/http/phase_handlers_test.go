@@ -45,7 +45,7 @@ type mockPhaseService struct {
 	deleteImpactErr   error
 }
 
-func (m *mockPhaseService) AllPhases(_ context.Context) ([]*capability.Phase, error) {
+func (m *mockPhaseService) Phases(_ context.Context) ([]*capability.Phase, error) {
 	return m.listResult, m.listErr
 }
 func (m *mockPhaseService) ListPublicOpen(_ context.Context, _ time.Time) ([]*capability.Phase, error) {

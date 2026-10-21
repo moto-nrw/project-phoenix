@@ -35,8 +35,8 @@ type CallerGroups interface {
 type GroupPeople interface {
 	// GroupStudents returns the children of a group.
 	GroupStudents(ctx context.Context, groupID int64) ([]peopledirectory.StudentRecord, error)
-	// CountStudentsByGroupIDs counts the children of each group.
-	CountStudentsByGroupIDs(ctx context.Context, groupIDs []int64) (map[int64]int, error)
+	// CountByGroupIDs counts the children of each group.
+	CountByGroupIDs(ctx context.Context, groupIDs []int64) (map[int64]int, error)
 	// FindPerson returns one person.
 	FindPerson(ctx context.Context, personID int64) (peopledirectory.Person, error)
 	// ListPersonsByID returns the persons keyed by ID; an unknown ID is absent.
@@ -270,7 +270,7 @@ func (rs *Resource) listGroups(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Batch load student counts (1 query instead of N)
-	studentCounts, err := rs.People.CountStudentsByGroupIDs(r.Context(), groupIDs)
+	studentCounts, err := rs.People.CountByGroupIDs(r.Context(), groupIDs)
 	if err != nil {
 		slog.Default().Warn("failed to batch load student counts", slog.String("error", err.Error()))
 		studentCounts = make(map[int64]int)

@@ -109,10 +109,12 @@ import (
 //     entry with today's count and shrink from there.
 //   - Budget with no hits → the entry is stale; remove it.
 //
-// Which counted shapes may stay is ADR 0075: a floor per owner of four
+// Which counted shapes may stay is ADR 0075: a floor per owner of five
 // shapes (transaction and observation wrapper, consumer-port adapter, the
-// #4480 section 5 Timetable adapters, known limitation 5 below). The floor is
-// a record, not a budget; every hit outside it is listed there.
+// #4480 section 5 Timetable adapters, known limitation 5 below, owner-edge
+// translation) and four named exceptions. Since its amendment every budget
+// equals its floor; a pure forward or a binding without translation is no
+// floor shape.
 //
 // Seed: measured 2026-09-18 at commit 19feca2822 by the scan below, over 203
 // non-test files: 704 pass-throughs in 21 modules. Re-measure with
@@ -224,7 +226,7 @@ const modulePassthroughApplicationSegment = "/internal/application/"
 // for modules/communication and modules/schoolcalendar), by ADR 0077 (three
 // for modules/identityaccess) and by ADR 0076 (one for
 // workflows/parentportal).
-const modulePassthroughOwnerBudgetTotal = 1559
+const modulePassthroughOwnerBudgetTotal = 1422
 
 // modulePassthroughOwnerBudgets is the register: module directory →
 // pass-throughs measured in its application layer and its compositions
@@ -238,40 +240,39 @@ const modulePassthroughOwnerBudgetTotal = 1559
 var modulePassthroughOwnerBudgets = map[string]int{
 	"modules/appointments": 21,
 	"modules/auditlog":     1,
-	"modules/careplan":     163,
-	"modules/classday":     18,
+	"modules/careplan":     159,
+	"modules/classday":     14,
 	// Raised by ADR 0073: the composition forwards the parent announcement
 	// retention to its service.
-	"modules/communication":  58,
+	"modules/communication":  57,
 	"modules/dataimport":     1,
-	"modules/delivery":       6,
-	"modules/devicefleet":    35,
-	"modules/devicescan":     41,
-	"modules/enrollment":     31,
+	"modules/delivery":       5,
+	"modules/devicefleet":    33,
+	"modules/devicescan":     35,
+	"modules/enrollment":     24,
 	"modules/exporttransfer": 1,
 	"modules/facilities":     13,
 	"modules/feedback":       2,
-	"modules/filestorage":    9,
+	"modules/filestorage":    6,
 	// Raised by ADR 0077: the caterer flows.
-	"modules/identityaccess":      254,
+	"modules/identityaccess":      221,
 	"modules/mealplan":            3,
-	"modules/organizationtenancy": 12,
-	"modules/peopledirectory":     242,
-	"modules/requestreview":       17,
+	"modules/organizationtenancy": 11,
+	"modules/peopledirectory":     210,
+	"modules/requestreview":       15,
 	"modules/schedulerruntime":    4,
 	// Raised by ADR 0073: the feed cleanup keeps only the staff feed tombstones.
-	"modules/schoolcalendar":   18,
+	"modules/schoolcalendar":   16,
 	"modules/schoolmembership": 16,
-	"modules/schoolsetup":      2,
+	"modules/schoolsetup":      1,
 	"modules/schoolstructure":  43,
 	"modules/settings":         19,
-	"modules/studentpresence":  145,
-	"modules/timetable":        211,
-	"modules/workforce":        151,
+	"modules/studentpresence":  120,
+	"modules/timetable":        208,
+	"modules/workforce":        144,
 	"workflows/openroommove":   1,
 	// Raised by ADR 0076: the week change of the meal plan adapter.
-	"workflows/parentportal":  18,
-	"workflows/shiftplansync": 3,
+	"workflows/parentportal": 18,
 }
 
 func TestModulePassthroughRatchet(t *testing.T) {

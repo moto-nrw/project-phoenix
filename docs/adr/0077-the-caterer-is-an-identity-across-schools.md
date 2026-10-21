@@ -147,6 +147,14 @@ rises from 254 to 257 and, with ADR 0076, the total from 1,637 to 1,641.
 1,349, and with ADR 0076 and `workflows/catererportal/compose` the total
 from 12,407 to 12,522.
 
+Measured again on 2026-10-21, after development drained the pass-throughs
+(#4519, #4403) and contracted the compositions further: the same caterer
+code adds 3 to `modulePassthroughOwnerBudgets["modules/identityaccess"]`
+(218 to 221) and, with ADR 0076, the total rises from 1,418 to 1,422.
+`moduleComposeBudgets["modules/identityaccess/compose"]` stays at 1,349
+over development's 1,304, and with ADR 0076 and
+`workflows/catererportal/compose` the total rises from 12,355 to 12,470.
+
 ## Policy
 
 Policy epoch 89 → 90 registers the data-less workflow owner `caterer-portal`

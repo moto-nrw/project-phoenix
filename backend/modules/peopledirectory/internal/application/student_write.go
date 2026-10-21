@@ -358,7 +358,7 @@ func (s *StudentService) decideStranding(
 	if s.companions == nil {
 		return errors.New("people directory application: companion capability is not bound")
 	}
-	covered, err := s.companions.DaysCoveredExcluding(ctx, removed, excludeID)
+	covered, err := s.companions.CompanionDaysCoveredExcluding(ctx, removed, excludeID)
 	if err != nil {
 		return err
 	}

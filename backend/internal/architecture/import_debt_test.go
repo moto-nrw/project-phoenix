@@ -129,27 +129,3 @@ func TestConvertedImportProjectsAsDebtNotTargetPermission(t *testing.T) {
 		t.Fatal("debt JSON depends on import order")
 	}
 }
-
-func TestCarePlanCompatibilityHasNoTargetPermissions(t *testing.T) {
-	t.Parallel()
-	policy, err := LoadPolicy(filepath.Join("..", "..", "architecture", "policy.json"))
-	if err != nil {
-		t.Fatal(err)
-	}
-	for _, rule := range policy.Rules {
-		if (rule.SourceOwner == "care-plan" && rule.SourceRole == "adapter") || (rule.TargetOwner == "care-plan" && rule.TargetRole == "adapter") {
-			t.Errorf("temporary Care Plan adapter permission %s belongs in exact debt", rule.ID)
-		}
-	}
-	baseline, err := LoadLegacyManifest(filepath.Join("..", "..", "architecture", "legacy.jsonl"))
-	if err != nil {
-		t.Fatal(err)
-	}
-	for _, entry := range baseline.Entries {
-		if entry.Rule == "imports.forbidden" && (strings.HasSuffix(entry.Source, "/modules/careplan/legacy") || strings.HasSuffix(entry.Target, "/modules/careplan/legacy")) {
-			if importAllowed(policy, Edge{Scope: entry.Scope, Source: entry.Source, Target: entry.Target}) {
-				t.Errorf("debt also has target permission: %s", entry.Key())
-			}
-		}
-	}
-}

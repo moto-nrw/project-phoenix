@@ -723,9 +723,9 @@ No non-constructor functions.
 | `*WorkSessionSide.WithSickCascade` | [time_tracking.go:123](../../../backend/modules/workforce/compose/time_tracking.go#L123) | direct binding | `s.WorkSessionSide.WithSickCascade` |
 | `StaffScheduleAssignments` | [time_tracking_staff_schedule.go:18](../../../backend/modules/workforce/compose/time_tracking_staff_schedule.go#L18) | direct binding | none |
 | `staffAllowanceTestDatabase` | [time_tracking_test_helpers.go:51](../../../backend/modules/workforce/compose/time_tracking_test_helpers.go#L51) | test-only | `postgresNative.DatabaseRuntime`, `errors.New` |
-| `WorkPresence` | [work_presence.go:18](../../../backend/modules/workforce/compose/work_presence.go#L18) | direct binding | none |
-| `workPresence.GetTodayPresenceMap` | [work_presence.go:22](../../../backend/modules/workforce/compose/work_presence.go#L22) | direct binding | `p.capability.WorkPresenceMap` |
 | `LegacyWorkTimeModelNotFound` | [work_time_model_not_found.go:5](../../../backend/modules/workforce/compose/work_time_model_not_found.go#L5) | direct binding | `postgresBindings.LegacyWorkTimeModelNotFound` |
+
+The audited state also listed `WorkPresence` and `workPresence.GetTodayPresenceMap` in `work_presence.go` (direct binding, `p.capability.WorkPresenceMap`). #4522 deleted the file; its consumers read `WorkPresenceMap` on the Workforce capability.
 
 
 ### `observability/compose`

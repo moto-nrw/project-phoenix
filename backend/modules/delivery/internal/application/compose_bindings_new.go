@@ -30,7 +30,18 @@ func NewWorkerBinding(runtime *Runtime, provider Provider) (*delivery.Worker, er
 		return nil, errors.New("delivery compose: runtime and provider are required")
 	}
 	worker := NewWorker(runtime.Store, ProviderAdapter{Provider: provider}, runtime.Observe)
-	return delivery.NewWorker(worker), nil
+	return delivery.NewWorker(workerEngine{Worker: worker, workerBacklog: runtime.Store}), nil
+}
+
+// workerEngine runs the worker and counts the backlog, the intents still
+// waiting for delivery, straight from the worker's store.
+type workerEngine struct {
+	*Worker
+	workerBacklog
+}
+
+type workerBacklog interface {
+	Backlog(context.Context) (int, error)
 }
 
 // EmailStatus reports the durable state of an e-mail intent.
