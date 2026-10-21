@@ -404,7 +404,7 @@ func compositionPackage(pkg string) bool {
 }
 
 func centralAggregate(pkg, name string) bool {
-	return pkg == "services" && name == "Factory" || pkg == "database/repositories" && name == "Factory" || pkg == "api" && name == "API" || pkg == "api" && name == "serviceGraph"
+	return pkg == "services" && name == "Factory" || pkg == "database/repositories" && name == "Factory" || pkg == "api" && name == "API"
 }
 
 func compositionTypeName(expression ast.Expr) string {

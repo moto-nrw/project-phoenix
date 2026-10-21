@@ -1067,9 +1067,8 @@ candidate from source and rejects every key the candidate adds. A key is
 `scope|field|package|Struct.Field` or `scope|setter|package|Function->Target`.
 It counts:
 
-- the fields of the central aggregates: `database/repositories.Factory`,
-  `api.API` and `api.serviceGraph`, which also names the fields of the deleted
-  `services.Factory`;
+- the fields of the central aggregates: `services.Factory`,
+  `database/repositories.Factory` and `api.API`, each under its own name;
 - setters, assignments to the dependency fields of a receiver or pointer
   parameter after construction;
 - since #4071, every field of every struct a `root-composition` package
