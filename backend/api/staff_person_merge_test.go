@@ -19,6 +19,7 @@ import (
 	peopleCompose "github.com/moto-nrw/project-phoenix/modules/peopledirectory/compose"
 	"github.com/moto-nrw/project-phoenix/modules/schoolmembership"
 	membershipCompose "github.com/moto-nrw/project-phoenix/modules/schoolmembership/compose"
+	"github.com/moto-nrw/project-phoenix/tenant"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/moto-nrw/project-phoenix/workflows/staffpersonmerge"
 	mergeCompose "github.com/moto-nrw/project-phoenix/workflows/staffpersonmerge/compose"
@@ -446,6 +447,75 @@ func TestStaffPersonMergeDoesNotBlockOtherSchoolsPersonWrites(t *testing.T) {
 	case <-time.After(time.Second):
 		t.Fatal("merge did not complete after its audit was released")
 	}
+}
+
+func TestStaffPersonMergeWaitsForSameSchoolPersonCreation(t *testing.T) {
+	t.Parallel()
+	h := newStaffMergeHarness(t)
+	h.pair(t, "Gleichzeitig")
+	input := mergeSelection(h.preview(t))
+	reachedAudit := make(chan struct{})
+	releaseAudit := make(chan struct{})
+	audit, err := auditCompose.NewPersistence(auditCompose.PersistenceDependencies{DB: h.db})
+	require.NoError(t, err)
+	workflow, err := mergeCompose.New(peopleCompose.NewStaffPersonMerge(), membershipCompose.NewStaffPersonMerge(), staffPersonMergeAudit{create: func(ctx context.Context, entry *auditRecords.OperatorAuditEntry) error {
+		close(reachedAudit)
+		<-releaseAudit
+		return audit.OperatorAuditLog.Create(ctx, entry)
+	}}, operatorIDFromSession)
+	require.NoError(t, err)
+	h.router = chi.NewRouter()
+	h.router.Mount("/", mergeHTTP.Router(workflow, TenantScopeMiddleware))
+
+	mergeStatus := make(chan int, 1)
+	go func() {
+		mergeStatus <- h.request(t, http.MethodPost, h.schoolID, input).Code
+	}()
+	select {
+	case <-reachedAudit:
+	case <-time.After(time.Second):
+		t.Fatal("merge did not reach the audit while holding its locks")
+	}
+
+	directory, err := peopleCompose.New(peopleCompose.Dependencies{DB: h.db, StudentDirectory: testpkg.StudentDirectory{}, Observe: func(peopleCompose.Observation) {}}, nil)
+	require.NoError(t, err)
+	created := make(chan error, 1)
+	go func() {
+		ctx := tenant.WithTenantID(testpkg.WithPackageTenantRuntime(context.Background()), h.schoolID)
+		_, err := directory.CreatePerson(ctx, peopledirectory.CreatePerson{FirstName: "Gleichzeitig", LastName: "Doppelsatz"})
+		created <- err
+	}()
+	select {
+	case err := <-created:
+		t.Fatalf("person creation completed while the merge held its exclusive lock: %v", err)
+	case <-time.After(100 * time.Millisecond):
+	}
+
+	close(releaseAudit)
+	select {
+	case code := <-mergeStatus:
+		assert.Equal(t, http.StatusOK, code)
+	case <-time.After(time.Second):
+		t.Fatal("merge did not complete after its audit was released")
+	}
+	select {
+	case err := <-created:
+		require.NoError(t, err)
+	case <-time.After(time.Second):
+		t.Fatal("person creation did not complete after the merge committed")
+	}
+}
+
+func TestStaffPersonMergeAcceptsMoreThanOneHundredCases(t *testing.T) {
+	t.Parallel()
+	h := newStaffMergeHarness(t)
+	for i := range 101 {
+		h.pair(t, fmt.Sprintf("Stapel%03d", i))
+	}
+	candidates := h.preview(t)
+	require.Len(t, candidates, 101)
+	rr := h.request(t, http.MethodPost, h.schoolID, mergeSelection(candidates))
+	assert.Equal(t, http.StatusOK, rr.Code, rr.Body.String())
 }
 
 func TestStaffPersonMergePreviewUsesTwoBulkReads(t *testing.T) {

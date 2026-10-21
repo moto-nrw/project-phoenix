@@ -10,8 +10,8 @@ import (
 // longer satisfies the reviewed repair predicates.
 var ErrStaffPersonMergeNoLongerEligible = errors.New("staff person merge no longer eligible")
 
-// StaffPersonMergeLockKey serializes a reviewed repair with creating a staff
-// membership in the same school. The merge takes it exclusively; staff
+// StaffPersonMergeLockKey serializes a reviewed repair with creating a person
+// or staff membership in the same school. The merge takes it exclusively;
 // creation takes it shared, so different schools remain independent.
 func StaffPersonMergeLockKey(schoolID int64) string {
 	return fmt.Sprintf("staff-person-merge:%d", schoolID)

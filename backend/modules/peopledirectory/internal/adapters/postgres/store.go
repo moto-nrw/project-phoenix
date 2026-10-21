@@ -67,7 +67,11 @@ func (s *Store) Create(ctx context.Context, input peopledirectory.CreatePerson) 
 		Birthday: birthday, TagID: input.TagID, AccountID: input.AccountID,
 	}
 	stats := domain.OperationStats{Queries: 1}
-	err = db.NewInsert().Model(&row).ModelTableExpr(`users.persons`).Returning("*").Scan(ctx)
+	gate := db.NewSelect().ColumnExpr("pg_advisory_xact_lock_shared(hashtextextended(?, 0))", peopledirectory.StaffPersonMergeLockKey(scope.TenantID))
+	err = db.NewInsert().Model(&row).ModelTableExpr(`users.persons`).
+		WithQuery(bun.NewWithQuery("staff_person_merge_gate", gate).Materialized()).
+		Value("tenant_id", `(SELECT ? FROM staff_person_merge_gate)`, row.TenantID).
+		Returning("*").Scan(ctx)
 	stats.StatementDuration = time.Since(started)
 	if err != nil {
 		return peopledirectory.Person{}, stats, wrapWriteError("create", err)

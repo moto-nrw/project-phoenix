@@ -103,7 +103,7 @@ func (w *Workflow) Execute(ctx context.Context, schoolID int64, request Request)
 	if actor <= 0 {
 		return ErrUnauthorized
 	}
-	if schoolID <= 0 || !request.SchoolConfirmed || len(request.Cases) == 0 || len(request.Cases) > 100 {
+	if schoolID <= 0 || !request.SchoolConfirmed || len(request.Cases) == 0 {
 		return ErrInvalid
 	}
 	if err := w.runtime.RequireAdmin(ctx); err != nil {
