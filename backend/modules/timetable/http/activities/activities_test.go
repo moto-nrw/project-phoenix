@@ -104,13 +104,30 @@ func TestListActivities_WithCategoryFilter(t *testing.T) {
 	t.Parallel()
 	ctx := setupActivitiesRoute(t)
 
+	// Every fixture activity gets its own category, so the second one is the
+	// row the filter has to drop.
 	activity := testpkg.CreateTestActivityGroup(t, ctx.db, fmt.Sprintf("TestFilter-%d", time.Now().UnixNano()))
+	other := testpkg.CreateTestActivityGroup(t, ctx.db, fmt.Sprintf("TestFilterOther-%d", time.Now().UnixNano()))
+	require.NotEqual(t, activity.CategoryID, other.CategoryID)
 
 	req := testutil.NewAuthenticatedRequest(t, "GET", fmt.Sprintf("/activities?category_id=%d", activity.CategoryID), nil)
 
 	rr := testutil.ExecuteWithAuth(t, ctx.router, req, testutil.DefaultTestClaims())
 
 	testutil.AssertSuccessResponse(t, rr, http.StatusOK)
+
+	response := testutil.ParseJSONResponse(t, rr.Body.Bytes())
+	data, ok := response["data"].([]interface{})
+	require.True(t, ok, "Expected data to be an array")
+	ids := make([]float64, 0, len(data))
+	for _, item := range data {
+		row, ok := item.(map[string]interface{})
+		require.True(t, ok, "Expected activity to be an object")
+		id, ok := row["id"].(float64)
+		require.True(t, ok, "Expected activity id to be a number")
+		ids = append(ids, id)
+	}
+	assert.Equal(t, []float64{float64(activity.ID)}, ids, "only the activity of the requested category is listed")
 }
 
 func TestGetActivity_Success(t *testing.T) {

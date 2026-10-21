@@ -162,17 +162,3 @@ func TestActivityInstance_IsLive(t *testing.T) {
 	inst.Status = InstanceStatusCompleted
 	assert.False(t, inst.IsLive())
 }
-
-func TestActivityInstance_AccessorContract(t *testing.T) {
-	t.Parallel()
-
-	now := time.Now()
-	inst := &ActivityInstance{}
-	inst.ID = 17
-	inst.CreatedAt = now
-	inst.UpdatedAt = now.Add(time.Minute)
-
-	assert.Equal(t, int64(17), inst.ID)
-	assert.Equal(t, now, inst.CreatedAt)
-	assert.Equal(t, now.Add(time.Minute), inst.UpdatedAt)
-}

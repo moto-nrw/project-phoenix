@@ -2,9 +2,6 @@ package schedulerecords
 
 import (
 	"testing"
-	"time"
-
-	"github.com/stretchr/testify/assert"
 )
 
 func TestShiftTypeValidate(t *testing.T) {
@@ -76,18 +73,4 @@ func TestShiftTypeValidate(t *testing.T) {
 			}
 		})
 	}
-}
-
-func TestShiftType_EntityAccessors(t *testing.T) {
-	t.Parallel()
-
-	now := time.Now()
-	st := &ShiftType{}
-	st.ID = 42
-	st.CreatedAt = now
-	st.UpdatedAt = now.Add(time.Hour)
-
-	assert.Equal(t, int64(42), st.ID)
-	assert.Equal(t, now, st.CreatedAt)
-	assert.Equal(t, now.Add(time.Hour), st.UpdatedAt)
 }
