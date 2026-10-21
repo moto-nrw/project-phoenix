@@ -19,7 +19,7 @@ type TemplateSeriesSeeding interface {
 // coordinates; it adds transactionality and ordering, not persistence rules.
 type InstanceSeriesConversionDependencies struct {
 	Transactions   TenantTransactions
-	InstanceRepo   ActivityInstanceRecords
+	InstanceRepo   InstanceRows
 	Lifecycle      timetable.InstancePlanning
 	Templates      TemplateSeriesSeeding
 	RecurrenceLock timetable.RecurrenceWriteLock

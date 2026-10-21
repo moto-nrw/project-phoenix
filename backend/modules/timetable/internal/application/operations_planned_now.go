@@ -41,7 +41,7 @@ func (s *operations) PlannedNow(ctx context.Context, accountID int64, isAdmin bo
 	if err != nil {
 		return nil, err
 	}
-	instances, err := s.deps.Instances.FindByTenantAndDate(ctx, calendar.Date(date))
+	instances, err := instancesOn(ctx, s.deps.Instances, calendar.Date(date))
 	if err != nil {
 		return nil, err
 	}
@@ -141,7 +141,7 @@ func (s *operations) plannedNowCandidates(
 	access plannedNowAccess,
 	limit int,
 ) ([]plannedNowCandidate, error) {
-	staffRows, err := s.deps.InstanceStaff.FindByInstanceIDs(ctx, retainedInstanceIDs(eligible))
+	staffRows, err := staffOfInstances(ctx, s.deps.InstanceStaff, retainedInstanceIDs(eligible))
 	if err != nil {
 		return nil, err
 	}

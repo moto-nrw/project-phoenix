@@ -23,3 +23,8 @@ func NativeExceptionRecords(exceptions timetable.ActivityExceptionCapability) po
 func NativeTimeframeRecords(timeframes timetable.TimeframeCapability) ports.NativeTimeframeRecords {
 	return application.NativeTimeframeRecords(timeframes)
 }
+
+// NativeInstances serves the fixtures' legacy instance rows.
+func (r Repositories) NativeInstances() ports.NativeInstanceRecords {
+	return application.NativeInstanceRecords(r.ActivityInstance)
+}

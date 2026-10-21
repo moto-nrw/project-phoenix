@@ -209,7 +209,7 @@ func (s *operations) requireFixedGroupOperationAccess(ctx context.Context, staff
 	if err != nil {
 		return 0, err
 	}
-	staffRows, err := s.deps.InstanceStaff.FindByInstanceID(ctx, instanceID)
+	staffRows, err := staffOfInstance(ctx, s.deps.InstanceStaff, instanceID)
 	if err != nil {
 		return 0, err
 	}

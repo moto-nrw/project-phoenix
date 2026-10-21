@@ -1023,10 +1023,10 @@ func (f *fakeSpontaneousActivity) resolve(_ context.Context, title string, reque
 // constructor and panic if wrongly called.
 type (
 	stubOpInstances struct {
-		timetablePorts.OperationInstances
+		timetablePorts.LegacyInstanceReads
 	}
 	stubOpInstanceStaff struct {
-		timetablePorts.OperationInstanceStaff
+		timetable.InstanceStaffQuery
 	}
 	stubOpParticipants struct {
 		timetablePorts.OperationParticipants

@@ -27,7 +27,7 @@ func TestEndedSessionCompletionRecordsSpontaneousEnd(t *testing.T) {
 		calls:     &calls,
 	}
 	completion := newEndedSessionCompletion(t, ports.EndedSessionCompletionDependencies{
-		Instances:    instances,
+		Instances:    fakeInstanceRows(instances),
 		Participants: &endedSessionParticipantsStub{calls: &calls},
 	})
 
@@ -50,7 +50,7 @@ func TestEndedSessionCompletionKeepsExistingSpontaneousEnd(t *testing.T) {
 		calls: &[]string{},
 	}
 	completion := newEndedSessionCompletion(t, ports.EndedSessionCompletionDependencies{
-		Instances:    instances,
+		Instances:    fakeInstanceRows(instances),
 		Participants: &endedSessionParticipantsStub{calls: &[]string{}},
 	})
 

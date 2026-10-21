@@ -65,7 +65,7 @@ func buildSubstitutions(
 	schedule, err := shiftplansyncCompose.NewSubstitution(shiftplansyncCompose.SubstitutionDependencies{
 		Deviations: deviations, Staff: owners.NewPlanStaffDirectory(people.Staff), Broadcaster: hub,
 		Logger:            env.Logger.With("service", "schedule-substitution"),
-		ActivityInstances: arrivalTimetable.NewTimetableInstanceReads(repos.ActivityInstance),
+		ActivityInstances: arrivalTimetable.NewTimetableInstanceReads(repos.ActivityInstance.Reads),
 		InstanceStaff:     arrivalTimetable.NewTimetableInstanceStaffReads(repos.InstanceStaff),
 	})
 	if err != nil {

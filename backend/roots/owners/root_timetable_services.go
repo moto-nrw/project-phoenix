@@ -69,7 +69,7 @@ func BuildTimetableLifecycle(
 	rows := days.Rows
 	rows.Locks = arrivalTimetable.NewRetainedActivityRecoveryRepository(db.Pool(), repos.InstanceStudent)
 	conflicts, err := NewTimetableConflictDetection(timetablePorts.ConflictDetectionDependencies{
-		Instances: repos.ActivityInstance, InstanceStaff: repos.InstanceStaff, InstanceStudents: repos.InstanceStudent,
+		Instances: repos.ActivityInstance.Reads, InstanceStaff: repos.InstanceStaff, InstanceStudents: repos.InstanceStudent,
 		Exceptions: repos.ActivityException, Schedules: repos.ActivitySchedule, Staff: NewTimetableStaff(people.Staff),
 		CalendarPeriods: owner.TemplateRows.CalendarPeriods, ArrivalExceptions: careRows.ArrivalExceptions,
 		Sessions: presence.SessionRecords, Shifts: shifts, Presence: presence.Presence,

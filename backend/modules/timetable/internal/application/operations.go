@@ -63,7 +63,7 @@ func (s *operations) logger() *slog.Logger {
 }
 
 func (s *operations) loadInstance(ctx context.Context, instanceID int64) (*scheduleModels.ActivityInstance, error) {
-	inst, err := s.deps.Instances.FindByID(ctx, instanceID)
+	inst, err := findLegacyInstance(ctx, s.deps.Instances, instanceID)
 	if err != nil {
 		if domain.IsRecordNotFound(err) {
 			return nil, timetable.ErrTimetableOperationNotFound

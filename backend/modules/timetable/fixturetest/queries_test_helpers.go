@@ -10,7 +10,6 @@ import (
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 
 	"github.com/moto-nrw/project-phoenix/modules/schoolcalendar"
-	"github.com/moto-nrw/project-phoenix/modules/timetable"
 	"github.com/moto-nrw/project-phoenix/modules/timetable/internal/domain"
 	records "github.com/moto-nrw/project-phoenix/modules/timetable/internal/domain/schedulerecords"
 	"github.com/moto-nrw/project-phoenix/modules/timetable/ports"
@@ -32,20 +31,6 @@ func (adapter fromActivityInstanceRecords) List(ctx context.Context, options *Qu
 	}
 	values, err := source.ListInstances(ctx, filter)
 	return fromNative3(values), err
-}
-func (adapter fromInstanceStaffRecords) List(ctx context.Context, options *QueryOptions) ([]*InstanceStaff, error) {
-	filter, err := InstanceStaffListOptions(options)
-	if err != nil {
-		return nil, queryError("list with options", err)
-	}
-	source, ok := adapter.value.(interface {
-		ListStaff(context.Context, timetable.InstanceStaffFilter) ([]*records.InstanceStaff, error)
-	})
-	if !ok {
-		return nil, fmt.Errorf("fixture InstanceStaff query is not configured for %T", adapter.value)
-	}
-	values, err := source.ListStaff(ctx, filter)
-	return fromNative6(values), err
 }
 func (adapter fromInstanceStudentRecords) List(ctx context.Context, options *QueryOptions) ([]*InstanceStudent, error) {
 	filter, err := InstanceStudentListOptions(options)
@@ -175,37 +160,6 @@ func (adapter fromDateframeRecords) List(ctx context.Context, options *QueryOpti
 	return result, err
 }
 
-// Listing remains optional: embedding an unconfigured base fake must not
-// silently gain a capability that dereferences its nil embedded interface.
-type fromListedActivityInstances struct {
-	fromActivityInstanceRecords
-	listing ports.InstanceListing
-}
-
-func (adapter fromListedActivityInstances) ListInstances(ctx context.Context, filter ports.LegacyInstanceFilter) ([]*ActivityInstance, error) {
-	values, err := adapter.listing.ListInstances(ctx, filter)
-	return fromNative3(values), err
-}
-
-type intoListedActivityInstances struct {
-	intoActivityInstanceRecords
-	listing InstanceListing
-}
-
-func (adapter intoListedActivityInstances) ListInstances(ctx context.Context, filter ports.LegacyInstanceFilter) ([]*records.ActivityInstance, error) {
-	values, err := adapter.listing.ListInstances(ctx, filter)
-	if values == nil {
-		return nil, err
-	}
-	result := make([]*records.ActivityInstance, len(values))
-	for i, value := range values {
-		if value != nil {
-			result[i] = &value.ActivityInstance
-		}
-	}
-	return result, err
-}
-
 // FindPartialAbsenceBlocks exposes the native preview only for its fixture suite.
 func (adapter fromInstanceStudentRecords) FindPartialAbsenceBlocks(ctx context.Context, studentID int64, date calendar.Date, cutoff time.Time) ([]PartialAbsenceBlock, error) {
 	source, ok := adapter.value.(interface {
@@ -223,4 +177,10 @@ func (adapter fromInstanceStudentRecords) FindPartialAbsenceBlocks(ctx context.C
 		result[i] = PartialAbsenceBlock{value}
 	}
 	return result, err
+}
+
+// ListInstances reads the bounded instance selection of a fixture.
+func (adapter fromActivityInstanceRecords) ListInstances(ctx context.Context, filter ports.LegacyInstanceFilter) ([]*ActivityInstance, error) {
+	values, err := adapter.value.ListInstances(ctx, filter)
+	return fromNative3(values), err
 }

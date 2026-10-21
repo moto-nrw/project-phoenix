@@ -393,7 +393,7 @@ func TestInstanceDelete_RejectsProtectedStatuses(t *testing.T) {
 
 func deleteUnitService(instanceRepo *deleteUnitInstanceRepo, exceptionRepo *deleteUnitExceptionRepo) *InstanceLifecycleService {
 	return &InstanceLifecycleService{deps: ports.InstanceLifecycleDependencies{
-		InstanceRepo:  instanceRepo,
+		InstanceRepo:  fakeInstanceRows(instanceRepo),
 		ExceptionRepo: exceptionRepo,
 		Logger:        slog.New(slog.DiscardHandler),
 	}}
@@ -415,7 +415,6 @@ func deleteUnitInstance(id int64, groupID *int64, date calendar.Date, status str
 }
 
 type deleteUnitInstanceRepo struct {
-	ports.ActivityInstanceRecords
 	instance         *scheduleModel.ActivityInstance
 	findErr          error
 	sameDayRows      []*scheduleModel.ActivityInstance

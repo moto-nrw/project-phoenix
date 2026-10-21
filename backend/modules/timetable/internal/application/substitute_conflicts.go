@@ -19,8 +19,8 @@ import (
 
 // SubstituteConflictDependencies wires the advisory read.
 type SubstituteConflictDependencies struct {
-	Instances     ports.ActivityInstanceRecords
-	InstanceStaff ports.InstanceStaffRecords
+	Instances     ports.LegacyInstanceReads
+	InstanceStaff timetable.InstanceStaffQuery
 }
 
 // NewSubstituteConflicts composes the substitute time-overlap advisories.
@@ -32,8 +32,8 @@ func NewSubstituteConflicts(deps SubstituteConflictDependencies) (timetable.Subs
 }
 
 type substituteConflicts struct {
-	instances ports.ActivityInstanceRecords
-	staff     ports.InstanceStaffRecords
+	instances ports.LegacyInstanceReads
+	staff     timetable.InstanceStaffQuery
 }
 
 // substitutionWarningProbe is one person whose other same-day assignments
@@ -71,7 +71,7 @@ func (c substituteConflicts) loadSubstitutionWarnings(
 	for _, probe := range probes {
 		staffIDs = append(staffIDs, probe.staffID)
 	}
-	rows, err := c.staff.FindByStaffIDsAndDate(ctx, staffIDs, calendar.Date(date))
+	rows, err := assignmentsOfStaffMembersOn(ctx, c.staff, staffIDs, calendar.Date(date))
 	if err != nil {
 		return nil, err
 	}
@@ -80,7 +80,7 @@ func (c substituteConflicts) loadSubstitutionWarnings(
 		rowsByStaff[row.StaffID] = append(rowsByStaff[row.StaffID], row)
 	}
 	foreignIDs := warningForeignInstanceIDs(probes, rowsByStaff)
-	foreigns, err := c.instances.FindByIDs(ctx, foreignIDs)
+	foreigns, err := instancesByID(ctx, c.instances, foreignIDs)
 	if err != nil {
 		return nil, err
 	}

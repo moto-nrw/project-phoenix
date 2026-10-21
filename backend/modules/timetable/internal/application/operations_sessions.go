@@ -17,7 +17,7 @@ import (
 // Purely descriptive metadata, so it carries no per-caller filter; the
 // route's schedules:read gates access.
 func (s *operations) ActiveSessions(ctx context.Context, date calendar.Date) ([]timetable.OperationActiveSession, error) {
-	instances, err := s.deps.Instances.FindByTenantAndDate(ctx, calendar.Date(date))
+	instances, err := instancesOn(ctx, s.deps.Instances, calendar.Date(date))
 	if err != nil {
 		return nil, err
 	}
@@ -52,7 +52,7 @@ func (s *operations) SessionBlocks(ctx context.Context, accountID int64, isAdmin
 	if err != nil || len(running) == 0 {
 		return result, err
 	}
-	staffRows, err := s.deps.InstanceStaff.FindByInstanceIDs(ctx, retainedInstanceIDs(running))
+	staffRows, err := staffOfInstances(ctx, s.deps.InstanceStaff, retainedInstanceIDs(running))
 	if err != nil {
 		return nil, err
 	}
@@ -92,7 +92,7 @@ func (s *operations) SessionBlocks(ctx context.Context, accountID int64, isAdmin
 
 // runningBlocksOf keeps the day's running blocks behind the asked sessions.
 func (s *operations) runningBlocksOf(ctx context.Context, date calendar.Date, supervisorStaffIDs map[int64][]int64) ([]*scheduleModels.ActivityInstance, error) {
-	instances, err := s.deps.Instances.FindByTenantAndDate(ctx, calendar.Date(date))
+	instances, err := instancesOn(ctx, s.deps.Instances, calendar.Date(date))
 	if err != nil {
 		return nil, err
 	}
@@ -123,7 +123,7 @@ func (s *operations) EarliestPlannedBlockStartForClass(ctx context.Context, scho
 	if key == "" {
 		return "", nil
 	}
-	instances, err := s.deps.Instances.FindByTenantAndDate(ctx, calendar.Date(date))
+	instances, err := instancesOn(ctx, s.deps.Instances, calendar.Date(date))
 	if err != nil {
 		return "", fmt.Errorf("earliest block start: load instances: %w", err)
 	}
