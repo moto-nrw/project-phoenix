@@ -174,8 +174,6 @@ type harness struct {
 	offboarded   int64
 	offboardedBy string
 	offboardErr  error
-	grants       []bool
-	grantedTo    []int64
 	retryCalls   []string
 	servedAvatar string
 
@@ -285,10 +283,6 @@ func newHarness(t *testing.T, membership *fakeMembership) *harness {
 				}
 			}
 			return matches, nil
-		},
-		GrantDefaultPermissions: func(_ context.Context, accountID int64, isTeacher bool) {
-			h.grantedTo = append(h.grantedTo, accountID)
-			h.grants = append(h.grants, isTeacher)
 		},
 		RetryQueuedDocumentCleanups: func(_ context.Context, source string) {
 			h.retryCalls = append(h.retryCalls, source)
@@ -747,8 +741,6 @@ func TestCreateStaffValidatesBodyAndGrantsPermissions(t *testing.T) {
 	assert.EqualValues(t, 11, h.created.PersonID)
 	assert.Equal(t, "hired", h.created.StaffNotes)
 	assert.Equal(t, []string{"users:create"}, h.created.ActorPermissions)
-	assert.Equal(t, []int64{101}, h.grantedTo)
-	assert.Equal(t, []bool{false}, h.grants)
 }
 
 func TestCreateStaffMapsTheTeacherOutcomes(t *testing.T) {
@@ -763,14 +755,11 @@ func TestCreateStaffMapsTheTeacherOutcomes(t *testing.T) {
 	teacher := h.do(t, http.MethodPost, "/staff", map[string]any{"person_id": 11, "is_teacher": true})
 	require.Equal(t, http.StatusCreated, teacher.Code)
 	assert.Equal(t, "Teacher created successfully", decode(t, teacher).Message)
-	assert.Equal(t, []bool{true}, h.grants)
 
 	h.createResult = staffHTTP.CreateStaffResult{Staff: schoolmembership.Staff{ID: 3, PersonID: 11}, TeacherCreationFailed: true}
-	h.grants, h.grantedTo = nil, nil
 	failed := h.do(t, http.MethodPost, "/staff", map[string]any{"person_id": 11, "is_teacher": true})
 	require.Equal(t, http.StatusCreated, failed.Code)
 	assert.Equal(t, "Staff member created successfully, but failed to create teacher record", decode(t, failed).Message)
-	assert.Empty(t, h.grantedTo, "a failed teacher record grants nothing")
 
 	h.createErr = errors.New("staff record already in use")
 	conflict := h.do(t, http.MethodPost, "/staff", map[string]any{"person_id": 11})

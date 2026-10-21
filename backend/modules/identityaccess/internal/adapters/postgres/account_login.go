@@ -11,8 +11,8 @@ import (
 // Identity-owned reads behind tenant, parent and school login, refresh,
 // switching and session validation (#3251). Every statement runs on the
 // connection the caller's context carries: the pre-authentication flows open
-// an administrative transaction (auth.account_tenants, auth.account_roles and
-// auth.account_permissions are RLS-guarded), and the locking variants pin
+// an administrative transaction (auth.account_tenants and auth.account_roles are
+// RLS-guarded), and the locking variants pin
 // the rows a mint authorizes on until that transaction commits.
 
 type loginAccountRow struct {
@@ -218,9 +218,8 @@ func (s *Store) ListAccountRolesAtTenant(ctx context.Context, accountID, tenantI
 }
 
 // ListAccountPermissionsAtTenant returns the distinct effective permission
-// names granted directly (granted = true) or through the roles the account
-// holds at the school. The union is joined as a derived table so the
-// evaluator resolves every table this read touches.
+// names granted through the roles the account holds at the school. Direct
+// account grants are retired (#4485) and no longer count.
 func (s *Store) ListAccountPermissionsAtTenant(ctx context.Context, accountID, tenantID int64) ([]string, domain.OperationStats, error) {
 	if tenantID <= 0 {
 		return nil, domain.OperationStats{}, domain.ErrTenantRequired
@@ -229,17 +228,11 @@ func (s *Store) ListAccountPermissionsAtTenant(ctx context.Context, accountID, t
 	if err != nil {
 		return nil, domain.OperationStats{}, err
 	}
-	direct := db.NewSelect().
-		ColumnExpr(`"account_permission".permission_id`).
-		TableExpr(`auth.account_permissions AS "account_permission"`).
-		Where(`"account_permission".account_id = ? AND "account_permission".granted = true`, accountID)
 	fromRoles := db.NewSelect().
 		ColumnExpr(`"role_permission".permission_id`).
 		TableExpr(`auth.role_permissions AS "role_permission"`).
 		Join(`JOIN auth.account_roles AS "ar" ON "ar".role_id = "role_permission".role_id`).
 		Where(`"ar".account_id = ?`, accountID)
-	direct = direct.Where(`"account_permission".tenant_id = ?`, tenantID)
-	direct = scopeTenantQuery(s.scope(ctx), direct, `"account_permission".tenant_id = ?`)
 	fromRoles = fromRoles.Where(`"ar".tenant_id = ?`, tenantID)
 	fromRoles = scopeTenantQuery(s.scope(ctx), fromRoles, `"ar".tenant_id = ?`)
 	var names []string
@@ -248,7 +241,7 @@ func (s *Store) ListAccountPermissionsAtTenant(ctx context.Context, accountID, t
 		Distinct().
 		TableExpr(`auth.permissions AS "permission"`).
 		ColumnExpr(`"permission".resource || ':' || "permission".action`).
-		Join(`JOIN (?) AS "aap" ON "aap".permission_id = "permission".id`, direct.UnionAll(fromRoles)).
+		Join(`JOIN (?) AS "aap" ON "aap".permission_id = "permission".id`, fromRoles).
 		Scan(ctx, &names)
 	stats := domain.OperationStats{Queries: 1, StatementDuration: time.Since(started), Rows: int64(len(names))}
 	if err != nil {
@@ -257,29 +250,17 @@ func (s *Store) ListAccountPermissionsAtTenant(ctx context.Context, accountID, t
 	return names, stats, nil
 }
 
-// LockAccountPermissionSources takes FOR SHARE locks on the direct grants and
-// on the role permissions of the roles the account holds at the school, in
-// the account -> roles -> permissions order every revocation path walks.
+// LockAccountPermissionSources takes FOR SHARE locks on the role permissions
+// of the roles the account holds at the school, in the account -> roles ->
+// permissions order every revocation path walks.
 func (s *Store) LockAccountPermissionSources(ctx context.Context, accountID, tenantID int64) (domain.OperationStats, error) {
 	db, err := s.database(ctx)
 	if err != nil {
 		return domain.OperationStats{}, err
 	}
 	var stats domain.OperationStats
-	var lockedDirect []int
-	started := time.Now()
-	err = db.NewSelect().
-		ColumnExpr("1").
-		TableExpr("auth.account_permissions AS ap").
-		Where("ap.account_id = ? AND ap.tenant_id = ?", accountID, tenantID).
-		For("SHARE OF ap").
-		Scan(ctx, &lockedDirect)
-	stats.Add(domain.OperationStats{Queries: 1, StatementDuration: time.Since(started), Rows: int64(len(lockedDirect))})
-	if err != nil {
-		return stats, fmt.Errorf("identity access postgres: lock direct account permissions: %w", err)
-	}
 	var lockedFromRoles []int
-	started = time.Now()
+	started := time.Now()
 	err = db.NewSelect().
 		ColumnExpr("1").
 		TableExpr("auth.role_permissions AS rp").

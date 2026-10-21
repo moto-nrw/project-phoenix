@@ -407,7 +407,7 @@ func (r *PushSubscriptionRepository) FindForSchoolAccounts(ctx context.Context, 
 
 // FindForTenantAdmins returns staff-portal subscriptions of effective admins:
 // accounts with the literal admin role or an admin:* / *:* permission granted
-// directly or through a tenant role. This mirrors the SSE authorization scope.
+// through a tenant role. This mirrors the SSE authorization scope.
 func (r *PushSubscriptionRepository) FindForTenantAdmins(ctx context.Context) ([]*deliveryModels.PushSubscription, error) {
 	var subs []*pushSubscription
 	ambientDB10, databaseErr10 := r.database(ctx)

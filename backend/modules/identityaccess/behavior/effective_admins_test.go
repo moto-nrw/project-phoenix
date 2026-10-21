@@ -81,7 +81,7 @@ func TestNativeEffectiveAdminsIncludeGrantedWildcardsWithoutSchoolLeakage(t *tes
 			ids, err := query.ListEffectiveAdminAccountIDs(ctx)
 			require.NoError(t, err)
 			require.Contains(t, ids, roleAdmin.ID)
-			require.Contains(t, ids, directAdmin.ID)
+			require.NotContains(t, ids, directAdmin.ID, "a retired direct grant no longer makes an admin (#4485)")
 			require.NotContains(t, ids, denied.ID)
 			require.NotContains(t, ids, foreign.ID)
 			rollback := errors.New("rollback admin grant revocation")
@@ -103,7 +103,7 @@ func TestNativeEffectiveAdminsIncludeGrantedWildcardsWithoutSchoolLeakage(t *tes
 			require.ElementsMatch(t, ids, after)
 			global, err := query.ListEffectiveAdminAccountIDs(context.Background())
 			require.NoError(t, err)
-			require.Contains(t, global, foreign.ID, "an unscoped administrative caller retains platform reads")
+			require.NotContains(t, global, foreign.ID, "a retired direct grant counts at no school, not even for an unscoped caller (#4485)")
 		})
 	}
 }

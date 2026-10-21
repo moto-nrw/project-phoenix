@@ -45,11 +45,6 @@ func (rs *Resource) createStaff(w http.ResponseWriter, r *http.Request) {
 	}
 
 	isTeacher := result.Teacher != nil
-	// A failed teacher record leaves the account on the plain-staff default
-	// grant path only when the caller did not ask for a teacher at all.
-	if person.AccountID != nil && (isTeacher || !result.TeacherCreationFailed) {
-		rs.runtime.GrantDefaultPermissions(ctx, *person.AccountID, isTeacher)
-	}
 
 	access := rs.fieldAccess(ctx)
 	switch {

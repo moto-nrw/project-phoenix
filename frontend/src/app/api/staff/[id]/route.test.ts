@@ -223,6 +223,36 @@ describe("GET /api/staff/[id]", () => {
     expect(json.data.account_id).toBe(accountID);
   });
 
+  it("forwards the stored avatar path for the profile picture", async () => {
+    mockApiGet.mockResolvedValueOnce({
+      status: "success",
+      data: {
+        id: "7",
+        person_id: "1",
+        is_teacher: false,
+        person: {
+          id: 1,
+          first_name: "Lea",
+          last_name: "Bild",
+          avatar: "/uploads/avatars/global/lea.png",
+          created_at: "2024-01-01T00:00:00Z",
+          updated_at: "2024-01-01T00:00:00Z",
+        },
+        created_at: "2024-01-01T00:00:00Z",
+        updated_at: "2024-01-01T00:00:00Z",
+      },
+    });
+
+    const response = await GET(
+      createMockRequest("/api/staff/7"),
+      createMockContext({ id: "7" }),
+    );
+
+    const json =
+      await parseJsonResponse<ApiResponse<{ avatar: string | null }>>(response);
+    expect(json.data.avatar).toBe("/uploads/avatars/global/lea.png");
+  });
+
   it("keeps the external caregiver fields in the detail response", async () => {
     mockApiGet.mockResolvedValueOnce({
       status: "success",

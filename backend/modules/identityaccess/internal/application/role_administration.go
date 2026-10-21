@@ -680,10 +680,3 @@ func (r *RoleAdministration) DeletePermission(ctx context.Context, id int64) (er
 	})
 	return
 }
-
-func (r *RoleAdministration) GrantStaffDefaultPermission(ctx context.Context, accountID int64, isTeacher bool, permissionName string) {
-	if r == nil {
-		return
-	}
-	r.grantStaffDefaultPermission(bindRuntime(r.attach, ctx), accountID, isTeacher, permissionName)
-}

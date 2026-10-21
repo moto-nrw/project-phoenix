@@ -548,9 +548,10 @@ export default function StaffDetailContent() {
       backLabel={backLabel}
       leading={
         staff ? (
-          // Kit-Avatar mit Initialen; der Name steht direkt daneben, das Bild
-          // ist also rein schmückend.
+          // Kit-Avatar: hochgeladenes Profilbild, sonst Initialen (#4432).
+          // Der Name steht direkt daneben, das Bild ist also rein schmückend.
           <Avatar
+            imageUrl={staff.avatarUrl}
             name={`${staff.firstName} ${staff.lastName}`}
             size="lg"
             decorative
