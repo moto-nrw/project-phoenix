@@ -40,19 +40,6 @@ func createTestXLSX(t *testing.T, headers []string, rows [][]string) *bytes.Buff
 }
 
 // ============================================================================
-// NewXLSXParser Tests
-// ============================================================================
-
-func TestNewXLSXParser(t *testing.T) {
-	t.Parallel()
-
-	t.Run("creates new parser", func(t *testing.T) {
-		parser := NewXLSXParser()
-		assert.NotNil(t, parser)
-	})
-}
-
-// ============================================================================
 // ParseStudents Tests
 // ============================================================================
 

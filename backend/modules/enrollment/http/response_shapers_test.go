@@ -116,17 +116,17 @@ func TestRenderPublicEnrollmentError_WindowClosed404WithCode(t *testing.T) {
 	assert.Contains(t, w.Body.String(), "enrollment.window_closed")
 }
 
-func TestRenderPublicEnrollmentError_OtherErrorPlain404(t *testing.T) {
+func TestRenderPublicEnrollmentError_OtherErrorFormNotFound404(t *testing.T) {
 	t.Parallel()
 
-	// Any other error → bare 404 (no stable code). The catalog endpoint
-	// intentionally hides the difference between "phase not found" and
-	// "phase not yet open" from unauthenticated callers.
+	// Any other error → 404 with the generic form-not-found code. The catalog
+	// endpoint intentionally hides the difference between "phase not found"
+	// and "phase not yet open" from unauthenticated callers.
 	w := httptest.NewRecorder()
 	r := httptest.NewRequest(http.MethodGet, "/x", nil)
 	renderPublicEnrollmentError(w, r, errors.New("phase not found"))
 	assert.Equal(t, http.StatusNotFound, w.Code)
-	assert.NotContains(t, w.Body.String(), "enrollment.disabled")
+	assert.JSONEq(t, `{"type":"https://moto-app.de/help/fehlermeldungen#anleitung-vorgang-nicht-moeglich","title":"Not Found","status":404,"detail":"phase not found","instance":"","code":"enrollment.form_not_found"}`, w.Body.String())
 }
 
 // --- toPhaseResponse -----------------------------------------------------

@@ -23,7 +23,7 @@ func parseWallClock(value string) (time.Time, error) {
 
 // createArrivalSchedules creates weekly arrival schedule records for a student.
 func (c *StudentImportConfig) createArrivalSchedules(ctx context.Context, studentID int64, schedules []importModels.ArrivalScheduleImportData) error {
-	if len(schedules) == 0 || c.Schedules == nil {
+	if len(schedules) == 0 {
 		return nil
 	}
 	for i, sched := range schedules {
@@ -43,7 +43,7 @@ func (c *StudentImportConfig) createArrivalSchedules(ctx context.Context, studen
 
 // createPickupSchedules creates weekly pickup schedule records for a student.
 func (c *StudentImportConfig) createPickupSchedules(ctx context.Context, studentID int64, schedules []importModels.PickupScheduleImportData) error {
-	if len(schedules) == 0 || c.Schedules == nil {
+	if len(schedules) == 0 {
 		return nil
 	}
 	for i, sched := range schedules {
@@ -62,7 +62,7 @@ func (c *StudentImportConfig) createPickupSchedules(ctx context.Context, student
 }
 
 func (c *StudentImportConfig) upsertArrivalSchedules(ctx context.Context, studentID int64, schedules []importModels.ArrivalScheduleImportData) error {
-	if len(schedules) == 0 || c.Schedules == nil {
+	if len(schedules) == 0 {
 		return nil
 	}
 	for _, sched := range schedules {
@@ -74,7 +74,7 @@ func (c *StudentImportConfig) upsertArrivalSchedules(ctx context.Context, studen
 }
 
 func (c *StudentImportConfig) upsertPickupSchedules(ctx context.Context, studentID int64, schedules []importModels.PickupScheduleImportData) error {
-	if len(schedules) == 0 || c.Schedules == nil {
+	if len(schedules) == 0 {
 		return nil
 	}
 	for _, sched := range schedules {
