@@ -56,7 +56,7 @@ func (s *Scheduler) checkAndRunReminderNotifications(ctx context.Context, task *
 		if !s.notificationDispatchEnabled(tenantCtx, tenantID) {
 			return nil
 		}
-		onDutyOnly := s.resolveBoolSetting(tenantCtx, settingNotificationsOnDutyOnly, "", false)
+		onDutyOnly := s.resolveBoolSetting(tenantCtx, settingNotificationsOnDutyOnly, false)
 		s.reminderNotifications(tenantCtx, tenantID, time.Now(), onDutyOnly)
 		return nil
 	})

@@ -184,7 +184,7 @@ func NewStudentHTTPTestResources(store transactionruntime.Database, unit tenant.
 					names[room.ID] = room.Name
 				}
 				return names, nil
-			}, StudentTestDataAccessAudit(audit), svc.HistorySlots(repoFactoryTimetable.InstanceStudent)),
+			}, StudentTestDataAccessAudit(audit), svc.HistorySlots(repoFactoryTimetable.InstanceStudent.Reads)),
 			StudentStatusDayService: presenceservice.NewStatusDays(repoFactoryCare.StudentStatusDay, svc.ManualPartialAbsences(students.CarePlan), store.Pool(), students.CarePlan.LockExceptionDay),
 			UserContextService:      caller,
 		},

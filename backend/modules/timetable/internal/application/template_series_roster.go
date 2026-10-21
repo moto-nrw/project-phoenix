@@ -328,7 +328,7 @@ func (s *TemplateService) reconcilePredecessorOccurrences(
 	touchedStaff []int64,
 	priorSupervisors []*activityContract.SupervisorPlanned,
 ) error {
-	if len(touchedStudents) > 0 && !noInstanceRows(s.deps.ActivityInstanceRepo) && s.deps.InstanceStudentRepo != nil {
+	if len(touchedStudents) > 0 && !noInstanceRows(s.deps.ActivityInstanceRepo) && !noParticipantRows(s.deps.InstanceStudentRepo) {
 		if _, _, err := s.newRosterReconciler().reconcileSourcedTemplateRosters(
 			ctx, templateID, touchedStudents, from, priorEnrollments,
 		); err != nil {

@@ -1196,12 +1196,12 @@ func createPlanningOccurrence(
 		stored, err := testpkg.TenantQuery1(t, testpkg.
 			Ctx(
 				t), env.db,
-			env.timetable.InstanceStudent.
+			env.timetable.NativeParticipants().
 				FindByID, attendance.ID)
 
 		require.NoError(t, err)
 		stored.IsUnplanned = true
-		require.NoError(t, env.timetable.InstanceStudent.Update(testpkg.Ctx(t), stored))
+		require.NoError(t, env.timetable.NativeParticipants().Update(testpkg.Ctx(t), stored))
 	}
 }
 

@@ -37,7 +37,7 @@ func NewTemplateAdministration(deps ports.TemplateAdministrationDependencies) (t
 
 func NewRosterReconciler(
 	instanceRepo ports.InstanceRows,
-	instanceStudentRepo ports.InstanceStudentRecords,
+	instanceStudentRepo ports.ParticipantRows,
 	enrollments timetable.StudentEnrollmentQuery,
 	directories ports.RepositoryDirectories,
 	logger *slog.Logger,

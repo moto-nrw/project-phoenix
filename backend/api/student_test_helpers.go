@@ -432,8 +432,8 @@ func StudentTestStatusDayOverviewPeople(live ActivePeople) presenceservice.Statu
 }
 
 // HistorySlots supplies the same owner projection to narrow student route fixtures.
-func (m StudentTestModule) HistorySlots(records timetablePorts.AttendanceHistoryRecords) presenceservice.HistorySlotReader {
-	return owners.NewHistorySlots(records)
+func (m StudentTestModule) HistorySlots(reads timetablePorts.LegacyParticipantReads) presenceservice.HistorySlotReader {
+	return owners.NewHistorySlots(reads)
 }
 
 // CareParticipationResolver binds the People Directory group read to the Care

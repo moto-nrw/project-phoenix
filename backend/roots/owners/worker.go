@@ -140,7 +140,7 @@ func NewWorker(
 		BookingConsistency:        bookings,
 		InstanceRepo:              schedulerDayInstances(timetableRepos),
 		InstanceRoomRepo:          schedulerExistingRooms(rooms),
-		InstanceStudentRepo:       timetableRepos.InstanceStudent,
+		InstanceStudentRepo:       timetableRepos.ParticipantCheckouts(),
 		StudentStatusDayRepo:      NewStudentStatusDayRepository(carePlan),
 		OverdueBroadcaster:        newSchedulerOverdueBroadcaster(hub),
 		StudentLifecycleRepo:      schedulerStudentLifecycle(NewStudentRootReads(people.Students)),

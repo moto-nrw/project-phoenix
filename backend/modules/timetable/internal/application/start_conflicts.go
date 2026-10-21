@@ -118,7 +118,7 @@ func staffStartWarning(staffID int64, message string) timetable.InstanceConflict
 // history. The visits are read in one batch: per-student lookups would issue
 // N queries inside the tenant transaction.
 func (d *conflictDetection) studentStartConflicts(ctx context.Context, instanceID int64) ([]timetable.InstanceConflictWarning, error) {
-	studentRows, err := d.deps.InstanceStudents.FindByInstanceID(ctx, instanceID)
+	studentRows, err := participantsOfInstance(ctx, d.deps.InstanceStudents.Reads, instanceID)
 	if err != nil {
 		return nil, fmt.Errorf("load students: %w", err)
 	}

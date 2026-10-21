@@ -6,6 +6,7 @@ import { useSession } from "next-auth/react";
 import { useSearchParams } from "next/navigation";
 import { redirect } from "next/navigation";
 import { useTenantRouter } from "~/lib/tenant-router";
+import { useTenantAwarePath } from "~/lib/tenant-path";
 import {
   useAttendanceWebEnabled,
   useNFCEnabled,
@@ -55,6 +56,7 @@ import {
 } from "~/components/active-supervisions/view-model";
 import { useSupervisionDashboard } from "~/components/active-supervisions/use-supervision-dashboard";
 import { useTimetableRoster } from "~/components/active-supervisions/use-timetable-roster";
+import type { TimetableRosterRow } from "~/lib/timetable-operations-types";
 import { useStudentFilters } from "~/components/active-supervisions/use-student-filters";
 import { useReopenBanner } from "~/components/active-supervisions/use-reopen-banner";
 import { useTimetableActions } from "~/components/active-supervisions/use-timetable-actions";
@@ -101,6 +103,7 @@ function MeinRaumPageContent() {
   const nfcEnabled = useNFCEnabled();
   const showTimetableCounts = useShowTimetableCounts();
   const router = useTenantRouter();
+  const tenantPath = useTenantAwarePath();
   const searchParams = useSearchParams();
   const { data: session, status } = useSession({
     required: true,
@@ -597,6 +600,14 @@ function MeinRaumPageContent() {
       : null,
   });
 
+  // „Profil ansehen“ in den Block-Listen (#4356). Die Kinderseite lädt
+  // GET /api/students/{id}, das `users:read` verlangt; ohne das Recht fehlt
+  // der Link, statt auf eine Fehlerseite zu führen.
+  const studentProfileHref = hasPermission(session, "users:read")
+    ? (row: TimetableRosterRow) =>
+        tenantPath(`/students/${row.studentId}?from=/active-supervisions`)
+    : undefined;
+
   // Render helper for student grid content
   const renderStudentContent = (
     tableSelection: StudentTableSelection | null,
@@ -631,6 +642,7 @@ function MeinRaumPageContent() {
             showTimetableCounts,
             canReadPresentChildren: hasPermission(session, "users:read"),
             canExcuseRestOfDay: hasPermission(session, "users:update"),
+            studentProfileHref,
             overviewEnabled,
             onAddSupervisor: setAddSupervisorTarget,
             onRosterGroups: rememberOpenRoomRosterGroups,
@@ -682,6 +694,7 @@ function MeinRaumPageContent() {
                 ? actions.handleExcuseRestOfDay
                 : undefined
             }
+            studentProfileHref={studentProfileHref}
             onSearchChange={actions.handleAddStudentSearchChange}
             rowFilter={filters.rosterRowFilter}
           />

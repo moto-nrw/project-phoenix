@@ -66,11 +66,11 @@ type statusSlotDirectory struct {
 	slots timetablePorts.InstanceStatusSlots
 }
 
-func CarePlanStatusSlots(repository timetablePorts.StatusSlotRows) carePlanCompose.StatusSlotDirectory {
-	if repository == nil {
+func CarePlanStatusSlots(participants timetablePorts.ParticipantRows) carePlanCompose.StatusSlotDirectory {
+	if participants.Presence == nil {
 		return nil
 	}
-	return statusSlotDirectory{slots: timetableCompose.NewInstanceStatusSlots(repository)}
+	return statusSlotDirectory{slots: timetableCompose.NewInstanceStatusSlots(participants)}
 }
 
 func (d statusSlotDirectory) ApplyStatusDay(ctx context.Context, studentID int64, date careplan.Date, statusDayID int64, substatus string) (int, error) {

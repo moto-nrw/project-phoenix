@@ -50,7 +50,7 @@ func BuildShiftPlanning(
 		WorkSchedules:  workTime,
 		WorkModels:     workTime,
 		Holidays:       schoolCalendarCompose.NewNonWorkingDays(calendar), NonWorkingDays: calendar,
-		CategoryLinker: arrivalTimetable.ShiftTypeCategoryLinker(activities.SetCategoryShiftTypeLinks),
+		CategoryLinker: activities.SetCategoryShiftTypeLinks,
 		DB:             db.Pool(), Broadcaster: hub, Logger: env.Logger.With("service", "shift_planning"),
 		Today: env.Today,
 	})

@@ -143,7 +143,7 @@ func (s *InstanceLifecycleService) publishGuardianNotice(
 // already stamped absent stays in: the family still learns the block fell
 // out.
 func (s *InstanceLifecycleService) noticeStudentIDs(ctx context.Context, instanceID int64) ([]int64, error) {
-	rows, err := s.deps.InstanceStudents.FindByInstanceID(ctx, instanceID)
+	rows, err := participantsOfInstance(ctx, s.deps.InstanceStudents.Reads, instanceID)
 	if err != nil {
 		return nil, &ports.ScheduleError{Op: "guardian notice: load roster", Err: err}
 	}

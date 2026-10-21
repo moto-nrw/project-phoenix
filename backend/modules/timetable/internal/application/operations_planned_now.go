@@ -156,7 +156,7 @@ func (s *operations) plannedNowCandidates(
 			break
 		}
 	}
-	studentRows, err := s.deps.Participants.FindByInstanceIDs(ctx, retainedInstanceIDs(visible))
+	studentRows, err := participantsOfInstances(ctx, s.deps.Participants.Reads, retainedInstanceIDs(visible))
 	if err != nil {
 		return nil, err
 	}

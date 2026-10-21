@@ -226,7 +226,7 @@ func TestListStaffPreviewCandidates(t *testing.T) {
 	target := previewTarget
 	f.staff.addPerson(domain.PersonRecord{FirstName: "Wählbar", LastName: "Betreuung", AccountID: &target})
 
-	candidates, err := f.lifecycle.ListStaffPreviewCandidates(tenantContext(), lifecycleTenant, previewAdmin)
+	candidates, err := f.lifecycle.listStaffPreviewCandidates(tenantContext(), lifecycleTenant, previewAdmin)
 	require.NoError(t, err)
 
 	ids := make([]int64, 0, len(candidates))

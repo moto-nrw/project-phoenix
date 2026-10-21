@@ -9,54 +9,33 @@ import (
 	"time"
 )
 
-// resolveStringSetting resolves a setting via the settings service with env var fallback.
-func (s *Scheduler) resolveStringSetting(ctx context.Context, key string, envVar string, defaultVal string) string {
-	fallback := defaultVal
-	if val := s.env(envVar); val != "" {
-		fallback = val
-	}
-	return resolveStringOrDefault(ctx, s.settings, key, fallback, s.getLogger())
+// The resolvers below read a school setting the way the Settings Platform
+// answers it: the school's override, else the registry default (#4437).
+// Environment variables are not consulted. defaultVal answers only when the
+// read fails or yields an unusable value.
+
+// resolveStringSetting resolves a string setting; an empty value answers defaultVal.
+func (s *Scheduler) resolveStringSetting(ctx context.Context, key string, defaultVal string) string {
+	return resolveStringOrDefault(ctx, s.settings, key, defaultVal, s.getLogger())
 }
 
-// resolveBoolSetting resolves a boolean setting via the settings service with env var fallback.
-func (s *Scheduler) resolveBoolSetting(ctx context.Context, key string, envVar string, defaultVal bool) bool {
-	fallback := defaultVal
-	if val := s.env(envVar); val != "" {
-		fallback = val == "true"
-	}
-	return resolveBoolOrDefault(ctx, s.settings, key, fallback, s.getLogger())
+// resolveBoolSetting resolves a boolean setting.
+func (s *Scheduler) resolveBoolSetting(ctx context.Context, key string, defaultVal bool) bool {
+	return resolveBoolOrDefault(ctx, s.settings, key, defaultVal, s.getLogger())
 }
 
-// resolveIntSetting resolves an integer setting via the settings service with env var fallback.
-func (s *Scheduler) resolveIntSetting(ctx context.Context, key string, envVar string, defaultVal int) int {
-	fallback := defaultVal
-	if val := s.env(envVar); val != "" {
-		if parsed, err := strconv.Atoi(val); err == nil && parsed > 0 {
-			fallback = parsed
-		}
-	}
-	if val := resolveIntOrDefault(ctx, s.settings, key, fallback, s.getLogger()); val > 0 {
+// resolveIntSetting resolves a positive integer setting; zero or a negative
+// value answers defaultVal.
+func (s *Scheduler) resolveIntSetting(ctx context.Context, key string, defaultVal int) int {
+	if val := resolveIntOrDefault(ctx, s.settings, key, defaultVal, s.getLogger()); val > 0 {
 		return val
 	}
-	return fallback
+	return defaultVal
 }
 
-func (s *Scheduler) resolveRequiredPositiveIntSetting(ctx context.Context, key string, envVar string) (int, error) {
+func (s *Scheduler) resolveRequiredPositiveIntSetting(ctx context.Context, key string) (int, error) {
 	if s.settings == nil {
 		return 0, fmt.Errorf("settings resolver not configured")
-	}
-	hasOverride, err := s.settings.HasTenantOverride(ctx, key)
-	if err != nil {
-		return 0, fmt.Errorf("check override for %s: %w", key, err)
-	}
-	if !hasOverride {
-		if val := s.env(envVar); val != "" {
-			parsed, err := strconv.Atoi(val)
-			if err != nil || parsed <= 0 {
-				return 0, fmt.Errorf("environment variable %s must be positive integer, got %q", envVar, val)
-			}
-			return parsed, nil
-		}
 	}
 	val, err := s.settings.ResolveInt(ctx, key)
 	if err != nil {
@@ -71,17 +50,11 @@ func (s *Scheduler) resolveRequiredPositiveIntSetting(ctx context.Context, key s
 // resolveNonNegativeIntSetting is resolveIntSetting for settings where zero is
 // a meaningful value (e.g. tracking.auto_checkout_grace_minutes = 0 means
 // checkout exactly at the planned shift end).
-func (s *Scheduler) resolveNonNegativeIntSetting(ctx context.Context, key string, envVar string, defaultVal int) int {
-	fallback := defaultVal
-	if val := s.env(envVar); val != "" {
-		if parsed, err := strconv.Atoi(val); err == nil && parsed >= 0 {
-			fallback = parsed
-		}
-	}
-	if val := resolveIntOrDefault(ctx, s.settings, key, fallback, s.getLogger()); val >= 0 {
+func (s *Scheduler) resolveNonNegativeIntSetting(ctx context.Context, key string, defaultVal int) int {
+	if val := resolveIntOrDefault(ctx, s.settings, key, defaultVal, s.getLogger()); val >= 0 {
 		return val
 	}
-	return fallback
+	return defaultVal
 }
 
 // timeMatchesNow checks if an HH:MM time string matches the current minute.

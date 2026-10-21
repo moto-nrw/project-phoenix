@@ -120,7 +120,7 @@ func NewShiftTypeTestModule(db transactionruntime.Database) (workforce.ShiftType
 		Workforce: NewAbsenceTypeTestCapability(db), Staff: owners.NewPlanStaffDirectory(owners.MustNewMembershipTestRepositories(db).Staff), CalendarPeriods: calendar.SchoolCalendar(),
 		Instances: timetableCompose.NewTimetableInstanceReads(timetable.ActivityInstance.Reads), InstanceStaff: timetableCompose.NewTimetableInstanceStaffReads(timetable.InstanceStaff),
 		Rooms: facilitiesCompose.NewRoomNameDirectory(rooms.Room), ActivityGroups: timetableCompose.NewTimetableGroupReads(timetable.Timetable),
-		CategoryLinker: timetableCompose.ShiftTypeCategoryLinker(linker.SetCategoryShiftTypeLinks), DB: db.Pool(), Logger: slog.Default(),
+		CategoryLinker: linker.SetCategoryShiftTypeLinks, DB: db.Pool(), Logger: slog.Default(),
 	})
 	if err != nil {
 		return nil, ShiftTypeTestModule{}, err

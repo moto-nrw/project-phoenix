@@ -56,7 +56,7 @@ func (s *Scheduler) checkAndRunOverdue(ctx context.Context, task *ScheduledTask)
 	defer cancel()
 
 	s.forEachTenantSettings(ctx, "instance-overdue", func(tenantCtx context.Context, tenantID int64) error {
-		threshold := s.resolveIntSetting(tenantCtx, settingTimetableOverdueThresholdMinutes, "", 5)
+		threshold := s.resolveIntSetting(tenantCtx, settingTimetableOverdueThresholdMinutes, 5)
 		s.runOverdueForTenant(tenantCtx, tenantID, threshold, time.Now())
 		return nil
 	})

@@ -50,7 +50,7 @@ func NewInstanceLifecycle(deps ports.InstanceLifecycleDependencies) (*InstanceLi
 
 func lifecycleRepositoriesWired(deps ports.InstanceLifecycleDependencies) bool {
 	return !noInstanceRows(deps.InstanceRepo) && deps.IdempotencyRepo != nil && deps.InstanceStaffRepo != nil &&
-		deps.InstanceStudents != nil && deps.ExceptionRepo != nil && deps.CalendarPeriodRepo != nil &&
+		!noParticipantRows(deps.InstanceStudents) && deps.ExceptionRepo != nil && deps.CalendarPeriodRepo != nil &&
 		deps.RecoveryRepo != nil && deps.ActivityGroupRepo != nil && deps.StaffRepo != nil && deps.StudentRepo != nil
 }
 
@@ -197,7 +197,7 @@ func (s *InstanceLifecycleService) updateLifecycleColumns(ctx context.Context, i
 // GetPlannedStudentIDsByDate returns which of the children have a planned
 // block on the date.
 func (s *InstanceLifecycleService) GetPlannedStudentIDsByDate(ctx context.Context, studentIDs []int64, date calendar.Date) ([]int64, error) {
-	return s.deps.InstanceStudents.FindPlannedStudentIDsByDate(ctx, studentIDs, calendar.Date(date))
+	return plannedStudentIDsOn(ctx, s.deps.InstanceStudents.Plans, studentIDs, calendar.Date(date))
 }
 
 // detectStartConflicts asks the owner's start check and keeps the retained

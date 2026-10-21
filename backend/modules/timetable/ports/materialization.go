@@ -33,7 +33,7 @@ type MaterializationDependencies struct {
 	PeriodRepo     CalendarPeriodRecords
 	InstanceRepo   InstanceRows
 	StaffRepo      timetable.InstanceStaffCapability
-	StudentRepo    InstanceStudentRecords
+	StudentRepo    ParticipantRows
 	ExceptionRepo  timetable.ActivityExceptionQuery
 	TimeframeRepo  timetable.TimeframeQuery
 	CareBounds     CareBoundReader

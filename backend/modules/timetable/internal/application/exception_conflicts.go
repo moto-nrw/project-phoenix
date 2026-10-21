@@ -48,7 +48,7 @@ func (d *conflictDetection) DetectExceptionConflicts(ctx context.Context, from, 
 	if len(affected) == 0 {
 		return []timetable.ExceptionConflict{}, nil
 	}
-	expectedStudents, err := d.deps.InstanceStudents.FindExpectedByInstanceIDs(ctx, uniqueAffectedInstanceIDs(affected))
+	expectedStudents, err := expectedParticipantsOf(ctx, d.deps.InstanceStudents.Reads, uniqueAffectedInstanceIDs(affected))
 	if err != nil {
 		return nil, err
 	}

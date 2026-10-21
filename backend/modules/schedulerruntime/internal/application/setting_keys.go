@@ -77,24 +77,12 @@ func SettingKeys() []string {
 	return append(keys, settingEnrollmentOutboxWorkerIntervalSeconds, settingEnrollmentOutboxMaxAttempts)
 }
 
-// The settings reads below keep the semantics of the Settings Platform's
-// Resolve*OrDefault helpers: a school's override wins, everything else
-// answers fallback, and a failed read is logged and answers fallback too.
-
-func settingOverride(ctx context.Context, settings ports.SettingsResolver, key string, logger *slog.Logger) bool {
-	if settings == nil {
-		return false
-	}
-	has, err := settings.HasTenantOverride(ctx, key)
-	if err != nil {
-		logSettingFallback(logger, "settings override check failed, using fallback", key, err)
-		return false
-	}
-	return has
-}
+// The settings reads below answer the school's override, else the registry
+// default — Resolve* on the Settings Platform does both. A failed read is
+// logged and answers fallback.
 
 func resolveStringOrDefault(ctx context.Context, settings ports.SettingsResolver, key, fallback string, logger *slog.Logger) string {
-	if !settingOverride(ctx, settings, key, logger) {
+	if settings == nil {
 		return fallback
 	}
 	value, err := settings.ResolveString(ctx, key)
@@ -109,7 +97,7 @@ func resolveStringOrDefault(ctx context.Context, settings ports.SettingsResolver
 }
 
 func resolveBoolOrDefault(ctx context.Context, settings ports.SettingsResolver, key string, fallback bool, logger *slog.Logger) bool {
-	if !settingOverride(ctx, settings, key, logger) {
+	if settings == nil {
 		return fallback
 	}
 	value, err := settings.ResolveBool(ctx, key)
@@ -121,7 +109,7 @@ func resolveBoolOrDefault(ctx context.Context, settings ports.SettingsResolver, 
 }
 
 func resolveIntOrDefault(ctx context.Context, settings ports.SettingsResolver, key string, fallback int, logger *slog.Logger) int {
-	if !settingOverride(ctx, settings, key, logger) {
+	if settings == nil {
 		return fallback
 	}
 	value, err := settings.ResolveInt(ctx, key)
