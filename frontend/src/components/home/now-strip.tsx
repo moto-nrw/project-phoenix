@@ -78,7 +78,10 @@ export function NowStrip({
   // Schulansicht daraus bleibt der Leitung vorbehalten; wer betreut, bekommt
   // aus diesen Daten nur den Knopf.
   const wantsDay = context.timetableEnabled && access.has("schedules:read");
-  const wantsAnalytics = access.isAdminScope && access.has("groups:read");
+  // Wie viele Kinder da sind: für alle mit dem Recht hinter den Kennzahlen,
+  // auch für Betreuungskräfte (#4347). Dieselbe Abfrage wie die Kachel
+  // „Kinder anwesend".
+  const wantsAnalytics = access.has("groups:read");
 
   const own = useSWRAuth<OwnAssignment[]>(
     wantsOwn ? `time-tracking-own-assignments-today-${today}` : null,
@@ -144,6 +147,12 @@ export function NowStrip({
     canReadUsers: access.has("users:read"),
     tenantPath,
   });
+  // Lage der Schule und Datum nennen die Zahl schon im Text. Neben dem
+  // eigenen Einsatz steht sie für sich, damit niemand sie dem Block zuordnet.
+  const presentCount =
+    !loading && state.kind.startsWith("own_")
+      ? analytics.data?.studentsPresent
+      : undefined;
 
   return (
     <SectionCard testId="home-now">
@@ -171,8 +180,19 @@ export function NowStrip({
             in voller Breite waren die zwei Wege größer als die Uhr, um die es
             in der Zone geht, und in Knopfgröße blieb rechts ein toter Rest
             stehen. Ab sm stehen sie in Knopfgröße neben dem Text. */}
-        {actions.length > 0 && (
-          <div className="flex shrink-0 flex-wrap gap-2">
+        {(actions.length > 0 || presentCount !== undefined) && (
+          <div className="flex shrink-0 flex-wrap items-center gap-2">
+            {presentCount !== undefined && (
+              <p className="flex items-center gap-1.5 pr-2 text-sm whitespace-nowrap text-gray-600">
+                <MotoConceptIcon concept="present" size={18} />
+                <span>
+                  <span className="font-semibold text-gray-900 tabular-nums">
+                    {presentCount}
+                  </span>{" "}
+                  {presentCount === 1 ? "Kind da" : "Kinder da"}
+                </span>
+              </p>
+            )}
             {actions.map((action, index) => {
               const variant = index === 0 ? "primary" : "outline";
               return action.kind === "start" ? (
