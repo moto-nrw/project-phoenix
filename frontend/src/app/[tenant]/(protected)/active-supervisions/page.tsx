@@ -18,7 +18,7 @@ import { BinaryModeGuard } from "~/components/tenant/binary-mode-guard";
 import { useSetBreadcrumb } from "~/lib/breadcrumb-context";
 import { Alert } from "~/components/ui/alert";
 import { LoadErrorAlert } from "~/components/ui/form-error-alert";
-import { TenantPage } from "~/components/ui/tenant-page";
+import { TenantPage, TenantPageListSearch } from "~/components/ui/tenant-page";
 import { OverflowMenu } from "~/components/ui/page-header/OverflowMenu";
 import { MotoConceptIcon } from "~/components/ui/moto-concept-icon";
 import { Button } from "~/components/ui/button";
@@ -783,14 +783,6 @@ function MeinRaumPageContent() {
           </>
         ) : undefined
       }
-      search={{
-        value: filters.searchTerm,
-        onChange: filters.setSearchTerm,
-        placeholder: "Name suchen…",
-      }}
-      filters={filters.filterConfigs}
-      activeFilters={filters.activeFilters}
-      onClearAllFilters={filters.clearAllFilters}
       tabs={supervisionTabs}
       statsLoading={isPageLoading}
       loading={isPageLoading}
@@ -900,6 +892,22 @@ function MeinRaumPageContent() {
               />
             </Suspense>
           ) : null}
+
+          {/* Die Suche steht direkt über den Kinderlisten, nicht in der
+              Kopfkarte: dazwischen liegen sonst Als Nächstes, Kinder
+              unterwegs und der Kopf des Blocks (#4353). Sie filtert jede
+              Liste darunter, in offenen Räumen jeden Block. */}
+          <TenantPageListSearch
+            label="Kinder suchen"
+            search={{
+              value: filters.searchTerm,
+              onChange: filters.setSearchTerm,
+              placeholder: "Name suchen…",
+            }}
+            filters={filters.filterConfigs}
+            activeFilters={filters.activeFilters}
+            onClearAllFilters={filters.clearAllFilters}
+          />
 
           {showTable ? (
             <StudentSelectionScope

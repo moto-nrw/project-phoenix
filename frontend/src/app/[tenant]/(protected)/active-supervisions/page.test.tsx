@@ -1462,6 +1462,82 @@ describe("Enhanced rendering: action buttons and search/filter interaction", () 
     });
   });
 
+  it("places the search directly above the children, outside the head card (#4353)", async () => {
+    vi.mocked(useSWRAuth)
+      .mockReturnValueOnce({
+        data: {
+          supervisedGroups: [
+            {
+              id: "1",
+              name: "Group A",
+              room: { id: "r1", name: "Room 1" },
+            },
+          ],
+          unclaimedGroups: [],
+          currentStaff: { id: "staff-1" },
+          educationalGroups: [],
+          firstRoomVisits: [
+            {
+              studentId: "s1",
+              studentName: "Max Mustermann",
+              schoolClass: "1a",
+              groupName: "Group A",
+              activeGroupId: "1",
+              checkInTime: new Date().toISOString(),
+              isActive: true,
+            },
+            {
+              studentId: "s2",
+              studentName: "Erika Schmidt",
+              schoolClass: "2b",
+              groupName: "Group A",
+              activeGroupId: "1",
+              checkInTime: new Date().toISOString(),
+              isActive: true,
+            },
+          ],
+          firstRoomId: "1",
+        },
+        isLoading: false,
+        error: null,
+        mutate: mockMutate,
+        isValidating: false,
+      } as never)
+      .mockReturnValue({
+        data: null,
+        isLoading: false,
+        error: null,
+        mutate: mockMutate,
+        isValidating: false,
+      } as never);
+
+    render(<MeinRaumPage />);
+
+    await waitFor(() => {
+      expect(screen.getAllByTestId("student-card")).toHaveLength(2);
+    });
+
+    const searchInput = screen.getByTestId("search-input");
+    const searchArea = screen.getByRole("search", { name: "Kinder suchen" });
+    expect(searchArea).toContainElement(searchInput);
+    // Not in the head card any more: the head carries title and figures only.
+    expect(searchInput.closest("header")).toBeNull();
+    const [firstCard] = screen.getAllByTestId("student-card");
+    expect(
+      searchArea.compareDocumentPosition(firstCard!) &
+        Node.DOCUMENT_POSITION_FOLLOWING,
+    ).toBeTruthy();
+
+    // Each keystroke filters at once, without a debounce.
+    fireEvent.change(searchInput, { target: { value: "Eri" } });
+    expect(screen.getAllByTestId("student-card")).toHaveLength(1);
+    expect(screen.getByText("Erika Schmidt")).toBeInTheDocument();
+
+    // „Alle löschen“ in the same row brings every child back.
+    fireEvent.click(within(searchArea).getByTestId("clear-btn"));
+    expect(screen.getAllByTestId("student-card")).toHaveLength(2);
+  });
+
   it("shows EmptyStudentResults when search matches no students", async () => {
     vi.mocked(useSWRAuth)
       .mockReturnValueOnce({
@@ -1708,7 +1784,7 @@ describe("Unauthenticated redirect coverage", () => {
   });
 });
 
-describe("EmptyRoomsView onClearAllFilters coverage", () => {
+describe("EmptyRoomsView without children lists", () => {
   const mockMutate = vi.fn();
 
   beforeEach(async () => {
@@ -1760,7 +1836,7 @@ describe("EmptyRoomsView onClearAllFilters coverage", () => {
     cleanup();
   });
 
-  it("clears search and group filter in EmptyRoomsView", async () => {
+  it("shows no search while there is no children list to filter (#4353)", async () => {
     vi.mocked(useSWRAuth).mockReturnValue({
       data: {
         supervisedGroups: [],
@@ -1784,12 +1860,11 @@ describe("EmptyRoomsView onClearAllFilters coverage", () => {
       expect(screen.getByTestId("unclaimed-rooms")).toBeInTheDocument();
     });
 
-    // The clear button should exist from the EmptyRoomsView's PageHeaderWithSearch
-    const clearBtn = screen.getByTestId("clear-btn");
-    fireEvent.click(clearBtn);
-
-    // No error should occur - the callback sets searchTerm="" and groupFilter="all"
-    expect(clearBtn).toBeInTheDocument();
+    // The search stands above the children lists; without one there is
+    // nothing it could narrow, so neither it nor its filters are shown.
+    expect(screen.queryByTestId("search-input")).not.toBeInTheDocument();
+    expect(screen.queryByTestId("clear-btn")).not.toBeInTheDocument();
+    expect(screen.queryByRole("search")).not.toBeInTheDocument();
   });
 });
 
