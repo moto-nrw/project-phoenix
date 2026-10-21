@@ -40,8 +40,10 @@ type CatererStore interface {
 	// ListCatererSchools lists the schools the caterer supplies now, in the
 	// order they started.
 	ListCatererSchools(ctx context.Context, catererID int64) ([]int64, domain.OperationStats, error)
-	// FindLoginAccountByEmail and InsertAccount are the account rows an
-	// acceptance finds or creates.
+	// FindLoginAccountByEmail serves the invitation preview.
 	FindLoginAccountByEmail(ctx context.Context, email string) (domain.LoginAccount, bool, domain.OperationStats, error)
+	// LockLoginAccountByEmail serializes acceptance with account retention.
+	LockLoginAccountByEmail(ctx context.Context, email string) (domain.LoginAccount, bool, domain.OperationStats, error)
+	// InsertAccount creates the account for a new caterer address.
 	InsertAccount(ctx context.Context, email, passwordHash string) (domain.LoginAccount, domain.OperationStats, error)
 }

@@ -172,7 +172,22 @@ func TestCatererSuppliesSeveralSchools(t *testing.T) {
 	}))
 	_, err = accept(t, db, caterers, second, secondToken, identityaccess.CatererRegistration{Password: "wrong-password"})
 	require.ErrorIs(t, err, identityaccess.ErrInvalidCredentials)
-	again, err := accept(t, db, caterers, second, secondToken, identityaccess.CatererRegistration{Password: catererPassword})
+	var again identityaccess.CatererAcceptance
+	err = inSchool(t, db, second, func(ctx context.Context) error {
+		var acceptErr error
+		again, acceptErr = caterers.AcceptCatererInvitation(ctx, secondToken, identityaccess.CatererRegistration{Password: catererPassword}, func(context.Context, identityaccess.CatererAcceptance) error {
+			// Retention must wait until acceptance commits. NO KEY UPDATE is
+			// compatible with foreign-key locks, so only the account lock
+			// taken by acceptance prevents this competing transaction.
+			competing, beginErr := db.BeginTx(context.Background(), nil)
+			require.NoError(t, beginErr)
+			defer func() { _ = competing.Rollback() }()
+			_, lockErr := competing.ExecContext(context.Background(), `SELECT id FROM auth.accounts WHERE id = ? FOR NO KEY UPDATE NOWAIT`, acceptance.AccountID)
+			require.ErrorContains(t, lockErr, "could not obtain lock", "acceptance holds the existing account until commit")
+			return nil
+		})
+		return acceptErr
+	})
 	require.NoError(t, err)
 	assert.Equal(t, acceptance.AccountID, again.AccountID, "no second account")
 	assert.Equal(t, acceptance.CatererID, again.CatererID)

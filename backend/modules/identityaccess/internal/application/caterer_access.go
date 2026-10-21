@@ -286,7 +286,7 @@ func (c *CatererAccess) accept(ctx context.Context, token string, registration d
 // catererAccount finds or creates the account and caterer the invitation
 // goes to.
 func (c *CatererAccess) catererAccount(ctx context.Context, invitation domain.CatererInvitation, registration domain.CatererRegistration) (int64, int64, error) {
-	account, found, _, err := c.store.FindLoginAccountByEmail(ctx, invitation.Email)
+	account, found, _, err := c.store.LockLoginAccountByEmail(ctx, invitation.Email)
 	if err != nil {
 		return 0, 0, err
 	}
