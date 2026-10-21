@@ -38,7 +38,7 @@ type AccountAuthentication struct {
 	withRecoveryProof func(ctx context.Context, proof string) context.Context
 	rotation          ports.Rotation
 	// caterers lets a caterer session refresh only while its account
-	// belongs to a caterer (ADR 0075).
+	// belongs to a caterer (ADR 0077).
 	caterers ports.CatererStore
 	logger   *slog.Logger
 	// refreshSF deduplicates concurrent refresh calls for the same refresh

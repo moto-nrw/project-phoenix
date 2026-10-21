@@ -28,7 +28,7 @@ const (
 	ScopePlatform = "platform" // Platform operator (moto DevOps, sees everything)
 	ScopeParent   = "parent"   // Cross-tenant guardian — sees children across all linked schools
 	ScopeSchool   = "school"   // School portal (Lehrkraft) — tenant-bound like ScopeTenant, but only valid on /school/* (#2207)
-	ScopeCaterer  = "caterer"  // Caterer portal — no tenant; each supplied school opens its own tenant transaction (ADR 0075)
+	ScopeCaterer  = "caterer"  // Caterer portal — no tenant; each supplied school opens its own tenant transaction (ADR 0077)
 )
 
 // WithTenantID returns a new context with the tenant ID set.

@@ -221,7 +221,7 @@ const modulePassthroughApplicationSegment = "/internal/application/"
 // modulePassthroughBudgetTotal and the 2392 of
 // modulePassthroughComposeBudgetTotal. Shrink-only, like every entry; raised
 // by ADR 0063 and by ADR 0064 (3,011 to 3,091), and by ADR 0073 (one each
-// for modules/communication and modules/schoolcalendar), by ADR 0075 (three
+// for modules/communication and modules/schoolcalendar), by ADR 0077 (three
 // for modules/identityaccess) and by ADR 0076 (one for
 // workflows/parentportal).
 const modulePassthroughOwnerBudgetTotal = 1559
@@ -252,7 +252,7 @@ var modulePassthroughOwnerBudgets = map[string]int{
 	"modules/facilities":     13,
 	"modules/feedback":       2,
 	"modules/filestorage":    9,
-	// Raised by ADR 0075: the caterer flows.
+	// Raised by ADR 0077: the caterer flows.
 	"modules/identityaccess":      254,
 	"modules/mealplan":            3,
 	"modules/organizationtenancy": 12,

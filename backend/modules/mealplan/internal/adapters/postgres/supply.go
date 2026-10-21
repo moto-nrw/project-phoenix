@@ -25,7 +25,7 @@ type supplyRow struct {
 
 // FindActiveSupply reads the school's running supply. A start and a
 // confirmation lock it for the rest of the transaction, so an end of the
-// supply cannot cross them (ADR 0075).
+// supply cannot cross them (ADR 0077).
 func (s *Store) FindActiveSupply(ctx context.Context, forUpdate bool) (domain.Supply, bool, domain.OperationStats, error) {
 	db, tenantID, err := s.database(ctx)
 	if err != nil {

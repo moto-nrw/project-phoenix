@@ -1,4 +1,4 @@
-// Package catererportalhttp serves the caterer portal workflow (ADR 0075):
+// Package catererportalhttp serves the caterer portal workflow (ADR 0077):
 // the school's caterer routes under the tenant API, and the caterer's own
 // routes under /caterer with their own session scope.
 package catererportalhttp

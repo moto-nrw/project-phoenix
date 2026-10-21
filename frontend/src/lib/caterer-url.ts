@@ -1,5 +1,5 @@
 /**
- * Paths of the caterer portal (ADR 0075). On the caterer host the browser
+ * Paths of the caterer portal (ADR 0077). On the caterer host the browser
  * shows clean paths (/login); the proxy rewrites them to /caterer/*. Mirrors
  * school-url.ts.
  */

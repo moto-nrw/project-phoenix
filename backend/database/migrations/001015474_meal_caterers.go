@@ -10,7 +10,7 @@ import (
 
 const (
 	mealCaterersVersion     = "1.15.474"
-	mealCaterersDescription = "Caterer: Betrieb, Konten, Einladung durch die Schule und Belieferung einer Schule (#3873, ADR 0075)"
+	mealCaterersDescription = "Caterer: Betrieb, Konten, Einladung durch die Schule und Belieferung einer Schule (#3873, ADR 0077)"
 )
 
 // accountIsUnusedSQL restates auth.account_is_unused of 1.15.464 (#4043);
@@ -122,7 +122,7 @@ func init() {
 	Migrations.MustRegister(mealCaterersUp, mealCaterersDown)
 }
 
-// mealCaterersUp adds the caterer (ADR 0075). auth.caterer_schools names
+// mealCaterersUp adds the caterer (ADR 0077). auth.caterer_schools names
 // the schools a caterer supplies, so the login and the caterer portal find
 // them through the global identity read and open each school on its own;
 // nothing searches across schools (#4088). The caterer, its accounts and a
@@ -141,7 +141,7 @@ func mealCaterersUp(ctx context.Context, db *bun.DB) error {
 				CONSTRAINT chk_caterer_name CHECK (length(trim(name)) BETWEEN 1 AND 200)
 			);
 			COMMENT ON TABLE auth.caterers IS
-				'Caterer-Betrieb, der eine oder mehrere Schulen mit Mittagessen beliefert (#3873, ADR 0075).';
+				'Caterer-Betrieb, der eine oder mehrere Schulen mit Mittagessen beliefert (#3873, ADR 0077).';
 
 			CREATE TABLE auth.caterer_accounts (
 				account_id BIGINT PRIMARY KEY REFERENCES auth.accounts(id) ON DELETE CASCADE,

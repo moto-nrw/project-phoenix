@@ -18,7 +18,7 @@ var (
 	ErrOrderNotFound = errors.New("meal order not found")
 )
 
-// startSupply starts the school's supply by a caterer (ADR 0075). Starting
+// startSupply starts the school's supply by a caterer (ADR 0077). Starting
 // the running supply again changes nothing; another caterer's is refused.
 func (s *Service) startSupply(ctx context.Context, catererID int64, deliveryAddress string, accountID int64) error {
 	return mapPublicError(s.run(ctx, "start_supply", func(txCtx context.Context) (domain.OperationStats, error) {
@@ -100,7 +100,7 @@ func daysSince(days []domain.OrderDay, start time.Time) []domain.OrderDay {
 }
 
 // confirmOrder records that the caterer received a fixed order. It is the
-// caterer's only write (ADR 0075); confirming twice keeps the first.
+// caterer's only write (ADR 0077); confirming twice keeps the first.
 func (s *Service) confirmOrder(ctx context.Context, catererID, orderID, accountID int64) error {
 	return mapPublicError(s.run(ctx, "confirm_order", func(txCtx context.Context) (domain.OperationStats, error) {
 		// Locked: a supply ending at the same time waits, or wins.
@@ -131,7 +131,7 @@ func (s *Service) requireSupplier(ctx context.Context, catererID int64, forUpdat
 }
 
 // catererWeek cuts the school's view down to what its caterer may read
-// (ADR 0075): no child's ID, class numbers only when the school orders by
+// (ADR 0077): no child's ID, class numbers only when the school orders by
 // class, and names only while the school shows them to the caterer.
 func catererWeek(week mealplan.OrderWeek, rules domain.OrderingRules) mealplan.OrderWeek {
 	byClass := rules.Detail == domain.DetailByClass

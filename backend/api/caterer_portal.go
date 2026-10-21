@@ -16,7 +16,7 @@ import (
 )
 
 // CatererScopeMiddleware accepts caterer-portal tokens only and binds no
-// school (ADR 0075).
+// school (ADR 0077).
 var CatererScopeMiddleware = sessiontoken.CatererMiddleware(tenant.ClaimScope{})
 
 // CatererSessionChain authenticates the routes of a caterer session.
@@ -24,7 +24,7 @@ func CatererSessionChain(r chi.Router) {
 	r.Use(sessiontoken.Authenticator, ReadOnlyPreviewMiddleware, CatererScopeMiddleware, SecurityPrincipalMiddleware)
 }
 
-// mountCatererPortal serves the caterer portal (ADR 0075): the school's
+// mountCatererPortal serves the caterer portal (ADR 0077): the school's
 // caterer under /api/meal-caterer and the caterer's own routes under
 // /caterer, where the auth rate limiter guards the sign-in and the
 // invitation.

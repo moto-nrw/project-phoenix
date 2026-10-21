@@ -20,7 +20,7 @@ const (
 	SurfaceParents = "parents"
 	SurfaceSchool  = "school"
 	SurfacePublic  = "public"
-	// SurfaceCaterer is the caterer portal (ADR 0075).
+	// SurfaceCaterer is the caterer portal (ADR 0077).
 	SurfaceCaterer = "caterer"
 
 	RoleAdmin     = "admin"

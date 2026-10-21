@@ -51,7 +51,7 @@ func resolveServiceLinks(cfg owners.ServiceConfig) (owners.ServiceLinks, error) 
 		// accept flow lives (#2207).
 		{"SCHOOL_URL", cfg.SchoolURL, &links.SchoolURL},
 		// The caterer's invitation link lands on the caterer portal
-		// (ADR 0075).
+		// (ADR 0077).
 		{"CATERER_URL", cfg.CatererURL, &links.CatererURL},
 	} {
 		value, err := requiredLink(link.name, link.raw, production)

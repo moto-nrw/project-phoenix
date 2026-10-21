@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { redactSensitiveLogString } from "./log-redaction";
 
-describe("caterer invitation redaction (ADR 0075)", () => {
+describe("caterer invitation redaction (ADR 0077)", () => {
   it("keeps the school but never the mailed token", () => {
     expect(
       redactSensitiveLogString(

@@ -6,7 +6,7 @@ import { getServerApiUrl } from "~/lib/server-api-url";
 import { forwardBackendResponse } from "~/lib/backend-proxy-response.server";
 import { problemResponse } from "~/lib/api-helpers.server";
 
-// The caterer's delivery list of every school it supplies (ADR 0075), as
+// The caterer's delivery list of every school it supplies (ADR 0077), as
 // PDF, Excel or CSV.
 export const GET = withCatererAuth(
   async (request: NextRequest): Promise<Response> => {

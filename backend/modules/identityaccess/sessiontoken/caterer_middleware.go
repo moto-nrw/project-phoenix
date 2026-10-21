@@ -2,7 +2,7 @@ package sessiontoken
 
 import "net/http"
 
-// CatererMiddleware gates a route to caterer-scope tokens only (ADR 0075)
+// CatererMiddleware gates a route to caterer-scope tokens only (ADR 0077)
 // and rejects every other scope; the tenant, school and parent middlewares
 // reject the caterer scope in turn. Must be placed AFTER the Authenticator
 // middleware in the chain.

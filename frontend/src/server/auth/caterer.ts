@@ -1,5 +1,5 @@
 /**
- * Caterer auth instance (ADR 0075).
+ * Caterer auth instance (ADR 0077).
  *
  * Separate NextAuth instance with host-only cookies (no domain), so the
  * caterer session is invisible to every other host.

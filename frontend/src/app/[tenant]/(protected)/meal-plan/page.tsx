@@ -815,7 +815,7 @@ export default function MealPlanPage() {
         />
       ) : null}
 
-      {/* Der Caterer der Schule (ADR 0075): nur wer den Essensplan
+      {/* Der Caterer der Schule (ADR 0077): nur wer den Essensplan
           verwaltet, lädt ihn ein oder beendet die Belieferung. */}
       {canEdit && mealRegistrationEnabled === true ? <MealCaterer /> : null}
 

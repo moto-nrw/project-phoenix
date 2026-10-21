@@ -1,5 +1,5 @@
 // Package application coordinates the caterer's identity and its supplies
-// (ADR 0075).
+// (ADR 0077).
 package application
 
 import (

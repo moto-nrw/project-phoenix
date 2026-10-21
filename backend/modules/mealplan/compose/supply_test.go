@@ -26,7 +26,7 @@ func createTestCaterer(t *testing.T, db *bun.DB, name string) int64 {
 	return id
 }
 
-// ADR 0075: a school has one caterer at a time; starting the running supply
+// ADR 0077: a school has one caterer at a time; starting the running supply
 // again changes nothing, and ending it frees the school for another.
 func TestSupplyHasOneCatererAtATime(t *testing.T) {
 	t.Parallel()
@@ -58,7 +58,7 @@ func TestSupplyHasOneCatererAtATime(t *testing.T) {
 	require.NoError(t, module.StartSupply(ctx, second, "", staff.ID))
 }
 
-// ADR 0075: the caterer reads the orders only while it supplies the school,
+// ADR 0077: the caterer reads the orders only while it supplies the school,
 // sees names only while the school shows them, and confirms a fixed order
 // once.
 func TestCatererReadsAndConfirmsOrdersOnlyWhileItSupplies(t *testing.T) {
@@ -107,7 +107,7 @@ func TestCatererReadsAndConfirmsOrdersOnlyWhileItSupplies(t *testing.T) {
 	require.ErrorIs(t, err, mealplan.ErrNotSupplied, "the end takes the school from the caterer at once")
 }
 
-// ADR 0075: with orders by total the caterer reads no class.
+// ADR 0077: with orders by total the caterer reads no class.
 func TestCatererReadsNoClassesWhenTheSchoolOrdersTotals(t *testing.T) {
 	t.Parallel()
 	db := testpkg.SetupTestDB(t)
@@ -128,7 +128,7 @@ func TestCatererReadsNoClassesWhenTheSchoolOrdersTotals(t *testing.T) {
 	assert.Empty(t, week.Days[0].Classes)
 }
 
-// ADR 0075: a caterer reads and confirms nothing the school ordered before
+// ADR 0077: a caterer reads and confirms nothing the school ordered before
 // its supply started, so a successor never sees its predecessor's orders.
 func TestNewCatererSeesNothingBeforeItsSupply(t *testing.T) {
 	t.Parallel()

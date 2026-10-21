@@ -9,7 +9,7 @@ import (
 	"time"
 )
 
-// The caterer is an identity across schools (ADR 0075): the business, its
+// The caterer is an identity across schools (ADR 0077): the business, its
 // login accounts, and the invitation a school sends it.
 
 var (

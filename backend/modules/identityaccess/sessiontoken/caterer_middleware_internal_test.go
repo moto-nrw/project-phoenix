@@ -19,7 +19,7 @@ func serveWithClaims(middleware func(http.Handler) http.Handler, claims AppClaim
 	return rec.Code
 }
 
-// ADR 0075: a caterer token works on the caterer portal only, and no other
+// ADR 0077: a caterer token works on the caterer portal only, and no other
 // token works there.
 func TestCatererScopeStaysInTheCatererPortal(t *testing.T) {
 	t.Parallel()

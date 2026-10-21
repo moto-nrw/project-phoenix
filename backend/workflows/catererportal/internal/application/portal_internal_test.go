@@ -117,7 +117,7 @@ func newTestPortal(t *testing.T, caterers *fakeCaterers, supplies *fakeSupplies,
 	return portal
 }
 
-// ADR 0075: the caterer reads and confirms only in a school it supplies, and
+// ADR 0077: the caterer reads and confirms only in a school it supplies, and
 // each school in its own transaction.
 func TestPortalReadsOnlySuppliedSchools(t *testing.T) {
 	t.Parallel()
@@ -144,7 +144,7 @@ func TestPortalReadsOnlySuppliedSchools(t *testing.T) {
 	assert.Equal(t, catererportal.CatererSchools{CatererName: "Küche", Schools: []catererportal.School{{ID: 11, Name: "Schule"}, {ID: 12, Name: "Schule"}}}, schools)
 }
 
-// ADR 0075: the acceptance starts the supply in the school the link names,
+// ADR 0077: the acceptance starts the supply in the school the link names,
 // with the caterer it created.
 func TestPortalAcceptanceStartsTheSupplyInTheLinkedSchool(t *testing.T) {
 	t.Parallel()
@@ -156,7 +156,7 @@ func TestPortalAcceptanceStartsTheSupplyInTheLinkedSchool(t *testing.T) {
 	assert.Equal(t, []int64{7}, supplies.started)
 }
 
-// ADR 0075: ending the supply also ends the caterer's link to the school;
+// ADR 0077: ending the supply also ends the caterer's link to the school;
 // a failure of either leaves the caller's transaction to roll back.
 func TestPortalEndsSupplyAndLinkTogether(t *testing.T) {
 	t.Parallel()

@@ -11,7 +11,7 @@ var (
 	ErrOrderNotFound = &Fault{Code: "meal_order_not_found", Detail: "meal order not found"}
 )
 
-// Supply is a school's supply by its caterer (ADR 0075).
+// Supply is a school's supply by its caterer (ADR 0077).
 type Supply struct {
 	CatererID       int64
 	DeliveryAddress string

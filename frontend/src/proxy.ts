@@ -502,7 +502,7 @@ function handleSchoolSubdomain(request: NextRequest): NextResponse {
   return withSecurityHeaders(NextResponse.redirect(url));
 }
 
-// --- Caterer subdomain handling (caterer portal, ADR 0075) ---
+// --- Caterer subdomain handling (caterer portal, ADR 0077) ---
 
 /** Paths the caterer host serves (without /caterer prefix); the overview
  * itself lives at the root ("/" → /caterer). */
@@ -816,7 +816,7 @@ function routeRequest(request: NextRequest): NextResponse {
     return handleSchoolSubdomain(request);
   }
 
-  // 1e. Caterer subdomain gets its own routing (ADR 0075)
+  // 1e. Caterer subdomain gets its own routing (ADR 0077)
   if (isCatererHost(hostname)) {
     return handleCatererSubdomain(request);
   }

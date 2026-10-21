@@ -9,7 +9,7 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-// TestMealCaterersKeepCaterersAwayFromSchools pins ADR 0075: sessions may
+// TestMealCaterersKeepCaterersAwayFromSchools pins ADR 0077: sessions may
 // carry the caterer scope, a school has one active supply and one active
 // caterer link at most, and a school may create but never rewrite a caterer.
 func TestMealCaterersKeepCaterersAwayFromSchools(t *testing.T) {

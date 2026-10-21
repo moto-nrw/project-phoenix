@@ -14,7 +14,7 @@ type CatererInvitationDelivery interface {
 }
 
 // CatererStore holds the caterer, its accounts, the schools it supplies and
-// the schools' invitations (ADR 0075). Writes run in the school's
+// the schools' invitations (ADR 0077). Writes run in the school's
 // transaction; the caterer's schools are read through the global identity
 // read (#4088).
 type CatererStore interface {

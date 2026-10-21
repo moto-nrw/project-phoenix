@@ -138,7 +138,7 @@ var moduleLegacyFileBudgets = map[string]int{}
 // moduleComposeBudgetTotal is the sum of moduleComposeBudgets. Shrink-only,
 // like every entry; raised by ADR 0063 and by ADR 0073 (the parent
 // announcement retention of modules/communication/composition), and by
-// ADR 0076 (the meal ordering rules) and ADR 0075 (the caterer flows and
+// ADR 0076 (the meal ordering rules) and ADR 0077 (the caterer flows and
 // the caterer portal).
 const moduleComposeBudgetTotal = 12497
 
@@ -172,7 +172,7 @@ var moduleComposeBudgets = map[string]int{
 	"modules/filestorage/compose":                     217,
 	"modules/grouplive/compose":                       14,
 	"modules/guardianlinkview/compose":                8,
-	"modules/identityaccess/compose":                  1349, // raised by ADR 0075
+	"modules/identityaccess/compose":                  1349, // raised by ADR 0077
 	"modules/mealplan/compose":                        74,   // raised by ADR 0076
 	"modules/organizationtenancy/compose":             253,
 	"modules/parentrequestfeedprojection/compose":     11,
@@ -196,7 +196,7 @@ var moduleComposeBudgets = map[string]int{
 	"modules/timetableprojection/compose":             7,
 	"modules/transactionruntime/compose":              133,
 	"modules/workforce/compose":                       919,
-	"workflows/catererportal/compose":                 36, // added by ADR 0075
+	"workflows/catererportal/compose":                 36, // added by ADR 0077
 	"workflows/gradetransition/compose":               49,
 	"workflows/openroommove/compose":                  46,
 	"workflows/parentportal/compose":                  308, // raised by ADR 0076

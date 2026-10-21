@@ -24,7 +24,7 @@ type Store interface {
 	SupplyStore
 }
 
-// SupplyStore holds the school's supply by its caterer (ADR 0075).
+// SupplyStore holds the school's supply by its caterer (ADR 0077).
 type SupplyStore interface {
 	// FindActiveSupply reads the running supply; forUpdate locks it for the
 	// unit of work.
@@ -82,7 +82,7 @@ type OrderingSettings struct {
 	SickAfterDeadline    string
 	OrderRhythm          string
 	OrderDetail          string
-	// CatererNames is gdpr.meal_caterer_names_enabled (ADR 0075).
+	// CatererNames is gdpr.meal_caterer_names_enabled (ADR 0077).
 	CatererNames bool
 }
 

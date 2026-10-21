@@ -15487,7 +15487,7 @@
     },
     {
       "id": "caterer-portal.public.identity-access",
-      "description": "The caterer portal contract speaks the caterer types of Identity & Access (ADR 0075).",
+      "description": "The caterer portal contract speaks the caterer types of Identity & Access (ADR 0077).",
       "scopes": [
         "production"
       ],
@@ -15498,7 +15498,7 @@
     },
     {
       "id": "caterer-portal.public.meal-plan",
-      "description": "The caterer portal contract speaks the order types of the Meal Plan (ADR 0075).",
+      "description": "The caterer portal contract speaks the order types of the Meal Plan (ADR 0077).",
       "scopes": [
         "production"
       ],

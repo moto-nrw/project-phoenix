@@ -20,7 +20,7 @@ import (
 // transaction of the school they concern, which the caller opens.
 var errSchoolTransactionRequired = errors.New("identity access: the caterer flows need the school's transaction")
 
-// CatererAccess is the caterer's identity (ADR 0075): a school invites its
+// CatererAccess is the caterer's identity (ADR 0077): a school invites its
 // caterer, the caterer accepts with a password, and signs in to the caterer
 // portal. Nothing here opens a transaction of its own (#4088): writes join
 // the school's transaction the caller opens, and the caterer of an account
@@ -479,7 +479,7 @@ func catererError(err error) error {
 }
 
 // refuseCatererAccount keeps a caterer account out of schools and families
-// (ADR 0075): an invitation to its address answers like an address that is
+// (ADR 0077): an invitation to its address answers like an address that is
 // taken.
 func refuseCatererAccount(ctx context.Context, logins ports.AccountLoginStore, accountID int64, op string) error {
 	_, isCaterer, _, err := logins.FindCatererOfAccount(ctx, accountID)

@@ -109,7 +109,7 @@ type OrderingRules struct {
 	Sick           SickMode
 	Rhythm         Rhythm
 	Detail         Detail
-	// CatererNames lets the caterer see the children's names (ADR 0075).
+	// CatererNames lets the caterer see the children's names (ADR 0077).
 	CatererNames bool
 }
 

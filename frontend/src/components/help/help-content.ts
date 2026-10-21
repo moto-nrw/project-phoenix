@@ -4096,7 +4096,7 @@ function mealOrderingTopic(): HelpTopic {
 }
 
 /**
- * Der Caterer der Schule (ADR 0075): Einladung per E-Mail unter
+ * Der Caterer der Schule (ADR 0077): Einladung per E-Mail unter
  * `Essensplan`, Ende der Belieferung, und was der Caterer sieht.
  */
 function mealCatererTopic(): HelpTopic {

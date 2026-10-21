@@ -386,7 +386,7 @@ export async function performParentLogin(
 }
 
 /**
- * Caterer login against POST /caterer/auth/login (ADR 0075). The backend
+ * Caterer login against POST /caterer/auth/login (ADR 0077). The backend
  * answers every refusal of the account like a wrong password, so only the
  * status and the code travel back.
  */

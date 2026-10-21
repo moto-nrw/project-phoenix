@@ -231,7 +231,7 @@ type Registration interface {
 }
 
 // Ordering is the school's meal orders and its supply by a caterer
-// (ADR 0075, #3873).
+// (ADR 0077, #3873).
 type Ordering interface {
 	// SettleOrders fixes the due orders of the school in ctx and records
 	// every change of an ordered day since. The worker runs it every few

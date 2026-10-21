@@ -13,7 +13,7 @@ import (
 // the orders (which fixes the day), cancels the child after the deadline
 // (a change) and restores the deadline. The caterer tables stay empty: a
 // caterer exists only through the link the school mails it, which nobody
-// else ever receives (ADR 0075).
+// else ever receives (ADR 0077).
 type seedMealOrdersStep struct{}
 
 func (seedMealOrdersStep) Name() string { return "Seeding meal orders" }

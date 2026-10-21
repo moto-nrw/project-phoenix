@@ -1,6 +1,6 @@
 "use client";
 
-// Overview of the caterer portal (ADR 0075, #3873): one table of every
+// Overview of the caterer portal (ADR 0077, #3873): one table of every
 // school the caterer supplies, the days of the chosen period as columns,
 // with a sum per school and per day. Each school opens to its days with
 // classes, names (if the school shows them) and the confirmation. Each

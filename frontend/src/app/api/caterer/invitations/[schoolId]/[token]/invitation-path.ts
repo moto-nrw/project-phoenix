@@ -1,4 +1,4 @@
-/** The backend path of the invitation a mailed link names (ADR 0075). */
+/** The backend path of the invitation a mailed link names (ADR 0077). */
 export function invitationPath(
   params: Record<string, string | string[] | undefined>,
   suffix = "",

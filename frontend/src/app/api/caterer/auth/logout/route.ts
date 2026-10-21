@@ -10,7 +10,7 @@ import { problemResponse } from "~/lib/api-helpers.server";
 
 const logger = createLogger({ component: "CatererAuthLogoutRoute" });
 
-// Caterer logout (ADR 0075): revokes the caterer refresh session through the
+// Caterer logout (ADR 0077): revokes the caterer refresh session through the
 // shared scope-preserving backend /auth/logout — mirrors the tenant logout
 // route, but reads the caterer NextAuth session.
 async function POSTHandler(request: NextRequest) {

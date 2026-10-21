@@ -70,7 +70,7 @@ func (c *AppClaims) IsParentScope() bool {
 	return c.Scope == claimScopeParent
 }
 
-// IsCatererScope returns true if this is a caterer-portal token (ADR 0075).
+// IsCatererScope returns true if this is a caterer-portal token (ADR 0077).
 // Caterer tokens carry no tenant; the caterer portal opens each school it
 // supplies in that school's own tenant transaction.
 func (c *AppClaims) IsCatererScope() bool {

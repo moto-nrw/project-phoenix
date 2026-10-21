@@ -1,6 +1,6 @@
 "use client";
 
-// The page the school's mailed invitation opens (ADR 0075). The link names
+// The page the school's mailed invitation opens (ADR 0077). The link names
 // the school and carries the proof; nobody but the caterer has it. A new
 // caterer sets its password, a caterer with an account confirms with its
 // password and adds the school. Afterwards the caterer is signed in.

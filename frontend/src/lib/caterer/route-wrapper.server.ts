@@ -18,7 +18,7 @@ import {
 } from "../route-wrapper-utils.server";
 
 /**
- * Caterer-portal route wrapper (ADR 0075). Mirrors
+ * Caterer-portal route wrapper (ADR 0077). Mirrors
  * lib/school/route-wrapper.server.ts — separate so caterer routes use the
  * caterer NextAuth session (caterer.session-token cookie) and never a
  * tenant, parent or school session.

@@ -34,7 +34,7 @@ type OwnerParts struct {
 	// DemoAccess is the demo-only capability; nil outside the demo
 	// environment.
 	DemoAccess *identityaccess.DemoAccess
-	// Caterers are the caterer flows (ADR 0075); nil without their
+	// Caterers are the caterer flows (ADR 0077); nil without their
 	// dependencies.
 	Caterers *identityaccess.CatererAccess
 }
@@ -120,6 +120,6 @@ type engine struct {
 // the demo environment.
 func (e engine) DemoAccess() *identityaccess.DemoAccess { return e.demoAccess }
 
-// Caterers returns the caterer flows (ADR 0075), nil when the owner was
+// Caterers returns the caterer flows (ADR 0077), nil when the owner was
 // composed without them.
 func (e engine) Caterers() *identityaccess.CatererAccess { return e.caterers }

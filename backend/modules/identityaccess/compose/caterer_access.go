@@ -7,7 +7,7 @@ import (
 	identityPorts "github.com/moto-nrw/project-phoenix/modules/identityaccess/ports"
 )
 
-// newCatererAccess composes the caterer flows (ADR 0075) over the sessions
+// newCatererAccess composes the caterer flows (ADR 0077) over the sessions
 // and the lifecycle's password policy; without either there are none.
 func newCatererAccess(auth *application.AccountAuthentication, store *postgres.Store, sessions *identityPorts.SessionDependencies, lifecycle *LifecycleDependencies) (*identityaccess.CatererAccess, error) {
 	if auth == nil || sessions == nil || lifecycle == nil || lifecycle.Caterers == nil {

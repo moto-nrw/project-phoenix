@@ -17,7 +17,7 @@ const CATERER_PUBLIC_PAGES = [
 ];
 
 /**
- * Client-side guard of the caterer portal (ADR 0075). Other portals' tokens
+ * Client-side guard of the caterer portal (ADR 0077). Other portals' tokens
  * never reach it (host-only cookies and the proxy), so it only waits for the
  * session or sends a visitor without one to the login.
  */
