@@ -922,13 +922,16 @@ describe("supervision tab identity (#2265)", () => {
 
 describe("run state in the page head (#4354)", () => {
   it("says a block with an open roster is running", () => {
-    expect(rosterRunState("active")).toEqual({ label: "Läuft", tone: "green" });
+    expect(rosterRunState("active")).toEqual({
+      label: "Läuft",
+      color: "green",
+    });
   });
 
   it("says a completed block is finished, as in the reopen window", () => {
     expect(rosterRunState("completed")).toEqual({
       label: "Beendet",
-      tone: "gray",
+      color: "gray",
     });
   });
 });

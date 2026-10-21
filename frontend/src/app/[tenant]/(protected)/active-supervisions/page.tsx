@@ -20,6 +20,7 @@ import { Alert } from "~/components/ui/alert";
 import { LoadErrorAlert } from "~/components/ui/form-error-alert";
 import { TenantPage } from "~/components/ui/tenant-page";
 import { OverflowMenu } from "~/components/ui/page-header/OverflowMenu";
+import { StatusIndicator } from "~/components/ui/page-header/StatusIndicator";
 import { MotoConceptIcon } from "~/components/ui/moto-concept-icon";
 import { Button } from "~/components/ui/button";
 import { StatusBadge } from "~/components/ui/status-badge";
@@ -482,8 +483,14 @@ function MeinRaumPageContent() {
   const runState = currentTimetableRoster
     ? rosterRunState(currentTimetableRoster.instance.status)
     : null;
+  // Ein Symbol statt des Worts: der grüne Punkt pulsiert, solange der Block
+  // läuft; Tooltip und Screenreader nennen den Zustand.
   const runStateBadge = runState ? (
-    <StatusBadge label={runState.label} tone={runState.tone} />
+    <StatusIndicator
+      color={runState.color}
+      tooltip={runState.label}
+      size="md"
+    />
   ) : null;
   const openRoomBadge = currentOpenRoom ? (
     <StatusBadge label="Offener Raum" tone="blue" />

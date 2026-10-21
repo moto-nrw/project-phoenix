@@ -47,6 +47,14 @@ describe("StatusIndicator", () => {
     expect(indicator).toHaveAttribute("title", "System is active");
   });
 
+  it("names the dot for screen readers with its tooltip (#4354)", () => {
+    const { getByRole } = render(
+      <StatusIndicator color="green" tooltip="Läuft" />,
+    );
+
+    expect(getByRole("img", { name: "Läuft" })).toBeInTheDocument();
+  });
+
   it("does not have tooltip when not provided", () => {
     const { container } = render(<StatusIndicator color="green" />);
     const indicator = container.firstChild;
