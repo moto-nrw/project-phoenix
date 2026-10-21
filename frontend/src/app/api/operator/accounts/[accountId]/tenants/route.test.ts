@@ -1,15 +1,14 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { NextRequest } from "next/server";
 
-const { mockAuth, mockUncachedAuth, mockFetch } = vi.hoisted(() => ({
+const { mockAuth, mockFetch } = vi.hoisted(() => ({
   mockAuth: vi.fn(),
-  mockUncachedAuth: vi.fn(),
   mockFetch: vi.fn(),
 }));
 
 vi.mock("~/server/auth/operator", () => ({
   operatorAuth: mockAuth,
-  uncachedOperatorAuth: mockUncachedAuth,
+  uncachedOperatorAuth: vi.fn(),
 }));
 
 vi.mock("~/server/auth/operator-route", () => ({

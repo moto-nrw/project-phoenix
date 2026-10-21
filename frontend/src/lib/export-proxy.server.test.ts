@@ -5,7 +5,7 @@ const { captureException } = vi.hoisted(() => ({ captureException: vi.fn() }));
 vi.mock("@sentry/nextjs", () => ({ captureException }));
 
 import { createFileExportRoute } from "./export-proxy.server";
-import { type ExtendedSession } from "~/test/route-test-helpers";
+import type { ExtendedSession } from "~/test/route-test-helpers";
 
 // The shared body of the export routes that answer with a file. It bypasses
 // the JSON route wrapper (that one cannot stream bytes), so the auth, the

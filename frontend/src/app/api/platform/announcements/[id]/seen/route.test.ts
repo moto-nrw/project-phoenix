@@ -19,7 +19,7 @@ vi.mock("~/lib/api-helpers.server", async (importOriginal) => ({
 }));
 
 import { POST } from "./route";
-import { type ExtendedSession } from "~/test/route-test-helpers";
+import type { ExtendedSession } from "~/test/route-test-helpers";
 
 function mockValidSession(): void {
   mockAuth.mockResolvedValue(mockSessionData() as ExtendedSession);

@@ -3,7 +3,7 @@
 
 import { describe, it, expect, vi, beforeEach, afterAll } from "vitest";
 import { NextRequest } from "next/server";
-import { type ExtendedSession } from "~/test/route-test-helpers";
+import type { ExtendedSession } from "~/test/route-test-helpers";
 
 const { mockAuth, mockUncachedAuth, mockFetch } = vi.hoisted(() => ({
   mockAuth: vi.fn<() => Promise<ExtendedSession | null>>(),

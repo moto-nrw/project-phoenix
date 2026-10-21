@@ -1,6 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { NextRequest } from "next/server";
 import { ApiResponseError } from "~/lib/api-response-error.server";
+import { suppressConsole } from "~/test/helpers/console";
 import {
   createOperatorJsonProxy,
   createOptionalTenantJsonProxy,
@@ -33,6 +34,7 @@ vi.mock("~/server/auth/operator", () => ({
 }));
 
 const BACKEND = "http://backend.test";
+const consoleSpies = suppressConsole("error");
 const fetchMock = vi.fn<typeof fetch>();
 
 const session = (token: string) => ({ user: { id: "1", token } });
@@ -521,6 +523,38 @@ describe("createTenantJsonProxy", () => {
       expect(response.status).toBe(500);
       expect(await response.json()).toMatchObject({
         status: 500,
+        detail: "Internal Server Error",
+      });
+      expect(consoleSpies.error).toHaveBeenCalledWith(
+        "JSON backend proxy failed",
+        { method: "GET", path: "/api/things", error: "fetch failed" },
+      );
+    });
+
+    it("keeps the public 500 detail generic even with networkErrorMessage or networkErrorFromException", async () => {
+      fetchMock
+        .mockRejectedValueOnce(new TypeError("fetch failed"))
+        .mockRejectedValueOnce(new TypeError("secret host down"));
+      const withMessage = createTenantJsonProxy({
+        method: "GET",
+        path: "/api/things",
+        networkErrorMessage: "Import fehlgeschlagen",
+      });
+      const fromException = createTenantJsonProxy({
+        method: "GET",
+        path: "/api/things",
+        networkErrorFromException: true,
+      });
+
+      const first = await withMessage(request("/api/things"), context());
+      const second = await fromException(request("/api/things"), context());
+
+      expect(first.status).toBe(500);
+      expect(await first.json()).toMatchObject({
+        detail: "Internal Server Error",
+      });
+      expect(second.status).toBe(500);
+      expect(await second.json()).toMatchObject({
         detail: "Internal Server Error",
       });
     });

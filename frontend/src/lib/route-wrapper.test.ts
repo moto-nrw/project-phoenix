@@ -14,13 +14,6 @@ import {
 } from "~/test/route-test-helpers";
 
 // ============================================================================
-// Types
-// ============================================================================
-
-/**
- * Extended session type with token property used in this project
- */
-// ============================================================================
 // Mocks (using vi.hoisted for proper hoisting)
 // ============================================================================
 
@@ -89,9 +82,6 @@ function createMockRequest(
   return new NextRequest(url, requestInit);
 }
 
-/**
- * Creates a mock route context with params (Next.js 15+ pattern)
- */
 /**
  * Helper to parse JSON response with proper typing
  */
