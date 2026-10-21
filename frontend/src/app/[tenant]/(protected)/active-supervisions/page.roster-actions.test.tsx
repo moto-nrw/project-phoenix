@@ -851,7 +851,7 @@ describe("MeinRaumPage roster actions", () => {
       name: "Kind ungeplant suchen",
     });
     fireEvent.change(search, { target: { value: "Ben" } });
-    const result = await screen.findByRole("button", {
+    const result = await screen.findByRole("radio", {
       name: /Ben Neu/,
     });
     fireEvent.click(result);
@@ -931,7 +931,7 @@ describe("MeinRaumPage roster actions", () => {
           }),
           { target: { value: "Ben" } },
         );
-        fireEvent.click(await screen.findByRole("button", { name: /Ben Neu/ }));
+        fireEvent.click(await screen.findByRole("radio", { name: /Ben Neu/ }));
         fireEvent.click(screen.getByRole("button", { name: "Hinzufügen" }));
       }
 

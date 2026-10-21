@@ -62,6 +62,7 @@ import { useStudentFilters } from "~/components/active-supervisions/use-student-
 import { useReopenBanner } from "~/components/active-supervisions/use-reopen-banner";
 import { useTimetableActions } from "~/components/active-supervisions/use-timetable-actions";
 import { useSchulhofActions } from "~/components/active-supervisions/use-schulhof-actions";
+import { AddUnplannedStudentModal } from "~/components/active-supervisions/add-unplanned-student-modal";
 import { PresentChildrenPicker } from "~/components/active-supervisions/present-children-picker";
 import { TimetableRosterContent } from "~/components/active-supervisions/timetable-roster";
 import {
@@ -675,7 +676,6 @@ function MeinRaumPageContent() {
             </div>
           )}
           <TimetableRosterContent
-            addStudentResults={actions.addStudentResults}
             addStudentSearch={actions.addStudentSearch}
             addStudentError={actions.addStudentError}
             attendanceWebEnabled={attendanceWebEnabled}
@@ -693,6 +693,7 @@ function MeinRaumPageContent() {
                 : undefined
             }
             presentChildrenPicker={PresentChildrenPicker}
+            addUnplannedStudentModal={AddUnplannedStudentModal}
             presentPickerAutoOpen={
               actions.presentPickerAutoOpenInstanceId ===
               currentTimetableRoster.instance.id

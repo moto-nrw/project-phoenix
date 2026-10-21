@@ -32,7 +32,7 @@ describe("StartPage", () => {
     );
 
     expect(hrefSpy).toHaveBeenCalledWith(
-      expect.stringContaining("mailto:kontakt@moto.nrw"),
+      expect.stringContaining("mailto:kontakt@moto-ogs.de"),
     );
     expect(hrefSpy).toHaveBeenCalledWith(
       expect.stringContaining("Anna%20M%C3%BCller"),

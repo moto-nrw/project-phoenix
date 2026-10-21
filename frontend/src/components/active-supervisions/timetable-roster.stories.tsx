@@ -73,7 +73,6 @@ const meta: Meta<typeof TimetableRosterContent> = {
   parameters: { layout: "padded" },
   args: {
     roster,
-    addStudentResults: [],
     addStudentSearch: "",
     attendanceWebEnabled: true,
     isAddingStudent: false,

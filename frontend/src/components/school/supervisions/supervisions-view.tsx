@@ -452,7 +452,6 @@ export function SchoolSupervisionsView() {
           // unterstrichener Name — die Abhol- und Notfallangaben hinter dem
           // Antippen findet sonst niemand.
           headerNote="Tippen Sie auf einen Namen. Sie sehen dann, wann das Kind geht, wer es abholen darf und wen Sie im Notfall anrufen."
-          addStudentResults={[]}
           addStudentSearch=""
           isAddingStudent={false}
           isCompletingInstance={busyId === openId}

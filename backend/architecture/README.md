@@ -2810,9 +2810,10 @@ module; `api/auth` and the operator identity routes
 directly, while `api/parent`, the school portal and the SSE routes keep the
 delegation
 because no target rule lets those inbound packages import the identity-access
-public package. The legacy `auth.accounts_parents` model, repository and its
-six `/auth/parent-accounts` routes stay unchanged; the table has no target
-owner and that conflict stays open under #2720.
+public package. Migration 1.15.471 (#4329) removes the obsolete
+`auth.accounts_parents` model, repository, table and six
+`/auth/parent-accounts` routes. The current parent login continues to use
+`auth.accounts`.
 
 The role and permission administration (#3314) lives in the module's
 application layer as the public `RoleAdministration` capability
@@ -3057,11 +3058,11 @@ The `people-directory.module-behavior-test.deletion.*` permissions bind the
 real composition in the workflow's hermetic tests; they are test-only.
 
 Under ADR 0013 this data-less workflow registration raises the policy epoch
-from 7 to 8 and uses only candidate-created packages. The same epoch adopts
-`users.persons_guardians` into People Directory through the ADR 0015 path:
-its one recorded `tables.unclassified` finding named a package already
-classified under that owner, and the deletion unlinks the legacy guardian rows
-through the owner command. Existing owner/import guards remain unchanged.
+from 7 to 8 and uses only candidate-created packages. That epoch adopted
+`users.persons_guardians` into People Directory through the ADR 0015 path.
+Migration 1.15.471 (#4329) now removes that legacy table; the deletion
+workflow uses the current guardian relationships instead. Existing
+owner/import guards remain unchanged.
 
 The grade transition workflow (`workflows/gradetransition`, owner
 `grade-transition`, kind `workflow`, #2711,

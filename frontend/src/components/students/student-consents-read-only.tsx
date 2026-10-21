@@ -1,6 +1,10 @@
 "use client";
 
 import { useLocale, useTranslations } from "next-intl";
+import {
+  CollectionGrid,
+  CollectionGridTile,
+} from "~/components/ui/collection-grid";
 import { SectionCard } from "~/components/ui/section-card";
 import { StatusBadge } from "~/components/ui/status-badge";
 import { formatBerlinDate } from "~/lib/date-helpers";
@@ -22,13 +26,15 @@ export function StudentConsentsReadOnly({
       title={t("title")}
       description={t("staffDescription")}
     >
-      <ul className="divide-y divide-gray-100">
+      {/* Raster statt Zeilen (#4365): drei bis sechs kurze Einträge füllen
+          die Breite, der Status steht direkt neben seinem Titel. */}
+      <CollectionGrid as="ul">
         {visibleConsents.map((consent) => {
           const withdrawn = consent.state === "withdrawn";
           return (
-            <li
+            <CollectionGridTile
               key={consent.key}
-              className="flex flex-col gap-3 py-4 first:pt-0 last:pb-0 sm:flex-row sm:items-center sm:justify-between"
+              className="flex items-start justify-between gap-3"
             >
               <div className="min-w-0">
                 <p className="text-sm font-semibold text-gray-900">
@@ -42,16 +48,14 @@ export function StudentConsentsReadOnly({
                   </p>
                 ) : null}
               </div>
-              <div className="flex items-start sm:items-end">
-                <StatusBadge
-                  label={t(`states.${withdrawn ? "withdrawn" : "granted"}`)}
-                  tone={withdrawn ? "red" : "green"}
-                />
-              </div>
-            </li>
+              <StatusBadge
+                label={t(`states.${withdrawn ? "withdrawn" : "granted"}`)}
+                tone={withdrawn ? "red" : "green"}
+              />
+            </CollectionGridTile>
           );
         })}
-      </ul>
+      </CollectionGrid>
     </SectionCard>
   );
 }
