@@ -23,6 +23,21 @@ func TestLegacyParentRemovalPreflightSkipsTablesAwaitingInitialMigration(t *test
 	require.NoError(t, legacyParentAccountsPrecondition(ctx, nil))
 }
 
+func TestLegacyParentRemovalPreflightChecksExistingSourceTable(t *testing.T) {
+	t.Parallel()
+	db := testpkg.SetupIsolatedTestDB(t)
+	ctx := testpkg.Ctx(t)
+	runner := migrate.NewMigrator(db, Migrations)
+	parents := legacyParentMigration(t, AuthAccountsParentsVersion)
+	links := legacyParentMigration(t, UsersPersonsGuardiansVersion)
+	require.NoError(t, parents.Up(ctx, runner, parents))
+	_, err := db.ExecContext(ctx, `INSERT INTO auth.accounts_parents (email, username) VALUES ('legacy@example.test', 'legacy')`)
+	require.NoError(t, err)
+
+	ctx = withPendingMigrations(ctx, migrate.MigrationSlice{{Name: links.Name}})
+	require.ErrorContains(t, legacyParentAccountsPrecondition(ctx, db), "auth.accounts_parents has 1 rows")
+}
+
 func TestLegacyParentRemovalRefusesDataAndUnexpectedDependencies(t *testing.T) {
 	t.Parallel()
 	db := testpkg.SetupIsolatedTestDB(t)
