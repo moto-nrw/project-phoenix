@@ -361,10 +361,40 @@ func (s *FixedSeeder) loginAsStaff() error {
 	return nil
 }
 
+// demoRoomCategoryColors gives every demo room category one color (#4352),
+// so a child's badge shows what kind of room it is, not which of eleven rooms.
+// Deliberately outside the status-badge palette: the API rejects colors
+// reserved for presence states. Each ends in 0 so demoRoomColors can count
+// up the last digit without spilling into the next one.
+var demoRoomCategoryColors = map[string]int{
+	"Gruppenraum":   0x283590,
+	"Normaler Raum": 0x374750,
+	"Themenraum":    0x6A1B90,
+	"Sport":         0x827710,
+}
+
+// demoRoomColors returns one color per room, in order. Room colors must be
+// unique per school, so rooms of the same category get their category color
+// with the last hex digit counted up: a step nobody can see on a badge.
+func demoRoomColors(rooms []DemoRoom) ([]string, error) {
+	colors := make([]string, len(rooms))
+	roomsSoFar := map[string]int{}
+	for index, room := range rooms {
+		base, ok := demoRoomCategoryColors[room.Category]
+		if !ok {
+			return nil, fmt.Errorf("room %s: no demo color for category %q", room.Name, room.Category)
+		}
+		colors[index] = fmt.Sprintf("#%06X", base+roomsSoFar[room.Category])
+		roomsSoFar[room.Category]++
+	}
+	return colors, nil
+}
+
 func (s *FixedSeeder) seedRooms(_ context.Context, result *FixedResult) error {
-	// Deliberately outside the status-badge palette: room colors must be
-	// tenant-unique and the API rejects colors reserved for presence states.
-	roomColors := []string{"#1B5E20", "#2E7D32", "#33691E", "#827717", "#E65100", "#BF360C", "#4A148C", "#6A1B9A", "#283593", "#006064", "#37474F"}
+	roomColors, err := demoRoomColors(DemoRooms)
+	if err != nil {
+		return err
+	}
 	for index, room := range DemoRooms {
 		body := map[string]any{
 			"name":     room.Name,
