@@ -140,7 +140,7 @@ func (d *conflictDetection) plannedStudentConflicts(
 	if len(probe.StudentIDs) == 0 {
 		return nil
 	}
-	rows, err := d.deps.InstanceStudents.FindExpectedByInstanceIDs(ctx, overlappingIDs)
+	rows, err := expectedParticipantsOf(ctx, d.deps.InstanceStudents.Reads, overlappingIDs)
 	if err != nil {
 		d.logger.Warn("planned conflict detection: load instance_students failed",
 			slog.String("date", probe.Date.String()),

@@ -260,7 +260,7 @@ export interface EnrollmentFormPrefetchedData {
  * Public enrollment form. Loads the active schema + open care offerings,
  * collects guardian info + 1..n children + offering selections, and
  * submits to /api/enrollment/{tenantSlug}/submit. The captcha widget is
- * inlined when enrollment.captcha_site_key is present in the payload,
+ * inlined when the payload carries the platform's Turnstile site key;
  * captcha verification happens server-side.
  *
  * The form intentionally renders core fields (guardian + child names,
@@ -2410,8 +2410,9 @@ export function EnrollmentForm({
       {/*
         Cloudflare Turnstile widget. Only rendered when:
         - the caller didn't skip captcha (parent JWT path skips), and
-        - the tenant has configured enrollment.captcha_site_key.
-        When require_captcha=true but no site_key is set, we still
+        - the captcha config carries a site key (the server requires the
+          platform's TURNSTILE_SITE_KEY at startup).
+        When require_captcha=true but no site_key arrives, we still
         render a warning to the parent and disable submit; failing
         closed is safer than letting bots through silently.
         The hidden input ships the token along with the form post.

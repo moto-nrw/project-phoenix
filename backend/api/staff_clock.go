@@ -81,7 +81,7 @@ func (l staffClockStaffLookup) ResolveStaffByTag(ctx context.Context, tag string
 	if person == nil {
 		return staffclock.StaffIdentity{}, staffclock.ErrRFIDTagNotFound
 	}
-	staff, err := l.people.GetStaffByPersonID(ctx, person.ID)
+	staff, err := l.people.StaffRows().FindByPersonID(ctx, person.ID)
 	if err != nil {
 		if errors.Is(err, transactionruntime.ErrNoRows) {
 			return staffclock.StaffIdentity{}, staffclock.ErrRFIDTagNotStaff

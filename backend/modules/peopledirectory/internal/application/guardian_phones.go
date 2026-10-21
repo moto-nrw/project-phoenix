@@ -189,13 +189,3 @@ func (s *RetainedGuardianService) SetPrimaryPhone(ctx context.Context, phoneID i
 
 	return s.GuardianPhoneNumberRepo.SetPrimary(ctx, phoneID, phone.GuardianProfileID)
 }
-
-// GetGuardianPhoneNumbers retrieves all phone numbers for a guardian, sorted by priority
-func (s *RetainedGuardianService) GetGuardianPhoneNumbers(ctx context.Context, guardianID int64) ([]*peopleValues.GuardianProfilePhoneSnapshot, error) {
-	return s.GuardianPhoneNumberRepo.FindByGuardianID(ctx, guardianID)
-}
-
-// GetPhoneNumberByID retrieves a phone number by ID
-func (s *RetainedGuardianService) GetPhoneNumberByID(ctx context.Context, phoneID int64) (*peopleValues.GuardianProfilePhoneSnapshot, error) {
-	return s.GuardianPhoneNumberRepo.FindByID(ctx, phoneID)
-}

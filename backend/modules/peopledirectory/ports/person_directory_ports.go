@@ -34,24 +34,19 @@ type StudentLocker interface {
 	LockStudent(ctx context.Context, id int64) (*peopleValues.StudentState, error)
 }
 
-// StaffDirectory serves the staff and teacher lookups and the two staff writes
-// the person directory hands on (#3752). The rows belong to School Membership
-// and Workforce; the composition root binds NewStaffDirectory.
+// StaffDirectory serves the staff and teacher repositories and the two staff
+// writes the person directory hands on (#3752). The rows belong to School
+// Membership and Workforce; the composition root binds NewStaffDirectory.
 //
-// Every read returns the repository result and error verbatim, without
-// wrapping or sentinel mapping: callers (IoT device flows, PyrePortal) branch
-// on sql.ErrNoRows and render err.Error() into response bodies.
+// Callers read the repositories themselves, so every read returns the
+// repository result and error verbatim, without wrapping or sentinel mapping:
+// callers (IoT device flows, PyrePortal) branch on sql.ErrNoRows and render
+// err.Error() into response bodies.
 type StaffDirectory interface {
-	GetStaffByID(ctx context.Context, id int64) (*peopleValues.Staff, error)
-	GetStaffByPersonID(ctx context.Context, personID int64) (*peopleValues.Staff, error)
-	GetStaffWithPersonByIDs(ctx context.Context, ids []int64) (map[int64]*peopleValues.Staff, error)
-	ListStaffWithPerson(ctx context.Context) ([]*peopleValues.Staff, error)
-	ListStaffByRoles(ctx context.Context, roles []string) ([]*peopleValues.StaffWithRoleInfo, error)
-	GetTeacherByStaffID(ctx context.Context, staffID int64) (*peopleValues.Teacher, error)
-	GetTeachersByStaffIDs(ctx context.Context, staffIDs []int64) (map[int64]*peopleValues.Teacher, error)
-	GetTeachersBySpecialization(ctx context.Context, specialization string) ([]*peopleValues.Teacher, error)
-	GetTeacherWithStaffAndPerson(ctx context.Context, id int64) (*peopleValues.Teacher, error)
-	ListTeachersWithStaffAndPerson(ctx context.Context) ([]*peopleValues.Teacher, error)
+	// StaffRows and TeacherRows are the retained repositories the lookups
+	// read.
+	StaffRows() StaffRepository
+	TeacherRows() TeacherRepository
 
 	// CreateStaffWithTeacher creates a staff record and, when requested, a
 	// teacher record in one tenant transaction. A failed teacher creation is

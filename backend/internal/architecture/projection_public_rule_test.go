@@ -64,12 +64,12 @@ func TestProjectionPublicRulesRequireReviewedEpoch(t *testing.T) {
 	if len(base.Rules) == len(candidate.Rules) {
 		t.Fatal("expected the response projection rules")
 	}
-	if err := comparePolicyStrictness(&base, candidate, noCreated(), noCreated(), noCreated(), noCreated(), noCreated(), nil); err != nil {
+	if err := comparePolicyStrictness(&base, candidate, noCreated(), noCreated(), noCreated(), noCreated(), nil); err != nil {
 		t.Fatalf("reviewed projection reach: %v", err)
 	}
 	unreviewed := *candidate
 	unreviewed.PolicyEpoch = base.PolicyEpoch
-	if err := comparePolicyStrictness(&base, &unreviewed, noCreated(), noCreated(), noCreated(), noCreated(), noCreated(), nil); err == nil {
+	if err := comparePolicyStrictness(&base, &unreviewed, noCreated(), noCreated(), noCreated(), noCreated(), nil); err == nil {
 		t.Fatal("new projection permissions passed without an epoch")
 	}
 }

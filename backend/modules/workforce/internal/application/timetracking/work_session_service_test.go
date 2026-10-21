@@ -643,7 +643,7 @@ func TestCheckoutSupervisionCleanupLocksGroupsInOrder(t *testing.T) {
 		},
 	}
 	service := &workSessionService{
-		supervisorRepo: supervisors,
+		GroupSupervisorRepository: supervisors,
 		groupRepo: &mockGroupRepository{findByIDForUpdateFunc: func(_ context.Context, id int64) (*Group, error) {
 			locked = append(locked, id)
 			return &Group{ID: id}, nil
@@ -679,11 +679,11 @@ func wsCreateTestService() (*workSessionService, *wsMockWorkSessionRepository, *
 	supervisorRepo := &wsMockGroupSupervisorRepository{}
 
 	service := &workSessionService{
-		repo:           sessionRepo,
-		breakRepo:      breakRepo,
-		auditRepo:      auditRepo,
-		absenceRepo:    absenceRepo,
-		supervisorRepo: supervisorRepo,
+		repo:                      sessionRepo,
+		breakRepo:                 breakRepo,
+		auditRepo:                 auditRepo,
+		absenceRepo:               absenceRepo,
+		GroupSupervisorRepository: supervisorRepo,
 	}
 
 	return service, sessionRepo, breakRepo, auditRepo, supervisorRepo

@@ -722,7 +722,7 @@ func TestCareLifecycle_CancelPutsThePlanBack(t *testing.T) {
 	})
 
 	// Sanity: the exit really did take the plan apart.
-	rows, err := testpkg.TenantQuery1(t, ctx, db, timetableRepos.InstanceStudent.FindByInstanceID,
+	rows, err := testpkg.TenantQuery1(t, ctx, db, timetableRepos.NativeParticipants().FindByInstanceID,
 
 		instance.ID)
 
@@ -740,7 +740,7 @@ func TestCareLifecycle_CancelPutsThePlanBack(t *testing.T) {
 	require.Equal(t, 1, cancelled)
 
 	t.Run("the roster row is back, with the hand-set status intact", func(t *testing.T) {
-		restored, err := testpkg.TenantQuery1(t, ctx, db, timetableRepos.InstanceStudent.FindByInstanceID,
+		restored, err := testpkg.TenantQuery1(t, ctx, db, timetableRepos.NativeParticipants().FindByInstanceID,
 
 			instance.ID)
 
@@ -817,7 +817,7 @@ func TestCareLifecycle_ChangingTheDayReplansFromTheBaseline(t *testing.T) {
 		LastCareDay: today.AddDays(5),
 		Reason:      careplan.CareExitReasonNoCareNeed,
 	})
-	rows, err := testpkg.TenantQuery1(t, ctx, db, timetableRepos.InstanceStudent.FindByInstanceID,
+	rows, err := testpkg.TenantQuery1(t, ctx, db, timetableRepos.NativeParticipants().FindByInstanceID,
 
 		early.ID)
 
@@ -845,7 +845,7 @@ func TestCareLifecycle_ChangingTheDayReplansFromTheBaseline(t *testing.T) {
 	require.NoError(t, err)
 
 	t.Run("the block inside the extended window is back", func(t *testing.T) {
-		restored, err := testpkg.TenantQuery1(t, ctx, db, timetableRepos.InstanceStudent.FindByInstanceID,
+		restored, err := testpkg.TenantQuery1(t, ctx, db, timetableRepos.NativeParticipants().FindByInstanceID,
 
 			early.ID)
 
@@ -855,7 +855,7 @@ func TestCareLifecycle_ChangingTheDayReplansFromTheBaseline(t *testing.T) {
 	})
 
 	t.Run("the block after the new day stays removed", func(t *testing.T) {
-		gone, err := testpkg.TenantQuery1(t, ctx, db, timetableRepos.InstanceStudent.FindByInstanceID,
+		gone, err := testpkg.TenantQuery1(t, ctx, db, timetableRepos.NativeParticipants().FindByInstanceID,
 
 			late.ID)
 
@@ -906,7 +906,7 @@ func TestCareLifecycle_ResumeDoesNotBringThePlanBack(t *testing.T) {
 		Checked:        true,
 	}))
 
-	rows, err := testpkg.TenantQuery1(t, ctx, db, timetableRepos.InstanceStudent.FindByInstanceID,
+	rows, err := testpkg.TenantQuery1(t, ctx, db, timetableRepos.NativeParticipants().FindByInstanceID,
 
 		instance.ID)
 
@@ -922,7 +922,7 @@ func TestCareLifecycle_ResumeDoesNotBringThePlanBack(t *testing.T) {
 	_, err = testpkg.TenantQuery2(t, ctx, db, svc.Cancel, []int64{student.ID}, actorID)
 	require.NoError(t, err)
 
-	after, err := testpkg.TenantQuery1(t, ctx, db, timetableRepos.InstanceStudent.FindByInstanceID,
+	after, err := testpkg.TenantQuery1(t, ctx, db, timetableRepos.NativeParticipants().FindByInstanceID,
 
 		instance.ID)
 

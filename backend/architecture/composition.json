@@ -56,8 +56,8 @@
       "declaration": "checkRuntimeRejectsMissingDependencies",
       "target": "api.WithRuntime",
       "lines": [
-        103,
-        114
+        113,
+        124
       ],
       "tables": []
     },
@@ -16336,7 +16336,6 @@
       ]
     }
   ],
-  "legacy_callers": null,
   "production_roots": [
     {
       "id": "serve",
@@ -16407,7 +16406,6 @@
   "smoke_tests": [
     "api/route_table_golden_test.go#TestFullProductionRouterGolden",
     "cmd/root_test.go#TestRootCmd_HasCommands",
-    "internal/architecture/composition_inventory_test.go#TestCompositionLegacyCallerInventory",
     "test/composition_inventory_test.go#TestCompositionInventory",
     "test/composition_inventory_test.go#TestWorkerJobRegistryInventory",
     "test/e2e/calendar/parent_calendar_flow_test.go#TestParentCalendarHTTPFlow_ViewICSAndFeed",

@@ -14,7 +14,7 @@ import (
 
 type scheduleReviewDirectoryFixture struct{ reviewDirectoryFixture }
 
-func (scheduleReviewDirectoryFixture) DepartureModes(context.Context, []int64) (map[int64]map[string][]string, error) {
+func (scheduleReviewDirectoryFixture) ListStudentDepartureModes(context.Context, []int64) (map[int64]map[string][]string, error) {
 	return map[int64]map[string][]string{}, nil
 }
 

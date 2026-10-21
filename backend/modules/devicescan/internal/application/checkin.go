@@ -83,7 +83,7 @@ func (s *Service) checkoutCurrentVisit(ctx context.Context, student *ports.Stude
 		)
 	}
 
-	if err := s.visits.End(ctx, visit.ID); err != nil {
+	if err := s.visits.EndVisit(ctx, visit.ID); err != nil {
 		s.logger.ErrorContext(ctx, "failed to end visit",
 			slog.Int64("visit_id", visit.ID),
 			slog.Int64("student_id", student.ID),
@@ -243,7 +243,7 @@ func (s *Service) deleteEmptyCreatedSession(ctx context.Context, selection *sele
 	if selection == nil || !selection.created {
 		return
 	}
-	if err := s.sessions.Delete(ctx, selection.Session.ID); err != nil {
+	if err := s.sessions.DeleteActiveGroup(ctx, selection.Session.ID); err != nil {
 		s.logger.WarnContext(ctx, "failed to remove empty active group after rejected check-in",
 			slog.Int64("active_group_id", selection.Session.ID),
 			slog.String("error", err.Error()),
@@ -608,7 +608,7 @@ func (s *Service) activeStudentCountForSession(ctx context.Context, sessionID in
 
 // touchSession refreshes the session heartbeat; failures only log.
 func (s *Service) touchSession(ctx context.Context, sessionID int64) {
-	if err := s.sessions.Touch(ctx, sessionID); err != nil {
+	if err := s.sessions.UpdateSessionActivity(ctx, sessionID); err != nil {
 		s.logger.WarnContext(ctx, "failed to update session activity for group",
 			slog.Int64("group_id", sessionID),
 			slog.String("error", err.Error()),

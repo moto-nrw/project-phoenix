@@ -16,11 +16,7 @@ type ScheduleReviewPeople interface {
 
 type scheduleReviewDirectory struct {
 	reviewDirectory
-	departures peopledirectory.StudentDepartureQuery
-}
-
-func (d scheduleReviewDirectory) DepartureModes(ctx context.Context, ids []int64) (map[int64]map[string][]string, error) {
-	return d.departures.ListStudentDepartureModes(ctx, ids)
+	peopledirectory.StudentDepartureQuery
 }
 
 type scheduleReviewBookings struct {
@@ -66,7 +62,7 @@ func (b scheduleReviewBookings) ApprovedForStudents(ctx context.Context, ids []i
 }
 
 func NewScheduleReviewDirectory(people ScheduleReviewPeople) careplan.ScheduleReviewDirectory {
-	return scheduleReviewDirectory{reviewDirectory: reviewDirectory{people: people}, departures: people}
+	return scheduleReviewDirectory{reviewDirectory: reviewDirectory{people: people}, StudentDepartureQuery: people}
 }
 func NewScheduleReviewBookings(query interface {
 	ApprovedOfferingChildrenForStudents(context.Context, []int64) ([]enrollment.OfferingChildFacts, error)

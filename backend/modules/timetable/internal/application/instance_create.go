@@ -235,14 +235,14 @@ func (s *InstanceLifecycleService) assignInstanceStudents(ctx context.Context, i
 			Status:     scheduleModel.AttendanceStatusExpected,
 		}
 		row.SetTenantID(tenantID)
-		if err := s.deps.InstanceStudents.Create(ctx, row); err != nil {
+		if err := createLegacyParticipant(ctx, s.deps.InstanceStudents, row); err != nil {
 			return &ports.ScheduleError{Op: op + ": assign student", Err: err}
 		}
 	}
-	if _, err := s.deps.InstanceStudents.ApplyActiveStatusDaysForInstance(ctx, inst.ID, inst.Date); err != nil {
+	if _, err := applyActiveStatusDaysToInstance(ctx, s.deps.InstanceStudents.Presence, inst.ID, inst.Date); err != nil {
 		return &ports.ScheduleError{Op: op + ": apply student status days", Err: err}
 	}
-	if _, err := s.deps.InstanceStudents.ApplyActivePartialAbsencesForInstance(ctx, inst.ID, inst.Date); err != nil {
+	if _, err := applyActivePartialAbsencesToInstance(ctx, s.deps.InstanceStudents.Presence, inst.ID, inst.Date); err != nil {
 		return &ports.ScheduleError{Op: op + ": apply student partial absences", Err: err}
 	}
 	return nil

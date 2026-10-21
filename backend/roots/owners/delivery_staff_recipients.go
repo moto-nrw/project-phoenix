@@ -8,7 +8,6 @@ import (
 	peopleValues "github.com/moto-nrw/project-phoenix/modules/peopledirectory"
 
 	"github.com/moto-nrw/project-phoenix/modules/workforce"
-	workforceCompose "github.com/moto-nrw/project-phoenix/modules/workforce/compose"
 )
 
 // deliveryStudentGroups names the education group of each reported child
@@ -35,11 +34,13 @@ func (g deliveryStudentGroups) StudentGroupIDs(ctx context.Context, studentIDs [
 
 // deliveryOnDutyStaff names today's staff on duty by Workforce's rule.
 type deliveryOnDutyStaff struct {
-	presence workforceCompose.WorkPresenceQuery
+	presence interface {
+		WorkPresenceMap(context.Context) (map[int64]string, error)
+	}
 }
 
 func (s deliveryOnDutyStaff) OnDutyStaffIDs(ctx context.Context) ([]int64, error) {
-	presence, err := s.presence.GetTodayPresenceMap(ctx)
+	presence, err := s.presence.WorkPresenceMap(ctx)
 	if err != nil {
 		return nil, err
 	}

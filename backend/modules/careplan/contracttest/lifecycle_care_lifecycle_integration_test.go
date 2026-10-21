@@ -292,13 +292,13 @@ func TestCareExit_FullSchoolWithPlanOfferingsAndParents(t *testing.T) {
 	require.NoError(t, err)
 
 	t.Run("future roster rows go, past ones stay", func(t *testing.T) {
-		future, err := testpkg.TenantQuery1(t, ctx, db, timetableRepos.InstanceStudent.FindByInstanceID,
+		future, err := testpkg.TenantQuery1(t, ctx, db, timetableRepos.NativeParticipants().FindByInstanceID,
 			futureInstance.ID)
 
 		require.NoError(t, err)
 		assert.Empty(t, future, "the departed child is off the upcoming block")
 
-		past, err := testpkg.TenantQuery1(t, ctx, db, timetableRepos.InstanceStudent.FindByInstanceID,
+		past, err := testpkg.TenantQuery1(t, ctx, db, timetableRepos.NativeParticipants().FindByInstanceID,
 			pastInstance.ID)
 
 		require.NoError(t, err)

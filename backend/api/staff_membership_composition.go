@@ -279,7 +279,7 @@ func membershipRoleRows(users peoplePorts.PersonDirectory) (func(context.Context
 		return result, nil
 	}
 	staffByRoles := func(ctx context.Context, roles []string) ([]StaffRoleRow, error) {
-		rows, err := users.ListStaffByRoles(ctx, roles)
+		rows, err := users.StaffRows().ListStaffByRoles(ctx, roles)
 		if err != nil {
 			return nil, err
 		}
@@ -308,7 +308,7 @@ func staffDirectoryWrites(users peoplePorts.PersonDirectory) (func(context.Conte
 		return StaffCreateResult{Staff: legacyStaffToMembership(staff), Teacher: legacyTeacherToMembership(teacher), TeacherCreationFailed: teacherCreationFailed}, nil
 	}
 	updateStaff := func(ctx context.Context, input StaffUpdateInput) (StaffUpdateResult, error) {
-		staff, err := users.GetStaffByID(ctx, input.StaffID)
+		staff, err := users.StaffRows().FindByID(ctx, input.StaffID)
 		if err != nil {
 			return StaffUpdateResult{}, err
 		}

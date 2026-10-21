@@ -39,7 +39,7 @@ func (rs *Resource) applyStatusDaysForDate(ctx context.Context, responses []Stud
 	for _, response := range responses {
 		studentIDs = append(studentIDs, response.ID)
 	}
-	rows, err := rs.StudentStatusDayService.GetActiveByStudentIDsAndDate(ctx, studentIDs, calendar.DateFromTime(now))
+	rows, err := rs.StudentStatusDayService.FindActiveByStudentIDsAndDate(ctx, studentIDs, calendar.DateFromTime(now))
 	if err != nil {
 		return err
 	}
@@ -52,7 +52,7 @@ func (rs *Resource) applyStatusDaysForDateToResponse(ctx context.Context, respon
 		return nil
 	}
 	date := calendar.DateFromTime(now)
-	rows, err := rs.StudentStatusDayService.GetActiveByStudentAndDateRange(ctx, response.ID, date, date)
+	rows, err := rs.StudentStatusDayService.FindActiveByStudentAndDateRange(ctx, response.ID, date, date)
 	if err != nil {
 		return err
 	}

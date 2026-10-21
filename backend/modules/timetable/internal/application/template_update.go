@@ -403,7 +403,7 @@ func (s *TemplateService) reconcileManualRosterInstances(
 	if len(in.Fields.SourceCareOfferingIDs) == 0 && len(previousSourceOfferingIDs) == 0 {
 		return nil
 	}
-	if noInstanceRows(s.deps.ActivityInstanceRepo) || s.deps.InstanceStudentRepo == nil || s.deps.StudentEnrollmentRepo == nil {
+	if noInstanceRows(s.deps.ActivityInstanceRepo) || noParticipantRows(s.deps.InstanceStudentRepo) || s.deps.StudentEnrollmentRepo == nil {
 		return nil // read-only test facades have no occurrences to reconcile
 	}
 	studentIDs := unionStudentIDs(manualRosterStudentIDs(in), retiredStudentIDs)

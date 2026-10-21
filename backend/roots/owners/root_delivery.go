@@ -21,7 +21,6 @@ import (
 	settingsCompose "github.com/moto-nrw/project-phoenix/modules/settings/compose"
 	transactionruntime "github.com/moto-nrw/project-phoenix/modules/transactionruntime/compose"
 	"github.com/moto-nrw/project-phoenix/modules/workforce"
-	workforceCompose "github.com/moto-nrw/project-phoenix/modules/workforce/compose"
 )
 
 // DeliveryNotifications are Delivery's notification side (#1845): the
@@ -66,7 +65,7 @@ func BuildDeliveryNotifications(
 	}
 	recipients := deliveryCompose.NewStaffRecipientResolver(preferences, deliveryStudentGroups{students: people.Students},
 		structure.Groups, people.Staff, identity, settings,
-		deliveryOnDutyStaff{presence: workforceCompose.WorkPresence(workTime)})
+		deliveryOnDutyStaff{presence: workTime})
 	absences, err := deliveryCompose.NewTenantAbsenceNotifier(unit, notifier, recipients, db.Pool(), logger.With("producer", "absence_notifications"))
 	if err != nil {
 		return DeliveryNotifications{}, err

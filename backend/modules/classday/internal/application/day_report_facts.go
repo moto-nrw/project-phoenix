@@ -224,7 +224,7 @@ func (s *dayReports) dayDepartureModes(ctx context.Context, studentIDs []int64, 
 	if s.times == nil || len(studentIDs) == 0 {
 		return map[int64]string{}, nil
 	}
-	modes, err := s.times.DayDepartureModes(ctx, studentIDs, date)
+	modes, err := s.times.GetBulkDayDepartureModesForDate(ctx, studentIDs, date)
 	if err != nil {
 		return nil, fmt.Errorf("load day departure modes: %w", err)
 	}

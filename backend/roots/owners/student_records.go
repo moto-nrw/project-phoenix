@@ -5,6 +5,7 @@ import (
 	"fmt"
 
 	peopleValues "github.com/moto-nrw/project-phoenix/modules/peopledirectory"
+	peoplePorts "github.com/moto-nrw/project-phoenix/modules/peopledirectory/ports"
 
 	"github.com/moto-nrw/project-phoenix/modules/careplan"
 
@@ -83,7 +84,7 @@ func (p presenceStudents) UpdateLiveStatus(ctx context.Context, record *studentp
 // statusDayOverviewSource is the slice of the person service the absence
 // overview reads.
 type statusDayOverviewSource interface {
-	GetStudentsByGroupIDs(context.Context, []int64) ([]*peopleValues.StudentState, error)
+	StudentRows() peoplePorts.StudentRepository
 	GetByIDs(context.Context, []int64) (map[int64]*peopleValues.DirectoryPersonSnapshot, error)
 }
 
@@ -96,7 +97,7 @@ func StatusDayOverviewPeople(source statusDayOverviewSource) presenceservice.Sta
 }
 
 func (p statusDayOverviewPeople) GetStudentsByGroupIDs(ctx context.Context, groupIDs []int64) ([]*studentpresence.StudentRecord, error) {
-	rows, err := p.source.GetStudentsByGroupIDs(ctx, groupIDs)
+	rows, err := p.source.StudentRows().FindByGroupIDs(ctx, groupIDs)
 	if err != nil {
 		return nil, err
 	}

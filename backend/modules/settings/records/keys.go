@@ -462,8 +462,6 @@ const (
 	KeyEnrollmentOutboxMaxAttempts                      = "enrollment.outbox_max_attempts"
 	KeyEnrollmentOutboxWorkerIntervalSeconds            = "enrollment.outbox_worker_interval_seconds"
 	KeyEnrollmentStatusTokenTTLDays                     = "enrollment.status_token_ttl_days"
-	KeyEnrollmentCaptchaSiteKey                         = "enrollment.captcha_site_key"
-	KeyEnrollmentCaptchaSecretKey                       = "enrollment.captcha_secret_key"
 	KeyEnrollmentGradeLevelMax                          = "enrollment.grade_level_max"
 	// Per-tenant info texts (Markdown) shown behind each consent
 	// checkbox on the public enrollment form. A block is shown only when

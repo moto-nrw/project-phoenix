@@ -10,41 +10,27 @@ import (
 	"github.com/moto-nrw/project-phoenix/modules/workforce/internal/ports"
 )
 
-// staffSubjects binds the public port to the application's.
-type staffSubjects struct{ port workforce.StaffAdminSubjects }
+// staffSubjects binds the public port to the application's. The methods
+// whose signatures already match are promoted from the embedded port; the
+// ones below convert values or classify failures.
+type staffSubjects struct{ workforce.StaffAdminSubjects }
 
 func (s staffSubjects) StaffWithPerson(ctx context.Context, staffID int64) (domain.StaffSubject, error) {
-	profile, err := s.port.StaffWithPerson(ctx, staffID)
+	profile, err := s.StaffAdminSubjects.StaffWithPerson(ctx, staffID)
 	return domain.StaffSubject(profile), err
-}
-
-func (s staffSubjects) StaffExists(ctx context.Context, staffID int64) error {
-	return s.port.StaffExists(ctx, staffID)
 }
 
 func (s staffSubjects) LockStaff(ctx context.Context, staffID int64, withPerson bool) (domain.StaffSubject, error) {
-	profile, err := s.port.LockStaff(ctx, staffID, withPerson)
+	profile, err := s.StaffAdminSubjects.LockStaff(ctx, staffID, withPerson)
 	return domain.StaffSubject(profile), err
 }
 
-func (s staffSubjects) UpdatePerson(ctx context.Context, personID int64, firstName, lastName string, birthday *string) error {
-	return s.port.UpdatePerson(ctx, personID, firstName, lastName, birthday)
-}
-
-func (s staffSubjects) SetEmploymentType(ctx context.Context, staffID int64, value *string) error {
-	return s.port.SetEmploymentType(ctx, staffID, value)
-}
-
 func (s staffSubjects) SetPersonnelNumber(ctx context.Context, staffID int64, value *string) error {
-	err := s.port.SetPersonnelNumber(ctx, staffID, value)
+	err := s.StaffAdminSubjects.SetPersonnelNumber(ctx, staffID, value)
 	if errors.Is(err, workforce.ErrPersonnelNumberTaken) {
 		return domain.ErrStaffPersonnelNumberTaken
 	}
 	return err
-}
-
-func (s staffSubjects) OffboardedStaffIDs(ctx context.Context) ([]int64, error) {
-	return s.port.OffboardedStaffIDs(ctx)
 }
 
 var _ ports.StaffSubjects = staffSubjects{}
@@ -77,7 +63,7 @@ func NewStaffAdminEngine(admin *StaffAdmin, records *Service) StaffAdminEngine {
 
 // NewStaffSubjects adapts the root's staff subjects to the module's port.
 func NewStaffSubjects(port workforce.StaffAdminSubjects) ports.StaffSubjects {
-	return staffSubjects{port: port}
+	return staffSubjects{port}
 }
 
 // NewStaffAudit adapts the root's staff audit to the module's port.

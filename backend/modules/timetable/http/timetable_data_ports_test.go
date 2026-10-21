@@ -16,7 +16,7 @@ type testRoomOccupancy struct {
 	sessions studentpresence.SessionRecords
 }
 
-func (o testRoomOccupancy) RoomOccupied(ctx context.Context, roomID int64) (bool, error) {
+func (o testRoomOccupancy) SpontaneousRoomOccupied(ctx context.Context, roomID int64) (bool, error) {
 	occupied, _, err := o.sessions.CheckRoomConflict(ctx, roomID, 0)
 	return occupied, err
 }
@@ -27,7 +27,7 @@ func (o testRoomOccupancy) RoomOccupied(ctx context.Context, roomID int64) (bool
 // and without a database the spontaneous-start locks are skipped.
 type unitDataDeps struct {
 	Instances     timetablePorts.LegacyInstanceReads
-	Participants  timetablePorts.DataParticipants
+	Participants  timetablePorts.ParticipantRows
 	Templates     timetablePorts.DataTemplates
 	Groups        timetablePorts.DataGroups
 	BlockMetadata timetablePorts.BlockDisplayMetadata
@@ -44,8 +44,14 @@ type (
 	stubDataInstanceStaff struct {
 		timetable.InstanceStaffQuery
 	}
-	stubDataParticipants struct {
-		timetablePorts.DataParticipants
+	stubParticipantPlans struct {
+		timetable.InstanceStudentCapability
+	}
+	stubParticipantPresence struct {
+		timetablePorts.ParticipantPresence
+	}
+	stubParticipantReads struct {
+		timetablePorts.LegacyParticipantReads
 	}
 	stubDataPickupExceptions struct {
 		timetablePorts.DataPickupExceptions
@@ -76,6 +82,11 @@ type (
 	}
 )
 
+// stubParticipantRows are participant rows whose parts panic when reached.
+func stubParticipantRows() timetablePorts.ParticipantRows {
+	return timetablePorts.ParticipantRows{Plans: stubParticipantPlans{}, Presence: stubParticipantPresence{}, Reads: stubParticipantReads{}}
+}
+
 // unitTimetableData composes the Timetable owner's planner reads over the
 // given fakes.
 func unitTimetableData(deps unitDataDeps) timetable.TimetableDataCapability {
@@ -83,7 +94,7 @@ func unitTimetableData(deps unitDataDeps) timetable.TimetableDataCapability {
 		RunInTx:           func(ctx context.Context, fn func(context.Context) error) error { return fn(ctx) },
 		Instances:         stubDataInstances{},
 		InstanceStaff:     stubDataInstanceStaff{},
-		Participants:      stubDataParticipants{},
+		Participants:      stubParticipantRows(),
 		PickupExceptions:  stubDataPickupExceptions{},
 		ArrivalExceptions: stubDataArrivalExceptions{},
 		Visits:            stubDataVisits{},
@@ -100,7 +111,7 @@ func unitTimetableData(deps unitDataDeps) timetable.TimetableDataCapability {
 	if deps.Instances != nil {
 		composed.Instances = deps.Instances
 	}
-	if deps.Participants != nil {
+	if deps.Participants.Reads != nil {
 		composed.Participants = deps.Participants
 	}
 	if deps.Templates != nil {

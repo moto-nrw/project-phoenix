@@ -40,7 +40,7 @@ import (
 //     which no archive entry can exist.
 type RosterReconciler struct {
 	instanceRepo        ports.InstanceRows
-	instanceStudentRepo ports.InstanceStudentRecords
+	instanceStudentRepo ports.ParticipantRows
 	enrollmentRepo      timetable.StudentEnrollmentQuery
 	directories         ports.RepositoryDirectories
 	logger              *slog.Logger
@@ -53,7 +53,7 @@ var _ timetable.RosterMaintenance = (*RosterReconciler)(nil)
 // package default is used).
 func NewRosterReconciler(
 	instanceRepo ports.InstanceRows,
-	instanceStudentRepo ports.InstanceStudentRecords,
+	instanceStudentRepo ports.ParticipantRows,
 	enrollmentRepo timetable.StudentEnrollmentQuery,
 	directories ports.RepositoryDirectories,
 	logger *slog.Logger,
@@ -103,7 +103,7 @@ func (s *RosterReconciler) RemoveStudentsFromFutureRosters(ctx context.Context, 
 	// observations and stay) from the ones still ahead.
 	now := s.now()
 	from := calendar.DateFromTime(now)
-	removed, err := s.instanceStudentRepo.ArchivePlannedByStudentIDsFrom(ctx, transitionID, studentIDs, calendar.Date(from), now)
+	removed, err := archivePlannedParticipants(ctx, s.instanceStudentRepo, transitionID, studentIDs, calendar.Date(from), now)
 	if err != nil {
 		return &ports.ScheduleError{Op: "reconcile roster: remove graduated students", Err: err}
 	}
@@ -182,7 +182,7 @@ func (s *RosterReconciler) RestoreStudentsToFutureRosters(
 	// enrollment fill starts at the same boundary date.
 	from := calendar.DateFromTime(s.now())
 
-	replayed, err := s.instanceStudentRepo.RestoreArchivedByTransition(ctx, transitionID, studentIDs, calendar.Date(from))
+	replayed, err := restoreArchivedParticipants(ctx, s.instanceStudentRepo, transitionID, studentIDs, calendar.Date(from))
 	if err != nil {
 		return &ports.ScheduleError{Op: "reconcile roster: replay archived rows", Err: err}
 	}
@@ -321,7 +321,7 @@ func (s *RosterReconciler) restoreEnrollmentRows(
 			StudentID:  studentID,
 			Status:     schedule.AttendanceStatusExpected,
 		}
-		if err := s.instanceStudentRepo.Create(ctx, row); err != nil {
+		if err := createLegacyParticipant(ctx, s.instanceStudentRepo, row); err != nil {
 			return 0, &ports.ScheduleError{Op: "reconcile roster: restore student", Err: err}
 		}
 		existing[key] = row
@@ -337,12 +337,12 @@ func (s *RosterReconciler) restoreEnrollmentRows(
 func (s *RosterReconciler) applyActiveStatusDays(ctx context.Context, touched map[int64]calendar.Date, op string) (int, error) {
 	applied := 0
 	for instanceID, date := range touched {
-		n, err := s.instanceStudentRepo.ApplyActiveStatusDaysForInstance(ctx, instanceID, calendar.Date(date))
+		n, err := applyActiveStatusDaysToInstance(ctx, s.instanceStudentRepo.Presence, instanceID, calendar.Date(date))
 		if err != nil {
 			return applied, &ports.ScheduleError{Op: op + ": apply student status days", Err: err}
 		}
 		applied += n
-		n, err = s.instanceStudentRepo.ApplyActivePartialAbsencesForInstance(ctx, instanceID, calendar.Date(date))
+		n, err = applyActivePartialAbsencesToInstance(ctx, s.instanceStudentRepo.Presence, instanceID, calendar.Date(date))
 		if err != nil {
 			return applied, &ports.ScheduleError{Op: op + ": apply student partial absences", Err: err}
 		}
@@ -360,7 +360,7 @@ type instanceStudentPair struct {
 }
 
 func (s *RosterReconciler) existingStudentRows(ctx context.Context, instanceIDs []int64, op string) (map[instanceStudentPair]*schedule.InstanceStudent, error) {
-	rows, err := s.instanceStudentRepo.FindByInstanceIDs(ctx, instanceIDs)
+	rows, err := participantsOfInstances(ctx, s.instanceStudentRepo.Reads, instanceIDs)
 	if err != nil {
 		return nil, &ports.ScheduleError{Op: op, Err: err}
 	}
@@ -583,7 +583,7 @@ func (s *RosterReconciler) addOccurrenceStudent(ctx context.Context, key instanc
 		StudentID:  key.studentID,
 		Status:     schedule.AttendanceStatusExpected,
 	}
-	if err := s.instanceStudentRepo.Create(ctx, fresh); err != nil {
+	if err := createLegacyParticipant(ctx, s.instanceStudentRepo, fresh); err != nil {
 		return &ports.ScheduleError{Op: "reconcile sourced roster: add student", Err: err}
 	}
 	pass.existing[key] = fresh
@@ -593,7 +593,7 @@ func (s *RosterReconciler) addOccurrenceStudent(ctx context.Context, key instanc
 }
 
 func (s *RosterReconciler) removeOccurrenceStudent(ctx context.Context, key instanceStudentPair, row *schedule.InstanceStudent, pass *sourcedRosterPass) error {
-	if err := s.instanceStudentRepo.Delete(ctx, row.ID); err != nil {
+	if err := deleteLegacyParticipant(ctx, s.instanceStudentRepo.Plans, row.ID); err != nil {
 		return &ports.ScheduleError{Op: "reconcile sourced roster: remove student", Err: err}
 	}
 	delete(pass.existing, key)

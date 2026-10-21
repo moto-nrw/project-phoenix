@@ -42,7 +42,7 @@ func (s *service) decorateStudentGroups(ctx context.Context, page *Page) error {
 }
 
 func (s *service) decorateFamilyProtection(ctx context.Context, page *Page) error {
-	protected, err := s.deps.FamilyProtection.Protected(ctx, studentIDs(page.Items))
+	protected, err := s.deps.FamilyProtection.CurrentFamilyProtection(ctx, studentIDs(page.Items))
 	if err != nil {
 		return fmt.Errorf("load family protection for request queue: %w", err)
 	}

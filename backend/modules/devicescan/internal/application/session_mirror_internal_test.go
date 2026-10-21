@@ -28,7 +28,7 @@ func (s *mirrorTimetableStub) CreateInstance(_ context.Context, instance Mirrore
 	s.created = append(s.created, instance)
 	return instance, s.createErr
 }
-func (s *mirrorTimetableStub) AddStaff(_ context.Context, _ int64, staffID int64) error {
+func (s *mirrorTimetableStub) AddSessionInstanceStaff(_ context.Context, _ int64, staffID int64) error {
 	s.staff = append(s.staff, staffID)
 	return s.staffErr
 }

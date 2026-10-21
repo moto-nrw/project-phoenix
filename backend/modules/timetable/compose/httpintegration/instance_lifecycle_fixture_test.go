@@ -156,7 +156,7 @@ func newLifecycleAutoEnd(t *testing.T, instances fixtures.ActivityInstanceRecord
 // lifecycleDependencies is the dependency set instanceServiceWithBroadcaster
 // wires, for tests that add an optional collaborator before construction.
 func lifecycleDependencies(s *lifecycleSetup, broadcaster realtime.Broadcaster, recovery ...fixtures.ActivityRecoveryRecords) timetablePorts.InstanceLifecycleDependencies {
-	recoveryRepo := fixtures.FromActivityRecoveryRecords(compose.NewRetainedActivityRecoveryRepository(s.db, fixtures.IntoInstanceStudentRecords(fixtures.FromInstanceStudentRecords(s.timetable.InstanceStudent))))
+	recoveryRepo := fixtures.FromActivityRecoveryRecords(compose.NewRetainedActivityRecoveryRepository(s.db, s.timetable.InstanceStudent))
 	if len(recovery) > 0 {
 		recoveryRepo = recovery[0]
 	}
@@ -177,7 +177,7 @@ func lifecycleDependencies(s *lifecycleSetup, broadcaster realtime.Broadcaster, 
 		InstanceRepo:        s.timetable.ActivityInstance,
 		IdempotencyRepo:     s.timetable.InstanceIdempotency,
 		InstanceStaffRepo:   s.timetable.InstanceStaff,
-		InstanceStudents:    fixtures.IntoInstanceStudentRecords(fixtures.FromInstanceStudentRecords(s.timetable.InstanceStudent)),
+		InstanceStudents:    s.timetable.InstanceStudent,
 		ExceptionRepo:       s.timetable.ActivityException,
 		ActiveGroupRepo:     s.repos.ActiveGroup,
 		SupervisorRepo:      s.repos.GroupSupervisor,
@@ -208,7 +208,7 @@ func lifecycleDependencies(s *lifecycleSetup, broadcaster realtime.Broadcaster, 
 // presence; the lifecycle only consumes its start check.
 func lifecycleStartConflicts(s *lifecycleSetup) timetable.StartConflictQuery {
 	detection, err := owners.NewTimetableConflictDetection(timetablePorts.ConflictDetectionDependencies{
-		Instances: s.timetable.ActivityInstance.Reads, InstanceStaff: s.timetable.InstanceStaff, InstanceStudents: fixtures.IntoConflictInstanceStudents(fixtures.FromInstanceStudentRecords(s.timetable.InstanceStudent)),
+		Instances: s.timetable.ActivityInstance.Reads, InstanceStaff: s.timetable.InstanceStaff, InstanceStudents: s.timetable.InstanceStudent,
 		Exceptions: s.timetable.ActivityException, Schedules: s.timetable.ActivitySchedule, Staff: owners.NewTimetableStaff(s.reposPeople.Staff),
 		CalendarPeriods: fixtures.IntoConflictCalendarPeriods(fixtures.FromCalendarPeriodRecords(s.reposSchedules.CalendarPeriod)), ArrivalExceptions: fixtures.IntoConflictArrivalExceptions(fixtures.FromStudentArrivalExceptionRecords(s.reposSchedules.StudentArrivalException)),
 		Sessions: s.repos.ActiveGroup, Shifts: fixtures.IntoConflictShifts(unusedShiftRows{}), Presence: s.presence,

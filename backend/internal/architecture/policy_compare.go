@@ -9,16 +9,12 @@ import (
 
 // compareCandidatePolicyStrictness applies the strict base-policy comparison
 // while allowing ownership declarations for tables that a new migration file
-// in this candidate actually creates, and for tables a reviewed epoch adopts
-// from recorded debt (adoptableDataObjects, judged against the candidate's
-// current violations). Without the first exception the
-// ratchet would freeze the schema: a table cannot exist in the base policy
-// before the migration that introduces it. Without the second, a live table
-// the baseline already tracks as unowned could only gain its owner through a
-// data migration. Every other ownership change remains a strict loosening.
-// The CLI passes the candidate graph it already loaded; a nil graph is loaded
-// here.
-func compareCandidatePolicyStrictness(project, baseRef string, base, candidate *Policy, baseManifest *LegacyManifest, violations []Violation, graph *Graph) error {
+// in this candidate actually creates. Without that exception the ratchet would
+// freeze the schema: a table cannot exist in the base policy before the
+// migration that introduces it. Every other ownership change remains a strict
+// loosening. The CLI passes the candidate graph it already loaded; a nil graph
+// is loaded here.
+func compareCandidatePolicyStrictness(project, baseRef string, base, candidate *Policy, graph *Graph) error {
 	createdDataObjects, err := candidateMigrationDataObjects(project, baseRef)
 	if err != nil {
 		return err
@@ -44,203 +40,13 @@ func compareCandidatePolicyStrictness(project, baseRef string, base, candidate *
 	if err != nil {
 		return err
 	}
-	adoptedDataObjects := adoptableDataObjects(base, candidate, baseManifest, violations)
-	retiredExpressionObjects, err := adoptableFromRetiredExpressions(project, base, candidate, baseManifest, adoptedDataObjects)
-	if err != nil {
-		return err
-	}
-	for name := range retiredExpressionObjects {
-		adoptedDataObjects[name] = struct{}{}
-	}
-	return comparePolicyStrictness(base, candidate, createdDataObjects, adoptedDataObjects, createdPackages, candidateOnlyExternal, deletedLegacySymbols, moves)
+	return comparePolicyStrictness(base, candidate, createdDataObjects, createdPackages, candidateOnlyExternal, deletedLegacySymbols, moves)
 }
 
-// adoptionProbeOwner is the write owner the retired-expression probe assigns
-// to a table it examines. No policy owner has this ID, so every package that
-// names the table surfaces as a foreign read or write in the probe.
-const adoptionProbeOwner = "architecture-adoption-probe"
-
-// adoptableFromRetiredExpressions returns the candidate data objects a
-// reviewed policy epoch may adopt although the base baseline records no
-// tables.unclassified finding for them (ADR 0045): the base reached the table
-// only through a generic store whose table expression the analysis cannot
-// resolve, so the only debt the base could record is tables.unresolved.
-//
-// A table qualifies when it has no write owner at the base, is not already
-// adoptable from recorded debt, the base baseline records at least one
-// production tables.unresolved finding for a package the candidate no longer
-// classifies, and the candidate names the table statically from packages of
-// the adopting owner and from no other package. The last condition ties the
-// adoption to the access that replaced the retired expression; it is proven
-// by analysing the candidate once more with the table assigned to an owner
-// that does not exist, so every accessor surfaces as a foreign read or write.
-// The epoch must increase, as for every reviewed registration.
-func adoptableFromRetiredExpressions(project string, base, candidate *Policy, baseManifest *LegacyManifest, adopted map[string]struct{}) (map[string]struct{}, error) {
-	adoptable := make(map[string]struct{})
-	if baseManifest == nil || candidate.PolicyEpoch <= base.PolicyEpoch {
-		return adoptable, nil
-	}
-	candidatePackages := candidate.packageMap()
-	retired := false
-	recorded := make(map[string]struct{})
-	for _, entry := range baseManifest.Entries {
-		if entry.Scope != ScopeProduction {
-			continue
-		}
-		switch entry.Rule {
-		case "tables.unresolved":
-			if _, classified := candidatePackages[entry.Source]; !classified {
-				retired = true
-			}
-		case "tables.unclassified":
-			recorded[entry.Target] = struct{}{}
-		}
-	}
-	if !retired {
-		return adoptable, nil
-	}
-	baseObjects := dataObjectsByName(base)
-	pending := make(map[string]string)
-	for _, object := range candidate.DataObjects {
-		_, owned := baseObjects[object.Name]
-		_, alreadyAdopted := adopted[object.Name]
-		_, debt := recorded[object.Name]
-		if !owned && !alreadyAdopted && !debt {
-			pending[object.Name] = object.WriteOwner
-		}
-	}
-	if len(pending) == 0 {
-		return adoptable, nil
-	}
-	probe := *candidate
-	// Projection permissions must not hide foreign readers from the probe.
-	probe.ReadProjections = nil
-	probe.DataObjects = make([]DataObject, 0, len(candidate.DataObjects))
-	for _, object := range candidate.DataObjects {
-		if _, examined := pending[object.Name]; examined {
-			object.WriteOwner = adoptionProbeOwner
-		}
-		probe.DataObjects = append(probe.DataObjects, object)
-	}
-	violations, err := analyzeSemantics(project, &probe)
-	if err != nil {
-		return nil, fmt.Errorf("probe retired-expression adoption: %w", err)
-	}
-	accessors := make(map[string][]string)
-	for _, violation := range violations {
-		if violation.Scope != ScopeProduction {
-			continue
-		}
-		if _, examined := pending[violation.Target]; !examined {
-			continue
-		}
-		switch violation.Rule {
-		case "tables.foreign-read", "tables.foreign-write":
-			accessors[violation.Target] = append(accessors[violation.Target], violation.Source)
-		}
-	}
-	for name, owner := range pending {
-		sources := accessors[name]
-		if len(sources) == 0 {
-			continue
-		}
-		adopt := true
-		for _, source := range sources {
-			if pkg, classified := candidatePackages[source]; !classified || pkg.Owner != owner {
-				adopt = false
-				break
-			}
-		}
-		if adopt {
-			adoptable[name] = struct{}{}
-		}
-	}
-	return adoptable, nil
-}
-
-// adoptableDataObjects returns the candidate data objects a reviewed policy
-// epoch may adopt from recorded debt (ADR 0015, #3235). A table qualifies
-// when it has no write owner at the base, the base baseline records at least
-// one production tables.unclassified finding for it, and every package those
-// findings name is classified under the adopting owner in the candidate, no
-// longer exists there, or is proven by the candidate's own findings to reach
-// neither that table nor any table expression the analysis cannot resolve
-// (#3221: the recorded access moved to the adopting owner while the old
-// package lives on for other tables). The epoch must increase, as for every
-// reviewed registration. Transferring an owned table, adopting a table with no
-// recorded debt, and adopting while a package of another owner still
-// accesses it stay loosenings; after the adoption the ordinary foreign-read
-// and foreign-write rules guard every other accessor.
-func adoptableDataObjects(base, candidate *Policy, baseManifest *LegacyManifest, violations []Violation) map[string]struct{} {
-	adoptable := make(map[string]struct{})
-	if baseManifest == nil || candidate.PolicyEpoch <= base.PolicyEpoch {
-		return adoptable
-	}
-	sourcesByTable := make(map[string][]string)
-	for _, entry := range baseManifest.Entries {
-		if entry.Rule == "tables.unclassified" && entry.Scope == ScopeProduction {
-			sourcesByTable[entry.Target] = append(sourcesByTable[entry.Target], entry.Source)
-		}
-	}
-	candidateAccess, unresolvedSources := tableAccessBySource(violations)
-	baseObjects := dataObjectsByName(base)
-	candidatePackages := candidate.packageMap()
-	for _, object := range candidate.DataObjects {
-		if _, owned := baseObjects[object.Name]; owned {
-			continue
-		}
-		sources := sourcesByTable[object.Name]
-		if len(sources) == 0 {
-			continue
-		}
-		adopt := true
-		for _, source := range sources {
-			pkg, classified := candidatePackages[source]
-			_, named := candidateAccess[[2]string{source, object.Name}]
-			_, unresolved := unresolvedSources[source]
-			if classified && pkg.Owner != object.WriteOwner && (named || unresolved) {
-				adopt = false
-				break
-			}
-		}
-		if adopt {
-			adoptable[object.Name] = struct{}{}
-		}
-	}
-	return adoptable
-}
-
-// tableAccessBySource indexes the candidate's ownership findings by
-// (source package, table), plus the packages whose table expressions the
-// analysis could not resolve. Under the candidate policy an adopted table
-// read or written by a package of another owner surfaces as a foreign-read or
-// foreign-write finding, and a table left without an owner as unclassified,
-// so the first index is exactly the set of named accesses that block an
-// adoption. The second index blocks it as well: an unresolved expression
-// names no table, so such a package cannot prove it stopped reaching the one
-// being adopted. Migration and test-support packages produce no findings of
-// either kind.
-func tableAccessBySource(violations []Violation) (map[[2]string]struct{}, map[string]struct{}) {
-	access := make(map[[2]string]struct{})
-	unresolved := make(map[string]struct{})
-	for _, violation := range violations {
-		if violation.Scope != ScopeProduction {
-			continue
-		}
-		switch violation.Rule {
-		case "tables.foreign-read", "tables.foreign-write", "tables.unclassified":
-			access[[2]string{violation.Source, violation.Target}] = struct{}{}
-		case "tables.unresolved":
-			unresolved[violation.Source] = struct{}{}
-		}
-	}
-	return access, unresolved
-}
-
-func comparePolicyStrictness(base, candidate *Policy, createdDataObjects, adoptedDataObjects, createdPackages, candidateOnlyExternal, deletedLegacySymbols map[string]struct{}, verifiedRelocations map[string]string) error {
+func comparePolicyStrictness(base, candidate *Policy, createdDataObjects, createdPackages, candidateOnlyExternal, deletedLegacySymbols map[string]struct{}, verifiedRelocations map[string]string) error {
 	problems := modulePathLoosenings(base, candidate)
 	problems = append(problems, epochLoosenings(base, candidate)...)
-	problems = append(problems, ownershipLoosenings(base, candidate, createdDataObjects, adoptedDataObjects, createdPackages)...)
+	problems = append(problems, ownershipLoosenings(base, candidate, createdDataObjects, createdPackages)...)
 	problems = append(problems, classificationLoosenings(base, candidate, createdPackages, candidateOnlyExternal)...)
 	problems = append(problems, readProjectionLoosenings(base, candidate, createdPackages, verifiedRelocations)...)
 	problems = append(problems, compositionLoosenings(base, candidate, deletedLegacySymbols)...)
@@ -269,7 +75,7 @@ func epochLoosenings(base, candidate *Policy) []string {
 	return []string{fmt.Sprintf("policy_epoch decreased from %d to %d", base.PolicyEpoch, candidate.PolicyEpoch)}
 }
 
-func ownershipLoosenings(base, candidate *Policy, createdDataObjects, adoptedDataObjects, createdPackages map[string]struct{}) []string {
+func ownershipLoosenings(base, candidate *Policy, createdDataObjects, createdPackages map[string]struct{}) []string {
 	var problems []string
 	candidateObjects := dataObjectsByName(candidate)
 	for name := range createdDataObjects {
@@ -304,9 +110,8 @@ func ownershipLoosenings(base, candidate *Policy, createdDataObjects, adoptedDat
 	for name, current := range candidateObjects {
 		baseObject, exists := baseObjects[name]
 		_, createdByCandidateMigration := createdDataObjects[name]
-		_, adoptedFromDebt := adoptedDataObjects[name]
 		if !exists {
-			if !createdByCandidateMigration && !adoptedFromDebt {
+			if !createdByCandidateMigration {
 				problems = append(problems, fmt.Sprintf("data object %s was newly assigned to owner %s", name, current.WriteOwner))
 			}
 			continue
@@ -386,16 +191,12 @@ func ownerPackagesAreCandidateCreated(candidate *Policy, owner string, createdPa
 
 func readProjectionLoosenings(base, candidate *Policy, createdPackages map[string]struct{}, verifiedRelocations map[string]string) []string {
 	baseGrants := relocatedProjectionGrants(base, candidate, verifiedRelocations)
-	replacements := studentProjectionReplacementGrants(base, candidate)
 	baseOwners := ownersByID(base)
 	candidatePackages := candidate.packageMap()
 	candidateOwners := ownersByID(candidate)
 	var problems []string
 	for grant := range projectionGrants(candidate) {
 		if _, exists := baseGrants[grant]; !exists {
-			if _, replaced := replacements[grant]; replaced {
-				continue
-			}
 			packagePath := strings.SplitN(grant, "|", 2)[0]
 			pkg, classified := candidatePackages[packagePath]
 			_, packageCreated := createdPackages[packagePath]

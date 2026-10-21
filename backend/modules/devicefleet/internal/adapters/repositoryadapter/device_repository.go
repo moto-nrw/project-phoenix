@@ -12,15 +12,22 @@ import (
 	"github.com/moto-nrw/project-phoenix/modules/devicefleet"
 )
 
-// DeviceRepository delegates every operation to the owner capability.
-type DeviceRepository struct{ devices devicefleet.Capability }
+// DeviceRepository delegates every operation to the owner capability. The
+// lookup and command halves are embedded, so UpdateRoomID and
+// CountDevicesByType, whose shapes already match, are promoted unchanged;
+// the translating methods call devices, the same value.
+type DeviceRepository struct {
+	devicefleet.DeviceLookup
+	devicefleet.DeviceCommand
+	devices devicefleet.Capability
+}
 
 // NewDeviceRepository wraps the capability in the retired repository shape.
 func NewDeviceRepository(devices devicefleet.Capability) *DeviceRepository {
 	if devices == nil {
 		panic("devicefleet repository adapter: capability is required")
 	}
-	return &DeviceRepository{devices: devices}
+	return &DeviceRepository{DeviceLookup: devices, DeviceCommand: devices, devices: devices}
 }
 
 // notFound reports absence the way the retired repository did, so callers
@@ -150,16 +157,6 @@ func (r *DeviceRepository) List(ctx context.Context, filters map[string]any) ([]
 		return nil, err
 	}
 	return r.translateList(r.devices.ListDevices(ctx, filter))
-}
-
-// UpdateRoomID moves one device into a room.
-func (r *DeviceRepository) UpdateRoomID(ctx context.Context, id int64, roomID int64) error {
-	return r.devices.UpdateDeviceRoom(ctx, id, roomID)
-}
-
-// CountDevicesByType counts live devices grouped by device_type.
-func (r *DeviceRepository) CountDevicesByType(ctx context.Context) (map[string]int, error) {
-	return r.devices.CountDevicesByType(ctx)
 }
 
 func int64ID(id any) (int64, error) {

@@ -30,6 +30,6 @@ func NewAttendanceCorrections(deps ports.AttendanceCorrectionDependencies) (time
 	return application.NewAttendanceCorrections(deps)
 }
 
-func NewAttendanceHistory(records ports.AttendanceHistoryRecords) ports.AttendanceHistory {
-	return application.NewAttendanceHistory(records)
+func NewAttendanceHistory(reads ports.LegacyParticipantReads) ports.AttendanceHistory {
+	return application.NewAttendanceHistory(reads)
 }

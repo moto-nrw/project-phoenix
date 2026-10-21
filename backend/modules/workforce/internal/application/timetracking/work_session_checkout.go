@@ -259,7 +259,7 @@ func (s *workSessionService) endActiveBreakIfExists(ctx context.Context, session
 
 // endActiveSupervisionsOnCheckout ends all active supervisions for a staff member (fire-and-forget).
 func (s *workSessionService) endActiveSupervisionsOnCheckout(ctx context.Context, staffID int64) {
-	if s.supervisorRepo == nil {
+	if s.GroupSupervisorRepository == nil {
 		return
 	}
 	ended, err := s.endActiveSupervisionsWithGroupLocks(ctx, staffID)
@@ -278,11 +278,11 @@ func (s *workSessionService) endActiveSupervisionsOnCheckout(ctx context.Context
 
 func (s *workSessionService) endActiveSupervisionsWithGroupLocks(ctx context.Context, staffID int64) (int, error) {
 	if s.groupRepo == nil {
-		return s.supervisorRepo.EndAllActiveByStaffID(ctx, staffID)
+		return s.EndAllActiveByStaffID(ctx, staffID)
 	}
 	ended := 0
 	err := s.runInWorkSessionTx(ctx, func(txCtx context.Context) error {
-		supervisions, err := s.supervisorRepo.FindActiveByStaffID(txCtx, staffID)
+		supervisions, err := s.FindActiveByStaffID(txCtx, staffID)
 		if err != nil {
 			return err
 		}
@@ -293,7 +293,7 @@ func (s *workSessionService) endActiveSupervisionsWithGroupLocks(ctx context.Con
 		if err := s.lockWorkSessionGroupRows(txCtx, groupIDs); err != nil {
 			return err
 		}
-		ended, err = s.supervisorRepo.EndAllActiveByStaffID(txCtx, staffID)
+		ended, err = s.EndAllActiveByStaffID(txCtx, staffID)
 		return err
 	})
 	return ended, err

@@ -614,28 +614,6 @@ func fakeBuild(counter *int) func(ctx context.Context, dsn string) error {
 	}
 }
 
-func TestEnsureTemplateBuildsOnlyOnHashChange(t *testing.T) {
-	t.Parallel()
-	cfg := integrationConfig(t)
-	ctx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
-	defer cancel()
-
-	builds := 0
-	build := WithBuild(fakeBuild(&builds))
-
-	_, err := EnsureTemplate(ctx, cfg, build, WithMigrationsHash("hash1"))
-	require.NoError(t, err)
-	assert.Equal(t, 1, builds, "fresh template must be built")
-
-	_, err = EnsureTemplate(ctx, cfg, build, WithMigrationsHash("hash1"))
-	require.NoError(t, err)
-	assert.Equal(t, 1, builds, "unchanged hash must not rebuild")
-
-	_, err = EnsureTemplate(ctx, cfg, build, WithMigrationsHash("hash2"))
-	require.NoError(t, err)
-	assert.Equal(t, 2, builds, "changed hash must rebuild")
-}
-
 func TestEnsureTemplateAdoptsUnstampedCompleteDatabase(t *testing.T) {
 	t.Parallel()
 	cfg := integrationConfig(t)

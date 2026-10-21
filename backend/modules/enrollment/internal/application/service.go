@@ -8,6 +8,7 @@ import (
 )
 
 type Store interface {
+	DirectStore
 	ApprovedOfferingChildrenForStudents(context.Context, []int64) ([]enrollment.OfferingChildFacts, error)
 	OfferingChildren(context.Context, []int64) ([]enrollment.OfferingChildFacts, error)
 	enrollment.SubmittedOfferingQueries
@@ -76,8 +77,6 @@ type Store interface {
 	SetRequestWithdrawal(context.Context, int64, *time.Time) error
 	ActiveDuplicateChildren(context.Context, int64, string, []enrollment.DuplicateChildKey, int64) ([]enrollment.DuplicateChildKey, error)
 	HasActiveRequestForMatchedStudent(context.Context, int64, int64, int64) (bool, error)
-	AcquireSubmissionDedupLock(context.Context, int64, uint64) error
-	AcquireExistingStudentMatchLock(context.Context, int64) error
 	CountPhaseRequests(context.Context, int64) (int, error)
 	DeletePhaseRequests(context.Context, int64) (int, error)
 	FullyRejectedRequestsBefore(context.Context, time.Time) ([]int64, error)
@@ -94,7 +93,6 @@ type Store interface {
 	CreatedStudentRequestChildIDs(context.Context, []int64) ([]int64, error)
 	CountStudentReferencesForDeletion(context.Context, int64) (approved, total int, err error)
 	ApprovedBookings(context.Context) ([]enrollment.ApprovedBooking, error)
-	OpenPhaseCandidates(context.Context) ([]*enrollment.Phase, error)
 	AccountRequests(context.Context, int64, string) ([]enrollment.AccountRequest, error)
 	InsertPhase(ctx context.Context, phase *enrollment.Phase) error
 	Phase(ctx context.Context, id int64) (*enrollment.Phase, error)
@@ -121,13 +119,34 @@ type Store interface {
 	DeleteSchemaLineage(ctx context.Context, name string) error
 	LockSchemaLineages(ctx context.Context) error
 	SchemaReferencesLegalDocument(ctx context.Context, storedURL, publicURL string) (bool, error)
-	IncrementAttempts(context.Context, int64, string, string, time.Duration) (*enrollment.SubmissionRateLimitState, error)
 	CleanupExpired(context.Context) (int, error)
 	BackfillGuardianAccountID(context.Context, int64, string) (int, error)
 	Schema(context.Context, int64) (*enrollment.FormSchema, error)
 	ActiveSchema(context.Context) (*enrollment.FormSchema, error)
 	SchemaVersions(context.Context) ([]*enrollment.FormSchema, error)
 	Schemas(context.Context, []int64) ([]*enrollment.FormSchema, error)
+}
+
+// DirectStore is the part of the store the Service serves unchanged: the
+// submission rate-limit buckets, the request locks that live as long as the
+// caller's transaction, and the parent workflow's phase discovery candidates.
+type DirectStore interface {
+	// IncrementAttempts atomically records an attempt in the school's IP or
+	// email bucket.
+	IncrementAttempts(context.Context, int64, string, string, time.Duration) (*enrollment.SubmissionRateLimitState, error)
+	// AcquireSubmissionDedupLock requires the caller's transaction so the
+	// lock remains held through duplicate detection and submission
+	// persistence.
+	AcquireSubmissionDedupLock(context.Context, int64, uint64) error
+	// AcquireExistingStudentMatchLock serializes matching across all
+	// guardians submitting to a phase, until the caller's transaction ends.
+	AcquireExistingStudentMatchLock(context.Context, int64) error
+	// OpenPhaseCandidates supplies the parent workflow's phase discovery
+	// candidates. Unlike the anonymous list, it includes restricted
+	// audiences for that workflow to authorize against guardian
+	// relationships. Cross-school discovery requires the caller's
+	// authorized admin transaction.
+	OpenPhaseCandidates(context.Context) ([]*enrollment.Phase, error)
 }
 
 // OwnerTransactions enforces or opens the caller's authorized transaction.
@@ -138,6 +157,7 @@ type OwnerTransactions interface {
 
 // Service owns enrollment guards and commands over its persistence port.
 type Service struct {
+	DirectStore
 	store                   Store
 	transactions            OwnerTransactions
 	offeringStorageObserver func(enrollment.OfferingStorageObservation)
@@ -147,7 +167,7 @@ func NewService(store Store, transactions OwnerTransactions, observers ...func(e
 	if store == nil || transactions == nil {
 		panic("enrollment: engine is required")
 	}
-	service := &Service{store: store, transactions: transactions}
+	service := &Service{DirectStore: store, store: store, transactions: transactions}
 	if len(observers) > 0 {
 		service.offeringStorageObserver = observers[0]
 	}

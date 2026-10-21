@@ -592,7 +592,7 @@ func parseYearParam(r *http.Request) (int, error) {
 // getPresenceMap handles GET /api/time-tracking/presence-map
 func (rs *Resource) getPresenceMap(w http.ResponseWriter, r *http.Request) {
 	// Get today's presence map
-	presenceMap, err := rs.WorkSessionService.TodayPresenceMap(r.Context())
+	presenceMap, err := rs.WorkSessionService.GetTodayPresenceMap(r.Context())
 	if err != nil {
 		common.RenderError(w, r, common.ErrorInternalServer(err))
 		return

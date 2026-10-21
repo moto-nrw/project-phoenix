@@ -667,7 +667,7 @@ func testReopenWriteRollback(t *testing.T, stage string) {
 		"second-assignment": {"active.activity_session_attendance", secondAttendanceID},
 		"instance":          {"active.activity_sessions", sessionID},
 	}
-	fault := &failingRecoveryRestore{ActivityRecoveryRecords: fixtures.FromActivityRecoveryRecords(compose.NewRetainedActivityRecoveryRepository(s.db, fixtures.IntoInstanceStudentRecords(fixtures.FromInstanceStudentRecords(s.timetable.InstanceStudent))))}
+	fault := &failingRecoveryRestore{ActivityRecoveryRecords: fixtures.FromActivityRecoveryRecords(compose.NewRetainedActivityRecoveryRepository(s.db, s.timetable.InstanceStudent))}
 	removeFault := func() {}
 	expectedRestores := 0
 	if stage == "complete" {
@@ -1979,7 +1979,7 @@ func TestInstance_Complete_MarksRemainingExpectedAsAbsent(t *testing.T) {
 
 	// Simulate a live check-in for student1 via the monotonic mirror path.
 	timetableRepos := api.NewUnobservedTimetableRepositories(testpkg.MustDatabase(s.db))
-	updated, err := fixtures.FromInstanceStudentRecords(timetableRepos.InstanceStudent).UpdateAttendanceFromCheckin(
+	updated, err := fixtures.FromInstanceStudentRecords(timetableRepos.NativeParticipants()).UpdateAttendanceFromCheckin(
 		s.ctx, ai.ID, s.student1, time.Now(),
 	)
 	require.NoError(t, err)
@@ -2110,7 +2110,7 @@ func TestInstance_Cancel_FromActive_DoesNotTouchAttendance(t *testing.T) {
 	require.NoError(t, err)
 
 	timetableRepos := api.NewUnobservedTimetableRepositories(testpkg.MustDatabase(s.db))
-	_, err = fixtures.FromInstanceStudentRecords(timetableRepos.InstanceStudent).UpdateAttendanceFromCheckin(
+	_, err = fixtures.FromInstanceStudentRecords(timetableRepos.NativeParticipants()).UpdateAttendanceFromCheckin(
 		s.ctx, ai.ID, s.student1, time.Now(),
 	)
 	require.NoError(t, err)

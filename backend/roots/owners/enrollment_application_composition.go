@@ -72,21 +72,25 @@ func (s enrollmentNotificationSettings) NotifyPerDecision(ctx context.Context) (
 	return s.settings.ResolveString(ctx, configModels.KeyEnrollmentNotifyPerDecision)
 }
 
-// EnrollmentCaptchaSettings resolves tenant overrides or registry defaults.
+// EnrollmentCaptchaSettings resolves whether the school in context requires
+// the captcha. The Turnstile keys are platform configuration: one widget
+// serves every school.
 type EnrollmentCaptchaSettings struct {
-	Settings EnrollmentSettingsReads
+	Settings  EnrollmentSettingsReads
+	SiteKey   string
+	SecretKey string
 }
 
 func (s EnrollmentCaptchaSettings) CaptchaRequired(ctx context.Context) (bool, error) {
 	return s.Settings.ResolveBool(ctx, configModels.KeyEnrollmentRequireCaptcha)
 }
 
-func (s EnrollmentCaptchaSettings) CaptchaSecretKey(ctx context.Context) (string, error) {
-	return s.Settings.ResolveString(ctx, configModels.KeyEnrollmentCaptchaSecretKey)
+func (s EnrollmentCaptchaSettings) CaptchaSecretKey(context.Context) (string, error) {
+	return s.SecretKey, nil
 }
 
-func (s EnrollmentCaptchaSettings) CaptchaSiteKey(ctx context.Context) (string, error) {
-	return s.Settings.ResolveString(ctx, configModels.KeyEnrollmentCaptchaSiteKey)
+func (s EnrollmentCaptchaSettings) CaptchaSiteKey(context.Context) (string, error) {
+	return s.SiteKey, nil
 }
 
 // enrollmentPhaseOfferings reads the Care Plan offerings of a phase.

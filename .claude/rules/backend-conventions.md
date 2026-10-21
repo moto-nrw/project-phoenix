@@ -209,6 +209,8 @@ Every error response has one form, the RFC 9457 envelope of ADR 0006 (#2507, #25
 
 **RULE: A service method that does nothing but call one repository method is NOT a service method.** Either it adds business logic (validation, multi-repo orchestration, audit, tenant-tx wrapping, error mapping), or it shouldn't exist.
 
+`TestModulePassthroughRatchet` counts the shape, not the verdict. [ADR 0075](../../docs/adr/0075-pass-throughs-keep-a-per-owner-floor.md) records the four shapes that may stay (transaction and observation wrapper, ADR 0067 consumer-port adapter, the #4480 section 5 Timetable adapters, scanner limitation 5), the floor per owner, and every counted hit outside it.
+
 ---
 
 ## 9. Auth Code Location — Audit Before Adding
@@ -380,7 +382,7 @@ Six ratchets freeze the state measured on **2026-09-18 at merge commit `ecf00033
 | Legacy LOC budget | per topmost `legacy/` tree, per `legacy_*.go` file outside one, per owner composition package, each with a total | `TestModuleLegacyBudgetRatchet` — `module_legacy_budget_ratchet_test.go` | 12 trees, 92,928 LOC; on 2026-10-15 22 `legacy_*.go` files, 3,862 LOC, and 61 compose packages, 90,627 LOC (#4084) |
 | Root structs of several owners (ADR 0059) | no key the base lacks | composition surface in `scripts/backend-architecture.sh check` — `internal/architecture/composition_ratchet.go` | 139 → 1,732 keys on 2026-10-15 when #4071 counted every `api`, `cmd` and `.` struct holding values of two owners; 0 since #4080 |
 
-The seed column is history. The current budgets are the constants in each test file; driving them to 0 is #3423, and the pass-through decision is #4403.
+The seed column is history. The current budgets are the constants in each test file; driving them to 0 is #3423, and the pass-through floor per owner is ADR 0075 (#4403).
 
 Scope: non-test `.go` files under `modules/` and `workflows/`, **`legacy/` subtrees included** — a migration must not be able to silence a gate by moving code into `legacy/`. The pass-through ratchet is the deliberate exception and scans `*/internal/application/**` and the owner compositions, without `legacy/`. The `legacy_*.go` register scans the whole backend outside `legacy/` trees.
 

@@ -160,7 +160,7 @@ func (deps *timetableOpsTestDeps) dependencies() timetablePorts.OperationDepende
 	return timetablePorts.OperationDependencies{
 		Instances:            fixtures.InstanceReadsOf(deps.instanceRepo),
 		InstanceStaff:        deps.staffRepo,
-		Participants:         fixtures.IntoOperationParticipants(deps.studentRepo),
+		Participants:         fixtures.ParticipantRowsOf(deps.studentRepo, nil, opsParticipantPresence{repo: deps.studentRepo}),
 		Templates:            deps.activityGroups,
 		PlanningTracks:       deps.tracks,
 		Sessions:             deps.activeGroups,
@@ -319,11 +319,21 @@ func (r *fakeOpsInstanceStudentRepo) FindByInstanceAndStudent(_ context.Context,
 	return r.byInstanceStudent[instanceStudentKey{instanceID, studentID}], nil
 }
 
-func (r *fakeOpsInstanceStudentRepo) UpdateAttendanceFields(_ context.Context, id int64, patch fixtures.AttendanceFieldPatch) error {
-	if r.updateErr != nil {
-		return r.updateErr
+// opsParticipantPresence records the attendance patches the operations
+// write to Student Presence in the fake's patch shape.
+type opsParticipantPresence struct {
+	timetablePorts.ParticipantPresence
+	repo *fakeOpsInstanceStudentRepo
+}
+
+func (p opsParticipantPresence) PatchSessionAttendance(_ context.Context, id int64, written studentpresence.SessionAttendancePatch) error {
+	if p.repo.updateErr != nil {
+		return p.repo.updateErr
 	}
-	r.updates = append(r.updates, attendanceUpdate{rowID: id, patch: patch})
+	var patch fixtures.AttendanceFieldPatch
+	patch.Status, patch.Substatus, patch.SubstatusClear = written.Status, written.Substatus, written.SubstatusClear
+	patch.Note, patch.NoteClear = written.Note, written.NoteClear
+	p.repo.updates = append(p.repo.updates, attendanceUpdate{rowID: id, patch: patch})
 	return nil
 }
 

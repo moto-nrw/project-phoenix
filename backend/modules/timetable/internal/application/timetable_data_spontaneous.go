@@ -25,10 +25,6 @@ func (d *timetableData) SpontaneousRoomExists(ctx context.Context, roomID int64)
 	return ok, err
 }
 
-func (d *timetableData) SpontaneousRoomOccupied(ctx context.Context, roomID int64) (bool, error) {
-	return d.deps.RoomOccupancy.RoomOccupied(ctx, roomID)
-}
-
 // LockSpontaneousStartRoom serializes spontaneous starts into one room, so
 // its existence and occupancy checks describe the same state.
 func (d *timetableData) LockSpontaneousStartRoom(ctx context.Context, roomID int64) error {

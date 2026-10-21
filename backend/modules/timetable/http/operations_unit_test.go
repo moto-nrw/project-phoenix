@@ -1028,9 +1028,6 @@ type (
 	stubOpInstanceStaff struct {
 		timetable.InstanceStaffQuery
 	}
-	stubOpParticipants struct {
-		timetablePorts.OperationParticipants
-	}
 	stubOpTemplates struct {
 		timetable.ActivityGroupQuery
 	}
@@ -1152,7 +1149,7 @@ func newRealSpontaneousOpsService(t *testing.T, instanceSvc timetable.InstanceLi
 	operations, err := timetableCompose.NewOperations(timetablePorts.OperationDependencies{
 		Instances:            stubOpInstances{},
 		InstanceStaff:        stubOpInstanceStaff{},
-		Participants:         stubOpParticipants{},
+		Participants:         stubParticipantRows(),
 		Templates:            stubOpTemplates{},
 		Sessions:             stubOpSessions{},
 		Supervisions:         stubOpSupervisions{},

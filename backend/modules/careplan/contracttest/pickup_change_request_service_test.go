@@ -112,7 +112,7 @@ func TestPickupChangeApprovalExcusesBlocksAfterEarlierPickup(t *testing.T) {
 
 		f.db, f.
 			timetable.
-			InstanceStudent.FindByID,
+			NativeParticipants().FindByID,
 		slotID,
 	)
 
@@ -229,7 +229,7 @@ func TestPickupChangeApprovalReleasesAutoExcusalAfterLaterPickup(t *testing.T) {
 
 		f.db, f.
 			timetable.
-			InstanceStudent.FindByID,
+			NativeParticipants().FindByID,
 		slotID,
 	)
 
@@ -285,7 +285,7 @@ func assertPickupApprovalRolledBack(
 
 		f.db, f.
 			timetable.
-			InstanceStudent.FindByID,
+			NativeParticipants().FindByID,
 		slotID,
 	)
 

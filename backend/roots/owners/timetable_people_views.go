@@ -4,6 +4,7 @@ import (
 	"context"
 
 	peopleValues "github.com/moto-nrw/project-phoenix/modules/peopledirectory"
+	peoplePorts "github.com/moto-nrw/project-phoenix/modules/peopledirectory/ports"
 
 	"github.com/moto-nrw/project-phoenix/modules/timetable"
 	timetableCompose "github.com/moto-nrw/project-phoenix/modules/timetable/compose"
@@ -66,8 +67,7 @@ type TimetablePersonRows interface {
 type timetableOperationPeopleRows interface {
 	TimetablePersonRows
 	GetByIDs(ctx context.Context, ids []int64) (map[int64]*peopleValues.DirectoryPersonSnapshot, error)
-	GetStaffByPersonID(ctx context.Context, personID int64) (*peopleValues.Staff, error)
-	GetStaffWithPersonByIDs(ctx context.Context, ids []int64) (map[int64]*peopleValues.Staff, error)
+	StaffRows() peoplePorts.StaffRepository
 }
 
 // timetableOperationPeople serves the timetable operations' person port.
@@ -86,11 +86,11 @@ func (p timetableOperationPeople) GetByIDs(ctx context.Context, ids []int64) (ma
 }
 
 func (p timetableOperationPeople) GetStaffByPersonID(ctx context.Context, personID int64) (*timetable.StaffMember, error) {
-	return MapRow(TimetableStaffMember)(p.rows.GetStaffByPersonID(ctx, personID))
+	return MapRow(TimetableStaffMember)(p.rows.StaffRows().FindByPersonID(ctx, personID))
 }
 
 func (p timetableOperationPeople) GetStaffWithPersonByIDs(ctx context.Context, ids []int64) (map[int64]*timetable.StaffMember, error) {
-	return MapRowsByID(TimetableStaffMember)(p.rows.GetStaffWithPersonByIDs(ctx, ids))
+	return MapRowsByID(TimetableStaffMember)(p.rows.StaffRows().FindWithPersonByIDs(ctx, ids))
 }
 
 // timetableLifecycleStudents serves the instance lifecycle's student port

@@ -114,7 +114,7 @@ var (
 type Visits interface {
 	// Current is nil, nil when the student has no open visit.
 	Current(ctx context.Context, studentID int64) (*CurrentVisit, error)
-	End(ctx context.Context, visitID int64) error
+	EndVisit(ctx context.Context, visitID int64) error
 	// Record opens a visit. A full room is *RoomCapacityExceeded, a
 	// duplicate ErrStudentAlreadyActive, a departed child ErrStudentNotInCare.
 	Record(ctx context.Context, studentID, sessionID int64) (int64, error)
@@ -182,7 +182,7 @@ const (
 
 // Settings resolves the tenant settings the scan flows read.
 type Settings interface {
-	PresenceMode(ctx context.Context) (string, error)
+	GetPresenceMode(ctx context.Context) (string, error)
 	FeedbackEnabled(ctx context.Context) (bool, error)
 	CapacityDetailsDisclosed(ctx context.Context, kind CapacityKind) (bool, error)
 	// DailyCheckoutTime is the raw "HH:MM" gate or empty when unset.

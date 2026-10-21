@@ -281,7 +281,7 @@ func (s *Service) ListHolidays(ctx context.Context, region, from, to string) (re
 		return nil, err
 	}
 	err = s.observeOperation("list_holidays", func(ctx context.Context, stats *domain.OperationStats) error {
-		result, err = s.algorithms.ListHolidays(ctx, region, from, to)
+		result, err = s.CalendarAlgorithms.ListHolidays(ctx, region, from, to)
 		stats.Rows = int64(len(result))
 		return err
 	})
@@ -292,7 +292,7 @@ func (s *Service) HolidayDates(ctx context.Context, region, from, to string) (re
 		return nil, err
 	}
 	err = s.observeOperation("holiday_dates", func(ctx context.Context, stats *domain.OperationStats) error {
-		result, err = s.algorithms.HolidayDates(ctx, region, from, to)
+		result, err = s.CalendarAlgorithms.HolidayDates(ctx, region, from, to)
 		stats.Rows = int64(len(result))
 		return err
 	})
@@ -305,7 +305,7 @@ func (s *Service) RenderCalendar(ctx context.Context, name string, events []scho
 		}
 	}
 	err = s.observeOperation("render_calendar", func(ctx context.Context, stats *domain.OperationStats) error {
-		result, err = s.algorithms.RenderCalendar(ctx, name, events)
+		result, err = s.CalendarAlgorithms.RenderCalendar(ctx, name, events)
 		stats.Rows = int64(len(events))
 		return err
 	})
@@ -316,7 +316,7 @@ func (s *Service) RenderCalendarObject(ctx context.Context, event schoolcalendar
 		return "", err
 	}
 	err = s.observeOperation("render_calendar_object", func(ctx context.Context, stats *domain.OperationStats) error {
-		result, err = s.algorithms.RenderCalendarObject(ctx, event)
+		result, err = s.CalendarAlgorithms.RenderCalendarObject(ctx, event)
 		stats.Rows = 1
 		return err
 	})

@@ -16,7 +16,7 @@ func NewDemoAccessBinding(dbReady bool, sessions ports.DemoSessions, deps *resto
 		return nil, errors.New("identity access compose: every demo access dependency is required")
 	}
 	flows, err := NewDemoAccess(DemoAccessDependencies{
-		Sessions: sessions, Store: store, Schools: DemoSchoolsPort{Schools: deps.Schools},
+		Sessions: sessions, Store: store, Schools: DemoSchoolsPort{DemoSchools: deps.Schools},
 		Tokens:  DemoAccessTokens{Mint: deps.NewToken, FingerprintFunc: deps.Fingerprint},
 		Mail:    DemoAccessMail{Mail: deps.Mail},
 		AdminTx: execute,
