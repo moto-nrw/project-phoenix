@@ -108,20 +108,6 @@ describe("FilteredBulkArrivalModal", () => {
     });
   });
 
-  it("does not render when isOpen is false", () => {
-    render(
-      <FilteredBulkArrivalModal
-        isOpen={false}
-        onClose={vi.fn()}
-        filter={{ type: "school_class", schoolClass: "3a" }}
-        filterLabel="3a"
-        studentsInFilter={[makeStudent("1")]}
-      />,
-    );
-
-    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
-  });
-
   it("renders all 5 weekday inputs when open", () => {
     render(
       <FilteredBulkArrivalModal

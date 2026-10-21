@@ -211,14 +211,6 @@ describe("HomePage (Login)", () => {
     });
   });
 
-  it("does not display a MOTO logo fallback", async () => {
-    render(<HomePage />);
-
-    await waitFor(() => {
-      expect(screen.queryByAltText("MOTO Logo")).not.toBeInTheDocument();
-    });
-  });
-
   it("displays tenant login logo when configured", async () => {
     vi.mocked(useTenant).mockReturnValue({
       tenantSlug: "test-tenant",

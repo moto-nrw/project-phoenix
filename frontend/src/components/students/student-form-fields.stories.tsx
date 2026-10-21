@@ -5,10 +5,7 @@ import {
   HealthInfoSection,
   AdditionalInfoSection,
   PrivacyConsentSection,
-  BusStatusSection,
-  PickupStatusSection,
   DepartureSection,
-  EnrollmentConsentsSection,
 } from "./student-form-fields";
 
 const noopFieldChange = () => {
@@ -77,31 +74,7 @@ export const PrivacyConsent: Story = {
   ),
 };
 
-export const BusStatus: Story = {
-  name: "BusStatusSection",
-  render: () => (
-    <BusStatusSection value={false} days={null} onChange={noopFieldChange} />
-  ),
-};
-
-export const PickupStatus: Story = {
-  name: "PickupStatusSection",
-  render: () => <PickupStatusSection days={null} onChange={noopFieldChange} />,
-};
-
 export const Departure: Story = {
   name: "DepartureSection",
   render: () => <DepartureSection days={null} onChange={noopFieldChange} />,
-};
-
-export const EnrollmentConsents: Story = {
-  name: "EnrollmentConsentsSection",
-  render: () => (
-    <EnrollmentConsentsSection
-      agbAcceptedAt="2026-01-15"
-      dataProcessingAcceptedAt="2026-01-15"
-      emailContactAcceptedAt="2026-01-15"
-      photoConsentGivenAt={null}
-    />
-  ),
 };

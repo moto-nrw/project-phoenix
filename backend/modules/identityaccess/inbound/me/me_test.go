@@ -573,18 +573,6 @@ func TestServeAvatar_GlobalAvatarFile(t *testing.T) {
 }
 
 // =============================================================================
-// ROUTER TESTS
-// =============================================================================
-
-func TestRouter_ReturnsValidRouter(t *testing.T) {
-	t.Parallel()
-	tc := setupUserContextRoute(t)
-
-	router := tc.resource.Router()
-	assert.NotNil(t, router, "Router should not be nil")
-}
-
-// =============================================================================
 // UPDATE PROFILE WITH ALL FIELDS TESTS
 // =============================================================================
 

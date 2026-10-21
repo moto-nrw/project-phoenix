@@ -4,7 +4,6 @@ import { ApiError, apiErrorFromBody, transportFetch } from "./api-error";
 
 import type {
   PickupData,
-  BulkPickupScheduleFormData,
   PickupExceptionFormData,
   PickupException,
   PickupNoteFormData,
@@ -22,7 +21,6 @@ import {
   mapPickupDataResponse,
   mapPickupExceptionResponse,
   mapPickupNoteResponse,
-  mapBulkPickupScheduleFormToBackend,
   mapPickupExceptionFormToBackend,
   mapPickupNoteFormToBackend,
 } from "./pickup-schedule-helpers";
@@ -289,34 +287,6 @@ export async function fetchStudentPickupData(
 }
 
 /**
- * Update weekly pickup schedules for a student (bulk upsert)
- */
-export async function updateStudentPickupSchedules(
-  studentId: string,
-  data: BulkPickupScheduleFormData,
-): Promise<PickupData> {
-  const backendData = mapBulkPickupScheduleFormToBackend(data);
-
-  const response = await transportFetch(
-    `/api/students/${studentId}/pickup-schedules`,
-    {
-      method: "PUT",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(backendData),
-    },
-  );
-
-  if (!response.ok) {
-    await throwResponseError(response, "Failed to update pickup schedules");
-  }
-
-  return parseApiResult<BackendPickupData>(
-    response,
-    "Failed to update pickup schedules",
-  ).then(mapPickupDataResponse);
-}
-
-/**
  * Setzt die Gehzeit eines Wochentags auf die Angebots-Gehzeit zurück (#2290).
  * Der Server lehnt den Reset ab, wenn an diesem Datum keine Angebots-Gehzeit gilt.
  */
@@ -572,16 +542,8 @@ export async function replaceStudentWeekdayPickupNotes(
 }
 
 // =============================================================================
-// BULK PICKUP TIMES API (for OGS dashboard)
+// BULK PICKUP TIMES (types for the OGS dashboard)
 // =============================================================================
-
-/**
- * Backend day note in bulk response
- */
-interface BulkDayNoteResponse {
-  id: number;
-  content: string;
-}
 
 /**
  * Frontend day note in bulk response
@@ -589,19 +551,6 @@ interface BulkDayNoteResponse {
 interface BulkDayNote {
   id: string;
   content: string;
-}
-
-/**
- * Bulk pickup time response from backend
- */
-export interface BulkPickupTimeResponse {
-  student_id: number;
-  date: string;
-  weekday_name: string;
-  pickup_time?: string;
-  is_exception: boolean;
-  day_notes?: BulkDayNoteResponse[];
-  notes?: string;
 }
 
 /**
@@ -618,70 +567,4 @@ export interface BulkPickupTime {
   dayDepartureMode?: DepartureMode;
   dayNotes: BulkDayNote[];
   notes?: string;
-}
-
-/**
- * Map backend bulk pickup time to frontend format
- */
-function mapBulkPickupTimeResponse(
-  data: BulkPickupTimeResponse,
-): BulkPickupTime {
-  return {
-    studentId: data.student_id.toString(),
-    date: data.date,
-    weekdayName: data.weekday_name,
-    pickupTime: data.pickup_time,
-    isException: data.is_exception,
-    dayNotes: (data.day_notes ?? []).map((n) => ({
-      id: n.id.toString(),
-      content: n.content,
-    })),
-    notes: data.notes,
-  };
-}
-
-/**
- * Fetch effective pickup times for multiple students on a given date.
- * Uses bulk backend endpoint (O(2) queries instead of O(N)).
- *
- * @param studentIds - Array of student IDs
- * @param date - Optional date string (YYYY-MM-DD), defaults to today
- * @returns Map of studentId -> pickup time data
- */
-export async function fetchBulkPickupTimes(
-  studentIds: string[],
-  date?: string,
-): Promise<Map<string, BulkPickupTime>> {
-  if (studentIds.length === 0) {
-    return new Map();
-  }
-
-  const response = await transportFetch("/api/students/pickup-times/bulk", {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-    },
-    body: JSON.stringify({
-      student_ids: studentIds.map((id) => Number.parseInt(id, 10)),
-      date: date,
-    }),
-  });
-
-  if (!response.ok) {
-    await throwResponseError(response, "Failed to fetch bulk pickup times");
-  }
-
-  const data = await parseApiResult<BulkPickupTimeResponse[]>(
-    response,
-    "Failed to fetch bulk pickup times",
-  );
-
-  // Convert array to Map for O(1) lookup
-  const pickupTimesMap = new Map<string, BulkPickupTime>();
-  for (const item of data) {
-    const mapped = mapBulkPickupTimeResponse(item);
-    pickupTimesMap.set(mapped.studentId, mapped);
-  }
-
-  return pickupTimesMap;
 }

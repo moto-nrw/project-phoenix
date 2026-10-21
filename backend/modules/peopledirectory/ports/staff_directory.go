@@ -42,7 +42,7 @@ type LehrkraftRoleQuery interface {
 // directory.
 type StaffDirectoryDependencies struct {
 	// Runtime runs the staff writes in the request's tenant transaction.
-	Runtime        TenantTxRunner
+	Runtime        StaffDirectoryRuntime
 	Persons        PersonRepository
 	Staff          StaffRepository
 	Teachers       TeacherRepository

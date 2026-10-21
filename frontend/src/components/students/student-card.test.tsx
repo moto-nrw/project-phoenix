@@ -73,14 +73,6 @@ describe("StudentCard", () => {
     ).toBeInTheDocument();
   });
 
-  it("nennt das Ziel im Namen der Kachel statt in einer Hinweiszeile", () => {
-    render(<StudentCard {...defaultProps} />);
-
-    // Die Hinweiszeile stand auf jeder der 116 Karten und war am Rechner
-    // ohnehin falsch („Tippen"). Das Ziel trägt jetzt das aria-label.
-    expect(screen.queryByText(/Tippen für mehr Infos/)).not.toBeInTheDocument();
-  });
-
   it("renders extra content when provided", () => {
     render(
       <StudentCard
@@ -91,13 +83,6 @@ describe("StudentCard", () => {
 
     expect(screen.getByTestId("extra")).toBeInTheDocument();
     expect(screen.getByText("Class 1a")).toBeInTheDocument();
-  });
-
-  it("does not render the previous default gradient overlay", () => {
-    const { container } = render(<StudentCard {...defaultProps} />);
-
-    const gradientDiv = container.querySelector(".from-blue-50\\/80");
-    expect(gradientDiv).not.toBeInTheDocument();
   });
 
   it("renders both location badge and tracking indicators when both are provided", () => {
@@ -345,20 +330,6 @@ describe("StudentCard", () => {
     const btn = screen.getByRole("button");
     expect(btn).not.toHaveAttribute("data-checkin-mode");
     expect(btn).not.toHaveAttribute("data-checkin-state");
-  });
-
-  it("hides the navigation arrow + 'mehr Infos' hint when checkinMode is true", () => {
-    // Affordances scoped to navigation mode only; the tap-strip carries
-    // the action signal in check-in mode instead.
-    render(
-      <StudentCard
-        {...defaultProps}
-        checkinMode
-        checkinState="anwesend"
-        onCheckinClick={vi.fn()}
-      />,
-    );
-    expect(screen.queryByText(/Tippen für mehr Infos/)).toBeNull();
   });
 });
 

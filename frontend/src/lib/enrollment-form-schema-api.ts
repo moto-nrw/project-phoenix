@@ -304,21 +304,6 @@ export async function listSchemas(): Promise<FormSchema[]> {
   return Array.isArray(list) ? list : [];
 }
 
-export async function fetchSchemaById(id: string): Promise<FormSchema> {
-  const response = await send(`${SCHEMA_PATH}/${encodeURIComponent(id)}`, {
-    cache: "no-store",
-  });
-  if (!response.ok) {
-    throw await readEnrollmentError(
-      response,
-      "Formularvorlage konnte nicht geladen werden",
-      logger,
-      "schema_fetch_by_id_failed",
-    );
-  }
-  return readJSON<FormSchema>(response);
-}
-
 export function latestSchemasByName(schemas: FormSchema[]): FormSchema[] {
   const latest = new Map<string, FormSchema>();
   for (const schema of schemas) {

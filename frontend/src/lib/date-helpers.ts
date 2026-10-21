@@ -279,46 +279,6 @@ export function berlinClockFromISO(value: string): string {
 }
 
 /**
- * Groups items by date, sorted in descending order (newest first)
- * @param items Array of items with timestamp properties
- * @param timestampKey The key to access the timestamp property
- * @returns Array of date groups with entries sorted by time
- */
-export function groupByDate<T extends Record<string, unknown>>(
-  items: T[],
-  timestampKey: keyof T,
-): Array<{ date: string; entries: T[] }> {
-  const groups: Record<string, T[]> = {};
-
-  items.forEach((item) => {
-    const timestamp = item[timestampKey];
-    if (typeof timestamp === "string") {
-      const date = new Date(timestamp).toLocaleDateString("de-DE", {
-        day: "2-digit",
-        month: "2-digit",
-        year: "numeric",
-      });
-      groups[date] ??= [];
-      groups[date].push(item);
-    }
-  });
-
-  return Object.keys(groups)
-    .sort((a, b) => new Date(b).getTime() - new Date(a).getTime())
-    .map((date) => ({
-      date,
-      entries: (groups[date] ?? []).sort((a, b) => {
-        const timeA = a[timestampKey];
-        const timeB = b[timestampKey];
-        if (typeof timeA === "string" && typeof timeB === "string") {
-          return new Date(timeA).getTime() - new Date(timeB).getTime();
-        }
-        return 0;
-      }),
-    }));
-}
-
-/**
  * Format a date string for the requested locale.
  * @param dateString ISO date string
  * @param includeWeekday Whether to include the weekday in the format

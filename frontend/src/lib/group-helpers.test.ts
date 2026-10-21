@@ -5,9 +5,6 @@ import {
   mapGroupsResponse,
   mapSingleGroupResponse,
   prepareGroupForBackend,
-  formatGroupName,
-  formatGroupLocation,
-  formatGroupRepresentative,
 } from "./group-helpers";
 import { suppressConsole } from "~/test/helpers/console";
 import { buildBackendGroup } from "~/test/fixtures/groups";
@@ -258,79 +255,5 @@ describe("prepareGroupForBackend", () => {
     const result = prepareGroupForBackend(frontendGroup);
 
     expect(result.teacher_ids).toEqual([]);
-  });
-});
-
-describe("formatGroupName", () => {
-  it("returns group name when available", () => {
-    const group: Group = {
-      id: "1",
-      name: "Klasse 3a",
-    };
-
-    const result = formatGroupName(group);
-
-    expect(result).toBe("Klasse 3a");
-  });
-
-  it("returns 'Unnamed Group' when name is empty", () => {
-    const group: Group = {
-      id: "1",
-      name: "",
-    };
-
-    const result = formatGroupName(group);
-
-    expect(result).toBe("Unnamed Group");
-  });
-});
-
-describe("formatGroupLocation", () => {
-  it("returns room name when available", () => {
-    const group: Group = {
-      id: "1",
-      name: "Test",
-      room_name: "Raum 101",
-    };
-
-    const result = formatGroupLocation(group);
-
-    expect(result).toBe("Raum 101");
-  });
-
-  it("returns 'No Room Assigned' when room_name is undefined", () => {
-    const group: Group = {
-      id: "1",
-      name: "Test",
-    };
-
-    const result = formatGroupLocation(group);
-
-    expect(result).toBe("No Room Assigned");
-  });
-});
-
-describe("formatGroupRepresentative", () => {
-  it("returns representative name when available", () => {
-    const group: Group = {
-      id: "1",
-      name: "Test",
-      representative_name: "Maria Schmidt",
-    };
-
-    const result = formatGroupRepresentative(group);
-
-    expect(result).toBe("Maria Schmidt");
-  });
-
-  it("returns 'No Representative' when representative_name is undefined", () => {
-    const group: Group = {
-      id: "1",
-      name: "Test",
-    };
-
-    const result = formatGroupRepresentative(group);
-
-    expect(result).toBe("No Representative");
   });
 });

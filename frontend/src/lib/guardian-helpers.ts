@@ -205,21 +205,6 @@ export interface StudentGuardianPayload {
   }>;
 }
 
-// Backend Guardian Create Request
-// preferred_contact_method and language_preference are optional — the backend
-// applies its own defaults ("phone" and "de") when omitted.
-interface BackendGuardianCreateRequest {
-  first_name: string;
-  last_name: string;
-  email?: string;
-  address_street?: string;
-  address_city?: string;
-  address_postal_code?: string;
-  preferred_contact_method?: string;
-  language_preference?: string;
-  notes?: string;
-}
-
 // Student-Guardian Link Request
 export interface StudentGuardianLinkRequest {
   guardianProfileId: string;
@@ -320,22 +305,6 @@ export function mapGuardianWithRelationshipResponse(
   };
 }
 
-export function mapGuardianFormDataToBackend(
-  data: GuardianFormData,
-): BackendGuardianCreateRequest {
-  return {
-    first_name: data.firstName,
-    last_name: data.lastName,
-    email: data.email,
-    address_street: data.addressStreet,
-    address_city: data.addressCity,
-    address_postal_code: data.addressPostalCode,
-    preferred_contact_method: data.preferredContactMethod,
-    language_preference: data.languagePreference,
-    notes: data.notes,
-  };
-}
-
 export function mapStudentGuardianLinkToBackend(
   data: StudentGuardianLinkRequest,
 ): BackendStudentGuardianLinkRequest {
@@ -389,41 +358,6 @@ export function getLanguageLabel(code: string): string {
 // Helper to get full name
 export function getGuardianFullName(guardian: Guardian): string {
   return `${guardian.firstName} ${guardian.lastName}`;
-}
-
-// Helper to get primary contact
-export function getGuardianPrimaryContact(guardian: Guardian): string {
-  if (guardian.preferredContactMethod === "email" && guardian.email) {
-    return guardian.email;
-  }
-
-  // Find phone by preferred contact method
-  if (
-    guardian.preferredContactMethod === "mobile" ||
-    guardian.preferredContactMethod === "sms"
-  ) {
-    const mobilePhone = guardian.phoneNumbers.find(
-      (p) => p.phoneType === "mobile",
-    );
-    if (mobilePhone) return mobilePhone.phoneNumber;
-  }
-
-  if (guardian.preferredContactMethod === "phone") {
-    const homePhone = guardian.phoneNumbers.find((p) => p.phoneType === "home");
-    if (homePhone) return homePhone.phoneNumber;
-  }
-
-  // Fallback: return any available contact
-  if (guardian.email) return guardian.email;
-
-  // Return primary phone or first phone
-  const primaryPhone = guardian.phoneNumbers.find((p) => p.isPrimary);
-  if (primaryPhone) return primaryPhone.phoneNumber;
-
-  const firstPhone = guardian.phoneNumbers[0];
-  if (firstPhone) return firstPhone.phoneNumber;
-
-  return "Keine Kontaktdaten";
 }
 
 // Helper to get relationship type label
@@ -480,25 +414,4 @@ export function mapPhoneNumberUpdateToBackend(
   if (data.phoneType !== undefined) result.phone_type = data.phoneType;
   if (data.label !== undefined) result.label = data.label;
   return result;
-}
-
-// Helper to get phone type label
-export function getPhoneTypeLabel(type: PhoneType): string {
-  return PHONE_TYPE_LABELS[type] ?? type;
-}
-
-// Helper to get primary phone number
-export function getPrimaryPhoneNumber(
-  guardian: Guardian,
-): PhoneNumber | undefined {
-  return guardian.phoneNumbers.find((p) => p.isPrimary);
-}
-
-// Helper to format phone number display (includes type and label)
-export function formatPhoneNumberDisplay(phone: PhoneNumber): string {
-  const typeLabel = getPhoneTypeLabel(phone.phoneType);
-  if (phone.label && phone.label !== typeLabel) {
-    return `${phone.phoneNumber} (${typeLabel} - ${phone.label})`;
-  }
-  return `${phone.phoneNumber} (${typeLabel})`;
 }

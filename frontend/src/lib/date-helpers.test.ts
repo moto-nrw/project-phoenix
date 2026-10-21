@@ -4,7 +4,6 @@ import {
   berlinDateTimeISO,
   berlinDayFromISO,
   formatStatusDate,
-  groupByDate,
   formatDate,
   formatTime,
   calculateDuration,
@@ -253,72 +252,6 @@ describe("formatBerlinDate", () => {
     expect(formatBerlinDate("2026-07-20T21:59:59.000Z", "en-GB")).toBe(
       "20/07/2026",
     );
-  });
-});
-
-describe("groupByDate", () => {
-  it("groups items by date in descending order (newest first)", () => {
-    const items = [
-      { id: 1, timestamp: "2024-01-15T10:00:00Z" },
-      { id: 2, timestamp: "2024-01-15T14:00:00Z" },
-      { id: 3, timestamp: "2024-01-14T09:00:00Z" },
-    ];
-
-    const result = groupByDate(items, "timestamp");
-
-    expect(result).toHaveLength(2);
-    // Newest date first
-    expect(result[0]?.entries).toHaveLength(2);
-    expect(result[1]?.entries).toHaveLength(1);
-  });
-
-  it("sorts entries within each date group by time (oldest first)", () => {
-    const items = [
-      { id: 1, timestamp: "2024-01-15T14:00:00Z" },
-      { id: 2, timestamp: "2024-01-15T10:00:00Z" },
-      { id: 3, timestamp: "2024-01-15T12:00:00Z" },
-    ];
-
-    const result = groupByDate(items, "timestamp");
-
-    expect(result).toHaveLength(1);
-    // Check entries are sorted by time (oldest first)
-    expect(result[0]?.entries[0]?.id).toBe(2); // 10:00
-    expect(result[0]?.entries[1]?.id).toBe(3); // 12:00
-    expect(result[0]?.entries[2]?.id).toBe(1); // 14:00
-  });
-
-  it("handles empty array", () => {
-    const result = groupByDate([], "timestamp");
-    expect(result).toHaveLength(0);
-  });
-
-  it("skips items with non-string timestamp values", () => {
-    const items = [
-      { id: 1, timestamp: "2024-01-15T10:00:00Z" },
-      { id: 2, timestamp: null },
-      { id: 3, timestamp: 123456 },
-    ];
-
-    // Cast to satisfy TypeScript while testing edge cases
-    const result = groupByDate(
-      items as Array<{ id: number; timestamp: string }>,
-      "timestamp",
-    );
-
-    expect(result).toHaveLength(1);
-    expect(result[0]?.entries).toHaveLength(1);
-  });
-
-  it("handles different timestamp keys", () => {
-    const items = [
-      { id: 1, createdAt: "2024-01-15T10:00:00Z" },
-      { id: 2, createdAt: "2024-01-14T10:00:00Z" },
-    ];
-
-    const result = groupByDate(items, "createdAt");
-
-    expect(result).toHaveLength(2);
   });
 });
 

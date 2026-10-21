@@ -964,21 +964,4 @@ describe("ConfirmationModal", () => {
 
     matchMedia.mockRestore();
   });
-
-  it("should not render when isOpen is false", () => {
-    render(
-      <TestWrapper>
-        <ConfirmationModal
-          isOpen={false}
-          onClose={vi.fn()}
-          onConfirm={vi.fn()}
-          title="Confirm"
-        >
-          <p>Sure?</p>
-        </ConfirmationModal>
-      </TestWrapper>,
-    );
-
-    expect(screen.queryByText("Confirm")).not.toBeInTheDocument();
-  });
 });

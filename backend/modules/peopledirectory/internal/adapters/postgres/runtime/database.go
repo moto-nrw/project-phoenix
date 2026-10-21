@@ -17,6 +17,7 @@ type ContextRuntime interface {
 	InTransaction(context.Context) bool
 	WithSavepoint(context.Context, func(context.Context) error) error
 	AcrossSchools(context.Context) bool
+	AcquireLock(context.Context, string, bool) error
 }
 
 type Database struct {

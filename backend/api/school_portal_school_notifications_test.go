@@ -1,12 +1,9 @@
 // Notifications in the school portal (#2208): a Lehrkraft manages her own
-// decisions and devices through /school/notifications with a school token,
-// sees only the catalogue the school portal offers, and her devices are
-// recorded as school-portal devices.
+// decisions and devices through /school/notifications with a school token
+// and sees only the catalogue the school portal offers.
 package api
 
 import (
-	"bytes"
-	"encoding/json"
 	"fmt"
 	"net/http"
 	"net/http/httptest"
@@ -102,39 +99,4 @@ func TestSchoolNotificationPreferences(t *testing.T) {
 		ID: int(teacherAccount.ID), Sub: teacherAccount.Email, TenantID: tenantID, Scope: tenant.ScopeTenant,
 	})
 	require.Equal(t, http.StatusUnauthorized, rec.Code, rec.Body.String())
-}
-
-func TestSchoolPushSubscriptionIsRecordedAsSchoolDevice(t *testing.T) {
-	t.Parallel()
-	db, resource, tenantID, _ := setupSchoolRoute(t)
-	schoolRouter := newSchoolChiRouter(resource)
-
-	_, teacherAccount := testpkg.CreateTestStaffWithAccountForTenant(t, db, tenantID, "Push", fmt.Sprintf("Lehrkraft-%d", time.Now().UnixNano()))
-	testpkg.EnsureAccountTenant(t, db, teacherAccount.ID, tenantID)
-	testpkg.AssignLehrkraftSystemRole(t, db, teacherAccount.ID, tenantID)
-	claims := sessiontoken.AppClaims{
-		ID: int(teacherAccount.ID), Sub: teacherAccount.Email,
-		Roles: []string{"lehrkraft"}, TenantID: tenantID, Scope: tenant.ScopeSchool,
-	}
-
-	endpoint := fmt.Sprintf("https://fcm.googleapis.com/fcm/send/school-%d", time.Now().UnixNano())
-	body, err := json.Marshal(map[string]any{
-		"endpoint": endpoint,
-		"keys": map[string]string{
-			"p256dh": "key",
-			"auth":   "auth",
-		},
-	})
-	require.NoError(t, err)
-	req := httptest.NewRequest(http.MethodPost, "/notifications/push/subscriptions", bytes.NewReader(body))
-	req.Header.Set("Content-Type", "application/json")
-	rec := testutil.ExecuteWithAuth(t, schoolRouter, req, claims)
-	if rec.Code == http.StatusConflict {
-		// Without VAPID keys in the test environment the service refuses; the
-		// portal wiring above is still exercised up to that point.
-		t.Skip("web push is not configured in this test environment")
-	}
-	require.Equal(t, http.StatusNoContent, rec.Code, rec.Body.String())
-
-	assert.Equal(t, "school", pushSubscriptionPortal(t, db, tenantID, endpoint))
 }

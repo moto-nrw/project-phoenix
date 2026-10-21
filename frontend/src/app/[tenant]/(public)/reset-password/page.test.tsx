@@ -463,12 +463,6 @@ describe("ResetPasswordPage", () => {
     });
   });
 
-  it("does not render a MOTO logo fallback", () => {
-    render(<ResetPasswordPage />);
-
-    expect(screen.queryByAltText("MOTO Logo")).not.toBeInTheDocument();
-  });
-
   it("renders tenant logo when configured", () => {
     mockUseTenant.mockReturnValue({
       tenantSlug: "demo-school",

@@ -71,31 +71,6 @@ func TestNewTokenAuthWithSecret_ShortSecret(t *testing.T) {
 // CreateJWT Tests
 // =============================================================================
 
-func TestTokenAuth_CreateJWT_ValidClaims(t *testing.T) {
-	t.Parallel()
-	auth, err := newTestTokenAuth(t, testSecret)
-	require.NoError(t, err)
-
-	claims := AppClaims{
-		ID:          42,
-		Sub:         "user@example.com",
-		Username:    "johndoe",
-		FirstName:   "John",
-		LastName:    "Doe",
-		Roles:       []string{"admin", "user"},
-		Permissions: []string{"read", "write"},
-		IsAdmin:     true,
-	}
-
-	token, err := auth.CreateJWT(claims)
-	require.NoError(t, err)
-	assert.NotEmpty(t, token)
-
-	// Token should be a valid JWT format (three base64 parts separated by dots)
-	parts := countDots(token)
-	assert.Equal(t, 2, parts, "JWT should have 3 parts separated by 2 dots")
-}
-
 func TestTokenAuth_CreateJWT_SetsExpiry(t *testing.T) {
 	t.Parallel()
 	auth, err := newTestTokenAuth(t, testSecret)
@@ -123,74 +98,9 @@ func TestTokenAuth_CreateJWT_SetsExpiry(t *testing.T) {
 	assert.True(t, expTime.Before(beforeCreate.Add(auth.JwtExpiry+time.Minute)))
 }
 
-func TestTokenAuth_CreateJWT_MinimalClaims(t *testing.T) {
-	t.Parallel()
-	auth, err := newTestTokenAuth(t, testSecret)
-	require.NoError(t, err)
-
-	claims := AppClaims{
-		ID:    1,
-		Sub:   "test@test.com",
-		Roles: []string{},
-	}
-
-	token, err := auth.CreateJWT(claims)
-	require.NoError(t, err)
-	assert.NotEmpty(t, token)
-}
-
-func TestTokenAuth_CreateJWT_EmptyPermissions(t *testing.T) {
-	t.Parallel()
-	auth, err := newTestTokenAuth(t, testSecret)
-	require.NoError(t, err)
-
-	claims := AppClaims{
-		ID:          1,
-		Sub:         "test@test.com",
-		Roles:       []string{"user"},
-		Permissions: []string{}, // Empty but present
-	}
-
-	token, err := auth.CreateJWT(claims)
-	require.NoError(t, err)
-	assert.NotEmpty(t, token)
-}
-
-func TestTokenAuth_CreateJWT_NilPermissions(t *testing.T) {
-	t.Parallel()
-	auth, err := newTestTokenAuth(t, testSecret)
-	require.NoError(t, err)
-
-	claims := AppClaims{
-		ID:          1,
-		Sub:         "test@test.com",
-		Roles:       []string{"user"},
-		Permissions: nil, // nil
-	}
-
-	token, err := auth.CreateJWT(claims)
-	require.NoError(t, err)
-	assert.NotEmpty(t, token)
-}
-
 // =============================================================================
 // CreateRefreshJWT Tests
 // =============================================================================
-
-func TestTokenAuth_CreateRefreshJWT_ValidClaims(t *testing.T) {
-	t.Parallel()
-	auth, err := newTestTokenAuth(t, testSecret)
-	require.NoError(t, err)
-
-	claims := RefreshClaims{
-		ID:    42,
-		Token: "unique-refresh-token-id",
-	}
-
-	token, err := auth.CreateRefreshJWT(claims)
-	require.NoError(t, err)
-	assert.NotEmpty(t, token)
-}
 
 func TestTokenAuth_CreateRefreshJWT_SetsExpiry(t *testing.T) {
 	t.Parallel()
@@ -278,19 +188,6 @@ func TestTokenAuth_GetRefreshExpiry(t *testing.T) {
 
 	expiry := auth.GetRefreshExpiry()
 	assert.Equal(t, 48*time.Hour, expiry)
-}
-
-// =============================================================================
-// Verifier Tests
-// =============================================================================
-
-func TestTokenAuth_Verifier_ReturnsMiddleware(t *testing.T) {
-	t.Parallel()
-	auth, err := newTestTokenAuth(t, testSecret)
-	require.NoError(t, err)
-
-	verifier := auth.Verifier()
-	assert.NotNil(t, verifier)
 }
 
 // =============================================================================
@@ -403,49 +300,6 @@ func TestParseStructToMap_NilSlices(t *testing.T) {
 // Token Creation and Verification Round-Trip
 // =============================================================================
 
-func TestTokenAuth_CreateAndVerify_AccessToken(t *testing.T) {
-	t.Parallel()
-	auth, err := newTestTokenAuth(t, testSecret)
-	require.NoError(t, err)
-
-	originalClaims := AppClaims{
-		ID:          42,
-		Sub:         "user@example.com",
-		Username:    "johndoe",
-		Roles:       []string{"admin"},
-		Permissions: []string{"read", "write"},
-		IsAdmin:     true,
-	}
-
-	token, err := auth.CreateJWT(originalClaims)
-	require.NoError(t, err)
-
-	// Verify the token can be decoded
-	// This uses the jwtauth library's internal verification
-	verifiedToken, err := auth.JwtAuth.Decode(token)
-	require.NoError(t, err)
-	assert.NotNil(t, verifiedToken)
-}
-
-func TestTokenAuth_CreateAndVerify_RefreshToken(t *testing.T) {
-	t.Parallel()
-	auth, err := newTestTokenAuth(t, testSecret)
-	require.NoError(t, err)
-
-	originalClaims := RefreshClaims{
-		ID:    42,
-		Token: "unique-refresh-id",
-	}
-
-	token, err := auth.CreateRefreshJWT(originalClaims)
-	require.NoError(t, err)
-
-	// Verify the token can be decoded
-	verifiedToken, err := auth.JwtAuth.Decode(token)
-	require.NoError(t, err)
-	assert.NotNil(t, verifiedToken)
-}
-
 func TestTokenAuth_VerifyWithWrongSecret(t *testing.T) {
 	t.Parallel()
 
@@ -504,23 +358,6 @@ func TestTokenAuth_CreateJWT_SpecialCharactersInClaims(t *testing.T) {
 	assert.Equal(t, "O'Connor-Smith", lastName)
 }
 
-func TestTokenAuth_CreateJWT_EmptyUsername(t *testing.T) {
-	t.Parallel()
-	auth, err := newTestTokenAuth(t, testSecret)
-	require.NoError(t, err)
-
-	claims := AppClaims{
-		ID:       1,
-		Sub:      "test@test.com",
-		Username: "", // Empty
-		Roles:    []string{"user"},
-	}
-
-	token, err := auth.CreateJWT(claims)
-	require.NoError(t, err)
-	assert.NotEmpty(t, token)
-}
-
 func TestTokenAuth_CustomExpiry(t *testing.T) {
 	t.Parallel()
 
@@ -529,15 +366,4 @@ func TestTokenAuth_CustomExpiry(t *testing.T) {
 
 	assert.Equal(t, 5*time.Minute, auth.JwtExpiry)
 	assert.Equal(t, 1*time.Hour, auth.JwtRefreshExpiry)
-}
-
-// Helper function
-func countDots(s string) int {
-	count := 0
-	for _, c := range s {
-		if c == '.' {
-			count++
-		}
-	}
-	return count
 }

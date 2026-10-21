@@ -21,7 +21,6 @@ const mockFetchArrivalData = vi.fn();
 const mockFetchArrivalSettings = vi.fn();
 const mockFetchStudentPickupData = vi.fn();
 const mockUpdateArrivalSchedules = vi.fn();
-const mockUpdateStudentPickupSchedules = vi.fn();
 const mockPreviewStudentPickupAdjustment = vi.fn();
 const mockApplyStudentPickupAdjustment = vi.fn();
 const mockCreateArrivalException = vi.fn();
@@ -58,8 +57,6 @@ vi.mock("~/lib/student-arrival-api", () => ({
 vi.mock("~/lib/pickup-schedule-api", () => ({
   fetchStudentPickupData: (...args: unknown[]) =>
     mockFetchStudentPickupData(...args),
-  updateStudentPickupSchedules: (...args: unknown[]) =>
-    mockUpdateStudentPickupSchedules(...args),
   previewStudentPickupAdjustment: (...args: unknown[]) =>
     mockPreviewStudentPickupAdjustment(...args),
   applyStudentPickupAdjustment: (...args: unknown[]) =>
@@ -384,7 +381,6 @@ describe("CareScheduleManager", () => {
     });
     mockFetchStudentPickupData.mockResolvedValue(pickupData);
     mockUpdateArrivalSchedules.mockResolvedValue([]);
-    mockUpdateStudentPickupSchedules.mockResolvedValue([]);
     mockPreviewStudentPickupAdjustment.mockResolvedValue({
       preview_token: "preview-token",
       effective_from: "2026-05-25",

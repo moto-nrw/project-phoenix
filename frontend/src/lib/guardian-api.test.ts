@@ -1,8 +1,6 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import {
   fetchStudentGuardians,
-  fetchGuardianStudents,
-  createGuardian,
   updateGuardian,
   deleteGuardian,
   createStudentGuardians,
@@ -11,14 +9,12 @@ import {
   updateStudentGuardianRelationship,
   removeGuardianFromStudent,
   searchGuardians,
-  fetchGuardianPhoneNumbers,
   addGuardianPhoneNumber,
   updateGuardianPhoneNumber,
   deleteGuardianPhoneNumber,
   setGuardianPrimaryPhone,
 } from "./guardian-api";
 import type {
-  GuardianFormData,
   StudentGuardianLinkRequest,
   BackendGuardianProfile,
   BackendGuardianWithRelationship,
@@ -68,18 +64,6 @@ const mockBackendGuardianWithRelationship: BackendGuardianWithRelationship = {
   can_pickup: true,
   pickup_notes: "Can pickup anytime",
   emergency_priority: 1,
-};
-
-const mockGuardianFormData: GuardianFormData = {
-  firstName: "John",
-  lastName: "Doe",
-  email: "john@example.com",
-  addressStreet: "123 Main St",
-  addressCity: "Anytown",
-  addressPostalCode: "12345",
-  preferredContactMethod: "email",
-  languagePreference: "de",
-  notes: "Some notes",
 };
 
 const mockLinkRequest: StudentGuardianLinkRequest = {
@@ -201,125 +185,6 @@ describe("guardian-api functions", () => {
 
       const result = await fetchStudentGuardians("123");
       expect(result).toEqual([]);
-    });
-  });
-
-  describe("fetchGuardianStudents", () => {
-    it("returns students on success", async () => {
-      const mockStudents = [
-        {
-          id: 1,
-          first_name: "Jane",
-          last_name: "Student",
-          date_of_birth: "2015-01-01",
-        },
-      ];
-
-      global.fetch = vi.fn().mockResolvedValue({
-        ok: true,
-        json: () =>
-          Promise.resolve({
-            status: "success",
-            data: mockStudents,
-          }),
-      });
-
-      const result = await fetchGuardianStudents("1");
-
-      expect(result).toEqual(mockStudents);
-      expect(global.fetch).toHaveBeenCalledWith(
-        "/api/guardians/1/students",
-        undefined,
-      );
-    });
-
-    it("throws error on non-ok response", async () => {
-      global.fetch = vi.fn().mockResolvedValue({
-        ok: false,
-        statusText: "Not Found",
-        json: () => Promise.resolve({ detail: "Guardian not found" }),
-      });
-
-      await expect(fetchGuardianStudents("999")).rejects.toThrow(
-        "Failed to fetch students",
-      );
-    });
-
-    it("returns empty array when data is undefined", async () => {
-      global.fetch = vi.fn().mockResolvedValue({
-        ok: true,
-        json: () =>
-          Promise.resolve({
-            status: "success",
-          }),
-      });
-
-      const result = await fetchGuardianStudents("1");
-      expect(result).toEqual([]);
-    });
-  });
-
-  describe("createGuardian", () => {
-    it("creates guardian and returns mapped result", async () => {
-      global.fetch = vi.fn().mockResolvedValue({
-        ok: true,
-        json: () =>
-          Promise.resolve({
-            status: "success",
-            data: mockBackendGuardian,
-          }),
-      });
-
-      const result = await createGuardian(mockGuardianFormData);
-
-      expect(result.id).toBe("1");
-      expect(result.firstName).toBe("John");
-      expect(result.lastName).toBe("Doe");
-      expect(global.fetch).toHaveBeenCalledWith("/api/guardians", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: expect.any(String),
-      });
-    });
-
-    // #2517: the client no longer guesses a German sentence from the
-    // backend text; the code goes to the shared error display.
-    it("throws a GuardianApiError with the wire code on non-ok response", async () => {
-      global.fetch = vi.fn().mockResolvedValue({
-        ok: false,
-        status: 400,
-        statusText: "Bad Request",
-        json: () =>
-          Promise.resolve({
-            detail: "Diese E-Mail-Adresse ist bereits registriert",
-            code: "general.input",
-            instance: "req-1",
-          }),
-      });
-
-      await expect(createGuardian(mockGuardianFormData)).rejects.toMatchObject({
-        name: "ApiError",
-        status: 400,
-        code: "general.input",
-        requestId: "req-1",
-        message: "Failed to create guardian",
-        detail: "Diese E-Mail-Adresse ist bereits registriert",
-      });
-    });
-
-    it("throws error when data is missing", async () => {
-      global.fetch = vi.fn().mockResolvedValue({
-        ok: true,
-        json: () =>
-          Promise.resolve({
-            status: "success",
-            data: null,
-          }),
-      });
-
-      await expect(createGuardian(mockGuardianFormData)).rejects.toThrow();
     });
   });
 
@@ -890,99 +755,6 @@ describe("guardian-api functions", () => {
   // =============================================================================
   // Phone Number API Functions Tests
   // =============================================================================
-
-  describe("fetchGuardianPhoneNumbers", () => {
-    it("fetches phone numbers for a guardian", async () => {
-      const mockPhoneNumbers: BackendPhoneNumber[] = [
-        {
-          id: 1,
-          phone_number: "555-1234",
-          phone_type: "mobile",
-          is_primary: true,
-          priority: 1,
-        },
-        {
-          id: 2,
-          phone_number: "555-5678",
-          phone_type: "home",
-          label: "Home Office",
-          is_primary: false,
-          priority: 2,
-        },
-      ];
-
-      global.fetch = vi.fn().mockResolvedValue({
-        ok: true,
-        json: () =>
-          Promise.resolve({
-            status: "success",
-            data: mockPhoneNumbers,
-          }),
-      });
-
-      const result = await fetchGuardianPhoneNumbers("123");
-
-      expect(result).toHaveLength(2);
-      expect(result[0]).toEqual({
-        id: "1",
-        phoneNumber: "555-1234",
-        phoneType: "mobile",
-        label: undefined,
-        isPrimary: true,
-        priority: 1,
-      });
-      expect(result[1]).toEqual({
-        id: "2",
-        phoneNumber: "555-5678",
-        phoneType: "home",
-        label: "Home Office",
-        isPrimary: false,
-        priority: 2,
-      });
-      expect(global.fetch).toHaveBeenCalledWith(
-        "/api/guardians/123/phone-numbers",
-        undefined,
-      );
-    });
-
-    it("returns empty array when data is undefined", async () => {
-      global.fetch = vi.fn().mockResolvedValue({
-        ok: true,
-        json: () =>
-          Promise.resolve({
-            status: "success",
-            data: undefined,
-          }),
-      });
-
-      const result = await fetchGuardianPhoneNumbers("123");
-      expect(result).toEqual([]);
-    });
-
-    it("throws error on non-ok response", async () => {
-      global.fetch = vi.fn().mockResolvedValue({
-        ok: false,
-        statusText: "Not Found",
-        json: () => Promise.resolve({ detail: "Guardian not found" }),
-      });
-
-      await expect(fetchGuardianPhoneNumbers("999")).rejects.toThrow(
-        "Failed to fetch phone numbers",
-      );
-    });
-
-    it("throws fallback error when JSON parse fails", async () => {
-      global.fetch = vi.fn().mockResolvedValue({
-        ok: false,
-        statusText: "Internal Server Error",
-        json: () => Promise.reject(new Error("Parse error")),
-      });
-
-      await expect(fetchGuardianPhoneNumbers("123")).rejects.toThrow(
-        "Failed to fetch phone numbers",
-      );
-    });
-  });
 
   describe("addGuardianPhoneNumber", () => {
     const mockCreateRequest: PhoneNumberCreateRequest = {

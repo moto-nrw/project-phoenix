@@ -17,28 +17,6 @@ export interface ScopeRoom {
   readonly name: string;
 }
 
-/** Eigene Aufsicht so, wie die Navigationsdaten sie liefern. */
-interface SupervisedGroupLike {
-  readonly roomId?: string;
-  readonly room?: { readonly id: string; readonly name: string };
-}
-
-/**
- * Räume der eigenen laufenden Aufsichten, je Raum einmal. Zwei Aufsichten im
- * selben Raum sind für den Raumfilter derselbe Ort.
- */
-export function ownSupervisionRooms(
-  supervisedGroups: readonly SupervisedGroupLike[],
-): ScopeRoom[] {
-  const rooms = new Map<string, ScopeRoom>();
-  for (const group of supervisedGroups) {
-    const id = group.room?.id ?? group.roomId;
-    if (!id || rooms.has(id)) continue;
-    rooms.set(id, { id, name: group.room?.name ?? `Raum #${id}` });
-  }
-  return [...rooms.values()].sort((a, b) => a.name.localeCompare(b.name, "de"));
-}
-
 export function roomScope(roomId: string): string {
   return `${ROOM_SCOPE_PREFIX}${roomId}`;
 }

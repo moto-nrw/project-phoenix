@@ -31,14 +31,17 @@ const (
 const DateLayout = "2006-01-02"
 
 var (
-	ErrStaffNotFound           = errors.New("staff member not found")
-	ErrTeacherNotFound         = errors.New("teacher not found")
-	ErrGuestNotFound           = errors.New("guest not found")
-	ErrInvalidMembership       = errors.New("invalid membership")
-	ErrStaffPersonConflict     = errors.New("person already has a staff record")
-	ErrTeacherStaffConflict    = errors.New("staff member already has a teacher record")
-	ErrGuestStaffConflict      = errors.New("staff member already has a guest record")
-	ErrPersonnelNumberConflict = errors.New("personnel number is already assigned")
+	ErrStaffNotFound     = errors.New("staff member not found")
+	ErrTeacherNotFound   = errors.New("teacher not found")
+	ErrGuestNotFound     = errors.New("guest not found")
+	ErrInvalidMembership = errors.New("invalid membership")
+	// ErrStaffPersonMergeNoLongerEligible reports an employment set that no
+	// longer satisfies the reviewed staff person repair predicates.
+	ErrStaffPersonMergeNoLongerEligible = errors.New("staff person merge no longer eligible")
+	ErrStaffPersonConflict              = errors.New("person already has a staff record")
+	ErrTeacherStaffConflict             = errors.New("staff member already has a teacher record")
+	ErrGuestStaffConflict               = errors.New("staff member already has a guest record")
+	ErrPersonnelNumberConflict          = errors.New("personnel number is already assigned")
 	// ErrStaffStillReferenced refuses offboarding a staff member other rows
 	// still point at. It is user-facing copy and keeps its capital letter.
 	ErrStaffStillReferenced = errors.New("personal kann nicht gelöscht werden: Mitarbeiter/in wird noch in anderen Bereichen referenziert")
