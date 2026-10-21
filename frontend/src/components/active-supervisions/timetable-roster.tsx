@@ -714,7 +714,7 @@ function TimetableRosterHeader({
                 gelogen, sobald der Roster eines beendeten Termins offen ist —
                 im Reopen-Fenster der OGS ebenso wie in der Aufsicht einer
                 Lehrkraft (#2527). Er heißt wie das Abzeichen im Seitenkopf
-                („Läuft“ / „Beendet“, #4354). */}
+                („Aktiv“ / „Beendet“, #4354). */}
             {showStatus ? (
               <p
                 className={`text-xs font-semibold tracking-wide uppercase ${

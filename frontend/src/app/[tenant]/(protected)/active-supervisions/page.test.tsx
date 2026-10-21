@@ -3638,7 +3638,7 @@ describe("MeinRaumPage (Active Supervisions) (5/5)", () => {
     await waitFor(() => {
       expect(screen.getByText("Malen")).toBeInTheDocument();
       // Der Zustand des Blocks steht im Seitenkopf, nicht in der Karte (#4354).
-      expect(screen.getByText("Läuft")).toBeInTheDocument();
+      expect(screen.getByText("Aktiv")).toBeInTheDocument();
       expect(screen.getByText("Teilnehmende (1)")).toBeInTheDocument();
       expect(screen.getByText("2a")).toBeInTheDocument();
       expect(screen.getByText("Sonnengruppe")).toBeInTheDocument();
@@ -3648,7 +3648,7 @@ describe("MeinRaumPage (Active Supervisions) (5/5)", () => {
   });
 
   it.each([
-    ["active", "Läuft"],
+    ["active", "Aktiv"],
     ["completed", "Beendet"],
   ] as const)(
     "shows whether the opened block runs in the page head, not twice in its card (#4354, %s)",
@@ -3710,8 +3710,8 @@ describe("MeinRaumPage (Active Supervisions) (5/5)", () => {
       const head = container.querySelector("header");
       expect(head).not.toBeNull();
       expect(within(head as HTMLElement).getByText(label)).toBeInTheDocument();
+      // Nur einmal: die Blockkarte wiederholt den Zustand nicht.
       expect(screen.getAllByText(label)).toHaveLength(1);
-      expect(screen.queryByText("Aktiv")).not.toBeInTheDocument();
     },
   );
 

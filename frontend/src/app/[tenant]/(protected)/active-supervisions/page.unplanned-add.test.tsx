@@ -641,7 +641,7 @@ describe("MeinRaumPage (Active Supervisions) (4/5)", () => {
     await waitFor(() => {
       expect(screen.getByText("Kreativ AG")).toBeInTheDocument();
       // Der Zustand des Blocks steht im Seitenkopf, nicht in der Karte (#4354).
-      expect(screen.getByText("Läuft")).toBeInTheDocument();
+      expect(screen.getByText("Aktiv")).toBeInTheDocument();
       expect(
         screen.getByRole("button", { name: "1 erwartete bestätigen" }),
       ).toBeInTheDocument();

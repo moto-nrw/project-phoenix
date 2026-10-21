@@ -551,7 +551,7 @@ export function rosterRunState(status: TimetableRoster["instance"]["status"]): {
 } {
   return status === "completed"
     ? { label: "Beendet", tone: "gray" }
-    : { label: "Läuft", tone: "green" };
+    : { label: "Aktiv", tone: "green" };
 }
 
 /**
