@@ -315,7 +315,8 @@ test('shared backend quality fails when an analyzer executable is missing', t =>
   f.write('limited/gofmt', '#!/bin/bash\nexit 0\n');
   symlinkSync('/bin/bash', join(f.root, 'limited/bash'));
   const result = f.run('/bin/bash', ['scripts/check-quality.sh', 'backend'], {
-    env: { ...f.env, PATH: join(f.root, 'limited') },
+    // Keep the shell diagnostic below independent of the host locale.
+    env: { ...f.env, PATH: join(f.root, 'limited'), LC_ALL: 'C' },
   });
   assert.equal(result.status, 127);
   assert.match(result.stderr, /go: command not found/);
