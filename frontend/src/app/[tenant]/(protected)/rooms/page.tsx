@@ -43,6 +43,7 @@ import {
 import { MotoConceptIcon } from "~/components/ui/moto-concept-icon";
 import { SectionHeader } from "~/components/ui/concept-section-header";
 import { SectionCard } from "~/components/ui/section-card";
+import { StatusBadge } from "~/components/ui/status-badge";
 import { RoomStatusBadge } from "~/components/rooms/room-status-badge";
 
 import { BinaryModeGuard } from "~/components/tenant/binary-mode-guard";
@@ -193,9 +194,27 @@ function RoomTile({
   );
 }
 
+function RoomTileGrid({
+  rooms,
+  roomHref,
+}: {
+  readonly rooms: readonly Room[];
+  readonly roomHref: (roomId: string) => string;
+}) {
+  return (
+    <CollectionGrid>
+      {rooms.map((room) => (
+        <RoomTile key={room.id} room={room} href={roomHref(room.id)} />
+      ))}
+    </CollectionGrid>
+  );
+}
+
 /**
  * Eine Raumgruppe der Übersicht: offene Räume oben, die übrigen darunter.
  * Beide lassen sich einklappen, damit eine lange Liste übersichtlich bleibt.
+ * Mit eigener Fläche, weil die Gruppe Titel und Text trägt (BAUARTEN-SPEC,
+ * Teil 3 §1: kein `bare` mit Titel).
  */
 function RoomGroup({
   title,
@@ -210,21 +229,12 @@ function RoomGroup({
 }) {
   return (
     <SectionCard
-      bare
       collapsible
       title={title}
-      titleBadge={
-        <span className="text-sm font-medium text-gray-500">
-          {rooms.length}
-        </span>
-      }
+      titleBadge={<StatusBadge label={String(rooms.length)} tone="gray" />}
       description={description}
     >
-      <CollectionGrid>
-        {rooms.map((room) => (
-          <RoomTile key={room.id} room={room} href={roomHref(room.id)} />
-        ))}
-      </CollectionGrid>
+      <RoomTileGrid rooms={rooms} roomHref={roomHref} />
     </SectionCard>
   );
 }
@@ -660,12 +670,9 @@ function RoomsPageContent() {
                 />
               ) : null}
             </>
-          ) : filteredRooms.length > 0 ? (
-            <CollectionGrid>
-              {filteredRooms.map((room) => (
-                <RoomTile key={room.id} room={room} href={roomHref(room.id)} />
-              ))}
-            </CollectionGrid>
+          ) : null}
+          {openRooms.length === 0 && filteredRooms.length > 0 ? (
+            <RoomTileGrid rooms={filteredRooms} roomHref={roomHref} />
           ) : null}
         </>
       )}
