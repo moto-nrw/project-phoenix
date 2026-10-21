@@ -302,10 +302,15 @@ func TestRequestRepository_ListAdmin_PhaseFilter(t *testing.T) {
 		return lErr
 	}))
 
+	ids := make([]int64, 0, len(list))
 	for _, r := range list {
 		assert.Equal(t, phaseID, r.PhaseID,
 			"phase filter must exclude every other phase (saw request %d with phase %d)", r.ID, r.PhaseID)
+		ids = append(ids, r.ID)
 	}
+	// Counter-check: an empty list would pass the loop above.
+	assert.Contains(t, ids, reqMain.ID, "the request in the filtered phase must appear")
+	assert.NotContains(t, ids, reqOther.ID)
 }
 
 func TestRequestRepository_ListAdmin_ChildStatusFilter(t *testing.T) {

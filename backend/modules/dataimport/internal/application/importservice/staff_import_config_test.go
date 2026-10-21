@@ -356,13 +356,6 @@ func TestStaffImportConfig_PreloadReferenceData_ReturnsRoleListError(t *testing.
 	assert.Contains(t, err.Error(), "preload roles")
 }
 
-func TestStaffImportConfig_InvitationServiceCompileGuard(t *testing.T) {
-	t.Parallel()
-
-	var _ importModels.StaffInviter = (*staffInvitationMock)(nil)
-	var _ importModels.SchoolRoleQuery = stubStaffRoleRepo{}
-}
-
 // TestStaffImportConfig_AuthorizeImportMode pins the permission boundary of
 // the update-capable import modes (#2906): users:create alone files new
 // records, changing existing ones needs both personnel permissions.

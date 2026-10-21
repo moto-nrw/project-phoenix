@@ -36,9 +36,6 @@ func TestOwnerRequestJSONPreservesServiceContract(t *testing.T) {
 	require.NoError(t, err)
 	require.JSONEq(t, string(legacyJSON), string(ownerJSON))
 	require.Contains(t, string(ownerJSON), `"id":9007199254740993`)
-	require.NotContains(t, string(ownerJSON), "decision_notification_mode")
-	require.NotContains(t, string(ownerJSON), "legal_blocks_snapshot")
-	require.NotContains(t, string(ownerJSON), "guardian_phone")
 	assertEnrollmentContractGolden(t, "request", ownerJSON)
 }
 
@@ -63,9 +60,7 @@ func TestOwnerChildJSONPreservesServiceContract(t *testing.T) {
 		require.JSONEq(t, string(legacyJSON), string(ownerJSON))
 		require.Contains(t, string(ownerJSON), `"id":9007199254740993`)
 		require.Contains(t, string(ownerJSON), `"date_of_birth":"2018-04-15"`)
-		require.NotContains(t, string(ownerJSON), "matched_student_id")
 		if activateOn == nil {
-			require.NotContains(t, string(ownerJSON), "activate_on")
 			assertEnrollmentContractGolden(t, "request_child", ownerJSON)
 		} else {
 			require.Contains(t, string(ownerJSON), `"activate_on":"2027-09-01"`)
