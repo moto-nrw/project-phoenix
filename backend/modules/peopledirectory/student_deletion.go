@@ -19,7 +19,7 @@ var ErrStudentLockBusy = errors.New("student row is locked by another transactio
 type StudentDeletionCommand interface {
 	// CountStudentGuardianLinks counts the guardian relationships
 	// the deletion removes, for the preview and its locked recheck.
-	CountStudentGuardianLinks(ctx context.Context, studentID, personID int64) (int, error)
+	CountStudentGuardianLinks(ctx context.Context, studentID int64) (int, error)
 	// DeleteStudent hard-deletes the student row and returns 1, or 0 when the
 	// row was already gone.
 	DeleteStudent(ctx context.Context, studentID int64) (int64, error)

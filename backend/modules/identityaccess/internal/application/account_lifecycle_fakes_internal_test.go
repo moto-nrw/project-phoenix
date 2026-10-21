@@ -34,7 +34,6 @@ type lifecycleStore struct {
 
 	cards                     map[string]bool
 	grants                    map[mappingKey][]domain.PermissionGrant
-	nextID                    int64
 	granted                   []int64
 	findAccountsByEmailsCalls int
 }

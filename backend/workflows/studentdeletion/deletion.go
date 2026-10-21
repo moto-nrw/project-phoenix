@@ -464,7 +464,7 @@ func (w *Workflow) lockedSnapshot(ctx context.Context, studentID int64) (Preview
 	// locked student or person rows. Re-read every counted category before the
 	// cascade so the confirmation and both audit records describe this
 	// transaction's deletion, not an earlier snapshot.
-	current, err := w.loadCounts(ctx, studentID, preview.PersonID)
+	current, err := w.loadCounts(ctx, studentID)
 	if err != nil {
 		return Preview{}, err
 	}
@@ -495,7 +495,7 @@ func (w *Workflow) snapshot(ctx context.Context, studentID int64, lock bool) (Pr
 	if err != nil {
 		return Preview{}, err
 	}
-	counts, err := w.loadCounts(ctx, studentID, student.PersonID)
+	counts, err := w.loadCounts(ctx, studentID)
 	if err != nil {
 		return Preview{}, err
 	}
@@ -518,7 +518,7 @@ func (w *Workflow) snapshot(ctx context.Context, studentID int64, lock bool) (Pr
 	return preview, nil
 }
 
-func (w *Workflow) loadCounts(ctx context.Context, studentID, personID int64) (countSnapshot, error) {
+func (w *Workflow) loadCounts(ctx context.Context, studentID int64) (countSnapshot, error) {
 	var counts countSnapshot
 	var err error
 	if counts.TimetableAssignments, err = w.deps.Timetable.CountStudentAssignments(ctx, studentID); err != nil {
@@ -543,7 +543,7 @@ func (w *Workflow) loadCounts(ctx context.Context, studentID, personID int64) (c
 	if counts.CareSchedules, err = w.deps.CarePlan.CountStudentScheduleRows(ctx, studentID); err != nil {
 		return countSnapshot{}, err
 	}
-	if counts.GuardianLinks, err = w.deps.Directory.CountStudentGuardianLinks(ctx, studentID, personID); err != nil {
+	if counts.GuardianLinks, err = w.deps.Directory.CountStudentGuardianLinks(ctx, studentID); err != nil {
 		return countSnapshot{}, err
 	}
 	if counts.CompanionLinks, err = w.deps.CarePlan.CountCompanionLinks(ctx, studentID); err != nil {

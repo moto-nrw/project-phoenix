@@ -454,6 +454,4 @@ func (rs *Resource) mountInvitationRoutes(r chi.Router) {
 		})
 	})
 
-	// Parent account management
-
 }

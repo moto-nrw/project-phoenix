@@ -89,7 +89,7 @@ type StudentStore interface {
 	// Lock takes the row FOR UPDATE and reports whether it exists.
 	Lock(context.Context, int64) (bool, domain.OperationStats, error)
 	// CountGuardianLinks counts the relationships a permanent deletion removes.
-	CountGuardianLinks(ctx context.Context, studentID, personID int64) (int, domain.OperationStats, error)
+	CountGuardianLinks(ctx context.Context, studentID int64) (int, domain.OperationStats, error)
 	// Delete hard-deletes the student row; dependent rows cascade or unlink
 	// per their foreign keys. Returns the number of deleted rows (0 or 1).
 	Delete(ctx context.Context, id int64) (int64, domain.OperationStats, error)

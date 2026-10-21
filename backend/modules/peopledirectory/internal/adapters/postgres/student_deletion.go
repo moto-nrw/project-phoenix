@@ -15,7 +15,7 @@ const (
 	anonymizedLastName  = "Benutzer"
 )
 
-func (s *StudentStore) CountGuardianLinks(ctx context.Context, studentID, _ int64) (int, domain.OperationStats, error) {
+func (s *StudentStore) CountGuardianLinks(ctx context.Context, studentID int64) (int, domain.OperationStats, error) {
 	db, scope, err := s.database(ctx)
 	if err != nil {
 		return 0, domain.OperationStats{}, err

@@ -11,10 +11,10 @@ import (
 // workflow that coordinates a child deletion holds the row locks and decides
 // the order, so none of these opens a transaction of its own.
 
-func (s *StudentService) CountGuardianLinks(ctx context.Context, studentID, personID int64) (count int, err error) {
+func (s *StudentService) CountGuardianLinks(ctx context.Context, studentID int64) (count int, err error) {
 	err = s.run(ctx, "count_student_guardian_links", s.tx.RunRead, func(txCtx context.Context, stats *domain.OperationStats) error {
 		var queryStats domain.OperationStats
-		count, queryStats, err = s.store.CountGuardianLinks(txCtx, studentID, personID)
+		count, queryStats, err = s.store.CountGuardianLinks(txCtx, studentID)
 		stats.Add(queryStats)
 		return err
 	})
