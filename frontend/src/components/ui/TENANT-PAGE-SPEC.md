@@ -81,6 +81,11 @@ Gerenderte Reihenfolge, fest, nicht verhandelbar:
    Ein Filter mit Mehrfachauswahl (`type: "buttons"`, `multiSelect`) rendert
    als Chip-Reihe, ein Einfachfilter als `SegmentedControl`: eine
    Filterreihe darf nie aussehen wie eine zweite Reiterleiste.
+   **Ausnahme:** Beginnt die Liste weit unter der Kopfkarte, weil andere
+   Flächen davor stehen, steht dieselbe Zeile als `TenantPageListSearch`
+   direkt über der Liste und nicht im Kopf. Einziger Fall: die Aktuelle
+   Aufsicht (#4353), wo Als Nächstes, Kinder unterwegs und der Kopf des
+   Blocks die Suche sonst weit von den Kinderlisten trennen.
 6. **Zustände kommen aus dem Gerüst**: `error`, `loading`, `empty`. Kein
    `return null`, kein freier Spinner, kein „Wird geladen…"-Fließtext, kein
    Fehler-Alert, der nur auf einem Breakpoint sichtbar ist. Alle drei stehen
