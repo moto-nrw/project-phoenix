@@ -2,6 +2,10 @@
 
 import { useEffect } from "react";
 
+import {
+  CollectionGrid,
+  CollectionGridTile,
+} from "~/components/ui/collection-grid";
 import { LoadErrorAlert } from "~/components/ui/form-error-alert";
 import { useApiLoadError } from "~/contexts/ToastContext";
 import { EmptyState } from "~/components/ui/empty-state";
@@ -171,6 +175,24 @@ export function BetreuungsplanHeuteCard({
       ? relevant.slice(-Math.max(rowLimit - 1, 1))
       : relevant.slice(0, Math.max(rowLimit - 1, 1));
   const hidden = relevant.length - shown.length;
+  // Auf der Zeiterfassung reicht die Karte über die volle Breite: eine Liste
+  // ließe bei ein bis vier Einsätzen rechts die halbe Karte leer. Dort stehen
+  // die Einsätze als Raster nebeneinander, je einer in einem Feld (#4363).
+  // Nur als Anzeige: anklickbare Zeilen und die Startseite bleiben Liste.
+  const grid = !onHome && !dense && !href;
+  const rows = shown.map((block) => (
+    <AssignmentRow
+      key={block.instanceId}
+      block={block}
+      href={href}
+      dense={compact}
+      tile={grid}
+      // Der Zustand relativ zur Uhr gehört auf die Startseite, wo die
+      // Karte den Moment trägt. Auf der Zeiterfassung steht der ganze Tag,
+      // und „vorbei" wäre an jedem zweiten Einsatz nur Rauschen.
+      now={onHome && now !== "" ? now : undefined}
+    />
+  ));
 
   return (
     <InfoCard
@@ -194,27 +216,22 @@ export function BetreuungsplanHeuteCard({
           liefe der Baustein aus seiner Karte heraus. Stattdessen stehen so
           viele Einsätze da, wie ganz hineinpassen, und darunter der Rest als
           eine Zeile mit Zahl und Weg. Ohne Höhenvorgabe (Zeiterfassung) steht
-          der ganze Tag da, in der gewohnten zweizeiligen Form. */}
-      <ul
-        className={
-          compact
-            ? "min-h-0 flex-1 space-y-2 overflow-hidden"
-            : "divide-y divide-gray-100"
-        }
-      >
-        {shown.map((block) => (
-          <AssignmentRow
-            key={block.instanceId}
-            block={block}
-            href={href}
-            dense={compact}
-            // Der Zustand relativ zur Uhr gehört auf die Startseite, wo die
-            // Karte den Moment trägt. Auf der Zeiterfassung steht der Tag als
-            // Liste, und „vorbei" wäre an jeder zweiten Zeile nur Rauschen.
-            now={onHome && now !== "" ? now : undefined}
-          />
-        ))}
-      </ul>
+          der ganze Tag da, als Raster über die Kartenbreite. */}
+      {grid ? (
+        <CollectionGrid as="ul" minTileWidth="18rem">
+          {rows}
+        </CollectionGrid>
+      ) : (
+        <ul
+          className={
+            compact
+              ? "min-h-0 flex-1 space-y-2 overflow-hidden"
+              : "divide-y divide-gray-100"
+          }
+        >
+          {rows}
+        </ul>
+      )}
       {hidden > 0 && href && (
         <Link
           href={href}
@@ -233,11 +250,14 @@ function AssignmentRow({
   block,
   href,
   dense,
+  tile = false,
   now,
 }: {
   readonly block: OwnAssignment;
   readonly href?: string;
   readonly dense: boolean;
+  /** Ein Feld im Raster der Zeiterfassung statt einer Listenzeile. */
+  readonly tile?: boolean;
   /** Uhrzeit „HH:MM" für den Zustand der Zeile; ohne Angabe kein Zustand. */
   readonly now?: string;
 }) {
@@ -305,7 +325,7 @@ function AssignmentRow({
           same brand hexes. Abwesend and Unterbesetzt both land on the orange
           tone; they never appear on the same block. */}
       <div
-        className={`flex flex-wrap items-center gap-1.5 ${
+        className={`flex flex-wrap items-center gap-1.5 empty:hidden ${
           dense ? "shrink-0 justify-end" : ""
         }`}
       >
@@ -345,6 +365,14 @@ function AssignmentRow({
       </div>
     </>
   );
+
+  if (tile) {
+    return (
+      <CollectionGridTile className="flex flex-col gap-1">
+        {content}
+      </CollectionGridTile>
+    );
+  }
 
   // Mit Ziel ist die Zeile ein Link und sieht auch so aus; ohne Ziel bleibt
   // sie eine Anzeige — nichts, was sich anfassen lässt, ohne etwas zu tun.
