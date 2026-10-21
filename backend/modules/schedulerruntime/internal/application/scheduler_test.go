@@ -144,7 +144,6 @@ func TestScheduler_StartStop(t *testing.T) {
 	s.getenv = testEnv(
 		"CLEANUP_SCHEDULER_ENABLED", "false",
 		"SESSION_END_SCHEDULER_ENABLED", "false",
-		"SESSION_CLEANUP_ENABLED", "false",
 	)
 
 	// Start should not panic
@@ -192,7 +191,6 @@ func TestScheduler_StartWithTokenCleanupOnly(t *testing.T) {
 		s.getenv = testEnv(
 			"CLEANUP_SCHEDULER_ENABLED", "false",
 			"SESSION_END_SCHEDULER_ENABLED", "false",
-			"SESSION_CLEANUP_ENABLED", "false",
 		)
 		s.Start()
 
@@ -537,7 +535,6 @@ func TestScheduler_DisabledByEnvVars(t *testing.T) {
 		s.getenv = testEnv(
 			"CLEANUP_SCHEDULER_ENABLED", "false",
 			"SESSION_END_SCHEDULER_ENABLED", "false",
-			"SESSION_CLEANUP_ENABLED", "false",
 			"STATUS_FLAG_CLEAR_ENABLED", "false",
 		)
 		s.Start()
@@ -585,292 +582,6 @@ func TestInvitationCleaner_InterfaceCompliance(t *testing.T) {
 // management, and scheduler lifecycle.
 // =============================================================================
 
-func TestScheduleCleanupTask_InvalidTimeFormat(t *testing.T) {
-	t.Parallel()
-	synctest.Test(t, func(t *testing.T) {
-		s := unitScheduler(&unitSchedulerDependencies{
-			tasks: make(map[string]*ScheduledTask),
-			done:  make(chan struct{})})
-		s.getenv = testEnv("CLEANUP_SCHEDULER_ENABLED", "true", "CLEANUP_SCHEDULER_TIME", "invalid")
-
-		// Schedule cleanup task with invalid time
-		s.scheduleCleanupTask()
-
-		// Wait for goroutines to be durably blocked (fake time makes sleeps instant)
-		synctest.Wait()
-
-		// Task should be registered even with invalid time (will fail silently in goroutine)
-		s.mu.RLock()
-		_, hasTask := s.tasks["visit-cleanup"]
-		s.mu.RUnlock()
-		assert.True(t, hasTask)
-
-		// Stop scheduler
-		close(s.done)
-		s.wg.Wait()
-	})
-}
-
-func TestScheduleCleanupTask_InvalidHour(t *testing.T) {
-	t.Parallel()
-	synctest.Test(t, func(t *testing.T) {
-		s := unitScheduler(&unitSchedulerDependencies{
-			tasks: make(map[string]*ScheduledTask),
-			done:  make(chan struct{})})
-		s.getenv = testEnv("CLEANUP_SCHEDULER_ENABLED", "true", "CLEANUP_SCHEDULER_TIME", "25:00")
-
-		// Schedule cleanup task with invalid hour
-		s.scheduleCleanupTask()
-
-		// Wait for goroutines to be durably blocked (fake time makes sleeps instant)
-		synctest.Wait()
-
-		// Stop scheduler
-		close(s.done)
-		s.wg.Wait()
-	})
-}
-
-func TestScheduleCleanupTask_InvalidMinute(t *testing.T) {
-	t.Parallel()
-	synctest.Test(t, func(t *testing.T) {
-		s := unitScheduler(&unitSchedulerDependencies{
-			tasks: make(map[string]*ScheduledTask),
-			done:  make(chan struct{})})
-		s.getenv = testEnv("CLEANUP_SCHEDULER_ENABLED", "true", "CLEANUP_SCHEDULER_TIME", "02:99")
-
-		// Schedule cleanup task with invalid minute
-		s.scheduleCleanupTask()
-
-		// Wait for goroutines to be durably blocked (fake time makes sleeps instant)
-		synctest.Wait()
-
-		// Stop scheduler
-		close(s.done)
-		s.wg.Wait()
-	})
-}
-
-func TestScheduleCleanupTask_NonNumericHour(t *testing.T) {
-	t.Parallel()
-	synctest.Test(t, func(t *testing.T) {
-		s := unitScheduler(&unitSchedulerDependencies{
-			tasks: make(map[string]*ScheduledTask),
-			done:  make(chan struct{})})
-		s.getenv = testEnv("CLEANUP_SCHEDULER_ENABLED", "true", "CLEANUP_SCHEDULER_TIME", "aa:00")
-
-		// Schedule cleanup task with non-numeric hour
-		s.scheduleCleanupTask()
-
-		// Wait for goroutines to be durably blocked (fake time makes sleeps instant)
-		synctest.Wait()
-
-		// Stop scheduler
-		close(s.done)
-		s.wg.Wait()
-	})
-}
-
-func TestScheduleCleanupTask_NonNumericMinute(t *testing.T) {
-	t.Parallel()
-	synctest.Test(t, func(t *testing.T) {
-		s := unitScheduler(&unitSchedulerDependencies{
-			tasks: make(map[string]*ScheduledTask),
-			done:  make(chan struct{})})
-		s.getenv = testEnv("CLEANUP_SCHEDULER_ENABLED", "true", "CLEANUP_SCHEDULER_TIME", "02:bb")
-
-		// Schedule cleanup task with non-numeric minute
-		s.scheduleCleanupTask()
-
-		// Wait for goroutines to be durably blocked (fake time makes sleeps instant)
-		synctest.Wait()
-
-		// Stop scheduler
-		close(s.done)
-		s.wg.Wait()
-	})
-}
-
-func TestScheduleCleanupTask_NegativeHour(t *testing.T) {
-	t.Parallel()
-	synctest.Test(t, func(t *testing.T) {
-		s := unitScheduler(&unitSchedulerDependencies{
-			tasks: make(map[string]*ScheduledTask),
-			done:  make(chan struct{})})
-		s.getenv = testEnv("CLEANUP_SCHEDULER_ENABLED", "true", "CLEANUP_SCHEDULER_TIME", "-1:00")
-
-		// Schedule cleanup task with negative hour
-		s.scheduleCleanupTask()
-
-		// Wait for goroutines to be durably blocked (fake time makes sleeps instant)
-		synctest.Wait()
-
-		// Stop scheduler
-		close(s.done)
-		s.wg.Wait()
-	})
-}
-
-func TestScheduleCleanupTask_NegativeMinute(t *testing.T) {
-	t.Parallel()
-	synctest.Test(t, func(t *testing.T) {
-		s := unitScheduler(&unitSchedulerDependencies{
-			tasks: make(map[string]*ScheduledTask),
-			done:  make(chan struct{})})
-		s.getenv = testEnv("CLEANUP_SCHEDULER_ENABLED", "true", "CLEANUP_SCHEDULER_TIME", "02:-5")
-
-		// Schedule cleanup task with negative minute
-		s.scheduleCleanupTask()
-
-		// Wait for goroutines to be durably blocked (fake time makes sleeps instant)
-		synctest.Wait()
-
-		// Stop scheduler
-		close(s.done)
-		s.wg.Wait()
-	})
-}
-
-func TestScheduleSessionEndTask_InvalidTimeFormat(t *testing.T) {
-	t.Parallel()
-	synctest.Test(t, func(t *testing.T) {
-		s := unitScheduler(&unitSchedulerDependencies{
-			tasks: make(map[string]*ScheduledTask),
-			done:  make(chan struct{})})
-		s.getenv = testEnv("SESSION_END_SCHEDULER_ENABLED", "true", "SESSION_END_TIME", "invalid")
-
-		// Schedule session end task with invalid time
-		s.scheduleSessionEndTask()
-
-		// Wait for goroutines to be durably blocked (fake time makes sleeps instant)
-		synctest.Wait()
-
-		// Stop scheduler
-		close(s.done)
-		s.wg.Wait()
-	})
-}
-
-func TestScheduleSessionEndTask_InvalidHour(t *testing.T) {
-	t.Parallel()
-	synctest.Test(t, func(t *testing.T) {
-		s := unitScheduler(&unitSchedulerDependencies{
-			tasks: make(map[string]*ScheduledTask),
-			done:  make(chan struct{})})
-		s.getenv = testEnv("SESSION_END_SCHEDULER_ENABLED", "true", "SESSION_END_TIME", "30:00")
-
-		// Schedule session end task with invalid hour
-		s.scheduleSessionEndTask()
-
-		// Wait for goroutines to be durably blocked (fake time makes sleeps instant)
-		synctest.Wait()
-
-		// Stop scheduler
-		close(s.done)
-		s.wg.Wait()
-	})
-}
-
-func TestScheduleSessionEndTask_InvalidMinute(t *testing.T) {
-	t.Parallel()
-	synctest.Test(t, func(t *testing.T) {
-		s := unitScheduler(&unitSchedulerDependencies{
-			tasks: make(map[string]*ScheduledTask),
-			done:  make(chan struct{})})
-		s.getenv = testEnv("SESSION_END_SCHEDULER_ENABLED", "true", "SESSION_END_TIME", "18:99")
-
-		// Schedule session end task with invalid minute
-		s.scheduleSessionEndTask()
-
-		// Wait for goroutines to be durably blocked (fake time makes sleeps instant)
-		synctest.Wait()
-
-		// Stop scheduler
-		close(s.done)
-		s.wg.Wait()
-	})
-}
-
-func TestScheduleSessionEndTask_NonNumericHour(t *testing.T) {
-	t.Parallel()
-	synctest.Test(t, func(t *testing.T) {
-		s := unitScheduler(&unitSchedulerDependencies{
-			tasks: make(map[string]*ScheduledTask),
-			done:  make(chan struct{})})
-		s.getenv = testEnv("SESSION_END_SCHEDULER_ENABLED", "true", "SESSION_END_TIME", "xx:00")
-
-		// Schedule session end task with non-numeric hour
-		s.scheduleSessionEndTask()
-
-		// Wait for goroutines to be durably blocked (fake time makes sleeps instant)
-		synctest.Wait()
-
-		// Stop scheduler
-		close(s.done)
-		s.wg.Wait()
-	})
-}
-
-func TestScheduleSessionEndTask_NonNumericMinute(t *testing.T) {
-	t.Parallel()
-	synctest.Test(t, func(t *testing.T) {
-		s := unitScheduler(&unitSchedulerDependencies{
-			tasks: make(map[string]*ScheduledTask),
-			done:  make(chan struct{})})
-		s.getenv = testEnv("SESSION_END_SCHEDULER_ENABLED", "true", "SESSION_END_TIME", "18:yy")
-
-		// Schedule session end task with non-numeric minute
-		s.scheduleSessionEndTask()
-
-		// Wait for goroutines to be durably blocked (fake time makes sleeps instant)
-		synctest.Wait()
-
-		// Stop scheduler
-		close(s.done)
-		s.wg.Wait()
-	})
-}
-
-func TestScheduleSessionEndTask_NegativeHour(t *testing.T) {
-	t.Parallel()
-	synctest.Test(t, func(t *testing.T) {
-		s := unitScheduler(&unitSchedulerDependencies{
-			tasks: make(map[string]*ScheduledTask),
-			done:  make(chan struct{})})
-		s.getenv = testEnv("SESSION_END_SCHEDULER_ENABLED", "true", "SESSION_END_TIME", "-2:00")
-
-		// Schedule session end task with negative hour
-		s.scheduleSessionEndTask()
-
-		// Wait for goroutines to be durably blocked (fake time makes sleeps instant)
-		synctest.Wait()
-
-		// Stop scheduler
-		close(s.done)
-		s.wg.Wait()
-	})
-}
-
-func TestScheduleSessionEndTask_NegativeMinute(t *testing.T) {
-	t.Parallel()
-	synctest.Test(t, func(t *testing.T) {
-		s := unitScheduler(&unitSchedulerDependencies{
-			tasks: make(map[string]*ScheduledTask),
-			done:  make(chan struct{})})
-		s.getenv = testEnv("SESSION_END_SCHEDULER_ENABLED", "true", "SESSION_END_TIME", "18:-3")
-
-		// Schedule session end task with negative minute
-		s.scheduleSessionEndTask()
-
-		// Wait for goroutines to be durably blocked (fake time makes sleeps instant)
-		synctest.Wait()
-
-		// Stop scheduler
-		close(s.done)
-		s.wg.Wait()
-	})
-}
-
 // NOTE: Session cleanup task tests are skipped because they spawn goroutines
 // with a 30-second delay before execution, which makes them flaky when the test
 // suite takes longer than 30 seconds. The configuration parsing logic is covered
@@ -878,21 +589,20 @@ func TestScheduleSessionEndTask_NegativeMinute(t *testing.T) {
 // To fully test session cleanup execution, you would need to inject mock active.Service
 // interfaces which requires significant refactoring of the scheduler package.
 
-func TestScheduleSessionCleanupTask_Disabled(t *testing.T) {
+func TestScheduleSessionCleanupTask_WithoutSettings(t *testing.T) {
 	t.Parallel()
 	s := unitScheduler(&unitSchedulerDependencies{
 		tasks: make(map[string]*ScheduledTask),
 		done:  make(chan struct{})})
-	s.getenv = testEnv("SESSION_CLEANUP_ENABLED", "false")
 
-	// Schedule session cleanup task (should be disabled)
+	// Schedule session cleanup task (no settings resolver: nothing to schedule)
 	s.scheduleSessionCleanupTask()
 
 	// Verify task was NOT created (disabled)
 	s.mu.RLock()
 	_, hasTask := s.tasks["session-cleanup"]
 	s.mu.RUnlock()
-	assert.False(t, hasTask, "Session cleanup task should not be created when disabled")
+	assert.False(t, hasTask, "Session cleanup task should not be created without settings")
 }
 
 // =============================================================================
@@ -1098,8 +808,8 @@ func TestExecuteSessionEndForTenant_CustomTimeout(t *testing.T) {
 
 	s := unitScheduler(&unitSchedulerDependencies{
 		activeService: activeSvc,
-		done:          make(chan struct{})})
-	s.getenv = testEnv("SESSION_END_TIMEOUT_MINUTES", "30")
+		done:          make(chan struct{}),
+		settings:      registrySettings{overrides: map[string]any{settingSessionEndTimeoutMinutes: 30}}})
 
 	ok, err := s.executeSessionEndForTenant(context.Background(), 0)
 	require.NoError(t, err)
@@ -1187,11 +897,12 @@ func TestCheckAndRunSessionCleanup_Success(t *testing.T) {
 
 	s := unitScheduler(&unitSchedulerDependencies{
 		activeService: activeSvc,
-		done:          make(chan struct{})})
+		done:          make(chan struct{}),
+		settings:      sessionCleanupOn()})
 
 	task := &ScheduledTask{Name: "session-cleanup"}
 
-	// Run session cleanup (threshold falls back to the 60-minute default)
+	// Run session cleanup (threshold is the 60-minute registry default)
 	s.checkAndRunSessionCleanup(context.Background(), task)
 
 	// Verify service was called
@@ -1215,15 +926,18 @@ func TestCheckAndRunSessionCleanup_NoAbandoned(t *testing.T) {
 
 	s := unitScheduler(&unitSchedulerDependencies{
 		activeService: activeSvc,
-		done:          make(chan struct{})})
-	s.getenv = testEnv("SESSION_ABANDONED_THRESHOLD_MINUTES", "30")
+		done:          make(chan struct{}),
+		settings: registrySettings{
+			overrides: map[string]any{settingSessionCleanupEnabled: true, settingSessionAbandonedThresholdMin: 30},
+			defaults:  map[string]any{settingSessionCleanupIntervalMinutes: 15},
+		}})
 
 	task := &ScheduledTask{Name: "session-cleanup"}
 
 	// Run session cleanup
 	s.checkAndRunSessionCleanup(context.Background(), task)
 
-	// Verify service was called with the env-configured threshold
+	// Verify service was called with the school's threshold
 	activeSvc.mu.Lock()
 	assert.Equal(t, 1, activeSvc.cleanupAbandonedCalls)
 	assert.Equal(t, 30*time.Minute, activeSvc.cleanupAbandonedDuration)
@@ -1239,7 +953,8 @@ func TestCheckAndRunSessionCleanup_Error(t *testing.T) {
 
 	s := unitScheduler(&unitSchedulerDependencies{
 		activeService: activeSvc,
-		done:          make(chan struct{})})
+		done:          make(chan struct{}),
+		settings:      sessionCleanupOn()})
 
 	task := &ScheduledTask{Name: "session-cleanup"}
 
@@ -1282,7 +997,7 @@ func TestScheduleCleanupTask_CustomTime(t *testing.T) {
 		s := unitScheduler(&unitSchedulerDependencies{
 			tasks: make(map[string]*ScheduledTask),
 			done:  make(chan struct{})})
-		s.getenv = testEnv("CLEANUP_SCHEDULER_ENABLED", "true", "CLEANUP_SCHEDULER_TIME", "03:30")
+		s.getenv = testEnv("CLEANUP_SCHEDULER_ENABLED", "true")
 
 		// Schedule cleanup task
 		s.scheduleCleanupTask()
@@ -1310,7 +1025,7 @@ func TestScheduleSessionEndTask_CustomTime(t *testing.T) {
 		s := unitScheduler(&unitSchedulerDependencies{
 			tasks: make(map[string]*ScheduledTask),
 			done:  make(chan struct{})})
-		s.getenv = testEnv("SESSION_END_SCHEDULER_ENABLED", "true", "SESSION_END_TIME", "17:00")
+		s.getenv = testEnv("SESSION_END_SCHEDULER_ENABLED", "true")
 
 		// Schedule session end task
 		s.scheduleSessionEndTask()
@@ -1357,15 +1072,16 @@ func TestScheduleSessionEndTask_DefaultEnabled(t *testing.T) {
 	})
 }
 
-func TestScheduleSessionCleanupTask_DefaultEnabled(t *testing.T) {
+func TestScheduleSessionCleanupTask_RegistersWithSettings(t *testing.T) {
 	t.Parallel()
 	synctest.Test(t, func(t *testing.T) {
 		s := unitScheduler(&unitSchedulerDependencies{
 			activeService: &mockActiveService{},
 			tasks:         make(map[string]*ScheduledTask),
-			done:          make(chan struct{})})
+			done:          make(chan struct{}),
+			settings:      registrySettings{}})
 
-		// Schedule session cleanup task (should be enabled by default)
+		// Schedule session cleanup task (per-school switch is checked per tick)
 		s.scheduleSessionCleanupTask()
 
 		// Wait for goroutines to be durably blocked (fake time makes sleeps instant)
@@ -1375,7 +1091,7 @@ func TestScheduleSessionCleanupTask_DefaultEnabled(t *testing.T) {
 		s.mu.RLock()
 		_, hasTask := s.tasks["session-cleanup"]
 		s.mu.RUnlock()
-		assert.True(t, hasTask, "Session cleanup should be enabled by default")
+		assert.True(t, hasTask, "Session cleanup should be registered when settings are wired")
 
 		// Stop scheduler
 		close(s.done)
@@ -1451,9 +1167,9 @@ func TestRunCleanupTask_ExecutesOnSchedule(t *testing.T) {
 			tasks:          make(map[string]*ScheduledTask),
 			done:           make(chan struct{}),
 			settings: &fakeSettingsResolver{
-				boolValues: map[string]bool{settingDataCleanupEnabled: true},
+				boolValues:   map[string]bool{settingDataCleanupEnabled: true},
+				stringValues: map[string]string{settingDataCleanupTime: "02:00"},
 			}})
-		s.getenv = testEnv("CLEANUP_SCHEDULER_TIME", "02:00")
 
 		// Schedule cleanup task (spawns goroutine)
 		// Task is scheduled for 02:00, and synctest starts at 01:00:00
@@ -1488,7 +1204,7 @@ func TestRunCleanupTask_StopsOnDone(t *testing.T) {
 			cleanupService: cleanupSvc,
 			tasks:          make(map[string]*ScheduledTask),
 			done:           make(chan struct{})})
-		s.getenv = testEnv("CLEANUP_SCHEDULER_ENABLED", "true", "CLEANUP_SCHEDULER_TIME", "02:00")
+		s.getenv = testEnv("CLEANUP_SCHEDULER_ENABLED", "true")
 
 		// Schedule cleanup task
 		s.scheduleCleanupTask()
@@ -1527,8 +1243,8 @@ func TestRunSessionEndTask_ExecutesOnSchedule(t *testing.T) {
 		s := unitScheduler(&unitSchedulerDependencies{
 			activeService: activeSvc,
 			tasks:         make(map[string]*ScheduledTask),
-			done:          make(chan struct{})})
-		s.getenv = testEnv("SESSION_END_TIME", "18:00")
+			done:          make(chan struct{}),
+			settings:      registrySettings{defaults: map[string]any{settingSessionEndEnabled: true, settingSessionEndTime: "18:00"}}})
 
 		// Schedule session end task
 		// Task is scheduled for 18:00, and synctest starts at 01:00:00
@@ -1562,8 +1278,8 @@ func TestRunSessionEndTask_StopsOnDone(t *testing.T) {
 		s := unitScheduler(&unitSchedulerDependencies{
 			activeService: activeSvc,
 			tasks:         make(map[string]*ScheduledTask),
-			done:          make(chan struct{})})
-		s.getenv = testEnv("SESSION_END_TIME", "18:00")
+			done:          make(chan struct{}),
+			settings:      registrySettings{defaults: map[string]any{settingSessionEndEnabled: true, settingSessionEndTime: "18:00"}}})
 
 		// Schedule session end task
 		s.scheduleSessionEndTask()
@@ -1597,7 +1313,8 @@ func TestRunSessionCleanupTask_ExecutesAfterDelay(t *testing.T) {
 		s := unitScheduler(&unitSchedulerDependencies{
 			activeService: activeSvc,
 			tasks:         make(map[string]*ScheduledTask),
-			done:          make(chan struct{})})
+			done:          make(chan struct{}),
+			settings:      sessionCleanupOn()})
 
 		// Schedule session cleanup task (has 30-second initial delay)
 		s.scheduleSessionCleanupTask()
@@ -1695,7 +1412,8 @@ func TestRunSessionCleanupTask_StopsOnDoneAfterSleep(t *testing.T) {
 		s := unitScheduler(&unitSchedulerDependencies{
 			activeService: activeSvc,
 			tasks:         make(map[string]*ScheduledTask),
-			done:          make(chan struct{})})
+			done:          make(chan struct{}),
+			settings:      sessionCleanupOn()})
 
 		// Schedule session cleanup task (has 30-second initial delay, then runs every 15 min by default)
 		s.scheduleSessionCleanupTask()
@@ -1907,6 +1625,9 @@ func TestTimeMatchesNow(t *testing.T) {
 	assert.False(t, timeMatchesNow("invalid"))
 	assert.False(t, timeMatchesNow("25:00"))
 	assert.False(t, timeMatchesNow("12:60"))
+	for _, invalid := range []string{"aa:00", "02:bb", "-1:00", "02:-5", "18:99", "xx:00", "18:yy"} {
+		assert.False(t, timeMatchesNow(invalid), invalid)
+	}
 }
 
 func TestWasRunToday_NotRun(t *testing.T) {
@@ -1957,7 +1678,7 @@ func TestResolveStringSetting_NoSettings(t *testing.T) {
 	t.Parallel()
 
 	s := unitScheduler(&unitSchedulerDependencies{logger: slog.Default()})
-	val := s.resolveStringSetting(context.Background(), "key", "NONEXISTENT_ENV", "fallback")
+	val := s.resolveStringSetting(context.Background(), "key", "fallback")
 	assert.Equal(t, "fallback", val)
 }
 
@@ -1965,7 +1686,7 @@ func TestResolveBoolSetting_NoSettings(t *testing.T) {
 	t.Parallel()
 
 	s := unitScheduler(&unitSchedulerDependencies{logger: slog.Default()})
-	val := s.resolveBoolSetting(context.Background(), "key", "NONEXISTENT_ENV", true)
+	val := s.resolveBoolSetting(context.Background(), "key", true)
 	assert.True(t, val)
 }
 
@@ -1973,48 +1694,131 @@ func TestResolveIntSetting_NoSettings(t *testing.T) {
 	t.Parallel()
 
 	s := unitScheduler(&unitSchedulerDependencies{logger: slog.Default()})
-	val := s.resolveIntSetting(context.Background(), "key", "NONEXISTENT_ENV", 42)
+	val := s.resolveIntSetting(context.Background(), "key", 42)
 	assert.Equal(t, 42, val)
 }
 
-func TestResolveStringSetting_FromEnv(t *testing.T) {
-	t.Parallel()
-	s := unitScheduler(&unitSchedulerDependencies{logger: slog.Default()})
-	s.getenv = testEnv("TEST_RESOLVE_STR", "from_env")
-	val := s.resolveStringSetting(context.Background(), "key", "TEST_RESOLVE_STR", "default")
-	assert.Equal(t, "from_env", val)
+// registrySettings answers like the Settings Platform: a school's override,
+// else the registry default (#4437).
+type registrySettings struct {
+	overrides map[string]any
+	defaults  map[string]any
 }
 
-func TestResolveBoolSetting_FromEnv(t *testing.T) {
-	t.Parallel()
-	s := unitScheduler(&unitSchedulerDependencies{logger: slog.Default()})
-	s.getenv = testEnv("TEST_RESOLVE_BOOL", "true")
-	val := s.resolveBoolSetting(context.Background(), "key", "TEST_RESOLVE_BOOL", false)
-	assert.True(t, val)
+func (r registrySettings) value(key string) any {
+	if v, ok := r.overrides[key]; ok {
+		return v
+	}
+	return r.defaults[key]
 }
 
-func TestResolveIntSetting_FromEnv(t *testing.T) {
-	t.Parallel()
-	s := unitScheduler(&unitSchedulerDependencies{logger: slog.Default()})
-	s.getenv = testEnv("TEST_RESOLVE_INT", "99")
-	val := s.resolveIntSetting(context.Background(), "key", "TEST_RESOLVE_INT", 10)
-	assert.Equal(t, 99, val)
+func (r registrySettings) ResolveString(_ context.Context, key string) (string, error) {
+	v, _ := r.value(key).(string)
+	return v, nil
+}
+func (r registrySettings) ResolveBool(_ context.Context, key string) (bool, error) {
+	v, _ := r.value(key).(bool)
+	return v, nil
+}
+func (r registrySettings) ResolveInt(_ context.Context, key string) (int, error) {
+	v, _ := r.value(key).(int)
+	return v, nil
 }
 
-func TestResolveIntSetting_InvalidEnv(t *testing.T) {
-	t.Parallel()
-	s := unitScheduler(&unitSchedulerDependencies{logger: slog.Default()})
-	s.getenv = testEnv("TEST_RESOLVE_INT_BAD", "notanumber")
-	val := s.resolveIntSetting(context.Background(), "key", "TEST_RESOLVE_INT_BAD", 10)
-	assert.Equal(t, 10, val)
+// sessionCleanupOn is a school that switched the abandoned-session cleanup on;
+// the registry default is off.
+func sessionCleanupOn() registrySettings {
+	return registrySettings{
+		overrides: map[string]any{settingSessionCleanupEnabled: true},
+		defaults:  map[string]any{settingSessionCleanupIntervalMinutes: 15, settingSessionAbandonedThresholdMin: 60},
+	}
 }
 
-func TestResolveIntSetting_NegativeEnv(t *testing.T) {
+// envEverywhere answers a value for every variable, so a resolver that still
+// consulted the environment would pick it up.
+func envEverywhere(value string) func(string) string {
+	return func(string) string { return value }
+}
+
+func TestResolveSettings_OverrideWins(t *testing.T) {
 	t.Parallel()
-	s := unitScheduler(&unitSchedulerDependencies{logger: slog.Default()})
-	s.getenv = testEnv("TEST_RESOLVE_INT_NEGATIVE", "-5")
-	val := s.resolveIntSetting(context.Background(), "key", "TEST_RESOLVE_INT_NEGATIVE", 15)
-	assert.Equal(t, 15, val)
+	s := unitScheduler(&unitSchedulerDependencies{
+		settings: registrySettings{
+			overrides: map[string]any{settingSessionEndTime: "16:30", settingSessionEndTimeoutMinutes: 20, settingSessionCleanupEnabled: true, settingTrackingAutoCheckoutGraceMinutes: 0, settingDataCleanupTimeoutMinutes: 45},
+			defaults:  map[string]any{settingSessionEndTime: "18:00", settingSessionEndTimeoutMinutes: 10, settingSessionCleanupEnabled: false, settingTrackingAutoCheckoutGraceMinutes: 15, settingDataCleanupTimeoutMinutes: 30},
+		},
+		logger: slog.Default()})
+	ctx := context.Background()
+
+	assert.Equal(t, "16:30", s.resolveStringSetting(ctx, settingSessionEndTime, "18:00"))
+	assert.Equal(t, 20, s.resolveIntSetting(ctx, settingSessionEndTimeoutMinutes, 10))
+	assert.True(t, s.resolveBoolSetting(ctx, settingSessionCleanupEnabled, false))
+	assert.Equal(t, 0, s.resolveNonNegativeIntSetting(ctx, settingTrackingAutoCheckoutGraceMinutes, 15))
+	timeout, err := s.resolveRequiredPositiveIntSetting(ctx, settingDataCleanupTimeoutMinutes)
+	require.NoError(t, err)
+	assert.Equal(t, 45, timeout)
+}
+
+func TestResolveSettings_OverrideEqualToDefaultWins(t *testing.T) {
+	t.Parallel()
+	s := unitScheduler(&unitSchedulerDependencies{
+		settings: registrySettings{
+			overrides: map[string]any{settingSessionEndTime: "18:00"},
+			defaults:  map[string]any{settingSessionEndTime: "18:00"},
+		},
+		logger: slog.Default()})
+	s.getenv = envEverywhere("17:00")
+
+	assert.Equal(t, "18:00", s.resolveStringSetting(context.Background(), settingSessionEndTime, "16:00"))
+}
+
+func TestResolveSettings_WithoutOverrideUseRegistryDefault(t *testing.T) {
+	t.Parallel()
+	// The call-site literals differ from the registry on purpose: only a
+	// failed read may answer them.
+	s := unitScheduler(&unitSchedulerDependencies{
+		settings: registrySettings{defaults: map[string]any{
+			settingSessionEndTime:                   "18:00",
+			settingSessionEndTimeoutMinutes:         10,
+			settingSessionCleanupEnabled:            false,
+			settingTrackingAutoCheckoutGraceMinutes: 15,
+			settingDataCleanupTimeoutMinutes:        30,
+		}},
+		logger: slog.Default()})
+	ctx := context.Background()
+
+	assert.Equal(t, "18:00", s.resolveStringSetting(ctx, settingSessionEndTime, "17:00"))
+	assert.Equal(t, 10, s.resolveIntSetting(ctx, settingSessionEndTimeoutMinutes, 99))
+	assert.False(t, s.resolveBoolSetting(ctx, settingSessionCleanupEnabled, true))
+	assert.Equal(t, 15, s.resolveNonNegativeIntSetting(ctx, settingTrackingAutoCheckoutGraceMinutes, 7))
+	timeout, err := s.resolveRequiredPositiveIntSetting(ctx, settingDataCleanupTimeoutMinutes)
+	require.NoError(t, err)
+	assert.Equal(t, 30, timeout)
+}
+
+func TestResolveSettings_IgnoreEnvironment(t *testing.T) {
+	t.Parallel()
+	s := unitScheduler(&unitSchedulerDependencies{
+		settings: registrySettings{defaults: map[string]any{
+			settingSessionEndTime:                   "18:00",
+			settingSessionEndTimeoutMinutes:         10,
+			settingSessionCleanupEnabled:            false,
+			settingTrackingAutoCheckoutGraceMinutes: 15,
+			settingDataCleanupTimeoutMinutes:        30,
+		}},
+		logger: slog.Default()})
+	ctx := context.Background()
+
+	s.getenv = envEverywhere("17:00")
+	assert.Equal(t, "18:00", s.resolveStringSetting(ctx, settingSessionEndTime, "18:00"))
+	s.getenv = envEverywhere("true")
+	assert.False(t, s.resolveBoolSetting(ctx, settingSessionCleanupEnabled, false))
+	s.getenv = envEverywhere("99")
+	assert.Equal(t, 10, s.resolveIntSetting(ctx, settingSessionEndTimeoutMinutes, 10))
+	assert.Equal(t, 15, s.resolveNonNegativeIntSetting(ctx, settingTrackingAutoCheckoutGraceMinutes, 15))
+	timeout, err := s.resolveRequiredPositiveIntSetting(ctx, settingDataCleanupTimeoutMinutes)
+	require.NoError(t, err)
+	assert.Equal(t, 30, timeout)
 }
 
 func TestScheduleBreakAutoEndTask_NilBreakAutoEnder(t *testing.T) {

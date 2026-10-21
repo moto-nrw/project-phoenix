@@ -155,13 +155,12 @@ type FileStoreCleaner interface {
 	CleanupOrphanedFiles(ctx context.Context) (int, error)
 }
 
-// SettingsResolver resolves setting values per tenant. The root binds the
-// Settings Platform service.
+// SettingsResolver resolves setting values per tenant: the school's override,
+// else the registry default. The root binds the Settings Platform service.
 type SettingsResolver interface {
 	ResolveString(ctx context.Context, key string) (string, error)
 	ResolveBool(ctx context.Context, key string) (bool, error)
 	ResolveInt(ctx context.Context, key string) (int, error)
-	HasTenantOverride(ctx context.Context, key string) (bool, error)
 }
 
 // OutboxWorkerRunner is the narrow contract the scheduler needs from the

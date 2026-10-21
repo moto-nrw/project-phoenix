@@ -79,7 +79,7 @@ The backend has TWO env var access patterns with different behavior:
 | `viper.GetString("key")` | Yes (via AutomaticEnv) | Yes (via config file) |
 | `os.Getenv("KEY")` | Yes | **NO** (not an OS env var) |
 
-**Code using `os.Getenv()` directly**: migrations (`OPERATOR_*`, `ADMIN_*`), scheduler (`CLEANUP_*`, `SESSION_*`), CORS, rate limiting, device auth.
+**Code using `os.Getenv()` directly**: migrations (`OPERATOR_*`, `ADMIN_*`), scheduler process switches (`CLEANUP_SCHEDULER_ENABLED`, `SESSION_END_SCHEDULER_ENABLED`, `STATUS_FLAG_CLEAR_ENABLED`, `BREAK_AUTO_END_INTERVAL_SECONDS`), CORS, rate limiting, device auth.
 
 **Consequence**: Any var consumed by `os.Getenv()` **MUST** be in the `docker-compose.yml` `environment:` block to work in Docker. Having it only in `backend/dev.env` is insufficient.
 

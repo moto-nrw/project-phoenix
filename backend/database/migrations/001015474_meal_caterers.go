@@ -9,7 +9,7 @@ import (
 )
 
 const (
-	mealCaterersVersion     = "1.15.473"
+	mealCaterersVersion     = "1.15.474"
 	mealCaterersDescription = "Caterer: Betrieb, Konten, Einladung durch die Schule und Belieferung einer Schule (#3873, ADR 0075)"
 )
 
