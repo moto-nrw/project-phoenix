@@ -368,9 +368,10 @@ func ascendingUniqueIDs(ids []int64) []int64 {
 // removeUnwantedEnrollmentsInTx removes students that are no longer enrolled,
 // except the ones the caller could not have seen (preserved).
 func (s *ActivityService) removeUnwantedEnrollmentsInTx(ctx context.Context, txService activityContract.ActivityService, currentStudentIDs map[int64]int64, newStudentIDs, preserved map[int64]bool) error {
+	txActivities := txService.(*ActivityService)
 	for studentID, enrollmentID := range currentStudentIDs {
 		if !newStudentIDs[studentID] && !preserved[studentID] {
-			if err := deleteLegacyStudentEnrollment(ctx, txService.(*ActivityService).timetable, enrollmentID); err != nil {
+			if err := deleteLegacyStudentEnrollment(ctx, txActivities.timetable, enrollmentID); err != nil {
 				return &activityContract.ActivityError{Op: "delete enrollment", Err: err}
 			}
 		}
@@ -380,6 +381,7 @@ func (s *ActivityService) removeUnwantedEnrollmentsInTx(ctx context.Context, txS
 
 // addNewEnrollmentsInTx adds new student enrollments
 func (s *ActivityService) addNewEnrollmentsInTx(ctx context.Context, txService activityContract.ActivityService, groupID int64, currentStudentIDs map[int64]int64, studentIDs []int64) error {
+	txActivities := txService.(*ActivityService)
 	for _, studentID := range studentIDs {
 		if _, exists := currentStudentIDs[studentID]; !exists {
 			enrollment := &activityContract.StudentEnrollment{
@@ -387,7 +389,7 @@ func (s *ActivityService) addNewEnrollmentsInTx(ctx context.Context, txService a
 				ActivityGroupID: groupID,
 				ValidFrom:       activityContract.Date(calendar.TodayDate()),
 			}
-			if err := createLegacyStudentEnrollment(ctx, txService.(*ActivityService).timetable, enrollment); err != nil {
+			if err := createLegacyStudentEnrollment(ctx, txActivities.timetable, enrollment); err != nil {
 				return &activityContract.ActivityError{Op: "create enrollment", Err: err}
 			}
 		}

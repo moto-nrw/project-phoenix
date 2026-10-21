@@ -162,6 +162,7 @@ func (s *ActivityService) validateAndSetCategory(ctx context.Context, group *act
 
 // createSupervisorsInTx creates supervisors for a group within a transaction
 func (s *ActivityService) createSupervisorsInTx(ctx context.Context, txService activityContract.ActivityService, groupID int64, supervisorIDs []int64) error {
+	txActivities := txService.(*ActivityService)
 	for i, staffID := range supervisorIDs {
 		supervisor := &activityContract.SupervisorPlanned{
 			StaffID:   staffID,
@@ -173,7 +174,7 @@ func (s *ActivityService) createSupervisorsInTx(ctx context.Context, txService a
 			return &activityContract.ActivityError{Op: opValidateSupervisor, Err: err}
 		}
 
-		if err := createLegacyPlannedSupervisor(ctx, txService.(*ActivityService).timetable, supervisor); err != nil {
+		if err := createLegacyPlannedSupervisor(ctx, txActivities.timetable, supervisor); err != nil {
 			return &activityContract.ActivityError{Op: opCreateSupervisor, Err: err}
 		}
 	}

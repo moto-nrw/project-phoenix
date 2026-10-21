@@ -692,6 +692,7 @@ func newTestMaterialization(t *testing.T, db *bun.DB, repos *api.CareScheduleSui
 		ScheduleRepo:   timetableRepos.ActivitySchedule,
 		EnrollmentRepo: timetableRepos.StudentEnrollment,
 		SupervisorRepo: timetableRepos.ActivitySupervisor,
+		Directories:    timetableRepos.Directories,
 		PeriodRepo:     fixtures.IntoCalendarPeriodRecords(fixtures.FromCalendarPeriodRecords(repos.CalendarPeriod)),
 		InstanceRepo:   fixtures.IntoActivityInstanceRecords(fixtures.FromActivityInstanceRecords(timetableRepos.ActivityInstance)),
 		StaffRepo:      fixtures.IntoInstanceStaffRecords(fixtures.FromInstanceStaffRecords(timetableRepos.InstanceStaff)),

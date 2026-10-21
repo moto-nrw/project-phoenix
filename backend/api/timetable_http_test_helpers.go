@@ -106,7 +106,7 @@ func NewTimetableHTTPTestModule(db transactionruntime.Database, options Timetabl
 	if materialization == nil {
 		materialization, err = timetableCompose.NewMaterialization(timetablePorts.MaterializationDependencies{
 			GroupRepo: r.Timetable, ScheduleRepo: r.ActivitySchedule,
-			EnrollmentRepo: r.StudentEnrollment, SupervisorRepo: r.ActivitySupervisor,
+			EnrollmentRepo: r.StudentEnrollment, SupervisorRepo: r.ActivitySupervisor, Directories: r.Directories,
 			PeriodRepo: r.CalendarPeriod, InstanceRepo: r.ActivityInstance, StaffRepo: r.InstanceStaff,
 			StudentRepo: r.InstanceStudent, ExceptionRepo: r.ActivityException,
 			TimeframeRepo: r.Timeframe, CareBounds: members.Student, RecurrenceLock: lock, Transactions: timetableCompose.NewTenantTransactions(db.Pool()),
@@ -121,6 +121,7 @@ func NewTimetableHTTPTestModule(db transactionruntime.Database, options Timetabl
 		Schedules:            r.ActivitySchedule,
 		Enrollments:          r.StudentEnrollment,
 		Supervisors:          r.ActivitySupervisor,
+		Directories:          r.Directories,
 		Instances:            r.ActivityInstance,
 		InstanceStaff:        r.InstanceStaff,
 		Participants:         r.InstanceStudent,
