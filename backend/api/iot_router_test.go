@@ -33,17 +33,6 @@ func newIoTRouterTestResource() *iotcompose.Resource {
 	}}
 }
 
-func TestIoTRouter_ReturnsRouter(t *testing.T) {
-	t.Parallel()
-
-	// Wire only the dependencies required during route composition.
-	resource := newIoTRouterTestResource()
-
-	router := resource.Router()
-
-	require.NotNil(t, router)
-}
-
 func TestIoTRouter_HasRoutes(t *testing.T) {
 	t.Parallel()
 

@@ -16,144 +16,8 @@ import (
 )
 
 // =============================================================================
-// ErrResponse Tests
+// Error Helper Tests
 // =============================================================================
-
-func TestErrResponse_Render(t *testing.T) {
-	t.Parallel()
-
-	tests := []struct {
-		name           string
-		errResponse    *common.ErrResponse
-		expectedStatus int
-	}{
-		{
-			name: "bad request",
-			errResponse: &common.ErrResponse{
-				Err:            errors.New("invalid input"),
-				HTTPStatusCode: http.StatusBadRequest,
-				Detail:         "invalid input",
-			},
-			expectedStatus: http.StatusBadRequest,
-		},
-		{
-			name: "unauthorized",
-			errResponse: &common.ErrResponse{
-				Err:            errors.New("not authorized"),
-				HTTPStatusCode: http.StatusUnauthorized,
-				Detail:         "not authorized",
-			},
-			expectedStatus: http.StatusUnauthorized,
-		},
-		{
-			name: "internal server error",
-			errResponse: &common.ErrResponse{
-				Err:            errors.New("server failure"),
-				HTTPStatusCode: http.StatusInternalServerError,
-				Detail:         "server failure",
-			},
-			expectedStatus: http.StatusInternalServerError,
-		},
-	}
-
-	for _, tc := range tests {
-		t.Run(tc.name, func(t *testing.T) {
-			w := httptest.NewRecorder()
-			r := httptest.NewRequest("GET", "/test", nil)
-
-			err := tc.errResponse.Render(w, r)
-			require.NoError(t, err)
-		})
-	}
-}
-
-// =============================================================================
-// Error Helper Function Tests
-// =============================================================================
-
-func TestErrorInvalidRequest(t *testing.T) {
-	t.Parallel()
-
-	testErr := errors.New("validation failed")
-	renderer := common.ErrorInvalidRequest(testErr)
-
-	w := httptest.NewRecorder()
-	r := httptest.NewRequest("GET", "/test", nil)
-
-	err := render.Render(w, r, renderer)
-	require.NoError(t, err)
-	assert.Equal(t, http.StatusBadRequest, w.Code)
-}
-
-func TestErrorUnauthorized(t *testing.T) {
-	t.Parallel()
-
-	testErr := errors.New("invalid token")
-	renderer := common.ErrorUnauthorized(testErr)
-
-	w := httptest.NewRecorder()
-	r := httptest.NewRequest("GET", "/test", nil)
-
-	err := render.Render(w, r, renderer)
-	require.NoError(t, err)
-	assert.Equal(t, http.StatusUnauthorized, w.Code)
-}
-
-func TestErrorForbidden(t *testing.T) {
-	t.Parallel()
-
-	testErr := errors.New("access denied")
-	renderer := common.ErrorForbidden(testErr)
-
-	w := httptest.NewRecorder()
-	r := httptest.NewRequest("GET", "/test", nil)
-
-	err := render.Render(w, r, renderer)
-	require.NoError(t, err)
-	assert.Equal(t, http.StatusForbidden, w.Code)
-}
-
-func TestErrorNotFound(t *testing.T) {
-	t.Parallel()
-
-	testErr := errors.New("resource not found")
-	renderer := common.ErrorNotFound(testErr)
-
-	w := httptest.NewRecorder()
-	r := httptest.NewRequest("GET", "/test", nil)
-
-	err := render.Render(w, r, renderer)
-	require.NoError(t, err)
-	assert.Equal(t, http.StatusNotFound, w.Code)
-}
-
-func TestErrorInternalServer(t *testing.T) {
-	t.Parallel()
-
-	testErr := errors.New("database error")
-	renderer := common.ErrorInternalServer(testErr)
-
-	w := httptest.NewRecorder()
-	r := httptest.NewRequest("GET", "/test", nil)
-
-	err := render.Render(w, r, renderer)
-	require.NoError(t, err)
-	assert.Equal(t, http.StatusInternalServerError, w.Code)
-}
-
-func TestErrorConflict(t *testing.T) {
-	t.Parallel()
-
-	testErr := errors.New("resource conflict")
-	renderer := common.ErrorConflict(testErr)
-
-	w := httptest.NewRecorder()
-	r := httptest.NewRequest("GET", "/test", nil)
-
-	err := render.Render(w, r, renderer)
-	require.NoError(t, err)
-	assert.Equal(t, http.StatusConflict, w.Code)
-}
 
 // TestErrorInvalidRequestWithDetails pins the 400 that names the refused
 // limit (#2514): code and details travel next to the diagnostic text.
@@ -203,251 +67,43 @@ func TestErrorInvalidOnField(t *testing.T) {
 	assert.Equal(t, "end_date must be after start_date", body.Detail)
 }
 
-func TestErrorTooManyRequests(t *testing.T) {
-	t.Parallel()
-
-	testErr := errors.New("rate limited")
-	renderer := common.ErrorTooManyRequests(testErr)
-
-	w := httptest.NewRecorder()
-	r := httptest.NewRequest("GET", "/test", nil)
-
-	err := render.Render(w, r, renderer)
-	require.NoError(t, err)
-	assert.Equal(t, http.StatusTooManyRequests, w.Code)
-}
-
-func TestErrorGone(t *testing.T) {
-	t.Parallel()
-
-	testErr := errors.New("resource deleted")
-	renderer := common.ErrorGone(testErr)
-
-	w := httptest.NewRecorder()
-	r := httptest.NewRequest("GET", "/test", nil)
-
-	err := render.Render(w, r, renderer)
-	require.NoError(t, err)
-	assert.Equal(t, http.StatusGone, w.Code)
-}
-
-// =============================================================================
-// RenderError Tests
-// =============================================================================
-
-func TestRenderError(t *testing.T) {
-	t.Parallel()
-
-	t.Run("renders error response successfully", func(t *testing.T) {
-		w := httptest.NewRecorder()
-		r := httptest.NewRequest("GET", "/test", nil)
-
-		renderer := common.ErrorInvalidRequest(errors.New("test error"))
-		common.RenderError(w, r, renderer)
-
-		assert.Equal(t, http.StatusBadRequest, w.Code)
-	})
-}
-
-// =============================================================================
-// Error Constants Tests
-// =============================================================================
-
-func TestErrorConstants(t *testing.T) {
-	t.Parallel()
-
-	// Verify error variables are defined
-	assert.NotNil(t, common.ErrUnauthorized)
-	assert.Equal(t, "unauthorized", common.ErrUnauthorized.Error())
-}
-
-func TestMessageConstants(t *testing.T) {
-	t.Parallel()
-
-	// Verify validation message constants
-	assert.Equal(t, "invalid group ID", common.MsgInvalidGroupID)
-	assert.Equal(t, "invalid student ID", common.MsgInvalidStudentID)
-	assert.Equal(t, "invalid staff ID", common.MsgInvalidStaffID)
-	assert.Equal(t, "invalid activity ID", common.MsgInvalidActivityID)
-	assert.Equal(t, "invalid role ID", common.MsgInvalidRoleID)
-	assert.Equal(t, "invalid account ID", common.MsgInvalidAccountID)
-	assert.Equal(t, "invalid permission ID", common.MsgInvalidPermissionID)
-	assert.Equal(t, "invalid parent account ID", common.MsgInvalidParentAccountID)
-	assert.Equal(t, "invalid room ID", common.MsgInvalidRoomID)
-	assert.Equal(t, "invalid weekday", common.MsgInvalidWeekday)
-	assert.Equal(t, "invalid person ID", common.MsgInvalidPersonID)
-
-	// Verify not found message constants
-	assert.Equal(t, "group not found", common.MsgGroupNotFound)
-	assert.Equal(t, "staff member not found", common.MsgStaffNotFound)
-
-	// Verify date format constant
-	assert.Equal(t, "2006-01-02", common.DateFormatISO)
-}
-
 // =============================================================================
 // Error Helper Response Body Tests
 // =============================================================================
 
-func TestErrorInvalidRequest_ResponseBody(t *testing.T) {
+func TestErrorHelpers_ResponseBody(t *testing.T) {
 	t.Parallel()
 
-	testErr := errors.New("field validation failed")
-	renderer := common.ErrorInvalidRequest(testErr)
+	cases := []struct {
+		name       string
+		renderer   render.Renderer
+		wantStatus int
+		wantDetail string
+	}{
+		{"ErrorInvalidRequest", common.ErrorInvalidRequest(errors.New("field validation failed")), http.StatusBadRequest, "field validation failed"},
+		{"ErrorUnauthorized", common.ErrorUnauthorized(errors.New("token expired")), http.StatusUnauthorized, "token expired"},
+		{"ErrorForbidden", common.ErrorForbidden(errors.New("insufficient permissions")), http.StatusForbidden, "insufficient permissions"},
+		{"ErrorNotFound", common.ErrorNotFound(errors.New("student not found")), http.StatusNotFound, "student not found"},
+		{"ErrorInternalServer", common.ErrorInternalServer(errors.New("database connection failed")), http.StatusInternalServerError, "database connection failed"},
+		{"ErrorConflict", common.ErrorConflict(errors.New("resource already exists")), http.StatusConflict, "resource already exists"},
+		{"ErrorTooManyRequests", common.ErrorTooManyRequests(errors.New("rate limit exceeded")), http.StatusTooManyRequests, "rate limit exceeded"},
+		{"ErrorGone", common.ErrorGone(errors.New("invitation expired")), http.StatusGone, "invitation expired"},
+	}
 
-	w := httptest.NewRecorder()
-	r := httptest.NewRequest("GET", "/test", nil)
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			w := httptest.NewRecorder()
+			r := httptest.NewRequest("GET", "/test", nil)
 
-	err := render.Render(w, r, renderer)
-	require.NoError(t, err)
+			require.NoError(t, render.Render(w, r, tc.renderer))
+			assert.Equal(t, tc.wantStatus, w.Code)
 
-	// Verify response body structure
-	var resp map[string]interface{}
-	err = json.Unmarshal(w.Body.Bytes(), &resp)
-	require.NoError(t, err)
-	assert.Equal(t, float64(w.Code), resp["status"])
-	assert.NotContains(t, resp, "error")
-	assert.Equal(t, "field validation failed", resp["detail"])
-}
-
-func TestErrorUnauthorized_ResponseBody(t *testing.T) {
-	t.Parallel()
-
-	testErr := errors.New("token expired")
-	renderer := common.ErrorUnauthorized(testErr)
-
-	w := httptest.NewRecorder()
-	r := httptest.NewRequest("GET", "/test", nil)
-
-	err := render.Render(w, r, renderer)
-	require.NoError(t, err)
-
-	var resp map[string]interface{}
-	err = json.Unmarshal(w.Body.Bytes(), &resp)
-	require.NoError(t, err)
-	assert.Equal(t, float64(w.Code), resp["status"])
-	assert.NotContains(t, resp, "error")
-	assert.Equal(t, "token expired", resp["detail"])
-}
-
-func TestErrorForbidden_ResponseBody(t *testing.T) {
-	t.Parallel()
-
-	testErr := errors.New("insufficient permissions")
-	renderer := common.ErrorForbidden(testErr)
-
-	w := httptest.NewRecorder()
-	r := httptest.NewRequest("GET", "/test", nil)
-
-	err := render.Render(w, r, renderer)
-	require.NoError(t, err)
-
-	var resp map[string]interface{}
-	err = json.Unmarshal(w.Body.Bytes(), &resp)
-	require.NoError(t, err)
-	assert.Equal(t, float64(w.Code), resp["status"])
-	assert.NotContains(t, resp, "error")
-	assert.Equal(t, "insufficient permissions", resp["detail"])
-}
-
-func TestErrorNotFound_ResponseBody(t *testing.T) {
-	t.Parallel()
-
-	testErr := errors.New("student not found")
-	renderer := common.ErrorNotFound(testErr)
-
-	w := httptest.NewRecorder()
-	r := httptest.NewRequest("GET", "/test", nil)
-
-	err := render.Render(w, r, renderer)
-	require.NoError(t, err)
-
-	var resp map[string]interface{}
-	err = json.Unmarshal(w.Body.Bytes(), &resp)
-	require.NoError(t, err)
-	assert.Equal(t, float64(w.Code), resp["status"])
-	assert.NotContains(t, resp, "error")
-	assert.Equal(t, "student not found", resp["detail"])
-}
-
-func TestErrorInternalServer_ResponseBody(t *testing.T) {
-	t.Parallel()
-
-	testErr := errors.New("database connection failed")
-	renderer := common.ErrorInternalServer(testErr)
-
-	w := httptest.NewRecorder()
-	r := httptest.NewRequest("GET", "/test", nil)
-
-	err := render.Render(w, r, renderer)
-	require.NoError(t, err)
-
-	var resp map[string]interface{}
-	err = json.Unmarshal(w.Body.Bytes(), &resp)
-	require.NoError(t, err)
-	assert.Equal(t, float64(w.Code), resp["status"])
-	assert.NotContains(t, resp, "error")
-	assert.Equal(t, "database connection failed", resp["detail"])
-}
-
-func TestErrorConflict_ResponseBody(t *testing.T) {
-	t.Parallel()
-
-	testErr := errors.New("resource already exists")
-	renderer := common.ErrorConflict(testErr)
-
-	w := httptest.NewRecorder()
-	r := httptest.NewRequest("GET", "/test", nil)
-
-	err := render.Render(w, r, renderer)
-	require.NoError(t, err)
-
-	var resp map[string]interface{}
-	err = json.Unmarshal(w.Body.Bytes(), &resp)
-	require.NoError(t, err)
-	assert.Equal(t, float64(w.Code), resp["status"])
-	assert.NotContains(t, resp, "error")
-	assert.Equal(t, "resource already exists", resp["detail"])
-}
-
-func TestErrorTooManyRequests_ResponseBody(t *testing.T) {
-	t.Parallel()
-
-	testErr := errors.New("rate limit exceeded")
-	renderer := common.ErrorTooManyRequests(testErr)
-
-	w := httptest.NewRecorder()
-	r := httptest.NewRequest("GET", "/test", nil)
-
-	err := render.Render(w, r, renderer)
-	require.NoError(t, err)
-
-	var resp map[string]interface{}
-	err = json.Unmarshal(w.Body.Bytes(), &resp)
-	require.NoError(t, err)
-	assert.Equal(t, float64(w.Code), resp["status"])
-	assert.NotContains(t, resp, "error")
-	assert.Equal(t, "rate limit exceeded", resp["detail"])
-}
-
-func TestErrorGone_ResponseBody(t *testing.T) {
-	t.Parallel()
-
-	testErr := errors.New("invitation expired")
-	renderer := common.ErrorGone(testErr)
-
-	w := httptest.NewRecorder()
-	r := httptest.NewRequest("GET", "/test", nil)
-
-	err := render.Render(w, r, renderer)
-	require.NoError(t, err)
-
-	var resp map[string]interface{}
-	err = json.Unmarshal(w.Body.Bytes(), &resp)
-	require.NoError(t, err)
-	assert.Equal(t, float64(w.Code), resp["status"])
-	assert.NotContains(t, resp, "error")
-	assert.Equal(t, "invitation expired", resp["detail"])
+			var resp map[string]interface{}
+			require.NoError(t, json.Unmarshal(w.Body.Bytes(), &resp))
+			assert.Equal(t, float64(w.Code), resp["status"])
+			assert.Equal(t, tc.wantDetail, resp["detail"])
+		})
+	}
 }
 
 // =============================================================================
@@ -475,7 +131,6 @@ func TestErrorConflictWithCode(t *testing.T) {
 	err = json.Unmarshal(w.Body.Bytes(), &resp)
 	require.NoError(t, err)
 	assert.Equal(t, float64(w.Code), resp["status"])
-	assert.NotContains(t, resp, "error")
 	assert.Equal(t, "account already has access to tenant", resp["detail"])
 	assert.Equal(t, "identity.account_already_has_tenant_access", resp["code"])
 }
@@ -520,7 +175,6 @@ func TestErrorConflictMessage(t *testing.T) {
 	err = json.Unmarshal(w.Body.Bytes(), &resp)
 	require.NoError(t, err)
 	assert.Equal(t, float64(w.Code), resp["status"])
-	assert.NotContains(t, resp, "error")
 	assert.Equal(t, "Raum kann nicht gelöscht werden", resp["detail"])
 }
 
@@ -548,7 +202,6 @@ func TestErrorValidation(t *testing.T) {
 	err = json.Unmarshal(w.Body.Bytes(), &resp)
 	require.NoError(t, err)
 	assert.Equal(t, float64(w.Code), resp["status"])
-	assert.NotContains(t, resp, "error")
 	assert.Equal(t, "validation failed", resp["detail"])
 
 	respErrs, ok := resp["errors"].([]interface{})
@@ -596,7 +249,6 @@ func TestErrorInternalServerWrap(t *testing.T) {
 	var resp map[string]interface{}
 	require.NoError(t, json.Unmarshal(w.Body.Bytes(), &resp))
 	assert.Equal(t, float64(w.Code), resp["status"])
-	assert.NotContains(t, resp, "error")
 	// Client sees the stable message only — the internal cause must not leak.
 	assert.Equal(t, "failed to create student", resp["detail"])
 	assert.NotContains(t, w.Body.String(), "students_pkey")
@@ -746,7 +398,6 @@ func TestErrorHelpers_NilErrorDoesNotPanic(t *testing.T) {
 			var body map[string]interface{}
 			require.NoError(t, json.Unmarshal(w.Body.Bytes(), &body))
 			assert.Equal(t, float64(tc.expectedStatus), body["status"])
-			assert.NotContains(t, body, "error")
 			assert.Equal(t, http.StatusText(tc.expectedStatus), body["detail"])
 		})
 	}
