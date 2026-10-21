@@ -231,19 +231,6 @@ func TestSchedulesCreateTimeframe_EndBeforeStart(t *testing.T) {
 }
 
 // =============================================================================
-// ROUTER TESTS
-// =============================================================================
-
-func TestSchedulesRouter_ReturnsValidRouter(t *testing.T) {
-	t.Parallel()
-
-	ctx := setupSchedulesRoute(t)
-
-	router := ctx.resource.Router(rootAPI.ProtectedTenantRoutes)
-	assert.NotNil(t, router, "Router should not be nil")
-}
-
-// =============================================================================
 // DATEFRAME LIST TESTS
 // =============================================================================
 

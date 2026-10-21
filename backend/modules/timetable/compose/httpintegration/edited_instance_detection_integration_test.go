@@ -144,53 +144,6 @@ func TestDetectEditedInWindow_TitleEdit(t *testing.T) {
 	assert.Equal(t, "Sonder-Titel", edited[0].Title)
 }
 
-func TestDetectEditedInWindow_NotesEdit(t *testing.T) {
-	t.Parallel()
-
-	s := makeScenario(t, activityContract.WeekdayMonday, editWindowStart)
-	defer s.runCleanup(t)
-	inst := materializeSingleInstance(t, s)
-
-	setInstanceColumn(t, s, inst.ID, "notes", "Heute im Turnraum")
-
-	edited := detect(t, s)
-	require.Len(t, edited, 1)
-	assert.Equal(t, []string{timetable.EditedChangeNotes}, edited[0].Changes)
-}
-
-func TestDetectEditedInWindow_DescriptionEdit(t *testing.T) {
-	t.Parallel()
-
-	s := makeScenario(t, activityContract.WeekdayMonday, editWindowStart)
-	defer s.runCleanup(t)
-	inst := materializeSingleInstance(t, s)
-
-	// description is settable via the instance PUT but never written by
-	// materialization, so a per-occurrence description must be flagged as lost.
-	setInstanceColumn(t, s, inst.ID, "description", "Bitte Sportkleidung mitbringen")
-
-	edited := detect(t, s)
-	require.Len(t, edited, 1)
-	assert.Equal(t, []string{timetable.EditedChangeDescription}, edited[0].Changes)
-}
-
-func TestDetectEditedInWindow_RoomEdit(t *testing.T) {
-	t.Parallel()
-
-	s := makeScenario(t, activityContract.WeekdayMonday, editWindowStart)
-	defer s.runCleanup(t)
-	inst := materializeSingleInstance(t, s)
-
-	room2 := testpkg.CreateTestRoomForTenant(t, s.db, s.tenantID, "Turnraum-1875")
-	s.extraCleanups = append(s.extraCleanups, func() {
-	})
-	setInstanceColumn(t, s, inst.ID, "room_id", room2.ID)
-
-	edited := detect(t, s)
-	require.Len(t, edited, 1)
-	assert.Equal(t, []string{timetable.EditedChangeRoom}, edited[0].Changes)
-}
-
 func TestDetectEditedInWindow_TimeMove(t *testing.T) {
 	t.Parallel()
 

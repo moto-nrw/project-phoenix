@@ -203,32 +203,6 @@ func TestStudentArrivalSchedule_GetWeekdayName(t *testing.T) {
 	}
 }
 
-func TestStudentArrivalSchedule_GetID(t *testing.T) {
-	t.Parallel()
-
-	s := &StudentArrivalSchedule{}
-	s.ID = 42
-	assert.Equal(t, int64(42), s.ID)
-}
-
-func TestStudentArrivalSchedule_GetCreatedAt(t *testing.T) {
-	t.Parallel()
-
-	now := time.Now()
-	s := &StudentArrivalSchedule{}
-	s.CreatedAt = now
-	assert.Equal(t, now, s.CreatedAt)
-}
-
-func TestStudentArrivalSchedule_GetUpdatedAt(t *testing.T) {
-	t.Parallel()
-
-	now := time.Now()
-	s := &StudentArrivalSchedule{}
-	s.UpdatedAt = now
-	assert.Equal(t, now, s.UpdatedAt)
-}
-
 // =============================================================================
 // StudentArrivalException Validation Tests
 // =============================================================================
@@ -412,32 +386,6 @@ func TestStudentArrivalException_IsAbsent(t *testing.T) {
 	}
 }
 
-func TestStudentArrivalException_GetID(t *testing.T) {
-	t.Parallel()
-
-	exception := &StudentArrivalException{}
-	exception.ID = 42
-	assert.Equal(t, int64(42), exception.ID)
-}
-
-func TestStudentArrivalException_GetCreatedAt(t *testing.T) {
-	t.Parallel()
-
-	now := time.Now()
-	exception := &StudentArrivalException{}
-	exception.CreatedAt = now
-	assert.Equal(t, now, exception.CreatedAt)
-}
-
-func TestStudentArrivalException_GetUpdatedAt(t *testing.T) {
-	t.Parallel()
-
-	now := time.Now()
-	exception := &StudentArrivalException{}
-	exception.UpdatedAt = now
-	assert.Equal(t, now, exception.UpdatedAt)
-}
-
 // =============================================================================
 // StudentArrivalNote Validation Tests
 // =============================================================================
@@ -582,32 +530,6 @@ func TestStudentArrivalNote_Validate(t *testing.T) {
 			}
 		})
 	}
-}
-
-func TestStudentArrivalNote_GetID(t *testing.T) {
-	t.Parallel()
-
-	note := &StudentArrivalNote{}
-	note.ID = 42
-	assert.Equal(t, int64(42), note.ID)
-}
-
-func TestStudentArrivalNote_GetCreatedAt(t *testing.T) {
-	t.Parallel()
-
-	now := time.Now()
-	note := &StudentArrivalNote{}
-	note.CreatedAt = now
-	assert.Equal(t, now, note.CreatedAt)
-}
-
-func TestStudentArrivalNote_GetUpdatedAt(t *testing.T) {
-	t.Parallel()
-
-	now := time.Now()
-	note := &StudentArrivalNote{}
-	note.UpdatedAt = now
-	assert.Equal(t, now, note.UpdatedAt)
 }
 
 // TestStudentArrivalScheduleInheritsClassTime pins the meaning the #2414 split
