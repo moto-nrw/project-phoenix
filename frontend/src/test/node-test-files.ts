@@ -102,6 +102,7 @@ export const nodeLogicTestFiles = [
   "src/lib/moto-concepts.test.ts",
   "src/lib/multi-value-param.test.ts",
   "src/lib/navigation-icons.test.ts",
+  "src/lib/operator/staff-person-merge-api.test.ts",
   "src/lib/operator/announcements-helpers.test.ts",
   "src/lib/operator/child-quota.test.ts",
   "src/lib/operator/operator-invitation-helpers.test.ts",

@@ -1214,6 +1214,35 @@ func TestPersonService_CreateStaffWithTeacher_AdoptsLiveCaregiverProfile(t *test
 	assert.Equal(t, 1, int(count))
 }
 
+func TestPersonService_CreateStaffWithTeacher_RejectsRetiredPerson(t *testing.T) {
+	t.Parallel()
+
+	db := testpkg.SetupTestDB(t)
+	service := setupServiceFactory(t, db).Users
+	ctx := testpkg.Ctx(t)
+	person := testpkg.CreateTestPerson(t, db, "Ehemalige", "Kraft")
+
+	_, err := db.NewRaw(`UPDATE users.persons SET deleted_at = NOW() WHERE tenant_id = ? AND id = ?`, testpkg.Tenant(t), person.ID).Exec(ctx)
+	require.NoError(t, err)
+
+	staff, teacher, teacherCreationFailed, err := service.CreateStaffWithTeacher(ctx, api.StaffDirectoryCreateInput(api.StaffCreateInput{
+		PersonID:         person.ID,
+		ActorPermissions: []string{permissions.UsersCreate},
+	}))
+
+	assert.True(t, peoplePorts.IsPersonNotFound(err))
+	assert.Nil(t, staff)
+	assert.Nil(t, teacher)
+	assert.False(t, teacherCreationFailed)
+
+	count, err := db.NewSelect().
+		TableExpr(`users.staff_school_memberships`).
+		Where(`tenant_id = ? AND person_id = ?`, testpkg.Tenant(t), person.ID).
+		Count(ctx)
+	require.NoError(t, err)
+	assert.Zero(t, count)
+}
+
 // =============================================================================
 // CreateStaffWithTeacher — what a create-gated request may not do
 // =============================================================================

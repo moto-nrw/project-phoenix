@@ -25,6 +25,8 @@ type Runtime interface {
 	RequireTenantID(ctx context.Context) (int64, error)
 	// AcrossSchools is true only inside an explicitly administrative transaction without a school scope.
 	AcrossSchools(ctx context.Context) bool
+	// AcquireLock takes a transaction-scoped advisory lock.
+	AcquireLock(ctx context.Context, key string, shared bool) error
 	// InTransaction reports whether ctx carries a tenant transaction.
 	InTransaction(ctx context.Context) bool
 	// WithSavepoint runs fn behind a savepoint of the ambient transaction.

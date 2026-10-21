@@ -180,7 +180,14 @@ func (s *Store) CreateStaff(ctx context.Context, personID int64) (schoolmembersh
 	row := staffRow{TenantID: scope.TenantID, PersonID: personID}
 	stats := domain.OperationStats{Queries: 1}
 	started := time.Now()
-	err = db.NewInsert().Model(&row).ModelTableExpr(`users.staff_school_memberships`).Returning("*").Scan(ctx)
+	if _, err = db.NewRaw("SELECT pg_advisory_xact_lock_shared(hashtextextended(?, 0))", staffPersonMergeLockKey(scope.TenantID)).Exec(ctx); err != nil {
+		stats.StatementDuration = time.Since(started)
+		return schoolmembership.Staff{}, stats, fmt.Errorf("school membership postgres: acquire staff person merge lock: %w", err)
+	}
+	stats.Queries++
+	err = db.NewInsert().Model(&row).ModelTableExpr(`users.staff_school_memberships`).
+		Value("person_id", `(SELECT "person".id FROM users.persons AS "person" WHERE "person".tenant_id = ? AND "person".id = ? AND "person".deleted_at IS NULL)`, row.TenantID, row.PersonID).
+		Returning("*").Scan(ctx)
 	stats.StatementDuration = time.Since(started)
 	if err != nil {
 		return schoolmembership.Staff{}, stats, wrapStaffWriteError("create", err)
@@ -708,6 +715,11 @@ func wrapStaffWriteError(operation string, err error) error {
 		return schoolmembership.ErrStaffPersonConflict
 	}
 	return fmt.Errorf("school membership postgres: %s staff: %w", operation, err)
+}
+
+func staffPersonMergeLockKey(schoolID int64) string {
+	// This matches the People Directory's gate for the same school.
+	return fmt.Sprintf("staff-person-merge:%d", schoolID)
 }
 
 func wrapTeacherWriteError(operation string, err error) error {

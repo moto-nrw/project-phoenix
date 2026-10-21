@@ -95,6 +95,7 @@ func operatorRouter(
 	announcements communicationModule.Capability,
 	unregisteredTagScans http.Handler,
 	limiters authRateLimiters,
+	staffPersonMerge http.Handler,
 ) chi.Router {
 	// The root provides the session chains; without the signer the verifier
 	// mounts below would fail with a nil dereference instead of naming the
@@ -104,6 +105,9 @@ func operatorRouter(
 	}
 	if schoolSettings != nil && (schoolSettings.values == nil || schoolSettings.bookingAuthorityImpact == nil) {
 		panic("operator api: the school settings routes need Settings Platform's values and Care Plan's booking authority review")
+	}
+	if staffPersonMerge == nil {
+		panic("operator api: staff person merge routes are required")
 	}
 	identityRoutes := identity.routes()
 	provisioningRoutes := provisioningOperatorAPI.NewProvisioningResource(provisioning)
@@ -122,6 +126,7 @@ func operatorRouter(
 		mountOperatorProvisioningRoutes(r, provisioningRoutes)
 		mountOperatorSchoolRoutes(r, provisioningRoutes, identityRoutes.mfaAdmin, schoolSettings)
 		mountOperatorPersonRoutes(r, provisioningRoutes)
+		r.Mount("/staff-person-merges", staffPersonMerge)
 		mountOperatorTagScanRoutes(r, unregisteredTagScans)
 		identityRoutes.mountAccountMFARoutes(r)
 		identityRoutes.mountAccountTenantAccessRoutes(r)
