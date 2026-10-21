@@ -301,7 +301,9 @@ function AssignmentRow({
       ) : (
         <div className="min-w-0 flex-1">
           <p
-            className={`truncate text-sm font-medium ${
+            // Im Feld ist die Spalte schmal: der Titel bricht um, statt
+            // abgeschnitten zu werden.
+            className={`text-sm font-medium ${tile ? "" : "truncate"} ${
               dimmed ? "text-gray-400" : "text-gray-900"
             }`}
           >
@@ -325,9 +327,9 @@ function AssignmentRow({
           same brand hexes. Abwesend and Unterbesetzt both land on the orange
           tone; they never appear on the same block. */}
       <div
-        className={`flex flex-wrap items-center gap-1.5 empty:hidden ${
+        className={`flex flex-wrap items-center gap-1.5 ${
           dense ? "shrink-0 justify-end" : ""
-        }`}
+        } ${tile ? "empty:hidden" : ""}`}
       >
         {block.isSubstitute && <StatusBadge tone="blue" label="Vertretung" />}
         {/* Dieselben Wörter wie im Tagesplan und in der Jetzt-Zone: „Läuft"
