@@ -46,10 +46,8 @@ func TestApplyClassExceptionReplacesTheCareDayRowOnly(t *testing.T) {
 func TestClassExceptionRowSkipsDaysWithoutCare(t *testing.T) {
 	t.Parallel()
 
-	week := careplan.ArrivalWeek{}
 	assert.Nil(t, projectClassException(nil, &careplan.ArrivalBaselineException{SchoolClass: "4a", ArrivalTime: mustClock(t, "12:45")}))
 	assert.Nil(t, projectClassException(nil, nil))
-	assert.Empty(t, week)
 }
 
 func mustClock(t *testing.T, hhmm string) time.Time {

@@ -2,9 +2,6 @@ package activitycontract
 
 import (
 	"testing"
-	"time"
-
-	"github.com/stretchr/testify/assert"
 )
 
 func TestIsValidAttendanceStatus(t *testing.T) {
@@ -227,34 +224,4 @@ func TestStudentEnrollmentClearAttendance(t *testing.T) {
 	if studentEnrollment.AttendanceStatus != nil {
 		t.Errorf("StudentEnrollment.ClearAttendance() failed to clear attendance status")
 	}
-}
-
-// ============================================================================
-// BeforeAppendModel Hook Tests
-// ============================================================================
-
-func TestStudentEnrollment_GetID(t *testing.T) {
-	t.Parallel()
-
-	se := &StudentEnrollment{}
-	se.ID = 123
-	assert.Equal(t, int64(123), se.ID)
-}
-
-func TestStudentEnrollment_GetCreatedAt(t *testing.T) {
-	t.Parallel()
-
-	now := time.Now()
-	se := &StudentEnrollment{}
-	se.CreatedAt = now
-	assert.Equal(t, now, se.CreatedAt)
-}
-
-func TestStudentEnrollment_GetUpdatedAt(t *testing.T) {
-	t.Parallel()
-
-	now := time.Now()
-	se := &StudentEnrollment{}
-	se.UpdatedAt = now
-	assert.Equal(t, now, se.UpdatedAt)
 }

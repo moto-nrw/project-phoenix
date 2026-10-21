@@ -2,7 +2,6 @@ package activitycontract
 
 import (
 	"testing"
-	"time"
 )
 
 func TestCategoryValidate(t *testing.T) {
@@ -92,47 +91,6 @@ func TestCategoryValidate(t *testing.T) {
 				t.Errorf("Category.Validate() did not trim spaces from name, got %v", tt.category.Name)
 			}
 		})
-	}
-}
-
-func TestCategory_GetID(t *testing.T) {
-	t.Parallel()
-
-	cat := &Category{
-		ID:   42,
-		Name: "Test",
-	}
-
-	if cat.ID != 42 {
-		t.Errorf("ID = %v, want 42", cat.ID)
-	}
-}
-
-func TestCategory_GetCreatedAt(t *testing.T) {
-	t.Parallel()
-
-	now := time.Now()
-	cat := &Category{
-		CreatedAt: now,
-		Name:      "Test",
-	}
-
-	if got := cat.CreatedAt; !got.Equal(now) {
-		t.Errorf("GetCreatedAt() = %v, want %v", got, now)
-	}
-}
-
-func TestCategory_GetUpdatedAt(t *testing.T) {
-	t.Parallel()
-
-	now := time.Now()
-	cat := &Category{
-		UpdatedAt: now,
-		Name:      "Test",
-	}
-
-	if got := cat.UpdatedAt; !got.Equal(now) {
-		t.Errorf("GetUpdatedAt() = %v, want %v", got, now)
 	}
 }
 

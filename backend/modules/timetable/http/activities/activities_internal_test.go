@@ -252,17 +252,6 @@ func TestBatchEnrollmentRequest_EmptyList(t *testing.T) {
 }
 
 // =============================================================================
-// NewResource Tests
-// =============================================================================
-
-func TestNewResource_ReturnsResource(t *testing.T) {
-	t.Parallel()
-
-	resource := NewResource(nil, nil, nil, nil, nil)
-	assert.NotNil(t, resource)
-}
-
-// =============================================================================
 // addSupervisorsToResponse Tests
 // =============================================================================
 

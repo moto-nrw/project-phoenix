@@ -2,7 +2,6 @@ package activitycontract
 
 import (
 	"testing"
-	"time"
 )
 
 func TestSupervisorPlannedValidate(t *testing.T) {
@@ -106,49 +105,5 @@ func TestSupervisorPlannedSetNotPrimary(t *testing.T) {
 	supervisorPlanned.SetNotPrimary()
 	if supervisorPlanned.IsPrimary {
 		t.Errorf("SupervisorPlanned.SetNotPrimary() failed to set IsPrimary to false")
-	}
-}
-
-func TestSupervisorPlanned_GetID(t *testing.T) {
-	t.Parallel()
-
-	sp := &SupervisorPlanned{
-		ID:      42,
-		StaffID: 1,
-		GroupID: 1,
-	}
-
-	if sp.ID != 42 {
-		t.Errorf("ID = %v, want 42", sp.ID)
-	}
-}
-
-func TestSupervisorPlanned_GetCreatedAt(t *testing.T) {
-	t.Parallel()
-
-	now := time.Now()
-	sp := &SupervisorPlanned{
-		CreatedAt: now,
-		StaffID:   1,
-		GroupID:   1,
-	}
-
-	if got := sp.CreatedAt; !got.Equal(now) {
-		t.Errorf("GetCreatedAt() = %v, want %v", got, now)
-	}
-}
-
-func TestSupervisorPlanned_GetUpdatedAt(t *testing.T) {
-	t.Parallel()
-
-	now := time.Now()
-	sp := &SupervisorPlanned{
-		UpdatedAt: now,
-		StaffID:   1,
-		GroupID:   1,
-	}
-
-	if got := sp.UpdatedAt; !got.Equal(now) {
-		t.Errorf("GetUpdatedAt() = %v, want %v", got, now)
 	}
 }

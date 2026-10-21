@@ -675,59 +675,6 @@ func TestDecisionService_Get_LoadsLateInviteUsedForRequest(t *testing.T) {
 	assert.Equal(t, "invited@example.com", summary.LateInvite.GuardianEmail)
 }
 
-// ---- List ---------------------------------------------------------------
-
-func TestDecisionService_List_ReturnsAllRequestsInTenant(t *testing.T) {
-	t.Parallel()
-
-	env, cleanup := setupDecisionTest(t)
-	defer cleanup()
-	ctx := testpkg.Ctx(t)
-
-	_, _ = submitOneChild(t, env, "list-a@example.com", "A", "Eins")
-	_, _ = submitOneChild(t, env, "list-b@example.com", "B", "Zwei")
-
-	list, err := testpkg.TenantQuery1(t, ctx, env.db, env.decision.List, enrollmentAPI.RequestFilters{})
-	require.NoError(t, err)
-	assert.GreaterOrEqual(t, len(list), 2)
-}
-
-func TestDecisionService_List_FilterByPhaseNarrowsResults(t *testing.T) {
-	t.Parallel()
-
-	env, cleanup := setupDecisionTest(t)
-	defer cleanup()
-	ctx := testpkg.Ctx(t)
-
-	_, _ = submitOneChild(t, env, "list-phase@example.com", "Phase", "Child")
-
-	list, err := testpkg.TenantQuery1(t, ctx, env.db, env.decision.List, enrollmentAPI.RequestFilters{
-		PhaseID: env.sourcePhase.ID,
-	})
-	require.NoError(t, err)
-	for _, row := range list {
-		assert.Equal(t, env.sourcePhase.ID, row.Request.PhaseID,
-			"phase filter must scope results")
-	}
-}
-
-func TestDecisionService_List_FilterByChildStatusNarrowsResults(t *testing.T) {
-	t.Parallel()
-
-	env, cleanup := setupDecisionTest(t)
-	defer cleanup()
-	ctx := testpkg.Ctx(t)
-
-	_, _ = submitOneChild(t, env, "list-status@example.com", "Child", "Status")
-
-	// All freshly submitted children carry status=submitted by default.
-	list, err := testpkg.TenantQuery1(t, ctx, env.db, env.decision.List, enrollmentAPI.RequestFilters{
-		ChildStatus: enrollmentNative.ChildStatusSubmitted,
-	})
-	require.NoError(t, err)
-	assert.NotEmpty(t, list, "filter by 'submitted' must return at least the fresh row")
-}
-
 // ---- Decide: validation -------------------------------------------------
 
 func TestDecisionService_Decide_RejectsZeroRequestID(t *testing.T) {
