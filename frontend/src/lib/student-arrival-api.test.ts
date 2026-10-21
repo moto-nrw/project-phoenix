@@ -13,7 +13,6 @@ import {
   createArrivalNote,
   updateArrivalNote,
   deleteArrivalNote,
-  fetchBulkArrivalTimes,
 } from "./student-arrival-api";
 
 const { mockGetSession } = vi.hoisted(() => ({
@@ -496,82 +495,6 @@ describe("student-arrival-api", () => {
       await expect(deleteArrivalNote("42", 5)).rejects.toThrow(
         "Request failed (500)",
       );
-    });
-  });
-
-  describe("fetchBulkArrivalTimes", () => {
-    it("returns empty Map when studentIds is empty", async () => {
-      const result = await fetchBulkArrivalTimes([]);
-
-      expect(result.size).toBe(0);
-      expect(fetchSpy).not.toHaveBeenCalled();
-    });
-
-    it("converts string IDs to integers before posting", async () => {
-      fetchSpy.mockResolvedValueOnce(mockFetchResponse({ data: [] }));
-
-      await fetchBulkArrivalTimes(["1", "2", "3"], "2024-01-15");
-
-      const body = (fetchSpy.mock.calls[0]![1] as RequestInit).body as string;
-      expect(JSON.parse(body)).toEqual({
-        student_ids: [1, 2, 3],
-        date: "2024-01-15",
-      });
-    });
-
-    it("maps snake_case backend fields to camelCase", async () => {
-      fetchSpy.mockResolvedValueOnce(
-        mockFetchResponse({
-          data: [
-            {
-              student_id: 1,
-              date: "2024-01-15",
-              weekday_name: "Monday",
-              expected_arrival: "08:00",
-              is_exception: false,
-              day_notes: [{ id: 10, content: "hi" }],
-              notes: "normal",
-            },
-            {
-              student_id: 2,
-              date: "2024-01-15",
-              weekday_name: "Monday",
-              is_exception: true,
-            },
-          ],
-        }),
-      );
-
-      const result = await fetchBulkArrivalTimes(["1", "2"]);
-
-      expect(result.size).toBe(2);
-      const first = result.get("1");
-      expect(first).toBeDefined();
-      expect(first!.studentId).toBe("1");
-      expect(first!.weekdayName).toBe("Monday");
-      expect(first!.expectedArrival).toBe("08:00");
-      expect(first!.isException).toBe(false);
-      expect(first!.dayNotes).toEqual([{ id: "10", content: "hi" }]);
-
-      const second = result.get("2");
-      expect(second!.dayNotes).toEqual([]);
-      expect(second!.expectedArrival).toBeUndefined();
-    });
-
-    it("accepts payloads without the outer data wrapper", async () => {
-      fetchSpy.mockResolvedValueOnce(
-        mockFetchResponse([
-          {
-            student_id: 5,
-            date: "2024-01-15",
-            weekday_name: "Monday",
-            is_exception: false,
-          },
-        ]),
-      );
-
-      const result = await fetchBulkArrivalTimes(["5"]);
-      expect(result.get("5")!.studentId).toBe("5");
     });
   });
 });

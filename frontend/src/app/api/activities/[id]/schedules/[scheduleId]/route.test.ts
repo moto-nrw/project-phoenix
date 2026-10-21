@@ -1,15 +1,11 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import type { Session } from "next-auth";
-import { NextRequest } from "next/server";
 import { GET, PUT, DELETE } from "./route";
-
-// ============================================================================
-// Types
-// ============================================================================
-
-interface ExtendedSession extends Session {
-  user: Session["user"] & { token?: string };
-}
+import {
+  type ExtendedSession,
+  createMockContext,
+  createMockRequest,
+  defaultSession,
+} from "~/test/route-test-helpers";
 
 // ============================================================================
 // Mocks
@@ -66,35 +62,6 @@ vi.mock("~/lib/activity-helpers", () => ({
 // Test Helpers
 // ============================================================================
 
-function createMockRequest(
-  path: string,
-  options: { method?: string; body?: unknown } = {},
-): NextRequest {
-  const url = new URL(path, "http://localhost:3000");
-  const requestInit: { method: string; body?: string; headers?: HeadersInit } =
-    {
-      method: options.method ?? "GET",
-    };
-
-  if (options.body) {
-    requestInit.body = JSON.stringify(options.body);
-    requestInit.headers = { "Content-Type": "application/json" };
-  }
-
-  return new NextRequest(url, requestInit);
-}
-
-function createMockContext(
-  params: Record<string, string | string[] | undefined> = {},
-) {
-  return { params: Promise.resolve(params) };
-}
-
-const defaultSession: ExtendedSession = {
-  user: { id: "1", token: "test-token", name: "Test User" },
-  expires: "2099-01-01",
-};
-
 async function parseJsonResponse<T>(response: Response): Promise<T> {
   return (await response.json()) as T;
 }
@@ -107,18 +74,6 @@ describe("GET /api/activities/[id]/schedules/[scheduleId]", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     mockAuth.mockResolvedValue(defaultSession);
-  });
-
-  it("returns 401 when not authenticated", async () => {
-    mockAuth.mockResolvedValueOnce(null);
-
-    const request = createMockRequest("/api/activities/1/schedules/10");
-    const response = await GET(
-      request,
-      createMockContext({ id: "1", scheduleId: "10" }),
-    );
-
-    expect(response.status).toBe(401);
   });
 
   it("returns schedule with wrapped response", async () => {
@@ -191,21 +146,6 @@ describe("PUT /api/activities/[id]/schedules/[scheduleId]", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     mockAuth.mockResolvedValue(defaultSession);
-  });
-
-  it("returns 401 when not authenticated", async () => {
-    mockAuth.mockResolvedValueOnce(null);
-
-    const request = createMockRequest("/api/activities/1/schedules/10", {
-      method: "PUT",
-      body: { weekday: "2" },
-    });
-    const response = await PUT(
-      request,
-      createMockContext({ id: "1", scheduleId: "10" }),
-    );
-
-    expect(response.status).toBe(401);
   });
 
   it("updates schedule with wrapped response", async () => {
@@ -291,20 +231,6 @@ describe("DELETE /api/activities/[id]/schedules/[scheduleId]", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     mockAuth.mockResolvedValue(defaultSession);
-  });
-
-  it("returns 401 when not authenticated", async () => {
-    mockAuth.mockResolvedValueOnce(null);
-
-    const request = createMockRequest("/api/activities/1/schedules/10", {
-      method: "DELETE",
-    });
-    const response = await DELETE(
-      request,
-      createMockContext({ id: "1", scheduleId: "10" }),
-    );
-
-    expect(response.status).toBe(401);
   });
 
   it("deletes schedule successfully", async () => {

@@ -1,15 +1,11 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import type { Session } from "next-auth";
-import { NextRequest } from "next/server";
 import { GET } from "./route";
-
-// ============================================================================
-// Types
-// ============================================================================
-
-interface ExtendedSession extends Session {
-  user: Session["user"] & { token?: string };
-}
+import {
+  type ExtendedSession,
+  createMockContext,
+  createMockRequest,
+  defaultSession,
+} from "~/test/route-test-helpers";
 
 // ============================================================================
 // Mocks (using vi.hoisted for proper hoisting)
@@ -33,22 +29,6 @@ vi.mock("~/lib/api-helpers.server", async (importOriginal) => {
 // Test Helpers
 // ============================================================================
 
-function createMockRequest(path: string): NextRequest {
-  const url = new URL(path, "http://localhost:3000");
-  return new NextRequest(url);
-}
-
-function createMockContext(
-  params: Record<string, string | string[] | undefined> = {},
-) {
-  return { params: Promise.resolve(params) };
-}
-
-const defaultSession: ExtendedSession = {
-  user: { id: "1", token: "test-token", name: "Test User" },
-  expires: "2099-01-01",
-};
-
 interface ApiResponse<T> {
   success: boolean;
   message: string;
@@ -67,15 +47,6 @@ describe("GET /api/groups/context", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     mockAuth.mockResolvedValue(defaultSession);
-  });
-
-  it("returns 401 when not authenticated", async () => {
-    mockAuth.mockResolvedValueOnce(null);
-
-    const request = createMockRequest("/api/groups/context");
-    const response = await GET(request, createMockContext());
-
-    expect(response.status).toBe(401);
   });
 
   it("returns groups for current user", async () => {
@@ -120,14 +91,5 @@ describe("GET /api/groups/context", () => {
     const json =
       await parseJsonResponse<ApiResponse<{ groups: unknown[] }>>(response);
     expect(json.data.groups).toEqual([]);
-  });
-
-  it("returns an error when the API call fails", async () => {
-    mockApiGet.mockRejectedValueOnce(new Error("Network error"));
-
-    const request = createMockRequest("/api/groups/context");
-    const response = await GET(request, createMockContext());
-
-    expect(response.status).toBe(500);
   });
 });

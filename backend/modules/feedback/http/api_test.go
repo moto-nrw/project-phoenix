@@ -16,6 +16,7 @@ import (
 	"github.com/go-chi/render"
 	feedbackModule "github.com/moto-nrw/project-phoenix/modules/feedback"
 	feedbackHTTP "github.com/moto-nrw/project-phoenix/modules/feedback/http"
+	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -86,6 +87,7 @@ func testResourceWithObserver(e engine, observe func(int, string)) *feedbackHTTP
 			require.NoError(testingT(r.Context()), render.Render(w, r, &errorResponse{StatusCode: failure.Status, Status: failure.Status, Detail: failure.Err.Error(), Code: routetest.ClassCode(failure.Status)}))
 		},
 		ObserveResponse: observe,
+		ParseIDParam:    testpkg.ParseHTTPIDParam,
 	})
 }
 
@@ -155,6 +157,22 @@ func TestStaffErrorStatusesStayStable(t *testing.T) {
 			assert.Equal(t, test.code, recorder.Code)
 			assert.Equal(t, test.body+"\n", recorder.Body.String())
 		})
+	}
+}
+
+func TestInvalidPathIDsAnswerBadRequest(t *testing.T) {
+	t.Parallel()
+	resource := testResource(engine{available: true})
+	for _, test := range []struct{ method, target, detail string }{
+		{http.MethodGet, "/abc", "invalid feedback ID"},
+		{http.MethodGet, "/0", "invalid feedback ID"},
+		{http.MethodDelete, "/-1", "invalid feedback ID"},
+		{http.MethodGet, "/student/abc", "invalid student ID"},
+		{http.MethodGet, "/student/0", "invalid student ID"},
+	} {
+		recorder := execute(t, resource, test.method, test.target, nil)
+		assert.Equal(t, http.StatusBadRequest, recorder.Code, test.target)
+		assert.Equal(t, `{"status":400,"detail":"`+test.detail+`","code":"general.input"}`+"\n", recorder.Body.String(), test.target)
 	}
 }
 

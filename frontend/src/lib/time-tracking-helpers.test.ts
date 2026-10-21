@@ -19,7 +19,6 @@ import {
   formatTime,
   getWeekDays,
   getWeekNumber,
-  getComplianceWarnings,
   calculateNetMinutes,
   indexWorkSessionMinutesByBerlinDate,
   mapClosingDaysResponse,
@@ -743,110 +742,6 @@ describe("getWeekNumber", () => {
     const weekNum = getWeekNumber(date);
     expect(weekNum).toBeGreaterThan(0);
     expect(weekNum).toBeLessThanOrEqual(53);
-  });
-});
-
-describe("getComplianceWarnings", () => {
-  const createHistorySession = (
-    overrides: Partial<WorkSessionHistory>,
-  ): WorkSessionHistory => ({
-    id: "1",
-    staffId: "100",
-    date: "2026-01-15",
-    status: "present",
-    checkInTime: "2026-01-15T08:00:00Z",
-    checkOutTime: "2026-01-15T16:00:00Z",
-    breakMinutes: 30,
-    notes: "",
-    autoCheckedOut: false,
-    createdBy: "100",
-    updatedBy: null,
-    createdAt: "2026-01-15T08:00:00Z",
-    updatedAt: "2026-01-15T16:00:00Z",
-    netMinutes: 450,
-    isOvertime: false,
-    isBreakCompliant: true,
-    restPeriodWarning: null,
-    breaks: [],
-    editCount: 0,
-    ...overrides,
-  });
-
-  it("returns warning for >9h work with <45min break", () => {
-    const session = createHistorySession({
-      netMinutes: 550, // >540 (9h)
-      breakMinutes: 30, // <45
-      isBreakCompliant: false,
-    });
-    const warnings = getComplianceWarnings(session);
-
-    expect(warnings).toContain("Pausenzeit < 45min bei >9h Arbeitszeit");
-  });
-
-  it("returns rest period warning", () => {
-    const session = createHistorySession({
-      restPeriodWarning: "Ruhezeit unterschritten",
-    });
-    const warnings = getComplianceWarnings(session);
-
-    expect(warnings).toContain("Ruhezeit unterschritten");
-  });
-
-  it("returns warning for >6h work with <30min break", () => {
-    const session = createHistorySession({
-      netMinutes: 400, // >360 (6h)
-      breakMinutes: 15, // <30
-      isBreakCompliant: false,
-    });
-    const warnings = getComplianceWarnings(session);
-
-    expect(warnings).toContain("Pausenzeit < 30min bei >6h Arbeitszeit");
-  });
-
-  it("returns auto-checkout warning", () => {
-    const session = createHistorySession({
-      autoCheckedOut: true,
-    });
-    const warnings = getComplianceWarnings(session);
-
-    expect(warnings).toContain("Automatisch ausgestempelt");
-  });
-
-  it("returns multiple warnings when applicable", () => {
-    const session = createHistorySession({
-      netMinutes: 550,
-      breakMinutes: 30,
-      isBreakCompliant: false,
-      autoCheckedOut: true,
-    });
-    const warnings = getComplianceWarnings(session);
-
-    expect(warnings).toHaveLength(2);
-    expect(warnings).toContain("Pausenzeit < 45min bei >9h Arbeitszeit");
-    expect(warnings).toContain("Automatisch ausgestempelt");
-  });
-
-  it("returns empty array for compliant session", () => {
-    const session = createHistorySession({
-      netMinutes: 450,
-      breakMinutes: 45,
-      isBreakCompliant: true,
-      autoCheckedOut: false,
-    });
-    const warnings = getComplianceWarnings(session);
-
-    expect(warnings).toEqual([]);
-  });
-
-  it("does not warn when netMinutes is 0 or negative", () => {
-    const session = createHistorySession({
-      netMinutes: 0,
-      breakMinutes: 0,
-      isBreakCompliant: false,
-    });
-    const warnings = getComplianceWarnings(session);
-
-    expect(warnings).toEqual([]);
   });
 });
 

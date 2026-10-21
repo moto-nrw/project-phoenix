@@ -7,7 +7,6 @@ import (
 	"context"
 	"errors"
 	"net/http"
-	"strconv"
 	"time"
 
 	"github.com/go-chi/chi/v5"
@@ -56,6 +55,8 @@ type Runtime struct {
 	// TagExists reports whether an RFID card with that identifier exists.
 	TagExists       func(context.Context, string) (bool, error)
 	ObserveResponse func(int, string)
+	// ParseIDParam reads an int64 path parameter: api/common.ParseIDParam.
+	ParseIDParam func(*http.Request, string) (int64, error)
 }
 
 type Resource struct {
@@ -66,7 +67,8 @@ type Resource struct {
 func NewResource(directory peopledirectory.Capability, runtime Runtime) *Resource {
 	if directory == nil || runtime.Protected == nil || runtime.Permission == nil || runtime.ParsePagination == nil ||
 		runtime.Success == nil || runtime.SuccessPaginated == nil || runtime.NoContent == nil || runtime.Failure == nil ||
-		runtime.AccountEmails == nil || runtime.TagExists == nil || runtime.ObserveResponse == nil {
+		runtime.AccountEmails == nil || runtime.TagExists == nil || runtime.ObserveResponse == nil ||
+		runtime.ParseIDParam == nil {
 		panic("users HTTP: all dependencies are required")
 	}
 	return &Resource{directory: directory, runtime: runtime}
@@ -316,7 +318,7 @@ func (rs *Resource) personResponse(ctx context.Context, person peopledirectory.P
 }
 
 func (rs *Resource) parseID(w http.ResponseWriter, r *http.Request) (int64, bool) {
-	id, err := strconv.ParseInt(chi.URLParam(r, "id"), 10, 64)
+	id, err := rs.runtime.ParseIDParam(r, "id")
 	if err != nil || id <= 0 {
 		rs.failure(w, r, FailureInvalidRequest, errors.New("invalid person ID"), "invalid_parameters")
 		return 0, false

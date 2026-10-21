@@ -1585,7 +1585,8 @@ function parentMessageTopic(): HelpTopic {
         steps: [
           "Öffnen Sie unter `Eltern` den Bereich `Nachrichten`.",
           "Wählen Sie `Neue Nachricht`.",
-          "Suchen Sie das Kind und wählen Sie die passende Bezugsperson.",
+          "Wählen Sie das Kind aus der Liste. Über das Suchfeld finden Sie es schneller.",
+          "Wählen Sie `Weiter` und dann die passende Bezugsperson.",
           "Schreiben Sie Ihre Nachricht in das Textfeld.",
           "Wählen Sie `Senden`.",
         ],
@@ -4194,6 +4195,9 @@ function enrollmentFormTopic(): HelpTopic {
     requirements: [
       "Sie haben das `Basisformular` angesehen und etwas vermisst.",
     ],
+    image: "/help/screens/anmeldung-pdf-anhaenge.webp",
+    imageAlt:
+      "Zwei PDF-Anhänge mit eigenen Bezeichnungen und Aktionen im Formular-Editor",
     steps: [],
     instructionGroups: [
       {
@@ -4232,6 +4236,18 @@ function enrollmentFormTopic(): HelpTopic {
         ],
       },
       {
+        title: "PDF-Dateien zu einem Hinweis hinzufügen",
+        steps: [
+          "Wählen Sie `Infotext` und schreiben Sie Ihren Hinweis.",
+          "Wählen Sie beim Hinweis `PDFs hinzufügen`. Sie können mehrere Dateien gleichzeitig auswählen.",
+          "Geben Sie jeder Datei unter `Bezeichnung für Eltern` einen verständlichen Namen.",
+          "Fügen Sie weitere Dateien mit `Weitere PDFs hinzufügen` hinzu.",
+          "Zum Austauschen wählen Sie bei der jeweiligen PDF `Ersetzen`.",
+          "Zum Wegnehmen wählen Sie das Kreuz bei der jeweiligen PDF.",
+          "Wählen Sie `Änderungen speichern` und danach `Vorschau öffnen`.",
+        ],
+      },
+      {
         title: "Die Vorlage in der Anmeldephase auswählen",
         description:
           "Eine Vorlage wirkt erst, wenn eine Phase sie benutzt. Ohne diesen Schritt sehen die Eltern weiter das Basisformular.",
@@ -4263,6 +4279,12 @@ function enrollmentFormTopic(): HelpTopic {
       "Mit `Vorschau öffnen` sehen Sie den Entwurf in einem neuen Tab, bevor Sie speichern.",
       "Die Zustimmungen `Datenschutzinformation`, `Fotoeinwilligung` und `E-Mail-Kontakt` tragen `Aus Einstellungen übernommen`. Sie kommen aus Ihren Einstellungen und lassen sich je Vorlage ausblenden.",
       "Über `+ Eigene Zustimmung hinzufügen` ergänzen Sie einen Text, der nur in dieser Vorlage steht.",
+
+      "Jede PDF-Datei darf höchstens 10 MB groß sein.",
+      "Eltern können alle Dateien ohne Elternkonto öffnen und herunterladen.",
+      "Infotexte und Blöcke mit `Nur Hinweis` brauchen keine Zustimmung.",
+      "Auch bei Zustimmungen können Sie mehrere PDF-Dateien hinzufügen.",
+      "Beim Verwerfen werden neue, ungespeicherte Dateien entfernt. Frühere Formularfassungen behalten ihre Dateien.",
     ],
     differences: [
       "Bei einem `Stammdaten-Vorschlag` können Sie Beschriftung und Typ nicht ändern. Beides ist fest, damit die Antwort beim Kind ankommt.",
@@ -6308,31 +6330,33 @@ function parentDepartureTopic(): HelpTopic {
     id: HELP_TOPICS.parentDeparture,
     title: "Den Weg nach Hause ändern",
     question: "Wie ändere ich, wie mein Kind nach Hause geht?",
-    summary: "Sie wählen je Wochentag den Weg und fragen die Änderung an.",
+    summary: "Sie sehen den Weg je Wochentag und fragen eine Änderung an.",
     group: "mein-kind",
     audience: "parent",
     icon: "Repeat",
     steps: [
       "Tippen Sie unten auf `Mein Kind`.",
       "Wählen Sie den Reiter `Betreuung`.",
-      "Gehen Sie ganz nach unten zum Abschnitt `So geht ... nach Hause`. Dort steht der Name Ihres Kindes.",
+      "Gehen Sie ganz nach unten zum Abschnitt `So geht ... nach Hause`. Dort steht der Name Ihres Kindes. Sie sehen für jeden Wochentag, wie Ihr Kind nach Hause geht.",
+      "Tippen Sie auf `Bearbeiten`.",
       "Setzen Sie je Wochentag einen Haken bei `Geht allein`, `Bus` oder `Wird abgeholt`.",
       "Tippen Sie auf `Änderung anfragen`.",
     ],
     result:
-      "Die OGS prüft Ihre Anfrage. Bis zur Bestätigung gilt der bisherige Weg.",
+      "Die OGS prüft Ihre Anfrage. Bis zur Bestätigung gilt der bisherige Weg. Ihre Anfrage steht darunter bei `Beantragte Änderung`.",
     notes: [
       "Pro Tag sind mehrere Wege möglich. Dann darf Ihr Kind jeden davon nehmen.",
       "Die Tage sind `Mo` bis `Fr`. Jeder Tag hat eine eigene Auswahl.",
+      "Mit `Abbrechen` verwerfen Sie Ihre Auswahl. Der bisherige Weg bleibt.",
       "Gibt es weitere Sorgeberechtigte mit App-Zugang, wählen Sie unter `Anfrage teilen (optional)`, wer mitlesen darf.",
     ],
     differences: [
-      "Steht dort `In Prüfung`, wartet schon eine Änderung auf die OGS.",
-      "Geht Ihr Kind mit einem anderen Kind, steht `Geht mit anderem Kind` nur zum Lesen da.",
+      "Steht dort `Beantragte Änderung` mit `In Prüfung`, wartet schon eine Änderung auf die OGS. Bis dahin gibt es kein `Bearbeiten`.",
+      "Geht Ihr Kind mit einem anderen Kind, steht beim Tag `Geht mit anderem Kind`. Dann gibt es kein `Bearbeiten`.",
       "Steht dort `Es gibt keine weiteren Sorgeberechtigten mit Zugang zur Eltern-App`? Dann gibt es niemanden zum Mitlesen.",
     ],
     troubleshootingDetails: [
-      "Die Haken lassen sich nicht setzen? Geht Ihr Kind an einem Tag mit einem anderen Kind, ändern Sie den Weg nicht selbst. Schreiben Sie der OGS.",
+      "Es gibt kein `Bearbeiten`? Geht Ihr Kind an einem Tag mit einem anderen Kind, ändern Sie den Weg nicht selbst. Schreiben Sie der OGS.",
       "moto sagt, Änderungsanfragen seien deaktiviert? Dann nimmt Ihre OGS keine Änderungen über die App an.",
     ],
     related: [

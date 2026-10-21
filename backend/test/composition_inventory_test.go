@@ -32,7 +32,6 @@ var expectedCompositionRoots = []compositionRoot{
 var expectedCompositionSmokeTests = []string{
 	"api/route_table_golden_test.go#TestFullProductionRouterGolden",
 	"cmd/root_test.go#TestRootCmd_HasCommands",
-	"internal/architecture/composition_inventory_test.go#TestCompositionLegacyCallerInventory",
 	"test/composition_inventory_test.go#TestCompositionInventory",
 	"test/composition_inventory_test.go#TestWorkerJobRegistryInventory",
 	"test/e2e/calendar/parent_calendar_flow_test.go#TestParentCalendarHTTPFlow_ViewICSAndFeed",
@@ -65,7 +64,6 @@ type compositionInventory struct {
 	Commands                 []string            `json:"commands"`
 	WorkerJobIDs             []string            `json:"worker_job_ids"`
 	EvidenceLegacyCallers    json.RawMessage     `json:"evidence_legacy_callers"`
-	LegacyCallers            json.RawMessage     `json:"legacy_callers"`
 	EvidenceConstructorCalls []constructorCaller `json:"evidence_constructor_calls"`
 	ConstructorCalls         []constructorCaller `json:"constructor_calls"`
 	SmokeTests               []string            `json:"smoke_tests"`
@@ -169,8 +167,8 @@ func validateCompositionMetadata(t *testing.T, backendRoot string, inventory com
 	}
 	missingEvidence := len(inventory.EvidenceLegacyCallers) == 0 || len(inventory.EvidenceConstructorCalls) == 0
 	capturingEvidence := *updateCompositionInventory && *compositionEvidenceRoot != ""
-	if len(inventory.LegacyCallers) == 0 || (missingEvidence && !capturingEvidence) {
-		t.Fatal("composition inventory must contain fixed and live caller inventories")
+	if missingEvidence && !capturingEvidence {
+		t.Fatal("composition inventory must contain fixed caller evidence")
 	}
 	validateCompositionEvidence(t, inventory)
 	assertJSONEqual(t, "production composition roots", expectedCompositionRoots, inventory.ProductionRoots)

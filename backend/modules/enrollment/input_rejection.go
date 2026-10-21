@@ -70,6 +70,7 @@ const (
 	// needs the matching Klassen-/Klassenstufen-Abfrage switched on.
 	CodePhaseEligibilitySettingRequired = "enrollment.phase_eligibility_setting_required"
 
+	CodeFormAttachmentInvalid        = "enrollment.form_attachment_invalid"
 	CodeSchemaNameRequired           = "enrollment.schema_name_required"
 	CodeFormGradeCollectionRequired  = "enrollment.form_grade_collection_required"
 	CodeFormFieldKeyInvalid          = "enrollment.form_field_key_invalid"

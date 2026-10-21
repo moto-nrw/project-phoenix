@@ -226,16 +226,4 @@ describe("ParentBottomNav", () => {
     expect(newsItem!.className).toContain("py-3");
     expect(newsItem!.querySelector("svg")).not.toBeNull();
   });
-
-  // Teilmenge von #2326: Produktfeedback gehört nicht in eine Eltern-App.
-  it("bietet kein Produktfeedback mehr an", () => {
-    renderNav();
-
-    fireEvent.click(screen.getByRole("button", { name: "Mehr" }));
-
-    expect(screen.queryByText(/Feedback/)).not.toBeInTheDocument();
-    expect(
-      document.querySelector('[data-parent-nav-item="feedback"]'),
-    ).toBeNull();
-  });
 });

@@ -340,4 +340,47 @@ describe("OpenRoomSections search (#3889)", () => {
     expect(screen.getByText("Ben Beispiel")).toBeInTheDocument();
     expect(screen.queryByText("Marie Muster")).not.toBeInTheDocument();
   });
+
+  it("opens a folded foreign block while searching and folds it again after (#4353)", () => {
+    rosters.set("timetable-roster-other", roster("other", false));
+    const sections = openRoomSections({
+      sessions: [
+        block("own", { own: true, canOperate: true }),
+        block("other", { canOperate: false }),
+      ],
+    });
+    if (!sections) throw new Error("the room has blocks");
+    const view = (rosterRowFilter: OpenRoomBlockContext["rosterRowFilter"]) => (
+      <OpenRoomSections
+        sections={sections}
+        students={[]}
+        filteredStudents={[]}
+        grid={{
+          pickupTimesData: undefined,
+          arrivalTimesData: undefined,
+          trackingData: undefined,
+          myGroupIds: [],
+          myGroupRooms: [],
+          now: new Date(),
+          onOpenStudent: vi.fn(),
+        }}
+        blocks={{ ...context(true), rosterRowFilter }}
+      />
+    );
+    const { rerender } = render(view(null), { wrapper: ToastProvider });
+    const foreign = () =>
+      screen.getByRole("button", { name: /^GT other (ein|aus)klappen$/ });
+    expect(foreign()).toHaveAttribute("aria-expanded", "false");
+
+    rerender(view((row) => row.studentName.startsWith("Ben")));
+    expect(foreign()).toHaveAttribute("aria-expanded", "true");
+    expect(
+      within(screen.getByRole("group", { name: "GT other" })).getByText(
+        "Ben Beispiel",
+      ),
+    ).toBeInTheDocument();
+
+    rerender(view(null));
+    expect(foreign()).toHaveAttribute("aria-expanded", "false");
+  });
 });

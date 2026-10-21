@@ -18,7 +18,7 @@ import { BinaryModeGuard } from "~/components/tenant/binary-mode-guard";
 import { useSetBreadcrumb } from "~/lib/breadcrumb-context";
 import { Alert } from "~/components/ui/alert";
 import { LoadErrorAlert } from "~/components/ui/form-error-alert";
-import { TenantPage } from "~/components/ui/tenant-page";
+import { TenantPage, TenantPageListSearch } from "~/components/ui/tenant-page";
 import { OverflowMenu } from "~/components/ui/page-header/OverflowMenu";
 import { MotoConceptIcon } from "~/components/ui/moto-concept-icon";
 import { Button } from "~/components/ui/button";
@@ -50,6 +50,7 @@ import {
   hasOwnBlock,
   occupiedRoomIdsForSpontaneousStart,
   openRoomSections,
+  rosterRunState,
   schulhofHeadActionsApply,
   sessionsOutsideOpenRooms,
   supervisionTabLabel,
@@ -61,6 +62,7 @@ import { useStudentFilters } from "~/components/active-supervisions/use-student-
 import { useReopenBanner } from "~/components/active-supervisions/use-reopen-banner";
 import { useTimetableActions } from "~/components/active-supervisions/use-timetable-actions";
 import { useSchulhofActions } from "~/components/active-supervisions/use-schulhof-actions";
+import { AddUnplannedStudentModal } from "~/components/active-supervisions/add-unplanned-student-modal";
 import { PresentChildrenPicker } from "~/components/active-supervisions/present-children-picker";
 import { TimetableRosterContent } from "~/components/active-supervisions/timetable-roster";
 import {
@@ -475,6 +477,15 @@ function MeinRaumPageContent() {
 
   // Abzeichen in der Kopfkarte: ein offener Raum heißt dort „Offener Raum",
   // die eigene Aufsicht „Eigene Aufsicht" (#3065). Keine Erklärzeile.
+  // Ob der geöffnete Block läuft, steht zuerst (#4354); er kommt aus dem
+  // Roster, den nur eine eigene Aufsicht hier lädt. Im offenen Raum trägt
+  // jeder Block seinen Zustand in der eigenen Karte.
+  const runState = currentTimetableRoster
+    ? rosterRunState(currentTimetableRoster.instance.status)
+    : null;
+  const runStateBadge = runState ? (
+    <StatusBadge label={runState.label} tone={runState.tone} />
+  ) : null;
   const openRoomBadge = currentOpenRoom ? (
     <StatusBadge label="Offener Raum" tone="blue" />
   ) : null;
@@ -506,6 +517,7 @@ function MeinRaumPageContent() {
       ? spontaneousStartBlockedReason
       : undefined;
   const hasHeadActions = Boolean(
+    runStateBadge ??
     openRoomBadge ??
     ownSupervisionBadge ??
     addSupervisorButton ??
@@ -664,7 +676,6 @@ function MeinRaumPageContent() {
             </div>
           )}
           <TimetableRosterContent
-            addStudentResults={actions.addStudentResults}
             addStudentSearch={actions.addStudentSearch}
             addStudentError={actions.addStudentError}
             attendanceWebEnabled={attendanceWebEnabled}
@@ -673,6 +684,7 @@ function MeinRaumPageContent() {
             isConfirmingExpected={actions.isConfirmingExpected}
             roster={currentTimetableRoster}
             showTimetableCounts={showTimetableCounts}
+            statusInPageHead
             occupancy={supervisionOccupancy}
             onAddStudent={actions.handleAddUnplannedStudent}
             onAddPresentStudents={
@@ -681,6 +693,7 @@ function MeinRaumPageContent() {
                 : undefined
             }
             presentChildrenPicker={PresentChildrenPicker}
+            addUnplannedStudentModal={AddUnplannedStudentModal}
             presentPickerAutoOpen={
               actions.presentPickerAutoOpenInstanceId ===
               currentTimetableRoster.instance.id
@@ -737,8 +750,9 @@ function MeinRaumPageContent() {
             {/* Die Abzeichen sind eine Zeile: das Gerüst gibt unter sm jedem
                 Kopf-Element eine eigene volle Zeile, zwei gestreckte Pillen
                 untereinander läsen sich wie zwei Knöpfe. */}
-            {openRoomBadge || ownSupervisionBadge ? (
+            {runStateBadge || openRoomBadge || ownSupervisionBadge ? (
               <span className="flex items-center gap-2">
+                {runStateBadge}
                 {openRoomBadge}
                 {ownSupervisionBadge}
               </span>
@@ -769,14 +783,6 @@ function MeinRaumPageContent() {
           </>
         ) : undefined
       }
-      search={{
-        value: filters.searchTerm,
-        onChange: filters.setSearchTerm,
-        placeholder: "Name suchen…",
-      }}
-      filters={filters.filterConfigs}
-      activeFilters={filters.activeFilters}
-      onClearAllFilters={filters.clearAllFilters}
       tabs={supervisionTabs}
       statsLoading={isPageLoading}
       loading={isPageLoading}
@@ -886,6 +892,22 @@ function MeinRaumPageContent() {
               />
             </Suspense>
           ) : null}
+
+          {/* Die Suche steht direkt über den Kinderlisten, nicht in der
+              Kopfkarte: dazwischen liegen sonst Als Nächstes, Kinder
+              unterwegs und der Kopf des Blocks (#4353). Sie filtert jede
+              Liste darunter, in offenen Räumen jeden Block. */}
+          <TenantPageListSearch
+            label="Kinder suchen"
+            search={{
+              value: filters.searchTerm,
+              onChange: filters.setSearchTerm,
+              placeholder: "Name suchen…",
+            }}
+            filters={filters.filterConfigs}
+            activeFilters={filters.activeFilters}
+            onClearAllFilters={filters.clearAllFilters}
+          />
 
           {showTable ? (
             <StudentSelectionScope

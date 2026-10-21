@@ -51,7 +51,7 @@
       "backend/test/query_budgets.go",
       "backend/modules/studentpresence/internal/adapters/postgres/session_repository.go",
       "backend/modules/studentpresence/internal/application/presence/session_service.go",
-      "backend/api/iot/pyreportal_error_codes_test.go",
+      "https://github.com/moto-nrw/project-phoenix/blob/76882d157d0dc60f6ee3b832de1f45531d57856d/backend/api/iot/pyreportal_error_codes_test.go",
       "docs/adr/0036-student-presence-cutover-replaces-legacy-permissions.md"
     ],
     "workload": "scripts/test-changed.sh origin/development through scripts/run-go-toolchain.sh against the local postgres-test server, per-test tenants, default package parallelism.",

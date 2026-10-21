@@ -7,7 +7,6 @@ import {
   latestSchemasByName,
   schemaToPublicFormSchema,
   listSchemas,
-  fetchSchemaById,
   fetchPublicActiveSchema,
   fetchPublicLegalTexts,
   createSchema,
@@ -252,39 +251,6 @@ describe("listSchemas", () => {
     mockFetch(async () => new Response("server boom", { status: 500 }));
     await expect(listSchemas()).rejects.toThrow(
       /Formularvorlagen konnten nicht geladen werden/,
-    );
-  });
-});
-
-// --- fetchSchemaById --------------------------------------------------
-
-describe("fetchSchemaById", () => {
-  it("returns the unwrapped schema on 200", async () => {
-    mockFetch(async () =>
-      jsonResponse({
-        data: mkSchema("1234", "Schuljahr", 2, "2026-04-01T12:00:00Z"),
-      }),
-    );
-    const out = await fetchSchemaById("1234");
-    expect(out.id).toBe("1234");
-    expect(out.version).toBe(2);
-  });
-
-  it("URL-encodes the id (no path traversal)", async () => {
-    let seenURL = "";
-    mockFetch(async (input) => {
-      seenURL = typeof input === "string" ? input : input.toString();
-      return jsonResponse({ id: "x" });
-    });
-    await fetchSchemaById("../bad/id");
-    expect(seenURL).not.toContain("../");
-    expect(seenURL).toContain("..%2Fbad%2Fid");
-  });
-
-  it("throws with the German fallback on non-OK", async () => {
-    mockFetch(async () => new Response("nope", { status: 404 }));
-    await expect(fetchSchemaById("999")).rejects.toThrow(
-      /Formularvorlage konnte nicht geladen werden/,
     );
   });
 });

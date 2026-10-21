@@ -4,34 +4,9 @@ import {
   MY_GROUPS_SCOPE,
   activeChildScope,
   buildChildScopeTabs,
-  ownSupervisionRooms,
   roomIdFromScope,
   roomScope,
 } from "./child-scope-tabs";
-
-describe("ownSupervisionRooms (#1321)", () => {
-  it("lists each room once, sorted by name", () => {
-    expect(
-      ownSupervisionRooms([
-        { room: { id: "2", name: "Werkraum" } },
-        { room: { id: "1", name: "Aula" } },
-        // Zwei Aufsichten im selben Raum sind für den Raumfilter ein Ort.
-        { room: { id: "2", name: "Werkraum" } },
-        // Eine Aufsicht ohne Raum gibt keinen Raumfilter her.
-        {},
-      ]),
-    ).toEqual([
-      { id: "1", name: "Aula" },
-      { id: "2", name: "Werkraum" },
-    ]);
-  });
-
-  it("falls back to the room id when the name is missing", () => {
-    expect(ownSupervisionRooms([{ roomId: "9" }])).toEqual([
-      { id: "9", name: "Raum #9" },
-    ]);
-  });
-});
 
 describe("buildChildScopeTabs (#1321)", () => {
   it("offers nothing without own groups and supervision", () => {

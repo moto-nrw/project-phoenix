@@ -2,7 +2,6 @@ import { ApiError } from "./api-error";
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import {
   fetchStudentPickupData,
-  updateStudentPickupSchedules,
   createStudentPickupException,
   updateStudentPickupException,
   deleteStudentPickupException,
@@ -10,16 +9,13 @@ import {
   updateStudentPickupNote,
   deleteStudentPickupNote,
   replaceStudentWeekdayPickupNotes,
-  fetchBulkPickupTimes,
   bulkUpsertPickupSchedules,
   resetStudentPickupToOffering,
   previewStudentPickupAdjustment,
   applyStudentPickupAdjustment,
-  type BulkPickupTimeResponse,
 } from "./pickup-schedule-api";
 import type {
   BackendPickupData,
-  BulkPickupScheduleFormData,
   PickupExceptionFormData,
   PickupNoteFormData,
   BackendPickupException,
@@ -404,124 +400,6 @@ describe("pickup-schedule-api", () => {
     });
   });
 
-  describe("updateStudentPickupSchedules", () => {
-    const formData: BulkPickupScheduleFormData = {
-      schedules: [
-        {
-          weekday: 1,
-          pickupTime: "15:30",
-          notes: "Updated notes",
-        },
-      ],
-    };
-
-    it("updates pickup schedules and returns mapped data", async () => {
-      global.fetch = vi.fn().mockResolvedValue(
-        createMockResponse(true, 200, {
-          status: "success",
-          data: mockBackendPickupData,
-        }),
-      );
-
-      const result = await updateStudentPickupSchedules("123", formData);
-
-      expect(global.fetch).toHaveBeenCalledWith(
-        "/api/students/123/pickup-schedules",
-        {
-          method: "PUT",
-          headers: {
-            "Content-Type": "application/json",
-          },
-          body: JSON.stringify({
-            schedules: [
-              {
-                weekday: 1,
-                pickup_time: "15:30",
-                notes: "Updated notes",
-              },
-            ],
-          }),
-        },
-      );
-      expect(result.schedules).toHaveLength(1);
-      expect(result.exceptions).toHaveLength(1);
-    });
-
-    it("throws the classified error on non-ok response", async () => {
-      global.fetch = vi
-        .fn()
-        .mockResolvedValue(
-          createMockResponse(false, 400, { detail: "invalid weekday" }),
-        );
-
-      await expect(
-        updateStudentPickupSchedules("123", formData),
-      ).rejects.toMatchObject({
-        status: 400,
-        code: "general.input",
-      });
-    });
-
-    it("throws the classified error when JSON parse fails", async () => {
-      global.fetch = vi
-        .fn()
-        .mockResolvedValue(createMockResponse(false, 500, undefined, true));
-
-      await expect(
-        updateStudentPickupSchedules("123", formData),
-      ).rejects.toMatchObject({
-        status: 500,
-        code: "general.server",
-      });
-    });
-
-    it("rejects a success answer without data", async () => {
-      global.fetch = vi.fn().mockResolvedValue(
-        createMockResponse(true, 200, {
-          status: "success",
-        }),
-      );
-
-      await expect(
-        updateStudentPickupSchedules("123", formData),
-      ).rejects.toMatchObject({
-        status: 500,
-        code: "general.server",
-      });
-    });
-
-    it("throws error when data is missing", async () => {
-      global.fetch = vi.fn().mockResolvedValue(
-        createMockResponse(true, 200, {
-          status: "success",
-          data: null,
-        }),
-      );
-
-      await expect(
-        updateStudentPickupSchedules("123", formData),
-      ).rejects.toMatchObject({
-        status: 500,
-        code: "general.server",
-      });
-    });
-
-    it("classifies invalid pickup_time format error", async () => {
-      global.fetch = vi.fn().mockResolvedValue(
-        createMockResponse(false, 400, {
-          detail: "invalid pickup_time format",
-        }),
-      );
-
-      await expect(
-        updateStudentPickupSchedules("123", formData),
-      ).rejects.toMatchObject({
-        status: 400,
-        code: "general.input",
-      });
-    });
-  });
-
   describe("createStudentPickupException", () => {
     const exceptionData: PickupExceptionFormData = {
       exceptionDate: "2024-01-25",
@@ -816,191 +694,6 @@ describe("pickup-schedule-api", () => {
       ).rejects.toMatchObject({
         status: 500,
         code: "general.server",
-      });
-    });
-  });
-
-  describe("fetchBulkPickupTimes", () => {
-    const mockBulkResponse: BulkPickupTimeResponse[] = [
-      {
-        student_id: 123,
-        date: "2024-01-22",
-        weekday_name: "Montag",
-        pickup_time: "15:30",
-        is_exception: false,
-        notes: "Regular schedule",
-      },
-      {
-        student_id: 456,
-        date: "2024-01-22",
-        weekday_name: "Montag",
-        pickup_time: "16:00",
-        is_exception: true,
-        day_notes: [],
-      },
-    ];
-
-    it("fetches bulk pickup times and returns Map", async () => {
-      global.fetch = vi.fn().mockResolvedValue(
-        createMockResponse(true, 200, {
-          status: "success",
-          data: mockBulkResponse,
-        }),
-      );
-
-      const result = await fetchBulkPickupTimes(["123", "456"], "2024-01-22");
-
-      expect(global.fetch).toHaveBeenCalledWith(
-        "/api/students/pickup-times/bulk",
-        {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-          },
-          body: JSON.stringify({
-            student_ids: [123, 456],
-            date: "2024-01-22",
-          }),
-        },
-      );
-
-      expect(result).toBeInstanceOf(Map);
-      expect(result.size).toBe(2);
-
-      const student123 = result.get("123");
-      expect(student123).toEqual({
-        studentId: "123",
-        date: "2024-01-22",
-        weekdayName: "Montag",
-        pickupTime: "15:30",
-        isException: false,
-        dayNotes: [],
-        notes: "Regular schedule",
-      });
-
-      const student456 = result.get("456");
-      expect(student456).toEqual({
-        studentId: "456",
-        date: "2024-01-22",
-        weekdayName: "Montag",
-        pickupTime: "16:00",
-        isException: true,
-        dayNotes: [],
-      });
-    });
-
-    it("returns empty Map when studentIds array is empty", async () => {
-      const result = await fetchBulkPickupTimes([]);
-
-      expect(result).toBeInstanceOf(Map);
-      expect(result.size).toBe(0);
-      expect(global.fetch).not.toHaveBeenCalled();
-    });
-
-    it("fetches without date parameter (defaults to today)", async () => {
-      global.fetch = vi.fn().mockResolvedValue(
-        createMockResponse(true, 200, {
-          status: "success",
-          data: [],
-        }),
-      );
-
-      await fetchBulkPickupTimes(["123"]);
-
-      expect(global.fetch).toHaveBeenCalledWith(
-        "/api/students/pickup-times/bulk",
-        {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-          },
-          body: JSON.stringify({
-            student_ids: [123],
-            date: undefined,
-          }),
-        },
-      );
-    });
-
-    it("throws the classified error on non-ok response", async () => {
-      global.fetch = vi
-        .fn()
-        .mockResolvedValue(
-          createMockResponse(false, 401, { detail: "unauthorized" }),
-        );
-
-      await expect(fetchBulkPickupTimes(["123"])).rejects.toMatchObject({
-        status: 401,
-        code: "general.permission",
-      });
-    });
-
-    it("throws the classified error when JSON parse fails", async () => {
-      global.fetch = vi
-        .fn()
-        .mockResolvedValue(createMockResponse(false, 500, undefined, true));
-
-      await expect(fetchBulkPickupTimes(["123"])).rejects.toMatchObject({
-        status: 500,
-        code: "general.server",
-      });
-    });
-
-    it("rejects a success answer without data", async () => {
-      global.fetch = vi.fn().mockResolvedValue(
-        createMockResponse(true, 200, {
-          status: "success",
-        }),
-      );
-
-      await expect(fetchBulkPickupTimes(["123"])).rejects.toMatchObject({
-        status: 500,
-        code: "general.server",
-      });
-    });
-
-    it("throws error when data is missing", async () => {
-      global.fetch = vi.fn().mockResolvedValue(
-        createMockResponse(true, 200, {
-          status: "success",
-          data: null,
-        }),
-      );
-
-      await expect(fetchBulkPickupTimes(["123"])).rejects.toMatchObject({
-        status: 500,
-        code: "general.server",
-      });
-    });
-
-    it("handles response with optional fields undefined", async () => {
-      const minimalResponse: BulkPickupTimeResponse[] = [
-        {
-          student_id: 789,
-          date: "2024-01-22",
-          weekday_name: "Montag",
-          is_exception: false,
-        },
-      ];
-
-      global.fetch = vi.fn().mockResolvedValue(
-        createMockResponse(true, 200, {
-          status: "success",
-          data: minimalResponse,
-        }),
-      );
-
-      const result = await fetchBulkPickupTimes(["789"]);
-
-      const student789 = result.get("789");
-      expect(student789).toEqual({
-        studentId: "789",
-        date: "2024-01-22",
-        weekdayName: "Montag",
-        pickupTime: undefined,
-        isException: false,
-        dayNotes: [],
-        notes: undefined,
       });
     });
   });

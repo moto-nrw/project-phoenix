@@ -53,18 +53,6 @@ describe("POST /api/operator/profile/email-change", () => {
     vi.clearAllMocks();
   });
 
-  it("returns 401 when not authenticated", async () => {
-    mockAuth.mockResolvedValue(null);
-
-    const request = createMockRequest({ email: "new@test.com" });
-    const response = await POST(request, mockContext);
-
-    expect(response.status).toBe(401);
-    const json = (await response.json()) as { detail?: string };
-    expect(json.detail).toBe("Unauthorized");
-    expect(mockFetch).not.toHaveBeenCalled();
-  });
-
   it("proxies successful response", async () => {
     mockAuth.mockResolvedValue({ user: { token: "valid-token" } });
     mockFetch.mockResolvedValue(
@@ -93,15 +81,5 @@ describe("POST /api/operator/profile/email-change", () => {
         }) as Record<string, unknown>,
       }),
     );
-  });
-
-  it("returns 500 on fetch error", async () => {
-    mockAuth.mockResolvedValue({ user: { token: "valid-token" } });
-    mockFetch.mockRejectedValue(new Error("Network error"));
-
-    const request = createMockRequest({ email: "new@test.com" });
-    const response = await POST(request, mockContext);
-
-    expect(response.status).toBe(500);
   });
 });

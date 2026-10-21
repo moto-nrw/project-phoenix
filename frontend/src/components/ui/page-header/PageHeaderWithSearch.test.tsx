@@ -266,25 +266,6 @@ describe("PageHeaderWithSearch", () => {
     expect(screen.getByTestId("custom-action")).toBeInTheDocument();
   });
 
-  it("renders mobile action button when provided", () => {
-    const mobileActionButton = (
-      <button type="button" data-testid="mobile-action">
-        Add
-      </button>
-    );
-    const propsWithMobileAction: PageHeaderWithSearchProps = {
-      ...baseProps,
-      mobileActionButton,
-    };
-
-    const { container } = render(
-      <PageHeaderWithSearch {...propsWithMobileAction} />,
-    );
-    // The component accepts mobileActionButton prop but may not render it directly
-    // Just verify the component renders without errors
-    expect(container).toBeTruthy();
-  });
-
   it("applies custom className", () => {
     const { container } = render(
       <PageHeaderWithSearch {...baseProps} className="custom-class" />,

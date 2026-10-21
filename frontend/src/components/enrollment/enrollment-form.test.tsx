@@ -3956,3 +3956,108 @@ describe("submitFieldName (#2515)", () => {
     expect(submitFieldName(path)).toBe(name);
   });
 });
+
+describe("anonymous enrollment information attachments", () => {
+  beforeEach(() => {
+    mockIntlLocale.value = "de";
+    mockFetchPublicActiveSchema.mockReset();
+    mockFetchPublicCaptchaConfig.mockReset();
+    mockFetchPublicLegalTexts.mockReset();
+    mockFetchPublicCareOfferings.mockReset();
+    mockFetchMyEnrollmentProfile.mockReset();
+    mockSubmitEnrollment.mockReset();
+    mockFetchPublicActiveSchema.mockResolvedValue(schema());
+    mockFetchPublicCaptchaConfig.mockResolvedValue({
+      enabled: false,
+      site_key: "",
+    });
+    mockFetchPublicLegalTexts.mockResolvedValue(legalTexts());
+    mockFetchPublicCareOfferings.mockResolvedValue({
+      offerings: offerings(),
+      careOfferingSelectionMode: "at_least_one",
+      careRequired: true,
+    });
+    mockFetchMyEnrollmentProfile.mockResolvedValue(null);
+    mockSubmitEnrollment.mockResolvedValue({ status_url: "/status/abc" });
+  });
+  it("renders both PDF actions on an information field and a notice without extra consent", async () => {
+    const { ToastProvider } = await import("~/contexts/ToastContext");
+    const documents = [
+      {
+        label: "Schulstart",
+        document_url:
+          "/api/public/enrollment-form-legal-documents/42_start.pdf",
+      },
+      {
+        label: "Abholen",
+        document_url:
+          "/api/public/enrollment-form-legal-documents/42_pickup.pdf",
+      },
+    ];
+    mockFetchPublicActiveSchema.mockResolvedValueOnce({
+      id: "7",
+      version: 1,
+      fields: [
+        {
+          key: "information",
+          label: "Hinweise zur OGS",
+          type: "information",
+          content: "Bitte lesen Sie beide Dateien.",
+          required: false,
+          applies_to_child: false,
+          sort_order: 0,
+          attachments: documents,
+        },
+      ],
+    });
+    mockFetchPublicLegalTexts.mockResolvedValueOnce({
+      blocks: [
+        {
+          key: "notice",
+          kind: "notice",
+          title: "Weitere Informationen",
+          label: "Informationen",
+          text: "Elternbrief",
+          required: false,
+          sort_order: 0,
+          attachments: [
+            {
+              label: "Elternbrief",
+              document_url:
+                "/api/public/enrollment-form-legal-documents/42_letter.pdf",
+            },
+          ],
+        },
+      ],
+    });
+    render(
+      <ToastProvider>
+        <EnrollmentForm
+          phaseID="5"
+          gradeLevelMax={4}
+          onSubmitted={vi.fn()}
+          skipCaptcha
+        />
+      </ToastProvider>,
+    );
+    expect(await screen.findByText("Hinweise zur OGS")).toBeInTheDocument();
+    for (const label of ["Schulstart", "Abholen", "Elternbrief"]) {
+      expect(
+        await screen.findByRole("button", { name: `${label} öffnen` }),
+      ).toBeInTheDocument();
+      expect(
+        screen.getByRole("button", { name: `${label} herunterladen` }),
+      ).toBeInTheDocument();
+    }
+    expect(
+      screen.queryByRole("checkbox", {
+        name: /Schulstart|Abholen|Informationen|Elternbrief/,
+      }),
+    ).not.toBeInTheDocument();
+    expect(mockFetchPublicActiveSchema).toHaveBeenCalledWith(
+      "test-tenant",
+      "5",
+      { lateInviteToken: undefined },
+    );
+  });
+});

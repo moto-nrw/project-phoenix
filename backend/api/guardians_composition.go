@@ -91,6 +91,7 @@ func newGuardiansResource(module peopleModule.Capability, runtime GuardianDirect
 		},
 		Failure:         renderPeopleDirectoryFailure,
 		ObserveResponse: observability.ObserveGuardianDirectoryHTTPResponse,
+		ParseIDParam:    apiCommon.ParseIDParam,
 
 		ActorID: func(r *http.Request) int64 {
 			return int64(sessiontoken.ClaimsFromCtx(r.Context()).ID)

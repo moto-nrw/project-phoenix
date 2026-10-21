@@ -154,7 +154,15 @@ interface FormFieldValidation {
   pattern?: string | null;
 }
 
+export const MAX_ENROLLMENT_DOCUMENT_BYTES = 10 * 1024 * 1024;
+
+export interface FormAttachment {
+  label: string;
+  document_url: string;
+}
+
 export interface FormField {
+  attachments?: FormAttachment[];
   key: string;
   label: string;
   type: FormFieldType;
@@ -216,6 +224,7 @@ type LegalBlockSource = "standard" | "custom";
 export type LegalBlockDisplayMode = "text" | "pdf";
 
 export interface FormLegalBlock {
+  attachments?: FormAttachment[];
   key: string;
   kind: LegalBlockKind;
   title: string;
@@ -293,21 +302,6 @@ export async function listSchemas(): Promise<FormSchema[]> {
   }
   const list = await readJSON<FormSchema[]>(response);
   return Array.isArray(list) ? list : [];
-}
-
-export async function fetchSchemaById(id: string): Promise<FormSchema> {
-  const response = await send(`${SCHEMA_PATH}/${encodeURIComponent(id)}`, {
-    cache: "no-store",
-  });
-  if (!response.ok) {
-    throw await readEnrollmentError(
-      response,
-      "Formularvorlage konnte nicht geladen werden",
-      logger,
-      "schema_fetch_by_id_failed",
-    );
-  }
-  return readJSON<FormSchema>(response);
 }
 
 export function latestSchemasByName(schemas: FormSchema[]): FormSchema[] {
@@ -413,6 +407,7 @@ export async function fetchPublicCaptchaConfig(
 }
 
 export interface PublicLegalBlock {
+  attachments?: FormAttachment[];
   key: string;
   kind: LegalBlockKind;
   title: string;

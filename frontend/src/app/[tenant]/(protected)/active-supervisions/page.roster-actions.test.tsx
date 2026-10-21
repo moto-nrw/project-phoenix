@@ -202,16 +202,6 @@ vi.mock("~/lib/pickup-helpers", () => ({
   useMinuteClock: () => new Date("2026-01-15T12:00:00"),
 }));
 
-// Mock pickup-schedule-api
-vi.mock("~/lib/pickup-schedule-api", () => ({
-  fetchBulkPickupTimes: vi.fn(() => Promise.resolve(new Map())),
-}));
-
-// Mock student-arrival-api
-vi.mock("~/lib/student-arrival-api", () => ({
-  fetchBulkArrivalTimes: vi.fn(() => Promise.resolve(new Map())),
-}));
-
 // Mock StudentCard components
 vi.mock("~/components/students/student-card", () => ({
   StudentCard: ({
@@ -851,7 +841,7 @@ describe("MeinRaumPage roster actions", () => {
       name: "Kind ungeplant suchen",
     });
     fireEvent.change(search, { target: { value: "Ben" } });
-    const result = await screen.findByRole("button", {
+    const result = await screen.findByRole("radio", {
       name: /Ben Neu/,
     });
     fireEvent.click(result);
@@ -931,7 +921,7 @@ describe("MeinRaumPage roster actions", () => {
           }),
           { target: { value: "Ben" } },
         );
-        fireEvent.click(await screen.findByRole("button", { name: /Ben Neu/ }));
+        fireEvent.click(await screen.findByRole("radio", { name: /Ben Neu/ }));
         fireEvent.click(screen.getByRole("button", { name: "Hinzufügen" }));
       }
 

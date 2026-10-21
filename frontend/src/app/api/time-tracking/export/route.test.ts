@@ -1,11 +1,10 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import type { Session } from "next-auth";
-import { NextRequest } from "next/server";
 import { GET } from "./route";
-
-interface ExtendedSession extends Session {
-  user: Session["user"] & { token?: string };
-}
+import {
+  type ExtendedSession,
+  createMockRequest,
+  defaultSession,
+} from "~/test/route-test-helpers";
 
 const { mockAuth } = vi.hoisted(() => ({
   mockAuth: vi.fn<() => Promise<ExtendedSession | null>>(),
@@ -14,16 +13,6 @@ const { mockAuth } = vi.hoisted(() => ({
 vi.mock("~/server/auth", () => ({
   auth: mockAuth,
 }));
-
-const defaultSession: ExtendedSession = {
-  user: { id: "1", token: "test-token", name: "Test User" },
-  expires: "2099-01-01",
-};
-
-function createMockRequest(path: string): NextRequest {
-  const url = new URL(path, "http://localhost:3000");
-  return new NextRequest(url);
-}
 
 describe("GET /api/time-tracking/export", () => {
   beforeEach(() => {

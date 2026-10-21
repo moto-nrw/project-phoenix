@@ -181,14 +181,15 @@ type LegalTexts struct {
 // LegalBlock is one legal row of the public enrollment form. Required
 // checkbox blocks must be accepted; notice blocks only inform.
 type LegalBlock struct {
-	Key       string `json:"key"`
-	Kind      string `json:"kind"`
-	Title     string `json:"title"`
-	Label     string `json:"label"`
-	Text      string `json:"text"`
-	Required  bool   `json:"required"`
-	SortOrder int    `json:"sort_order,omitempty"`
-	Source    string `json:"source,omitempty"`
+	Attachments []FormAttachment `json:"attachments,omitempty"`
+	Key         string           `json:"key"`
+	Kind        string           `json:"kind"`
+	Title       string           `json:"title"`
+	Label       string           `json:"label"`
+	Text        string           `json:"text"`
+	Required    bool             `json:"required"`
+	SortOrder   int              `json:"sort_order,omitempty"`
+	Source      string           `json:"source,omitempty"`
 	// Translations holds only translations that still match the German
 	// text, without their source (#3377).
 	Translations Translations `json:"translations,omitempty"`

@@ -11,10 +11,10 @@ func TestCompositionSurfaceRatchet(t *testing.T) {
 	for _, tt := range []struct {
 		name, path, base, candidate, want string
 	}{
-		{"service field", "services/factory.go", "type Factory struct { Old int }", "type Factory struct { Old, New int }", "production|field|api|serviceGraph.New"},
+		{"service field", "services/factory.go", "type Factory struct { Old int }", "type Factory struct { Old, New int }", "production|field|services|Factory.New"},
 		{"repository field", "database/repositories/factory.go", "type Factory struct {}", "type Factory struct { New int }", "production|field|database/repositories|Factory.New"},
 		{"API embedded pointer", "api/api.go", "type API struct {}", "type API struct { *Dependency }", "production|field|api|API.Dependency"},
-		{"embedded value", "services/factory.go", "type Factory struct {}", "type Factory struct { Dependency }", "production|field|api|serviceGraph.Dependency"},
+		{"embedded value", "services/factory.go", "type Factory struct {}", "type Factory struct { Dependency }", "production|field|services|Factory.Dependency"},
 		{"removed field", "services/factory.go", "type Factory struct { Old int }", "type Factory struct {}", ""},
 		{"unchanged embedded", "api/api.go", "type API struct { *Dependency }", "type API struct { *Dependency }", ""},
 		{"pointer setter", "services/scheduler/worker.go", "type Worker struct { limit int }", "type Worker struct { limit int }; func (w *Worker) SetLimit(n int) { w.limit = n }", "production|setter|services/scheduler|Worker.SetLimit"},
@@ -34,7 +34,7 @@ func TestCompositionSurfaceRatchet(t *testing.T) {
 		{"ordinary domain state", "modules/example/internal/domain/state.go", "type State struct { status string }", "type State struct { status string }; func (s *State) Advance(next string) { s.status = next }", ""},
 		{"capability result state", "modules/example/service.go", "type Result struct { count int }; type Service struct { last Result }", "type Result struct { count int }; type Service struct { last Result }; func (s *Service) RecordResult(r Result) { s.last = r }", ""},
 		{"scheduler task state", "services/scheduler/task.go", "type ScheduledTask struct { Running bool }", "type ScheduledTask struct { Running bool }; func (s *ScheduledTask) MarkRunning() { s.Running = true }", ""},
-		{"aliased aggregate", "services/factory.go", "type Fields struct {}; type Factory = Fields", "type Fields struct { New int }; type Factory = Fields", "production|field|api|serviceGraph.New"},
+		{"aliased aggregate", "services/factory.go", "type Fields struct {}; type Factory = Fields", "type Fields struct { New int }; type Factory = Fields", "production|field|services|Factory.New"},
 		{"whole receiver", "services/service.go", "type Service struct { callback func() }", "type Service struct { callback func() }; func (s *Service) Wire(f func()) { *s = Service{callback: f} }", "production|setter|services|Service.Wire"},
 		{"aliased scalar configuration", "services/scheduler/worker.go", "type Worker struct { limit int }", "type RetryLimit = int; type Worker struct { limit RetryLimit }; func (w *Worker) Configure(n int) { w.limit = n }", "production|setter|services/scheduler|Worker.Configure"},
 		{"defined scalar configuration", "modules/delivery/worker.go", "type Worker struct { limit int }", "type RetryLimit int; type Worker struct { limit RetryLimit }; func (w *Worker) Configure(n RetryLimit) { w.limit = n }", "production|setter|modules/delivery|Worker.Configure"},
@@ -119,7 +119,7 @@ func TestCheckRejectsCompositionGrowthWithoutManifestChange(t *testing.T) {
 	base := strings.TrimSpace(runGit(t, repo, "rev-parse", "HEAD"))
 	writeFile(t, path, "package services\ntype Factory struct { Old, New int }\n")
 	output, err := runArchitecture(t, "check", "--project", repo, "--baseline", "architecture/legacy.jsonl", "--base-ref", base)
-	if err == nil || !strings.Contains(output, "production|field|api|serviceGraph.New") {
+	if err == nil || !strings.Contains(output, "production|field|services|Factory.New") {
 		t.Fatalf("CLI accepted field growth with unchanged manifests: %v\n%s", err, output)
 	}
 	writeFile(t, path, "package services\ntype Factory struct {}\n")
@@ -171,34 +171,5 @@ func TestCompositionRatchetWrapperFromGitHook(t *testing.T) {
 	output, err := runArchitectureWithEnv(t, map[string]string{"GIT_DIR": gitDir, "GIT_WORK_TREE": "."}, "check")
 	if err != nil || !strings.Contains(output, "composition surface passed:") {
 		t.Fatalf("hook-local Git environment broke base comparison: %v\n%s", err, output)
-	}
-}
-
-func TestCompositionSurfaceFollowsTheFactoryIntoTheRoot(t *testing.T) {
-	t.Parallel()
-	for _, tt := range []struct{ name, candidate, want string }{
-		{"moved fields", "type serviceGraph struct { Old int }", ""},
-		{"removed field", "type serviceGraph struct {}", ""},
-		{"new field", "type serviceGraph struct { Old, New int }", "production|field|api|serviceGraph.New"},
-	} {
-		t.Run(tt.name, func(t *testing.T) {
-			t.Parallel()
-			repo, _ := ratchetRepository(t, legacyRecord(2583))
-			factory := filepath.Join(repo, "services/factory.go")
-			writeFile(t, factory, "package services\ntype Factory struct { Old int }\n")
-			runGit(t, repo, "add", ".")
-			runGit(t, repo, "commit", "-qm", "composition base")
-			base := strings.TrimSpace(runGit(t, repo, "rev-parse", "HEAD"))
-			runGit(t, repo, "rm", "-q", "services/factory.go")
-			writeFile(t, filepath.Join(repo, "api/service_graph.go"), "package api\n"+tt.candidate+"\n")
-			err := CompareCompositionSurface(repo, base)
-			if tt.want == "" {
-				if err != nil {
-					t.Fatal(err)
-				}
-			} else if err == nil || !strings.Contains(err.Error(), tt.want) {
-				t.Fatalf("want %q, got %v", tt.want, err)
-			}
-		})
 	}
 }

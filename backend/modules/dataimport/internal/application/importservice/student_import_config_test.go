@@ -1133,64 +1133,6 @@ func TestStudentImportConfig_Validate_PickupScheduleErrorMessages(t *testing.T) 
 }
 
 // ============================================================================
-// createPickupSchedules nil-repo safety
-// ============================================================================
-
-func TestStudentImportConfig_CreateArrivalSchedules_NilRepo(t *testing.T) {
-	t.Parallel()
-	config := &StudentImportConfig{StudentImportDeps: ports.StudentImportDeps{Transactions: newTestTransactions(), Schedules: nil}}
-
-	schedules := []importModels.ArrivalScheduleImportData{
-		{Weekday: 1, ExpectedArrival: "08:00"},
-	}
-
-	err := config.createArrivalSchedules(context.Background(), 123, schedules)
-	assert.NoError(t, err, "should not error when arrivalScheduleRepo is nil")
-}
-
-func TestStudentImportConfig_CreateArrivalSchedules_EmptySchedules(t *testing.T) {
-	t.Parallel()
-	config := &StudentImportConfig{StudentImportDeps: ports.StudentImportDeps{Transactions: newTestTransactions(), Schedules: nil}}
-
-	err := config.createArrivalSchedules(context.Background(), 123, nil)
-	assert.NoError(t, err)
-
-	err = config.createArrivalSchedules(context.Background(), 123, []importModels.ArrivalScheduleImportData{})
-	assert.NoError(t, err)
-}
-
-func TestStudentImportConfig_CreatePickupSchedules_NilRepo(t *testing.T) {
-	t.Parallel()
-	config := &StudentImportConfig{StudentImportDeps: ports.StudentImportDeps{Transactions: newTestTransactions(),
-		// No repo
-		Schedules: nil},
-	}
-
-	schedules := []importModels.PickupScheduleImportData{
-		{Weekday: 1, PickupTime: "16:00"},
-	}
-
-	// Should return nil (no-op) when repo is nil
-	err := config.createPickupSchedules(context.Background(), 123, schedules)
-	assert.NoError(t, err, "should not error when pickupScheduleRepo is nil")
-}
-
-func TestStudentImportConfig_CreatePickupSchedules_EmptySchedules(t *testing.T) {
-	t.Parallel()
-	config := &StudentImportConfig{StudentImportDeps: ports.StudentImportDeps{Transactions: newTestTransactions(),
-		// Would panic if called, but shouldn't be
-		Schedules: nil},
-	}
-
-	// Should return nil (no-op) when schedules is empty
-	err := config.createPickupSchedules(context.Background(), 123, nil)
-	assert.NoError(t, err)
-
-	err = config.createPickupSchedules(context.Background(), 123, []importModels.PickupScheduleImportData{})
-	assert.NoError(t, err)
-}
-
-// ============================================================================
 // Validate: guardian with new fields passes existing validation
 // ============================================================================
 

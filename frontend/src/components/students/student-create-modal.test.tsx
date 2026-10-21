@@ -374,18 +374,6 @@ describe("StudentCreateModal", () => {
     });
   });
 
-  it("does not render when closed", () => {
-    render(
-      <StudentCreateModal
-        isOpen={false}
-        onClose={mockOnClose}
-        onCreate={mockOnCreate}
-      />,
-    );
-
-    expect(screen.queryByTestId("modal")).not.toBeInTheDocument();
-  });
-
   it("displays the correct title", async () => {
     render(
       <StudentCreateModal

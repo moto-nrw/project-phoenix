@@ -1,5 +1,4 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import type { Session } from "next-auth";
 import { NextRequest } from "next/server";
 import {
   proxyGet,
@@ -8,14 +7,11 @@ import {
   proxyPatch,
   proxyDelete,
 } from "./route-proxy.server";
-
-// ============================================================================
-// Types
-// ============================================================================
-
-interface ExtendedSession extends Session {
-  user: Session["user"] & { token?: string };
-}
+import {
+  type ExtendedSession,
+  createMockContext,
+  defaultSession,
+} from "~/test/route-test-helpers";
 
 // ============================================================================
 // Mocks
@@ -75,12 +71,6 @@ function createMockRequest(
   return new NextRequest(url, init);
 }
 
-function createMockContext(
-  params: Record<string, string | string[] | undefined> = {},
-) {
-  return { params: Promise.resolve(params) };
-}
-
 async function parseJson<T>(response: Response): Promise<T> {
   return (await response.json()) as T;
 }
@@ -90,11 +80,6 @@ interface ApiResponse<T> {
   message: string;
   data: T;
 }
-
-const defaultSession: ExtendedSession = {
-  user: { id: "1", token: "test-token", name: "Test User" },
-  expires: "2099-01-01",
-};
 
 beforeEach(() => {
   vi.clearAllMocks();

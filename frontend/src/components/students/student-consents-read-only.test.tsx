@@ -55,4 +55,17 @@ describe("StudentConsentsReadOnly", () => {
 
     expect(container).toBeEmptyDOMElement();
   });
+
+  // #4365: wenige kurze Einträge füllen die Breite der Karte als Raster.
+  it("stellt die Einwilligungen als Raster dar", () => {
+    render(
+      <StudentConsentsReadOnly
+        consents={[
+          { key: "agb", state: "granted", changed_at: "2026-08-20T09:00:00Z" },
+        ]}
+      />,
+    );
+
+    expect(screen.getByRole("list").className).toContain("grid-cols");
+  });
 });

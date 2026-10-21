@@ -284,7 +284,7 @@ describe("activity-api", () => {
     });
   });
 
-  describe("getActivity / fetchActivity", () => {
+  describe("getActivity", () => {
     it("fetches a single activity in server context", async () => {
       mockedApiGet.mockResolvedValueOnce({
         data: { data: sampleBackendActivity },
@@ -297,16 +297,6 @@ describe("activity-api", () => {
       );
       expect(result.id).toBe("1");
       expect(result.name).toBe("Basketball AG");
-    });
-
-    it("fetchActivity is an alias for getActivity", async () => {
-      mockedApiGet.mockResolvedValueOnce({
-        data: { data: sampleBackendActivity },
-      });
-
-      const result = await activityApi.fetchActivity("1");
-
-      expect(result.id).toBe("1");
     });
 
     it("fetches activity in browser context with wrapped response", async () => {
@@ -890,7 +880,7 @@ describe("activity-api", () => {
     });
   });
 
-  describe("getTimeframes / getAvailableTimeframes", () => {
+  describe("getTimeframes", () => {
     it("fetches timeframes in server context", async () => {
       mockedApiGet.mockResolvedValueOnce({
         data: { data: [sampleBackendTimeframe] },
@@ -900,16 +890,6 @@ describe("activity-api", () => {
 
       expect(result).toHaveLength(1);
       expect(result[0]?.name).toBe("Morning");
-    });
-
-    it("getAvailableTimeframes is an alias for getTimeframes", async () => {
-      mockedApiGet.mockResolvedValueOnce({
-        data: { data: [sampleBackendTimeframe] },
-      });
-
-      const result = await activityApi.getAvailableTimeframes();
-
-      expect(result).toHaveLength(1);
     });
 
     it("handles direct array response with backend format", async () => {

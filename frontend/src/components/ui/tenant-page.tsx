@@ -340,6 +340,45 @@ export function TenantPageStats({
 const CONTROL_HEIGHT =
   "[&_button]:h-10 [&_select]:h-10 [&_input]:h-10 max-sm:[&_button]:h-11 max-sm:[&_select]:h-11 max-sm:[&_input]:h-11";
 
+/**
+ * Die Such- und Filterzeile der Kopfkarte als eigene Fläche im Inhalt, direkt
+ * über der Liste, die sie filtert. Nur für eine Seite, deren Liste weit unter
+ * der Kopfkarte beginnt, weil andere Flächen davor stehen (Aktuelle Aufsicht,
+ * #4353). Sonst gehören Suche und Filter in `search`/`filters` von
+ * `TenantPage` (TENANT-PAGE-SPEC.md, Regel 5).
+ */
+export function TenantPageListSearch({
+  label,
+  search,
+  filters,
+  activeFilters,
+  onClearAllFilters,
+}: Readonly<
+  Pick<
+    TenantPageProps,
+    "search" | "filters" | "activeFilters" | "onClearAllFilters"
+  > & {
+    /** Name der Suchfläche für Vorlesegeräte, z. B. „Kinder suchen“. */
+    readonly label: string;
+  }
+>) {
+  return (
+    // Die Auswahl „Gruppe“ öffnet über den Kartenrand hinaus.
+    <SectionCard overflow="visible">
+      <div role="search" aria-label={label} className={CONTROL_HEIGHT}>
+        <PageHeaderWithSearch
+          embedded
+          title=""
+          search={search}
+          filters={filters as FilterConfig[] | undefined}
+          activeFilters={activeFilters as ActiveFilter[] | undefined}
+          onClearAllFilters={onClearAllFilters}
+        />
+      </div>
+    </SectionCard>
+  );
+}
+
 /** Der Rückweg ohne eigenes Ziel: die Unterseiten der Datenverwaltung. */
 const DEFAULT_BACK_HREF = "/database";
 const DEFAULT_BACK_LABEL = "Zurück zur Datenverwaltung";

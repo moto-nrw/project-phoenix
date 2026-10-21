@@ -209,7 +209,7 @@ Every error response has one form, the RFC 9457 envelope of ADR 0006 (#2507, #25
 
 **RULE: A service method that does nothing but call one repository method is NOT a service method.** Either it adds business logic (validation, multi-repo orchestration, audit, tenant-tx wrapping, error mapping), or it shouldn't exist.
 
-`TestModulePassthroughRatchet` counts the shape, not the verdict. [ADR 0075](../../docs/adr/0075-pass-throughs-keep-a-per-owner-floor.md) records the four shapes that may stay (transaction and observation wrapper, ADR 0067 consumer-port adapter, the #4480 section 5 Timetable adapters, scanner limitation 5), the floor per owner, and every counted hit outside it.
+`TestModulePassthroughRatchet` counts the shape, not the verdict. [ADR 0075](../../docs/adr/0075-pass-throughs-keep-a-per-owner-floor.md) records the shapes that may stay (transaction and observation wrapper, ADR 0067 consumer-port adapter, the #4480 section 5 Timetable adapters, scanner limitation 5, and since its amendment the owner-edge translation that validates or maps onto the public contract), the four named exceptions, and the floor per owner. Every budget equals its floor; a pure forward or a binding without translation is no floor shape and goes.
 
 ---
 

@@ -899,35 +899,8 @@ func TestStartInstance_PassesStartedByFromJWT(t *testing.T) {
 }
 
 // -----------------------------------------------------------------------------
-// getLogger tests.
-// -----------------------------------------------------------------------------
-
-func TestResource_getLogger(t *testing.T) {
-	t.Parallel()
-
-	t.Run("returns injected logger", func(t *testing.T) {
-		custom := slog.Default()
-		rs := NewResource(Dependencies{Logger: custom})
-		assert.NotNil(t, rs.getLogger())
-	})
-
-	t.Run("falls back to slog.Default when nil", func(t *testing.T) {
-		rs := NewResource(Dependencies{})
-		assert.NotNil(t, rs.getLogger(), "must never return nil")
-	})
-}
-
-// -----------------------------------------------------------------------------
 // replanWeek handler tests.
 // -----------------------------------------------------------------------------
-
-func TestReplanWeekRequest_Bind_NoOp(t *testing.T) {
-	t.Parallel()
-
-	req := &replanWeekRequest{}
-	err := req.Bind(nil)
-	assert.NoError(t, err, "Bind is intentionally a no-op")
-}
 
 func TestReplanWeek_NilService(t *testing.T) {
 	t.Parallel()

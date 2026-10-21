@@ -108,19 +108,6 @@ func firstSchoolClock(clocks []func() time.Time) func() time.Time {
 	return clocks[0]
 }
 
-// pushSubscriptionPortal reads back through which portal a device was
-// registered (#2208).
-func pushSubscriptionPortal(t *testing.T, db *bun.DB, tenantID int64, endpoint string) string {
-	t.Helper()
-	var portal string
-	require.NoError(t, db.NewSelect().
-		TableExpr("iot.push_subscriptions").
-		ColumnExpr("portal").
-		Where("endpoint = ?", endpoint).
-		Scan(testpkg.TenantContext(tenantID), &portal))
-	return portal
-}
-
 // registerLehrkraft creates an account at the tenant carrying the lehrkraft
 // system role — the only role that opens the school portal today.
 func registerLehrkraft(t *testing.T, db *bun.DB, resource *schoolportal.Resource, tenantID int64, prefix string) (email string, accountID int64) {

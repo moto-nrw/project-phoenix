@@ -3545,6 +3545,12 @@
       "legacy": "enrollment.form_field_label_required"
     },
     {
+      "code": "enrollment.form_attachment_invalid",
+      "class": "input",
+      "parameters": [],
+      "legacy": "enrollment.form_attachment_invalid"
+    },
+    {
       "code": "enrollment.form_field_content_required",
       "class": "input",
       "parameters": [],

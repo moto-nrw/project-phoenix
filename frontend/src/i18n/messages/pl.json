@@ -1023,6 +1023,14 @@
     "dateRange": "od {from} do {to}"
   },
   "enrollmentForm": {
+    "attachments": {
+      "open": "Otwórz",
+      "download": "Pobierz",
+      "openLabel": "Otwórz {label}",
+      "downloadLabel": "Pobierz {label}",
+      "errorObject": "plik PDF",
+      "popupBlocked": "Zezwól na otwarcie nowego okna."
+    },
     "errorObject": "zgłoszenie",
     "loading": "Wczytywanie formularza…",
     "legalGermanNotice": "Te teksty prawne obowiązują w wersji niemieckiej.",
@@ -1504,12 +1512,15 @@
     "requestHint": "Te zmiany sprawdza zespół, zanim zaczną obowiązywać.",
     "departureDescription": "Proszę ustalić dla każdego dnia tygodnia, czy dziecko jest odbierane, idzie samo czy jedzie autobusem. Zmiany sprawdza OGS.",
     "departureReadOnlyAccompanied": "Państwa dziecko przynajmniej jednego dnia idzie z innym dzieckiem. Nie mogą Państwo tutaj zmienić drogi do domu.",
+    "departureEdit": "Edytuj",
+    "departureCancel": "Anuluj",
+    "departureSubmitting": "Wysyłanie prośby…",
+    "departurePendingNotice": "OGS sprawdza Państwa zmianę. Do czasu potwierdzenia obowiązuje dotychczasowa droga do domu.",
     "requestButton": "Poproś o zmianę",
     "requestSubmitted": "Prośba wysłana. Zespół sprawdzi Państwa zmianę.",
     "requestEdit": "Edytuj prośbę",
     "pendingBadge": "W trakcie sprawdzania",
     "pendingTitle": "Zgłoszona zmiana",
-    "pendingNotice": "Zmiana tego pola czeka na potwierdzenie przez zespół.",
     "editDisabled": "Edycja tych danych jest w tej OGS wyłączona.",
     "requestDisabled": "Prośby o zmianę są w tej OGS wyłączone.",
     "notSet": "Nie podano",
@@ -2182,6 +2193,7 @@
         "announcement_not_found": "Nie udało się zmienić: {object}. Sprawdź aktualny stan."
       },
       "enrollment": {
+        "form_attachment_invalid": "Sprawdź nazwę i plik PDF.",
         "approval_care_offering_exactly_one": "Nie udało się zmienić: {object}. Sprawdź aktualny stan.",
         "approval_care_offering_missing": "Nie udało się zmienić: {object}. Sprawdź aktualny stan.",
         "approval_data_invalid": "Nie udało się zapisać: {object}. Sprawdź wpisane dane.",

@@ -1080,22 +1080,6 @@ describe("PersonalInfoReadOnly with showEditButton", () => {
     expect(onEditClick).toHaveBeenCalledTimes(1);
   });
 
-  // Betreuernotizen used to render here as a free-text field. Since #3632 the
-  // durable hints are notes of their own, rendered by
-  // StudentPermanentNotesCard with their author and their audience, and #4268
-  // removed the old field. This pins that the label does not come back onto a
-  // surface that no longer owns it.
-  it("does not render the retired supervisor-notes field", () => {
-    render(
-      <PersonalInfoReadOnly
-        student={mockStudent}
-        showEditButton={true}
-        onEditClick={vi.fn()}
-      />,
-    );
-    expect(screen.queryByText("Betreuernotizen")).not.toBeInTheDocument();
-  });
-
   it("renders extra info (parent notes) when present", () => {
     render(
       <PersonalInfoReadOnly

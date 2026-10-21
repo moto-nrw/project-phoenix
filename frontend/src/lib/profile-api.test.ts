@@ -36,12 +36,7 @@ vi.mock("./profile-helpers", () => ({
 // Import after mocks are set up
 import { getCachedSession } from "./session-cache";
 import { mapProfileResponse, mapProfileUpdateRequest } from "./profile-helpers";
-import {
-  fetchProfile,
-  updateProfile,
-  uploadAvatar,
-  deleteAvatar,
-} from "./profile-api";
+import { fetchProfile, updateProfile, uploadAvatar } from "./profile-api";
 
 // Type-safe mocks
 const mockedGetSession = vi.mocked(getCachedSession);
@@ -437,99 +432,6 @@ describe("profile-api", () => {
 
       await expect(uploadAvatar(mockFile)).rejects.toMatchObject({
         code: "general.unavailable",
-      });
-    });
-  });
-
-  describe("deleteAvatar", () => {
-    it("deletes avatar successfully", async () => {
-      const mockFetch = vi.fn().mockResolvedValue({
-        ok: true,
-        json: () =>
-          Promise.resolve({
-            success: true,
-            message: "Avatar deleted",
-            data: { ...sampleBackendProfile, avatar: undefined },
-          }),
-      });
-      global.fetch = mockFetch;
-
-      const result = await deleteAvatar();
-
-      expect(mockFetch).toHaveBeenCalledWith("/api/me/profile/avatar", {
-        method: "DELETE",
-        headers: {
-          "Content-Type": "application/json",
-        },
-      });
-      expect(mockedMapProfileResponse).toHaveBeenCalled();
-      expect(result).toEqual(sampleProfile);
-    });
-
-    it("throws error when no token is available", async () => {
-      mockedGetSession.mockResolvedValue(null);
-
-      await expect(deleteAvatar()).rejects.toThrow(
-        "No authentication token available",
-      );
-    });
-
-    it("throws error when response is not ok", async () => {
-      const mockFetch = vi.fn().mockResolvedValue({
-        ok: false,
-        status: 404,
-      });
-      global.fetch = mockFetch;
-
-      await expect(deleteAvatar()).rejects.toMatchObject({
-        status: 404,
-        code: "general.input",
-      });
-      expect(consoleErrorSpy).toHaveBeenCalledWith("failed to delete avatar", {
-        error: expect.stringContaining("HTTP error! status: 404") as unknown,
-      });
-    });
-
-    it("throws error when response success is false", async () => {
-      const mockFetch = vi.fn().mockResolvedValue({
-        ok: true,
-        json: () =>
-          Promise.resolve({
-            success: false,
-            message: "Delete failed",
-            data: null,
-          }),
-      });
-      global.fetch = mockFetch;
-
-      await expect(deleteAvatar()).rejects.toMatchObject({
-        status: 500,
-        code: "general.server",
-        message: "Delete failed",
-      });
-    });
-
-    it("throws error when response success is false with no message", async () => {
-      const mockFetch = vi.fn().mockResolvedValue({
-        ok: true,
-        json: () =>
-          Promise.resolve({
-            success: false,
-            data: null,
-          }),
-      });
-      global.fetch = mockFetch;
-
-      await expect(deleteAvatar()).rejects.toThrow("Failed to delete avatar");
-    });
-
-    it("throws generic error when fetch fails", async () => {
-      const mockFetch = vi.fn().mockRejectedValue(new Error("Network error"));
-      global.fetch = mockFetch;
-
-      await expect(deleteAvatar()).rejects.toThrow("Network error");
-      expect(consoleErrorSpy).toHaveBeenCalledWith("failed to delete avatar", {
-        error: expect.stringContaining("Network error") as unknown,
       });
     });
   });

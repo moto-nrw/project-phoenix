@@ -1,5 +1,6 @@
 "use client";
 
+import { AttachmentList } from "~/components/enrollment/attachment-list";
 import { useEffect, useId, useMemo, useState } from "react";
 import { useLocale, useTranslations } from "next-intl";
 import { Check, FileText, Info, Lock, Plus, Trash2 } from "lucide-react";
@@ -2186,7 +2187,7 @@ export function EnrollmentForm({
                                     )}
                                   </span>
                                   {offeringRuleHint(bucket.rule, tr) && (
-                                    <span className="bg-moto-blue/10 text-moto-blue-hover rounded-full px-2 py-0.5 text-[11px] font-medium">
+                                    <span className="bg-moto-blue/10 text-moto-blue-hover rounded-full px-2 py-0.5 text-xs font-medium">
                                       {offeringRuleHint(bucket.rule, tr)}
                                     </span>
                                   )}
@@ -2353,42 +2354,45 @@ export function EnrollmentForm({
               {tr("legalGermanNotice")}
             </p>
           ) : null}
-          {legalBlocks.map((block) =>
-            block.kind === "notice" ? (
-              <EmailContactNotice
-                key={block.key}
-                block={block}
-                onViewLegal={
-                  block.text ? () => setOpenLegalDoc(block) : undefined
-                }
-                detailsLabel={tr("actions.details")}
-                detailsAriaLabel={tr("actions.detailsAria", {
-                  title: block.title,
-                })}
-              />
-            ) : (
-              <Consent
-                key={block.key}
-                name={`consent_${block.key}`}
-                label={block.label}
-                checked={legalConsents[block.key] === true}
-                onChange={(checked) =>
-                  setLegalConsents((prev) => ({
-                    ...prev,
-                    [block.key]: checked,
-                  }))
-                }
-                required={block.required}
-                error={fieldError(`consent_${block.key}`)}
-                legalText={block.text}
-                legalTitle={block.title}
-                onViewLegal={
-                  block.text ? () => setOpenLegalDoc(block) : undefined
-                }
-                tr={tr}
-              />
-            ),
-          )}
+          {legalBlocks.map((block) => (
+            <div key={block.key}>
+              {block.kind === "notice" ? (
+                <EmailContactNotice
+                  key={block.key}
+                  block={block}
+                  onViewLegal={
+                    block.text ? () => setOpenLegalDoc(block) : undefined
+                  }
+                  detailsLabel={tr("actions.details")}
+                  detailsAriaLabel={tr("actions.detailsAria", {
+                    title: block.title,
+                  })}
+                />
+              ) : (
+                <Consent
+                  key={block.key}
+                  name={`consent_${block.key}`}
+                  label={block.label}
+                  checked={legalConsents[block.key] === true}
+                  onChange={(checked) =>
+                    setLegalConsents((prev) => ({
+                      ...prev,
+                      [block.key]: checked,
+                    }))
+                  }
+                  required={block.required}
+                  error={fieldError(`consent_${block.key}`)}
+                  legalText={block.text}
+                  legalTitle={block.title}
+                  onViewLegal={
+                    block.text ? () => setOpenLegalDoc(block) : undefined
+                  }
+                  tr={tr}
+                />
+              )}
+              <AttachmentList attachments={block.attachments} />
+            </div>
+          ))}
         </section>
       )}
 
@@ -2786,6 +2790,7 @@ function InfoBlock({
           {field.content}
         </p>
       )}
+      <AttachmentList attachments={field.attachments} />
     </div>
   );
 }
@@ -3336,6 +3341,7 @@ function previewLegalTexts(schema: PublicFormSchema | null): PublicLegalTexts {
         title: block.title,
         label: block.label,
         text: legalBlockText(block),
+        attachments: block.attachments,
         required: block.required,
         sort_order: block.sort_order,
         source: block.source,

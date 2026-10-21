@@ -789,6 +789,10 @@ func seedTranslations(attr, german string, texts map[string]string) map[string]a
 }
 
 func (s parentEnrollmentSeedStep) createEnrollmentSchema(rt *Runtime, auth AuthRef) (int64, error) {
+	attachments, err := seedEnrollmentAttachments(rt)
+	if err != nil {
+		return 0, err
+	}
 	const allergies = "Allergien und Unverträglichkeiten"
 	const swimming = "Mein Kind darf schwimmen."
 	swimmingTranslations := seedTranslations("label", swimming, map[string]string{
@@ -804,6 +808,7 @@ func (s parentEnrollmentSeedStep) createEnrollmentSchema(rt *Runtime, auth AuthR
 	raw, err := rt.Client.PostWithAuth(auth, "/api/enrollment/schema/", map[string]any{
 		"name": "Demo-Anmeldeformular",
 		"fields": []map[string]any{
+			{"key": "ogs_information", "type": "information", "label": "Hinweise zur OGS", "content": "Hier finden Sie Informationen zum Schulstart und zum Abholen.", "sort_order": 0, "attachments": attachments},
 			{
 				"key": "allergies", "label": allergies, "type": "textarea", "sort_order": 10,
 				"translations": seedTranslations("label", allergies, map[string]string{

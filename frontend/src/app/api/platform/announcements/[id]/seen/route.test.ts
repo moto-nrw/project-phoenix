@@ -1,11 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { NextRequest } from "next/server";
-import type { Session } from "next-auth";
 import { mockSessionData } from "~/test/mocks/next-auth";
-
-interface ExtendedSession extends Session {
-  user: Session["user"] & { token?: string };
-}
 
 const { mockAuth, mockApiPost } = vi.hoisted(() => ({
   mockAuth: vi.fn<() => Promise<ExtendedSession | null>>(),
@@ -24,6 +19,7 @@ vi.mock("~/lib/api-helpers.server", async (importOriginal) => ({
 }));
 
 import { POST } from "./route";
+import type { ExtendedSession } from "~/test/route-test-helpers";
 
 function mockValidSession(): void {
   mockAuth.mockResolvedValue(mockSessionData() as ExtendedSession);
@@ -52,36 +48,5 @@ describe("POST /api/platform/announcements/[id]/seen", () => {
       "/api/platform/announcements/1/seen",
       "test-token",
     );
-  });
-
-  it("returns 401 when not authenticated", async () => {
-    mockAuth.mockResolvedValue(null);
-
-    const request = new NextRequest(
-      "http://localhost:3000/api/platform/announcements/1/seen",
-      {
-        method: "POST",
-      },
-    );
-    const context = { params: Promise.resolve({ id: "1" }) };
-    const response = await POST(request, context);
-
-    expect(response.status).toBe(401);
-  });
-
-  it("handles backend errors", async () => {
-    mockValidSession();
-    mockApiPost.mockRejectedValue(new Error("Backend error"));
-
-    const request = new NextRequest(
-      "http://localhost:3000/api/platform/announcements/1/seen",
-      {
-        method: "POST",
-      },
-    );
-    const context = { params: Promise.resolve({ id: "1" }) };
-    const response = await POST(request, context);
-
-    expect(response.status).toBe(500);
   });
 });

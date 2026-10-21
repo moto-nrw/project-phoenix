@@ -2,7 +2,6 @@ import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
 
 import {
   listMyChildren,
-  listMyEnrollments,
   listEnrollableSchools,
   fetchParentEnrollmentProfile,
   submitParentEnrollment,
@@ -25,7 +24,6 @@ import {
   updateMasterDataField,
   submitMasterDataRequest,
   listMessageThreads,
-  listChildThreads,
   fetchMessagesUnreadCount,
   getChildConversation,
   postChildMessage,
@@ -34,7 +32,6 @@ import {
   markAnnouncementRead,
   acknowledgeAnnouncement,
   type Child,
-  type EnrollmentRequest,
   type StatusDay,
   type ChildMasterData,
   type ThreadSummary,
@@ -78,29 +75,6 @@ function mkChild(id: string, schoolName: string): Child {
     status: "active",
     school_name: schoolName,
     school_slug: "school",
-  };
-}
-
-function mkEnrollment(id: string): EnrollmentRequest {
-  return {
-    request_id: id,
-    tenant_id: "1",
-    status_token: "tok",
-    submitted_at: "2026-04-01T12:00:00Z",
-    phase_id: "5",
-    phase_name: "Schuljahr",
-    service_start_date: "2026-09-01",
-    service_end_date: "2027-07-31",
-    school_name: "OGS",
-    school_slug: "ogs",
-    children: [
-      {
-        child_id: "99",
-        first_name: "Lara",
-        last_name: "Beispiel",
-        status: "submitted",
-      },
-    ],
   };
 }
 
@@ -263,23 +237,6 @@ describe("listMyChildren", () => {
     mockFetch(async () => new Response("", { status: 401 }));
     await expect(listMyChildren()).rejects.toThrow();
     expect(assign).toHaveBeenCalledWith("/parents/login");
-  });
-});
-
-// --- listMyEnrollments ----------------------------------------------
-
-describe("listMyEnrollments", () => {
-  it("returns the unwrapped data array on 200", async () => {
-    mockFetch(async () => jsonResponse({ data: [mkEnrollment("99")] }));
-    const out = await listMyEnrollments();
-    expect(out).toHaveLength(1);
-    expect(out[0]!.request_id).toBe("99");
-    expect(out[0]!.children).toHaveLength(1);
-  });
-
-  it("throws on non-OK", async () => {
-    mockFetch(async () => jsonResponse({ detail: "boom" }, { status: 500 }));
-    await expect(listMyEnrollments()).rejects.toThrow(/Request failed \(500\)/);
   });
 });
 
@@ -1025,40 +982,6 @@ describe("listMessageThreads", () => {
     const out = await listMessageThreads();
     // Either empty array or empty object-like — the key invariant is no throw.
     expect(out).toBeDefined();
-  });
-});
-
-// --- listChildThreads ---------------------------------------------------------
-
-describe("listChildThreads", () => {
-  it("GETs the per-child threads route with encoded studentId", async () => {
-    let seenURL = "";
-    mockFetch(async (input) => {
-      seenURL = typeof input === "string" ? input : input.toString();
-      return jsonResponse({ data: [mkThreadSummary()] });
-    });
-    const out = await listChildThreads("42");
-    expect(out).toHaveLength(1);
-    expect(seenURL).toContain("/api/parent/me/messages/children/42/threads");
-  });
-
-  it("URL-encodes the studentId", async () => {
-    let seenURL = "";
-    mockFetch(async (input) => {
-      seenURL = typeof input === "string" ? input : input.toString();
-      return jsonResponse({ data: [] });
-    });
-    await listChildThreads("a/b");
-    expect(seenURL).toContain("a%2Fb");
-  });
-
-  it("throws on non-OK", async () => {
-    mockFetch(async () =>
-      jsonResponse({ detail: "forbidden" }, { status: 403 }),
-    );
-    await expect(listChildThreads("42")).rejects.toThrow(
-      /Request failed \(403\)/,
-    );
   });
 });
 

@@ -369,7 +369,7 @@ func TestSMTPMailer_Send_SpecialCharacterDisplayName(t *testing.T) {
 
 	t.Run("reply-to header", func(t *testing.T) {
 		message := mailcontract.Message{
-			From:     mailcontract.NewEmail("moto", "kontakt@moto.nrw"),
+			From:     mailcontract.NewEmail("moto", "kontakt@moto-ogs.de"),
 			ReplyTo:  mailcontract.NewEmail(`OGS "Am Berg", Grundschule`, "ogs@schule-am-berg.example"),
 			To:       mailcontract.NewEmail("Erika Muster", "erika@example.test"),
 			Subject:  "Einladung zum Eltern-Portal",
@@ -384,7 +384,7 @@ func TestSMTPMailer_Send_SpecialCharacterDisplayName(t *testing.T) {
 		assert.Contains(t, replyTo[0], "ogs@schule-am-berg.example")
 		from := built.GetAddrHeaderString(mail.HeaderFrom)
 		require.Len(t, from, 1)
-		assert.Contains(t, from[0], "kontakt@moto.nrw")
+		assert.Contains(t, from[0], "kontakt@moto-ogs.de")
 
 		message.ReplyTo = mailcontract.Email{}
 		built, err = mailer.buildMessage(message)

@@ -21,6 +21,7 @@ import { useNFCEnabled } from "~/lib/tenant-context";
 import { ActiveSupervisionLoadingView } from "~/components/active-supervisions/states";
 import { CompleteInstanceModal } from "~/components/active-supervisions/complete-instance-modal";
 import { SupervisionStudentGrid } from "~/components/active-supervisions/student-grid";
+import { AddUnplannedStudentModal } from "~/components/active-supervisions/add-unplanned-student-modal";
 import { PresentChildrenPicker } from "~/components/active-supervisions/present-children-picker";
 import { TimetableRosterContent } from "~/components/active-supervisions/timetable-roster";
 import { useTimetableActions } from "~/components/active-supervisions/use-timetable-actions";
@@ -99,9 +100,14 @@ export function OpenRoomSections({
   grid,
   blocks,
 }: OpenRoomSectionsProps) {
+  // A search or filter remounts every section open so its hits show, the
+  // folded foreign blocks too; clearing it restores the opening state, like
+  // the lists inside a block (#4353).
+  const narrowed = blocks.rosterRowFilter != null;
   return (
     <div className="space-y-6">
       {sections.map((section) => {
+        const key = `${section.key}:${narrowed ? "narrowed" : "all"}`;
         const ids = sectionSessionIds(section);
         const children = {
           students: students.filter((s) => ids.includes(s.activeGroupId)),
@@ -112,15 +118,17 @@ export function OpenRoomSections({
         };
         return section.kind === "block" ? (
           <OpenRoomBlock
-            key={section.key}
+            key={key}
             section={section}
+            narrowed={narrowed}
             context={blocks}
             {...children}
           />
         ) : (
           <OpenRoomOccupancy
-            key={section.key}
+            key={key}
             section={section}
+            narrowed={narrowed}
             onAddSupervisor={blocks.onAddSupervisor}
             {...children}
           />
@@ -221,6 +229,7 @@ function AddSupervisorButton({
 
 function OpenRoomBlock({
   section,
+  narrowed,
   context,
   students,
   filteredStudents,
@@ -228,6 +237,7 @@ function OpenRoomBlock({
 }: Readonly<
   SectionChildren & {
     section: OpenRoomBlockSection;
+    narrowed: boolean;
     context: OpenRoomBlockContext;
   }
 >) {
@@ -246,7 +256,7 @@ function OpenRoomBlock({
     onPresentPickerAutoOpened,
     ...actionOptions
   } = context;
-  const [collapsed, setCollapsed] = useState(!section.isOwn);
+  const [collapsed, setCollapsed] = useState(!narrowed && !section.isOwn);
   // Reading a foreign block's roster needs the school-wide overview (#2380).
   // Without it the section shows the block's children from the room.
   const canViewRoster = block.canOperate || overviewEnabled;
@@ -321,7 +331,6 @@ function OpenRoomBlock({
           <Alert type="info" message={actions.moveNotice} />
         ) : null}
         <TimetableRosterContent
-          addStudentResults={actions.addStudentResults}
           addStudentSearch={actions.addStudentSearch}
           addStudentError={actions.addStudentError}
           attendanceWebEnabled={attendanceWebEnabled}
@@ -346,6 +355,7 @@ function OpenRoomBlock({
               : undefined
           }
           presentChildrenPicker={PresentChildrenPicker}
+          addUnplannedStudentModal={AddUnplannedStudentModal}
           presentPickerAutoOpen={
             presentPickerAutoOpenInstanceId === currentRoster.instance.id
           }
@@ -391,6 +401,7 @@ function OpenRoomBlock({
 
 function OpenRoomOccupancy({
   section,
+  narrowed,
   onAddSupervisor,
   students,
   filteredStudents,
@@ -398,13 +409,14 @@ function OpenRoomOccupancy({
 }: Readonly<
   SectionChildren & {
     section: OpenRoomOccupancySection;
+    narrowed: boolean;
     onAddSupervisor: (activeGroupId: string) => void;
   }
 >) {
   // Children outside every block are the room's shared occupancy: they stay
   // open. A foreign kiosk session starts collapsed like a foreign block.
   const [collapsed, setCollapsed] = useState(
-    !section.independent && !section.isOwn,
+    !narrowed && !section.independent && !section.isOwn,
   );
   const title = section.independent ? "Ohne Angebot" : section.title;
   const nfcEnabled = useNFCEnabled();

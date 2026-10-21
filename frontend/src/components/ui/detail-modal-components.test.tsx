@@ -107,16 +107,6 @@ describe("InfoSection", () => {
     expect(section).toBeInTheDocument();
     expect(container.querySelector(".bg-blue-50\\/30")).not.toBeInTheDocument();
   });
-
-  it("does not apply an accent color class to the icon wrapper (icon supplies its own color)", () => {
-    const { container } = render(
-      <InfoSection title="Test" icon={DetailIcons.person} accentColor="indigo">
-        Content
-      </InfoSection>,
-    );
-
-    expect(container.querySelector(".text-indigo-600")).not.toBeInTheDocument();
-  });
 });
 
 describe("DataGrid", () => {

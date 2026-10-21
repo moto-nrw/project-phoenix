@@ -288,7 +288,8 @@ func buildTemplateLegalBlocks(configured []enrollmentNative.FormLegalBlock) []en
 		}
 		blocks = append(blocks, enrollmentNative.LegalBlock{
 			Key: block.Key, Kind: block.Kind, Title: block.Title, Label: block.Label,
-			Text: templateLegalBlockText(block), Required: block.Required, SortOrder: block.SortOrder,
+			Attachments: enrollmentNative.PublicFormAttachments(block.Attachments),
+			Text:        templateLegalBlockText(block), Required: block.Required, SortOrder: block.SortOrder,
 			Source: block.Source, Translations: block.PublicTranslations(),
 		})
 	}

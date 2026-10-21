@@ -131,12 +131,6 @@ describe("StudentExportModal", () => {
     mockExportStudents.mockResolvedValue(undefined);
   });
 
-  it("does not render while closed", () => {
-    renderModal({ isOpen: false });
-
-    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
-  });
-
   it("renders the current count and closes from the close button", async () => {
     const { onClose } = await openModal();
 

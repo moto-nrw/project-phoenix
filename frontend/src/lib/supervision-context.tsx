@@ -730,19 +730,3 @@ export function useOptionalSupervision(): SupervisionContextType {
   const context = useContext(SupervisionContext);
   return context ?? EMPTY_SUPERVISION;
 }
-
-/**
- * Hook to check if user has groups (convenience wrapper)
- */
-export function useHasGroups(): boolean {
-  const { hasGroups, isLoadingGroups } = useSupervision();
-  return !isLoadingGroups && hasGroups;
-}
-
-/**
- * Hook to check if user is supervising a room (convenience wrapper)
- */
-export function useIsSupervising(): boolean {
-  const { isSupervising, isLoadingSupervision } = useSupervision();
-  return !isLoadingSupervision && isSupervising;
-}

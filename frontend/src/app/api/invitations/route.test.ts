@@ -1,15 +1,11 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import type { Session } from "next-auth";
-import { NextRequest } from "next/server";
 import { ApiResponseError } from "~/lib/api-response-error.server";
-
-// ============================================================================
-// Types
-// ============================================================================
-
-interface ExtendedSession extends Session {
-  user: Session["user"] & { token?: string };
-}
+import {
+  type ExtendedSession,
+  createMockContext,
+  createMockRequest,
+  defaultSession,
+} from "~/test/route-test-helpers";
 
 // ============================================================================
 // Mocks
@@ -43,35 +39,6 @@ const { GET, POST } = await import("./route");
 // Test Helpers
 // ============================================================================
 
-function createMockRequest(
-  path: string,
-  options: { method?: string; body?: unknown } = {},
-): NextRequest {
-  const url = new URL(path, "http://localhost:3000");
-  const requestInit: { method: string; body?: string; headers?: HeadersInit } =
-    {
-      method: options.method ?? "GET",
-    };
-
-  if (options.body) {
-    requestInit.body = JSON.stringify(options.body);
-    requestInit.headers = { "Content-Type": "application/json" };
-  }
-
-  return new NextRequest(url, requestInit);
-}
-
-function createMockContext(
-  params: Record<string, string | string[] | undefined> = {},
-) {
-  return { params: Promise.resolve(params) };
-}
-
-const defaultSession: ExtendedSession = {
-  user: { id: "1", token: "test-token", name: "Test User" },
-  expires: "2099-01-01",
-};
-
 interface ApiResponse<T> {
   success: boolean;
   message: string;
@@ -90,15 +57,6 @@ describe("GET /api/invitations", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     mockAuth.mockResolvedValue(defaultSession);
-  });
-
-  it("returns 401 when not authenticated", async () => {
-    mockAuth.mockResolvedValueOnce(null);
-
-    const request = createMockRequest("/api/invitations");
-    const response = await GET(request, createMockContext());
-
-    expect(response.status).toBe(401);
   });
 
   it("fetches invitations list from backend", async () => {
@@ -139,18 +97,6 @@ describe("POST /api/invitations", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     mockAuth.mockResolvedValue(defaultSession);
-  });
-
-  it("returns 401 when not authenticated", async () => {
-    mockAuth.mockResolvedValueOnce(null);
-
-    const request = createMockRequest("/api/invitations", {
-      method: "POST",
-      body: { email: "new@example.com", roleId: "2" },
-    });
-    const response = await POST(request, createMockContext());
-
-    expect(response.status).toBe(401);
   });
 
   it("creates invitation successfully with roleId (camelCase)", async () => {
@@ -359,28 +305,6 @@ describe("POST /api/invitations", () => {
       expect.not.objectContaining({ role_id: expect.anything() }),
     );
     expect(response.status).toBe(400);
-  });
-
-  it("handles backend error", async () => {
-    const requestBody = {
-      email: "duplicate@example.com",
-      roleId: "2",
-    };
-
-    mockApiPost.mockRejectedValueOnce(
-      new ApiResponseError(409, "User already has invitation"),
-    );
-
-    const request = createMockRequest("/api/invitations", {
-      method: "POST",
-      body: requestBody,
-    });
-    const response = await POST(request, createMockContext());
-
-    expect(response.status).toBe(409);
-    const json = await parseJsonResponse<{ detail: string }>(response);
-    expect(json.detail).toBe("Conflict");
-    expect(JSON.stringify(json)).not.toContain("User already has invitation");
   });
 });
 

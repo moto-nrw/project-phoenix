@@ -17,18 +17,22 @@ PyrePortal consumes `/api/iot/*` using a device API key and staff PIN.
 no backend text; the refusal body is the RFC 9457 envelope of ADR 0006 with
 `status` as the HTTP status number, the diagnostic text in `detail` and the
 identity in `code` (#2520). Coordinate endpoint, code and auth-header changes
-across repos. Changing a code the kiosk branches on is a two-repo change:
-`backend/api/testdata/iot_error_codes.golden` (`TestFullProductionRouterGolden`)
-and `TestPyrePortalErrorCodesGuard`
-(`backend/api/iot/pyreportal_error_codes_test.go`) fail until both sides and
-the golden move together.
+across repos. Changing a code the kiosk branches on is a two-repo change.
+PyrePortal's `CODE_MESSAGES` maps 35 codes; the backend pins them in two
+places. `backend/api/testdata/iot_error_codes.golden` pins the 15 check-in
+conflict, staff-clock and open-room codes to the declaration that emits them
+(`TestFullProductionRouterGolden/contracts/IoT_error_code_declarations`). The
+21 codes of the table below are pinned on the wire (see after the table);
+`iot.rfid_tag_not_found` appears in both lists. These tests fail until the
+backend and its pin move together; the PyrePortal side is a manual
+coordination step.
 Backend header and attribution rules: `backend/CLAUDE.md` RFID/IoT Integration.
 
 ### Kiosk error codes
 
 Each kiosk refusal answers with its own `iot.*` code (#3939). The text in
-`detail` is diagnostics and may change; the golden and the guard list the
-codes PyrePortal branches on.
+`detail` is diagnostics and may change. PyrePortal branches on every code
+in this table; the tests named after the table pin them.
 
 | Code | Status | Detail |
 |---|---|---|
@@ -56,12 +60,13 @@ codes PyrePortal branches on.
 
 Device authentication codes come from `backend/auth/device/errors.go`, the
 others from `backend/modules/devicescan/scan.go`.
-`checkIoTErrorCodes` (`backend/api/iot_error_codes_contract_test.go`) drives
-them through the production router. The Schulhof, WC and unassigned-card codes
+`checkIoTErrorCodes` (`backend/api/iot_error_codes_contract_test.go`, run as
+`TestFullProductionRouterGolden/contracts/IoT_error_codes`) drives 17 of them
+through the production router. The Schulhof, WC and unassigned-card codes
 need a missing system activity or a card without a person behind it;
-`TestWireFormat_ClassifiedFailures` (`backend/api/iot/checkin/wire_test.go`)
-pins them. Other kiosk programming errors and 5xx faults
-keep their class code. `device is already running an activity session` has
+`TestWireFormat_ClassifiedFailures`
+(`backend/modules/devicescan/http/checkin/wire_test.go`) pins these four.
+Other kiosk programming errors and 5xx faults keep their class code. `device is already running an activity session` has
 no code: no backend path returns it, and a second start answers the session
 conflict instead.
 
@@ -130,7 +135,7 @@ Refusals carry stable codes PyrePortal maps:
 - `iot.open_room_binary_mode` (409)
 - the check-in capacity and `iot.student_already_active` bodies
 
-`backend/api/iot/pyreportal_error_codes_test.go` pins the codes. Deploy the
+`backend/api/testdata/iot_error_codes.golden` pins the codes. Deploy the
 backend first. A kiosk that finds neither flag nor route (404) keeps the old
 Schulhof/WC buttons.
 
@@ -330,7 +335,7 @@ for the expiry (#3470), may read `id`, `school_slug` and `expires_at` of
 `platform.schools`; it never sees an address or a name (migration 1.15.412).
 
 Mails (#3465): the entry link leaves by mail only (`demo-access.html`,
-Reply-To `kontakt@moto.nrw`), and the answer is the same for every address,
+Reply-To `kontakt@moto-ogs.de`), and the answer is the same for every address,
 so it neither hands a demo to somebody who typed a foreign address nor tells
 who asked before. The mail carries nothing the form submitted. Every request
 stores its own access with the submitted details; earlier links stay valid

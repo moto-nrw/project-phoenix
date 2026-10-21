@@ -15,10 +15,9 @@ import { Alert } from "~/components/ui/alert";
 import { Button, ButtonLink } from "~/components/ui/button";
 import { ChoiceModal } from "~/components/ui/choice-modal";
 import type { FormErrorInput } from "~/components/ui/form-error";
-import { FormModal } from "~/components/ui/form-modal";
 import { EmptyStudentResults } from "~/components/ui/empty-student-results";
-import { Input } from "~/components/ui/input";
 import { OccupancyBadges } from "~/components/ui/occupancy-badges";
+import type { AddUnplannedStudentModalProps } from "~/components/active-supervisions/add-unplanned-student-modal";
 import type { PresentChildrenPickerProps } from "~/components/active-supervisions/present-children-picker";
 import {
   SectionCard,
@@ -50,7 +49,7 @@ import type {
   TimetableRosterRow,
 } from "~/lib/timetable-operations-types";
 import { isCareDayExpected, isNotScheduledRow } from "~/lib/timetable-types";
-import type { Student } from "~/lib/student-helpers";
+import { rosterRunState } from "~/components/active-supervisions/view-model";
 
 /**
  * Marks the attendance mutation as our own before firing the request so the
@@ -650,6 +649,7 @@ interface TimetableRosterHeaderProps {
   readonly nfcEnabled: boolean;
   readonly extraActions?: ReactNode;
   readonly toggle?: ReactNode;
+  readonly showStatus: boolean;
   /** Öffnet den Dialog „Kind ungeplant hinzufügen“; fehlt ohne das Recht. */
   readonly onAddStudent?: () => void;
   readonly onAddPresentStudents?: () => void;
@@ -672,6 +672,7 @@ function TimetableRosterHeader({
   nfcEnabled,
   extraActions,
   toggle,
+  showStatus,
   onAddStudent,
   onAddPresentStudents,
   onComplete,
@@ -710,16 +711,19 @@ function TimetableRosterHeader({
             {/* Der Kicker folgt dem Zustand des Blocks. Fest "Aktiv" war
                 gelogen, sobald der Roster eines beendeten Termins offen ist —
                 im Reopen-Fenster der OGS ebenso wie in der Aufsicht einer
-                Lehrkraft (#2527). */}
-            <p
-              className={`text-xs font-semibold tracking-wide uppercase ${
-                roster.instance.status === "completed"
-                  ? "text-gray-500"
-                  : "text-moto-green-strong"
-              }`}
-            >
-              {roster.instance.status === "completed" ? "Beendet" : "Aktiv"}
-            </p>
+                Lehrkraft (#2527). Er heißt wie das Abzeichen im Seitenkopf
+                („Aktiv“ / „Beendet“, #4354). */}
+            {showStatus ? (
+              <p
+                className={`text-xs font-semibold tracking-wide uppercase ${
+                  roster.instance.status === "completed"
+                    ? "text-gray-500"
+                    : "text-moto-green-strong"
+                }`}
+              >
+                {rosterRunState(roster.instance.status).label}
+              </p>
+            ) : null}
             <h2 className="truncate text-base font-semibold text-gray-900">
               {roster.instance.title}
             </h2>
@@ -832,159 +836,7 @@ function TimetableRosterHeader({
   );
 }
 
-interface AddUnplannedStudentModalProps {
-  readonly isOpen: boolean;
-  readonly instanceId: string;
-  readonly isAddingStudent: boolean;
-  readonly results: Student[];
-  readonly search: string;
-  readonly error: FormErrorInput;
-  readonly onAdd: (studentId: string) => Promise<boolean>;
-  readonly onClose: () => void;
-  readonly onSearchChange: (value: string) => void;
-}
-
-// Das Nachtragen eines Kindes ist eine Kopf-Aktion mit Dialog, kein
-// Formular im Listenkörper (#3112, Bauart 1 Regel 3): die Liste bleibt eine
-// Liste, und „Hinzufügen“ steht unten im Dialog, wo eine Aktion hingehört.
-function AddUnplannedStudentModal({
-  isOpen,
-  instanceId,
-  isAddingStudent,
-  results,
-  search,
-  error,
-  onAdd,
-  onClose,
-  onSearchChange,
-}: AddUnplannedStudentModalProps) {
-  const formId = useId();
-  const [selectedId, setSelectedId] = useState<string | null>(null);
-  // Ein Termin-Wechsel bei offenem Dialog verwirft die Auswahl: eine alte
-  // Auswahl darf nie in den neuen Termin geschrieben werden.
-  const [selectionInstanceId, setSelectionInstanceId] = useState(instanceId);
-  if (selectionInstanceId !== instanceId) {
-    setSelectionInstanceId(instanceId);
-    setSelectedId(null);
-  }
-  // Derived against the current results so a stale selection from a previous
-  // search can never add the wrong child.
-  const selectedStudent =
-    results.find((student) => student.id.toString() === selectedId) ?? null;
-  const targetStudent =
-    selectedStudent ?? (results.length === 1 ? (results[0] ?? null) : null);
-  const handleClose = () => {
-    setSelectedId(null);
-    onClose();
-  };
-  const handleSubmit = async (event: React.FormEvent<HTMLFormElement>) => {
-    event.preventDefault();
-    if (targetStudent && !isAddingStudent) {
-      if (await onAdd(targetStudent.id.toString())) {
-        handleClose();
-      }
-    }
-  };
-
-  return (
-    <FormModal
-      isOpen={isOpen}
-      onClose={handleClose}
-      title="Kind ungeplant hinzufügen"
-      size="md"
-      error={error}
-      closeDisabled={isAddingStudent}
-      footer={
-        <div className="flex flex-wrap justify-end gap-2">
-          <Button
-            type="button"
-            variant="outline"
-            size="md"
-            onClick={handleClose}
-            disabled={isAddingStudent}
-          >
-            Abbrechen
-          </Button>
-          <Button
-            type="submit"
-            form={formId}
-            disabled={isAddingStudent || !targetStudent}
-            variant="success"
-            size="md"
-          >
-            {isAddingStudent ? "Wird hinzugefügt…" : "Hinzufügen"}
-          </Button>
-        </div>
-      }
-    >
-      <form id={formId} onSubmit={handleSubmit} className="space-y-3">
-        <p className="text-sm text-gray-600">
-          Das Kind wird sofort als anwesend in dieser Aktivität eingetragen.
-        </p>
-        <Input
-          type="search"
-          name="unplanned-student-search"
-          aria-label="Kind ungeplant suchen"
-          controlSize="compact"
-          value={search}
-          onChange={(event) => {
-            setSelectedId(null);
-            onSearchChange(event.target.value);
-          }}
-          placeholder="Weiteres Kind suchen..."
-        />
-        {results.length > 0 ? (
-          <div className="mt-2 grid gap-2">
-            {results.map((student) => {
-              const studentId = student.id.toString();
-              const isSelected = selectedStudent?.id.toString() === studentId;
-              return (
-                <Button
-                  key={student.id}
-                  type="button"
-                  variant="ghost"
-                  size="md"
-                  disabled={isAddingStudent}
-                  aria-pressed={isSelected}
-                  onClick={() =>
-                    setSelectedId((prev) =>
-                      prev === studentId ? null : studentId,
-                    )
-                  }
-                  className={`min-h-11 w-full !justify-start border px-3 text-left !shadow-none ${
-                    isSelected
-                      ? "!border-moto-green !bg-moto-green/10 hover:!bg-moto-green/15"
-                      : "hover:!border-moto-green !border-gray-200 !bg-transparent hover:!bg-gray-100"
-                  }`}
-                >
-                  <span className="font-medium text-gray-900">
-                    {student.name ||
-                      [student.first_name, student.second_name]
-                        .filter(Boolean)
-                        .join(" ")}
-                  </span>
-                  <span className="ml-2 text-gray-500">
-                    {[student.school_class, student.group_name]
-                      .filter(Boolean)
-                      .join(" · ")}
-                  </span>
-                </Button>
-              );
-            })}
-          </div>
-        ) : null}
-        {results.length > 1 && !selectedStudent ? (
-          <p className="mt-2 text-sm text-gray-500">
-            Bitte ein Kind aus der Liste antippen.
-          </p>
-        ) : null}
-      </form>
-    </FormModal>
-  );
-}
-
 interface TimetableRosterContentProps {
-  readonly addStudentResults: Student[];
   readonly addStudentSearch: string;
   readonly attendanceWebEnabled: boolean;
   readonly isAddingStudent: boolean;
@@ -1018,6 +870,12 @@ interface TimetableRosterContentProps {
    * mit mehreren Blöcken ist (#3281).
    */
   readonly headerToggle?: ReactNode;
+  /**
+   * Der Seitenkopf sagt schon, ob der Block läuft (#4354): die Kopfkarte
+   * wiederholt „Aktiv“ / „Beendet“ dann nicht. Ein Raum mit mehreren Blöcken
+   * lässt das weg, dort trägt jede Karte ihren eigenen Zustand.
+   */
+  readonly statusInPageHead?: boolean;
   readonly onAddStudent: (studentId: string) => Promise<boolean>;
   /**
    * Trägt eine Auswahl der gerade anwesenden Kinder gesammelt ein (#3824).
@@ -1029,6 +887,11 @@ interface TimetableRosterContentProps {
    * herein, damit das Schulportal, das ihn nie zeigt, ihn auch nicht mitlädt.
    */
   readonly presentChildrenPicker?: ComponentType<PresentChildrenPickerProps>;
+  /**
+   * Der Dialog „Kind ungeplant hinzufügen“. Er lädt alle Kinder der Schule;
+   * wie die Auswahl oben reichen ihn nur die Tenant-Seiten herein (#4355).
+   */
+  readonly addUnplannedStudentModal?: ComponentType<AddUnplannedStudentModalProps>;
   /**
    * Öffnet die Auswahl „Anwesende Kinder hinzufügen“ einmal von selbst, z. B.
    * direkt nach dem Start einer spontanen Aktivität.
@@ -1133,7 +996,6 @@ function rosterSections(
 }
 
 export function TimetableRosterContent({
-  addStudentResults,
   addStudentSearch,
   attendanceWebEnabled,
   isAddingStudent,
@@ -1146,9 +1008,11 @@ export function TimetableRosterContent({
   headerNote,
   headerActions,
   headerToggle,
+  statusInPageHead = false,
   onAddStudent,
   onAddPresentStudents,
   presentChildrenPicker: PresentChildrenPicker,
+  addUnplannedStudentModal: AddUnplannedStudentModal,
   presentPickerAutoOpen = false,
   onPresentPickerAutoOpened,
   onComplete,
@@ -1197,6 +1061,8 @@ export function TimetableRosterContent({
     .join(" ");
   const [addStudentOpen, setAddStudentOpen] = useState(false);
   const [presentPickerOpen, setPresentPickerOpen] = useState(false);
+  const addStudentEnabled =
+    canAddUnplanned && AddUnplannedStudentModal !== undefined;
   const presentPickerEnabled =
     actionsEnabled &&
     canAddUnplanned &&
@@ -1294,8 +1160,9 @@ export function TimetableRosterContent({
         nfcEnabled={nfcEnabled}
         extraActions={headerActions}
         toggle={headerToggle}
+        showStatus={!statusInPageHead}
         onAddStudent={
-          canAddUnplanned ? () => setAddStudentOpen(true) : undefined
+          addStudentEnabled ? () => setAddStudentOpen(true) : undefined
         }
         onAddPresentStudents={
           presentPickerEnabled ? () => setPresentPickerOpen(true) : undefined
@@ -1318,12 +1185,12 @@ export function TimetableRosterContent({
           message="Die Gehzeiten konnten nicht geladen werden. Die Anwesenheitsliste bleibt verfügbar."
         />
       ) : null}
-      {actionsEnabled && canAddUnplanned ? (
+      {actionsEnabled && addStudentEnabled ? (
         <AddUnplannedStudentModal
           isOpen={addStudentOpen}
           instanceId={roster.instance.id}
+          inBlockStudentIds={inBlockStudentIds}
           isAddingStudent={isAddingStudent}
-          results={addStudentResults}
           search={addStudentSearch}
           error={addStudentError}
           onAdd={onAddStudent}

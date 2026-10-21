@@ -306,12 +306,6 @@ export function rotateStaffCalendarFeed() {
   });
 }
 
-export function getParentAppointmentOverview(appointmentId: string) {
-  return fetchJSON<CalendarAppointmentOverview>(
-    `/api/parent/calendar/appointments/${encodeURIComponent(appointmentId)}/overview`,
-  );
-}
-
 export function createStaffAppointment(body: CreateCalendarAppointmentRequest) {
   return fetchJSON("/api/calendar/appointments", {
     method: "POST",

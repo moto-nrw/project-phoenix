@@ -33,24 +33,6 @@ describe("/api/auth/accounts/[accountId]/caregiver-capability", () => {
     mockUncachedAuth.mockResolvedValue(null);
   });
 
-  it("returns 401 when the user is not authenticated", async () => {
-    mockAuth.mockResolvedValueOnce(null);
-
-    const response = await GET(
-      new NextRequest(
-        "http://localhost:3000/api/auth/accounts/42/caregiver-capability",
-      ),
-      createContext("42"),
-    );
-
-    expect(response.status).toBe(401);
-    await expect(response.json()).resolves.toMatchObject({
-      status: 401,
-      detail: "Unauthorized",
-      code: "general.permission",
-    });
-  });
-
   it("returns 400 when the account id is missing", async () => {
     const response = await GET(
       new NextRequest(

@@ -96,17 +96,6 @@ export interface BackendSupervisor {
   updated_at: string;
 }
 
-export interface BackendActivityStudent {
-  id: number;
-  student_id: number;
-  activity_id: number;
-  name?: string;
-  school_class?: string;
-  current_location?: string | null;
-  created_at: string;
-  updated_at: string;
-}
-
 // Actual backend structure for enrolled students from /api/activities/{id}/students
 // Backend returns a simplified StudentResponse with id, first_name, last_name
 export interface BackendStudentEnrollment {
@@ -248,27 +237,6 @@ function mapActivitySupervisor(
   };
 }
 
-// Map an array of activity supervisors
-export function mapActivitySupervisorsResponse(
-  supervisors: BackendActivitySupervisor[],
-): ActivitySupervisor[] {
-  return supervisors.map(mapActivitySupervisor);
-}
-
-// Prepare a supervisor assignment for backend
-export function prepareSupervisorAssignmentForBackend(assignment: {
-  staff_id: string;
-  is_primary?: boolean;
-}): {
-  staff_id: number;
-  is_primary?: boolean;
-} {
-  return {
-    staff_id: Number.parseInt(assignment.staff_id, 10),
-    is_primary: assignment.is_primary,
-  };
-}
-
 // Format a list of supervisors as a comma-separated string
 export function formatSupervisorList(
   supervisors: ActivitySupervisor[] | undefined,
@@ -286,17 +254,6 @@ export function formatSupervisorList(
           : `Betreuer ${supervisor.id}`),
     )
     .join(", ");
-}
-
-// Get primary supervisor from a list of supervisors
-export function getPrimarySupervisor(
-  supervisors: ActivitySupervisor[] | undefined,
-): ActivitySupervisor | undefined {
-  if (!supervisors || supervisors.length === 0) {
-    return undefined;
-  }
-
-  return supervisors.find((s) => s.is_primary);
 }
 
 // Helper: Extract supervisor info from backend activity
@@ -458,30 +415,6 @@ export function mapActivityScheduleResponse(
   };
 }
 
-export function mapActivityStudentResponse(
-  backendStudent: BackendActivityStudent,
-): ActivityStudent {
-  const current_location = normalizeLocation(backendStudent.current_location);
-
-  return {
-    id: String(backendStudent.id),
-    activity_id: String(backendStudent.activity_id),
-    student_id: String(backendStudent.student_id),
-    name: backendStudent.name,
-    school_class: backendStudent.school_class,
-    current_location,
-    created_at: new Date(backendStudent.created_at),
-    updated_at: new Date(backendStudent.updated_at),
-  };
-}
-
-// Map an array of activity students
-export function mapActivityStudentsResponse(
-  students: BackendActivityStudent[],
-): ActivityStudent[] {
-  return students.map(mapActivityStudentResponse);
-}
-
 // Map enrolled students from backend enrollment structure
 export function mapStudentEnrollmentResponse(
   enrollment: BackendStudentEnrollment,
@@ -520,61 +453,6 @@ export function mapStudentEnrollmentsResponse(
   enrollments: BackendStudentEnrollment[],
 ): ActivityStudent[] {
   return enrollments.map(mapStudentEnrollmentResponse);
-}
-
-// Format an array of students as a comma-separated string
-export function formatStudentList(
-  students: ActivityStudent[] | undefined,
-): string {
-  if (!students || students.length === 0) {
-    return "Keine Teilnehmer eingeschrieben";
-  }
-
-  return students
-    .map((student) => student.name ?? `Student ${student.student_id}`)
-    .join(", ");
-}
-
-// Group students by school class
-export function groupStudentsByClass(
-  students: ActivityStudent[],
-): Record<string, ActivityStudent[]> {
-  const grouped: Record<string, ActivityStudent[]> = {};
-
-  students.forEach((student) => {
-    const schoolClass = student.school_class ?? "Keine Klasse";
-    grouped[schoolClass] ??= [];
-    grouped[schoolClass].push(student);
-  });
-
-  return grouped;
-}
-
-// Prepare batch enrollment data for backend
-export function prepareBatchEnrollmentForBackend(studentIds: string[]): {
-  student_ids: number[];
-} {
-  return {
-    student_ids: studentIds.map((id) => Number.parseInt(id, 10)),
-  };
-}
-
-// Filter students by search term
-export function filterStudentsBySearchTerm(
-  students: ActivityStudent[],
-  searchTerm: string,
-): ActivityStudent[] {
-  if (!searchTerm) {
-    return students;
-  }
-
-  const term = searchTerm.toLowerCase();
-  return students.filter(
-    (student) =>
-      (student.name?.toLowerCase().includes(term) ?? false) ||
-      (student.school_class?.toLowerCase().includes(term) ?? false) ||
-      (student.student_id?.toLowerCase().includes(term) ?? false),
-  );
 }
 
 // Check if a user (staff member) is the creator of an activity
@@ -775,167 +653,4 @@ export interface ActivityFilter {
   search?: string;
   category_id?: string;
   is_open_ags?: boolean;
-}
-
-// Schedule filter type
-
-// Helper functions
-export function formatActivityTimes(
-  activity: Activity | ActivitySchedule[],
-): string {
-  // Handle case when activity is an Activity object
-  if ("times" in activity && Array.isArray(activity.times)) {
-    const times = activity.times;
-    if (times?.length === 0) return "Keine Zeiten festgelegt";
-
-    return times
-      .map((time) => {
-        const weekday = formatWeekday(time.weekday);
-        return `${weekday}`;
-      })
-      .join(", ");
-  }
-
-  // Handle case when activity is an ActivitySchedule array
-  if (Array.isArray(activity)) {
-    if (activity.length === 0) return "Keine Zeiten festgelegt";
-
-    return activity
-      .map((time) => {
-        const weekday = formatWeekday(time.weekday);
-        return `${weekday}`;
-      })
-      .join(", ");
-  }
-
-  return "Keine Zeiten festgelegt";
-}
-
-export function formatWeekday(weekday: string): string {
-  const weekdays: Record<string, string> = {
-    "1": "Mo",
-    "2": "Di",
-    "3": "Mi",
-    "4": "Do",
-    "5": "Fr",
-    "6": "Sa",
-    "7": "So",
-  };
-
-  return weekdays[weekday] ?? weekday;
-}
-
-export function getWeekdayFullName(weekday: string): string {
-  const weekdays: Record<string, string> = {
-    "1": "Montag",
-    "2": "Dienstag",
-    "3": "Mittwoch",
-    "4": "Donnerstag",
-    "5": "Freitag",
-    "6": "Samstag",
-    "7": "Sonntag",
-  };
-
-  return weekdays[weekday] ?? weekday;
-}
-
-export function getWeekdayOrder(weekday: string): number {
-  const order: Record<string, number> = {
-    "1": 1,
-    "2": 2,
-    "3": 3,
-    "4": 4,
-    "5": 5,
-    "6": 6,
-    "7": 7,
-  };
-
-  return order[weekday] ?? 99;
-}
-
-export function sortSchedulesByWeekday(
-  schedules: ActivitySchedule[],
-): ActivitySchedule[] {
-  return [...schedules].sort(
-    (a, b) => getWeekdayOrder(a.weekday) - getWeekdayOrder(b.weekday),
-  );
-}
-
-export function formatScheduleTime(
-  schedule: ActivitySchedule,
-  timeframes?: Array<{ id: string; start_time: string; end_time: string }>,
-): string {
-  if (!schedule.timeframe_id || !timeframes) {
-    return formatWeekday(schedule.weekday);
-  }
-
-  const timeframe = timeframes.find((tf) => tf.id === schedule.timeframe_id);
-  if (!timeframe) {
-    return formatWeekday(schedule.weekday);
-  }
-
-  return `${formatWeekday(schedule.weekday)} ${timeframe.start_time}-${timeframe.end_time}`;
-}
-
-export function formatParticipantStatus(
-  activityOrCurrent: Activity | number,
-  max?: number,
-): string {
-  // Handle case when first parameter is an Activity object
-  if (typeof activityOrCurrent === "object" && activityOrCurrent !== null) {
-    const activity = activityOrCurrent;
-    if (activity.participant_count === undefined) {
-      return "Unbekannt";
-    }
-    if (activity.max_participant == null) {
-      return `${activity.participant_count} Teilnehmer`;
-    }
-    return `${activity.participant_count} / ${activity.max_participant} Teilnehmer`;
-  }
-
-  // Handle case when parameters are numbers (current, max)
-  const current = activityOrCurrent;
-  if (current === undefined || max === undefined) {
-    return "Unbekannt";
-  }
-  return `${current} / ${max} Teilnehmer`;
-}
-
-// Check if a time slot is available for an activity
-export function isTimeSlotAvailable(
-  weekday: string,
-  timeframeId: string,
-  existingSchedules: ActivitySchedule[],
-  excludeScheduleId?: string,
-): boolean {
-  // Filter out the schedule we're currently editing (if provided)
-  const relevantSchedules = excludeScheduleId
-    ? existingSchedules.filter((s) => s.id !== excludeScheduleId)
-    : existingSchedules;
-
-  // Check if there's any schedule that overlaps with the requested time
-  return !relevantSchedules.some(
-    (schedule) =>
-      schedule.weekday.toLowerCase() === weekday.toLowerCase() &&
-      schedule.timeframe_id === timeframeId,
-  );
-}
-
-// Check if a supervisor is available for an activity
-export function isSupervisorAvailable(
-  supervisorId: string,
-  weekday: string,
-  timeframeId: string,
-  existingSupervisorSchedules: Array<{
-    activity_id: string;
-    weekday: string;
-    timeframe_id?: string;
-  }>,
-): boolean {
-  // Check if supervisor has any conflicting schedules
-  return !existingSupervisorSchedules.some(
-    (schedule) =>
-      schedule.weekday.toLowerCase() === weekday.toLowerCase() &&
-      schedule.timeframe_id === timeframeId,
-  );
 }

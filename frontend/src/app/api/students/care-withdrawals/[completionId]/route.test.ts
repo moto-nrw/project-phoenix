@@ -1,13 +1,9 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import type { Session } from "next-auth";
 import { NextRequest } from "next/server";
 
 import { ApiResponseError } from "~/lib/api-helpers.server";
 import { DELETE } from "./route";
-
-interface ExtendedSession extends Session {
-  user: Session["user"] & { token?: string };
-}
+import type { ExtendedSession } from "~/test/route-test-helpers";
 
 const { mockAuth, mockApiDelete } = vi.hoisted(() => ({
   mockAuth: vi.fn<() => Promise<ExtendedSession | null>>(),

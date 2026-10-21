@@ -87,7 +87,6 @@ vi.mock("./student-form-fields", () => ({
     </div>
   ),
   PersonalInfoSection: () => <div />,
-  EnrollmentConsentsSection: () => <div />,
 }));
 
 import { PersonalInfoEditPanel } from "./personal-info-edit-panel";

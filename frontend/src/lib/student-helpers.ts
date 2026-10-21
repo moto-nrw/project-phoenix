@@ -6,15 +6,7 @@ import type {
   StudentCompanion,
 } from "./student-companion-api";
 import type { ConsentRecord } from "./consent-types";
-import {
-  LOCATION_STATUSES,
-  parseLocation,
-  isHomeLocation,
-  isPresentLocation,
-  isSchoolyardLocation,
-  isTransitLocation,
-  normalizeLocation,
-} from "./location-helper";
+import { normalizeLocation } from "./location-helper";
 
 /**
  * Shared filter options for school year (Klassenstufe) filter
@@ -28,10 +20,10 @@ export const SCHOOL_YEAR_FILTER_OPTIONS = [
   { value: "4", label: "4" },
 ] as const;
 
-export type BusDayKey = "mon" | "tue" | "wed" | "thu" | "fri";
+type BusDayKey = "mon" | "tue" | "wed" | "thu" | "fri";
 export type BusDays = Partial<Record<BusDayKey, boolean>>;
 
-export const BUS_WEEKDAYS: ReadonlyArray<{ key: BusDayKey; label: string }> = [
+const BUS_WEEKDAYS: ReadonlyArray<{ key: BusDayKey; label: string }> = [
   { key: "mon", label: "Montag" },
   { key: "tue", label: "Dienstag" },
   { key: "wed", label: "Mittwoch" },
@@ -81,10 +73,10 @@ export function formatBusDays(value?: BusDays | null): string {
 // Pickup days mirror bus days: per-weekday "wird abgeholt" flags. A day not
 // selected means the child goes home alone that day. Reuses the same weekday
 // keys as BusDays.
-export type PickupDayKey = BusDayKey;
+type PickupDayKey = BusDayKey;
 export type PickupDays = Partial<Record<PickupDayKey, boolean>>;
 
-export const PICKUP_WEEKDAYS: ReadonlyArray<{
+const PICKUP_WEEKDAYS: ReadonlyArray<{
   key: PickupDayKey;
   label: string;
 }> = [
@@ -1044,81 +1036,6 @@ export function prepareStudentForBackend(
   };
 }
 
-// Request/Response types
-
-export interface UpdateStudentRequest {
-  first_name?: string;
-  second_name?: string; // Will be mapped to last_name for backend
-  school_class?: string;
-  group_id?: string;
-  tag_id?: string;
-  address_street?: string;
-  address_city?: string;
-  address_postal_code?: string;
-  extra_info?: string;
-  departure_companion_note?: string;
-  birthday?: string;
-  health_info?: string;
-  pickup_status?: string;
-  bus?: boolean;
-  bus_days?: BusDays;
-  pickup_days?: PickupDays;
-  departure_days?: DepartureDays;
-  allowed_departure_modes?: AllowedDepartureModes;
-  sick?: boolean;
-  /** Optional free-text reason stamped on today's sick day when marking sick. */
-  sick_reason?: string;
-  excused?: boolean;
-  /**
-   * Parental photo-consent flag. Send `true` to record consent (server stamps
-   * who/when), `false` to withdraw — withdrawing also deletes any existing
-   * photo file in the same DB transaction. Omit to leave consent unchanged.
-   */
-  photo_consent_given?: boolean;
-}
-
-// Backend request type (for actual API calls)
-export interface BackendUpdateRequest {
-  first_name?: string;
-  last_name?: string;
-  tag_id?: string;
-  school_class?: string;
-  address_street?: string;
-  address_city?: string;
-  address_postal_code?: string;
-  group_id?: number;
-  extra_info?: string;
-  departure_companion_note?: string;
-  birthday?: string;
-  health_info?: string;
-  pickup_status?: string;
-  bus?: boolean;
-  bus_days?: BusDays;
-  pickup_days?: PickupDays;
-  departure_days?: DepartureDays;
-  allowed_departure_modes?: AllowedDepartureModes;
-  sick?: boolean;
-  sick_reason?: string;
-  excused?: boolean;
-  photo_consent_given?: boolean;
-  /** Laufgemeinschaft: the child's complete "läuft mit" list. Omit to leave
-   *  the links untouched; [] clears them. */
-  companions?: { companion_student_id: string; weekdays: string[] }[];
-  /** Fingerprint of the companion list the client loaded before building
-   *  `companions`. Mandatory whenever `companions` is present (including []) —
-   *  the backend rejects the update without it. Build it with
-   *  `companionsFingerprint()`. */
-  companions_fingerprint?: string;
-  /** Confirms widening a linked child's own departure plan (answer to the 409
-   *  conflict). */
-  extend_companion_plans?: boolean;
-  /** The children and weekdays that confirmation covered. */
-  confirmed_companion_extensions?: {
-    companion_student_id: string;
-    weekdays: string[];
-  }[];
-}
-
 // Map privacy consent from backend to frontend
 export function mapPrivacyConsentResponse(
   backendConsent: BackendPrivacyConsent,
@@ -1141,93 +1058,4 @@ export function mapPrivacyConsentResponse(
     createdAt: new Date(backendConsent.created_at),
     updatedAt: new Date(backendConsent.updated_at),
   };
-}
-
-/** Field mappings from UpdateStudentRequest to BackendUpdateRequest */
-type FieldMapping = {
-  source: keyof UpdateStudentRequest;
-  target: keyof BackendUpdateRequest;
-};
-
-/** Direct field mappings (no transformation needed) */
-const DIRECT_FIELD_MAPPINGS: FieldMapping[] = [
-  { source: "first_name", target: "first_name" },
-  { source: "second_name", target: "last_name" },
-  { source: "tag_id", target: "tag_id" },
-  { source: "school_class", target: "school_class" },
-  { source: "address_street", target: "address_street" },
-  { source: "address_city", target: "address_city" },
-  { source: "address_postal_code", target: "address_postal_code" },
-  { source: "extra_info", target: "extra_info" },
-  { source: "departure_companion_note", target: "departure_companion_note" },
-  { source: "birthday", target: "birthday" },
-  { source: "health_info", target: "health_info" },
-  { source: "pickup_status", target: "pickup_status" },
-  // departure_days is the single source of truth (#1610); bus_days/pickup_days
-  // are still accepted by the backend for partial legacy updates.
-  { source: "departure_days", target: "departure_days" },
-  { source: "allowed_departure_modes", target: "allowed_departure_modes" },
-  { source: "bus_days", target: "bus_days" },
-  { source: "pickup_days", target: "pickup_days" },
-  { source: "sick", target: "sick" },
-  { source: "sick_reason", target: "sick_reason" },
-  { source: "excused", target: "excused" },
-  { source: "photo_consent_given", target: "photo_consent_given" },
-];
-
-/**
- * Copies defined fields from source to target using field mappings
- */
-function applyFieldMappings(
-  request: UpdateStudentRequest,
-  backendRequest: BackendUpdateRequest,
-): void {
-  for (const { source, target } of DIRECT_FIELD_MAPPINGS) {
-    const value = request[source];
-    if (value !== undefined) {
-      // Type assertion needed due to union type complexity
-      (backendRequest as Record<string, unknown>)[target] = value;
-    }
-  }
-}
-
-// Map frontend update request to backend format
-export function mapUpdateRequestToBackend(
-  request: UpdateStudentRequest,
-): BackendUpdateRequest {
-  const backendRequest: BackendUpdateRequest = {};
-
-  // Apply all direct field mappings
-  applyFieldMappings(request, backendRequest);
-
-  // Handle group_id separately (requires parseInt transformation)
-  if (request.group_id !== undefined) {
-    backendRequest.group_id = Number.parseInt(request.group_id, 10);
-  }
-
-  return backendRequest;
-}
-
-// Helper functions
-export function formatStudentName(student: Student): string {
-  if (student.name) return student.name;
-
-  const fallback =
-    [student.first_name, student.second_name].filter(Boolean).join(" ") ||
-    "Unnamed Student";
-
-  return fallback;
-}
-
-export function formatStudentStatus(student: Student): string {
-  const parsed = parseLocation(student.current_location);
-  return parsed.room ?? parsed.status ?? LOCATION_STATUSES.UNKNOWN;
-}
-
-export function getStatusColor(student: Student): string {
-  if (isPresentLocation(student.current_location)) return "green";
-  if (isSchoolyardLocation(student.current_location)) return "yellow";
-  if (isTransitLocation(student.current_location)) return "purple";
-  if (isHomeLocation(student.current_location)) return "red";
-  return "gray";
 }

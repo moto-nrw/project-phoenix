@@ -141,7 +141,7 @@ func TestPackageSelectorStrictness(t *testing.T) {
 			if err := candidate.Validate(); err != nil {
 				t.Fatal(err)
 			}
-			err := comparePolicyStrictness(base, candidate, nil, nil, nil, nil, nil, nil)
+			err := comparePolicyStrictness(base, candidate, nil, nil, nil, nil, nil)
 			if (err == nil) != tc.allowed {
 				t.Fatalf("allowed=%v, error=%v", tc.allowed, err)
 			}

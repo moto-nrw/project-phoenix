@@ -13,6 +13,7 @@ import {
   waitFor,
   cleanup,
   fireEvent,
+  within,
 } from "@testing-library/react";
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 
@@ -206,16 +207,6 @@ vi.mock("~/lib/location-helper", async (importOriginal) => {
 // Mock pickup-helpers
 vi.mock("~/lib/pickup-helpers", () => ({
   useMinuteClock: () => new Date("2026-01-15T12:00:00"),
-}));
-
-// Mock pickup-schedule-api
-vi.mock("~/lib/pickup-schedule-api", () => ({
-  fetchBulkPickupTimes: vi.fn(() => Promise.resolve(new Map())),
-}));
-
-// Mock student-arrival-api
-vi.mock("~/lib/student-arrival-api", () => ({
-  fetchBulkArrivalTimes: vi.fn(() => Promise.resolve(new Map())),
 }));
 
 // Mock StudentCard components
@@ -1461,6 +1452,82 @@ describe("Enhanced rendering: action buttons and search/filter interaction", () 
     });
   });
 
+  it("places the search directly above the children, outside the head card (#4353)", async () => {
+    vi.mocked(useSWRAuth)
+      .mockReturnValueOnce({
+        data: {
+          supervisedGroups: [
+            {
+              id: "1",
+              name: "Group A",
+              room: { id: "r1", name: "Room 1" },
+            },
+          ],
+          unclaimedGroups: [],
+          currentStaff: { id: "staff-1" },
+          educationalGroups: [],
+          firstRoomVisits: [
+            {
+              studentId: "s1",
+              studentName: "Max Mustermann",
+              schoolClass: "1a",
+              groupName: "Group A",
+              activeGroupId: "1",
+              checkInTime: new Date().toISOString(),
+              isActive: true,
+            },
+            {
+              studentId: "s2",
+              studentName: "Erika Schmidt",
+              schoolClass: "2b",
+              groupName: "Group A",
+              activeGroupId: "1",
+              checkInTime: new Date().toISOString(),
+              isActive: true,
+            },
+          ],
+          firstRoomId: "1",
+        },
+        isLoading: false,
+        error: null,
+        mutate: mockMutate,
+        isValidating: false,
+      } as never)
+      .mockReturnValue({
+        data: null,
+        isLoading: false,
+        error: null,
+        mutate: mockMutate,
+        isValidating: false,
+      } as never);
+
+    render(<MeinRaumPage />);
+
+    await waitFor(() => {
+      expect(screen.getAllByTestId("student-card")).toHaveLength(2);
+    });
+
+    const searchInput = screen.getByTestId("search-input");
+    const searchArea = screen.getByRole("search", { name: "Kinder suchen" });
+    expect(searchArea).toContainElement(searchInput);
+    // Not in the head card any more: the head carries title and figures only.
+    expect(searchInput.closest("header")).toBeNull();
+    const [firstCard] = screen.getAllByTestId("student-card");
+    expect(
+      searchArea.compareDocumentPosition(firstCard!) &
+        Node.DOCUMENT_POSITION_FOLLOWING,
+    ).toBeTruthy();
+
+    // Each keystroke filters at once, without a debounce.
+    fireEvent.change(searchInput, { target: { value: "Eri" } });
+    expect(screen.getAllByTestId("student-card")).toHaveLength(1);
+    expect(screen.getByText("Erika Schmidt")).toBeInTheDocument();
+
+    // „Alle löschen“ in the same row brings every child back.
+    fireEvent.click(within(searchArea).getByTestId("clear-btn"));
+    expect(screen.getAllByTestId("student-card")).toHaveLength(2);
+  });
+
   it("shows EmptyStudentResults when search matches no students", async () => {
     vi.mocked(useSWRAuth)
       .mockReturnValueOnce({
@@ -1707,7 +1774,7 @@ describe("Unauthenticated redirect coverage", () => {
   });
 });
 
-describe("EmptyRoomsView onClearAllFilters coverage", () => {
+describe("EmptyRoomsView without children lists", () => {
   const mockMutate = vi.fn();
 
   beforeEach(async () => {
@@ -1759,7 +1826,7 @@ describe("EmptyRoomsView onClearAllFilters coverage", () => {
     cleanup();
   });
 
-  it("clears search and group filter in EmptyRoomsView", async () => {
+  it("shows no search while there is no children list to filter (#4353)", async () => {
     vi.mocked(useSWRAuth).mockReturnValue({
       data: {
         supervisedGroups: [],
@@ -1783,12 +1850,11 @@ describe("EmptyRoomsView onClearAllFilters coverage", () => {
       expect(screen.getByTestId("unclaimed-rooms")).toBeInTheDocument();
     });
 
-    // The clear button should exist from the EmptyRoomsView's PageHeaderWithSearch
-    const clearBtn = screen.getByTestId("clear-btn");
-    fireEvent.click(clearBtn);
-
-    // No error should occur - the callback sets searchTerm="" and groupFilter="all"
-    expect(clearBtn).toBeInTheDocument();
+    // The search stands above the children lists; without one there is
+    // nothing it could narrow, so neither it nor its filters are shown.
+    expect(screen.queryByTestId("search-input")).not.toBeInTheDocument();
+    expect(screen.queryByTestId("clear-btn")).not.toBeInTheDocument();
+    expect(screen.queryByRole("search")).not.toBeInTheDocument();
   });
 });
 
@@ -3636,6 +3702,7 @@ describe("MeinRaumPage (Active Supervisions) (5/5)", () => {
 
     await waitFor(() => {
       expect(screen.getByText("Malen")).toBeInTheDocument();
+      // Der Zustand des Blocks steht im Seitenkopf, nicht in der Karte (#4354).
       expect(screen.getByText("Aktiv")).toBeInTheDocument();
       expect(screen.getByText("Teilnehmende (1)")).toBeInTheDocument();
       expect(screen.getByText("2a")).toBeInTheDocument();
@@ -3644,6 +3711,74 @@ describe("MeinRaumPage (Active Supervisions) (5/5)", () => {
       expect(screen.queryByText("ungeplant")).not.toBeInTheDocument();
     });
   });
+
+  it.each([
+    ["active", "Aktiv"],
+    ["completed", "Beendet"],
+  ] as const)(
+    "shows whether the opened block runs in the page head, not twice in its card (#4354, %s)",
+    async (instanceStatus, label) => {
+      // Stable references: a fresh object per SWR call re-renders forever.
+      const dashboardData = {
+        supervisedGroups: [
+          { id: "1", name: "Aula", room: { id: "10", name: "Aula" } },
+        ],
+        unclaimedGroups: [],
+        currentStaff: { id: "1" },
+        educationalGroups: [],
+        firstRoomVisits: [],
+        firstRoomId: "10",
+      };
+      const rosterData = {
+        instance: {
+          id: "99",
+          title: "Malen",
+          status: instanceStatus,
+          activeGroupId: "1",
+          isSpontaneous: false,
+        },
+        rows: [],
+      };
+      vi.mocked(useSWRAuth).mockImplementation(((key: string | null) => {
+        if (key?.startsWith("active-supervision-dashboard")) {
+          return {
+            data: dashboardData,
+            isLoading: false,
+            error: null,
+            mutate: mockMutate,
+            isValidating: false,
+          };
+        }
+        if (key?.startsWith("timetable-roster-active-group")) {
+          return {
+            data: rosterData,
+            isLoading: false,
+            error: null,
+            mutate: mockMutate,
+            isValidating: false,
+          };
+        }
+        return {
+          data: null,
+          isLoading: false,
+          error: null,
+          mutate: mockMutate,
+          isValidating: false,
+        };
+      }) as never);
+
+      const { container } = render(<MeinRaumPage />);
+
+      await waitFor(() => {
+        expect(screen.getByText("Malen")).toBeInTheDocument();
+      });
+      const head = container.querySelector("header");
+      expect(head).not.toBeNull();
+      expect(within(head as HTMLElement).getByText(label)).toBeInTheDocument();
+      // Nur einmal: die Blockkarte wiederholt den Zustand nicht.
+      expect(screen.getAllByText(label)).toHaveLength(1);
+    },
+  );
 
   it("keeps not-scheduled children out of Erwartet and the bulk confirm (#1747)", async () => {
     const dashboardData = {

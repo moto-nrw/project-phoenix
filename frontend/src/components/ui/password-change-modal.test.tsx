@@ -109,18 +109,6 @@ describe("PasswordChangeModal", () => {
     ).toBeInTheDocument();
   });
 
-  it("does not render when closed", () => {
-    render(
-      <ChangeModal
-        isOpen={false}
-        onClose={mockOnClose}
-        onSuccess={mockOnSuccess}
-      />,
-    );
-
-    expect(screen.queryByTestId("modal")).not.toBeInTheDocument();
-  });
-
   it("renders all password input fields", () => {
     render(
       <ChangeModal

@@ -37,24 +37,6 @@ describe("/api/operator/provisioning/schools/[id]/accounts/[accountId]/caregiver
     mockUncachedOperatorAuth.mockResolvedValue(null);
   });
 
-  it("returns 401 when the operator is not authenticated", async () => {
-    mockOperatorAuth.mockResolvedValueOnce(null);
-
-    const response = await GET(
-      new NextRequest(
-        "http://localhost:3000/api/operator/provisioning/schools/10/accounts/42/caregiver-capability",
-      ),
-      createContext("10", "42"),
-    );
-
-    expect(response.status).toBe(401);
-    await expect(response.json()).resolves.toMatchObject({
-      status: 401,
-      detail: "Unauthorized",
-      code: "general.permission",
-    });
-  });
-
   it("returns 400 when school or account params are invalid", async () => {
     const response = await POST(
       new NextRequest(

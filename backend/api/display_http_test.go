@@ -354,17 +354,11 @@ func TestDisplayDashboardPublic(t *testing.T) {
 	})
 
 	t.Run("upcoming activities list planned instances after now", func(t *testing.T) {
-		// The upcoming filter compares wall clocks only, so offsets that
-		// cross midnight wrap to the other end of the day and flip the
-		// expectation. Guard against every offset this test produces
-		// (future + the 45min instance duration, and past) landing on a
-		// different calendar day than now.
-		now := testNow
-		future := now.Add(3 * time.Minute)
-		past := now.Add(-3 * time.Minute)
-		if future.Add(45*time.Minute).Day() != now.Day() || past.Day() != now.Day() {
-			t.Skip("too close to midnight for stable wall-clock offsets")
-		}
+		// The upcoming filter compares wall clocks only; the fixed noon clock
+		// keeps every offset (future + the 45min instance duration, and past)
+		// on the same calendar day.
+		future := testNow.Add(3 * time.Minute)
+		past := testNow.Add(-3 * time.Minute)
 		ctx := testpkg.TenantContext(tenantID)
 		instances := []*testpkg.ActivityInstance{
 			buildInstance(tenantID, "Hausaufgaben", room.ID, future),
@@ -450,12 +444,10 @@ func TestDisplayDashboardPickupBuckets(t *testing.T) {
 
 	db := testpkg.SetupTestDB(t)
 
+	// Pickup schedules only resolve Mon-Fri; 2026-08-24 is a Monday.
 	today := calendar.NewDate(2026, 8, 24)
 	testNow := today.BerlinMidnight().Add(12 * time.Hour)
 	weekday := int(today.Weekday())
-	if weekday < 1 || weekday > 5 {
-		t.Skip("pickup schedules only resolve Mon-Fri; skipping on weekends")
-	}
 
 	tenantID := newDisplayTestTenant(t, db)
 	router := newDisplayRouter(t, db, func() time.Time { return testNow })

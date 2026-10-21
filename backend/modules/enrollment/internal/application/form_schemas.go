@@ -293,6 +293,11 @@ func (s *FormSchemas) createOrVersion(ctx context.Context, name string, fields [
 		return nil, err
 	}
 
+	fields, err = s.normalizeFieldAttachments(ctx, fields)
+	if err != nil {
+		return nil, err
+	}
+
 	// Validate fields up front so we don't write a half-correct row.
 	tmp := &enrollment.FormSchema{Name: name, Version: 1, CreatedBy: createdBy, Fields: fields, CoreRequirements: coreRequirements, LegalBlocks: normalizedLegalBlocks}
 	if err := tmp.Validate(); err != nil {
@@ -372,6 +377,11 @@ func (s *FormSchemas) normalizeSchemaLegalDocumentURLs(ctx context.Context, bloc
 	copy(normalized, blocks)
 	for i := range normalized {
 		block := &normalized[i]
+		attachments, err := s.normalizeAttachments(ctx, block.Attachments)
+		if err != nil {
+			return nil, enrollment.NestInput(err, fmt.Sprintf("legal_blocks.%d", i), "legal block %d", i)
+		}
+		block.Attachments = attachments
 		if block.DisplayMode != enrollment.LegalBlockDisplayModePDF || strings.TrimSpace(block.DocumentURL) == "" {
 			block.DocumentURL = ""
 			continue
