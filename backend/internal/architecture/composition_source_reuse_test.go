@@ -50,14 +50,14 @@ func TestCompositionSharedSyntaxRetainsFreshParsingAndLocations(t *testing.T) {
 		}
 	}
 	accepted, current := base.inventory(), candidate.inventory()
-	if accepted["production|field|api|serviceGraph.Old"] != "services/factory.go:2:6" {
+	if accepted["production|field|services|Factory.Old"] != "services/factory.go:2:6" {
 		t.Fatalf("candidate parse replaced base locations: %v", accepted)
 	}
-	if _, found := accepted["production|field|api|serviceGraph.New"]; found {
+	if _, found := accepted["production|field|services|Factory.New"]; found {
 		t.Fatal("candidate field leaked into base inventory")
 	}
-	if current["production|field|api|serviceGraph.New"] != "services/factory.go:3:6" ||
-		current["internal_test|field|api|serviceGraph.New"] != "services/factory_test.go:3:6" {
+	if current["production|field|services|Factory.New"] != "services/factory.go:3:6" ||
+		current["internal_test|field|services|Factory.New"] != "services/factory_test.go:3:6" {
 		t.Fatalf("changed or relocated source reused stale positions/scopes: %v", current)
 	}
 }

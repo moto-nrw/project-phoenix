@@ -103,31 +103,6 @@ func TestRoomNameByID_EmptyMap(t *testing.T) {
 }
 
 // =============================================================================
-// printLiveSummary Tests
-// =============================================================================
-
-func TestPrintLiveSummary_ZeroCounts(t *testing.T) {
-	t.Parallel()
-
-	// Should not panic
-	printLiveSummary(&liveCounts{})
-}
-
-func TestPrintLiveSummary_WithCounts(t *testing.T) {
-	t.Parallel()
-
-	counts := &liveCounts{
-		roomMoves:  10,
-		unterwegs:  5,
-		returns:    8,
-		sickToggle: 3,
-		errors:     1,
-	}
-	// Should not panic
-	printLiveSummary(counts)
-}
-
-// =============================================================================
 // bootstrapLiveState Tests
 // =============================================================================
 
