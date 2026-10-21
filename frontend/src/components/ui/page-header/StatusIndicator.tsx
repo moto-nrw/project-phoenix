@@ -23,10 +23,6 @@ export function StatusIndicator({
     <div
       className={`${sizeClass} flex-shrink-0 rounded-full ${colorClass}`}
       title={tooltip}
-      // Steht der Punkt ohne Text, trägt der Tooltip seine Bedeutung auch
-      // für Screenreader (#4354).
-      role={tooltip ? "img" : undefined}
-      aria-label={tooltip}
     />
   );
 }

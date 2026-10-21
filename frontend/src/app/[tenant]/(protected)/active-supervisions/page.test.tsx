@@ -3638,7 +3638,7 @@ describe("MeinRaumPage (Active Supervisions) (5/5)", () => {
     await waitFor(() => {
       expect(screen.getByText("Malen")).toBeInTheDocument();
       // Der Zustand des Blocks steht im Seitenkopf, nicht in der Karte (#4354).
-      expect(screen.getByRole("img", { name: "Läuft" })).toBeInTheDocument();
+      expect(screen.getByText("Läuft")).toBeInTheDocument();
       expect(screen.getByText("Teilnehmende (1)")).toBeInTheDocument();
       expect(screen.getByText("2a")).toBeInTheDocument();
       expect(screen.getByText("Sonnengruppe")).toBeInTheDocument();
@@ -3709,11 +3709,8 @@ describe("MeinRaumPage (Active Supervisions) (5/5)", () => {
       });
       const head = container.querySelector("header");
       expect(head).not.toBeNull();
-      // Ein Symbol statt Text; der Zustand bleibt als Name lesbar.
-      expect(
-        within(head as HTMLElement).getByRole("img", { name: label }),
-      ).toBeInTheDocument();
-      expect(screen.queryByText(label)).not.toBeInTheDocument();
+      expect(within(head as HTMLElement).getByText(label)).toBeInTheDocument();
+      expect(screen.getAllByText(label)).toHaveLength(1);
       expect(screen.queryByText("Aktiv")).not.toBeInTheDocument();
     },
   );

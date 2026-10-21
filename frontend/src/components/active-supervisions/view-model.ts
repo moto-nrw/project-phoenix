@@ -1,3 +1,4 @@
+import type { StatusBadgeTone } from "~/components/ui/status-badge";
 import type { Student } from "~/lib/student-helpers";
 import type { TimetableRoster } from "~/lib/timetable-operations-types";
 
@@ -546,11 +547,11 @@ export function supervisionTabLabel(
  */
 export function rosterRunState(status: TimetableRoster["instance"]["status"]): {
   label: string;
-  color: "green" | "gray";
+  tone: StatusBadgeTone;
 } {
   return status === "completed"
-    ? { label: "Beendet", color: "gray" }
-    : { label: "Läuft", color: "green" };
+    ? { label: "Beendet", tone: "gray" }
+    : { label: "Läuft", tone: "green" };
 }
 
 /**
