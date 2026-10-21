@@ -1023,6 +1023,14 @@
     "dateRange": "{from} deri {to}"
   },
   "enrollmentForm": {
+    "attachments": {
+      "open": "Hap",
+      "download": "Shkarko",
+      "openLabel": "Hap {label}",
+      "downloadLabel": "Shkarko {label}",
+      "errorObject": "skedarin PDF",
+      "popupBlocked": "Ju lutemi lejoni hapjen e një dritareje të re."
+    },
     "errorObject": "regjistrimi",
     "loading": "Formulari po ngarkohet…",
     "legalGermanNotice": "Këto tekste ligjore janë detyruese në gjermanisht.",
@@ -2182,6 +2190,7 @@
         "announcement_not_found": "Nuk u ndryshua: {object}. Kontrolloni gjendjen aktuale."
       },
       "enrollment": {
+        "form_attachment_invalid": "Ju lutemi kontrolloni emrin dhe skedarin PDF.",
         "approval_care_offering_exactly_one": "Nuk u ndryshua: {object}. Kontrolloni gjendjen aktuale.",
         "approval_care_offering_missing": "Nuk u ndryshua: {object}. Kontrolloni gjendjen aktuale.",
         "approval_data_invalid": "Nuk u ruajt: {object}. Kontrolloni të dhënat.",

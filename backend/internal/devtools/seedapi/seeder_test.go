@@ -1034,6 +1034,17 @@ func fullSeedAPIMock(t *testing.T, traces ...*fullSeedAPITrace) *seedHTTPTestSer
 		if trace != nil && trace.enforceDevicePIN && serveDevicePIN(t, trace, w, r) {
 			return
 		}
+		if r.Method == seedHTTPMethodPost && r.URL.Path == "/api/enrollment/legal-documents" {
+			// Handle this multipart response before the profile mocks decode JSON.
+			idCounter++
+			w.Header().Set("Content-Type", "application/json")
+			_ = json.NewEncoder(w).Encode(map[string]any{
+				"status": "success", "data": map[string]any{
+					"document_url": fmt.Sprintf("/uploads/enrollment-form-legal-documents/1_%d.pdf", idCounter),
+				},
+			})
+			return
+		}
 		if marketingMock.serve(t, w, r) {
 			return
 		}

@@ -1023,6 +1023,14 @@
     "dateRange": "з {from} до {to}"
   },
   "enrollmentForm": {
+    "attachments": {
+      "open": "Відкрити",
+      "download": "Завантажити",
+      "openLabel": "Відкрити {label}",
+      "downloadLabel": "Завантажити {label}",
+      "errorObject": "PDF-файл",
+      "popupBlocked": "Дозвольте відкрити нове вікно."
+    },
     "errorObject": "запис",
     "loading": "Завантажуємо форму…",
     "legalGermanNotice": "Юридично чинними є ці тексти німецькою мовою.",
@@ -2182,6 +2190,7 @@
         "announcement_not_found": "Не вдалося змінити: {object}. Перевірте поточний стан."
       },
       "enrollment": {
+        "form_attachment_invalid": "Перевірте назву та PDF-файл.",
         "approval_care_offering_exactly_one": "Не вдалося змінити: {object}. Перевірте поточний стан.",
         "approval_care_offering_missing": "Не вдалося змінити: {object}. Перевірте поточний стан.",
         "approval_data_invalid": "Не вдалося зберегти: {object}. Перевірте введені дані.",

@@ -4194,6 +4194,9 @@ function enrollmentFormTopic(): HelpTopic {
     requirements: [
       "Sie haben das `Basisformular` angesehen und etwas vermisst.",
     ],
+    image: "/help/screens/anmeldung-pdf-anhaenge.webp",
+    imageAlt:
+      "Zwei PDF-Anhänge mit eigenen Bezeichnungen und Aktionen im Formular-Editor",
     steps: [],
     instructionGroups: [
       {
@@ -4232,6 +4235,18 @@ function enrollmentFormTopic(): HelpTopic {
         ],
       },
       {
+        title: "PDF-Dateien zu einem Hinweis hinzufügen",
+        steps: [
+          "Wählen Sie `Infotext` und schreiben Sie Ihren Hinweis.",
+          "Wählen Sie beim Hinweis `PDFs hinzufügen`. Sie können mehrere Dateien gleichzeitig auswählen.",
+          "Geben Sie jeder Datei unter `Bezeichnung für Eltern` einen verständlichen Namen.",
+          "Fügen Sie weitere Dateien mit `Weitere PDFs hinzufügen` hinzu.",
+          "Zum Austauschen wählen Sie bei der jeweiligen PDF `Ersetzen`.",
+          "Zum Wegnehmen wählen Sie das Kreuz bei der jeweiligen PDF.",
+          "Wählen Sie `Änderungen speichern` und danach `Vorschau öffnen`.",
+        ],
+      },
+      {
         title: "Die Vorlage in der Anmeldephase auswählen",
         description:
           "Eine Vorlage wirkt erst, wenn eine Phase sie benutzt. Ohne diesen Schritt sehen die Eltern weiter das Basisformular.",
@@ -4263,6 +4278,12 @@ function enrollmentFormTopic(): HelpTopic {
       "Mit `Vorschau öffnen` sehen Sie den Entwurf in einem neuen Tab, bevor Sie speichern.",
       "Die Zustimmungen `Datenschutzinformation`, `Fotoeinwilligung` und `E-Mail-Kontakt` tragen `Aus Einstellungen übernommen`. Sie kommen aus Ihren Einstellungen und lassen sich je Vorlage ausblenden.",
       "Über `+ Eigene Zustimmung hinzufügen` ergänzen Sie einen Text, der nur in dieser Vorlage steht.",
+
+      "Jede PDF-Datei darf höchstens 10 MB groß sein.",
+      "Eltern können alle Dateien ohne Elternkonto öffnen und herunterladen.",
+      "Infotexte und Blöcke mit `Nur Hinweis` brauchen keine Zustimmung.",
+      "Auch bei Zustimmungen können Sie mehrere PDF-Dateien hinzufügen.",
+      "Beim Verwerfen werden neue, ungespeicherte Dateien entfernt. Frühere Formularfassungen behalten ihre Dateien.",
     ],
     differences: [
       "Bei einem `Stammdaten-Vorschlag` können Sie Beschriftung und Typ nicht ändern. Beides ist fest, damit die Antwort beim Kind ankommt.",

@@ -1023,6 +1023,14 @@
     "dateRange": "od {from} do {to}"
   },
   "enrollmentForm": {
+    "attachments": {
+      "open": "Otwórz",
+      "download": "Pobierz",
+      "openLabel": "Otwórz {label}",
+      "downloadLabel": "Pobierz {label}",
+      "errorObject": "plik PDF",
+      "popupBlocked": "Zezwól na otwarcie nowego okna."
+    },
     "errorObject": "zgłoszenie",
     "loading": "Wczytywanie formularza…",
     "legalGermanNotice": "Te teksty prawne obowiązują w wersji niemieckiej.",
@@ -2182,6 +2190,7 @@
         "announcement_not_found": "Nie udało się zmienić: {object}. Sprawdź aktualny stan."
       },
       "enrollment": {
+        "form_attachment_invalid": "Sprawdź nazwę i plik PDF.",
         "approval_care_offering_exactly_one": "Nie udało się zmienić: {object}. Sprawdź aktualny stan.",
         "approval_care_offering_missing": "Nie udało się zmienić: {object}. Sprawdź aktualny stan.",
         "approval_data_invalid": "Nie udało się zapisać: {object}. Sprawdź wpisane dane.",

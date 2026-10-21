@@ -42,13 +42,14 @@ type RequestListFilters struct {
 // (enrollment.LegalBlock), not the template row, so the record
 // stays meaningful for blocks that came from live tenant settings.
 type LegalBlockSnapshot struct {
-	Key      string `json:"key"`
-	Kind     string `json:"kind"`
-	Title    string `json:"title"`
-	Label    string `json:"label"`
-	Text     string `json:"text"`
-	Required bool   `json:"required"`
-	Source   string `json:"source,omitempty"`
+	Attachments []FormAttachment `json:"attachments,omitempty"`
+	Key         string           `json:"key"`
+	Kind        string           `json:"kind"`
+	Title       string           `json:"title"`
+	Label       string           `json:"label"`
+	Text        string           `json:"text"`
+	Required    bool             `json:"required"`
+	Source      string           `json:"source,omitempty"`
 	// Translations records the translated wordings (locale → attribute →
 	// text) the form offered next to the German one (#3377). The server does
 	// not learn which language the guardian read.

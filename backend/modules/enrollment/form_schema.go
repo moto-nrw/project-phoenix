@@ -216,6 +216,9 @@ func (f *FormField) Validate() error {
 // answer, so the answer-oriented attributes must all be empty. The
 // label (heading) is optional.
 func (f *FormField) validateInfo() error {
+	if err := ValidateFormAttachments(f.Attachments); err != nil {
+		return err
+	}
 	if f.Content == "" {
 		return invalidInputf(CodeFormFieldContentRequired, "content", "information field %q requires content text", f.Key)
 	}
@@ -259,6 +262,9 @@ func (f *FormField) SingleModeAppliesTo(grade *int16) bool {
 // validateQuestion enforces the constraints for answer-collecting fields
 // (every type except FormFieldInfo).
 func (f *FormField) validateQuestion() error {
+	if len(f.Attachments) > 0 {
+		return invalidInputf(CodeFormAttachmentInvalid, "attachments", "only information fields may declare attachments")
+	}
 	if f.Label == "" {
 		return invalidInput(CodeFormFieldLabelRequired, "label", errors.New("form field label is required"))
 	}
@@ -586,6 +592,7 @@ func (b *FormLegalBlock) Validate() error {
 		b.validateSource,
 		b.validateContent,
 		b.validateDisplayMode,
+		func() error { return ValidateFormAttachments(b.Attachments) },
 	}
 	for _, validate := range validators {
 		if err := validate(); err != nil {
