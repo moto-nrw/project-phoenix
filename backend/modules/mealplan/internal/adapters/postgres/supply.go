@@ -8,7 +8,6 @@ import (
 	"time"
 
 	"github.com/moto-nrw/project-phoenix/modules/mealplan/internal/domain"
-	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 	"github.com/uptrace/bun"
 )
 
@@ -102,9 +101,9 @@ func (s *Store) EndSupply(ctx context.Context, accountID int64, endedAt time.Tim
 }
 
 // ConfirmOrder records the caterer's confirmation of a fixed order once and
-// reports whether the school has the order with a day from since on. A
+// reports whether the school has an order frozen since the supply started. A
 // second confirmation keeps the first.
-func (s *Store) ConfirmOrder(ctx context.Context, orderID, accountID int64, since calendar.Date, confirmedAt time.Time) (bool, domain.OperationStats, error) {
+func (s *Store) ConfirmOrder(ctx context.Context, orderID, accountID int64, since time.Time, confirmedAt time.Time) (bool, domain.OperationStats, error) {
 	db, tenantID, err := s.database(ctx)
 	if err != nil {
 		return false, domain.OperationStats{}, err
@@ -116,11 +115,11 @@ func (s *Store) ConfirmOrder(ctx context.Context, orderID, accountID int64, sinc
 			WITH confirmed AS (
 				UPDATE schedule.meal_orders
 				SET confirmed_at = ?, confirmed_by_account_id = ?
-				WHERE tenant_id = ? AND id = ? AND period_end >= ? AND confirmed_at IS NULL
+				WHERE tenant_id = ? AND id = ? AND frozen_at >= ? AND confirmed_at IS NULL
 				RETURNING id
 			)
 			SELECT EXISTS (SELECT 1 FROM confirmed)
-				OR EXISTS (SELECT 1 FROM schedule.meal_orders WHERE tenant_id = ? AND id = ? AND period_end >= ?)`,
+				OR EXISTS (SELECT 1 FROM schedule.meal_orders WHERE tenant_id = ? AND id = ? AND frozen_at >= ?)`,
 			confirmedAt, optionalAccount(accountID), tenantID, orderID, since, tenantID, orderID, since).Scan(ctx, &found)
 	}); err != nil {
 		return false, stats, fmt.Errorf("meal plan postgres: confirm order: %w", err)

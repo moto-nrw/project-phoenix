@@ -31,9 +31,9 @@ type SupplyStore interface {
 	FindActiveSupply(ctx context.Context, forUpdate bool) (domain.Supply, bool, domain.OperationStats, error)
 	InsertSupply(ctx context.Context, catererID int64, deliveryAddress string, accountID int64, startedAt time.Time) (domain.OperationStats, error)
 	EndSupply(ctx context.Context, accountID int64, endedAt time.Time) (bool, domain.OperationStats, error)
-	// ConfirmOrder confirms a fixed order with a day from since on once;
+	// ConfirmOrder confirms an order frozen since the supply started once;
 	// false: no such order.
-	ConfirmOrder(ctx context.Context, orderID, accountID int64, since domain.Date, confirmedAt time.Time) (bool, domain.OperationStats, error)
+	ConfirmOrder(ctx context.Context, orderID, accountID int64, since time.Time, confirmedAt time.Time) (bool, domain.OperationStats, error)
 }
 
 // OrderStore holds the school's orders (#3873). LockOrders serializes every

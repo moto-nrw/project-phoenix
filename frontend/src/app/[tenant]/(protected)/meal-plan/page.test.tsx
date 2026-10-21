@@ -7,7 +7,8 @@ import { catalogText } from "~/test/error-catalog-text";
 
 import MealPlanPage from "./page";
 
-const { getMealPlanWeek } = vi.hoisted(() => ({
+const { getMealPlanWeek, rights } = vi.hoisted(() => ({
+  rights: { admin: true, permissions: [] as string[] },
   getMealPlanWeek: vi.fn(),
 }));
 
@@ -26,8 +27,9 @@ vi.mock("next-auth/react", () => ({
 
 vi.mock("~/lib/auth-utils", async (importOriginal) => ({
   ...(await importOriginal<typeof import("~/lib/auth-utils")>()),
-  isAdmin: () => true,
-  hasPermission: () => true,
+  isAdmin: () => rights.admin,
+  hasPermission: (_session: unknown, permission: string) =>
+    rights.permissions.includes(permission),
 }));
 
 vi.mock("~/lib/tenant-router", () => ({
@@ -51,6 +53,26 @@ vi.mock("~/lib/meal-plan-api", async (importOriginal) => ({
   getMealPlanWeek,
 }));
 
+vi.mock("~/lib/tenant-context", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("~/lib/tenant-context")>()),
+  useMealRegistrationEnabled: () => true,
+}));
+vi.mock("~/components/meal-plan/meal-participant-list", () => ({
+  MealParticipantList: ({
+    canRegister,
+    canExport,
+  }: {
+    canRegister: boolean;
+    canExport: boolean;
+  }) => (
+    <div
+      data-testid="participants"
+      data-register={String(canRegister)}
+      data-export={String(canExport)}
+    />
+  ),
+}));
+
 function renderPage() {
   return render(
     <ToastProvider>
@@ -62,6 +84,8 @@ function renderPage() {
 describe("Essensplan: Statuszeile bei Ladefehler (#2517)", () => {
   beforeEach(() => {
     getMealPlanWeek.mockReset();
+    rights.admin = true;
+    rights.permissions = [];
   });
 
   it("shows the catalog load error and no planned-days count", async () => {
@@ -90,4 +114,22 @@ describe("Essensplan: Statuszeile bei Ladefehler (#2517)", () => {
       await screen.findByText(/0 von 5 Tagen geplant/),
     ).toBeInTheDocument();
   });
+});
+
+describe("meal registration permissions", () => {
+  it.each([
+    [["meals:register"], "true", "false"],
+    [["meals:orders"], "false", "true"],
+  ] as const)(
+    "keeps registration independent of export rights (%j)",
+    async (permissions, register, exporting) => {
+      rights.admin = false;
+      rights.permissions = [...permissions];
+      getMealPlanWeek.mockResolvedValue([]);
+      renderPage();
+      const list = await screen.findByTestId("participants");
+      expect(list).toHaveAttribute("data-register", register);
+      expect(list).toHaveAttribute("data-export", exporting);
+    },
+  );
 });

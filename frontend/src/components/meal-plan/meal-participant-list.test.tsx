@@ -98,6 +98,20 @@ describe("MealParticipantList", () => {
     ).not.toBeInTheDocument();
   });
 
+  it("allows registration without exposing exports", async () => {
+    render(<MealParticipantList canRegister canExport={false} />);
+    await waitFor(() =>
+      expect(mocks.getDailyMealParticipants).toHaveBeenCalledWith(
+        "2026-09-07",
+        true,
+      ),
+    );
+    expect(
+      screen.getByRole("button", { name: "Anmeldung ändern" }),
+    ).toBeEnabled();
+    expect(screen.queryByRole("group")).not.toBeInTheDocument();
+  });
+
   it("starts on Monday and disables weekends when opened on a weekend", async () => {
     mocks.today = "2026-09-05";
 

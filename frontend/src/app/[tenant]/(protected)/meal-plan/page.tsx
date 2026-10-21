@@ -144,9 +144,10 @@ export default function MealPlanPage() {
   // meals:manage (the backend PUT/DELETE routes 403 otherwise). Readers get a
   // view-only plan: no edit, copy, paste, clear, add/remove, "Vorwoche
   // übernehmen", or save controls — so they never hit a guaranteed 403. The
-  // lists with names need meals:orders, a child's registration changed by
+  // exports need meals:orders, a child's registration changed by
   // the school meals:register (#3873). Mirror the nav's admin-OR-permission
   // gate.
+  const canReadPlan = isAdmin(session) || hasPermission(session, "meals:read");
   const canEdit = isAdmin(session) || hasPermission(session, "meals:manage");
   const mealRegistrationEnabled = useMealRegistrationEnabled();
   // Die Bestellung der Woche braucht nur die Zahlen (#3873).
@@ -159,7 +160,8 @@ export default function MealPlanPage() {
     mealRegistrationEnabled &&
     (isAdmin(session) || hasPermission(session, "meals:orders"));
   const canRegister =
-    canReadParticipants &&
+    status === "authenticated" &&
+    mealRegistrationEnabled &&
     (isAdmin(session) || hasPermission(session, "meals:register"));
 
   // weekOffset: number of weeks from the current week (0 = this week, can go
@@ -260,9 +262,9 @@ export default function MealPlanPage() {
   });
 
   useEffect(() => {
-    if (status !== "authenticated") return;
+    if (status !== "authenticated" || !canReadPlan) return;
     void load();
-  }, [load, status]);
+  }, [load, status, canReadPlan]);
 
   const changedDays = useMemo(
     () =>
@@ -510,7 +512,7 @@ export default function MealPlanPage() {
     startYear === endYear
       ? `${shortDate(weekDates[0]!)} bis ${shortDate(weekDates[4]!)}${startYear}`
       : `${shortDateWithYear(weekDates[0]!)} bis ${shortDateWithYear(weekDates[4]!)}`;
-  const initialLoading = loading && !hasLoaded;
+  const initialLoading = canReadPlan && loading && !hasLoaded;
   // Die Zahl der geplanten Tage gibt es nur für eine geladene Woche: nach
   // einem Ladefehler stünde sonst "0 von 5 Tagen geplant" da (#2517).
   const weekLoaded = weekDates.every((date) => date in originals);
@@ -600,6 +602,7 @@ export default function MealPlanPage() {
       {/* Erklärtext als description, „Vorwoche übernehmen“ in der Titelzeile:
             kein frei stehender Absatz und keine Zeile nur aus Buttons. */}
       <SectionCard
+        className={canReadPlan ? undefined : "hidden"}
         title="Wochenplan"
         description="Pro Tag ein oder mehrere Gerichte mit optionalem Hinweis. Eltern sehen den Plan im Elternportal."
         actions={
@@ -671,7 +674,7 @@ export default function MealPlanPage() {
       <FormErrorAlert message={saveErrors.error} />
 
       <SectionCard
-        className={`transition-opacity duration-200 ${
+        className={`${canReadPlan ? "" : "hidden"} transition-opacity duration-200 ${
           loading ? "opacity-50" : "opacity-100"
         }`}
         bodyClassName=""
@@ -805,8 +808,11 @@ export default function MealPlanPage() {
         />
       ) : null}
 
-      {canReadParticipants ? (
-        <MealParticipantList canRegister={canRegister} />
+      {canReadParticipants || canRegister ? (
+        <MealParticipantList
+          canRegister={canRegister}
+          canExport={canReadParticipants}
+        />
       ) : null}
 
       {/* Der Caterer der Schule (ADR 0075): nur wer den Essensplan

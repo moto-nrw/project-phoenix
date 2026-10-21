@@ -46,7 +46,8 @@ function nextWeekday(date: string): string {
  */
 export function MealParticipantList({
   canRegister,
-}: Readonly<{ canRegister: boolean }>) {
+  canExport = true,
+}: Readonly<{ canRegister: boolean; canExport?: boolean }>) {
   const t = useTranslations("mealParticipantList");
   const locale = useLocale();
   const datePicker = useLocalizedDatePicker();
@@ -212,49 +213,51 @@ export function MealParticipantList({
               </Button>
             ) : null}
 
-            <div
-              role="group"
-              aria-label={t("downloadGroup")}
-              className="flex flex-wrap gap-2 sm:justify-end"
-            >
-              <Button
-                type="button"
-                variant="outline"
-                size="md"
-                className="gap-2 bg-white"
-                aria-label={t("downloadPdf")}
-                aria-busy={exporting === "pdf"}
-                onClick={() => void download("pdf")}
-                isLoading={exporting === "pdf"}
-                loadingText={t("downloadLoading")}
-                disabled={loading || Boolean(loadError) || exporting !== null}
+            {canExport ? (
+              <div
+                role="group"
+                aria-label={t("downloadGroup")}
+                className="flex flex-wrap gap-2 sm:justify-end"
               >
-                <Download className="h-4 w-4" aria-hidden="true" />
-                {t("pdf")}
-              </Button>
-              <Button
-                type="button"
-                variant="outline"
-                size="md"
-                className="gap-2 bg-white"
-                aria-label={t("downloadExcel")}
-                aria-busy={exporting === "xlsx"}
-                onClick={() => void download("xlsx")}
-                isLoading={exporting === "xlsx"}
-                loadingText={t("downloadLoading")}
-                disabled={loading || Boolean(loadError) || exporting !== null}
-              >
-                <FileSpreadsheet className="h-4 w-4" aria-hidden="true" />
-                {t("excel")}
-              </Button>
-              <span className="sr-only" role="status" aria-live="polite">
-                {exporting === "pdf"
-                  ? t("pdfDownloadStatus")
-                  : exporting === "xlsx"
-                    ? t("excelDownloadStatus")
-                    : ""}
-              </span>
-            </div>
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="md"
+                  className="gap-2 bg-white"
+                  aria-label={t("downloadPdf")}
+                  aria-busy={exporting === "pdf"}
+                  onClick={() => void download("pdf")}
+                  isLoading={exporting === "pdf"}
+                  loadingText={t("downloadLoading")}
+                  disabled={loading || Boolean(loadError) || exporting !== null}
+                >
+                  <Download className="h-4 w-4" aria-hidden="true" />
+                  {t("pdf")}
+                </Button>
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="md"
+                  className="gap-2 bg-white"
+                  aria-label={t("downloadExcel")}
+                  aria-busy={exporting === "xlsx"}
+                  onClick={() => void download("xlsx")}
+                  isLoading={exporting === "xlsx"}
+                  loadingText={t("downloadLoading")}
+                  disabled={loading || Boolean(loadError) || exporting !== null}
+                >
+                  <FileSpreadsheet className="h-4 w-4" aria-hidden="true" />
+                  {t("excel")}
+                </Button>
+                <span className="sr-only" role="status" aria-live="polite">
+                  {exporting === "pdf"
+                    ? t("pdfDownloadStatus")
+                    : exporting === "xlsx"
+                      ? t("excelDownloadStatus")
+                      : ""}
+                </span>
+              </div>
+            ) : null}
           </div>
         </div>
       </div>

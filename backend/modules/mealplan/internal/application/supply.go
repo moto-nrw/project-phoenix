@@ -3,6 +3,7 @@ package application
 import (
 	"context"
 	"errors"
+	"time"
 
 	"github.com/moto-nrw/project-phoenix/modules/mealplan"
 	"github.com/moto-nrw/project-phoenix/modules/mealplan/internal/domain"
@@ -82,16 +83,16 @@ func (s *Service) catererOrders(ctx context.Context, catererID int64, from, to s
 	if err != nil {
 		return mealplan.OrderWeek{}, mapPublicError(err)
 	}
-	view.Days = daysSince(view.Days, domain.DateFromInstant(supply.StartedAt))
+	view.Days = daysSince(view.Days, supply.StartedAt)
 	return catererWeek(publicOrderWeek(view), view.Rules), nil
 }
 
 // daysSince keeps the days from the start of the supply on: a caterer never
 // reads what the school ordered from its predecessor.
-func daysSince(days []domain.OrderDay, start domain.Date) []domain.OrderDay {
+func daysSince(days []domain.OrderDay, start time.Time) []domain.OrderDay {
 	kept := days[:0:0]
 	for _, day := range days {
-		if !day.Date.Before(start) {
+		if !day.Date.Before(domain.DateFromInstant(start)) && (day.Order == nil || !day.Order.FrozenAt.Before(start)) {
 			kept = append(kept, day)
 		}
 	}
@@ -107,7 +108,7 @@ func (s *Service) confirmOrder(ctx context.Context, catererID, orderID, accountI
 		if err != nil {
 			return stats, err
 		}
-		found, confirmStats, err := s.store.ConfirmOrder(txCtx, orderID, accountID, domain.DateFromInstant(supply.StartedAt), s.now())
+		found, confirmStats, err := s.store.ConfirmOrder(txCtx, orderID, accountID, supply.StartedAt, s.now())
 		stats = addStats(stats, confirmStats)
 		if err == nil && !found {
 			err = ErrOrderNotFound
@@ -165,7 +166,7 @@ func catererChild(child mealplan.OrderChild, named, byClass bool) mealplan.Order
 	if named {
 		result.FirstName, result.LastName = child.FirstName, child.LastName
 	}
-	if byClass || named {
+	if byClass {
 		result.SchoolClass = child.SchoolClass
 	}
 	return result

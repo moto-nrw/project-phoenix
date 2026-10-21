@@ -789,7 +789,9 @@ function SidebarContent({
           case "mealPlan":
             return (
               mealPlanEnabled &&
-              (userIsAdmin || hasPermission(session, "meals:read"))
+              (userIsAdmin ||
+                hasPermission(session, "meals:read") ||
+                hasPermission(session, "meals:register"))
             );
         }
       }),

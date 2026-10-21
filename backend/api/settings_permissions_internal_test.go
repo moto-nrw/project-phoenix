@@ -23,10 +23,11 @@ func TestAccessLevelsMapOntoSecurityRuntimeLevels(t *testing.T) {
 		settingsHTTP.AccessReadOrWrite: securityruntime.ConfigAccessReadOrWrite,
 	}, settingsConfigAccess)
 	assert.Equal(t, map[mealplanAPI.Access]securityruntime.MealPlanAccess{
-		mealplanAPI.AccessRead:         securityruntime.MealPlanAccessRead,
-		mealplanAPI.AccessWrite:        securityruntime.MealPlanAccessWrite,
-		mealplanAPI.AccessParticipants: securityruntime.MealPlanAccessParticipants,
-		mealplanAPI.AccessRegister:     securityruntime.MealPlanAccessRegister,
+		mealplanAPI.AccessRead:              securityruntime.MealPlanAccessRead,
+		mealplanAPI.AccessWrite:             securityruntime.MealPlanAccessWrite,
+		mealplanAPI.AccessParticipants:      securityruntime.MealPlanAccessParticipants,
+		mealplanAPI.AccessRegister:          securityruntime.MealPlanAccessRegister,
+		mealplanAPI.AccessDailyParticipants: securityruntime.MealPlanAccessDailyParticipants,
 	}, mealPlanAccess)
 }
 
@@ -42,6 +43,10 @@ func TestMealPlanAllowedFollowsTheRegisterPermission(t *testing.T) {
 	assert.False(t, mealPlanAllowed(caller(permissions.MealsOrders), mealplanAPI.AccessRegister))
 	assert.True(t, mealPlanAllowed(caller(permissions.MealsOrders), mealplanAPI.AccessParticipants))
 	assert.True(t, mealPlanAllowed(caller(permissions.MealsRegister), mealplanAPI.AccessRegister))
+	assert.True(t, mealPlanAllowed(caller(permissions.MealsRegister), mealplanAPI.AccessDailyParticipants))
+	assert.True(t, mealPlanAllowed(caller(permissions.MealsOrders), mealplanAPI.AccessDailyParticipants))
+	assert.False(t, mealPlanAllowed(caller(permissions.MealsRead), mealplanAPI.AccessDailyParticipants))
+	assert.False(t, mealPlanAllowed(caller(permissions.MealsRegister), mealplanAPI.AccessParticipants), "registration alone does not grant exports")
 	assert.True(t, mealPlanAllowed(caller("admin:*"), mealplanAPI.AccessRegister), "admin:* holds every permission, as at the route guard")
 	assert.False(t, mealPlanAllowed(context.Background(), mealplanAPI.AccessRead), "no caller, no access")
 }

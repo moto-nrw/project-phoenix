@@ -148,6 +148,13 @@ func TestNewCatererSeesNothingBeforeItsSupply(t *testing.T) {
 	mondayOrder := week.Days[0].OrderID
 	_, err = monday.EndSupply(ctx, 0)
 	require.NoError(t, err)
+	// A takeover later on the same day must not expose its frozen order.
+	takeover := buildModuleWithRules(t, db, singleDeadlineSettings("09:00"), time.Date(2026, 9, 7, 11, 0, 0, 0, testBerlin))
+	require.NoError(t, takeover.StartSupply(ctx, successor, "", 0))
+	previous, err := takeover.CatererOrders(ctx, successor, "2026-09-07", "2026-09-07")
+	require.NoError(t, err)
+	assert.Empty(t, previous.Days)
+	require.ErrorIs(t, takeover.ConfirmOrder(ctx, successor, mondayOrder, 0), mealplan.ErrOrderNotFound)
 
 	tuesday := buildModuleWithRules(t, db, singleDeadlineSettings("09:00"), time.Date(2026, 9, 8, 10, 0, 0, 0, testBerlin))
 	require.NoError(t, tuesday.StartSupply(ctx, successor, "", 0))

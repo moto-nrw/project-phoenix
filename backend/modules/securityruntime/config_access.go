@@ -93,15 +93,18 @@ const (
 	MealPlanAccessParticipants
 	// MealPlanAccessRegister changes a child's registration for the school.
 	MealPlanAccessRegister
+	MealPlanAccessDailyParticipants
 )
 
 // MealPlanAccessPermissions names the permission of a meal plan access level
-// (#3873): reading takes meals:read, the lists with children's names
-// meals:orders, a child's registration changed by the school meals:register,
+// (#3873): reading takes meals:read, exports meals:orders, and changing
+// a child's registration meals:register. The daily child list accepts either,
 // and writing (the default) meals:manage. A kitchen role no longer needs the
 // configuration or every child's data, and seeing names opens no change.
 func MealPlanAccessPermissions(level MealPlanAccess) AccessRule {
 	switch level {
+	case MealPlanAccessDailyParticipants:
+		return AccessRule{Permissions: []string{permissionMealsOrders, permissionMealsRegister}}
 	case MealPlanAccessRegister:
 		return AccessRule{Permissions: []string{permissionMealsRegister}}
 	case MealPlanAccessParticipants:

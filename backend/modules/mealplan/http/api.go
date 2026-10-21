@@ -25,6 +25,8 @@ const (
 	AccessParticipants
 	// AccessRegister changes a child's registration for the school (#3873).
 	AccessRegister
+	// AccessDailyParticipants reads the child list needed to change registrations.
+	AccessDailyParticipants
 )
 
 type ExportFile struct {
@@ -68,7 +70,7 @@ func (rs *Resource) Router() chi.Router {
 		protected.With(rs.runtime.Permission(AccessRead), withTx).Get("/", rs.getWeek)
 		protected.With(rs.runtime.Permission(AccessWrite), withTx).Put("/{date}", rs.setDay)
 		protected.With(rs.runtime.Permission(AccessWrite), withTx).Delete("/{date}", rs.deleteDay)
-		protected.With(rs.runtime.Permission(AccessParticipants), withTx).Get("/participants", rs.getParticipants)
+		protected.With(rs.runtime.Permission(AccessDailyParticipants), withTx).Get("/participants", rs.getParticipants)
 		protected.With(rs.runtime.Permission(AccessParticipants), withTx).Get("/participants/export", rs.exportParticipants)
 		protected.With(rs.runtime.Permission(AccessRead), withTx).Get("/orders", rs.getOrders)
 		protected.With(rs.runtime.Permission(AccessParticipants), withTx).Get("/orders/month/export", rs.exportMonth)

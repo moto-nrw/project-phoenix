@@ -157,6 +157,11 @@ func checkCatererPortal(t *testing.T, graph *goldenRuntime) {
 		VALUES (?, 'operations.meal_plan_enabled', 'true'::jsonb), (?, 'operations.meal_registration_enabled', 'true'::jsonb)
 		ON CONFLICT (tenant_id, setting_key) DO UPDATE SET value = EXCLUDED.value, updated_at = NOW()`, school, school)
 	require.NoError(t, err)
+	registerToken := testutil.MintTestJWT(t, testutil.TenantUserTestClaims(int(staff.ID), school, "meals:register"))
+	status, body = request(http.MethodGet, "/api/meal-plan/participants?date=2026-09-07&include=all", "", registerToken)
+	require.Equal(t, http.StatusOK, status, string(body))
+	status, body = request(http.MethodGet, "/api/meal-plan/participants/export?date=2026-09-07&format=pdf", "", registerToken)
+	require.Equal(t, http.StatusForbidden, status, string(body))
 	status, body = request(http.MethodGet, "/caterer/schools/"+schoolID+"/orders?from=2026-09-07&to=2026-09-11", "", catererToken)
 	require.Equal(t, http.StatusOK, status, string(body))
 	var orders struct {

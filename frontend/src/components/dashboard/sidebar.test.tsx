@@ -430,23 +430,26 @@ describe("Sidebar", () => {
 
     // #3873: a kitchen role holds meals:read but no config:read; the meal
     // switch comes from the tenant resolve, not the settings schema.
-    it("shows the meal plan to a role with meals:read only", () => {
-      mockIsAdmin.mockReturnValue(false);
-      mockUseSession.mockReturnValue(createMockSession(false));
-      mockHasEffectiveAdminScope.mockReturnValue(false);
-      mockHasPermission.mockImplementation(
-        (_session, permission) => permission === "meals:read",
-      );
-      vi.mocked(useMealPlanEnabled).mockReturnValue(true);
+    it.each(["meals:read", "meals:register"])(
+      "shows the meal plan with %s only",
+      (granted) => {
+        mockIsAdmin.mockReturnValue(false);
+        mockUseSession.mockReturnValue(createMockSession(false));
+        mockHasEffectiveAdminScope.mockReturnValue(false);
+        mockHasPermission.mockImplementation(
+          (_session, permission) => permission === granted,
+        );
+        vi.mocked(useMealPlanEnabled).mockReturnValue(true);
 
-      const { unmount } = render(<Sidebar />);
-      expect(screen.getByText("Essensplan")).toBeInTheDocument();
-      unmount();
+        const { unmount } = render(<Sidebar />);
+        expect(screen.getByText("Essensplan")).toBeInTheDocument();
+        unmount();
 
-      vi.mocked(useMealPlanEnabled).mockReturnValue(false);
-      render(<Sidebar />);
-      expect(screen.queryByText("Essensplan")).not.toBeInTheDocument();
-    });
+        vi.mocked(useMealPlanEnabled).mockReturnValue(false);
+        render(<Sidebar />);
+        expect(screen.queryByText("Essensplan")).not.toBeInTheDocument();
+      },
+    );
 
     it.each(["staff:manage", "staff:stammdaten"])(
       "shows personnel data for the delegated %s permission",

@@ -950,7 +950,10 @@ export function MobileBottomNav({ className = "" }: MobileBottomNavProps) {
     }
     if (href === "/meal-plan") {
       return (
-        mealPlanEnabled && (userIsAdmin || hasPermission(session, "meals:read"))
+        mealPlanEnabled &&
+        (userIsAdmin ||
+          hasPermission(session, "meals:read") ||
+          hasPermission(session, "meals:register"))
       );
     }
     return true;

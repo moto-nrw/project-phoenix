@@ -78,7 +78,7 @@ func TestStaffRoutesKeepProtectedPermissionBoundaries(t *testing.T) {
 	}
 	// #3873: the school's changes of a child's registration need a
 	// permission of their own; seeing the lists with names opens no change.
-	want := []mealplanHTTP.Access{mealplanHTTP.AccessRead, mealplanHTTP.AccessWrite, mealplanHTTP.AccessWrite, mealplanHTTP.AccessParticipants, mealplanHTTP.AccessParticipants,
+	want := []mealplanHTTP.Access{mealplanHTTP.AccessRead, mealplanHTTP.AccessWrite, mealplanHTTP.AccessWrite, mealplanHTTP.AccessDailyParticipants, mealplanHTTP.AccessParticipants,
 		mealplanHTTP.AccessRead, mealplanHTTP.AccessParticipants,
 		mealplanHTTP.AccessRegister, mealplanHTTP.AccessRegister, mealplanHTTP.AccessRegister, mealplanHTTP.AccessRegister}
 	if !reflect.DeepEqual(accesses, want) {
