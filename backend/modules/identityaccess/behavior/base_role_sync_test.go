@@ -18,7 +18,7 @@ func TestBaseRoleSyncAcrossLayers(t *testing.T) {
 
 	projectRoot, err := findProjectRoot()
 	if err != nil {
-		t.Skipf("Cannot locate project root: %v", err)
+		t.Fatalf("Cannot locate project root: %v", err)
 	}
 
 	validRoles := identityaccess.ValidBaseRoles()
@@ -30,7 +30,7 @@ func TestBaseRoleSyncAcrossLayers(t *testing.T) {
 		migrationPath := filepath.Join(projectRoot, "backend/database/migrations/001015031_roles_base_role.go")
 		content, err := os.ReadFile(migrationPath)
 		if err != nil {
-			t.Skipf("Cannot read migration file: %v", err)
+			t.Fatalf("Cannot read migration file: %v", err)
 		}
 
 		dbRoles := extractCheckConstraintRoles(string(content))
@@ -48,7 +48,7 @@ func TestBaseRoleSyncAcrossLayers(t *testing.T) {
 		frontendPath := filepath.Join(projectRoot, "frontend/src/lib/auth-helpers.ts")
 		content, err := os.ReadFile(frontendPath)
 		if err != nil {
-			t.Skipf("Cannot read frontend file: %v", err)
+			t.Fatalf("Cannot read frontend file: %v", err)
 		}
 
 		feRoles := extractBaseRoleLabelKeys(string(content))

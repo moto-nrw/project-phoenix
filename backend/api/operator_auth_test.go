@@ -69,10 +69,6 @@ func (m *mockOperatorAuthService) RefreshOperatorToken(ctx context.Context, oper
 	return "", "", nil
 }
 
-func (m *mockOperatorAuthService) ValidateOperator(ctx context.Context, email, password string) (*identityaccess.Operator, error) {
-	return nil, nil
-}
-
 func (m *mockOperatorAuthService) FindOperator(ctx context.Context, id int64) (identityaccess.Operator, error) {
 	if m.getOperatorFn != nil {
 		op, err := m.getOperatorFn(ctx, id)

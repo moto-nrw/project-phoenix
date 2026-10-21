@@ -7,7 +7,6 @@ import (
 
 	"github.com/go-chi/chi/v5"
 	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
 )
 
 // =============================================================================
@@ -53,61 +52,6 @@ func TestDelegateHandler_PostRequest(t *testing.T) {
 
 	assert.Equal(t, http.StatusCreated, w.Code)
 	assert.Equal(t, "post response", w.Body.String())
-}
-
-// =============================================================================
-// NewResource Tests
-// =============================================================================
-
-func TestNewResource(t *testing.T) {
-	t.Parallel()
-
-	deps := ServiceDependencies{
-		Administration:  nil,
-		Rooms:           nil,
-		Directory:       nil,
-		FeedbackService: nil,
-	}
-
-	resource := NewResource(deps)
-
-	require.NotNil(t, resource)
-	assert.Nil(t, resource.Administration)
-	assert.Nil(t, resource.Rooms)
-	assert.Nil(t, resource.Directory)
-	assert.Nil(t, resource.FeedbackService)
-}
-
-// =============================================================================
-// ServiceDependencies Tests
-// =============================================================================
-
-func TestServiceDependencies_Struct(t *testing.T) {
-	t.Parallel()
-
-	// Verify struct fields exist
-	deps := ServiceDependencies{}
-
-	assert.Nil(t, deps.Administration)
-	assert.Nil(t, deps.Rooms)
-	assert.Nil(t, deps.Directory)
-	assert.Nil(t, deps.FeedbackService)
-}
-
-// =============================================================================
-// Resource Struct Tests
-// =============================================================================
-
-func TestResource_Struct(t *testing.T) {
-	t.Parallel()
-
-	// Verify Resource struct can be instantiated
-	resource := &Resource{}
-
-	assert.Nil(t, resource.Administration)
-	assert.Nil(t, resource.Rooms)
-	assert.Nil(t, resource.Directory)
-	assert.Nil(t, resource.FeedbackService)
 }
 
 // =============================================================================

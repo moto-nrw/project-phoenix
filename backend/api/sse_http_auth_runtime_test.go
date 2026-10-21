@@ -2,15 +2,12 @@ package api
 
 import (
 	"context"
-	"log/slog"
 	"testing"
 	"time"
 
 	"github.com/go-chi/jwtauth/v5"
 	"github.com/moto-nrw/project-phoenix/api/testutil"
 	"github.com/moto-nrw/project-phoenix/auth/authorize/permissions"
-	sseHTTP "github.com/moto-nrw/project-phoenix/modules/delivery/http/sse"
-	"github.com/moto-nrw/project-phoenix/realtime"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -67,14 +64,4 @@ func TestPrincipalAdminScope(t *testing.T) {
 			assert.Equal(t, tt.want, principal.HasAdminScope())
 		})
 	}
-}
-
-func TestSSEComposedRouter(t *testing.T) {
-	t.Parallel()
-
-	hub := realtime.NewHub(slog.Default())
-	resource := sseHTTP.NewResource(hub, nil, sseHTTP.Runtime[realtime.Event, *realtime.Client]{}, slog.Default())
-
-	router := NewSSEHTTPRouter(resource)
-	assert.NotNil(t, router)
 }
