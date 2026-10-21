@@ -422,6 +422,7 @@ func TestOGSGroupLive_MinimalProjection(t *testing.T) {
 	teacher, account := testpkg.CreateTestTeacherWithAccount(t, tc.db, "OGSSlim", "Leader")
 	group := testpkg.CreateTestEducationGroup(t, tc.db, "OGSSlimGroup")
 	student := testpkg.CreateTestStudent(t, tc.db, "OGSSlim", "Kind", "OS1")
+	testpkg.FillWideStudentFields(t, tc.db, student.ID, student.PersonID)
 
 	testpkg.AssignStudentToGroup(t, tc.db, student.ID, group.ID)
 	testpkg.CreateTestGroupTeacher(t, tc.db, group.ID, teacher.ID)

@@ -40,7 +40,7 @@ func TestCleanupStaleSupervisors_NoStaleRecords(t *testing.T) {
 	require.NoError(t, err)
 	require.NotNil(t, result)
 	assert.True(t, result.Success)
-	assert.GreaterOrEqual(t, result.RecordsClosed, 0)
+	assert.Equal(t, 0, result.RecordsClosed)
 	assert.False(t, result.StartedAt.IsZero())
 	assert.False(t, result.CompletedAt.IsZero())
 }

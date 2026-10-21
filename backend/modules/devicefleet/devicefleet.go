@@ -95,12 +95,6 @@ type Device struct {
 // IsActive reports whether the device is in the active state.
 func (d Device) IsActive() bool { return d.Status == DeviceStatusActive }
 
-// IsOffline reports whether the device is in the offline state.
-func (d Device) IsOffline() bool { return d.Status == DeviceStatusOffline }
-
-// HasAPIKey reports whether the device carries a usable API key.
-func (d Device) HasAPIKey() bool { return d.APIKey != nil && *d.APIKey != "" }
-
 // CreateDevice registers one device. An empty APIKey is minted by the owner.
 type CreateDevice struct {
 	DeviceID       string

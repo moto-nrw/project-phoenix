@@ -41,9 +41,14 @@ func TestUpdateSessionActivity(t *testing.T) {
 		require.NoError(t, err)
 		require.NotNil(t, session)
 
-		// Wait a small amount of time so LastActivity will be different
-		time.Sleep(50 * time.Millisecond)
-		originalLastActivity := session.LastActivity
+		// Backdate LastActivity so only a real write can move it forward
+		backdated := time.Now().Add(-10 * time.Minute)
+		_, err = db.NewUpdate().
+			Table("active.groups").
+			Set("last_activity = ?", backdated).
+			Where("id = ?", session.ID).
+			Exec(ctx)
+		require.NoError(t, err)
 
 		// ACT: Update session activity
 		err = service.UpdateSessionActivity(ctx, session.ID)
@@ -54,7 +59,7 @@ func TestUpdateSessionActivity(t *testing.T) {
 		// Verify LastActivity was updated
 		updatedSession, err := service.GetActiveGroup(ctx, session.ID)
 		require.NoError(t, err)
-		assert.True(t, updatedSession.LastActivity.After(originalLastActivity),
+		assert.True(t, updatedSession.LastActivity.After(backdated),
 			"LastActivity should be updated to a later time")
 	})
 

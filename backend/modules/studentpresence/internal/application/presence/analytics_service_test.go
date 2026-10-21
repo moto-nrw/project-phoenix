@@ -33,11 +33,13 @@ func TestGetDashboardAnalytics(t *testing.T) {
 		require.NoError(t, err)
 		require.NotNil(t, analytics)
 		assert.False(t, analytics.LastUpdated.IsZero(), "LastUpdated should be set")
-		assert.GreaterOrEqual(t, analytics.TotalRooms, 0)
 	})
 
 	t.Run("includes active groups in analytics", func(t *testing.T) {
 		// ARRANGE
+		before, err := testpkg.TenantQuery0(t, ctx, db, service.GetDashboardAnalytics)
+		require.NoError(t, err)
+
 		activity := testpkg.CreateTestActivityGroup(t, db, "dashboard-active")
 		room := testpkg.CreateTestRoom(t, db, "Dashboard Room")
 		testpkg.CreateTestActiveGroup(t, db, activity.ID, room.ID)
@@ -47,7 +49,8 @@ func TestGetDashboardAnalytics(t *testing.T) {
 
 		// ASSERT
 		require.NoError(t, err)
-		assert.GreaterOrEqual(t, analytics.ActiveActivities, 1, "Should have at least 1 active activity")
+		assert.Equal(t, before.TotalRooms+1, analytics.TotalRooms, "the new room is counted")
+		assert.Equal(t, before.ActiveActivities+1, analytics.ActiveActivities, "the new session is counted")
 	})
 
 	t.Run("counts planned excused students for today", func(t *testing.T) {
