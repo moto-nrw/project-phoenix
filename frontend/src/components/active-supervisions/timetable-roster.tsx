@@ -1198,6 +1198,7 @@ export function TimetableRosterContent({
   const visible = rowFilter
     ? rosterSections(roster.rows.filter(rowFilter), now, roster.instance.date)
     : all;
+  const isNarrowed = rowFilter !== null;
   const hasNoMatch = rowFilter ? !roster.rows.some(rowFilter) : false;
   const confirmableExpectedRows = expected.filter(
     (row) => row.planned && !row.currentlyPresent,
@@ -1298,9 +1299,9 @@ export function TimetableRosterContent({
         </SectionCard>
       ) : null}
       {/* Children in the room come first, planned or not (#4353). Each list
-          folds from its head; a search remounts them open so every hit shows,
-          and ending it restores the opening state. */}
-      <Fragment key={rowFilter ? "search" : "all"}>
+          folds from its head. A search or filter remounts the lists open so
+          every hit shows; clearing it restores the opening state. */}
+      <Fragment key={isNarrowed ? "narrowed" : "all"}>
         <TimetableRosterSection
           title="Anwesend"
           rows={visible.present}
@@ -1334,7 +1335,7 @@ export function TimetableRosterContent({
         <TimetableRosterSection
           title="Nicht mehr im Raum"
           rows={visible.departed}
-          defaultCollapsed={!rowFilter}
+          defaultCollapsed={!isNarrowed}
           {...sectionProps}
         />
       </Fragment>
