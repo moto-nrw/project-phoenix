@@ -9,9 +9,9 @@ import (
 
 func init() {
 	MigrationRegistry.Register(&Migration{
-		Version:     "1.15.467",
+		Version:     "1.15.468",
 		Description: "Derive push admin recipients from roles only (#4485)",
-		DependsOn:   []string{"1.15.466"},
+		DependsOn:   []string{"1.15.467"},
 	})
 	Migrations.MustRegister(pushAdminsRoleOnlyUp, pushAdminsRoleOnlyDown)
 }
