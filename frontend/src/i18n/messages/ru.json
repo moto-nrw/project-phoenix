@@ -1023,6 +1023,14 @@
     "dateRange": "{from} до {to}"
   },
   "enrollmentForm": {
+    "attachments": {
+      "open": "Открыть",
+      "download": "Скачать",
+      "openLabel": "Открыть {label}",
+      "downloadLabel": "Скачать {label}",
+      "errorObject": "PDF-файл",
+      "popupBlocked": "Разрешите открытие нового окна."
+    },
     "errorObject": "запись",
     "loading": "Форма загружается…",
     "legalGermanNotice": "Эти юридические тексты имеют обязательную силу на немецком языке.",

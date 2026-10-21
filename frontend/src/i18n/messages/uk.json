@@ -1023,6 +1023,14 @@
     "dateRange": "з {from} до {to}"
   },
   "enrollmentForm": {
+    "attachments": {
+      "open": "Відкрити",
+      "download": "Завантажити",
+      "openLabel": "Відкрити {label}",
+      "downloadLabel": "Завантажити {label}",
+      "errorObject": "PDF-файл",
+      "popupBlocked": "Дозвольте відкрити нове вікно."
+    },
     "errorObject": "запис",
     "loading": "Завантажуємо форму…",
     "legalGermanNotice": "Юридично чинними є ці тексти німецькою мовою.",

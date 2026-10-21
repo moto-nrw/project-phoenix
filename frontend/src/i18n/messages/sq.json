@@ -1023,6 +1023,14 @@
     "dateRange": "{from} deri {to}"
   },
   "enrollmentForm": {
+    "attachments": {
+      "open": "Hap",
+      "download": "Shkarko",
+      "openLabel": "Hap {label}",
+      "downloadLabel": "Shkarko {label}",
+      "errorObject": "skedarin PDF",
+      "popupBlocked": "Ju lutemi lejoni hapjen e një dritareje të re."
+    },
     "errorObject": "regjistrimi",
     "loading": "Formulari po ngarkohet…",
     "legalGermanNotice": "Këto tekste ligjore janë detyruese në gjermanisht.",

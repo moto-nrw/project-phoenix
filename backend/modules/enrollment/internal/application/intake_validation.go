@@ -238,7 +238,8 @@ func legalBlocksSnapshotEntry(blocks []enrollment.LegalBlock, flags map[string]a
 	for _, block := range blocks {
 		snapshot = append(snapshot, LegalBlockSnapshot{
 			Key: block.Key, Kind: block.Kind, Title: block.Title, Label: block.Label, Text: block.Text,
-			Required: block.Required, Source: block.Source, Translations: block.Translations.Texts(),
+			Attachments: append([]enrollment.FormAttachment(nil), block.Attachments...),
+			Required:    block.Required, Source: block.Source, Translations: block.Translations.Texts(),
 		})
 	}
 	if flags == nil {

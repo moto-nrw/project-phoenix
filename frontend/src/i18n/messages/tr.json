@@ -1023,6 +1023,14 @@
     "dateRange": "{from} ile {to} arası"
   },
   "enrollmentForm": {
+    "attachments": {
+      "open": "Aç",
+      "download": "İndir",
+      "openLabel": "{label} aç",
+      "downloadLabel": "{label} indir",
+      "errorObject": "PDF dosyası",
+      "popupBlocked": "Lütfen yeni bir pencerenin açılmasına izin verin."
+    },
     "errorObject": "kayıt",
     "loading": "Form yükleniyor…",
     "legalGermanNotice": "Bu yasal metinlerin bağlayıcı sürümü Almancadır.",

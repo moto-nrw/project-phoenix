@@ -1023,6 +1023,14 @@
     "dateRange": "{from} bis {to}"
   },
   "enrollmentForm": {
+    "attachments": {
+      "open": "Öffnen",
+      "download": "Herunterladen",
+      "openLabel": "{label} öffnen",
+      "downloadLabel": "{label} herunterladen",
+      "errorObject": "die PDF-Datei",
+      "popupBlocked": "Bitte erlauben Sie das Öffnen eines neuen Fensters."
+    },
     "errorObject": "die Anmeldung",
     "loading": "Formular wird geladen…",
     "legalGermanNotice": "Diese rechtlichen Texte liegen verbindlich auf Deutsch vor.",

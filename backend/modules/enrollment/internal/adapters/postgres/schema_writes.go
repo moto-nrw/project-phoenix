@@ -266,8 +266,8 @@ func (r *Store) DeleteSchemaLineage(ctx context.Context, name string) error {
 	return nil
 }
 
-// HasLegalDocumentReference reports whether any saved form-schema legal block
-// still links to a stored AGB document. Callers pass both accepted URL shapes:
+// SchemaReferencesLegalDocument protects files referenced by any saved version,
+// including information fields and disabled legal blocks. Callers pass both accepted URL shapes:
 // the stored upload URL and the public route URL rendered into legal_blocks.
 func (r *Store) SchemaReferencesLegalDocument(ctx context.Context, storedURL, publicURL string) (bool, error) {
 	tenantID, err := r.tenantID(ctx)
@@ -281,25 +281,24 @@ func (r *Store) SchemaReferencesLegalDocument(ctx context.Context, storedURL, pu
 
 	var referenced bool
 	err = db.NewRaw(`
-		SELECT EXISTS (
-			SELECT 1
-			FROM enrollment.form_schemas AS "form_schema"
-			CROSS JOIN LATERAL jsonb_array_elements(
-				CASE
-					WHEN jsonb_typeof("form_schema".legal_blocks) = 'array'
-					THEN "form_schema".legal_blocks
-					ELSE '[]'::jsonb
-				END
-			) AS block(elem)
-			WHERE "form_schema".tenant_id = ?
-				AND (
-					strpos(COALESCE(block.elem->>'text', ''), ?) > 0
-					OR strpos(COALESCE(block.elem->>'text', ''), ?) > 0
-					OR COALESCE(block.elem->>'document_url', '') = ?
-					OR COALESCE(block.elem->>'document_url', '') = ?
-				)
-		)
-	`, tenantID, storedURL, publicURL, storedURL, publicURL).Scan(ctx, &referenced)
+ SELECT EXISTS (
+  SELECT 1 FROM enrollment.form_schemas AS "form_schema"
+  WHERE "form_schema".tenant_id = ? AND (
+   EXISTS (
+    SELECT 1 FROM jsonb_array_elements(
+     CASE WHEN jsonb_typeof("form_schema".legal_blocks) = 'array'
+      THEN "form_schema".legal_blocks ELSE '[]'::jsonb END
+    ) AS block(elem)
+    WHERE strpos(COALESCE(block.elem->>'text', ''), ?) > 0
+     OR strpos(COALESCE(block.elem->>'text', ''), ?) > 0
+     OR COALESCE(block.elem->>'document_url', '') = ?
+     OR COALESCE(block.elem->>'document_url', '') = ?
+   )
+   OR jsonb_path_query_array(COALESCE("form_schema".legal_blocks, '[]'::jsonb) || COALESCE("form_schema".fields, '[]'::jsonb), '$[*].attachments[*].document_url') @> to_jsonb(?::text)
+   OR jsonb_path_query_array(COALESCE("form_schema".legal_blocks, '[]'::jsonb) || COALESCE("form_schema".fields, '[]'::jsonb), '$[*].attachments[*].document_url') @> to_jsonb(?::text)
+  )
+ )
+ `, tenantID, storedURL, publicURL, storedURL, publicURL, storedURL, publicURL).Scan(ctx, &referenced)
 	if err != nil {
 		return false, fmt.Errorf("check legal document references: %w", err)
 	}

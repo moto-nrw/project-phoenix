@@ -1023,6 +1023,14 @@
     "dateRange": "{from} to {to}"
   },
   "enrollmentForm": {
+    "attachments": {
+      "open": "Open",
+      "download": "Download",
+      "openLabel": "Open {label}",
+      "downloadLabel": "Download {label}",
+      "errorObject": "the PDF file",
+      "popupBlocked": "Please allow a new window to open."
+    },
     "errorObject": "the enrollment",
     "loading": "Loading form…",
     "legalGermanNotice": "These legal texts are legally binding in German.",

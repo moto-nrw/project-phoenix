@@ -4229,6 +4229,18 @@ function enrollmentFormTopic(): HelpTopic {
         ],
       },
       {
+        title: "PDF-Dateien zu einem Hinweis hinzufügen",
+        steps: [
+          "Wählen Sie `Infotext` und schreiben Sie Ihren Hinweis.",
+          "Wählen Sie beim Hinweis `PDF hinzufügen` und wählen Sie eine PDF-Datei.",
+          "Tragen Sie bei `Bezeichnung der PDF 1` einen verständlichen Namen ein.",
+          "Fügen Sie weitere Dateien mit `PDF hinzufügen` hinzu.",
+          "Zum Austauschen öffnen Sie das Drei-Punkte-Menü der PDF. Wählen Sie `PDF ersetzen`.",
+          "Zum Wegnehmen wählen Sie im selben Menü `PDF entfernen`.",
+          "Wählen Sie unten `Änderungen speichern` und prüfen Sie die `Vorschau`.",
+        ],
+      },
+      {
         title: "Die Vorlage in der Anmeldephase auswählen",
         description:
           "Eine Vorlage wirkt erst, wenn eine Phase sie benutzt. Ohne diesen Schritt sehen die Eltern weiter das Basisformular.",
@@ -4260,6 +4272,12 @@ function enrollmentFormTopic(): HelpTopic {
       "Mit `Vorschau öffnen` sehen Sie den Entwurf in einem neuen Tab, bevor Sie speichern.",
       "Die Zustimmungen `Datenschutzinformation`, `Fotoeinwilligung` und `E-Mail-Kontakt` tragen `Aus Einstellungen übernommen`. Sie kommen aus Ihren Einstellungen und lassen sich je Vorlage ausblenden.",
       "Über `+ Eigene Zustimmung hinzufügen` ergänzen Sie einen Text, der nur in dieser Vorlage steht.",
+
+      "Jede PDF-Datei darf höchstens 10 MB groß sein.",
+      "Eltern können alle Dateien ohne Elternkonto öffnen und herunterladen.",
+      "Infotexte und Blöcke mit `Nur Hinweis` brauchen keine Zustimmung.",
+      "Auch bei Zustimmungen können Sie mehrere PDF-Dateien hinzufügen.",
+      "Beim Verwerfen werden neue, ungespeicherte Dateien entfernt. Frühere Formularfassungen behalten ihre Dateien.",
     ],
     differences: [
       "Bei einem `Stammdaten-Vorschlag` können Sie Beschriftung und Typ nicht ändern. Beides ist fest, damit die Antwort beim Kind ankommt.",
