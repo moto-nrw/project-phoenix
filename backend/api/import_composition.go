@@ -147,7 +147,7 @@ func newOpeningBalanceImport(
 // newServeImports builds the import services the server root mounts over
 // the owners it composed (#2708, #4013).
 func newServeImports(
-	audit owners.AuditOwner, identity *identityaccess.Module, groups schoolstructure.GroupListing, rooms facilities.Query,
+	audit owners.AuditOwner, identity identityaccess.Owner, groups schoolstructure.GroupListing, rooms facilities.Query,
 	persons peopledirectory.Capability, carePlan careplan.Capability, presence owners.PresenceOwner, organizations organizationtenancy.Capability,
 	membership schoolmembership.Capability, workTime workforceModule.Capability, workforce owners.WorkforcePlanning,
 ) imports {

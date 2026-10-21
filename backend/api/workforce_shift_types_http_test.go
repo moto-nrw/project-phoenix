@@ -41,7 +41,7 @@ func setupShiftTypeRoute(t *testing.T) *shiftTypeRoute {
 	claims.Permissions = []string{permissions.TimeTrackingManage}
 	claims.IsAdmin = false
 	return &shiftTypeRoute{db: db, router: resource.Router(), token: testutil.MintTestJWT(t, claims), ctx: testpkg.Ctx(t), categoryShiftType: func(ctx context.Context, categoryID int64) (*int64, error) {
-		category, err := module.Repositories.Rows.ActivityCategory.FindByID(ctx, categoryID)
+		category, err := module.Repositories.Rows.ActivityCategory.FindCategory(ctx, categoryID)
 		if err != nil {
 			return nil, err
 		}

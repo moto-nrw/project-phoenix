@@ -40,37 +40,42 @@ const baseRoleUser = "user"
 // policy, the identity chain, the owner-token check and the mail arrive
 // through the ports the composition binds.
 type SchoolInvitation struct {
-	store     ports.SchoolInvitationStore
-	logins    ports.AccountLoginStore
-	roles     ports.RoleStore
-	policy    ports.RoleAssignmentPolicy
-	grants    ports.InvitationGrantPolicy
-	identity  ports.InvitationIdentity
-	schools   ports.SchoolDirectory
-	owners    ports.InvitationOwnerTokens
-	passwords ports.PasswordPolicy
-	delivery  ports.SchoolInvitationDelivery
-	runtime   ports.Runtime
-	expiry    time.Duration
-	now       func() time.Time
-	logger    *slog.Logger
+	employmentReset *identityPorts.EmploymentResetCommands
+	store           ports.SchoolInvitationStore
+	logins          ports.AccountLoginStore
+	roles           ports.RoleStore
+	policy          ports.RoleAssignmentPolicy
+	grants          ports.InvitationGrantPolicy
+	identity        ports.InvitationIdentity
+	schools         ports.SchoolDirectory
+	owners          ports.InvitationOwnerTokens
+	passwords       ports.PasswordPolicy
+	delivery        ports.SchoolInvitationDelivery
+	runtime         ports.Runtime
+	attach          func(context.Context) context.Context
+	expiry          time.Duration
+	now             func() time.Time
+	logger          *slog.Logger
 }
 
 // SchoolInvitationDependencies are the ports the flows consume.
 type SchoolInvitationDependencies struct {
-	Store     ports.SchoolInvitationStore
-	Logins    ports.AccountLoginStore
-	Roles     ports.RoleStore
-	Policy    ports.RoleAssignmentPolicy
-	Grants    ports.InvitationGrantPolicy
-	Identity  ports.InvitationIdentity
-	Schools   ports.SchoolDirectory
-	Owners    ports.InvitationOwnerTokens
-	Passwords ports.PasswordPolicy
-	Delivery  ports.SchoolInvitationDelivery
-	Runtime   ports.Runtime
-	Expiry    time.Duration
-	Logger    *slog.Logger
+	EmploymentReset *identityPorts.EmploymentResetCommands
+	Store           ports.SchoolInvitationStore
+	Logins          ports.AccountLoginStore
+	Roles           ports.RoleStore
+	Policy          ports.RoleAssignmentPolicy
+	Grants          ports.InvitationGrantPolicy
+	Identity        ports.InvitationIdentity
+	Schools         ports.SchoolDirectory
+	Owners          ports.InvitationOwnerTokens
+	Passwords       ports.PasswordPolicy
+	Delivery        ports.SchoolInvitationDelivery
+	Runtime         ports.Runtime
+	// Attach binds the composed unit of work ahead of every public flow.
+	Attach func(context.Context) context.Context
+	Expiry time.Duration
+	Logger *slog.Logger
 }
 
 func NewSchoolInvitation(deps SchoolInvitationDependencies) (*SchoolInvitation, error) {
@@ -89,9 +94,9 @@ func NewSchoolInvitation(deps SchoolInvitationDependencies) (*SchoolInvitation, 
 		logger = slog.Default()
 	}
 	return &SchoolInvitation{
-		store: deps.Store, logins: deps.Logins, roles: deps.Roles, policy: deps.Policy, grants: deps.Grants,
+		employmentReset: deps.EmploymentReset, store: deps.Store, logins: deps.Logins, roles: deps.Roles, policy: deps.Policy, grants: deps.Grants,
 		identity: deps.Identity, schools: deps.Schools, owners: deps.Owners, passwords: deps.Passwords,
-		delivery: deps.Delivery, runtime: deps.Runtime, expiry: deps.Expiry, now: time.Now, logger: logger,
+		delivery: deps.Delivery, runtime: deps.Runtime, attach: deps.Attach, expiry: deps.Expiry, now: time.Now, logger: logger,
 	}, nil
 }
 
@@ -119,6 +124,7 @@ func (s *SchoolInvitation) createInvitation(ctx context.Context, request domain.
 		RoleName: role.Name, ExpiresAt: s.now().Add(s.expiry), FirstName: trimmed(request.FirstName),
 		LastName: trimmed(request.LastName), Position: trimmed(request.Position),
 		EmploymentAction: invitationEmploymentAction(request),
+		ResetMasterData:  request.ResetMasterData, ResetQualifications: request.ResetQualifications, ResetWorkTime: request.ResetWorkTime,
 		CaregiverEnabled: request.CaregiverEnabled, PersonID: request.PersonID,
 	}
 	if request.CreatedBy > 0 {
@@ -198,6 +204,8 @@ func (s *SchoolInvitation) validateRequest(ctx context.Context, request domain.S
 		return "", domain.ManagedRole{}, failed(opCreateInvitation, err)
 	}
 	switch {
+	case (request.ResetMasterData || request.ResetQualifications || request.ResetWorkTime) && (request.OperatorGrant || !domain.HasPermissionMatch(request.ActorPermissions, "users:manage")):
+		return "", domain.ManagedRole{}, failed(opCreateInvitation, domain.ErrRoleGrantNotPermitted)
 	case request.RoleID <= 0:
 		return "", domain.ManagedRole{}, failed(opCreateInvitation, fmt.Errorf("role id is required"))
 	case request.CreatedBy < 0:
@@ -228,7 +236,7 @@ func (s *SchoolInvitation) ensureTargetAllowed(ctx context.Context, email string
 		tenantID = s.runtime.TenantID(ctx)
 	}
 	if tenantID <= 0 {
-		return failed(opCreateInvitation, domain.ErrEmailAlreadyExists)
+		return failed(opCreateInvitation, identityaccess.ErrEmailAlreadyExists)
 	}
 	member, _, err := s.logins.HasActiveAccountTenant(ctx, account.ID, tenantID)
 	if err != nil {
@@ -416,7 +424,7 @@ func (s *SchoolInvitation) verifyOwner(account domain.LoginAccount, accessToken 
 		return domain.ErrInvitationOwnerMismatch
 	}
 	if !account.Active {
-		return domain.ErrAccountInactive
+		return identityaccess.ErrAccountInactive
 	}
 	return nil
 }

@@ -4,9 +4,11 @@ package application
 
 import (
 	"context"
+	"fmt"
 	"strings"
 	"time"
 
+	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess/internal/domain"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess/internal/ports"
 )
@@ -30,8 +32,9 @@ func New(store ports.Store, operators ports.OperatorStore, sessions ports.Accoun
 	return &Service{store: store, operators: operators, sessions: sessions, tx: tx, tenantOf: tenantOf, observe: observe}
 }
 
-func (s *Service) FindAccount(ctx context.Context, id int64) (result domain.Account, err error) {
-	err = s.run(ctx, s.tx.RunPlatform, "find_account", func(txCtx context.Context, stats *domain.OperationStats) error {
+func (s *Service) FindAccount(ctx context.Context, id int64) (identityaccess.Account, error) {
+	var result domain.Account
+	err := s.run(ctx, s.tx.RunPlatform, "find_account", func(txCtx context.Context, stats *domain.OperationStats) error {
 		if id <= 0 {
 			return domain.ErrAccountNotFound
 		}
@@ -46,11 +49,15 @@ func (s *Service) FindAccount(ctx context.Context, id int64) (result domain.Acco
 		result = account
 		return nil
 	})
-	return result, err
+	if err != nil {
+		return identityaccess.Account{}, fmt.Errorf("identity access: find account: %w", MapError(err))
+	}
+	return identityaccess.Account(result), nil
 }
 
-func (s *Service) FindAccountByEmail(ctx context.Context, email string) (result domain.Account, err error) {
-	err = s.run(ctx, s.tx.RunPlatform, "find_account_by_email", func(txCtx context.Context, stats *domain.OperationStats) error {
+func (s *Service) FindAccountByEmail(ctx context.Context, email string) (identityaccess.Account, error) {
+	var result domain.Account
+	err := s.run(ctx, s.tx.RunPlatform, "find_account_by_email", func(txCtx context.Context, stats *domain.OperationStats) error {
 		normalized := strings.TrimSpace(strings.ToLower(email))
 		if normalized == "" {
 			return domain.ErrAccountNotFound
@@ -66,7 +73,10 @@ func (s *Service) FindAccountByEmail(ctx context.Context, email string) (result 
 		result = account
 		return nil
 	})
-	return result, err
+	if err != nil {
+		return identityaccess.Account{}, fmt.Errorf("identity access: find account by email: %w", MapError(err))
+	}
+	return identityaccess.Account(result), nil
 }
 
 // FindAccountsByEmails resolves a batch of normalized e-mail addresses in
@@ -104,8 +114,9 @@ func (s *Service) FindAccountsByEmails(ctx context.Context, emails []string) (re
 // an approval untouched. The role assignment is an insert-if-absent on the
 // (account, role, tenant) key, so concurrent approvals for the same parent
 // and school cannot collide on the unique index.
-func (s *Service) GrantGuardianTenantAccess(ctx context.Context, accountID int64) (result domain.GuardianTenantAccess, err error) {
-	err = s.run(ctx, s.tx.RunWrite, "grant_guardian_tenant_access", func(txCtx context.Context, stats *domain.OperationStats) error {
+func (s *Service) GrantGuardianTenantAccess(ctx context.Context, accountID int64) (identityaccess.GuardianTenantAccess, error) {
+	var result domain.GuardianTenantAccess
+	err := s.run(ctx, s.tx.RunWrite, "grant_guardian_tenant_access", func(txCtx context.Context, stats *domain.OperationStats) error {
 		tenantID := s.tenantOf(txCtx)
 		if tenantID <= 0 {
 			return domain.ErrTenantRequired
@@ -135,9 +146,9 @@ func (s *Service) GrantGuardianTenantAccess(ctx context.Context, accountID int64
 		return nil
 	})
 	if err != nil {
-		return domain.GuardianTenantAccess{}, err
+		return identityaccess.GuardianTenantAccess{}, fmt.Errorf("identity access: grant guardian tenant access: %w", MapError(err))
 	}
-	return result, nil
+	return identityaccess.GuardianTenantAccess(result), nil
 }
 
 func (s *Service) run(

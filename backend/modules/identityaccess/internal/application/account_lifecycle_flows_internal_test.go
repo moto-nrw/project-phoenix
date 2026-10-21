@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"testing"
 
+	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess/internal/domain"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -36,21 +37,21 @@ func TestParentAccounts(t *testing.T) {
 		_, err = f.lifecycle.CreateParentAccount(tenantContext(), "a@example.test", "a", "Str0ngPass!")
 		require.NoError(t, err)
 		_, err = f.lifecycle.CreateParentAccount(tenantContext(), "A@example.test", "b", "Str0ngPass!")
-		require.ErrorIs(t, err, domain.ErrEmailAlreadyExists)
+		require.ErrorIs(t, err, identityaccess.ErrEmailAlreadyExists)
 		_, err = f.lifecycle.CreateParentAccount(tenantContext(), "b@example.test", "A", "Str0ngPass!")
-		require.ErrorIs(t, err, domain.ErrUsernameAlreadyExists)
+		require.ErrorIs(t, err, identityaccess.ErrUsernameAlreadyExists)
 	})
 
 	t.Run("lookups report a missing account", func(t *testing.T) {
 		t.Parallel()
 		f := newLifecycleFixture(t)
 		_, err := f.lifecycle.GetParentAccountByID(tenantContext(), 404)
-		require.ErrorIs(t, err, domain.ErrParentAccountNotFound)
+		require.ErrorIs(t, err, identityaccess.ErrParentAccountNotFound)
 		_, err = f.lifecycle.GetParentAccountByEmail(tenantContext(), "nobody@example.test")
-		require.ErrorIs(t, err, domain.ErrParentAccountNotFound)
-		require.ErrorIs(t, f.lifecycle.UpdateParentAccount(tenantContext(), domain.ParentAccount{ID: 404}), domain.ErrParentAccountNotFound)
-		require.ErrorIs(t, f.lifecycle.ActivateParentAccount(tenantContext(), 404), domain.ErrParentAccountNotFound)
-		require.ErrorIs(t, f.lifecycle.DeactivateParentAccount(tenantContext(), 404), domain.ErrParentAccountNotFound)
+		require.ErrorIs(t, err, identityaccess.ErrParentAccountNotFound)
+		require.ErrorIs(t, f.lifecycle.UpdateParentAccount(tenantContext(), domain.ParentAccount{ID: 404}), identityaccess.ErrParentAccountNotFound)
+		require.ErrorIs(t, f.lifecycle.ActivateParentAccount(tenantContext(), 404), identityaccess.ErrParentAccountNotFound)
+		require.ErrorIs(t, f.lifecycle.DeactivateParentAccount(tenantContext(), 404), identityaccess.ErrParentAccountNotFound)
 	})
 
 	t.Run("update keeps the credential and activation toggles", func(t *testing.T) {
@@ -142,24 +143,24 @@ func TestStartStaffPreviewRefusesTargetsWithoutATenantPortal(t *testing.T) {
 		target   int64
 		want     error
 	}{
-		{name: "no school", tenantID: 0, target: previewTarget, want: domain.ErrTenantNotFound},
-		{name: "self", tenantID: lifecycleTenant, target: previewAdmin, want: domain.ErrPreviewSelf},
-		{name: "unknown account", tenantID: lifecycleTenant, target: 404, want: domain.ErrAccountNotFound},
-		{name: "inactive account", tenantID: lifecycleTenant, target: previewTarget, want: domain.ErrAccountInactive, arrange: func(f *lifecycleFixture) {
+		{name: "no school", tenantID: 0, target: previewTarget, want: identityaccess.ErrTenantNotFound},
+		{name: "self", tenantID: lifecycleTenant, target: previewAdmin, want: identityaccess.ErrPreviewSelf},
+		{name: "unknown account", tenantID: lifecycleTenant, target: 404, want: identityaccess.ErrAccountNotFound},
+		{name: "inactive account", tenantID: lifecycleTenant, target: previewTarget, want: identityaccess.ErrAccountInactive, arrange: func(f *lifecycleFixture) {
 			account := f.store.accounts[previewTarget]
 			account.Active = false
 			f.store.accounts[previewTarget] = account
 		}},
-		{name: "no membership", tenantID: lifecycleTenant, target: previewTarget, want: domain.ErrTenantAccessDenied, arrange: func(f *lifecycleFixture) {
+		{name: "no membership", tenantID: lifecycleTenant, target: previewTarget, want: identityaccess.ErrTenantAccessDenied, arrange: func(f *lifecycleFixture) {
 			f.store.inactive[mappingKey{previewTarget, lifecycleTenant}] = true
 		}},
-		{name: "no role", tenantID: lifecycleTenant, target: previewTarget, want: domain.ErrPreviewTargetNotStaff, arrange: func(f *lifecycleFixture) {
+		{name: "no role", tenantID: lifecycleTenant, target: previewTarget, want: identityaccess.ErrPreviewTargetNotStaff, arrange: func(f *lifecycleFixture) {
 			delete(f.store.roles, mappingKey{previewTarget, lifecycleTenant})
 		}},
-		{name: "guardian only", tenantID: lifecycleTenant, target: previewTarget, want: domain.ErrPreviewTargetNotStaff, arrange: func(f *lifecycleFixture) {
+		{name: "guardian only", tenantID: lifecycleTenant, target: previewTarget, want: identityaccess.ErrPreviewTargetNotStaff, arrange: func(f *lifecycleFixture) {
 			f.store.roles[mappingKey{previewTarget, lifecycleTenant}] = []domain.RoleAssignment{guardianRole()}
 		}},
-		{name: "lehrkraft only", tenantID: lifecycleTenant, target: previewTarget, want: domain.ErrMustUseSchoolPortal, arrange: func(f *lifecycleFixture) {
+		{name: "lehrkraft only", tenantID: lifecycleTenant, target: previewTarget, want: identityaccess.ErrMustUseSchoolPortal, arrange: func(f *lifecycleFixture) {
 			f.store.roles[mappingKey{previewTarget, lifecycleTenant}] = []domain.RoleAssignment{lehrkraftRole()}
 		}},
 	}
@@ -173,7 +174,7 @@ func TestStartStaffPreviewRefusesTargetsWithoutATenantPortal(t *testing.T) {
 			}
 			_, err := f.lifecycle.StartStaffPreview(context.Background(), previewAdmin, tc.tenantID, tc.target, "", "", "")
 			require.ErrorIs(t, err, tc.want)
-			var operation *OperationError
+			var operation *identityaccess.AuthenticationError
 			require.ErrorAs(t, err, &operation)
 			assert.Equal(t, "start staff preview", operation.Op)
 			assert.Empty(t, f.audit.started, "a refused preview writes no start event")
@@ -253,7 +254,7 @@ func TestEndStaffPreview(t *testing.T) {
 		lifecycleCodec{}.encode("access:", domain.SessionClaims{AccountID: previewTarget, TenantID: lifecycleTenant, ActingAdminID: previewAdmin, ReadOnly: true}),
 	} {
 		_, err := f.lifecycle.EndStaffPreview(ctx, token, "", "")
-		require.ErrorIs(t, err, domain.ErrPreviewTokenInvalid, token)
+		require.ErrorIs(t, err, identityaccess.ErrPreviewTokenInvalid, token)
 	}
 	assert.Empty(t, f.audit.ended)
 
@@ -359,7 +360,7 @@ func TestStaffOffboardingSnapshotAndExecution(t *testing.T) {
 	err = f.inTenantTx(t, func(ctx context.Context) error {
 		result, executeErr := f.lifecycle.ExecuteStaffOffboarding(ctx, offboardedAccount, preview.Revision)
 		require.NoError(t, executeErr)
-		assert.Equal(t, domain.StaffOffboardingResult{RolesRevoked: 2, PermissionsRevoked: 1, TokensRevoked: 1, AccountDeactivated: true}, result)
+		assert.Equal(t, identityaccess.StaffOffboardingResult{RolesRevoked: 2, PermissionsRevoked: 1, TokensRevoked: 1, AccountDeactivated: true}, result)
 		return nil
 	})
 	require.NoError(t, err)
@@ -392,7 +393,7 @@ func TestStaffOffboardingRefusesAChangedSnapshot(t *testing.T) {
 		_, executeErr := f.lifecycle.ExecuteStaffOffboarding(ctx, offboardedAccount, preview.Revision)
 		return executeErr
 	})
-	require.ErrorIs(t, err, domain.ErrStaffOffboardingConflict)
+	require.ErrorIs(t, err, identityaccess.ErrStaffOffboardingConflict)
 	assert.Empty(t, f.admin.removed, "nothing is revoked against a stale preview")
 	assert.False(t, f.store.inactive[mappingKey{offboardedAccount, lifecycleTenant}])
 }
@@ -447,7 +448,7 @@ func TestStaffOffboardingPreservesGuardianAccess(t *testing.T) {
 		err := f.inTenantTx(t, func(ctx context.Context) error {
 			result, executeErr := f.lifecycle.ExecuteStaffOffboarding(ctx, offboardedAccount, "stale")
 			require.NoError(t, executeErr, "nothing to revoke needs no matching revision")
-			assert.Equal(t, domain.StaffOffboardingResult{GuardianAccessPreserved: true}, result)
+			assert.Equal(t, identityaccess.StaffOffboardingResult{GuardianAccessPreserved: true}, result)
 			return nil
 		})
 		require.NoError(t, err)

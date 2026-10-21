@@ -334,7 +334,7 @@ func newConflictDetection(t *testing.T, db *bun.DB, repos owners.TimetableTestRe
 		Instances:         fixtures.IntoConflictInstances(fixtures.FromActivityInstanceRecords(repos.ActivityInstance)),
 		InstanceStaff:     fixtures.IntoConflictInstanceStaff(fixtures.FromInstanceStaffRecords(repos.InstanceStaff)),
 		InstanceStudents:  fixtures.IntoConflictInstanceStudents(fixtures.FromInstanceStudentRecords(repos.InstanceStudent)),
-		Exceptions:        fixtures.IntoConflictExceptions(fixtures.FromActivityExceptionRecords(repos.ActivityException)),
+		Exceptions:        repos.ActivityException,
 		Schedules:         repos.ActivitySchedule,
 		Staff:             owners.NewTimetableStaff(members.Staff),
 		CalendarPeriods:   fixtures.IntoConflictCalendarPeriods(fixtures.FromCalendarPeriodRecords(repos.CalendarPeriod)),

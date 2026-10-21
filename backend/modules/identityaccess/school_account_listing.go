@@ -38,10 +38,6 @@ type SchoolAccountListings interface {
 	ListSchoolAccountListings(context.Context, []int64) ([]SchoolAccountListing, error)
 }
 
-func (m *Module) ListSchoolAccountListings(ctx context.Context, schoolIDs []int64) ([]SchoolAccountListing, error) {
-	return m.engine.ListSchoolAccountListings(ctx, schoolIDs)
-}
-
 // ListedAccountKey is what the operator account listing orders a row by:
 // the school it belongs to, whether a person backs the account there, and
 // the names the row shows.

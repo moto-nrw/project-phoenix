@@ -11,6 +11,8 @@ import (
 	"context"
 	"testing"
 
+	"github.com/moto-nrw/project-phoenix/modules/timetable"
+
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"github.com/uptrace/bun"
@@ -198,7 +200,7 @@ func TestTenantIsolation_TimeframeVisibility(t *testing.T) {
 	// --- Tenant A ---
 	ctx42 := ctxForTenant(tenantA)
 
-	timeframes, err := TenantQuery0(t, ctx42, db, repo.ListAll)
+	timeframes, err := TenantQuery1(t, ctx42, db, repo.ListTimeframes, timetable.TimeframeFilter{})
 	require.NoError(t, err)
 
 	for _, tf := range timeframes {
@@ -206,14 +208,14 @@ func TestTenantIsolation_TimeframeVisibility(t *testing.T) {
 			"cross-tenant leak: tenant B timeframe visible to tenant A (List)")
 	}
 
-	_, err = TenantQuery1(t, ctx42, db, repo.FindByID, tfB.ID)
+	_, err = TenantQuery1(t, ctx42, db, repo.FindTimeframe, tfB.ID)
 	assert.Error(t, err,
 		"cross-tenant FindByID should fail: tenant A must not see tenant B timeframe %d", tfB.ID)
 
 	// --- Tenant B ---
 	ctx43 := ctxForTenant(tenantB)
 
-	timeframes, err = TenantQuery0(t, ctx43, db, repo.ListAll)
+	timeframes, err = TenantQuery1(t, ctx43, db, repo.ListTimeframes, timetable.TimeframeFilter{})
 	require.NoError(t, err)
 
 	for _, tf := range timeframes {
@@ -221,7 +223,7 @@ func TestTenantIsolation_TimeframeVisibility(t *testing.T) {
 			"cross-tenant leak: tenant A timeframe visible to tenant B (List)")
 	}
 
-	_, err = TenantQuery1(t, ctx43, db, repo.FindByID, tfA.ID)
+	_, err = TenantQuery1(t, ctx43, db, repo.FindTimeframe, tfA.ID)
 	assert.Error(t, err,
 		"cross-tenant FindByID should fail: tenant B must not see tenant A timeframe %d", tfA.ID)
 }
@@ -400,7 +402,7 @@ func TestTenantIsolation_ActivityCategoryVisibility(t *testing.T) {
 	// --- Tenant A ---
 	ctx42 := ctxForTenant(tenantA)
 
-	categories, err := TenantQuery0(t, ctx42, db, repo.ListAll)
+	categories, err := TenantQuery0(t, ctx42, db, repo.ListCategories)
 	require.NoError(t, err)
 
 	for _, c := range categories {
@@ -408,14 +410,14 @@ func TestTenantIsolation_ActivityCategoryVisibility(t *testing.T) {
 			"cross-tenant leak: tenant B category visible to tenant A (List)")
 	}
 
-	_, err = TenantQuery1(t, ctx42, db, repo.FindByID, catB.ID)
+	_, err = TenantQuery1(t, ctx42, db, repo.FindCategory, catB.ID)
 	assert.Error(t, err,
 		"cross-tenant FindByID should fail: tenant A must not see tenant B category %d", catB.ID)
 
 	// --- Tenant B ---
 	ctx43 := ctxForTenant(tenantB)
 
-	categories, err = TenantQuery0(t, ctx43, db, repo.ListAll)
+	categories, err = TenantQuery0(t, ctx43, db, repo.ListCategories)
 	require.NoError(t, err)
 
 	for _, c := range categories {
@@ -423,7 +425,7 @@ func TestTenantIsolation_ActivityCategoryVisibility(t *testing.T) {
 			"cross-tenant leak: tenant A category visible to tenant B (List)")
 	}
 
-	_, err = TenantQuery1(t, ctx43, db, repo.FindByID, catA.ID)
+	_, err = TenantQuery1(t, ctx43, db, repo.FindCategory, catA.ID)
 	assert.Error(t, err,
 		"cross-tenant FindByID should fail: tenant B must not see tenant A category %d", catA.ID)
 }

@@ -32,7 +32,7 @@ type GuardianInvitationTestConfig struct {
 // lifecycleTestModule composes the Identity & Access module with the account
 // lifecycle and the guardian invitation flows bound (#2722/#3225), the way
 // the service graph does it.
-func lifecycleTestModule(db transactionruntime.Database, unit tenant.UnitOfWork, cfg GuardianInvitationTestConfig) (*identityaccess.Module, error) {
+func lifecycleTestModule(db transactionruntime.Database, unit tenant.UnitOfWork, cfg GuardianInvitationTestConfig) (identityaccess.Owner, error) {
 	logger := cfg.Logger
 	if logger == nil {
 		logger = slog.Default()

@@ -37,7 +37,7 @@ type CarePlanOfferings struct {
 func BuildCarePlanOfferings(
 	env RootEnvironment, carePlan careplan.Capability, persons peopledirectory.Capability, people PeopleRows,
 	timetableOwner timetable.Capability, calendar schoolcalendar.Query, owner TimetableOwner, enrollment EnrollmentRows,
-	settings settingsCompose.SettingsService, schedules CarePlanSchedules, audit AuditOwner, identity *identityaccess.Module,
+	settings settingsCompose.SettingsService, schedules CarePlanSchedules, audit AuditOwner, identity identityaccess.Owner,
 	hub *realtime.Hub, guardians eventContract.Emitter,
 ) (CarePlanOfferings, error) {
 	lock := owner.RecurrenceLock.LockRecurrenceWrites

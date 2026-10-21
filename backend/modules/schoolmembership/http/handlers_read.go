@@ -8,6 +8,7 @@ import (
 	"strings"
 
 	"github.com/moto-nrw/project-phoenix/modules/schoolmembership"
+	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 )
 
 // listStaffFilters holds the parsed query parameters of the directory read.
@@ -162,7 +163,7 @@ func (rs *Resource) listDocumentDirectory(w http.ResponseWriter, r *http.Request
 // getStaff returns one staff member, as a teacher response when a teacher
 // profile exists.
 func (rs *Resource) getStaff(w http.ResponseWriter, r *http.Request) {
-	staff, ok := rs.parseAndFindStaff(w, r)
+	staff, ok := rs.parseAndFindStaffForRead(w, r)
 	if !ok {
 		return
 	}
@@ -180,6 +181,17 @@ func (rs *Resource) getStaff(w http.ResponseWriter, r *http.Request) {
 	}
 	data := rs.loadDirectory(ctx, accountIDs).enrich(staff, person, access.personnel)
 
+	if staff.IsDeleted() {
+		teachers, err := rs.teacherIndex(ctx, []int64{staff.ID}, true)
+		if err != nil {
+			rs.internal(w, r, err)
+			return
+		}
+		if teacher, exists := teachers[staff.ID]; exists {
+			rs.respond(w, r, http.StatusOK, buildTeacherResponse(access, staff, person, teacher, data), "Teacher retrieved successfully")
+			return
+		}
+	}
 	if teacher := rs.teacherByStaff(ctx, staff.ID); teacher != nil {
 		rs.respond(w, r, http.StatusOK, buildTeacherResponse(access, staff, person, *teacher, data), "Teacher retrieved successfully")
 		return
@@ -202,7 +214,7 @@ func (rs *Resource) getDocumentProfile(w http.ResponseWriter, r *http.Request) {
 }
 
 func (rs *Resource) getMinimalStaffProfile(w http.ResponseWriter, r *http.Request, message string) {
-	staff, ok := rs.parseAndFindStaff(w, r)
+	staff, ok := rs.parseAndFindStaffForRead(w, r)
 	if !ok {
 		return
 	}
@@ -215,12 +227,15 @@ func (rs *Resource) getMinimalStaffProfile(w http.ResponseWriter, r *http.Reques
 		rs.failure(w, r, FailureNotFound, errors.New(msgStaffNotFound), "not_found")
 		return
 	}
-	rs.respond(w, r, http.StatusOK, map[string]any{
-		"id":        staff.ID,
-		"name":      person.FirstName + " " + person.LastName,
-		"firstName": person.FirstName,
-		"lastName":  person.LastName,
-	}, message)
+	profile := map[string]any{
+		"id": staff.ID, "name": person.FirstName + " " + person.LastName,
+		"firstName": person.FirstName, "lastName": person.LastName,
+	}
+	if staff.IsDeleted() {
+		profile["started_on"] = calendar.DateFromTime(staff.CreatedAt)
+		profile["ended_on"] = staffEndedOn(staff)
+	}
+	rs.respond(w, r, http.StatusOK, profile, message)
 }
 
 // serveStaffAvatar streams the avatar of the account behind a staff member.

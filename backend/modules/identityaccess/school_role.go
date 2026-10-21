@@ -3,7 +3,6 @@ package identityaccess
 import (
 	"context"
 	"errors"
-	"fmt"
 )
 
 var ErrRoleNotFound = errors.New("role not found")
@@ -33,28 +32,4 @@ type SchoolRoleQuery interface {
 
 type RolePermissionQuery interface {
 	FindRolePermissions(context.Context, int64) ([]string, error)
-}
-
-func (m *Module) ListSchoolRoles(ctx context.Context) ([]*SchoolRole, error) {
-	roles, err := m.engine.ListSchoolRoles(ctx)
-	if err != nil {
-		return nil, fmt.Errorf("identity access: list school roles: %w", err)
-	}
-	return roles, nil
-}
-
-func (m *Module) FindSchoolRoleByName(ctx context.Context, name string) (*SchoolRole, error) {
-	role, err := m.engine.FindSchoolRoleByName(ctx, name)
-	if err != nil {
-		return nil, fmt.Errorf("identity access: find school role: %w", err)
-	}
-	return role, nil
-}
-
-func (m *Module) FindRolePermissions(ctx context.Context, id int64) ([]string, error) {
-	permissions, err := m.engine.FindRolePermissions(ctx, id)
-	if err != nil {
-		return nil, fmt.Errorf("identity access: find role permissions: %w", err)
-	}
-	return permissions, nil
 }

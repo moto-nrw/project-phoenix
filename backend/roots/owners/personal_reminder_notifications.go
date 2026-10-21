@@ -18,7 +18,7 @@ import (
 // the notification preferences, the staff and admin accounts, the on-duty
 // staff of Workforce and the Delivery Platform's notification service.
 func newPersonalReminderTick(
-	reminders reminder.Module, notifications DeliveryNotifications, staff staffAccountIDs, identity *identityaccess.Module,
+	reminders reminder.Module, notifications DeliveryNotifications, staff staffAccountIDs, identity identityaccess.Owner,
 	workTime workforce.Capability, runtime schedulerPorts.TenantRuntime, logger *slog.Logger,
 ) (schedulerPorts.ReminderNotificationTick, error) {
 	workSessions := workforceCompose.WorkPresence(workTime)

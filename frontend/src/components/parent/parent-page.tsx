@@ -1,6 +1,7 @@
 "use client";
 
 import type React from "react";
+import { MobilePageHelpTarget } from "~/components/help/mobile-page-help-target";
 import { BackLink } from "~/components/ui/back-link";
 import { Skeleton } from "~/components/ui/skeleton";
 
@@ -61,8 +62,8 @@ export function ParentPageHeader({
   return (
     <header className="moto-content-surface space-y-3 rounded-2xl border p-5 shadow-sm backdrop-blur-md">
       {backHref && backLabel && <BackLink href={backHref} label={backLabel} />}
-      <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
-        <div className="flex min-w-0 gap-3">
+      <div className="flex flex-wrap items-start justify-between gap-3">
+        <div className="flex min-w-0 flex-1 basis-0 gap-3">
           {media}
           <div className="min-w-0">
             {kicker && (
@@ -82,10 +83,15 @@ export function ParentPageHeader({
             )}
           </div>
         </div>
-        {actions && (
-          <div className="flex shrink-0 flex-wrap items-center gap-2">
-            {actions}
+        {actions ? (
+          <div className="contents sm:flex sm:shrink-0 sm:items-center sm:gap-2">
+            <div className="flex shrink-0 flex-wrap items-center gap-2 max-sm:order-last max-sm:basis-full">
+              {actions}
+            </div>
+            <MobilePageHelpTarget />
           </div>
+        ) : (
+          <MobilePageHelpTarget />
         )}
       </div>
     </header>

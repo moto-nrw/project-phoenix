@@ -27,7 +27,7 @@ import (
 // service graph and the root's Identity & Access module, with the
 // offboarding workflow over db and an unobserved Workforce employment owner
 // (#4007).
-func NewStaffMembershipRuntime(users peoplePorts.PersonDirectory, education schoolstructure.GroupManagement, staffDay workforceCompose.StaffDayStatus, hub *realtime.Hub, db transactionruntime.Database, identity *identityaccess.Module, logger *slog.Logger, hooks StaffMembershipHooks) StaffMembershipRuntime {
+func NewStaffMembershipRuntime(users peoplePorts.PersonDirectory, education schoolstructure.GroupManagement, staffDay workforceCompose.StaffDayStatus, hub *realtime.Hub, db transactionruntime.Database, identity identityaccess.Owner, logger *slog.Logger, hooks StaffMembershipHooks) StaffMembershipRuntime {
 	offboarding, err := NewStaffOffboardingOwners(db, peopleCompose.MustNewReads(db.Pool(), studentDirectoryView.NewReader()), owners.MembershipStaffEmployment(workforceCompose.MustNewStaffEmployment(db.Pool())), logger)
 	if err != nil {
 		panic(err)

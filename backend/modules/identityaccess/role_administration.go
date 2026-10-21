@@ -191,8 +191,7 @@ type PermissionQuery interface {
 	GetRolePermissions(ctx context.Context, roleID int64) ([]Permission, error)
 }
 
-// PermissionCommand changes permissions and role selections. Role
-// selections of system roles are immutable.
+// PermissionCommand changes permissions and role selections. Role selections of system roles are immutable.
 type PermissionCommand interface {
 	CreatePermission(ctx context.Context, name, description, resource, action string) (Permission, error)
 	UpdatePermission(ctx context.Context, permission Permission) error
@@ -212,122 +211,6 @@ type RoleAdministration interface {
 	RoleCommand
 	PermissionQuery
 	PermissionCommand
-}
-
-func (m *Module) GetRole(ctx context.Context, id int64) (Role, error) {
-	return m.engine.GetRole(ctx, id)
-}
-
-func (m *Module) ListRoles(ctx context.Context, filter RoleFilter) ([]Role, error) {
-	return m.engine.ListRoles(ctx, filter)
-}
-
-func (m *Module) ResolveAssignableSchoolRole(ctx context.Context, roleID, tenantID int64) (*AssignableSchoolRole, error) {
-	return m.engine.ResolveAssignableSchoolRole(ctx, roleID, tenantID)
-}
-
-func (m *Module) GetAccountRoles(ctx context.Context, accountID int64) ([]Role, error) {
-	return m.engine.GetAccountRoles(ctx, accountID)
-}
-
-func (m *Module) AccountsHoldingRole(ctx context.Context, accountIDs []int64, roleName string) (map[int64]bool, error) {
-	return m.engine.AccountsHoldingRole(ctx, accountIDs, roleName)
-}
-
-// AccountHoldsRole reports whether the account holds the role of that exact
-// name. A failed lookup counts as not holding it: the answer only ever
-// withholds.
-func (m *Module) AccountHoldsRole(ctx context.Context, accountID int64, roleName string) bool {
-	held, err := m.engine.GetAccountRoles(ctx, accountID)
-	if err != nil {
-		return false
-	}
-	for _, role := range held {
-		if role.Name == roleName {
-			return true
-		}
-	}
-	return false
-}
-
-func (m *Module) AccountHoldsLehrkraftRole(ctx context.Context, accountID int64) (bool, error) {
-	return m.engine.AccountHoldsLehrkraftRole(ctx, accountID)
-}
-
-func (m *Module) GetAccountRoleNames(ctx context.Context, accountIDs []int64) (map[int64]string, error) {
-	return m.engine.GetAccountRoleNames(ctx, accountIDs)
-}
-
-func (m *Module) GetAccountEmails(ctx context.Context, accountIDs []int64) (map[int64]string, error) {
-	return m.engine.GetAccountEmails(ctx, accountIDs)
-}
-
-func (m *Module) GetAccountAvatars(ctx context.Context, accountIDs []int64) (map[int64]string, error) {
-	return m.engine.GetAccountAvatars(ctx, accountIDs)
-}
-
-func (m *Module) CreateRole(ctx context.Context, name, description string, baseRole *string) (Role, error) {
-	return m.engine.CreateRole(ctx, name, description, baseRole)
-}
-
-func (m *Module) UpdateRole(ctx context.Context, role Role) error {
-	return m.engine.UpdateRole(ctx, role)
-}
-
-func (m *Module) DeleteRole(ctx context.Context, id int64) error {
-	return m.engine.DeleteRole(ctx, id)
-}
-
-func (m *Module) AssignRoleToAccount(ctx context.Context, accountID, roleID int64) error {
-	return m.engine.AssignRoleToAccount(ctx, accountID, roleID)
-}
-
-func (m *Module) ReplaceAccountRole(ctx context.Context, accountID, roleID int64) error {
-	return m.engine.ReplaceAccountRole(ctx, accountID, roleID)
-}
-
-func (m *Module) RemoveRoleFromAccount(ctx context.Context, accountID, roleID int64) error {
-	return m.engine.RemoveRoleFromAccount(ctx, accountID, roleID)
-}
-
-func (m *Module) GetPermission(ctx context.Context, id int64) (Permission, error) {
-	return m.engine.GetPermission(ctx, id)
-}
-
-func (m *Module) GetPermissionByName(ctx context.Context, name string) (Permission, error) {
-	return m.engine.GetPermissionByName(ctx, name)
-}
-
-func (m *Module) ListPermissions(ctx context.Context, filter PermissionFilter) ([]Permission, error) {
-	return m.engine.ListPermissions(ctx, filter)
-}
-
-func (m *Module) GetRolePermissions(ctx context.Context, roleID int64) ([]Permission, error) {
-	return m.engine.GetRolePermissions(ctx, roleID)
-}
-
-func (m *Module) CreatePermission(ctx context.Context, name, description, resource, action string) (Permission, error) {
-	return m.engine.CreatePermission(ctx, name, description, resource, action)
-}
-
-func (m *Module) UpdatePermission(ctx context.Context, permission Permission) error {
-	return m.engine.UpdatePermission(ctx, permission)
-}
-
-func (m *Module) DeletePermission(ctx context.Context, id int64) error {
-	return m.engine.DeletePermission(ctx, id)
-}
-
-func (m *Module) AssignPermissionToRole(ctx context.Context, roleID, permissionID int64) error {
-	return m.engine.AssignPermissionToRole(ctx, roleID, permissionID)
-}
-
-func (m *Module) ReplaceRolePermissions(ctx context.Context, roleID int64, permissionIDs []int64) error {
-	return m.engine.ReplaceRolePermissions(ctx, roleID, permissionIDs)
-}
-
-func (m *Module) RemovePermissionFromRole(ctx context.Context, roleID, permissionID int64) error {
-	return m.engine.RemovePermissionFromRole(ctx, roleID, permissionID)
 }
 
 // SystemRoles are the system roles among roles, in their order.

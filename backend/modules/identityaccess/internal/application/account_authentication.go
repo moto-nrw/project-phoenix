@@ -32,8 +32,12 @@ type AccountAuthentication struct {
 	audit     ports.AuthAudit
 	push      ports.PushSubscriptionCleanup
 	runtime   ports.Runtime
-	rotation  ports.Rotation
-	logger    *slog.Logger
+	attach    func(context.Context) context.Context
+	// withRecoveryProof binds a refresh-token recovery proof to the request
+	// context, where the rotation policy reads its hash.
+	withRecoveryProof func(ctx context.Context, proof string) context.Context
+	rotation          ports.Rotation
+	logger            *slog.Logger
 	// refreshSF deduplicates concurrent refresh calls for the same refresh
 	// token and recovery proof.
 	refreshSF singleflight.Group
@@ -51,8 +55,13 @@ type AccountAuthenticationDependencies struct {
 	Audit     ports.AuthAudit
 	Push      ports.PushSubscriptionCleanup
 	Runtime   ports.Runtime
-	Rotation  ports.Rotation
-	Logger    *slog.Logger
+	// Attach binds the composed unit of work ahead of every public flow.
+	Attach func(context.Context) context.Context
+	// WithRecoveryProof binds a refresh-token recovery proof to the request
+	// context, where the rotation policy reads its hash.
+	WithRecoveryProof func(ctx context.Context, proof string) context.Context
+	Rotation          ports.Rotation
+	Logger            *slog.Logger
 }
 
 // NewAccountAuthentication composes the flows over the session service that
@@ -91,7 +100,7 @@ func NewAccountAuthentication(sessions *Service, deps AccountAuthenticationDepen
 	return &AccountAuthentication{
 		sessions: sessions, store: deps.Store, schools: deps.Schools, persons: deps.Persons, passwords: deps.Passwords,
 		codec: deps.Codec, mfa: deps.MFA, mfaLock: deps.MFALock, audit: deps.Audit, push: deps.Push,
-		runtime: deps.Runtime, rotation: deps.Rotation, logger: logger,
+		runtime: deps.Runtime, attach: deps.Attach, withRecoveryProof: deps.WithRecoveryProof, rotation: deps.Rotation, logger: logger,
 	}, nil
 }
 
@@ -245,4 +254,126 @@ func pendingWipes(values []identityaccess.PendingAccountWideWipe) []domain.Pendi
 		result = append(result, domain.PendingAccountWideWipe(value))
 	}
 	return result
+}
+
+func (s *AccountAuthentication) LoginWithAudit(ctx context.Context, email, password, ipAddress, userAgent, tenantSlug string) (string, string, error) {
+	if s == nil {
+		return "", "", errAccountAuthenticationUnavailable
+	}
+	access, refresh, err := s.loginWithAudit(bindRuntime(s.attach, ctx), email, password, ipAddress, userAgent, tenantSlug)
+	return access, refresh, authenticationError(err)
+}
+
+func (s *AccountAuthentication) LoginWithMFAGate(ctx context.Context, email, password, ipAddress, userAgent, tenantSlug, trustedDeviceCookie string) (*identityaccess.LoginResult, error) {
+	if s == nil {
+		return nil, errAccountAuthenticationUnavailable
+	}
+	result, err := s.loginWithMFAGate(bindRuntime(s.attach, ctx), email, password, ipAddress, userAgent, tenantSlug, trustedDeviceCookie)
+	return loginResult(result), authenticationError(err)
+}
+
+func (s *AccountAuthentication) ConfirmAccountPassword(ctx context.Context, accountID int64, password string) error {
+	if s == nil {
+		return errAccountAuthenticationUnavailable
+	}
+	return authenticationError(s.confirmAccountPassword(bindRuntime(s.attach, ctx), accountID, password))
+}
+
+func (s *AccountAuthentication) LoginParentWithAudit(ctx context.Context, email, password, ipAddress, userAgent string) (string, string, error) {
+	if s == nil {
+		return "", "", errAccountAuthenticationUnavailable
+	}
+	access, refresh, err := s.loginParentWithAudit(bindRuntime(s.attach, ctx), email, password, ipAddress, userAgent)
+	return access, refresh, authenticationError(err)
+}
+
+func (s *AccountAuthentication) IssueSchoolTokensForAuthenticatedAccount(ctx context.Context, accountID, tenantID int64, ipAddress, userAgent string) (string, string, error) {
+	if s == nil {
+		return "", "", errAccountAuthenticationUnavailable
+	}
+	access, refresh, err := s.issueSchoolTokensForAuthenticatedAccount(bindRuntime(s.attach, ctx), accountID, tenantID, ipAddress, userAgent)
+	return access, refresh, authenticationError(err)
+}
+
+func (s *AccountAuthentication) RefreshTokenWithAudit(ctx context.Context, refreshToken, recoveryProof, ipAddress, userAgent string) (string, string, error) {
+	if s == nil {
+		return "", "", errAccountAuthenticationUnavailable
+	}
+	if s.withRecoveryProof != nil {
+		ctx = s.withRecoveryProof(ctx, recoveryProof)
+	}
+	access, refresh, err := s.refreshTokenWithAudit(bindRuntime(s.attach, ctx), refreshToken, ipAddress, userAgent)
+	return access, refresh, authenticationError(err)
+}
+
+func (s *AccountAuthentication) SwitchTenant(ctx context.Context, accountID int64, tenantSlug, presentedFamilyID string) (string, string, error) {
+	if s == nil {
+		return "", "", errAccountAuthenticationUnavailable
+	}
+	access, refresh, err := s.switchTenant(bindRuntime(s.attach, ctx), accountID, tenantSlug, presentedFamilyID)
+	return access, refresh, authenticationError(err)
+}
+
+func (s *AccountAuthentication) CleanupExpiredTokens(ctx context.Context) (int, error) {
+	if s == nil {
+		return 0, errAccountAuthenticationUnavailable
+	}
+	count, err := s.cleanupExpiredTokens(bindRuntime(s.attach, ctx))
+	return count, authenticationError(err)
+}
+
+func (s *AccountAuthentication) LoginSchoolWithMFAGate(ctx context.Context, email, password, ipAddress, userAgent, trustedDeviceCookie string) (*identityaccess.LoginResult, error) {
+	if s == nil {
+		return nil, errAccountAuthenticationUnavailable
+	}
+	result, err := s.loginSchoolWithMFAGate(bindRuntime(s.attach, ctx), email, password, ipAddress, userAgent, trustedDeviceCookie, "")
+	return loginResult(result), authenticationError(err)
+}
+
+func (s *AccountAuthentication) LoginSchoolAtTenantWithMFAGate(ctx context.Context, email, password, ipAddress, userAgent, trustedDeviceCookie, tenantSlug string) (*identityaccess.LoginResult, error) {
+	if s == nil {
+		return nil, errAccountAuthenticationUnavailable
+	}
+	result, err := s.loginSchoolWithMFAGate(bindRuntime(s.attach, ctx), email, password, ipAddress, userAgent, trustedDeviceCookie, tenantSlug)
+	return loginResult(result), authenticationError(err)
+}
+
+func (s *AccountAuthentication) LoadAccountClaims(ctx context.Context, accountID, tenantID int64) (identityaccess.AccountClaims, error) {
+	if s == nil {
+		return identityaccess.AccountClaims{}, errAccountAuthenticationUnavailable
+	}
+	payload, err := s.loadAccountClaims(bindRuntime(s.attach, ctx), accountID, tenantID)
+	if err != nil {
+		return identityaccess.AccountClaims{}, authenticationError(err)
+	}
+	roles := make([]identityaccess.AccountRole, 0, len(payload.Roles))
+	for _, role := range payload.Roles {
+		roles = append(roles, identityaccess.AccountRole{ID: role.RoleID, Name: role.Name, IsSystem: role.IsSystem, TenantID: role.TenantID})
+	}
+	return identityaccess.AccountClaims{
+		RoleNames: payload.RoleNames, Roles: roles, Permissions: payload.Permissions, Username: payload.Username,
+		FirstName: payload.FirstName, LastName: payload.LastName, IsAdmin: payload.IsAdmin,
+		TenantID: payload.TenantID, OrgID: payload.OrgID, Scope: payload.Scope,
+	}, nil
+}
+
+func (s *AccountAuthentication) FindGuardianTenant(ctx context.Context, accountID int64) (bool, int64, error) {
+	if s == nil {
+		return false, 0, errAccountAuthenticationUnavailable
+	}
+	found, tenantID, err := s.findGuardianTenant(bindRuntime(s.attach, ctx), accountID)
+	return found, tenantID, authenticationError(err)
+}
+
+func (s *AccountAuthentication) FindSchoolPortalTenant(ctx context.Context, accountID int64) (bool, int64, error) {
+	if s == nil {
+		return false, 0, errAccountAuthenticationUnavailable
+	}
+	found, tenantID, err := s.findSchoolPortalTenant(bindRuntime(s.attach, ctx), accountID)
+	return found, tenantID, authenticationError(err)
+}
+
+// BindRuntime attaches the unit of work the session flows were composed with.
+func (s *AccountAuthentication) BindRuntime(ctx context.Context) context.Context {
+	return bindRuntime(s.attach, ctx)
 }

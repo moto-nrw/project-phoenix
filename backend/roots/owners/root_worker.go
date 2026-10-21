@@ -65,8 +65,8 @@ import (
 // staff deletions and every owner's retention step.
 func workerRetentionOf(
 	db transactionruntime.Database, logger *slog.Logger, settings settingsCompose.BatchSettingsService, audit auditCommand,
-	fleet devicefleet.Capability, carePlan *carePlanModule.Module, parentMessages communication.ParentMessageCleanup,
-	rejected enrollmentOwner.RejectedEnrollmentCleaner, studentDeletion *studentdeletion.Workflow, identity *identityaccess.Module,
+	fleet devicefleet.Capability, carePlan carePlanModule.Owner, parentMessages communication.ParentMessageCleanup,
+	rejected enrollmentOwner.RejectedEnrollmentCleaner, studentDeletion *studentdeletion.Workflow, identity identityaccess.Owner,
 	announcements communication.ParentAnnouncementCapability,
 ) (workerRetention, error) {
 	announcementRetention, ok := announcements.(communication.ParentAnnouncementRetention)
@@ -217,13 +217,13 @@ func ComposeWorker(db transactionruntime.Database, env RootEnvironment, hub *rea
 		calendar         schoolcalendar.Days
 		workTime         workforceCompose.WorkTime
 		people           PeopleRows
-		peopleIdentity   *identityaccess.Module
+		peopleIdentity   identityaccess.Owner
 		guardian         peoplePorts.GuardianService
 		photoRuntime     StudentPhotoRuntime
 		persons          *peopleCompose.Directory
 		timetableOwner   timetable.Owner
 		timetableRepos   TimetableRepositories
-		carePlan         *carePlanModule.Module
+		carePlan         carePlanModule.Owner
 		appointments     appointmentsModule.Capability
 		operatorAuditLog OperatorAuditEntries
 		mealPlanSettings *mealplanCompose.Settings
@@ -244,7 +244,7 @@ func ComposeWorker(db transactionruntime.Database, env RootEnvironment, hub *rea
 		enrollment       EnrollmentRows
 		delivery         DeliveryRuntime
 		mailIdentity     email.ReplyToResolver
-		identity         *identityaccess.Module
+		identity         identityaccess.Owner
 		caller           *CallerRows
 		portalReads      carePlanCompose.ParentPortalRepositories
 		messaging        parentStore.MessagingRepositories
@@ -382,7 +382,7 @@ func ComposeWorker(db transactionruntime.Database, env RootEnvironment, hub *rea
 			identity, caller, err = BuildIdentityAccess(db, unit, env, tokens, organizations, persons, membership, settings.Service,
 				audit, operatorAuditLog, mailSender, mailDispatcher, mailFrom, delivery.Runtime, mailIdentity, delivery.Enqueuer(), people, portalReads.ParentEnrollmentRequest,
 				structure.Groups, staffGroups, arrivalTimetable.NewCallerActivityGroups(timetableRepos.ActivityGroup),
-				presence.SessionRecords, presence.Presence)
+				presence.SessionRecords, presence.Presence, workTime, calendar)
 			return
 		},
 		func() (err error) {

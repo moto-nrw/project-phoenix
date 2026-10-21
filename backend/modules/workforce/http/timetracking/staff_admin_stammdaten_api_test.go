@@ -142,3 +142,62 @@ func TestStammdatenAPI_WireShapeAndValidation(t *testing.T) {
 	require.Equal(t, http.StatusBadRequest, rec.Code, rec.Body.String())
 	assert.Contains(t, rec.Body.String(), `"workforce.stammdaten_invalid"`)
 }
+
+// A retired membership remains readable through the same permission gates,
+// while direct writes must fail before they can alter its retained history.
+func TestFormerEmploymentPersonnelAndTimesAreReadOnly(t *testing.T) {
+	t.Parallel()
+	ctx := setupOverviewAPI(t)
+	target := testpkg.CreateTestStaff(t, ctx.tc.db, "Former", "Employment")
+	base := fmt.Sprintf("/staff/%d", target.ID)
+	rec := ctx.put(base+"/stammdaten/kontakt", `{"phone":"0123456789","note":"Kontakt"}`, "staff:stammdaten")
+	require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
+	rec = ctx.put(base+"/stammdaten/qualifikationen", `{"qualifikationen":[{"name":"Erste Hilfe"}],"note":"Nachweis"}`, "staff:stammdaten")
+	require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
+	day := testpkg.Date(2026, time.July, 1)
+	insertWorkSession(t, ctx.tc, target.ID, day.String(), day.BerlinMidnight().Add(8*time.Hour), day.BerlinMidnight().Add(12*time.Hour))
+	var sessionID int64
+	require.NoError(t, ctx.tc.db.NewRaw("SELECT id FROM active.work_sessions WHERE staff_id = ?", target.ID).Scan(testpkg.Ctx(t), &sessionID))
+	_, err := ctx.tc.db.ExecContext(testpkg.Ctx(t), "UPDATE users.staff_school_memberships SET deleted_at = NOW() WHERE id = ?", target.ID)
+	require.NoError(t, err)
+
+	rec = ctx.get(base+"/stammdaten", "staff:stammdaten")
+	require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
+	assert.Contains(t, rec.Body.String(), "0123456789")
+	assert.Contains(t, rec.Body.String(), "Erste Hilfe")
+	rec = ctx.get(base+"/stammdaten", "users:read")
+	require.Equal(t, http.StatusForbidden, rec.Code, rec.Body.String())
+	rec = ctx.get(base+"/stammdaten/bank-steuer", "staff:financial")
+	require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
+	rec = ctx.get(base+"/time-tracking/history?from=2026-07-01&to=2026-07-31", "time_tracking:manage")
+	require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
+	assert.Contains(t, rec.Body.String(), `"check_in_time":"2026-07-01`)
+	rec = ctx.get(base+"/time-tracking/history?from=2026-07-01&to=2026-07-31", "users:read")
+	require.Equal(t, http.StatusForbidden, rec.Code, rec.Body.String())
+
+	for _, section := range []string{"kontakt", "arbeitsvertrag", "qualifikationen"} {
+		rec = ctx.put(base+"/stammdaten/"+section, `{"note":"Änderung"}`, "staff:stammdaten")
+		require.Equal(t, http.StatusNotFound, rec.Code, section+": "+rec.Body.String())
+	}
+	rec = ctx.put(base+"/stammdaten/person", `{"first_name":"Changed","last_name":"Person","note":"Änderung"}`, "staff:stammdaten")
+	require.Equal(t, http.StatusNotFound, rec.Code, rec.Body.String())
+	rec = ctx.put(base+"/stammdaten/bank-steuer", `{"note":"Änderung"}`, "staff:financial")
+	require.Equal(t, http.StatusNotFound, rec.Code, rec.Body.String())
+	for _, suffix := range []string{"time-tracking/sessions", "time-tracking/adjustments", "time-tracking/reset", "time-tracking/opening", "time-tracking/month-close/reopen", "absences"} {
+		rec = ctx.post(base+"/"+suffix, `{}`, "time_tracking:manage")
+		require.Equal(t, http.StatusNotFound, rec.Code, suffix+": "+rec.Body.String())
+	}
+	rec = ctx.put(fmt.Sprintf("%s/time-tracking/sessions/%d", base, sessionID), `{"notes":"Änderung"}`, "time_tracking:manage")
+	require.Equal(t, http.StatusNotFound, rec.Code, rec.Body.String())
+	rec = ctx.get(base+"/stammdaten", "staff:stammdaten")
+	require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
+	assert.Contains(t, rec.Body.String(), "0123456789", "failed writes preserve the retained contact")
+	assert.Contains(t, rec.Body.String(), "Erste Hilfe", "failed writes preserve qualifications")
+
+	_, err = ctx.tc.db.ExecContext(testpkg.Ctx(t), "UPDATE users.staff_school_memberships SET personal_data_erased_at = NOW() WHERE id = ?", target.ID)
+	require.NoError(t, err)
+	rec = ctx.get(base+"/stammdaten", "staff:stammdaten")
+	require.Equal(t, http.StatusNotFound, rec.Code, rec.Body.String())
+	rec = ctx.get(base+"/time-tracking/history?from=2026-07-01&to=2026-07-31", "time_tracking:manage")
+	require.Equal(t, http.StatusNotFound, rec.Code, rec.Body.String())
+}

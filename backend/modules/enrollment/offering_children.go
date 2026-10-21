@@ -1,10 +1,5 @@
 package enrollment
 
-import (
-	"context"
-	"time"
-)
-
 type OfferingCatalogState struct {
 	Current       []*RequestChildOffering
 	CapacityPeaks map[int64]int
@@ -28,32 +23,4 @@ func (c OfferingChildFacts) StudentID() int64 {
 		return *c.MatchedStudentID
 	}
 	return 0
-}
-
-func (m *Module) ApprovedOfferingChildrenForStudents(ctx context.Context, studentIDs []int64) (rows []OfferingChildFacts, err error) {
-	started := time.Now()
-	defer func() {
-		m.observeOfferingStorage("approved_children", "query", started, int64(len(studentIDs)), int64(len(rows)), err)
-	}()
-	if len(studentIDs) == 0 {
-		return []OfferingChildFacts{}, nil
-	}
-	if err = m.transactions.RequireTransaction(ctx); err != nil {
-		return nil, err
-	}
-	return m.engine.ApprovedOfferingChildrenForStudents(ctx, studentIDs)
-}
-
-func (m *Module) OfferingChildren(ctx context.Context, childIDs []int64) (rows []OfferingChildFacts, err error) {
-	started := time.Now()
-	defer func() {
-		m.observeOfferingStorage("children", "query", started, int64(len(childIDs)), int64(len(rows)), err)
-	}()
-	if len(childIDs) == 0 {
-		return []OfferingChildFacts{}, nil
-	}
-	if err = m.transactions.RequireTransaction(ctx); err != nil {
-		return nil, err
-	}
-	return m.engine.OfferingChildren(ctx, childIDs)
 }

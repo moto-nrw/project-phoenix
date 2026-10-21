@@ -93,39 +93,45 @@ const (
 
 // SchoolInvitation is an invitation as the owner reports it.
 type SchoolInvitation struct {
-	ID               int64
-	TenantID         int64
-	Email            string
-	Token            string
-	RoleID           int64
-	RoleName         string
-	ExpiresAt        time.Time
-	UsedAt           *time.Time
-	CreatedBy        *int64
-	CreatorEmail     string
-	FirstName        *string
-	LastName         *string
-	Position         *string
-	CaregiverEnabled bool
-	EmploymentAction EmploymentAction
-	PersonID         *int64
-	Delivery         TokenDelivery
-	CreatedAt        time.Time
+	ID                  int64
+	TenantID            int64
+	Email               string
+	Token               string
+	RoleID              int64
+	RoleName            string
+	ExpiresAt           time.Time
+	UsedAt              *time.Time
+	CreatedBy           *int64
+	CreatorEmail        string
+	FirstName           *string
+	LastName            *string
+	Position            *string
+	CaregiverEnabled    bool
+	EmploymentAction    EmploymentAction
+	ResetMasterData     bool
+	ResetQualifications bool
+	ResetWorkTime       bool
+	PersonID            *int64
+	Delivery            TokenDelivery
+	CreatedAt           time.Time
 }
 
 // SchoolInvitationRequest describes the invitation to create.
 type SchoolInvitationRequest struct {
-	Email            string
-	RoleID           int64
-	TenantID         int64
-	FirstName        *string
-	LastName         *string
-	Position         *string
-	CaregiverEnabled bool
-	EmploymentAction EmploymentAction
-	PersonID         *int64
-	CreatedBy        int64
-	SchoolName       string
+	Email               string
+	RoleID              int64
+	TenantID            int64
+	FirstName           *string
+	LastName            *string
+	Position            *string
+	CaregiverEnabled    bool
+	EmploymentAction    EmploymentAction
+	ResetMasterData     bool
+	ResetQualifications bool
+	ResetWorkTime       bool
+	PersonID            *int64
+	CreatedBy           int64
+	SchoolName          string
 	// ActorPermissions are the inviting account's permissions; the empty set
 	// grants nothing beyond the user tier.
 	ActorPermissions []string
@@ -233,52 +239,4 @@ type SchoolInvitations interface {
 	// SchoolInvitationSubdomain resolves the school host of an accepted
 	// invitation; it is best-effort and answers "" when it cannot.
 	SchoolInvitationSubdomain(ctx context.Context, token string) string
-}
-
-func (m *Module) CreateSchoolInvitation(ctx context.Context, request SchoolInvitationRequest) (SchoolInvitation, error) {
-	return m.engine.CreateSchoolInvitation(ctx, request)
-}
-
-func (m *Module) ValidateSchoolInvitation(ctx context.Context, token string) (InvitationPreview, error) {
-	return m.engine.ValidateSchoolInvitation(ctx, token)
-}
-
-func (m *Module) FindFormerEmployment(ctx context.Context, email string) (FormerEmployment, bool, error) {
-	return m.engine.FindFormerEmployment(ctx, email)
-}
-
-func (m *Module) AcceptSchoolInvitation(ctx context.Context, token string, registration InvitationRegistration) (Account, error) {
-	return m.engine.AcceptSchoolInvitation(ctx, token, registration)
-}
-
-func (m *Module) ResendSchoolInvitation(ctx context.Context, invitationID, actorAccountID int64) error {
-	return m.engine.ResendSchoolInvitation(ctx, invitationID, actorAccountID)
-}
-
-func (m *Module) RevokeSchoolInvitation(ctx context.Context, invitationID, actorAccountID int64) error {
-	return m.engine.RevokeSchoolInvitation(ctx, invitationID, actorAccountID)
-}
-
-func (m *Module) ListPendingSchoolInvitations(ctx context.Context) ([]SchoolInvitation, error) {
-	return m.engine.ListPendingSchoolInvitations(ctx)
-}
-
-func (m *Module) RevokeTenantSchoolInvitations(ctx context.Context, tenantID int64) (int, error) {
-	return m.engine.RevokeTenantSchoolInvitations(ctx, tenantID)
-}
-
-func (m *Module) DeleteExpiredSchoolInvitations(ctx context.Context) (int, error) {
-	return m.engine.DeleteExpiredSchoolInvitations(ctx)
-}
-
-func (m *Module) RecordSchoolInvitationDelivery(ctx context.Context, id int64, delivery TokenDelivery) error {
-	return m.engine.RecordSchoolInvitationDelivery(ctx, id, delivery)
-}
-
-func (m *Module) SchoolInvitationDeliverySent(ctx context.Context, id int64) (bool, error) {
-	return m.engine.SchoolInvitationDeliverySent(ctx, id)
-}
-
-func (m *Module) SchoolInvitationSubdomain(ctx context.Context, token string) string {
-	return m.engine.SchoolInvitationSubdomain(ctx, token)
 }

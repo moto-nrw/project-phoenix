@@ -8,7 +8,6 @@ import (
 	"time"
 
 	"github.com/moto-nrw/project-phoenix/modules/timetable"
-	"github.com/moto-nrw/project-phoenix/modules/timetable/internal/domain"
 	scheduleModel "github.com/moto-nrw/project-phoenix/modules/timetable/internal/domain/schedulerecords"
 	"github.com/moto-nrw/project-phoenix/modules/timetable/ports"
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
@@ -76,18 +75,18 @@ func careOfferingValidationError(ctx context.Context, c ports.CareOfferingChecks
 // read is tenant-scoped, so all three cases share the same client-facing error.
 func validateAssignableCategory(
 	ctx context.Context,
-	repo ports.ActivityCategoryRecords,
+	categories timetable.CategoryQuery,
 	categoryID int64,
 	op string,
 ) error {
-	category, err := repo.FindByIDForShare(ctx, categoryID)
+	category, err := categories.FindCategoryForShare(ctx, categoryID)
 	if err != nil {
-		if domain.IsRecordNotFound(err) {
+		if errors.Is(err, timetable.ErrCategoryNotFound) || errors.Is(err, timetable.ErrInvalidCategory) {
 			return &ports.ScheduleError{Op: op, Err: timetable.ErrCategoryNotAssignable}
 		}
-		return &ports.ScheduleError{Op: op, Err: err}
+		return &ports.ScheduleError{Op: op, Err: legacyDatabaseError("find category by id for share", err)}
 	}
-	if category == nil || category.IsArchived() {
+	if category.IsArchived() {
 		return &ports.ScheduleError{Op: op, Err: timetable.ErrCategoryNotAssignable}
 	}
 	return nil
@@ -131,18 +130,20 @@ func (s *TemplateService) FindOrCreateTimeframe(ctx context.Context, start, end 
 // only — lookups go by time window. Reusing existing timeframes keeps the
 // schedule.timeframes table from growing one row per template — common slots
 // (12:00–12:50) end up shared across templates.
-func findOrCreateTimeframe(ctx context.Context, repo ports.TimeframeRecords, start, end time.Time, descHint string) (int64, error) {
-	existing, err := repo.FindByTimeRange(ctx, start, end)
+func findOrCreateTimeframe(ctx context.Context, timeframes timetable.TimeframeCapability, start, end time.Time, descHint string) (int64, error) {
+	from, until := PublicClock(start), PublicClock(end)
+	listed, err := timeframes.ListTimeframes(ctx, timetable.TimeframeFilter{OverlapsStart: &from, OverlapsEnd: &until})
+	var existing []*scheduleModel.Timeframe
+	if err == nil {
+		existing, err = legacyTimeframes(listed)
+	}
 	if err == nil {
 		for _, tf := range existing {
-			if tf == nil {
-				continue
-			}
-			// Match exact clock times; FindByTimeRange may return overlapping
-			// windows depending on impl, so be precise. Do not use
-			// time.Time.Equal here: schedule.timeframes stores SQL TIME, and
-			// drivers may decode TIME with a different date anchor than the
-			// caller's HH:MM parser uses.
+			// Match exact clock times; the overlap read returns every
+			// overlapping window, so be precise. Do not use time.Time.Equal
+			// here: schedule.timeframes stores SQL TIME, and drivers may
+			// decode TIME with a different date anchor than the caller's
+			// HH:MM parser uses.
 			if calendar.SameClockTime(tf.StartTime, start) && tf.EndTime != nil && calendar.SameClockTime(*tf.EndTime, end) {
 				return tf.ID, nil
 			}
@@ -156,11 +157,14 @@ func findOrCreateTimeframe(ctx context.Context, repo ports.TimeframeRecords, sta
 		IsActive:    true,
 		Description: fmt.Sprintf("auto: %s", descHint),
 	}
-	tf.SetTenantID(tenant.FromContext(ctx))
-	if err := repo.Create(ctx, tf); err != nil {
+	if err := tf.Validate(); err != nil {
 		return 0, fmt.Errorf("create timeframe: %w", err)
 	}
-	return tf.ID, nil
+	created, err := timeframes.CreateTimeframe(ctx, publicTimeframeInput(tf))
+	if err != nil {
+		return 0, fmt.Errorf("create timeframe: %w", WrapDatabaseError("create", err))
+	}
+	return created.ID, nil
 }
 
 // validateAssignablePlanningTrack rejects a missing or archived track unless
@@ -189,14 +193,14 @@ func samePlanningTrackID(left, right *int64) bool {
 type TemplateServiceDependencies struct {
 	InstanceStudentRepo    ports.InstanceStudentRecords
 	ActivityInstanceRepo   ports.ActivityInstanceRecords
-	ActivityScheduleRepo   ports.ActivityScheduleRecords
+	ActivityScheduleRepo   timetable.ScheduleCapability
 	InstanceStaffRepo      ports.InstanceStaffRecords
-	ActivityCategoryRepo   ports.ActivityCategoryRecords
+	ActivityCategoryRepo   timetable.CategoryQuery
 	PlanningTracks         ports.PlanningTrackAssignments
 	ActivityGroupRepo      ports.ActivityGroupRecords
 	ActivitySupervisorRepo ports.PlannedSupervisorRecords
 	StudentEnrollmentRepo  ports.ActivityEnrollmentRecords
-	TimeframeRepo          ports.TimeframeRecords
+	TimeframeRepo          timetable.TimeframeCapability
 	EducationGroups        ports.EducationGroupDirectory
 	CareOfferings          ports.CareOfferingChecks
 	ResyncOfferingRoster   func(context.Context, timetable.OfferingRosterResyncInput) error

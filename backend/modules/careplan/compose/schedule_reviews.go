@@ -44,7 +44,7 @@ func NewScheduleReviews(db *bun.DB, observe func(Observation), deps ScheduleRevi
 	}
 	queries := application.NewExceptionQueryService(postgres.New(postgres.CarePlanDatabase(db)), observe)
 	return application.NewScheduleReviews(application.ScheduleReviewDependencies{RunInTx: tenant.NewTransactionRunner().RunInTx,
-		Requests: requests, Schedules: application.NewScheduleReviewSchedules(queries),
+		Requests: requests, Schedules: queries,
 		People: deps.People, Bookings: deps.Bookings, Classes: deps.Classes, Scope: deps.Scope,
 		BookingsAuthoritative: deps.BookingsAuthoritative, Today: deps.Today, Blocks: deps.Blocks, Fingerprint: deps.Fingerprint, Logger: deps.Logger,
 	}), nil

@@ -5,7 +5,6 @@ package fixturetest
 import (
 	"context"
 	"fmt"
-	"strings"
 	"time"
 
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
@@ -20,34 +19,6 @@ import (
 // These fixture-only queries translate the old suites' query construction.
 // Production persistence accepts only each owner's bounded native filter.
 func queryError(op string, err error) error { return &domain.StoreError{Op: op, Err: err} }
-func (adapter fromTimeframeRecords) List(ctx context.Context, options *QueryOptions) ([]*Timeframe, error) {
-	description, limit, offset, err := TimeframeListOptions(options)
-	if err != nil {
-		return nil, queryError("list with options", err)
-	}
-	source, ok := adapter.value.(interface {
-		ListTimeframes(context.Context, timetable.TimeframeFilter) ([]*records.Timeframe, error)
-	})
-	if !ok {
-		return nil, fmt.Errorf("fixture Timeframe query is not configured for %T", adapter.value)
-	}
-	values, err := source.ListTimeframes(ctx, timetable.TimeframeFilter{DescriptionContains: strings.TrimSuffix(strings.TrimPrefix(description, "%"), "%"), Limit: limit, Offset: offset})
-	return fromNative44(values), err
-}
-func (adapter fromActivityExceptionRecords) List(ctx context.Context, options *QueryOptions) ([]*ActivityException, error) {
-	groupID, limit, offset, err := ActivityExceptionListOptions(options)
-	if err != nil {
-		return nil, queryError("list with options", err)
-	}
-	source, ok := adapter.value.(interface {
-		ListExceptions(context.Context, timetable.ActivityExceptionFilter) ([]*records.ActivityException, error)
-	})
-	if !ok {
-		return nil, fmt.Errorf("fixture ActivityException query is not configured for %T", adapter.value)
-	}
-	values, err := source.ListExceptions(ctx, timetable.ActivityExceptionFilter{ActivityGroupID: groupID, Limit: limit, Offset: offset})
-	return fromNative1(values), err
-}
 func (adapter fromActivityInstanceRecords) List(ctx context.Context, options *QueryOptions) ([]*ActivityInstance, error) {
 	filter, err := ActivityInstanceListOptions(options)
 	if err != nil {

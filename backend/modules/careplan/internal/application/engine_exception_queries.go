@@ -2,7 +2,6 @@ package application
 
 import (
 	"context"
-	"time"
 
 	"github.com/moto-nrw/project-phoenix/tenant"
 
@@ -40,38 +39,6 @@ type StatusQueries interface {
 type ExceptionStore interface {
 	ports.Store
 	StatusQueries
-}
-
-// ExceptionQueryService serves the schedule and exception reads of the
-// capability over the Care Plan store (#4084).
-type ExceptionQueryService struct {
-	service       *Service
-	statusQueries StatusQueries
-	observe       func(ports.Observation)
-}
-
-// NewExceptionQueryService serves the exception reads over store.
-func NewExceptionQueryService(store ExceptionStore, observe func(ports.Observation)) *ExceptionQueryService {
-	service := New(store, func(observation ports.Observation) {
-		observation.Err = MapError(observation.Err)
-		observe(observation)
-	})
-	return &ExceptionQueryService{service: service, statusQueries: store, observe: observe}
-}
-
-func (e *ExceptionQueryService) observeRequest(operation string, started time.Time, stats domain.OperationStats, err error) {
-	e.observe(ports.Observation{Operation: operation, Duration: time.Since(started), Stats: stats, Err: err})
-}
-
-// NewScheduleReviewSchedules serves the schedule reads of the care schedule
-// reviews from the exception queries and their application service.
-func NewScheduleReviewSchedules(queries *ExceptionQueryService) ScheduleReviewSchedules {
-	return scheduleReviewQueries{queries, queries.service}
-}
-
-type scheduleReviewQueries struct {
-	*ExceptionQueryService
-	*Service
 }
 
 // Owner reads keep transaction acquisition in the application layer. The raw

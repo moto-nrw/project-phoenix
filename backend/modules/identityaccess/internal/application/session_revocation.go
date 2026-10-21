@@ -7,6 +7,7 @@ import (
 	"sort"
 	"time"
 
+	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess/internal/domain"
 )
 
@@ -80,25 +81,30 @@ func (s *AccountAuthentication) deleteFamilyWithAudit(ctx context.Context, sessi
 	if err != nil {
 		return err
 	}
-	return s.auditRevokedSessions(ctx, revoked, reason, ipAddress, userAgent)
+	return s.auditRevokedSessions(ctx, domainAccountSessions(revoked), reason, ipAddress, userAgent)
 }
 
 // DeleteAccountSessionsWithAudit revokes the account's sessions at the
 // caller's school with audit evidence, or schedules the account-wide wipe an
 // account-wide reason asks for. Tenant-scoped callers pair it with
 // QueuePushCleanup after their transaction.
-func (s *AccountAuthentication) DeleteAccountSessionsWithAudit(ctx context.Context, accountID int64, reason, ipAddress, userAgent string) ([]domain.AccountSession, error) {
+func (s *AccountAuthentication) DeleteAccountSessionsWithAudit(ctx context.Context, accountID int64, reason, ipAddress, userAgent string) (_ []identityaccess.AccountSession, err error) {
+	if s == nil {
+		return nil, errAccountAuthenticationUnavailable
+	}
+	defer func() { err = authenticationError(err) }()
+	ctx = bindRuntime(s.attach, ctx)
 	if domain.IsAccountWideRevocation(reason) {
 		return nil, s.ScheduleAccountWideRevoke(ctx, accountID, reason, ipAddress, userAgent)
 	}
-	revoked, err := s.sessions.RevokeAccountSessionsInTenant(ctx, accountID)
+	inTenant, err := s.sessions.RevokeAccountSessionsInTenant(ctx, accountID)
 	if err != nil {
 		return nil, err
 	}
-	if err := s.auditRevokedSessions(ctx, revoked, reason, ipAddress, userAgent); err != nil {
+	if err := s.auditRevokedSessions(ctx, domainAccountSessions(inTenant), reason, ipAddress, userAgent); err != nil {
 		return nil, err
 	}
-	return revoked, nil
+	return inTenant, nil
 }
 
 // ScheduleAccountWideRevoke wipes every session of the account at every
@@ -107,7 +113,12 @@ func (s *AccountAuthentication) DeleteAccountSessionsWithAudit(ctx context.Conte
 // recorded as pending and completed after commit; a plain tenant
 // transaction without an after-commit queue leaves the wipe to the caller;
 // without any transaction it runs independently.
-func (s *AccountAuthentication) ScheduleAccountWideRevoke(ctx context.Context, accountID int64, reason, ipAddress, userAgent string) error {
+func (s *AccountAuthentication) ScheduleAccountWideRevoke(ctx context.Context, accountID int64, reason, ipAddress, userAgent string) (err error) {
+	if s == nil {
+		return errAccountAuthenticationUnavailable
+	}
+	defer func() { err = authenticationError(err) }()
+	ctx = bindRuntime(s.attach, ctx)
 	if s.runtime.IsAdminTx(ctx) || (s.runtime.TenantID(ctx) == 0 && s.runtime.HasTransaction(ctx)) {
 		return s.revokeAccountWideInContext(ctx, accountID, reason, ipAddress, userAgent)
 	}
@@ -150,8 +161,11 @@ func (s *AccountAuthentication) recordPendingAccountWideWipe(ctx context.Context
 // leave behind: after commit when the caller's transaction has an
 // after-commit queue, immediately without a transaction, and not at all
 // inside a plain transaction whose rollback would otherwise lose them.
-func (s *AccountAuthentication) QueuePushCleanup(ctx context.Context, accountID int64, sessions []domain.AccountSession, reason string) {
-	s.queuePushCleanup(ctx, accountID, sessions, reason)
+func (s *AccountAuthentication) QueuePushCleanup(ctx context.Context, accountID int64, sessions []identityaccess.AccountSession, reason string) {
+	if s == nil {
+		return
+	}
+	s.queuePushCleanup(bindRuntime(s.attach, ctx), accountID, domainAccountSessions(sessions), reason)
 }
 
 func (s *AccountAuthentication) queuePushCleanup(ctx context.Context, accountID int64, sessions []domain.AccountSession, reason string) {
@@ -265,7 +279,12 @@ func (s *AccountAuthentication) shouldSkipAccountWideWipe(ctx context.Context, a
 
 // MarkAccountWideWipeCompleted claims the account's pending wipes on the
 // caller's transaction and records their completion.
-func (s *AccountAuthentication) MarkAccountWideWipeCompleted(ctx context.Context, accountID int64) error {
+func (s *AccountAuthentication) MarkAccountWideWipeCompleted(ctx context.Context, accountID int64) (err error) {
+	if s == nil {
+		return errAccountAuthenticationUnavailable
+	}
+	defer func() { err = authenticationError(err) }()
+	ctx = bindRuntime(s.attach, ctx)
 	pending, err := s.audit.ClaimPendingAccountWideWipes(ctx, accountID)
 	if err != nil {
 		return err
@@ -287,10 +306,11 @@ func (s *AccountAuthentication) completeAccountWideWipes(ctx context.Context, pe
 }
 
 func (s *AccountAuthentication) deleteAllAccountSessionsInCtx(ctx context.Context, accountID int64, reason, ipAddress, userAgent string) ([]domain.AccountSession, error) {
-	sessions, err := s.sessions.RevokeAllAccountSessions(ctx, accountID)
+	revoked, err := s.sessions.RevokeAllAccountSessions(ctx, accountID)
 	if err != nil {
 		return nil, err
 	}
+	sessions := domainAccountSessions(revoked)
 	if err := s.auditRevokedSessions(ctx, sessions, reason, ipAddress, userAgent); err != nil {
 		return nil, err
 	}
@@ -300,7 +320,12 @@ func (s *AccountAuthentication) deleteAllAccountSessionsInCtx(ctx context.Contex
 // RevokeAllTokensWithReason revokes every session of the account: an
 // account-wide reason schedules the wipe, any other reason deletes the
 // sessions at the caller's school inside its transaction.
-func (s *AccountAuthentication) RevokeAllTokensWithReason(ctx context.Context, accountID int64, reason string) error {
+func (s *AccountAuthentication) RevokeAllTokensWithReason(ctx context.Context, accountID int64, reason string) (err error) {
+	if s == nil {
+		return errAccountAuthenticationUnavailable
+	}
+	defer func() { err = authenticationError(err) }()
+	ctx = bindRuntime(s.attach, ctx)
 	if domain.IsAccountWideRevocation(reason) {
 		if err := s.ScheduleAccountWideRevoke(ctx, accountID, reason, "", ""); err != nil {
 			return failed("revoke all tokens", err)
@@ -308,12 +333,12 @@ func (s *AccountAuthentication) RevokeAllTokensWithReason(ctx context.Context, a
 		return nil
 	}
 	var revoked []domain.AccountSession
-	err := s.runtime.RunInTx(ctx, func(txCtx context.Context) error {
+	err = s.runtime.RunInTx(ctx, func(txCtx context.Context) error {
 		sessions, txErr := s.DeleteAccountSessionsWithAudit(txCtx, accountID, reason, "", "")
 		if txErr != nil {
 			return txErr
 		}
-		revoked = sessions
+		revoked = domainAccountSessions(sessions)
 		return nil
 	})
 	if err != nil {
@@ -325,14 +350,19 @@ func (s *AccountAuthentication) RevokeAllTokensWithReason(ctx context.Context, a
 
 // RevokeTokensByTenantID deletes every refresh session of a school, so a
 // soft delete cuts session refresh for all of its users.
-func (s *AccountAuthentication) RevokeTokensByTenantID(ctx context.Context, tenantID int64) (int, error) {
+func (s *AccountAuthentication) RevokeTokensByTenantID(ctx context.Context, tenantID int64) (_ int, err error) {
+	if s == nil {
+		return 0, errAccountAuthenticationUnavailable
+	}
+	defer func() { err = authenticationError(err) }()
+	ctx = bindRuntime(s.attach, ctx)
 	count := 0
-	err := s.runtime.RunInTx(ctx, func(txCtx context.Context) error {
+	err = s.runtime.RunInTx(ctx, func(txCtx context.Context) error {
 		deleted, err := s.sessions.RevokeTenantAccountSessions(txCtx, tenantID)
 		if err != nil {
 			return err
 		}
-		if err := s.auditRevokedSessions(txCtx, deleted, "tenant_deleted", "", ""); err != nil {
+		if err := s.auditRevokedSessions(txCtx, domainAccountSessions(deleted), "tenant_deleted", "", ""); err != nil {
 			return err
 		}
 		count = len(deleted)
@@ -513,7 +543,8 @@ func (s *AccountAuthentication) revokeSessionsBeforeCutoff(txCtx context.Context
 			return sessions, pushReason, domain.ErrAccountNotFound
 		}
 	}
-	sessions, err = s.sessions.RevokeAccountSessionsCreatedAtOrBefore(txCtx, accountID, cutoff)
+	revoked, err := s.sessions.RevokeAccountSessionsCreatedAtOrBefore(txCtx, accountID, cutoff)
+	sessions = domainAccountSessions(revoked)
 	if err != nil {
 		return sessions, pushReason, err
 	}

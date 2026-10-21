@@ -41,6 +41,7 @@ import { OverflowMenu } from "~/components/ui/page-header/OverflowMenu";
 import type { OverflowMenuItem } from "~/components/ui/page-header/OverflowMenu";
 import { StatusColorBadge } from "~/components/ui/status-color-badge";
 import { TenantPage, type TenantPageTab } from "~/components/ui/tenant-page";
+import { FormerEmploymentDetails } from "~/components/staff/former-employment-details";
 import { AbwesenheitenTab } from "~/components/staff/abwesenheiten-tab";
 import { ArbeitszeitmodellTab } from "~/components/staff/arbeitszeitmodell-tab";
 import { DokumenteTab } from "~/components/staff/dokumente-tab";
@@ -197,8 +198,9 @@ export default function StaffDetailContent() {
     data: record,
     error: recordError,
     mutate: mutateRecord,
-  } = useSWRAuth<Teacher>(canViewRecord ? staffRecordKey(staffId) : null, () =>
-    recordService.getOne(staffId),
+  } = useSWRAuth<Teacher>(
+    canViewRecord && staff && !staff.endedOn ? staffRecordKey(staffId) : null,
+    () => recordService.getOne(staffId),
   );
   // Ladefehler stehen dort, wo die Daten fehlen, mit Wiederholen (#2514).
   // Ein 404 ist kein Ladefehler, sondern eine Person, die es nicht mehr gibt.
@@ -334,7 +336,9 @@ export default function StaffDetailContent() {
   // Counter for the "Abwesenheiten" tab — shows MA-Pending only.
   // The /staff dashboard inbox (Tranche 4c) will count across all staff.
   const { data: pendingForStaff } = useSWRAuth<number>(
-    canManageAbsences ? `staff-pending-absences-${staffId}` : null,
+    canManageAbsences && staff && !staff.endedOn
+      ? `staff-pending-absences-${staffId}`
+      : null,
     async () => {
       const year = new Date().getFullYear();
       const rows = await staffAbsenceService.getAbsences(
@@ -410,6 +414,20 @@ export default function StaffDetailContent() {
           title: "Diese Person gibt es nicht mehr.",
           description: "Sie wurde gelöscht oder der Link ist veraltet.",
         }}
+      />
+    );
+  }
+
+  if (staff?.endedOn) {
+    return (
+      <FormerEmploymentDetails
+        staff={staff}
+        referrer={referrer}
+        backLabel={backLabel}
+        canViewSections={canViewStammdatenSections}
+        canViewFinancial={canViewFinancial}
+        canViewTimeTracking={canViewTimeTracking}
+        canViewDocuments={canViewDocuments}
       />
     );
   }

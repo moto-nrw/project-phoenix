@@ -8,6 +8,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess/internal/domain"
 )
 
@@ -104,7 +105,7 @@ func (l *AccountLifecycle) detectRestrictedContact(ctx context.Context, req doma
 	case domain.GuardianRoleSocialWorker:
 		// A social worker is a school-managed professional contact, never a
 		// candidate for the legal-guardian upgrade; refuse the invite outright.
-		return false, nil, failed(opGuardianInviteToStudent, domain.ErrInviteSocialWorkerManaged)
+		return false, nil, failed(opGuardianInviteToStudent, identityaccess.ErrInviteSocialWorkerManaged)
 	}
 	if !req.ConfirmRoleUpgrade {
 		return false, &domain.InviteToStudentResult{
@@ -135,7 +136,7 @@ func (l *AccountLifecycle) upgradeStudentLink(ctx context.Context, studentID, gu
 			slog.Int64("student_id", studentID),
 			slog.Int64("guardian_profile_id", guardianProfileID),
 		)
-		return failed(op, domain.ErrInviteSocialWorkerManaged)
+		return failed(op, identityaccess.ErrInviteSocialWorkerManaged)
 	}
 	if err := l.guardians.PromoteStudentGuardianLink(ctx, link.ID); err != nil {
 		return failed(op, err)
@@ -174,12 +175,12 @@ func (l *AccountLifecycle) attachExistingAccountByEmail(ctx context.Context, pro
 	}
 	account, err := l.sessions.FindAccountByEmail(ctx, email)
 	if err != nil {
-		if errors.Is(err, domain.ErrAccountNotFound) {
+		if errors.Is(err, identityaccess.ErrAccountNotFound) {
 			return nil
 		}
 		return failed(opGuardianInviteToStudent, err)
 	}
-	return l.attachExistingAccount(ctx, profile, account)
+	return l.attachExistingAccount(ctx, profile, domain.Account(account))
 }
 
 func (l *AccountLifecycle) attachExistingAccount(ctx context.Context, profile *domain.GuardianProfile, account domain.Account) error {
@@ -444,7 +445,7 @@ func (l *AccountLifecycle) pendingInvitation(ctx context.Context, op string, inv
 		return domain.GuardianInvitation{}, failed(op, fmt.Errorf("invitation is not awaiting approval"))
 	}
 	if guardianApprovalExpired(invitation, time.Now()) {
-		return domain.GuardianInvitation{}, failed(op, domain.ErrGuardianInvitationExpired)
+		return domain.GuardianInvitation{}, failed(op, identityaccess.ErrGuardianInvitationExpired)
 	}
 	return invitation, nil
 }
@@ -607,12 +608,12 @@ func (l *AccountLifecycle) revokeAccess(ctx context.Context, req domain.RevokeAc
 		return failed(opGuardianRevokeAccess, fmt.Errorf("account is not linked to this child"))
 	}
 	if req.ByParent && link.IsPrimary {
-		return failed(opGuardianRevokeAccess, domain.ErrCannotRemovePrimaryGuardian)
+		return failed(opGuardianRevokeAccess, identityaccess.ErrCannotRemovePrimaryGuardian)
 	}
 	// Checked under the student lock taken by RevokeAccess, so a payer
 	// assigned concurrently cannot slip past.
 	if link.IsPayer && !req.MayClearPayer {
-		return failed(opGuardianRevokeAccess, domain.ErrCannotRemovePayerGuardian)
+		return failed(opGuardianRevokeAccess, identityaccess.ErrCannotRemovePayerGuardian)
 	}
 	deleteLink, err := l.parentRevokeDeletesLink(ctx, req)
 	if err != nil {

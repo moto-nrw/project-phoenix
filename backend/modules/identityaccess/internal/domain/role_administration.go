@@ -11,18 +11,12 @@ import (
 // contract the retained auth service established.
 
 var (
-	ErrSystemRoleImmutable = errors.New("system roles cannot be modified")
-	ErrPermissionNotFound  = errors.New("permission not found")
 	// ErrBaseRoleRequired rejects a custom role without the system role it
 	// maps to for announcement targeting.
 	ErrBaseRoleRequired = errors.New("base_role is required for custom roles")
 	// ErrRoleNameTaken rejects a role name the school (or the platform, for a
 	// system role) already uses.
 	ErrRoleNameTaken = errors.New("role name already exists")
-
-	ErrRoleCaregiverNeedsProfile     = errors.New("ein Lehrkraft-Konto hat kein Betreuungsprofil und kann nicht auf eine Betreuer-Rolle umgestellt werden")
-	ErrLehrkraftRoleImmutable        = errors.New("ein Lehrkraft-Konto kann nicht umgestellt werden")
-	ErrRoleLehrkraftCaregiverProfile = errors.New("das Konto hat ein Betreuungsprofil an dieser Schule und kann nicht auf Lehrkraft umgestellt werden")
 )
 
 // ManagedRole is one auth.roles row as the administration reads and writes

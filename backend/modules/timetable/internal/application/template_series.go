@@ -43,7 +43,7 @@ type templateSeriesSegment struct {
 func loadTemplateSeriesSegments(
 	ctx context.Context,
 	groupRepo ports.ActivityGroupRecords,
-	scheduleRepo ports.ActivityScheduleRecords,
+	scheduleRepo timetable.ScheduleQuery,
 	logger *slog.Logger,
 	templateID int64,
 ) ([]templateSeriesSegment, error) {
@@ -60,7 +60,7 @@ func loadTemplateSeriesSegments(
 	if len(groupIDs) == 0 {
 		return []templateSeriesSegment{}, nil
 	}
-	scheduleRows, err := scheduleRepo.FindByGroupIDs(ctx, groupIDs)
+	scheduleRows, err := groupsSchedules(ctx, scheduleRepo, groupIDs)
 	if err != nil {
 		return nil, &ports.ScheduleError{Op: "load template series: load schedules", Err: err}
 	}

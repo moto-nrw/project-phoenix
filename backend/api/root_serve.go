@@ -97,13 +97,13 @@ func composeServeRoot(
 		calendar         schoolcalendar.Days
 		workTime         workforceCompose.WorkTime
 		people           owners.PeopleRows
-		peopleIdentity   *identityaccess.Module
+		peopleIdentity   identityaccess.Owner
 		guardian         peoplePorts.GuardianService
 		photoRuntime     owners.StudentPhotoRuntime
 		persons          *peopleCompose.Directory
 		timetableOwner   timetable.Owner
 		timetableRepos   owners.TimetableRepositories
-		carePlan         *carePlanModule.Module
+		carePlan         carePlanModule.Owner
 		appointments     appointmentsModule.Capability
 		operatorAuditLog owners.OperatorAuditEntries
 		communication    communicationModule.Capability
@@ -126,7 +126,7 @@ func composeServeRoot(
 		enrollment       owners.EnrollmentRows
 		delivery         owners.DeliveryRuntime
 		mailIdentity     email.ReplyToResolver
-		identity         *identityaccess.Module
+		identity         identityaccess.Owner
 		caller           *owners.CallerRows
 		portalReads      carePlanCompose.ParentPortalRepositories
 		messaging        parentStore.MessagingRepositories
@@ -291,7 +291,7 @@ func composeServeRoot(
 			identity, caller, err = owners.BuildIdentityAccess(db, unit, env, tokens, organizations, persons, membership, settings.Service,
 				audit, operatorAuditLog, mailSender, mailDispatcher, mailFrom, delivery.Runtime, mailIdentity, delivery.Enqueuer(), people, portalReads.ParentEnrollmentRequest,
 				structure.Groups, staffGroups, arrivalTimetable.NewCallerActivityGroups(timetableRepos.ActivityGroup),
-				presence.SessionRecords, presence.Presence)
+				presence.SessionRecords, presence.Presence, workTime, calendar)
 			return
 		},
 		func() (err error) {

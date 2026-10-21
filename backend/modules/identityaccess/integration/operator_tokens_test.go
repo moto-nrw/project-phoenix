@@ -18,7 +18,7 @@ import (
 	"github.com/uptrace/bun/driver/pgdriver"
 )
 
-func newOperatorTokens(t *testing.T, db *bun.DB) *identityaccess.Module {
+func newOperatorTokens(t *testing.T, db *bun.DB) identityaccess.Owner {
 	t.Helper()
 	module, err := identityCompose.New(identityCompose.Dependencies{DB: db, TenantRuntime: testpkg.TenantRuntime(t, db), Observe: func(identityCompose.Observation) {}})
 	require.NoError(t, err)

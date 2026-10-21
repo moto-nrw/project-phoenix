@@ -217,7 +217,7 @@ export function Header() {
   const schoolPageTitle =
     mode === "school" ? schoolTitleForPath(pathname) : null;
   const displayedPageTitle = parentPageTitle ?? schoolPageTitle ?? pageTitle;
-  // Das Fragezeichen neben der Brotkrume. Jedes Portal hat seine eigenen
+  // Die Seitenhilfe bei den Aktionen. Jedes Portal hat seine eigenen
   // Routen: `/messages` heisst im Personal-Portal etwas anderes als im
   // Elternportal, deshalb zwei getrennte Nachschlagewege.
   const contextualHelpTopic = (() => {
@@ -343,7 +343,13 @@ export function Header() {
               <BrandLink
                 href={homeUrl}
                 label={brandLabel}
-                hideLabelBelow={mode === "parent" ? "lg" : undefined}
+                hideLabelBelow={
+                  mode === "parent"
+                    ? "lg"
+                    : mode === "school"
+                      ? "md"
+                      : undefined
+                }
               />
             )}
             <BreadcrumbDivider />
@@ -385,12 +391,10 @@ export function Header() {
             {contextualHelpTopic ? (
               <ContextHelpLink
                 topic={contextualHelpTopic}
-                // Eltern sind fast immer am Handy. Ein Fragezeichen, das
-                // erst ab Tablet auftaucht, erreicht sie nie. Im
-                // Personal-Portal bleibt die schmale Kopfzeile frei: dort
-                // ist die Hilfe über die Seitenleiste erreichbar.
+                // Unter lg sitzt die Hilfe im Seitenkopf. moto schule
+                // behält diese Kopfzeile auf jeder Breite.
                 containerClassName={
-                  mode === "parent" ? undefined : "hidden md:inline-flex"
+                  mode === "school" ? undefined : "hidden lg:inline-flex"
                 }
               />
             ) : null}

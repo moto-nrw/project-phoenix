@@ -68,7 +68,7 @@ type TimetableCareRows struct {
 func BuildPeopleRows(
 	db transactionruntime.Database, observeIdentity IdentityAccessObserver, groups schoolstructure.Query, rooms facilitiesModule.Query,
 	membership schoolmembership.Capability, workTime workforce.Capability,
-) (PeopleRows, *identityaccess.Module) {
+) (PeopleRows, identityaccess.Owner) {
 	identity := NewPeopleIdentityAccess(db, observeIdentity)
 	personRepository := NewPersonRepository(db)
 	staff, teachers, _, _, _, _ := newMembershipAdapters(db, personRepository, identity, membership, rooms, workTime)
@@ -82,7 +82,7 @@ func BuildPeopleRows(
 // BuildStructureRows builds School Structure's group rows and directories
 // over the People Directory, School Membership and Facilities.
 func BuildStructureRows(
-	db transactionruntime.Database, persons peopledirectory.Capability, people PeopleRows, peopleIdentity *identityaccess.Module,
+	db transactionruntime.Database, persons peopledirectory.Capability, people PeopleRows, peopleIdentity identityaccess.Owner,
 	rooms facilitiesModule.Query, membership schoolmembership.Capability, workTime workforce.Capability,
 ) StructureRows {
 	staff, teachers, guests, groups, groupTeachers, classTeachers := newMembershipAdapters(db, people.Persons, peopleIdentity, membership, rooms, workTime)

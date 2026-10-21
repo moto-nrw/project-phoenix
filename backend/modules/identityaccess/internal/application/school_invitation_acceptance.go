@@ -47,6 +47,11 @@ func (s *SchoolInvitation) invitationPassword(txCtx context.Context, account dom
 }
 
 func (s *SchoolInvitation) provisionInvitationIdentity(ctx context.Context, invitation domain.SchoolInvitation, accountID int64, firstName, lastName string) error {
+	finishReset, err := s.prepareInvitationReset(ctx, invitation, accountID)
+	if err != nil {
+		return err
+	}
+
 	role, found, err := s.roles.FindRoleIgnoringTenant(ctx, invitation.RoleID)
 	if err != nil {
 		return failed("provision school identity", err)
@@ -63,7 +68,7 @@ func (s *SchoolInvitation) provisionInvitationIdentity(ctx context.Context, invi
 	if invitation.Position != nil {
 		position = *invitation.Position
 	}
-	if _, err := s.identity.EnsureSchoolIdentity(ctx, domain.SchoolIdentityInput{
+	identity, err := s.identity.EnsureSchoolIdentity(ctx, domain.SchoolIdentityInput{
 		AccountID: accountID, TenantID: invitation.TenantID, Role: &facts,
 		FirstName: firstName, LastName: lastName, Position: position,
 		// The staff import created the person before the invitation went out;
@@ -74,8 +79,9 @@ func (s *SchoolInvitation) provisionInvitationIdentity(ctx context.Context, invi
 		// not — the same invariant the role assignment applies (#1772).
 		CaregiverUpgrade: invitation.CaregiverEnabled && !lehrkraft,
 		CreatePerson:     true,
-	}); err != nil {
+	})
+	if err != nil {
 		return failed("provision school identity", err)
 	}
-	return nil
+	return finishReset(ctx, identity)
 }

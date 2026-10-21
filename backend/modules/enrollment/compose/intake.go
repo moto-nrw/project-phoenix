@@ -68,11 +68,10 @@ func NewCareOfferingRows(catalog CareOfferingCatalogAdministration) *CareOfferin
 	return application.NewCareOfferingRows(catalog)
 }
 
-// PublicDecisions hands the decision flow to the HTTP adapters: refusals that
-// originate in the selection contract or in Care Plan come back marked with
-// Enrollment's public values as well.
+// PublicDecisions hands the decision flow directly to the HTTP adapters.
+// The flow marks refusals with Enrollment's public values at its own edge.
 func PublicDecisions(decisions *Decisions) enrollment.Decisions {
-	return application.PublicDecisions(decisions)
+	return decisions
 }
 
 // OfferingChangeRecords reads Care Plan's offering change requests in

@@ -8,6 +8,7 @@ import (
 
 	"github.com/go-webauthn/webauthn/protocol"
 	"github.com/go-webauthn/webauthn/webauthn"
+	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess/internal/domain"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess/internal/ports"
 )
@@ -96,14 +97,14 @@ func newWebAuthnForOrigin(rpID, rpName, origin string) (*webauthn.WebAuthn, erro
 // HTTP.
 func parsePasskeyCreation(raw json.RawMessage) (*protocol.ParsedCredentialCreationData, error) {
 	if len(raw) == 0 || !json.Valid(raw) {
-		return nil, domain.ErrPasskeySessionInvalid
+		return nil, identityaccess.ErrPasskeySessionInvalid
 	}
 	return protocol.ParseCredentialCreationResponseBody(bytes.NewReader(raw))
 }
 
 func parsePasskeyAssertion(raw json.RawMessage) (*protocol.ParsedCredentialAssertionData, error) {
 	if len(raw) == 0 || !json.Valid(raw) {
-		return nil, domain.ErrPasskeySessionInvalid
+		return nil, identityaccess.ErrPasskeySessionInvalid
 	}
 	return protocol.ParseCredentialRequestResponseBody(bytes.NewReader(raw))
 }

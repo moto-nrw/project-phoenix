@@ -20,6 +20,9 @@ export interface InvitationAcceptRequest {
 export type EmploymentAction = "resume" | "new";
 
 export interface CreateInvitationRequest {
+  resetMasterData?: boolean;
+  resetQualifications?: boolean;
+  resetWorkTime?: boolean;
   employmentAction?: EmploymentAction;
   email: string;
   roleId: string | undefined;

@@ -11,13 +11,9 @@ import (
 // composition adds the instance and participant adapters, which also run on
 // the database and Student Presence.
 type CapabilityRepositories struct {
-	ActivityCategory   ports.ActivityCategoryRecords
 	ActivityGroup      ports.ActivityGroupRecords
-	ActivitySchedule   ports.ActivityScheduleRecords
 	ActivitySupervisor ports.PlannedSupervisorRecords
 	StudentEnrollment  ports.ActivityEnrollmentRecords
-	Timeframe          ports.TimeframeRecords
-	ActivityException  ports.ActivityExceptionRecords
 	InstanceStaff      ports.InstanceStaffRecords
 }
 
@@ -33,13 +29,9 @@ func NewCapabilityRepositories(capability timetable.Capability, calendar schoolc
 	staffGroups := newStaffActivityGroupRepository(groupProjection, directories.StaffPersons)
 	supervisors := staffSupervisorPlannedRepository{PlannedSupervisorRecords: timetableActivitySupervisorRepository{timetable: capability}, membership: directories.StaffPersons}
 	return CapabilityRepositories{
-		ActivityCategory:   timetableActivityCategoryRepository{timetable: capability},
 		ActivityGroup:      newPersonActivityGroupRepository(staffGroups, directories.PersonNames),
-		ActivitySchedule:   timetableActivityScheduleRepository{timetable: capability},
 		ActivitySupervisor: personSupervisorPlannedRepository{PlannedSupervisorRecords: supervisors, persons: directories.PersonNames},
 		StudentEnrollment:  timetableStudentEnrollmentRepository{timetable: capability, alumni: directories.StudentAlumni, names: directories.StudentNames},
-		Timeframe:          timetableTimeframeRepository{timetable: capability},
-		ActivityException:  timetableActivityExceptionRepository{timetable: capability},
 		InstanceStaff:      timetableInstanceStaffRepository{timetable: capability},
 	}
 }

@@ -154,7 +154,7 @@ type StaffMembershipRuntime struct {
 // offboarding carries the database and the employment owner the caller
 // composed; the access, the cleanup, the broadcaster, the logger and the
 // authorization of the offboarding workflow are bound here.
-func bindStaffMembershipRuntime(users peoplePorts.PersonDirectory, education schoolstructure.GroupManagement, staffDay workforceCompose.StaffDayStatus, hub *realtime.Hub, offboarding offboardingcompose.Dependencies, identity *identityaccess.Module, logger *slog.Logger, hooks StaffMembershipHooks) StaffMembershipRuntime {
+func bindStaffMembershipRuntime(users peoplePorts.PersonDirectory, education schoolstructure.GroupManagement, staffDay workforceCompose.StaffDayStatus, hub *realtime.Hub, offboarding offboardingcompose.Dependencies, identity identityaccess.Owner, logger *slog.Logger, hooks StaffMembershipHooks) StaffMembershipRuntime {
 	if hooks.ResolveEditorStaffID == nil || hooks.QueueOffboardedDocumentCleanup == nil {
 		panic("staff membership runtime: offboarding hooks are required")
 	}
@@ -208,7 +208,7 @@ func bindStaffMembershipRuntime(users peoplePorts.PersonDirectory, education sch
 // newStaffOffboardingWorkflow composes the offboarding workflow with the
 // Identity & Access step, the document cleanup, the realtime hub, the logger
 // and the editor authorization.
-func newStaffOffboardingWorkflow(hub *realtime.Hub, identity *identityaccess.Module, offboarding offboardingcompose.Dependencies, logger *slog.Logger, hooks StaffMembershipHooks) *staffoffboarding.Workflow {
+func newStaffOffboardingWorkflow(hub *realtime.Hub, identity identityaccess.Owner, offboarding offboardingcompose.Dependencies, logger *slog.Logger, hooks StaffMembershipHooks) *staffoffboarding.Workflow {
 	offboarding.Access, offboarding.Cleanup = StaffOffboardingAccess(identity), hooks.QueueOffboardedDocumentCleanup
 	offboarding.Broadcaster, offboarding.Logger = hub, logger
 	offboarding.Authorize = func(ctx context.Context) (staffoffboarding.Actor, error) {

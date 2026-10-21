@@ -98,20 +98,8 @@ type instanceStaffQueryRepository interface {
 	queryListRepository[*fixtures.InstanceStaff]
 }
 
-type activityExceptionQueryRepository interface {
-	fixtures.
-		ActivityExceptionRecords
-	queryListRepository[*fixtures.ActivityException]
-}
-
 type dateframeQueryRepository interface {
 	fixtures.
 		DateframeRecords
 	queryListRepository[*fixtures.Dateframe]
-}
-
-type timeframeQueryRepository interface {
-	fixtures.
-		TimeframeRecords
-	queryListRepository[*fixtures.Timeframe]
 }

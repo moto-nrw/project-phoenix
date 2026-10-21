@@ -14,7 +14,10 @@ vi.mock("next-auth/react", () => ({
   useSession: vi.fn(),
 }));
 
+const listSearchParams = vi.hoisted(() => new URLSearchParams());
+
 vi.mock("next/navigation", () => ({
+  useSearchParams: () => listSearchParams,
   redirect: vi.fn(),
   useRouter: vi.fn(() => ({
     push: vi.fn(),
@@ -125,6 +128,8 @@ const mockStaff = [
 describe("StaffPage", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    listSearchParams.delete("status");
+    listSearchParams.delete("search");
     vi.mocked(useStaffPendingAbsences).mockReturnValue({
       rows: [],
       canReview: false,
@@ -301,6 +306,26 @@ describe("StaffPage", () => {
       expect(requestedKeys()).not.toContain(formerKey);
     });
 
+    it("restores the former filter and search from the detail return path", () => {
+      serveByKey(formerStaff);
+      listSearchParams.set("status", "ehemalige");
+      listSearchParams.set("search", "Grace");
+      vi.mocked(useSession).mockReturnValue({
+        data: { user: { id: "1", roles: ["admin"], permissions: ["admin:*"] } },
+        status: "authenticated",
+      } as never);
+      render(<StaffPage />);
+      expect(screen.getByTestId("search-input")).toHaveValue("Grace");
+      expect(screen.queryByText("Anna Meyer")).not.toBeInTheDocument();
+      expect(
+        screen.getByRole("link", { name: /Grace Hopper/ }),
+      ).toHaveAttribute(
+        "href",
+        "/test-tenant/staff/7?from=%2Fstaff%3Fstatus%3Dehemalige%26search%3DGrace",
+      );
+      expect(requestedKeys()).toContain(formerKey);
+    });
+
     it("shows former employments with their period instead of current staff", async () => {
       serveByKey(formerStaff);
 
@@ -313,12 +338,16 @@ describe("StaffPage", () => {
       expect(
         screen.getByText("In moto eingetragen vom 02.09.2024 bis 31.07.2026."),
       ).toBeInTheDocument();
-      expect(screen.getByText(/Nur zur Information/)).toBeInTheDocument();
-      expect(screen.getByText("1 ehemalige Person")).toBeInTheDocument();
-      // A display without a target: no button to press (#3405 brings the record).
       expect(
-        screen.queryByRole("button", { name: /Grace Hopper/ }),
-      ).not.toBeInTheDocument();
+        screen.getByText(/Öffnen Sie eine Karte für die Angaben von damals/),
+      ).toBeInTheDocument();
+      expect(screen.getByText("1 ehemalige Person")).toBeInTheDocument();
+      expect(
+        screen.getByRole("link", { name: /Grace Hopper/ }),
+      ).toHaveAttribute(
+        "href",
+        "/test-tenant/staff/7?from=%2Fstaff%3Fstatus%3Dehemalige",
+      );
       expect(requestedKeys()).toContain(formerKey);
     });
 

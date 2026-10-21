@@ -6,23 +6,18 @@ import (
 	"testing"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/modules/timetable/ports"
-
-	activityContract "github.com/moto-nrw/project-phoenix/modules/timetable/activitycontract"
-
 	"github.com/moto-nrw/project-phoenix/modules/timetable"
-	activitiesModel "github.com/moto-nrw/project-phoenix/modules/timetable/internal/domain/activityrecords"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
 type assignableCategoryRepo struct {
-	ports.ActivityCategoryRecords
-	category *activityContract.Category
+	timetable.CategoryQuery
+	category timetable.Category
 	err      error
 }
 
-func (r *assignableCategoryRepo) FindByIDForShare(context.Context, int64) (*activityContract.Category, error) {
+func (r *assignableCategoryRepo) FindCategoryForShare(context.Context, int64) (timetable.Category, error) {
 	return r.category, r.err
 }
 
@@ -33,7 +28,7 @@ func TestValidateAssignableCategory(t *testing.T) {
 	t.Run("accepts an active category", func(t *testing.T) {
 		err := validateAssignableCategory(
 			context.Background(),
-			&assignableCategoryRepo{category: &activityContract.Category{Name: "Aktiv"}},
+			&assignableCategoryRepo{category: timetable.Category{Name: "Aktiv"}},
 			categoryID,
 			"test",
 		)
@@ -44,7 +39,7 @@ func TestValidateAssignableCategory(t *testing.T) {
 		archivedAt := time.Now()
 		err := validateAssignableCategory(
 			context.Background(),
-			&assignableCategoryRepo{category: &activityContract.Category{Name: "Archiviert", ArchivedAt: &archivedAt}},
+			&assignableCategoryRepo{category: timetable.Category{Name: "Archiviert", ArchivedAt: &archivedAt}},
 			categoryID,
 			"test",
 		)
@@ -54,7 +49,7 @@ func TestValidateAssignableCategory(t *testing.T) {
 	t.Run("rejects an unknown tenant-scoped category", func(t *testing.T) {
 		err := validateAssignableCategory(
 			context.Background(),
-			&assignableCategoryRepo{err: activitiesModel.ErrNotFound},
+			&assignableCategoryRepo{err: timetable.ErrCategoryNotFound},
 			categoryID,
 			"test",
 		)

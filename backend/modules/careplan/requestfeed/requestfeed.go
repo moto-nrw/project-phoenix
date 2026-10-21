@@ -50,46 +50,11 @@ type Feed struct {
 	XML string
 }
 
-type engine interface {
+// Capability is the request feed owner: the account's subscription status,
+// its creation and rotation, and the feed behind an opaque token.
+type Capability interface {
 	Status(context.Context, int64, int64) (Status, error)
 	Provision(context.Context, int64, int64) (Created, error)
 	Rotate(context.Context, int64, int64) (Created, error)
 	ByToken(context.Context, string) (Feed, error)
-}
-
-type Module struct{ engine engine }
-
-func NewModule(engine engine) *Module {
-	if engine == nil {
-		panic("request feed: engine is required")
-	}
-	return &Module{engine: engine}
-}
-
-func (m *Module) Status(ctx context.Context, tenantID, accountID int64) (Status, error) {
-	if tenantID <= 0 || accountID <= 0 {
-		return Status{}, ErrNotFound
-	}
-	return m.engine.Status(ctx, tenantID, accountID)
-}
-
-func (m *Module) Provision(ctx context.Context, tenantID, accountID int64) (Created, error) {
-	if tenantID <= 0 || accountID <= 0 {
-		return Created{}, ErrNotFound
-	}
-	return m.engine.Provision(ctx, tenantID, accountID)
-}
-
-func (m *Module) Rotate(ctx context.Context, tenantID, accountID int64) (Created, error) {
-	if tenantID <= 0 || accountID <= 0 {
-		return Created{}, ErrNotFound
-	}
-	return m.engine.Rotate(ctx, tenantID, accountID)
-}
-
-func (m *Module) ByToken(ctx context.Context, token string) (Feed, error) {
-	if token == "" {
-		return Feed{}, ErrNotFound
-	}
-	return m.engine.ByToken(ctx, token)
 }

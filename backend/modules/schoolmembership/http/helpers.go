@@ -250,3 +250,22 @@ func staffIDsOf(members []schoolmembership.Staff) []int64 {
 	}
 	return ids
 }
+
+// parseAndFindStaffForRead includes retained employments only on profile reads.
+// Mutation and assignment handlers continue using the live-only lookup.
+func (rs *Resource) parseAndFindStaffForRead(w http.ResponseWriter, r *http.Request) (schoolmembership.Staff, bool) {
+	id, ok := rs.parseStaffID(w, r)
+	if !ok {
+		return schoolmembership.Staff{}, false
+	}
+	members, err := rs.membership.ListStaff(r.Context(), schoolmembership.StaffFilter{IDs: []int64{id}, IncludeDeleted: true, IncludeInactiveGuests: true})
+	if err != nil {
+		rs.internal(w, r, err)
+		return schoolmembership.Staff{}, false
+	}
+	if len(members) != 1 || members[0].PersonalDataErasedAt != nil {
+		rs.failure(w, r, FailureNotFound, errors.New(msgStaffNotFound), "not_found")
+		return schoolmembership.Staff{}, false
+	}
+	return members[0], true
+}

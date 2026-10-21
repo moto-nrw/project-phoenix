@@ -31,7 +31,8 @@ func NewSchoolInvitationMaintenance(store ports.SchoolInvitationStore, logger *s
 
 // RevokeTenantInvitations spends every pending invitation of the school, so
 // a soft-deleted school hands out no access.
-func (m *SchoolInvitationMaintenance) RevokeTenantInvitations(ctx context.Context, tenantID int64) (value0 int, err error) {
+func (m *SchoolInvitationMaintenance) RevokeTenantSchoolInvitations(ctx context.Context, tenantID int64) (value0 int, err error) {
+	defer func() { err = invitationError(err) }()
 	err = m.run(ctx, func(txCtx context.Context) error {
 		value0, err = m.inUnitRevokeTenantInvitations(txCtx, tenantID)
 		return err
@@ -53,7 +54,8 @@ func (m *SchoolInvitationMaintenance) inUnitRevokeTenantInvitations(ctx context.
 }
 
 // CleanupExpiredInvitations removes invitations that are no longer useful.
-func (m *SchoolInvitationMaintenance) CleanupExpiredInvitations(ctx context.Context) (value0 int, err error) {
+func (m *SchoolInvitationMaintenance) DeleteExpiredSchoolInvitations(ctx context.Context) (value0 int, err error) {
+	defer func() { err = invitationError(err) }()
 	err = m.run(ctx, func(txCtx context.Context) error {
 		value0, err = m.inUnitCleanupExpiredInvitations(txCtx)
 		return err

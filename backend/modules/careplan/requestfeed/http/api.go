@@ -22,15 +22,15 @@ type Runtime struct {
 }
 
 type Resource struct {
-	module  *requestfeed.Module
+	feeds   requestfeed.Capability
 	runtime Runtime
 }
 
-func NewResource(module *requestfeed.Module, runtime Runtime) *Resource {
-	if module == nil || runtime.Protected == nil || runtime.CurrentTenantID == nil || runtime.CurrentAccountID == nil || runtime.Logger == nil {
+func NewResource(feeds requestfeed.Capability, runtime Runtime) *Resource {
+	if feeds == nil || runtime.Protected == nil || runtime.CurrentTenantID == nil || runtime.CurrentAccountID == nil || runtime.Logger == nil {
 		panic("request feed HTTP: all dependencies are required")
 	}
-	return &Resource{module: module, runtime: runtime}
+	return &Resource{feeds: feeds, runtime: runtime}
 }
 
 func (rs *Resource) TenantRouter() chi.Router {
@@ -50,7 +50,7 @@ func (rs *Resource) PublicRouter() chi.Router {
 }
 
 func (rs *Resource) status(w http.ResponseWriter, r *http.Request) {
-	status, err := rs.module.Status(r.Context(), rs.runtime.CurrentTenantID(r), rs.runtime.CurrentAccountID(r))
+	status, err := rs.feeds.Status(r.Context(), rs.runtime.CurrentTenantID(r), rs.runtime.CurrentAccountID(r))
 	if err != nil {
 		rs.failure(w, err)
 		return
@@ -59,7 +59,7 @@ func (rs *Resource) status(w http.ResponseWriter, r *http.Request) {
 }
 
 func (rs *Resource) create(w http.ResponseWriter, r *http.Request) {
-	created, err := rs.module.Provision(r.Context(), rs.runtime.CurrentTenantID(r), rs.runtime.CurrentAccountID(r))
+	created, err := rs.feeds.Provision(r.Context(), rs.runtime.CurrentTenantID(r), rs.runtime.CurrentAccountID(r))
 	if err != nil {
 		rs.failure(w, err)
 		return
@@ -68,7 +68,7 @@ func (rs *Resource) create(w http.ResponseWriter, r *http.Request) {
 }
 
 func (rs *Resource) rotate(w http.ResponseWriter, r *http.Request) {
-	created, err := rs.module.Rotate(r.Context(), rs.runtime.CurrentTenantID(r), rs.runtime.CurrentAccountID(r))
+	created, err := rs.feeds.Rotate(r.Context(), rs.runtime.CurrentTenantID(r), rs.runtime.CurrentAccountID(r))
 	if err != nil {
 		rs.failure(w, err)
 		return
@@ -77,7 +77,7 @@ func (rs *Resource) rotate(w http.ResponseWriter, r *http.Request) {
 }
 
 func (rs *Resource) feed(w http.ResponseWriter, r *http.Request) {
-	feed, err := rs.module.ByToken(r.Context(), chi.URLParam(r, "token"))
+	feed, err := rs.feeds.ByToken(r.Context(), chi.URLParam(r, "token"))
 	if err != nil {
 		rs.failure(w, err)
 		return

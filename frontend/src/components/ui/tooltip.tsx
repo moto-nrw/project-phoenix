@@ -30,6 +30,8 @@ interface TooltipProps {
   bubbleClassName?: string;
   /** Use the interactive child itself as the trigger, without an extra tab stop. */
   asChild?: boolean;
+  /** Keep an icon control compact in responsive page action rows. */
+  iconOnly?: boolean;
 }
 
 interface InteractiveTooltipChildProps {
@@ -43,6 +45,7 @@ export function Tooltip({
   className,
   bubbleClassName,
   asChild = false,
+  iconOnly = false,
 }: TooltipProps) {
   const id = useId();
   const [isDismissed, setIsDismissed] = useState(false);
@@ -84,6 +87,7 @@ export function Tooltip({
 
   return (
     <span
+      data-icon-only={iconOnly ? "" : undefined}
       className={cn("group relative inline-block", className)}
       onFocusCapture={() => setIsDismissed(false)}
       onPointerEnter={() => setIsDismissed(false)}

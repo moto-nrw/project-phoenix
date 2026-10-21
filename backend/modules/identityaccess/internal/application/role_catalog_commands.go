@@ -6,7 +6,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess/internal/domain"
 )
 
-func (r *RoleCatalog) ListRoles(ctx context.Context, filter domain.RoleFilter) (value0 []domain.ManagedRole, err error) {
+func (r *RoleCatalog) listRoles(ctx context.Context, filter domain.RoleFilter) (value0 []domain.ManagedRole, err error) {
 	err = r.run(ctx, func(txCtx context.Context) error {
 		value0, err = r.inUnitListRoles(txCtx, filter)
 		return err
@@ -14,7 +14,7 @@ func (r *RoleCatalog) ListRoles(ctx context.Context, filter domain.RoleFilter) (
 	return
 }
 
-func (r *RoleCatalog) ListPermissions(ctx context.Context, filter domain.PermissionFilter) (value0 []domain.ManagedPermission, err error) {
+func (r *RoleCatalog) listPermissions(ctx context.Context, filter domain.PermissionFilter) (value0 []domain.ManagedPermission, err error) {
 	err = r.run(ctx, func(txCtx context.Context) error {
 		value0, err = r.inUnitListPermissions(txCtx, filter)
 		return err

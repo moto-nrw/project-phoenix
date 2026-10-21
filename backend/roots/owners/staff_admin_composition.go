@@ -7,6 +7,7 @@ import (
 
 	auditModels "github.com/moto-nrw/project-phoenix/modules/auditlog/records"
 	"github.com/moto-nrw/project-phoenix/modules/peopledirectory"
+	peoplePorts "github.com/moto-nrw/project-phoenix/modules/peopledirectory/ports"
 
 	"github.com/moto-nrw/project-phoenix/modules/schoolmembership"
 	"github.com/moto-nrw/project-phoenix/modules/securityruntime"
@@ -24,6 +25,7 @@ type staffAdminStaffRows interface {
 
 // staffAdminPersonRows are the retained person rows behind a staff member.
 type staffAdminPersonRows interface {
+	FindByID(context.Context, interface{}) (*peopledirectory.DirectoryPersonSnapshot, error)
 	FindByIDForUpdate(context.Context, int64) (*peopledirectory.DirectoryPersonSnapshot, error)
 }
 
@@ -74,10 +76,26 @@ type staffAdminSubjects struct {
 }
 
 func (s staffAdminSubjects) StaffWithPerson(ctx context.Context, staffID int64) (workforceModule.StaffProfile, error) {
-	staff, err := s.staff.FindWithPerson(ctx, staffID)
+	live, err := s.staff.FindWithPerson(ctx, staffID)
+	if err == nil {
+		return *publicStaffProfile(live), nil
+	}
+	if !peoplePorts.IsRepositoryNoRows(err) {
+		return workforceModule.StaffProfile{}, err
+	}
+	members, err := s.membership.ListStaff(ctx, schoolmembership.StaffFilter{IDs: []int64{staffID}, IncludeDeleted: true})
 	if err != nil {
 		return workforceModule.StaffProfile{}, err
 	}
+	if len(members) != 1 || members[0].PersonalDataErasedAt != nil {
+		return workforceModule.StaffProfile{}, membershipNotFound("read staff profile")
+	}
+	staff := toLegacyStaff(members[0])
+	person, err := s.persons.rows.FindByID(ctx, staff.PersonID)
+	if err != nil {
+		return workforceModule.StaffProfile{}, err
+	}
+	staff.Person = person
 	return *publicStaffProfile(staff), nil
 }
 

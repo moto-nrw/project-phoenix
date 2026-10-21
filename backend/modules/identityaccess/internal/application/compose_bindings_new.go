@@ -25,3 +25,12 @@ func BindTenantRuntime(sessions *identityBindingPorts.SessionDependencies, unit 
 	}
 	return sessions, attach
 }
+
+// bindRuntime attaches the composed unit of work ahead of a public flow; a
+// composition without one binds nothing.
+func bindRuntime(attach func(context.Context) context.Context, ctx context.Context) context.Context {
+	if attach == nil {
+		return ctx
+	}
+	return attach(ctx)
+}

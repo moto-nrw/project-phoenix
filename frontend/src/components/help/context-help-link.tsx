@@ -97,15 +97,16 @@ export function ContextHelpLink({
     <Tooltip
       content="Hilfe zu dieser Seite"
       asChild
+      iconOnly
       className={containerClassName}
-      bubbleClassName="left-1/2 -translate-x-1/2"
+      bubbleClassName="right-0 left-auto"
     >
       <ButtonLink
         href={href}
         variant="ghost"
         size="icon"
         aria-label="Hilfe zu dieser Seite"
-        className={cn("size-10 shrink-0 rounded-full", className)}
+        className={cn("size-11 shrink-0 rounded-full lg:size-10", className)}
       >
         <QuestionIcon className="size-5" weight="bold" aria-hidden="true" />
       </ButtonLink>

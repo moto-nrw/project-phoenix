@@ -62,7 +62,8 @@ type StaffDataAccess struct {
 // unchanged, so a missing row keeps the repository not-found shape the HTTP
 // layer classifies as 404.
 type StaffAdminSubjects interface {
-	// StaffWithPerson reads a live staff member together with its person.
+	// StaffWithPerson reads a live or retained staff member with its person.
+	// Erased employments are excluded; writes use the live-only lock.
 	StaffWithPerson(ctx context.Context, staffID int64) (StaffProfile, error)
 	// StaffExists proves the live staff member is visible in the tenant.
 	StaffExists(ctx context.Context, staffID int64) error

@@ -21,7 +21,7 @@ const (
 
 type guardianFixture struct {
 	ctx       context.Context
-	module    *careplan.Module
+	module    careplan.Owner
 	studentID int64
 	staffID   int64
 	accountID int64
@@ -185,7 +185,7 @@ func TestGuardianAbsenceReportRequiresDates(t *testing.T) {
 // records whether the row still existed, which proves the release ran first.
 type recordingExcusal struct {
 	careplan.PickupAutoExcusal
-	module *careplan.Module
+	module careplan.Owner
 	calls  []string
 	synced []int64
 }
@@ -325,7 +325,7 @@ func TestGuardianPickupExceptionJoinsCallerTransaction(t *testing.T) {
 // hiddenPickupRows hides existing pickup exceptions from the command, so the
 // apply takes the create path while the row already exists: the same state a
 // concurrent guardian write produces between the read and the insert.
-type hiddenPickupRows struct{ *careplan.Module }
+type hiddenPickupRows struct{ careplan.Owner }
 
 func (hiddenPickupRows) ListPickupExceptions(context.Context, careplan.StudentScheduleFilter) ([]careplan.PickupException, error) {
 	return nil, nil

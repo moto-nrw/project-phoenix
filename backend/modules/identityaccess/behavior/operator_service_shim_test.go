@@ -11,7 +11,7 @@ import (
 // service's call shapes: a net.IP client address and one argument per field.
 // The flows are the module's since #3252 and #3332; the shim below keeps the
 // suites driving them without rewriting every call site (#3364).
-type operatorServiceShim struct{ module *identityaccess.Module }
+type operatorServiceShim struct{ module identityaccess.Owner }
 
 func clientAddressOf(clientIP net.IP) string {
 	if clientIP == nil {

@@ -301,7 +301,7 @@ func (s *TemplateSplitService) normalizeEffectiveDateInSegment(
 	op string,
 	clampBeforeStart bool,
 ) (calendar.Date, *calendar.Date, error) {
-	schedules, err := s.deps.ScheduleRepo.FindByGroupID(ctx, templateID)
+	schedules, err := groupSchedules(ctx, s.deps.ScheduleRepo, templateID)
 	if err != nil {
 		return calendar.Date(""), nil, &ports.ScheduleError{Op: op + ": load schedule envelope", Err: err}
 	}

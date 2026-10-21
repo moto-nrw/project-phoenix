@@ -6,16 +6,6 @@ import (
 	"unicode/utf8"
 )
 
-var (
-	// ErrOperatorInvitationNotFound reports a lookup that matched no
-	// invitation, or a redemption, revocation or extension that found no
-	// invitation in a state that allows it.
-	ErrOperatorInvitationNotFound = errors.New("operator invitation not found")
-	// ErrOperatorEmailChangeNotFound reports a redemption that found no
-	// unused, unexpired e-mail change link.
-	ErrOperatorEmailChangeNotFound = errors.New("operator email change not found")
-)
-
 // maxDeliveryErrorRunes bounds the stored delivery error so a verbose SMTP
 // reply cannot grow the row without limit.
 const maxDeliveryErrorRunes = 1024
