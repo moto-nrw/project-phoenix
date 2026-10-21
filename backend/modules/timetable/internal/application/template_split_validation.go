@@ -272,7 +272,7 @@ func validateSplitMaterializationWindow(in TemplateSplitInput) error {
 // loadTemplate resolves the old template and enforces the split preconditions:
 // it must exist in the current tenant, be a template, and not be archived.
 func (s *TemplateSplitService) loadTemplate(ctx context.Context, id int64) (*activityContract.Group, error) {
-	group, err := s.deps.GroupRepo.FindByID(ctx, id)
+	group, err := findLegacyGroup(ctx, s.deps.GroupRepo, id)
 	if err != nil {
 		if domain.IsRecordNotFound(err) {
 			return nil, timetable.ErrSplitTemplateNotFound

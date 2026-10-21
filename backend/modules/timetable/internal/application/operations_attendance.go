@@ -185,7 +185,7 @@ func (s *operations) resolveActiveGroupLabel(ctx context.Context, activeGroupID 
 		return ""
 	}
 	if group.ActivityGroupID != nil {
-		if activityGroup, err := s.deps.Templates.FindByID(ctx, *group.ActivityGroupID); err == nil && activityGroup != nil {
+		if activityGroup, err := findLegacyGroup(ctx, s.deps.Templates, *group.ActivityGroupID); err == nil && activityGroup != nil {
 			return activityGroup.Name
 		}
 	}

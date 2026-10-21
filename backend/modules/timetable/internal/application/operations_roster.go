@@ -443,14 +443,14 @@ func (s *operations) loadRosterTemplateGroup(ctx context.Context, activityGroupI
 	if activityGroupID == nil || *activityGroupID <= 0 {
 		return nil, nil
 	}
-	group, err := s.deps.Templates.FindByID(ctx, *activityGroupID)
+	group, err := findLegacyGroup(ctx, s.deps.Templates, *activityGroupID)
 	if err != nil {
 		if domain.IsRecordNotFound(err) {
 			return nil, nil
 		}
 		return nil, err
 	}
-	targetsByGroup, err := s.deps.Templates.FindTargetsByGroupIDs(ctx, []int64{*activityGroupID})
+	targetsByGroup, err := legacyGroupTargets(ctx, s.deps.Templates, []int64{*activityGroupID})
 	if err != nil {
 		return nil, err
 	}

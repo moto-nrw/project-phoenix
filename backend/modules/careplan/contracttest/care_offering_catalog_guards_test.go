@@ -109,7 +109,7 @@ func (f *calendarPeriodValidationFixture) createLinkedTemplate(
 	}
 	group.TenantID = f.tenantID
 	timetableRepos := testTimetableRepositories(f.db)
-	require.NoError(t, timetableCompose.NativeGroupRecords(timetableRepos.ActivityGroup).Create(f.ctx, group))
+	require.NoError(t, timetableCompose.NativeGroupRecords(timetableRepos.Timetable).Create(f.ctx, group))
 	timeframe := testpkg.CreateTestTimeframeForTenant(
 		t,
 		f.db,
@@ -292,7 +292,7 @@ func TestCareOfferingCalendarPeriodValidation_ProtectsNonOverlappingLinkedRootDe
 		CalendarPeriodID: &successorPeriod.ID,
 	}
 	successor.TenantID = fixture.tenantID
-	require.NoError(t, timetableCompose.NativeGroupRecords(timetableRepos.ActivityGroup).Create(fixture.ctx, successor))
+	require.NoError(t, timetableCompose.NativeGroupRecords(timetableRepos.Timetable).Create(fixture.ctx, successor))
 	successorSchedule := &timetable.Schedule{
 		Weekday:          timetable.WeekdayMonday,
 		ActivityGroupID:  successor.ID,
@@ -493,7 +493,7 @@ func TestCareOfferingMaterializability_RejectsIncompleteTimeframeAndRoom(t *test
 			calendar.NewDate(2026, 8, 1), calendar.NewDate(2027, 8, 31))
 		group := createCareOfferingTemplateGroup(t, db, "missing-room")
 		group.PlannedRoomID = nil
-		require.NoError(t, timetableCompose.NativeGroupRecords(testTimetableRepositories(db).ActivityGroup).Update(testpkg.Ctx(t), group))
+		require.NoError(t, timetableCompose.NativeGroupRecords(testTimetableRepositories(db).Timetable).Update(testpkg.Ctx(t), group))
 		end := calendar.NormalizeWallClock(time.Date(2000, 1, 1, 15, 0, 0, 0, time.UTC))
 		createCareMaterializationSchedule(t, db, group.ID, period.ID, &end)
 
@@ -517,7 +517,7 @@ func TestCareOfferingMaterializability_ExceptionCannotRescueMissingTimeframe(t *
 	group := createCareOfferingTemplateGroup(t, db, "exception-no-timeframe")
 	group.PlannedRoomID = nil
 	timetableRepos := testTimetableRepositories(db)
-	require.NoError(t, timetableCompose.NativeGroupRecords(timetableRepos.ActivityGroup).Update(testpkg.Ctx(t), group))
+	require.NoError(t, timetableCompose.NativeGroupRecords(timetableRepos.Timetable).Update(testpkg.Ctx(t), group))
 	schedule := &timetable.Schedule{
 		Weekday:          timetable.WeekdayMonday,
 		ActivityGroupID:  group.ID,
@@ -591,7 +591,7 @@ func TestCareOfferingMaterializability_UsesDateSpecificExceptionRoom(t *testing.
 	group := createCareOfferingTemplateGroup(t, db, "exception-room")
 	group.PlannedRoomID = nil
 	timetableRepos := testTimetableRepositories(db)
-	require.NoError(t, timetableCompose.NativeGroupRecords(timetableRepos.ActivityGroup).Update(testpkg.Ctx(t), group))
+	require.NoError(t, timetableCompose.NativeGroupRecords(timetableRepos.Timetable).Update(testpkg.Ctx(t), group))
 	end := calendar.NormalizeWallClock(time.Date(2000, 1, 1, 15, 0, 0, 0, time.UTC))
 	createCareMaterializationSchedule(t, db, group.ID, period.ID, &end)
 	overrideRoom := testpkg.CreateTestRoom(t, db, "Care exception override")
@@ -644,8 +644,8 @@ func TestCareOfferingMaterializability_ExceptionIsScopedToSplitSeriesSegment(t *
 	successor.PlannedRoomID = nil
 	successor.SeriesRootID = &root.ID
 	timetableRepos := testTimetableRepositories(db)
-	require.NoError(t, timetableCompose.NativeGroupRecords(timetableRepos.ActivityGroup).Update(testpkg.Ctx(t), root))
-	require.NoError(t, timetableCompose.NativeGroupRecords(timetableRepos.ActivityGroup).Update(testpkg.Ctx(t), successor))
+	require.NoError(t, timetableCompose.NativeGroupRecords(timetableRepos.Timetable).Update(testpkg.Ctx(t), root))
+	require.NoError(t, timetableCompose.NativeGroupRecords(timetableRepos.Timetable).Update(testpkg.Ctx(t), successor))
 	timeframe := testpkg.CreateTestTimeframeForTenant(t, db, testpkg.Tenant(t), "segment exception")
 	rootSchedule := &timetable.Schedule{
 		Weekday:          timetable.WeekdayMonday,
@@ -790,7 +790,7 @@ func TestCareOfferingMaterializability_CancellationDoesNotRequireRoom(t *testing
 	group := createCareOfferingTemplateGroup(t, db, "cancelled-room")
 	group.PlannedRoomID = nil
 	timetableRepos := testTimetableRepositories(db)
-	require.NoError(t, timetableCompose.NativeGroupRecords(timetableRepos.ActivityGroup).Update(testpkg.Ctx(t), group))
+	require.NoError(t, timetableCompose.NativeGroupRecords(timetableRepos.Timetable).Update(testpkg.Ctx(t), group))
 	end := calendar.NormalizeWallClock(time.Date(2000, 1, 1, 15, 0, 0, 0, time.UTC))
 	createCareMaterializationSchedule(t, db, group.ID, period.ID, &end)
 	exception := &timetable.ActivityException{

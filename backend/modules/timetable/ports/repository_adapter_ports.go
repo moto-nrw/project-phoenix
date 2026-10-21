@@ -2,6 +2,8 @@ package ports
 
 import (
 	"context"
+
+	"github.com/moto-nrw/project-phoenix/modules/timetable"
 )
 
 // RepositoryDirectories are the consumer-owned ports through which the retained
@@ -28,6 +30,8 @@ type RepositoryDirectories struct {
 	StudentAlumni func(ctx context.Context, ids []int64) (map[int64]bool, error)
 	// StudentNames names students by ID.
 	StudentNames func(ctx context.Context, ids []int64) (map[int64]PersonName, error)
+	// ActivePeriods lists School Calendar's active calendar periods.
+	ActivePeriods func(ctx context.Context) ([]timetable.TemplateCapacityPeriod, error)
 }
 
 // ShiftType is the name and colour of one Schichtart.

@@ -10,6 +10,7 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
 	"github.com/moto-nrw/project-phoenix/modules/securityruntime"
+	"github.com/moto-nrw/project-phoenix/modules/timetable"
 	databasestats "github.com/moto-nrw/project-phoenix/modules/transactionruntime"
 	transactionruntime "github.com/moto-nrw/project-phoenix/modules/transactionruntime/compose"
 	stats "github.com/moto-nrw/project-phoenix/modules/transactionruntime/stats"
@@ -44,7 +45,7 @@ func NewDatabaseStatsTestReader(db transactionruntime.Database) (DatabaseStatsRe
 		},
 		Rooms: func(ctx context.Context) (int, error) { rows, err := rooms.Room.List(ctx, nil); return len(rows), err },
 		Activities: func(ctx context.Context) (int, error) {
-			rows, err := repos.ActivityGroup.ListAll(ctx)
+			rows, err := repos.Timetable.ListGroups(ctx, timetable.GroupFilter{})
 			return len(rows), err
 		},
 		Groups: func(ctx context.Context) (int, error) {

@@ -96,15 +96,13 @@ func newPlannedNowBudgetOperations(t *testing.T, db *bun.DB, staffFixture *testp
 		Instances:       fixtures.IntoActivityInstanceRecords(fixtures.FromActivityInstanceRecords(timetableRepos.ActivityInstance)),
 		InstanceStaff:   fixtures.IntoInstanceStaffRecords(fixtures.FromInstanceStaffRecords(timetableRepos.InstanceStaff)),
 		Participants:    fixtures.IntoInstanceStudentRecords(fixtures.FromInstanceStudentRecords(timetableRepos.InstanceStudent)),
-		Templates:       timetableRepos.ActivityGroup,
+		Templates:       timetableRepos.Timetable,
 		Students:        owners.NewTimetableRosterStudents(repos.Student),
 		EducationGroups: owners.TimetableEducationGroupNames(reposStructure.Group),
 		Rooms:           owners.NewTimetableRoomNames(rooms),
 	}
-	templates, err := compose.NewOperationTemplates(rows.Templates)
-	require.NoError(t, err)
 	deps.Instances, deps.InstanceStaff, deps.Participants = fixtures.IntoOperationInstances(fixtures.FromActivityInstanceRecords(rows.Instances)), fixtures.IntoOperationInstanceStaff(fixtures.FromInstanceStaffRecords(rows.InstanceStaff)), fixtures.IntoOperationParticipants(fixtures.FromInstanceStudentRecords(rows.Participants))
-	deps.Templates, deps.Students = templates, rows.Students
+	deps.Templates, deps.Students = rows.Templates, rows.Students
 	deps.EducationGroups, deps.Rooms = rows.EducationGroups, rows.Rooms
 	deps.BlockMetadata = api.NewTimetableBlockDisplayForTests(testpkg.MustDatabase(db))
 	operations, err := compose.NewOperations(deps, owners.TimetableOperationCaller{RequestSession: deps.Session})

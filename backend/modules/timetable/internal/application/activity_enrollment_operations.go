@@ -26,7 +26,7 @@ func (s *ActivityService) EnrollStudent(ctx context.Context, groupID, studentID 
 	}
 
 	// Check if student is already enrolled
-	enrollments, err := s.enrollmentRepo.FindByGroupID(ctx, groupID)
+	enrollments, err := groupStudentEnrollments(ctx, s.timetable, s.directories, groupID)
 	if err != nil {
 		return &activityContract.ActivityError{Op: "enroll student", Err: err}
 	}
@@ -43,7 +43,7 @@ func (s *ActivityService) EnrollStudent(ctx context.Context, groupID, studentID 
 		ActivityGroupID: groupID,
 		ValidFrom:       activityContract.Date(calendar.TodayDate()),
 	}
-	if err := s.enrollmentRepo.Create(ctx, enrollment); err != nil {
+	if err := createLegacyStudentEnrollment(ctx, s.timetable, enrollment); err != nil {
 		return &activityContract.ActivityError{Op: "enroll student", Err: err}
 	}
 
@@ -56,7 +56,7 @@ func (s *ActivityService) UnenrollStudent(ctx context.Context, groupID, studentI
 		return &activityContract.ActivityError{Op: "unenroll student", Err: err}
 	}
 
-	enrollments, err := s.enrollmentRepo.FindByGroupID(ctx, groupID)
+	enrollments, err := groupStudentEnrollments(ctx, s.timetable, s.directories, groupID)
 	if err != nil {
 		return &activityContract.ActivityError{Op: "unenroll student", Err: err}
 	}
@@ -66,7 +66,7 @@ func (s *ActivityService) UnenrollStudent(ctx context.Context, groupID, studentI
 		return &activityContract.ActivityError{Op: "unenroll student", Err: err}
 	}
 
-	if err := s.enrollmentRepo.Delete(ctx, enrollmentID); err != nil {
+	if err := deleteLegacyStudentEnrollment(ctx, s.timetable, enrollmentID); err != nil {
 		return &activityContract.ActivityError{Op: "unenroll student", Err: err}
 	}
 
@@ -91,7 +91,7 @@ func (s *ActivityService) UpdateGroupEnrollments(ctx context.Context, groupID in
 		return &activityContract.ActivityError{Op: "UpdateGroupEnrollments", Err: err}
 	}
 
-	enrollments, err := s.enrollmentRepo.FindByGroupID(ctx, groupID)
+	enrollments, err := groupStudentEnrollments(ctx, s.timetable, s.directories, groupID)
 	if err != nil {
 		return &activityContract.ActivityError{Op: "update group enrollments", Err: err}
 	}
@@ -368,9 +368,10 @@ func ascendingUniqueIDs(ids []int64) []int64 {
 // removeUnwantedEnrollmentsInTx removes students that are no longer enrolled,
 // except the ones the caller could not have seen (preserved).
 func (s *ActivityService) removeUnwantedEnrollmentsInTx(ctx context.Context, txService activityContract.ActivityService, currentStudentIDs map[int64]int64, newStudentIDs, preserved map[int64]bool) error {
+	txActivities := txService.(*ActivityService)
 	for studentID, enrollmentID := range currentStudentIDs {
 		if !newStudentIDs[studentID] && !preserved[studentID] {
-			if err := txService.(*ActivityService).enrollmentRepo.Delete(ctx, enrollmentID); err != nil {
+			if err := deleteLegacyStudentEnrollment(ctx, txActivities.timetable, enrollmentID); err != nil {
 				return &activityContract.ActivityError{Op: "delete enrollment", Err: err}
 			}
 		}
@@ -380,6 +381,7 @@ func (s *ActivityService) removeUnwantedEnrollmentsInTx(ctx context.Context, txS
 
 // addNewEnrollmentsInTx adds new student enrollments
 func (s *ActivityService) addNewEnrollmentsInTx(ctx context.Context, txService activityContract.ActivityService, groupID int64, currentStudentIDs map[int64]int64, studentIDs []int64) error {
+	txActivities := txService.(*ActivityService)
 	for _, studentID := range studentIDs {
 		if _, exists := currentStudentIDs[studentID]; !exists {
 			enrollment := &activityContract.StudentEnrollment{
@@ -387,7 +389,7 @@ func (s *ActivityService) addNewEnrollmentsInTx(ctx context.Context, txService a
 				ActivityGroupID: groupID,
 				ValidFrom:       activityContract.Date(calendar.TodayDate()),
 			}
-			if err := txService.(*ActivityService).enrollmentRepo.Create(ctx, enrollment); err != nil {
+			if err := createLegacyStudentEnrollment(ctx, txActivities.timetable, enrollment); err != nil {
 				return &activityContract.ActivityError{Op: "create enrollment", Err: err}
 			}
 		}
@@ -405,7 +407,7 @@ func (s *ActivityService) addNewEnrollmentsInTx(ctx context.Context, txService a
 // (#405 review).
 func (s *ActivityService) GetEnrolledStudents(ctx context.Context, groupID int64) ([]*timetable.OperationStudent, error) {
 	// Get the enrollments for this group
-	enrollments, err := s.enrollmentRepo.FindByGroupID(ctx, groupID)
+	enrollments, err := groupStudentEnrollments(ctx, s.timetable, s.directories, groupID)
 	if err != nil {
 		return nil, &activityContract.ActivityError{Op: "get enrolled students", Err: err}
 	}
@@ -461,7 +463,7 @@ func (s *ActivityService) GetStudentEnrollments(ctx context.Context, studentID i
 	}
 
 	// Get all enrollments for this student
-	enrollments, err := s.enrollmentRepo.FindByStudentID(ctx, studentID)
+	enrollments, err := studentEnrollments(ctx, s.timetable, studentID)
 	if err != nil {
 		return nil, &activityContract.ActivityError{Op: "get student enrollments", Err: err}
 	}
@@ -477,7 +479,7 @@ func (s *ActivityService) GetStudentEnrollments(ctx context.Context, studentID i
 		return []*activityContract.Group{}, nil
 	}
 
-	groups, err := s.groupRepo.ListWithCategory(ctx, &activityContract.GroupListQuery{IDs: groupIDs})
+	groups, err := listLegacyGroups(ctx, s.timetable, timetable.GroupFilter{IDs: groupIDs}, "list")
 	if err != nil {
 		return nil, &activityContract.ActivityError{Op: "get student enrollments", Err: err}
 	}
@@ -493,7 +495,7 @@ func (s *ActivityService) GetActiveStudentEnrollmentsByStudentIDs(ctx context.Co
 		return result, nil
 	}
 
-	enrollments, err := s.enrollmentRepo.FindActiveByStudentIDs(ctx, studentIDs, activityContract.Date(onDate))
+	enrollments, err := activeStudentEnrollments(ctx, s.timetable, studentIDs, activityContract.Date(onDate))
 	if err != nil {
 		return nil, &activityContract.ActivityError{Op: "get active student enrollments by student IDs", Err: err}
 	}
@@ -541,13 +543,14 @@ func (s *ActivityService) GetAvailableGroups(ctx context.Context, studentID int6
 	}
 
 	// Get all active groups - assuming FindOpenGroups is the correct method
-	allGroups, err := s.groupRepo.FindOpenGroups(ctx)
+	open, system := true, false
+	allGroups, err := listLegacyGroups(ctx, s.timetable, timetable.GroupFilter{IsOpen: &open, IsSystem: &system, OrderByName: true}, "find open groups")
 	if err != nil {
 		return nil, &activityContract.ActivityError{Op: "get all groups", Err: err}
 	}
 
 	// Get enrollments for this student
-	enrollments, err := s.enrollmentRepo.FindByStudentID(ctx, studentID)
+	enrollments, err := studentEnrollments(ctx, s.timetable, studentID)
 	if err != nil {
 		return nil, &activityContract.ActivityError{Op: "get student enrollments", Err: err}
 	}

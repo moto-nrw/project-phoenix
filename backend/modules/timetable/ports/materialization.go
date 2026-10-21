@@ -23,10 +23,13 @@ type CareBoundReader interface {
 // Staffing announces created instances to the staffing caches (#1844); nil
 // announces nothing.
 type MaterializationDependencies struct {
-	GroupRepo      ActivityGroupRecords
+	GroupRepo      timetable.ActivityGroupQuery
 	ScheduleRepo   timetable.ScheduleQuery
-	EnrollmentRepo ActivityEnrollmentRecords
-	SupervisorRepo PlannedSupervisorRecords
+	EnrollmentRepo timetable.StudentEnrollmentQuery
+	SupervisorRepo timetable.PlannedSupervisorQuery
+	// Directories name the enrolled children with their alumni state and
+	// the planned supervisors' persons.
+	Directories    RepositoryDirectories
 	PeriodRepo     CalendarPeriodRecords
 	InstanceRepo   ActivityInstanceRecords
 	StaffRepo      InstanceStaffRecords
