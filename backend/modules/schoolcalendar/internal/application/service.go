@@ -19,7 +19,8 @@ type Service struct {
 	store          ports.Store
 	observe        ports.Observer
 	administration Administration
-	algorithms     CalendarAlgorithms
+	// CalendarAlgorithms promotes ValidHolidayRegion unchanged.
+	CalendarAlgorithms
 }
 
 // New composes the service. The administrative write path needs a
@@ -30,7 +31,7 @@ func New(store ports.Store, observe ports.Observer, administration Administratio
 		panic("school calendar application: all dependencies are required")
 	}
 	administration.Observe = observe
-	return &Service{store: store, observe: observe, administration: administration, algorithms: algorithms}
+	return &Service{store: store, observe: observe, administration: administration, CalendarAlgorithms: algorithms}
 }
 
 // --- calendar periods ---
@@ -40,10 +41,6 @@ func New(store ports.Store, observe ports.Observer, administration Administratio
 // --- dateframes ---
 
 // --- holidays and calendar documents ---
-
-func (s *Service) ValidHolidayRegion(region string) bool {
-	return s.algorithms.ValidHolidayRegion(region)
-}
 
 // --- plumbing ---
 
@@ -79,7 +76,7 @@ func WithAdministration(records schoolcalendar.Days, administration Administrati
 	}
 	administration.FederalState = original.administration.FederalState
 	administration.Observe = observe
-	return &Service{store: original.store, observe: original.observe, administration: administration, algorithms: original.algorithms}, nil
+	return &Service{store: original.store, observe: original.observe, administration: administration, CalendarAlgorithms: original.CalendarAlgorithms}, nil
 }
 
 func BerlinToday() string { return time.Now().In(calendar.Berlin).Format(schoolcalendar.DateLayout) }

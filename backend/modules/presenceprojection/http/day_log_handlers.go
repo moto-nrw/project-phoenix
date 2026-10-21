@@ -360,7 +360,7 @@ func (rs *Resource) loadDayLogAttendance(ctx context.Context, data *dayLogData, 
 
 func (rs *Resource) loadDayLogSignOffs(ctx context.Context, data *dayLogData, studentIDs []int64, date calendar.Date, clock dayLogClock) error {
 	if rs.StudentStatusDayService != nil {
-		statuses, err := rs.StudentStatusDayService.GetSignedOffByStudentIDsAndDate(ctx, studentIDs, date)
+		statuses, err := rs.StudentStatusDayService.FindSignedOffByStudentIDsAndDate(ctx, studentIDs, date)
 		if err != nil {
 			return err
 		}

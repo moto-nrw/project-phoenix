@@ -222,7 +222,7 @@ type fakeVisits struct {
 func (v *fakeVisits) Current(context.Context, int64) (*ports.CurrentVisit, error) {
 	return v.current, v.currentErr
 }
-func (v *fakeVisits) End(_ context.Context, id int64) error {
+func (v *fakeVisits) EndVisit(_ context.Context, id int64) error {
 	v.ended = append(v.ended, id)
 	return v.endErr
 }
@@ -285,7 +285,7 @@ func (s *fakeSessions) EnsureRoomSession(_ context.Context, input devicescan.New
 	activityID := input.ActivityID
 	return devicescan.Session{ID: 200 + s.nextSessionID, RoomID: input.RoomID, StartTime: fixedNow, TemplateID: &activityID}, nil
 }
-func (s *fakeSessions) Delete(_ context.Context, id int64) error {
+func (s *fakeSessions) DeleteActiveGroup(_ context.Context, id int64) error {
 	s.deleted = append(s.deleted, id)
 	return nil
 }
@@ -293,7 +293,7 @@ func (s *fakeSessions) End(_ context.Context, id int64) error {
 	s.ended = append(s.ended, id)
 	return s.endErr
 }
-func (s *fakeSessions) Touch(_ context.Context, id int64) error {
+func (s *fakeSessions) UpdateSessionActivity(_ context.Context, id int64) error {
 	s.touched = append(s.touched, id)
 	return s.touchErr
 }
@@ -427,7 +427,7 @@ type fakeSettings struct {
 	allRoomsErr      error
 }
 
-func (s fakeSettings) PresenceMode(context.Context) (string, error) {
+func (s fakeSettings) GetPresenceMode(context.Context) (string, error) {
 	if s.modeErr != nil {
 		return "", s.modeErr
 	}

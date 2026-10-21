@@ -17,11 +17,12 @@ type pickupScheduleService struct {
 	*effectiveTimeCore[*careplan.PickupSchedule, *careplan.PickupException, *careplan.PickupNote, PickupTimeDomain]
 	scheduleRepo ports.PickupScheduleRepository
 	autoExcusal  careplan.PickupAutoExcusal
-	baselines    careplan.PickupBaselineReader
-	tx           ports.PickupScheduleTransaction
-	students     ports.PickupBulkStudents
-	departures   careplan.DepartureExceptions
-	logger       *slog.Logger
+	// The baselines answer HasBookedOfferingPickupForWeekday directly.
+	careplan.PickupBaselineReader
+	tx         ports.PickupScheduleTransaction
+	students   ports.PickupBulkStudents
+	departures careplan.DepartureExceptions
+	logger     *slog.Logger
 }
 
 func NewPickupSchedules(schedules ports.PickupScheduleRepository, exceptions ports.EffectiveExceptionRepository[*careplan.PickupException],
@@ -31,7 +32,7 @@ func NewPickupSchedules(schedules ports.PickupScheduleRepository, exceptions por
 ) careplan.PickupScheduleService {
 	return &pickupScheduleService{
 		effectiveTimeCore: newEffectiveTimeCore(schedules, exceptions, notes, tx, PickupTimeDomain{}),
-		scheduleRepo:      schedules, autoExcusal: auto, baselines: baselines, tx: tx,
+		scheduleRepo:      schedules, autoExcusal: auto, PickupBaselineReader: baselines, tx: tx,
 		students: students, departures: departures, logger: logger,
 	}
 }
@@ -58,10 +59,6 @@ func (s *pickupScheduleService) GetStudentPickupSchedules(
 		return nil, err
 	}
 	return rows, nil
-}
-
-func (s *pickupScheduleService) HasBookedOfferingPickupForWeekday(ctx context.Context, studentID int64, weekday int) (bool, error) {
-	return s.baselines.HasBookedOfferingPickupForWeekday(ctx, studentID, weekday)
 }
 
 func (s *pickupScheduleService) GetWeeklySchedulesByStudentIDsAndWeekday(
@@ -125,7 +122,7 @@ func (s *pickupScheduleService) projectedWeeklySchedules(
 	studentIDs []int64,
 	date calendar.Date,
 ) ([]*careplan.PickupSchedule, error) {
-	projection, err := s.baselines.Project(ctx, studentIDs, date, date)
+	projection, err := s.Project(ctx, studentIDs, date, date)
 	if err != nil {
 		return nil, &careplan.ScheduleError{Op: "project student pickup schedules", Err: err}
 	}
@@ -240,7 +237,7 @@ func (s *pickupScheduleService) manualRowsForReplacement(
 		return nil, &careplan.ScheduleError{Op: "prepare pickup schedule replacement", Err: err}
 	}
 	weekStart := date.AddDays(1 - domain.ISOWeekday(date))
-	projection, err := s.baselines.Project(ctx, []int64{studentID}, weekStart, weekStart.AddDays(4))
+	projection, err := s.Project(ctx, []int64{studentID}, weekStart, weekStart.AddDays(4))
 	if err != nil {
 		return nil, &careplan.ScheduleError{Op: "prepare pickup schedule replacement", Err: err}
 	}
@@ -440,7 +437,7 @@ func (s *pickupScheduleService) GetStudentPickupDataForRange(
 		return nil, err
 	}
 	data := &careplan.StudentPickupData{Exceptions: coreData.Exceptions, Notes: coreData.Notes}
-	projection, err := s.baselines.Project(ctx, []int64{studentID}, from, to)
+	projection, err := s.Project(ctx, []int64{studentID}, from, to)
 	if err != nil {
 		return nil, &careplan.ScheduleError{Op: "get dated student pickup data", Err: err}
 	}
@@ -484,7 +481,7 @@ func (s *pickupScheduleService) GetBulkEffectivePickupTimesForDate(
 	studentIDs []int64,
 	date calendar.Date,
 ) (map[int64]*careplan.EffectivePickupTime, error) {
-	projection, err := s.baselines.Project(ctx, studentIDs, date, date)
+	projection, err := s.Project(ctx, studentIDs, date, date)
 	if err != nil {
 		return nil, &careplan.ScheduleError{Op: "get bulk effective pickup times", Err: err}
 	}

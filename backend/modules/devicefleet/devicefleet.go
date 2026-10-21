@@ -194,7 +194,8 @@ type DeviceCommand interface {
 	DeleteDevice(context.Context, int64) error
 	UpdateDeviceStatus(context.Context, string, DeviceStatus) error
 	UpdateDeviceLastSeen(context.Context, int64, time.Time) error
-	UpdateDeviceRoom(context.Context, int64, int64) error
+	// UpdateRoomID moves one device into a room.
+	UpdateRoomID(context.Context, int64, int64) error
 }
 
 // DisplayQuery answers info-point reads.

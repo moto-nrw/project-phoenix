@@ -34,7 +34,7 @@ func (s *InstanceLifecycleService) BulkCancelPlanned(ctx context.Context, from, 
 		return result, err
 	}
 	if !opts.DryRun {
-		if err := s.acquireSubstituteDayLocks(ctx, tenant.FromContext(ctx), from, to); err != nil {
+		if err := s.LockDeviationDays(ctx, tenant.FromContext(ctx), from, to); err != nil {
 			return nil, &ports.ScheduleError{Op: "bulk cancel: lock days", Err: err}
 		}
 	}

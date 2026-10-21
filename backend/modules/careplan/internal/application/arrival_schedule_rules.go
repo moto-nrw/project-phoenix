@@ -10,9 +10,10 @@ import (
 	"github.com/moto-nrw/project-phoenix/modules/careplan/internal/ports"
 )
 
+// arrivalScheduleRules serves LockStudent straight from the student port.
 type arrivalScheduleRules struct {
-	students ports.ArrivalRuleStudents
-	classes  ports.ArrivalClassPlans
+	ports.ArrivalRuleStudents
+	classes ports.ArrivalClassPlans
 }
 
 func NewArrivalScheduleRules(students ports.ArrivalRuleStudents, classes ports.ArrivalClassPlans) ports.ArrivalScheduleRules {
@@ -22,15 +23,11 @@ func NewArrivalScheduleRules(students ports.ArrivalRuleStudents, classes ports.A
 	return arrivalScheduleRules{students, classes}
 }
 
-func (s arrivalScheduleRules) LockStudent(ctx context.Context, id int64) error {
-	return s.students.LockStudent(ctx, id)
-}
-
 func (s arrivalScheduleRules) ClassTimesForStudent(ctx context.Context, id int64) (map[int]time.Time, error) {
 	if s.classes == nil {
 		return nil, nil
 	}
-	class, err := s.students.SchoolClass(ctx, id)
+	class, err := s.SchoolClass(ctx, id)
 	if err != nil {
 		return nil, fmt.Errorf("load student before checking class arrival time: %w", err)
 	}

@@ -22,7 +22,7 @@ type MirroredSession struct {
 type MirrorTimetable interface {
 	HasInstance(context.Context, int64) (bool, error)
 	CreateInstance(context.Context, MirroredSession) (MirroredSession, error)
-	AddStaff(context.Context, int64, int64) error
+	AddSessionInstanceStaff(context.Context, int64, int64) error
 	ActivityTitle(context.Context, int64) (string, error)
 	CalendarParts(time.Time) (date string, minutes int)
 }
@@ -103,7 +103,7 @@ func (s *sessionMirror) mirrorStaff(ctx context.Context, instanceID int64, super
 			continue
 		}
 		seen[id] = true
-		if err := s.timetable.AddStaff(ctx, instanceID, id); err != nil {
+		if err := s.timetable.AddSessionInstanceStaff(ctx, instanceID, id); err != nil {
 			s.logger.WarnContext(ctx, "failed to mirror IoT session staff to timetable",
 				slog.Int64("instance_id", instanceID),
 				slog.Int64("staff_id", id),

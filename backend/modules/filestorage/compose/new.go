@@ -131,7 +131,7 @@ func New(dependencies Dependencies) (filestorage.Capability, error) {
 		AttachmentCleanups: postgres.NewAttachmentCleanupStore(runtime),
 		FileObjects:        application.ObjectStore{Kind: fileObjectKind, Backend: dependencies.Objects},
 		AttachmentObjects:  application.ObjectStore{Kind: attachmentObjectKind, Backend: dependencies.Objects},
-		Identity:           application.IdentityAdapter{Module: dependencies.Identity},
+		Identity:           application.IdentityAdapter{Identity: dependencies.Identity, Module: dependencies.Identity},
 		People:             application.PeopleAdapter{Query: dependencies.People},
 		Settings:           dependencies.Settings,
 		Events:             dependencies.Events,

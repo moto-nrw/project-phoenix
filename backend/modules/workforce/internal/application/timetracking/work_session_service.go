@@ -28,8 +28,10 @@ type workSessionService struct {
 	absenceRepo AbsenceRecords
 	// absenceTypes resolves school-defined Abwesenheitsarten for exports
 	// (#2403). Setter injection; nil in bare-constructed unit fixtures.
-	absenceTypes   AbsenceTypeReader
-	supervisorRepo GroupSupervisorRepository
+	absenceTypes AbsenceTypeReader
+	// GroupSupervisorRepository answers GetStaffIDsWithSupervisionToday
+	// for the staff list directly; its other methods serve the checkout.
+	GroupSupervisorRepository
 	groupRepo      GroupRepository
 	db             DatabaseHandle
 	staffRepo      WorkSessionStaff
@@ -81,7 +83,7 @@ func (s *workSessionService) lockStaffBalanceWritesOrdered(ctx context.Context, 
 // NewWorkSessionService creates a new work session service
 
 func NewWorkSessionService(repo WorkSessionRecords, breakRepo WorkSessionBreakRecords, auditRepo WorkSessionAudit, absenceRepo AbsenceRecords, supervisorRepo GroupSupervisorRepository, groupRepo GroupRepository, staffRepo WorkSessionStaff, scheduleRepo WorkSessionSchedules, workModelRepo WorkSessionTimeModels, settings settingsResolver, logger *slog.Logger, db DatabaseHandle, renderPDF TimeTrackingPDFRenderer, renderWorkbook TimeTrackingWorkbookRenderer, opts ...WorkSessionOption) WorkSessionService {
-	service := &workSessionService{repo: repo, breakRepo: breakRepo, auditRepo: auditRepo, absenceRepo: absenceRepo, supervisorRepo: supervisorRepo, groupRepo: groupRepo, staffRepo: staffRepo, scheduleRepo: scheduleRepo, workModelRepo: workModelRepo, settings: settings, logger: logger, db: db, renderPDF: renderPDF, renderWorkbook: renderWorkbook}
+	service := &workSessionService{repo: repo, breakRepo: breakRepo, auditRepo: auditRepo, absenceRepo: absenceRepo, GroupSupervisorRepository: supervisorRepo, groupRepo: groupRepo, staffRepo: staffRepo, scheduleRepo: scheduleRepo, workModelRepo: workModelRepo, settings: settings, logger: logger, db: db, renderPDF: renderPDF, renderWorkbook: renderWorkbook}
 	for _, opt := range opts {
 		opt(service)
 	}

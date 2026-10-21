@@ -83,7 +83,7 @@ type ClassesResponse struct {
 
 // getMyClasses returns the school classes assigned to the caller.
 func (rs *Resource) getMyClasses(w http.ResponseWriter, r *http.Request) {
-	classes, err := rs.ClassDay.AssignedClasses(r.Context())
+	classes, err := rs.ClassDay.GetMySchoolClasses(r.Context())
 	if err != nil {
 		rs.logger.Error("class day: load assigned classes failed",
 			"error", err.Error(),

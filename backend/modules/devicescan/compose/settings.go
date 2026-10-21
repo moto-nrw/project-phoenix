@@ -6,7 +6,6 @@ import (
 	"github.com/moto-nrw/project-phoenix/modules/devicescan/internal/application"
 
 	"github.com/moto-nrw/project-phoenix/modules/devicescan/ports"
-	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
 )
 
 var errSettingsNotConfigured = application.ErrSettingsNotConfigured
@@ -16,14 +15,15 @@ var errSettingsNotConfigured = application.ErrSettingsNotConfigured
 type ScanSettings interface{ application.ScanSettings }
 
 // settings binds the required tenant settings service. Presence mode stays
-// with the retained presence service, which validates the value.
+// with the retained presence service, which validates the value; its
+// GetPresenceMode is promoted unchanged.
 type settings struct {
 	settings ScanSettings
-	active   studentpresence.Presence
+	presenceModes
 }
 
-func (s settings) PresenceMode(ctx context.Context) (string, error) {
-	return s.active.GetPresenceMode(ctx)
+type presenceModes interface {
+	GetPresenceMode(ctx context.Context) (string, error)
 }
 
 func (s settings) FeedbackEnabled(ctx context.Context) (bool, error) {

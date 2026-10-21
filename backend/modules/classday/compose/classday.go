@@ -53,7 +53,7 @@ type ClassDayDependencies struct {
 func NewClassDay(deps ClassDayDependencies) classday.ClassDay {
 	var caller ports.Caller
 	if deps.Caller != nil {
-		caller = application.CallerBinding{Context: deps.Caller}
+		caller = application.CallerBinding{CallerReader: deps.Caller}
 	}
 	var writeScope application.ArrivalWriteScope
 	if deps.WriteScope != nil {
@@ -65,7 +65,7 @@ func NewClassDay(deps ClassDayDependencies) classday.ClassDay {
 		AccessLog: deps.AccessLog, WriteScope: writeScope, Announcer: deps.Announcer,
 	}
 	if deps.PickupTimes != nil && deps.ArrivalTimes != nil {
-		app.Times = application.DayTimeBinding{Pickups: deps.PickupTimes, Arrivals: deps.ArrivalTimes}
+		app.Times = application.DayTimeBinding{ClassDayPickupReader: deps.PickupTimes, Pickups: deps.PickupTimes, Arrivals: deps.ArrivalTimes}
 	}
 	if deps.CareDays != nil {
 		app.CareDays = application.CareDayBinding{Resolver: deps.CareDays}

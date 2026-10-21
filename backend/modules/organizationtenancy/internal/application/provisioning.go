@@ -36,8 +36,10 @@ type ProvisioningDependencies struct {
 
 // Provisioning implements the operator provisioning capability. Every
 // operation runs in one administrative transaction; operations on one school
-// scope their owner calls to that school through the ports.
+// scope their owner calls to that school through the ports. The owner's
+// organisation reads, ListOrganizations among them, are promoted unchanged.
 type Provisioning struct {
+	organizationtenancy.OrganizationQuery
 	pwaUsageWindowDays int
 	organizations      organizationtenancy.Capability
 	tx                 ports.Transaction
@@ -67,6 +69,7 @@ func NewProvisioning(deps ProvisioningDependencies) (*Provisioning, error) {
 		logger = slog.Default()
 	}
 	return &Provisioning{
+		OrganizationQuery:  deps.Organizations,
 		pwaUsageWindowDays: deps.PWAUsageWindowDays,
 		organizations:      deps.Organizations, tx: deps.Transaction, dashboard: deps.Dashboard,
 		identity: deps.Identity, devices: deps.Devices, people: deps.People, presence: deps.Presence,
@@ -116,11 +119,6 @@ func (p *Provisioning) CreateOrganization(ctx context.Context, input *organizati
 			"slug": created.Slug,
 		})
 	})
-}
-
-// ListOrganizations lists every organisation.
-func (p *Provisioning) ListOrganizations(ctx context.Context) ([]organizationtenancy.Organization, error) {
-	return p.organizations.ListOrganizations(ctx)
 }
 
 // UpdateOrganization changes an organisation and records the changed fields.

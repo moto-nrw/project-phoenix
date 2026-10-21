@@ -114,7 +114,7 @@ type fakeProtection struct {
 	err       error
 }
 
-func (p fakeProtection) Protected(context.Context, []int64) (map[int64]bool, error) {
+func (p fakeProtection) CurrentFamilyProtection(context.Context, []int64) (map[int64]bool, error) {
 	return p.protected, p.err
 }
 
