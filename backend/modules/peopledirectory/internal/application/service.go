@@ -11,6 +11,7 @@ import (
 
 // Service owns validation, transactions and the public People Directory capability.
 type Service struct {
+	guardianLinkCommands
 	students          *StudentService
 	guardianRows      *GuardianService
 	guardianDirectory peopledirectory.GuardianProvider
@@ -22,6 +23,16 @@ type Service struct {
 	store             ports.Store
 	tx                ports.Transaction
 	observe           ports.Observer
+}
+
+// guardianLinkCommands are the guardian lifecycle commands the capability
+// serves as they are.
+type guardianLinkCommands interface {
+	DeleteGuardianProfile(ctx context.Context, guardianID int64) error
+	LinkGuardianProfileToAccount(ctx context.Context, guardianID, accountID int64) error
+	LinkInvitedGuardian(ctx context.Context, link peopledirectory.InvitedGuardianLink) (bool, error)
+	PromoteGuardianLinkToLegalGuardian(ctx context.Context, linkID int64) error
+	DeleteStudentGuardianLink(ctx context.Context, linkID int64) error
 }
 
 func New(store ports.Store, tx ports.Transaction, observe ports.Observer, services Services, guardians ...peopledirectory.GuardianProvider) *Service {
@@ -41,7 +52,7 @@ func New(store ports.Store, tx ports.Transaction, observe ports.Observer, servic
 	}
 	return &Service{store: store, tx: tx, observe: observe,
 		students: services.Students, guardianRows: services.Guardians, guardianDirectory: provider,
-		guardianLifecycle: services.GuardianLifecycle, studentAudit: services.StudentAudit,
+		guardianLinkCommands: services.GuardianLifecycle, guardianLifecycle: services.GuardianLifecycle, studentAudit: services.StudentAudit,
 		studentConsents: services.StudentConsents, studentPhotos: services.StudentPhotos, studentNotes: services.StudentNotes,
 	}
 }

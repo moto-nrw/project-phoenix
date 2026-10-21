@@ -403,24 +403,9 @@ func (s *RetainedPersonDirectory) GetStudentByIDForUpdate(ctx context.Context, i
 // reported rather than panicked so it cannot abort a request mid-transaction.
 var errStudentDirectoryUnwired = errors.New("student directory is not configured")
 
-// GetStudentByPersonID retrieves the student record belonging to a person.
-func (s *RetainedPersonDirectory) GetStudentByPersonID(ctx context.Context, personID int64) (*peopleValues.StudentState, error) {
-	return s.deps.StudentRepo.FindByPersonID(ctx, personID)
-}
-
-// GetStudentsByIDs retrieves multiple students by ID.
-func (s *RetainedPersonDirectory) GetStudentsByIDs(ctx context.Context, ids []int64) (map[int64]*peopleValues.StudentState, error) {
-	return s.deps.StudentRepo.FindByIDs(ctx, ids)
-}
-
-// GetStudentsByGroupID retrieves the students of a group.
-func (s *RetainedPersonDirectory) GetStudentsByGroupID(ctx context.Context, groupID int64) ([]*peopleValues.StudentState, error) {
-	return s.deps.StudentRepo.FindByGroupID(ctx, groupID)
-}
-
-// GetStudentsByGroupIDs retrieves the students of multiple groups.
-func (s *RetainedPersonDirectory) GetStudentsByGroupIDs(ctx context.Context, groupIDs []int64) ([]*peopleValues.StudentState, error) {
-	return s.deps.StudentRepo.FindByGroupIDs(ctx, groupIDs)
+// StudentRows returns the retained student repository.
+func (s *RetainedPersonDirectory) StudentRows() peoplePorts.StudentRepository {
+	return s.deps.StudentRepo
 }
 
 // GetParticipationCandidatesByGroupIDs includes alumni so the shared dated
@@ -590,7 +575,7 @@ func (s *RetainedPersonDirectory) ResolveStaffIDByAccountID(ctx context.Context,
 	if err != nil {
 		return 0, fmt.Errorf("person not found for account: %w", err)
 	}
-	staff, err := s.GetStaffByPersonID(ctx, person.ID)
+	staff, err := s.StaffRows().FindByPersonID(ctx, person.ID)
 	if err != nil {
 		return 0, fmt.Errorf("staff not found for editor account: %w", err)
 	}

@@ -39,7 +39,7 @@ func newSchoolInvitation(
 		Policy:    application.RoleAssignmentPolicy{},
 		Grants:    application.InvitationGrantPolicy{Source: deps.Grants},
 		Identity:  lifecycle,
-		Schools:   application.SchoolDirectory{Source: sessions.Schools},
+		Schools:   application.SchoolDirectory{SchoolDirectory: sessions.Schools},
 		Owners:    deps.Owners,
 		Passwords: deps.Passwords,
 		Delivery:  application.SchoolInvitationDelivery{Source: delivery},

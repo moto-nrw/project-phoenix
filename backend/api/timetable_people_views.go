@@ -5,7 +5,7 @@ import (
 
 	owners "github.com/moto-nrw/project-phoenix/roots/owners"
 
-	peopleValues "github.com/moto-nrw/project-phoenix/modules/peopledirectory"
+	peoplePorts "github.com/moto-nrw/project-phoenix/modules/peopledirectory/ports"
 
 	"github.com/moto-nrw/project-phoenix/modules/timetable"
 )
@@ -25,24 +25,21 @@ func (p timetableCorrectionPeople) FindByAccountID(ctx context.Context, accountI
 
 // TimetableSupervisorDirectory binds the activity transport's native staff reads.
 type TimetableSupervisorDirectory struct {
-	rows interface {
-		GetStaffWithPersonByIDs(context.Context, []int64) (map[int64]*peopleValues.Staff, error)
-		ListStaffWithPerson(context.Context) ([]*peopleValues.Staff, error)
-	}
-	teachers interface {
-		GetTeachersBySpecialization(context.Context, string) ([]*peopleValues.Teacher, error)
-	}
+	rows timetableSupervisorRows
 }
 
-func NewTimetableSupervisorDirectory(rows interface {
-	GetStaffWithPersonByIDs(context.Context, []int64) (map[int64]*peopleValues.Staff, error)
-	ListStaffWithPerson(context.Context) ([]*peopleValues.Staff, error)
-	GetTeachersBySpecialization(context.Context, string) ([]*peopleValues.Teacher, error)
-}) TimetableSupervisorDirectory {
-	return TimetableSupervisorDirectory{rows: rows, teachers: rows}
+// timetableSupervisorRows is the slice of the person directory the
+// supervisor reads use: the retained staff and teacher repositories.
+type timetableSupervisorRows interface {
+	StaffRows() peoplePorts.StaffRepository
+	TeacherRows() peoplePorts.TeacherRepository
+}
+
+func NewTimetableSupervisorDirectory(rows timetableSupervisorRows) TimetableSupervisorDirectory {
+	return TimetableSupervisorDirectory{rows: rows}
 }
 func (d TimetableSupervisorDirectory) GetTeachersBySpecialization(ctx context.Context, specialization string) ([]*timetable.SupervisorTeacher, error) {
-	rows, err := d.teachers.GetTeachersBySpecialization(ctx, specialization)
+	rows, err := d.rows.TeacherRows().FindBySpecialization(ctx, specialization)
 	if err != nil {
 		return nil, err
 	}
@@ -55,10 +52,10 @@ func (d TimetableSupervisorDirectory) GetTeachersBySpecialization(ctx context.Co
 	return result, nil
 }
 func (d TimetableSupervisorDirectory) GetStaffWithPersonByIDs(ctx context.Context, ids []int64) (map[int64]*timetable.StaffMember, error) {
-	return owners.MapRowsByID(owners.TimetableStaffMember)(d.rows.GetStaffWithPersonByIDs(ctx, ids))
+	return owners.MapRowsByID(owners.TimetableStaffMember)(d.rows.StaffRows().FindWithPersonByIDs(ctx, ids))
 }
 func (d TimetableSupervisorDirectory) ListStaffWithPerson(ctx context.Context) ([]*timetable.StaffMember, error) {
-	rows, err := d.rows.ListStaffWithPerson(ctx)
+	rows, err := d.rows.StaffRows().ListAllWithPerson(ctx)
 	if err != nil {
 		return nil, err
 	}

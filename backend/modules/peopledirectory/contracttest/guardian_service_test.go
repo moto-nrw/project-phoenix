@@ -1509,7 +1509,7 @@ func TestGuardianService_GetGuardiansWithoutAccount(t *testing.T) {
 		guardian := testpkg.CreateTestGuardianProfile(t, db, "no-account")
 
 		// ACT
-		result, err := testpkg.TenantQuery0(t, ctx, db, service.GetGuardiansWithoutAccount)
+		result, err := testpkg.TenantQuery0(t, ctx, db, service.GuardianProfiles().FindWithoutAccount)
 
 		// ASSERT
 		require.NoError(t, err)
@@ -1543,7 +1543,7 @@ func TestGuardianService_GetInvitableGuardians(t *testing.T) {
 		testpkg.CreateTestGuardianProfile(t, db, "invitable")
 
 		// ACT
-		result, err := testpkg.TenantQuery0(t, ctx, db, service.GetInvitableGuardians)
+		result, err := testpkg.TenantQuery0(t, ctx, db, service.GuardianProfiles().FindInvitable)
 
 		// ASSERT
 		require.NoError(t, err)
@@ -1581,7 +1581,7 @@ func TestGuardianService_GetPendingInvitations(t *testing.T) {
 		AcceptedAt:        &spent,
 	})
 
-	result, err := testpkg.TenantQuery0(t, ctx, db, service.GetPendingInvitations)
+	result, err := testpkg.TenantQuery0(t, ctx, db, service.GuardianInvitationReads().ListRedeemable)
 	require.NoError(t, err)
 
 	ids := make([]int64, 0, len(result))
@@ -1682,7 +1682,7 @@ func TestGuardianService_AddPhoneNumber_Success(t *testing.T) {
 		assert.Equal(t, &label, result.Label)
 
 		// Verify first phone is no longer primary
-		phones, err := testpkg.TenantQuery1(t, ctx, db, service.GetGuardianPhoneNumbers, guardian.ID)
+		phones, err := testpkg.TenantQuery1(t, ctx, db, service.GuardianPhoneNumbers().FindByGuardianID, guardian.ID)
 		require.NoError(t, err)
 		for _, phone := range phones {
 			if phone.PhoneNumber == "+49 111 111111" {
@@ -1772,7 +1772,7 @@ func TestGuardianService_UpdatePhoneNumber_Success(t *testing.T) {
 		require.NoError(t, err)
 
 		// Verify update
-		updated, err := testpkg.TenantQuery1(t, ctx, db, service.GetPhoneNumberByID, phone.ID)
+		updated, err := testpkg.TenantQuery1(t, ctx, db, service.GuardianPhoneNumbers().FindByID, phone.ID)
 		require.NoError(t, err)
 		assert.Equal(t, newNumber, updated.PhoneNumber)
 		assert.Equal(t, peopleValues.PhoneTypeWork, updated.PhoneType)
@@ -1809,12 +1809,12 @@ func TestGuardianService_UpdatePhoneNumber_Success(t *testing.T) {
 		require.NoError(t, err)
 
 		// Verify phone2 is primary
-		updated2, err := testpkg.TenantQuery1(t, ctx, db, service.GetPhoneNumberByID, phone2.ID)
+		updated2, err := testpkg.TenantQuery1(t, ctx, db, service.GuardianPhoneNumbers().FindByID, phone2.ID)
 		require.NoError(t, err)
 		assert.True(t, updated2.IsPrimary)
 
 		// Verify phone1 is not primary
-		updated1, err := testpkg.TenantQuery1(t, ctx, db, service.GetPhoneNumberByID, phone1.ID)
+		updated1, err := testpkg.TenantQuery1(t, ctx, db, service.GuardianPhoneNumbers().FindByID, phone1.ID)
 		require.NoError(t, err)
 		assert.False(t, updated1.IsPrimary, "Old primary should be unset")
 	})
@@ -1841,7 +1841,7 @@ func TestGuardianService_UpdatePhoneNumber_Success(t *testing.T) {
 		// ASSERT
 		require.NoError(t, err)
 
-		updated, err := testpkg.TenantQuery1(t, ctx, db, service.GetPhoneNumberByID, phone.ID)
+		updated, err := testpkg.TenantQuery1(t, ctx, db, service.GuardianPhoneNumbers().FindByID, phone.ID)
 		require.NoError(t, err)
 		assert.False(t, updated.IsPrimary)
 	})
@@ -1867,7 +1867,7 @@ func TestGuardianService_UpdatePhoneNumber_Success(t *testing.T) {
 		// ASSERT
 		require.NoError(t, err)
 
-		updated, err := testpkg.TenantQuery1(t, ctx, db, service.GetPhoneNumberByID, phone.ID)
+		updated, err := testpkg.TenantQuery1(t, ctx, db, service.GuardianPhoneNumbers().FindByID, phone.ID)
 		require.NoError(t, err)
 		assert.Equal(t, 5, updated.Priority)
 	})
@@ -1932,11 +1932,11 @@ func TestGuardianService_DeletePhoneNumber_Success(t *testing.T) {
 		require.NoError(t, err)
 
 		// Verify phone2 is deleted
-		_, err = testpkg.TenantQuery1(t, ctx, db, service.GetPhoneNumberByID, phone2.ID)
+		_, err = testpkg.TenantQuery1(t, ctx, db, service.GuardianPhoneNumbers().FindByID, phone2.ID)
 		assert.Error(t, err, "Deleted phone should not be found")
 
 		// Verify phone1 still exists and is still primary
-		phone1After, err := testpkg.TenantQuery1(t, ctx, db, service.GetPhoneNumberByID, phone1.ID)
+		phone1After, err := testpkg.TenantQuery1(t, ctx, db, service.GuardianPhoneNumbers().FindByID, phone1.ID)
 		require.NoError(t, err)
 		assert.True(t, phone1After.IsPrimary)
 	})
@@ -1967,11 +1967,11 @@ func TestGuardianService_DeletePhoneNumber_Success(t *testing.T) {
 		require.NoError(t, err)
 
 		// Verify phone1 is deleted
-		_, err = testpkg.TenantQuery1(t, ctx, db, service.GetPhoneNumberByID, phone1.ID)
+		_, err = testpkg.TenantQuery1(t, ctx, db, service.GuardianPhoneNumbers().FindByID, phone1.ID)
 		assert.Error(t, err)
 
 		// Verify phone2 was promoted to primary
-		phone2After, err := testpkg.TenantQuery1(t, ctx, db, service.GetPhoneNumberByID, phone2.ID)
+		phone2After, err := testpkg.TenantQuery1(t, ctx, db, service.GuardianPhoneNumbers().FindByID, phone2.ID)
 		require.NoError(t, err)
 		assert.True(t, phone2After.IsPrimary, "Next phone should be promoted to primary")
 	})
@@ -1993,7 +1993,7 @@ func TestGuardianService_DeletePhoneNumber_Success(t *testing.T) {
 		require.NoError(t, err)
 
 		// Verify guardian has no phones
-		phones, err := testpkg.TenantQuery1(t, ctx, db, service.GetGuardianPhoneNumbers, guardian.ID)
+		phones, err := testpkg.TenantQuery1(t, ctx, db, service.GuardianPhoneNumbers().FindByGuardianID, guardian.ID)
 		require.NoError(t, err)
 		assert.Empty(t, phones)
 	})
@@ -2052,12 +2052,12 @@ func TestGuardianService_SetPrimaryPhone_Success(t *testing.T) {
 		require.NoError(t, err)
 
 		// Verify phone2 is now primary
-		phone2After, err := testpkg.TenantQuery1(t, ctx, db, service.GetPhoneNumberByID, phone2.ID)
+		phone2After, err := testpkg.TenantQuery1(t, ctx, db, service.GuardianPhoneNumbers().FindByID, phone2.ID)
 		require.NoError(t, err)
 		assert.True(t, phone2After.IsPrimary)
 
 		// Verify phone1 is no longer primary
-		phone1After, err := testpkg.TenantQuery1(t, ctx, db, service.GetPhoneNumberByID, phone1.ID)
+		phone1After, err := testpkg.TenantQuery1(t, ctx, db, service.GuardianPhoneNumbers().FindByID, phone1.ID)
 		require.NoError(t, err)
 		assert.False(t, phone1After.IsPrimary)
 	})
@@ -2117,7 +2117,7 @@ func TestGuardianService_GetGuardianPhoneNumbers_Success(t *testing.T) {
 		require.NoError(t, err)
 
 		// ACT
-		phones, err := testpkg.TenantQuery1(t, ctx, db, service.GetGuardianPhoneNumbers, guardian.ID)
+		phones, err := testpkg.TenantQuery1(t, ctx, db, service.GuardianPhoneNumbers().FindByGuardianID, guardian.ID)
 
 		// ASSERT
 		require.NoError(t, err)
@@ -2138,7 +2138,7 @@ func TestGuardianService_GetGuardianPhoneNumbers_Success(t *testing.T) {
 		guardian := testpkg.CreateTestGuardianProfile(t, db, "no-phones")
 
 		// ACT
-		phones, err := testpkg.TenantQuery1(t, ctx, db, service.GetGuardianPhoneNumbers, guardian.ID)
+		phones, err := testpkg.TenantQuery1(t, ctx, db, service.GuardianPhoneNumbers().FindByGuardianID, guardian.ID)
 
 		// ASSERT
 		require.NoError(t, err)
@@ -2171,7 +2171,7 @@ func TestGuardianService_GetPhoneNumberByID_Success(t *testing.T) {
 		require.NoError(t, err)
 
 		// ACT
-		result, err := testpkg.TenantQuery1(t, ctx, db, service.GetPhoneNumberByID, phone.ID)
+		result, err := testpkg.TenantQuery1(t, ctx, db, service.GuardianPhoneNumbers().FindByID, phone.ID)
 
 		// ASSERT
 		require.NoError(t, err)
@@ -2193,7 +2193,7 @@ func TestGuardianService_GetPhoneNumberByID_Errors(t *testing.T) {
 
 	t.Run("returns error when phone not found", func(t *testing.T) {
 		// ACT
-		result, err := testpkg.TenantQuery1(t, ctx, db, service.GetPhoneNumberByID, 99999999)
+		result, err := testpkg.TenantQuery1(t, ctx, db, service.GuardianPhoneNumbers().FindByID, 99999999)
 
 		// ASSERT
 		require.Error(t, err)

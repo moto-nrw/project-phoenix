@@ -14,6 +14,9 @@ import (
 // the HTTP layer name it here (#3752, #4084).
 type PersonDirectory interface {
 	StaffDirectory
+	// StudentRows is the retained student repository the directory reads,
+	// for the callers that read it as it is.
+	StudentRows() StudentRepository
 	CountStudentsByGroupIDs(ctx context.Context, groupIDs []int64) (map[int64]int, error)
 	Create(ctx context.Context, person *peopleValues.DirectoryPersonSnapshot) error
 	Delete(ctx context.Context, id interface{}) error
@@ -27,10 +30,6 @@ type PersonDirectory interface {
 	GetParticipationCandidatesByGroupIDs(ctx context.Context, groupIDs []int64) ([]*peopleValues.StudentState, error)
 	GetStudentByID(ctx context.Context, id int64) (*peopleValues.StudentState, error)
 	GetStudentByIDForUpdate(ctx context.Context, id int64) (*peopleValues.StudentState, error)
-	GetStudentByPersonID(ctx context.Context, personID int64) (*peopleValues.StudentState, error)
-	GetStudentsByGroupID(ctx context.Context, groupID int64) ([]*peopleValues.StudentState, error)
-	GetStudentsByGroupIDs(ctx context.Context, groupIDs []int64) ([]*peopleValues.StudentState, error)
-	GetStudentsByIDs(ctx context.Context, ids []int64) (map[int64]*peopleValues.StudentState, error)
 	GetStudentsWithGroupsByTeacher(ctx context.Context, teacherID int64) ([]peopleValues.StudentRosterEntry, error)
 	GetStudentsWithGroupsByTeacherStaffIDs(ctx context.Context, staffIDs []int64) ([]peopleValues.StudentRosterEntry, error)
 	LinkStudentToRFIDCard(ctx context.Context, studentID int64, tagID string) error

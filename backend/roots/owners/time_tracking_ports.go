@@ -3,7 +3,7 @@ package owners
 import (
 	"context"
 
-	peopleValues "github.com/moto-nrw/project-phoenix/modules/peopledirectory"
+	peoplePorts "github.com/moto-nrw/project-phoenix/modules/peopledirectory/ports"
 
 	audit "github.com/moto-nrw/project-phoenix/modules/auditlog/records"
 
@@ -23,7 +23,7 @@ type TimeTrackingStaffRecords interface {
 // TimeTrackingStaffLookup resolves the staff record a schedule update is
 // written for.
 type TimeTrackingStaffLookup interface {
-	GetStaffByID(ctx context.Context, id int64) (*peopleValues.Staff, error)
+	StaffRows() peoplePorts.StaffRepository
 }
 
 // TimeTrackingSettings is the tenant-settings surface the time-tracking
@@ -94,7 +94,7 @@ func TimeTrackingPorts(
 // schedule update starts from.
 func StaffScheduleBindings(people TimeTrackingStaffLookup) workforceCompose.StaffScheduleBindingLookup {
 	return func(ctx context.Context, staffID int64) (workforceCompose.StaffScheduleBinding, error) {
-		staff, err := people.GetStaffByID(ctx, staffID)
+		staff, err := people.StaffRows().FindByID(ctx, staffID)
 		if err != nil {
 			return workforceCompose.StaffScheduleBinding{}, err
 		}

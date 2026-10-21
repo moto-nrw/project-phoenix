@@ -38,7 +38,7 @@ func newMFACore(
 	}
 	runtime := mfaRuntime(sessions)
 	records = application.NewAccountMFACommands(records, runtime)
-	trail := application.MFAAuditTrail{Events: application.AuthAudit{Source: sessions.Audit}, Operator: deps.OperatorAudit}
+	trail := application.MFAAuditTrail{AuthAudit: application.AuthAudit{Source: sessions.Audit}, Operator: deps.OperatorAudit}
 	secret := domain.DeriveMFASecret(deps.JWTSecret)
 
 	account, err := application.NewAccountMFAFlows(application.AccountMFAFlowDependencies{
