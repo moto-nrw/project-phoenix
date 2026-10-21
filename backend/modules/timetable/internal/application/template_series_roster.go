@@ -283,11 +283,11 @@ func (s *TemplateService) reconcilePredecessorSegmentRoster(
 	// Snapshots BEFORE any write: they classify the existing rows and double
 	// as the prior state for the instance reconcilers, which is what keeps a
 	// child staff had hand-removed from one occurrence from being resurrected.
-	priorEnrollments, err := s.deps.StudentEnrollmentRepo.FindByGroupID(ctx, seg.Group.ID)
+	priorEnrollments, err := groupStudentEnrollments(ctx, s.deps.StudentEnrollmentRepo, s.deps.Directories, seg.Group.ID)
 	if err != nil {
 		return &ports.ScheduleError{Op: "update template: load predecessor enrollments", Err: err}
 	}
-	priorSupervisors, err := s.deps.ActivitySupervisorRepo.FindByGroupID(ctx, seg.Group.ID)
+	priorSupervisors, err := groupPlannedSupervisors(ctx, s.deps.ActivitySupervisorRepo, s.deps.Directories, seg.Group.ID)
 	if err != nil {
 		return &ports.ScheduleError{Op: "update template: load predecessor supervisors", Err: err}
 	}
@@ -392,7 +392,7 @@ func (s *TemplateService) reconcilePredecessorEnrollmentRows(
 			Weekday:          &weekday,
 		}
 		enrollment.SetTenantID(tenantID)
-		if err := s.deps.StudentEnrollmentRepo.Create(ctx, enrollment); err != nil {
+		if err := createLegacyStudentEnrollment(ctx, s.deps.StudentEnrollmentRepo, enrollment); err != nil {
 			return nil, &ports.ScheduleError{Op: "update template: create predecessor enrollment", Err: err}
 		}
 		touched[key.personID] = true
@@ -411,11 +411,11 @@ func (s *TemplateService) retirePredecessorEnrollment(
 ) (bool, error) {
 	switch classifyOwnedRosterRetirement(judged.validFrom, judged.validUntil, true, window.from, window.until) {
 	case rosterRetirementDelete:
-		if err := s.deps.StudentEnrollmentRepo.Delete(ctx, row.ID); err != nil {
+		if err := deleteLegacyStudentEnrollment(ctx, s.deps.StudentEnrollmentRepo, row.ID); err != nil {
 			return false, &ports.ScheduleError{Op: "update template: delete predecessor enrollment", Err: err}
 		}
 	case rosterRetirementClose:
-		if err := s.deps.StudentEnrollmentRepo.SetValidUntilByID(ctx, row.ID, activityContract.Date(window.from)); err != nil {
+		if err := setLegacyStudentEnrollmentValidUntil(ctx, s.deps.StudentEnrollmentRepo, row.ID, activityContract.Date(window.from)); err != nil {
 			return false, &ports.ScheduleError{Op: "update template: close predecessor enrollment", Err: err}
 		}
 	default:
@@ -476,7 +476,7 @@ func (s *TemplateService) reconcilePredecessorSupervisorRows(
 			Weekday:          &weekday,
 		}
 		supervisor.SetTenantID(tenantID)
-		if err := s.deps.ActivitySupervisorRepo.Create(ctx, supervisor); err != nil {
+		if err := createLegacyPlannedSupervisor(ctx, s.deps.ActivitySupervisorRepo, supervisor); err != nil {
 			return nil, &ports.ScheduleError{Op: "update template: create predecessor supervisor", Err: err}
 		}
 		touched[key.personID] = true
@@ -515,11 +515,11 @@ func (s *TemplateService) retirePredecessorSupervisor(
 ) (bool, error) {
 	switch classifyOwnedRosterRetirement(judged.validFrom, judged.validUntil, true, window.from, window.until) {
 	case rosterRetirementDelete:
-		if err := s.deps.ActivitySupervisorRepo.Delete(ctx, row.ID); err != nil {
+		if err := deleteLegacyPlannedSupervisor(ctx, s.deps.ActivitySupervisorRepo, row.ID); err != nil {
 			return false, &ports.ScheduleError{Op: "update template: delete predecessor supervisor", Err: err}
 		}
 	case rosterRetirementClose:
-		if err := s.deps.ActivitySupervisorRepo.SetValidUntilByID(ctx, row.ID, activityContract.Date(window.from)); err != nil {
+		if err := setLegacyPlannedSupervisorValidUntil(ctx, s.deps.ActivitySupervisorRepo, row.ID, activityContract.Date(window.from)); err != nil {
 			return false, &ports.ScheduleError{Op: "update template: close predecessor supervisor", Err: err}
 		}
 	default:

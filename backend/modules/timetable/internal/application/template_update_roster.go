@@ -89,7 +89,7 @@ func (s *TemplateService) createTemplateEnrollments(ctx context.Context, templat
 			Weekday:          weekdayScopePtr(row.Weekday),
 		}
 		enrollment.SetTenantID(tenantID)
-		if err := s.deps.StudentEnrollmentRepo.Create(ctx, enrollment); err != nil {
+		if err := createLegacyStudentEnrollment(ctx, s.deps.StudentEnrollmentRepo, enrollment); err != nil {
 			return &ports.ScheduleError{Op: "update template: create enrollment", Err: err}
 		}
 	}
@@ -108,7 +108,7 @@ func (s *TemplateService) createTemplateSupervisors(ctx context.Context, templat
 			Weekday:          weekdayScopePtr(row.Weekday),
 		}
 		supervisor.SetTenantID(tenantID)
-		if err := s.deps.ActivitySupervisorRepo.Create(ctx, supervisor); err != nil {
+		if err := createLegacyPlannedSupervisor(ctx, s.deps.ActivitySupervisorRepo, supervisor); err != nil {
 			return &ports.ScheduleError{Op: "update template: create supervisor", Err: err}
 		}
 	}
@@ -137,7 +137,7 @@ func (s *TemplateService) retireTemplateEnrollments(
 	replacementUntil *calendar.Date,
 	previousCalendarPeriodID *int64,
 ) (map[int64]protectedStudentCoverage, []int64, error) {
-	rows, err := s.deps.StudentEnrollmentRepo.FindByGroupID(ctx, templateID)
+	rows, err := groupStudentEnrollments(ctx, s.deps.StudentEnrollmentRepo, s.deps.Directories, templateID)
 	if err != nil {
 		return nil, nil, &ports.ScheduleError{Op: "update template: load enrollments", Err: err}
 	}
@@ -196,11 +196,11 @@ func (s *TemplateService) applyEnrollmentRetirement(
 ) error {
 	switch action {
 	case rosterRetirementDelete:
-		if err := s.deps.StudentEnrollmentRepo.Delete(ctx, row.ID); err != nil {
+		if err := deleteLegacyStudentEnrollment(ctx, s.deps.StudentEnrollmentRepo, row.ID); err != nil {
 			return &ports.ScheduleError{Op: "update template: delete future enrollment", Err: err}
 		}
 	case rosterRetirementClose:
-		if err := s.deps.StudentEnrollmentRepo.SetValidUntilByID(ctx, row.ID, activityContract.Date(replacementFrom)); err != nil {
+		if err := setLegacyStudentEnrollmentValidUntil(ctx, s.deps.StudentEnrollmentRepo, row.ID, activityContract.Date(replacementFrom)); err != nil {
 			return &ports.ScheduleError{Op: "update template: close enrollment", Err: err}
 		}
 	}
@@ -240,7 +240,7 @@ func (s *TemplateService) rebaseProtectedEnrollmentPeriod(
 		return nil
 	}
 	row.CalendarPeriodID = cloneOptionalInt64(calendarPeriodID)
-	if err := s.deps.StudentEnrollmentRepo.Update(ctx, row); err != nil {
+	if err := updateLegacyStudentEnrollment(ctx, s.deps.StudentEnrollmentRepo, row); err != nil {
 		return &ports.ScheduleError{Op: "update template: persist protected enrollment period", Err: err}
 	}
 	return nil
@@ -283,18 +283,18 @@ func (s *TemplateService) retireTemplateSupervisors(
 	replacementUntil *calendar.Date,
 	previousCalendarPeriodID *int64,
 ) error {
-	rows, err := s.deps.ActivitySupervisorRepo.FindByGroupID(ctx, templateID)
+	rows, err := groupPlannedSupervisors(ctx, s.deps.ActivitySupervisorRepo, s.deps.Directories, templateID)
 	if err != nil {
 		return &ports.ScheduleError{Op: "update template: load supervisors", Err: err}
 	}
 	for _, row := range rows {
 		switch classifySupervisorRetirement(row, calendarPeriodID, replacementFrom, replacementUntil, previousCalendarPeriodID) {
 		case rosterRetirementDelete:
-			if err := s.deps.ActivitySupervisorRepo.Delete(ctx, row.ID); err != nil {
+			if err := deleteLegacyPlannedSupervisor(ctx, s.deps.ActivitySupervisorRepo, row.ID); err != nil {
 				return &ports.ScheduleError{Op: "update template: delete future supervisor", Err: err}
 			}
 		case rosterRetirementClose:
-			if err := s.deps.ActivitySupervisorRepo.SetValidUntilByID(ctx, row.ID, activityContract.Date(replacementFrom)); err != nil {
+			if err := setLegacyPlannedSupervisorValidUntil(ctx, s.deps.ActivitySupervisorRepo, row.ID, activityContract.Date(replacementFrom)); err != nil {
 				return &ports.ScheduleError{Op: "update template: close supervisor", Err: err}
 			}
 		}

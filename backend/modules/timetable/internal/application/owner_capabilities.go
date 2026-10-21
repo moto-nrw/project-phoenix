@@ -8,22 +8,6 @@ import (
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 )
 
-func NewOperationTemplates(rows ports.ActivityGroupRecords) (ports.OperationTemplates, error) {
-	templates, ok := rows.(ports.OperationTemplates)
-	if !ok {
-		return nil, fmt.Errorf("timetable operations: %T cannot read template targets", rows)
-	}
-	return templates, nil
-}
-
-func NewDataTemplates(rows ports.ActivityGroupRecords) (ports.DataTemplates, error) {
-	templates, ok := rows.(ports.DataTemplates)
-	if !ok {
-		return nil, fmt.Errorf("timetable data: %T cannot read the template list", rows)
-	}
-	return templates, nil
-}
-
 func NewEndedSessionInstances(rows ports.ActivityInstanceRecords) (ports.EndedSessionInstances, error) {
 	instances, ok := rows.(ports.EndedSessionInstances)
 	if !ok {

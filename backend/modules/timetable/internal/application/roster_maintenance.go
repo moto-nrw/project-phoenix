@@ -41,7 +41,8 @@ import (
 type RosterReconciler struct {
 	instanceRepo        ports.ActivityInstanceRecords
 	instanceStudentRepo ports.InstanceStudentRecords
-	enrollmentRepo      ports.ActivityEnrollmentRecords
+	enrollmentRepo      timetable.StudentEnrollmentQuery
+	directories         ports.RepositoryDirectories
 	logger              *slog.Logger
 	now                 func() time.Time
 }
@@ -53,7 +54,8 @@ var _ timetable.RosterMaintenance = (*RosterReconciler)(nil)
 func NewRosterReconciler(
 	instanceRepo ports.ActivityInstanceRecords,
 	instanceStudentRepo ports.InstanceStudentRecords,
-	enrollmentRepo ports.ActivityEnrollmentRecords,
+	enrollmentRepo timetable.StudentEnrollmentQuery,
+	directories ports.RepositoryDirectories,
 	logger *slog.Logger,
 	now ...func() time.Time,
 ) *RosterReconciler {
@@ -65,6 +67,7 @@ func NewRosterReconciler(
 		instanceRepo:        instanceRepo,
 		instanceStudentRepo: instanceStudentRepo,
 		enrollmentRepo:      enrollmentRepo,
+		directories:         directories,
 		logger:              logger,
 		now:                 clock,
 	}
@@ -228,7 +231,7 @@ func (s *RosterReconciler) fillInstancesMaterializedDuringAlumnusWindow(
 	if err != nil {
 		return 0, 0, err
 	}
-	enrollments, err := s.enrollmentRepo.FindByStudentIDs(ctx, studentIDs)
+	enrollments, err := listLegacyStudentEnrollments(ctx, s.enrollmentRepo, timetable.StudentEnrollmentFilter{StudentIDs: studentIDs}, "list with options")
 	if err != nil {
 		return 0, 0, &ports.ScheduleError{Op: "reconcile roster: load enrollments", Err: err}
 	}
@@ -520,7 +523,7 @@ func (s *RosterReconciler) loadSourcedRosterPass(
 	instanceIDs []int64,
 	priorEnrollments []*activityContract.StudentEnrollment,
 ) (*sourcedRosterPass, error) {
-	enrollments, err := s.enrollmentRepo.FindByGroupID(ctx, templateID)
+	enrollments, err := groupStudentEnrollments(ctx, s.enrollmentRepo, s.directories, templateID)
 	if err != nil {
 		return nil, &ports.ScheduleError{Op: "reconcile sourced roster: load enrollments", Err: err}
 	}

@@ -1032,7 +1032,7 @@ type (
 		timetablePorts.OperationParticipants
 	}
 	stubOpTemplates struct {
-		timetablePorts.OperationTemplates
+		timetable.ActivityGroupQuery
 	}
 	stubOpSessions struct {
 		timetablePorts.OperationSessions

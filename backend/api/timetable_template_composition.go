@@ -38,6 +38,7 @@ func TimetableTemplateDependencies(
 		Schedules:            rows.Schedules,
 		Enrollments:          rows.Enrollments,
 		Supervisors:          rows.Supervisors,
+		Directories:          rows.Directories,
 		Instances:            rows.Instances,
 		InstanceStaff:        rows.InstanceStaff,
 		Participants:         rows.Participants,

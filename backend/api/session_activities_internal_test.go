@@ -4,6 +4,8 @@ import (
 	"encoding/json"
 	"testing"
 
+	activityContract "github.com/moto-nrw/project-phoenix/modules/timetable/activitycontract"
+	timetableCompose "github.com/moto-nrw/project-phoenix/modules/timetable/compose"
 	owners "github.com/moto-nrw/project-phoenix/roots/owners"
 
 	testpkg "github.com/moto-nrw/project-phoenix/test"
@@ -19,7 +21,10 @@ func TestSessionActivitiesPreserveTimetableWireProjection(t *testing.T) {
 	reposTimetable := NewActiveTestTimetableRows(testpkg.NewDatabase(t, db), owners.MustNewMembershipTestRepositories(testpkg.NewDatabase(t, db)))
 	ctx := testpkg.Ctx(t)
 	directory := owners.NewSessionActivities(reposTimetable.GroupReads())
-	want, err := reposTimetable.ActivityGroup.FindByID(ctx, fixture.ID)
+	// The activities service serves the retained activity group rows.
+	activities, err := timetableCompose.NewService(reposTimetable.Timetable, nil, reposTimetable.Directories, nil, nil, nil)
+	require.NoError(t, err)
+	want, err := activities.GetGroup(ctx, fixture.ID)
 	require.NoError(t, err)
 	got, err := directory.FindByID(ctx, fixture.ID)
 	require.NoError(t, err)
@@ -31,7 +36,7 @@ func TestSessionActivitiesPreserveTimetableWireProjection(t *testing.T) {
 	rows, err := directory.FindByIDs(ctx, []int64{fixture.ID})
 	require.NoError(t, err)
 	require.Len(t, rows, 1)
-	wantRows, err := reposTimetable.ActivityGroup.FindByIDs(ctx, []int64{fixture.ID})
+	wantRows, err := activities.ListGroups(ctx, &activityContract.GroupListQuery{IDs: []int64{fixture.ID}})
 	require.NoError(t, err)
 	wantJSON, err = json.Marshal(wantRows)
 	require.NoError(t, err)
@@ -40,7 +45,7 @@ func TestSessionActivitiesPreserveTimetableWireProjection(t *testing.T) {
 	require.JSONEq(t, string(wantJSON), string(gotJSON))
 	listed, err := directory.ListSessionActivities(ctx)
 	require.NoError(t, err)
-	wantListed, err := reposTimetable.ActivityGroup.ListWithCategory(ctx, nil)
+	wantListed, err := activities.ListGroups(ctx, nil)
 	require.NoError(t, err)
 	wantJSON, err = json.Marshal(wantListed)
 	require.NoError(t, err)
@@ -51,7 +56,7 @@ func TestSessionActivitiesPreserveTimetableWireProjection(t *testing.T) {
 	require.NoError(t, err)
 	require.NotNil(t, empty)
 	require.Empty(t, empty)
-	require.NoError(t, reposTimetable.ActivityGroup.Delete(ctx, fixture.ID))
+	require.NoError(t, reposTimetable.Timetable.DeleteGroup(ctx, fixture.ID))
 	missing, err := directory.FindByID(ctx, fixture.ID)
 	require.Nil(t, missing)
 	require.ErrorContains(t, err, "database error during find by id")

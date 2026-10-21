@@ -64,9 +64,9 @@ func TestUpdateTemplateFields_DropsOccurrencesAfterTheNewLastDay(t *testing.T) {
 	require.NoError(t, err)
 	require.Len(t, listInstancesForDate(t, s.db, s.template.ID, after), 1)
 
-	groups := api.NewUnobservedTimetableRepositories(testpkg.MustDatabase(s.db)).ActivityGroup
+	groups := api.NewUnobservedTimetableRepositories(testpkg.MustDatabase(s.db)).Timetable
 	newEnd := lastDay.String()
-	updated, err := groups.UpdateTemplateFields(s.ctx, s.template.ID, timetable.TemplateUpdate{
+	updated, err := groups.UpdateTemplate(s.ctx, s.template.ID, timetable.TemplateUpdate{
 		Name: s.template.Name, Type: s.template.Type, CategoryID: s.template.CategoryID,
 		RoomID: *s.template.PlannedRoomID, MaxParticipants: s.template.MaxParticipants,
 		CalendarPeriodID: s.template.CalendarPeriodID, TargetGroupType: s.template.TargetGroupType,

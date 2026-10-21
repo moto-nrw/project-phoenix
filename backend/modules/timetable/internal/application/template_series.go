@@ -42,12 +42,15 @@ type templateSeriesSegment struct {
 // keep failing loudly.
 func loadTemplateSeriesSegments(
 	ctx context.Context,
-	groupRepo ports.ActivityGroupRecords,
+	groupRepo timetable.ActivityGroupQuery,
 	scheduleRepo timetable.ScheduleQuery,
 	logger *slog.Logger,
 	templateID int64,
 ) ([]templateSeriesSegment, error) {
-	groups, err := groupRepo.FindTemplateSeries(ctx, templateID)
+	isTemplate := true
+	groups, err := listLegacyGroups(ctx, groupRepo, timetable.GroupFilter{
+		IsTemplate: &isTemplate, ActiveOnly: true, SeriesForGroupID: &templateID, OrderByID: true,
+	}, "find template series")
 	if err != nil {
 		return nil, &ports.ScheduleError{Op: "load template series: find lineage", Err: err}
 	}

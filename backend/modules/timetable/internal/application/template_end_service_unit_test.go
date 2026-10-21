@@ -243,6 +243,7 @@ func templateEndUnitService(
 ) *TemplateSplitService {
 	return &TemplateSplitService{
 		deps: TemplateSplitDependencies{
+			Directories:    fakeDirectories(),
 			GroupRepo:      groupRepo,
 			ScheduleRepo:   scheduleRepo,
 			EnrollmentRepo: enrollmentRepo,
@@ -265,28 +266,32 @@ func templateEndUnitGroup(id int64) *activityContract.Group {
 }
 
 type templateEndUnitGroupRepo struct {
-	ports.ActivityGroupRecords
+	ports.GroupRows
 	group     *activityContract.Group
 	err       error
 	findCalls int
 }
 
-func (r *templateEndUnitGroupRepo) FindByID(_ context.Context, _ int64) (*activityContract.Group, error) {
+// FindGroup reads a missing group as the zero group, which is no template.
+func (r *templateEndUnitGroupRepo) FindGroup(_ context.Context, _ int64) (timetable.Group, error) {
 	r.findCalls++
 	if r.err != nil {
-		return nil, r.err
+		return timetable.Group{}, r.err
 	}
-	return r.group, nil
+	if r.group == nil {
+		return timetable.Group{}, nil
+	}
+	return CatalogGroup(r.group), nil
 }
 
-// FindTemplateSeries backs the #2187 end cascade; the unit fixtures model a
-// single-segment lineage (the schedule fake returns no rows, so the cascade
-// finds no bounded predecessor and stays a no-op).
-func (r *templateEndUnitGroupRepo) FindTemplateSeries(_ context.Context, _ int64) ([]*activityContract.Group, error) {
+// ListGroups backs the #2187 end cascade's series read; the unit fixtures
+// model a single-segment lineage (the schedule fake returns no rows, so the
+// cascade finds no bounded predecessor and stays a no-op).
+func (r *templateEndUnitGroupRepo) ListGroups(_ context.Context, _ timetable.GroupFilter) ([]timetable.Group, error) {
 	if r.group == nil {
 		return nil, nil
 	}
-	return []*activityContract.Group{r.group}, nil
+	return []timetable.Group{CatalogGroup(r.group)}, nil
 }
 
 type templateEndUnitScheduleRepo struct {
@@ -316,17 +321,17 @@ func (r *templateEndUnitScheduleRepo) CapScheduleValidUntil(_ context.Context, g
 }
 
 type templateEndUnitEnrollmentRepo struct {
-	ports.ActivityEnrollmentRecords
+	timetable.StudentEnrollmentCapability
 	capped  int64
 	err     error
 	groupID int64
 }
 
-func (r *templateEndUnitEnrollmentRepo) FindByGroupID(_ context.Context, _ int64) ([]*activityContract.StudentEnrollment, error) {
+func (r *templateEndUnitEnrollmentRepo) ListStudentEnrollments(context.Context, timetable.StudentEnrollmentFilter) ([]timetable.StudentEnrollment, error) {
 	return nil, nil
 }
 
-func (r *templateEndUnitEnrollmentRepo) CapActiveByGroup(_ context.Context, groupID int64, _ activityContract.Date) (int64, error) {
+func (r *templateEndUnitEnrollmentRepo) CapActiveStudentEnrollments(_ context.Context, groupID int64, _ string) (int64, error) {
 	r.groupID = groupID
 	if r.err != nil {
 		return 0, r.err
@@ -335,17 +340,17 @@ func (r *templateEndUnitEnrollmentRepo) CapActiveByGroup(_ context.Context, grou
 }
 
 type templateEndUnitSupervisorRepo struct {
-	ports.PlannedSupervisorRecords
+	timetable.PlannedSupervisorCapability
 	capped  int64
 	err     error
 	groupID int64
 }
 
-func (r *templateEndUnitSupervisorRepo) FindByGroupID(_ context.Context, _ int64) ([]*activityContract.SupervisorPlanned, error) {
+func (r *templateEndUnitSupervisorRepo) ListPlannedSupervisors(context.Context, timetable.PlannedSupervisorFilter) ([]timetable.PlannedSupervisor, error) {
 	return nil, nil
 }
 
-func (r *templateEndUnitSupervisorRepo) CapActiveByGroup(_ context.Context, groupID int64, _ activityContract.Date) (int64, error) {
+func (r *templateEndUnitSupervisorRepo) CapActivePlannedSupervisors(_ context.Context, groupID int64, _ string) (int64, error) {
 	r.groupID = groupID
 	if r.err != nil {
 		return 0, r.err

@@ -74,7 +74,7 @@ func (s *InstanceLifecycleService) bulkCancelCandidates(ctx context.Context, fro
 	}
 	series := make(map[int64]timetable.BulkCancelCandidate, len(groupIDs))
 	if len(groupIDs) > 0 {
-		groups, err := s.deps.ActivityGroupRepo.FindByIDs(ctx, groupIDs)
+		groups, err := legacyGroupsByID(ctx, s.deps.ActivityGroupRepo, groupIDs)
 		if err != nil {
 			return nil, &ports.ScheduleError{Op: "bulk cancel: load series", Err: err}
 		}

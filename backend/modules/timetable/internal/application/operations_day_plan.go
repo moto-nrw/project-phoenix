@@ -108,7 +108,7 @@ func (s *operations) loadDayPlanTemplates(ctx context.Context, candidates []plan
 	if len(groupIDs) == 0 {
 		return templates, educationGroupIDs, trackIDs, nil
 	}
-	groups, err := s.deps.Templates.FindByIDs(ctx, groupIDs)
+	groups, err := legacyGroupsByID(ctx, s.deps.Templates, groupIDs)
 	if err != nil {
 		return nil, nil, nil, err
 	}

@@ -26,14 +26,23 @@ type spontaneousTemplates struct {
 	created []*activityContract.Group
 }
 
-func (f *spontaneousTemplates) FindByName(_ context.Context, name string) (*activityContract.Group, error) {
-	return f.byName[name], nil
+func (f *spontaneousTemplates) FindGroupByName(_ context.Context, name string) (timetable.Group, error) {
+	group := f.byName[name]
+	if group == nil {
+		return timetable.Group{}, timetable.ErrGroupNotFound
+	}
+	return CatalogGroup(group), nil
 }
 
-func (f *spontaneousTemplates) Create(_ context.Context, group *activityContract.Group) error {
-	group.ID = 73
-	f.created = append(f.created, group)
-	return nil
+// CreateGroup stores the group in the caller's tenant, as the owner does.
+func (f *spontaneousTemplates) CreateGroup(ctx context.Context, input timetable.GroupInput) (timetable.Group, error) {
+	created := legacyGroup(timetable.Group{
+		ID: 73, TenantID: tenant.FromContext(ctx), Name: input.Name, CategoryID: input.CategoryID,
+		MaxParticipants: input.MaxParticipants, IsOpen: input.IsOpen, CreatedBy: input.CreatedBy,
+		Type: input.Type, IsTemplate: input.IsTemplate,
+	})
+	f.created = append(f.created, created)
+	return CatalogGroup(created), nil
 }
 
 type spontaneousCategories struct {

@@ -379,41 +379,66 @@ func (r *fakeOpsSessions) UpdateLastActivity(_ context.Context, id int64, lastAc
 }
 
 type fakeOpsTemplates struct {
+	timetable.ActivityGroupQuery
 	byID           map[int64]*activityContract.Group
 	targetsByGroup map[int64][]*activityContract.GroupTarget
 	err            error
 }
 
-func (r *fakeOpsTemplates) FindTargetsByGroupIDs(_ context.Context, groupIDs []int64) (map[int64][]*activityContract.GroupTarget, error) {
-	result := make(map[int64][]*activityContract.GroupTarget, len(groupIDs))
+func (r *fakeOpsTemplates) ListGroupTargets(_ context.Context, groupIDs []int64) (map[int64][]timetable.GroupTarget, error) {
+	result := make(map[int64][]timetable.GroupTarget, len(groupIDs))
 	for _, groupID := range groupIDs {
-		result[groupID] = r.targetsByGroup[groupID]
+		var targets []timetable.GroupTarget
+		for _, target := range r.targetsByGroup[groupID] {
+			targets = append(targets, timetable.GroupTarget{
+				ID: target.ID, TenantID: target.TenantID, CreatedAt: target.CreatedAt, UpdatedAt: target.UpdatedAt,
+				ActivityGroupID: target.ActivityGroupID, TargetGroupType: target.TargetGroupType,
+				TargetGradeLevel: target.TargetGradeLevel, TargetSchoolClass: target.TargetSchoolClass,
+				EducationGroupID: target.EducationGroupID, EducationGroupName: target.EducationGroupName,
+			})
+		}
+		result[groupID] = targets
 	}
 	return result, nil
 }
 
-func (r *fakeOpsTemplates) FindByID(_ context.Context, id int64) (*activityContract.Group, error) {
+// FindGroup reports a missing group with the owner's not-found sentinel.
+func (r *fakeOpsTemplates) FindGroup(_ context.Context, id int64) (timetable.Group, error) {
 	if r.err != nil {
-		return nil, r.err
+		return timetable.Group{}, r.err
 	}
 	group := r.byID[id]
 	if group == nil {
-		return nil, notFoundError{}
+		return timetable.Group{}, timetable.ErrGroupNotFound
 	}
-	return group, nil
+	return fakeOpsGroup(group), nil
 }
 
-func (r *fakeOpsTemplates) FindByIDs(_ context.Context, ids []int64) ([]*activityContract.Group, error) {
+func (r *fakeOpsTemplates) ListGroups(_ context.Context, filter timetable.GroupFilter) ([]timetable.Group, error) {
 	if r.err != nil {
 		return nil, r.err
 	}
-	groups := make([]*activityContract.Group, 0, len(ids))
-	for _, id := range ids {
+	groups := make([]timetable.Group, 0, len(filter.IDs))
+	for _, id := range filter.IDs {
 		if group := r.byID[id]; group != nil {
-			groups = append(groups, group)
+			groups = append(groups, fakeOpsGroup(group))
 		}
 	}
 	return groups, nil
+}
+
+// fakeOpsGroup is the owner's group of a retained row.
+func fakeOpsGroup(row *activityContract.Group) timetable.Group {
+	return timetable.Group{
+		ID: row.ID, TenantID: row.GetTenantID(), CreatedAt: row.CreatedAt, UpdatedAt: row.UpdatedAt,
+		Name: row.Name, MaxParticipants: row.MaxParticipants, RequiredStaff: row.RequiredStaff, IsOpen: row.IsOpen,
+		CategoryID: row.CategoryID, PlanningTrackID: row.PlanningTrackID, PlannedRoomID: row.PlannedRoomID, CreatedBy: row.CreatedBy,
+		Type: row.Type, EducationGroupID: row.EducationGroupID, ListKind: row.ListKind, IsTemplate: row.IsTemplate, IsSystem: row.IsSystem,
+		ArchivedAt: row.ArchivedAt, SeriesRootID: row.SeriesRootID, CalendarPeriodID: row.CalendarPeriodID,
+		TargetGroupType: row.TargetGroupType, TargetGradeLevel: row.TargetGradeLevel, TargetSchoolClass: row.TargetSchoolClass,
+		SourceCareOfferingIDs: row.SourceCareOfferingIDs, SourceGradeLevels: row.SourceGradeLevels, SourceSchoolClasses: row.SourceSchoolClasses,
+		Notes: row.Notes, IncludeClosingDays: row.IncludeClosingDays,
+	}
 }
 
 type opsMoveCall struct {

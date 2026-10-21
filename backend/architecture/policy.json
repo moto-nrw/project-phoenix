@@ -15235,19 +15235,6 @@
       "target_package": "modules/presenceprojection/presencecontract"
     },
     {
-      "id": "timetable-activities.port.activity-contract",
-      "description": "Consumer ports use the actual native activity values, not retained rows.",
-      "scopes": [
-        "production"
-      ],
-      "source_owner": "timetable-activities",
-      "source_role": "port",
-      "source_package": "modules/timetable/ports",
-      "target_owner": "timetable-activities",
-      "target_role": "contract",
-      "target_package": "modules/timetable/activitycontract"
-    },
-    {
       "id": "timetable-activities.http.adapter-test.common",
       "description": "The unchanged route suites move with their owner HTTP transport, preserving the exact runtime target.",
       "scopes": [

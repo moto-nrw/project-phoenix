@@ -3,7 +3,7 @@ package application
 import (
 	"testing"
 
-	activities "github.com/moto-nrw/project-phoenix/modules/timetable/internal/domain/activityrecords"
+	"github.com/moto-nrw/project-phoenix/modules/timetable"
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -11,10 +11,12 @@ import (
 
 func intPtr(v int) *int { return &v }
 
-func capacityOccurrence(date calendar.Date, children, staff int) activities.TemplateCapacityOccurrence {
-	return activities.TemplateCapacityOccurrence{
+func int64Ptr(v int64) *int64 { return &v }
+
+func capacityOccurrence(date calendar.Date, children, staff int) timetable.TemplateCapacityOccurrence {
+	return timetable.TemplateCapacityOccurrence{
 		TemplateID:      42,
-		OccurrenceDate:  calendar.Date(date),
+		OccurrenceDate:  date.String(),
 		EnrollmentCount: children,
 		SupervisorCount: staff,
 	}
@@ -34,12 +36,12 @@ func TestWorstTemplateOccurrenceRanking(t *testing.T) {
 
 	tests := []struct {
 		name        string
-		occurrences []activities.TemplateCapacityOccurrence
+		occurrences []timetable.TemplateCapacityOccurrence
 		wantDate    calendar.Date
 	}{
 		{
 			name: "danger outranks a warning even with a smaller shortage",
-			occurrences: []activities.TemplateCapacityOccurrence{
+			occurrences: []timetable.TemplateCapacityOccurrence{
 				capacityOccurrence(jan1, 12, 0),
 				capacityOccurrence(jan1.AddDays(1), 36, 1),
 			},
@@ -47,7 +49,7 @@ func TestWorstTemplateOccurrenceRanking(t *testing.T) {
 		},
 		{
 			name: "larger shortage wins within one severity",
-			occurrences: []activities.TemplateCapacityOccurrence{
+			occurrences: []timetable.TemplateCapacityOccurrence{
 				capacityOccurrence(jan1, 12, 0),
 				capacityOccurrence(jan1.AddDays(1), 25, 0),
 			},
@@ -55,7 +57,7 @@ func TestWorstTemplateOccurrenceRanking(t *testing.T) {
 		},
 		{
 			name: "smaller surplus wins among covered occurrences",
-			occurrences: []activities.TemplateCapacityOccurrence{
+			occurrences: []timetable.TemplateCapacityOccurrence{
 				capacityOccurrence(jan1, 12, 3),
 				capacityOccurrence(jan1.AddDays(1), 12, 1),
 			},
@@ -63,7 +65,7 @@ func TestWorstTemplateOccurrenceRanking(t *testing.T) {
 		},
 		{
 			name: "higher requirement breaks equal coverage ties",
-			occurrences: []activities.TemplateCapacityOccurrence{
+			occurrences: []timetable.TemplateCapacityOccurrence{
 				capacityOccurrence(jan1, 12, 1),
 				capacityOccurrence(jan1.AddDays(1), 24, 2),
 			},
@@ -71,7 +73,7 @@ func TestWorstTemplateOccurrenceRanking(t *testing.T) {
 		},
 		{
 			name: "earliest date is deterministic final tie breaker",
-			occurrences: []activities.TemplateCapacityOccurrence{
+			occurrences: []timetable.TemplateCapacityOccurrence{
 				capacityOccurrence(jan1.AddDays(7), 12, 0),
 				capacityOccurrence(jan1, 12, 0),
 			},
@@ -79,7 +81,7 @@ func TestWorstTemplateOccurrenceRanking(t *testing.T) {
 		},
 		{
 			name: "zero demand is ignored when a demanded occurrence exists",
-			occurrences: []activities.TemplateCapacityOccurrence{
+			occurrences: []timetable.TemplateCapacityOccurrence{
 				capacityOccurrence(jan1, 0, 0),
 				capacityOccurrence(jan1.AddDays(1), 12, 1),
 			},
@@ -94,7 +96,7 @@ func TestWorstTemplateOccurrenceRanking(t *testing.T) {
 			// separately in TestWorstTemplateOccurrence_WithOverride.
 			got, ok := worstTemplateOccurrence(tt.occurrences, nil, 12)
 			require.True(t, ok)
-			assert.Equal(t, calendar.Date(tt.wantDate), got.OccurrenceDate)
+			assert.Equal(t, tt.wantDate.String(), got.OccurrenceDate)
 		})
 	}
 }
@@ -106,7 +108,7 @@ func TestWorstTemplateOccurrence_WithOverride(t *testing.T) {
 	// A manual override of 3 applies uniformly to every occurrence. A
 	// fully-staffed 3/3 day must NOT hide a 0/3 day that only looks fine under
 	// the derived requirement (#1839).
-	occurrences := []activities.TemplateCapacityOccurrence{
+	occurrences := []timetable.TemplateCapacityOccurrence{
 		capacityOccurrence(jan1, 30, 3),           // 3/3 under override -> fine
 		capacityOccurrence(jan1.AddDays(1), 0, 0), // 0/3 under override -> danger
 	}
@@ -116,12 +118,12 @@ func TestWorstTemplateOccurrence_WithOverride(t *testing.T) {
 	// exact false "all good" state the reviewer flagged.
 	derived, ok := worstTemplateOccurrence(occurrences, nil, 10)
 	require.True(t, ok)
-	assert.Equal(t, calendar.Date(jan1), derived.OccurrenceDate, "derived: empty day skipped, 3/3 day looks worst")
+	assert.Equal(t, jan1.String(), derived.OccurrenceDate, "derived: empty day skipped, 3/3 day looks worst")
 
 	// With the override the empty 0/3 day is correctly the worst.
 	overridden, ok := worstTemplateOccurrence(occurrences, intPtr(3), 10)
 	require.True(t, ok)
-	assert.Equal(t, calendar.Date(jan1.AddDays(1)), overridden.OccurrenceDate, "override: 0/3 day is the worst")
+	assert.Equal(t, jan1.AddDays(1).String(), overridden.OccurrenceDate, "override: 0/3 day is the worst")
 }
 
 func TestApplyWorstTemplateCapacity_OverrideParticipatesInScoring(t *testing.T) {
@@ -130,12 +132,12 @@ func TestApplyWorstTemplateCapacity_OverrideParticipatesInScoring(t *testing.T) 
 	// Template 1 has a manual override of 3; its two occurrences are a
 	// fully-staffed 3/3 day and an empty 0/3 day. The override must steer the
 	// worst-occurrence pick to the 0/3 day so the list shows the true shortfall.
-	rows := []activities.TemplateListRow{
-		{TemplateID: 1, RequiredStaff: activities.NullInt64{Int64: 3, Valid: true}},
+	rows := []timetable.TemplateListRow{
+		{TemplateID: 1, RequiredStaff: int64Ptr(3)},
 	}
-	occurrences := []activities.TemplateCapacityOccurrence{
-		{TemplateID: 1, OccurrenceDate: calendar.Date(calendar.NewDate(2026, 1, 1)), EnrollmentCount: 30, SupervisorCount: 3},
-		{TemplateID: 1, OccurrenceDate: calendar.Date(calendar.NewDate(2026, 1, 2)), EnrollmentCount: 0, SupervisorCount: 0},
+	occurrences := []timetable.TemplateCapacityOccurrence{
+		{TemplateID: 1, OccurrenceDate: calendar.NewDate(2026, 1, 1).String(), EnrollmentCount: 30, SupervisorCount: 3},
+		{TemplateID: 1, OccurrenceDate: calendar.NewDate(2026, 1, 2).String(), EnrollmentCount: 0, SupervisorCount: 0},
 	}
 
 	applyWorstTemplateCapacity(rows, []int64{1}, occurrences, 10)
@@ -147,12 +149,12 @@ func TestApplyWorstTemplateCapacity_OverrideParticipatesInScoring(t *testing.T) 
 func TestApplyWorstTemplateCapacityClearsTemplatesWithoutOccurrences(t *testing.T) {
 	t.Parallel()
 
-	rows := []activities.TemplateListRow{
+	rows := []timetable.TemplateListRow{
 		{TemplateID: 1, CapacityEnrollmentCount: 8, CapacitySupervisorCount: 2},
 		{TemplateID: 2, CapacityEnrollmentCount: 9, CapacitySupervisorCount: 3},
 	}
-	occurrences := []activities.TemplateCapacityOccurrence{
-		{TemplateID: 1, OccurrenceDate: calendar.Date(calendar.NewDate(2026, 1, 5)), EnrollmentCount: 4, SupervisorCount: 1},
+	occurrences := []timetable.TemplateCapacityOccurrence{
+		{TemplateID: 1, OccurrenceDate: calendar.NewDate(2026, 1, 5).String(), EnrollmentCount: 4, SupervisorCount: 1},
 	}
 
 	applyWorstTemplateCapacity(rows, []int64{1, 2}, occurrences, 12)
@@ -170,12 +172,12 @@ func TestApplyWorstTemplateCapacity_MarksOccurrenceFound(t *testing.T) {
 	// cancelled / AB-week-filtered / unmaterializable). The flag lets the
 	// handler suppress the manual required_staff override for template 2 so a
 	// never-occurring block cannot show a false 0/N understaffing indicator.
-	rows := []activities.TemplateListRow{
-		{TemplateID: 1, RequiredStaff: activities.NullInt64{Int64: 3, Valid: true}},
-		{TemplateID: 2, RequiredStaff: activities.NullInt64{Int64: 3, Valid: true}},
+	rows := []timetable.TemplateListRow{
+		{TemplateID: 1, RequiredStaff: int64Ptr(3)},
+		{TemplateID: 2, RequiredStaff: int64Ptr(3)},
 	}
-	occurrences := []activities.TemplateCapacityOccurrence{
-		{TemplateID: 1, OccurrenceDate: calendar.Date(calendar.NewDate(2026, 1, 5)), EnrollmentCount: 4, SupervisorCount: 1},
+	occurrences := []timetable.TemplateCapacityOccurrence{
+		{TemplateID: 1, OccurrenceDate: calendar.NewDate(2026, 1, 5).String(), EnrollmentCount: 4, SupervisorCount: 1},
 	}
 
 	applyWorstTemplateCapacity(rows, []int64{1, 2}, occurrences, 12)

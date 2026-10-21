@@ -5,10 +5,7 @@ import (
 	"log/slog"
 	"time"
 
-	activityContract "github.com/moto-nrw/project-phoenix/modules/timetable/activitycontract"
-
 	"github.com/moto-nrw/project-phoenix/modules/timetable"
-	activitiesModels "github.com/moto-nrw/project-phoenix/modules/timetable/internal/domain/activityrecords"
 	scheduleModels "github.com/moto-nrw/project-phoenix/modules/timetable/internal/domain/schedulerecords"
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 )
@@ -52,18 +49,11 @@ type PickupBaselines interface {
 	RegularPickup(studentID int64, date calendar.Date) (pickup time.Time, ok bool)
 }
 
-// DataTemplates reads the Vorlagen list and writes the activity a
-// spontaneous start needs, through the retained activity group repository.
+// DataTemplates reads the Vorlagen list and its targets and writes the
+// activity a spontaneous start needs, through the owner's group capability.
 type DataTemplates interface {
-	ListTemplateRows(ctx context.Context, templateID *int64) ([]activitiesModels.TemplateListRow, error)
-	ListTemplateRowsForTemplatePeriod(ctx context.Context, templateID, periodID int64) ([]activitiesModels.TemplateListRow, error)
-	ListTemplateRowsForPeriod(ctx context.Context, periodID *int64) ([]activitiesModels.TemplateListRow, error)
-	ListTemplateWeekdayRoster(ctx context.Context, templateID, calendarPeriodID *int64) ([]timetable.TemplateWeekdayRosterRow, error)
-	ListTemplateCapacityOccurrences(ctx context.Context, periodID *int64, templateIDs []int64) ([]activitiesModels.TemplateCapacityOccurrence, error)
-	FindTargetsByGroupIDs(ctx context.Context, groupIDs []int64) (map[int64][]*activityContract.GroupTarget, error)
-	FindTargetStudentIDsByGroupIDs(ctx context.Context, groupIDs []int64) (map[int64][]int64, error)
-	FindByName(ctx context.Context, name string) (*activityContract.Group, error)
-	Create(ctx context.Context, group *activityContract.Group) error
+	GroupRows
+	timetable.TemplateRowQuery
 }
 
 // DataGroups reads the template a block was materialized from through the
@@ -122,14 +112,17 @@ type TimetableDataDependencies struct {
 	PickupBaselines   PickupBaselineProjector
 	Visits            OperationVisits
 	Templates         DataTemplates
-	Groups            DataGroups
-	BlockMetadata     BlockDisplayMetadata
-	Categories        DataCategories
-	Rooms             RoomNames
-	RoomOccupancy     RoomOccupancy
-	DeviationEvents   DeviationEventReader
-	ConflictAcks      timetable.ConflictAckCapability
-	Locks             AttendanceLocks
-	Advisory          AdvisoryLocks
-	Logger            *slog.Logger
+	// Directories name the rooms, education groups and Schichtarten of the
+	// Vorlagen list and list the active calendar periods of its capacity.
+	Directories     RepositoryDirectories
+	Groups          DataGroups
+	BlockMetadata   BlockDisplayMetadata
+	Categories      DataCategories
+	Rooms           RoomNames
+	RoomOccupancy   RoomOccupancy
+	DeviationEvents DeviationEventReader
+	ConflictAcks    timetable.ConflictAckCapability
+	Locks           AttendanceLocks
+	Advisory        AdvisoryLocks
+	Logger          *slog.Logger
 }

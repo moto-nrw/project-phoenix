@@ -177,7 +177,7 @@ func (s *TemplateService) updateTemplateLocked(
 // loadUpdateTarget loads the edited segment and validates the references the
 // edit changes. An archived or missing segment is the active-CRUD 404.
 func (s *TemplateService) loadUpdateTarget(ctx context.Context, in TemplateUpdateInput) (*activityContract.Group, error) {
-	existing, err := s.deps.ActivityGroupRepo.FindByID(ctx, in.TemplateID)
+	existing, err := findLegacyGroup(ctx, s.deps.ActivityGroupRepo, in.TemplateID)
 	if err != nil {
 		if domain.IsRecordNotFound(err) {
 			return nil, &ports.ScheduleError{Op: "update template: load target", Err: timetable.ErrTemplateSegmentNotEditable}
@@ -278,11 +278,7 @@ func (s *TemplateService) writeTemplateFields(ctx context.Context, in TemplateUp
 		return err
 	}
 	if targetsProvided {
-		targetRepo, ok := s.deps.ActivityGroupRepo.(ports.ActivityGroupTargets)
-		if !ok {
-			return &ports.ScheduleError{Op: "update template: replace targets", Err: errors.New("target repository is not configured")}
-		}
-		if err := targetRepo.ReplaceTargets(ctx, in.TemplateID, in.Targets); err != nil {
+		if err := replaceLegacyGroupTargets(ctx, s.deps.ActivityGroupRepo, in.TemplateID, in.Targets); err != nil {
 			return &ports.ScheduleError{Op: "update template: replace targets", Err: err}
 		}
 	}
@@ -466,12 +462,8 @@ func unionStudentIDs(left, right []int64) []int64 {
 	return ids
 }
 
-func loadExistingDynamicTargets(ctx context.Context, repo ports.ActivityGroupRecords, groupID int64) ([]*activityContract.GroupTarget, error) {
-	targetRepo, ok := repo.(ports.ActivityGroupTargets)
-	if !ok {
-		return nil, nil
-	}
-	byGroup, err := targetRepo.FindTargetsByGroupIDs(ctx, []int64{groupID})
+func loadExistingDynamicTargets(ctx context.Context, groups timetable.ActivityGroupQuery, groupID int64) ([]*activityContract.GroupTarget, error) {
+	byGroup, err := legacyGroupTargets(ctx, groups, []int64{groupID})
 	if err != nil {
 		return nil, err
 	}
@@ -613,7 +605,7 @@ func (s *TemplateService) loadEditableTemplateEnvelope(
 }
 
 func (s *TemplateService) updateTemplateFields(ctx context.Context, in TemplateUpdateInput) error {
-	updated, err := s.deps.ActivityGroupRepo.UpdateTemplateFields(ctx, in.TemplateID, in.Fields)
+	updated, err := s.deps.ActivityGroupRepo.UpdateTemplate(ctx, in.TemplateID, in.Fields)
 	if err != nil {
 		return &ports.ScheduleError{Op: updateTemplateFieldsOp, Err: err}
 	}
