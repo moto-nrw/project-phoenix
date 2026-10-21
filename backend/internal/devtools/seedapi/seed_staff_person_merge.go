@@ -27,6 +27,7 @@ func (seedStaffPersonMergeStep) Run(_ context.Context, rt *Runtime) error {
 	var existing struct {
 		Data struct {
 			Person struct {
+				ID        int64  `json:"id,string"`
 				FirstName string `json:"first_name"`
 				LastName  string `json:"last_name"`
 			} `json:"person"`
@@ -37,6 +38,15 @@ func (seedStaffPersonMergeStep) Run(_ context.Context, rt *Runtime) error {
 	}
 	if existing.Data.Person.FirstName == "" || existing.Data.Person.LastName == "" {
 		return fmt.Errorf("staff duplicate example has no person name")
+	}
+	if existing.Data.Person.ID > 0 {
+		alreadySeeded, err := hasSeededStaffPersonMerge(rt, existing.Data.Person.ID)
+		if err != nil {
+			return err
+		}
+		if alreadySeeded {
+			return nil
+		}
 	}
 	raw, err = rt.Client.Post("/api/staff/externals", map[string]any{
 		"first_name": existing.Data.Person.FirstName, "last_name": existing.Data.Person.LastName, "organization": "Demo: frühere Beschäftigung für die Dublettenprüfung",
@@ -55,4 +65,35 @@ func (seedStaffPersonMergeStep) Run(_ context.Context, rt *Runtime) error {
 		return fmt.Errorf("retire duplicate employment: %w", err)
 	}
 	return nil
+}
+
+// hasSeededStaffPersonMerge recognizes the example by its account-bearing
+// demo person. A completed merge no longer appears in the preview, so a later
+// seed can provide a fresh example without accumulating unreviewed duplicates.
+func hasSeededStaffPersonMerge(rt *Runtime, personID int64) (bool, error) {
+	if rt.Bootstrap == nil || rt.Bootstrap.SchoolID <= 0 {
+		return false, fmt.Errorf("staff duplicate example requires a seeded school")
+	}
+	raw, err := rt.Client.GetWithAuth(rt.OperatorAuth, fmt.Sprintf("/operator/staff-person-merges/%d", rt.Bootstrap.SchoolID))
+	if err != nil {
+		return false, fmt.Errorf("list staff duplicate examples: %w", err)
+	}
+	var existing struct {
+		Data []struct {
+			Keeper struct {
+				Person struct {
+					ID int64 `json:"id,string"`
+				} `json:"person"`
+			} `json:"keeper"`
+		} `json:"data"`
+	}
+	if err := json.Unmarshal(raw, &existing); err != nil {
+		return false, fmt.Errorf("decode staff duplicate examples: %w", err)
+	}
+	for _, candidate := range existing.Data {
+		if candidate.Keeper.Person.ID == personID {
+			return true, nil
+		}
+	}
+	return false, nil
 }

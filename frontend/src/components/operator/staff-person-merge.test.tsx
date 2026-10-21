@@ -152,6 +152,23 @@ describe("StaffPersonMerge", () => {
       ),
     ).toBeInTheDocument();
   });
+  it("keeps a completed merge successful when refreshing the lists fails", async () => {
+    const { onMerged } = setup();
+    onMerged.mockRejectedValueOnce(new Error("refresh failed"));
+    await reviewAnna();
+    fireEvent.click(submit());
+    expect(
+      await screen.findByText(
+        "Die ausgewählten Personen wurden zusammengeführt.",
+      ),
+    ).toBeInTheDocument();
+    expect(
+      await screen.findByRole("alert", {
+        name: /Listen konnten nicht vollständig aktualisiert werden/,
+      }),
+    ).toBeInTheDocument();
+    expect(execute).toHaveBeenCalledOnce();
+  });
   it("requires a new review after the operator reloads suggestions", async () => {
     setup();
     await reviewAnna();

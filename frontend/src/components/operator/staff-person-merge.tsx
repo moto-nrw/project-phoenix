@@ -7,7 +7,7 @@ import {
   LoadErrorAlert,
 } from "~/components/ui/form-error-alert";
 import { useSwrLoadError } from "~/lib/hooks/use-swr-load-error";
-import { useApiFormError } from "~/contexts/ToastContext";
+import { useApiErrorDisplay, useApiFormError } from "~/contexts/ToastContext";
 import { Button } from "~/components/ui/button";
 import { Checkbox } from "~/components/ui/checkbox";
 import { SectionCard } from "~/components/ui/section-card";
@@ -71,6 +71,7 @@ export function StaffPersonMerge({
     show: showFailure,
     clear: clearFailure,
   } = useApiFormError();
+  const { showMessage: showRefreshFailure } = useApiErrorDisplay();
   const loadError = useSwrLoadError(
     error,
     "die Zusammenführungsvorschläge",
@@ -89,7 +90,12 @@ export function StaffPersonMerge({
       setSelected(new Set());
       setConfirmed(false);
       setSuccess(true);
-      await Promise.all([mutate(), onMerged()]);
+      const refreshes = await Promise.allSettled([mutate(), onMerged()]);
+      if (refreshes.some((refresh) => refresh.status === "rejected")) {
+        showRefreshFailure(
+          "Die Listen konnten nicht vollständig aktualisiert werden. Bitte laden Sie die Seite neu.",
+        );
+      }
     } catch (error) {
       await showFailure(error, {
         object: "die Personen",
