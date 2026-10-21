@@ -43,6 +43,22 @@ func (s *Store) StaffMergePeople(ctx context.Context, schoolID int64, lock bool)
 // RetireMergedStaffPerson preserves the tombstone and its historical references.
 // No account or card is unlinked; an unexpected card or child blocks the repair.
 func (s *Store) RetireMergedStaffPerson(ctx context.Context, schoolID, donorID, keeperID int64) error {
+	db, scope, err := s.database(ctx)
+	if err != nil {
+		return err
+	}
+	if !scope.AcrossSchools {
+		return errors.New("staff person merge requires an administrative transaction")
+	}
+	// The final group check must not miss an uncommitted person write. Hold the
+	// table lock through the administrative transaction; a concurrent write
+	// either waits until this repair completes or rejects this stale preview.
+	if _, err := db.NewRaw(`LOCK TABLE users.persons IN SHARE ROW EXCLUSIVE MODE NOWAIT`).Exec(ctx); err != nil {
+		if isLockNotAvailable(err) {
+			return peopledirectory.ErrStaffPersonMergeNoLongerEligible
+		}
+		return err
+	}
 	people, err := s.StaffMergePeople(ctx, schoolID, true)
 	if err != nil {
 		return err
@@ -62,10 +78,6 @@ func (s *Store) RetireMergedStaffPerson(ctx context.Context, schoolID, donorID, 
 	// of the final eligibility check.
 	if donor == nil || keeper == nil || donorID == keeperID || donor.AccountID != nil || keeper.AccountID == nil || donor.TagID != nil || donor.HasStudent || keeper.HasStudent || donor.NameKey != keeper.NameKey || !hasExactMergePair(people, donor.NameKey) || (donor.Birthday != "" && keeper.Birthday != "" && donor.Birthday != keeper.Birthday) {
 		return peopledirectory.ErrStaffPersonMergeNoLongerEligible
-	}
-	db, _, err := s.database(ctx)
-	if err != nil {
-		return err
 	}
 	if _, err = db.NewRaw(`UPDATE users.persons SET birthday = COALESCE(birthday, (SELECT birthday FROM users.persons WHERE tenant_id = ? AND id = ?)) WHERE tenant_id = ? AND id = ?`, schoolID, donorID, schoolID, keeperID).Exec(ctx); err != nil {
 		return err
