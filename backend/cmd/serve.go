@@ -67,6 +67,7 @@ func runServeRoot(cmd *cobra.Command, process api.ServeProcess) error {
 		Logger:       logger,
 		// A malformed DSN stops the runtime build.
 		SentryPyrePortalDSN: config.SentryPyrePortalDSN,
+		Turnstile:           api.TurnstileKeys{SiteKey: config.TurnstileSiteKey, SecretKey: config.TurnstileSecretKey},
 		Process:             process,
 	}, func(runtime *api.Runtime) error {
 		return runtime.Serve(ctx)
@@ -177,6 +178,7 @@ type serveConfig struct {
 	FrontendURL, PublicAPIURL, ParentsURL, PhoenixAuthPassword string
 	DatabaseDSN, TestDatabaseDSN                               string
 	SentryDSN, SentryPyrePortalDSN                             string
+	TurnstileSiteKey, TurnstileSecretKey                       string
 	LogLevel                                                   string
 	LogTextLogging, EnableCORS                                 bool
 }
@@ -191,6 +193,7 @@ func currentServeConfig() serveConfig {
 		ParentsURL:   viper.GetString("parents_url"), PhoenixAuthPassword: viper.GetString("phoenix_auth_password"),
 		DatabaseDSN: viper.GetString("db_dsn"), TestDatabaseDSN: viper.GetString("test_db_dsn"),
 		SentryDSN: viper.GetString("sentry_dsn"), SentryPyrePortalDSN: viper.GetString("sentry_pyreportal_dsn"),
+		TurnstileSiteKey: viper.GetString("turnstile_site_key"), TurnstileSecretKey: viper.GetString("turnstile_secret_key"),
 		LogLevel: viper.GetString("log_level"), EnableCORS: viper.GetBool("enable_cors"),
 	}
 }
@@ -202,6 +205,9 @@ func validateServeConfig(config serveConfig) error {
 		"AUTH_JWT_REFRESH_EXPIRY": config.JWTRefreshExpiry, "FRONTEND_URL": config.FrontendURL,
 		"NEXT_PUBLIC_API_URL": config.PublicAPIURL,
 		"PARENTS_URL":         config.ParentsURL, "PHOENIX_AUTH_PASSWORD": config.PhoenixAuthPassword,
+		// One Cloudflare Turnstile widget protects the public enrollment
+		// form of every school.
+		"TURNSTILE_SITE_KEY": config.TurnstileSiteKey, "TURNSTILE_SECRET_KEY": config.TurnstileSecretKey,
 	}
 
 	var missing []string

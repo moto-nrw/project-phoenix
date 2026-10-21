@@ -56,8 +56,8 @@
       "declaration": "checkRuntimeRejectsMissingDependencies",
       "target": "api.WithRuntime",
       "lines": [
-        103,
-        114
+        113,
+        124
       ],
       "tables": []
     },

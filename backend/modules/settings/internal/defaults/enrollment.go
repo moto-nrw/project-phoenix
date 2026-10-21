@@ -114,18 +114,13 @@ func registerEnrollmentSystem() {
 
 }
 
-// registerEnrollmentPublicForm wires PR 7's settings - captcha keys,
-// grade-level cap, care-offering overflow mode. These are consumed by
+// registerEnrollmentPublicForm wires PR 7's settings - grade-level cap, care-offering overflow mode. These are consumed by
 // the public submission flow.
 func registerEnrollmentPublicForm() {
 
-	// Captcha site key - public, tenant-scoped. Embedded in the
-	// public form HTML so the parent's browser can challenge.
-	registerDefinitions(enrollment_registerEnrollmentPublicForm_sicherheit_0Definitions, enrollment_registerEnrollmentPublicForm_formular_1Definitions)
-
-	// Captcha secret key - server-side only. Sent to Turnstile's
-	// /siteverify endpoint along with the parent's token. Operator-
-	// only because the secret rotates outside tenant ops.
+	// The captcha keys are platform configuration (TURNSTILE_SITE_KEY,
+	// TURNSTILE_SECRET_KEY): one Turnstile widget serves every school.
+	registerDefinitions(enrollment_registerEnrollmentPublicForm_formular_1Definitions)
 
 	// Grade level cap on the public form. Default 4 (OGS norm); a
 	// Gymnasium can extend up to 13.
@@ -293,36 +288,6 @@ var enrollment_registerEnrollmentLegalTexts_rechtstexte_0Definitions = []config.
 	},
 }
 
-var enrollment_registerEnrollmentPublicForm_sicherheit_0Definitions = []config.Definition{
-	{
-		Key:             config.KeyEnrollmentCaptchaSiteKey,
-		Label:           "Spam-Schutz: öffentlicher Schlüssel",
-		Description:     "Diesen Schlüssel bekommen Sie von Cloudflare Turnstile. Er steht sichtbar im Anmeldeformular.",
-		Type:            config.FieldText,
-		Default:         "",
-		ReadPermission:  "config:read",
-		WritePermission: "config:manage",
-		Tab:             "enrollment",
-		Category:        "sicherheit",
-		SortOrder:       54,
-		DependsOn:       dependsOnEnabled,
-	},
-	{
-		Key:             config.KeyEnrollmentCaptchaSecretKey,
-		Label:           "Captcha Secret-Key (Cloudflare Turnstile)",
-		Description:     "Geheimer Schlüssel des Bot-Schutz-Anbieters. Wird serverseitig zur Verifikation verwendet und ist niemals für Eltern sichtbar.",
-		Type:            config.FieldPassword,
-		Default:         "",
-		ReadPermission:  "config:read",
-		WritePermission: "config:manage",
-		Tab:             "enrollment",
-		Category:        "sicherheit",
-		SortOrder:       55,
-		DependsOn:       dependsOnEnabled,
-		AccessPolicy:    config.AccessOperatorOnly,
-	},
-}
-
 var enrollment_registerEnrollmentPublicForm_formular_1Definitions = []config.Definition{
 	{
 		Key:             config.KeyEnrollmentGradeLevelMax,
@@ -424,11 +389,10 @@ var enrollment_registerEnrollmentSafety_sicherheit_0Definitions = []config.Defin
 	{
 		Key:         config.KeyEnrollmentRequireCaptcha,
 		Label:       "Spam-Schutz im Anmeldeformular",
-		Description: "Hält Programme ab, die das Formular massenhaft abschicken (Cloudflare Turnstile). Schalten Sie das erst ein, wenn das moto-Team den Schutz für Ihre Schule vorbereitet hat. Sonst kann niemand das Formular abschicken.",
+		Description: "Hält Programme ab, die das Formular massenhaft abschicken (Cloudflare Turnstile).",
 		Type:        config.FieldBoolean,
-		// Default off: a fresh tenant has no Turnstile keys configured,
-		// and turning the gate on without keys breaks every public
-		// submission. Admins flip this on once both keys are filled in.
+		// Default off: each school opts in. The Turnstile keys are platform
+		// configuration the server requires at startup.
 		Default:         false,
 		ReadPermission:  "config:read",
 		WritePermission: "config:manage",

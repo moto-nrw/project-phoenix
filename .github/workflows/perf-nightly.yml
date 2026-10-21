@@ -103,6 +103,9 @@ jobs:
       ADMIN_PASSWORD: PerfNightly1234%
       FRONTEND_URL: http://localhost:3000
       PARENTS_URL: http://parents.localhost:3000
+      # Cloudflare's documented always-passing Turnstile test keys.
+      TURNSTILE_SITE_KEY: 1x00000000000000000000AA
+      TURNSTILE_SECRET_KEY: 1x0000000000000000000000000000000AA
       SCHOOL_URL: http://schule.localhost:3000
       TENANT_DOMAIN: localhost
       # Same token for backend and the Next proxy: measure.perf.ts scrapes
