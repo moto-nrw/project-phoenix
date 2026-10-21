@@ -151,32 +151,3 @@ export async function uploadAvatar(file: File): Promise<Profile> {
     throw error;
   }
 }
-
-/**
- * Delete the user's avatar
- */
-export async function deleteAvatar(): Promise<Profile> {
-  try {
-    const response = await sessionFetch(`/api/me/profile/avatar`, {
-      method: "DELETE",
-    });
-
-    if (!response.ok) {
-      throw await apiErrorFromResponse(
-        response,
-        `HTTP error! status: ${response.status}`,
-      );
-    }
-
-    const result = (await response.json()) as ProfileApiResult;
-
-    if (!result.success) {
-      throw unsuccessfulResult(result.message || "Failed to delete avatar");
-    }
-
-    return mapProfileResponse(result.data);
-  } catch (error) {
-    logger.error("failed to delete avatar", { error: String(error) });
-    throw error;
-  }
-}

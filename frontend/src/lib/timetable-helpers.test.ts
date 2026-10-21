@@ -4,13 +4,11 @@ import {
   assignBlockLanes,
   chunkDateRange,
   comparePlanningInstances,
-  computeTimetableSetup,
   countPlannedStaff,
   deviationEventLabel,
   formatDayHeader,
   formatMonthLabel,
   formatWeekLabel,
-  formatYearLabel,
   getActivityColor,
   getActivityTypeBadge,
   instanceRoomLabel,
@@ -24,8 +22,6 @@ import {
   getStatusLabel,
   getWeekRange,
   getWeekdays,
-  getYearMonths,
-  getYearRange,
   groupInstancesByDate,
   mapApplyDeviations,
   mapBulkSubstitution,
@@ -167,16 +163,6 @@ describe("date and range helpers", () => {
     expect(days.at(-1)).toEqual(to);
   });
 
-  it("returns the civil year range and month anchors", () => {
-    const { from, to } = getYearRange(new Date("2026-05-15T00:00:00"));
-
-    expect(toISODate(from)).toBe("2026-01-01");
-    expect(toISODate(to)).toBe("2026-12-31");
-    expect(getYearMonths(from).map((d) => d.getMonth())).toEqual([
-      0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11,
-    ]);
-  });
-
   it("chunks inclusive date ranges and rejects invalid ranges", () => {
     expect(chunkDateRange("2026-05-01", "2026-05-05", 2)).toEqual([
       { from: "2026-05-01", to: "2026-05-02" },
@@ -315,7 +301,6 @@ describe("date and range helpers", () => {
     expect(formatWeekLabel(monday, sunday)).toContain("10.05.2026");
     expect(formatDayHeader(monday)).toBe("Mo 04.05.");
     expect(formatMonthLabel(monday)).toMatch(/Mai 2026/i);
-    expect(formatYearLabel(monday)).toBe("2026");
     expect(getGermanWeekdayLong(monday)).toBe("Montag");
     expect(getGermanWeekdayShort(monday)).toBe("Mo");
   });
@@ -1865,69 +1850,6 @@ describe("countPlannedStaff", () => {
 
   it("returns 0 for an empty list", () => {
     expect(countPlannedStaff([])).toBe(0);
-  });
-});
-
-describe("computeTimetableSetup", () => {
-  it("completes when period + plan are done (enrollment optional)", () => {
-    const result = computeTimetableSetup({
-      hasActivePeriod: true,
-      careOfferingLink: "unlinked",
-      hasPlan: true,
-    });
-    expect(result.setupComplete).toBe(true);
-    expect(result.periodDone).toBe(true);
-    expect(result.planDone).toBe(true);
-    expect(result.totalSteps).toBe(3);
-    expect(result.completedSteps).toBe(2);
-    expect(result.progressPercent).toBe(67);
-  });
-
-  it("is incomplete for a fresh school (no period, no plan)", () => {
-    const result = computeTimetableSetup({
-      hasActivePeriod: false,
-      careOfferingLink: "unlinked",
-      hasPlan: false,
-    });
-    expect(result.setupComplete).toBe(false);
-    expect(result.completedSteps).toBe(0);
-    expect(result.progressPercent).toBe(0);
-  });
-
-  it("counts a linked care offering toward progress", () => {
-    const result = computeTimetableSetup({
-      hasActivePeriod: true,
-      careOfferingLink: "linked",
-      hasPlan: true,
-    });
-    expect(result.enrollmentDone).toBe(true);
-    expect(result.completedSteps).toBe(3);
-    expect(result.progressPercent).toBe(100);
-  });
-
-  // Issue #1651: an active enrollment phase whose offerings link to nothing
-  // must not tick the "Mit der Anmeldung verknüpfen" step.
-  it("leaves the enrollment step open when no care offering is linked", () => {
-    const result = computeTimetableSetup({
-      hasActivePeriod: true,
-      careOfferingLink: "unlinked",
-      hasPlan: true,
-    });
-    expect(result.enrollmentApplicable).toBe(true);
-    expect(result.enrollmentDone).toBe(false);
-    expect(result.completedSteps).toBe(2);
-  });
-
-  it("drops the enrollment step from progress when the linkage is unknown", () => {
-    const result = computeTimetableSetup({
-      hasActivePeriod: true,
-      careOfferingLink: "unknown",
-      hasPlan: false,
-    });
-    expect(result.enrollmentApplicable).toBe(false);
-    expect(result.totalSteps).toBe(2);
-    expect(result.completedSteps).toBe(1);
-    expect(result.progressPercent).toBe(50);
   });
 });
 

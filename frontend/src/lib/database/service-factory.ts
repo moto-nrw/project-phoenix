@@ -438,20 +438,3 @@ export function createCrudService<T>(config: EntityConfig<T>): CrudService<T> {
     },
   };
 }
-
-// Export helper to create services with custom methods
-export function createExtendedService<T>(
-  config: EntityConfig<T>,
-): CrudService<T> {
-  const baseService = createCrudService(config);
-
-  // Add custom methods if defined
-  if (config.service?.customMethods) {
-    return {
-      ...baseService,
-      ...config.service.customMethods,
-    } as CrudService<T>;
-  }
-
-  return baseService;
-}

@@ -15,7 +15,6 @@ import {
   handleApiError,
   apiGet,
   apiPost,
-  checkAuth,
   bffError,
   problemResponse,
   ApiResponseError as ServerApiResponseError,
@@ -1178,52 +1177,6 @@ describe("fetchWithRetry", () => {
 vi.mock("../server/auth", () => ({
   auth: vi.fn(),
 }));
-
-describe("checkAuth", () => {
-  beforeEach(() => {
-    vi.clearAllMocks();
-  });
-
-  it("returns null when session has valid token", async () => {
-    const { auth } = await import("../server/auth");
-    vi.mocked(auth).mockResolvedValueOnce({
-      user: { id: "1", token: "valid-token" },
-      expires: "",
-    } as never);
-
-    const result = await checkAuth();
-
-    expect(result).toBeNull();
-  });
-
-  it("returns 401 response when session is null", async () => {
-    const { auth } = await import("../server/auth");
-    vi.mocked(auth).mockResolvedValueOnce(null as never);
-
-    const result = await checkAuth();
-
-    expect(result).not.toBeNull();
-    expect(result?.status).toBe(401);
-    expect(await result?.json()).toMatchObject({
-      status: 401,
-      detail: "Unauthorized",
-      code: "general.permission",
-    });
-  });
-
-  it("returns 401 response when user has no token", async () => {
-    const { auth } = await import("../server/auth");
-    vi.mocked(auth).mockResolvedValueOnce({
-      user: { id: "1", token: undefined },
-      expires: "",
-    } as never);
-
-    const result = await checkAuth();
-
-    expect(result).not.toBeNull();
-    expect(result?.status).toBe(401);
-  });
-});
 
 // ===== API FUNCTION TESTS (SERVER-SIDE) =====
 

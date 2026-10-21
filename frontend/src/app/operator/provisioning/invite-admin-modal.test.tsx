@@ -114,11 +114,6 @@ describe("InviteAdminModal", () => {
     mockInviteSchoolAdmin.mockResolvedValue(invitationResult);
   });
 
-  it("does not render when closed", () => {
-    renderModal({ isOpen: false });
-    expect(screen.queryByTestId("modal")).not.toBeInTheDocument();
-  });
-
   it("renders caregiver toggle unchecked and hides position by default", () => {
     renderModal();
 

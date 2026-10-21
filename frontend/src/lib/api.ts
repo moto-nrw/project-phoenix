@@ -29,7 +29,6 @@ import {
   mapGroupsResponse,
 } from "./group-helpers";
 
-// Re-export for external consumers
 export { mapGroupResponse } from "./group-helpers";
 import type { BackendGroup, Group as ImportedGroup } from "./group-helpers";
 import {
@@ -38,8 +37,6 @@ import {
   mapRoomsResponse,
 } from "./room-helpers";
 
-// Re-export for external consumers
-export { mapRoomResponse } from "./room-helpers";
 import type { BackendRoom } from "./room-helpers";
 import { handleAuthFailure } from "./auth-failure";
 import { encodeMultiValueParam } from "./multi-value-param";

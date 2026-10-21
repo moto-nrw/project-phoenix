@@ -22,7 +22,6 @@ import {
   mapGuardianResponse,
   mapGuardianPickerResponse,
   mapGuardianWithRelationshipResponse,
-  mapGuardianFormDataToBackend,
   mapStudentGuardianLinkToBackend,
   mapPhoneNumberResponse,
   mapPhoneNumberCreateToBackend,
@@ -78,14 +77,6 @@ async function guardianApiError(
  */
 function bodyError(body: unknown, fallback: string) {
   return apiErrorFromBody(fallback, 500, body);
-}
-
-// Backend student type (minimal representation for guardian relationships)
-interface BackendStudent {
-  id: number;
-  first_name: string;
-  last_name: string;
-  date_of_birth: string;
 }
 
 // Partial update request type for guardian profile
@@ -163,62 +154,6 @@ export async function fetchStudentGuardians(
   >;
 
   return (result.data ?? []).map(mapGuardianWithRelationshipResponse);
-}
-
-/**
- * Fetch all students for a guardian
- */
-export async function fetchGuardianStudents(
-  guardianId: string,
-): Promise<BackendStudent[]> {
-  const response = await transportFetch(
-    `/api/guardians/${guardianId}/students`,
-  );
-
-  if (!response.ok) {
-    throw await guardianApiError(
-      response,
-      "fetch_guardian_students",
-      "Failed to fetch students",
-    );
-  }
-
-  const result = (await response.json()) as ApiResponse<BackendStudent[]>;
-
-  return result.data ?? [];
-}
-
-/**
- * Create a new guardian profile
- */
-export async function createGuardian(
-  data: GuardianFormData,
-): Promise<Guardian> {
-  const backendData = mapGuardianFormDataToBackend(data);
-
-  const response = await transportFetch("/api/guardians", {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-    },
-    body: JSON.stringify(backendData),
-  });
-
-  if (!response.ok) {
-    throw await guardianApiError(
-      response,
-      "create_guardian",
-      "Failed to create guardian",
-    );
-  }
-
-  const result = (await response.json()) as ApiResponse<BackendGuardianProfile>;
-
-  if (!result.data) {
-    throw bodyError(result, "Failed to create guardian");
-  }
-
-  return mapGuardianResponse(result.data);
 }
 
 /**
@@ -644,29 +579,6 @@ export async function searchGuardians(query: string): Promise<Guardian[]> {
 // =============================================================================
 // Phone Number API Functions
 // =============================================================================
-
-/**
- * Fetch all phone numbers for a guardian
- */
-export async function fetchGuardianPhoneNumbers(
-  guardianId: string,
-): Promise<PhoneNumber[]> {
-  const response = await transportFetch(
-    `/api/guardians/${guardianId}/phone-numbers`,
-  );
-
-  if (!response.ok) {
-    throw await guardianApiError(
-      response,
-      "fetch_guardian_phone_numbers",
-      "Failed to fetch phone numbers",
-    );
-  }
-
-  const result = (await response.json()) as ApiResponse<BackendPhoneNumber[]>;
-
-  return (result.data ?? []).map(mapPhoneNumberResponse);
-}
 
 /**
  * Add a phone number to a guardian

@@ -9,7 +9,7 @@ import {
 import { sanitizeEndpoint } from "./log-sanitize";
 import { createLogger } from "~/lib/logger";
 import type { ProblemBody } from "./api-error";
-import { ApiResponseError, problemResponse } from "./api-response-error.server";
+import { ApiResponseError } from "./api-response-error.server";
 
 // Logger instance for API helpers
 const logger = createLogger({ component: "ApiHelpers" });
@@ -71,27 +71,6 @@ async function getIncomingForwardHeaders(): Promise<Record<string, string>> {
   } catch {
     return {};
   }
-}
-
-/**
- * Check authentication from inside a response-aware route wrapper.
- *
- * New route handlers should normally use the shared route factories instead;
- * those factories guarantee that a refreshed session cookie reaches the
- * browser. This helper remains for compatibility with existing callers and
- * must not be used by an unwrapped route handler.
- */
-export async function checkAuth(
-  request?: NextRequest,
-): Promise<Response | null> {
-  const { auth } = await import("../server/auth");
-  const session = await auth();
-
-  if (!session?.user?.token) {
-    return problemResponse(401, "Unauthorized", request);
-  }
-
-  return null;
 }
 
 /**

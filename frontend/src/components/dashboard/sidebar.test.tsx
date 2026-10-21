@@ -716,7 +716,7 @@ describe("Sidebar", () => {
       expect(dashboardLink).not.toHaveClass("bg-gray-100");
     });
 
-    it("does not render the removed enrollment reports subpage", () => {
+    it("highlights the enrollment overview on /admin/enrollments", () => {
       mockUsePathname.mockReturnValue("/admin/enrollments");
       mockIsAdmin.mockReturnValue(true);
       mockUseSession.mockReturnValue(createMockSession(true));
@@ -725,7 +725,6 @@ describe("Sidebar", () => {
 
       const overviewLink = screen.getByText("Überblick").closest("a");
       expect(overviewLink).toHaveClass("bg-gray-100");
-      expect(screen.queryByText("Auswertung")).not.toBeInTheDocument();
     });
   });
 

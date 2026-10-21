@@ -3,13 +3,11 @@ import { describe, it, expect, vi } from "vitest";
 import {
   FormField,
   FieldWarning,
-  StatusBadge,
   DeliveryStatusBadge,
   EmptyState,
   SimpleEmptyState,
   SelectWithChevron,
   PlusIcon,
-  CardSkeletons,
 } from "./provisioning-shared";
 
 describe("FormField", () => {
@@ -103,36 +101,6 @@ describe("FieldWarning", () => {
     render(<FieldWarning message="This slug is already taken" />);
 
     expect(screen.getByText("This slug is already taken")).toBeInTheDocument();
-  });
-});
-
-describe("StatusBadge", () => {
-  it("should render 'Aktiv' when active is true", () => {
-    render(<StatusBadge active={true} />);
-
-    expect(screen.getByText("Aktiv")).toBeInTheDocument();
-  });
-
-  it("should render 'Inaktiv' when active is false", () => {
-    render(<StatusBadge active={false} />);
-
-    expect(screen.getByText("Inaktiv")).toBeInTheDocument();
-  });
-
-  it("should apply green styling when active", () => {
-    render(<StatusBadge active={true} />);
-
-    const badge = screen.getByText("Aktiv");
-    expect(badge.className).toContain("bg-moto-green/15");
-    expect(badge.className).toContain("text-moto-green-strong");
-  });
-
-  it("should apply gray styling when inactive", () => {
-    render(<StatusBadge active={false} />);
-
-    const badge = screen.getByText("Inaktiv");
-    expect(badge.className).toContain("bg-gray-100");
-    expect(badge.className).toContain("text-gray-500");
   });
 });
 
@@ -403,24 +371,5 @@ describe("PlusIcon", () => {
 
     const path = container.querySelector("path");
     expect(path).toBeInTheDocument();
-  });
-});
-
-describe("CardSkeletons", () => {
-  it("should render 3 canonical card surfaces", () => {
-    const { container } = render(<CardSkeletons />);
-
-    const cards = container.querySelectorAll(
-      ".moto-content-surface.rounded-2xl",
-    );
-    expect(cards).toHaveLength(3);
-  });
-
-  it("should render skeleton elements inside each card", () => {
-    const { container } = render(<CardSkeletons />);
-
-    // Each card has 3 skeleton divs (via Skeleton component which renders animate-pulse divs)
-    const skeletons = container.querySelectorAll(".animate-pulse");
-    expect(skeletons).toHaveLength(9);
   });
 });

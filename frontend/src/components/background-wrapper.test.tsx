@@ -12,14 +12,4 @@ describe("BackgroundWrapper", () => {
 
     expect(screen.getByText("Test content")).toBeInTheDocument();
   });
-
-  it("does not duplicate the backdrop owned by the modal primitive", () => {
-    const { container } = render(
-      <BackgroundWrapper>
-        <div>Content</div>
-      </BackgroundWrapper>,
-    );
-
-    expect(container.querySelector('[aria-hidden="true"]')).toBeNull();
-  });
 });

@@ -399,13 +399,6 @@ export function getStudentTimeStatus({
   };
 }
 
-export function areStudentDayTimesResolved(
-  arrivalStatus: StudentTimeStatus,
-  pickupStatus: StudentTimeStatus,
-): boolean {
-  return arrivalStatus.isResolved && pickupStatus.isResolved;
-}
-
 export function combineTimeNotes(
   notes?: string,
   dayNotes?: ReadonlyArray<{ content: string }>,

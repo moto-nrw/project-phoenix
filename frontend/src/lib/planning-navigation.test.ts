@@ -5,7 +5,6 @@ import {
   getActivePlanningSubPageHref,
   getPlanningMobileActivePaths,
   isPlanningPageHref,
-  isPlanningPath,
 } from "./planning-navigation";
 
 describe("planning navigation", () => {
@@ -20,12 +19,11 @@ describe("planning navigation", () => {
     ["/calendar-periods", "/calendar-periods"],
   ] as const)("maps %s to %s", (pathname, expected) => {
     expect(getActivePlanningSubPageHref(pathname)).toBe(expected);
-    expect(isPlanningPath(pathname)).toBe(true);
   });
 
   it("uses path-segment boundaries", () => {
     expect(getActivePlanningSubPageHref("/vertretungsplaner")).toBeNull();
-    expect(isPlanningPath("/dienstplan-archiv")).toBe(false);
+    expect(getActivePlanningSubPageHref("/dienstplan-archiv")).toBeNull();
   });
 
   it("gives every planning page its own mobile entry", () => {
