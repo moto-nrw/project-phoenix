@@ -51,6 +51,7 @@ import type {
 } from "~/lib/timetable-operations-types";
 import { isCareDayExpected, isNotScheduledRow } from "~/lib/timetable-types";
 import type { Student } from "~/lib/student-helpers";
+import { rosterRunState } from "~/components/active-supervisions/view-model";
 
 /**
  * Marks the attendance mutation as our own before firing the request so the
@@ -712,7 +713,8 @@ function TimetableRosterHeader({
             {/* Der Kicker folgt dem Zustand des Blocks. Fest "Aktiv" war
                 gelogen, sobald der Roster eines beendeten Termins offen ist —
                 im Reopen-Fenster der OGS ebenso wie in der Aufsicht einer
-                Lehrkraft (#2527). */}
+                Lehrkraft (#2527). Er heißt wie das Abzeichen im Seitenkopf
+                („Läuft“ / „Beendet“, #4354). */}
             {showStatus ? (
               <p
                 className={`text-xs font-semibold tracking-wide uppercase ${
@@ -721,7 +723,7 @@ function TimetableRosterHeader({
                     : "text-moto-green-strong"
                 }`}
               >
-                {roster.instance.status === "completed" ? "Beendet" : "Aktiv"}
+                {rosterRunState(roster.instance.status).label}
               </p>
             ) : null}
             <h2 className="truncate text-base font-semibold text-gray-900">
