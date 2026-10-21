@@ -23,6 +23,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/auth/authorize/permissions"
 	customMiddleware "github.com/moto-nrw/project-phoenix/middleware"
 	devicefleetCompose "github.com/moto-nrw/project-phoenix/modules/devicefleet/compose"
+	"github.com/moto-nrw/project-phoenix/modules/facilities"
 	identityaccessCompose "github.com/moto-nrw/project-phoenix/modules/identityaccess/compose"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess/sessiontoken"
 	"github.com/moto-nrw/project-phoenix/modules/settings"
@@ -511,9 +512,7 @@ func TestOnValueSetCallback_WCEnabled(t *testing.T) {
 	t.Parallel()
 
 	route := setupSettingsCallbackRoute(t)
-
-	// Mount the SetValue handler on a tenant-aware router
-	router := route.router
+	require.False(t, tenantHasSystemActivity(t, facilities.WCActivityName))
 
 	// Set checkout.wc_enabled = true → triggers callback → creates WC infrastructure
 	req := testutil.NewAuthenticatedRequest(t, "PUT", "/values/checkout.wc_enabled",
@@ -521,8 +520,10 @@ func TestOnValueSetCallback_WCEnabled(t *testing.T) {
 		testutil.WithJWTBearer(testutil.MintTestJWT(t, adminClaimsForCallback())),
 	)
 
-	rr := testutil.ExecuteRequest(router, req)
+	rr := testutil.ExecuteRequest(route.router, req)
 	testutil.AssertSuccessResponse(t, rr, http.StatusOK)
+	assert.True(t, tenantHasSystemActivity(t, facilities.WCActivityName),
+		"enabling the WC checkout must provision the WC system activity")
 }
 
 // TestOnValueSetCallback_SchulhofEnabled tests that the callback triggers
@@ -531,16 +532,17 @@ func TestOnValueSetCallback_SchulhofEnabled(t *testing.T) {
 	t.Parallel()
 
 	route := setupSettingsCallbackRoute(t)
-
-	router := route.router
+	require.False(t, tenantHasSystemActivity(t, facilities.SchulhofActivityName))
 
 	req := testutil.NewAuthenticatedRequest(t, "PUT", "/values/checkout.schulhof_enabled",
 		map[string]any{"value": true},
 		testutil.WithJWTBearer(testutil.MintTestJWT(t, adminClaimsForCallback())),
 	)
 
-	rr := testutil.ExecuteRequest(router, req)
+	rr := testutil.ExecuteRequest(route.router, req)
 	testutil.AssertSuccessResponse(t, rr, http.StatusOK)
+	assert.True(t, tenantHasSystemActivity(t, facilities.SchulhofActivityName),
+		"enabling the Schulhof checkout must provision the Schulhof system activity")
 }
 
 // TestOnValueSetCallback_FalseValueSkipsInfrastructure tests that setting
@@ -550,15 +552,29 @@ func TestOnValueSetCallback_FalseValueSkipsInfrastructure(t *testing.T) {
 
 	route := setupSettingsCallbackRoute(t)
 
-	router := route.router
-
 	req := testutil.NewAuthenticatedRequest(t, "PUT", "/values/checkout.wc_enabled",
 		map[string]any{"value": false},
 		testutil.WithJWTBearer(testutil.MintTestJWT(t, adminClaimsForCallback())),
 	)
 
-	rr := testutil.ExecuteRequest(router, req)
+	rr := testutil.ExecuteRequest(route.router, req)
 	testutil.AssertSuccessResponse(t, rr, http.StatusOK)
+	assert.False(t, tenantHasSystemActivity(t, facilities.WCActivityName),
+		"disabling the WC checkout must not provision the WC system activity")
+}
+
+// tenantHasSystemActivity reports whether the test's tenant holds the system
+// activity a checkout switch provisions.
+func tenantHasSystemActivity(t *testing.T, name string) bool {
+	t.Helper()
+	exists, err := testpkg.SetupTestDB(t).NewSelect().
+		TableExpr("activities.groups").
+		Where("tenant_id = ?", testpkg.Tenant(t)).
+		Where("name = ?", name).
+		Where("is_system = TRUE").
+		Exists(testpkg.Ctx(t))
+	require.NoError(t, err)
+	return exists
 }
 
 // adminClaimsForCallback returns admin claims with config permissions

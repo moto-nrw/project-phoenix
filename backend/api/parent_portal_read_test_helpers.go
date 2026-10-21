@@ -17,12 +17,6 @@ func (f *CarePlanSuiteRepositories) ParentChildReads() parentportal.ChildReads {
 	}
 	return owners.NewParentChildReads(careplanCompose.NewParentChildQueries(f.ParentChild, securityruntime.GuardianPermissionGranted))
 }
-func (f *CarePlanSuiteRepositories) ParentPhaseReads() parentportal.EnrollablePhaseReads {
-	if f.ParentEnrollablePhase == nil {
-		return nil
-	}
-	return owners.NewParentPhaseReads(careplanCompose.NewParentPhaseQueries(f.ParentEnrollablePhase))
-}
 func (f *CarePlanSuiteRepositories) ParentEnrollmentReads() parentportal.EnrollmentRequestReads {
 	if f.ParentEnrollmentRequest == nil {
 		return nil

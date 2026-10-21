@@ -19,15 +19,13 @@ no backend text; the refusal body is the RFC 9457 envelope of ADR 0006 with
 identity in `code` (#2520). Coordinate endpoint, code and auth-header changes
 across repos. Changing a code the kiosk branches on is a two-repo change:
 `backend/api/testdata/iot_error_codes.golden` (`TestFullProductionRouterGolden`)
-and `TestPyrePortalErrorCodesGuard`
-(`backend/api/iot/pyreportal_error_codes_test.go`) fail until both sides and
-the golden move together.
+fails until both sides and the golden move together.
 Backend header and attribution rules: `backend/CLAUDE.md` RFID/IoT Integration.
 
 ### Kiosk error codes
 
 Each kiosk refusal answers with its own `iot.*` code (#3939). The text in
-`detail` is diagnostics and may change; the golden and the guard list the
+`detail` is diagnostics and may change; the golden lists the
 codes PyrePortal branches on.
 
 | Code | Status | Detail |
@@ -130,7 +128,7 @@ Refusals carry stable codes PyrePortal maps:
 - `iot.open_room_binary_mode` (409)
 - the check-in capacity and `iot.student_already_active` bodies
 
-`backend/api/iot/pyreportal_error_codes_test.go` pins the codes. Deploy the
+`backend/api/testdata/iot_error_codes.golden` pins the codes. Deploy the
 backend first. A kiosk that finds neither flag nor route (404) keeps the old
 Schulhof/WC buttons.
 

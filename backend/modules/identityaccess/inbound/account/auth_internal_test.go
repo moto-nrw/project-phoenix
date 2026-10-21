@@ -343,19 +343,6 @@ func TestUpdateAccountRequest_Fields(t *testing.T) {
 }
 
 // =============================================================================
-// Resource Tests
-// =============================================================================
-
-func TestNewResource_ReturnsResource(t *testing.T) {
-	t.Parallel()
-
-	// Create resource with nil services (just testing initialization)
-	resource := NewResource(nil, nil, nil, nil, nil, transactionFailures.IsConstraintViolation)
-
-	assert.NotNil(t, resource)
-}
-
-// =============================================================================
 // normalizeBaseRole Tests
 // =============================================================================
 

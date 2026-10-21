@@ -174,7 +174,9 @@ func TestBetreuerRoleCannotReachColleaguePersonnelData(t *testing.T) {
 // TestBetreuerRoleSeesOnlyTheMinimalColleagueView pins acceptance criterion
 // 4 of #2906: the directory a Betreuer may read carries names, work e-mail,
 // account role and today's presence, never notes, employment type, absence
-// reason or NFC tag.
+// reason or NFC tag. The fixture here sets only the notes; the other fields
+// are pinned with set values by TestListStaffRedactsForTheDirectoryTier in
+// modules/schoolmembership/http.
 func TestBetreuerRoleSeesOnlyTheMinimalColleagueView(t *testing.T) {
 	t.Parallel()
 
@@ -197,9 +199,6 @@ func TestBetreuerRoleSeesOnlyTheMinimalColleagueView(t *testing.T) {
 		assert.NotContains(t, rr.Body.String(), "Geheime Personalnotiz",
 			"%s must not carry staff notes for the Betreuer tier", path)
 		assert.NotContains(t, rr.Body.String(), `"staff_notes"`, path)
-		assert.NotContains(t, rr.Body.String(), `"employment_type"`, path)
-		assert.NotContains(t, rr.Body.String(), `"absence_type"`, path)
-		assert.NotContains(t, rr.Body.String(), `"tag_id"`, path)
 	}
 
 	rr := testutil.ExecuteRequest(ctx.router, testutil.NewAuthenticatedRequest(t, http.MethodGet,

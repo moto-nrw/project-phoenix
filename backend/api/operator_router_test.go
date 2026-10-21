@@ -85,11 +85,6 @@ func TestOperatorIdentityRoutes(t *testing.T) {
 func TestRouter(t *testing.T) {
 	t.Parallel()
 
-	t.Run("creates router successfully", func(t *testing.T) {
-		router := testOperatorRouter(operatorIdentity{sessions: operatorTestSessions(t, nil)}, nil)
-		require.NotNil(t, router)
-	})
-
 	t.Run("names the missing sessions instead of dereferencing nil", func(t *testing.T) {
 		require.PanicsWithValue(t,
 			"operator api: the operator session chains are required to mount the operator routes",

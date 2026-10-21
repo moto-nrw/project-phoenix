@@ -733,19 +733,6 @@ func TestImportStudents_PersonWithoutStaff(t *testing.T) {
 }
 
 // =============================================================================
-// ROUTER TESTS
-// =============================================================================
-
-func TestRouter_ReturnsValidRouter(t *testing.T) {
-	t.Parallel()
-
-	ctx := setupImportRoute(t)
-
-	router := ctx.resource.Router()
-	assert.NotNil(t, router, "Router should return a valid chi.Router")
-}
-
-// =============================================================================
 // STAFF (MITARBEITER) IMPORT TESTS (issue #1460, phase 3)
 // =============================================================================
 
