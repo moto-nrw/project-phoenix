@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -1024,4 +1025,44 @@ func TestFixedSeeder_SeedClassArrivalTimes(t *testing.T) {
 		assert.Equal(t, "11:45", request.Schedules[0].Time)
 		assert.Equal(t, "12:45", request.Schedules[2].Time)
 	}
+}
+
+func TestDemoRoomColors_GroupsRoomsByCategory(t *testing.T) {
+	t.Parallel()
+
+	colors, err := demoRoomColors(DemoRooms)
+	require.NoError(t, err)
+	require.Len(t, colors, len(DemoRooms))
+
+	seen := map[string]string{}
+	familyByCategory := map[string]string{}
+	for index, room := range DemoRooms {
+		color := strings.ToUpper(colors[index])
+		require.Regexp(t, `^#[0-9A-F]{6}$`, color)
+
+		// The API rejects a color another room of the school already uses.
+		other, taken := seen[color]
+		require.False(t, taken, "%s and %s share %s", room.Name, other, color)
+		seen[color] = room.Name
+
+		// Same category, same visible color: only the last hex digit may differ.
+		family := color[:6]
+		if want, ok := familyByCategory[room.Category]; ok {
+			assert.Equal(t, want, family, "room %s strays from its category color", room.Name)
+		}
+		familyByCategory[room.Category] = family
+	}
+
+	families := map[string]struct{}{}
+	for _, family := range familyByCategory {
+		families[family] = struct{}{}
+	}
+	assert.Len(t, families, len(familyByCategory), "two categories share one color")
+}
+
+func TestDemoRoomColors_RejectsUnknownCategory(t *testing.T) {
+	t.Parallel()
+
+	_, err := demoRoomColors([]DemoRoom{{Name: "Keller", Category: "Lager"}})
+	require.Error(t, err)
 }
