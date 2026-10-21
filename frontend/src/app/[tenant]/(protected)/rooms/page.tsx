@@ -218,12 +218,10 @@ function RoomTileGrid({
  */
 function RoomGroup({
   title,
-  description,
   rooms,
   roomHref,
 }: {
   readonly title: string;
-  readonly description?: string;
   readonly rooms: readonly Room[];
   readonly roomHref: (roomId: string) => string;
 }) {
@@ -232,7 +230,6 @@ function RoomGroup({
       collapsible
       title={title}
       titleBadge={<StatusBadge label={String(rooms.length)} tone="gray" />}
-      description={description}
     >
       <RoomTileGrid rooms={rooms} roomHref={roomHref} />
     </SectionCard>
@@ -655,10 +652,12 @@ function RoomsPageContent() {
           ) : null}
 
           {openRooms.length > 0 ? (
-            <>
+            // Als Gitter wächst die letzte Gruppe nicht bis zur Unterkante
+            // (TENANT-PAGE-SPEC Regel 6): eingeklappt bliebe sonst eine
+            // leere weiße Fläche über den halben Bildschirm stehen.
+            <div className="compact:gap-4 grid gap-6 max-sm:gap-3">
               <RoomGroup
                 title="Offene Räume"
-                description="Kinder können diese Räume jederzeit als Ziel wählen."
                 rooms={openRooms}
                 roomHref={roomHref}
               />
@@ -669,7 +668,7 @@ function RoomsPageContent() {
                   roomHref={roomHref}
                 />
               ) : null}
-            </>
+            </div>
           ) : null}
           {openRooms.length === 0 && filteredRooms.length > 0 ? (
             <RoomTileGrid rooms={filteredRooms} roomHref={roomHref} />
