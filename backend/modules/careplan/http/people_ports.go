@@ -21,13 +21,13 @@ type PersonRecords interface {
 	// UpdatePerson rewrites a person, refusing a re-pointed tag or account
 	// that does not exist.
 	UpdatePerson(ctx context.Context, person peopleModule.UpdatePerson) (peopleModule.Person, error)
-	DeletePerson(ctx context.Context, personID int64) error
+	Delete(ctx context.Context, id interface{}) error
 	// AssignStudentTag links the bracelet to the child's person, creating the
 	// card and releasing it from a previous holder. A graduated or missing
 	// child is refused with peopledirectory.ErrStudentNotFound, re-checked
 	// under the child's row lock.
 	AssignStudentTag(ctx context.Context, studentID int64, tagID string) error
-	UnassignTag(ctx context.Context, personID int64) error
+	UnlinkFromRFIDCard(ctx context.Context, personID int64) error
 	// ListStudentsForDay returns the children of the groups whose care covers
 	// date, as the day log counts them; today is the caller's calendar day.
 	ListStudentsForDay(ctx context.Context, groupIDs []int64, date, today calendar.Date) ([]peopleModule.StudentRecord, error)

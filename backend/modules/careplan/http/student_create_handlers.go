@@ -317,7 +317,7 @@ func (rs *Resource) createStudent(w http.ResponseWriter, r *http.Request) {
 
 // cleanupPersonAfterStudentFailure removes the person record if student creation fails
 func (rs *Resource) cleanupPersonAfterStudentFailure(ctx context.Context, personID int64) {
-	if err := rs.Persons.DeletePerson(ctx, personID); err != nil {
+	if err := rs.Persons.Delete(ctx, personID); err != nil {
 		slog.Default().Error("failed to cleanup person after failed student creation",
 			slog.Int64("person_id", personID),
 			slog.String("error", err.Error()))

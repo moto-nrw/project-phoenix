@@ -17,7 +17,6 @@ type PersonDirectory interface {
 	// StudentRows is the retained student repository the directory reads,
 	// for the callers that read it as it is.
 	StudentRows() StudentRepository
-	CountStudentsByGroupIDs(ctx context.Context, groupIDs []int64) (map[int64]int, error)
 	Create(ctx context.Context, person *peopleValues.DirectoryPersonSnapshot) error
 	Delete(ctx context.Context, id interface{}) error
 	FindActiveCaregiverByAccountID(ctx context.Context, accountID int64) (*peopleValues.ActiveCaregiver, error)
@@ -28,7 +27,6 @@ type PersonDirectory interface {
 	GetByIDs(ctx context.Context, ids []int64) (map[int64]*peopleValues.DirectoryPersonSnapshot, error)
 	GetEligibleStudentsByGroupIDsOnDate(ctx context.Context, groupIDs []int64, date calendar.Date, today calendar.Date) ([]*peopleValues.StudentState, error)
 	GetParticipationCandidatesByGroupIDs(ctx context.Context, groupIDs []int64) ([]*peopleValues.StudentState, error)
-	GetStudentByID(ctx context.Context, id int64) (*peopleValues.StudentState, error)
 	GetStudentByIDForUpdate(ctx context.Context, id int64) (*peopleValues.StudentState, error)
 	GetStudentsWithGroupsByTeacher(ctx context.Context, teacherID int64) ([]peopleValues.StudentRosterEntry, error)
 	GetStudentsWithGroupsByTeacherStaffIDs(ctx context.Context, staffIDs []int64) ([]peopleValues.StudentRosterEntry, error)
