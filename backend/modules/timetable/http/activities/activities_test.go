@@ -123,7 +123,9 @@ func TestListActivities_WithCategoryFilter(t *testing.T) {
 	for _, item := range data {
 		row, ok := item.(map[string]interface{})
 		require.True(t, ok, "Expected activity to be an object")
-		ids = append(ids, row["id"].(float64))
+		id, ok := row["id"].(float64)
+		require.True(t, ok, "Expected activity id to be a number")
+		ids = append(ids, id)
 	}
 	assert.Equal(t, []float64{float64(activity.ID)}, ids, "only the activity of the requested category is listed")
 }
