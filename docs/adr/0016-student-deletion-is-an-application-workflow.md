@@ -62,6 +62,6 @@ prior deletion audits and anonymized grade-transition history are retained.
 
 ## Subsequent change
 
-Migration 1.15.469 (#4329) removes `users.persons_guardians`. The workflow
+Migration 1.15.470 (#4329) removes `users.persons_guardians`. The workflow
 now deletes current guardian relationships; the adoption described above is
 historical.
