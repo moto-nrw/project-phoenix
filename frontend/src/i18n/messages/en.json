@@ -2190,6 +2190,7 @@
         "announcement_not_found": "{object} could not be changed. Please check its current status."
       },
       "enrollment": {
+        "form_attachment_invalid": "Please check the label and the PDF file.",
         "approval_care_offering_exactly_one": "{object} could not be changed. Please check its current status.",
         "approval_care_offering_missing": "{object} could not be changed. Please check its current status.",
         "approval_data_invalid": "{object} could not be saved. Please check your entries.",

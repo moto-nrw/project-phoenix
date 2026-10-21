@@ -18,11 +18,14 @@ func ValidateFormAttachments(attachments []FormAttachment) error {
 		attachment := &attachments[i]
 		attachment.Label = strings.TrimSpace(attachment.Label)
 		attachment.DocumentURL = strings.TrimSpace(attachment.DocumentURL)
-		if attachment.Label == "" || attachment.DocumentURL == "" {
-			return fmt.Errorf("attachment %d requires a label and document URL", i)
+		if attachment.Label == "" {
+			return invalidInputf(CodeFormAttachmentInvalid, fmt.Sprintf("attachments.%d.label", i), "attachment %d requires a label", i)
+		}
+		if attachment.DocumentURL == "" {
+			return invalidInputf(CodeFormAttachmentInvalid, fmt.Sprintf("attachments.%d.document_url", i), "attachment %d requires a document URL", i)
 		}
 		if seen[attachment.DocumentURL] {
-			return fmt.Errorf("attachment %d repeats a document URL", i)
+			return invalidInputf(CodeFormAttachmentInvalid, fmt.Sprintf("attachments.%d.document_url", i), "attachment %d repeats a document URL", i)
 		}
 		seen[attachment.DocumentURL] = true
 	}

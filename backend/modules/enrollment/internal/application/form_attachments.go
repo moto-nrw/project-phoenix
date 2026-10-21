@@ -19,7 +19,7 @@ func (s *FormSchemas) normalizeAttachments(ctx context.Context, attachments []en
 	for i := range result {
 		documentURL, ok := enrollment.NormalizeEnrollmentFormLegalDocumentURL(result[i].DocumentURL, tenantID)
 		if !ok {
-			return nil, fmt.Errorf("invalid schema: attachment %d has an invalid tenant PDF document URL", i)
+			return nil, enrollment.InvalidInput(enrollment.CodeFormAttachmentInvalid, fmt.Sprintf("attachments.%d.document_url", i), fmt.Errorf("attachment %d has an invalid tenant PDF document URL", i))
 		}
 		result[i].DocumentURL = documentURL
 	}
@@ -34,7 +34,7 @@ func (s *FormSchemas) normalizeFieldAttachments(ctx context.Context, fields []en
 	for i := range result {
 		attachments, err := s.normalizeAttachments(ctx, result[i].Attachments)
 		if err != nil {
-			return nil, err
+			return nil, enrollment.NestInput(err, fmt.Sprintf("fields.%d", i), "field %d", i)
 		}
 		result[i].Attachments = attachments
 	}

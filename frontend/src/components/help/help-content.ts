@@ -4191,6 +4191,9 @@ function enrollmentFormTopic(): HelpTopic {
     requirements: [
       "Sie haben das `Basisformular` angesehen und etwas vermisst.",
     ],
+    image: "/help/screens/anmeldung-pdf-anhaenge.webp",
+    imageAlt:
+      "Zwei PDF-Dateien mit eigenen Bezeichnungen im Anmeldeformular-Editor",
     steps: [],
     instructionGroups: [
       {

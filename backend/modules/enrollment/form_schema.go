@@ -263,7 +263,7 @@ func (f *FormField) SingleModeAppliesTo(grade *int16) bool {
 // (every type except FormFieldInfo).
 func (f *FormField) validateQuestion() error {
 	if len(f.Attachments) > 0 {
-		return fmt.Errorf("only information fields may declare attachments")
+		return invalidInputf(CodeFormAttachmentInvalid, "attachments", "only information fields may declare attachments")
 	}
 	if f.Label == "" {
 		return invalidInput(CodeFormFieldLabelRequired, "label", errors.New("form field label is required"))

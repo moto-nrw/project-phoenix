@@ -379,7 +379,7 @@ func (s *FormSchemas) normalizeSchemaLegalDocumentURLs(ctx context.Context, bloc
 		block := &normalized[i]
 		attachments, err := s.normalizeAttachments(ctx, block.Attachments)
 		if err != nil {
-			return nil, err
+			return nil, enrollment.NestInput(err, fmt.Sprintf("legal_blocks.%d", i), "legal block %d", i)
 		}
 		block.Attachments = attachments
 		if block.DisplayMode != enrollment.LegalBlockDisplayModePDF || strings.TrimSpace(block.DocumentURL) == "" {
