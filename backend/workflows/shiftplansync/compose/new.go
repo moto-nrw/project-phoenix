@@ -71,11 +71,8 @@ func NewSickCascade(deps SickCascadeDependencies) (shiftplansync.SickCascade, er
 		return nil, fmt.Errorf("shift plan sync compose: sick cascade needs %s", strings.Join(missing, ", "))
 	}
 	return application.NewSickCascade(application.SickCascadeDependencies{
-		Shifts: application.Shifts{
-			Planning: deps.Planning,
-			Rows:     deps.Workforce,
-			Lock:     deps.LockStaffShifts,
-		},
+		Shifts: application.Shifts{StaffShiftPlanning: deps.Planning, Lock: deps.LockStaffShifts,
+			ShiftQuery: deps.Workforce, StaffShiftCommand: deps.Workforce},
 		Deviations:    deps.Deviations,
 		TimetableData: deps.TimetableData,
 		InstanceStaff: deps.InstanceStaff,

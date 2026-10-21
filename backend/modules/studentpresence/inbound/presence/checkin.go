@@ -247,7 +247,7 @@ func (rs *Resource) createCheckinVisit(ctx context.Context, checkinCtx *checkinC
 
 	// Update last_activity on the active group to prevent session timeout
 	// while staff are actively using the web check-in feature
-	if activityErr := rs.Operations.TouchSession(ctx, checkinCtx.request.ActiveGroupID); activityErr != nil {
+	if activityErr := rs.Operations.UpdateSessionActivity(ctx, checkinCtx.request.ActiveGroupID); activityErr != nil {
 		// Log but don't fail - the visit was created successfully
 		rs.getLogger().WarnContext(ctx, "failed to update session activity after check-in",
 			slog.Int64("active_group_id", checkinCtx.request.ActiveGroupID),

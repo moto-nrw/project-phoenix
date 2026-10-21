@@ -157,7 +157,7 @@ func (rs *Resource) getSchemaPreviewBootstrap(w http.ResponseWriter, r *http.Req
 			}
 			schema = loaded
 		}
-		list, listErr := rs.PhaseService.AllPhases(ctx)
+		list, listErr := rs.PhaseService.Phases(ctx)
 		phases = list
 		return listErr
 	})

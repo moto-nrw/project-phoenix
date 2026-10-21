@@ -60,7 +60,7 @@ type groupLiveSessions interface {
 // groupLiveStatusDays is the Student Presence read of the scheduled day
 // statuses.
 type groupLiveStatusDays interface {
-	GetActiveByStudentIDsAndDate(ctx context.Context, studentIDs []int64, date calendar.Date) ([]*absencerecords.StudentStatusDay, error)
+	FindActiveByStudentIDsAndDate(ctx context.Context, studentIDs []int64, date calendar.Date) ([]*absencerecords.StudentStatusDay, error)
 }
 
 // groupLiveGroups is the School Structure read of the groups and their rooms.
@@ -328,7 +328,7 @@ func (p groupLivePresence) EffectiveStatuses(ctx context.Context, studentIDs []i
 	if err != nil {
 		return nil, err
 	}
-	rows, err := p.statusDays.GetActiveByStudentIDsAndDate(ctx, studentIDs, day)
+	rows, err := p.statusDays.FindActiveByStudentIDsAndDate(ctx, studentIDs, day)
 	if err != nil {
 		return nil, err
 	}

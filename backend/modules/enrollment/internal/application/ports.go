@@ -75,8 +75,8 @@ type CollectionSettings interface {
 
 // PhaseRecords is the owner capability the phase administration writes.
 type PhaseRecords interface {
+	PhaseList
 	Phase(context.Context, int64) (*enrollment.Phase, error)
-	Phases(context.Context) ([]*enrollment.Phase, error)
 	PublicOpenPhases(context.Context, time.Time) ([]*enrollment.Phase, error)
 	InsertPhase(context.Context, *enrollment.Phase) error
 	UpdatePhase(context.Context, *enrollment.Phase) error
@@ -85,6 +85,11 @@ type PhaseRecords interface {
 	CountCreatedStudentsByPhase(context.Context, int64) (int, error)
 	RemovePhase(context.Context, int64) (int, error)
 	PhaseResponseChildren(ctx context.Context, phaseID int64, statuses []string) ([]enrollment.PhaseResponseChild, error)
+}
+
+// PhaseList lists every phase of the tenant.
+type PhaseList interface {
+	Phases(context.Context) ([]*enrollment.Phase, error)
 }
 
 // PhaseOfferings reads the Care Plan offerings linked to a phase.

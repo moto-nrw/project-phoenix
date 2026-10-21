@@ -4,15 +4,9 @@ import (
 	"context"
 	"fmt"
 	"strings"
-	"time"
 
 	"github.com/moto-nrw/project-phoenix/modules/enrollment"
 )
-
-// IncrementAttempts atomically records an attempt in the school's IP or email bucket.
-func (m *Service) IncrementAttempts(ctx context.Context, tenantID int64, keyType, keyValue string, window time.Duration) (*enrollment.SubmissionRateLimitState, error) {
-	return m.store.IncrementAttempts(ctx, tenantID, keyType, keyValue, window)
-}
 
 // DeleteExpiredSubmissionRateLimits removes the school's buckets older than
 // the longest submission window.

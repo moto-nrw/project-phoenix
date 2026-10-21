@@ -105,7 +105,7 @@ type TimetableRoomOccupancy struct {
 	Sessions studentpresence.SessionRecords
 }
 
-func (o TimetableRoomOccupancy) RoomOccupied(ctx context.Context, roomID int64) (bool, error) {
+func (o TimetableRoomOccupancy) SpontaneousRoomOccupied(ctx context.Context, roomID int64) (bool, error) {
 	occupied, _, err := o.Sessions.CheckRoomConflict(ctx, roomID, 0)
 	return occupied, err
 }

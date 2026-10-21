@@ -7,7 +7,11 @@ import (
 	"github.com/moto-nrw/project-phoenix/modules/workforce"
 )
 
+// workSessionCapability embeds the service so GetTodayPresenceMap, whose
+// signature already matches, is promoted; the methods below convert values
+// and classify failures through sessions, the same service.
 type workSessionCapability struct {
+	WorkSessionService
 	sessions WorkSessionService
 	staff    func(context.Context, int64) (StaffScheduleBinding, error)
 }
@@ -19,7 +23,7 @@ func WorkSessionCapability(sessions WorkSessionService, staff func(context.Conte
 	if sessions == nil || staff == nil {
 		panic("work session capability: work session service and staff lookup are required")
 	}
-	return workSessionCapability{sessions: sessions, staff: staff}
+	return workSessionCapability{WorkSessionService: sessions, sessions: sessions, staff: staff}
 }
 
 func publicWorkSession(entity *WorkSession) *workforce.WorkSession {
@@ -256,10 +260,6 @@ func (c workSessionCapability) SessionEditsForStaff(ctx context.Context, staffID
 		return nil, mapTimeTrackingFailure(err)
 	}
 	return publicWorkSessionEdits(edits), nil
-}
-
-func (c workSessionCapability) TodayPresenceMap(ctx context.Context) (map[int64]string, error) {
-	return c.sessions.GetTodayPresenceMap(ctx)
 }
 
 func (c workSessionCapability) ExportSessions(ctx context.Context, staffID int64, from, to, format string) (*workforce.ExportFile, error) {

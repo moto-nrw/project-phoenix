@@ -54,7 +54,7 @@ func TestUpdateStudent_LiftUsesSameClockForResponse(t *testing.T) {
 	assert.False(t, decodeLiftedStatus(t, lift.Body.Bytes()).Data.Excused, "the response verifies the day that was lifted")
 	assert.Equal(t, 1, clockCalls, "the update captures its clock once")
 
-	rows, err := tc.statusDays.GetActiveByStudentAndDateRange(testpkg.Ctx(t), student.ID, date, date.AddDays(1))
+	rows, err := tc.statusDays.FindActiveByStudentAndDateRange(testpkg.Ctx(t), student.ID, date, date.AddDays(1))
 	require.NoError(t, err)
 	require.Len(t, rows, 1)
 	assert.Equal(t, tomorrowRow.ID, rows[0].ID, "tomorrow's planned status remains active")

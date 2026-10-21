@@ -27,7 +27,7 @@ type ScheduleReviewDirectory interface {
 	FindStudents(context.Context, []int64) (map[int64]ReviewStudent, error)
 	PersonNames(context.Context, []int64) (map[int64]PersonName, error)
 	ReviewerNames(context.Context, []int64) (map[int64]PersonName, error)
-	DepartureModes(context.Context, []int64) (map[int64]map[string][]string, error)
+	ListStudentDepartureModes(context.Context, []int64) (map[int64]map[string][]string, error)
 }
 
 type PickupReviewImpact struct {

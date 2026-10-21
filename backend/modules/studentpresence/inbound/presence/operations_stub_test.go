@@ -57,21 +57,21 @@ func (s *stubPresenceOperations) ReviseSession(ctx context.Context, group studen
 	return group, nil
 }
 
-func (s *stubPresenceOperations) RemoveSession(ctx context.Context, id int64) error {
+func (s *stubPresenceOperations) DeleteActiveGroup(ctx context.Context, id int64) error {
 	if s.removeSession != nil {
 		return s.removeSession(ctx, id)
 	}
 	return nil
 }
 
-func (s *stubPresenceOperations) EndSession(ctx context.Context, id int64) error {
+func (s *stubPresenceOperations) EndActiveGroupSession(ctx context.Context, id int64) error {
 	if s.endSession != nil {
 		return s.endSession(ctx, id)
 	}
 	return nil
 }
 
-func (s *stubPresenceOperations) TouchSession(ctx context.Context, id int64) error {
+func (s *stubPresenceOperations) UpdateSessionActivity(ctx context.Context, id int64) error {
 	if s.touchSession != nil {
 		return s.touchSession(ctx, id)
 	}
@@ -92,7 +92,7 @@ func (s *stubPresenceOperations) AmendVisit(ctx context.Context, visit studentpr
 	return nil
 }
 
-func (s *stubPresenceOperations) RemoveVisit(ctx context.Context, id int64) error {
+func (s *stubPresenceOperations) DeleteVisit(ctx context.Context, id int64) error {
 	if s.removeVisit != nil {
 		return s.removeVisit(ctx, id)
 	}
@@ -106,7 +106,7 @@ func (s *stubPresenceOperations) EndVisit(ctx context.Context, id int64) error {
 	return nil
 }
 
-func (s *stubPresenceOperations) PresenceMode(ctx context.Context) (string, error) {
+func (s *stubPresenceOperations) GetPresenceMode(ctx context.Context) (string, error) {
 	if s.presenceMode != nil {
 		return s.presenceMode(ctx)
 	}
@@ -127,7 +127,7 @@ func (s *stubPresenceOperations) AmendSupervision(ctx context.Context, row stude
 	return nil
 }
 
-func (s *stubPresenceOperations) RemoveSupervisionRecord(ctx context.Context, id int64) error {
+func (s *stubPresenceOperations) DeleteGroupSupervisor(ctx context.Context, id int64) error {
 	if s.removeSupervision != nil {
 		return s.removeSupervision(ctx, id)
 	}
@@ -169,14 +169,14 @@ func (s *stubPresenceOperations) AmendCombination(ctx context.Context, group stu
 	return group, nil
 }
 
-func (s *stubPresenceOperations) RemoveCombination(ctx context.Context, id int64) error {
+func (s *stubPresenceOperations) DeleteCombinedGroup(ctx context.Context, id int64) error {
 	if s.removeCombination != nil {
 		return s.removeCombination(ctx, id)
 	}
 	return nil
 }
 
-func (s *stubPresenceOperations) CloseCombination(ctx context.Context, id int64) error {
+func (s *stubPresenceOperations) EndCombinedGroup(ctx context.Context, id int64) error {
 	if s.closeCombination != nil {
 		return s.closeCombination(ctx, id)
 	}
@@ -253,7 +253,7 @@ func (s *stubPresenceOperations) CrossTenantStudents(ctx context.Context, hostin
 	return nil, nil
 }
 
-func (s *stubPresenceOperations) TrackingIndicators(ctx context.Context, studentIDs []int64, labels []string) (map[int64][]bool, error) {
+func (s *stubPresenceOperations) GetTrackingIndicators(ctx context.Context, studentIDs []int64, labels []string) (map[int64][]bool, error) {
 	if s.trackingIndicators != nil {
 		return s.trackingIndicators(ctx, studentIDs, labels)
 	}

@@ -11,10 +11,6 @@ import (
 // Staff work-schedule operations (issue #584: moved verbatim out of api/staff)
 // ---------------------------------------------------------------------------
 
-func (s *workSessionService) GetStaffIDsWithSupervisionToday(ctx context.Context) ([]int64, error) {
-	return s.supervisorRepo.GetStaffIDsWithSupervisionToday(ctx)
-}
-
 func (s *workSessionService) AssignScheduleTemplate(ctx context.Context, staff *StaffScheduleBinding, modelID int64) error {
 	model, err := s.workModelRepo.FindByID(ctx, modelID)
 	if err != nil {

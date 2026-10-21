@@ -113,9 +113,9 @@ type Rules interface {
 
 // Caller resolves the authenticated account's school-portal identity.
 type Caller interface {
-	// AssignedClasses returns the school classes assigned to the caller.
-	AssignedClasses(ctx context.Context) ([]string, error)
-	// StaffID returns the caller's users.staff row;
+	// GetMySchoolClasses returns the school classes assigned to the caller.
+	GetMySchoolClasses(ctx context.Context) ([]string, error)
+	// CurrentStaffID returns the caller's users.staff row;
 	// classday.ErrStaffRecordRequired when the account has none.
-	StaffID(ctx context.Context) (int64, error)
+	CurrentStaffID(ctx context.Context) (int64, error)
 }

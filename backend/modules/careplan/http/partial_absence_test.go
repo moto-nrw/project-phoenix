@@ -229,7 +229,7 @@ func TestFullDayStatusDoesNotOverwritePartialAbsence(t *testing.T) {
 	require.Equal(t, http.StatusConflict, statusRR.Code, statusRR.Body.String())
 	assert.Contains(t, statusRR.Body.String(), "partial absence")
 
-	rows, err := tc.statusDays.GetActiveByStudentAndDateRange(testpkg.Ctx(t), student.ID, date, date)
+	rows, err := tc.statusDays.FindActiveByStudentAndDateRange(testpkg.Ctx(t), student.ID, date, date)
 	require.NoError(t, err)
 	assert.Empty(t, rows)
 }

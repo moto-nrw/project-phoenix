@@ -3,7 +3,6 @@ package application
 import (
 	"context"
 	"fmt"
-	"time"
 
 	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
 	"github.com/moto-nrw/project-phoenix/modules/studentpresence/internal/ports"
@@ -15,11 +14,16 @@ type sessionRepository interface {
 }
 
 // SessionRecords publishes the room sessions and their supervision through
-// studentpresence.SessionRecords and studentpresence.SupervisionRecords.
+// studentpresence.SessionRecords and studentpresence.SupervisionRecords. The
+// embedded repositories serve the operations whose values already are the
+// owner's public ones; every method declared here translates the rows. The
+// session repository also hands out the room directory installed at
+// construction, so the composition root can rebind the room owner behind it
+// (#2665).
 type SessionRecords struct {
-	groups      sessionRepository
-	supervisors ports.GroupSupervisorRepository
-	staff       ports.SupervisionStaffDirectory
+	sessionRepository
+	ports.GroupSupervisorRepository
+	staff ports.SupervisionStaffDirectory
 }
 
 var (
@@ -28,7 +32,7 @@ var (
 )
 
 func NewSessionRecords(groups sessionRepository, supervisors ports.GroupSupervisorRepository, staff ports.SupervisionStaffDirectory) *SessionRecords {
-	return &SessionRecords{groups: groups, supervisors: supervisors, staff: staff}
+	return &SessionRecords{sessionRepository: groups, GroupSupervisorRepository: supervisors, staff: staff}
 }
 
 // SessionRepositories returns the session and supervision repositories the
@@ -38,13 +42,7 @@ func SessionRepositories(records studentpresence.SessionRecords) (ports.ActiveGr
 	if !ok {
 		panic(fmt.Sprintf("student presence: %T are not the composed session records", records))
 	}
-	return value.groups, value.supervisors
-}
-
-// RoomDirectory returns the room directory installed at construction, so the
-// composition root can rebind the room owner behind it (#2665).
-func (r *SessionRecords) RoomDirectory() ports.RoomDirectory {
-	return r.groups.RoomDirectory()
+	return value.sessionRepository, value.GroupSupervisorRepository
 }
 
 // SupervisionStaff returns the staff directory installed at construction, so
@@ -56,10 +54,10 @@ func (r *SessionRecords) SupervisionStaff() ports.SupervisionStaffDirectory {
 
 func (r *SessionRecords) CreateSession(ctx context.Context, group *studentpresence.LiveGroup) error {
 	if group == nil {
-		return r.groups.Create(ctx, nil)
+		return r.sessionRepository.Create(ctx, nil)
 	}
 	row := activeGroupRow(*group)
-	if err := r.groups.Create(ctx, row); err != nil {
+	if err := r.sessionRepository.Create(ctx, row); err != nil {
 		return err
 	}
 	*group = *livePointer(row)
@@ -67,17 +65,17 @@ func (r *SessionRecords) CreateSession(ctx context.Context, group *studentpresen
 }
 
 func (r *SessionRecords) FindSession(ctx context.Context, id int64) (*studentpresence.LiveGroup, error) {
-	group, err := r.groups.FindByID(ctx, id)
+	group, err := r.sessionRepository.FindByID(ctx, id)
 	return livePointer(group), err
 }
 
 func (r *SessionRecords) FindByIDForUpdate(ctx context.Context, id int64) (*studentpresence.LiveGroup, error) {
-	group, err := r.groups.FindByIDForUpdate(ctx, id)
+	group, err := r.sessionRepository.FindByIDForUpdate(ctx, id)
 	return livePointer(group), err
 }
 
 func (r *SessionRecords) FindByIDs(ctx context.Context, ids []int64) (map[int64]*studentpresence.SessionDetail, error) {
-	groups, err := r.groups.FindByIDs(ctx, ids)
+	groups, err := r.sessionRepository.FindByIDs(ctx, ids)
 	if groups == nil {
 		return nil, err
 	}
@@ -89,31 +87,23 @@ func (r *SessionRecords) FindByIDs(ctx context.Context, ids []int64) (map[int64]
 }
 
 func (r *SessionRecords) FindActiveByRoomID(ctx context.Context, roomID int64) ([]*studentpresence.LiveGroup, error) {
-	groups, err := r.groups.FindActiveByRoomID(ctx, roomID)
+	groups, err := r.sessionRepository.FindActiveByRoomID(ctx, roomID)
 	return livePointers(groups), err
 }
 
 func (r *SessionRecords) FindActiveByDeviceIDWithNames(ctx context.Context, deviceID int64) (*studentpresence.SessionDetail, error) {
-	group, err := r.groups.FindActiveByDeviceIDWithNames(ctx, deviceID)
+	group, err := r.sessionRepository.FindActiveByDeviceIDWithNames(ctx, deviceID)
 	return sessionDetailOf(group), err
 }
 
 func (r *SessionRecords) FindActiveGroups(ctx context.Context) ([]*studentpresence.LiveGroup, error) {
-	groups, err := r.groups.FindActiveGroups(ctx)
+	groups, err := r.sessionRepository.FindActiveGroups(ctx)
 	return livePointers(groups), err
 }
 
 func (r *SessionRecords) CheckRoomConflict(ctx context.Context, roomID, excludeGroupID int64) (bool, *studentpresence.LiveGroup, error) {
-	conflict, group, err := r.groups.CheckRoomConflict(ctx, roomID, excludeGroupID)
+	conflict, group, err := r.sessionRepository.CheckRoomConflict(ctx, roomID, excludeGroupID)
 	return conflict, livePointer(group), err
-}
-
-func (r *SessionRecords) UpdateLastActivity(ctx context.Context, id int64, at time.Time) error {
-	return r.groups.UpdateLastActivity(ctx, id, at)
-}
-
-func (r *SessionRecords) GetOccupiedActivityGroupIDs(ctx context.Context, activityGroupIDs []int64) (map[int64]bool, error) {
-	return r.groups.GetOccupiedActivityGroupIDs(ctx, activityGroupIDs)
 }
 
 // SessionRows returns the sessions in the order of ids, skipping unknown
@@ -123,7 +113,7 @@ func (r *SessionRecords) SessionRows(ctx context.Context, ids []int64) (any, err
 	if len(ids) == 0 {
 		return result, nil
 	}
-	byID, err := r.groups.FindByIDs(ctx, ids)
+	byID, err := r.sessionRepository.FindByIDs(ctx, ids)
 	if err != nil {
 		return nil, err
 	}
@@ -137,13 +127,13 @@ func (r *SessionRecords) SessionRows(ctx context.Context, ids []int64) (any, err
 
 func (r *SessionRecords) CreateSupervision(ctx context.Context, supervision *studentpresence.GroupSupervision) error {
 	if supervision == nil {
-		return r.supervisors.Create(ctx, nil)
+		return r.GroupSupervisorRepository.Create(ctx, nil)
 	}
 	row, err := supervisorRow(*supervision)
 	if err != nil {
 		return err
 	}
-	if err := r.supervisors.Create(ctx, row); err != nil {
+	if err := r.GroupSupervisorRepository.Create(ctx, row); err != nil {
 		return err
 	}
 	*supervision = supervisionOf(row)
@@ -151,17 +141,17 @@ func (r *SessionRecords) CreateSupervision(ctx context.Context, supervision *stu
 }
 
 func (r *SessionRecords) FindByActiveGroupID(ctx context.Context, activeGroupID int64, activeOnly bool) ([]*studentpresence.StaffedSupervision, error) {
-	rows, err := r.supervisors.FindByActiveGroupID(ctx, activeGroupID, activeOnly)
+	rows, err := r.GroupSupervisorRepository.FindByActiveGroupID(ctx, activeGroupID, activeOnly)
 	return staffedSupervisions(rows), err
 }
 
 func (r *SessionRecords) FindByActiveGroupIDs(ctx context.Context, activeGroupIDs []int64, activeOnly bool) ([]*studentpresence.StaffedSupervision, error) {
-	rows, err := r.supervisors.FindByActiveGroupIDs(ctx, activeGroupIDs, activeOnly)
+	rows, err := r.GroupSupervisorRepository.FindByActiveGroupIDs(ctx, activeGroupIDs, activeOnly)
 	return staffedSupervisions(rows), err
 }
 
 func (r *SessionRecords) FindActiveByStaffID(ctx context.Context, staffID int64) ([]*studentpresence.GroupSupervision, error) {
-	rows, err := r.supervisors.FindActiveByStaffID(ctx, staffID)
+	rows, err := r.GroupSupervisorRepository.FindActiveByStaffID(ctx, staffID)
 	if rows == nil {
 		return nil, err
 	}
@@ -173,20 +163,8 @@ func (r *SessionRecords) FindActiveByStaffID(ctx context.Context, staffID int64)
 	return result, err
 }
 
-func (r *SessionRecords) EndByActiveGroupAndStaffID(ctx context.Context, activeGroupID, staffID int64) (int, error) {
-	return r.supervisors.EndByActiveGroupAndStaffID(ctx, activeGroupID, staffID)
-}
-
-func (r *SessionRecords) EndAllActiveByStaffID(ctx context.Context, staffID int64) (int, error) {
-	return r.supervisors.EndAllActiveByStaffID(ctx, staffID)
-}
-
-func (r *SessionRecords) GetStaffIDsWithSupervisionToday(ctx context.Context) ([]int64, error) {
-	return r.supervisors.GetStaffIDsWithSupervisionToday(ctx)
-}
-
 func (r *SessionRecords) ListActiveSupervisionBlockers(ctx context.Context, staffID int64) ([]studentpresence.SupervisionBlocker, error) {
-	rows, err := r.supervisors.ListActiveSupervisionBlockers(ctx, staffID)
+	rows, err := r.GroupSupervisorRepository.ListActiveSupervisionBlockers(ctx, staffID)
 	if rows == nil {
 		return nil, err
 	}
@@ -195,10 +173,6 @@ func (r *SessionRecords) ListActiveSupervisionBlockers(ctx context.Context, staf
 		result = append(result, studentpresence.SupervisionBlocker(row))
 	}
 	return result, err
-}
-
-func (r *SessionRecords) ListActiveSupervisedRooms(ctx context.Context) ([]studentpresence.StaffRoomSupervision, error) {
-	return r.supervisors.ListActiveSupervisedRooms(ctx)
 }
 
 func livePointer(group *ports.ActiveGroup) *studentpresence.LiveGroup {

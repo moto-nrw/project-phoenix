@@ -80,7 +80,7 @@ func (s *Service) openRoomStudent(ctx context.Context, device *devicescan.Princi
 	}
 	// Binary-mode tenants track attendance only: there is no room a child
 	// could stay in, so the destination choice does not exist for them.
-	mode, err := s.settings.PresenceMode(ctx)
+	mode, err := s.settings.GetPresenceMode(ctx)
 	if err != nil {
 		return nil, nil, devicescan.Internal(devicescan.MessageInternalServerError, err)
 	}

@@ -35,11 +35,11 @@ func wsCreateTestServiceWithAbsenceRepo() (*workSessionService, *wsMockWorkSessi
 	supervisorRepo := &wsMockGroupSupervisorRepository{}
 
 	service := &workSessionService{
-		repo:           sessionRepo,
-		breakRepo:      breakRepo,
-		auditRepo:      auditRepo,
-		absenceRepo:    absenceRepo,
-		supervisorRepo: supervisorRepo,
+		repo:                      sessionRepo,
+		breakRepo:                 breakRepo,
+		auditRepo:                 auditRepo,
+		absenceRepo:               absenceRepo,
+		GroupSupervisorRepository: supervisorRepo,
 	}
 
 	return service, sessionRepo, breakRepo, auditRepo, absenceRepo, supervisorRepo
