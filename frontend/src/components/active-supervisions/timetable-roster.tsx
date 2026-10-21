@@ -9,9 +9,10 @@ import {
   type ReactNode,
 } from "react";
 import { UserPlus, Users } from "lucide-react";
+import { ArrowUpRightIcon } from "@phosphor-icons/react";
 import { MotoConceptIcon } from "~/components/ui/moto-concept-icon";
 import { Alert } from "~/components/ui/alert";
-import { Button } from "~/components/ui/button";
+import { Button, ButtonLink } from "~/components/ui/button";
 import { ChoiceModal } from "~/components/ui/choice-modal";
 import type { FormErrorInput } from "~/components/ui/form-error";
 import { FormModal } from "~/components/ui/form-modal";
@@ -23,6 +24,7 @@ import {
   SectionCard,
   SectionCollapseToggle,
 } from "~/components/ui/section-card";
+import { Tooltip } from "~/components/ui/tooltip";
 import { GroupIcon, SchoolClassIcon } from "~/components/students/student-card";
 import { overbookedHintFor, type Occupancy } from "~/lib/activity-occupancy";
 import { useNFCEnabled } from "~/lib/tenant-context";
@@ -265,10 +267,24 @@ interface RosterRowActionsProps {
     action: RosterAction,
     row: TimetableRosterRow,
   ) => Promise<void>;
+  /** Adresse der Kinderseite; ohne sie gibt es den Knopf „Profil ansehen“ nicht. */
+  readonly profileHref?: string;
 }
 
-function RosterRowActions({ row, onAction, access }: RosterRowActionsProps) {
-  if (!access.attendance && !access.statuses && !access.absence) return null;
+function RosterRowActions({
+  row,
+  onAction,
+  access,
+  profileHref,
+}: RosterRowActionsProps) {
+  if (
+    !access.attendance &&
+    !access.statuses &&
+    !access.absence &&
+    !profileHref
+  ) {
+    return null;
+  }
   const runAction = async (action: RosterAction) => {
     await onAction(action, row);
   };
@@ -351,6 +367,33 @@ function RosterRowActions({ row, onAction, access }: RosterRowActionsProps) {
           Zurück auf erwartet
         </Button>
       ) : null}
+      {/* Ein Link, kein Anwesenheitsknopf: er öffnet nur die Kinderseite
+          (#4356). Nur ein Icon am Ende der Zeile, damit die Zeile nicht
+          wächst; auf dem Handy rechts außen. Der Name im Label unterscheidet
+          die Links der Liste. */}
+      {profileHref ? (
+        <Tooltip
+          content="Profil ansehen"
+          asChild
+          iconOnly
+          className="ml-auto sm:ml-0"
+          bubbleClassName="right-0 left-auto"
+        >
+          <ButtonLink
+            href={profileHref}
+            variant="outline"
+            size="icon"
+            aria-label={`Profil ansehen: ${row.studentName || `Kind ${row.studentId}`}`}
+            className="size-9 shrink-0"
+          >
+            <ArrowUpRightIcon
+              className="size-4"
+              weight="bold"
+              aria-hidden="true"
+            />
+          </ButtonLink>
+        </Tooltip>
+      ) : null}
     </div>
   );
 }
@@ -371,6 +414,7 @@ interface TimetableRosterRowProps {
    * sieht auch nicht antippbar aus.
    */
   readonly onOpenStudent?: (row: TimetableRosterRow) => void;
+  readonly studentProfileHref?: (row: TimetableRosterRow) => string;
 }
 
 function TimetableRosterStudentRow({
@@ -383,6 +427,7 @@ function TimetableRosterStudentRow({
   row,
   onAction,
   onOpenStudent,
+  studentProfileHref,
 }: TimetableRosterRowProps) {
   const pickupTimeLabel = rosterPickupTimeLabel(
     row.pickupTime,
@@ -479,7 +524,12 @@ function TimetableRosterStudentRow({
           </div>
         ) : null}
       </div>
-      <RosterRowActions row={row} onAction={onAction} access={actionAccess} />
+      <RosterRowActions
+        row={row}
+        onAction={onAction}
+        access={actionAccess}
+        profileHref={studentProfileHref?.(row)}
+      />
     </div>
   );
 }
@@ -497,6 +547,7 @@ interface TimetableRosterSectionProps {
   readonly pickupTimesRedacted?: boolean;
   readonly onAction: RosterRowActionsProps["onAction"];
   readonly onOpenStudent?: (row: TimetableRosterRow) => void;
+  readonly studentProfileHref?: (row: TimetableRosterRow) => string;
   readonly rows: TimetableRosterRow[];
   readonly showTimetableCounts: boolean;
   readonly title: string;
@@ -513,6 +564,7 @@ function TimetableRosterSection({
   pickupTimesRedacted,
   onAction,
   onOpenStudent,
+  studentProfileHref,
   rows,
   showTimetableCounts,
   title,
@@ -557,6 +609,7 @@ function TimetableRosterSection({
               row={row}
               onAction={onAction}
               onOpenStudent={onOpenStudent}
+              studentProfileHref={studentProfileHref}
             />
           ))}
         </div>
@@ -994,6 +1047,12 @@ interface TimetableRosterContentProps {
    */
   readonly onExcuseRestOfDay?: (row: TimetableRosterRow) => Promise<void>;
   readonly onOpenStudent?: (row: TimetableRosterRow) => void;
+  /**
+   * Adresse der Kinderseite für den Knopf „Profil ansehen“ (#4356). Nur wer
+   * die Kinderseite öffnen darf (`users:read`), bekommt sie; ohne sie fehlt
+   * der Knopf.
+   */
+  readonly studentProfileHref?: (row: TimetableRosterRow) => string;
   readonly onSearchChange: (value: string) => void;
   /**
    * Suche und Filter der Seite (#3889). Sie engen die Abschnitte ein, die
@@ -1097,6 +1156,7 @@ export function TimetableRosterContent({
   onRosterAction,
   onExcuseRestOfDay,
   onOpenStudent,
+  studentProfileHref,
   onSearchChange,
   rowFilter = null,
   addStudentError,
@@ -1214,6 +1274,7 @@ export function TimetableRosterContent({
     pickupTimesRedacted: roster.pickupTimesRedacted,
     onAction: handleRosterAction,
     onOpenStudent,
+    studentProfileHref,
     showTimetableCounts,
   };
 
