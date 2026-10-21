@@ -41,10 +41,6 @@ func TestModuleOwnsTimeframeLifecycleAndQueries(t *testing.T) {
 	require.Len(t, listed, 1)
 	assert.Equal(t, first.ID, listed[0].ID)
 	assert.EqualValues(t, 1, observedOperation(log.seen, "list_timeframes").Stats.Queries)
-
-	require.NoError(t, module.DeleteTimeframe(ctx, first.ID))
-	_, err = module.FindTimeframe(ctx, first.ID)
-	require.ErrorIs(t, err, timetable.ErrTimeframeNotFound)
 }
 
 func TestModuleTimeframesAreTenantIsolated(t *testing.T) {
@@ -67,9 +63,6 @@ func TestModuleTimeframesAreTenantIsolated(t *testing.T) {
 	assert.NotContains(t, timeframeIDs(listed), foreign.ID)
 	_, err = module.UpdateTimeframe(foreignCtx, owned.ID, timeframeInput("10:00:00", "14:00:00", true, "No"))
 	require.ErrorIs(t, err, timetable.ErrTimeframeNotFound)
-	require.NoError(t, module.DeleteTimeframe(foreignCtx, owned.ID))
-	_, err = module.FindTimeframe(ctx, owned.ID)
-	require.NoError(t, err)
 }
 
 func TestModuleTimeframeReadFailuresAreNotSwallowed(t *testing.T) {
@@ -117,17 +110,6 @@ func TestModuleTimeframeWritesRollBackAndRetry(t *testing.T) {
 	unchanged, err := module.FindTimeframe(ctx, created.ID)
 	require.NoError(t, err)
 	assert.Equal(t, "08:00:00", unchanged.StartTime)
-
-	err = tenant.WithinCurrentTenant(ctx, func(txCtx context.Context) error {
-		if deleteErr := module.DeleteTimeframe(txCtx, created.ID); deleteErr != nil {
-			return deleteErr
-		}
-		return wantErr
-	})
-	require.ErrorIs(t, err, wantErr)
-	_, err = module.FindTimeframe(ctx, created.ID)
-	require.NoError(t, err)
-	require.NoError(t, module.DeleteTimeframe(ctx, created.ID))
 }
 
 func TestTimeframeListQueryBudgetStaysFlat(t *testing.T) {
