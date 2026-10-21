@@ -177,9 +177,12 @@ func (p *Portal) SchoolDeliveryExport(ctx context.Context, from, to mealplan.Dat
 	if err != nil {
 		return mealplan.ListExport{}, err
 	}
-	supply, _, err := p.deps.Supplies.CurrentSupply(ctx)
+	supply, active, err := p.deps.Supplies.CurrentSupply(ctx)
 	if err != nil {
 		return mealplan.ListExport{}, err
+	}
+	if !active {
+		return mealplan.ListExport{}, mealplan.ErrNotSupplied
 	}
 	week, err := p.deps.Supplies.Orders(ctx, from, to)
 	if err != nil {

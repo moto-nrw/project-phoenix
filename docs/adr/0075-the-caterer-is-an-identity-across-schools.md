@@ -60,7 +60,10 @@ tenant transaction.
    - `auth.caterer_schools` names the schools a caterer supplies. The login
      and the portal read it, with the caterer of the account, through the
      existing global identity read (`globalIdentityRead`) the login already
-     uses for accounts.
+     uses for accounts. The existing school-directory port filters these
+     IDs to live, active schools in one bulk read before a tenant is opened.
+     The school-list query budget is therefore three statements: the
+     caterer, its links and the school directory, independent of school count.
    - The caterer portal is a workflow (`workflows/catererportal`, owner
      `caterer-portal`) in the shape of ADR 0022. It opens each school's own
      tenant transaction and reads the order through the Meal Plan's public

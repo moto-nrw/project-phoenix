@@ -7,6 +7,7 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
+	"slices"
 	"strings"
 	"time"
 
@@ -365,7 +366,21 @@ func (c *CatererAccess) catererSchools(ctx context.Context, accountID int64) (do
 			return domain.ErrAccountNotCaterer
 		}
 		schools, _, err = c.store.ListCatererSchools(readCtx, caterer.ID)
-		return err
+		if err != nil {
+			return err
+		}
+		// School liveness belongs to Organisation & Tenancy. Resolve the
+		// linked schools in bulk before the portal opens any tenant.
+		active, err := c.schools.ListActiveSchoolsByID(readCtx, schools)
+		if err != nil {
+			return err
+		}
+		live := make(map[int64]bool, len(active))
+		for _, school := range active {
+			live[school.ID] = true
+		}
+		schools = slices.DeleteFunc(schools, func(id int64) bool { return !live[id] })
+		return nil
 	})
 	if err != nil {
 		return domain.Caterer{}, nil, failed("find caterer schools", err)

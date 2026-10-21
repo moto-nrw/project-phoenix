@@ -177,11 +177,28 @@ func checkCatererPortal(t *testing.T, graph *goldenRuntime) {
 		assert.Equal(t, export.contentType, response.Header().Get("Content-Type"))
 	}
 
+	// A valid caterer token must lose a deleted school before opening its
+	// tenant, even while the supply and identity link still exist.
+	_, err = db.ExecContext(t.Context(), `UPDATE platform.schools SET deleted_at = NOW() WHERE id = ?`, school)
+	require.NoError(t, err)
+	status, body = request(http.MethodGet, "/caterer/schools", "", catererToken)
+	require.Equal(t, http.StatusOK, status, string(body))
+	decodeCatererResponse(t, body, &schools)
+	assert.Empty(t, schools.Schools, "a deleted school is not supplied through the portal")
+	status, body = request(http.MethodGet, "/caterer/schools/"+schoolID+"/orders?from=2026-09-07&to=2026-09-11", "", catererToken)
+	assert.Equal(t, http.StatusForbidden, status)
+	assert.Equal(t, "meals.not_supplied", decodeCatererResponse(t, body, nil))
+	_, err = db.ExecContext(t.Context(), `UPDATE platform.schools SET deleted_at = NULL WHERE id = ?`, school)
+	require.NoError(t, err)
+
 	status, body = request(http.MethodDelete, "/api/meal-caterer/supply", "", staffToken)
 	require.Equal(t, http.StatusNoContent, status, string(body))
 	status, body = request(http.MethodGet, "/caterer/schools/"+schoolID+"/orders?from=2026-09-07&to=2026-09-11", "", catererToken)
 	assert.Equal(t, http.StatusForbidden, status)
 	assert.Equal(t, "meals.not_supplied", decodeCatererResponse(t, body, nil), "the end takes the school at once")
+	status, body = request(http.MethodGet, "/api/meal-caterer/orders/export?from=2026-09-07&to=2026-09-11&format=csv", "", staffToken)
+	assert.Equal(t, http.StatusForbidden, status)
+	assert.Equal(t, "meals.not_supplied", decodeCatererResponse(t, body, nil), "no delivery list without an active supply")
 }
 
 // checkCatererScopeMatrix walks the assembled router (ADR 0075): a caterer

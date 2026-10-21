@@ -58,6 +58,7 @@ type fakeSupplies struct {
 	started     []int64
 	ended       bool
 	read        int64
+	ordersRead  bool
 	confirmedBy int64
 	week        mealplan.OrderWeek
 	err         error
@@ -82,8 +83,10 @@ func (f *fakeSupplies) CatererOrders(_ context.Context, catererID int64, _, _ me
 	return mealplan.OrderWeek{Rhythm: "daily"}, f.err
 }
 func (f *fakeSupplies) Orders(context.Context, mealplan.Date, mealplan.Date) (mealplan.OrderWeek, error) {
+	f.ordersRead = true
 	return f.week, f.err
 }
+
 func (f *fakeSupplies) ConfirmOrder(_ context.Context, _, _, accountID int64) error {
 	f.confirmedBy = accountID
 	return f.err
@@ -222,4 +225,17 @@ func TestDeliveryExportSkipsASchoolWithoutOrders(t *testing.T) {
 	export, err := newTestPortal(t, caterers, supplies, &opened).DeliveryExport(context.Background(), 3, "2026-09-07", "2026-09-11")
 	require.NoError(t, err)
 	assert.Empty(t, export.Lines)
+}
+
+func TestSchoolDeliveryExportRequiresActiveSupply(t *testing.T) {
+	t.Parallel()
+	supplies := &fakeSupplies{week: mealplan.OrderWeek{
+		Detail: "total",
+		Days:   []mealplan.OrderDay{{Date: "2026-09-07", Status: mealplan.OrderOrdered, Total: 3}},
+	}}
+	var opened schoolsOpened
+	export, err := newTestPortal(t, &fakeCaterers{}, supplies, &opened).SchoolDeliveryExport(context.Background(), "2026-09-07", "2026-09-11")
+	require.ErrorIs(t, err, mealplan.ErrNotSupplied)
+	assert.Empty(t, export.Lines)
+	assert.False(t, supplies.ordersRead, "an inactive supply must not settle or read orders")
 }
