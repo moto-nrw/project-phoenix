@@ -74,7 +74,7 @@ func NewCalendarTestModule(db transactionruntime.Database, unit tenant.UnitOfWor
 	cfg := CurrentServiceConfig()
 	calendarConfig := owners.NewCalendarFacts(repos.Staff, repos.Student, owners.NewCalendarGuardianDirectory(repos.GuardianProfile, owners.MustNewPeopleDirectory(db)),
 		repos.StudentGuardian, parents.ParentChildLinks(), owners.NewSchoolStructureSuiteRepositories(db).Group)
-	calendarConfig = owners.BindCalendarScheduleFacts(calendarConfig, reposTimetable.InstanceStaff, reposTimetable.ActivityInstance, reposRooms.Room, reposTimetable.StaffShift, reposTimetable.ShiftType)
+	calendarConfig = owners.BindCalendarScheduleFacts(calendarConfig, reposTimetable.InstanceStaff, reposTimetable.ActivityInstance.Reads, reposRooms.Room, reposTimetable.StaffShift, reposTimetable.ShiftType)
 	calendarConfig = owners.BindCalendarFeedFacts(calendarConfig, reposSchools.School, feeds.ParentFeed, feeds.StaffFeed, repos.Person)
 	calendarConfig = owners.BindCalendarCaller(calendarConfig, identity.Caller())
 	calendarConfig.Now = func() time.Time { return time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC) }

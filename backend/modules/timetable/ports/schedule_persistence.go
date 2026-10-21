@@ -8,122 +8,6 @@ import (
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 )
 
-type ActivityInstanceRecords interface {
-	Create(context.Context, *schedulerecords.ActivityInstance) error
-	FindByID(context.Context, int64) (*schedulerecords.ActivityInstance, error)
-	Update(context.Context, *schedulerecords.ActivityInstance) error
-	Delete(context.Context, int64) error
-
-	// CreateTemplateBackedIfAbsent inserts a template-backed instance and
-	// returns inserted=false when the unique template slot already exists.
-	CreateTemplateBackedIfAbsent(ctx context.Context, instance *schedulerecords.ActivityInstance) (inserted bool, err error)
-
-	// FindByTenantAndDate returns all instances for the current tenant on the given date.
-	FindByTenantAndDate(ctx context.Context, date calendar.Date) ([]*schedulerecords.ActivityInstance, error)
-
-	// FindByTenantAndDateRange returns all instances within an inclusive date range.
-	FindByTenantAndDateRange(ctx context.Context, from, to calendar.Date) ([]*schedulerecords.ActivityInstance, error)
-
-	// FindByIDs returns the instances matching the given IDs in one
-	// tenant-scoped IN query, ordered by date then start time. Empty input
-	// returns an empty slice without hitting the DB, matching the sibling
-	// bulk helpers. Used by the self-service assignment read (#1844) to load
-	// only the instances a staff member is actually assigned to.
-	FindByIDs(ctx context.Context, ids []int64) ([]*schedulerecords.ActivityInstance, error)
-
-	// FindByActivityGroupAndDate returns instances for a specific template on a date.
-	// There can be multiple rows when a template schedule defines several start
-	// times on the same weekday.
-	FindByActivityGroupAndDate(ctx context.Context, activityGroupID int64, date calendar.Date) ([]*schedulerecords.ActivityInstance, error)
-
-	// FindByActivityGroupAndDateRange returns one template's instances within
-	// an inclusive date range in one tenant-scoped query.
-	FindByActivityGroupAndDateRange(ctx context.Context, activityGroupID int64, from, to calendar.Date) ([]*schedulerecords.ActivityInstance, error)
-
-	// FindByActiveGroupID returns the instance that is currently bridged to the
-	// given active.group, or nil if none.
-	FindByActiveGroupID(ctx context.Context, activeGroupID int64) (*schedulerecords.ActivityInstance, error)
-
-	// FindPlannedTemplateBackedFrom returns every planned instance dated on or
-	// after `from` that the MATERIALIZER produced (activity_group_id and
-	// calendar_period_id both set, is_spontaneous false), tenant-scoped and
-	// ordered by date then start time. Used to reconcile already-materialized
-	// rosters when a reverted grade transition restores students the
-	// insert-only materializer had skipped while they were alumni (#405
-	// review).
-	//
-	// Hand-created blocks are excluded even when they link a template for its
-	// metadata: their roster is the list of students the planner submitted, so
-	// refilling it from the template's enrollments would add children nobody
-	// assigned. Only the materializer stamps calendar_period_id (#405 review).
-	//
-	// The bound is INCLUSIVE of `from` (today, at revert time). An instance
-	// materialized after the apply but dated today has no archive row — the
-	// materializer skipped the alumnus outright — so excluding the boundary date
-	// would leave a same-day apply-then-revert child permanently missing from
-	// today's roster with nothing left to repair it. Today's instances that
-	// already started or finished are excluded by the planned-status filter.
-	FindPlannedTemplateBackedFrom(ctx context.Context, from calendar.Date) ([]*schedulerecords.ActivityInstance, error)
-
-	// MaxID returns the highest instance id currently visible to this tenant, or
-	// 0 when it has none. It is an ORDERING MARKER, not a count: a grade
-	// transition records it while applying so its revert can tell instances that
-	// already existed from instances materialized afterwards, during the alumnus
-	// window. created_at cannot answer that — it defaults to the transaction
-	// start time, so a materialization that started earlier and then blocked on
-	// the tenant transition lock backdates rows it inserts after the apply
-	// commits. Sequence ids are assigned at INSERT and do reflect that order
-	// (#405 review).
-	MaxID(ctx context.Context) (int64, error)
-
-	// MarkCompleted updates only lifecycle columns. Do not use a full-row
-	// Update for DB-loaded instances because SQL TIME columns do not round-trip
-	// safely through Bun.
-	MarkCompleted(ctx context.Context, instanceID int64, completedAt time.Time) error
-
-	// CompleteActiveByActiveGroupIDs marks every still-active instance bridged
-	// to one of the given active.groups as completed and returns the number of
-	// rows changed. Used by the scheduler's daily session-end bridge and by
-	// kiosk/session end. This path is outside the five-minute reopen window:
-	// it does not write completed_by, reopen_until, or a completion snapshot,
-	// so CanReopenInstance stays false.
-	CompleteActiveByActiveGroupIDs(ctx context.Context, activeGroupIDs []int64, completedAt time.Time) (int64, error)
-
-	// DeletePlannedNonSpontaneousInWindow removes still-planned,
-	// template-backed instances in the inclusive [from, to] window and
-	// returns the number of rows deleted. A nil `to` leaves the window
-	// open-ended (everything from `from` onward) — the template split uses
-	// that so no planned old-template instance can survive past the
-	// effective date regardless of the materialization window.
-	// activityGroupID narrows the delete to one template's instances; nil
-	// deletes across all templates. Used by ReplanWeek and the template
-	// split (WP-B3). preserveDeviations keeps Vertretungsplan overrides
-	// (#1840): true for re-plan, false for the destructive template
-	// split/end series operation — see the implementation for why.
-	DeletePlannedNonSpontaneousInWindow(ctx context.Context, from calendar.Date, to *calendar.Date, activityGroupID *int64, preserveDeviations bool) (int64, error)
-
-	// PropagateListKindToFutureInstances re-classifies future template-backed
-	// planned instances of one template whose list_kind still equals the
-	// series' previous value (NULL and '' treated alike), returning the number
-	// of rows changed. It carries a series Listenart edit onto already
-	// materialized future occurrences so the classified daily lists (#1565)
-	// reflect it without a manual re-plan, while leaving today/past rows,
-	// non-planned/spontaneous rows, and per-occurrence classification overrides
-	// untouched. `after` is today; only rows dated strictly after it change.
-	PropagateListKindToFutureInstances(ctx context.Context, activityGroupID int64, previousKind, newKind *string, after calendar.Date) (int64, error)
-
-	// UpdateColumns is the generic partial-update helper promoted from the
-	// embedded base repository: updates only the named columns by primary
-	// key. Lifecycle transitions use it because SQL TIME columns do not
-	// round-trip safely through a full-row Update.
-	UpdateColumns(ctx context.Context, instance *schedulerecords.ActivityInstance, columns ...string) (int64, error)
-
-	// Generic query helpers promoted from the embedded base repository.
-	// Used by the timetable retention cleanup.
-	OldestBefore(ctx context.Context, dateColumn string, cutoff *calendar.Date) (*calendar.Date, error)
-	DeleteOlderThan(ctx context.Context, dateColumn string, cutoff calendar.Date) (int64, error)
-}
-
 type ActivityRecoveryRecords interface {
 	// CompletionTimestamp returns PostgreSQL's stable time for the current
 	// transaction. It is the baseline for distinguishing completion writes from
@@ -217,56 +101,6 @@ type DateframeRecords interface {
 
 	// FindByName finds a dateframe by its name
 	FindByName(ctx context.Context, name string) (*schedulerecords.Dateframe, error)
-}
-
-type InstanceStaffRecords interface {
-	Create(context.Context, *schedulerecords.InstanceStaff) error
-	FindByID(context.Context, int64) (*schedulerecords.InstanceStaff, error)
-	Update(context.Context, *schedulerecords.InstanceStaff) error
-	Delete(context.Context, int64) error
-
-	// UpdateColumns surfaces the embedded generic repository's single-column
-	// update: the #1843 sick cascade stamps/releases sick_absence_id without
-	// whole-model writes.
-	UpdateColumns(ctx context.Context, row *schedulerecords.InstanceStaff, columns ...string) (int64, error)
-
-	// FindByInstanceID returns all staff assignments for an instance.
-	FindByInstanceID(ctx context.Context, instanceID int64) ([]*schedulerecords.InstanceStaff, error)
-
-	// FindByInstanceIDs returns every instance_staff row for any of the
-	// given instance IDs in a single IN query, tenant-scoped. Returns an
-	// empty slice (not nil) when instanceIDs is empty, matching the sibling
-	// bulk helpers (FindExpectedByInstanceIDs, CountNonAbsentByInstanceIDs).
-	// Used by the planned-conflict probe to intersect requested staff with
-	// staff already assigned to overlapping instances without N+1.
-	FindByInstanceIDs(ctx context.Context, instanceIDs []int64) ([]*schedulerecords.InstanceStaff, error)
-
-	// FindByStaffAndDate returns all staff assignments for the given staff
-	// member across all instances on a given date. Used by the one-click
-	// substitute flow (E6) and gap detection.
-	FindByStaffAndDate(ctx context.Context, staffID int64, date calendar.Date) ([]*schedulerecords.InstanceStaff, error)
-
-	// FindByStaffIDsAndDate batches the joined date lookup for several staff
-	// members. Empty input returns an empty slice without querying.
-	FindByStaffIDsAndDate(ctx context.Context, staffIDs []int64, date calendar.Date) ([]*schedulerecords.InstanceStaff, error)
-
-	// FindByStaffAndDateRange returns the staff member's assignments across
-	// all instances dated within [from, to] inclusive, ordered by instance
-	// date then start time. Used by the self-service assignment read (#1844)
-	// so its cost stays proportional to one staff member's plan, never the
-	// whole tenant window.
-	FindByStaffAndDateRange(ctx context.Context, staffID int64, from, to calendar.Date) ([]*schedulerecords.InstanceStaff, error)
-
-	// CountNonAbsentByInstanceIDs returns, for each instance id, the number of
-	// instance_staff rows with is_absent=false. Single GROUP BY query; callers
-	// must treat absent instance ids in the returned map as zero. Empty input
-	// returns an empty map without hitting the DB.
-	CountNonAbsentByInstanceIDs(ctx context.Context, instanceIDs []int64) (map[int64]int, error)
-
-	// DeleteByInstanceID removes all staff assignments for an instance. The
-	// CASCADE on the FK also does this on instance deletion; this method exists
-	// for the "re-plan week" flow where the instance is kept but repopulated.
-	DeleteByInstanceID(ctx context.Context, instanceID int64) error
 }
 
 type InstanceStudentRecords interface {
@@ -689,11 +523,6 @@ type StudentPickupScheduleRecords interface {
 
 	// DeleteByStudentID deletes all pickup schedules for a student
 	DeleteByStudentID(ctx context.Context, studentID int64) error
-}
-
-// InstanceListing is the bounded instance read used by lifecycle and session completion.
-type InstanceListing interface {
-	ListInstances(context.Context, LegacyInstanceFilter) ([]*schedulerecords.ActivityInstance, error)
 }
 
 // ParticipantListingFilter pages planned rows before narrowing their execution status.

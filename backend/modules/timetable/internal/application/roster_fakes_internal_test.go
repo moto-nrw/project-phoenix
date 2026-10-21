@@ -5,6 +5,7 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/modules/timetable"
 	activityContract "github.com/moto-nrw/project-phoenix/modules/timetable/activitycontract"
+	scheduleModels "github.com/moto-nrw/project-phoenix/modules/timetable/internal/domain/schedulerecords"
 	"github.com/moto-nrw/project-phoenix/modules/timetable/ports"
 )
 
@@ -75,4 +76,20 @@ func fakeSupervisorRow(input timetable.PlannedSupervisorInput) *activityContract
 		StaffID: input.StaffID, GroupID: input.GroupID, IsPrimary: input.IsPrimary, ValidFrom: input.ValidFrom,
 		ValidUntil: input.ValidUntil, CalendarPeriodID: input.CalendarPeriodID, Weekday: input.Weekday,
 	})
+}
+
+// fakeInstanceStaff are the owner's assignments of retained fake rows.
+func fakeInstanceStaff(rows []*scheduleModels.InstanceStaff) []timetable.InstanceStaff {
+	if rows == nil {
+		return nil
+	}
+	values := make([]timetable.InstanceStaff, 0, len(rows))
+	for _, row := range rows {
+		values = append(values, timetable.InstanceStaff{
+			ID: row.ID, TenantID: row.TenantID, CreatedAt: row.CreatedAt, UpdatedAt: row.UpdatedAt,
+			InstanceID: row.InstanceID, StaffID: row.StaffID, RoomID: row.RoomID, IsPrimary: row.IsPrimary,
+			IsSubstitute: row.IsSubstitute, IsAbsent: row.IsAbsent, AbsenceReason: row.AbsenceReason, SickAbsenceID: row.SickAbsenceID,
+		})
+	}
+	return values
 }

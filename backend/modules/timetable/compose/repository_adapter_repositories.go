@@ -38,9 +38,9 @@ type Repositories struct {
 	StudentEnrollment   timetable.StudentEnrollmentCapability
 	Timeframe           timetable.TimeframeCapability
 	ActivityException   timetable.ActivityExceptionCapability
-	ActivityInstance    ports.ActivityInstanceRecords
+	ActivityInstance    ports.InstanceRows
 	InstanceIdempotency timetable.ActivityInstanceCommand
-	InstanceStaff       ports.InstanceStaffRecords
+	InstanceStaff       timetable.InstanceStaffCapability
 	InstanceStudent     ports.InstanceStudentRecords
 }
 
@@ -52,17 +52,15 @@ func NewRepositories(dependencies RepositoryDependencies, reads application.Pres
 	return Repositories{
 		Timetable: capability, Directories: dependencies.Directories,
 		ActivityCategory: capability, ActivitySchedule: capability, Timeframe: capability, ActivityException: capability, InstanceIdempotency: capability,
-		ActivitySupervisor: capability, StudentEnrollment: capability, InstanceStaff: application.NewInstanceStaffRecords(capability),
-		ActivityInstance: application.NewActivityInstanceRepository(reads, capability, dependencies.Presence),
+		ActivitySupervisor: capability, StudentEnrollment: capability, InstanceStaff: capability,
+		ActivityInstance: ports.InstanceRows{Plans: capability, Sessions: dependencies.Presence, Reads: reads},
 		InstanceStudent:  application.NewInstanceStudentRepository(reads, capability, dependencies.Presence, dependencies.PartialAbsences),
 	}
 }
 
-// NewActivityInstanceRepository serves the retained activity instance
-// repository over the Timetable owner and Student Presence, which runs the
-// blocks since #2762.
-func NewActivityInstanceRepository(reads application.PresenceReads, capability timetable.ActivityInstanceCapability, presence application.ActivityInstanceSessions) ports.ActivityInstanceRecords {
-	return application.NewActivityInstanceRepository(reads, capability, presence)
+// NewSessionInstanceCompletion completes the blocks of sessions a cleanup ends.
+func NewSessionInstanceCompletion(sessions ports.InstanceSessions) application.SessionInstanceCompletion {
+	return application.NewSessionInstanceCompletion(sessions)
 }
 
 // GroupReads are the template reads of the same consumers.

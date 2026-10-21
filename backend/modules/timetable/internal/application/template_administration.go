@@ -32,7 +32,7 @@ var _ timetable.TemplateAdministration = (*templateAdministration)(nil)
 // NewTemplateAdministration composes the Timetable owner's template writes.
 func NewTemplateAdministration(deps ports.TemplateAdministrationDependencies) (timetable.TemplateAdministration, error) {
 	if deps.Groups == nil || deps.Categories == nil || deps.Schedules == nil || deps.Enrollments == nil ||
-		deps.Supervisors == nil || deps.Instances == nil || deps.InstanceStaff == nil || deps.Participants == nil ||
+		deps.Supervisors == nil || noInstanceRows(deps.Instances) || deps.InstanceStaff == nil || deps.Participants == nil ||
 		deps.Timeframes == nil || deps.EducationGroups == nil || deps.RecurrenceLock == nil || deps.Transactions == nil {
 		return nil, errors.New("timetable template administration: required dependency is nil")
 	}

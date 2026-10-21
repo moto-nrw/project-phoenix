@@ -25,7 +25,7 @@ func (d *conflictDetection) resolveSeriesEffectiveCoverageDays(
 ) (map[calendar.Date]effectiveShiftCoverageDay, []int64, error) {
 	activityGroupID := *probe.ReplanActivityGroupID
 	from, to := calendar.Date(dates[0]), calendar.Date(dates[len(dates)-1])
-	instances, err := d.deps.Instances.FindByActivityGroupAndDateRange(ctx, activityGroupID, from, to)
+	instances, err := groupInstancesBetween(ctx, d.deps.Instances, activityGroupID, from, to)
 	if err != nil {
 		return nil, nil, fmt.Errorf("load concrete series occurrences: %w", err)
 	}
@@ -67,7 +67,7 @@ func (d *conflictDetection) loadSeriesCoverageStaffRows(ctx context.Context, ins
 	if len(instanceIDs) == 0 {
 		return rowsByInstance, nil
 	}
-	rows, err := d.deps.InstanceStaff.FindByInstanceIDs(ctx, instanceIDs)
+	rows, err := staffOfInstances(ctx, d.deps.InstanceStaff, instanceIDs)
 	if err != nil {
 		return nil, fmt.Errorf("load concrete series deviations: %w", err)
 	}

@@ -185,7 +185,7 @@ func (s *InstanceLifecycleService) validateInstanceDateInActiveCalendarPeriod(ct
 //     it and every row is recreated as plain planned staff; the dropped
 //     deviations are recorded in the Änderungsprotokoll (#1886).
 func (s *InstanceLifecycleService) replaceInstanceAssignments(ctx context.Context, instance *scheduleModel.ActivityInstance, staffIDs, studentIDs []int64, actorAccountID *int64) error {
-	prior, err := s.deps.InstanceStaffRepo.FindByInstanceID(ctx, instance.ID)
+	prior, err := staffOfInstance(ctx, s.deps.InstanceStaffRepo, instance.ID)
 	if err != nil {
 		return &ports.ScheduleError{Op: "update instance: load existing staff", Err: err}
 	}
@@ -203,7 +203,7 @@ func (s *InstanceLifecycleService) replaceInstanceAssignments(ctx context.Contex
 	if err := s.lockRosterCareDays(ctx, instance, studentIDs); err != nil {
 		return err
 	}
-	if err := s.deps.InstanceStaffRepo.DeleteByInstanceID(ctx, instance.ID); err != nil {
+	if err := deleteLegacyInstanceStaffByInstance(ctx, s.deps.InstanceStaffRepo, instance.ID); err != nil {
 		return &ports.ScheduleError{Op: "update instance: clear staff", Err: err}
 	}
 	if err := s.deps.InstanceStudents.DeleteByInstanceID(ctx, instance.ID); err != nil {
@@ -213,7 +213,7 @@ func (s *InstanceLifecycleService) replaceInstanceAssignments(ctx context.Contex
 	for _, staffID := range newStaffIDs {
 		row := recreatedStaffRow(instance.ID, staffID, priorByStaff[staffID], rosterUnchanged)
 		row.SetTenantID(tenantID)
-		if err := s.deps.InstanceStaffRepo.Create(ctx, row); err != nil {
+		if err := createLegacyInstanceStaff(ctx, s.deps.InstanceStaffRepo, row); err != nil {
 			return &ports.ScheduleError{Op: "update instance: assign staff", Err: err}
 		}
 	}

@@ -118,7 +118,7 @@ func NewShiftTypeTestModule(db transactionruntime.Database) (workforce.ShiftType
 	}
 	planning, err := workforceCompose.NewShiftPlanning(workforceCompose.ShiftPlanningDependencies{
 		Workforce: NewAbsenceTypeTestCapability(db), Staff: owners.NewPlanStaffDirectory(owners.MustNewMembershipTestRepositories(db).Staff), CalendarPeriods: calendar.SchoolCalendar(),
-		Instances: timetableCompose.NewTimetableInstanceReads(timetable.ActivityInstance), InstanceStaff: timetableCompose.NewTimetableInstanceStaffReads(timetable.InstanceStaff),
+		Instances: timetableCompose.NewTimetableInstanceReads(timetable.ActivityInstance.Reads), InstanceStaff: timetableCompose.NewTimetableInstanceStaffReads(timetable.InstanceStaff),
 		Rooms: facilitiesCompose.NewRoomNameDirectory(rooms.Room), ActivityGroups: timetableCompose.NewTimetableGroupReads(timetable.Timetable),
 		CategoryLinker: timetableCompose.ShiftTypeCategoryLinker(linker.SetCategoryShiftTypeLinks), DB: db.Pool(), Logger: slog.Default(),
 	})

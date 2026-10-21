@@ -39,7 +39,7 @@ import (
 //     precisely the instances the materializer skipped the child on and for
 //     which no archive entry can exist.
 type RosterReconciler struct {
-	instanceRepo        ports.ActivityInstanceRecords
+	instanceRepo        ports.InstanceRows
 	instanceStudentRepo ports.InstanceStudentRecords
 	enrollmentRepo      timetable.StudentEnrollmentQuery
 	directories         ports.RepositoryDirectories
@@ -52,7 +52,7 @@ var _ timetable.RosterMaintenance = (*RosterReconciler)(nil)
 // NewRosterReconciler constructs a RosterReconciler. logger may be nil (a
 // package default is used).
 func NewRosterReconciler(
-	instanceRepo ports.ActivityInstanceRecords,
+	instanceRepo ports.InstanceRows,
 	instanceStudentRepo ports.InstanceStudentRecords,
 	enrollmentRepo timetable.StudentEnrollmentQuery,
 	directories ports.RepositoryDirectories,
@@ -130,9 +130,9 @@ func (s *RosterReconciler) RemoveStudentsFromFutureRosters(ctx context.Context, 
 // the restored child back. Sequence ids are drawn at INSERT, after the lock is
 // granted, so they order correctly (#405 review).
 func (s *RosterReconciler) CurrentRosterBaseline(ctx context.Context) (int64, error) {
-	maxID, err := s.instanceRepo.MaxID(ctx)
+	maxID, err := s.instanceRepo.Plans.MaxActivityInstanceID(ctx)
 	if err != nil {
-		return 0, &ports.ScheduleError{Op: "reconcile roster: read instance baseline", Err: err}
+		return 0, &ports.ScheduleError{Op: "reconcile roster: read instance baseline", Err: WrapDatabaseError("get max activity instance id", err)}
 	}
 	return maxID, nil
 }
@@ -271,7 +271,7 @@ func (s *RosterReconciler) fillInstancesMaterializedDuringAlumnusWindow(
 func (s *RosterReconciler) instancesMaterializedAfter(
 	ctx context.Context, from calendar.Date, baselineInstanceID int64,
 ) (map[int64][]*schedule.ActivityInstance, []int64, error) {
-	all, err := s.instanceRepo.FindPlannedTemplateBackedFrom(ctx, calendar.Date(from))
+	all, err := plannedTemplateBackedInstancesFrom(ctx, s.instanceRepo.Reads, calendar.Date(from))
 	if err != nil {
 		return nil, nil, &ports.ScheduleError{Op: "reconcile roster: load future instances", Err: err}
 	}
@@ -383,12 +383,12 @@ func enrollmentsByStudentID(rows []*activityContract.StudentEnrollment) map[int6
 // materializer-produced instances from `from` on, with their ids.
 func loadPlannedTemplateInstances(
 	ctx context.Context,
-	repo ports.ActivityInstanceRecords,
+	repo ports.LegacyInstanceReads,
 	templateID int64,
 	from calendar.Date,
 	op string,
 ) ([]*schedule.ActivityInstance, []int64, error) {
-	all, err := repo.FindPlannedTemplateBackedFrom(ctx, calendar.Date(from))
+	all, err := plannedTemplateBackedInstancesFrom(ctx, repo, calendar.Date(from))
 	if err != nil {
 		return nil, nil, &ports.ScheduleError{Op: op + ": load future instances", Err: err}
 	}
@@ -485,7 +485,7 @@ func (s *RosterReconciler) reconcileSourcedTemplateRosters(
 	if today := calendar.TodayDate(); from.Before(today) {
 		from = today
 	}
-	instances, instanceIDs, err := loadPlannedTemplateInstances(ctx, s.instanceRepo, templateID, from, "reconcile sourced roster")
+	instances, instanceIDs, err := loadPlannedTemplateInstances(ctx, s.instanceRepo.Reads, templateID, from, "reconcile sourced roster")
 	if err != nil || len(instances) == 0 {
 		return 0, 0, err
 	}

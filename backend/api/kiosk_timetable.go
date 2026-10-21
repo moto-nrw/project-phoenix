@@ -15,7 +15,7 @@ import (
 
 // NewKioskSessionMirror binds existing Timetable wiring, without a root graph field.
 func NewKioskSessionMirror(rows timetableCompose.Repositories, activities activityContract.ActivityService, publish func(context.Context, devicescanCompose.MirroredSession), logger *slog.Logger) devicescanCompose.SessionMirror {
-	if rows.ActivityInstance == nil || rows.InstanceStaff == nil {
+	if rows.ActivityInstance.Reads == nil || rows.InstanceStaff == nil {
 		return nil
 	}
 	return devicescanCompose.NewSessionMirror(mirrorTimetable{records: rows.NativeRecords(), activities: timetableCompose.NewCatalog(activities)}, publish, logger)

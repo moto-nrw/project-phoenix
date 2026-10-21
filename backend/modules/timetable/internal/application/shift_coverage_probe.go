@@ -245,7 +245,7 @@ func (d *conflictDetection) resolveConcreteEffectiveCoverageDays(
 	staffIDs []int64,
 	coverageDays map[calendar.Date]effectiveShiftCoverageDay,
 ) (map[calendar.Date]effectiveShiftCoverageDay, []int64, error) {
-	rows, err := d.deps.InstanceStaff.FindByInstanceIDs(ctx, []int64{*probe.ExcludeInstanceID})
+	rows, err := staffOfInstances(ctx, d.deps.InstanceStaff, []int64{*probe.ExcludeInstanceID})
 	if err != nil {
 		return nil, nil, fmt.Errorf("load concrete staff deviations: %w", err)
 	}

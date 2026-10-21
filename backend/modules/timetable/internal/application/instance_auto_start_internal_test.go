@@ -41,7 +41,7 @@ func TestAutoStart_RunForTenant_StartsOnlyDueStaffedConflictFreeInstances(t *tes
 	}}
 	starter := &autoStartInstanceStarter{}
 	svc := newTestAutoStart(t, InstanceAutoStartDependencies{
-		InstanceRepo:      repo,
+		InstanceRepo:      ports.InstanceRows{Reads: repo},
 		InstanceStaffRepo: staffRepo,
 		Lifecycle:         starter,
 		Rooms:             &autoStartRoomRepo{},
@@ -76,9 +76,9 @@ func TestAutoStart_RunForTenant_ReportsConflictReadFailureAndRetries(t *testing.
 	readErr := injected
 	starter := &autoStartInstanceStarter{}
 	svc := newTestAutoStart(t, InstanceAutoStartDependencies{
-		InstanceRepo: &autoStartInstanceRepo{instances: []*scheduleModel.ActivityInstance{
+		InstanceRepo: ports.InstanceRows{Reads: &autoStartInstanceRepo{instances: []*scheduleModel.ActivityInstance{
 			autoStartInstance(201, scheduleModel.InstanceStatusPlanned, 13, 0, 14, 0),
-		}},
+		}}},
 		InstanceStaffRepo: &autoStartStaffRepo{counts: map[int64]int{201: 1}},
 		Lifecycle:         starter,
 		Rooms:             &autoStartRoomRepo{},
@@ -111,7 +111,7 @@ func TestAutoStart_RunForTenant_ReturnsStartError(t *testing.T) {
 	staffRepo := &autoStartStaffRepo{counts: map[int64]int{201: 1}}
 	starter := &autoStartInstanceStarter{err: startErr}
 	svc := newTestAutoStart(t, InstanceAutoStartDependencies{
-		InstanceRepo:      repo,
+		InstanceRepo:      ports.InstanceRows{Reads: repo},
 		InstanceStaffRepo: staffRepo,
 		Lifecycle:         starter,
 		Rooms:             &autoStartRoomRepo{},
@@ -147,7 +147,7 @@ func TestAutoStart_RunForTenant_SkipsMovedAndContinues(t *testing.T) {
 		321: fmt.Errorf("wrapped: %w", timetable.ErrInstanceMoved),
 	}}
 	svc := newTestAutoStart(t, InstanceAutoStartDependencies{
-		InstanceRepo:      repo,
+		InstanceRepo:      ports.InstanceRows{Reads: repo},
 		InstanceStaffRepo: staffRepo,
 		Lifecycle:         starter,
 		Rooms:             &autoStartRoomRepo{},
@@ -180,7 +180,7 @@ func TestAutoStart_RunForTenant_StartsSchulhofLikeAnyRoom(t *testing.T) {
 	conflictChecks := make([]int64, 0, 2)
 	starter := &autoStartInstanceStarter{}
 	svc := newTestAutoStart(t, InstanceAutoStartDependencies{
-		InstanceRepo:      &autoStartInstanceRepo{instances: []*scheduleModel.ActivityInstance{schulhof, normal}},
+		InstanceRepo:      ports.InstanceRows{Reads: &autoStartInstanceRepo{instances: []*scheduleModel.ActivityInstance{schulhof, normal}}},
 		InstanceStaffRepo: &autoStartStaffRepo{counts: map[int64]int{311: 1, 312: 1}},
 		Lifecycle:         starter,
 		Rooms: &autoStartRoomRepo{rooms: map[int64]string{
@@ -226,36 +226,27 @@ func autoStartInstance(id int64, status string, startHour, startMinute, endHour,
 // autoStartInstanceRepo answers the reads of the auto start and the auto
 // end; every other repository method is unused.
 type autoStartInstanceRepo struct {
-	ports.ActivityInstanceRecords
 	instances      []*scheduleModel.ActivityInstance
 	findStatusByID map[int64]string
 }
 
-func (r *autoStartInstanceRepo) FindByID(_ context.Context, nativeRecordID int64) (*scheduleModel.ActivityInstance, error) {
-	var rawID any = nativeRecordID
-	id, ok := rawID.(int64)
-	if !ok {
-		return nil, nil
+// ListLegacyInstances answers one ID with that instance in its overridden
+// status, and every other read with all instances.
+func (r *autoStartInstanceRepo) ListLegacyInstances(_ context.Context, filter ports.LegacyInstanceFilter) ([]*scheduleModel.ActivityInstance, error) {
+	if len(filter.IDs) != 1 {
+		return r.instances, nil
 	}
 	for _, instance := range r.instances {
-		if instance.ID != id {
+		if instance.ID != filter.IDs[0] {
 			continue
 		}
 		copy := *instance
-		if status, found := r.findStatusByID[id]; found {
+		if status, found := r.findStatusByID[instance.ID]; found {
 			copy.Status = status
 		}
-		return &copy, nil
+		return []*scheduleModel.ActivityInstance{&copy}, nil
 	}
-	return nil, nil
-}
-
-func (r *autoStartInstanceRepo) ListInstances(context.Context, ports.LegacyInstanceFilter) ([]*scheduleModel.ActivityInstance, error) {
-	return r.instances, nil
-}
-
-func (r *autoStartInstanceRepo) FindByTenantAndDate(context.Context, calendar.Date) ([]*scheduleModel.ActivityInstance, error) {
-	return r.instances, nil
+	return []*scheduleModel.ActivityInstance{}, nil
 }
 
 // autoStartRoomRepo names the rooms of the batch; a room without a
@@ -282,12 +273,12 @@ func (r *autoStartRoomRepo) RoomNamesByID(_ context.Context, ids []int64) (map[i
 }
 
 type autoStartStaffRepo struct {
-	ports.InstanceStaffRecords
+	timetable.InstanceStaffCapability
 	counts       map[int64]int
 	requestedIDs []int64
 }
 
-func (r *autoStartStaffRepo) CountNonAbsentByInstanceIDs(_ context.Context, ids []int64) (map[int64]int, error) {
+func (r *autoStartStaffRepo) CountNonAbsentInstanceStaff(_ context.Context, ids []int64) (map[int64]int, error) {
 	r.requestedIDs = append(r.requestedIDs, ids...)
 	return r.counts, nil
 }

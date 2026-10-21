@@ -61,8 +61,8 @@ func newFakeLifecycle(t *testing.T, deps timetablePorts.InstanceLifecycleDepende
 	deps.ContentHash = securityruntime.Fingerprint
 	deps.Database = compose.NewTenantDatabase(testpkg.SetupTestDB(t))
 	deps.Logger = slog.New(slog.DiscardHandler)
-	if fixtures.FromInstanceStaffRecords(deps.InstanceStaffRepo) == nil {
-		deps.InstanceStaffRepo = fixtures.IntoInstanceStaffRecords(fakeNoInstanceStaff{})
+	if deps.InstanceStaffRepo == nil {
+		deps.InstanceStaffRepo = fakeNoInstanceStaff{}
 	}
 	if deps.Rooms == nil {
 		deps.Rooms = fakeLockableRoom{}
@@ -92,11 +92,10 @@ func (noStartConflicts) DetectStartConflicts(context.Context, timetable.StartCon
 }
 
 type fakeNoInstanceStaff struct {
-	fixtures.
-		InstanceStaffRecords
+	timetable.InstanceStaffCapability
 }
 
-func (fakeNoInstanceStaff) FindByInstanceID(context.Context, int64) ([]*fixtures.InstanceStaff, error) {
+func (fakeNoInstanceStaff) ListInstanceStaff(context.Context, timetable.InstanceStaffFilter) ([]timetable.InstanceStaff, error) {
 	return nil, nil
 }
 
@@ -321,7 +320,7 @@ func TestInstanceStart_DoesNotAbsorbGroupMovedAfterCandidateLookup(t *testing.T)
 	}
 	visitRepo := &absorbVisitRepo{}
 	svc := newFakeLifecycle(t, timetablePorts.InstanceLifecycleDependencies{
-		InstanceRepo:     fixtures.IntoActivityInstanceRecords(&absorbInstanceRepo{planned: absorbPlannedInstance(9, 42)}),
+		InstanceRepo:     lifecycleInstanceRows(&absorbInstanceRepo{planned: absorbPlannedInstance(9, 42)}),
 		InstanceStudents: fixtures.IntoInstanceStudentRecords(&absorbInstanceStudentRepo{}),
 		ActiveGroupRepo:  groupRepo,
 		SupervisorRepo:   &absorbSupervisorRepo{},
@@ -395,7 +394,7 @@ func TestInstanceStart_AbsorbsUnsupervisedOpenGroups(t *testing.T) {
 	systemActivity := &timetable.Group{ID: systemActivityID, IsSystem: true}
 
 	svc := newFakeLifecycle(t, timetablePorts.InstanceLifecycleDependencies{
-		InstanceRepo:      fixtures.IntoActivityInstanceRecords(instanceRepo),
+		InstanceRepo:      lifecycleInstanceRows(instanceRepo),
 		InstanceStudents:  fixtures.IntoInstanceStudentRecords(instanceStudents),
 		ActiveGroupRepo:   groupRepo,
 		ActivityGroupRepo: &absorbActivityGroupRepo{byID: map[int64]*timetable.Group{systemActivityID: systemActivity}},
@@ -544,7 +543,7 @@ func TestLockReopenSnapshotStudents_LocksSortedUniqueStudents(t *testing.T) {
 	students := &reopenStudentLockStub{}
 	broadcaster := testpkg.NewRecordingBroadcaster()
 	deps := timetablePorts.InstanceLifecycleDependencies{
-		InstanceRepo: fixtures.IntoActivityInstanceRecords(reopenCompletedInstance(t, []int64{22, 20, 21})),
+		InstanceRepo: lifecycleInstanceRows(reopenCompletedInstance(t, []int64{22, 20, 21})),
 		Presence: &reopenVisitStub{byGroup: map[int64][]studentpresence.Visit{
 			90: {visitA, visitB, visitDup},
 		}},
@@ -577,7 +576,7 @@ func TestLockReopenSnapshotStudents_RejectsActiveVisit(t *testing.T) {
 	current := studentpresence.Visit{StudentID: 52}
 	current.ID = 99
 	svc := newFakeLifecycle(t, timetablePorts.InstanceLifecycleDependencies{
-		InstanceRepo: fixtures.IntoActivityInstanceRecords(reopenCompletedInstance(t, []int64{20})),
+		InstanceRepo: lifecycleInstanceRows(reopenCompletedInstance(t, []int64{20})),
 		Presence: &reopenVisitStub{
 			byGroup: map[int64][]studentpresence.Visit{90: {visit}},
 			current: map[int64]studentpresence.Visit{52: current},
@@ -588,4 +587,24 @@ func TestLockReopenSnapshotStudents_RejectsActiveVisit(t *testing.T) {
 
 	_, err := svc.Reopen(testpkg.Ctx(t), 5, 0, true)
 	require.ErrorIs(t, err, timetable.ErrTimetableOperationConflict)
+}
+
+// lifecycleInstanceRows serves a fake instance repository as instance rows
+// whose sessions start and complete without a Student Presence store.
+func lifecycleInstanceRows(fake fixtures.ActivityInstanceRecords) timetablePorts.InstanceRows {
+	rows := fixtures.InstanceRowsOf(fake)
+	rows.Sessions = acceptingSessions{InstanceSessions: rows.Sessions}
+	return rows
+}
+
+type acceptingSessions struct {
+	timetablePorts.InstanceSessions
+}
+
+func (acceptingSessions) StartActivitySession(context.Context, studentpresence.ActivitySessionStart) (studentpresence.ActivitySession, error) {
+	return studentpresence.ActivitySession{}, nil
+}
+
+func (acceptingSessions) CompleteActivitySession(context.Context, studentpresence.ActivitySessionCompletion) (studentpresence.ActivitySession, error) {
+	return studentpresence.ActivitySession{}, nil
 }

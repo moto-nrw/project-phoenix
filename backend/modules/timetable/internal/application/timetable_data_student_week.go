@@ -46,7 +46,7 @@ func (d *timetableData) loadStudentWeekBlocks(ctx context.Context, week *timetab
 			Instance: ScheduledInstanceOf(row.Instance), Attendance: ScheduledParticipantOf(row.Attendance),
 		})
 	}
-	instances, err := d.deps.Instances.FindByTenantAndDateRange(ctx, calendar.Date(from), calendar.Date(to))
+	instances, err := instancesBetween(ctx, d.deps.Instances, calendar.Date(from), calendar.Date(to))
 	if err != nil {
 		return fmt.Errorf("load all tenant instances: %w", err)
 	}

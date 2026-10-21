@@ -11,22 +11,6 @@ import (
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 )
 
-// ConflictInstances is the slice of the retained activity instance
-// repository the detection reads. The start check also lists the instances
-// bridged to running sessions through the retained List(options) read, which
-// the repository serves beside this interface.
-type ConflictInstances interface {
-	FindByID(ctx context.Context, id int64) (*scheduleModels.ActivityInstance, error)
-	FindByTenantAndDateRange(ctx context.Context, from, to calendar.Date) ([]*scheduleModels.ActivityInstance, error)
-	FindByActivityGroupAndDateRange(ctx context.Context, activityGroupID int64, from, to calendar.Date) ([]*scheduleModels.ActivityInstance, error)
-}
-
-// ConflictInstanceStaff reads the staff rows of blocks.
-type ConflictInstanceStaff interface {
-	FindByInstanceID(ctx context.Context, instanceID int64) ([]*scheduleModels.InstanceStaff, error)
-	FindByInstanceIDs(ctx context.Context, instanceIDs []int64) ([]*scheduleModels.InstanceStaff, error)
-}
-
 // ConflictInstanceStudents reads the student rows of blocks.
 type ConflictInstanceStudents interface {
 	FindByInstanceID(ctx context.Context, instanceID int64) ([]*scheduleModels.InstanceStudent, error)
@@ -91,8 +75,8 @@ type ArrivalBaselines interface {
 // recurring arrival.
 type ConflictDetectionDependencies struct {
 	RunInTx           func(context.Context, func(context.Context) error) error
-	Instances         ConflictInstances
-	InstanceStaff     ConflictInstanceStaff
+	Instances         LegacyInstanceReads
+	InstanceStaff     timetable.InstanceStaffQuery
 	InstanceStudents  ConflictInstanceStudents
 	Exceptions        timetable.ActivityExceptionQuery
 	Schedules         timetable.ScheduleQuery

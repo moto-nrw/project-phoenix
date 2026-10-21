@@ -46,7 +46,7 @@ func (s *TemplateService) reconcilePredecessorInstanceStaff(
 	if today := s.deps.Today(); from.Before(today) {
 		from = today
 	}
-	instances, instanceIDs, err := loadPlannedTemplateInstances(ctx, s.deps.ActivityInstanceRepo, templateID, from, "reconcile predecessor staff")
+	instances, instanceIDs, err := loadPlannedTemplateInstances(ctx, s.deps.ActivityInstanceRepo.Reads, templateID, from, "reconcile predecessor staff")
 	if err != nil || len(instances) == 0 {
 		return err
 	}
@@ -81,7 +81,7 @@ func (s *TemplateService) loadInstanceStaffReconciliation(
 	if err != nil {
 		return nil, &ports.ScheduleError{Op: "reconcile predecessor staff: load supervisors", Err: err}
 	}
-	existingRows, err := s.deps.InstanceStaffRepo.FindByInstanceIDs(ctx, instanceIDs)
+	existingRows, err := staffOfInstances(ctx, s.deps.InstanceStaffRepo, instanceIDs)
 	if err != nil {
 		return nil, &ports.ScheduleError{Op: "reconcile predecessor staff: load existing rows", Err: err}
 	}
@@ -151,7 +151,7 @@ func (s *TemplateService) addOccurrenceStaff(ctx context.Context, key instanceSt
 		StaffID:    key.studentID,
 		IsPrimary:  isPrimary,
 	}
-	if err := s.deps.InstanceStaffRepo.Create(ctx, fresh); err != nil {
+	if err := createLegacyInstanceStaff(ctx, s.deps.InstanceStaffRepo, fresh); err != nil {
 		return &ports.ScheduleError{Op: "reconcile predecessor staff: add staff", Err: err}
 	}
 	pass.existing[key] = fresh
@@ -168,7 +168,7 @@ func (s *TemplateService) repointOccurrencePrimary(ctx context.Context, row *sch
 		return nil
 	}
 	row.IsPrimary = wantPrimary
-	if _, err := s.deps.InstanceStaffRepo.UpdateColumns(ctx, row, "is_primary"); err != nil {
+	if _, err := patchLegacyInstanceStaff(ctx, s.deps.InstanceStaffRepo, row, "is_primary"); err != nil {
 		return &ports.ScheduleError{Op: "reconcile predecessor staff: update primary", Err: err}
 	}
 	pass.repointed++
@@ -176,7 +176,7 @@ func (s *TemplateService) repointOccurrencePrimary(ctx context.Context, row *sch
 }
 
 func (s *TemplateService) removeOccurrenceStaff(ctx context.Context, key instanceStudentPair, row *scheduleModel.InstanceStaff, pass *instanceStaffReconciliation) error {
-	if err := s.deps.InstanceStaffRepo.Delete(ctx, row.ID); err != nil {
+	if err := deleteLegacyInstanceStaff(ctx, s.deps.InstanceStaffRepo, row.ID); err != nil {
 		return &ports.ScheduleError{Op: "reconcile predecessor staff: remove staff", Err: err}
 	}
 	delete(pass.existing, key)

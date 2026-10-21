@@ -158,8 +158,8 @@ func newTimetableOpsDeps() *timetableOpsTestDeps {
 // clock as in production.
 func (deps *timetableOpsTestDeps) dependencies() timetablePorts.OperationDependencies {
 	return timetablePorts.OperationDependencies{
-		Instances:            fixtures.IntoOperationInstances(deps.instanceRepo),
-		InstanceStaff:        fixtures.IntoOperationInstanceStaff(deps.staffRepo),
+		Instances:            fixtures.InstanceReadsOf(deps.instanceRepo),
+		InstanceStaff:        deps.staffRepo,
 		Participants:         fixtures.IntoOperationParticipants(deps.studentRepo),
 		Templates:            deps.activityGroups,
 		PlanningTracks:       deps.tracks,
@@ -221,29 +221,26 @@ func (r *fakeOpsInstanceRepo) FindByActiveGroupID(_ context.Context, activeGroup
 }
 
 type fakeOpsStaffRepo struct {
+	timetable.InstanceStaffQuery
 	byInstance map[int64][]*fixtures.InstanceStaff
 	err        error
 }
 
-func (r *fakeOpsStaffRepo) FindByInstanceID(_ context.Context, instanceID int64) ([]*fixtures.InstanceStaff, error) {
+// ListInstanceStaff answers one instance's read with its seeded rows and
+// the batched read with the seeded rows stamped with their instance, the
+// way the owner returns them.
+func (r *fakeOpsStaffRepo) ListInstanceStaff(_ context.Context, filter timetable.InstanceStaffFilter) ([]timetable.InstanceStaff, error) {
 	if r.err != nil {
 		return nil, r.err
 	}
-	return r.byInstance[instanceID], nil
-}
-
-// FindByInstanceIDs answers the batched read with the seeded rows, stamped
-// with their instance the way the repository returns them.
-func (r *fakeOpsStaffRepo) FindByInstanceIDs(_ context.Context, instanceIDs []int64) ([]*fixtures.InstanceStaff, error) {
-	if r.err != nil {
-		return nil, r.err
-	}
-	var rows []*fixtures.InstanceStaff
-	for _, instanceID := range instanceIDs {
+	var rows []timetable.InstanceStaff
+	for _, instanceID := range filter.InstanceIDs {
 		for _, row := range r.byInstance[instanceID] {
-			stamped := *row
-			stamped.InstanceID = instanceID
-			rows = append(rows, &stamped)
+			value := fixtures.PublicInstanceStaff(row)
+			if filter.OrderByInstanceAndCreated {
+				value.InstanceID = instanceID
+			}
+			rows = append(rows, value)
 		}
 	}
 	return rows, nil

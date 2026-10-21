@@ -38,12 +38,12 @@ var _ timetable.StaffDeviations = (*staffDeviations)(nil)
 
 // NewStaffDeviations composes the Timetable owner's deviation writes.
 func NewStaffDeviations(deps ports.StaffDeviationDependencies) (timetable.StaffDeviations, error) {
-	if deps.Instances == nil || deps.InstanceStaff == nil || deps.Staff == nil || deps.Supervisions == nil ||
+	if noInstanceRows(deps.Instances) || deps.InstanceStaff == nil || deps.Staff == nil || deps.Supervisions == nil ||
 		deps.Lifecycle == nil || deps.Protocol == nil || deps.ActivityUpdates == nil || deps.Locks == nil {
 		return nil, errors.New("timetable staff deviations: required dependency is nil")
 	}
 	return &staffDeviations{
-		substituteConflicts: substituteConflicts{instances: deps.Instances, staff: deps.InstanceStaff},
+		substituteConflicts: substituteConflicts{instances: deps.Instances.Reads, staff: deps.InstanceStaff},
 		deps:                deps,
 	}, nil
 }
