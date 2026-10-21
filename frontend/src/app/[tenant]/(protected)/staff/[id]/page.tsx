@@ -704,6 +704,7 @@ export default function StaffDetailContent() {
                         canEditStaffFields: canManageStaffRecords,
                         existingPositions,
                         canEditRole,
+                        canDeleteStaff,
                         roleAssignment,
                         roleAssignmentError: Boolean(roleAssignmentError),
                         onEditingChange: setKontoEditing,

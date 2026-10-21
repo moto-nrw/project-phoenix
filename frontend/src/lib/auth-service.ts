@@ -318,7 +318,7 @@ async function authFetchList<TBackend, TFrontend>(
 }
 
 /**
- * Helper for void responses (POST/PUT/DELETE that don't return data).
+ * Helper for void responses (PUT requests that don't return data).
  */
 async function authFetchVoid(
   endpoint: string,

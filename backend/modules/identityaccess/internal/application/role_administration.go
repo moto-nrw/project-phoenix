@@ -256,10 +256,11 @@ func (r *RoleAdministration) AssignRoleToAccount(ctx context.Context, accountID,
 // ReplaceAccountRole makes roleID the account's only staff role at the
 // caller's tenant. The Konto field "Systemrolle" is single-valued (#3116):
 // after a successful call the account holds the target role and no other
-// staff role at this school, however many an earlier half-finished swap or a
-// direct POST left behind. Guardian-tier roles are the exception and stay
-// untouched: they carry parent-portal access, which is a separate
-// relationship and never something a staff role change may revoke.
+// staff role at this school, however many an earlier half-finished swap or
+// the retired single-role POST route (#4431) left behind. Guardian-tier roles
+// are the exception and stay untouched: they carry parent-portal access,
+// which is a separate relationship and never something a staff role change
+// may revoke.
 //
 // The target is assigned first so the account never temporarily loses its
 // staff role; a later failure rolls back the complete exchange.
