@@ -1341,6 +1341,9 @@ function roomsTopic(presenceMode: HelpPresenceMode): HelpTopic {
         title: "Einen Raum und seine Belegung ansehen",
         steps: [
           "Öffnen Sie `Räume` in der Seitenleiste.",
+          // #4372 (01.14): offene Räume stehen als eigene Gruppe oben.
+          "Gibt es offene Räume, stehen sie oben unter `Offene Räume`. Alle anderen stehen darunter unter `Weitere Räume`.",
+          "Klappen Sie eine Gruppe über den Pfeil rechts ein oder aus.",
           "Suchen Sie den Raum über `Raum suchen...`.",
           // Live geprueft: kein Knopf `Filter`, sondern ein Umschalter
           // `Alle` / `Belegt` / `Frei` und eine Auswahl `Alle Gebäude`.
