@@ -6,6 +6,7 @@ import (
 	"os"
 	"path/filepath"
 	"regexp"
+	"slices"
 	"sort"
 	"strings"
 	"testing"
@@ -141,14 +142,18 @@ func scanHandRolledParseInt(backendRoot string) (map[string]int, error) {
 
 // isHandlerPackageFile reports whether rel lies in a package that serves
 // HTTP: the legacy api/ tree or an owner's http/inbound adapter below
-// modules/<owner>/ or workflows/<workflow>/.
+// modules/<owner>/ or workflows/<workflow>/, nested layouts included
+// (modules/careplan/requestfeed/http).
 func isHandlerPackageFile(rel string) bool {
 	parts := strings.Split(rel, "/")
 	if len(parts) >= 2 && parts[0] == "api" {
 		return true
 	}
-	return len(parts) >= 4 && (parts[0] == "modules" || parts[0] == "workflows") &&
-		(parts[2] == "http" || parts[2] == "inbound")
+	if len(parts) < 4 || (parts[0] != "modules" && parts[0] != "workflows") {
+		return false
+	}
+	dirs := parts[2 : len(parts)-1]
+	return slices.Contains(dirs, "http") || slices.Contains(dirs, "inbound")
 }
 
 func TestHandRolledParseIntScanCoversHandlerPackages(t *testing.T) {
@@ -163,6 +168,7 @@ func TestHandRolledParseIntScanCoversHandlerPackages(t *testing.T) {
 		"modules/schoolmembership/http/classlistentries/api.go",
 		"modules/identityaccess/inbound/operator/status.go",
 		"workflows/openroommove/http/api.go",
+		"modules/careplan/requestfeed/http/api.go",
 		"modules/feedback/http/api_test.go",
 		"modules/feedback/internal/adapters/postgres/repo.go",
 		"test/http_api_adapter.go",
@@ -186,6 +192,7 @@ func TestHandRolledParseIntScanCoversHandlerPackages(t *testing.T) {
 		"modules/schoolmembership/http/classlistentries/api.go": 1,
 		"modules/identityaccess/inbound/operator/status.go":     1,
 		"workflows/openroommove/http/api.go":                    1,
+		"modules/careplan/requestfeed/http/api.go":              1,
 	}
 	if !maps.Equal(counts, want) {
 		t.Fatalf("scanHandRolledParseInt = %v, want %v", counts, want)
