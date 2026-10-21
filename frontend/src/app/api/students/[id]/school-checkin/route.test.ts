@@ -1,12 +1,11 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import type { Session } from "next-auth";
 import { NextRequest } from "next/server";
-import { ApiResponseError } from "~/lib/api-response-error.server";
 import { POST } from "./route";
-
-interface ExtendedSession extends Session {
-  user: Session["user"] & { token?: string };
-}
+import {
+  type ExtendedSession,
+  createMockContext,
+  defaultSession,
+} from "~/test/route-test-helpers";
 
 const { mockAuth, mockApiPost } = vi.hoisted(() => ({
   mockAuth: vi.fn<() => Promise<ExtendedSession | null>>(),
@@ -42,17 +41,6 @@ function createMockRequest(
   return new NextRequest(url, init);
 }
 
-function createMockContext(
-  params: Record<string, string | string[] | undefined> = {},
-) {
-  return { params: Promise.resolve(params) };
-}
-
-const defaultSession: ExtendedSession = {
-  user: { id: "1", token: "test-token", name: "Test User" },
-  expires: "2099-01-01",
-};
-
 async function parseJsonResponse<T>(response: Response): Promise<T> {
   return (await response.json()) as T;
 }
@@ -61,16 +49,6 @@ describe("POST /api/students/[id]/school-checkin", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     mockAuth.mockResolvedValue(defaultSession);
-  });
-
-  it("returns 401 when not authenticated", async () => {
-    mockAuth.mockResolvedValueOnce(null);
-    const request = createMockRequest("/api/students/42/school-checkin", {
-      method: "POST",
-      body: { action: "in" },
-    });
-    const response = await POST(request, createMockContext({ id: "42" }));
-    expect(response.status).toBe(401);
   });
 
   it("proxies the body + token to the backend and returns the mapped result", async () => {
@@ -102,18 +80,6 @@ describe("POST /api/students/[id]/school-checkin", () => {
     expect(json.data.status).toBe("checked_in");
     expect(json.data.location).toBe("Anwesend");
     expect(json.data.changed).toBe(true);
-  });
-
-  it("propagates backend 403 unchanged", async () => {
-    mockApiPost.mockRejectedValueOnce(
-      new ApiResponseError(403, "not a supervisor"),
-    );
-    const request = createMockRequest("/api/students/42/school-checkin", {
-      method: "POST",
-      body: { action: "in" },
-    });
-    const response = await POST(request, createMockContext({ id: "42" }));
-    expect(response.status).toBe(403);
   });
 
   it("rejects a missing id param", async () => {

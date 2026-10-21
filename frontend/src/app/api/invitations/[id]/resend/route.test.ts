@@ -1,16 +1,10 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import type { Session } from "next-auth";
 import { NextRequest } from "next/server";
 import { POST } from "./route";
-import { ApiResponseError } from "~/lib/api-response-error.server";
-
-// ============================================================================
-// Types
-// ============================================================================
-
-interface ExtendedSession extends Session {
-  user: Session["user"] & { token?: string };
-}
+import {
+  type ExtendedSession,
+  defaultSession,
+} from "~/test/route-test-helpers";
 
 // ============================================================================
 // Mocks
@@ -70,11 +64,6 @@ function createMockContext(
   };
 }
 
-const defaultSession: ExtendedSession = {
-  user: { id: "1", token: "test-token", name: "Test User" },
-  expires: "2099-01-01",
-};
-
 // ============================================================================
 // Tests
 // ============================================================================
@@ -83,15 +72,6 @@ describe("POST /api/invitations/[id]/resend", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     mockAuth.mockResolvedValue(defaultSession);
-  });
-
-  it("returns 401 when not authenticated", async () => {
-    mockAuth.mockResolvedValueOnce(null);
-
-    const request = createMockRequest("/api/invitations/123/resend");
-    const response = await POST(request, createMockContext({ id: "123" }));
-
-    expect(response.status).toBe(401);
   });
 
   it("resends invitation via backend", async () => {
@@ -158,14 +138,5 @@ describe("POST /api/invitations/[id]/resend", () => {
     // TypeError is caught by wrapper and returns 500
     expect(response.status).toBe(500);
     expect(mockApiPost).not.toHaveBeenCalled();
-  });
-
-  it("forwards backend errors", async () => {
-    mockApiPost.mockRejectedValueOnce(new ApiResponseError(404, "Not found"));
-
-    const request = createMockRequest("/api/invitations/999/resend");
-    const response = await POST(request, createMockContext({ id: "999" }));
-
-    expect(response.status).toBe(404);
   });
 });

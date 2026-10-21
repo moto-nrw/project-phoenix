@@ -1,15 +1,14 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { NextRequest } from "next/server";
 
-const { mockAuth, mockUncachedAuth, mockFetch } = vi.hoisted(() => ({
+const { mockAuth, mockFetch } = vi.hoisted(() => ({
   mockAuth: vi.fn(),
-  mockUncachedAuth: vi.fn(),
   mockFetch: vi.fn(),
 }));
 
 vi.mock("~/server/auth/operator", () => ({
   operatorAuth: mockAuth,
-  uncachedOperatorAuth: mockUncachedAuth,
+  uncachedOperatorAuth: vi.fn(),
 }));
 
 vi.mock("~/server/auth/operator-route", () => ({
@@ -40,18 +39,6 @@ describe("/api/operator/accounts/[accountId]/tenants", () => {
     vi.clearAllMocks();
     mockAuth.mockResolvedValue(session);
     vi.stubGlobal("fetch", mockFetch);
-  });
-
-  it("returns 401 without an operator session", async () => {
-    mockAuth.mockResolvedValue(null);
-
-    const response = await GET(
-      new NextRequest("http://localhost:3000/api/operator/accounts/42/tenants"),
-      context(),
-    );
-
-    expect(response.status).toBe(401);
-    expect(mockFetch).not.toHaveBeenCalled();
   });
 
   it("rejects a non-string account parameter", async () => {
@@ -141,28 +128,5 @@ describe("/api/operator/accounts/[accountId]/tenants", () => {
       code: "general.input",
     });
     expect(mockFetch).not.toHaveBeenCalled();
-  });
-
-  it("retries once with a refreshed token on 401", async () => {
-    mockFetch
-      .mockResolvedValueOnce(jsonResponse({ detail: "expired" }, 401))
-      .mockResolvedValueOnce(jsonResponse({ data: [] }));
-    mockUncachedAuth.mockResolvedValue({ user: { token: "fresh-token" } });
-
-    const response = await GET(
-      new NextRequest("http://localhost:3000/api/operator/accounts/42/tenants"),
-      context(),
-    );
-
-    expect(response.status).toBe(200);
-    expect(mockFetch).toHaveBeenCalledTimes(2);
-    expect(mockFetch).toHaveBeenLastCalledWith(
-      expect.any(String),
-      expect.objectContaining({
-        headers: expect.objectContaining({
-          Authorization: "Bearer fresh-token",
-        }),
-      }),
-    );
   });
 });

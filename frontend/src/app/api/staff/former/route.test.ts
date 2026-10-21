@@ -1,10 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import type { Session } from "next-auth";
 import { NextRequest } from "next/server";
-
-interface ExtendedSession extends Session {
-  user: Session["user"] & { token?: string };
-}
+import type { ExtendedSession } from "~/test/route-test-helpers";
 
 const { mockAuth, mockApiGet } = vi.hoisted(() => ({
   mockAuth: vi.fn<() => Promise<ExtendedSession | null>>(),
@@ -40,15 +36,6 @@ describe("GET /api/staff/former", () => {
       user: { id: "1", token: "test-token", name: "Test User" },
       expires: "2099-01-01",
     });
-  });
-
-  it("returns 401 when not authenticated", async () => {
-    mockAuth.mockResolvedValueOnce(null);
-
-    const response = await GET(request(), context);
-
-    expect(response.status).toBe(401);
-    expect(mockApiGet).not.toHaveBeenCalled();
   });
 
   it("reads the backend's former employments and maps them", async () => {

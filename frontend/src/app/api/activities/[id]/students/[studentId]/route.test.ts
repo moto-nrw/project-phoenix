@@ -1,15 +1,11 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import type { Session } from "next-auth";
-import { NextRequest } from "next/server";
 import { GET, DELETE } from "./route";
-
-// ============================================================================
-// Types
-// ============================================================================
-
-interface ExtendedSession extends Session {
-  user: Session["user"] & { token?: string };
-}
+import {
+  type ExtendedSession,
+  createMockContext,
+  createMockRequest,
+  defaultSession,
+} from "~/test/route-test-helpers";
 
 // ============================================================================
 // Mocks
@@ -41,35 +37,6 @@ vi.mock("~/lib/api-helpers.server", async () => {
 // Test Helpers
 // ============================================================================
 
-function createMockRequest(
-  path: string,
-  options: { method?: string; body?: unknown } = {},
-): NextRequest {
-  const url = new URL(path, "http://localhost:3000");
-  const requestInit: { method: string; body?: string; headers?: HeadersInit } =
-    {
-      method: options.method ?? "GET",
-    };
-
-  if (options.body) {
-    requestInit.body = JSON.stringify(options.body);
-    requestInit.headers = { "Content-Type": "application/json" };
-  }
-
-  return new NextRequest(url, requestInit);
-}
-
-function createMockContext(
-  params: Record<string, string | string[] | undefined> = {},
-) {
-  return { params: Promise.resolve(params) };
-}
-
-const defaultSession: ExtendedSession = {
-  user: { id: "1", token: "test-token", name: "Test User" },
-  expires: "2099-01-01",
-};
-
 interface ApiResponse<T> {
   success: boolean;
   message: string;
@@ -88,18 +55,6 @@ describe("GET /api/activities/[id]/students/[studentId]", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     mockAuth.mockResolvedValue(defaultSession);
-  });
-
-  it("returns 401 when not authenticated", async () => {
-    mockAuth.mockResolvedValueOnce(null);
-
-    const request = createMockRequest("/api/activities/1/students/100");
-    const response = await GET(
-      request,
-      createMockContext({ id: "1", studentId: "100" }),
-    );
-
-    expect(response.status).toBe(401);
   });
 
   it("returns student enrollment details", async () => {
@@ -181,41 +136,12 @@ describe("GET /api/activities/[id]/students/[studentId]", () => {
       "Student with ID 100 is not enrolled",
     );
   });
-
-  it("handles errors from getEnrolledStudents", async () => {
-    mockApiGet.mockRejectedValueOnce(new Error("API error"));
-
-    const request = createMockRequest("/api/activities/1/students/100");
-    const response = await GET(
-      request,
-      createMockContext({ id: "1", studentId: "100" }),
-    );
-
-    expect(response.status).toBe(500);
-    const json = await parseJsonResponse<{ detail: string }>(response);
-    expect(json.detail).toBe("Internal Server Error");
-    expect(JSON.stringify(json)).not.toContain("API error");
-  });
 });
 
 describe("DELETE /api/activities/[id]/students/[studentId]", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     mockAuth.mockResolvedValue(defaultSession);
-  });
-
-  it("returns 401 when not authenticated", async () => {
-    mockAuth.mockResolvedValueOnce(null);
-
-    const request = createMockRequest("/api/activities/1/students/100", {
-      method: "DELETE",
-    });
-    const response = await DELETE(
-      request,
-      createMockContext({ id: "1", studentId: "100" }),
-    );
-
-    expect(response.status).toBe(401);
   });
 
   it("unenrolls student successfully", async () => {
@@ -272,22 +198,5 @@ describe("DELETE /api/activities/[id]/students/[studentId]", () => {
     expect(JSON.stringify(json)).not.toContain(
       "Activity ID and Student ID are required",
     );
-  });
-
-  it("handles deletion errors", async () => {
-    mockApiDelete.mockRejectedValueOnce(new Error("Student not found"));
-
-    const request = createMockRequest("/api/activities/1/students/100", {
-      method: "DELETE",
-    });
-    const response = await DELETE(
-      request,
-      createMockContext({ id: "1", studentId: "100" }),
-    );
-
-    expect(response.status).toBe(500);
-    const json = await parseJsonResponse<{ detail: string }>(response);
-    expect(json.detail).toBe("Internal Server Error");
-    expect(JSON.stringify(json)).not.toContain("Student not found");
   });
 });

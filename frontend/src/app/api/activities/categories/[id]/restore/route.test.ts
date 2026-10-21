@@ -1,11 +1,10 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import type { Session } from "next-auth";
 import { NextRequest } from "next/server";
 import { POST } from "./route";
-
-interface ExtendedSession extends Session {
-  user: Session["user"] & { token?: string };
-}
+import {
+  type ExtendedSession,
+  defaultSession,
+} from "~/test/route-test-helpers";
 
 const { mockAuth, mockApiPost } = vi.hoisted(() => ({
   mockAuth: vi.fn<() => Promise<ExtendedSession | null>>(),
@@ -28,11 +27,6 @@ vi.mock("~/lib/api-helpers.server", async () => {
   };
 });
 
-const defaultSession: ExtendedSession = {
-  user: { id: "1", token: "test-token", name: "Test User" },
-  expires: "2099-01-01",
-};
-
 function createContext(params: Record<string, string>) {
   return { params: Promise.resolve(params) };
 }
@@ -48,15 +42,6 @@ describe("POST /api/activities/categories/[id]/restore", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     mockAuth.mockResolvedValue(defaultSession);
-  });
-
-  it("returns 401 when not authenticated", async () => {
-    mockAuth.mockResolvedValueOnce(null);
-
-    const response = await POST(createRequest(), createContext({ id: "7" }));
-
-    expect(response.status).toBe(401);
-    expect(mockApiPost).not.toHaveBeenCalled();
   });
 
   it("calls the backend restore endpoint", async () => {

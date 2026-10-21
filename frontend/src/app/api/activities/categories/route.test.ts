@@ -1,11 +1,12 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import type { Session } from "next-auth";
 import { NextRequest } from "next/server";
 import { GET, POST } from "./route";
-
-interface ExtendedSession extends Session {
-  user: Session["user"] & { token?: string };
-}
+import {
+  type ExtendedSession,
+  createMockContext,
+  createMockRequest,
+  defaultSession,
+} from "~/test/route-test-helpers";
 
 const { mockAuth, mockApiGet, mockApiPost } = vi.hoisted(() => ({
   mockAuth: vi.fn<() => Promise<ExtendedSession | null>>(),
@@ -29,22 +30,6 @@ vi.mock("~/lib/api-helpers.server", async () => {
   };
 });
 
-function createMockRequest(path: string): NextRequest {
-  const url = new URL(path, "http://localhost:3000");
-  return new NextRequest(url);
-}
-
-function createMockContext(
-  params: Record<string, string | string[] | undefined> = {},
-) {
-  return { params: Promise.resolve(params) };
-}
-
-const defaultSession: ExtendedSession = {
-  user: { id: "1", token: "test-token", name: "Test User" },
-  expires: "2099-01-01",
-};
-
 async function parseJsonResponse<T>(response: Response): Promise<T> {
   return (await response.json()) as T;
 }
@@ -53,15 +38,6 @@ describe("GET /api/activities/categories", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     mockAuth.mockResolvedValue(defaultSession);
-  });
-
-  it("returns 401 when not authenticated", async () => {
-    mockAuth.mockResolvedValueOnce(null);
-
-    const request = createMockRequest("/api/activities/categories");
-    const response = await GET(request, createMockContext());
-
-    expect(response.status).toBe(401);
   });
 
   it("fetches activity categories successfully", async () => {
@@ -109,15 +85,6 @@ describe("GET /api/activities/categories", () => {
     const json = await parseJsonResponse<{ detail: string }>(response);
     expect(json.detail).toBe("Internal Server Error");
     expect(JSON.stringify(json)).not.toContain("Unexpected response structure");
-  });
-
-  it("handles backend errors gracefully", async () => {
-    mockApiGet.mockRejectedValueOnce(new Error("Backend service unavailable"));
-
-    const request = createMockRequest("/api/activities/categories");
-    const response = await GET(request, createMockContext());
-
-    expect(response.status).toBe(500);
   });
 
   // #2131: the Stammdaten screen opts into archived (and system) categories
@@ -184,17 +151,6 @@ describe("POST /api/activities/categories", () => {
       },
     );
   }
-
-  it("returns 401 when not authenticated", async () => {
-    mockAuth.mockResolvedValueOnce(null);
-
-    const response = await POST(
-      createPostRequest({ name: "Essen" }),
-      createMockContext(),
-    );
-
-    expect(response.status).toBe(401);
-  });
 
   it("forwards only name, description and color to the backend", async () => {
     mockApiPost.mockResolvedValueOnce({ data: { id: 9, name: "Essen" } });

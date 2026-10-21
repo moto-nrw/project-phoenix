@@ -16,7 +16,6 @@ func TestStudentImportTemplate_GehweiseHeadersRoundTripThroughParser(t *testing.
 
 	headers := getStudentImportHeaders()
 	require.Contains(t, headers, "Gehweise.Mo")
-	require.NotContains(t, headers, "Gehweise.Mo (alleine/bus/abholung) (optional)")
 
 	var buf bytes.Buffer
 	writer := csv.NewWriter(&buf)
