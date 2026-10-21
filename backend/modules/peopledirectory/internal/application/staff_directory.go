@@ -6,6 +6,7 @@ import (
 	"strings"
 
 	peopleValues "github.com/moto-nrw/project-phoenix/modules/peopledirectory"
+	"github.com/moto-nrw/project-phoenix/modules/peopledirectory/internal/domain/userscontract"
 
 	peoplePorts "github.com/moto-nrw/project-phoenix/modules/peopledirectory/ports"
 	"github.com/moto-nrw/project-phoenix/modules/transactionruntime"
@@ -32,6 +33,9 @@ type staffMembershipDirectory struct {
 
 // NewStaffDirectory binds the staff directory over the retained repositories.
 func NewStaffDirectory(deps peoplePorts.StaffDirectoryDependencies) peoplePorts.StaffDirectory {
+	if deps.Persons == nil {
+		panic("staff directory: the person repository is required")
+	}
 	if deps.Staff == nil {
 		panic("staff directory: the staff repository is required")
 	}
@@ -70,6 +74,9 @@ func (s *staffMembershipDirectory) CreateStaffWithTeacher(ctx context.Context, i
 	teacherCreationFailed := false
 
 	if err := s.runtime.InTenantTx(ctx, func(ctx context.Context) error {
+		if err := s.requireLivePersonLocked(ctx, input.PersonID); err != nil {
+			return err
+		}
 		if err := s.refuseCaregiverProfileForLehrkraft(ctx, input.PersonID, input.IsTeacher); err != nil {
 			return err
 		}
@@ -91,6 +98,20 @@ func (s *staffMembershipDirectory) CreateStaffWithTeacher(ctx context.Context, i
 	}
 
 	return staff, teacher, teacherCreationFailed, nil
+}
+
+// requireLivePersonLocked keeps a staff write and a person retirement ordered
+// on the person row. A person deleted after an earlier request validation must
+// not receive a new active staff membership once this transaction resumes.
+func (s *staffMembershipDirectory) requireLivePersonLocked(ctx context.Context, personID int64) error {
+	person, err := s.persons.FindByIDForUpdate(ctx, personID)
+	if err != nil {
+		return err
+	}
+	if person == nil || person.DeletedAt != nil {
+		return userscontract.ErrPersonNotFound
+	}
+	return nil
 }
 
 // adoptOrCreateStaff adopts the live staff record of the person or creates
