@@ -234,48 +234,12 @@ func TestAccountManagementOrganizationScopeReturnsUnmappedOwnAccount(t *testing.
 	assert.Equal(t, int64(claims.ID), response.Data.ID)
 }
 
-func TestAccountManagementDirectPermissionsStayWithinTenant(t *testing.T) {
-	t.Parallel()
-	e := newAccountIsolationEnv(t)
-	account := testpkg.CreateTestAccount(t, e.tc.db, "account-scope-direct-permissions")
-	testpkg.MapAccountToTenant(t, e.tc.db, account.ID, e.foreignTenantID)
-	localPermission := testpkg.CreateTestPermission(t, e.tc.db, "account-scope-direct-local", "account-scope-direct-local", "read")
-	foreignPermission := testpkg.CreateTestPermission(t, e.tc.db, "account-scope-direct-foreign", "account-scope-direct-foreign", "read")
-
-	for _, assignment := range []struct {
-		permissionID int64
-		tenantID     int64
-	}{
-		{permissionID: localPermission.ID, tenantID: e.tenantID},
-		{permissionID: foreignPermission.ID, tenantID: e.foreignTenantID},
-	} {
-		_, err := e.tc.db.ExecContext(context.Background(),
-			"INSERT INTO auth.account_permissions (account_id, permission_id, granted, tenant_id) VALUES (?, ?, true, ?)",
-			account.ID, assignment.permissionID, assignment.tenantID)
-		require.NoError(t, err)
-	}
-
-	rr := e.execute(t, e.claims, http.MethodGet, fmt.Sprintf("/auth/accounts/%d/permissions/direct", account.ID), nil)
-	require.Equal(t, http.StatusOK, rr.Code, rr.Body.String())
-	var response struct {
-		Data []authAPI.PermissionResponse `json:"data"`
-	}
-	require.NoError(t, json.Unmarshal(rr.Body.Bytes(), &response))
-	permissionIDs := make([]int64, 0, len(response.Data))
-	for _, permission := range response.Data {
-		permissionIDs = append(permissionIDs, permission.ID)
-	}
-	assert.Contains(t, permissionIDs, localPermission.ID)
-	assert.NotContains(t, permissionIDs, foreignPermission.ID)
-}
-
 func TestAccountManagementOrganizationRBACRequiresTargetSchoolMembership(t *testing.T) {
 	t.Parallel()
 	e := newAccountIsolationEnv(t)
 	organizationID, otherSchoolID := e.createSchoolInOwnOrganization(t)
 	accountID, _ := e.accountForTenant(t, "account-scope-org-rbac", otherSchoolID)
 	role := testpkg.CreateTestRoleForTenant(t, e.tc.db, "account-scope-org-rbac", e.tenantID)
-	permission := testpkg.CreateTestPermission(t, e.tc.db, "account-scope-org-rbac", "account-scope-org-rbac", "read")
 	claims := e.claims
 	claims.Scope = tenant.ScopeOrg
 	claims.OrgID = organizationID
@@ -287,11 +251,6 @@ func TestAccountManagementOrganizationRBACRequiresTargetSchoolMembership(t *test
 		{http.MethodGet, fmt.Sprintf("/auth/accounts/%d/roles", accountID)},
 		{http.MethodPost, fmt.Sprintf("/auth/accounts/%d/roles/%d", accountID, role.ID)},
 		{http.MethodDelete, fmt.Sprintf("/auth/accounts/%d/roles/%d", accountID, role.ID)},
-		{http.MethodGet, fmt.Sprintf("/auth/accounts/%d/permissions", accountID)},
-		{http.MethodGet, fmt.Sprintf("/auth/accounts/%d/permissions/direct", accountID)},
-		{http.MethodPost, fmt.Sprintf("/auth/accounts/%d/permissions/%d/grant", accountID, permission.ID)},
-		{http.MethodPost, fmt.Sprintf("/auth/accounts/%d/permissions/%d/deny", accountID, permission.ID)},
-		{http.MethodDelete, fmt.Sprintf("/auth/accounts/%d/permissions/%d", accountID, permission.ID)},
 	} {
 		rr := e.execute(t, claims, action.method, action.path, nil)
 		assert.Equal(t, http.StatusNotFound, rr.Code, rr.Body.String())
@@ -304,7 +263,6 @@ func TestAccountManagementRBACForeignAccountDoesNotLeakExistence(t *testing.T) {
 	foreignID, _ := e.foreignAccount(t, "account-scope-rbac-foreign")
 	missingID := e.missingAccountID(t)
 	role := testpkg.CreateTestRoleForTenant(t, e.tc.db, "account-scope-rbac", e.tenantID)
-	permission := testpkg.CreateTestPermission(t, e.tc.db, "account-scope-rbac", "account-scope-rbac", "read")
 
 	for _, action := range []struct {
 		method string
@@ -313,17 +271,6 @@ func TestAccountManagementRBACForeignAccountDoesNotLeakExistence(t *testing.T) {
 		{http.MethodGet, func(accountID int64) string { return fmt.Sprintf("/auth/accounts/%d/roles", accountID) }},
 		{http.MethodPost, func(accountID int64) string { return fmt.Sprintf("/auth/accounts/%d/roles/%d", accountID, role.ID) }},
 		{http.MethodDelete, func(accountID int64) string { return fmt.Sprintf("/auth/accounts/%d/roles/%d", accountID, role.ID) }},
-		{http.MethodGet, func(accountID int64) string { return fmt.Sprintf("/auth/accounts/%d/permissions", accountID) }},
-		{http.MethodGet, func(accountID int64) string { return fmt.Sprintf("/auth/accounts/%d/permissions/direct", accountID) }},
-		{http.MethodPost, func(accountID int64) string {
-			return fmt.Sprintf("/auth/accounts/%d/permissions/%d/grant", accountID, permission.ID)
-		}},
-		{http.MethodPost, func(accountID int64) string {
-			return fmt.Sprintf("/auth/accounts/%d/permissions/%d/deny", accountID, permission.ID)
-		}},
-		{http.MethodDelete, func(accountID int64) string {
-			return fmt.Sprintf("/auth/accounts/%d/permissions/%d", accountID, permission.ID)
-		}},
 	} {
 		foreign := e.execute(t, e.claims, action.method, action.path(foreignID), nil)
 		missing := e.execute(t, e.claims, action.method, action.path(missingID), nil)

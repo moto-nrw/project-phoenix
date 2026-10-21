@@ -11,68 +11,30 @@ import (
 	"github.com/uptrace/bun"
 )
 
-func TestPermissionAdministrationScopeAndRollback(t *testing.T) {
+func TestPermissionAdministrationRollback(t *testing.T) {
 	t.Parallel()
 	db := testpkg.SetupTestDB(t)
 	ctx := testpkg.Ctx(t)
 	tenantID := testpkg.Tenant(t)
-	other := testpkg.UniqueTestTenantID(t)
-	testpkg.EnsureTestTenant(t, db, other)
 	identity := roleAdministrationOf(t, setupAuthService(t, db))
-	otherCtx := testpkg.ContextForTenant(ctx, other)
-	account := testpkg.CreateTestAccount(t, db, "permission-owner")
-	testpkg.MapAccountToTenant(t, db, account.ID, other)
 	role := testpkg.CreateTestRole(t, db, "permission-owner")
-	direct := testpkg.CreateTestPermission(t, db, "permission-direct", "direct", "read")
 	roleGrant := testpkg.CreateTestPermission(t, db, "permission-role", "role", "read")
-	foreignGrant := testpkg.CreateTestPermission(t, db, "permission-foreign", "foreign", "read")
-	_, err := db.NewRaw("INSERT INTO auth.account_roles (account_id, role_id, tenant_id) VALUES (?, ?, ?)", account.ID, role.ID, tenantID).Exec(ctx)
-	require.NoError(t, err)
 	require.NoError(t, identity.AssignPermissionToRole(ctx, role.ID, roleGrant.ID))
 	require.NoError(t, identity.AssignPermissionToRole(ctx, role.ID, roleGrant.ID), "assigning twice is idempotent")
-	require.NoError(t, identity.GrantPermissionToAccount(ctx, account.ID, direct.ID))
-	require.NoError(t, identity.GrantPermissionToAccount(otherCtx, account.ID, foreignGrant.ID))
-	require.NoError(t, identity.GrantPermissionToAccount(otherCtx, account.ID, direct.ID))
-
-	permissions, err := identity.GetAccountPermissions(ctx, account.ID)
-	require.NoError(t, err)
-	require.ElementsMatch(t, []int64{direct.ID, roleGrant.ID}, permissionIDs(permissions))
-	permissions, err = identity.GetAccountDirectPermissions(ctx, account.ID)
-	require.NoError(t, err)
-	require.Equal(t, []int64{direct.ID}, permissionIDs(permissions))
-
-	require.NoError(t, identity.DenyPermissionToAccount(ctx, account.ID, direct.ID))
-	permissions, err = identity.GetAccountDirectPermissions(ctx, account.ID)
-	require.NoError(t, err)
-	require.Empty(t, permissions)
-	permissions, err = identity.GetAccountDirectPermissions(otherCtx, account.ID)
-	require.NoError(t, err)
-	require.ElementsMatch(t, []int64{direct.ID, foreignGrant.ID}, permissionIDs(permissions))
 
 	rollback := errors.New("roll back permission changes")
-	err = testpkg.WithAdminTx(t, ctx, db, func(txCtx context.Context, _ bun.Tx) error {
+	err := testpkg.WithAdminTx(t, ctx, db, func(txCtx context.Context, _ bun.Tx) error {
 		txCtx = testpkg.ContextForTenant(txCtx, tenantID)
-		require.NoError(t, identity.GrantPermissionToAccount(txCtx, account.ID, direct.ID))
 		require.NoError(t, identity.RemovePermissionFromRole(txCtx, role.ID, roleGrant.ID))
-		permissions, queryErr := identity.GetAccountPermissions(txCtx, account.ID)
+		permissions, queryErr := identity.GetRolePermissions(txCtx, role.ID)
 		require.NoError(t, queryErr)
-		require.Equal(t, []int64{direct.ID}, permissionIDs(permissions))
+		require.Empty(t, permissions)
 		return rollback
 	})
 	require.ErrorIs(t, err, rollback)
-	permissions, err = identity.GetAccountPermissions(ctx, account.ID)
+	permissions, err := identity.GetRolePermissions(ctx, role.ID)
 	require.NoError(t, err)
 	require.Equal(t, []int64{roleGrant.ID}, permissionIDs(permissions))
-
-	require.NoError(t, identity.RemovePermissionFromAccount(ctx, account.ID, direct.ID))
-	require.NoError(t, identity.DenyPermissionToAccount(ctx, account.ID, direct.ID), "a first denial stores false rather than the database default")
-	permissions, err = identity.GetAccountDirectPermissions(ctx, account.ID)
-	require.NoError(t, err)
-	require.Empty(t, permissions)
-	require.NoError(t, identity.RemovePermissionFromAccount(ctx, account.ID, direct.ID))
-	permissions, err = identity.GetAccountDirectPermissions(otherCtx, account.ID)
-	require.NoError(t, err)
-	require.ElementsMatch(t, []int64{direct.ID, foreignGrant.ID}, permissionIDs(permissions), "school cleanup leaves other schools untouched")
 }
 
 func permissionIDs(permissions []identityaccess.Permission) []int64 {
@@ -83,7 +45,10 @@ func permissionIDs(permissions []identityaccess.Permission) []int64 {
 	return ids
 }
 
-func TestDirectPermissionLifecycle(t *testing.T) {
+// TestDeletePermissionRemovesStoredDirectGrants keeps the cleanup path for
+// retired direct grants (#4485): deleting a permission still removes its rows
+// until the table itself is dropped.
+func TestDeletePermissionRemovesStoredDirectGrants(t *testing.T) {
 	t.Parallel()
 	db := testpkg.SetupTestDB(t)
 	ctx := testpkg.Ctx(t)
@@ -92,46 +57,28 @@ func TestDirectPermissionLifecycle(t *testing.T) {
 	second := testpkg.CreateTestAccount(t, db, "direct-second")
 	shared := testpkg.CreateTestPermission(t, db, "direct-shared", "direct-shared", "read")
 	kept := testpkg.CreateTestPermission(t, db, "direct-kept", "direct-kept", "read")
-	assertGrants := func(accountID int64, ids ...int64) {
+	insert := func(accountID, permissionID int64) {
 		t.Helper()
-		permissions, err := identity.GetAccountDirectPermissions(ctx, accountID)
+		_, err := db.NewRaw("INSERT INTO auth.account_permissions (account_id, permission_id, granted, tenant_id) VALUES (?, ?, TRUE, ?)",
+			accountID, permissionID, testpkg.Tenant(t)).Exec(ctx)
 		require.NoError(t, err)
-		require.ElementsMatch(t, ids, permissionIDs(permissions))
 	}
-	assertStored := func(accountID, permissionID int64, expected []bool) {
+	stored := func(accountID, permissionID int64) int {
 		t.Helper()
-		var grants []bool
-		err := db.NewRaw("SELECT granted FROM auth.account_permissions WHERE account_id = ? AND permission_id = ? AND tenant_id = ?",
-			accountID, permissionID, testpkg.Tenant(t)).Scan(ctx, &grants)
+		var count int
+		err := db.NewRaw("SELECT count(*) FROM auth.account_permissions WHERE account_id = ? AND permission_id = ? AND tenant_id = ?",
+			accountID, permissionID, testpkg.Tenant(t)).Scan(ctx, &count)
 		require.NoError(t, err)
-		require.Equal(t, expected, grants)
+		return count
 	}
-
-	assertGrants(first.ID)
-	require.NoError(t, identity.DenyPermissionToAccount(ctx, first.ID, shared.ID))
-	assertStored(first.ID, shared.ID, []bool{false})
-	assertGrants(first.ID)
-	require.NoError(t, identity.GrantPermissionToAccount(ctx, first.ID, shared.ID))
-	require.NoError(t, identity.GrantPermissionToAccount(ctx, first.ID, shared.ID))
-	assertStored(first.ID, shared.ID, []bool{true})
-	require.NoError(t, identity.GrantPermissionToAccount(ctx, first.ID, kept.ID))
-	require.NoError(t, identity.GrantPermissionToAccount(ctx, second.ID, shared.ID))
-	assertGrants(first.ID, shared.ID, kept.ID)
-	assertGrants(second.ID, shared.ID)
-	require.NoError(t, identity.DenyPermissionToAccount(ctx, first.ID, shared.ID))
-	assertStored(first.ID, shared.ID, []bool{false})
-	assertGrants(first.ID, kept.ID)
-	assertGrants(second.ID, shared.ID)
+	insert(first.ID, shared.ID)
+	insert(first.ID, kept.ID)
+	insert(second.ID, shared.ID)
 
 	require.NoError(t, identity.DeletePermission(ctx, shared.ID))
-	assertStored(first.ID, shared.ID, nil)
-	assertStored(second.ID, shared.ID, nil)
-	assertGrants(first.ID, kept.ID)
-	assertGrants(second.ID)
-	require.NoError(t, identity.RemovePermissionFromAccount(ctx, first.ID, kept.ID))
-	require.NoError(t, identity.RemovePermissionFromAccount(ctx, first.ID, kept.ID))
-	assertStored(first.ID, kept.ID, nil)
-	assertGrants(first.ID)
+	require.Zero(t, stored(first.ID, shared.ID))
+	require.Zero(t, stored(second.ID, shared.ID))
+	require.Equal(t, 1, stored(first.ID, kept.ID))
 }
 
 func TestPermissionAdministrationDatabaseFailure(t *testing.T) {

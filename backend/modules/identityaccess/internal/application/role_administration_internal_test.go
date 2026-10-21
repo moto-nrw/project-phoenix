@@ -54,7 +54,6 @@ type raStore struct {
 	deleteRoleErr        error
 	deleteAccountRoleErr error
 	createdAssignments   []raAssignment
-	grants               []raAssignment
 }
 
 type raAssignment struct{ accountID, otherID, tenantID int64 }
@@ -245,14 +244,6 @@ func (s *raStore) ListRolePermissions(_ context.Context, roleID int64) ([]domain
 	return result, nil
 }
 
-func (s *raStore) ListAccountPermissions(context.Context, int64) ([]domain.ManagedPermission, error) {
-	return nil, nil
-}
-
-func (s *raStore) ListAccountDirectPermissions(context.Context, int64) ([]domain.ManagedPermission, error) {
-	return nil, nil
-}
-
 func (s *raStore) AssignRolePermission(_ context.Context, roleID, permissionID int64) error {
 	s.record("assign role permission")
 	s.rolePerms[roleID] = append(s.rolePerms[roleID], permissionID)
@@ -267,15 +258,6 @@ func (s *raStore) RemoveRolePermission(_ context.Context, roleID, permissionID i
 
 func (s *raStore) DeletePermissionAssignments(context.Context, int64) error { return nil }
 func (s *raStore) DeletePermissionGrants(context.Context, int64) error      { return nil }
-
-func (s *raStore) GrantAccountPermission(_ context.Context, accountID, permissionID int64) error {
-	s.record("grant account permission")
-	s.grants = append(s.grants, raAssignment{accountID: accountID, otherID: permissionID})
-	return nil
-}
-
-func (s *raStore) DenyAccountPermission(context.Context, int64, int64) error   { return nil }
-func (s *raStore) RemoveAccountPermission(context.Context, int64, int64) error { return nil }
 
 func (s *raStore) FindManageableAccount(_ context.Context, accountID int64) (identityaccess.ManagedAccount, error) {
 	s.record("find manageable account")
@@ -581,32 +563,12 @@ func TestRoleAdministration_AccountLockOrder(t *testing.T) {
 		}, f.store.calls)
 	})
 
-	t.Run("organisation scope checks and shares the membership", func(t *testing.T) {
-		f := newRAFixture(t)
-		account := f.account()
-		f.store.memberships[account] = true
-		permission := f.store.addPermission("groups:read")
-		ctx := withScope(raContext(), domain.ScopeOrg, 3)
-
-		require.NoError(t, f.admin.GrantPermissionToAccount(ctx, account, permission.ID))
-		assert.Equal(t, []string{
-			"find manageable account", "membership", "lock account",
-			"find manageable account", "membership for share", "grant account permission",
-		}, f.store.calls)
-	})
-
 	t.Run("organisation scope refuses an account of another school", func(t *testing.T) {
 		f := newRAFixture(t)
 		account := f.account()
-		permission := f.store.addPermission("groups:read")
 		ctx := withScope(raContext(), domain.ScopeOrg, 3)
 
-		err := f.admin.GrantPermissionToAccount(ctx, account, permission.ID)
-		require.ErrorIs(t, err, identityaccess.ErrAccountNotFound)
-		assert.NotContains(t, f.store.calls, "lock account")
-		assert.Empty(t, f.store.grants)
-
-		_, err = f.admin.GetAccountRoles(ctx, account)
+		_, err := f.admin.GetAccountRoles(ctx, account)
 		require.ErrorIs(t, err, domain.ErrAccountNotFound)
 	})
 
@@ -615,7 +577,7 @@ func TestRoleAdministration_AccountLockOrder(t *testing.T) {
 		account := f.account()
 		ctx := withScope(context.Background(), domain.ScopeOrg, 3)
 
-		_, err := f.admin.GetAccountPermissions(ctx, account)
+		_, err := f.admin.GetAccountRoles(ctx, account)
 		require.ErrorIs(t, err, domain.ErrAccountNotFound)
 		assert.NotContains(t, f.store.calls, "membership")
 	})
@@ -923,11 +885,8 @@ func TestRoleAdministration_ReplaceRolePermissions(t *testing.T) {
 	t.Run("single mutations need an existing permission", func(t *testing.T) {
 		f := newRAFixture(t)
 		role := f.store.addRole(customRoleOf("ogs", "user"))
-		account := f.account()
 
 		require.ErrorIs(t, f.admin.AssignPermissionToRole(raContext(), role.ID, role.ID+100), identityaccess.ErrPermissionNotFound)
-		require.ErrorIs(t, f.admin.GrantPermissionToAccount(raContext(), account, role.ID+100), identityaccess.ErrPermissionNotFound)
-		require.ErrorIs(t, f.admin.DenyPermissionToAccount(raContext(), account, role.ID+100), identityaccess.ErrPermissionNotFound)
 	})
 }
 
@@ -945,46 +904,4 @@ func TestRoleAdministration_CreateRoleRequiresBaseRole(t *testing.T) {
 	role, err := f.admin.CreateRole(raContext(), "ogs", "Betreuung", &tier)
 	require.NoError(t, err)
 	assert.NotZero(t, role.ID)
-}
-
-func TestRoleAdministration_GrantStaffDefaultPermission(t *testing.T) {
-	t.Parallel()
-
-	t.Run("grants the permission to a staff account", func(t *testing.T) {
-		f := newRAFixture(t)
-		account := f.account()
-		permission := f.store.addPermission("groups:read")
-
-		f.admin.grantStaffDefaultPermission(raContext(), account, false, "groups:read")
-		assert.Equal(t, []raAssignment{{accountID: account, otherID: permission.ID}}, f.store.grants)
-	})
-
-	t.Run("skips a Lehrkraft account", func(t *testing.T) {
-		f := newRAFixture(t)
-		account := f.account()
-		role := f.store.addRole(domain.ManagedRole{Name: "lehrkraft", IsSystem: true})
-		f.store.accountRoles[account] = []int64{role.ID}
-		f.store.addPermission("groups:read")
-
-		f.admin.grantStaffDefaultPermission(raContext(), account, true, "groups:read")
-		assert.Empty(t, f.store.grants)
-	})
-
-	t.Run("fails closed when the roles cannot be read", func(t *testing.T) {
-		f := newRAFixture(t)
-		account := f.account()
-		f.store.addPermission("groups:read")
-		f.store.listAccountRolesErr = errors.New("roles unavailable")
-
-		f.admin.grantStaffDefaultPermission(raContext(), account, false, "groups:read")
-		assert.Empty(t, f.store.grants)
-	})
-
-	t.Run("an unknown permission grants nothing", func(t *testing.T) {
-		f := newRAFixture(t)
-		account := f.account()
-
-		f.admin.grantStaffDefaultPermission(raContext(), account, false, "groups:read")
-		assert.Empty(t, f.store.grants)
-	})
 }
