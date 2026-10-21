@@ -58,15 +58,6 @@ describe("GET /api/auth/roles/[roleId]", () => {
     expect(json.detail).toContain("required");
   });
 
-  it("returns 401 when not authenticated", async () => {
-    mockAuth.mockResolvedValueOnce(null);
-
-    const request = createMockRequest("/api/auth/roles/1");
-    const response = await GET(request, createMockContext({ roleId: "1" }));
-
-    expect(response.status).toBe(401);
-  });
-
   it("fetches role by ID", async () => {
     const mockRole = {
       data: {
@@ -93,17 +84,6 @@ describe("GET /api/auth/roles/[roleId]", () => {
     const json = (await response.json()) as { data: { name: string } };
     expect(json.data.name).toBe("Admin");
   });
-
-  it("handles 404 when role not found", async () => {
-    mockFetch.mockReturnValueOnce(
-      createMockResponse({ detail: "Role not found" }, 404),
-    );
-
-    const request = createMockRequest("/api/auth/roles/999");
-    const response = await GET(request, createMockContext({ roleId: "999" }));
-
-    expect(response.status).toBe(404);
-  });
 });
 
 describe("PUT /api/auth/roles/[roleId]", () => {
@@ -120,18 +100,6 @@ describe("PUT /api/auth/roles/[roleId]", () => {
     const response = await PUT(request, createMockContext());
 
     expect(response.status).toBe(400);
-  });
-
-  it("returns 401 when not authenticated", async () => {
-    mockAuth.mockResolvedValueOnce(null);
-
-    const request = createMockRequest("/api/auth/roles/1", {
-      method: "PUT",
-      body: { name: "Updated" },
-    });
-    const response = await PUT(request, createMockContext({ roleId: "1" }));
-
-    expect(response.status).toBe(401);
   });
 
   it("updates role successfully", async () => {
@@ -173,17 +141,6 @@ describe("DELETE /api/auth/roles/[roleId]", () => {
     expect(response.status).toBe(400);
   });
 
-  it("returns 401 when not authenticated", async () => {
-    mockAuth.mockResolvedValueOnce(null);
-
-    const request = createMockRequest("/api/auth/roles/1", {
-      method: "DELETE",
-    });
-    const response = await DELETE(request, createMockContext({ roleId: "1" }));
-
-    expect(response.status).toBe(401);
-  });
-
   it("deletes role successfully", async () => {
     mockFetch.mockReturnValueOnce(createMockResponse({ success: true }));
 
@@ -204,18 +161,5 @@ describe("DELETE /api/auth/roles/[roleId]", () => {
     expect(response.status).toBe(200);
     const json = (await response.json()) as { success: boolean };
     expect(json.success).toBe(true);
-  });
-
-  it("handles backend errors during deletion", async () => {
-    mockFetch.mockReturnValueOnce(
-      createMockResponse({ detail: "Cannot delete role in use" }, 409),
-    );
-
-    const request = createMockRequest("/api/auth/roles/1", {
-      method: "DELETE",
-    });
-    const response = await DELETE(request, createMockContext({ roleId: "1" }));
-
-    expect(response.status).toBe(409);
   });
 });

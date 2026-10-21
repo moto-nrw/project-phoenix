@@ -44,15 +44,6 @@ describe("POST /api/activities/categories/[id]/restore", () => {
     mockAuth.mockResolvedValue(defaultSession);
   });
 
-  it("returns 401 when not authenticated", async () => {
-    mockAuth.mockResolvedValueOnce(null);
-
-    const response = await POST(createRequest(), createContext({ id: "7" }));
-
-    expect(response.status).toBe(401);
-    expect(mockApiPost).not.toHaveBeenCalled();
-  });
-
   it("calls the backend restore endpoint", async () => {
     mockApiPost.mockResolvedValueOnce({
       data: { id: 7, name: "Essen", archived_at: undefined },

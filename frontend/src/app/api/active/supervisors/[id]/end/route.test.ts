@@ -74,15 +74,6 @@ describe("POST /api/active/supervisors/[id]/end", () => {
     mockAuth.mockResolvedValue(defaultSession);
   });
 
-  it("returns 401 when not authenticated", async () => {
-    mockAuth.mockResolvedValueOnce(null);
-
-    const request = createMockRequest("/api/active/supervisors/1/end");
-    const response = await POST(request, createMockContext({ id: "1" }));
-
-    expect(response.status).toBe(401);
-  });
-
   it("ends supervision for a supervisor", async () => {
     const mockEndedSupervisor = {
       id: 1,

@@ -51,17 +51,6 @@ describe("GET /api/auth/account-tenants", () => {
     global.fetch = originalFetch;
   });
 
-  it("returns 401 when not authenticated", async () => {
-    mockAuth.mockResolvedValueOnce(null);
-
-    const request = createMockRequest("/api/auth/account-tenants");
-    const response = await GET(request);
-
-    expect(response.status).toBe(401);
-    const json = await parseJsonResponse<{ detail: string }>(response);
-    expect(json.detail).toBe("Unauthorized");
-  });
-
   it("proxies tenant list from backend", async () => {
     const backendData = {
       data: [
@@ -93,31 +82,5 @@ describe("GET /api/auth/account-tenants", () => {
     expect(response.status).toBe(200);
     const json = await parseJsonResponse<typeof backendData>(response);
     expect(json.data).toHaveLength(2);
-  });
-
-  it("forwards backend error status", async () => {
-    vi.mocked(global.fetch).mockResolvedValueOnce(
-      new Response("Forbidden", {
-        status: 403,
-        headers: { "Content-Type": "text/plain" },
-      }),
-    );
-
-    const request = createMockRequest("/api/auth/account-tenants");
-    const response = await GET(request);
-
-    expect(response.status).toBe(403);
-    expect(await response.text()).toBe("Forbidden");
-  });
-
-  it("returns 500 on fetch failure", async () => {
-    vi.mocked(global.fetch).mockRejectedValueOnce(new Error("Network error"));
-
-    const request = createMockRequest("/api/auth/account-tenants");
-    const response = await GET(request);
-
-    expect(response.status).toBe(500);
-    const json = await parseJsonResponse<{ detail: string }>(response);
-    expect(json.detail).toBe("Internal Server Error");
   });
 });

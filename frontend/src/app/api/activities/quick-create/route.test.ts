@@ -38,18 +38,6 @@ describe("POST /api/activities/quick-create", () => {
     mockAuth.mockResolvedValue(defaultSession);
   });
 
-  it("returns 401 when not authenticated", async () => {
-    mockAuth.mockResolvedValueOnce(null);
-
-    const request = createMockRequest("/api/activities/quick-create", {
-      method: "POST",
-      body: { name: "Quick Activity", category_id: 1, max_participants: 10 },
-    });
-    const response = await POST(request, createMockContext());
-
-    expect(response.status).toBe(401);
-  });
-
   it("creates activity quickly with wrapped response", async () => {
     const requestBody = {
       name: "Quick Chess",

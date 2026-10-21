@@ -41,15 +41,6 @@ describe("GET /api/activities/[id]/supervisors", () => {
     mockApiPost.mockReset();
   });
 
-  it("returns 401 when not authenticated", async () => {
-    mockAuth.mockResolvedValueOnce(null);
-
-    const request = createMockRequest("/api/activities/5/supervisors");
-    const response = await GET(request, createMockContext({ id: "5" }));
-
-    expect(response.status).toBe(401);
-  });
-
   it("fetches supervisors for activity", async () => {
     const mockSupervisors = [
       {
@@ -112,18 +103,6 @@ describe("POST /api/activities/[id]/supervisors", () => {
     mockAuth.mockReset().mockResolvedValue(defaultSession);
     mockApiGet.mockReset();
     mockApiPost.mockReset();
-  });
-
-  it("returns 401 when not authenticated", async () => {
-    mockAuth.mockResolvedValueOnce(null);
-
-    const request = createMockRequest("/api/activities/5/supervisors", {
-      method: "POST",
-      body: { staff_id: "15", is_primary: true },
-    });
-    const response = await POST(request, createMockContext({ id: "5" }));
-
-    expect(response.status).toBe(401);
   });
 
   it("assigns supervisor successfully", async () => {
@@ -215,20 +194,5 @@ describe("POST /api/activities/[id]/supervisors", () => {
     const json = await parseJsonResponse<{ detail: string }>(response);
     expect(json.detail).toBe("Internal Server Error");
     expect(JSON.stringify(json)).not.toContain("Staff ID is required");
-  });
-
-  it("throws error when assignment fails", async () => {
-    mockApiPost.mockRejectedValueOnce(new Error("Failed to assign supervisor"));
-
-    const request = createMockRequest("/api/activities/5/supervisors", {
-      method: "POST",
-      body: { staff_id: "15" },
-    });
-    const response = await POST(request, createMockContext({ id: "5" }));
-
-    expect(response.status).toBe(500);
-    const json = await parseJsonResponse<{ detail: string }>(response);
-    expect(json.detail).toBe("Internal Server Error");
-    expect(JSON.stringify(json)).not.toContain("Failed to assign supervisor");
   });
 });

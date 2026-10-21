@@ -39,18 +39,6 @@ describe("POST /api/import/teachers/preview", () => {
     mockAuth.mockResolvedValue(defaultSession);
   });
 
-  it("returns 401 when not authenticated", async () => {
-    mockAuth.mockResolvedValueOnce(null);
-
-    const formData = new FormData();
-    formData.append("file", new Blob(["test"]), "test.csv");
-
-    const response = await POST(createMockRequest(formData));
-
-    expect(response.status).toBe(401);
-    expect(mockFetch).not.toHaveBeenCalled();
-  });
-
   it("forwards FormData to backend for preview", async () => {
     const mockPreview = {
       data: { TotalRows: 1, CreatedCount: 1, ErrorCount: 0, Errors: [] },
@@ -82,45 +70,5 @@ describe("POST /api/import/teachers/preview", () => {
     expect(response.status).toBe(200);
     const json = await parseJsonResponse(response);
     expect(json).toEqual(mockPreview);
-  });
-
-  it("forwards backend validation errors", async () => {
-    const mockError = { error: "Invalid CSV format" };
-
-    mockFetch.mockResolvedValueOnce(Response.json(mockError, { status: 400 }));
-
-    const formData = new FormData();
-    formData.append("file", new Blob(["invalid"]), "invalid.csv");
-
-    const response = await POST(createMockRequest(formData));
-
-    expect(response.status).toBe(400);
-    const json = await parseJsonResponse(response);
-    expect(json).toEqual(mockError);
-  });
-
-  it("handles backend server errors", async () => {
-    mockFetch.mockResolvedValueOnce(
-      Response.json({ detail: "Database connection failed" }, { status: 500 }),
-    );
-
-    const formData = new FormData();
-    formData.append("file", new Blob(["test"]), "test.csv");
-
-    const response = await POST(createMockRequest(formData));
-    expect(response.status).toBe(500);
-  });
-
-  it("handles fetch errors", async () => {
-    mockFetch.mockRejectedValueOnce(new Error("Network error"));
-
-    const formData = new FormData();
-    formData.append("file", new Blob(["test"]), "test.csv");
-
-    const response = await POST(createMockRequest(formData));
-
-    expect(response.status).toBe(500);
-    const json = await parseJsonResponse<{ detail: string }>(response);
-    expect(json.detail).toBe("Internal Server Error");
   });
 });

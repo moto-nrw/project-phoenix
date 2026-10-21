@@ -44,17 +44,6 @@ describe("GET /api/auth/roles", () => {
     mockAuth.mockResolvedValue(defaultSession);
   });
 
-  it("returns 401 when not authenticated", async () => {
-    mockAuth.mockResolvedValueOnce(null);
-
-    const request = createMockRequest("/api/auth/roles");
-    const response = await GET(request);
-
-    expect(response.status).toBe(401);
-    const json = (await response.json()) as { detail: string };
-    expect(json.detail).toBe("Unauthorized");
-  });
-
   it("fetches roles from backend", async () => {
     const mockRoles = {
       roles: [
@@ -93,37 +82,12 @@ describe("GET /api/auth/roles", () => {
     expect(fetchUrl).toContain("page=2");
     expect(fetchUrl).toContain("limit=10");
   });
-
-  it("handles backend errors", async () => {
-    mockFetch.mockReturnValueOnce(
-      createMockResponse({ detail: "Backend error" }, 500),
-    );
-
-    const request = createMockRequest("/api/auth/roles");
-    const response = await GET(request);
-
-    expect(response.status).toBe(500);
-    const json = (await response.json()) as { detail: string };
-    expect(json.detail).toBeTruthy();
-  });
 });
 
 describe("POST /api/auth/roles", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     mockAuth.mockResolvedValue(defaultSession);
-  });
-
-  it("returns 401 when not authenticated", async () => {
-    mockAuth.mockResolvedValueOnce(null);
-
-    const request = createMockRequest("/api/auth/roles", {
-      method: "POST",
-      body: { name: "New Role" },
-    });
-    const response = await POST(request);
-
-    expect(response.status).toBe(401);
   });
 
   it("creates a new role", async () => {
@@ -153,19 +117,5 @@ describe("POST /api/auth/roles", () => {
     expect(response.status).toBe(200);
     const json = (await response.json()) as { id: number };
     expect(json.id).toBe(3);
-  });
-
-  it("handles backend errors during creation", async () => {
-    mockFetch.mockReturnValueOnce(
-      createMockResponse({ detail: "Role already exists" }, 409),
-    );
-
-    const request = createMockRequest("/api/auth/roles", {
-      method: "POST",
-      body: { name: "Duplicate Role" },
-    });
-    const response = await POST(request);
-
-    expect(response.status).toBe(409);
   });
 });

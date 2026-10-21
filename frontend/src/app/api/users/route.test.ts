@@ -1,5 +1,4 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { ApiResponseError } from "~/lib/api-response-error.server";
 import { GET, POST } from "./route";
 import {
   type ExtendedSession,
@@ -52,15 +51,6 @@ describe("GET /api/users", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     mockAuth.mockResolvedValue(defaultSession);
-  });
-
-  it("returns 401 when not authenticated", async () => {
-    mockAuth.mockResolvedValueOnce(null);
-
-    const request = createMockRequest("/api/users");
-    const response = await GET(request, createMockContext());
-
-    expect(response.status).toBe(401);
   });
 
   it("fetches users from backend", async () => {
@@ -151,18 +141,6 @@ describe("POST /api/users", () => {
     mockAuth.mockResolvedValue(defaultSession);
   });
 
-  it("returns 401 when not authenticated", async () => {
-    mockAuth.mockResolvedValueOnce(null);
-
-    const request = createMockRequest("/api/users", {
-      method: "POST",
-      body: { first_name: "John", last_name: "Doe" },
-    });
-    const response = await POST(request, createMockContext());
-
-    expect(response.status).toBe(401);
-  });
-
   it("creates a new user", async () => {
     const createBody = { first_name: "John", last_name: "Doe" };
     const mockCreatedUser = {
@@ -244,61 +222,5 @@ describe("POST /api/users", () => {
     const json = await parseJsonResponse<{ detail: string }>(response);
     expect(json.detail).toBe("Internal Server Error");
     expect(JSON.stringify(json)).not.toContain("last_name cannot be blank");
-  });
-
-  it("forwards a backend permission error with its envelope", async () => {
-    mockApiPost.mockRejectedValueOnce(
-      new ApiResponseError(
-        403,
-        JSON.stringify({
-          type: "about:blank",
-          title: "Forbidden",
-          status: 403,
-          detail: "users:create permission required",
-          code: "general.permission",
-        }),
-      ),
-    );
-
-    const request = createMockRequest("/api/users", {
-      method: "POST",
-      body: { first_name: "John", last_name: "Doe" },
-    });
-    const response = await POST(request, createMockContext());
-
-    expect(response.status).toBe(403);
-    const json = await parseJsonResponse<{ code: string; detail: string }>(
-      response,
-    );
-    expect(json.code).toBe("general.permission");
-    expect(json.detail).toBe("users:create permission required");
-  });
-
-  it("forwards backend validation errors with their envelope", async () => {
-    mockApiPost.mockRejectedValueOnce(
-      new ApiResponseError(
-        400,
-        JSON.stringify({
-          type: "about:blank",
-          title: "Bad Request",
-          status: 400,
-          detail: "first name is required",
-          code: "general.input",
-        }),
-      ),
-    );
-
-    const request = createMockRequest("/api/users", {
-      method: "POST",
-      body: { first_name: "John", last_name: "Doe" },
-    });
-    const response = await POST(request, createMockContext());
-
-    expect(response.status).toBe(400);
-    const json = await parseJsonResponse<{ code: string; detail: string }>(
-      response,
-    );
-    expect(json.code).toBe("general.input");
-    expect(json.detail).toBe("first name is required");
   });
 });

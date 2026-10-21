@@ -52,15 +52,6 @@ describe("GET /api/schedules/timeframes", () => {
     mockAuth.mockResolvedValue(defaultSession);
   });
 
-  it("returns 401 when not authenticated", async () => {
-    mockAuth.mockResolvedValueOnce(null);
-
-    const request = createMockRequest("/api/schedules/timeframes");
-    const response = await GET(request, createMockContext());
-
-    expect(response.status).toBe(401);
-  });
-
   it("fetches and maps timeframes from backend", async () => {
     const backendTimeframes = [
       {

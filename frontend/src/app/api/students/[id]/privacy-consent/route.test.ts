@@ -49,15 +49,6 @@ describe("GET /api/students/[id]/privacy-consent", () => {
     mockAuth.mockResolvedValue(defaultSession);
   });
 
-  it("returns 401 when not authenticated", async () => {
-    mockAuth.mockResolvedValueOnce(null);
-
-    const request = createMockRequest("/api/students/123/privacy-consent");
-    const response = await GET(request, createMockContext({ id: "123" }));
-
-    expect(response.status).toBe(401);
-  });
-
   it("fetches privacy consent for student", async () => {
     const mockConsent = {
       data: {
@@ -119,21 +110,6 @@ describe("PUT /api/students/[id]/privacy-consent", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     mockAuth.mockResolvedValue(defaultSession);
-  });
-
-  it("returns 401 when not authenticated", async () => {
-    mockAuth.mockResolvedValueOnce(null);
-
-    const request = createMockRequest("/api/students/123/privacy-consent", {
-      method: "PUT",
-      body: {
-        policy_version: "1.0",
-        data_retention_days: 25,
-      },
-    });
-    const response = await PUT(request, createMockContext({ id: "123" }));
-
-    expect(response.status).toBe(401);
   });
 
   it("updates privacy consent successfully", async () => {

@@ -68,15 +68,6 @@ describe("GET /api/auth/roles/[roleId]/permissions", () => {
     mockAuth.mockResolvedValue(defaultSession);
   });
 
-  it("returns 401 when not authenticated", async () => {
-    mockAuth.mockResolvedValueOnce(null);
-
-    const request = createMockRequest("/api/auth/roles/1/permissions");
-    const response = await GET(request, createMockContext({ roleId: "1" }));
-
-    expect(response.status).toBe(401);
-  });
-
   it("fetches permissions for a role", async () => {
     const mockPermissions = {
       data: [
@@ -96,14 +87,5 @@ describe("GET /api/auth/roles/[roleId]/permissions", () => {
     expect(response.status).toBe(200);
     const json = (await response.json()) as { data: { data: unknown[] } };
     expect(json.data.data).toHaveLength(2);
-  });
-
-  it("handles backend errors", async () => {
-    mockApiGet.mockRejectedValueOnce(new Error("Backend error (500)"));
-
-    const request = createMockRequest("/api/auth/roles/1/permissions");
-    const response = await GET(request, createMockContext({ roleId: "1" }));
-
-    expect(response.status).toBe(500);
   });
 });

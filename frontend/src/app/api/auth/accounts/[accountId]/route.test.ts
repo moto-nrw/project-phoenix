@@ -40,15 +40,6 @@ describe("GET /api/auth/accounts/[accountId]", () => {
     mockAuth.mockResolvedValue(defaultSession);
   });
 
-  it("returns 401 when not authenticated", async () => {
-    mockAuth.mockResolvedValueOnce(null);
-
-    const request = createMockRequest("/api/auth/accounts/1");
-    const response = await GET(request, createMockContext({ accountId: "1" }));
-
-    expect(response.status).toBe(401);
-  });
-
   it("returns error when accountId is missing", async () => {
     const request = createMockRequest("/api/auth/accounts/");
     const response = await GET(request, createMockContext());

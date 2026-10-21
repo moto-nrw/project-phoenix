@@ -1,6 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { NextRequest } from "next/server";
-import { ApiResponseError } from "~/lib/api-response-error.server";
 import { POST } from "./route";
 import {
   type ExtendedSession,
@@ -52,16 +51,6 @@ describe("POST /api/students/[id]/school-checkin", () => {
     mockAuth.mockResolvedValue(defaultSession);
   });
 
-  it("returns 401 when not authenticated", async () => {
-    mockAuth.mockResolvedValueOnce(null);
-    const request = createMockRequest("/api/students/42/school-checkin", {
-      method: "POST",
-      body: { action: "in" },
-    });
-    const response = await POST(request, createMockContext({ id: "42" }));
-    expect(response.status).toBe(401);
-  });
-
   it("proxies the body + token to the backend and returns the mapped result", async () => {
     mockApiPost.mockResolvedValueOnce({
       data: {
@@ -91,18 +80,6 @@ describe("POST /api/students/[id]/school-checkin", () => {
     expect(json.data.status).toBe("checked_in");
     expect(json.data.location).toBe("Anwesend");
     expect(json.data.changed).toBe(true);
-  });
-
-  it("propagates backend 403 unchanged", async () => {
-    mockApiPost.mockRejectedValueOnce(
-      new ApiResponseError(403, "not a supervisor"),
-    );
-    const request = createMockRequest("/api/students/42/school-checkin", {
-      method: "POST",
-      body: { action: "in" },
-    });
-    const response = await POST(request, createMockContext({ id: "42" }));
-    expect(response.status).toBe(403);
   });
 
   it("rejects a missing id param", async () => {

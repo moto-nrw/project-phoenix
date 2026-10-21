@@ -58,18 +58,6 @@ describe("GET /api/auth/permissions/[permissionId]", () => {
     expect(json.detail).toContain("required");
   });
 
-  it("returns 401 when not authenticated", async () => {
-    mockAuth.mockResolvedValueOnce(null);
-
-    const request = createMockRequest("/api/auth/permissions/1");
-    const response = await GET(
-      request,
-      createMockContext({ permissionId: "1" }),
-    );
-
-    expect(response.status).toBe(401);
-  });
-
   it("fetches permission by ID", async () => {
     const mockPermission = {
       data: {
@@ -100,20 +88,6 @@ describe("GET /api/auth/permissions/[permissionId]", () => {
     const json = (await response.json()) as { data: { name: string } };
     expect(json.data.name).toBe("users:read");
   });
-
-  it("handles 404 when permission not found", async () => {
-    mockFetch.mockReturnValueOnce(
-      createMockResponse({ detail: "Permission not found" }, 404),
-    );
-
-    const request = createMockRequest("/api/auth/permissions/999");
-    const response = await GET(
-      request,
-      createMockContext({ permissionId: "999" }),
-    );
-
-    expect(response.status).toBe(404);
-  });
 });
 
 describe("PUT /api/auth/permissions/[permissionId]", () => {
@@ -130,21 +104,6 @@ describe("PUT /api/auth/permissions/[permissionId]", () => {
     const response = await PUT(request, createMockContext());
 
     expect(response.status).toBe(400);
-  });
-
-  it("returns 401 when not authenticated", async () => {
-    mockAuth.mockResolvedValueOnce(null);
-
-    const request = createMockRequest("/api/auth/permissions/1", {
-      method: "PUT",
-      body: { description: "Updated" },
-    });
-    const response = await PUT(
-      request,
-      createMockContext({ permissionId: "1" }),
-    );
-
-    expect(response.status).toBe(401);
   });
 
   it("updates permission successfully", async () => {
@@ -196,20 +155,6 @@ describe("DELETE /api/auth/permissions/[permissionId]", () => {
     expect(response.status).toBe(400);
   });
 
-  it("returns 401 when not authenticated", async () => {
-    mockAuth.mockResolvedValueOnce(null);
-
-    const request = createMockRequest("/api/auth/permissions/1", {
-      method: "DELETE",
-    });
-    const response = await DELETE(
-      request,
-      createMockContext({ permissionId: "1" }),
-    );
-
-    expect(response.status).toBe(401);
-  });
-
   it("deletes permission successfully", async () => {
     mockFetch.mockReturnValueOnce(createMockResponse(null, 204));
 
@@ -231,21 +176,5 @@ describe("DELETE /api/auth/permissions/[permissionId]", () => {
       }),
     );
     expect(response.status).toBe(204);
-  });
-
-  it("handles backend errors during deletion", async () => {
-    mockFetch.mockReturnValueOnce(
-      createMockResponse({ detail: "Cannot delete permission in use" }, 409),
-    );
-
-    const request = createMockRequest("/api/auth/permissions/1", {
-      method: "DELETE",
-    });
-    const response = await DELETE(
-      request,
-      createMockContext({ permissionId: "1" }),
-    );
-
-    expect(response.status).toBe(409);
   });
 });

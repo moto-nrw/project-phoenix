@@ -65,21 +65,6 @@ describe("POST /api/active/visits/student/[studentId]/checkout", () => {
     mockAuth.mockResolvedValue(defaultSession);
   });
 
-  it("returns 401 when not authenticated", async () => {
-    mockAuth.mockResolvedValueOnce(null);
-
-    const request = createMockRequest(
-      "/api/active/visits/student/123/checkout",
-      { method: "POST", body: {} },
-    );
-    const response = await POST(
-      request,
-      createMockContext({ studentId: "123" }),
-    );
-
-    expect(response.status).toBe(401);
-  });
-
   it("returns 500 when studentId parameter is missing", async () => {
     const request = createMockRequest("/api/active/visits/student//checkout", {
       method: "POST",

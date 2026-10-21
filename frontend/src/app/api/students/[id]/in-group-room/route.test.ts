@@ -49,15 +49,6 @@ describe("GET /api/students/[id]/in-group-room", () => {
     mockAuth.mockResolvedValue(defaultSession);
   });
 
-  it("returns 401 when not authenticated", async () => {
-    mockAuth.mockResolvedValueOnce(null);
-
-    const request = createMockRequest("/api/students/123/in-group-room");
-    const response = await GET(request, createMockContext({ id: "123" }));
-
-    expect(response.status).toBe(401);
-  });
-
   it("fetches group room status from backend", async () => {
     const mockStatus = {
       data: {

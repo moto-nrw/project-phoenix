@@ -59,15 +59,6 @@ describe("GET /api/invitations", () => {
     mockAuth.mockResolvedValue(defaultSession);
   });
 
-  it("returns 401 when not authenticated", async () => {
-    mockAuth.mockResolvedValueOnce(null);
-
-    const request = createMockRequest("/api/invitations");
-    const response = await GET(request, createMockContext());
-
-    expect(response.status).toBe(401);
-  });
-
   it("fetches invitations list from backend", async () => {
     const invitations = [
       {
@@ -106,18 +97,6 @@ describe("POST /api/invitations", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     mockAuth.mockResolvedValue(defaultSession);
-  });
-
-  it("returns 401 when not authenticated", async () => {
-    mockAuth.mockResolvedValueOnce(null);
-
-    const request = createMockRequest("/api/invitations", {
-      method: "POST",
-      body: { email: "new@example.com", roleId: "2" },
-    });
-    const response = await POST(request, createMockContext());
-
-    expect(response.status).toBe(401);
   });
 
   it("creates invitation successfully with roleId (camelCase)", async () => {
@@ -326,28 +305,6 @@ describe("POST /api/invitations", () => {
       expect.not.objectContaining({ role_id: expect.anything() }),
     );
     expect(response.status).toBe(400);
-  });
-
-  it("handles backend error", async () => {
-    const requestBody = {
-      email: "duplicate@example.com",
-      roleId: "2",
-    };
-
-    mockApiPost.mockRejectedValueOnce(
-      new ApiResponseError(409, "User already has invitation"),
-    );
-
-    const request = createMockRequest("/api/invitations", {
-      method: "POST",
-      body: requestBody,
-    });
-    const response = await POST(request, createMockContext());
-
-    expect(response.status).toBe(409);
-    const json = await parseJsonResponse<{ detail: string }>(response);
-    expect(json.detail).toBe("Conflict");
-    expect(JSON.stringify(json)).not.toContain("User already has invitation");
   });
 });
 

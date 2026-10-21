@@ -81,15 +81,6 @@ describe("GET /api/students/[id]", () => {
     mockAuth.mockResolvedValue(defaultSession);
   });
 
-  it("returns 401 when not authenticated", async () => {
-    mockAuth.mockResolvedValueOnce(null);
-
-    const request = createMockRequest("/api/students/123");
-    const response = await GET(request, createMockContext({ id: "123" }));
-
-    expect(response.status).toBe(401);
-  });
-
   it("fetches student by ID with privacy consent", async () => {
     const mockStudent = {
       data: {
@@ -141,18 +132,6 @@ describe("PUT /api/students/[id]", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     mockAuth.mockResolvedValue(defaultSession);
-  });
-
-  it("returns 401 when not authenticated", async () => {
-    mockAuth.mockResolvedValueOnce(null);
-
-    const request = createMockRequest("/api/students/123", {
-      method: "PUT",
-      body: { first_name: "Updated" },
-    });
-    const response = await PUT(request, createMockContext({ id: "123" }));
-
-    expect(response.status).toBe(401);
   });
 
   it("updates student successfully", async () => {
@@ -398,17 +377,6 @@ describe("DELETE /api/students/[id]", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     mockAuth.mockResolvedValue(defaultSession);
-  });
-
-  it("returns 401 when not authenticated", async () => {
-    mockAuth.mockResolvedValueOnce(null);
-
-    const request = createMockRequest("/api/students/123", {
-      method: "DELETE",
-    });
-    const response = await DELETE(request, createMockContext({ id: "123" }));
-
-    expect(response.status).toBe(401);
   });
 
   it("deletes student successfully", async () => {

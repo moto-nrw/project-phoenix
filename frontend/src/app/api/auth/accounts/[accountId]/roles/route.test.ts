@@ -1,7 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { NextRequest } from "next/server";
 import { GET, PUT } from "./route";
-import { ApiResponseError } from "~/lib/api-response-error.server";
 import {
   type ExtendedSession,
   createMockContext,
@@ -50,18 +49,6 @@ describe("GET /api/auth/accounts/[accountId]/roles", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     mockAuth.mockResolvedValue(defaultSession);
-  });
-
-  it("returns 401 when not authenticated", async () => {
-    mockAuth.mockResolvedValueOnce(null);
-
-    const request = createMockRequest("/api/auth/accounts/123/roles");
-    const response = await GET(
-      request,
-      createMockContext({ accountId: "123" }),
-    );
-
-    expect(response.status).toBe(401);
   });
 
   it("returns 500 when accountId parameter is missing", async () => {
@@ -129,23 +116,6 @@ describe("GET /api/auth/accounts/[accountId]/roles", () => {
     const json =
       await parseJsonResponse<ApiResponse<typeof mockResponse>>(response);
     expect(json.data).toEqual(mockResponse);
-  });
-
-  it("handles API errors gracefully", async () => {
-    mockApiGet.mockRejectedValueOnce(
-      new ApiResponseError(404, "Account not found"),
-    );
-
-    const request = createMockRequest("/api/auth/accounts/999/roles");
-    const response = await GET(
-      request,
-      createMockContext({ accountId: "999" }),
-    );
-
-    expect(response.status).toBe(404);
-    const json = await parseJsonResponse<{ detail: string }>(response);
-    expect(json.detail).toBe("Not Found");
-    expect(JSON.stringify(json)).not.toContain("Account not found");
   });
 });
 

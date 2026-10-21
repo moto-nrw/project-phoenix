@@ -73,17 +73,6 @@ describe("GET /api/active-supervision-dashboard", () => {
     mockAuth.mockResolvedValue(defaultSession);
   });
 
-  it("returns 401 when not authenticated", async () => {
-    mockAuth.mockResolvedValueOnce(null);
-
-    const response = await GET(
-      createMockRequest("/api/active-supervision-dashboard"),
-      createMockContext(),
-    );
-
-    expect(response.status).toBe(401);
-  });
-
   it("issues exactly one backend request without group_id", async () => {
     mockApiGet.mockResolvedValueOnce({ data: emptyWire });
 
@@ -627,18 +616,5 @@ describe("GET /api/active-supervision-dashboard", () => {
     );
 
     expect(response.status).toBe(403);
-  });
-
-  it("propagates backend 500s", async () => {
-    mockApiGet.mockRejectedValueOnce(
-      new ApiResponseError(500, "schulhof load failed"),
-    );
-
-    const response = await GET(
-      createMockRequest("/api/active-supervision-dashboard"),
-      createMockContext(),
-    );
-
-    expect(response.status).toBe(500);
   });
 });

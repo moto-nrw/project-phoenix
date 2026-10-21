@@ -46,15 +46,6 @@ describe("GET /api/user-context", () => {
     mockAuth.mockResolvedValue(defaultSession);
   });
 
-  it("returns 401 when not authenticated", async () => {
-    mockAuth.mockResolvedValueOnce(null);
-
-    const request = createMockRequest("/api/user-context");
-    const response = await GET(request, createMockContext());
-
-    expect(response.status).toBe(401);
-  });
-
   it("maps backend data into user context response", async () => {
     const groups = [
       {

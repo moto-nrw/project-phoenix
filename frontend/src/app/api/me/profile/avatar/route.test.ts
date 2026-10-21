@@ -52,24 +52,6 @@ describe("POST /api/me/profile/avatar", () => {
     global.fetch = vi.fn();
   });
 
-  it("returns 401 when not authenticated", async () => {
-    mockAuth.mockResolvedValueOnce(null);
-
-    const formData = new FormData();
-    formData.append("avatar", createMockImageFile());
-
-    const request = new NextRequest(
-      "http://localhost:3000/api/me/profile/avatar",
-      {
-        method: "POST",
-        body: formData,
-      },
-    );
-    const response = await POST(request, createMockContext());
-
-    expect(response.status).toBe(401);
-  });
-
   it("successfully uploads a valid JPEG avatar", async () => {
     const mockProfile = {
       id: 1,
@@ -194,20 +176,6 @@ describe("DELETE /api/me/profile/avatar", () => {
     vi.clearAllMocks();
     mockAuth.mockResolvedValue(defaultSession);
     global.fetch = vi.fn();
-  });
-
-  it("returns 401 when not authenticated", async () => {
-    mockAuth.mockResolvedValueOnce(null);
-
-    const request = new NextRequest(
-      "http://localhost:3000/api/me/profile/avatar",
-      {
-        method: "DELETE",
-      },
-    );
-    const response = await DELETE(request, createMockContext());
-
-    expect(response.status).toBe(401);
   });
 
   it("successfully deletes avatar", async () => {

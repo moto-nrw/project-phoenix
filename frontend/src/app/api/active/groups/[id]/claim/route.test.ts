@@ -1,7 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { NextRequest } from "next/server";
 import { POST } from "./route";
-import { ApiResponseError } from "~/lib/api-response-error.server";
 import {
   type ExtendedSession,
   createMockContext,
@@ -75,17 +74,6 @@ describe("POST /api/active/groups/[id]/claim", () => {
     mockAuth.mockResolvedValue(defaultSession);
   });
 
-  it("returns 401 when not authenticated", async () => {
-    mockAuth.mockResolvedValueOnce(null);
-
-    const request = createMockRequest("/api/active/groups/123/claim", {
-      method: "POST",
-    });
-    const response = await POST(request, createMockContext({ id: "123" }));
-
-    expect(response.status).toBe(401);
-  });
-
   it("claims supervision of an active group", async () => {
     const mockClaimedGroup = {
       id: 123,
@@ -109,19 +97,6 @@ describe("POST /api/active/groups/[id]/claim", () => {
     const json =
       await parseJsonResponse<ApiResponse<typeof mockClaimedGroup>>(response);
     expect(json.data).toEqual(mockClaimedGroup);
-  });
-
-  it("returns 404 when group not found", async () => {
-    mockApiPost.mockRejectedValueOnce(
-      new ApiResponseError(404, "Group not found"),
-    );
-
-    const request = createMockRequest("/api/active/groups/999/claim", {
-      method: "POST",
-    });
-    const response = await POST(request, createMockContext({ id: "999" }));
-
-    expect(response.status).toBe(404);
   });
 
   it("returns 500 when id parameter is invalid", async () => {

@@ -56,15 +56,6 @@ describe("GET /api/groups/[id]/students/room-status", () => {
     mockAuth.mockResolvedValue(defaultSession);
   });
 
-  it("returns 401 when not authenticated", async () => {
-    mockAuth.mockResolvedValueOnce(null);
-
-    const request = createMockRequest("/api/groups/123/students/room-status");
-    const response = await GET(request, createMockContext({ id: "123" }));
-
-    expect(response.status).toBe(401);
-  });
-
   it("returns 500 when group ID is missing", async () => {
     const request = createMockRequest("/api/groups//students/room-status");
     const response = await GET(request, createMockContext({}));

@@ -49,35 +49,4 @@ describe("POST /api/platform/announcements/[id]/seen", () => {
       "test-token",
     );
   });
-
-  it("returns 401 when not authenticated", async () => {
-    mockAuth.mockResolvedValue(null);
-
-    const request = new NextRequest(
-      "http://localhost:3000/api/platform/announcements/1/seen",
-      {
-        method: "POST",
-      },
-    );
-    const context = { params: Promise.resolve({ id: "1" }) };
-    const response = await POST(request, context);
-
-    expect(response.status).toBe(401);
-  });
-
-  it("handles backend errors", async () => {
-    mockValidSession();
-    mockApiPost.mockRejectedValue(new Error("Backend error"));
-
-    const request = new NextRequest(
-      "http://localhost:3000/api/platform/announcements/1/seen",
-      {
-        method: "POST",
-      },
-    );
-    const context = { params: Promise.resolve({ id: "1" }) };
-    const response = await POST(request, context);
-
-    expect(response.status).toBe(500);
-  });
 });

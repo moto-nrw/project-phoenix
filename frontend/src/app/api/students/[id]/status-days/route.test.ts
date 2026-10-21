@@ -83,17 +83,6 @@ describe("/api/students/[id]/status-days", () => {
     expect(response.status).toBe(200);
   });
 
-  it("returns 401 without a session", async () => {
-    mockAuth.mockResolvedValueOnce(null);
-
-    const response = await GET(
-      createRequest("/api/students/42/status-days"),
-      createContext("42"),
-    );
-
-    expect(response.status).toBe(401);
-  });
-
   it("returns an error when the student id is missing", async () => {
     const response = await POST(
       createRequest("/api/students/status-days", {

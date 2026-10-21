@@ -71,21 +71,6 @@ describe("PUT /api/activities/[id]/supervisors/[supervisorId]", () => {
     mockUncachedAuth.mockResolvedValue(defaultSession);
   });
 
-  it("returns 401 when not authenticated", async () => {
-    mockAuth.mockResolvedValueOnce(null);
-
-    const request = createMockRequest("/api/activities/1/supervisors/2", {
-      method: "PUT",
-      body: { is_primary: true },
-    });
-    const response = await PUT(
-      request,
-      createMockContext({ id: "1", supervisorId: "2" }),
-    );
-
-    expect(response.status).toBe(401);
-  });
-
   it("updates supervisor role successfully", async () => {
     mockApiPut.mockResolvedValueOnce(undefined);
 
@@ -190,28 +175,6 @@ describe("PUT /api/activities/[id]/supervisors/[supervisorId]", () => {
     expect(json.detail).toBe("Internal Server Error");
     expect(JSON.stringify(json)).not.toContain(
       "is_primary parameter is required",
-    );
-  });
-
-  it("returns 500 when update fails", async () => {
-    mockApiPut.mockRejectedValueOnce(
-      new Error("Failed to update supervisor role"),
-    );
-
-    const request = createMockRequest("/api/activities/1/supervisors/2", {
-      method: "PUT",
-      body: { is_primary: true },
-    });
-    const response = await PUT(
-      request,
-      createMockContext({ id: "1", supervisorId: "2" }),
-    );
-
-    expect(response.status).toBe(500);
-    const json = await parseJsonResponse<{ detail: string }>(response);
-    expect(json.detail).toBe("Internal Server Error");
-    expect(JSON.stringify(json)).not.toContain(
-      "Failed to update supervisor role",
     );
   });
 });

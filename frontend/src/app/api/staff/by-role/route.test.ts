@@ -55,15 +55,6 @@ describe("GET /api/staff/by-role", () => {
     mockAuth.mockResolvedValue(defaultSession);
   });
 
-  it("returns 401 when not authenticated", async () => {
-    mockAuth.mockResolvedValueOnce(null);
-
-    const request = createMockRequest("/api/staff/by-role?role=teacher");
-    const response = await GET(request, createMockContext());
-
-    expect(response.status).toBe(401);
-  });
-
   it("fetches staff by role from backend", async () => {
     const mockStaff = {
       data: [

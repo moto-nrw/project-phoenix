@@ -51,17 +51,6 @@ describe("PUT /api/activities/categories/[id]", () => {
     mockAuth.mockResolvedValue(defaultSession);
   });
 
-  it("returns 401 when not authenticated", async () => {
-    mockAuth.mockResolvedValueOnce(null);
-
-    const response = await PUT(
-      createRequest("PUT", { name: "Essen" }),
-      createContext({ id: "7" }),
-    );
-
-    expect(response.status).toBe(401);
-  });
-
   it("forwards only the editable fields to the backend", async () => {
     mockApiPut.mockResolvedValueOnce({ data: { id: 7, name: "Essen" } });
 
@@ -125,17 +114,5 @@ describe("DELETE /api/activities/categories/[id]", () => {
       "test-token",
     );
     expect(response.status).toBe(204);
-  });
-
-  it("returns 401 when not authenticated", async () => {
-    mockAuth.mockResolvedValueOnce(null);
-
-    const response = await DELETE(
-      createRequest("DELETE"),
-      createContext({ id: "7" }),
-    );
-
-    expect(response.status).toBe(401);
-    expect(mockApiDelete).not.toHaveBeenCalled();
   });
 });

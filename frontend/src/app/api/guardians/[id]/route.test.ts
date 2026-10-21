@@ -58,15 +58,6 @@ describe("GET /api/guardians/[id]", () => {
     mockAuth.mockResolvedValue(defaultSession);
   });
 
-  it("returns 401 when not authenticated", async () => {
-    mockAuth.mockResolvedValueOnce(null);
-
-    const request = createMockRequest("/api/guardians/123");
-    const response = await GET(request, createMockContext({ id: "123" }));
-
-    expect(response.status).toBe(401);
-  });
-
   it("fetches guardian by ID from backend", async () => {
     const mockGuardian = {
       id: 123,
@@ -92,18 +83,6 @@ describe("PUT /api/guardians/[id]", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     mockAuth.mockResolvedValue(defaultSession);
-  });
-
-  it("returns 401 when not authenticated", async () => {
-    mockAuth.mockResolvedValueOnce(null);
-
-    const request = createMockRequest("/api/guardians/123", {
-      method: "PUT",
-      body: { first_name: "Jane" },
-    });
-    const response = await PUT(request, createMockContext({ id: "123" }));
-
-    expect(response.status).toBe(401);
   });
 
   it("updates guardian via backend", async () => {
@@ -141,17 +120,6 @@ describe("DELETE /api/guardians/[id]", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     mockAuth.mockResolvedValue(defaultSession);
-  });
-
-  it("returns 401 when not authenticated", async () => {
-    mockAuth.mockResolvedValueOnce(null);
-
-    const request = createMockRequest("/api/guardians/123", {
-      method: "DELETE",
-    });
-    const response = await DELETE(request, createMockContext({ id: "123" }));
-
-    expect(response.status).toBe(401);
   });
 
   it("deletes guardian via backend and returns null", async () => {

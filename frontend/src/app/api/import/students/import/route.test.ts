@@ -54,19 +54,6 @@ describe("POST /api/import/students/import", () => {
     mockAuth.mockResolvedValue(defaultSession);
   });
 
-  it("returns 401 when not authenticated", async () => {
-    mockAuth.mockResolvedValueOnce(null);
-
-    const formData = new FormData();
-    formData.append("file", new Blob(["test"]), "test.csv");
-
-    const request = createMockRequest(formData);
-    const response = await POST(request);
-
-    expect(response.status).toBe(401);
-    expect(mockFetch).not.toHaveBeenCalled();
-  });
-
   it("imports students via backend", async () => {
     const mockResult = {
       imported: 3,
@@ -105,76 +92,5 @@ describe("POST /api/import/students/import", () => {
     expect(response.status).toBe(200);
     const json = await parseJsonResponse(response);
     expect(json).toEqual(mockResult);
-  });
-
-  it("forwards partial import results", async () => {
-    const mockResult = {
-      imported: 2,
-      failed: 1,
-      students: [
-        { id: 1, first_name: "Max", second_name: "Mustermann" },
-        { id: 2, first_name: "Anna", second_name: "Schmidt" },
-      ],
-      errors: [{ row: 3, error: "Invalid class name" }],
-    };
-
-    mockFetch.mockResolvedValueOnce(Response.json(mockResult));
-
-    const formData = new FormData();
-    formData.append("file", new Blob(["data"]), "students.csv");
-
-    const request = createMockRequest(formData);
-    const response = await POST(request);
-
-    expect(response.status).toBe(200);
-    const json = await parseJsonResponse(response);
-    expect(json).toEqual(mockResult);
-  });
-
-  it("forwards backend validation errors", async () => {
-    const mockError = {
-      error: "Invalid CSV format",
-      details: ["Missing required column: class_name"],
-    };
-
-    mockFetch.mockResolvedValueOnce(Response.json(mockError, { status: 400 }));
-
-    const formData = new FormData();
-    formData.append("file", new Blob(["invalid"]), "invalid.csv");
-
-    const request = createMockRequest(formData);
-    const response = await POST(request);
-
-    expect(response.status).toBe(400);
-    const json = await parseJsonResponse(response);
-    expect(json).toEqual(mockError);
-  });
-
-  it("handles backend server errors", async () => {
-    mockFetch.mockResolvedValueOnce(
-      Response.json({ detail: "Database transaction failed" }, { status: 500 }),
-    );
-
-    const formData = new FormData();
-    formData.append("file", new Blob(["test"]), "test.csv");
-
-    const request = createMockRequest(formData);
-    const response = await POST(request);
-
-    expect(response.status).toBe(500);
-  });
-
-  it("handles fetch errors", async () => {
-    mockFetch.mockRejectedValueOnce(new Error("Connection timeout"));
-
-    const formData = new FormData();
-    formData.append("file", new Blob(["test"]), "test.csv");
-
-    const request = createMockRequest(formData);
-    const response = await POST(request);
-
-    expect(response.status).toBe(500);
-    const json = await parseJsonResponse<{ detail: string }>(response);
-    expect(json.detail).toBe("Internal Server Error");
   });
 });

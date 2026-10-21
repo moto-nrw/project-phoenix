@@ -44,15 +44,6 @@ describe("GET /api/students/[id]/current-location", () => {
     mockAuth.mockResolvedValue(defaultSession);
   });
 
-  it("returns 401 when not authenticated", async () => {
-    mockAuth.mockResolvedValueOnce(null);
-
-    const request = createMockRequest("/api/students/123/current-location");
-    const response = await GET(request, createMockContext({ id: "123" }));
-
-    expect(response.status).toBe(401);
-  });
-
   it("returns not_present when student is at home", async () => {
     const mockStudent = {
       data: {

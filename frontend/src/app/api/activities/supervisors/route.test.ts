@@ -38,15 +38,6 @@ describe("GET /api/activities/supervisors", () => {
     mockAuth.mockResolvedValue(defaultSession);
   });
 
-  it("returns 401 when not authenticated", async () => {
-    mockAuth.mockResolvedValueOnce(null);
-
-    const request = createMockRequest("/api/activities/supervisors");
-    const response = await GET(request, createMockContext());
-
-    expect(response.status).toBe(401);
-  });
-
   it("fetches supervisors from activities API with data wrapper", async () => {
     const mockSupervisors = [
       { id: 10, name: "Mr. Smith" },

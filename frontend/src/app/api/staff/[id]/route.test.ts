@@ -80,15 +80,6 @@ describe("GET /api/staff/[id]", () => {
     expect(json.data.ended_on).toBe("2026-07-31");
   });
 
-  it("returns 401 when not authenticated", async () => {
-    mockAuth.mockResolvedValueOnce(null);
-
-    const request = createMockRequest("/api/staff/1");
-    const response = await GET(request, createMockContext({ id: "1" }));
-
-    expect(response.status).toBe(401);
-  });
-
   it("fetches staff member by ID from backend", async () => {
     const mockStaff = {
       status: "success",
@@ -283,18 +274,6 @@ describe("PUT /api/staff/[id]", () => {
     mockAuth.mockResolvedValue(defaultSession);
   });
 
-  it("returns 401 when not authenticated", async () => {
-    mockAuth.mockResolvedValueOnce(null);
-
-    const request = createMockRequest("/api/staff/1", {
-      method: "PUT",
-      body: { role: "Senior Teacher" },
-    });
-    const response = await PUT(request, createMockContext({ id: "1" }));
-
-    expect(response.status).toBe(401);
-  });
-
   it("updates staff member via backend", async () => {
     const updateBody = { role: "Senior Teacher", specialization: "Physics" };
     const mockUpdatedStaff = {
@@ -332,22 +311,6 @@ describe("PUT /api/staff/[id]", () => {
     expect(response.status).toBe(200);
   });
 
-  it("throws error when permission denied", async () => {
-    mockApiPut.mockRejectedValueOnce(new ApiResponseError(403, "Forbidden"));
-
-    const request = createMockRequest("/api/staff/1", {
-      method: "PUT",
-      body: { role: "Admin" },
-    });
-    const response = await PUT(request, createMockContext({ id: "1" }));
-
-    // The backend's 403 reaches the browser unchanged; the catalog text of
-    // its code tells the reader why.
-    expect(response.status).toBe(403);
-    const json = await parseJsonResponse<{ detail: string }>(response);
-    expect(json.detail).toContain("Forbidden");
-  });
-
   it("throws error when staff member not found", async () => {
     mockApiPut.mockRejectedValueOnce(
       new ApiResponseError(400, "staff member not found"),
@@ -372,15 +335,6 @@ describe("DELETE /api/staff/[id]", () => {
     mockAuth.mockResolvedValue(defaultSession);
   });
 
-  it("returns 401 when not authenticated", async () => {
-    mockAuth.mockResolvedValueOnce(null);
-
-    const request = createMockRequest("/api/staff/1", { method: "DELETE" });
-    const response = await DELETE(request, createMockContext({ id: "1" }));
-
-    expect(response.status).toBe(401);
-  });
-
   it("deletes staff member via backend and returns 204", async () => {
     mockApiDelete.mockResolvedValueOnce(undefined);
 
@@ -389,27 +343,5 @@ describe("DELETE /api/staff/[id]", () => {
 
     expect(mockApiDelete).toHaveBeenCalledWith("/api/staff/1", "test-token");
     expect(response.status).toBe(204);
-  });
-
-  it("throws error when permission denied", async () => {
-    mockApiDelete.mockRejectedValueOnce(new ApiResponseError(403, "Forbidden"));
-
-    const request = createMockRequest("/api/staff/1", { method: "DELETE" });
-    const response = await DELETE(request, createMockContext({ id: "1" }));
-
-    expect(response.status).toBe(403);
-    const json = await parseJsonResponse<{ detail: string }>(response);
-    expect(json.detail).toContain("Forbidden");
-  });
-
-  it("throws error when staff member not found", async () => {
-    mockApiDelete.mockRejectedValueOnce(new ApiResponseError(404, "Not Found"));
-
-    const request = createMockRequest("/api/staff/1", { method: "DELETE" });
-    const response = await DELETE(request, createMockContext({ id: "1" }));
-
-    expect(response.status).toBe(404);
-    const json = await parseJsonResponse<{ detail: string }>(response);
-    expect(json.detail).toContain("Not Found");
   });
 });

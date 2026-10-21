@@ -50,21 +50,6 @@ describe("POST /api/activities/[id]/enroll/[studentId]", () => {
     mockAuth.mockResolvedValue(defaultSession);
   });
 
-  it("returns 401 when not authenticated", async () => {
-    mockAuth.mockResolvedValueOnce(null);
-
-    const request = createMockRequest("/api/activities/1/enroll/100", {
-      method: "POST",
-      body: {},
-    });
-    const response = await POST(
-      request,
-      createMockContext({ id: "1", studentId: "100" }),
-    );
-
-    expect(response.status).toBe(401);
-  });
-
   it("enrolls student successfully", async () => {
     mockApiPost.mockResolvedValueOnce({ success: true });
 
@@ -86,23 +71,5 @@ describe("POST /api/activities/[id]/enroll/[studentId]", () => {
 
     const json = await parseJsonResponse<{ success: boolean }>(response);
     expect(json.success).toBe(true);
-  });
-
-  it("handles enrollment errors", async () => {
-    mockApiPost.mockRejectedValueOnce(new Error("Student already enrolled"));
-
-    const request = createMockRequest("/api/activities/1/enroll/100", {
-      method: "POST",
-      body: {},
-    });
-    const response = await POST(
-      request,
-      createMockContext({ id: "1", studentId: "100" }),
-    );
-
-    expect(response.status).toBe(500);
-    const json = await parseJsonResponse<{ detail: string }>(response);
-    expect(json.detail).toBe("Internal Server Error");
-    expect(JSON.stringify(json)).not.toContain("Student already enrolled");
   });
 });

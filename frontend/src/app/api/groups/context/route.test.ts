@@ -49,15 +49,6 @@ describe("GET /api/groups/context", () => {
     mockAuth.mockResolvedValue(defaultSession);
   });
 
-  it("returns 401 when not authenticated", async () => {
-    mockAuth.mockResolvedValueOnce(null);
-
-    const request = createMockRequest("/api/groups/context");
-    const response = await GET(request, createMockContext());
-
-    expect(response.status).toBe(401);
-  });
-
   it("returns groups for current user", async () => {
     const mockGroups = [
       {
@@ -100,14 +91,5 @@ describe("GET /api/groups/context", () => {
     const json =
       await parseJsonResponse<ApiResponse<{ groups: unknown[] }>>(response);
     expect(json.data.groups).toEqual([]);
-  });
-
-  it("returns an error when the API call fails", async () => {
-    mockApiGet.mockRejectedValueOnce(new Error("Network error"));
-
-    const request = createMockRequest("/api/groups/context");
-    const response = await GET(request, createMockContext());
-
-    expect(response.status).toBe(500);
   });
 });

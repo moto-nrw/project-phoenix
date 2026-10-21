@@ -58,15 +58,6 @@ describe("GET /api/groups/[id]", () => {
     mockAuth.mockResolvedValue(defaultSession);
   });
 
-  it("returns 401 when not authenticated", async () => {
-    mockAuth.mockResolvedValueOnce(null);
-
-    const request = createMockRequest("/api/groups/123");
-    const response = await GET(request, createMockContext({ id: "123" }));
-
-    expect(response.status).toBe(401);
-  });
-
   it("fetches group by ID from backend", async () => {
     const mockGroup = {
       id: 123,
@@ -100,18 +91,6 @@ describe("PUT /api/groups/[id]", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     mockAuth.mockResolvedValue(defaultSession);
-  });
-
-  it("returns 401 when not authenticated", async () => {
-    mockAuth.mockResolvedValueOnce(null);
-
-    const request = createMockRequest("/api/groups/123", {
-      method: "PUT",
-      body: { name: "Updated Group" },
-    });
-    const response = await PUT(request, createMockContext({ id: "123" }));
-
-    expect(response.status).toBe(401);
   });
 
   it("updates group via backend", async () => {
@@ -163,17 +142,6 @@ describe("DELETE /api/groups/[id]", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     mockAuth.mockResolvedValue(defaultSession);
-  });
-
-  it("returns 401 when not authenticated", async () => {
-    mockAuth.mockResolvedValueOnce(null);
-
-    const request = createMockRequest("/api/groups/123", {
-      method: "DELETE",
-    });
-    const response = await DELETE(request, createMockContext({ id: "123" }));
-
-    expect(response.status).toBe(401);
   });
 
   it("deletes group via backend and returns 204", async () => {

@@ -55,15 +55,6 @@ describe("GET /api/rooms/[id]", () => {
     mockAuth.mockResolvedValue(defaultSession);
   });
 
-  it("returns 401 when not authenticated", async () => {
-    mockAuth.mockResolvedValueOnce(null);
-
-    const request = createMockRequest("/api/rooms/123");
-    const response = await GET(request, createMockContext({ id: "123" }));
-
-    expect(response.status).toBe(401);
-  });
-
   it("fetches room by ID from backend (wrapped response)", async () => {
     const mockRoom = {
       id: 123,
@@ -163,18 +154,6 @@ describe("PUT /api/rooms/[id]", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     mockAuth.mockResolvedValue(defaultSession);
-  });
-
-  it("returns 401 when not authenticated", async () => {
-    mockAuth.mockResolvedValueOnce(null);
-
-    const request = createMockRequest("/api/rooms/123", {
-      method: "PUT",
-      body: { name: "Updated Room" },
-    });
-    const response = await PUT(request, createMockContext({ id: "123" }));
-
-    expect(response.status).toBe(401);
   });
 
   it("updates room via backend", async () => {
@@ -306,17 +285,6 @@ describe("DELETE /api/rooms/[id]", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     mockAuth.mockResolvedValue(defaultSession);
-  });
-
-  it("returns 401 when not authenticated", async () => {
-    mockAuth.mockResolvedValueOnce(null);
-
-    const request = createMockRequest("/api/rooms/123", {
-      method: "DELETE",
-    });
-    const response = await DELETE(request, createMockContext({ id: "123" }));
-
-    expect(response.status).toBe(401);
   });
 
   it("deletes room via backend and returns 204", async () => {

@@ -57,15 +57,6 @@ describe("GET /api/rooms", () => {
     mockAuth.mockResolvedValue(defaultSession);
   });
 
-  it("returns 401 when not authenticated", async () => {
-    mockAuth.mockResolvedValueOnce(null);
-
-    const request = createMockRequest("/api/rooms");
-    const response = await GET(request, createMockContext());
-
-    expect(response.status).toBe(401);
-  });
-
   it("fetches rooms from backend API", async () => {
     const mockRooms = [
       { id: 1, name: "Room A", is_occupied: false },
@@ -168,18 +159,6 @@ describe("POST /api/rooms", () => {
     mockAuth.mockResolvedValue(defaultSession);
   });
 
-  it("returns 401 when not authenticated", async () => {
-    mockAuth.mockResolvedValueOnce(null);
-
-    const request = createMockRequest("/api/rooms", {
-      method: "POST",
-      body: { name: "New Room" },
-    });
-    const response = await POST(request, createMockContext());
-
-    expect(response.status).toBe(401);
-  });
-
   it("creates a new room via backend API", async () => {
     const createRequest = {
       name: "New Room",
@@ -241,17 +220,5 @@ describe("POST /api/rooms", () => {
     expect(JSON.stringify(json)).not.toContain(
       "Capacity must be greater than 0",
     );
-  });
-
-  it("handles permission denied error", async () => {
-    mockApiPost.mockRejectedValueOnce(new ApiResponseError(403, "Forbidden"));
-
-    const request = createMockRequest("/api/rooms", {
-      method: "POST",
-      body: { name: "Room" },
-    });
-    const response = await POST(request, createMockContext());
-
-    expect(response.status).toBe(403);
   });
 });

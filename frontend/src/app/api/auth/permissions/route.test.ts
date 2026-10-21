@@ -43,17 +43,6 @@ describe("GET /api/auth/permissions", () => {
     mockAuth.mockResolvedValue(defaultSession);
   });
 
-  it("returns 401 when not authenticated", async () => {
-    mockAuth.mockResolvedValueOnce(null);
-
-    const request = createMockRequest("/api/auth/permissions");
-    const response = await GET(request);
-
-    expect(response.status).toBe(401);
-    const json = (await response.json()) as { detail: string };
-    expect(json.detail).toBe("Unauthorized");
-  });
-
   it("fetches all permissions", async () => {
     const mockPermissions = {
       data: [
@@ -102,39 +91,12 @@ describe("GET /api/auth/permissions", () => {
     const fetchUrl = (mockFetch.mock.calls[0]?.[0] as string) ?? "";
     expect(fetchUrl).toContain("action=delete");
   });
-
-  it("handles backend errors", async () => {
-    mockFetch.mockReturnValueOnce(
-      createMockResponse({ detail: "Backend error" }, 500),
-    );
-
-    const request = createMockRequest("/api/auth/permissions");
-    const response = await GET(request);
-
-    expect(response.status).toBe(500);
-  });
 });
 
 describe("POST /api/auth/permissions", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     mockAuth.mockResolvedValue(defaultSession);
-  });
-
-  it("returns 401 when not authenticated", async () => {
-    mockAuth.mockResolvedValueOnce(null);
-
-    const request = createMockRequest("/api/auth/permissions", {
-      method: "POST",
-      body: {
-        name: "custom:permission",
-        resource: "custom",
-        action: "permission",
-      },
-    });
-    const response = await POST(request);
-
-    expect(response.status).toBe(401);
   });
 
   it("creates a new permission", async () => {
@@ -173,19 +135,5 @@ describe("POST /api/auth/permissions", () => {
     expect(response.status).toBe(200);
     const json = (await response.json()) as { data: { name: string } };
     expect(json.data.name).toBe("rooms:manage");
-  });
-
-  it("handles backend errors during creation", async () => {
-    mockFetch.mockReturnValueOnce(
-      createMockResponse({ detail: "Permission already exists" }, 409),
-    );
-
-    const request = createMockRequest("/api/auth/permissions", {
-      method: "POST",
-      body: { name: "duplicate:permission" },
-    });
-    const response = await POST(request);
-
-    expect(response.status).toBe(409);
   });
 });

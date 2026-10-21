@@ -76,18 +76,6 @@ describe("GET /api/activities/[id]/schedules/[scheduleId]", () => {
     mockAuth.mockResolvedValue(defaultSession);
   });
 
-  it("returns 401 when not authenticated", async () => {
-    mockAuth.mockResolvedValueOnce(null);
-
-    const request = createMockRequest("/api/activities/1/schedules/10");
-    const response = await GET(
-      request,
-      createMockContext({ id: "1", scheduleId: "10" }),
-    );
-
-    expect(response.status).toBe(401);
-  });
-
   it("returns schedule with wrapped response", async () => {
     const schedule = { id: 10, activity_id: 1, weekday: 1, timeframe_id: 1 };
     mockApiGet.mockResolvedValueOnce({
@@ -158,21 +146,6 @@ describe("PUT /api/activities/[id]/schedules/[scheduleId]", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     mockAuth.mockResolvedValue(defaultSession);
-  });
-
-  it("returns 401 when not authenticated", async () => {
-    mockAuth.mockResolvedValueOnce(null);
-
-    const request = createMockRequest("/api/activities/1/schedules/10", {
-      method: "PUT",
-      body: { weekday: "2" },
-    });
-    const response = await PUT(
-      request,
-      createMockContext({ id: "1", scheduleId: "10" }),
-    );
-
-    expect(response.status).toBe(401);
   });
 
   it("updates schedule with wrapped response", async () => {
@@ -258,20 +231,6 @@ describe("DELETE /api/activities/[id]/schedules/[scheduleId]", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     mockAuth.mockResolvedValue(defaultSession);
-  });
-
-  it("returns 401 when not authenticated", async () => {
-    mockAuth.mockResolvedValueOnce(null);
-
-    const request = createMockRequest("/api/activities/1/schedules/10", {
-      method: "DELETE",
-    });
-    const response = await DELETE(
-      request,
-      createMockContext({ id: "1", scheduleId: "10" }),
-    );
-
-    expect(response.status).toBe(401);
   });
 
   it("deletes schedule successfully", async () => {

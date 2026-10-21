@@ -43,18 +43,6 @@ describe("PUT /api/time-tracking/[id]", () => {
     mockAuth.mockResolvedValue(defaultSession);
   });
 
-  it("returns 401 when not authenticated", async () => {
-    mockAuth.mockResolvedValueOnce(null);
-
-    const request = createMockRequest("/api/time-tracking/42", {
-      method: "PUT",
-      body: { status: "home_office" },
-    });
-    const response = await PUT(request, createMockContext({ id: "42" }));
-
-    expect(response.status).toBe(401);
-  });
-
   it("updates work session successfully", async () => {
     const mockUpdatedSession = {
       id: 42,

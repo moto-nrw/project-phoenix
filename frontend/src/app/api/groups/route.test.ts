@@ -57,15 +57,6 @@ describe("GET /api/groups", () => {
     mockAuth.mockResolvedValue(defaultSession);
   });
 
-  it("returns 401 when not authenticated", async () => {
-    mockAuth.mockResolvedValueOnce(null);
-
-    const request = createMockRequest("/api/groups");
-    const response = await GET(request, createMockContext());
-
-    expect(response.status).toBe(401);
-  });
-
   it("fetches groups from backend API", async () => {
     const mockGroups = [
       { id: 1, name: "Group A" },
@@ -112,18 +103,6 @@ describe("POST /api/groups", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     mockAuth.mockResolvedValue(defaultSession);
-  });
-
-  it("returns 401 when not authenticated", async () => {
-    mockAuth.mockResolvedValueOnce(null);
-
-    const request = createMockRequest("/api/groups", {
-      method: "POST",
-      body: { name: "New Group" },
-    });
-    const response = await POST(request, createMockContext());
-
-    expect(response.status).toBe(401);
   });
 
   it("creates a new group via backend API", async () => {

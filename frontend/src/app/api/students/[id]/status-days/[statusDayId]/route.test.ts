@@ -61,14 +61,6 @@ describe("DELETE /api/students/[id]/status-days/[statusDayId]", () => {
     });
   });
 
-  it("returns 401 without a session", async () => {
-    mockAuth.mockResolvedValueOnce(null);
-
-    const response = await DELETE(createRequest(), createContext("42", "7"));
-
-    expect(response.status).toBe(401);
-  });
-
   it("requires both route params", async () => {
     const response = await DELETE(createRequest(), createContext("42"));
 

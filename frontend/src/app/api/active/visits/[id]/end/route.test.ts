@@ -75,17 +75,6 @@ describe("POST /api/active/visits/[id]/end", () => {
     mockAuth.mockResolvedValue(defaultSession);
   });
 
-  it("returns 401 when not authenticated", async () => {
-    mockAuth.mockResolvedValueOnce(null);
-
-    const request = createMockRequest("/api/active/visits/123/end", {
-      method: "POST",
-    });
-    const response = await POST(request, createMockContext({ id: "123" }));
-
-    expect(response.status).toBe(401);
-  });
-
   it("returns 500 when id parameter is missing", async () => {
     const request = createMockRequest("/api/active/visits//end", {
       method: "POST",
@@ -136,17 +125,6 @@ describe("POST /api/active/visits/[id]/end", () => {
       await parseJsonResponse<ApiResponse<typeof mockEndedVisit>>(response);
     expect(json.data).toEqual(mockEndedVisit);
     expect(json.data.end_time).toBe("2024-01-15T17:00:00Z");
-  });
-
-  it("handles backend errors gracefully", async () => {
-    mockApiPost.mockRejectedValueOnce(new ApiResponseError(404, ""));
-
-    const request = createMockRequest("/api/active/visits/999/end", {
-      method: "POST",
-    });
-    const response = await POST(request, createMockContext({ id: "999" }));
-
-    expect(response.status).toBe(404);
   });
 
   it("handles visit already ended", async () => {

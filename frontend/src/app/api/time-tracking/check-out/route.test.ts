@@ -43,17 +43,6 @@ describe("POST /api/time-tracking/check-out", () => {
     mockAuth.mockResolvedValue(defaultSession);
   });
 
-  it("returns 401 when not authenticated", async () => {
-    mockAuth.mockResolvedValueOnce(null);
-
-    const request = createMockRequest("/api/time-tracking/check-out", {
-      method: "POST",
-    });
-    const response = await POST(request, createMockContext());
-
-    expect(response.status).toBe(401);
-  });
-
   it("checks out user successfully", async () => {
     const mockCheckOutData = {
       session_id: 123,

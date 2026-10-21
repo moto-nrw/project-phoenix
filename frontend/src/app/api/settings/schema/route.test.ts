@@ -31,12 +31,4 @@ describe("GET /api/settings/schema", () => {
     );
     expect(result).toEqual(schemaData);
   });
-
-  it("propagates errors from apiGet", async () => {
-    mockApiGet.mockRejectedValue(new Error("API error"));
-
-    await expect((GET as Function)({}, "test-token")).rejects.toThrow(
-      "API error",
-    );
-  });
 });

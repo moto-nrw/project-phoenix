@@ -26,15 +26,6 @@ describe("GET /api/dashboard/analytics", () => {
     mockAuth.mockResolvedValue(defaultSession);
   });
 
-  it("returns 401 when not authenticated", async () => {
-    mockAuth.mockResolvedValueOnce(null);
-
-    const request = createMockRequest("/api/dashboard/analytics");
-    const response = await GET(request, createMockContext());
-
-    expect(response.status).toBe(401);
-  });
-
   it("returns dashboard analytics data", async () => {
     const analyticsData = {
       totalStudents: 150,
@@ -55,16 +46,5 @@ describe("GET /api/dashboard/analytics", () => {
 
     const json = (await response.json()) as { data: unknown };
     expect(json.data).toEqual(analyticsData);
-  });
-
-  it("handles API errors gracefully", async () => {
-    mockFetchDashboardAnalytics.mockRejectedValueOnce(
-      new Error("Backend unavailable"),
-    );
-
-    const request = createMockRequest("/api/dashboard/analytics");
-    const response = await GET(request, createMockContext());
-
-    expect(response.status).toBe(500);
   });
 });

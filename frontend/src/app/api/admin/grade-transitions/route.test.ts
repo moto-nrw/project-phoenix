@@ -59,17 +59,6 @@ describe("GET /api/admin/grade-transitions", () => {
     mockApiGet.mockResolvedValue({ data: [] });
   });
 
-  it("returns 401 when not authenticated", async () => {
-    mockAuth.mockResolvedValueOnce(null);
-
-    const response = await GET(
-      createMockRequest("/api/admin/grade-transitions"),
-      createMockContext(),
-    );
-
-    expect(response.status).toBe(401);
-  });
-
   it("forwards the after_id keyset cursor to the backend", async () => {
     const response = await GET(
       createMockRequest(

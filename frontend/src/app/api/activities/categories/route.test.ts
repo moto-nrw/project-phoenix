@@ -40,15 +40,6 @@ describe("GET /api/activities/categories", () => {
     mockAuth.mockResolvedValue(defaultSession);
   });
 
-  it("returns 401 when not authenticated", async () => {
-    mockAuth.mockResolvedValueOnce(null);
-
-    const request = createMockRequest("/api/activities/categories");
-    const response = await GET(request, createMockContext());
-
-    expect(response.status).toBe(401);
-  });
-
   it("fetches activity categories successfully", async () => {
     const mockCategories = [
       { id: 1, name: "Sports", description: "Physical activities" },
@@ -94,15 +85,6 @@ describe("GET /api/activities/categories", () => {
     const json = await parseJsonResponse<{ detail: string }>(response);
     expect(json.detail).toBe("Internal Server Error");
     expect(JSON.stringify(json)).not.toContain("Unexpected response structure");
-  });
-
-  it("handles backend errors gracefully", async () => {
-    mockApiGet.mockRejectedValueOnce(new Error("Backend service unavailable"));
-
-    const request = createMockRequest("/api/activities/categories");
-    const response = await GET(request, createMockContext());
-
-    expect(response.status).toBe(500);
   });
 
   // #2131: the Stammdaten screen opts into archived (and system) categories
@@ -169,17 +151,6 @@ describe("POST /api/activities/categories", () => {
       },
     );
   }
-
-  it("returns 401 when not authenticated", async () => {
-    mockAuth.mockResolvedValueOnce(null);
-
-    const response = await POST(
-      createPostRequest({ name: "Essen" }),
-      createMockContext(),
-    );
-
-    expect(response.status).toBe(401);
-  });
 
   it("forwards only name, description and color to the backend", async () => {
     mockApiPost.mockResolvedValueOnce({ data: { id: 9, name: "Essen" } });

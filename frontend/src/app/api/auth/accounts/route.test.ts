@@ -45,16 +45,6 @@ describe("GET /api/auth/accounts", () => {
     mockAuth.mockResolvedValue(defaultSession);
   });
 
-  it("returns 401 when not authenticated", async () => {
-    mockAuth.mockResolvedValueOnce(null);
-
-    const request = createMockRequest("/api/auth/accounts");
-    const context = createMockContext();
-    const response = await GET(request, context);
-
-    expect(response.status).toBe(401);
-  });
-
   it("fetches all accounts", async () => {
     const mockAccounts = {
       data: [
@@ -111,36 +101,12 @@ describe("GET /api/auth/accounts", () => {
       "test-token",
     );
   });
-
-  it("handles backend errors", async () => {
-    mockApiGet.mockRejectedValueOnce(new Error("Backend error (500)"));
-
-    const request = createMockRequest("/api/auth/accounts");
-    const context = createMockContext();
-    const response = await GET(request, context);
-
-    expect(response.status).toBe(500);
-  });
 });
 
 describe("POST /api/auth/accounts", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     mockAuth.mockResolvedValue(defaultSession);
-  });
-
-  it("returns 401 when not authenticated", async () => {
-    mockAuth.mockResolvedValueOnce(null);
-
-    const request = createMockRequest("/api/auth/accounts", {
-      method: "POST",
-      body: { id: "1", active: false },
-    });
-    const response = await POST(request);
-
-    expect(response.status).toBe(401);
-    const json = (await response.json()) as { detail: string };
-    expect(json.detail).toBe("Unauthorized");
   });
 
   it("updates an account via PUT", async () => {

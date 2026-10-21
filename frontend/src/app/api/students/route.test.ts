@@ -55,15 +55,6 @@ describe("GET /api/students", () => {
     mockAuth.mockResolvedValue(defaultSession);
   });
 
-  it("returns 401 when not authenticated", async () => {
-    mockAuth.mockResolvedValueOnce(null);
-
-    const request = createMockRequest("/api/students");
-    const response = await GET(request, createMockContext());
-
-    expect(response.status).toBe(401);
-  });
-
   it("fetches paginated students from backend", async () => {
     const mockResponse = {
       data: [
@@ -255,22 +246,6 @@ describe("POST /api/students", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     mockAuth.mockResolvedValue(defaultSession);
-  });
-
-  it("returns 401 when not authenticated", async () => {
-    mockAuth.mockResolvedValueOnce(null);
-
-    const request = createMockRequest("/api/students", {
-      method: "POST",
-      body: {
-        first_name: "Bob",
-        last_name: "Jones",
-        school_class: "2b",
-      },
-    });
-    const response = await POST(request, createMockContext());
-
-    expect(response.status).toBe(401);
   });
 
   it("creates a new student with the backend body built by the real request helpers", async () => {

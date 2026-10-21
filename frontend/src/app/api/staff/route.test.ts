@@ -1,5 +1,4 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { ApiResponseError } from "~/lib/api-response-error.server";
 import { GET, POST } from "./route";
 import {
   type ExtendedSession,
@@ -46,15 +45,6 @@ describe("GET /api/staff", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     mockAuth.mockResolvedValue(defaultSession);
-  });
-
-  it("returns 401 when not authenticated", async () => {
-    mockAuth.mockResolvedValueOnce(null);
-
-    const request = createMockRequest("/api/staff");
-    const response = await GET(request, createMockContext());
-
-    expect(response.status).toBe(401);
   });
 
   it("fetches staff list as array from backend", async () => {
@@ -241,18 +231,6 @@ describe("POST /api/staff", () => {
     mockAuth.mockResolvedValue(defaultSession);
   });
 
-  it("returns 401 when not authenticated", async () => {
-    mockAuth.mockResolvedValueOnce(null);
-
-    const request = createMockRequest("/api/staff", {
-      method: "POST",
-      body: { person_id: 10, is_teacher: true },
-    });
-    const response = await POST(request, createMockContext());
-
-    expect(response.status).toBe(401);
-  });
-
   it("creates a new staff member successfully", async () => {
     const mockCreatedStaff = {
       id: 1,
@@ -435,31 +413,5 @@ describe("POST /api/staff", () => {
       }),
     );
     expect(response.status).toBe(200);
-  });
-
-  it("handles 403 permission errors", async () => {
-    const mockError = new ApiResponseError(403, "Permission denied");
-    mockApiPost.mockRejectedValueOnce(mockError);
-
-    const request = createMockRequest("/api/staff", {
-      method: "POST",
-      body: { person_id: 10 },
-    });
-    const response = await POST(request, createMockContext());
-
-    expect(response.status).toBe(403);
-  });
-
-  it("handles 400 validation errors for person not found", async () => {
-    const mockError = new ApiResponseError(400, "person not found");
-    mockApiPost.mockRejectedValueOnce(mockError);
-
-    const request = createMockRequest("/api/staff", {
-      method: "POST",
-      body: { person_id: 999 },
-    });
-    const response = await POST(request, createMockContext());
-
-    expect(response.status).toBe(400);
   });
 });

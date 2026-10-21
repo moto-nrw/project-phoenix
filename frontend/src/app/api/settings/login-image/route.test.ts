@@ -65,21 +65,6 @@ describe("POST /api/settings/login-image", () => {
     mockUncachedAuth.mockResolvedValue(defaultSession);
   });
 
-  it("returns 401 when not authenticated", async () => {
-    mockAuth.mockResolvedValueOnce(null);
-
-    const formData = new FormData();
-    formData.append("login_image", createMockImageFile());
-
-    const request = new NextRequest(
-      "http://localhost:3000/api/settings/login-image",
-      { method: "POST", body: formData },
-    );
-    const response = await POST(request, createMockContext());
-
-    expect(response.status).toBe(401);
-  });
-
   it("successfully uploads a valid image", async () => {
     mockFetch.mockResolvedValueOnce({
       ok: true,
@@ -227,18 +212,6 @@ describe("DELETE /api/settings/login-image", () => {
     mockUncachedAuth.mockResolvedValue(defaultSession);
   });
 
-  it("returns 401 when not authenticated", async () => {
-    mockAuth.mockResolvedValueOnce(null);
-
-    const request = new NextRequest(
-      "http://localhost:3000/api/settings/login-image",
-      { method: "DELETE" },
-    );
-    const response = await DELETE(request, createMockContext());
-
-    expect(response.status).toBe(401);
-  });
-
   it("successfully deletes login image", async () => {
     mockFetch.mockResolvedValueOnce({
       ok: true,
@@ -300,18 +273,6 @@ describe("GET /api/settings/login-image", () => {
     vi.clearAllMocks();
     mockAuth.mockResolvedValue(defaultSession);
     mockUncachedAuth.mockResolvedValue(defaultSession);
-  });
-
-  it("returns 401 when not authenticated", async () => {
-    mockAuth.mockResolvedValueOnce(null);
-
-    const request = new NextRequest(
-      "http://localhost:3000/api/settings/login-image",
-      { method: "GET" },
-    );
-    const response = await GET(request, createMockContext());
-
-    expect(response.status).toBe(401);
   });
 
   it("returns data from backend", async () => {

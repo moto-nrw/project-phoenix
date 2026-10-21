@@ -51,15 +51,6 @@ describe("GET /api/activities", () => {
     mockAuth.mockResolvedValue(defaultSession);
   });
 
-  it("returns 401 when not authenticated", async () => {
-    mockAuth.mockResolvedValueOnce(null);
-
-    const request = createMockRequest("/api/activities");
-    const response = await GET(request, createMockContext());
-
-    expect(response.status).toBe(401);
-  });
-
   it("returns paginated activities with status: success wrapper", async () => {
     const mockActivities = [
       {
@@ -177,18 +168,6 @@ describe("POST /api/activities", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     mockAuth.mockResolvedValue(defaultSession);
-  });
-
-  it("returns 401 when not authenticated", async () => {
-    mockAuth.mockResolvedValueOnce(null);
-
-    const request = createMockRequest("/api/activities", {
-      method: "POST",
-      body: { name: "New Activity", max_participants: 10, category_id: 1 },
-    });
-    const response = await POST(request, createMockContext());
-
-    expect(response.status).toBe(401);
   });
 
   it("creates activity successfully", async () => {

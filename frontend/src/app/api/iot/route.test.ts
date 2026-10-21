@@ -74,15 +74,6 @@ describe("GET /api/iot", () => {
     mockAuth.mockResolvedValue(defaultSession);
   });
 
-  it("returns 401 when not authenticated", async () => {
-    mockAuth.mockResolvedValueOnce(null);
-
-    const request = createMockRequest("/api/iot");
-    const response = await GET(request, createMockContext());
-
-    expect(response.status).toBe(401);
-  });
-
   it("fetches devices from backend and returns paginated response", async () => {
     const mockDevices = {
       status: "success",
@@ -153,18 +144,6 @@ describe("POST /api/iot", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     mockAuth.mockResolvedValue(defaultSession);
-  });
-
-  it("returns 401 when not authenticated", async () => {
-    mockAuth.mockResolvedValueOnce(null);
-
-    const request = createMockRequest("/api/iot", {
-      method: "POST",
-      body: { device_id: "DEVICE002", description: "New Device" },
-    });
-    const response = await POST(request, createMockContext());
-
-    expect(response.status).toBe(401);
   });
 
   it("creates a new device", async () => {

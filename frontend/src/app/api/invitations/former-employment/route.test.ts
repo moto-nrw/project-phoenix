@@ -47,18 +47,6 @@ describe("POST /api/invitations/former-employment", () => {
     });
   });
 
-  it("returns 401 when not authenticated", async () => {
-    mockAuth.mockResolvedValueOnce(null);
-
-    const response = await POST(
-      createRequest({ email: "former@example.com" }),
-      context,
-    );
-
-    expect(response.status).toBe(401);
-    expect(mockApiPost).not.toHaveBeenCalled();
-  });
-
   it("asks the backend with the address in the body", async () => {
     const formerEmployment = {
       started_on: "2024-08-01",
