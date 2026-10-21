@@ -74,26 +74,6 @@ func (s *Service) AnonymizeAndSoftDeletePerson(ctx context.Context, personID int
 	return (PersonWrites{persons: s}).AnonymizeAndSoftDeletePerson(ctx, personID)
 }
 
-func (s *Service) DeleteGuardianProfile(ctx context.Context, guardianID int64) error {
-	return s.guardianLifecycle.DeleteGuardianProfile(ctx, guardianID)
-}
-
-func (s *Service) LinkGuardianProfileToAccount(ctx context.Context, guardianID, accountID int64) error {
-	return s.guardianLifecycle.LinkGuardianProfileToAccount(ctx, guardianID, accountID)
-}
-
-func (s *Service) LinkInvitedGuardian(ctx context.Context, link peopledirectory.InvitedGuardianLink) (bool, error) {
-	return s.guardianLifecycle.LinkInvitedGuardian(ctx, link)
-}
-
-func (s *Service) PromoteGuardianLinkToLegalGuardian(ctx context.Context, linkID int64) error {
-	return s.guardianLifecycle.PromoteGuardianLinkToLegalGuardian(ctx, linkID)
-}
-
-func (s *Service) DeleteStudentGuardianLink(ctx context.Context, linkID int64) error {
-	return s.guardianLifecycle.DeleteStudentGuardianLink(ctx, linkID)
-}
-
 // Invited guardians are reached by e-mail and spoken to in German until they
 // choose otherwise: the contact a guardian invitation creates carries these
 // preferences.

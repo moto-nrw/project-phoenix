@@ -12,7 +12,7 @@ func newRoleAdministration(auth *application.AccountAuthentication, runtime inte
 	return application.NewRoleAdministration(application.RoleAdministrationDependencies{
 		Store:         store,
 		Accounts:      accounts,
-		Profiles:      application.StaffDirectory{Source: deps.Staff},
+		Profiles:      application.StaffDirectory{StaffDirectory: deps.Staff},
 		Policy:        application.RoleAssignmentPolicy{},
 		IdentityRoles: application.RolePolicy{},
 		Identity:      application.LateSchoolIdentity{Current: identity},

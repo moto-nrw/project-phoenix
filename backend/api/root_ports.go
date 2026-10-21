@@ -32,9 +32,11 @@ func newEnrollmentFormSchemas(settings owners.EnrollmentSettingsReads, logger *s
 }
 
 // newEnrollmentCaptcha builds the captcha verifier of the public enrollment
-// form where the root mounts it.
-func newEnrollmentCaptcha(settings owners.EnrollmentSettingsReads, logger *slog.Logger) enrollmentOwner.CaptchaVerifier {
-	return enrollmentCompose.NewCaptcha(owners.EnrollmentCaptchaSettings{Settings: settings}, "", logger.With("service", "enrollment-captcha"))
+// form where the root mounts it, over the platform's Turnstile keys.
+func newEnrollmentCaptcha(settings owners.EnrollmentSettingsReads, keys TurnstileKeys, logger *slog.Logger) enrollmentOwner.CaptchaVerifier {
+	return enrollmentCompose.NewCaptcha(owners.EnrollmentCaptchaSettings{
+		Settings: settings, SiteKey: keys.SiteKey, SecretKey: keys.SecretKey,
+	}, "", logger.With("service", "enrollment-captcha"))
 }
 
 // newEnrollmentPhaseExpiry builds the phase expiry warnings over the People

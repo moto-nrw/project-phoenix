@@ -13,6 +13,10 @@ import (
 type GuardianService interface {
 	// GuardianProfiles is the retained guardian profile repository.
 	GuardianProfiles() GuardianProfileRepository
+	// GuardianPhoneNumbers is the retained phone number repository.
+	GuardianPhoneNumbers() GuardianPhoneNumberRepository
+	// GuardianInvitationReads is the bound invitation port.
+	GuardianInvitationReads() GuardianInvitations
 	AddGuardiansToStudent(ctx context.Context, studentID int64, guardians []NewStudentGuardian) error
 	AddPhoneNumber(ctx context.Context, guardianID int64, req PhoneNumberCreateRequest) (*peopleValues.GuardianProfilePhoneSnapshot, error)
 	CreateGuardian(ctx context.Context, req GuardianCreateRequest) (*peopleValues.GuardianProfileSnapshot, error)
@@ -23,12 +27,7 @@ type GuardianService interface {
 	GetGuardianByID(ctx context.Context, id int64) (*peopleValues.GuardianProfileSnapshot, error)
 	GetGuardianDeleteImpact(ctx context.Context, guardianProfileID int64) (*GuardianDeleteImpact, error)
 	GetGuardianPaymentMasked(ctx context.Context, guardianProfileID int64, actorAccountID int64, actorRole string) (*GuardianPaymentMasked, error)
-	GetGuardianPhoneNumbers(ctx context.Context, guardianID int64) ([]*peopleValues.GuardianProfilePhoneSnapshot, error)
 	GetGuardianStudents(ctx context.Context, guardianProfileID int64) ([]*StudentWithRelationship, error)
-	GetGuardiansWithoutAccount(ctx context.Context) ([]*peopleValues.GuardianProfileSnapshot, error)
-	GetInvitableGuardians(ctx context.Context) ([]*peopleValues.GuardianProfileSnapshot, error)
-	GetPendingInvitations(ctx context.Context) ([]GuardianInvitationRecord, error)
-	GetPhoneNumberByID(ctx context.Context, phoneID int64) (*peopleValues.GuardianProfilePhoneSnapshot, error)
 	GetStudentGuardianRelationship(ctx context.Context, relationshipID int64) (*peopleValues.GuardianRelationshipSnapshot, error)
 	GetStudentGuardians(ctx context.Context, studentID int64) ([]*GuardianWithRelationship, error)
 	GuardianDisplays(ctx context.Context, ids []int64) ([]GuardianDisplay, error)

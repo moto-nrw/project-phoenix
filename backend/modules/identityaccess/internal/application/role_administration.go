@@ -573,20 +573,8 @@ func (i LateSchoolIdentity) EnsureSchoolIdentityChain(ctx context.Context, input
 // deactivation through the account administration, which schedules the
 // account-wide session wipe with it (#3332).
 type AccountAdministrationSeam struct {
-	Roles    *RoleAdministration
-	Accounts *AccountAdministration
-}
-
-func (a AccountAdministrationSeam) RemoveRoleFromAccount(ctx context.Context, accountID, roleID int64) error {
-	return a.Roles.RemoveRoleFromAccount(ctx, accountID, roleID)
-}
-
-func (a AccountAdministrationSeam) DeactivateAccount(ctx context.Context, accountID int64) error {
-	return a.Accounts.DeactivateAccount(ctx, accountID)
-}
-
-func (d StaffDirectory) HasLiveCaregiverProfile(ctx context.Context, accountID int64) (bool, error) {
-	return d.Source.HasLiveCaregiverProfile(ctx, accountID)
+	*RoleAdministration
+	*AccountAdministration
 }
 
 // roleAssignmentPolicy binds the public assignment rules to the application

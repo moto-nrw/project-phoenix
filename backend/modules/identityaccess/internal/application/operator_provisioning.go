@@ -450,10 +450,6 @@ func (p *OperatorProvisioning) record(ctx context.Context, entry domain.Operator
 	}
 }
 
-type EmailFormat struct{ Source identityPorts.EmailFormat }
-
-func (f EmailFormat) IsRoutable(address string) bool { return f.Source.IsRoutable(address) }
-
 type OperatorInvitationDelivery struct {
 	Source identityPorts.OperatorInvitationDelivery
 	Expiry time.Duration
@@ -464,20 +460,16 @@ func (d OperatorInvitationDelivery) DispatchOperatorInvitation(ctx context.Conte
 }
 
 type OperatorEmailChangeDelivery struct {
-	Source identityPorts.OperatorEmailChangeDelivery
+	identityPorts.OperatorEmailChangeDelivery
 	Expiry time.Duration
 }
 
 func (d OperatorEmailChangeDelivery) DispatchOperatorEmailChangeVerification(ctx context.Context, change domain.OperatorEmailChange) error {
-	return d.Source.DispatchOperatorEmailChangeVerification(ctx, PublicOperatorEmailChange(change), d.Expiry)
+	return d.OperatorEmailChangeDelivery.DispatchOperatorEmailChangeVerification(ctx, PublicOperatorEmailChange(change), d.Expiry)
 }
 
 func (d OperatorEmailChangeDelivery) DispatchOperatorEmailChangeRequested(ctx context.Context, operator domain.Operator, maskedNewEmail string) error {
-	return d.Source.DispatchOperatorEmailChangeRequested(ctx, identityaccess.Operator(operator), maskedNewEmail)
-}
-
-func (d OperatorEmailChangeDelivery) DispatchOperatorEmailChangeConfirmed(ctx context.Context, oldEmail, displayName string) error {
-	return d.Source.DispatchOperatorEmailChangeConfirmed(ctx, oldEmail, displayName)
+	return d.OperatorEmailChangeDelivery.DispatchOperatorEmailChangeRequested(ctx, identityaccess.Operator(operator), maskedNewEmail)
 }
 
 func (p *OperatorProvisioning) enqueueEmailChangeNotices(ctx context.Context, change domain.OperatorEmailChange, operator domain.Operator, maskedNewEmail string) error {

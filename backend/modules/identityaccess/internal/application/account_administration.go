@@ -299,7 +299,7 @@ func (a *AccountAdministration) visibility(ctx context.Context) (domain.AccountV
 		if organizationID == 0 {
 			return denied, nil
 		}
-		schoolIDs, err := a.schools.ManageableSchoolIDs(ctx, organizationID)
+		schoolIDs, err := a.schools.ListManageableSchoolIDs(ctx, organizationID)
 		if err != nil {
 			return domain.AccountVisibility{}, err
 		}

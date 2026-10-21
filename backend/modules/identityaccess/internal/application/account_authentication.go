@@ -4,7 +4,6 @@ import (
 	"context"
 	"fmt"
 	"log/slog"
-	"time"
 
 	"golang.org/x/sync/singleflight"
 
@@ -144,25 +143,25 @@ type mintGuardError struct{ err error }
 func (e *mintGuardError) Error() string { return e.err.Error() }
 func (e *mintGuardError) Unwrap() error { return e.err }
 
-type SchoolDirectory struct{ Source identityPorts.SchoolDirectory }
+type SchoolDirectory struct{ identityPorts.SchoolDirectory }
 
 func (d SchoolDirectory) FindSchool(ctx context.Context, id int64) (domain.School, bool, error) {
-	school, found, err := d.Source.FindSchool(ctx, id)
+	school, found, err := d.SchoolDirectory.FindSchool(ctx, id)
 	return domain.School(school), found, err
 }
 
 func (d SchoolDirectory) FindSchoolBySubdomain(ctx context.Context, subdomain string) (domain.School, bool, error) {
-	school, found, err := d.Source.FindSchoolBySubdomain(ctx, subdomain)
+	school, found, err := d.SchoolDirectory.FindSchoolBySubdomain(ctx, subdomain)
 	return domain.School(school), found, err
 }
 
 func (d SchoolDirectory) LockSchoolShared(ctx context.Context, id int64) (domain.School, bool, error) {
-	school, found, err := d.Source.LockSchoolShared(ctx, id)
+	school, found, err := d.SchoolDirectory.LockSchoolShared(ctx, id)
 	return domain.School(school), found, err
 }
 
 func (d SchoolDirectory) ListActiveSchoolsByID(ctx context.Context, schoolIDs []int64) ([]domain.School, error) {
-	schools, err := d.Source.ListActiveSchoolsByID(ctx, schoolIDs)
+	schools, err := d.SchoolDirectory.ListActiveSchoolsByID(ctx, schoolIDs)
 	if err != nil {
 		return nil, err
 	}
@@ -173,31 +172,21 @@ func (d SchoolDirectory) ListActiveSchoolsByID(ctx context.Context, schoolIDs []
 	return result, nil
 }
 
-func (d SchoolDirectory) ManageableSchoolIDs(ctx context.Context, organizationID int64) ([]int64, error) {
-	return d.Source.ListManageableSchoolIDs(ctx, organizationID)
-}
-
-type TokenCodec struct{ Source identityPorts.TokenCodec }
+type TokenCodec struct{ identityPorts.TokenCodec }
 
 func (c TokenCodec) IssueTokenPair(access domain.SessionClaims, refresh domain.RefreshClaims) (string, string, error) {
-	return c.Source.IssueTokenPair(identityaccess.SessionClaims(access), identityaccess.RefreshClaims(refresh))
-}
-
-func (c TokenCodec) IssueMFAEnrollmentToken(accountID, tenantID int64, scope string, ttl time.Duration) (string, error) {
-	return c.Source.IssueMFAEnrollmentToken(accountID, tenantID, scope, ttl)
+	return c.TokenCodec.IssueTokenPair(identityaccess.SessionClaims(access), identityaccess.RefreshClaims(refresh))
 }
 
 func (c TokenCodec) ParseAccessToken(token string) (domain.SessionClaims, error) {
-	claims, err := c.Source.ParseAccessToken(token)
+	claims, err := c.TokenCodec.ParseAccessToken(token)
 	return domain.SessionClaims(claims), err
 }
 
 func (c TokenCodec) ParseRefreshToken(token string) (domain.RefreshClaims, error) {
-	claims, err := c.Source.ParseRefreshToken(token)
+	claims, err := c.TokenCodec.ParseRefreshToken(token)
 	return domain.RefreshClaims(claims), err
 }
-
-func (c TokenCodec) RefreshExpiry() time.Duration { return c.Source.RefreshExpiry() }
 
 type AuthAudit struct{ Source identityPorts.AuthAudit }
 

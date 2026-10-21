@@ -409,14 +409,10 @@ func (s *AccountAuthentication) demoTenantLock(ctx context.Context, account doma
 	return nil
 }
 
-type DemoSchoolsPort struct{ Schools identityPorts.DemoSchools }
-
-func (p DemoSchoolsPort) MarkDemoSchoolUsed(ctx context.Context, slug string, usedAt time.Time) error {
-	return p.Schools.MarkDemoSchoolUsed(ctx, slug, usedAt)
-}
+type DemoSchoolsPort struct{ identityPorts.DemoSchools }
 
 func (p DemoSchoolsPort) ReplaceDemoSchool(ctx context.Context, slug, schoolName, firstName, lastName string) (string, error) {
-	newSlug, err := p.Schools.ReplaceDemoSchool(ctx, slug, schoolName, firstName, lastName)
+	newSlug, err := p.DemoSchools.ReplaceDemoSchool(ctx, slug, schoolName, firstName, lastName)
 	switch {
 	case errors.Is(err, identityaccess.ErrDemoCapacityReached):
 		return "", domain.ErrDemoCapacityReached
@@ -427,7 +423,7 @@ func (p DemoSchoolsPort) ReplaceDemoSchool(ctx context.Context, slug, schoolName
 }
 
 func (p DemoSchoolsPort) PrepareDemoSchool(ctx context.Context, schoolName, firstName, lastName string) (string, error) {
-	slug, err := p.Schools.PrepareDemoSchool(ctx, schoolName, firstName, lastName)
+	slug, err := p.DemoSchools.PrepareDemoSchool(ctx, schoolName, firstName, lastName)
 	if errors.Is(err, identityaccess.ErrDemoCapacityReached) {
 		return "", domain.ErrDemoCapacityReached
 	}
@@ -435,7 +431,7 @@ func (p DemoSchoolsPort) PrepareDemoSchool(ctx context.Context, schoolName, firs
 }
 
 func (p DemoSchoolsPort) DemoSchoolEntry(ctx context.Context, slug string) (domain.DemoSchoolEntry, error) {
-	entry, err := p.Schools.DemoSchoolEntry(ctx, slug)
+	entry, err := p.DemoSchools.DemoSchoolEntry(ctx, slug)
 	return domain.DemoSchoolEntry{
 		Exists: entry.Exists, Status: entry.Status, TenantID: entry.SchoolID, AccountID: entry.AccountID, ParentAccountID: entry.ParentAccountID,
 	}, err

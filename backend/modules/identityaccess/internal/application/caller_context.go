@@ -229,44 +229,24 @@ func (e ReviewEngine) ReviewAccessLevel(ctx context.Context, permissions []strin
 }
 
 type CallerAccounts struct {
-	Profiles identityaccess.AccountProfiles
+	identityaccess.AccountProfiles
 }
 
 func (a CallerAccounts) FindAccountMetadata(ctx context.Context, accountID int64) (domain.AccountMetadata, error) {
-	value, err := a.Profiles.FindAccountMetadata(ctx, accountID)
+	value, err := a.AccountProfiles.FindAccountMetadata(ctx, accountID)
 	return domain.AccountMetadata(value), err
 }
 
-func (a CallerAccounts) SetAccountUsername(ctx context.Context, accountID int64, username string) error {
-	return a.Profiles.SetAccountUsername(ctx, accountID, username)
-}
-
-func (a CallerAccounts) SetAccountAvatar(ctx context.Context, accountID int64, avatar string) error {
-	return a.Profiles.SetAccountAvatar(ctx, accountID, avatar)
-}
-
 func (a CallerAccounts) FindAccountProfile(ctx context.Context, accountID int64) (domain.AccountProfile, bool, error) {
-	bio, settings, found, err := a.Profiles.FindAccountProfile(ctx, accountID)
+	bio, settings, found, err := a.AccountProfiles.FindAccountProfile(ctx, accountID)
 	return domain.AccountProfile{Bio: bio, Settings: settings}, found, err
 }
 
-func (a CallerAccounts) SetAccountBio(ctx context.Context, accountID int64, bio string) error {
-	return a.Profiles.SetAccountBio(ctx, accountID, bio)
-}
-
-type CallerPeople struct{ People identityPorts.CallerPeople }
+type CallerPeople struct{ identityPorts.CallerPeople }
 
 func (p CallerPeople) FindPersonByAccount(ctx context.Context, accountID int64) (domain.CallerPerson, bool, error) {
-	person, found, err := p.People.FindPersonByAccount(ctx, accountID)
+	person, found, err := p.CallerPeople.FindPersonByAccount(ctx, accountID)
 	return domain.CallerPerson(person), found, err
-}
-
-func (p CallerPeople) CreatePerson(ctx context.Context, accountID int64, firstName, lastName string) error {
-	return p.People.CreatePerson(ctx, accountID, firstName, lastName)
-}
-
-func (p CallerPeople) RenamePerson(ctx context.Context, personID int64, firstName, lastName *string) error {
-	return p.People.RenamePerson(ctx, personID, firstName, lastName)
 }
 
 type CallerSessions struct{ identityPorts.CallerSessions }
@@ -281,12 +261,6 @@ func (s CallerSessions) SessionVisits(ctx context.Context, sessionID int64) ([]d
 		result = append(result, domain.CallerVisit(visit))
 	}
 	return result, nil
-}
-
-type CallerOverview struct{ Overview identityPorts.CallerOverview }
-
-func (o CallerOverview) HasOperationalOverview(ctx context.Context, staff ports.StaffPresence, assignmentBound, admin bool) (bool, error) {
-	return o.Overview.HasOperationalOverview(ctx, staff, assignmentBound, admin)
 }
 
 // mappedCallerError keeps the text of a wrapped caller-context error while

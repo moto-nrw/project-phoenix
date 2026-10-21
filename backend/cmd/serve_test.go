@@ -51,6 +51,25 @@ func TestValidateServeConfig_MissingDatabaseDSNFails(t *testing.T) {
 	assert.Contains(t, err.Error(), "DB_DSN")
 }
 
+// One Turnstile widget protects every school's public enrollment form, so
+// the server refuses to start without both of its keys.
+func TestValidateServeConfig_MissingTurnstileKeysFail(t *testing.T) {
+	t.Parallel()
+	for _, missing := range []string{"TURNSTILE_SITE_KEY", "TURNSTILE_SECRET_KEY"} {
+		config := validServeConfig()
+		if missing == "TURNSTILE_SITE_KEY" {
+			config.TurnstileSiteKey = " "
+		} else {
+			config.TurnstileSecretKey = ""
+		}
+
+		err := validateServeConfig(config)
+
+		require.Error(t, err, missing)
+		assert.Contains(t, err.Error(), missing)
+	}
+}
+
 func TestValidateServeConfig_TestEnvAllowsExplicitTestDSN(t *testing.T) {
 	t.Parallel()
 	config := validServeConfig()
@@ -239,5 +258,8 @@ func validServeConfig() serveConfig {
 		ParentsURL:          "http://parents.localhost:3000",
 		PhoenixAuthPassword: "phoenix_auth_dev",
 		DatabaseDSN:         "postgres://postgres:postgres@localhost:5432/postgres?sslmode=disable",
+		// Cloudflare's documented always-passing Turnstile test keys.
+		TurnstileSiteKey:   "1x00000000000000000000AA",
+		TurnstileSecretKey: "1x0000000000000000000000000000000AA",
 	}
 }

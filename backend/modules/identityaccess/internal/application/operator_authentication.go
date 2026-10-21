@@ -466,16 +466,12 @@ func (d OrganizationDirectory) ListOrganizationNames(ctx context.Context, ids []
 }
 
 type SchoolIdentityProvisioner struct {
-	Source    identityPorts.SchoolIdentityProvisioner
+	identityPorts.SchoolIdentityProvisioner
 	Lifecycle *AccountLifecycle
 }
 
-func (p SchoolIdentityProvisioner) HasLivePersonAtSchool(ctx context.Context, accountID int64) (bool, error) {
-	return p.Source.HasLivePersonAtSchool(ctx, accountID)
-}
-
 func (p SchoolIdentityProvisioner) ListAccountPersons(ctx context.Context, accountID int64) ([]domain.AccountPersonIdentity, error) {
-	persons, err := p.Source.ListAccountPersons(ctx, accountID)
+	persons, err := p.SchoolIdentityProvisioner.ListAccountPersons(ctx, accountID)
 	if err != nil {
 		return nil, err
 	}
@@ -484,10 +480,6 @@ func (p SchoolIdentityProvisioner) ListAccountPersons(ctx context.Context, accou
 		result = append(result, domain.AccountPersonIdentity(person))
 	}
 	return result, nil
-}
-
-func (p SchoolIdentityProvisioner) HasLiveCaregiverProfile(ctx context.Context, accountID int64) (bool, error) {
-	return p.Source.HasLiveCaregiverProfile(ctx, accountID)
 }
 
 func (p SchoolIdentityProvisioner) EnsureSchoolIdentity(ctx context.Context, request domain.SchoolIdentityRequest) error {
@@ -505,7 +497,7 @@ func (p SchoolIdentityProvisioner) EnsureSchoolIdentity(ctx context.Context, req
 		}
 		return err
 	}
-	err := p.Source.EnsureSchoolIdentity(ctx, identityPorts.SchoolIdentityRequest{
+	err := p.SchoolIdentityProvisioner.EnsureSchoolIdentity(ctx, identityPorts.SchoolIdentityRequest{
 		AccountID: request.AccountID, TenantID: request.TenantID, Role: schoolRoleFact(request.Role),
 		FirstName: request.FirstName, LastName: request.LastName, Position: request.Position, CreatePerson: request.CreatePerson,
 	})
@@ -516,7 +508,7 @@ func (p SchoolIdentityProvisioner) EnsureSchoolIdentity(ctx context.Context, req
 }
 
 func (p SchoolIdentityProvisioner) ListAccountIdentityFacts(ctx context.Context, accountID int64) ([]domain.AccountIdentityFact, error) {
-	facts, err := p.Source.ListAccountIdentityFacts(ctx, accountID)
+	facts, err := p.SchoolIdentityProvisioner.ListAccountIdentityFacts(ctx, accountID)
 	if err != nil {
 		return nil, err
 	}

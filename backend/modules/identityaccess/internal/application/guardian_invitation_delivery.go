@@ -8,5 +8,5 @@ import (
 )
 
 func (d GuardianInvitationDelivery) EnqueueWelcomeEmail(ctx context.Context, profile domain.GuardianProfile, tenantID int64, schoolName string, precedingOutboxID int64) {
-	d.Source.EnqueueWelcomeEmail(ctx, identityPorts.GuardianProfile(profile), tenantID, schoolName, precedingOutboxID)
+	d.GuardianInvitationDelivery.EnqueueWelcomeEmail(ctx, identityPorts.GuardianProfile(profile), tenantID, schoolName, precedingOutboxID)
 }
