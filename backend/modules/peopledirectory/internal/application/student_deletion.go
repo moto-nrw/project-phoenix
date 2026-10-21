@@ -22,7 +22,12 @@ func (s *StudentService) CountGuardianLinks(ctx context.Context, studentID, pers
 }
 
 func (s *StudentService) DeleteLegacyGuardianLinks(ctx context.Context, personID int64) (rows int64, err error) {
-	err = s.run(ctx, "delete_legacy_guardian_links", s.tx.RunWrite, func(txCtx context.Context, stats *domain.OperationStats) error {
+	err = s.run(ctx, "delete_legacy_guardian_links", func(txCtx context.Context, fn func(context.Context) error) error {
+		if err := s.tx.RequireTransaction(txCtx); err != nil {
+			return err
+		}
+		return fn(txCtx)
+	}, func(txCtx context.Context, stats *domain.OperationStats) error {
 		var writeStats domain.OperationStats
 		rows, writeStats, err = s.store.DeleteLegacyGuardianLinks(txCtx, personID)
 		stats.Add(writeStats)
