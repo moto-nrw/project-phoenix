@@ -27,9 +27,9 @@ func (seedStaffPersonMergeStep) Run(_ context.Context, rt *Runtime) error {
 	var existing struct {
 		Data struct {
 			Person struct {
-				ID        int64  `json:"id,string"`
-				FirstName string `json:"first_name"`
-				LastName  string `json:"last_name"`
+				ID        json.Number `json:"id"`
+				FirstName string      `json:"first_name"`
+				LastName  string      `json:"last_name"`
 			} `json:"person"`
 		} `json:"data"`
 	}
@@ -39,8 +39,14 @@ func (seedStaffPersonMergeStep) Run(_ context.Context, rt *Runtime) error {
 	if existing.Data.Person.FirstName == "" || existing.Data.Person.LastName == "" {
 		return fmt.Errorf("staff duplicate example has no person name")
 	}
-	if existing.Data.Person.ID > 0 {
-		alreadySeeded, err := hasSeededStaffPersonMerge(rt, existing.Data.Person.ID)
+	// The staff detail embeds a numeric person ID; operator previews use
+	// decimal strings. Decode either representation without a float64 round trip.
+	personID, err := existing.Data.Person.ID.Int64()
+	if err != nil {
+		return fmt.Errorf("decode staff duplicate person ID: %w", err)
+	}
+	if personID > 0 {
+		alreadySeeded, err := hasSeededStaffPersonMerge(rt, personID)
 		if err != nil {
 			return err
 		}

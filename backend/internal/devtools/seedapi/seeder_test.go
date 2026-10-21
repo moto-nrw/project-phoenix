@@ -1101,10 +1101,14 @@ func fullSeedAPIMock(t *testing.T, traces ...*fullSeedAPITrace) *seedHTTPTestSer
 			var staffID int64
 			if !strings.Contains(suffix, "/") {
 				if _, err := fmt.Sscan(suffix, &staffID); err == nil && staffID > 0 {
-					require.NoError(t, json.NewEncoder(w).Encode(map[string]any{"status": "success", "data": map[string]any{"id": fmt.Sprint(staffID), "person": map[string]any{"first_name": DemoStaff[0].FirstName, "last_name": DemoStaff[0].LastName}}}))
+					require.NoError(t, json.NewEncoder(w).Encode(map[string]any{"status": "success", "data": map[string]any{"id": fmt.Sprint(staffID), "person": map[string]any{"id": staffID + 2000, "first_name": DemoStaff[0].FirstName, "last_name": DemoStaff[0].LastName}}}))
 					return
 				}
 			}
+		}
+		if r.Method == seedHTTPMethodGet && strings.HasPrefix(r.URL.Path, "/operator/staff-person-merges/") {
+			require.NoError(t, json.NewEncoder(w).Encode(map[string]any{"status": "success", "data": []any{}}))
+			return
 		}
 		if marketingMock.serve(t, w, r) {
 			return
