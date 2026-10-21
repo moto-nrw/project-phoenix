@@ -8,6 +8,7 @@ import {
   type ReactNode,
 } from "react";
 import { UserPlus, Users } from "lucide-react";
+import { ArrowUpRightIcon } from "@phosphor-icons/react";
 import { MotoConceptIcon } from "~/components/ui/moto-concept-icon";
 import { Alert } from "~/components/ui/alert";
 import { Button, ButtonLink } from "~/components/ui/button";
@@ -19,6 +20,7 @@ import { Input } from "~/components/ui/input";
 import { OccupancyBadges } from "~/components/ui/occupancy-badges";
 import type { PresentChildrenPickerProps } from "~/components/active-supervisions/present-children-picker";
 import { SectionCard } from "~/components/ui/section-card";
+import { Tooltip } from "~/components/ui/tooltip";
 import { GroupIcon, SchoolClassIcon } from "~/components/students/student-card";
 import { overbookedHintFor, type Occupancy } from "~/lib/activity-occupancy";
 import { useNFCEnabled } from "~/lib/tenant-context";
@@ -362,16 +364,31 @@ function RosterRowActions({
         </Button>
       ) : null}
       {/* Ein Link, kein Anwesenheitsknopf: er öffnet nur die Kinderseite
-          (#4356). Der Name im Label unterscheidet die Links der Liste. */}
+          (#4356). Nur ein Icon am Ende der Zeile, damit die Zeile nicht
+          wächst; auf dem Handy rechts außen. Der Name im Label unterscheidet
+          die Links der Liste. */}
       {profileHref ? (
-        <ButtonLink
-          href={profileHref}
-          variant="outline"
-          size="md"
-          aria-label={`Profil ansehen: ${row.studentName || `Kind ${row.studentId}`}`}
+        <Tooltip
+          content="Profil ansehen"
+          asChild
+          iconOnly
+          className="ml-auto sm:ml-0"
+          bubbleClassName="right-0 left-auto"
         >
-          Profil ansehen
-        </ButtonLink>
+          <ButtonLink
+            href={profileHref}
+            variant="outline"
+            size="icon"
+            aria-label={`Profil ansehen: ${row.studentName || `Kind ${row.studentId}`}`}
+            className="size-9 shrink-0"
+          >
+            <ArrowUpRightIcon
+              className="size-4"
+              weight="bold"
+              aria-hidden="true"
+            />
+          </ButtonLink>
+        </Tooltip>
       ) : null}
     </div>
   );
