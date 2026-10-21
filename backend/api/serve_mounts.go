@@ -1120,6 +1120,10 @@ func newOperatorRouter(
 	isLocalSeedRequest := func(r *http.Request) bool {
 		return apiCommon.IsLocalSeedRequest(r, viper.GetString("app_env"))
 	}
+	mergeRoutes, err := newStaffPersonMergeRoutes(db)
+	if err != nil {
+		return nil, err
+	}
 	return operatorRouter(
 		operatorIdentity,
 		provisioningConfig,
@@ -1135,6 +1139,7 @@ func newOperatorRouter(
 		communication,
 		tagScanReview.Router(),
 		limiters,
+		mergeRoutes,
 	), nil
 }
 

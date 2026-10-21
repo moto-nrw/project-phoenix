@@ -537,6 +537,7 @@ GET /operator/schools/{id}/pwa-usage
 GET /operator/schools/{id}/settings/booking-authority-impact
 GET /operator/schools/{id}/settings/schema
 GET /operator/schools/{id}/settings/values/{key}/reveal
+GET /operator/staff-person-merges/{schoolId}
 GET /operator/stats
 GET /operator/unregistered-tag-scans/
 GET /parent-news-attachments/{announcementId}
@@ -944,6 +945,7 @@ POST /operator/schools/{id}/accounts/{accountId}/caregiver-capability/
 POST /operator/schools/{id}/create-account
 POST /operator/schools/{id}/invite-admin
 POST /operator/schools/{id}/restore
+POST /operator/staff-person-merges/{schoolId}
 POST /operator/unregistered-tag-scans/{id}/resolve
 POST /parent/auth/login
 POST /parent/auth/password-reset

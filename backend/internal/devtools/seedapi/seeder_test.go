@@ -1094,6 +1094,18 @@ func fullSeedAPIMock(t *testing.T, traces ...*fullSeedAPITrace) *seedHTTPTestSer
 		if trace != nil && trace.enforceDevicePIN && serveDevicePIN(t, trace, w, r) {
 			return
 		}
+		// The duplicate-review demo reads the retained person's real shape
+		// before creating the synthetic retired employment (#3397).
+		if r.Method == seedHTTPMethodGet && strings.HasPrefix(r.URL.Path, "/api/staff/") {
+			suffix := strings.TrimPrefix(r.URL.Path, "/api/staff/")
+			var staffID int64
+			if !strings.Contains(suffix, "/") {
+				if _, err := fmt.Sscan(suffix, &staffID); err == nil && staffID > 0 {
+					require.NoError(t, json.NewEncoder(w).Encode(map[string]any{"status": "success", "data": map[string]any{"id": fmt.Sprint(staffID), "person": map[string]any{"first_name": DemoStaff[0].FirstName, "last_name": DemoStaff[0].LastName}}}))
+					return
+				}
+			}
+		}
 		if marketingMock.serve(t, w, r) {
 			return
 		}
