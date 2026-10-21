@@ -3,6 +3,7 @@
 import { useLayoutEffect, useRef, useState } from "react";
 
 import { Button } from "~/components/ui/button";
+import { CollectionGrid } from "~/components/ui/collection-grid";
 import { StatusBadge } from "~/components/ui/status-badge";
 import { useApiErrorDisplay } from "~/contexts/ToastContext";
 import { createLogger } from "~/lib/logger";
@@ -27,9 +28,8 @@ const logger = createLogger({ component: "TodayNoticeList" });
  * `layout="grid"` stellt die Hinweise nebeneinander, je einer in einem
  * eigenen Feld (#4365). Die Seite Tagesinformationen nutzt das: Ihre Karte
  * „Heute“ reicht bis zur Unterkante, eine schmale Liste ließe rechts die
- * halbe Breite leer. Die Spalten kommen wie im `CollectionGrid` aus
- * `auto-fit`: ein Hinweis füllt die Zeile, auf dem Telefon steht einer unter
- * dem anderen.
+ * halbe Breite leer. Das Gitter ist das `CollectionGrid`: ein Hinweis füllt
+ * die Zeile, auf dem Telefon steht einer unter dem anderen.
  */
 export function TodayNoticeList({
   notices,
@@ -73,64 +73,56 @@ export function TodayNoticeList({
     latestConfirmRef.current = (notice) => void confirm(notice);
   });
 
-  return (
-    <>
-      <ul
-        className={
-          grid
-            ? "grid grid-cols-[repeat(auto-fit,minmax(min(100%,20rem),1fr))] gap-4 max-sm:gap-3"
-            : "space-y-4"
-        }
-      >
-        {notices.map((notice) => (
-          <li
-            key={notice.id}
-            className={
-              grid
-                ? "rounded-xl border border-gray-100 bg-gray-50/70 p-4"
-                : undefined
-            }
-          >
-            <div className="flex flex-wrap items-center gap-2">
-              <h3 className="text-[15px] font-semibold text-gray-900">
-                {notice.title}
-              </h3>
-              {notice.priority === "important" && (
-                <StatusBadge label="Wichtig" tone="orange" />
-              )}
-              <span className="text-xs text-gray-500">
-                {describeRecurrence(notice)}
-              </span>
-            </div>
+  const items = notices.map((notice) => (
+    <li
+      key={notice.id}
+      className={
+        grid ? "rounded-xl border border-gray-100 bg-gray-50/70 p-4" : undefined
+      }
+    >
+      <div className="flex flex-wrap items-center gap-2">
+        <h3 className="text-[15px] font-semibold text-gray-900">
+          {notice.title}
+        </h3>
+        {notice.priority === "important" && (
+          <StatusBadge label="Wichtig" tone="orange" />
+        )}
+        <span className="text-xs text-gray-500">
+          {describeRecurrence(notice)}
+        </span>
+      </div>
 
-            {notice.body && (
-              <p className="mt-1 max-w-3xl text-sm leading-6 whitespace-pre-line text-gray-600">
-                {notice.body}
-              </p>
-            )}
+      {notice.body && (
+        <p className="mt-1 max-w-3xl text-sm leading-6 whitespace-pre-line text-gray-600">
+          {notice.body}
+        </p>
+      )}
 
-            {notice.requires_acknowledgement && (
-              <div className="mt-2">
-                {notice.acknowledged_at ? (
-                  <StatusBadge label="Zur Kenntnis genommen" tone="green" />
-                ) : (
-                  <Button
-                    type="button"
-                    variant="outline"
-                    size="md"
-                    disabled={pending === notice.id}
-                    onClick={() => void confirm(notice)}
-                  >
-                    {pending === notice.id
-                      ? "Wird gespeichert …"
-                      : "Zur Kenntnis nehmen"}
-                  </Button>
-                )}
-              </div>
-            )}
-          </li>
-        ))}
-      </ul>
-    </>
+      {notice.requires_acknowledgement && (
+        <div className="mt-2">
+          {notice.acknowledged_at ? (
+            <StatusBadge label="Zur Kenntnis genommen" tone="green" />
+          ) : (
+            <Button
+              type="button"
+              variant="outline"
+              size="md"
+              disabled={pending === notice.id}
+              onClick={() => void confirm(notice)}
+            >
+              {pending === notice.id
+                ? "Wird gespeichert …"
+                : "Zur Kenntnis nehmen"}
+            </Button>
+          )}
+        </div>
+      )}
+    </li>
+  ));
+
+  return grid ? (
+    <CollectionGrid as="ul">{items}</CollectionGrid>
+  ) : (
+    <ul className="space-y-4">{items}</ul>
   );
 }

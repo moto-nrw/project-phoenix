@@ -29,8 +29,11 @@ export function CollectionGrid({
    * schmale Kacheln (Bereichskarten) dürfen auf `18rem` herunter.
    */
   minTileWidth?: "18rem" | "20rem";
-  /** `output` für Ladegitter, die sich selbst ankündigen. */
-  as?: "div" | "output";
+  /**
+   * `output` für Ladegitter, die sich selbst ankündigen; `ul` für ein
+   * Gitter aus Listeneinträgen (`li`-Kinder).
+   */
+  as?: "div" | "output" | "ul";
   role?: "status";
   ariaLabel?: string;
   ariaBusy?: boolean;
