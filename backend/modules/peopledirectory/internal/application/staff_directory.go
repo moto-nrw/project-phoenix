@@ -106,6 +106,9 @@ func (s *staffMembershipDirectory) CreateStaffWithTeacher(ctx context.Context, i
 func (s *staffMembershipDirectory) requireLivePersonLocked(ctx context.Context, personID int64) error {
 	person, err := s.persons.FindByIDForUpdate(ctx, personID)
 	if err != nil {
+		if peoplePorts.IsRepositoryNoRows(err) {
+			return userscontract.ErrPersonNotFound
+		}
 		return err
 	}
 	if person == nil || person.DeletedAt != nil {
