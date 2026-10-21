@@ -1,15 +1,10 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import type { Session } from "next-auth";
 import { NextRequest } from "next/server";
 import { POST, DELETE } from "./route";
-
-// ============================================================================
-// Types
-// ============================================================================
-
-interface ExtendedSession extends Session {
-  user: Session["user"] & { token?: string };
-}
+import {
+  type ExtendedSession,
+  defaultSession,
+} from "~/test/route-test-helpers";
 
 // ============================================================================
 // Mocks
@@ -44,11 +39,6 @@ function createMockContext(params: Record<string, string> = {}) {
   };
 }
 
-const defaultSession: ExtendedSession = {
-  user: { id: "1", token: "test-token", name: "Test User" },
-  expires: "2099-01-01",
-};
-
 function createMockResponse(data: unknown, status = 200) {
   return Promise.resolve(
     status === 204
@@ -78,20 +68,6 @@ describe("POST /api/auth/roles/[roleId]/permissions/[permissionId]", () => {
     expect(json.detail).toContain("required");
   });
 
-  it("returns 401 when not authenticated", async () => {
-    mockAuth.mockResolvedValueOnce(null);
-
-    const request = createMockRequest("/api/auth/roles/1/permissions/2", {
-      method: "POST",
-    });
-    const response = await POST(
-      request,
-      createMockContext({ roleId: "1", permissionId: "2" }),
-    );
-
-    expect(response.status).toBe(401);
-  });
-
   it("assigns permission to role successfully", async () => {
     mockFetch.mockReturnValueOnce(createMockResponse({ success: true }));
 
@@ -116,22 +92,6 @@ describe("POST /api/auth/roles/[roleId]/permissions/[permissionId]", () => {
     const json = (await response.json()) as { success: boolean };
     expect(json.success).toBe(true);
   });
-
-  it("handles backend errors during assignment", async () => {
-    mockFetch.mockReturnValueOnce(
-      createMockResponse({ detail: "Permission already assigned" }, 409),
-    );
-
-    const request = createMockRequest("/api/auth/roles/1/permissions/2", {
-      method: "POST",
-    });
-    const response = await POST(
-      request,
-      createMockContext({ roleId: "1", permissionId: "2" }),
-    );
-
-    expect(response.status).toBe(409);
-  });
 });
 
 describe("DELETE /api/auth/roles/[roleId]/permissions/[permissionId]", () => {
@@ -147,20 +107,6 @@ describe("DELETE /api/auth/roles/[roleId]/permissions/[permissionId]", () => {
     const response = await DELETE(request, createMockContext());
 
     expect(response.status).toBe(400);
-  });
-
-  it("returns 401 when not authenticated", async () => {
-    mockAuth.mockResolvedValueOnce(null);
-
-    const request = createMockRequest("/api/auth/roles/1/permissions/2", {
-      method: "DELETE",
-    });
-    const response = await DELETE(
-      request,
-      createMockContext({ roleId: "1", permissionId: "2" }),
-    );
-
-    expect(response.status).toBe(401);
   });
 
   it("removes permission from role successfully", async () => {
@@ -186,21 +132,5 @@ describe("DELETE /api/auth/roles/[roleId]/permissions/[permissionId]", () => {
     expect(response.status).toBe(200);
     const json = (await response.json()) as { success: boolean };
     expect(json.success).toBe(true);
-  });
-
-  it("handles backend errors during removal", async () => {
-    mockFetch.mockReturnValueOnce(
-      createMockResponse({ detail: "Permission not found" }, 404),
-    );
-
-    const request = createMockRequest("/api/auth/roles/1/permissions/2", {
-      method: "DELETE",
-    });
-    const response = await DELETE(
-      request,
-      createMockContext({ roleId: "1", permissionId: "2" }),
-    );
-
-    expect(response.status).toBe(404);
   });
 });

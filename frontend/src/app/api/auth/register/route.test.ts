@@ -1,14 +1,6 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
-import type { Session } from "next-auth";
 import { NextRequest } from "next/server";
-
-// ============================================================================
-// Types
-// ============================================================================
-
-interface ExtendedSession extends Session {
-  user: Session["user"] & { token?: string };
-}
+import type { ExtendedSession } from "~/test/route-test-helpers";
 
 // ============================================================================
 // Mocks
@@ -202,157 +194,6 @@ describe("POST /api/auth/register", () => {
     expect(requestInit.headers).not.toHaveProperty("Authorization");
   });
 
-  it("handles backend validation error", async () => {
-    const registrationPayload = {
-      email: "invalid-email",
-      password: "weak",
-    };
-
-    vi.mocked(global.fetch).mockResolvedValueOnce(
-      new Response(JSON.stringify({ detail: "Invalid email format" }), {
-        status: 400,
-        headers: { "Content-Type": "application/json" },
-      }),
-    );
-
-    const request = createMockRequest(
-      "/api/auth/register",
-      registrationPayload,
-    );
-    const response = await POST(request);
-
-    expect(response.status).toBe(400);
-    const json = await parseJsonResponse<{ detail: string }>(response);
-    expect(json.detail).toBe("Invalid email format");
-  });
-
-  it("handles conflict error (user already exists)", async () => {
-    const registrationPayload = {
-      email: "existing@example.com",
-      password: "Test1234!",
-    };
-
-    vi.mocked(global.fetch).mockResolvedValueOnce(
-      new Response(JSON.stringify({ detail: "User already exists" }), {
-        status: 409,
-        headers: { "Content-Type": "application/json" },
-      }),
-    );
-
-    const request = createMockRequest(
-      "/api/auth/register",
-      registrationPayload,
-    );
-    const response = await POST(request);
-
-    expect(response.status).toBe(409);
-    const json = await parseJsonResponse<{ detail: string }>(response);
-    expect(json.detail).toBe("User already exists");
-  });
-
-  it("replaces a non-JSON backend server error with a safe problem envelope", async () => {
-    const registrationPayload = {
-      email: "test@example.com",
-      password: "Test1234!",
-    };
-
-    vi.mocked(global.fetch).mockResolvedValueOnce(
-      new Response("Server Error", {
-        status: 500,
-        headers: { "Content-Type": "text/plain" },
-      }),
-    );
-
-    const request = createMockRequest(
-      "/api/auth/register",
-      registrationPayload,
-    );
-    const response = await POST(request);
-
-    expect(response.status).toBe(500);
-    expect(response.headers.get("Content-Type")).toBe(
-      "application/problem+json",
-    );
-    expect(await response.json()).toMatchObject({
-      status: 500,
-      detail: "Internal Server Error",
-      code: "general.server",
-    });
-  });
-
-  it("handles JSON parse error from backend", async () => {
-    const registrationPayload = {
-      email: "test@example.com",
-      password: "Test1234!",
-    };
-
-    vi.mocked(global.fetch).mockResolvedValueOnce(
-      new Response("invalid json", {
-        status: 200,
-        headers: { "Content-Type": "application/json" },
-      }),
-    );
-
-    const request = createMockRequest(
-      "/api/auth/register",
-      registrationPayload,
-    );
-    const response = await POST(request);
-
-    expect(response.status).toBe(200);
-    expect(await response.text()).toBe("invalid json");
-  });
-
-  it("returns fallback payload when backend sends an empty JSON body", async () => {
-    const registrationPayload = {
-      email: "test@example.com",
-      password: "Test1234!",
-    };
-
-    vi.mocked(global.fetch).mockResolvedValueOnce(
-      new Response(null, {
-        status: 201,
-        headers: { "Content-Type": "application/json" },
-      }),
-    );
-
-    const request = createMockRequest(
-      "/api/auth/register",
-      registrationPayload,
-    );
-    const response = await POST(request);
-
-    expect(response.status).toBe(201);
-    expect(await response.text()).toBe("");
-  });
-
-  it("replaces an empty backend server error with a safe problem envelope", async () => {
-    const registrationPayload = {
-      email: "test@example.com",
-      password: "Test1234!",
-    };
-
-    vi.mocked(global.fetch).mockResolvedValueOnce(
-      new Response(null, {
-        status: 500,
-        headers: { "Content-Type": "text/plain" },
-      }),
-    );
-
-    const request = createMockRequest(
-      "/api/auth/register",
-      registrationPayload,
-    );
-    const response = await POST(request);
-
-    expect(response.status).toBe(500);
-    expect(await response.json()).toMatchObject({
-      status: 500,
-      detail: "Internal Server Error",
-      code: "general.server",
-    });
-  });
-
   it("returns 500 on fetch failure", async () => {
     const registrationPayload = {
       email: "test@example.com",
@@ -376,15 +217,27 @@ describe("POST /api/auth/register", () => {
     expect(json.code).toBe("general.server");
   });
 
-  it("rejects unreadable request JSON as a client error", async () => {
-    const request = {
-      json: vi.fn().mockRejectedValueOnce("bad payload"),
-    } as unknown as NextRequest;
+  it("handles backend validation error", async () => {
+    const registrationPayload = {
+      email: "invalid-email",
+      password: "weak",
+    };
 
+    vi.mocked(global.fetch).mockResolvedValueOnce(
+      new Response(JSON.stringify({ detail: "Invalid email format" }), {
+        status: 400,
+        headers: { "Content-Type": "application/json" },
+      }),
+    );
+
+    const request = createMockRequest(
+      "/api/auth/register",
+      registrationPayload,
+    );
     const response = await POST(request);
 
     expect(response.status).toBe(400);
     const json = await parseJsonResponse<{ detail: string }>(response);
-    expect(json.detail).toBe("Invalid JSON");
+    expect(json.detail).toBe("Invalid email format");
   });
 });

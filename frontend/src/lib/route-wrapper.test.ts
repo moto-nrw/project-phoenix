@@ -1,8 +1,6 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
-import type { Session } from "next-auth";
 import { NextRequest } from "next/server";
 import {
-  isStringParam,
   createGetHandler,
   createPostHandler,
   createPutHandler,
@@ -10,17 +8,10 @@ import {
 } from "./route-wrapper.server";
 import { mockSessionData } from "~/test/mocks/next-auth";
 import { ApiResponseError } from "./api-response-error.server";
-
-// ============================================================================
-// Types
-// ============================================================================
-
-/**
- * Extended session type with token property used in this project
- */
-interface ExtendedSession extends Session {
-  user: Session["user"] & { token?: string };
-}
+import {
+  type ExtendedSession,
+  createMockContext,
+} from "~/test/route-test-helpers";
 
 // ============================================================================
 // Mocks (using vi.hoisted for proper hoisting)
@@ -92,15 +83,6 @@ function createMockRequest(
 }
 
 /**
- * Creates a mock route context with params (Next.js 15+ pattern)
- */
-function createMockContext(
-  params: Record<string, string | string[] | undefined> = {},
-) {
-  return { params: Promise.resolve(params) };
-}
-
-/**
  * Helper to parse JSON response with proper typing
  */
 async function parseJsonResponse<T>(response: Response): Promise<T> {
@@ -126,40 +108,6 @@ interface ApiErrorResponse {
  * Default authenticated session mock
  */
 const defaultSession = mockSessionData() as ExtendedSession;
-
-// ============================================================================
-// Tests: isStringParam (pure function)
-// ============================================================================
-
-describe("isStringParam", () => {
-  it("returns true for string values", () => {
-    expect(isStringParam("hello")).toBe(true);
-    expect(isStringParam("")).toBe(true);
-    expect(isStringParam("123")).toBe(true);
-  });
-
-  it("returns false for numbers", () => {
-    expect(isStringParam(123)).toBe(false);
-    expect(isStringParam(0)).toBe(false);
-    expect(isStringParam(-1)).toBe(false);
-  });
-
-  it("returns false for null and undefined", () => {
-    expect(isStringParam(null)).toBe(false);
-    expect(isStringParam(undefined)).toBe(false);
-  });
-
-  it("returns false for objects and arrays", () => {
-    expect(isStringParam({})).toBe(false);
-    expect(isStringParam([])).toBe(false);
-    expect(isStringParam(["a", "b"])).toBe(false);
-  });
-
-  it("returns false for booleans", () => {
-    expect(isStringParam(true)).toBe(false);
-    expect(isStringParam(false)).toBe(false);
-  });
-});
 
 // ============================================================================
 // Tests: createGetHandler
@@ -589,6 +537,63 @@ describe("Token Refresh and Retry Logic", () => {
     const request = createMockRequest("/api/test");
     const response = await handler(request, createMockContext());
 
+    expect(response.status).toBe(401);
+    const json = await parseJsonResponse<ApiErrorResponse>(response);
+    expect(json).toMatchObject({
+      status: 401,
+      detail: "Token expired",
+      code: "general.permission",
+    });
+  });
+
+  it("retries a body handler (PUT) with the refreshed token and the same body", async () => {
+    mockAuth.mockResolvedValueOnce(defaultSession);
+    mockAuth.mockResolvedValueOnce({
+      user: { id: "1", token: "refreshed-token", name: "Test User" },
+      expires: "2099-01-01",
+    });
+    const mockHandler = vi
+      .fn()
+      .mockRejectedValueOnce(new ApiResponseError(401, "Unauthorized"))
+      .mockResolvedValueOnce({ id: 7, active: true });
+
+    const handler = createPutHandler(mockHandler);
+    const request = createMockRequest("/api/test/7", {
+      method: "PUT",
+      body: { active: true },
+    });
+    const response = await handler(request, createMockContext({ id: "7" }));
+
+    expect(mockHandler).toHaveBeenCalledTimes(2);
+    expect(mockHandler.mock.calls[0]?.slice(1, 3)).toEqual([
+      { active: true },
+      "test-token",
+    ]);
+    expect(mockHandler.mock.calls[1]?.slice(1, 3)).toEqual([
+      { active: true },
+      "refreshed-token",
+    ]);
+    expect(response.status).toBe(200);
+    const json =
+      await parseJsonResponse<ApiSuccessResponse<{ id: number }>>(response);
+    expect(json.data).toEqual({ id: 7, active: true });
+  });
+
+  it("returns the 401 envelope from a body handler (PUT) when the token was not refreshed", async () => {
+    mockAuth.mockResolvedValueOnce(defaultSession);
+    mockAuth.mockResolvedValueOnce(defaultSession);
+    const mockHandler = vi
+      .fn()
+      .mockRejectedValue(new ApiResponseError(401, "Unauthorized"));
+
+    const handler = createPutHandler(mockHandler);
+    const request = createMockRequest("/api/test/7", {
+      method: "PUT",
+      body: { active: true },
+    });
+    const response = await handler(request, createMockContext({ id: "7" }));
+
+    expect(mockHandler).toHaveBeenCalledOnce();
     expect(response.status).toBe(401);
     const json = await parseJsonResponse<ApiErrorResponse>(response);
     expect(json).toMatchObject({

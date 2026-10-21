@@ -49,29 +49,6 @@ describe("POST /api/active/visits/student/[studentId]/checkin", () => {
     mockAuth.mockResolvedValue(createMockSession(mockToken));
   });
 
-  it("returns 401 when no session", async () => {
-    mockAuth.mockResolvedValue(null);
-
-    const request = new NextRequest(
-      "http://localhost:3000/api/active/visits/student/123/checkin",
-      {
-        method: "POST",
-        body: JSON.stringify({ active_group_id: 456 }),
-        headers: { "Content-Type": "application/json" },
-      },
-    );
-
-    const context = {
-      params: Promise.resolve({ studentId: "123" }),
-    };
-
-    const response = await POST(request, context);
-
-    expect(response.status).toBe(401);
-    const data = (await response.json()) as ErrorResponse;
-    expect(data.detail).toBe("Unauthorized");
-  });
-
   it("returns error when studentId is missing", async () => {
     const request = new NextRequest(
       "http://localhost:3000/api/active/visits/student/undefined/checkin",

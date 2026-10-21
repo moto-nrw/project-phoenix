@@ -270,6 +270,7 @@ describe("isStringParam", () => {
     expect(isStringParam(undefined)).toBe(false);
     expect(isStringParam({})).toBe(false);
     expect(isStringParam([])).toBe(false);
+    expect(isStringParam(true)).toBe(false);
   });
 });
 

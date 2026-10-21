@@ -318,6 +318,22 @@ describe("operator proxy factories", () => {
     });
   });
 
+  it("rejects a proxy POST without an operator session before calling the backend", async () => {
+    mockAuth.mockResolvedValue(null);
+
+    const handler = proxyPost("/operator/items");
+    const response = await handler(
+      createProxyRequest("/api/operator/items", {
+        method: "POST",
+        body: { name: "New" },
+      }),
+      { params: Promise.resolve({}) },
+    );
+
+    expect(response.status).toBe(401);
+    expect(mockFetch).not.toHaveBeenCalled();
+  });
+
   it("resolves params for DELETE and returns 204", async () => {
     mockFetch.mockResolvedValue({
       ok: true,

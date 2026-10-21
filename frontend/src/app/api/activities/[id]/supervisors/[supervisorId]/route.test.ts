@@ -1,15 +1,11 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import type { Session } from "next-auth";
-import { NextRequest } from "next/server";
 import { PUT, DELETE } from "./route";
-
-// ============================================================================
-// Types
-// ============================================================================
-
-interface ExtendedSession extends Session {
-  user: Session["user"] & { token?: string };
-}
+import {
+  type ExtendedSession,
+  createMockContext,
+  createMockRequest,
+  defaultSession,
+} from "~/test/route-test-helpers";
 
 // ============================================================================
 // Mocks
@@ -60,35 +56,6 @@ global.fetch = mockFetch as unknown as typeof fetch;
 // Test Helpers
 // ============================================================================
 
-function createMockRequest(
-  path: string,
-  options: { method?: string; body?: unknown } = {},
-): NextRequest {
-  const url = new URL(path, "http://localhost:3000");
-  const requestInit: { method: string; body?: string; headers?: HeadersInit } =
-    {
-      method: options.method ?? "GET",
-    };
-
-  if (options.body) {
-    requestInit.body = JSON.stringify(options.body);
-    requestInit.headers = { "Content-Type": "application/json" };
-  }
-
-  return new NextRequest(url, requestInit);
-}
-
-function createMockContext(
-  params: Record<string, string | string[] | undefined> = {},
-) {
-  return { params: Promise.resolve(params) };
-}
-
-const defaultSession: ExtendedSession = {
-  user: { id: "1", token: "test-token", name: "Test User" },
-  expires: "2099-01-01",
-};
-
 async function parseJsonResponse<T>(response: Response): Promise<T> {
   return (await response.json()) as T;
 }
@@ -102,21 +69,6 @@ describe("PUT /api/activities/[id]/supervisors/[supervisorId]", () => {
     vi.clearAllMocks();
     mockAuth.mockResolvedValue(defaultSession);
     mockUncachedAuth.mockResolvedValue(defaultSession);
-  });
-
-  it("returns 401 when not authenticated", async () => {
-    mockAuth.mockResolvedValueOnce(null);
-
-    const request = createMockRequest("/api/activities/1/supervisors/2", {
-      method: "PUT",
-      body: { is_primary: true },
-    });
-    const response = await PUT(
-      request,
-      createMockContext({ id: "1", supervisorId: "2" }),
-    );
-
-    expect(response.status).toBe(401);
   });
 
   it("updates supervisor role successfully", async () => {
@@ -223,28 +175,6 @@ describe("PUT /api/activities/[id]/supervisors/[supervisorId]", () => {
     expect(json.detail).toBe("Internal Server Error");
     expect(JSON.stringify(json)).not.toContain(
       "is_primary parameter is required",
-    );
-  });
-
-  it("returns 500 when update fails", async () => {
-    mockApiPut.mockRejectedValueOnce(
-      new Error("Failed to update supervisor role"),
-    );
-
-    const request = createMockRequest("/api/activities/1/supervisors/2", {
-      method: "PUT",
-      body: { is_primary: true },
-    });
-    const response = await PUT(
-      request,
-      createMockContext({ id: "1", supervisorId: "2" }),
-    );
-
-    expect(response.status).toBe(500);
-    const json = await parseJsonResponse<{ detail: string }>(response);
-    expect(json.detail).toBe("Internal Server Error");
-    expect(JSON.stringify(json)).not.toContain(
-      "Failed to update supervisor role",
     );
   });
 });

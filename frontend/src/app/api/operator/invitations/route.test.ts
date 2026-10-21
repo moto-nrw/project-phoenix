@@ -24,12 +24,9 @@ vi.mock("~/lib/operator/route-wrapper.server", async (importOriginal) => {
 });
 
 import { GET } from "./route";
+import { createMockContext } from "~/test/route-test-helpers";
 
 const mockSession = { user: { token: "access-token-123" } };
-
-function createMockContext() {
-  return { params: Promise.resolve({}) };
-}
 
 describe("GET /api/operator/invitations", () => {
   beforeEach(() => {

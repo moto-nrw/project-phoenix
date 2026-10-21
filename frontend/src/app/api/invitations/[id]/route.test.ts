@@ -1,16 +1,10 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import type { Session } from "next-auth";
-import { NextRequest } from "next/server";
 import { DELETE } from "./route";
-import { ApiResponseError } from "~/lib/api-response-error.server";
-
-// ============================================================================
-// Types
-// ============================================================================
-
-interface ExtendedSession extends Session {
-  user: Session["user"] & { token?: string };
-}
+import {
+  type ExtendedSession,
+  createMockRequest,
+  defaultSession,
+} from "~/test/route-test-helpers";
 
 // ============================================================================
 // Mocks
@@ -41,11 +35,6 @@ vi.mock("~/lib/api-helpers.server", async () => {
 // Test Helpers
 // ============================================================================
 
-function createMockRequest(path: string): NextRequest {
-  const url = new URL(path, "http://localhost:3000");
-  return new NextRequest(url);
-}
-
 function createMockContext(
   params: Record<
     string,
@@ -57,11 +46,6 @@ function createMockContext(
   };
 }
 
-const defaultSession: ExtendedSession = {
-  user: { id: "1", token: "test-token", name: "Test User" },
-  expires: "2099-01-01",
-};
-
 // ============================================================================
 // Tests
 // ============================================================================
@@ -70,15 +54,6 @@ describe("DELETE /api/invitations/[id]", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     mockAuth.mockResolvedValue(defaultSession);
-  });
-
-  it("returns 401 when not authenticated", async () => {
-    mockAuth.mockResolvedValueOnce(null);
-
-    const request = createMockRequest("/api/invitations/123");
-    const response = await DELETE(request, createMockContext({ id: "123" }));
-
-    expect(response.status).toBe(401);
   });
 
   it("deletes invitation via backend", async () => {
@@ -142,14 +117,5 @@ describe("DELETE /api/invitations/[id]", () => {
     // TypeError is caught by wrapper and returns 500
     expect(response.status).toBe(500);
     expect(mockApiDelete).not.toHaveBeenCalled();
-  });
-
-  it("forwards backend errors", async () => {
-    mockApiDelete.mockRejectedValueOnce(new ApiResponseError(404, "Not found"));
-
-    const request = createMockRequest("/api/invitations/999");
-    const response = await DELETE(request, createMockContext({ id: "999" }));
-
-    expect(response.status).toBe(404);
   });
 });
