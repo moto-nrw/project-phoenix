@@ -83,6 +83,16 @@ func checkRuntimeRejectsMissingDependencies(t *testing.T) {
 			want: "public API URL",
 		},
 		{
+			name: "Turnstile keys",
+			ctx:  context.Background(),
+			deps: ServeConfig{
+				Port: "8080", FrontendURL: "http://localhost:3000", PublicAPIURL: "http://api.invalid", Logger: slog.Default(),
+				Turnstile: TurnstileKeys{SiteKey: "1x00000000000000000000AA"},
+			},
+			run:  func(*Runtime) error { return nil },
+			want: "Turnstile site and secret key",
+		},
+		{
 			name: "context",
 			deps: ServeConfig{Port: "8080", Logger: slog.Default()},
 			run:  func(*Runtime) error { return nil },
