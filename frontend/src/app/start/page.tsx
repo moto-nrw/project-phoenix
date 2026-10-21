@@ -53,7 +53,7 @@ export default function StartPage() {
       ].join("\n"),
     );
 
-    window.location.href = `mailto:kontakt@moto.nrw?subject=${mailSubject}&body=${mailBody}`;
+    window.location.href = `mailto:kontakt@moto-ogs.de?subject=${mailSubject}&body=${mailBody}`;
   };
 
   return (

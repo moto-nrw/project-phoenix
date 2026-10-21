@@ -30,7 +30,6 @@ describe("TimetableRosterContent complete lead (#3809)", () => {
   it("names the time from which the block can be completed", () => {
     render(
       <TimetableRosterContent
-        addStudentResults={[]}
         addStudentSearch=""
         attendanceWebEnabled
         isAddingStudent={false}

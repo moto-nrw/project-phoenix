@@ -330,7 +330,7 @@ for the expiry (#3470), may read `id`, `school_slug` and `expires_at` of
 `platform.schools`; it never sees an address or a name (migration 1.15.412).
 
 Mails (#3465): the entry link leaves by mail only (`demo-access.html`,
-Reply-To `kontakt@moto.nrw`), and the answer is the same for every address,
+Reply-To `kontakt@moto-ogs.de`), and the answer is the same for every address,
 so it neither hands a demo to somebody who typed a foreign address nor tells
 who asked before. The mail carries nothing the form submitted. Every request
 stores its own access with the submitted details; earlier links stay valid
