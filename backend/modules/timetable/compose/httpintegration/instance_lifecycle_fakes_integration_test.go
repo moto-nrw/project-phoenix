@@ -7,7 +7,6 @@ import (
 	"testing"
 	"time"
 
-	activityContract "github.com/moto-nrw/project-phoenix/modules/timetable/activitycontract"
 	fixtures "github.com/moto-nrw/project-phoenix/modules/timetable/fixturetest"
 
 	"github.com/moto-nrw/project-phoenix/modules/securityruntime"
@@ -212,15 +211,15 @@ func (r *absorbVisitRepo) EndGroup(_ context.Context, id int64, _ time.Time) err
 }
 
 type absorbActivityGroupRepo struct {
-	timetablePorts.LifecycleActivityGroups
-	byID map[int64]*activityContract.Group
+	timetable.ActivityGroupQuery
+	byID map[int64]*timetable.Group
 }
 
-func (r *absorbActivityGroupRepo) FindByIDs(_ context.Context, ids []int64) ([]*activityContract.Group, error) {
-	out := make([]*activityContract.Group, 0, len(ids))
-	for _, id := range ids {
+func (r *absorbActivityGroupRepo) ListGroups(_ context.Context, filter timetable.GroupFilter) ([]timetable.Group, error) {
+	out := make([]timetable.Group, 0, len(filter.IDs))
+	for _, id := range filter.IDs {
 		if group := r.byID[id]; group != nil {
-			out = append(out, group)
+			out = append(out, *group)
 		}
 	}
 	return out, nil
@@ -393,14 +392,13 @@ func TestInstanceStart_AbsorbsUnsupervisedOpenGroups(t *testing.T) {
 			fixtureRow.ActiveGroupID = &bridged.ID
 		}),
 	}}
-	systemActivity := &activityContract.Group{IsSystem: true}
-	systemActivity.ID = systemActivityID
+	systemActivity := &timetable.Group{ID: systemActivityID, IsSystem: true}
 
 	svc := newFakeLifecycle(t, timetablePorts.InstanceLifecycleDependencies{
 		InstanceRepo:      fixtures.IntoActivityInstanceRecords(instanceRepo),
 		InstanceStudents:  fixtures.IntoInstanceStudentRecords(instanceStudents),
 		ActiveGroupRepo:   groupRepo,
-		ActivityGroupRepo: &absorbActivityGroupRepo{byID: map[int64]*activityContract.Group{systemActivityID: systemActivity}},
+		ActivityGroupRepo: &absorbActivityGroupRepo{byID: map[int64]*timetable.Group{systemActivityID: systemActivity}},
 		SupervisorRepo:    supervisorRepo,
 		Presence:          visitRepo,
 	})

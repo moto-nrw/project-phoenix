@@ -40,13 +40,20 @@ func seriesMockUntil() calendar.Date { return calendar.NewDate(2026, 8, 24).AddD
 // ---------------------------------------------------------------- fakes ----
 
 type seriesMockGroupRepo struct {
-	ports.ActivityGroupRecords
+	ports.GroupRows
 	groups []*activityContract.Group
 	err    error
 }
 
-func (r *seriesMockGroupRepo) FindTemplateSeries(context.Context, int64) ([]*activityContract.Group, error) {
-	return r.groups, r.err
+func (r *seriesMockGroupRepo) ListGroups(context.Context, timetable.GroupFilter) ([]timetable.Group, error) {
+	if r.err != nil {
+		return nil, r.err
+	}
+	groups := make([]timetable.Group, 0, len(r.groups))
+	for _, group := range r.groups {
+		groups = append(groups, CatalogGroup(group))
+	}
+	return groups, nil
 }
 
 type seriesMockScheduleRepo struct {
@@ -67,7 +74,7 @@ func (r *seriesMockScheduleRepo) ListSchedules(_ context.Context, filter timetab
 }
 
 type seriesMockEnrollmentRepo struct {
-	ports.ActivityEnrollmentRecords
+	timetable.StudentEnrollmentCapability
 	rows      []*activityContract.StudentEnrollment
 	findErr   error
 	createErr error
@@ -78,19 +85,23 @@ type seriesMockEnrollmentRepo struct {
 	deleted   []int64
 }
 
-func (r *seriesMockEnrollmentRepo) FindByGroupID(context.Context, int64) ([]*activityContract.StudentEnrollment, error) {
-	return r.rows, r.findErr
-}
-
-func (r *seriesMockEnrollmentRepo) Create(_ context.Context, row *activityContract.StudentEnrollment) error {
-	if r.createErr != nil {
-		return r.createErr
+func (r *seriesMockEnrollmentRepo) ListStudentEnrollments(context.Context, timetable.StudentEnrollmentFilter) ([]timetable.StudentEnrollment, error) {
+	if r.findErr != nil {
+		return nil, r.findErr
 	}
-	r.created = append(r.created, row)
-	return nil
+	return fakeEnrollments(r.rows), nil
 }
 
-func (r *seriesMockEnrollmentRepo) SetValidUntilByID(_ context.Context, id int64, _ activityContract.Date) error {
+func (r *seriesMockEnrollmentRepo) CreateStudentEnrollment(_ context.Context, input timetable.StudentEnrollmentInput) (timetable.StudentEnrollment, error) {
+	if r.createErr != nil {
+		return timetable.StudentEnrollment{}, r.createErr
+	}
+	row := fakeEnrollmentRow(input)
+	r.created = append(r.created, row)
+	return fakeEnrollments([]*activityContract.StudentEnrollment{row})[0], nil
+}
+
+func (r *seriesMockEnrollmentRepo) SetStudentEnrollmentValidUntil(_ context.Context, id int64, _ string) error {
 	if r.closeErr != nil {
 		return r.closeErr
 	}
@@ -98,7 +109,7 @@ func (r *seriesMockEnrollmentRepo) SetValidUntilByID(_ context.Context, id int64
 	return nil
 }
 
-func (r *seriesMockEnrollmentRepo) Delete(_ context.Context, id int64) error {
+func (r *seriesMockEnrollmentRepo) DeleteStudentEnrollment(_ context.Context, id int64) error {
 	if r.deleteErr != nil {
 		return r.deleteErr
 	}
@@ -107,7 +118,7 @@ func (r *seriesMockEnrollmentRepo) Delete(_ context.Context, id int64) error {
 }
 
 type seriesMockSupervisorRepo struct {
-	ports.PlannedSupervisorRecords
+	timetable.PlannedSupervisorCapability
 	rows      []*activityContract.SupervisorPlanned
 	findErr   error
 	createErr error
@@ -118,19 +129,23 @@ type seriesMockSupervisorRepo struct {
 	deleted   []int64
 }
 
-func (r *seriesMockSupervisorRepo) FindByGroupID(context.Context, int64) ([]*activityContract.SupervisorPlanned, error) {
-	return r.rows, r.findErr
-}
-
-func (r *seriesMockSupervisorRepo) Create(_ context.Context, row *activityContract.SupervisorPlanned) error {
-	if r.createErr != nil {
-		return r.createErr
+func (r *seriesMockSupervisorRepo) ListPlannedSupervisors(context.Context, timetable.PlannedSupervisorFilter) ([]timetable.PlannedSupervisor, error) {
+	if r.findErr != nil {
+		return nil, r.findErr
 	}
-	r.created = append(r.created, row)
-	return nil
+	return fakeSupervisors(r.rows), nil
 }
 
-func (r *seriesMockSupervisorRepo) SetValidUntilByID(_ context.Context, id int64, _ activityContract.Date) error {
+func (r *seriesMockSupervisorRepo) CreatePlannedSupervisor(_ context.Context, input timetable.PlannedSupervisorInput) (timetable.PlannedSupervisor, error) {
+	if r.createErr != nil {
+		return timetable.PlannedSupervisor{}, r.createErr
+	}
+	row := fakeSupervisorRow(input)
+	r.created = append(r.created, row)
+	return fakeSupervisors([]*activityContract.SupervisorPlanned{row})[0], nil
+}
+
+func (r *seriesMockSupervisorRepo) SetPlannedSupervisorValidUntil(_ context.Context, id int64, _ string) error {
 	if r.closeErr != nil {
 		return r.closeErr
 	}
@@ -138,7 +153,7 @@ func (r *seriesMockSupervisorRepo) SetValidUntilByID(_ context.Context, id int64
 	return nil
 }
 
-func (r *seriesMockSupervisorRepo) Delete(_ context.Context, id int64) error {
+func (r *seriesMockSupervisorRepo) DeletePlannedSupervisor(_ context.Context, id int64) error {
 	if r.deleteErr != nil {
 		return r.deleteErr
 	}
@@ -172,6 +187,7 @@ func seriesMockChain(
 ) *TemplateService {
 	until := seriesMockUntil()
 	return NewTemplateService(TemplateServiceDependencies{
+		Directories: fakeDirectories(),
 		ActivityGroupRepo: &seriesMockGroupRepo{groups: []*activityContract.Group{
 			seriesMockGroup(seriesMockOldID), seriesMockGroup(seriesMockLivingID),
 		}},
@@ -247,6 +263,7 @@ func TestReconcileSeriesPredecessorRoster_RepositoryFailures(t *testing.T) {
 			name: "lineage lookup fails",
 			build: func() *TemplateService {
 				return NewTemplateService(TemplateServiceDependencies{
+					Directories:          fakeDirectories(),
 					ActivityGroupRepo:    &seriesMockGroupRepo{err: errSeriesMock},
 					ActivityScheduleRepo: &seriesMockScheduleRepo{},
 				})
@@ -256,6 +273,7 @@ func TestReconcileSeriesPredecessorRoster_RepositoryFailures(t *testing.T) {
 			name: "schedule lookup fails",
 			build: func() *TemplateService {
 				return NewTemplateService(TemplateServiceDependencies{
+					Directories: fakeDirectories(),
 					ActivityGroupRepo: &seriesMockGroupRepo{groups: []*activityContract.Group{
 						seriesMockGroup(seriesMockLivingID),
 					}},
@@ -419,6 +437,7 @@ func TestResolveLivingTemplateSegment_PropagatesLineageErrors(t *testing.T) {
 	t.Parallel()
 
 	svc := NewTemplateService(TemplateServiceDependencies{
+		Directories:          fakeDirectories(),
 		ActivityGroupRepo:    &seriesMockGroupRepo{err: errSeriesMock},
 		ActivityScheduleRepo: &seriesMockScheduleRepo{},
 	})

@@ -59,7 +59,7 @@ func TestNewRepositoryFactory(t *testing.T) {
 
 	// Verify activities repositories are initialized
 	t.Run("activities repositories", func(t *testing.T) {
-		assert.NotNil(t, timetable.ActivityGroup)
+		assert.NotNil(t, timetable.Timetable)
 		assert.NotNil(t, timetable.ActivityCategory)
 		assert.NotNil(t, timetable.ActivitySchedule)
 		assert.NotNil(t, timetable.ActivitySupervisor)

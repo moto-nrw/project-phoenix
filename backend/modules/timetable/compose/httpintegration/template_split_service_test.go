@@ -346,7 +346,7 @@ func TestTemplateMutations_RejectCareOfferingSeriesConflictsWithoutPersisting(t 
 		require.ErrorIs(t, err, timetable.ErrSplitInvalidInput)
 
 		assert.Nil(t, reloadSplitSchedule(t, s, s.schedule.ID).ValidUntil)
-		series, seriesErr := api.NewUnobservedTimetableRepositories(testpkg.MustDatabase(s.db)).ActivityGroup.FindTemplateSeries(s.ctx, s.template.ID)
+		series, seriesErr := findTemplateSeries(s.ctx, api.NewUnobservedTimetableRepositories(testpkg.MustDatabase(s.db)).Timetable, s.template.ID)
 		require.NoError(t, seriesErr)
 		require.Len(t, series, 1)
 		assert.Equal(t, s.template.ID, series[0].ID)
@@ -2083,7 +2083,7 @@ func TestTemplateSplit_SecondSuccessorKeepsOriginalSeriesRoot(t *testing.T) {
 	secondSuccessor := reloadSplitGroup(t, s, second.NewTemplateID)
 	require.NotNil(t, secondSuccessor.SeriesRootID)
 	assert.Equal(t, s.template.ID, *secondSuccessor.SeriesRootID)
-	series, err := api.NewUnobservedTimetableRepositories(testpkg.MustDatabase(s.db)).ActivityGroup.FindTemplateSeries(s.ctx, second.NewTemplateID)
+	series, err := findTemplateSeries(s.ctx, api.NewUnobservedTimetableRepositories(testpkg.MustDatabase(s.db)).Timetable, second.NewTemplateID)
 	require.NoError(t, err)
 	assert.Len(t, series, 3)
 }
@@ -2173,4 +2173,11 @@ func TestTemplateSplit_CarriesWochennotiz(t *testing.T) {
 		successor := reloadSplitGroup(t, s, res.NewTemplateID)
 		assert.Nil(t, successor.Notes, "explicit null must clear the successor note")
 	})
+}
+
+// findTemplateSeries lists the live segments of a template's split lineage
+// in ID order.
+func findTemplateSeries(ctx context.Context, groups timetable.ActivityGroupQuery, groupID int64) ([]timetable.Group, error) {
+	isTemplate := true
+	return groups.ListGroups(ctx, timetable.GroupFilter{IsTemplate: &isTemplate, ActiveOnly: true, SeriesForGroupID: &groupID, OrderByID: true})
 }

@@ -1,8 +1,8 @@
-package activityrecords
+package application
 
 import "testing"
 
-func TestTemplateListRowParseSourceGradeLevels(t *testing.T) {
+func TestDecodeTemplateSourceGradeLevels(t *testing.T) {
 	t.Parallel()
 
 	tests := []struct {
@@ -19,7 +19,7 @@ func TestTemplateListRowParseSourceGradeLevels(t *testing.T) {
 
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
-			levels, err := TemplateListRow{SourceGradeLevelsJSON: tc.raw}.ParseSourceGradeLevels()
+			levels, err := decodeTemplateSource[int](tc.raw)
 			if tc.wantErr {
 				if err == nil {
 					t.Fatal("expected a parse error")
@@ -41,7 +41,7 @@ func TestTemplateListRowParseSourceGradeLevels(t *testing.T) {
 	}
 }
 
-func TestTemplateListRowParseSourceCareOfferingIDs(t *testing.T) {
+func TestDecodeTemplateSourceCareOfferingIDs(t *testing.T) {
 	t.Parallel()
 
 	tests := []struct {
@@ -58,7 +58,7 @@ func TestTemplateListRowParseSourceCareOfferingIDs(t *testing.T) {
 
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
-			ids, err := TemplateListRow{SourceCareOfferingIDsJSON: tc.raw}.ParseSourceCareOfferingIDs()
+			ids, err := decodeTemplateSource[int64](tc.raw)
 			if tc.wantErr {
 				if err == nil {
 					t.Fatal("expected a parse error")
@@ -80,7 +80,7 @@ func TestTemplateListRowParseSourceCareOfferingIDs(t *testing.T) {
 	}
 }
 
-func TestTemplateListRowParseSourceSchoolClasses(t *testing.T) {
+func TestDecodeTemplateSourceSchoolClasses(t *testing.T) {
 	t.Parallel()
 
 	tests := []struct {
@@ -97,7 +97,7 @@ func TestTemplateListRowParseSourceSchoolClasses(t *testing.T) {
 
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
-			classes, err := TemplateListRow{SourceSchoolClassesJSON: tc.raw}.ParseSourceSchoolClasses()
+			classes, err := decodeTemplateSource[string](tc.raw)
 			if tc.wantErr {
 				if err == nil {
 					t.Fatal("expected a parse error")

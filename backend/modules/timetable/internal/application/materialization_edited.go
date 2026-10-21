@@ -90,7 +90,7 @@ func (s *materializationService) DetectEditedInWindow(
 // not visible to this tenant (or deleted) yields nil: there is nothing to
 // compare against, so no edits are reported rather than blocking the caller.
 func (s *materializationService) loadDetectionTemplate(ctx context.Context, templateID int64) (*activityContract.Group, error) {
-	tmpl, err := s.groupRepo.FindByID(ctx, templateID)
+	tmpl, err := findLegacyGroup(ctx, s.groupRepo, templateID)
 	if err != nil {
 		if domain.IsRecordNotFound(err) {
 			return nil, nil

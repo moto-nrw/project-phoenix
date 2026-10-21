@@ -1,20 +1,5 @@
 package activityrecords
 
-type NullInt64 struct {
-	Int64 int64
-	Valid bool
-}
-
-type NullInt16 struct {
-	Int16 int16
-	Valid bool
-}
-
-type NullString struct {
-	String string
-	Valid  bool
-}
-
 type DatabaseError struct {
 	Op  string
 	Err error

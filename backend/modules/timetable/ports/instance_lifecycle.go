@@ -7,7 +7,6 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
 	"github.com/moto-nrw/project-phoenix/modules/timetable"
-	activityContract "github.com/moto-nrw/project-phoenix/modules/timetable/activitycontract"
 )
 
 // LifecyclePresence is the Student Presence slice the transitions read and
@@ -87,7 +86,7 @@ type InstanceLifecycleDependencies struct {
 	ExceptionRepo       timetable.ActivityExceptionCapability
 	CalendarPeriodRepo  CalendarPeriodRecords
 	RecoveryRepo        ActivityRecoveryRecords
-	ActivityGroupRepo   LifecycleActivityGroups
+	ActivityGroupRepo   timetable.ActivityGroupQuery
 	StaffRepo           LifecycleStaff
 	StudentRepo         LifecycleStudents
 	ActiveGroupRepo     studentpresence.SessionRecords
@@ -112,10 +111,4 @@ type InstanceLifecycleDependencies struct {
 	Logger            *slog.Logger
 	Now               func() time.Time
 	EnforceTimePolicy bool
-}
-
-// LifecycleActivityGroups resolves the templates whose sessions are being started.
-type LifecycleActivityGroups interface {
-	FindByID(context.Context, int64) (*activityContract.Group, error)
-	FindByIDs(context.Context, []int64) ([]*activityContract.Group, error)
 }

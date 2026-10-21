@@ -172,7 +172,7 @@ func TestCourseCatalogQueryBudget(t *testing.T) {
 	fx := setupOfferingChangeFixture(t, env, "CourseCatalogBudget")
 	group := repositoryActivityGroup(t, ctx, env, "CourseCatalogBudget")
 	group.Type = timetable.GroupTypeActivity
-	require.NoError(t, timetableCompose.NativeGroupRecords(env.timetable.ActivityGroup).Update(ctx, group))
+	require.NoError(t, timetableCompose.NativeGroupRecords(env.timetable.Timetable).Update(ctx, group))
 	zero := 0
 	course := createAdjustmentCareOfferingWith(t, env, "Kurs CourseCatalogBudget", func(o *offeringContract.CareOfferingRecord) {
 		o.ActivityGroupID = &group.ID
@@ -1237,25 +1237,25 @@ func TestOfferingChangeRequestService_PreviewDecision_ReportsOnlyUncoveredManual
 	manualGroup.Type = timetable.GroupTypeCare
 	manualGroup.IsTemplate = true
 	manualGroup.TargetGroupType = timetable.TargetGroupTypeOffering
-	require.NoError(t, timetableCompose.NativeGroupRecords(env.timetable.ActivityGroup).Update(ctx, manualGroup))
+	require.NoError(t, timetableCompose.NativeGroupRecords(env.timetable.Timetable).Update(ctx, manualGroup))
 
 	sourcedGroup := repositoryActivityGroup(t, ctx, env, "OfferingPlanningPreview")
 	sourcedGroup.Type = timetable.GroupTypeCare
 	sourcedGroup.IsTemplate = true
 	sourcedGroup.TargetGroupType = timetable.TargetGroupTypeOffering
 	sourcedGroup.SourceCareOfferingIDs = []int64{fx.newOffering.ID}
-	require.NoError(t, timetableCompose.NativeGroupRecords(env.timetable.ActivityGroup).Update(ctx, sourcedGroup))
+	require.NoError(t, timetableCompose.NativeGroupRecords(env.timetable.Timetable).Update(ctx, sourcedGroup))
 
-	legacySourcedGroup, err := timetableCompose.NativeGroupRecords(env.timetable.ActivityGroup).FindByID(ctx, fx.oldGroupID)
+	legacySourcedGroup, err := timetableCompose.NativeGroupRecords(env.timetable.Timetable).FindByID(ctx, fx.oldGroupID)
 	require.NoError(t, err)
 	legacySourcedGroup.Type = timetable.GroupTypeCare
 	legacySourcedGroup.IsTemplate = true
 	legacySourcedGroup.TargetGroupType = timetable.TargetGroupTypeNone
-	require.NoError(t, timetableCompose.NativeGroupRecords(env.timetable.ActivityGroup).Update(ctx, legacySourcedGroup))
+	require.NoError(t, timetableCompose.NativeGroupRecords(env.timetable.Timetable).Update(ctx, legacySourcedGroup))
 	parentChoiceGroup := repositoryActivityGroup(t, ctx, env, "EmptyParentChoicePlanning")
 	parentChoiceGroup.Type = timetable.GroupTypeCare
 	parentChoiceGroup.IsTemplate = true
-	require.NoError(t, timetableCompose.NativeGroupRecords(env.timetable.ActivityGroup).Update(ctx, parentChoiceGroup))
+	require.NoError(t, timetableCompose.NativeGroupRecords(env.timetable.Timetable).Update(ctx, parentChoiceGroup))
 	parentChoiceOffering := createAdjustmentCareOfferingWith(t, env, "Leere Tagesauswahl", func(o *offeringContract.CareOfferingRecord) {
 		o.ActivityGroupID = &parentChoiceGroup.ID
 		o.CountsAsCare, o.CountsAsCareSet = true, true
@@ -1376,7 +1376,7 @@ func TestOfferingChangeRequestService_PreviewDecision_ReportsManualPlanningForFu
 
 	manualGroup := repositoryActivityGroup(t, ctx, env, "ManualFullWithdrawal")
 	manualGroup.Type, manualGroup.IsTemplate = timetable.GroupTypeCare, true
-	require.NoError(t, timetableCompose.NativeGroupRecords(env.timetable.ActivityGroup).Update(ctx, manualGroup))
+	require.NoError(t, timetableCompose.NativeGroupRecords(env.timetable.Timetable).Update(ctx, manualGroup))
 	period := testpkg.CreateTestCalendarPeriod(
 		t, env.db, "Manual full withdrawal "+t.Name(), calendar.Date(env.sourcePhase.ServiceStartDate), calendar.Date(env.sourcePhase.ServiceEndDate),
 	)
@@ -1511,7 +1511,7 @@ func offeringChangePayload(t *testing.T, row *careplan.OfferingChangeRequest) ma
 // owner row the activity repository updates.
 func repositoryActivityGroup(t *testing.T, ctx context.Context, env *decisionTestEnv, name string) *timetable.Group {
 	t.Helper()
-	group, err := timetableCompose.NativeGroupRecords(env.timetable.ActivityGroup).FindByID(ctx, testpkg.CreateTestActivityGroup(t, env.db, name).ID)
+	group, err := timetableCompose.NativeGroupRecords(env.timetable.Timetable).FindByID(ctx, testpkg.CreateTestActivityGroup(t, env.db, name).ID)
 	require.NoError(t, err)
 	return group
 }

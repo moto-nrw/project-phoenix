@@ -77,7 +77,7 @@ func (s *TemplateService) loadInstanceStaffReconciliation(
 	instanceIDs []int64,
 	priorSupervisors []*activityContract.SupervisorPlanned,
 ) (*instanceStaffReconciliation, error) {
-	supervisors, err := s.deps.ActivitySupervisorRepo.FindByGroupID(ctx, templateID)
+	supervisors, err := groupPlannedSupervisors(ctx, s.deps.ActivitySupervisorRepo, s.deps.Directories, templateID)
 	if err != nil {
 		return nil, &ports.ScheduleError{Op: "reconcile predecessor staff: load supervisors", Err: err}
 	}

@@ -520,16 +520,29 @@ func TestIsoWeekday(t *testing.T) {
 }
 
 type materializationFakeGroupRepo struct {
-	ports.ActivityGroupRecords
+	timetable.ActivityGroupQuery
 	templates []*activityContract.Group
 	err       error
 }
 
-func (r materializationFakeGroupRepo) FindAllTemplates(context.Context) ([]*activityContract.Group, error) {
+func (r materializationFakeGroupRepo) ListGroups(context.Context, timetable.GroupFilter) ([]timetable.Group, error) {
 	if r.err != nil {
 		return nil, r.err
 	}
-	return r.templates, nil
+	return fakeCatalogGroups(r.templates), nil
+}
+
+// ListTargetStudentIDs reports no dynamic targets.
+func (r materializationFakeGroupRepo) ListTargetStudentIDs(context.Context, []int64) (map[int64][]int64, error) {
+	return map[int64][]int64{}, nil
+}
+
+func fakeCatalogGroups(rows []*activityContract.Group) []timetable.Group {
+	groups := make([]timetable.Group, 0, len(rows))
+	for _, row := range rows {
+		groups = append(groups, CatalogGroup(row))
+	}
+	return groups
 }
 
 type materializationFakeScheduleRepo struct {
@@ -546,11 +559,11 @@ func (r materializationFakeScheduleRepo) ListSchedules(context.Context, timetabl
 }
 
 type materializationFakeEnrollmentRepo struct {
-	ports.ActivityEnrollmentRecords
+	timetable.StudentEnrollmentQuery
 	err error
 }
 
-func (r materializationFakeEnrollmentRepo) FindByGroupID(context.Context, int64) ([]*activityContract.StudentEnrollment, error) {
+func (r materializationFakeEnrollmentRepo) ListStudentEnrollments(context.Context, timetable.StudentEnrollmentFilter) ([]timetable.StudentEnrollment, error) {
 	if r.err != nil {
 		return nil, r.err
 	}
@@ -558,11 +571,11 @@ func (r materializationFakeEnrollmentRepo) FindByGroupID(context.Context, int64)
 }
 
 type materializationFakeSupervisorRepo struct {
-	ports.PlannedSupervisorRecords
+	timetable.PlannedSupervisorQuery
 	err error
 }
 
-func (r materializationFakeSupervisorRepo) FindByGroupID(context.Context, int64) ([]*activityContract.SupervisorPlanned, error) {
+func (r materializationFakeSupervisorRepo) ListPlannedSupervisors(context.Context, timetable.PlannedSupervisorFilter) ([]timetable.PlannedSupervisor, error) {
 	if r.err != nil {
 		return nil, r.err
 	}
@@ -1189,10 +1202,10 @@ func TestScheduleNotStartedOn(t *testing.T) {
 // newMaterializationForTest composes the materialization over fakes;
 // transactions and staffing may be nil.
 func newMaterializationForTest(
-	groupRepo ports.ActivityGroupRecords,
+	groupRepo timetable.ActivityGroupQuery,
 	scheduleRepo timetable.ScheduleQuery,
-	enrollmentRepo ports.ActivityEnrollmentRecords,
-	supervisorRepo ports.PlannedSupervisorRecords,
+	enrollmentRepo timetable.StudentEnrollmentQuery,
+	supervisorRepo timetable.PlannedSupervisorQuery,
 	periodRepo ports.CalendarPeriodRecords,
 	instanceRepo ports.ActivityInstanceRecords,
 	staffRepo ports.InstanceStaffRecords,
@@ -1208,6 +1221,7 @@ func newMaterializationForTest(
 		ScheduleRepo:   scheduleRepo,
 		EnrollmentRepo: enrollmentRepo,
 		SupervisorRepo: supervisorRepo,
+		Directories:    fakeDirectories(),
 		PeriodRepo:     periodRepo,
 		InstanceRepo:   instanceRepo,
 		StaffRepo:      staffRepo,

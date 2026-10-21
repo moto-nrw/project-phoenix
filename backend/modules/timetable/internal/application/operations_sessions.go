@@ -167,11 +167,11 @@ func templateBackedBlocks(instances []*scheduleModels.ActivityInstance) ([]*sche
 // templatesAddressingClass reads the templates and their targets and keeps
 // the ones that name the normalized class.
 func (s *operations) templatesAddressingClass(ctx context.Context, groupIDs []int64, key string) (map[int64]bool, error) {
-	groups, err := s.deps.Templates.FindByIDs(ctx, groupIDs)
+	groups, err := legacyGroupsByID(ctx, s.deps.Templates, groupIDs)
 	if err != nil {
 		return nil, fmt.Errorf("earliest block start: load templates: %w", err)
 	}
-	targetsByGroup, err := s.deps.Templates.FindTargetsByGroupIDs(ctx, groupIDs)
+	targetsByGroup, err := legacyGroupTargets(ctx, s.deps.Templates, groupIDs)
 	if err != nil {
 		return nil, fmt.Errorf("earliest block start: load template targets: %w", err)
 	}

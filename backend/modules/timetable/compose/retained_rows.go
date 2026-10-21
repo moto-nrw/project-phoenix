@@ -56,8 +56,8 @@ func NewActivityCategorySeeder(categories timetable.CategoryCommand) application
 }
 
 // NewCallerActivityGroups reads the activity groups a caller supervises.
-func NewCallerActivityGroups(groups ports.ActivityGroupRecords) ports.CallerActivityGroups {
-	return application.NewCallerActivityGroups(groups)
+func NewCallerActivityGroups(owner timetable.Query) ports.CallerActivityGroups {
+	return application.NewCallerActivityGroups(owner)
 }
 
 // NewCareArrivalScheduleRows serves the arrival schedules from Care Plan.
@@ -111,7 +111,7 @@ func NewTimetableCleanup(deps ports.TimetableCleanupDependencies) (timetable.Tim
 }
 
 // NewTimetableGroupReads reads the activity groups.
-func NewTimetableGroupReads(groups ports.ActivityGroupRecords) application.TimetableGroupReads {
+func NewTimetableGroupReads(groups timetable.ActivityGroupQuery) application.TimetableGroupReads {
 	return application.NewTimetableGroupReads(groups)
 }
 

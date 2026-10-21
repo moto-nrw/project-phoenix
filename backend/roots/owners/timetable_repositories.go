@@ -44,7 +44,7 @@ func NewTimetableRepositoriesWithPresence(
 ) timetableCompose.Repositories {
 	return timetableCompose.NewRepositories(timetableCompose.RepositoryDependencies{
 		DB: db.Pool(), Timetable: capability, Presence: presence, PartialAbsences: NewPartialAbsencePreview(db),
-		Calendar: calendar, Directories: timetableDirectories(students, groups, rooms, membership, workTime),
+		Directories: timetableDirectories(students, groups, rooms, calendar, membership, workTime),
 	}, MustPresenceReads(db))
 }
 
@@ -64,7 +64,7 @@ func NewUnobservedTimetable(db transactionruntime.Database, students peopledirec
 // so the adapter reports it instead of reading a foreign table.
 func timetableDirectories(
 	students peopledirectory.Capability, groups schoolstructure.Query, rooms facilities.Query,
-	membership schoolmembership.Capability, workTime workforce.Capability,
+	calendar schoolcalendar.Query, membership schoolmembership.Capability, workTime workforce.Capability,
 ) timetablePorts.RepositoryDirectories {
 	var directories timetablePorts.RepositoryDirectories
 	if groups != nil {
@@ -74,6 +74,9 @@ func timetableDirectories(
 	}
 	if rooms != nil {
 		directories.RoomNames = timetableRoomDirectory(rooms)
+	}
+	if calendar != nil {
+		directories.ActivePeriods = timetableActivePeriods(calendar)
 	}
 	if workTime != nil {
 		directories.ShiftTypes = timetableShiftTypes(workTime)
@@ -99,6 +102,24 @@ func timetableRoomDirectory(rooms facilities.Query) func(context.Context, []int6
 			names[room.ID] = room.Name
 		}
 		return names, nil
+	}
+}
+
+func timetableActivePeriods(calendar schoolcalendar.Query) func(context.Context) ([]timetable.TemplateCapacityPeriod, error) {
+	return func(ctx context.Context) ([]timetable.TemplateCapacityPeriod, error) {
+		periods, err := calendar.ListCalendarPeriods(ctx, schoolcalendar.CalendarPeriodFilter{ActiveOnly: true})
+		if err != nil {
+			return nil, err
+		}
+		result := make([]timetable.TemplateCapacityPeriod, 0, len(periods))
+		for _, period := range periods {
+			result = append(result, timetable.TemplateCapacityPeriod{
+				ID: period.ID, TenantID: period.TenantID, StartDate: period.StartDate,
+				EndDate: period.EndDate, WeekCycleLength: period.WeekCycleLength,
+				WeekCycleAnchor: period.WeekCycleAnchor,
+			})
+		}
+		return result, nil
 	}
 }
 

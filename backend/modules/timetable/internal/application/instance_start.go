@@ -336,7 +336,7 @@ func (s *InstanceLifecycleService) systemActivitiesByID(ctx context.Context, gro
 	if len(ids) == 0 || s.deps.ActivityGroupRepo == nil {
 		return result, nil
 	}
-	activities, err := s.deps.ActivityGroupRepo.FindByIDs(ctx, ids)
+	activities, err := legacyGroupsByID(ctx, s.deps.ActivityGroupRepo, ids)
 	if err != nil {
 		return nil, err
 	}
