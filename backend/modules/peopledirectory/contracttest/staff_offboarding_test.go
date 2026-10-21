@@ -206,7 +206,7 @@ func TestOffboardStaff_CleanupIntentFailureRestoresAccessAndAllOwnerWrites(t *te
 	require.NoError(t, err)
 	_, err = sc.rows.StaffShift.FindByID(sc.ctx, shift.ID)
 	require.NoError(t, err)
-	_, err = sc.timetable.InstanceStaff.FindByID(sc.ctx, assignment.ID)
+	_, err = sc.timetable.InstanceStaff.FindInstanceStaff(sc.ctx, assignment.ID)
 	require.NoError(t, err)
 	person, err := testpkg.TenantQuery1(t, sc.ctx, testpkg.SetupTestDB(t), sc.reposPeople.Person.FindByID, any(staff.PersonID))
 	require.NoError(t, err)
@@ -297,12 +297,12 @@ func assertConcurrentPlanningRejected(t *testing.T, operation string) {
 	case <-ctx.Done():
 		t.Fatal("assignment writer did not finish")
 	}
-	rows, err := sc.timetable.InstanceStaff.FindByInstanceID(ctx, instance.ID)
+	rows, err := sc.timetable.InstanceStaffReads().FindByInstanceID(ctx, instance.ID)
 	require.NoError(t, err)
 	if operation == "move_history" {
 		require.Len(t, rows, 1, "the historical assignment is retained")
 		require.NoError(t, tenant.WithinCurrentTenant(ctx, func(ctx context.Context) error {
-			persisted, err := sc.timetable.ActivityInstance.FindByID(ctx, instance.ID)
+			persisted, err := sc.timetable.NativeInstances().FindByID(ctx, instance.ID)
 			require.NoError(t, err)
 			require.Equal(t, date.String(), persisted.Date.String(), "history cannot be moved back into an operational assignment")
 			return err

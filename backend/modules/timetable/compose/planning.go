@@ -35,7 +35,7 @@ func NewLifecycleSchedulers(rows OwnerRows, lifecycle timetable.InstanceLifecycl
 	if err != nil {
 		return nil, nil, err
 	}
-	autoEnd, err := NewInstanceAutoEnd(rows.Instances, lifecycle)
+	autoEnd, err := NewInstanceAutoEnd(rows.Instances.Reads, lifecycle)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -46,6 +46,6 @@ func NewLifecycleSchedulers(rows OwnerRows, lifecycle timetable.InstanceLifecycl
 // advisories the instance lifecycle's staff move asks for over rows.
 func NewSubstituteConflictsOverRows(rows OwnerRows) (timetable.SubstituteConflictQuery, error) {
 	return application.NewSubstituteConflicts(application.SubstituteConflictDependencies{
-		Instances: rows.Instances, InstanceStaff: rows.InstanceStaff,
+		Instances: rows.Instances.Reads, InstanceStaff: rows.InstanceStaff,
 	})
 }

@@ -60,7 +60,7 @@ func (s *InstanceLifecycleService) replanWeekLocked(ctx context.Context, tenantI
 	// Legacy weekend occurrences are deleted too: the materialization no
 	// longer recreates them.
 	fromDate, toDate := calendar.Date(from), calendar.Date(to)
-	deleted, err := s.deps.InstanceRepo.DeletePlannedNonSpontaneousInWindow(ctx, fromDate, &toDate, activityGroupID, false)
+	deleted, err := deletePlannedInstancesInWindow(ctx, s.deps.InstanceRepo.Plans, fromDate, &toDate, activityGroupID, false)
 	if err != nil {
 		return nil, &ports.ScheduleError{Op: "replan week: delete planned", Err: err}
 	}
@@ -131,7 +131,7 @@ type groupDay struct {
 // counts ALL of them per (group, date), overridden or not: that original
 // cardinality is what tells a moved sole occurrence from a multi-slot day.
 func (s *InstanceLifecycleService) snapshotDeviations(ctx context.Context, from, to calendar.Date, activityGroupID *int64) ([]deviationSnapshot, map[groupDay]int, error) {
-	instances, err := s.deps.InstanceRepo.FindByTenantAndDateRange(ctx, calendar.Date(from), calendar.Date(to))
+	instances, err := instancesBetween(ctx, s.deps.InstanceRepo.Reads, calendar.Date(from), calendar.Date(to))
 	if err != nil {
 		return nil, nil, err
 	}
@@ -150,7 +150,7 @@ func (s *InstanceLifecycleService) snapshotDeviations(ctx context.Context, from,
 		occurrences[groupDay{*inst.ActivityGroupID, calendar.Date(inst.Date)}]++
 		eligible = append(eligible, inst)
 	}
-	staffRows, err := s.deps.InstanceStaffRepo.FindByInstanceIDs(ctx, instanceRowIDs(eligible))
+	staffRows, err := staffOfInstances(ctx, s.deps.InstanceStaffRepo, instanceRowIDs(eligible))
 	if err != nil {
 		return nil, nil, err
 	}
@@ -219,7 +219,7 @@ func (s *InstanceLifecycleService) reapplyDeviations(
 			matched = append(matched, instance)
 		}
 	}
-	staffRows, err := s.deps.InstanceStaffRepo.FindByInstanceIDs(ctx, instanceRowIDs(matched))
+	staffRows, err := staffOfInstances(ctx, s.deps.InstanceStaffRepo, instanceRowIDs(matched))
 	if err != nil {
 		return 0, err
 	}
@@ -248,7 +248,7 @@ func (s *InstanceLifecycleService) reapplySnapshot(ctx context.Context, snap dev
 	// Column-scoped: a full-row update does not round-trip TIME columns.
 	if snap.requiredStaff != nil {
 		inst.RequiredStaff = snap.requiredStaff
-		if _, err := s.deps.InstanceRepo.UpdateColumns(ctx, inst, "required_staff"); err != nil {
+		if _, err := updateLegacyInstanceColumns(ctx, s.deps.InstanceRepo, inst, "required_staff"); err != nil {
 			return err
 		}
 	}
@@ -286,7 +286,7 @@ func (s *InstanceLifecycleService) reapplyAbsences(ctx context.Context, absences
 		}
 		row.IsAbsent = true
 		row.AbsenceReason = ab.reason
-		if err := s.deps.InstanceStaffRepo.Update(ctx, row); err != nil {
+		if err := updateLegacyInstanceStaff(ctx, s.deps.InstanceStaffRepo, row); err != nil {
 			return reapplied, err
 		}
 		reapplied++
@@ -325,7 +325,7 @@ func (s *InstanceLifecycleService) recreateSubstitutes(
 			IsAbsent:      sub.isAbsent,
 			AbsenceReason: sub.reason,
 		}
-		if err := s.deps.InstanceStaffRepo.Create(ctx, newRow); err != nil {
+		if err := createLegacyInstanceStaff(ctx, s.deps.InstanceStaffRepo, newRow); err != nil {
 			return err
 		}
 		byStaff[sub.staffID] = newRow

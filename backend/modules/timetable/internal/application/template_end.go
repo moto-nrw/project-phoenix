@@ -112,7 +112,7 @@ func (s *TemplateSplitService) deleteEndedInstances(
 	templateID int64,
 	effectiveDate, requestedFrom calendar.Date,
 ) (int64, error) {
-	deleted, err := s.deps.InstanceRepo.DeletePlannedNonSpontaneousInWindow(ctx, calendar.Date(effectiveDate), nil, &templateID, false)
+	deleted, err := deletePlannedInstancesInWindow(ctx, s.deps.InstanceRepo.Plans, calendar.Date(effectiveDate), nil, &templateID, false)
 	if err != nil {
 		return 0, &ports.ScheduleError{Op: "end template: delete planned instances", Err: err}
 	}
@@ -245,7 +245,7 @@ func (s *TemplateSplitService) endCascadedSegment(
 		)
 	}
 	segmentID := seg.Group.ID
-	n, err := s.deps.InstanceRepo.DeletePlannedNonSpontaneousInWindow(ctx, calendar.Date(capAt), nil, &segmentID, false)
+	n, err := deletePlannedInstancesInWindow(ctx, s.deps.InstanceRepo.Plans, calendar.Date(capAt), nil, &segmentID, false)
 	if err != nil {
 		return 0, &ports.ScheduleError{Op: "end template: delete cascaded segment planned instances", Err: err}
 	}

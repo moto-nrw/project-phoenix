@@ -150,7 +150,7 @@ func (s *InstanceLifecycleService) deleteInstance(ctx context.Context, instanceI
 			return err
 		}
 	}
-	if err := s.deps.InstanceRepo.Delete(ctx, instance.ID); err != nil {
+	if err := deleteLegacyInstance(ctx, s.deps.InstanceRepo.Plans, instance.ID); err != nil {
 		return &ports.ScheduleError{Op: "delete instance", Err: err}
 	}
 	s.getLogger().Info("instance deleted",
@@ -167,7 +167,7 @@ func (s *InstanceLifecycleService) deleteInstance(ctx context.Context, instanceI
 // several materialized slots that date: the cancellation exception is
 // date-wide and would consume all of them.
 func (s *InstanceLifecycleService) rejectAmbiguousTemplateDelete(ctx context.Context, activityGroupID int64, date calendar.Date) error {
-	rows, err := s.deps.InstanceRepo.FindByActivityGroupAndDate(ctx, activityGroupID, calendar.Date(date))
+	rows, err := groupInstancesOn(ctx, s.deps.InstanceRepo.Reads, activityGroupID, calendar.Date(date))
 	if err != nil {
 		return &ports.ScheduleError{Op: "delete instance: check same-day template slots", Err: err}
 	}

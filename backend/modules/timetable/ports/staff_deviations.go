@@ -86,8 +86,8 @@ type DeviationStaff interface {
 // StaffDeviationDependencies wires the deviation writes. Every field but
 // Logger and Now is required.
 type StaffDeviationDependencies struct {
-	Instances       ActivityInstanceRecords
-	InstanceStaff   InstanceStaffRecords
+	Instances       InstanceRows
+	InstanceStaff   timetable.InstanceStaffCapability
 	Staff           DeviationStaff
 	Supervisions    studentpresence.SupervisionRecords
 	Lifecycle       DeviationLifecycle

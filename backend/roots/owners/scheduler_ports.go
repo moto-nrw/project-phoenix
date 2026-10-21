@@ -98,9 +98,9 @@ func schedulerBookingConsistency(db transactionruntime.Database, persons peopled
 // schedulerDayInstances binds the overdue tick to the day's activity
 // instances with their composed status.
 func schedulerDayInstances(timetableRepositories timetableCompose.Repositories) schedulerPorts.DayInstanceReader {
-	instances := timetableRepositories.ActivityInstance
+	instances := timetableCompose.NewTimetableInstanceReads(timetableRepositories.ActivityInstance.Reads)
 	return func(ctx context.Context, day calendar.Date) ([]schedulerPorts.DayInstance, error) {
-		rows, err := instances.FindByTenantAndDate(ctx, timetableCompose.ActivityInstanceDate(day))
+		rows, err := instances.FindByTenantAndDateRange(ctx, day, day)
 		if err != nil {
 			return nil, err
 		}
@@ -111,7 +111,7 @@ func schedulerDayInstances(timetableRepositories timetableCompose.Repositories) 
 			}
 			dayInstances = append(dayInstances, schedulerPorts.DayInstance{
 				ID:        row.ID,
-				Date:      calendar.Date(row.Date),
+				Date:      row.Date,
 				StartTime: row.StartTime,
 				RoomID:    row.RoomID,
 				Planned:   timetable.IsPlannedInstanceStatus(row.Status),

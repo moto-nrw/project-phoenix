@@ -177,7 +177,7 @@ func (s *operations) moveStudentFromOtherSession(ctx context.Context, staffID in
 // block's title, else the session's activity name, else its room. Purely
 // cosmetic — every failure degrades to an empty label.
 func (s *operations) resolveActiveGroupLabel(ctx context.Context, activeGroupID int64) string {
-	if inst, err := s.deps.Instances.FindByActiveGroupID(ctx, activeGroupID); err == nil && inst != nil {
+	if inst, err := sessionInstance(ctx, s.deps.Instances, activeGroupID); err == nil && inst != nil {
 		return inst.Title
 	}
 	group, err := s.deps.Sessions.FindSession(ctx, activeGroupID)

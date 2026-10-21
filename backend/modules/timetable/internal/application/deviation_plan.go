@@ -94,16 +94,16 @@ func (s *staffDeviations) loadDeviationReadSet(
 	if err != nil {
 		return nil, timetable.DeviationInternal("load staff failed", err)
 	}
-	rows, err := s.deps.InstanceStaff.FindByStaffIDsAndDate(ctx, staffIDs, calendar.Date(date))
+	rows, err := assignmentsOfStaffMembersOn(ctx, s.deps.InstanceStaff, staffIDs, calendar.Date(date))
 	if err != nil {
 		return nil, timetable.DeviationInternal("load staff assignments failed", err)
 	}
 	instanceIDs := deviationInputInstanceIDs(instanceID, in, rows)
-	instances, err := s.deps.Instances.FindByIDs(ctx, instanceIDs)
+	instances, err := instancesByID(ctx, s.deps.Instances.Reads, instanceIDs)
 	if err != nil {
 		return nil, timetable.DeviationInternal("load target instances failed", err)
 	}
-	allRows, err := s.deps.InstanceStaff.FindByInstanceIDs(ctx, instanceIDs)
+	allRows, err := staffOfInstances(ctx, s.deps.InstanceStaff, instanceIDs)
 	if err != nil {
 		return nil, timetable.DeviationInternal("load instance staff failed", err)
 	}

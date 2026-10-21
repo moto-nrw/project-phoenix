@@ -16,13 +16,13 @@ import (
 )
 
 type instanceAutoEnd struct {
-	instances  ports.ActivityInstanceRecords
+	instances  ports.LegacyInstanceReads
 	completion timetable.InstanceLifecycle
 }
 
 // NewInstanceAutoEnd composes the tenant-scoped automatic completion, which
 // completes through the lifecycle the manual completion uses.
-func NewInstanceAutoEnd(instances ports.ActivityInstanceRecords, completion timetable.InstanceLifecycle) (timetable.InstanceAutoEnd, error) {
+func NewInstanceAutoEnd(instances ports.LegacyInstanceReads, completion timetable.InstanceLifecycle) (timetable.InstanceAutoEnd, error) {
 	if instances == nil || completion == nil {
 		return nil, errors.New("timetable auto-end: instances and lifecycle are required")
 	}
@@ -38,7 +38,7 @@ func (s *instanceAutoEnd) RunForTenant(ctx context.Context, now time.Time, grace
 	defer func() {
 		result.DurationMS = time.Since(startedAt).Milliseconds()
 	}()
-	instances, err := listInstances(ctx, s.instances, ports.LegacyInstanceFilter{Status: scheduleModel.InstanceStatusActive})
+	instances, err := listLegacyInstances(ctx, s.instances, ports.LegacyInstanceFilter{Status: scheduleModel.InstanceStatusActive}, "list with options")
 	if err != nil {
 		return result, fmt.Errorf("load active activity instances: %w", err)
 	}
@@ -90,7 +90,7 @@ func (s *instanceAutoEnd) classifyCompletionFailure(ctx context.Context, instanc
 		return nil
 	}
 	if errors.Is(err, timetable.ErrInvalidInstanceTransition) {
-		current, findErr := s.instances.FindByID(ctx, instanceID)
+		current, findErr := findLegacyInstance(ctx, s.instances, instanceID)
 		if findErr != nil {
 			if domain.IsRecordNotFound(findErr) {
 				result.SkippedConcurrent++

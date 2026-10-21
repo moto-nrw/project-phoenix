@@ -29,7 +29,7 @@ func NewTimetableData(
 	conflictAcks timetable.ConflictAckCapability, blockMetadata timetablePorts.BlockDisplayMetadata, transactional bool, logger *slog.Logger,
 ) (timetable.TimetableDataCapability, error) {
 	return timetableCompose.NewTimetableData(timetablePorts.TimetableDataDependencies{
-		Instances:         rows.Instances,
+		Instances:         rows.Instances.Reads,
 		InstanceStaff:     rows.InstanceStaff,
 		Participants:      rows.Participants,
 		PickupExceptions:  rows.PickupExceptions,

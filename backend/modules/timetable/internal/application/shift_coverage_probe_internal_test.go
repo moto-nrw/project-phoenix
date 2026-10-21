@@ -208,20 +208,21 @@ func (f *fakeInstanceReader) FindByActivityGroupAndDateRange(_ context.Context, 
 }
 
 type fakeInstanceStaffReader struct {
+	timetable.InstanceStaffQuery
 	rows  []*scheduleModel.InstanceStaff
 	err   error
 	calls int
 	ids   []int64
 }
 
-func (f *fakeInstanceStaffReader) FindByInstanceID(context.Context, int64) ([]*scheduleModel.InstanceStaff, error) {
-	return nil, errors.New("not used by the shift-coverage probe")
-}
-
-func (f *fakeInstanceStaffReader) FindByInstanceIDs(_ context.Context, ids []int64) ([]*scheduleModel.InstanceStaff, error) {
+// ListInstanceStaff serves the probe's batched read of the instances' staff.
+func (f *fakeInstanceStaffReader) ListInstanceStaff(_ context.Context, filter timetable.InstanceStaffFilter) ([]timetable.InstanceStaff, error) {
 	f.calls++
-	f.ids = append([]int64(nil), ids...)
-	return f.rows, f.err
+	f.ids = append([]int64(nil), filter.InstanceIDs...)
+	if f.err != nil {
+		return nil, f.err
+	}
+	return fakeInstanceStaff(f.rows), nil
 }
 
 type fakeStaffReader struct {
@@ -576,7 +577,7 @@ func TestDetectShiftCoverageWarnings_SeriesReplanUsesEffectiveExceptionsAndDevia
 	}}
 
 	warnings, err := detectShiftCoverageWarnings(context.Background(), ports.ConflictDetectionDependencies{
-		Shifts: shifts, Instances: instances, Exceptions: exceptions,
+		Shifts: shifts, Instances: legacyInstanceReads{fake: instances}, Exceptions: exceptions,
 		Schedules:     &fakeActivityScheduleReader{rows: []*activityContract.Schedule{{ActivityGroupID: groupID}}},
 		InstanceStaff: instanceStaff, Staff: staff,
 		CalendarPeriods: &fakeCalendarPeriodReader{period: period},
@@ -626,7 +627,7 @@ func TestDetectShiftCoverageWarnings_UsesCanonicalSeriesBoundsAndActivePeriod(t 
 	}}
 
 	warnings, err := detectShiftCoverageWarnings(context.Background(), ports.ConflictDetectionDependencies{
-		Shifts: shifts, Instances: &fakeInstanceReader{}, Exceptions: &fakeActivityExceptionReader{},
+		Shifts: shifts, Instances: legacyInstanceReads{fake: &fakeInstanceReader{}}, Exceptions: &fakeActivityExceptionReader{},
 		Schedules: schedules, InstanceStaff: &fakeInstanceStaffReader{},
 		Staff:           &fakeStaffReader{byID: map[int64]*timetable.StaffMember{1: fakeStaff(1, "Grenze", "Serie")}},
 		CalendarPeriods: &fakeCalendarPeriodReader{period: period},
@@ -645,7 +646,7 @@ func TestDetectShiftCoverageWarnings_UsesCanonicalSeriesBoundsAndActivePeriod(t 
 	inactive.IsActive = false
 	shiftReader := &fakeShiftReader{rows: shifts.rows}
 	warnings, err = detectShiftCoverageWarnings(context.Background(), ports.ConflictDetectionDependencies{
-		Shifts: shiftReader, Instances: &fakeInstanceReader{}, Exceptions: &fakeActivityExceptionReader{},
+		Shifts: shiftReader, Instances: legacyInstanceReads{fake: &fakeInstanceReader{}}, Exceptions: &fakeActivityExceptionReader{},
 		Schedules: schedules, InstanceStaff: &fakeInstanceStaffReader{}, Staff: &fakeStaffReader{},
 		CalendarPeriods: &fakeCalendarPeriodReader{period: &inactive},
 	}, timetable.ShiftCoverageProbe{

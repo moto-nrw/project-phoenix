@@ -16,12 +16,8 @@ import (
 // session state. careDays is optional: without it no child is spared the
 // absent stamp.
 func NewTimetableEndedSessionCompletion(rows timetableCompose.OwnerRows, careDays careplan.CareDayQuery) (timetable.EndedSessionCompletion, error) {
-	instances, err := timetableCompose.NewEndedSessionInstances(rows.Instances)
-	if err != nil {
-		return nil, err
-	}
 	return timetableCompose.NewEndedSessionCompletion(timetablePorts.EndedSessionCompletionDependencies{
-		Instances:    instances,
+		Instances:    rows.Instances,
 		Participants: rows.Participants,
 		CareDays:     newTimetableCareDays(careDays),
 	})

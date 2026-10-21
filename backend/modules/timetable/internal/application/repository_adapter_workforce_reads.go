@@ -22,12 +22,12 @@ import (
 // TimetableInstanceReads serves the activity instances with their session
 // state.
 type TimetableInstanceReads struct {
-	instances ports.ActivityInstanceRecords
+	instances ports.LegacyInstanceReads
 }
 
 // NewTimetableInstanceReads binds the instance reads to the retained
 // presence-aware instance repository.
-func NewTimetableInstanceReads(instances ports.ActivityInstanceRecords) TimetableInstanceReads {
+func NewTimetableInstanceReads(instances ports.LegacyInstanceReads) TimetableInstanceReads {
 	if instances == nil {
 		panic("timetable instance reads: the activity instance repository is required")
 	}
@@ -37,18 +37,22 @@ func NewTimetableInstanceReads(instances ports.ActivityInstanceRecords) Timetabl
 // FindByTenantAndDateRange returns the tenant's instances within the
 // inclusive date range, ordered by date and time.
 func (r TimetableInstanceReads) FindByTenantAndDateRange(ctx context.Context, from, to calendar.Date) ([]*timetable.ScheduledInstance, error) {
-	rows, err := r.instances.FindByTenantAndDateRange(ctx, calendar.Date(from), calendar.Date(to))
+	fromDay, toDay := from.String(), to.String()
+	rows, err := r.instances.ListLegacyInstances(ctx, ports.LegacyInstanceFilter{FromDate: &fromDay, ToDate: &toDay, OrderByDateAndTime: true})
 	if err != nil {
-		return nil, err
+		return nil, WrapDatabaseError("find by tenant and date range", err)
 	}
 	return scheduledInstances(rows), nil
 }
 
 // FindByIDs returns the instances with the given IDs.
 func (r TimetableInstanceReads) FindByIDs(ctx context.Context, ids []int64) ([]*timetable.ScheduledInstance, error) {
-	rows, err := r.instances.FindByIDs(ctx, ids)
+	if len(ids) == 0 {
+		return scheduledInstances([]*scheduleModels.ActivityInstance{}), nil
+	}
+	rows, err := r.instances.ListLegacyInstances(ctx, ports.LegacyInstanceFilter{IDs: ids, OrderByDateAndTime: true})
 	if err != nil {
-		return nil, err
+		return nil, WrapDatabaseError("find by ids", err)
 	}
 	return scheduledInstances(rows), nil
 }
@@ -84,14 +88,14 @@ func scheduledInstances(rows []*scheduleModels.ActivityInstance) []*timetable.Sc
 // TimetableInstanceStaffReads serves the staff assignments of the activity
 // instances and the sick-report provenance stamp on them (#1843).
 type TimetableInstanceStaffReads struct {
-	staff ports.InstanceStaffRecords
+	staff timetable.InstanceStaffCapability
 }
 
-// NewTimetableInstanceStaffReads binds the assignment reads to the retained
-// instance staff repository.
-func NewTimetableInstanceStaffReads(staff ports.InstanceStaffRecords) TimetableInstanceStaffReads {
+// NewTimetableInstanceStaffReads binds the assignment reads to the owner's
+// instance staff capability.
+func NewTimetableInstanceStaffReads(staff timetable.InstanceStaffCapability) TimetableInstanceStaffReads {
 	if staff == nil {
-		panic("timetable instance staff reads: the instance staff repository is required")
+		panic("timetable instance staff reads: the instance staff capability is required")
 	}
 	return TimetableInstanceStaffReads{staff: staff}
 }
@@ -99,79 +103,72 @@ func NewTimetableInstanceStaffReads(staff ports.InstanceStaffRecords) TimetableI
 // FindByID returns one assignment; a missing row keeps the repository's
 // no-rows error.
 func (r TimetableInstanceStaffReads) FindByID(ctx context.Context, id int64) (*timetable.InstanceStaff, error) {
-	row, err := r.staff.FindByID(ctx, id)
+	value, err := r.staff.FindInstanceStaff(ctx, id)
 	if err != nil {
-		return nil, err
+		return nil, legacyInstanceStaffError("find by id", err)
 	}
-	return publicInstanceStaff(row), nil
+	return &value, nil
 }
 
 // FindByInstanceID returns the assignments of one instance.
 func (r TimetableInstanceStaffReads) FindByInstanceID(ctx context.Context, instanceID int64) ([]*timetable.InstanceStaff, error) {
-	return instanceStaffRows(r.staff.FindByInstanceID(ctx, instanceID))
+	values, err := r.staff.ListInstanceStaff(ctx, timetable.InstanceStaffFilter{InstanceIDs: []int64{instanceID}, OrderByCreated: true})
+	return instanceStaffPointers(values, err, "find by instance id")
 }
 
 // FindByInstanceIDs returns the assignments of the given instances.
 func (r TimetableInstanceStaffReads) FindByInstanceIDs(ctx context.Context, instanceIDs []int64) ([]*timetable.InstanceStaff, error) {
-	return instanceStaffRows(r.staff.FindByInstanceIDs(ctx, instanceIDs))
+	if len(instanceIDs) == 0 {
+		return []*timetable.InstanceStaff{}, nil
+	}
+	values, err := r.staff.ListInstanceStaff(ctx, timetable.InstanceStaffFilter{InstanceIDs: instanceIDs, OrderByInstanceAndCreated: true})
+	return instanceStaffPointers(values, err, "find by instance ids")
 }
 
 // FindByStaffAndDate returns one staff member's assignments on a day.
 func (r TimetableInstanceStaffReads) FindByStaffAndDate(ctx context.Context, staffID int64, date calendar.Date) ([]*timetable.InstanceStaff, error) {
-	return instanceStaffRows(r.staff.FindByStaffAndDate(ctx, staffID, calendar.Date(date)))
+	day := date.String()
+	values, err := r.staff.ListInstanceStaff(ctx, timetable.InstanceStaffFilter{StaffIDs: []int64{staffID}, Date: &day, OrderByActivityTime: true})
+	return instanceStaffPointers(values, err, "find by staff and date")
 }
 
 // FindByStaffAndDateRange returns one staff member's assignments in the
 // inclusive date range.
 func (r TimetableInstanceStaffReads) FindByStaffAndDateRange(ctx context.Context, staffID int64, from, to calendar.Date) ([]*timetable.InstanceStaff, error) {
-	return instanceStaffRows(r.staff.FindByStaffAndDateRange(ctx, staffID, calendar.Date(from), calendar.Date(to)))
+	fromDay, toDay := from.String(), to.String()
+	values, err := r.staff.ListInstanceStaff(ctx, timetable.InstanceStaffFilter{
+		StaffIDs: []int64{staffID}, FromDate: &fromDay, ToDate: &toDay, OrderByActivityDateTime: true,
+	})
+	return instanceStaffPointers(values, err, "find by staff and date range")
 }
 
-// instanceStaffFilterLister is the owner-filtered listing the retained
-// instance staff repository runs its List through.
-type instanceStaffFilterLister interface {
-	list(ctx context.Context, filter timetable.InstanceStaffFilter, operation string) ([]*scheduleModels.InstanceStaff, error)
-}
-
-// ListBySickAbsence returns the assignments a sick report stamped, the way
-// the retained repository's filtered List answers a sick_absence_id filter.
+// ListBySickAbsence returns the assignments a sick report stamped.
 func (r TimetableInstanceStaffReads) ListBySickAbsence(ctx context.Context, absenceID int64) ([]*timetable.InstanceStaff, error) {
-	lister, ok := r.staff.(instanceStaffFilterLister)
-	if !ok {
-		return nil, fmt.Errorf("legacy list capability is not configured for %T", r.staff)
-	}
-	return instanceStaffRows(lister.list(ctx, timetable.InstanceStaffFilter{SickAbsenceID: &absenceID}, "list with options"))
+	values, err := r.staff.ListInstanceStaff(ctx, timetable.InstanceStaffFilter{SickAbsenceID: &absenceID})
+	return instanceStaffPointers(values, err, "list with options")
 }
 
 // SetSickAbsence writes the provenance stamp of one assignment; nil clears
 // it. Only the stamp column is written.
 func (r TimetableInstanceStaffReads) SetSickAbsence(ctx context.Context, assignmentID int64, absenceID *int64) (int64, error) {
-	row := &scheduleModels.InstanceStaff{SickAbsenceID: absenceID}
-	row.ID = assignmentID
-	return r.staff.UpdateColumns(ctx, row, "sick_absence_id")
+	rows, err := r.staff.PatchInstanceStaff(ctx, assignmentID, timetable.InstanceStaffInput{SickAbsenceID: absenceID}, []string{"sick_absence_id"})
+	if err != nil {
+		return 0, WrapDatabaseError("update columns", err)
+	}
+	return rows, nil
 }
 
-func instanceStaffRows(rows []*scheduleModels.InstanceStaff, err error) ([]*timetable.InstanceStaff, error) {
+// instanceStaffPointers hands out the listed assignments, or reports a
+// failed listing under the operation's name.
+func instanceStaffPointers(values []timetable.InstanceStaff, err error, operation string) ([]*timetable.InstanceStaff, error) {
 	if err != nil {
-		return nil, err
+		return nil, WrapDatabaseError(operation, err)
 	}
-	result := make([]*timetable.InstanceStaff, 0, len(rows))
-	for _, row := range rows {
-		result = append(result, publicInstanceStaff(row))
+	result := make([]*timetable.InstanceStaff, len(values))
+	for index := range values {
+		result[index] = &values[index]
 	}
 	return result, nil
-}
-
-func publicInstanceStaff(row *scheduleModels.InstanceStaff) *timetable.InstanceStaff {
-	if row == nil {
-		return nil
-	}
-	return &timetable.InstanceStaff{
-		ID: row.ID, TenantID: row.TenantID, CreatedAt: row.CreatedAt, UpdatedAt: row.UpdatedAt,
-		InstanceID: row.InstanceID, StaffID: row.StaffID, RoomID: row.RoomID,
-		IsPrimary: row.IsPrimary, IsSubstitute: row.IsSubstitute, IsAbsent: row.IsAbsent,
-		AbsenceReason: row.AbsenceReason, SickAbsenceID: row.SickAbsenceID,
-	}
 }
 
 // TimetableGroupReads serves the activity groups (Angebote) an assignment

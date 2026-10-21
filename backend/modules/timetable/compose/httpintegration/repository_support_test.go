@@ -92,12 +92,6 @@ type pickupNoteQueryRepository interface {
 	queryListRepository[*fixtures.StudentPickupNote]
 }
 
-type instanceStaffQueryRepository interface {
-	fixtures.
-		InstanceStaffRecords
-	queryListRepository[*fixtures.InstanceStaff]
-}
-
 type dateframeQueryRepository interface {
 	fixtures.
 		DateframeRecords

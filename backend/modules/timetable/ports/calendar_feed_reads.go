@@ -8,16 +8,6 @@ import (
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 )
 
-// CalendarAssignmentRows are a staff member's instance assignments.
-type CalendarAssignmentRows interface {
-	FindByStaffAndDateRange(ctx context.Context, staffID int64, from, to calendar.Date) ([]*scheduleModels.InstanceStaff, error)
-}
-
-// CalendarInstanceRows are the activity instances by ID.
-type CalendarInstanceRows interface {
-	FindByIDs(ctx context.Context, ids []int64) ([]*scheduleModels.ActivityInstance, error)
-}
-
 // CalendarShiftRows are a staff member's planned shifts.
 type CalendarShiftRows interface {
 	FindByStaffAndDateRange(ctx context.Context, staffID int64, start, end calendar.Date) ([]*scheduleModels.StaffShift, error)

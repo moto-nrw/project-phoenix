@@ -780,12 +780,12 @@ func TestSickCascade_ClearSickForRange(t *testing.T) {
 		return nil
 	})
 	ackNote := "bewusst offen"
-	storedClearable, err := testpkg.TenantQuery1(t, e.ctx, testpkg.SetupTestDB(t), e.repos.ActivityInstance.FindByID, clearableInstance.ID)
+	storedClearable, err := testpkg.TenantQuery1(t, e.ctx, testpkg.SetupTestDB(t), e.repos.NativeInstances().FindByID, clearableInstance.ID)
 	require.NoError(t, err)
 	storedClearable.UnderstaffedAck = true
 	storedClearable.UnderstaffedNote = &ackNote
 	_, err = testpkg.TenantQuery0(t, e.ctx, testpkg.SetupTestDB(t), func(txCtx context.Context) (int64, error) {
-		return e.repos.ActivityInstance.UpdateColumns(txCtx, storedClearable, "understaffed_ack", "understaffed_note")
+		return e.repos.NativeInstances().UpdateColumns(txCtx, storedClearable, "understaffed_ack", "understaffed_note")
 	})
 	require.NoError(t, err)
 
@@ -823,7 +823,7 @@ func TestSickCascade_ClearSickForRange(t *testing.T) {
 	assert.False(t, row.IsAbsent)
 	assert.Nil(t, row.AbsenceReason)
 	assert.Nil(t, row.SickAbsenceID)
-	storedClearable, err = testpkg.TenantQuery1(t, e.ctx, testpkg.SetupTestDB(t), e.repos.ActivityInstance.FindByID, clearableInstance.ID)
+	storedClearable, err = testpkg.TenantQuery1(t, e.ctx, testpkg.SetupTestDB(t), e.repos.NativeInstances().FindByID, clearableInstance.ID)
 	require.NoError(t, err)
 	assert.False(t, storedClearable.UnderstaffedAck)
 	assert.Nil(t, storedClearable.UnderstaffedNote)

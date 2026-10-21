@@ -1,5 +1,34 @@
 package ports
 
+import (
+	"context"
+
+	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
+	"github.com/moto-nrw/project-phoenix/modules/timetable"
+	scheduleModels "github.com/moto-nrw/project-phoenix/modules/timetable/internal/domain/schedulerecords"
+)
+
+// LegacyInstanceReads list the activity instances with the Student Presence
+// session each one runs in, joined in one tenant-safe read.
+type LegacyInstanceReads interface {
+	ListLegacyInstances(ctx context.Context, filter LegacyInstanceFilter) ([]*scheduleModels.ActivityInstance, error)
+}
+
+// InstanceSessions are the Student Presence sessions the blocks run in since
+// the presence cutover (#2762).
+type InstanceSessions interface {
+	studentpresence.ActivitySessionQuery
+	studentpresence.ActivitySessionCommand
+}
+
+// InstanceRows are the activity instances: the owner plans them, Student
+// Presence runs their sessions, and the joined read returns both.
+type InstanceRows struct {
+	Plans    timetable.ActivityInstanceCapability
+	Sessions InstanceSessions
+	Reads    LegacyInstanceReads
+}
+
 // LegacyInstanceFilter selects activity instances the way the retained
 // repositories ask for them. Status uses the legacy vocabulary: planned is a
 // plan nobody started, active and completed are session states, cancelled is

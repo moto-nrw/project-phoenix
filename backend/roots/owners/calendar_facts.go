@@ -15,6 +15,7 @@ import (
 	calendarCompose "github.com/moto-nrw/project-phoenix/modules/schoolcalendar/portal/compose"
 	educationRepo "github.com/moto-nrw/project-phoenix/modules/schoolstructure/compose"
 	"github.com/moto-nrw/project-phoenix/modules/securityruntime"
+	"github.com/moto-nrw/project-phoenix/modules/timetable"
 	timetableCompose "github.com/moto-nrw/project-phoenix/modules/timetable/compose"
 	timetablePorts "github.com/moto-nrw/project-phoenix/modules/timetable/ports"
 )
@@ -55,7 +56,7 @@ func NewCalendarFacts(
 // rooms and the staff shifts and shift types. A nil source leaves its port
 // as it is.
 func BindCalendarScheduleFacts(
-	cfg calendarCompose.Config, assignments timetablePorts.CalendarAssignmentRows, instances timetablePorts.CalendarInstanceRows,
+	cfg calendarCompose.Config, assignments timetable.InstanceStaffQuery, instances timetablePorts.LegacyInstanceReads,
 	rooms facilitiesNative.RoomRows, shifts timetablePorts.CalendarShiftRows, shiftTypes timetablePorts.CalendarShiftTypeRows,
 ) calendarCompose.Config {
 	if assignments != nil {
@@ -311,7 +312,7 @@ func (p calendarRoomPort) FindByIDs(ctx context.Context, ids []int64) ([]*calend
 }
 
 type calendarAssignmentPort struct {
-	source timetablePorts.CalendarAssignmentRows
+	source timetable.InstanceStaffQuery
 }
 
 func (p calendarAssignmentPort) FindByStaffAndDateRange(ctx context.Context, id int64, from, to appointmentcap.Date) ([]*calendarCompose.InstanceStaff, error) {
@@ -322,7 +323,7 @@ func (p calendarAssignmentPort) FindByStaffAndDateRange(ctx context.Context, id 
 }
 
 type calendarInstancePort struct {
-	source timetablePorts.CalendarInstanceRows
+	source timetablePorts.LegacyInstanceReads
 }
 
 func (p calendarInstancePort) FindByIDs(ctx context.Context, ids []int64) ([]*calendarCompose.ActivityInstance, error) {

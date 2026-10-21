@@ -19,7 +19,7 @@ type instanceSeriesConversion struct {
 // NewInstanceSeriesConversion composes the conversion of a one-off
 // occurrence into a series.
 func NewInstanceSeriesConversion(deps ports.InstanceSeriesConversionDependencies) (timetable.InstanceSeriesConversion, error) {
-	if deps.Transactions == nil || deps.InstanceRepo == nil || deps.Lifecycle == nil || deps.Templates == nil || deps.RecurrenceLock == nil {
+	if deps.Transactions == nil || noInstanceRows(deps.InstanceRepo) || deps.Lifecycle == nil || deps.Templates == nil || deps.RecurrenceLock == nil {
 		return nil, errors.New("timetable instance series conversion: required dependency is nil")
 	}
 	return &instanceSeriesConversion{deps: deps}, nil
@@ -109,7 +109,7 @@ func (s *instanceSeriesConversion) convertLocked(ctx context.Context, in timetab
 }
 
 func (s *instanceSeriesConversion) convertibleInstance(ctx context.Context, instanceID int64) (*scheduleModel.ActivityInstance, error) {
-	instance, err := s.deps.InstanceRepo.FindByID(ctx, instanceID)
+	instance, err := findLegacyInstance(ctx, s.deps.InstanceRepo.Reads, instanceID)
 	if errors.Is(err, transactionruntime.ErrNoRows) || instance == nil {
 		return nil, timetable.ErrInstanceNotFound
 	}

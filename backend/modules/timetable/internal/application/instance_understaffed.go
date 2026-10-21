@@ -39,7 +39,7 @@ func (s *InstanceLifecycleService) setUnderstaffedAck(ctx context.Context, insta
 	// Valid whenever the block ends up understaffed; only a fully staffed
 	// block (present >= planned) refuses it.
 	if ack {
-		rows, err := s.deps.InstanceStaffRepo.FindByInstanceID(ctx, instanceID)
+		rows, err := staffOfInstance(ctx, s.deps.InstanceStaffRepo, instanceID)
 		if err != nil {
 			return nil, &ports.ScheduleError{Op: "set understaffed ack: load staff", Err: err}
 		}
@@ -100,7 +100,7 @@ func (s *InstanceLifecycleService) clearStaleAckIfStaffed(ctx context.Context, i
 	if !instance.UnderstaffedAck {
 		return nil
 	}
-	rows, err := s.deps.InstanceStaffRepo.FindByInstanceID(ctx, instance.ID)
+	rows, err := staffOfInstance(ctx, s.deps.InstanceStaffRepo, instance.ID)
 	if err != nil {
 		return &ports.ScheduleError{Op: "clear stale ack: load staff", Err: err}
 	}
@@ -162,7 +162,7 @@ func (s *InstanceLifecycleService) AcknowledgeUnderstaffed(ctx context.Context, 
 // mapping a missing or other-tenant block to 404 and any other failure to a
 // wrapped 500.
 func (s *InstanceLifecycleService) loadDeviationInstance(ctx context.Context, instanceID int64) (*scheduleModel.ActivityInstance, error) {
-	instance, err := s.deps.InstanceRepo.FindByID(ctx, instanceID)
+	instance, err := findLegacyInstance(ctx, s.deps.InstanceRepo.Reads, instanceID)
 	if err != nil {
 		if domain.IsRecordNotFound(err) {
 			return nil, timetable.DeviationNotFound(msgInstanceNotFound).WithCode(timetable.CodeDeviationInstanceNotFound)

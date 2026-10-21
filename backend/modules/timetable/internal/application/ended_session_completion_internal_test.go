@@ -140,11 +140,11 @@ func TestEndedSessionCompletionFinalizesAttendanceFirst(t *testing.T) {
 		calls: &calls,
 	}
 	completion := newEndedSessionCompletion(t, ports.EndedSessionCompletionDependencies{
-		Instances: &endedSessionInstancesStub{
+		Instances: fakeInstanceRows(&endedSessionInstancesStub{
 			instances: []*scheduleModels.ActivityInstance{endedInstance(instanceID, calendar.NewDate(2026, 4, 20))},
 			completed: 1,
 			calls:     &calls,
-		},
+		}),
 		Participants: participants,
 		CareDays: careDaysStub{byStudent: map[int64]timetable.CareDayStatus{
 			bookedStudent:  timetable.CareDayScheduled,
@@ -188,11 +188,11 @@ func TestEndedSessionCompletionUndoesStatusDayAbsenceForUnbookedChild(t *testing
 		calls: &calls,
 	}
 	completion := newEndedSessionCompletion(t, ports.EndedSessionCompletionDependencies{
-		Instances: &endedSessionInstancesStub{
+		Instances: fakeInstanceRows(&endedSessionInstancesStub{
 			instances: []*scheduleModels.ActivityInstance{endedInstance(instanceID, calendar.NewDate(2026, 4, 21))},
 			completed: 1,
 			calls:     &calls,
-		},
+		}),
 		Participants: participants,
 		CareDays:     careDaysStub{byStudent: map[int64]timetable.CareDayStatus{notBookedChild: timetable.CareDayNotScheduled}},
 	})
@@ -227,10 +227,10 @@ func TestEndedSessionCompletionSparesPerInstanceAcrossDates(t *testing.T) {
 	}
 	first, second := calendar.NewDate(2026, 4, 22), calendar.NewDate(2026, 4, 23)
 	completion := newEndedSessionCompletion(t, ports.EndedSessionCompletionDependencies{
-		Instances: &endedSessionInstancesStub{
+		Instances: fakeInstanceRows(&endedSessionInstancesStub{
 			instances: []*scheduleModels.ActivityInstance{endedInstance(firstBlock, first), endedInstance(secondBlock, second)},
 			calls:     &calls,
-		},
+		}),
 		Participants: participants,
 		CareDays:     perDateCareDays{notBooked: map[calendar.Date]bool{first: true}},
 	})
@@ -265,10 +265,10 @@ func TestEndedSessionCompletionDoesNotCompleteWhenFinalizationFails(t *testing.T
 	t.Parallel()
 	calls := make([]string, 0, 2)
 	completion := newEndedSessionCompletion(t, ports.EndedSessionCompletionDependencies{
-		Instances: &endedSessionInstancesStub{
+		Instances: fakeInstanceRows(&endedSessionInstancesStub{
 			instances: []*scheduleModels.ActivityInstance{endedInstance(7702, calendar.NewDate(2026, 4, 20))},
 			calls:     &calls,
-		},
+		}),
 		Participants: &endedSessionParticipantsStub{markErr: errors.New("update failed"), calls: &calls},
 	})
 
@@ -288,7 +288,7 @@ func TestEndedSessionCompletionAllowsSystemCompleteBeforePlannedEnd(t *testing.T
 	instance.StartTime = time.Date(1, 1, 1, 14, 0, 0, 0, time.UTC)
 	instance.EndTime = time.Date(1, 1, 1, 18, 0, 0, 0, time.UTC)
 	completion := newEndedSessionCompletion(t, ports.EndedSessionCompletionDependencies{
-		Instances:    &endedSessionInstancesStub{instances: []*scheduleModels.ActivityInstance{instance}, completed: 1, calls: &calls},
+		Instances:    fakeInstanceRows(&endedSessionInstancesStub{instances: []*scheduleModels.ActivityInstance{instance}, completed: 1, calls: &calls}),
 		Participants: participants,
 	})
 
@@ -304,7 +304,7 @@ func TestEndedSessionCompletionSkipsWithoutSessions(t *testing.T) {
 	t.Parallel()
 	calls := make([]string, 0)
 	completion := newEndedSessionCompletion(t, ports.EndedSessionCompletionDependencies{
-		Instances:    &endedSessionInstancesStub{calls: &calls},
+		Instances:    fakeInstanceRows(&endedSessionInstancesStub{calls: &calls}),
 		Participants: &endedSessionParticipantsStub{calls: &calls},
 	})
 

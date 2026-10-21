@@ -35,7 +35,7 @@ type attendanceCorrections struct {
 
 // NewAttendanceCorrections composes the correction of completed blocks.
 func NewAttendanceCorrections(deps ports.AttendanceCorrectionDependencies) (timetable.AttendanceCorrections, error) {
-	if deps.Participants == nil || deps.Instances == nil {
+	if deps.Participants == nil || noInstanceRows(deps.Instances) {
 		return nil, errors.New("timetable attendance corrections: required repository is nil")
 	}
 	return &attendanceCorrections{deps: deps}, nil
@@ -138,7 +138,7 @@ func (s *attendanceCorrections) loadCorrectableEntry(ctx context.Context, instan
 
 // requireCompletedInstance accepts only a completed block.
 func (s *attendanceCorrections) requireCompletedInstance(ctx context.Context, instanceID int64) error {
-	instance, err := s.deps.Instances.FindByID(ctx, instanceID)
+	instance, err := findLegacyInstance(ctx, s.deps.Instances.Reads, instanceID)
 	if err != nil {
 		if domain.IsRecordNotFound(err) {
 			return timetable.ErrCorrectionInstanceNotFound
