@@ -97,10 +97,6 @@ func insertDepartureTestSchema(t *testing.T, db *testpkg.DB, tenantID, createdBy
 		RETURNING id
 	`, tenantID, name, version, fieldsJSON, createdBy).Scan(&id)
 	require.NoError(t, err)
-	t.Cleanup(func() {
-		_, _ = db.ExecContext(context.Background(),
-			`DELETE FROM enrollment.form_schemas WHERE tenant_id = ?`, tenantID)
-	})
 	return id
 }
 
@@ -114,10 +110,6 @@ func insertDepartureTestPhase(t *testing.T, db *testpkg.DB, tenantID, schemaID i
 		RETURNING id
 	`, tenantID, schemaID).Scan(&id)
 	require.NoError(t, err)
-	t.Cleanup(func() {
-		_, _ = db.ExecContext(context.Background(),
-			`DELETE FROM enrollment.phases WHERE tenant_id = ?`, tenantID)
-	})
 	return id
 }
 

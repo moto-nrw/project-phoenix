@@ -40,12 +40,8 @@ func TestClassDayAPI(t *testing.T) {
 
 	staff, account := testpkg.CreateTestStaffWithAccount(t, db, "ClassDay", fmt.Sprintf("API-%d", time.Now().UnixNano()))
 	className := fmt.Sprintf("cd%d", time.Now().UnixNano()%100000)
-	assignment := testpkg.CreateTestClassTeacher(t, db, staff.ID, className)
+	testpkg.CreateTestClassTeacher(t, db, staff.ID, className)
 	_ = testpkg.CreateTestStudent(t, db, "Klara", "Klassentag", className)
-	t.Cleanup(func() {
-		tenantCtx := testpkg.Ctx(t)
-		_, _ = db.NewDelete().TableExpr("education.class_teachers").Where("id = ?", assignment.ID).Exec(tenantCtx)
-	})
 
 	claims := sessiontoken.AppClaims{ID: int(account.ID), Sub: account.Email, Roles: []string{"lehrkraft"}, TenantID: testpkg.Tenant(t), Scope: tenant.ScopeSchool}
 

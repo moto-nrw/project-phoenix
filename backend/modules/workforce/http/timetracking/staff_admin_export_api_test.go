@@ -5,7 +5,6 @@
 package timetracking
 
 import (
-	"context"
 	"net/http"
 	"strings"
 	"testing"
@@ -14,24 +13,10 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func setupExportAPI(t *testing.T) *overviewAPIContext {
-	t.Helper()
-	ctx := setupOverviewAPI(t)
-	// The export writes an audit.data_access_log row per download; remove them
-	// before the account fixture cleanup or its FK blocks the delete.
-	t.Cleanup(func() {
-		_, _ = ctx.tc.db.NewDelete().
-			ModelTableExpr("audit.data_access_log AS t").
-			Where("t.resource_type = ?", "time_tracking_export").
-			Exec(context.Background())
-	})
-	return ctx
-}
-
 func TestTimeTrackingExportAPI_PermissionSplit(t *testing.T) {
 	t.Parallel()
 
-	ctx := setupExportAPI(t)
+	ctx := setupOverviewAPI(t)
 	path := "/staff/time-tracking/export?year=2026&month=1"
 
 	// users:read sees the staff list but must NOT get the working-time file.
@@ -50,7 +35,7 @@ func TestTimeTrackingExportAPI_PermissionSplit(t *testing.T) {
 func TestTimeTrackingExportAPI_Validation(t *testing.T) {
 	t.Parallel()
 
-	ctx := setupExportAPI(t)
+	ctx := setupOverviewAPI(t)
 
 	for _, path := range []string{
 		"/staff/time-tracking/export",                              // year missing
@@ -69,7 +54,7 @@ func TestTimeTrackingExportAPI_Validation(t *testing.T) {
 func TestTimeTrackingExportAPI_Formats(t *testing.T) {
 	t.Parallel()
 
-	ctx := setupExportAPI(t)
+	ctx := setupOverviewAPI(t)
 
 	rec := ctx.get("/staff/time-tracking/export?year=2026&month=1&format=xlsx", "time_tracking:manage")
 	require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
@@ -90,7 +75,7 @@ func TestTimeTrackingExportAPI_Formats(t *testing.T) {
 func TestTimeTrackingExportAPI_Datev(t *testing.T) {
 	t.Parallel()
 
-	ctx := setupExportAPI(t)
+	ctx := setupOverviewAPI(t)
 	reportPath := "/staff/time-tracking/export/datev-report?year=2026&month=1&format=datev_lodas"
 
 	rec := ctx.get(reportPath, "users:read")

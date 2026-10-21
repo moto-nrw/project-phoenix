@@ -50,17 +50,6 @@ func newVacationOpeningFixture(t *testing.T) *vacationOpeningFixture {
 	reposAbsences := api.NewStaffAbsenceSuiteRepositories(testpkg.NewDatabase(t, db))
 	ctx := testpkg.TenantContext(tenantID)
 
-	t.Cleanup(func() {
-		for _, table := range []string{
-			"audit.time_tracking_deletions",
-			"active.staff_vacation_openings",
-			"active.staff_vacation_quotas",
-			"active.staff_absences",
-		} {
-			_, _ = db.NewDelete().ModelTableExpr(table+" AS t").Where("t.tenant_id = ?", tenantID).Exec(context.Background())
-		}
-	})
-
 	svc := timetracking.NewStaffAbsenceService(
 		reposAbsences.StaffAbsence, workTime, workTime,
 		workTime, wtmIntSettings{}, nil, timetracking.WithAbsenceUnitOfWork(testpkg.

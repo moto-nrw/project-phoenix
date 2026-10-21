@@ -19,8 +19,7 @@ import (
 func TestSubmit_AdminNotificationReachesSubscribedEnrollmentManagers(t *testing.T) {
 	t.Parallel()
 
-	env, cleanup := setupRequestTest(t)
-	defer cleanup()
+	env := setupRequestTest(t)
 	ctx := testpkg.Ctx(t)
 	tenantID := testpkg.Tenant(t)
 

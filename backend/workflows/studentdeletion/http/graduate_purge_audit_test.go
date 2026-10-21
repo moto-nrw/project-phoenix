@@ -1,7 +1,6 @@
 package studentdeletionhttp_test
 
 import (
-	"context"
 	"fmt"
 	"net/http"
 	"testing"
@@ -31,10 +30,6 @@ func TestPurgeGraduatedStudent_CreatesDeletionAudits(t *testing.T) {
 	})
 	assignment := testpkg.CreateTestInstanceStudent(t, tc.db, instance.ID, student.ID, "")
 	graduateStudent(t, tc, student.ID)
-	t.Cleanup(func() {
-		_, _ = tc.db.NewDelete().TableExpr(`audit.student_deletions`).Where(`student_id = ?`, student.ID).Exec(context.Background())
-		_, _ = tc.db.NewDelete().TableExpr(`audit.data_deletions`).Where(`student_id = ?`, student.ID).Exec(context.Background())
-	})
 
 	req := testutil.NewRequest(http.MethodDelete, fmt.Sprintf("/%d/purge", student.ID), nil)
 	response := authExec(t, tc, req, testutil.AdminTestClaims(int(actor.ID)), []string{"admin:*"})

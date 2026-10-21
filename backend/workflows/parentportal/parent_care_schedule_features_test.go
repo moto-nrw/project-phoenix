@@ -122,10 +122,6 @@ func TestGetChildCareSchedule_TodayAbsentReflectsStatusDay(t *testing.T) {
 	`, chain.TenantID, chain.StudentID, calendar.NewDate(2026, 8, 24),
 		absencerecords.StudentStatusDayClassTrip, absencerecords.StudentStatusSourcePlanned)
 	require.NoError(t, err)
-	defer func() {
-		_, _ = db.ExecContext(testpkg.WithPackageTenantRuntime(context.Background()),
-			`DELETE FROM active.student_status_days WHERE student_id = ?`, chain.StudentID)
-	}()
 
 	// The read view now reports the absence...
 	view, err = svc.GetChildCareSchedule(ctx, chain.AccountID, chain.StudentID)

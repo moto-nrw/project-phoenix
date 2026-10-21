@@ -85,16 +85,6 @@ func substituteOperatorChallengeCode(t *testing.T, db *bun.DB, challengeID int64
 	require.NoError(t, err)
 }
 
-// deleteOperatorChallenges clears the operator's codes, so a test that wrote
-// its own row leaves the partial unique index free for the next one.
-func deleteOperatorChallenges(t *testing.T, db *bun.DB, operatorID int64) {
-	t.Helper()
-	t.Cleanup(func() {
-		_, _ = db.NewDelete().Model((*operatorChallengeRow)(nil)).
-			Where("operator_id = ?", operatorID).Exec(context.Background())
-	})
-}
-
 // operatorRow is the test's read side of platform.operators, so a test can
 // assert on the lockout counter the flows reset.
 type operatorRow struct {

@@ -385,14 +385,6 @@ func TestStaffRepository_ListAllWithPerson(t *testing.T) {
 			Where("membership_id = ?", staff.ID).
 			Exec(ctx)
 		require.NoError(t, err)
-		defer func() {
-			_, _ = db.NewUpdate().
-				Table("users.staff_employment_profiles").
-				Set("work_time_model_id = NULL").
-				Where("membership_id = ?", staff.ID).
-				Exec(ctx)
-			_, _ = db.NewDelete().Table("config.work_time_models").Where("id = ?", modelID).Exec(ctx)
-		}()
 
 		results, err := testpkg.TenantQuery0(t, ctx, db, repo.ListAllWithPerson)
 		require.NoError(t, err)

@@ -15,8 +15,7 @@ import (
 func TestOwnerOfferingSelectionsAtDate_DoesNotReturnFutureSelection(t *testing.T) {
 	t.Parallel()
 
-	env, cleanup := setupDecisionTest(t)
-	defer cleanup()
+	env := setupDecisionTest(t)
 	ctx := testpkg.Ctx(t)
 	fx := setupOfferingChangeFixture(t, env, "FutureSelection")
 
@@ -43,8 +42,7 @@ func TestOwnerOfferingSelectionsAtDate_DoesNotReturnFutureSelection(t *testing.T
 func TestOwnerOfferingSelectionsBeforeServiceStart_ReturnsNextInterval(t *testing.T) {
 	t.Parallel()
 
-	env, cleanup := setupDecisionTest(t)
-	defer cleanup()
+	env := setupDecisionTest(t)
 	ctx := testpkg.Ctx(t)
 	fx := setupOfferingChangeFixture(t, env, "PreStartFallback")
 
@@ -64,8 +62,7 @@ func TestOwnerOfferingSelectionsBeforeServiceStart_ReturnsNextInterval(t *testin
 func TestOwnerOfferingSelectionsAtDates_DoesNotReturnHistoricalSelection(t *testing.T) {
 	t.Parallel()
 
-	env, cleanup := setupDecisionTest(t)
-	defer cleanup()
+	env := setupDecisionTest(t)
 	ctx := testpkg.Ctx(t)
 	fx := setupOfferingChangeFixture(t, env, "HistoricalSelection")
 

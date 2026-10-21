@@ -54,11 +54,6 @@ func TestGetStudentArrivalSchedules(t *testing.T) {
 			Notes:           &notes,
 			CreatedBy:       createStudentsAPITestStaffID(t, tc),
 		})
-		defer func() {
-			_, _ = tc.db.NewDelete().TableExpr("schedule.student_arrival_schedules").
-				Where("student_id = ?", studentWithData.ID).
-				Exec(context.Background())
-		}()
 
 		// Insert an arrival exception
 		exceptionDate := calendar.NewDate(2026, 2, 15)
@@ -72,11 +67,6 @@ func TestGetStudentArrivalSchedules(t *testing.T) {
 			Reason:          &arztterminReason,
 			CreatedBy:       createStudentsAPITestStaffID(t, tc),
 		})
-		defer func() {
-			_, _ = tc.db.NewDelete().TableExpr("schedule.student_arrival_exceptions").
-				Where("student_id = ?", studentWithData.ID).
-				Exec(context.Background())
-		}()
 
 		req := testutil.NewRequest("GET", fmt.Sprintf("/%d/arrival-schedules", studentWithData.ID), nil)
 		rr := authExec(t, tc, req, testutil.AdminTestClaims(1), []string{"admin:*"})
@@ -551,11 +541,6 @@ func TestUpdateStudentArrivalException(t *testing.T) {
 			Reason:          &originalReason,
 			CreatedBy:       createStudentsAPITestStaffID(t, tc),
 		})
-		defer func() {
-			_, _ = tc.db.NewDelete().TableExpr("schedule.student_arrival_exceptions").
-				Where("id = ?", exception.ID).
-				Exec(context.Background())
-		}()
 
 		body := map[string]any{
 			"exception_date":   "2026-04-15",
@@ -875,11 +860,6 @@ func TestUpdateStudentArrivalNote(t *testing.T) {
 			Content:   "Original content",
 			CreatedBy: createStudentsAPITestStaffID(t, tc),
 		})
-		defer func() {
-			_, _ = tc.db.NewDelete().TableExpr("schedule.student_arrival_notes").
-				Where("id = ?", note.ID).
-				Exec(context.Background())
-		}()
 
 		body := map[string]any{
 			"note_date": "2026-04-15",
@@ -1194,11 +1174,6 @@ func TestStaffArrivalWrite_BroadcastsArrivalScheduleChanged(t *testing.T) {
 
 	t.Run("weekly_schedule_update", func(t *testing.T) {
 		student := testpkg.CreateTestStudent(t, tc.db, "ArrCast", "Weekly", "AC1")
-		defer func() {
-			_, _ = tc.db.NewDelete().TableExpr("schedule.student_arrival_schedules").
-				Where("student_id = ?", student.ID).
-				Exec(context.Background())
-		}()
 
 		tc.broadcaster.Reset()
 		body := map[string]any{
@@ -1214,11 +1189,6 @@ func TestStaffArrivalWrite_BroadcastsArrivalScheduleChanged(t *testing.T) {
 
 	t.Run("day_note_create", func(t *testing.T) {
 		student := testpkg.CreateTestStudent(t, tc.db, "ArrCast", "Note", "AC2")
-		defer func() {
-			_, _ = tc.db.NewDelete().TableExpr("schedule.student_arrival_notes").
-				Where("student_id = ?", student.ID).
-				Exec(context.Background())
-		}()
 
 		tc.broadcaster.Reset()
 		body := map[string]any{"note_date": "2026-03-15", "content": "Kommt mit dem Bus"}

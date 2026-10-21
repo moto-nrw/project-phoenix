@@ -3,7 +3,6 @@
 package timetablehttp
 
 import (
-	"context"
 	"fmt"
 	"net/http"
 	"testing"
@@ -28,12 +27,6 @@ func newPeriodsTestServer(t *testing.T) chi.Router {
 
 	tenantID := testpkg.UniqueTestTenantID(t)
 	testpkg.EnsureTestTenant(t, db, tenantID)
-	t.Cleanup(func() {
-		_, _ = db.NewDelete().
-			Table("schedule.calendar_periods").
-			Where("tenant_id = ?", tenantID).
-			Exec(context.Background())
-	})
 
 	repos := mustTimetableTestRepositories(db)
 	res := NewResource(Dependencies{

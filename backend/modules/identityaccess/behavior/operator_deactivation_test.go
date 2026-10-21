@@ -112,7 +112,6 @@ func TestDeactivatedOperatorsAreDeletedAfterTheLedgerWindow(t *testing.T) {
 	var announcementID int64
 	require.NoError(t, db.NewRaw(`INSERT INTO platform.announcements (title, content, type, created_by)
 		VALUES ('Neue Version', 'Text', 'release', ?) RETURNING id`, expired.ID).Scan(ctx, &announcementID))
-	t.Cleanup(func() { _, _ = db.ExecContext(ctx, `DELETE FROM platform.announcements WHERE id = ?`, announcementID) })
 	young := testpkg.CreateTestOperator(t, db)
 	deactivate(young.ID, now.AddDate(0, -6, 0))
 	active := testpkg.CreateTestOperator(t, db)

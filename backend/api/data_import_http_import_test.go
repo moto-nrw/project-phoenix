@@ -440,6 +440,7 @@ func TestImportStudents_PersistsBusPermission(t *testing.T) {
 		Column("student.id").
 		ModelTableExpr(`users.student_profiles AS "student"`).
 		Join(`JOIN users.persons AS "person" ON "person".id = "student".person_id`).
+		Where(`"student".tenant_id = ?`, testpkg.Tenant(t)).
 		Where(`"person".first_name = ?`, "Buskind").
 		Where(`"person".last_name = ?`, "Phase1Regression").
 		Scan(context.Background())
@@ -477,6 +478,7 @@ func TestImportStudents_PersistsDepartureFromGehweise(t *testing.T) {
 		Column("student.id").
 		ModelTableExpr(`users.student_profiles AS "student"`).
 		Join(`JOIN users.persons AS "person" ON "person".id = "student".person_id`).
+		Where(`"student".tenant_id = ?`, testpkg.Tenant(t)).
 		Where(`"person".first_name = ?`, "Departure").
 		Where(`"person".last_name = ?`, "GehweiseImport").
 		Scan(context.Background()))
@@ -515,6 +517,7 @@ func TestImportStudents_LegacyTemplateStillImports(t *testing.T) {
 		Column("student.id").
 		ModelTableExpr(`users.student_profiles AS "student"`).
 		Join(`JOIN users.persons AS "person" ON "person".id = "student".person_id`).
+		Where(`"student".tenant_id = ?`, testpkg.Tenant(t)).
 		Where(`"person".first_name = ?`, "Legacy").
 		Where(`"person".last_name = ?`, "GehweiseFallback").
 		Scan(context.Background()))
@@ -553,6 +556,7 @@ func TestImportStudents_PersistsEnrollmentDatesAndStatus(t *testing.T) {
 		var id int64
 		err := tc.db.NewSelect().TableExpr("users.student_profiles AS student").Column("student.id").
 			Join("JOIN users.persons AS person ON person.id = student.person_id").
+			Where("student.tenant_id = ?", testpkg.Tenant(t)).
 			Where("person.first_name = ?", firstName).Where("person.last_name = ?", "EnrollRegression").Scan(context.Background(), &id)
 		require.NoError(t, err, "imported student %q should exist", firstName)
 		record, err := tc.student(testpkg.Ctx(t), id)
@@ -602,6 +606,7 @@ func TestImportStudents_PersistsConsentDates(t *testing.T) {
 		Column("student.id").
 		ModelTableExpr(`users.student_profiles AS "student"`).
 		Join(`JOIN users.persons AS "person" ON "person".id = "student".person_id`).
+		Where(`"student".tenant_id = ?`, testpkg.Tenant(t)).
 		Where(`"person".first_name = ?`, "Consent").
 		Where(`"person".last_name = ?`, "Phase2bRegression").
 		Scan(context.Background())

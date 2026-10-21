@@ -1,7 +1,6 @@
 package timetracking
 
 import (
-	"context"
 	"fmt"
 	"net/http"
 	"testing"
@@ -71,19 +70,7 @@ func TestUpdateSchedule_SaveAsTemplateMaterializesAssignedSnapshot(t *testing.T)
 	reloadedStaff, err := newWorkforceTestRepositories(t, ctx.db).FindStaff(testpkg.Ctx(t), staff.ID)
 	require.NoError(t, err)
 	require.NotNil(t, reloadedStaff.WorkTimeModelID)
-	// config.work_time_model_entries has no tenant of its own; it only goes
-	// away with its model, so the delete has to actually happen (#2419).
-	t.Cleanup(func() {
-		_, err := ctx.db.NewUpdate().TableExpr("users.staff_employment_profiles").
-			Set("work_time_model_id = NULL").
-			Where("work_time_model_id = ?", *reloadedStaff.WorkTimeModelID).
-			Exec(context.Background())
-		require.NoError(t, err)
-		_, err = ctx.db.NewDelete().TableExpr("config.work_time_models").
-			Where("id = ?", *reloadedStaff.WorkTimeModelID).
-			Exec(context.Background())
-		require.NoError(t, err)
-	})
+	testpkg.OwnTestWorkTimeModel(t, ctx.db, *reloadedStaff.WorkTimeModelID)
 
 	model, err := capability.FindWorkTimeModel(testpkg.Ctx(t), *reloadedStaff.WorkTimeModelID)
 	require.NoError(t, err)

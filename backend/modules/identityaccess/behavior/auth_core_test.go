@@ -2347,15 +2347,6 @@ func TestAcceptInvitation_WithTenantID_CreatesAccountTenant(t *testing.T) {
 	// ASSERT
 	require.NoError(t, err)
 	require.NotNil(t, account)
-	defer func() {
-		// Clean up: staff, person, invitation tokens, then auth fixtures (includes account_tenants)
-		_, _ = db.ExecContext(context.Background(),
-			`DELETE FROM users.staff_school_memberships WHERE person_id IN (SELECT id FROM users.persons WHERE account_id = ?)`, account.ID)
-		_, _ = db.ExecContext(context.Background(),
-			`DELETE FROM users.persons WHERE account_id = ?`, account.ID)
-		_, _ = db.ExecContext(context.Background(),
-			`DELETE FROM auth.invitation_tokens WHERE email = ?`, email)
-	}()
 
 	// Verify account_tenant mapping was created
 	var tenantCount int

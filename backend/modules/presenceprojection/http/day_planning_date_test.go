@@ -71,12 +71,6 @@ func TestListStudents_DayPlanningForDate(t *testing.T) {
 		Returning("id").
 		Exec(context.Background())
 	require.NoError(t, err)
-	defer func() {
-		_, _ = tc.db.NewDelete().Model((*testpkg.StudentStatusDayRow)(nil)).
-			ModelTableExpr("active.student_status_days").
-			Where("id = ?", statusDay.ID).
-			Exec(context.Background())
-	}()
 
 	t.Run("evaluates_day_planning_for_requested_date", func(t *testing.T) {
 		req := testutil.NewRequest("GET", fmt.Sprintf("/?school_class=%s&date=2026-06-02&page_size=50", schoolClass), nil)

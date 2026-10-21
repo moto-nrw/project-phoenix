@@ -580,18 +580,11 @@ func TestStudentRepository_FindByTeacherIDWithGroups(t *testing.T) {
 
 		// Create teacher and assignment
 		teacher := testpkg.CreateTestTeacher(t, db, "GroupInfo", "Teacher")
-		gt := testpkg.CreateTestGroupTeacher(t, db, group.ID, teacher.ID)
+		testpkg.CreateTestGroupTeacher(t, db, group.ID, teacher.ID)
 
 		// Create student and assign to group directly
 		student := testpkg.CreateTestStudent(t, db, "WithGroupInfo", "Student", "2a")
 		assignStudentToGroupDirect(t, db, student.ID, group.ID)
-
-		defer func() {
-			_, _ = db.NewDelete().
-				TableExpr("education.group_teacher").
-				Where("id = ?", gt.ID).
-				Exec(ctx)
-		}()
 
 		// Test
 		results, err := testpkg.TenantQuery1(t, ctx, db, repo.FindByTeacherIDWithGroups, teacher.ID)

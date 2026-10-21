@@ -32,8 +32,7 @@ func seedChildWithStatus(t *testing.T, env *rolloverTestEnv, phaseID int64, emai
 func TestRolloverService_PreviewPhaseFromSource_CountsCarriedExcludedReview(t *testing.T) {
 	t.Parallel()
 
-	env, cleanup := setupRolloverTest(t)
-	defer cleanup()
+	env := setupRolloverTest(t)
 	ctx := testpkg.Ctx(t)
 
 	// Two approved children under separate requests: grade 3 rolls, grade 4
@@ -62,8 +61,7 @@ func TestRolloverService_PreviewPhaseFromSource_CountsCarriedExcludedReview(t *t
 func TestRolloverService_PreviewPhaseFromSource_NoGradeBumpKeepsAllCarried(t *testing.T) {
 	t.Parallel()
 
-	env, cleanup := setupRolloverTest(t)
-	defer cleanup()
+	env := setupRolloverTest(t)
 	ctx := testpkg.Ctx(t)
 
 	seedApprovedChild(t, env, env.sourcePhase.ID, "Anna", "Ahrens", "anna.keep@example.com", "Lena", "Ahrens", 3)
@@ -80,8 +78,7 @@ func TestRolloverService_PreviewPhaseFromSource_NoGradeBumpKeepsAllCarried(t *te
 func TestRolloverService_PreviewPhaseFromSource_IsReadOnly(t *testing.T) {
 	t.Parallel()
 
-	env, cleanup := setupRolloverTest(t)
-	defer cleanup()
+	env := setupRolloverTest(t)
 	ctx := testpkg.Ctx(t)
 
 	seedApprovedChild(t, env, env.sourcePhase.ID, "Anna", "Ahrens", "anna.readonly@example.com", "Lena", "Ahrens", 3)
@@ -102,8 +99,7 @@ func TestRolloverService_PreviewPhaseFromSource_IsReadOnly(t *testing.T) {
 func TestRolloverService_PreviewPhaseFromSource_RejectsAlreadyRolledSource(t *testing.T) {
 	t.Parallel()
 
-	env, cleanup := setupRolloverTest(t)
-	defer cleanup()
+	env := setupRolloverTest(t)
 	ctx := testpkg.Ctx(t)
 
 	seedApprovedChild(t, env, env.sourcePhase.ID, "Anna", "Ahrens", "anna.rolled@example.com", "Lena", "Ahrens", 3)

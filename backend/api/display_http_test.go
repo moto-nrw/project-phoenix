@@ -367,9 +367,6 @@ func TestDisplayDashboardPublic(t *testing.T) {
 		for _, inst := range instances {
 			testpkg.InsertActivityInstanceRow(t, ctx, db, inst)
 		}
-		defer func() {
-			_, _ = db.NewDelete().TableExpr("schedule.activity_instances").Where("tenant_id = ?", tenantID).Exec(context.Background())
-		}()
 
 		rec := doDashboardRequest(t, router, rawToken)
 		require.Equal(t, http.StatusOK, rec.Code)
@@ -471,10 +468,6 @@ func TestDisplayDashboardPickupBuckets(t *testing.T) {
 	createPickupScheduleForTenant(t, db, tenantID, present1.ID, weekday, staff.ID, "23:45")
 	createPickupScheduleForTenant(t, db, tenantID, present2.ID, weekday, staff.ID, "23:45")
 	createPickupScheduleForTenant(t, db, tenantID, checkedOut.ID, weekday, staff.ID, "23:45")
-	defer func() {
-		_, _ = db.NewDelete().TableExpr("schedule.student_pickup_schedules").Where("tenant_id = ?", tenantID).Exec(context.Background())
-		_, _ = db.NewDelete().TableExpr("active.attendance").Where("tenant_id = ?", tenantID).Exec(context.Background())
-	}()
 
 	_, rawToken := createDisplayViaAPI(t, router, adminJWT, "Pickup Display")
 	rec := doDashboardRequest(t, router, rawToken)

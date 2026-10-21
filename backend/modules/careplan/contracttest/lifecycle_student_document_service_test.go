@@ -142,9 +142,6 @@ func (s *studentDocumentScenario) accessLogRows(t *testing.T) []*testpkg.DataAcc
 		Order("id ASC").
 		Scan(context.Background())
 	require.NoError(t, err)
-	t.Cleanup(func() {
-		_, _ = s.db.ExecContext(context.Background(), `DELETE FROM audit.data_access_log WHERE actor_account_id = ?`, s.account)
-	})
 	return rows
 }
 

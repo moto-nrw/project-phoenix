@@ -384,19 +384,6 @@ func nextWeekday(from calendar.Date, weekday time.Weekday) calendar.Date {
 	return date
 }
 
-// registerSourcedInstanceCleanup drops an occurrence's attendance rows.
-func registerSourcedInstanceCleanup(t *testing.T, env *decisionTestEnv, instanceIDs ...int64) {
-	t.Helper()
-	t.Cleanup(func() {
-		for _, instanceID := range instanceIDs {
-			_, _ = env.db.NewDelete().
-				TableExpr("schedule.instance_students").
-				Where("instance_id = ?", instanceID).
-				Exec(context.Background())
-		}
-	})
-}
-
 func pendingWithdrawalForStudent(
 	ctx context.Context,
 	repo owners.CareWithdrawalTestRows,
@@ -455,12 +442,6 @@ func createSourceOffering(t *testing.T, env *decisionTestEnv, name string, activ
 	}
 	offering.TenantID = testpkg.Tenant(t)
 	require.NoError(t, newCareOfferingFixtures(env.reposCare.CarePlan).Create(ctx, offering))
-	t.Cleanup(func() {
-		_, _ = env.db.NewDelete().
-			TableExpr("enrollment.care_offerings").
-			Where("id = ?", offering.ID).
-			Exec(context.Background())
-	})
 	return offering
 }
 

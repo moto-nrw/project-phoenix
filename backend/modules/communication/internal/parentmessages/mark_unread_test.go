@@ -291,9 +291,6 @@ func TestMarkUnread_Authorization(t *testing.T) {
 	threadID := startReadThread(t, f)
 
 	outsider := testpkg.CreateTestAccount(t, f.db, "outsider-mark")
-	t.Cleanup(func() {
-		_, _ = f.db.ExecContext(context.Background(), `DELETE FROM auth.accounts WHERE id = ?`, outsider.ID)
-	})
 	err := testpkg.TenantCommand1(t, claimsCtx(t, outsider.ID, []string{"users:read"}), f.db, f.svc.MarkUnread, threadID)
 	require.ErrorIs(t, err, messaging.ErrForbidden)
 

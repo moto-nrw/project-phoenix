@@ -32,16 +32,6 @@ func TestPresence_ListAcceptedRetentionSettings(t *testing.T) {
 	otherTenantID := testpkg.UniqueTestTenantID(t)
 	testpkg.EnsureTestTenant(t, db, tenantID)
 	testpkg.EnsureTestTenant(t, db, otherTenantID)
-	t.Cleanup(func() {
-		// Consents reference students, so they must go before
-		// CleanupTenantTestData deletes the student rows.
-		for _, tid := range []int64{tenantID, otherTenantID} {
-			_, _ = db.NewDelete().
-				Table("users.privacy_consents").
-				Where("tenant_id = ?", tid).
-				Exec(testpkg.TenantContext(tid))
-		}
-	})
 
 	ctx := testpkg.TenantContext(tenantID)
 

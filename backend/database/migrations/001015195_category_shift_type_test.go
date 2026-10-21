@@ -36,11 +36,6 @@ func TestCategoryShiftTypeFKEnforcesTenantIsolation(t *testing.T) {
 	testpkg.OwnTenantRows(t, db, tenantA)
 	testpkg.EnsureTestTenant(t, db, tenantB)
 	testpkg.OwnTenantRows(t, db, tenantB)
-	t.Cleanup(func() {
-		_, _ = db.NewDelete().TableExpr("schedule.shift_types").Where("tenant_id IN (?)", testpkg.DBList([]int64{tenantA, tenantB})).Exec(ctx)
-		_, _ = db.NewDelete().TableExpr("platform.schools").Where("id IN (?)", testpkg.DBList([]int64{tenantA, tenantB})).Exec(ctx)
-		_, _ = db.NewDelete().TableExpr("platform.organizations").Where("id IN (?)", testpkg.DBList([]int64{tenantA, tenantB})).Exec(ctx)
-	})
 
 	stA := insertShiftTypeRaw(t, db, tenantA, fmt.Sprintf("A-%d", tenantA))
 	catB := testpkg.CreateTestActivityCategoryForTenant(t, db, tenantB, "FK-CatB")

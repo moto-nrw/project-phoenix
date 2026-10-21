@@ -572,9 +572,6 @@ func TestActiveService_MoveStudentsToActiveGroup_BinaryModeReturnsUnchanged(t *t
 		DO UPDATE SET value = EXCLUDED.value, updated_at = now()
 	`, testpkg.Tenant(t)).Exec(ctx)
 	require.NoError(t, err)
-	defer func() {
-		_, _ = db.NewRaw(`DELETE FROM config.setting_values WHERE tenant_id = ? AND setting_key = 'operations.presence_mode'`, testpkg.Tenant(t)).Exec(ctx)
-	}()
 
 	activity := testpkg.CreateTestActivityGroup(t, db, "move-binary-target")
 	room := testpkg.CreateTestRoom(t, db, "Move Binary Target Room")
@@ -612,9 +609,6 @@ func TestActiveService_MoveStudentsToActiveGroup_BinaryModeRejectsStaleVisit(t *
 		DO UPDATE SET value = EXCLUDED.value, updated_at = now()
 	`, testpkg.Tenant(t)).Exec(ctx)
 	require.NoError(t, err)
-	defer func() {
-		_, _ = db.NewRaw(`DELETE FROM config.setting_values WHERE tenant_id = ? AND setting_key = 'operations.presence_mode'`, testpkg.Tenant(t)).Exec(ctx)
-	}()
 
 	now := time.Now()
 	sourceActivity := testpkg.CreateTestActivityGroup(t, db, "move-binary-stale-source")
@@ -746,9 +740,6 @@ func TestActiveService_MoveStudentsToTransit_BinaryModeReturnsUnchanged(t *testi
 		DO UPDATE SET value = EXCLUDED.value, updated_at = now()
 	`, testpkg.Tenant(t)).Exec(ctx)
 	require.NoError(t, err)
-	defer func() {
-		_, _ = db.NewRaw(`DELETE FROM config.setting_values WHERE tenant_id = ? AND setting_key = 'operations.presence_mode'`, testpkg.Tenant(t)).Exec(ctx)
-	}()
 
 	const (
 		studentA int64 = 60001
@@ -844,9 +835,6 @@ func TestActiveService_AssignTransitStudentsToActiveGroup_BinaryModeSkipsAll(t *
 		DO UPDATE SET value = EXCLUDED.value, updated_at = now()
 	`, testpkg.Tenant(t)).Exec(ctx)
 	require.NoError(t, err)
-	defer func() {
-		_, _ = db.NewRaw(`DELETE FROM config.setting_values WHERE tenant_id = ? AND setting_key = 'operations.presence_mode'`, testpkg.Tenant(t)).Exec(ctx)
-	}()
 
 	activity := testpkg.CreateTestActivityGroup(t, db, "transit-binary-target")
 	room := testpkg.CreateTestRoom(t, db, "Transit Binary Target Room")

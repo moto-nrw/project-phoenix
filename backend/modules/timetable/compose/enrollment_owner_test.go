@@ -350,12 +350,5 @@ func createEnrollmentSource(t *testing.T, db *bun.DB, ctx context.Context, stude
 		date_of_birth, status, activation_mode, created_student_id, reviewed_at, sort_order, custom_data)
 		VALUES (?, ?, 'Owner', 'Child', '2018-01-01', 'approved', 'scheduled', ?, NOW(), 0, '{}'::jsonb) RETURNING id`,
 		testpkg.Tenant(t), requestID, studentID).Scan(ctx, &childID))
-	tenantID := testpkg.Tenant(t)
-	t.Cleanup(func() {
-		cleanupCtx := context.Background()
-		_, _ = db.NewDelete().Table("enrollment.request_children").Where("tenant_id = ?", tenantID).Where("id = ?", childID).Exec(cleanupCtx)
-		_, _ = db.NewDelete().Table("enrollment.requests").Where("tenant_id = ?", tenantID).Where("id = ?", requestID).Exec(cleanupCtx)
-		_, _ = db.NewDelete().Table("enrollment.phases").Where("tenant_id = ?", tenantID).Where("id = ?", phaseID).Exec(cleanupCtx)
-	})
 	return childID
 }

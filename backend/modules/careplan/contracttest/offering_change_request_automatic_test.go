@@ -88,8 +88,7 @@ func createPendingTriggerRequest(
 func TestOfferingChangeRequestService_GetForStudent_MarksAutomaticDiffEntries(t *testing.T) {
 	t.Parallel()
 
-	env, cleanup := setupDecisionTest(t)
-	defer cleanup()
+	env := setupDecisionTest(t)
 	ctx := offeringChangeAdminContext(t)
 	svc := newOfferingChangeServiceForTest(t, env)
 	fx := setupOfferingChangeFixture(t, env, "MarkAuto")
@@ -121,8 +120,7 @@ func TestOfferingChangeRequestService_GetForStudent_MarksAutomaticDiffEntries(t 
 func TestOfferingChangeRequestService_ListPending_MarksAutomaticDiffEntries(t *testing.T) {
 	t.Parallel()
 	testpkg.SetupIsolatedTestDB(t)
-	env, cleanup := setupDecisionTest(t)
-	defer cleanup()
+	env := setupDecisionTest(t)
 	ctx := offeringChangeAdminContext(t)
 	svc := newOfferingChangeServiceForTest(t, env)
 	fx := setupOfferingChangeFixture(t, env, "QueueAuto")
@@ -153,8 +151,7 @@ func TestOfferingChangeRequestService_ListPending_MarksAutomaticDiffEntries(t *t
 func TestOfferingChangeRequestService_ListPending_IncludesUnchangedGrandfatheredRuleTarget(t *testing.T) {
 	t.Parallel()
 
-	env, cleanup := setupDecisionTest(t)
-	defer cleanup()
+	env := setupDecisionTest(t)
 	ctx := offeringChangeAdminContext(t)
 	svc := newOfferingChangeServiceForTest(t, env)
 	fx := setupOfferingChangeFixture(t, env, "QueueUnchangedAuto")
@@ -208,8 +205,7 @@ func TestOfferingChangeRequestService_ListPending_IncludesUnchangedGrandfathered
 func TestOfferingChangeRequestService_Decide_ExclusionSkipsAutoTargetAndRecordsOverride(t *testing.T) {
 	t.Parallel()
 
-	env, cleanup := setupDecisionTest(t)
-	defer cleanup()
+	env := setupDecisionTest(t)
 	ctx := offeringChangeAdminContext(t)
 	svc := newOfferingChangeServiceForTest(t, env)
 	fx := setupOfferingChangeFixture(t, env, "OptOut")
@@ -252,8 +248,7 @@ func TestOfferingChangeRequestService_Decide_ExclusionSkipsAutoTargetAndRecordsO
 func TestOfferingChangeRequestService_Decide_ExclusionOmitsNeverBookedTargetFromSnapshot(t *testing.T) {
 	t.Parallel()
 
-	env, cleanup := setupDecisionTest(t)
-	defer cleanup()
+	env := setupDecisionTest(t)
 	ctx := offeringChangeAdminContext(t)
 	svc := newOfferingChangeServiceForTest(t, env)
 	fx := setupOfferingChangeFixture(t, env, "OptOutSnapshot")
@@ -276,8 +271,7 @@ func TestOfferingChangeRequestService_Decide_ExclusionOmitsNeverBookedTargetFrom
 func TestOfferingChangeRequestService_Decide_SnapshotMatchesGrandfatheredAutomaticBooking(t *testing.T) {
 	t.Parallel()
 
-	env, cleanup := setupDecisionTest(t)
-	defer cleanup()
+	env := setupDecisionTest(t)
 	ctx := offeringChangeAdminContext(t)
 	svc := newOfferingChangeServiceForTest(t, env)
 	fx := setupOfferingChangeFixture(t, env, "GrandfatheredSnapshot")
@@ -333,8 +327,7 @@ func TestOfferingChangeRequestService_Decide_SnapshotMatchesGrandfatheredAutomat
 func TestOfferingChangeRequestService_Decide_ExclusionKeepsManualAndRequiredLunchDays(t *testing.T) {
 	t.Parallel()
 
-	env, cleanup := setupDecisionTest(t)
-	defer cleanup()
+	env := setupDecisionTest(t)
 	ctx := offeringChangeAdminContext(t)
 	svc := newOfferingChangeServiceForTest(t, env)
 	fx := setupOfferingChangeFixture(t, env, "OptOutMixed")
@@ -389,8 +382,7 @@ func TestOfferingChangeRequestService_Decide_ExclusionKeepsManualAndRequiredLunc
 func TestOfferingChangeRequestService_PreviewDecision_RecomputesPartialExclusionCascade(t *testing.T) {
 	t.Parallel()
 
-	env, cleanup := setupDecisionTest(t)
-	defer cleanup()
+	env := setupDecisionTest(t)
 	ctx := offeringChangeAdminContext(t)
 	svc := newOfferingChangeServiceForTest(t, env)
 	fx := setupOfferingChangeFixture(t, env, "PreviewPartialCascade")
@@ -432,8 +424,7 @@ func TestOfferingChangeRequestService_PreviewDecision_RecomputesPartialExclusion
 func TestOfferingChangeRequestService_Decide_RejectsExclusionOfNonAutomaticOffering(t *testing.T) {
 	t.Parallel()
 
-	env, cleanup := setupDecisionTest(t)
-	defer cleanup()
+	env := setupDecisionTest(t)
 	ctx := offeringChangeAdminContext(t)
 	svc := newOfferingChangeServiceForTest(t, env)
 	fx := setupOfferingChangeFixture(t, env, "OptOutInvalid")
@@ -457,8 +448,7 @@ func TestOfferingChangeRequestService_Decide_RejectsExclusionOfNonAutomaticOffer
 func TestOfferingChangeRequestService_Decide_RejectsExclusionWithoutRuleDerivedDays(t *testing.T) {
 	t.Parallel()
 
-	env, cleanup := setupDecisionTest(t)
-	defer cleanup()
+	env := setupDecisionTest(t)
 	ctx := offeringChangeAdminContext(t)
 	svc := newOfferingChangeServiceForTest(t, env)
 	fx := setupOfferingChangeFixture(t, env, "OptOutNoRuleDays")
@@ -506,8 +496,7 @@ func TestOfferingChangeRequestService_Decide_RejectsExclusionWithoutRuleDerivedD
 func TestOfferingChangeRequestService_Decide_RevalidatesExclusionAgainstAppliedRules(t *testing.T) {
 	t.Parallel()
 
-	env, cleanup := setupDecisionTest(t)
-	defer cleanup()
+	env := setupDecisionTest(t)
 	ctx := offeringChangeAdminContext(t)
 	fx := setupOfferingChangeFixture(t, env, "FinalOverrideRules")
 	auto := createAutoAddTarget(t, env, "FinalOverrideRules", fx.newOffering.ID)
@@ -537,8 +526,7 @@ func TestOfferingChangeRequestService_Decide_RevalidatesExclusionAgainstAppliedR
 func TestOfferingChangeRequestService_Decide_RejectionFreezesDiffSnapshot(t *testing.T) {
 	t.Parallel()
 
-	env, cleanup := setupDecisionTest(t)
-	defer cleanup()
+	env := setupDecisionTest(t)
 	ctx := offeringChangeAdminContext(t)
 	svc := newOfferingChangeServiceForTest(t, env)
 	fx := setupOfferingChangeFixture(t, env, "SnapReject")
@@ -571,8 +559,7 @@ func TestOfferingChangeRequestService_Decide_RejectionFreezesDiffSnapshot(t *tes
 func TestOfferingChangeRequestService_Decide_RejectionFallsBackToPayloadSnapshot(t *testing.T) {
 	t.Parallel()
 
-	env, cleanup := setupDecisionTest(t)
-	defer cleanup()
+	env := setupDecisionTest(t)
 	ctx := offeringChangeAdminContext(t)
 	svc := newOfferingChangeServiceForTest(t, env)
 	fx := setupOfferingChangeFixture(t, env, "RejectSnapshotFailure")

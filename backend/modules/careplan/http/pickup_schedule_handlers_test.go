@@ -47,11 +47,6 @@ func TestGetStudentPickupSchedules(t *testing.T) {
 			Notes:      &notes,
 			CreatedBy:  createStudentsAPITestStaffID(t, tc),
 		})
-		defer func() {
-			_, _ = tc.db.NewDelete().TableExpr("schedule.student_pickup_schedules").
-				Where("student_id = ?", studentWithData.ID).
-				Exec(context.Background())
-		}()
 
 		// Insert a pickup exception directly into the database
 		exceptionDate := calendar.NewDate(2026, 2, 15) // Use noon to avoid day boundary issues
@@ -65,11 +60,6 @@ func TestGetStudentPickupSchedules(t *testing.T) {
 			Reason:        &arztterminReason,
 			CreatedBy:     createStudentsAPITestStaffID(t, tc),
 		})
-		defer func() {
-			_, _ = tc.db.NewDelete().TableExpr("schedule.student_pickup_exceptions").
-				Where("student_id = ?", studentWithData.ID).
-				Exec(context.Background())
-		}()
 
 		req := testutil.NewRequest("GET", fmt.Sprintf("/%d/pickup-schedules", studentWithData.ID), nil)
 		rr := authExec(t, tc, req, testutil.AdminTestClaims(1), []string{"admin:*"})
@@ -498,11 +488,6 @@ func TestUpdateStudentPickupException(t *testing.T) {
 			Reason:        &originalReason,
 			CreatedBy:     createStudentsAPITestStaffID(t, tc),
 		})
-		defer func() {
-			_, _ = tc.db.NewDelete().TableExpr("schedule.student_pickup_exceptions").
-				Where("id = ?", exception.ID).
-				Exec(context.Background())
-		}()
 
 		body := map[string]any{
 			"exception_date": "2026-04-15",
@@ -578,11 +563,6 @@ func TestUpdateStudentPickupException(t *testing.T) {
 			Reason:        &testReason,
 			CreatedBy:     createStudentsAPITestStaffID(t, tc),
 		})
-		defer func() {
-			_, _ = tc.db.NewDelete().TableExpr("schedule.student_pickup_exceptions").
-				Where("id = ?", exception.ID).
-				Exec(context.Background())
-		}()
 
 		body := map[string]any{
 			"exception_date": "2026-05-15",
@@ -718,11 +698,6 @@ func TestDeleteStudentPickupException(t *testing.T) {
 			Reason:        &deleteTestReason,
 			CreatedBy:     createStudentsAPITestStaffID(t, tc),
 		})
-		defer func() {
-			_, _ = tc.db.NewDelete().TableExpr("schedule.student_pickup_exceptions").
-				Where("id = ?", exception.ID).
-				Exec(context.Background())
-		}()
 
 		// Try to delete student2's exception using student1's URL
 		req := testutil.NewRequest("DELETE", fmt.Sprintf("/%d/pickup-exceptions/%d", student1.ID, exception.ID), nil)
@@ -866,11 +841,6 @@ func TestGetBulkPickupTimes(t *testing.T) {
 			Notes:      &notes,
 			CreatedBy:  createStudentsAPITestStaffID(t, tc),
 		})
-		defer func() {
-			_, _ = tc.db.NewDelete().TableExpr("schedule.student_pickup_schedules").
-				Where("student_id = ?", student.ID).
-				Exec(context.Background())
-		}()
 
 		// Request for a Monday date
 		body := map[string]any{
@@ -898,11 +868,6 @@ func TestGetBulkPickupTimes(t *testing.T) {
 			PickupTime: baseTime,
 			CreatedBy:  createStudentsAPITestStaffID(t, tc),
 		})
-		defer func() {
-			_, _ = tc.db.NewDelete().TableExpr("schedule.student_pickup_schedules").
-				Where("student_id = ?", student.ID).
-				Exec(context.Background())
-		}()
 
 		// Insert exception for specific date
 		exceptionDate := calendar.NewDate(2026, 1, 26) // Monday, noon to avoid day boundary issues
@@ -916,11 +881,6 @@ func TestGetBulkPickupTimes(t *testing.T) {
 			Reason:        &earlyPickupReason,
 			CreatedBy:     createStudentsAPITestStaffID(t, tc),
 		})
-		defer func() {
-			_, _ = tc.db.NewDelete().TableExpr("schedule.student_pickup_exceptions").
-				Where("student_id = ?", student.ID).
-				Exec(context.Background())
-		}()
 
 		body := map[string]any{
 			"student_ids": []int64{student.ID},
@@ -1079,11 +1039,6 @@ func TestUpdateStudentPickupNote(t *testing.T) {
 			Content:   originalContent,
 			CreatedBy: createStudentsAPITestStaffID(t, tc),
 		})
-		defer func() {
-			_, _ = tc.db.NewDelete().TableExpr("schedule.student_pickup_notes").
-				Where("id = ?", note.ID).
-				Exec(context.Background())
-		}()
 
 		body := map[string]any{
 			"note_date": "2026-04-15",
@@ -1110,11 +1065,6 @@ func TestUpdateStudentPickupNote(t *testing.T) {
 			Content:   testContent,
 			CreatedBy: createStudentsAPITestStaffID(t, tc),
 		})
-		defer func() {
-			_, _ = tc.db.NewDelete().TableExpr("schedule.student_pickup_notes").
-				Where("id = ?", note.ID).
-				Exec(context.Background())
-		}()
 
 		body := map[string]any{
 			"note_date": "2026-05-15",
@@ -1194,11 +1144,6 @@ func TestDeleteStudentPickupNote(t *testing.T) {
 			Content:   deleteTestContent,
 			CreatedBy: createStudentsAPITestStaffID(t, tc),
 		})
-		defer func() {
-			_, _ = tc.db.NewDelete().TableExpr("schedule.student_pickup_notes").
-				Where("id = ?", note.ID).
-				Exec(context.Background())
-		}()
 
 		// Try to delete student2's note using student1's URL
 		req := testutil.NewRequest("DELETE", fmt.Sprintf("/%d/pickup-notes/%d", student1.ID, note.ID), nil)

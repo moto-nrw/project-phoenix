@@ -41,8 +41,7 @@ import (
 
 // decisionTestEnv augments rolloverTestEnv with a wired DecisionService
 // so we don't have to repeat the dependency injection in every test.
-// Reuses the rollover env's tenant + schema + source-phase fixture so
-// teardown stays unified.
+// Reuses the rollover env's tenant + schema + source-phase fixture.
 type decisionTestEnv struct {
 	*rolloverTestEnv
 	decision enrollmentAPI.DecisionService
@@ -88,7 +87,7 @@ func (s stubActivationSettings) ResolveBool(_ context.Context, key string) (bool
 	return true, nil
 }
 
-func setupDecisionTest(t *testing.T) (*decisionTestEnv, func()) {
+func setupDecisionTest(t *testing.T) *decisionTestEnv {
 	// nil Settings exercises the safe default (scheduled).
 	return setupDecisionTestWithSettings(t, nil)
 }
@@ -96,12 +95,12 @@ func setupDecisionTest(t *testing.T) (*decisionTestEnv, func()) {
 func setupDecisionTestWithSettings(
 	t *testing.T,
 	settings owners.EnrollmentDecisionSettings,
-) (*decisionTestEnv, func()) {
+) *decisionTestEnv {
 	t.Helper()
-	env, cleanup := setupRolloverTest(t)
+	env := setupRolloverTest(t)
 	bookings := newBookingsForTest(env, settings, nil, nil)
 	decision := newDecisionServiceForTestWithBookings(nil, env, bookings, settings, nil, nil, nil)
-	return &decisionTestEnv{rolloverTestEnv: env, decision: decision, bookings: bookings}, cleanup
+	return &decisionTestEnv{rolloverTestEnv: env, decision: decision, bookings: bookings}
 }
 
 func newDecisionServiceForTest(
@@ -608,8 +607,7 @@ func setSourcePhaseServiceStartDate(t *testing.T, env *decisionTestEnv, serviceS
 func TestDecisionService_Get_NotFound(t *testing.T) {
 	t.Parallel()
 
-	env, cleanup := setupDecisionTest(t)
-	defer cleanup()
+	env := setupDecisionTest(t)
 	ctx := testpkg.Ctx(t)
 
 	_, err := testpkg.TenantQuery1(t, ctx, env.db, env.decision.Get, 99_999_999)
@@ -621,8 +619,7 @@ func TestDecisionService_Get_NotFound(t *testing.T) {
 func TestDecisionService_Get_ReturnsRequestPhaseAndChildren(t *testing.T) {
 	t.Parallel()
 
-	env, cleanup := setupDecisionTest(t)
-	defer cleanup()
+	env := setupDecisionTest(t)
 	ctx := testpkg.Ctx(t)
 
 	reqID, _ := submitOneChild(t, env, "get-happy@example.com", "Lina", "Get")
@@ -640,8 +637,7 @@ func TestDecisionService_Get_ReturnsRequestPhaseAndChildren(t *testing.T) {
 func TestDecisionService_Get_LoadsLateInviteUsedForRequest(t *testing.T) {
 	t.Parallel()
 
-	env, cleanup := setupDecisionTest(t)
-	defer cleanup()
+	env := setupDecisionTest(t)
 	ctx := testpkg.Ctx(t)
 
 	invite, err := env.requestSvc.CreateLateInvite(ctx, enrollmentAPI.CreateLateInviteInput{
@@ -680,8 +676,7 @@ func TestDecisionService_Get_LoadsLateInviteUsedForRequest(t *testing.T) {
 func TestDecisionService_Decide_RejectsZeroRequestID(t *testing.T) {
 	t.Parallel()
 
-	env, cleanup := setupDecisionTest(t)
-	defer cleanup()
+	env := setupDecisionTest(t)
 	ctx := testpkg.Ctx(t)
 
 	_, err := testpkg.TenantQuery1(t, ctx, env.db, env.decision.Decide, enrollmentAPI.DecideInput{
@@ -696,8 +691,7 @@ func TestDecisionService_Decide_RejectsZeroRequestID(t *testing.T) {
 func TestDecisionService_Decide_RejectsZeroChildID(t *testing.T) {
 	t.Parallel()
 
-	env, cleanup := setupDecisionTest(t)
-	defer cleanup()
+	env := setupDecisionTest(t)
 	ctx := testpkg.Ctx(t)
 
 	reqID, _ := submitOneChild(t, env, "decide-zero-child@example.com", "X", "Y")
@@ -713,8 +707,7 @@ func TestDecisionService_Decide_RejectsZeroChildID(t *testing.T) {
 func TestDecisionService_Decide_RejectsUnknownStatus(t *testing.T) {
 	t.Parallel()
 
-	env, cleanup := setupDecisionTest(t)
-	defer cleanup()
+	env := setupDecisionTest(t)
 	ctx := testpkg.Ctx(t)
 
 	reqID, childID := submitOneChild(t, env, "decide-bad-status@example.com", "X", "Y")
@@ -730,8 +723,7 @@ func TestDecisionService_Decide_RejectsUnknownStatus(t *testing.T) {
 func TestDecisionService_Decide_RequestNotFound(t *testing.T) {
 	t.Parallel()
 
-	env, cleanup := setupDecisionTest(t)
-	defer cleanup()
+	env := setupDecisionTest(t)
 	ctx := testpkg.Ctx(t)
 
 	_, err := testpkg.TenantQuery1(t, ctx, env.db, env.decision.Decide, enrollmentAPI.DecideInput{
@@ -746,8 +738,7 @@ func TestDecisionService_Decide_RequestNotFound(t *testing.T) {
 func TestDecisionService_Decide_ChildNotFound(t *testing.T) {
 	t.Parallel()
 
-	env, cleanup := setupDecisionTest(t)
-	defer cleanup()
+	env := setupDecisionTest(t)
 	ctx := testpkg.Ctx(t)
 
 	reqID, _ := submitOneChild(t, env, "decide-child-nf@example.com", "X", "Y")
@@ -765,8 +756,7 @@ func TestDecisionService_Decide_ChildNotFound(t *testing.T) {
 func TestDecisionService_Decide_WaitlistedSetsStatus(t *testing.T) {
 	t.Parallel()
 
-	env, cleanup := setupDecisionTest(t)
-	defer cleanup()
+	env := setupDecisionTest(t)
 	ctx := testpkg.Ctx(t)
 
 	reqID, childID := submitOneChild(t, env, "decide-wait@example.com", "Will", "Wait")
@@ -787,8 +777,7 @@ func TestDecisionService_Decide_WaitlistedSetsStatus(t *testing.T) {
 func TestDecisionService_Decide_RejectedSetsStatus(t *testing.T) {
 	t.Parallel()
 
-	env, cleanup := setupDecisionTest(t)
-	defer cleanup()
+	env := setupDecisionTest(t)
 	ctx := testpkg.Ctx(t)
 
 	reqID, childID := submitOneChild(t, env, "decide-rej@example.com", "Will", "Reject")
@@ -805,8 +794,7 @@ func TestDecisionService_Decide_RejectedSetsStatus(t *testing.T) {
 func TestDecisionService_Decide_UnderReviewSetsStatus(t *testing.T) {
 	t.Parallel()
 
-	env, cleanup := setupDecisionTest(t)
-	defer cleanup()
+	env := setupDecisionTest(t)
 	ctx := testpkg.Ctx(t)
 
 	reqID, childID := submitOneChild(t, env, "decide-review@example.com", "Will", "Review")
@@ -823,8 +811,7 @@ func TestDecisionService_Decide_UnderReviewSetsStatus(t *testing.T) {
 func TestDecisionService_Decide_TerminalTransitionRejected(t *testing.T) {
 	t.Parallel()
 
-	env, cleanup := setupDecisionTest(t)
-	defer cleanup()
+	env := setupDecisionTest(t)
 	ctx := testpkg.Ctx(t)
 
 	reqID, childID := submitOneChild(t, env, "decide-term@example.com", "Will", "Term")
@@ -851,10 +838,9 @@ func TestDecisionService_Decide_TerminalTransitionRejected(t *testing.T) {
 func TestDecisionService_Decide_ConcurrentSiblingResolutionsEnqueueOneCompleteDigest(t *testing.T) {
 	t.Parallel()
 
-	env, cleanup := setupDecisionTestWithSettings(t, stubActivationSettings{
+	env := setupDecisionTestWithSettings(t, stubActivationSettings{
 		notificationMode: settingValueNotifyDigest,
 	})
-	defer cleanup()
 	submitted := submitDecisionSiblings(t, env, "concurrent-digest@example.com")
 
 	start := make(chan struct{})
@@ -896,8 +882,7 @@ func TestDecisionService_Decide_PinsDigestModeAcrossSettingChange(t *testing.T) 
 
 	settings := newStubRequestSettings()
 	settings.stringValues[settingKeyNotifyPerDecision] = settingValueNotifyDigest
-	env, cleanup := setupDecisionTestWithSettings(t, settings)
-	defer cleanup()
+	env := setupDecisionTestWithSettings(t, settings)
 	ctx := testpkg.Ctx(t)
 	submitted := submitDecisionSiblings(t, env, "pinned-digest@example.com")
 
@@ -930,8 +915,7 @@ func TestDecisionService_Decide_PinsImmediateModeAcrossSettingChange(t *testing.
 
 	settings := newStubRequestSettings()
 	settings.stringValues[settingKeyNotifyPerDecision] = settingValueNotifyImmediate
-	env, cleanup := setupDecisionTestWithSettings(t, settings)
-	defer cleanup()
+	env := setupDecisionTestWithSettings(t, settings)
 	ctx := testpkg.Ctx(t)
 	submitted := submitDecisionSiblings(t, env, "pinned-immediate@example.com")
 
@@ -961,10 +945,9 @@ func TestDecisionService_Decide_PinsImmediateModeAcrossSettingChange(t *testing.
 func TestDecisionService_Decide_WaitlistedPromotionVersionsDigestState(t *testing.T) {
 	t.Parallel()
 
-	env, cleanup := setupDecisionTestWithSettings(t, stubActivationSettings{
+	env := setupDecisionTestWithSettings(t, stubActivationSettings{
 		notificationMode: settingValueNotifyDigest,
 	})
-	defer cleanup()
 	ctx := testpkg.Ctx(t)
 	submitted := submitDecisionSiblings(t, env, "digest-transition@example.com")
 
@@ -1019,8 +1002,8 @@ func TestDecisionService_Decide_ReopenedSameStatusVersionsParentNotification(t *
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			env, cleanup := setupDecisionTestWithSettings(t, stubActivationSettings{notificationMode: tt.mode})
-			defer cleanup()
+			testpkg.OwnTenant(t)
+			env := setupDecisionTestWithSettings(t, stubActivationSettings{notificationMode: tt.mode})
 			ctx := testpkg.Ctx(t)
 			requestID, childID := submitOneChild(t, env, "repeated-decision-"+tt.name+"@example.com", "Lina", "Wiederholt")
 
@@ -1048,8 +1031,7 @@ func TestDecisionService_Decide_ReopenedSameStatusVersionsParentNotification(t *
 func TestDecisionService_Decide_ApprovedCreatesDownstreamRecords(t *testing.T) {
 	t.Parallel()
 
-	env, cleanup := setupDecisionTest(t)
-	defer cleanup()
+	env := setupDecisionTest(t)
 	ctx := testpkg.Ctx(t)
 
 	reqID, childID := submitOneChild(t, env, "decide-approve@example.com", "Anna", "Approved")
@@ -1094,8 +1076,7 @@ func TestDecisionService_Decide_ApprovedCreatesDownstreamRecords(t *testing.T) {
 func TestDecisionService_Decide_ApprovedLinksAdditionalGuardians(t *testing.T) {
 	t.Parallel()
 
-	env, cleanup := setupDecisionTest(t)
-	defer cleanup()
+	env := setupDecisionTest(t)
 	ctx := testpkg.Ctx(t)
 
 	reqID, childID := submitOneChild(t, env, "primary-guardian@example.com", "Kjell", "Approved")
@@ -1164,8 +1145,7 @@ func TestDecisionService_Decide_ApprovedLinksAdditionalGuardians(t *testing.T) {
 func TestDecisionService_SyncApprovedChildData_RelinksPrimaryGuardian(t *testing.T) {
 	t.Parallel()
 
-	env, cleanup := setupDecisionTest(t)
-	defer cleanup()
+	env := setupDecisionTest(t)
 	ctx := testpkg.Ctx(t)
 
 	reqID, childID := submitOneChild(t, env, "old-primary@example.com", "Lina", "PrimaryRelink")
@@ -1216,8 +1196,7 @@ func TestDecisionService_SyncApprovedChildData_RelinksPrimaryGuardian(t *testing
 func TestDecisionService_SyncApprovedChildData_UpdatesStandalonePrimaryGuardianName(t *testing.T) {
 	t.Parallel()
 
-	env, cleanup := setupDecisionTest(t)
-	defer cleanup()
+	env := setupDecisionTest(t)
 	ctx := testpkg.Ctx(t)
 
 	reqID, childID := submitOneChild(t, env, "primary-name-correction@example.com", "Lina", "NameCorrection")
@@ -1259,8 +1238,7 @@ func TestDecisionService_SyncApprovedChildData_UpdatesStandalonePrimaryGuardianN
 func TestDecisionService_SyncApprovedChildData_DoesNotOverwriteAccountLinkedPrimaryGuardianName(t *testing.T) {
 	t.Parallel()
 
-	env, cleanup := setupDecisionTest(t)
-	defer cleanup()
+	env := setupDecisionTest(t)
 	ctx := testpkg.Ctx(t)
 
 	reqID, childID := submitOneChild(t, env, "primary-account-name@example.com", "Lina", "AccountName")
@@ -1304,8 +1282,7 @@ func TestDecisionService_SyncApprovedChildData_DoesNotOverwriteAccountLinkedPrim
 func TestDecisionService_SyncApprovedChildData_ReconcilesRemovedAdditionalGuardians(t *testing.T) {
 	t.Parallel()
 
-	env, cleanup := setupDecisionTest(t)
-	defer cleanup()
+	env := setupDecisionTest(t)
 	ctx := testpkg.Ctx(t)
 
 	reqID, childID := submitOneChild(t, env, "primary-reconcile@example.com", "Lina", "CoGuardian")
@@ -1388,8 +1365,7 @@ func TestDecisionService_SyncApprovedChildData_ReconcilesRemovedAdditionalGuardi
 func TestDecisionService_SyncApprovedChildData_UpgradesExistingContactListLinkForCoGuardian(t *testing.T) {
 	t.Parallel()
 
-	env, cleanup := setupDecisionTest(t)
-	defer cleanup()
+	env := setupDecisionTest(t)
 	ctx := testpkg.Ctx(t)
 	publishDecisionContactListSchema(t, env)
 
@@ -1466,8 +1442,7 @@ func TestDecisionService_SyncApprovedChildData_UpgradesExistingContactListLinkFo
 func TestDecisionService_Decide_UpdatesStandaloneCoGuardianNameWhenReusingEmail(t *testing.T) {
 	t.Parallel()
 
-	env, cleanup := setupDecisionTest(t)
-	defer cleanup()
+	env := setupDecisionTest(t)
 	ctx := testpkg.Ctx(t)
 
 	reqID, childID := submitOneChild(t, env, "primary-coguardian-name@example.com", "Kjell", "CoGuardianName")
@@ -1513,8 +1488,7 @@ func TestDecisionService_Decide_UpdatesStandaloneCoGuardianNameWhenReusingEmail(
 func TestDecisionService_Decide_PersistsCoGuardianPhone(t *testing.T) {
 	t.Parallel()
 
-	env, cleanup := setupDecisionTest(t)
-	defer cleanup()
+	env := setupDecisionTest(t)
 	ctx := testpkg.Ctx(t)
 
 	reqID, childID := submitOneChild(t, env, "primary-phone@example.com", "Kjell", "Approved")
@@ -1557,8 +1531,7 @@ func TestDecisionService_Decide_PersistsCoGuardianPhone(t *testing.T) {
 func TestDecisionService_SyncApprovedChildData_ReplacesRemovedContactList(t *testing.T) {
 	t.Parallel()
 
-	env, cleanup := setupDecisionTest(t)
-	defer cleanup()
+	env := setupDecisionTest(t)
 	ctx := testpkg.Ctx(t)
 
 	schemaSvc := NewTestFormSchemas(env.repos.Enrollment())
@@ -1638,8 +1611,7 @@ func TestDecisionService_SyncApprovedChildData_ReplacesRemovedContactList(t *tes
 func TestDecisionService_SyncApprovedChildData_ReplacesRemovedPhoneOnlyContactList(t *testing.T) {
 	t.Parallel()
 
-	env, cleanup := setupDecisionTest(t)
-	defer cleanup()
+	env := setupDecisionTest(t)
 	ctx := testpkg.Ctx(t)
 	publishDecisionContactListSchema(t, env)
 
@@ -1693,8 +1665,7 @@ func TestDecisionService_SyncApprovedChildData_ReplacesRemovedPhoneOnlyContactLi
 func TestDecisionService_SyncApprovedChildData_ReusesUnchangedPhoneOnlyContactList(t *testing.T) {
 	t.Parallel()
 
-	env, cleanup := setupDecisionTest(t)
-	defer cleanup()
+	env := setupDecisionTest(t)
 	ctx := testpkg.Ctx(t)
 	publishDecisionContactListSchema(t, env)
 
@@ -1741,8 +1712,7 @@ func TestDecisionService_SyncApprovedChildData_ReusesUnchangedPhoneOnlyContactLi
 func TestDecisionService_SyncApprovedChildData_UpdatesExistingContactListPermissions(t *testing.T) {
 	t.Parallel()
 
-	env, cleanup := setupDecisionTest(t)
-	defer cleanup()
+	env := setupDecisionTest(t)
 	ctx := testpkg.Ctx(t)
 	publishDecisionContactListSchema(t, env)
 
@@ -1811,8 +1781,7 @@ func TestDecisionService_SyncApprovedChildData_UpdatesExistingContactListPermiss
 func TestDecisionService_Decide_ContactListSelfGuardianDoesNotAbortApproval(t *testing.T) {
 	t.Parallel()
 
-	env, cleanup := setupDecisionTest(t)
-	defer cleanup()
+	env := setupDecisionTest(t)
 	ctx := testpkg.Ctx(t)
 
 	schemaSvc := NewTestFormSchemas(env.repos.Enrollment())
@@ -1890,8 +1859,7 @@ func TestDecisionService_Decide_ContactListSelfGuardianDoesNotAbortApproval(t *t
 func TestDecisionService_Decide_AppliesDepartureField(t *testing.T) {
 	t.Parallel()
 
-	env, cleanup := setupDecisionTest(t)
-	defer cleanup()
+	env := setupDecisionTest(t)
 	ctx := testpkg.Ctx(t)
 
 	// Pin a schema that carries the unified departure field onto the phase.
@@ -1956,8 +1924,7 @@ func TestDecisionService_Decide_AppliesDepartureField(t *testing.T) {
 func TestDecisionService_Decide_AppliesCoupledCompanionNote(t *testing.T) {
 	t.Parallel()
 
-	env, cleanup := setupDecisionTest(t)
-	defer cleanup()
+	env := setupDecisionTest(t)
 	ctx := testpkg.Ctx(t)
 
 	schemaSvc := NewTestFormSchemas(env.repos.Enrollment())
@@ -2024,8 +1991,7 @@ func TestDecisionService_Decide_AppliesCoupledCompanionNote(t *testing.T) {
 func TestDecisionService_Decide_SkipsCompanionNoteWithoutAccompanied(t *testing.T) {
 	t.Parallel()
 
-	env, cleanup := setupDecisionTest(t)
-	defer cleanup()
+	env := setupDecisionTest(t)
 	ctx := testpkg.Ctx(t)
 
 	schemaSvc := NewTestFormSchemas(env.repos.Enrollment())
@@ -2092,8 +2058,7 @@ func TestDecisionService_Decide_SkipsCompanionNoteWithoutAccompanied(t *testing.
 func TestDecisionService_Decide_MergesDuplicateAllowedDepartureFields(t *testing.T) {
 	t.Parallel()
 
-	env, cleanup := setupDecisionTest(t)
-	defer cleanup()
+	env := setupDecisionTest(t)
 	ctx := testpkg.Ctx(t)
 
 	// Raw insert bypasses FormSchema.Validate (which now rejects duplicate
@@ -2115,7 +2080,7 @@ func TestDecisionService_Decide_MergesDuplicateAllowedDepartureFields(t *testing
 		schema.TenantID, schema.Name, schema.Version, schema.CreatedBy, string(fieldsJSON)).Scan(ctx, &schema.ID)
 	require.NoError(t, err)
 	require.Greater(t, schema.ID, int64(0))
-	// The schema row is left to the env teardown: requests created below hold an
+	// The schema row stays in the test tenant: requests created below hold an
 	// FK to it, mirroring the other schema-creating tests in this file.
 
 	env.sourcePhase.FormSchemaID = &schema.ID
@@ -2178,8 +2143,7 @@ func TestDecisionService_Decide_MergesDuplicateAllowedDepartureFields(t *testing
 func TestDecisionService_Decide_ApprovedScheduledKeepsStudentPending(t *testing.T) {
 	t.Parallel()
 
-	env, cleanup := setupDecisionTest(t)
-	defer cleanup()
+	env := setupDecisionTest(t)
 	ctx := testpkg.Ctx(t)
 
 	reqID, childID := submitOneChild(t, env, "activation-scheduled@example.com", "Sched", "Uled")
@@ -2219,10 +2183,9 @@ func TestDecisionService_Decide_ApprovedScheduledKeepsStudentPending(t *testing.
 func TestDecisionService_Decide_ApprovedImmediateActivatesStudent(t *testing.T) {
 	t.Parallel()
 
-	env, cleanup := setupDecisionTestWithSettings(t, stubActivationSettings{
+	env := setupDecisionTestWithSettings(t, stubActivationSettings{
 		mode: settingValueActivationImmediate,
 	})
-	defer cleanup()
 	ctx := testpkg.Ctx(t)
 
 	reqID, childID := submitOneChild(t, env, "activation-immediate@example.com", "Immo", "Diate")
@@ -2254,10 +2217,9 @@ func TestDecisionService_Decide_ApprovedImmediateActivatesStudent(t *testing.T) 
 func TestDecisionService_Decide_ApprovedScheduledPastStartActivatesStudent(t *testing.T) {
 	t.Parallel()
 
-	env, cleanup := setupDecisionTestWithSettings(t, stubActivationSettings{
+	env := setupDecisionTestWithSettings(t, stubActivationSettings{
 		mode: settingValueActivationScheduled,
 	})
-	defer cleanup()
 	ctx := testpkg.Ctx(t)
 
 	reqID, childID := submitOneChild(t, env, "activation-scheduled-past@example.com", "Past", "Start")
@@ -2288,8 +2250,7 @@ func TestDecisionService_Decide_ApprovedScheduledPastStartActivatesStudent(t *te
 func TestDecisionService_Decide_ApprovedUnknownActivationModeFallsBackToScheduled(t *testing.T) {
 	t.Parallel()
 
-	env, cleanup := setupDecisionTestWithSettings(t, stubActivationSettings{mode: "bogus"})
-	defer cleanup()
+	env := setupDecisionTestWithSettings(t, stubActivationSettings{mode: "bogus"})
 	ctx := testpkg.Ctx(t)
 
 	reqID, childID := submitOneChild(t, env, "activation-unknown@example.com", "Safe", "Default")
@@ -2316,8 +2277,7 @@ func TestDecisionService_Decide_ApprovedUnknownActivationModeFallsBackToSchedule
 func TestDecisionService_Decide_ApprovedStampsConsentTimestamps(t *testing.T) {
 	t.Parallel()
 
-	env, cleanup := setupDecisionTest(t)
-	defer cleanup()
+	env := setupDecisionTest(t)
 	ctx := testpkg.Ctx(t)
 
 	reqID, childID := submitOneChild(t, env, "decide-consents@example.com", "Anna", "Consents")
@@ -2346,8 +2306,7 @@ func TestDecisionService_Decide_ApprovedStampsConsentTimestamps(t *testing.T) {
 func TestDecisionService_Decide_ConsentAuditFailureRollsBackFreshStudent(t *testing.T) {
 	t.Parallel()
 
-	env, cleanup := setupDecisionTest(t)
-	defer cleanup()
+	env := setupDecisionTest(t)
 	ctx := testpkg.Ctx(t)
 	auditErr := errors.New("consent audit unavailable")
 	env.decision = newDecisionServiceForTestWithConsentAuditor(
@@ -2389,8 +2348,7 @@ func TestDecisionService_Decide_ConsentAuditFailureRollsBackFreshStudent(t *test
 func TestDecisionService_Decide_SchedulePickupUsesReviewerStaffID(t *testing.T) {
 	t.Parallel()
 
-	env, cleanup := setupDecisionTest(t)
-	defer cleanup()
+	env := setupDecisionTest(t)
 	ctx := testpkg.Ctx(t)
 	publishDecisionScheduleSchema(t, env, "pickup_times", enrollmentNative.TargetSchedulePickup)
 	reviewerStaff, reviewerAccountID := createReviewerStaffWithDistinctAccount(t, env)
@@ -2421,8 +2379,7 @@ func TestDecisionService_Decide_SchedulePickupUsesReviewerStaffID(t *testing.T) 
 func TestDecisionService_SyncApprovedChildData_ReplacesRemovedPickupSchedule(t *testing.T) {
 	t.Parallel()
 
-	env, cleanup := setupDecisionTest(t)
-	defer cleanup()
+	env := setupDecisionTest(t)
 	ctx := testpkg.Ctx(t)
 	publishDecisionScheduleSchema(t, env, "pickup_times", enrollmentNative.TargetSchedulePickup)
 	_, reviewerAccountID := createReviewerStaffWithDistinctAccount(t, env)
@@ -2466,8 +2423,7 @@ func TestDecisionService_SyncApprovedChildData_ReplacesRemovedPickupSchedule(t *
 func TestDecisionService_SyncApprovedChildData_RecordsLaterPickupExtension(t *testing.T) {
 	t.Parallel()
 
-	env, cleanup := setupDecisionTest(t)
-	defer cleanup()
+	env := setupDecisionTest(t)
 	env.decision = newDecisionServiceForTestWithPickupExtensions(t, env.rolloverTestEnv, nil, nil, nil, nil)
 	ctx := testpkg.Ctx(t)
 	publishDecisionScheduleSchema(t, env, "pickup_times", enrollmentNative.TargetSchedulePickup)
@@ -2512,8 +2468,7 @@ func TestDecisionService_SyncApprovedChildData_RecordsLaterPickupExtension(t *te
 func TestDecisionService_Decide_ExistingStudentRecordsLaterPickupExtension(t *testing.T) {
 	t.Parallel()
 
-	env, cleanup := setupDecisionTest(t)
-	defer cleanup()
+	env := setupDecisionTest(t)
 	env.decision = newDecisionServiceForTestWithPickupExtensions(t, env.rolloverTestEnv, nil, nil, nil, nil)
 	ctx := testpkg.Ctx(t)
 	publishDecisionScheduleSchema(t, env, "pickup_times", enrollmentNative.TargetSchedulePickup)
@@ -2544,8 +2499,7 @@ func TestDecisionService_Decide_ExistingStudentRecordsLaterPickupExtension(t *te
 func TestDecisionService_SyncApprovedChildData_DuplicatePickupTargetDeletesOnce(t *testing.T) {
 	t.Parallel()
 
-	env, cleanup := setupDecisionTest(t)
-	defer cleanup()
+	env := setupDecisionTest(t)
 	ctx := testpkg.Ctx(t)
 	publishLegacyDuplicateTargetSchema(t, env, "legacy-dup-pickup", []enrollmentNative.FormField{
 		{
@@ -2595,8 +2549,7 @@ func TestDecisionService_SyncApprovedChildData_DuplicatePickupTargetDeletesOnce(
 func TestDecisionService_SyncApprovedChildData_DuplicateArrivalTargetDeletesOnce(t *testing.T) {
 	t.Parallel()
 
-	env, cleanup := setupDecisionTest(t)
-	defer cleanup()
+	env := setupDecisionTest(t)
 	ctx := testpkg.Ctx(t)
 	publishLegacyDuplicateTargetSchema(t, env, "legacy-dup-arrival", []enrollmentNative.FormField{
 		{
@@ -2646,8 +2599,7 @@ func TestDecisionService_SyncApprovedChildData_DuplicateArrivalTargetDeletesOnce
 func TestDecisionService_SyncApprovedChildData_DuplicateStudentTargetKeepsSubmittedSiblingValue(t *testing.T) {
 	t.Parallel()
 
-	env, cleanup := setupDecisionTest(t)
-	defer cleanup()
+	env := setupDecisionTest(t)
 	ctx := testpkg.Ctx(t)
 	publishLegacyDuplicateTargetSchema(t, env, "legacy-dup-health", []enrollmentNative.FormField{
 		{
@@ -2693,8 +2645,7 @@ func TestDecisionService_SyncApprovedChildData_DuplicateStudentTargetKeepsSubmit
 func TestDecisionService_SyncApprovedChildData_AuditsTrackedStudentChanges(t *testing.T) {
 	t.Parallel()
 
-	env, cleanup := setupDecisionTest(t)
-	defer cleanup()
+	env := setupDecisionTest(t)
 	ctx := testpkg.Ctx(t)
 	publishLegacyDuplicateTargetSchema(t, env, "student-health-audit", []enrollmentNative.FormField{{
 		Key:         "health_info",
@@ -2746,8 +2697,7 @@ func TestDecisionService_SyncApprovedChildData_AuditsTrackedStudentChanges(t *te
 func TestDecisionService_SyncApprovedChildData_AuditsPersistedChangeDespiteTargetError(t *testing.T) {
 	t.Parallel()
 
-	env, cleanup := setupDecisionTest(t)
-	defer cleanup()
+	env := setupDecisionTest(t)
 	ctx := testpkg.Ctx(t)
 	publishLegacyDuplicateTargetSchema(t, env, "partial-student-health-audit", []enrollmentNative.FormField{
 		{
@@ -2820,8 +2770,7 @@ func TestDecisionService_SyncApprovedChildData_AuditsPersistedChangeDespiteTarge
 func TestDecisionService_Decide_ScheduleArrivalUsesReviewerStaffID(t *testing.T) {
 	t.Parallel()
 
-	env, cleanup := setupDecisionTest(t)
-	defer cleanup()
+	env := setupDecisionTest(t)
 	ctx := testpkg.Ctx(t)
 	publishDecisionScheduleSchema(t, env, "arrival_times", enrollmentNative.TargetScheduleArrival)
 	reviewerStaff, reviewerAccountID := createReviewerStaffWithDistinctAccount(t, env)
@@ -2852,8 +2801,7 @@ func TestDecisionService_Decide_ScheduleArrivalUsesReviewerStaffID(t *testing.T)
 func TestDecisionService_Decide_ScheduleTargetWithoutReviewerStaffDoesNotAbortApproval(t *testing.T) {
 	t.Parallel()
 
-	env, cleanup := setupDecisionTest(t)
-	defer cleanup()
+	env := setupDecisionTest(t)
 	ctx := testpkg.Ctx(t)
 	publishDecisionScheduleSchema(t, env, "pickup_times", enrollmentNative.TargetSchedulePickup)
 	reviewerAccount := testpkg.CreateTestAccount(t, env.db, "reviewer-without-staff")
@@ -2888,8 +2836,7 @@ func TestDecisionService_Decide_ScheduleTargetWithoutReviewerStaffDoesNotAbortAp
 func TestDecisionService_Decide_ExistingStudentScheduleReplacementFailureRollsBack(t *testing.T) {
 	t.Parallel()
 
-	env, cleanup := setupDecisionTest(t)
-	defer cleanup()
+	env := setupDecisionTest(t)
 	ctx := testpkg.Ctx(t)
 
 	// A pickup-schedule form field so approval takes the ReplaceSchedules
@@ -2949,8 +2896,7 @@ func matchChildToExistingStudent(t *testing.T, env *decisionTestEnv, childID, st
 func TestDecisionService_Decide_ExistingStudentCareRenewalObsoletesWithdrawalWithoutGap(t *testing.T) {
 	t.Parallel()
 
-	env, cleanup := setupDecisionTest(t)
-	defer cleanup()
+	env := setupDecisionTest(t)
 	ctx := testpkg.Ctx(t)
 
 	existing := testpkg.CreateTestStudent(t, env.db, "Lina", "Verlaengert", "2a")
@@ -3032,8 +2978,7 @@ func submitReEnrollment(
 func TestDecisionService_Decide_ExistingStudentAppliesWithdrawnConsent(t *testing.T) {
 	t.Parallel()
 
-	env, cleanup := setupDecisionTest(t)
-	defer cleanup()
+	env := setupDecisionTest(t)
 	ctx := testpkg.Ctx(t)
 
 	existing := testpkg.CreateTestStudent(t, env.db, "Nele", "Widerruf", "2a")
@@ -3089,8 +3034,7 @@ func TestDecisionService_Decide_ExistingStudentLinksSubmittedGuardian(t *testing
 		t.Run(fmt.Sprintf("bookings_authoritative=%t", bookingsAuthoritative), func(t *testing.T) {
 			testpkg.OwnTenant(t)
 			t.Parallel()
-			env, cleanup := setupDecisionTestWithSettings(t, stubActivationSettings{bookingsAuthoritative: &bookingsAuthoritative})
-			defer cleanup()
+			env := setupDecisionTestWithSettings(t, stubActivationSettings{bookingsAuthoritative: &bookingsAuthoritative})
 			ctx := testpkg.Ctx(t)
 
 			// An imported child: enrolled, but with no guardian relationship at all.
@@ -3138,8 +3082,7 @@ func TestDecisionService_Decide_ExistingStudentLinksSubmittedGuardian(t *testing
 func TestDecisionService_Decide_LateInviteRenewalLinksInviteRecipient(t *testing.T) {
 	t.Parallel()
 
-	env, cleanup := setupDecisionTest(t)
-	defer cleanup()
+	env := setupDecisionTest(t)
 	ctx := testpkg.Ctx(t)
 
 	unrelatedParent := testpkg.CreateTestParentGuardianChain(t, env.db)
@@ -3201,8 +3144,7 @@ func TestDecisionService_Decide_LateInviteRenewalLinksInviteRecipient(t *testing
 func TestDecisionService_Decide_ExistingStudentKeepsForeignPrimaryGuardianLink(t *testing.T) {
 	t.Parallel()
 
-	env, cleanup := setupDecisionTest(t)
-	defer cleanup()
+	env := setupDecisionTest(t)
 	ctx := testpkg.Ctx(t)
 
 	existing := testpkg.CreateTestStudent(t, env.db, "Jonte", "Zweitkind", "1a")
@@ -3257,8 +3199,7 @@ func TestDecisionService_Decide_ExistingStudentKeepsForeignPrimaryGuardianLink(t
 func TestDecisionService_Decide_ApprovedIsIdempotent(t *testing.T) {
 	t.Parallel()
 
-	env, cleanup := setupDecisionTest(t)
-	defer cleanup()
+	env := setupDecisionTest(t)
 	ctx := testpkg.Ctx(t)
 
 	reqID, childID := submitOneChild(t, env, "decide-idem@example.com", "Anna", "Idem")
@@ -3289,8 +3230,7 @@ func TestDecisionService_Decide_ApprovedIsIdempotent(t *testing.T) {
 func TestDecisionService_Decide_ApprovedUsesFixedOfferingDaysForActivityEnrollment(t *testing.T) {
 	t.Parallel()
 
-	env, cleanup := setupDecisionTest(t)
-	defer cleanup()
+	env := setupDecisionTest(t)
 	ctx := testpkg.Ctx(t)
 
 	category := testpkg.CreateTestActivityCategory(t, env.db, "Decision-Fixed-Days")
@@ -3311,12 +3251,6 @@ func TestDecisionService_Decide_ApprovedUsesFixedOfferingDaysForActivityEnrollme
 		calendar.NewDate(2027, 8, 31))
 	createCareOfferingTemplateSchedule(t, env.db, group.ID, timetable.WeekdayTuesday, &period.ID)
 	createCareOfferingTemplateSchedule(t, env.db, group.ID, timetable.WeekdayThursday, &period.ID)
-	defer func() {
-		_, _ = env.db.NewDelete().
-			TableExpr("activities.schedules").
-			Where("activity_group_id = ?", group.ID).
-			Exec(ctx)
-	}()
 
 	offering := &offeringContract.CareOfferingRecord{
 		PhaseID:         env.sourcePhase.ID,
@@ -3382,8 +3316,7 @@ func TestDecisionService_Decide_ApprovedUsesFixedOfferingDaysForActivityEnrollme
 func TestDecisionService_UpdateChildOfferings_RebuildsEverySplitSeriesSegment(t *testing.T) {
 	t.Parallel()
 
-	env, cleanup := setupDecisionTest(t)
-	defer cleanup()
+	env := setupDecisionTest(t)
 	ctx := testpkg.Ctx(t)
 
 	period := &calendarPeriod{
@@ -3424,12 +3357,6 @@ func TestDecisionService_UpdateChildOfferings_RebuildsEverySplitSeriesSegment(t 
 	}
 	successorSchedule.SetTenantID(testpkg.Tenant(t))
 	require.NoError(t, createCareTemplateScheduleRow(ctx, env.db, successorSchedule))
-	defer func() {
-		_, _ = env.db.NewDelete().TableExpr("activities.schedules").
-			Where("activity_group_id IN (?)", bun.List([]int64{root.ID, successor.ID})).Exec(context.Background())
-		_, _ = env.db.NewDelete().TableExpr("activities.groups").
-			Where("id IN (?)", bun.List([]int64{root.ID, successor.ID})).Exec(context.Background())
-	}()
 
 	offering := &offeringContract.CareOfferingRecord{
 		PhaseID: env.sourcePhase.ID, ActivityGroupID: &root.ID,
@@ -3509,8 +3436,7 @@ func TestDecisionService_UpdateChildOfferings_RebuildsEverySplitSeriesSegment(t 
 func TestDecisionService_Decide_ApprovedPreservesLegacyNonTemplateLinkedOffering(t *testing.T) {
 	t.Parallel()
 
-	env, cleanup := setupDecisionTest(t)
-	defer cleanup()
+	env := setupDecisionTest(t)
 	ctx := testpkg.Ctx(t)
 
 	category := testpkg.CreateTestActivityCategory(t, env.db, "Decision-Legacy-Linked")
@@ -3590,8 +3516,7 @@ func TestDecisionService_Decide_ApprovedPreservesLegacyNonTemplateLinkedOffering
 func TestDecisionService_Decide_RolloverApprovalMaterializesClonedOffering(t *testing.T) {
 	t.Parallel()
 
-	env, cleanup := setupDecisionTest(t)
-	defer cleanup()
+	env := setupDecisionTest(t)
 	ctx := testpkg.Ctx(t)
 
 	category := testpkg.CreateTestActivityCategory(t, env.db, "Decision-Rollover-Linked")
@@ -3722,8 +3647,7 @@ func TestDecisionService_Decide_RolloverApprovalMaterializesClonedOffering(t *te
 func TestDecisionService_Decide_ApprovedRejectsEmptyDaysForTemplateOffering(t *testing.T) {
 	t.Parallel()
 
-	env, cleanup := setupDecisionTest(t)
-	defer cleanup()
+	env := setupDecisionTest(t)
 	ctx := testpkg.Ctx(t)
 
 	category := testpkg.CreateTestActivityCategory(t, env.db, "Decision-Empty-Days")
@@ -3743,12 +3667,6 @@ func TestDecisionService_Decide_ApprovedRejectsEmptyDaysForTemplateOffering(t *t
 		calendar.NewDate(2026, 8, 1),
 		calendar.NewDate(2027, 8, 31))
 	createCareOfferingTemplateSchedule(t, env.db, group.ID, timetable.WeekdayTuesday, &period.ID)
-	defer func() {
-		_, _ = env.db.NewDelete().
-			TableExpr("activities.schedules").
-			Where("activity_group_id = ?", group.ID).
-			Exec(ctx)
-	}()
 
 	offering := &offeringContract.CareOfferingRecord{
 		PhaseID:         env.sourcePhase.ID,
@@ -3810,8 +3728,7 @@ func TestDecisionService_Decide_ApprovedRejectsEmptyDaysForTemplateOffering(t *t
 func TestDecisionService_ListChildOfferings_InvalidRequestID(t *testing.T) {
 	t.Parallel()
 
-	env, cleanup := setupDecisionTest(t)
-	defer cleanup()
+	env := setupDecisionTest(t)
 	ctx := testpkg.Ctx(t)
 
 	_, err := testpkg.TenantQuery1(t, ctx, env.db, env.decision.ListChildOfferings, 0)
@@ -3821,8 +3738,7 @@ func TestDecisionService_ListChildOfferings_InvalidRequestID(t *testing.T) {
 func TestDecisionService_ListChildOfferings_EmptyWhenNoOfferingsPicked(t *testing.T) {
 	t.Parallel()
 
-	env, cleanup := setupDecisionTest(t)
-	defer cleanup()
+	env := setupDecisionTest(t)
 	ctx := testpkg.Ctx(t)
 
 	reqID, childID := submitOneChild(t, env, "lco-empty@example.com", "Lina", "NoCare")
@@ -3842,8 +3758,7 @@ func TestDecisionService_ListChildOfferings_EmptyWhenNoOfferingsPicked(t *testin
 func TestDecisionService_ListChildOfferings_CarriesAttributesAndFutureBookings(t *testing.T) {
 	t.Parallel()
 
-	env, cleanup := setupDecisionTest(t)
-	defer cleanup()
+	env := setupDecisionTest(t)
 	ctx := testpkg.Ctx(t)
 
 	today := calendar.NewDate(2026, 8, 24)
@@ -3906,8 +3821,7 @@ func TestDecisionService_ListChildOfferings_CarriesAttributesAndFutureBookings(t
 func TestDecisionService_ListChildOfferings_MatchesWritePathSelection(t *testing.T) {
 	t.Parallel()
 
-	env, cleanup := setupDecisionTest(t)
-	defer cleanup()
+	env := setupDecisionTest(t)
 	ctx := testpkg.Ctx(t)
 
 	today := decisionTestToday
@@ -3975,8 +3889,7 @@ func (catalogFailureRepo) ListByIDs(_ context.Context, _ []int64) ([]*offeringCo
 func TestDecisionService_ListChildOfferings_DegradesOnCatalogFailure(t *testing.T) {
 	t.Parallel()
 
-	env, cleanup := setupDecisionTest(t)
-	defer cleanup()
+	env := setupDecisionTest(t)
 	ctx := testpkg.Ctx(t)
 
 	reqID, childID := submitOneChild(t, env, "lco-catalog@example.com", "Lina", "Catalog")
@@ -4030,8 +3943,7 @@ func createChildOfferingLink(
 func TestDecisionService_ListChildOfferings_UsesTodayBeforeServiceStart(t *testing.T) {
 	t.Parallel()
 
-	env, cleanup := setupDecisionTest(t)
-	defer cleanup()
+	env := setupDecisionTest(t)
 	ctx := testpkg.Ctx(t)
 
 	today := decisionTestToday
@@ -4076,8 +3988,7 @@ func TestBookingViewDate(t *testing.T) {
 func TestDecisionService_UpdateChildOfferings_RejectsNonApprovedChild(t *testing.T) {
 	t.Parallel()
 
-	env, cleanup := setupDecisionTest(t)
-	defer cleanup()
+	env := setupDecisionTest(t)
 	ctx := testpkg.Ctx(t)
 
 	reqID, childID := submitOneChild(t, env, "adjust-pending@example.com", "Lina", "Pending")
@@ -4099,8 +4010,7 @@ func TestDecisionService_UpdateChildOfferings_RejectsNonApprovedChild(t *testing
 func TestDecisionService_UpdateChildOfferings_ReplacesLinksAndWritesAudit(t *testing.T) {
 	t.Parallel()
 
-	env, cleanup := setupDecisionTest(t)
-	defer cleanup()
+	env := setupDecisionTest(t)
 	ctx := testpkg.Ctx(t)
 
 	reqID, childID := submitOneChild(t, env, "adjust-approved@example.com", "Lina", "Approved")
@@ -4148,8 +4058,7 @@ func TestDecisionService_UpdateChildOfferings_ReplacesLinksAndWritesAudit(t *tes
 func TestDecisionService_UpdateChildOfferings_RejectsGroupRuleViolation(t *testing.T) {
 	t.Parallel()
 
-	env, cleanup := setupDecisionTest(t)
-	defer cleanup()
+	env := setupDecisionTest(t)
 	ctx := testpkg.Ctx(t)
 
 	reqID, childID := submitOneChild(t, env, "adjust-group-rule@example.com", "Lina", "GroupRule")
@@ -4190,8 +4099,7 @@ func TestDecisionService_UpdateChildOfferings_RejectsGroupRuleViolation(t *testi
 func TestDecisionService_UpdateChildOfferings_RematerializesRequiredAutomaticLunch(t *testing.T) {
 	t.Parallel()
 
-	env, cleanup := setupDecisionTest(t)
-	defer cleanup()
+	env := setupDecisionTest(t)
 	ctx := testpkg.Ctx(t)
 
 	reqID, childID := submitOneChild(t, env, "adjust-lunch@example.com", "Lina", "Lunch")
@@ -4244,8 +4152,7 @@ func TestDecisionService_UpdateChildOfferings_RematerializesRequiredAutomaticLun
 func TestDecisionService_UpdateChildOfferings_IgnoresInactiveOfferingsDuringValidation(t *testing.T) {
 	t.Parallel()
 
-	env, cleanup := setupDecisionTest(t)
-	defer cleanup()
+	env := setupDecisionTest(t)
 	ctx := testpkg.Ctx(t)
 
 	reqID, childID := submitOneChild(t, env, "adjust-inactive@example.com", "Lina", "Inactive")
@@ -4292,8 +4199,7 @@ func TestDecisionService_UpdateChildOfferings_IgnoresInactiveOfferingsDuringVali
 func TestDecisionService_UpdateChildOfferings_RemovesSourcedEnrollmentAfterOfferingGroupChange(t *testing.T) {
 	t.Parallel()
 
-	env, cleanup := setupDecisionTest(t)
-	defer cleanup()
+	env := setupDecisionTest(t)
 	ctx := testpkg.Ctx(t)
 
 	oldGroup := testpkg.CreateTestActivityGroup(t, env.db, "AdjustOldGroup")
@@ -4391,8 +4297,7 @@ func TestDecisionService_UpdateChildOfferings_RemovesSourcedEnrollmentAfterOffer
 func TestDecisionService_UpdateChildOfferings_RemovesLegacyUnsourcedEnrollmentAfterOfferingGroupChange(t *testing.T) {
 	t.Parallel()
 
-	env, cleanup := setupDecisionTest(t)
-	defer cleanup()
+	env := setupDecisionTest(t)
 	ctx := testpkg.Ctx(t)
 
 	oldGroup := testpkg.CreateTestActivityGroup(t, env.db, "AdjustLegacyOldGroup")
@@ -4499,8 +4404,7 @@ func TestDecisionService_UpdateChildOfferings_RemovesLegacyUnsourcedEnrollmentAf
 func TestDecisionService_UpdateChildOfferings_RemovesSourcedEnrollmentAfterPhaseWindowChange(t *testing.T) {
 	t.Parallel()
 
-	env, cleanup := setupDecisionTest(t)
-	defer cleanup()
+	env := setupDecisionTest(t)
 	ctx := testpkg.Ctx(t)
 
 	group := testpkg.CreateTestActivityGroup(t, env.db, "AdjustWindowGroup")
@@ -4586,8 +4490,7 @@ func TestDecisionService_UpdateChildOfferings_RemovesSourcedEnrollmentAfterPhase
 func TestDecisionService_ApprovalUsesExclusiveEndForOneDayPhase(t *testing.T) {
 	t.Parallel()
 
-	env, cleanup := setupDecisionTest(t)
-	defer cleanup()
+	env := setupDecisionTest(t)
 	ctx := testpkg.Ctx(t)
 
 	serviceDay := calendar.NewDate(2027, time.April, 5)

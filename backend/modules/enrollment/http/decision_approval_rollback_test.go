@@ -39,8 +39,7 @@ func (b accountBeforeRosterBookings) ResyncOfferingSourcedTemplates(ctx context.
 
 func TestExistingStudentApprovalGrantsAccountBeforeClassRosterResync(t *testing.T) {
 	t.Parallel()
-	env, cleanup := setupDecisionTest(t)
-	defer cleanup()
+	env := setupDecisionTest(t)
 	ctx := testpkg.Ctx(t)
 	account := testpkg.CreateTestAccount(t, env.db, "existing-student-lock-order")
 	existingFixture := testpkg.CreateTestStudent(t, env.db, "Existing", "Child", "1a")
@@ -101,8 +100,7 @@ func approvalOwnerSnapshot(t *testing.T, ctx context.Context, db bun.IDB, tenant
 func TestDecisionService_ApprovalRollsBackEveryOwnerAfterMaterialization(t *testing.T) {
 	t.Parallel()
 
-	env, cleanup := setupDecisionTest(t)
-	defer cleanup()
+	env := setupDecisionTest(t)
 	ctx := testpkg.Ctx(t)
 	otherTenant, _ := testpkg.CreateTestTenant(t, env.db)
 	testpkg.OwnTenantRows(t, env.db, otherTenant)
@@ -129,12 +127,6 @@ func TestDecisionService_ApprovalRollsBackEveryOwnerAfterMaterialization(t *test
 		calendar.NewDate(2027, 8, 31))
 	createCareOfferingTemplateSchedule(t, env.db, group.ID, timetable.WeekdayTuesday, &period.ID)
 	createCareOfferingTemplateSchedule(t, env.db, group.ID, timetable.WeekdayThursday, &period.ID)
-	defer func() {
-		_, _ = env.db.NewDelete().
-			TableExpr("activities.schedules").
-			Where("activity_group_id = ?", group.ID).
-			Exec(ctx)
-	}()
 
 	offering := &offeringContract.CareOfferingRecord{
 		PhaseID:         env.sourcePhase.ID,
@@ -178,10 +170,9 @@ func TestDecisionService_ApprovalRollsBackEveryOwnerAfterMaterialization(t *test
 
 	// The offering runs on Tuesdays; the occurrence must not lie in the past or
 	// the approval projects no roster row for it.
-	instance := testpkg.CreateTestActivityInstance(t, env.db, nextWeekday(calendar.TodayDate(), time.Tuesday), room.ID, testpkg.ActivityInstanceOpts{
+	testpkg.CreateTestActivityInstance(t, env.db, nextWeekday(calendar.TodayDate(), time.Tuesday), room.ID, testpkg.ActivityInstanceOpts{
 		ActivityGroupID: &group.ID, CalendarPeriodID: &period.ID,
 	})
-	registerSourcedInstanceCleanup(t, env, instance.ID)
 	before := approvalOwnerSnapshot(t, ctx, env.db, testpkg.Tenant(t))
 	var accountBefore string
 	require.NoError(t, env.db.NewRaw("SELECT to_jsonb(a)::text FROM auth.accounts a WHERE id = ?", account.ID).Scan(ctx, &accountBefore))

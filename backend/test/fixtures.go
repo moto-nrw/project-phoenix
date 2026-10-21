@@ -610,6 +610,14 @@ func cleanupRoleRecords(tb testing.TB, db *bun.DB, roleIDs ...int64) {
 		Exec(ctx)
 	require.NoError(tb, err)
 
+	// Invitations a test sent for the role restrict its deletion
+	// (fk_invitation_role ON DELETE RESTRICT).
+	_, err = db.NewDelete().
+		TableExpr("auth.invitation_tokens").
+		Where("role_id IN (?)", bun.List(roleIDs)).
+		Exec(ctx)
+	require.NoError(tb, err)
+
 	_, err = db.NewDelete().
 		TableExpr("auth.roles").
 		Where("id IN (?)", bun.List(roleIDs)).

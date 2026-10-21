@@ -75,9 +75,6 @@ func setupDocumentsAPI(t *testing.T) *documentsAPIContext {
 	target := testpkg.CreateTestStaff(t, tc.db, "Dokumente", fmt.Sprintf("API-%d", suffix))
 	account := testpkg.CreateTestAccount(t, tc.db, fmt.Sprintf("dokumente-api-%d@example.test", suffix))
 	t.Cleanup(func() {
-		ctx := testpkg.Ctx(t)
-		_, _ = tc.db.ExecContext(ctx, `DELETE FROM users.staff_documents WHERE staff_id = ?`, target.ID)
-		_, _ = tc.db.ExecContext(ctx, `DELETE FROM audit.staff_master_data_changes WHERE staff_id = ?`, target.ID)
 		_ = os.RemoveAll(staffDocumentsDir(testpkg.Tenant(t), nativeUploads.UploadFiles{}))
 	})
 
@@ -223,9 +220,6 @@ func TestStaffDocumentsAPI_ScheduledCleanupRetriesQueuedOrphanWithoutStaff(t *te
 	require.NoError(t, err)
 	assert.Empty(t, cleanups, "an in-progress upload must not be picked up by cleanup retries")
 	require.NoError(t, c.tc.resource.StaffDocumentService.ActivateQueuedStaffDocumentFileCleanup(ctx, storedName))
-	t.Cleanup(func() {
-		_, _ = c.tc.db.ExecContext(context.Background(), `DELETE FROM users.staff_document_file_cleanup WHERE filename_stored = ?`, storedName)
-	})
 
 	filePath := filepath.Join(staffDocumentsDir(testpkg.Tenant(t), nativeUploads.UploadFiles{}), storedName)
 	require.NoError(t, os.MkdirAll(filepath.Dir(filePath), 0o750))
@@ -252,9 +246,6 @@ func TestStaffDocumentsAPI_ScheduledCleanupSkipsUncommittedUpload(t *testing.T) 
 	storedName := fmt.Sprintf("inflight-%d.pdf", time.Now().UnixNano())
 	ctx := testpkg.Ctx(t)
 	require.NoError(t, c.tc.resource.StaffDocumentService.QueueStaffDocumentFileCleanup(ctx, orphanStaffID, storedName))
-	t.Cleanup(func() {
-		_, _ = c.tc.db.ExecContext(context.Background(), `DELETE FROM users.staff_document_file_cleanup WHERE filename_stored = ?`, storedName)
-	})
 	require.NoError(t, c.tc.resource.StaffDocumentService.ActivateQueuedStaffDocumentFileCleanup(ctx, storedName))
 
 	filePath := filepath.Join(staffDocumentsDir(testpkg.Tenant(t), nativeUploads.UploadFiles{}), storedName)
@@ -476,9 +467,6 @@ func TestStaffDocumentsAPI_SickNoteRetentionRemovesTheFileThroughTheSweep(t *tes
 		assert.Equal(t, 365, days)
 		return err
 	}))
-	t.Cleanup(func() {
-		_, _ = c.tc.db.ExecContext(context.Background(), `DELETE FROM users.staff_document_file_cleanup WHERE filename_stored = ?`, storedName)
-	})
 	var remaining int
 	require.NoError(t, c.tc.db.NewRaw(`SELECT COUNT(*) FROM users.staff_documents WHERE id = ?`, docID).Scan(ctx, &remaining))
 	require.Zero(t, remaining, "the sick note row is gone")

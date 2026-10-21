@@ -61,22 +61,11 @@ func setupChildOfferingTest(t *testing.T, db *bun.DB) (
 		return offeringRepo.Create(ctx, offering)
 	}))
 
-	t.Cleanup(func() {
-		bg := context.Background()
-		_, _ = db.NewDelete().
-			TableExpr("enrollment.care_offering_bookings").
-			Where("tenant_id = ? AND request_child_id = ?", tenantID, child.ID).
-			Exec(bg)
-		wipeOfferings(db, tenantID, phase.ID)
-		wipeRequests(db, tenantID, token)
-		wipePhases(db, tenantID, phaseName)
-	})
-
 	return db, api.NewEnrollmentBookingFixtureWithin(testpkg.WithinCurrentTenant), tenantID, child.ID, offering.ID
 }
 
 // addGradedChild creates a sibling child under the same request with an
-// explicit grade level and status, and registers its cleanup. Building a new
+// explicit grade level and status. Building a new
 // row beats mutating the shared fixture: RequestChildRepository has no plain
 // Update, and the graded/terminal variants each need their own row anyway.
 func addGradedChild(
@@ -95,22 +84,11 @@ func addGradedChild(
 	require.NoError(t, runInTenantTx(t, db, tenantID, func(ctx context.Context) error {
 		return testpkg.TenantCommand1(t, ctx, testpkg.SetupTestDB(t), childRepo.InsertChild, child)
 	}))
-	t.Cleanup(func() {
-		bg := context.Background()
-		_, _ = db.NewDelete().
-			TableExpr("enrollment.care_offering_bookings").
-			Where("tenant_id = ? AND request_child_id = ?", tenantID, child.ID).
-			Exec(bg)
-		_, _ = db.NewDelete().
-			TableExpr("enrollment.request_children").
-			Where("tenant_id = ? AND id = ?", tenantID, child.ID).
-			Exec(bg)
-	})
 	return child.ID
 }
 
 // requestIDOf resolves the request the shared fixture's child belongs to, so
-// siblings land under the same request (and the same cleanup).
+// siblings land under the same request.
 func requestIDOf(t *testing.T, db *bun.DB, tenantID, childID int64) int64 {
 	t.Helper()
 	childRepo := api.NewEnrollmentBookingFixtureWithin(testpkg.WithinCurrentTenant)
@@ -193,15 +171,6 @@ func addRolloverSuccessorHolding(
 			RequestChildID: rolled.ID, CareOfferingID: careOfferingID,
 		})
 	}))
-	t.Cleanup(func() {
-		bg := context.Background()
-		_, _ = db.NewDelete().TableExpr("enrollment.care_offering_bookings").
-			Where("tenant_id = ? AND request_child_id = ?", tenantID, childID).Exec(bg)
-		_, _ = db.NewDelete().TableExpr("enrollment.request_children").
-			Where("tenant_id = ? AND id = ?", tenantID, childID).Exec(bg)
-		wipeRequests(db, tenantID, token)
-		wipePhases(db, tenantID, phaseName)
-	})
 	return phaseID, childID
 }
 
@@ -496,19 +465,6 @@ func uniquePhaseName(prefix string) string {
 	return fmt.Sprintf("%s-%d", prefix, testpkg.UniqueSuffix())
 }
 
-func wipePhases(db *bun.DB, tenantID int64, names ...string) {
-	bg := context.Background()
-	if len(names) == 0 {
-		// No-op when no names — protects against accidental tenant-wide
-		// wipes in shared-tenant tests.
-		return
-	}
-	_, _ = db.NewDelete().
-		TableExpr("enrollment.phases").
-		Where("tenant_id = ? AND name IN (?)", tenantID, bun.List(names)).
-		Exec(bg)
-}
-
 func uniqueToken(prefix string) string {
 	return fmt.Sprintf("%s-%d", prefix, testpkg.UniqueSuffix())
 }
@@ -518,19 +474,6 @@ func makeOwnerRequest(phaseID int64, token, email string) *enrollmentNative.Requ
 		PhaseID: phaseID, GuardianFirstName: "Anna", GuardianLastName: "Beispiel", GuardianEmail: email,
 		ConsentFlags: []byte("{}"), CustomData: []byte("{}"), StatusToken: token, SubmittedAt: time.Now().UTC(),
 	}
-}
-
-func wipeRequests(db *bun.DB, tenantID int64, tokenPrefix string) {
-	bg := context.Background()
-	_, _ = db.NewDelete().
-		TableExpr("enrollment.request_children rc").
-		Where(`rc.tenant_id = ? AND rc.request_id IN (SELECT id FROM enrollment.requests WHERE tenant_id = ? AND status_token LIKE ?)`,
-			tenantID, tenantID, tokenPrefix+"%").
-		Exec(bg)
-	_, _ = db.NewDelete().
-		TableExpr("enrollment.requests").
-		Where("tenant_id = ? AND status_token LIKE ?", tenantID, tokenPrefix+"%").
-		Exec(bg)
 }
 
 func uniqueOfferingName(prefix string) string {
@@ -545,13 +488,6 @@ func makeOffering(phaseID int64, name string) *offeringContract.CareOfferingReco
 		AvailableDays:  []string{"mon", "tue", "wed", "thu", "fri"},
 		IsActive:       true,
 	}
-}
-
-func wipeOfferings(db *bun.DB, tenantID, phaseID int64) {
-	_, _ = db.NewDelete().
-		TableExpr("enrollment.care_offerings").
-		Where("tenant_id = ? AND phase_id = ?", tenantID, phaseID).
-		Exec(context.Background())
 }
 
 func makeChild(requestID int64, firstName, lastName string) *enrollmentNative.RequestChild {

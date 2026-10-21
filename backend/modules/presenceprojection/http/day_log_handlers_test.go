@@ -245,12 +245,6 @@ func TestGetStudentsDayLog_WritesAuditLog(t *testing.T) {
 		Where("resource_type = ?", "attendance_day_log").
 		Exec(context.Background())
 	require.NoError(t, err)
-	t.Cleanup(func() {
-		_, _ = tc.db.NewDelete().
-			TableExpr("audit.data_access_log").
-			Where("resource_type = ?", "attendance_day_log").
-			Exec(context.Background())
-	})
 
 	req := testutil.NewRequest("GET", fmt.Sprintf("/day-log?group_id=%d", group.ID), nil)
 	rr := authExec(t, tc, req, testutil.AdminTestClaims(1), []string{"admin:*"})
@@ -276,12 +270,6 @@ func TestExportStudentsDayLog_RendersFile(t *testing.T) {
 	group := testpkg.CreateTestEducationGroup(t, tc.db, "DayLog Export")
 	student := testpkg.CreateTestStudent(t, tc.db, "Exportia", "Kind", "2a")
 	testpkg.AssignStudentToGroup(t, tc.db, student.ID, group.ID)
-	t.Cleanup(func() {
-		_, _ = tc.db.NewDelete().
-			TableExpr("audit.data_access_log").
-			Where("resource_type = ?", "attendance_day_log").
-			Exec(context.Background())
-	})
 
 	req := testutil.NewRequest("GET", fmt.Sprintf("/day-log/export?group_id=%d&format=xlsx", group.ID), nil)
 	rr := authExec(t, tc, req, testutil.AdminTestClaims(1), []string{"admin:*"})

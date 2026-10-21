@@ -66,8 +66,7 @@ func TestDecisionService_CompleteWithdrawalRequiresConfirmationAndPersistsTaskAt
 
 func newCompleteWithdrawalFixture(t *testing.T) *completeWithdrawalFixture {
 	authoritative := true
-	env, cleanup := setupDecisionTestWithSettings(t, stubActivationSettings{bookingsAuthoritative: &authoritative})
-	t.Cleanup(cleanup)
+	env := setupDecisionTestWithSettings(t, stubActivationSettings{bookingsAuthoritative: &authoritative})
 	ctx := testpkg.Ctx(t)
 	setSourcePhaseServiceStartDate(t, env, decisionTestToday.AddDays(-10))
 	requestID, childID := submitOneChild(t, env, "complete-withdrawal@example.com", "Lina", "Abmeldung")
@@ -223,8 +222,7 @@ type nonAuthoritativeWithdrawalFixture struct {
 
 func newNonAuthoritativeWithdrawalFixture(t *testing.T) *nonAuthoritativeWithdrawalFixture {
 	authoritative := false
-	env, cleanup := setupDecisionTestWithSettings(t, stubActivationSettings{bookingsAuthoritative: &authoritative})
-	t.Cleanup(cleanup)
+	env := setupDecisionTestWithSettings(t, stubActivationSettings{bookingsAuthoritative: &authoritative})
 	ctx := testpkg.Ctx(t)
 	setSourcePhaseServiceStartDate(t, env, decisionTestToday.AddDays(-10))
 	email := fmt.Sprintf("non-authoritative-withdrawal-%d@example.com", testpkg.UniqueSuffix())
@@ -282,8 +280,7 @@ func TestDecisionService_RebookingWinsAgainstConcurrentWithdrawalCompletion(t *t
 
 func newWithdrawalRaceFixture(t *testing.T) *withdrawalRaceFixture {
 	authoritative := true
-	env, cleanup := setupDecisionTestWithSettings(t, stubActivationSettings{bookingsAuthoritative: &authoritative})
-	t.Cleanup(cleanup)
+	env := setupDecisionTestWithSettings(t, stubActivationSettings{bookingsAuthoritative: &authoritative})
 	setSourcePhaseServiceStartDate(t, env, decisionTestToday.AddDays(-10))
 	completionWaiting := make(chan struct{})
 	recurrenceGate := func(ctx context.Context) error {
