@@ -50,7 +50,7 @@ func identityInputWithTag(role *domain.RoleFacts, tagID string) domain.SchoolIde
 
 func ensureIdentity(t *testing.T, f *lifecycleFixture, in domain.SchoolIdentityInput) (*domain.SchoolIdentity, error) {
 	t.Helper()
-	return f.lifecycle.EnsureSchoolIdentity(tenantContext(), in)
+	return f.lifecycle.EnsureSchoolIdentityChain(tenantContext(), in)
 }
 
 func (f *lifecycleFixture) seedAccountPerson(first, last string, tagID *string) domain.PersonRecord {
@@ -542,7 +542,7 @@ func TestEnsureSchoolIdentity_CaregiverUpgradeProvisionsProfile(t *testing.T) {
 	in := identityInput(customRole("OGS-Leitung", tierAdmin))
 	in.CaregiverUpgrade = true
 
-	identity, err := f.lifecycle.EnsureSchoolIdentity(context.Background(), in)
+	identity, err := f.lifecycle.EnsureSchoolIdentityChain(context.Background(), in)
 	require.NoError(t, err)
 	require.NotZero(t, identity.TeacherID)
 }

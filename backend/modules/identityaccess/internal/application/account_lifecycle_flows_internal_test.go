@@ -49,7 +49,7 @@ func TestParentAccounts(t *testing.T) {
 		require.ErrorIs(t, err, identityaccess.ErrParentAccountNotFound)
 		_, err = f.lifecycle.GetParentAccountByEmail(tenantContext(), "nobody@example.test")
 		require.ErrorIs(t, err, identityaccess.ErrParentAccountNotFound)
-		require.ErrorIs(t, f.lifecycle.UpdateParentAccount(tenantContext(), domain.ParentAccount{ID: 404}), identityaccess.ErrParentAccountNotFound)
+		require.ErrorIs(t, f.lifecycle.updateParentAccount(tenantContext(), domain.ParentAccount{ID: 404}), identityaccess.ErrParentAccountNotFound)
 		require.ErrorIs(t, f.lifecycle.ActivateParentAccount(tenantContext(), 404), identityaccess.ErrParentAccountNotFound)
 		require.ErrorIs(t, f.lifecycle.DeactivateParentAccount(tenantContext(), 404), identityaccess.ErrParentAccountNotFound)
 	})
@@ -60,7 +60,7 @@ func TestParentAccounts(t *testing.T) {
 		created, err := f.lifecycle.CreateParentAccount(tenantContext(), "a@example.test", "a", "Str0ngPass!")
 		require.NoError(t, err)
 
-		require.NoError(t, f.lifecycle.UpdateParentAccount(tenantContext(), domain.ParentAccount{ID: created.ID, Email: "new@example.test", Username: "neu", Active: true}))
+		require.NoError(t, f.lifecycle.updateParentAccount(tenantContext(), domain.ParentAccount{ID: created.ID, Email: "new@example.test", Username: "neu", Active: true}))
 		stored := f.store.parents[created.ID]
 		assert.Equal(t, "new@example.test", stored.Email)
 		assert.Equal(t, "hash:Str0ngPass!", stored.PasswordHash, "an update never clears the credential")
@@ -68,7 +68,7 @@ func TestParentAccounts(t *testing.T) {
 		require.NoError(t, f.lifecycle.DeactivateParentAccount(tenantContext(), created.ID))
 		assert.False(t, f.store.parents[created.ID].Active)
 		inactive := false
-		listed, err := f.lifecycle.ListParentAccounts(tenantContext(), domain.ParentAccountFilter{Active: &inactive})
+		listed, err := f.lifecycle.listParentAccounts(tenantContext(), domain.ParentAccountFilter{Active: &inactive})
 		require.NoError(t, err)
 		require.Len(t, listed, 1)
 		require.NoError(t, f.lifecycle.ActivateParentAccount(tenantContext(), created.ID))
@@ -295,7 +295,7 @@ func TestListStaffPreviewCandidates(t *testing.T) {
 	target := previewTarget
 	f.staff.addPerson(domain.PersonRecord{FirstName: "Wählbar", LastName: "Betreuung", AccountID: &target})
 
-	candidates, err := f.lifecycle.ListStaffPreviewCandidates(tenantContext(), lifecycleTenant, previewAdmin)
+	candidates, err := f.lifecycle.listStaffPreviewCandidates(tenantContext(), lifecycleTenant, previewAdmin)
 	require.NoError(t, err)
 
 	ids := make([]int64, 0, len(candidates))

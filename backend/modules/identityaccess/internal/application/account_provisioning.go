@@ -272,7 +272,7 @@ func (s *AccountProvisioning) provisionIdentity(
 	if role == nil || identity == nil {
 		return nil, nil
 	}
-	provisioned, err := s.identity.EnsureSchoolIdentity(ctx, domain.SchoolIdentityInput{
+	provisioned, err := s.identity.EnsureSchoolIdentityChain(ctx, domain.SchoolIdentityInput{
 		AccountID:    accountID,
 		TenantID:     tenantID,
 		Role:         role.Facts(),
