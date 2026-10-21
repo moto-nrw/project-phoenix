@@ -3,18 +3,6 @@
 import type { Staff } from "./staff-api";
 import { LOCATION_COLORS, MOTO_COLOR_PALETTE } from "./location-helper";
 
-/**
- * Adresse des Profilbilds einer Kollegin, `undefined` ohne hochgeladenes Bild
- * (#4432). Das Bild kommt über die schulbezogene Staff-Route, nie über den
- * gespeicherten Pfad selbst.
- */
-export function staffAvatarUrl(
-  staffId: string,
-  avatar: string | null | undefined,
-): string | undefined {
-  return avatar ? `/api/staff/${staffId}/avatar` : undefined;
-}
-
 // Location status type matching the pattern from OGS groups
 interface LocationStatus {
   label: string;

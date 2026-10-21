@@ -8,7 +8,7 @@ import {
 } from "~/components/database/grouped-list";
 import { Avatar } from "~/components/ui/avatar";
 import { getRoleDisplayName } from "~/lib/auth-helpers";
-import { staffAvatarUrl } from "~/lib/staff-helpers";
+import { staffAvatarUrl } from "~/lib/staff-api";
 import type { Teacher } from "@/lib/teacher-api";
 
 interface StaffListProps {

@@ -1,7 +1,6 @@
 // Staff API service for fetching all staff members and their supervision status
 
 import { sessionFetch } from "./session-cache";
-import { staffAvatarUrl } from "./staff-helpers";
 import { createLogger } from "~/lib/logger";
 import {
   type ApiError,
@@ -10,6 +9,18 @@ import {
 } from "~/lib/api-error";
 
 const logger = createLogger({ component: "StaffAPI" });
+
+/**
+ * Adresse des Profilbilds einer Kollegin, `undefined` ohne hochgeladenes Bild
+ * (#4432). Das Bild kommt über die schulbezogene Staff-Route, nie über den
+ * gespeicherten Pfad selbst.
+ */
+export function staffAvatarUrl(
+  staffId: string,
+  avatar: string | null | undefined,
+): string | undefined {
+  return avatar ? `/api/staff/${staffId}/avatar` : undefined;
+}
 
 // Backend response types (already mapped by the API route handler)
 export interface BackendStaffResponse {
