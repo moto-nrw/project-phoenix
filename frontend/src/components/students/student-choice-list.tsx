@@ -19,7 +19,7 @@ const logger = createLogger({ component: "StudentChoiceList" });
 
 const STUDENT_PAGE_SIZE = 100;
 
-export interface StudentChoice {
+interface StudentChoice {
   readonly id: string;
   readonly name: string;
   readonly detail: string;
