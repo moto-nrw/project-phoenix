@@ -94,6 +94,7 @@ const mocks = vi.hoisted(() => ({
     warning: vi.fn(),
   },
   showActionError: vi.fn(),
+  showActionMessage: vi.fn(),
 }));
 
 // The date and datetime fields moved from native inputs to the kit pickers;
@@ -130,7 +131,10 @@ vi.mock("~/lib/tenant-context", () => ({
 vi.mock("~/contexts/ToastContext", async (importOriginal) => ({
   ...(await importOriginal<object>()),
   useToast: () => mocks.toast,
-  useApiErrorDisplay: () => ({ show: mocks.showActionError }),
+  useApiErrorDisplay: () => ({
+    show: mocks.showActionError,
+    showMessage: mocks.showActionMessage,
+  }),
 }));
 
 vi.mock("~/lib/swr", async (importOriginal) => ({
@@ -4503,5 +4507,303 @@ describe("prepareFieldsForSave — fixed pickup times", () => {
   it("leaves allowed_times undefined when none configured", () => {
     const [out] = prepareFieldsForSave([pickupField()]);
     expect(out?.allowed_times).toBeUndefined();
+  });
+});
+
+describe("information PDF attachments in the form editor", () => {
+  const firstURL = "/uploads/enrollment-form-legal-documents/1_information.pdf";
+  const secondURL = "/uploads/enrollment-form-legal-documents/1_pickup.pdf";
+  const replacementURL =
+    "/uploads/enrollment-form-legal-documents/1_replacement.pdf";
+
+  async function newNotice() {
+    mocks.listSchemas.mockResolvedValue([]);
+    mocks.listPhases.mockResolvedValue([]);
+    mocks.deleteEnrollmentLegalDocument.mockResolvedValue(undefined);
+    const view = render(<EnrollmentFormEditor />);
+    fireEvent.click(
+      await screen.findByRole("button", { name: "Neue Vorlage" }),
+    );
+    fireEvent.change(
+      screen.getByPlaceholderText("z. B. Ferienbetreuung Sommer 2026"),
+      { target: { value: "Informationen" } },
+    );
+    fireEvent.click(screen.getByRole("button", { name: "Infotext" }));
+    fireEvent.change(screen.getByPlaceholderText("z. B. Wichtiger Hinweis"), {
+      target: { value: "Schulstart" },
+    });
+    fireEvent.change(screen.getByLabelText("Infotext für Eltern"), {
+      target: { value: "Bitte lesen Sie beide Informationen." },
+    });
+    return view;
+  }
+
+  async function upload(name: string, url: string, index: number) {
+    mocks.uploadEnrollmentLegalDocument.mockResolvedValueOnce(url);
+    const file = new File(["%PDF-1.4"], name, { type: "application/pdf" });
+    fireEvent.change(screen.getByLabelText("PDF-Datei auswählen"), {
+      target: { files: [file] },
+    });
+    await waitFor(() =>
+      expect(
+        screen.getByRole("textbox", { name: `Bezeichnung der PDF ${index}` }),
+      ).toHaveValue(name.replace(/\.pdf$/, "")),
+    );
+    return file;
+  }
+
+  it("saves two named PDFs on an information field without adding consent", async () => {
+    await newNotice();
+    const first = await upload("Schulstart.pdf", firstURL, 1);
+    const second = await upload("Abholen.pdf", secondURL, 2);
+    fireEvent.change(
+      screen.getByRole("textbox", { name: "Bezeichnung der PDF 2" }),
+      { target: { value: "Abholen und Kontakt" } },
+    );
+    mocks.createSchema.mockResolvedValueOnce(schema({ name: "Informationen" }));
+    fireEvent.click(
+      screen.getByRole("button", { name: "Formularvorlage erstellen" }),
+    );
+    await waitFor(() => expect(mocks.createSchema).toHaveBeenCalledOnce());
+    expect(mocks.uploadEnrollmentLegalDocument.mock.calls).toEqual([
+      [first],
+      [second],
+    ]);
+    expect(mocks.createSchema.mock.calls[0]![1]).toEqual([
+      expect.objectContaining({
+        type: "information",
+        attachments: [
+          { label: "Schulstart", document_url: firstURL },
+          { label: "Abholen und Kontakt", document_url: secondURL },
+        ],
+      }),
+    ]);
+    expect(
+      (mocks.createSchema.mock.calls[0]![1] as FormField[])[0]!.required,
+    ).not.toBe(true);
+    expect(mocks.deleteEnrollmentLegalDocument).not.toHaveBeenCalled();
+  });
+
+  it("preserves the name when replacing a PDF and cleans removed drafts on discard", async () => {
+    await newNotice();
+    await upload("Schulstart.pdf", firstURL, 1);
+    await upload("Abholen.pdf", secondURL, 2);
+    fireEvent.click(screen.getByRole("button", { name: "Aktionen für PDF 1" }));
+    fireEvent.click(
+      await screen.findByRole("menuitem", { name: "PDF ersetzen" }),
+    );
+    mocks.uploadEnrollmentLegalDocument.mockResolvedValueOnce(replacementURL);
+    fireEvent.change(screen.getByLabelText("PDF-Datei auswählen"), {
+      target: {
+        files: [
+          new File(["%PDF replaced"], "new.pdf", { type: "application/pdf" }),
+        ],
+      },
+    });
+    await waitFor(() =>
+      expect(mocks.uploadEnrollmentLegalDocument).toHaveBeenCalledTimes(3),
+    );
+    await waitFor(() =>
+      expect(
+        screen.getByRole("button", { name: "Aktionen für PDF 1" }),
+      ).toBeEnabled(),
+    );
+    expect(
+      screen.getByRole("textbox", { name: "Bezeichnung der PDF 1" }),
+    ).toHaveValue("Schulstart");
+    fireEvent.click(screen.getByRole("button", { name: "Aktionen für PDF 2" }));
+    fireEvent.click(
+      await screen.findByRole("menuitem", { name: "PDF entfernen" }),
+    );
+    expect(
+      screen.queryByRole("textbox", { name: "Bezeichnung der PDF 2" }),
+    ).not.toBeInTheDocument();
+    expect(mocks.deleteEnrollmentLegalDocument).not.toHaveBeenCalled();
+    fireEvent.click(
+      screen.getByRole("button", { name: "Zurück zur Übersicht" }),
+    );
+    fireEvent.click(await screen.findByRole("button", { name: "Verwerfen" }));
+    await waitFor(() =>
+      expect(mocks.deleteEnrollmentLegalDocument).toHaveBeenCalledTimes(3),
+    );
+    for (const url of [firstURL, secondURL, replacementURL]) {
+      expect(mocks.deleteEnrollmentLegalDocument).toHaveBeenCalledWith(
+        url,
+        expect.any(Object),
+      );
+    }
+    expect(mocks.createSchema).not.toHaveBeenCalled();
+  });
+
+  it("preserves both existing PDFs for saving after a replacement upload fails", async () => {
+    await newNotice();
+    await upload("Schulstart.pdf", firstURL, 1);
+    await upload("Abholen.pdf", secondURL, 2);
+    fireEvent.click(screen.getByRole("button", { name: "Aktionen für PDF 1" }));
+    fireEvent.click(
+      await screen.findByRole("menuitem", { name: "PDF ersetzen" }),
+    );
+    const failure = new Error("offline");
+    mocks.uploadEnrollmentLegalDocument.mockRejectedValueOnce(failure);
+    fireEvent.change(screen.getByLabelText("PDF-Datei auswählen"), {
+      target: {
+        files: [new File(["%PDF"], "new.pdf", { type: "application/pdf" })],
+      },
+    });
+    await waitFor(() =>
+      expect(mocks.showActionError).toHaveBeenCalledWith(failure, {
+        object: "die PDF-Datei",
+      }),
+    );
+    expect(
+      screen.getByRole("textbox", { name: "Bezeichnung der PDF 1" }),
+    ).toHaveValue("Schulstart");
+    expect(
+      screen.getByRole("textbox", { name: "Bezeichnung der PDF 2" }),
+    ).toHaveValue("Abholen");
+    expect(
+      screen.getByRole("button", { name: "PDF hinzufügen" }),
+    ).toBeEnabled();
+    expect(mocks.deleteEnrollmentLegalDocument).not.toHaveBeenCalled();
+    mocks.createSchema.mockResolvedValueOnce(schema({ name: "Informationen" }));
+    fireEvent.click(
+      screen.getByRole("button", { name: "Formularvorlage erstellen" }),
+    );
+    await waitFor(() => expect(mocks.createSchema).toHaveBeenCalledOnce());
+    expect(mocks.createSchema.mock.calls[0]![1]).toEqual([
+      expect.objectContaining({
+        attachments: [
+          { label: "Schulstart", document_url: firstURL },
+          { label: "Abholen", document_url: secondURL },
+        ],
+      }),
+    ]);
+  });
+
+  it("saves a replacement and removal while cleaning only unreferenced drafts", async () => {
+    await newNotice();
+    await upload("Schulstart.pdf", firstURL, 1);
+    await upload("Abholen.pdf", secondURL, 2);
+    fireEvent.click(screen.getByRole("button", { name: "Aktionen für PDF 1" }));
+    fireEvent.click(
+      await screen.findByRole("menuitem", { name: "PDF ersetzen" }),
+    );
+    mocks.uploadEnrollmentLegalDocument.mockResolvedValueOnce(replacementURL);
+    fireEvent.change(screen.getByLabelText("PDF-Datei auswählen"), {
+      target: {
+        files: [
+          new File(["%PDF replacement"], "replacement.pdf", {
+            type: "application/pdf",
+          }),
+        ],
+      },
+    });
+    await waitFor(() =>
+      expect(
+        screen.getByRole("button", { name: "Aktionen für PDF 2" }),
+      ).toBeEnabled(),
+    );
+    fireEvent.click(screen.getByRole("button", { name: "Aktionen für PDF 2" }));
+    fireEvent.click(
+      await screen.findByRole("menuitem", { name: "PDF entfernen" }),
+    );
+    mocks.createSchema.mockResolvedValueOnce(schema({ name: "Informationen" }));
+    fireEvent.click(
+      screen.getByRole("button", { name: "Formularvorlage erstellen" }),
+    );
+    await waitFor(() => expect(mocks.createSchema).toHaveBeenCalledOnce());
+    expect(mocks.createSchema.mock.calls[0]![1]).toEqual([
+      expect.objectContaining({
+        attachments: [{ label: "Schulstart", document_url: replacementURL }],
+      }),
+    ]);
+    await waitFor(() =>
+      expect(mocks.deleteEnrollmentLegalDocument).toHaveBeenCalledTimes(2),
+    );
+    expect(mocks.deleteEnrollmentLegalDocument).toHaveBeenCalledWith(
+      firstURL,
+      expect.any(Object),
+    );
+    expect(mocks.deleteEnrollmentLegalDocument).toHaveBeenCalledWith(
+      secondURL,
+      expect.any(Object),
+    );
+    expect(mocks.deleteEnrollmentLegalDocument).not.toHaveBeenCalledWith(
+      replacementURL,
+      expect.anything(),
+    );
+  });
+
+  it("prevents saving an unnamed PDF and keeps the error at its label field", async () => {
+    await newNotice();
+    await upload("Schulstart.pdf", firstURL, 1);
+    fireEvent.change(
+      screen.getByRole("textbox", { name: "Bezeichnung der PDF 1" }),
+      { target: { value: " " } },
+    );
+    fireEvent.click(
+      screen.getByRole("button", { name: "Formularvorlage erstellen" }),
+    );
+    expect(mocks.createSchema).not.toHaveBeenCalled();
+    expect(
+      screen.getByRole("textbox", { name: "Bezeichnung der PDF 1" }),
+    ).toHaveAttribute("aria-invalid", "true");
+  });
+
+  it("blocks saving during an upload and cleans a late result after unmount", async () => {
+    const pending = deferred<string>();
+    const view = await newNotice();
+    mocks.uploadEnrollmentLegalDocument.mockReturnValueOnce(pending.promise);
+    fireEvent.change(screen.getByLabelText("PDF-Datei auswählen"), {
+      target: {
+        files: [new File(["%PDF"], "draft.pdf", { type: "application/pdf" })],
+      },
+    });
+    expect(
+      screen.getByRole("button", { name: "Formularvorlage erstellen" }),
+    ).toBeDisabled();
+    view.unmount();
+    await act(async () => pending.resolve(firstURL));
+    await waitFor(() =>
+      expect(mocks.deleteEnrollmentLegalDocument).toHaveBeenCalledWith(
+        firstURL,
+        { keepalive: true },
+      ),
+    );
+    expect(mocks.createSchema).not.toHaveBeenCalled();
+  });
+});
+
+describe("information PDF validation", () => {
+  it("rejects wrong extensions and oversized PDFs before sending any upload", async () => {
+    mocks.listSchemas.mockResolvedValue([]);
+    mocks.listPhases.mockResolvedValue([]);
+    mocks.showActionMessage.mockReset();
+    render(<EnrollmentFormEditor />);
+    fireEvent.click(
+      await screen.findByRole("button", { name: "Neue Vorlage" }),
+    );
+    fireEvent.click(screen.getByRole("button", { name: "Infotext" }));
+    const picker = screen.getByLabelText("PDF-Datei auswählen");
+    fireEvent.change(picker, {
+      target: {
+        files: [new File(["image"], "image.png", { type: "image/png" })],
+      },
+    });
+    expect(mocks.showActionMessage).toHaveBeenLastCalledWith(
+      "Bitte wählen Sie eine PDF-Datei aus.",
+    );
+    const oversized = new File(["%PDF"], "large.pdf", {
+      type: "application/pdf",
+    });
+    Object.defineProperty(oversized, "size", { value: 10 * 1024 * 1024 + 1 });
+    fireEvent.change(picker, { target: { files: [oversized] } });
+    expect(mocks.showActionMessage).toHaveBeenLastCalledWith(
+      "Die Datei ist größer als 10 MB. Bitte wählen Sie eine kleinere Datei.",
+    );
+    expect(mocks.uploadEnrollmentLegalDocument).not.toHaveBeenCalled();
+    expect(
+      screen.queryByRole("textbox", { name: "Bezeichnung der PDF 1" }),
+    ).not.toBeInTheDocument();
   });
 });

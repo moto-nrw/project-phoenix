@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"log/slog"
 	"strconv"
 	"sync"
@@ -3498,4 +3499,43 @@ func TestRequestService_Edit_AdminContextPropagatesSchemaFailure(t *testing.T) {
 	stored, _, err := env.svc.GetByStatusToken(ctx, result.Request.StatusToken)
 	require.NoError(t, err)
 	assert.Equal(t, result.Request.GuardianFirstName, stored.GuardianFirstName)
+}
+
+func TestRequestService_NoticeAttachmentEvidenceSurvivesLaterPublication(t *testing.T) {
+	t.Parallel()
+	env, cleanup := setupRequestTest(t)
+	defer cleanup()
+	ctx := testpkg.Ctx(t)
+	repoFactory, _, _, _, _, _ := flowRepositories(t, env.db)
+	forms := NewTestFormSchemas(repoFactory.Enrollment())
+	prefix := fmt.Sprintf("%s%d_", enrollmentNative.EnrollmentFormLegalDocumentUploadPrefix, testpkg.Tenant(t))
+	documents := []enrollmentNative.FormAttachment{{Label: "Schulstart", DocumentURL: prefix + "start.pdf"}, {Label: "Abholen", DocumentURL: prefix + "pickup.pdf"}}
+	blocks := []enrollmentNative.FormLegalBlock{{Key: "school_notice", Kind: enrollmentNative.LegalBlockKindNotice, Title: "Informationen", Label: "Informationen", Text: "Bitte lesen Sie beide PDFs.", Enabled: true, Source: enrollmentNative.LegalBlockSourceCustom, Attachments: documents}}
+	fields := []enrollmentNative.FormField{{Key: "information", Type: enrollmentNative.FormFieldInfo, Content: "Bitte lesen Sie beide PDFs.", Attachments: documents}}
+	first, err := forms.CreateSchemaWithLegal(ctx, "PDF-Hinweise", fields, env.creatorID, enrollmentNative.CoreRequirements{}, blocks)
+	require.NoError(t, err)
+	env.phase.FormSchemaID = &first.ID
+	require.NoError(t, testpkg.TenantCommand1(t, ctx, env.db, repoFactory.Enrollment().UpdatePhase, enrollmentAPI.OwnerPhaseForTest(env.phase)))
+	input := validSubmission(t, env.phaseID)
+	input.ConsentFlags = map[string]any{}
+	submitted, err := env.svc.Submit(ctx, input)
+	require.NoError(t, err, "information PDFs must not require any additional consent")
+	require.Len(t, submitted.Request.LegalBlocksSnapshot, 1)
+	require.Len(t, submitted.Request.LegalBlocksSnapshot[0].Blocks, 1)
+	frozen := submitted.Request.LegalBlocksSnapshot[0].Blocks[0].Attachments
+	require.Equal(t, []enrollmentNative.FormAttachment{
+		{Label: "Schulstart", DocumentURL: fmt.Sprintf("%s%d_start.pdf", enrollmentNative.EnrollmentFormLegalDocumentPublicPrefix, testpkg.Tenant(t))},
+		{Label: "Abholen", DocumentURL: fmt.Sprintf("%s%d_pickup.pdf", enrollmentNative.EnrollmentFormLegalDocumentPublicPrefix, testpkg.Tenant(t))},
+	}, frozen)
+	blocks[0].Attachments = []enrollmentNative.FormAttachment{{Label: "Neuer Elternbrief", DocumentURL: prefix + "new.pdf"}}
+	fields[0].Attachments = blocks[0].Attachments
+	_, err = forms.UpdateSchemaWithLegal(ctx, first.ID, fields, env.creatorID, nil, &blocks)
+	require.NoError(t, err)
+	stored, _, err := env.svc.GetByStatusToken(ctx, submitted.Request.StatusToken)
+	require.NoError(t, err)
+	require.Equal(t, &first.ID, stored.SchemaID, "submitted forms must remain pinned to their original information fields")
+	require.Equal(t, frozen, stored.LegalBlocksSnapshot[0].Blocks[0].Attachments, "later replacement must preserve the submitted PDF references")
+	pinned, err := testpkg.TenantQuery1(t, ctx, env.db, forms.SchemaVersion, first.ID)
+	require.NoError(t, err)
+	require.Equal(t, documents, pinned.Fields[0].Attachments)
 }
