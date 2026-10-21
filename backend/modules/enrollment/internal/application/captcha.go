@@ -29,8 +29,7 @@ func NewCaptcha(settings CaptchaSettings, provider CaptchaSiteVerify, logger *sl
 }
 
 // IsEnabled reports the enrollment.require_captcha setting of the tenant in
-// context. Default false: a fresh tenant has no Turnstile keys configured
-// yet.
+// context. Default false: captcha is opt-in for each school.
 func (s *Captcha) IsEnabled(ctx context.Context) (bool, error) {
 	if s.settings == nil {
 		return false, nil
@@ -77,10 +76,14 @@ func (s *Captcha) Verify(ctx context.Context, token, remoteIP string) error {
 }
 
 // SiteKey returns the public site key for the tenant in context, or "" when
-// unset. Safe to expose on a public endpoint — it's the same value that
+// disabled or unset. Safe to expose on a public endpoint — it's the same value that
 // lives in the rendered widget markup.
 func (s *Captcha) SiteKey(ctx context.Context) (string, error) {
-	if s.settings == nil {
+	enabled, err := s.IsEnabled(ctx)
+	if err != nil {
+		return "", fmt.Errorf("resolve captcha requirement: %w", err)
+	}
+	if !enabled {
 		return "", nil
 	}
 	return s.settings.CaptchaSiteKey(ctx)
