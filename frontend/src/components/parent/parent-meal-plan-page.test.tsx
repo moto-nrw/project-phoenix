@@ -178,11 +178,11 @@ describe("ParentMealPlanPage", () => {
       ).getByRole("status");
       await waitFor(() => {
         expect(weekStatus).toHaveTextContent(/KW 34\s*· Nächste Woche/);
+        expect(mocks.getChildMealPlan).toHaveBeenLastCalledWith(
+          "child-1",
+          "2026-08-17",
+        );
       });
-      expect(mocks.getChildMealPlan).toHaveBeenLastCalledWith(
-        "child-1",
-        "2026-08-17",
-      );
 
       // Die Familie kann danach in diese Woche zurück; die Seite springt
       // nicht erneut.
