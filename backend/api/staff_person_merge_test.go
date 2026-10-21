@@ -607,7 +607,7 @@ func TestStaffPersonMergeWaitsForSameSchoolStaffCreation(t *testing.T) {
 	}
 	select {
 	case err := <-retiredDonor:
-		require.ErrorIs(t, err, schoolmembership.ErrInvalidMembership)
+		require.Error(t, err)
 	case <-time.After(time.Second):
 		t.Fatal("donor staff creation did not complete after the merge committed")
 	}

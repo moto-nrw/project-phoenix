@@ -711,9 +711,6 @@ func escapeLike(value string) string {
 }
 
 func wrapStaffWriteError(operation string, err error) error {
-	if isNotNullViolationOn(err, "person_id") {
-		return schoolmembership.ErrInvalidMembership
-	}
 	if isUniqueViolationOn(err, staffPersonIndex) {
 		return schoolmembership.ErrStaffPersonConflict
 	}
@@ -723,20 +720,6 @@ func wrapStaffWriteError(operation string, err error) error {
 func staffPersonMergeLockKey(schoolID int64) string {
 	// This matches the People Directory's gate for the same school.
 	return fmt.Sprintf("staff-person-merge:%d", schoolID)
-}
-
-func isNotNullViolationOn(err error, columns ...string) bool {
-	var postgresError pgdriver.Error
-	if !errors.As(err, &postgresError) || postgresError.Field('C') != "23502" {
-		return false
-	}
-	column := postgresError.Field('c')
-	for _, name := range columns {
-		if column == name {
-			return true
-		}
-	}
-	return false
 }
 
 func wrapTeacherWriteError(operation string, err error) error {
