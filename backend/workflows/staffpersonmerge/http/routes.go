@@ -4,7 +4,6 @@ package http
 import (
 	"context"
 	"net/http"
-	"strconv"
 
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/render"
@@ -31,7 +30,7 @@ func Router(workflow Capability, bindScope func(http.Handler) http.Handler) http
 	return r
 }
 func (rs resource) execute(w http.ResponseWriter, r *http.Request) {
-	schoolID, err := strconv.ParseInt(chi.URLParam(r, "schoolId"), 10, 64)
+	schoolID, err := common.ParseIDParam(r, "schoolId")
 	if err != nil {
 		common.RenderError(w, r, common.OperatorInvalidRequest(err))
 		return
