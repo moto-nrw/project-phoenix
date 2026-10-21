@@ -321,7 +321,6 @@ function OpenRoomBlock({
           <Alert type="info" message={actions.moveNotice} />
         ) : null}
         <TimetableRosterContent
-          addStudentResults={actions.addStudentResults}
           addStudentSearch={actions.addStudentSearch}
           addStudentError={actions.addStudentError}
           attendanceWebEnabled={attendanceWebEnabled}

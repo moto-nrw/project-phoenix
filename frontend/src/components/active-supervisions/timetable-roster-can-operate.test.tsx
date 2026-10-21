@@ -78,7 +78,6 @@ function roster(canOperate: boolean | undefined): TimetableRoster {
 function renderRoster(value: TimetableRoster, attendanceWebEnabled = true) {
   render(
     <TimetableRosterContent
-      addStudentResults={[]}
       addStudentSearch=""
       attendanceWebEnabled={attendanceWebEnabled}
       isAddingStudent={false}

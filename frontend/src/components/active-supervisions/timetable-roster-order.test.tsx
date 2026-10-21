@@ -79,7 +79,6 @@ function rosterView(value: TimetableRoster, rowFilter: RowFilter = null) {
   return (
     <TimetableRosterContent
       rowFilter={rowFilter}
-      addStudentResults={[]}
       addStudentSearch=""
       attendanceWebEnabled={false}
       isAddingStudent={false}
