@@ -5,6 +5,8 @@ import (
 	"fmt"
 	"log/slog"
 	"net/http"
+	"os"
+	"path/filepath"
 	"testing"
 	"time"
 
@@ -12,6 +14,7 @@ import (
 
 	"github.com/go-chi/chi/v5"
 	"github.com/moto-nrw/project-phoenix/api/testutil"
+	nativeUploads "github.com/moto-nrw/project-phoenix/modules/delivery/objects"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -32,6 +35,11 @@ type staffCompositionContext struct {
 	// returns (staffID, accountID).
 	createStaffWithAccount func(firstName, lastName string) (int64, int64)
 	assignLehrkraft        func(accountID int64)
+	// createForeignStaffWithAccount is createStaffWithAccount in a second
+	// school the test's caller does not belong to.
+	createForeignStaffWithAccount func(firstName, lastName string) (int64, int64)
+	// setAccountAvatar stores urlPath as the account's profile picture.
+	setAccountAvatar func(accountID int64, urlPath string)
 	// absentToday records an approved absence of a school-defined type with
 	// the given wording for the staff member on the current day.
 	absentToday func(staffID int64, wording string)
@@ -67,6 +75,16 @@ func setupStaffCompositionRoute(t *testing.T) *staffCompositionContext {
 		createStaffWithAccount: func(firstName, lastName string) (int64, int64) {
 			staff, account := testpkg.CreateTestStaffWithAccountForTenant(t, db, testpkg.Tenant(t), firstName, lastName)
 			return staff.ID, account.ID
+		},
+		createForeignStaffWithAccount: func(firstName, lastName string) (int64, int64) {
+			foreignTenantID, _ := testpkg.CreateTestTenant(t, db)
+			staff, account := testpkg.CreateTestStaffWithAccountForTenant(t, db, foreignTenantID, firstName, lastName)
+			return staff.ID, account.ID
+		},
+		setAccountAvatar: func(accountID int64, urlPath string) {
+			_, err := db.NewRaw(`UPDATE auth.accounts SET avatar = ? WHERE id = ?`, urlPath, accountID).
+				Exec(context.Background())
+			require.NoError(t, err)
 		},
 		assignLehrkraft: func(accountID int64) {
 			testpkg.AssignLehrkraftSystemRole(t, db, accountID, testpkg.Tenant(t))
@@ -257,4 +275,38 @@ func TestBetreuerRoleDoesNotSeeTheSchoolsAbsenceWording(t *testing.T) {
 		require.Equal(t, http.StatusOK, rr.Code, rr.Body.String())
 		assert.Contains(t, rr.Body.String(), "Regenerationstag", path)
 	}
+}
+
+// TestStaffAvatarStaysInsideTheSchool pins #4432: a colleague's profile
+// picture reaches callers of the same school and no other. The account and
+// its picture are global, so only the school-scoped staff lookup keeps a
+// foreign school from reading it.
+func TestStaffAvatarStaysInsideTheSchool(t *testing.T) {
+	t.Parallel()
+
+	ctx := setupStaffCompositionRoute(t)
+	ownStaffID, ownAccountID := ctx.createStaffWithAccount("Eigene", "Kollegin")
+	foreignStaffID, foreignAccountID := ctx.createForeignStaffWithAccount("Fremde", "Kollegin")
+
+	publicDir, err := nativeUploads.ResolvePublicDir()
+	require.NoError(t, err)
+	urlPath := fmt.Sprintf("/uploads/avatars/staff-avatar-%d.png", ownAccountID)
+	filePath := filepath.Join(publicDir, filepath.FromSlash(urlPath))
+	picture := []byte("\x89PNG\r\n\x1a\nstaff-avatar")
+	require.NoError(t, os.WriteFile(filePath, picture, 0o600))
+	t.Cleanup(func() { _ = os.Remove(filePath) })
+	ctx.setAccountAvatar(ownAccountID, urlPath)
+	ctx.setAccountAvatar(foreignAccountID, urlPath)
+
+	betreuer := testutil.WithJWTBearer(staffCompositionToken(t, betreuerPermissions...))
+
+	own := testutil.ExecuteRequest(ctx.router, testutil.NewAuthenticatedRequest(t, http.MethodGet,
+		fmt.Sprintf("/staff/%d/avatar", ownStaffID), nil, betreuer))
+	require.Equal(t, http.StatusOK, own.Code, own.Body.String())
+	assert.Equal(t, picture, own.Body.Bytes())
+
+	foreign := testutil.ExecuteRequest(ctx.router, testutil.NewAuthenticatedRequest(t, http.MethodGet,
+		fmt.Sprintf("/staff/%d/avatar", foreignStaffID), nil, betreuer))
+	assert.Equal(t, http.StatusNotFound, foreign.Code, foreign.Body.String())
+	assert.NotContains(t, foreign.Body.String(), "staff-avatar")
 }

@@ -139,37 +139,6 @@ func (s *Store) ListRolePermissions(ctx context.Context, roleID int64) ([]domain
 		Where("rp.role_id = ?", roleID), "find by role ID")
 }
 
-// ListAccountPermissions preserves the administration view: direct grants plus role grants.
-// Explicit denials are applied by the authentication evaluator, not by this catalog view.
-func (s *Store) ListAccountPermissions(ctx context.Context, accountID int64) ([]domain.ManagedPermission, error) {
-	db, err := s.database(ctx)
-	if err != nil {
-		return nil, err
-	}
-	direct := db.NewSelect().TableExpr("auth.account_permissions AS account_permission").
-		ColumnExpr("account_permission.permission_id").Where("account_permission.account_id = ? AND account_permission.granted = true", accountID)
-	roles := db.NewSelect().TableExpr("auth.role_permissions AS role_permission").
-		ColumnExpr("role_permission.permission_id").
-		Join("JOIN auth.account_roles AS ar ON ar.role_id = role_permission.role_id").Where("ar.account_id = ?", accountID)
-	direct = scopeTenantQuery(s.scope(ctx), direct, "account_permission.tenant_id = ?")
-	roles = scopeTenantQuery(s.scope(ctx), roles, "ar.tenant_id = ?")
-	return scanPermissions(ctx, db.NewSelect().TableExpr("auth.permissions AS permission").
-		ColumnExpr("permission.id, permission.name, permission.description, permission.resource, permission.action, permission.created_at, permission.updated_at").Distinct().
-		Join("JOIN (?) AS aap ON aap.permission_id = permission.id", direct.UnionAll(roles)), "find by account ID")
-}
-
-func (s *Store) ListAccountDirectPermissions(ctx context.Context, accountID int64) ([]domain.ManagedPermission, error) {
-	db, err := s.database(ctx)
-	if err != nil {
-		return nil, err
-	}
-	query := db.NewSelect().TableExpr("auth.permissions AS permission").ColumnExpr("permission.id, permission.name, permission.description, permission.resource, permission.action, permission.created_at, permission.updated_at").
-		Join("JOIN auth.account_permissions ap ON ap.permission_id = permission.id").
-		Where("ap.account_id = ? AND ap.granted = true", accountID)
-	query = scopeTenantQuery(s.scope(ctx), query, "ap.tenant_id = ?")
-	return scanPermissions(ctx, query, "find direct permissions by account ID")
-}
-
 // AssignRolePermission is idempotent under the caller's role-row lock.
 func (s *Store) AssignRolePermission(ctx context.Context, roleID, permissionID int64) error {
 	db, err := s.database(ctx)
@@ -236,64 +205,6 @@ func (s *Store) DeletePermissionGrants(ctx context.Context, permissionID int64) 
 	_, err = query.Exec(ctx)
 	if err != nil {
 		return fmt.Errorf("delete by permission ID: %w", err)
-	}
-	return nil
-}
-
-func (s *Store) GrantAccountPermission(ctx context.Context, accountID, permissionID int64) error {
-	return s.setAccountPermission(ctx, accountID, permissionID, true, "grant permission")
-}
-
-func (s *Store) DenyAccountPermission(ctx context.Context, accountID, permissionID int64) error {
-	return s.setAccountPermission(ctx, accountID, permissionID, false, "deny permission")
-}
-
-// setAccountPermission retains the existence/update sequence under the account-row lock.
-// Tenantless administrative callers update all matching mappings, as before; school callers
-// always constrain both the existence check and update to their school.
-func (s *Store) setAccountPermission(ctx context.Context, accountID, permissionID int64, granted bool, operation string) error {
-	db, err := s.database(ctx)
-	if err != nil {
-		return err
-	}
-	scope := s.scope(ctx)
-	tenantID := scope.TenantID
-	query := db.NewSelect().TableExpr("auth.account_permissions AS account_permission").
-		Where("account_permission.account_id = ? AND account_permission.permission_id = ?", accountID, permissionID)
-	query = scopeTenantQuery(scope, query, "account_permission.tenant_id = ?")
-	exists, err := query.Exists(ctx)
-	if err != nil {
-		return fmt.Errorf("check permission mapping: %w", err)
-	}
-	if exists {
-		update := db.NewUpdate().TableExpr("auth.account_permissions AS account_permission").
-			Set("granted = ?", granted).Where("account_permission.account_id = ? AND account_permission.permission_id = ?", accountID, permissionID)
-		update = scopeTenantQuery(scope, update, "account_permission.tenant_id = ?")
-		_, err = update.Exec(ctx)
-	} else {
-		if scope.AcrossSchools {
-			return domain.ErrTenantRequired
-		}
-		_, err = db.NewRaw("INSERT INTO auth.account_permissions (account_id, permission_id, granted, tenant_id) VALUES (?, ?, ?, ?)",
-			accountID, permissionID, granted, tenantID).Exec(ctx)
-	}
-	if err != nil {
-		return fmt.Errorf("%s: %w", operation, err)
-	}
-	return nil
-}
-
-func (s *Store) RemoveAccountPermission(ctx context.Context, accountID, permissionID int64) error {
-	db, err := s.database(ctx)
-	if err != nil {
-		return err
-	}
-	query := db.NewDelete().TableExpr("auth.account_permissions AS account_permission").
-		Where("account_permission.account_id = ? AND account_permission.permission_id = ?", accountID, permissionID)
-	query = scopeTenantQuery(s.scope(ctx), query, "account_permission.tenant_id = ?")
-	_, err = query.Exec(ctx)
-	if err != nil {
-		return fmt.Errorf("remove permission: %w", err)
 	}
 	return nil
 }

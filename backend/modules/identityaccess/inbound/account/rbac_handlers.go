@@ -300,18 +300,6 @@ func (rs *Resource) removeRoleFromAccount(ctx context.Context, accountID, roleID
 	return rs.Sessions.RemoveRoleFromAccount(ctx, accountID, roleID)
 }
 
-func (rs *Resource) grantPermissionToAccount(ctx context.Context, accountID, permissionID int64) error {
-	return rs.Sessions.GrantPermissionToAccount(ctx, accountID, permissionID)
-}
-
-func (rs *Resource) denyPermissionToAccount(ctx context.Context, accountID, permissionID int64) error {
-	return rs.Sessions.DenyPermissionToAccount(ctx, accountID, permissionID)
-}
-
-func (rs *Resource) removePermissionFromAccount(ctx context.Context, accountID, permissionID int64) error {
-	return rs.Sessions.RemovePermissionFromAccount(ctx, accountID, permissionID)
-}
-
 func (rs *Resource) assignPermissionToRole(ctx context.Context, roleID, permissionID int64) error {
 	return rs.Sessions.AssignPermissionToRole(ctx, roleID, permissionID)
 }
@@ -427,38 +415,6 @@ func (rs *Resource) listPermissions(w http.ResponseWriter, r *http.Request) {
 	}
 
 	common.Respond(w, r, http.StatusOK, toPermissionResponses(permissions), "Permissions retrieved successfully")
-}
-
-// getAccountPermissions handles getting permissions for an account
-func (rs *Resource) getAccountPermissions(w http.ResponseWriter, r *http.Request) {
-	accountID, ok := common.ParseIntIDWithError(w, r, "accountId", common.MsgInvalidAccountID)
-	if !ok {
-		return
-	}
-
-	permissions, err := rs.Sessions.GetAccountPermissions(r.Context(), int64(accountID))
-	if err != nil {
-		common.RenderError(w, r, accountRoleErrorRenderer(err))
-		return
-	}
-
-	common.Respond(w, r, http.StatusOK, toPermissionResponses(permissions), "Account permissions retrieved successfully")
-}
-
-// getAccountDirectPermissions handles getting only direct permissions for an account (not role-based)
-func (rs *Resource) getAccountDirectPermissions(w http.ResponseWriter, r *http.Request) {
-	accountID, ok := common.ParseIntIDWithError(w, r, "accountId", common.MsgInvalidAccountID)
-	if !ok {
-		return
-	}
-
-	permissions, err := rs.Sessions.GetAccountDirectPermissions(r.Context(), int64(accountID))
-	if err != nil {
-		common.RenderError(w, r, accountRoleErrorRenderer(err))
-		return
-	}
-
-	common.Respond(w, r, http.StatusOK, toPermissionResponses(permissions), "Account direct permissions retrieved successfully")
 }
 
 // getRolePermissions handles getting permissions for a role

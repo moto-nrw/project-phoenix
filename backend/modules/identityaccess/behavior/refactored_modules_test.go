@@ -388,7 +388,9 @@ func TestAuthService_DeletePermission_Extended(t *testing.T) {
 		require.NoError(t, err)
 		testpkg.EnsureAccountTenant(t, db, account.ID, testpkg.Tenant(t))
 
-		err = rbac.GrantPermissionToAccount(ctx, account.ID, perm.ID)
+		_, err = db.ExecContext(ctx,
+			"INSERT INTO auth.account_permissions (account_id, permission_id, granted, tenant_id) VALUES (?, ?, TRUE, ?)",
+			account.ID, perm.ID, testpkg.Tenant(t))
 		require.NoError(t, err)
 
 		// ACT
@@ -400,64 +402,6 @@ func TestAuthService_DeletePermission_Extended(t *testing.T) {
 		// Verify permission is deleted
 		_, err = rbac.GetPermission(ctx, perm.ID)
 		require.Error(t, err)
-	})
-}
-
-func TestAuthService_GrantPermissionToAccount_Extended(t *testing.T) {
-	t.Parallel()
-
-	db := testpkg.SetupTestDB(t)
-
-	service := setupAuthServiceWithDB(t, db)
-	rbac := roleAdministrationOf(t, service)
-	ctx := testpkg.Ctx(t)
-
-	t.Run("returns error for non-existent permission", func(t *testing.T) {
-		// ARRANGE
-		email := fmt.Sprintf("grant-perm-user-%d@test.local", time.Now().UnixNano())
-		account, err := service.Register(ctx, email, fmt.Sprintf("user-%d", time.Now().UnixNano()), "Test1234%", nil, 0)
-		require.NoError(t, err)
-		testpkg.EnsureAccountTenant(t, db, account.ID, testpkg.Tenant(t))
-
-		// ACT
-		err = rbac.GrantPermissionToAccount(ctx, account.ID, 99999999)
-
-		// ASSERT
-		require.Error(t, err)
-	})
-}
-
-func TestAuthService_RemovePermissionFromAccount_Extended(t *testing.T) {
-	t.Parallel()
-
-	db := testpkg.SetupTestDB(t)
-
-	service := setupAuthServiceWithDB(t, db)
-	rbac := roleAdministrationOf(t, service)
-	ctx := testpkg.Ctx(t)
-
-	t.Run("removes permission from account", func(t *testing.T) {
-		// ARRANGE
-		uniqueID := fmt.Sprintf("%d", time.Now().UnixNano())
-		permName := fmt.Sprintf("remove-perm-%s", uniqueID)
-		resource := fmt.Sprintf("remove-res-%s", uniqueID)
-		perm, err := rbac.CreatePermission(ctx, permName, "Permission to remove", resource, "read")
-		require.NoError(t, err)
-		testpkg.OwnTestPermission(t, db, perm.ID)
-
-		email := fmt.Sprintf("remove-perm-user-%s@test.local", uniqueID)
-		account, err := service.Register(ctx, email, fmt.Sprintf("user-%s", uniqueID), "Test1234%", nil, 0)
-		require.NoError(t, err)
-		testpkg.EnsureAccountTenant(t, db, account.ID, testpkg.Tenant(t))
-
-		err = rbac.GrantPermissionToAccount(ctx, account.ID, perm.ID)
-		require.NoError(t, err)
-
-		// ACT
-		err = rbac.RemovePermissionFromAccount(ctx, account.ID, perm.ID)
-
-		// ASSERT
-		require.NoError(t, err)
 	})
 }
 

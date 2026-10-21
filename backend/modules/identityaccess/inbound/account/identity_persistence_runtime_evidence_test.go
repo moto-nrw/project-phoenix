@@ -91,8 +91,6 @@ func TestIdentityPersistenceRuntimeEvidence(t *testing.T) {
 		{"own_account_tenants", http.MethodGet, "/auth/account/tenants", nil, access, http.StatusOK, keep},
 		{"accounts_list", http.MethodGet, "/auth/accounts?email=identity-runtime", nil, access, http.StatusOK, keep},
 		{"account_roles", http.MethodGet, accountPath + "/roles", nil, access, http.StatusOK, keep},
-		{"account_permissions", http.MethodGet, accountPath + "/permissions", nil, access, http.StatusOK, keep},
-		{"account_direct_permissions", http.MethodGet, accountPath + "/permissions/direct", nil, access, http.StatusOK, keep},
 		{"role_assign", http.MethodPost, fmt.Sprintf("%s/roles/%d", accountPath, assignedRole.ID), nil, access, 0, keep},
 		{"role_unassign", http.MethodDelete, fmt.Sprintf("%s/roles/%d", accountPath, assignedRole.ID), nil, access, 0, keep},
 	}

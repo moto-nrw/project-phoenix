@@ -33,13 +33,6 @@ func ResolveAccess(ctx context.Context, db bun.IDB, tenantID, accountID int64) (
 	err := db.NewRaw(`
 		WITH effective_permissions AS (
 			SELECT permission.name
-			FROM auth.account_permissions AS account_permission
-			JOIN auth.permissions AS permission ON permission.id = account_permission.permission_id
-			WHERE account_permission.account_id = ?
-			  AND account_permission.tenant_id = ?
-			  AND account_permission.granted = TRUE
-			UNION
-			SELECT permission.name
 			FROM auth.account_roles AS account_role
 			JOIN auth.role_permissions AS role_permission ON role_permission.role_id = account_role.role_id
 			JOIN auth.permissions AS permission ON permission.id = role_permission.permission_id
@@ -72,7 +65,7 @@ func ResolveAccess(ctx context.Context, db bun.IDB, tenantID, accountID int64) (
 			  AND account_tenant.tenant_id = school.id
 			  AND account_tenant.status = 'active'
 		  )
-	`, accountID, tenantID, accountID, tenantID, accountID, tenantID, tenantID, accountID).Scan(ctx, &row)
+	`, accountID, tenantID, accountID, tenantID, tenantID, accountID).Scan(ctx, &row)
 	if errors.Is(err, sql.ErrNoRows) {
 		return Access{}, false, nil
 	}

@@ -9,7 +9,7 @@ import (
 )
 
 // Effective admin authority matches authorize.HasEffectiveAdminScope: an
-// admin role, or admin:* / *:* via a role or a granted direct permission.
+// admin role, or admin:* / *:* via a role.
 // Every grant is paired with the active mapping's school, not just its account.
 const effectiveAdminAccountsSQL = `SELECT DISTINCT a.id
 FROM auth.accounts a
@@ -23,11 +23,6 @@ AND (EXISTS (
  LEFT JOIN auth.permissions p ON p.id = rp.permission_id
  WHERE ar.account_id = a.id AND ar.tenant_id = membership.tenant_id
  AND (LOWER(r.name) = 'admin' OR (p.resource IN ('admin', '*') AND p.action = '*'))
-) OR EXISTS (
- SELECT 1 FROM auth.account_permissions ap
- JOIN auth.permissions p ON p.id = ap.permission_id
- WHERE ap.account_id = a.id AND ap.tenant_id = membership.tenant_id
- AND ap.granted = TRUE AND p.resource IN ('admin', '*') AND p.action = '*'
 ))`
 
 func (s *Store) ListEffectiveAdminAccountIDs(ctx context.Context, tenantID int64) ([]int64, domain.OperationStats, error) {

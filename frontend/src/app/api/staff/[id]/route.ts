@@ -40,6 +40,7 @@ interface BackendStaffResponse {
     first_name: string;
     last_name: string;
     email?: string;
+    avatar?: string;
     tag_id?: string;
     account_id?: WireID;
     created_at: string;
@@ -118,6 +119,7 @@ export const GET = createGetHandler(
         first_name: staff.person?.first_name ?? "",
         last_name: staff.person?.last_name ?? "",
         email: staff.person?.email ?? undefined, // Include email from person object
+        avatar: staff.person?.avatar ?? null,
         specialization: staff.specialization ?? null,
         role: staff.role ?? null,
         qualifications: staff.qualifications ?? null,
