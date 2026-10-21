@@ -4200,7 +4200,9 @@ ADR 0053 point 8 puts it:
   employment profile, the schedule and work-time-template adapters over the
   rows of `repositoryadapter`, and today's work presence
   (`time_tracking_planned_shifts.go`, `time_tracking_staff_schedule.go`,
-  `time_tracking_work_schedules.go`, `work_presence.go`).
+  `time_tracking_work_schedules.go`, `work_presence.go`). #4522 later deleted
+  `work_presence.go`: the reminder scheduler and the staff recipient resolver
+  read `WorkPresenceMap` on the Workforce capability.
 - **The root** (`api`) holds the cross-owner glue: the staff absence
   decorators over School Membership and the People Directory, the time-tracking
   ports over the staff rows, the Audit trails, the settings, Delivery and
@@ -5118,7 +5120,7 @@ numbered decision of the principle ADR.
 | Everything else is an exact key with one open carrier; a cutover never keeps old reach as a rule | ADR 0057 point 2 and consequences, ADR 0030, ADR 0035 to ADR 0038, ADR 0052 | 0070 point 2 |
 | `models/*` carry `legacy-model`, which no foreign owner imports | ADR 0057 point 4 | 0070 point 3 |
 | Ratchet budgets only fall; a raise needs an ADR the change adds | ADR 0057 point 5, ADR 0063, ADR 0064, ADR 0072, ADR 0073 | 0070 point 4 |
-| Pass-throughs count per owner; moved code stays in the scan; four shapes form the floor | ADR 0061, ADR 0064, ADR 0075 | 0070 point 5 |
+| Pass-throughs count per owner; moved code stays in the scan; five shapes and four named exceptions form the floor, and every budget equals it | ADR 0061, ADR 0064, ADR 0075 | 0070 point 5 |
 | A relocation renames keys and grants nothing | ADR 0020 | 0070 point 6 |
 | The epoch rises only for a reviewed decision with a finite, tested acceptor; dead acceptors are deleted | ADR 0053 point 9, ADR 0013, ADR 0015, ADR 0045, ADR 0057 point 7, ADR 0074 | 0070 point 7 |
 | Exact package selectors only narrow | ADR 0057 addendum of 2026-10-16 | 0070 point 8 |
