@@ -23,16 +23,26 @@ const logger = createLogger({ component: "TodayNoticeList" });
  *
  * Dieselbe Liste steht in moto schule (#2208); dort reicht die Seite die
  * Kenntnisnahme über ihre eigene Sitzung herein (`acknowledge`).
+ *
+ * `layout="grid"` stellt die Hinweise nebeneinander, je einer in einem
+ * eigenen Feld (#4365). Die Seite Tagesinformationen nutzt das: Ihre Karte
+ * „Heute“ reicht bis zur Unterkante, eine schmale Liste ließe rechts die
+ * halbe Breite leer. Die Spalten kommen wie im `CollectionGrid` aus
+ * `auto-fit`: ein Hinweis füllt die Zeile, auf dem Telefon steht einer unter
+ * dem anderen.
  */
 export function TodayNoticeList({
   notices,
   onChanged,
   acknowledge = acknowledgeStaffNotice,
+  layout = "list",
 }: {
   readonly notices: readonly StaffNotice[];
   readonly onChanged: () => Promise<unknown>;
   readonly acknowledge?: (id: string) => Promise<void>;
+  readonly layout?: "list" | "grid";
 }) {
+  const grid = layout === "grid";
   const [pending, setPending] = useState<string | null>(null);
   // Eine Kenntnisnahme ist eine Aktion ohne Formular: der Fehler kommt als
   // Meldung mit Wiederholen (#2517).
@@ -65,9 +75,22 @@ export function TodayNoticeList({
 
   return (
     <>
-      <ul className="space-y-4">
+      <ul
+        className={
+          grid
+            ? "grid grid-cols-[repeat(auto-fit,minmax(min(100%,20rem),1fr))] gap-4 max-sm:gap-3"
+            : "space-y-4"
+        }
+      >
         {notices.map((notice) => (
-          <li key={notice.id}>
+          <li
+            key={notice.id}
+            className={
+              grid
+                ? "rounded-xl border border-gray-100 bg-gray-50/70 p-4"
+                : undefined
+            }
+          >
             <div className="flex flex-wrap items-center gap-2">
               <h3 className="text-[15px] font-semibold text-gray-900">
                 {notice.title}
