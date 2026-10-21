@@ -19,6 +19,7 @@ import (
 	peopleCompose "github.com/moto-nrw/project-phoenix/modules/peopledirectory/compose"
 	"github.com/moto-nrw/project-phoenix/modules/schoolmembership"
 	membershipCompose "github.com/moto-nrw/project-phoenix/modules/schoolmembership/compose"
+	"github.com/moto-nrw/project-phoenix/roots/owners"
 	"github.com/moto-nrw/project-phoenix/tenant"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/moto-nrw/project-phoenix/workflows/staffpersonmerge"
@@ -51,6 +52,14 @@ type uncommittedNamesakePeople struct {
 	schoolID int64
 	first    string
 	last     string
+}
+
+type ineligibleStaffMemberships struct {
+	schoolmembership.StaffPersonMerge
+}
+
+func (ineligibleStaffMemberships) ReassignStaffPerson(context.Context, schoolmembership.StaffPersonReassignment) error {
+	return schoolmembership.ErrStaffPersonMergeNoLongerEligible
 }
 
 func (p uncommittedNamesakePeople) RetireMergedStaffPerson(ctx context.Context, schoolID, donorID, keeperID int64) error {
@@ -297,6 +306,30 @@ func TestStaffPersonMergeRejectsNamesakeAddedBeforeRetirement(t *testing.T) {
 	assert.Zero(t, audits)
 }
 
+func TestStaffPersonMergeReturnsConflictForIneligibleMembership(t *testing.T) {
+	t.Parallel()
+	h := newStaffMergeHarness(t)
+	h.pair(t, "Zusätzliche")
+	input := mergeSelection(h.preview(t))
+	audit, err := auditCompose.NewPersistence(auditCompose.PersistenceDependencies{DB: h.db})
+	require.NoError(t, err)
+	workflow, err := mergeCompose.New(
+		peopleCompose.NewStaffPersonMerge(),
+		ineligibleStaffMemberships{StaffPersonMerge: membershipCompose.NewStaffPersonMerge()},
+		staffPersonMergeAudit{create: audit.OperatorAuditLog.Create},
+		operatorIDFromSession,
+	)
+	require.NoError(t, err)
+	h.router = chi.NewRouter()
+	h.router.Mount("/", mergeHTTP.Router(workflow, TenantScopeMiddleware))
+
+	rr := h.request(t, http.MethodPost, h.schoolID, input)
+	assert.Equal(t, http.StatusConflict, rr.Code, rr.Body.String())
+	var audits int
+	require.NoError(t, h.db.NewRaw(`SELECT count(*) FROM platform.operator_audit_log WHERE operator_id = ? AND action = 'merge'`, h.operatorID).Scan(testpkg.Ctx(t), &audits))
+	assert.Zero(t, audits)
+}
+
 func TestStaffPersonMergeRejectsNamesakeCommittedBeforeFinalCheck(t *testing.T) {
 	t.Parallel()
 	h := newStaffMergeHarness(t)
@@ -504,6 +537,83 @@ func TestStaffPersonMergeWaitsForSameSchoolPersonCreation(t *testing.T) {
 	case <-time.After(time.Second):
 		t.Fatal("person creation did not complete after the merge committed")
 	}
+}
+
+func TestStaffPersonMergeWaitsForSameSchoolStaffCreation(t *testing.T) {
+	t.Parallel()
+	h := newStaffMergeHarness(t)
+	h.pair(t, "Mitgliedschaft")
+	other := testpkg.CreateTestPerson(t, h.db, "Andere", "Mitarbeit")
+	input := mergeSelection(h.preview(t))
+	reachedAudit := make(chan struct{})
+	releaseAudit := make(chan struct{})
+	audit, err := auditCompose.NewPersistence(auditCompose.PersistenceDependencies{DB: h.db})
+	require.NoError(t, err)
+	workflow, err := mergeCompose.New(peopleCompose.NewStaffPersonMerge(), membershipCompose.NewStaffPersonMerge(), staffPersonMergeAudit{create: func(ctx context.Context, entry *auditRecords.OperatorAuditEntry) error {
+		close(reachedAudit)
+		<-releaseAudit
+		return audit.OperatorAuditLog.Create(ctx, entry)
+	}}, operatorIDFromSession)
+	require.NoError(t, err)
+	h.router = chi.NewRouter()
+	h.router.Mount("/", mergeHTTP.Router(workflow, TenantScopeMiddleware))
+
+	mergeStatus := make(chan int, 1)
+	go func() {
+		mergeStatus <- h.request(t, http.MethodPost, h.schoolID, input).Code
+	}()
+	select {
+	case <-reachedAudit:
+	case <-time.After(time.Second):
+		t.Fatal("merge did not reach the audit while holding its locks")
+	}
+
+	membership := owners.MustNewSchoolMembership(testpkg.NewDatabase(t, h.db))
+	created := make(chan error, 1)
+	go func() {
+		ctx := tenant.WithTenantID(testpkg.WithPackageTenantRuntime(context.Background()), h.schoolID)
+		_, err := membership.CreateStaff(ctx, schoolmembership.CreateStaff{StaffFields: schoolmembership.StaffFields{PersonID: other.ID}})
+		created <- err
+	}()
+	retiredDonor := make(chan error, 1)
+	go func() {
+		ctx := tenant.WithTenantID(testpkg.WithPackageTenantRuntime(context.Background()), h.schoolID)
+		_, err := membership.CreateStaff(ctx, schoolmembership.CreateStaff{StaffFields: schoolmembership.StaffFields{PersonID: input.Cases[0].DonorID}})
+		retiredDonor <- err
+	}()
+	select {
+	case err := <-created:
+		t.Fatalf("staff creation completed while the merge held its exclusive lock: %v", err)
+	case <-time.After(100 * time.Millisecond):
+	}
+	select {
+	case err := <-retiredDonor:
+		t.Fatalf("donor staff creation completed while the merge held its exclusive lock: %v", err)
+	case <-time.After(100 * time.Millisecond):
+	}
+
+	close(releaseAudit)
+	select {
+	case code := <-mergeStatus:
+		assert.Equal(t, http.StatusOK, code)
+	case <-time.After(time.Second):
+		t.Fatal("merge did not complete after its audit was released")
+	}
+	select {
+	case err := <-created:
+		require.NoError(t, err)
+	case <-time.After(time.Second):
+		t.Fatal("staff creation did not complete after the merge committed")
+	}
+	select {
+	case err := <-retiredDonor:
+		require.ErrorIs(t, err, schoolmembership.ErrInvalidMembership)
+	case <-time.After(time.Second):
+		t.Fatal("donor staff creation did not complete after the merge committed")
+	}
+	var donorMemberships int
+	require.NoError(t, h.db.NewRaw(`SELECT count(*) FROM users.staff_school_memberships WHERE tenant_id = ? AND person_id = ? AND deleted_at IS NULL`, h.schoolID, input.Cases[0].DonorID).Scan(testpkg.Ctx(t), &donorMemberships))
+	assert.Zero(t, donorMemberships)
 }
 
 func TestStaffPersonMergeAcceptsMoreThanOneHundredCases(t *testing.T) {

@@ -130,6 +130,9 @@ func (w *Workflow) Execute(ctx context.Context, schoolID int64, request Request)
 func (w *Workflow) executeSelected(ctx context.Context, actor, schoolID int64, selected []Candidate) error {
 	for _, candidate := range selected {
 		if err := w.memberships.ReassignStaffPerson(ctx, schoolmembership.StaffPersonReassignment{SchoolID: schoolID, StaffID: candidate.Donor.Employment.ID, DonorPersonID: candidate.Donor.Person.ID, KeeperPersonID: candidate.Keeper.Person.ID}); err != nil {
+			if errors.Is(err, peopledirectory.ErrStaffPersonMergeNoLongerEligible) || errors.Is(err, schoolmembership.ErrStaffPersonMergeNoLongerEligible) {
+				return ErrConflict
+			}
 			return err
 		}
 		if err := w.people.RetireMergedStaffPerson(ctx, schoolID, candidate.Donor.Person.ID, candidate.Keeper.Person.ID); err != nil {

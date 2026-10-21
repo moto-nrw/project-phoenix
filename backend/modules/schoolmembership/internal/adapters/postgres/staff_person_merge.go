@@ -55,7 +55,7 @@ func (s *Store) ReassignStaffPerson(ctx context.Context, input schoolmembership.
 		}
 	}
 	if donor == nil || keeper == nil || donor.ID != staffID || (donor.DeletedAt == nil) == (keeper.DeletedAt == nil) || donorID == keeperID {
-		return errors.New("staff person merge no longer eligible")
+		return schoolmembership.ErrStaffPersonMergeNoLongerEligible
 	}
 	db, _, err := s.database(ctx)
 	if err != nil {
