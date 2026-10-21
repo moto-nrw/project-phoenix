@@ -8,29 +8,13 @@ import { createLogger } from "~/lib/logger";
 // Logger instance for auth service
 const logger = createLogger({ component: "AuthService" });
 import {
-  mapAccountResponse,
   mapRoleResponse,
   mapPermissionResponse,
-  mapTokenResponse,
-  type Account,
   type Role,
   type Permission,
-  type Token,
-  type LoginRequest,
-  type RegisterRequest,
-  type TokenResponse,
-  type ChangePasswordRequest,
-  type PasswordResetRequest,
   type PasswordResetConfirmRequest,
-  type CreateRoleRequest,
-  type UpdateRoleRequest,
-  type CreatePermissionRequest,
-  type UpdatePermissionRequest,
-  type UpdateAccountRequest,
-  type BackendAccount,
   type BackendRole,
   type BackendPermission,
-  type BackendToken,
 } from "./auth-helpers";
 import type { AxiosError } from "axios";
 import {
@@ -46,91 +30,6 @@ interface ApiResponse<T> {
   success: boolean;
   message: string;
   data: T;
-}
-
-// Specific response types
-interface TokenCleanupResponse {
-  cleaned_tokens: number;
-}
-
-// Interface for raw API responses that use lowercase field names
-interface RawRoleData {
-  id?: number;
-  name?: string;
-  description?: string;
-  is_system?: boolean;
-  isSystem?: boolean;
-  created_at?: string;
-  createdAt?: string;
-  updated_at?: string;
-  updatedAt?: string;
-  permissions?: BackendPermission[];
-}
-
-/**
- * Extract BackendRole from various nested response formats.
- * Handles: direct BackendRole, { data: BackendRole }, { data: { data: BackendRole } }
- */
-function extractBackendRole(responseData: unknown): BackendRole {
-  if (!responseData || typeof responseData !== "object") {
-    throw new Error("Invalid response format from role API");
-  }
-
-  const data = responseData as Record<string, unknown>;
-
-  // Direct BackendRole (has ID and Name)
-  if ("ID" in data && "Name" in data) {
-    return data as unknown as BackendRole;
-  }
-
-  // Direct BackendRole with lowercase (has id and name)
-  if ("id" in data && "name" in data && !("data" in data)) {
-    return data as unknown as BackendRole;
-  }
-
-  // Nested: { data: ... }
-  if ("data" in data && data.data) {
-    const nested = data.data as Record<string, unknown>;
-
-    // Double nested: { data: { data: BackendRole } }
-    if (typeof nested === "object" && "data" in nested && nested.data) {
-      return nested.data as BackendRole;
-    }
-
-    // Single nested: { data: BackendRole }
-    return nested as unknown as BackendRole;
-  }
-
-  logger.error("unexpected role response structure", {
-    response_type: typeof responseData,
-  });
-  throw new Error("Invalid response format from role API");
-}
-
-/**
- * Normalize role data casing from lowercase API response to uppercase BackendRole.
- */
-function normalizeRoleCasing(roleData: BackendRole): BackendRole {
-  // Already has uppercase fields
-  if ("ID" in roleData) {
-    return roleData;
-  }
-
-  // Convert lowercase to uppercase
-  const raw = roleData as unknown as RawRoleData;
-  if (raw.id !== undefined) {
-    return {
-      ID: raw.id,
-      Name: raw.name ?? "",
-      Description: raw.description ?? "",
-      IsSystem: raw.is_system ?? raw.isSystem ?? false,
-      CreatedAt: raw.created_at ?? raw.createdAt ?? "",
-      UpdatedAt: raw.updated_at ?? raw.updatedAt ?? "",
-      Permissions: raw.permissions,
-    };
-  }
-
-  return roleData;
 }
 
 interface PasswordResetResponse {
@@ -235,10 +134,11 @@ function buildAxiosApiError(
 }
 
 // ============================================================================
-// Generic Auth API Helper - Eliminates ~300 lines of duplication
+// Generic Auth API Helper
 // ============================================================================
 
-type HttpMethod = "GET" | "POST" | "PUT" | "DELETE";
+// The remaining callers only read (GET) and replace (PUT).
+type HttpMethod = "GET" | "PUT";
 
 interface AuthFetchOptions<TBackend, TFrontend> {
   /** HTTP method (default: GET) */
@@ -335,12 +235,8 @@ async function executeServerFetch<TBackend>(
   switch (method) {
     case "GET":
       return (await api.get<ApiResponse<TBackend>>(url, config)).data;
-    case "POST":
-      return (await api.post<ApiResponse<TBackend>>(url, body, config)).data;
     case "PUT":
       return (await api.put<ApiResponse<TBackend>>(url, body, config)).data;
-    case "DELETE":
-      return (await api.delete<ApiResponse<TBackend>>(url, config)).data;
   }
 }
 
@@ -488,218 +384,6 @@ function extractNestedRoles(response: unknown): BackendRole[] {
 }
 
 export const authService = {
-  // Public endpoints
-  login: async (credentials: LoginRequest): Promise<TokenResponse> => {
-    const useProxyApi = globalThis.window !== undefined;
-    const url = await resolveApiUrl("/api/auth/login", "/auth/login");
-
-    try {
-      if (useProxyApi) {
-        const response = await fetch(url, {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify(credentials),
-        });
-
-        if (!response.ok) {
-          const errorText = await response.text();
-          logger.error("login failed", {
-            status: response.status,
-            error_text: errorText.substring(0, 200),
-          });
-          throw apiErrorFromText(
-            `Login failed: ${response.status}`,
-            response.status,
-            errorText,
-          );
-        }
-
-        return (await response.json()) as TokenResponse;
-      } else {
-        const response = await api.post<TokenResponse>(url, credentials);
-        return response.data;
-      }
-    } catch (error) {
-      logger.error("login error", {
-        error: error instanceof Error ? error.message : String(error),
-      });
-      throw error;
-    }
-  },
-
-  register: async (data: RegisterRequest): Promise<Account> => {
-    const useProxyApi = globalThis.window !== undefined;
-    const url = await resolveApiUrl("/api/auth/register", "/auth/register");
-
-    try {
-      if (useProxyApi) {
-        const response = await fetch(url, {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            email: data.email,
-            username: data.username,
-            name: data.name,
-            password: data.password,
-            confirm_password: data.confirmPassword,
-            role_id: data.roleId,
-          }),
-        });
-
-        if (!response.ok) {
-          const errorText = await response.text();
-          logger.error("registration failed", {
-            status: response.status,
-            error_text: errorText.substring(0, 200),
-          });
-          throw apiErrorFromText(
-            `Registration failed: ${response.status}`,
-            response.status,
-            errorText,
-          );
-        }
-
-        const responseData =
-          (await response.json()) as ApiResponse<BackendAccount>;
-        return mapAccountResponse(responseData.data);
-      } else {
-        const response = await api.post<ApiResponse<BackendAccount>>(url, {
-          email: data.email,
-          username: data.username,
-          name: data.name,
-          password: data.password,
-          confirm_password: data.confirmPassword,
-          role_id: data.roleId,
-        });
-        return mapAccountResponse(response.data.data);
-      }
-    } catch (error) {
-      logger.error("registration error", {
-        error: error instanceof Error ? error.message : String(error),
-      });
-      throw error;
-    }
-  },
-
-  logout: async (): Promise<void> => {
-    const useProxyApi = globalThis.window !== undefined;
-    const url = await resolveApiUrl("/api/auth/logout", "/auth/logout");
-
-    try {
-      const session = await getCachedSession();
-      if (!session?.user?.token) {
-        return; // Already logged out
-      }
-
-      if (useProxyApi) {
-        const response = await fetch(url, {
-          method: "POST",
-          headers: {
-            Authorization: `Bearer ${session.user.token}`,
-            "Content-Type": "application/json",
-          },
-        });
-
-        if (!response.ok && response.status !== 204) {
-          logger.warn("logout failed", {
-            status: response.status,
-          });
-        }
-      } else {
-        await api.post(url);
-      }
-    } catch (error) {
-      logger.warn("logout error", {
-        error: error instanceof Error ? error.message : String(error),
-      });
-      // Don't throw - logout should always succeed on the client side
-    }
-  },
-
-  refreshToken: async (refreshToken: string): Promise<TokenResponse> => {
-    const useProxyApi = globalThis.window !== undefined;
-    const url = await resolveApiUrl("/api/auth/refresh", "/auth/refresh");
-
-    try {
-      if (useProxyApi) {
-        const response = await fetch(url, {
-          method: "POST",
-          headers: {
-            Authorization: `Bearer ${refreshToken}`,
-            "Content-Type": "application/json",
-          },
-        });
-
-        if (!response.ok) {
-          const errorText = await response.text();
-          logger.error("token refresh failed", {
-            status: response.status,
-            error_text: errorText.substring(0, 200),
-          });
-          throw apiErrorFromText(
-            `Token refresh failed: ${response.status}`,
-            response.status,
-            errorText,
-          );
-        }
-
-        return (await response.json()) as TokenResponse;
-      } else {
-        const response = await api.post<TokenResponse>(
-          url,
-          {},
-          {
-            headers: { Authorization: `Bearer ${refreshToken}` },
-          },
-        );
-        return response.data;
-      }
-    } catch (error) {
-      logger.error("token refresh error", {
-        error: error instanceof Error ? error.message : String(error),
-      });
-      throw error;
-    }
-  },
-
-  initiatePasswordReset: async (data: PasswordResetRequest): Promise<void> => {
-    const useProxyApi = globalThis.window !== undefined;
-    const url = await resolveApiUrl(
-      "/api/auth/password-reset",
-      "/auth/password-reset",
-    );
-
-    try {
-      if (useProxyApi) {
-        const response = await fetch(url, {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify(data),
-        });
-
-        if (!response.ok) {
-          const errorText = await response.text();
-          logger.error("password reset failed", {
-            status: response.status,
-            error_text: errorText.substring(0, 200),
-          });
-          throw apiErrorFromText(
-            `Password reset failed: ${response.status}`,
-            response.status,
-            errorText,
-          );
-        }
-      } else {
-        await api.post(url, data);
-      }
-    } catch (error) {
-      logger.error("password reset error", {
-        error: error instanceof Error ? error.message : String(error),
-      });
-      throw error;
-    }
-  },
-
   resetPassword: async (
     data: PasswordResetConfirmRequest,
   ): Promise<PasswordResetResponse> => {
@@ -762,33 +446,7 @@ export const authService = {
     }
   },
 
-  // Protected endpoints (require authentication)
-  getAccount: async (): Promise<Account> =>
-    authFetch<BackendAccount, Account>("/auth/account", {
-      mapper: mapAccountResponse,
-      errorPrefix: "Get account",
-    }),
-
-  changePassword: async (data: ChangePasswordRequest): Promise<void> =>
-    authFetchVoid("/auth/password", {
-      method: "POST",
-      body: {
-        current_password: data.currentPassword,
-        new_password: data.newPassword,
-        confirm_password: data.confirmPassword,
-      },
-      errorPrefix: "Change password",
-    }),
-
   // Admin endpoints - Role management
-  createRole: async (data: CreateRoleRequest): Promise<Role> =>
-    authFetch<BackendRole, Role>("/auth/roles", {
-      method: "POST",
-      body: data,
-      mapper: mapRoleResponse,
-      errorPrefix: "Create role",
-    }),
-
   getRoles: async (filters?: { name?: string }): Promise<Role[]> => {
     const params = new URLSearchParams();
     if (filters?.name) params.append("name", filters.name);
@@ -799,26 +457,6 @@ export const authService = {
     });
   },
 
-  getRole: async (id: string): Promise<Role> =>
-    authFetch<BackendRole, Role>(`/auth/roles/${id}`, {
-      mapper: (data) => mapRoleResponse(normalizeRoleCasing(data)),
-      extractData: extractBackendRole,
-      errorPrefix: "Get role",
-    }),
-
-  updateRole: async (id: string, data: UpdateRoleRequest): Promise<void> =>
-    authFetchVoid(`/auth/roles/${id}`, {
-      method: "PUT",
-      body: data,
-      errorPrefix: "Update role",
-    }),
-
-  deleteRole: async (id: string): Promise<void> =>
-    authFetchVoid(`/auth/roles/${id}`, {
-      method: "DELETE",
-      errorPrefix: "Delete role",
-    }),
-
   getRolePermissions: async (roleId: string): Promise<Permission[]> =>
     authFetchList<BackendPermission, Permission>(
       `/auth/roles/${roleId}/permissions`,
@@ -828,24 +466,6 @@ export const authService = {
         errorPrefix: "Get role permissions",
       },
     ),
-
-  assignPermissionToRole: async (
-    roleId: string,
-    permissionId: string,
-  ): Promise<void> =>
-    authFetchVoid(`/auth/roles/${roleId}/permissions/${permissionId}`, {
-      method: "POST",
-      errorPrefix: "Assign permission to role",
-    }),
-
-  removePermissionFromRole: async (
-    roleId: string,
-    permissionId: string,
-  ): Promise<void> =>
-    authFetchVoid(`/auth/roles/${roleId}/permissions/${permissionId}`, {
-      method: "DELETE",
-      errorPrefix: "Remove permission from role",
-    }),
 
   replaceRolePermissions: async (
     roleId: string,
@@ -858,16 +478,6 @@ export const authService = {
     }),
 
   // Admin endpoints - Permission management
-  createPermission: async (
-    data: CreatePermissionRequest,
-  ): Promise<Permission> =>
-    authFetch<BackendPermission, Permission>("/auth/permissions", {
-      method: "POST",
-      body: data,
-      mapper: mapPermissionResponse,
-      errorPrefix: "Create permission",
-    }),
-
   getPermissions: async (filters?: {
     resource?: string;
     action?: string;
@@ -886,103 +496,7 @@ export const authService = {
     );
   },
 
-  getPermission: async (id: string): Promise<Permission> =>
-    authFetch<BackendPermission, Permission>(`/auth/permissions/${id}`, {
-      mapper: mapPermissionResponse,
-      errorPrefix: "Get permission",
-    }),
-
-  updatePermission: async (
-    id: string,
-    data: UpdatePermissionRequest,
-  ): Promise<void> =>
-    authFetchVoid(`/auth/permissions/${id}`, {
-      method: "PUT",
-      body: data,
-      errorPrefix: "Update permission",
-    }),
-
-  deletePermission: async (id: string): Promise<void> =>
-    authFetchVoid(`/auth/permissions/${id}`, {
-      method: "DELETE",
-      errorPrefix: "Delete permission",
-    }),
-
-  // Admin endpoints - Account management
-  getAccounts: async (filters?: {
-    email?: string;
-    active?: boolean;
-  }): Promise<Account[]> => {
-    const params = new URLSearchParams();
-    if (filters?.email) params.append("email", filters.email);
-    if (filters?.active !== undefined)
-      params.append("active", filters.active.toString());
-    const queryString = params.toString();
-    const endpoint = queryString
-      ? `/auth/accounts?${queryString}`
-      : "/auth/accounts";
-    return authFetchList<BackendAccount, Account>(
-      endpoint,
-      mapAccountResponse,
-      {
-        errorPrefix: "Get accounts",
-      },
-    );
-  },
-
-  getAccountById: async (id: string): Promise<Account> =>
-    authFetch<BackendAccount, Account>(`/auth/accounts/${id}`, {
-      mapper: mapAccountResponse,
-      errorPrefix: "Get account",
-    }),
-
-  updateAccount: async (
-    id: string,
-    data: UpdateAccountRequest,
-  ): Promise<void> =>
-    authFetchVoid(`/auth/accounts/${id}`, {
-      method: "PUT",
-      body: data,
-      errorPrefix: "Update account",
-    }),
-
-  activateAccount: async (id: string): Promise<void> =>
-    authFetchVoid(`/auth/accounts/${id}/activate`, {
-      method: "PUT",
-      errorPrefix: "Activate account",
-    }),
-
-  deactivateAccount: async (id: string): Promise<void> =>
-    authFetchVoid(`/auth/accounts/${id}/deactivate`, {
-      method: "PUT",
-      errorPrefix: "Deactivate account",
-    }),
-
-  getAccountsByRole: async (roleName: string): Promise<Account[]> =>
-    authFetchList<BackendAccount, Account>(
-      `/auth/accounts/by-role/${roleName}`,
-      mapAccountResponse,
-      { errorPrefix: "Get accounts by role" },
-    ),
-
-  assignRoleToAccount: async (
-    accountId: string,
-    roleId: string,
-  ): Promise<void> =>
-    authFetchVoid(`/auth/accounts/${accountId}/roles/${roleId}`, {
-      method: "POST",
-      errorPrefix: "Assign role to account",
-    }),
-
-  removeRoleFromAccount: async (
-    accountId: string,
-    roleId: string,
-  ): Promise<void> =>
-    authFetchVoid(`/auth/accounts/${accountId}/roles/${roleId}`, {
-      method: "DELETE",
-      errorPrefix: "Remove role from account",
-    }),
-
+  // Admin endpoints - Account role assignment
   /**
    * Macht `roleId` zur einzigen Systemrolle des Kontos an dieser Schule.
    * Andere Systemrollen entfernt das Backend; Elternzugang (guardian) bleibt.
@@ -1006,33 +520,4 @@ export const authService = {
         errorPrefix: "Get account roles",
       },
     ),
-
-  // Get all available permissions for assignment
-  getAvailablePermissions: async (): Promise<Permission[]> =>
-    authFetchList<BackendPermission, Permission>(
-      "/auth/permissions",
-      mapPermissionResponse,
-      { errorPrefix: "Get available permissions" },
-    ),
-
-  // Admin endpoints - Token management
-  getActiveTokens: async (accountId: string): Promise<Token[]> =>
-    authFetchList<BackendToken, Token>(
-      `/auth/accounts/${accountId}/tokens`,
-      mapTokenResponse,
-      { errorPrefix: "Get active tokens" },
-    ),
-
-  revokeAllTokens: async (accountId: string): Promise<void> =>
-    authFetchVoid(`/auth/accounts/${accountId}/tokens`, {
-      method: "DELETE",
-      errorPrefix: "Revoke all tokens",
-    }),
-
-  cleanupExpiredTokens: async (): Promise<number> =>
-    authFetch<TokenCleanupResponse, number>("/auth/tokens/expired", {
-      method: "DELETE",
-      mapper: (data) => data.cleaned_tokens,
-      errorPrefix: "Cleanup expired tokens",
-    }),
 };

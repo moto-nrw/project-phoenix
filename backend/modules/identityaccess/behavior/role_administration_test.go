@@ -40,8 +40,8 @@ func TestAssignRoleToAccount_RejectsLehrkraftForCaregiverProfile(t *testing.T) {
 		Scan(context.Background(), &lehrkraftRoleID),
 		"lehrkraft system role must exist in the test schema")
 
-	// The tenant RBAC endpoint (POST /auth/accounts/{id}/roles/{roleId}) is
-	// the last path that could put the Lehrkraft role on a caregiver
+	// The tenant role endpoint (PUT /auth/accounts/{id}/roles) assigns
+	// through this method, so it could put the Lehrkraft role on a caregiver
 	// account — the role administration must reject it like the operator and
 	// invitation flows do (#1772).
 	err := admin.AssignRoleToAccount(ctx, account.ID, lehrkraftRoleID)

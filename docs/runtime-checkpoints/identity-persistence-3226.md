@@ -88,6 +88,25 @@ Observations:
   none with a backend waiting on a lock. Deadlocks: 0 on both sides.
 - Unexpected errors: 0; every request returned its expected status.
 
+## Later route retirements
+
+The measurement above is a record of 2026-09-21; it is not rerun. Since then
+three of its rows name routes that no longer exist:
+
+- `GET /auth/accounts/{id}/permissions` and
+  `GET /auth/accounts/{id}/permissions/direct` were retired with direct
+  account permissions (#4485). Permissions come from roles only.
+- `POST /auth/accounts/{id}/roles/{role}` and
+  `DELETE /auth/accounts/{id}/roles/{role}` were retired in #4431. A school
+  changes an account's role with `PUT /auth/accounts/{id}/roles`, which
+  replaces the staff role in one request transaction.
+
+The harness no longer calls these routes, so a rerun measures login, refresh
+and the remaining reads only. The reproduce command stays valid. The
+`api/auth` path in it predates the move of the harness to
+`backend/modules/identityaccess/inbound/account/identity_persistence_runtime_evidence_test.go`;
+run that package instead.
+
 ## Not measured
 
 MFA challenge, passkey, invitation acceptance, password-reset confirmation,

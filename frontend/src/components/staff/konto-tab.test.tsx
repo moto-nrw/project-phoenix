@@ -556,6 +556,12 @@ describe("KontoTab", () => {
     expect(
       screen.getByText(/Lehrkraft-Zugänge haben kein Betreuungsprofil/),
     ).toBeInTheDocument();
+    // Der Weg zu einer anderen Rolle ist Löschen und neu Einladen; ein
+    // umkehrbares Deaktivieren gibt es nicht (#4431).
+    expect(
+      screen.getByText(/Menü mit den drei Punkten „Löschen“/),
+    ).toBeInTheDocument();
+    expect(screen.queryByText(/deaktivieren/)).not.toBeInTheDocument();
     // Ohne Betreuungsprofil gibt es keine Position zu speichern.
     expect(screen.queryByLabelText("Position")).not.toBeInTheDocument();
   });

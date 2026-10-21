@@ -87,33 +87,6 @@ func TestIDAction(t *testing.T) {
 	})
 }
 
-func TestTwoIDAction(t *testing.T) {
-	t.Parallel()
-
-	t.Run("success passes both ids in order", func(t *testing.T) {
-		var a, b int
-		h := common.TwoIDAction("accountId", "invalid account ID", "roleId", "invalid role ID",
-			func(_ context.Context, id1, id2 int) error {
-				a, b = id1, id2
-				return nil
-			}, common.ErrorInternalServer)
-
-		rec := route(t, http.MethodPost, "/accounts/{accountId}/roles/{roleId}", "/accounts/3/roles/9", h, "")
-		assert.Equal(t, http.StatusNoContent, rec.Code)
-		assert.Equal(t, 3, a)
-		assert.Equal(t, 9, b)
-	})
-
-	t.Run("second id invalid renders its own message", func(t *testing.T) {
-		h := common.TwoIDAction("accountId", "invalid account ID", "roleId", "invalid role ID",
-			func(_ context.Context, _, _ int) error { return nil }, common.ErrorInternalServer)
-
-		rec := route(t, http.MethodPost, "/accounts/{accountId}/roles/{roleId}", "/accounts/3/roles/x", h, "")
-		assert.Equal(t, http.StatusBadRequest, rec.Code)
-		assert.Contains(t, rec.Body.String(), "invalid role ID")
-	})
-}
-
 func TestIDFetch(t *testing.T) {
 	t.Parallel()
 

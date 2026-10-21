@@ -104,8 +104,6 @@ func TestAccountManagementOwnTenantAllowed(t *testing.T) {
 
 	updatedEmail := fmt.Sprintf("account-scope-updated-%d@example.test", account.ID)
 	assertAccountActionStatus(t, e, e.claims, http.MethodPut, fmt.Sprintf("/auth/accounts/%d", account.ID), map[string]string{"email": updatedEmail}, http.StatusNoContent)
-	assertAccountActionStatus(t, e, e.claims, http.MethodPut, fmt.Sprintf("/auth/accounts/%d/deactivate", account.ID), nil, http.StatusNoContent)
-	assertAccountActionStatus(t, e, e.claims, http.MethodPut, fmt.Sprintf("/auth/accounts/%d/activate", account.ID), nil, http.StatusNoContent)
 
 	assert.Contains(t, e.listAccounts(t, e.claims), authAPI.AccountResponse{ID: account.ID, Email: updatedEmail, Active: true})
 }
@@ -247,12 +245,12 @@ func TestAccountManagementOrganizationRBACRequiresTargetSchoolMembership(t *test
 	for _, action := range []struct {
 		method string
 		path   string
+		body   any
 	}{
-		{http.MethodGet, fmt.Sprintf("/auth/accounts/%d/roles", accountID)},
-		{http.MethodPost, fmt.Sprintf("/auth/accounts/%d/roles/%d", accountID, role.ID)},
-		{http.MethodDelete, fmt.Sprintf("/auth/accounts/%d/roles/%d", accountID, role.ID)},
+		{http.MethodGet, fmt.Sprintf("/auth/accounts/%d/roles", accountID), nil},
+		{http.MethodPut, fmt.Sprintf("/auth/accounts/%d/roles", accountID), map[string]string{"role_id": fmt.Sprintf("%d", role.ID)}},
 	} {
-		rr := e.execute(t, claims, action.method, action.path, nil)
+		rr := e.execute(t, claims, action.method, action.path, action.body)
 		assert.Equal(t, http.StatusNotFound, rr.Code, rr.Body.String())
 	}
 }
@@ -267,13 +265,13 @@ func TestAccountManagementRBACForeignAccountDoesNotLeakExistence(t *testing.T) {
 	for _, action := range []struct {
 		method string
 		path   func(int64) string
+		body   any
 	}{
-		{http.MethodGet, func(accountID int64) string { return fmt.Sprintf("/auth/accounts/%d/roles", accountID) }},
-		{http.MethodPost, func(accountID int64) string { return fmt.Sprintf("/auth/accounts/%d/roles/%d", accountID, role.ID) }},
-		{http.MethodDelete, func(accountID int64) string { return fmt.Sprintf("/auth/accounts/%d/roles/%d", accountID, role.ID) }},
+		{http.MethodGet, func(accountID int64) string { return fmt.Sprintf("/auth/accounts/%d/roles", accountID) }, nil},
+		{http.MethodPut, func(accountID int64) string { return fmt.Sprintf("/auth/accounts/%d/roles", accountID) }, map[string]string{"role_id": fmt.Sprintf("%d", role.ID)}},
 	} {
-		foreign := e.execute(t, e.claims, action.method, action.path(foreignID), nil)
-		missing := e.execute(t, e.claims, action.method, action.path(missingID), nil)
+		foreign := e.execute(t, e.claims, action.method, action.path(foreignID), action.body)
+		missing := e.execute(t, e.claims, action.method, action.path(missingID), action.body)
 		assert.Equal(t, http.StatusNotFound, foreign.Code, foreign.Body.String())
 		assert.Equal(t, missing.Code, foreign.Code)
 		assert.JSONEq(t, missing.Body.String(), foreign.Body.String())
@@ -308,29 +306,6 @@ func TestAccountManagementForeignUpdateDoesNotLeakExistence(t *testing.T) {
 	assert.Equal(t, originalEmail, email)
 }
 
-func TestAccountManagementForeignDeactivateDoesNotLeakExistence(t *testing.T) {
-	t.Parallel()
-	e := newAccountIsolationEnv(t)
-	foreignID, _ := e.foreignAccount(t, "account-scope-deactivate-foreign")
-	assertSameNotFoundResponse(t, e,
-		http.MethodPut, fmt.Sprintf("/auth/accounts/%d/deactivate", foreignID),
-		http.MethodPut, fmt.Sprintf("/auth/accounts/%d/deactivate", e.missingAccountID(t)), nil)
-	assert.True(t, e.accountActive(t, foreignID))
-}
-
-func TestAccountManagementForeignActivateDoesNotLeakExistence(t *testing.T) {
-	t.Parallel()
-	e := newAccountIsolationEnv(t)
-	foreignID, _ := e.foreignAccount(t, "account-scope-activate-foreign")
-	_, err := e.tc.db.NewUpdate().TableExpr("auth.accounts").Set("active = false").Where("id = ?", foreignID).Exec(context.Background())
-	require.NoError(t, err)
-
-	assertSameNotFoundResponse(t, e,
-		http.MethodPut, fmt.Sprintf("/auth/accounts/%d/activate", foreignID),
-		http.MethodPut, fmt.Sprintf("/auth/accounts/%d/activate", e.missingAccountID(t)), nil)
-	assert.False(t, e.accountActive(t, foreignID))
-}
-
 func assertSameNotFoundResponse(t *testing.T, e *accountIsolationEnv, foreignMethod, foreignPath, missingMethod, missingPath string, body any) {
 	t.Helper()
 	foreign := e.execute(t, e.claims, foreignMethod, foreignPath, body)
@@ -338,14 +313,6 @@ func assertSameNotFoundResponse(t *testing.T, e *accountIsolationEnv, foreignMet
 	assert.Equal(t, http.StatusNotFound, foreign.Code, foreign.Body.String())
 	assert.Equal(t, missing.Code, foreign.Code)
 	assert.JSONEq(t, missing.Body.String(), foreign.Body.String())
-}
-
-func (e *accountIsolationEnv) accountActive(t *testing.T, accountID int64) bool {
-	t.Helper()
-	var active bool
-	err := e.tc.db.NewSelect().Column("active").TableExpr("auth.accounts").Where("id = ?", accountID).Scan(context.Background(), &active)
-	require.NoError(t, err)
-	return active
 }
 
 func TestAccountManagementInactiveMembershipDenied(t *testing.T) {

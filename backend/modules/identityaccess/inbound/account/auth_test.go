@@ -1344,21 +1344,6 @@ func TestRolePermissionAssignment(t *testing.T) {
 		testutil.AssertForbidden(t, rr)
 	})
 
-	t.Run("assign and remove permission from role", func(t *testing.T) {
-		role := testpkg.CreateTestRole(t, tc.db, "AssignPermRole")
-		permission := testpkg.CreateTestPermission(t, tc.db, "AssignToRole", "test", "read")
-
-		// Assign permission
-		req := testutil.NewJSONRequest(t, "POST", fmt.Sprintf("/auth/roles/%d/permissions/%d", role.ID, permission.ID), nil)
-		rr := testutil.ExecuteWithAuthPermissions(t, router, req, adminClaims, []string{"roles:manage"})
-		assert.Equal(t, http.StatusNoContent, rr.Code, "Assign failed: %s", rr.Body.String())
-
-		// Remove permission
-		req = testutil.NewJSONRequest(t, "DELETE", fmt.Sprintf("/auth/roles/%d/permissions/%d", role.ID, permission.ID), nil)
-		rr = testutil.ExecuteWithAuthPermissions(t, router, req, adminClaims, []string{"roles:manage"})
-		assert.Equal(t, http.StatusNoContent, rr.Code, "Remove failed: %s", rr.Body.String())
-	})
-
 	t.Run("replaces permissions on a role", func(t *testing.T) {
 		role := testpkg.CreateTestRole(t, tc.db, "ReplacePermRole")
 		permission := testpkg.CreateTestPermission(t, tc.db, "ReplaceRolePermission", "test", "read")
@@ -1478,30 +1463,16 @@ func TestAccountRoleAssignment(t *testing.T) {
 		testutil.AssertForbidden(t, rr)
 	})
 
-	t.Run("assign and remove role from account", func(t *testing.T) {
-		account := testpkg.CreateTestAccount(t, tc.db, fmt.Sprintf("assignrole%d", time.Now().UnixNano()))
-		role := testpkg.CreateTestRole(t, tc.db, "AssignAccRole")
-
-		// Assign role
-		req := testutil.NewJSONRequest(t, "POST", fmt.Sprintf("/auth/accounts/%d/roles/%d", account.ID, role.ID), nil)
-		rr := testutil.ExecuteWithAuthPermissions(t, router, req, adminClaims, []string{"users:manage"})
-		assert.Equal(t, http.StatusNoContent, rr.Code, "Assign failed: %s", rr.Body.String())
-
-		// Remove role
-		req = testutil.NewJSONRequest(t, "DELETE", fmt.Sprintf("/auth/accounts/%d/roles/%d", account.ID, role.ID), nil)
-		rr = testutil.ExecuteWithAuthPermissions(t, router, req, adminClaims, []string{"users:manage"})
-		assert.Equal(t, http.StatusNoContent, rr.Code, "Remove failed: %s", rr.Body.String())
-	})
-
 	t.Run("replaces roles on an account", func(t *testing.T) {
 		account := testpkg.CreateTestAccount(t, tc.db, fmt.Sprintf("replacerole%d", time.Now().UnixNano()))
 		oldRole := testpkg.CreateTestRole(t, tc.db, "ReplaceAccRoleOld")
 		extraRole := testpkg.CreateTestRole(t, tc.db, "ReplaceAccRoleExtra")
 		role := testpkg.CreateTestRole(t, tc.db, "ReplaceAccRole")
 		for _, current := range []int64{oldRole.ID, extraRole.ID} {
-			assignReq := testutil.NewJSONRequest(t, "POST", fmt.Sprintf("/auth/accounts/%d/roles/%d", account.ID, current), nil)
-			assignResp := testutil.ExecuteWithAuthPermissions(t, router, assignReq, adminClaims, []string{"users:manage"})
-			require.Equal(t, http.StatusNoContent, assignResp.Code, "Assign failed: %s", assignResp.Body.String())
+			_, err := tc.db.ExecContext(context.Background(),
+				"INSERT INTO auth.account_roles (account_id, role_id, tenant_id) VALUES (?, ?, ?)",
+				account.ID, current, testpkg.Tenant(t))
+			require.NoError(t, err)
 		}
 
 		req := testutil.NewJSONRequest(t, "PUT", fmt.Sprintf("/auth/accounts/%d/roles", account.ID), map[string]string{
@@ -1534,11 +1505,41 @@ func TestAccountRoleAssignment(t *testing.T) {
 			Exec(context.Background())
 		require.NoError(t, err)
 
-		req := testutil.NewJSONRequest(t, "POST", fmt.Sprintf("/auth/accounts/%d/roles/%d", account.ID, guardianRole.ID), nil)
+		req := testutil.NewJSONRequest(t, "PUT", fmt.Sprintf("/auth/accounts/%d/roles", account.ID), map[string]string{
+			"role_id": fmt.Sprintf("%d", guardianRole.ID),
+		})
 		rr := testutil.ExecuteWithAuthPermissions(t, router, req, adminClaims, []string{"users:manage"})
 
 		testutil.AssertBadRequest(t, rr)
 	})
+}
+
+// TestSingleRoleAndActivationRoutesAreRetired pins that the single role and
+// permission assignment routes and the account activation toggles are gone
+// (#4431). Role changes run through PUT /auth/accounts/{id}/roles and PUT
+// /auth/roles/{id}/permissions; deleting a staff member deactivates the
+// account.
+func TestSingleRoleAndActivationRoutesAreRetired(t *testing.T) {
+	t.Parallel()
+	tc, router := setupProtectedRouter(t)
+	adminClaims := testutil.AdminTestClaims(1)
+	account := testpkg.CreateTestAccount(t, tc.db, fmt.Sprintf("retiredroles%d", time.Now().UnixNano()))
+	role := testpkg.CreateTestRole(t, tc.db, "RetiredSingleRole")
+	permission := testpkg.CreateTestPermission(t, tc.db, "RetiredSingle", "test", "read")
+
+	for _, route := range []struct{ method, path string }{
+		{http.MethodPost, fmt.Sprintf("/auth/accounts/%d/roles/%d", account.ID, role.ID)},
+		{http.MethodDelete, fmt.Sprintf("/auth/accounts/%d/roles/%d", account.ID, role.ID)},
+		{http.MethodPost, fmt.Sprintf("/auth/roles/%d/permissions/%d", role.ID, permission.ID)},
+		{http.MethodDelete, fmt.Sprintf("/auth/roles/%d/permissions/%d", role.ID, permission.ID)},
+		{http.MethodPut, fmt.Sprintf("/auth/accounts/%d/activate", account.ID)},
+		{http.MethodPut, fmt.Sprintf("/auth/accounts/%d/deactivate", account.ID)},
+	} {
+		req := testutil.NewJSONRequest(t, route.method, route.path, nil)
+		rr := testutil.ExecuteWithAuthPermissions(t, router, req, adminClaims, []string{"users:manage", "users:update", "roles:manage"})
+		assert.Contains(t, []int{http.StatusNotFound, http.StatusMethodNotAllowed}, rr.Code,
+			"%s %s must be retired, got %d: %s", route.method, route.path, rr.Code, rr.Body.String())
+	}
 }
 
 // ============================================================================
@@ -1566,41 +1567,6 @@ func TestAccountPermissionRoutesAreRetired(t *testing.T) {
 		assert.Contains(t, []int{http.StatusNotFound, http.StatusMethodNotAllowed}, rr.Code,
 			"%s %s must be retired, got %d: %s", route.method, route.path, rr.Code, rr.Body.String())
 	}
-}
-
-// ============================================================================
-// ACCOUNT ACTIVATION TESTS
-// ============================================================================
-
-// TestAccountActivation tests account activation/deactivation endpoints
-func TestAccountActivation(t *testing.T) {
-	t.Parallel()
-	tc, router := setupProtectedRouter(t)
-	adminClaims := testutil.AdminTestClaims(1)
-
-	t.Run("activate account", func(t *testing.T) {
-		account := testpkg.CreateTestAccount(t, tc.db, fmt.Sprintf("activate%d", time.Now().UnixNano()))
-
-		req := testutil.NewJSONRequest(t, "PUT", fmt.Sprintf("/auth/accounts/%d/activate", account.ID), nil)
-		rr := testutil.ExecuteWithAuthPermissions(t, router, req, adminClaims, []string{"users:update"})
-
-		assert.Equal(t, http.StatusNoContent, rr.Code, "Body: %s", rr.Body.String())
-	})
-
-	t.Run("deactivate account", func(t *testing.T) {
-		account := testpkg.CreateTestAccount(t, tc.db, fmt.Sprintf("deactivate%d", time.Now().UnixNano()))
-
-		req := testutil.NewJSONRequest(t, "PUT", fmt.Sprintf("/auth/accounts/%d/deactivate", account.ID), nil)
-		rr := testutil.ExecuteWithAuthPermissions(t, router, req, adminClaims, []string{"users:update"})
-
-		assert.Equal(t, http.StatusNoContent, rr.Code, "Body: %s", rr.Body.String())
-	})
-
-	t.Run("activation forbidden without permission", func(t *testing.T) {
-		req := testutil.NewJSONRequest(t, "PUT", "/auth/accounts/1/activate", nil)
-		rr := testutil.ExecuteWithAuthPermissions(t, router, req, adminClaims, []string{})
-		testutil.AssertForbidden(t, rr)
-	})
 }
 
 // TestAccountUpdate tests account update endpoint

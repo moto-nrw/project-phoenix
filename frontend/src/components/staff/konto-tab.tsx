@@ -608,8 +608,9 @@ function RoleField({
         </DataGrid>
         <p className="text-xs text-gray-600">
           Lehrkraft-Zugänge haben kein Betreuungsprofil und können hier nicht
-          umgestellt werden. Für einen Wechsel den Zugang deaktivieren und die
-          Person neu anlegen oder einladen.
+          umgestellt werden. Für eine andere Rolle wählen Sie oben rechts im
+          Menü mit den drei Punkten „Löschen“. Danach laden Sie die Person neu
+          ein.
         </p>
       </div>
     );

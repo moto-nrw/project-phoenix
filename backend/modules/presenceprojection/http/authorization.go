@@ -14,11 +14,6 @@ import (
 	tenant "github.com/moto-nrw/project-phoenix/tenant"
 )
 
-// getPermissionsFromRequest extracts permissions from request context.
-func getPermissionsFromRequest(r *http.Request) []string {
-	return sessiontoken.PermissionsFromCtx(r.Context())
-}
-
 // CallerContext is the slice of the Identity & Access caller context the
 // student routes read: the verified staff record, the caller's staff member
 // (found is false, without an error, for a caller who is no staff member)
