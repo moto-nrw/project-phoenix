@@ -218,7 +218,7 @@ export function BetreuungsplanHeuteCard({
           eine Zeile mit Zahl und Weg. Ohne Höhenvorgabe (Zeiterfassung) steht
           der ganze Tag da, als Raster über die Kartenbreite. */}
       {grid ? (
-        <CollectionGrid as="ul" minTileWidth="18rem">
+        <CollectionGrid as="ul" minTileWidth="16rem">
           {rows}
         </CollectionGrid>
       ) : (
