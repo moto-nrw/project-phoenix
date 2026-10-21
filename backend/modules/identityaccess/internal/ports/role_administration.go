@@ -72,7 +72,7 @@ type RoleAssignmentPolicy interface {
 // SchoolIdentity completes the school identity chain a role requires on the
 // caller's transaction.
 type SchoolIdentity interface {
-	EnsureSchoolIdentity(ctx context.Context, input domain.SchoolIdentityInput) (*domain.SchoolIdentity, error)
+	EnsureSchoolIdentityChain(ctx context.Context, input domain.SchoolIdentityInput) (*domain.SchoolIdentity, error)
 }
 
 // InvitationIdentity is the school identity chain as the invitation flows see

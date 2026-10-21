@@ -126,7 +126,7 @@ func New(dependencies Dependencies) (identityaccess.Owner, error) {
 		Resets: resets, Invitations: invitations, Provisioning: provisioning, Administration: administration,
 		MFAFlows: flows, OperatorProvisioning: operatorProvisioning, SignInRetention: application.NewSignInDataRetention(store, application.InvitationLogger(dependencies.Invitations), newCommandTransactions(attach).RunAdmin), AccountRetention: application.NewAccountRetention(store, attach, tenant.RegisterAfterCommit, application.InvitationLogger(dependencies.Invitations)),
 		InvitationMaintenance: application.NewSchoolInvitationMaintenance(store, application.InvitationLogger(dependencies.Invitations), newCommandTransactions(attach).RunPlatform),
-		Runtime:               attach, DemoAccess: demoAccess, Caterers: caterers,
+		DemoAccess:            demoAccess, Caterers: caterers,
 	})
 	return owner, nil
 }
