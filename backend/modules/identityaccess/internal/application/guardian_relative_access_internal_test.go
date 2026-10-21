@@ -44,7 +44,7 @@ func TestInviteToStudent_ValidatesTheRequest(t *testing.T) {
 		"created by": {StudentID: relativeStudent, Email: "a@b.de"},
 		"email":      {StudentID: relativeStudent, CreatedBy: relativeActor, Email: "  "},
 	} {
-		_, err := f.lifecycle.InviteToStudent(tenantContext(), req)
+		_, err := f.lifecycle.inviteToStudent(tenantContext(), req)
 		require.Error(t, err, name)
 		var validation *domain.GuardianInvitationValidationError
 		require.ErrorAs(t, err, &validation, name)
@@ -59,7 +59,7 @@ func TestInviteToStudent_RepoErrorsSurface(t *testing.T) {
 		t.Parallel()
 		f := newLifecycleFixture(t)
 		f.guardians.createProfileErr = errLifecycleBoom
-		_, err := f.lifecycle.InviteToStudent(tenantContext(), inviteRequest("a@b.de"))
+		_, err := f.lifecycle.inviteToStudent(tenantContext(), inviteRequest("a@b.de"))
 		require.ErrorIs(t, err, errLifecycleBoom)
 	})
 
@@ -67,7 +67,7 @@ func TestInviteToStudent_RepoErrorsSurface(t *testing.T) {
 		t.Parallel()
 		f := newLifecycleFixture(t)
 		f.guardians.linkErr = errLifecycleBoom
-		_, err := f.lifecycle.InviteToStudent(tenantContext(), inviteRequest("a@b.de"))
+		_, err := f.lifecycle.inviteToStudent(tenantContext(), inviteRequest("a@b.de"))
 		require.ErrorIs(t, err, errLifecycleBoom)
 	})
 
@@ -75,7 +75,7 @@ func TestInviteToStudent_RepoErrorsSurface(t *testing.T) {
 		t.Parallel()
 		f := newLifecycleFixture(t)
 		f.invitations.insertErr = errLifecycleBoom
-		_, err := f.lifecycle.InviteToStudent(tenantContext(), inviteRequest("a@b.de"))
+		_, err := f.lifecycle.inviteToStudent(tenantContext(), inviteRequest("a@b.de"))
 		require.ErrorIs(t, err, errLifecycleBoom)
 		var operation *OperationError
 		require.ErrorAs(t, err, &operation)
@@ -88,7 +88,7 @@ func TestInviteToStudent_NewEmailCreatesProfileLinkAndInvitation(t *testing.T) {
 	f := newLifecycleFixture(t)
 	before := time.Now()
 
-	result, err := f.lifecycle.InviteToStudent(tenantContext(), inviteRequest(" New@Example.test "))
+	result, err := f.lifecycle.inviteToStudent(tenantContext(), inviteRequest(" New@Example.test "))
 	require.NoError(t, err)
 
 	assert.Equal(t, domain.InviteOutcomeInvited, result.Outcome)
@@ -110,7 +110,7 @@ func TestInviteToStudent_ExistingAccountIsLinkedWithoutInvitation(t *testing.T) 
 	f := newLifecycleFixture(t)
 	f.store.addAccount(40, "parent@example.test", "hash:secret", true)
 
-	result, err := f.lifecycle.InviteToStudent(tenantContext(), inviteRequest("parent@example.test"))
+	result, err := f.lifecycle.inviteToStudent(tenantContext(), inviteRequest("parent@example.test"))
 	require.NoError(t, err)
 	assert.Equal(t, domain.InviteOutcomeLinkedExistingAccount, result.Outcome)
 	assert.Nil(t, result.InvitationID)
@@ -120,7 +120,7 @@ func TestInviteToStudent_ExistingAccountIsLinkedWithoutInvitation(t *testing.T) 
 	assert.Equal(t, []int64{40}, f.store.granted, "the guardian role is granted at the school")
 	assert.Empty(t, f.delivery.emails)
 
-	again, err := f.lifecycle.InviteToStudent(tenantContext(), inviteRequest("parent@example.test"))
+	again, err := f.lifecycle.inviteToStudent(tenantContext(), inviteRequest("parent@example.test"))
 	require.NoError(t, err)
 	assert.Equal(t, domain.InviteOutcomeAlreadyLinked, again.Outcome)
 }
@@ -135,7 +135,7 @@ func TestInviteToStudent_ExistingAccountGetsPortalAccessEmail(t *testing.T) {
 	profile := f.guardians.addProfile(domain.GuardianProfile{Email: "admin@example.test", FirstName: "Olga"})
 	f.guardians.addLink(domain.StudentGuardianLink{StudentID: relativeStudent, GuardianProfileID: profile.ID, GuardianRole: "legal_guardian"})
 
-	result, err := f.lifecycle.InviteToStudent(tenantContext(), inviteRequest("Admin@example.test"))
+	result, err := f.lifecycle.inviteToStudent(tenantContext(), inviteRequest("Admin@example.test"))
 	require.NoError(t, err)
 	assert.Equal(t, domain.InviteOutcomeAlreadyLinked, result.Outcome)
 	assert.Empty(t, f.delivery.emails, "no registration link for an existing account")
@@ -144,7 +144,7 @@ func TestInviteToStudent_ExistingAccountGetsPortalAccessEmail(t *testing.T) {
 	assert.Equal(t, "Olga", f.delivery.accessEmails[0].FirstName)
 
 	// A repeated invite for the same address sends the hint again.
-	_, err = f.lifecycle.InviteToStudent(tenantContext(), inviteRequest("admin@example.test"))
+	_, err = f.lifecycle.inviteToStudent(tenantContext(), inviteRequest("admin@example.test"))
 	require.NoError(t, err)
 	assert.Len(t, f.delivery.accessEmails, 2)
 }
@@ -153,7 +153,7 @@ func TestInviteToStudent_NewAccountGetsNoPortalAccessEmail(t *testing.T) {
 	t.Parallel()
 	f := newLifecycleFixture(t)
 
-	_, err := f.lifecycle.InviteToStudent(tenantContext(), inviteRequest("new@example.test"))
+	_, err := f.lifecycle.inviteToStudent(tenantContext(), inviteRequest("new@example.test"))
 	require.NoError(t, err)
 	assert.Len(t, f.delivery.emails, 1)
 	assert.Empty(t, f.delivery.accessEmails)
@@ -198,7 +198,7 @@ func TestInviteToStudent_ApprovalModeQueuesWithoutLinking(t *testing.T) {
 	req.RequestedByParentAccountID = &requester
 	req.RequireApproval = true
 
-	result, err := f.lifecycle.InviteToStudent(tenantContext(), req)
+	result, err := f.lifecycle.inviteToStudent(tenantContext(), req)
 	require.NoError(t, err)
 	assert.Equal(t, domain.InviteOutcomePendingApproval, result.Outcome)
 	_, linked := f.guardians.linkOf(relativeStudent, result.GuardianProfileID)
@@ -216,7 +216,7 @@ func TestInviteToStudent_RestrictedContactRequiresConfirmation(t *testing.T) {
 	profile := f.guardians.addProfile(domain.GuardianProfile{Email: "pickup@example.test"})
 	link := f.guardians.addLink(domain.StudentGuardianLink{StudentID: relativeStudent, GuardianProfileID: profile.ID, GuardianRole: "pickup_only"})
 
-	result, err := f.lifecycle.InviteToStudent(tenantContext(), inviteRequest("pickup@example.test"))
+	result, err := f.lifecycle.inviteToStudent(tenantContext(), inviteRequest("pickup@example.test"))
 	require.NoError(t, err)
 	assert.Equal(t, domain.InviteOutcomeExistingContactRestricted, result.Outcome)
 	assert.Equal(t, "pickup_only", result.ExistingRole)
@@ -225,7 +225,7 @@ func TestInviteToStudent_RestrictedContactRequiresConfirmation(t *testing.T) {
 
 	req := inviteRequest("pickup@example.test")
 	req.ConfirmRoleUpgrade = true
-	result, err = f.lifecycle.InviteToStudent(tenantContext(), req)
+	result, err = f.lifecycle.inviteToStudent(tenantContext(), req)
 	require.NoError(t, err)
 	assert.Equal(t, domain.InviteOutcomeInvited, result.Outcome)
 	assert.Equal(t, []int64{link.ID}, f.guardians.promoted, "a confirmed staff upgrade applies at once")
@@ -239,7 +239,7 @@ func TestInviteToStudent_SocialWorkerIsNeverUpgraded(t *testing.T) {
 
 	req := inviteRequest("sw@example.test")
 	req.ConfirmRoleUpgrade = true
-	_, err := f.lifecycle.InviteToStudent(tenantContext(), req)
+	_, err := f.lifecycle.inviteToStudent(tenantContext(), req)
 	require.ErrorIs(t, err, identityaccess.ErrInviteSocialWorkerManaged)
 	assert.Empty(t, f.guardians.promoted)
 	assert.Empty(t, f.invitations.rows)
@@ -257,7 +257,7 @@ func TestInviteToStudent_ParentConfirmedUpgradeIsQueued(t *testing.T) {
 	req.RequestedByParentAccountID = &requester
 	req.ConfirmRoleUpgrade = true
 
-	result, err := f.lifecycle.InviteToStudent(tenantContext(), req)
+	result, err := f.lifecycle.inviteToStudent(tenantContext(), req)
 	require.NoError(t, err)
 	assert.Equal(t, domain.InviteOutcomePendingApproval, result.Outcome)
 	assert.True(t, f.invitations.rows[*result.InvitationID].RoleUpgrade)
@@ -272,24 +272,24 @@ func TestApproveInvitation_Paths(t *testing.T) {
 		f := newLifecycleFixture(t)
 		invitation := pendingApproval(f, 10, true)
 		f.guardians.findProfileErr = errLifecycleBoom
-		require.ErrorIs(t, f.lifecycle.ApproveInvitation(tenantContext(), invitation.ID, relativeActor), errLifecycleBoom)
+		require.ErrorIs(t, f.lifecycle.approveInvitation(tenantContext(), invitation.ID, relativeActor), errLifecycleBoom)
 	})
 
 	t.Run("not found, not pending and expired are refused", func(t *testing.T) {
 		t.Parallel()
 		f := newLifecycleFixture(t)
-		require.ErrorIs(t, f.lifecycle.ApproveInvitation(tenantContext(), 404, relativeActor), domain.ErrGuardianInvitationNotFound)
+		require.ErrorIs(t, f.lifecycle.approveInvitation(tenantContext(), 404, relativeActor), domain.ErrGuardianInvitationNotFound)
 
 		decided := pendingApproval(f, 10, false)
 		decided.ApprovalStatus = domain.GuardianInvitationApprovalApproved
 		f.invitations.rows[decided.ID] = decided
-		require.Error(t, f.lifecycle.ApproveInvitation(tenantContext(), decided.ID, relativeActor))
+		require.Error(t, f.lifecycle.approveInvitation(tenantContext(), decided.ID, relativeActor))
 
 		expired := pendingApproval(f, 10, false)
 		expired.ExpiresAt = time.Now().Add(-time.Minute)
 		f.invitations.rows[expired.ID] = expired
-		require.ErrorIs(t, f.lifecycle.ApproveInvitation(tenantContext(), expired.ID, relativeActor), identityaccess.ErrGuardianInvitationExpired)
-		require.ErrorIs(t, f.lifecycle.RejectInvitation(tenantContext(), expired.ID, relativeActor), identityaccess.ErrGuardianInvitationExpired)
+		require.ErrorIs(t, f.lifecycle.approveInvitation(tenantContext(), expired.ID, relativeActor), identityaccess.ErrGuardianInvitationExpired)
+		require.ErrorIs(t, f.lifecycle.rejectInvitation(tenantContext(), expired.ID, relativeActor), identityaccess.ErrGuardianInvitationExpired)
 	})
 
 	t.Run("no account links the child and sends the invitation", func(t *testing.T) {
@@ -298,7 +298,7 @@ func TestApproveInvitation_Paths(t *testing.T) {
 		profile := f.guardians.addProfile(domain.GuardianProfile{Email: "new@example.test"})
 		invitation := pendingApproval(f, profile.ID, true)
 
-		require.NoError(t, f.lifecycle.ApproveInvitation(tenantContext(), invitation.ID, relativeActor))
+		require.NoError(t, f.lifecycle.approveInvitation(tenantContext(), invitation.ID, relativeActor))
 		stored := f.invitations.rows[invitation.ID]
 		assert.Equal(t, domain.GuardianInvitationApprovalApproved, stored.ApprovalStatus)
 		require.NotNil(t, stored.ApprovedBy)
@@ -316,7 +316,7 @@ func TestApproveInvitation_Paths(t *testing.T) {
 		profile := f.guardians.addProfile(domain.GuardianProfile{Email: "Parent@example.test"})
 		invitation := pendingApproval(f, profile.ID, false)
 
-		require.NoError(t, f.lifecycle.ApproveInvitation(tenantContext(), invitation.ID, relativeActor))
+		require.NoError(t, f.lifecycle.approveInvitation(tenantContext(), invitation.ID, relativeActor))
 		assert.NotNil(t, f.invitations.rows[invitation.ID].AcceptedAt)
 		assert.True(t, f.guardians.profiles[profile.ID].HasAccount)
 		assert.Empty(t, f.delivery.emails)
@@ -335,7 +335,7 @@ func TestApproveInvitation_Paths(t *testing.T) {
 		invitation.RoleUpgrade = true
 		f.invitations.rows[invitation.ID] = invitation
 
-		err := f.lifecycle.ApproveInvitation(tenantContext(), invitation.ID, relativeActor)
+		err := f.lifecycle.approveInvitation(tenantContext(), invitation.ID, relativeActor)
 		require.ErrorIs(t, err, identityaccess.ErrInviteSocialWorkerManaged)
 		assert.True(t, f.invitations.rows[invitation.ID].IsPendingApproval())
 		assert.Empty(t, f.delivery.emails)
@@ -362,7 +362,7 @@ func TestRejectInvitation_UpdateErrorSurfaces(t *testing.T) {
 	f := newLifecycleFixture(t)
 	invitation := pendingApproval(f, 10, true)
 	f.invitations.updateErr = errLifecycleBoom
-	require.ErrorIs(t, f.lifecycle.RejectInvitation(tenantContext(), invitation.ID, relativeActor), errLifecycleBoom)
+	require.ErrorIs(t, f.lifecycle.rejectInvitation(tenantContext(), invitation.ID, relativeActor), errLifecycleBoom)
 }
 
 func TestRejectInvitation_CleanupBranchesAreBestEffort(t *testing.T) {
@@ -373,7 +373,7 @@ func TestRejectInvitation_CleanupBranchesAreBestEffort(t *testing.T) {
 		f := newLifecycleFixture(t)
 		profile := f.guardians.addProfile(domain.GuardianProfile{Email: "orphan@example.test"})
 		invitation := pendingApproval(f, profile.ID, true)
-		require.NoError(t, f.lifecycle.RejectInvitation(tenantContext(), invitation.ID, relativeActor))
+		require.NoError(t, f.lifecycle.rejectInvitation(tenantContext(), invitation.ID, relativeActor))
 		assert.Equal(t, domain.GuardianInvitationApprovalRejected, f.invitations.rows[invitation.ID].ApprovalStatus)
 		assert.Equal(t, []int64{profile.ID}, f.guardians.deletedProfiles)
 	})
@@ -384,7 +384,7 @@ func TestRejectInvitation_CleanupBranchesAreBestEffort(t *testing.T) {
 		profile := f.guardians.addProfile(domain.GuardianProfile{Email: "orphan@example.test"})
 		invitation := pendingApproval(f, profile.ID, true)
 		f.guardians.listByProfileErr = errLifecycleBoom
-		require.NoError(t, f.lifecycle.RejectInvitation(tenantContext(), invitation.ID, relativeActor))
+		require.NoError(t, f.lifecycle.rejectInvitation(tenantContext(), invitation.ID, relativeActor))
 		assert.Empty(t, f.guardians.deletedProfiles)
 	})
 
@@ -394,7 +394,7 @@ func TestRejectInvitation_CleanupBranchesAreBestEffort(t *testing.T) {
 		profile := f.guardians.addProfile(domain.GuardianProfile{Email: "orphan@example.test"})
 		invitation := pendingApproval(f, profile.ID, true)
 		f.guardians.deleteProfileErr = errLifecycleBoom
-		require.NoError(t, f.lifecycle.RejectInvitation(tenantContext(), invitation.ID, relativeActor))
+		require.NoError(t, f.lifecycle.rejectInvitation(tenantContext(), invitation.ID, relativeActor))
 	})
 
 	t.Run("profile with account, other links or open invitations stays", func(t *testing.T) {
@@ -409,7 +409,7 @@ func TestRejectInvitation_CleanupBranchesAreBestEffort(t *testing.T) {
 
 		for _, profile := range []domain.GuardianProfile{withAccount, linked, shared} {
 			invitation := pendingApproval(f, profile.ID, true)
-			require.NoError(t, f.lifecycle.RejectInvitation(tenantContext(), invitation.ID, relativeActor))
+			require.NoError(t, f.lifecycle.rejectInvitation(tenantContext(), invitation.ID, relativeActor))
 		}
 		assert.Empty(t, f.guardians.deletedProfiles)
 	})
@@ -422,14 +422,14 @@ func TestListPendingApprovalsDetailed(t *testing.T) {
 		t.Parallel()
 		f := newLifecycleFixture(t)
 		f.invitations.pendingErr = errLifecycleBoom
-		_, err := f.lifecycle.ListPendingApprovalsDetailed(tenantContext())
+		_, err := f.lifecycle.listPendingApprovalsDetailed(tenantContext())
 		require.ErrorIs(t, err, errLifecycleBoom)
 	})
 
 	t.Run("empty queue is an empty list", func(t *testing.T) {
 		t.Parallel()
 		f := newLifecycleFixture(t)
-		views, err := f.lifecycle.ListPendingApprovalsDetailed(tenantContext())
+		views, err := f.lifecycle.listPendingApprovalsDetailed(tenantContext())
 		require.NoError(t, err)
 		assert.NotNil(t, views)
 		assert.Empty(t, views)
@@ -448,7 +448,7 @@ func TestListPendingApprovalsDetailed(t *testing.T) {
 		invitation.RoleUpgrade = true
 		f.invitations.rows[invitation.ID] = invitation
 
-		views, err := f.lifecycle.ListPendingApprovalsDetailed(tenantContext())
+		views, err := f.lifecycle.listPendingApprovalsDetailed(tenantContext())
 		require.NoError(t, err)
 		require.Len(t, views, 1)
 		assert.Equal(t, "Gerda Gast", views[0].GuardianName)
@@ -468,7 +468,7 @@ func TestListPendingApprovalsDetailed(t *testing.T) {
 		f.guardians.findProfilesErr = errLifecycleBoom
 		f.guardians.findStudentsErr = errLifecycleBoom
 
-		views, err := f.lifecycle.ListPendingApprovalsDetailed(tenantContext())
+		views, err := f.lifecycle.listPendingApprovalsDetailed(tenantContext())
 		require.NoError(t, err)
 		require.Len(t, views, 1)
 		assert.Empty(t, views[0].GuardianName)
@@ -484,7 +484,7 @@ func TestRevokeAccess(t *testing.T) {
 		t.Parallel()
 		f := newLifecycleFixture(t)
 		f.guardians.listByStudentErr = errLifecycleBoom
-		err := f.lifecycle.RevokeAccess(tenantContext(), domain.RevokeAccessRequest{StudentID: relativeStudent, GuardianProfileID: 10, ActorAccountID: relativeActor})
+		err := f.lifecycle.RevokeAccess(tenantContext(), identityaccess.RevokeAccessRequest{StudentID: relativeStudent, GuardianProfileID: 10, ActorAccountID: relativeActor})
 		require.ErrorIs(t, err, errLifecycleBoom)
 		assert.Equal(t, []int64{relativeStudent}, f.guardians.locked, "the child's row is locked first")
 	})
@@ -492,8 +492,8 @@ func TestRevokeAccess(t *testing.T) {
 	t.Run("validation and unlinked", func(t *testing.T) {
 		t.Parallel()
 		f := newLifecycleFixture(t)
-		require.Error(t, f.lifecycle.RevokeAccess(tenantContext(), domain.RevokeAccessRequest{GuardianProfileID: 10}))
-		require.Error(t, f.lifecycle.RevokeAccess(tenantContext(), domain.RevokeAccessRequest{StudentID: relativeStudent, GuardianProfileID: 10}))
+		require.Error(t, f.lifecycle.RevokeAccess(tenantContext(), identityaccess.RevokeAccessRequest{GuardianProfileID: 10}))
+		require.Error(t, f.lifecycle.RevokeAccess(tenantContext(), identityaccess.RevokeAccessRequest{StudentID: relativeStudent, GuardianProfileID: 10}))
 	})
 
 	t.Run("a parent cannot remove the primary guardian, staff can", func(t *testing.T) {
@@ -501,7 +501,7 @@ func TestRevokeAccess(t *testing.T) {
 		f := newLifecycleFixture(t)
 		profile := f.guardians.addProfile(domain.GuardianProfile{Email: "primary@example.test"})
 		link := f.guardians.addLink(domain.StudentGuardianLink{StudentID: relativeStudent, GuardianProfileID: profile.ID, IsPrimary: true})
-		req := domain.RevokeAccessRequest{StudentID: relativeStudent, GuardianProfileID: profile.ID, ActorAccountID: relativeActor, ByParent: true}
+		req := identityaccess.RevokeAccessRequest{StudentID: relativeStudent, GuardianProfileID: profile.ID, ActorAccountID: relativeActor, ByParent: true}
 
 		require.ErrorIs(t, f.lifecycle.RevokeAccess(tenantContext(), req), identityaccess.ErrCannotRemovePrimaryGuardian)
 		req.ByParent = false
@@ -514,7 +514,7 @@ func TestRevokeAccess(t *testing.T) {
 		f := newLifecycleFixture(t)
 		profile := f.guardians.addProfile(domain.GuardianProfile{Email: "payer@example.test"})
 		link := f.guardians.addLink(domain.StudentGuardianLink{StudentID: relativeStudent, GuardianProfileID: profile.ID, IsPayer: true})
-		req := domain.RevokeAccessRequest{StudentID: relativeStudent, GuardianProfileID: profile.ID, ActorAccountID: relativeActor}
+		req := identityaccess.RevokeAccessRequest{StudentID: relativeStudent, GuardianProfileID: profile.ID, ActorAccountID: relativeActor}
 
 		require.ErrorIs(t, f.lifecycle.RevokeAccess(tenantContext(), req), identityaccess.ErrCannotRemovePayerGuardian)
 		assert.Empty(t, f.guardians.deletedLinks)
@@ -536,7 +536,7 @@ func TestRevokeAccess(t *testing.T) {
 		actor := relativeActor
 		profile := f.guardians.addProfile(domain.GuardianProfile{Email: "self@example.test", AccountID: &actor, HasAccount: true})
 		f.guardians.addLink(domain.StudentGuardianLink{StudentID: relativeStudent, GuardianProfileID: profile.ID})
-		err := f.lifecycle.RevokeAccess(tenantContext(), domain.RevokeAccessRequest{
+		err := f.lifecycle.RevokeAccess(tenantContext(), identityaccess.RevokeAccessRequest{
 			StudentID: relativeStudent, GuardianProfileID: profile.ID, ActorAccountID: relativeActor, ByParent: true,
 		})
 		require.ErrorIs(t, err, identityaccess.ErrCannotRemoveOwnAccess)
@@ -547,7 +547,7 @@ func TestRevokeAccess(t *testing.T) {
 		f := newLifecycleFixture(t)
 		profile := f.guardians.addProfile(domain.GuardianProfile{Email: "staff@example.test"})
 		f.guardians.addLink(domain.StudentGuardianLink{StudentID: relativeStudent, GuardianProfileID: profile.ID})
-		err := f.lifecycle.RevokeAccess(tenantContext(), domain.RevokeAccessRequest{
+		err := f.lifecycle.RevokeAccess(tenantContext(), identityaccess.RevokeAccessRequest{
 			StudentID: relativeStudent, GuardianProfileID: profile.ID, ActorAccountID: relativeActor, ByParent: true,
 		})
 		require.ErrorIs(t, err, identityaccess.ErrCannotRemoveStaffManagedGuardian)
@@ -563,7 +563,7 @@ func TestRevokeAccess(t *testing.T) {
 		f.guardians.addLink(domain.StudentGuardianLink{StudentID: relativeStudent, GuardianProfileID: profile.ID})
 		invitation := pendingApproval(f, profile.ID, false)
 
-		require.NoError(t, f.lifecycle.RevokeAccess(tenantContext(), domain.RevokeAccessRequest{
+		require.NoError(t, f.lifecycle.RevokeAccess(tenantContext(), identityaccess.RevokeAccessRequest{
 			StudentID: relativeStudent, GuardianProfileID: profile.ID, ActorAccountID: relativeActor, ByParent: true,
 		}))
 		stored := f.invitations.rows[invitation.ID]
@@ -577,13 +577,13 @@ func TestRelativeAccessRunsOnTheCallersTenant(t *testing.T) {
 	t.Parallel()
 	f := newLifecycleFixture(t)
 
-	_, err := f.lifecycle.InviteToStudent(context.Background(), inviteRequest("tenantless@example.test"))
+	_, err := f.lifecycle.inviteToStudent(context.Background(), inviteRequest("tenantless@example.test"))
 	require.NoError(t, err)
 	for _, profile := range f.guardians.profiles {
 		assert.Zero(t, profile.TenantID, "a tenantless caller creates no tenant-stamped row")
 	}
 
-	result, err := f.lifecycle.InviteToStudent(tenantContext(), inviteRequest("tenant@example.test"))
+	result, err := f.lifecycle.inviteToStudent(tenantContext(), inviteRequest("tenant@example.test"))
 	require.NoError(t, err)
 	assert.Equal(t, lifecycleTenant, f.guardians.profiles[result.GuardianProfileID].TenantID)
 	assert.Equal(t, lifecycleTenant, f.invitations.rows[*result.InvitationID].TenantID)

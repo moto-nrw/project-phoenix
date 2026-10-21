@@ -33,7 +33,29 @@ type resolvedProfile struct {
 	created bool
 }
 
-func (l *AccountLifecycle) InviteToStudent(ctx context.Context, req domain.InviteToStudentRequest) (*domain.InviteToStudentResult, error) {
+func (l *AccountLifecycle) InviteToStudent(ctx context.Context, req identityaccess.InviteToStudentRequest) (value0 *identityaccess.InviteToStudentResult, err error) {
+	if l == nil {
+		return nil, errAccountLifecycleUnavailable
+	}
+	operation := func(ctx context.Context) (*identityaccess.InviteToStudentResult, error) {
+		result, err := l.inviteToStudent(bindRuntime(l.auth.attach, ctx), domain.InviteToStudentRequest(req))
+		if err != nil {
+			return nil, lifecycleError(err)
+		}
+		public := identityaccess.InviteToStudentResult{
+			Outcome: identityaccess.InviteToStudentOutcome(result.Outcome), GuardianProfileID: result.GuardianProfileID,
+			InvitationID: result.InvitationID, ExistingRole: result.ExistingRole,
+		}
+		return &public, nil
+	}
+	err = l.runtime.RunInTx(ctx, func(txCtx context.Context) error {
+		value0, err = operation(txCtx)
+		return err
+	})
+	return
+}
+
+func (l *AccountLifecycle) inviteToStudent(ctx context.Context, req domain.InviteToStudentRequest) (*domain.InviteToStudentResult, error) {
 	if req.StudentID <= 0 {
 		return nil, invalidGuardianInvitation(opGuardianInviteToStudent, fmt.Errorf("student ID is required"))
 	}
@@ -344,7 +366,21 @@ func (l *AccountLifecycle) closeSupersededApprovalRequests(ctx context.Context, 
 	return nil
 }
 
-func (l *AccountLifecycle) ApproveInvitation(ctx context.Context, invitationID, approverAccountID int64) error {
+func (l *AccountLifecycle) ApproveInvitation(ctx context.Context, invitationID, approverAccountID int64) (err error) {
+	if l == nil {
+		return errAccountLifecycleUnavailable
+	}
+	operation := func(ctx context.Context) error {
+		return lifecycleError(l.approveInvitation(bindRuntime(l.auth.attach, ctx), invitationID, approverAccountID))
+	}
+	err = l.runtime.RunInTx(ctx, func(txCtx context.Context) error {
+		err = operation(txCtx)
+		return err
+	})
+	return
+}
+
+func (l *AccountLifecycle) approveInvitation(ctx context.Context, invitationID, approverAccountID int64) error {
 	invitation, err := l.pendingInvitation(ctx, opGuardianInviteApprove, invitationID)
 	if err != nil {
 		return err
@@ -397,7 +433,21 @@ func (l *AccountLifecycle) ApproveInvitation(ctx context.Context, invitationID, 
 	return nil
 }
 
-func (l *AccountLifecycle) RejectInvitation(ctx context.Context, invitationID, approverAccountID int64) error {
+func (l *AccountLifecycle) RejectInvitation(ctx context.Context, invitationID, approverAccountID int64) (err error) {
+	if l == nil {
+		return errAccountLifecycleUnavailable
+	}
+	operation := func(ctx context.Context) error {
+		return lifecycleError(l.rejectInvitation(bindRuntime(l.auth.attach, ctx), invitationID, approverAccountID))
+	}
+	err = l.runtime.RunInTx(ctx, func(txCtx context.Context) error {
+		err = operation(txCtx)
+		return err
+	})
+	return
+}
+
+func (l *AccountLifecycle) rejectInvitation(ctx context.Context, invitationID, approverAccountID int64) error {
 	invitation, err := l.pendingInvitation(ctx, opGuardianInviteReject, invitationID)
 	if err != nil {
 		return err
@@ -419,15 +469,26 @@ func (l *AccountLifecycle) RejectInvitation(ctx context.Context, invitationID, a
 	return nil
 }
 
-func (l *AccountLifecycle) PendingInvitationStudentID(ctx context.Context, invitationID int64) (int64, error) {
-	invitation, err := l.pendingInvitation(ctx, opGuardianInviteApprove, invitationID)
-	if err != nil {
-		return 0, err
+func (l *AccountLifecycle) PendingInvitationStudentID(ctx context.Context, invitationID int64) (value0 int64, err error) {
+	if l == nil {
+		return 0, errAccountLifecycleUnavailable
 	}
-	if invitation.StudentID == nil || *invitation.StudentID <= 0 {
-		return 0, failed(opGuardianInviteApprove, fmt.Errorf("invitation is missing student_id"))
+	operation := func(ctx context.Context, invitationID int64) (int64, error) {
+		invitation, err := l.pendingInvitation(ctx, opGuardianInviteApprove, invitationID)
+		if err != nil {
+			return 0, err
+		}
+		if invitation.StudentID == nil || *invitation.StudentID <= 0 {
+			return 0, failed(opGuardianInviteApprove, fmt.Errorf("invitation is missing student_id"))
+		}
+		return *invitation.StudentID, nil
 	}
-	return *invitation.StudentID, nil
+	err = l.runtime.RunInTx(ctx, func(txCtx context.Context) error {
+		studentID, err := operation(bindRuntime(l.auth.attach, txCtx), invitationID)
+		value0 = studentID
+		return lifecycleError(err)
+	})
+	return
 }
 
 // pendingInvitation loads an invitation that is awaiting approval and has not
@@ -539,7 +600,29 @@ func (l *AccountLifecycle) expireInvitations(ctx context.Context, invitations []
 	return nil
 }
 
-func (l *AccountLifecycle) ListPendingApprovalsDetailed(ctx context.Context) ([]domain.PendingApprovalView, error) {
+func (l *AccountLifecycle) ListPendingApprovalsDetailed(ctx context.Context) (value0 []identityaccess.PendingApprovalView, err error) {
+	if l == nil {
+		return nil, errAccountLifecycleUnavailable
+	}
+	operation := func(ctx context.Context) ([]identityaccess.PendingApprovalView, error) {
+		views, err := l.listPendingApprovalsDetailed(bindRuntime(l.auth.attach, ctx))
+		if err != nil {
+			return nil, lifecycleError(err)
+		}
+		result := make([]identityaccess.PendingApprovalView, 0, len(views))
+		for _, view := range views {
+			result = append(result, identityaccess.PendingApprovalView(view))
+		}
+		return result, nil
+	}
+	err = l.runtime.RunInTx(ctx, func(txCtx context.Context) error {
+		value0, err = operation(txCtx)
+		return err
+	})
+	return
+}
+
+func (l *AccountLifecycle) listPendingApprovalsDetailed(ctx context.Context) ([]domain.PendingApprovalView, error) {
 	invitations, err := l.invitations.ListPendingGuardianApprovals(ctx)
 	if err != nil {
 		return nil, failed(opGuardianInviteApprove, err)
@@ -579,12 +662,17 @@ func (l *AccountLifecycle) ListPendingApprovalsDetailed(ctx context.Context) ([]
 	return views, nil
 }
 
-func (l *AccountLifecycle) RevokeAccess(ctx context.Context, req domain.RevokeAccessRequest) error {
+func (l *AccountLifecycle) RevokeAccess(ctx context.Context, req identityaccess.RevokeAccessRequest) (err error) {
+	if l == nil {
+		return errAccountLifecycleUnavailable
+	}
+	defer func() { err = lifecycleError(err) }()
+	ctx = bindRuntime(l.auth.attach, ctx)
 	return l.runtime.WithTenantTx(ctx, l.runtime.TenantID(ctx), func(txCtx context.Context) error {
 		if err := l.guardians.LockStudent(txCtx, req.StudentID); err != nil {
 			return failed(opGuardianRevokeAccess, err)
 		}
-		return l.revokeAccess(txCtx, req)
+		return l.revokeAccess(txCtx, domain.RevokeAccessRequest(req))
 	})
 }
 
