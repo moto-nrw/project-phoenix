@@ -13,8 +13,8 @@ import (
 
 // SessionRecords exposes native values over the same joined rows and commands.
 type SessionRecords struct {
-	Instances ports.ActivityInstanceRecords
-	Staff     ports.InstanceStaffRecords
+	Instances ports.InstanceRows
+	Staff     timetable.InstanceStaffCapability
 	Groups    timetable.ActivityGroupQuery
 }
 
@@ -27,18 +27,22 @@ func (r SessionRecords) ListTemplateGroups(ctx context.Context) ([]timetable.Gro
 }
 
 func (r SessionRecords) FindSessionInstance(ctx context.Context, activeGroupID int64) (*timetable.ScheduledInstance, error) {
-	row, err := r.Instances.FindByActiveGroupID(ctx, activeGroupID)
-	if row == nil {
-		return nil, err
+	rows, err := r.Instances.Reads.ListLegacyInstances(ctx, ports.LegacyInstanceFilter{ActiveGroupIDs: []int64{activeGroupID}, Limit: 1})
+	if err != nil {
+		return nil, WrapDatabaseError("find by active group id", err)
 	}
-	result := ScheduledInstanceOf(row)
-	return &result, err
+	if len(rows) == 0 || rows[0] == nil {
+		return nil, nil
+	}
+	result := ScheduledInstanceOf(rows[0])
+	return &result, nil
 }
 
 func (r SessionRecords) ListSessionInstances(ctx context.Context, date calendar.Date) ([]timetable.ScheduledInstance, error) {
-	rows, err := r.Instances.FindByTenantAndDate(ctx, calendar.Date(date))
+	day := date.String()
+	rows, err := r.Instances.Reads.ListLegacyInstances(ctx, ports.LegacyInstanceFilter{Date: &day, OrderByDateAndTime: true})
 	if err != nil {
-		return nil, err
+		return nil, WrapDatabaseError("find by tenant and date", err)
 	}
 	result := make([]timetable.ScheduledInstance, 0, len(rows))
 	for _, row := range rows {
@@ -61,7 +65,7 @@ func (r SessionRecords) CreateMirroredSessionInstance(ctx context.Context, input
 		UnderstaffedNote: input.UnderstaffedNote, CancelReason: input.CancelReason, Notes: input.Notes,
 	}
 	row.SetTenantID(tenant.FromContext(ctx))
-	if err := r.Instances.Create(ctx, row); err != nil {
+	if err := createLegacyInstance(ctx, r.Instances, row); err != nil {
 		return 0, err
 	}
 	return row.ID, nil
@@ -69,6 +73,11 @@ func (r SessionRecords) CreateMirroredSessionInstance(ctx context.Context, input
 
 func (r SessionRecords) AddSessionInstanceStaff(ctx context.Context, instanceID, staffID int64) error {
 	row := &schedule.InstanceStaff{InstanceID: instanceID, StaffID: staffID}
-	row.SetTenantID(tenant.FromContext(ctx))
-	return r.Staff.Create(ctx, row)
+	if err := row.Validate(); err != nil {
+		return err
+	}
+	if _, err := r.Staff.CreateInstanceStaff(ctx, publicInstanceStaffInput(row)); err != nil {
+		return WrapDatabaseError("create", err)
+	}
+	return nil
 }

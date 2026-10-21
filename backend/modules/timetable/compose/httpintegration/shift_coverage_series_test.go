@@ -88,7 +88,7 @@ func TestShiftCoverageProjection_BatchesEffectiveSeriesReadsAndIsolatesTenant(t 
 		})
 
 		instance.SetTenantID(testpkg.Tenant(t))
-		require.NoError(t, fixtures.FromActivityInstanceRecords(repos.ActivityInstance).Create(localCtx, instance))
+		require.NoError(t, fixtures.FromActivityInstanceRecords(repos.NativeInstances()).Create(localCtx, instance))
 		for _, assignment := range []*fixtures.InstanceStaff{fixtures.NewInstanceStaff(func(fixtureRow *fixtures.InstanceStaff) {
 			fixtureRow.InstanceID = instance.ID
 			fixtureRow.StaffID = localBase.ID
@@ -100,7 +100,7 @@ func TestShiftCoverageProjection_BatchesEffectiveSeriesReadsAndIsolatesTenant(t 
 		}),
 		} {
 			assignment.SetTenantID(testpkg.Tenant(t))
-			require.NoError(t, fixtures.FromInstanceStaffRecords(repos.InstanceStaff).Create(localCtx, assignment))
+			require.NoError(t, fixtures.InstanceStaffRowsOf(repos.InstanceStaff).Create(localCtx, assignment))
 		}
 		shift := fixtures.NewStaffShift(func(fixtureRow *fixtures.StaffShift) {
 			fixtureRow.StaffID = localSub.ID
@@ -130,20 +130,20 @@ func TestShiftCoverageProjection_BatchesEffectiveSeriesReadsAndIsolatesTenant(t 
 	})
 
 	foreignInstance.SetTenantID(foreignTenantID)
-	require.NoError(t, fixtures.FromActivityInstanceRecords(repos.ActivityInstance).Create(foreignCtx, foreignInstance))
+	require.NoError(t, fixtures.FromActivityInstanceRecords(repos.NativeInstances()).Create(foreignCtx, foreignInstance))
 	foreignAssignment := fixtures.NewInstanceStaff(func(fixtureRow *fixtures.InstanceStaff) {
 		fixtureRow.InstanceID = foreignInstance.ID
 		fixtureRow.StaffID = foreignStaff.ID
 		fixtureRow.IsSubstitute = true
 	})
 	foreignAssignment.SetTenantID(foreignTenantID)
-	require.NoError(t, fixtures.FromInstanceStaffRecords(repos.InstanceStaff).Create(foreignCtx, foreignAssignment))
+	require.NoError(t, fixtures.InstanceStaffRowsOf(repos.InstanceStaff).Create(foreignCtx, foreignAssignment))
 	_, err = repos.ActivityException.CreateActivityException(foreignCtx, timetable.ActivityExceptionInput{
 		ActivityGroupID: foreignGroup.ID, ExceptionDate: calendar.Date(wednesday).String(), ExceptionType: timetable.ActivityExceptionCancelled,
 	})
 	require.NoError(t, err)
 
-	foreignInstances, err := fixtures.FromActivityInstanceRecords(repos.ActivityInstance).FindByActivityGroupAndDateRange(localCtx, foreignGroup.ID, calendar.Date(monday), calendar.Date(nextWednesday))
+	foreignInstances, err := fixtures.FromActivityInstanceRecords(repos.NativeInstances()).FindByActivityGroupAndDateRange(localCtx, foreignGroup.ID, calendar.Date(monday), calendar.Date(nextWednesday))
 	require.NoError(t, err)
 	assert.Empty(t, foreignInstances, "superuser test connection must still honor tenant filtering")
 	foreignFrom, foreignTo := calendar.Date(monday).String(), calendar.Date(nextWednesday).String()

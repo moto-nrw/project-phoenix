@@ -79,7 +79,7 @@ func (s *InstanceLifecycleService) Start(ctx context.Context, instanceID, starte
 	if err != nil {
 		return nil, err
 	}
-	staffRows, err := s.deps.InstanceStaffRepo.FindByInstanceID(ctx, instance.ID)
+	staffRows, err := staffOfInstance(ctx, s.deps.InstanceStaffRepo, instance.ID)
 	if err != nil {
 		return nil, &ports.ScheduleError{Op: "start instance: load instance_staff", Err: err}
 	}
@@ -301,7 +301,7 @@ func (s *InstanceLifecycleService) absorbableGroup(ctx context.Context, groupID,
 	if calendar.DateFromTime(lockedGroup.StartTime) != today {
 		return false, nil
 	}
-	instance, err := s.deps.InstanceRepo.FindByActiveGroupID(ctx, groupID)
+	instance, err := sessionInstance(ctx, s.deps.InstanceRepo.Reads, groupID)
 	if err != nil {
 		return false, fmt.Errorf("load timetable bridge of group %d: %w", groupID, err)
 	}

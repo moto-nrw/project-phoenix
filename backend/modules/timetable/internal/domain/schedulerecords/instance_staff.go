@@ -40,6 +40,3 @@ func (s *InstanceStaff) Validate() error {
 	}
 	return nil
 }
-
-// ports.InstanceStaffRecords defines operations for managing staff assignments to
-// materialized activity instances.

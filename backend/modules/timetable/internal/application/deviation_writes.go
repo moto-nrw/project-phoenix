@@ -67,14 +67,14 @@ func (s *staffDeviations) MarkSickAbsence(ctx context.Context, in timetable.Sick
 
 // loadAssignment loads one staff row and the instance it belongs to.
 func (s *staffDeviations) loadAssignment(ctx context.Context, assignmentID int64) (*scheduleModel.InstanceStaff, *scheduleModel.ActivityInstance, error) {
-	row, err := s.deps.InstanceStaff.FindByID(ctx, assignmentID)
+	row, err := findLegacyInstanceStaff(ctx, s.deps.InstanceStaff, assignmentID)
 	if err != nil {
 		return nil, nil, fmt.Errorf("load staff assignment %d: %w", assignmentID, err)
 	}
 	if row == nil {
 		return nil, nil, fmt.Errorf("load staff assignment %d: not found", assignmentID)
 	}
-	instance, err := s.deps.Instances.FindByID(ctx, row.InstanceID)
+	instance, err := findLegacyInstance(ctx, s.deps.Instances.Reads, row.InstanceID)
 	if err != nil {
 		return nil, nil, fmt.Errorf("load instance %d: %w", row.InstanceID, err)
 	}
@@ -98,7 +98,7 @@ func (s *staffDeviations) applyAbsenceMark(
 	if opts.sickAbsenceID != nil {
 		row.SickAbsenceID = opts.sickAbsenceID
 	}
-	if err := s.deps.InstanceStaff.Update(ctx, row); err != nil {
+	if err := updateLegacyInstanceStaff(ctx, s.deps.InstanceStaff, row); err != nil {
 		return err
 	}
 	if err := s.endSupervision(ctx, instance, row.StaffID, touched); err != nil {
@@ -151,7 +151,7 @@ func (s *staffDeviations) applyPresence(
 	// longer owed to the sick report, and a later manual re-absence must not
 	// be cleared by deleting that report.
 	row.SickAbsenceID = nil
-	if err := s.deps.InstanceStaff.Update(ctx, row); err != nil {
+	if err := updateLegacyInstanceStaff(ctx, s.deps.InstanceStaff, row); err != nil {
 		return err
 	}
 	touch(touched, instance)
@@ -184,7 +184,7 @@ func (s *staffDeviations) ClearSickAbsence(ctx context.Context, in timetable.Sic
 	row.IsAbsent = false
 	row.AbsenceReason = nil
 	row.SickAbsenceID = nil
-	if err := s.deps.InstanceStaff.Update(ctx, row); err != nil {
+	if err := updateLegacyInstanceStaff(ctx, s.deps.InstanceStaff, row); err != nil {
 		return err
 	}
 	touch(touched, instance)
@@ -251,7 +251,7 @@ func (s *staffDeviations) markOriginalAbsent(ctx context.Context, op substituteW
 	if reason != nil {
 		op.OrigRow.AbsenceReason = reason
 	}
-	if err := s.deps.InstanceStaff.Update(ctx, op.OrigRow); err != nil {
+	if err := updateLegacyInstanceStaff(ctx, s.deps.InstanceStaff, op.OrigRow); err != nil {
 		return err
 	}
 	if touched == nil {
@@ -271,7 +271,7 @@ func (s *staffDeviations) addSubstitute(ctx context.Context, op substituteWriteO
 		IsSubstitute: true,
 		IsAbsent:     false,
 	}
-	if err := s.deps.InstanceStaff.Create(ctx, newRow); err != nil {
+	if err := createLegacyInstanceStaff(ctx, s.deps.InstanceStaff, newRow); err != nil {
 		return err
 	}
 	if op.Instance.Status != scheduleModel.InstanceStatusActive || op.Instance.ActiveGroupID == nil {
@@ -306,7 +306,7 @@ func (s *staffDeviations) removeSubstitute(
 	if err := s.endSupervision(ctx, instance, row.StaffID, touched); err != nil {
 		return err
 	}
-	if err := s.deps.InstanceStaff.Delete(ctx, row.ID); err != nil {
+	if err := deleteLegacyInstanceStaff(ctx, s.deps.InstanceStaff, row.ID); err != nil {
 		return err
 	}
 	return s.logDeviationEvent(ctx, deviationEventInput{

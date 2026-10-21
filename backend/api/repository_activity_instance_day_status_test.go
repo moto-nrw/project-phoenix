@@ -35,7 +35,7 @@ func TestActivityInstancesOfTheDayCarryTheirSessionStatus(t *testing.T) {
 	require.NoError(t, err)
 
 	require.NoError(t, testpkg.WithinTenantContext(t, ctx, db, testpkg.Tenant(t), func(ctx context.Context) error {
-		rows, err := repos.ActivityInstance.FindByTenantAndDate(ctx, dayISO)
+		rows, err := repos.NativeInstances().FindByTenantAndDate(ctx, dayISO)
 
 		require.NoError(t, err)
 		statuses := make(map[int64]string, len(rows))

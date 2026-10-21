@@ -35,7 +35,7 @@ func timetableDataWithArrivalBaseline(
 	presence, err := presenceCompose.New(presenceCompose.Dependencies{DB: env.db, Observe: func(presenceCompose.Observation) {}})
 	require.NoError(t, err)
 	data, err := arrivalTimetable.NewTimetableData(timetablePorts.TimetableDataDependencies{
-		Instances:         env.timetable.ActivityInstance,
+		Instances:         env.timetable.ActivityInstance.Reads,
 		InstanceStaff:     env.timetable.InstanceStaff,
 		Participants:      env.timetable.InstanceStudent,
 		PickupExceptions:  env.reposSchedules.StudentPickupException,
@@ -115,7 +115,7 @@ func exceptionConflictsWithArrivalBaseline(
 	presence, err := presenceCompose.New(presenceCompose.Dependencies{DB: env.db, Observe: func(presenceCompose.Observation) {}})
 	require.NoError(t, err)
 	detection, err := arrivalTimetable.NewConflictDetection(timetablePorts.ConflictDetectionDependencies{
-		Instances:         env.timetable.ActivityInstance,
+		Instances:         env.timetable.ActivityInstance.Reads,
 		InstanceStaff:     env.timetable.InstanceStaff,
 		InstanceStudents:  env.timetable.InstanceStudent,
 		Exceptions:        env.timetable.ActivityException,

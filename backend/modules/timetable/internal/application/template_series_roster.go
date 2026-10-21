@@ -328,14 +328,14 @@ func (s *TemplateService) reconcilePredecessorOccurrences(
 	touchedStaff []int64,
 	priorSupervisors []*activityContract.SupervisorPlanned,
 ) error {
-	if len(touchedStudents) > 0 && s.deps.ActivityInstanceRepo != nil && s.deps.InstanceStudentRepo != nil {
+	if len(touchedStudents) > 0 && !noInstanceRows(s.deps.ActivityInstanceRepo) && s.deps.InstanceStudentRepo != nil {
 		if _, _, err := s.newRosterReconciler().reconcileSourcedTemplateRosters(
 			ctx, templateID, touchedStudents, from, priorEnrollments,
 		); err != nil {
 			return &ports.ScheduleError{Op: "update template: reconcile predecessor occurrences", Err: err}
 		}
 	}
-	if len(touchedStaff) > 0 && s.deps.ActivityInstanceRepo != nil && s.deps.InstanceStaffRepo != nil {
+	if len(touchedStaff) > 0 && !noInstanceRows(s.deps.ActivityInstanceRepo) && s.deps.InstanceStaffRepo != nil {
 		if err := s.reconcilePredecessorInstanceStaff(ctx, templateID, touchedStaff, from, priorSupervisors); err != nil {
 			return err
 		}

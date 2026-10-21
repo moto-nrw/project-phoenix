@@ -199,7 +199,7 @@ func newTimetableHTTPTestReads(db transactionruntime.Database, r TimetableHTTPTe
 		return nil, nil, err
 	}
 	conflicts, err := timetableCompose.NewConflictDetection(timetablePorts.ConflictDetectionDependencies{
-		Instances:         r.ActivityInstance,
+		Instances:         r.ActivityInstance.Reads,
 		InstanceStaff:     r.InstanceStaff,
 		InstanceStudents:  r.InstanceStudent,
 		Exceptions:        r.ActivityException,
@@ -217,7 +217,7 @@ func newTimetableHTTPTestReads(db transactionruntime.Database, r TimetableHTTPTe
 		return nil, nil, err
 	}
 	data, err := timetableCompose.NewTimetableData(timetablePorts.TimetableDataDependencies{
-		Instances:         r.ActivityInstance,
+		Instances:         r.ActivityInstance.Reads,
 		InstanceStaff:     r.InstanceStaff,
 		Participants:      r.InstanceStudent,
 		PickupExceptions:  r.StudentPickupException,

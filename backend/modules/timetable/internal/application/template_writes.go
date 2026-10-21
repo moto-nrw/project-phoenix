@@ -192,9 +192,9 @@ func samePlanningTrackID(left, right *int64) bool {
 // bound late at the root.
 type TemplateServiceDependencies struct {
 	InstanceStudentRepo    ports.InstanceStudentRecords
-	ActivityInstanceRepo   ports.ActivityInstanceRecords
+	ActivityInstanceRepo   ports.InstanceRows
 	ActivityScheduleRepo   timetable.ScheduleCapability
-	InstanceStaffRepo      ports.InstanceStaffRecords
+	InstanceStaffRepo      timetable.InstanceStaffCapability
 	ActivityCategoryRepo   timetable.CategoryQuery
 	PlanningTracks         ports.PlanningTrackAssignments
 	ActivityGroupRepo      ports.GroupRows

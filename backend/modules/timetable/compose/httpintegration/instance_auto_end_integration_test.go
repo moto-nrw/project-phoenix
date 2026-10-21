@@ -36,7 +36,7 @@ func TestAutoEnd_UsesAtomicManualCompletionPath(t *testing.T) {
 	require.NoError(t, err)
 	require.True(t, updated)
 
-	autoEnd := newLifecycleAutoEnd(t, fixtures.FromActivityInstanceRecords(s.timetable.ActivityInstance), s.svc)
+	autoEnd := newLifecycleAutoEnd(t, fixtures.FromActivityInstanceRecords(s.timetable.NativeInstances()), s.svc)
 	var result *timetable.AutoEndResult
 	err = testpkg.WithTenantTx(t, context.Background(), s.db, testpkg.Tenant(t), func(txCtx context.Context, _ bun.Tx) error {
 		var runErr error
@@ -47,7 +47,7 @@ func TestAutoEnd_UsesAtomicManualCompletionPath(t *testing.T) {
 	require.NotNil(t, result)
 	assert.Equal(t, 1, result.Completed)
 
-	reloaded, err := fixtures.FromActivityInstanceRecords(s.timetable.ActivityInstance).FindByID(s.ctx, instance.ID)
+	reloaded, err := fixtures.FromActivityInstanceRecords(s.timetable.NativeInstances()).FindByID(s.ctx, instance.ID)
 	require.NoError(t, err)
 	assert.Equal(t, fixtures.InstanceStatusCompleted(), reloaded.Status)
 	require.NotNil(t, reloaded.CompletedAt)
@@ -81,7 +81,7 @@ func TestAutoEnd_ConcurrentManualCompletionHasOneWinner(t *testing.T) {
 	instance := seedInstance(t, s, true, false)
 	_, err := svc.Start(s.ctx, instance.ID, s.staffID)
 	require.NoError(t, err)
-	autoEnd := newLifecycleAutoEnd(t, fixtures.FromActivityInstanceRecords(s.timetable.ActivityInstance), svc)
+	autoEnd := newLifecycleAutoEnd(t, fixtures.FromActivityInstanceRecords(s.timetable.NativeInstances()), svc)
 	start := make(chan struct{})
 	manualErr := make(chan error, 1)
 	autoResult := make(chan *timetable.AutoEndResult, 1)
@@ -182,9 +182,9 @@ func TestAutoEnd_IsTenantIsolated(t *testing.T) {
 	})
 
 	foreignInstance.SetTenantID(foreign.TenantID)
-	require.NoError(t, fixtures.FromActivityInstanceRecords(s.timetable.ActivityInstance).Create(foreignCtx, foreignInstance))
+	require.NoError(t, fixtures.FromActivityInstanceRecords(s.timetable.NativeInstances()).Create(foreignCtx, foreignInstance))
 
-	autoEnd := newLifecycleAutoEnd(t, fixtures.FromActivityInstanceRecords(s.timetable.ActivityInstance), s.svc)
+	autoEnd := newLifecycleAutoEnd(t, fixtures.FromActivityInstanceRecords(s.timetable.NativeInstances()), s.svc)
 	var result *timetable.AutoEndResult
 	err = testpkg.WithTenantTx(t, context.Background(), s.db, testpkg.Tenant(t), func(txCtx context.Context, _ bun.Tx) error {
 		var runErr error
@@ -195,7 +195,7 @@ func TestAutoEnd_IsTenantIsolated(t *testing.T) {
 	assert.Equal(t, 1, result.Checked)
 	assert.Equal(t, 1, result.Completed)
 
-	untouched, err := fixtures.FromActivityInstanceRecords(s.timetable.ActivityInstance).FindByID(foreignCtx, foreignInstance.ID)
+	untouched, err := fixtures.FromActivityInstanceRecords(s.timetable.NativeInstances()).FindByID(foreignCtx, foreignInstance.ID)
 	require.NoError(t, err)
 	assert.Equal(t, fixtures.InstanceStatusActive(), untouched.Status)
 }
@@ -223,7 +223,7 @@ func TestAutoEnd_LeavesIndependentRoomStays(t *testing.T) {
 	roomSession := testpkg.CreateTestActiveGroup(t, s.db, roomActivity.ID, s.roomID)
 	independent := testpkg.CreateTestVisit(t, s.db, s.student2, roomSession.ID, autoEndNow.Add(-30*time.Minute), nil)
 
-	autoEnd := newLifecycleAutoEnd(t, fixtures.FromActivityInstanceRecords(s.timetable.ActivityInstance), s.svc)
+	autoEnd := newLifecycleAutoEnd(t, fixtures.FromActivityInstanceRecords(s.timetable.NativeInstances()), s.svc)
 	var result *timetable.AutoEndResult
 	err = testpkg.WithTenantTx(t, context.Background(), s.db, testpkg.Tenant(t), func(txCtx context.Context, _ bun.Tx) error {
 		var runErr error

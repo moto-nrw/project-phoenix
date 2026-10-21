@@ -17,13 +17,16 @@ import (
 // ackUnitStaffRepo stubs InstanceStaffRepository.FindByInstanceID for the
 // understaffed-acknowledgement clearing tests.
 type ackUnitStaffRepo struct {
-	ports.InstanceStaffRecords
+	timetable.InstanceStaffCapability
 	rows []*scheduleModel.InstanceStaff
 	err  error
 }
 
-func (r *ackUnitStaffRepo) FindByInstanceID(_ context.Context, _ int64) ([]*scheduleModel.InstanceStaff, error) {
-	return r.rows, r.err
+func (r *ackUnitStaffRepo) ListInstanceStaff(context.Context, timetable.InstanceStaffFilter) ([]timetable.InstanceStaff, error) {
+	if r.err != nil {
+		return nil, r.err
+	}
+	return fakeInstanceStaff(r.rows), nil
 }
 
 // UpdateColumns records the partial-update call so tests can assert the ack was
@@ -49,7 +52,7 @@ func TestClearUnderstaffedAckIfStaffed_NoAckIsNoop(t *testing.T) {
 	instanceRepo := &deleteUnitInstanceRepo{instance: inst}
 	staffRepo := &ackUnitStaffRepo{}
 	svc := &InstanceLifecycleService{deps: ports.InstanceLifecycleDependencies{
-		InstanceRepo:      instanceRepo,
+		InstanceRepo:      fakeInstanceRows(instanceRepo),
 		InstanceStaffRepo: staffRepo,
 		Protocol:          &recordingDeviationProtocol{},
 		Logger:            slog.New(slog.DiscardHandler),
@@ -70,7 +73,7 @@ func TestClearUnderstaffedAckIfStaffed_StillShortStaffedKeepsAck(t *testing.T) {
 		{StaffID: 12, IsAbsent: true, IsSubstitute: false},
 	}}
 	svc := &InstanceLifecycleService{deps: ports.InstanceLifecycleDependencies{
-		InstanceRepo:      instanceRepo,
+		InstanceRepo:      fakeInstanceRows(instanceRepo),
 		InstanceStaffRepo: staffRepo,
 		Protocol:          &recordingDeviationProtocol{},
 		Logger:            slog.New(slog.DiscardHandler),
@@ -93,7 +96,7 @@ func TestClearUnderstaffedAckIfStaffed_FullyStaffedClearsAck(t *testing.T) {
 		{StaffID: 12, IsAbsent: false, IsSubstitute: true},
 	}}
 	svc := &InstanceLifecycleService{deps: ports.InstanceLifecycleDependencies{
-		InstanceRepo:      instanceRepo,
+		InstanceRepo:      fakeInstanceRows(instanceRepo),
 		InstanceStaffRepo: staffRepo,
 		Protocol:          events,
 		Logger:            slog.New(slog.DiscardHandler),
@@ -118,7 +121,7 @@ func TestClearUnderstaffedAckIfStaffed_LoadStaffError(t *testing.T) {
 	instanceRepo := &deleteUnitInstanceRepo{instance: inst}
 	staffRepo := &ackUnitStaffRepo{err: errors.New("staff load failed")}
 	svc := &InstanceLifecycleService{deps: ports.InstanceLifecycleDependencies{
-		InstanceRepo:      instanceRepo,
+		InstanceRepo:      fakeInstanceRows(instanceRepo),
 		InstanceStaffRepo: staffRepo,
 		Protocol:          &recordingDeviationProtocol{},
 		Logger:            slog.New(slog.DiscardHandler),
@@ -135,7 +138,7 @@ func TestClearUnderstaffedAckIfStaffed_LoadInstanceError(t *testing.T) {
 
 	instanceRepo := &deleteUnitInstanceRepo{findErr: errors.New("instance load failed")}
 	svc := &InstanceLifecycleService{deps: ports.InstanceLifecycleDependencies{
-		InstanceRepo:      instanceRepo,
+		InstanceRepo:      fakeInstanceRows(instanceRepo),
 		InstanceStaffRepo: &ackUnitStaffRepo{},
 		Logger:            slog.New(slog.DiscardHandler),
 	}}
@@ -155,7 +158,7 @@ func TestClearUnderstaffedAckIfStaffed_UpdatePersistError(t *testing.T) {
 		{StaffID: 11, IsAbsent: false, IsSubstitute: false},
 	}}
 	svc := &InstanceLifecycleService{deps: ports.InstanceLifecycleDependencies{
-		InstanceRepo:      instanceRepo,
+		InstanceRepo:      fakeInstanceRows(instanceRepo),
 		InstanceStaffRepo: staffRepo,
 		Protocol:          &recordingDeviationProtocol{},
 		Logger:            slog.New(slog.DiscardHandler),

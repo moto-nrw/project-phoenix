@@ -59,8 +59,8 @@ type materializationService struct {
 	supervisorRepo timetable.PlannedSupervisorQuery
 	directories    ports.RepositoryDirectories
 	periodRepo     ports.CalendarPeriodRecords
-	instanceRepo   ports.ActivityInstanceRecords
-	staffRepo      ports.InstanceStaffRecords
+	instanceRepo   ports.InstanceRows
+	staffRepo      timetable.InstanceStaffCapability
 	studentRepo    ports.InstanceStudentRecords
 	careBounds     ports.CareBoundReader
 	nonWorkingDays timetable.NonWorkingDayCalendar // nil skips no holidays or closing days (#3594)
@@ -75,7 +75,7 @@ type materializationService struct {
 // NewMaterialization composes the Timetable owner's recurrence engine.
 func NewMaterialization(deps ports.MaterializationDependencies) (timetable.MaterializationCapability, error) {
 	if deps.GroupRepo == nil || deps.ScheduleRepo == nil || deps.EnrollmentRepo == nil || deps.SupervisorRepo == nil ||
-		deps.PeriodRepo == nil || deps.InstanceRepo == nil || deps.StaffRepo == nil || deps.StudentRepo == nil ||
+		deps.PeriodRepo == nil || noInstanceRows(deps.InstanceRepo) || deps.StaffRepo == nil || deps.StudentRepo == nil ||
 		deps.ExceptionRepo == nil || deps.TimeframeRepo == nil {
 		return nil, errors.New("timetable materialization: required repository is nil")
 	}
@@ -295,7 +295,7 @@ func (s *materializationService) loadMaterializationWorld(
 	if err != nil {
 		return nil, &ports.ScheduleError{Op: "materialize for tenant: load non-working days", Err: err}
 	}
-	existing, err := s.instanceRepo.FindByTenantAndDateRange(ctx, calendar.Date(from), calendar.Date(to))
+	existing, err := instancesBetween(ctx, s.instanceRepo.Reads, calendar.Date(from), calendar.Date(to))
 	if err != nil {
 		return nil, &ports.ScheduleError{Op: "materialize for tenant: load existing instances", Err: err}
 	}
@@ -549,7 +549,7 @@ func (s *materializationService) materializeCandidate(
 	}
 
 	instance := materializedInstance(tmpl, date, period, effective)
-	inserted, err := s.instanceRepo.CreateTemplateBackedIfAbsent(ctx, instance)
+	inserted, err := createTemplateBackedInstanceIfAbsent(ctx, s.instanceRepo, instance)
 	if err != nil {
 		return createInstanceError(ctx, tmpl, sch, date, period, effective, err)
 	}
@@ -710,7 +710,7 @@ func (s *materializationService) copySupervisors(
 			IsSubstitute: false,
 			IsAbsent:     false,
 		}
-		if err := s.staffRepo.Create(ctx, row); err != nil {
+		if err := createLegacyInstanceStaff(ctx, s.staffRepo, row); err != nil {
 			return &ports.ScheduleError{Op: "materialize template: copy supervisor", Err: err}
 		}
 		result.InstanceStaffCreated++

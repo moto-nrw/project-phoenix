@@ -152,7 +152,7 @@ func NewTimetableTestModule(db transactionruntime.Database, unit tenant.UnitOfWo
 	}
 	recovery := arrivalTimetable.NewRetainedActivityRecoveryRepository(db.Pool(), r.InstanceStudent)
 	conflicts, err := owners.NewTimetableConflictDetection(timetablePorts.ConflictDetectionDependencies{
-		Instances: r.ActivityInstance, InstanceStaff: r.InstanceStaff, InstanceStudents: r.InstanceStudent,
+		Instances: r.ActivityInstance.Reads, InstanceStaff: r.InstanceStaff, InstanceStudents: r.InstanceStudent,
 		Exceptions: r.ActivityException, Schedules: r.ActivitySchedule, Staff: owners.NewTimetableStaff(members.Staff), CalendarPeriods: r.CalendarPeriod,
 		ArrivalExceptions: r.StudentArrivalException, Sessions: presence.ActiveGroup, Shifts: r.StaffShift,
 		Presence: owners.NewLoggedStudentPresence(db, logger), Logger: logger,

@@ -11,20 +11,6 @@ import (
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 )
 
-// OperationInstances reads the blocks of the retained activity instance
-// repository.
-type OperationInstances interface {
-	FindByID(ctx context.Context, id int64) (*scheduleModels.ActivityInstance, error)
-	FindByTenantAndDate(ctx context.Context, date calendar.Date) ([]*scheduleModels.ActivityInstance, error)
-	FindByActiveGroupID(ctx context.Context, activeGroupID int64) (*scheduleModels.ActivityInstance, error)
-}
-
-// OperationInstanceStaff reads the staff rows of blocks.
-type OperationInstanceStaff interface {
-	FindByInstanceID(ctx context.Context, instanceID int64) ([]*scheduleModels.InstanceStaff, error)
-	FindByInstanceIDs(ctx context.Context, instanceIDs []int64) ([]*scheduleModels.InstanceStaff, error)
-}
-
 // OperationParticipants reads and patches the participant rows of blocks.
 type OperationParticipants interface {
 	FindByInstanceID(ctx context.Context, instanceID int64) ([]*scheduleModels.InstanceStudent, error)
@@ -191,8 +177,8 @@ type RequestClaims struct {
 // optional too. Every other collaborator is required. BlockMetadata names
 // the room and planning track of the planned blocks (#4413).
 type OperationDependencies struct {
-	Instances            OperationInstances
-	InstanceStaff        OperationInstanceStaff
+	Instances            LegacyInstanceReads
+	InstanceStaff        timetable.InstanceStaffQuery
 	Participants         OperationParticipants
 	Templates            timetable.ActivityGroupQuery
 	PlanningTracks       timetable.PlanningTrackQuery

@@ -19,8 +19,8 @@ import (
 // start. Conflicts is the owner's start check (#3550), the one the manual
 // start runs too.
 type InstanceAutoStartDependencies struct {
-	InstanceRepo      ports.ActivityInstanceRecords
-	InstanceStaffRepo ports.InstanceStaffRecords
+	InstanceRepo      ports.InstanceRows
+	InstanceStaffRepo timetable.InstanceStaffCapability
 	Lifecycle         timetable.InstanceLifecycle
 	Rooms             ports.LifecycleRooms
 	Conflicts         timetable.StartConflictQuery
@@ -35,7 +35,7 @@ type instanceAutoStart struct {
 // deliberately conservative: it only starts running planned slots with at
 // least one present staff assignment and no start conflicts.
 func NewInstanceAutoStart(deps InstanceAutoStartDependencies) (timetable.InstanceAutoStart, error) {
-	if deps.InstanceRepo == nil || deps.InstanceStaffRepo == nil || deps.Lifecycle == nil || deps.Rooms == nil || deps.Conflicts == nil {
+	if noInstanceRows(deps.InstanceRepo) || deps.InstanceStaffRepo == nil || deps.Lifecycle == nil || deps.Rooms == nil || deps.Conflicts == nil {
 		return nil, errors.New("timetable auto-start: required dependency is nil")
 	}
 	deps.Logger = OrDefaultLogger(deps.Logger)
@@ -51,7 +51,7 @@ func (s *instanceAutoStart) RunForTenant(ctx context.Context, now time.Time) (*t
 		result.DurationMS = time.Since(startedAt).Milliseconds()
 	}()
 	today := calendar.DateFromTime(now)
-	instances, err := s.InstanceRepo.FindByTenantAndDate(ctx, calendar.Date(today))
+	instances, err := instancesOn(ctx, s.InstanceRepo.Reads, calendar.Date(today))
 	if err != nil {
 		return result, fmt.Errorf("load today's activity instances: %w", err)
 	}
@@ -100,7 +100,7 @@ func (s *instanceAutoStart) plannedStaffCounts(ctx context.Context, instances []
 			return nil, fmt.Errorf("load rooms for auto-start: room %d not found", roomID)
 		}
 	}
-	staffCounts, err := s.InstanceStaffRepo.CountNonAbsentByInstanceIDs(ctx, plannedIDs)
+	staffCounts, err := countLegacyNonAbsentInstanceStaff(ctx, s.InstanceStaffRepo, plannedIDs)
 	if err != nil {
 		return nil, fmt.Errorf("count assigned staff for auto-start: %w", err)
 	}

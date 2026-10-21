@@ -41,7 +41,7 @@ type CorrectionPeople interface {
 // read-only test facades.
 type AttendanceCorrectionDependencies struct {
 	Participants InstanceStudentRecords
-	Instances    ActivityInstanceRecords
+	Instances    InstanceRows
 	Trail        AttendanceCorrectionTrail
 	People       CorrectionPeople
 	Locks        AttendanceLocks

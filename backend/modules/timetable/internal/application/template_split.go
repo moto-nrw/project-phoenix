@@ -52,7 +52,7 @@ type TemplateSplitDependencies struct {
 	EnrollmentRepo       timetable.StudentEnrollmentCapability
 	SupervisorRepo       timetable.PlannedSupervisorCapability
 	Directories          ports.RepositoryDirectories
-	InstanceRepo         ports.ActivityInstanceRecords
+	InstanceRepo         ports.InstanceRows
 	TimeframeRepo        timetable.TimeframeCapability
 	Materialization      timetable.MaterializationCapability
 	Deviations           ports.SeriesDeviations
@@ -77,7 +77,7 @@ type TemplateSplitService struct {
 // no sensible degraded mode, so every required dependency must be wired.
 func NewTemplateSplitService(deps TemplateSplitDependencies) (*TemplateSplitService, error) {
 	if deps.GroupRepo == nil || deps.CategoryRepo == nil || deps.ScheduleRepo == nil || deps.EnrollmentRepo == nil ||
-		deps.SupervisorRepo == nil || deps.InstanceRepo == nil || deps.TimeframeRepo == nil ||
+		deps.SupervisorRepo == nil || noInstanceRows(deps.InstanceRepo) || deps.TimeframeRepo == nil ||
 		deps.Materialization == nil || deps.Deviations == nil || deps.RecurrenceLock == nil ||
 		deps.CareOfferings.ValidateSeries == nil || deps.CareOfferings.ValidateOfferingSource == nil || deps.Transactions == nil {
 		return nil, errors.New("timetable template split: required dependency is nil")
@@ -396,7 +396,7 @@ func (s *TemplateSplitService) splitInTransaction(
 // from the new template's materialized successor and show as a duplicate
 // block (#1840).
 func (s *TemplateSplitService) deleteSplitSourceInstances(ctx context.Context, oldID int64, effectiveDate calendar.Date) (int64, error) {
-	deleted, err := s.deps.InstanceRepo.DeletePlannedNonSpontaneousInWindow(ctx, calendar.Date(effectiveDate), nil, &oldID, false)
+	deleted, err := deletePlannedInstancesInWindow(ctx, s.deps.InstanceRepo.Plans, calendar.Date(effectiveDate), nil, &oldID, false)
 	if err != nil {
 		return 0, &ports.ScheduleError{Op: "split template: delete planned instances", Err: err}
 	}
