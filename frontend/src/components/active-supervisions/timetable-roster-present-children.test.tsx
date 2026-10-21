@@ -39,7 +39,6 @@ function renderRoster(
 ) {
   return render(
     <TimetableRosterContent
-      addStudentResults={[]}
       addStudentSearch=""
       attendanceWebEnabled
       isAddingStudent={false}

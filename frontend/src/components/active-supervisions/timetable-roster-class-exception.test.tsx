@@ -79,7 +79,6 @@ const classExceptionWarning: TimetableRosterRow["warnings"] = [
 function renderRoster(value: TimetableRoster) {
   return render(
     <TimetableRosterContent
-      addStudentResults={[]}
       addStudentSearch=""
       attendanceWebEnabled
       isAddingStudent={false}

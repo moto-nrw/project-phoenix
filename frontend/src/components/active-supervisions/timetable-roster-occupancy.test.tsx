@@ -30,7 +30,6 @@ const roster: TimetableRoster = {
 function renderHead(occupancy?: Occupancy) {
   render(
     <TimetableRosterContent
-      addStudentResults={[]}
       addStudentSearch=""
       attendanceWebEnabled={false}
       isAddingStudent={false}
