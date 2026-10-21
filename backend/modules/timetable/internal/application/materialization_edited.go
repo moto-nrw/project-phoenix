@@ -107,7 +107,7 @@ func (s *materializationService) loadPlannedOccurrences(
 	templateID int64,
 	from, to calendar.Date,
 ) ([]*schedule.ActivityInstance, []int64, error) {
-	instances, err := s.instanceRepo.FindByActivityGroupAndDateRange(ctx, templateID, calendar.Date(from), calendar.Date(to))
+	instances, err := groupInstancesBetween(ctx, s.instanceRepo.Reads, templateID, calendar.Date(from), calendar.Date(to))
 	if err != nil {
 		return nil, nil, &ports.ScheduleError{Op: "detect edited: load instances", Err: err}
 	}
@@ -286,7 +286,7 @@ func (p *templateProjection) expectedSlotsOn(
 
 // staffRosterByInstance batch-loads instance_staff rows grouped by instance.
 func (s *materializationService) staffRosterByInstance(ctx context.Context, ids []int64) (map[int64][]*schedule.InstanceStaff, error) {
-	rows, err := s.staffRepo.FindByInstanceIDs(ctx, ids)
+	rows, err := staffOfInstances(ctx, s.staffRepo, ids)
 	if err != nil {
 		return nil, &ports.ScheduleError{Op: "detect edited: load staff rosters", Err: err}
 	}

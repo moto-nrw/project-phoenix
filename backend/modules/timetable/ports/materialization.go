@@ -31,8 +31,8 @@ type MaterializationDependencies struct {
 	// the planned supervisors' persons.
 	Directories    RepositoryDirectories
 	PeriodRepo     CalendarPeriodRecords
-	InstanceRepo   ActivityInstanceRecords
-	StaffRepo      InstanceStaffRecords
+	InstanceRepo   InstanceRows
+	StaffRepo      timetable.InstanceStaffCapability
 	StudentRepo    InstanceStudentRecords
 	ExceptionRepo  timetable.ActivityExceptionQuery
 	TimeframeRepo  timetable.TimeframeQuery

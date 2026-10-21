@@ -30,14 +30,14 @@ func (s *operations) Roster(ctx context.Context, accountID int64, isAdmin bool, 
 }
 
 func (s *operations) RosterByActiveGroup(ctx context.Context, accountID int64, isAdmin bool, activeGroupID int64) (*timetable.OperationRoster, error) {
-	inst, err := s.deps.Instances.FindByActiveGroupID(ctx, activeGroupID)
+	rows, err := s.deps.Instances.ListLegacyInstances(ctx, ports.LegacyInstanceFilter{ActiveGroupIDs: []int64{activeGroupID}, Limit: 1})
 	if err != nil {
-		return nil, err
+		return nil, WrapDatabaseError("find by active group id", err)
 	}
-	if inst == nil {
+	if len(rows) == 0 || rows[0] == nil {
 		return nil, timetable.ErrTimetableOperationNotFound
 	}
-	return s.Roster(ctx, accountID, isAdmin, inst.ID)
+	return s.Roster(ctx, accountID, isAdmin, rows[0].ID)
 }
 
 // rosterWithActionAccess adds the caller's action rights; reads and write

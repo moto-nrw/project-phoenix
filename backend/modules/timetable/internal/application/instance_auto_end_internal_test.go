@@ -14,7 +14,7 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func newTestAutoEnd(t *testing.T, instances ports.ActivityInstanceRecords, completion timetable.InstanceLifecycle) timetable.InstanceAutoEnd {
+func newTestAutoEnd(t *testing.T, instances ports.LegacyInstanceReads, completion timetable.InstanceLifecycle) timetable.InstanceAutoEnd {
 	t.Helper()
 	svc, err := NewInstanceAutoEnd(instances, completion)
 	require.NoError(t, err)

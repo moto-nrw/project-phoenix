@@ -3,7 +3,6 @@ package application
 import (
 	"context"
 	"errors"
-	"fmt"
 	"log/slog"
 	"time"
 
@@ -50,7 +49,7 @@ func NewInstanceLifecycle(deps ports.InstanceLifecycleDependencies) (*InstanceLi
 }
 
 func lifecycleRepositoriesWired(deps ports.InstanceLifecycleDependencies) bool {
-	return deps.InstanceRepo != nil && deps.IdempotencyRepo != nil && deps.InstanceStaffRepo != nil &&
+	return !noInstanceRows(deps.InstanceRepo) && deps.IdempotencyRepo != nil && deps.InstanceStaffRepo != nil &&
 		deps.InstanceStudents != nil && deps.ExceptionRepo != nil && deps.CalendarPeriodRepo != nil &&
 		deps.RecoveryRepo != nil && deps.ActivityGroupRepo != nil && deps.StaffRepo != nil && deps.StudentRepo != nil
 }
@@ -170,7 +169,7 @@ func (s *InstanceLifecycleService) lockRecurrenceThenGradeTransitions(ctx contex
 // transitions. The retained repository wraps sql.ErrNoRows, so IsNoRows
 // unwraps it.
 func (s *InstanceLifecycleService) loadForTransition(ctx context.Context, instanceID int64) (*scheduleModel.ActivityInstance, error) {
-	instance, err := s.deps.InstanceRepo.FindByID(ctx, instanceID)
+	instance, err := findLegacyInstance(ctx, s.deps.InstanceRepo.Reads, instanceID)
 	if err != nil {
 		if domain.IsRecordNotFound(err) {
 			return nil, timetable.ErrInstanceNotFound
@@ -191,7 +190,7 @@ func (s *InstanceLifecycleService) updateLifecycleColumns(ctx context.Context, i
 	if len(columns) == 0 {
 		return nil
 	}
-	_, err := s.deps.InstanceRepo.UpdateColumns(ctx, instance, columns...)
+	_, err := updateLegacyInstanceColumns(ctx, s.deps.InstanceRepo, instance, columns...)
 	return err
 }
 
@@ -225,15 +224,6 @@ func LifecycleInstanceOf(row *scheduleModel.ActivityInstance) *timetable.Lifecyc
 		IsSpontaneous: row.IsSpontaneous, UnderstaffedAck: row.UnderstaffedAck, UnderstaffedNote: row.UnderstaffedNote,
 		ActiveGroupID: row.ActiveGroupID, StartedAt: row.StartedAt, CompletedAt: row.CompletedAt, ReopenUntil: row.ReopenUntil,
 	}
-}
-
-// listInstances retains the missing-capability error while requiring a bounded query.
-func listInstances(ctx context.Context, repository any, filter ports.LegacyInstanceFilter) ([]*scheduleModel.ActivityInstance, error) {
-	lister, ok := repository.(ports.InstanceListing)
-	if !ok {
-		return nil, fmt.Errorf("legacy list capability is not configured for %T", repository)
-	}
-	return lister.ListInstances(ctx, filter)
 }
 
 func instanceRowIDs(instances []*scheduleModel.ActivityInstance) []int64 {

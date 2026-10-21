@@ -148,7 +148,7 @@ func TestTimetableOperationsLoadInstancePropagatesRepositoryErrors(t *testing.T)
 
 	inst, err := deps.service.loadInstance(context.Background(), 417)
 
-	require.EqualError(t, err, "db down")
+	require.EqualError(t, err, "database error during find by id: db down")
 	assert.Nil(t, inst)
 }
 

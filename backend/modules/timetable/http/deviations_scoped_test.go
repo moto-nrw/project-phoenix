@@ -655,8 +655,11 @@ func assertStaffMissing(t *testing.T, rows []timetable.InstanceStaff, staffID in
 func stampInstanceStaffSickAbsence(t *testing.T, db *bun.DB, ctx context.Context, rowID int64, sickAbsenceID *int64) {
 	t.Helper()
 	repo := timetableAPI.BoundTimetableRepositories(db).InstanceStaff
-	stored, err := repo.FindByID(ctx, rowID)
+	stored, err := repo.FindInstanceStaff(ctx, rowID)
 	require.NoError(t, err)
-	stored.SickAbsenceID = sickAbsenceID
-	require.NoError(t, repo.Update(ctx, stored))
+	_, err = repo.UpdateInstanceStaff(ctx, stored.ID, timetable.InstanceStaffInput{
+		InstanceID: stored.InstanceID, StaffID: stored.StaffID, RoomID: stored.RoomID, IsPrimary: stored.IsPrimary,
+		IsSubstitute: stored.IsSubstitute, IsAbsent: stored.IsAbsent, AbsenceReason: stored.AbsenceReason, SickAbsenceID: sickAbsenceID,
+	})
+	require.NoError(t, err)
 }

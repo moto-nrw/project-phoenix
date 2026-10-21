@@ -248,7 +248,7 @@ func templateEndUnitService(
 			ScheduleRepo:   scheduleRepo,
 			EnrollmentRepo: enrollmentRepo,
 			SupervisorRepo: supervisorRepo,
-			InstanceRepo:   instanceRepo,
+			InstanceRepo:   fakeInstanceRows(instanceRepo),
 			Today:          func() calendar.Date { return calendar.NewDate(2026, 8, 24) },
 			Logger:         slog.New(slog.DiscardHandler),
 		},
@@ -359,7 +359,6 @@ func (r *templateEndUnitSupervisorRepo) CapActivePlannedSupervisors(_ context.Co
 }
 
 type templateEndUnitInstanceRepo struct {
-	ports.ActivityInstanceRecords
 	deleted            int64
 	err                error
 	from               calendar.Date

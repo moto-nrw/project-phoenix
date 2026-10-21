@@ -596,7 +596,6 @@ func (r materializationFakePeriodRepo) FindActiveByTenantID(context.Context) ([]
 }
 
 type materializationFakeInstanceRepo struct {
-	ports.ActivityInstanceRecords
 	inserted bool
 	err      error
 	findErr  error
@@ -614,10 +613,10 @@ func (r materializationFakeInstanceRepo) CreateTemplateBackedIfAbsent(context.Co
 }
 
 type materializationFakeStaffRepo struct {
-	ports.InstanceStaffRecords
+	timetable.InstanceStaffCapability
 }
 
-func (r materializationFakeStaffRepo) Create(context.Context, *schedule.InstanceStaff) error {
+func (r materializationFakeStaffRepo) CreateInstanceStaff(context.Context, timetable.InstanceStaffInput) (timetable.InstanceStaff, error) {
 	panic("staff copy must not run when instance insert loses the race")
 }
 
@@ -780,7 +779,7 @@ func TestMaterializeForTenant_PreconditionWarnings(t *testing.T) {
 			materializationFakeEnrollmentRepo{},
 			materializationFakeSupervisorRepo{},
 			materializationFakePeriodRepo{},
-			materializationFakeInstanceRepo{inserted: true},
+			fakeInstanceRows(materializationFakeInstanceRepo{inserted: true}),
 			materializationFakeStaffRepo{},
 			materializationFakeStudentRepo{},
 			materializationFakeExceptionRepo{},
@@ -810,7 +809,7 @@ func TestMaterializeForTenant_PreconditionWarnings(t *testing.T) {
 				IsActive:  true,
 				ID:        401,
 			}}},
-			materializationFakeInstanceRepo{inserted: true},
+			fakeInstanceRows(materializationFakeInstanceRepo{inserted: true}),
 			materializationFakeStaffRepo{},
 			materializationFakeStudentRepo{},
 			materializationFakeExceptionRepo{},
@@ -863,7 +862,7 @@ func TestMaterializeForTenant_ErrorBranches(t *testing.T) {
 			enrollmentRepo,
 			supervisorRepo,
 			periodRepo,
-			instanceRepo,
+			fakeInstanceRows(instanceRepo),
 			materializationFakeStaffRepo{},
 			materializationFakeStudentRepo{},
 			exceptionRepo,
@@ -1087,17 +1086,21 @@ func (r *materializationCountingStudentRepo) ApplyActivePartialAbsencesForInstan
 }
 
 type materializationCountingStaffRepo struct {
-	ports.InstanceStaffRecords
+	timetable.InstanceStaffCapability
 	rows []*schedule.InstanceStaff
 	err  error
 }
 
-func (r *materializationCountingStaffRepo) Create(_ context.Context, row *schedule.InstanceStaff) error {
+func (r *materializationCountingStaffRepo) CreateInstanceStaff(_ context.Context, input timetable.InstanceStaffInput) (timetable.InstanceStaff, error) {
 	if r.err != nil {
-		return r.err
+		return timetable.InstanceStaff{}, r.err
 	}
-	r.rows = append(r.rows, row)
-	return nil
+	created := timetable.InstanceStaff{
+		InstanceID: input.InstanceID, StaffID: input.StaffID, RoomID: input.RoomID, IsPrimary: input.IsPrimary,
+		IsSubstitute: input.IsSubstitute, IsAbsent: input.IsAbsent, AbsenceReason: input.AbsenceReason, SickAbsenceID: input.SickAbsenceID,
+	}
+	r.rows = append(r.rows, legacyInstanceStaff(created))
+	return created, nil
 }
 
 func newMaterializationBranchService(instanceRepo materializationFakeInstanceRepo) (timetable.MaterializationCapability, calendar.Date) {
@@ -1140,7 +1143,7 @@ func newMaterializationBranchServiceForSchedule(
 			IsActive:        true,
 			ID:              400,
 		}}},
-		instanceRepo,
+		fakeInstanceRows(instanceRepo),
 		materializationFakeStaffRepo{},
 		materializationFakeStudentRepo{},
 		materializationFakeExceptionRepo{},
@@ -1207,8 +1210,8 @@ func newMaterializationForTest(
 	enrollmentRepo timetable.StudentEnrollmentQuery,
 	supervisorRepo timetable.PlannedSupervisorQuery,
 	periodRepo ports.CalendarPeriodRecords,
-	instanceRepo ports.ActivityInstanceRecords,
-	staffRepo ports.InstanceStaffRecords,
+	instanceRepo ports.InstanceRows,
+	staffRepo timetable.InstanceStaffCapability,
 	studentRepo ports.InstanceStudentRecords,
 	exceptionRepo timetable.ActivityExceptionQuery,
 	timeframeRepo timetable.TimeframeQuery,

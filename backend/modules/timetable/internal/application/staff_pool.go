@@ -29,7 +29,7 @@ func (d *conflictCommands) StaffPoolForInstance(ctx context.Context, instanceID 
 }
 
 func (d *conflictDetection) StaffPoolForInstance(ctx context.Context, instanceID int64) (timetable.StaffPool, error) {
-	instance, err := d.deps.Instances.FindByID(ctx, instanceID)
+	instance, err := findLegacyInstance(ctx, d.deps.Instances, instanceID)
 	if err != nil {
 		if domain.IsRecordNotFound(err) {
 			return timetable.StaffPool{}, fmt.Errorf("%w: %w", timetable.ErrActivityInstanceNotFound, err)
@@ -61,7 +61,7 @@ func (d *conflictDetection) StaffPoolForInstance(ctx context.Context, instanceID
 // shifts, the week's Dienstplan usage and the staff directory.
 func (d *conflictDetection) loadStaffPoolFacts(ctx context.Context, instance *scheduleModels.ActivityInstance) (*staffPoolFacts, bool, []*timetable.StaffMember, error) {
 	date := instance.Date
-	sameDay, err := d.deps.Instances.FindByTenantAndDateRange(ctx, date, date)
+	sameDay, err := instancesBetween(ctx, d.deps.Instances, date, date)
 	if err != nil {
 		return nil, false, nil, fmt.Errorf("load same-day instances: %w", err)
 	}
@@ -79,7 +79,7 @@ func (d *conflictDetection) loadStaffPoolFacts(ctx context.Context, instance *sc
 			plannable = append(plannable, candidate)
 		}
 	}
-	rows, err := d.deps.InstanceStaff.FindByInstanceIDs(ctx, allIDs)
+	rows, err := staffOfInstances(ctx, d.deps.InstanceStaff, allIDs)
 	if err != nil {
 		return nil, false, nil, fmt.Errorf("load same-day assignments: %w", err)
 	}

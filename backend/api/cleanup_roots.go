@@ -92,6 +92,6 @@ func NewSessionCleanupRepositories(db transactionruntime.Database, timetableCapa
 	}
 	sessions := owners.NewSessionRecords(db, nil, fleet, rooms, timetableCapability, nil, nil)
 	devices := devicefleetRepositoryAdapter.NewDeviceRepository(fleet)
-	completion := timetableCompose.NewActivityInstanceRepository(owners.MustPresenceReads(db), timetableCapability, owners.NewUnloggedStudentPresence(db))
+	completion := timetableCompose.NewSessionInstanceCompletion(owners.NewUnloggedStudentPresence(db))
 	return sessions, devices, completion
 }

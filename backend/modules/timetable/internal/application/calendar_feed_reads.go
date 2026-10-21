@@ -3,6 +3,7 @@ package application
 import (
 	"context"
 
+	"github.com/moto-nrw/project-phoenix/modules/timetable"
 	scheduleModels "github.com/moto-nrw/project-phoenix/modules/timetable/internal/domain/schedulerecords"
 	"github.com/moto-nrw/project-phoenix/modules/timetable/ports"
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
@@ -13,16 +14,16 @@ import (
 // portal's vocabulary. A nil row listing stays nil.
 
 // FindCalendarAssignments lists the staff member's assignments in the range.
-func FindCalendarAssignments(ctx context.Context, rows ports.CalendarAssignmentRows, staffID int64, from, to string) ([]ports.CalendarAssignment, error) {
-	values, err := rows.FindByStaffAndDateRange(ctx, staffID, calendar.Date(from), calendar.Date(to))
+func FindCalendarAssignments(ctx context.Context, rows timetable.InstanceStaffQuery, staffID int64, from, to string) ([]ports.CalendarAssignment, error) {
+	values, err := assignmentsOfStaffBetween(ctx, rows, staffID, calendar.Date(from), calendar.Date(to))
 	return calendarRecords(values, func(v *scheduleModels.InstanceStaff) ports.CalendarAssignment {
 		return ports.CalendarAssignment{InstanceID: v.InstanceID, RoomID: v.RoomID, UpdatedAt: v.UpdatedAt}
 	}), err
 }
 
 // FindCalendarInstances lists the instances by ID.
-func FindCalendarInstances(ctx context.Context, rows ports.CalendarInstanceRows, ids []int64) ([]ports.CalendarInstance, error) {
-	values, err := rows.FindByIDs(ctx, ids)
+func FindCalendarInstances(ctx context.Context, rows ports.LegacyInstanceReads, ids []int64) ([]ports.CalendarInstance, error) {
+	values, err := instancesByID(ctx, rows, ids)
 	return calendarRecords(values, func(v *scheduleModels.ActivityInstance) ports.CalendarInstance {
 		return ports.CalendarInstance{
 			ID: v.ID, RoomID: v.RoomID, Title: v.Title, Status: v.Status, Description: v.Description, Date: string(v.Date),

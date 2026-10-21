@@ -373,10 +373,13 @@ func TestListInstances_StaffAndStudentCounts(t *testing.T) {
 	testpkg.CreateTestInstanceStaff(t, s.db, inst.ID, staff1.ID, testpkg.InstanceStaffOpts{IsPrimary: true})
 	sickRow := testpkg.CreateTestInstanceStaff(t, s.db, inst.ID, staff2.ID, testpkg.InstanceStaffOpts{IsAbsent: true})
 	sickAbsenceID := sickRow.ID
-	storedSickRow, err := mustTimetableTestRepositories(s.db).InstanceStaff.FindByID(s.ctx, sickRow.ID)
+	storedSickRow, err := mustTimetableTestRepositories(s.db).InstanceStaff.FindInstanceStaff(s.ctx, sickRow.ID)
 	require.NoError(t, err)
-	storedSickRow.SickAbsenceID = &sickAbsenceID
-	require.NoError(t, mustTimetableTestRepositories(s.db).InstanceStaff.Update(s.ctx, storedSickRow))
+	_, err = mustTimetableTestRepositories(s.db).InstanceStaff.UpdateInstanceStaff(s.ctx, storedSickRow.ID, timetable.InstanceStaffInput{
+		InstanceID: storedSickRow.InstanceID, StaffID: storedSickRow.StaffID, RoomID: storedSickRow.RoomID, IsPrimary: storedSickRow.IsPrimary,
+		IsSubstitute: storedSickRow.IsSubstitute, IsAbsent: storedSickRow.IsAbsent, AbsenceReason: storedSickRow.AbsenceReason, SickAbsenceID: &sickAbsenceID,
+	})
+	require.NoError(t, err)
 	testpkg.CreateTestInstanceStudent(t, s.db, inst.ID, student1.ID, timetable.SlotAttendanceExpected)
 	testpkg.CreateTestInstanceStudent(t, s.db, inst.ID, student2.ID, timetable.SlotAttendancePresent)
 

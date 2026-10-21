@@ -360,7 +360,7 @@ func newStudentTestModule(db transactionruntime.Database, unit tenant.UnitOfWork
 	}
 	scheduleSubstitution, err := shiftplansyncCompose.NewSubstitution(shiftplansyncCompose.SubstitutionDependencies{
 		Deviations: liveTimetable.Deviations, Staff: owners.NewPlanStaffDirectory(repos.Staff), Broadcaster: realtimeHub, Logger: logger.With("service", "schedule-substitution"),
-		ActivityInstances: timetableCompose.NewTimetableInstanceReads(reposTimetable.ActivityInstance),
+		ActivityInstances: timetableCompose.NewTimetableInstanceReads(reposTimetable.ActivityInstance.Reads),
 		InstanceStaff:     timetableCompose.NewTimetableInstanceStaffReads(reposTimetable.InstanceStaff),
 	})
 	if err != nil {

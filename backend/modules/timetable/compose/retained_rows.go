@@ -14,11 +14,6 @@ import (
 // the types the roots name in the ports package (#4084). The roots and the
 // suites build them through the constructors below.
 
-// ActivityInstanceDate is the retained instance date of a calendar day.
-func ActivityInstanceDate(day calendar.Date) calendar.Date {
-	return calendar.Date(day)
-}
-
 // ParseActivityInstanceDate parses a retained instance date.
 func ParseActivityInstanceDate(value string) (calendar.Date, error) {
 	return application.ParseActivityInstanceDate(value)
@@ -30,12 +25,12 @@ func WrapDatabaseError(operation string, err error) error {
 }
 
 // FindCalendarAssignments reads a staff member's instance assignments.
-func FindCalendarAssignments(ctx context.Context, rows ports.CalendarAssignmentRows, staffID int64, from, to string) ([]ports.CalendarAssignment, error) {
+func FindCalendarAssignments(ctx context.Context, rows timetable.InstanceStaffQuery, staffID int64, from, to string) ([]ports.CalendarAssignment, error) {
 	return application.FindCalendarAssignments(ctx, rows, staffID, from, to)
 }
 
 // FindCalendarInstances reads activity instances by ID.
-func FindCalendarInstances(ctx context.Context, rows ports.CalendarInstanceRows, ids []int64) ([]ports.CalendarInstance, error) {
+func FindCalendarInstances(ctx context.Context, rows ports.LegacyInstanceReads, ids []int64) ([]ports.CalendarInstance, error) {
 	return application.FindCalendarInstances(ctx, rows, ids)
 }
 
@@ -116,12 +111,12 @@ func NewTimetableGroupReads(groups timetable.ActivityGroupQuery) application.Tim
 }
 
 // NewTimetableInstanceReads reads the activity instances.
-func NewTimetableInstanceReads(instances ports.ActivityInstanceRecords) application.TimetableInstanceReads {
+func NewTimetableInstanceReads(instances ports.LegacyInstanceReads) application.TimetableInstanceReads {
 	return application.NewTimetableInstanceReads(instances)
 }
 
 // NewTimetableInstanceStaffReads reads the instance staff.
-func NewTimetableInstanceStaffReads(staff ports.InstanceStaffRecords) application.TimetableInstanceStaffReads {
+func NewTimetableInstanceStaffReads(staff timetable.InstanceStaffCapability) application.TimetableInstanceStaffReads {
 	return application.NewTimetableInstanceStaffReads(staff)
 }
 

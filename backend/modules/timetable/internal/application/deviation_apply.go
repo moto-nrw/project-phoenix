@@ -98,7 +98,7 @@ func rejectNonPositiveStaffIDs(in timetable.ApplyDeviationsInput) error {
 // loadDeviationInstance loads the target instance, mapping the absent/other-
 // tenant case to 404 and any other failure to a wrapped 500.
 func (s *staffDeviations) loadDeviationInstance(ctx context.Context, instanceID int64) (*scheduleModel.ActivityInstance, error) {
-	instance, err := s.deps.Instances.FindByID(ctx, instanceID)
+	instance, err := findLegacyInstance(ctx, s.deps.Instances.Reads, instanceID)
 	if err != nil {
 		// FindByID wraps sql.ErrNoRows in a DatabaseError (never (nil, nil)), so a
 		// stale link or deleted/other-tenant instance maps to 404 here.

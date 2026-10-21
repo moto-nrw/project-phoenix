@@ -18,15 +18,15 @@ func mirrorInstance(row *models.ActivityInstance) *timetable.ScheduledInstance {
 	value := ScheduledInstanceOf(row)
 	return &value
 }
-func NativeMirrorInstances(rows ports.ActivityInstanceRecords) *ports.MirrorInstanceRecords {
-	if rows == nil {
+func NativeMirrorInstances(rows ports.InstanceRows) *ports.MirrorInstanceRecords {
+	if noInstanceRows(rows) {
 		return nil
 	}
 	return &ports.MirrorInstanceRecords{MirrorInstances: &ports.MirrorInstances{FindByActiveGroupID: func(ctx context.Context, id int64) (*timetable.ScheduledInstance, error) {
-		row, err := rows.FindByActiveGroupID(ctx, id)
+		row, err := sessionInstance(ctx, rows.Reads, id)
 		return mirrorInstance(row), err
 	}, FindByActiveGroups: func(ctx context.Context, ids []int64) ([]*timetable.ScheduledInstance, error) {
-		rows, err := listInstances(ctx, rows, ports.LegacyInstanceFilter{ActiveGroupIDs: ids})
+		rows, err := listLegacyInstances(ctx, rows.Reads, ports.LegacyInstanceFilter{ActiveGroupIDs: ids}, "list with options")
 		if rows == nil {
 			return nil, err
 		}
@@ -41,7 +41,7 @@ func NativeMirrorInstances(rows ports.ActivityInstanceRecords) *ports.MirrorInst
 			row = &models.ActivityInstance{Date: calendar.Date(value.Date), ActivityGroupID: value.ActivityGroupID, CalendarPeriodID: value.CalendarPeriodID, Title: value.Title, Description: value.Description, StartTime: value.StartTime, EndTime: value.EndTime, RoomID: value.RoomID, RequiredStaff: value.RequiredStaff, Status: value.Status, ActiveGroupID: value.ActiveGroupID, ListKind: value.ListKind, IsSpontaneous: value.IsSpontaneous, UnderstaffedAck: value.UnderstaffedAck, UnderstaffedNote: value.UnderstaffedNote, CancelReason: value.CancelReason, Notes: value.Notes, CreatedBy: value.CreatedBy, StartedBy: value.StartedBy, StartedAt: value.StartedAt, CompletedAt: value.CompletedAt, CompletedBy: value.CompletedBy, ReopenUntil: value.ReopenUntil}
 			row.ID, row.TenantID, row.CreatedAt, row.UpdatedAt = value.ID, value.TenantID, value.CreatedAt, value.UpdatedAt
 		}
-		err := rows.Create(ctx, row)
+		err := createLegacyInstance(ctx, rows, row)
 		if value != nil && row != nil {
 			*value = *mirrorInstance(row)
 		}
@@ -51,7 +51,7 @@ func NativeMirrorInstances(rows ports.ActivityInstanceRecords) *ports.MirrorInst
 		if !ok {
 			return nil, WrapDatabaseError("find by id", fmt.Errorf("invalid activity instance id %T", id))
 		}
-		row, err := rows.FindByID(ctx, recordID)
+		row, err := findLegacyInstance(ctx, rows.Reads, recordID)
 		return mirrorInstance(row), err
 	}}
 }

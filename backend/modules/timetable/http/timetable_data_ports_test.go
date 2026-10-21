@@ -26,7 +26,7 @@ func (o testRoomOccupancy) RoomOccupied(ctx context.Context, roomID int64) (bool
 // an accidental dependency fails loudly; without Locks the attendance lock
 // and without a database the spontaneous-start locks are skipped.
 type unitDataDeps struct {
-	Instances     timetablePorts.DataInstances
+	Instances     timetablePorts.LegacyInstanceReads
 	Participants  timetablePorts.DataParticipants
 	Templates     timetablePorts.DataTemplates
 	Groups        timetablePorts.DataGroups
@@ -38,9 +38,11 @@ type unitDataDeps struct {
 }
 
 type (
-	stubDataInstances     struct{ timetablePorts.DataInstances }
+	stubDataInstances struct {
+		timetablePorts.LegacyInstanceReads
+	}
 	stubDataInstanceStaff struct {
-		timetablePorts.OperationInstanceStaff
+		timetable.InstanceStaffQuery
 	}
 	stubDataParticipants struct {
 		timetablePorts.DataParticipants

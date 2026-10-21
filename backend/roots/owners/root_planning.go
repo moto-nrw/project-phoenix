@@ -43,7 +43,7 @@ func BuildShiftPlanning(
 	repos := owner.Repositories
 	return workforceCompose.NewShiftPlanning(workforceCompose.ShiftPlanningDependencies{
 		Workforce: workTime, Staff: NewPlanStaffDirectory(people.Staff), CalendarPeriods: calendar, ShiftMoveAudit: NewShiftMoveAudit(audit.Persistence.DeviationEvent),
-		Instances:      arrivalTimetable.NewTimetableInstanceReads(repos.ActivityInstance),
+		Instances:      arrivalTimetable.NewTimetableInstanceReads(repos.ActivityInstance.Reads),
 		InstanceStaff:  arrivalTimetable.NewTimetableInstanceStaffReads(repos.InstanceStaff),
 		Rooms:          facilitiesCompose.NewRoomNameDirectory(facilitiesCompose.NewRoomRecords(rooms)),
 		ActivityGroups: arrivalTimetable.NewTimetableGroupReads(repos.Timetable),

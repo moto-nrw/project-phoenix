@@ -50,7 +50,7 @@ func calendarTestConfig(t *testing.T, db *bun.DB) calendarCompose.Config {
 	cfg := owners.NewCalendarFacts(reposPeople.Staff, reposPeople.Student,
 		owners.NewCalendarGuardianDirectory(reposPeople.GuardianProfile, owners.MustNewPeopleDirectory(testpkg.MustDatabase(db))),
 		reposPeople.StudentGuardian, reposParents.ParentChildLinks(), owners.NewSchoolStructureSuiteRepositories(testpkg.NewDatabase(t, db)).Group)
-	cfg = owners.BindCalendarScheduleFacts(cfg, reposTimetable.InstanceStaff, reposTimetable.ActivityInstance, reposRooms.Room, reposTimetable.StaffShift, reposTimetable.ShiftType)
+	cfg = owners.BindCalendarScheduleFacts(cfg, reposTimetable.InstanceStaff, reposTimetable.ActivityInstance.Reads, reposRooms.Room, reposTimetable.StaffShift, reposTimetable.ShiftType)
 	cfg = owners.BindCalendarCaller(cfg, userContext)
 	cfg.Now = func() time.Time { return time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC) }
 	cfg.Today = func() appointments.Date { return appointments.Date(calendar.NewDate(2026, time.January, 1)) }
@@ -992,10 +992,7 @@ func TestCalendarServiceIntegration_StaffSubscriptionRetainsRemovedScheduleEvent
 	assert.Contains(t, before, fmt.Sprintf("UID:timetable-%d-%d@moto-app.de", instance.ID, testpkg.Tenant(t)))
 	assert.Contains(t, before, fmt.Sprintf("UID:shift-%d-%d@moto-app.de", shift.ID, testpkg.Tenant(t)))
 
-	storedAssignment, err := reposTimetable.InstanceStaff.FindByID(testpkg.Ctx(t), assignment.ID)
-	require.NoError(t, err)
-	storedAssignment.StaffID = otherStaff.ID
-	require.NoError(t, reposTimetable.InstanceStaff.Update(testpkg.Ctx(t), storedAssignment))
+	require.NoError(t, api.ReassignInstanceStaffForTest(testpkg.Ctx(t), reposTimetable.InstanceStaff, assignment.ID, otherStaff.ID))
 	require.NoError(t, reposTimetable.StaffShift.Delete(testpkg.Ctx(t), shift.ID))
 
 	_, after, err := service.StaffCalendarFeedByToken(testpkg.Ctx(t), token)
@@ -1153,7 +1150,7 @@ func TestCalendarServiceIntegration_CleanupExpiredFeedTombstonesDeletesStaffTomb
 	room := testpkg.CreateTestRoom(t, db, "Cleanup-Raum")
 	instance := testpkg.CreateTestActivityInstance(t, db, day, room.ID, testpkg.ActivityInstanceOpts{})
 	assignment := testpkg.CreateTestInstanceStaff(t, db, instance.ID, staff.ID, testpkg.InstanceStaffOpts{})
-	require.NoError(t, reposTimetable.InstanceStaff.Delete(testpkg.Ctx(t), assignment.ID))
+	require.NoError(t, reposTimetable.InstanceStaff.DeleteInstanceStaff(testpkg.Ctx(t), assignment.ID))
 
 	expired := time.Now().AddDate(0, 0, -91)
 	_, err = db.NewUpdate().Table("calendar.appointments").

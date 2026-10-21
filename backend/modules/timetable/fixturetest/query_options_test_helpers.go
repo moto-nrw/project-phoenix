@@ -6,7 +6,6 @@ import (
 	"errors"
 	"fmt"
 
-	"github.com/moto-nrw/project-phoenix/modules/timetable"
 	"github.com/moto-nrw/project-phoenix/modules/timetable/ports"
 
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
@@ -142,10 +141,6 @@ func appendActivityInstanceIDs(target *[]int64, values []interface{}) error {
 	return nil
 }
 
-func InstanceStaffListOptions(options *QueryOptions) (timetable.InstanceStaffFilter, error) {
-	return narrowListOptions(options, "instance staff", func(f *timetable.InstanceStaffFilter, limit, offset int) { f.Limit, f.Offset = limit, offset }, nil, applyInstanceStaffCondition)
-}
-
 func InstanceStudentListOptions(options *QueryOptions) (ports.ParticipantListingFilter, error) {
 	return narrowListOptions(options, "instance student", func(f *ports.ParticipantListingFilter, limit, offset int) { f.Limit, f.Offset = limit, offset }, nil, applyInstanceStudentCondition)
 }
@@ -195,49 +190,6 @@ func assignInstanceStudentID(result *ports.ParticipantListingFilter, field strin
 		result.StudentIDs = append(result.StudentIDs, id)
 	default:
 		return errors.New("instance student filter is unsupported")
-	}
-	return nil
-}
-
-func applyInstanceStaffCondition(result *timetable.InstanceStaffFilter, condition ListCondition) error {
-	if condition.Operator == ListOpEqual {
-		id, ok := condition.Value.(int64)
-		if !ok {
-			return errors.New("instance staff filter is unsupported")
-		}
-		return assignInstanceStaffID(result, condition.Field, id)
-	}
-	if condition.Operator != ListOpIn {
-		return errors.New("instance staff filter is unsupported")
-	}
-	values, ok := condition.Value.([]interface{})
-	if !ok || condition.Field == "sick_absence_id" {
-		return errors.New("instance staff filter is unsupported")
-	}
-	for _, value := range values {
-		id, idOK := value.(int64)
-		if !idOK {
-			return errors.New("instance staff filter is unsupported")
-		}
-		if err := assignInstanceStaffID(result, condition.Field, id); err != nil {
-			return err
-		}
-	}
-	return nil
-}
-
-func assignInstanceStaffID(result *timetable.InstanceStaffFilter, field string, id int64) error {
-	switch field {
-	case "id":
-		result.IDs = append(result.IDs, id)
-	case "instance_id":
-		result.InstanceIDs = append(result.InstanceIDs, id)
-	case "staff_id":
-		result.StaffIDs = append(result.StaffIDs, id)
-	case "sick_absence_id":
-		result.SickAbsenceID = &id
-	default:
-		return errors.New("instance staff filter is unsupported")
 	}
 	return nil
 }

@@ -46,7 +46,7 @@ func (d *conflictDetection) DetectPlannedConflicts(ctx context.Context, probe ti
 // date anchors.
 func (d *conflictDetection) loadOverlappingInstances(ctx context.Context, probe timetable.PlannedConflictProbe) []*scheduleModels.ActivityInstance {
 	day := calendar.Date(probe.Date)
-	instances, err := d.deps.Instances.FindByTenantAndDateRange(ctx, day, day)
+	instances, err := instancesBetween(ctx, d.deps.Instances, day, day)
 	if err != nil {
 		d.logger.Warn("planned conflict detection: load day instances failed",
 			slog.String("date", probe.Date.String()),
@@ -89,7 +89,7 @@ func (d *conflictDetection) plannedStaffConflicts(
 	if len(probe.StaffIDs) == 0 {
 		return nil
 	}
-	rows, err := d.deps.InstanceStaff.FindByInstanceIDs(ctx, overlappingIDs)
+	rows, err := staffOfInstances(ctx, d.deps.InstanceStaff, overlappingIDs)
 	if err != nil {
 		d.logger.Warn("planned conflict detection: load instance_staff failed",
 			slog.String("date", probe.Date.String()),

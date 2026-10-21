@@ -79,9 +79,9 @@ type LifecycleStudents interface {
 // notice); Settings is required with EnforceTimePolicy; Logger and Now
 // default. Every other field is required.
 type InstanceLifecycleDependencies struct {
-	InstanceRepo        ActivityInstanceRecords
+	InstanceRepo        InstanceRows
 	IdempotencyRepo     timetable.ActivityInstanceCommand
-	InstanceStaffRepo   InstanceStaffRecords
+	InstanceStaffRepo   timetable.InstanceStaffCapability
 	InstanceStudents    InstanceStudentRecords
 	ExceptionRepo       timetable.ActivityExceptionCapability
 	CalendarPeriodRepo  CalendarPeriodRecords
