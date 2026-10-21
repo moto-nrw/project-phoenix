@@ -53,7 +53,7 @@ const materializeForTenantOp = "materialize for tenant"
 
 // materializationService is the concrete implementation.
 type materializationService struct {
-	groupRepo      ports.ActivityGroupRecords
+	groupRepo      timetable.ActivityGroupQuery
 	scheduleRepo   timetable.ScheduleQuery
 	enrollmentRepo ports.ActivityEnrollmentRecords
 	supervisorRepo ports.PlannedSupervisorRecords
@@ -263,7 +263,8 @@ func (s *materializationService) loadMaterializationPreconditions(
 		})
 		return nil, nil, true, nil
 	}
-	templates, err := s.groupRepo.FindAllTemplates(ctx)
+	isTemplate := true
+	templates, err := listLegacyGroups(ctx, s.groupRepo, timetable.GroupFilter{IsTemplate: &isTemplate, ActiveOnly: true, OrderByName: true}, "find all templates")
 	if err != nil {
 		return nil, nil, false, &ports.ScheduleError{Op: "materialize for tenant: load templates", Err: err}
 	}
@@ -380,12 +381,9 @@ func (s *materializationService) loadTemplatePeople(ctx context.Context, templat
 	if err != nil {
 		return templateRoster{}, &ports.ScheduleError{Op: op + ": load enrollments", Err: err}
 	}
-	targetStudentIDs := make([]int64, 0)
-	if targetRepo, ok := s.groupRepo.(ports.ActivityGroupTargets); ok {
-		targetStudentIDs, err = targetRepo.FindTargetStudentIDs(ctx, templateID)
-		if err != nil {
-			return templateRoster{}, &ports.ScheduleError{Op: op + ": load target students", Err: err}
-		}
+	targetStudentIDs, err := listTargetStudentIDs(ctx, s.groupRepo, templateID)
+	if err != nil {
+		return templateRoster{}, &ports.ScheduleError{Op: op + ": load target students", Err: err}
 	}
 	supervisors, err := s.supervisorRepo.FindByGroupID(ctx, templateID)
 	if err != nil {

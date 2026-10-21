@@ -520,16 +520,29 @@ func TestIsoWeekday(t *testing.T) {
 }
 
 type materializationFakeGroupRepo struct {
-	ports.ActivityGroupRecords
+	timetable.ActivityGroupQuery
 	templates []*activityContract.Group
 	err       error
 }
 
-func (r materializationFakeGroupRepo) FindAllTemplates(context.Context) ([]*activityContract.Group, error) {
+func (r materializationFakeGroupRepo) ListGroups(context.Context, timetable.GroupFilter) ([]timetable.Group, error) {
 	if r.err != nil {
 		return nil, r.err
 	}
-	return r.templates, nil
+	return fakeCatalogGroups(r.templates), nil
+}
+
+// ListTargetStudentIDs reports no dynamic targets.
+func (r materializationFakeGroupRepo) ListTargetStudentIDs(context.Context, []int64) (map[int64][]int64, error) {
+	return map[int64][]int64{}, nil
+}
+
+func fakeCatalogGroups(rows []*activityContract.Group) []timetable.Group {
+	groups := make([]timetable.Group, 0, len(rows))
+	for _, row := range rows {
+		groups = append(groups, CatalogGroup(row))
+	}
+	return groups
 }
 
 type materializationFakeScheduleRepo struct {
@@ -1189,7 +1202,7 @@ func TestScheduleNotStartedOn(t *testing.T) {
 // newMaterializationForTest composes the materialization over fakes;
 // transactions and staffing may be nil.
 func newMaterializationForTest(
-	groupRepo ports.ActivityGroupRecords,
+	groupRepo timetable.ActivityGroupQuery,
 	scheduleRepo timetable.ScheduleQuery,
 	enrollmentRepo ports.ActivityEnrollmentRecords,
 	supervisorRepo ports.PlannedSupervisorRecords,

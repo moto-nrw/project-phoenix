@@ -40,13 +40,20 @@ func seriesMockUntil() calendar.Date { return calendar.NewDate(2026, 8, 24).AddD
 // ---------------------------------------------------------------- fakes ----
 
 type seriesMockGroupRepo struct {
-	ports.ActivityGroupRecords
+	ports.GroupRows
 	groups []*activityContract.Group
 	err    error
 }
 
-func (r *seriesMockGroupRepo) FindTemplateSeries(context.Context, int64) ([]*activityContract.Group, error) {
-	return r.groups, r.err
+func (r *seriesMockGroupRepo) ListGroups(context.Context, timetable.GroupFilter) ([]timetable.Group, error) {
+	if r.err != nil {
+		return nil, r.err
+	}
+	groups := make([]timetable.Group, 0, len(r.groups))
+	for _, group := range r.groups {
+		groups = append(groups, CatalogGroup(group))
+	}
+	return groups, nil
 }
 
 type seriesMockScheduleRepo struct {

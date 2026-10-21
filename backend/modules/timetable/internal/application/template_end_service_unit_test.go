@@ -265,28 +265,32 @@ func templateEndUnitGroup(id int64) *activityContract.Group {
 }
 
 type templateEndUnitGroupRepo struct {
-	ports.ActivityGroupRecords
+	ports.GroupRows
 	group     *activityContract.Group
 	err       error
 	findCalls int
 }
 
-func (r *templateEndUnitGroupRepo) FindByID(_ context.Context, _ int64) (*activityContract.Group, error) {
+// FindGroup reads a missing group as the zero group, which is no template.
+func (r *templateEndUnitGroupRepo) FindGroup(_ context.Context, _ int64) (timetable.Group, error) {
 	r.findCalls++
 	if r.err != nil {
-		return nil, r.err
+		return timetable.Group{}, r.err
 	}
-	return r.group, nil
+	if r.group == nil {
+		return timetable.Group{}, nil
+	}
+	return CatalogGroup(r.group), nil
 }
 
-// FindTemplateSeries backs the #2187 end cascade; the unit fixtures model a
-// single-segment lineage (the schedule fake returns no rows, so the cascade
-// finds no bounded predecessor and stays a no-op).
-func (r *templateEndUnitGroupRepo) FindTemplateSeries(_ context.Context, _ int64) ([]*activityContract.Group, error) {
+// ListGroups backs the #2187 end cascade's series read; the unit fixtures
+// model a single-segment lineage (the schedule fake returns no rows, so the
+// cascade finds no bounded predecessor and stays a no-op).
+func (r *templateEndUnitGroupRepo) ListGroups(_ context.Context, _ timetable.GroupFilter) ([]timetable.Group, error) {
 	if r.group == nil {
 		return nil, nil
 	}
-	return []*activityContract.Group{r.group}, nil
+	return []timetable.Group{CatalogGroup(r.group)}, nil
 }
 
 type templateEndUnitScheduleRepo struct {

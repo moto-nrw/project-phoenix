@@ -133,11 +133,7 @@ func (s *TemplateService) templateStudentsOn(ctx context.Context, templateID int
 		}
 		studentIDs = appendUnseen(studentIDs, seenStudents, enrollment.StudentID)
 	}
-	targetRepo, ok := s.deps.ActivityGroupRepo.(ports.ActivityGroupTargets)
-	if !ok {
-		return studentIDs, nil
-	}
-	targetStudentIDs, err := targetRepo.FindTargetStudentIDs(ctx, templateID)
+	targetStudentIDs, err := listTargetStudentIDs(ctx, s.deps.ActivityGroupRepo, templateID)
 	if err != nil {
 		return nil, &ports.ScheduleError{Op: "derive template assignments: load target students", Err: err}
 	}

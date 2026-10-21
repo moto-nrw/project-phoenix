@@ -144,7 +144,7 @@ func (r TimetableTestRepositories) CalendarPeriodUsage() timetablePorts.Calendar
 func (r TimetableTestRepositories) OwnerRows() timetableCompose.OwnerRows {
 	return timetableCompose.OwnerRows{
 		Instances: r.ActivityInstance, InstanceStaff: r.InstanceStaff, Participants: r.InstanceStudent,
-		Templates: r.ActivityGroup, Categories: r.ActivityCategory, Students: r.rosterStudents,
+		Templates: r.Timetable, Directories: r.Directories, Categories: r.ActivityCategory, Students: r.rosterStudents,
 		EducationGroups: r.educationGroupNames, Rooms: r.ownerRooms,
 		PickupExceptions: r.StudentPickupException, ArrivalExceptions: r.StudentArrivalException,
 		DeviationEvents: r.deviationEvents, Deviations: r.deviations,
@@ -217,7 +217,7 @@ func MustNewTimetableRecurrenceLock(db transactionruntime.Database) timetable.Re
 // TimetableTemplateRows fills the template rows from the test repository set.
 func (r TimetableTestRepositories) TimetableTemplateRows() timetableCompose.TemplateRows {
 	return timetableCompose.TemplateRows{
-		Groups: r.ActivityGroup, Categories: r.ActivityCategory, Schedules: r.ActivitySchedule,
+		Groups: r.Timetable, Categories: r.ActivityCategory, Schedules: r.ActivitySchedule,
 		Enrollments: r.StudentEnrollment, Supervisors: r.ActivitySupervisor, Instances: r.ActivityInstance,
 		InstanceStaff: r.InstanceStaff, Participants: r.InstanceStudent, Timeframes: r.Timeframe,
 		CalendarPeriods: r.CalendarPeriod, Exceptions: r.ActivityException, EducationGroups: r.educationGroups,

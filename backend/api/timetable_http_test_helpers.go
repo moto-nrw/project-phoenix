@@ -105,7 +105,7 @@ func NewTimetableHTTPTestModule(db transactionruntime.Database, options Timetabl
 	materialization := options.Materialization
 	if materialization == nil {
 		materialization, err = timetableCompose.NewMaterialization(timetablePorts.MaterializationDependencies{
-			GroupRepo: r.ActivityGroup, ScheduleRepo: r.ActivitySchedule,
+			GroupRepo: r.Timetable, ScheduleRepo: r.ActivitySchedule,
 			EnrollmentRepo: r.StudentEnrollment, SupervisorRepo: r.ActivitySupervisor,
 			PeriodRepo: r.CalendarPeriod, InstanceRepo: r.ActivityInstance, StaffRepo: r.InstanceStaff,
 			StudentRepo: r.InstanceStudent, ExceptionRepo: r.ActivityException,
@@ -116,7 +116,7 @@ func NewTimetableHTTPTestModule(db transactionruntime.Database, options Timetabl
 		}
 	}
 	templates, err := timetableCompose.NewTemplateAdministration(timetablePorts.TemplateAdministrationDependencies{
-		Groups:               r.ActivityGroup,
+		Groups:               r.Timetable,
 		Categories:           r.ActivityCategory,
 		Schedules:            r.ActivitySchedule,
 		Enrollments:          r.StudentEnrollment,
@@ -215,10 +215,6 @@ func newTimetableHTTPTestReads(db transactionruntime.Database, r TimetableHTTPTe
 	if err != nil {
 		return nil, nil, err
 	}
-	templates, ok := r.ActivityGroup.(timetablePorts.DataTemplates)
-	if !ok {
-		return nil, nil, fmt.Errorf("timetable data: %T cannot read the template list", r.ActivityGroup)
-	}
 	data, err := timetableCompose.NewTimetableData(timetablePorts.TimetableDataDependencies{
 		Instances:         r.ActivityInstance,
 		InstanceStaff:     r.InstanceStaff,
@@ -228,7 +224,8 @@ func newTimetableHTTPTestReads(db transactionruntime.Database, r TimetableHTTPTe
 		ArrivalBaselines:  owners.ArrivalBaselineProjector{Reader: arrivals},
 		PickupBaselines:   PickupBaselineProjector{Reader: pickups},
 		Visits:            presence,
-		Templates:         templates,
+		Templates:         r.Timetable,
+		Directories:       r.Directories,
 		Groups:            r.Timetable,
 		BlockMetadata:     timetableCompose.NewBlockDisplayMetadata(db.Pool(), blockDisplayCompose.List),
 		Categories:        r.ActivityCategory,

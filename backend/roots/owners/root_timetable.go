@@ -54,7 +54,7 @@ func BuildTimetableOwner(
 		PlanningTracks:      arrivalTimetable.NewPlanningTrackAdministration(owner, pool),
 		RecurrenceLock:      recurrenceLock,
 		TemplateRows: arrivalTimetable.TemplateRows{
-			Groups: repos.ActivityGroup, Categories: repos.ActivityCategory, Schedules: repos.ActivitySchedule,
+			Groups: repos.Timetable, Categories: repos.ActivityCategory, Schedules: repos.ActivitySchedule,
 			Enrollments: repos.StudentEnrollment, Supervisors: repos.ActivitySupervisor, Instances: repos.ActivityInstance,
 			InstanceStaff: repos.InstanceStaff, Participants: repos.InstanceStudent, Timeframes: repos.Timeframe,
 			CalendarPeriods: calendarPeriods, Exceptions: repos.ActivityException, EducationGroups: groups,

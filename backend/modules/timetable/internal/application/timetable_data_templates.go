@@ -2,11 +2,12 @@ package application
 
 import (
 	"context"
-
-	activityContract "github.com/moto-nrw/project-phoenix/modules/timetable/activitycontract"
+	"encoding/json"
+	"errors"
+	"fmt"
 
 	"github.com/moto-nrw/project-phoenix/modules/timetable"
-	activitiesModels "github.com/moto-nrw/project-phoenix/modules/timetable/internal/domain/activityrecords"
+	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 )
 
 // The Vorlagen list (#1839): every schedule row of a template carries the
@@ -55,14 +56,17 @@ func (d *timetableData) ListTemplateWeekdayRoster(ctx context.Context, templateI
 	return roster, nil
 }
 
-func (d *timetableData) templateEntries(ctx context.Context, rows []activitiesModels.TemplateListRow, periodID *int64, templateIDs []int64, childrenPerStaffRatio int) ([]timetable.TemplateListEntry, error) {
+func (d *timetableData) templateEntries(ctx context.Context, rows []timetable.TemplateListRow, periodID *int64, templateIDs []int64, childrenPerStaffRatio int) ([]timetable.TemplateListEntry, error) {
+	if err := d.attachTemplateOwnerNames(ctx, rows); err != nil {
+		return nil, err
+	}
 	setDisplayRosterCapacity(rows)
 	targets, err := d.attachTemplateTargets(ctx, rows)
 	if err != nil {
 		return nil, err
 	}
 	if len(templateIDs) > 0 {
-		occurrences, err := d.deps.Templates.ListTemplateCapacityOccurrences(ctx, periodID, templateIDs)
+		occurrences, err := d.templateCapacityOccurrences(ctx, periodID, templateIDs)
 		if err != nil {
 			return nil, err
 		}
@@ -75,18 +79,91 @@ func (d *timetableData) templateEntries(ctx context.Context, rows []activitiesMo
 	return entries, nil
 }
 
-// attachTemplateTargets adds the dynamic targets and counts a target's
-// children into the template's roster.
-func (d *timetableData) attachTemplateTargets(ctx context.Context, rows []activitiesModels.TemplateListRow) (map[int64][]*activityContract.GroupTarget, error) {
-	templateIDs := distinctTemplateIDs(rows)
-	targetsByGroup, err := d.deps.Templates.FindTargetsByGroupIDs(ctx, templateIDs)
+// attachTemplateOwnerNames names the rooms and Schichtarten (#3418) and the
+// education groups of the rows, which other owners hold. Every row gets an
+// education group name, empty without a group, as the former COALESCE did.
+func (d *timetableData) attachTemplateOwnerNames(ctx context.Context, rows []timetable.TemplateListRow) error {
+	directories := d.deps.Directories
+	if directories.RoomNames == nil || directories.ShiftTypes == nil {
+		return errors.New("timetable compatibility: room and shift-type directories are required")
+	}
+	roomIDs := make([]int64, 0, len(rows))
+	for _, row := range rows {
+		if row.RoomID != nil {
+			roomIDs = append(roomIDs, *row.RoomID)
+		}
+	}
+	roomNames, err := directories.RoomNames(ctx, dedupeTemplateIDs(roomIDs))
 	if err != nil {
+		return err
+	}
+	shifts, err := directories.ShiftTypes(ctx)
+	if err != nil {
+		return err
+	}
+	shiftByID := make(map[int64]struct{ name, color string }, len(shifts))
+	for _, shift := range shifts {
+		shiftByID[shift.ID] = struct{ name, color string }{shift.Name, shift.Color}
+	}
+	for index := range rows {
+		if rows[index].RoomID != nil {
+			name := roomNames[*rows[index].RoomID]
+			rows[index].RoomName = &name
+		}
+		if rows[index].ShiftTypeID != nil {
+			shift := shiftByID[*rows[index].ShiftTypeID]
+			rows[index].ShiftTypeName, rows[index].ShiftTypeColor = shift.name, shift.color
+		}
+	}
+	pointers := make([]*timetable.TemplateListRow, len(rows))
+	for index := range rows {
+		pointers[index] = &rows[index]
+	}
+	_, err = enrichGroupNames(ctx, directories.GroupNames, pointers,
+		func(row *timetable.TemplateListRow) int64 { return optionalGroupID(row.EducationGroupID) },
+		func(row *timetable.TemplateListRow, name string) { row.EducationGroupName = &name },
+		"", "template rows")
+	return err
+}
+
+// templateCapacityOccurrences reads the staffing snapshot of every
+// occurrence of the templates in School Calendar's active periods.
+func (d *timetableData) templateCapacityOccurrences(ctx context.Context, periodID *int64, templateIDs []int64) ([]timetable.TemplateCapacityOccurrence, error) {
+	if d.deps.Directories.ActivePeriods == nil {
+		return nil, errors.New("timetable compatibility: school calendar is required")
+	}
+	periods, err := d.deps.Directories.ActivePeriods(ctx)
+	if err != nil {
+		return nil, err
+	}
+	return d.deps.Templates.ListTemplateCapacityOccurrences(ctx, periodID, templateIDs, periods)
+}
+
+// attachTemplateTargets adds the dynamic targets, named with their
+// education groups, and counts a target's children into the template's
+// roster.
+func (d *timetableData) attachTemplateTargets(ctx context.Context, rows []timetable.TemplateListRow) (map[int64][]timetable.GroupTarget, error) {
+	templateIDs := distinctTemplateIDs(rows)
+	targetsByGroup, err := d.deps.Templates.ListGroupTargets(ctx, templateIDs)
+	if err != nil {
+		return nil, err
+	}
+	all := make([]*timetable.GroupTarget, 0, len(targetsByGroup))
+	for groupID := range targetsByGroup {
+		for index := range targetsByGroup[groupID] {
+			all = append(all, &targetsByGroup[groupID][index])
+		}
+	}
+	if _, err := enrichGroupNames(ctx, d.deps.Directories.GroupNames, all,
+		func(row *timetable.GroupTarget) int64 { return optionalGroupID(row.EducationGroupID) },
+		func(row *timetable.GroupTarget, name string) { row.EducationGroupName = name },
+		"", "template targets"); err != nil {
 		return nil, err
 	}
 	if !hasTemplateTargets(targetsByGroup) {
 		return targetsByGroup, nil
 	}
-	targetStudentsByGroup, err := d.deps.Templates.FindTargetStudentIDsByGroupIDs(ctx, templateIDs)
+	targetStudentsByGroup, err := d.deps.Templates.ListTargetStudentIDs(ctx, templateIDs)
 	if err != nil {
 		return nil, err
 	}
@@ -96,7 +173,61 @@ func (d *timetableData) attachTemplateTargets(ctx context.Context, rows []activi
 	return targetsByGroup, nil
 }
 
-func hasTemplateTargets(targetsByGroup map[int64][]*activityContract.GroupTarget) bool {
+// enrichGroupNames fills a display name on every row from the School
+// Structure owner with one batched query. A group the owner cannot see in
+// the caller's transaction yields the fallback, mirroring the former
+// LEFT JOIN + COALESCE; a query failure is returned, never swallowed.
+func enrichGroupNames[T any](
+	ctx context.Context,
+	groupNames func(context.Context, []int64) (map[int64]string, error),
+	rows []T,
+	groupID func(T) int64,
+	setName func(T, string),
+	fallback string,
+	op string,
+) ([]T, error) {
+	if len(rows) == 0 {
+		return rows, nil
+	}
+	ids := make([]int64, 0, len(rows))
+	for _, row := range rows {
+		ids = append(ids, groupID(row))
+	}
+	names, err := groupNames(ctx, ids)
+	if err != nil {
+		return nil, fmt.Errorf("load groups for %s: %w", op, err)
+	}
+	for index := range rows {
+		name, found := names[groupID(rows[index])]
+		if !found {
+			name = fallback
+		}
+		setName(rows[index], name)
+	}
+	return rows, nil
+}
+
+func optionalGroupID(id *int64) int64 {
+	if id == nil {
+		return 0
+	}
+	return *id
+}
+
+func dedupeTemplateIDs(ids []int64) []int64 {
+	seen := make(map[int64]struct{}, len(ids))
+	result := make([]int64, 0, len(ids))
+	for _, id := range ids {
+		if _, exists := seen[id]; exists {
+			continue
+		}
+		seen[id] = struct{}{}
+		result = append(result, id)
+	}
+	return result
+}
+
+func hasTemplateTargets(targetsByGroup map[int64][]timetable.GroupTarget) bool {
 	for _, targets := range targetsByGroup {
 		if len(targets) > 0 {
 			return true
@@ -116,14 +247,14 @@ func unionCount(left, right []int64) int {
 	return len(ids)
 }
 
-func setDisplayRosterCapacity(rows []activitiesModels.TemplateListRow) {
+func setDisplayRosterCapacity(rows []timetable.TemplateListRow) {
 	for i := range rows {
 		rows[i].CapacityEnrollmentCount = rows[i].EnrollmentCount
 		rows[i].CapacitySupervisorCount = rows[i].SupervisorCount
 	}
 }
 
-func distinctTemplateIDs(rows []activitiesModels.TemplateListRow) []int64 {
+func distinctTemplateIDs(rows []timetable.TemplateListRow) []int64 {
 	ids := make([]int64, 0, len(rows))
 	seen := make(map[int64]struct{}, len(rows))
 	for _, row := range rows {
@@ -141,12 +272,12 @@ func distinctTemplateIDs(rows []activitiesModels.TemplateListRow) []int64 {
 // per-template, so it drives the worst-occurrence choice too: scoring by the
 // derived requirement alone could pick a fine-looking occurrence while
 // another is understaffed under the override.
-func applyWorstTemplateCapacity(rows []activitiesModels.TemplateListRow, templateIDs []int64, occurrences []activitiesModels.TemplateCapacityOccurrence, childrenPerStaffRatio int) {
+func applyWorstTemplateCapacity(rows []timetable.TemplateListRow, templateIDs []int64, occurrences []timetable.TemplateCapacityOccurrence, childrenPerStaffRatio int) {
 	included := make(map[int64]struct{}, len(templateIDs))
 	for _, templateID := range templateIDs {
 		included[templateID] = struct{}{}
 	}
-	byTemplate := make(map[int64][]activitiesModels.TemplateCapacityOccurrence)
+	byTemplate := make(map[int64][]timetable.TemplateCapacityOccurrence)
 	for _, occurrence := range occurrences {
 		if _, ok := included[occurrence.TemplateID]; ok {
 			byTemplate[occurrence.TemplateID] = append(byTemplate[occurrence.TemplateID], occurrence)
@@ -158,7 +289,7 @@ func applyWorstTemplateCapacity(rows []activitiesModels.TemplateListRow, templat
 			overrideByTemplate[rows[i].TemplateID] = requiredStaffOverrideOf(rows[i])
 		}
 	}
-	worst := make(map[int64]activitiesModels.TemplateCapacityOccurrence, len(byTemplate))
+	worst := make(map[int64]timetable.TemplateCapacityOccurrence, len(byTemplate))
 	for templateID, candidates := range byTemplate {
 		if candidate, ok := worstTemplateOccurrence(candidates, overrideByTemplate[templateID], childrenPerStaffRatio); ok {
 			worst[templateID] = candidate
@@ -177,11 +308,11 @@ func applyWorstTemplateCapacity(rows []activitiesModels.TemplateListRow, templat
 
 // requiredStaffOverrideOf reads a row's nullable required_staff as the
 // override timetable.EffectiveRequiredStaff expects (NULL → nil).
-func requiredStaffOverrideOf(row activitiesModels.TemplateListRow) *int {
-	if !row.RequiredStaff.Valid {
+func requiredStaffOverrideOf(row timetable.TemplateListRow) *int {
+	if row.RequiredStaff == nil {
 		return nil
 	}
-	v := int(row.RequiredStaff.Int64)
+	v := int(*row.RequiredStaff)
 	return &v
 }
 
@@ -189,7 +320,7 @@ func requiredStaffOverrideOf(row activitiesModels.TemplateListRow) *int {
 // requirement is derived: with no children the derived demand is 0. Under a
 // manual override the demand is constant, so an empty, unstaffed occurrence
 // can legitimately be the worst (e.g. 0/3).
-func worstTemplateOccurrence(occurrences []activitiesModels.TemplateCapacityOccurrence, override *int, childrenPerStaffRatio int) (activitiesModels.TemplateCapacityOccurrence, bool) {
+func worstTemplateOccurrence(occurrences []timetable.TemplateCapacityOccurrence, override *int, childrenPerStaffRatio int) (timetable.TemplateCapacityOccurrence, bool) {
 	hasPositiveDemand := false
 	for _, occurrence := range occurrences {
 		if timetable.EffectiveRequiredStaff(override, occurrence.EnrollmentCount, childrenPerStaffRatio) > 0 {
@@ -197,7 +328,7 @@ func worstTemplateOccurrence(occurrences []activitiesModels.TemplateCapacityOccu
 			break
 		}
 	}
-	var worst activitiesModels.TemplateCapacityOccurrence
+	var worst timetable.TemplateCapacityOccurrence
 	found := false
 	for _, candidate := range occurrences {
 		if override == nil && hasPositiveDemand && candidate.EnrollmentCount == 0 {
@@ -218,7 +349,7 @@ type templateCapacityScore struct {
 	required int
 }
 
-func scoreTemplateOccurrence(occurrence activitiesModels.TemplateCapacityOccurrence, override *int, childrenPerStaffRatio int) templateCapacityScore {
+func scoreTemplateOccurrence(occurrence timetable.TemplateCapacityOccurrence, override *int, childrenPerStaffRatio int) templateCapacityScore {
 	required := timetable.EffectiveRequiredStaff(override, occurrence.EnrollmentCount, childrenPerStaffRatio)
 	assigned := occurrence.SupervisorCount
 	score := templateCapacityScore{required: required}
@@ -235,7 +366,7 @@ func scoreTemplateOccurrence(occurrence activitiesModels.TemplateCapacityOccurre
 	return score
 }
 
-func templateOccurrenceIsWorse(candidate, current activitiesModels.TemplateCapacityOccurrence, override *int, childrenPerStaffRatio int) bool {
+func templateOccurrenceIsWorse(candidate, current timetable.TemplateCapacityOccurrence, override *int, childrenPerStaffRatio int) bool {
 	candidateScore := scoreTemplateOccurrence(candidate, override, childrenPerStaffRatio)
 	currentScore := scoreTemplateOccurrence(current, override, childrenPerStaffRatio)
 	if candidateScore.severity != currentScore.severity {
@@ -250,76 +381,39 @@ func templateOccurrenceIsWorse(candidate, current activitiesModels.TemplateCapac
 	if candidateScore.required != currentScore.required {
 		return candidateScore.required > currentScore.required
 	}
-	return candidate.OccurrenceDate.Before(current.OccurrenceDate)
+	return calendar.Date(candidate.OccurrenceDate).Before(calendar.Date(current.OccurrenceDate))
 }
 
-// templateListEntryOf maps a retained template list row onto the owner's
-// list entry.
-func templateListEntryOf(row activitiesModels.TemplateListRow, targets []*activityContract.GroupTarget) timetable.TemplateListEntry {
-	entry := timetable.TemplateListEntry{TemplateListRow: timetable.TemplateListRow{
-		TemplateID: row.TemplateID, Name: row.Name, Type: row.Type,
-		CategoryID: row.CategoryID, CategoryName: row.CategoryName,
-		PlanningTrackID: nullInt64(row.PlanningTrackID), PlanningTrackName: row.PlanningTrackName,
-		PlanningTrackColor: row.PlanningTrackColor, PlanningTrackOrder: nullInt64(row.PlanningTrackOrder),
-		RoomID: nullInt64(row.RoomID), RoomName: nullString(row.RoomName),
-		EducationGroupID: nullInt64(row.EducationGroupID), EducationGroupName: nullString(row.EducationGroupName),
-		IsOpen: row.IsOpen, MaxParticipants: row.MaxParticipants, RequiredStaff: nullInt64(row.RequiredStaff),
-		TemplateCalendarPeriodID: nullInt64(row.TemplateCalendarPeriodID), TargetGroupType: row.TargetGroupType,
-		TargetGradeLevel: nullInt16(row.TargetGradeLevel), TargetSchoolClass: nullString(row.TargetSchoolClass),
-		SourceCareOfferingIDsJSON: row.SourceCareOfferingIDsJSON, SourceGradeLevelsJSON: row.SourceGradeLevelsJSON,
-		SourceSchoolClassesJSON: row.SourceSchoolClassesJSON, ListKind: nullString(row.ListKind), Notes: nullString(row.Notes),
-		IncludeClosingDays: row.IncludeClosingDays, SeriesLastDay: nullString(row.SeriesLastDay),
-		ShiftTypeID: nullInt64(row.ShiftTypeID), ShiftTypeName: row.ShiftTypeName, ShiftTypeColor: row.ShiftTypeColor,
-		EnrollmentCount: row.EnrollmentCount, SupervisorCount: row.SupervisorCount,
-		CapacityEnrollmentCount: row.CapacityEnrollmentCount, CapacitySupervisorCount: row.CapacitySupervisorCount,
-		CapacityOccurrenceFound: row.CapacityOccurrenceFound, StudentIDs: row.StudentIDs, StaffIDs: row.StaffIDs,
-		PrimaryStaffID: nullInt64(row.PrimaryStaffID), ScheduleID: row.ScheduleID, Weekday: row.Weekday,
-		StartTime: nullString(row.StartTime), EndTime: nullString(row.EndTime), WeekPattern: row.WeekPattern,
-		CalendarPeriodID: nullInt64(row.CalendarPeriodID), ScheduleValidFrom: nullString(row.ScheduleValidFrom),
-		ScheduleValidUntil: nullString(row.ScheduleValidUntil),
-	}}
+// templateListEntryOf adds the dynamic targets and the decoded
+// offering-source rule to a template list row.
+func templateListEntryOf(row timetable.TemplateListRow, targets []timetable.GroupTarget) timetable.TemplateListEntry {
+	entry := timetable.TemplateListEntry{TemplateListRow: row, Targets: targets}
 	// Corrupt jsonb cannot happen via the write path (validated slices);
 	// degrade to "no filter" instead of failing the whole list read.
-	if ids, err := row.ParseSourceCareOfferingIDs(); err == nil {
+	if ids, err := decodeTemplateSource[int64](row.SourceCareOfferingIDsJSON); err == nil {
 		entry.SourceCareOfferingIDs = ids
 	}
-	if levels, err := row.ParseSourceGradeLevels(); err == nil {
+	if levels, err := decodeTemplateSource[int](row.SourceGradeLevelsJSON); err == nil {
 		entry.SourceGradeLevels = levels
 	}
-	if classes, err := row.ParseSourceSchoolClasses(); err == nil {
+	if classes, err := decodeTemplateSource[string](row.SourceSchoolClassesJSON); err == nil {
 		entry.SourceSchoolClasses = classes
-	}
-	for _, target := range targets {
-		if target == nil {
-			continue
-		}
-		entry.Targets = append(entry.Targets, timetable.GroupTarget{
-			ID: target.ID, TenantID: target.TenantID, CreatedAt: target.CreatedAt, UpdatedAt: target.UpdatedAt,
-			ActivityGroupID: target.ActivityGroupID, TargetGroupType: target.TargetGroupType,
-			TargetGradeLevel: target.TargetGradeLevel, TargetSchoolClass: target.TargetSchoolClass,
-			EducationGroupID: target.EducationGroupID, EducationGroupName: target.EducationGroupName,
-		})
 	}
 	return entry
 }
 
-func nullInt64(value activitiesModels.NullInt64) *int64 {
-	if !value.Valid {
-		return nil
+// decodeTemplateSource decodes the text form of an offering-source jsonb
+// column; an empty column or an empty array is no filter.
+func decodeTemplateSource[T any](text string) ([]T, error) {
+	if text == "" {
+		return nil, nil
 	}
-	return &value.Int64
-}
-
-func nullInt16(value activitiesModels.NullInt16) *int16 {
-	if !value.Valid {
-		return nil
+	var values []T
+	if err := json.Unmarshal([]byte(text), &values); err != nil {
+		return nil, err
 	}
-	return &value.Int16
-}
-
-func nullString(value activitiesModels.NullString) *string {
-	if !value.Valid {
-		return nil
+	if len(values) == 0 {
+		return nil, nil
 	}
-	return &value.String
+	return values, nil
 }

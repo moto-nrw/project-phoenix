@@ -285,7 +285,7 @@ func TestMaterialization_PrefersScopedPrimaryWithoutClearingLegacyFallback(t *te
 	assert.True(t, globalWeekdayPrimary, "the trigger must preserve the global weekday fallback")
 	assert.True(t, periodWeekdayPrimary, "the trigger must preserve the period-specific primary")
 
-	rosterRows, err := repos.ActivityGroup.ListTemplateWeekdayRoster(
+	rosterRows, err := repos.Timetable.ListTemplateWeekdayRoster(
 		s.ctx,
 		&result.TemplateID,
 		&s.periodID,
@@ -755,7 +755,7 @@ func TestTemplateWeekdayRosterRead_PreservesEmptyDaysAndProtectedEnrollments(t *
 	}
 	require.NoError(t, ownedStudentEnrollmentRepository(t, s.db).Create(s.ctx, inconsistentProtected))
 
-	rows, err := api.NewUnobservedTimetableRepositories(testpkg.MustDatabase(s.db)).ActivityGroup.ListTemplateWeekdayRoster(s.ctx, &result.TemplateID, nil)
+	rows, err := api.NewUnobservedTimetableRepositories(testpkg.MustDatabase(s.db)).Timetable.ListTemplateWeekdayRoster(s.ctx, &result.TemplateID, nil)
 	require.NoError(t, err)
 
 	type rosterKey struct {
@@ -828,7 +828,7 @@ func TestTemplateWeekdayRosterRead_ExpandsSharedRowsAcrossScopedDays(t *testing.
 		ValidFrom:       activityContract.Date(monday.AddDays(-30)),
 	}))
 
-	rows, err := repos.ActivityGroup.ListTemplateWeekdayRoster(s.ctx, &result.TemplateID, &s.periodID)
+	rows, err := repos.Timetable.ListTemplateWeekdayRoster(s.ctx, &result.TemplateID, &s.periodID)
 	require.NoError(t, err)
 	type dayRoster struct {
 		staff    []int64
@@ -906,7 +906,7 @@ func TestTemplateWeekdayRosterRead_ExposesProtectedCoverageForSharedRoster(t *te
 	}
 	require.NoError(t, ownedStudentEnrollmentRepository(t, s.db).Create(s.ctx, protected))
 
-	rows, err := api.NewUnobservedTimetableRepositories(testpkg.MustDatabase(s.db)).ActivityGroup.ListTemplateWeekdayRoster(s.ctx, &result.TemplateID, nil)
+	rows, err := api.NewUnobservedTimetableRepositories(testpkg.MustDatabase(s.db)).Timetable.ListTemplateWeekdayRoster(s.ctx, &result.TemplateID, nil)
 	require.NoError(t, err)
 	protectedWeekdays := make([]int, 0)
 	for _, row := range rows {
@@ -990,11 +990,11 @@ func TestTemplateWeekdayRosterRead_IsolatesCalendarPeriods(t *testing.T) {
 		Weekday:          &weekday,
 	}))
 
-	periodARows, err := repos.ActivityGroup.ListTemplateWeekdayRoster(s.ctx, &result.TemplateID, &s.periodID)
+	periodARows, err := repos.Timetable.ListTemplateWeekdayRoster(s.ctx, &result.TemplateID, &s.periodID)
 	require.NoError(t, err)
-	periodBRows, err := repos.ActivityGroup.ListTemplateWeekdayRoster(s.ctx, &result.TemplateID, &periodB.ID)
+	periodBRows, err := repos.Timetable.ListTemplateWeekdayRoster(s.ctx, &result.TemplateID, &periodB.ID)
 	require.NoError(t, err)
-	unscopedRows, err := repos.ActivityGroup.ListTemplateWeekdayRoster(s.ctx, &result.TemplateID, nil)
+	unscopedRows, err := repos.Timetable.ListTemplateWeekdayRoster(s.ctx, &result.TemplateID, nil)
 	require.NoError(t, err)
 
 	assertWeekdayRosterPeople(t, periodARows, []int64{s.staffA}, []int64{s.studentA})

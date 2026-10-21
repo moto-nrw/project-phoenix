@@ -10,7 +10,6 @@ import (
 // NewService binds the activity application to the owner capabilities.
 func NewService(
 	capability timetable.Capability,
-	groups ports.ActivityGroupRecords,
 	schedules timetable.ScheduleCapability,
 	supervisors ports.PlannedSupervisorRecords,
 	enrollments ports.ActivityEnrollmentRecords,
@@ -18,5 +17,5 @@ func NewService(
 	staff ports.LifecycleStaff,
 	students RosterStudents,
 ) (activityContract.ActivityService, error) {
-	return application.NewActivityService(capability, groups, schedules, supervisors, enrollments, occupancy, staff, students)
+	return application.NewActivityService(capability, schedules, supervisors, enrollments, occupancy, staff, students)
 }

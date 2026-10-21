@@ -374,17 +374,11 @@ func (s *TemplateService) createTemplateGroup(
 		Notes:                 in.Notes, IncludeClosingDays: in.IncludeClosingDays, SeriesLastDay: in.SeriesLastDay,
 	}
 	group.SetTenantID(tenantID)
-	if err := s.deps.ActivityGroupRepo.Create(ctx, group); err != nil {
+	if err := createLegacyGroup(ctx, s.deps.ActivityGroupRepo, group); err != nil {
 		return nil, &ports.ScheduleError{Op: "create template: create group", Err: err}
 	}
-	targetRepo, ok := s.deps.ActivityGroupRepo.(ports.ActivityGroupTargets)
-	if !ok && len(targets) > 0 {
-		return nil, &ports.ScheduleError{Op: "create template: replace targets", Err: errors.New("target repository is not configured")}
-	}
-	if ok {
-		if err := targetRepo.ReplaceTargets(ctx, group.ID, targets); err != nil {
-			return nil, &ports.ScheduleError{Op: "create template: replace targets", Err: err}
-		}
+	if err := replaceLegacyGroupTargets(ctx, s.deps.ActivityGroupRepo, group.ID, targets); err != nil {
+		return nil, &ports.ScheduleError{Op: "create template: replace targets", Err: err}
 	}
 	return group, nil
 }

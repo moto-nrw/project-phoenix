@@ -8,7 +8,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/modules/timetable/ports"
 )
 
-func NativeGroupRecords(rows ports.ActivityGroupRecords) ports.NativeGroupRecords {
+func NativeGroupRecords(rows ports.GroupRows) ports.NativeGroupRecords {
 	return application.NativeGroupRecords(rows)
 }
 func NativeScheduleRecords(schedules timetable.ScheduleCapability) ports.NativeScheduleRecords {

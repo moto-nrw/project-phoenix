@@ -43,7 +43,7 @@ func (d *timetableData) ResolveSpontaneousActivity(ctx context.Context, title st
 	if err := d.acquireSpontaneousLock(ctx, fmt.Sprintf("timetable:spontaneous-activity-name:%d:%s", tenant.FromContext(ctx), nameKey)); err != nil {
 		return nil, err
 	}
-	if existing, err := d.deps.Templates.FindByName(ctx, title); err == nil && existing != nil {
+	if existing, err := findLegacyGroupByName(ctx, d.deps.Templates, title); err == nil && existing != nil {
 		return &existing.ID, nil
 	} else if err != nil && !domain.IsRecordNotFound(err) {
 		return nil, err
@@ -62,7 +62,7 @@ func (d *timetableData) ResolveSpontaneousActivity(ctx context.Context, title st
 		IsTemplate:      false,
 	}
 	group.SetTenantID(tenant.FromContext(ctx))
-	if err := d.deps.Templates.Create(ctx, group); err != nil {
+	if err := createLegacyGroup(ctx, d.deps.Templates, group); err != nil {
 		return nil, err
 	}
 	return &group.ID, nil

@@ -197,7 +197,7 @@ type TemplateServiceDependencies struct {
 	InstanceStaffRepo      ports.InstanceStaffRecords
 	ActivityCategoryRepo   timetable.CategoryQuery
 	PlanningTracks         ports.PlanningTrackAssignments
-	ActivityGroupRepo      ports.ActivityGroupRecords
+	ActivityGroupRepo      ports.GroupRows
 	ActivitySupervisorRepo ports.PlannedSupervisorRecords
 	StudentEnrollmentRepo  ports.ActivityEnrollmentRecords
 	TimeframeRepo          timetable.TimeframeCapability

@@ -45,7 +45,7 @@ import (
 // Enrollment's offering-source resync (#2137); a split that changes the
 // offering feed fails without it.
 type TemplateSplitDependencies struct {
-	GroupRepo            ports.ActivityGroupRecords
+	GroupRepo            ports.GroupRows
 	CategoryRepo         timetable.CategoryQuery
 	PlanningTracks       ports.PlanningTrackAssignments
 	ScheduleRepo         timetable.ScheduleCapability

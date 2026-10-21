@@ -36,32 +36,32 @@ func (r *conversionSupervisorRepo) FindByGroupID(context.Context, int64) ([]*act
 	return r.rows, r.err
 }
 
-// Implements both GroupRepository and GroupTargetRepository so the type
-// assertion in templateAssignmentsOn can exercise the target-student branch.
+// conversionGroupTargetRepo reaches target students, so templateAssignmentsOn
+// can exercise the target-student branch.
 type conversionGroupTargetRepo struct {
-	ports.ActivityGroupRecords
+	ports.GroupRows
 	targetIDs []int64
 	err       error
 }
 
-func (r *conversionGroupTargetRepo) FindTargetStudentIDs(context.Context, int64) ([]int64, error) {
-	return r.targetIDs, r.err
+func (r *conversionGroupTargetRepo) ListTargetStudentIDs(_ context.Context, groupIDs []int64) (map[int64][]int64, error) {
+	if r.err != nil {
+		return nil, r.err
+	}
+	byGroup := make(map[int64][]int64, len(groupIDs))
+	for _, groupID := range groupIDs {
+		byGroup[groupID] = r.targetIDs
+	}
+	return byGroup, nil
 }
 
-func (r *conversionGroupTargetRepo) FindTargetsByGroupIDs(context.Context, []int64) (map[int64][]*activityContract.GroupTarget, error) {
-	return nil, nil
-}
-
-func (r *conversionGroupTargetRepo) ReplaceTargets(context.Context, int64, []*activityContract.GroupTarget) error {
-	return nil
-}
-
-func (r *conversionGroupTargetRepo) FindTargetStudentIDsByGroupIDs(context.Context, []int64) (map[int64][]int64, error) {
-	return nil, nil
-}
-
+// conversionPlainGroupRepo has no dynamic targets.
 type conversionPlainGroupRepo struct {
-	ports.ActivityGroupRecords
+	ports.GroupRows
+}
+
+func (r *conversionPlainGroupRepo) ListTargetStudentIDs(context.Context, []int64) (map[int64][]int64, error) {
+	return map[int64][]int64{}, nil
 }
 
 func conversionValidFrom() calendar.Date {
@@ -201,6 +201,6 @@ func TestTemplateAssignmentsOn_SkipsTargetBranchWithoutTargetRepo(t *testing.T) 
 	assert.Equal(t, []int64{51}, assignments.StaffIDs)
 }
 
-// Compile-time guard: conversionGroupTargetRepo must satisfy the target interface
-// the conversion roster path type-asserts against.
-var _ ports.ActivityGroupTargets = (*conversionGroupTargetRepo)(nil)
+// Compile-time guard: conversionGroupTargetRepo must satisfy the group rows
+// the conversion roster path reads the target students from.
+var _ ports.GroupRows = (*conversionGroupTargetRepo)(nil)

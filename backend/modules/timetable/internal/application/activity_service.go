@@ -13,7 +13,6 @@ import (
 // ActivityService implements the activityContract.ActivityService interface
 type ActivityService struct {
 	timetable       timetable.Capability
-	groupRepo       ports.ActivityGroupRecords
 	scheduleRepo    timetable.ScheduleCapability
 	supervisorRepo  ports.PlannedSupervisorRecords
 	enrollmentRepo  ports.ActivityEnrollmentRecords
@@ -29,7 +28,6 @@ type ActivityOccupancy interface {
 // NewActivityService creates a new activity service
 func NewActivityService(
 	timetableCapability timetable.Capability,
-	groupRepo ports.ActivityGroupRecords,
 	scheduleRepo timetable.ScheduleCapability,
 	supervisorRepo ports.PlannedSupervisorRecords,
 	enrollmentRepo ports.ActivityEnrollmentRecords,
@@ -39,7 +37,6 @@ func NewActivityService(
 ) (*ActivityService, error) {
 	return &ActivityService{
 		timetable:       timetableCapability,
-		groupRepo:       groupRepo,
 		scheduleRepo:    scheduleRepo,
 		supervisorRepo:  supervisorRepo,
 		enrollmentRepo:  enrollmentRepo,
@@ -130,7 +127,7 @@ func (s *ActivityService) CreateGroup(ctx context.Context, group *activityContra
 	validatedCategory := group.Category
 	group.SetTenantID(group.Category.GetTenantID())
 
-	if err := s.groupRepo.Create(ctx, group); err != nil {
+	if err := createLegacyGroup(ctx, s.timetable, group); err != nil {
 		return nil, &activityContract.ActivityError{Op: "create group", Err: err}
 	}
 
@@ -142,7 +139,7 @@ func (s *ActivityService) CreateGroup(ctx context.Context, group *activityContra
 		return nil, &activityContract.ActivityError{Op: "create group", Err: err}
 	}
 
-	result, err := s.groupRepo.FindByID(ctx, group.ID)
+	result, err := findLegacyGroup(ctx, s.timetable, group.ID)
 	if err != nil {
 		return nil, &activityContract.ActivityError{Op: "retrieve created group", Err: err}
 	}
@@ -221,7 +218,7 @@ func (s *ActivityService) GetGroup(ctx context.Context, id int64) (*activityCont
 // split-lineage, or care-offering validation required to mutate templates.
 // Every legacy mutation entry point must call this guard before writing.
 func (s *ActivityService) findMutableActivityGroup(ctx context.Context, id int64) (*activityContract.Group, error) {
-	group, err := s.groupRepo.FindByID(ctx, id)
+	group, err := findLegacyGroup(ctx, s.timetable, id)
 	if err != nil {
 		if isRepositoryNotFound(err) {
 			return nil, activityContract.ErrGroupNotFound
@@ -270,7 +267,7 @@ func (s *ActivityService) UpdateGroup(ctx context.Context, group *activityContra
 	}
 	group.SetTenantID(existingGroup.GetTenantID())
 
-	if err := s.groupRepo.Update(ctx, group); err != nil {
+	if err := updateLegacyGroup(ctx, s.timetable, group); err != nil {
 		return nil, &activityContract.ActivityError{Op: "update group", Err: err}
 	}
 
@@ -285,7 +282,7 @@ func (s *ActivityService) DeleteGroup(ctx context.Context, id int64, requestingS
 	// immediately so a concurrently inserted template with the same sequence ID
 	// can never be deleted after an absent preflight. Infrastructure failures
 	// are never treated as absence.
-	existingGroup, err := s.groupRepo.FindByID(ctx, id)
+	existingGroup, err := findLegacyGroup(ctx, s.timetable, id)
 	if err != nil {
 		if isRepositoryNotFound(err) && hasManagePermission {
 			return nil
@@ -325,7 +322,7 @@ func (s *ActivityService) DeleteGroup(ctx context.Context, id int64, requestingS
 	}
 
 	// Finally delete the group
-	if err := s.groupRepo.Delete(ctx, id); err != nil {
+	if err := deleteLegacyGroup(ctx, s.timetable, id); err != nil {
 		return &activityContract.ActivityError{Op: "delete group transaction", Err: err}
 	}
 
@@ -386,13 +383,13 @@ func (s *ActivityService) ListGroups(ctx context.Context, query *activityContrac
 // session status. Duties (#3822) are left out: nobody checks children into a
 // Busaufsicht, so the kiosk must not offer one as an activity.
 func (s *ActivityService) ListOccupiedGroups(ctx context.Context) ([]timetable.OccupiedGroup, error) {
-	listed, err := s.groupRepo.ListWithCategory(ctx, nil)
+	listed, err := s.timetable.ListGroups(ctx, timetable.GroupFilter{})
 	if err != nil {
-		return nil, &activityContract.ActivityError{Op: "list groups with occupancy", Err: err}
+		return nil, &activityContract.ActivityError{Op: "list groups with occupancy", Err: legacyGroupReadError("list", err)}
 	}
-	groups := make([]*activityContract.Group, 0, len(listed))
+	groups := make([]timetable.Group, 0, len(listed))
 	for _, group := range listed {
-		if group != nil && group.Type != activityContract.GroupTypeDuty {
+		if group.Type != activityContract.GroupTypeDuty {
 			groups = append(groups, group)
 		}
 	}
@@ -417,7 +414,7 @@ func (s *ActivityService) ListOccupiedGroups(ctx context.Context) ([]timetable.O
 	result := make([]timetable.OccupiedGroup, len(groups))
 	for i, g := range groups {
 		result[i] = timetable.OccupiedGroup{
-			Group:      CatalogGroup(g),
+			Group:      g,
 			IsOccupied: occupiedMap[g.ID],
 		}
 	}
@@ -445,7 +442,7 @@ func (s *ActivityService) FindByCategory(ctx context.Context, categoryID int64) 
 // GetGroupWithDetails retrieves a group with its supervisors and schedules
 func (s *ActivityService) GetGroupWithDetails(ctx context.Context, id int64) (*activityContract.Group, []*activityContract.SupervisorPlanned, []*activityContract.Schedule, error) {
 	// Get the group
-	group, err := s.groupRepo.FindByID(ctx, id)
+	group, err := findLegacyGroup(ctx, s.timetable, id)
 	if err != nil {
 		// Convert "no rows" (bare or DatabaseError-wrapped) to our own error
 		if isRepositoryNotFound(err) {
@@ -477,10 +474,29 @@ func (s *ActivityService) GetGroupWithDetails(ctx context.Context, id int64) (*a
 	return group, supervisors, schedules, nil
 }
 
-// GetGroupsWithEnrollmentCounts returns groups with their enrollment counts
+// GetGroupsWithEnrollmentCounts returns the groups by name with the number
+// of enrollments of each.
 func (s *ActivityService) GetGroupsWithEnrollmentCounts(ctx context.Context) ([]*activityContract.Group, map[int64]int, error) {
-	// Use the repository method that does this
-	return s.groupRepo.FindWithEnrollmentCounts(ctx)
+	groups, err := s.timetable.ListGroups(ctx, timetable.GroupFilter{OrderByName: true})
+	if err != nil {
+		return nil, nil, legacyDatabaseError("find groups", err)
+	}
+	counts := make(map[int64]int, len(groups))
+	if len(groups) == 0 {
+		return legacyGroups(groups), counts, nil
+	}
+	groupIDs := make([]int64, 0, len(groups))
+	for _, group := range groups {
+		groupIDs = append(groupIDs, group.ID)
+	}
+	enrollments, err := s.timetable.ListStudentEnrollments(ctx, timetable.StudentEnrollmentFilter{ActivityGroupIDs: groupIDs})
+	if err != nil {
+		return nil, nil, legacyDatabaseError("count enrollments", err)
+	}
+	for _, enrollment := range enrollments {
+		counts[enrollment.ActivityGroupID]++
+	}
+	return legacyGroups(groups), counts, nil
 }
 
 // CanModifyActivity checks if a user can modify (edit/delete) an activity
@@ -498,7 +514,7 @@ func (s *ActivityService) CanModifyActivity(ctx context.Context, groupID int64, 
 	// Hold the group lock through the caller's tenant transaction so a
 	// supervisor or creator cannot lose modification authority between this
 	// check and the subsequent write.
-	group, err := s.groupRepo.FindByIDForUpdate(ctx, groupID)
+	group, err := findLegacyGroupForUpdate(ctx, s.timetable, groupID)
 	if err != nil {
 		if isRepositoryNotFound(err) {
 			return false, &activityContract.ActivityError{Op: opCheckPermissions, Err: activityContract.ErrGroupNotFound}

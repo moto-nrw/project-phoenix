@@ -2,7 +2,6 @@ package application
 
 import (
 	"context"
-	"errors"
 	"fmt"
 
 	activityContract "github.com/moto-nrw/project-phoenix/modules/timetable/activitycontract"
@@ -130,17 +129,11 @@ func (s *TemplateSplitService) capBoundedSegmentSupervisors(
 func (s *TemplateSplitService) createSuccessorGroup(ctx context.Context, old *activityContract.Group, in TemplateSplitInput, tenantID int64) (*activityContract.Group, error) {
 	group := successorGroup(old, in)
 	group.SetTenantID(tenantID)
-	if err := s.deps.GroupRepo.Create(ctx, group); err != nil {
+	if err := createLegacyGroup(ctx, s.deps.GroupRepo, group); err != nil {
 		return nil, &ports.ScheduleError{Op: "split template: create successor template", Err: err}
 	}
-	targetRepo, ok := s.deps.GroupRepo.(ports.ActivityGroupTargets)
-	if !ok && len(in.Targets) > 0 {
-		return nil, &ports.ScheduleError{Op: "split template: create successor targets", Err: errors.New("target repository is not configured")}
-	}
-	if ok {
-		if err := targetRepo.ReplaceTargets(ctx, group.ID, in.Targets); err != nil {
-			return nil, &ports.ScheduleError{Op: "split template: create successor targets", Err: err}
-		}
+	if err := replaceLegacyGroupTargets(ctx, s.deps.GroupRepo, group.ID, in.Targets); err != nil {
+		return nil, &ports.ScheduleError{Op: "split template: create successor targets", Err: err}
 	}
 	return group, nil
 }

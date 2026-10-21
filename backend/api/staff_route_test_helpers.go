@@ -99,7 +99,7 @@ type ShiftTypeTestModule struct {
 // It returns the administration with the Timetable side it runs over.
 func NewShiftTypeTestModule(db transactionruntime.Database) (workforce.ShiftTypeAdministration, ShiftTypeTestModule, error) {
 	repos := NewShiftTypeTestRepositories(db, owners.MustNewMembershipTestRepositories(db))
-	linker, err := timetableCompose.NewService(repos.Timetable, nil, nil, nil, nil, nil, nil, nil)
+	linker, err := timetableCompose.NewService(repos.Timetable, nil, nil, nil, nil, nil, nil)
 	if err != nil {
 		return nil, ShiftTypeTestModule{}, err
 	}
@@ -118,7 +118,7 @@ func NewShiftTypeTestModule(db transactionruntime.Database) (workforce.ShiftType
 	planning, err := workforceCompose.NewShiftPlanning(workforceCompose.ShiftPlanningDependencies{
 		Workforce: NewAbsenceTypeTestCapability(db), Staff: owners.NewPlanStaffDirectory(owners.MustNewMembershipTestRepositories(db).Staff), CalendarPeriods: calendar.SchoolCalendar(),
 		Instances: timetableCompose.NewTimetableInstanceReads(timetable.ActivityInstance), InstanceStaff: timetableCompose.NewTimetableInstanceStaffReads(timetable.InstanceStaff),
-		Rooms: facilitiesCompose.NewRoomNameDirectory(rooms.Room), ActivityGroups: timetableCompose.NewTimetableGroupReads(timetable.ActivityGroup),
+		Rooms: facilitiesCompose.NewRoomNameDirectory(rooms.Room), ActivityGroups: timetableCompose.NewTimetableGroupReads(timetable.Timetable),
 		CategoryLinker: timetableCompose.ShiftTypeCategoryLinker(linker.SetCategoryShiftTypeLinks), DB: db.Pool(), Logger: slog.Default(),
 	})
 	if err != nil {

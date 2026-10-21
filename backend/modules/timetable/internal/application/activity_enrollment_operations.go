@@ -477,7 +477,7 @@ func (s *ActivityService) GetStudentEnrollments(ctx context.Context, studentID i
 		return []*activityContract.Group{}, nil
 	}
 
-	groups, err := s.groupRepo.ListWithCategory(ctx, &activityContract.GroupListQuery{IDs: groupIDs})
+	groups, err := listLegacyGroups(ctx, s.timetable, timetable.GroupFilter{IDs: groupIDs}, "list")
 	if err != nil {
 		return nil, &activityContract.ActivityError{Op: "get student enrollments", Err: err}
 	}
@@ -541,7 +541,8 @@ func (s *ActivityService) GetAvailableGroups(ctx context.Context, studentID int6
 	}
 
 	// Get all active groups - assuming FindOpenGroups is the correct method
-	allGroups, err := s.groupRepo.FindOpenGroups(ctx)
+	open, system := true, false
+	allGroups, err := listLegacyGroups(ctx, s.timetable, timetable.GroupFilter{IsOpen: &open, IsSystem: &system, OrderByName: true}, "find open groups")
 	if err != nil {
 		return nil, &activityContract.ActivityError{Op: "get all groups", Err: err}
 	}

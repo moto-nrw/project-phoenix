@@ -309,7 +309,7 @@ func TestCareOfferingCatalog_Create_UsesTemplateCalendarPeriodFallback(t *testin
 		calendar.NewDate(2027, 8, 31))
 	group := createCareOfferingTemplateGroup(t, db, "care-template-fallback")
 	group.CalendarPeriodID = &period.ID
-	require.NoError(t, timetableCompose.NativeGroupRecords(testTimetableRepositories(db).ActivityGroup).Update(ctx, group))
+	require.NoError(t, timetableCompose.NativeGroupRecords(testTimetableRepositories(db).Timetable).Update(ctx, group))
 	createCareOfferingTemplateSchedule(t, db, group.ID, timetable.WeekdayMonday, nil)
 
 	created, err := svc.Create(ctx, baseLinkedOffering(t, phase.ID, group.ID))
@@ -338,11 +338,11 @@ func TestCareOfferingCatalog_Create_RejectsIncompatibleSplitSeriesSegment(t *tes
 	root := createCareOfferingTemplateGroup(t, db, "care-series-root")
 	root.CalendarPeriodID = &rootPeriod.ID
 	timetableRepos := testTimetableRepositories(db)
-	require.NoError(t, timetableCompose.NativeGroupRecords(timetableRepos.ActivityGroup).Update(ctx, root))
+	require.NoError(t, timetableCompose.NativeGroupRecords(timetableRepos.Timetable).Update(ctx, root))
 	successor := createCareOfferingTemplateGroup(t, db, "care-series-successor")
 	successor.SeriesRootID = &root.ID
 	successor.CalendarPeriodID = &successorPeriod.ID
-	require.NoError(t, timetableCompose.NativeGroupRecords(timetableRepos.ActivityGroup).Update(ctx, successor))
+	require.NoError(t, timetableCompose.NativeGroupRecords(timetableRepos.Timetable).Update(ctx, successor))
 
 	boundary := calendar.NewDate(2027, 1, 1)
 	rootSchedule := &timetable.Schedule{
@@ -376,7 +376,7 @@ func TestCareOfferingCatalog_Create_RejectsTemplateOutsidePhaseWindow(t *testing
 	group := createCareOfferingTemplateGroup(t, db, "care-no-overlap-template")
 	group.CalendarPeriodID = &period.ID
 	timetableRepos := testTimetableRepositories(db)
-	require.NoError(t, timetableCompose.NativeGroupRecords(timetableRepos.ActivityGroup).Update(ctx, group))
+	require.NoError(t, timetableCompose.NativeGroupRecords(timetableRepos.Timetable).Update(ctx, group))
 	startsAfterPhase := calendar.Date(phase.ServiceEndDate).AddDays(1)
 	schedule := &timetable.Schedule{
 		Weekday: timetable.WeekdayMonday, ActivityGroupID: group.ID,
@@ -1050,7 +1050,7 @@ func createCareOfferingTemplateGroup(t *testing.T, db *bun.DB, name string) *tim
 		IsTemplate:      true,
 	}
 	group.TenantID = testpkg.Tenant(t)
-	require.NoError(t, timetableCompose.NativeGroupRecords(testTimetableRepositories(db).ActivityGroup).Create(testpkg.Ctx(t), group))
+	require.NoError(t, timetableCompose.NativeGroupRecords(testTimetableRepositories(db).Timetable).Create(testpkg.Ctx(t), group))
 	t.Cleanup(func() {
 		_, _ = db.NewDelete().
 			TableExpr("activities.schedules").

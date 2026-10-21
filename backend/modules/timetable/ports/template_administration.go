@@ -17,7 +17,7 @@ import (
 // Structure's education groups and class rules, and the realtime staffing
 // announcement. Staffing, Logger and Today are optional.
 type TemplateAdministrationDependencies struct {
-	Groups               ActivityGroupRecords
+	Groups               GroupRows
 	Categories           timetable.CategoryQuery
 	Schedules            timetable.ScheduleCapability
 	Enrollments          ActivityEnrollmentRecords

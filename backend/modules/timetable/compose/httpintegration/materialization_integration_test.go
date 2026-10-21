@@ -301,9 +301,8 @@ func TestMaterializeForTenant_MultipleDynamicTargetsFollowClassChanges(t *testin
 
 	class3a := "3a"
 	class4a := "4a"
-	targetRepo, ok := api.NewUnobservedTimetableRepositories(testpkg.MustDatabase(s.db)).ActivityGroup.(fixtures.GroupTargets)
-	require.True(t, ok)
-	require.NoError(t, targetRepo.ReplaceTargets(s.ctx, s.template.ID, []*activityContract.GroupTarget{
+	groups := api.NewUnobservedTimetableRepositories(testpkg.MustDatabase(s.db)).Timetable
+	require.NoError(t, groups.ReplaceGroupTargets(s.ctx, s.template.ID, []timetable.GroupTargetInput{
 		{TargetGroupType: activityContract.TargetGroupTypeKlasse, TargetSchoolClass: &class3a},
 		{TargetGroupType: activityContract.TargetGroupTypeKlasse, TargetSchoolClass: &class4a},
 	}))
@@ -689,7 +688,7 @@ func updateCalendarPeriodRow(t *testing.T, db *bun.DB, ctx context.Context, peri
 func newTestMaterialization(t *testing.T, db *bun.DB, repos *api.CareScheduleSuiteRepositories, timetableRepos owners.TimetableRepositories) timetable.MaterializationCapability {
 	t.Helper()
 	svc, err := compose.NewMaterialization(timetablePorts.MaterializationDependencies{
-		GroupRepo:      timetableRepos.ActivityGroup,
+		GroupRepo:      timetableRepos.Timetable,
 		ScheduleRepo:   timetableRepos.ActivitySchedule,
 		EnrollmentRepo: timetableRepos.StudentEnrollment,
 		SupervisorRepo: timetableRepos.ActivitySupervisor,
