@@ -2,7 +2,6 @@ package application
 
 import (
 	"context"
-	"errors"
 	"fmt"
 
 	activityContract "github.com/moto-nrw/project-phoenix/modules/timetable/activitycontract"
@@ -30,11 +29,11 @@ func (s *TemplateSplitService) loadSegmentRosterCandidates(
 	effectiveDate calendar.Date,
 	segmentValidUntil *calendar.Date,
 ) ([]*activityContract.StudentEnrollment, []*activityContract.SupervisorPlanned, error) {
-	enrollments, err := s.deps.EnrollmentRepo.FindByGroupID(ctx, groupID)
+	enrollments, err := groupStudentEnrollments(ctx, s.deps.EnrollmentRepo, s.deps.Directories, groupID)
 	if err != nil {
 		return nil, nil, &ports.ScheduleError{Op: "split template: load enrollments", Err: err}
 	}
-	supervisors, err := s.deps.SupervisorRepo.FindByGroupID(ctx, groupID)
+	supervisors, err := groupPlannedSupervisors(ctx, s.deps.SupervisorRepo, s.deps.Directories, groupID)
 	if err != nil {
 		return nil, nil, &ports.ScheduleError{Op: "split template: load supervisors", Err: err}
 	}
@@ -89,10 +88,10 @@ func (s *TemplateSplitService) capBoundedSegmentEnrollments(
 			continue
 		}
 		if !row.ValidFrom.Before(capAt) {
-			if err := s.deps.EnrollmentRepo.Delete(ctx, row.ID); err != nil {
+			if err := deleteLegacyStudentEnrollment(ctx, s.deps.EnrollmentRepo, row.ID); err != nil {
 				return changed, &ports.ScheduleError{Op: "cap segment: delete future enrollment", Err: err}
 			}
-		} else if err := s.deps.EnrollmentRepo.SetValidUntilByID(ctx, row.ID, activityContract.Date(capAt)); err != nil {
+		} else if err := setLegacyStudentEnrollmentValidUntil(ctx, s.deps.EnrollmentRepo, row.ID, activityContract.Date(capAt)); err != nil {
 			return changed, &ports.ScheduleError{Op: "cap segment: close enrollment", Err: err}
 		}
 		changed++
@@ -115,10 +114,10 @@ func (s *TemplateSplitService) capBoundedSegmentSupervisors(
 			continue
 		}
 		if !row.ValidFrom.Before(capAt) {
-			if err := s.deps.SupervisorRepo.Delete(ctx, row.ID); err != nil {
+			if err := deleteLegacyPlannedSupervisor(ctx, s.deps.SupervisorRepo, row.ID); err != nil {
 				return changed, &ports.ScheduleError{Op: "cap segment: delete future supervisor", Err: err}
 			}
-		} else if err := s.deps.SupervisorRepo.SetValidUntilByID(ctx, row.ID, activityContract.Date(capAt)); err != nil {
+		} else if err := setLegacyPlannedSupervisorValidUntil(ctx, s.deps.SupervisorRepo, row.ID, activityContract.Date(capAt)); err != nil {
 			return changed, &ports.ScheduleError{Op: "cap segment: close supervisor", Err: err}
 		}
 		changed++
@@ -130,17 +129,11 @@ func (s *TemplateSplitService) capBoundedSegmentSupervisors(
 func (s *TemplateSplitService) createSuccessorGroup(ctx context.Context, old *activityContract.Group, in TemplateSplitInput, tenantID int64) (*activityContract.Group, error) {
 	group := successorGroup(old, in)
 	group.SetTenantID(tenantID)
-	if err := s.deps.GroupRepo.Create(ctx, group); err != nil {
+	if err := createLegacyGroup(ctx, s.deps.GroupRepo, group); err != nil {
 		return nil, &ports.ScheduleError{Op: "split template: create successor template", Err: err}
 	}
-	targetRepo, ok := s.deps.GroupRepo.(ports.ActivityGroupTargets)
-	if !ok && len(in.Targets) > 0 {
-		return nil, &ports.ScheduleError{Op: "split template: create successor targets", Err: errors.New("target repository is not configured")}
-	}
-	if ok {
-		if err := targetRepo.ReplaceTargets(ctx, group.ID, in.Targets); err != nil {
-			return nil, &ports.ScheduleError{Op: "split template: create successor targets", Err: err}
-		}
+	if err := replaceLegacyGroupTargets(ctx, s.deps.GroupRepo, group.ID, in.Targets); err != nil {
+		return nil, &ports.ScheduleError{Op: "split template: create successor targets", Err: err}
 	}
 	return group, nil
 }
@@ -420,7 +413,7 @@ func (s *TemplateSplitService) persistSuccessorStudentRows(
 		row.ValidUntil = earliestActivityDate(row.ValidUntil, segmentValidUntil)
 		row.CalendarPeriodID = in.CalendarPeriodID
 		row.SetTenantID(tenantID)
-		if err := s.deps.EnrollmentRepo.Create(ctx, row); err != nil {
+		if err := createLegacyStudentEnrollment(ctx, s.deps.EnrollmentRepo, row); err != nil {
 			return &ports.ScheduleError{Op: "split template: create enrollment", Err: err}
 		}
 	}
@@ -451,7 +444,7 @@ func (s *TemplateSplitService) persistProtectedStudentRows(
 			Weekday:                  weekdayScopePtr(source.Weekday),
 		}
 		row.SetTenantID(tenantID)
-		if err := s.deps.EnrollmentRepo.Create(ctx, row); err != nil {
+		if err := createLegacyStudentEnrollment(ctx, s.deps.EnrollmentRepo, row); err != nil {
 			return &ports.ScheduleError{Op: "split template: carry protected enrollment", Err: err}
 		}
 	}
@@ -493,7 +486,7 @@ func (s *TemplateSplitService) createStaffRoster(
 		row.ValidUntil = earliestActivityDate(row.ValidUntil, segmentValidUntil)
 		row.CalendarPeriodID = in.CalendarPeriodID
 		row.SetTenantID(tenantID)
-		if err := s.deps.SupervisorRepo.Create(ctx, row); err != nil {
+		if err := createLegacyPlannedSupervisor(ctx, s.deps.SupervisorRepo, row); err != nil {
 			return &ports.ScheduleError{Op: "split template: create supervisor", Err: err}
 		}
 	}

@@ -24,7 +24,7 @@ import (
 func BuildActivities(owner TimetableOwner, timetableOwner timetable.Capability, sessions presenceCompose.SessionRecords, people PeopleRows) (activityContract.ActivityService, error) {
 	repos := owner.Repositories
 	return arrivalTimetable.NewService(
-		timetableOwner, repos.ActivityGroup, repos.ActivitySchedule, repos.ActivitySupervisor, repos.StudentEnrollment,
+		timetableOwner, repos.ActivitySchedule, repos.Directories,
 		sessions, NewTimetableStaff(people.Staff), NewTimetableRosterStudents(people.Students),
 	)
 }
@@ -46,7 +46,7 @@ func BuildShiftPlanning(
 		Instances:      arrivalTimetable.NewTimetableInstanceReads(repos.ActivityInstance),
 		InstanceStaff:  arrivalTimetable.NewTimetableInstanceStaffReads(repos.InstanceStaff),
 		Rooms:          facilitiesCompose.NewRoomNameDirectory(facilitiesCompose.NewRoomRecords(rooms)),
-		ActivityGroups: arrivalTimetable.NewTimetableGroupReads(repos.ActivityGroup),
+		ActivityGroups: arrivalTimetable.NewTimetableGroupReads(repos.Timetable),
 		WorkSchedules:  workTime,
 		WorkModels:     workTime,
 		Holidays:       schoolCalendarCompose.NewNonWorkingDays(calendar), NonWorkingDays: calendar,

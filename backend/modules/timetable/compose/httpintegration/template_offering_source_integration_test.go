@@ -88,12 +88,12 @@ func registerSourcedTemplateCleanup(t *testing.T, s *scenarioSetup, templateID i
 	})
 }
 
-func loadTemplateGroup(t *testing.T, s *scenarioSetup, templateID int64) *activityContract.Group {
+func loadTemplateGroup(t *testing.T, s *scenarioSetup, templateID int64) *timetable.Group {
 	t.Helper()
-	group, err := api.NewUnobservedTimetableRepositories(testpkg.MustDatabase(s.db)).ActivityGroup.FindByID(s.ctx, templateID)
+	group, err := api.NewUnobservedTimetableRepositories(testpkg.MustDatabase(s.db)).Timetable.FindGroup(s.ctx, templateID)
 	require.NoError(t, err)
 	require.NotNil(t, group)
-	return group
+	return &group
 }
 
 // linkApprovedChildToOffering attaches an approved request-child (with a

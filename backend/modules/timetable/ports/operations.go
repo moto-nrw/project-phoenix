@@ -5,8 +5,6 @@ import (
 	"log/slog"
 	"time"
 
-	activityContract "github.com/moto-nrw/project-phoenix/modules/timetable/activitycontract"
-
 	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
 	"github.com/moto-nrw/project-phoenix/modules/timetable"
 	scheduleModels "github.com/moto-nrw/project-phoenix/modules/timetable/internal/domain/schedulerecords"
@@ -34,13 +32,6 @@ type OperationParticipants interface {
 	FindByInstanceAndStudent(ctx context.Context, instanceID, studentID int64) (*scheduleModels.InstanceStudent, error)
 	FindPresentInOtherActiveInstances(ctx context.Context, excludeInstanceID int64, date calendar.Date, studentIDs []int64) ([]scheduleModels.ParallelPresence, error)
 	UpdateAttendanceFields(ctx context.Context, id int64, patch scheduleModels.AttendanceFieldPatch) error
-}
-
-// OperationTemplates reads the templates (activity groups) behind blocks.
-type OperationTemplates interface {
-	FindByID(ctx context.Context, id int64) (*activityContract.Group, error)
-	FindByIDs(ctx context.Context, ids []int64) ([]*activityContract.Group, error)
-	FindTargetsByGroupIDs(ctx context.Context, groupIDs []int64) (map[int64][]*activityContract.GroupTarget, error)
 }
 
 // OperationSessions reads and touches the Student Presence live sessions.
@@ -203,7 +194,7 @@ type OperationDependencies struct {
 	Instances            OperationInstances
 	InstanceStaff        OperationInstanceStaff
 	Participants         OperationParticipants
-	Templates            OperationTemplates
+	Templates            timetable.ActivityGroupQuery
 	PlanningTracks       timetable.PlanningTrackQuery
 	Sessions             OperationSessions
 	Supervisions         OperationSupervisions

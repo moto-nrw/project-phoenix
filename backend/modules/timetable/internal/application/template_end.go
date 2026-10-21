@@ -139,11 +139,11 @@ func (s *TemplateSplitService) capEndedSegment(
 	if err != nil {
 		return nil, &ports.ScheduleError{Op: "end template: cap schedules", Err: err}
 	}
-	cappedEnrollments, err := s.deps.EnrollmentRepo.CapActiveByGroup(ctx, templateID, activityContract.Date(effectiveDate))
+	cappedEnrollments, err := capLegacyStudentEnrollments(ctx, s.deps.EnrollmentRepo, templateID, activityContract.Date(effectiveDate))
 	if err != nil {
 		return nil, &ports.ScheduleError{Op: "end template: cap enrollments", Err: err}
 	}
-	cappedSupervisors, err := s.deps.SupervisorRepo.CapActiveByGroup(ctx, templateID, activityContract.Date(effectiveDate))
+	cappedSupervisors, err := capLegacyPlannedSupervisors(ctx, s.deps.SupervisorRepo, templateID, activityContract.Date(effectiveDate))
 	if err != nil {
 		return nil, &ports.ScheduleError{Op: "end template: cap supervisors", Err: err}
 	}

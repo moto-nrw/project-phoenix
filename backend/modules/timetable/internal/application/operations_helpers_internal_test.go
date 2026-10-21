@@ -180,7 +180,7 @@ func TestTimetableOperationDirectHelperBranches(t *testing.T) {
 
 		group, err := deps.service.loadRosterTemplateGroup(context.Background(), &groupID)
 
-		require.EqualError(t, err, "group failed")
+		require.EqualError(t, err, "database error during find by id: group failed")
 		assert.Nil(t, group)
 	})
 

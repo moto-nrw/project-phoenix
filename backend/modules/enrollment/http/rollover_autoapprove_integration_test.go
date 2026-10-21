@@ -615,7 +615,7 @@ func TestRolloverService_AutoApprove_ValidationFailureRollsBackStudentUpdate(t *
 	assert.Equal(t, enrollmentNative.ChildStatusAutoRenewed, rolledAfter.Status)
 	assert.Nil(t, rolledAfter.CreatedStudentID, "failed approval must not link the existing student")
 
-	enrollments, err := env.reposTimetable.StudentEnrollment.FindByStudentID(ctx, existing.ID)
+	enrollments, err := env.reposTimetable.StudentEnrollment.ListStudentEnrollments(ctx, timetable.StudentEnrollmentFilter{StudentIDs: []int64{existing.ID}, OrderByValidFrom: true})
 	require.NoError(t, err)
 	for _, enrollment := range enrollments {
 		if enrollment.EnrollmentRequestChildID != nil {

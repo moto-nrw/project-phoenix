@@ -8,14 +8,14 @@ import (
 	"github.com/moto-nrw/project-phoenix/modules/timetable/ports"
 )
 
-func NativeGroupRecords(rows ports.ActivityGroupRecords) ports.NativeGroupRecords {
+func NativeGroupRecords(rows ports.GroupRows) ports.NativeGroupRecords {
 	return application.NativeGroupRecords(rows)
 }
 func NativeScheduleRecords(schedules timetable.ScheduleCapability) ports.NativeScheduleRecords {
 	return application.NativeScheduleRecords(schedules)
 }
-func NativeEnrollmentRecords(rows ports.ActivityEnrollmentRecords) ports.NativeEnrollmentRecords {
-	return application.NativeEnrollmentRecords(rows)
+func NativeEnrollmentRecords(enrollments timetable.StudentEnrollmentCapability) ports.NativeEnrollmentRecords {
+	return application.NativeEnrollmentRecords(enrollments)
 }
 func NativeExceptionRecords(exceptions timetable.ActivityExceptionCapability) ports.NativeExceptionRecords {
 	return application.NativeExceptionRecords(exceptions)

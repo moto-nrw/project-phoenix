@@ -103,7 +103,7 @@ func (s *InstanceLifecycleService) describeStartedSession(
 		}
 	}
 	if instance.ActivityGroupID != nil && s.deps.ActivityGroupRepo != nil {
-		if group, err := s.deps.ActivityGroupRepo.FindByID(ctx, *instance.ActivityGroupID); err == nil && group != nil {
+		if group, err := findLegacyGroup(ctx, s.deps.ActivityGroupRepo, *instance.ActivityGroupID); err == nil && group != nil {
 			name := group.Name
 			event.ActivityName = &name
 		}

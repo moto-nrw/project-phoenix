@@ -13,6 +13,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
 	peopleCompose "github.com/moto-nrw/project-phoenix/modules/peopledirectory/compose"
 	"github.com/moto-nrw/project-phoenix/modules/securityruntime"
+	timetableOwner "github.com/moto-nrw/project-phoenix/modules/timetable"
 	timetableCompose "github.com/moto-nrw/project-phoenix/modules/timetable/compose"
 	"github.com/moto-nrw/project-phoenix/modules/transactionruntime"
 	statsContract "github.com/moto-nrw/project-phoenix/modules/transactionruntime/stats"
@@ -52,7 +53,7 @@ func newDatabaseStats(people peopleCompose.Repositories, groups owners.Education
 			return len(rows), err
 		},
 		Activities: func(ctx context.Context) (int, error) {
-			rows, err := timetable.ActivityGroup.ListAll(ctx)
+			rows, err := timetable.Timetable.ListGroups(ctx, timetableOwner.GroupFilter{})
 			return len(rows), err
 		},
 		Groups: func(ctx context.Context) (int, error) {

@@ -35,7 +35,7 @@ func ComposePresenceSessionRecords(deps presenceCompose.SessionRecordDependencie
 func sessionRecordDependencies(now func() time.Time, devices devicefleet.Query, rooms facilitiesModule.Query, activities timetable.Capability, membership schoolmembership.Query, persons peopledirectory.Query) presenceCompose.SessionRecordDependencies {
 	deps := presenceCompose.SessionRecordDependencies{
 		Now: now, Rooms: activeRoomDirectory{rooms: rooms},
-		Activities: NewSessionActivities(timetableCompose.NewTimetableGroupReads(timetableCompose.NewActivityGroupRecords(activities))),
+		Activities: NewSessionActivities(timetableCompose.NewTimetableGroupReads(activities)),
 		Staff:      presenceSupervisionStaff{membership: membership, persons: persons},
 	}
 	if devices != nil {

@@ -28,10 +28,6 @@ func NewTimetableData(
 	visits timetablePorts.OperationVisits, groups timetablePorts.DataGroups, sessions studentpresence.SessionRecords,
 	conflictAcks timetable.ConflictAckCapability, blockMetadata timetablePorts.BlockDisplayMetadata, transactional bool, logger *slog.Logger,
 ) (timetable.TimetableDataCapability, error) {
-	templates, err := timetableCompose.NewDataTemplates(rows.Templates)
-	if err != nil {
-		return nil, err
-	}
 	return timetableCompose.NewTimetableData(timetablePorts.TimetableDataDependencies{
 		Instances:         rows.Instances,
 		InstanceStaff:     rows.InstanceStaff,
@@ -41,7 +37,8 @@ func NewTimetableData(
 		ArrivalBaselines:  newArrivalBaselineProjector(arrivalBaselines),
 		PickupBaselines:   newPickupBaselineProjector(pickupBaselines),
 		Visits:            visits,
-		Templates:         templates,
+		Templates:         rows.Templates,
+		Directories:       rows.Directories,
 		Groups:            groups,
 		BlockMetadata:     blockMetadata,
 		Categories:        rows.Categories,

@@ -75,7 +75,7 @@ func (s *InstanceLifecycleService) validateActivityGroupReference(ctx context.Co
 	if *activityGroupID <= 0 {
 		return "", fmt.Errorf("%w: invalid activity_group_id", timetable.ErrInvalidInstanceReference)
 	}
-	group, err := s.deps.ActivityGroupRepo.FindByID(ctx, *activityGroupID)
+	group, err := findLegacyGroup(ctx, s.deps.ActivityGroupRepo, *activityGroupID)
 	if err != nil || group == nil {
 		return "", invalidReference("activity_group_id", err)
 	}
