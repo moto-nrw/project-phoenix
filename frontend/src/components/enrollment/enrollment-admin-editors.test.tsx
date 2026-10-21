@@ -4541,23 +4541,107 @@ describe("information PDF attachments in the form editor", () => {
   async function upload(name: string, url: string, index: number) {
     mocks.uploadEnrollmentLegalDocument.mockResolvedValueOnce(url);
     const file = new File(["%PDF-1.4"], name, { type: "application/pdf" });
-    fireEvent.change(screen.getByLabelText("PDF-Datei auswählen"), {
+    fireEvent.change(screen.getByLabelText("PDF-Dateien auswählen"), {
       target: { files: [file] },
     });
     await waitFor(() =>
       expect(
-        screen.getByRole("textbox", { name: `Bezeichnung der PDF ${index}` }),
+        screen.getByRole("textbox", {
+          name: `Bezeichnung für Eltern: PDF ${index}`,
+        }),
       ).toHaveValue(name.replace(/\.pdf$/, "")),
     );
     return file;
   }
+
+  it("adds both PDFs from one selection and saves their separate labels", async () => {
+    await newNotice();
+    expect(
+      screen.getByRole("button", { name: "PDFs hinzufügen" }),
+    ).toBeInTheDocument();
+    const picker = screen.getByLabelText("PDF-Dateien auswählen");
+    expect(picker).toHaveAttribute("multiple");
+    expect(screen.getByLabelText("Ersatz-PDF auswählen")).not.toHaveAttribute(
+      "multiple",
+    );
+    mocks.uploadEnrollmentLegalDocument
+      .mockResolvedValueOnce(firstURL)
+      .mockResolvedValueOnce(secondURL);
+    const files = [
+      new File(["%PDF first"], "Schulstart.pdf", { type: "application/pdf" }),
+      new File(["%PDF second"], "Abholen.pdf", { type: "application/pdf" }),
+    ];
+    fireEvent.change(picker, { target: { files } });
+    await waitFor(() =>
+      expect(
+        screen.getByRole("textbox", { name: "Bezeichnung für Eltern: PDF 2" }),
+      ).toHaveValue("Abholen"),
+    );
+    expect(
+      screen.getByRole("textbox", { name: "Bezeichnung für Eltern: PDF 1" }),
+    ).toHaveValue("Schulstart");
+    expect(
+      screen.getByRole("button", { name: "Weitere PDFs hinzufügen" }),
+    ).toBeEnabled();
+    expect(mocks.uploadEnrollmentLegalDocument.mock.calls).toEqual([
+      [files[0]],
+      [files[1]],
+    ]);
+    mocks.createSchema.mockResolvedValueOnce(schema({ name: "Informationen" }));
+    fireEvent.click(
+      screen.getByRole("button", { name: "Formularvorlage erstellen" }),
+    );
+    await waitFor(() => expect(mocks.createSchema).toHaveBeenCalledOnce());
+    expect(mocks.createSchema.mock.calls[0]![1]).toEqual([
+      expect.objectContaining({
+        attachments: [
+          { label: "Schulstart", document_url: firstURL },
+          { label: "Abholen", document_url: secondURL },
+        ],
+      }),
+    ]);
+  });
+
+  it("keeps successful PDFs when one file in a selection fails", async () => {
+    await newNotice();
+    const failure = new Error("upload failed");
+    mocks.uploadEnrollmentLegalDocument
+      .mockResolvedValueOnce(firstURL)
+      .mockRejectedValueOnce(failure)
+      .mockResolvedValueOnce(secondURL);
+    fireEvent.change(screen.getByLabelText("PDF-Dateien auswählen"), {
+      target: {
+        files: [
+          new File(["%PDF one"], "Schulstart.pdf", { type: "application/pdf" }),
+          new File(["%PDF two"], "Fehler.pdf", { type: "application/pdf" }),
+          new File(["%PDF three"], "Abholen.pdf", { type: "application/pdf" }),
+        ],
+      },
+    });
+    await waitFor(() =>
+      expect(
+        screen.getByRole("textbox", { name: "Bezeichnung für Eltern: PDF 2" }),
+      ).toHaveValue("Abholen"),
+    );
+    expect(
+      screen.getByRole("textbox", { name: "Bezeichnung für Eltern: PDF 1" }),
+    ).toHaveValue("Schulstart");
+    expect(mocks.showActionError).toHaveBeenCalledWith(failure, {
+      object: "die PDF-Datei",
+      messageSuffix: "Datei: Fehler.pdf",
+    });
+    expect(mocks.deleteEnrollmentLegalDocument).not.toHaveBeenCalled();
+    expect(
+      screen.getByRole("button", { name: "Weitere PDFs hinzufügen" }),
+    ).toBeEnabled();
+  });
 
   it("saves two named PDFs on an information field without adding consent", async () => {
     await newNotice();
     const first = await upload("Schulstart.pdf", firstURL, 1);
     const second = await upload("Abholen.pdf", secondURL, 2);
     fireEvent.change(
-      screen.getByRole("textbox", { name: "Bezeichnung der PDF 2" }),
+      screen.getByRole("textbox", { name: "Bezeichnung für Eltern: PDF 2" }),
       { target: { value: "Abholen und Kontakt" } },
     );
     mocks.createSchema.mockResolvedValueOnce(schema({ name: "Informationen" }));
@@ -4588,12 +4672,9 @@ describe("information PDF attachments in the form editor", () => {
     await newNotice();
     await upload("Schulstart.pdf", firstURL, 1);
     await upload("Abholen.pdf", secondURL, 2);
-    fireEvent.click(screen.getByRole("button", { name: "Aktionen für PDF 1" }));
-    fireEvent.click(
-      await screen.findByRole("menuitem", { name: "PDF ersetzen" }),
-    );
+    fireEvent.click(screen.getByRole("button", { name: "PDF 1 ersetzen" }));
     mocks.uploadEnrollmentLegalDocument.mockResolvedValueOnce(replacementURL);
-    fireEvent.change(screen.getByLabelText("PDF-Datei auswählen"), {
+    fireEvent.change(screen.getByLabelText("Ersatz-PDF auswählen"), {
       target: {
         files: [
           new File(["%PDF replaced"], "new.pdf", { type: "application/pdf" }),
@@ -4605,18 +4686,15 @@ describe("information PDF attachments in the form editor", () => {
     );
     await waitFor(() =>
       expect(
-        screen.getByRole("button", { name: "Aktionen für PDF 1" }),
+        screen.getByRole("button", { name: "PDF 1 ersetzen" }),
       ).toBeEnabled(),
     );
     expect(
-      screen.getByRole("textbox", { name: "Bezeichnung der PDF 1" }),
+      screen.getByRole("textbox", { name: "Bezeichnung für Eltern: PDF 1" }),
     ).toHaveValue("Schulstart");
-    fireEvent.click(screen.getByRole("button", { name: "Aktionen für PDF 2" }));
-    fireEvent.click(
-      await screen.findByRole("menuitem", { name: "PDF entfernen" }),
-    );
+    fireEvent.click(screen.getByRole("button", { name: "PDF 2 entfernen" }));
     expect(
-      screen.queryByRole("textbox", { name: "Bezeichnung der PDF 2" }),
+      screen.queryByRole("textbox", { name: "Bezeichnung für Eltern: PDF 2" }),
     ).not.toBeInTheDocument();
     expect(mocks.deleteEnrollmentLegalDocument).not.toHaveBeenCalled();
     fireEvent.click(
@@ -4639,13 +4717,10 @@ describe("information PDF attachments in the form editor", () => {
     await newNotice();
     await upload("Schulstart.pdf", firstURL, 1);
     await upload("Abholen.pdf", secondURL, 2);
-    fireEvent.click(screen.getByRole("button", { name: "Aktionen für PDF 1" }));
-    fireEvent.click(
-      await screen.findByRole("menuitem", { name: "PDF ersetzen" }),
-    );
+    fireEvent.click(screen.getByRole("button", { name: "PDF 1 ersetzen" }));
     const failure = new Error("offline");
     mocks.uploadEnrollmentLegalDocument.mockRejectedValueOnce(failure);
-    fireEvent.change(screen.getByLabelText("PDF-Datei auswählen"), {
+    fireEvent.change(screen.getByLabelText("Ersatz-PDF auswählen"), {
       target: {
         files: [new File(["%PDF"], "new.pdf", { type: "application/pdf" })],
       },
@@ -4653,16 +4728,17 @@ describe("information PDF attachments in the form editor", () => {
     await waitFor(() =>
       expect(mocks.showActionError).toHaveBeenCalledWith(failure, {
         object: "die PDF-Datei",
+        messageSuffix: "Datei: new.pdf",
       }),
     );
     expect(
-      screen.getByRole("textbox", { name: "Bezeichnung der PDF 1" }),
+      screen.getByRole("textbox", { name: "Bezeichnung für Eltern: PDF 1" }),
     ).toHaveValue("Schulstart");
     expect(
-      screen.getByRole("textbox", { name: "Bezeichnung der PDF 2" }),
+      screen.getByRole("textbox", { name: "Bezeichnung für Eltern: PDF 2" }),
     ).toHaveValue("Abholen");
     expect(
-      screen.getByRole("button", { name: "PDF hinzufügen" }),
+      screen.getByRole("button", { name: "Weitere PDFs hinzufügen" }),
     ).toBeEnabled();
     expect(mocks.deleteEnrollmentLegalDocument).not.toHaveBeenCalled();
     mocks.createSchema.mockResolvedValueOnce(schema({ name: "Informationen" }));
@@ -4684,12 +4760,9 @@ describe("information PDF attachments in the form editor", () => {
     await newNotice();
     await upload("Schulstart.pdf", firstURL, 1);
     await upload("Abholen.pdf", secondURL, 2);
-    fireEvent.click(screen.getByRole("button", { name: "Aktionen für PDF 1" }));
-    fireEvent.click(
-      await screen.findByRole("menuitem", { name: "PDF ersetzen" }),
-    );
+    fireEvent.click(screen.getByRole("button", { name: "PDF 1 ersetzen" }));
     mocks.uploadEnrollmentLegalDocument.mockResolvedValueOnce(replacementURL);
-    fireEvent.change(screen.getByLabelText("PDF-Datei auswählen"), {
+    fireEvent.change(screen.getByLabelText("Ersatz-PDF auswählen"), {
       target: {
         files: [
           new File(["%PDF replacement"], "replacement.pdf", {
@@ -4700,13 +4773,10 @@ describe("information PDF attachments in the form editor", () => {
     });
     await waitFor(() =>
       expect(
-        screen.getByRole("button", { name: "Aktionen für PDF 2" }),
+        screen.getByRole("button", { name: "PDF 2 entfernen" }),
       ).toBeEnabled(),
     );
-    fireEvent.click(screen.getByRole("button", { name: "Aktionen für PDF 2" }));
-    fireEvent.click(
-      await screen.findByRole("menuitem", { name: "PDF entfernen" }),
-    );
+    fireEvent.click(screen.getByRole("button", { name: "PDF 2 entfernen" }));
     mocks.createSchema.mockResolvedValueOnce(schema({ name: "Informationen" }));
     fireEvent.click(
       screen.getByRole("button", { name: "Formularvorlage erstellen" }),
@@ -4738,7 +4808,7 @@ describe("information PDF attachments in the form editor", () => {
     await newNotice();
     await upload("Schulstart.pdf", firstURL, 1);
     fireEvent.change(
-      screen.getByRole("textbox", { name: "Bezeichnung der PDF 1" }),
+      screen.getByRole("textbox", { name: "Bezeichnung für Eltern: PDF 1" }),
       { target: { value: " " } },
     );
     fireEvent.click(
@@ -4746,7 +4816,7 @@ describe("information PDF attachments in the form editor", () => {
     );
     expect(mocks.createSchema).not.toHaveBeenCalled();
     expect(
-      screen.getByRole("textbox", { name: "Bezeichnung der PDF 1" }),
+      screen.getByRole("textbox", { name: "Bezeichnung für Eltern: PDF 1" }),
     ).toHaveAttribute("aria-invalid", "true");
   });
 
@@ -4754,9 +4824,12 @@ describe("information PDF attachments in the form editor", () => {
     const pending = deferred<string>();
     const view = await newNotice();
     mocks.uploadEnrollmentLegalDocument.mockReturnValueOnce(pending.promise);
-    fireEvent.change(screen.getByLabelText("PDF-Datei auswählen"), {
+    fireEvent.change(screen.getByLabelText("PDF-Dateien auswählen"), {
       target: {
-        files: [new File(["%PDF"], "draft.pdf", { type: "application/pdf" })],
+        files: [
+          new File(["%PDF"], "draft.pdf", { type: "application/pdf" }),
+          new File(["%PDF"], "unstarted.pdf", { type: "application/pdf" }),
+        ],
       },
     });
     expect(
@@ -4770,6 +4843,7 @@ describe("information PDF attachments in the form editor", () => {
         { keepalive: true },
       ),
     );
+    expect(mocks.uploadEnrollmentLegalDocument).toHaveBeenCalledOnce();
     expect(mocks.createSchema).not.toHaveBeenCalled();
   });
 });
@@ -4784,14 +4858,14 @@ describe("information PDF validation", () => {
       await screen.findByRole("button", { name: "Neue Vorlage" }),
     );
     fireEvent.click(screen.getByRole("button", { name: "Infotext" }));
-    const picker = screen.getByLabelText("PDF-Datei auswählen");
+    const picker = screen.getByLabelText("PDF-Dateien auswählen");
     fireEvent.change(picker, {
       target: {
         files: [new File(["image"], "image.png", { type: "image/png" })],
       },
     });
     expect(mocks.showActionMessage).toHaveBeenLastCalledWith(
-      "Bitte wählen Sie eine PDF-Datei aus.",
+      "Bitte wählen Sie nur PDF-Dateien aus.",
     );
     const oversized = new File(["%PDF"], "large.pdf", {
       type: "application/pdf",
@@ -4799,11 +4873,11 @@ describe("information PDF validation", () => {
     Object.defineProperty(oversized, "size", { value: 10 * 1024 * 1024 + 1 });
     fireEvent.change(picker, { target: { files: [oversized] } });
     expect(mocks.showActionMessage).toHaveBeenLastCalledWith(
-      "Die Datei ist größer als 10 MB. Bitte wählen Sie eine kleinere Datei.",
+      "Eine Datei ist größer als 10 MB. Bitte wählen Sie kleinere Dateien.",
     );
     expect(mocks.uploadEnrollmentLegalDocument).not.toHaveBeenCalled();
     expect(
-      screen.queryByRole("textbox", { name: "Bezeichnung der PDF 1" }),
+      screen.queryByRole("textbox", { name: "Bezeichnung für Eltern: PDF 1" }),
     ).not.toBeInTheDocument();
   });
 });

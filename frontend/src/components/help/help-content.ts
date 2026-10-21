@@ -4193,7 +4193,7 @@ function enrollmentFormTopic(): HelpTopic {
     ],
     image: "/help/screens/anmeldung-pdf-anhaenge.webp",
     imageAlt:
-      "Zwei PDF-Dateien mit eigenen Bezeichnungen im Anmeldeformular-Editor",
+      "Zwei PDF-Anhänge mit eigenen Bezeichnungen und Aktionen im Formular-Editor",
     steps: [],
     instructionGroups: [
       {
@@ -4235,12 +4235,12 @@ function enrollmentFormTopic(): HelpTopic {
         title: "PDF-Dateien zu einem Hinweis hinzufügen",
         steps: [
           "Wählen Sie `Infotext` und schreiben Sie Ihren Hinweis.",
-          "Wählen Sie beim Hinweis `PDF hinzufügen` und wählen Sie eine PDF-Datei.",
-          "Tragen Sie bei `Bezeichnung der PDF 1` einen verständlichen Namen ein.",
-          "Fügen Sie weitere Dateien mit `PDF hinzufügen` hinzu.",
-          "Zum Austauschen öffnen Sie das Drei-Punkte-Menü der PDF. Wählen Sie `PDF ersetzen`.",
-          "Zum Wegnehmen wählen Sie im selben Menü `PDF entfernen`.",
-          "Wählen Sie unten `Änderungen speichern` und prüfen Sie die `Vorschau`.",
+          "Wählen Sie beim Hinweis `PDFs hinzufügen`. Sie können mehrere Dateien gleichzeitig auswählen.",
+          "Geben Sie jeder Datei unter `Bezeichnung für Eltern` einen verständlichen Namen.",
+          "Fügen Sie weitere Dateien mit `Weitere PDFs hinzufügen` hinzu.",
+          "Zum Austauschen wählen Sie bei der jeweiligen PDF `Ersetzen`.",
+          "Zum Wegnehmen wählen Sie das Kreuz bei der jeweiligen PDF.",
+          "Wählen Sie `Änderungen speichern` und danach `Vorschau öffnen`.",
         ],
       },
       {

@@ -1,6 +1,8 @@
 "use client";
 
 import { useState } from "react";
+import { Download, ExternalLink } from "lucide-react";
+import { FileTypeIcon } from "~/components/ui/file-type-icon";
 import { useTranslations } from "next-intl";
 import { Button } from "~/components/ui/button";
 import { useApiErrorDisplay } from "~/contexts/ToastContext";
@@ -86,31 +88,44 @@ function AttachmentActions({
 
   if (attachments.length === 0) return null;
   return (
-    <ul className="mt-3 space-y-3">
+    <ul className="mt-3 space-y-2">
       {attachments.map((attachment) => (
-        <li key={attachment.document_url} className="space-y-1">
-          <p className="text-sm font-medium text-gray-900">
-            {attachment.label}
-          </p>
+        <li
+          key={attachment.document_url}
+          className="moto-content-surface flex flex-wrap items-center gap-x-4 gap-y-2 rounded-xl border px-3 py-2 shadow-sm"
+        >
+          <div className="flex min-w-0 flex-1 basis-48 items-center gap-3">
+            <FileTypeIcon
+              contentType="application/pdf"
+              className="h-5 w-5 shrink-0 text-gray-500"
+            />
+            <p className="min-w-0 text-sm font-medium break-words text-gray-900">
+              {attachment.label}
+            </p>
+          </div>
           <div className="flex flex-wrap gap-2">
             <Button
               type="button"
-              variant="outline"
+              variant="ghost"
               size="md"
+              className="gap-2"
               disabled={busyURL !== null}
               aria-label={t("openLabel", { label: attachment.label })}
               onClick={() => void read(attachment, true)}
             >
+              <ExternalLink className="h-4 w-4" aria-hidden="true" />
               {t("open")}
             </Button>
             <Button
               type="button"
-              variant="outline"
+              variant="ghost"
               size="md"
+              className="gap-2"
               disabled={busyURL !== null}
               aria-label={t("downloadLabel", { label: attachment.label })}
               onClick={() => void read(attachment, false)}
             >
+              <Download className="h-4 w-4" aria-hidden="true" />
               {t("download")}
             </Button>
           </div>
