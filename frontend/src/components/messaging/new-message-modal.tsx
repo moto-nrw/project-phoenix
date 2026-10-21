@@ -1,12 +1,19 @@
 "use client";
 
-import { useEffect, useLayoutEffect, useRef, useState } from "react";
+import { useEffect, useId, useLayoutEffect, useRef, useState } from "react";
 import { ArrowLeft } from "lucide-react";
+import {
+  StudentChoiceList,
+  matchStudentChoices,
+  useStudentChoices,
+} from "~/components/students/student-choice-list";
+import { Button } from "~/components/ui/button";
 import {
   SlideOver,
   SlideOverCloseButton,
   SlideOverContent,
   SlideOverDescription,
+  SlideOverFooter,
   SlideOverHeader,
   SlideOverTitle,
 } from "~/components/ui/slide-over";
@@ -15,10 +22,7 @@ import {
   FormErrorAlert,
   LoadErrorAlert,
 } from "~/components/ui/form-error-alert";
-import { Input } from "~/components/ui/input";
 import { useApiFormError, useApiLoadError } from "~/contexts/ToastContext";
-import { fetchStudents } from "~/lib/student-api";
-import type { Student } from "~/lib/student-helpers";
 import {
   type Guardian,
   type ThreadDetail,
@@ -33,12 +37,13 @@ const logger = createLogger({ component: "NewMessageModal" });
 interface PickedStudent {
   id: string;
   name: string;
-  school_class?: string;
-  group_name?: string;
+  /** Klasse · Gruppe, empty for a preset child. */
+  detail?: string;
 }
 
 /**
- * Lets staff start a conversation: (1) search for a child, (2) pick the
+ * Lets staff start a conversation: (1) pick a child from the alphabetical
+ * list of all children, filtered by the search field (#4362), (2) pick the
  * recipient guardian — then the chat opens directly (WhatsApp-style), no
  * compose step in the modal. The backend get-or-creates the conversation
  * (history shown if one already exists) and `onOpened` receives the
@@ -60,16 +65,11 @@ export function NewMessageModal({
 }) {
   const hasPreset = Boolean(presetStudentId);
 
-  const [query, setQuery] = useState("");
-  const [results, setResults] = useState<Student[]>([]);
-  const [isSearching, setIsSearching] = useState(false);
-  // A failed search is not "Kein Kind gefunden": it shows its own error with
-  // a retry (#2517).
-  const [searchFailed, setSearchFailed] = useState(false);
-  const [searchReloadKey, setSearchReloadKey] = useState(0);
-  const searchError = useApiLoadError();
-  const showSearchError = searchError.show;
-  const clearSearchError = searchError.clear;
+  const formId = useId();
+  const [search, setSearch] = useState("");
+  const [selectedId, setSelectedId] = useState<string | null>(null);
+  const { load, error: loadError } = useStudentChoices(!hasPreset);
+  const { target } = matchStudentChoices(load, search, selectedId);
 
   const [student, setStudent] = useState<PickedStudent | null>(
     presetStudentId
@@ -91,48 +91,6 @@ export function NewMessageModal({
   // Opening the chat fails inside the open panel; the error stays there.
   const openError = useApiFormError();
   const latestPickRef = useRef<(guardian: Guardian) => void>(() => undefined);
-
-  // Debounced child search (only while no child is picked).
-  useEffect(() => {
-    if (student) return;
-    const term = query.trim();
-    if (term.length < 2) {
-      setResults([]);
-      setSearchFailed(false);
-      clearSearchError();
-      return;
-    }
-    let active = true;
-    setIsSearching(true);
-    const handle = setTimeout(() => {
-      fetchStudents({ search: term, page_size: 20 })
-        .then((res) => {
-          if (!active) return;
-          setResults(res.students);
-          setSearchFailed(false);
-          clearSearchError();
-        })
-        .catch((err) => {
-          logger.warn("new_message_student_search_failed", {
-            error: err instanceof Error ? err.message : String(err),
-          });
-          if (!active) return;
-          setResults([]);
-          setSearchFailed(true);
-          void showSearchError(err, {
-            object: "die Suche nach Kindern",
-            retry: () => setSearchReloadKey((key) => key + 1),
-          });
-        })
-        .finally(() => {
-          if (active) setIsSearching(false);
-        });
-    }, 250);
-    return () => {
-      active = false;
-      clearTimeout(handle);
-    };
-  }, [query, student, searchReloadKey, showSearchError, clearSearchError]);
 
   // Load the guardians of the picked child for the recipient step.
   useEffect(() => {
@@ -172,6 +130,11 @@ export function NewMessageModal({
     };
   }, [student, guardiansReloadKey, showGuardiansError, clearGuardiansError]);
 
+  const handlePickStudent = (event: React.FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    if (target) setStudent(target);
+  };
+
   const resetToStudentStep = () => {
     setStudent(null);
     openError.clear();
@@ -207,9 +170,7 @@ export function NewMessageModal({
   });
 
   // The catalog text loads on demand; until it is there the failed list
-  // keeps its loading line, never "Kein Kind gefunden" / no guardians.
-  const searchErrorPending =
-    searchFailed && formErrorMessage(searchError.error) === null;
+  // keeps its loading line, never "no guardians".
   const guardiansErrorPending =
     guardiansFailed && formErrorMessage(guardiansError.error) === null;
 
@@ -232,70 +193,43 @@ export function NewMessageModal({
           </div>
           <SlideOverCloseButton />
         </SlideOverHeader>
-        <div className="flex-1 overflow-y-auto px-5 py-4">
-          {/* STEP 1 — pick a child (skipped when a preset child is given) */}
-          {!student && (
-            <div className="space-y-3">
-              <Input
-                value={query}
-                onChange={(e) => setQuery(e.target.value)}
-                placeholder="Kind suchen..."
+        {/* STEP 1 — pick a child (skipped when a preset child is given) */}
+        {!student && (
+          <form
+            id={formId}
+            onSubmit={handlePickStudent}
+            className="flex min-h-0 flex-1 flex-col"
+          >
+            <div className="flex-1 space-y-3 overflow-y-auto px-5 py-4">
+              <StudentChoiceList
+                load={load}
+                loadError={loadError}
+                search={search}
+                onSearchChange={setSearch}
+                searchLabel="Kind suchen"
+                radioName="new-message-student"
+                selectedId={selectedId}
+                onSelectedIdChange={setSelectedId}
                 autoFocus
               />
-              <div className="max-h-72 space-y-1 overflow-y-auto">
-                {(isSearching || searchErrorPending) && (
-                  <p className="py-3 text-center text-sm text-gray-500">
-                    Suche...
-                  </p>
-                )}
-                {!isSearching && searchFailed && (
-                  <LoadErrorAlert error={searchError.error} />
-                )}
-                {!isSearching &&
-                  !searchFailed &&
-                  query.trim().length >= 2 &&
-                  results.length === 0 && (
-                    <p className="py-3 text-center text-sm text-gray-500">
-                      Kein Kind gefunden.
-                    </p>
-                  )}
-                {results.map((s) => (
-                  <button
-                    key={s.id}
-                    type="button"
-                    onClick={() => {
-                      setStudent({
-                        id: s.id,
-                        name: s.name,
-                        school_class: s.school_class,
-                        group_name: s.group_name,
-                      });
-                      setResults([]);
-                      setQuery("");
-                    }}
-                    className="flex w-full items-center justify-between rounded-lg border border-gray-200 px-3 py-2 text-left hover:bg-gray-50"
-                  >
-                    <span className="truncate text-sm font-medium text-gray-900">
-                      {s.name}
-                    </span>
-                    <span className="ml-2 flex-shrink-0 text-xs text-gray-500">
-                      {[s.school_class, s.group_name]
-                        .filter(Boolean)
-                        .join(" • ")}
-                    </span>
-                  </button>
-                ))}
-                {query.trim().length < 2 && (
-                  <p className="py-3 text-center text-sm text-gray-400">
-                    Mindestens 2 Zeichen eingeben.
-                  </p>
-                )}
-              </div>
             </div>
-          )}
+            <SlideOverFooter className="flex-row justify-end">
+              <Button
+                type="submit"
+                form={formId}
+                variant="success"
+                size="md"
+                disabled={!target}
+              >
+                Weiter
+              </Button>
+            </SlideOverFooter>
+          </form>
+        )}
 
-          {/* STEP 2 — pick the recipient guardian → opens the chat */}
-          {student && (
+        {/* STEP 2 — pick the recipient guardian → opens the chat */}
+        {student && (
+          <div className="flex-1 overflow-y-auto px-5 py-4">
             <div className="space-y-3">
               {!hasPreset && (
                 <button
@@ -310,14 +244,9 @@ export function NewMessageModal({
                 <p className="text-sm font-semibold text-gray-900">
                   {student.name}
                 </p>
-                {[student.school_class, student.group_name].filter(Boolean)
-                  .length > 0 && (
-                  <p className="text-xs text-gray-500">
-                    {[student.school_class, student.group_name]
-                      .filter(Boolean)
-                      .join(" • ")}
-                  </p>
-                )}
+                {student.detail ? (
+                  <p className="text-xs text-gray-500">{student.detail}</p>
+                ) : null}
               </div>
               <p className="text-sm font-medium text-gray-700">Eltern wählen</p>
               <FormErrorAlert message={openError.error} />
@@ -366,8 +295,8 @@ export function NewMessageModal({
                 </div>
               )}
             </div>
-          )}
-        </div>
+          </div>
+        )}
       </SlideOverContent>
     </SlideOver>
   );
