@@ -330,6 +330,34 @@ describe("NowStrip (#2180)", () => {
     expect(screen.queryAllByRole("link")).toHaveLength(0);
   });
 
+  // Auch wer betreut, sieht, wie viele Kinder da sind (#4347): neben dem
+  // eigenen Einsatz für sich, nicht in dessen Zeile.
+  it("zeigt Betreuungskräften neben dem eigenen Einsatz, wie viele Kinder da sind", () => {
+    sources.own = [assignment({ status: "active" })];
+    sources.analytics = { studentsPresent: 42, supervisorsToday: 7 };
+
+    render(<NowStrip access={care} context={context(care)} />);
+
+    expect(sources.requested).toContain("dashboard-analytics");
+    expect(screen.getByText("42")).toBeInTheDocument();
+    expect(screen.getByText(/Kinder da/)).toBeInTheDocument();
+    expect(screen.queryByText(/42 Kinder da ·/)).not.toBeInTheDocument();
+  });
+
+  it("fragt ohne groups:read keine Kinderzahl ab", () => {
+    const restricted: HomeBlockAccess = {
+      ...care,
+      has: (permission) => permission !== "groups:read",
+    };
+    sources.own = [assignment({ status: "active" })];
+    sources.analytics = { studentsPresent: 42, supervisorsToday: 7 };
+
+    render(<NowStrip access={restricted} context={context(restricted)} />);
+
+    expect(sources.requested).not.toContain("dashboard-analytics");
+    expect(screen.queryByText(/Kinder da/)).not.toBeInTheDocument();
+  });
+
   // Die Leitung sieht die Lage der Schule: Blöcke, Kinder, Team.
   it("zeigt der Leitung die Lage der Schule", () => {
     sources.school = [
