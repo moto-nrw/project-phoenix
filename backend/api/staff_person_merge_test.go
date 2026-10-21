@@ -15,6 +15,7 @@ import (
 	auditRecords "github.com/moto-nrw/project-phoenix/modules/auditlog/records"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess/sessiontoken"
 	peopleCompose "github.com/moto-nrw/project-phoenix/modules/peopledirectory/compose"
+	"github.com/moto-nrw/project-phoenix/modules/schoolmembership"
 	membershipCompose "github.com/moto-nrw/project-phoenix/modules/schoolmembership/compose"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/moto-nrw/project-phoenix/workflows/staffpersonmerge"
@@ -30,6 +31,26 @@ type staffMergeHarness struct {
 	schoolID   int64
 	operatorID int64
 	router     chi.Router
+}
+
+type namesakeBeforeRetirementMemberships struct {
+	schoolmembership.StaffPersonMerge
+	db       *bun.DB
+	schoolID int64
+	first    string
+	last     string
+	inserted bool
+}
+
+func (m *namesakeBeforeRetirementMemberships) ReassignStaffPerson(ctx context.Context, input schoolmembership.StaffPersonReassignment) error {
+	if !m.inserted {
+		_, err := m.db.NewRaw(`INSERT INTO users.persons (tenant_id, first_name, last_name) VALUES (?, ?, ?)`, m.schoolID, m.first, m.last).Exec(context.Background())
+		if err != nil {
+			return err
+		}
+		m.inserted = true
+	}
+	return m.StaffPersonMerge.ReassignStaffPerson(ctx, input)
 }
 
 func newStaffMergeHarness(t *testing.T) staffMergeHarness {
@@ -210,6 +231,43 @@ func TestStaffPersonMergeRejectsStaleAndUnconfirmedBatches(t *testing.T) {
 			assert.Equal(t, 4, live, "no selected case may be partially applied")
 		})
 	}
+}
+
+func TestStaffPersonMergeRejectsNamesakeAddedBeforeRetirement(t *testing.T) {
+	t.Parallel()
+	h := newStaffMergeHarness(t)
+	_, donor := h.pair(t, "Späte")
+	input := mergeSelection(h.preview(t))
+	audit, err := auditCompose.NewPersistence(auditCompose.PersistenceDependencies{DB: h.db})
+	require.NoError(t, err)
+	workflow, err := mergeCompose.New(
+		peopleCompose.NewStaffPersonMerge(),
+		&namesakeBeforeRetirementMemberships{
+			StaffPersonMerge: membershipCompose.NewStaffPersonMerge(),
+			db:               h.db,
+			schoolID:         h.schoolID,
+			first:            "Späte",
+			last:             "Doppelsatz",
+		},
+		staffPersonMergeAudit{create: audit.OperatorAuditLog.Create},
+		operatorIDFromSession,
+	)
+	require.NoError(t, err)
+	h.router = chi.NewRouter()
+	h.router.Mount("/", mergeHTTP.Router(workflow, TenantScopeMiddleware))
+
+	rr := h.request(t, http.MethodPost, h.schoolID, input)
+	assert.Equal(t, http.StatusConflict, rr.Code, rr.Body.String())
+
+	var live int
+	require.NoError(t, h.db.NewRaw(`SELECT count(*) FROM users.persons WHERE tenant_id = ? AND first_name = ? AND last_name = ? AND deleted_at IS NULL`, h.schoolID, "Späte", "Doppelsatz").Scan(testpkg.Ctx(t), &live))
+	assert.Equal(t, 3, live)
+	var donorPersonID int64
+	require.NoError(t, h.db.NewRaw(`SELECT person_id FROM users.staff_school_memberships WHERE tenant_id = ? AND id = ?`, h.schoolID, donor.ID).Scan(testpkg.Ctx(t), &donorPersonID))
+	assert.Equal(t, donor.PersonID, donorPersonID, "the failed repair must roll back the employment reassignment")
+	var audits int
+	require.NoError(t, h.db.NewRaw(`SELECT count(*) FROM platform.operator_audit_log WHERE operator_id = ? AND action = 'merge'`, h.operatorID).Scan(testpkg.Ctx(t), &audits))
+	assert.Zero(t, audits)
 }
 
 func TestStaffPersonMergeRollsBackWholeBatchAndAuditOnFailure(t *testing.T) {

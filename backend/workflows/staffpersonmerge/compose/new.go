@@ -22,6 +22,7 @@ func (runtime) RequireAdmin(ctx context.Context) error {
 func (runtime) Lock(ctx context.Context, schoolID int64) error {
 	return tenant.AcquireLock(ctx, fmt.Sprintf("staff-person-merge:%d", schoolID), false)
 }
+func (runtime) MarkRollback(ctx context.Context) { tenant.MarkRollback(ctx) }
 
 func New(people peopledirectory.StaffPersonMerge, memberships schoolmembership.StaffPersonMerge, audit staffpersonmerge.Audit, operatorID func(context.Context) int64) (*staffpersonmerge.Workflow, error) {
 	if operatorID == nil {

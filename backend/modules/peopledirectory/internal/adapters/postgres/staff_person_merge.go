@@ -56,8 +56,12 @@ func (s *Store) RetireMergedStaffPerson(ctx context.Context, schoolID, donorID, 
 			keeper = &people[i]
 		}
 	}
-	if donor == nil || keeper == nil || donorID == keeperID || donor.AccountID != nil || keeper.AccountID == nil || donor.TagID != nil || donor.HasStudent || keeper.HasStudent || donor.NameKey != keeper.NameKey || (donor.Birthday != "" && keeper.Birthday != "" && donor.Birthday != keeper.Birthday) {
-		return errors.New("staff person merge no longer eligible")
+	// The selected people were locked before the employment reassignment, but
+	// a newly created namesake can make that reviewed pair ambiguous meanwhile.
+	// Reloading immediately before retirement makes the complete live group part
+	// of the final eligibility check.
+	if donor == nil || keeper == nil || donorID == keeperID || donor.AccountID != nil || keeper.AccountID == nil || donor.TagID != nil || donor.HasStudent || keeper.HasStudent || donor.NameKey != keeper.NameKey || !hasExactMergePair(people, donor.NameKey) || (donor.Birthday != "" && keeper.Birthday != "" && donor.Birthday != keeper.Birthday) {
+		return peopledirectory.ErrStaffPersonMergeNoLongerEligible
 	}
 	db, _, err := s.database(ctx)
 	if err != nil {
@@ -68,4 +72,14 @@ func (s *Store) RetireMergedStaffPerson(ctx context.Context, schoolID, donorID, 
 	}
 	_, err = db.NewRaw(`UPDATE users.persons SET deleted_at = CURRENT_TIMESTAMP WHERE tenant_id = ? AND id = ? AND deleted_at IS NULL`, schoolID, donorID).Exec(ctx)
 	return err
+}
+
+func hasExactMergePair(people []peopledirectory.StaffMergePerson, nameKey string) bool {
+	count := 0
+	for _, person := range people {
+		if person.NameKey == nameKey {
+			count++
+		}
+	}
+	return count == 2
 }

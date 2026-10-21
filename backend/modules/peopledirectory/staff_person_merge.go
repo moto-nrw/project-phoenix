@@ -1,6 +1,13 @@
 package peopledirectory
 
-import "context"
+import (
+	"context"
+	"errors"
+)
+
+// ErrStaffPersonMergeNoLongerEligible reports a live person group that no
+// longer satisfies the reviewed repair predicates.
+var ErrStaffPersonMergeNoLongerEligible = errors.New("staff person merge no longer eligible")
 
 // StaffMergePerson is a live person considered for an operator-reviewed repair.
 // Student profiles, including former ones, always exclude a person.

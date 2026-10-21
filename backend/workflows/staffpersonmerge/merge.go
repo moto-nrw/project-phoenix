@@ -61,6 +61,7 @@ type Request struct {
 type Runtime interface {
 	RequireAdmin(context.Context) error
 	Lock(context.Context, int64) error
+	MarkRollback(context.Context)
 	OperatorID(context.Context) int64
 }
 type Audit interface {
@@ -119,7 +120,11 @@ func (w *Workflow) Execute(ctx context.Context, schoolID int64, request Request)
 	if err != nil {
 		return err
 	}
-	return w.executeSelected(ctx, actor, schoolID, selected)
+	if err := w.executeSelected(ctx, actor, schoolID, selected); err != nil {
+		w.runtime.MarkRollback(ctx)
+		return err
+	}
+	return nil
 }
 
 func (w *Workflow) executeSelected(ctx context.Context, actor, schoolID int64, selected []Candidate) error {
@@ -128,6 +133,9 @@ func (w *Workflow) executeSelected(ctx context.Context, actor, schoolID int64, s
 			return err
 		}
 		if err := w.people.RetireMergedStaffPerson(ctx, schoolID, candidate.Donor.Person.ID, candidate.Keeper.Person.ID); err != nil {
+			if errors.Is(err, peopledirectory.ErrStaffPersonMergeNoLongerEligible) {
+				return ErrConflict
+			}
 			return err
 		}
 		if err := w.audit.RecordStaffPersonMerge(ctx, actor, schoolID, candidate); err != nil {
