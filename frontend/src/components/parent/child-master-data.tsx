@@ -925,7 +925,13 @@ function DepartureSection({
           {pending && (
             <ParentSubsection
               title={t("pendingTitle")}
-              actions={<StatusBadge label={t("pendingBadge")} tone="orange" />}
+              actions={
+                // Der Wrapper nimmt die volle Breite der Aktionsspalte auf
+                // dem Handy, das Badge behält seine eigene Breite.
+                <div>
+                  <StatusBadge label={t("pendingBadge")} tone="orange" />
+                </div>
+              }
             >
               {requestedModes && (
                 <DepartureDays modes={requestedModes} nested />
