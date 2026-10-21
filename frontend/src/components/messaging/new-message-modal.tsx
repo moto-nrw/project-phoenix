@@ -200,7 +200,7 @@ export function NewMessageModal({
             onSubmit={handlePickStudent}
             className="flex min-h-0 flex-1 flex-col"
           >
-            <div className="flex-1 space-y-3 overflow-y-auto px-5 py-4">
+            <div className="flex min-h-0 flex-1 flex-col gap-3 px-5 py-4">
               <StudentChoiceList
                 load={load}
                 loadError={loadError}
@@ -211,6 +211,7 @@ export function NewMessageModal({
                 selectedId={selectedId}
                 onSelectedIdChange={setSelectedId}
                 autoFocus
+                fillHeight
               />
             </div>
             <SlideOverFooter className="flex-row justify-end">

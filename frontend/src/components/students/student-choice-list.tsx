@@ -12,6 +12,7 @@ import { useApiLoadError } from "~/contexts/ToastContext";
 import { createLogger } from "~/lib/logger";
 import { fetchStudents } from "~/lib/student-api";
 import type { Student } from "~/lib/student-helpers";
+import { cn } from "~/lib/utils";
 
 const logger = createLogger({ component: "StudentChoiceList" });
 
@@ -153,6 +154,11 @@ export interface StudentChoiceListProps {
   readonly unavailableLabel?: string;
   readonly disabled?: boolean;
   readonly autoFocus?: boolean;
+  /**
+   * The list takes the remaining height of a flex-column parent and scrolls
+   * there (a slide-over body); otherwise it scrolls inside a fixed cap.
+   */
+  readonly fillHeight?: boolean;
 }
 
 /**
@@ -174,6 +180,7 @@ export function StudentChoiceList({
   unavailableLabel,
   disabled = false,
   autoFocus,
+  fillHeight = false,
 }: StudentChoiceListProps) {
   const { term, visible, selectable, selected, target } = matchStudentChoices(
     load,
@@ -220,45 +227,52 @@ export function StudentChoiceList({
         ) : null}
       </div>
       {visible.length > 0 ? (
-        <fieldset>
-          <legend className="sr-only">Kind auswählen</legend>
-          <ul className="grid max-h-80 gap-2 overflow-y-auto">
-            {visible.map((child) => {
-              const unavailable = unavailableIds?.has(child.id) ?? false;
-              const checked = target?.id === child.id;
-              return (
-                <li key={child.id}>
-                  <ChoiceTile
-                    selected={checked}
-                    disabled={unavailable || disabled}
-                    tone="green"
-                  >
-                    <Radio
-                      name={radioName}
-                      value={child.id}
-                      checked={checked}
+        <div
+          className={cn(
+            "overflow-y-auto",
+            fillHeight ? "min-h-0 flex-1" : "max-h-80",
+          )}
+        >
+          <fieldset>
+            <legend className="sr-only">Kind auswählen</legend>
+            <ul className="grid gap-2">
+              {visible.map((child) => {
+                const unavailable = unavailableIds?.has(child.id) ?? false;
+                const checked = target?.id === child.id;
+                return (
+                  <li key={child.id}>
+                    <ChoiceTile
+                      selected={checked}
                       disabled={unavailable || disabled}
-                      onChange={() => onSelectedIdChange(child.id)}
-                    />
-                    <span className="min-w-0 flex-1">
-                      <span className="block truncate font-medium text-gray-900">
-                        {child.name}
+                      tone="green"
+                    >
+                      <Radio
+                        name={radioName}
+                        value={child.id}
+                        checked={checked}
+                        disabled={unavailable || disabled}
+                        onChange={() => onSelectedIdChange(child.id)}
+                      />
+                      <span className="min-w-0 flex-1">
+                        <span className="block truncate font-medium text-gray-900">
+                          {child.name}
+                        </span>
+                        <span className="block truncate text-gray-500">
+                          {child.detail || "–"}
+                        </span>
                       </span>
-                      <span className="block truncate text-gray-500">
-                        {child.detail || "–"}
-                      </span>
-                    </span>
-                    {unavailable && unavailableLabel ? (
-                      <span className="shrink-0 text-gray-600">
-                        {unavailableLabel}
-                      </span>
-                    ) : null}
-                  </ChoiceTile>
-                </li>
-              );
-            })}
-          </ul>
-        </fieldset>
+                      {unavailable && unavailableLabel ? (
+                        <span className="shrink-0 text-gray-600">
+                          {unavailableLabel}
+                        </span>
+                      ) : null}
+                    </ChoiceTile>
+                  </li>
+                );
+              })}
+            </ul>
+          </fieldset>
+        </div>
       ) : null}
       {selectable.length > 1 && !selected ? (
         <p className="text-sm text-gray-500">
