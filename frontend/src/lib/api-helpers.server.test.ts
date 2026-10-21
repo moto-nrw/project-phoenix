@@ -1,9 +1,8 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import type { Session } from "next-auth";
-
-interface ExtendedSession extends Session {
-  user: Session["user"] & { token?: string };
-}
+import {
+  type ExtendedSession,
+  defaultSession,
+} from "~/test/route-test-helpers";
 
 const { mockAuth } = vi.hoisted(() => ({
   mockAuth: vi.fn<() => Promise<ExtendedSession | null>>(),
@@ -15,11 +14,6 @@ vi.mock("../server/auth", () => ({
 
 // Import after mocks are set up
 const { checkAuth } = await import("./api-helpers.server");
-
-const defaultSession: ExtendedSession = {
-  user: { id: "1", token: "test-token", name: "Test User" },
-  expires: "2099-01-01",
-};
 
 describe("api-helpers.server", () => {
   beforeEach(() => {

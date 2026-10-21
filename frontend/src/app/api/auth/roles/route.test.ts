@@ -1,15 +1,10 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import type { Session } from "next-auth";
-import { NextRequest } from "next/server";
 import { GET, POST } from "./route";
-
-// ============================================================================
-// Types
-// ============================================================================
-
-interface ExtendedSession extends Session {
-  user: Session["user"] & { token?: string };
-}
+import {
+  type ExtendedSession,
+  createMockRequest,
+  defaultSession,
+} from "~/test/route-test-helpers";
 
 // ============================================================================
 // Mocks
@@ -29,40 +24,6 @@ global.fetch = mockFetch as typeof fetch;
 // ============================================================================
 // Test Helpers
 // ============================================================================
-
-function createMockRequest(
-  path: string,
-  options: {
-    method?: string;
-    body?: unknown;
-    searchParams?: Record<string, string>;
-  } = {},
-): NextRequest {
-  const url = new URL(path, "http://localhost:3000");
-
-  if (options.searchParams) {
-    Object.entries(options.searchParams).forEach(([key, value]) => {
-      url.searchParams.append(key, value);
-    });
-  }
-
-  const requestInit: { method: string; body?: string; headers?: HeadersInit } =
-    {
-      method: options.method ?? "GET",
-    };
-
-  if (options.body) {
-    requestInit.body = JSON.stringify(options.body);
-    requestInit.headers = { "Content-Type": "application/json" };
-  }
-
-  return new NextRequest(url, requestInit);
-}
-
-const defaultSession: ExtendedSession = {
-  user: { id: "1", token: "test-token", name: "Test User" },
-  expires: "2099-01-01",
-};
 
 function createMockResponse(data: unknown, status = 200) {
   return Promise.resolve(

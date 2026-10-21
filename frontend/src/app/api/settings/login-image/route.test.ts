@@ -40,15 +40,12 @@ vi.mock("~/lib/api-helpers.server", async (importOriginal) => ({
 global.fetch = mockFetch as unknown as typeof fetch;
 
 import { POST, DELETE, GET } from "./route";
+import { createMockContext } from "~/test/route-test-helpers";
 
 const defaultSession = {
   user: { id: "1", token: "test-token", name: "Test User" },
   expires: "2099-01-01",
 };
-
-function createMockContext() {
-  return { params: Promise.resolve({}) };
-}
 
 function createMockImageFile(): File {
   const bytes = new Uint8Array([

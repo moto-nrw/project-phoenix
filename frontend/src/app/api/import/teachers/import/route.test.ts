@@ -1,11 +1,10 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import type { Session } from "next-auth";
 import { NextRequest } from "next/server";
 import { POST } from "./route";
-
-interface ExtendedSession extends Session {
-  user: Session["user"] & { token?: string };
-}
+import {
+  type ExtendedSession,
+  defaultSession,
+} from "~/test/route-test-helpers";
 
 const { mockAuth } = vi.hoisted(() => ({
   mockAuth: vi.fn<() => Promise<ExtendedSession | null>>(),
@@ -29,11 +28,6 @@ function createMockRequest(formData: FormData): NextRequest {
   const url = new URL("/api/import/teachers/import", "http://localhost:3000");
   return new NextRequest(url, { method: "POST", body: formData });
 }
-
-const defaultSession: ExtendedSession = {
-  user: { id: "1", token: "test-token", name: "Test User" },
-  expires: "2099-01-01",
-};
 
 async function parseJsonResponse<T>(response: Response): Promise<T> {
   return (await response.json()) as T;

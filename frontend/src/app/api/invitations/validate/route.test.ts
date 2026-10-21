@@ -1,6 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { NextRequest } from "next/server";
 import { GET } from "./route";
+import { createMockRequest } from "~/test/route-test-helpers";
 
 // ============================================================================
 // Mocks
@@ -21,11 +21,6 @@ vi.mock("~/env", () => ({
 // ============================================================================
 // Test Helpers
 // ============================================================================
-
-function createMockRequest(path: string): NextRequest {
-  const url = new URL(path, "http://localhost:3000");
-  return new NextRequest(url);
-}
 
 async function parseJsonResponse<T>(response: Response): Promise<T> {
   return (await response.json()) as T;

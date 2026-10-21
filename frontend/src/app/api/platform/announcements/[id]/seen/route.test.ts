@@ -1,11 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { NextRequest } from "next/server";
-import type { Session } from "next-auth";
 import { mockSessionData } from "~/test/mocks/next-auth";
-
-interface ExtendedSession extends Session {
-  user: Session["user"] & { token?: string };
-}
 
 const { mockAuth, mockApiPost } = vi.hoisted(() => ({
   mockAuth: vi.fn<() => Promise<ExtendedSession | null>>(),
@@ -24,6 +19,7 @@ vi.mock("~/lib/api-helpers.server", async (importOriginal) => ({
 }));
 
 import { POST } from "./route";
+import { type ExtendedSession } from "~/test/route-test-helpers";
 
 function mockValidSession(): void {
   mockAuth.mockResolvedValue(mockSessionData() as ExtendedSession);

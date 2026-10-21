@@ -1,5 +1,4 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
-import type { Session } from "next-auth";
 import { NextRequest } from "next/server";
 import {
   isStringParam,
@@ -10,6 +9,10 @@ import {
 } from "./route-wrapper.server";
 import { mockSessionData } from "~/test/mocks/next-auth";
 import { ApiResponseError } from "./api-response-error.server";
+import {
+  type ExtendedSession,
+  createMockContext,
+} from "~/test/route-test-helpers";
 
 // ============================================================================
 // Types
@@ -18,10 +21,6 @@ import { ApiResponseError } from "./api-response-error.server";
 /**
  * Extended session type with token property used in this project
  */
-interface ExtendedSession extends Session {
-  user: Session["user"] & { token?: string };
-}
-
 // ============================================================================
 // Mocks (using vi.hoisted for proper hoisting)
 // ============================================================================
@@ -94,12 +93,6 @@ function createMockRequest(
 /**
  * Creates a mock route context with params (Next.js 15+ pattern)
  */
-function createMockContext(
-  params: Record<string, string | string[] | undefined> = {},
-) {
-  return { params: Promise.resolve(params) };
-}
-
 /**
  * Helper to parse JSON response with proper typing
  */

@@ -1,16 +1,11 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import type { Session } from "next-auth";
-import { NextRequest } from "next/server";
 import { DELETE } from "./route";
 import { ApiResponseError } from "~/lib/api-response-error.server";
-
-// ============================================================================
-// Types
-// ============================================================================
-
-interface ExtendedSession extends Session {
-  user: Session["user"] & { token?: string };
-}
+import {
+  type ExtendedSession,
+  createMockRequest,
+  defaultSession,
+} from "~/test/route-test-helpers";
 
 // ============================================================================
 // Mocks
@@ -41,11 +36,6 @@ vi.mock("~/lib/api-helpers.server", async () => {
 // Test Helpers
 // ============================================================================
 
-function createMockRequest(path: string): NextRequest {
-  const url = new URL(path, "http://localhost:3000");
-  return new NextRequest(url);
-}
-
 function createMockContext(
   params: Record<
     string,
@@ -56,11 +46,6 @@ function createMockContext(
     params: Promise<Record<string, string | string[] | undefined>>;
   };
 }
-
-const defaultSession: ExtendedSession = {
-  user: { id: "1", token: "test-token", name: "Test User" },
-  expires: "2099-01-01",
-};
 
 // ============================================================================
 // Tests
