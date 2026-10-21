@@ -10,7 +10,7 @@ import (
 // AccountLifecycleStore is the persistence port over the identity-owned rows
 // the lifecycle flows (#3225) read and write beyond the login store: the
 // school's account listing, the direct permission grants, the school mapping
-// deactivation, account e-mails and auth.accounts_parents. Every statement
+// deactivation and account e-mails. Every statement
 // runs on the connection the caller's context carries.
 type AccountLifecycleStore interface {
 	// ListTenantAccounts returns every account mapped to the school with its
@@ -22,15 +22,6 @@ type AccountLifecycleStore interface {
 	// re-invitation can reactivate it.
 	DeactivateTenantMapping(ctx context.Context, accountID, tenantID int64) (domain.OperationStats, error)
 	ListAccountEmails(ctx context.Context, accountIDs []int64) (map[int64]string, domain.OperationStats, error)
-
-	FindParentAccount(ctx context.Context, id int64) (domain.ParentAccount, bool, domain.OperationStats, error)
-	FindParentAccountByEmail(ctx context.Context, email string) (domain.ParentAccount, bool, domain.OperationStats, error)
-	FindParentAccountByUsername(ctx context.Context, username string) (domain.ParentAccount, bool, domain.OperationStats, error)
-	InsertParentAccount(ctx context.Context, account domain.ParentAccount) (domain.ParentAccount, domain.OperationStats, error)
-	// UpdateParentAccount writes e-mail, username, active flag and password
-	// hash and reports whether the row existed.
-	UpdateParentAccount(ctx context.Context, account domain.ParentAccount) (bool, domain.OperationStats, error)
-	ListParentAccounts(ctx context.Context, filter domain.ParentAccountFilter) ([]domain.ParentAccount, domain.OperationStats, error)
 }
 
 // StaffDirectory is the consumer-owned port over the People Directory and

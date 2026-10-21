@@ -165,26 +165,6 @@ type SchoolIdentity struct {
 	TeacherID int64
 }
 
-// --- parent accounts -------------------------------------------------------
-
-// ParentAccount is one row of auth.accounts_parents.
-type ParentAccount struct {
-	ID           int64
-	TenantID     int64
-	Email        string
-	Username     string
-	Active       bool
-	PasswordHash string
-	CreatedAt    time.Time
-	UpdatedAt    time.Time
-}
-
-// ParentAccountFilter narrows ListParentAccounts. Zero values do not filter.
-type ParentAccountFilter struct {
-	Email  string
-	Active *bool
-}
-
 // --- guardian relative access ---------------------------------------------
 
 var (
