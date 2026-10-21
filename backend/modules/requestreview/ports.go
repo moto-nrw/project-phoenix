@@ -141,5 +141,5 @@ type StudentDirectory interface {
 
 // FamilyProtection reports the Familienschutz flag per child.
 type FamilyProtection interface {
-	Protected(ctx context.Context, studentIDs []int64) (map[int64]bool, error)
+	CurrentFamilyProtection(ctx context.Context, studentIDs []int64) (map[int64]bool, error)
 }

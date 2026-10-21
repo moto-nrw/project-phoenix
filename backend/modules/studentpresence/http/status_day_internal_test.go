@@ -163,7 +163,7 @@ func TestStudentStatusDayHandlers_CreateGetDelete(t *testing.T) {
 	require.Equal(t, http.StatusOK, getRR.Code)
 	assert.Contains(t, getRR.Body.String(), `"label":"Krank"`)
 
-	rows, err := resource.StudentStatusDayService.GetActiveByStudentAndDateRange(testpkg.Ctx(t), student.ID, calendar.NewDate(2026, 5, 25), calendar.NewDate(2026, 5, 26))
+	rows, err := resource.StudentStatusDayService.FindActiveByStudentAndDateRange(testpkg.Ctx(t), student.ID, calendar.NewDate(2026, 5, 25), calendar.NewDate(2026, 5, 26))
 	require.NoError(t, err)
 	require.Len(t, rows, 2)
 
@@ -227,7 +227,7 @@ func TestStudentStatusDayHandlers_TodayUpdatesLiveStatusAndClearsOpposite(t *tes
 	require.Equal(t, http.StatusConflict, excusedRR.Code)
 	require.Len(t, notifier.reports, 1, "a conflict must not notify or overwrite")
 
-	rows, err := resource.StudentStatusDayService.GetActiveByStudentAndDateRange(testpkg.Ctx(t), student.ID, calendar.NewDate(2026, 8, 24), calendar.NewDate(2026, 8, 24))
+	rows, err := resource.StudentStatusDayService.FindActiveByStudentAndDateRange(testpkg.Ctx(t), student.ID, calendar.NewDate(2026, 8, 24), calendar.NewDate(2026, 8, 24))
 	require.NoError(t, err)
 	require.Len(t, rows, 1)
 	assert.Equal(t, absencerecords.StudentStatusDaySick, rows[0].Status)
@@ -259,7 +259,7 @@ func TestStudentStatusDayHandlers_TodayUpdatesLiveStatusAndClearsOpposite(t *tes
 	classTripRR := executeStatusDayHandler(t, router, classTripReq, testutil.AdminTestClaims(42), []string{"admin:*"})
 	require.Equal(t, http.StatusConflict, classTripRR.Code)
 
-	rows, err = resource.StudentStatusDayService.GetActiveByStudentAndDateRange(testpkg.Ctx(t), student.ID, calendar.NewDate(2026, 8, 24), calendar.NewDate(2026, 8, 24))
+	rows, err = resource.StudentStatusDayService.FindActiveByStudentAndDateRange(testpkg.Ctx(t), student.ID, calendar.NewDate(2026, 8, 24), calendar.NewDate(2026, 8, 24))
 	require.NoError(t, err)
 	require.Len(t, rows, 1)
 	assert.Equal(t, absencerecords.StudentStatusDayExcused, rows[0].Status)
@@ -275,7 +275,7 @@ func TestStudentStatusDayHandlers_TodayUpdatesLiveStatusAndClearsOpposite(t *tes
 	classTripAfterDeleteRR := executeStatusDayHandler(t, router, classTripAfterDeleteReq, testutil.AdminTestClaims(42), []string{"admin:*"})
 	require.Equal(t, http.StatusCreated, classTripAfterDeleteRR.Code)
 
-	rows, err = resource.StudentStatusDayService.GetActiveByStudentAndDateRange(testpkg.Ctx(t), student.ID, calendar.NewDate(2026, 8, 24), calendar.NewDate(2026, 8, 24))
+	rows, err = resource.StudentStatusDayService.FindActiveByStudentAndDateRange(testpkg.Ctx(t), student.ID, calendar.NewDate(2026, 8, 24), calendar.NewDate(2026, 8, 24))
 	require.NoError(t, err)
 	require.Len(t, rows, 1)
 	assert.Equal(t, absencerecords.StudentStatusDayClassTrip, rows[0].Status)

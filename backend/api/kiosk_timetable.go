@@ -18,10 +18,13 @@ func NewKioskSessionMirror(rows timetableCompose.Repositories, activities activi
 	if rows.ActivityInstance.Reads == nil || rows.InstanceStaff == nil {
 		return nil
 	}
-	return devicescanCompose.NewSessionMirror(mirrorTimetable{records: rows.NativeRecords(), activities: timetableCompose.NewCatalog(activities)}, publish, logger)
+	return devicescanCompose.NewSessionMirror(mirrorTimetable{SessionRecords: rows.NativeRecords(), records: rows.NativeRecords(), activities: timetableCompose.NewCatalog(activities)}, publish, logger)
 }
 
+// mirrorTimetable promotes AddSessionInstanceStaff from the session records;
+// its own reads and writes go through records, the same value.
 type mirrorTimetable struct {
+	timetable.SessionRecords
 	records    timetable.SessionRecords
 	activities timetable.Catalog
 }
@@ -70,8 +73,4 @@ func (m mirrorTimetable) CreateInstance(ctx context.Context, input devicescanCom
 	}
 	input.ID = id
 	return input, nil
-}
-
-func (m mirrorTimetable) AddStaff(ctx context.Context, instanceID, staffID int64) error {
-	return m.records.AddSessionInstanceStaff(ctx, instanceID, staffID)
 }

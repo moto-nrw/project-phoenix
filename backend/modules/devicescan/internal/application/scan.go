@@ -56,7 +56,7 @@ func (s *Service) Scan(ctx context.Context, command devicescan.ScanCommand) (*de
 	// Binary-mode tenants track attendance only: no visits, no rooms, no
 	// sessions. The response keeps the detailed shape so older kiosks keep
 	// working.
-	mode, err := s.settings.PresenceMode(ctx)
+	mode, err := s.settings.GetPresenceMode(ctx)
 	if err != nil {
 		return nil, devicescan.Internal(devicescan.MessageInternalServerError, err)
 	}

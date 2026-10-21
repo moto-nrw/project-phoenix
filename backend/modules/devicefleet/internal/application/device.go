@@ -114,8 +114,8 @@ func (s *Service) UpdateDeviceLastSeen(ctx context.Context, id int64, lastSeen t
 		domain.UpdateDevice{ID: id, LastSeen: &lastSeen}, []string{"last_seen"})
 }
 
-// UpdateDeviceRoom moves one device into a room.
-func (s *Service) UpdateDeviceRoom(ctx context.Context, id, roomID int64) error {
+// UpdateRoomID moves one device into a room.
+func (s *Service) UpdateRoomID(ctx context.Context, id, roomID int64) error {
 	if id <= 0 || roomID <= 0 {
 		return s.reject("update_device_room", devicefleet.ErrInvalidDevice)
 	}

@@ -151,7 +151,7 @@ func (s *Service) Ping(ctx context.Context) (*devicescan.DevicePing, error) {
 	sessionActive := false
 	if session, err := s.sessions.Current(ctx, device.ID); err == nil && session != nil {
 		sessionActive = true
-		if err := s.sessions.Touch(ctx, session.ID); err != nil {
+		if err := s.sessions.UpdateSessionActivity(ctx, session.ID); err != nil {
 			s.logger.WarnContext(ctx, "failed to update session activity during ping",
 				slog.Int64("session_id", session.ID),
 				slog.String("error", err.Error()),

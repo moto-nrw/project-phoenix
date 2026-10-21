@@ -9,7 +9,6 @@ import (
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
 	schedulerPorts "github.com/moto-nrw/project-phoenix/modules/schedulerruntime/ports"
 	"github.com/moto-nrw/project-phoenix/modules/workforce"
-	workforceCompose "github.com/moto-nrw/project-phoenix/modules/workforce/compose"
 	reminder "github.com/moto-nrw/project-phoenix/workflows/reminderdelivery"
 )
 
@@ -21,14 +20,13 @@ func newPersonalReminderTick(
 	reminders reminder.Module, notifications DeliveryNotifications, staff staffAccountIDs, identity identityaccess.Owner,
 	workTime workforce.Capability, runtime schedulerPorts.TenantRuntime, logger *slog.Logger,
 ) (schedulerPorts.ReminderNotificationTick, error) {
-	workSessions := workforceCompose.WorkPresence(workTime)
 	producer, err := reminder.NewPersonalReminderNotifications(reminder.PersonalReminderDependencies{
 		Computer: reminders,
 		Consent:  notifications.Preferences,
 		Staff:    staff,
 		Admins:   identity,
 		OnDutyStaff: func(ctx context.Context) (map[int64]struct{}, error) {
-			presence, err := workSessions.GetTodayPresenceMap(ctx)
+			presence, err := workTime.WorkPresenceMap(ctx)
 			if err != nil {
 				return nil, err
 			}

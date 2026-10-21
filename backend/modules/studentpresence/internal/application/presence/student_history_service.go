@@ -41,8 +41,8 @@ type HistoryRoomReader func(context.Context, []int64) (map[int64]string, error)
 // HistorySlotReader supplies the student's slot history and the tenant-wide
 // signal that planned care is in use. Reads retain the caller's tenant context.
 type HistorySlotReader interface {
-	Slots(context.Context, int64, calendar.Date, calendar.Date) ([]*HistorySlot, error)
-	HasPlannedSlots(context.Context, calendar.Date, calendar.Date) (bool, error)
+	GetSlotAttendanceByStudentAndDateRange(ctx context.Context, studentID int64, startDate, endDate calendar.Date) ([]*HistorySlot, error)
+	HasPlannedSlotsInRange(ctx context.Context, startDate, endDate calendar.Date) (bool, error)
 }
 
 type studentHistoryService struct {

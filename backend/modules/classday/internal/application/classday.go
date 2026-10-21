@@ -34,9 +34,12 @@ type ClassDayDependencies struct {
 	Announcer              ArrivalScheduleAnnouncer
 }
 
-// classDayService is the capability: the caller's classes, the day report
-// and supervision sheet (dayReports) and the arrival-exception seam.
+// classDayService is the capability: the caller's classes and staff row
+// (promoted from the Caller port), the day report and supervision sheet
+// (dayReports) and the arrival-exception seam. Its own reads go through
+// caller, the same value.
 type classDayService struct {
+	ports.Caller
 	caller ports.Caller
 	*dayReports
 	arrivalExceptions
@@ -49,6 +52,7 @@ func NewClassDay(deps ClassDayDependencies) classday.ClassDay {
 		panic("classday application.NewClassDay: Caller and Rosters dependencies are required")
 	}
 	return &classDayService{
+		Caller:     deps.Caller,
 		caller:     deps.Caller,
 		dayReports: newDayReports(deps),
 		arrivalExceptions: arrivalExceptions{
@@ -58,15 +62,11 @@ func NewClassDay(deps ClassDayDependencies) classday.ClassDay {
 	}
 }
 
-func (s *classDayService) AssignedClasses(ctx context.Context) ([]string, error) {
-	return s.caller.AssignedClasses(ctx)
-}
-
 // ResolveClass picks the class to show: the requested one when it is one of
 // the caller's assignments (normalized comparison), otherwise the first
 // assigned class when nothing was requested.
 func (s *classDayService) ResolveClass(ctx context.Context, requested string) (string, error) {
-	assigned, err := s.caller.AssignedClasses(ctx)
+	assigned, err := s.caller.GetMySchoolClasses(ctx)
 	if err != nil {
 		return "", err
 	}
@@ -95,10 +95,6 @@ func (s *classDayService) DayReport(ctx context.Context, schoolClass string, dat
 		return nil, err
 	}
 	return s.classDay(ctx, schoolClass, day, actor)
-}
-
-func (s *classDayService) CurrentStaffID(ctx context.Context) (int64, error) {
-	return s.caller.StaffID(ctx)
 }
 
 // invalidFilterError refuses a report request before anything is read. Its

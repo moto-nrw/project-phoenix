@@ -14,50 +14,27 @@ import (
 func NewStatusDays(repo StudentStatusDayRepository, pickupExceptions ManualPartialAbsenceReader, db studentpresence.DatabaseHandle, lockExceptionDay LockExceptionDay, clocks ...func() time.Time) studentpresence.StatusDays {
 	return statusDays{
 		StudentStatusDayService: NewStudentStatusDayServiceWithPartialAbsences(repo, pickupExceptions, db, lockExceptionDay, clocks...),
-		repo:                    repo,
+		statusDayRecords:        repo,
 	}
 }
 
 // statusDays publishes the status-day capability. The reads and the single
-// clear are Care Plan's adapter operations under the capability's names; the
+// clear are Care Plan's adapter operations under their own names; the
 // guarded writes run through the application service.
 type statusDays struct {
 	*StudentStatusDayService
-	repo StudentStatusDayRepository
+	statusDayRecords
+}
+
+// statusDayRecords is the part of the status-day port the capability
+// publishes unchanged.
+type statusDayRecords interface {
+	studentpresence.StatusDayReads
+	MarkCleared(ctx context.Context, studentID int64, status string, date calendar.Date, clearedAt time.Time, source string) error
 }
 
 func (s statusDays) DeleteStatusDay(ctx context.Context, wc studentpresence.StatusDayWriteContext, statusDayID, studentID int64) error {
 	return s.DeleteByID(ctx, wc, statusDayID, studentID)
-}
-
-// GetActiveByStudentIDsAndDate returns the active status rows of many
-// students for one calendar date.
-func (s statusDays) GetActiveByStudentIDsAndDate(ctx context.Context, studentIDs []int64, date calendar.Date) ([]*StatusDayRow, error) {
-	return s.repo.FindActiveByStudentIDsAndDate(ctx, studentIDs, date)
-}
-
-// GetSignedOffByStudentIDsAndDate returns the status rows of many students
-// that count as a registered sign-off for one date: active rows plus rows the
-// end-of-day scheduler archived (see the repository doc for why those stay in).
-func (s statusDays) GetSignedOffByStudentIDsAndDate(ctx context.Context, studentIDs []int64, date calendar.Date) ([]*StatusDayRow, error) {
-	return s.repo.FindSignedOffByStudentIDsAndDate(ctx, studentIDs, date)
-}
-
-// GetActiveByStudentAndDateRange returns a student's active status rows
-// within the date range.
-func (s statusDays) GetActiveByStudentAndDateRange(ctx context.Context, studentID int64, startDate, endDate calendar.Date) ([]*StatusDayRow, error) {
-	return s.repo.FindActiveByStudentAndDateRange(ctx, studentID, startDate, endDate)
-}
-
-// GetByStudentAndDateRange returns ALL (including cleared) status rows of
-// a student within the date range.
-func (s statusDays) GetByStudentAndDateRange(ctx context.Context, studentID int64, startDate, endDate calendar.Date) ([]*StatusDayRow, error) {
-	return s.repo.FindByStudentAndDateRange(ctx, studentID, startDate, endDate)
-}
-
-// MarkCleared clears a student's status for one date.
-func (s statusDays) MarkCleared(ctx context.Context, studentID int64, status string, date calendar.Date, clearedAt time.Time, source string) error {
-	return s.repo.MarkCleared(ctx, studentID, status, date, clearedAt, source)
 }
 
 // NewStatusDayOverviews builds the tenant-wide absence overview.

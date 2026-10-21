@@ -248,9 +248,9 @@ type OwnWorkSessions interface {
 	SessionBreaks(ctx context.Context, staffID, sessionID int64) ([]*WorkSessionBreak, error)
 	UpdateSession(ctx context.Context, staffID, sessionID int64, updates SessionUpdateRequest) (*WorkSession, error)
 	SessionEdits(ctx context.Context, staffID, sessionID int64) ([]*WorkSessionEditView, error)
-	// TodayPresenceMap maps staff id to the work status of everyone clocked
-	// in right now.
-	TodayPresenceMap(ctx context.Context) (map[int64]string, error)
+	// GetTodayPresenceMap maps staff id to the work status of everyone
+	// clocked in right now.
+	GetTodayPresenceMap(ctx context.Context) (map[int64]string, error)
 }
 
 // AdminWorkSessions serves the manager's session corrections and schedule changes.

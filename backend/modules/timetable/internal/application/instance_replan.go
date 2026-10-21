@@ -47,7 +47,7 @@ func (s *InstanceLifecycleService) replanWeekLocked(ctx context.Context, tenantI
 	// Lock every day of the window, ascending, BEFORE snapshotting: the
 	// re-plan regenerates exactly the rows the day-wide staffing saves write,
 	// so a save committing between snapshot and delete would be lost (#1840).
-	if err := s.acquireSubstituteDayLocks(ctx, tenantID, from, to); err != nil {
+	if err := s.LockDeviationDays(ctx, tenantID, from, to); err != nil {
 		return nil, &ports.ScheduleError{Op: "replan week: lock days", Err: err}
 	}
 	// Regenerate every occurrence from the (possibly just edited) template

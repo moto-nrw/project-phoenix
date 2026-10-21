@@ -162,8 +162,8 @@ type ArrivalExceptionWrite struct {
 // exceptions (#2970). Caller scoping (which classes the account may see) is
 // resolved here; the HTTP adapter only maps outcomes to status codes.
 type ClassDay interface {
-	// AssignedClasses returns the school classes assigned to the caller.
-	AssignedClasses(ctx context.Context) ([]string, error)
+	// GetMySchoolClasses returns the school classes assigned to the caller.
+	GetMySchoolClasses(ctx context.Context) ([]string, error)
 	// ResolveClass picks the class to show: the requested one when it is one
 	// of the caller's assignments (normalized comparison), otherwise the
 	// first assigned class when nothing was requested. ErrClassNotAssigned

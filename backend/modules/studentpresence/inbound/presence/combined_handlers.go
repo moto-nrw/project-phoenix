@@ -199,7 +199,7 @@ func (rs *Resource) deleteCombinedGroup(w http.ResponseWriter, r *http.Request) 
 	}
 
 	// Delete combined group
-	if err := rs.Operations.RemoveCombination(r.Context(), id); err != nil {
+	if err := rs.Operations.DeleteCombinedGroup(r.Context(), id); err != nil {
 		common.RenderError(w, r, ErrorRenderer(err))
 		return
 	}
@@ -217,7 +217,7 @@ func (rs *Resource) endCombinedGroup(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// End combined group
-	if err := rs.Operations.CloseCombination(r.Context(), id); err != nil {
+	if err := rs.Operations.EndCombinedGroup(r.Context(), id); err != nil {
 		common.RenderError(w, r, ErrorRenderer(err))
 		return
 	}

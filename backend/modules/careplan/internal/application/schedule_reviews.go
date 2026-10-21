@@ -259,7 +259,7 @@ func (s *ScheduleReviews) weeklyPlanFacts(ctx context.Context, student careplan.
 		return err
 	}
 	facts.classTimes = classes[strings.ToLower(strings.TrimSpace(student.SchoolClass))]
-	modes, err := s.deps.People.DepartureModes(ctx, []int64{student.ID})
+	modes, err := s.deps.People.ListStudentDepartureModes(ctx, []int64{student.ID})
 	if err != nil {
 		return err
 	}

@@ -16,26 +16,18 @@ func NewStudentHistory(attendance AttendanceHistoryReader, rooms HistoryRoomRead
 	}
 	return studentHistory{
 		StudentHistoryService: NewStudentHistoryService(attendance, rooms),
+		HistorySlotReader:     slots,
 		accessLog:             accessLog,
-		slots:                 slots,
 	}
 }
 
 // studentHistory publishes the history reads. Attendance and visit history
-// run through the application service; the slot reads and the access log are
-// the timetable and audit ports under the capability's names.
+// run through the application service; the slot reads are the timetable
+// port under the capability's names and the access log is the audit port.
 type studentHistory struct {
 	StudentHistoryService
+	HistorySlotReader
 	accessLog DataAccessAudit
-	slots     HistorySlotReader
-}
-
-func (h studentHistory) GetSlotAttendanceByStudentAndDateRange(ctx context.Context, studentID int64, startDate, endDate calendar.Date) ([]*studentpresence.HistorySlot, error) {
-	return h.slots.Slots(ctx, studentID, startDate, endDate)
-}
-
-func (h studentHistory) HasPlannedSlotsInRange(ctx context.Context, startDate, endDate calendar.Date) (bool, error) {
-	return h.slots.HasPlannedSlots(ctx, startDate, endDate)
 }
 
 func (h studentHistory) RecordDataAccess(ctx context.Context, entry *studentpresence.DataAccessEvent) error {
@@ -65,10 +57,10 @@ func dataAccessEvent(entry *studentpresence.DataAccessEvent) *DataAccessEvent {
 // planned care.
 type noHistorySlots struct{}
 
-func (noHistorySlots) Slots(context.Context, int64, calendar.Date, calendar.Date) ([]*studentpresence.HistorySlot, error) {
+func (noHistorySlots) GetSlotAttendanceByStudentAndDateRange(context.Context, int64, calendar.Date, calendar.Date) ([]*studentpresence.HistorySlot, error) {
 	return []*studentpresence.HistorySlot{}, nil
 }
 
-func (noHistorySlots) HasPlannedSlots(context.Context, calendar.Date, calendar.Date) (bool, error) {
+func (noHistorySlots) HasPlannedSlotsInRange(context.Context, calendar.Date, calendar.Date) (bool, error) {
 	return false, nil
 }

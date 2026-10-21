@@ -21,11 +21,11 @@ type fakeClassDayCaller struct {
 	classes []string
 }
 
-func (f fakeClassDayCaller) AssignedClasses(context.Context) ([]string, error) {
+func (f fakeClassDayCaller) GetMySchoolClasses(context.Context) ([]string, error) {
 	return f.classes, nil
 }
 
-func (fakeClassDayCaller) StaffID(context.Context) (int64, error) { return 0, nil }
+func (fakeClassDayCaller) CurrentStaffID(context.Context) (int64, error) { return 0, nil }
 
 // fakeDayRosters serves a fixed Enrollment day roster.
 type fakeDayRosters struct {
@@ -65,7 +65,7 @@ type fakeDayTimes struct {
 	departures map[int64]string
 }
 
-func (f fakeDayTimes) DayDepartureModes(context.Context, []int64, calendar.Date) (map[int64]string, error) {
+func (f fakeDayTimes) GetBulkDayDepartureModesForDate(context.Context, []int64, calendar.Date) (map[int64]string, error) {
 	return f.departures, nil
 }
 

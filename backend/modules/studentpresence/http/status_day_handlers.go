@@ -51,7 +51,7 @@ func (rs *Resource) createStudentStatusDays(w http.ResponseWriter, r *http.Reque
 		return
 	}
 
-	rows, err := rs.StudentStatusDayService.GetActiveByStudentAndDateRange(r.Context(), student.ID, slices.MinFunc(dates, calendar.Date.Compare), slices.MaxFunc(dates, calendar.Date.Compare))
+	rows, err := rs.StudentStatusDayService.FindActiveByStudentAndDateRange(r.Context(), student.ID, slices.MinFunc(dates, calendar.Date.Compare), slices.MaxFunc(dates, calendar.Date.Compare))
 	if err != nil {
 		renderError(w, r, common.ErrorInternalServerWrap("failed to fetch student status days", err))
 		return

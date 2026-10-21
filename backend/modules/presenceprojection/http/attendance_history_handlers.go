@@ -260,7 +260,7 @@ func (rs *Resource) loadAttendanceHistorySources(
 		return sources, err
 	}
 	if rs.StudentStatusDayService != nil {
-		sources.Statuses, err = rs.StudentStatusDayService.GetByStudentAndDateRange(ctx, studentID, from, to)
+		sources.Statuses, err = rs.StudentStatusDayService.FindByStudentAndDateRange(ctx, studentID, from, to)
 		if err != nil {
 			return sources, err
 		}
