@@ -294,8 +294,8 @@ func (r *Store) SchemaReferencesLegalDocument(ctx context.Context, storedURL, pu
      OR COALESCE(block.elem->>'document_url', '') = ?
      OR COALESCE(block.elem->>'document_url', '') = ?
    )
-   OR jsonb_path_query_array(COALESCE("form_schema".legal_blocks, '[]'::jsonb) || COALESCE("form_schema".fields, '[]'::jsonb), '$[*].attachments[*].document_url') @> to_jsonb(?::text)
-   OR jsonb_path_query_array(COALESCE("form_schema".legal_blocks, '[]'::jsonb) || COALESCE("form_schema".fields, '[]'::jsonb), '$[*].attachments[*].document_url') @> to_jsonb(?::text)
+   OR jsonb_path_query_array(COALESCE("form_schema".legal_blocks, '[]'::jsonb) || COALESCE("form_schema".fields, '[]'::jsonb), '$[*].attachments[*].document_url') @> jsonb_build_array(?::text)
+   OR jsonb_path_query_array(COALESCE("form_schema".legal_blocks, '[]'::jsonb) || COALESCE("form_schema".fields, '[]'::jsonb), '$[*].attachments[*].document_url') @> jsonb_build_array(?::text)
   )
  )
  `, tenantID, storedURL, publicURL, storedURL, publicURL, storedURL, publicURL).Scan(ctx, &referenced)
