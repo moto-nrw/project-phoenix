@@ -219,7 +219,7 @@ const modulePassthroughApplicationSegment = "/internal/application/"
 // for modules/communication and modules/schoolcalendar), by ADR 0075 (three
 // for modules/identityaccess) and by ADR 0076 (one for
 // workflows/parentportal).
-const modulePassthroughOwnerBudgetTotal = 1582
+const modulePassthroughOwnerBudgetTotal = 1559
 
 // modulePassthroughOwnerBudgets is the register: module directory →
 // pass-throughs measured in its application layer and its compositions
@@ -261,7 +261,7 @@ var modulePassthroughOwnerBudgets = map[string]int{
 	"modules/schoolstructure":  43,
 	"modules/settings":         19,
 	"modules/studentpresence":  145,
-	"modules/timetable":        234,
+	"modules/timetable":        211,
 	"modules/workforce":        151,
 	"workflows/openroommove":   1,
 	// Raised by ADR 0076: the week change of the meal plan adapter.

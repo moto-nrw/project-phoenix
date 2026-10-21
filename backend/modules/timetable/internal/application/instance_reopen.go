@@ -190,7 +190,7 @@ func (s *InstanceLifecycleService) validateReopenAttendanceUnchanged(ctx context
 	if instance.CompletedAt == nil {
 		return nil
 	}
-	rows, err := s.deps.InstanceStudents.FindByInstanceID(ctx, instance.ID)
+	rows, err := participantsOfInstance(ctx, s.deps.InstanceStudents.Reads, instance.ID)
 	if err != nil {
 		return &ports.ScheduleError{Op: "reopen instance: load attendance", Err: err}
 	}

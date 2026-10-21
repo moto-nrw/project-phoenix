@@ -39,7 +39,7 @@ func TestCloseOpenCheckoutsByActiveGroupIDsStampsTheOpenCheckout(t *testing.T) {
 	repos, err := owners.NewTimetableTestRepositoriesWithMembers(testpkg.NewDatabase(t, db), owners.MustNewMembershipTestRepositories(testpkg.NewDatabase(t, db)))
 	require.NoError(t, err)
 
-	closed, err := repos.InstanceStudent.CloseOpenCheckoutsByActiveGroupIDs(ctx, []int64{activeGroup.ID}, time.Now())
+	closed, err := repos.NativeParticipants().CloseOpenCheckoutsByActiveGroupIDs(ctx, []int64{activeGroup.ID}, time.Now())
 
 	require.NoError(t, err)
 	assert.Equal(t, 1, closed)

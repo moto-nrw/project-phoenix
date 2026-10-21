@@ -140,7 +140,7 @@ var moduleLegacyFileBudgets = map[string]int{}
 // announcement retention of modules/communication/composition), and by
 // ADR 0076 (the meal ordering rules) and ADR 0075 (the caterer flows and
 // the caterer portal).
-const moduleComposeBudgetTotal = 12498
+const moduleComposeBudgetTotal = 12497
 
 // moduleComposeBudgets maps every owner composition package to its production
 // LOC, first measured on 2026-10-15 on top of development c49b81c3a9: 61
@@ -190,7 +190,7 @@ var moduleComposeBudgets = map[string]int{
 	"modules/studentpresence/compose":                 243,
 	"modules/studentpresence/compose/presenceservice": 110,
 	"modules/supervisiondashboard/compose":            11,
-	"modules/timetable/compose":                       1149,
+	"modules/timetable/compose":                       1148,
 	"modules/timetableblockdisplay/compose":           9,
 	"modules/timetableenrollmentprovenance/compose":   10,
 	"modules/timetableprojection/compose":             7,

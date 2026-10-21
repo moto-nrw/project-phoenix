@@ -19,7 +19,7 @@ func NewInstanceAutoEnd(instances ports.LegacyInstanceReads, completion timetabl
 	return application.NewInstanceAutoEnd(instances, completion)
 }
 
-func NewInstanceStatusSlots(rows ports.StatusSlotRows) ports.InstanceStatusSlots {
+func NewInstanceStatusSlots(rows ports.ParticipantRows) ports.InstanceStatusSlots {
 	return application.NewInstanceStatusSlots(rows)
 }
 

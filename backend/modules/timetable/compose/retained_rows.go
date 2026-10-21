@@ -129,8 +129,3 @@ func NewWorkforceShiftRows(records application.WorkforceShiftRecords, errs ports
 func NewWorkforceShiftTypeRows(records application.WorkforceShiftRecords, errs ports.RetainedRecordErrors) ports.WorkforceShiftTypeRows {
 	return application.NewWorkforceShiftTypeRows(records, errs)
 }
-
-// ShiftTypeCategoryLinker links a shift type to its activity categories.
-func ShiftTypeCategoryLinker(link func(context.Context, int64, []int64) error) func(context.Context, int64, []int64) error {
-	return application.ShiftTypeCategoryLinker(link)
-}

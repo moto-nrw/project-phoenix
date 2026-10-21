@@ -14,11 +14,11 @@ type historySlots struct {
 	source timetablePorts.AttendanceHistory
 }
 
-func NewHistorySlots(records timetablePorts.AttendanceHistoryRecords) presenceservice.HistorySlotReader {
-	if records == nil {
+func NewHistorySlots(reads timetablePorts.LegacyParticipantReads) presenceservice.HistorySlotReader {
+	if reads == nil {
 		return nil
 	}
-	return historySlots{source: timetableCompose.NewAttendanceHistory(records)}
+	return historySlots{source: timetableCompose.NewAttendanceHistory(reads)}
 }
 
 func (r historySlots) Slots(ctx context.Context, studentID int64, from, to timezone.Date) ([]*studentpresence.HistorySlot, error) {

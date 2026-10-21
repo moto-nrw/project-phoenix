@@ -29,7 +29,7 @@ type conflictDetection struct {
 // capability. Every reader except ArrivalBaselines is required: the checks
 // cannot decide whether to warn without them.
 func NewConflictDetection(deps ports.ConflictDetectionDependencies) (timetable.ConflictDetectionCapability, error) {
-	if deps.Instances == nil || deps.InstanceStaff == nil || deps.InstanceStudents == nil || deps.Exceptions == nil ||
+	if deps.Instances == nil || deps.InstanceStaff == nil || noParticipantRows(deps.InstanceStudents) || deps.Exceptions == nil ||
 		deps.Schedules == nil || deps.Shifts == nil || deps.Staff == nil || deps.CalendarPeriods == nil ||
 		deps.ArrivalExceptions == nil || deps.Presence == nil || deps.Sessions == nil || deps.ContentHash == nil {
 		return nil, errors.New("timetable conflict detection: all dependencies are required")

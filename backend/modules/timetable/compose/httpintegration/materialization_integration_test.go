@@ -696,7 +696,7 @@ func newTestMaterialization(t *testing.T, db *bun.DB, repos *api.CareScheduleSui
 		PeriodRepo:     fixtures.IntoCalendarPeriodRecords(fixtures.FromCalendarPeriodRecords(repos.CalendarPeriod)),
 		InstanceRepo:   timetableRepos.ActivityInstance,
 		StaffRepo:      timetableRepos.InstanceStaff,
-		StudentRepo:    fixtures.IntoInstanceStudentRecords(fixtures.FromInstanceStudentRecords(timetableRepos.InstanceStudent)),
+		StudentRepo:    timetableRepos.InstanceStudent,
 		ExceptionRepo:  timetableRepos.ActivityException,
 		TimeframeRepo:  timetableRepos.Timeframe,
 		RecurrenceLock: owners.MustNewTimetableRecurrenceLock(testpkg.NewDatabase(t, db)),

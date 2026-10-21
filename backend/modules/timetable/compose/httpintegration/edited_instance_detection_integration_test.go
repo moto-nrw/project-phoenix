@@ -546,5 +546,5 @@ func setInstanceStaffAbsent(t *testing.T, s *scenarioSetup, instanceID, staffID 
 
 func testInstanceStudents(db *bun.DB) fixtures.InstanceStudentRecords {
 	factory := api.NewUnobservedTimetableRepositories(testpkg.MustDatabase(db))
-	return fixtures.FromInstanceStudentRecords(factory.InstanceStudent)
+	return fixtures.FromInstanceStudentRecords(factory.NativeParticipants())
 }

@@ -8,22 +8,23 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
 	"github.com/moto-nrw/project-phoenix/modules/timetable"
+	"github.com/moto-nrw/project-phoenix/modules/timetable/ports"
 )
 
 // The grade transition (#3424) parks and replays the planned participants of
 // departing students; the attendance travels with the participant.
 
-// ArchivePlannedByStudentIDsFrom parks the still-planned rows of departing
+// archivePlannedParticipants parks the still-planned rows of departing
 // children: a row stays when it records an observed presence, or a hand-set
 // status on a block that already started. The attendance each parked row
 // carried travels into the archive with it.
-func (r timetableInstanceStudentRepository) ArchivePlannedByStudentIDsFrom(ctx context.Context, transitionID int64, studentIDs []int64, from calendar.Date, at time.Time) (int, error) {
+func archivePlannedParticipants(ctx context.Context, rows ports.ParticipantRows, transitionID int64, studentIDs []int64, from calendar.Date, at time.Time) (int, error) {
 	studentIDs = positiveInstanceStudentIDs(studentIDs)
 	if len(studentIDs) == 0 {
 		return 0, nil
 	}
 	fromText := from.String()
-	participants, err := r.timetable.ListPlannedInstanceStudents(ctx, timetable.InstanceStudentFilter{StudentIDs: studentIDs, FromDate: &fromText, ExcludeCancelled: true})
+	participants, err := rows.Plans.ListPlannedInstanceStudents(ctx, timetable.InstanceStudentFilter{StudentIDs: studentIDs, FromDate: &fromText, ExcludeCancelled: true})
 	if err != nil {
 		return 0, WrapDatabaseError("archive planned by student ids from", err)
 	}
@@ -35,11 +36,11 @@ func (r timetableInstanceStudentRepository) ArchivePlannedByStudentIDsFrom(ctx c
 		ids = append(ids, participant.ID)
 		instanceIDs = append(instanceIDs, participant.InstanceID)
 	}
-	attendance, err := r.attendanceByParticipant(ctx, ids)
+	attendance, err := attendanceByParticipant(ctx, rows.Presence, ids)
 	if err != nil {
 		return 0, WrapDatabaseError("archive planned by student ids from", err)
 	}
-	started, completed, err := r.sessionStates(ctx, uniqueInt64s(instanceIDs))
+	started, completed, err := sessionStates(ctx, rows.Presence, uniqueInt64s(instanceIDs))
 	if err != nil {
 		return 0, WrapDatabaseError("archive planned by student ids from", err)
 	}
@@ -51,41 +52,41 @@ func (r timetableInstanceStudentRepository) ArchivePlannedByStudentIDsFrom(ctx c
 			entries = append(entries, timetable.RosterArchiveEntry{ParticipantID: participant.ID, Attendance: archivedAttendance(row)})
 		}
 	}
-	rows, err := r.timetable.ArchivePlannedInstanceStudents(ctx, transitionID, entries)
+	archived, err := rows.Plans.ArchivePlannedInstanceStudents(ctx, transitionID, entries)
 	if err != nil {
 		return 0, WrapDatabaseError("archive planned by student ids from", err)
 	}
-	return rows, nil
+	return archived, nil
 }
 
-// RestoreArchivedByTransition replays the parked rows: the participant comes
+// restoreArchivedParticipants replays the parked rows: the participant comes
 // back through Timetable, a non-booking or hand-set status is restored as
 // archived, and every other row takes today's day statuses and excusals.
-func (r timetableInstanceStudentRepository) RestoreArchivedByTransition(ctx context.Context, transitionID int64, studentIDs []int64, from calendar.Date) (int, error) {
-	restored, err := r.timetable.RestoreArchivedInstanceStudents(ctx, transitionID, positiveInstanceStudentIDs(studentIDs), from.String())
+func restoreArchivedParticipants(ctx context.Context, rows ports.ParticipantRows, transitionID int64, studentIDs []int64, from calendar.Date) (int, error) {
+	restored, err := rows.Plans.RestoreArchivedInstanceStudents(ctx, transitionID, positiveInstanceStudentIDs(studentIDs), from.String())
 	if err != nil {
 		return 0, WrapDatabaseError("restore archived rows by transition", err)
 	}
 	if len(restored) == 0 {
 		return 0, nil
 	}
-	rows := make([]studentpresence.SessionAttendanceRestore, 0, len(restored))
+	restores := make([]studentpresence.SessionAttendanceRestore, 0, len(restored))
 	instances := make(map[int64]string, len(restored))
 	for _, row := range restored {
 		restore, dayStatuses := restoredAttendance(row)
 		if restore != nil {
-			rows = append(rows, *restore)
+			restores = append(restores, *restore)
 		}
 		if dayStatuses {
 			instances[row.InstanceID] = row.Date
 		}
 	}
-	if len(rows) > 0 {
-		if err := r.presence.RestoreSessionAttendance(ctx, rows); err != nil {
+	if len(restores) > 0 {
+		if err := rows.Presence.RestoreSessionAttendance(ctx, restores); err != nil {
 			return 0, WrapDatabaseError("restore archived rows by transition", err)
 		}
 	}
-	if err := r.reapplyDayStatuses(ctx, instances); err != nil {
+	if err := reapplyDayStatuses(ctx, rows.Presence, instances); err != nil {
 		return 0, WrapDatabaseError("restore archived rows by transition", err)
 	}
 	return len(restored), nil
@@ -104,14 +105,14 @@ func archivedAttendance(row studentpresence.SessionAttendance) timetable.Archive
 
 // sessionStates reports which blocks Student Presence already started and
 // which it completed.
-func (r timetableInstanceStudentRepository) sessionStates(ctx context.Context, instanceIDs []int64) (map[int64]bool, map[int64]bool, error) {
-	sessions, err := r.presence.ListActivitySessions(ctx, studentpresence.ActivitySessionFilter{InstanceIDs: instanceIDs})
+func sessionStates(ctx context.Context, sessions studentpresence.ActivitySessionQuery, instanceIDs []int64) (map[int64]bool, map[int64]bool, error) {
+	listed, err := sessions.ListActivitySessions(ctx, studentpresence.ActivitySessionFilter{InstanceIDs: instanceIDs})
 	if err != nil {
 		return nil, nil, err
 	}
-	started := make(map[int64]bool, len(sessions))
-	completed := make(map[int64]bool, len(sessions))
-	for _, session := range sessions {
+	started := make(map[int64]bool, len(listed))
+	completed := make(map[int64]bool, len(listed))
+	for _, session := range listed {
 		started[session.InstanceID] = true
 		completed[session.InstanceID] = session.Status == studentpresence.ActivitySessionCompleted
 	}
@@ -150,12 +151,12 @@ func restoredAttendance(row timetable.RestoredInstanceStudent) (*studentpresence
 
 // reapplyDayStatuses applies the active day statuses and partial absences to
 // the blocks of the restored rows, in block order.
-func (r timetableInstanceStudentRepository) reapplyDayStatuses(ctx context.Context, instances map[int64]string) error {
+func reapplyDayStatuses(ctx context.Context, presence ports.ParticipantPresence, instances map[int64]string) error {
 	for _, instanceID := range sortedKeys(instances) {
-		if _, err := r.presence.ApplyActiveStatusDaysForInstance(ctx, instanceID, instances[instanceID]); err != nil {
+		if _, err := presence.ApplyActiveStatusDaysForInstance(ctx, instanceID, instances[instanceID]); err != nil {
 			return err
 		}
-		if _, err := r.presence.ApplyActivePartialAbsencesForInstance(ctx, instanceID, instances[instanceID]); err != nil {
+		if _, err := presence.ApplyActivePartialAbsencesForInstance(ctx, instanceID, instances[instanceID]); err != nil {
 			return err
 		}
 	}

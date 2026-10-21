@@ -61,7 +61,7 @@ type materializationService struct {
 	periodRepo     ports.CalendarPeriodRecords
 	instanceRepo   ports.InstanceRows
 	staffRepo      timetable.InstanceStaffCapability
-	studentRepo    ports.InstanceStudentRecords
+	studentRepo    ports.ParticipantRows
 	careBounds     ports.CareBoundReader
 	nonWorkingDays timetable.NonWorkingDayCalendar // nil skips no holidays or closing days (#3594)
 	exceptionRepo  timetable.ActivityExceptionQuery
@@ -75,7 +75,7 @@ type materializationService struct {
 // NewMaterialization composes the Timetable owner's recurrence engine.
 func NewMaterialization(deps ports.MaterializationDependencies) (timetable.MaterializationCapability, error) {
 	if deps.GroupRepo == nil || deps.ScheduleRepo == nil || deps.EnrollmentRepo == nil || deps.SupervisorRepo == nil ||
-		deps.PeriodRepo == nil || noInstanceRows(deps.InstanceRepo) || deps.StaffRepo == nil || deps.StudentRepo == nil ||
+		deps.PeriodRepo == nil || noInstanceRows(deps.InstanceRepo) || deps.StaffRepo == nil || noParticipantRows(deps.StudentRepo) ||
 		deps.ExceptionRepo == nil || deps.TimeframeRepo == nil {
 		return nil, errors.New("timetable materialization: required repository is nil")
 	}
@@ -656,7 +656,7 @@ func (s *materializationService) copyExpectedStudents(
 			StudentID:  studentID,
 			Status:     schedule.AttendanceStatusExpected,
 		}
-		if err := s.studentRepo.Create(ctx, row); err != nil {
+		if err := createLegacyParticipant(ctx, s.studentRepo, row); err != nil {
 			return &ports.ScheduleError{Op: errorOp, Err: err}
 		}
 		result.InstanceStudentsCreated++
@@ -664,10 +664,10 @@ func (s *materializationService) copyExpectedStudents(
 	if len(studentIDs) == 0 {
 		return nil
 	}
-	if _, err := s.studentRepo.ApplyActiveStatusDaysForInstance(ctx, instanceID, calendar.Date(date)); err != nil {
+	if _, err := applyActiveStatusDaysToInstance(ctx, s.studentRepo.Presence, instanceID, calendar.Date(date)); err != nil {
 		return &ports.ScheduleError{Op: "materialize template: apply student status days", Err: err}
 	}
-	if _, err := s.studentRepo.ApplyActivePartialAbsencesForInstance(ctx, instanceID, calendar.Date(date)); err != nil {
+	if _, err := applyActivePartialAbsencesToInstance(ctx, s.studentRepo.Presence, instanceID, calendar.Date(date)); err != nil {
 		return &ports.ScheduleError{Op: "materialize template: apply student partial absences", Err: err}
 	}
 	return nil
