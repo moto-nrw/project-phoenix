@@ -21,6 +21,7 @@ import { useNFCEnabled } from "~/lib/tenant-context";
 import { ActiveSupervisionLoadingView } from "~/components/active-supervisions/states";
 import { CompleteInstanceModal } from "~/components/active-supervisions/complete-instance-modal";
 import { SupervisionStudentGrid } from "~/components/active-supervisions/student-grid";
+import { AddUnplannedStudentModal } from "~/components/active-supervisions/add-unplanned-student-modal";
 import { PresentChildrenPicker } from "~/components/active-supervisions/present-children-picker";
 import { TimetableRosterContent } from "~/components/active-supervisions/timetable-roster";
 import { useTimetableActions } from "~/components/active-supervisions/use-timetable-actions";
@@ -345,6 +346,7 @@ function OpenRoomBlock({
               : undefined
           }
           presentChildrenPicker={PresentChildrenPicker}
+          addUnplannedStudentModal={AddUnplannedStudentModal}
           presentPickerAutoOpen={
             presentPickerAutoOpenInstanceId === currentRoster.instance.id
           }

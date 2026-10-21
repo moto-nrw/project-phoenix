@@ -1,6 +1,7 @@
 import { render, screen } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 
+import { AddUnplannedStudentModal } from "./add-unplanned-student-modal";
 import { TimetableRosterContent } from "./timetable-roster";
 import type {
   TimetableRoster,
@@ -78,6 +79,7 @@ function roster(canOperate: boolean | undefined): TimetableRoster {
 function renderRoster(value: TimetableRoster, attendanceWebEnabled = true) {
   render(
     <TimetableRosterContent
+      addUnplannedStudentModal={AddUnplannedStudentModal}
       addStudentSearch=""
       attendanceWebEnabled={attendanceWebEnabled}
       isAddingStudent={false}

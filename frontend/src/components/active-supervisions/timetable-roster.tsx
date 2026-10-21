@@ -17,7 +17,7 @@ import { ChoiceModal } from "~/components/ui/choice-modal";
 import type { FormErrorInput } from "~/components/ui/form-error";
 import { EmptyStudentResults } from "~/components/ui/empty-student-results";
 import { OccupancyBadges } from "~/components/ui/occupancy-badges";
-import { AddUnplannedStudentModal } from "~/components/active-supervisions/add-unplanned-student-modal";
+import type { AddUnplannedStudentModalProps } from "~/components/active-supervisions/add-unplanned-student-modal";
 import type { PresentChildrenPickerProps } from "~/components/active-supervisions/present-children-picker";
 import {
   SectionCard,
@@ -888,6 +888,11 @@ interface TimetableRosterContentProps {
    */
   readonly presentChildrenPicker?: ComponentType<PresentChildrenPickerProps>;
   /**
+   * Der Dialog „Kind ungeplant hinzufügen“. Er lädt alle Kinder der Schule;
+   * wie die Auswahl oben reichen ihn nur die Tenant-Seiten herein (#4355).
+   */
+  readonly addUnplannedStudentModal?: ComponentType<AddUnplannedStudentModalProps>;
+  /**
    * Öffnet die Auswahl „Anwesende Kinder hinzufügen“ einmal von selbst, z. B.
    * direkt nach dem Start einer spontanen Aktivität.
    */
@@ -1007,6 +1012,7 @@ export function TimetableRosterContent({
   onAddStudent,
   onAddPresentStudents,
   presentChildrenPicker: PresentChildrenPicker,
+  addUnplannedStudentModal: AddUnplannedStudentModal,
   presentPickerAutoOpen = false,
   onPresentPickerAutoOpened,
   onComplete,
@@ -1055,6 +1061,8 @@ export function TimetableRosterContent({
     .join(" ");
   const [addStudentOpen, setAddStudentOpen] = useState(false);
   const [presentPickerOpen, setPresentPickerOpen] = useState(false);
+  const addStudentEnabled =
+    canAddUnplanned && AddUnplannedStudentModal !== undefined;
   const presentPickerEnabled =
     actionsEnabled &&
     canAddUnplanned &&
@@ -1154,7 +1162,7 @@ export function TimetableRosterContent({
         toggle={headerToggle}
         showStatus={!statusInPageHead}
         onAddStudent={
-          canAddUnplanned ? () => setAddStudentOpen(true) : undefined
+          addStudentEnabled ? () => setAddStudentOpen(true) : undefined
         }
         onAddPresentStudents={
           presentPickerEnabled ? () => setPresentPickerOpen(true) : undefined
@@ -1177,7 +1185,7 @@ export function TimetableRosterContent({
           message="Die Gehzeiten konnten nicht geladen werden. Die Anwesenheitsliste bleibt verfügbar."
         />
       ) : null}
-      {actionsEnabled && canAddUnplanned ? (
+      {actionsEnabled && addStudentEnabled ? (
         <AddUnplannedStudentModal
           isOpen={addStudentOpen}
           instanceId={roster.instance.id}
