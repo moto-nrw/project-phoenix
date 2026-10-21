@@ -33,6 +33,9 @@ type staffMembershipDirectory struct {
 
 // NewStaffDirectory binds the staff directory over the retained repositories.
 func NewStaffDirectory(deps peoplePorts.StaffDirectoryDependencies) peoplePorts.StaffDirectory {
+	if deps.Runtime == nil {
+		panic("staff directory: the tenant runtime is required")
+	}
 	if deps.Persons == nil {
 		panic("staff directory: the person repository is required")
 	}
