@@ -23,7 +23,7 @@ import (
 // render err.Error() into response bodies.
 
 type staffMembershipDirectory struct {
-	runtime        peoplePorts.TenantTxRunner
+	runtime        peoplePorts.StaffDirectoryRuntime
 	persons        peoplePorts.PersonRepository
 	staff          peoplePorts.StaffRepository
 	teachers       peoplePorts.TeacherRepository
@@ -74,6 +74,13 @@ func (s *staffMembershipDirectory) CreateStaffWithTeacher(ctx context.Context, i
 	teacherCreationFailed := false
 
 	if err := s.runtime.InTenantTx(ctx, func(ctx context.Context) error {
+		schoolID, err := s.runtime.RequireTenantID(ctx)
+		if err != nil {
+			return err
+		}
+		if err := s.runtime.AcquireLock(ctx, peopleValues.StaffPersonMergeLockKey(schoolID), true); err != nil {
+			return err
+		}
 		if err := s.requireLivePersonLocked(ctx, input.PersonID); err != nil {
 			return err
 		}
@@ -81,7 +88,6 @@ func (s *staffMembershipDirectory) CreateStaffWithTeacher(ctx context.Context, i
 			return err
 		}
 
-		var err error
 		if staff, err = s.adoptOrCreateStaff(ctx, input); err != nil {
 			return err
 		}

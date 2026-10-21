@@ -62,14 +62,11 @@ func (s *Store) Create(ctx context.Context, input peopledirectory.CreatePerson) 
 		return peopledirectory.Person{}, domain.OperationStats{}, errors.New("people directory postgres: tenant is required to create a person")
 	}
 	started := time.Now()
-	if _, err := db.NewRaw("SELECT pg_advisory_xact_lock_shared(hashtextextended(?, 0))", peopledirectory.StaffPersonMergeLockKey(scope.TenantID)).Exec(ctx); err != nil {
-		return peopledirectory.Person{}, domain.OperationStats{Queries: 1, StatementDuration: time.Since(started)}, fmt.Errorf("lock person creation: %w", err)
-	}
 	row := personRow{
 		TenantID: scope.TenantID, FirstName: input.FirstName, LastName: input.LastName,
 		Birthday: birthday, TagID: input.TagID, AccountID: input.AccountID,
 	}
-	stats := domain.OperationStats{Queries: 2}
+	stats := domain.OperationStats{Queries: 1}
 	err = db.NewInsert().Model(&row).ModelTableExpr(`users.persons`).Returning("*").Scan(ctx)
 	stats.StatementDuration = time.Since(started)
 	if err != nil {

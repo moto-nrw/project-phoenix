@@ -50,7 +50,7 @@ func (s *Store) RetireMergedStaffPerson(ctx context.Context, schoolID, donorID, 
 	if !scope.AcrossSchools {
 		return errors.New("staff person merge requires an administrative transaction")
 	}
-	// The workflow's transaction-scoped school lock orders new persons with
+	// The workflow's transaction-scoped school lock orders staff creation with
 	// this final check. Existing live people are locked by StaffMergePeople.
 	people, err := s.StaffMergePeople(ctx, schoolID, true)
 	if err != nil {

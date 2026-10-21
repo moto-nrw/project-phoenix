@@ -47,3 +47,9 @@ func (RepositoryRuntime) AcrossSchools(ctx context.Context) bool {
 func (RepositoryRuntime) InTenantTx(ctx context.Context, fn func(context.Context) error) error {
 	return tenant.NewTransactionRunner().RunInTx(ctx, fn)
 }
+
+// AcquireLock takes a transaction-scoped advisory lock through the active
+// tenant transaction.
+func (RepositoryRuntime) AcquireLock(ctx context.Context, key string, shared bool) error {
+	return tenant.AcquireLock(ctx, key, shared)
+}
