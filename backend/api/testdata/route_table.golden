@@ -486,6 +486,8 @@ GET /auth/guardian-invitations/{token}
 GET /auth/invitations/
 GET /auth/invitations/{token}
 GET /auth/mfa/trusted-devices
+GET /auth/parent-accounts/
+GET /auth/parent-accounts/{id}/
 GET /auth/passkeys/
 GET /auth/permissions/
 GET /auth/permissions/{id}/
@@ -889,6 +891,7 @@ POST /auth/mfa/enroll/confirm
 POST /auth/mfa/enroll/start
 POST /auth/mfa/resend
 POST /auth/mfa/verify
+POST /auth/parent-accounts/
 POST /auth/passkeys/enrollment/challenge
 POST /auth/passkeys/login/options
 POST /auth/passkeys/login/verify
@@ -1082,6 +1085,9 @@ PUT /auth/accounts/{accountId}/activate
 PUT /auth/accounts/{accountId}/deactivate
 PUT /auth/accounts/{accountId}/mfa/override
 PUT /auth/accounts/{accountId}/roles/
+PUT /auth/parent-accounts/{id}/
+PUT /auth/parent-accounts/{id}/activate
+PUT /auth/parent-accounts/{id}/deactivate
 PUT /auth/permissions/{id}/
 PUT /auth/roles/{id}/
 PUT /auth/roles/{roleId}/permissions/

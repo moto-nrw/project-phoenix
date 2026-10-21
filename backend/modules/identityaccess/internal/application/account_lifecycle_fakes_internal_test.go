@@ -34,6 +34,8 @@ type lifecycleStore struct {
 
 	cards                     map[string]bool
 	grants                    map[mappingKey][]domain.PermissionGrant
+	parents                   map[int64]domain.ParentAccount
+	nextID                    int64
 	granted                   []int64
 	findAccountsByEmailsCalls int
 }
@@ -41,7 +43,7 @@ type lifecycleStore struct {
 func newLifecycleStore() *lifecycleStore {
 	return &lifecycleStore{
 		fakeStore: newFakeStore(),
-		cards:     map[string]bool{}, grants: map[mappingKey][]domain.PermissionGrant{},
+		cards:     map[string]bool{}, grants: map[mappingKey][]domain.PermissionGrant{}, parents: map[int64]domain.ParentAccount{},
 	}
 }
 
@@ -88,6 +90,58 @@ func (s *lifecycleStore) ListAccountEmails(_ context.Context, accountIDs []int64
 		}
 	}
 	return emails, stats(), nil
+}
+
+func (s *lifecycleStore) FindParentAccount(_ context.Context, id int64) (domain.ParentAccount, bool, domain.OperationStats, error) {
+	account, ok := s.parents[id]
+	return account, ok, stats(), nil
+}
+
+func (s *lifecycleStore) findParent(match func(domain.ParentAccount) bool) (domain.ParentAccount, bool, domain.OperationStats, error) {
+	for _, account := range s.parents {
+		if match(account) {
+			return account, true, stats(), nil
+		}
+	}
+	return domain.ParentAccount{}, false, stats(), nil
+}
+
+func (s *lifecycleStore) FindParentAccountByEmail(_ context.Context, email string) (domain.ParentAccount, bool, domain.OperationStats, error) {
+	return s.findParent(func(a domain.ParentAccount) bool { return strings.EqualFold(a.Email, email) })
+}
+
+func (s *lifecycleStore) FindParentAccountByUsername(_ context.Context, username string) (domain.ParentAccount, bool, domain.OperationStats, error) {
+	return s.findParent(func(a domain.ParentAccount) bool { return strings.EqualFold(a.Username, username) })
+}
+
+func (s *lifecycleStore) InsertParentAccount(_ context.Context, account domain.ParentAccount) (domain.ParentAccount, domain.OperationStats, error) {
+	s.nextID++
+	account.ID = s.nextID
+	s.parents[account.ID] = account
+	return account, stats(), nil
+}
+
+func (s *lifecycleStore) UpdateParentAccount(_ context.Context, account domain.ParentAccount) (bool, domain.OperationStats, error) {
+	if _, ok := s.parents[account.ID]; !ok {
+		return false, stats(), nil
+	}
+	s.parents[account.ID] = account
+	return true, stats(), nil
+}
+
+func (s *lifecycleStore) ListParentAccounts(_ context.Context, filter domain.ParentAccountFilter) ([]domain.ParentAccount, domain.OperationStats, error) {
+	var result []domain.ParentAccount
+	for _, account := range s.parents {
+		if filter.Email != "" && !strings.EqualFold(account.Email, filter.Email) {
+			continue
+		}
+		if filter.Active != nil && account.Active != *filter.Active {
+			continue
+		}
+		result = append(result, account)
+	}
+	sort.Slice(result, func(i, j int) bool { return result[i].ID < result[j].ID })
+	return result, stats(), nil
 }
 
 // ports.Store overrides the relative access and school identity flows reach.
@@ -938,5 +992,6 @@ func newLifecycleFixture(t *testing.T) *lifecycleFixture {
 }
 
 func tenantContext() context.Context {
-	return (&fakeRuntime{}).WithTenantID(context.Background(), lifecycleTenant)
+	ctx := (&fakeRuntime{}).WithTenantID(context.Background(), lifecycleTenant)
+	return context.WithValue(ctx, fakeTxKey{}, true)
 }

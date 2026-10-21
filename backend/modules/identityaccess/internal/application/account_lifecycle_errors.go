@@ -48,6 +48,7 @@ var lifecycleSentinels = []struct {
 	{domain.ErrSchoolIdentityTagUnknown, identityaccess.ErrSchoolIdentityTagUnknown},
 	{domain.ErrSchoolIdentityTagConflict, identityaccess.ErrSchoolIdentityTagConflict},
 	{domain.ErrSchoolIdentityTagTaken, identityaccess.ErrSchoolIdentityTagTaken},
+	{identityaccess.ErrParentAccountNotFound, identityaccess.ErrParentAccountNotFound},
 	{identityaccess.ErrEmailAlreadyExists, identityaccess.ErrEmailAlreadyExists},
 	{identityaccess.ErrUsernameAlreadyExists, identityaccess.ErrUsernameAlreadyExists},
 	{identityaccess.ErrCannotRemovePrimaryGuardian, identityaccess.ErrCannotRemovePrimaryGuardian},

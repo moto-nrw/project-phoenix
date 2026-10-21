@@ -19,7 +19,6 @@ const (
 	opAccountsByRole     = "get accounts by role"
 	opActivateAccount    = "activate account"
 	opDeactivateAccount  = "deactivate account"
-	opHashPassword       = "hash password"
 	opVerifyPassword     = "verify password"
 	opValidatePassword   = "validate password"
 	opRevokeOnDeactivate = "revoke tokens during account deactivation"
