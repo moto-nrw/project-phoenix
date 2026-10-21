@@ -8,5 +8,6 @@ var (
 	ErrCategoryNotAssignable = errors.New("activity category is not available for new assignments")
 	// ErrInvalidRecurrenceRange rejects a slot search whose start lies after its end.
 	ErrInvalidRecurrenceRange = errors.New("invalid date range")
-	ErrInvalidDuration        = errors.New("invalid duration")
+	// ErrInvalidDuration rejects a slot search without a positive duration.
+	ErrInvalidDuration = errors.New("invalid duration")
 )

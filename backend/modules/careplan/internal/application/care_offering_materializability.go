@@ -377,11 +377,11 @@ func ensureCareOfferingSeriesContainsGroup(series []careplan.LinkedGroup, group 
 }
 
 func (c *CareOfferingCatalog) segmentReferencesMaterializationChange(ctx context.Context, group careplan.LinkedGroup, change careOfferingMaterializationChange) (bool, error) {
-	if change.deletedRoomID > 0 && group.PlannedRoomID != nil && *group.PlannedRoomID == change.deletedRoomID {
-		return true, nil
-	}
 	if change.deletedRoomID <= 0 {
 		return false, nil
+	}
+	if group.PlannedRoomID != nil && *group.PlannedRoomID == change.deletedRoomID {
+		return true, nil
 	}
 	exceptions, err := c.deps.Timetable.GroupExceptions(ctx, group.ID)
 	if err != nil {

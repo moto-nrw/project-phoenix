@@ -1,7 +1,5 @@
-// Package schedules_test tests the schedules API handlers with hermetic test pattern.
-//
-// These tests verify HTTP request/response handling, status codes, and error responses.
-// They use real services with a test database (no mocks).
+// The schedules API tests drive the timeframe list through the production
+// middleware chain over the test database (no mocks).
 package httpadapter_test
 
 import (
@@ -20,9 +18,8 @@ import (
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 )
 
-// init seeds JWT viper defaults before any test (and before setupSchedulesRoute
-// constructs a SchedulesResource via jwt.MustNewTokenAuth). CI runs without a .env so
-// AUTH_JWT_SECRET is unset; without a secret jwx refuses HMAC signing.
+// init seeds JWT viper defaults before any test mints claims. CI runs without
+// a .env so AUTH_JWT_SECRET is unset; without a secret jwx refuses HMAC signing.
 func init() {
 	testutil.SeedTestJWTConfig()
 }
@@ -77,7 +74,9 @@ func TestSchedulesListTimeframes_Success(t *testing.T) {
 	for _, entry := range data {
 		row, isObject := entry.(map[string]interface{})
 		require.True(t, isObject, "Expected every timeframe to be an object")
-		if int64(row["id"].(float64)) == timeframe.ID {
+		id, isNumber := row["id"].(float64)
+		require.True(t, isNumber, "Expected every timeframe to carry a numeric id")
+		if int64(id) == timeframe.ID {
 			listed = row
 		}
 	}
