@@ -89,8 +89,9 @@ var perTestTenants bool
 // Call it from TestMain, before m.Run.
 func PerTestTenants() { perTestTenants = true }
 
-// testTenants maps a top-level test name to the tenant of its current run. Subtests share their
-// parent's tenant: a parent commonly creates the fixtures its subtests read.
+// testTenants maps a top-level test name to the tenant of its current run.
+// Subtests share their parent's tenant: a parent commonly creates the
+// fixtures its subtests read.
 var testTenants sync.Map // string -> *tenantEntry
 
 // Tenant returns the tenant this test owns, creating it on first call. Call it
