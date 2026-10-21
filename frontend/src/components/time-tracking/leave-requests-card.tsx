@@ -230,10 +230,9 @@ export function LeaveRequestsCard() {
         // Kopfhöhe: unten fehlt der Innenabstand und die Kacheln (#4363).
         className="shrink-0"
         actions={
-          // min-h-13 ist die Höhe von Titel und Untertitel; so stehen Jahr
-          // und Knopf auf deren Mitte statt an der Oberkante.
-          <div className="flex items-center gap-2 sm:min-h-13">
-            <span className="text-xs text-gray-400">{year}</span>
+          // min-h-13 ist die Höhe von Titel und Untertitel; so steht der
+          // Knopf auf deren Mitte statt an der Oberkante.
+          <div className="flex items-center sm:min-h-13">
             <Button
               type="button"
               variant="primary"
@@ -259,7 +258,7 @@ export function LeaveRequestsCard() {
                 value={loading ? "-" : `${remainingDays} Tage`}
                 hint={
                   quota
-                    ? `${quota.entitled_days + quota.carryover_days} Anspruch`
+                    ? `${quota.entitled_days + quota.carryover_days} Tage Anspruch für ${year}`
                     : "lädt…"
                 }
                 tone="primary"
