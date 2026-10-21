@@ -13,18 +13,41 @@ import (
 
 const opAssignPermissionToRole = "assign permission to role"
 
-func (r *RoleAdministration) GetPermission(ctx context.Context, id int64) (domain.ManagedPermission, error) {
-	permission, found, err := r.store.FindPermission(ctx, id)
-	if err != nil {
-		return domain.ManagedPermission{}, failed("get permission", err)
+func (r *RoleAdministration) GetPermission(ctx context.Context, id int64) (value0 identityaccess.Permission, err error) {
+	if r == nil {
+		return identityaccess.Permission{}, errRoleAdministrationUnavailable
 	}
-	if !found {
-		return domain.ManagedPermission{}, failed("get permission", identityaccess.ErrPermissionNotFound)
+	operation := func(ctx context.Context) (domain.ManagedPermission, error) {
+		permission, found, err := r.store.FindPermission(ctx, id)
+		if err != nil {
+			return domain.ManagedPermission{}, failed("get permission", err)
+		}
+		if !found {
+			return domain.ManagedPermission{}, failed("get permission", identityaccess.ErrPermissionNotFound)
+		}
+		return permission, nil
 	}
-	return permission, nil
+	err = r.runtime.RunInTx(ctx, func(txCtx context.Context) error {
+		result, err := operation(bindRuntime(r.attach, txCtx))
+		value0 = identityaccess.Permission(result)
+		return roleError(err)
+	})
+	return
 }
 
-func (r *RoleAdministration) GetPermissionByName(ctx context.Context, name string) (domain.ManagedPermission, error) {
+func (r *RoleAdministration) GetPermissionByName(ctx context.Context, name string) (value0 identityaccess.Permission, err error) {
+	if r == nil {
+		return identityaccess.Permission{}, errRoleAdministrationUnavailable
+	}
+	err = r.runtime.RunInTx(ctx, func(txCtx context.Context) error {
+		permission, err := r.permissionByName(bindRuntime(r.attach, txCtx), name)
+		value0 = identityaccess.Permission(permission)
+		return roleError(err)
+	})
+	return
+}
+
+func (r *RoleAdministration) permissionByName(ctx context.Context, name string) (domain.ManagedPermission, error) {
 	permission, err := r.store.FindPermissionByName(ctx, name)
 	if err != nil {
 		return domain.ManagedPermission{}, failed("get permission by name", err)
@@ -105,32 +128,54 @@ func (r *RoleAdministration) RemovePermissionFromAccount(ctx context.Context, ac
 	})
 }
 
-func (r *RoleAdministration) GetAccountPermissions(ctx context.Context, accountID int64) ([]domain.ManagedPermission, error) {
-	if _, err := r.accounts.FindManageableAccount(ctx, accountID); err != nil {
-		return nil, failed("get account permissions", domain.ErrAccountNotFound)
+func (r *RoleAdministration) GetAccountPermissions(ctx context.Context, accountID int64) (value0 []identityaccess.Permission, err error) {
+	if r == nil {
+		return nil, errRoleAdministrationUnavailable
 	}
-	if err := r.ensureOrganizationRBACMembership(ctx, accountID, "get account permissions", false); err != nil {
-		return nil, err
+	operation := func(ctx context.Context) ([]domain.ManagedPermission, error) {
+		if _, err := r.accounts.FindManageableAccount(ctx, accountID); err != nil {
+			return nil, failed("get account permissions", domain.ErrAccountNotFound)
+		}
+		if err := r.ensureOrganizationRBACMembership(ctx, accountID, "get account permissions", false); err != nil {
+			return nil, err
+		}
+		permissions, err := r.store.ListAccountPermissions(ctx, accountID)
+		if err != nil {
+			return nil, failed("get account permissions", err)
+		}
+		return permissions, nil
 	}
-	permissions, err := r.store.ListAccountPermissions(ctx, accountID)
-	if err != nil {
-		return nil, failed("get account permissions", err)
-	}
-	return permissions, nil
+	err = r.runtime.RunInTx(ctx, func(txCtx context.Context) error {
+		result, err := operation(bindRuntime(r.attach, txCtx))
+		value0 = publicPermissions(result)
+		return roleError(err)
+	})
+	return
 }
 
-func (r *RoleAdministration) GetAccountDirectPermissions(ctx context.Context, accountID int64) ([]domain.ManagedPermission, error) {
-	if _, err := r.accounts.FindManageableAccount(ctx, accountID); err != nil {
-		return nil, failed("get account direct permissions", domain.ErrAccountNotFound)
+func (r *RoleAdministration) GetAccountDirectPermissions(ctx context.Context, accountID int64) (value0 []identityaccess.Permission, err error) {
+	if r == nil {
+		return nil, errRoleAdministrationUnavailable
 	}
-	if err := r.ensureOrganizationRBACMembership(ctx, accountID, "get account direct permissions", false); err != nil {
-		return nil, err
+	operation := func(ctx context.Context) ([]domain.ManagedPermission, error) {
+		if _, err := r.accounts.FindManageableAccount(ctx, accountID); err != nil {
+			return nil, failed("get account direct permissions", domain.ErrAccountNotFound)
+		}
+		if err := r.ensureOrganizationRBACMembership(ctx, accountID, "get account direct permissions", false); err != nil {
+			return nil, err
+		}
+		permissions, err := r.store.ListAccountDirectPermissions(ctx, accountID)
+		if err != nil {
+			return nil, failed("get account direct permissions", err)
+		}
+		return permissions, nil
 	}
-	permissions, err := r.store.ListAccountDirectPermissions(ctx, accountID)
-	if err != nil {
-		return nil, failed("get account direct permissions", err)
-	}
-	return permissions, nil
+	err = r.runtime.RunInTx(ctx, func(txCtx context.Context) error {
+		result, err := operation(bindRuntime(r.attach, txCtx))
+		value0 = publicPermissions(result)
+		return roleError(err)
+	})
+	return
 }
 
 // AssignPermissionToRole adds a permission to a custom role.
@@ -228,12 +273,23 @@ func (r *RoleAdministration) RemovePermissionFromRole(ctx context.Context, roleI
 	})
 }
 
-func (r *RoleAdministration) GetRolePermissions(ctx context.Context, roleID int64) ([]domain.ManagedPermission, error) {
-	permissions, err := r.store.ListRolePermissions(ctx, roleID)
-	if err != nil {
-		return nil, failed("get role permissions", err)
+func (r *RoleAdministration) GetRolePermissions(ctx context.Context, roleID int64) (value0 []identityaccess.Permission, err error) {
+	if r == nil {
+		return nil, errRoleAdministrationUnavailable
 	}
-	return permissions, nil
+	operation := func(ctx context.Context) ([]domain.ManagedPermission, error) {
+		permissions, err := r.store.ListRolePermissions(ctx, roleID)
+		if err != nil {
+			return nil, failed("get role permissions", err)
+		}
+		return permissions, nil
+	}
+	err = r.runtime.RunInTx(ctx, func(txCtx context.Context) error {
+		result, err := operation(bindRuntime(r.attach, txCtx))
+		value0 = publicPermissions(result)
+		return roleError(err)
+	})
+	return
 }
 
 // GrantStaffDefaultPermission grants the default staff permission to the
@@ -252,7 +308,7 @@ func (r *RoleAdministration) grantStaffDefaultPermission(ctx context.Context, ac
 	if isTeacher {
 		role = "teacher"
 	}
-	roles, err := r.GetAccountRoles(ctx, accountID)
+	roles, err := r.accountRoles(ctx, accountID)
 	if err != nil {
 		r.logger.Error("failed to resolve account roles, skipping default permission grant",
 			slog.String("role", role),
@@ -266,7 +322,7 @@ func (r *RoleAdministration) grantStaffDefaultPermission(ctx context.Context, ac
 			return
 		}
 	}
-	permission, err := r.GetPermissionByName(ctx, permissionName)
+	permission, err := r.permissionByName(ctx, permissionName)
 	if err != nil {
 		return
 	}

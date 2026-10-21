@@ -72,26 +72,48 @@ func NewRoleAdministration(deps RoleAdministrationDependencies) (*RoleAdministra
 
 // --- roles -----------------------------------------------------------------
 
-func (r *RoleAdministration) CreateRole(ctx context.Context, name, description string, baseRole *string) (domain.ManagedRole, error) {
-	if baseRole == nil || *baseRole == "" {
-		return domain.ManagedRole{}, failed("create role", domain.ErrBaseRoleRequired)
+func (r *RoleAdministration) CreateRole(ctx context.Context, name, description string, baseRole *string) (value0 identityaccess.Role, err error) {
+	if r == nil {
+		return identityaccess.Role{}, errRoleAdministrationUnavailable
 	}
-	role, err := r.store.CreateRole(ctx, domain.ManagedRole{Name: name, Description: description, BaseRole: baseRole})
-	if err != nil {
-		return domain.ManagedRole{}, failed("create role", err)
+	operation := func(ctx context.Context) (domain.ManagedRole, error) {
+		if baseRole == nil || *baseRole == "" {
+			return domain.ManagedRole{}, failed("create role", domain.ErrBaseRoleRequired)
+		}
+		role, err := r.store.CreateRole(ctx, domain.ManagedRole{Name: name, Description: description, BaseRole: baseRole})
+		if err != nil {
+			return domain.ManagedRole{}, failed("create role", err)
+		}
+		return role, nil
 	}
-	return role, nil
+	err = r.runtime.RunInTx(ctx, func(txCtx context.Context) error {
+		result, err := operation(bindRuntime(r.attach, txCtx))
+		value0 = identityaccess.Role(result)
+		return roleError(err)
+	})
+	return
 }
 
-func (r *RoleAdministration) GetRole(ctx context.Context, id int64) (domain.ManagedRole, error) {
-	role, found, err := r.store.FindRole(ctx, id)
-	if err != nil {
-		return domain.ManagedRole{}, failed("get role", err)
+func (r *RoleAdministration) GetRole(ctx context.Context, id int64) (value0 identityaccess.Role, err error) {
+	if r == nil {
+		return identityaccess.Role{}, errRoleAdministrationUnavailable
 	}
-	if !found {
-		return domain.ManagedRole{}, failed("get role", domain.ErrRoleNotFound)
+	operation := func(ctx context.Context) (domain.ManagedRole, error) {
+		role, found, err := r.store.FindRole(ctx, id)
+		if err != nil {
+			return domain.ManagedRole{}, failed("get role", err)
+		}
+		if !found {
+			return domain.ManagedRole{}, failed("get role", domain.ErrRoleNotFound)
+		}
+		return role, nil
 	}
-	return role, nil
+	err = r.runtime.RunInTx(ctx, func(txCtx context.Context) error {
+		result, err := operation(bindRuntime(r.attach, txCtx))
+		value0 = identityaccess.Role(result)
+		return roleError(err)
+	})
+	return
 }
 
 func (r *RoleAdministration) resolveAssignableSchoolRole(ctx context.Context, roleID, tenantID int64) (domain.ManagedRole, []string, error) {
@@ -119,18 +141,27 @@ func (r *RoleAdministration) resolveAssignableSchoolRole(ctx context.Context, ro
 	return role, names, nil
 }
 
-func (r *RoleAdministration) UpdateRole(ctx context.Context, role domain.ManagedRole) error {
-	existing, found, err := r.store.FindRole(ctx, role.ID)
-	if err != nil || !found {
-		return failed("update role", domain.ErrRoleNotFound)
+func (r *RoleAdministration) UpdateRole(ctx context.Context, role identityaccess.Role) (err error) {
+	if r == nil {
+		return errRoleAdministrationUnavailable
 	}
-	if existing.IsSystem {
-		return failed("update role", identityaccess.ErrSystemRoleImmutable)
+	operation := func(ctx context.Context, role domain.ManagedRole) error {
+		existing, found, err := r.store.FindRole(ctx, role.ID)
+		if err != nil || !found {
+			return failed("update role", domain.ErrRoleNotFound)
+		}
+		if existing.IsSystem {
+			return failed("update role", identityaccess.ErrSystemRoleImmutable)
+		}
+		if err := r.store.UpdateRole(ctx, role); err != nil {
+			return failed("update role", err)
+		}
+		return nil
 	}
-	if err := r.store.UpdateRole(ctx, role); err != nil {
-		return failed("update role", err)
-	}
-	return nil
+	err = r.runtime.RunInTx(ctx, func(txCtx context.Context) error {
+		return roleError(operation(bindRuntime(r.attach, txCtx), domain.ManagedRole(role)))
+	})
+	return
 }
 
 // DeleteRole deletes a custom role with its account and permission mappings.
@@ -286,7 +317,7 @@ func (r *RoleAdministration) replaceAccountRoleInTx(txCtx context.Context, accou
 // is left to the flows that do have a name (staff creation, invitation),
 // which is also why nothing here fails when there is none.
 func (r *RoleAdministration) ensureIdentityForAssignedRole(ctx context.Context, accountID int64, role *domain.RoleFacts) error {
-	if _, err := r.identity.EnsureSchoolIdentity(ctx, domain.SchoolIdentityInput{
+	if _, err := r.identity.EnsureSchoolIdentityChain(ctx, domain.SchoolIdentityInput{
 		AccountID:    accountID,
 		TenantID:     r.runtime.TenantID(ctx),
 		Role:         role,
@@ -297,8 +328,16 @@ func (r *RoleAdministration) ensureIdentityForAssignedRole(ctx context.Context, 
 	return nil
 }
 
-func (r *RoleAdministration) AccountHoldsLehrkraftRole(ctx context.Context, accountID int64) (bool, error) {
-	return r.accountHoldsLehrkraftRole(ctx, accountID)
+func (r *RoleAdministration) AccountHoldsLehrkraftRole(ctx context.Context, accountID int64) (value0 bool, err error) {
+	if r == nil {
+		return false, errRoleAdministrationUnavailable
+	}
+	err = r.runtime.RunInTx(ctx, func(txCtx context.Context) error {
+		holds, err := r.accountHoldsLehrkraftRole(bindRuntime(r.attach, txCtx), accountID)
+		value0 = holds
+		return roleError(err)
+	})
+	return
 }
 
 func (r *RoleAdministration) accountHoldsLehrkraftRole(ctx context.Context, accountID int64) (bool, error) {
@@ -353,7 +392,35 @@ func (r *RoleAdministration) RemoveRoleFromAccount(ctx context.Context, accountI
 	return nil
 }
 
-func (r *RoleAdministration) GetAccountRoles(ctx context.Context, accountID int64) ([]domain.ManagedRole, error) {
+func (r *RoleAdministration) GetAccountRoles(ctx context.Context, accountID int64) (value0 []identityaccess.Role, err error) {
+	if r == nil {
+		return nil, errRoleAdministrationUnavailable
+	}
+	err = r.runtime.RunInTx(ctx, func(txCtx context.Context) error {
+		roles, err := r.accountRoles(bindRuntime(r.attach, txCtx), accountID)
+		value0 = publicRoles(roles)
+		return roleError(err)
+	})
+	return
+}
+
+// AccountHoldsRole reports whether the account holds the role of that exact
+// name. A failed lookup counts as not holding it: the answer only ever
+// withholds.
+func (r *RoleAdministration) AccountHoldsRole(ctx context.Context, accountID int64, roleName string) bool {
+	held, err := r.GetAccountRoles(ctx, accountID)
+	if err != nil {
+		return false
+	}
+	for _, role := range held {
+		if role.Name == roleName {
+			return true
+		}
+	}
+	return false
+}
+
+func (r *RoleAdministration) accountRoles(ctx context.Context, accountID int64) ([]domain.ManagedRole, error) {
 	if _, err := r.accounts.FindManageableAccount(ctx, accountID); err != nil {
 		return nil, failed("get account roles", domain.ErrAccountNotFound)
 	}
@@ -387,28 +454,61 @@ func (r *RoleAdministration) accountsHoldingRole(ctx context.Context, accountIDs
 	return matches, nil
 }
 
-func (r *RoleAdministration) GetAccountRoleNames(ctx context.Context, accountIDs []int64) (map[int64]string, error) {
-	names, err := r.store.ListAccountRoleNames(ctx, accountIDs)
-	if err != nil {
-		return nil, failed("get account role names", err)
+func (r *RoleAdministration) GetAccountRoleNames(ctx context.Context, accountIDs []int64) (value0 map[int64]string, err error) {
+	if r == nil {
+		return nil, errRoleAdministrationUnavailable
 	}
-	return names, nil
+	operation := func(ctx context.Context) (map[int64]string, error) {
+		names, err := r.store.ListAccountRoleNames(ctx, accountIDs)
+		if err != nil {
+			return nil, failed("get account role names", err)
+		}
+		return names, nil
+	}
+	err = r.runtime.RunInTx(ctx, func(txCtx context.Context) error {
+		result, err := operation(bindRuntime(r.attach, txCtx))
+		value0 = result
+		return roleError(err)
+	})
+	return
 }
 
-func (r *RoleAdministration) GetAccountEmails(ctx context.Context, accountIDs []int64) (map[int64]string, error) {
-	emails, err := r.store.ListAccountEmails(ctx, accountIDs)
-	if err != nil {
-		return nil, failed("get account emails by IDs", err)
+func (r *RoleAdministration) GetAccountEmails(ctx context.Context, accountIDs []int64) (value0 map[int64]string, err error) {
+	if r == nil {
+		return nil, errRoleAdministrationUnavailable
 	}
-	return emails, nil
+	operation := func(ctx context.Context) (map[int64]string, error) {
+		emails, err := r.store.ListAccountEmails(ctx, accountIDs)
+		if err != nil {
+			return nil, failed("get account emails by IDs", err)
+		}
+		return emails, nil
+	}
+	err = r.runtime.RunInTx(ctx, func(txCtx context.Context) error {
+		result, err := operation(bindRuntime(r.attach, txCtx))
+		value0 = result
+		return roleError(err)
+	})
+	return
 }
 
-func (r *RoleAdministration) GetAccountAvatars(ctx context.Context, accountIDs []int64) (map[int64]string, error) {
-	avatars, err := r.store.ListAccountAvatars(ctx, accountIDs)
-	if err != nil {
-		return nil, failed("get account avatars by IDs", err)
+func (r *RoleAdministration) GetAccountAvatars(ctx context.Context, accountIDs []int64) (value0 map[int64]string, err error) {
+	if r == nil {
+		return nil, errRoleAdministrationUnavailable
 	}
-	return avatars, nil
+	operation := func(ctx context.Context) (map[int64]string, error) {
+		avatars, err := r.store.ListAccountAvatars(ctx, accountIDs)
+		if err != nil {
+			return nil, failed("get account avatars by IDs", err)
+		}
+		return avatars, nil
+	}
+	err = r.runtime.RunInTx(ctx, func(txCtx context.Context) error {
+		result, err := operation(bindRuntime(r.attach, txCtx))
+		value0 = result
+		return roleError(err)
+	})
+	return
 }
 
 // --- account locks -----------------------------------------------------------
@@ -460,12 +560,12 @@ type LateSchoolIdentity struct {
 	Current func() *AccountLifecycle
 }
 
-func (i LateSchoolIdentity) EnsureSchoolIdentity(ctx context.Context, input domain.SchoolIdentityInput) (*domain.SchoolIdentity, error) {
+func (i LateSchoolIdentity) EnsureSchoolIdentityChain(ctx context.Context, input domain.SchoolIdentityInput) (*domain.SchoolIdentity, error) {
 	lifecycle := i.Current()
 	if lifecycle == nil {
 		return nil, errors.New("identity access compose: the school identity chain is not composed")
 	}
-	return lifecycle.EnsureSchoolIdentity(ctx, input)
+	return lifecycle.EnsureSchoolIdentityChain(ctx, input)
 }
 
 // accountAdministration serves the offboarding port: role removals run

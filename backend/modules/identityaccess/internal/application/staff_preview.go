@@ -202,7 +202,29 @@ func newPreviewID() (string, error) {
 	return hex.EncodeToString(buf), nil
 }
 
-func (l *AccountLifecycle) ListStaffPreviewCandidates(ctx context.Context, tenantID, excludeAccountID int64) ([]domain.StaffPreviewCandidate, error) {
+func (l *AccountLifecycle) ListStaffPreviewCandidates(ctx context.Context, tenantID, excludeAccountID int64) (value0 []identityaccess.StaffPreviewCandidate, err error) {
+	if l == nil {
+		return nil, errAccountLifecycleUnavailable
+	}
+	operation := func(ctx context.Context) ([]identityaccess.StaffPreviewCandidate, error) {
+		candidates, err := l.listStaffPreviewCandidates(bindRuntime(l.auth.attach, ctx), tenantID, excludeAccountID)
+		if err != nil {
+			return nil, lifecycleError(err)
+		}
+		result := make([]identityaccess.StaffPreviewCandidate, 0, len(candidates))
+		for _, candidate := range candidates {
+			result = append(result, identityaccess.StaffPreviewCandidate(candidate))
+		}
+		return result, nil
+	}
+	err = l.runtime.RunInTx(ctx, func(txCtx context.Context) error {
+		value0, err = operation(txCtx)
+		return err
+	})
+	return
+}
+
+func (l *AccountLifecycle) listStaffPreviewCandidates(ctx context.Context, tenantID, excludeAccountID int64) ([]domain.StaffPreviewCandidate, error) {
 	const op = "list staff preview candidates"
 	accounts, _, err := l.store.ListTenantAccounts(ctx, tenantID)
 	if err != nil {

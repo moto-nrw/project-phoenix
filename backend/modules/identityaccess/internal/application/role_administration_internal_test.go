@@ -349,7 +349,7 @@ func (p raPolicy) ValidateAssignableSchoolRole(role *domain.RoleFacts, tenantID 
 
 type raIdentity struct{ inputs []domain.SchoolIdentityInput }
 
-func (i *raIdentity) EnsureSchoolIdentity(_ context.Context, input domain.SchoolIdentityInput) (*domain.SchoolIdentity, error) {
+func (i *raIdentity) EnsureSchoolIdentityChain(_ context.Context, input domain.SchoolIdentityInput) (*domain.SchoolIdentity, error) {
 	i.inputs = append(i.inputs, input)
 	return nil, nil
 }
@@ -458,13 +458,13 @@ func TestRoleAdministration_UpdateRoleReturnsNotFoundOnLookupFailure(t *testing.
 
 	f := newRAFixture(t)
 	f.store.findRoleErr = errors.New("sql: no rows in result set")
-	err := f.admin.UpdateRole(raContext(), domain.ManagedRole{ID: f.account()})
-	require.ErrorIs(t, err, domain.ErrRoleNotFound)
+	err := f.admin.UpdateRole(raContext(), identityaccess.Role{ID: f.account()})
+	require.ErrorIs(t, err, identityaccess.ErrRoleNotFound)
 	assert.NotErrorIs(t, err, f.store.findRoleErr)
 
 	missing := newRAFixture(t)
-	err = missing.admin.UpdateRole(raContext(), domain.ManagedRole{ID: missing.account()})
-	require.ErrorIs(t, err, domain.ErrRoleNotFound)
+	err = missing.admin.UpdateRole(raContext(), identityaccess.Role{ID: missing.account()})
+	require.ErrorIs(t, err, identityaccess.ErrRoleNotFound)
 }
 
 func TestRoleAdministration_SystemRolesAreImmutable(t *testing.T) {
@@ -476,7 +476,7 @@ func TestRoleAdministration_SystemRolesAreImmutable(t *testing.T) {
 	ctx := raContext()
 
 	// The stored row decides, never the caller's flag.
-	err := f.admin.UpdateRole(ctx, domain.ManagedRole{ID: system.ID, Name: "renamed", IsSystem: false})
+	err := f.admin.UpdateRole(ctx, identityaccess.Role{ID: system.ID, Name: "renamed", IsSystem: false})
 	require.ErrorIs(t, err, identityaccess.ErrSystemRoleImmutable)
 	assert.EqualError(t, err, "auth error during update role: system roles cannot be modified")
 
@@ -556,12 +556,12 @@ func TestRoleAdministration_ListAndGetAccountRolesErrorPaths(t *testing.T) {
 
 	account := f.account()
 	f.store.listAccountRolesErr = errors.New("account roles failed")
-	roles, err = f.admin.GetAccountRoles(raContext(), account)
+	roles, err = f.admin.accountRoles(raContext(), account)
 	require.ErrorIs(t, err, f.store.listAccountRolesErr)
 	assert.Nil(t, roles)
 
 	unmanaged := f.store.nextID + 1
-	_, err = f.admin.GetAccountRoles(raContext(), unmanaged)
+	_, err = f.admin.accountRoles(raContext(), unmanaged)
 	require.ErrorIs(t, err, domain.ErrAccountNotFound)
 	assert.EqualError(t, err, "auth error during get account roles: account not found")
 }
@@ -606,7 +606,7 @@ func TestRoleAdministration_AccountLockOrder(t *testing.T) {
 		assert.NotContains(t, f.store.calls, "lock account")
 		assert.Empty(t, f.store.grants)
 
-		_, err = f.admin.GetAccountRoles(ctx, account)
+		_, err = f.admin.accountRoles(ctx, account)
 		require.ErrorIs(t, err, domain.ErrAccountNotFound)
 	})
 
@@ -616,7 +616,7 @@ func TestRoleAdministration_AccountLockOrder(t *testing.T) {
 		ctx := withScope(context.Background(), domain.ScopeOrg, 3)
 
 		_, err := f.admin.GetAccountPermissions(ctx, account)
-		require.ErrorIs(t, err, domain.ErrAccountNotFound)
+		require.ErrorIs(t, err, identityaccess.ErrAccountNotFound)
 		assert.NotContains(t, f.store.calls, "membership")
 	})
 
