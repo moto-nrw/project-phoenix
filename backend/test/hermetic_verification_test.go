@@ -1073,6 +1073,82 @@ func TestX(t *testing.T) {
 			want: []int{3},
 		},
 		{
+			name: "trailing delete at the end of a subtest",
+			code: `package sample
+func TestX(t *testing.T) {
+	t.Run("case", func(t *testing.T) {
+		assert.True(t, ok)
+		// Cleanup
+		_, _ = db.NewDelete().TableExpr("schedule.student_pickup_schedules").Where("id = ?", id).Exec(ctx)
+	})
+}`,
+			want: []int{6},
+		},
+		{
+			name: "trailing delete at the end of a test",
+			code: `package sample
+func TestX(t *testing.T) {
+	assert.True(t, ok)
+	_, _ = db.NewDelete().TableExpr("users.persons").Where("id = ?", a).Exec(ctx)
+	_, _ = db.NewDelete().TableExpr("users.persons").Where("id = ?", b).Exec(ctx)
+}`,
+			want: []int{4, 5},
+		},
+		{
+			name: "closure appended to a cleanup list",
+			code: `package sample
+func setup(s *scenario) {
+	s.extraCleanups = append([]func(){func() {
+		_, _ = s.db.NewRaw("DELETE FROM schedule.instance_students WHERE instance_id = ?", id).Exec(ctx)
+	}}, s.extraCleanups...)
+}`,
+			want: []int{4},
+		},
+		{
+			name: "trailing delete inside a final if block",
+			code: `package sample
+func TestX(t *testing.T) {
+	assert.True(t, ok)
+	if id, ok := data["id"].(float64); ok {
+		_, _ = db.NewDelete().TableExpr("auth.invitation_tokens").Where("id = ?", int64(id)).Exec(ctx)
+	}
+}`,
+			want: []int{5},
+		},
+		{
+			name: "method called from cleanup",
+			code: `package sample
+func (e *env) dropRows() { _, _ = e.db.NewDelete().TableExpr("users.persons").Exec(ctx) }
+func TestX(t *testing.T) {
+	t.Cleanup(func() { e.dropRows() })
+}`,
+			want: []int{2},
+		},
+		{
+			name: "delete SQL in a constant",
+			code: `package sample
+const dropPersons = "DELETE FROM users.persons WHERE id = $1"
+func TestX(t *testing.T) {
+	t.Cleanup(func() { _, _ = db.ExecContext(ctx, dropPersons, id) })
+}`,
+			want: []int{4},
+		},
+		{
+			name: "delete in the middle of a test is arrangement",
+			code: `package sample
+func TestX(t *testing.T) {
+	_, _ = db.NewDelete().TableExpr("users.persons").Where("id = ?", id).Exec(ctx)
+	assert.True(t, ok)
+}`,
+		},
+		{
+			name: "trailing delete in a plain helper",
+			code: `package sample
+func removePerson(id int64) {
+	_, _ = db.NewDelete().TableExpr("users.persons").Where("id = ?", id).Exec(ctx)
+}`,
+		},
+		{
 			name: "truncate in cleanup",
 			code: `package sample
 func TestX(t *testing.T) {
@@ -1088,13 +1164,6 @@ func TestX(t *testing.T) {
 		_, err := db.NewDelete().TableExpr("auth.accounts").Where("id = ?", id).Exec(ctx)
 		require.NoError(t, err)
 	})
-}`,
-		},
-		{
-			name: "ignored delete as test arrangement",
-			code: `package sample
-func TestX(t *testing.T) {
-	_, _ = db.NewDelete().TableExpr("users.persons").Where("id = ?", id).Exec(ctx)
 }`,
 		},
 		{
@@ -1159,7 +1228,12 @@ func checkIgnoredCleanupDeletes(t *testing.T, root string) []string {
 // ignoredCleanupDeletes returns the lines of DB deletes whose result is
 // discarded inside cleanup code: a closure or function registered with
 // Cleanup, anything deferred, a closure returned or bound to a cleanup name,
-// and wipe*/cleanup*/teardown* helpers.
+// wipe*/cleanup*/teardown* helpers, same-file functions and methods those
+// call, and the trailing statements of a test or subtest body.
+//
+// Known limits: helpers in other files are not followed, SQL is recognised
+// only as a string literal or a file-level string constant, and a delete
+// whose error is merely logged counts as handled.
 func ignoredCleanupDeletes(filename string, code []byte) ([]int, error) {
 	fset := token.NewFileSet()
 	file, err := parser.ParseFile(fset, filename, code, parser.SkipObjectResolution)
@@ -1170,6 +1244,22 @@ func ignoredCleanupDeletes(filename string, code []byte) ([]int, error) {
 	var bodies []ast.Node
 	flagged := make(map[int]bool)
 	cleanupNames := make(map[string]bool)
+	consts := fileStringConstants(file)
+	isDelete := func(call *ast.CallExpr) bool { return isDeleteExec(call, consts) }
+	var flagTrailing func(body *ast.BlockStmt)
+	flagTrailing = func(body *ast.BlockStmt) {
+		for i := len(body.List) - 1; i >= 0; i-- {
+			if ifStmt, ok := body.List[i].(*ast.IfStmt); ok && i == len(body.List)-1 && ifStmt.Else == nil {
+				flagTrailing(ifStmt.Body)
+				return
+			}
+			call := discardedCall(body.List[i])
+			if call == nil || !isDelete(call) {
+				return
+			}
+			flagged[fset.Position(call.Pos()).Line] = true
+		}
+	}
 
 	register := func(expr ast.Expr) {
 		switch fn := expr.(type) {
@@ -1185,11 +1275,17 @@ func ignoredCleanupDeletes(filename string, code []byte) ([]int, error) {
 	ast.Inspect(file, func(node ast.Node) bool {
 		switch n := node.(type) {
 		case *ast.CallExpr:
-			if sel, ok := n.Fun.(*ast.SelectorExpr); ok && sel.Sel.Name == "Cleanup" && len(n.Args) == 1 {
+			sel, ok := n.Fun.(*ast.SelectorExpr)
+			if ok && sel.Sel.Name == "Cleanup" && len(n.Args) == 1 {
 				register(n.Args[0])
 			}
+			if ok && sel.Sel.Name == "Run" && len(n.Args) == 2 {
+				if fn, ok := n.Args[1].(*ast.FuncLit); ok {
+					flagTrailing(fn.Body)
+				}
+			}
 		case *ast.DeferStmt:
-			if isDeleteExec(n.Call) {
+			if isDelete(n.Call) {
 				flagged[fset.Position(n.Call.Pos()).Line] = true
 			}
 			register(n.Call.Fun)
@@ -1204,6 +1300,7 @@ func ignoredCleanupDeletes(filename string, code []byte) ([]int, error) {
 	})
 
 	funcs := make(map[string]*ast.BlockStmt)
+	methods := make(map[string]*ast.BlockStmt)
 	ast.Inspect(file, func(node ast.Node) bool {
 		switch n := node.(type) {
 		case *ast.FuncDecl:
@@ -1212,25 +1309,48 @@ func ignoredCleanupDeletes(filename string, code []byte) ([]int, error) {
 			}
 			if n.Recv == nil {
 				funcs[n.Name.Name] = n.Body
+				if strings.HasPrefix(n.Name.Name, "Test") {
+					flagTrailing(n.Body)
+				}
+			} else {
+				methods[n.Name.Name] = n.Body
 			}
 			if cleanupHelperName.MatchString(n.Name.Name) || cleanupNames[n.Name.Name] {
 				bodies = append(bodies, n.Body)
 			}
 		case *ast.AssignStmt:
 			for i, lhs := range n.Lhs {
-				name, ok := lhs.(*ast.Ident)
-				if !ok || i >= len(n.Rhs) {
+				if i >= len(n.Rhs) {
 					continue
 				}
-				if fn, ok := n.Rhs[i].(*ast.FuncLit); ok && (cleanupNames[name.Name] || cleanupVariableName.MatchString(name.Name)) {
-					bodies = append(bodies, fn.Body)
+				var name string
+				switch target := lhs.(type) {
+				case *ast.Ident:
+					name = target.Name
+				case *ast.SelectorExpr:
+					name = target.Sel.Name
+				default:
+					continue
 				}
+				if !cleanupNames[name] && !cleanupVariableName.MatchString(name) {
+					continue
+				}
+				// Every closure bound to a cleanup name, including those
+				// appended to a list of cleanups, is cleanup code.
+				ast.Inspect(n.Rhs[i], func(rhs ast.Node) bool {
+					if fn, ok := rhs.(*ast.FuncLit); ok {
+						bodies = append(bodies, fn.Body)
+						return false
+					}
+					return true
+				})
 			}
 		}
 		return true
 	})
 
-	// Same-file functions that cleanup code calls are cleanup code too.
+	// Same-file functions and methods that cleanup code calls are cleanup
+	// code too.
 	visited := make(map[ast.Node]bool)
 	for i := 0; i < len(bodies); i++ {
 		body := bodies[i]
@@ -1239,21 +1359,22 @@ func ignoredCleanupDeletes(filename string, code []byte) ([]int, error) {
 		}
 		visited[body] = true
 		ast.Inspect(body, func(node ast.Node) bool {
-			var call ast.Expr
-			switch n := node.(type) {
-			case *ast.CallExpr:
-				if name, ok := n.Fun.(*ast.Ident); ok && funcs[name.Name] != nil {
-					bodies = append(bodies, funcs[name.Name])
-				}
-			case *ast.ExprStmt:
-				call = n.X
-			case *ast.AssignStmt:
-				if len(n.Rhs) == 1 && allBlank(n.Lhs) {
-					call = n.Rhs[0]
+			if call, ok := node.(*ast.CallExpr); ok {
+				switch fn := call.Fun.(type) {
+				case *ast.Ident:
+					if funcs[fn.Name] != nil {
+						bodies = append(bodies, funcs[fn.Name])
+					}
+				case *ast.SelectorExpr:
+					if methods[fn.Sel.Name] != nil {
+						bodies = append(bodies, methods[fn.Sel.Name])
+					}
 				}
 			}
-			if exec, ok := call.(*ast.CallExpr); ok && isDeleteExec(exec) {
-				flagged[fset.Position(exec.Pos()).Line] = true
+			if stmt, ok := node.(ast.Stmt); ok {
+				if call := discardedCall(stmt); call != nil && isDelete(call) {
+					flagged[fset.Position(call.Pos()).Line] = true
+				}
 			}
 			return true
 		})
@@ -1270,6 +1391,51 @@ func ignoredCleanupDeletes(filename string, code []byte) ([]int, error) {
 	return lines, nil
 }
 
+// discardedCall returns the call a statement runs while discarding its
+// result: a bare call statement or an assignment to blanks only.
+func discardedCall(stmt ast.Stmt) *ast.CallExpr {
+	var expr ast.Expr
+	switch n := stmt.(type) {
+	case *ast.ExprStmt:
+		expr = n.X
+	case *ast.AssignStmt:
+		if len(n.Rhs) == 1 && allBlank(n.Lhs) {
+			expr = n.Rhs[0]
+		}
+	}
+	call, _ := expr.(*ast.CallExpr)
+	return call
+}
+
+// fileStringConstants maps file-level constants and variables bound to a
+// string literal to their text, so SQL kept in a named constant is still
+// recognised.
+func fileStringConstants(file *ast.File) map[string]string {
+	consts := make(map[string]string)
+	for _, decl := range file.Decls {
+		gen, ok := decl.(*ast.GenDecl)
+		if !ok || (gen.Tok != token.CONST && gen.Tok != token.VAR) {
+			continue
+		}
+		for _, spec := range gen.Specs {
+			value, ok := spec.(*ast.ValueSpec)
+			if !ok || len(value.Names) != len(value.Values) {
+				continue
+			}
+			for i, name := range value.Names {
+				lit, ok := value.Values[i].(*ast.BasicLit)
+				if !ok || lit.Kind != token.STRING {
+					continue
+				}
+				if text, err := strconv.Unquote(lit.Value); err == nil {
+					consts[name.Name] = text
+				}
+			}
+		}
+	}
+	return consts
+}
+
 func allBlank(exprs []ast.Expr) bool {
 	for _, expr := range exprs {
 		if ident, ok := expr.(*ast.Ident); !ok || ident.Name != "_" {
@@ -1282,12 +1448,12 @@ func allBlank(exprs []ast.Expr) bool {
 // isDeleteExec reports whether call executes a query that deletes rows: an
 // Exec/ExecContext whose bun chain starts with NewDelete or NewTruncateTable,
 // or whose SQL text (directly or through NewRaw) starts with DELETE/TRUNCATE.
-func isDeleteExec(call *ast.CallExpr) bool {
+func isDeleteExec(call *ast.CallExpr, consts map[string]string) bool {
 	sel, ok := call.Fun.(*ast.SelectorExpr)
 	if !ok || (sel.Sel.Name != "Exec" && sel.Sel.Name != "ExecContext") {
 		return false
 	}
-	if hasDeleteSQL(call.Args) {
+	if hasDeleteSQL(call.Args, consts) {
 		return true
 	}
 	for expr := sel.X; ; {
@@ -1303,19 +1469,31 @@ func isDeleteExec(call *ast.CallExpr) bool {
 		case "NewDelete", "NewTruncateTable":
 			return true
 		case "NewRaw":
-			return hasDeleteSQL(inner.Args)
+			return hasDeleteSQL(inner.Args, consts)
 		}
 		expr = innerSel.X
 	}
 }
 
-func hasDeleteSQL(args []ast.Expr) bool {
+func hasDeleteSQL(args []ast.Expr, consts map[string]string) bool {
 	for _, arg := range args {
-		lit, ok := arg.(*ast.BasicLit)
-		if !ok || lit.Kind != token.STRING {
+		var text string
+		switch value := arg.(type) {
+		case *ast.BasicLit:
+			if value.Kind != token.STRING {
+				continue
+			}
+			unquoted, err := strconv.Unquote(value.Value)
+			if err != nil {
+				continue
+			}
+			text = unquoted
+		case *ast.Ident:
+			text = consts[value.Name]
+		default:
 			continue
 		}
-		if text, err := strconv.Unquote(lit.Value); err == nil && rawDeleteSQL.MatchString(text) {
+		if rawDeleteSQL.MatchString(text) {
 			return true
 		}
 	}

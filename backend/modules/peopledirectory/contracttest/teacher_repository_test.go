@@ -45,12 +45,6 @@ func TestTeacherRepository_Create(t *testing.T) {
 		found, err := testpkg.TenantQuery1(t, ctx, db, repo.FindByID, any(teacher.ID))
 		require.NoError(t, err)
 		assert.Equal(t, staff.ID, found.StaffID)
-
-		// Cleanup teacher (staff cleanup handled by defer)
-		_, _ = db.NewDelete().
-			TableExpr("users.teachers").
-			Where("id = ?", teacher.ID).
-			Exec(ctx)
 	})
 
 	t.Run("creates teacher with specialization", func(t *testing.T) {
@@ -67,11 +61,6 @@ func TestTeacherRepository_Create(t *testing.T) {
 		found, err := testpkg.TenantQuery1(t, ctx, db, repo.FindByID, any(teacher.ID))
 		require.NoError(t, err)
 		assert.Equal(t, "Mathematics", found.Specialization)
-
-		_, _ = db.NewDelete().
-			TableExpr("users.teachers").
-			Where("id = ?", teacher.ID).
-			Exec(ctx)
 	})
 
 	t.Run("fails with nil teacher", func(t *testing.T) {

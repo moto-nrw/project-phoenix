@@ -172,7 +172,6 @@ func TestStaffRepository_Delete(t *testing.T) {
 
 	t.Run("deletes existing staff member", func(t *testing.T) {
 		staff := testpkg.CreateTestStaff(t, db, "Delete", "Test")
-		personID := staff.PersonID
 
 		err := testpkg.TenantCommand1(t, ctx, db, repo.Delete, any(staff.ID))
 		require.NoError(t, err)
@@ -180,12 +179,6 @@ func TestStaffRepository_Delete(t *testing.T) {
 		// Verify staff is deleted
 		_, err = testpkg.TenantQuery1(t, ctx, db, repo.FindByID, any(staff.ID))
 		require.Error(t, err)
-
-		// Cleanup person (staff is already deleted)
-		_, _ = db.NewDelete().
-			TableExpr("users.persons").
-			Where("id = ?", personID).
-			Exec(ctx)
 	})
 }
 

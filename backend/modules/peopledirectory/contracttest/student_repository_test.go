@@ -243,7 +243,6 @@ func TestStudentRepository_Delete(t *testing.T) {
 
 	t.Run("deletes existing student", func(t *testing.T) {
 		student := testpkg.CreateTestStudent(t, db, "Delete", "Test", "1a")
-		personID := student.PersonID
 
 		err := testpkg.TenantCommand1(t, ctx, db, repo.Delete, any(student.ID))
 		require.NoError(t, err)
@@ -251,13 +250,6 @@ func TestStudentRepository_Delete(t *testing.T) {
 		// Verify student is deleted
 		_, err = testpkg.TenantQuery1(t, ctx, db, repo.FindByID, any(student.ID))
 		require.Error(t, err)
-
-		// Cleanup person (student is already deleted)
-		_, _ = db.NewDelete().
-			Model((*peopledirectory.DirectoryPersonSnapshot)(nil)).
-			ModelTableExpr(`users.persons AS "person"`).
-			Where(`"person".id = ?`, personID).
-			Exec(ctx)
 	})
 }
 

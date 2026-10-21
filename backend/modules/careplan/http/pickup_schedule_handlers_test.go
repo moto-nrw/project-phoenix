@@ -130,11 +130,6 @@ func TestUpdateStudentPickupSchedules(t *testing.T) {
 		assert.Equal(t, http.StatusOK, rr.Code, "Expected 200 OK. Body: %s", rr.Body.String())
 		assert.Contains(t, rr.Body.String(), "15:30", "Should contain first pickup time")
 		assert.Contains(t, rr.Body.String(), "16:00", "Should contain second pickup time")
-
-		// Cleanup created schedules
-		_, _ = tc.db.NewDelete().TableExpr("schedule.student_pickup_schedules").
-			Where("student_id = ?", student.ID).
-			Exec(context.Background())
 	})
 
 	t.Run("success_empty_schedules_clears_existing", func(t *testing.T) {
@@ -212,10 +207,6 @@ func TestUpdateStudentPickupSchedules(t *testing.T) {
 		rr := authExec(t, tc, req, claims, []string{"users:update"})
 
 		assert.Equal(t, http.StatusOK, rr.Code, "Body: %s", rr.Body.String())
-
-		_, _ = tc.db.NewDelete().TableExpr("schedule.student_pickup_schedules").
-			Where("student_id = ?", student.ID).
-			Exec(context.Background())
 	})
 }
 
@@ -243,11 +234,6 @@ func TestCreateStudentPickupException(t *testing.T) {
 		assert.Contains(t, rr.Body.String(), "2026-03-15", "Should contain exception date")
 		assert.Contains(t, rr.Body.String(), "12:00", "Should contain pickup time")
 		assert.Contains(t, rr.Body.String(), "Doctor appointment", "Should contain reason")
-
-		// Cleanup created exception
-		_, _ = tc.db.NewDelete().TableExpr("schedule.student_pickup_exceptions").
-			Where("student_id = ?", student.ID).
-			Exec(context.Background())
 	})
 
 	t.Run("create_response_includes_staff_source_without_refetch", func(t *testing.T) {
@@ -270,11 +256,6 @@ func TestCreateStudentPickupException(t *testing.T) {
 		assert.Equal(t, http.StatusCreated, rr.Code, "Expected 201 Created. Body: %s", rr.Body.String())
 		assert.Contains(t, rr.Body.String(), `"source":"staff"`,
 			"Immediate create response must carry source:staff, not the unset default. Body: %s", rr.Body.String())
-
-		// Cleanup created exception
-		_, _ = tc.db.NewDelete().TableExpr("schedule.student_pickup_exceptions").
-			Where("student_id = ?", student.ID).
-			Exec(context.Background())
 	})
 
 	t.Run("success_creates_exception_without_pickup_time_absent", func(t *testing.T) {
@@ -294,11 +275,6 @@ func TestCreateStudentPickupException(t *testing.T) {
 		assert.Equal(t, http.StatusCreated, rr.Code, "Expected 201 Created. Body: %s", rr.Body.String())
 		assert.Contains(t, rr.Body.String(), "2026-03-16", "Should contain exception date")
 		assert.Contains(t, rr.Body.String(), "Student is sick", "Should contain reason")
-
-		// Cleanup created exception
-		_, _ = tc.db.NewDelete().TableExpr("schedule.student_pickup_exceptions").
-			Where("student_id = ?", student.ID).
-			Exec(context.Background())
 	})
 
 	t.Run("create_over_guardian_row_reclaims_for_staff", func(t *testing.T) {
@@ -935,11 +911,6 @@ func TestCreateStudentPickupNote(t *testing.T) {
 		assert.Equal(t, http.StatusCreated, rr.Code, "Expected 201 Created. Body: %s", rr.Body.String())
 		assert.Contains(t, rr.Body.String(), "2026-03-15", "Should contain note date")
 		assert.Contains(t, rr.Body.String(), "Please call before pickup today", "Should contain content")
-
-		// Cleanup created note
-		_, _ = tc.db.NewDelete().TableExpr("schedule.student_pickup_notes").
-			Where("student_id = ?", student.ID).
-			Exec(context.Background())
 	})
 
 	t.Run("bad_request_missing_date", func(t *testing.T) {

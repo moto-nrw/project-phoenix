@@ -2426,12 +2426,6 @@ func TestAuthService_LinkAccountToTenant(t *testing.T) {
 			Scan(context.Background(), &roleCount)
 		require.NoError(t, err)
 		assert.Equal(t, 1, roleCount, "role should be assigned")
-
-		// Cleanup role assignment
-		_, _ = db.NewDelete().
-			TableExpr("auth.account_roles").
-			Where("account_id = ? AND role_id = ? AND tenant_id = ?", account.ID, roleID, tenantID).
-			Exec(context.Background())
 	})
 
 	t.Run("links an existing account with a system role", func(t *testing.T) {

@@ -1179,10 +1179,10 @@ func TestPermissionManagement(t *testing.T) {
 		assert.Equal(t, resource, data["resource"])
 		assert.Equal(t, "read", data["action"])
 
-		// Cleanup: delete the created permission
+		// auth.permissions is tenantless; the fixture helper owns its teardown.
 		permID, err := strconv.ParseInt(data["id"].(string), 10, 64)
 		require.NoError(t, err)
-		_, _ = tc.db.NewDelete().TableExpr("auth.permissions").Where("id = ?", permID).Exec(context.Background())
+		testpkg.OwnTestPermission(t, tc.db, permID)
 	})
 
 	t.Run("create permission bad request with missing resource", func(t *testing.T) {
@@ -2005,20 +2005,12 @@ func TestInvitationCreateSuccess(t *testing.T) {
 		require.Equal(t, http.StatusCreated, rr.Code,
 			"Expected 201 Created, got %d. Body: %s", rr.Code, rr.Body.String())
 
-		// Parse the created invitation to get its ID for cleanup
+		// Parse the created invitation
 		response := testutil.ParseJSONResponse(t, rr.Body.Bytes())
 		data, ok := response["data"].(map[string]interface{})
 		require.True(t, ok, "Expected data in response")
 		assert.Equal(t, inviteeEmail, data["email"])
 		assert.NotZero(t, data["id"])
-
-		// Cleanup the created invitation
-		if id, ok := data["id"].(float64); ok {
-			_, _ = tc.db.NewDelete().
-				TableExpr("auth.invitation_tokens").
-				Where("id = ?", int64(id)).
-				Exec(context.Background())
-		}
 	})
 
 	t.Run("list pending invitations through tenant transaction", func(t *testing.T) {
@@ -2070,13 +2062,6 @@ func TestInvitationCreateSuccess(t *testing.T) {
 		if subdomain, ok := acceptData["tenant_subdomain"].(string); ok {
 			assert.NotEmpty(t, subdomain, "tenant_subdomain should be non-empty")
 		}
-
-		if id, ok := data["id"].(float64); ok {
-			_, _ = tc.db.NewDelete().
-				TableExpr("auth.invitation_tokens").
-				Where("id = ?", int64(id)).
-				Exec(context.Background())
-		}
 	})
 }
 
@@ -2118,16 +2103,6 @@ func TestLinkToTenant(t *testing.T) {
 		data, ok := response["data"].(map[string]interface{})
 		require.True(t, ok, "Expected data to be an object")
 		assert.Equal(t, email, data["email"])
-
-		// Cleanup tenant mapping + role assignment created by link
-		_, _ = db.NewDelete().
-			TableExpr("auth.account_roles").
-			Where("account_id = ?", account.ID).
-			Exec(context.Background())
-		_, _ = db.NewDelete().
-			TableExpr("auth.account_tenants").
-			Where("account_id = ?", account.ID).
-			Exec(context.Background())
 	})
 
 	t.Run("returns 404 for non-existent email", func(t *testing.T) {
