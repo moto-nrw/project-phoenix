@@ -8,9 +8,11 @@ import (
 )
 
 // Wire strings of the kiosk scan flows. Since #2520 PyrePortal branches on
-// the registry code, not on this text (api/testdata/iot_error_codes.golden
-// pins the codes); the HTTP adapter puts the text on the wire unchanged
-// (#2698).
+// the registry code, not on this text. checkIoTErrorCodes
+// (api/iot_error_codes_contract_test.go) drives these codes through the
+// production router; the Schulhof, WC and unassigned-card codes are pinned by
+// TestWireFormat_ClassifiedFailures (http/checkin/wire_test.go). The HTTP
+// adapter puts the text on the wire unchanged (#2698).
 const (
 	MessageRFIDTagNotFound              = "RFID tag not found"
 	CodeRFIDTagNotFound                 = "iot.rfid_tag_not_found"

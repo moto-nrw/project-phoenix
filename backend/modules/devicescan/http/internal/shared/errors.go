@@ -9,8 +9,9 @@ package shared
 import "github.com/moto-nrw/project-phoenix/modules/devicescan"
 
 // Error message constants for reuse across IoT handlers. PyrePortal branches
-// on the registry codes (api/testdata/iot_error_codes.golden), not on this
-// text.
+// on the registry codes iot.rfid_tag_not_found and iot.person_not_student,
+// not on this text; checkIoTErrorCodes (api/iot_error_codes_contract_test.go)
+// pins both codes through the production router.
 const (
 	ErrMsgPersonNotStudent = devicescan.MessagePersonNotStudent
 	ErrMsgRFIDTagNotFound  = devicescan.MessageRFIDTagNotFound
