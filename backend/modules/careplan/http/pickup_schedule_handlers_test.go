@@ -190,66 +190,6 @@ func TestUpdateStudentPickupSchedules(t *testing.T) {
 		testutil.AssertBadRequest(t, rr)
 	})
 
-	t.Run("bad_request_weekday_zero", func(t *testing.T) {
-		student := testpkg.CreateTestStudent(t, tc.db, "PickupWeekdayZero", "Test", "PW0")
-
-		body := map[string]any{
-			"schedules": []map[string]any{
-				{"weekday": 0, "pickup_time": "15:30"},
-			},
-		}
-		req := testutil.NewAuthenticatedRequest(t, "PUT", fmt.Sprintf("/%d/pickup-schedules", student.ID), body)
-		rr := authExec(t, tc, req, testutil.AdminTestClaims(1), []string{"admin:*"})
-
-		testutil.AssertBadRequest(t, rr)
-	})
-
-	t.Run("bad_request_invalid_time_format", func(t *testing.T) {
-		student := testpkg.CreateTestStudent(t, tc.db, "PickupTime", "Test", "PT1")
-
-		body := map[string]any{
-			"schedules": []map[string]any{
-				{"weekday": 1, "pickup_time": "invalid"},
-			},
-		}
-		req := testutil.NewAuthenticatedRequest(t, "PUT", fmt.Sprintf("/%d/pickup-schedules", student.ID), body)
-		rr := authExec(t, tc, req, testutil.AdminTestClaims(1), []string{"admin:*"})
-
-		testutil.AssertBadRequest(t, rr)
-	})
-
-	t.Run("bad_request_missing_time", func(t *testing.T) {
-		student := testpkg.CreateTestStudent(t, tc.db, "PickupNoTime", "Test", "PNT1")
-
-		body := map[string]any{
-			"schedules": []map[string]any{
-				{"weekday": 1},
-			},
-		}
-		req := testutil.NewAuthenticatedRequest(t, "PUT", fmt.Sprintf("/%d/pickup-schedules", student.ID), body)
-		rr := authExec(t, tc, req, testutil.AdminTestClaims(1), []string{"admin:*"})
-
-		testutil.AssertBadRequest(t, rr)
-	})
-
-	t.Run("bad_request_notes_too_long", func(t *testing.T) {
-		student := testpkg.CreateTestStudent(t, tc.db, "PickupNotes", "Test", "PN1")
-
-		longNotes := make([]byte, 501)
-		for i := range longNotes {
-			longNotes[i] = 'a'
-		}
-		body := map[string]any{
-			"schedules": []map[string]any{
-				{"weekday": 1, "pickup_time": "15:30", "notes": string(longNotes)},
-			},
-		}
-		req := testutil.NewAuthenticatedRequest(t, "PUT", fmt.Sprintf("/%d/pickup-schedules", student.ID), body)
-		rr := authExec(t, tc, req, testutil.AdminTestClaims(1), []string{"admin:*"})
-
-		testutil.AssertBadRequest(t, rr)
-	})
-
 	t.Run("forbidden_without_staff_record", func(t *testing.T) {
 		// #2329: any verified staff member with users:update writes the plan;
 		// what stays refused is an account without a staff record.
@@ -478,19 +418,6 @@ func TestCreateStudentPickupException(t *testing.T) {
 		assert.Equal(t, "08:00", pickupTime.Format("15:04"), "existing staff time must be unchanged")
 	})
 
-	t.Run("bad_request_missing_date", func(t *testing.T) {
-		student := testpkg.CreateTestStudent(t, tc.db, "ExceptionNoDate", "Test", "END1")
-
-		body := map[string]any{
-			"pickup_time": "12:00",
-			"reason":      "Test reason",
-		}
-		req := testutil.NewAuthenticatedRequest(t, "POST", fmt.Sprintf("/%d/pickup-exceptions", student.ID), body)
-		rr := authExec(t, tc, req, testutil.AdminTestClaims(1), []string{"admin:*"})
-
-		testutil.AssertBadRequest(t, rr)
-	})
-
 	t.Run("bad_request_invalid_date_format", func(t *testing.T) {
 		student := testpkg.CreateTestStudent(t, tc.db, "ExceptionBadDate", "Test", "EBD1")
 
@@ -509,20 +436,6 @@ func TestCreateStudentPickupException(t *testing.T) {
 	// Validation is tested in pickup_schedule_bind_test.go.
 	// Integration tests for successful creation would require a full account+person setup.
 
-	t.Run("bad_request_invalid_pickup_time_format", func(t *testing.T) {
-		student := testpkg.CreateTestStudent(t, tc.db, "ExceptionBadTime", "Test", "EBT1")
-
-		body := map[string]any{
-			"exception_date": "2026-02-15",
-			"pickup_time":    "invalid",
-			"reason":         "Test reason",
-		}
-		req := testutil.NewAuthenticatedRequest(t, "POST", fmt.Sprintf("/%d/pickup-exceptions", student.ID), body)
-		rr := authExec(t, tc, req, testutil.AdminTestClaims(1), []string{"admin:*"})
-
-		testutil.AssertBadRequest(t, rr)
-	})
-
 	t.Run("valid_request_without_reason", func(t *testing.T) {
 		// Reason is now optional, omitting it should not cause a bad request.
 		// Full creation still requires a valid account+person setup, so we only
@@ -540,24 +453,6 @@ func TestCreateStudentPickupException(t *testing.T) {
 		// depends on account setup, but it must not be 400.
 		assert.NotEqual(t, http.StatusBadRequest, rr.Code,
 			"Omitting reason should not cause bad request. Body: %s", rr.Body.String())
-	})
-
-	t.Run("bad_request_reason_too_long", func(t *testing.T) {
-		student := testpkg.CreateTestStudent(t, tc.db, "ExceptionLongReason", "Test", "ELR1")
-
-		longReason := make([]byte, 256)
-		for i := range longReason {
-			longReason[i] = 'a'
-		}
-		body := map[string]any{
-			"exception_date": "2026-02-15",
-			"pickup_time":    "12:00",
-			"reason":         string(longReason),
-		}
-		req := testutil.NewAuthenticatedRequest(t, "POST", fmt.Sprintf("/%d/pickup-exceptions", student.ID), body)
-		rr := authExec(t, tc, req, testutil.AdminTestClaims(1), []string{"admin:*"})
-
-		testutil.AssertBadRequest(t, rr)
 	})
 
 	// #2329: every verified staff member may write the care plan; what
@@ -877,31 +772,6 @@ func TestGetBulkPickupTimes(t *testing.T) {
 	t.Run("bad_request_empty_student_ids", func(t *testing.T) {
 		body := map[string]any{
 			"student_ids": []int64{},
-		}
-		req := testutil.NewAuthenticatedRequest(t, "POST", "/pickup-times/bulk", body)
-		rr := authExec(t, tc, req, testutil.AdminTestClaims(1), []string{"admin:*"})
-
-		testutil.AssertBadRequest(t, rr)
-	})
-
-	t.Run("bad_request_too_many_student_ids", func(t *testing.T) {
-		ids := make([]int64, 501)
-		for i := range ids {
-			ids[i] = int64(i + 1)
-		}
-		body := map[string]any{
-			"student_ids": ids,
-		}
-		req := testutil.NewAuthenticatedRequest(t, "POST", "/pickup-times/bulk", body)
-		rr := authExec(t, tc, req, testutil.AdminTestClaims(1), []string{"admin:*"})
-
-		testutil.AssertBadRequest(t, rr)
-	})
-
-	t.Run("bad_request_invalid_date_format", func(t *testing.T) {
-		body := map[string]any{
-			"student_ids": []int64{1, 2, 3},
-			"date":        "27-01-2026",
 		}
 		req := testutil.NewAuthenticatedRequest(t, "POST", "/pickup-times/bulk", body)
 		rr := authExec(t, tc, req, testutil.AdminTestClaims(1), []string{"admin:*"})

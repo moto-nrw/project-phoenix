@@ -251,17 +251,16 @@ func checkHardcodedIDs(t *testing.T, root string) []string {
 
 	// Files to skip (mock tests, model unit tests without DB)
 	skipPatterns := []string{
-		"_internal_test.go",                  // Internal tests often use mocks
-		"_mock_test.go",                      // Mock tests
-		"models/",                            // Model unit tests don't hit DB (Unix)
-		"modules/dataimport/student_test.go", // Pure DTO test moved from models/import; no database rows (#2744).
-		"models\\",                           // Model unit tests don't hit DB (Windows)
-		"invitation_service_test.go",         // Uses mocks
-		"reminder_notifications_test.go",     // Pure in-memory fakes, no DB (#1624 follow-up)
-		"handlers_unit_test.go",              // Unit tests for converters (no DB)
-		"invitations_test.go",                // Uses mocks for handler tests
-		"error_helpers_test.go",              // Internal unit tests for helper functions (no DB)
-		"api/iot/api_test.go",                // Uses mock SchoolRepo for unit testing handler
+		"_internal_test.go",              // Internal tests often use mocks
+		"_mock_test.go",                  // Mock tests
+		"models/",                        // Model unit tests don't hit DB (Unix)
+		"models\\",                       // Model unit tests don't hit DB (Windows)
+		"invitation_service_test.go",     // Uses mocks
+		"reminder_notifications_test.go", // Pure in-memory fakes, no DB (#1624 follow-up)
+		"handlers_unit_test.go",          // Unit tests for converters (no DB)
+		"invitations_test.go",            // Uses mocks for handler tests
+		"error_helpers_test.go",          // Internal unit tests for helper functions (no DB)
+		"api/iot/api_test.go",            // Uses mock SchoolRepo for unit testing handler
 		"modules/devicescan/http/checkin/capacity_errors_test.go",              // Pure JSON-marshal regression tests for capacity/conflict renderers (ex api/iot/common); int64 literals are throwaway IDs, not DB rows
 		"modules/devicescan/http/checkin/wire_test.go",                         // Wire goldens over a fake device-scan workflow (#2698); int64 literals are throwaway IDs, not DB rows
 		"api/iot/config_test.go",                                               // Uses mock settings service for unit testing config endpoint
