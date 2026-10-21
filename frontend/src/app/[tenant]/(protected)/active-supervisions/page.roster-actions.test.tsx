@@ -485,9 +485,13 @@ describe("MeinRaumPage roster actions", () => {
 
     render(<MeinRaumPage />);
 
+    // Pfad-Modus: der Link trägt den Schul-Slug, wie jede Navigation der Seite.
     expect(
       await screen.findByRole("link", { name: "Profil ansehen: Marie Muster" }),
-    ).toHaveAttribute("href", "/students/100?from=/active-supervisions");
+    ).toHaveAttribute(
+      "href",
+      "/test-tenant/students/100?from=/active-supervisions",
+    );
   });
 
   it("offers no profile link without users:read (#4356)", async () => {

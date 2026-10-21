@@ -6,6 +6,7 @@ import { useSession } from "next-auth/react";
 import { useSearchParams } from "next/navigation";
 import { redirect } from "next/navigation";
 import { useTenantRouter } from "~/lib/tenant-router";
+import { useTenantAwarePath } from "~/lib/tenant-path";
 import {
   useAttendanceWebEnabled,
   useNFCEnabled,
@@ -102,6 +103,7 @@ function MeinRaumPageContent() {
   const nfcEnabled = useNFCEnabled();
   const showTimetableCounts = useShowTimetableCounts();
   const router = useTenantRouter();
+  const tenantPath = useTenantAwarePath();
   const searchParams = useSearchParams();
   const { data: session, status } = useSession({
     required: true,
@@ -600,10 +602,10 @@ function MeinRaumPageContent() {
 
   // „Profil ansehen“ in den Block-Listen (#4356). Die Kinderseite lädt
   // GET /api/students/{id}, das `users:read` verlangt; ohne das Recht fehlt
-  // der Knopf, statt auf eine Fehlerseite zu führen.
+  // der Link, statt auf eine Fehlerseite zu führen.
   const studentProfileHref = hasPermission(session, "users:read")
     ? (row: TimetableRosterRow) =>
-        `/students/${row.studentId}?from=/active-supervisions`
+        tenantPath(`/students/${row.studentId}?from=/active-supervisions`)
     : undefined;
 
   // Render helper for student grid content
