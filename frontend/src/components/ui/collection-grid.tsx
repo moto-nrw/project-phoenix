@@ -29,8 +29,11 @@ export function CollectionGrid({
    * schmale Kacheln (Bereichskarten) dürfen auf `18rem` herunter.
    */
   minTileWidth?: "18rem" | "20rem";
-  /** `output` für Ladegitter, die sich selbst ankündigen. */
-  as?: "div" | "output";
+  /**
+   * `output` für Ladegitter, die sich selbst ankündigen; `ul` für ein
+   * Gitter aus Listeneinträgen (`li`-Kinder).
+   */
+  as?: "div" | "output" | "ul";
   role?: "status";
   ariaLabel?: string;
   ariaBusy?: boolean;
@@ -50,6 +53,35 @@ export function CollectionGrid({
         minTileWidth === "18rem"
           ? "grid-cols-[repeat(auto-fit,minmax(min(100%,18rem),1fr))]"
           : "grid-cols-[repeat(auto-fit,minmax(min(100%,20rem),1fr))]",
+        className,
+      )}
+    >
+      {children}
+    </Element>
+  );
+}
+
+/**
+ * Ein Feld im `CollectionGrid`, wenn die Einträge keine eigene Karte sind:
+ * kurze Hinweise, Übergaben, Einwilligungen in einer Karte, die sonst bis
+ * zur Unterkante leer bliebe (#4365). Leicht abgesetzt statt weiß gerahmt,
+ * damit es nicht als Karte in der Karte liest. Nur Anzeige: anklickbare
+ * Kacheln nehmen `TileCard`.
+ */
+export function CollectionGridTile({
+  as = "li",
+  className,
+  children,
+}: Readonly<{
+  as?: "li" | "div";
+  className?: string;
+  children: ReactNode;
+}>) {
+  const Element = as;
+  return (
+    <Element
+      className={cn(
+        "rounded-xl border border-gray-100 bg-gray-50/70 p-4",
         className,
       )}
     >

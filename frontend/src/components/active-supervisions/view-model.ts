@@ -1,4 +1,6 @@
+import type { StatusBadgeTone } from "~/components/ui/status-badge";
 import type { Student } from "~/lib/student-helpers";
+import type { TimetableRoster } from "~/lib/timetable-operations-types";
 
 export const SCHULHOF_ROOM_NAME = "Schulhof";
 
@@ -536,6 +538,20 @@ export function supervisionTabLabel(
         : (sessionName ?? roomName ?? "Aufsicht");
   }
   return room.isCurrentUserSupervising ? `${label} · Eigene Aufsicht` : label;
+}
+
+/**
+ * Whether the opened block runs, for the page head (#4354). It follows the
+ * roster, not a fixed "running": in the reopen window the roster of a
+ * completed block stays open (#2527).
+ */
+export function rosterRunState(status: TimetableRoster["instance"]["status"]): {
+  label: string;
+  tone: StatusBadgeTone;
+} {
+  return status === "completed"
+    ? { label: "Beendet", tone: "gray" }
+    : { label: "Aktiv", tone: "green" };
 }
 
 /**

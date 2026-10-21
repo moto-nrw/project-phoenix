@@ -109,10 +109,12 @@ import (
 //     entry with today's count and shrink from there.
 //   - Budget with no hits → the entry is stale; remove it.
 //
-// Which counted shapes may stay is ADR 0075: a floor per owner of four
+// Which counted shapes may stay is ADR 0075: a floor per owner of five
 // shapes (transaction and observation wrapper, consumer-port adapter, the
-// #4480 section 5 Timetable adapters, known limitation 5 below). The floor is
-// a record, not a budget; every hit outside it is listed there.
+// #4480 section 5 Timetable adapters, known limitation 5 below, owner-edge
+// translation) and four named exceptions. Since its amendment every budget
+// equals its floor; a pure forward or a binding without translation is no
+// floor shape.
 //
 // Seed: measured 2026-09-18 at commit 19feca2822 by the scan below, over 203
 // non-test files: 704 pass-throughs in 21 modules. Re-measure with
@@ -222,7 +224,7 @@ const modulePassthroughApplicationSegment = "/internal/application/"
 // modulePassthroughComposeBudgetTotal. Shrink-only, like every entry; raised
 // by ADR 0063 and by ADR 0064 (3,011 to 3,091), and by ADR 0073 (one each
 // for modules/communication and modules/schoolcalendar).
-const modulePassthroughOwnerBudgetTotal = 1415
+const modulePassthroughOwnerBudgetTotal = 1413
 
 // modulePassthroughOwnerBudgets is the register: module directory →
 // pass-throughs measured in its application layer and its compositions
@@ -253,7 +255,7 @@ var modulePassthroughOwnerBudgets = map[string]int{
 	"modules/identityaccess":      215,
 	"modules/mealplan":            3,
 	"modules/organizationtenancy": 11,
-	"modules/peopledirectory":     210,
+	"modules/peopledirectory":     208,
 	"modules/requestreview":       15,
 	"modules/schedulerruntime":    4,
 	// Raised by ADR 0073: the feed cleanup keeps only the staff feed tombstones.

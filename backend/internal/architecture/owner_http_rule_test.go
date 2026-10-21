@@ -75,11 +75,11 @@ func TestOwnerHTTPRulesRequireReviewedEpoch(t *testing.T) {
 	candidate := *base
 	candidate.PolicyEpoch++
 	candidate.Rules = []Rule{{ID: "care.http.own-contract", SourceOwner: "care", SourcePackage: "care/http", SourceRole: "http", TargetOwner: "care", TargetRole: "contract", Scopes: []string{"production"}}}
-	if err := comparePolicyStrictness(base, &candidate, noCreated(), noCreated(), noCreated(), noCreated(), noCreated(), nil); err != nil {
+	if err := comparePolicyStrictness(base, &candidate, noCreated(), noCreated(), noCreated(), noCreated(), nil); err != nil {
 		t.Fatalf("reviewed owner HTTP reach: %v", err)
 	}
 	candidate.PolicyEpoch = base.PolicyEpoch
-	if err := comparePolicyStrictness(base, &candidate, noCreated(), noCreated(), noCreated(), noCreated(), noCreated(), nil); err == nil {
+	if err := comparePolicyStrictness(base, &candidate, noCreated(), noCreated(), noCreated(), noCreated(), nil); err == nil {
 		t.Fatal("owner HTTP reach passed without an epoch")
 	}
 }

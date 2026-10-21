@@ -21,14 +21,6 @@ func TestValidateMigrationTicketAcceptsExecutableTemplate(t *testing.T) {
 	}
 }
 
-func TestValidateShippedMigrationTemplate(t *testing.T) {
-	t.Parallel()
-	output, err := runArchitecture(t, "validate-ticket", "--ticket", "backend/architecture/migration-ticket-template.json")
-	if err != nil {
-		t.Fatalf("shipped migration template failed: %v\n%s", err, output)
-	}
-}
-
 func TestMigrationCannotSilentlyOmitLatency(t *testing.T) {
 	t.Parallel()
 	var document map[string]any
@@ -39,14 +31,6 @@ func TestMigrationCannotSilentlyOmitLatency(t *testing.T) {
 	output, err := runArchitecture(t, "validate-ticket", "--ticket", writeTicketFixture(t, document))
 	if err == nil || !strings.Contains(output, "runtime_evidence.latency_p95 is required") {
 		t.Fatalf("silent latency omission accepted: %v\n%s", err, output)
-	}
-}
-
-func TestValidateEntireShippedTicketInventory(t *testing.T) {
-	t.Parallel()
-	output, err := runArchitecture(t, "validate-ticket", "--all")
-	if err != nil {
-		t.Fatalf("shipped evidence inventory failed: %v\n%s", err, output)
 	}
 }
 

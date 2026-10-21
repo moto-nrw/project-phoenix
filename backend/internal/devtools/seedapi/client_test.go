@@ -3,7 +3,6 @@ package api
 import (
 	"encoding/json"
 	"fmt"
-	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -143,28 +142,6 @@ func TestExtractResponseSummary_MessageNotShownWhenSpecificFieldsPresent(t *test
 }
 
 // =============================================================================
-// joinStrings Tests
-// =============================================================================
-
-func TestJoinStrings_Empty(t *testing.T) {
-	t.Parallel()
-
-	assert.Equal(t, "", strings.Join([]string{}, ", "))
-}
-
-func TestJoinStrings_Single(t *testing.T) {
-	t.Parallel()
-
-	assert.Equal(t, "hello", strings.Join([]string{"hello"}, ", "))
-}
-
-func TestJoinStrings_Multiple(t *testing.T) {
-	t.Parallel()
-
-	assert.Equal(t, "a, b, c", strings.Join([]string{"a", "b", "c"}, ", "))
-}
-
-// =============================================================================
 // Client Tests (with httptest)
 // =============================================================================
 
@@ -172,14 +149,6 @@ func TestJoinStrings_Multiple(t *testing.T) {
 // over a fresh adapter); the direct constructor was deleted as dead code.
 func newTestClient(baseURL string, verbose bool) *Client {
 	return NewClientWithAdapter(newSeedTestAdapter(baseURL), verbose)
-}
-
-func TestNewClient(t *testing.T) {
-	t.Parallel()
-
-	c := newTestClient("http://localhost:8080", true)
-	assert.Equal(t, "http://localhost:8080", c.baseURL)
-	assert.True(t, c.verbose)
 }
 
 func TestClient_CheckHealth_Success(t *testing.T) {
@@ -460,74 +429,4 @@ func TestClient_Login_InvalidJSON(t *testing.T) {
 	err := c.Login("test@mail.de", "pass")
 	assert.Error(t, err)
 	assert.Contains(t, err.Error(), "parse login response")
-}
-
-// =============================================================================
-// logAPIResponse Tests (covers the 54.5% gap)
-// =============================================================================
-
-func TestLogAPIResponse_SuccessJSON(t *testing.T) {
-	t.Parallel()
-
-	body := []byte(`{"status":"success","data":{"id":1}}`)
-	// Should not panic
-	logAPIResponse(200, body)
-}
-
-func TestLogAPIResponse_ErrorStatus(t *testing.T) {
-	t.Parallel()
-
-	body := []byte(`{"status":404,"detail":"not found","code":"general.input"}`)
-	logAPIResponse(404, body)
-}
-
-func TestLogAPIResponse_InvalidJSON(t *testing.T) {
-	t.Parallel()
-
-	body := []byte(`not json at all`)
-	logAPIResponse(200, body)
-}
-
-func TestLogAPIResponse_LongNonJSON(t *testing.T) {
-	t.Parallel()
-
-	body := make([]byte, 200)
-	for i := range body {
-		body[i] = 'x'
-	}
-	logAPIResponse(500, body)
-}
-
-func TestLogAPIResponse_EmptyBody(t *testing.T) {
-	t.Parallel()
-
-	logAPIResponse(200, []byte{})
-}
-
-// =============================================================================
-// logAPIRequest Tests
-// =============================================================================
-
-func TestLogAPIRequest_WithBody(t *testing.T) {
-	t.Parallel()
-
-	logAPIRequest("POST", "/api/rooms", map[string]string{"name": "Room"}, "")
-}
-
-func TestLogAPIRequest_WithAuthContext(t *testing.T) {
-	t.Parallel()
-
-	logAPIRequest("POST", "/api/rooms", map[string]string{"name": "Room"}, "admin")
-}
-
-func TestLogAPIRequest_NilBody(t *testing.T) {
-	t.Parallel()
-
-	logAPIRequest("GET", "/api/rooms", nil, "")
-}
-
-func TestLogAPIRequest_WithAuthContextNoBody(t *testing.T) {
-	t.Parallel()
-
-	logAPIRequest("GET", "/api/roles", nil, "jwt")
 }

@@ -185,7 +185,7 @@ violations and 252 composition targets. A separate raw-check comparison
 also matched all 503 diagnostic lines, including physical source locations.
 Affected-package output was byte-identical in all six selection runs.
 
-The real `TestCompositionLegacyCallerInventory` semantic-load profile reduced
+The semantic-load profile of `TestCompositionLegacyCallerInventory` (removed in #4440) reduced
 cumulative allocations from about 3.52 GiB to 1.86 GiB (47%). That is total
 allocation volume, not peak resident memory. RSS sampling at 250 ms can miss
 short spikes. Compiler export data uses Go's normal build cache; a cold first

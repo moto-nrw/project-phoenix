@@ -51,6 +51,7 @@ import type {
 } from "~/lib/timetable-operations-types";
 import { isCareDayExpected, isNotScheduledRow } from "~/lib/timetable-types";
 import type { Student } from "~/lib/student-helpers";
+import { rosterRunState } from "~/components/active-supervisions/view-model";
 
 /**
  * Marks the attendance mutation as our own before firing the request so the
@@ -650,6 +651,7 @@ interface TimetableRosterHeaderProps {
   readonly nfcEnabled: boolean;
   readonly extraActions?: ReactNode;
   readonly toggle?: ReactNode;
+  readonly showStatus: boolean;
   /** Öffnet den Dialog „Kind ungeplant hinzufügen“; fehlt ohne das Recht. */
   readonly onAddStudent?: () => void;
   readonly onAddPresentStudents?: () => void;
@@ -672,6 +674,7 @@ function TimetableRosterHeader({
   nfcEnabled,
   extraActions,
   toggle,
+  showStatus,
   onAddStudent,
   onAddPresentStudents,
   onComplete,
@@ -710,16 +713,19 @@ function TimetableRosterHeader({
             {/* Der Kicker folgt dem Zustand des Blocks. Fest "Aktiv" war
                 gelogen, sobald der Roster eines beendeten Termins offen ist —
                 im Reopen-Fenster der OGS ebenso wie in der Aufsicht einer
-                Lehrkraft (#2527). */}
-            <p
-              className={`text-xs font-semibold tracking-wide uppercase ${
-                roster.instance.status === "completed"
-                  ? "text-gray-500"
-                  : "text-moto-green-strong"
-              }`}
-            >
-              {roster.instance.status === "completed" ? "Beendet" : "Aktiv"}
-            </p>
+                Lehrkraft (#2527). Er heißt wie das Abzeichen im Seitenkopf
+                („Aktiv“ / „Beendet“, #4354). */}
+            {showStatus ? (
+              <p
+                className={`text-xs font-semibold tracking-wide uppercase ${
+                  roster.instance.status === "completed"
+                    ? "text-gray-500"
+                    : "text-moto-green-strong"
+                }`}
+              >
+                {rosterRunState(roster.instance.status).label}
+              </p>
+            ) : null}
             <h2 className="truncate text-base font-semibold text-gray-900">
               {roster.instance.title}
             </h2>
@@ -1018,6 +1024,12 @@ interface TimetableRosterContentProps {
    * mit mehreren Blöcken ist (#3281).
    */
   readonly headerToggle?: ReactNode;
+  /**
+   * Der Seitenkopf sagt schon, ob der Block läuft (#4354): die Kopfkarte
+   * wiederholt „Aktiv“ / „Beendet“ dann nicht. Ein Raum mit mehreren Blöcken
+   * lässt das weg, dort trägt jede Karte ihren eigenen Zustand.
+   */
+  readonly statusInPageHead?: boolean;
   readonly onAddStudent: (studentId: string) => Promise<boolean>;
   /**
    * Trägt eine Auswahl der gerade anwesenden Kinder gesammelt ein (#3824).
@@ -1146,6 +1158,7 @@ export function TimetableRosterContent({
   headerNote,
   headerActions,
   headerToggle,
+  statusInPageHead = false,
   onAddStudent,
   onAddPresentStudents,
   presentChildrenPicker: PresentChildrenPicker,
@@ -1294,6 +1307,7 @@ export function TimetableRosterContent({
         nfcEnabled={nfcEnabled}
         extraActions={headerActions}
         toggle={headerToggle}
+        showStatus={!statusInPageHead}
         onAddStudent={
           canAddUnplanned ? () => setAddStudentOpen(true) : undefined
         }
