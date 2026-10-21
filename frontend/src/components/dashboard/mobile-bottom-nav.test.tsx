@@ -855,6 +855,22 @@ describe("MobileBottomNav", () => {
       expect(hrefs).toContain("/active-supervisions");
     });
 
+    // Wie in der Seitenleiste (#4348): „Suchen“ (Alle Kinder) direkt nach „Gruppe“.
+    it("orders the staff tabs like the sidebar, Suchen right after Gruppe", () => {
+      const tabOrder = [
+        "/home",
+        "/ogs-groups",
+        "/students/search",
+        "/active-supervisions",
+      ];
+      render(<MobileBottomNav />);
+
+      const hrefs = screen
+        .getAllByRole("link")
+        .map((link) => link.getAttribute("href") ?? "");
+      expect(hrefs.filter((href) => tabOrder.includes(href))).toEqual(tabOrder);
+    });
+
     // Kinder nur über Alle Kinder (#1321): Gruppe und Aufsicht verlassen die
     // Leiste, „Suchen“ bleibt und steht auch für ihre Seiten.
     it("drops Gruppe and Aufsicht when the school finds children only in the search", () => {

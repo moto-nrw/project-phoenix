@@ -213,7 +213,7 @@ const STAFF_MAIN_ITEMS: NavItem[] = [
     // Eine Seite, auf der man landet, muss die Leiste unten auch kennen,
     // sonst findet man nicht zurück. Die Aktivitäten wandern dafür ins
     // Mehr-Menü: fünf Reiter sind die Grenze, und der laufende Tag (Tagesplan,
-    // Gruppe, Aufsicht, Suchen) steht näher am Alltag.
+    // Gruppe, Suchen, Aufsicht) steht näher am Alltag.
     href: "/home",
     label: "Start",
     iconKey: "home",
@@ -237,16 +237,17 @@ const STAFF_MAIN_ITEMS: NavItem[] = [
     alwaysShow: true,
   },
   {
+    // Wie in der Seitenleiste direkt nach der Gruppe (#4348).
+    href: "/students/search",
+    label: "Suchen",
+    iconKey: "search",
+    alwaysShow: true,
+  },
+  {
     href: "/active-supervisions",
     label: "Aufsicht",
     iconKey: "supervision",
     concept: "supervision",
-    alwaysShow: true,
-  },
-  {
-    href: "/students/search",
-    label: "Suchen",
-    iconKey: "search",
     alwaysShow: true,
   },
 ];
