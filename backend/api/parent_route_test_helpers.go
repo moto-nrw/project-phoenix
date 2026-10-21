@@ -10,7 +10,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/modules/careplan"
 	carePlanCompose "github.com/moto-nrw/project-phoenix/modules/careplan/compose"
 	facilitiesCompose "github.com/moto-nrw/project-phoenix/modules/facilities/compose"
-	timetableCompose "github.com/moto-nrw/project-phoenix/modules/timetable/compose"
+	timetablePorts "github.com/moto-nrw/project-phoenix/modules/timetable/ports"
 	transactionruntime "github.com/moto-nrw/project-phoenix/modules/transactionruntime/compose"
 )
 
@@ -49,7 +49,7 @@ func NewParentRouteTestRepositories(db transactionruntime.Database, members owne
 	if err != nil {
 		return ParentRouteTestRepositories{}, err
 	}
-	slots := timetableCompose.NewInstanceStudentRepository(owners.MustPresenceReads(db), bookings, owners.NewUnloggedStudentPresence(db), owners.NewPartialAbsencePreview(db))
+	slots := timetablePorts.ParticipantRows{Plans: bookings, Presence: owners.NewUnloggedStudentPresence(db), Reads: owners.MustPresenceReads(db)}
 	care, err := owners.NewCarePlan(db, people, slots)
 	if err != nil {
 		return ParentRouteTestRepositories{}, err

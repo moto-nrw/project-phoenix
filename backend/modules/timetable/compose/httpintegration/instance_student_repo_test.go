@@ -32,7 +32,7 @@ func instanceStudentFactory(t *testing.T, db *bun.DB) *api.RepositoryTestFactory
 
 func instanceStudentRepository(t *testing.T, db *bun.DB) fixtures.InstanceStudentRecords {
 	t.Helper()
-	return fixtures.FromInstanceStudentRecords(api.NewUnobservedTimetableRepositories(testpkg.MustDatabase(db)).InstanceStudent)
+	return fixtures.FromInstanceStudentRecords(api.NewUnobservedTimetableRepositories(testpkg.MustDatabase(db)).NativeParticipants())
 }
 
 func TestInstanceStudentRepository_Create_and_FindByInstanceID(t *testing.T) {

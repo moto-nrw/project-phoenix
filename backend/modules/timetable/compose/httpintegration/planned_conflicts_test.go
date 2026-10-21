@@ -333,7 +333,7 @@ func newConflictDetection(t *testing.T, db *bun.DB, repos owners.TimetableTestRe
 	detection, err := owners.NewTimetableConflictDetection(timetablePorts.ConflictDetectionDependencies{
 		Instances:         repos.ActivityInstance.Reads,
 		InstanceStaff:     repos.InstanceStaff,
-		InstanceStudents:  fixtures.IntoConflictInstanceStudents(fixtures.FromInstanceStudentRecords(repos.InstanceStudent)),
+		InstanceStudents:  repos.InstanceStudent,
 		Exceptions:        repos.ActivityException,
 		Schedules:         repos.ActivitySchedule,
 		Staff:             owners.NewTimetableStaff(members.Staff),

@@ -145,7 +145,7 @@ func TestEndedSessionCompletionFinalizesAttendanceFirst(t *testing.T) {
 			completed: 1,
 			calls:     &calls,
 		}),
-		Participants: participants,
+		Participants: legacyParticipantRows(participants),
 		CareDays: careDaysStub{byStudent: map[int64]timetable.CareDayStatus{
 			bookedStudent:  timetable.CareDayScheduled,
 			notBookedChild: timetable.CareDayNotScheduled,
@@ -193,7 +193,7 @@ func TestEndedSessionCompletionUndoesStatusDayAbsenceForUnbookedChild(t *testing
 			completed: 1,
 			calls:     &calls,
 		}),
-		Participants: participants,
+		Participants: legacyParticipantRows(participants),
 		CareDays:     careDaysStub{byStudent: map[int64]timetable.CareDayStatus{notBookedChild: timetable.CareDayNotScheduled}},
 	})
 
@@ -231,7 +231,7 @@ func TestEndedSessionCompletionSparesPerInstanceAcrossDates(t *testing.T) {
 			instances: []*scheduleModels.ActivityInstance{endedInstance(firstBlock, first), endedInstance(secondBlock, second)},
 			calls:     &calls,
 		}),
-		Participants: participants,
+		Participants: legacyParticipantRows(participants),
 		CareDays:     perDateCareDays{notBooked: map[calendar.Date]bool{first: true}},
 	})
 
@@ -269,7 +269,7 @@ func TestEndedSessionCompletionDoesNotCompleteWhenFinalizationFails(t *testing.T
 			instances: []*scheduleModels.ActivityInstance{endedInstance(7702, calendar.NewDate(2026, 4, 20))},
 			calls:     &calls,
 		}),
-		Participants: &endedSessionParticipantsStub{markErr: errors.New("update failed"), calls: &calls},
+		Participants: legacyParticipantRows(&endedSessionParticipantsStub{markErr: errors.New("update failed"), calls: &calls}),
 	})
 
 	_, err := completion.CompleteActiveByActiveGroupIDs(context.Background(), []int64{8802}, time.Now())
@@ -289,14 +289,17 @@ func TestEndedSessionCompletionAllowsSystemCompleteBeforePlannedEnd(t *testing.T
 	instance.EndTime = time.Date(1, 1, 1, 18, 0, 0, 0, time.UTC)
 	completion := newEndedSessionCompletion(t, ports.EndedSessionCompletionDependencies{
 		Instances:    fakeInstanceRows(&endedSessionInstancesStub{instances: []*scheduleModels.ActivityInstance{instance}, completed: 1, calls: &calls}),
-		Participants: participants,
+		Participants: legacyParticipantRows(participants),
 	})
 
 	now := time.Date(2026, 5, 4, 15, 0, 0, 0, calendar.Berlin)
 	completed, err := completion.CompleteActiveByActiveGroupIDs(context.Background(), []int64{8810}, now)
 	require.NoError(t, err)
 	assert.EqualValues(t, 1, completed)
-	assert.Equal(t, []string{"mark_not_scheduled", "mark_absent", "complete"}, calls)
+	// Nobody is spared, so no non-booking marker is stamped: the absent
+	// stamp still precedes the completion.
+	assert.Equal(t, []string{"mark_absent", "complete"}, calls)
+	assert.Empty(t, participants.gotMarked)
 	assert.Empty(t, participants.gotExclusions)
 }
 
@@ -305,7 +308,7 @@ func TestEndedSessionCompletionSkipsWithoutSessions(t *testing.T) {
 	calls := make([]string, 0)
 	completion := newEndedSessionCompletion(t, ports.EndedSessionCompletionDependencies{
 		Instances:    fakeInstanceRows(&endedSessionInstancesStub{calls: &calls}),
-		Participants: &endedSessionParticipantsStub{calls: &calls},
+		Participants: legacyParticipantRows(&endedSessionParticipantsStub{calls: &calls}),
 	})
 
 	completed, err := completion.CompleteActiveByActiveGroupIDs(context.Background(), nil, time.Now())

@@ -27,7 +27,7 @@ type TemplateAdministrationDependencies struct {
 	Directories          RepositoryDirectories
 	Instances            InstanceRows
 	InstanceStaff        timetable.InstanceStaffCapability
-	Participants         InstanceStudentRecords
+	Participants         ParticipantRows
 	Timeframes           timetable.TimeframeCapability
 	PlanningTracks       PlanningTrackAssignments
 	EducationGroups      EducationGroupDirectory

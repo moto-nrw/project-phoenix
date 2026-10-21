@@ -20,7 +20,7 @@ import (
 type OwnerRows struct {
 	Instances     ports.InstanceRows
 	InstanceStaff timetable.InstanceStaffCapability
-	Participants  ports.InstanceStudentRecords
+	Participants  ports.ParticipantRows
 	Templates     ports.DataTemplates
 	// Directories name what other owners hold on the Vorlagen list.
 	Directories       ports.RepositoryDirectories
@@ -65,7 +65,7 @@ type TemplateRows struct {
 	Directories     ports.RepositoryDirectories
 	Instances       ports.InstanceRows
 	InstanceStaff   timetable.InstanceStaffCapability
-	Participants    ports.InstanceStudentRecords
+	Participants    ports.ParticipantRows
 	Timeframes      timetable.TimeframeCapability
 	CalendarPeriods ports.CalendarPeriodRecords
 	Exceptions      timetable.ActivityExceptionCapability

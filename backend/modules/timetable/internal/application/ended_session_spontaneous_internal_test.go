@@ -28,7 +28,7 @@ func TestEndedSessionCompletionRecordsSpontaneousEnd(t *testing.T) {
 	}
 	completion := newEndedSessionCompletion(t, ports.EndedSessionCompletionDependencies{
 		Instances:    fakeInstanceRows(instances),
-		Participants: &endedSessionParticipantsStub{calls: &calls},
+		Participants: legacyParticipantRows(&endedSessionParticipantsStub{calls: &calls}),
 	})
 
 	completed, err := completion.CompleteActiveByActiveGroupIDs(context.Background(), []int64{8811, 8812}, berlinAt(day, 20, 32))
@@ -51,7 +51,7 @@ func TestEndedSessionCompletionKeepsExistingSpontaneousEnd(t *testing.T) {
 	}
 	completion := newEndedSessionCompletion(t, ports.EndedSessionCompletionDependencies{
 		Instances:    fakeInstanceRows(instances),
-		Participants: &endedSessionParticipantsStub{calls: &[]string{}},
+		Participants: legacyParticipantRows(&endedSessionParticipantsStub{calls: &[]string{}}),
 	})
 
 	completed, err := completion.CompleteActiveByActiveGroupIDs(context.Background(), []int64{8813}, berlinAt(day, 21, 7))

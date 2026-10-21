@@ -206,7 +206,7 @@ func (s *InstanceLifecycleService) replaceInstanceAssignments(ctx context.Contex
 	if err := deleteLegacyInstanceStaffByInstance(ctx, s.deps.InstanceStaffRepo, instance.ID); err != nil {
 		return &ports.ScheduleError{Op: "update instance: clear staff", Err: err}
 	}
-	if err := s.deps.InstanceStudents.DeleteByInstanceID(ctx, instance.ID); err != nil {
+	if err := deleteParticipantsOfInstance(ctx, s.deps.InstanceStudents.Plans, instance.ID); err != nil {
 		return &ports.ScheduleError{Op: "update instance: clear students", Err: err}
 	}
 	tenantID := tenant.FromContext(ctx)
@@ -282,7 +282,7 @@ func (s *InstanceLifecycleService) logDroppedDeviations(ctx context.Context, ins
 // care day and then update rows; rewriting rows first while waiting on a
 // care day would deadlock against that order.
 func (s *InstanceLifecycleService) lockRosterCareDays(ctx context.Context, instance *scheduleModel.ActivityInstance, studentIDs []int64) error {
-	priorStudents, err := s.deps.InstanceStudents.FindByInstanceID(ctx, instance.ID)
+	priorStudents, err := participantsOfInstance(ctx, s.deps.InstanceStudents.Reads, instance.ID)
 	if err != nil {
 		return &ports.ScheduleError{Op: "update instance: load existing students", Err: err}
 	}

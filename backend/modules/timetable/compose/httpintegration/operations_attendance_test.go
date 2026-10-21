@@ -440,7 +440,7 @@ func TestTimetableOperationsCheckInBranches(t *testing.T) {
 
 		result, err := deps.service.CheckInStudent(context.Background(), 688, false, instanceID, studentID)
 
-		require.EqualError(t, err, "attendance update failed")
+		require.EqualError(t, err, "database error during update attendance fields: attendance update failed")
 		assert.Nil(t, result)
 		require.Len(t, deps.activeService.created, 1)
 	})
@@ -579,10 +579,11 @@ func TestTimetableOperationsDependencyErrorsPropagate(t *testing.T) {
 		row.ID = 419
 		deps.studentRepo.byInstanceStudent[instanceStudentKey{instanceID, 562}] = row
 		deps.studentRepo.updateErr = errors.New("update failed")
+		note := "Arzttermin"
 
-		result, err := deps.service.PatchAttendance(context.Background(), 686, false, instanceID, 562, timetable.AttendancePatch{})
+		result, err := deps.service.PatchAttendance(context.Background(), 686, false, instanceID, 562, timetable.AttendancePatch{Note: &note})
 
-		require.EqualError(t, err, "update failed")
+		require.EqualError(t, err, "database error during update attendance fields: update failed")
 		assert.Nil(t, result)
 	})
 
@@ -601,7 +602,7 @@ func TestTimetableOperationsDependencyErrorsPropagate(t *testing.T) {
 
 		result, err := deps.service.PatchAttendance(context.Background(), 689, false, instanceID, 563, timetable.AttendancePatch{})
 
-		require.EqualError(t, err, "roster failed")
+		require.EqualError(t, err, "database error during find by instance and student: roster failed")
 		assert.Nil(t, result)
 	})
 

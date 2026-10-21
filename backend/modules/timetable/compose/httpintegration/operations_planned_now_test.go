@@ -250,7 +250,7 @@ func TestTimetableOperationsPlannedNowErrorBranches(t *testing.T) {
 
 		result, err := deps.service.PlannedNow(context.Background(), 624, false, calendar.DateFromTime(now), now, timetable.PlannedNowOptions{})
 
-		require.EqualError(t, err, "student query failed")
+		require.EqualError(t, err, "database error during find by instance ids: student query failed")
 		assert.Nil(t, result)
 	})
 

@@ -620,9 +620,7 @@ func (r materializationFakeStaffRepo) CreateInstanceStaff(context.Context, timet
 	panic("staff copy must not run when instance insert loses the race")
 }
 
-type materializationFakeStudentRepo struct {
-	ports.InstanceStudentRecords
-}
+type materializationFakeStudentRepo struct{}
 
 func (r materializationFakeStudentRepo) Create(context.Context, *schedule.InstanceStudent) error {
 	panic("student copy must not run when instance insert loses the race")
@@ -1007,7 +1005,7 @@ func TestMaterializationServiceMethodsAndCopyBranches(t *testing.T) {
 
 	t.Run("copy enrollments skips invalid and duplicate students", func(t *testing.T) {
 		studentRepo := &materializationCountingStudentRepo{}
-		svc := &materializationService{studentRepo: studentRepo, logger: slog.Default()}
+		svc := &materializationService{studentRepo: legacyParticipantRows(studentRepo), logger: slog.Default()}
 		valid := &activityContract.StudentEnrollment{StudentID: 501, ValidFrom: validFrom}
 		duplicate := &activityContract.StudentEnrollment{StudentID: 501, ValidFrom: validFrom}
 		wrongWeekday := &activityContract.StudentEnrollment{StudentID: 502, ValidFrom: validFrom, SelectedWeekdays: []int{2}}
@@ -1023,7 +1021,7 @@ func TestMaterializationServiceMethodsAndCopyBranches(t *testing.T) {
 
 	t.Run("copy enrollments wraps create errors", func(t *testing.T) {
 		studentRepo := &materializationCountingStudentRepo{err: errors.New("insert student failed")}
-		svc := &materializationService{studentRepo: studentRepo, logger: slog.Default()}
+		svc := &materializationService{studentRepo: legacyParticipantRows(studentRepo), logger: slog.Default()}
 		result := &timetable.MaterializationResult{}
 
 		err := svc.copyExpectedStudents(context.Background(), 602, []*activityContract.StudentEnrollment{{StudentID: 503, ValidFrom: validFrom}}, nil, nil, date, periodID, isoWeekday(date), result, "materialize template: copy enrollment")
@@ -1064,7 +1062,6 @@ func TestMaterializationServiceMethodsAndCopyBranches(t *testing.T) {
 }
 
 type materializationCountingStudentRepo struct {
-	ports.InstanceStudentRecords
 	rows []*schedule.InstanceStudent
 	err  error
 }
@@ -1212,7 +1209,7 @@ func newMaterializationForTest(
 	periodRepo ports.CalendarPeriodRecords,
 	instanceRepo ports.InstanceRows,
 	staffRepo timetable.InstanceStaffCapability,
-	studentRepo ports.InstanceStudentRecords,
+	studentRepo any,
 	exceptionRepo timetable.ActivityExceptionQuery,
 	timeframeRepo timetable.TimeframeQuery,
 	transactions ports.TenantTransactions,
@@ -1228,7 +1225,7 @@ func newMaterializationForTest(
 		PeriodRepo:     periodRepo,
 		InstanceRepo:   instanceRepo,
 		StaffRepo:      staffRepo,
-		StudentRepo:    studentRepo,
+		StudentRepo:    legacyParticipantRows(studentRepo),
 		ExceptionRepo:  exceptionRepo,
 		TimeframeRepo:  timeframeRepo,
 		Transactions:   transactions,

@@ -163,7 +163,7 @@ func (s *InstanceLifecycleService) snapshotCompletion(ctx context.Context, insta
 	if err != nil {
 		return &ports.ScheduleError{Op: "complete instance: snapshot supervisors", Err: err}
 	}
-	attendanceBefore, err := s.deps.InstanceStudents.FindByInstanceID(ctx, instance.ID)
+	attendanceBefore, err := participantsOfInstance(ctx, s.deps.InstanceStudents.Reads, instance.ID)
 	if err != nil {
 		return &ports.ScheduleError{Op: "complete instance: snapshot attendance", Err: err}
 	}
@@ -223,11 +223,11 @@ func (s *InstanceLifecycleService) stampRemainingAbsent(ctx context.Context, ins
 	for _, studentID := range notScheduled {
 		refs = append(refs, scheduleModel.StudentInstanceRef{StudentID: studentID, InstanceID: instance.ID})
 	}
-	if err := s.deps.InstanceStudents.MarkNotScheduled(ctx, refs); err != nil {
+	if err := markParticipantsNotScheduled(ctx, s.deps.InstanceStudents, refs); err != nil {
 		return &ports.ScheduleError{Op: "complete instance: mark not scheduled", Err: err}
 	}
-	if _, err := s.deps.InstanceStudents.BulkUpdateStatus(
-		ctx, instance.ID, scheduleModel.AttendanceStatusExpected, scheduleModel.AttendanceStatusAbsent, notScheduled,
+	if _, err := bulkUpdateParticipantStatus(
+		ctx, s.deps.InstanceStudents, instance.ID, scheduleModel.AttendanceStatusExpected, scheduleModel.AttendanceStatusAbsent, notScheduled,
 	); err != nil {
 		return &ports.ScheduleError{Op: "complete instance: mark absent", Err: err}
 	}
@@ -240,7 +240,7 @@ func (s *InstanceLifecycleService) stampRemainingAbsent(ctx context.Context, ins
 // neither is a child whose row somebody set by hand (ManualStatusAt): that
 // decision outranks the derivation (#1747 review).
 func (s *InstanceLifecycleService) notScheduledStudentIDs(ctx context.Context, instance *scheduleModel.ActivityInstance) ([]int64, error) {
-	rows, err := s.deps.InstanceStudents.FindByInstanceID(ctx, instance.ID)
+	rows, err := participantsOfInstance(ctx, s.deps.InstanceStudents.Reads, instance.ID)
 	if err != nil {
 		return nil, &ports.ScheduleError{Op: "complete instance: load attendance rows", Err: err}
 	}

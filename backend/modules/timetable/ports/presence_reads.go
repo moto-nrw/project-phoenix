@@ -29,6 +29,36 @@ type InstanceRows struct {
 	Reads    LegacyInstanceReads
 }
 
+// LegacyParticipantReads list the participants of the blocks with their
+// Student Presence attendance, and the counts and day views over both, in
+// tenant-safe reads.
+type LegacyParticipantReads interface {
+	ListLegacyParticipants(ctx context.Context, filter LegacyParticipantFilter) ([]*scheduleModels.InstanceStudent, error)
+	CountNonAbsentParticipants(ctx context.Context, instanceIDs []int64) (map[int64]int, error)
+	ListParallelPresence(ctx context.Context, excludedInstanceID int64, date string, studentIDs []int64) ([]scheduleModels.ParallelPresence, error)
+	ListScheduledInstancesForStudent(ctx context.Context, studentID int64, from, to string) ([]*scheduleModels.ScheduledInstanceRow, error)
+	HasPlannedSlotsInRange(ctx context.Context, from, to string) (bool, error)
+}
+
+// ParticipantPresence is the Student Presence surface of the participants:
+// the sessions of the blocks and the attendance of their participants
+// (#2762).
+type ParticipantPresence interface {
+	studentpresence.ActivitySessionQuery
+	studentpresence.SessionAttendanceQuery
+	studentpresence.SessionAttendanceCommand
+	studentpresence.SessionAttendanceRules
+}
+
+// ParticipantRows are the participants of the blocks: the owner plans them,
+// Student Presence records their attendance, and the joined read returns
+// both.
+type ParticipantRows struct {
+	Plans    timetable.InstanceStudentCapability
+	Presence ParticipantPresence
+	Reads    LegacyParticipantReads
+}
+
 // LegacyInstanceFilter selects activity instances the way the retained
 // repositories ask for them. Status uses the legacy vocabulary: planned is a
 // plan nobody started, active and completed are session states, cancelled is

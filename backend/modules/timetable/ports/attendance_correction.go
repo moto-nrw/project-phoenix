@@ -40,7 +40,7 @@ type CorrectionPeople interface {
 // serializes the write with the block's completion; both are optional in
 // read-only test facades.
 type AttendanceCorrectionDependencies struct {
-	Participants InstanceStudentRecords
+	Participants ParticipantRows
 	Instances    InstanceRows
 	Trail        AttendanceCorrectionTrail
 	People       CorrectionPeople

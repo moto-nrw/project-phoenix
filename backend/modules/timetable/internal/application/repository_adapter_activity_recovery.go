@@ -36,18 +36,17 @@ type PresenceRecovery interface {
 // block from its two owners: Timetable locks the participants, Student
 // Presence locks and restores the live group, the visits, the supervisors,
 // the attendance and the session (#2762).
-func RetainedActivityRecovery(assignments ports.InstanceStudentRecords) (AssignmentRecovery, PresenceRecovery) {
-	owner, ok := assignments.(timetableInstanceStudentRepository)
-	if !ok {
+func RetainedActivityRecovery(assignments ports.ParticipantRows) (AssignmentRecovery, PresenceRecovery) {
+	if assignments.Plans == nil {
 		panic("activity recovery: timetable assignment adapter is required")
 	}
 	// The recovery locks and restores through the same Student Presence
-	// module the assignment adapter composes.
-	presence, ok := owner.presence.(studentpresence.Capability)
+	// module the participants compose.
+	presence, ok := assignments.Presence.(studentpresence.Capability)
 	if !ok {
 		panic("activity recovery: the assignment adapter must compose the Student Presence module")
 	}
-	return recoveryAssignments{capability: owner.timetable, presence: presence}, recoveryPresence{Capability: presence}
+	return recoveryAssignments{capability: assignments.Plans, presence: presence}, recoveryPresence{Capability: presence}
 }
 
 // recoveryAssignments locks the attendance of one block in both owners so a

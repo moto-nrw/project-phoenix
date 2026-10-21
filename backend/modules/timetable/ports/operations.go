@@ -7,18 +7,8 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
 	"github.com/moto-nrw/project-phoenix/modules/timetable"
-	scheduleModels "github.com/moto-nrw/project-phoenix/modules/timetable/internal/domain/schedulerecords"
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 )
-
-// OperationParticipants reads and patches the participant rows of blocks.
-type OperationParticipants interface {
-	FindByInstanceID(ctx context.Context, instanceID int64) ([]*scheduleModels.InstanceStudent, error)
-	FindByInstanceIDs(ctx context.Context, instanceIDs []int64) ([]*scheduleModels.InstanceStudent, error)
-	FindByInstanceAndStudent(ctx context.Context, instanceID, studentID int64) (*scheduleModels.InstanceStudent, error)
-	FindPresentInOtherActiveInstances(ctx context.Context, excludeInstanceID int64, date calendar.Date, studentIDs []int64) ([]scheduleModels.ParallelPresence, error)
-	UpdateAttendanceFields(ctx context.Context, id int64, patch scheduleModels.AttendanceFieldPatch) error
-}
 
 // OperationSessions reads and touches the Student Presence live sessions.
 type OperationSessions interface {
@@ -179,7 +169,7 @@ type RequestClaims struct {
 type OperationDependencies struct {
 	Instances            LegacyInstanceReads
 	InstanceStaff        timetable.InstanceStaffQuery
-	Participants         OperationParticipants
+	Participants         ParticipantRows
 	Templates            timetable.ActivityGroupQuery
 	PlanningTracks       timetable.PlanningTrackQuery
 	Sessions             OperationSessions

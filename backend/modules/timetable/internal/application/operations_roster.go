@@ -126,7 +126,7 @@ func (s *operations) loadRosterSources(ctx context.Context, instanceID int64) (r
 		return rosterSources{}, err
 	}
 	src := rosterSources{inst: inst}
-	if src.planned, err = s.deps.Participants.FindByInstanceID(ctx, instanceID); err != nil {
+	if src.planned, err = participantsOfInstance(ctx, s.deps.Participants.Reads, instanceID); err != nil {
 		return rosterSources{}, err
 	}
 	if inst.ActiveGroupID != nil {
@@ -363,7 +363,7 @@ func (s *operations) parallelPresenceByStudent(ctx context.Context, inst *schedu
 	if inst.Status != scheduleModels.InstanceStatusActive || len(studentIDs) == 0 {
 		return nil, nil
 	}
-	found, err := s.deps.Participants.FindPresentInOtherActiveInstances(ctx, inst.ID, inst.Date, studentIDs)
+	found, err := parallelPresence(ctx, s.deps.Participants.Reads, inst.ID, inst.Date, studentIDs)
 	if err != nil {
 		return nil, err
 	}

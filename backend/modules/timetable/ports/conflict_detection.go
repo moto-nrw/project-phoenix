@@ -11,12 +11,6 @@ import (
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 )
 
-// ConflictInstanceStudents reads the student rows of blocks.
-type ConflictInstanceStudents interface {
-	FindByInstanceID(ctx context.Context, instanceID int64) ([]*scheduleModels.InstanceStudent, error)
-	FindExpectedByInstanceIDs(ctx context.Context, instanceIDs []int64) ([]*scheduleModels.InstanceStudent, error)
-}
-
 // ConflictShifts reads the Dienstplan rows of Workforce.
 type ConflictShifts interface {
 	FindByDateRange(ctx context.Context, start, end calendar.Date) ([]*scheduleModels.StaffShift, error)
@@ -77,7 +71,7 @@ type ConflictDetectionDependencies struct {
 	RunInTx           func(context.Context, func(context.Context) error) error
 	Instances         LegacyInstanceReads
 	InstanceStaff     timetable.InstanceStaffQuery
-	InstanceStudents  ConflictInstanceStudents
+	InstanceStudents  ParticipantRows
 	Exceptions        timetable.ActivityExceptionQuery
 	Schedules         timetable.ScheduleQuery
 	Shifts            ConflictShifts

@@ -86,7 +86,19 @@ func categoryActivityError(operation string, err error) *activityContract.Activi
 	case errors.Is(err, timetable.ErrCategoryArchived):
 		err = activityContract.ErrCategoryArchived
 	case errors.Is(err, timetable.ErrUnknownCategoryIDs):
-		err = activityContract.ErrUnknownCategoryIDs
+		err = unknownCategoryIDsError{}
 	}
 	return &activityContract.ActivityError{Op: operation, Err: err}
+}
+
+// unknownCategoryIDsError is a rejected Kategorie↔Schichtart mapping (#1837):
+// it reads as the retained error and matches both sentinels, because the
+// Dienstplan's shift-type administration classifies on the Timetable owner's
+// (#3424).
+type unknownCategoryIDsError struct{}
+
+func (unknownCategoryIDsError) Error() string { return activityContract.ErrUnknownCategoryIDs.Error() }
+
+func (unknownCategoryIDsError) Unwrap() []error {
+	return []error{activityContract.ErrUnknownCategoryIDs, timetable.ErrUnknownCategoryIDs}
 }
