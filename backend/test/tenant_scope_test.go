@@ -48,3 +48,23 @@ func TestTenantIsFreshForEveryIterationOfATopLevelTest(t *testing.T) {
 		"subtests of the rerun follow the rerun's tenant")
 	second.finish()
 }
+
+// Many tests only open the database at the top and first ask for their tenant
+// inside a subtest. SetupTestDB claims the run for the top-level test, so a
+// rerun still starts on a fresh tenant.
+func TestTenantIsFreshForEveryIterationWhenOnlySubtestsAskForIt(t *testing.T) {
+	t.Parallel()
+	SetupTestDB(t)
+	name := t.Name() + "Probe"
+
+	first := &iterationTB{TB: t, name: name}
+	claimTenantRun(first)
+	firstTenant := Tenant(&iterationTB{TB: t, name: name + "/sub"})
+	first.finish()
+
+	second := &iterationTB{TB: t, name: name}
+	claimTenantRun(second)
+	assert.NotEqual(t, firstTenant, Tenant(&iterationTB{TB: t, name: name + "/sub"}),
+		"a rerun must not inherit the tenant its previous run's subtests created")
+	second.finish()
+}

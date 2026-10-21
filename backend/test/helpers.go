@@ -92,6 +92,9 @@ func SetupTestDB(t testing.TB) *bun.DB {
 	}
 
 	setupPackageTestDB(t)
+	if perTestTenants {
+		claimTenantRun(t)
+	}
 	if perTestDatabases || hasIsolatedTestDB(t) {
 		return setupIsolatedTestDB(t)
 	}

@@ -99,6 +99,20 @@ var testTenants sync.Map // string -> *tenantEntry
 // belongs to this tenant.
 func Tenant(tb testing.TB) int64 {
 	tb.Helper()
+	return currentTenantEntry(tb).ensure(tb)
+}
+
+// claimTenantRun binds the current run's tenant entry to tb without creating
+// the tenant yet. SetupTestDB calls it, so a test that first asks for its
+// tenant inside a subtest still gets a fresh one on every -count run.
+func claimTenantRun(tb testing.TB) {
+	currentTenantEntry(tb)
+}
+
+// currentTenantEntry returns the tenant entry of tb's current run, replacing
+// one that a finished earlier run left behind, and claims it when tb is the
+// test it is keyed by.
+func currentTenantEntry(tb testing.TB) *tenantEntry {
 	key := topLevelTestName(tb)
 	for {
 		loaded, _ := testTenants.LoadOrStore(key, &tenantEntry{})
@@ -108,7 +122,7 @@ func Tenant(tb testing.TB) int64 {
 			continue
 		}
 		entry.claim(tb, key)
-		return entry.ensure(tb)
+		return entry
 	}
 }
 
