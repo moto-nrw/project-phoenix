@@ -202,16 +202,6 @@ vi.mock("~/lib/pickup-helpers", () => ({
   useMinuteClock: () => new Date("2026-01-15T12:00:00"),
 }));
 
-// Mock pickup-schedule-api
-vi.mock("~/lib/pickup-schedule-api", () => ({
-  fetchBulkPickupTimes: vi.fn(() => Promise.resolve(new Map())),
-}));
-
-// Mock student-arrival-api
-vi.mock("~/lib/student-arrival-api", () => ({
-  fetchBulkArrivalTimes: vi.fn(() => Promise.resolve(new Map())),
-}));
-
 // Mock StudentCard components
 vi.mock("~/components/students/student-card", () => ({
   StudentCard: ({

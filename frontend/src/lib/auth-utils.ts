@@ -113,13 +113,6 @@ export function isCaregiver(session: Session | null): boolean {
 }
 
 /**
- * Check if the user is authenticated
- */
-export function isAuthenticated(session: Session | null): boolean {
-  return !!session?.user?.token;
-}
-
-/**
  * Get the user's display name
  */
 export function getUserDisplayName(session: Session | null): string {
@@ -130,22 +123,4 @@ export function getUserDisplayName(session: Session | null): string {
   }
 
   return session.user.name ?? session.user.email ?? "User";
-}
-
-/**
- * Get the user's roles as a comma-separated string
- */
-export function getUserRolesDisplay(session: Session | null): string {
-  if (!session?.user?.roles || session.user.roles.length === 0) {
-    return "No roles";
-  }
-
-  return session.user.roles.join(", ");
-}
-
-/**
- * Check if the session has an error that requires re-authentication
- */
-export function requiresReauth(session: Session | null): boolean {
-  return session?.error === "RefreshTokenExpired";
 }

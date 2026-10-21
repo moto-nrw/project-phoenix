@@ -196,21 +196,6 @@ export function formatRecentActivityTime(timestamp: Date | string): string {
   });
 }
 
-export function getActivityTypeIcon(type: RecentActivity["type"]): string {
-  switch (type) {
-    case "check_in":
-      return "➡️";
-    case "check_out":
-      return "⬅️";
-    case "group_start":
-      return "▶️";
-    case "group_end":
-      return "⏹️";
-    default:
-      return "📍";
-  }
-}
-
 export function getActivityStatusColor(
   status: CurrentActivity["status"],
 ): string {

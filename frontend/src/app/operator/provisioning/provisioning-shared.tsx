@@ -1,6 +1,5 @@
 import { Children, cloneElement, isValidElement } from "react";
 import { Inbox, Plus } from "lucide-react";
-import { Skeleton } from "~/components/ui/skeleton";
 import { CustomSelect } from "~/components/ui/custom-select";
 import { EmptyState as UIEmptyState } from "~/components/ui/empty-state";
 
@@ -65,20 +64,6 @@ export function FieldWarning({ message }: { readonly message: string }) {
     <p className="bg-moto-amber-soft text-moto-amber-strong mt-1 rounded px-2 py-1 text-xs">
       {message}
     </p>
-  );
-}
-
-export function StatusBadge({ active }: { readonly active: boolean }) {
-  return (
-    <span
-      className={`rounded-full px-2 py-0.5 text-xs font-medium ${
-        active
-          ? "bg-moto-green/15 text-moto-green-strong"
-          : "bg-gray-100 text-gray-500"
-      }`}
-    >
-      {active ? "Aktiv" : "Inaktiv"}
-    </span>
   );
 }
 
@@ -246,22 +231,6 @@ export function VisibilityToggle({
           />
         </button>
       </div>
-    </div>
-  );
-}
-
-export function CardSkeletons() {
-  return (
-    <div className="mt-4 space-y-4">
-      {Array.from({ length: 3 }, (_, i) => (
-        <div key={i} className="moto-content-surface rounded-2xl border p-5">
-          <div className="space-y-3">
-            <Skeleton className="h-5 w-3/5 rounded" />
-            <Skeleton className="h-4 w-2/5 rounded" />
-            <Skeleton className="h-3 w-1/4 rounded" />
-          </div>
-        </div>
-      ))}
     </div>
   );
 }

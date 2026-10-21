@@ -2,7 +2,6 @@ import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import {
   mapDashboardAnalyticsResponse,
   formatRecentActivityTime,
-  getActivityTypeIcon,
   getActivityStatusColor,
   getGroupStatusColor,
   type DashboardAnalyticsResponse,
@@ -244,28 +243,6 @@ describe("dashboard-helpers", () => {
 
     it("should return 'Unbekannt' for invalid Date object", () => {
       expect(formatRecentActivityTime(new Date("invalid"))).toBe("Unbekannt");
-    });
-  });
-
-  describe("getActivityTypeIcon", () => {
-    it("should return arrow icon for check_in", () => {
-      expect(getActivityTypeIcon("check_in")).toBe("➡️");
-    });
-
-    it("should return arrow icon for check_out", () => {
-      expect(getActivityTypeIcon("check_out")).toBe("⬅️");
-    });
-
-    it("should return play icon for group_start", () => {
-      expect(getActivityTypeIcon("group_start")).toBe("▶️");
-    });
-
-    it("should return stop icon for group_end", () => {
-      expect(getActivityTypeIcon("group_end")).toBe("⏹️");
-    });
-
-    it("should return default icon for unknown type", () => {
-      expect(getActivityTypeIcon("unknown" as never)).toBe("📍");
     });
   });
 

@@ -20,7 +20,6 @@ import {
 } from "./api-helpers";
 import { resolveServerApiUrl } from "./api-url";
 import {
-  mapStudentResponse,
   mapStudentsResponse,
   mapStudentDetailResponse,
   mapPrivacyConsentResponse,
@@ -28,14 +27,8 @@ import {
   type BackendStudent,
   type BackendStudentDetail,
   type BackendPrivacyConsent,
-  type BackendUpdateRequest,
   type PrivacyConsent,
 } from "./student-helpers";
-import {
-  mapGroupResponse,
-  type Group,
-  type BackendGroup,
-} from "./group-helpers";
 
 // Filter interface for searching students
 export interface StudentFilters {
@@ -288,73 +281,6 @@ export async function fetchStudentEnrollmentExtraFields(
     return response.data?.data ?? [];
   } catch (error) {
     handleStudentApiError(error, "fetch student enrollment extra fields");
-  }
-}
-
-// Create a new student
-export async function createStudent(studentData: {
-  first_name: string;
-  last_name: string;
-  school_class: string;
-  group_id?: number;
-  tag_id?: string;
-}): Promise<Student> {
-  const useProxy = isBrowserContext();
-  const url = useProxy
-    ? "/api/students"
-    : await resolveServerApiUrl("/students");
-
-  try {
-    if (useProxy) {
-      const session = await getCachedSession();
-      const responseData = await authFetch<
-        ApiResponse<BackendStudent> | BackendStudent
-      >(url, {
-        method: "POST",
-        body: studentData,
-        token: session?.user?.token,
-      });
-      const data = extractApiData<BackendStudent>(responseData);
-      return mapStudentResponse(data);
-    }
-
-    const response = await api.post<ApiResponse<BackendStudent>>(
-      url,
-      studentData,
-    );
-    return mapStudentResponse(response.data.data);
-  } catch (error) {
-    handleStudentApiError(error, "create student");
-  }
-}
-
-// Update a student
-export async function updateStudent(
-  id: string,
-  studentData: BackendUpdateRequest,
-): Promise<Student> {
-  const useProxy = isBrowserContext();
-  const url = useProxy
-    ? `/api/students/${id}`
-    : await resolveServerApiUrl(`/students/${id}`);
-
-  try {
-    if (useProxy) {
-      const session = await getCachedSession();
-      const responseData = await authFetch<
-        ApiResponse<BackendStudent> | BackendStudent
-      >(url, { method: "PUT", body: studentData, token: session?.user?.token });
-      const data = extractApiData<BackendStudent>(responseData);
-      return mapStudentResponse(data);
-    }
-
-    const response = await api.put<ApiResponse<BackendStudent>>(
-      url,
-      studentData,
-    );
-    return mapStudentResponse(response.data.data);
-  } catch (error) {
-    handleStudentApiError(error, "update student");
   }
 }
 
@@ -756,30 +682,6 @@ export async function deleteStudentPhoto(studentId: string): Promise<void> {
   });
 }
 
-// Fetch all groups (for filter dropdown)
-export async function fetchGroups(): Promise<Group[]> {
-  const useProxy = isBrowserContext();
-  const url = useProxy ? "/api/groups" : await resolveServerApiUrl("/groups");
-
-  try {
-    if (useProxy) {
-      const session = await getCachedSession();
-      const responseData = await authFetch<BackendGroup[]>(url, {
-        token: session?.user?.token,
-      });
-      const groups = Array.isArray(responseData) ? responseData : [];
-      return groups.map(mapGroupResponse);
-    }
-
-    const response = await api.get<{ data: BackendGroup[] }>(url);
-    const groups = response.data.data || [];
-    return groups.map(mapGroupResponse);
-  } catch (error) {
-    logger.error("failed to fetch groups", { error: String(error) });
-    return [];
-  }
-}
-
 // Fetch student's privacy consent
 export async function fetchStudentPrivacyConsent(
   studentId: string,
@@ -820,43 +722,5 @@ export async function fetchStudentPrivacyConsent(
       error: String(error),
     });
     throw error;
-  }
-}
-
-// Update or create student's privacy consent
-export async function updateStudentPrivacyConsent(
-  studentId: string,
-  consentData: {
-    policy_version: string;
-    accepted: boolean;
-    duration_days?: number;
-    data_retention_days: number;
-    details?: Record<string, unknown>;
-  },
-): Promise<PrivacyConsent> {
-  const useProxy = isBrowserContext();
-  const url = useProxy
-    ? `/api/students/${studentId}/privacy-consent`
-    : await resolveServerApiUrl(`/students/${studentId}/privacy-consent`);
-
-  try {
-    if (useProxy) {
-      const session = await getCachedSession();
-      const responseData = await authFetch<ApiResponse<BackendPrivacyConsent>>(
-        url,
-        { method: "PUT", body: consentData, token: session?.user?.token },
-      );
-      return mapPrivacyConsentResponse(responseData.data);
-    }
-
-    const session = await getCachedSession();
-    const response = await api.put<ApiResponse<BackendPrivacyConsent>>(
-      url,
-      consentData,
-      { headers: { Authorization: `Bearer ${session?.user?.token}` } },
-    );
-    return mapPrivacyConsentResponse(response.data.data);
-  } catch (error) {
-    handleStudentApiError(error, "update privacy consent");
   }
 }

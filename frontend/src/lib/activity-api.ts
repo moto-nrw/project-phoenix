@@ -415,11 +415,6 @@ export async function fetchActivities(
   return [];
 }
 
-// Fetch a single activity by ID (wrapper for consistency with other fetch functions)
-export async function fetchActivity(id: string): Promise<Activity> {
-  return getActivity(id);
-}
-
 // Get a single activity by ID
 export async function getActivity(id: string): Promise<Activity> {
   const useProxyApi = isBrowserApiContext();
@@ -1404,11 +1399,6 @@ export async function getAvailableStudents(
     // entscheidet über die Anzeige.
     return [];
   }
-}
-
-// Alias for getTimeframes to match modal expectations
-export async function getAvailableTimeframes(): Promise<Timeframe[]> {
-  return getTimeframes();
 }
 
 // Helper: Map HTTP status to enrollment-specific error

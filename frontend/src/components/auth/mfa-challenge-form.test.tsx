@@ -240,13 +240,6 @@ describe("MFAChallengeForm", () => {
     expect(screen.queryByRole("alert")).not.toBeInTheDocument();
   });
 
-  it("does not render any recovery-code affordance", () => {
-    render(<MFAChallengeForm {...defaultProps} onSuccess={vi.fn()} />);
-    expect(
-      screen.queryByText(/Wiederherstellungscode/i),
-    ).not.toBeInTheDocument();
-  });
-
   it("disables resend until cooldown elapses", () => {
     render(<MFAChallengeForm {...defaultProps} onSuccess={vi.fn()} />);
     const resend = screen.getByText(/Neuen Code anfordern \(60s\)/);

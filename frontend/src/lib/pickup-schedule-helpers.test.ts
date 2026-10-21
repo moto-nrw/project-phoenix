@@ -5,7 +5,6 @@ import type {
   BackendPickupData,
   PickupSchedule,
   PickupException,
-  DayData,
 } from "./pickup-schedule-helpers";
 import {
   mapPickupScheduleResponse,
@@ -16,25 +15,14 @@ import {
   mapPickupExceptionFormToBackend,
   WEEKDAYS,
   getWeekdayLabel,
-  getWeekdayShortLabel,
   formatPickupTime,
-  formatExceptionDate,
-  isDateInPast,
-  getScheduleForWeekday,
-  createEmptyWeeklySchedule,
   mergeSchedulesWithTemplate,
-  getWeekStart,
-  getWeekEnd,
-  getWeekDays,
-  formatShortDate,
   formatWeekRange,
   isSameDay,
   getWeekdayFromDate,
-  getCalendarWeek,
   formatDateISO,
   getDayData,
   pickupScheduleSourceLabel,
-  hasOfferingPickupContext,
 } from "./pickup-schedule-helpers";
 
 // Sample backend data for testing
@@ -132,68 +120,6 @@ describe("pickupScheduleSourceLabel", () => {
         source: "staff",
       }),
     ).toBe("von Hand");
-  });
-});
-
-describe("hasOfferingPickupContext", () => {
-  const day = (overrides: Partial<DayData>): DayData =>
-    ({
-      date: new Date("2026-08-24"),
-      weekday: 1,
-      isToday: false,
-      showSick: false,
-      showClassTrip: false,
-      showExcused: false,
-      isException: false,
-      notes: [],
-      ...overrides,
-    }) as DayData;
-
-  it("is false when every day is maintained by hand", () => {
-    const staffRow = {
-      ...mapPickupScheduleResponse(sampleBackendSchedule),
-      source: "staff",
-    };
-    expect(
-      hasOfferingPickupContext([
-        day({ baseSchedule: staffRow }),
-        day({ baseSchedule: staffRow }),
-      ]),
-    ).toBe(false);
-  });
-
-  it("is true when a day comes from an offering", () => {
-    expect(
-      hasOfferingPickupContext([
-        day({
-          baseSchedule: {
-            ...mapPickupScheduleResponse(sampleBackendSchedule),
-            source: "care_offering",
-          },
-        }),
-      ]),
-    ).toBe(true);
-  });
-
-  it("is true when an offering time sits under a manual override", () => {
-    expect(
-      hasOfferingPickupContext([
-        day({
-          baseSchedule: {
-            ...mapPickupScheduleResponse(sampleBackendSchedule),
-            source: "staff",
-          },
-          offeringSchedule: {
-            ...mapPickupScheduleResponse(sampleBackendSchedule),
-            source: "care_offering",
-          },
-        }),
-      ]),
-    ).toBe(true);
-  });
-
-  it("is false for a week without any pickup time", () => {
-    expect(hasOfferingPickupContext([day({}), day({})])).toBe(false);
   });
 });
 
@@ -427,21 +353,6 @@ describe("getWeekdayLabel", () => {
   });
 });
 
-describe("getWeekdayShortLabel", () => {
-  it("returns correct short labels for valid weekdays", () => {
-    expect(getWeekdayShortLabel(1)).toBe("Mo");
-    expect(getWeekdayShortLabel(2)).toBe("Di");
-    expect(getWeekdayShortLabel(3)).toBe("Mi");
-    expect(getWeekdayShortLabel(4)).toBe("Do");
-    expect(getWeekdayShortLabel(5)).toBe("Fr");
-  });
-
-  it("returns fallback for invalid weekday", () => {
-    expect(getWeekdayShortLabel(0)).toBe("T0");
-    expect(getWeekdayShortLabel(6)).toBe("T6");
-  });
-});
-
 describe("formatPickupTime", () => {
   it("returns HH:MM format unchanged", () => {
     expect(formatPickupTime("14:30")).toBe("14:30");
@@ -456,94 +367,6 @@ describe("formatPickupTime", () => {
   it("handles short time strings", () => {
     expect(formatPickupTime("14:3")).toBe("14:3");
     expect(formatPickupTime("8:00")).toBe("8:00");
-  });
-});
-
-describe("formatExceptionDate", () => {
-  it("formats date in German format", () => {
-    const result = formatExceptionDate("2024-01-15");
-    // Format: "Mo., 15.01.2024" or similar depending on locale
-    expect(result).toContain("15");
-    expect(result).toContain("01");
-    expect(result).toContain("2024");
-  });
-});
-
-describe("isDateInPast", () => {
-  it("returns true for past dates", () => {
-    expect(isDateInPast("2020-01-01")).toBe(true);
-    expect(isDateInPast("1999-12-31")).toBe(true);
-  });
-
-  it("returns false for future dates", () => {
-    expect(isDateInPast("2099-01-01")).toBe(false);
-    expect(isDateInPast("2050-12-31")).toBe(false);
-  });
-});
-
-describe("getScheduleForWeekday", () => {
-  const schedules: PickupSchedule[] = [
-    {
-      id: "1",
-      studentId: "100",
-      weekday: 1,
-      weekdayName: "Montag",
-      pickupTime: "14:30",
-      createdBy: "5",
-      createdAt: "2024-01-15T10:00:00Z",
-      updatedAt: "2024-01-15T12:00:00Z",
-    },
-    {
-      id: "2",
-      studentId: "100",
-      weekday: 3,
-      weekdayName: "Mittwoch",
-      pickupTime: "15:00",
-      createdBy: "5",
-      createdAt: "2024-01-15T10:00:00Z",
-      updatedAt: "2024-01-15T12:00:00Z",
-    },
-  ];
-
-  it("finds schedule for existing weekday", () => {
-    const result = getScheduleForWeekday(schedules, 1);
-    expect(result?.id).toBe("1");
-
-    const result2 = getScheduleForWeekday(schedules, 3);
-    expect(result2?.id).toBe("2");
-  });
-
-  it("returns undefined for non-existent weekday", () => {
-    const result = getScheduleForWeekday(schedules, 2);
-    expect(result).toBeUndefined();
-  });
-
-  it("returns undefined for empty array", () => {
-    const result = getScheduleForWeekday([], 1);
-    expect(result).toBeUndefined();
-  });
-});
-
-describe("createEmptyWeeklySchedule", () => {
-  it("creates 5 empty schedule entries", () => {
-    const result = createEmptyWeeklySchedule();
-
-    expect(result).toHaveLength(5);
-  });
-
-  it("has correct weekday values", () => {
-    const result = createEmptyWeeklySchedule();
-
-    expect(result.map((s) => s.weekday)).toEqual([1, 2, 3, 4, 5]);
-  });
-
-  it("has empty pickup times", () => {
-    const result = createEmptyWeeklySchedule();
-
-    result.forEach((schedule) => {
-      expect(schedule.pickupTime).toBe("");
-      expect(schedule.notes).toBeUndefined();
-    });
   });
 });
 
@@ -596,126 +419,6 @@ describe("mergeSchedulesWithTemplate", () => {
     result.forEach((schedule) => {
       expect(schedule.pickupTime).toBe("");
     });
-  });
-});
-
-describe("getWeekStart", () => {
-  beforeEach(() => {
-    vi.useFakeTimers();
-  });
-
-  afterEach(() => {
-    vi.useRealTimers();
-  });
-
-  it("returns Monday of current week for offset 0", () => {
-    vi.setSystemTime(new Date("2024-01-17T12:00:00Z")); // Wednesday
-
-    const result = getWeekStart(0);
-
-    expect(result.getDay()).toBe(1); // Monday
-    expect(result.getDate()).toBe(15); // Jan 15, 2024
-  });
-
-  it("returns Monday of next week for offset 1", () => {
-    vi.setSystemTime(new Date("2024-01-17T12:00:00Z")); // Wednesday
-
-    const result = getWeekStart(1);
-
-    expect(result.getDay()).toBe(1);
-    expect(result.getDate()).toBe(22); // Jan 22, 2024
-  });
-
-  it("returns Monday of previous week for offset -1", () => {
-    vi.setSystemTime(new Date("2024-01-17T12:00:00Z")); // Wednesday
-
-    const result = getWeekStart(-1);
-
-    expect(result.getDay()).toBe(1);
-    expect(result.getDate()).toBe(8); // Jan 8, 2024
-  });
-
-  it("handles Sunday correctly", () => {
-    vi.setSystemTime(new Date("2024-01-21T12:00:00Z")); // Sunday
-
-    const result = getWeekStart(0);
-
-    expect(result.getDay()).toBe(1);
-    expect(result.getDate()).toBe(15); // Previous Monday
-  });
-});
-
-describe("getWeekEnd", () => {
-  beforeEach(() => {
-    vi.useFakeTimers();
-  });
-
-  afterEach(() => {
-    vi.useRealTimers();
-  });
-
-  it("returns Friday of current week for offset 0", () => {
-    vi.setSystemTime(new Date("2024-01-17T12:00:00Z")); // Wednesday
-
-    const result = getWeekEnd(0);
-
-    expect(result.getDay()).toBe(5); // Friday
-    expect(result.getDate()).toBe(19); // Jan 19, 2024
-  });
-
-  it("returns Friday of next week for offset 1", () => {
-    vi.setSystemTime(new Date("2024-01-17T12:00:00Z")); // Wednesday
-
-    const result = getWeekEnd(1);
-
-    expect(result.getDay()).toBe(5);
-    expect(result.getDate()).toBe(26); // Jan 26, 2024
-  });
-});
-
-describe("getWeekDays", () => {
-  beforeEach(() => {
-    vi.useFakeTimers();
-  });
-
-  afterEach(() => {
-    vi.useRealTimers();
-  });
-
-  it("returns 5 days (Mon-Fri)", () => {
-    vi.setSystemTime(new Date("2024-01-17T12:00:00Z"));
-
-    const result = getWeekDays(0);
-
-    expect(result).toHaveLength(5);
-  });
-
-  it("returns consecutive weekdays", () => {
-    vi.setSystemTime(new Date("2024-01-17T12:00:00Z"));
-
-    const result = getWeekDays(0);
-
-    expect(result[0]?.getDay()).toBe(1); // Monday
-    expect(result[1]?.getDay()).toBe(2); // Tuesday
-    expect(result[2]?.getDay()).toBe(3); // Wednesday
-    expect(result[3]?.getDay()).toBe(4); // Thursday
-    expect(result[4]?.getDay()).toBe(5); // Friday
-  });
-});
-
-describe("formatShortDate", () => {
-  it("formats date as DD.MM.", () => {
-    const date = new Date("2024-01-15T12:00:00Z");
-    const result = formatShortDate(date);
-
-    expect(result).toBe("15.01.");
-  });
-
-  it("pads single digits", () => {
-    const date = new Date("2024-03-05T12:00:00Z");
-    const result = formatShortDate(date);
-
-    expect(result).toBe("05.03.");
   });
 });
 
@@ -781,31 +484,6 @@ describe("getWeekdayFromDate", () => {
   it("returns null for Sunday", () => {
     const sunday = new Date("2024-01-21T12:00:00Z");
     expect(getWeekdayFromDate(sunday)).toBeNull();
-  });
-});
-
-describe("getCalendarWeek", () => {
-  it("returns week number for middle of year", () => {
-    const date = new Date("2024-06-15T12:00:00Z");
-    const result = getCalendarWeek(date);
-
-    expect(result).toBeGreaterThan(0);
-    expect(result).toBeLessThanOrEqual(53);
-  });
-
-  it("returns 1 for first week of year", () => {
-    // January 4, 2024 is guaranteed to be in week 1
-    const date = new Date("2024-01-04T12:00:00Z");
-    const result = getCalendarWeek(date);
-
-    expect(result).toBe(1);
-  });
-
-  it("returns consistent results for same week", () => {
-    const monday = new Date("2024-01-15T12:00:00Z");
-    const friday = new Date("2024-01-19T12:00:00Z");
-
-    expect(getCalendarWeek(monday)).toBe(getCalendarWeek(friday));
   });
 });
 

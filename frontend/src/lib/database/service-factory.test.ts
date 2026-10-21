@@ -5,7 +5,6 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import {
   createCrudService,
-  createExtendedService,
   MalformedCrudListResponseError,
 } from "./service-factory";
 import type { EntityConfig } from "./types";
@@ -745,88 +744,5 @@ describe("createCrudService", () => {
 
       expect(global.fetch).toHaveBeenCalled();
     });
-  });
-});
-
-describe("createExtendedService", () => {
-  it("creates service with custom methods", () => {
-    const mockConfig: EntityConfig<TestEntity> = {
-      name: {
-        singular: "Test",
-        plural: "Tests",
-      },
-      concept: "children",
-      labels: {
-        createModalTitle: "Test erstellen",
-        editModalTitle: "Test bearbeiten",
-      },
-      api: {
-        basePath: "/api/test",
-      },
-      form: {
-        sections: [],
-      },
-      detail: {
-        sections: [],
-      },
-      list: {
-        title: "Test",
-        description: "Test description",
-        searchPlaceholder: "Search...",
-        item: {
-          title: () => "Test",
-        },
-      },
-      service: {
-        customMethods: {
-          customMethod: vi.fn(),
-        },
-      },
-    };
-
-    const service = createExtendedService(mockConfig);
-
-    expect(service).toBeDefined();
-    expect("customMethod" in service).toBe(true);
-  });
-
-  it("returns base service when no custom methods", () => {
-    const mockConfig: EntityConfig<TestEntity> = {
-      name: {
-        singular: "Test",
-        plural: "Tests",
-      },
-      concept: "children",
-      labels: {
-        createModalTitle: "Test erstellen",
-        editModalTitle: "Test bearbeiten",
-      },
-      api: {
-        basePath: "/api/test",
-      },
-      form: {
-        sections: [],
-      },
-      detail: {
-        sections: [],
-      },
-      list: {
-        title: "Test",
-        description: "Test description",
-        searchPlaceholder: "Search...",
-        item: {
-          title: () => "Test",
-        },
-      },
-    };
-
-    const service = createExtendedService(mockConfig);
-
-    expect(service).toBeDefined();
-    expect(typeof service.getList).toBe("function");
-    expect(typeof service.getOne).toBe("function");
-    expect(typeof service.create).toBe("function");
-    expect(typeof service.update).toBe("function");
-    expect(typeof service.remove).toBe("function");
   });
 });

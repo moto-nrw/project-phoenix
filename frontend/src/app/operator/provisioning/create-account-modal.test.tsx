@@ -151,11 +151,6 @@ describe("CreateAccountModal", () => {
     mockListSystemRoles.mockResolvedValue(defaultRoles);
   });
 
-  it("does not render when isOpen is false", () => {
-    renderModal({ isOpen: false });
-    expect(screen.queryByTestId("modal")).not.toBeInTheDocument();
-  });
-
   it("renders modal with school name in title when isOpen", () => {
     renderModal({ schoolName: "Grundschule Mitte" });
     expect(

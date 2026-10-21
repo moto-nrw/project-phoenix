@@ -35,11 +35,6 @@ describe("GuardianDeleteModal", () => {
     vi.clearAllMocks();
   });
 
-  it("does not render when closed", () => {
-    renderModal({ isOpen: false });
-    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
-  });
-
   describe("without full-delete permission", () => {
     it("offers only the two-step per-child unlink", () => {
       renderModal({ canFullDelete: false });

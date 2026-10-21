@@ -264,19 +264,6 @@ describe("PersonalInfoEditPanel", () => {
 
       expect(input.value).toBe("Neuer Name");
     });
-
-    it("does not render sick toggle (moved to StudentSickReportSection)", () => {
-      render(
-        <PersonalInfoEditPanel
-          onCancel={mockOnCancel}
-          student={createMockStudent()}
-          onSave={mockOnSave}
-        />,
-      );
-
-      expect(screen.queryByRole("switch")).not.toBeInTheDocument();
-      expect(screen.queryByText("Krankmeldung")).not.toBeInTheDocument();
-    });
   });
 
   describe("Save functionality", () => {

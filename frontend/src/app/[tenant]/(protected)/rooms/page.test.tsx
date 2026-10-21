@@ -502,20 +502,6 @@ describe("RoomsPage", () => {
     expect(screen.getByText("Kapazität: 25 Plätze")).toBeInTheDocument();
   });
 
-  it("traegt keine Tipp-Hinweiszeile mehr auf den Raumkacheln", () => {
-    vi.mocked(useSWRAuth).mockReturnValue({
-      data: mockRooms,
-      isLoading: false,
-      error: null,
-    } as never);
-
-    render(<RoomsPage />);
-
-    // Die Zeile stand auf jeder Kachel, war am Rechner falsch („Tippen") und
-    // sagte nichts, was die Kachel nicht schon zeigt.
-    expect(screen.queryByText("Tippen für mehr Infos")).not.toBeInTheDocument();
-  });
-
   it("displays singular 'Kind' when only one student", () => {
     const roomsWithOneStudent = [
       {

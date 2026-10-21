@@ -2,31 +2,24 @@ import { describe, it, expect } from "vitest";
 import {
   mapGuardianResponse,
   mapGuardianWithRelationshipResponse,
-  mapGuardianFormDataToBackend,
   mapStudentGuardianLinkToBackend,
   mapPhoneNumberResponse,
   mapPhoneNumberCreateToBackend,
   mapPhoneNumberUpdateToBackend,
   getGuardianFullName,
-  getGuardianPrimaryContact,
   getRelationshipTypeLabel,
   getLanguageLabel,
-  getPhoneTypeLabel,
-  getPrimaryPhoneNumber,
-  formatPhoneNumberDisplay,
   RELATIONSHIP_TYPES,
   CONTACT_METHODS,
   LANGUAGE_PREFERENCES,
   PHONE_TYPE_LABELS,
   type BackendGuardianProfile,
   type BackendGuardianWithRelationship,
-  type GuardianFormData,
   type StudentGuardianLinkRequest,
   type Guardian,
   type BackendPhoneNumber,
   type PhoneNumberCreateRequest,
   type PhoneNumberUpdateRequest,
-  type PhoneNumber,
 } from "./guardian-helpers";
 
 describe("guardian-helpers", () => {
@@ -265,71 +258,6 @@ describe("guardian-helpers", () => {
     });
   });
 
-  describe("mapGuardianFormDataToBackend", () => {
-    it("maps all form fields to backend format", () => {
-      const formData: GuardianFormData = {
-        firstName: "John",
-        lastName: "Doe",
-        email: "john@example.com",
-        addressStreet: "Musterstraße 42",
-        addressCity: "München",
-        addressPostalCode: "80331",
-        preferredContactMethod: "mobile",
-        languagePreference: "en",
-        notes: "Available after 17:00",
-      };
-
-      const result = mapGuardianFormDataToBackend(formData);
-
-      expect(result).toEqual({
-        first_name: "John",
-        last_name: "Doe",
-        email: "john@example.com",
-        address_street: "Musterstraße 42",
-        address_city: "München",
-        address_postal_code: "80331",
-        preferred_contact_method: "mobile",
-        language_preference: "en",
-        notes: "Available after 17:00",
-      });
-    });
-
-    it("omits contact method when not provided (backend applies default)", () => {
-      const formData: GuardianFormData = {
-        firstName: "Test",
-        lastName: "User",
-      };
-
-      const result = mapGuardianFormDataToBackend(formData);
-
-      expect(result.preferred_contact_method).toBeUndefined();
-    });
-
-    it("omits language preference when not provided (backend applies default)", () => {
-      const formData: GuardianFormData = {
-        firstName: "Test",
-        lastName: "User",
-      };
-
-      const result = mapGuardianFormDataToBackend(formData);
-
-      expect(result.language_preference).toBeUndefined();
-    });
-
-    it("handles minimal required fields", () => {
-      const formData: GuardianFormData = {
-        firstName: "Minimal",
-        lastName: "User",
-      };
-
-      const result = mapGuardianFormDataToBackend(formData);
-
-      expect(result.first_name).toBe("Minimal");
-      expect(result.last_name).toBe("User");
-      expect(result.email).toBeUndefined();
-    });
-  });
-
   describe("mapStudentGuardianLinkToBackend", () => {
     it("maps link request to backend format", () => {
       const linkRequest: StudentGuardianLinkRequest = {
@@ -436,185 +364,6 @@ describe("guardian-helpers", () => {
       const result = getGuardianFullName(guardian);
 
       expect(result).toBe("A B");
-    });
-  });
-
-  describe("getGuardianPrimaryContact", () => {
-    it("returns email when preferred method is email", () => {
-      const guardian: Guardian = {
-        id: "1",
-        firstName: "Test",
-        lastName: "User",
-        email: "test@example.com",
-        phoneNumbers: [
-          {
-            id: "1",
-            phoneNumber: "030-123456",
-            phoneType: "home",
-            isPrimary: true,
-            priority: 1,
-          },
-          {
-            id: "2",
-            phoneNumber: "0170-123456",
-            phoneType: "mobile",
-            isPrimary: false,
-            priority: 2,
-          },
-        ],
-        preferredContactMethod: "email",
-        languagePreference: "de",
-        hasAccount: false,
-      };
-
-      const result = getGuardianPrimaryContact(guardian);
-
-      expect(result).toBe("test@example.com");
-    });
-
-    it("returns mobile phone when preferred method is mobile", () => {
-      const guardian: Guardian = {
-        id: "1",
-        firstName: "Test",
-        lastName: "User",
-        email: "test@example.com",
-        phoneNumbers: [
-          {
-            id: "1",
-            phoneNumber: "030-123456",
-            phoneType: "home",
-            isPrimary: false,
-            priority: 2,
-          },
-          {
-            id: "2",
-            phoneNumber: "0170-123456",
-            phoneType: "mobile",
-            isPrimary: true,
-            priority: 1,
-          },
-        ],
-        preferredContactMethod: "mobile",
-        languagePreference: "de",
-        hasAccount: false,
-      };
-
-      const result = getGuardianPrimaryContact(guardian);
-
-      expect(result).toBe("0170-123456");
-    });
-
-    it("returns home phone when preferred method is phone", () => {
-      const guardian: Guardian = {
-        id: "1",
-        firstName: "Test",
-        lastName: "User",
-        email: "test@example.com",
-        phoneNumbers: [
-          {
-            id: "1",
-            phoneNumber: "030-123456",
-            phoneType: "home",
-            isPrimary: true,
-            priority: 1,
-          },
-          {
-            id: "2",
-            phoneNumber: "0170-123456",
-            phoneType: "mobile",
-            isPrimary: false,
-            priority: 2,
-          },
-        ],
-        preferredContactMethod: "phone",
-        languagePreference: "de",
-        hasAccount: false,
-      };
-
-      const result = getGuardianPrimaryContact(guardian);
-
-      expect(result).toBe("030-123456");
-    });
-
-    it("falls back to email when preferred method unavailable", () => {
-      const guardian: Guardian = {
-        id: "1",
-        firstName: "Test",
-        lastName: "User",
-        email: "test@example.com",
-        preferredContactMethod: "mobile", // Preferred mobile but not available
-        languagePreference: "de",
-        hasAccount: false,
-        phoneNumbers: [],
-      };
-
-      const result = getGuardianPrimaryContact(guardian);
-
-      expect(result).toBe("test@example.com");
-    });
-
-    it("falls back to primary phone when email unavailable", () => {
-      const guardian: Guardian = {
-        id: "1",
-        firstName: "Test",
-        lastName: "User",
-        phoneNumbers: [
-          {
-            id: "1",
-            phoneNumber: "0170-123456",
-            phoneType: "mobile",
-            isPrimary: true,
-            priority: 1,
-          },
-        ],
-        preferredContactMethod: "email", // Preferred email but not available
-        languagePreference: "de",
-        hasAccount: false,
-      };
-
-      const result = getGuardianPrimaryContact(guardian);
-
-      expect(result).toBe("0170-123456");
-    });
-
-    it("falls back to first phone when no primary phone", () => {
-      const guardian: Guardian = {
-        id: "1",
-        firstName: "Test",
-        lastName: "User",
-        phoneNumbers: [
-          {
-            id: "1",
-            phoneNumber: "030-123456",
-            phoneType: "home",
-            isPrimary: false,
-            priority: 1,
-          },
-        ],
-        preferredContactMethod: "email", // Preferred email but not available
-        languagePreference: "de",
-        hasAccount: false,
-      };
-
-      const result = getGuardianPrimaryContact(guardian);
-
-      expect(result).toBe("030-123456");
-    });
-
-    it("returns fallback message when no contact data available", () => {
-      const guardian: Guardian = {
-        id: "1",
-        firstName: "Test",
-        lastName: "User",
-        preferredContactMethod: "email",
-        languagePreference: "de",
-        hasAccount: false,
-        phoneNumbers: [],
-      };
-
-      const result = getGuardianPrimaryContact(guardian);
-
-      expect(result).toBe("Keine Kontaktdaten");
     });
   });
 
@@ -911,162 +660,6 @@ describe("guardian-helpers", () => {
       const result = mapPhoneNumberUpdateToBackend(request);
 
       expect(result).toEqual({});
-    });
-  });
-
-  describe("getPhoneTypeLabel", () => {
-    it("returns German label for mobile", () => {
-      expect(getPhoneTypeLabel("mobile")).toBe("Mobil");
-    });
-
-    it("returns German label for home", () => {
-      expect(getPhoneTypeLabel("home")).toBe("Telefon");
-    });
-
-    it("returns German label for work", () => {
-      expect(getPhoneTypeLabel("work")).toBe("Dienstlich");
-    });
-
-    it("returns German label for other", () => {
-      expect(getPhoneTypeLabel("other")).toBe("Sonstige");
-    });
-  });
-
-  describe("getPrimaryPhoneNumber", () => {
-    it("returns primary phone number when exists", () => {
-      const guardian: Guardian = {
-        id: "1",
-        firstName: "Test",
-        lastName: "User",
-        preferredContactMethod: "email",
-        languagePreference: "de",
-        hasAccount: false,
-        phoneNumbers: [
-          {
-            id: "1",
-            phoneNumber: "030-123456",
-            phoneType: "home",
-            isPrimary: false,
-            priority: 2,
-          },
-          {
-            id: "2",
-            phoneNumber: "0170-123456",
-            phoneType: "mobile",
-            isPrimary: true,
-            priority: 1,
-          },
-        ],
-      };
-
-      const result = getPrimaryPhoneNumber(guardian);
-
-      expect(result).toBeDefined();
-      expect(result?.id).toBe("2");
-      expect(result?.phoneNumber).toBe("0170-123456");
-      expect(result?.isPrimary).toBe(true);
-    });
-
-    it("returns undefined when no primary phone", () => {
-      const guardian: Guardian = {
-        id: "1",
-        firstName: "Test",
-        lastName: "User",
-        preferredContactMethod: "email",
-        languagePreference: "de",
-        hasAccount: false,
-        phoneNumbers: [
-          {
-            id: "1",
-            phoneNumber: "030-123456",
-            phoneType: "home",
-            isPrimary: false,
-            priority: 1,
-          },
-        ],
-      };
-
-      const result = getPrimaryPhoneNumber(guardian);
-
-      expect(result).toBeUndefined();
-    });
-
-    it("returns undefined when no phone numbers", () => {
-      const guardian: Guardian = {
-        id: "1",
-        firstName: "Test",
-        lastName: "User",
-        preferredContactMethod: "email",
-        languagePreference: "de",
-        hasAccount: false,
-        phoneNumbers: [],
-      };
-
-      const result = getPrimaryPhoneNumber(guardian);
-
-      expect(result).toBeUndefined();
-    });
-  });
-
-  describe("formatPhoneNumberDisplay", () => {
-    it("formats phone number with type label only", () => {
-      const phone: PhoneNumber = {
-        id: "1",
-        phoneNumber: "030-123456",
-        phoneType: "home",
-        isPrimary: true,
-        priority: 1,
-      };
-
-      const result = formatPhoneNumberDisplay(phone);
-
-      expect(result).toBe("030-123456 (Telefon)");
-    });
-
-    it("formats phone number with type and custom label", () => {
-      const phone: PhoneNumber = {
-        id: "1",
-        phoneNumber: "+49 30 9876543",
-        phoneType: "work",
-        label: "Büro Zentrale",
-        isPrimary: false,
-        priority: 2,
-      };
-
-      const result = formatPhoneNumberDisplay(phone);
-
-      expect(result).toBe("+49 30 9876543 (Dienstlich - Büro Zentrale)");
-    });
-
-    it("does not duplicate label when label matches type label", () => {
-      const phone: PhoneNumber = {
-        id: "1",
-        phoneNumber: "0170-123456",
-        phoneType: "mobile",
-        label: "Mobil",
-        isPrimary: true,
-        priority: 1,
-      };
-
-      const result = formatPhoneNumberDisplay(phone);
-
-      expect(result).toBe("0170-123456 (Mobil)");
-    });
-
-    it("handles empty label same as undefined", () => {
-      const phone: PhoneNumber = {
-        id: "1",
-        phoneNumber: "030-999999",
-        phoneType: "other",
-        label: "",
-        isPrimary: false,
-        priority: 3,
-      };
-
-      const result = formatPhoneNumberDisplay(phone);
-
-      // Empty string is falsy, so only type label shown
-      expect(result).toBe("030-999999 (Sonstige)");
     });
   });
 });

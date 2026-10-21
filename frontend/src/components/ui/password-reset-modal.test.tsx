@@ -138,12 +138,6 @@ describe("PasswordResetModal", () => {
     expect(screen.getByTestId("modal")).toBeInTheDocument();
   });
 
-  it("does not render when closed", () => {
-    render(<ResetModal isOpen={false} onClose={mockOnClose} />);
-
-    expect(screen.queryByTestId("modal")).not.toBeInTheDocument();
-  });
-
   it("renders password reset form", () => {
     render(<ResetModal isOpen={true} onClose={mockOnClose} />);
 

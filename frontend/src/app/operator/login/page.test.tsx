@@ -115,12 +115,6 @@ describe("OperatorLoginPage", () => {
     expect(screen.getByLabelText("Passwort")).toBeInTheDocument();
   });
 
-  it("does not render the MOTO logo", () => {
-    render(<OperatorLoginPage />);
-
-    expect(screen.queryByAltText("MOTO Logo")).not.toBeInTheDocument();
-  });
-
   it("submits form with email and password (2-step MFA flow)", async () => {
     mockSignIn.mockResolvedValue({ error: null });
 

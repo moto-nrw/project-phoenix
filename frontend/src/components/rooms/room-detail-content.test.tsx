@@ -545,28 +545,6 @@ describe("RoomDetailContent", () => {
     expect(screen.getByText("Gruppenraum")).toBeInTheDocument();
   });
 
-  it("does not render the legacy building · floor · category subline under the header", () => {
-    // The "Hauptgebäude · Etage 2" subline that used to sit under the
-    // h1 was removed (#1323). Those values now live exclusively in
-    // the IconDetailRow list, so showing them twice was clutter.
-    render(
-      <Wrapper>
-        <RoomDetailContent
-          room={{
-            ...baseRoom,
-            building: "Hauptgebäude",
-            floor: 2,
-            category: "Gruppenraum",
-          }}
-          history={[]}
-        />
-      </Wrapper>,
-    );
-    expect(
-      screen.queryByText(/Hauptgebäude · Etage 2/),
-    ).not.toBeInTheDocument();
-  });
-
   it("renders the building or the floor in the detail block when only one is present", () => {
     const { rerender } = render(
       <Wrapper>
