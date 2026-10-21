@@ -9,6 +9,20 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+func TestLegacyParentRemovalPreflightSkipsTablesAwaitingInitialMigration(t *testing.T) {
+	t.Parallel()
+	parents := legacyParentMigration(t, AuthAccountsParentsVersion)
+	links := legacyParentMigration(t, UsersPersonsGuardiansVersion)
+	ctx := withPendingMigrations(t.Context(), migrate.MigrationSlice{
+		{Name: parents.Name},
+		{Name: links.Name},
+	})
+
+	// A fresh database has neither source table when preflight sees every
+	// migration as pending. Passing nil proves no query is attempted.
+	require.NoError(t, legacyParentAccountsPrecondition(ctx, nil))
+}
+
 func TestLegacyParentRemovalRefusesDataAndUnexpectedDependencies(t *testing.T) {
 	t.Parallel()
 	db := testpkg.SetupIsolatedTestDB(t)

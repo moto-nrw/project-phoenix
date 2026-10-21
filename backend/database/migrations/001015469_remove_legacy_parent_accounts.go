@@ -21,6 +21,12 @@ func init() {
 // Production held zero rows in both tables on 2026-10-21. Refuse to discard
 // any data created since that observation, including on another installation.
 func legacyParentAccountsPrecondition(ctx context.Context, db *bun.DB) error {
+	// On a fresh installation both source migrations are pending, so their
+	// tables do not exist while preflight runs. They will run before this
+	// migration; there can be no legacy data to protect yet.
+	if migrationPending(ctx, AuthAccountsParentsVersion) && migrationPending(ctx, UsersPersonsGuardiansVersion) {
+		return nil
+	}
 	return requireEmptyLegacyParentAccounts(ctx, db)
 }
 
