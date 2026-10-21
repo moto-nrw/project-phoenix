@@ -27,19 +27,26 @@ const (
 	opGuardianInviteFetch    = "fetch guardian invitation"
 )
 
-func (l *AccountLifecycle) CreateGuardianInvitation(ctx context.Context, request domain.GuardianInvitationRequest) (domain.GuardianInvitation, error) {
+// CreateGuardianInvitation inserts the invitation and queues its mail in one
+// transaction, so the mail commits with the invitation it announces.
+func (l *AccountLifecycle) CreateGuardianInvitation(ctx context.Context, request identityaccess.GuardianInvitationRequest) (_ identityaccess.GuardianInvitation, err error) {
+	if l == nil {
+		return identityaccess.GuardianInvitation{}, errAccountLifecycleUnavailable
+	}
+	defer func() { err = invitationError(err) }()
 	if request.GuardianProfileID <= 0 {
-		return domain.GuardianInvitation{}, failed(opGuardianInviteCreate, fmt.Errorf("guardian profile ID is required"))
+		return identityaccess.GuardianInvitation{}, failed(opGuardianInviteCreate, fmt.Errorf("guardian profile ID is required"))
 	}
 	if request.CreatedBy <= 0 {
-		return domain.GuardianInvitation{}, failed(opGuardianInviteCreate, fmt.Errorf("created_by is required"))
+		return identityaccess.GuardianInvitation{}, failed(opGuardianInviteCreate, fmt.Errorf("created_by is required"))
 	}
-	var (
-		invitation domain.GuardianInvitation
-		profile    domain.GuardianProfile
-	)
-	err := l.runtime.RunInTx(ctx, func(txCtx context.Context) error {
-		var profileErr error
+	var invitation domain.GuardianInvitation
+	err = l.runtime.RunInTx(ctx, func(txCtx context.Context) error {
+		txCtx = bindRuntime(l.auth.attach, txCtx)
+		var (
+			profile    domain.GuardianProfile
+			profileErr error
+		)
 		profile, profileErr = l.lockInvitationProfile(txCtx, request.GuardianProfileID)
 		if profileErr != nil {
 			return failed(opGuardianInviteCreate, profileErr)
@@ -59,19 +66,18 @@ func (l *AccountLifecycle) CreateGuardianInvitation(ctx context.Context, request
 		if insertErr != nil {
 			return failed(opGuardianInviteCreate, insertErr)
 		}
+		l.logger.Info("guardian invitation created",
+			slog.Int64("invitation_id", invitation.ID),
+			slog.Int64("guardian_profile_id", profile.ID),
+			slog.Int64("created_by", request.CreatedBy),
+		)
+		l.mailNewInvitation(txCtx, invitation, profile)
 		return nil
 	})
 	if err != nil {
-		return domain.GuardianInvitation{}, err
+		return identityaccess.GuardianInvitation{}, err
 	}
-
-	l.logger.Info("guardian invitation created",
-		slog.Int64("invitation_id", invitation.ID),
-		slog.Int64("guardian_profile_id", profile.ID),
-		slog.Int64("created_by", request.CreatedBy),
-	)
-	l.mailNewInvitation(ctx, invitation, profile)
-	return invitation, nil
+	return identityaccess.GuardianInvitation(invitation), nil
 }
 
 func (l *AccountLifecycle) lockInvitationProfile(ctx context.Context, profileID int64) (domain.GuardianProfile, error) {
@@ -277,37 +283,46 @@ func (l *AccountLifecycle) claimGuardianEnrollments(ctx context.Context, account
 	return nil
 }
 
-func (l *AccountLifecycle) ResendGuardianInvitation(ctx context.Context, invitationID, actorAccountID int64) error {
-	invitation, found, err := l.invitations.FindGuardianInvitation(ctx, invitationID)
-	if err != nil {
-		return failed(opGuardianInviteResend, err)
+func (l *AccountLifecycle) ResendGuardianInvitation(ctx context.Context, invitationID, actorAccountID int64) (err error) {
+	if l == nil {
+		return errAccountLifecycleUnavailable
 	}
-	if !found {
-		return failed(opGuardianInviteResend, domain.ErrInvitationNotFound)
+	operation := func(ctx context.Context, invitationID, actorAccountID int64) error {
+		invitation, found, err := l.invitations.FindGuardianInvitation(ctx, invitationID)
+		if err != nil {
+			return failed(opGuardianInviteResend, err)
+		}
+		if !found {
+			return failed(opGuardianInviteResend, domain.ErrInvitationNotFound)
+		}
+		if redeemErr := invitation.Redeemable(time.Now()); redeemErr != nil {
+			return failed(opGuardianInviteResend, redeemErr)
+		}
+		profile, found, err := l.guardians.FindGuardianProfile(ctx, invitation.GuardianProfileID)
+		if err != nil {
+			return failed(opGuardianInviteResend, err)
+		}
+		if !found {
+			return failed(opGuardianInviteResend, fmt.Errorf("guardian profile not found"))
+		}
+		// The delivery bookkeeping starts over; the previous attempt's outcome
+		// says nothing about the send that follows.
+		invitation.EmailSentAt = nil
+		invitation.EmailError = nil
+		if err := l.invitations.UpdateGuardianInvitation(ctx, invitation); err != nil {
+			return failed(opGuardianInviteResend, err)
+		}
+		l.logger.Info("guardian invitation resent",
+			slog.Int64("invitation_id", invitation.ID),
+			slog.Int64("actor_account_id", actorAccountID),
+		)
+		l.delivery.EnqueueInvitationEmail(ctx, invitation, profile, l.delivery.SchoolName(ctx, invitation.TenantID))
+		return nil
 	}
-	if redeemErr := invitation.Redeemable(time.Now()); redeemErr != nil {
-		return failed(opGuardianInviteResend, redeemErr)
-	}
-	profile, found, err := l.guardians.FindGuardianProfile(ctx, invitation.GuardianProfileID)
-	if err != nil {
-		return failed(opGuardianInviteResend, err)
-	}
-	if !found {
-		return failed(opGuardianInviteResend, fmt.Errorf("guardian profile not found"))
-	}
-	// The delivery bookkeeping starts over; the previous attempt's outcome
-	// says nothing about the send that follows.
-	invitation.EmailSentAt = nil
-	invitation.EmailError = nil
-	if err := l.invitations.UpdateGuardianInvitation(ctx, invitation); err != nil {
-		return failed(opGuardianInviteResend, err)
-	}
-	l.logger.Info("guardian invitation resent",
-		slog.Int64("invitation_id", invitation.ID),
-		slog.Int64("actor_account_id", actorAccountID),
-	)
-	l.delivery.EnqueueInvitationEmail(ctx, invitation, profile, l.delivery.SchoolName(ctx, invitation.TenantID))
-	return nil
+	err = l.runtime.RunInTx(ctx, func(txCtx context.Context) error {
+		return invitationError(operation(bindRuntime(l.auth.attach, txCtx), invitationID, actorAccountID))
+	})
+	return
 }
 
 // GuardianInvitationSchoolSlug resolves the school an invitation belongs to,

@@ -26,7 +26,7 @@ type AccountRetention struct {
 }
 
 // NewAccountRetention binds the store; attach adds the composed unit of work
-// to the cleanup's context, like the engine does for every other flow.
+// to the cleanup's context, like every other flow attaches it.
 func NewAccountRetention(store ports.AccountRetentionStore, attach func(context.Context) context.Context, afterCommit func(context.Context, func()), logger *slog.Logger) *AccountRetention {
 	if store == nil || attach == nil || afterCommit == nil {
 		panic("identity access application: account retention requires its store and runtime")

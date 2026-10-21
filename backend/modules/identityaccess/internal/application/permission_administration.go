@@ -12,23 +12,45 @@ import (
 
 const opAssignPermissionToRole = "assign permission to role"
 
-func (r *RoleAdministration) GetPermission(ctx context.Context, id int64) (domain.ManagedPermission, error) {
-	permission, found, err := r.store.FindPermission(ctx, id)
-	if err != nil {
-		return domain.ManagedPermission{}, failed("get permission", err)
+func (r *RoleAdministration) GetPermission(ctx context.Context, id int64) (value0 identityaccess.Permission, err error) {
+	if r == nil {
+		return identityaccess.Permission{}, errRoleAdministrationUnavailable
 	}
-	if !found {
-		return domain.ManagedPermission{}, failed("get permission", identityaccess.ErrPermissionNotFound)
+	operation := func(ctx context.Context) (domain.ManagedPermission, error) {
+		permission, found, err := r.store.FindPermission(ctx, id)
+		if err != nil {
+			return domain.ManagedPermission{}, failed("get permission", err)
+		}
+		if !found {
+			return domain.ManagedPermission{}, failed("get permission", identityaccess.ErrPermissionNotFound)
+		}
+		return permission, nil
 	}
-	return permission, nil
+	err = r.runtime.RunInTx(ctx, func(txCtx context.Context) error {
+		result, err := operation(bindRuntime(r.attach, txCtx))
+		value0 = identityaccess.Permission(result)
+		return roleError(err)
+	})
+	return
 }
 
-func (r *RoleAdministration) GetPermissionByName(ctx context.Context, name string) (domain.ManagedPermission, error) {
-	permission, err := r.store.FindPermissionByName(ctx, name)
-	if err != nil {
-		return domain.ManagedPermission{}, failed("get permission by name", err)
+func (r *RoleAdministration) GetPermissionByName(ctx context.Context, name string) (value0 identityaccess.Permission, err error) {
+	if r == nil {
+		return identityaccess.Permission{}, errRoleAdministrationUnavailable
 	}
-	return permission, nil
+	operation := func(ctx context.Context) (domain.ManagedPermission, error) {
+		permission, err := r.store.FindPermissionByName(ctx, name)
+		if err != nil {
+			return domain.ManagedPermission{}, failed("get permission by name", err)
+		}
+		return permission, nil
+	}
+	err = r.runtime.RunInTx(ctx, func(txCtx context.Context) error {
+		result, err := operation(bindRuntime(r.attach, txCtx))
+		value0 = identityaccess.Permission(result)
+		return roleError(err)
+	})
+	return
 }
 
 func (r *RoleAdministration) deletePermission(ctx context.Context, id int64) error {
@@ -139,12 +161,23 @@ func (r *RoleAdministration) RemovePermissionFromRole(ctx context.Context, roleI
 	})
 }
 
-func (r *RoleAdministration) GetRolePermissions(ctx context.Context, roleID int64) ([]domain.ManagedPermission, error) {
-	permissions, err := r.store.ListRolePermissions(ctx, roleID)
-	if err != nil {
-		return nil, failed("get role permissions", err)
+func (r *RoleAdministration) GetRolePermissions(ctx context.Context, roleID int64) (value0 []identityaccess.Permission, err error) {
+	if r == nil {
+		return nil, errRoleAdministrationUnavailable
 	}
-	return permissions, nil
+	operation := func(ctx context.Context) ([]domain.ManagedPermission, error) {
+		permissions, err := r.store.ListRolePermissions(ctx, roleID)
+		if err != nil {
+			return nil, failed("get role permissions", err)
+		}
+		return permissions, nil
+	}
+	err = r.runtime.RunInTx(ctx, func(txCtx context.Context) error {
+		result, err := operation(bindRuntime(r.attach, txCtx))
+		value0 = publicPermissions(result)
+		return roleError(err)
+	})
+	return
 }
 
 func (r *RoleAdministration) desiredRolePermissions(txCtx context.Context, permissionIDs []int64) (map[int64]struct{}, error) {

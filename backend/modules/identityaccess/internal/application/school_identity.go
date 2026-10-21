@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess/internal/domain"
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 )
@@ -17,7 +18,33 @@ import (
 // assignment and the operator-led school access. The question "is this
 // personnel?" is answered here, once, for all of them (#2222).
 
-func (l *AccountLifecycle) EnsureSchoolIdentity(ctx context.Context, in domain.SchoolIdentityInput) (*domain.SchoolIdentity, error) {
+func (l *AccountLifecycle) EnsureSchoolIdentity(ctx context.Context, input identityaccess.SchoolIdentityInput) (value0 *identityaccess.SchoolIdentity, err error) {
+	if l == nil {
+		return nil, errAccountLifecycleUnavailable
+	}
+	operation := func(ctx context.Context) (*identityaccess.SchoolIdentity, error) {
+		identity, err := l.EnsureSchoolIdentityChain(bindRuntime(l.auth.attach, ctx), domain.SchoolIdentityInput{
+			AccountID: input.AccountID, TenantID: input.TenantID, Role: roleFacts(input.Role),
+			FirstName: input.FirstName, LastName: input.LastName, TagID: input.TagID, PersonID: input.PersonID,
+			Position: input.Position, CaregiverUpgrade: input.CaregiverUpgrade, CreatePerson: input.CreatePerson,
+		})
+		if err != nil {
+			return nil, lifecycleError(err)
+		}
+		if identity == nil {
+			return nil, nil
+		}
+		result := identityaccess.SchoolIdentity(*identity)
+		return &result, nil
+	}
+	err = l.runtime.RunInTx(ctx, func(txCtx context.Context) error {
+		value0, err = operation(txCtx)
+		return err
+	})
+	return
+}
+
+func (l *AccountLifecycle) EnsureSchoolIdentityChain(ctx context.Context, in domain.SchoolIdentityInput) (*domain.SchoolIdentity, error) {
 	if !l.roles.RoleNeedsStaffRecord(in.Role) {
 		return nil, nil
 	}
