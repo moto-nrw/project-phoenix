@@ -36,14 +36,17 @@ func parseTransactionReceiverKey(key string) (transactionReceiverKey, bool) {
 
 func originalReceiverTransactionKey(key string, current, previous map[string]string, removed func(string, string, string) (bool, error)) (string, error) {
 	target, ok := parseTransactionReceiverKey(key)
-	if !ok || target.receiver != "*Service" || target.pkg != target.owner+"/internal/application" || removed == nil {
+	if !ok || removed == nil {
 		return "", nil
 	}
 	oldKey := ""
 	var sourceMethod transactionReceiverKey
+	// A boundary may move between any two receiver types of one owner tree;
+	// the operation, its scope kind and occurrence stay, and the source type
+	// must no longer declare the method (#4495).
 	for candidate := range previous {
 		source, valid := parseTransactionReceiverKey(candidate)
-		if valid && source.owner == target.owner && source.method == target.method && source.scope == target.scope && (strings.TrimPrefix(source.receiver, "*") == "Engine" || strings.TrimPrefix(source.receiver, "*") == "Module") {
+		if valid && source.owner == target.owner && source.method == target.method && source.scope == target.scope && !sameTransactionReceiverType(source, target) {
 			if oldKey != "" {
 				return "", fmt.Errorf("ambiguous receiver transaction source: %s", key)
 			}
@@ -74,6 +77,12 @@ func originalReceiverTransactionKey(key string, current, previous map[string]str
 		return "", fmt.Errorf("source transaction method still declared: %s", key)
 	}
 	return oldKey, nil
+}
+
+// sameTransactionReceiverType reports whether both keys name one type: the
+// same package and receiver, pointer or value.
+func sameTransactionReceiverType(a, b transactionReceiverKey) bool {
+	return a.pkg == b.pkg && strings.TrimPrefix(a.receiver, "*") == strings.TrimPrefix(b.receiver, "*")
 }
 
 func transactionReceiverScopes(entries map[string]string, target transactionReceiverKey) (map[string]string, bool) {

@@ -68,3 +68,24 @@ func guardianInvitationList(invitations []domain.GuardianInvitation, err error) 
 	}
 	return publicGuardianInvitations(invitations), nil
 }
+
+func (l *AccountLifecycle) ListGuardianInvitations(ctx context.Context, guardianProfileID int64) ([]identityaccess.GuardianInvitation, error) {
+	if l == nil {
+		return nil, errAccountLifecycleUnavailable
+	}
+	return NewGuardianInvitationReads(l.invitations, l.sessions.tx.RunRead).ListGuardianInvitations(bindRuntime(l.auth.attach, ctx), guardianProfileID)
+}
+
+func (l *AccountLifecycle) ListOpenGuardianInvitations(ctx context.Context, guardianProfileIDs []int64) ([]identityaccess.GuardianInvitation, error) {
+	if l == nil {
+		return nil, errAccountLifecycleUnavailable
+	}
+	return NewGuardianInvitationReads(l.invitations, l.sessions.tx.RunRead).ListOpenGuardianInvitations(bindRuntime(l.auth.attach, ctx), guardianProfileIDs)
+}
+
+func (l *AccountLifecycle) ListRedeemableGuardianInvitations(ctx context.Context) ([]identityaccess.GuardianInvitation, error) {
+	if l == nil {
+		return nil, errAccountLifecycleUnavailable
+	}
+	return NewGuardianInvitationReads(l.invitations, l.sessions.tx.RunRead).ListRedeemableGuardianInvitations(bindRuntime(l.auth.attach, ctx))
+}

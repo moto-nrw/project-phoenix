@@ -493,7 +493,7 @@ func (p SchoolIdentityProvisioner) HasLiveCaregiverProfile(ctx context.Context, 
 func (p SchoolIdentityProvisioner) EnsureSchoolIdentity(ctx context.Context, request domain.SchoolIdentityRequest) error {
 	if p.Lifecycle != nil {
 		role := request.Role
-		_, err := p.Lifecycle.EnsureSchoolIdentity(ctx, domain.SchoolIdentityInput{
+		_, err := p.Lifecycle.EnsureSchoolIdentityChain(ctx, domain.SchoolIdentityInput{
 			AccountID: request.AccountID, TenantID: request.TenantID,
 			Role: &domain.RoleFacts{
 				ID: role.ID, TenantID: role.TenantID, Name: role.Name, IsSystem: role.IsSystem, BaseRole: role.BaseRole,
