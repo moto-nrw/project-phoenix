@@ -27,8 +27,8 @@ import (
 // keysetPage mimics the real services' contract: rows sorted newest-first,
 // page strictly before (BeforeInstant, BeforeID), the child filters applied in
 // the query, limit+1 probe for the next cursor. Fakes that ignored any of
-// those would make the cursor and search assertions in this file meaningless —
-// the SQL that really does it is covered by the router tests in
+// those would make the cursor assertions in this file meaningless — the SQL
+// that really does it is covered by the router tests in
 // change_request_list_db_test.go.
 func keysetPage[T any](
 	rows []T,
@@ -77,16 +77,11 @@ type aggMasterFake struct {
 	pending      []*masterdatarequests.ReviewItem
 	rows         []*masterdatarequests.HistoryItem
 	pendingCalls int
-	gotFilters   []excusedrequests.QueueFilter
-	gotBefore    []time.Time
-	gotBeforeID  []int64
-	gotLimit     []int
 }
 
 func (f *aggMasterFake) ListPending(_ context.Context, filter excusedrequests.QueueFilter) ([]*masterdatarequests.ReviewItem, *excusedrequests.Cursor, error) {
 	filters := legacyQueueFilters(filter)
 	f.pendingCalls++
-	f.gotFilters = append(f.gotFilters, filters)
 	rows := urgencyRows(f.pending, filters, func(*masterdatarequests.ReviewItem) bool { return false })
 	items, next := keysetPage(rows, filters,
 		func(it *masterdatarequests.ReviewItem) (time.Time, int64) {
@@ -100,10 +95,6 @@ func (f *aggMasterFake) ListPending(_ context.Context, filter excusedrequests.Qu
 
 func (f *aggMasterFake) ListHistory(_ context.Context, filter excusedrequests.QueueFilter) ([]*masterdatarequests.HistoryItem, *excusedrequests.Cursor, error) {
 	filters := legacyQueueFilters(filter)
-	f.gotFilters = append(f.gotFilters, filters)
-	f.gotBefore = append(f.gotBefore, filters.BeforeInstant)
-	f.gotBeforeID = append(f.gotBeforeID, filters.BeforeID)
-	f.gotLimit = append(f.gotLimit, filters.Limit)
 	items, next := keysetPage(f.rows, filters,
 		func(it *masterdatarequests.HistoryItem) (time.Time, int64) {
 			return it.Request.UpdatedAt, it.Request.ID
@@ -118,7 +109,6 @@ type aggCareFake struct {
 	pending      []*careplan.CareScheduleReviewItem
 	rows         []*careplan.CareScheduleHistoryItem
 	pendingCalls int
-	historyCalls int
 }
 
 func (f *aggCareFake) ListPending(_ context.Context, nativeFilter careplan.RequestQueueFilter) ([]*careplan.CareScheduleReviewItem, *careplan.RequestCursor, error) {
@@ -139,7 +129,6 @@ func (f *aggCareFake) ListPending(_ context.Context, nativeFilter careplan.Reque
 
 func (f *aggCareFake) ListHistory(_ context.Context, nativeFilter careplan.RequestQueueFilter) ([]*careplan.CareScheduleHistoryItem, *careplan.RequestCursor, error) {
 	filters := legacyQueueFilters(nativeFilter)
-	f.historyCalls++
 	items, next := keysetPage(f.rows, filters,
 		func(it *careplan.CareScheduleHistoryItem) (time.Time, int64) {
 			return it.Request.UpdatedAt, it.Request.ID
@@ -155,7 +144,6 @@ type aggOfferingFake struct {
 	rows             []*careplan.OfferingHistoryItem
 	corrections      []requestreview.Row
 	pendingCalls     int
-	historyCalls     int
 	correctionsCalls int
 }
 
@@ -194,7 +182,6 @@ func (f *aggOfferingFake) ListPending(_ context.Context, nativeFilter careplan.R
 
 func (f *aggOfferingFake) ListHistory(_ context.Context, nativeFilter careplan.RequestQueueFilter) ([]*careplan.OfferingHistoryItem, *careplan.RequestCursor, error) {
 	filters := legacyQueueFilters(nativeFilter)
-	f.historyCalls++
 	items, next := keysetPage(f.rows, filters,
 		func(it *careplan.OfferingHistoryItem) (time.Time, int64) {
 			return it.Request.UpdatedAt, it.Request.ID
@@ -210,7 +197,6 @@ type aggExcusedFake struct {
 	pending      []*excusedrequests.ReviewItem
 	rows         []*excusedrequests.HistoryItem
 	pendingCalls int
-	historyCalls int
 }
 
 func (f *aggExcusedFake) ListPending(_ context.Context, filter excusedrequests.QueueFilter) ([]*excusedrequests.ReviewItem, *excusedrequests.Cursor, error) {
@@ -230,7 +216,6 @@ func (f *aggExcusedFake) ListPending(_ context.Context, filter excusedrequests.Q
 }
 
 func (f *aggExcusedFake) ListHistory(_ context.Context, filter excusedrequests.QueueFilter) ([]*excusedrequests.HistoryItem, *excusedrequests.Cursor, error) {
-	f.historyCalls++
 	items, next := keysetPage(f.rows, legacyQueueFilters(filter),
 		func(it *excusedrequests.HistoryItem) (time.Time, int64) {
 			return it.Request.UpdatedAt, it.Request.ID
@@ -525,5 +510,79 @@ func TestAggregatedChangeRequests_InvalidQuery(t *testing.T) {
 	} {
 		rr, _ := execAggregated(t, rs, query, aggUpdatePerms)
 		assert.Equal(t, http.StatusBadRequest, rr.Code, fmt.Sprintf("query %q must be rejected", query))
+	}
+}
+
+func aggDirectCorrection(id int64, name string, changedAt time.Time) requestreview.Row {
+	return requestreview.Row{Type: requestreview.TypeDirectCorrection, ID: id, StudentID: 500 + id, StudentName: name, SortTime: changedAt, DecidedAt: changedAt,
+		Data: requestreview.DirectCorrectionResponse{ID: fmt.Sprint(id), StudentID: fmt.Sprint(500 + id), StudentName: name, ChangedAt: changedAt, ChangedByName: "Olga Office", Reason: "Telefonisch gemeldet", Diff: []requestreview.OfferingRequestDiffResponse{{OfferingID: "9", Label: "Mittagessen", Old: "Mo", New: "abgemeldet"}}},
+	}
+}
+
+func TestAggregatedChangeRequests_AbsenceOnlyCallerSeesNoDirectCorrections(t *testing.T) {
+	t.Parallel()
+
+	rs, fakes := newAggResource()
+	fakes.offering.corrections = []requestreview.Row{
+		aggDirectCorrection(7, "Anna Alt", aggBase.Add(3*time.Hour)),
+	}
+
+	rr, page := execAggregated(t, rs, "view=history", []string{"users:absence"})
+	require.Equal(t, http.StatusOK, rr.Code, rr.Body.String())
+	assert.Empty(t, aggTypes(page))
+	assert.Zero(t, fakes.offering.correctionsCalls)
+}
+
+// conflictPage decodes just the conflict/current-value fields, so this test
+// keeps working when the shared aggPage grows.
+type conflictPage struct {
+	Items []struct {
+		RequestType         string            `json:"request_type"`
+		ConflictKeys        []string          `json:"conflict_keys"`
+		ConflictKey         string            `json:"conflict_key"`
+		ConflictGroupSize   int               `json:"conflict_group_size"`
+		CurrentValueChanged *bool             `json:"current_value_changed"`
+		CurrentStatusByDate map[string]string `json:"current_status_by_date"`
+		Past                bool              `json:"past"`
+	} `json:"items"`
+	ReviewAccess string `json:"review_access"`
+}
+
+func execConflictPage(t *testing.T, rs *Resource, rawQuery string, perms []string) conflictPage {
+	t.Helper()
+	rr := httptest.NewRecorder()
+	rs.listAggregatedChangeRequests(rr, aggRequest(t, rawQuery, perms))
+	require.Equal(t, http.StatusOK, rr.Code, rr.Body.String())
+	var env struct {
+		Data conflictPage `json:"data"`
+	}
+	require.NoError(t, json.Unmarshal(rr.Body.Bytes(), &env))
+	return env.Data
+}
+
+// #2267 A12: two absence requests for the same child on the same day
+// contradict each other and must be offered as ONE decision. Deciding them in
+// sequence lets the second silently overwrite the first.
+func TestAggregatedChangeRequests_GroupsContradictingAbsencesOnOneDay(t *testing.T) {
+	t.Parallel()
+
+	rs, fakes := newAggResource()
+	day := calendar.NewDate(2026, 8, 24).AddDays(3)
+	first := aggExcusedPending(1, "Mia", "Muster", aggBase)
+	first.Request.Dates = []excusedrequests.Date{excusedrequests.Date(day)}
+	first.Request.AbsenceStatus = "excused"
+	second := aggExcusedPending(2, "Mia", "Muster", aggBase.Add(-time.Hour))
+	second.Request.StudentID = first.Request.StudentID
+	second.Request.Dates = []excusedrequests.Date{excusedrequests.Date(day)}
+	second.Request.AbsenceStatus = "sick"
+	fakes.excused.pending = []*excusedrequests.ReviewItem{first, second}
+
+	page := execConflictPage(t, rs, "types=excused", aggUpdatePerms)
+	require.Len(t, page.Items, 2)
+	for _, item := range page.Items {
+		assert.Equal(t, []string{"absence:" + day.String()}, item.ConflictKeys)
+		assert.Equal(t, "absence:"+day.String(), item.ConflictKey,
+			"both requests must group on the same key whatever status they ask for")
+		assert.Equal(t, 2, item.ConflictGroupSize)
 	}
 }
