@@ -19,7 +19,8 @@ no backend text; the refusal body is the RFC 9457 envelope of ADR 0006 with
 identity in `code` (#2520). Coordinate endpoint, code and auth-header changes
 across repos. Changing a code the kiosk branches on is a two-repo change:
 `backend/api/testdata/iot_error_codes.golden` (`TestFullProductionRouterGolden`)
-fails until both sides and the golden move together.
+fails until the backend declaration and the golden move together; the
+PyrePortal side is a manual coordination step.
 Backend header and attribution rules: `backend/CLAUDE.md` RFID/IoT Integration.
 
 ### Kiosk error codes

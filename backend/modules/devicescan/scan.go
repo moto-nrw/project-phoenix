@@ -7,9 +7,10 @@ import (
 	"time"
 )
 
-// Wire strings of the kiosk scan flows. PyrePortal substring-matches these
-// (PyrePortal/src/services/apiErrors.ts) and the guard test in api/iot pins
-// them; the HTTP adapter puts them on the wire unchanged (#2698).
+// Wire strings of the kiosk scan flows. Since #2520 PyrePortal branches on
+// the registry code, not on this text (api/testdata/iot_error_codes.golden
+// pins the codes); the HTTP adapter puts the text on the wire unchanged
+// (#2698).
 const (
 	MessageRFIDTagNotFound              = "RFID tag not found"
 	CodeRFIDTagNotFound                 = "iot.rfid_tag_not_found"

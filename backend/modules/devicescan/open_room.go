@@ -6,7 +6,7 @@ import (
 )
 
 // Wire strings of the open-room destination booking (#3067). PyrePortal maps
-// the codes; the guard test in api/iot pins the messages.
+// the codes; api/testdata/iot_error_codes.golden pins them.
 const (
 	MessageOpenRoomIDRequired  = "room_id is required"
 	MessageOpenRoomNotFound    = "room not found"

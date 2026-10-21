@@ -175,8 +175,9 @@ func TestBetreuerRoleCannotReachColleaguePersonnelData(t *testing.T) {
 // 4 of #2906: the directory a Betreuer may read carries names, work e-mail,
 // account role and today's presence, never notes, employment type, absence
 // reason or NFC tag. The fixture here sets only the notes; the other fields
-// are pinned with set values by TestListStaffRedactsForTheDirectoryTier in
-// modules/schoolmembership/http.
+// are pinned with set values on the list by
+// TestListStaffRedactsForTheDirectoryTier in modules/schoolmembership/http,
+// whose field access the single read shares.
 func TestBetreuerRoleSeesOnlyTheMinimalColleagueView(t *testing.T) {
 	t.Parallel()
 
