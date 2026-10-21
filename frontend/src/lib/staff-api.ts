@@ -1,6 +1,7 @@
 // Staff API service for fetching all staff members and their supervision status
 
 import { sessionFetch } from "./session-cache";
+import { staffAvatarUrl } from "./staff-helpers";
 import { createLogger } from "~/lib/logger";
 import {
   type ApiError,
@@ -22,6 +23,8 @@ export interface BackendStaffResponse {
   role: string | null;
   qualifications: string | null;
   account_role?: string | null;
+  /** Stored avatar path of the account; only its presence is read. */
+  avatar?: string | null;
   tag_id: string | null;
   staff_notes: string | null;
   created_at: string;
@@ -74,6 +77,8 @@ export interface Staff {
   firstName: string;
   lastName: string;
   email?: string;
+  /** Profilbild über `/api/staff/[id]/avatar`, fehlt ohne Bild (#4432). */
+  avatarUrl?: string;
   role?: string; // Display role (custom position from teacher profile)
   accountRole?: string; // Auth role (Admin/Betreuer/Extern)
   specialization?: string;
@@ -528,6 +533,7 @@ class StaffService {
       lastName:
         staff.lastName ?? staff.name?.split(" ").slice(1).join(" ") ?? "",
       email: undefined,
+      avatarUrl: staffAvatarUrl(staff.id, staff.avatar),
       role: staff.role ?? undefined,
       accountRole: staff.account_role ?? undefined,
       specialization: staff.specialization?.trim() ?? undefined,

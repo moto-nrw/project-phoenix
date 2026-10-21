@@ -6,7 +6,9 @@ import {
   GroupedList,
   type GroupDefinition,
 } from "~/components/database/grouped-list";
+import { Avatar } from "~/components/ui/avatar";
 import { getRoleDisplayName } from "~/lib/auth-helpers";
+import { staffAvatarUrl } from "~/lib/staff-helpers";
 import type { Teacher } from "@/lib/teacher-api";
 
 interface StaffListProps {
@@ -61,6 +63,16 @@ export function StaffList({ groupDefinitions, objectHref }: StaffListProps) {
         groups={groupDefinitions}
         renderItem={(teacher) => (
           <DatabaseListItem
+            // Profilbild, ohne Bild die Initialen (#4432). Der Name steht
+            // daneben, der Avatar ist also rein schmückend.
+            leadingAccessory={
+              <Avatar
+                imageUrl={staffAvatarUrl(teacher.id, teacher.avatar)}
+                name={getStaffDisplayName(teacher)}
+                size="sm"
+                decorative
+              />
+            }
             title={getStaffDisplayName(teacher)}
             subtitle={buildSubtitle(teacher)}
             isSelected={false}
