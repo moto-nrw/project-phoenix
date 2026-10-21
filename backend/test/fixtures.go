@@ -15,24 +15,12 @@ import (
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess/sessiontoken"
 	"github.com/moto-nrw/project-phoenix/modules/securityruntime"
 	"github.com/moto-nrw/project-phoenix/modules/securityruntime/userpasstest"
-	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
 	"github.com/moto-nrw/project-phoenix/modules/studentpresence/sessionrecordstest"
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 	"github.com/moto-nrw/project-phoenix/tenant"
 	"github.com/stretchr/testify/require"
 	"github.com/uptrace/bun"
 )
-
-// CreateTestRoomCapacityError returns an opaque admission failure for transport
-// contract tests. The room belongs to the calling test's tenant.
-func CreateTestRoomCapacityError(tb testing.TB) error {
-	tb.Helper()
-	room := CreateTestRoom(tb, SetupTestDB(tb), "capacity error")
-	return &studentpresence.RoomCapacityError{
-		RoomID: room.ID, RoomName: room.Name,
-		CurrentOccupancy: 43, MaxCapacity: 43,
-	}
-}
 
 // SQL constants to avoid duplication
 const (
