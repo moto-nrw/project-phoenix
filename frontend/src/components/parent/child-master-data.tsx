@@ -899,7 +899,7 @@ function DepartureSection({
           />
           <FormErrorAlert message={submitError} />
           <EditActions
-            className="border-t border-gray-100 pt-4 max-sm:[&>*]:min-h-11 max-sm:[&>*]:flex-1"
+            className="border-t border-gray-100 pt-4 max-sm:flex-col-reverse max-sm:[&>*]:min-h-11 max-sm:[&>*]:w-full"
             onCancel={cancelEditing}
             onSave={() => void submit()}
             saving={status === "saving"}
