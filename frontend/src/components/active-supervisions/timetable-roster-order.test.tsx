@@ -1,4 +1,4 @@
-import { render, screen, within } from "@testing-library/react";
+import { fireEvent, render, screen, within } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 
 import { TimetableRosterContent } from "./timetable-roster";
@@ -73,9 +73,12 @@ function roster(
   };
 }
 
-function renderRoster(value: TimetableRoster) {
-  render(
+type RowFilter = ((row: TimetableRosterRow) => boolean) | null;
+
+function rosterView(value: TimetableRoster, rowFilter: RowFilter = null) {
+  return (
     <TimetableRosterContent
+      rowFilter={rowFilter}
       addStudentResults={[]}
       addStudentSearch=""
       attendanceWebEnabled={false}
@@ -90,8 +93,12 @@ function renderRoster(value: TimetableRoster) {
       onConfirmExpected={vi.fn()}
       onRosterAction={vi.fn()}
       onSearchChange={vi.fn()}
-    />,
+    />
   );
+}
+
+function renderRoster(value: TimetableRoster) {
+  return render(rosterView(value));
 }
 
 function sectionTitles(): string[] {
@@ -133,6 +140,57 @@ describe("TimetableRosterContent section order (#4353)", () => {
       "Teilnehmende (1)",
       "Nicht mehr im Raum (1)",
     ]);
+  });
+});
+
+describe("TimetableRosterContent collapsible sections (#4353)", () => {
+  const rows = [
+    rosterRow("1", "Anna Planned", { currentlyPresent: true }),
+    rosterRow("2", "Ben Expected"),
+    rosterRow("4", "Dana Gone", { status: "present" }),
+  ];
+
+  it("opens with the children who left folded and every other list open", () => {
+    renderRoster(roster(rows));
+
+    expect(
+      screen.getByRole("button", { name: "Nicht mehr im Raum ausklappen" }),
+    ).toHaveAttribute("aria-expanded", "false");
+    expect(screen.queryByText("Dana Gone")).not.toBeInTheDocument();
+    for (const title of ["Anwesend", "Erwartet"]) {
+      expect(
+        screen.getByRole("button", { name: `${title} einklappen` }),
+      ).toHaveAttribute("aria-expanded", "true");
+    }
+    expect(screen.getByText("Anna Planned")).toBeInTheDocument();
+    expect(screen.getByText("Ben Expected")).toBeInTheDocument();
+  });
+
+  it("folds and unfolds a list from the arrow in its head", () => {
+    renderRoster(roster(rows));
+
+    fireEvent.click(
+      screen.getByRole("button", { name: "Nicht mehr im Raum ausklappen" }),
+    );
+    expect(screen.getByText("Dana Gone")).toBeInTheDocument();
+
+    fireEvent.click(
+      screen.getByRole("button", { name: "Anwesend einklappen" }),
+    );
+    expect(screen.queryByText("Anna Planned")).not.toBeInTheDocument();
+    expect(screen.getByText("Anwesend (1)")).toBeInTheDocument();
+  });
+
+  it("opens every list for a search and folds the children who left again after it", () => {
+    const { rerender } = renderRoster(roster(rows));
+    rerender(
+      rosterView(roster(rows), (row) => row.studentName.startsWith("Dana")),
+    );
+    expect(screen.getByText("Dana Gone")).toBeInTheDocument();
+
+    rerender(rosterView(roster(rows)));
+    expect(screen.queryByText("Dana Gone")).not.toBeInTheDocument();
+    expect(screen.getByText("Anna Planned")).toBeInTheDocument();
   });
 });
 

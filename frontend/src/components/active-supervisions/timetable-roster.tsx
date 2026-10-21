@@ -1,6 +1,7 @@
 "use client";
 
 import {
+  Fragment,
   useEffect,
   useId,
   useState,
@@ -18,7 +19,10 @@ import { EmptyStudentResults } from "~/components/ui/empty-student-results";
 import { Input } from "~/components/ui/input";
 import { OccupancyBadges } from "~/components/ui/occupancy-badges";
 import type { PresentChildrenPickerProps } from "~/components/active-supervisions/present-children-picker";
-import { SectionCard } from "~/components/ui/section-card";
+import {
+  SectionCard,
+  SectionCollapseToggle,
+} from "~/components/ui/section-card";
 import { GroupIcon, SchoolClassIcon } from "~/components/students/student-card";
 import { overbookedHintFor, type Occupancy } from "~/lib/activity-occupancy";
 import { useNFCEnabled } from "~/lib/tenant-context";
@@ -482,6 +486,8 @@ function TimetableRosterStudentRow({
 
 interface TimetableRosterSectionProps {
   readonly actionAccess: RosterActionAccess;
+  /** Folded when the roster opens; nothing remembers the reader's choice. */
+  readonly defaultCollapsed?: boolean;
   /** One line under the section title — for a precondition the rows share. */
   readonly description?: string;
   readonly instanceIsSpontaneous: boolean;
@@ -498,6 +504,7 @@ interface TimetableRosterSectionProps {
 
 function TimetableRosterSection({
   actionAccess,
+  defaultCollapsed = false,
   description,
   instanceIsSpontaneous,
   now,
@@ -510,36 +517,50 @@ function TimetableRosterSection({
   showTimetableCounts,
   title,
 }: TimetableRosterSectionProps) {
+  const [collapsed, setCollapsed] = useState(defaultCollapsed);
+  const bodyId = useId();
   if (rows.length === 0) return null;
   const countLabel = showTimetableCounts ? ` (${rows.length})` : "";
 
   return (
     <section className="moto-content-surface overflow-hidden rounded-lg border">
-      <div className="border-b border-gray-100 bg-gray-50 px-4 py-2">
+      <div
+        className={`grid grid-cols-[1fr_auto] items-center gap-x-2 bg-gray-50 py-1 pr-2 pl-4 ${collapsed ? "" : "border-b border-gray-100"}`}
+      >
         <span className="text-sm font-semibold text-gray-700">
           {title}
           {countLabel}
         </span>
+        <SectionCollapseToggle
+          title={title}
+          collapsed={collapsed}
+          controls={collapsed ? undefined : bodyId}
+          onToggle={() => setCollapsed((value) => !value)}
+        />
         {description ? (
-          <p className="mt-0.5 text-xs font-normal text-gray-500">
+          <p className="col-span-2 -mt-1 pb-1 text-xs font-normal text-gray-500">
             {description}
           </p>
         ) : null}
       </div>
-      {rows.map((row) => (
-        <TimetableRosterStudentRow
-          key={`${row.studentId}-${row.status}-${row.visitId ?? "planned"}`}
-          actionAccess={actionAccess}
-          instanceIsSpontaneous={instanceIsSpontaneous}
-          now={now}
-          rosterDate={rosterDate}
-          pickupTimesLoaded={pickupTimesLoaded}
-          pickupTimesRedacted={pickupTimesRedacted}
-          row={row}
-          onAction={onAction}
-          onOpenStudent={onOpenStudent}
-        />
-      ))}
+      {collapsed ? null : (
+        <div id={bodyId}>
+          {rows.map((row) => (
+            <TimetableRosterStudentRow
+              key={`${row.studentId}-${row.status}-${row.visitId ?? "planned"}`}
+              actionAccess={actionAccess}
+              instanceIsSpontaneous={instanceIsSpontaneous}
+              now={now}
+              rosterDate={rosterDate}
+              pickupTimesLoaded={pickupTimesLoaded}
+              pickupTimesRedacted={pickupTimesRedacted}
+              row={row}
+              onAction={onAction}
+              onOpenStudent={onOpenStudent}
+            />
+          ))}
+        </div>
+      )}
     </section>
   );
 }
@@ -1276,42 +1297,47 @@ export function TimetableRosterContent({
           />
         </SectionCard>
       ) : null}
-      {/* Children in the room come first, planned or not (#4353). */}
-      <TimetableRosterSection
-        title="Anwesend"
-        rows={visible.present}
-        {...sectionProps}
-      />
-      <TimetableRosterSection
-        title={unplannedTitle}
-        rows={visible.unplanned}
-        {...sectionProps}
-      />
-      <TimetableRosterSection
-        title="Erwartet"
-        rows={visible.expected}
-        {...sectionProps}
-      />
-      <TimetableRosterSection
-        title="Kommt später"
-        rows={visible.arrivingLater}
-        {...sectionProps}
-      />
-      <TimetableRosterSection
-        title="Heute nicht eingeplant"
-        rows={visible.notScheduled}
-        {...sectionProps}
-      />
-      <TimetableRosterSection
-        title="Entschuldigt / Abwesend"
-        rows={visible.absent}
-        {...sectionProps}
-      />
-      <TimetableRosterSection
-        title="Nicht mehr im Raum"
-        rows={visible.departed}
-        {...sectionProps}
-      />
+      {/* Children in the room come first, planned or not (#4353). Each list
+          folds from its head; a search remounts them open so every hit shows,
+          and ending it restores the opening state. */}
+      <Fragment key={rowFilter ? "search" : "all"}>
+        <TimetableRosterSection
+          title="Anwesend"
+          rows={visible.present}
+          {...sectionProps}
+        />
+        <TimetableRosterSection
+          title={unplannedTitle}
+          rows={visible.unplanned}
+          {...sectionProps}
+        />
+        <TimetableRosterSection
+          title="Erwartet"
+          rows={visible.expected}
+          {...sectionProps}
+        />
+        <TimetableRosterSection
+          title="Kommt später"
+          rows={visible.arrivingLater}
+          {...sectionProps}
+        />
+        <TimetableRosterSection
+          title="Heute nicht eingeplant"
+          rows={visible.notScheduled}
+          {...sectionProps}
+        />
+        <TimetableRosterSection
+          title="Entschuldigt / Abwesend"
+          rows={visible.absent}
+          {...sectionProps}
+        />
+        <TimetableRosterSection
+          title="Nicht mehr im Raum"
+          rows={visible.departed}
+          defaultCollapsed={!rowFilter}
+          {...sectionProps}
+        />
+      </Fragment>
     </div>
   );
 }

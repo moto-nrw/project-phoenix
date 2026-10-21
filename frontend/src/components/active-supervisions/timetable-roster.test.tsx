@@ -113,6 +113,10 @@ describe("TimetableRosterContent pickup times", () => {
       ),
     );
 
+    // The children who left start folded (#4353).
+    fireEvent.click(
+      screen.getByRole("button", { name: "Nicht mehr im Raum ausklappen" }),
+    );
     for (const time of ["13:00", "13:10", "13:20", "13:30", "13:40"]) {
       expect(screen.getByText(`Gehzeit: ${time}`)).toBeInTheDocument();
     }
