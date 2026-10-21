@@ -1,28 +1,23 @@
 package httpadapter
 
 import (
+	"net/http"
+
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/render"
 	"github.com/moto-nrw/project-phoenix/api/common"
 	"github.com/moto-nrw/project-phoenix/auth/authorize/permissions"
+	timetableModule "github.com/moto-nrw/project-phoenix/modules/timetable"
 )
 
-// SchedulesResource defines the schedules API resource
+// SchedulesResource serves the timeframe list the activity forms offer.
 type SchedulesResource struct {
-	Dateframes     Dateframes
-	Timeframes     Timeframes
-	TimeframeGuard TimeframeChangeGuard
-	transactions   Transactions
+	Timeframes timetableModule.TimeframeQuery
 }
 
 // NewSchedulesResource creates a new schedules resource
-func NewSchedulesResource(dateframes Dateframes, timeframes Timeframes, guard TimeframeChangeGuard, transactions Transactions) *SchedulesResource {
-	return &SchedulesResource{
-		Dateframes:     dateframes,
-		Timeframes:     timeframes,
-		TimeframeGuard: guard,
-		transactions:   transactions,
-	}
+func NewSchedulesResource(timeframes timetableModule.TimeframeQuery) *SchedulesResource {
+	return &SchedulesResource{Timeframes: timeframes}
 }
 
 // Router returns a configured router for schedule endpoints
@@ -30,60 +25,63 @@ func (rs *SchedulesResource) Router(protectedTenantRoutes func(chi.Router, func(
 	r := chi.NewRouter()
 	r.Use(render.SetContentType(render.ContentTypeJSON))
 
-	// Protected routes that require authentication and permissions
 	protectedTenantRoutes(r, func(r chi.Router, withTx common.Middleware) {
-
-		// Current dateframe endpoint - requires schedules:read permission
-		r.With(common.RequiresPermission(permissions.SchedulesRead), withTx).Get("/current-dateframe", rs.getCurrentDateframe)
-
-		// Dateframe endpoints
-		r.Route("/dateframes", func(r chi.Router) {
-			r.With(common.RequiresPermission(permissions.ActivitiesRead), withTx).Get("/", rs.listDateframes)
-			r.With(common.RequiresPermission(permissions.ActivitiesRead), withTx).Get("/{id}", rs.getDateframe)
-			r.With(common.RequiresPermission(permissions.ActivitiesCreate), withTx).Post("/", rs.createDateframe)
-			r.With(common.RequiresPermission(permissions.ActivitiesUpdate), withTx).Put("/{id}", rs.updateDateframe)
-			r.With(common.RequiresPermission(permissions.ActivitiesDelete), withTx).Delete("/{id}", rs.deleteDateframe)
-
-			// Special dateframe queries
-			r.With(common.RequiresPermission(permissions.ActivitiesRead), withTx).Get("/by-date", rs.getDateframesByDate)
-			r.With(common.RequiresPermission(permissions.ActivitiesRead), withTx).Get("/overlapping", rs.getOverlappingDateframes)
-		})
-
-		// Timeframe endpoints
 		r.Route("/timeframes", func(r chi.Router) {
 			r.With(common.RequiresPermission(permissions.ActivitiesRead), withTx).Get("/", rs.listTimeframes)
-			r.With(common.RequiresPermission(permissions.ActivitiesRead), withTx).Get("/{id}", rs.getTimeframe)
-			r.With(common.RequiresPermission(permissions.ActivitiesCreate), withTx).Post("/", rs.createTimeframe)
-			r.With(common.RequiresPermission(permissions.ActivitiesUpdate), withTx).Put("/{id}", rs.updateTimeframe)
-			r.With(common.RequiresPermission(permissions.ActivitiesDelete), withTx).Delete("/{id}", rs.deleteTimeframe)
-
-			// Special timeframe queries
-			r.With(common.RequiresPermission(permissions.ActivitiesRead), withTx).Get("/active", rs.getActiveTimeframes)
-			r.With(common.RequiresPermission(permissions.ActivitiesRead), withTx).Get("/by-range", rs.getTimeframesByRange)
 		})
-
-		// Recurrence rule endpoints
-		r.Route("/recurrence-rules", func(r chi.Router) {
-			r.With(common.RequiresPermission(permissions.ActivitiesRead), withTx).Get("/", rs.listRecurrenceRules)
-			r.With(common.RequiresPermission(permissions.ActivitiesRead), withTx).Get("/{id}", rs.getRecurrenceRule)
-			r.With(common.RequiresPermission(permissions.ActivitiesCreate), withTx).Post("/", rs.createRecurrenceRule)
-			r.With(common.RequiresPermission(permissions.ActivitiesUpdate), withTx).Put("/{id}", rs.updateRecurrenceRule)
-			r.With(common.RequiresPermission(permissions.ActivitiesDelete), withTx).Delete("/{id}", rs.deleteRecurrenceRule)
-
-			// Special recurrence rule queries and operations
-			r.With(common.RequiresPermission(permissions.ActivitiesRead), withTx).Get("/by-frequency", rs.getRecurrenceRulesByFrequency)
-			r.With(common.RequiresPermission(permissions.ActivitiesRead), withTx).Get("/by-weekday", rs.getRecurrenceRulesByWeekday)
-			r.With(common.RequiresPermission(permissions.ActivitiesRead), withTx).Post("/{id}/generate-events", rs.generateEvents)
-		})
-
-		// Advanced scheduling operations
-		r.With(common.RequiresPermission(permissions.ActivitiesRead), withTx).Post("/check-conflict", rs.checkConflict)
-		r.With(common.RequiresPermission(permissions.ActivitiesRead), withTx).Post("/find-available-slots", rs.findAvailableSlots)
 	})
 
 	return r
 }
 
-// Request and Response structures
+// TimeframeResponse represents a timeframe response
+type TimeframeResponse struct {
+	ID          int64        `json:"id"`
+	StartTime   common.Time  `json:"start_time"`
+	EndTime     *common.Time `json:"end_time,omitempty"`
+	IsActive    bool         `json:"is_active"`
+	Description string       `json:"description,omitempty"`
+	CreatedAt   common.Time  `json:"created_at"`
+	UpdatedAt   common.Time  `json:"updated_at"`
+}
 
-// DateframeRequest represents a dateframe creation/update request
+func (rs *SchedulesResource) listTimeframes(w http.ResponseWriter, r *http.Request) {
+	filter := timetableModule.TimeframeFilter{DescriptionContains: r.URL.Query().Get("description")}
+	page, pageSize := common.ParsePagination(r)
+	filter.Limit, filter.Offset = pageSize, (page-1)*pageSize
+
+	values, err := rs.Timeframes.ListTimeframes(r.Context(), filter)
+	var timeframes []timeframeSlot
+	if err == nil {
+		timeframes, err = timeframesToSlots(values)
+	}
+	if err != nil {
+		common.RenderError(w, r, common.ErrorInternalServer(err))
+		return
+	}
+
+	responses := make([]TimeframeResponse, len(timeframes))
+	for i, tf := range timeframes {
+		responses[i] = newTimeframeResponse(tf)
+	}
+
+	common.RespondPaginated(w, r, http.StatusOK, responses, common.PaginationParams{Page: page, PageSize: pageSize, Total: len(responses)}, "Timeframes retrieved successfully")
+}
+
+func newTimeframeResponse(timeframe timeframeSlot) TimeframeResponse {
+	resp := TimeframeResponse{
+		ID:          timeframe.ID,
+		StartTime:   common.Time(timeframe.StartTime),
+		IsActive:    timeframe.IsActive,
+		Description: timeframe.Description,
+		CreatedAt:   common.Time(timeframe.CreatedAt),
+		UpdatedAt:   common.Time(timeframe.UpdatedAt),
+	}
+
+	if timeframe.EndTime != nil {
+		endTime := common.Time(*timeframe.EndTime)
+		resp.EndTime = &endTime
+	}
+
+	return resp
+}

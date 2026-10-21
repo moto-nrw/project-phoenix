@@ -873,8 +873,7 @@ func mountSchoolRoutes(
 	tenant chi.Router, db transactionruntime.Database, logger *slog.Logger, facilities facilitiesModule.Capability, rooms FacilitiesRooms,
 	settings settingsCompose.SettingsService, caller *owners.CallerRows, active studentpresence.Presence, users peoplePorts.PersonDirectory,
 	education schoolstructure.GroupManagement, renderer *lists.RendererService, activities activityContract.ActivityService,
-	timetableOwner timetableModule.Capability, iot devicefleetCompose.IoTService, calendar schoolcalendar.Calendar,
-	planning TimetablePlanning, careOfferings carePlanModule.CareOfferingCapability, settingsWrites SettingsWrites,
+	timetableOwner timetableModule.Capability, iot devicefleetCompose.IoTService, settingsWrites SettingsWrites,
 	membership schoolMembershipModule.Capability, classListEntries schoolMembershipModule.ClassListEntries, databaseStats DatabaseStatsReader,
 	dataImports imports, persons peopledirectory.Capability, gradeTransition *gradetransition.Workflow, enrollment *enrollmentAPI.Resource,
 ) {
@@ -893,13 +892,8 @@ func mountSchoolRoutes(
 	// point: the root composes it and the IoT service hands it back here
 	// (#2676).
 	tenant.Mount("/display", NewDisplayHTTPRouter(iot.Fleet(), DisplayFeatureEnabled(settings)))
-	// Dateframes belong to the School Calendar, timeframes and recurrence
-	// rules to the Timetable owner; timeframe changes stay guarded by the
-	// recurrence gate and the Care Plan catalog's care-offering check.
-	tenant.Mount("/schedules", timetableHTTPAdapter.NewSchedulesResource(calendar, timetableOwner, TimeframeChangeGuard(
-		planning.Planning.RecurrenceLock.LockRecurrenceWrites,
-		careOfferings.ValidateTimeframeChange,
-	), TimetableHTTPTransactions).Router(ProtectedTenantRoutes))
+	// The timeframe list the activity forms offer (Timetable owner).
+	tenant.Mount("/schedules", timetableHTTPAdapter.NewSchedulesResource(timetableOwner).Router(ProtectedTenantRoutes))
 	// The schema-driven settings system.
 	homeLayouts := requireHomeLayoutOperations(settings)
 	tenant.Mount("/settings", newSettingsResource(db, settingsWrites.Tenant, homeLayouts, owners.NewEnrollmentBookings().SchemaReferencesLegalDocument).SettingsRouter())

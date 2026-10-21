@@ -42,7 +42,6 @@ type TimeframeQuery interface {
 type TimeframeCommand interface {
 	CreateTimeframe(context.Context, TimeframeInput) (Timeframe, error)
 	UpdateTimeframe(context.Context, int64, TimeframeInput) (Timeframe, error)
-	DeleteTimeframe(context.Context, int64) error
 }
 
 type TimeframeCapability interface {

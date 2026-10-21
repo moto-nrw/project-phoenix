@@ -76,15 +76,3 @@ func (s *Service) UpdateTimeframe(ctx context.Context, id int64, fields timetabl
 	})
 	return result, err
 }
-
-func (s *Service) DeleteTimeframe(ctx context.Context, id int64) error {
-	if id <= 0 {
-		return s.reject("delete_timeframe", timetable.ErrInvalidTimeframe)
-	}
-
-	return s.runWrite(ctx, "delete_timeframe", true, func(txCtx context.Context, stats *domain.OperationStats) error {
-		queryStats, err := s.store.DeleteTimeframe(txCtx, id)
-		stats.Add(queryStats)
-		return err
-	})
-}

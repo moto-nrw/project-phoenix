@@ -256,38 +256,6 @@ func normalizePlanningTrack(input timetable.PlanningTrackInput) (timetable.Plann
 	return input, valid
 }
 
-func normalizeRecurrenceRule(input timetable.RecurrenceRuleInput) (timetable.RecurrenceRuleInput, bool) {
-	input.Frequency = strings.ToLower(input.Frequency)
-	if !validRecurrenceFrequency(input.Frequency) || input.IntervalCount < 1 {
-		return input, false
-	}
-	for index, weekday := range input.Weekdays {
-		input.Weekdays[index] = strings.ToUpper(weekday)
-		if !validRecurrenceWeekday(input.Weekdays[index]) {
-			return input, false
-		}
-	}
-	for _, day := range input.MonthDays {
-		if day < 1 || day > 31 {
-			return input, false
-		}
-	}
-	return input, (input.Count == nil || *input.Count > 0) && (input.EndDate == nil || input.Count == nil)
-}
-
-func validRecurrenceFrequency(value string) bool {
-	return value == "daily" || value == "weekly" || value == "monthly" || value == "yearly"
-}
-
-func validRecurrenceWeekday(value string) bool {
-	switch value {
-	case "MON", "TUE", "WED", "THU", "FRI", "SAT", "SUN":
-		return true
-	default:
-		return false
-	}
-}
-
 func hasDuplicateID(ids []int64) bool {
 	seen := make(map[int64]struct{}, len(ids))
 	for _, id := range ids {
@@ -544,11 +512,6 @@ func validRosterArchiveEntries(entries []timetable.RosterArchiveEntry) bool {
 }
 
 func validPickupClock(value string) bool { return pickupClockPattern.MatchString(value) }
-
-func validRecurrenceRuleSort(value string) bool {
-	return value == "" || value == "id" || value == "frequency" || value == "interval_count" ||
-		value == "end_date" || value == "count" || value == "created_at" || value == "updated_at"
-}
 
 // validDutyGroup applies the duty rule to a group write; other types pass.
 func validDutyGroup(input *timetable.GroupInput) bool {

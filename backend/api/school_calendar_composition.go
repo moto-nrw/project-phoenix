@@ -2,14 +2,11 @@ package api
 
 import (
 	"context"
-	"fmt"
 
 	owners "github.com/moto-nrw/project-phoenix/roots/owners"
 
 	"github.com/moto-nrw/project-phoenix/modules/careplan"
 	"github.com/moto-nrw/project-phoenix/modules/schoolcalendar"
-	"github.com/moto-nrw/project-phoenix/modules/timetable"
-	timetableHTTPAdapter "github.com/moto-nrw/project-phoenix/modules/timetable/http/activities"
 	"github.com/moto-nrw/project-phoenix/modules/workforce"
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 )
@@ -70,32 +67,4 @@ func (c planningCalendarCapability) ClosingDaysInRange(ctx context.Context, from
 		result = append(result, workforce.ClosingPeriod{StartDate: day.StartDate, EndDate: day.EndDate, Reason: day.Reason})
 	}
 	return result, nil
-}
-
-// TimeframeChangeGuard binds the schedules API's timeframe edit and delete
-// guard: the change is serialized under the tenant recurrence gate and
-// refused while a linked care offering still needs the timeframe.
-func TimeframeChangeGuard(
-	lockRecurrence func(context.Context) error,
-	validate func(ctx context.Context, timeframeID int64, replacement *careplan.TimeframeReplacement) error,
-) timetableHTTPAdapter.TimeframeChangeGuard {
-	return func(ctx context.Context, timeframeID int64, replacement *timetable.TimeframeInput) error {
-		if err := lockRecurrence(ctx); err != nil {
-			return fmt.Errorf("lock timetable recurrence: %w", err)
-		}
-		var proposed *careplan.TimeframeReplacement
-		if replacement != nil {
-			proposed = &careplan.TimeframeReplacement{
-				StartTime: replacement.StartTime, EndTime: replacement.EndTime,
-				IsActive: replacement.IsActive, Description: replacement.Description,
-			}
-		}
-		if err := validate(ctx, timeframeID, proposed); err != nil {
-			if IsCareOfferingConfigInvalid(err) {
-				return fmt.Errorf("%w: %w", timetable.ErrTimeframeRequiredByCareOffering, err)
-			}
-			return fmt.Errorf("validate care offerings: %w", err)
-		}
-		return nil
-	}
 }

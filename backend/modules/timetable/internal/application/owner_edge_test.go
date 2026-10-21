@@ -25,7 +25,6 @@ type ownerEdgeStore struct {
 	supervisor timetable.PlannedSupervisorInput
 	timeframe  timetable.TimeframeInput
 	track      timetable.PlanningTrackInput
-	recurrence timetable.RecurrenceRuleInput
 	calls      int
 	rejections []string
 }
@@ -86,12 +85,6 @@ func (s *ownerEdgeStore) CreatePlanningTrack(_ context.Context, input timetable.
 	s.calls++
 	s.track = input
 	return timetable.PlanningTrack{Name: input.Name, Color: input.Color, SortOrder: input.SortOrder}, domain.OperationStats{}, nil
-}
-
-func (s *ownerEdgeStore) CreateRecurrenceRule(_ context.Context, input timetable.RecurrenceRuleInput) (timetable.RecurrenceRule, domain.OperationStats, error) {
-	s.calls++
-	s.recurrence = input
-	return timetable.RecurrenceRule{Frequency: input.Frequency, Weekdays: input.Weekdays}, domain.OperationStats{}, nil
 }
 
 type ownerEdgeTransaction struct{}
@@ -300,27 +293,6 @@ func TestModuleNormalizesAndValidatesPlanningTracks(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, "Spur", created.Name)
 	assert.Equal(t, "Spur", store.track.Name)
-}
-
-func TestModuleNormalizesAndValidatesRecurrenceRules(t *testing.T) {
-	t.Parallel()
-	service, store := newOwnerEdgeService()
-	ctx := context.Background()
-
-	_, err := service.CreateRecurrenceRule(ctx, timetable.RecurrenceRuleInput{Frequency: "never", IntervalCount: 1})
-	require.ErrorIs(t, err, timetable.ErrInvalidRecurrenceRule)
-	_, err = service.CreateRecurrenceRule(ctx, timetable.RecurrenceRuleInput{Frequency: "weekly", IntervalCount: 1, Weekdays: []string{"NOPE"}})
-	require.ErrorIs(t, err, timetable.ErrInvalidRecurrenceRule)
-	_, err = service.ListRecurrenceRules(ctx, timetable.RecurrenceRuleFilter{Limit: -1})
-	require.ErrorIs(t, err, timetable.ErrInvalidRecurrenceRuleQuery)
-	assert.Zero(t, store.calls)
-
-	created, err := service.CreateRecurrenceRule(ctx, timetable.RecurrenceRuleInput{
-		Frequency: "WEEKLY", IntervalCount: 1, Weekdays: []string{"mon"},
-	})
-	require.NoError(t, err)
-	assert.Equal(t, "weekly", created.Frequency)
-	assert.Equal(t, []string{"MON"}, store.recurrence.Weekdays)
 }
 
 func TestModuleNormalizesAndValidatesGroupWrites(t *testing.T) {

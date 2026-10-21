@@ -237,7 +237,6 @@ var queryBudgets = map[string]queryBudget{
 	"modules.timetable.enrollments.list":         {max: 1, exact: true},
 	"modules.timetable.timeframes.list":          {max: 1, exact: true},
 	"modules.timetable.planning_tracks.list":     {max: 1, exact: true},
-	"modules.timetable.recurrence_rules.list":    {max: 1, exact: true},
 	"modules.timetable.activity_exceptions.list": {max: 1, exact: true},
 	"modules.timetable.activity_instances.list":  {max: 1, exact: true},
 	"modules.timetable.instance_staff.list":      {max: 1, exact: true},

@@ -110,7 +110,7 @@ func TestReadOnlyPreviewMiddleware(t *testing.T) {
 			"/api/students/123/pickup-schedules/preview",
 			"/api/enrollment/phases/9/export",
 			"/api/students/pickup-times/bulk",
-			"/api/schedules/check-conflict",
+			"/api/students/arrival-times/bulk",
 			"/api/timetable/lists/options",
 		}
 		for _, path := range cases {

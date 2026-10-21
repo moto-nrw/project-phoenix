@@ -25,23 +25,8 @@ import (
 )
 
 // The guards the Care Plan catalog (#3559) offers the owners of calendar
-// periods, timeframes, rooms and phases, driven through the catalog composed
+// periods, rooms and phases, driven through the catalog composed
 // over the test database as the server binds it.
-
-// timeframeReplacementOf describes a stored timeframe as the catalog's
-// proposed replacement with HH:MM:SS clock values.
-func timeframeReplacementOf(timeframe timetable.Timeframe) *careplan.TimeframeReplacement {
-	replacement := &careplan.TimeframeReplacement{
-		StartTime:   timeframe.StartTime,
-		IsActive:    timeframe.IsActive,
-		Description: timeframe.Description,
-	}
-	if timeframe.EndTime != nil {
-		end := *timeframe.EndTime
-		replacement.EndTime = &end
-	}
-	return replacement
-}
 
 type calendarPeriodValidationFixture struct {
 	db       *bun.DB
@@ -699,7 +684,7 @@ func inCareTenantTx(t *testing.T, db *bun.DB, fn func(ctx context.Context) error
 	return inner
 }
 
-func TestCareOfferingMaterializability_ValidatesTimeframeReplacementAndDeletion(t *testing.T) {
+func TestCareOfferingMaterializability_ValidatesRoomDeletion(t *testing.T) {
 	t.Parallel()
 	testpkg.SetupIsolatedTestDB(t)
 	db, svc, catalog, phase, cleanup := setupCareGuardTest(t)
@@ -710,7 +695,7 @@ func TestCareOfferingMaterializability_ValidatesTimeframeReplacementAndDeletion(
 		calendar.NewDate(2026, 8, 1), calendar.NewDate(2027, 8, 31))
 	group := createCareOfferingTemplateGroup(t, db, "resource-change")
 	end := calendar.NormalizeWallClock(time.Date(2000, 1, 1, 15, 0, 0, 0, time.UTC))
-	timeframe, _ := createCareMaterializationSchedule(t, db, group.ID, period.ID, &end)
+	createCareMaterializationSchedule(t, db, group.ID, period.ID, &end)
 	_, err := svc.Create(testpkg.Ctx(t), baseGuardLinkedOffering(t, phase.ID, group.ID))
 	require.NoError(t, err)
 
@@ -719,61 +704,6 @@ func TestCareOfferingMaterializability_ValidatesTimeframeReplacementAndDeletion(
 	})
 	require.ErrorIs(t, err, careplan.ErrCareOfferingConfigInvalid)
 	assert.ErrorContains(t, err, "no effective room")
-
-	err = inCareTenantTx(t, db, func(ctx context.Context) error {
-		return catalog.ValidateTimeframeChange(ctx, timeframe.ID, nil)
-	})
-	require.ErrorIs(t, err, careplan.ErrCareOfferingConfigInvalid)
-	assert.ErrorContains(t, err, "no complete timeframe")
-
-	openEnded := timeframeReplacementOf(*timeframe)
-	openEnded.EndTime = nil
-	err = inCareTenantTx(t, db, func(ctx context.Context) error {
-		return catalog.ValidateTimeframeChange(ctx, timeframe.ID, openEnded)
-	})
-	require.ErrorIs(t, err, careplan.ErrCareOfferingConfigInvalid)
-
-	inactive := timeframeReplacementOf(*timeframe)
-	inactive.IsActive = false
-	require.NoError(t, inCareTenantTx(t, db, func(ctx context.Context) error {
-		return catalog.ValidateTimeframeChange(ctx, timeframe.ID, inactive)
-	}),
-		"materialization deliberately accepts inactive timeframes with complete clock times")
-}
-
-func TestCareOfferingMaterializability_RejectsCompleteReplacementWhenPartialExceptionBecomesInvalid(t *testing.T) {
-	t.Parallel()
-	testpkg.SetupIsolatedTestDB(t)
-	db, svc, catalog, phase, cleanup := setupCareGuardTest(t)
-	defer cleanup()
-	monday := calendar.NewDate(2026, time.September, 7)
-	setCareTestPhaseWindow(t, db, phase, monday, monday)
-	period := api.CreateCareOfferingCalendarPeriod(func(err error) { require.NoError(t, err) }, testpkg.NewDatabase(t, db), testpkg.Ctx(t), testpkg.Tenant(t), uniqueSchemaName("replacement-partial-exception"+"-"+
-		t.Name()),
-
-		calendar.NewDate(2026, 9, 1), calendar.NewDate(2026, 9, 30))
-	group := createCareOfferingTemplateGroup(t, db, "replacement-partial-exception")
-	originalEnd := calendar.NormalizeWallClock(time.Date(2000, 1, 1, 17, 0, 0, 0, time.UTC))
-	timeframe, _ := createCareMaterializationSchedule(t, db, group.ID, period.ID, &originalEnd)
-	overrideStart := calendar.NormalizeWallClock(time.Date(2000, 1, 1, 16, 0, 0, 0, time.UTC))
-	createCareMaterializationException(t, db, &timetable.ActivityException{
-		ActivityGroupID: group.ID,
-		ExceptionDate:   string(string(careplan.Date(monday))),
-		ExceptionType:   timetable.ActivityExceptionModified,
-		StartTime:       activityClockPtr(&overrideStart),
-	})
-	_, err := svc.Create(testpkg.Ctx(t), baseGuardLinkedOffering(t, phase.ID, group.ID))
-	require.NoError(t, err, "the partial override is valid against the stored 17:00 end")
-
-	replacement := timeframeReplacementOf(*timeframe)
-	replacementEnd := "15:00:00"
-	replacement.EndTime = &replacementEnd
-	err = inCareTenantTx(t, db, func(ctx context.Context) error {
-		return catalog.ValidateTimeframeChange(ctx, timeframe.ID, replacement)
-	})
-	require.ErrorIs(t, err, careplan.ErrCareOfferingConfigInvalid)
-	assert.ErrorContains(t, err, "invalid effective start/end time",
-		"replacement and partial exception must be composed before validating effective times")
 }
 
 func TestCareOfferingMaterializability_CancellationDoesNotRequireRoom(t *testing.T) {

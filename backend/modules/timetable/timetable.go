@@ -56,9 +56,6 @@ var (
 	ErrInvalidPlanningTrack          = errors.New("invalid planning track")
 	ErrInvalidPlanningTrackQuery     = errors.New("invalid planning track query")
 	ErrPlanningTrackNameExists       = errors.New("planning track name already exists")
-	ErrRecurrenceRuleNotFound        = errors.New("recurrence rule not found")
-	ErrInvalidRecurrenceRule         = errors.New("invalid recurrence rule")
-	ErrInvalidRecurrenceRuleQuery    = errors.New("invalid recurrence rule query")
 	ErrActivityExceptionNotFound     = errors.New("activity exception not found")
 	ErrInvalidActivityException      = errors.New("invalid activity exception")
 	ErrInvalidActivityExceptionQuery = errors.New("invalid activity exception query")
@@ -178,7 +175,6 @@ type Query interface {
 	StudentEnrollmentQuery
 	TimeframeQuery
 	PlanningTrackQuery
-	RecurrenceRuleQuery
 	ActivityExceptionQuery
 	ActivityInstanceQuery
 	InstanceStaffQuery
@@ -234,7 +230,6 @@ type Command interface {
 	StudentEnrollmentCommand
 	TimeframeCommand
 	PlanningTrackCommand
-	RecurrenceRuleCommand
 	ActivityExceptionCommand
 	ActivityInstanceCommand
 	InstanceStaffCommand
