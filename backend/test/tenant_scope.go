@@ -4,6 +4,7 @@ import (
 	"context"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"testing"
 
 	"github.com/moto-nrw/project-phoenix/tenant"
@@ -27,12 +28,46 @@ import (
 // for tests that have not been migrated to a per-test tenant yet.
 const legacyBootstrapTenantID int64 = 1
 
-// tenantEntry lazily creates one tenant per top-level test. The once makes a
-// concurrent fixture call block until the tenant row exists rather than read
-// a half-initialized ID.
+// tenantEntry lazily creates one tenant per run of a top-level test. The once
+// makes a concurrent fixture call block until the tenant row exists rather
+// than read a half-initialized ID.
+//
+// owner is the testing.T of the run that claimed the entry; ownerDone flips
+// when that run has finished. go test -count=N reruns a test under the same
+// name, and the rerun must not inherit the finished run's tenant: its rows
+// are still in the package clone.
 type tenantEntry struct {
-	once sync.Once
-	id   int64
+	once      sync.Once
+	id        int64
+	mu        sync.Mutex
+	owner     testing.TB
+	ownerDone atomic.Bool
+}
+
+// claim records tb as the entry's owner when tb is the test the entry is
+// keyed by, and marks the entry finished once that test is done.
+func (e *tenantEntry) claim(tb testing.TB, key string) {
+	if tb.Name() != key {
+		return
+	}
+	e.mu.Lock()
+	defer e.mu.Unlock()
+	if e.owner != nil {
+		return
+	}
+	e.owner = tb
+	tb.Cleanup(func() { e.ownerDone.Store(true) })
+}
+
+// staleFor reports whether the entry belongs to a finished earlier run. The
+// finished run's own cleanups still see their tenant.
+func (e *tenantEntry) staleFor(tb testing.TB) bool {
+	if !e.ownerDone.Load() {
+		return false
+	}
+	e.mu.Lock()
+	defer e.mu.Unlock()
+	return e.owner != tb
 }
 
 func (e *tenantEntry) ensure(tb testing.TB) int64 {
@@ -54,7 +89,7 @@ var perTestTenants bool
 // Call it from TestMain, before m.Run.
 func PerTestTenants() { perTestTenants = true }
 
-// testTenants maps a top-level test name to its tenant. Subtests share their
+// testTenants maps a top-level test name to the tenant of its current run. Subtests share their
 // parent's tenant: a parent commonly creates the fixtures its subtests read.
 var testTenants sync.Map // string -> *tenantEntry
 
@@ -63,8 +98,17 @@ var testTenants sync.Map // string -> *tenantEntry
 // belongs to this tenant.
 func Tenant(tb testing.TB) int64 {
 	tb.Helper()
-	entry, _ := testTenants.LoadOrStore(topLevelTestName(tb), &tenantEntry{})
-	return entry.(*tenantEntry).ensure(tb)
+	key := topLevelTestName(tb)
+	for {
+		loaded, _ := testTenants.LoadOrStore(key, &tenantEntry{})
+		entry := loaded.(*tenantEntry)
+		if entry.staleFor(tb) {
+			testTenants.CompareAndDelete(key, entry)
+			continue
+		}
+		entry.claim(tb, key)
+		return entry.ensure(tb)
+	}
 }
 
 // Ctx returns a context scoped to this test's own tenant. It replaces
