@@ -295,7 +295,9 @@ describe("PUT /api/rooms/[id]", () => {
     });
     await PUT(request, createMockContext({ id: "54" }));
 
+    expect(mockApiPut).toHaveBeenCalledOnce();
     const forwarded = mockApiPut.mock.calls[0]?.[2] as Record<string, unknown>;
+    expect(forwarded).toMatchObject({ name: "Schulhof" });
     expect(forwarded).not.toHaveProperty("is_open_room");
   });
 });

@@ -1,7 +1,6 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { NextRequest } from "next/server";
 import {
-  isStringParam,
   createGetHandler,
   createPostHandler,
   createPutHandler,
@@ -119,40 +118,6 @@ interface ApiErrorResponse {
  * Default authenticated session mock
  */
 const defaultSession = mockSessionData() as ExtendedSession;
-
-// ============================================================================
-// Tests: isStringParam (pure function)
-// ============================================================================
-
-describe("isStringParam", () => {
-  it("returns true for string values", () => {
-    expect(isStringParam("hello")).toBe(true);
-    expect(isStringParam("")).toBe(true);
-    expect(isStringParam("123")).toBe(true);
-  });
-
-  it("returns false for numbers", () => {
-    expect(isStringParam(123)).toBe(false);
-    expect(isStringParam(0)).toBe(false);
-    expect(isStringParam(-1)).toBe(false);
-  });
-
-  it("returns false for null and undefined", () => {
-    expect(isStringParam(null)).toBe(false);
-    expect(isStringParam(undefined)).toBe(false);
-  });
-
-  it("returns false for objects and arrays", () => {
-    expect(isStringParam({})).toBe(false);
-    expect(isStringParam([])).toBe(false);
-    expect(isStringParam(["a", "b"])).toBe(false);
-  });
-
-  it("returns false for booleans", () => {
-    expect(isStringParam(true)).toBe(false);
-    expect(isStringParam(false)).toBe(false);
-  });
-});
 
 // ============================================================================
 // Tests: createGetHandler

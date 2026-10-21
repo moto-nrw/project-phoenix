@@ -13,10 +13,11 @@ import {
 // Mocks (using vi.hoisted for proper hoisting)
 // ============================================================================
 
-const { mockAuth, mockApiGet, mockApiPost } = vi.hoisted(() => ({
+const { mockAuth, mockApiGet, mockApiPost, mockApiPut } = vi.hoisted(() => ({
   mockAuth: vi.fn<() => Promise<ExtendedSession | null>>(),
   mockApiGet: vi.fn(),
   mockApiPost: vi.fn(),
+  mockApiPut: vi.fn(),
 }));
 
 vi.mock("~/server/auth", () => ({
@@ -27,43 +28,10 @@ vi.mock("~/lib/api-helpers.server", async (importOriginal) => ({
   ...(await importOriginal<typeof import("~/lib/api-helpers.server")>()),
   apiGet: mockApiGet,
   apiPost: mockApiPost,
-  apiPut: vi.fn(),
+  apiPut: mockApiPut,
   apiDelete: vi.fn(),
   handleApiError: vi.fn(
     (await import("~/test/helpers/handle-api-error")).mockHandleApiError,
-  ),
-}));
-
-vi.mock("~/lib/student-privacy-helpers", () => ({
-  shouldCreatePrivacyConsent: vi.fn(() => true),
-  updatePrivacyConsent: vi.fn(),
-  fetchPrivacyConsent: vi.fn(() =>
-    Promise.resolve({
-      privacy_consent_accepted: true,
-      data_retention_days: 30,
-    }),
-  ),
-}));
-
-vi.mock("~/lib/student-request-helpers", () => ({
-  validateStudentFields: vi.fn((body: Record<string, unknown>) => body),
-  buildBackendStudentRequest: vi.fn(
-    (
-      validated: {
-        first_name: string;
-        last_name: string;
-        school_class: string;
-      },
-      _body: Record<string, unknown>,
-    ) => ({
-      first_name: validated.first_name,
-      last_name: validated.last_name,
-      school_class: validated.school_class,
-    }),
-  ),
-  handlePrivacyConsentCreation: vi.fn(() => Promise.resolve()),
-  buildStudentResponse: vi.fn((mapped: Record<string, unknown>) =>
-    Promise.resolve(mapped),
   ),
 }));
 
@@ -305,8 +273,8 @@ describe("POST /api/students", () => {
     expect(response.status).toBe(401);
   });
 
-  it("creates a new student", async () => {
-    const mockCreatedStudent = {
+  it("creates a new student with the backend body built by the real request helpers", async () => {
+    mockApiPost.mockResolvedValueOnce({
       data: {
         id: 42,
         person_id: 100,
@@ -317,30 +285,59 @@ describe("POST /api/students", () => {
         created_at: "2024-01-15T10:00:00Z",
         updated_at: "2024-01-15T10:00:00Z",
       },
-    };
-    mockApiPost.mockResolvedValueOnce(mockCreatedStudent);
+    });
+    mockApiPut.mockResolvedValueOnce({});
+    mockApiGet.mockResolvedValueOnce({
+      data: { accepted: true, data_retention_days: 60 },
+    });
 
     const request = createMockRequest("/api/students", {
       method: "POST",
       body: {
-        first_name: "Bob",
-        last_name: "Jones",
+        first_name: " Bob ",
+        second_name: "Jones",
         school_class: "2b",
         privacy_consent_accepted: true,
-        data_retention_days: 30,
+        data_retention_days: 60,
       },
     });
     const response = await POST(request, createMockContext());
 
-    expect(mockApiPost).toHaveBeenCalledWith(
+    expect(mockApiPost).toHaveBeenCalledExactlyOnceWith(
       "/api/students",
       "test-token",
-      expect.objectContaining({
+      {
         first_name: "Bob",
         last_name: "Jones",
         school_class: "2b",
-      }),
+        current_location: "Unbekannt",
+      },
+    );
+    expect(mockApiPut).toHaveBeenCalledExactlyOnceWith(
+      "/api/students/42/privacy-consent",
+      "test-token",
+      { policy_version: "1.0", accepted: true, data_retention_days: 60 },
+    );
+    expect(mockApiGet).toHaveBeenCalledExactlyOnceWith(
+      "/api/students/42/privacy-consent",
+      "test-token",
     );
     expect(response.status).toBe(200);
+    const json = await parseJsonResponse<{
+      data: {
+        id: string;
+        first_name: string;
+        second_name: string;
+        privacy_consent_accepted: boolean;
+        data_retention_days: number;
+      };
+    }>(response);
+    expect(json.data).toMatchObject({
+      id: "42",
+      first_name: "Bob",
+      second_name: "Jones",
+      privacy_consent_accepted: true,
+      data_retention_days: 60,
+    });
   });
 });
