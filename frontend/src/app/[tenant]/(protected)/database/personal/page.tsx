@@ -310,12 +310,20 @@ function TeachersPageContent() {
     setShowExternalModal(true);
   }, []);
 
-  // Das Menü der Kopfkarte: auf dem Handy auch „Externe Person anlegen“, weil
-  // die zweite Anlegen-Aktion dort keinen eigenen Knopf hat.
+  // „+ Personal“ klappt auf, sobald es zwei Wege zum Anlegen gibt (#4573):
+  // Personal einladen oder eine externe Person anlegen.
+  const createMenuItems =
+    canManageUsers && canCreateExternal
+      ? [
+          {
+            label: "Personal einladen",
+            onClick: () => setShowInviteModal(true),
+          },
+          { label: "Externe Person anlegen", onClick: openExternalCreate },
+        ]
+      : undefined;
+
   const headerMenuItems = [
-    ...(isMobile && canCreateExternal
-      ? [{ label: "Externe Person anlegen", onClick: openExternalCreate }]
-      : []),
     ...(canImportOpeningBalances
       ? [
           {
@@ -406,23 +414,20 @@ function TeachersPageContent() {
                 items={headerMenuItems}
               />
             ) : null}
-            {canManageUsers ? (
+            {canManageUsers || canCreateExternal ? (
               <DatabaseCreateAction
-                label="Personal"
-                ariaLabel="Personal hinzufügen"
-                onClick={() => setShowInviteModal(true)}
-              />
-            ) : null}
-            {/* Zweite Anlegen-Aktion (#4573), nach „Personal“, damit die
-                geführte Tour weiter auf „Personal“ zeigt. Der schwebende
-                Knopf auf dem Handy bleibt „Personal“; dort steht diese
-                Aktion im Menü. */}
-            {canCreateExternal ? (
-              <DatabaseCreateAction
-                label="Externe Person"
-                ariaLabel="Externe Person anlegen"
-                showMobileFab={false}
-                onClick={openExternalCreate}
+                label={canManageUsers ? "Personal" : "Externe Person"}
+                ariaLabel={
+                  canManageUsers
+                    ? "Personal hinzufügen"
+                    : "Externe Person anlegen"
+                }
+                onClick={
+                  canManageUsers
+                    ? () => setShowInviteModal(true)
+                    : openExternalCreate
+                }
+                menuItems={createMenuItems}
               />
             ) : null}
           </div>

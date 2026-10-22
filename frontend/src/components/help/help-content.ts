@@ -4486,7 +4486,7 @@ function inviteStaffTopic(): HelpTopic {
         steps: [
           "Klappen Sie in der Seitenleiste `Verwaltung` auf.",
           "Öffnen Sie `Datenverwaltung` und danach `Personal`.",
-          "Wählen Sie oben rechts `+ Personal`.",
+          "Wählen Sie oben rechts `+ Personal` und danach `Personal einladen`.",
           "Tragen Sie die `E-Mail-Adresse` ein.",
           "Zeigt moto eine frühere Beschäftigung? Wählen Sie `Wiederaufnahme` oder `Neuaufnahme`.",
           "Bei `Wiederaufnahme`: Prüfen Sie `Diese Daten übernehmen`. Entfernen Sie ein Häkchen, um den Bereich zurückzusetzen.",
@@ -4500,10 +4500,10 @@ function inviteStaffTopic(): HelpTopic {
         // #4573: Schnellanlage mit Einladung und Rolle `Extern`.
         title: "Eine externe Person anlegen",
         description:
-          "Zum Beispiel die AG-Leitung der Musikschule. Sie bekommt die Rolle `Extern` und eine Einladung. Nehmen Sie dafür nicht `+ Personal`. Dort zählt sie als normales Personal, zum Beispiel in der Zeiterfassung.",
+          "Zum Beispiel die AG-Leitung der Musikschule. Sie bekommt die Rolle `Extern` und eine Einladung. Nehmen Sie dafür nicht `Personal einladen`. Dort zählt sie als normales Personal, zum Beispiel in der Zeiterfassung.",
         steps: [
           "Öffnen Sie `Datenverwaltung` und danach `Personal`.",
-          "Wählen Sie oben rechts `+ Externe Person`.",
+          "Wählen Sie oben rechts `+ Personal` und danach `Externe Person anlegen`.",
           "Tragen Sie `Vorname`, `Nachname` und `E-Mail-Adresse` ein.",
           "Tragen Sie bei Bedarf die `Organisation (freiwillig)` ein.",
           "Wählen Sie `Anlegen`.",
@@ -4555,7 +4555,7 @@ function inviteStaffTopic(): HelpTopic {
       "Beim Import muss die Spalte `Rolle` genau einer vorhandenen Rolle entsprechen.",
       "Zur Wahl stehen `Administrator`, `Betreuer`, `Gast`, `Erziehungsberechtigter`, `Lehrkraft`, `Extern` und die eigenen Rollen Ihrer OGS.",
       "Fehlt in einer Zeile die E-Mail-Adresse, gibt es keinen Zugang. Die Person steht dann nur in der Liste.",
-      "Auf dem Handy fehlt `+ Externe Person`? Öffnen Sie oben das Menü mit den drei Punkten und wählen Sie `Externe Person anlegen`.",
+      "Auf dem Handy steht `+ Personal` als runder Knopf unten rechts. Er öffnet dieselbe Auswahl.",
     ],
     troubleshootingDetails: [
       "Die Einladung kam nicht an? Prüfen Sie die E-Mail-Adresse und den Spam-Ordner. Danach laden Sie erneut ein.",
@@ -4837,7 +4837,7 @@ function leadTeacherAccessTopic(): HelpTopic {
     icon: "GraduationCap",
     steps: [
       "Öffnen Sie `Datenverwaltung` und danach `Personal`.",
-      "Wählen Sie oben rechts `+ Personal`.",
+      "Wählen Sie oben rechts `+ Personal` und danach `Personal einladen`.",
       "Tragen Sie die `E-Mail-Adresse` ein.",
       "Wählen Sie bei `Rolle` die Rolle `Lehrkraft`.",
       "Wählen Sie `Einladung senden`.",

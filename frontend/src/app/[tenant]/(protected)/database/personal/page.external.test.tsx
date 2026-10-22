@@ -148,6 +148,15 @@ function signInWith(permissions: string[]) {
   });
 }
 
+// „+ Personal“ klappt für die Leitung auf (#4573): einladen oder extern.
+// jsdom rendert Desktop-Knopf und schwebenden Knopf; [0] ist der Desktop-Knopf.
+function chooseCreate(entry: "Personal einladen" | "Externe Person anlegen") {
+  fireEvent.click(
+    screen.getAllByRole("button", { name: "Personal hinzufügen" })[0]!,
+  );
+  fireEvent.click(screen.getByRole("menuitem", { name: entry }));
+}
+
 describe("Personalverwaltung: externe Personen", () => {
   beforeEach(() => {
     vi.clearAllMocks();
@@ -215,7 +224,7 @@ describe("Personalverwaltung: externe Personen", () => {
   });
 
   it("creates a new external person from the header action", async () => {
-    signInWith(["users:read", "users:create"]);
+    signInWith(["users:read", "users:create", "users:manage"]);
     mocks.createExternal.mockResolvedValue({
       id: "9",
       name: "Lea Gast",
@@ -226,9 +235,7 @@ describe("Personalverwaltung: externe Personen", () => {
     });
     render(<TeachersPage />);
 
-    fireEvent.click(
-      screen.getByRole("button", { name: "Externe Person anlegen" }),
-    );
+    chooseCreate("Externe Person anlegen");
     await screen.findByRole("dialog", { name: "Externe Person anlegen" });
     fireEvent.change(screen.getByLabelText("Vorname"), {
       target: { value: "Lea" },
@@ -304,7 +311,7 @@ describe("Personalverwaltung: externe Personen", () => {
   // without account who shares the name may be someone else; inviting them
   // goes only through „Konto einladen“ in their row.
   it("records a namesake of an external without account as a new person", async () => {
-    signInWith(["users:read", "users:create"]);
+    signInWith(["users:read", "users:create", "users:manage"]);
     mocks.createExternal.mockResolvedValue({
       id: "9",
       name: "Elli Alt",
@@ -315,9 +322,7 @@ describe("Personalverwaltung: externe Personen", () => {
     });
     render(<TeachersPage />);
 
-    fireEvent.click(
-      screen.getByRole("button", { name: "Externe Person anlegen" }),
-    );
+    chooseCreate("Externe Person anlegen");
     await screen.findByRole("dialog", { name: "Externe Person anlegen" });
     fireEvent.change(screen.getByLabelText("Vorname"), {
       target: { value: "Elli" },
@@ -341,12 +346,18 @@ describe("Personalverwaltung: externe Personen", () => {
     expect(mocks.inviteExternal).not.toHaveBeenCalled();
   });
 
-  it("offers „Externe Person anlegen“ in the header menu on a phone", async () => {
+  it("offers both ways to create from the floating button on a phone", async () => {
     vi.mocked(useIsMobile).mockReturnValue(true);
-    signInWith(["users:read", "users:create"]);
+    signInWith(["users:read", "users:create", "users:manage"]);
     render(<TeachersPage />);
 
-    fireEvent.click(screen.getByRole("button", { name: "Weitere Aktionen" }));
+    // [1] ist der schwebende Knopf unten rechts.
+    fireEvent.click(
+      screen.getAllByRole("button", { name: "Personal hinzufügen" })[1]!,
+    );
+    expect(
+      screen.getByRole("menuitem", { name: "Personal einladen" }),
+    ).toBeInTheDocument();
     fireEvent.click(
       screen.getByRole("menuitem", { name: "Externe Person anlegen" }),
     );
@@ -360,7 +371,7 @@ describe("Personalverwaltung: externe Personen", () => {
     signInWith(["users:read", "users:create", "users:manage"]);
     render(<TeachersPage />);
 
-    fireEvent.click(screen.getAllByLabelText("Personal hinzufügen")[0]!);
+    chooseCreate("Personal einladen");
     await screen.findByRole("dialog", { name: "Personal einladen" });
     fireEvent.click(
       screen.getByRole("button", { name: "Hinweis: Externe Person anlegen" }),
@@ -374,6 +385,22 @@ describe("Personalverwaltung: externe Personen", () => {
         screen.queryByRole("dialog", { name: "Personal einladen" }),
       ).not.toBeInTheDocument(),
     );
+  });
+
+  it("opens „Externe Person anlegen“ directly without the right to invite staff", async () => {
+    signInWith(["users:read", "users:create"]);
+    render(<TeachersPage />);
+
+    fireEvent.click(
+      screen.getAllByRole("button", { name: "Externe Person anlegen" })[0]!,
+    );
+
+    expect(
+      await screen.findByRole("dialog", { name: "Externe Person anlegen" }),
+    ).toBeInTheDocument();
+    expect(
+      screen.queryByRole("menuitem", { name: "Personal einladen" }),
+    ).not.toBeInTheDocument();
   });
 
   it("offers neither action without permission to create users", () => {
