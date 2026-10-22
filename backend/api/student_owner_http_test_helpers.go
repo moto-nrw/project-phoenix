@@ -167,6 +167,7 @@ func NewStudentHTTPTestResources(store transactionruntime.Database, unit tenant.
 			ListExportService:      lists.NewRenderer(),
 			Logger:                 slog.Default(),
 			Now:                    clock,
+			OfferingDayRoster:      svc.OfferingDays,
 			PeopleDirectory:        peopleServices.PeopleDirectory,
 			Persons:                peopleCompose.NewStudentRoutePersons(livePeople.Users),
 			PickupScheduleService:  live.PickupSchedule,

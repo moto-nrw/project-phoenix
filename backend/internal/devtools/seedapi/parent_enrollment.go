@@ -323,6 +323,7 @@ func (s parentEnrollmentSeedStep) seedEnrollment(rt *Runtime, adminAuth AuthRef,
 
 	type enrollmentSubmission struct {
 		source string
+		key    string
 		body   map[string]any
 		auth   AuthRef
 		path   string
@@ -341,6 +342,7 @@ func (s parentEnrollmentSeedStep) seedEnrollment(rt *Runtime, adminAuth AuthRef,
 		}
 		return enrollmentSubmission{
 			source: source,
+			key:    seedSource,
 			path:   "/api/enrollment/" + rt.Bootstrap.TenantSlug + "/submit",
 			body: s.enrollmentSubmissionWithDays(phaseID, offerings, childFirstName, childLastName, dob, grade,
 				guardianFirstName, guardianLastName, guardianEmail, seedSource, offeringIDs, selectedDaysByID,
@@ -555,6 +557,7 @@ func (s parentEnrollmentSeedStep) seedEnrollment(rt *Runtime, adminAuth AuthRef,
 		}
 		request.StatusToken = detail.StatusToken
 		request.ChildIDs = detail.ChildIDs
+		request.Key = submission.key
 		state.Requests = append(state.Requests, request)
 		if submission.status != "" {
 			if err := s.decideSeedSubmission(rt, adminAuth, request, submission.status, submission.reason, &immediateSeeded); err != nil {

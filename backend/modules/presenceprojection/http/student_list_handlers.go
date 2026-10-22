@@ -97,6 +97,9 @@ func (rs *Resource) parseStudentListPlan(r *http.Request) (studentListPlan, rend
 		return studentListPlan{}, careErr
 	}
 	params.careStatus = careStatus
+	if err := parseCareOfferingFilter(r, params); err != nil {
+		return studentListPlan{}, common.ErrorInvalidRequest(err)
+	}
 	now := rs.Now()
 	planningDate, isToday, dateErr := resolvePlanningDate(params.date, now)
 	if dateErr != nil {
@@ -107,6 +110,7 @@ func (rs *Resource) parseStudentListPlan(r *http.Request) (studentListPlan, rend
 	}
 	params.careStatusOn = planningDate
 	params.careStatusToday = calendar.DateFromTime(now)
+	params.careOfferingDate = planningDate
 	departure, err := departurePlanDate(r.Context(), planningDate)
 	if err != nil {
 		return studentListPlan{}, common.ErrorInternalServerWrap("resolve weekend plan failed", err)
@@ -315,8 +319,9 @@ func intersectStudentIDs(candidates, prefiltered []int64) []int64 {
 }
 
 // resolveLocationStateFilter resolves the present/transit pre-filter into
-// params.studentIDs. It reports nonEmpty=false when the resolved set is empty so
-// the caller can short-circuit with an empty page.
+// params.studentIDs, narrowed to a care offering's children when
+// care_offering_id asks for it (#4571). It reports nonEmpty=false when the
+// resolved set is empty so the caller can short-circuit with an empty page.
 func (rs *Resource) resolveLocationStateFilter(ctx context.Context, params *studentListParams) (bool, error) {
 	if params.locationState != "transit" && params.locationState != "present" {
 		return false, ErrInvalidRequest
@@ -350,7 +355,10 @@ func (rs *Resource) resolveLocationStateFilter(ctx context.Context, params *stud
 	}
 
 	params.studentIDs = intersectStudentIDs(ids, params.studentIDs)
-	return len(params.studentIDs) > 0, nil
+	if len(params.studentIDs) == 0 {
+		return false, nil
+	}
+	return rs.resolveCareOfferingFilter(ctx, params)
 }
 
 // resolveRoomFilter resolves the room_id pre-filter (#1323): students currently

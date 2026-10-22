@@ -44,9 +44,11 @@ export function rosterPickupTimeLabel(
  * Which present children the picker of a running block offers (#3824).
  * `stays` keeps the children whose Gehzeit today is still ahead, plus those
  * without a Gehzeit (nobody knows they are leaving); `all` keeps every present
- * child. Children already in the block are never offered.
+ * child. `offering` keeps every child of a list the backend already narrowed
+ * to one booked care offering (#4571). Children already in the block are
+ * never offered.
  */
-export type PresentChildScope = "stays" | "all";
+export type PresentChildScope = "stays" | "all" | "offering";
 
 export interface PresentChildCandidate {
   readonly id: string;
@@ -62,7 +64,7 @@ export function presentChildCandidates<T extends PresentChildCandidate>(
   const nowClock = berlinTimeFormatter.format(now);
   return students.filter((student) => {
     if (inBlockStudentIds.has(student.id)) return false;
-    if (scope === "all") return true;
+    if (scope !== "stays") return true;
     return !student.pickupTime || student.pickupTime > nowClock;
   });
 }

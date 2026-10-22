@@ -585,6 +585,7 @@ func mountStudentRoutes(
 			InstanceService:         lifecycle.Instances,
 			ListExportService:       lists.NewRenderer(),
 			Logger:                  logger.With("handler", "students"),
+			OfferingDayRoster:       schedules.OfferingDays,
 			PeopleDirectory:         persons,
 			Persons:                 peopleCompose.NewStudentRoutePersons(services.Users),
 			PickupScheduleService:   schedules.Pickups,
