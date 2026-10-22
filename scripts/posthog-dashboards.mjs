@@ -649,6 +649,66 @@ order by Woche desc`),
       ],
     },
     {
+      name: 'Nutzungsanalyse: Nutzung je Standort',
+      description: 'Je Schule (Schul-ID): an welchen Tagen sie moto nutzt und wofür, in echten Schulen (deployment = moto-app.de). Werktage sind Montag bis Freitag; Ferien und Schließtage kennt PostHog nicht, sie sind nicht abgezogen. Ein- und Auschecken wird erst seit dem 25.09.2026 erfasst. Das Elternportal kennt keine Schule und fehlt hier.',
+      insights: [
+        {
+          name: 'Standorte: Überblick (60 Tage)',
+          description: 'Anwesenheit heißt: mindestens eine Ein- oder Auscheck-Buchung an dem Tag. Der heutige Tag zählt nicht mit, er ist noch unvollständig. Buchungen sind keine Kinder: ein Kind kann mehrmals am Tag buchen.',
+          ...hogql('production', (where) => `
+select
+  Schule as ${quoted('Schule (ID)')},
+  uniqIf(Tag, Anwesenheit and Werktag and Tag < today()) as ${quoted('Werktage mit Anwesenheit')},
+  if(countIf(Anwesenheit) = 0, 0, length(arrayFilter(d -> toDayOfWeek(d) <= 5, arrayMap(i -> addDays(minIf(Tag, Anwesenheit), i), range(toInt(greatest(dateDiff('day', minIf(Tag, Anwesenheit), today()), 0))))))) as ${quoted('Werktage seit erster Anwesenheit')},
+  if(countIf(Anwesenheit) = 0, null, minIf(Tag, Anwesenheit)) as ${quoted('Erste Anwesenheit')},
+  if(countIf(Anwesenheit) = 0, null, maxIf(Tag, Anwesenheit)) as ${quoted('Letzte Anwesenheit')},
+  uniqIf(Tag, Werktag and Tag < today()) as ${quoted('Werktage mit Nutzung')},
+  uniqIf(Tag, event = 'login_success') as ${quoted('Tage mit Login')},
+  countIf(Anwesenheit) as ${quoted('Ein- und Auscheck-Buchungen')},
+  countIf(${coreAction}) as Kernaktionen,
+  countIf(event = '$pageview') as Seitenaufrufe
+from (${schoolDays(where, 60)})
+group by Schule
+order by ${quoted('Werktage mit Anwesenheit')} desc, ${quoted('Werktage mit Nutzung')} desc`),
+        },
+        {
+          name: 'Standorte: Tage je Funktionsbereich (60 Tage)',
+          description: 'An wie vielen Tagen eine Schule einen Funktionsbereich genutzt hat, mit Seitenaufruf oder Aktion. Die Zuordnung steht in FEATURES in scripts/posthog-dashboards.mjs.',
+          ...hogql('production', (where) => `
+select
+  Schule as ${quoted('Schule (ID)')},
+  uniq(Tag) as ${quoted('Tage mit Nutzung')},
+  uniqIf(Tag, event = 'login_success') as Logins,
+  ${FEATURES.map((f) => `uniqIf(Tag, Funktion = ${sqlString(f.name)}) as ${quoted(f.name)}`).join(',\n  ')}
+from (${schoolDays(where, 60)})
+group by Schule
+order by ${quoted('Tage mit Nutzung')} desc`),
+        },
+        {
+          name: 'Standorte: Werktage mit Anwesenheit pro Woche',
+          description: 'Letzte 8 Wochen, höchstens 5 Tage je Woche. Eine 0 mitten im Betrieb ist eine Pause: Ferien, Schließzeit oder fehlende Erfassung.',
+          ...hogql('production', (where) => `
+select
+  Schule as ${quoted('Schule (ID)')},
+  ${weekColumns('uniqIf(Tag, Anwesenheit and Werktag and Woche = {week})')}
+from (${schoolDays(where, 63)})
+group by Schule
+order by Schule`),
+        },
+        {
+          name: 'Standorte: Ein- und Auscheck-Buchungen pro Woche',
+          description: 'Letzte 8 Wochen. Zeigt die Menge hinter der Anwesenheit; Buchungen sind keine Kinder.',
+          ...hogql('production', (where) => `
+select
+  Schule as ${quoted('Schule (ID)')},
+  ${weekColumns('countIf(Anwesenheit and Woche = {week})')}
+from (${schoolDays(where, 63)})
+group by Schule
+order by Schule`),
+        },
+      ],
+    },
+    {
       name: 'Nutzungsanalyse: Demo-Verhalten',
       description: 'Was Besucher in der öffentlichen Demo ansehen und ausprobieren und wo sie aufhören. Nur deployment = demo, nur Seiten nach der Rollenwahl. Eine Sitzung endet auch beim Neuladen oder in einem neuen Tab (kein Cookie), „aufgehört“ heißt deshalb: letzte Seite einer Sitzung.',
       insights: [
@@ -792,6 +852,34 @@ function schoolFeatureEvents(where, days) {
   where ${where}
     and isNotNull(properties.school_id)
     and timestamp > now() - interval ${days} day`;
+}
+
+const ATTENDANCE_EVENTS = FEATURES.find((f) => f.name === 'Ein- und Auschecken').events;
+
+/** Production events of schools with their day (project time zone), week, and feature area. */
+function schoolDays(where, days) {
+  return `
+  select
+    toString(properties.school_id) as Schule,
+    toDate(timestamp) as Tag,
+    toStartOfWeek(toDate(timestamp), 1) as Woche,
+    toDayOfWeek(toDate(timestamp)) <= 5 as Werktag,
+    event in ${sqlList(ATTENDANCE_EVENTS)} as Anwesenheit,
+    ${featureExpression()} as Funktion,
+    event
+  from events
+  where ${where}
+    and isNotNull(properties.school_id)
+    and timestamp > now() - interval ${days} day`;
+}
+
+/** One column per week, oldest first; `cell` uses `{week}` for the week's Monday. */
+function weekColumns(cell, weeks = 8) {
+  return Array.from({ length: weeks }, (_, index) => weeks - 1 - index).map((ago) => {
+    const week = `addDays(toStartOfWeek(today(), 1), ${-7 * ago})`;
+    const label = ago === 0 ? 'diese Woche' : ago === 1 ? 'vor 1 Woche' : `vor ${ago} Wochen`;
+    return `${cell.replaceAll('{week}', week)} as ${quoted(label)}`;
+  }).join(',\n  ');
 }
 
 /** Demo page views after the role pick, with their feature area. */
