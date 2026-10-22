@@ -215,6 +215,14 @@ test('.env references resolve like Compose before the host override', t => {
   ]);
 });
 
+test('a shell-provided native DB_DSN bypasses the Compose host rewrite', t => {
+  const dbDsn = 'postgres://shell@localhost:5432/custom';
+  const f = fixture(t, { tools: [], env: { DB_DSN: dbDsn } });
+  const result = f.run('backend', 'bash', '-c', 'printf "%s\\n" "$DB_DSN"');
+  assert.equal(result.status, 0, result.stderr);
+  assert.equal(result.stdout.trim(), dbDsn);
+});
+
 test('unresolvable .env references stop before any command runs', t => {
   for (const [value, message] of [
     ['postgres://postgres:${MISSING_PASSWORD}@postgres:5432/postgres', /DB_DSN in .env references \$\{MISSING_PASSWORD\}, which is not set/],

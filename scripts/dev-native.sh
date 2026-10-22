@@ -103,8 +103,11 @@ load_env() {
   done
 
   # Host overrides: Compose hostnames -> localhost with published ports.
-  [[ $DB_DSN == *@postgres:5432/* ]] || die "DB_DSN in .env does not use host postgres:5432; adjust scripts/dev-native.sh"
-  export DB_DSN=${DB_DSN/@postgres:5432\//@localhost:$POSTGRES_HOST_PORT/}
+  if [[ $DB_DSN == *@postgres:5432/* ]]; then
+    export DB_DSN=${DB_DSN/@postgres:5432\//@localhost:$POSTGRES_HOST_PORT/}
+  elif [[ $shell_env_keys != *$'\nDB_DSN\n'* ]]; then
+    die "DB_DSN in .env does not use host postgres:5432; adjust scripts/dev-native.sh"
+  fi
   export EMAIL_SMTP_HOST=localhost
   export EMAIL_SMTP_PORT=$MAILPIT_SMTP_HOST_PORT
   export MAILPIT_URL=http://localhost:$MAILPIT_HOST_PORT
