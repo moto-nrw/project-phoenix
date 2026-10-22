@@ -3,6 +3,7 @@ import { test } from 'node:test';
 import {
   DEPLOYMENTS,
   FEATURES,
+  ON_WORKDAY,
   POSTHOG_HOST,
   SCHOOL_BREAKDOWN,
   dashboards,
@@ -10,6 +11,7 @@ import {
   featureOfPage,
   missingPath,
   posthogClient,
+  publicHolidays,
   readBrowserEvents,
   readRouteTemplates,
   sync,
@@ -50,6 +52,23 @@ test('every insight filters on production or the demo, never staging', () => {
     }
     assert.doesNotMatch(JSON.stringify(insight.query), /staging|localhost/i, insight.name);
   }
+});
+
+test('school insights count Monday to Friday without the public holidays of NRW, the demo every day', () => {
+  for (const insight of insights) {
+    const source = insight.query.source;
+    const filters = source.kind === 'HogQLQuery'
+      ? source.query.split(ON_WORKDAY).length - 1
+      : source.properties.values.filter((group) => group.values.some((value) => value.key === ON_WORKDAY)).length;
+    const scans = source.kind === 'HogQLQuery' ? source.query.match(/\bfrom events\b/g).length : 1;
+    assert.equal(filters, insight.deployment === 'production' ? scans : 0, insight.name);
+  }
+  const holidays = publicHolidays([2026, 2027]);
+  assert.equal(holidays.length, 22);
+  for (const day of ['2026-04-03', '2026-04-06', '2026-05-14', '2026-05-25', '2026-06-04', '2026-10-03', '2026-11-01', '2026-12-25', '2027-03-29']) {
+    assert.ok(holidays.includes(day), day);
+  }
+  assert.ok(publicHolidays().includes('2035-12-26'));
 });
 
 test('the demo dashboards stay in the demo and the school dashboards in production', () => {
