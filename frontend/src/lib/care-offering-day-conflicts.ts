@@ -35,12 +35,20 @@ export function careOfferingDayConflicts(
   selectedIds: ReadonlySet<string>,
   daysByOffering: Readonly<Record<string, Iterable<string> | undefined>>,
 ): CareOfferingDayConflict[] {
+  const groupsWithDayRule = new Set(
+    offerings.flatMap((offering) => {
+      const group = offering.selection_group?.trim() ?? "";
+      return group !== "" && offering.selection_rule === AT_MOST_ONE_PER_DAY
+        ? [group]
+        : [];
+    }),
+  );
   const holders = new Map<string, Map<string, string[]>>();
   for (const offering of offerings) {
     const group = offering.selection_group?.trim() ?? "";
     if (
       group === "" ||
-      offering.selection_rule !== AT_MOST_ONE_PER_DAY ||
+      !groupsWithDayRule.has(group) ||
       !selectedIds.has(offering.id)
     ) {
       continue;
@@ -51,7 +59,9 @@ export function careOfferingDayConflicts(
         : (daysByOffering[offering.id] ?? []);
     const byDay = holders.get(group) ?? new Map<string, string[]>();
     holders.set(group, byDay);
-    for (const day of new Set(days)) {
+    for (const day of new Set(
+      Array.from(days, (day) => day.trim().toLowerCase()),
+    )) {
       byDay.set(day, [...(byDay.get(day) ?? []), offering.id]);
     }
   }

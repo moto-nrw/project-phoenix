@@ -58,9 +58,33 @@ describe("careOfferingDayConflicts", () => {
     ]);
   });
 
-  it("ignores unselected offerings, other groups and other rules", () => {
+  it("counts optional offerings in a per-day group", () => {
+    const optional = { ...long, selection_rule: "optional" };
+    expect(
+      careOfferingDayConflicts([short, optional], new Set(["short", "long"]), {
+        short: ["mon"],
+        long: ["mon"],
+      }),
+    ).toEqual([
+      { group: "Betreuungszeit", day: "mon", offeringIds: ["short", "long"] },
+    ]);
+  });
+
+  it("normalizes weekday values before finding conflicts", () => {
+    expect(
+      careOfferingDayConflicts([short, long], new Set(["short", "long"]), {
+        short: [" Mon "],
+        long: ["MON"],
+      }),
+    ).toEqual([
+      { group: "Betreuungszeit", day: "mon", offeringIds: ["short", "long"] },
+    ]);
+  });
+
+  it("ignores unrelated selections and groups without the per-day rule", () => {
     const course = variant("course", "parent_choice", WEEK, "Kurse");
     const atMostOne = { ...long, selection_rule: "at_most_one" };
+    const anotherAtMostOne = { ...atMostOne, id: "another-at-most-one" };
     expect(
       careOfferingDayConflicts(
         [short, long, course],
@@ -69,10 +93,14 @@ describe("careOfferingDayConflicts", () => {
       ),
     ).toEqual([]);
     expect(
-      careOfferingDayConflicts([short, atMostOne], new Set(["short", "long"]), {
-        short: ["mon"],
-        long: ["mon"],
-      }),
+      careOfferingDayConflicts(
+        [atMostOne, anotherAtMostOne],
+        new Set(["long", "another-at-most-one"]),
+        {
+          long: ["mon"],
+          "another-at-most-one": ["mon"],
+        },
+      ),
     ).toEqual([]);
   });
 });
