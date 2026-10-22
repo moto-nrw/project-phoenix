@@ -41,6 +41,7 @@ func newItem(row *Row) Item {
 		OccurredAt:           row.SortTime,
 		StudentID:            strconv.FormatInt(row.StudentID, 10),
 		studentID:            row.StudentID,
+		submittedBy:          row.SubmittedBy,
 		StudentName:          row.StudentName,
 		ExpectedVersion:      row.Version,
 		UrgentToday:          row.UrgentToday,

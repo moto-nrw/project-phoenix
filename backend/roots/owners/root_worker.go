@@ -196,7 +196,7 @@ func workerTracer(tracer *observability.Tracer) schedulerPorts.WorkerTracer {
 func ComposeWorker(db transactionruntime.Database, env RootEnvironment, hub *realtime.Hub, tracer *observability.Tracer, tracker ProductEventTracker, tokensFor func() (TokenAdapter, error), communicationSession interface {
 	AccountID(context.Context) int64
 	Permissions(context.Context) []string
-}, timetableSession timetablePorts.RequestSession, principal func(context.Context) studentpresence.RequestPrincipal, withStaff func(context.Context, int64, int64) context.Context, documentPermissions carePlanCompose.StudentDocumentPermissions) (schedulerPorts.Worker, error) {
+}, timetableSession timetablePorts.RequestSession, principal func(context.Context) studentpresence.RequestPrincipal, withStaff func(context.Context, int64, int64) context.Context, documentPermissions carePlanCompose.StudentDocumentPermissions, schoolNames SchoolNamesPublisher) (schedulerPorts.Worker, error) {
 	unit := db.UnitOfWork()
 	communicationCompose.InstrumentMessageQueries(db.Pool(), false)
 	renderer := lists.NewRendererService()
@@ -552,5 +552,5 @@ func ComposeWorker(db transactionruntime.Database, env RootEnvironment, hub *rea
 	return NewWorker(db, env.Logger, tracer, hub, settings.Service, audit.Command, deviceFleet, carePlan, persons, people,
 		organizations, identity, facilities, timetableRepos, workTime, staffAdmin, workforce, active, reports, lifecycle, days,
 		materialization, schedules, requests.Documents, services, studentAudit, notices, flows, studentDeletion, feedback, calendarApp,
-		notifications, deliveryDevices.PWAUsage, chat.StaffMessaging, outbox, reminders, fileStore, announcements, mealPlan)
+		notifications, deliveryDevices.PWAUsage, chat.StaffMessaging, outbox, reminders, fileStore, announcements, mealPlan, schoolNames)
 }

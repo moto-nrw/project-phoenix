@@ -265,22 +265,39 @@ describe("MobileBottomNav", () => {
       // Staff main items - check by href since labels only show when active
       const links = screen.getAllByRole("link");
       const hrefs = links.map((link) => link.getAttribute("href"));
-      expect(hrefs).toContain("/ogs-groups");
+      expect(hrefs).toContain("/ogs-groups/overview");
       expect(hrefs).toContain("/active-supervisions");
     });
 
     it("names icon-only staff nav controls for assistive technology", () => {
       render(<MobileBottomNav />);
 
-      expect(screen.getByRole("link", { name: "Gruppe" })).toHaveAttribute(
+      expect(screen.getByRole("link", { name: "Gruppen" })).toHaveAttribute(
         "href",
-        "/ogs-groups",
+        "/ogs-groups/overview",
       );
       expect(screen.getByRole("link", { name: "Aufsicht" })).toHaveAttribute(
         "href",
         "/active-supervisions",
       );
       expect(screen.getByRole("button", { name: "Mehr" })).toBeInTheDocument();
+    });
+
+    // Der Eintrag zeigt immer den laufenden Tag und heißt deshalb in
+    // Seitenleiste, Leiste und Kopfzeile gleich: „Heute“ (#4348).
+    it("names the day tab 'Heute' like the sidebar", () => {
+      mockHasPermission.mockImplementation(
+        (_session, permission) => permission === "schedules:read",
+      );
+      mockUsePathname.mockReturnValue("/tagesplan");
+
+      render(<MobileBottomNav />);
+
+      expect(screen.getByRole("link", { name: "Heute" })).toHaveAttribute(
+        "href",
+        "/tagesplan",
+      );
+      expect(screen.queryByText("Tagesplan")).not.toBeInTheDocument();
     });
 
     it("renders navigation bar for admin users", () => {
@@ -297,9 +314,10 @@ describe("MobileBottomNav", () => {
       expect(hrefs).toContain("/students/search");
 
       fireEvent.click(screen.getByRole("button", { name: "Mehr" }));
-      expect(
-        screen.getByRole("link", { name: "Meine Gruppen" }),
-      ).toHaveAttribute("href", "/test-tenant/ogs-groups");
+      expect(screen.getByRole("link", { name: "Gruppen" })).toHaveAttribute(
+        "href",
+        "/test-tenant/ogs-groups/overview",
+      );
       expect(screen.getByText("Datenverwaltung").closest("a")).toHaveAttribute(
         "href",
         "/test-tenant/database",
@@ -353,9 +371,9 @@ describe("MobileBottomNav", () => {
 
       render(<MobileBottomNav />);
 
-      expect(screen.queryByRole("link", { name: "Meine Gruppen" })).toBeNull();
+      expect(screen.queryByRole("link", { name: "Gruppen" })).toBeNull();
       fireEvent.click(screen.getByRole("button", { name: "Mehr" }));
-      expect(screen.queryByRole("link", { name: "Meine Gruppen" })).toBeNull();
+      expect(screen.queryByRole("link", { name: "Gruppen" })).toBeNull();
     });
 
     it("shows groups to effective admins", () => {
@@ -365,9 +383,10 @@ describe("MobileBottomNav", () => {
       render(<MobileBottomNav />);
 
       fireEvent.click(screen.getByRole("button", { name: "Mehr" }));
-      expect(
-        screen.getByRole("link", { name: "Meine Gruppen" }),
-      ).toHaveAttribute("href", "/test-tenant/ogs-groups");
+      expect(screen.getByRole("link", { name: "Gruppen" })).toHaveAttribute(
+        "href",
+        "/test-tenant/ogs-groups/overview",
+      );
     });
 
     it("renders with custom className", () => {
@@ -663,7 +682,6 @@ describe("MobileBottomNav", () => {
       expect(screen.getByText("Planung")).toBeInTheDocument();
       expect(screen.getByText("Planung").closest("a")).toBeNull();
       expect(screen.getByText("Vertretungen")).toBeInTheDocument();
-      expect(screen.queryByText("Übergaben")).not.toBeInTheDocument();
       expect(screen.getByText("Datenverwaltung")).toBeInTheDocument();
     });
 
@@ -833,7 +851,7 @@ describe("MobileBottomNav", () => {
       render(<MobileBottomNav />);
 
       // Staff main item should show label when active
-      expect(screen.getByText("Gruppe")).toBeInTheDocument();
+      expect(screen.getByText("Gruppen")).toBeInTheDocument();
     });
 
     it("shows active supervision label when on that route", () => {
@@ -851,7 +869,7 @@ describe("MobileBottomNav", () => {
       // Check nav links exist by href
       const links = screen.getAllByRole("link");
       const hrefs = links.map((link) => link.getAttribute("href"));
-      expect(hrefs).toContain("/ogs-groups");
+      expect(hrefs).toContain("/ogs-groups/overview");
       expect(hrefs).toContain("/active-supervisions");
     });
 
@@ -859,7 +877,7 @@ describe("MobileBottomNav", () => {
     it("orders the staff tabs like the sidebar, Suchen right after Gruppe", () => {
       const tabOrder = [
         "/home",
-        "/ogs-groups",
+        "/ogs-groups/overview",
         "/students/search",
         "/active-supervisions",
       ];
@@ -881,7 +899,7 @@ describe("MobileBottomNav", () => {
       const hrefs = screen
         .getAllByRole("link")
         .map((link) => link.getAttribute("href"));
-      expect(hrefs).not.toContain("/ogs-groups");
+      expect(hrefs).not.toContain("/ogs-groups/overview");
       expect(hrefs).not.toContain("/active-supervisions");
       expect(hrefs).toContain("/students/search");
     });
@@ -894,7 +912,7 @@ describe("MobileBottomNav", () => {
 
       // Die Bezeichnung erscheint nur am aktiven Reiter.
       expect(screen.getByText("Suchen")).toBeInTheDocument();
-      expect(screen.queryByText("Gruppe")).not.toBeInTheDocument();
+      expect(screen.queryByText("Gruppen")).not.toBeInTheDocument();
     });
   });
 
@@ -910,7 +928,7 @@ describe("MobileBottomNav", () => {
         .getAllByRole("link")
         .map((link) => link.getAttribute("href"));
       expect(hrefs).not.toContain("/activities");
-      expect(hrefs).toContain("/ogs-groups");
+      expect(hrefs).toContain("/ogs-groups/overview");
       expect(hrefs).toContain("/active-supervisions");
     });
 
@@ -943,7 +961,7 @@ describe("MobileBottomNav", () => {
         .getAllByRole("link")
         .map((link) => link.getAttribute("href"));
       expect(hrefs).not.toContain("/activities");
-      expect(hrefs).toContain("/ogs-groups");
+      expect(hrefs).toContain("/ogs-groups/overview");
     });
   });
 
@@ -966,7 +984,7 @@ describe("MobileBottomNav", () => {
       expect(
         screen.queryByRole("link", { name: "Aufsicht" }),
       ).not.toBeInTheDocument();
-      expect(hrefs).toContain("/ogs-groups");
+      expect(hrefs).toContain("/ogs-groups/overview");
     });
 
     it("hides Aufsicht and Räume from the overflow menu", () => {
@@ -1230,7 +1248,7 @@ describe("MobileBottomNav", () => {
       // Main items should have correct hrefs
       const links = screen.getAllByRole("link");
       const hrefs = links.map((link) => link.getAttribute("href"));
-      expect(hrefs).toContain("/ogs-groups");
+      expect(hrefs).toContain("/ogs-groups/overview");
     });
 
     it("shows supervision-related links when user is actively supervising", () => {
@@ -1426,7 +1444,26 @@ describe("MobileBottomNav", () => {
       });
 
       // The active link should show the "Gruppe" label after timers complete
-      expect(screen.getByText("Gruppe")).toBeInTheDocument();
+      expect(screen.getByText("Gruppen")).toBeInTheDocument();
+
+      releaseFakeTimers();
+    });
+
+    it("highlights the matching nav item once the indicator delay has passed", async () => {
+      vi.useFakeTimers();
+      mockUsePathname.mockReturnValue("/ogs-groups");
+
+      const { container } = render(<MobileBottomNav />);
+
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(100);
+      });
+
+      const activeLinks = container.querySelectorAll("a.bg-gray-100");
+      expect(activeLinks).toHaveLength(1);
+      expect(activeLinks[0]).toBe(
+        screen.getByRole("link", { name: "Gruppen" }),
+      );
 
       releaseFakeTimers();
     });
@@ -1443,6 +1480,8 @@ describe("MobileBottomNav", () => {
         await vi.advanceTimersByTimeAsync(100);
       });
 
+      // Anker: die Hauptnavigation ist gerendert, nur ohne aktiven Eintrag.
+      expect(screen.getByRole("link", { name: "Gruppen" })).toBeInTheDocument();
       // No main nav item should be highlighted (no active styling)
       const activeLinks = container.querySelectorAll("a.bg-gray-100");
       expect(activeLinks.length).toBe(0);
@@ -1624,7 +1663,7 @@ describe("MobileBottomNav", () => {
       const hrefs = screen
         .getAllByRole("link")
         .map((link) => link.getAttribute("href"));
-      expect(hrefs).not.toContain("/ogs-groups");
+      expect(hrefs).not.toContain("/ogs-groups/overview");
       // Die übrigen Staff-Einstiege bleiben erhalten.
       expect(hrefs).toContain("/active-supervisions");
       expect(hrefs).toContain("/students/search");
@@ -1639,7 +1678,7 @@ describe("MobileBottomNav", () => {
       const hrefs = screen
         .getAllByRole("link")
         .map((link) => link.getAttribute("href"));
-      expect(hrefs).toContain("/ogs-groups");
+      expect(hrefs).toContain("/ogs-groups/overview");
     });
 
     it("keeps calendar periods and payroll reachable when timetable.enabled is false", () => {

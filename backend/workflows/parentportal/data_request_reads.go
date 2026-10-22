@@ -9,11 +9,9 @@ import (
 
 type DataRequestSnapshot care.StudentDataChangeRequest
 type DataRequestReadCallbacks struct {
-	Find            func(context.Context, int64, bool) (*DataRequestSnapshot, error)
-	Pending         func(context.Context, int64, string, string) (bool, error)
-	List            func(context.Context, int64, []string, int, bool) ([]*DataRequestSnapshot, error)
-	NotFoundError   func() error
-	NotPendingError func() error
+	Find    func(context.Context, int64, bool) (*DataRequestSnapshot, error)
+	Pending func(context.Context, int64, string, string) (bool, error)
+	List    func(context.Context, int64, []string, int, bool) ([]*DataRequestSnapshot, error)
 }
 type DataRequestReads interface{ care.DataRequestReads }
 
@@ -50,8 +48,6 @@ func (r dataRequestReads) ListByStudent(ctx context.Context, id int64, statuses 
 func (r dataRequestReads) ListParentVisibleByStudent(ctx context.Context, id int64, limit int) ([]*care.StudentDataChangeRequest, error) {
 	return nativeDataRequestRows(r.callbacks.List(ctx, id, nil, limit, true))
 }
-func (r dataRequestReads) NotFoundError() error   { return r.callbacks.NotFoundError() }
-func (r dataRequestReads) NotPendingError() error { return r.callbacks.NotPendingError() }
 
 type DataRequestCommandCallbacks struct {
 	Create func(context.Context, DataRequestSnapshot) (DataRequestSnapshot, error)

@@ -396,6 +396,8 @@ describe("CatalogPage", () => {
     if (!single) throw new Error("Beispieldaten fehlen");
     renderPage({ items: [single] });
 
+    // Anker: die Sammlung mit dem einzigen Eintrag ist gerendert.
+    expect(row("Essen")).toBeInTheDocument();
     // Zwei dauerhaft graue Pfeile neben dem einzigen Eintrag sind
     // Bedienelemente, die nie etwas tun.
     expect(
@@ -404,6 +406,19 @@ describe("CatalogPage", () => {
     expect(
       screen.queryByRole("button", { name: /nach unten/ }),
     ).not.toBeInTheDocument();
+  });
+
+  it("carries reorder arrows once a second entry gives an order", () => {
+    const [first, second] = ITEMS;
+    if (!first || !second) throw new Error("Beispieldaten fehlen");
+    renderPage({ items: [first, second] });
+
+    expect(screen.getAllByRole("button", { name: /nach oben/ })).toHaveLength(
+      2,
+    );
+    expect(screen.getAllByRole("button", { name: /nach unten/ })).toHaveLength(
+      2,
+    );
   });
 
   it("hides every write affordance without the permission", () => {

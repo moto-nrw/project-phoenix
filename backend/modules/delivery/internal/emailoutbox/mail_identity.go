@@ -104,9 +104,10 @@ func (s *tenantMailIdentityService) resolveSchool(
 	return s.schools.FindSchoolContact(ctx, tenantID)
 }
 
-// resolveConfiguredAddress reads the explicit setting. ResolveStringForTenant
-// opens its own tenant transaction, which is required here: the outbox worker
-// renders mail on a background goroutine with no tenant middleware.
+// resolveConfiguredAddress reads the explicit setting. The root binding reads
+// it in the target school's tenant transaction: the outbox worker renders mail
+// on a background goroutine with no tenant middleware, and the operator
+// invites inside an administrative transaction that cannot read it (#4535).
 func (s *tenantMailIdentityService) resolveConfiguredAddress(ctx context.Context, tenantID int64) string {
 	if s.configuredAddress == nil {
 		return ""

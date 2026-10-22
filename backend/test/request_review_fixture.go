@@ -15,6 +15,8 @@ type RequestReviewSchool struct {
 	Context   context.Context
 	TenantID  int64
 	StudentID int64
+	// AccountID files every request of the school.
+	AccountID int64
 	GroupName string
 	Rows      map[string]int64
 }
@@ -29,7 +31,7 @@ func CreateTestRequestReviewSchool(t *testing.T, db *bun.DB, side string) Reques
 	CreateTestGroupTeacher(t, db, group.ID, teacher.ID)
 	student := CreateTestStudent(t, db, "ReviewRLS", side, "RR1")
 	AssignStudentToGroup(t, db, student.ID, group.ID)
-	result := RequestReviewSchool{TenantID: tenantID, StudentID: student.ID, GroupName: group.Name, Rows: map[string]int64{}}
+	result := RequestReviewSchool{TenantID: tenantID, StudentID: student.ID, AccountID: account.ID, GroupName: group.Name, Rows: map[string]int64{}}
 	var id int64
 	require.NoError(t, db.NewRaw(`INSERT INTO users.student_data_change_requests
  (tenant_id,student_id,submitted_by,target,field_key,new_value,status)

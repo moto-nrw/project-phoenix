@@ -133,6 +133,10 @@ describe("TimetableRosterContent „Profil ansehen“ (#4356)", () => {
   it("is absent without the right to open the profile", () => {
     renderRoster({});
 
+    // Anker: die Kinderzeilen mit ihrer Anwesenheitsaktion sind gerendert.
+    expect(
+      screen.getByRole("button", { name: "Raum verlassen" }),
+    ).toBeInTheDocument();
     expect(screen.queryByRole("link", { name: /Profil ansehen/ })).toBeNull();
   });
 });

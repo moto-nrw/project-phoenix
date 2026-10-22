@@ -166,9 +166,9 @@ describe("ClassDayClass", () => {
       />,
     );
 
-    await waitFor(() =>
-      expect(fetchClassDay).toHaveBeenCalledWith("4a", "2026-09-05"),
-    );
+    // Anker: die Klassenliste des Samstags ist geladen.
+    expect(await screen.findByText("Klassentag, Klara")).toBeInTheDocument();
+    expect(fetchClassDay).toHaveBeenCalledWith("4a", "2026-09-05");
     expect(screen.queryByText("Kein Schultag")).not.toBeInTheDocument();
   });
 

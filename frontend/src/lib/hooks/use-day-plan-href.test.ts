@@ -34,7 +34,7 @@ describe("useDayPlanHref (#2180)", () => {
       "/test-tenant/tagesplan",
     );
     expect(renderHook(() => useDayPlanLabel()).result.current).toBe(
-      "Zum Tagesplan",
+      "Heute öffnen",
     );
   });
 

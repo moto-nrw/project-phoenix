@@ -650,6 +650,7 @@ interface TimetableRosterHeaderProps {
   readonly extraActions?: ReactNode;
   readonly toggle?: ReactNode;
   readonly showStatus: boolean;
+  readonly showRoom: boolean;
   /** Öffnet den Dialog „Kind ungeplant hinzufügen“; fehlt ohne das Recht. */
   readonly onAddStudent?: () => void;
   readonly onAddPresentStudents?: () => void;
@@ -673,6 +674,7 @@ function TimetableRosterHeader({
   extraActions,
   toggle,
   showStatus,
+  showRoom,
   onAddStudent,
   onAddPresentStudents,
   onComplete,
@@ -728,7 +730,9 @@ function TimetableRosterHeader({
               {roster.instance.title}
             </h2>
             <p className="truncate text-sm text-gray-600">
-              {roster.instance.roomName ?? `Raum ${roster.instance.roomId}`} ·{" "}
+              {showRoom
+                ? `${roster.instance.roomName ?? `Raum ${roster.instance.roomId}`} · `
+                : null}
               {hasOpenEnd(roster.instance)
                 ? `seit ${roster.instance.startTime}`
                 : `${roster.instance.startTime}-${roster.instance.endTime}`}
@@ -876,6 +880,12 @@ interface TimetableRosterContentProps {
    * lässt das weg, dort trägt jede Karte ihren eigenen Zustand.
    */
   readonly statusInPageHead?: boolean;
+  /**
+   * Der Seitenkopf nennt den Raum schon (#4354): in der eigenen Aufsicht in
+   * der Statuszeile, im offenen Raum als Titel. Die Kopfkarte zeigt dann nur
+   * die Uhrzeit.
+   */
+  readonly roomInPageHead?: boolean;
   readonly onAddStudent: (studentId: string) => Promise<boolean>;
   /**
    * Trägt eine Auswahl der gerade anwesenden Kinder gesammelt ein (#3824).
@@ -1009,6 +1019,7 @@ export function TimetableRosterContent({
   headerActions,
   headerToggle,
   statusInPageHead = false,
+  roomInPageHead = false,
   onAddStudent,
   onAddPresentStudents,
   presentChildrenPicker: PresentChildrenPicker,
@@ -1161,6 +1172,7 @@ export function TimetableRosterContent({
         extraActions={headerActions}
         toggle={headerToggle}
         showStatus={!statusInPageHead}
+        showRoom={!roomInPageHead}
         onAddStudent={
           addStudentEnabled ? () => setAddStudentOpen(true) : undefined
         }

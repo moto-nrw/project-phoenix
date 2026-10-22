@@ -104,7 +104,7 @@ function loginResult(
     return "Nach der Anmeldung öffnet moto den Bereich `Alle Kinder`.";
   }
   if (presenceMode === "detailed" && groupMode === "fixed_groups") {
-    return "Nach der Anmeldung öffnet moto den Bereich `Meine Gruppen`.";
+    return "Nach der Anmeldung öffnet moto den Bereich `Gruppen`.";
   }
   return "Nach der Anmeldung öffnet moto die für Sie vorgesehene Startseite.";
 }
@@ -401,6 +401,19 @@ function appOverviewTopic(): HelpTopic {
         ],
       },
       {
+        // Labels aus home/page.tsx (Knopf „Anpassen", „Fertig") und
+        // home-board.tsx („Bausteine", „Standardansicht wiederherstellen").
+        title: "Die Startseite anpassen",
+        description:
+          "Die `Startseite` besteht aus Karten. Welche dort stehen, legen Sie selbst fest.",
+        steps: [
+          "Wählen Sie auf der `Startseite` oben rechts das Symbol `Anpassen`.",
+          "Wählen Sie `Bausteine` und dann eine Karte, zum Beispiel `Kinder`.",
+          "Die Karte steht jetzt unten. Am Computer ziehen Sie sie an ihren Platz.",
+          "Wählen Sie `Fertig`.",
+        ],
+      },
+      {
         title: "Hilfe öffnen",
         steps: [
           "Sehen Sie oben rechts ein Fragezeichen? Es öffnet die passende Anleitung.",
@@ -413,6 +426,11 @@ function appOverviewTopic(): HelpTopic {
       "Sie wissen, wo Sie die wichtigsten Bereiche und die passende Hilfe finden.",
     differences: [
       "Welche Bereiche Sie sehen, hängt von Ihrer Rolle und den Einstellungen Ihrer OGS ab.",
+      "Unter `Bausteine` fehlt eine Karte? Dann steht sie schon auf Ihrer Startseite. Oder Ihre Rolle oder Ihre OGS sieht sie nicht vor.",
+    ],
+    notes: [
+      "Die Karte `Kinder` zählt die Kinder nach `Anwesend`, `Schule`, `Zuhause`, `Krank` und `Entschuldigt`. Ein Klick auf eine Zahl öffnet `Alle Kinder` mit diesem Filter. `Entschuldigt` zeigt auch Kinder auf Klassenfahrt. `Zuhause` zeigt auch Kinder, die heute nicht kommen.",
+      "Zu viel verändert? Wählen Sie in `Anpassen` den Knopf `Standardansicht wiederherstellen`.",
     ],
     related: [
       HELP_TOPICS.login,
@@ -489,7 +507,7 @@ function studentSearchTopic(
         ],
       },
       {
-        // #3834: derselbe Umschalter steht auch in `Meine Gruppen` und in der
+        // #3834: derselbe Umschalter steht auch in `Gruppen` und in der
         // aktuellen Aufsicht, auch auf dem Handy.
         title: "Als Liste ansehen",
         description:
@@ -509,7 +527,7 @@ function studentSearchTopic(
       "Haben Sie einen anderen Tag gewählt? Dann sehen Sie die geplante Anwesenheit. Ein aktueller Aufenthaltsort wird nicht gezeigt.",
       "Ansicht und Spalten bleiben auf diesem Gerät so, wie Sie sie gewählt haben.",
       // Einstellung „Kinder nur über ‚Alle Kinder‘ finden“ (#1321).
-      "Fehlen `Meine Gruppen` und `Aktuelle Aufsicht` in der Navigation? Dann wählen Sie in `Alle Kinder` oben `Meine Gruppe` oder `Meine Aufsicht`.",
+      "Fehlen `Gruppen` und `Aktuelle Aufsicht` in der Navigation? Dann wählen Sie in `Alle Kinder` oben `Meine Gruppe` oder `Meine Aufsicht`.",
       "Einige Bereiche brauchen zusätzliche Rechte: `Betreuungsplan`, `Dokumente` und `Änderungsprotokoll`. Fehlt ein Bereich? Fragen Sie Ihre Leitung.",
       ...(presenceDifference ? [presenceDifference] : []),
     ],
@@ -606,7 +624,7 @@ function webAttendanceTopic(presenceMode: HelpPresenceMode): HelpTopic {
     presenceMode === "detailed"
       ? "Nach dem Anmelden steht das Kind zunächst unter `Unterwegs`. Ein Raum wird erst bei der nächsten Zuordnung eingetragen. Nach dem Abmelden steht das Kind unter `Zuhause`."
       : presenceMode === "binary"
-        ? "Nach dem Anmelden steht das Kind auf `Anwesend`. Nach dem Abmelden steht es auf `Abwesend`."
+        ? "Nach dem Anmelden steht das Kind auf `Anwesend`. Nach dem Abmelden steht es auf `Zuhause`."
         : "moto zeigt nach der Aktion den neuen Anwesenheitsstatus des Kindes.";
 
   return {
@@ -680,7 +698,7 @@ function changeLocationTopic(presenceMode: HelpPresenceMode): HelpTopic {
         "Wählen Sie `Anmelden` oder `Abmelden`.",
       ],
       result:
-        "moto zeigt nur, ob das Kind anwesend oder abwesend ist. Ein Raum wird nicht gespeichert.",
+        "moto zeigt nur, ob das Kind `Anwesend` oder `Zuhause` ist. Ein Raum wird nicht gespeichert.",
       related: [HELP_TOPICS.webAttendance, HELP_TOPICS.studentSearch],
     };
   }
@@ -968,7 +986,7 @@ function ownGroupsTopic(
   if (groupMode === "open_care") {
     return {
       id: HELP_TOPICS.ownGroups,
-      title: "Meine Gruppen ansehen",
+      title: "Gruppen ansehen",
       question: "Wie sehe ich meine Gruppen an?",
       summary:
         "Bei offener Betreuung gibt es keine festen eigenen Gruppen in moto.",
@@ -980,14 +998,14 @@ function ownGroupsTopic(
         "Nutzen Sie die Suche oder die Filter für die benötigten Kinder.",
       ],
       result:
-        "Sie sehen die Kinder der OGS gemeinsam. Der Bereich `Meine Gruppen` wird nicht angezeigt.",
+        "Sie sehen die Kinder der OGS gemeinsam. Der Bereich `Gruppen` wird nicht angezeigt.",
       related: [HELP_TOPICS.studentSearch, HELP_TOPICS.webAttendance],
     };
   }
   if (groupMode === "unknown") {
     return {
       id: HELP_TOPICS.ownGroups,
-      title: "Meine Gruppen ansehen",
+      title: "Gruppen ansehen",
       question: "Wie sehe ich meine Gruppen an?",
       summary:
         "Ob Sie eigene Gruppen sehen, hängt von der Arbeitsweise Ihrer OGS ab.",
@@ -995,9 +1013,9 @@ function ownGroupsTopic(
       audience: ["caregiver", "lead"],
       icon: "UsersThree",
       steps: [
-        "Prüfen Sie, ob `Meine Gruppen` oder `Weitere Gruppen` in der Seitenleiste steht.",
-        "Ist einer der Bereiche vorhanden? Öffnen Sie dort die gewünschte Gruppe.",
-        "Fehlen beide Bereiche? Öffnen Sie `Alle Kinder` und nutzen Sie Suche und Filter.",
+        "Prüfen Sie, ob `Gruppen` in der Seitenleiste steht.",
+        "Ist der Bereich vorhanden? Wählen Sie dort die gewünschte Gruppe.",
+        "Fehlt der Bereich? Öffnen Sie `Alle Kinder` und nutzen Sie Suche und Filter.",
       ],
       result:
         "Sie sehen die Kinder entweder in festen eigenen Gruppen oder in einer gemeinsamen Kinderliste.",
@@ -1012,15 +1030,15 @@ function ownGroupsTopic(
 
   return {
     id: HELP_TOPICS.ownGroups,
-    title: "Meine Gruppen ansehen",
+    title: "Gruppen ansehen",
     question: "Wie sehe ich meine Gruppen an?",
-    summary: "Öffnen Sie Ihre festen Gruppen und die zugehörigen Kinder.",
+    summary: "Wählen Sie eine Gruppe und sehen Sie ihre Kinder.",
     group: "gruppen",
     audience: ["caregiver", "lead"],
     icon: "UsersThree",
     steps: [
-      "Öffnen Sie `Meine Gruppen` oder `Weitere Gruppen` in der Seitenleiste.",
-      "Wählen Sie die gewünschte Gruppe.",
+      "Öffnen Sie `Gruppen` in der Seitenleiste.",
+      "Wählen Sie die gewünschte Gruppe. Ihre eigene Gruppe ist mit `Meine Gruppe` markiert.",
       "Prüfen Sie die Zahlen für `krank` und `entschuldigt`.",
       "Suchen Sie bei Bedarf über `Name suchen...` nach einem Kind.",
       // Live geprueft: die Seite hat keinen Knopf `Filter`, sondern einen
@@ -1031,12 +1049,13 @@ function ownGroupsTopic(
     ],
     result: statusResult,
     differences: [
-      "In der Seitenleiste steht hinter jeder Gruppe, wie viele Kinder gerade da sind.",
-      "Eine vorübergehend übernommene Gruppe erscheint ebenfalls unter `Meine Gruppen`.",
-      "Gruppen, die nicht Ihre eigenen sind, stehen unter `Weitere Gruppen`.",
+      "Sehen Sie nur eine Gruppe? Dann öffnet moto sie direkt, ohne Auswahl.",
+      "Ist für eine Gruppe keine Gruppenleitung eingetragen, fehlt diese Zeile auf ihrer Karte.",
+      "Eine vorübergehend übernommene Gruppe ist mit `Vertretung` markiert.",
+      "In der Seitenleiste stehen unter `Gruppen` nur Ihre eigenen Gruppen. Dahinter steht, wie viele Kinder gerade da sind.",
       "Fehlt eine Gruppe? Bitten Sie Ihre Leitung, Ihre Gruppenzuordnung zu prüfen.",
       // Einstellung „Kinder nur über ‚Alle Kinder‘ finden“ (#1321).
-      "Fehlt `Meine Gruppen` in der Navigation? Öffnen Sie `Alle Kinder` und wählen Sie oben `Meine Gruppe`. Die Gruppenseite öffnen Sie im Menü mit den drei Punkten unter `Zur Gruppenseite`.",
+      "Fehlt `Gruppen` in der Navigation? Öffnen Sie `Alle Kinder` und wählen Sie oben `Meine Gruppe`. Die Gruppenseite öffnen Sie im Menü mit den drei Punkten unter `Zur Gruppenseite`.",
     ],
     troubleshooting: HELP_TOPICS.missingChildOrGroup,
     related: [
@@ -1077,7 +1096,7 @@ function transferGroupTopic(groupMode: HelpGroupMode): HelpTopic {
       audience: ["caregiver", "lead"],
       icon: "ArrowsLeftRight",
       steps: [
-        "Prüfen Sie, ob `Meine Gruppen` in der Seitenleiste steht.",
+        "Prüfen Sie, ob `Gruppen` in der Seitenleiste steht.",
         "Ist der Bereich vorhanden? Öffnen Sie Ihre Gruppe und das Menü mit den drei Punkten.",
         "Fehlt der Bereich? Dann müssen Sie keine feste Gruppe übergeben.",
       ],
@@ -1101,7 +1120,7 @@ function transferGroupTopic(groupMode: HelpGroupMode): HelpTopic {
       {
         title: "Gruppe übergeben",
         steps: [
-          "Öffnen Sie Ihre Gruppe unter `Meine Gruppen`.",
+          "Öffnen Sie Ihre Gruppe unter `Gruppen`.",
           "Öffnen Sie oben rechts das Menü mit den drei Punkten.",
           "Wählen Sie `Gruppe übergeben`.",
           "Wählen Sie unter `Übergeben an:` im Feld `Fachkraft auswählen...` die Person aus.",
@@ -1121,7 +1140,7 @@ function transferGroupTopic(groupMode: HelpGroupMode): HelpTopic {
       },
     ],
     result:
-      "Die andere Betreuungskraft sieht die Gruppe bis zum Ende des Tages unter `Meine Gruppen`. Sie behalten selbst den Zugriff.",
+      "Die andere Betreuungskraft sieht die Gruppe bis zum Ende des Tages unter `Gruppen`, markiert mit `Vertretung`. Sie behalten selbst den Zugriff.",
     notes: [
       "Sie können die Gruppe an mehrere Betreuungskräfte übergeben. Wiederholen Sie dafür die Schritte.",
       "Alle Übergaben stehen im Fenster unter `Aktuell übergeben an:`.",
@@ -1130,7 +1149,7 @@ function transferGroupTopic(groupMode: HelpGroupMode): HelpTopic {
       "Fehlt der Eintrag `Gruppe übergeben` im Menü? Dann betreuen Sie die Gruppe nur als Vertretung. Eine Vertretung kann die Gruppe nicht weitergeben.",
       "Steht dort `Keine pädagogische Fachkraft verfügbar`? Dann gibt es niemanden zum Übergeben. Fragen Sie Ihre Leitung.",
       // Einstellung „Kinder nur über ‚Alle Kinder‘ finden“ (#1321).
-      "Fehlt `Meine Gruppen` in der Navigation? Öffnen Sie `Alle Kinder`. Wählen Sie im Menü mit den drei Punkten `Zur Gruppenseite`.",
+      "Fehlt `Gruppen` in der Navigation? Öffnen Sie `Alle Kinder`. Wählen Sie im Menü mit den drei Punkten `Zur Gruppenseite`.",
     ],
     related: [HELP_TOPICS.ownGroups, HELP_TOPICS.missingChildOrGroup],
   };
@@ -1241,10 +1260,10 @@ function carePlanTopic(presenceMode: HelpPresenceMode): HelpTopic {
 function dayPlanTopic(presenceMode: HelpPresenceMode): HelpTopic {
   return {
     id: HELP_TOPICS.dayPlan,
-    title: "Den Betreuungstag im Tagesplan verfolgen",
+    title: "Den Betreuungstag von heute verfolgen",
     question: "Wo sehe ich den Betreuungstag von heute?",
     summary:
-      "Der Tagesplan zeigt die Betreuungsblöcke des Tages der Reihe nach.",
+      "Die Seite `Heute` zeigt die Betreuungsblöcke des Tages der Reihe nach.",
     group: "tagesplanung",
     audience: "caregiver",
     icon: "ClockAfternoon",
@@ -1253,7 +1272,7 @@ function dayPlanTopic(presenceMode: HelpPresenceMode): HelpTopic {
       "Sie dürfen den Betreuungsplan sehen.",
     ],
     steps: [
-      "Öffnen Sie `Tagesplan` in der Seitenleiste.",
+      "Öffnen Sie `Heute` in der Seitenleiste.",
       "Sie sehen die Blöcke des Tages von früh nach spät.",
       "Eine Linie zeigt, wo Sie gerade im Tag stehen.",
       "Tippen Sie auf einen laufenden Block. Das öffnet seine Kinderliste.",
@@ -1269,12 +1288,12 @@ function dayPlanTopic(presenceMode: HelpPresenceMode): HelpTopic {
       "Welche Blöcke Sie sehen, legt Ihre OGS fest. Manche sehen den ganzen Tag der Schule, andere nur die eigene Einteilung.",
       "Ob Sie nur eigene oder alle Blöcke starten dürfen, legt Ihre OGS fest. Wer einen fremden Block startet, wird nicht zur Aufsicht.",
       ...(presenceMode === "unknown"
-        ? ["Bei einfacher Anwesenheit gibt es den Tagesplan nicht."]
+        ? ["Bei einfacher Anwesenheit gibt es die Seite `Heute` nicht."]
         : []),
     ],
     notes: [
       "Mit den Pfeilen oben rechts sehen Sie einen anderen Tag.",
-      "Betreut Ihre OGS am Wochenende? Dann zeigt der Tagesplan auch Samstag und Sonntag. Dort gilt der Freitagsplan.",
+      "Betreut Ihre OGS am Wochenende? Dann zeigt die Seite `Heute` auch Samstag und Sonntag. Dort gilt der Freitagsplan.",
     ],
     troubleshootingDetails: [
       // Live geprueft: der haeufigste Leerzustand einer Betreuungskraft.
@@ -1457,6 +1476,8 @@ function activeSupervisionTopic(presenceMode: HelpPresenceMode): HelpTopic {
           "Suchen Sie ein Kind in der laufenden Aufsicht.",
           "Wählen Sie `Hinzufügen`, wenn das Kind anwesend ist und zur Aufsicht kommen soll.",
           "Mehrere Kinder auf einmal? Wählen Sie `Anwesende Kinder`. Dort stehen die Kinder, die gerade in der OGS sind und laut Gehzeit noch bleiben. Haken Sie die Kinder an und wählen Sie `Kinder hinzufügen`.",
+          // #4571: live geprüft im Dialog `Anwesende Kinder hinzufügen`.
+          "Sie kennen die Kinder an ihrem Betreuungsangebot, zum Beispiel „bis 16 Uhr“? Wählen Sie `Nach Angebot` und darunter das Angebot. Dann stehen dort nur Kinder, die dieses Angebot heute gebucht haben. Kinder, die heute früher gehen oder abgemeldet sind, fehlen. moto merkt sich das Angebot für das nächste Mal.",
           "Prüfen Sie geplante Abholzeiten und Hinweise in der Liste.",
           "Wechselt ein Kind den Raum oder geht nach Hause? Ändern Sie seinen Aufenthaltsort.",
         ],
@@ -1479,11 +1500,14 @@ function activeSupervisionTopic(presenceMode: HelpPresenceMode): HelpTopic {
       "Steht am Termin `Nur für Eingeplante`? Dann dürfen hier nur eingeplante Kräfte starten. Ihre OGS kann das Starten für das ganze Team freigeben.",
       "Sie starten einen Termin, für den Sie nicht eingeplant sind? Dann werden Sie nicht zur Aufsicht. Wer beenden darf, legt Ihre OGS fest.",
       "Fehlt `Beenden`? Dann dürfen hier nur eingeplante Kräfte beenden. Ihre OGS kann das Beenden für das ganze Team freigeben.",
+      // #4349: der Raum steht nur einmal, unter den offenen Räumen.
+      "Läuft Ihre Aufsicht in einem offenen Raum? Dann steht sie unter `Offene Räume`. Ein Auge neben dem Raum zeigt Ihre Aufsicht.",
       "Auf dem Handy stehen die offenen Räume nicht in der Seitenleiste, sondern oben auf der Seite `Aufsicht` als Reiter.",
       "Welche Räume offen sind, legt Ihre OGS fest.",
       "Eine externe Person steht danach unter `Personal` in der Gruppe `Extern`. In Zeiterfassung und Dienstplan erscheint sie nicht.",
       "Fehlt `Spontane Aktivität starten`? Dann hat Ihre OGS in den `Einstellungen` unter `Betrieb` den Schalter `Spontane Aktivitäten erlauben` ausgeschaltet.",
       "Fehlt ein Kind unter `Anwesende Kinder`? Ist seine Gehzeit schon erreicht, steht es nur unter `Alle anwesenden`. Ist es noch nicht angemeldet, suchen Sie es über `Kind hinzufügen`.",
+      "Fehlt `Nach Angebot`? Dann hat Ihre OGS kein aktives Betreuungsangebot, das als Betreuungstag zählt.",
       // Einstellung „Kinder nur über ‚Alle Kinder‘ finden“ (#1321).
       "Fehlt `Aktuelle Aufsicht` in der Navigation? Öffnen Sie `Alle Kinder`. Wählen Sie im Menü mit den drei Punkten `Zur Aufsicht`.",
     ],
@@ -1639,6 +1663,7 @@ function parentMessageTopic(): HelpTopic {
       "Sehen Sie `Nachrichten` nicht? Vielleicht ist die Funktion ausgeschaltet.",
       "Möglicherweise fehlt Ihnen auch der Zugriff auf die betroffenen Kinder.",
       "Fehlen bei einer Anfrage `Anfrage ansehen` oder `Anfrage bearbeiten`? Dann dürfen Sie die Anfrage für dieses Kind nicht prüfen.",
+      "Steht beim Kind `Kein Eltern-Zugang`? Dann kann niemand die Nachricht in der Eltern-App lesen. Den Zugang der Eltern legen Sie beim Kind fest.",
     ],
     notes: [
       "Schreiben Sie persönliche Angaben nur in die Unterhaltung der richtigen Bezugsperson.",
@@ -2387,7 +2412,7 @@ function nfcCheckInTopic(
         },
       ],
       result:
-        "moto zeigt `Anwesend` oder `Abwesend`. Räume werden nicht erfasst.",
+        "moto zeigt `Anwesend` oder `Zuhause`. Räume werden nicht erfasst.",
       differences: [
         "Die Frage `Wohin geht ...?` erscheint nicht. Das zweite Scannen meldet das Kind direkt ab.",
         "Eine Auswahl von Raum oder Aktivität am Tablet ändert nichts an der Anwesenheit.",
@@ -2460,20 +2485,20 @@ function missingMenuDifferences(
     // Vollstaendige Liste aus sidebar.tsx BINARY_HIDDEN_HREFS (/rooms,
     // /activities, /tagesplan) plus dem separat gegateten Aufsicht-Akkordeon.
     lines.push(
-      "In Ihrer OGS gibt es `Räume`, `Aktivitäten`, `Aktuelle Aufsicht` und `Tagesplan` nicht. Ihre OGS hält nur fest, ob ein Kind da ist.",
+      "In Ihrer OGS gibt es `Räume`, `Aktivitäten`, `Aktuelle Aufsicht` und `Heute` nicht. Ihre OGS hält nur fest, ob ein Kind da ist.",
     );
   } else if (presenceMode === "unknown") {
     lines.push(
-      "Bei einfacher Anwesenheit fehlen `Räume`, `Aktivitäten`, `Aktuelle Aufsicht` und `Tagesplan`.",
+      "Bei einfacher Anwesenheit fehlen `Räume`, `Aktivitäten`, `Aktuelle Aufsicht` und `Heute`.",
     );
   }
 
   if (groupMode === "open_care") {
     lines.push(
-      "In Ihrer OGS gibt es `Meine Gruppen` nicht. Ihre OGS arbeitet mit offener Betreuung.",
+      "In Ihrer OGS gibt es den Bereich `Gruppen` nicht. Ihre OGS arbeitet mit offener Betreuung.",
     );
   } else if (groupMode === "unknown") {
-    lines.push("Bei offener Betreuung fehlt `Meine Gruppen`.");
+    lines.push("Bei offener Betreuung fehlt `Gruppen`.");
   }
 
   if (nfcEnabled === false) {
@@ -2540,7 +2565,7 @@ function missingChildOrGroupTopic(groupMode: HelpGroupMode): HelpTopic {
       "Suchen Sie das Kind unter `Alle Kinder`.",
       ...(groupMode === "fixed_groups"
         ? [
-            "Fehlt das Kind nur unter `Meine Gruppen`? Prüfen Sie, ob Sie die richtige Gruppe geöffnet haben.",
+            "Fehlt das Kind nur unter `Gruppen`? Prüfen Sie, ob Sie die richtige Gruppe geöffnet haben.",
             "Bitten Sie Ihre Leitung, die Gruppe des Kindes und Ihre Gruppenzuordnung zu prüfen.",
           ]
         : groupMode === "open_care"
@@ -2847,7 +2872,7 @@ function roomsCatalogTopic(presenceMode: HelpPresenceMode): HelpTopic {
 /**
  * Gruppenkatalog unter `/database/groups`. An keine Einstellung gebunden: der
  * `OpenCareModeGuard` schuetzt nur `/ogs-groups`, und die Seitenleiste blendet
- * bei offener Betreuung nur das Akkordeon `Meine Gruppen` aus
+ * bei offener Betreuung nur das Akkordeon `Gruppen` aus
  * (sidebar.tsx:1391). Der Katalog selbst bleibt in jeder Arbeitsweise stehen.
  */
 function groupsCatalogTopic(groupMode: HelpGroupMode): HelpTopic {
@@ -2868,7 +2893,7 @@ function groupsCatalogTopic(groupMode: HelpGroupMode): HelpTopic {
         title: "Eine Gruppe anlegen",
         steps: [
           "Klappen Sie in der Seitenleiste `Verwaltung` auf.",
-          "Öffnen Sie `Datenverwaltung` und danach `Gruppen`.",
+          "Öffnen Sie `Datenverwaltung` und danach `Gruppendaten`.",
           "Wählen Sie oben rechts `+ Gruppe`.",
           "Tragen Sie bei `Gruppenname` den Namen der Gruppe ein.",
           "Wählen Sie bei Bedarf einen `Gruppenraum`.",
@@ -2879,7 +2904,7 @@ function groupsCatalogTopic(groupMode: HelpGroupMode): HelpTopic {
       {
         title: "Eine Gruppe ändern",
         steps: [
-          "Öffnen Sie `Gruppen` und wählen Sie die Gruppe aus der Liste.",
+          "Öffnen Sie `Gruppendaten` und wählen Sie die Gruppe aus der Liste.",
           "Ändern Sie die Angaben unter `Stammdaten`.",
           "Wählen Sie `Speichern`.",
         ],
@@ -2887,7 +2912,7 @@ function groupsCatalogTopic(groupMode: HelpGroupMode): HelpTopic {
       {
         title: "Eine Gruppe löschen",
         steps: [
-          "Öffnen Sie `Gruppen` und wählen Sie die Gruppe aus der Liste.",
+          "Öffnen Sie `Gruppendaten` und wählen Sie die Gruppe aus der Liste.",
           "Wählen Sie oben rechts `Löschen`.",
           "Bestätigen Sie mit `Ja, löschen`.",
         ],
@@ -2900,7 +2925,7 @@ function groupsCatalogTopic(groupMode: HelpGroupMode): HelpTopic {
       "Über `Alle Räume` filtern Sie die Liste auf die Gruppen eines Raums.",
       ...(openCare
         ? [
-            "Ihre OGS arbeitet ohne feste Gruppen. Ihr Team sieht deshalb keine `Meine Gruppen`.",
+            "Ihre OGS arbeitet ohne feste Gruppen. Ihr Team sieht deshalb den Bereich `Gruppen` nicht.",
           ]
         : []),
     ],
@@ -3064,7 +3089,7 @@ function createStudentTopic(): HelpTopic {
       "Auf dem Handy steht statt `+ Kinder` ein rundes Plus unten rechts. `Importieren` fehlt dort ganz.",
     ],
     troubleshootingDetails: [
-      "Fehlt die passende `Gruppe`? Legen Sie sie zuerst in der `Datenverwaltung` unter `Gruppen` an.",
+      "Fehlt die passende `Gruppe`? Legen Sie sie zuerst in der `Datenverwaltung` unter `Gruppendaten` an.",
       "Der grüne Knopf ist grau? Dann hat die Vorschau noch Fehler. Beheben Sie sie in der Datei und laden Sie erneut hoch.",
       "Über der Vorschau steht rot, der Import würde mehr Kinder hinzufügen, als im Kinderkontingent frei sind? Dann startet der Import gar nicht. Nehmen Sie Kinder aus der Datei heraus oder melden Sie sich beim moto-Team. Kinder, die der Import nur aktualisiert, zählen dabei nicht.",
       "moto erkennt eine Zeile an Vorname, Nachname und Klasse. Bei einem Klassenwechsel an der Spalte `RFID-Karte` oder am Geburtstag.",
@@ -4237,6 +4262,7 @@ function enrollmentSetupTopic(): HelpTopic {
       "Über `Elternansicht öffnen` sehen Sie das Formular so wie die Eltern.",
       "Das `Basisformular` fragt Elternteil, Kind, Klassenstufe und das gewünschte Betreuungsangebot ab. Brauchen Sie mehr, legen Sie eine eigene Vorlage an.",
       "Eine Phase lässt sich mit einem Kalenderzeitraum verknüpfen. Dann passen die Daten automatisch.",
+      "Sie haben Varianten wie „bis 13 Uhr“ und „bis 17 Uhr“? Geben Sie ihnen bei `Pflichtauswahl` dieselbe `Gruppe (optional)` und die `Regel` `Höchstens eines pro Tag`. Dann mischen Eltern die Varianten über die Woche, aber wählen pro Tag nur eine.",
     ],
     differences: [
       "Auf dem Handy erscheint nur ein Hinweis. Die Anmeldungen laufen am Computer.",
@@ -5049,7 +5075,7 @@ function leadCarePlanTopic(): HelpTopic {
       "Legen Sie die Termine der Woche an.",
       "Prüfen Sie zum Schluss die gemeldeten Konflikte.",
     ],
-    result: "Ihr Team sieht den Plan im `Tagesplan` und unter `Mein Kalender`.",
+    result: "Ihr Team sieht den Plan unter `Heute` und unter `Mein Kalender`.",
     notes: [
       "Ein Regeltermin wiederholt sich. Die Ansicht `Serien` zeigt alle Regeltermine.",
       "Aufgaben ohne Kinder, etwa Busaufsicht oder Essensausgabe, legen Sie mit dem `Typ` `Dienst` an. Ein Dienst hat keine Kinderliste und wird nicht gestartet. Der Raum ist freiwillig.",
@@ -5863,8 +5889,8 @@ function leadMissingMenuTopic(): HelpTopic {
     ],
     differences: [
       "Manche Bereiche hängen nicht an Rechten, sondern an Funktionen Ihrer OGS.",
-      "Ohne NFC fehlen `Aktivitäten` und `Geräte`. Bei einfacher Anwesenheit fehlen `Räume` und `Tagesplan`.",
-      "Ohne feste Gruppen fehlt `Meine Gruppen`.",
+      "Ohne NFC fehlen `Aktivitäten` und `Geräte`. Bei einfacher Anwesenheit fehlen `Räume` und `Heute`.",
+      "Ohne feste Gruppen fehlt `Gruppen`.",
       "`Info-Displays` hängt an einem eigenen Schalter in den `Einstellungen`, nicht an einem Recht.",
     ],
     troubleshootingDetails: [
@@ -6512,6 +6538,7 @@ function parentCareChangeTopic(): HelpTopic {
       "moto sagt, Ihre OGS nehme keine Anfragen zum Wochenplan an? Dann laufen Änderungen über die gebuchten Angebote.",
       "moto sagt, für dieses Kind werde bereits eine Änderung geprüft? Warten Sie die Entscheidung ab.",
       "moto sagt, der Betreuungszeitraum sei abgelaufen? Dann melden Sie Ihr Kind für den neuen Zeitraum neu an.",
+      "Ein roter Hinweis nennt einen Tag und zwei Angebote? Diese Angebote gehen am selben Tag nicht zusammen. Nehmen Sie den Tag bei einem der beiden heraus.",
     ],
     related: [
       HELP_TOPICS.parentPickupChange,
@@ -6820,6 +6847,7 @@ function parentEnrollTopic(): HelpTopic {
     troubleshootingDetails: [
       "moto sagt, aktuell sei keine Anmeldephase geöffnet? Dann wenden Sie sich an die OGS.",
       "moto sagt, die Online-Anmeldung sei nicht freigeschaltet? Dann nimmt diese OGS keine Anmeldungen über moto an.",
+      "Ein roter Hinweis nennt einen Tag und zwei Angebote? Diese Angebote gehen am selben Tag nicht zusammen. Nehmen Sie den Tag bei einem der beiden heraus.",
     ],
     related: [
       HELP_TOPICS.parentEnrollStatus,
@@ -7683,7 +7711,7 @@ const DETAILED_ONLY_TOPIC_IDS: ReadonlySet<HelpTopicId> = new Set([
 ]);
 
 // Und dasselbe fuer die offene Betreuung: ohne feste eigene Gruppen gibt es
-// weder `Meine Gruppen` noch eine Gruppe, die man uebergeben koennte.
+// weder `Gruppen` noch eine Gruppe, die man uebergeben koennte.
 const FIXED_GROUPS_ONLY_TOPIC_IDS: ReadonlySet<HelpTopicId> = new Set([
   HELP_TOPICS.ownGroups,
   HELP_TOPICS.transferGroup,

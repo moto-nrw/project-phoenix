@@ -239,6 +239,8 @@ describe("Kopf der Kindakte", () => {
         mySupervisedRooms={[]}
       />,
     );
+    // Anker: der Kopf mit dem Namen ist gerendert.
+    expect(screen.getByText("Max Mustermann")).toBeInTheDocument();
     expect(screen.queryByText("Gruppe 1")).not.toBeInTheDocument();
   });
 
@@ -681,6 +683,8 @@ describe("SupervisorsCard", () => {
       />,
     );
 
+    // Anker: die Zeile der Ansprechpartnerin ist gerendert.
+    expect(screen.getByText("Anna Schmidt")).toBeInTheDocument();
     expect(
       screen.queryByRole("button", { name: /kontakt aufnehmen/i }),
     ).not.toBeInTheDocument();
@@ -955,9 +959,17 @@ describe("PersonalInfoReadOnly", () => {
     expect(screen.getByText("Zweite Antwort")).toBeInTheDocument();
   });
 
+  it("renders health info when present", () => {
+    render(<PersonalInfoReadOnly student={mockStudent} />);
+    expect(screen.getByText("Gesundheitsinformationen")).toBeInTheDocument();
+    expect(screen.getByText("Allergien: Erdnüsse")).toBeInTheDocument();
+  });
+
   it("does not render health info when not present", () => {
     const studentWithoutHealth = { ...mockStudent, health_info: undefined };
     render(<PersonalInfoReadOnly student={studentWithoutHealth} />);
+    // Anker: die Karte mit den persönlichen Informationen ist gerendert.
+    expect(screen.getByText("Persönliche Informationen")).toBeInTheDocument();
     expect(
       screen.queryByText("Gesundheitsinformationen"),
     ).not.toBeInTheDocument();
@@ -1001,7 +1013,9 @@ describe("PersonalInfoReadOnly", () => {
       <PersonalInfoReadOnly student={mockStudent} showEditButton={true} />,
     );
     // Edit button should not be rendered when onEditClick is not provided
-    expect(screen.queryByTitle("Bearbeiten")).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole("button", { name: "Bearbeiten" }),
+    ).not.toBeInTheDocument();
     // Should still show the "Nur Ansicht" badge
     expect(screen.getByText("Nur Ansicht")).toBeInTheDocument();
   });
@@ -1014,7 +1028,11 @@ describe("PersonalInfoReadOnly", () => {
         onEditClick={vi.fn()}
       />,
     );
-    expect(screen.queryByTitle("Bearbeiten")).not.toBeInTheDocument();
+    // Anker: an der Stelle des Knopfs steht das Nur-Ansicht-Abzeichen.
+    expect(screen.getByText("Nur Ansicht")).toBeInTheDocument();
+    expect(
+      screen.queryByRole("button", { name: "Bearbeiten" }),
+    ).not.toBeInTheDocument();
   });
 });
 

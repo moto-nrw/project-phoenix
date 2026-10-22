@@ -80,6 +80,10 @@ describe("WeeklyCalendarGrid closing days (#2032)", () => {
   it("shows nothing extra without closing days", () => {
     renderWeek();
 
+    // Anker: das Wochenraster mit dem Termin-Block ist gerendert.
+    expect(
+      screen.getByLabelText(/^Mensa, 12:00 bis 13:00/),
+    ).toBeInTheDocument();
     expect(screen.queryByText(/Schließtag/)).not.toBeInTheDocument();
     // Leere Tagesspalten tragen seit #2031 keine Beschriftung mehr; der
     // Schließtag-Hinweis ist damit das Einzige, was hier je erscheint.

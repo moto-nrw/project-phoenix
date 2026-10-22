@@ -34,15 +34,66 @@ ROOT=$(git rev-parse --show-toplevel 2>/dev/null) || die "not inside a git repos
 [ -f "$ROOT/.env" ] || die "$ROOT/.env missing (run scripts/setup-dev.sh)"
 STATE="$ROOT/tmp/dev-native"
 
+# Compose interpolates ${VAR} in .env values (DB_DSN carries
+# ${POSTGRES_PASSWORD}); do the same so the native apps see the value the
+# containers see. Single-quoted values stay literal, as in Compose. Both ${VAR}
+# and $VAR are expanded; $$ is the Compose escape for a literal $.
+# Defaults (${VAR:-x}) are not allowed in this repo, so any other braced form,
+# and a reference to an unset variable, fails here instead of reaching the apps
+# as text. Sets EXPANDED; no subshell, so die stops the script.
+expand_refs() {
+  local key=$1 val=$2 out='' ref char next i=0
+  while [ "$i" -lt "${#val}" ]; do
+    char=${val:i:1}
+    if [ "$char" != '$' ]; then
+      out+=$char
+      i=$((i + 1))
+      continue
+    fi
+
+    next=${val:i+1:1}
+    if [ "$next" = '$' ]; then
+      out+='$'
+      i=$((i + 2))
+    elif [ "$next" = '{' ]; then
+      ref=${val:i+2}
+      ref=${ref%%\}*}
+      [[ ${val:i+2} == *\}* && $ref =~ ^[A-Za-z_][A-Za-z0-9_]*$ ]] ||
+        die "$key in .env uses an unsupported \${...} form; only \${VAR} is resolved"
+      [ -n "${!ref+set}" ] || die "$key in .env references \${$ref}, which is not set"
+      out+=${!ref}
+      i=$((i + ${#ref} + 3))
+    elif [[ $next =~ [A-Za-z_] ]]; then
+      ref=${val:i+1}
+      ref=${ref%%[^A-Za-z0-9_]*}
+      [ -n "${!ref+set}" ] || die "$key in .env references \$$ref, which is not set"
+      out+=${!ref}
+      i=$((i + ${#ref} + 1))
+    else
+      out+='$'
+      i=$((i + 1))
+    fi
+  done
+  EXPANDED=$out
+}
+
 load_env() {
-  local line key val
+  local line key val shell_env_keys=$'\n'
+  while IFS= read -r key; do shell_env_keys+="$key"$'\n'; done < <(compgen -e)
   while IFS= read -r line || [ -n "$line" ]; do
     case "$line" in '' | '#'*) continue ;; esac
     line=${line#export }
     key=${line%%=*}
     val=${line#*=}
     [[ $key =~ ^[A-Za-z_][A-Za-z0-9_]*$ ]] || continue
-    if [[ $val == \"*\" || $val == \'*\' ]]; then val=${val:1:${#val}-2}; fi
+    [[ $shell_env_keys == *$'\n'"$key"$'\n'* ]] && continue
+    if [[ $val == \'*\' ]]; then
+      val=${val:1:${#val}-2}
+    else
+      if [[ $val == \"*\" ]]; then val=${val:1:${#val}-2}; fi
+      expand_refs "$key" "$val"
+      val=$EXPANDED
+    fi
     export "$key=$val"
   done <"$ROOT/.env"
 
@@ -52,8 +103,11 @@ load_env() {
   done
 
   # Host overrides: Compose hostnames -> localhost with published ports.
-  [[ $DB_DSN == *@postgres:5432/* ]] || die "DB_DSN in .env does not use host postgres:5432; adjust scripts/dev-native.sh"
-  export DB_DSN=${DB_DSN/@postgres:5432\//@localhost:$POSTGRES_HOST_PORT/}
+  if [[ $DB_DSN == *@postgres:5432/* ]]; then
+    export DB_DSN=${DB_DSN/@postgres:5432\//@localhost:$POSTGRES_HOST_PORT/}
+  elif [[ $shell_env_keys != *$'\nDB_DSN\n'* ]]; then
+    die "DB_DSN in .env does not use host postgres:5432; adjust scripts/dev-native.sh"
+  fi
   export EMAIL_SMTP_HOST=localhost
   export EMAIL_SMTP_PORT=$MAILPIT_SMTP_HOST_PORT
   export MAILPIT_URL=http://localhost:$MAILPIT_HOST_PORT

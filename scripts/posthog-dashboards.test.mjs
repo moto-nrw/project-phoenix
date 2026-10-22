@@ -3,12 +3,15 @@ import { test } from 'node:test';
 import {
   DEPLOYMENTS,
   FEATURES,
+  ON_WORKDAY,
   POSTHOG_HOST,
+  SCHOOL_BREAKDOWN,
   dashboards,
   featureExpression,
   featureOfPage,
   missingPath,
   posthogClient,
+  publicHolidays,
   readBrowserEvents,
   readRouteTemplates,
   sync,
@@ -25,6 +28,8 @@ test('defines the dashboards of #3604, the feature areas, and the demo behaviour
     'Nutzungsanalyse: Reibung',
     'Nutzungsanalyse: Aktive Schulen',
     'Nutzungsanalyse: Funktionen in Schulen',
+    'Nutzungsanalyse: Nutzung je Standort',
+    'Nutzungsanalyse: Schule im Verlauf',
     'Nutzungsanalyse: Demo-Verhalten',
   ]);
   const names = insights.map((insight) => insight.name);
@@ -49,6 +54,23 @@ test('every insight filters on production or the demo, never staging', () => {
   }
 });
 
+test('school insights count Monday to Friday without the public holidays of NRW, the demo every day', () => {
+  for (const insight of insights) {
+    const source = insight.query.source;
+    const filters = source.kind === 'HogQLQuery'
+      ? source.query.split(ON_WORKDAY).length - 1
+      : source.properties.values.filter((group) => group.values.some((value) => value.key === ON_WORKDAY)).length;
+    const scans = source.kind === 'HogQLQuery' ? source.query.match(/\bfrom events\b/g).length : 1;
+    assert.equal(filters, insight.deployment === 'production' ? scans : 0, insight.name);
+  }
+  const holidays = publicHolidays([2026, 2027]);
+  assert.equal(holidays.length, 22);
+  for (const day of ['2026-04-03', '2026-04-06', '2026-05-14', '2026-05-25', '2026-06-04', '2026-10-03', '2026-11-01', '2026-12-25', '2027-03-29']) {
+    assert.ok(holidays.includes(day), day);
+  }
+  assert.ok(publicHolidays().includes('2035-12-26'));
+});
+
 test('the demo dashboards stay in the demo and the school dashboards in production', () => {
   const isDemo = (dashboard) => dashboard.name.startsWith('Nutzungsanalyse: Demo');
   const demos = definitions.filter(isDemo);
@@ -67,8 +89,14 @@ test('no insight looks at a single person', () => {
     const query = JSON.stringify(insight.query);
     assert.doesNotMatch(query, /distinct_id|\bpersons?\b|person_id|\$user_id|\bpdi\b|email|\bdau\b|weekly_active|monthly_active|unique_users/i, insight.name);
     const breakdown = insight.query.source.breakdownFilter?.breakdown;
-    if (breakdown) assert.ok(['surface', 'role'].includes(breakdown), insight.name);
+    if (breakdown) assert.ok(['surface', 'role', SCHOOL_BREAKDOWN].includes(breakdown), insight.name);
   }
+});
+
+test('charts name a school from its production group and fall back to its ID', () => {
+  assert.match(SCHOOL_BREAKDOWN, /from groups where index = 0 and startsWith\(key, 'moto-app\.de:'\)/);
+  assert.match(SCHOOL_BREAKDOWN, /concat\('Schule ', toString\(properties\.school_id\)\)\)$/);
+  assert.doesNotMatch(SCHOOL_BREAKDOWN, /demo|staging|localhost/);
 });
 
 test('reads the route templates of every portal from analytics-routes.ts', () => {

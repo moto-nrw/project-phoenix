@@ -122,6 +122,16 @@ describe("presentChildCandidates", () => {
     expect(ids).toEqual(["1", "2", "3", "4", "5", "6"]);
   });
 
+  it("keeps the whole offering list, whatever the Gehzeit", () => {
+    const ids = presentChildCandidates(
+      children,
+      new Set(["6"]),
+      noon,
+      "offering",
+    ).map((child) => child.id);
+    expect(ids).toEqual(["1", "2", "3", "4", "5"]);
+  });
+
   it("never offers a child that is already in the block", () => {
     const ids = presentChildCandidates(
       children,

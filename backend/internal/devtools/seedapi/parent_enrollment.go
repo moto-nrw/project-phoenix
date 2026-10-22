@@ -323,6 +323,7 @@ func (s parentEnrollmentSeedStep) seedEnrollment(rt *Runtime, adminAuth AuthRef,
 
 	type enrollmentSubmission struct {
 		source string
+		key    string
 		body   map[string]any
 		auth   AuthRef
 		path   string
@@ -341,6 +342,7 @@ func (s parentEnrollmentSeedStep) seedEnrollment(rt *Runtime, adminAuth AuthRef,
 		}
 		return enrollmentSubmission{
 			source: source,
+			key:    seedSource,
 			path:   "/api/enrollment/" + rt.Bootstrap.TenantSlug + "/submit",
 			body: s.enrollmentSubmissionWithDays(phaseID, offerings, childFirstName, childLastName, dob, grade,
 				guardianFirstName, guardianLastName, guardianEmail, seedSource, offeringIDs, selectedDaysByID,
@@ -490,10 +492,14 @@ func (s parentEnrollmentSeedStep) seedEnrollment(rt *Runtime, adminAuth AuthRef,
 				"ogs-kurz":    {"mon"},
 				"mittagessen": {"mon"},
 			}, "", ""),
+		// Emil wechselt die Betreuungszeit über die Woche: Ganztag am
+		// Montag und Mittwoch, Kurzbetreuung am Dienstag und Donnerstag.
+		// Beide gehören zur Gruppe mit der Regel „pro Tag eines“ (#4514).
 		seedSubmission("public", "Emil", "Graf", "2016-08-21", 4,
 			"Susanne", "Graf", "susanne.graf@example.test", "submitted-4-days",
-			[]string{"ogs-ganztag", "mittagessen"}, map[string][]string{
-				"ogs-ganztag": {"mon", "tue", "wed", "thu"},
+			[]string{"ogs-ganztag", "ogs-kurz", "mittagessen"}, map[string][]string{
+				"ogs-ganztag": {"mon", "wed"},
+				"ogs-kurz":    {"tue", "thu"},
 				"mittagessen": {"mon", "tue", "wed", "thu"},
 			}, "", ""),
 	}
@@ -555,6 +561,7 @@ func (s parentEnrollmentSeedStep) seedEnrollment(rt *Runtime, adminAuth AuthRef,
 		}
 		request.StatusToken = detail.StatusToken
 		request.ChildIDs = detail.ChildIDs
+		request.Key = submission.key
 		state.Requests = append(state.Requests, request)
 		if submission.status != "" {
 			if err := s.decideSeedSubmission(rt, adminAuth, request, submission.status, submission.reason, &immediateSeeded); err != nil {
@@ -888,6 +895,9 @@ type seedCareOffering struct {
 	sort         int
 	countsAsCare bool
 	pickupTime   string
+	// group puts the offering into a per-day selection group (#4514): the
+	// variants combine across the week, but never twice on one day.
+	group string
 	// names and descriptions translate the two texts per locale (#3377).
 	names        map[string]string
 	descriptions map[string]string
@@ -895,10 +905,10 @@ type seedCareOffering struct {
 
 func demoCareOfferings() []seedCareOffering {
 	return []seedCareOffering{
-		{key: "ogs-ganztag", name: "OGS Ganztag", description: "Betreuung bis 16 Uhr", daysMode: "parent_choice", days: []string{"mon", "tue", "wed", "thu", "fri"}, lunch: true, price: 16500, sort: 10, countsAsCare: true, pickupTime: "16:00",
+		{key: "ogs-ganztag", name: "OGS Ganztag", description: "Betreuung bis 16 Uhr", daysMode: "parent_choice", days: []string{"mon", "tue", "wed", "thu", "fri"}, lunch: true, price: 16500, sort: 10, countsAsCare: true, pickupTime: "16:00", group: "Betreuungszeit",
 			names:        map[string]string{"en": "All-day care", "ru": "Группа продлённого дня", "uk": "Група подовженого дня"},
 			descriptions: map[string]string{"en": "Care until 4 pm", "ru": "Присмотр до 16:00", "uk": "Догляд до 16:00"}},
-		{key: "ogs-kurz", name: "Kurzbetreuung", description: "Betreuung bis 14 Uhr", daysMode: "parent_choice", days: []string{"mon", "tue", "wed", "thu", "fri"}, lunch: false, price: 9000, sort: 20, countsAsCare: true, pickupTime: "14:00",
+		{key: "ogs-kurz", name: "Kurzbetreuung", description: "Betreuung bis 14 Uhr", daysMode: "parent_choice", days: []string{"mon", "tue", "wed", "thu", "fri"}, lunch: false, price: 9000, sort: 20, countsAsCare: true, pickupTime: "14:00", group: "Betreuungszeit",
 			names:        map[string]string{"en": "Short care", "ru": "Короткий присмотр", "uk": "Короткий догляд"},
 			descriptions: map[string]string{"en": "Care until 2 pm", "ru": "Присмотр до 14:00", "uk": "Догляд до 14:00"}},
 		{key: "mittagessen", name: "Mittagessen", description: "Warme Mahlzeit an Betreuungstagen", daysMode: "parent_choice", days: []string{"mon", "tue", "wed", "thu", "fri"}, lunch: true, required: true, price: 5200, sort: 30,
@@ -946,6 +956,10 @@ func careOfferingSeedBody(offering seedCareOffering, phaseID int64) map[string]a
 		"counts_as_care":        offering.countsAsCare,
 		"sort_order":            offering.sort,
 		"selection_rule":        "optional",
+	}
+	if offering.group != "" {
+		body["selection_group"] = offering.group
+		body["selection_rule"] = "at_most_one_per_day"
 	}
 	if offering.countsAsCare {
 		pickupTimes := make(map[string]string, len(offering.days))

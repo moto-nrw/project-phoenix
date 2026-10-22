@@ -15,6 +15,7 @@ import (
 	"fmt"
 	"log/slog"
 	"slices"
+	"strings"
 	"time"
 
 	groupLiveHTTP "github.com/moto-nrw/project-phoenix/modules/grouplive/http"
@@ -63,10 +64,12 @@ type groupLiveStatusDays interface {
 	FindActiveByStudentIDsAndDate(ctx context.Context, studentIDs []int64, date calendar.Date) ([]*absencerecords.StudentStatusDay, error)
 }
 
-// groupLiveGroups is the School Structure read of the groups and their rooms.
+// groupLiveGroups is the School Structure read of the groups, their rooms
+// and their Gruppenleitung.
 type groupLiveGroups interface {
 	ListGroups(ctx context.Context, query *educationService.GroupListQuery) ([]*educationService.Group, error)
 	GetGroupsWithRoomsByIDs(ctx context.Context, ids []int64) (map[int64]*educationService.Group, error)
+	GetTeachersForGroups(ctx context.Context, groupIDs []int64) (map[int64][]*educationService.Teacher, error)
 }
 
 // groupLiveSubstitutions is the School Structure read of the handovers.
@@ -209,6 +212,25 @@ func (d groupLiveDirectory) GroupRoomNames(ctx context.Context, groupIDs []int64
 	for id, group := range withRooms {
 		if group != nil && group.Room != nil {
 			names[id] = group.Room.Name
+		}
+	}
+	return names, nil
+}
+
+func (d groupLiveDirectory) GroupLeaderNames(ctx context.Context, groupIDs []int64) (map[int64][]string, error) {
+	teachers, err := d.education.GetTeachersForGroups(ctx, groupIDs)
+	if err != nil {
+		return nil, err
+	}
+	names := make(map[int64][]string, len(teachers))
+	for id, groupTeachers := range teachers {
+		for _, teacher := range groupTeachers {
+			if teacher == nil {
+				continue
+			}
+			if name := strings.TrimSpace(teacher.FullName()); name != "" {
+				names[id] = append(names[id], name)
+			}
 		}
 	}
 	return names, nil

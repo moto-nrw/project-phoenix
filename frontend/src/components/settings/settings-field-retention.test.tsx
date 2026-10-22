@@ -48,13 +48,14 @@ function renderOperatorField(setting: ResolvedSetting) {
 
 describe("SettingsField retention windows (ADR 0048)", () => {
   it("asks before a shorter retention window is saved", async () => {
-    const { input, onSave, getByRole, findByText } =
+    const { input, onSave, getByRole, getByText, findByText } =
       renderOperatorField(retentionSetting());
 
     fireEvent.change(input, { target: { value: "90" } });
     fireEvent.blur(input);
 
     expect(await findByText(/älter als 90 Tage sind/)).toBeInTheDocument();
+    expect(getByText("Löschfrist verkürzen?")).toBeInTheDocument();
     expect(onSave).not.toHaveBeenCalled();
 
     fireEvent.click(getByRole("button", { name: "Frist verkürzen" }));
@@ -105,6 +106,8 @@ describe("SettingsField retention windows (ADR 0048)", () => {
     const { input, onSave, queryByText } =
       renderOperatorField(retentionSetting());
 
+    // Anker: das Zahlenfeld der Frist ist gerendert.
+    expect(input).toBeInTheDocument();
     fireEvent.change(input, { target: { value: "500" } });
     fireEvent.blur(input);
 

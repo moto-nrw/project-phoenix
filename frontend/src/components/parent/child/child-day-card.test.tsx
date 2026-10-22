@@ -88,6 +88,8 @@ describe("ChildDayCard", () => {
     // ableiten. Ein state "present" mit at_ogs null bleibt ohne Ja/Nein-Satz.
     it("schweigt bei at_ogs null, auch wenn state etwas anderes nahelegt", () => {
       renderCard({ at_ogs: null, state: "present", since: "12:38" });
+      // Anker: der geladene Status steht, Ebene 2 ohne Ja/Nein-Satz davor.
+      expect(screen.getByText("Seit 12:38 Uhr da")).toBeInTheDocument();
       expect(screen.queryByText("In der OGS")).not.toBeInTheDocument();
       expect(screen.queryByText("Nicht in der OGS")).not.toBeInTheDocument();
     });
@@ -189,6 +191,8 @@ describe("ChildDayCard", () => {
         { at_ogs: true, state: "present", since: "12:38" },
         noFeatures,
       );
+      // Anker: die Karte steht mit dem Tagesstatus des Kindes.
+      expect(screen.getByText("In der OGS")).toBeInTheDocument();
       expect(
         screen.queryByRole("link", {
           name: "Felix abmelden Krank melden oder entschuldigen",

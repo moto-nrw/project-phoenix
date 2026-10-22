@@ -149,8 +149,12 @@ describe("ChildConsentsSection", () => {
       })),
     );
 
-    renderSection();
+    const { unmount } = renderSection();
 
+    // Ausgangszustand: die Antwort steht noch aus, das Skelett ist da.
+    expect(
+      screen.getByTestId("parent-page-section-skeleton"),
+    ).toBeInTheDocument();
     await waitFor(() =>
       expect(
         screen.queryByTestId("parent-page-section-skeleton"),
@@ -161,6 +165,16 @@ describe("ChildConsentsSection", () => {
         name: "Einwilligungen und Bestätigungen",
       }),
     ).not.toBeInTheDocument();
+    unmount();
+
+    mockedGet.mockResolvedValue(granted);
+    renderSection();
+    // Anker: mit hinterlegten Einwilligungen findet dieselbe Abfrage den Bereich.
+    expect(
+      await screen.findByRole("heading", {
+        name: "Einwilligungen und Bestätigungen",
+      }),
+    ).toBeInTheDocument();
   });
 
   it("erklärt die sofortige Wirkung und zeigt danach den Widerruf", async () => {

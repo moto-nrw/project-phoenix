@@ -84,7 +84,7 @@ func TestValidateSessionTokens(t *testing.T) {
 			require.Error(t, err)
 			_, err = service.ValidateSessionTokens(ctx, access+"tampered", refresh, portal)
 			require.Error(t, err)
-			otherSigner, err := sessiontoken.NewTokenAuthWithDurations("different-test-signing-key-32-characters", time.Minute, time.Hour)
+			otherSigner, err := sessiontoken.NewTokenAuthWithDurations(testpkg.NewTestSigningSecret(), time.Minute, time.Hour)
 			require.NoError(t, err)
 			forged, _, err := otherSigner.GenTokenPair(accessClaims, refreshClaims)
 			require.NoError(t, err)

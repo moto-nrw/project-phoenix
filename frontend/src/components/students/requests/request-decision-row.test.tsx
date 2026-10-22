@@ -92,6 +92,35 @@ describe("RequestDecisionRow", () => {
     expect(screen.queryByRole("checkbox")).not.toBeInTheDocument();
   });
 
+  it("nennt, wer die Anfrage eingereicht hat, mit hinterlegter Beziehung", () => {
+    renderRow(
+      item({
+        submitted_by_name: "Sabine Schneider",
+        submitted_by_relationship: "parent",
+      }),
+    );
+
+    expect(
+      screen.getByText("Eingereicht von Sabine Schneider (Elternteil)"),
+    ).toBeInTheDocument();
+  });
+
+  it("nennt ohne hinterlegte Beziehung nur den Namen", () => {
+    renderRow(item({ submitted_by_name: "Sabine Schneider" }));
+
+    expect(
+      screen.getByText("Eingereicht von Sabine Schneider"),
+    ).toBeInTheDocument();
+  });
+
+  it("nennt niemanden, wenn die Schule die Person nicht kennt", () => {
+    renderRow(item());
+
+    // Anker: der Kopf der geladenen Anfrage steht, nur der Name fehlt.
+    expect(screen.getByText("Anfrage 1 von 1")).toBeInTheDocument();
+    expect(screen.queryByText(/Eingereicht von/)).toBeNull();
+  });
+
   it("nennt den Namen im Namen der Auswahl", () => {
     renderRow(item());
     expect(

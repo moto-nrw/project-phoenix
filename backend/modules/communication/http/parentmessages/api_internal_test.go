@@ -106,3 +106,37 @@ func TestCountScopeHandlers(t *testing.T) {
 	assert.Equal(t, http.StatusBadRequest, recorder.Code)
 	assert.Equal(t, "own_groups", service.stored, "a rejected scope stores nothing")
 }
+
+type reachableStudentsService struct {
+	communication.ParentMessagingCapability
+	ids []int64
+	err error
+}
+
+func (s *reachableStudentsService) ListParentMessageReachableStudents(context.Context) ([]int64, error) {
+	return s.ids, s.err
+}
+
+// TestListReachableStudentsHandler pins the wire shape of the reachable
+// children (#4362): string IDs, an empty list instead of null, and 403 when
+// the caller may not read every child.
+func TestListReachableStudentsHandler(t *testing.T) {
+	t.Parallel()
+
+	rs := &Resource{Service: &reachableStudentsService{ids: []int64{4, 17}}}
+	recorder := httptest.NewRecorder()
+	rs.listReachableStudents(recorder, httptest.NewRequest(http.MethodGet, "/reachable-students", nil))
+	require.Equal(t, http.StatusOK, recorder.Code)
+	assert.Contains(t, recorder.Body.String(), `"student_ids":["4","17"]`)
+
+	rs = &Resource{Service: &reachableStudentsService{}}
+	recorder = httptest.NewRecorder()
+	rs.listReachableStudents(recorder, httptest.NewRequest(http.MethodGet, "/reachable-students", nil))
+	require.Equal(t, http.StatusOK, recorder.Code)
+	assert.Contains(t, recorder.Body.String(), `"student_ids":[]`)
+
+	rs = &Resource{Service: &reachableStudentsService{err: communication.ErrParentMessagingForbidden}}
+	recorder = httptest.NewRecorder()
+	rs.listReachableStudents(recorder, httptest.NewRequest(http.MethodGet, "/reachable-students", nil))
+	assert.Equal(t, http.StatusForbidden, recorder.Code)
+}

@@ -167,6 +167,7 @@ func NewStudentHTTPTestResources(store transactionruntime.Database, unit tenant.
 			ListExportService:      lists.NewRenderer(),
 			Logger:                 slog.Default(),
 			Now:                    clock,
+			OfferingDayRoster:      svc.OfferingDays,
 			PeopleDirectory:        peopleServices.PeopleDirectory,
 			Persons:                peopleCompose.NewStudentRoutePersons(livePeople.Users),
 			PickupScheduleService:  live.PickupSchedule,
@@ -321,7 +322,8 @@ func newStudentHTTPTestReviews(store transactionruntime.Database, svc StudentTes
 	requestReview, err := requestreview.NewChecked(requestreview.Dependencies{
 		Queues: requestreview.Queues{DirectCorrections: corrections, MasterData: masterQueue, CareSchedule: careQueue, Offering: offeringQueue, Excused: excusedQueue},
 		Access: reviewAccess, Students: reviewStudents, FamilyProtection: reviewbindings.NewFamilyProtection(peopleServices.PeopleDirectory),
-		Today: func() requestreview.Date { return requestreview.Date(calendar.DateFromTime(clock())) },
+		Submitters: reviewbindings.NewSubmitterDirectory(peopleServices.PeopleDirectory),
+		Today:      func() requestreview.Date { return requestreview.Date(calendar.DateFromTime(clock())) },
 	})
 	if err != nil {
 		return nil, nil, err

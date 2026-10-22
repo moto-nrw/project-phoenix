@@ -83,6 +83,13 @@ describe("StepTermin — Kategorie (#2131, #3114)", () => {
   it("hides the catalogue link without the category permission", () => {
     renderStep({ canManageCategories: false });
 
+    // Anker: das Kategoriefeld und der Nachbarlink zu den Planungsspuren stehen da.
+    expect(
+      screen.getByRole("combobox", { name: "Kategorie" }),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByRole("link", { name: /Planungsspuren verwalten/ }),
+    ).toBeInTheDocument();
     expect(
       screen.queryByRole("link", { name: /Kategorien verwalten/ }),
     ).not.toBeInTheDocument();
@@ -144,6 +151,10 @@ describe("StepTermin — Planungsspur (#3114)", () => {
   it("hides the catalogue link without the planning permission", () => {
     renderStep({ canManagePlanningTracks: false });
 
+    // Anker: der Nachbarlink zu den Terminkategorien steht da.
+    expect(
+      screen.getByRole("link", { name: /Terminkategorien verwalten/ }),
+    ).toBeInTheDocument();
     expect(
       screen.queryByRole("link", { name: /Planungsspuren verwalten/ }),
     ).not.toBeInTheDocument();

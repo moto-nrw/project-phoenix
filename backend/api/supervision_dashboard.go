@@ -199,7 +199,7 @@ var errSupervisionIncompleteSources = errors.New("supervision dashboard adapters
 // and a root constructor binds none when one of its sources is missing.
 func newSupervisionDashboard(deps supervisiondashboard.Dependencies) (supervisiondashboard.Query, error) {
 	if deps.Access == nil || deps.Sessions == nil || deps.Yard == nil || deps.Groups == nil || deps.Schedule == nil ||
-		deps.Presence == nil || deps.Planning == nil || deps.Settings == nil || deps.Calendar == nil {
+		deps.Presence == nil || deps.Planning == nil || deps.Settings == nil || deps.Staff == nil || deps.Calendar == nil {
 		return nil, errSupervisionIncompleteSources
 	}
 	return supervisiondashboard.New(deps), nil
@@ -211,6 +211,7 @@ type SupervisionOpenRoomSessions interface {
 	GetStaffActiveGroupIDs(context.Context, int64) ([]int64, error)
 	ListRunningSessionIDs(context.Context) ([]int64, error)
 	FindOpenSessionsInRooms(context.Context, []int64) ([]supervisiondashboard.RunningSession, error)
+	SessionSupervisorStaffIDs(context.Context, []int64) (map[int64][]int64, error)
 }
 
 // supervisionSessionCaller is the slice of the caller context the session
@@ -298,6 +299,13 @@ func (s supervisionSessions) InRooms(ctx context.Context, roomIDs []int64) ([]su
 		return nil, errors.New("open-room session repository is not configured")
 	}
 	return s.groups.FindOpenSessionsInRooms(ctx, roomIDs)
+}
+
+func (s supervisionSessions) SupervisorStaffIDs(ctx context.Context, sessionIDs []int64) (map[int64][]int64, error) {
+	if s.groups == nil {
+		return nil, errors.New("open-room session repository is not configured")
+	}
+	return s.groups.SessionSupervisorStaffIDs(ctx, sessionIDs)
 }
 
 // records maps the rows to session records with their rooms resolved and

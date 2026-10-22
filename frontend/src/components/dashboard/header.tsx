@@ -21,7 +21,6 @@ import {
 } from "~/lib/tenant-context";
 import { normalizeTenantPathname } from "~/lib/tenant-path";
 import { matchesPathPrefix } from "~/lib/section-navigation";
-import type { OgsGroupSection } from "~/lib/ogs-group-sections";
 import {
   getHelpTopicForPath,
   getParentHelpTopicForPath,
@@ -127,7 +126,6 @@ export function Header() {
     referrerPage,
     activeSupervisionName,
     ogsGroupName,
-    ogsGroupSection,
     pageTitle: customPageTitle,
     helpTopic,
   } = breadcrumb;
@@ -272,7 +270,7 @@ export function Header() {
   // Get page type information
   const pageTypeInfo = getPageTypeInfo(pathname);
   const referrer = referrerPage ?? "/students/search";
-  const breadcrumbLabel = getBreadcrumbLabel(referrer, ogsGroupSection);
+  const breadcrumbLabel = getBreadcrumbLabel(referrer);
   const historyType = getHistoryType(pathname);
   // Nur im Mitarbeiter-Portal: die Kataloge beschreiben dessen Seitenleiste.
   // Das Elternportal teilt sich Pfade wie /messages und bekäme sonst eine
@@ -390,7 +388,6 @@ export function Header() {
                 breadcrumbLabel={breadcrumbLabel}
                 historyType={historyType}
                 ogsGroupName={ogsGroupName}
-                ogsGroupSection={ogsGroupSection}
                 activeSupervisionName={activeSupervisionName}
               />
             </div>
@@ -530,7 +527,6 @@ interface HeaderBreadcrumbProps {
   readonly breadcrumbLabel: string;
   readonly historyType: string;
   readonly ogsGroupName?: string;
-  readonly ogsGroupSection?: OgsGroupSection;
   readonly activeSupervisionName?: string;
 }
 
@@ -547,7 +543,6 @@ function HeaderBreadcrumb({
   breadcrumbLabel,
   historyType,
   ogsGroupName,
-  ogsGroupSection,
   activeSupervisionName,
 }: HeaderBreadcrumbProps) {
   // Gruppierte Navigationsbereiche: Datenverwaltung, Planung, Eltern
@@ -557,9 +552,7 @@ function HeaderBreadcrumb({
 
   // OGS Groups page
   if (pathname === "/ogs-groups") {
-    return (
-      <OgsGroupsBreadcrumb groupName={ogsGroupName} section={ogsGroupSection} />
-    );
+    return <OgsGroupsBreadcrumb groupName={ogsGroupName} />;
   }
 
   // Active Supervisions page
@@ -641,7 +634,7 @@ function HeaderBreadcrumb({
   // Student detail page (2 or 3 levels depending on context)
   if (pageTypeInfo.isStudentDetailPage) {
     // When navigating from an accordion section, show the sub-section name
-    // e.g. "Meine Gruppen > 1a > Mia Fischer" instead of "Meine Gruppen > Mia Fischer"
+    // e.g. "Gruppen > 1a > Mia Fischer" instead of "Gruppen > Mia Fischer"
     const subSectionName = ogsGroupName ?? activeSupervisionName;
     return (
       <StudentDetailBreadcrumb

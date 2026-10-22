@@ -185,6 +185,7 @@ func TestIntegration_OperatorPasswordChange_RevokesSessions(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	identity := buildOperatorIdentity(t, db)
 	ctx := context.Background()
+	newPassword := testpkg.NewTestPassword()
 	operator := testpkg.CreateTestOperatorWithPassword(t, db, operatorLoginEmail("operator-password"), testPassword)
 	_, _, err := identity.IssueTokensForAuthenticatedOperator(ctx, operator.ID, "127.0.0.1", "ua")
 	require.NoError(t, err)
@@ -192,18 +193,18 @@ func TestIntegration_OperatorPasswordChange_RevokesSessions(t *testing.T) {
 	require.NoError(t, err)
 	handle := liveOperatorHandle(t, db, operator.ID)
 
-	require.ErrorIs(t, identity.ChangeOperatorPassword(ctx, operator.ID, "wrong", "ChangedPass789!"), identityaccess.ErrOperatorPasswordMismatch)
+	require.ErrorIs(t, identity.ChangeOperatorPassword(ctx, operator.ID, "wrong", newPassword), identityaccess.ErrOperatorPasswordMismatch)
 	var invalid *identityaccess.InvalidInputError
 	require.ErrorAs(t, identity.ChangeOperatorPassword(ctx, operator.ID, testPassword, "weak"), &invalid)
 	assert.Equal(t, 2, countOperatorSessions(t, db, operator.ID), "a refused change keeps the sessions")
 
-	require.NoError(t, identity.ChangeOperatorPassword(ctx, operator.ID, testPassword, "ChangedPass789!"))
+	require.NoError(t, identity.ChangeOperatorPassword(ctx, operator.ID, testPassword, newPassword))
 	assert.Equal(t, 0, countOperatorSessions(t, db, operator.ID), "a password change revokes every operator refresh session")
 	_, _, err = identity.RefreshOperatorToken(ctx, operator.ID, handle)
 	require.ErrorIs(t, err, identityaccess.ErrOperatorRefreshTokenInvalid)
 	assert.Equal(t, 2, countOperatorAudit(t, db, operator.ID, "token_revoked"), "one revocation entry per family")
 
-	result, err := identity.LoginOperatorWithMFAGate(ctx, operator.Email, "ChangedPass789!", "127.0.0.1", "ua", "")
+	result, err := identity.LoginOperatorWithMFAGate(ctx, operator.Email, newPassword, "127.0.0.1", "ua", "")
 	require.NoError(t, err, "the new password verifies")
 	assert.Equal(t, identityaccess.LoginStatusMFAEnrollmentRequired, result.Status)
 }

@@ -28,6 +28,7 @@ type ResourceConfig struct {
 	ListExportService       lists.Renderer
 	Logger                  *slog.Logger
 	Now                     func() time.Time
+	OfferingDayRoster       careplan.OfferingDayRoster
 	PeopleDirectory         peopleModule.Capability
 	Persons                 PersonRecords
 	PickupScheduleService   careplan.PickupScheduleService
@@ -54,6 +55,7 @@ func NewResource(cfg ResourceConfig) *Resource {
 func (rs *Resource) Register(r chi.Router, withTx common.Middleware) {
 	r.With(common.RequiresPermission(permissions.UsersRead), withTx).Get("/", rs.listStudents)
 	r.With(common.RequiresPermission(permissions.UsersRead), withTx).Post("/export", rs.exportStudents)
+	r.With(common.RequiresPermission(permissions.UsersRead), withTx).Get("/care-offerings", rs.listCareOfferingOptions)
 	r.With(common.RequiresPermission(permissions.UsersRead), withTx).Get("/{id}", rs.getStudent)
 	r.With(common.RequiresPermission(permissions.UsersRead), withTx).Get("/{id}/current-visit", rs.getStudentCurrentVisit)
 	r.With(common.RequiresPermission(permissions.UsersRead), withTx).Get("/{id}/visit-history", rs.getStudentVisitHistory)

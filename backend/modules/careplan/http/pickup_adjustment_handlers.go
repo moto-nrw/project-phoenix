@@ -364,6 +364,8 @@ func renderPickupAdjustmentError(w http.ResponseWriter, r *http.Request, err err
 		renderError(w, r, common.ErrorConflictWithCode(err, common.CodePickupOfferingsDisabled))
 	case errors.Is(err, careplan.ErrCompleteWithdrawalConfirmationRequired):
 		renderError(w, r, common.ErrorConflictWithCode(err, common.CodeEnrollmentCompleteWithdrawalConfirmationRequired))
+	case errors.Is(err, careplan.ErrCareOfferingDayConflict):
+		renderError(w, r, common.ErrorInvalidRequestWithCode(err, common.CodeEnrollmentCareOfferingDayConflict))
 	case errors.Is(err, careplan.ErrOfferingChangeDateOutOfRange),
 		errors.Is(err, careplan.ErrOfferingChangeInvalid),
 		errors.Is(err, careplan.ErrPickupAdjustmentInvalid):

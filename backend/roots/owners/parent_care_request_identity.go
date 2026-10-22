@@ -6,7 +6,6 @@ import (
 	"github.com/moto-nrw/project-phoenix/modules/careplan"
 	"github.com/moto-nrw/project-phoenix/modules/careplan/carerequests"
 	careplanCompose "github.com/moto-nrw/project-phoenix/modules/careplan/compose"
-	"github.com/moto-nrw/project-phoenix/modules/transactionruntime"
 	parentportal "github.com/moto-nrw/project-phoenix/workflows/parentportal"
 )
 
@@ -20,7 +19,7 @@ func NewParentCareRequestReads(source interface {
 	if source == nil {
 		return nil
 	}
-	return parentCareRequestReads{source: careplanCompose.NewParentCareRequestQueries(source, func() error { return transactionruntime.RecordErrors{}.MissingRecordError("find by id") })}
+	return parentCareRequestReads{source: careplanCompose.NewParentCareRequestQueries(source, func() error { return parentportal.ErrRequestSharingNotFound })}
 }
 
 type parentCareRequestReads struct {

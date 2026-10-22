@@ -137,7 +137,7 @@ export function DayFlowBlock() {
                       wird — wie die Zeilen der Nachbarkarten. */}
                     <Link
                       href={dayPlanHref}
-                      aria-label={`${block.title}${mine ? " (Mein Block)" : ""}: im Tagesplan öffnen`}
+                      aria-label={`${block.title}${mine ? " (Mein Block)" : ""}: unter Heute öffnen`}
                       className={`flex items-center justify-between gap-3 rounded-xl bg-gray-50/50 px-3 py-2 transition-colors hover:bg-gray-100/50 ${
                         block.status === "completed" ? "opacity-60" : ""
                       }`}

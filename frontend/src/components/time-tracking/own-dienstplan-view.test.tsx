@@ -277,6 +277,10 @@ describe("OwnDienstplanView", () => {
 
     render(<OwnDienstplanView />);
 
+    // Anker: die Seite meldet den Ladezustand des Dienstplans.
+    expect(
+      screen.getByRole("status", { name: /Mein Dienstplan.*wird geladen/ }),
+    ).toBeInTheDocument();
     expect(
       screen.queryByText(/Keine Schichten in dieser Woche/),
     ).not.toBeInTheDocument();
@@ -288,6 +292,10 @@ describe("OwnDienstplanView", () => {
 
     render(<OwnDienstplanView />);
 
+    // Anker: die Seite wartet sichtbar im Ladezustand auf die Berechtigung.
+    expect(
+      screen.getByRole("status", { name: /Mein Dienstplan.*wird geladen/ }),
+    ).toBeInTheDocument();
     expect(state.keys).toEqual([]);
     expect(screen.queryByText("geplant")).not.toBeInTheDocument();
   });

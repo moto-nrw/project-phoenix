@@ -196,6 +196,14 @@ describe("SettingsTimeField", () => {
     expect(input.value).toBe("18:00");
   });
 
+  it("shows edit icon with emptyLabel when enabled", () => {
+    const { container } = render(
+      <SettingsTimeField value="" onChange={vi.fn()} emptyLabel="Jederzeit" />,
+    );
+    expect(screen.getByText("Jederzeit")).toBeInTheDocument();
+    expect(container.querySelector("svg")).toBeInTheDocument();
+  });
+
   it("hides edit icon when disabled with emptyLabel", () => {
     const { container } = render(
       <SettingsTimeField
@@ -205,6 +213,8 @@ describe("SettingsTimeField", () => {
         disabled
       />,
     );
+    // Anker: die Pille mit dem Leer-Label ist gerendert.
+    expect(screen.getByText("Jederzeit")).toBeInTheDocument();
     // Should not have the SVG pencil icon when disabled
     expect(container.querySelector("svg")).toBeNull();
   });

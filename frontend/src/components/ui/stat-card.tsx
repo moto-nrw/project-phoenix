@@ -17,6 +17,8 @@
 // Startseite und der Importvorschau ab, die sich vorher jede selbst gebaut
 // haben. Es gibt im Tenant-Portal keine zweite Kennzahl-Kachel mehr.
 //
+// `variant="row"` zeigt dieselbe verlinkte Kennzahl als kompakte Listenzeile.
+//
 // InfoCard bleibt die Antwort für die Karte mit Icon, Überschrift und Inhalt;
 // DataField die für ein Label-Wert-Paar in einem Detail-Panel.
 //
@@ -61,7 +63,7 @@ function barColor(tone: StatCardTone): string {
 }
 
 type StatCardProps = {
-  readonly variant?: "card";
+  readonly variant?: "card" | "row";
   readonly label: string;
   readonly value: string | number;
   readonly hint?: string;
@@ -135,81 +137,104 @@ export function StatCard(props: StatCardProps | StatTileProps) {
     title,
   } = props;
 
-  const card = (
-    <div
-      title={title}
-      className={`moto-content-surface compact:p-4 relative flex h-full flex-col rounded-2xl border p-5 shadow-sm max-sm:p-3 ${
-        href
-          ? "transition-all duration-150 group-hover:-translate-y-0.5 group-hover:shadow-md"
-          : ""
-      }`}
-    >
-      {/* Absolute so a tile carrying an action keeps the same label→value
+  const card =
+    props.variant === "row" ? (
+      <div className="flex items-center gap-3 rounded-xl bg-gray-50/50 px-3 py-2 transition-colors group-hover:bg-gray-100/50">
+        {icon}
+        <span className="min-w-0 flex-1 truncate text-sm font-medium text-gray-900">
+          {label}
+        </span>
+        {loading ? (
+          <Skeleton className="h-4 w-8 rounded" />
+        ) : (
+          <span
+            className="text-sm font-semibold text-gray-900 tabular-nums"
+            style={figureStyle(tone)}
+          >
+            {value}
+          </span>
+        )}
+      </div>
+    ) : (
+      <div
+        title={title}
+        className={`moto-content-surface compact:p-4 relative flex h-full flex-col rounded-2xl border p-5 shadow-sm max-sm:p-3 ${
+          href
+            ? "transition-all duration-150 group-hover:-translate-y-0.5 group-hover:shadow-md"
+            : ""
+        }`}
+      >
+        {/* Absolute so a tile carrying an action keeps the same label→value
           rhythm as its neighbours in the row. */}
-      {action != null ? (
-        <div className="absolute top-2.5 right-2.5">{action}</div>
-      ) : null}
-      <div className="flex items-start justify-between gap-3">
-        <div className="min-w-0">
-          {/* Auch mobil 12 px: 10 px war unter dem Typo-Boden (nichts
+        {action != null ? (
+          <div className="absolute top-2.5 right-2.5">{action}</div>
+        ) : null}
+        <div className="flex items-start justify-between gap-3">
+          <div className="min-w-0">
+            {/* Auch mobil 12 px: 10 px war unter dem Typo-Boden (nichts
               Lesbares unter text-xs, und das nur für Versalien-Labels). */}
-          {/* Der rechte Rand hält nur dann Platz frei, wenn oben rechts
+            {/* Der rechte Rand hält nur dann Platz frei, wenn oben rechts
               wirklich eine Aktion liegt; sonst nahm er dem Label auf dem
               Telefon neben dem Symbol ein Drittel der Breite. */}
-          <p
-            className={`text-xs font-semibold tracking-wider text-gray-500 uppercase max-sm:tracking-wide ${
-              action != null ? "pr-8" : ""
-            }`}
-          >
-            {label}
-          </p>
-          {loading ? (
-            <Skeleton className="mt-2 h-8 w-16" />
-          ) : (
             <p
-              className={`mt-2 font-bold text-gray-900 max-sm:mt-1 ${
-                compactValue
-                  ? "text-xl whitespace-nowrap"
-                  : "text-2xl max-sm:text-lg"
+              className={`text-xs font-semibold tracking-wider text-gray-500 uppercase max-sm:tracking-wide ${
+                action != null ? "pr-8" : ""
               }`}
-              style={figureStyle(tone)}
             >
-              {value}
+              {label}
             </p>
-          )}
+            {loading ? (
+              <Skeleton className="mt-2 h-8 w-16" />
+            ) : (
+              <p
+                className={`mt-2 font-bold text-gray-900 max-sm:mt-1 ${
+                  compactValue
+                    ? "text-xl whitespace-nowrap"
+                    : "text-2xl max-sm:text-lg"
+                }`}
+                style={figureStyle(tone)}
+              >
+                {value}
+              </p>
+            )}
+          </div>
+          {icon != null ? (
+            // Auch auf dem Telefon: ohne Symbol waren vier Kacheln dort nur
+            // noch Versalien und Zahl, und die Bedeutung, die das Symbol trägt
+            // (die Zahl steht bewusst in Textfarbe), fehlte gerade dort.
+            // Eine Stufe kleiner, damit das Label daneben Platz behält.
+            <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-gray-50 text-gray-600 max-sm:h-8 max-sm:w-8 max-sm:rounded-lg max-sm:[&_svg]:size-5">
+              {icon}
+            </span>
+          ) : null}
         </div>
-        {icon != null ? (
-          // Auch auf dem Telefon: ohne Symbol waren vier Kacheln dort nur
-          // noch Versalien und Zahl, und die Bedeutung, die das Symbol trägt
-          // (die Zahl steht bewusst in Textfarbe), fehlte gerade dort.
-          // Eine Stufe kleiner, damit das Label daneben Platz behält.
-          <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-gray-50 text-gray-600 max-sm:h-8 max-sm:w-8 max-sm:rounded-lg max-sm:[&_svg]:size-5">
-            {icon}
-          </span>
+        {hint !== undefined && hint !== "" ? (
+          <p className="mt-1 text-xs text-gray-500">{hint}</p>
+        ) : null}
+        {progressPct !== undefined ? (
+          <div className="mt-3 h-1.5 overflow-hidden rounded-full bg-gray-100">
+            <div
+              className="h-full rounded-full transition-all"
+              style={{
+                width: `${Math.min(100, Math.max(0, progressPct))}%`,
+                backgroundColor: barColor(tone),
+              }}
+            />
+          </div>
         ) : null}
       </div>
-      {hint !== undefined && hint !== "" ? (
-        <p className="mt-1 text-xs text-gray-500">{hint}</p>
-      ) : null}
-      {progressPct !== undefined ? (
-        <div className="mt-3 h-1.5 overflow-hidden rounded-full bg-gray-100">
-          <div
-            className="h-full rounded-full transition-all"
-            style={{
-              width: `${Math.min(100, Math.max(0, progressPct))}%`,
-              backgroundColor: barColor(tone),
-            }}
-          />
-        </div>
-      ) : null}
-    </div>
-  );
+    );
 
   if (href) {
     return (
       <Link
         href={href}
-        className="focus-visible:ring-moto-blue group block h-full rounded-2xl focus:outline-none focus-visible:ring-2 focus-visible:ring-offset-2"
+        aria-label={
+          props.variant === "row"
+            ? `${label}: ${loading ? "…" : value}, Liste öffnen`
+            : undefined
+        }
+        className={`focus-visible:ring-moto-blue group block focus:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 ${props.variant === "row" ? "rounded-xl" : "h-full rounded-2xl"}`}
       >
         {card}
       </Link>

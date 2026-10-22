@@ -241,12 +241,23 @@ export const STAFF_ONBOARDING_TOURS: Readonly<
     stops: [
       ...viaNavigation(TAGESBETRIEB, {
         target: '[data-setup-tour="nav-section-groups"]',
-        label: "Meine Gruppen",
+        label: "Gruppen",
         mobile: {
           target: '[data-setup-tour="mobile-nav-/ogs-groups"]',
-          label: "Gruppe",
+          label: "Gruppen",
         },
       }),
+      {
+        // „Gruppen“ führt auf die Auswahlseite (#4351). Wer nur eine Gruppe
+        // sieht, landet direkt in ihr; dann entfällt diese Station.
+        target: '[data-setup-tour="group-tile"]',
+        title: "Gruppe öffnen",
+        text: "Wählen Sie Ihre Gruppe. Sie ist mit „Meine Gruppe“ markiert.",
+        advance: "click",
+        pathPattern: /\/ogs-groups(\/overview)?$/,
+        skipWhenVisible: '[data-setup-tour="student-card"]',
+        optional: true,
+      },
       {
         // Eine Karte statt der ganzen Seite: Auf dem Handy wäre sonst fast
         // der ganze Bildschirm markiert.
@@ -425,7 +436,7 @@ const ALL_CHILDREN_MENU = '[data-setup-tour="child-search-menu"] button';
 
 /**
  * Die Touren für Schulen, die Kinder nur über „Alle Kinder“ finden lassen
- * (#1321). Dort fehlen „Meine Gruppen“ und „Aktuelle Aufsicht“ in der
+ * (#1321). Dort fehlen „Gruppen“ und „Aktuelle Aufsicht“ in der
  * Navigation; die Touren zeigen den Weg, den es dann wirklich gibt.
  */
 const CHILD_SEARCH_ONLY_TOURS: Readonly<

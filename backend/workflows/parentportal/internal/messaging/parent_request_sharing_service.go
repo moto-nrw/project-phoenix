@@ -483,11 +483,14 @@ func (s *Service) excusedShareIdentity(ctx context.Context, requestID int64) (in
 	return row.SubmittedBy, row.StudentID, RequestShareExcused, nil
 }
 
+// requestLookupError answers a missing request with the sharing not-found.
+// The bindings report a missing row as ErrRequestSharingNotFound; the
+// master-data read reports the workflow's own not-found.
 func requestLookupError(err error) error {
-	if err != nil {
-		return err
+	if err == nil || errors.Is(err, care.ErrMasterDataRequestNotFound) {
+		return ErrRequestSharingNotFound
 	}
-	return ErrRequestSharingNotFound
+	return err
 }
 
 type RequestShareVisibility struct {

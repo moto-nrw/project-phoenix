@@ -530,6 +530,45 @@ func TestListGuardians_ReturnsAccountHoldingGuardian(t *testing.T) {
 	assert.True(t, guardians[0].IsPrimary)
 }
 
+// TestListReachableStudentIDs_OnlyChildrenWithRecipient: the child list of
+// „Neue Nachricht“ marks every child the recipient step would offer nobody
+// for (#4362).
+func TestListReachableStudentIDs_OnlyChildrenWithRecipient(t *testing.T) {
+	t.Parallel()
+
+	f := newFixture(t, true)
+	withoutGuardian := testpkg.CreateTestStudent(t, f.db, "Ohne", "Eltern", "3a")
+	ids, err := testpkg.TenantQuery0(t, adminCtx(t, f.staffAccount), f.db, f.svc.ListReachableStudentIDs)
+	require.NoError(t, err)
+	assert.Contains(t, ids, f.chain.StudentID)
+	assert.NotContains(t, ids, withoutGuardian.ID)
+}
+
+func TestListReachableStudentIDsQueryBudgetStaysFlat(t *testing.T) {
+	t.Parallel()
+	svc, _, _, db := buildMessagingWithSettings(t, stubSettings{messagingEnabled: true})
+	_, staffAccount := testpkg.CreateTestStaffWithAccount(t, db, "Olivia", "Berg")
+	ctx := adminCtx(t, staffAccount.ID)
+	measure := func(chainCount int) int {
+		t.Helper()
+		chains := make([]testpkg.ParentChain, 0, chainCount)
+		for range chainCount {
+			chains = append(chains, testpkg.CreateTestParentGuardianChain(t, db))
+		}
+		counter := testpkg.CaptureQueriesForContext(t, db)
+		ids, err := testpkg.MeasuredTenantQuery0(t, counter.Context(ctx), db, counter, svc.ListReachableStudentIDs)
+		require.NoError(t, err)
+		for _, chain := range chains {
+			assert.Contains(t, ids, chain.StudentID)
+		}
+		testpkg.AssertQueryBudget(t, "modules.communication.parent_messages.list_reachable_students", counter.Queries())
+		return len(counter.Queries())
+	}
+
+	atThree := measure(3)
+	assert.Equal(t, atThree, measure(3), "six children with guardians cost as many statements as three")
+}
+
 // TestListStudentThreads_FiltersToChild: the student-detail card sees the child's
 // conversation(s) after authorizing read access to that child.
 func TestListStudentThreads_FiltersToChild(t *testing.T) {
@@ -578,6 +617,8 @@ func TestMessaging_Forbidden(t *testing.T) {
 	_, err = testpkg.TenantQuery1(t, ctx, f.db, f.svc.GetThread, started.ThreadID)
 	require.ErrorIs(t, err, messaging.ErrForbidden)
 	_, err = testpkg.TenantQuery1(t, ctx, f.db, f.svc.ListGuardians, f.chain.StudentID)
+	require.ErrorIs(t, err, messaging.ErrForbidden)
+	_, err = testpkg.TenantQuery0(t, ctx, f.db, f.svc.ListReachableStudentIDs)
 	require.ErrorIs(t, err, messaging.ErrForbidden)
 }
 

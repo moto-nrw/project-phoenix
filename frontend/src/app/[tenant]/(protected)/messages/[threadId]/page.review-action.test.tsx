@@ -197,6 +197,8 @@ describe("Anfrage-Aktionen im Nachrichtenverlauf (#3886)", () => {
 
     render(<MessageThreadPage />);
 
+    // Anker: der Verlauf mit der Anfrage ist geladen.
+    expect(screen.getByText(/Abholzeit angefragt/)).toBeInTheDocument();
     expect(mockUseSWRAuth).toHaveBeenCalledWith(
       null,
       expect.any(Function),

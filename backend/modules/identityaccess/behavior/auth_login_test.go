@@ -2,8 +2,6 @@ package behavior_test
 
 import (
 	"context"
-	"crypto/rand"
-	"encoding/hex"
 	"testing"
 	"time"
 
@@ -32,19 +30,10 @@ type loginGateScenario struct {
 	tenantID  int64
 }
 
-// loginGatePassword is generated at init time so it never appears as a
-// string literal in the source tree. The fixed "Aa1!" prefix guarantees the
-// strength rules (upper + lower + digit + special) are satisfied regardless
-// of the hex-randomness that follows.
-var loginGatePassword = randomTestPassword()
+const loginGateIP = "127.0.0.1"
 
-func randomTestPassword() string {
-	b := make([]byte, 12)
-	if _, err := rand.Read(b); err != nil {
-		panic(err)
-	}
-	return "Aa1!" + hex.EncodeToString(b)
-}
+// Reuse one generated credential per binary to keep fixture hash caching effective.
+var loginGatePassword = testpkg.NewTestPassword()
 
 // newLoginGateScenario composes the auth service and the second factor over
 // the test database, the way the service root does. The gate is always
@@ -104,7 +93,7 @@ func TestLoginWithMFAGate_GateOff_ReturnsTokens(t *testing.T) {
 	sc := newLoginGateScenario(t)
 
 	result, err := sc.svc.LoginWithMFAGate(
-		context.Background(), sc.email, loginGatePassword, "127.0.0.1", "ua-test", "", "",
+		context.Background(), sc.email, loginGatePassword, loginGateIP, "ua-test", "", "",
 	)
 	require.NoError(t, err)
 	require.NotNil(t, result)
@@ -123,7 +112,7 @@ func TestLoginWithMFAGate_MFANotRequired_ReturnsTokens(t *testing.T) {
 	sc.setOverride(identityaccess.MFAAdminOverrideForceOff) // explicit "MFA off for this account"
 
 	result, err := sc.svc.LoginWithMFAGate(
-		context.Background(), sc.email, loginGatePassword, "127.0.0.1", "ua-test", "", "",
+		context.Background(), sc.email, loginGatePassword, loginGateIP, "ua-test", "", "",
 	)
 	require.NoError(t, err)
 	require.NotNil(t, result)
@@ -147,7 +136,7 @@ func TestLoginWithMFAGate_MFARequiredNotEnrolled_IssuesEnrollmentToken(t *testin
 	sc.setOverride(identityaccess.MFAAdminOverrideForceOn) // require MFA, but no credential row exists
 
 	result, err := sc.svc.LoginWithMFAGate(
-		context.Background(), sc.email, loginGatePassword, "127.0.0.1", "ua-test", "", "",
+		context.Background(), sc.email, loginGatePassword, loginGateIP, "ua-test", "", "",
 	)
 	require.NoError(t, err)
 	require.NotNil(t, result)
@@ -173,7 +162,7 @@ func TestLoginWithMFAGate_MFARequiredAndEnrolled_ReturnsChallenge(t *testing.T) 
 		"enrolment row must exist for the MFA-required-and-enrolled branch")
 
 	result, err := sc.svc.LoginWithMFAGate(
-		context.Background(), sc.email, loginGatePassword, "127.0.0.1", "ua-test", "", "",
+		context.Background(), sc.email, loginGatePassword, loginGateIP, "ua-test", "", "",
 	)
 	require.NoError(t, err)
 	require.NotNil(t, result)
@@ -192,7 +181,7 @@ func TestLoginWithMFAGate_WrongPassword_ReturnsAuthError(t *testing.T) {
 	sc := newLoginGateScenario(t)
 
 	result, err := sc.svc.LoginWithMFAGate(
-		context.Background(), sc.email, "wrong-password", "127.0.0.1", "ua-test", "", "",
+		context.Background(), sc.email, "wrong-password", loginGateIP, "ua-test", "", "",
 	)
 	require.Error(t, err, "wrong password must not return a result")
 	assert.Nil(t, result)

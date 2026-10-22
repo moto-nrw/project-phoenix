@@ -19,11 +19,7 @@ import { CollectionGrid } from "~/components/ui/collection-grid";
 import { Button } from "~/components/ui/button";
 import { MotoConceptIcon } from "~/components/ui/moto-concept-icon";
 import { TenantPage } from "~/components/ui/tenant-page";
-import {
-  LAST_GROUP_SECTION_STORAGE_KEY,
-  OGS_GROUP_SECTION_LABELS,
-  ogsGroupSectionOf,
-} from "~/lib/ogs-group-sections";
+import { OGS_GROUPS_LABEL } from "~/lib/ogs-groups-navigation";
 import {
   OverflowMenu,
   type OverflowMenuEntry,
@@ -339,10 +335,6 @@ function buildGroupTabItems(groups: readonly OGSGroup[]) {
 function persistGroupSelection(group: OGSGroup): void {
   localStorage.setItem("sidebar-last-group", group.id);
   localStorage.setItem("sidebar-last-group-name", group.name);
-  localStorage.setItem(
-    LAST_GROUP_SECTION_STORAGE_KEY,
-    ogsGroupSectionOf(group.isPersonal),
-  );
 }
 
 function OGSGroupPageContent() {
@@ -662,14 +654,11 @@ function OGSGroupPageContent() {
       : EMPTY_GROUP_TRANSFERS,
   );
 
-  // Breadcrumb: der Bereich der Seitenleiste, unter dem die Gruppe steht,
-  // dann ihr Name (#3890). Der Seitentitel ist der Bereich, damit auch die
-  // schmale Kopfzeile ihn nennt.
-  const groupSection = ogsGroupSectionOf(currentGroup?.isPersonal);
+  // Breadcrumb „Gruppen › Mondgruppe“ (#4351). Der Seitentitel ist der
+  // Eintrag der Seitenleiste, damit auch die schmale Kopfzeile ihn nennt.
   useSetBreadcrumb({
     ogsGroupName: currentGroup?.name,
-    ogsGroupSection: groupSection,
-    pageTitle: OGS_GROUP_SECTION_LABELS[groupSection],
+    pageTitle: OGS_GROUPS_LABEL,
   });
 
   // Tracking indicators come straight from the aggregated live response; they
@@ -1052,7 +1041,7 @@ function OGSGroupPageContent() {
   if (!showSkeleton && !hasAccess) {
     return (
       <TenantPage
-        title={OGS_GROUP_SECTION_LABELS.personal}
+        title={OGS_GROUPS_LABEL}
         empty={{
           icon: <MotoConceptIcon concept="groups" size={48} />,
           title: "Keine OGS-Gruppe zugeordnet",
@@ -1312,7 +1301,7 @@ function OGSGroupPageContent() {
           darunter, in den Aktionen der An- und Abmelde-Modus, der
           Vertretungshinweis und das Kebab-Menü. */}
       <TenantPage
-        title={currentGroup?.name ?? OGS_GROUP_SECTION_LABELS[groupSection]}
+        title={currentGroup?.name ?? OGS_GROUPS_LABEL}
         stats={groupStats}
         statsLoading={showSkeleton}
         actions={

@@ -42,6 +42,7 @@ func NewParentMessagingTestRepositories(db transactionruntime.Database) (ParentM
 		return ParentMessagingTestRepositories{}, err
 	}
 	persons := owners.NewPersonRepository(db)
+	memberships := owners.NewPeopleIdentityAccess(db, nil).FindActiveSchoolMemberships
 	personAccounts := func(ctx context.Context, ids []int64) (map[int64]*recordports.StaffPersonAccount, error) {
 		rows, err := persons.FindByIDs(ctx, ids)
 		if rows == nil {
@@ -58,7 +59,7 @@ func NewParentMessagingTestRepositories(db transactionruntime.Database) (ParentM
 		return out, err
 	}
 	return ParentMessagingTestRepositories{
-		Thread:  parentStore.NewParentMessageThreadRepository(db.Pool(), owners.NewParentGuardianLister(db, owners.NewPeopleIdentityAccess(db, nil).FindActiveSchoolMemberships)),
+		Thread:  parentStore.NewParentMessageThreadRepository(db.Pool(), owners.NewParentGuardianLister(db, memberships), owners.NewParentReachableStudents(db, memberships)),
 		Message: parentStore.NewParentMessageRepository(db.Pool()),
 		// The three guardian-facing projections resolve the school's staff
 		// accounts through School Membership, exactly as the service graph binds them.

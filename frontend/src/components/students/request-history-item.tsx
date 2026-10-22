@@ -29,17 +29,24 @@ import {
   RequestReviewCard,
   ReviewDiffPanel,
 } from "~/components/students/request-review-card";
+import { submitterLabel } from "~/components/students/requests/request-copy";
 
 function MasterDataHistoryCard({
   row,
   action,
-}: Readonly<{ row: StaffMasterDataHistoryEntry; action?: ReactNode }>) {
+  submittedByName,
+}: Readonly<{
+  row: StaffMasterDataHistoryEntry;
+  action?: ReactNode;
+  submittedByName?: string;
+}>) {
   return (
     <RequestReviewCard
       type="master_data"
       childName={`${row.first_name} ${row.last_name}`}
       summary={fieldLabel(row.field_key)}
       submittedAt={row.created_at}
+      submittedByName={submittedByName}
       history={{
         status: row.status,
         decidedAt: row.decided_at,
@@ -60,7 +67,12 @@ function MasterDataHistoryCard({
 function CareHistoryCard({
   row,
   action,
-}: Readonly<{ row: StaffCareRequestHistoryEntry; action?: ReactNode }>) {
+  submittedByName,
+}: Readonly<{
+  row: StaffCareRequestHistoryEntry;
+  action?: ReactNode;
+  submittedByName?: string;
+}>) {
   // Frozen decision-time diff (#2430) when present, payload summary otherwise.
   const showDiff = (row.diff?.length ?? 0) > 0;
   const entries = showDiff ? (row.diff ?? []) : row.requested;
@@ -71,6 +83,7 @@ function CareHistoryCard({
       childName={`${row.first_name} ${row.last_name}`}
       summary={careSummary(entries, row.request_kind)}
       submittedAt={row.created_at}
+      submittedByName={submittedByName}
       history={{
         status: row.status,
         decidedAt: row.decided_at,
@@ -100,13 +113,19 @@ function CareHistoryCard({
 function OfferingHistoryCard({
   row,
   action,
-}: Readonly<{ row: StaffOfferingRequestHistoryEntry; action?: ReactNode }>) {
+  submittedByName,
+}: Readonly<{
+  row: StaffOfferingRequestHistoryEntry;
+  action?: ReactNode;
+  submittedByName?: string;
+}>) {
   return (
     <RequestReviewCard
       type="offering"
       childName={row.student_name}
       summary={`ab ${formatDate(row.effective_from)}`}
       submittedAt={row.created_at}
+      submittedByName={submittedByName}
       history={{
         status: row.status,
         decidedAt: row.decided_at,
@@ -140,7 +159,12 @@ function OfferingHistoryCard({
 function ExcusedHistoryCard({
   row,
   action,
-}: Readonly<{ row: StaffExcusedRequestHistoryEntry; action?: ReactNode }>) {
+  submittedByName,
+}: Readonly<{
+  row: StaffExcusedRequestHistoryEntry;
+  action?: ReactNode;
+  submittedByName?: string;
+}>) {
   return (
     <RequestReviewCard
       type="excused"
@@ -152,6 +176,7 @@ function ExcusedHistoryCard({
       }
       summary={datesSummary(row.dates)}
       submittedAt={row.created_at}
+      submittedByName={submittedByName}
       history={{
         status: row.status,
         decidedAt: row.decided_at,
@@ -191,15 +216,43 @@ export function RequestHistoryItem({
       Entscheidung korrigieren
     </Button>
   ) : undefined;
+  const submitter =
+    item.request_type === "enrollment"
+      ? undefined
+      : submitterLabel(item.submitted_by_name, item.submitted_by_relationship);
   switch (item.request_type) {
     case "master_data":
-      return <MasterDataHistoryCard row={item.data} action={action} />;
+      return (
+        <MasterDataHistoryCard
+          row={item.data}
+          action={action}
+          submittedByName={submitter}
+        />
+      );
     case "care_schedule":
-      return <CareHistoryCard row={item.data} action={action} />;
+      return (
+        <CareHistoryCard
+          row={item.data}
+          action={action}
+          submittedByName={submitter}
+        />
+      );
     case "offering":
-      return <OfferingHistoryCard row={item.data} action={action} />;
+      return (
+        <OfferingHistoryCard
+          row={item.data}
+          action={action}
+          submittedByName={submitter}
+        />
+      );
     case "excused":
-      return <ExcusedHistoryCard row={item.data} action={action} />;
+      return (
+        <ExcusedHistoryCard
+          row={item.data}
+          action={action}
+          submittedByName={submitter}
+        />
+      );
     case "direct_correction": {
       const row = item.data;
       return (

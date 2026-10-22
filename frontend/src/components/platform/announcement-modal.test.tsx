@@ -63,25 +63,37 @@ describe("AnnouncementModal", () => {
     mockRefresh.mockResolvedValue(undefined);
   });
 
-  it("renders nothing when there are no announcements", () => {
-    render(<AnnouncementModal />);
+  const oneAnnouncement = {
+    id: 1,
+    title: "Test",
+    content: "Content",
+    type: "announcement",
+    severity: "info",
+    published_at: "2024-01-01T00:00:00Z",
+  };
+
+  it("renders nothing when there are no announcements", async () => {
+    const { unmount } = render(<AnnouncementModal />);
     expect(screen.queryByTestId("modal")).not.toBeInTheDocument();
+    unmount();
+
+    mockAnnouncementsState.announcements = [oneAnnouncement];
+    render(<AnnouncementModal />);
+    // Anker: mit einer Ankündigung öffnet sich dasselbe Modal.
+    expect(await screen.findByTestId("modal")).toBeInTheDocument();
   });
 
-  it("renders nothing when loading", () => {
+  it("renders nothing when loading", async () => {
     mockAnnouncementsState.isLoading = true;
-    mockAnnouncementsState.announcements = [
-      {
-        id: 1,
-        title: "Test",
-        content: "Content",
-        type: "announcement",
-        severity: "info",
-        published_at: "2024-01-01T00:00:00Z",
-      },
-    ];
-    render(<AnnouncementModal />);
+    mockAnnouncementsState.announcements = [oneAnnouncement];
+    const { unmount } = render(<AnnouncementModal />);
     expect(screen.queryByTestId("modal")).not.toBeInTheDocument();
+    unmount();
+
+    mockAnnouncementsState.isLoading = false;
+    render(<AnnouncementModal />);
+    // Anker: nach dem Laden öffnet sich dasselbe Modal.
+    expect(await screen.findByTestId("modal")).toBeInTheDocument();
   });
 
   it("displays modal when announcements are available", async () => {

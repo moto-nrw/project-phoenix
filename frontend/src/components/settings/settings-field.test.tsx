@@ -423,7 +423,7 @@ describe("SettingsField", () => {
   });
 
   it("renders nothing when not visible", () => {
-    const { container } = renderWithProviders(
+    const { container, unmount } = renderWithProviders(
       <SettingsField
         setting={makeSetting({ visible: false })}
         onSave={vi.fn().mockResolvedValue(null)}
@@ -432,6 +432,17 @@ describe("SettingsField", () => {
     );
     expect(container.querySelector("label")).toBeNull();
     expect(container.querySelector("input")).toBeNull();
+    unmount();
+
+    const { container: visible } = renderWithProviders(
+      <SettingsField
+        setting={makeSetting({ visible: true })}
+        onSave={vi.fn().mockResolvedValue(null)}
+        onReset={vi.fn().mockResolvedValue(null)}
+      />,
+    );
+    // Anker: dieselbe Einstellung, nur sichtbar, rendert ihr Eingabefeld.
+    expect(visible.querySelector("input")).toBeInTheDocument();
   });
 
   it("shows reset button when not default", () => {
@@ -447,21 +458,43 @@ describe("SettingsField", () => {
   });
 
   it("hides reset button when is_default", () => {
-    const { container } = renderWithProviders(
+    const { container, getByText } = renderWithProviders(
       <SettingsField
         setting={makeSetting({ is_default: true })}
         onSave={vi.fn().mockResolvedValue(null)}
         onReset={vi.fn().mockResolvedValue(null)}
       />,
     );
+    // Anker: die Einstellung ist gerendert.
+    expect(getByText("Test Setting")).toBeInTheDocument();
     const resetBtn = container.querySelector(
       "button[title='Auf Standard zurücksetzen']",
     );
     expect(resetBtn).toBeNull();
   });
 
+  it("shows reset button for a regular textarea field", () => {
+    const { container, getByText } = renderWithProviders(
+      <SettingsField
+        setting={makeSetting({
+          key: "test.textarea",
+          type: "textarea",
+          value: "Datenschutz Text",
+          is_default: false,
+        })}
+        onSave={vi.fn().mockResolvedValue(null)}
+        onReset={vi.fn().mockResolvedValue(null)}
+      />,
+    );
+
+    expect(getByText("Test Setting")).toBeInTheDocument();
+    expect(
+      container.querySelector("button[title='Auf Standard zurücksetzen']"),
+    ).toBeInTheDocument();
+  });
+
   it("hides reset button for enrollment legal text fields", () => {
-    const { container } = renderWithProviders(
+    const { container, getByText } = renderWithProviders(
       <SettingsField
         setting={makeSetting({
           key: "enrollment.legal_dsgvo_text",
@@ -474,6 +507,8 @@ describe("SettingsField", () => {
       />,
     );
 
+    // Anker: das Rechtstext-Feld ist gerendert.
+    expect(getByText("Test Setting")).toBeInTheDocument();
     const resetBtn = container.querySelector(
       "button[title='Auf Standard zurücksetzen']",
     );

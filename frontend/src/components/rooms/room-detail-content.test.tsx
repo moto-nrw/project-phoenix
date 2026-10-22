@@ -570,6 +570,8 @@ describe("RoomDetailContent", () => {
         <RoomDetailContent room={{ ...baseRoom }} history={[]} />
       </Wrapper>,
     );
+    // Anker: die geladene Rauminformation (Statuszeile, nicht im Skelett).
+    expect(screen.getByText("Frei")).toBeInTheDocument();
     expect(screen.queryByText("Belegungshistorie")).not.toBeInTheDocument();
   });
 
@@ -592,6 +594,7 @@ describe("RoomDetailContent", () => {
         />
       </Wrapper>,
     );
+    expect(screen.getByText("Belegungshistorie")).toBeInTheDocument();
     expect(screen.getByText("Mathe")).toBeInTheDocument();
     // duration_minutes from the session takes precedence over calculateDuration().
     expect(screen.getByText("45m")).toBeInTheDocument();

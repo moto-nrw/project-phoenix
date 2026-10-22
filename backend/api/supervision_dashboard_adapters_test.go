@@ -142,12 +142,13 @@ func (m *supervisionMockArrivals) GetBulkEffectiveArrivalTimesForDate(_ context.
 	return m.getBulkEffectiveArrivalTimesForDateFn(studentIDs, date)
 }
 
-// supervisionRootPorts stands in for the access, settings and yard ports;
-// the composition only needs them present.
+// supervisionRootPorts stands in for the access, settings, yard and staff
+// ports; the composition only needs them present.
 type supervisionRootPorts struct {
 	supervisiondashboard.Access
 	supervisiondashboard.Settings
 	supervisiondashboard.Yard
+	supervisiondashboard.Staff
 }
 
 func supervisionFullDependencies() supervisiondashboard.Dependencies {
@@ -162,6 +163,7 @@ func supervisionFullDependencies() supervisiondashboard.Dependencies {
 		Presence: newSupervisionPresence(active, nil),
 		Settings: supervisionRootPorts{},
 		Planning: newSupervisionPlanning(&supervisionMockPickups{}, &supervisionMockArrivals{}),
+		Staff:    supervisionRootPorts{},
 		Calendar: supervisionCalendar{},
 	}
 }

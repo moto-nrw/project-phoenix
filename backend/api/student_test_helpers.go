@@ -53,6 +53,7 @@ type StudentTestModule struct {
 	ExcusedRequests   careplan.ExcusedAbsenceRequests
 	MasterDataReview  masterdatarequests.Decisions
 	ParentRequests    parentrequests.Coordinator
+	OfferingDays      careplan.OfferingDayRoster
 	// NewPickupAdjustments rebinds the pickup adjustment to the caller's
 	// offering adjustments, so a route test can fail an apply after the
 	// offering write.
@@ -198,6 +199,10 @@ func newStudentTestModule(db transactionruntime.Database, unit tenant.UnitOfWork
 	pickupBaselines, err := careplanCompose.NewPickupBaselines(students.CarePlan, approvedOfferings, func(ctx context.Context) (bool, error) {
 		return settingsService.ResolveBool(ctx, configModels.KeyEnrollmentBookingsAuthoritative)
 	})
+	if err != nil {
+		return StudentTestModule{}, ActiveTestModule{}, StudentTestPeople{}, nil, nil, nil, err
+	}
+	offeringDays, err := careplan.NewOfferingDayRoster(students.CarePlan, approvedOfferings)
 	if err != nil {
 		return StudentTestModule{}, ActiveTestModule{}, StudentTestPeople{}, nil, nil, nil, err
 	}
@@ -420,7 +425,7 @@ func newStudentTestModule(db transactionruntime.Database, unit tenant.UnitOfWork
 			NewPickupAdjustments: newPickupAdjustmentsFor,
 			CareLifecycle:        careLifecycleService, PartialAbsence: partialAbsenceService, CareRequests: careRequestService,
 			OfferingChanges: offeringChanges, PickupAdjustments: pickupAdjustments, ExcusedRequests: excusedRequestService,
-			MasterDataReview: masterDataDecisions, ParentRequests: parentRequestCoordinator,
+			MasterDataReview: masterDataDecisions, ParentRequests: parentRequestCoordinator, OfferingDays: offeringDays,
 		}, live, StudentTestPeople{PeopleDirectory: persons, StudentAudit: studentAuditService, StudentPhotos: studentPhotoService},
 		auditCommand, enrollmentDecisionService, ogsGroupLiveService, nil
 }

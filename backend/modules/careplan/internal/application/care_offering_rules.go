@@ -23,6 +23,9 @@ const (
 	selectionRuleExactlyOne = "exactly_one"
 	selectionRuleAtLeastOne = "at_least_one"
 	selectionRuleAtMostOne  = "at_most_one"
+	// selectionRuleAtMostOnePerDay allows several offerings of the group, but
+	// never two on the same weekday (#4514).
+	selectionRuleAtMostOnePerDay = "at_most_one_per_day"
 
 	availabilityMatchAll         = "all"
 	availabilityMatchAny         = "any"
@@ -35,10 +38,11 @@ const (
 )
 
 var validSelectionRules = map[string]bool{
-	selectionRuleOptional:   true,
-	selectionRuleExactlyOne: true,
-	selectionRuleAtLeastOne: true,
-	selectionRuleAtMostOne:  true,
+	selectionRuleOptional:        true,
+	selectionRuleExactlyOne:      true,
+	selectionRuleAtLeastOne:      true,
+	selectionRuleAtMostOne:       true,
+	selectionRuleAtMostOnePerDay: true,
 }
 
 // offeringDayISOWeekday maps each canonical day to its ISO weekday.
@@ -372,9 +376,27 @@ func autoAddViolatesExclusiveGroup(target, trigger careplan.CareOffering) bool {
 	switch normalizeSelectionRule(target.SelectionRule) {
 	case selectionRuleExactlyOne, selectionRuleAtMostOne:
 		return true
+	case selectionRuleAtMostOnePerDay:
+		return offeringsShareADay(target.AvailableDays, trigger.AvailableDays)
 	default:
 		return false
 	}
+}
+
+// offeringsShareADay reports whether an automatic target can inherit one of
+// the trigger's selected days. Auto-add only copies days available to both
+// offerings, so disjoint weekdays are valid in a per-day selection group.
+func offeringsShareADay(first, second []string) bool {
+	firstDays := make(map[string]bool, len(first))
+	for _, day := range first {
+		firstDays[strings.ToLower(strings.TrimSpace(day))] = true
+	}
+	for _, day := range second {
+		if firstDays[strings.ToLower(strings.TrimSpace(day))] {
+			return true
+		}
+	}
+	return false
 }
 
 // validateCatalogGroupRuleConsistency checks a whole clone set at once: every

@@ -148,6 +148,8 @@ describe("PageHeader", () => {
   it("renders no concept icon tile when concept is omitted", () => {
     const { container } = render(<PageHeader title="Test" />);
 
+    // Anker: der Seitenkopf zeigt seinen Titel, nur ohne Konzept-Icon.
+    expect(screen.getByText("Test")).toBeInTheDocument();
     expect(
       container.querySelector("[data-moto-duotone-tone]"),
     ).not.toBeInTheDocument();

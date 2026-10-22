@@ -104,6 +104,8 @@ describe("StudentRow", () => {
     // Lehrkraft an dieser Zeile.
     renderRow({ status: "sick" });
 
+    // Anker: die Zeile zeigt den gemeldeten Status.
+    expect(screen.getByText("Krank")).toBeInTheDocument();
     expect(screen.queryByRole("button")).not.toBeInTheDocument();
     expect(screen.queryByRole("link")).not.toBeInTheDocument();
   });

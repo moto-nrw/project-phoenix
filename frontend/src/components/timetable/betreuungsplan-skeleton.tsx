@@ -52,7 +52,7 @@ export function TimetableContentSkeleton({ view }: { view: TimetableView }) {
         role="status"
         aria-live="polite"
         aria-busy="true"
-        aria-label="Tagesplan wird geladen"
+        aria-label="Tagesansicht wird geladen"
         data-testid="timetable-content-skeleton"
         className={`${timetableSurface} overflow-hidden`}
       >

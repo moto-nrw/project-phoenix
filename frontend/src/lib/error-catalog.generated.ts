@@ -141,10 +141,14 @@ export const ERROR_CATALOG = {
         "Diese Tagesinformation hat sich inzwischen geändert. Bitte laden Sie die Seite neu.",
       "display.disabled":
         "Die Anzeigetafel ist an dieser Schule ausgeschaltet.",
+      "enrollment.approval_care_offering_day_conflict":
+        "Für dieses Kind sind an einem Tag zwei Angebote gebucht, die nicht zusammen gehen. Bitte ändern Sie zuerst die Buchung.",
       "enrollment.approval_care_offering_exactly_one":
         "Für dieses Kind muss genau ein Betreuungsangebot gebucht sein. Die Familie muss die Auswahl ändern.",
       "enrollment.approval_care_offering_missing":
         "Für dieses Kind ist kein Betreuungsangebot gebucht. Die Familie muss zuerst ein Angebot ergänzen.",
+      "enrollment.care_offering_day_conflict":
+        "An einem Tag sind zwei Angebote gewählt, die nicht zusammen gehen. Bitte wählen Sie pro Tag nur eines.",
       "enrollment.care_offering_days_required":
         "Bitte wählen Sie mindestens einen Wochentag für das Angebot.",
       "enrollment.care_offering_exactly_one":
@@ -1289,6 +1293,8 @@ export const ERROR_CATALOG = {
         "{object} contains invalid details. Please check your entries.",
       "care.sick_note_disabled":
         "{object} is not available here at the moment. Please ask your contact person.",
+      "enrollment.care_offering_day_conflict":
+        "Two options that do not go together are chosen for the same day. Please choose only one per day.",
       "enrollment.care_offering_exactly_one":
         "Please choose exactly one care option for each child.",
       "enrollment.care_offering_full":
@@ -1575,6 +1581,8 @@ export const ERROR_CATALOG = {
         "Указаны неверные данные: {object}. Проверьте введённые данные.",
       "care.sick_note_disabled":
         "Сейчас здесь недоступно: {object}. Обратитесь к контактному лицу.",
+      "enrollment.care_offering_day_conflict":
+        "На один день выбраны две программы, которые нельзя совмещать. Выберите только одну на день.",
       "enrollment.care_offering_exactly_one":
         "Выберите ровно одну программу присмотра для каждого ребёнка.",
       "enrollment.care_offering_full":
@@ -1856,6 +1864,8 @@ export const ERROR_CATALOG = {
         "Ka të dhëna të pavlefshme: {object}. Kontrolloni çfarë keni shkruar.",
       "care.sick_note_disabled":
         "Për momentin nuk është i disponueshëm këtu: {object}. Pyetni personin tuaj të kontaktit.",
+      "enrollment.care_offering_day_conflict":
+        "Për të njëjtën ditë janë zgjedhur dy oferta që nuk shkojnë bashkë. Ju lutemi zgjidhni vetëm një për ditë.",
       "enrollment.care_offering_exactly_one":
         "Ju lutemi zgjidhni saktësisht një ofertë kujdesi për çdo fëmijë.",
       "enrollment.care_offering_full":
@@ -2149,6 +2159,8 @@ export const ERROR_CATALOG = {
         "Nieprawidłowe dane: {object}. Sprawdź wpisane dane.",
       "care.sick_note_disabled":
         "Obecnie niedostępne tutaj: {object}. Zapytaj swoją osobę kontaktową.",
+      "enrollment.care_offering_day_conflict":
+        "Na ten sam dzień wybrano dwie oferty, których nie można łączyć. Wybierz tylko jedną na dzień.",
       "enrollment.care_offering_exactly_one":
         "Wybierz dokładnie jedną ofertę opieki dla każdego dziecka.",
       "enrollment.care_offering_full":
@@ -2431,6 +2443,8 @@ export const ERROR_CATALOG = {
         "{object} geçersiz bilgiler içeriyor. Lütfen girdiğiniz bilgileri kontrol edin.",
       "care.sick_note_disabled":
         "{object} şu anda burada kullanılamıyor. Lütfen ilgili kişinize danışın.",
+      "enrollment.care_offering_day_conflict":
+        "Aynı gün için birlikte seçilemeyen iki hizmet seçildi. Lütfen her gün için yalnızca birini seçin.",
       "enrollment.care_offering_exactly_one":
         "Lütfen her çocuk için tam olarak bir bakım hizmeti seçin.",
       "enrollment.care_offering_full":
@@ -2715,6 +2729,8 @@ export const ERROR_CATALOG = {
         "Указано неправильні дані: {object}. Перевірте введені дані.",
       "care.sick_note_disabled":
         "Зараз тут недоступно: {object}. Зверніться до контактної особи.",
+      "enrollment.care_offering_day_conflict":
+        "На один день обрано дві програми, які не можна поєднувати. Оберіть лише одну на день.",
       "enrollment.care_offering_exactly_one":
         "Оберіть рівно одну програму догляду для кожної дитини.",
       "enrollment.care_offering_full":

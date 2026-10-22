@@ -202,10 +202,27 @@ describe("ParentAnnouncementsPage (#3115)", () => {
     searchParams.set("bearbeiten", "2");
     render(<ParentAnnouncementsPage />);
 
+    // Anker: die Umfragen-Liste mit der angefragten Umfrage ist geladen.
+    expect(
+      (await screen.findAllByText("Kommt Ihr Kind?")).length,
+    ).toBeGreaterThan(0);
+
     await waitFor(() =>
       expect(updateUrlParamsMock).toHaveBeenCalledWith({ bearbeiten: null }),
     );
     expect(screen.queryByText("Umfrage bearbeiten")).not.toBeInTheDocument();
+  });
+
+  it("opens the poll wizard via ?bearbeiten= while the poll is a draft", async () => {
+    listState.data = [
+      base,
+      { ...poll, status: "draft", published_at: undefined },
+    ];
+    searchParams.set("art", "umfragen");
+    searchParams.set("bearbeiten", "2");
+    render(<ParentAnnouncementsPage />);
+
+    expect(await screen.findByText("Umfrage bearbeiten")).toBeInTheDocument();
   });
 });
 
@@ -537,12 +554,19 @@ describe("ParentAnnouncementsPage: children handed over by another page (#3379)"
     searchParams.set("vorbelegung", "missing");
     render(<ParentAnnouncementsPage />);
 
+    // Anker: die Liste der Mitteilungen ist geladen.
+    expect((await screen.findAllByText("Sommerfest")).length).toBeGreaterThan(
+      0,
+    );
+
     await waitFor(() =>
       expect(updateUrlParamsMock).toHaveBeenCalledWith({
         neu: null,
         vorbelegung: null,
       }),
     );
+    // Die Liste bleibt stehen, der Assistent öffnet sich nicht.
+    expect(screen.getAllByText("Sommerfest").length).toBeGreaterThan(0);
     expect(screen.queryByText("Neue Elternmitteilung")).not.toBeInTheDocument();
   });
 });

@@ -464,7 +464,7 @@ func composeServeRoot(
 		},
 		func() (err error) {
 			dashboard, err = buildSupervisionDashboard(env, settings.Service, caller, active, presence, rooms, timetableOwner, yard,
-				structureViews, lifecycle, schedules)
+				structureViews, lifecycle, schedules, services.Users)
 			return
 		},
 		func() (err error) {
@@ -581,7 +581,7 @@ func composeServeRoot(
 	worker, err := owners.NewWorker(db, env.Logger, tracer, hub, settings.Service, audit.Command, deviceFleet, carePlan, persons, people,
 		organizations, identity, facilities, timetableRepos, workTime, staffAdmin, workforce, active, reports, lifecycle, days,
 		materialization, schedules, requests.Documents, services, studentAudit, notices, flows, studentDeletion, feedback, calendarApp,
-		notifications, deliveryDevices.PWAUsage, chat.StaffMessaging, outbox, reminders, fileStore, announcements, mealPlan)
+		notifications, deliveryDevices.PWAUsage, chat.StaffMessaging, outbox, reminders, fileStore, announcements, mealPlan, analyticsSchoolNames(tracker))
 	if err != nil {
 		return nil, nil, err
 	}

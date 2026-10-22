@@ -87,6 +87,11 @@ type studentListParams struct {
 	careStatus      string
 	careStatusOn    calendar.Date
 	careStatusToday calendar.Date
+	// careOfferingID keeps the present children with a booking of this care
+	// offering on the planning date who are not signed off for it (#4571).
+	// Zero = off; parseCareOfferingFilter validates it.
+	careOfferingID   int64
+	careOfferingDate calendar.Date
 }
 
 // Values accepted by the care_status query parameter (#2487).

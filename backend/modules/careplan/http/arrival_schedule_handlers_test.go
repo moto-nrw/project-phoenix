@@ -2,6 +2,7 @@ package careplanhttp_test
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"net/http"
 	"testing"
@@ -579,6 +580,32 @@ func TestUpdateStudentArrivalException(t *testing.T) {
 		require.NotNil(t, createdBy)
 		assert.Positive(t, *createdBy)
 		assert.Nil(t, createdByGuardian)
+	})
+
+	// #4599: moving an exception onto a day that already has one is a
+	// refusal the staff can resolve, not a server error.
+	t.Run("conflict_moving_onto_a_taken_date", func(t *testing.T) {
+		student := testpkg.CreateTestStudent(t, tc.db, "ArrExcUpdateTaken", "Test", "AEUTK1")
+		_, account := testpkg.CreateTestTeacherWithAccount(t, tc.db, "Update", "TakenArrivalExc")
+		staffID := createStudentsAPITestStaffID(t, tc)
+		reason := "Existing day"
+		testpkg.InsertStudentArrivalExceptionRow(t, tc.db, testpkg.StudentArrivalExceptionRow{
+			TenantID: testpkg.Tenant(t), StudentID: student.ID, ExceptionDate: calendar.NewDate(2026, 4, 21),
+			Reason: &reason, CreatedBy: staffID,
+		})
+		moved := testpkg.InsertStudentArrivalExceptionRow(t, tc.db, testpkg.StudentArrivalExceptionRow{
+			TenantID: testpkg.Tenant(t), StudentID: student.ID, ExceptionDate: calendar.NewDate(2026, 4, 22),
+			Reason: &reason, CreatedBy: staffID,
+		})
+
+		body := map[string]any{"exception_date": "2026-04-21", "expected_arrival": "09:00", "reason": "Moved"}
+		req := testutil.NewAuthenticatedRequest(t, "PUT", fmt.Sprintf("/%d/arrival-exceptions/%d", student.ID, moved.ID), body)
+		rr := authExec(t, tc, req, testutil.AdminTestClaims(int(account.ID)), []string{"admin:*"})
+
+		require.Equal(t, http.StatusConflict, rr.Code, rr.Body.String())
+		var response map[string]any
+		require.NoError(t, json.Unmarshal(rr.Body.Bytes(), &response))
+		assert.Equal(t, "general.business_rejection", response["code"])
 	})
 
 	t.Run("bad_request_invalid_exception_id", func(t *testing.T) {

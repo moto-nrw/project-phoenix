@@ -25,12 +25,13 @@ import (
 var ogsLivePerms = []string{"users:read", "groups:read"}
 
 type ogsLiveGroup struct {
-	ID              string  `json:"id"`
-	Name            string  `json:"name"`
-	RoomID          *string `json:"room_id"`
-	RoomName        string  `json:"room_name"`
-	ViaSubstitution bool    `json:"via_substitution"`
-	IsPersonal      bool    `json:"is_personal"`
+	ID              string   `json:"id"`
+	Name            string   `json:"name"`
+	RoomID          *string  `json:"room_id"`
+	RoomName        string   `json:"room_name"`
+	ViaSubstitution bool     `json:"via_substitution"`
+	IsPersonal      bool     `json:"is_personal"`
+	Leaders         []string `json:"leaders"`
 }
 
 type ogsLiveEnvelope struct {
@@ -153,6 +154,55 @@ func TestOGSGroupLive_GroupVisibilityScope(t *testing.T) {
 			strconv.FormatInt(ownedGroup.ID, 10): true,
 		}, states)
 	})
+}
+
+// TestOGSGroupNavigation_NamesTheGroupLeadership pins the group selection's
+// leadership line (#4351): each group names its assigned Gruppenleitung, a
+// group without one names nobody, and the list reads them in one bulk lookup
+// whatever the number of groups and teachers.
+func TestOGSGroupNavigation_NamesTheGroupLeadership(t *testing.T) {
+	t.Parallel()
+	testpkg.SetupIsolatedTestDB(t)
+	tc := setupStudentsRoute(t)
+	setOGSLiveOverviewScope(t, tc, settings.OverviewScopeAllStaff)
+	owner, ownerAccount := testpkg.CreateTestTeacherWithAccount(t, tc.db, "Lena", "Leitung")
+	colleague, _ := testpkg.CreateTestTeacherWithAccount(t, tc.db, "Karl", "Kollege")
+	ownedGroup := testpkg.CreateTestEducationGroup(t, tc.db, "Leitung Eigene")
+	sharedGroup := testpkg.CreateTestEducationGroup(t, tc.db, "Leitung Geteilt")
+	unledGroup := testpkg.CreateTestEducationGroup(t, tc.db, "Leitung Ohne")
+	testpkg.CreateTestGroupTeacher(t, tc.db, ownedGroup.ID, owner.ID)
+	testpkg.CreateTestGroupTeacher(t, tc.db, sharedGroup.ID, owner.ID)
+	testpkg.CreateTestGroupTeacher(t, tc.db, sharedGroup.ID, colleague.ID)
+
+	counter := testpkg.CaptureQueries(t, tc.db)
+	run := func() map[string][]string {
+		counter.Reset()
+		req := testutil.NewRequest("GET", "/ogs-group-navigation", nil)
+		rr := authExec(t, tc, req, testutil.TeacherTestClaims(int(ownerAccount.ID)), ogsLivePerms)
+		require.Equal(t, http.StatusOK, rr.Code, "body: %s", rr.Body.String())
+		leaders := map[string][]string{}
+		for _, group := range decodeOGSGroupNavigation(t, rr.Body.Bytes()) {
+			leaders[group.ID] = group.Leaders
+		}
+		return leaders
+	}
+	id := func(value int64) string { return strconv.FormatInt(value, 10) }
+
+	leaders := run()
+	smallCount := counter.Total()
+	assert.Equal(t, []string{"Lena Leitung"}, leaders[id(ownedGroup.ID)])
+	assert.ElementsMatch(t, []string{"Karl Kollege", "Lena Leitung"}, leaders[id(sharedGroup.ID)])
+	require.Contains(t, leaders, id(unledGroup.ID), "a group without leadership stays in the list")
+	assert.Empty(t, leaders[id(unledGroup.ID)], "a group without leadership names nobody")
+
+	for i := range 3 {
+		extra := testpkg.CreateTestEducationGroup(t, tc.db, fmt.Sprintf("Leitung Extra %d", i))
+		teacher, _ := testpkg.CreateTestTeacherWithAccount(t, tc.db, "Extra", fmt.Sprintf("Leitung%d", i))
+		testpkg.CreateTestGroupTeacher(t, tc.db, extra.ID, teacher.ID)
+	}
+	run()
+	assert.Equal(t, smallCount, counter.Total(), "leadership is one bulk lookup, not one per group")
+	testpkg.AssertQueryBudget(t, "api.students.ogs_group_navigation", counter.Queries())
 }
 
 func TestOGSGroupLive_AdminSeesAllGroupsInPersonalScope(t *testing.T) {

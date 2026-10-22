@@ -44,9 +44,15 @@ import {
 import { PlanningDisabledState } from "~/components/planning/planning-disabled-state";
 import { useApiErrorDisplay } from "~/contexts/ToastContext";
 import { blockChildrenLabel, blockEndLine } from "~/lib/block-children";
-import { berlinTodayISO, formatDate, isValidISODate } from "~/lib/date-helpers";
+import {
+  berlinTodayISO,
+  formatDate,
+  formatStatusDate,
+  isValidISODate,
+} from "~/lib/date-helpers";
 import { GROUP_ROOM_SHADES, LOCATION_COLORS } from "~/lib/location-helper";
 import { createLogger } from "~/lib/logger";
+import { STAFF_FLAT_PAGES } from "~/lib/section-navigation";
 import { useMinuteClock } from "~/lib/pickup-helpers";
 import { useSWRAuth } from "~/lib/swr/hooks";
 import {
@@ -432,7 +438,7 @@ export function TagesplanView() {
   if (!timetableEnabled) {
     return (
       <PlanningDisabledState
-        pageTitle="Tagesplan"
+        pageTitle={STAFF_FLAT_PAGES.tagesplan.label}
         heading="Der Betreuungsplan ist ausgeschaltet"
         description="Ihre Schule nutzt den Betreuungsplan zurzeit nicht. Ihre Aufsichten finden Sie unter „Aktuelle Aufsicht“."
         testId="tagesplan-disabled"
@@ -440,18 +446,27 @@ export function TagesplanView() {
     );
   }
 
-  // Ein Satz, mehr nicht: die Liste erklärt sich selbst (Chevron am
-  // laufenden Block, Starten-Knopf am eigenen). Nur die eingeschränkte
-  // Sicht (#2380) muss gesagt werden, sonst fehlen scheinbar Termine.
+  // Die Liste erklärt sich selbst (Chevron am laufenden Block, Starten-Knopf
+  // am eigenen). Nur die eingeschränkte Sicht (#2380) muss gesagt werden,
+  // sonst fehlen scheinbar Termine.
   const description =
     overviewScope === "all_staff"
-      ? "Der Betreuungstag Ihrer Schule."
+      ? undefined
       : "Ihre Einsätze. Sie sehen nur Termine, für die Sie eingeteilt sind.";
 
   return (
     <div className="w-full space-y-4">
       <SectionCard
         title={isToday ? "Heute" : formatDate(day)}
+        // Welcher Tag „Heute“ ist, steht direkt daneben (#4348). Ein anderer
+        // Tag trägt sein Datum schon im Titel.
+        titleBadge={
+          isToday ? (
+            <span className="text-sm text-gray-500 tabular-nums">
+              {formatStatusDate(day)}
+            </span>
+          ) : undefined
+        }
         description={description}
         headingLevel={1}
         actions={

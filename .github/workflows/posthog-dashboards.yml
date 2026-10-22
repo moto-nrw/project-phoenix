@@ -1,0 +1,125 @@
+name: PostHog dashboards
+run-name: PostHog dashboards ${{ github.event_name == 'pull_request' && 'preview' || 'sync' }}
+
+# Brings the dashboards of scripts/posthog-dashboards.mjs to PostHog the way
+# migrations bring the schema to the database (#4586). A pull request runs
+# every query once (--check) and shows what a merge would change (--dry-run)
+# in its job summary. A merge into development syncs, and a second run must
+# report that everything is current.
+#
+# The dashboards read only data, so they follow development, not the
+# release: a dashboard for an unreleased feature stays empty until it ships.
+#
+# Two keys: a pull request runs code from its own branch, so it only gets
+# the read-only POSTHOG_READ_API_KEY. The writing POSTHOG_PERSONAL_API_KEY
+# lives in the `posthog` environment, which deploys from development only.
+# The inputs are the script and the two files it reads (route templates and
+# browser events). Only the EU API is called.
+on:
+  pull_request:
+    types: [opened, synchronize, reopened, ready_for_review]
+    paths:
+      - 'scripts/posthog-dashboards.mjs'
+      - 'frontend/src/lib/analytics-routes.ts'
+      - 'frontend/src/lib/analytics-policy.ts'
+      - '.github/workflows/posthog-dashboards.yml'
+  push:
+    branches:
+      - development
+    paths:
+      - 'scripts/posthog-dashboards.mjs'
+      - 'frontend/src/lib/analytics-routes.ts'
+      - 'frontend/src/lib/analytics-policy.ts'
+      - '.github/workflows/posthog-dashboards.yml'
+  # Resync after a failed run or a change made by hand in PostHog. The
+  # environment rejects every branch except development.
+  workflow_dispatch:
+
+permissions: {}
+
+defaults:
+  run:
+    shell: bash
+
+env:
+  # Production and the demo share this project, separated by `deployment`.
+  POSTHOG_PROJECT_ID: '140838'
+
+jobs:
+  preview:
+    if: github.event_name == 'pull_request' && github.event.pull_request.draft == false
+    concurrency:
+      group: posthog-dashboards-preview-${{ github.ref }}
+      cancel-in-progress: true
+    permissions:
+      contents: read
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v6
+        with:
+          node-version: "24"
+
+      # Fork and Dependabot pull requests get no secrets; they skip with a
+      # warning instead of failing. The preview also runs when a query fails,
+      # so the summary shows the whole picture.
+      - name: Check queries and preview the merge
+        env:
+          POSTHOG_PERSONAL_API_KEY: ${{ secrets.POSTHOG_READ_API_KEY }}
+        run: |
+          if [[ -z "$POSTHOG_PERSONAL_API_KEY" ]]; then
+            echo "::warning::POSTHOG_READ_API_KEY is not available; PostHog check skipped."
+            exit 0
+          fi
+          status=0
+          report() {
+            local title=$1; shift
+            node scripts/posthog-dashboards.mjs "$@" > /tmp/posthog.txt 2>&1 || status=1
+            cat /tmp/posthog.txt
+            { echo "### PostHog: $title"; echo '```'; cat /tmp/posthog.txt; echo '```'; } >> "$GITHUB_STEP_SUMMARY"
+          }
+          report 'queries (--check)' --check
+          report 'changes after the merge (--dry-run)' --dry-run
+          exit "$status"
+
+  sync:
+    if: github.event_name != 'pull_request'
+    environment:
+      name: posthog
+    concurrency:
+      group: posthog-dashboards-sync
+      cancel-in-progress: false
+    permissions:
+      contents: read
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v6
+        with:
+          node-version: "24"
+
+      # A query PostHog rejects stops the run before anything is written. A
+      # second run must find nothing left to change: the sync is idempotent
+      # only if PostHog stored what it was sent.
+      - name: Check, sync, and verify
+        env:
+          POSTHOG_PERSONAL_API_KEY: ${{ secrets.POSTHOG_PERSONAL_API_KEY }}
+        run: |
+          node scripts/posthog-dashboards.mjs --check
+          status=0
+          node scripts/posthog-dashboards.mjs > /tmp/posthog.txt 2>&1 || status=$?
+          cat /tmp/posthog.txt
+          { echo '### PostHog: synced'; echo '```'; cat /tmp/posthog.txt; echo '```'; } >> "$GITHUB_STEP_SUMMARY"
+          if [[ "$status" -ne 0 ]]; then exit "$status"; fi
+          node scripts/posthog-dashboards.mjs --dry-run > /tmp/posthog.txt
+          cat /tmp/posthog.txt
+          if [[ "$(head -n 1 /tmp/posthog.txt)" != 'Everything is current.' ]]; then
+            echo "::error::A second run would still change PostHog; see the log above."
+            exit 1
+          fi

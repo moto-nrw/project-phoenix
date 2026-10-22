@@ -366,6 +366,8 @@ describe("DataTable stacked phone layout", () => {
       />,
     );
 
+    // Anker: die Tabelle zeigt die Zeilen.
+    expect(screen.getByRole("table")).toHaveTextContent("Mia");
     expect(screen.queryByTestId("data-table-stacked")).not.toBeInTheDocument();
   });
 });

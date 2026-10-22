@@ -27,11 +27,21 @@ describe("DemoWeekendNotice", () => {
   });
 
   it("stays hidden on a weekday", () => {
-    render(<DemoWeekendNotice inParentsApp={false} />);
+    // Freitag, der Schultag direkt vor dem Wochenende.
+    setTestClock("2026-09-25T11:00:00+02:00");
+    const { unmount } = render(<DemoWeekendNotice inParentsApp={false} />);
     expect(
       screen.queryByRole("button", { name: "Hinweis zum Wochenende" }),
     ).not.toBeInTheDocument();
     expect(screen.queryByText("Heute ist Wochenende")).not.toBeInTheDocument();
+    unmount();
+
+    setTestClock("2026-09-26T11:00:00+02:00");
+    render(<DemoWeekendNotice inParentsApp={false} />);
+    // Anker: am Samstag findet dieselbe Abfrage den Knopf.
+    expect(
+      screen.getByRole("button", { name: "Hinweis zum Wochenende" }),
+    ).toBeInTheDocument();
   });
 
   it("explains the weekend on Friday's plan once per weekend day", async () => {

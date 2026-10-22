@@ -352,11 +352,12 @@ function renderForm(
 }
 
 async function waitForLoaded() {
+  // Erst steht das Formular (oder seine Ladefehlermeldung) statt des
+  // Ladetexts, dann zählt dessen Abwesenheit.
   await waitFor(() => {
-    expect(
-      screen.queryByText("Formular wird geladen…"),
-    ).not.toBeInTheDocument();
+    expect(document.querySelector("form, [role='alert']")).toBeInTheDocument();
   });
+  expect(screen.queryByText("Formular wird geladen…")).not.toBeInTheDocument();
 }
 
 async function chooseOption(label: string, optionName: string) {
@@ -669,6 +670,308 @@ describe("EnrollmentForm", () => {
     ).toBeVisible();
   });
 
+  // #4515: in Bissendorf every offering is limited by grade. Before a grade
+  // was picked the whole offering block vanished and parents assumed a
+  // second step after the form.
+  describe("grade-restricted offerings before the grade is picked", () => {
+    const CHOOSE_GRADE_FIRST =
+      "Wählen Sie zuerst die Klassenstufe Ihres Kindes. Danach sehen Sie hier die passenden Betreuungsangebote.";
+
+    function gradeOffering(
+      id: string,
+      name: string,
+      grades: number[],
+    ): PublicCareOffering {
+      return {
+        ...offerings()[1]!,
+        id,
+        name,
+        availability_rule: {
+          match: "all",
+          conditions: [
+            { source: "grade_level", operator: "in", value: grades },
+          ],
+        },
+      };
+    }
+
+    function mockCatalog(
+      catalog: PublicCareOffering[],
+      overrides: Record<string, unknown> = {},
+    ) {
+      mockFetchPublicCareOfferings.mockResolvedValue({
+        offerings: catalog,
+        careOfferingSelectionMode: "at_least_one",
+        careRequired: true,
+        collectGradeLevel: true,
+        careOfferingsEnabled: true,
+        ...overrides,
+      });
+    }
+
+    it("explains the offering block before the grade and shows only matching offerings after it", async () => {
+      mockCatalog([
+        gradeOffering("91", "Betreuung Klasse 1 und 2", [1, 2]),
+        gradeOffering("92", "Betreuung Klasse 3 und 4", [3, 4]),
+      ]);
+
+      renderForm();
+      await waitForLoaded();
+
+      expect(screen.getByText("Betreuungsangebote")).toBeVisible();
+      expect(screen.getByText(CHOOSE_GRADE_FIRST)).toBeVisible();
+      expect(screen.getByRole("status")).toHaveTextContent(CHOOSE_GRADE_FIRST);
+      expect(
+        screen.queryByText("Betreuung Klasse 1 und 2"),
+      ).not.toBeInTheDocument();
+
+      await chooseOption("Klassenstufe *", "3. Klasse");
+
+      expect(screen.getByText("Betreuung Klasse 3 und 4")).toBeVisible();
+      expect(
+        screen.queryByText("Betreuung Klasse 1 und 2"),
+      ).not.toBeInTheDocument();
+      expect(screen.queryByText(CHOOSE_GRADE_FIRST)).not.toBeInTheDocument();
+    });
+
+    it("keeps the hint next to offerings that need no grade", async () => {
+      mockCatalog([offerings()[0]!, gradeOffering("91", "Randstunde", [1, 2])]);
+
+      renderForm();
+      await waitForLoaded();
+
+      expect(screen.getByText("Flexible Betreuung")).toBeVisible();
+      expect(screen.getByText(CHOOSE_GRADE_FIRST)).toBeVisible();
+
+      await chooseOption("Klassenstufe *", "1. Klasse");
+      expect(screen.getByText("Randstunde")).toBeVisible();
+      expect(screen.queryByText(CHOOSE_GRADE_FIRST)).not.toBeInTheDocument();
+    });
+
+    it("explains when no offering fits the chosen grade", async () => {
+      mockCatalog([gradeOffering("91", "Betreuung Klasse 1 und 2", [1, 2])]);
+
+      renderForm();
+      await waitForLoaded();
+      await chooseOption("Klassenstufe *", "4. Klasse");
+
+      expect(
+        screen.getByText(
+          "Für die 4. Klasse gibt es hier keine passenden Betreuungsangebote. Bei Fragen wenden Sie sich bitte an die OGS.",
+        ),
+      ).toBeVisible();
+      expect(screen.getByRole("status")).toHaveTextContent(
+        "Für die 4. Klasse gibt es hier keine passenden Betreuungsangebote. Bei Fragen wenden Sie sich bitte an die OGS.",
+      );
+      expect(screen.queryByText(CHOOSE_GRADE_FIRST)).not.toBeInTheDocument();
+    });
+
+    it("asks for no grade when every offering is open to all grades", async () => {
+      mockCatalog(offerings());
+
+      renderForm();
+      await waitForLoaded();
+
+      expect(screen.getByText("Flexible Betreuung")).toBeVisible();
+      expect(screen.queryByText(CHOOSE_GRADE_FIRST)).not.toBeInTheDocument();
+    });
+
+    it("asks for no grade when every rule admits every grade", async () => {
+      const unrestrictedRuleOffering: PublicCareOffering = {
+        ...offerings()[1]!,
+        availability_rule: {
+          match: "any",
+          conditions: [
+            { source: "grade_level", operator: "not_in", value: [1] },
+            { source: "grade_level", operator: "not_in", value: [2] },
+          ],
+        },
+      };
+      mockCatalog([unrestrictedRuleOffering]);
+
+      renderForm();
+      await waitForLoaded();
+
+      // Anker: Die Kinderkarte ist geladen, in der der Hinweis stünde.
+      expect(screen.getByLabelText("Klassenstufe *")).toBeInTheDocument();
+      expect(screen.queryByText(CHOOSE_GRADE_FIRST)).not.toBeInTheDocument();
+    });
+
+    it("asks for no grade when the school does not ask for one", async () => {
+      mockCatalog(
+        [offerings()[0]!, gradeOffering("91", "Randstunde", [1, 2])],
+        {
+          collectGradeLevel: false,
+        },
+      );
+
+      renderForm();
+      await waitForLoaded();
+
+      expect(screen.getByText("Flexible Betreuung")).toBeVisible();
+      expect(screen.queryByText(CHOOSE_GRADE_FIRST)).not.toBeInTheDocument();
+    });
+
+    it("ignores a saved grade when the school does not ask for one", async () => {
+      const submitter = vi
+        .fn()
+        .mockResolvedValue({ status_url: "/status/grade-independent" });
+      const draft = editDraft([
+        { id: "c-1", first_name: "Anton", last_name: "Alster" },
+      ]);
+      draft.children[0]!.offering_ids = ["91"];
+
+      renderForm({
+        skipCaptcha: true,
+        submitter,
+        initialDraft: draft,
+        prefetchedData: {
+          schema: schema(),
+          offerings: [
+            offerings()[1]!,
+            gradeOffering("91", "Randstunde Klasse 2", [2]),
+          ],
+          careOfferingSelectionMode: "at_least_one",
+          captchaConfig: null,
+          legalTexts: legalTexts([]),
+          collectGradeLevel: false,
+          careOfferingsEnabled: true,
+        },
+      });
+      await waitForLoaded();
+
+      // Anker: Das weiterhin verfügbare, klassenunabhängige Angebot zeigt,
+      // dass die Auswahl geladen ist.
+      expect(screen.getByText("Fixe Betreuung")).toBeVisible();
+      expect(screen.queryByText("Randstunde Klasse 2")).not.toBeInTheDocument();
+
+      fireEvent.click(screen.getByRole("checkbox", { name: /Fixe Betreuung/ }));
+      fireEvent.click(
+        screen.getByRole("button", { name: "Anmeldung absenden" }),
+      );
+
+      await waitFor(() => expect(submitter).toHaveBeenCalledOnce());
+      const payload = submitter.mock.calls[0]![0] as SubmitEnrollmentPayload;
+      expect(payload.children[0]).toMatchObject({
+        target_grade_level: undefined,
+        offering_ids: [12],
+      });
+    });
+
+    it("does not show a grade notice for a hidden saved grade", async () => {
+      const draft = editDraft([
+        { id: "c-1", first_name: "Anton", last_name: "Alster" },
+      ]);
+      renderForm({
+        initialDraft: draft,
+        prefetchedData: {
+          schema: schema(),
+          offerings: [gradeOffering("91", "Betreuung Klasse 1", [1])],
+          careOfferingSelectionMode: "optional",
+          captchaConfig: null,
+          legalTexts: legalTexts([]),
+          collectGradeLevel: false,
+          careOfferingsEnabled: true,
+        },
+      });
+      await waitForLoaded();
+
+      // Anker: Die Kinderkarte ist geladen, obwohl kein Angebot sichtbar ist.
+      expect(screen.getByLabelText("Jahr")).toBeInTheDocument();
+      expect(
+        screen.queryByText(
+          "Für die 2. Klasse gibt es hier keine passenden Betreuungsangebote. Bei Fragen wenden Sie sich bitte an die OGS.",
+        ),
+      ).not.toBeInTheDocument();
+    });
+
+    it("ignores a saved grade for automatic offerings", async () => {
+      const draft = editDraft([
+        { id: "c-1", first_name: "Anton", last_name: "Alster" },
+      ]);
+      draft.children[0]!.offering_ids = ["12"];
+      renderForm({
+        initialDraft: draft,
+        prefetchedData: {
+          schema: schema(),
+          offerings: [
+            offerings()[1]!,
+            {
+              ...offerings()[1]!,
+              id: "91",
+              name: "Randstunde",
+              auto_add_trigger_offering_ids: ["12"],
+              auto_add_grade_levels: [2],
+            },
+          ],
+          careOfferingSelectionMode: "optional",
+          captchaConfig: null,
+          legalTexts: legalTexts([]),
+          collectGradeLevel: false,
+          careOfferingsEnabled: true,
+        },
+      });
+      await waitForLoaded();
+
+      // Anker: Das gespeicherte, klassenunabhängige Angebot ist sichtbar.
+      expect(screen.getByText("Fixe Betreuung")).toBeVisible();
+      expect(
+        screen.getByRole("checkbox", { name: /Randstunde/ }),
+      ).not.toBeChecked();
+    });
+
+    it("shows no offering block when the school switched the offering choice off", async () => {
+      mockCatalog([gradeOffering("91", "Betreuung Klasse 1 und 2", [1, 2])], {
+        careOfferingsEnabled: false,
+      });
+
+      renderForm();
+      await waitForLoaded();
+
+      expect(screen.getByLabelText("Klassenstufe *")).toBeInTheDocument();
+      expect(screen.queryByText("Betreuungsangebote")).not.toBeInTheDocument();
+      expect(screen.queryByText(CHOOSE_GRADE_FIRST)).not.toBeInTheDocument();
+    });
+
+    it("shows no offering block for an empty catalog", async () => {
+      mockCatalog([]);
+
+      renderForm();
+      await waitForLoaded();
+
+      expect(screen.getByLabelText("Klassenstufe *")).toBeInTheDocument();
+      expect(screen.queryByText("Betreuungsangebote")).not.toBeInTheDocument();
+      expect(screen.queryByText(CHOOSE_GRADE_FIRST)).not.toBeInTheDocument();
+    });
+
+    it("tracks the hint per child", async () => {
+      mockCatalog([
+        gradeOffering("91", "Betreuung Klasse 1 und 2", [1, 2]),
+        gradeOffering("92", "Betreuung Klasse 3 und 4", [3, 4]),
+      ]);
+
+      renderForm();
+      await waitForLoaded();
+      fireEvent.click(screen.getByRole("button", { name: "Weiteres Kind" }));
+
+      await waitFor(() => {
+        expect(screen.getAllByText(CHOOSE_GRADE_FIRST)).toHaveLength(2);
+      });
+
+      fireEvent.click(screen.getAllByLabelText("Klassenstufe *")[1]!);
+      fireEvent.click(await screen.findByRole("option", { name: "1. Klasse" }));
+
+      expect(screen.getAllByText(CHOOSE_GRADE_FIRST)).toHaveLength(1);
+      expect(screen.getByText("Betreuung Klasse 1 und 2")).toBeVisible();
+      expect(
+        document.querySelector('input[name="children_1_offering_91"]'),
+      ).not.toBeNull();
+      expect(
+        document.querySelector('input[name="children_0_offering_91"]'),
+      ).toBeNull();
+    });
+  });
+
   it("shows no occupancy or blocked section on the parent form", async () => {
     const conditional: PublicCareOffering = {
       ...offerings()[1]!,
@@ -709,6 +1012,8 @@ describe("EnrollmentForm", () => {
     renderForm();
     await waitForLoaded();
 
+    // Anker: die Kinderkarte steht, in der Klassenstufe und Angebote stünden.
+    expect(screen.getByLabelText("Jahr")).toBeInTheDocument();
     expect(screen.queryByLabelText("Klassenstufe *")).not.toBeInTheDocument();
     expect(screen.queryByText("Flexible Betreuung")).not.toBeInTheDocument();
     expect(screen.queryByText("Fixe Betreuung")).not.toBeInTheDocument();
@@ -1650,6 +1955,8 @@ describe("EnrollmentForm", () => {
     });
     await waitForLoaded();
 
+    // Anker: das Elternprofil ist geladen und übernommen.
+    expect(screen.getByDisplayValue("Mara")).toBeInTheDocument();
     expect(screen.queryByText("Bestehende Kinder")).not.toBeInTheDocument();
     expect(
       screen.queryByRole("button", { name: "Übernehmen" }),
@@ -1679,6 +1986,8 @@ describe("EnrollmentForm", () => {
     });
     await waitForLoaded();
 
+    // Anker: das Elternprofil ist geladen und übernommen.
+    expect(screen.getByDisplayValue("Mara")).toBeInTheDocument();
     expect(screen.queryByText("Bestehende Kinder")).not.toBeInTheDocument();
     expect(
       screen.queryByRole("button", { name: "Übernehmen" }),
@@ -3478,6 +3787,148 @@ describe("EnrollmentForm", () => {
       ),
     ).toBeInTheDocument();
     expect(mockSubmitEnrollment).not.toHaveBeenCalled();
+  });
+
+  describe("per-day selection group (#4514)", () => {
+    const perDayVariant = (
+      id: string,
+      name: string,
+      overrides: Record<string, unknown> = {},
+    ) => ({
+      id,
+      phase_id: "5",
+      name,
+      description: null,
+      days_of_week_mode: "parent_choice",
+      available_days: ["mon", "tue", "wed", "thu", "fri"],
+      includes_holiday_care: false,
+      includes_lunch: false,
+      is_active: true,
+      is_required: false,
+      counts_as_care: true,
+      selection_group: "Betreuungszeit",
+      selection_rule: "at_most_one_per_day",
+      capacity: null,
+      ...overrides,
+    });
+    const shortCare = perDayVariant("41", "Verlässlichkeit bis 13 Uhr");
+    const longCare = perDayVariant("42", "Nachmittagsgruppe bis 17 Uhr");
+    const conflictOnMonday =
+      "Am Montag sind „Verlässlichkeit bis 13 Uhr“ und „Nachmittagsgruppe bis 17 Uhr“ gewählt. Bitte wählen Sie pro Tag nur ein Angebot.";
+
+    function pick(offeringId: string, day: string) {
+      const input = document.querySelector<HTMLInputElement>(
+        `input[name="children_0_offering_${offeringId}"]`,
+      );
+      expect(input).not.toBeNull();
+      if (!(input as HTMLInputElement).checked) {
+        fireEvent.click(input as HTMLInputElement);
+      }
+      fireEvent.click(
+        dayButton(offeringCard(`children_0_offering_${offeringId}`), day),
+      );
+    }
+
+    it("names the day and both variants at selection, keeps both and blocks the submit", async () => {
+      mockFetchPublicCareOfferings.mockResolvedValueOnce({
+        offerings: [shortCare, longCare],
+        careOfferingSelectionMode: "optional",
+        careRequired: false,
+      });
+      renderForm();
+      await waitForLoaded();
+      await fillRequiredFields();
+
+      expect(screen.getByText("Höchstens eines pro Tag")).toBeInTheDocument();
+      pick("41", "Mo");
+      pick("42", "Di");
+      expect(screen.queryByText(conflictOnMonday)).not.toBeInTheDocument();
+      fireEvent.click(dayButton(offeringCard("children_0_offering_42"), "Mo"));
+
+      expect(screen.getByText(conflictOnMonday)).toBeInTheDocument();
+      expect(
+        dayButton(offeringCard("children_0_offering_41"), "Mo"),
+      ).toHaveAttribute("aria-pressed", "true");
+      expect(
+        dayButton(offeringCard("children_0_offering_42"), "Mo"),
+      ).toHaveAttribute("aria-pressed", "true");
+
+      fireEvent.click(
+        screen.getByRole("button", { name: "Anmeldung absenden" }),
+      );
+      expect(
+        await screen.findByText(`Kind 1: ${conflictOnMonday}`),
+      ).toBeInTheDocument();
+      expect(mockSubmitEnrollment).not.toHaveBeenCalled();
+
+      fireEvent.click(dayButton(offeringCard("children_0_offering_42"), "Mo"));
+      expect(screen.queryByText(conflictOnMonday)).not.toBeInTheDocument();
+      fireEvent.click(
+        screen.getByRole("button", { name: "Anmeldung absenden" }),
+      );
+      await waitFor(() => expect(mockSubmitEnrollment).toHaveBeenCalled());
+    });
+
+    it("counts the days of a fixed variant", async () => {
+      mockFetchPublicCareOfferings.mockResolvedValueOnce({
+        offerings: [
+          shortCare,
+          perDayVariant("43", "Freitag bis 15 Uhr", {
+            days_of_week_mode: "fixed",
+            available_days: ["fri"],
+          }),
+        ],
+        careOfferingSelectionMode: "optional",
+        careRequired: false,
+      });
+      renderForm();
+      await waitForLoaded();
+
+      pick("41", "Fr");
+      fireEvent.click(
+        screen.getByRole("checkbox", { name: /Freitag bis 15 Uhr/ }),
+      );
+
+      expect(
+        screen.getByText(
+          "Am Freitag sind „Verlässlichkeit bis 13 Uhr“ und „Freitag bis 15 Uhr“ gewählt. Bitte wählen Sie pro Tag nur ein Angebot.",
+        ),
+      ).toBeInTheDocument();
+    });
+
+    it("counts the days an automatic addition brings in", async () => {
+      mockFetchPublicCareOfferings.mockResolvedValueOnce({
+        offerings: [
+          perDayVariant("44", "Hausaufgabenkurs", {
+            selection_group: null,
+            selection_rule: "optional",
+            counts_as_care: false,
+          }),
+          perDayVariant("45", "Nachmittag bis 15 Uhr", {
+            auto_add_trigger_offering_ids: ["44"],
+          }),
+          shortCare,
+        ],
+        careOfferingSelectionMode: "optional",
+        careRequired: false,
+      });
+      renderForm();
+      await waitForLoaded();
+
+      pick("44", "Mi");
+      pick("41", "Di");
+      expect(
+        screen.queryByText(/Bitte wählen Sie pro Tag nur ein Angebot/),
+      ).not.toBeInTheDocument();
+      expect(screen.getByText("Höchstens eines pro Tag")).toBeInTheDocument();
+      fireEvent.click(dayButton(offeringCard("children_0_offering_41"), "Mi"));
+
+      expect(
+        screen.getByText(
+          "Am Mittwoch sind „Nachmittag bis 15 Uhr“ und „Verlässlichkeit bis 13 Uhr“ gewählt. Bitte wählen Sie pro Tag nur ein Angebot.",
+        ),
+      ).toBeInTheDocument();
+    });
   });
 
   it("counts only choosable offerings for exactly_one when a required offering is present", async () => {

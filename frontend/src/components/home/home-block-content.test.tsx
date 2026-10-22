@@ -144,6 +144,9 @@ describe("HomeBlockContent — Kennzahlen", () => {
       />,
     );
 
+    // Anker: die Kachel steht mit geladenem Wert da.
+    expect(screen.getByText("Krank")).toBeInTheDocument();
+    expect(screen.getByText("4")).toBeInTheDocument();
     expect(screen.queryByRole("link")).not.toBeInTheDocument();
   });
 
@@ -186,6 +189,8 @@ describe("HomeBlockContent — Listen", () => {
       <HomeBlockContent blockKey="section.recent_activity" data={data()} />,
     );
 
+    // Anker: die Bewegung ist als Zeile gerendert.
+    expect(screen.getByText("Gruppe 1")).toBeInTheDocument();
     expect(screen.queryAllByRole("link")).toHaveLength(0);
   });
 
@@ -377,6 +382,75 @@ describe("HomeBlockContent — Listen", () => {
 
     expect(screen.getByText("Geburtstage")).toBeInTheDocument();
     expect(screen.getByText("Henri Fuchs")).toBeInTheDocument();
+  });
+});
+
+describe("HomeBlockContent — Kinder (#4347)", () => {
+  const withAtSchool = data({
+    analytics: { ...analytics, studentsAtSchool: 21 },
+  });
+
+  it("zählt die Kinder nach Status und führt jede Zahl in die passende Liste", () => {
+    render(
+      <HomeBlockContent blockKey="section.students" data={withAtSchool} />,
+    );
+
+    const rows: [string, string, string][] = [
+      ["Anwesend", "150", "/test-tenant/students/search?status=anwesend"],
+      ["Schule", "21", "/test-tenant/students/search?status=schule"],
+      ["Zuhause", "33", "/test-tenant/students/search?status=abwesend"],
+      ["Krank", "4", "/test-tenant/students/search?status=krank"],
+      [
+        "Entschuldigt",
+        "3",
+        "/test-tenant/students/search?status=entschuldigt-klassenfahrt",
+      ],
+    ];
+    for (const [label, count, href] of rows) {
+      const link = screen.getByRole("link", {
+        name: `${label}: ${count}, Liste öffnen`,
+      });
+      expect(link).toHaveAttribute("href", href);
+    }
+  });
+
+  it("führt im Kopf der Karte nach Alle Kinder", () => {
+    render(
+      <HomeBlockContent blockKey="section.students" data={withAtSchool} />,
+    );
+
+    expect(
+      screen.getByRole("link", { name: "Kinder: Alle Kinder" }),
+    ).toHaveAttribute("href", "/test-tenant/students/search");
+  });
+
+  it("zeigt beim Laden keine veralteten Zahlen im Linknamen", () => {
+    render(
+      <HomeBlockContent
+        blockKey="section.students"
+        data={data({ analyticsLoading: true })}
+      />,
+    );
+
+    // Anker: die Statuszeile bleibt während des Ladens erreichbar.
+    expect(
+      screen.getByRole("link", { name: "Krank: …, Liste öffnen" }),
+    ).toHaveAttribute("href", "/test-tenant/students/search?status=krank");
+    expect(screen.queryByText("4")).not.toBeInTheDocument();
+  });
+
+  it("zeigt Striche statt Nullen, wenn keine Zahlen da sind", () => {
+    render(
+      <HomeBlockContent
+        blockKey="section.students"
+        data={data({ analytics: undefined })}
+      />,
+    );
+
+    // Anker: alle fünf Zeilen stehen da, mit Strich statt Zahl. Der
+    // Ladezustand zeichnet an dieser Stelle ein Skelett, keinen Strich.
+    expect(screen.getAllByText("–")).toHaveLength(5);
+    expect(screen.queryByText("0")).not.toBeInTheDocument();
   });
 });
 

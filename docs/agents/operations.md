@@ -204,7 +204,10 @@ receives the privileged DSN. Read [runtime environment boundaries](../operations
 before changing deployment environments or maintenance jobs.
 
 CI uses `SOPS_AGE_KEY`, `STAGING_SSH_*`, `PRODUCTION_SSH_*`, and `DEMO_SSH_*` secrets;
-failure recipients are in the `DEPLOY_NOTIFY_EMAILS` repository variable.
+failure recipients are in the `DEPLOY_NOTIFY_EMAILS` repository variable. The
+PostHog dashboards use `POSTHOG_READ_API_KEY` (repository) and
+`POSTHOG_PERSONAL_API_KEY` (environment `posthog`); see
+[Nutzungsanalyse](../operations/nutzungsanalyse.md#dashboards-3604).
 Server layout on each host is `~/{staging,production,demo}/` (`.env`, `docker-compose.yml`,
 `.deploy-state`) and `~/backups/{env}/` (3 staging / 7 production / 3 demo complete
 snapshot sets). See [complete release backup and rollback](../operations/release-backup-rollback.md)
@@ -212,6 +215,54 @@ for snapshot contents, verification, manual recovery and data-loss boundaries.
 Rollbacks restore matching images, configuration, roles, database and uploads;
 an old image alone is not compatible with every newer schema.
 For env changes, read `.claude/rules/env-docker-sync.md` before editing.
+
+## GitGuardian findings
+
+The hosted **GitGuardian Security Checks** GitHub App scans every commit in a
+PR, not just its final diff. Editing or deleting a literal in a later commit
+does not remove its earlier occurrence. Local configuration does not change
+its detectors or clear its historical incidents.
+
+### Local prevention
+
+Lefthook runs the pinned gitleaks scanner through `scripts/check-secrets.sh`.
+It works offline and needs no account or token; `devbox install` installs it.
+
+1. Pre-commit scans the staged changes. Pre-push scans every commit from the
+   merge-base with the comparison branch through HEAD. Both redact secrets and
+   fail on findings or a missing scanner. Pre-push never uses its success
+   cache to skip secret scanning.
+2. `.gitleaks.toml` extends the gitleaks default rules. It skips test files
+   (`*_test.go`, `*.test.ts(x)`, `testdata/`, `*test/` directories) so
+   throwaway fixture credentials do not block commits.
+3. For a verified false positive elsewhere, add a `gitleaks:allow` comment to
+   the line or its fingerprint from the scan output to `.gitleaksignore`.
+
+### Existing hosted findings
+
+For a failing hosted check:
+
+1. Open the check's findings table. Inspect the flagged commit, file, callers,
+   and credential use. A test filename alone does not prove a value is safe.
+2. For a verified test-only credential, open its linked GitGuardian incident
+   and choose **Ignore → Test credential**. For a detector match that is not a
+   credential, choose **Ignore → False positive**. Closed incidents no longer
+   appear in check runs. Keep real credentials on the revoke/rotate path.
+3. Re-run the check and verify it succeeds. If it still fails, inspect the new
+   findings rather than assuming the same incident caused it.
+
+A **Neutral** result with **Pull request too large to scan** means GitGuardian
+skipped scanning, not that it found no secrets. Report this coverage gap; do not
+describe the rerun as a clean scan.
+
+For backend password fixtures, use `testpkg.NewTestPassword()`; the
+[fixture guide](backend-testing.md#credential-fixtures) distinguishes generated
+credentials, mapping placeholders and deliberately invalid input. Rewriting
+shared history is not needed to classify an intentional test credential.
+
+References: [hosted check behavior and incident handling](https://docs.gitguardian.com/internal-monitoring/prevent/detect-secrets-in-real-time-in-github),
+[gitleaks configuration](https://github.com/gitleaks/gitleaks#configuration),
+[dashboard exclusion settings](https://docs.gitguardian.com/secrets-detection/customize-detection/exclusion-rules).
 
 ## Rollback window of a storage cutover
 

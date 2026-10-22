@@ -167,7 +167,31 @@ describe("small timetable components", () => {
       />,
     );
 
+    // Anker: der abgesagte Termin steht in der Monatszelle.
+    expect(screen.getByText("Mensa")).toBeInTheDocument();
     expect(screen.queryByText("Besetzung: 0/2")).not.toBeInTheDocument();
+  });
+
+  it("shows staffing for planned month instances", () => {
+    const planned: EnrichedInstance = {
+      ...instance,
+      status: "planned",
+      isLive: false,
+      requiredStaffCount: 2,
+      assignedStaffCount: 0,
+      conflictWarnings: [],
+    };
+
+    render(
+      <MonthPlannerGrid
+        days={[new Date("2026-05-04T00:00:00")]}
+        monthDate={new Date("2026-05-01T00:00:00")}
+        instances={[planned]}
+        onDayClick={vi.fn()}
+      />,
+    );
+
+    expect(screen.getByText("Besetzung: 0/2")).toBeInTheDocument();
   });
 
   it("offers only one-off and recurring entries in the add menu", () => {
@@ -546,6 +570,8 @@ describe("small timetable components", () => {
       />,
     );
 
+    // Anker: das Raster mit dem Termin-Block ist gerendert.
+    expect(screen.getByRole("button", { name: /mensa/i })).toBeInTheDocument();
     expect(
       screen.queryByRole("button", { name: /Neuen Termin anlegen/ }),
     ).not.toBeInTheDocument();

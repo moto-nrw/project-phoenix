@@ -1393,10 +1393,14 @@ describe("TimeTrackingPage", () => {
           expect(timeTrackingService.endBreak).toHaveBeenCalledTimes(1);
           expect(timeTrackingService.getSessionBreaks).toHaveBeenCalledTimes(2);
           expect(mockMutate).toHaveBeenCalledTimes(2);
-          expect(
-            screen.queryByLabelText("Pause beenden"),
-          ).not.toBeInTheDocument();
         });
+        // Anker: die Stempelleiste steht ohne laufende Pause da.
+        expect(
+          await screen.findByLabelText("Pause starten"),
+        ).toBeInTheDocument();
+        expect(
+          screen.queryByLabelText("Pause beenden"),
+        ).not.toBeInTheDocument();
         expect(toast.error).not.toHaveBeenCalled();
         expect(logError).not.toHaveBeenCalledWith(
           "end_break_failed",
@@ -2638,6 +2642,10 @@ describe("TimeTrackingPage", () => {
       });
 
       render(<TimeTrackingPage />);
+      // Anker: an der Stelle der Tabelle steht ihr Ladeplatzhalter.
+      expect(
+        screen.getByLabelText("Einträge werden geladen…"),
+      ).toBeInTheDocument();
       expect(screen.queryByText("Woche gesamt")).not.toBeInTheDocument();
     });
   });

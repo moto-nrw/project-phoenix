@@ -26,7 +26,8 @@ export interface ActiveSupervisionRoom {
   student_count?: number;
   /** The started activity's limit; null without one (#3634). */
   participant_limit?: number | null;
-  supervisor_name?: string;
+  /** Wer die Sitzung gerade beaufsichtigt (#4354). */
+  supervisorNames?: readonly string[];
   isCurrentUserSupervising?: boolean;
   canAssign?: boolean;
   students?: ActiveSupervisionStudent[];
@@ -99,6 +100,8 @@ export interface OpenRoomSessionView {
    * accepts no further child (#3634).
    */
   readonly participantLimit?: number | null;
+  /** Who supervises the session now; absent from an older backend (#4354). */
+  readonly supervisorNames?: readonly string[];
   /**
    * The timetable block running in the session. Null for a kiosk session,
    * the room's own session, and callers who may not read schedules.
@@ -460,6 +463,7 @@ interface SupervisedGroupLike {
   isCurrentUserSupervising?: boolean;
   canAssign?: boolean;
   participantLimit?: number | null;
+  supervisorNames?: readonly string[];
 }
 
 interface EducationalGroupLike {
@@ -492,7 +496,7 @@ export function mapSupervisedGroupsToRooms(
       room_color: group.room?.color ?? undefined,
       student_count: undefined,
       participant_limit: group.participantLimit ?? null,
-      supervisor_name: undefined,
+      supervisorNames: group.supervisorNames ?? [],
       isCurrentUserSupervising: group.isCurrentUserSupervising === true,
       canAssign: group.canAssign === true,
     }))
@@ -552,6 +556,42 @@ export function rosterRunState(status: TimetableRoster["instance"]["status"]): {
   return status === "completed"
     ? { label: "Beendet", tone: "gray" }
     : { label: "Aktiv", tone: "green" };
+}
+
+/**
+ * Raum und Betreuung der geöffneten Aufsicht für die Statuszeile (#4354).
+ *
+ * Ein offener Raum heißt im Titel schon wie der Raum; er nennt jeden, der in
+ * einer seiner Sitzungen Aufsicht hat, einmal. Eine eigene Aufsicht nennt
+ * ihren Raum, solange er nicht schon der Titel ist.
+ */
+export function supervisionHeadFacts(options: {
+  readonly title: string | null;
+  readonly currentRoom: Pick<
+    ActiveSupervisionRoom,
+    "room_name" | "supervisorNames"
+  > | null;
+  readonly currentOpenRoom: {
+    readonly sessions?: readonly Pick<OpenRoomSessionView, "supervisorNames">[];
+  } | null;
+}): { roomName: string | null; supervisorNames: string[] } {
+  const { title, currentRoom, currentOpenRoom } = options;
+  if (currentOpenRoom) {
+    const names = new Set(
+      (currentOpenRoom.sessions ?? []).flatMap(
+        (session) => session.supervisorNames ?? [],
+      ),
+    );
+    return {
+      roomName: null,
+      supervisorNames: [...names].sort((a, b) => a.localeCompare(b, "de")),
+    };
+  }
+  const roomName = currentRoom?.room_name ?? null;
+  return {
+    roomName: roomName && roomName !== title ? roomName : null,
+    supervisorNames: [...(currentRoom?.supervisorNames ?? [])],
+  };
 }
 
 /**

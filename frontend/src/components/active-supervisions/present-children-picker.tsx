@@ -4,6 +4,7 @@ import { useEffect, useId, useMemo, useState } from "react";
 import { Button } from "~/components/ui/button";
 import { Checkbox } from "~/components/ui/checkbox";
 import { ChoiceTile } from "~/components/ui/choice-tile";
+import { CustomSelect } from "~/components/ui/custom-select";
 import { EmptyState } from "~/components/ui/empty-state";
 import type { FormErrorInput } from "~/components/ui/form-error";
 import { FormModal } from "~/components/ui/form-modal";
@@ -12,9 +13,15 @@ import { Loading } from "~/components/ui/loading";
 import { SegmentedControl } from "~/components/ui/segmented-control";
 import { parseLocation } from "~/lib/location-helper";
 import { createLogger } from "~/lib/logger";
+import { useLocalStorageValue } from "~/lib/hooks/use-local-storage-value";
 import { useMinuteClock } from "~/lib/pickup-helpers";
-import { fetchStudents } from "~/lib/student-api";
+import {
+  type CareOfferingOption,
+  fetchCareOfferingOptions,
+  fetchStudents,
+} from "~/lib/student-api";
 import type { Student } from "~/lib/student-helpers";
+import { useTenantSlugSafe } from "~/lib/tenant-context";
 import {
   presentChildCandidates,
   type PresentChildScope,
@@ -24,10 +31,32 @@ const logger = createLogger({ component: "PresentChildrenPicker" });
 
 const PRESENT_PAGE_SIZE = 100;
 
-const SCOPE_ITEMS = [
+const BASE_SCOPE_ITEMS = [
   { value: "stays", label: "Noch in Betreuung" },
   { value: "all", label: "Alle anwesenden" },
 ] as const;
+
+const SCOPE_ITEMS_WITH_OFFERING = [
+  ...BASE_SCOPE_ITEMS,
+  { value: "offering", label: "Nach Angebot" },
+] as const;
+
+/** The list a scope reads: every present child, or one offering's. */
+const PRESENT_SOURCE = "present";
+
+function offeringStorageKey(tenantSlug: string | null): string | null {
+  return tenantSlug ? `moto:present-children-offering:${tenantSlug}` : null;
+}
+
+function storeOffering(key: string | null, offeringId: string | null) {
+  if (!key || !offeringId) return;
+  try {
+    globalThis.localStorage.setItem(key, offeringId);
+  } catch {
+    // Storage blocked (private mode, policy): the choice is just not
+    // remembered for the next opening.
+  }
+}
 
 interface PresentChild {
   readonly id: string;
@@ -37,7 +66,9 @@ interface PresentChild {
   readonly pickupTime: string | null;
 }
 
-async function fetchPresentChildren(): Promise<PresentChild[]> {
+async function fetchPresentChildren(
+  careOfferingId: string | null,
+): Promise<PresentChild[]> {
   const children: PresentChild[] = [];
   for (let page = 1; ; page += 1) {
     const result = await fetchStudents({
@@ -45,6 +76,7 @@ async function fetchPresentChildren(): Promise<PresentChild[]> {
       include_pickup_times: true,
       page,
       page_size: PRESENT_PAGE_SIZE,
+      ...(careOfferingId ? { care_offering_id: careOfferingId } : {}),
     });
     children.push(...result.students.map(toPresentChild));
 
@@ -74,6 +106,10 @@ type LoadState =
   | { readonly kind: "failed" }
   | { readonly kind: "loaded"; readonly children: readonly PresentChild[] };
 
+type OfferingsState =
+  | { readonly kind: "loading" }
+  | { readonly kind: "loaded"; readonly items: readonly CareOfferingOption[] };
+
 export interface PresentChildrenPickerProps {
   readonly isOpen: boolean;
   readonly instanceId: string;
@@ -89,7 +125,11 @@ export interface PresentChildrenPickerProps {
  * Schlägt die Kinder vor, die gerade in der OGS sind, und trägt eine Auswahl
  * gesammelt in den laufenden Block ein (#3824). „Noch in Betreuung“ blendet
  * Kinder aus, deren Gehzeit heute schon erreicht ist: sie gehen gleich und
- * gehören nicht mehr in eine neue Aktivität.
+ * gehören nicht mehr in eine neue Aktivität. „Nach Angebot“ zeigt die
+ * Kinder, die ein Betreuungsangebot heute gebucht haben und nicht früher
+ * abgemeldet sind (#4571); das Backend entscheidet die Liste, der Browser
+ * merkt sich das zuletzt gewählte Angebot je Schule und wählt es beim
+ * nächsten Öffnen vor.
  */
 export function PresentChildrenPicker({
   isOpen,
@@ -103,7 +143,20 @@ export function PresentChildrenPicker({
   const formId = useId();
   const now = useMinuteClock();
   const [load, setLoad] = useState<LoadState>({ kind: "loading" });
-  const [scope, setScope] = useState<PresentChildScope>("stays");
+  const [offerings, setOfferings] = useState<OfferingsState>({
+    kind: "loading",
+  });
+  // null until the person chooses in this opening; until then the stored
+  // offering, or else "Noch in Betreuung", applies.
+  const [scopeChoice, setScopeChoice] = useState<PresentChildScope | null>(
+    null,
+  );
+  const [offeringChoice, setOfferingChoice] = useState<string | null>(null);
+  const storageKey = offeringStorageKey(useTenantSlugSafe());
+  const storedOfferingId = useLocalStorageValue(
+    storageKey ?? "",
+    storageKey !== null,
+  );
   const [search, setSearch] = useState("");
   const [selected, setSelected] = useState<ReadonlySet<string>>(new Set());
   // Ein anderer Block bei offenem Dialog verwirft die Auswahl: sie darf nie
@@ -114,11 +167,47 @@ export function PresentChildrenPicker({
     setSelected(new Set());
   }
 
+  const offeringItems = offerings.kind === "loaded" ? offerings.items : [];
+  const storedOffering = offeringItems.some(
+    (offering) => offering.id === storedOfferingId,
+  )
+    ? storedOfferingId
+    : null;
+  const offeringId =
+    offeringChoice ?? storedOffering ?? offeringItems[0]?.id ?? null;
+  const scope: PresentChildScope =
+    scopeChoice ?? (storedOffering ? "offering" : "stays");
+  const source =
+    scope === "offering" && offeringId ? offeringId : PRESENT_SOURCE;
+
   useEffect(() => {
     if (!isOpen) return;
     let cancelled = false;
+    setOfferings({ kind: "loading" });
+    fetchCareOfferingOptions()
+      .then((items) => {
+        if (!cancelled) setOfferings({ kind: "loaded", items });
+      })
+      .catch((err) => {
+        if (cancelled) return;
+        // The offering selection is an extra: without it the dialog works
+        // as before, so a failure only hides "Nach Angebot".
+        logger.warn("failed to load care offerings", {
+          error: err instanceof Error ? err.message : String(err),
+        });
+        setOfferings({ kind: "loaded", items: [] });
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [isOpen, instanceId]);
+
+  const offeringsLoaded = offerings.kind === "loaded";
+  useEffect(() => {
+    if (!isOpen || !offeringsLoaded) return;
+    let cancelled = false;
     setLoad({ kind: "loading" });
-    fetchPresentChildren()
+    fetchPresentChildren(source === PRESENT_SOURCE ? null : source)
       .then((result) => {
         if (cancelled) return;
         setLoad({
@@ -136,7 +225,7 @@ export function PresentChildrenPicker({
     return () => {
       cancelled = true;
     };
-  }, [isOpen, instanceId]);
+  }, [isOpen, instanceId, offeringsLoaded, source]);
 
   const candidates = useMemo(
     () =>
@@ -178,6 +267,14 @@ export function PresentChildrenPicker({
     });
   };
   const changeScope = (nextScope: PresentChildScope) => {
+    setScopeChoice(nextScope);
+    if (nextScope === "offering") storeOffering(storageKey, offeringId);
+    // Another list starts without a selection: a hidden choice must never
+    // come back and be added unseen.
+    if (nextScope === "offering" || scope === "offering") {
+      if (nextScope !== scope) setSelected(new Set());
+      return;
+    }
     const nextOfferedIds = new Set(
       load.kind === "loaded"
         ? presentChildCandidates(
@@ -188,15 +285,22 @@ export function PresentChildrenPicker({
           ).map((child) => child.id)
         : [],
     );
-    setScope(nextScope);
     setSelected(
       (prev) => new Set([...prev].filter((id) => nextOfferedIds.has(id))),
     );
   };
+  const changeOffering = (nextOfferingId: string) => {
+    if (nextOfferingId !== offeringId) setSelected(new Set());
+    setOfferingChoice(nextOfferingId);
+    storeOffering(storageKey, nextOfferingId);
+  };
   const handleClose = () => {
     setSelected(new Set());
     setSearch("");
-    setScope("stays");
+    setScopeChoice(null);
+    setOfferingChoice(null);
+    // The next opening loads the offerings first, then the children.
+    setOfferings({ kind: "loading" });
     onClose();
   };
   const handleSubmit = async (event: React.FormEvent<HTMLFormElement>) => {
@@ -248,12 +352,35 @@ export function PresentChildrenPicker({
           diese Aktivität.
         </p>
         <SegmentedControl
-          items={SCOPE_ITEMS}
+          items={
+            offeringItems.length > 0
+              ? SCOPE_ITEMS_WITH_OFFERING
+              : BASE_SCOPE_ITEMS
+          }
           value={scope}
           onChange={changeScope}
           fullWidth
+          className={
+            offeringItems.length > 0 ? "max-sm:grid-flow-row" : undefined
+          }
           ariaLabel="Welche Kinder zeigen"
         />
+        {scope === "offering" && offeringId ? (
+          <div className="space-y-1">
+            <CustomSelect
+              value={offeringId}
+              options={offeringItems.map((offering) => ({
+                value: offering.id,
+                label: offering.name,
+              }))}
+              onChange={changeOffering}
+              ariaLabel="Betreuungsangebot"
+            />
+            <p className="text-sm text-gray-600">
+              Ohne Kinder, die heute früher gehen oder abgemeldet sind.
+            </p>
+          </div>
+        ) : null}
         <Input
           type="search"
           name="present-children-search"
@@ -376,6 +503,12 @@ function emptyText(
   if (scope === "stays") {
     return {
       title: "Kein weiteres Kind bleibt noch länger.",
+      description: "Unter „Alle anwesenden“ sehen Sie alle Kinder in der OGS.",
+    };
+  }
+  if (scope === "offering") {
+    return {
+      title: "Kein weiteres anwesendes Kind hat dieses Angebot heute gebucht.",
       description: "Unter „Alle anwesenden“ sehen Sie alle Kinder in der OGS.",
     };
   }

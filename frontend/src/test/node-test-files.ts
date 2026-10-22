@@ -4,6 +4,7 @@
 // was verified to pass under node. Add a new pure-logic *.test.ts here; files
 // not listed run in happy-dom (app-dom). See docs/agents/frontend-testing.md.
 export const nodeLogicTestFiles = [
+  "scripts/oxlint-plugin-absence-assertion.test.ts",
   "scripts/oxlint-plugin-bauart-autosave.test.ts",
   "scripts/oxlint-plugin-error-path.test.ts",
   "scripts/oxlint-plugin-logging-safety.test.ts",
@@ -160,7 +161,6 @@ export const nodeLogicTestFiles = [
   "src/lib/notification-preferences-api.test.ts",
   "src/lib/offering-request-review-api.test.ts",
   "src/lib/ogs-group-live-api.test.ts",
-  "src/lib/ogs-group-sections.test.ts",
   "src/lib/operator/account-tenant-access-api.test.ts",
   "src/lib/operator/api-helpers.test.ts",
   "src/lib/operator/operator-invitation-api.test.ts",

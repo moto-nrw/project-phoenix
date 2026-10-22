@@ -131,6 +131,8 @@ describe("SearchStudentCard", () => {
       }),
     );
 
+    // Anker: die Karte zeigt die Gehzeit-Zeile, an der die Markierung hinge.
+    expect(screen.getByText(/Gehzeit: 16:00 Uhr/)).toBeInTheDocument();
     expect(
       screen.queryByText("Gehzeit heute geändert"),
     ).not.toBeInTheDocument();
@@ -147,6 +149,10 @@ describe("SearchStudentCard", () => {
       }),
     );
 
+    // Anker: die Karte zeigt die Abwesenheit des Kindes.
+    expect(
+      screen.getByText("Kommt heute nicht (krank gemeldet)"),
+    ).toBeInTheDocument();
     expect(
       screen.queryByText("Gehzeit heute geändert"),
     ).not.toBeInTheDocument();

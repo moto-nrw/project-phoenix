@@ -79,6 +79,13 @@ var queryBudgets = map[string]queryBudget{
 	// departure plans in the same statement the rows come from, where the
 	// retained repository needed a second one to reach the scan-only columns.
 	"api.students.list": {max: 30},
+	// api/students — GET /students?location_state=present&care_offering_id=
+	// (#4571), 10 booked present children: the offering filter reads its
+	// bookings, exceptions and status days once per request.
+	"api.students.list.care_offering": {max: 26},
+	// api/students — GET /students/care-offerings (#4571), 10 offerings:
+	// the request frame plus one catalog read for the picker selection.
+	"api.students.care_offerings.list": {max: 6},
 	// api/students — GET /care-withdrawals, page_size=1 over four pending
 	// withdrawals (#3412). The count and the page each run as one Care Plan
 	// statement that joins the named student directory projection; the
@@ -107,6 +114,10 @@ var queryBudgets = map[string]queryBudget{
 	"workflows.studentdeletion.execute.companions_4.student_rows": {max: 10},
 	// api/students — #2056: aggregated OGS group view, 10 students.
 	"api.students.ogs_group_live": {max: 41},
+	// api/students — GET /students/ogs-group-navigation over every tenant
+	// group: the group list, rooms, substitutions and one bulk Gruppenleitung
+	// lookup (#4351), independent of the number of groups and teachers.
+	"api.students.ogs_group_navigation": {max: 19},
 	// api/students — #2099: identity chain resolved once per request.
 	"api.students.ogs_group_live.identity.person":        {max: 1, exact: true},
 	"api.students.ogs_group_live.identity.staff":         {max: 1, exact: true},
@@ -133,15 +144,23 @@ var queryBudgets = map[string]queryBudget{
 	// 42 since #3946: the Kinderkarte marks an Abholart set for today only,
 	// read for all listed children in one statement. The same 3-vs-10 check
 	// above holds; approval is recorded in the #3946 pull request.
-	"api.active.supervision_dashboard": {max: 42},
+	//
+	// 45 since #4354: the page head names who supervises the open session or
+	// room. One read of the sessions' current supervisors and one bulk name
+	// read for them (staff, profile, person) serve every tab and every
+	// released room together, so the cost stays fixed: the 3-vs-10 check
+	// above and the rooms/blocks check below hold unchanged. Approval for the
+	// raise belongs in the #4354 pull request.
+	"api.active.supervision_dashboard": {max: 45},
 	// api/active — the same aggregate with released rooms running timetable
 	// blocks (#3281): three rooms, five blocks, every block supervised. The
 	// block rows cost four fixed statements on top of the shared view (the
 	// day's instances, their plan entries, the caller's person and staff
 	// rows); TestOpenRooms_BlockCostDoesNotGrowWithRoomsOrBlocks asserts the
 	// count is identical for one room with one block. 51 since #3946: the
-	// shared view's one read of today's Abholart (see above).
-	"api.active.supervision_dashboard.open_room_blocks": {max: 51},
+	// shared view's one read of today's Abholart (see above). 54 since #4354:
+	// the supervisors' names (see above).
+	"api.active.supervision_dashboard.open_room_blocks": {max: 54},
 	// api/active — GET /active/groups list, 8 active groups with visits.
 	"api.active.groups.list": {max: 9},
 	// #2941: formerly one identity query per supervisor / teacher.
@@ -261,6 +280,9 @@ var queryBudgets = map[string]queryBudget{
 	// modules/communication — inbox reads remain fixed as thread count grows.
 	"modules.communication.parent_messages.list_inbox": {max: 1, exact: true},
 	"modules.communication.staff_messages.list_inbox":  {max: 2, exact: true},
+	// The children with a reachable guardian (#4362): the portal links of the
+	// whole school, then one batched membership check for their accounts.
+	"modules.communication.parent_messages.list_reachable_students": {max: 2, exact: true},
 	// database/repositories/users — due announcement reminders read their rows
 	// and targets in two batches, regardless of the number due in one tick.
 	"repositories.parent_announcements.due_reminders": {max: 2, exact: true},

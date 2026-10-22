@@ -225,6 +225,30 @@ describe("Startseite — Abfragen nicht platzierter Bausteine", () => {
     expect(requestedKeys()).not.toContain("dashboard-analytics");
   });
 
+  it("fragt die Betriebszahlen für den Baustein Kinder", async () => {
+    layoutState.blocks = [{ key: "section.students", span: 2, col: 0, row: 0 }];
+    layoutState.overrides = {
+      "tile.students_present": false,
+      "tile.students_sick": false,
+      "tile.students_excused": false,
+      "tile.students_home": false,
+      "tile.students_at_school": false,
+      "section.active_groups": false,
+      "section.open_requests": false,
+      "section.day_flow": false,
+      "section.my_day": false,
+      "section.staff_today": false,
+      "section.messages": false,
+    };
+
+    render(<HomePage />);
+
+    await waitFor(() =>
+      expect(screen.getByTestId("user-context-provider")).toBeInTheDocument(),
+    );
+    expect(requestedKeys()).toContain("dashboard-analytics");
+  });
+
   it("fragt die Betriebszahlen ohne groups:read nicht für Personal heute", async () => {
     layoutState.blocks = [
       { key: "section.staff_today", span: 2, col: 0, row: 0 },

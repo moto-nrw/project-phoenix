@@ -1414,6 +1414,7 @@ describe("StudentSearchPage — planning date (#1939)", () => {
       "krank",
       "klassenfahrt",
       "entschuldigt",
+      "entschuldigt-klassenfahrt",
     ]);
   });
 
@@ -1433,6 +1434,7 @@ describe("StudentSearchPage — planning date (#1939)", () => {
       "krank",
       "klassenfahrt",
       "entschuldigt",
+      "entschuldigt-klassenfahrt",
     ]);
   });
 });

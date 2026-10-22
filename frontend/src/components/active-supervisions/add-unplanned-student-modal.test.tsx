@@ -161,6 +161,9 @@ describe("AddUnplannedStudentModal", () => {
     fireEvent.click(beier);
     expect(beier).toBeChecked();
     expect(addButton).toBeEnabled();
+    expect(
+      screen.getByRole("searchbox", { name: "Kind ungeplant suchen" }),
+    ).toBeInTheDocument();
 
     fireEvent.click(screen.getByRole("button", { name: "Abbrechen" }));
     await waitFor(() =>

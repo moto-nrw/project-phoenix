@@ -94,7 +94,7 @@ func (c *CareOfferingCatalog) updateRecord(ctx context.Context, offering carepla
 	}
 	updated, err := c.deps.Records.UpdateCareOffering(ctx, careplan.UpdateCareOffering{ID: offering.ID, CareOfferingFields: offeringFields(offering)})
 	if errors.Is(err, careplan.ErrCareOfferingNotFound) {
-		return careplan.CareOffering{}, fmt.Errorf("care offering %d not found", offering.ID)
+		return careplan.CareOffering{}, fmt.Errorf("care offering %d: %w", offering.ID, err)
 	}
 	if err != nil {
 		return careplan.CareOffering{}, fmt.Errorf("failed to update care offering: %w", err)
@@ -105,7 +105,7 @@ func (c *CareOfferingCatalog) updateRecord(ctx context.Context, offering carepla
 func (c *CareOfferingCatalog) deleteRecord(ctx context.Context, id int64) error {
 	err := c.deps.Records.DeleteCareOffering(ctx, id)
 	if errors.Is(err, careplan.ErrCareOfferingNotFound) {
-		return fmt.Errorf("care offering %d not found", id)
+		return fmt.Errorf("care offering %d: %w", id, err)
 	}
 	if err != nil {
 		return fmt.Errorf("failed to delete care offering: %w", err)

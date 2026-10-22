@@ -78,6 +78,9 @@ describe("ChoiceModal", () => {
       vi.advanceTimersByTime(20);
     });
 
+    // Anker: der Dialog ist offen und zeigt Titel und Optionen.
+    expect(screen.getByText("Änderung anwenden")).toBeInTheDocument();
+    expect(screen.getByText("Nur diesen Termin")).toBeInTheDocument();
     expect(
       screen.queryByText("Wofür soll die Änderung gelten?"),
     ).not.toBeInTheDocument();

@@ -204,6 +204,8 @@ describe("PresenceBadge", () => {
       <PresenceBadge student={{ current_location: "Anwesend" }} />,
     );
 
+    // Anker: das Badge zeigt seinen Status, nur ohne Animation.
+    expect(screen.getByText("Anwesend")).toBeInTheDocument();
     expect(container.querySelector(".animate-pulse")).toBeNull();
     expect(getPill().style.boxShadow).toBe("");
   });

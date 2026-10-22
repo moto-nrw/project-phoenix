@@ -201,6 +201,13 @@ func (t *httpTracker) CaptureContext(ctx context.Context, distinctID, event stri
 			properties["$process_person_profile"] = true
 		}
 	}
+	if event == groupIdentifyEvent {
+		var ok bool
+		if distinctID, ok = qualifySchoolGroup(properties, t.deployment); !ok {
+			t.warnCaptureFailed(event, fmt.Errorf("only school groups are identified"))
+			return
+		}
+	}
 
 	// Unmarshalable properties fail here, per event, not for the whole batch.
 	if _, err := json.Marshal(properties); err != nil {

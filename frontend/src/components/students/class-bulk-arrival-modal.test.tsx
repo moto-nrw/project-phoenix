@@ -195,10 +195,12 @@ describe("FilteredBulkArrivalModal", () => {
       />,
     );
 
+    // Anker: das Formular mit den Wochentagen ist gerendert.
+    expect(screen.getByLabelText("Montag")).toBeInTheDocument();
     await waitFor(() =>
       expect(mockFetchBulkArrivalScheduleStatus).toHaveBeenCalled(),
     );
-    expect(screen.queryByText(/Kinder haben bereits/)).not.toBeInTheDocument();
+    expect(screen.queryByText(/eigene Ankunftszeiten/)).not.toBeInTheDocument();
   });
 
   it("gracefully treats fetch errors as no-existing-schedule", async () => {
@@ -214,10 +216,12 @@ describe("FilteredBulkArrivalModal", () => {
       />,
     );
 
+    // Anker: das Formular mit den Wochentagen ist gerendert.
+    expect(screen.getByLabelText("Montag")).toBeInTheDocument();
     await waitFor(() =>
       expect(mockFetchBulkArrivalScheduleStatus).toHaveBeenCalled(),
     );
-    expect(screen.queryByText(/Kinder haben bereits/)).not.toBeInTheDocument();
+    expect(screen.queryByText(/eigene Ankunftszeiten/)).not.toBeInTheDocument();
   });
 
   it("disables submit until a valid time is entered", async () => {

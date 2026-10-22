@@ -219,6 +219,7 @@ const EXACT_HELP_TOPICS: Readonly<Record<string, HelpTopicId>> = {
   "/students/search": HELP_TOPICS.studentSearch,
   "/tagesplan": HELP_TOPICS.dayPlan,
   "/ogs-groups": HELP_TOPICS.ownGroups,
+  "/ogs-groups/overview": HELP_TOPICS.ownGroups,
   "/active-supervisions": HELP_TOPICS.activeSupervision,
   "/absences": HELP_TOPICS.absences,
   "/day-log": HELP_TOPICS.dayLog,

@@ -492,7 +492,7 @@ src/components/timetable/bulk-substitution-modal.tsx|text-[11px]@479 text-[11px]
 src/components/timetable/event-form/multi-select-field.tsx|text-[11px]@147 text-[10px]@295 text-[11px]@301
 src/components/timetable/event-form/step-termin.tsx|text-[10px]@163 text-[11px]@233 text-[11px]@266 text-[11px]@343 text-[11px]@349 text-[11px]@397
 src/components/timetable/gap-jump-list.tsx|text-[10px]@108 text-[11px]@131 text-[11px]@146
-src/components/timetable/instance-block.tsx|text-[10px]@289 text-[10px]@328 text-[10px]@335 text-[10px]@345
+src/components/timetable/instance-block.tsx|text-[10px]@299 text-[10px]@338 text-[10px]@345 text-[10px]@355
 src/components/timetable/instance-detail-modal.tsx|text-[10px]@294 text-[9px]@414 text-[9px]@1025 text-[11px]@1325 text-[11px]@1351 text-[11px]@1527 text-[10px]@1636 text-[11px]@1659
 src/components/timetable/month-planner-grid.tsx|text-[11px]@65 text-[11px]@141 text-[11px]@150 text-[11px]@171 text-[9px]@203 text-[10px]@237
 src/components/timetable/period-switcher-dropdown.tsx|text-[11px]@200 text-[10px]@216 text-[11px]@225 text-[10px]@267 text-[10px]@291 text-[10px]@364 text-[10px]@378 text-[10px]@390 text-[11px]@398 text-[11px]@405
@@ -502,7 +502,7 @@ src/components/timetable/substitution-slide-over.tsx|text-[10px]@576 text-[9px]@
 src/components/timetable/template-card.tsx|text-[11px]@119 text-[11px]@131 text-[10px]@174
 src/components/timetable/vertretung-day-list.tsx|text-[11px]@351 text-[11px]@391 text-[11px]@398 text-[11px]@419 text-[11px]@425
 src/components/timetable/vertretung-week-list.tsx|text-[10px]@157
-src/components/timetable/weekly-calendar-grid.tsx|text-[10px]@259 text-[9px]@275 text-[10px]@331 text-[11px]@331 text-[11px]@336 text-[10px]@359 text-[10px]@394 text-[11px]@394
+src/components/timetable/weekly-calendar-grid.tsx|text-[10px]@400 text-[9px]@416 text-[10px]@479 text-[11px]@479 text-[11px]@484 text-[10px]@507 text-[10px]@542 text-[11px]@542
 src/components/ui/avatar.tsx|text-[10px]@32
 src/components/ui/coverage-indicator.tsx|text-[11px]@61 text-[11px]@163
 src/components/ui/location-badge.tsx|text-[11px]@121 text-[11px]@122 text-[10px]@333 text-[10px]@363
@@ -512,7 +512,7 @@ src/components/ui/origin-chip.tsx|text-[11px]@24
 src/components/ui/page-header/FilterButton.tsx|text-[10px]@61
 src/components/ui/page-header/OverflowMenu.tsx|text-[10px]@463 text-[11px]@535
 src/components/ui/parent-visible-badge.tsx|text-[11px]@44
-src/components/ui/plan-block.tsx|text-[11px]@138 text-[11px]@149
+src/components/ui/plan-block.tsx|text-[11px]@154 text-[11px]@175
 src/components/ui/plan-legend.tsx|text-[11px]@106
 src/components/ui/presence-badge.tsx|text-[11px]@80 text-[11px]@81 text-[10px]@257
 `);

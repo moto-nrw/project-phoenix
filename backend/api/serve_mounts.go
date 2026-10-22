@@ -487,6 +487,7 @@ func requestReviewDependencies(
 	return requestreviewcompose.ProjectionDependencies{
 		Queues:   requestreviewcompose.Queues{DirectCorrections: corrections, MasterData: masterQueue, CareSchedule: careQueue, Offering: offeringQueue, Excused: excusedQueue},
 		Students: reviewStudents, FamilyProtection: reviewbindings.NewFamilyProtection(persons), Access: reviewAccess,
+		Submitters: reviewbindings.NewSubmitterDirectory(persons),
 	}, careReviews, nil
 }
 
@@ -585,6 +586,7 @@ func mountStudentRoutes(
 			InstanceService:         lifecycle.Instances,
 			ListExportService:       lists.NewRenderer(),
 			Logger:                  logger.With("handler", "students"),
+			OfferingDayRoster:       schedules.OfferingDays,
 			PeopleDirectory:         persons,
 			Persons:                 peopleCompose.NewStudentRoutePersons(services.Users),
 			PickupScheduleService:   schedules.Pickups,

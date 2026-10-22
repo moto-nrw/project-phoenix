@@ -385,6 +385,7 @@ type ReviewComposition struct {
 		reviewbindings.MasterDataPeople
 		reviewbindings.ScheduleReviewPeople
 		reviewbindings.OfferingReviewPeople
+		reviewbindings.SubmitterPeople
 	}
 	FamilyProtection requestreview.FamilyProtection
 	Settings         interface {
@@ -435,6 +436,7 @@ func TestRequestReviewEnforcesRLS(t *testing.T) {
 			Queues: requestreview.Queues{DirectCorrections: corrections, MasterData: nativeMasterQueue(masterData),
 				CareSchedule: nativeCareQueue(careReviews, reviewToday), Offering: nativeOfferingQueue(offeringReviews, reviewToday), Excused: nativeExcusedQueue(svc.ExcusedRequests, reviewToday)},
 			Access: queueTestAccess{}, Students: reviewStudents, FamilyProtection: svc.FamilyProtection,
+			Submitters: reviewbindings.NewSubmitterDirectory(svc.PeopleDirectory),
 		})
 		require.NoError(t, err)
 
@@ -448,6 +450,21 @@ func TestRequestReviewEnforcesRLS(t *testing.T) {
 			})
 		}
 		require.Len(t, schools, 2)
+
+		// Every queue's row names its filer as the filer's own school knows
+		// them (#4359). The own school's account is also known to the foreign
+		// school under another name, through the OLDER profile: the binding
+		// prefers the lowest profile ID, so a lost tenant filter would show
+		// "Leak" in the own school instead of "Filer own".
+		insertFiler := func(tenantID, accountID int64, lastName string) {
+			_, err := db.NewRaw(`INSERT INTO users.guardian_profiles
+ (tenant_id, first_name, last_name, email, account_id, has_account, preferred_contact_method, language_preference)
+ VALUES (?, 'Filer', ?, ?, ?, true, 'email', 'de')`, tenantID, lastName, fmt.Sprintf("review-rls-filer-%d@example.test", testpkg.UniqueSuffix()), accountID).Exec(testpkg.Ctx(t))
+			require.NoError(t, err)
+		}
+		insertFiler(schools[1].TenantID, schools[0].AccountID, "Leak")
+		insertFiler(schools[0].TenantID, schools[0].AccountID, "own")
+		insertFiler(schools[1].TenantID, schools[1].AccountID, "foreign")
 
 		for table, ownID := range schools[0].Rows {
 			t.Run(table, func(t *testing.T) {
@@ -477,6 +494,8 @@ func TestRequestReviewEnforcesRLS(t *testing.T) {
 					types = append(types, item.RequestType)
 					assert.Equal(t, fmt.Sprint(side.StudentID), item.StudentID)
 					assert.Equal(t, side.GroupName, item.GroupName)
+					assert.Equal(t, "Filer "+map[int64]string{schools[0].TenantID: "own", schools[1].TenantID: "foreign"}[side.TenantID], item.SubmittedByName,
+						"%s names its own school's filer", item.RequestType)
 				}
 				assert.ElementsMatch(t, []string{requestreview.TypeMasterData, requestreview.TypeCareSchedule, requestreview.TypeOffering, requestreview.TypeExcused}, types)
 				assert.Empty(t, page.ReviewAccess, "no review policy is wired in this fixture")

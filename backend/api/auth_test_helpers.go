@@ -18,7 +18,6 @@ import (
 	identityPorts "github.com/moto-nrw/project-phoenix/modules/identityaccess/ports"
 	"github.com/moto-nrw/project-phoenix/modules/schoolmembership"
 	settingsCompose "github.com/moto-nrw/project-phoenix/modules/settings/compose"
-	configModels "github.com/moto-nrw/project-phoenix/modules/settings/records"
 	transactionruntime "github.com/moto-nrw/project-phoenix/modules/transactionruntime/compose"
 	owners "github.com/moto-nrw/project-phoenix/roots/owners"
 	"github.com/moto-nrw/project-phoenix/tenant"
@@ -255,9 +254,7 @@ func NewAuthTestModule(db transactionruntime.Database, unit tenant.UnitOfWork, o
 	if mail.outbox != nil {
 		durable = mail.outbox
 	}
-	identity := deliveryCompose.NewTenantMailIdentity(owners.SchoolContactDirectory{Schools: organizations}, func(ctx context.Context, tenantID int64) (string, error) {
-		return settings.Settings.ResolveStringForTenant(ctx, tenantID, configModels.KeyEmailReplyToAddress)
-	}, logger)
+	identity := owners.TenantMailIdentity(organizations, settings.Settings, owners.RootEnvironment{Logger: logger})
 	sessionRepos := owners.SessionRepositoriesOf(r, organizations, audits.AuthEvent, deliveryCompose.NewPushSubscriptionRepository(db.Pool()))
 	if settingsOverrides.staffCreateErr != nil {
 		sessionRepos.Lifecycle.Membership = failingStaffMembership{LifecycleMembership: r.Membership, err: settingsOverrides.staffCreateErr}

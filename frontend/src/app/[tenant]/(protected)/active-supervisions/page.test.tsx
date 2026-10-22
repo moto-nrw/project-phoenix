@@ -336,6 +336,13 @@ beforeEach(() => {
     } as never);
 });
 
+// Die Statuszeile steht in der Kopfkarte der Seite (#4354: mit Symbolen).
+function pageHead(): HTMLElement {
+  const head = document.querySelector("header");
+  if (!head) throw new Error("page head missing");
+  return head;
+}
+
 describe("MeinRaumPage (Active Supervisions) (1/5)", () => {
   const mockMutate = vi.fn();
 
@@ -839,7 +846,7 @@ describe("MeinRaumPage additional scenarios", () => {
     // Statuszeile der Kopfkarte. Der Name der Aufsicht ist der Seitentitel
     // und steht deshalb nicht noch einmal in der Statuszeile (#3312).
     await waitFor(() => {
-      expect(screen.getByText("2 Kinder", { selector: "div" })).toBeVisible();
+      expect(within(pageHead()).getByText("2 Kinder")).toBeVisible();
     });
     expect(screen.getByRole("heading", { name: "Raum 101" })).toBeVisible();
     expect(
@@ -901,7 +908,7 @@ describe("MeinRaumPage additional scenarios", () => {
       render(<MeinRaumPage />);
 
       await waitFor(() => {
-        expect(screen.getByText(line, { selector: "div" })).toBeVisible();
+        expect(within(pageHead()).getByText(line)).toBeVisible();
       });
       const hint = screen.queryByText(
         /^Mehr Kinder als erlaubt \(höchstens 1\)\./,
@@ -1032,6 +1039,18 @@ describe("the Schulhof as a released room", () => {
               activeGroupIds: ["active-1"],
               studentCount: 5,
               students: [],
+              sessions: [
+                {
+                  activeGroupId: "active-1",
+                  title: "Schulhof Freispiel",
+                  independent: false,
+                  isUserSupervising: false,
+                  canAssign: false,
+                  studentCount: 5,
+                  supervisorNames: ["Erika Schmidt", "Max Mustermann"],
+                  block: null,
+                },
+              ],
             },
           ],
         },
@@ -1051,10 +1070,12 @@ describe("the Schulhof as a released room", () => {
     render(<MeinRaumPage />);
 
     await waitFor(() => {
+      // Wer die Aufsicht hat, steht mit dem Personal-Symbol im Kopf (#4354),
+      // aus den Sitzungen des Raums.
+      const head = within(pageHead());
+      expect(head.getByText("5 Kinder")).toBeInTheDocument();
       expect(
-        screen.getByText(
-          "5 Kinder · Aktuelle Aufsicht: Max Mustermann, Erika Schmidt",
-        ),
+        head.getByText("Erika Schmidt, Max Mustermann"),
       ).toBeInTheDocument();
     });
   });
@@ -1159,6 +1180,18 @@ describe("the Schulhof as a released room", () => {
               activeGroupIds: ["active-1"],
               studentCount: 15,
               students: [],
+              sessions: [
+                {
+                  activeGroupId: "active-1",
+                  title: "Schulhof Freispiel",
+                  independent: false,
+                  isUserSupervising: false,
+                  canAssign: false,
+                  studentCount: 15,
+                  supervisorNames: ["Test Aufsicht"],
+                  block: null,
+                },
+              ],
             },
           ],
         },
@@ -1180,9 +1213,9 @@ describe("the Schulhof as a released room", () => {
     await waitFor(() => {
       // The count comes from the room, not from the caller's own supervision:
       // a shared room reports what is in it whoever is looking.
-      expect(
-        screen.getByText("15 Kinder · Aktuelle Aufsicht: Test Aufsicht"),
-      ).toBeInTheDocument();
+      const head = within(pageHead());
+      expect(head.getByText("15 Kinder")).toBeInTheDocument();
+      expect(head.getByText("Test Aufsicht")).toBeInTheDocument();
     });
   });
 });
@@ -3780,6 +3813,66 @@ describe("MeinRaumPage (Active Supervisions) (5/5)", () => {
     },
   );
 
+  it("names the room and the supervisors in the page head, the room not again in the block card (#4354)", async () => {
+    // Stable references: a fresh object per SWR call re-renders forever.
+    const dashboardData = {
+      supervisedGroups: [
+        {
+          id: "1",
+          name: "Malen",
+          room: { id: "10", name: "Aula" },
+          supervisorNames: ["Anna Alt", "Ben Bauer"],
+        },
+      ],
+      unclaimedGroups: [],
+      currentStaff: { id: "1" },
+      educationalGroups: [],
+      firstRoomVisits: [],
+      firstRoomId: "1",
+    };
+    const rosterData = {
+      instance: {
+        id: "99",
+        title: "Malen",
+        status: "active",
+        activeGroupId: "1",
+        roomId: "10",
+        roomName: "Aula",
+        startTime: "14:00",
+        endTime: "15:30",
+        isSpontaneous: false,
+      },
+      rows: [],
+    };
+    vi.mocked(useSWRAuth).mockImplementation(((key: string | null) => {
+      const data = key?.startsWith("active-supervision-dashboard")
+        ? dashboardData
+        : key?.startsWith("timetable-roster-active-group")
+          ? rosterData
+          : null;
+      return {
+        data,
+        isLoading: false,
+        error: null,
+        mutate: mockMutate,
+        isValidating: false,
+      };
+    }) as never);
+
+    render(<MeinRaumPage />);
+
+    await waitFor(() => {
+      expect(screen.getByText("14:00-15:30")).toBeInTheDocument();
+    });
+    const head = within(pageHead());
+    expect(head.getByText("Aula")).toBeInTheDocument();
+    expect(head.getByText("Anna Alt, Ben Bauer")).toBeInTheDocument();
+    // Der Raum steht nur im Kopf; die Blockkarte nennt nur die Uhrzeit.
+    // Anker: die Blockkarte ist mit ihrer Uhrzeit gerendert (waitFor oben).
+    expect(screen.getAllByText("Aula")).toHaveLength(1);
+    expect(screen.queryByText(/Aula ·/)).not.toBeInTheDocument();
+  });
+
   it("keeps not-scheduled children out of Erwartet and the bulk confirm (#1747)", async () => {
     const dashboardData = {
       supervisedGroups: [
@@ -3982,12 +4075,9 @@ describe("MeinRaumPage (Active Supervisions) (5/5)", () => {
     });
   });
 
-  it("does not flash first-room students while a direct room URL is syncing", async () => {
-    navigationMockState.roomParam = "11";
-    // The aggregate re-run for the URL-targeted session never resolves in
-    // this test — the point is that the first room's visits from the stale
-    // payload must not be shown meanwhile (#2096).
-    mockMutate.mockReturnValue(new Promise(() => undefined) as never);
+  // Zwei beaufsichtigte Räume; der Stand enthält die Besuche des ersten
+  // Raums (Raum 101, Max Mustermann).
+  const mockTwoRoomDashboard = () => {
     const dashboardData = {
       supervisedGroups: [
         {
@@ -4039,16 +4129,49 @@ describe("MeinRaumPage (Active Supervisions) (5/5)", () => {
         isValidating: false,
       };
     }) as never);
+  };
+
+  it("shows the first room's students when no room URL is set", async () => {
+    navigationMockState.roomParam = null;
+    mockTwoRoomDashboard();
 
     render(<MeinRaumPage />);
 
+    // Gegenprobe zum direkten Raum-URL-Fall: ohne ?room= zeigt derselbe
+    // Stand die Kinder des ersten Raums.
+    expect(await screen.findByText("Max Mustermann")).toBeInTheDocument();
+    expect(screen.getByTestId("student-card")).toBeInTheDocument();
+  });
+
+  it("does not flash first-room students while a direct room URL is syncing", async () => {
+    navigationMockState.roomParam = "11";
+    // The aggregate re-run for the URL-targeted session never resolves in
+    // this test — the point is that the first room's visits from the stale
+    // payload must not be shown meanwhile (#2096).
+    mockMutate.mockReturnValue(new Promise(() => undefined) as never);
+    mockTwoRoomDashboard();
+
+    render(<MeinRaumPage />);
+
+    // Anker: die Seite ist gerendert und steht im Ladezustand. Dass sie dort
+    // wegen der Raum-Synchronisation steht, belegt erst der mockMutate-Aufruf
+    // unten, nach dem der Ladezustand noch immer steht.
+    expect(
+      await screen.findByRole("status", {
+        name: "Aktuelle Aufsicht wird geladen…",
+      }),
+    ).toBeInTheDocument();
+
+    // The URL target resolves to session "2" and triggers the aggregate
+    // re-run; the first room's students never appear meanwhile.
     await waitFor(() => {
-      // The URL target resolves to session "2" and triggers the aggregate
-      // re-run; the first room's students never appear meanwhile.
       expect(mockMutate).toHaveBeenCalled();
-      expect(screen.queryByTestId("student-card")).not.toBeInTheDocument();
-      expect(screen.queryByText("Max Mustermann")).not.toBeInTheDocument();
     });
+    expect(
+      screen.getByRole("status", { name: "Aktuelle Aufsicht wird geladen…" }),
+    ).toBeInTheDocument();
+    expect(screen.queryByTestId("student-card")).not.toBeInTheDocument();
+    expect(screen.queryByText("Max Mustermann")).not.toBeInTheDocument();
   });
 
   it("handles permission errors gracefully", async () => {
@@ -4672,7 +4795,7 @@ describe("ID-based selection coverage: switchToRoom via tab click", () => {
     // demselben Namen (#3065).
     await waitFor(() => {
       expect(screen.getByRole("heading", { name: "Schulhof" })).toBeVisible();
-      expect(screen.getByText("9 Kinder", { selector: "div" })).toBeVisible();
+      expect(within(pageHead()).getByText("9 Kinder")).toBeVisible();
     });
     expect(screen.queryAllByRole("tab", { name: "Schulhof" })).toHaveLength(0);
     // Der Zähler kommt aus dem Raum, nicht aus einer der Sitzungen: er zählt
@@ -4758,7 +4881,7 @@ describe("ID-based selection coverage: switchToRoom via tab click", () => {
     expect(
       await screen.findByRole("heading", { name: "Schulhof" }),
     ).toBeInTheDocument();
-    expect(screen.getByText("9 Kinder", { selector: "div" })).toBeVisible();
+    expect(within(pageHead()).getByText("9 Kinder")).toBeVisible();
     expect(screen.getByText("Offener Raum")).toBeInTheDocument();
     expect(screen.queryByText("Eigene Aufsicht")).not.toBeInTheDocument();
   });
@@ -5450,7 +5573,7 @@ describe("ID-based selection coverage: currentRoom useMemo", () => {
     // Der Titel nennt die Aufsicht, die Statuszeile ihre Kinderzahl (beweist,
     // dass currentRoom gesetzt ist).
     expect(screen.getByRole("heading", { name: "Only Room" })).toBeVisible();
-    expect(screen.getByText("1 Kind", { selector: "div" })).toBeVisible();
+    expect(within(pageHead()).getByText("1 Kind")).toBeVisible();
   });
 
   it("shows the released room and its occupancy in the page header", async () => {
@@ -5521,7 +5644,7 @@ describe("ID-based selection coverage: currentRoom useMemo", () => {
     // The count is the room's, reported by the shared view.
     await waitFor(() => {
       expect(screen.getByRole("heading", { name: "Schulhof" })).toBeVisible();
-      expect(screen.getByText("5 Kinder", { selector: "div" })).toBeVisible();
+      expect(within(pageHead()).getByText("5 Kinder")).toBeVisible();
     });
   });
 });

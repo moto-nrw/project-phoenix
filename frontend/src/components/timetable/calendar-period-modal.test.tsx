@@ -451,6 +451,8 @@ describe("CalendarPeriodModal", () => {
       />,
     );
 
+    // Anker: der Dialog steht im Anlege-Modus.
+    expect(screen.getByText("Kalenderzeitraum anlegen")).toBeInTheDocument();
     expect(
       screen.queryByText("Verknüpfte Anmeldephasen"),
     ).not.toBeInTheDocument();

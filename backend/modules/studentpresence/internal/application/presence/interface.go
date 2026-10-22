@@ -171,7 +171,7 @@ type DashboardAnalytics struct {
 	StudentsInRooms      int // Students in indoor rooms (excluding playground)
 	StudentsSick         int // Students currently flagged as sick
 	StudentsExcused      int // Students currently flagged as excused
-	StudentsHome         int // Active students neither present nor sick/excused — see calculateStudentsHome
+	StudentsHome         int // Active students neither present nor sick/excused — see homeCandidateIDs
 	// HomeCandidateIDs are the students StudentsHome counts: active, not
 	// present, not sick or excused. The caller holding the day plan moves the
 	// ones still in class to "Schule" (#3260). Not serialized.

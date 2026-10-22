@@ -1,6 +1,6 @@
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { DEMO_ROLE_CHOICE_TITLE } from "~/lib/demo-access";
+import { DEMO_ENTRY_OPENING, DEMO_ROLE_CHOICE_TITLE } from "~/lib/demo-access";
 import DemoEntryPage from "./page";
 
 // next/image resolves its src against the stubbed location, which has no href.
@@ -89,6 +89,8 @@ describe("DemoEntryPage", () => {
       ],
     ]);
     expect(document.URL).not.toContain("secret-token");
+    // Anker: die Seite bleibt beim Öffnen der Demo, statt die Rollenwahl zu zeigen.
+    expect(screen.getByText(DEMO_ENTRY_OPENING)).toBeInTheDocument();
     expect(screen.queryByText(DEMO_ROLE_CHOICE_TITLE)).toBeNull();
     // The banner reports the entry once the start page has loaded.
     expect(JSON.parse(localStorage.getItem("moto-demo-visit") ?? "")).toEqual({

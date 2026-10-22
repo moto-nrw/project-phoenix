@@ -13,7 +13,9 @@ import (
 	"github.com/moto-nrw/project-phoenix/analytics"
 	authAPI "github.com/moto-nrw/project-phoenix/modules/identityaccess/inbound/account"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess/sessiontoken"
+	organizationModule "github.com/moto-nrw/project-phoenix/modules/organizationtenancy"
 	"github.com/moto-nrw/project-phoenix/modules/securityruntime"
+	owners "github.com/moto-nrw/project-phoenix/roots/owners"
 	"github.com/spf13/viper"
 )
 
@@ -35,6 +37,18 @@ func newProductAnalytics(logger *slog.Logger) (analytics.Tracker, error) {
 // analyticsDeployment binds the deployment property to the environment.
 func analyticsDeployment(appEnv, tenantDomain string) string {
 	return analytics.Deployment(IsDemoEnvironment(appEnv), tenantDomain)
+}
+
+// analyticsSchoolNames binds the Worker's school names (the usage
+// dashboards) to the tracker.
+func analyticsSchoolNames(tracker analytics.Tracker) owners.SchoolNamesPublisher {
+	return func(schools []organizationModule.School) int {
+		named := make([]analytics.School, 0, len(schools))
+		for _, school := range schools {
+			named = append(named, analytics.School{ID: school.ID, Name: school.Name})
+		}
+		return analytics.IdentifySchools(tracker, named)
+	}
 }
 
 // coreActionAnalytics binds the core-action middleware (#3602) to the

@@ -12,7 +12,7 @@ const scopes = {
   architecture: ['backend', 'scripts/backend-architecture', 'scripts/backend-architecture.sh', 'scripts/run-go-toolchain.sh'],
   'frontend-quality': ['frontend', 'scripts/check-frontend-quality.sh', 'package.json'],
   'react-doctor': ['frontend', 'scripts/check-frontend-quality.sh', 'package.json'],
-  'hook-tests': ['scripts/pre-push.test.mjs', 'scripts/pre-push.sh', 'scripts/pre-push-cache.mjs', 'scripts/check-secrets.sh', 'scripts/run-go-toolchain.sh', 'scripts/dev-native.sh', 'scripts/dev-native.test.mjs', 'scripts/go-package-workers.sh', 'scripts/total-memory-gb.sh', 'scripts/check-quality.sh', 'scripts/check-backend-quality.sh', 'scripts/check-frontend-quality.sh', 'lefthook.yml', '.github/workflows'],
+  'hook-tests': ['scripts/pre-push.test.mjs', 'scripts/pre-push.sh', 'scripts/pre-push-cache.mjs', 'scripts/check-secrets.sh', 'scripts/check-secrets.test.mjs', '.gitleaks.toml', 'scripts/run-go-toolchain.sh', 'scripts/dev-native.sh', 'scripts/dev-native.test.mjs', 'scripts/go-package-workers.sh', 'scripts/total-memory-gb.sh', 'scripts/check-quality.sh', 'scripts/check-backend-quality.sh', 'scripts/check-frontend-quality.sh', 'lefthook.yml', '.github/workflows'],
 };
 const shared = ['scripts/pre-push-cache.mjs', 'scripts/quality-timing.sh', 'scripts/check-quality.sh', 'devbox.json', 'devbox.lock'];
 const tools = {
