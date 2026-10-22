@@ -23,6 +23,7 @@ const detailRequest = vi.hoisted(() => ({
   avatarUrl: undefined as string | undefined,
   mutate: vi.fn(),
 }));
+const roleAssignment = vi.hoisted(() => ({ currentIsLehrkraft: false }));
 
 vi.mock("next-auth/react", () => ({
   useSession: vi.fn(),
@@ -117,7 +118,7 @@ vi.mock("~/lib/swr", () => ({
         data: {
           options: [{ id: "1", name: "Administration", systemName: "admin" }],
           currentRoleIds: ["1"],
-          currentIsLehrkraft: false,
+          currentIsLehrkraft: roleAssignment.currentIsLehrkraft,
         },
         isLoading: false,
         error: null,
@@ -263,6 +264,7 @@ describe("StaffDetailContent permissions", () => {
     detailRequest.error = null;
     detailRequest.endedOn = null;
     detailRequest.avatarUrl = undefined;
+    roleAssignment.currentIsLehrkraft = false;
     searchParams.delete("from");
     searchParams.delete("tab");
     searchParams.delete("date");
@@ -674,6 +676,48 @@ describe("StaffDetailContent permissions", () => {
       screen.queryByLabelText("Notizen der Leitung"),
     ).not.toBeInTheDocument();
   });
+
+  // #4431: the Lehrkraft hint sends the reader to „Löschen" only when the
+  // header menu offers it (users:delete); otherwise it names who can.
+  it.each([
+    {
+      permissions: ["users:read", "users:manage", "users:delete"],
+      canDelete: true,
+    },
+    { permissions: ["users:read", "users:manage"], canDelete: false },
+  ])(
+    "matches the Lehrkraft role hint to the delete permission ($permissions)",
+    ({ permissions, canDelete }) => {
+      roleAssignment.currentIsLehrkraft = true;
+      vi.mocked(useSession).mockReturnValue({
+        data: {
+          user: {
+            id: "7",
+            token: "test-token",
+            roles: ["teacher"],
+            permissions,
+          },
+          expires: "2099-01-01T00:00:00.000Z",
+        },
+        status: "authenticated",
+        update: vi.fn(),
+      });
+
+      render(<StaffDetailContent />);
+
+      fireEvent.click(screen.getByRole("button", { name: "Weitere Aktionen" }));
+      expect(screen.queryByRole("menuitem", { name: "Löschen" }) !== null).toBe(
+        canDelete,
+      );
+      fireEvent.click(screen.getByRole("button", { name: "Bearbeiten" }));
+      expect(screen.queryByText("Wählen Sie „Löschen“.") !== null).toBe(
+        canDelete,
+      );
+      expect(
+        screen.queryByText(/Das kann nur, wer Personal löschen darf/) !== null,
+      ).toBe(!canDelete);
+    },
+  );
 
   it("redirects a role without any staff permission back to the referrer", () => {
     searchParams.set("from", "/database/personal");

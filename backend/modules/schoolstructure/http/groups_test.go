@@ -21,7 +21,6 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/api/testutil"
 	schoolstructurehttp "github.com/moto-nrw/project-phoenix/modules/schoolstructure/http"
-	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 )
 
@@ -499,44 +498,6 @@ func TestGetGroupSupervisors_NotFound(t *testing.T) {
 // GET GROUP SUBSTITUTIONS TESTS
 // =============================================================================
 
-func TestGetGroupStudentsRoomStatus_RequiresSupervisor(t *testing.T) {
-	t.Parallel()
-
-	tc, router := setupProtectedRouter(t)
-
-	// Create test group
-	group := testpkg.CreateTestEducationGroup(t, tc.db, "RoomStatusTest")
-
-	// Without being a supervisor of the group, should get forbidden
-	req := newReq(t, "GET", fmt.Sprintf("/groups/%d/students/room-status", group.ID), nil, testutil.DefaultTestClaims(), "groups:read")
-
-	rr := testutil.ExecuteRequest(router, req)
-	// Returns 403 because user doesn't supervise this group
-	testutil.AssertForbidden(t, rr)
-}
-
-func TestGetGroupStudentsRoomStatus_NotFound(t *testing.T) {
-	t.Parallel()
-
-	_, router := setupProtectedRouter(t)
-
-	req := newReq(t, "GET", "/groups/999999/students/room-status", nil, testutil.DefaultTestClaims(), "groups:read")
-
-	rr := testutil.ExecuteRequest(router, req)
-	testutil.AssertNotFound(t, rr)
-}
-
-func TestGetGroupStudentsRoomStatus_InvalidID(t *testing.T) {
-	t.Parallel()
-
-	_, router := setupProtectedRouter(t)
-
-	req := newReq(t, "GET", "/groups/invalid/students/room-status", nil, testutil.DefaultTestClaims(), "groups:read")
-
-	rr := testutil.ExecuteRequest(router, req)
-	testutil.AssertBadRequest(t, rr)
-}
-
 // =============================================================================
 // ROUTER TEST
 // =============================================================================
@@ -707,58 +668,6 @@ func TestGetGroupSupervisors_InvalidID(t *testing.T) {
 // GET GROUP SUBSTITUTIONS ADDITIONAL TESTS
 // =============================================================================
 
-func TestGetGroupStudentsRoomStatus_WithAdmin(t *testing.T) {
-	t.Parallel()
-
-	tc, router := setupProtectedRouter(t)
-
-	// Create test group with a room
-	room := testpkg.CreateTestRoom(t, tc.db, "AdminRoomStatus")
-
-	group := testpkg.CreateTestEducationGroup(t, tc.db, "AdminStatusTest")
-
-	// Update group with room
-	_, err := tc.db.NewUpdate().
-		Model((*testpkg.EducationGroup)(nil)).
-		ModelTableExpr("education.groups").
-		Set("room_id = ?", room.ID).
-		Where("id = ?", group.ID).
-		Exec(context.Background())
-	require.NoError(t, err)
-
-	// Admin should have access
-	req := newReq(t, "GET", fmt.Sprintf("/groups/%d/students/room-status", group.ID), nil, testutil.AdminTestClaims(1), "groups:read", "admin:*")
-
-	rr := testutil.ExecuteRequest(router, req)
-	testutil.AssertSuccessResponse(t, rr, http.StatusOK)
-
-	// Verify the response has the expected structure
-	response := testutil.ParseJSONResponse(t, rr.Body.Bytes())
-	data := response["data"].(map[string]interface{})
-	assert.True(t, data["group_has_room"].(bool), "Should have room")
-	assert.Equal(t, float64(room.ID), data["group_room_id"].(float64))
-}
-
-func TestGetGroupStudentsRoomStatus_NoRoomAssigned(t *testing.T) {
-	t.Parallel()
-
-	tc, router := setupProtectedRouter(t)
-
-	// Create test group without room
-	group := testpkg.CreateTestEducationGroup(t, tc.db, "NoRoomStatusTest")
-
-	// Admin should have access
-	req := newReq(t, "GET", fmt.Sprintf("/groups/%d/students/room-status", group.ID), nil, testutil.AdminTestClaims(1), "groups:read", "admin:*")
-
-	rr := testutil.ExecuteRequest(router, req)
-	testutil.AssertSuccessResponse(t, rr, http.StatusOK)
-
-	// Verify the response indicates no room
-	response := testutil.ParseJSONResponse(t, rr.Body.Bytes())
-	data := response["data"].(map[string]interface{})
-	assert.False(t, data["group_has_room"].(bool), "Should not have room")
-}
-
 // =============================================================================
 // GET GROUP STUDENTS WITH FULL ACCESS TESTS
 // =============================================================================
@@ -868,42 +777,6 @@ func TestUpdateGroup_WithTeacherIDs(t *testing.T) {
 
 	rr := testutil.ExecuteRequest(router, req)
 	testutil.AssertSuccessResponse(t, rr, http.StatusOK)
-}
-
-func TestGetGroupStudentsRoomStatus_WithSubstitution(t *testing.T) {
-	t.Parallel()
-
-	tc, router := setupProtectedRouter(t)
-
-	// Create group with room
-	room := testpkg.CreateTestRoom(t, tc.db, "SubstitutionRoom")
-
-	group := testpkg.CreateTestEducationGroup(t, tc.db, "SubstitutionAccessTest")
-
-	// Update group with room
-	_, err := tc.db.NewUpdate().
-		Model((*testpkg.EducationGroup)(nil)).
-		ModelTableExpr("education.groups").
-		Set("room_id = ?", room.ID).
-		Where("id = ?", group.ID).
-		Exec(context.Background())
-	require.NoError(t, err)
-
-	// Create staff with account for context
-	staff, _ := testpkg.CreateTestStaffWithAccount(t, tc.db, "Substitute", "Supervisor")
-
-	// Create active substitution for today (grants access)
-	today := calendar.TodayDate()
-	testpkg.CreateTestGroupSubstitution(t, tc.db, group.ID, nil, staff.ID, today, today)
-
-	// Staff should have access via substitution
-	// Note: DefaultTestClaims provides admin access for this test
-	req := newReq(t, "GET", fmt.Sprintf("/groups/%d/students/room-status", group.ID), nil, testutil.DefaultTestClaims(), "groups:read")
-
-	rr := testutil.ExecuteRequest(router, req)
-	// Note: This may still fail if the userContextService doesn't pick up substitutions
-	// The test documents the expected behavior
-	t.Logf("Response: %d - %s", rr.Code, rr.Body.String())
 }
 
 // =============================================================================

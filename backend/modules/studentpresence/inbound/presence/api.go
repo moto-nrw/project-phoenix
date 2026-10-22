@@ -143,9 +143,6 @@ func (rs *Resource) registerVisitRoutes(r chi.Router, withTx common.Middleware) 
 		// Immediate checkout for students
 		r.With(common.RequireVisitUpdate(), withTx, common.RequireWebAttendanceEnabled(rs.displaySettings.WebAttendanceEnabledReader())).Post("/student/{studentId}/checkout", rs.checkoutStudent)
 
-		// Immediate check-in for students (from home)
-		r.With(common.RequireVisitUpdate(), withTx, common.RequireWebAttendanceEnabled(rs.displaySettings.WebAttendanceEnabledReader())).Post("/student/{studentId}/checkin", rs.checkinStudent)
-
 		// Bulk assign checked-in students without a room visit to an active room session.
 		r.With(common.RequireVisitUpdate(), withTx, common.RequireWebAttendanceEnabled(rs.displaySettings.WebAttendanceEnabledReader())).Post("/transit/assign", rs.assignTransitStudents)
 		r.With(common.RequireVisitUpdate(), withTx, common.RequireWebAttendanceEnabled(rs.displaySettings.WebAttendanceEnabledReader())).Post("/move-to-group", rs.moveStudentsToActiveGroup)

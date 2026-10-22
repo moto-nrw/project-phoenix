@@ -1485,6 +1485,22 @@ func TestAuthService_RemoveRoleFromAccount(t *testing.T) {
 		assert.Empty(t, newAccessToken)
 		assert.Empty(t, newRefreshToken)
 	})
+
+	// The retired DELETE /auth/accounts/{id}/roles/{roleId} route (#4431)
+	// pinned this refusal over HTTP; offboarding and the caregiver capability
+	// still remove roles through this method.
+	t.Run("rejects an account without membership at this school", func(t *testing.T) {
+		email, username := uniqueTestCredentials("remove-role-foreign")
+		account, err := service.Register(ctx, email, username, testPassword, nil, 0)
+		require.NoError(t, err)
+
+		roleName := fmt.Sprintf("remove-role-foreign-%d", time.Now().UnixNano())
+		role, err := rbac.CreateRole(ctx, roleName, "foreign account", testpkg.StrPtr("user"))
+		require.NoError(t, err)
+
+		err = rbac.RemoveRoleFromAccount(ctx, account.ID, role.ID)
+		require.ErrorIs(t, err, identityaccess.ErrAccountNotFound)
+	})
 }
 
 // =============================================================================

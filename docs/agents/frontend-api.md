@@ -79,7 +79,7 @@ success wrapper. Their **backend errors still use the shared error path**:
 
 ### Audited direct-fetch exceptions
 
-The API tree has 737 route files. The 56 files below still call `fetch` directly
+The API tree has 751 route files. The 56 files below still call `fetch` directly
 because they stream non-JSON content, use the shared file-upload wrapper, or
 perform a route-specific business/session adaptation. Client-visible backend
 errors use `forwardBackendResponse` or `backendResponseError`; the demo
