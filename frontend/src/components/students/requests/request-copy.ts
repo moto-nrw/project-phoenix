@@ -6,6 +6,7 @@
  */
 
 import { formatDate } from "~/lib/date-helpers";
+import { getRelationshipTypeLabel } from "~/lib/guardian-helpers";
 import type {
   AggregatedRequestType,
   BulkIneligibleReason,
@@ -42,6 +43,21 @@ export function bulkIneligibleText(
 ): string {
   if (code && BULK_INELIGIBLE_TEXTS[code]) return BULK_INELIGIBLE_TEXTS[code];
   return backendText ?? "Diese Anfrage wird einzeln entschieden.";
+}
+
+/**
+ * Wer die Anfrage eingereicht hat, mit der hinterlegten Beziehung zum Kind
+ * (#4359): „Sabine Schneider (Elternteil)“. Ohne hinterlegte Beziehung nur
+ * der Name; ohne bekannte Person nichts.
+ */
+export function submitterLabel(
+  name: string | undefined,
+  relationship: string | undefined,
+): string | undefined {
+  if (!name) return undefined;
+  return relationship
+    ? `${name} (${getRelationshipTypeLabel(relationship)})`
+    : name;
 }
 
 /**

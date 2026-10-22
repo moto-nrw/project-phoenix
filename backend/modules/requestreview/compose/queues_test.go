@@ -385,6 +385,7 @@ type ReviewComposition struct {
 		reviewbindings.MasterDataPeople
 		reviewbindings.ScheduleReviewPeople
 		reviewbindings.OfferingReviewPeople
+		reviewbindings.Guardians
 	}
 	FamilyProtection requestreview.FamilyProtection
 	Settings         interface {
@@ -435,6 +436,7 @@ func TestRequestReviewEnforcesRLS(t *testing.T) {
 			Queues: requestreview.Queues{DirectCorrections: corrections, MasterData: nativeMasterQueue(masterData),
 				CareSchedule: nativeCareQueue(careReviews, reviewToday), Offering: nativeOfferingQueue(offeringReviews, reviewToday), Excused: nativeExcusedQueue(svc.ExcusedRequests, reviewToday)},
 			Access: queueTestAccess{}, Students: reviewStudents, FamilyProtection: svc.FamilyProtection,
+			Submitters: reviewbindings.NewSubmitterDirectory(svc.PeopleDirectory),
 		})
 		require.NoError(t, err)
 

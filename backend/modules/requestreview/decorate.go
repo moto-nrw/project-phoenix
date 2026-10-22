@@ -52,6 +52,48 @@ func (s *service) decorateFamilyProtection(ctx context.Context, page *Page) erro
 	return nil
 }
 
+// decorateSubmitters names who filed each request on the page, in both views:
+// staff decide differently when they know which parent asked (#4359). The
+// reviewer sees the filer of exactly the requests the queues already served,
+// so the decoration widens no scope.
+func (s *service) decorateSubmitters(ctx context.Context, page *Page) error {
+	keys := submitterKeys(page.Items)
+	if len(keys) == 0 {
+		return nil
+	}
+	known, err := s.deps.Submitters.Submitters(ctx, keys)
+	if err != nil {
+		return fmt.Errorf("load request submitters: %w", err)
+	}
+	for i := range page.Items {
+		item := &page.Items[i]
+		submitter, ok := known[SubmitterKey{StudentID: item.studentID, AccountID: item.submittedBy}]
+		if !ok {
+			continue
+		}
+		item.SubmittedByName = submitter.Name
+		item.SubmittedByRelationship = submitter.RelationshipType
+	}
+	return nil
+}
+
+// submitterKeys are the filings on this page, each once, in page order.
+func submitterKeys(items []Item) []SubmitterKey {
+	keys := make([]SubmitterKey, 0, len(items))
+	seen := make(map[SubmitterKey]struct{}, len(items))
+	for _, item := range items {
+		if item.studentID <= 0 || item.submittedBy <= 0 {
+			continue
+		}
+		key := SubmitterKey{StudentID: item.studentID, AccountID: item.submittedBy}
+		if _, ok := seen[key]; !ok {
+			seen[key] = struct{}{}
+			keys = append(keys, key)
+		}
+	}
+	return keys
+}
+
 // studentIDs are the children on this page, each once, in page order.
 func studentIDs(items []Item) []int64 {
 	ids := make([]int64, 0, len(items))

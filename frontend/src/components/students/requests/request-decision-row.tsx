@@ -14,6 +14,7 @@ import { ApiError } from "~/lib/api-error";
 import { Alert } from "~/components/ui/alert";
 import { Button } from "~/components/ui/button";
 import { Checkbox } from "~/components/ui/checkbox";
+import { MotoConceptIcon } from "~/components/ui/moto-concept-icon";
 import { useApiErrorDisplay } from "~/contexts/ToastContext";
 import { CareRequestReviewItem } from "~/components/students/care-request-review-item";
 import { EnrollmentRequestItem } from "~/components/students/enrollment-request-item";
@@ -32,6 +33,7 @@ import {
   DECISION_BLOCKED_BY_CONFLICT,
   CURRENT_VALUE_CHANGED_WARNING,
   PAST_REQUEST_HINT,
+  submitterLabel,
 } from "./request-copy";
 
 const logger = createLogger({ component: "RequestDecisionRow" });
@@ -140,6 +142,10 @@ export function RequestDecisionRow({
   // Backend weist ein Freigeben mit klarem Grund ab, und Ablehnen ist weiter
   // erlaubt. Der Hinweis dazu steht einmal oben, nicht zweimal.
   const disabledReason = inConflict ? DECISION_BLOCKED_BY_CONFLICT : undefined;
+  const submitter = submitterLabel(
+    request.submitted_by_name,
+    request.submitted_by_relationship,
+  );
 
   const markDone = async () => {
     setMarkingDone(true);
@@ -170,9 +176,19 @@ export function RequestDecisionRow({
   return (
     <div className="border-t border-gray-100 first:border-t-0">
       <div className="flex flex-wrap items-center justify-between gap-2 px-4 pt-3 sm:px-5">
-        <p className="text-xs font-medium text-gray-500">
-          Anfrage {position} von {total}
-        </p>
+        <div className="flex min-w-0 flex-wrap items-center gap-x-3 gap-y-1">
+          <p className="text-xs font-medium text-gray-500">
+            Anfrage {position} von {total}
+          </p>
+          {/* Wer gefragt hat, trägt das Eltern-Symbol aus dem
+              Konzeptregister, wie in den Nachrichten (#4359). */}
+          {submitter ? (
+            <p className="flex min-w-0 items-center gap-1.5 text-sm text-gray-700">
+              <MotoConceptIcon concept="parents" size={16} />
+              <span className="truncate">Eingereicht von {submitter}</span>
+            </p>
+          ) : null}
+        </div>
         {request.bulk_eligible ? (
           <label
             htmlFor={`bulk-request-${key}`}

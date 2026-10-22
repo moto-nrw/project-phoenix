@@ -171,9 +171,9 @@ type validationGuardianStore struct {
 	recording *recordingEngine
 }
 
-func (s validationGuardianStore) ListLinksByAccount(_ context.Context, id int64) ([]peopledirectory.GuardianLink, domain.OperationStats, error) {
+func (s validationGuardianStore) ListLinksByAccounts(_ context.Context, ids []int64) ([]peopledirectory.GuardianLink, domain.OperationStats, error) {
 	s.recording.calls++
-	s.recording.recordGuardianAccountid(id)
+	s.recording.recordGuardianAccountids(ids)
 	return nil, domain.OperationStats{}, nil
 }
 func (s validationGuardianStore) ListByIDs(_ context.Context, ids []int64) ([]domain.Guardian, domain.OperationStats, error) {
@@ -215,7 +215,7 @@ func (e *recordingEngine) recordRecordids(value []int64) { e.recordIDs = value }
 
 func (e *recordingEngine) recordLockedrecord(value int64) { e.lockedRecord = value }
 
-func (e *recordingEngine) recordGuardianAccountid(value int64) { e.guardian.accountID = value }
+func (e *recordingEngine) recordGuardianAccountids(value []int64) { e.guardian.accountIDs = value }
 
 func (e *recordingEngine) recordGuardianIds(value []int64) { e.guardian.ids = value }
 

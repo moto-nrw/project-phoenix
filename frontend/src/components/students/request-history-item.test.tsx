@@ -7,10 +7,15 @@ import type { StaffMasterDataHistoryEntry } from "~/lib/master-data-review-api";
 
 function masterDataItem(
   overrides: Partial<StaffMasterDataHistoryEntry> = {},
+  submitter: {
+    submitted_by_name?: string;
+    submitted_by_relationship?: string;
+  } = {},
 ): AggregatedHistoryRequest {
   return {
     request_type: "master_data",
     occurred_at: "2026-08-20T10:00:00Z",
+    ...submitter,
     data: {
       id: "1",
       student_id: "42",
@@ -51,6 +56,27 @@ describe("RequestHistoryItem", () => {
     ).toBeInTheDocument();
     expect(screen.getByText("„zu kurz“")).toBeInTheDocument();
     expect(screen.getByText(/Lara → Clara/)).toBeInTheDocument();
+  });
+
+  it("nennt, wer die Anfrage eingereicht hat (#4359)", () => {
+    render(
+      <RequestHistoryItem
+        item={masterDataItem(
+          {},
+          {
+            submitted_by_name: "Sabine Schneider",
+            submitted_by_relationship: "guardian",
+          },
+        )}
+      />,
+    );
+    aufklappen();
+
+    expect(
+      screen.getByText(
+        /Eingereicht am 17\.08\.2026 von Sabine Schneider \(Vormund\)/,
+      ),
+    ).toBeInTheDocument();
   });
 
   it("lässt bei automatisch übernommenen Änderungen die Person weg", () => {
