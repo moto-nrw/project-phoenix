@@ -28,17 +28,24 @@ that.
 `scripts/posthog-dashboards.mjs` creates and updates the dashboards; how
 to add one is in `.claude/rules/usage-analytics.md`. The workflow
 `.github/workflows/posthog-dashboards.yml` runs it: `--check` and
-`--dry-run` on pull requests, the sync on every merge into development, and
-by hand (`workflow_dispatch` on development) after a change in the PostHog
-UI.
+`--dry-run` on pull requests, the sync on every merge into development that
+touches the script or its inputs. Run it by hand (`workflow_dispatch` on
+development) after a failed sync, a new key, or a change in the PostHog UI.
 
-The workflow reads the GitHub secret `POSTHOG_PERSONAL_API_KEY`: a personal
-API key used for nothing else, scoped to project 140838 with `query:read`,
-`insight:read`, `insight:write`, `dashboard:read`, and `dashboard:write`.
-Set it with `gh secret set POSTHOG_PERSONAL_API_KEY` (the value is read from
-the prompt, never from a file in the repository). A local key for `--check`
-and `--dry-run` lives only in the local environment (for example
-`~/.config/project-phoenix/local.env`).
+The workflow uses two personal API keys, each used for nothing else and
+scoped to project 140838. A pull request runs code from its own branch, so it
+gets only the read key; the write key is an environment secret of `posthog`,
+which deploys from development only.
+
+| GitHub secret | Where | Scopes |
+| --- | --- | --- |
+| `POSTHOG_READ_API_KEY` | repository | `query:read`, `insight:read`, `dashboard:read` |
+| `POSTHOG_PERSONAL_API_KEY` | environment `posthog` | `query:read`, `insight:read`, `insight:write`, `dashboard:read`, `dashboard:write` |
+
+Set them with `gh secret set POSTHOG_READ_API_KEY` and
+`gh secret set POSTHOG_PERSONAL_API_KEY --env posthog`; both read the value
+from the prompt. A local key for `--check` and `--dry-run` lives only in the
+local environment (for example `~/.config/project-phoenix/local.env`).
 
 | Dashboard | Deployment | Link |
 | --- | --- | --- |
