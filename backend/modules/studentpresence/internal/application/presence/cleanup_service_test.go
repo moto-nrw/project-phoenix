@@ -60,7 +60,7 @@ func TestCleanupStaleAttendance_NoStaleRecords(t *testing.T) {
 	require.NoError(t, err)
 	require.NotNil(t, result)
 	assert.True(t, result.Success)
-	assert.GreaterOrEqual(t, result.RecordsClosed, 0) // May have cleaned other test data
+	assert.Equal(t, 0, result.RecordsClosed)
 	assert.False(t, result.StartedAt.IsZero())
 	assert.False(t, result.CompletedAt.IsZero())
 }
@@ -125,9 +125,12 @@ func TestPreviewAttendanceCleanup_NoStaleRecords(t *testing.T) {
 	// ASSERT
 	require.NoError(t, err)
 	require.NotNil(t, preview)
-	// May have other test data, so just check structure
 	assert.NotNil(t, preview.StudentRecords)
 	assert.NotNil(t, preview.RecordsByDate)
+	assert.Equal(t, 0, preview.TotalRecords)
+	assert.Empty(t, preview.StudentRecords)
+	assert.Empty(t, preview.RecordsByDate)
+	assert.Nil(t, preview.OldestRecord)
 }
 
 // TestPreviewAttendanceCleanup_ShowsStaleRecords tests that preview correctly
@@ -634,10 +637,9 @@ func TestPreviewSupervisorCleanup_NoStaleRecords(t *testing.T) {
 	// ASSERT
 	require.NoError(t, err)
 	require.NotNil(t, preview)
-	// May have other test data, so just check structure
 	assert.NotNil(t, preview.StaffRecords)
 	assert.NotNil(t, preview.RecordsByDate)
-	assert.GreaterOrEqual(t, preview.TotalRecords, 0)
+	assert.Equal(t, 0, preview.TotalRecords)
 }
 
 // =============================================================================

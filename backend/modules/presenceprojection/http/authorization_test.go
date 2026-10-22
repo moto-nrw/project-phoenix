@@ -17,28 +17,6 @@ func TestStudentResponse_FullAccess(t *testing.T) {
 
 	tc := setupStudentsRoute(t)
 
-	t.Run("admin_sees_all_fields", func(t *testing.T) {
-		student := testpkg.CreateTestStudent(t, tc.db, "Full", "Access", "FA1")
-
-		// Update student with additional fields using raw SQL - use ? placeholders
-		ctx := testpkg.Ctx(t)
-		_, err := tc.db.ExecContext(ctx,
-			"UPDATE users.student_profiles SET extra_info = ? WHERE id = ?",
-			"Important notes", student.ID)
-		require.NoError(t, err)
-		guardian := testpkg.CreateTestGuardianProfile(t, tc.db, "guardian@example.com")
-		testpkg.CreateTestStudentGuardianLink(t, tc.db, student.ID, guardian.ID, "parent")
-
-		req := testutil.NewRequest("GET", fmt.Sprintf("/%d", student.ID), nil)
-
-		rr := authExec(t, tc, req, testutil.AdminTestClaims(1), []string{"admin:*"})
-
-		assert.Equal(t, http.StatusOK, rr.Code)
-		// Admin should see sensitive fields
-		body := rr.Body.String()
-		assert.NotContains(t, body, "guardian_email", "Retired student fields are absent even for admins")
-	})
-
 	t.Run("staff_outside_the_group_sees_full_access_fields", func(t *testing.T) {
 		// #2329: read access is tenant-wide for staff, so the address block —
 		// gated on full access — reaches a staff member who supervises nothing.

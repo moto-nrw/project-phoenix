@@ -292,7 +292,6 @@ func checkHardcodedIDs(t *testing.T, root string) []string {
 		"modules/timetable/http/understaffed_test.go",                          // Uses mock InstanceService for unit testing the acknowledge-understaffed handler (no DB); int64 literals are fake instance IDs, not DB rows
 		"modules/timetable/http/instance_students_unit_test.go",                // Uses fake repo for unit testing attendance PATCH handler
 		"timetable/substitute_conflicts_test.go",                               // Pure unit test with in-memory structs; int64(1)/int64(2) are fake IDs, not DB rows (WP-B12)
-		"realtime/hub_broadcast_to_tenant_test.go",                             // Pure SSE-hub unit test; tenant IDs are in-memory channel routing keys, not DB rows
 		"modules/presenceprojection/http/response_helpers_test.go",             // Pure unit tests on populatePhotoFields; int64 literals are fake IDs in stack-allocated structs
 		"modules/peopledirectory/inbound/students/photo_error_mappers_test.go", // Table-driven mapper tests with httptest.NewRecorder; no DB
 		"api/common/trusted_device_dto_test.go",                                // Pure DTO-mapper unit tests against stack-allocated TrustedDeviceRow values; int64 literals are sentinel IDs in in-memory structs, not DB rows

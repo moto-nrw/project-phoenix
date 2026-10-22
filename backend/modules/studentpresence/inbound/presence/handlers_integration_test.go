@@ -249,10 +249,7 @@ func TestUnclaimedGroups_Integration(t *testing.T) {
 		req := testutil.NewJSONRequest(t, "POST", fmt.Sprintf("/active/groups/%d/claim", activeGroup.ID), nil)
 		rr := testutil.ExecuteWithAuthPermissions(t, router, req, staffClaims, []string{permissions.GroupsUpdate})
 
-		// This may fail without full staff context, but exercises the code path
-		// The important thing is we get past the permission check
-		assert.True(t, rr.Code == testutil.StatusOK || rr.Code == testutil.StatusUnauthorized || rr.Code == testutil.StatusBadRequest,
-			"Expected success or auth error, got %d", rr.Code)
+		testutil.AssertSuccessResponse(t, rr, testutil.StatusOK)
 	})
 }
 

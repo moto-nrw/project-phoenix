@@ -24,20 +24,13 @@ func TestStudentList_UsesBookingParticipationButKeepsAdministrationAndLivePresen
 	student := testpkg.CreateTestStudent(t, tc.db, "Sichtbar", "Grenze", "4c")
 	endedWithoutTask := testpkg.CreateTestStudent(t, tc.db, "Ohne", "Aufgabe", "4d")
 	studentID := student.ID
-	today := calendar.NewDate(2026, 8, 24)
+	today := calendar.DateFromTime(fixedCalendarClock()) // the day the handler sees
 	// The gap must be a future day inside the planning horizon, which closes
-	// on the Sunday of the current week (day_planning.go: maxPlanningDate). On a Sunday there
-	// is no such day, so the scenario cannot be exercised against the real
-	// clock; a fixed clock for day planning is tracked separately.
-	if today.Weekday() == time.Sunday {
-		t.Skip("planning horizon closes today; the future-gap scenario needs a weekday")
-	}
+	// on the Sunday of the current week (day_planning.go: maxPlanningDate).
+	// fixedCalendarClock pins today to a Monday, so Tuesday is such a day.
+	require.Equal(t, time.Monday, today.Weekday())
 	setEnrolledUntil(t, tc, endedWithoutTask.ID, today.AddDays(-1))
 	firstGap := today.AddDays(1)
-	horizon := today.AddDays((7 - int(today.Weekday())) % 7)
-	if firstGap.After(horizon) {
-		t.Skip("today closes the planning horizon; no future planning day to ask for")
-	}
 	upsertNaturalCompletion(t, tc.db, studentID, firstGap)
 	actor := testpkg.CreateTestAccount(t, tc.db, "participation-reader@example.test")
 	claims := testutil.AdminTestClaims(int(actor.ID))
@@ -47,16 +40,14 @@ func TestStudentList_UsesBookingParticipationButKeepsAdministrationAndLivePresen
 	assert.True(t, listedIDs("")[student.ID], "the child remains visible before the gap")
 	assert.False(t, listedIDs("&include_pending_withdrawals=true")[endedWithoutTask.ID], "the administration exception must not restore every ended child")
 
-	if !firstGap.After(horizon) {
-		assert.False(t, listedIDs("&date=" + firstGap.String())[student.ID], "the operational list hides the child from the first bookingless day")
-		assert.True(t, listedIDs("&date=" + firstGap.String() + "&include_pending_withdrawals=true")[student.ID], "master-data administration keeps the open task reachable")
+	assert.False(t, listedIDs("&date=" + firstGap.String())[student.ID], "the operational list hides the child from the first bookingless day")
+	assert.True(t, listedIDs("&date=" + firstGap.String() + "&include_pending_withdrawals=true")[student.ID], "master-data administration keeps the open task reachable")
 
-		readOnlyRequest := testutil.NewAuthenticatedRequest(t, http.MethodGet,
-			"/?page_size=500&date="+firstGap.String()+"&include_pending_withdrawals=true", nil)
-		readOnlyResponse := authExec(t, tc, readOnlyRequest, claims, []string{"users:read"})
-		assert.Equal(t, http.StatusForbidden, readOnlyResponse.Code,
-			"the administrative exception must require users:delete")
-	}
+	readOnlyRequest := testutil.NewAuthenticatedRequest(t, http.MethodGet,
+		"/?page_size=500&date="+firstGap.String()+"&include_pending_withdrawals=true", nil)
+	readOnlyResponse := authExec(t, tc, readOnlyRequest, claims, []string{"users:read"})
+	assert.Equal(t, http.StatusForbidden, readOnlyResponse.Code,
+		"the administrative exception must require users:delete")
 
 	// Move the same pending task onto today to exercise the live-presence
 	// exception without treating today's attendance as future planning data.
@@ -109,7 +100,7 @@ func TestStudentList_CareStatusDecidesWhichSideIsShown(t *testing.T) {
 	ended := testpkg.CreateTestStudent(t, tc.db, "Listed", "Ended", "3a")
 	endsToday := testpkg.CreateTestStudent(t, tc.db, "Listed", "EndsToday", "3a")
 
-	today := calendar.NewDate(2026, 8, 24)
+	today := calendar.DateFromTime(fixedCalendarClock()) // the day the handler sees
 	setEnrolledUntil(t, tc, planned.ID, today.AddDays(14))
 	setEnrolledUntil(t, tc, ended.ID, today.AddDays(-1))
 	setEnrolledUntil(t, tc, endsToday.ID, today)
@@ -164,15 +155,10 @@ func TestStudentList_CareStatusDecidesWhichSideIsShown(t *testing.T) {
 	})
 
 	t.Run("a future planning day hides a child after its last care day", func(t *testing.T) {
-		// Day planning stops at the Sunday closing the current week (#1939) —
-		// past it the timetable signal has no materialized rows. On a Sunday
-		// there is therefore no future planning day to ask for, and the
-		// today-scoped subtests above already carry the boundary.
-		horizon := today.AddDays((7 - int(today.Weekday())) % 7)
+		// Day planning stops at the Sunday closing the current week (#1939).
+		// Today is the fixed Monday, so Tuesday lies inside that horizon.
+		require.Equal(t, time.Monday, today.Weekday())
 		planningDay := today.AddDays(1)
-		if planningDay.After(horizon) {
-			t.Skip("today closes the planning horizon; no future planning day to ask for")
-		}
 		rows := listed(fmt.Sprintf("?page_size=500&date=%s", planningDay))
 		assert.Contains(t, rows, running.ID, "a child still in care stays listed on the planning day")
 		assert.NotContains(t, rows, endsToday.ID)

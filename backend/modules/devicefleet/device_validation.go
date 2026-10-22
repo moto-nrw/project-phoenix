@@ -2,7 +2,6 @@ package devicefleet
 
 import (
 	"errors"
-	"time"
 )
 
 func (d *Device) Validate() error {
@@ -22,26 +21,4 @@ func (d *Device) Validate() error {
 	}
 
 	return nil
-}
-
-func (d *Device) UpdateLastSeen() {
-	now := time.Now()
-	d.LastSeen = &now
-}
-
-func (d *Device) SetStatus(status DeviceStatus) error {
-	if !ValidDeviceStatus(status) {
-		return errors.New("invalid device status")
-	}
-	d.Status = status
-	return nil
-}
-
-func (d *Device) GetLastSeenDuration() *time.Duration {
-	if d.LastSeen == nil {
-		return nil
-	}
-
-	duration := time.Since(*d.LastSeen)
-	return &duration
 }

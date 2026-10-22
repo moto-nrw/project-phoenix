@@ -105,17 +105,3 @@ func TestWorkSession_IsActive(t *testing.T) {
 		assert.False(t, ws.IsActive())
 	})
 }
-
-func TestWorkSession_Getters(t *testing.T) {
-	t.Parallel()
-
-	now := time.Now()
-	ws := &WorkSession{}
-	ws.ID = 42
-	ws.CreatedAt = now
-	ws.UpdatedAt = now
-
-	assert.Equal(t, int64(42), ws.GetID())
-	assert.Equal(t, now, ws.GetCreatedAt())
-	assert.Equal(t, now, ws.GetUpdatedAt())
-}
