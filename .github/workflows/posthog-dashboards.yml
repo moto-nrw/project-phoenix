@@ -1,0 +1,137 @@
+name: PostHog dashboards
+run-name: PostHog dashboards ${{ github.event_name == 'pull_request' && 'preview' || 'sync' }}
+
+# Brings the dashboards of scripts/posthog-dashboards.mjs to PostHog the way
+# migrations bring the schema to the database (#4586). A pull request runs
+# every query once (--check) and shows what a merge would change (--dry-run)
+# in its job summary. A merge into development syncs, and a second run must
+# report that everything is current. Nothing else writes to the dashboards.
+#
+# The dashboards read only data, so they follow development, not the
+# release: a dashboard for an unreleased feature stays empty until it ships.
+#
+# The inputs are the script and the two files it reads (route templates and
+# browser events). Only the EU API is called.
+on:
+  pull_request:
+    types: [opened, synchronize, reopened, ready_for_review]
+    paths:
+      - 'scripts/posthog-dashboards.mjs'
+      - 'frontend/src/lib/analytics-routes.ts'
+      - 'frontend/src/lib/analytics-policy.ts'
+      - '.github/workflows/posthog-dashboards.yml'
+  push:
+    branches:
+      - development
+    paths:
+      - 'scripts/posthog-dashboards.mjs'
+      - 'frontend/src/lib/analytics-routes.ts'
+      - 'frontend/src/lib/analytics-policy.ts'
+      - '.github/workflows/posthog-dashboards.yml'
+  # Resync after a change made by hand in PostHog. Runs only on development.
+  workflow_dispatch:
+
+permissions: {}
+
+defaults:
+  run:
+    shell: bash
+
+env:
+  # Production and the demo share this project, separated by `deployment`.
+  POSTHOG_PROJECT_ID: '140838'
+
+jobs:
+  preview:
+    if: github.event_name == 'pull_request' && github.event.pull_request.draft == false
+    concurrency:
+      group: posthog-dashboards-preview-${{ github.ref }}
+      cancel-in-progress: true
+    permissions:
+      contents: read
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v6
+        with:
+          node-version: "24"
+
+      # Both steps write to the job summary; the preview also runs when a
+      # query fails, so the summary shows the whole picture.
+      - name: Run every query once
+        env:
+          POSTHOG_PERSONAL_API_KEY: ${{ secrets.POSTHOG_PERSONAL_API_KEY }}
+        run: |
+          set -o pipefail
+          status=0
+          node scripts/posthog-dashboards.mjs --check 2>&1 | tee /tmp/posthog-check.txt || status=$?
+          {
+            echo '### PostHog: Abfragen (--check)'
+            echo '```'
+            cat /tmp/posthog-check.txt
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
+          exit "$status"
+
+      - name: Preview the changes of a merge
+        if: success() || failure()
+        env:
+          POSTHOG_PERSONAL_API_KEY: ${{ secrets.POSTHOG_PERSONAL_API_KEY }}
+        run: |
+          set -o pipefail
+          status=0
+          node scripts/posthog-dashboards.mjs --dry-run 2>&1 | tee /tmp/posthog-plan.txt || status=$?
+          {
+            echo '### PostHog: Änderungen nach dem Merge (--dry-run)'
+            echo '```'
+            cat /tmp/posthog-plan.txt
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
+          exit "$status"
+
+  sync:
+    if: github.event_name != 'pull_request' && github.ref == 'refs/heads/development'
+    concurrency:
+      group: posthog-dashboards-sync
+      cancel-in-progress: false
+    permissions:
+      contents: read
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    env:
+      POSTHOG_PERSONAL_API_KEY: ${{ secrets.POSTHOG_PERSONAL_API_KEY }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v6
+        with:
+          node-version: "24"
+
+      # A query PostHog rejects stops the run before anything is written.
+      - name: Run every query once
+        run: node scripts/posthog-dashboards.mjs --check
+
+      - name: Sync dashboards and insights
+        run: |
+          set -o pipefail
+          node scripts/posthog-dashboards.mjs 2>&1 | tee /tmp/posthog-sync.txt
+          {
+            echo '### PostHog: synchronisiert'
+            echo '```'
+            cat /tmp/posthog-sync.txt
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      # The sync is idempotent only if PostHog stored what it was sent.
+      - name: Verify everything is current
+        run: |
+          set -o pipefail
+          node scripts/posthog-dashboards.mjs --dry-run 2>&1 | tee /tmp/posthog-verify.txt
+          if [[ "$(head -n 1 /tmp/posthog-verify.txt)" != 'Everything is current.' ]]; then
+            echo "::error::A second run would still change PostHog; see the log above."
+            exit 1
+          fi

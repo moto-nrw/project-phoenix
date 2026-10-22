@@ -26,11 +26,19 @@ that.
 ## Dashboards (#3604)
 
 `scripts/posthog-dashboards.mjs` creates and updates the dashboards; how
-to add one is in `.claude/rules/usage-analytics.md`. The script needs a
-personal API key in `POSTHOG_PERSONAL_API_KEY`, kept in the local
-environment only (for example `~/.config/project-phoenix/local.env`), scoped
-to the project with `query:read`, `insight:read`, `insight:write`,
-`dashboard:read`, and `dashboard:write`.
+to add one is in `.claude/rules/usage-analytics.md`. The workflow
+`.github/workflows/posthog-dashboards.yml` runs it: `--check` and
+`--dry-run` on pull requests, the sync on every merge into development, and
+by hand (`workflow_dispatch` on development) after a change in the PostHog
+UI.
+
+The workflow reads the GitHub secret `POSTHOG_PERSONAL_API_KEY`: a personal
+API key used for nothing else, scoped to project 140838 with `query:read`,
+`insight:read`, `insight:write`, `dashboard:read`, and `dashboard:write`.
+Set it with `gh secret set POSTHOG_PERSONAL_API_KEY` (the value is read from
+the prompt, never from a file in the repository). A local key for `--check`
+and `--dry-run` lives only in the local environment (for example
+`~/.config/project-phoenix/local.env`).
 
 | Dashboard | Deployment | Link |
 | --- | --- | --- |
