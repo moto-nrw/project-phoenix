@@ -9,7 +9,7 @@
 export const OGS_GROUPS_LABEL = "Gruppen";
 
 /** Der Bereich der Gruppenseiten; Schlüssel des Eintrags in den Navigationen. */
-export const OGS_GROUPS_PATH = "/ogs-groups";
+const OGS_GROUPS_PATH = "/ogs-groups";
 
 /** Die Auswahlseite mit allen Gruppen, die die Person sehen darf. */
 export const OGS_GROUPS_OVERVIEW_PATH = "/ogs-groups/overview";
