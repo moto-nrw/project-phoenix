@@ -1,9 +1,0 @@
-# ggshield CLI configuration, not the hosted GitGuardian GitHub App.
-# Hosted-check remediation: docs/agents/operations.md#gitguardian-findings
-# https://docs.gitguardian.com/ggshield-docs/configuration
-version: 2
-exit_zero: false
-secret:
-  show_secrets: false
-  # Scan tests and examples too: real credentials can leak in either.
-  ignored_paths: []

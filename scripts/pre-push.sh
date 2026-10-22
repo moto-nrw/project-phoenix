@@ -44,7 +44,7 @@ while IFS= read -r -d '' file; do
     frontend/*|scripts/check-frontend-quality.sh) frontend=true ;;
     environments/*|.env.example) env_sync=true ;;
     scripts/check-quality.sh|scripts/quality-timing.sh|devbox.*|package.json) backend=true; frontend=true; hooks=true ;;
-    scripts/pre-push*|scripts/check-secrets*|.gitguardian.*|scripts/run-go-toolchain.sh|scripts/dev-native*|scripts/go-package-workers.sh|scripts/total-memory-gb.sh|lefthook.yml|.github/*|scripts/test-*) hooks=true ;;
+    scripts/pre-push*|scripts/check-secrets*|.gitleaks*|scripts/run-go-toolchain.sh|scripts/dev-native*|scripts/go-package-workers.sh|scripts/total-memory-gb.sh|lefthook.yml|.github/*|scripts/test-*) hooks=true ;;
     .agents/*|.claude/*|.codex/*|scripts/check-agent-context*) context=true ;;
   esac
 done < "$changed"

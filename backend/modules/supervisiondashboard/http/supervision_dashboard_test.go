@@ -29,10 +29,14 @@ type dashboardEnvelope struct {
 			BlockedReason string `json:"blocked_reason"`
 		} `json:"spontaneous_start_availability"`
 		Groups []struct {
-			ID        string  `json:"id"`
-			RoomID    *string `json:"room_id"`
-			RoomName  string  `json:"room_name"`
-			RoomColor *string `json:"room_color"`
+			ID          string  `json:"id"`
+			RoomID      *string `json:"room_id"`
+			RoomName    string  `json:"room_name"`
+			RoomColor   *string `json:"room_color"`
+			Supervisors []struct {
+				StaffID string `json:"staff_id"`
+				Name    string `json:"name"`
+			} `json:"supervisors"`
 		} `json:"groups"`
 		SelectedGroupID *string `json:"selected_group_id"`
 		UnclaimedGroups []struct {
@@ -156,6 +160,10 @@ func TestSupervisionDashboard_Aggregates(t *testing.T) {
 	require.NotNil(t, data.Groups[0].RoomID)
 	assert.Equal(t, strconv.FormatInt(room.ID, 10), *data.Groups[0].RoomID)
 	assert.Equal(t, room.Name, data.Groups[0].RoomName)
+	// The page head names who supervises the session (#4354).
+	require.Len(t, data.Groups[0].Supervisors, 1)
+	assert.Equal(t, strconv.FormatInt(teacher.Staff.ID, 10), data.Groups[0].Supervisors[0].StaffID)
+	assert.Equal(t, "DashAgg Leader", data.Groups[0].Supervisors[0].Name)
 
 	require.NotNil(t, data.SelectedGroupID)
 	assert.Equal(t, strconv.FormatInt(activeGroup.ID, 10), *data.SelectedGroupID)

@@ -25,6 +25,13 @@ interface WireGroup {
   can_assign: boolean;
   // The started activity's limit; absent without one (#3634).
   participant_limit?: number;
+  // Who supervises the session now; absent without anyone (#4354).
+  supervisors?: WireSessionSupervisor[];
+}
+
+interface WireSessionSupervisor {
+  staff_id: string;
+  name: string;
 }
 
 interface WireUnclaimedGroup {
@@ -85,6 +92,7 @@ interface WireOpenRoomSession {
   student_count: number;
   // The activity's limit; absent without one (#3634).
   participant_limit?: number;
+  supervisors?: WireSessionSupervisor[];
   block?: {
     instance_id: string;
     start_time: string;
@@ -280,6 +288,8 @@ interface ActiveSupervisionDashboardResponse {
     name: string;
     canAssign: boolean;
     participantLimit: number | null;
+    /** Wer die Sitzung gerade beaufsichtigt (#4354). */
+    supervisorNames: string[];
     room_id?: string;
     room?: { id: string; name: string; color?: string | null };
   }>;
@@ -318,6 +328,7 @@ interface ActiveSupervisionDashboardResponse {
       canAssign: boolean;
       studentCount: number;
       participantLimit: number | null;
+      supervisorNames: string[];
       block: {
         instanceId: string;
         startTime: string;
@@ -429,6 +440,12 @@ interface ActiveSupervisionDashboardResponse {
   }>;
 }
 
+function supervisorNames(
+  supervisors: WireSessionSupervisor[] | undefined,
+): string[] {
+  return (supervisors ?? []).map((supervisor) => supervisor.name);
+}
+
 function mapDashboard(wire: WireDashboard): ActiveSupervisionDashboardResponse {
   return {
     businessDay: wire.business_day,
@@ -442,6 +459,7 @@ function mapDashboard(wire: WireDashboard): ActiveSupervisionDashboardResponse {
       canAssign: g.can_assign,
       isCurrentUserSupervising: g.is_current_user_supervising,
       participantLimit: g.participant_limit ?? null,
+      supervisorNames: supervisorNames(g.supervisors),
       room_id: g.room_id,
       room: g.room_id
         ? {
@@ -484,6 +502,7 @@ function mapDashboard(wire: WireDashboard): ActiveSupervisionDashboardResponse {
         canAssign: session.can_assign,
         studentCount: session.student_count,
         participantLimit: session.participant_limit ?? null,
+        supervisorNames: supervisorNames(session.supervisors),
         block: session.block
           ? {
               instanceId: session.block.instance_id,

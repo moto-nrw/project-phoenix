@@ -81,18 +81,47 @@ func (s OpenRoomSessionPresence) FindOpenSessionsInRooms(ctx context.Context, id
 	return result, nil
 }
 
-func activeStaffGroupIDs(ctx context.Context, presence interface {
-	QueryGroupSupervisions(context.Context, studentpresence.GroupSupervisionFilter) ([]studentpresence.GroupSupervision, error)
-}, staffID int64) ([]int64, error) {
-	day := timezone.TodayDate().String()
-	rows, err := presence.QueryGroupSupervisions(ctx, studentpresence.GroupSupervisionFilter{StaffID: &staffID, ActiveOn: &day})
-	if err != nil {
-		return nil, &studentpresence.OperationError{Op: "GetStaffActiveSupervisions", Err: studentpresence.ErrDatabaseOperation}
+// SessionSupervisorStaffIDs maps the sessions to the staff supervising them
+// today in one read (#4354).
+func (s OpenRoomSessionPresence) SessionSupervisorStaffIDs(ctx context.Context, sessionIDs []int64) (map[int64][]int64, error) {
+	result := make(map[int64][]int64, len(sessionIDs))
+	if len(sessionIDs) == 0 {
+		return result, nil
 	}
-	// ActiveOn is the owner's rule: started on or before the day, not ended by it.
+	rows, err := supervisionsToday(ctx, s.Presence, studentpresence.GroupSupervisionFilter{GroupIDs: sessionIDs}, "SessionSupervisorStaffIDs")
+	if err != nil {
+		return nil, err
+	}
+	for _, row := range rows {
+		result[row.GroupID] = append(result[row.GroupID], row.StaffID)
+	}
+	return result, nil
+}
+
+type groupSupervisionQuery interface {
+	QueryGroupSupervisions(context.Context, studentpresence.GroupSupervisionFilter) ([]studentpresence.GroupSupervision, error)
+}
+
+func activeStaffGroupIDs(ctx context.Context, presence groupSupervisionQuery, staffID int64) ([]int64, error) {
+	rows, err := supervisionsToday(ctx, presence, studentpresence.GroupSupervisionFilter{StaffID: &staffID}, "GetStaffActiveSupervisions")
+	if err != nil {
+		return nil, err
+	}
 	ids := make([]int64, 0, len(rows))
 	for _, row := range rows {
 		ids = append(ids, row.GroupID)
 	}
 	return ids, nil
+}
+
+// supervisionsToday reads the supervisions running today under the filter.
+// ActiveOn is the owner's rule: started on or before the day, not ended by it.
+func supervisionsToday(ctx context.Context, presence groupSupervisionQuery, filter studentpresence.GroupSupervisionFilter, op string) ([]studentpresence.GroupSupervision, error) {
+	day := timezone.TodayDate().String()
+	filter.ActiveOn = &day
+	rows, err := presence.QueryGroupSupervisions(ctx, filter)
+	if err != nil {
+		return nil, &studentpresence.OperationError{Op: op, Err: studentpresence.ErrDatabaseOperation}
+	}
+	return rows, nil
 }

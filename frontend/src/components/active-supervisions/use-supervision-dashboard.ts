@@ -49,6 +49,7 @@ interface BFFDashboardResponse {
     canAssign: boolean;
     isCurrentUserSupervising?: boolean;
     participantLimit?: number | null;
+    supervisorNames?: string[];
     room_id?: string;
     room?: { id: string; name: string; color?: string | null };
   }>;
