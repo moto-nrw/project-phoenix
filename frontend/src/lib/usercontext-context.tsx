@@ -98,9 +98,3 @@ export function useUserContext() {
   }
   return context;
 }
-
-// Hook specifically for checking if user has educational groups
-export function useHasEducationalGroups() {
-  const { hasEducationalGroups, isLoading, error } = useUserContext();
-  return { hasEducationalGroups, isLoading, error };
-}

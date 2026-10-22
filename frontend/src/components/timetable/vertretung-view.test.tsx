@@ -670,6 +670,12 @@ describe("VertretungView", () => {
 
     // Der Katalog lädt asynchron; im ersten Render steht weder Raster noch
     // Liste da.
+    // Anker: das Skelett des Gerüsts.
+    expect(
+      screen.getByRole("status", {
+        name: "Der Bereich „Vertretung“ wird geladen…",
+      }),
+    ).toHaveAttribute("aria-busy", "true");
     expect(screen.queryByTestId("calendar-grid")).not.toBeInTheDocument();
     expect(screen.queryByTestId("day-list")).not.toBeInTheDocument();
   });
@@ -1151,6 +1157,8 @@ describe("VertretungView", () => {
       });
       render(<VertretungView />);
 
+      // Anker: die Tagesliste ist geladen, nur der Hinweis fehlt.
+      expect(screen.getByTestId("day-list")).toBeInTheDocument();
       expect(
         screen.queryByRole("link", { name: "Dienstplan öffnen" }),
       ).not.toBeInTheDocument();
@@ -1178,6 +1186,8 @@ describe("VertretungView", () => {
       });
       render(<VertretungView />);
 
+      // Anker: die Tagesliste ist geladen, nur der Hinweis fehlt.
+      expect(screen.getByTestId("day-list")).toBeInTheDocument();
       expect(
         screen.queryByRole("link", { name: "Dienstplan öffnen" }),
       ).not.toBeInTheDocument();
@@ -1193,6 +1203,8 @@ describe("VertretungView", () => {
       });
       render(<VertretungView />);
 
+      // Anker: die Tagesliste ist geladen, nur der Hinweis fehlt.
+      expect(screen.getByTestId("day-list")).toBeInTheDocument();
       expect(
         screen.queryByRole("link", { name: "Dienstplan öffnen" }),
       ).not.toBeInTheDocument();
@@ -1209,6 +1221,8 @@ describe("VertretungView", () => {
       });
       render(<VertretungView />);
 
+      // Anker: die Tagesliste ist geladen, nur der Hinweis fehlt.
+      expect(screen.getByTestId("day-list")).toBeInTheDocument();
       expect(
         screen.queryByRole("link", { name: "Dienstplan öffnen" }),
       ).not.toBeInTheDocument();
@@ -1225,6 +1239,8 @@ describe("VertretungView", () => {
       });
       render(<VertretungView />);
 
+      // Anker: die Tagesliste ist geladen, nur der Hinweis fehlt.
+      expect(screen.getByTestId("day-list")).toBeInTheDocument();
       expect(
         screen.queryByRole("link", { name: "Dienstplan öffnen" }),
       ).not.toBeInTheDocument();

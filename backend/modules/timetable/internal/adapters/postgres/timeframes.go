@@ -114,15 +114,6 @@ func (s *Store) UpdateTimeframe(ctx context.Context, id int64, fields timetable.
 	return timeframeToDomain(row), true, stats, nil
 }
 
-func (s *Store) DeleteTimeframe(ctx context.Context, id int64) (domain.OperationStats, error) {
-	db, tenantID, err := s.database(ctx)
-	if err != nil {
-		return domain.OperationStats{}, err
-	}
-	return execMeasuredWrite(ctx, db.NewDelete().Table("schedule.timeframes").
-		Where("tenant_id = ?", tenantID).Where("id = ?", id), "delete timeframe")
-}
-
 func timeframeSelect(db bun.IDB, model any, tenantID int64) *bun.SelectQuery {
 	return db.NewSelect().Model(model).ModelTableExpr(`schedule.timeframes AS "timeframe"`).
 		ColumnExpr(`"timeframe".id, "timeframe".tenant_id, "timeframe".created_at, "timeframe".updated_at`).

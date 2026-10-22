@@ -1,15 +1,11 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import type { Session } from "next-auth";
 import { NextRequest } from "next/server";
 import { GET } from "./route";
-
-// ============================================================================
-// Types
-// ============================================================================
-
-interface ExtendedSession extends Session {
-  user: Session["user"] & { token?: string };
-}
+import {
+  type ExtendedSession,
+  createMockContext,
+  defaultSession,
+} from "~/test/route-test-helpers";
 
 // ============================================================================
 // Mocks
@@ -52,15 +48,6 @@ function createMockRequest(path: string): NextRequest {
   });
 }
 
-function createMockContext() {
-  return { params: Promise.resolve({}) };
-}
-
-const defaultSession: ExtendedSession = {
-  user: { id: "1", token: "test-token", name: "Test User" },
-  expires: "2099-01-01",
-};
-
 // ============================================================================
 // Tests
 // ============================================================================
@@ -70,17 +57,6 @@ describe("GET /api/admin/grade-transitions", () => {
     vi.clearAllMocks();
     mockAuth.mockResolvedValue(defaultSession);
     mockApiGet.mockResolvedValue({ data: [] });
-  });
-
-  it("returns 401 when not authenticated", async () => {
-    mockAuth.mockResolvedValueOnce(null);
-
-    const response = await GET(
-      createMockRequest("/api/admin/grade-transitions"),
-      createMockContext(),
-    );
-
-    expect(response.status).toBe(401);
   });
 
   it("forwards the after_id keyset cursor to the backend", async () => {

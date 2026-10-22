@@ -207,6 +207,7 @@ func TestSupervisionDashboard_MinimalProjection(t *testing.T) {
 	testpkg.CreateTestGroupSupervisor(t, tc.db, teacher.Staff.ID, activeGroup.ID, "supervisor")
 
 	student := testpkg.CreateTestStudent(t, tc.db, "DashSlim", "Kind", "DS1")
+	testpkg.FillWideStudentFields(t, tc.db, student.ID, student.PersonID)
 	testpkg.CreateTestVisit(t, tc.db, student.ID, activeGroup.ID, time.Now().Add(-30*time.Minute), nil)
 
 	rr := dashboardExecRaw(t, router, "/active/supervision-dashboard", account.ID, dashboardPerms)

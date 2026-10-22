@@ -34,12 +34,6 @@ func insertEnrollablePhase(t *testing.T, db *bun.DB, tenantID int64, name string
 	return id
 }
 
-func wipePhasesForTenant(db *bun.DB, tenantID int64, namePrefix string) {
-	_, _ = db.NewDelete().Table("enrollment.phases").
-		Where("tenant_id = ? AND name LIKE ?", tenantID, namePrefix+"%").
-		Exec(context.Background())
-}
-
 // --- ListEnrollable ---------------------------------------------------
 
 func TestEnrollablePhaseRepository_ListEnrollable_RejectsNonPositiveAccount(t *testing.T) {
@@ -68,15 +62,9 @@ func TestEnrollablePhaseRepository_ListEnrollable_HappyPath(t *testing.T) {
 	// false", so the mapping CreateTestAccount adds for the test's own tenant
 	// has to go (#2419).
 	testpkg.UnclaimTestAccount(t, db, account.ID)
-	t.Cleanup(func() {
-		_, _ = db.NewDelete().Table("auth.account_tenants").
-			Where("account_id = ?", account.ID).Exec(context.Background())
-		_, _ = db.NewDelete().Table("auth.accounts").
-			Where("id = ?", account.ID).Exec(context.Background())
-	})
+	testpkg.OwnTestAccount(t, db, account.ID)
 
 	name := fmt.Sprintf("enrollable-happy-%d", time.Now().UnixNano())
-	defer wipePhasesForTenant(db, tenantID, "enrollable-happy")
 	insertEnrollablePhase(t, db, tenantID, name, nil, nil, true)
 
 	repo := newSchoolProjectionFactory(t, db).ParentEnrollablePhase
@@ -110,15 +98,8 @@ func TestEnrollablePhaseRepository_ListEnrollable_AlreadyLinkedFlag(t *testing.T
 
 	account := testpkg.CreateTestAccount(t, db, "enrollable-linked")
 	testpkg.EnsureAccountTenant(t, db, account.ID, tenantID)
-	t.Cleanup(func() {
-		_, _ = db.NewDelete().Table("auth.account_tenants").
-			Where("account_id = ?", account.ID).Exec(context.Background())
-		_, _ = db.NewDelete().Table("auth.accounts").
-			Where("id = ?", account.ID).Exec(context.Background())
-	})
 
 	name := fmt.Sprintf("enrollable-linked-%d", time.Now().UnixNano())
-	defer wipePhasesForTenant(db, tenantID, "enrollable-linked")
 	insertEnrollablePhase(t, db, tenantID, name, nil, nil, true)
 
 	repo := newSchoolProjectionFactory(t, db).ParentEnrollablePhase
@@ -149,13 +130,8 @@ func TestEnrollablePhaseRepository_ListEnrollable_DoesNotReadEnrollmentSetting(t
 	testpkg.EnsureTestTenant(t, db, tenantID)
 
 	account := testpkg.CreateTestAccount(t, db, "enrollable-nosetting")
-	t.Cleanup(func() {
-		_, _ = db.NewDelete().Table("auth.accounts").
-			Where("id = ?", account.ID).Exec(context.Background())
-	})
 
 	name := fmt.Sprintf("enrollable-nosetting-%d", time.Now().UnixNano())
-	defer wipePhasesForTenant(db, tenantID, "enrollable-nosetting")
 	insertEnrollablePhase(t, db, tenantID, name, nil, nil, true)
 
 	repo := newSchoolProjectionFactory(t, db).ParentEnrollablePhase
@@ -180,13 +156,8 @@ func TestEnrollablePhaseRepository_ListEnrollable_OmitsInactivePhases(t *testing
 	testpkg.EnsureTestTenant(t, db, tenantID)
 
 	account := testpkg.CreateTestAccount(t, db, "enrollable-inactive")
-	t.Cleanup(func() {
-		_, _ = db.NewDelete().Table("auth.accounts").
-			Where("id = ?", account.ID).Exec(context.Background())
-	})
 
 	name := fmt.Sprintf("enrollable-inactive-%d", time.Now().UnixNano())
-	defer wipePhasesForTenant(db, tenantID, "enrollable-inactive")
 	insertEnrollablePhase(t, db, tenantID, name, nil, nil, false) // is_active = false
 
 	repo := newSchoolProjectionFactory(t, db).ParentEnrollablePhase
@@ -212,12 +183,6 @@ func TestEnrollablePhaseRepository_ListEnrollable_RespectsEnrollmentWindow(t *te
 	testpkg.EnsureTestTenant(t, db, tenantID)
 
 	account := testpkg.CreateTestAccount(t, db, "enrollable-window")
-	t.Cleanup(func() {
-		_, _ = db.NewDelete().Table("auth.accounts").
-			Where("id = ?", account.ID).Exec(context.Background())
-	})
-
-	defer wipePhasesForTenant(db, tenantID, "enrollable-window")
 
 	past := time.Now().Add(-2 * time.Hour)
 	morePast := time.Now().Add(-1 * time.Hour)
@@ -263,17 +228,9 @@ func TestEnrollablePhaseRepository_ListEnrollable_OrdersLinkedFirst(t *testing.T
 
 	account := testpkg.CreateTestAccount(t, db, "enrollable-order")
 	testpkg.EnsureAccountTenant(t, db, account.ID, tenantLinked) // linked here only
-	t.Cleanup(func() {
-		_, _ = db.NewDelete().Table("auth.account_tenants").
-			Where("account_id = ?", account.ID).Exec(context.Background())
-		_, _ = db.NewDelete().Table("auth.accounts").
-			Where("id = ?", account.ID).Exec(context.Background())
-	})
 
 	linkedName := fmt.Sprintf("enrollable-order-linked-%d", time.Now().UnixNano())
 	unlinkedName := fmt.Sprintf("enrollable-order-unlinked-%d", time.Now().UnixNano())
-	defer wipePhasesForTenant(db, tenantLinked, "enrollable-order-linked")
-	defer wipePhasesForTenant(db, tenantUnlinked, "enrollable-order-unlinked")
 	insertEnrollablePhase(t, db, tenantLinked, linkedName, nil, nil, true)
 	insertEnrollablePhase(t, db, tenantUnlinked, unlinkedName, nil, nil, true)
 

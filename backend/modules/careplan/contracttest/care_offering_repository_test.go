@@ -43,7 +43,6 @@ func setupCareOfferingRepoTest(t *testing.T) (
 	require.NoError(t, runInTenantTx(t, db, tenantID, func(ctx context.Context) error {
 		return phaseRepo.InsertPhase(ctx, phase)
 	}))
-	t.Cleanup(func() { wipePhases(db, tenantID, phaseName) })
 
 	carePlan := carePlanTest.NewCarePlan(t, db, testpkg.StudentDirectory{})
 	return db, careOfferingRepoUnderTest{
@@ -58,7 +57,6 @@ func TestCareOfferingRepository_Create_PersistsAndReturnsID(t *testing.T) {
 	t.Parallel()
 
 	db, repo, tenantID, phaseID := setupCareOfferingRepoTest(t)
-	defer wipeOfferings(db, tenantID, phaseID)
 
 	offering := makeOffering(phaseID, uniqueOfferingName("create"))
 	err := runInTenantTx(t, db, tenantID, func(ctx context.Context) error {
@@ -73,7 +71,6 @@ func TestCareOfferingRepository_Create_PreservesExplicitCountsAsCareFalse(t *tes
 	t.Parallel()
 
 	db, repo, tenantID, phaseID := setupCareOfferingRepoTest(t)
-	defer wipeOfferings(db, tenantID, phaseID)
 
 	offering := makeOffering(phaseID, uniqueOfferingName("nonstat"))
 	offering.CountsAsCare = false
@@ -97,7 +94,6 @@ func TestCareOfferingRepository_FindByID_HappyPath(t *testing.T) {
 	t.Parallel()
 
 	db, repo, tenantID, phaseID := setupCareOfferingRepoTest(t)
-	defer wipeOfferings(db, tenantID, phaseID)
 
 	offering := makeOffering(phaseID, uniqueOfferingName("find"))
 	require.NoError(t, runInTenantTx(t, db, tenantID, func(ctx context.Context) error {
@@ -140,7 +136,6 @@ func TestCareOfferingRepository_Update_PersistsEveryEditableColumn(t *testing.T)
 	// test pins that behavior by changing several fields and checking
 	// they all round-trip.
 	db, repo, tenantID, phaseID := setupCareOfferingRepoTest(t)
-	defer wipeOfferings(db, tenantID, phaseID)
 
 	offering := makeOffering(phaseID, uniqueOfferingName("update"))
 	require.NoError(t, runInTenantTx(t, db, tenantID, func(ctx context.Context) error {
@@ -210,7 +205,6 @@ func TestCareOfferingRepository_Delete_HappyPath(t *testing.T) {
 	t.Parallel()
 
 	db, repo, tenantID, phaseID := setupCareOfferingRepoTest(t)
-	defer wipeOfferings(db, tenantID, phaseID)
 
 	offering := makeOffering(phaseID, uniqueOfferingName("delete"))
 	require.NoError(t, runInTenantTx(t, db, tenantID, func(ctx context.Context) error {
@@ -247,7 +241,6 @@ func TestCareOfferingRepository_ListByPhase_OrdersBySortOrder(t *testing.T) {
 	t.Parallel()
 
 	db, repo, tenantID, phaseID := setupCareOfferingRepoTest(t)
-	defer wipeOfferings(db, tenantID, phaseID)
 
 	// Out-of-order sort_order values so the test really exercises the
 	// ORDER BY rather than insertion order.
@@ -279,7 +272,6 @@ func TestCareOfferingRepository_ListByPhase_ScopesToPhase(t *testing.T) {
 	t.Parallel()
 
 	db, repo, tenantID, phaseA := setupCareOfferingRepoTest(t)
-	defer wipeOfferings(db, tenantID, phaseA)
 
 	// Second phase so we can prove the filter.
 	phaseRepo := api.NewParentPortalEnrollments().Enrollment
@@ -289,10 +281,6 @@ func TestCareOfferingRepository_ListByPhase_ScopesToPhase(t *testing.T) {
 	require.NoError(t, runInTenantTx(t, db, tenantID, func(ctx context.Context) error {
 		return phaseRepo.InsertPhase(ctx, other)
 	}))
-	t.Cleanup(func() {
-		wipeOfferings(db, tenantID, other.ID)
-		wipePhases(db, tenantID, other.Name)
-	})
 
 	require.NoError(t, runInTenantTx(t, db, tenantID, func(ctx context.Context) error {
 		return repo.Create(ctx, makeOffering(phaseA, uniqueOfferingName("scopedA")))
@@ -318,7 +306,6 @@ func TestCareOfferingRepository_ListByIDs_LoadsExactIDsAcrossPhases(t *testing.T
 	t.Parallel()
 
 	db, repo, tenantID, phaseA := setupCareOfferingRepoTest(t)
-	defer wipeOfferings(db, tenantID, phaseA)
 
 	phaseRepo := api.NewParentPortalEnrollments().Enrollment
 	other := makeOwnerEligibilityPhase(uniquePhaseName("ids-otherphase"))
@@ -327,10 +314,6 @@ func TestCareOfferingRepository_ListByIDs_LoadsExactIDsAcrossPhases(t *testing.T
 	require.NoError(t, runInTenantTx(t, db, tenantID, func(ctx context.Context) error {
 		return phaseRepo.InsertPhase(ctx, other)
 	}))
-	t.Cleanup(func() {
-		wipeOfferings(db, tenantID, other.ID)
-		wipePhases(db, tenantID, other.Name)
-	})
 
 	first := makeOffering(phaseA, uniqueOfferingName("idsA"))
 	second := makeOffering(other.ID, uniqueOfferingName("idsB"))
@@ -369,7 +352,6 @@ func TestCareOfferingRepository_ListActiveByPhase_FiltersInactive(t *testing.T) 
 	t.Parallel()
 
 	db, repo, tenantID, phaseID := setupCareOfferingRepoTest(t)
-	defer wipeOfferings(db, tenantID, phaseID)
 
 	active := makeOffering(phaseID, uniqueOfferingName("active"))
 	inactive := makeOffering(phaseID, uniqueOfferingName("inactive"))
@@ -405,7 +387,6 @@ func TestCareOfferingRepository_ListByTenant_ReturnsAllForTenant(t *testing.T) {
 	t.Parallel()
 
 	db, repo, tenantID, phaseID := setupCareOfferingRepoTest(t)
-	defer wipeOfferings(db, tenantID, phaseID)
 
 	for i := 0; i < 3; i++ {
 		o := makeOffering(phaseID, uniqueOfferingName(fmt.Sprintf("tenantlist-%d", i)))

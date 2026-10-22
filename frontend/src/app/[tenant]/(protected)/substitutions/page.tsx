@@ -8,6 +8,10 @@ import { AddSupervisorModal } from "~/components/active-supervisions/add-supervi
 import { RoleGuard } from "~/components/auth/role-guard";
 import { useSwrLoadError } from "~/lib/hooks/use-swr-load-error";
 import { Button, ButtonLink } from "~/components/ui/button";
+import {
+  CollectionGrid,
+  CollectionGridTile,
+} from "~/components/ui/collection-grid";
 import { CustomSelect } from "~/components/ui/custom-select";
 import { EmptyState } from "~/components/ui/empty-state";
 import {
@@ -261,11 +265,13 @@ function GroupSection(props: GroupSectionProps) {
           description="Zurzeit ist keine Gruppe übergeben."
         />
       ) : (
-        <ul className="divide-y divide-gray-200">
+        // Wenige Übergaben füllen als Raster die Breite der Karte, statt
+        // als schmale Zeilen oben links zu stehen (#4365).
+        <CollectionGrid as="ul">
           {overview.groupHandovers.map((handover) => (
             <HandoverRow key={handover.id} handover={handover} onEnd={onEnd} />
           ))}
-        </ul>
+        </CollectionGrid>
       )}
     </div>
   );
@@ -279,7 +285,7 @@ function HandoverRow({
   onEnd: (handover: Substitution) => void;
 }>) {
   return (
-    <li className="flex flex-col gap-3 py-3 first:pt-0 last:pb-0 sm:flex-row sm:items-center sm:justify-between">
+    <CollectionGridTile className="flex flex-col items-start gap-3">
       <div className="min-w-0">
         <p className="truncate text-sm font-medium text-gray-900">
           {handover.groupName}
@@ -299,7 +305,7 @@ function HandoverRow({
           Beenden
         </Button>
       ) : null}
-    </li>
+    </CollectionGridTile>
   );
 }
 

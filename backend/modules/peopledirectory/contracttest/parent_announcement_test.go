@@ -476,13 +476,6 @@ func TestParentAnnouncementAudience_FutureEnrollmentExcluded(t *testing.T) {
 		ModelTableExpr(`activities.student_enrollments AS "enrollment"`).
 		Exec(context.Background())
 	require.NoError(t, err)
-	t.Cleanup(func() {
-		_, _ = db.NewDelete().
-			Model((*testpkg.StudentEnrollment)(nil)).
-			ModelTableExpr("activities.student_enrollments").
-			Where("id = ?", enr.ID).
-			Exec(context.Background())
-	})
 
 	ann := api.ParentStorePublishedAnnouncement(parentStoreFixtureChecks(t), ctx, func() time.Time {
 		return databaseTimestamp(t, db)
@@ -538,13 +531,6 @@ func TestParentAnnouncementAudience_WeekdayScopedEnrollmentMatchesToday(t *testi
 		ModelTableExpr(`activities.student_enrollments AS "enrollment"`).
 		Exec(context.Background())
 	require.NoError(t, err)
-	t.Cleanup(func() {
-		_, _ = db.NewDelete().
-			Model((*testpkg.StudentEnrollment)(nil)).
-			ModelTableExpr("activities.student_enrollments").
-			Where("id = ?", enrollment.ID).
-			Exec(context.Background())
-	})
 
 	announcement := api.ParentStorePublishedAnnouncement(parentStoreFixtureChecks(t), ctx, func() time.Time {
 		return databaseTimestamp(t, db)

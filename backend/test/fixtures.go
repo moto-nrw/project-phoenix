@@ -15,24 +15,12 @@ import (
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess/sessiontoken"
 	"github.com/moto-nrw/project-phoenix/modules/securityruntime"
 	"github.com/moto-nrw/project-phoenix/modules/securityruntime/userpasstest"
-	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
 	"github.com/moto-nrw/project-phoenix/modules/studentpresence/sessionrecordstest"
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 	"github.com/moto-nrw/project-phoenix/tenant"
 	"github.com/stretchr/testify/require"
 	"github.com/uptrace/bun"
 )
-
-// CreateTestRoomCapacityError returns an opaque admission failure for transport
-// contract tests. The room belongs to the calling test's tenant.
-func CreateTestRoomCapacityError(tb testing.TB) error {
-	tb.Helper()
-	room := CreateTestRoom(tb, SetupTestDB(tb), "capacity error")
-	return &studentpresence.RoomCapacityError{
-		RoomID: room.ID, RoomName: room.Name,
-		CurrentOccupancy: 43, MaxCapacity: 43,
-	}
-}
 
 // SQL constants to avoid duplication
 const (
@@ -618,6 +606,14 @@ func cleanupRoleRecords(tb testing.TB, db *bun.DB, roleIDs ...int64) {
 
 	_, err = db.NewDelete().
 		TableExpr("auth.account_roles").
+		Where("role_id IN (?)", bun.List(roleIDs)).
+		Exec(ctx)
+	require.NoError(tb, err)
+
+	// Invitations a test sent for the role restrict its deletion
+	// (fk_invitation_role ON DELETE RESTRICT).
+	_, err = db.NewDelete().
+		TableExpr("auth.invitation_tokens").
 		Where("role_id IN (?)", bun.List(roleIDs)).
 		Exec(ctx)
 	require.NoError(tb, err)
@@ -1393,25 +1389,6 @@ func CreateTestPrivacyConsent(tb testing.TB, db *bun.DB, prefix string) *Privacy
 	require.NoError(tb, err, "Failed to create test privacy consent")
 
 	return consent
-}
-
-// CreateTestParentAccount creates a legacy guardian-link account and returns its ID.
-func CreateTestParentAccount(tb testing.TB, db *bun.DB, email string) int64 {
-	tb.Helper()
-
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-	defer cancel()
-
-	// Make email unique
-	uniqueEmail := fmt.Sprintf(testEmailFormat, email, uniqueFixtureSuffix())
-	username := fmt.Sprintf("parent-%d", uniqueFixtureSuffix())
-
-	var accountID int64
-	err := db.NewRaw(`INSERT INTO auth.accounts_parents (tenant_id, email, username, active)
-		VALUES (?, ?, ?, TRUE) RETURNING id`, fixtureTenantID(tb), uniqueEmail, username).Scan(ctx, &accountID)
-	require.NoError(tb, err, "Failed to create test parent account")
-
-	return accountID
 }
 
 // ============================================================================

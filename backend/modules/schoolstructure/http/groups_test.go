@@ -6,8 +6,10 @@ package schoolstructurehttp_test
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"net/http"
+	"net/http/httptest"
 	"testing"
 	"time"
 
@@ -21,7 +23,6 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/api/testutil"
 	schoolstructurehttp "github.com/moto-nrw/project-phoenix/modules/schoolstructure/http"
-	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 )
 
@@ -87,6 +88,34 @@ func setupProtectedRouter(t *testing.T, publishers ...*testpkg.RecordingBroadcas
 	return tc, router
 }
 
+// groupListResponse is the part of the paginated GET /groups body the list
+// tests assert on.
+type groupListResponse struct {
+	Data []struct {
+		ID int64 `json:"id"`
+	} `json:"data"`
+	Pagination struct {
+		PageSize     int `json:"page_size"`
+		TotalPages   int `json:"total_pages"`
+		TotalRecords int `json:"total_records"`
+	} `json:"pagination"`
+}
+
+func decodeGroupList(t *testing.T, rr *httptest.ResponseRecorder) groupListResponse {
+	t.Helper()
+	var list groupListResponse
+	require.NoError(t, json.Unmarshal(rr.Body.Bytes(), &list), rr.Body.String())
+	return list
+}
+
+func (l groupListResponse) ids() []int64 {
+	ids := make([]int64, 0, len(l.Data))
+	for _, group := range l.Data {
+		ids = append(ids, group.ID)
+	}
+	return ids
+}
+
 // =============================================================================
 // LIST GROUPS TESTS
 // =============================================================================
@@ -110,24 +139,34 @@ func TestListGroups_WithNameFilter(t *testing.T) {
 
 	tc, router := setupProtectedRouter(t)
 
-	// Create test group fixture
-	testpkg.CreateTestEducationGroup(t, tc.db, "UniqueFilterName")
+	match := testpkg.CreateTestEducationGroup(t, tc.db, "UniqueFilterName")
+	other := testpkg.CreateTestEducationGroup(t, tc.db, "OtherGroup")
 
 	req := newReq(t, "GET", "/groups?name=UniqueFilterName", nil, testutil.DefaultTestClaims(), "groups:read")
 
 	rr := testutil.ExecuteRequest(router, req)
 	testutil.AssertSuccessResponse(t, rr, http.StatusOK)
+	ids := decodeGroupList(t, rr).ids()
+	assert.Contains(t, ids, match.ID)
+	assert.NotContains(t, ids, other.ID)
 }
 
 func TestListGroups_WithPagination(t *testing.T) {
 	t.Parallel()
 
-	_, router := setupProtectedRouter(t)
+	tc, router := setupProtectedRouter(t)
+	testpkg.CreateTestEducationGroup(t, tc.db, "PageOne")
+	testpkg.CreateTestEducationGroup(t, tc.db, "PageTwo")
 
-	req := newReq(t, "GET", "/groups?page=1&page_size=10", nil, testutil.DefaultTestClaims(), "groups:read")
+	req := newReq(t, "GET", "/groups?page=1&page_size=1", nil, testutil.DefaultTestClaims(), "groups:read")
 
 	rr := testutil.ExecuteRequest(router, req)
 	testutil.AssertSuccessResponse(t, rr, http.StatusOK)
+	list := decodeGroupList(t, rr)
+	assert.Len(t, list.Data, 1)
+	assert.Equal(t, 1, list.Pagination.PageSize)
+	assert.Equal(t, 2, list.Pagination.TotalRecords)
+	assert.Equal(t, 2, list.Pagination.TotalPages)
 }
 
 func TestListGroups_WithoutPermission(t *testing.T) {
@@ -499,56 +538,6 @@ func TestGetGroupSupervisors_NotFound(t *testing.T) {
 // GET GROUP SUBSTITUTIONS TESTS
 // =============================================================================
 
-func TestGetGroupStudentsRoomStatus_RequiresSupervisor(t *testing.T) {
-	t.Parallel()
-
-	tc, router := setupProtectedRouter(t)
-
-	// Create test group
-	group := testpkg.CreateTestEducationGroup(t, tc.db, "RoomStatusTest")
-
-	// Without being a supervisor of the group, should get forbidden
-	req := newReq(t, "GET", fmt.Sprintf("/groups/%d/students/room-status", group.ID), nil, testutil.DefaultTestClaims(), "groups:read")
-
-	rr := testutil.ExecuteRequest(router, req)
-	// Returns 403 because user doesn't supervise this group
-	testutil.AssertForbidden(t, rr)
-}
-
-func TestGetGroupStudentsRoomStatus_NotFound(t *testing.T) {
-	t.Parallel()
-
-	_, router := setupProtectedRouter(t)
-
-	req := newReq(t, "GET", "/groups/999999/students/room-status", nil, testutil.DefaultTestClaims(), "groups:read")
-
-	rr := testutil.ExecuteRequest(router, req)
-	testutil.AssertNotFound(t, rr)
-}
-
-func TestGetGroupStudentsRoomStatus_InvalidID(t *testing.T) {
-	t.Parallel()
-
-	_, router := setupProtectedRouter(t)
-
-	req := newReq(t, "GET", "/groups/invalid/students/room-status", nil, testutil.DefaultTestClaims(), "groups:read")
-
-	rr := testutil.ExecuteRequest(router, req)
-	testutil.AssertBadRequest(t, rr)
-}
-
-// =============================================================================
-// ROUTER TEST
-// =============================================================================
-
-func TestRouter_ReturnsValidRouter(t *testing.T) {
-	t.Parallel()
-
-	tc := setupGroupsRoute(t)
-	router := tc.resource.Router(rootAPI.ProtectedTenantRoutes)
-	require.NotNil(t, router, "Router should return a valid chi.Router")
-}
-
 // =============================================================================
 // GROUP WITH STUDENTS TESTS
 // =============================================================================
@@ -663,19 +652,6 @@ func TestUpdateGroup_EmptyName(t *testing.T) {
 // LIST GROUPS ADDITIONAL TESTS
 // =============================================================================
 
-func TestListGroups_InvalidPagination(t *testing.T) {
-	t.Parallel()
-
-	_, router := setupProtectedRouter(t)
-
-	// Test with invalid page number
-	req := newReq(t, "GET", "/groups?page=-1", nil, testutil.DefaultTestClaims(), "groups:read")
-
-	rr := testutil.ExecuteRequest(router, req)
-	// May succeed with default pagination or fail depending on validation
-	t.Logf("Response: %d - %s", rr.Code, rr.Body.String())
-}
-
 func TestListGroups_LargePageSize(t *testing.T) {
 	t.Parallel()
 
@@ -684,8 +660,8 @@ func TestListGroups_LargePageSize(t *testing.T) {
 	req := newReq(t, "GET", "/groups?page_size=1000", nil, testutil.DefaultTestClaims(), "groups:read")
 
 	rr := testutil.ExecuteRequest(router, req)
-	// Should succeed - large page size might be capped
 	testutil.AssertSuccessResponse(t, rr, http.StatusOK)
+	assert.Equal(t, 1000, decodeGroupList(t, rr).Pagination.PageSize, "page sizes below the maximum are not capped")
 }
 
 // =============================================================================
@@ -706,58 +682,6 @@ func TestGetGroupSupervisors_InvalidID(t *testing.T) {
 // =============================================================================
 // GET GROUP SUBSTITUTIONS ADDITIONAL TESTS
 // =============================================================================
-
-func TestGetGroupStudentsRoomStatus_WithAdmin(t *testing.T) {
-	t.Parallel()
-
-	tc, router := setupProtectedRouter(t)
-
-	// Create test group with a room
-	room := testpkg.CreateTestRoom(t, tc.db, "AdminRoomStatus")
-
-	group := testpkg.CreateTestEducationGroup(t, tc.db, "AdminStatusTest")
-
-	// Update group with room
-	_, err := tc.db.NewUpdate().
-		Model((*testpkg.EducationGroup)(nil)).
-		ModelTableExpr("education.groups").
-		Set("room_id = ?", room.ID).
-		Where("id = ?", group.ID).
-		Exec(context.Background())
-	require.NoError(t, err)
-
-	// Admin should have access
-	req := newReq(t, "GET", fmt.Sprintf("/groups/%d/students/room-status", group.ID), nil, testutil.AdminTestClaims(1), "groups:read", "admin:*")
-
-	rr := testutil.ExecuteRequest(router, req)
-	testutil.AssertSuccessResponse(t, rr, http.StatusOK)
-
-	// Verify the response has the expected structure
-	response := testutil.ParseJSONResponse(t, rr.Body.Bytes())
-	data := response["data"].(map[string]interface{})
-	assert.True(t, data["group_has_room"].(bool), "Should have room")
-	assert.Equal(t, float64(room.ID), data["group_room_id"].(float64))
-}
-
-func TestGetGroupStudentsRoomStatus_NoRoomAssigned(t *testing.T) {
-	t.Parallel()
-
-	tc, router := setupProtectedRouter(t)
-
-	// Create test group without room
-	group := testpkg.CreateTestEducationGroup(t, tc.db, "NoRoomStatusTest")
-
-	// Admin should have access
-	req := newReq(t, "GET", fmt.Sprintf("/groups/%d/students/room-status", group.ID), nil, testutil.AdminTestClaims(1), "groups:read", "admin:*")
-
-	rr := testutil.ExecuteRequest(router, req)
-	testutil.AssertSuccessResponse(t, rr, http.StatusOK)
-
-	// Verify the response indicates no room
-	response := testutil.ParseJSONResponse(t, rr.Body.Bytes())
-	data := response["data"].(map[string]interface{})
-	assert.False(t, data["group_has_room"].(bool), "Should not have room")
-}
 
 // =============================================================================
 // GET GROUP STUDENTS WITH FULL ACCESS TESTS
@@ -806,6 +730,7 @@ func TestListGroups_WithRoomIDFilter(t *testing.T) {
 
 	// Create group with room
 	group := testpkg.CreateTestEducationGroup(t, tc.db, "RoomFilterTest")
+	withoutRoom := testpkg.CreateTestEducationGroup(t, tc.db, "NoRoomFilterTest")
 
 	_, err := tc.db.NewUpdate().
 		Model((*testpkg.EducationGroup)(nil)).
@@ -819,6 +744,9 @@ func TestListGroups_WithRoomIDFilter(t *testing.T) {
 
 	rr := testutil.ExecuteRequest(router, req)
 	testutil.AssertSuccessResponse(t, rr, http.StatusOK)
+	list := decodeGroupList(t, rr)
+	assert.Equal(t, []int64{group.ID}, list.ids())
+	assert.NotContains(t, list.ids(), withoutRoom.ID)
 }
 
 // =============================================================================
@@ -844,66 +772,6 @@ func TestCreateGroup_WithTeacherIDs(t *testing.T) {
 	rr := testutil.ExecuteRequest(router, req)
 	testutil.AssertSuccessResponse(t, rr, http.StatusCreated)
 
-}
-
-// =============================================================================
-// UPDATE GROUP WITH TEACHER IDS TEST
-// =============================================================================
-
-func TestUpdateGroup_WithTeacherIDs(t *testing.T) {
-	t.Parallel()
-
-	tc, router := setupProtectedRouter(t)
-
-	group := testpkg.CreateTestEducationGroup(t, tc.db, "UpdateTeachersTest")
-
-	teacher := testpkg.CreateTestTeacher(t, tc.db, "Update", "Teacher")
-
-	body := map[string]interface{}{
-		"name":        fmt.Sprintf("UpdatedWithTeachers-%d", group.ID),
-		"teacher_ids": []int64{teacher.ID},
-	}
-
-	req := newReq(t, "PUT", fmt.Sprintf("/groups/%d", group.ID), body, testutil.DefaultTestClaims(), "groups:update")
-
-	rr := testutil.ExecuteRequest(router, req)
-	testutil.AssertSuccessResponse(t, rr, http.StatusOK)
-}
-
-func TestGetGroupStudentsRoomStatus_WithSubstitution(t *testing.T) {
-	t.Parallel()
-
-	tc, router := setupProtectedRouter(t)
-
-	// Create group with room
-	room := testpkg.CreateTestRoom(t, tc.db, "SubstitutionRoom")
-
-	group := testpkg.CreateTestEducationGroup(t, tc.db, "SubstitutionAccessTest")
-
-	// Update group with room
-	_, err := tc.db.NewUpdate().
-		Model((*testpkg.EducationGroup)(nil)).
-		ModelTableExpr("education.groups").
-		Set("room_id = ?", room.ID).
-		Where("id = ?", group.ID).
-		Exec(context.Background())
-	require.NoError(t, err)
-
-	// Create staff with account for context
-	staff, _ := testpkg.CreateTestStaffWithAccount(t, tc.db, "Substitute", "Supervisor")
-
-	// Create active substitution for today (grants access)
-	today := calendar.TodayDate()
-	testpkg.CreateTestGroupSubstitution(t, tc.db, group.ID, nil, staff.ID, today, today)
-
-	// Staff should have access via substitution
-	// Note: DefaultTestClaims provides admin access for this test
-	req := newReq(t, "GET", fmt.Sprintf("/groups/%d/students/room-status", group.ID), nil, testutil.DefaultTestClaims(), "groups:read")
-
-	rr := testutil.ExecuteRequest(router, req)
-	// Note: This may still fail if the userContextService doesn't pick up substitutions
-	// The test documents the expected behavior
-	t.Logf("Response: %d - %s", rr.Code, rr.Body.String())
 }
 
 // =============================================================================

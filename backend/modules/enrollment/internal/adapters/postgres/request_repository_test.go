@@ -31,24 +31,8 @@ func setupRequestRepoTest(t *testing.T) (*bun.DB, capability.Owner, int64, int64
 	require.NoError(t, runInTenantTx(t, db, tenantID, func(ctx context.Context) error {
 		return phaseRepo.InsertPhase(ctx, phase)
 	}))
-	t.Cleanup(func() { wipePhases(db, tenantID, phaseName) })
 
 	return db, ownerCompose.New(), tenantID, phase.ID
-}
-
-// wipeRequests removes every request + child row for the tenant whose
-// status_token starts with the given prefix. Per-test isolation.
-func wipeRequests(db *bun.DB, tenantID int64, tokenPrefix string) {
-	bg := context.Background()
-	_, _ = db.NewDelete().
-		TableExpr("enrollment.request_children rc").
-		Where(`rc.tenant_id = ? AND rc.request_id IN (SELECT id FROM enrollment.requests WHERE tenant_id = ? AND status_token LIKE ?)`,
-			tenantID, tenantID, tokenPrefix+"%").
-		Exec(bg)
-	_, _ = db.NewDelete().
-		TableExpr("enrollment.requests").
-		Where("tenant_id = ? AND status_token LIKE ?", tenantID, tokenPrefix+"%").
-		Exec(bg)
 }
 
 func uniqueToken(prefix string) string {
@@ -84,7 +68,6 @@ func TestRequestRepository_Create_PersistsAndReturnsID(t *testing.T) {
 
 	db, repo, tenantID, phaseID := setupRequestRepoTest(t)
 	token := uniqueToken("create")
-	defer wipeRequests(db, tenantID, token)
 
 	req := makeOwnerRequest(phaseID, token, "anna@example.test")
 	err := runInTenantTx(t, db, tenantID, func(ctx context.Context) error {
@@ -100,7 +83,6 @@ func TestRequestRepository_FindByID_HappyPath(t *testing.T) {
 
 	db, repo, tenantID, phaseID := setupRequestRepoTest(t)
 	token := uniqueToken("find")
-	defer wipeRequests(db, tenantID, token)
 
 	req := makeOwnerRequest(phaseID, token, "anna@example.test")
 	require.NoError(t, runInTenantTx(t, db, tenantID, func(ctx context.Context) error {
@@ -139,7 +121,6 @@ func TestRequestRepository_PinDecisionNotificationMode_FirstPinWins(t *testing.T
 
 	db, repo, tenantID, phaseID := setupRequestRepoTest(t)
 	token := uniqueToken("pinNotificationMode")
-	defer wipeRequests(db, tenantID, token)
 
 	req := makeOwnerRequest(phaseID, token, "anna@example.test")
 	require.NoError(t, runInTenantTx(t, db, tenantID, func(ctx context.Context) error {
@@ -175,7 +156,6 @@ func TestRequestRepository_PinDecisionNotificationMode_RejectsInvalidMode(t *tes
 
 	db, repo, tenantID, phaseID := setupRequestRepoTest(t)
 	token := uniqueToken("invalidNotificationMode")
-	defer wipeRequests(db, tenantID, token)
 
 	req := makeOwnerRequest(phaseID, token, "anna@example.test")
 	require.NoError(t, runInTenantTx(t, db, tenantID, func(ctx context.Context) error {
@@ -197,7 +177,6 @@ func TestRequestRepository_FindByStatusToken_HappyPath(t *testing.T) {
 
 	db, repo, tenantID, phaseID := setupRequestRepoTest(t)
 	token := uniqueToken("findtoken")
-	defer wipeRequests(db, tenantID, token)
 
 	req := makeOwnerRequest(phaseID, token, "anna@example.test")
 	require.NoError(t, runInTenantTx(t, db, tenantID, func(ctx context.Context) error {
@@ -237,7 +216,6 @@ func TestRequestRepository_ListAdmin_NoFiltersReturnsAll(t *testing.T) {
 
 	db, repo, tenantID, phaseID := setupRequestRepoTest(t)
 	token := uniqueToken("listAll")
-	defer wipeRequests(db, tenantID, token)
 
 	r1 := makeOwnerRequest(phaseID, token+"-a", "anna@example.test")
 	r2 := makeOwnerRequest(phaseID, token+"-b", "bert@example.test")
@@ -275,7 +253,6 @@ func TestRequestRepository_ListAdmin_PhaseFilter(t *testing.T) {
 
 	db, repo, tenantID, phaseID := setupRequestRepoTest(t)
 	token := uniqueToken("listPhase")
-	defer wipeRequests(db, tenantID, token)
 
 	// A second phase so we can verify the filter actually narrows.
 	phaseRepo := ownerCompose.New()
@@ -285,7 +262,6 @@ func TestRequestRepository_ListAdmin_PhaseFilter(t *testing.T) {
 	require.NoError(t, runInTenantTx(t, db, tenantID, func(ctx context.Context) error {
 		return phaseRepo.InsertPhase(ctx, otherPhase)
 	}))
-	t.Cleanup(func() { wipePhases(db, tenantID, otherPhase.Name) })
 
 	reqMain := makeOwnerRequest(phaseID, token+"-main", "anna@example.test")
 	reqOther := makeOwnerRequest(otherPhase.ID, token+"-other", "bert@example.test")
@@ -302,10 +278,15 @@ func TestRequestRepository_ListAdmin_PhaseFilter(t *testing.T) {
 		return lErr
 	}))
 
+	ids := make([]int64, 0, len(list))
 	for _, r := range list {
 		assert.Equal(t, phaseID, r.PhaseID,
 			"phase filter must exclude every other phase (saw request %d with phase %d)", r.ID, r.PhaseID)
+		ids = append(ids, r.ID)
 	}
+	// Counter-check: an empty list would pass the loop above.
+	assert.Contains(t, ids, reqMain.ID, "the request in the filtered phase must appear")
+	assert.NotContains(t, ids, reqOther.ID)
 }
 
 func TestRequestRepository_ListAdmin_ChildStatusFilter(t *testing.T) {
@@ -313,7 +294,6 @@ func TestRequestRepository_ListAdmin_ChildStatusFilter(t *testing.T) {
 
 	db, repo, tenantID, phaseID := setupRequestRepoTest(t)
 	token := uniqueToken("listChildStatus")
-	defer wipeRequests(db, tenantID, token)
 
 	// Two requests, each with one child. One child is approved, the
 	// other waitlisted. Filter on waitlisted → only one should come
@@ -356,7 +336,6 @@ func TestRequestRepository_FindActiveDuplicate_BlocksRepeatSubmission(t *testing
 
 	db, repo, tenantID, phaseID := setupRequestRepoTest(t)
 	token := uniqueToken("dupe")
-	defer wipeRequests(db, tenantID, token)
 
 	req := makeOwnerRequest(phaseID, token+"-orig", "Anna@Example.test")
 	require.NoError(t, runInTenantTx(t, db, tenantID, func(ctx context.Context) error {
@@ -384,7 +363,6 @@ func TestRequestRepository_FindActiveDuplicate_IgnoresWithdrawnAndRejected(t *te
 
 	db, repo, tenantID, phaseID := setupRequestRepoTest(t)
 	token := uniqueToken("dupeTerminal")
-	defer wipeRequests(db, tenantID, token)
 
 	// Two prior requests: one withdrawn, one rejected. A fresh
 	// submission with the same name + same email must NOT match either
@@ -415,7 +393,6 @@ func TestRequestRepository_FindActiveDuplicate_DifferentParentSameChildOK(t *tes
 	// able to enrol.
 	db, repo, tenantID, phaseID := setupRequestRepoTest(t)
 	token := uniqueToken("dupeOtherParent")
-	defer wipeRequests(db, tenantID, token)
 
 	r := makeOwnerRequest(phaseID, token+"-orig", "anna@example.test")
 	require.NoError(t, runInTenantTx(t, db, tenantID, func(ctx context.Context) error {
@@ -439,7 +416,6 @@ func TestRequestRepository_FindActiveDuplicate_DifferentPhaseSameChildOK(t *test
 	// A child enrolled in phase A should be allowed to enrol in phase B.
 	db, repo, tenantID, phaseID := setupRequestRepoTest(t)
 	token := uniqueToken("dupeOtherPhase")
-	defer wipeRequests(db, tenantID, token)
 
 	r := makeOwnerRequest(phaseID, token+"-orig", "anna@example.test")
 	require.NoError(t, runInTenantTx(t, db, tenantID, func(ctx context.Context) error {
@@ -506,7 +482,6 @@ func TestRequestRepository_ExistsByPhaseID_TrueWhenReferenced(t *testing.T) {
 
 	db, repo, tenantID, phaseID := setupRequestRepoTest(t)
 	token := uniqueToken("existsByPhase")
-	defer wipeRequests(db, tenantID, token)
 
 	req := makeOwnerRequest(phaseID, token, "anna@example.test")
 	require.NoError(t, runInTenantTx(t, db, tenantID, func(ctx context.Context) error {
@@ -542,14 +517,9 @@ func TestRequestRepository_ExistsBySchemaID_TrueWhenReferenced(t *testing.T) {
 
 	db, repo, tenantID, phaseID := setupRequestRepoTest(t)
 	token := uniqueToken("existsBySchema")
-	defer wipeRequests(db, tenantID, token)
 
 	// Need a real schema row first.
 	account := testpkg.CreateTestAccount(t, db, "req-exists-schema")
-	t.Cleanup(func() {
-		_, _ = db.NewDelete().TableExpr("auth.accounts").
-			Where("id = ?", account.ID).Exec(context.Background())
-	})
 	schemaRepo := ownerCompose.New()
 	schema := &capability.FormSchema{
 		Name: uniqueSchemaName("req-exists-schema"), Version: 1,
@@ -558,7 +528,6 @@ func TestRequestRepository_ExistsBySchemaID_TrueWhenReferenced(t *testing.T) {
 	require.NoError(t, runInTenantTx(t, db, tenantID, func(ctx context.Context) error {
 		return schemaRepo.InsertSchemaVersion(ctx, schema)
 	}))
-	t.Cleanup(func() { wipeSchemas(db, tenantID, account.ID) })
 
 	req := makeOwnerRequest(phaseID, token, "anna@example.test")
 	req.SchemaID = &schema.ID
@@ -607,15 +576,10 @@ func insertRequestChildMatched(t *testing.T, db *bun.DB, tenantID, requestID, ma
 }
 
 // createMatchTestStudent creates a real enrolled student (matched_student_id
-// has a FK to users.students) and registers hard-delete cleanup.
+// has a FK to users.students).
 func createMatchTestStudent(t *testing.T, db *bun.DB, tenantID int64) int64 {
 	t.Helper()
 	student := testpkg.CreateTestStudentForTenant(t, db, tenantID, "Lara", "Beispiel", "1a")
-	t.Cleanup(func() {
-		bg := context.Background()
-		_, _ = db.NewDelete().TableExpr("users.student_profiles").Where("id = ?", student.ID).Exec(bg)
-		_, _ = db.NewDelete().TableExpr("users.persons").Where("id = ?", student.PersonID).Exec(bg)
-	})
 	return student.ID
 }
 
@@ -624,7 +588,6 @@ func TestRequestRepository_HasActiveRequestForMatchedStudent_TrueForActivePin(t 
 
 	db, repo, tenantID, phaseID := setupRequestRepoTest(t)
 	token := uniqueToken("matchActive")
-	defer wipeRequests(db, tenantID, token)
 
 	studentID := createMatchTestStudent(t, db, tenantID)
 	r := makeOwnerRequest(phaseID, token, "anna@example.test")
@@ -655,7 +618,6 @@ func TestRequestRepository_HasActiveRequestForMatchedStudent_IgnoresTerminalAndO
 
 	db, repo, tenantID, phaseID := setupRequestRepoTest(t)
 	token := uniqueToken("matchTerminal")
-	defer wipeRequests(db, tenantID, token)
 
 	studentID := createMatchTestStudent(t, db, tenantID)
 	// Withdrawn + rejected pins for the same student must NOT block: those
@@ -694,7 +656,6 @@ func TestRequestRepository_HasActiveRequestForMatchedStudent_ExcludesGivenChild(
 
 	db, repo, tenantID, phaseID := setupRequestRepoTest(t)
 	token := uniqueToken("matchExclude")
-	defer wipeRequests(db, tenantID, token)
 
 	studentID := createMatchTestStudent(t, db, tenantID)
 	own := makeOwnerRequest(phaseID, token, "anna@example.test")

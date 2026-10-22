@@ -16,6 +16,7 @@ import (
 	"github.com/go-chi/render"
 	"github.com/moto-nrw/project-phoenix/modules/schoolmembership"
 	classListHTTP "github.com/moto-nrw/project-phoenix/modules/schoolmembership/http/classlistentries"
+	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -162,6 +163,7 @@ func newHarness(t *testing.T) *harness {
 		ObserveResponse: func(status int, code string) {
 			h.observed = append(h.observed, http.StatusText(status)+"/"+code)
 		},
+		ParseIDParam:     testpkg.ParseHTTPIDParam,
 		CurrentAccountID: func(context.Context) int64 { return h.accountID },
 		Log:              slog.Default(),
 	})

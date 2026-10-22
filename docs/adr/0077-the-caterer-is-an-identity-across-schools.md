@@ -128,13 +128,13 @@ what the caterer adds:
 Measured again after development contracted the registers and collapsed
 the Meal Plan facade on 2026-10-20 (#4451), the same code raises
 `modulePassthroughOwnerBudgets["modules/identityaccess"]` from 497 to 501
-and, with ADR 0076, `modulePassthroughOwnerBudgetTotal` from 2,119 to
+and, with ADR 0078, `modulePassthroughOwnerBudgetTotal` from 2,119 to
 2,124 (from 2,024 to 2,029 after the Student Presence facade collapsed,
 #4481). `modules/mealplan` needs no raise any more: its service serves the
 public contract itself, so nothing forwards the supply.
 `moduleComposeBudgets["modules/identityaccess/compose"]` rises from 1,312 to
 1,357 (one more line imports the session dependencies, which development
-moved to the public ports), and with ADR 0076 and the 36 lines of
+moved to the public ports), and with ADR 0078 and the 36 lines of
 `workflows/catererportal/compose` the total rises from 12,419 to 12,534.
 The Meal Plan's public contract splits into `Menu`, `Registration` and
 `Ordering`, each at most twelve methods wide; `Capability` embeds all three.
@@ -142,18 +142,24 @@ The Meal Plan's public contract splits into `Menu`, `Registration` and
 Measured once more after development collapsed the Identity & Access facade
 (#4452) the same day: the owner value serves the caterer flows beside the
 demo access, so `modulePassthroughOwnerBudgets["modules/identityaccess"]`
-rises from 254 to 257 and, with ADR 0076, the total from 1,637 to 1,641.
+rises from 254 to 257 and, with ADR 0078, the total from 1,637 to 1,641.
 `moduleComposeBudgets["modules/identityaccess/compose"]` rises from 1,304 to
-1,349, and with ADR 0076 and `workflows/catererportal/compose` the total
+1,349, and with ADR 0078 and `workflows/catererportal/compose` the total
 from 12,407 to 12,522.
 
 Measured again on 2026-10-21, after development drained the pass-throughs
 (#4519, #4403) and contracted the compositions further: the same caterer
 code adds 3 to `modulePassthroughOwnerBudgets["modules/identityaccess"]`
-(218 to 221) and, with ADR 0076, the total rises from 1,418 to 1,422.
+(218 to 221) and, with ADR 0078, the total rises from 1,418 to 1,422.
 `moduleComposeBudgets["modules/identityaccess/compose"]` stays at 1,349
-over development's 1,304, and with ADR 0076 and
+over development's 1,304, and with ADR 0078 and
 `workflows/catererportal/compose` the total rises from 12,355 to 12,470.
+On 2026-10-22, after development drained more pass-throughs and raised
+the compositions for ADR 0076 (staff person repair), the raise stays the
+same: `modules/identityaccess` from 215 to 218, the pass-through total from
+1,409 to 1,413, and the compose total from 12,408 to 12,523. The meal
+ordering budgets moved from ADR 0076 to ADR 0078 when development took the
+number.
 
 ## Policy
 

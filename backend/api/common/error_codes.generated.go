@@ -149,6 +149,7 @@ const (
 	CodeEnrollmentEditNotAllowed                         = "enrollment.edit_not_allowed"
 	CodeEnrollmentExportTooLarge                         = "enrollment.export_too_large"
 	CodeEnrollmentFieldRequired                          = "enrollment.field_required"
+	CodeEnrollmentFormAttachmentInvalid                  = "enrollment.form_attachment_invalid"
 	CodeEnrollmentFormFieldAllowedTimesInvalid           = "enrollment.form_field_allowed_times_invalid"
 	CodeEnrollmentFormFieldContentRequired               = "enrollment.form_field_content_required"
 	CodeEnrollmentFormFieldKeyDuplicate                  = "enrollment.form_field_key_duplicate"
@@ -826,6 +827,7 @@ var errorClassByCode = map[string]string{
 	"enrollment.edit_not_allowed":                          "permission",
 	"enrollment.export_too_large":                          "input",
 	"enrollment.field_required":                            "input",
+	"enrollment.form_attachment_invalid":                   "input",
 	"enrollment.form_field_allowed_times_invalid":          "input",
 	"enrollment.form_field_content_required":               "input",
 	"enrollment.form_field_key_duplicate":                  "input",

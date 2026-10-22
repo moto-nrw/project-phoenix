@@ -969,6 +969,8 @@ export const ERROR_CATALOG = {
         "Zwei Fragen haben denselben Text. Bitte ändern Sie den Text der markierten Frage.",
       "enrollment.form_field_label_required":
         "Bitte geben Sie jedem Feld eine Beschriftung.",
+      "enrollment.form_attachment_invalid":
+        "Bitte prüfen Sie die Bezeichnung und die PDF-Datei.",
       "enrollment.form_field_content_required":
         "Bitte geben Sie für den Hinweistext einen Text ein.",
       "enrollment.form_field_options_invalid":
@@ -1409,6 +1411,8 @@ export const ERROR_CATALOG = {
         "The parents set this time. Only someone with a staff profile can change it.",
       "students.status_day_conflict":
         "Some days already have an entry. These days were not changed.",
+      "enrollment.form_attachment_invalid":
+        "Please check the label and the PDF file.",
       "enrollment.form_not_found":
         "This enrollment form does not exist. Please check the link or ask the school.",
       "enrollment.status_link_invalid":
@@ -1690,6 +1694,7 @@ export const ERROR_CATALOG = {
         "Это время установили родители. Изменить его может только сотрудник с профилем персонала.",
       "students.status_day_conflict":
         "На некоторые дни уже есть запись. Эти дни не изменены.",
+      "enrollment.form_attachment_invalid": "Проверьте название и PDF-файл.",
       "enrollment.form_not_found":
         "Эта форма записи не найдена. Проверьте ссылку или обратитесь в школу.",
       "enrollment.status_link_invalid":
@@ -1974,6 +1979,8 @@ export const ERROR_CATALOG = {
         "Këtë orë e kanë vendosur prindërit. Vetëm dikush me profil stafi mund ta ndryshojë.",
       "students.status_day_conflict":
         "Disa ditë kanë tashmë një regjistrim. Këto ditë nuk u ndryshuan.",
+      "enrollment.form_attachment_invalid":
+        "Ju lutemi kontrolloni emrin dhe skedarin PDF.",
       "enrollment.form_not_found":
         "Ky formular regjistrimi nuk ekziston. Kontrolloni lidhjen ose pyesni shkollën.",
       "enrollment.status_link_invalid":
@@ -2262,6 +2269,7 @@ export const ERROR_CATALOG = {
         "Ten czas ustawili rodzice. Zmienić go może tylko osoba z profilem pracownika.",
       "students.status_day_conflict":
         "Niektóre dni mają już wpis. Tych dni nie zmieniono.",
+      "enrollment.form_attachment_invalid": "Sprawdź nazwę i plik PDF.",
       "enrollment.form_not_found":
         "Ten formularz zapisu nie istnieje. Sprawdź link lub zapytaj szkołę.",
       "enrollment.status_link_invalid":
@@ -2543,6 +2551,8 @@ export const ERROR_CATALOG = {
         "Bu saati veliler belirledi. Yalnızca personel profili olan biri değiştirebilir.",
       "students.status_day_conflict":
         "Bazı günlerde zaten bir kayıt var. Bu günler değiştirilmedi.",
+      "enrollment.form_attachment_invalid":
+        "Lütfen adı ve PDF dosyasını kontrol edin.",
       "enrollment.form_not_found":
         "Bu kayıt formu bulunamadı. Bağlantıyı kontrol edin veya okula sorun.",
       "enrollment.status_link_invalid":
@@ -2824,6 +2834,7 @@ export const ERROR_CATALOG = {
         "Цей час встановили батьки. Змінити його може лише працівник із профілем персоналу.",
       "students.status_day_conflict":
         "На деякі дні вже є запис. Ці дні не змінено.",
+      "enrollment.form_attachment_invalid": "Перевірте назву та PDF-файл.",
       "enrollment.form_not_found":
         "Цієї форми запису не існує. Перевірте посилання або зверніться до школи.",
       "enrollment.status_link_invalid":

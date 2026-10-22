@@ -85,11 +85,6 @@ func TestOperatorIdentityRoutes(t *testing.T) {
 func TestRouter(t *testing.T) {
 	t.Parallel()
 
-	t.Run("creates router successfully", func(t *testing.T) {
-		router := testOperatorRouter(operatorIdentity{sessions: operatorTestSessions(t, nil)}, nil)
-		require.NotNil(t, router)
-	})
-
 	t.Run("names the missing sessions instead of dereferencing nil", func(t *testing.T) {
 		require.PanicsWithValue(t,
 			"operator api: the operator session chains are required to mount the operator routes",
@@ -114,7 +109,7 @@ func TestRouter(t *testing.T) {
 			bookingAuthorityImpact: http.NotFoundHandler(),
 		}
 		router := operatorRouter(operatorIdentity{sessions: operatorTestSessions(t, nil)},
-			provisioningoperator.ProvisioningConfig{}, nil, schoolSettings, nil, nil, authRateLimiters{})
+			provisioningoperator.ProvisioningConfig{}, nil, schoolSettings, nil, nil, authRateLimiters{}, http.NotFoundHandler())
 		require.NotNil(t, router)
 
 		// Walk the route tree and assert the settings subroute exists under /schools.
@@ -144,7 +139,7 @@ func TestRouter(t *testing.T) {
 		}
 		assert.Panics(t, func() {
 			operatorRouter(operatorIdentity{sessions: operatorTestSessions(t, nil)},
-				provisioningoperator.ProvisioningConfig{}, nil, schoolSettings, nil, nil, authRateLimiters{})
+				provisioningoperator.ProvisioningConfig{}, nil, schoolSettings, nil, nil, authRateLimiters{}, http.NotFoundHandler())
 		})
 	})
 
@@ -164,7 +159,7 @@ func TestRouter(t *testing.T) {
 	t.Run("billing seed route is mounted with the billing report", func(t *testing.T) {
 		billing := provisioningoperator.NewBillingResource(stubBillingReport{}, nil, nil)
 		router := operatorRouter(operatorIdentity{sessions: operatorTestSessions(t, nil)},
-			provisioningoperator.ProvisioningConfig{}, billing, nil, nil, nil, authRateLimiters{})
+			provisioningoperator.ProvisioningConfig{}, billing, nil, nil, nil, authRateLimiters{}, http.NotFoundHandler())
 
 		found := false
 		err := chiWalk(router, func(pattern string) {
@@ -196,7 +191,7 @@ func TestUnregisteredTagScanRoutesSitBehindOperatorAuth(t *testing.T) {
 		},
 	}
 	router := operatorRouter(operatorIdentity{access: authService, sessions: operatorTestSessions(t, authService)},
-		provisioningoperator.ProvisioningConfig{}, nil, nil, nil, review, authRateLimiters{})
+		provisioningoperator.ProvisioningConfig{}, nil, nil, nil, review, authRateLimiters{}, http.NotFoundHandler())
 
 	anonymous := httptest.NewRecorder()
 	router.ServeHTTP(anonymous, httptest.NewRequest(http.MethodGet, "/unregistered-tag-scans/", nil))
@@ -281,7 +276,7 @@ func TestProtectedOperatorRoutesAllowActiveOperator(t *testing.T) {
 // Access inputs and provisioning service, without billing, school settings,
 // announcements, the tag scan review or rate limits.
 func testOperatorRouter(identity operatorIdentity, provisioning organizationtenancy.Provisioning) chi.Router {
-	return operatorRouter(identity, provisioningoperator.ProvisioningConfig{Service: provisioning}, nil, nil, nil, nil, authRateLimiters{})
+	return operatorRouter(identity, provisioningoperator.ProvisioningConfig{Service: provisioning}, nil, nil, nil, nil, authRateLimiters{}, http.NotFoundHandler())
 }
 
 // operatorTestSessions binds the operator session chains to the seeded test

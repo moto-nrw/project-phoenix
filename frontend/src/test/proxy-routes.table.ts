@@ -44,6 +44,9 @@ export const PROXY_ROUTES: Record<string, readonly string[]> = {
   "api/active/visits/group/[groupId]": [
     "GET tenant /api/active/visits/group/groupId%2F1 raw",
   ],
+  "api/active/visits/move-to-group": [
+    "POST tenant /api/active/visits/move-to-group",
+  ],
   "api/active/visits/student/[studentId]": [
     "GET tenant /api/active/visits/student/studentId%2F1 raw",
   ],
@@ -112,6 +115,9 @@ export const PROXY_ROUTES: Record<string, readonly string[]> = {
     "DELETE tenant /api/guardians/id%2F1/phone-numbers/phoneId%2F1",
     "PUT tenant /api/guardians/id%2F1/phone-numbers/phoneId%2F1",
   ],
+  "api/guardians/[id]/phone-numbers/[phoneId]/set-primary": [
+    "POST tenant /api/guardians/id%2F1/phone-numbers/phoneId%2F1/set-primary",
+  ],
   "api/guardians/bulk-invite": ["POST tenant /api/guardians/bulk-invite"],
   "api/guardians/invitations/pending-approval": [
     "GET tenant /api/guardians/invitations/pending-approval",
@@ -170,6 +176,9 @@ export const PROXY_ROUTES: Record<string, readonly string[]> = {
   "api/notifications/push/public-key": [
     "GET tenant /api/notifications/push/public-key",
   ],
+  "api/operator/announcements/[id]/publish": [
+    "POST operator /operator/announcements/id%2F1/publish",
+  ],
   "api/operator/announcements/[id]/stats": [
     "GET operator /operator/announcements/id%2F1/stats",
   ],
@@ -214,6 +223,9 @@ export const PROXY_ROUTES: Record<string, readonly string[]> = {
   "api/operator/provisioning/organizations/[id]/persons": [
     "GET operator /operator/organizations/id%2F1/persons",
   ],
+  "api/operator/provisioning/organizations/[id]/restore": [
+    "POST operator /operator/organizations/id%2F1/restore",
+  ],
   "api/operator/provisioning/organizations/[id]/schools": [
     "GET operator /operator/organizations/id%2F1/schools",
   ],
@@ -236,6 +248,9 @@ export const PROXY_ROUTES: Record<string, readonly string[]> = {
   ],
   "api/operator/provisioning/schools/[id]/invite-admin": [
     "POST operator /operator/schools/id%2F1/invite-admin",
+  ],
+  "api/operator/provisioning/schools/[id]/restore": [
+    "POST operator /operator/schools/id%2F1/restore",
   ],
   "api/operator/provisioning/schools/[id]/settings/booking-authority-impact": [
     "GET operator /operator/schools/id%2F1/settings/booking-authority-impact",
@@ -403,6 +418,9 @@ export const PROXY_ROUTES: Record<string, readonly string[]> = {
   ],
   "api/parent/me/push/public-key": ["GET parent /parent/me/push/public-key"],
   "api/parent/me/pwa-usage": ["POST parent /parent/me/pwa-usage"],
+  "api/platform/announcements/[id]/dismiss": [
+    "POST tenant /api/platform/announcements/id%2F1/dismiss",
+  ],
   "api/platform/announcements/unread": [
     "GET tenant /api/platform/announcements/unread",
   ],
@@ -738,6 +756,7 @@ export const PROXY_ROUTES: Record<string, readonly string[]> = {
   "api/time-tracking/assignments": [
     "GET tenant /api/time-tracking/assignments",
   ],
+  "api/time-tracking/break/end": ["POST tenant /api/time-tracking/break/end"],
   "api/time-tracking/break/start": [
     "POST tenant /api/time-tracking/break/start",
   ],

@@ -318,7 +318,7 @@ func NewTimetableHTTPTestPeople(db transactionruntime.Database) (TimetablePeople
 	}
 	return NewTimetablePeople(peopleCompose.NewPersonDirectory(peoplePorts.PersonDirectoryDependencies{
 		PersonRepo: r.Person, StudentRepo: r.Student,
-		StaffDirectory: peopleCompose.NewStaffDirectory(peoplePorts.StaffDirectoryDependencies{Persons: r.Person, Staff: r.Staff, MayManageStaff: StaffAdministrationPermitted}),
+		StaffDirectory: peopleCompose.NewStaffDirectory(peoplePorts.StaffDirectoryDependencies{Runtime: peopleCompose.NewLegacyRepositoryRuntime(db.Pool()), Persons: r.Person, Staff: r.Staff, MayManageStaff: StaffAdministrationPermitted}),
 	})), nil
 }
 

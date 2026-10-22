@@ -52,11 +52,6 @@ func TestListPublicPhasesHandler_DoesNotLeakOtherTenantPhases(t *testing.T) {
 			school.ID, org.ID, school.name, school.Slug, school.Slug).Exec(ctx)
 		require.NoError(t, err)
 	}
-	t.Cleanup(func() {
-		_, _ = db.NewRaw(`DELETE FROM enrollment.phases WHERE tenant_id IN (?, ?)`, targetSchool.ID, otherSchool.ID).Exec(context.Background())
-		_, _ = db.NewRaw(`DELETE FROM platform.schools WHERE id IN (?, ?)`, targetSchool.ID, otherSchool.ID).Exec(context.Background())
-		_, _ = db.NewRaw(`DELETE FROM platform.organizations WHERE id = ?`, org.ID).Exec(context.Background())
-	})
 
 	phaseRepo := NewTestModule()
 	targetPhase := &capability.Phase{ID: now + 300, Name: "Target Tenant Phase", Kind: capability.PhaseKindSchoolYear, ServiceStartDate: "2026-09-01", ServiceEndDate: "2027-07-31", IsActive: true, CareOverflowMode: capability.PhaseCareOverflowWaitlist}

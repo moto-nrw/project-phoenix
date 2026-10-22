@@ -58,7 +58,7 @@ func TestAccountPasskeyCredentialLifecycle(t *testing.T) {
 	duplicate := newAccountPasskey(account.ID, handle)
 	duplicate.CredentialID = first.CredentialID
 	_, err = records.CreateAccountPasskey(ctx, duplicate)
-	require.Error(t, err, "a credential ID is registered once platform-wide")
+	require.ErrorContains(t, err, "uniq_passkey_credentials_credential_id", "a credential ID is registered once platform-wide")
 	second, err := records.CreateAccountPasskey(ctx, newAccountPasskey(account.ID, handle))
 	require.NoError(t, err)
 	foreign, err := records.CreateAccountPasskey(ctx, newAccountPasskey(other.ID, []byte("foreign-handle")))

@@ -192,26 +192,6 @@ func newTestPeriod() schoolcalendar.CalendarPeriod {
 }
 
 // =============================================================================
-// NewResource / Router Tests
-// =============================================================================
-
-func TestNewResource(t *testing.T) {
-	t.Parallel()
-
-	res := NewResource(Dependencies{})
-	assert.NotNil(t, res)
-}
-
-func TestResource_Router(t *testing.T) {
-	t.Parallel()
-
-	mock := &mockCalendarPeriodService{}
-	res := NewResource(periodDependencies(mock))
-	router := res.Router(scopeTestTenantRoutes(testpkg.TenantSessionGatesWithCaches(scopeTestSettingsCache)))
-	assert.NotNil(t, router)
-}
-
-// =============================================================================
 // Bind Validation Tests
 // =============================================================================
 

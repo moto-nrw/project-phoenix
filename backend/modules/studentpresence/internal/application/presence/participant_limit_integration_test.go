@@ -1,7 +1,6 @@
 package presence_test
 
 import (
-	"context"
 	"errors"
 	"sync"
 	"testing"
@@ -33,10 +32,6 @@ func forbidWebOverbooking(t *testing.T, db *testpkg.DB) {
 		DO UPDATE SET value = EXCLUDED.value, updated_at = now()
 	`, testpkg.Tenant(t), webExceedParticipantLimitKey).Exec(ctx)
 	require.NoError(t, err)
-	t.Cleanup(func() {
-		_, _ = db.NewRaw(`DELETE FROM config.setting_values WHERE tenant_id = ? AND setting_key = ?`,
-			testpkg.Tenant(t), webExceedParticipantLimitKey).Exec(context.Background())
-	})
 }
 
 // limitFixture is one running session of a limited activity with some

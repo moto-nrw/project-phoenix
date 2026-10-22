@@ -14,16 +14,6 @@ import (
 )
 
 // =============================================================================
-// SMTPMailer Interface Tests
-// =============================================================================
-
-func TestSMTPMailer_ImplementsMailer(t *testing.T) {
-	t.Parallel()
-	// SMTPMailer should implement Mailer interface
-	var _ mailcontract.Mailer = &SMTPMailer{}
-}
-
-// =============================================================================
 // NewMailer Tests
 // =============================================================================
 
@@ -174,7 +164,6 @@ func TestParseTemplates_WithValidTemplates(t *testing.T) {
 <head><title>Test</title></head>
 <body>
 <p>Hello {{.Name}}</p>
-<p>Date: {{formatAsDate .Date}}</p>
 </body>
 </html>`
 	require.NoError(t, os.WriteFile(
@@ -186,6 +175,16 @@ func TestParseTemplates_WithValidTemplates(t *testing.T) {
 	templates, err := parseTemplates(templatesDir)
 	assert.NoError(t, err)
 	assert.NotNil(t, templates)
+}
+
+// The SMTP mailer parses every shipped template at startup without template
+// functions; a template calling an undefined function would stop the server.
+func TestParseTemplatesParsesTheShippedEmailTemplates(t *testing.T) {
+	t.Parallel()
+
+	templates, err := parseTemplates(filepath.Join("..", "..", "..", "..", "..", "templates", "email"))
+	require.NoError(t, err)
+	assert.NotNil(t, templates.Lookup("invitation.html"))
 }
 
 func TestParseTemplates_NoTemplatesDirectory(t *testing.T) {
@@ -369,7 +368,7 @@ func TestSMTPMailer_Send_SpecialCharacterDisplayName(t *testing.T) {
 
 	t.Run("reply-to header", func(t *testing.T) {
 		message := mailcontract.Message{
-			From:     mailcontract.NewEmail("moto", "kontakt@moto.nrw"),
+			From:     mailcontract.NewEmail("moto", "kontakt@moto-ogs.de"),
 			ReplyTo:  mailcontract.NewEmail(`OGS "Am Berg", Grundschule`, "ogs@schule-am-berg.example"),
 			To:       mailcontract.NewEmail("Erika Muster", "erika@example.test"),
 			Subject:  "Einladung zum Eltern-Portal",
@@ -384,7 +383,7 @@ func TestSMTPMailer_Send_SpecialCharacterDisplayName(t *testing.T) {
 		assert.Contains(t, replyTo[0], "ogs@schule-am-berg.example")
 		from := built.GetAddrHeaderString(mail.HeaderFrom)
 		require.Len(t, from, 1)
-		assert.Contains(t, from[0], "kontakt@moto.nrw")
+		assert.Contains(t, from[0], "kontakt@moto-ogs.de")
 
 		message.ReplyTo = mailcontract.Email{}
 		built, err = mailer.buildMessage(message)

@@ -66,6 +66,29 @@ describe("BetreuungsplanHeuteCard", () => {
     expect(screen.getByText("OGS-Raum 1")).toBeInTheDocument();
   });
 
+  // #4363: Auf der Zeiterfassung stehen wenige Einsätze nebeneinander, je
+  // einer in einem eigenen Feld, statt als schmale Liste über die volle Breite.
+  it("stellt die Einsätze auf der Zeiterfassung als Raster dar", () => {
+    swr.data = [
+      assignment({ instanceId: "1", title: "Frühdienst" }),
+      assignment({ instanceId: "2", title: "Lernzeit" }),
+    ];
+
+    render(<BetreuungsplanHeuteCard />);
+
+    expect(screen.getByRole("list").className).toContain("grid-cols");
+    expect(screen.getAllByRole("listitem")).toHaveLength(2);
+  });
+
+  // Die Startseite behält ihre Liste: dort hat die Karte eine feste Höhe.
+  it("behält auf der Startseite die Liste", () => {
+    swr.data = [assignment()];
+
+    render(<BetreuungsplanHeuteCard maxRows={3} dense />);
+
+    expect(screen.getByRole("list").className).not.toContain("grid-cols");
+  });
+
   // Startseite: eine Zeile je Einsatz, Raum als Zusatz dahinter.
   it("fasst den Einsatz mit dense in eine Zeile", () => {
     swr.data = [assignment()];

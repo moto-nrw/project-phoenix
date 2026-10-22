@@ -2672,6 +2672,8 @@ describe("StudentSearchPage", () => {
       render(<StudentSearchPage />);
 
       await waitFor(() => {
+        // Anker: die Liste ist geladen, nur der Filter fehlt.
+        expect(screen.getByText(new RegExp(`^Max\\b`))).toBeInTheDocument();
         expect(
           screen.queryByTestId("filter-photoConsent"),
         ).not.toBeInTheDocument();

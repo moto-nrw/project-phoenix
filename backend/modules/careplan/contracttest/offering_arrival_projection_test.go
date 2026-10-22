@@ -115,8 +115,7 @@ func setStudentClass(t *testing.T, env *decisionTestEnv, studentID int64, class 
 func TestArrivalProjection_BookingModeLimitsCareDaysToBookedWeekdays(t *testing.T) {
 	t.Parallel()
 
-	env, cleanup := setupDecisionTest(t)
-	defer cleanup()
+	env := setupDecisionTest(t)
 	setSourcePhaseServiceStartDate(t, env, decisionTestToday.AddDays(-30))
 	ctx := testpkg.Ctx(t)
 
@@ -165,8 +164,7 @@ func TestArrivalProjection_BookingModeLimitsCareDaysToBookedWeekdays(t *testing.
 func TestArrivalProjection_StaleRowOnUnbookedDayIsIgnored(t *testing.T) {
 	t.Parallel()
 
-	env, cleanup := setupDecisionTest(t)
-	defer cleanup()
+	env := setupDecisionTest(t)
 	setSourcePhaseServiceStartDate(t, env, decisionTestToday.AddDays(-30))
 	ctx := testpkg.Ctx(t)
 
@@ -199,8 +197,7 @@ func TestArrivalProjection_StaleRowOnUnbookedDayIsIgnored(t *testing.T) {
 func TestArrivalProjection_BookingEndStopsTheArrival(t *testing.T) {
 	t.Parallel()
 
-	env, cleanup := setupDecisionTest(t)
-	defer cleanup()
+	env := setupDecisionTest(t)
 	setSourcePhaseServiceStartDate(t, env, decisionTestToday.AddDays(-30))
 	ctx := testpkg.Ctx(t)
 
@@ -237,8 +234,7 @@ func TestArrivalProjection_BookingEndStopsTheArrival(t *testing.T) {
 func TestArrivalProjection_StaleRowNoLongerMarksTheChildExpected(t *testing.T) {
 	t.Parallel()
 
-	env, cleanup := setupDecisionTest(t)
-	defer cleanup()
+	env := setupDecisionTest(t)
 	setSourcePhaseServiceStartDate(t, env, decisionTestToday.AddDays(-30))
 	ctx := testpkg.Ctx(t)
 
@@ -272,8 +268,7 @@ func TestArrivalProjection_StaleRowNoLongerMarksTheChildExpected(t *testing.T) {
 func TestPickupProjection_StaleRowCannotAddAuthoritativeCareDay(t *testing.T) {
 	t.Parallel()
 
-	env, cleanup := setupDecisionTest(t)
-	defer cleanup()
+	env := setupDecisionTest(t)
 	setSourcePhaseServiceStartDate(t, env, decisionTestToday.AddDays(-30))
 	ctx := testpkg.Ctx(t)
 

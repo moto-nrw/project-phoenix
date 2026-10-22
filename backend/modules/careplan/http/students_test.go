@@ -112,44 +112,6 @@ func TestUpdateStudent(t *testing.T) {
 	})
 }
 
-func TestUpdateStudent_WithGuardianInfo(t *testing.T) {
-	t.Parallel()
-
-	tc := setupStudentsRoute(t)
-
-	student := testpkg.CreateTestStudent(t, tc.db, "Guardian", "Update", "GU1")
-
-	t.Run("update_guardian_name", func(t *testing.T) {
-		body := map[string]interface{}{
-			"guardian_name": "New Guardian",
-		}
-		req := testutil.NewAuthenticatedRequest(t, "PUT", fmt.Sprintf("/%d", student.ID), body)
-		rr := authExec(t, tc, req, testutil.AdminTestClaims(1), []string{"admin:*"})
-
-		assert.Equal(t, http.StatusBadRequest, rr.Code)
-	})
-
-	t.Run("update_guardian_email", func(t *testing.T) {
-		body := map[string]interface{}{
-			"guardian_email": "guardian@example.com",
-		}
-		req := testutil.NewAuthenticatedRequest(t, "PUT", fmt.Sprintf("/%d", student.ID), body)
-		rr := authExec(t, tc, req, testutil.AdminTestClaims(1), []string{"admin:*"})
-
-		assert.Equal(t, http.StatusBadRequest, rr.Code)
-	})
-
-	t.Run("update_guardian_phone", func(t *testing.T) {
-		body := map[string]interface{}{
-			"guardian_phone": "+49123456789",
-		}
-		req := testutil.NewAuthenticatedRequest(t, "PUT", fmt.Sprintf("/%d", student.ID), body)
-		rr := authExec(t, tc, req, testutil.AdminTestClaims(1), []string{"admin:*"})
-
-		assert.Equal(t, http.StatusBadRequest, rr.Code)
-	})
-}
-
 func TestUpdateStudent_WithExcusedStatus(t *testing.T) {
 	t.Parallel()
 
@@ -232,22 +194,6 @@ func TestUpdateStudent_PersonFields(t *testing.T) {
 		assert.Contains(t, rr.Body.String(), "2015-06-15")
 	})
 
-	t.Run("clear_guardian_fields", func(t *testing.T) {
-		student := testpkg.CreateTestStudent(t, tc.db, "Guardian", "Clear", "GCL1")
-
-		guardian := testpkg.CreateTestGuardianProfileNamed(t, tc.db, "Parent", "Name", "parent@test.com")
-		testpkg.CreateTestStudentGuardianLink(t, tc.db, student.ID, guardian.ID, "parent")
-
-		// Clear guardian name by setting empty string
-		body := map[string]interface{}{
-			"guardian_name": "",
-		}
-		req := testutil.NewAuthenticatedRequest(t, "PUT", fmt.Sprintf("/%d", student.ID), body)
-
-		rr := authExec(t, tc, req, testutil.AdminTestClaims(1), []string{"admin:*"})
-
-		assert.Equal(t, http.StatusBadRequest, rr.Code)
-	})
 }
 
 func TestStudentRequestValidation(t *testing.T) {
@@ -289,22 +235,6 @@ func TestUpdateStudent_AllPersonFields(t *testing.T) {
 		assert.Equal(t, http.StatusOK, rr.Code, "Expected 200 OK. Body: %s", rr.Body.String())
 		assert.Contains(t, rr.Body.String(), "NewFirst")
 		assert.Contains(t, rr.Body.String(), "NewLast")
-	})
-
-	t.Run("update_guardian_fields", func(t *testing.T) {
-		student := testpkg.CreateTestStudent(t, tc.db, "Guardian", "Update", "GU1")
-
-		body := map[string]interface{}{
-			"guardian_first_name": "GuardianFirst",
-			"guardian_last_name":  "GuardianLast",
-			"guardian_email":      "guardian@example.com",
-			"guardian_phone":      "+49123456789",
-		}
-		req := testutil.NewAuthenticatedRequest(t, "PUT", fmt.Sprintf("/%d", student.ID), body)
-
-		rr := authExec(t, tc, req, testutil.AdminTestClaims(1), []string{"admin:*"})
-
-		assert.Equal(t, http.StatusBadRequest, rr.Code, "Expected 400 Bad Request. Body: %s", rr.Body.String())
 	})
 
 	t.Run("update_student_specific_fields", func(t *testing.T) {
@@ -356,55 +286,5 @@ func TestUpdateStudent_AllPersonFields(t *testing.T) {
 		rr := authExec(t, tc, req, testutil.AdminTestClaims(1), []string{"admin:*"})
 
 		assert.Equal(t, http.StatusOK, rr.Code, "Expected 200 OK. Body: %s", rr.Body.String())
-	})
-}
-
-func TestCreateStudent_ExtendedValidation(t *testing.T) {
-	t.Parallel()
-
-	tc := setupStudentsRoute(t)
-
-	t.Run("create_with_all_optional_fields", func(t *testing.T) {
-		body := map[string]interface{}{
-			"first_name":          "Complete",
-			"last_name":           "Student",
-			"school_class":        "3a",
-			"birthday":            "2015-03-20",
-			"gender":              "f",
-			"street":              "Main Street 42",
-			"city":                "Berlin",
-			"postal_code":         "10115",
-			"bus":                 true,
-			"extra_info":          "Test student with all fields",
-			"responsible_person":  "Teacher",
-			"responsible_phone":   "+49444555666",
-			"data_retention_days": 20,
-		}
-		req := testutil.NewAuthenticatedRequest(t, "POST", "/", body)
-
-		rr := authExec(t, tc, req, testutil.AdminTestClaims(1), []string{"admin:*"})
-
-		if rr.Code == http.StatusCreated || rr.Code == http.StatusOK {
-			// Cleanup created student
-			assert.Contains(t, rr.Body.String(), "Complete")
-		}
-	})
-
-	t.Run("create_with_group_assignment", func(t *testing.T) {
-		group := testpkg.CreateTestEducationGroup(t, tc.db, "AssignGroup")
-
-		body := map[string]interface{}{
-			"first_name":   "Group",
-			"last_name":    "Assigned",
-			"school_class": "4a",
-			"group_id":     group.ID,
-		}
-		req := testutil.NewAuthenticatedRequest(t, "POST", "/", body)
-
-		rr := authExec(t, tc, req, testutil.AdminTestClaims(1), []string{"admin:*"})
-
-		if rr.Code == http.StatusCreated || rr.Code == http.StatusOK {
-			assert.Contains(t, rr.Body.String(), "Group")
-		}
 	})
 }

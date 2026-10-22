@@ -441,10 +441,6 @@ func TestParentMessaging_ListGuardiansForStudent_ExcludesNoPortalAccess(t *testi
 	pickupProfile.TenantID = chain.TenantID
 	_, err := db.NewInsert().Model(pickupProfile).ModelTableExpr(`users.guardian_profiles`).ExcludeColumn("id", "created_at", "updated_at", "phone_numbers").Returning("*").Exec(context.Background())
 	require.NoError(t, err)
-	defer func() {
-		_, _ = db.ExecContext(context.Background(), `DELETE FROM users.guardian_profiles WHERE id = ?`, pickupProfile.ID)
-		_, _ = db.ExecContext(context.Background(), `DELETE FROM auth.accounts WHERE id = ?`, pickupAccount.ID)
-	}()
 
 	pickupLink := &testpkg.StudentGuardian{
 		StudentID:         chain.StudentID,

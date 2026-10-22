@@ -137,17 +137,18 @@ var moduleLegacyFileBudgets = map[string]int{}
 
 // moduleComposeBudgetTotal is the sum of moduleComposeBudgets. Shrink-only,
 // like every entry; raised by ADR 0063 and by ADR 0073 (the parent
-// announcement retention of modules/communication/composition), and by
-// ADR 0076 (the meal ordering rules) and ADR 0077 (the caterer flows and
-// the caterer portal).
-const moduleComposeBudgetTotal = 12470
+// announcement retention of modules/communication/composition).
+// Raised by ADR 0076: the restricted staff person repair compositions (+53).
+// Raised by ADR 0078 (the meal ordering rules) and ADR 0077 (the caterer
+// flows and the caterer portal).
+const moduleComposeBudgetTotal = 12523
 
 // moduleComposeBudgets maps every owner composition package to its production
 // LOC, first measured on 2026-10-15 on top of development c49b81c3a9: 61
 // packages, 90627 LOC. #4084 carries the reduction to construction only;
 // modules/timetable/compose is the largest by far. Shrink-only — a new owner
 // composition starts small and is no reason to raise the total; split code
-// keeps its LOC counted. ADR 0076 raised modules/mealplan/compose and
+// keeps its LOC counted. ADR 0078 raised modules/mealplan/compose and
 // workflows/parentportal/compose for the meal ordering rules.
 var moduleComposeBudgets = map[string]int{
 	"modules/appointments/compose":         45,
@@ -156,33 +157,35 @@ var moduleComposeBudgets = map[string]int{
 	"modules/careplan/requestfeed/compose": 53,
 	"modules/classday/compose":             213,
 	// Raised by ADR 0073: the parent announcement retention.
-	"modules/communication/composition":               367,
-	"modules/dataimport/compose":                      85,
-	"modules/dataimport/compose/imports":              29,
-	"modules/delivery/compose":                        361,
-	"modules/devicefleet/compose":                     219,
-	"modules/devicefleet/compose/repositoryadapter":   10,
-	"modules/devicescan/compose":                      531,
-	"modules/emergencysnapshot/compose":               13,
-	"modules/enrollment/compose":                      540,
-	"modules/exporttransfer/compose":                  149,
-	"modules/facilities/compose":                      184,
-	"modules/facilities/compose/repositoryadapter":    11,
-	"modules/feedback/compose":                        61,
-	"modules/filestorage/compose":                     217,
-	"modules/grouplive/compose":                       14,
-	"modules/guardianlinkview/compose":                8,
-	"modules/identityaccess/compose":                  1349, // raised by ADR 0077
-	"modules/mealplan/compose":                        74,   // raised by ADR 0076
-	"modules/organizationtenancy/compose":             253,
-	"modules/parentrequestfeedprojection/compose":     11,
-	"modules/peopledirectory/compose":                 963,
-	"modules/presenceprojection/compose":              7,
-	"modules/requestreview/compose":                   12,
-	"modules/schedulerruntime/compose":                45,
-	"modules/schoolcalendar/compose":                  148,
-	"modules/schoolcalendar/portal/compose":           112,
-	"modules/schoolmembership/compose":                185,
+	"modules/communication/composition":             367,
+	"modules/dataimport/compose":                    85,
+	"modules/dataimport/compose/imports":            29,
+	"modules/delivery/compose":                      361,
+	"modules/devicefleet/compose":                   219,
+	"modules/devicefleet/compose/repositoryadapter": 10,
+	"modules/devicescan/compose":                    531,
+	"modules/emergencysnapshot/compose":             13,
+	"modules/enrollment/compose":                    540,
+	"modules/exporttransfer/compose":                149,
+	"modules/facilities/compose":                    184,
+	"modules/facilities/compose/repositoryadapter":  11,
+	"modules/feedback/compose":                      61,
+	"modules/filestorage/compose":                   217,
+	"modules/grouplive/compose":                     14,
+	"modules/guardianlinkview/compose":              8,
+	"modules/identityaccess/compose":                1349, // raised by ADR 0077
+	"modules/mealplan/compose":                      74,   // raised by ADR 0078
+	"modules/organizationtenancy/compose":           253,
+	"modules/parentrequestfeedprojection/compose":   11,
+	// Raised by ADR 0076: the restricted administrative repair constructor.
+	"modules/peopledirectory/compose":       974,
+	"modules/presenceprojection/compose":    7,
+	"modules/requestreview/compose":         12,
+	"modules/schedulerruntime/compose":      45,
+	"modules/schoolcalendar/compose":        148,
+	"modules/schoolcalendar/portal/compose": 112,
+	// Raised by ADR 0076: the restricted administrative repair constructor.
+	"modules/schoolmembership/compose":                196,
 	"modules/schoolsetup/compose":                     56,
 	"modules/schoolstructure/compose":                 594,
 	"modules/settings/compose":                        308,
@@ -199,13 +202,15 @@ var moduleComposeBudgets = map[string]int{
 	"workflows/catererportal/compose":                 36, // added by ADR 0077
 	"workflows/gradetransition/compose":               49,
 	"workflows/openroommove/compose":                  46,
-	"workflows/parentportal/compose":                  308, // raised by ADR 0076
+	"workflows/parentportal/compose":                  308, // raised by ADR 0078
 	"workflows/reminderdelivery/compose":              30,
 	"workflows/sessionend/compose":                    59,
 	"workflows/shiftplansync/compose":                 124,
 	"workflows/staffclock/compose":                    36,
 	"workflows/staffoffboarding/compose":              79,
-	"workflows/studentdeletion/compose":               74,
+	// Added by ADR 0076: construction and the ambient transaction guard.
+	"workflows/staffpersonmerge/compose": 31,
+	"workflows/studentdeletion/compose":  74,
 }
 
 // moduleLegacyBudgets maps a legacy tree to its production LOC on 2026-09-18.

@@ -451,6 +451,10 @@ describe("TeachersPage", () => {
 
     render(<TeachersPage />);
 
+    // Anker: die Kopfaktion des zweiten Rechts ist da.
+    expect(
+      screen.getAllByLabelText("Personal hinzufügen").length,
+    ).toBeGreaterThan(0);
     expect(
       screen.queryByRole("link", { name: "Importieren" }),
     ).not.toBeInTheDocument();
@@ -472,6 +476,10 @@ describe("TeachersPage", () => {
 
     render(<TeachersPage />);
 
+    // Anker: die Importaktion von users:create ist da.
+    expect(
+      screen.getByRole("link", { name: "Importieren" }),
+    ).toBeInTheDocument();
     expect(
       screen.queryByLabelText("Personal hinzufügen"),
     ).not.toBeInTheDocument();

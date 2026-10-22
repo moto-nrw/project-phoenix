@@ -224,9 +224,9 @@ const modulePassthroughApplicationSegment = "/internal/application/"
 // modulePassthroughComposeBudgetTotal. Shrink-only, like every entry; raised
 // by ADR 0063 and by ADR 0064 (3,011 to 3,091), and by ADR 0073 (one each
 // for modules/communication and modules/schoolcalendar), by ADR 0077 (three
-// for modules/identityaccess) and by ADR 0076 (one for
+// for modules/identityaccess) and by ADR 0078 (one for
 // workflows/parentportal).
-const modulePassthroughOwnerBudgetTotal = 1422
+const modulePassthroughOwnerBudgetTotal = 1413
 
 // modulePassthroughOwnerBudgets is the register: module directory →
 // pass-throughs measured in its application layer and its compositions
@@ -255,10 +255,10 @@ var modulePassthroughOwnerBudgets = map[string]int{
 	"modules/feedback":       2,
 	"modules/filestorage":    6,
 	// Raised by ADR 0077: the caterer flows.
-	"modules/identityaccess":      221,
+	"modules/identityaccess":      218,
 	"modules/mealplan":            3,
 	"modules/organizationtenancy": 11,
-	"modules/peopledirectory":     210,
+	"modules/peopledirectory":     208,
 	"modules/requestreview":       15,
 	"modules/schedulerruntime":    4,
 	// Raised by ADR 0073: the feed cleanup keeps only the staff feed tombstones.
@@ -268,10 +268,10 @@ var modulePassthroughOwnerBudgets = map[string]int{
 	"modules/schoolstructure":  43,
 	"modules/settings":         19,
 	"modules/studentpresence":  120,
-	"modules/timetable":        208,
+	"modules/timetable":        204,
 	"modules/workforce":        144,
 	"workflows/openroommove":   1,
-	// Raised by ADR 0076: the week change of the meal plan adapter.
+	// Raised by ADR 0078: the week change of the meal plan adapter.
 	"workflows/parentportal": 18,
 }
 

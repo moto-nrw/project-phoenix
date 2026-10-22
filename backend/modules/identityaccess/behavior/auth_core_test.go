@@ -55,7 +55,6 @@ func authTestFactoryConfig(rateLimitEnabled bool) owners.ServiceConfig {
 // the call shape the tests were written against and drives the owner's
 // capability underneath, so every assertion still describes real behavior.
 type testAuthService interface {
-	identityaccess.ParentAccountAccess
 	identityaccess.AccountAuthentication
 	identityaccess.AccountSessionMaintenance
 	identityaccess.StaffPreview
@@ -99,7 +98,6 @@ func setupInvitationService(t *testing.T, db *bun.DB) api.InvitationCapability {
 // composed Identity & Access module.
 func newFixtureAuthService(t *testing.T, db *bun.DB, module identityaccess.Owner) *fixtureOwnedAuthService {
 	return &fixtureOwnedAuthService{
-		ParentAccountAccess:       module,
 		AccountAuthentication:     module,
 		AccountSessionMaintenance: module,
 		StaffPreview:              module,
@@ -113,7 +111,6 @@ func newFixtureAuthService(t *testing.T, db *bun.DB, module identityaccess.Owner
 }
 
 type fixtureOwnedAuthService struct {
-	identityaccess.ParentAccountAccess
 	identityaccess.AccountAuthentication
 	identityaccess.AccountSessionMaintenance
 	identityaccess.StaffPreview
@@ -1489,6 +1486,22 @@ func TestAuthService_RemoveRoleFromAccount(t *testing.T) {
 		assert.Empty(t, newAccessToken)
 		assert.Empty(t, newRefreshToken)
 	})
+
+	// The retired DELETE /auth/accounts/{id}/roles/{roleId} route (#4431)
+	// pinned this refusal over HTTP; offboarding and the caregiver capability
+	// still remove roles through this method.
+	t.Run("rejects an account without membership at this school", func(t *testing.T) {
+		email, username := uniqueTestCredentials("remove-role-foreign")
+		account, err := service.Register(ctx, email, username, testPassword, nil, 0)
+		require.NoError(t, err)
+
+		roleName := fmt.Sprintf("remove-role-foreign-%d", time.Now().UnixNano())
+		role, err := rbac.CreateRole(ctx, roleName, "foreign account", testpkg.StrPtr("user"))
+		require.NoError(t, err)
+
+		err = rbac.RemoveRoleFromAccount(ctx, account.ID, role.ID)
+		require.ErrorIs(t, err, identityaccess.ErrAccountNotFound)
+	})
 }
 
 // =============================================================================
@@ -1572,108 +1585,6 @@ func TestAuthService_ListPermissions(t *testing.T) {
 // =============================================================================
 // Parent Account Tests
 // =============================================================================
-
-func TestAuthService_CreateParentAccount(t *testing.T) {
-	t.Parallel()
-
-	db := testpkg.SetupTestDB(t)
-
-	service := setupAuthService(t, db)
-	ctx := testpkg.Ctx(t)
-
-	t.Run("creates parent account successfully", func(t *testing.T) {
-		// ARRANGE
-		uniqueID := fmt.Sprintf("%d", time.Now().UnixNano())
-		email := fmt.Sprintf("parent-%s@test.local", uniqueID)
-		username := fmt.Sprintf("parent-%s", uniqueID)
-
-		// ACT
-		account, err := service.CreateParentAccount(ctx, email, username, testPassword)
-
-		// ASSERT
-		require.NoError(t, err)
-		assert.NotNil(t, account)
-		assert.Greater(t, account.ID, int64(0))
-		assert.Equal(t, email, account.Email)
-	})
-
-	t.Run("returns error for duplicate email", func(t *testing.T) {
-		// ARRANGE
-		uniqueID := fmt.Sprintf("%d", time.Now().UnixNano())
-		email := fmt.Sprintf("dupparent-%s@test.local", uniqueID)
-		username1 := fmt.Sprintf("parent1-%s", uniqueID)
-		_, err := service.CreateParentAccount(ctx, email, username1, testPassword)
-		require.NoError(t, err)
-
-		// ACT
-		username2 := fmt.Sprintf("parent2-%s", uniqueID)
-		account, err := service.CreateParentAccount(ctx, email, username2, testPassword)
-
-		// ASSERT
-		require.Error(t, err)
-		assert.Zero(t, account)
-	})
-}
-
-func TestAuthService_GetParentAccountByID(t *testing.T) {
-	t.Parallel()
-
-	db := testpkg.SetupTestDB(t)
-
-	service := setupAuthService(t, db)
-	ctx := testpkg.Ctx(t)
-
-	t.Run("returns parent account when found", func(t *testing.T) {
-		// ARRANGE
-		uniqueID := fmt.Sprintf("%d", time.Now().UnixNano())
-		email := fmt.Sprintf("getparent-%s@test.local", uniqueID)
-		username := fmt.Sprintf("getparent-%s", uniqueID)
-		account, err := service.CreateParentAccount(ctx, email, username, testPassword)
-		require.NoError(t, err)
-
-		// ACT
-		result, err := service.GetParentAccountByID(ctx, account.ID)
-
-		// ASSERT
-		require.NoError(t, err)
-		assert.NotNil(t, result)
-		assert.Equal(t, account.ID, result.ID)
-	})
-
-	t.Run("returns error when not found", func(t *testing.T) {
-		// ACT
-		result, err := service.GetParentAccountByID(ctx, 99999999)
-
-		// ASSERT
-		require.Error(t, err)
-		assert.Zero(t, result)
-	})
-}
-
-func TestAuthService_ListParentAccounts(t *testing.T) {
-	t.Parallel()
-
-	db := testpkg.SetupTestDB(t)
-
-	service := setupAuthService(t, db)
-	ctx := testpkg.Ctx(t)
-
-	t.Run("returns parent accounts", func(t *testing.T) {
-		// ARRANGE
-		uniqueID := fmt.Sprintf("%d", time.Now().UnixNano())
-		email := fmt.Sprintf("listparent-%s@test.local", uniqueID)
-		username := fmt.Sprintf("listparent-%s", uniqueID)
-		_, err := service.CreateParentAccount(ctx, email, username, testPassword)
-		require.NoError(t, err)
-
-		// ACT
-		result, err := service.ListParentAccounts(ctx, identityaccess.ParentAccountFilter{})
-
-		// ASSERT
-		require.NoError(t, err)
-		assert.NotEmpty(t, result)
-	})
-}
 
 // =============================================================================
 // Permission Management Tests (Additional Coverage)
@@ -1977,14 +1888,6 @@ func TestAuthService_GetAccountsByRole(t *testing.T) {
 
 // NOTE: GetAccountsWithRolesAndPermissions test is skipped because the repository
 // uses unqualified table names that may not work in all test database configurations.
-
-// =============================================================================
-// Parent Account Tests (Additional Coverage)
-// =============================================================================
-
-// NOTE: GetParentAccountByEmail and UpdateParentAccount tests are skipped
-// because account_parents table may not exist in all test database configurations.
-// These methods are tested via API integration tests instead.
 
 // =============================================================================
 // Additional Permission Tests
@@ -2301,143 +2204,6 @@ func TestInvitationService_RevokeInvitation(t *testing.T) {
 // Parent Account Extended Tests
 // =============================================================================
 
-func TestAuthService_GetParentAccountByEmail(t *testing.T) {
-	t.Parallel()
-
-	db := testpkg.SetupTestDB(t)
-
-	service := setupAuthService(t, db)
-	ctx := testpkg.Ctx(t)
-
-	// NOTE: The "finds parent account by email" test is skipped because the repository
-	// uses an unqualified table name in some database configurations.
-	// The error path is still tested below.
-
-	t.Run("returns error for non-existent email", func(t *testing.T) {
-		// ACT - This exercises the service code path even with repository errors
-		result, err := service.GetParentAccountByEmail(ctx, "nonexistent-parent@test.local")
-
-		// ASSERT - Expect error (either not found or repository error)
-		require.Error(t, err)
-		assert.Zero(t, result)
-	})
-}
-
-func TestAuthService_UpdateParentAccount(t *testing.T) {
-	t.Parallel()
-
-	db := testpkg.SetupTestDB(t)
-
-	service := setupAuthService(t, db)
-	ctx := testpkg.Ctx(t)
-
-	t.Run("updates parent account successfully", func(t *testing.T) {
-		// ARRANGE
-		parentAccount, err := service.CreateParentAccount(ctx, fmt.Sprintf("update-test-%d@example.com", testpkg.Tenant(t)), "", testPassword)
-		require.NoError(t, err)
-
-		// Modify the account
-		newUsername := fmt.Sprintf("updated-username-%d", time.Now().UnixNano())
-		parentAccount.Username = newUsername
-
-		// ACT
-		err = service.UpdateParentAccount(ctx, parentAccount)
-
-		// ASSERT
-		require.NoError(t, err)
-
-		// Verify the update
-		updated, err := service.GetParentAccountByID(ctx, parentAccount.ID)
-		require.NoError(t, err)
-		assert.Equal(t, newUsername, updated.Username)
-	})
-
-	t.Run("returns error for non-existent account", func(t *testing.T) {
-		// ARRANGE
-		fakeAccount := identityaccess.ParentAccount{}
-		fakeAccount.ID = 99999999
-
-		// ACT
-		err := service.UpdateParentAccount(ctx, fakeAccount)
-
-		// ASSERT
-		require.Error(t, err)
-	})
-}
-
-func TestAuthService_ActivateParentAccount(t *testing.T) {
-	t.Parallel()
-
-	db := testpkg.SetupTestDB(t)
-
-	service := setupAuthService(t, db)
-	ctx := testpkg.Ctx(t)
-
-	t.Run("activates parent account successfully", func(t *testing.T) {
-		// ARRANGE
-		parentAccount, err := service.CreateParentAccount(ctx, fmt.Sprintf("activate-test-%d@example.com", testpkg.Tenant(t)), "", testPassword)
-		require.NoError(t, err)
-
-		// First deactivate
-		parentAccount.Active = false
-		err = service.UpdateParentAccount(ctx, parentAccount)
-		require.NoError(t, err)
-
-		// ACT
-		err = service.ActivateParentAccount(ctx, parentAccount.ID)
-
-		// ASSERT
-		require.NoError(t, err)
-
-		// Verify activation
-		updated, err := service.GetParentAccountByID(ctx, parentAccount.ID)
-		require.NoError(t, err)
-		assert.True(t, updated.Active)
-	})
-
-	t.Run("returns error for non-existent account", func(t *testing.T) {
-		// ACT
-		err := service.ActivateParentAccount(ctx, 99999999)
-
-		// ASSERT
-		require.Error(t, err)
-	})
-}
-
-func TestAuthService_DeactivateParentAccount(t *testing.T) {
-	t.Parallel()
-
-	db := testpkg.SetupTestDB(t)
-
-	service := setupAuthService(t, db)
-	ctx := testpkg.Ctx(t)
-
-	t.Run("deactivates parent account successfully", func(t *testing.T) {
-		// ARRANGE
-		parentAccount, err := service.CreateParentAccount(ctx, fmt.Sprintf("deactivate-test-%d@example.com", testpkg.Tenant(t)), "", testPassword)
-		require.NoError(t, err)
-
-		// ACT
-		err = service.DeactivateParentAccount(ctx, parentAccount.ID)
-
-		// ASSERT
-		require.NoError(t, err)
-
-		// Verify deactivation
-		updated, err := service.GetParentAccountByID(ctx, parentAccount.ID)
-		require.NoError(t, err)
-		assert.False(t, updated.Active)
-	})
-
-	t.Run("returns error for non-existent account", func(t *testing.T) {
-		// ACT
-		err := service.DeactivateParentAccount(ctx, 99999999)
-
-		// ASSERT
-		require.Error(t, err)
-	})
-}
-
 // =============================================================================
 // WithTenantTx Production Path Tests (Item 4)
 // =============================================================================
@@ -2598,15 +2364,6 @@ func TestAcceptInvitation_WithTenantID_CreatesAccountTenant(t *testing.T) {
 	// ASSERT
 	require.NoError(t, err)
 	require.NotNil(t, account)
-	defer func() {
-		// Clean up: staff, person, invitation tokens, then auth fixtures (includes account_tenants)
-		_, _ = db.ExecContext(context.Background(),
-			`DELETE FROM users.staff_school_memberships WHERE person_id IN (SELECT id FROM users.persons WHERE account_id = ?)`, account.ID)
-		_, _ = db.ExecContext(context.Background(),
-			`DELETE FROM users.persons WHERE account_id = ?`, account.ID)
-		_, _ = db.ExecContext(context.Background(),
-			`DELETE FROM auth.invitation_tokens WHERE email = ?`, email)
-	}()
 
 	// Verify account_tenant mapping was created
 	var tenantCount int
@@ -2686,12 +2443,6 @@ func TestAuthService_LinkAccountToTenant(t *testing.T) {
 			Scan(context.Background(), &roleCount)
 		require.NoError(t, err)
 		assert.Equal(t, 1, roleCount, "role should be assigned")
-
-		// Cleanup role assignment
-		_, _ = db.NewDelete().
-			TableExpr("auth.account_roles").
-			Where("account_id = ? AND role_id = ? AND tenant_id = ?", account.ID, roleID, tenantID).
-			Exec(context.Background())
 	})
 
 	t.Run("links an existing account with a system role", func(t *testing.T) {

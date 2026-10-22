@@ -5,9 +5,7 @@ import (
 	"errors"
 	"log/slog"
 	"net/http"
-	"strconv"
 
-	"github.com/go-chi/chi/v5"
 	"github.com/moto-nrw/project-phoenix/modules/schoolmembership"
 )
 
@@ -40,7 +38,7 @@ func statusOf(kind FailureKind) int {
 
 // parseStaffID reads the {id} path parameter.
 func (rs *Resource) parseStaffID(w http.ResponseWriter, r *http.Request) (int64, bool) {
-	id, err := strconv.ParseInt(chi.URLParam(r, "id"), 10, 64)
+	id, err := rs.runtime.ParseIDParam(r, "id")
 	if err != nil || id <= 0 {
 		rs.failure(w, r, FailureInvalidRequest, errors.New(msgInvalidStaffID), "invalid_parameters")
 		return 0, false

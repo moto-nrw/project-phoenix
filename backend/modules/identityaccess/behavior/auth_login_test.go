@@ -66,14 +66,6 @@ func newLoginGateScenario(t *testing.T, options ...api.AuthTestOption) *loginGat
 	testpkg.EnsureTestTenant(t, db, tenantID)
 	testpkg.EnsureAccountTenant(t, db, acc.ID, tenantID)
 
-	t.Cleanup(func() {
-		ctx := context.Background()
-		_, _ = db.NewDelete().Table("auth.mfa_credentials").Where("account_id = ?", acc.ID).Exec(ctx)
-		_, _ = db.NewDelete().Table("auth.mfa_email_challenges").Where("account_id = ?", acc.ID).Exec(ctx)
-		_, _ = db.NewDelete().Table("auth.account_tenants").Where("account_id = ?", acc.ID).Exec(ctx)
-		_, _ = db.NewDelete().Table("auth.accounts").Where("id = ?", acc.ID).Exec(ctx)
-	})
-
 	return &loginGateScenario{
 		t: t, db: db, svc: svc, mfa: module.MFA,
 		accountID: acc.ID, email: emailAddr, tenantID: tenantID,

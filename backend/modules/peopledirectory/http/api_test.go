@@ -13,6 +13,7 @@ import (
 	"github.com/go-chi/render"
 	"github.com/moto-nrw/project-phoenix/modules/peopledirectory"
 	usersHTTP "github.com/moto-nrw/project-phoenix/modules/peopledirectory/http"
+	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -173,6 +174,7 @@ func newHarness(t *testing.T, directory *fakeDirectory) *harness {
 		ObserveResponse: func(status int, code string) {
 			h.observed = append(h.observed, http.StatusText(status)+":"+code)
 		},
+		ParseIDParam: testpkg.ParseHTTPIDParam,
 	})
 	h.router = chi.NewRouter()
 	h.router.Mount("/users", resource.Router())
@@ -286,6 +288,9 @@ func TestGetPersonAddsAccountEmailAndMapsNotFound(t *testing.T) {
 	invalid := h.do(t, http.MethodGet, "/users/abc", nil)
 	assert.Equal(t, http.StatusBadRequest, invalid.Code)
 	assert.Equal(t, "invalid person ID", decodeError(t, invalid).Detail)
+	nonPositive := h.do(t, http.MethodGet, "/users/0", nil)
+	assert.Equal(t, http.StatusBadRequest, nonPositive.Code)
+	assert.Equal(t, "invalid person ID", decodeError(t, nonPositive).Detail)
 	assert.Contains(t, h.observed, "Not Found:not_found")
 	assert.Contains(t, h.observed, "Bad Request:invalid_parameters")
 }

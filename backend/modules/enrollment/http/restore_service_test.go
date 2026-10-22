@@ -34,21 +34,13 @@ func listRestorationAuditRows(t *testing.T, env *decisionTestEnv, requestID int6
 		Where(`"enrollment_restoration".request_id = ?`, requestID).
 		Scan(ctx)
 	require.NoError(t, err)
-	t.Cleanup(func() {
-		_, _ = env.db.NewDelete().
-			Model((*api.EnrollmentFlowRestorationAudit)(nil)).
-			ModelTableExpr(`audit.enrollment_restorations AS "enrollment_restoration"`).
-			Where(`"enrollment_restoration".request_id = ?`, requestID).
-			Exec(testpkg.Ctx(t))
-	})
 	return rows
 }
 
 func TestDecisionService_RestoreWithdrawn_HappyPath(t *testing.T) {
 	t.Parallel()
 
-	env, cleanup := setupDecisionTest(t)
-	defer cleanup()
+	env := setupDecisionTest(t)
 	ctx := testpkg.Ctx(t)
 
 	result := submitDecisionSiblings(t, env, "restore-happy@example.com")
@@ -89,8 +81,7 @@ func TestDecisionService_RestoreWithdrawn_HappyPath(t *testing.T) {
 func TestDecisionService_RestoreWithdrawn_TerminalSiblingUntouched(t *testing.T) {
 	t.Parallel()
 
-	env, cleanup := setupDecisionTest(t)
-	defer cleanup()
+	env := setupDecisionTest(t)
 	ctx := testpkg.Ctx(t)
 
 	result := submitDecisionSiblings(t, env, "restore-partial@example.com")
@@ -131,15 +122,12 @@ func TestDecisionService_RestoreWithdrawn_TerminalSiblingUntouched(t *testing.T)
 	restoredReq, err := enrollmentAPI.ReadOwnerRequestForTest(ctx, env.repos.Enrollment(), reqID)
 	require.NoError(t, err)
 	assert.Nil(t, restoredReq.WithdrawnAt)
-
-	listRestorationAuditRows(t, env, reqID) // registers audit cleanup
 }
 
 func TestDecisionService_RestoreWithdrawn_NothingWithdrawn(t *testing.T) {
 	t.Parallel()
 
-	env, cleanup := setupDecisionTest(t)
-	defer cleanup()
+	env := setupDecisionTest(t)
 	ctx := testpkg.Ctx(t)
 
 	reqID, _ := submitOneChild(t, env, "restore-nothing@example.com", "Nia", "Nichts")
@@ -152,8 +140,7 @@ func TestDecisionService_RestoreWithdrawn_NothingWithdrawn(t *testing.T) {
 func TestDecisionService_RestoreWithdrawn_NotFound(t *testing.T) {
 	t.Parallel()
 
-	env, cleanup := setupDecisionTest(t)
-	defer cleanup()
+	env := setupDecisionTest(t)
 	ctx := testpkg.Ctx(t)
 
 	_, err := env.decision.RestoreWithdrawn(ctx, 99_999_999, env.creatorID)
@@ -164,8 +151,7 @@ func TestDecisionService_RestoreWithdrawn_NotFound(t *testing.T) {
 func TestDecisionService_RestoreWithdrawn_LoadFailurePreservesError(t *testing.T) {
 	t.Parallel()
 
-	env, cleanup := setupDecisionTest(t)
-	defer cleanup()
+	env := setupDecisionTest(t)
 
 	// A failed request load (here: canceled context) must keep its cause
 	// instead of collapsing into the 404 sentinel — the handler's
@@ -183,8 +169,7 @@ func TestDecisionService_RestoreWithdrawn_LoadFailurePreservesError(t *testing.T
 func TestDecisionService_RestoreWithdrawn_PhaseInactive(t *testing.T) {
 	t.Parallel()
 
-	env, cleanup := setupDecisionTest(t)
-	defer cleanup()
+	env := setupDecisionTest(t)
 	ctx := testpkg.Ctx(t)
 
 	result := submitDecisionSiblings(t, env, "restore-inactive@example.com")
@@ -230,8 +215,7 @@ func newRestoreDecisionServiceForRequestEnv(t *testing.T, env *requestTestEnv) e
 func TestDecisionService_RestoreWithdrawn_WaitlistsOverCapacityChildren(t *testing.T) {
 	t.Parallel()
 
-	env, cleanup := setupRequestTest(t)
-	defer cleanup()
+	env := setupRequestTest(t)
 	ctx := testpkg.Ctx(t)
 	setPhaseOverflowMode(t, env, capability.PhaseCareOverflowWaitlist)
 	offering := setupCareOfferingForCapacity(t, env, 1)
@@ -279,8 +263,7 @@ func TestDecisionService_RestoreWithdrawn_WaitlistsOverCapacityChildren(t *testi
 func TestDecisionService_RestoreWithdrawn_FreeSlotComesBackSubmitted(t *testing.T) {
 	t.Parallel()
 
-	env, cleanup := setupRequestTest(t)
-	defer cleanup()
+	env := setupRequestTest(t)
 	ctx := testpkg.Ctx(t)
 	setPhaseOverflowMode(t, env, capability.PhaseCareOverflowWaitlist)
 	offering := setupCareOfferingForCapacity(t, env, 1)
@@ -329,8 +312,7 @@ func setOfferingInterval(t *testing.T, db *bun.DB, requestChildID int64, validFr
 func TestDecisionService_RestoreWithdrawn_DisjointIntervalNotWaitlisted(t *testing.T) {
 	t.Parallel()
 
-	env, cleanup := setupRequestTest(t)
-	defer cleanup()
+	env := setupRequestTest(t)
 	ctx := testpkg.Ctx(t)
 	setPhaseOverflowMode(t, env, capability.PhaseCareOverflowWaitlist)
 	offering := setupCareOfferingForCapacity(t, env, 1)
@@ -376,8 +358,7 @@ func TestDecisionService_RestoreWithdrawn_DisjointIntervalNotWaitlisted(t *testi
 func TestDecisionService_RestoreWithdrawn_OverlappingIntervalsShareCapacity(t *testing.T) {
 	t.Parallel()
 
-	env, cleanup := setupRequestTest(t)
-	defer cleanup()
+	env := setupRequestTest(t)
 	ctx := testpkg.Ctx(t)
 	setPhaseOverflowMode(t, env, capability.PhaseCareOverflowWaitlist)
 	offering := setupCareOfferingForCapacity(t, env, 2)
@@ -432,8 +413,7 @@ func TestDecisionService_RestoreWithdrawn_OverlappingIntervalsShareCapacity(t *t
 func TestDecisionService_RestoreWithdrawn_RejectModeFailsWhenFull(t *testing.T) {
 	t.Parallel()
 
-	env, cleanup := setupRequestTest(t)
-	defer cleanup()
+	env := setupRequestTest(t)
 	ctx := testpkg.Ctx(t)
 	setPhaseOverflowMode(t, env, capability.PhaseCareOverflowReject)
 	offering := setupCareOfferingForCapacity(t, env, 1)
@@ -468,8 +448,7 @@ func TestDecisionService_RestoreWithdrawn_RejectModeFailsWhenFull(t *testing.T) 
 func TestDecisionService_RestoreWithdrawn_BlockedByActiveDuplicate(t *testing.T) {
 	t.Parallel()
 
-	env, cleanup := setupDecisionTest(t)
-	defer cleanup()
+	env := setupDecisionTest(t)
 	ctx := testpkg.Ctx(t)
 
 	// The production scenario from #2156: withdraw, then re-submit the same

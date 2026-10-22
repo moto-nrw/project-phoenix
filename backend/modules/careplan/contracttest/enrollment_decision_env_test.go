@@ -168,17 +168,17 @@ type decisionTestEnv struct {
 	bookings careplan.BookingMaterializationCapability
 }
 
-func setupDecisionTest(t *testing.T) (*decisionTestEnv, func()) {
+func setupDecisionTest(t *testing.T) *decisionTestEnv {
 	// nil Settings exercises the safe default (scheduled).
 	return setupDecisionTestWithSettings(t, nil)
 }
 
-func setupDecisionTestWithSettings(t *testing.T, settings owners.EnrollmentDecisionSettings) (*decisionTestEnv, func()) {
+func setupDecisionTestWithSettings(t *testing.T, settings owners.EnrollmentDecisionSettings) *decisionTestEnv {
 	t.Helper()
 	return setupEnrollmentTestEnv(t, settings)
 }
 
-func setupEnrollmentTestEnv(t *testing.T, decisionSettings owners.EnrollmentDecisionSettings) (*decisionTestEnv, func()) {
+func setupEnrollmentTestEnv(t *testing.T, decisionSettings owners.EnrollmentDecisionSettings) *decisionTestEnv {
 	t.Helper()
 	db := testpkg.SetupTestDB(t)
 	testpkg.EnsureTestTenant(t, db, testpkg.Tenant(t))
@@ -270,52 +270,7 @@ func setupEnrollmentTestEnv(t *testing.T, decisionSettings owners.EnrollmentDeci
 		decision:        enrollmentTest.WithDecisionUnit(enrollmentTest.NewPublicDecisions(decisions), fixtureEnrollmentCommand),
 		bookings:        bookings,
 	}
-	return env, func() { cleanupEnrollmentTestEnv(db, testpkg.Tenant(t), sourcePhase.ID, account.ID) }
-}
-
-func cleanupEnrollmentTestEnv(db *bun.DB, tenantID, phaseID, accountID int64) {
-	bg := context.Background()
-	_, _ = db.NewRaw(`
-		WITH phase_scope AS (
-			SELECT id
-			FROM enrollment.phases
-			WHERE tenant_id = ?
-			  AND (id = ? OR rollover_source_phase_id = ?)
-		)
-		DELETE FROM enrollment.care_offering_bookings rco
-		USING enrollment.request_children rc, enrollment.requests r, phase_scope ps
-		WHERE rco.request_child_id = rc.id
-		  AND rc.request_id = r.id
-		  AND r.phase_id = ps.id
-	`, tenantID, phaseID, phaseID).Exec(bg)
-	_, _ = db.NewRaw(`
-		WITH phase_scope AS (
-			SELECT id
-			FROM enrollment.phases
-			WHERE tenant_id = ?
-			  AND (id = ? OR rollover_source_phase_id = ?)
-		)
-		DELETE FROM enrollment.request_children rc
-		USING enrollment.requests r, phase_scope ps
-		WHERE rc.request_id = r.id
-		  AND r.phase_id = ps.id
-	`, tenantID, phaseID, phaseID).Exec(bg)
-	_, _ = db.NewRaw(`
-		DELETE FROM enrollment.requests r
-		USING enrollment.phases p
-		WHERE r.phase_id = p.id
-		  AND p.tenant_id = ?
-		  AND (p.id = ? OR p.rollover_source_phase_id = ?)
-	`, tenantID, phaseID, phaseID).Exec(bg)
-	_, _ = db.NewDelete().TableExpr("enrollment.care_offerings").
-		Where("phase_id IN (SELECT id FROM enrollment.phases WHERE tenant_id = ? AND (id = ? OR rollover_source_phase_id = ?))",
-			tenantID, phaseID, phaseID).Exec(bg)
-	_, _ = db.NewDelete().TableExpr("enrollment.submission_rate_limits").
-		Where("tenant_id = ? AND key_value LIKE ?", tenantID, "%@example.com").Exec(bg)
-	_, _ = db.NewDelete().TableExpr("enrollment.phases").
-		Where("tenant_id = ? AND (id = ? OR rollover_source_phase_id = ?)", tenantID, phaseID, phaseID).Exec(bg)
-	_, _ = db.NewDelete().TableExpr("enrollment.form_schemas").Where("created_by = ?", accountID).Exec(bg)
-	_, _ = db.NewDelete().TableExpr("auth.accounts").Where("id = ?", accountID).Exec(bg)
+	return env
 }
 
 // newDecisionServiceForTestWithCareWithdrawal composes a decision flow over
@@ -715,25 +670,6 @@ func (d offeringStudentTestDirectory) ListOfferingStudents(ctx context.Context, 
 
 func approvedOfferingTestProjection(repos *api.EnrollmentSuiteRepositories, reposPeople *api.PeopleRepositorySuiteFactory) *enrollmentTest.ApprovedOfferingProjection {
 	return enrollmentTest.NewApprovedOfferingProjection(repos.Enrollment(), offeringStudentTestDirectory{reposPeople.Student})
-}
-
-func wipePhases(db *bun.DB, tenantID int64, names ...string) {
-	if len(names) == 0 {
-		// No-op when no names — protects against accidental tenant-wide
-		// wipes in shared-tenant tests.
-		return
-	}
-	_, _ = db.NewDelete().
-		TableExpr("enrollment.phases").
-		Where("tenant_id = ? AND name IN (?)", tenantID, bun.List(names)).
-		Exec(context.Background())
-}
-
-func wipeOfferings(db *bun.DB, tenantID, phaseID int64) {
-	_, _ = db.NewDelete().
-		TableExpr("enrollment.care_offerings").
-		Where("tenant_id = ? AND phase_id = ?", tenantID, phaseID).
-		Exec(context.Background())
 }
 
 func runInTenantTx(t *testing.T, db *bun.DB, tenantID int64, fn func(ctx context.Context) error) error {

@@ -3,7 +3,6 @@ package schedulerecords
 import (
 	"strings"
 	"testing"
-	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -114,20 +113,6 @@ func TestIsValidAttendanceSubstatus(t *testing.T) {
 	}
 	assert.False(t, IsValidAttendanceSubstatus(""))
 	assert.False(t, IsValidAttendanceSubstatus("unknown"))
-}
-
-func TestInstanceStudent_EntityInterface(t *testing.T) {
-	t.Parallel()
-
-	now := time.Date(2026, 4, 20, 12, 0, 0, 0, time.UTC)
-	s := &InstanceStudent{}
-	s.ID = 42
-	s.CreatedAt = now
-	s.UpdatedAt = now.Add(time.Minute)
-
-	assert.Equal(t, int64(42), s.ID)
-	assert.Equal(t, now, s.CreatedAt)
-	assert.Equal(t, now.Add(time.Minute), s.UpdatedAt)
 }
 
 func TestAttendanceFieldPatch_HasChanges(t *testing.T) {

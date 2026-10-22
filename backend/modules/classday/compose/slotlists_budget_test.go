@@ -13,7 +13,8 @@ import (
 // TestBuildList_QueryBudget records the projection's statement count for a
 // slot reconciliation and pins it against the register (#2701, #2940): every
 // read over the owner facades is a bulk load by ID set, so the count must not
-// move when the roster grows from three to eight children.
+// move when the roster grows from three to eight children. The projection is
+// read-only: it issues no DML and writes no row.
 func TestBuildList_QueryBudget(t *testing.T) {
 	t.Parallel()
 	db := testpkg.SetupIsolatedTestDB(t)
@@ -30,6 +31,11 @@ func TestBuildList_QueryBudget(t *testing.T) {
 		})
 		require.NoError(t, err)
 		require.Len(t, result.Rows, rows)
+		// Moved from the opt-in TestSlotListRuntime (#4426).
+		require.Zero(t, counter.WriteRows(), "the projection must never write")
+		for _, operation := range []string{"INSERT", "UPDATE", "DELETE", "MERGE"} {
+			require.Empty(t, counter.Operation(operation), "the projection must not issue DML")
+		}
 		return counter.Total()
 	}
 

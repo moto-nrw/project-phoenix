@@ -58,7 +58,6 @@ var seedCoverageExemptions = map[string]string{
 	"audit.wc_alias_migration_backup":   "empty in prod too",
 
 	"auth.account_permissions":                  "direct account grants are retired (#4485); nothing writes the table and it is dropped in a follow-up migration",
-	"auth.accounts_parents":                     "empty in prod too",
 	"auth.demo_accesses":                        "prospect contact data of the public demo; its routes exist under APP_ENV=demo only and the seeder must not invent prospects",
 	"auth.caterer_accounts":                     "a caterer exists only through the link its school mails to it, which no API returns (ADR 0077); the seeder cannot accept an invitation it never receives",
 	"auth.caterer_invitations":                  "a caterer exists only through the link its school mails to it, which no API returns (ADR 0077); the seeder cannot accept an invitation it never receives",
@@ -114,7 +113,6 @@ var seedCoverageExemptions = map[string]string{
 	"users.class_list_entries":            "not in prod yet (migration newer than the deployed image)",
 	"users.parent_announcement_responses": "empty in prod too",
 	"users.parent_request_rss_feeds":      "user-created capability credential; seeding only its hash would create an unusable subscription",
-	"users.persons_guardians":             "empty in prod too",
 	"users.profiles":                      "legacy compatibility table; current account provisioning uses persons plus typed staff/guardian records",
 	"users.staff_document_file_cleanup":   "empty in prod too",
 	"users.staff_documents":               "empty in prod too",

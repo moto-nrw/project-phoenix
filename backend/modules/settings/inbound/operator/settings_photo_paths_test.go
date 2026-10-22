@@ -76,13 +76,6 @@ func TestOperatorSetSchoolSettingValue_StudentPhotosEnabled_ReturnsSlug(t *testi
 	t.Parallel()
 	ctx := setupOperatorSettingsWithSchoolRepoRoute(t)
 
-	// Reset prior override so the test starts clean.
-	t.Cleanup(func() {
-		_, _ = ctx.db.ExecContext(context.Background(),
-			`DELETE FROM config.setting_values WHERE tenant_id = ? AND setting_key = ?`,
-			testpkg.Tenant(t), settings.KeyStudentPhotosEnabled)
-	})
-
 	body := map[string]interface{}{"value": true}
 	req := newOperatorRequest(t, http.MethodPut,
 		fmt.Sprintf("/schools/%d/settings/values/", testpkg.Tenant(t))+settings.KeyStudentPhotosEnabled, body)
@@ -121,12 +114,6 @@ func TestOperatorResetSchoolSettingValue_StudentPhotosEnabled_ReturnsSlug(t *tes
 		map[string]interface{}{"value": true})
 	require.Equal(t, http.StatusOK, testutil.ExecuteRequest(ctx.router, setReq).Code)
 
-	t.Cleanup(func() {
-		_, _ = ctx.db.ExecContext(context.Background(),
-			`DELETE FROM config.setting_values WHERE tenant_id = ? AND setting_key = ?`,
-			testpkg.Tenant(t), settings.KeyStudentPhotosEnabled)
-	})
-
 	resetReq := newOperatorRequest(t, http.MethodDelete,
 		fmt.Sprintf("/schools/%d/settings/values/", testpkg.Tenant(t))+settings.KeyStudentPhotosEnabled, nil)
 	rr := testutil.ExecuteRequest(ctx.router, resetReq)
@@ -154,12 +141,6 @@ func TestOperatorResetSchoolSettingValue_StudentPhotosEnabled_ReturnsSlug(t *tes
 func TestOperatorSetSchoolSettingValue_StudentPhotosEnabled_HookFires(t *testing.T) {
 	t.Parallel()
 	ctx := setupOperatorSettingsWithSchoolRepoRoute(t)
-
-	t.Cleanup(func() {
-		_, _ = ctx.db.ExecContext(context.Background(),
-			`DELETE FROM config.setting_values WHERE tenant_id = ? AND setting_key = ?`,
-			testpkg.Tenant(t), settings.KeyStudentPhotosEnabled)
-	})
 
 	var hookCalled bool
 	var capturedKey string
@@ -202,12 +183,6 @@ func TestOperatorResetSchoolSettingValue_StudentPhotosEnabled_HookFiresWithDefau
 		fmt.Sprintf("/schools/%d/settings/values/", testpkg.Tenant(t))+settings.KeyStudentPhotosEnabled,
 		map[string]interface{}{"value": true})
 	require.Equal(t, http.StatusOK, testutil.ExecuteRequest(ctx.router, setReq).Code)
-
-	t.Cleanup(func() {
-		_, _ = ctx.db.ExecContext(context.Background(),
-			`DELETE FROM config.setting_values WHERE tenant_id = ? AND setting_key = ?`,
-			testpkg.Tenant(t), settings.KeyStudentPhotosEnabled)
-	})
 
 	var hookCalled bool
 	var capturedValue any

@@ -628,33 +628,6 @@ export function getWeekNumber(date: Date): number {
 }
 
 /**
- * Returns array of compliance warnings for a work session
- * @param session - Work session with calculated fields
- * @returns Array of warning messages
- */
-export function getComplianceWarnings(session: WorkSessionHistory): string[] {
-  const warnings: string[] = [];
-
-  if (session.restPeriodWarning) {
-    warnings.push(session.restPeriodWarning);
-  }
-
-  if (!session.isBreakCompliant && session.netMinutes > 0) {
-    if (session.netMinutes > 540 && session.breakMinutes < 45) {
-      warnings.push("Pausenzeit < 45min bei >9h Arbeitszeit");
-    } else if (session.netMinutes > 360 && session.breakMinutes < 30) {
-      warnings.push("Pausenzeit < 30min bei >6h Arbeitszeit");
-    }
-  }
-
-  if (session.autoCheckedOut) {
-    warnings.push("Automatisch ausgestempelt");
-  }
-
-  return warnings;
-}
-
-/**
  * Calculates net working minutes from check-in/out times and break
  * @param checkIn - Check-in ISO timestamp
  * @param checkOut - Check-out ISO timestamp (null if still active)

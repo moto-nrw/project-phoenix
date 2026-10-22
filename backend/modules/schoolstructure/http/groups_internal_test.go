@@ -6,78 +6,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/modules/peopledirectory"
 	"github.com/stretchr/testify/assert"
 )
-
-// =============================================================================
-// buildNoRoomResponse Tests
-// =============================================================================
-
-func TestBuildNoRoomResponse_EmptyStudents(t *testing.T) {
-	t.Parallel()
-
-	students := []peopledirectory.StudentRecord{}
-
-	result := buildNoRoomResponse(students)
-
-	assert.False(t, result["group_has_room"].(bool))
-	statusMap := result["student_room_status"].(map[string]interface{})
-	assert.Empty(t, statusMap)
-}
-
-func TestBuildNoRoomResponse_SingleStudent(t *testing.T) {
-	t.Parallel()
-
-	students := []peopledirectory.StudentRecord{
-		{ID: 1},
-	}
-
-	result := buildNoRoomResponse(students)
-
-	assert.False(t, result["group_has_room"].(bool))
-	statusMap := result["student_room_status"].(map[string]interface{})
-	assert.Len(t, statusMap, 1)
-
-	studentStatus := statusMap["1"].(map[string]interface{})
-	assert.False(t, studentStatus["in_group_room"].(bool))
-	assert.Equal(t, "group_no_room", studentStatus["reason"])
-}
-
-func TestBuildNoRoomResponse_MultipleStudents(t *testing.T) {
-	t.Parallel()
-
-	students := []peopledirectory.StudentRecord{
-		{ID: 10},
-		{ID: 20},
-		{ID: 30},
-	}
-
-	result := buildNoRoomResponse(students)
-
-	assert.False(t, result["group_has_room"].(bool))
-	statusMap := result["student_room_status"].(map[string]interface{})
-	assert.Len(t, statusMap, 3)
-
-	// Verify all students have correct status
-	for _, id := range []string{"10", "20", "30"} {
-		studentStatus := statusMap[id].(map[string]interface{})
-		assert.False(t, studentStatus["in_group_room"].(bool))
-		assert.Equal(t, "group_no_room", studentStatus["reason"])
-	}
-}
-
-func TestBuildNoRoomResponse_NilStudentsList(t *testing.T) {
-	t.Parallel()
-
-	var students []peopledirectory.StudentRecord
-
-	result := buildNoRoomResponse(students)
-
-	assert.False(t, result["group_has_room"].(bool))
-	statusMap := result["student_room_status"].(map[string]interface{})
-	assert.Empty(t, statusMap)
-}
 
 // =============================================================================
 // Request Type Tests

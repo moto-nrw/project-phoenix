@@ -52,7 +52,6 @@ func parent(table string) tableRetention { return tableRetention{class: withPare
 func notPersonal(why string) tableRetention {
 	return tableRetention{class: noPersonalData, detail: why}
 }
-func undecided(what string) tableRetention { return tableRetention{class: openGap, detail: what} }
 func schoolDeletes(how string) tableRetention {
 	return tableRetention{class: controllerDeletes, detail: how}
 }
@@ -66,7 +65,7 @@ var openSpecTickets = []string{}
 // The gap lists only shrink: closing a gap lowers its count, a new gap fails.
 const (
 	specGapTables = 0
-	openGapTables = 1
+	openGapTables = 0
 	// schoolDeletesTables keeps the class of #4045 (ADR 0073) closed: a new
 	// table with personal data gets a deletion path, not this class.
 	schoolDeletesTables = 2
@@ -142,7 +141,6 @@ var tableRetentions = map[string]tableRetention{
 	"auth.account_roles":                                    parent("auth.accounts"),
 	"auth.account_tenants":                                  parent("auth.accounts"),
 	"auth.accounts":                                         own("anonymized, not deleted, so messages, protocols and records of other people keep their reference: hourly token-cleanup, EraseUnusedAccounts -> SQL auth.erase_unused_accounts once no school needs the account (#4043)"),
-	"auth.accounts_parents":                                 undecided("legacy parent accounts (e-mail, username) without a deletion path; removal of table and legacy API in #4329"),
 	"auth.demo_accesses":                                    own("demo process only: hourly demoExpiry -> ExpireDemoAccesses -> DeleteExpiredDemoAccesses"),
 	"auth.caterer_accounts":                                 notPersonal("link of a login account to its caterer business; an erased account keeps it, as a tombstone that cannot sign in"),
 	"auth.caterer_schools":                                  notPersonal("which school a caterer supplies and since when; no person"),
@@ -308,7 +306,6 @@ var tableRetentions = map[string]tableRetention{
 	"users.parent_request_rss_feeds":                        parent("auth.accounts"),
 	"users.parent_request_share_events":                     parent("users.student_profiles"),
 	"users.persons":                                         own("anonymized, not deleted, so records of other people keep their reference: the student deletion (#3962) and the nightly retention step staff_retention (#3963) -> AnonymizeRetiredStaffPerson replace name, birthday, tag and account"),
-	"users.persons_guardians":                               parent("users.persons"),
 	"users.privacy_consents":                                parent("users.student_profiles"),
 	"users.profiles":                                        parent("auth.accounts"),
 	"users.rfid_cards":                                      notPersonal("RFID tag registry"),

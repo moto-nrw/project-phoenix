@@ -33,6 +33,9 @@ type queryBudget struct {
 // The counts are what the fixture-sized scenario in the referenced test
 // issues; small fixtures are enough because N+1 shows up at N=3 already.
 var queryBudgets = map[string]queryBudget{
+	// Operator-reviewed staff person repairs read all school people and
+	// employments in two bulk queries, independent of the number of cases.
+	"api.operator.staff_person_merge.preview": {max: 2, exact: true},
 	// services — the operator device listing, organizationtenancy
 	// Provisioning.ListAllDevices (#2676, #3253), inside the request's
 	// administrative transaction. Three statements: school summaries,
@@ -240,7 +243,6 @@ var queryBudgets = map[string]queryBudget{
 	"modules.timetable.enrollments.list":         {max: 1, exact: true},
 	"modules.timetable.timeframes.list":          {max: 1, exact: true},
 	"modules.timetable.planning_tracks.list":     {max: 1, exact: true},
-	"modules.timetable.recurrence_rules.list":    {max: 1, exact: true},
 	"modules.timetable.activity_exceptions.list": {max: 1, exact: true},
 	"modules.timetable.activity_instances.list":  {max: 1, exact: true},
 	"modules.timetable.instance_staff.list":      {max: 1, exact: true},
@@ -306,6 +308,18 @@ var queryBudgets = map[string]queryBudget{
 	// the same statement as the row, where the retained repository needed a
 	// second one to reach the scan-only columns.
 	"modules.emergencysnapshot.snapshot": {max: 9, exact: true},
+	// modules/dataimport/importtest — one ten-row student file after two
+	// warmups, the bounds TestDataImportRuntimeEvidence asserted until it
+	// became opt-in (#4426). The preview is exact; the import is a ceiling
+	// (six owner statements per guardian link, three lock statements per
+	// child since #3567).
+	"modules.dataimport.student_batch.preview": {max: 16, exact: true},
+	"modules.dataimport.student_batch.import":  {max: 324},
+	// The same file at 110 rows. The preview reads one person per row
+	// (6 + 1 per row), the import grows by about 31 statements per row; a
+	// further per-row statement moves these counts by 110.
+	"modules.dataimport.student_batch.preview_110": {max: 116, exact: true},
+	"modules.dataimport.student_batch.import_110":  {max: 3432},
 	// modules/requestreview/compose — #3179: the open review page of one
 	// child with one request in each of the four native queues (the RLS
 	// proof fixture), inside one tenant transaction: the urgent and the

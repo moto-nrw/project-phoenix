@@ -7,6 +7,7 @@
 package contracttest_test
 
 import (
+	"fmt"
 	"testing"
 
 	peopleValues "github.com/moto-nrw/project-phoenix/modules/peopledirectory"
@@ -516,8 +517,9 @@ func TestPersonService_LinkToRFIDCard(t *testing.T) {
 	t.Run("auto-creates RFID card if not exists", func(t *testing.T) {
 		// ARRANGE
 		person := testpkg.CreateTestPerson(t, db, "AutoCreate", "RFID")
-		// Use valid hexadecimal format for RFID card ID
-		newTagID := "ABCDEF1234567890"
+		// Use valid hexadecimal format for RFID card ID; the card table is
+		// global, so a rerun (-count) needs a tag of its own.
+		newTagID := fmt.Sprintf("%016X", testpkg.Tenant(t))
 
 		// ACT
 		err := testpkg.TenantCommand2(t, ctx, db, service.LinkToRFIDCard, person.ID, newTagID)
@@ -1212,6 +1214,35 @@ func TestPersonService_CreateStaffWithTeacher_AdoptsLiveCaregiverProfile(t *test
 		Count(ctx)
 	require.NoError(t, err)
 	assert.Equal(t, 1, int(count))
+}
+
+func TestPersonService_CreateStaffWithTeacher_RejectsRetiredPerson(t *testing.T) {
+	t.Parallel()
+
+	db := testpkg.SetupTestDB(t)
+	service := setupServiceFactory(t, db).Users
+	ctx := testpkg.Ctx(t)
+	person := testpkg.CreateTestPerson(t, db, "Ehemalige", "Kraft")
+
+	_, err := db.NewRaw(`UPDATE users.persons SET deleted_at = NOW() WHERE tenant_id = ? AND id = ?`, testpkg.Tenant(t), person.ID).Exec(ctx)
+	require.NoError(t, err)
+
+	staff, teacher, teacherCreationFailed, err := service.CreateStaffWithTeacher(ctx, api.StaffDirectoryCreateInput(api.StaffCreateInput{
+		PersonID:         person.ID,
+		ActorPermissions: []string{permissions.UsersCreate},
+	}))
+
+	assert.True(t, peoplePorts.IsPersonNotFound(err))
+	assert.Nil(t, staff)
+	assert.Nil(t, teacher)
+	assert.False(t, teacherCreationFailed)
+
+	count, err := db.NewSelect().
+		TableExpr(`users.staff_school_memberships`).
+		Where(`tenant_id = ? AND person_id = ?`, testpkg.Tenant(t), person.ID).
+		Count(ctx)
+	require.NoError(t, err)
+	assert.Zero(t, count)
 }
 
 // =============================================================================

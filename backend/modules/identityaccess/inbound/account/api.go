@@ -15,14 +15,13 @@ import (
 
 // Constants for permission strings, headers, route patterns, and error messages (S1192 - avoid duplicate string literals)
 const (
-	permUsersCreate  = "users:create"
-	permUsersManage  = "users:manage"
-	permUsersList    = "users:list"
-	permRolesRead    = "roles:read"
-	permUsersUpdate  = "users:update"
-	permRolesManage  = "roles:manage"
-	pathPermissionID = "/{permissionId}"
-	pathPermissions  = "/permissions"
+	permUsersCreate = "users:create"
+	permUsersManage = "users:manage"
+	permUsersList   = "users:list"
+	permRolesRead   = "roles:read"
+	permUsersUpdate = "users:update"
+	permRolesManage = "roles:manage"
+	pathPermissions = "/permissions"
 )
 
 // AccountSessions is the Identity & Access capability the login, refresh,
@@ -45,7 +44,6 @@ type AccountSessions interface {
 // name the owner's contract, as the session routes already do.
 type AccountLifecycle interface {
 	identityaccess.StaffPreview
-	identityaccess.ParentAccountAccess
 }
 
 // Resource defines the auth resource
@@ -334,8 +332,6 @@ func (rs *Resource) mountAdminRoutes(r chi.Router) {
 	r.Route("/roles/{roleId}/permissions", func(r chi.Router) {
 		r.With(common.RequiresPermission(permRolesManage)).Get("/", rs.getRolePermissions)
 		r.With(common.RequiresPermission(permRolesManage)).Put("/", rs.replaceRolePermissions)
-		r.With(common.RequiresPermission(permRolesManage)).Post(pathPermissionID, common.TwoIDAction("roleId", common.MsgInvalidRoleID, "permissionId", common.MsgInvalidPermissionID, rs.assignPermissionToRole, renderRoleMutationError))
-		r.With(common.RequiresPermission(permRolesManage)).Delete(pathPermissionID, common.TwoIDAction("roleId", common.MsgInvalidRoleID, "permissionId", common.MsgInvalidPermissionID, rs.removePermissionFromRole, renderRoleMutationError))
 	})
 
 	// Token cleanup
@@ -343,7 +339,7 @@ func (rs *Resource) mountAdminRoutes(r chi.Router) {
 		r.With(common.RequiresPermission("admin:*")).Delete("/expired", rs.cleanupExpiredTokens)
 	})
 
-	rs.mountInvitationAndParentAccountRoutes(r)
+	rs.mountInvitationRoutes(r)
 }
 
 // mountRoleAndPermissionRoutes registers the role and permission catalog
@@ -383,11 +379,6 @@ func (rs *Resource) mountRoleAndPermissionRoutes(r chi.Router) {
 func (rs *Resource) mountAccountRoutes(r chi.Router) {
 	// Account update operations
 	r.With(common.RequiresPermission(permUsersUpdate)).Put("/", rs.updateAccount)
-	// Bound through the resource rather than as a method value
-	// on rs.Sessions: the router must build before the
-	// capability is wired, as it does for every other route.
-	r.With(common.RequiresPermission(permUsersUpdate)).Put("/activate", common.IDAction("accountId", common.MsgInvalidAccountID, rs.activateAccount, accountManagementErrorRenderer))
-	r.With(common.RequiresPermission(permUsersUpdate)).Put("/deactivate", common.IDAction("accountId", common.MsgInvalidAccountID, rs.deactivateAccount, accountManagementErrorRenderer))
 	r.With(common.RequiresPermission(permUsersManage)).Get("/caregiver-capability", rs.getCaregiverCapability)
 	r.With(common.RequiresPermission(permUsersManage)).Post("/caregiver-capability", rs.enableCaregiverCapability)
 	r.With(common.RequiresPermission(permUsersManage)).Delete("/caregiver-capability", rs.disableCaregiverCapability)
@@ -396,8 +387,6 @@ func (rs *Resource) mountAccountRoutes(r chi.Router) {
 	r.Route("/roles", func(r chi.Router) {
 		r.With(common.RequiresPermission(permUsersManage)).Get("/", rs.getAccountRoles)
 		r.With(common.RequiresPermission(permUsersManage)).Put("/", rs.replaceAccountRole)
-		r.With(common.RequiresPermission(permUsersManage)).Post("/{roleId}", rs.assignRoleToAccount)
-		r.With(common.RequiresPermission(permUsersManage)).Delete("/{roleId}", common.TwoIDAction("accountId", common.MsgInvalidAccountID, "roleId", common.MsgInvalidRoleID, rs.removeRoleFromAccount, accountRoleErrorRenderer))
 	})
 
 	// Token management
@@ -416,9 +405,9 @@ func (rs *Resource) mountAccountRoutes(r chi.Router) {
 	})
 }
 
-// mountInvitationAndParentAccountRoutes registers the staff and guardian
-// invitation admin routes and the parent account management routes.
-func (rs *Resource) mountInvitationAndParentAccountRoutes(r chi.Router) {
+// mountInvitationRoutes registers the staff and guardian
+// invitation admin routes.
+func (rs *Resource) mountInvitationRoutes(r chi.Router) {
 	r.Route("/invitations", func(r chi.Router) {
 		// users:manage, not users:create: the "user" role carries
 		// users:create globally (migration 1.5.3, so Betreuer can
@@ -446,15 +435,4 @@ func (rs *Resource) mountInvitationAndParentAccountRoutes(r chi.Router) {
 		})
 	})
 
-	// Parent account management
-	r.Route("/parent-accounts", func(r chi.Router) {
-		r.With(common.RequiresPermission(permUsersCreate)).Post("/", rs.createParentAccount)
-		r.With(common.RequiresPermission(permUsersList)).Get("/", rs.listParentAccounts)
-		r.Route("/{id}", func(r chi.Router) {
-			r.With(common.RequiresPermission("users:read")).Get("/", rs.getParentAccountByID)
-			r.With(common.RequiresPermission(permUsersUpdate)).Put("/", rs.updateParentAccount)
-			r.With(common.RequiresPermission(permUsersUpdate)).Put("/activate", common.IDAction("id", common.MsgInvalidParentAccountID, rs.AuthService.ActivateParentAccount, common.ErrorInternalServer))
-			r.With(common.RequiresPermission(permUsersUpdate)).Put("/deactivate", common.IDAction("id", common.MsgInvalidParentAccountID, rs.AuthService.DeactivateParentAccount, common.ErrorInternalServer))
-		})
-	})
 }

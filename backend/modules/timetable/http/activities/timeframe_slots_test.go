@@ -39,7 +39,7 @@ func clockTimeframe(id int64, start string, end *string) timetableModule.Timefra
 
 func ptr(value string) *string { return &value }
 
-func TestTimeframeSlotsRoundTripTheOwnerClocks(t *testing.T) {
+func TestTimeframeSlotsReadTheOwnerClocks(t *testing.T) {
 	t.Parallel()
 
 	morning := clockTimeframe(4, "08:00:00", ptr("09:30:00"))
@@ -56,50 +56,6 @@ func TestTimeframeSlotsRoundTripTheOwnerClocks(t *testing.T) {
 
 	_, err = timeframeToSlot(clockTimeframe(6, "not a clock", nil))
 	require.Error(t, err)
-
-	start := time.Date(2026, 1, 14, 8, 0, 0, 0, time.UTC)
-	end := start.Add(90 * time.Minute)
-	input := timeframeInput(start, &end, true, "Morgen")
-	assert.Equal(t, "08:00:00", input.StartTime)
-	require.NotNil(t, input.EndTime)
-	assert.Equal(t, "09:30:00", *input.EndTime)
-	assert.True(t, input.IsActive)
-	assert.Equal(t, "Morgen", input.Description)
-}
-
-func TestCheckTimeframeConflict(t *testing.T) {
-	t.Parallel()
-
-	base := time.Date(2000, 1, 1, 8, 0, 0, 0, time.UTC)
-
-	t.Run("reports overlapping timeframes", func(t *testing.T) {
-		taken := clockTimeframe(1, "08:00:00", ptr("09:00:00"))
-		source := &fakeTimeframes{timeframes: []timetableModule.Timeframe{taken}}
-		hasConflict, conflicting, err := checkTimeframeConflict(context.Background(), source, base, base.Add(2*time.Hour))
-		require.NoError(t, err)
-		assert.True(t, hasConflict)
-		require.Len(t, conflicting, 1)
-		assert.Equal(t, taken.ID, conflicting[0].ID)
-		assert.Equal(t, "08:00:00", source.from)
-		assert.Equal(t, "10:00:00", source.to)
-	})
-
-	t.Run("reports no conflict when nothing overlaps", func(t *testing.T) {
-		hasConflict, conflicting, err := checkTimeframeConflict(context.Background(), &fakeTimeframes{}, base, base.Add(time.Hour))
-		require.NoError(t, err)
-		assert.False(t, hasConflict)
-		assert.Empty(t, conflicting)
-	})
-
-	t.Run("rejects an inverted time range", func(t *testing.T) {
-		_, _, err := checkTimeframeConflict(context.Background(), &fakeTimeframes{}, base.Add(time.Hour), base)
-		require.ErrorIs(t, err, timetableModule.ErrInvalidTimeRange)
-	})
-
-	t.Run("propagates the owner error", func(t *testing.T) {
-		_, _, err := checkTimeframeConflict(context.Background(), &fakeTimeframes{err: errors.New("boom")}, base, base.Add(time.Hour))
-		require.Error(t, err)
-	})
 }
 
 func TestAvailableTimeframeSlots(t *testing.T) {

@@ -15,7 +15,6 @@ import { catalogText } from "~/test/error-catalog-text";
 
 // Mock all guardian API functions with proper typing
 const mockFetchStudentGuardians = vi.fn();
-const mockCreateGuardian = vi.fn();
 const mockCreateStudentGuardians = vi.fn();
 const mockUpdateGuardian = vi.fn();
 const mockLinkGuardianToStudent = vi.fn();
@@ -46,7 +45,6 @@ const { mockGuardianApiError } = vi.hoisted(() => ({
 
 vi.mock("@/lib/guardian-api", () => ({
   fetchStudentGuardians: () => mockFetchStudentGuardians(),
-  createGuardian: (data: unknown) => mockCreateGuardian(data),
   createStudentGuardians: (studentId: string, guardians: unknown) =>
     mockCreateStudentGuardians(studentId, guardians),
   updateGuardian: (id: string, data: unknown) => mockUpdateGuardian(id, data),
@@ -613,7 +611,6 @@ describe("StudentGuardianManager", () => {
       });
 
       // No per-step orchestration any more.
-      expect(mockCreateGuardian).not.toHaveBeenCalled();
       expect(mockLinkGuardianToStudent).not.toHaveBeenCalled();
       expect(mockAddGuardianPhoneNumber).not.toHaveBeenCalled();
 
@@ -1204,7 +1201,6 @@ describe("StudentGuardianManager", () => {
         });
       });
       // Never creates a profile or writes phone numbers on the existing path.
-      expect(mockCreateGuardian).not.toHaveBeenCalled();
       expect(mockAddGuardianPhoneNumber).not.toHaveBeenCalled();
 
       await waitFor(() => {

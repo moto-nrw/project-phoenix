@@ -74,7 +74,7 @@ func TestOperatorPasskeyCredentialLifecycle(t *testing.T) {
 	duplicate := newOperatorPasskey(operator.ID, handle)
 	duplicate.CredentialID = first.CredentialID
 	_, err = records.CreateOperatorPasskey(ctx, duplicate)
-	require.Error(t, err, "a credential ID is registered once platform-wide")
+	require.ErrorContains(t, err, "uniq_operator_passkey_credentials_credential_id", "a credential ID is registered once platform-wide")
 	second, err := records.CreateOperatorPasskey(ctx, newOperatorPasskey(operator.ID, handle))
 	require.NoError(t, err)
 	foreign, err := records.CreateOperatorPasskey(ctx, newOperatorPasskey(other.ID, []byte("foreign-handle")))

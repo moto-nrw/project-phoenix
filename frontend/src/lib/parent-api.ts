@@ -50,39 +50,6 @@ export interface ChildConsent extends ConsentRecord {
   readonly can_grant: boolean;
 }
 
-// Per-child status values exposed on the enrollment-requests list.
-// Mirrors models/enrollment ChildStatus* constants.
-type EnrollmentChildStatus =
-  | "submitted"
-  | "under_review"
-  | "approved"
-  | "waitlisted"
-  | "rejected"
-  | "withdrawn";
-
-interface EnrollmentRequestChild {
-  readonly child_id: string;
-  readonly first_name: string;
-  readonly last_name: string;
-  readonly status: EnrollmentChildStatus;
-  readonly status_reason?: string;
-}
-
-export interface EnrollmentRequest {
-  readonly request_id: string;
-  readonly tenant_id: string;
-  readonly status_token: string;
-  readonly submitted_at: string; // ISO timestamp
-  readonly withdrawn_at?: string; // ISO timestamp
-  readonly phase_id: string;
-  readonly phase_name: string;
-  readonly service_start_date: string; // ISO date
-  readonly service_end_date: string; // ISO date
-  readonly school_name: string;
-  readonly school_slug: string;
-  readonly children: EnrollmentRequestChild[];
-}
-
 // One enrollment phase the calling parent may apply to, joined to its school.
 // Mirrors api/parent EnrollablePhaseResponse. Rows are pre-filtered server-side
 // (only phases the account may actually apply to) and pre-sorted (already_linked
@@ -588,15 +555,6 @@ export async function grantChildPhotoConsent(
     `/api/parent/me/children/${encodeURIComponent(studentId)}/consents/photo`,
     {},
   );
-}
-
-/**
- * Fetches every enrollment.requests row owned by the calling parent's
- * account, joined to phase + school + child summaries. Newest first.
- * Powers the "Anmeldungen in Bearbeitung" section on the dashboard.
- */
-export async function listMyEnrollments(): Promise<EnrollmentRequest[]> {
-  return getJson<EnrollmentRequest[]>("/api/parent/me/enrollments");
 }
 
 /**
@@ -1150,20 +1108,6 @@ export interface ThreadView {
 /** Lists the guardian's conversations (one per child written about). */
 export async function listMessageThreads(): Promise<ThreadSummary[]> {
   return getJson<ThreadSummary[]>("/api/parent/me/messages");
-}
-
-/**
- * Lists the guardian's conversation(s) about ONE child (at most one per the chat
- * model). The child detail page uses this instead of fetching the whole
- * cross-tenant inbox and filtering client-side. Reading it does NOT mark the
- * thread read.
- */
-export async function listChildThreads(
-  studentId: string,
-): Promise<ThreadSummary[]> {
-  return getJson<ThreadSummary[]>(
-    `/api/parent/me/messages/children/${encodeURIComponent(studentId)}/threads`,
-  );
 }
 
 /**

@@ -232,21 +232,7 @@ func TestGroupRepository_FindByTeacher(t *testing.T) {
 		group := testpkg.CreateTestEducationGroup(t, db, "TeacherGroup")
 
 		// Create assignment
-		gt := testpkg.CreateTestGroupTeacher(t, db, group.ID, teacher.ID)
-
-		defer func() {
-			ctx := testpkg.Ctx(t)
-			// Clean up group-teacher first
-			_, _ = db.NewDelete().
-				TableExpr("education.group_teacher").
-				Where("id = ?", gt.ID).
-				Exec(ctx)
-			// Teacher cleanup
-			_, _ = db.NewDelete().
-				TableExpr("users.teachers").
-				Where("id = ?", teacher.ID).
-				Exec(ctx)
-		}()
+		testpkg.CreateTestGroupTeacher(t, db, group.ID, teacher.ID)
 
 		// Find by teacher
 		groups, err := testpkg.TenantQuery1(t, ctx, db, repo.FindByTeacher, teacher.ID)

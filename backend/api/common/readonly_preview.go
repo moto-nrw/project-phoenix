@@ -35,8 +35,6 @@ var readOnlyPOSTAllowlist = []string{
 	"/api/enrollment/phases/{id}/export",
 	"/api/guardians/payment-overview/export",
 	"/api/rooms/export",
-	"/api/schedules/check-conflict",
-	"/api/schedules/find-available-slots",
 	"/api/staff-shifts/export",
 	"/api/students/arrival-schedules/status",
 	"/api/students/arrival-times/bulk",

@@ -145,7 +145,6 @@ func TestDatevExport_GoldenFiles(t *testing.T) {
 
 	f := newDatevFixture(t)
 	actorID := f.newActorAccount(t)
-	f.cleanupAccessLogs(t)
 	svc := f.newDatevExportService(datevFullConfig())
 
 	lodas, err := testpkg.TenantQuery3(t, f.ctx, testpkg.SetupTestDB(t), svc.Export, datevRequest(timetracking.ExportFormatDatevLodas), actorID, "admin")
@@ -169,7 +168,6 @@ func TestDatevExport_PinsAgainstMonthSummary(t *testing.T) {
 
 	f := newDatevFixture(t)
 	actorID := f.newActorAccount(t)
-	f.cleanupAccessLogs(t)
 	svc := f.newDatevExportService(datevFullConfig())
 
 	summary, err := f.monthSvc.GetMonthSummary(f.ctx, f.staff[0], 2026, 6)
@@ -222,7 +220,6 @@ func TestDatevExport_RefusesStaffWithoutPersonnelNumber(t *testing.T) {
 	f := newDatevFixture(t)
 	f.setPersonnelNumber(t, f.staff[1], "")
 	actorID := f.newActorAccount(t)
-	f.cleanupAccessLogs(t)
 	svc := f.newDatevExportService(datevFullConfig())
 
 	report, err := testpkg.TenantQuery1(t, f.ctx, testpkg.SetupTestDB(t), svc.DatevReport, datevRequest(timetracking.ExportFormatDatevLug))
@@ -247,7 +244,6 @@ func TestDatevExport_RefusesIncompleteConfiguration(t *testing.T) {
 
 	f := newDatevFixture(t)
 	actorID := f.newActorAccount(t)
-	f.cleanupAccessLogs(t)
 
 	// LODAS without Berater-/Mandantennummer → refused; LuG does not need them.
 	config := datevFullConfig()
@@ -283,7 +279,6 @@ func TestDatevExport_RequiresSingleMonth(t *testing.T) {
 
 	f := newOverviewFixture(t, 1)
 	actorID := f.newActorAccount(t)
-	f.cleanupAccessLogs(t)
 	svc := f.newDatevExportService(datevFullConfig())
 
 	req := timetracking.TimeExportRequest{Year: 2026, Format: timetracking.ExportFormatDatevLodas}

@@ -354,17 +354,11 @@ func TestDisplayDashboardPublic(t *testing.T) {
 	})
 
 	t.Run("upcoming activities list planned instances after now", func(t *testing.T) {
-		// The upcoming filter compares wall clocks only, so offsets that
-		// cross midnight wrap to the other end of the day and flip the
-		// expectation. Guard against every offset this test produces
-		// (future + the 45min instance duration, and past) landing on a
-		// different calendar day than now.
-		now := testNow
-		future := now.Add(3 * time.Minute)
-		past := now.Add(-3 * time.Minute)
-		if future.Add(45*time.Minute).Day() != now.Day() || past.Day() != now.Day() {
-			t.Skip("too close to midnight for stable wall-clock offsets")
-		}
+		// The upcoming filter compares wall clocks only; the fixed noon clock
+		// keeps every offset (future + the 45min instance duration, and past)
+		// on the same calendar day.
+		future := testNow.Add(3 * time.Minute)
+		past := testNow.Add(-3 * time.Minute)
 		ctx := testpkg.TenantContext(tenantID)
 		instances := []*testpkg.ActivityInstance{
 			buildInstance(tenantID, "Hausaufgaben", room.ID, future),
@@ -373,9 +367,6 @@ func TestDisplayDashboardPublic(t *testing.T) {
 		for _, inst := range instances {
 			testpkg.InsertActivityInstanceRow(t, ctx, db, inst)
 		}
-		defer func() {
-			_, _ = db.NewDelete().TableExpr("schedule.activity_instances").Where("tenant_id = ?", tenantID).Exec(context.Background())
-		}()
 
 		rec := doDashboardRequest(t, router, rawToken)
 		require.Equal(t, http.StatusOK, rec.Code)
@@ -450,12 +441,10 @@ func TestDisplayDashboardPickupBuckets(t *testing.T) {
 
 	db := testpkg.SetupTestDB(t)
 
+	// Pickup schedules only resolve Mon-Fri; 2026-08-24 is a Monday.
 	today := calendar.NewDate(2026, 8, 24)
 	testNow := today.BerlinMidnight().Add(12 * time.Hour)
 	weekday := int(today.Weekday())
-	if weekday < 1 || weekday > 5 {
-		t.Skip("pickup schedules only resolve Mon-Fri; skipping on weekends")
-	}
 
 	tenantID := newDisplayTestTenant(t, db)
 	router := newDisplayRouter(t, db, func() time.Time { return testNow })
@@ -479,10 +468,6 @@ func TestDisplayDashboardPickupBuckets(t *testing.T) {
 	createPickupScheduleForTenant(t, db, tenantID, present1.ID, weekday, staff.ID, "23:45")
 	createPickupScheduleForTenant(t, db, tenantID, present2.ID, weekday, staff.ID, "23:45")
 	createPickupScheduleForTenant(t, db, tenantID, checkedOut.ID, weekday, staff.ID, "23:45")
-	defer func() {
-		_, _ = db.NewDelete().TableExpr("schedule.student_pickup_schedules").Where("tenant_id = ?", tenantID).Exec(context.Background())
-		_, _ = db.NewDelete().TableExpr("active.attendance").Where("tenant_id = ?", tenantID).Exec(context.Background())
-	}()
 
 	_, rawToken := createDisplayViaAPI(t, router, adminJWT, "Pickup Display")
 	rec := doDashboardRequest(t, router, rawToken)

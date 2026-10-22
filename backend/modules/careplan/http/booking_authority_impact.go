@@ -10,10 +10,9 @@ import (
 	"context"
 	"errors"
 	"net/http"
-	"strconv"
 
-	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/render"
+	"github.com/moto-nrw/project-phoenix/api/common"
 	"github.com/moto-nrw/project-phoenix/modules/careplan"
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 )
@@ -60,7 +59,7 @@ func NewBookingAuthorityImpact(cfg BookingAuthorityImpactConfig) http.Handler {
 }
 
 func (h *bookingAuthorityImpact) ServeHTTP(w http.ResponseWriter, r *http.Request) {
-	schoolID, err := strconv.ParseInt(chi.URLParam(r, "id"), 10, 64)
+	schoolID, err := common.ParseIDParam(r, "id")
 	if err != nil {
 		h.surface.RenderError(w, r, h.surface.InvalidRequest(errors.New("invalid school ID")))
 		return

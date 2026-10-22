@@ -2,6 +2,7 @@ package planexport
 
 import (
 	"context"
+	"fmt"
 	"strings"
 	"testing"
 
@@ -205,6 +206,46 @@ func TestDienstplanByAreaGroupsNamesUnderTasks(t *testing.T) {
 	}
 }
 
+// Every staff member with shifts prints in every week they work, under that
+// week's heading, and a week without entries prints exactly its one empty row
+// (asserted until #4426 by the opt-in TestDienstplanRuntimeEvidence).
+func TestDienstplanPrintsEveryStaffMemberInEveryWeek(t *testing.T) {
+	t.Parallel()
+
+	nextMonday := monday.AddDays(7)
+	overview := &StaffScheduleOverview{
+		Staff: []*StaffMember{staffMember(7, "Franziska", "Kessener"), staffMember(8, "Anna", "Müller")},
+		Shifts: []*Shift{
+			shift(1, 7, monday, clock(7, 30), clock(14, 0)),
+			shift(2, 8, monday.AddDays(1), clock(8, 0), clock(15, 0)),
+			shift(3, 7, nextMonday.AddDays(2), clock(7, 30), clock(14, 0)),
+			shift(4, 8, nextMonday.AddDays(3), clock(8, 0), clock(15, 0)),
+		},
+	}
+	service, renderer := newDienstplanService(overview, nil)
+	params := defaultParams()
+	params.To = dayKey(nextMonday.AddDays(11)) // three weeks, the last one empty
+	if _, err := service.ExportDienstplan(context.Background(), params); err != nil {
+		t.Fatalf("ExportDienstplan: %v", err)
+	}
+	var weeks [][]string
+	for _, label := range rowLabels(renderer.doc) {
+		if strings.HasPrefix(label, "#") {
+			weeks = append(weeks, nil)
+			continue
+		}
+		if len(weeks) == 0 {
+			t.Fatalf("rows = %v, want a heading before the first row", rowLabels(renderer.doc))
+		}
+		weeks[len(weeks)-1] = append(weeks[len(weeks)-1], label)
+	}
+	got := fmt.Sprint(weeks)
+	want := "[[Kessener, Franziska Müller, Anna] [Kessener, Franziska Müller, Anna] [Keine Einträge in dieser Woche]]"
+	if got != want {
+		t.Fatalf("rows per week = %s, want %s", got, want)
+	}
+}
+
 // A single week dates its day headers and needs no group heading; several
 // weeks keep generic headers and get one titled sheet each.
 func TestDienstplanWeekHeadingsAndColumns(t *testing.T) {
@@ -301,14 +342,6 @@ func TestNarrowWeeksKeepsTheWeekendWhenItIsPlanned(t *testing.T) {
 	}
 }
 
-func TestExpandWeeksRejectsOversizedRange(t *testing.T) {
-	t.Parallel()
-
-	if _, err := expandWeeks(monday, monday.AddDays(7*maxExportWeeks)); err == nil {
-		t.Fatal("expected a range error beyond the week cap")
-	}
-}
-
 func TestParamsValidation(t *testing.T) {
 	t.Parallel()
 
@@ -319,6 +352,9 @@ func TestParamsValidation(t *testing.T) {
 		wantErr bool
 	}{
 		{name: "valid", mutate: func(*Params) {}, allowed: TemplatesForDienstplan},
+		// An absent date would otherwise widen to the zero date's week and
+		// print a sheet from the year 1.
+		{name: "missing from date", mutate: func(p *Params) { p.From = "" }, allowed: TemplatesForDienstplan, wantErr: true},
 		{name: "inverted range", mutate: func(p *Params) { p.To = dayKey(monday.AddDays(-1)) }, allowed: TemplatesForDienstplan, wantErr: true},
 		{name: "unknown variant", mutate: func(p *Params) { p.Variant = "geheim" }, allowed: TemplatesForDienstplan, wantErr: true},
 		{name: "docx refused", mutate: func(p *Params) { p.Format = listexport.FormatDOCX }, allowed: TemplatesForDienstplan, wantErr: true},
@@ -354,6 +390,9 @@ func TestParseParamsDefaults(t *testing.T) {
 	}
 	if _, err := ParseParams("27.07.2026", "2026-07-31", string(TemplateByPerson), "", ""); err == nil {
 		t.Fatal("expected a parse error for a German date")
+	}
+	if _, err := ParseParams("2026-07-27", "not-a-date", string(TemplateByPerson), "", ""); err == nil {
+		t.Fatal("expected an unparsable to-date to be refused")
 	}
 }
 

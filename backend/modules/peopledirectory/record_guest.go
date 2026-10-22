@@ -45,25 +45,3 @@ func (g *Guest) Validate() error {
 
 	return nil
 }
-
-func (g *Guest) SetStaff(staff *Staff) {
-	g.Staff = staff
-	if staff != nil {
-		g.StaffID = staff.ID
-	}
-}
-
-func (g *Guest) GetFullName() string {
-	if g.Staff != nil && g.Staff.Person != nil {
-		return g.Staff.Person.GetFullName()
-	}
-	return ""
-}
-
-func (g *Guest) AddNotes(notes string) {
-	if g.Notes == "" {
-		g.Notes = notes
-	} else {
-		g.Notes += "\n" + notes
-	}
-}

@@ -95,28 +95,3 @@ func (g *GuardianPhoneNumber) Validate() error {
 
 	return nil
 }
-
-// GetDisplayString returns a formatted display string for the phone number
-func (g *GuardianPhoneNumber) GetDisplayString() string {
-	result := g.PhoneNumber
-	if g.Label != nil && *g.Label != "" {
-		result += " (" + *g.Label + ")"
-	}
-	return result
-}
-
-// PhoneTypeLabel returns a human-readable label for the phone type
-func (g *GuardianPhoneNumber) PhoneTypeLabel() string {
-	switch g.PhoneType {
-	case PhoneTypeMobile:
-		return "Mobil"
-	case PhoneTypeHome:
-		return "Telefon"
-	case PhoneTypeWork:
-		return "Dienstlich"
-	case PhoneTypeOther:
-		return "Sonstige"
-	default:
-		return string(g.PhoneType)
-	}
-}

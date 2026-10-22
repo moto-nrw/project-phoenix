@@ -23,6 +23,7 @@ func (f *FormField) normalizeTranslations() error {
 // PublicView returns the field as parents may read it: translations are
 // reduced to the ones still matching the current German text.
 func (f FormField) PublicView() FormField {
+	f.Attachments = PublicFormAttachments(f.Attachments)
 	f.Translations = f.Translations.Fresh(map[string]string{
 		TranslationAttrLabel:    f.Label,
 		TranslationAttrHelpText: f.HelpText,

@@ -61,13 +61,6 @@ func createEmailChangeTestOperator(t *testing.T, db *bun.DB, email string) (int6
 	).Scan(ctx, &operatorID)
 	require.NoError(t, err, "Failed to create test operator")
 
-	t.Cleanup(func() {
-		_, _ = db.ExecContext(ctx, `DELETE FROM platform.operator_email_change_tokens WHERE operator_id = ?`, operatorID)
-		_, _ = db.ExecContext(ctx, `DELETE FROM platform.operator_refresh_tokens WHERE operator_id = ?`, operatorID)
-		_, _ = db.ExecContext(ctx, `DELETE FROM platform.operator_audit_log WHERE operator_id = ?`, operatorID)
-		_, _ = db.ExecContext(ctx, `DELETE FROM platform.operators WHERE id = ?`, operatorID)
-	})
-
 	return operatorID, hash
 }
 
@@ -366,10 +359,6 @@ func TestIntegration_EmailChange_Cleanup_ServiceLevel(t *testing.T) {
 		operatorID, "stale@test.local", staleToken, time.Now().Add(-90*time.Minute),
 	)
 	require.NoError(t, err)
-
-	t.Cleanup(func() {
-		_, _ = db.ExecContext(ctx, `DELETE FROM platform.operator_email_change_tokens WHERE operator_id = ?`, operatorID)
-	})
 
 	// Run service-level cleanup (invalidate + delete)
 	deleted, err := service.CleanupExpiredEmailChangeTokens(ctx)

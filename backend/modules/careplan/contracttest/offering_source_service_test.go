@@ -67,12 +67,6 @@ func createSourceOffering(t *testing.T, env *decisionTestEnv, name string, activ
 	}
 	offering.TenantID = testpkg.Tenant(t)
 	require.NoError(t, newCareOfferingFixtureRecords(env.repos.CarePlan()).Create(ctx, offering))
-	t.Cleanup(func() {
-		_, _ = env.db.NewDelete().
-			TableExpr("enrollment.care_offerings").
-			Where("id = ?", offering.ID).
-			Exec(context.Background())
-	})
 	return offering
 }
 
@@ -168,8 +162,7 @@ const offeringResyncToday = decisionTestToday
 func TestDecide_FansOutToGradeFilteredSourcedTemplates(t *testing.T) {
 	t.Parallel()
 
-	env, cleanup := setupDecisionTest(t)
-	defer cleanup()
+	env := setupDecisionTest(t)
 
 	period := api.CreateCareOfferingCalendarPeriod(func(err error) { require.NoError(t, err) }, testpkg.NewDatabase(t, env.db), testpkg.Ctx(t), testpkg.Tenant(t), uniqueSchemaName(t.Name()), calendar.Date(env.sourcePhase.ServiceStartDate).AddDays(-31), calendar.Date(env.sourcePhase.ServiceEndDate).AddDays(31))
 	offering := createSourceOffering(t, env, "Nachmittag", nil)
@@ -194,8 +187,7 @@ func TestDecide_FansOutToGradeFilteredSourcedTemplates(t *testing.T) {
 func TestDecide_OverlappingSourcedTemplatesBothReceiveTheChild(t *testing.T) {
 	t.Parallel()
 
-	env, cleanup := setupDecisionTest(t)
-	defer cleanup()
+	env := setupDecisionTest(t)
 
 	period := api.CreateCareOfferingCalendarPeriod(func(err error) { require.NoError(t, err) }, testpkg.NewDatabase(t, env.db), testpkg.Ctx(t), testpkg.Tenant(t), uniqueSchemaName(t.Name()), calendar.Date(env.sourcePhase.ServiceStartDate).AddDays(-31), calendar.Date(env.sourcePhase.ServiceEndDate).AddDays(31))
 	offering := createSourceOffering(t, env, "Ueberlapp", nil)
@@ -215,8 +207,7 @@ func TestDecide_OverlappingSourcedTemplatesBothReceiveTheChild(t *testing.T) {
 func TestDecide_SourcedFanOutCoexistsWithLegacyLink(t *testing.T) {
 	t.Parallel()
 
-	env, cleanup := setupDecisionTest(t)
-	defer cleanup()
+	env := setupDecisionTest(t)
 
 	period := api.CreateCareOfferingCalendarPeriod(func(err error) { require.NoError(t, err) }, testpkg.NewDatabase(t, env.db), testpkg.Ctx(t), testpkg.Tenant(t), uniqueSchemaName(t.Name()), calendar.Date(env.sourcePhase.ServiceStartDate).AddDays(-31), calendar.Date(env.sourcePhase.ServiceEndDate).AddDays(31))
 	legacyTemplate := createCareOfferingTemplateGroup(t, env.db, "Legacy")
@@ -239,8 +230,7 @@ func TestDecide_SourcedFanOutCoexistsWithLegacyLink(t *testing.T) {
 func TestResyncTemplateOfferingRoster_SeedsExistingApprovedChildren(t *testing.T) {
 	t.Parallel()
 
-	env, cleanup := setupDecisionTest(t)
-	defer cleanup()
+	env := setupDecisionTest(t)
 
 	period := api.CreateCareOfferingCalendarPeriod(func(err error) { require.NoError(t, err) }, testpkg.NewDatabase(t, env.db), testpkg.Ctx(t), testpkg.Tenant(t), uniqueSchemaName(t.Name()), calendar.Date(env.sourcePhase.ServiceStartDate).AddDays(-31), calendar.Date(env.sourcePhase.ServiceEndDate).AddDays(31))
 	offering := createSourceOffering(t, env, "SeedBestand", nil)
@@ -275,8 +265,7 @@ func TestResyncTemplateOfferingRoster_SeedsExistingApprovedChildren(t *testing.T
 func TestResyncTemplateOfferingRoster_EmptyFilterSeedsAllAndIsIdempotent(t *testing.T) {
 	t.Parallel()
 
-	env, cleanup := setupDecisionTest(t)
-	defer cleanup()
+	env := setupDecisionTest(t)
 
 	period := api.CreateCareOfferingCalendarPeriod(func(err error) { require.NoError(t, err) }, testpkg.NewDatabase(t, env.db), testpkg.Ctx(t), testpkg.Tenant(t), uniqueSchemaName(t.Name()), calendar.Date(env.sourcePhase.ServiceStartDate).AddDays(-31), calendar.Date(env.sourcePhase.ServiceEndDate).AddDays(31))
 	offering := createSourceOffering(t, env, "SeedAlle", nil)
@@ -303,8 +292,7 @@ func TestResyncTemplateOfferingRoster_EmptyFilterSeedsAllAndIsIdempotent(t *test
 func TestResyncTemplateOfferingRoster_FilterChangeAndSourceRemoval(t *testing.T) {
 	t.Parallel()
 
-	env, cleanup := setupDecisionTest(t)
-	defer cleanup()
+	env := setupDecisionTest(t)
 
 	period := api.CreateCareOfferingCalendarPeriod(func(err error) { require.NoError(t, err) }, testpkg.NewDatabase(t, env.db), testpkg.Ctx(t), testpkg.Tenant(t), uniqueSchemaName(t.Name()), calendar.Date(env.sourcePhase.ServiceStartDate).AddDays(-31), calendar.Date(env.sourcePhase.ServiceEndDate).AddDays(31))
 	offering := createSourceOffering(t, env, "SeedWechsel", nil)
@@ -351,8 +339,7 @@ func TestResyncTemplateOfferingRoster_FilterChangeAndSourceRemoval(t *testing.T)
 func TestResyncTemplateOfferingRoster_SeedsFutureDatedLinkFromItsStart(t *testing.T) {
 	t.Parallel()
 
-	env, cleanup := setupDecisionTest(t)
-	defer cleanup()
+	env := setupDecisionTest(t)
 	ctx := testpkg.Ctx(t)
 
 	period := api.CreateCareOfferingCalendarPeriod(func(err error) { require.NoError(t, err) }, testpkg.NewDatabase(t, env.db), testpkg.Ctx(t), testpkg.Tenant(t), uniqueSchemaName(t.Name()), calendar.Date(env.sourcePhase.ServiceStartDate).AddDays(-31), calendar.Date(env.sourcePhase.ServiceEndDate).AddDays(31))
@@ -392,8 +379,7 @@ func TestResyncTemplateOfferingRoster_SeedsFutureDatedLinkFromItsStart(t *testin
 func TestResyncTemplateOfferingRoster_CapsRowAtLinkEnd(t *testing.T) {
 	t.Parallel()
 
-	env, cleanup := setupDecisionTest(t)
-	defer cleanup()
+	env := setupDecisionTest(t)
 	ctx := testpkg.Ctx(t)
 
 	period := api.CreateCareOfferingCalendarPeriod(func(err error) { require.NoError(t, err) }, testpkg.NewDatabase(t, env.db), testpkg.Ctx(t), testpkg.Tenant(t), uniqueSchemaName(t.Name()), calendar.Date(env.sourcePhase.ServiceStartDate).AddDays(-31), calendar.Date(env.sourcePhase.ServiceEndDate).AddDays(31))
@@ -428,8 +414,7 @@ func TestResyncTemplateOfferingRoster_CapsRowAtLinkEnd(t *testing.T) {
 func TestResyncTemplateOfferingRoster_ProtectsLegacyLinkedRows(t *testing.T) {
 	t.Parallel()
 
-	env, cleanup := setupDecisionTest(t)
-	defer cleanup()
+	env := setupDecisionTest(t)
 
 	period := api.CreateCareOfferingCalendarPeriod(func(err error) { require.NoError(t, err) }, testpkg.NewDatabase(t, env.db), testpkg.Ctx(t), testpkg.Tenant(t), uniqueSchemaName(t.Name()), calendar.Date(env.sourcePhase.ServiceStartDate).AddDays(-31), calendar.Date(env.sourcePhase.ServiceEndDate).AddDays(31))
 	legacyTemplate := createCareOfferingTemplateGroup(t, env.db, "LegacyProtect")
@@ -463,8 +448,7 @@ func TestResyncTemplateOfferingRoster_ProtectsLegacyLinkedRows(t *testing.T) {
 func TestResyncTemplateOfferingRoster_LegacyProtectionFollowsSplitLineage(t *testing.T) {
 	t.Parallel()
 
-	env, cleanup := setupDecisionTest(t)
-	defer cleanup()
+	env := setupDecisionTest(t)
 
 	period := api.CreateCareOfferingCalendarPeriod(func(err error) { require.NoError(t, err) }, testpkg.NewDatabase(t, env.db), testpkg.Ctx(t), testpkg.Tenant(t), uniqueSchemaName(t.Name()), calendar.Date(env.sourcePhase.ServiceStartDate).AddDays(-31), calendar.Date(env.sourcePhase.ServiceEndDate).AddDays(31))
 	predecessor := createCareOfferingTemplateGroup(t, env.db, "LineageVorgänger")
@@ -494,12 +478,6 @@ func TestResyncTemplateOfferingRoster_LegacyProtectionFollowsSplitLineage(t *tes
 	}
 	carriedRow.TenantID = testpkg.Tenant(t)
 	require.NoError(t, timetableCompose.NativeEnrollmentRecords(env.timetable.StudentEnrollment).Create(testpkg.Ctx(t), carriedRow))
-	t.Cleanup(func() {
-		_, _ = env.db.NewDelete().
-			TableExpr("activities.student_enrollments").
-			Where("id = ?", carriedRow.ID).
-			Exec(context.Background())
-	})
 
 	// The dropped-source cleanup runs with OfferingID nil on the successor.
 	require.NoError(t, offeringResyncer(t, env).ResyncTemplateOfferingRoster(
@@ -524,8 +502,7 @@ func TestResyncTemplateOfferingRoster_LegacyProtectionFollowsSplitLineage(t *tes
 func TestResyncTemplateOfferingRoster_VanishedOfferingIsDropped(t *testing.T) {
 	t.Parallel()
 
-	env, cleanup := setupDecisionTest(t)
-	defer cleanup()
+	env := setupDecisionTest(t)
 	ctx := testpkg.Ctx(t)
 
 	period := api.CreateCareOfferingCalendarPeriod(func(err error) { require.NoError(t, err) }, testpkg.NewDatabase(t, env.db), testpkg.Ctx(t), testpkg.Tenant(t), uniqueSchemaName(t.Name()), calendar.Date(env.sourcePhase.ServiceStartDate).AddDays(-31), calendar.Date(env.sourcePhase.ServiceEndDate).AddDays(31))
@@ -565,8 +542,7 @@ func TestResyncTemplateOfferingRoster_VanishedOfferingIsDropped(t *testing.T) {
 func TestResyncTemplateOfferingRoster_CapsSourceCount(t *testing.T) {
 	t.Parallel()
 
-	env, cleanup := setupDecisionTest(t)
-	defer cleanup()
+	env := setupDecisionTest(t)
 
 	template := createCareOfferingTemplateGroup(t, env.db, "CapTermin")
 	ids := make([]int64, timetable.MaxOfferingSourcesPerTemplate+1)
@@ -594,8 +570,7 @@ func TestResyncTemplateOfferingRoster_CapsSourceCount(t *testing.T) {
 func TestResyncTemplateOfferingRoster_GapBetweenLinksStaysUnplanned(t *testing.T) {
 	t.Parallel()
 
-	env, cleanup := setupDecisionTest(t)
-	defer cleanup()
+	env := setupDecisionTest(t)
 	ctx := testpkg.Ctx(t)
 
 	period := api.CreateCareOfferingCalendarPeriod(func(err error) { require.NoError(t, err) }, testpkg.NewDatabase(t, env.db), testpkg.Ctx(t), testpkg.Tenant(t), uniqueSchemaName(t.Name()), calendar.Date(env.sourcePhase.ServiceStartDate).AddDays(-31), calendar.Date(env.sourcePhase.ServiceEndDate).AddDays(31))
@@ -641,8 +616,7 @@ func TestResyncTemplateOfferingRoster_GapBetweenLinksStaysUnplanned(t *testing.T
 func TestResyncTemplateOfferingRoster_ShrinksRetainedRowToLinkEnd(t *testing.T) {
 	t.Parallel()
 
-	env, cleanup := setupDecisionTest(t)
-	defer cleanup()
+	env := setupDecisionTest(t)
 	ctx := testpkg.Ctx(t)
 
 	period := api.CreateCareOfferingCalendarPeriod(func(err error) { require.NoError(t, err) }, testpkg.NewDatabase(t, env.db), testpkg.Ctx(t), testpkg.Tenant(t), uniqueSchemaName(t.Name()), calendar.Date(env.sourcePhase.ServiceStartDate).AddDays(-31), calendar.Date(env.sourcePhase.ServiceEndDate).AddDays(31))
@@ -683,8 +657,7 @@ func TestResyncTemplateOfferingRoster_ShrinksRetainedRowToLinkEnd(t *testing.T) 
 func TestResyncTemplateOfferingRoster_SourceSwitchRespectsNewLinkStart(t *testing.T) {
 	t.Parallel()
 
-	env, cleanup := setupDecisionTest(t)
-	defer cleanup()
+	env := setupDecisionTest(t)
 	ctx := testpkg.Ctx(t)
 
 	period := api.CreateCareOfferingCalendarPeriod(func(err error) { require.NoError(t, err) }, testpkg.NewDatabase(t, env.db), testpkg.Ctx(t), testpkg.Tenant(t), uniqueSchemaName(t.Name()), calendar.Date(env.sourcePhase.ServiceStartDate).AddDays(-31), calendar.Date(env.sourcePhase.ServiceEndDate).AddDays(31))
@@ -736,8 +709,7 @@ func TestResyncTemplateOfferingRoster_SourceSwitchRespectsNewLinkStart(t *testin
 func TestResyncOfferingSourcedTemplates_FollowsClassChange(t *testing.T) {
 	t.Parallel()
 
-	env, cleanup := setupDecisionTest(t)
-	defer cleanup()
+	env := setupDecisionTest(t)
 	ctx := testpkg.Ctx(t)
 
 	period := api.CreateCareOfferingCalendarPeriod(func(err error) { require.NoError(t, err) }, testpkg.NewDatabase(t, env.db), testpkg.Ctx(t), testpkg.Tenant(t), uniqueSchemaName(t.Name()), calendar.Date(env.sourcePhase.ServiceStartDate).AddDays(-31), calendar.Date(env.sourcePhase.ServiceEndDate).AddDays(31))
@@ -778,8 +750,7 @@ func TestResyncOfferingSourcedTemplates_FollowsClassChange(t *testing.T) {
 func TestSyncApprovedChildData_ClassChangeResyncsSourcedTemplates(t *testing.T) {
 	t.Parallel()
 
-	env, cleanup := setupDecisionTest(t)
-	defer cleanup()
+	env := setupDecisionTest(t)
 	ctx := testpkg.Ctx(t)
 
 	period := api.CreateCareOfferingCalendarPeriod(func(err error) { require.NoError(t, err) }, testpkg.NewDatabase(t, env.db), testpkg.Ctx(t), testpkg.Tenant(t), uniqueSchemaName(t.Name()), calendar.Date(env.sourcePhase.ServiceStartDate).AddDays(-31), calendar.Date(env.sourcePhase.ServiceEndDate).AddDays(31))
@@ -822,8 +793,7 @@ func TestSyncApprovedChildData_ClassChangeResyncsSourcedTemplates(t *testing.T) 
 func TestDecide_ExistingStudentClassChangeResyncsSourcedTemplates(t *testing.T) {
 	t.Parallel()
 
-	env, cleanup := setupDecisionTest(t)
-	defer cleanup()
+	env := setupDecisionTest(t)
 	ctx := testpkg.Ctx(t)
 
 	period := api.CreateCareOfferingCalendarPeriod(func(err error) { require.NoError(t, err) }, testpkg.NewDatabase(t, env.db), testpkg.Ctx(t), testpkg.Tenant(t), uniqueSchemaName(t.Name()), calendar.Date(env.sourcePhase.ServiceStartDate).AddDays(-31), calendar.Date(env.sourcePhase.ServiceEndDate).AddDays(31))
@@ -884,8 +854,7 @@ func TestDecide_ExistingStudentClassChangeResyncsSourcedTemplates(t *testing.T) 
 func TestOfferingDelete_DegradesSourcedTemplate(t *testing.T) {
 	t.Parallel()
 
-	env, cleanup := setupDecisionTest(t)
-	defer cleanup()
+	env := setupDecisionTest(t)
 	ctx := testpkg.Ctx(t)
 
 	period := api.CreateCareOfferingCalendarPeriod(func(err error) { require.NoError(t, err) }, testpkg.NewDatabase(t, env.db), testpkg.Ctx(t), testpkg.Tenant(t), uniqueSchemaName(t.Name()), calendar.Date(env.sourcePhase.ServiceStartDate).AddDays(-31), calendar.Date(env.sourcePhase.ServiceEndDate).AddDays(31))
@@ -918,8 +887,7 @@ func TestOfferingDelete_DegradesSourcedTemplate(t *testing.T) {
 func TestOfferingSourceCheck_RejectsFilterWithoutSource(t *testing.T) {
 	t.Parallel()
 
-	env, cleanup := setupDecisionTest(t)
-	defer cleanup()
+	env := setupDecisionTest(t)
 	ctx := testpkg.Ctx(t)
 
 	period := api.CreateCareOfferingCalendarPeriod(func(err error) { require.NoError(t, err) }, testpkg.NewDatabase(t, env.db), testpkg.Ctx(t), testpkg.Tenant(t), uniqueSchemaName(t.Name()), calendar.Date(env.sourcePhase.ServiceStartDate).AddDays(-31), calendar.Date(env.sourcePhase.ServiceEndDate).AddDays(31))
@@ -941,8 +909,7 @@ func TestOfferingSourceCheck_RejectsFilterWithoutSource(t *testing.T) {
 func TestOfferingDetach_KeepsRemainingSources(t *testing.T) {
 	t.Parallel()
 
-	env, cleanup := setupDecisionTest(t)
-	defer cleanup()
+	env := setupDecisionTest(t)
 	ctx := testpkg.Ctx(t)
 
 	period := api.CreateCareOfferingCalendarPeriod(func(err error) { require.NoError(t, err) }, testpkg.NewDatabase(t, env.db), testpkg.Ctx(t), testpkg.Tenant(t), uniqueSchemaName(t.Name()), calendar.Date(env.sourcePhase.ServiceStartDate).AddDays(-31), calendar.Date(env.sourcePhase.ServiceEndDate).AddDays(31))
@@ -987,8 +954,7 @@ func TestOfferingDetach_KeepsRemainingSources(t *testing.T) {
 func TestValidateTemplateOfferingSource_RejectsNewUnknownToleratesStored(t *testing.T) {
 	t.Parallel()
 
-	env, cleanup := setupDecisionTest(t)
-	defer cleanup()
+	env := setupDecisionTest(t)
 	ctx := testpkg.Ctx(t)
 
 	offering := createSourceOffering(t, env, "PruefQuelle", nil)
@@ -1015,8 +981,7 @@ func TestValidateTemplateOfferingSource_RejectsNewUnknownToleratesStored(t *test
 func TestOfferingDetach_KeepsRemainingSourcesWhenSiblingDrifted(t *testing.T) {
 	t.Parallel()
 
-	env, cleanup := setupDecisionTest(t)
-	defer cleanup()
+	env := setupDecisionTest(t)
 	ctx := testpkg.Ctx(t)
 
 	period := api.CreateCareOfferingCalendarPeriod(func(err error) { require.NoError(t, err) }, testpkg.NewDatabase(t, env.db), testpkg.Ctx(t), testpkg.Tenant(t), uniqueSchemaName(t.Name()), calendar.Date(env.sourcePhase.ServiceStartDate).AddDays(-31), calendar.Date(env.sourcePhase.ServiceEndDate).AddDays(31))
@@ -1073,8 +1038,7 @@ func TestOfferingDetach_KeepsRemainingSourcesWhenSiblingDrifted(t *testing.T) {
 func TestResync_UnionAcrossOfferings_PlansSharedChildOnce(t *testing.T) {
 	t.Parallel()
 
-	env, cleanup := setupDecisionTest(t)
-	defer cleanup()
+	env := setupDecisionTest(t)
 	ctx := testpkg.Ctx(t)
 
 	period := api.CreateCareOfferingCalendarPeriod(func(err error) { require.NoError(t, err) }, testpkg.NewDatabase(t, env.db), testpkg.Ctx(t), testpkg.Tenant(t), uniqueSchemaName(t.Name()), calendar.Date(env.sourcePhase.ServiceStartDate).AddDays(-31), calendar.Date(env.sourcePhase.ServiceEndDate).AddDays(31))
@@ -1114,12 +1078,6 @@ func TestResync_UnionAcrossOfferings_PlansSharedChildOnce(t *testing.T) {
 	require.NoError(t, err)
 	require.NotNil(t, outcome.Child.CreatedStudentID)
 	sharedStudent := *outcome.Child.CreatedStudentID
-	t.Cleanup(func() {
-		_, _ = env.db.NewDelete().
-			TableExpr("activities.student_enrollments").
-			Where("student_id = ?", sharedStudent).
-			Exec(context.Background())
-	})
 	onlyB, _ := submitAndApproveOfferingChild(t, env, offeringB.ID, "union-b@example.com", "Bela", 2)
 
 	require.NoError(t, offeringResyncer(t, env).ResyncTemplateOfferingRoster(ctx,
@@ -1160,8 +1118,7 @@ func TestResync_UnionAcrossOfferings_PlansSharedChildOnce(t *testing.T) {
 func TestDecide_FansOutToMultiSourceTemplate(t *testing.T) {
 	t.Parallel()
 
-	env, cleanup := setupDecisionTest(t)
-	defer cleanup()
+	env := setupDecisionTest(t)
 	ctx := testpkg.Ctx(t)
 
 	period := api.CreateCareOfferingCalendarPeriod(func(err error) { require.NoError(t, err) }, testpkg.NewDatabase(t, env.db), testpkg.Ctx(t), testpkg.Tenant(t), uniqueSchemaName(t.Name()), calendar.Date(env.sourcePhase.ServiceStartDate).AddDays(-31), calendar.Date(env.sourcePhase.ServiceEndDate).AddDays(31))
@@ -1187,8 +1144,7 @@ func TestDecide_FansOutToMultiSourceTemplate(t *testing.T) {
 func TestOfferingDetach_DriftedSiblingCapsExclusiveCoverage(t *testing.T) {
 	t.Parallel()
 
-	env, cleanup := setupDecisionTest(t)
-	defer cleanup()
+	env := setupDecisionTest(t)
 	ctx := testpkg.Ctx(t)
 
 	period := api.CreateCareOfferingCalendarPeriod(func(err error) { require.NoError(t, err) }, testpkg.NewDatabase(t, env.db), testpkg.Ctx(t), testpkg.Tenant(t), uniqueSchemaName(t.Name()), calendar.Date(env.sourcePhase.ServiceStartDate).AddDays(-31), calendar.Date(env.sourcePhase.ServiceEndDate).AddDays(31))
@@ -1201,12 +1157,6 @@ func TestOfferingDetach_DriftedSiblingCapsExclusiveCoverage(t *testing.T) {
 	}
 	offeringA.TenantID = testpkg.Tenant(t)
 	require.NoError(t, newCareOfferingFixtureRecords(env.repos.CarePlan()).Create(ctx, offeringA))
-	t.Cleanup(func() {
-		_, _ = env.db.NewDelete().
-			TableExpr("enrollment.care_offerings").
-			Where("id = ?", offeringA.ID).
-			Exec(context.Background())
-	})
 	offeringB := createSourceOffering(t, env, "DriftBreitQuelleB", nil) // Montag only
 
 	template := createSourcedTemplate(t, env, "DriftBreitTermin", offeringA.ID, nil, period.ID)
@@ -1243,12 +1193,6 @@ func TestOfferingDetach_DriftedSiblingCapsExclusiveCoverage(t *testing.T) {
 	})
 	require.NoError(t, err)
 	require.NotNil(t, outcome.Child.CreatedStudentID)
-	t.Cleanup(func() {
-		_, _ = env.db.NewDelete().
-			TableExpr("activities.student_enrollments").
-			Where("student_id = ?", *outcome.Child.CreatedStudentID).
-			Exec(context.Background())
-	})
 	rows := loadTemplateEnrollments(t, env, template.ID)
 	require.Len(t, rows, 1)
 	require.Equal(t, []int{1, 2, 3, 4, 5}, rows[0].SelectedWeekdays,
@@ -1281,8 +1225,7 @@ func TestOfferingDetach_DriftedSiblingCapsExclusiveCoverage(t *testing.T) {
 func TestDecide_MultiSourceFanOutSeedsFromPhaseStart(t *testing.T) {
 	t.Parallel()
 
-	env, cleanup := setupDecisionTest(t)
-	defer cleanup()
+	env := setupDecisionTest(t)
 	ctx := testpkg.Ctx(t)
 
 	// The phase started a week ago; the period is built around it so the
@@ -1317,8 +1260,7 @@ func TestDecide_MultiSourceFanOutSeedsFromPhaseStart(t *testing.T) {
 func TestUpdateChildOfferings_UndatedCorrectionKeepsPhaseStartOnMultiSource(t *testing.T) {
 	t.Parallel()
 
-	env, cleanup := setupDecisionTest(t)
-	defer cleanup()
+	env := setupDecisionTest(t)
 	ctx := testpkg.Ctx(t)
 
 	phaseStart := calendar.NewDate(2026, 8, 24).AddDays(-7)
@@ -1370,8 +1312,7 @@ func TestDecide_MultiSourceResyncRespectsCareOfferingsDisabled(t *testing.T) {
 	t.Parallel()
 
 	disabled := false
-	env, cleanup := setupDecisionTestWithSettings(t, stubActivationSettings{careOfferingsEnabled: &disabled})
-	defer cleanup()
+	env := setupDecisionTestWithSettings(t, stubActivationSettings{careOfferingsEnabled: &disabled})
 	ctx := testpkg.Ctx(t)
 
 	period := api.CreateCareOfferingCalendarPeriod(func(err error) { require.NoError(t, err) }, testpkg.NewDatabase(t, env.db), testpkg.Ctx(t), testpkg.Tenant(t), uniqueSchemaName(t.Name()), calendar.Date(env.sourcePhase.ServiceStartDate).AddDays(-31), calendar.Date(env.sourcePhase.ServiceEndDate).AddDays(31))
@@ -1396,8 +1337,7 @@ func TestDecide_MultiSourceResyncRespectsCareOfferingsDisabled(t *testing.T) {
 func TestPhaseDelete_RetiresSourcedRosterRows(t *testing.T) {
 	t.Parallel()
 
-	env, cleanup := setupDecisionTest(t)
-	defer cleanup()
+	env := setupDecisionTest(t)
 	ctx := testpkg.Ctx(t)
 	setSourcePhaseServiceStartDate(t, env, calendar.NewDate(2099, 9, 1))
 
@@ -1421,7 +1361,6 @@ func TestPhaseDelete_RetiresSourcedRosterRows(t *testing.T) {
 		ActivityGroupID:  &template.ID,
 		CalendarPeriodID: &period.ID,
 	})
-	registerSourcedInstanceCleanup(t, env, planned.ID)
 	testpkg.CreateTestInstanceStudent(t, env.db, planned.ID, studentID, "expected")
 
 	repoFactory := api.NewRepositoryTestFactory(testpkg.NewDatabase(t, env.db))
@@ -1504,8 +1443,7 @@ func createSourcedTemplateSegment(
 func TestDecide_FanOutBoundsRowsToSegmentEnvelope(t *testing.T) {
 	t.Parallel()
 
-	env, cleanup := setupDecisionTest(t)
-	defer cleanup()
+	env := setupDecisionTest(t)
 
 	period := api.CreateCareOfferingCalendarPeriod(func(err error) { require.NoError(t, err) }, testpkg.NewDatabase(t, env.db), testpkg.Ctx(t), testpkg.Tenant(t), uniqueSchemaName(t.Name()), calendar.Date(env.sourcePhase.ServiceStartDate).AddDays(-31), calendar.Date(env.sourcePhase.ServiceEndDate).AddDays(31))
 	offering := createSourceOffering(t, env, "SplitQuelle", nil)
@@ -1538,8 +1476,7 @@ func TestDecide_FanOutBoundsRowsToSegmentEnvelope(t *testing.T) {
 func TestResyncTemplateOfferingRoster_BoundsWindowsToScheduleEnvelope(t *testing.T) {
 	t.Parallel()
 
-	env, cleanup := setupDecisionTest(t)
-	defer cleanup()
+	env := setupDecisionTest(t)
 	ctx := testpkg.Ctx(t)
 
 	period := api.CreateCareOfferingCalendarPeriod(func(err error) { require.NoError(t, err) }, testpkg.NewDatabase(t, env.db), testpkg.Ctx(t), testpkg.Tenant(t), uniqueSchemaName(t.Name()), calendar.Date(env.sourcePhase.ServiceStartDate).AddDays(-31), calendar.Date(env.sourcePhase.ServiceEndDate).AddDays(31))
@@ -1580,8 +1517,7 @@ func TestResyncTemplateOfferingRoster_BoundsWindowsToScheduleEnvelope(t *testing
 func TestResyncTemplateOfferingRoster_ReconcilesMaterializedInstances(t *testing.T) {
 	t.Parallel()
 
-	env, cleanup := setupDecisionTest(t)
-	defer cleanup()
+	env := setupDecisionTest(t)
 	ctx := testpkg.Ctx(t)
 	setSourcePhaseServiceStartDate(t, env, calendar.NewDate(2099, 9, 1))
 
@@ -1613,12 +1549,6 @@ func TestResyncTemplateOfferingRoster_ReconcilesMaterializedInstances(t *testing
 	decided := testpkg.CreateTestActivityInstance(t, env.db, occurrenceDate.AddDays(7), *template.PlannedRoomID, testpkg.ActivityInstanceOpts{
 		ActivityGroupID:  &template.ID,
 		CalendarPeriodID: &period.ID,
-	})
-	t.Cleanup(func() {
-		_, _ = env.db.NewDelete().
-			TableExpr("schedule.instance_students").
-			Where("instance_id IN (?, ?)", planned.ID, decided.ID).
-			Exec(context.Background())
 	})
 	testpkg.CreateTestInstanceStudent(t, env.db, planned.ID, studentGrade1, "expected")
 	manualAt := time.Now()
@@ -1655,8 +1585,7 @@ func TestResyncTemplateOfferingRoster_ReconcilesMaterializedInstances(t *testing
 func TestResyncTemplateOfferingRoster_PreservesManualOccurrenceRemoval(t *testing.T) {
 	t.Parallel()
 
-	env, cleanup := setupDecisionTest(t)
-	defer cleanup()
+	env := setupDecisionTest(t)
 	ctx := testpkg.Ctx(t)
 
 	period := api.CreateCareOfferingCalendarPeriod(func(err error) { require.NoError(t, err) }, testpkg.NewDatabase(t, env.db), testpkg.Ctx(t), testpkg.Tenant(t), uniqueSchemaName(t.Name()), calendar.Date(env.sourcePhase.ServiceStartDate).AddDays(-31), calendar.Date(env.sourcePhase.ServiceEndDate).AddDays(31))
@@ -1681,7 +1610,6 @@ func TestResyncTemplateOfferingRoster_PreservesManualOccurrenceRemoval(t *testin
 		ActivityGroupID:  &template.ID,
 		CalendarPeriodID: &period.ID,
 	})
-	registerSourcedInstanceCleanup(t, env, planned.ID)
 
 	// The child leaves the offering four weeks later: the resync resizes the
 	// enrollment row while the occurrence date stays covered.
@@ -1726,27 +1654,13 @@ func firstFutureMondayOnOrAfter(date calendar.Date) calendar.Date {
 	return date
 }
 
-// registerSourcedInstanceCleanup drops an occurrence with its attendance rows.
-func registerSourcedInstanceCleanup(t *testing.T, env *decisionTestEnv, instanceIDs ...int64) {
-	t.Helper()
-	t.Cleanup(func() {
-		for _, instanceID := range instanceIDs {
-			_, _ = env.db.NewDelete().
-				TableExpr("schedule.instance_students").
-				Where("instance_id = ?", instanceID).
-				Exec(context.Background())
-		}
-	})
-}
-
 // The approval fan-out must honour the offering link's own validity window: a
 // child whose link ends mid-phase must not stay planned for the rest of the
 // phase (#2147 review, round 4).
 func TestDecide_FanOutCapsRowAtLinkEnd(t *testing.T) {
 	t.Parallel()
 
-	env, cleanup := setupDecisionTest(t)
-	defer cleanup()
+	env := setupDecisionTest(t)
 	ctx := testpkg.Ctx(t)
 
 	period := api.CreateCareOfferingCalendarPeriod(func(err error) { require.NoError(t, err) }, testpkg.NewDatabase(t, env.db), testpkg.Ctx(t), testpkg.Tenant(t), uniqueSchemaName(t.Name()), calendar.Date(env.sourcePhase.ServiceStartDate).AddDays(-31), calendar.Date(env.sourcePhase.ServiceEndDate).AddDays(31))
@@ -1787,12 +1701,6 @@ func TestDecide_FanOutCapsRowAtLinkEnd(t *testing.T) {
 	})
 	require.NoError(t, err)
 	require.NotNil(t, outcome.Child.CreatedStudentID)
-	t.Cleanup(func() {
-		_, _ = env.db.NewDelete().
-			TableExpr("activities.student_enrollments").
-			Where("student_id = ?", *outcome.Child.CreatedStudentID).
-			Exec(context.Background())
-	})
 
 	rows := loadTemplateEnrollments(t, env, template.ID)
 	require.Len(t, rows, 1)
@@ -1808,8 +1716,7 @@ func TestDecide_FanOutCapsRowAtLinkEnd(t *testing.T) {
 func TestDecide_ApprovalReconcilesMaterializedOccurrences(t *testing.T) {
 	t.Parallel()
 
-	env, cleanup := setupDecisionTest(t)
-	defer cleanup()
+	env := setupDecisionTest(t)
 	setSourcePhaseServiceStartDate(t, env, calendar.NewDate(2099, 9, 1))
 
 	period := api.CreateCareOfferingCalendarPeriod(func(err error) { require.NoError(t, err) }, testpkg.NewDatabase(t, env.db), testpkg.Ctx(t), testpkg.Tenant(t), uniqueSchemaName(t.Name()), calendar.Date(env.sourcePhase.ServiceStartDate).AddDays(-31), calendar.Date(env.sourcePhase.ServiceEndDate).AddDays(31))
@@ -1823,7 +1730,6 @@ func TestDecide_ApprovalReconcilesMaterializedOccurrences(t *testing.T) {
 		ActivityGroupID:  &template.ID,
 		CalendarPeriodID: &period.ID,
 	})
-	registerSourcedInstanceCleanup(t, env, planned.ID)
 
 	studentID, _ := submitAndApproveOfferingChild(t, env, offering.ID, "instanz-genehmigung@example.com", "Insa", 2)
 
@@ -1840,8 +1746,7 @@ func TestDecide_ApprovalReconcilesMaterializedOccurrences(t *testing.T) {
 func TestUpdateChildOfferings_DatedSwitchReconcilesMaterializedOccurrences(t *testing.T) {
 	t.Parallel()
 
-	env, cleanup := setupDecisionTest(t)
-	defer cleanup()
+	env := setupDecisionTest(t)
 	ctx := testpkg.Ctx(t)
 
 	period := api.CreateCareOfferingCalendarPeriod(func(err error) { require.NoError(t, err) }, testpkg.NewDatabase(t, env.db), testpkg.Ctx(t), testpkg.Tenant(t), uniqueSchemaName(t.Name()), calendar.Date(env.sourcePhase.ServiceStartDate).AddDays(-31), calendar.Date(env.sourcePhase.ServiceEndDate).AddDays(31))
@@ -1860,7 +1765,6 @@ func TestUpdateChildOfferings_DatedSwitchReconcilesMaterializedOccurrences(t *te
 		ActivityGroupID:  &template.ID,
 		CalendarPeriodID: &period.ID,
 	})
-	registerSourcedInstanceCleanup(t, env, planned.ID)
 	testpkg.CreateTestInstanceStudent(t, env.db, planned.ID, studentID, "expected")
 
 	_, err = testpkg.TenantQuery1(t, ctx, env.db, env.decision.UpdateChildOfferings, enrollmentTest.UpdateChildOfferingsInput{
@@ -1891,8 +1795,7 @@ func TestUpdateChildOfferings_DatedSwitchReconcilesMaterializedOccurrences(t *te
 func TestUpdateChildOfferings_DatedKeepRespectsSegmentEnd(t *testing.T) {
 	t.Parallel()
 
-	env, cleanup := setupDecisionTest(t)
-	defer cleanup()
+	env := setupDecisionTest(t)
 	ctx := testpkg.Ctx(t)
 
 	period := api.CreateCareOfferingCalendarPeriod(func(err error) { require.NoError(t, err) }, testpkg.NewDatabase(t, env.db), testpkg.Ctx(t), testpkg.Tenant(t), uniqueSchemaName(t.Name()), calendar.Date(env.sourcePhase.ServiceStartDate).AddDays(-31), calendar.Date(env.sourcePhase.ServiceEndDate).AddDays(31))
@@ -1941,8 +1844,7 @@ func TestUpdateChildOfferings_DatedKeepRespectsSegmentEnd(t *testing.T) {
 func TestResyncTemplateOfferingRoster_LegacyChildGainsNonOverlappingSourceDays(t *testing.T) {
 	t.Parallel()
 
-	env, cleanup := setupDecisionTest(t)
-	defer cleanup()
+	env := setupDecisionTest(t)
 	ctx := testpkg.Ctx(t)
 
 	period := api.CreateCareOfferingCalendarPeriod(func(err error) { require.NoError(t, err) }, testpkg.NewDatabase(t, env.db), testpkg.Ctx(t), testpkg.Tenant(t), uniqueSchemaName(t.Name()), calendar.Date(env.sourcePhase.ServiceStartDate).AddDays(-31), calendar.Date(env.sourcePhase.ServiceEndDate).AddDays(31))
@@ -1986,12 +1888,6 @@ func TestResyncTemplateOfferingRoster_LegacyChildGainsNonOverlappingSourceDays(t
 	require.NoError(t, err)
 	require.NotNil(t, outcome.Child.CreatedStudentID)
 	studentID := *outcome.Child.CreatedStudentID
-	t.Cleanup(func() {
-		_, _ = env.db.NewDelete().
-			TableExpr("activities.student_enrollments").
-			Where("student_id = ?", studentID).
-			Exec(context.Background())
-	})
 
 	rows := loadTemplateEnrollments(t, env, legacyTemplate.ID)
 	require.Len(t, rows, 1, "the legacy link owns the child's row — no second, source-fed row")
@@ -2035,8 +1931,7 @@ func TestResyncTemplateOfferingRoster_LegacyChildGainsNonOverlappingSourceDays(t
 func TestResyncTemplateOfferingRoster_FutureLegacyLinkDoesNotSuppressEarlierSourceRows(t *testing.T) {
 	t.Parallel()
 
-	env, cleanup := setupDecisionTest(t)
-	defer cleanup()
+	env := setupDecisionTest(t)
 	ctx := testpkg.Ctx(t)
 
 	period := api.CreateCareOfferingCalendarPeriod(func(err error) { require.NoError(t, err) }, testpkg.NewDatabase(t, env.db), testpkg.Ctx(t), testpkg.Tenant(t), uniqueSchemaName(t.Name()), calendar.Date(env.sourcePhase.ServiceStartDate).AddDays(-31), calendar.Date(env.sourcePhase.ServiceEndDate).AddDays(31))
@@ -2086,8 +1981,7 @@ func TestResyncTemplateOfferingRoster_FutureLegacyLinkDoesNotSuppressEarlierSour
 func TestCareOfferingUpdate_ResyncsSourcedTemplates(t *testing.T) {
 	t.Parallel()
 
-	env, cleanup := setupDecisionTest(t)
-	defer cleanup()
+	env := setupDecisionTest(t)
 	ctx := testpkg.Ctx(t)
 
 	period := api.CreateCareOfferingCalendarPeriod(func(err error) { require.NoError(t, err) }, testpkg.NewDatabase(t, env.db), testpkg.Ctx(t), testpkg.Tenant(t), uniqueSchemaName(t.Name()), calendar.Date(env.sourcePhase.ServiceStartDate).AddDays(-31), calendar.Date(env.sourcePhase.ServiceEndDate).AddDays(31))
@@ -2138,8 +2032,7 @@ func TestCareOfferingUpdate_ResyncsSourcedTemplates(t *testing.T) {
 func TestResyncSourcedTemplates_InvalidSourceSkipVsReject(t *testing.T) {
 	t.Parallel()
 
-	env, cleanup := setupDecisionTest(t)
-	defer cleanup()
+	env := setupDecisionTest(t)
 	ctx := testpkg.Ctx(t)
 
 	// The phase's service window (2026-09-01 .. 2027-07-31) reaches past this
@@ -2175,8 +2068,7 @@ func TestResyncSourcedTemplates_InvalidSourceSkipVsReject(t *testing.T) {
 func TestCareOfferingUpdate_RejectsEditThatInvalidatesSourcedTemplate(t *testing.T) {
 	t.Parallel()
 
-	env, cleanup := setupDecisionTest(t)
-	defer cleanup()
+	env := setupDecisionTest(t)
 	ctx := tenant.WithRollbackMarker(testpkg.Ctx(t))
 
 	period := api.CreateCareOfferingCalendarPeriod(func(err error) { require.NoError(t, err) }, testpkg.NewDatabase(t, env.db), testpkg.Ctx(t), testpkg.Tenant(t), uniqueSchemaName(t.Name()), calendar.Date(env.sourcePhase. // 2026-08-01 .. 2027-08-31
@@ -2194,12 +2086,6 @@ func TestCareOfferingUpdate_RejectsEditThatInvalidatesSourcedTemplate(t *testing
 	}
 	latePhase.TenantID = testpkg.Tenant(t)
 	require.NoError(t, insertOwnerPhaseForTest(ctx, env.reposEnrollment.Enrollment(), latePhase))
-	t.Cleanup(func() {
-		_, _ = env.db.NewDelete().
-			TableExpr("enrollment.phases").
-			Where("id = ?", latePhase.ID).
-			Exec(context.Background())
-	})
 
 	sourcedResyncer, ok := env.bookings.(enrollmentTest.SourcedTemplateResyncer)
 	require.True(t, ok, "decision service must implement the offering-update resync")
@@ -2224,8 +2110,7 @@ func TestCareOfferingUpdate_RejectsEditThatInvalidatesSourcedTemplate(t *testing
 func TestListOfferingSourceOptions_CountsScopedToSelectedPeriod(t *testing.T) {
 	t.Parallel()
 
-	env, cleanup := setupDecisionTest(t)
-	defer cleanup()
+	env := setupDecisionTest(t)
 
 	// Move the phase into the future so a period starting after today can
 	// still contain it, keeping the test independent of the real date.
@@ -2286,8 +2171,7 @@ func TestListOfferingSourceOptions_CountsScopedToSelectedPeriod(t *testing.T) {
 func TestSourcedRosterRows_AppearInTemplateListReads(t *testing.T) {
 	t.Parallel()
 
-	env, cleanup := setupDecisionTest(t)
-	defer cleanup()
+	env := setupDecisionTest(t)
 
 	period := api.CreateCareOfferingCalendarPeriod(func(err error) { require.NoError(t, err) }, testpkg.NewDatabase(t, env.db), testpkg.Ctx(t), testpkg.Tenant(t), uniqueSchemaName(t.Name()), calendar.Date(env.sourcePhase.ServiceStartDate).AddDays(-31), calendar.Date(env.sourcePhase.ServiceEndDate).AddDays(31))
 	offering := createSourceOffering(t, env, "ListRead", nil)

@@ -2,11 +2,7 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 import { renderHook, waitFor } from "@testing-library/react";
 import type { Session } from "next-auth";
 import type { ReactNode } from "react";
-import {
-  UserContextProvider,
-  useUserContext,
-  useHasEducationalGroups,
-} from "./usercontext-context";
+import { UserContextProvider, useUserContext } from "./usercontext-context";
 import type { NavigationEducationalGroup } from "./usercontext-helpers";
 import { mockSessionData } from "~/test/mocks/next-auth";
 
@@ -133,12 +129,6 @@ describe("UserContextProvider", () => {
     it("should throw error when useUserContext is used outside provider", () => {
       expect(() => {
         renderHook(() => useUserContext());
-      }).toThrow("useUserContext must be used within a UserContextProvider");
-    });
-
-    it("should throw error when useHasEducationalGroups is used outside provider", () => {
-      expect(() => {
-        renderHook(() => useHasEducationalGroups());
       }).toThrow("useUserContext must be used within a UserContextProvider");
     });
   });
@@ -400,68 +390,6 @@ describe("UserContextProvider", () => {
       const secondRefetch = result.current.refetch;
 
       expect(firstRefetch).toBe(secondRefetch);
-    });
-  });
-
-  describe("useHasEducationalGroups Hook", () => {
-    it("should return correct values when user has groups", () => {
-      const { result } = renderHook(() => useHasEducationalGroups(), {
-        wrapper: ({ children }: { children: ReactNode }) => (
-          <UserContextProvider>{children}</UserContextProvider>
-        ),
-      });
-
-      expect(result.current.hasEducationalGroups).toBe(true);
-      expect(result.current.isLoading).toBe(false);
-      expect(result.current.error).toBeNull();
-    });
-
-    it("should return false when user has no groups", () => {
-      vi.mocked(useSupervision).mockReturnValue({
-        hasGroups: false,
-        isLoadingGroups: false,
-        groups: [],
-        isSupervising: false,
-        supervisedRoomId: undefined,
-        supervisedRoomName: undefined,
-        isLoadingSupervision: false,
-        overviewEnabled: false,
-        supervisedRooms: [],
-        refresh: vi.fn(),
-      });
-
-      const { result } = renderHook(() => useHasEducationalGroups(), {
-        wrapper: ({ children }: { children: ReactNode }) => (
-          <UserContextProvider>{children}</UserContextProvider>
-        ),
-      });
-
-      expect(result.current.hasEducationalGroups).toBe(false);
-      expect(result.current.isLoading).toBe(false);
-      expect(result.current.error).toBeNull();
-    });
-
-    it("should indicate loading state", () => {
-      vi.mocked(useSupervision).mockReturnValue({
-        hasGroups: false,
-        isLoadingGroups: true,
-        groups: [],
-        isSupervising: false,
-        supervisedRoomId: undefined,
-        supervisedRoomName: undefined,
-        isLoadingSupervision: false,
-        overviewEnabled: false,
-        supervisedRooms: [],
-        refresh: vi.fn(),
-      });
-
-      const { result } = renderHook(() => useHasEducationalGroups(), {
-        wrapper: ({ children }: { children: ReactNode }) => (
-          <UserContextProvider>{children}</UserContextProvider>
-        ),
-      });
-
-      expect(result.current.isLoading).toBe(true);
     });
   });
 

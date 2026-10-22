@@ -1,7 +1,6 @@
 package presenceprojectionhttp_test
 
 import (
-	"context"
 	"encoding/json"
 	"fmt"
 	"net/http"
@@ -12,50 +11,10 @@ import (
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"github.com/uptrace/bun"
 )
 
 // listStudentsPerms mirrors the permission the list route requires.
 var listStudentsPerms = []string{"admin:*"}
-
-// fillWideStudentFields writes the personal/administrative columns a real
-// production row carries. Without them omitempty hides most of the full
-// projection and a payload comparison would measure nothing.
-//
-// bus_days / pickup_days / departure_days / allowed_departure_modes are
-// `scanonly` on the model, so they are written with raw SQL here exactly like
-// the repository reads them.
-func fillWideStudentFields(t *testing.T, db *bun.DB, studentID, personID int64) {
-	t.Helper()
-
-	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
-	defer cancel()
-
-	guardian := testpkg.CreateTestGuardianProfileNamed(t, db, "Erika", "Mustermann", "erika.mustermann@example.com")
-	testpkg.CreateTestStudentGuardianLink(t, db, studentID, guardian.ID, "parent")
-	_, err := db.NewRaw(`UPDATE users.student_profiles SET
-			address_street = 'Musterstrasse 12a',
-			address_city = 'Koeln',
-			address_postal_code = '50667',
-			extra_info = 'Geschwisterkind in Klasse 2b, kommt meist mit dem Rad',
-			agb_accepted_at = now(),
-			data_processing_accepted_at = now(),
-			email_contact_accepted_at = now()
-		WHERE id = ?`, studentID).Exec(ctx)
-	require.NoError(t, err, "failed to fill wide profile fields")
-	_, err = db.NewRaw(`UPDATE users.student_care_profiles SET
-			health_info = 'Laktoseintoleranz, Notfallmedikament im Gruppenraum',
-			pickup_status = 'Wird abgeholt',
-			bus_days = '{"mon":true,"tue":true,"wed":true,"thu":true,"fri":true}'::jsonb,
-			pickup_days = '{"mon":true,"tue":true,"wed":true,"thu":true,"fri":true}'::jsonb,
-			departure_days = '{"mon":"pickup","tue":"pickup","wed":"pickup","thu":"pickup","fri":"pickup"}'::jsonb,
-			allowed_departure_modes = '{"mon":["pickup"],"tue":["pickup"],"wed":["pickup"],"thu":["pickup"],"fri":["pickup"]}'::jsonb
-		WHERE membership_id = (SELECT id FROM users.student_school_memberships WHERE student_profile_id = ? AND deleted_at IS NULL)`, studentID).Exec(ctx)
-	require.NoError(t, err, "failed to fill wide student fields")
-
-	_, err = db.NewRaw(`UPDATE users.persons SET birthday = DATE '2019-02-02' WHERE id = ?`, personID).Exec(ctx)
-	require.NoError(t, err, "failed to set person birthday")
-}
 
 // listStudentIDs decodes the id of every row in a paginated students response.
 func listStudentIDs(t *testing.T, body []byte) []int64 {
@@ -89,7 +48,7 @@ func TestListStudents_SlimProjection(t *testing.T) {
 	tc.resource.Now = func() time.Time { return time.Date(2026, time.June, 1, 10, 0, 0, 0, time.UTC) }
 
 	student := testpkg.CreateTestStudent(t, tc.db, "Slim", "Kind", "SL1")
-	fillWideStudentFields(t, tc.db, student.ID, student.PersonID)
+	testpkg.FillWideStudentFields(t, tc.db, student.ID, student.PersonID)
 
 	req := testutil.NewRequest("GET", "/?view=slim&include_pickup_times=true&include_arrival_times=true", nil)
 	rr := authExec(t, tc, req, testutil.AdminTestClaims(1), listStudentsPerms)
@@ -98,9 +57,8 @@ func TestListStudents_SlimProjection(t *testing.T) {
 	body := rr.Body.String()
 	for _, forbidden := range []string{
 		"person_id", "tag_id", "birthday",
-		"guardian_name", "guardian_contact", "guardian_email", "guardian_phone",
 		"address_street", "address_city", "address_postal_code",
-		"extra_info", "health_info", "supervisor_notes",
+		"extra_info", "health_info",
 		"bus_days", "pickup_days", "departure_days", "allowed_departure_modes",
 		"pickup_status",
 		"departure_companion_note",
@@ -133,7 +91,7 @@ func TestListStudents_FullViewKeepsWideProjection(t *testing.T) {
 	tc := setupStudentsRoute(t)
 
 	student := testpkg.CreateTestStudent(t, tc.db, "Wide", "Kind", "WD1")
-	fillWideStudentFields(t, tc.db, student.ID, student.PersonID)
+	testpkg.FillWideStudentFields(t, tc.db, student.ID, student.PersonID)
 
 	for _, view := range []string{"", "?view=full"} {
 		path := "/" + view
@@ -150,8 +108,6 @@ func TestListStudents_FullViewKeepsWideProjection(t *testing.T) {
 			assert.Contains(t, body, required,
 				"GET /students%s must keep the full projection", path)
 		}
-		assert.NotContains(t, body, "supervisor_notes",
-			"the retired Betreuernotizen field is no longer part of the projection (#4268)")
 	}
 }
 
@@ -178,7 +134,7 @@ func TestListStudents_SlimViewSameRows(t *testing.T) {
 	var studentIDs []int64
 	for i := range 5 {
 		student := testpkg.CreateTestStudent(t, tc.db, "SameRows", fmt.Sprintf("Kind%d", i), "SR1")
-		fillWideStudentFields(t, tc.db, student.ID, student.PersonID)
+		testpkg.FillWideStudentFields(t, tc.db, student.ID, student.PersonID)
 		studentIDs = append(studentIDs, student.ID)
 	}
 
@@ -208,7 +164,7 @@ func TestListStudents_SlimPayloadBudget(t *testing.T) {
 	const listSize = 30
 	for i := range listSize {
 		student := testpkg.CreateTestStudent(t, tc.db, "Budget", fmt.Sprintf("Produktionskind%02d", i), "BG1")
-		fillWideStudentFields(t, tc.db, student.ID, student.PersonID)
+		testpkg.FillWideStudentFields(t, tc.db, student.ID, student.PersonID)
 	}
 
 	query := "search=Produktionskind&include_pickup_times=true&include_arrival_times=true&page_size=100"

@@ -56,42 +56,6 @@ type queryListRepository[T any] interface {
 	List(context.Context, *fixtures.QueryOptions) ([]T, error)
 }
 
-type arrivalScheduleQueryRepository interface {
-	fixtures.
-		StudentArrivalScheduleRecords
-	queryListRepository[*fixtures.StudentArrivalSchedule]
-}
-
-type arrivalExceptionQueryRepository interface {
-	fixtures.
-		StudentArrivalExceptionRecords
-	queryListRepository[*fixtures.StudentArrivalException]
-}
-
-type arrivalNoteQueryRepository interface {
-	fixtures.
-		StudentArrivalNoteRecords
-	queryListRepository[*fixtures.StudentArrivalNote]
-}
-
-type pickupScheduleQueryRepository interface {
-	fixtures.
-		StudentPickupScheduleRecords
-	queryListRepository[*fixtures.StudentPickupSchedule]
-}
-
-type pickupExceptionQueryRepository interface {
-	fixtures.
-		StudentPickupExceptionRecords
-	queryListRepository[*fixtures.StudentPickupException]
-}
-
-type pickupNoteQueryRepository interface {
-	fixtures.
-		StudentPickupNoteRecords
-	queryListRepository[*fixtures.StudentPickupNote]
-}
-
 type dateframeQueryRepository interface {
 	fixtures.
 		DateframeRecords

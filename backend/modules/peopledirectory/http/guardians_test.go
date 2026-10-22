@@ -14,6 +14,7 @@ import (
 	"github.com/go-chi/render"
 	"github.com/moto-nrw/project-phoenix/modules/peopledirectory"
 	usersHTTP "github.com/moto-nrw/project-phoenix/modules/peopledirectory/http"
+	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -147,6 +148,7 @@ func newGuardianHarness(t *testing.T, directory *fakeGuardianDirectory) *guardia
 			_ = render.Render(w, r, errorResponse{StatusCode: statusOf[kind], Status: statusOf[kind], Kind: string(kind), Detail: err.Error()})
 		},
 		ObserveResponse: func(status int, code string) { h.observed = append(h.observed, http.StatusText(status)+":"+code) },
+		ParseIDParam:    testpkg.ParseHTTPIDParam,
 		ActorID:         func(*http.Request) int64 { return h.actorID },
 		ActorRole:       func(*http.Request) string { return "admin" },
 		HasPermission:   func(_ *http.Request, permission string) bool { return h.actorPerms[permission] },
@@ -207,6 +209,19 @@ func TestGuardianRoutesAreGatedByPermission(t *testing.T) {
 	assert.Equal(t, http.StatusBadRequest, h.do(t, http.MethodGet, "/guardians/abc", nil).Code)
 	assert.Equal(t, http.StatusNotFound, h.do(t, http.MethodGet, "/guardians/7", nil).Code)
 	assert.Contains(t, h.observed, "Not Found:not_found")
+}
+
+func TestGuardianRoutesRejectInvalidGuardianIDs(t *testing.T) {
+	t.Parallel()
+	h := newGuardianHarness(t, &fakeGuardianDirectory{})
+	h.permitted["users:read"] = true
+
+	for _, id := range []string{"abc", "0", "-3"} {
+		recorder := h.do(t, http.MethodGet, "/guardians/"+id, nil)
+		assert.Equal(t, http.StatusBadRequest, recorder.Code, id)
+		assert.Equal(t, "invalid guardian ID", decodeError(t, recorder).Detail, id)
+	}
+	assert.Equal(t, []string{"invalid_request", "invalid_request", "invalid_request"}, h.rendered)
 }
 
 func TestDeleteGuardianRendersAudienceSpecificConflicts(t *testing.T) {

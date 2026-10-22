@@ -2,7 +2,6 @@ package activitycontract
 
 import (
 	"testing"
-	"time"
 )
 
 // int64Ptr returns a pointer to the given int64 value.
@@ -201,53 +200,6 @@ func TestGroupHasAvailableSpots(t *testing.T) {
 				t.Errorf("Group.HasAvailableSpots() = %v, want %v", got, tt.want)
 			}
 		})
-	}
-}
-
-func TestGroup_GetID(t *testing.T) {
-	t.Parallel()
-
-	group := &Group{
-		ID:              42,
-		Name:            "Test",
-		CategoryID:      1,
-		MaxParticipants: 10,
-	}
-
-	if group.ID != 42 {
-		t.Errorf("ID = %v, want 42", group.ID)
-	}
-}
-
-func TestGroup_GetCreatedAt(t *testing.T) {
-	t.Parallel()
-
-	now := time.Now()
-	group := &Group{
-		CreatedAt:       now,
-		Name:            "Test",
-		CategoryID:      1,
-		MaxParticipants: 10,
-	}
-
-	if got := group.CreatedAt; !got.Equal(now) {
-		t.Errorf("GetCreatedAt() = %v, want %v", got, now)
-	}
-}
-
-func TestGroup_GetUpdatedAt(t *testing.T) {
-	t.Parallel()
-
-	now := time.Now()
-	group := &Group{
-		UpdatedAt:       now,
-		Name:            "Test",
-		CategoryID:      1,
-		MaxParticipants: 10,
-	}
-
-	if got := group.UpdatedAt; !got.Equal(now) {
-		t.Errorf("GetUpdatedAt() = %v, want %v", got, now)
 	}
 }
 

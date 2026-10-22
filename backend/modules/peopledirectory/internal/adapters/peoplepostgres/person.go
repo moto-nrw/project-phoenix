@@ -507,6 +507,11 @@ func (r *personRepository) Create(ctx context.Context, person *users.Person) err
 		return err
 	}
 	ensureTenantID(ctx, r.runtime, person)
+	if person.TenantID > 0 {
+		if err := r.runtime.AcquireLock(ctx, directory.StaffPersonMergeLockKey(person.TenantID), true); err != nil {
+			return err
+		}
+	}
 	ambientDB12, databaseErr12 := r.runtime.DB(ctx)
 	if databaseErr12 != nil {
 		return databaseErr12

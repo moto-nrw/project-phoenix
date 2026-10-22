@@ -79,7 +79,6 @@ func (rs *Resource) Router(protectedTenantRoutes func(chi.Router, func(chi.Route
 		r.With(common.RequiresPermission(permissions.GroupsRead), withTx).Get("/{id}", rs.getGroup)
 		r.With(common.RequiresPermission(permissions.GroupsRead), withTx).Get("/{id}/students", rs.getGroupStudents)
 		r.With(common.RequiresPermission(permissions.GroupsRead), withTx).Get("/{id}/supervisors", rs.getGroupSupervisors)
-		r.With(common.RequiresPermission(permissions.GroupsRead), withTx).Get("/{id}/students/room-status", rs.getGroupStudentsRoomStatus)
 
 		// Write operations require groups:create, groups:update, or groups:delete permission
 		r.With(common.RequiresPermission(permissions.GroupsCreate), withTx).Post("/", rs.createGroup)

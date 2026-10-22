@@ -1093,6 +1093,14 @@
     "dateRange": "{from} до {to}"
   },
   "enrollmentForm": {
+    "attachments": {
+      "open": "Открыть",
+      "download": "Скачать",
+      "openLabel": "Открыть {label}",
+      "downloadLabel": "Скачать {label}",
+      "errorObject": "PDF-файл",
+      "popupBlocked": "Разрешите открытие нового окна."
+    },
     "errorObject": "запись",
     "loading": "Форма загружается…",
     "legalGermanNotice": "Эти юридические тексты имеют обязательную силу на немецком языке.",
@@ -1574,12 +1582,15 @@
     "requestHint": "Команда проверит эти изменения до их применения.",
     "departureDescription": "Укажите для каждого буднего дня, забирают ли ребёнка, уходит ли он самостоятельно или едет на автобусе. Изменения проверяет продлёнка.",
     "departureReadOnlyAccompanied": "Ваш ребёнок хотя бы в один день идёт домой с другим ребёнком. Здесь нельзя изменить путь домой.",
+    "departureEdit": "Изменить",
+    "departureCancel": "Отмена",
+    "departureSubmitting": "Запрос отправляется…",
+    "departurePendingNotice": "Продлёнка проверяет ваше изменение. До подтверждения действует прежний путь домой.",
     "requestButton": "Запросить изменение",
     "requestSubmitted": "Запрос отправлен. Команда проверит изменение.",
     "requestEdit": "Изменить заявку",
     "pendingBadge": "На рассмотрении",
     "pendingTitle": "Запрошенное изменение",
-    "pendingNotice": "Изменение этого поля ожидает подтверждения команды.",
     "editDisabled": "Редактирование этих сведений отключено для этой продлёнки.",
     "requestDisabled": "Запросы на изменение отключены для этой продлёнки.",
     "notSet": "Не указано",
@@ -2252,6 +2263,7 @@
         "announcement_not_found": "Не удалось изменить: {object}. Проверьте текущее состояние."
       },
       "enrollment": {
+        "form_attachment_invalid": "Проверьте название и PDF-файл.",
         "approval_care_offering_exactly_one": "Не удалось изменить: {object}. Проверьте текущее состояние.",
         "approval_care_offering_missing": "Не удалось изменить: {object}. Проверьте текущее состояние.",
         "approval_data_invalid": "Не удалось сохранить: {object}. Проверьте введённые данные.",

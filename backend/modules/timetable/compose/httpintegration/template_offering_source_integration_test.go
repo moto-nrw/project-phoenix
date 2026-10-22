@@ -181,24 +181,6 @@ func TestTemplateOfferingSource_CreateAndMaterializeCopiesSourcedKids(t *testing
 	instances := testpkg.ActivityInstancesWhere(t, s.ctx, s.db,
 		`"activity_instance".activity_group_id = ? AND "activity_instance".date = ?`, result.TemplateID, monday)
 	require.Len(t, instances, 1)
-	// Materialize is tenant-wide and also fills the scenario's baseline
-	// template. Tear those rows down before makeScenario drops students/rooms.
-	s.extraCleanups = append([]func(){func() {
-		_, _ = s.db.NewRaw(`
-			DELETE FROM schedule.instance_students
-			WHERE instance_id IN (
-				SELECT id FROM schedule.activity_instances WHERE tenant_id = ?
-			)`, s.tenantID).Exec(s.ctx)
-		_, _ = s.db.NewRaw(`
-			DELETE FROM schedule.instance_staff
-			WHERE instance_id IN (
-				SELECT id FROM schedule.activity_instances WHERE tenant_id = ?
-			)`, s.tenantID).Exec(s.ctx)
-		_, _ = s.db.NewRaw(
-			`DELETE FROM schedule.activity_instances WHERE tenant_id = ?`, s.tenantID,
-		).Exec(s.ctx)
-	}}, s.extraCleanups...)
-
 	rows := testpkg.InstanceStudentsWhere(t, s.ctx, s.db, `"instance_student".instance_id = ?`, instances[0].ID)
 	require.Len(t, rows, 1, "materialize must copy the sourced child onto the occurrence")
 	assert.Equal(t, s.students[0], rows[0].StudentID)
@@ -964,9 +946,6 @@ func TestTemplateOfferingSource_SourceRemovalKeepsManualChildOnOccurrences(t *te
 	}
 	instance.TenantID = s.tenantID
 	testpkg.InsertActivityInstanceRow(t, s.ctx, s.db, instance)
-	s.extraCleanups = append([]func(){func() {
-		_, _ = s.db.NewRaw(`DELETE FROM schedule.instance_students WHERE instance_id = ?`, instance.ID).Exec(s.ctx)
-	}}, s.extraCleanups...)
 
 	manualStudentID := s.students[0]
 	require.NoError(t, s.timetableData.Templates.UpdateTemplate(s.ctx, timetable.UpdateTemplateCommand{
@@ -1040,9 +1019,6 @@ func TestTemplateOfferingSource_ConversionRemovesRetiredManualChildFromOccurrenc
 	}
 	instance.TenantID = s.tenantID
 	testpkg.InsertActivityInstanceRow(t, s.ctx, s.db, instance)
-	s.extraCleanups = append([]func(){func() {
-		_, _ = s.db.NewRaw(`DELETE FROM schedule.instance_students WHERE instance_id = ?`, instance.ID).Exec(s.ctx)
-	}}, s.extraCleanups...)
 	instanceStudent := &testpkg.InstanceStudent{
 		InstanceID: instance.ID,
 		StudentID:  manualStudentID,

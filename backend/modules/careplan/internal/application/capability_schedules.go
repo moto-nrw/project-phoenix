@@ -359,22 +359,6 @@ func (s *Service) DeleteArrivalExceptionsByStudent(ctx context.Context, id int64
 	})
 }
 
-func (s *Service) DeleteArrivalExceptionsBefore(ctx context.Context, d careplan.Date) (rows int64, err error) {
-	if d.IsZero() {
-		return 0, scheduleInvalid()
-	}
-
-	err = s.withinTenant(ctx, func(tx context.Context) error {
-		return s.run(tx, "delete_arrival_exceptions_before", func(ctx context.Context, stats *domain.OperationStats) error {
-			q, runErr := s.store.DeleteArrivalExceptionsBefore(ctx, d)
-			stats.Add(q)
-			rows = q.Rows
-			return runErr
-		})
-	})
-	return rows, err
-}
-
 func (s *Service) CreateArrivalNote(ctx context.Context, v careplan.ArrivalNote) (result careplan.ArrivalNote, err error) {
 	if !validateNote(v.StudentID, v.NoteDate, v.Content, v.CreatedBy) {
 		return careplan.ArrivalNote{}, scheduleInvalid()
@@ -431,22 +415,6 @@ func (s *Service) DeleteArrivalNotesByStudent(ctx context.Context, id int64) err
 			return err
 		})
 	})
-}
-
-func (s *Service) DeleteArrivalNotesBefore(ctx context.Context, d careplan.Date) (rows int64, err error) {
-	if d.IsZero() {
-		return 0, scheduleInvalid()
-	}
-
-	err = s.withinTenant(ctx, func(tx context.Context) error {
-		return s.run(tx, "delete_arrival_notes_before", func(ctx context.Context, stats *domain.OperationStats) error {
-			q, runErr := s.store.DeleteArrivalNotesBefore(ctx, d)
-			stats.Add(q)
-			rows = q.Rows
-			return runErr
-		})
-	})
-	return rows, err
 }
 
 func (s *Service) CreatePickupSchedule(ctx context.Context, v careplan.PickupSchedule) (result careplan.PickupSchedule, err error) {
@@ -587,22 +555,6 @@ func (s *Service) DeletePickupExceptionsByStudent(ctx context.Context, id int64)
 	})
 }
 
-func (s *Service) DeletePickupExceptionsBefore(ctx context.Context, d careplan.Date) (rows int64, err error) {
-	if d.IsZero() {
-		return 0, scheduleInvalid()
-	}
-
-	err = s.withinTenant(ctx, func(tx context.Context) error {
-		return s.run(tx, "delete_pickup_exceptions_before", func(ctx context.Context, stats *domain.OperationStats) error {
-			q, runErr := s.store.DeletePickupExceptionsBefore(ctx, d)
-			stats.Add(q)
-			rows = q.Rows
-			return runErr
-		})
-	})
-	return rows, err
-}
-
 func (s *Service) CreatePickupNote(ctx context.Context, v careplan.PickupNote) (result careplan.PickupNote, err error) {
 	if !validatePickupNote(v) {
 		return careplan.PickupNote{}, scheduleInvalid()
@@ -684,20 +636,4 @@ func (s *Service) DeletePickupNotesByStudent(ctx context.Context, id int64) erro
 			return err
 		})
 	})
-}
-
-func (s *Service) DeletePickupNotesBefore(ctx context.Context, d careplan.Date) (rows int64, err error) {
-	if d.IsZero() {
-		return 0, scheduleInvalid()
-	}
-
-	err = s.withinTenant(ctx, func(tx context.Context) error {
-		return s.run(tx, "delete_pickup_notes_before", func(ctx context.Context, stats *domain.OperationStats) error {
-			q, runErr := s.store.DeletePickupNotesBefore(ctx, d)
-			stats.Add(q)
-			rows = q.Rows
-			return runErr
-		})
-	})
-	return rows, err
 }

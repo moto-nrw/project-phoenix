@@ -76,6 +76,7 @@ func multipartPDF(t *testing.T, filename string) (*bytes.Buffer, string) {
 // samples so a per-row query cannot hide behind a mean.
 func TestFileStorageRuntimeEvidence(t *testing.T) {
 	t.Parallel()
+	testpkg.RequireRuntimeEvidence(t)
 	c := setupFileStoreRoute(t)
 	ctx := testpkg.Ctx(t)
 	role := testpkg.CreateTestRoleForTenant(t, c.db, "runtime-rolle", testpkg.Tenant(t))

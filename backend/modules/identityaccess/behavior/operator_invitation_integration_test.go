@@ -41,11 +41,6 @@ func createInvitingOperator(t *testing.T, db *bun.DB, email string) int64 {
 		 VALUES (?, 'x', ?, true) RETURNING id`, email, "Einladende Operatorin",
 	).Scan(ctx, &operatorID))
 
-	t.Cleanup(func() {
-		_, _ = db.ExecContext(ctx, `DELETE FROM platform.operator_invitation_tokens WHERE created_by = ?`, operatorID)
-		_, _ = db.ExecContext(ctx, `DELETE FROM platform.operator_audit_log WHERE operator_id = ?`, operatorID)
-		_, _ = db.ExecContext(ctx, `DELETE FROM platform.operators WHERE id = ?`, operatorID)
-	})
 	return operatorID
 }
 
@@ -86,10 +81,6 @@ func TestIntegration_OperatorInvitation_InviteValidateAccept(t *testing.T) {
 
 	operator, err := service.AcceptOperatorInvitation(ctx, token, "Angenommene Operatorin", "SecurePass123!", net.ParseIP("10.0.0.2"))
 	require.NoError(t, err)
-	t.Cleanup(func() {
-		_, _ = db.ExecContext(ctx, `DELETE FROM platform.operator_audit_log WHERE operator_id = ?`, operator.ID)
-		_, _ = db.ExecContext(ctx, `DELETE FROM platform.operators WHERE id = ?`, operator.ID)
-	})
 	assert.Equal(t, invitee, operator.Email)
 	assert.Equal(t, "Angenommene Operatorin", operator.DisplayName)
 	assert.True(t, operator.Active)

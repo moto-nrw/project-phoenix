@@ -24,11 +24,6 @@ type fromStudentArrivalScheduleRecords struct {
 }
 
 func FromStudentArrivalScheduleRecords(value ports.StudentArrivalScheduleRecords) StudentArrivalScheduleRecords {
-	if original, ok := value.(interface {
-		fixtureStudentArrivalScheduleRecords() StudentArrivalScheduleRecords
-	}); ok {
-		return original.fixtureStudentArrivalScheduleRecords()
-	}
 	if value == nil {
 		return nil
 	}
@@ -74,5 +69,3 @@ func (adapter fromStudentArrivalScheduleRecords) UpsertSchedule(arg0 context.Con
 	result0 := adapter.value.UpsertSchedule(arg0, toNative14(arg1))
 	return result0
 }
-
-func (adapter fromStudentArrivalScheduleRecords) nativeRecordSource() any { return adapter.value }

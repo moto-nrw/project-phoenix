@@ -1093,6 +1093,14 @@
     "dateRange": "{from} to {to}"
   },
   "enrollmentForm": {
+    "attachments": {
+      "open": "Open",
+      "download": "Download",
+      "openLabel": "Open {label}",
+      "downloadLabel": "Download {label}",
+      "errorObject": "the PDF file",
+      "popupBlocked": "Please allow a new window to open."
+    },
     "errorObject": "the enrollment",
     "loading": "Loading form…",
     "legalGermanNotice": "These legal texts are legally binding in German.",
@@ -1574,12 +1582,15 @@
     "requestHint": "These changes are reviewed by the team before they are applied.",
     "departureDescription": "Choose whether your child is picked up, walks home alone or takes the bus on each weekday. The OGS reviews changes.",
     "departureReadOnlyAccompanied": "Your child goes home with another child on at least one day. You cannot change the way home here.",
+    "departureEdit": "Edit",
+    "departureCancel": "Cancel",
+    "departureSubmitting": "Sending request…",
+    "departurePendingNotice": "The OGS is reviewing your change. Until it is confirmed, the current way home applies.",
     "requestButton": "Request change",
     "requestSubmitted": "Request sent. The team will review your change.",
     "requestEdit": "Edit request",
     "pendingBadge": "Under review",
     "pendingTitle": "Requested change",
-    "pendingNotice": "A change to this field is awaiting confirmation by the team.",
     "editDisabled": "Editing these details is disabled for this OGS.",
     "requestDisabled": "Change requests are disabled for this OGS.",
     "notSet": "Not provided",
@@ -2252,6 +2263,7 @@
         "announcement_not_found": "{object} could not be changed. Please check its current status."
       },
       "enrollment": {
+        "form_attachment_invalid": "Please check the label and the PDF file.",
         "approval_care_offering_exactly_one": "{object} could not be changed. Please check its current status.",
         "approval_care_offering_missing": "{object} could not be changed. Please check its current status.",
         "approval_data_invalid": "{object} could not be saved. Please check your entries.",

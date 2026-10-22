@@ -188,6 +188,7 @@ func newStaffResource(module schoolMembershipModule.Capability, people peopleMod
 		Success:            apiCommon.Respond,
 		Failure:            renderStaffFailure,
 		ObserveResponse:    observability.ObserveSchoolMembershipHTTPResponse,
+		ParseIDParam:       apiCommon.ParseIDParam,
 		ServeAvatar:        filesHTTP.NewStaffAvatarHandler(nativeUploads.ResolveStoredPath, nativeUploads.UploadFiles{}),
 		WriteFailure:       renderStaffWriteFailure,
 		SchoolClassFailure: delegatedStaffFailure(ClassifyStaffSchoolClassFailure),

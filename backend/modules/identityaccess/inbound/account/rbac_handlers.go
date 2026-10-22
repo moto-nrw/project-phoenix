@@ -217,34 +217,6 @@ func (rs *Resource) getAccountRoles(w http.ResponseWriter, r *http.Request) {
 	common.Respond(w, r, http.StatusOK, responses, "Account roles retrieved successfully")
 }
 
-// assignRoleToAccount applies the same school-role assignment policy as
-// invitations and registration before creating an account-role mapping. The
-// guardian invitation flow remains the only path that may grant guardian
-// access.
-func (rs *Resource) assignRoleToAccount(w http.ResponseWriter, r *http.Request) {
-	accountID, ok := common.ParseIntIDWithError(w, r, "accountId", common.MsgInvalidAccountID)
-	if !ok {
-		return
-	}
-	roleID, ok := common.ParseIntIDWithError(w, r, "roleId", common.MsgInvalidRoleID)
-	if !ok {
-		return
-	}
-
-	requestedRoleID := int64(roleID)
-	approvedRoleID, _, abort := rs.authorizeRoleAssignment(w, r, &requestedRoleID)
-	if abort {
-		return
-	}
-
-	if err := rs.Sessions.AssignRoleToAccount(r.Context(), int64(accountID), *approvedRoleID); err != nil {
-		rs.renderAccountRoleMutationError(w, r, err)
-		return
-	}
-
-	common.RespondNoContent(w, r)
-}
-
 // replaceAccountRole makes one approved target role the account's only staff
 // role at this school; guardian access stays. The role administration
 // executes assignment and removals in the request transaction.
@@ -291,21 +263,6 @@ func (rs *Resource) renderAccountRoleMutationError(w http.ResponseWriter, r *htt
 		return
 	}
 	common.RenderError(w, r, accountRoleErrorRenderer(err))
-}
-
-// The pass-through account and role mutations read the capability at request
-// time, so a resource composed without it still builds its router.
-
-func (rs *Resource) removeRoleFromAccount(ctx context.Context, accountID, roleID int64) error {
-	return rs.Sessions.RemoveRoleFromAccount(ctx, accountID, roleID)
-}
-
-func (rs *Resource) assignPermissionToRole(ctx context.Context, roleID, permissionID int64) error {
-	return rs.Sessions.AssignPermissionToRole(ctx, roleID, permissionID)
-}
-
-func (rs *Resource) removePermissionFromRole(ctx context.Context, roleID, permissionID int64) error {
-	return rs.Sessions.RemovePermissionFromRole(ctx, roleID, permissionID)
 }
 
 // createPermission handles creating a new permission

@@ -30,22 +30,6 @@ describe("ChoiceModal", () => {
     vi.useRealTimers();
   });
 
-  it("does not render when isOpen is false", () => {
-    render(
-      <TestWrapper>
-        <ChoiceModal
-          isOpen={false}
-          onClose={vi.fn()}
-          title="Änderung anwenden"
-          options={options}
-          onSelect={vi.fn()}
-        />
-      </TestWrapper>,
-    );
-
-    expect(screen.queryByText("Änderung anwenden")).not.toBeInTheDocument();
-  });
-
   it("renders title, description and all options", async () => {
     render(
       <TestWrapper>

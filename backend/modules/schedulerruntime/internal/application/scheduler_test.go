@@ -439,91 +439,6 @@ func TestBuildCleanupJobs_JobsAreCallable(t *testing.T) {
 }
 
 // =============================================================================
-// ScheduledTask Tests
-// =============================================================================
-
-func TestScheduledTask_ConcurrentAccess(t *testing.T) {
-	t.Parallel()
-	task := &ScheduledTask{Name: "concurrent-test"}
-
-	var wg sync.WaitGroup
-	for i := 0; i < 100; i++ {
-		wg.Add(1)
-		go func() {
-			defer wg.Done()
-			task.mu.Lock()
-			task.Running = !task.Running
-			task.LastRun = time.Now()
-			task.mu.Unlock()
-		}()
-	}
-
-	wg.Wait()
-	// Test passes if no race conditions detected
-}
-
-func TestScheduledTask_Fields(t *testing.T) {
-	t.Parallel()
-
-	now := time.Now()
-	task := &ScheduledTask{
-		Name:     "test-task",
-		Schedule: "02:00",
-		LastRun:  now,
-		NextRun:  now.Add(24 * time.Hour),
-		Running:  true,
-	}
-
-	assert.Equal(t, "test-task", task.Name)
-	assert.Equal(t, "02:00", task.Schedule)
-	assert.Equal(t, now, task.LastRun)
-	assert.Equal(t, now.Add(24*time.Hour), task.NextRun)
-	assert.True(t, task.Running)
-}
-
-// =============================================================================
-// CleanupJob Tests
-// =============================================================================
-
-func TestCleanupJob_Fields(t *testing.T) {
-	t.Parallel()
-
-	called := false
-	job := CleanupJob{
-		Description: "Test cleanup",
-		Run: func(_ context.Context) (int, error) {
-			called = true
-			return 5, nil
-		},
-	}
-
-	assert.Equal(t, "Test cleanup", job.Description)
-	assert.NotNil(t, job.Run)
-
-	count, err := job.Run(context.Background())
-	assert.NoError(t, err)
-	assert.Equal(t, 5, count)
-	assert.True(t, called)
-}
-
-func TestCleanupJob_RunReturnsError(t *testing.T) {
-	t.Parallel()
-
-	expectedErr := errors.New("cleanup failed")
-	job := CleanupJob{
-		Description: "Failing cleanup",
-		Run: func(_ context.Context) (int, error) {
-			return 0, expectedErr
-		},
-	}
-
-	count, err := job.Run(context.Background())
-	assert.Error(t, err)
-	assert.Equal(t, expectedErr, err)
-	assert.Equal(t, 0, count)
-}
-
-// =============================================================================
 // Environment Variable Tests
 // =============================================================================
 
@@ -557,22 +472,6 @@ func TestScheduler_DisabledByEnvVars(t *testing.T) {
 
 		s.Stop()
 	})
-}
-
-// =============================================================================
-// Interface Compliance Tests
-// =============================================================================
-
-func TestAuthCleanup_InterfaceCompliance(t *testing.T) {
-	t.Parallel()
-	// Verify fakeAuthCleanup implements AuthCleanup
-	var _ ports.AuthCleanup = &fakeAuthCleanup{}
-}
-
-func TestInvitationCleaner_InterfaceCompliance(t *testing.T) {
-	t.Parallel()
-	// Verify fakeInvitationCleaner implements InvitationCleaner
-	var _ ports.InvitationCleaner = &fakeInvitationCleaner{}
 }
 
 // =============================================================================
@@ -991,85 +890,54 @@ func TestCheckAndRunSessionCleanup_AlreadyRunning(t *testing.T) {
 // Configuration Parsing Tests
 // =============================================================================
 
-func TestScheduleCleanupTask_CustomTime(t *testing.T) {
+// The env switches only turn a job on or off; the time of day is a per-school
+// setting read on every minute tick (TestTimeMatchesNow, TestRunCleanupTask_*).
+func TestScheduleDailyTasksHonourTheEnvSwitch(t *testing.T) {
 	t.Parallel()
-	synctest.Test(t, func(t *testing.T) {
-		s := unitScheduler(&unitSchedulerDependencies{
-			tasks: make(map[string]*ScheduledTask),
-			done:  make(chan struct{})})
-		s.getenv = testEnv("CLEANUP_SCHEDULER_ENABLED", "true")
+	tests := []struct {
+		name       string
+		env        func(string) string
+		settings   ports.SettingsResolver
+		schedule   func(*Scheduler)
+		task       string
+		registered bool
+	}{
+		{"cleanup opted in without settings", testEnv("CLEANUP_SCHEDULER_ENABLED", "true"), nil, (*Scheduler).scheduleCleanupTask, "visit-cleanup", true},
+		{"cleanup disabled despite settings", testEnv("CLEANUP_SCHEDULER_ENABLED", "false"), registrySettings{}, (*Scheduler).scheduleCleanupTask, "visit-cleanup", false},
+		{"session end opted in", testEnv("SESSION_END_SCHEDULER_ENABLED", "true"), nil, (*Scheduler).scheduleSessionEndTask, "session-end", true},
+		{"session end enabled by default", nil, nil, (*Scheduler).scheduleSessionEndTask, "session-end", true},
+		{"session end disabled despite settings", testEnv("SESSION_END_SCHEDULER_ENABLED", "false"), registrySettings{}, (*Scheduler).scheduleSessionEndTask, "session-end", false},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			synctest.Test(t, func(t *testing.T) {
+				s := unitScheduler(&unitSchedulerDependencies{
+					logger:   slog.Default(),
+					settings: tt.settings,
+					tasks:    make(map[string]*ScheduledTask),
+					done:     make(chan struct{})})
+				s.getenv = tt.env
 
-		// Schedule cleanup task
-		s.scheduleCleanupTask()
+				tt.schedule(s)
+				synctest.Wait()
 
-		// Wait for goroutines to be durably blocked (fake time makes sleeps instant)
-		synctest.Wait()
+				s.mu.RLock()
+				task, hasTask := s.tasks[tt.task]
+				taskCount := len(s.tasks)
+				s.mu.RUnlock()
+				if tt.registered {
+					require.True(t, hasTask)
+					assert.Equal(t, "1m-poll", task.Schedule)
+				} else {
+					assert.Zero(t, taskCount, "a disabled job registers no task")
+				}
 
-		// Verify task was created with custom schedule
-		s.mu.RLock()
-		task, hasTask := s.tasks["visit-cleanup"]
-		s.mu.RUnlock()
-		assert.True(t, hasTask)
-		// With per-tenant minute-polling, the schedule is now descriptive (not HH:MM)
-		assert.Equal(t, "1m-poll", task.Schedule)
-
-		// Stop scheduler
-		close(s.done)
-		s.wg.Wait()
-	})
-}
-
-func TestScheduleSessionEndTask_CustomTime(t *testing.T) {
-	t.Parallel()
-	synctest.Test(t, func(t *testing.T) {
-		s := unitScheduler(&unitSchedulerDependencies{
-			tasks: make(map[string]*ScheduledTask),
-			done:  make(chan struct{})})
-		s.getenv = testEnv("SESSION_END_SCHEDULER_ENABLED", "true")
-
-		// Schedule session end task
-		s.scheduleSessionEndTask()
-
-		// Wait for goroutines to be durably blocked (fake time makes sleeps instant)
-		synctest.Wait()
-
-		// Verify task was created with custom schedule
-		s.mu.RLock()
-		task, hasTask := s.tasks["session-end"]
-		s.mu.RUnlock()
-		assert.True(t, hasTask)
-		// With per-tenant minute-polling, the schedule is now descriptive (not HH:MM)
-		assert.Equal(t, "1m-poll", task.Schedule)
-
-		// Stop scheduler
-		close(s.done)
-		s.wg.Wait()
-	})
-}
-
-func TestScheduleSessionEndTask_DefaultEnabled(t *testing.T) {
-	t.Parallel()
-	synctest.Test(t, func(t *testing.T) {
-		s := unitScheduler(&unitSchedulerDependencies{
-			tasks: make(map[string]*ScheduledTask),
-			done:  make(chan struct{})})
-
-		// Schedule session end task (should be enabled by default)
-		s.scheduleSessionEndTask()
-
-		// Wait for goroutines to be durably blocked (fake time makes sleeps instant)
-		synctest.Wait()
-
-		// Verify task was created
-		s.mu.RLock()
-		_, hasTask := s.tasks["session-end"]
-		s.mu.RUnlock()
-		assert.True(t, hasTask, "Session end should be enabled by default")
-
-		// Stop scheduler
-		close(s.done)
-		s.wg.Wait()
-	})
+				close(s.done)
+				s.wg.Wait()
+			})
+		})
+	}
 }
 
 func TestScheduleSessionCleanupTask_RegistersWithSettings(t *testing.T) {
@@ -1097,20 +965,6 @@ func TestScheduleSessionCleanupTask_RegistersWithSettings(t *testing.T) {
 		close(s.done)
 		s.wg.Wait()
 	})
-}
-
-// =============================================================================
-// Interface Verification Tests
-// =============================================================================
-
-func TestMockActiveService_ImplementsInterface(t *testing.T) {
-	t.Parallel()
-	var _ ports.SessionMaintenance = &mockActiveService{}
-}
-
-func TestMockCleanupService_ImplementsInterface(t *testing.T) {
-	t.Parallel()
-	var _ ports.PresenceCleanup = &mockCleanupService{}
 }
 
 // =============================================================================
@@ -1469,30 +1323,6 @@ func TestWaitUntilNextMinute_ShutdownDuringWait(t *testing.T) {
 		_, result := s.waitUntilNextMinute(nil, nil)
 		assert.False(t, result, "should return false when shutdown signal fires during wait")
 	})
-}
-
-func TestScheduleCleanupTask_DisabledByEnv(t *testing.T) {
-	t.Parallel()
-	s := unitScheduler(&unitSchedulerDependencies{
-		done:   make(chan struct{}),
-		logger: slog.Default(),
-		tasks:  make(map[string]*ScheduledTask)})
-	s.getenv = testEnv("CLEANUP_SCHEDULER_ENABLED", "false")
-
-	s.scheduleCleanupTask()
-	assert.Empty(t, s.tasks, "cleanup task should not be registered when disabled")
-}
-
-func TestScheduleSessionEndTask_DisabledByEnv(t *testing.T) {
-	t.Parallel()
-	s := unitScheduler(&unitSchedulerDependencies{
-		done:   make(chan struct{}),
-		logger: slog.Default(),
-		tasks:  make(map[string]*ScheduledTask)})
-	s.getenv = testEnv("SESSION_END_SCHEDULER_ENABLED", "false")
-
-	s.scheduleSessionEndTask()
-	assert.Empty(t, s.tasks, "session end task should not be registered when disabled")
 }
 
 func TestExecuteCleanupForTenant_ReturnsFalseOnError(t *testing.T) {
@@ -1861,11 +1691,6 @@ type fakeEmailChangeCleaner struct {
 func (f *fakeEmailChangeCleaner) CleanupOperatorEmailChanges(ctx context.Context) (int, error) {
 	f.called = true
 	return f.result, f.err
-}
-
-func TestEmailChangeTokenCleaner_InterfaceCompliance(t *testing.T) {
-	t.Parallel()
-	var _ ports.EmailChangeTokenCleaner = &fakeEmailChangeCleaner{}
 }
 
 func TestBuildCleanupJobs_WithEmailChangeCleaner(t *testing.T) {

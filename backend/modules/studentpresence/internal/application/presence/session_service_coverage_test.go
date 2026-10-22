@@ -104,7 +104,7 @@ func TestProcessSessionTimeout_WithActiveSession(t *testing.T) {
 	if assert.NotNil(t, result.ActivityID) {
 		assert.Equal(t, activityGroup.ID, *result.ActivityID)
 	}
-	assert.GreaterOrEqual(t, result.StudentsCheckedOut, 0)
+	assert.Equal(t, 0, result.StudentsCheckedOut, "the session has no visits to check out")
 }
 
 // TestProcessSessionTimeout_NoSession verifies error when processing timeout for non-existent session
@@ -120,10 +120,11 @@ func TestProcessSessionTimeout_NoSession(t *testing.T) {
 	device := testpkg.CreateTestDevice(t, db, "device-timeout-none")
 
 	// ACT
-	_, err := service.ProcessSessionTimeout(ctx, device.ID)
+	result, err := service.ProcessSessionTimeout(ctx, device.ID)
 
 	// ASSERT
 	require.Error(t, err)
+	assert.Nil(t, result)
 	assert.Contains(t, err.Error(), "no active session")
 }
 

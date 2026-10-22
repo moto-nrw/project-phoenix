@@ -23,6 +23,7 @@ import (
 // services/planexport and the retired modules/planexport/legacy binding.
 func TestPlanExportRuntimeEvidence(t *testing.T) {
 	t.Parallel()
+	testpkg.RequireRuntimeEvidence(t)
 	db := testpkg.SetupIsolatedTestDB(t)
 	ctx := testpkg.Ctx(t)
 	room := testpkg.CreateTestRoom(t, db, "Runtime-room")

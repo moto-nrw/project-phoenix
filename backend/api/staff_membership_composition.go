@@ -330,6 +330,8 @@ func staffDirectoryWrites(users peoplePorts.PersonDirectory) (func(context.Conte
 // database-error knowledge.
 func ClassifyStaffWriteFailure(err error) (StaffFailureKind, error) {
 	switch {
+	case peoplePorts.IsPersonNotFound(err):
+		return StaffFailureNotFound, err
 	case errors.Is(err, peoplePorts.ErrStaffAdoptionNotPermitted):
 		return StaffFailureForbidden, err
 	case errors.Is(err, schoolmembership.ErrStaffPersonConflict):

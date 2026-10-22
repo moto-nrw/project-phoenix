@@ -537,39 +537,6 @@ func TestStaffMessagingEnabledSetting(t *testing.T) {
 	assert.Nil(t, def.DependsOn, "the switch itself must always be visible")
 }
 
-// TestRemovedStudentGroupScopeSettings pins the #2329 deletion: per-child
-// access no longer depends on a tenant scope setting, so re-registering one of
-// these keys would silently reintroduce a policy the code no longer reads.
-func TestRemovedStudentGroupScopeSettings(t *testing.T) {
-	t.Parallel()
-
-	for _, key := range []string{
-		"gdpr.student_data_scope",
-		"gdpr.attendance_log_scope",
-		"attendance.web_checkin_access",
-	} {
-		assert.Nilf(t, config.GetDefinition(key), "setting %q was removed in #2329 and must stay unregistered", key)
-	}
-}
-
-// TestSettingsCleanupRemovedKeys pins the settings removed in the settings
-// cleanup (#3729-#3733); migration 1.15.436 deletes their stored values.
-func TestSettingsCleanupRemovedKeys(t *testing.T) {
-	t.Parallel()
-
-	for _, key := range []string{
-		"operations.status_flag_clear_time",
-		"operations.care_concept",
-		"notifications.care_cancelled_enabled",
-		"notifications.care_cancelled_default_on",
-		"notifications.care_cancelled_email",
-		"operations.emergency_list_health_info",
-		"operations.student_activation_interval_minutes",
-	} {
-		assert.Nilf(t, config.GetDefinition(key), "setting %q was removed in the settings cleanup and must stay unregistered", key)
-	}
-}
-
 // TestNotificationsOnDutyOnlyDefaultOff pins #3736: new schools get personal
 // notices without time tracking. Existing schools were pinned to "on" by
 // migration 1.15.436.

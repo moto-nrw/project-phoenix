@@ -2,7 +2,6 @@ package users
 
 import (
 	"testing"
-	"time"
 
 	"github.com/moto-nrw/project-phoenix/internal/ptrtest"
 )
@@ -203,123 +202,6 @@ func TestGuardianPhoneNumber_Validate(t *testing.T) {
 						t.Errorf("GuardianPhoneNumber.Validate() did not correct priority to 1, got %d", tt.phone.Priority)
 					}
 				}
-			}
-		})
-	}
-}
-
-func TestGuardianPhoneNumber_GetID(t *testing.T) {
-	t.Parallel()
-
-	phone := &GuardianPhoneNumber{
-		Model:             Model{ID: 42},
-		GuardianProfileID: 1,
-		PhoneNumber:       "+49 30 123456",
-		PhoneType:         PhoneTypeHome,
-	}
-
-	if got, ok := phone.GetID().(int64); !ok || got != 42 {
-		t.Errorf("GetID() = %v, want 42", phone.GetID())
-	}
-}
-
-func TestGuardianPhoneNumber_GetCreatedAt(t *testing.T) {
-	t.Parallel()
-
-	now := time.Now()
-	phone := &GuardianPhoneNumber{
-		Model:             Model{CreatedAt: now},
-		GuardianProfileID: 1,
-		PhoneNumber:       "+49 30 123456",
-		PhoneType:         PhoneTypeHome,
-	}
-
-	if got := phone.GetCreatedAt(); !got.Equal(now) {
-		t.Errorf("GetCreatedAt() = %v, want %v", got, now)
-	}
-}
-
-func TestGuardianPhoneNumber_GetUpdatedAt(t *testing.T) {
-	t.Parallel()
-
-	now := time.Now()
-	phone := &GuardianPhoneNumber{
-		Model:             Model{UpdatedAt: now},
-		GuardianProfileID: 1,
-		PhoneNumber:       "+49 30 123456",
-		PhoneType:         PhoneTypeHome,
-	}
-
-	if got := phone.GetUpdatedAt(); !got.Equal(now) {
-		t.Errorf("GetUpdatedAt() = %v, want %v", got, now)
-	}
-}
-
-func TestGuardianPhoneNumber_GetDisplayString(t *testing.T) {
-	t.Parallel()
-
-	tests := []struct {
-		name     string
-		phone    *GuardianPhoneNumber
-		expected string
-	}{
-		{
-			name: "phone without label",
-			phone: &GuardianPhoneNumber{
-				PhoneNumber: "+49 30 123456",
-				PhoneType:   PhoneTypeHome,
-			},
-			expected: "+49 30 123456",
-		},
-		{
-			name: "phone with label",
-			phone: &GuardianPhoneNumber{
-				PhoneNumber: "+49 30 9876543",
-				PhoneType:   PhoneTypeWork,
-				Label:       ptrtest.Ptr("Büro"),
-			},
-			expected: "+49 30 9876543 (Büro)",
-		},
-		{
-			name: "phone with empty label",
-			phone: &GuardianPhoneNumber{
-				PhoneNumber: "+49 30 123456",
-				PhoneType:   PhoneTypeHome,
-				Label:       ptrtest.Ptr(""),
-			},
-			expected: "+49 30 123456",
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			if got := tt.phone.GetDisplayString(); got != tt.expected {
-				t.Errorf("GetDisplayString() = %q, want %q", got, tt.expected)
-			}
-		})
-	}
-}
-
-func TestGuardianPhoneNumber_PhoneTypeLabel(t *testing.T) {
-	t.Parallel()
-
-	tests := []struct {
-		name      string
-		phoneType PhoneType
-		expected  string
-	}{
-		{"mobile", PhoneTypeMobile, "Mobil"},
-		{"home", PhoneTypeHome, "Telefon"},
-		{"work", PhoneTypeWork, "Dienstlich"},
-		{"other", PhoneTypeOther, "Sonstige"},
-		{"unknown", PhoneType("unknown"), "unknown"},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			phone := &GuardianPhoneNumber{PhoneType: tt.phoneType}
-			if got := phone.PhoneTypeLabel(); got != tt.expected {
-				t.Errorf("PhoneTypeLabel() = %q, want %q", got, tt.expected)
 			}
 		})
 	}

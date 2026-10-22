@@ -357,6 +357,8 @@ describe("/staff — Berechtigungs-Split", () => {
 
     render(<StaffPage />);
 
+    // Anker: die Statusansicht der vollen Rechte ist geladen.
+    expect(screen.getByTestId("schul-uebersicht")).toBeInTheDocument();
     expect(
       screen.queryByText(/Wählen Sie eine Person/),
     ).not.toBeInTheDocument();
@@ -368,6 +370,8 @@ describe("/staff — Berechtigungs-Split", () => {
 
     render(<StaffPage />);
 
+    // Anker: die Statusansicht ist geladen.
+    expect(screen.getByTestId("schul-uebersicht")).toBeInTheDocument();
     expect(screen.queryByText("Zeitkonten")).not.toBeInTheDocument();
     expect(getTimeAccounts).not.toHaveBeenCalled();
     expect(swrKeys.some((key) => key?.startsWith("staff-time-accounts"))).toBe(

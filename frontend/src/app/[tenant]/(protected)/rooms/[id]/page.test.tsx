@@ -254,6 +254,8 @@ describe("RoomDetailPage", () => {
     });
     render(<RoomDetailPage />);
 
+    // Anker: die Raumakte ist geladen, nur das Aktionsmenü fehlt.
+    expect(screen.getAllByText("Schulhof").length).toBeGreaterThan(0);
     expect(
       screen.queryByRole("button", { name: "Weitere Aktionen" }),
     ).not.toBeInTheDocument();

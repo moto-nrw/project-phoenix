@@ -121,8 +121,7 @@ func approveOneChildForExport(t *testing.T, env *decisionTestEnv, email, firstNa
 func TestDecisionService_ExportPhase_SchemaLoadFailureBlocksDisclosure(t *testing.T) {
 	t.Parallel()
 
-	env, cleanup := setupDecisionTest(t)
-	defer cleanup()
+	env := setupDecisionTest(t)
 	ctx := testpkg.Ctx(t)
 
 	// The submitted request pins the phase's active schema, so the export
@@ -141,8 +140,7 @@ func TestDecisionService_ExportPhase_SchemaLoadFailureBlocksDisclosure(t *testin
 func TestDecisionService_ExportPhase_LoadsDataAndRecordsAudit(t *testing.T) {
 	t.Parallel()
 
-	env, cleanup := setupDecisionTest(t)
-	defer cleanup()
+	env := setupDecisionTest(t)
 	ctx := testpkg.Ctx(t)
 
 	submitOneChild(t, env, "export-happy@example.com", "Lina", "Export")
@@ -176,8 +174,7 @@ func TestDecisionService_ExportPhase_LoadsDataAndRecordsAudit(t *testing.T) {
 func TestDecisionService_ExportPhase_AuditFailureBlocksDisclosure(t *testing.T) {
 	t.Parallel()
 
-	env, cleanup := setupDecisionTest(t)
-	defer cleanup()
+	env := setupDecisionTest(t)
 	ctx := testpkg.Ctx(t)
 
 	submitOneChild(t, env, "export-blocked@example.com", "Mara", "Blocked")
@@ -199,8 +196,7 @@ func TestDecisionService_ExportPhase_AuditFailureBlocksDisclosure(t *testing.T) 
 func TestDecisionService_ExportPhase_ChildStatusFilter(t *testing.T) {
 	t.Parallel()
 
-	env, cleanup := setupDecisionTest(t)
-	defer cleanup()
+	env := setupDecisionTest(t)
 	ctx := testpkg.Ctx(t)
 
 	// Two submissions: both children start "submitted". Approve one so the
@@ -246,8 +242,7 @@ func TestDecisionService_ExportPhase_ChildStatusFilter(t *testing.T) {
 func TestDecisionService_ExportStudent_LoadsDataAndRecordsAudit(t *testing.T) {
 	t.Parallel()
 
-	env, cleanup := setupDecisionTest(t)
-	defer cleanup()
+	env := setupDecisionTest(t)
 	ctx := testpkg.Ctx(t)
 
 	studentID := approveOneChildForExport(t, env, "student-export@example.com", "Sina", "Export")
@@ -276,8 +271,7 @@ func TestDecisionService_ExportStudent_LoadsDataAndRecordsAudit(t *testing.T) {
 func TestDecisionService_ExportStudent_MissingStudentBlocksAudit(t *testing.T) {
 	t.Parallel()
 
-	env, cleanup := setupDecisionTest(t)
-	defer cleanup()
+	env := setupDecisionTest(t)
 	ctx := testpkg.Ctx(t)
 	audit := &stubAccessLogRepo{}
 
@@ -292,8 +286,7 @@ func TestDecisionService_ExportStudent_MissingStudentBlocksAudit(t *testing.T) {
 func TestDecisionService_ExportStudent_ForeignTenantStudentBlocksAudit(t *testing.T) {
 	t.Parallel()
 
-	env, cleanup := setupDecisionTest(t)
-	defer cleanup()
+	env := setupDecisionTest(t)
 	foreignTenantID := testpkg.UniqueTestTenantID(t)
 	testpkg.EnsureTestTenant(t, env.db, foreignTenantID)
 
@@ -311,8 +304,7 @@ func TestDecisionService_ExportStudent_ForeignTenantStudentBlocksAudit(t *testin
 func TestDecisionService_ExportStudent_PhaseLoadFailureBlocksDisclosure(t *testing.T) {
 	t.Parallel()
 
-	env, cleanup := setupDecisionTest(t)
-	defer cleanup()
+	env := setupDecisionTest(t)
 	ctx := testpkg.Ctx(t)
 
 	studentID := approveOneChildForExport(t, env, "student-phasefail@example.com", "Paula", "PhaseFail")

@@ -209,16 +209,9 @@ func TestCreateRoom(t *testing.T) {
 	t.Run("success_creates_room_with_all_fields", func(t *testing.T) {
 		uniqueName := fmt.Sprintf("Full Room %d", time.Now().UnixNano())
 		floor := 2
-		// Hex stays deterministic — the row gets cleaned up below, so
-		// repeated runs no longer collide on the (tenant_id, lower(color))
-		// unique index from migration 1.15.45. Earlier crashed/cancelled
-		// runs may have left a #FF5733 row behind that the deferred
-		// cleanup never ran on; sweep it up here to keep the test
-		// hermetic.
-		_, _ = tc.db.NewDelete().
-			TableExpr("facilities.rooms").
-			Where("LOWER(color) = LOWER(?)", "#FF5733").
-			Exec(context.Background())
+		// Hex stays deterministic: every run owns a fresh tenant, so the
+		// (tenant_id, lower(color)) unique index from migration 1.15.45
+		// cannot collide with an earlier run.
 
 		body := map[string]interface{}{
 			"name":     uniqueName,

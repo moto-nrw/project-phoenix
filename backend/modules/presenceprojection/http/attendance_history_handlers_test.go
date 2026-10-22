@@ -138,14 +138,6 @@ func TestGetStudentAttendanceHistory_WritesAuditLog(t *testing.T) {
 		Scan(context.Background(), &count)
 	require.NoError(t, err)
 	assert.Equal(t, 1, count, "should have written one audit log entry")
-
-	// Cleanup audit entries for this student
-	t.Cleanup(func() {
-		_, _ = tc.db.NewDelete().
-			TableExpr("audit.data_access_log").
-			Where("student_id = ?", student.ID).
-			Exec(context.Background())
-	})
 }
 
 func TestGetStudentAttendanceHistory_RangeClampedWhenExceedingCap(t *testing.T) {

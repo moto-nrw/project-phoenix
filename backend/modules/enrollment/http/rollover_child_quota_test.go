@@ -24,8 +24,7 @@ import (
 func TestRolloverService_AutoApprove_SkipsChildrenAboveTheKinderkontingent(t *testing.T) {
 	t.Parallel()
 	testpkg.SetupIsolatedTestDB(t)
-	env, cleanup := setupAutoApproveIntegrationEnv(t)
-	defer cleanup()
+	env := setupAutoApproveIntegrationEnv(t)
 	ctx := testpkg.Ctx(t)
 
 	countedSource, counted := seedApprovedChildWithStudent(t, env,

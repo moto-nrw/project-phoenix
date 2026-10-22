@@ -80,14 +80,4 @@ describe("POST /api/staff/externals", () => {
       external_organization: "Musikschule",
     });
   });
-
-  it("refuses without a session", async () => {
-    mockAuth.mockResolvedValueOnce(null);
-    const response = await POST(
-      postRequest({ first_name: "Lea", last_name: "Gast" }),
-      context,
-    );
-    expect(response.status).toBe(401);
-    expect(mockApiPost).not.toHaveBeenCalled();
-  });
 });

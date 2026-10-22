@@ -29,36 +29,6 @@ func TestLoadStudentLocationSnapshotPropagatesModeFailure(t *testing.T) {
 }
 
 // =============================================================================
-// StudentLocationInfo Tests
-// =============================================================================
-
-func TestStudentLocationInfo_Fields(t *testing.T) {
-	t.Parallel()
-
-	now := time.Now()
-	info := studentpresence.StudentLocationInfo{
-		Location: "Anwesend - Room 101",
-		Since:    &now,
-	}
-
-	assert.Equal(t, "Anwesend - Room 101", info.Location)
-	assert.NotNil(t, info.Since)
-	assert.Equal(t, now, *info.Since)
-}
-
-func TestStudentLocationInfo_NilSince(t *testing.T) {
-	t.Parallel()
-
-	info := studentpresence.StudentLocationInfo{
-		Location: "Abwesend",
-		Since:    nil,
-	}
-
-	assert.Equal(t, "Abwesend", info.Location)
-	assert.Nil(t, info.Since)
-}
-
-// =============================================================================
 // StudentLocationSnapshot Tests
 // =============================================================================
 

@@ -366,9 +366,6 @@ func TestOperatorProvisioningIntegration_SoftDeletePerson_WithRFID(t *testing.T)
 		`INSERT INTO users.rfid_cards (id, tenant_id) VALUES (?, ?)`,
 		rfidTag, testpkg.Tenant(t))
 	require.NoError(t, err)
-	t.Cleanup(func() {
-		_, _ = db.ExecContext(context.Background(), `DELETE FROM users.rfid_cards WHERE id = ?`, rfidTag)
-	})
 
 	_, err = db.ExecContext(dbCtx,
 		`UPDATE users.persons SET tag_id = ? WHERE id = ?`, rfidTag, person.ID)
@@ -514,13 +511,6 @@ func TestOperatorProvisioningIntegration_ListAllDevices_HidesDeletedSchoolDevice
 	testpkg.EnsureTestTenant(t, db, tenantID)
 	device := testpkg.CreateTestDeviceForTenant(t, db, tenantID, "trash-test")
 
-	t.Cleanup(func() {
-		cleanupCtx := context.Background()
-		_, _ = db.ExecContext(cleanupCtx, `DELETE FROM iot.devices WHERE id = ?`, device.ID)
-		_, _ = db.ExecContext(cleanupCtx, `DELETE FROM platform.schools WHERE id = ?`, tenantID)
-		_, _ = db.ExecContext(cleanupCtx, `DELETE FROM platform.organizations WHERE id = ?`, tenantID)
-	})
-
 	containsDevice := func(ids []int64) bool {
 		for _, id := range ids {
 			if id == device.ID {
@@ -582,13 +572,6 @@ func TestOperatorProvisioningIntegration_ListAllDevices_HidesDeletedOrgDevices(t
 	testpkg.EnsureTestTenant(t, db, tenantID)
 	device := testpkg.CreateTestDeviceForTenant(t, db, tenantID, "org-trash")
 
-	t.Cleanup(func() {
-		cleanupCtx := context.Background()
-		_, _ = db.ExecContext(cleanupCtx, `DELETE FROM iot.devices WHERE id = ?`, device.ID)
-		_, _ = db.ExecContext(cleanupCtx, `DELETE FROM platform.schools WHERE id = ?`, tenantID)
-		_, _ = db.ExecContext(cleanupCtx, `DELETE FROM platform.organizations WHERE id = ?`, tenantID)
-	})
-
 	_, err := db.ExecContext(testpkg.Ctx(t), `UPDATE platform.organizations SET deleted_at = NOW() WHERE id = ?`, tenantID)
 	require.NoError(t, err)
 
@@ -612,12 +595,6 @@ func TestOperatorProvisioningIntegration_ListOrganizationDevices_RejectsDeletedO
 	tenantID := testpkg.UniqueTestTenantID(t)
 	testpkg.EnsureTestTenant(t, db, tenantID)
 
-	t.Cleanup(func() {
-		cleanupCtx := context.Background()
-		_, _ = db.ExecContext(cleanupCtx, `DELETE FROM platform.schools WHERE id = ?`, tenantID)
-		_, _ = db.ExecContext(cleanupCtx, `DELETE FROM platform.organizations WHERE id = ?`, tenantID)
-	})
-
 	// EnsureTestTenant creates school and organization sharing tenantID as
 	// their primary key.
 	_, err := db.ExecContext(testpkg.Ctx(t), `UPDATE platform.organizations SET deleted_at = NOW() WHERE id = ?`, tenantID)
@@ -633,7 +610,8 @@ func TestOperatorProvisioningIntegration_ListOrganizationDevices_RejectsDeletedO
 // =============================================================================
 
 // provisionTestSchool creates an organisation and a school through the
-// capability and removes both afterwards.
+// capability. Both IDs come from sequences lifted above the test-tenant band,
+// so their rows die with the package clone.
 func provisionTestSchool(t *testing.T, db *bun.DB, graph organizationtenancy.Provisioning, operatorID int64, label string) (organizationID, schoolID int64) {
 	t.Helper()
 	service := graph
@@ -658,17 +636,6 @@ func provisionTestSchool(t *testing.T, db *bun.DB, graph organizationtenancy.Pro
 	require.NoError(t, err)
 	schoolID = school.ID
 
-	t.Cleanup(func() {
-		cleanupCtx := context.Background()
-		for _, statement := range []string{
-			`DELETE FROM iot.devices WHERE tenant_id = ?`,
-			`DELETE FROM activities.categories WHERE tenant_id = ?`,
-		} {
-			_, _ = db.ExecContext(cleanupCtx, statement, schoolID)
-		}
-		_, _ = db.ExecContext(cleanupCtx, `DELETE FROM platform.schools WHERE id = ?`, schoolID)
-		_, _ = db.ExecContext(cleanupCtx, `DELETE FROM platform.organizations WHERE id = ?`, organizationID)
-	})
 	return organizationID, schoolID
 }
 
@@ -742,9 +709,6 @@ func TestOperatorProvisioningIntegration_InviteSchoolAdmin_CreatesInvitation(t *
 	invitation, err := service.InviteSchoolAdmin(ctx, schoolID, operatorID, provisioningTestClientIP, input)
 	require.NoError(t, err)
 	require.NotNil(t, invitation)
-	t.Cleanup(func() {
-		_, _ = db.ExecContext(context.Background(), `DELETE FROM auth.invitation_tokens WHERE id = ?`, invitation.ID)
-	})
 	assert.Equal(t, fmt.Sprintf("invited-admin-%d@example.test", schoolID), invitation.Email)
 	assert.Equal(t, "admin", invitation.RoleName)
 	assert.NotEmpty(t, invitation.Token)
@@ -825,9 +789,6 @@ func TestOperatorProvisioningIntegration_CreateSchoolAccount_BuildsIdentityChain
 	require.NotNil(t, account)
 	assert.Equal(t, input.Email, account.Email)
 	assert.True(t, account.Active)
-	t.Cleanup(func() {
-		_, _ = db.ExecContext(context.Background(), `DELETE FROM auth.accounts WHERE id = ?`, account.ID)
-	})
 
 	membership, err := db.NewSelect().
 		TableExpr("auth.account_tenants").
@@ -893,9 +854,6 @@ func TestOperatorProvisioningIntegration_CreateSchoolAccount_CaregiverUpgradeAss
 	account, err := service.CreateSchoolAccount(ctx, schoolID, operatorID, provisioningTestClientIP, input)
 	require.NoError(t, err)
 	require.NotNil(t, account)
-	t.Cleanup(func() {
-		_, _ = db.ExecContext(context.Background(), `DELETE FROM auth.accounts WHERE id = ?`, account.ID)
-	})
 
 	accounts, err := service.ListSchoolAccounts(ctx, schoolID)
 	require.NoError(t, err)
@@ -1007,21 +965,12 @@ func TestOperatorProvisioningIntegration_TransferDevice_ArchivesSourceAndMovesKe
 	targetSchool, err := service.CreateSchool(ctx, targetInput, operatorID, provisioningTestClientIP)
 	require.NoError(t, err)
 	targetSchoolID := targetSchool.ID
-	t.Cleanup(func() {
-		cleanupCtx := context.Background()
-		_, _ = db.ExecContext(cleanupCtx, `DELETE FROM iot.devices WHERE tenant_id = ?`, targetSchoolID)
-		_, _ = db.ExecContext(cleanupCtx, `DELETE FROM activities.categories WHERE tenant_id = ?`, targetSchoolID)
-		_, _ = db.ExecContext(cleanupCtx, `DELETE FROM platform.schools WHERE id = ?`, targetSchoolID)
-	})
 
 	var roomID int64
 	require.NoError(t, db.NewRaw(
 		`INSERT INTO facilities.rooms (tenant_id, name, building, capacity) VALUES (?, ?, ?, ?) RETURNING id`,
 		sourceSchoolID, fmt.Sprintf("Transferraum %d", sourceSchoolID), "Haupthaus", 20,
 	).Scan(dbCtx, &roomID))
-	t.Cleanup(func() {
-		_, _ = db.ExecContext(context.Background(), `DELETE FROM facilities.rooms WHERE id = ?`, roomID)
-	})
 
 	deviceName := "Terminal Flur"
 	apiKey := fmt.Sprintf("transfer-key-%d", sourceSchoolID)

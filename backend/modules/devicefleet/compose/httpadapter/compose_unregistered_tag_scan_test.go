@@ -234,6 +234,42 @@ func TestUnregisteredTagScan_DeleteExpiredKeepsRecentScans(t *testing.T) {
 	require.ErrorIs(t, err, devicefleet.ErrTenantRequired, "retention never runs without a tenant")
 }
 
+// TestUnregisteredTagScan_DeleteExpiredRollsBackAndRetriesIdempotently injects
+// a failure after the retention delete: the row survives, the retry deletes
+// it once and a second retry deletes nothing (moved from the opt-in
+// TestUnregisteredTagScanRuntime, #4426).
+func TestUnregisteredTagScan_DeleteExpiredRollsBackAndRetriesIdempotently(t *testing.T) {
+	t.Parallel()
+
+	db := testpkg.SetupTestDB(t)
+	fleet := newScanFleet(t, db)
+	ctx := testpkg.Ctx(t)
+	now := time.Now()
+	expired := recordScan(t, fleet, ctx, "TAG-RETENTION-ROLLBACK", nil, now.Add(-120*24*time.Hour))
+	cutoff := now.Add(-devicefleet.UnregisteredTagScanRetentionDays * 24 * time.Hour)
+	wantErr := errors.New("abort after retention")
+
+	err := testpkg.WithinTenantContext(t, ctx, db, testpkg.Tenant(t), func(txCtx context.Context) error {
+		deleted, err := fleet.DeleteExpiredUnregisteredTagScans(txCtx, cutoff)
+		require.NoError(t, err)
+		require.EqualValues(t, 1, deleted)
+		return wantErr
+	})
+	require.ErrorIs(t, err, wantErr)
+	_, err = fleet.FindUnregisteredTagScan(ctx, expired.ID)
+	require.NoError(t, err, "retention rollback restores the authoritative row")
+
+	deleted, err := fleet.DeleteExpiredUnregisteredTagScans(ctx, cutoff)
+	require.NoError(t, err)
+	require.EqualValues(t, 1, deleted)
+	_, err = fleet.FindUnregisteredTagScan(ctx, expired.ID)
+	require.ErrorIs(t, err, devicefleet.ErrUnregisteredTagScanNotFound)
+
+	deleted, err = fleet.DeleteExpiredUnregisteredTagScans(ctx, cutoff)
+	require.NoError(t, err)
+	require.Zero(t, deleted, "retry after successful retention is idempotent")
+}
+
 // TestUnregisteredTagScan_TwoTenantIsolation proves audit.unregistered_tag_scans
 // is bounded by RLS for the tenant role and that the admin review still sees
 // each tenant's rows with only that tenant's device identity.

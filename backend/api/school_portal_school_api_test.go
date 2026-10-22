@@ -108,19 +108,6 @@ func firstSchoolClock(clocks []func() time.Time) func() time.Time {
 	return clocks[0]
 }
 
-// pushSubscriptionPortal reads back through which portal a device was
-// registered (#2208).
-func pushSubscriptionPortal(t *testing.T, db *bun.DB, tenantID int64, endpoint string) string {
-	t.Helper()
-	var portal string
-	require.NoError(t, db.NewSelect().
-		TableExpr("iot.push_subscriptions").
-		ColumnExpr("portal").
-		Where("endpoint = ?", endpoint).
-		Scan(testpkg.TenantContext(tenantID), &portal))
-	return portal
-}
-
 // registerLehrkraft creates an account at the tenant carrying the lehrkraft
 // system role — the only role that opens the school portal today.
 func registerLehrkraft(t *testing.T, db *bun.DB, resource *schoolportal.Resource, tenantID int64, prefix string) (email string, accountID int64) {
@@ -143,11 +130,7 @@ func TestSchoolPortalTokenMatrix(t *testing.T) {
 
 	staff, account := testpkg.CreateTestStaffWithAccountForTenant(t, db, tenantID, "School", fmt.Sprintf("Matrix-%d", time.Now().UnixNano()))
 	className := fmt.Sprintf("sm%d", time.Now().UnixNano()%100000)
-	assignment := testpkg.CreateTestClassTeacherForTenant(t, db, tenantID, staff.ID, className)
-	t.Cleanup(func() {
-		tenantCtx := testpkg.TenantContext(tenantID)
-		_, _ = db.NewDelete().TableExpr("education.class_teachers").Where("id = ?", assignment.ID).Exec(tenantCtx)
-	})
+	testpkg.CreateTestClassTeacherForTenant(t, db, tenantID, staff.ID, className)
 
 	classDayResource := classdayhttp.NewResource(resource.ClassDay.(*classdayhttp.Resource).ClassDay, nil)
 	schoolRouter := NewSchoolPortalHTTP(resource.AuthService, resource.MFAService, resource.Resets, classDayResource, newSchoolTimetableResource(db, resource), resource.StaffMessaging, nil, nil).Router(SchoolSessionChain, ProtectedSchoolRoutes)

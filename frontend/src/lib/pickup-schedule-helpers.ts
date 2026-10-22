@@ -229,20 +229,6 @@ export function pickupScheduleSourceLabel(
     : "aus Angebot";
 }
 
-/**
- * Die Herkunft einer Gehzeit zu benennen hilft nur, wenn in der Woche
- * überhaupt eine Angebots-Gehzeit vorkommt. An Schulen ohne Betreuungsangebote
- * ist jede Zeit von Hand gepflegt; dort stünde unter jedem Tag dasselbe Wort,
- * ohne etwas zu unterscheiden.
- */
-export function hasOfferingPickupContext(days: DayData[]): boolean {
-  return days.some(
-    (day) =>
-      day.baseSchedule?.source === "care_offering" ||
-      Boolean(day.offeringSchedule),
-  );
-}
-
 export function mapPickupExceptionResponse(
   data: BackendPickupException,
 ): PickupException {
@@ -359,12 +345,6 @@ export function getWeekdayLabel(weekday: number): string {
   return found ? found.label : `Tag ${weekday}`;
 }
 
-// Helper to get weekday short label
-export function getWeekdayShortLabel(weekday: number): string {
-  const found = WEEKDAYS.find((w) => w.value === weekday);
-  return found ? found.shortLabel : `T${weekday}`;
-}
-
 // Helper to format time for display (removes seconds if present)
 export function formatPickupTime(time: string): string {
   // If time is in HH:MM:SS format, strip the seconds
@@ -372,53 +352,6 @@ export function formatPickupTime(time: string): string {
     return time.substring(0, 5);
   }
   return time;
-}
-
-// Helper to parse YYYY-MM-DD as local date (not UTC)
-// Note: new Date("YYYY-MM-DD") parses as UTC midnight, which can shift the date
-// when displayed in local timezone. This function parses as local midnight.
-function parseLocalDate(dateStr: string): Date {
-  const parts = dateStr.split("-").map(Number);
-  const year = parts[0] ?? 1970;
-  const month = (parts[1] ?? 1) - 1;
-  const day = parts[2] ?? 1;
-  return new Date(year, month, day);
-}
-
-// Helper to format date for display (German format)
-export function formatExceptionDate(dateStr: string): string {
-  const date = parseLocalDate(dateStr);
-  return date.toLocaleDateString("de-DE", {
-    weekday: "short",
-    day: "2-digit",
-    month: "2-digit",
-    year: "numeric",
-  });
-}
-
-// Helper to check if a date is in the past
-export function isDateInPast(dateStr: string): boolean {
-  const date = parseLocalDate(dateStr);
-  const today = new Date();
-  today.setHours(0, 0, 0, 0);
-  return date < today;
-}
-
-// Helper to get schedule for a specific weekday
-export function getScheduleForWeekday(
-  schedules: PickupSchedule[],
-  weekday: number,
-): PickupSchedule | undefined {
-  return schedules.find((s) => s.weekday === weekday);
-}
-
-// Helper to create empty schedule data for all weekdays
-export function createEmptyWeeklySchedule(): PickupScheduleFormData[] {
-  return WEEKDAYS.map((w) => ({
-    weekday: w.value,
-    pickupTime: "",
-    notes: undefined,
-  }));
 }
 
 // Helper to merge existing schedules with empty template
@@ -438,56 +371,6 @@ export function mergeSchedulesWithTemplate(
 // ============================================
 // Week View Helpers
 // ============================================
-
-/**
- * Get the Monday of a week relative to the current week
- * @param weekOffset 0 = current week, 1 = next week, -1 = last week
- */
-export function getWeekStart(weekOffset = 0): Date {
-  const today = new Date();
-  const dayOfWeek = today.getDay(); // 0=Sun, 1=Mon, ..., 6=Sat
-  // Calculate days to subtract to get to Monday (if Sunday, go back 6 days)
-  const daysToMonday = dayOfWeek === 0 ? 6 : dayOfWeek - 1;
-  const monday = new Date(today);
-  monday.setDate(today.getDate() - daysToMonday + weekOffset * 7);
-  monday.setHours(0, 0, 0, 0);
-  return monday;
-}
-
-/**
- * Get the Friday of a week relative to the current week
- * @param weekOffset 0 = current week, 1 = next week, -1 = last week
- */
-export function getWeekEnd(weekOffset = 0): Date {
-  const monday = getWeekStart(weekOffset);
-  const friday = new Date(monday);
-  friday.setDate(monday.getDate() + 4); // Monday + 4 = Friday
-  return friday;
-}
-
-/**
- * Get all 5 weekdays (Mon-Fri) for a given week
- * @param weekOffset 0 = current week, 1 = next week, -1 = last week
- */
-export function getWeekDays(weekOffset = 0): Date[] {
-  const monday = getWeekStart(weekOffset);
-  const days: Date[] = [];
-  for (let i = 0; i < 5; i++) {
-    const day = new Date(monday);
-    day.setDate(monday.getDate() + i);
-    days.push(day);
-  }
-  return days;
-}
-
-/**
- * Format date as "27.01." (German short format)
- */
-export function formatShortDate(date: Date): string {
-  const day = date.getDate().toString().padStart(2, "0");
-  const month = (date.getMonth() + 1).toString().padStart(2, "0");
-  return `${day}.${month}.`;
-}
 
 /**
  * Format week range as "27.01.2025 - 31.01.2025"
@@ -521,26 +404,6 @@ export function getWeekdayFromDate(date: Date): number | null {
   const jsDay = date.getDay(); // 0=Sun, 1=Mon, ..., 6=Sat
   if (jsDay === 0 || jsDay === 6) return null; // Weekend
   return jsDay; // 1-5 for Mon-Fri
-}
-
-/**
- * Get ISO week number (1-53) for a given date
- * Uses ISO 8601 definition: Week 1 is the week containing the first Thursday
- */
-export function getCalendarWeek(date: Date): number {
-  const d = new Date(
-    Date.UTC(date.getFullYear(), date.getMonth(), date.getDate()),
-  );
-  // Set to nearest Thursday: current date + 4 - current day number (Mon=1, Sun=7)
-  const dayNum = d.getUTCDay() || 7;
-  d.setUTCDate(d.getUTCDate() + 4 - dayNum);
-  // Get first day of year
-  const yearStart = new Date(Date.UTC(d.getUTCFullYear(), 0, 1));
-  // Calculate full weeks to nearest Thursday
-  const weekNo = Math.ceil(
-    ((d.getTime() - yearStart.getTime()) / 86400000 + 1) / 7,
-  );
-  return weekNo;
 }
 
 /**

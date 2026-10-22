@@ -54,11 +54,6 @@ func TestGetStudentArrivalSchedules(t *testing.T) {
 			Notes:           &notes,
 			CreatedBy:       createStudentsAPITestStaffID(t, tc),
 		})
-		defer func() {
-			_, _ = tc.db.NewDelete().TableExpr("schedule.student_arrival_schedules").
-				Where("student_id = ?", studentWithData.ID).
-				Exec(context.Background())
-		}()
 
 		// Insert an arrival exception
 		exceptionDate := calendar.NewDate(2026, 2, 15)
@@ -72,11 +67,6 @@ func TestGetStudentArrivalSchedules(t *testing.T) {
 			Reason:          &arztterminReason,
 			CreatedBy:       createStudentsAPITestStaffID(t, tc),
 		})
-		defer func() {
-			_, _ = tc.db.NewDelete().TableExpr("schedule.student_arrival_exceptions").
-				Where("student_id = ?", studentWithData.ID).
-				Exec(context.Background())
-		}()
 
 		req := testutil.NewRequest("GET", fmt.Sprintf("/%d/arrival-schedules", studentWithData.ID), nil)
 		rr := authExec(t, tc, req, testutil.AdminTestClaims(1), []string{"admin:*"})
@@ -151,11 +141,6 @@ func TestUpdateStudentArrivalSchedules(t *testing.T) {
 		assert.Equal(t, http.StatusOK, rr.Code, "Expected 200 OK. Body: %s", rr.Body.String())
 		assert.Contains(t, rr.Body.String(), "07:45", "Should contain first arrival time")
 		assert.Contains(t, rr.Body.String(), "08:00", "Should contain second arrival time")
-
-		// Cleanup created schedules
-		_, _ = tc.db.NewDelete().TableExpr("schedule.student_arrival_schedules").
-			Where("student_id = ?", student.ID).
-			Exec(context.Background())
 	})
 
 	t.Run("success_empty_schedules_clears_existing", func(t *testing.T) {
@@ -295,11 +280,6 @@ func TestCreateStudentArrivalException(t *testing.T) {
 		assert.Contains(t, rr.Body.String(), "2026-03-15", "Should contain exception date")
 		assert.Contains(t, rr.Body.String(), "09:00", "Should contain arrival time")
 		assert.Contains(t, rr.Body.String(), "Doctor appointment", "Should contain reason")
-
-		// Cleanup
-		_, _ = tc.db.NewDelete().TableExpr("schedule.student_arrival_exceptions").
-			Where("student_id = ?", student.ID).
-			Exec(context.Background())
 	})
 
 	t.Run("create_response_includes_staff_source_without_refetch", func(t *testing.T) {
@@ -322,11 +302,6 @@ func TestCreateStudentArrivalException(t *testing.T) {
 		assert.Equal(t, http.StatusCreated, rr.Code, "Expected 201 Created. Body: %s", rr.Body.String())
 		assert.Contains(t, rr.Body.String(), `"source":"staff"`,
 			"Immediate create response must carry source:staff, not the unset default. Body: %s", rr.Body.String())
-
-		// Cleanup
-		_, _ = tc.db.NewDelete().TableExpr("schedule.student_arrival_exceptions").
-			Where("student_id = ?", student.ID).
-			Exec(context.Background())
 	})
 
 	t.Run("success_creates_absent_exception", func(t *testing.T) {
@@ -344,11 +319,6 @@ func TestCreateStudentArrivalException(t *testing.T) {
 		assert.Equal(t, http.StatusCreated, rr.Code, "Expected 201 Created. Body: %s", rr.Body.String())
 		assert.Contains(t, rr.Body.String(), "2026-03-16", "Should contain exception date")
 		assert.Contains(t, rr.Body.String(), "Student is sick", "Should contain reason")
-
-		// Cleanup
-		_, _ = tc.db.NewDelete().TableExpr("schedule.student_arrival_exceptions").
-			Where("student_id = ?", student.ID).
-			Exec(context.Background())
 	})
 
 	t.Run("create_over_guardian_row_reclaims_for_staff", func(t *testing.T) {
@@ -551,11 +521,6 @@ func TestUpdateStudentArrivalException(t *testing.T) {
 			Reason:          &originalReason,
 			CreatedBy:       createStudentsAPITestStaffID(t, tc),
 		})
-		defer func() {
-			_, _ = tc.db.NewDelete().TableExpr("schedule.student_arrival_exceptions").
-				Where("id = ?", exception.ID).
-				Exec(context.Background())
-		}()
 
 		body := map[string]any{
 			"exception_date":   "2026-04-15",
@@ -773,11 +738,6 @@ func TestCreateStudentArrivalNote(t *testing.T) {
 		assert.Equal(t, http.StatusCreated, rr.Code, "Expected 201 Created. Body: %s", rr.Body.String())
 		assert.Contains(t, rr.Body.String(), "2026-03-15", "Should contain note date")
 		assert.Contains(t, rr.Body.String(), "Arrives with school bus today", "Should contain content")
-
-		// Cleanup
-		_, _ = tc.db.NewDelete().TableExpr("schedule.student_arrival_notes").
-			Where("student_id = ?", student.ID).
-			Exec(context.Background())
 	})
 
 	t.Run("bad_request_missing_date", func(t *testing.T) {
@@ -875,11 +835,6 @@ func TestUpdateStudentArrivalNote(t *testing.T) {
 			Content:   "Original content",
 			CreatedBy: createStudentsAPITestStaffID(t, tc),
 		})
-		defer func() {
-			_, _ = tc.db.NewDelete().TableExpr("schedule.student_arrival_notes").
-				Where("id = ?", note.ID).
-				Exec(context.Background())
-		}()
 
 		body := map[string]any{
 			"note_date": "2026-04-15",
@@ -1034,7 +989,7 @@ func TestBulkUpsertArrivalSchedules(t *testing.T) {
 	})
 
 	t.Run("success_with_valid_request", func(t *testing.T) {
-		student := testpkg.CreateTestStudent(t, tc.db, "BulkArrival", "Test", "BAR1")
+		testpkg.CreateTestStudent(t, tc.db, "BulkArrival", "Test", "BAR1")
 
 		_, account := testpkg.CreateTestTeacherWithAccount(t, tc.db, "BulkArr", "Teacher")
 
@@ -1049,11 +1004,6 @@ func TestBulkUpsertArrivalSchedules(t *testing.T) {
 		rr := authExec(t, tc, req, testutil.AdminTestClaims(int(account.ID)), []string{"admin:*"})
 
 		assert.Equal(t, http.StatusOK, rr.Code, "Expected 200 OK. Body: %s", rr.Body.String())
-
-		// Cleanup
-		_, _ = tc.db.NewDelete().TableExpr("schedule.student_arrival_schedules").
-			Where("student_id = ?", student.ID).
-			Exec(context.Background())
 	})
 
 	t.Run("success_with_group_filter", func(t *testing.T) {
@@ -1194,11 +1144,6 @@ func TestStaffArrivalWrite_BroadcastsArrivalScheduleChanged(t *testing.T) {
 
 	t.Run("weekly_schedule_update", func(t *testing.T) {
 		student := testpkg.CreateTestStudent(t, tc.db, "ArrCast", "Weekly", "AC1")
-		defer func() {
-			_, _ = tc.db.NewDelete().TableExpr("schedule.student_arrival_schedules").
-				Where("student_id = ?", student.ID).
-				Exec(context.Background())
-		}()
 
 		tc.broadcaster.Reset()
 		body := map[string]any{
@@ -1214,11 +1159,6 @@ func TestStaffArrivalWrite_BroadcastsArrivalScheduleChanged(t *testing.T) {
 
 	t.Run("day_note_create", func(t *testing.T) {
 		student := testpkg.CreateTestStudent(t, tc.db, "ArrCast", "Note", "AC2")
-		defer func() {
-			_, _ = tc.db.NewDelete().TableExpr("schedule.student_arrival_notes").
-				Where("student_id = ?", student.ID).
-				Exec(context.Background())
-		}()
 
 		tc.broadcaster.Reset()
 		body := map[string]any{"note_date": "2026-03-15", "content": "Kommt mit dem Bus"}

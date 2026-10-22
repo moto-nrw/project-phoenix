@@ -1,7 +1,8 @@
 // Unit tests for the WP-B10 attendance PATCH handler that don't require a
 // database. The DB-backed tests in instance_students_test.go cover the happy
-// path and cross-field rule end-to-end; these tests close the remaining
-// branches: repo-not-wired guard, path parsing errors, body decode errors,
+// path end-to-end and timetable.ValidateAttendancePatch owns the field and
+// cross-field rules; these tests close the remaining branches: repo-not-wired
+// guard, path parsing errors, body decode errors, validation rendering,
 // response mapping, and the missing-slot branch. They drive the handler
 // through a capability-level fake of the Timetable owner's planner reads.
 package timetablehttp

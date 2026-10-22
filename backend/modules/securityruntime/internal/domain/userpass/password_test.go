@@ -47,15 +47,6 @@ func TestHashPassword_CustomParams(t *testing.T) {
 	assert.Contains(t, hash, "m=32768,t=2,p=1")
 }
 
-func TestHashPassword_EmptyPassword(t *testing.T) {
-	t.Parallel()
-
-	// Empty password should still hash (validation is caller's responsibility)
-	hash, err := HashPassword("", nil)
-	require.NoError(t, err)
-	assert.NotEmpty(t, hash)
-}
-
 func TestHashPassword_UniqueHashes(t *testing.T) {
 	t.Parallel()
 
@@ -69,17 +60,6 @@ func TestHashPassword_UniqueHashes(t *testing.T) {
 	require.NoError(t, err)
 
 	assert.NotEqual(t, hash1, hash2, "Same password should produce different hashes due to random salt")
-}
-
-func TestHashPassword_LongPassword(t *testing.T) {
-	t.Parallel()
-
-	// Very long passwords should work
-	password := strings.Repeat("a", 1000)
-
-	hash, err := HashPassword(password, nil)
-	require.NoError(t, err)
-	assert.NotEmpty(t, hash)
 }
 
 func TestHashPassword_UnicodePassword(t *testing.T) {
@@ -298,31 +278,6 @@ func TestHashAndVerify_WithCustomParams(t *testing.T) {
 	match, err := VerifyPassword(password, hash)
 	require.NoError(t, err)
 	assert.True(t, match)
-}
-
-// =============================================================================
-// Security Tests
-// =============================================================================
-
-func TestConstantTimeComparison(t *testing.T) {
-	t.Parallel()
-
-	// This test ensures the password verification uses constant-time comparison
-	// by verifying that both correct and incorrect passwords complete
-	// (actual timing attack testing would require benchmarks)
-	password := "securePassword"
-	hash, err := HashPassword(password, nil)
-	require.NoError(t, err)
-
-	// Correct password
-	match1, err := VerifyPassword(password, hash)
-	require.NoError(t, err)
-	assert.True(t, match1)
-
-	// Completely wrong password (should use constant-time comparison)
-	match2, err := VerifyPassword("completelyDifferent", hash)
-	require.NoError(t, err)
-	assert.False(t, match2)
 }
 
 func min(a, b int) int {

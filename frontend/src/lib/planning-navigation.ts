@@ -117,10 +117,6 @@ export function getActivePlanningSubPageHref(
   return getActivePlanningSubPage(pathname)?.href ?? null;
 }
 
-export function isPlanningPath(pathname: string): boolean {
-  return getActivePlanningSubPageHref(pathname) !== null;
-}
-
 export function isPlanningPageHref(href: string): href is PlanningPageHref {
   return PLANNING_SUB_PAGES.some((page) => page.href === href);
 }

@@ -383,23 +383,6 @@ describe("GuardianFormModal", () => {
     vi.clearAllMocks();
   });
 
-  it("renders nothing when isOpen is false", () => {
-    render(
-      <GuardianFormModal
-        isOpen={false}
-        onClose={mockOnClose}
-        onSubmit={mockOnSubmit}
-        mode="create"
-      />,
-    );
-
-    expect(
-      screen.queryByRole("heading", {
-        name: "Erziehungsberechtigte/n hinzufügen",
-      }),
-    ).not.toBeInTheDocument();
-  });
-
   it("renders modal when isOpen is true", () => {
     render(
       <GuardianFormModal

@@ -6,7 +6,6 @@ import { useSWRAuth } from "~/lib/swr";
 import { studentService } from "~/lib/api";
 import type { Student, SupervisorContact } from "~/lib/student-helpers";
 import { busDaysHaveAny } from "~/lib/student-helpers";
-import { isAtSchoolLocation } from "~/lib/location-helper";
 import { userContextService } from "~/lib/usercontext-api";
 import { createLogger } from "~/lib/logger";
 
@@ -315,24 +314,4 @@ export function useStudentData(studentId: string): UseStudentDataResult {
     mySupervisedRooms: studentData?.mySupervisedRooms ?? [],
     refreshData,
   };
-}
-
-/**
- * Determines if checkout section should be shown for a student
- * Any authenticated staff member can checkout any checked-in student
- */
-export function shouldShowCheckoutSection(
-  student: ExtendedStudent,
-  _myGroups: string[],
-  _mySupervisedRooms: string[],
-): boolean {
-  // Show checkout button for any checked-in student (not at home, not still
-  // in class before the first check-in, #3260)
-  const isCheckedIn = Boolean(
-    student.current_location &&
-    !student.current_location.startsWith("Zuhause") &&
-    !isAtSchoolLocation(student.current_location),
-  );
-
-  return isCheckedIn;
 }

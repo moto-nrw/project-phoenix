@@ -163,7 +163,3 @@ func (r CarePickupExceptionRows) list(ctx context.Context, filter ports.CareSche
 func (r CarePickupExceptionRows) DeleteByStudentID(ctx context.Context, id int64) error {
 	return r.rows.ScheduleError("delete by student id", r.rows.Records.DeletePickupExceptionsByStudent(ctx, id))
 }
-func (r CarePickupExceptionRows) DeletePastExceptions(ctx context.Context, d calendar.Date) (int64, error) {
-	rows, err := r.rows.Records.DeletePickupExceptionsBefore(ctx, ports.CareDate(d))
-	return rows, r.rows.ScheduleError("delete past exceptions", err)
-}

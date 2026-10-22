@@ -808,6 +808,36 @@ func TestIoTService_GetOfflineDevices(t *testing.T) {
 		assert.True(t, found, "Expected to find the offline device")
 	})
 
+	t.Run("returns devices never seen (null last_seen)", func(t *testing.T) {
+		// ARRANGE - a device without last_seen falls back to an old created_at
+		device := testpkg.CreateTestDevice(t, db, "never-seen")
+		require.Nil(t, device.LastSeen)
+
+		oldTime := time.Now().Add(-2 * time.Hour)
+		_, err := db.NewUpdate().
+			Model((*iotModels.Device)(nil)).
+			ModelTableExpr("iot.devices").
+			Set("created_at = ?", oldTime).
+			Where("id = ?", device.ID).
+			Exec(ctx)
+		require.NoError(t, err)
+
+		// ACT
+		result, err := service.GetOfflineDevices(ctx, 1*time.Hour)
+
+		// ASSERT
+		require.NoError(t, err)
+		found := false
+		for _, d := range result {
+			if d.ID == device.ID {
+				found = true
+				assert.Nil(t, d.LastSeen)
+				break
+			}
+		}
+		assert.True(t, found, "Expected to find the never-seen device")
+	})
+
 	t.Run("returns error for invalid duration", func(t *testing.T) {
 		// ACT
 		result, err := service.GetOfflineDevices(ctx, 0)

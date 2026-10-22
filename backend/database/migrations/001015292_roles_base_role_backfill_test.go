@@ -74,10 +74,7 @@ func ensureBackfillPermission(t *testing.T, db *testpkg.DB, name, resource, acti
 		INSERT INTO auth.permissions (name, description, resource, action, created_at, updated_at)
 		VALUES (?, 'Backfill-Testrecht', ?, ?, NOW(), NOW())
 		RETURNING id`, name, resource, action).Scan(ctx, &id))
-	t.Cleanup(func() {
-		_, _ = db.ExecContext(context.Background(), `DELETE FROM auth.role_permissions WHERE permission_id = ?`, id)
-		_, _ = db.ExecContext(context.Background(), `DELETE FROM auth.permissions WHERE id = ?`, id)
-	})
+	testpkg.OwnTestPermission(t, db, id)
 	return id
 }
 
@@ -88,13 +85,6 @@ func grantBackfillPermission(t *testing.T, db *testpkg.DB, roleID, permissionID 
 		VALUES (?, ?, NOW(), NOW())
 		ON CONFLICT DO NOTHING`, roleID, permissionID)
 	require.NoError(t, err)
-	// The RBAC catalog is tenant-less: a grant this test writes is visible to
-	// every other test in the binary until it is taken back (#2419).
-	t.Cleanup(func() {
-		_, _ = db.ExecContext(context.Background(),
-			`DELETE FROM auth.role_permissions WHERE role_id = ? AND permission_id = ?`,
-			roleID, permissionID)
-	})
 }
 
 func baseRoleOf(t *testing.T, db *testpkg.DB, roleID int64) string {

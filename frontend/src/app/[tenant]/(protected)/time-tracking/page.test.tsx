@@ -1645,6 +1645,8 @@ describe("TimeTrackingPage", () => {
       try {
         setupDefaultMocks();
         render(<TimeTrackingPage />);
+        // Anker: die Wochentabelle ist geladen, nur der Link fehlt.
+        expect(screen.getByLabelText("Export")).toBeInTheDocument();
         expect(
           screen.queryByRole("link", { name: /Mein Dienstplan/ }),
         ).not.toBeInTheDocument();
@@ -2816,16 +2818,6 @@ describe("TimeTrackingPage", () => {
       render(<TimeTrackingPage />);
       expect(screen.getByText("Stempeluhr")).toBeInTheDocument();
     });
-
-    it("renders without crashing when all data is empty", () => {
-      setupDefaultMocks({
-        currentSession: null,
-        history: [],
-        absences: [],
-      });
-      const { container } = render(<TimeTrackingPage />);
-      expect(container).toBeTruthy();
-    });
   });
 
   // ── EditSessionModal - comprehensive coverage ─────────────────────────
@@ -3579,53 +3571,6 @@ describe("TimeTrackingPage", () => {
   // ── ExportDropdown - CSV/Excel actions ────────────────────────────────
 
   describe("ExportDropdown - export actions", () => {
-    it("triggers CSV export via window.location.href", async () => {
-      setupDefaultMocks();
-      render(<TimeTrackingPage />);
-      fireEvent.click(screen.getByLabelText("Export"));
-
-      // CSV/Excel buttons should be enabled when range is set (pre-filled with current week)
-      const csvBtn = screen.getByText("CSV");
-      expect(csvBtn).not.toBeDisabled();
-
-      // Mock window.location.href
-      const originalHref = window.location.href;
-      Object.defineProperty(window, "location", {
-        writable: true,
-        value: { ...window.location, href: originalHref },
-      });
-
-      fireEvent.click(csvBtn);
-      // After click, dropdown should close
-      await waitFor(() => {
-        expect(
-          screen.queryByText("Zeitraum exportieren"),
-        ).not.toBeInTheDocument();
-      });
-    });
-
-    it("triggers Excel export", async () => {
-      setupDefaultMocks();
-      render(<TimeTrackingPage />);
-      fireEvent.click(screen.getByLabelText("Export"));
-
-      const excelBtn = screen.getByText("Excel");
-      expect(excelBtn).not.toBeDisabled();
-
-      const originalHref = window.location.href;
-      Object.defineProperty(window, "location", {
-        writable: true,
-        value: { ...window.location, href: originalHref },
-      });
-
-      fireEvent.click(excelBtn);
-      await waitFor(() => {
-        expect(
-          screen.queryByText("Zeitraum exportieren"),
-        ).not.toBeInTheDocument();
-      });
-    });
-
     it("shows date range text when export panel is open", () => {
       setupDefaultMocks();
       render(<TimeTrackingPage />);

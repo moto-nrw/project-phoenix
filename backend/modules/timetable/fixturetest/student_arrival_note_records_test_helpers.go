@@ -12,7 +12,6 @@ import (
 type StudentArrivalNoteRecords interface {
 	Create(arg0 context.Context, arg1 *StudentArrivalNote) error
 	DeleteByStudentID(arg0 context.Context, arg1 int64) error
-	DeletePastNotes(arg0 context.Context, arg1 calendar.Date) (int64, error)
 	FindByID(arg0 context.Context, arg1 int64) (*StudentArrivalNote, error)
 	FindByStudentID(arg0 context.Context, arg1 int64) ([]*StudentArrivalNote, error)
 	FindByStudentIDAndDate(arg0 context.Context, arg1 int64, arg2 calendar.Date) ([]*StudentArrivalNote, error)
@@ -25,11 +24,6 @@ type fromStudentArrivalNoteRecords struct {
 }
 
 func FromStudentArrivalNoteRecords(value ports.StudentArrivalNoteRecords) StudentArrivalNoteRecords {
-	if original, ok := value.(interface {
-		fixtureStudentArrivalNoteRecords() StudentArrivalNoteRecords
-	}); ok {
-		return original.fixtureStudentArrivalNoteRecords()
-	}
 	if value == nil {
 		return nil
 	}
@@ -44,11 +38,6 @@ func (adapter fromStudentArrivalNoteRecords) Create(arg0 context.Context, arg1 *
 func (adapter fromStudentArrivalNoteRecords) DeleteByStudentID(arg0 context.Context, arg1 int64) error {
 	result0 := adapter.value.DeleteByStudentID(arg0, arg1)
 	return result0
-}
-
-func (adapter fromStudentArrivalNoteRecords) DeletePastNotes(arg0 context.Context, arg1 calendar.Date) (int64, error) {
-	result0, result1 := adapter.value.DeletePastNotes(arg0, arg1)
-	return result0, result1
 }
 
 func (adapter fromStudentArrivalNoteRecords) FindByID(arg0 context.Context, arg1 int64) (*StudentArrivalNote, error) {
@@ -75,5 +64,3 @@ func (adapter fromStudentArrivalNoteRecords) Update(arg0 context.Context, arg1 *
 	result0 := adapter.value.Update(arg0, toNative41(arg1))
 	return result0
 }
-
-func (adapter fromStudentArrivalNoteRecords) nativeRecordSource() any { return adapter.value }

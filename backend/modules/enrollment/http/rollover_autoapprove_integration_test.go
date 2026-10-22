@@ -37,16 +37,16 @@ import (
 // student; the test then asserts the rollover updates THAT student
 // rather than inserting a second one.
 
-func setupAutoApproveIntegrationEnv(t *testing.T) (*rolloverTestEnv, func()) {
+func setupAutoApproveIntegrationEnv(t *testing.T) *rolloverTestEnv {
 	return setupAutoApproveIntegrationEnvWithSettings(t, nil)
 }
 
 func setupAutoApproveIntegrationEnvWithSettings(
 	t *testing.T,
 	settings owners.EnrollmentDecisionSettings,
-) (*rolloverTestEnv, func()) {
+) *rolloverTestEnv {
 	t.Helper()
-	env, cleanup := setupRolloverTest(t)
+	env := setupRolloverTest(t)
 
 	repoFactory, repoFactoryCare, _, _, _, _ := testRepositories(t, env.db)
 
@@ -82,7 +82,7 @@ func setupAutoApproveIntegrationEnvWithSettings(
 		Logger:     slog.Default(),
 	})
 
-	return env, cleanup
+	return env
 }
 
 // seedApprovedChildWithStudent mirrors the post-approval state the
@@ -185,8 +185,7 @@ func countStudentsForPerson(t *testing.T, env *rolloverTestEnv, personID int64) 
 func TestRolloverService_AutoApprove_EndToEndUpdatesExistingStudent(t *testing.T) {
 	t.Parallel()
 	testpkg.SetupIsolatedTestDB(t)
-	env, cleanup := setupAutoApproveIntegrationEnv(t)
-	defer cleanup()
+	env := setupAutoApproveIntegrationEnv(t)
 	ctx := testpkg.Ctx(t)
 
 	source, existing := seedApprovedChildWithStudent(
@@ -285,8 +284,7 @@ func TestRolloverService_AutoApprove_EndToEndUpdatesExistingStudent(t *testing.T
 func TestRolloverService_AutoApprove_ClassSwitchSkipsClassChangedSinceApproval(t *testing.T) {
 	t.Parallel()
 	testpkg.SetupIsolatedTestDB(t)
-	env, cleanup := setupAutoApproveIntegrationEnv(t)
-	defer cleanup()
+	env := setupAutoApproveIntegrationEnv(t)
 	ctx := testpkg.Ctx(t)
 
 	_, existing := seedApprovedChildWithStudent(
@@ -322,10 +320,9 @@ func TestRolloverService_AutoApprove_ClassSwitchSkipsClassChangedSinceApproval(t
 func TestRolloverService_AutoApprove_InactiveExistingStudentImmediateBecomesActive(t *testing.T) {
 	t.Parallel()
 	testpkg.SetupIsolatedTestDB(t)
-	env, cleanup := setupAutoApproveIntegrationEnvWithSettings(t, stubActivationSettings{
+	env := setupAutoApproveIntegrationEnvWithSettings(t, stubActivationSettings{
 		mode: settingValueActivationImmediate,
 	})
-	defer cleanup()
 	ctx := testpkg.Ctx(t)
 
 	_, existing := seedApprovedChildWithStudent(
@@ -363,10 +360,9 @@ func TestRolloverService_AutoApprove_InactiveExistingStudentImmediateBecomesActi
 func TestRolloverService_AutoApprove_StatusChangeWritesSystemAudit(t *testing.T) {
 	t.Parallel()
 	testpkg.SetupIsolatedTestDB(t)
-	env, cleanup := setupAutoApproveIntegrationEnvWithSettings(t, stubActivationSettings{
+	env := setupAutoApproveIntegrationEnvWithSettings(t, stubActivationSettings{
 		mode: settingValueActivationImmediate,
 	})
-	defer cleanup()
 	ctx := testpkg.Ctx(t)
 
 	_, existing := seedApprovedChildWithStudent(
@@ -401,8 +397,7 @@ func TestRolloverService_AutoApprove_StatusChangeWritesSystemAudit(t *testing.T)
 func TestRolloverService_AutoApprove_InactiveExistingStudentFutureScheduledBecomesPending(t *testing.T) {
 	t.Parallel()
 	testpkg.SetupIsolatedTestDB(t)
-	env, cleanup := setupAutoApproveIntegrationEnv(t)
-	defer cleanup()
+	env := setupAutoApproveIntegrationEnv(t)
 	ctx := testpkg.Ctx(t)
 
 	_, existing := seedApprovedChildWithStudent(
@@ -441,8 +436,7 @@ func TestRolloverService_AutoApprove_InactiveExistingStudentFutureScheduledBecom
 func TestRolloverService_AutoApprove_InactiveExistingStudentPastScheduledBecomesActive(t *testing.T) {
 	t.Parallel()
 	testpkg.SetupIsolatedTestDB(t)
-	env, cleanup := setupAutoApproveIntegrationEnv(t)
-	defer cleanup()
+	env := setupAutoApproveIntegrationEnv(t)
 	ctx := testpkg.Ctx(t)
 
 	_, existing := seedApprovedChildWithStudent(
@@ -484,8 +478,7 @@ func TestRolloverService_AutoApprove_InactiveExistingStudentPastScheduledBecomes
 func TestRolloverService_AutoApprove_DoesNotDuplicateStudents(t *testing.T) {
 	t.Parallel()
 
-	env, cleanup := setupAutoApproveIntegrationEnv(t)
-	defer cleanup()
+	env := setupAutoApproveIntegrationEnv(t)
 	ctx := testpkg.Ctx(t)
 
 	_, existing := seedApprovedChildWithStudent(
@@ -517,8 +510,7 @@ func TestRolloverService_AutoApprove_ValidationFailureRollsBackStudentUpdate(t *
 	t.Parallel()
 	testpkg.SetupIsolatedTestDB(t)
 
-	env, cleanup := setupAutoApproveIntegrationEnv(t)
-	defer cleanup()
+	env := setupAutoApproveIntegrationEnv(t)
 	ctx := testpkg.Ctx(t)
 
 	source, existing := seedApprovedChildWithStudent(

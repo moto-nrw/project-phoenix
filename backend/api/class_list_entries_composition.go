@@ -37,6 +37,7 @@ func newClassListEntriesResource(entries schoolMembershipModule.ClassListEntries
 		Success:          apiCommon.Respond,
 		Failure:          renderClassListEntryFailure,
 		ObserveResponse:  observability.ObserveSchoolMembershipHTTPResponse,
+		ParseIDParam:     apiCommon.ParseIDParam,
 		CurrentAccountID: func(ctx context.Context) int64 { return int64(sessiontoken.ClaimsFromCtx(ctx).ID) },
 
 		Log: logger,

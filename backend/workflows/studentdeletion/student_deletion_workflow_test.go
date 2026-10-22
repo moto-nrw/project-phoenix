@@ -163,7 +163,6 @@ func TestStudentDeletionWorkflow_DeletePreservesSharedInstanceAndAnonymizesPerso
 	history := testpkg.CreateTestGradeTransitionHistoryForTenant(t, db, target.TenantID, transition.ID, target.ID, "DeleteService Target", "1a", testpkg.EducationTransitionActionPromoted)
 	childAccount := testpkg.CreateTestAccount(t, db, "student-delete-child@example.com")
 	messageGuardianAccount := testpkg.CreateTestAccount(t, db, "student-delete-message-guardian@example.com")
-	legacyGuardianAccount := testpkg.CreateTestParentAccount(t, db, "student-delete-legacy-guardian@example.com")
 	var messageThreadID, messageID int64
 	require.NoError(t, db.NewRaw(`
 		INSERT INTO users.parent_message_threads (tenant_id, student_id, guardian_account_id)
@@ -182,10 +181,8 @@ func TestStudentDeletionWorkflow_DeletePreservesSharedInstanceAndAnonymizesPerso
 	_, err = db.NewUpdate().TableExpr(`users.student_profiles AS "student"`).Set(`photo_path = ?`, photoPath).
 		Where(`"student".id = ?`, target.ID).Exec(ctx)
 	require.NoError(t, err)
-	var legacyGuardianLinkID int64
-	require.NoError(t, db.NewRaw(`
-		INSERT INTO users.persons_guardians (tenant_id, person_id, guardian_account_id, relationship_type)
-		VALUES (?, ?, ?, 'parent') RETURNING id`, target.TenantID, target.PersonID, legacyGuardianAccount).Scan(ctx, &legacyGuardianLinkID))
+	guardian := testpkg.CreateTestGuardianProfile(t, db, "student-delete-guardian@example.com")
+	guardianLink := testpkg.CreateTestStudentGuardianLink(t, db, target.ID, guardian.ID, "legal_guardian")
 	var removedPhoto string
 	f.deps.PhotoRemoved = func(_ context.Context, _ studentdeletion.Actor, path string) error { removedPhoto = path; return nil }
 	workflow := f.workflow(t)
@@ -208,7 +205,7 @@ func TestStudentDeletionWorkflow_DeletePreservesSharedInstanceAndAnonymizesPerso
 
 	assert.Zero(t, rowCount(t, db, "users.student_profiles", target.ID))
 	assert.Zero(t, rowCount(t, db, "schedule.instance_students", targetAssignment.ID))
-	assert.Zero(t, rowCount(t, db, "users.persons_guardians", legacyGuardianLinkID))
+	assert.Zero(t, rowCount(t, db, "users.student_guardian_relationships", guardianLink.ID))
 	assert.Zero(t, rowCount(t, db, "users.parent_message_threads", messageThreadID))
 	assert.Zero(t, rowCount(t, db, "users.parent_messages", messageID))
 	var readCursorCount int
@@ -238,7 +235,7 @@ func TestStudentDeletionWorkflow_DeletePreservesSharedInstanceAndAnonymizesPerso
 	assert.NotNil(t, anonymized.DeletedAt)
 	assert.Equal(t, 1, rowCount(t, db, "auth.accounts", childAccount.ID), "credentials are unlinked, never deleted")
 	assert.Equal(t, 1, rowCount(t, db, "auth.accounts", messageGuardianAccount.ID))
-	assert.Equal(t, 1, rowCount(t, db, "auth.accounts_parents", legacyGuardianAccount))
+	assert.Equal(t, 1, rowCount(t, db, "users.guardian_profiles", guardian.ID))
 
 	var audit struct {
 		StudentID      int64
@@ -515,14 +512,6 @@ type failingDirectory struct {
 	fail  error
 }
 
-func (f failingDirectory) DeleteLegacyGuardianLinks(ctx context.Context, personID int64) (int64, error) {
-	rows, err := f.Directory.DeleteLegacyGuardianLinks(ctx, personID)
-	if err == nil && f.phase == "guardian-links" {
-		return rows, f.fail
-	}
-	return rows, err
-}
-
 func (f failingDirectory) DeleteStudent(ctx context.Context, id int64) (int64, error) {
 	rows, err := f.Directory.DeleteStudent(ctx, id)
 	if err == nil && f.phase == "student" {
@@ -576,7 +565,7 @@ func (f failingStructure) AnonymizeStudentTransitionHistory(ctx context.Context,
 
 func TestStudentDeletionWorkflow_RollsBackAfterEachOwnerCommand(t *testing.T) {
 	t.Parallel()
-	for _, phase := range []string{"timetable", "guardian-links", "documents", "withdrawals", "student", "history", "person", "audit"} {
+	for _, phase := range []string{"timetable", "documents", "withdrawals", "student", "history", "person", "audit"} {
 		t.Run(phase, func(t *testing.T) {
 			t.Parallel()
 			testpkg.OwnTenant(t)
@@ -594,16 +583,14 @@ func TestStudentDeletionWorkflow_RollsBackAfterEachOwnerCommand(t *testing.T) {
 			completion := testpkg.CreateTestCareWithdrawalCompletion(t, db, target.ID, f.actorID, calendar.TodayDate())
 			transition := testpkg.CreateTestGradeTransition(t, db, "2026-2027", f.actorID)
 			history := testpkg.CreateTestGradeTransitionHistoryForTenant(t, db, target.TenantID, transition.ID, target.ID, "Rollback Target", "1a", testpkg.EducationTransitionActionPromoted)
-			legacyGuardian := testpkg.CreateTestParentAccount(t, db, "rollback-legacy-guardian@example.com")
-			var legacyLinkID int64
-			require.NoError(t, db.NewRaw(`INSERT INTO users.persons_guardians (tenant_id, person_id, guardian_account_id, relationship_type)
-				VALUES (?, ?, ?, 'parent') RETURNING id`, target.TenantID, target.PersonID, legacyGuardian).Scan(ctx, &legacyLinkID))
+			guardian := testpkg.CreateTestGuardianProfile(t, db, "rollback-guardian@example.com")
+			guardianLink := testpkg.CreateTestStudentGuardianLink(t, db, target.ID, guardian.ID, "legal_guardian")
 
 			failure := errors.New("injected " + phase + " failure")
 			switch phase {
 			case "timetable":
 				f.deps.Timetable = failingTimetable{Timetable: f.deps.Timetable, fail: failure}
-			case "guardian-links", "student", "person":
+			case "student", "person":
 				f.deps.Directory = failingDirectory{Directory: f.deps.Directory, phase: phase, fail: failure}
 			case "documents", "withdrawals":
 				f.deps.CarePlan = failingCarePlan{CarePlan: f.deps.CarePlan, phase: phase, fail: failure}
@@ -627,7 +614,7 @@ func TestStudentDeletionWorkflow_RollsBackAfterEachOwnerCommand(t *testing.T) {
 
 			assert.Equal(t, 1, rowCount(t, db, "users.student_profiles", target.ID), "%s: the student row survives", phase)
 			assert.Equal(t, 1, rowCount(t, db, "schedule.instance_students", assignment.ID), "%s: the assignment survives", phase)
-			assert.Equal(t, 1, rowCount(t, db, "users.persons_guardians", legacyLinkID), "%s: the legacy guardian link survives", phase)
+			assert.Equal(t, 1, rowCount(t, db, "users.student_guardian_relationships", guardianLink.ID), "%s: the guardian relationship survives", phase)
 			assert.Equal(t, 1, rowCount(t, db, "users.student_documents", document.ID), "%s: the document row survives", phase)
 			queued, err := f.reposCare.CarePlan().ListCareDocumentCleanups(ctx, &target.ID)
 			require.NoError(t, err)
@@ -1012,6 +999,7 @@ func TestStudentDeletionWorkflow_RemovesCompanionEdgesAndNotifies(t *testing.T) 
 // outcomes and the deadlock counter over the real composition.
 func TestStudentDeletionRuntimeEvidence(t *testing.T) {
 	t.Parallel()
+	testpkg.RequireRuntimeEvidence(t)
 	db := testpkg.SetupIsolatedTestDB(t)
 	f := newDeletionFixture(t, db)
 	workflow := f.workflow(t)

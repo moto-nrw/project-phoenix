@@ -42,11 +42,6 @@ func setupRequestChildRepoTest(t *testing.T) (
 		return requestRepo.InsertRequest(ctx, req)
 	}))
 
-	t.Cleanup(func() {
-		wipeRequests(db, tenantID, token)
-		wipePhases(db, tenantID, phaseName)
-	})
-
 	return db, ownerCompose.New(), tenantID, phase.ID, req.ID
 }
 
@@ -85,7 +80,6 @@ func TestRequestChildRepository_ListByRequestIDs_BatchesAcrossRequests(t *testin
 	require.NoError(t, runInTenantTx(t, db, tenantID, func(ctx context.Context) error {
 		return reqRepo.InsertRequest(ctx, req2)
 	}))
-	t.Cleanup(func() { wipeRequests(db, tenantID, token2) })
 	require.NoError(t, runInTenantTx(t, db, tenantID, func(ctx context.Context) error {
 		return repo.InsertChild(ctx, makeChild(req2.ID, "Solo", "Zwei"))
 	}))
@@ -216,10 +210,6 @@ func TestRequestChildRepository_UpdateStatus_StampsReviewerAndReason(t *testing.
 
 	// Need a real reviewer account so the FK passes.
 	account := testpkg.CreateTestAccount(t, db, "reviewer")
-	t.Cleanup(func() {
-		_, _ = db.NewDelete().TableExpr("auth.accounts").
-			Where("id = ?", account.ID).Exec(context.Background())
-	})
 
 	child := makeChild(requestID, "Lara", "B")
 	require.NoError(t, runInTenantTx(t, db, tenantID, func(ctx context.Context) error {
@@ -292,10 +282,6 @@ func TestRequestChildRepository_LinkCreatedStudent_StampsBackLink(t *testing.T) 
 
 	// Need a real student row for the FK on created_student_id.
 	student := testpkg.CreateTestStudent(t, db, "Lara", "Beispiel", "1a")
-	t.Cleanup(func() {
-		_, _ = db.NewDelete().TableExpr("users.student_profiles").Where("id = ?", student.ID).Exec(context.Background())
-		_, _ = db.NewDelete().TableExpr("users.persons").Where("id = ?", student.PersonID).Exec(context.Background())
-	})
 
 	child := makeChild(requestID, "Lara", "Beispiel")
 	require.NoError(t, runInTenantTx(t, db, tenantID, func(ctx context.Context) error {
@@ -542,10 +528,6 @@ func TestRequestChildRepository_UpdateRolloverReview_HappyPath(t *testing.T) {
 	db, repo, tenantID, _, requestID := setupRequestChildRepoTest(t)
 
 	account := testpkg.CreateTestAccount(t, db, "rolloverreviewer")
-	t.Cleanup(func() {
-		_, _ = db.NewDelete().TableExpr("auth.accounts").
-			Where("id = ?", account.ID).Exec(context.Background())
-	})
 
 	// Start in pending_admin_review with a review_reason set.
 	c := makeChild(requestID, "Lara", "B")

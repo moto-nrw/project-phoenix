@@ -49,8 +49,7 @@ func TestPublicIntakeRejectsRateLimitStorageFailures(t *testing.T) {
 		t.Run(keyType, func(t *testing.T) {
 			t.Parallel()
 			testpkg.OwnTenant(t)
-			env, cleanup := setupRequestTest(t)
-			defer cleanup()
+			env := setupRequestTest(t)
 			failure := errors.New("injected throttle storage failure")
 			limiter := &failingSubmissionRateLimiter{SubmissionRateLimiter: env.config.RateLimitRepo, failKey: keyType, failure: failure}
 			config := env.config
@@ -125,8 +124,7 @@ func TestPublicIntakeRollsBackAfterEveryRequestInviteGuardianAndChildWrite(t *te
 		t.Run(fmt.Sprintf("late_invite_%t_write_%d", scenario.lateInvite, failAfter), func(t *testing.T) {
 			t.Parallel()
 			testpkg.OwnTenant(t)
-			env, cleanup := setupRequestTest(t)
-			defer cleanup()
+			env := setupRequestTest(t)
 			env.settings.stringValues[settingKeyDuplicateHandling] = settingValueDuplicateBlock
 			failure := errors.New("injected failure after intake write")
 			writes := &failingIntakeWrites{
@@ -236,8 +234,7 @@ func TestPublicIntakeRollsBackAfterEachSubmissionEmailEnqueue(t *testing.T) {
 		t.Run(fmt.Sprintf("email_%d", failAfter), func(t *testing.T) {
 			t.Parallel()
 			testpkg.OwnTenant(t)
-			env, cleanup := setupRequestTest(t)
-			defer cleanup()
+			env := setupRequestTest(t)
 			env.settings.stringValues[settingKeyNotificationEmails] = "admin@example.test"
 			env.settings.stringValues[settingKeyDuplicateHandling] = settingValueDuplicateBlock
 			failure := errors.New("injected after persisted submission email")
@@ -304,8 +301,7 @@ func TestPublicIntakeRollsBackAfterEachOfferingLinkWrite(t *testing.T) {
 		t.Run(fmt.Sprintf("link_%d", failAfter), func(t *testing.T) {
 			t.Parallel()
 			testpkg.OwnTenant(t)
-			env, cleanup := setupRequestTest(t)
-			defer cleanup()
+			env := setupRequestTest(t)
 			env.settings.stringValues[settingKeyDuplicateHandling] = settingValueDuplicateBlock
 			ctx := testpkg.Ctx(t)
 			var offeringIDs []int64
@@ -346,8 +342,7 @@ func TestPublicIntakeRollsBackAfterEachOfferingLinkWrite(t *testing.T) {
 func TestPublicIntakeRollsBackAfterCarePlanBookingCommand(t *testing.T) {
 	t.Parallel()
 	testpkg.OwnTenant(t)
-	env, cleanup := setupRequestTest(t)
-	defer cleanup()
+	env := setupRequestTest(t)
 	ctx := testpkg.Ctx(t)
 	offering := &offeringContract.CareOfferingRecord{PhaseID: env.phaseID, Name: "Care", DaysOfWeekMode: offeringContract.DaysOfWeekModeFixed, AvailableDays: []string{"mon"}, IsActive: true}
 	require.NoError(t, newCareOfferingFixtures(api.NewEnrollmentFlowCarePlanRows(testpkg.NewDatabase(t, env.db)).CarePlan).Create(ctx, offering))

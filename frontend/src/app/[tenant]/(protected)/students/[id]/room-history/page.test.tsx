@@ -387,7 +387,9 @@ describe("StudentRoomHistoryPage", () => {
     expect(screen.queryByText(/0 Tage erfasst/)).not.toBeInTheDocument();
   });
 
-  it("handles student fetch failure without crashing", async () => {
+  // Der Name schmückt nur den Kopf: ohne Kinddatensatz zeigt die Seite das
+  // geladene Protokoll unter dem allgemeinen Titel, ohne Fehlermeldung.
+  it("shows the protocol under the generic title when the child cannot be loaded", async () => {
     mockFetch.mockImplementation((url: string) => {
       if (url.includes("/attendance-history")) {
         return Promise.resolve(mockAttendanceHistoryResponse());
@@ -398,8 +400,13 @@ describe("StudentRoomHistoryPage", () => {
     render(<StudentRoomHistoryPage />);
 
     await waitFor(() => {
-      expect(screen.queryByTestId("loading")).not.toBeInTheDocument();
+      expect(screen.getByText(/\d+ Tage? erfasst/)).toBeInTheDocument();
     });
+    expect(
+      screen.getByRole("heading", { name: "Anwesenheitsprotokoll" }),
+    ).toBeInTheDocument();
+    expect(screen.queryByText("Test Student")).not.toBeInTheDocument();
+    expect(screen.queryByTestId("alert-error")).not.toBeInTheDocument();
   });
 
   // ─── Empty state ────────────────────────────────────────────────────────────
@@ -763,10 +770,13 @@ describe("StudentRoomHistoryPage", () => {
 
     render(<StudentRoomHistoryPage />);
 
-    // Should still render without crashing
     await waitFor(() => {
-      expect(screen.queryByTestId("loading")).not.toBeInTheDocument();
+      expect(screen.getByText(/\d+ Tage? erfasst/)).toBeInTheDocument();
     });
+    expect(
+      screen.getByRole("heading", { name: "Anwesenheitsprotokoll" }),
+    ).toBeInTheDocument();
+    expect(screen.queryByTestId("alert-error")).not.toBeInTheDocument();
   });
 
   // ─── Bemerkung und Korrektur (#2898) ────────────────────────────────────────

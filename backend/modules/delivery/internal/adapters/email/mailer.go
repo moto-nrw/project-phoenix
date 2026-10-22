@@ -7,9 +7,7 @@ import (
 	"html/template"
 	"os"
 	"path/filepath"
-	"strconv"
 	"strings"
-	"time"
 
 	mailcontract "github.com/moto-nrw/project-phoenix/modules/delivery/mail"
 
@@ -48,7 +46,7 @@ func (m *renderedMessage) parse(templates *template.Template) error {
 }
 
 func parseTemplates(dir string) (*template.Template, error) {
-	set := template.New("").Funcs(fMap)
+	set := template.New("")
 	if err := filepath.Walk(dir, func(path string, info os.FileInfo, err error) error {
 		if strings.Contains(path, ".html") {
 			_, err = set.ParseFiles(path)
@@ -59,27 +57,4 @@ func parseTemplates(dir string) (*template.Template, error) {
 		return nil, err
 	}
 	return set, nil
-}
-
-var fMap = template.FuncMap{
-	"formatAsDate":     formatAsDate,
-	"formatAsDuration": formatAsDuration,
-}
-
-func formatAsDate(t time.Time) string {
-	year, month, day := t.Date()
-	return fmt.Sprintf("%d.%d.%d", day, month, year)
-}
-
-func formatAsDuration(t time.Time) string {
-	dur := time.Until(t)
-	hours := int(dur.Hours())
-	mins := int(dur.Minutes())
-
-	v := ""
-	if hours != 0 {
-		v += strconv.Itoa(hours) + " hours and "
-	}
-	v += strconv.Itoa(mins) + " minutes"
-	return v
 }

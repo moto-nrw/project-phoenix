@@ -193,13 +193,6 @@ func TestTimetableOperationDirectHelperBranches(t *testing.T) {
 		require.NotNil(t, names[810])
 		assert.Equal(t, "Lernraum", *names[810])
 	})
-
-	t.Run("logger falls back to default", func(t *testing.T) {
-		deps := newTimetableOpsDeps()
-		deps.service.deps.Logger = nil
-
-		assert.NotNil(t, deps.service.logger())
-	})
 }
 
 func TestTimetableOperationsBroadcastBranches(t *testing.T) {

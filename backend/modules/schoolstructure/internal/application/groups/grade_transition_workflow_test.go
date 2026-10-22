@@ -562,6 +562,7 @@ func TestGradeTransitionWorkflow_IdempotentRetryAndHistoryRetention(t *testing.T
 // unit-of-work outcomes and the deadlock counter over the real composition.
 func TestGradeTransitionRuntimeEvidence(t *testing.T) {
 	t.Parallel()
+	testpkg.RequireRuntimeEvidence(t)
 	db := testpkg.SetupIsolatedTestDB(t)
 	f := newTransitionFixture(t, db)
 	workflow := f.workflow(t)

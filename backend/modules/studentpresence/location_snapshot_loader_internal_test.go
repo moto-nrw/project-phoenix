@@ -2,7 +2,6 @@ package studentpresence
 
 import (
 	"testing"
-	"time"
 
 	"github.com/moto-nrw/project-phoenix/internal/ptrtest"
 	"github.com/stretchr/testify/assert"
@@ -261,28 +260,4 @@ func TestNewEmptyLocationSnapshot_EmptyModeDefaultsToDetailed(t *testing.T) {
 
 	snapshot := NewStudentLocationSnapshot("")
 	assert.Equal(t, PresenceModeDetailed, snapshot.Mode)
-}
-
-// =============================================================================
-// StudentLocationInfo Tests (internals)
-// =============================================================================
-
-func TestStudentLocationInfo_ZeroValue(t *testing.T) {
-	t.Parallel()
-
-	var info StudentLocationInfo
-	assert.Empty(t, info.Location)
-	assert.Nil(t, info.Since)
-}
-
-func TestStudentLocationInfo_WithValues(t *testing.T) {
-	t.Parallel()
-
-	now := time.Now()
-	info := StudentLocationInfo{
-		Location: "Test Location",
-		Since:    &now,
-	}
-	assert.Equal(t, "Test Location", info.Location)
-	assert.Equal(t, &now, info.Since)
 }

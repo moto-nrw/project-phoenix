@@ -262,7 +262,11 @@ export default function TagesinformationenPage() {
             Für heute liegen keine Hinweise vor.
           </p>
         ) : (
-          <TodayNoticeList notices={todayNotices} onChanged={mutateToday} />
+          <TodayNoticeList
+            notices={todayNotices}
+            onChanged={mutateToday}
+            layout="grid"
+          />
         )}
       </SectionCard>
 

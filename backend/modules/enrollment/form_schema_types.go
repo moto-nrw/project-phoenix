@@ -106,13 +106,14 @@ type VisibilityCondition struct {
 // row, additional student-guardian relationship, etc.). Type is constrained by
 // Target — see ReservedTargets for the allowed (target, type) pairs.
 type FormField struct {
-	Key      string            `json:"key"`
-	Label    string            `json:"label"`
-	Type     FormFieldType     `json:"type"`
-	Required bool              `json:"required,omitempty"`
-	HelpText string            `json:"help_text,omitempty"`
-	Content  string            `json:"content,omitempty"` // body text for FormFieldInfo blocks (plain text, newlines preserved); empty for all other types
-	Options  []FormFieldOption `json:"options,omitempty"`
+	Attachments []FormAttachment  `json:"attachments,omitempty"`
+	Key         string            `json:"key"`
+	Label       string            `json:"label"`
+	Type        FormFieldType     `json:"type"`
+	Required    bool              `json:"required,omitempty"`
+	HelpText    string            `json:"help_text,omitempty"`
+	Content     string            `json:"content,omitempty"` // body text for FormFieldInfo blocks (plain text, newlines preserved); empty for all other types
+	Options     []FormFieldOption `json:"options,omitempty"`
 	// AllowedTimes constrains a FormFieldWeekdaySchedule field to a fixed
 	// list of HH:MM pickup times. Empty/absent = free time entry (the
 	// historical behaviour). When set, every per-weekday time a parent
@@ -261,18 +262,19 @@ const (
 // Standard blocks originate from tenant settings and may be overridden or
 // disabled on the template. Custom blocks are stored only on the template.
 type FormLegalBlock struct {
-	Key          string       `json:"key"`
-	Kind         string       `json:"kind"`
-	Title        string       `json:"title"`
-	Label        string       `json:"label"`
-	Text         string       `json:"text"`
-	Required     bool         `json:"required"`
-	Enabled      bool         `json:"enabled"`
-	SortOrder    int          `json:"sort_order"`
-	Source       string       `json:"source,omitempty"`
-	DisplayMode  string       `json:"display_mode,omitempty"`
-	DocumentURL  string       `json:"document_url,omitempty"`
-	Translations Translations `json:"translations,omitempty"` // of Title, Label, Text (#3377)
+	Attachments  []FormAttachment `json:"attachments,omitempty"`
+	Key          string           `json:"key"`
+	Kind         string           `json:"kind"`
+	Title        string           `json:"title"`
+	Label        string           `json:"label"`
+	Text         string           `json:"text"`
+	Required     bool             `json:"required"`
+	Enabled      bool             `json:"enabled"`
+	SortOrder    int              `json:"sort_order"`
+	Source       string           `json:"source,omitempty"`
+	DisplayMode  string           `json:"display_mode,omitempty"`
+	DocumentURL  string           `json:"document_url,omitempty"`
+	Translations Translations     `json:"translations,omitempty"` // of Title, Label, Text (#3377)
 }
 
 // FormSchema is a row in enrollment.form_schemas. Each save creates a new

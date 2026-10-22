@@ -86,9 +86,6 @@ type CareOfferingGuards interface {
 	// vanished id is tolerated only when stored.
 	ValidateTemplateOfferingSource(ctx context.Context, offeringIDs, storedOfferingIDs []int64, calendarPeriodID *int64) error
 	ValidateRoomDeletion(ctx context.Context, roomID int64) error
-	// ValidateTimeframeChange simulates an edit of the timeframe; a nil
-	// replacement is its deletion.
-	ValidateTimeframeChange(ctx context.Context, timeframeID int64, replacement *TimeframeReplacement) error
 	// ValidatePhaseChange evaluates every materializable offering of the
 	// phase against its proposed service window.
 	ValidatePhaseChange(ctx context.Context, phaseID int64, replacement *OfferingPhase) error
@@ -112,15 +109,6 @@ type CareOfferingCatalogCapability interface {
 	CareOfferingCatalog
 	CareOfferingGuards
 	CareOfferingRollover
-}
-
-// TimeframeReplacement is the proposed state of a timeframe an edit would
-// leave behind. Clock values are HH:MM:SS.
-type TimeframeReplacement struct {
-	StartTime   string
-	EndTime     *string
-	IsActive    bool
-	Description string
 }
 
 // CalendarPeriodReplacement is the proposed state of a School Calendar

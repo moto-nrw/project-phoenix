@@ -175,18 +175,3 @@ export function prepareGroupForBackend(
     teacher_ids: group.teacher_ids?.map((id) => Number.parseInt(id, 10)),
   };
 }
-
-// Request/Response types
-
-// Helper functions
-export function formatGroupName(group: Group): string {
-  return group.name || "Unnamed Group";
-}
-
-export function formatGroupLocation(group: Group): string {
-  return group.room_name ?? "No Room Assigned";
-}
-
-export function formatGroupRepresentative(group: Group): string {
-  return group.representative_name ?? "No Representative";
-}

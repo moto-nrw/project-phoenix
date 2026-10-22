@@ -49,6 +49,8 @@ type Runtime struct {
 
 	// CurrentAccountID is 0 when the token carries no account.
 	CurrentAccountID func(context.Context) int64
+	// ParseIDParam reads an int64 path parameter: api/common.ParseIDParam.
+	ParseIDParam func(*http.Request, string) (int64, error)
 
 	Log *slog.Logger
 }
@@ -64,7 +66,7 @@ type Resource struct {
 func NewResource(entries schoolmembership.ClassListEntries, runtime Runtime) *Resource {
 	if entries == nil || runtime.Protected == nil || runtime.Permission == nil ||
 		runtime.Success == nil || runtime.Failure == nil || runtime.ObserveResponse == nil ||
-		runtime.CurrentAccountID == nil || runtime.Log == nil {
+		runtime.CurrentAccountID == nil || runtime.Log == nil || runtime.ParseIDParam == nil {
 		panic("class list entries HTTP: all dependencies are required")
 	}
 	return &Resource{entries: entries, runtime: runtime}
@@ -249,7 +251,7 @@ func (rs *Resource) assignEntry(w http.ResponseWriter, r *http.Request) {
 }
 
 func (rs *Resource) parseEntryID(w http.ResponseWriter, r *http.Request) (int64, bool) {
-	id, err := strconv.ParseInt(chi.URLParam(r, "id"), 10, 64)
+	id, err := rs.runtime.ParseIDParam(r, "id")
 	if err != nil || id <= 0 {
 		rs.failure(w, r, FailureInvalidRequest, errors.New("invalid entry ID"), "invalid_parameters")
 		return 0, false

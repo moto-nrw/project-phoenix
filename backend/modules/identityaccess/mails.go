@@ -292,7 +292,7 @@ func OperatorEmailChangeConfirmedMail(displayName, origin string) Mail {
 // The demo team receives the lead mail and the prospects' answers.
 const (
 	DemoContactName    = "moto"
-	DemoContactAddress = "kontakt@moto.nrw"
+	DemoContactAddress = "kontakt@moto-ogs.de"
 )
 
 // The demo templates are the only ones the demo environment sends.

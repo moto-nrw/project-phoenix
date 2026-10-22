@@ -20,6 +20,7 @@ import (
 // HTTP contracts have separate kiosk route tests; this is not TCP/staging.
 func TestSessionEndRuntimeEvidence(t *testing.T) {
 	t.Parallel()
+	testpkg.RequireRuntimeEvidence(t)
 	db := testpkg.SetupIsolatedTestDB(t)
 	_, err := api.NewActiveTestModule(testpkg.NewDatabase(t, db), testpkg.TenantRuntime(t, db))
 	require.NoError(t, err)

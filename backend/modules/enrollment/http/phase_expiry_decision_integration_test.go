@@ -24,10 +24,9 @@ import (
 func TestPhaseExpiryService_ApprovedRolloverWithInactiveOfferingStaysOpen(t *testing.T) {
 	t.Parallel()
 
-	env, cleanup := setupDecisionTestWithSettings(t, stubActivationSettings{
+	env := setupDecisionTestWithSettings(t, stubActivationSettings{
 		mode: settingValueActivationImmediate,
 	})
-	defer cleanup()
 	ctx := testpkg.Ctx(t)
 
 	sourceOffering := &offeringContract.CareOfferingRecord{

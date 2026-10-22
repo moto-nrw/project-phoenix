@@ -94,12 +94,6 @@ func AttendsOn(student CareLifecycle, day calendar.Date) bool {
 	return !student.IsAlumnus() && !student.CareEndedOn(day)
 }
 
-// CareEndsLater reports whether an end of care is recorded but has not taken
-// effect yet on the given day.
-func (s *StudentState) CareEndsLater(day calendar.Date) bool {
-	return s != nil && s.EnrolledUntil != nil && !day.After(*s.EnrolledUntil)
-}
-
 // SnapshotDeparturePlan records the current in-memory departure plan as the
 // hydrated baseline. Normalizing copies the maps, so a later in-place edit of
 // the plan cannot move the baseline with it.

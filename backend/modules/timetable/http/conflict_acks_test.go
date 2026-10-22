@@ -39,10 +39,6 @@ func buildAckSetup(t *testing.T) *ackSetup {
 	db := testpkg.SetupTestDB(t)
 
 	account := testpkg.CreateTestAccount(t, db, fmt.Sprintf("ack-%d@example.com", time.Now().UnixNano()))
-	t.Cleanup(func() {
-		_, _ = db.ExecContext(context.Background(),
-			"DELETE FROM schedule.timetable_conflict_acks WHERE account_id = ?", account.ID)
-	})
 
 	res := NewResource(Dependencies{
 		TimetableData: testTimetableData(db).TimetableData(),
@@ -92,7 +88,7 @@ func TestConflictAcks_AcknowledgeListUnacknowledge(t *testing.T) {
 	t.Parallel()
 
 	s := buildAckSetup(t)
-	router := conflictAckRouter(s.res, 1, s.accountID)
+	router := conflictAckRouter(s.res, testpkg.Tenant(t), s.accountID)
 
 	// Initially empty (and never nil — the frontend iterates it).
 	w := doConflictAck(t, router, http.MethodGet, "/conflict-acks")
@@ -121,7 +117,7 @@ func TestConflictAcks_InvalidFingerprintRejected(t *testing.T) {
 	t.Parallel()
 
 	s := buildAckSetup(t)
-	router := conflictAckRouter(s.res, 1, s.accountID)
+	router := conflictAckRouter(s.res, testpkg.Tenant(t), s.accountID)
 
 	for _, fp := range []string{"UPPERCASE1234567", "zz", "short", "0123456789abcde"} {
 		w := doConflictAck(t, router, http.MethodPut, "/conflict-acks/"+fp)
@@ -135,8 +131,8 @@ func TestConflictAcks_ScopedPerAccount(t *testing.T) {
 	s := buildAckSetup(t)
 	other := testpkg.CreateTestAccount(t, s.db, fmt.Sprintf("ack-other-%d@example.com", time.Now().UnixNano()))
 
-	mine := conflictAckRouter(s.res, 1, s.accountID)
-	theirs := conflictAckRouter(s.res, 1, other.ID)
+	mine := conflictAckRouter(s.res, testpkg.Tenant(t), s.accountID)
+	theirs := conflictAckRouter(s.res, testpkg.Tenant(t), other.ID)
 
 	w := doConflictAck(t, mine, http.MethodPut, "/conflict-acks/"+ackFingerprintA)
 	require.Equal(t, http.StatusOK, w.Code)
@@ -156,7 +152,7 @@ func TestConflictAcks_TenantIsolation(t *testing.T) {
 	t.Parallel()
 
 	s := buildAckSetup(t)
-	tenantOne := conflictAckRouter(s.res, 1, s.accountID)
+	tenantOne := conflictAckRouter(s.res, testpkg.Tenant(t), s.accountID)
 	tenantOther := conflictAckRouter(s.res, 999, s.accountID)
 
 	w := doConflictAck(t, tenantOne, http.MethodPut, "/conflict-acks/"+ackFingerprintA)
@@ -173,7 +169,7 @@ func TestConflictAcks_MissingAccountRejected(t *testing.T) {
 
 	s := buildAckSetup(t)
 	// Claims with ID 0 — e.g. a token shape that never carried an account.
-	router := conflictAckRouter(s.res, 1, 0)
+	router := conflictAckRouter(s.res, testpkg.Tenant(t), 0)
 
 	w := doConflictAck(t, router, http.MethodGet, "/conflict-acks")
 	assert.Equal(t, http.StatusUnauthorized, w.Code, "body=%s", w.Body.String())

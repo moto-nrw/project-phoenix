@@ -19,8 +19,7 @@ import (
 func TestDecisionService_Decide_ApprovedAttachesExistingAccountAndReactivatesAccess(t *testing.T) {
 	t.Parallel()
 
-	env, cleanup := setupDecisionTest(t)
-	defer cleanup()
+	env := setupDecisionTest(t)
 	ctx := testpkg.Ctx(t)
 	tenantID := testpkg.Tenant(t)
 	account := testpkg.CreateTestAccount(t, env.db, "attach-existing-account")

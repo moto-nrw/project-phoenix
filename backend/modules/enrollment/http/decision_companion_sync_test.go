@@ -213,8 +213,7 @@ func syncApprovedChild(t *testing.T, env *decisionTestEnv, applier enrollmentAPI
 func TestDecisionService_SyncApprovedChildData_CompanionRefusalSurfacesWithoutReplace(t *testing.T) {
 	t.Parallel()
 
-	env, cleanup := setupDecisionTest(t)
-	defer cleanup()
+	env := setupDecisionTest(t)
 	ctx := testpkg.Ctx(t)
 	publishCompanionModesSchema(t, env, "Testformular Companion Refusal")
 
@@ -258,8 +257,7 @@ func TestDecisionService_SyncApprovedChildData_CompanionRefusalSurfacesWithoutRe
 func TestDecisionService_SyncApprovedChildData_CompanionEventOnlyOnEffectiveTrim(t *testing.T) {
 	t.Parallel()
 
-	env, cleanup := setupDecisionTest(t)
-	defer cleanup()
+	env := setupDecisionTest(t)
 	publishCompanionModesSchema(t, env, "Testformular Companion Event")
 
 	bc := testpkg.NewRecordingBroadcaster()

@@ -486,26 +486,6 @@ export function formatMonthLabel(ref: Date): string {
   });
 }
 
-export function getYearRange(ref: Date): { from: Date; to: Date } {
-  const from = new Date(ref.getFullYear(), 0, 1);
-  from.setHours(0, 0, 0, 0);
-  const to = new Date(ref.getFullYear(), 11, 31);
-  to.setHours(0, 0, 0, 0);
-  return { from, to };
-}
-
-export function getYearMonths(ref: Date): Date[] {
-  const months: Date[] = [];
-  for (let month = 0; month < 12; month++) {
-    months.push(new Date(ref.getFullYear(), month, 1));
-  }
-  return months;
-}
-
-export function formatYearLabel(ref: Date): string {
-  return String(ref.getFullYear());
-}
-
 /**
  * Status-to-German UI label. Surfaced as the badge on cards.
  */
@@ -1515,62 +1495,6 @@ export function countPlannedStaff(instances: EnrichedInstance[]): number {
     }
   }
   return staffIds.size;
-}
-
-/**
- * Whether any active care offering points at a Betreuungsplan-Regeltermin.
- * "unknown" means the linkage could not be read (no enrollment permission).
- */
-export type TimetableCareOfferingLinkStatus = "linked" | "unlinked" | "unknown";
-
-export interface TimetableSetupState {
-  periodDone: boolean;
-  enrollmentDone: boolean;
-  planDone: boolean;
-  /** false when the care-offering linkage is unknown (no read access) */
-  enrollmentApplicable: boolean;
-  completedSteps: number;
-  totalSteps: number;
-  progressPercent: number;
-  /** Required steps (period + first plan) complete — collapses the guide. */
-  setupComplete: boolean;
-}
-
-/**
- * Status of the three onboarding steps shown in the planner setup guide
- * (Planungszeitraum / Anmeldung verknüpfen / Erste Woche planen). The
- * enrollment step counts as done only when a care offering actually links to
- * a Regeltermin — an active enrollment phase alone proves no linkage. It is
- * optional and is dropped from the progress count when the linkage is unknown
- * (the admin cannot read enrollment data).
- */
-export function computeTimetableSetup(input: {
-  hasActivePeriod: boolean;
-  careOfferingLink: TimetableCareOfferingLinkStatus;
-  hasPlan: boolean;
-}): TimetableSetupState {
-  const periodDone = input.hasActivePeriod;
-  const planDone = input.hasPlan;
-  const enrollmentApplicable = input.careOfferingLink !== "unknown";
-  const enrollmentDone = input.careOfferingLink === "linked";
-
-  const totalSteps = enrollmentApplicable ? 3 : 2;
-  const completedSteps =
-    (periodDone ? 1 : 0) +
-    (planDone ? 1 : 0) +
-    (enrollmentApplicable && enrollmentDone ? 1 : 0);
-  const progressPercent = Math.round((completedSteps / totalSteps) * 100);
-
-  return {
-    periodDone,
-    enrollmentDone,
-    planDone,
-    enrollmentApplicable,
-    completedSteps,
-    totalSteps,
-    progressPercent,
-    setupComplete: periodDone && planDone,
-  };
 }
 
 /**

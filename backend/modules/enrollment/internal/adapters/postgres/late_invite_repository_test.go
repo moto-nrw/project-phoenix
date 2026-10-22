@@ -21,13 +21,6 @@ func TestLateInviteOwner_DeleteByUsedRequestID_DeletesOnlyLinkedInvite(t *testin
 	lateInviteRepo := requestRepo
 	tokenPrefix := uniqueToken("deleteUsedLateInvite")
 	creator := testpkg.CreateTestAccount(t, db, "late-invite-delete")
-	t.Cleanup(func() {
-		_, _ = db.NewDelete().
-			TableExpr("enrollment.late_invites").
-			Where("tenant_id = ? AND token_hash LIKE ?", tenantID, tokenPrefix+"%").
-			Exec(context.Background())
-		wipeRequests(db, tenantID, tokenPrefix)
-	})
 
 	requestA := makeOwnerRequest(phaseID, tokenPrefix+"-request-a", "a@example.test")
 	requestB := makeOwnerRequest(phaseID, tokenPrefix+"-request-b", "b@example.test")

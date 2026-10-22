@@ -3,19 +3,15 @@ package application
 import (
 	"context"
 	"fmt"
-	"time"
 
 	"github.com/moto-nrw/project-phoenix/modules/careplan"
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 )
 
 // careOfferingMaterializationChange is the resource edit a guard simulates:
-// a room being deleted or a timeframe being edited (replacement set) or
-// deleted (replacement nil).
+// a room being deleted.
 type careOfferingMaterializationChange struct {
-	deletedRoomID        int64
-	changedTimeframeID   int64
-	timeframeReplacement *careplan.LinkedTimeframe
+	deletedRoomID int64
 }
 
 type careOfferingExceptionKey struct {
@@ -48,12 +44,6 @@ func (c *CareOfferingCatalog) loadCareOfferingMaterializationState(
 		change:     change,
 	}
 	for _, timeframe := range timeframes {
-		if timeframe.ID == change.changedTimeframeID {
-			if change.timeframeReplacement != nil {
-				state.timeframes[timeframe.ID] = *change.timeframeReplacement
-			}
-			continue
-		}
 		state.timeframes[timeframe.ID] = timeframe
 	}
 	for _, exception := range exceptions {
@@ -261,54 +251,6 @@ func (c *CareOfferingCatalog) ValidateRoomDeletion(ctx context.Context, roomID i
 	return c.validateMaterializationResourceDeletion(ctx, careOfferingMaterializationChange{deletedRoomID: roomID})
 }
 
-// ValidateTimeframeChange simulates an edit (replacement non-nil) or delete
-// (replacement nil) before the Timetable owner mutates the timeframe row.
-// activities.schedules.timeframe_id is cleared by ON DELETE SET NULL, so a
-// deletion is simulated as that clearing.
-func (c *CareOfferingCatalog) ValidateTimeframeChange(ctx context.Context, timeframeID int64, replacement *careplan.TimeframeReplacement) error {
-	change := careOfferingMaterializationChange{changedTimeframeID: timeframeID}
-	if replacement != nil {
-		proposed, err := proposedTimeframe(timeframeID, *replacement)
-		if err != nil {
-			return err
-		}
-		change.timeframeReplacement = &proposed
-	}
-	if timeframeID <= 0 {
-		return fmt.Errorf("validate timeframe %d change: %w", timeframeID, careOfferingInvalidf("timeframe id must be positive"))
-	}
-	if err := c.validateMaterializationResourceDeletion(ctx, change); err != nil {
-		return fmt.Errorf("validate timeframe %d change: %w", timeframeID, err)
-	}
-	return nil
-}
-
-func proposedTimeframe(timeframeID int64, replacement careplan.TimeframeReplacement) (careplan.LinkedTimeframe, error) {
-	start, err := parseTimeframeClock(replacement.StartTime)
-	if err != nil {
-		return careplan.LinkedTimeframe{}, careOfferingInvalidf("timeframe start time %q is not a clock value", replacement.StartTime)
-	}
-	proposed := careplan.LinkedTimeframe{ID: timeframeID, StartTime: start}
-	if replacement.EndTime != nil {
-		end, parseErr := parseTimeframeClock(*replacement.EndTime)
-		if parseErr != nil {
-			return careplan.LinkedTimeframe{}, careOfferingInvalidf("timeframe end time %q is not a clock value", *replacement.EndTime)
-		}
-		proposed.EndTime = &end
-	}
-	return proposed, nil
-}
-
-// parseTimeframeClock reads the Timetable owner's HH:MM:SS clock string, with
-// or without the fractional second a stored row may carry.
-func parseTimeframeClock(value string) (time.Time, error) {
-	clock, err := time.Parse("15:04:05", value)
-	if err == nil {
-		return clock, nil
-	}
-	return time.Parse("15:04:05.999999999", value)
-}
-
 // ValidatePhaseChange evaluates every materializable offering of the phase
 // against the proposed service window before the phase is saved.
 func (c *CareOfferingCatalog) ValidatePhaseChange(ctx context.Context, phaseID int64, replacement *careplan.OfferingPhase) error {
@@ -435,20 +377,11 @@ func ensureCareOfferingSeriesContainsGroup(series []careplan.LinkedGroup, group 
 }
 
 func (c *CareOfferingCatalog) segmentReferencesMaterializationChange(ctx context.Context, group careplan.LinkedGroup, change careOfferingMaterializationChange) (bool, error) {
-	if change.deletedRoomID > 0 && group.PlannedRoomID != nil && *group.PlannedRoomID == change.deletedRoomID {
-		return true, nil
-	}
-	schedules, err := c.deps.Timetable.GroupSchedules(ctx, []int64{group.ID})
-	if err != nil {
-		return false, err
-	}
-	for _, schedule := range schedules {
-		if schedule.TimeframeID != nil && *schedule.TimeframeID == change.changedTimeframeID {
-			return true, nil
-		}
-	}
 	if change.deletedRoomID <= 0 {
 		return false, nil
+	}
+	if group.PlannedRoomID != nil && *group.PlannedRoomID == change.deletedRoomID {
+		return true, nil
 	}
 	exceptions, err := c.deps.Timetable.GroupExceptions(ctx, group.ID)
 	if err != nil {

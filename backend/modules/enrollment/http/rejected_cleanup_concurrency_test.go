@@ -183,9 +183,6 @@ func TestRejectedEnrollmentCleanup_TenantRoleDeletesLateInviteOutboxAndRequest(t
 	repos, _, _, _, _, _ := flowRepositories(t, db)
 	creator := testpkg.CreateTestAccount(t, db, "rejected-cleanup-late-invite")
 	var _, requestID, outboxID, linkedInviteID, unrelatedInviteID int64
-	defer func() {
-		_, _ = db.NewDelete().TableExpr("enrollment.late_invites").Where("tenant_id = ?", scope.TenantID).Exec(context.Background())
-	}()
 	deliveryPort := newTestEnrollmentDelivery(t, db)
 
 	oldReview := time.Now().Add(-60 * 24 * time.Hour)

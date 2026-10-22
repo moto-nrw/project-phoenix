@@ -157,29 +157,3 @@ func TestCalendarPeriod_ContainsDate(t *testing.T) {
 	assert.False(t, p.ContainsDate(time.Date(2025, 7, 31, 0, 0, 0, 0, time.UTC))) // before
 	assert.False(t, p.ContainsDate(time.Date(2026, 8, 1, 0, 0, 0, 0, time.UTC)))  // after
 }
-
-func TestCalendarPeriod_GetID(t *testing.T) {
-	t.Parallel()
-
-	p := &CalendarPeriod{}
-	p.ID = 42
-	assert.Equal(t, int64(42), p.ID)
-}
-
-func TestCalendarPeriod_GetCreatedAt(t *testing.T) {
-	t.Parallel()
-
-	now := time.Now()
-	p := &CalendarPeriod{}
-	p.CreatedAt = now
-	assert.Equal(t, now, p.CreatedAt)
-}
-
-func TestCalendarPeriod_GetUpdatedAt(t *testing.T) {
-	t.Parallel()
-
-	now := time.Now()
-	p := &CalendarPeriod{}
-	p.UpdatedAt = now
-	assert.Equal(t, now, p.UpdatedAt)
-}

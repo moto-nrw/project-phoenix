@@ -27,11 +27,6 @@ func TestWeekdayPickupNoteWithoutPickupTime(t *testing.T) {
 	student := testpkg.CreateTestStudent(t, tc.db, "WeekdayNote", "Test", "WDN1")
 	_, account := testpkg.CreateTestTeacherWithAccount(t, tc.db, "Weekday", "NoteTeacher")
 	claims := testutil.AdminTestClaims(int(account.ID))
-	t.Cleanup(func() {
-		_, _ = tc.db.NewDelete().TableExpr("schedule.student_pickup_notes").
-			Where("student_id = ?", student.ID).
-			Exec(context.Background())
-	})
 
 	body := map[string]any{"weekday": 1, "content": "Montags bei den Großeltern"}
 	req := testutil.NewAuthenticatedRequest(t, "POST", fmt.Sprintf("/%d/pickup-notes", student.ID), body)
@@ -214,11 +209,6 @@ func TestWeekdayPickupNoteSurvivesBookingBoundary(t *testing.T) {
 	silent := testpkg.CreateTestStudent(t, tc.db, "Unbooked", "Silent", "WDN2")
 	_, account := testpkg.CreateTestTeacherWithAccount(t, tc.db, "Boundary", "NoteTeacher")
 	claims := testutil.AdminTestClaims(int(account.ID))
-	t.Cleanup(func() {
-		_, _ = tc.db.NewDelete().TableExpr("schedule.student_pickup_notes").
-			Where("student_id = ?", noted.ID).
-			Exec(context.Background())
-	})
 
 	req := testutil.NewAuthenticatedRequest(t, "POST", fmt.Sprintf("/%d/pickup-notes", noted.ID),
 		map[string]any{"weekday": 1, "content": "Montags beim Vater"})

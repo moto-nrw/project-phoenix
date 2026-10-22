@@ -21,6 +21,7 @@ import (
 // It measures the real handler/middleware graph, not production throughput.
 func TestOGSGroupLiveRuntime(t *testing.T) {
 	t.Parallel()
+	testpkg.RequireRuntimeEvidence(t)
 	testpkg.SetupIsolatedTestDB(t)
 	tc := setupStudentsRoute(t, fixedCalendarClock)
 	ctx := testpkg.Ctx(t)

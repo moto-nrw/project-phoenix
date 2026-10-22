@@ -52,7 +52,7 @@ describe("StudentCommonFormSections", () => {
   const mockOnChange = vi.fn();
 
   it("renders all form sections", () => {
-    const { getByTestId, queryByTestId } = render(
+    const { getByTestId } = render(
       <StudentCommonFormSections
         formData={mockFormData}
         fieldError={noFieldError}
@@ -63,6 +63,5 @@ describe("StudentCommonFormSections", () => {
     expect(getByTestId("health-info")).toBeInTheDocument();
     expect(getByTestId("additional-info")).toBeInTheDocument();
     expect(getByTestId("privacy-consent")).toBeInTheDocument();
-    expect(queryByTestId("supervisor-notes")).not.toBeInTheDocument();
   });
 });

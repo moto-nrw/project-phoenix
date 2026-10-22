@@ -84,7 +84,6 @@ function spontaneous(
 function renderSpontaneous(status: "active" | "completed" | "cancelled") {
   render(
     <TimetableRosterContent
-      addStudentResults={[]}
       addStudentSearch=""
       attendanceWebEnabled={false}
       isAddingStudent={false}

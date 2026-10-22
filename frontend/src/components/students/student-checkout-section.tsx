@@ -4,10 +4,6 @@ import { useEffect, useRef, useState } from "react";
 import { LogIn, MoreVertical } from "lucide-react";
 import { useAttendanceWebEnabled } from "~/lib/tenant-context";
 import { MotoConceptIcon } from "~/components/ui/moto-concept-icon";
-import { isAtSchoolLocation } from "~/lib/location-helper";
-
-// Type for the action the user can perform
-type StudentActionType = "checkout" | "checkin" | "none";
 
 interface StudentCheckoutSectionProps {
   readonly onCheckoutClick: () => void;
@@ -283,44 +279,4 @@ export function StudentStatusActionsMenu({
       ) : null}
     </div>
   );
-}
-
-// Helper function to determine what action is available for a student
-export function getStudentActionType(
-  student: {
-    group_id?: string;
-    current_location?: string;
-  },
-  myGroups: string[],
-  mySupervisedRooms: string[],
-): StudentActionType {
-  const isInMyGroup = Boolean(
-    student.group_id && myGroups.includes(student.group_id),
-  );
-  const isInMySupervisedRoom = Boolean(
-    student.current_location &&
-    mySupervisedRooms.some((room) => student.current_location?.includes(room)),
-  );
-
-  // User must have access (be in student's group or supervising their room)
-  const hasAccess = isInMyGroup || isInMySupervisedRoom;
-
-  if (!hasAccess) {
-    return "none";
-  }
-
-  // At home or still in class before the first check-in (#3260)
-  const isNotCheckedIn =
-    !student.current_location ||
-    student.current_location.startsWith("Zuhause") ||
-    isAtSchoolLocation(student.current_location);
-
-  if (isNotCheckedIn) {
-    // Student is at home - can check in (but only if user is in student's group)
-    // Room supervisors can't check in students who aren't in a room
-    return isInMyGroup ? "checkin" : "none";
-  }
-
-  // Student is checked in (in OGS) - can check out
-  return "checkout";
 }
