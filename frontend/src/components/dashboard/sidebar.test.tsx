@@ -2181,11 +2181,15 @@ describe("Sidebar", () => {
       render(<Sidebar />);
 
       const ownRoomLink = screen.getByText("Kreativraum").closest("a");
-      expect(ownRoomLink).toHaveTextContent("Eigene Aufsicht");
+      expect(
+        within(ownRoomLink!).getByRole("img", { name: "Eigene Aufsicht" }),
+      ).toBeInTheDocument();
       expect(ownRoomLink).toHaveClass("bg-gray-100");
-      expect(screen.getByText("Turnhalle").closest("a")).toHaveTextContent(
-        /^Turnhalle$/,
-      );
+      expect(
+        within(screen.getByText("Turnhalle").closest("a")!).queryByRole("img", {
+          name: "Eigene Aufsicht",
+        }),
+      ).not.toBeInTheDocument();
       expect(
         screen.getByRole("button", { name: /Offene Räume/ }),
       ).toHaveAttribute("aria-expanded", "true");
@@ -2255,9 +2259,12 @@ describe("Sidebar", () => {
 
       // Anker: beide Bereiche sind geladen.
       expect(screen.getByText("Raum A")).toBeInTheDocument();
-      expect(screen.getByText("Kreativraum").closest("a")).toHaveTextContent(
-        /^Kreativraum$/,
-      );
+      expect(
+        within(screen.getByText("Kreativraum").closest("a")!).queryByRole(
+          "img",
+          { name: "Eigene Aufsicht" },
+        ),
+      ).not.toBeInTheDocument();
       expect(
         screen.queryByText("Ihre Aufsicht steht unter „Offene Räume“."),
       ).not.toBeInTheDocument();

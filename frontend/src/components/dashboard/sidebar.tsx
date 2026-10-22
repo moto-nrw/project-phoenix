@@ -1770,7 +1770,7 @@ function SidebarContent({
                     key={`${room.id}-open`}
                     href={supervisionHref(room)}
                     label={room.name}
-                    note={room.isOwnSupervision ? "Eigene Aufsicht" : undefined}
+                    ownSupervision={room.isOwnSupervision}
                     isActive={isRoomSubItemActive(
                       childSessionId,
                       childRoomId,

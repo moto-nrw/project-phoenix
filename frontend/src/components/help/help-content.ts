@@ -1482,7 +1482,7 @@ function activeSupervisionTopic(presenceMode: HelpPresenceMode): HelpTopic {
       "Sie starten einen Termin, für den Sie nicht eingeplant sind? Dann werden Sie nicht zur Aufsicht. Wer beenden darf, legt Ihre OGS fest.",
       "Fehlt `Beenden`? Dann dürfen hier nur eingeplante Kräfte beenden. Ihre OGS kann das Beenden für das ganze Team freigeben.",
       // #4349: der Raum steht nur einmal, unter den offenen Räumen.
-      "Läuft Ihre Aufsicht in einem offenen Raum? Dann steht sie unter `Offene Räume`. Dort ist der Raum mit `Eigene Aufsicht` markiert.",
+      "Läuft Ihre Aufsicht in einem offenen Raum? Dann steht sie unter `Offene Räume`. Ein Auge neben dem Raum zeigt Ihre Aufsicht.",
       "Auf dem Handy stehen die offenen Räume nicht in der Seitenleiste, sondern oben auf der Seite `Aufsicht` als Reiter.",
       "Welche Räume offen sind, legt Ihre OGS fest.",
       "Eine externe Person steht danach unter `Personal` in der Gruppe `Extern`. In Zeiterfassung und Dienstplan erscheint sie nicht.",
