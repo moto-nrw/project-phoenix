@@ -24,6 +24,7 @@ import (
 	"github.com/uptrace/bun"
 
 	"github.com/moto-nrw/project-phoenix/api/testutil"
+	"github.com/moto-nrw/project-phoenix/api/testutil/routetest"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess/inbound/me"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 )
@@ -476,6 +477,33 @@ func TestGetGroupVisits_Unauthenticated(t *testing.T) {
 	rr := testutil.ExecuteRequest(tc.router, req)
 
 	assert.Equal(t, http.StatusUnauthorized, rr.Code, "Expected 401 for unauthenticated request")
+}
+
+// A room session that does not exist (any more) is an expected refusal
+// (#4599): both session routes answer 404 with the class code, not 500.
+func TestGroupSessionRoutes_UnknownSessionAnswersNotFound(t *testing.T) {
+	t.Parallel()
+	tc := setupUserContextRoute(t)
+
+	_, account := testpkg.CreateTestTeacherWithAccount(t, tc.db, "UnknownSession", "Test")
+	var missingSessionID int64
+	require.NoError(t, tc.db.NewSelect().
+		ColumnExpr("nextval(pg_get_serial_sequence('active.groups', 'id'))").
+		Scan(testpkg.Ctx(t), &missingSessionID))
+	token := testutil.MintTestJWT(t, testutil.TeacherTestClaims(int(account.ID)))
+
+	for _, route := range []string{"students", "visits"} {
+		t.Run(route, func(t *testing.T) {
+			req := testutil.NewAuthenticatedRequest(t, "GET", fmt.Sprintf("/groups/%d/%s", missingSessionID, route), nil,
+				testutil.WithJWTBearer(token),
+			)
+
+			rr := testutil.ExecuteRequest(tc.router, req)
+
+			require.Equal(t, http.StatusNotFound, rr.Code, rr.Body.String())
+			assert.Equal(t, routetest.ClassCode(http.StatusNotFound), testutil.ParseJSONResponse(t, rr.Body.Bytes())["code"])
+		})
+	}
 }
 
 // =============================================================================

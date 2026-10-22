@@ -39,6 +39,9 @@ var (
 	// reclaimed inline instead; only the staff-on-staff race lands here.) The
 	// client reloads and the retry goes through the update path.
 	ErrExceptionDayConflict = careplan.ErrCareExceptionDayConflict
+	// ErrExceptionDateTaken means an edit moved the exception onto a day that
+	// another exception of the student already holds.
+	ErrExceptionDateTaken = careplan.ErrCareExceptionDateTaken
 	// ErrExceptionContainsPartialAbsence requires the dedicated partial-absence
 	// endpoint so slot provenance is restored atomically with the pickup row.
 	ErrExceptionContainsPartialAbsence = careplan.ErrCareExceptionContainsPartialAbsence
@@ -56,6 +59,7 @@ var exceptionWriteErrorRenderer = common.RulesRenderer([]common.ErrorRule{
 	{Target: ErrExceptionDayConflict, Render: func(err error) render.Renderer {
 		return common.ErrorConflictWithCode(err, common.CodeStudentsCareExceptionRaced)
 	}},
+	{Target: ErrExceptionDateTaken, Render: common.ErrorConflict},
 	{Target: ErrExceptionContainsPartialAbsence, Render: func(err error) render.Renderer {
 		return common.ErrorConflictWithCode(err, common.CodeStudentsPartialAbsenceRequiresDedicatedAction)
 	}},

@@ -282,6 +282,7 @@ var callerSentinels = [][2]error{
 	{domain.ErrCallerNotLinkedToStaff, identityaccess.ErrCallerNotLinkedToStaff},
 	{domain.ErrCallerNotLinkedToTeacher, identityaccess.ErrCallerNotLinkedToTeacher},
 	{domain.ErrCallerGroupNotFound, identityaccess.ErrCallerGroupNotFound},
+	{domain.ErrCallerSessionNotFound, identityaccess.ErrCallerSessionNotFound},
 }
 
 // mapCallerError turns the application's caller-context errors into the

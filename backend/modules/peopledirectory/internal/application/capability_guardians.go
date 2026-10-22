@@ -116,7 +116,16 @@ func (s *Service) ListGuardianLinksByAccount(ctx context.Context, accountID int6
 		return nil, invalidGuardian("account ID is required")
 	}
 
-	values, err := s.guardianRows.ListLinksByAccount(ctx, accountID)
+	return s.ListGuardianLinksByAccounts(ctx, []int64{accountID})
+}
+
+func (s *Service) ListGuardianLinksByAccounts(ctx context.Context, accountIDs []int64) ([]peopledirectory.GuardianLink, error) {
+	accountIDs = peopledirectory.PositiveIDs(accountIDs)
+	if len(accountIDs) == 0 {
+		return []peopledirectory.GuardianLink{}, nil
+	}
+
+	values, err := s.guardianRows.ListLinksByAccount(ctx, accountIDs)
 	return nonNilGuardianLinks(values), MapError(err)
 }
 

@@ -10,6 +10,7 @@ type ParentMessageService[I, T, M, G any] interface {
 	UnreadMessageCount(context.Context) (int, error)
 	GetThread(context.Context, int64) (*T, error)
 	ListGuardians(context.Context, int64) ([]*G, error)
+	ListReachableStudentIDs(context.Context) ([]int64, error)
 	ListStudentThreads(context.Context, int64) ([]*I, error)
 	StartThread(context.Context, int64, int64, string) (*T, error)
 	OpenThread(context.Context, int64, int64) (*T, error)

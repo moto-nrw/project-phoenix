@@ -1,8 +1,6 @@
 package owners
 
 import (
-	owner0 "github.com/moto-nrw/project-phoenix/modules/careplan/masterdatarequests"
-
 	"context"
 	"errors"
 	"time"
@@ -118,19 +116,6 @@ func mapExcusedRequestError(err error) error {
 		return absencerecords.ErrExcusedRequestNotPending
 	case errors.Is(err, careplan.ErrExcusedRequestNotDecided):
 		return absencerecords.ErrExcusedRequestNotDecided
-	default:
-		return err
-	}
-}
-
-func mapStudentDataRequestError(err error) error {
-	switch {
-	case errors.Is(err, careplan.ErrStudentDataRequestNotFound):
-		return owner0.ErrReviewNotFound
-	case errors.Is(err, careplan.ErrStudentDataRequestNotPending):
-		return owner0.ErrReviewNotPending
-	case errors.Is(err, careplan.ErrStudentDataRequestNotDecided):
-		return owner0.ErrReviewNotDecided
 	default:
 		return err
 	}

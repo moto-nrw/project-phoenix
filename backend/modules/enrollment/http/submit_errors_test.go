@@ -35,6 +35,7 @@ func TestMapSubmitError_EveryRefusalKeepsStatusAndCode(t *testing.T) {
 		{capability.ErrChildNotEnrolled, http.StatusBadRequest, "enrollment.child_not_enrolled"},
 		{capability.ErrChildEnrollmentAmbiguous, http.StatusBadRequest, "enrollment.child_ambiguous"},
 		{capability.ErrChildEnrollmentNotPermitted, http.StatusForbidden, "enrollment.child_not_permitted"},
+		{capability.ErrCareOfferingDayConflict, http.StatusBadRequest, "enrollment.care_offering_day_conflict"},
 		{capability.ErrCareOfferingUnavailable, http.StatusBadRequest, "enrollment.care_offering_unavailable"},
 		{capability.ErrCareOfferingMissing, http.StatusBadRequest, "enrollment.care_offering_missing"},
 		{capability.ErrCareOfferingExactlyOneRequired, http.StatusBadRequest, "enrollment.care_offering_exactly_one"},

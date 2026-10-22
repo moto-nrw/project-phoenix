@@ -62,6 +62,10 @@ func renderParentMasterDataWriteError(w http.ResponseWriter, r *http.Request, er
 		common.RenderError(w, r, common.ErrorConflictWithCode(err, common.CodeCareMasterDataDuplicatePending))
 	case errors.Is(err, parentService.ErrMasterDataNoChanges):
 		common.RenderError(w, r, common.ErrorInvalidRequestWithCode(err, common.CodeCareMasterDataNoChanges))
+	case errors.Is(err, parentService.ErrMasterDataRequestNotFound):
+		common.RenderError(w, r, common.ErrorNotFoundWithCode(err, common.CodeCareRequestNotFound))
+	case errors.Is(err, parentService.ErrMasterDataRequestNotPending):
+		common.RenderError(w, r, common.ErrorConflictWithCode(err, common.CodeCareRequestNotOpen))
 	case errors.Is(err, parentService.ErrCareExceptionConflict):
 		common.RenderError(w, r, common.ErrorConflictWithCode(err, common.CodeCareCareExceptionConflict))
 	case errors.Is(err, parentService.ErrCareExceptionAlreadyLeft):
@@ -153,6 +157,8 @@ func renderParentOfferingWriteError(w http.ResponseWriter, r *http.Request, err 
 		common.RenderError(w, r, common.ErrorForbiddenWithCode(err, common.CodeCareOfferingChangeForbidden))
 	case errors.Is(err, careplan.ErrOfferingChangeCapacityFull):
 		common.RenderError(w, r, common.ErrorConflictWithCode(err, common.CodeStudentsOfferingChangeCapacityFull))
+	case errors.Is(err, careplan.ErrCareOfferingDayConflict):
+		common.RenderError(w, r, common.ErrorInvalidRequestWithCode(err, common.CodeEnrollmentCareOfferingDayConflict))
 	case errors.Is(err, careplan.ErrOfferingChangeInvalid):
 		common.RenderError(w, r, common.ErrorInvalidRequestWithCode(err, common.CodeCareOfferingChangeInvalid))
 	case errors.Is(err, careplan.ErrCompleteWithdrawalConfirmationRequired):

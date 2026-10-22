@@ -635,6 +635,9 @@ func (rs *Resource) decideErrorRules() []common.ErrorRule {
 		{Target: capability.ErrCareOfferingExactlyOneRequired, Render: func(err error) render.Renderer {
 			return common.ErrorConflictWithCode(err, common.CodeEnrollmentApprovalCareOfferingExactlyOne)
 		}},
+		{Target: capability.ErrCareOfferingDayConflict, Render: func(err error) render.Renderer {
+			return common.ErrorConflictWithCode(err, common.CodeEnrollmentApprovalCareOfferingDayConflict)
+		}},
 		{Target: capability.ErrGuardianAccountMismatch, Render: func(err error) render.Renderer {
 			return common.ErrorConflictWithCode(err, common.CodeEnrollmentGuardianAccountMismatch)
 		}},

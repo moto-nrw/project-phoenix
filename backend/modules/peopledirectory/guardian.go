@@ -369,6 +369,9 @@ type GuardianRelationshipQuery interface {
 	// linked to the account. Inside an admin transaction it spans every
 	// tenant; the caller decides which tenants the account may act at.
 	ListGuardianLinksByAccount(context.Context, int64) ([]GuardianLink, error)
+	// ListGuardianLinksByAccounts is ListGuardianLinksByAccount for several
+	// accounts in one read.
+	ListGuardianLinksByAccounts(context.Context, []int64) ([]GuardianLink, error)
 	// ListGuardiansByAccount returns the profiles (without phone numbers)
 	// linked to the accounts, scoped to the tenant in context.
 	ListGuardiansByAccount(context.Context, []int64) ([]Guardian, error)

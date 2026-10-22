@@ -204,7 +204,10 @@ receives the privileged DSN. Read [runtime environment boundaries](../operations
 before changing deployment environments or maintenance jobs.
 
 CI uses `SOPS_AGE_KEY`, `STAGING_SSH_*`, `PRODUCTION_SSH_*`, and `DEMO_SSH_*` secrets;
-failure recipients are in the `DEPLOY_NOTIFY_EMAILS` repository variable.
+failure recipients are in the `DEPLOY_NOTIFY_EMAILS` repository variable. The
+PostHog dashboards use `POSTHOG_READ_API_KEY` (repository) and
+`POSTHOG_PERSONAL_API_KEY` (environment `posthog`); see
+[Nutzungsanalyse](../operations/nutzungsanalyse.md#dashboards-3604).
 Server layout on each host is `~/{staging,production,demo}/` (`.env`, `docker-compose.yml`,
 `.deploy-state`) and `~/backups/{env}/` (3 staging / 7 production / 3 demo complete
 snapshot sets). See [complete release backup and rollback](../operations/release-backup-rollback.md)

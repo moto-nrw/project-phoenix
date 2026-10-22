@@ -44,6 +44,7 @@ type ParentMessageThreadRepository interface {
 	FindByStudentGuardian(ctx context.Context, studentID, guardianAccountID int64) (*ParentMessageThread, error)
 	GetOrCreate(ctx context.Context, tenantID, studentID, guardianAccountID int64) (*ParentMessageThread, error)
 	ListGuardiansForStudent(ctx context.Context, studentID int64) ([]*MessageableGuardian, error)
+	ListStudentIDsWithMessageableGuardian(ctx context.Context) ([]int64, error)
 }
 
 func (v *ParentMessage) GetTenantID() int64         { return v.TenantID }

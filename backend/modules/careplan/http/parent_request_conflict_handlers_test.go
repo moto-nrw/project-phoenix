@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -137,6 +138,7 @@ func TestResolveRequestConflictErrorCodes(t *testing.T) {
 		{name: "absence value invalid", err: excusedrequests.ErrAbsenceRequestInvalidStatus, want: http.StatusBadRequest, code: common.CodeStudentsStaffValueInvalid},
 		{name: "care value invalid", err: carerequests.ErrInvalidPayload, want: http.StatusBadRequest, code: common.CodeStudentsStaffValueInvalid},
 		{name: "offering value invalid", err: careplan.ErrOfferingChangeInvalid, want: http.StatusBadRequest, code: common.CodeStudentsStaffValueInvalid},
+		{name: "offering weekday conflict", err: fmt.Errorf("%w: %w", careplan.ErrOfferingChangeInvalid, careplan.ErrCareOfferingDayConflict), want: http.StatusBadRequest, code: common.CodeEnrollmentCareOfferingDayConflict},
 		{name: "Stammdaten value invalid", err: masterdatarequests.ErrReviewInvalidValue, want: http.StatusBadRequest, code: common.CodeStudentsStaffValueInvalid},
 		{name: "request gone", err: parentrequests.ErrNotFound, want: http.StatusNotFound},
 		{name: "kind not permitted", err: parentrequests.ErrForbidden, want: http.StatusForbidden},

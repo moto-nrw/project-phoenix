@@ -37,14 +37,18 @@ const (
 	SelectionRuleExactlyOne = "exactly_one"  // XOR — exactly one in the group
 	SelectionRuleAtLeastOne = "at_least_one" // OR — one or more in the group
 	SelectionRuleAtMostOne  = "at_most_one"  // mutual exclusion — zero or one
+	// SelectionRuleAtMostOnePerDay allows several offerings of the group,
+	// but never two on the same weekday (#4514, migration 1.15.472).
+	SelectionRuleAtMostOnePerDay = "at_most_one_per_day"
 )
 
 // validSelectionRules mirrors the CHECK constraint.
 var validSelectionRules = map[string]bool{
-	SelectionRuleOptional:   true,
-	SelectionRuleExactlyOne: true,
-	SelectionRuleAtLeastOne: true,
-	SelectionRuleAtMostOne:  true,
+	SelectionRuleOptional:        true,
+	SelectionRuleExactlyOne:      true,
+	SelectionRuleAtLeastOne:      true,
+	SelectionRuleAtMostOne:       true,
+	SelectionRuleAtMostOnePerDay: true,
 }
 
 const (

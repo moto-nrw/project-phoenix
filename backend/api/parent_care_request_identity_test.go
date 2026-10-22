@@ -10,7 +10,6 @@ import (
 	owners "github.com/moto-nrw/project-phoenix/roots/owners"
 
 	"github.com/moto-nrw/project-phoenix/modules/careplan"
-	"github.com/moto-nrw/project-phoenix/modules/transactionruntime"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -52,11 +51,12 @@ func TestParentCareRequestIdentityPreservesReadContract(t *testing.T) {
 	assert.Equal(t, source.row.StudentID, studentID)
 	assert.Equal(t, source.row.RequestKind, kind)
 	assert.Equal(t, 1, calls)
+	// A missing request is the sharing routes' 404 (#4599), no longer the
+	// retained missing-record error that rendered as 500.
 	source.err = careplan.ErrCareScheduleRequestNotFound
 	_, _, _, err = reader.FindIdentity(ctx, requestID)
-	expected := transactionruntime.RecordErrors{}.MissingRecordError("find by id")
-	require.EqualError(t, err, expected.Error())
-	assert.IsType(t, expected, err)
+	require.ErrorIs(t, err, ParentRequestSharingNotFound)
+	require.EqualError(t, err, ParentRequestSharingNotFound.Error())
 	source.err = errors.New("database unavailable")
 	_, _, _, err = reader.FindIdentity(ctx, requestID)
 	assert.ErrorIs(t, err, source.err)

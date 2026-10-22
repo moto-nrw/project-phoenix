@@ -110,8 +110,9 @@ type StudentMessageRows struct {
 
 // NewStudentMessageRows composes the parent message rows over db.
 func NewStudentMessageRows(db transactionruntime.Database) StudentMessageRows {
+	memberships := owners.NewPeopleIdentityAccess(db, nil).FindActiveSchoolMemberships
 	return StudentMessageRows{
-		ParentMessageThread: parentStore.NewParentMessageThreadRepository(db.Pool(), owners.NewParentGuardianLister(db, owners.NewPeopleIdentityAccess(db, nil).FindActiveSchoolMemberships)),
+		ParentMessageThread: parentStore.NewParentMessageThreadRepository(db.Pool(), owners.NewParentGuardianLister(db, memberships), owners.NewParentReachableStudents(db, memberships)),
 		ParentMessage:       parentStore.NewParentMessageRepository(db.Pool()),
 	}
 }

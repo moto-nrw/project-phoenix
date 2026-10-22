@@ -34,6 +34,8 @@ var errorRules = []common.ErrorRule{
 	{Target: activityContract.ErrAlreadyEnrolled, Render: common.ErrorConflict},
 	{Target: activityContract.ErrTimetableTemplateProtected, Render: timetableTemplateConflict},
 	{Target: activityContract.ErrOnlySupervisorRequiresReplacement, Render: onlySupervisorConflict},
+	{Target: activityContract.ErrSupervisorAlreadyAssigned, Render: common.ErrorConflict},
+	{Target: activityContract.ErrPrimarySupervisorRequired, Render: common.ErrorConflict},
 	{Target: activityContract.ErrNotEnrolled, Render: common.ErrorNotFound},
 	{Target: activityContract.ErrStudentIsAlumnus, Render: common.ErrorInvalidRequest},
 	{Target: activityContract.ErrStudentCareEnded, Render: common.ErrorInvalidRequest},

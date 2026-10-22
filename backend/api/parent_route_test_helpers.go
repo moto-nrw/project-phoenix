@@ -9,9 +9,11 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/modules/careplan"
 	carePlanCompose "github.com/moto-nrw/project-phoenix/modules/careplan/compose"
+	enrollmentCompose "github.com/moto-nrw/project-phoenix/modules/enrollment/compose"
 	facilitiesCompose "github.com/moto-nrw/project-phoenix/modules/facilities/compose"
 	timetablePorts "github.com/moto-nrw/project-phoenix/modules/timetable/ports"
 	transactionruntime "github.com/moto-nrw/project-phoenix/modules/transactionruntime/compose"
+	parentportal "github.com/moto-nrw/project-phoenix/workflows/parentportal"
 )
 
 type ParentRouteTestRepositories struct {
@@ -68,3 +70,13 @@ func NewParentRouteTestRepositories(db transactionruntime.Database, members owne
 		ExcusedRequests: excusedRequests,
 	}, nil
 }
+
+// NewParentOfferingChangeTestReads binds the parent portal's offering change
+// identity read over Care Plan as the production root does.
+func NewParentOfferingChangeTestReads(carePlan careplan.Capability) parentportal.OfferingChangeRequestReads {
+	return owners.NewParentOfferingChangeReads(enrollmentCompose.NewOfferingChangeRecords(carePlan))
+}
+
+// ParentRequestSharingNotFound is the parent portal's answer to a missing or
+// foreign shared request, for tests that may not import the workflow.
+var ParentRequestSharingNotFound = parentportal.ErrRequestSharingNotFound

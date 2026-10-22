@@ -35,6 +35,12 @@ var (
 	// ErrMasterDataNoChanges means a Track B submission carried no actual
 	// changes (every field equalled its current value).
 	ErrMasterDataNoChanges = errors.New("parent: no changes to submit")
+	// ErrMasterDataRequestNotFound means the Track B request does not exist or
+	// is not the caller's own. A stranger must not learn that the id exists.
+	ErrMasterDataRequestNotFound = errors.New("parent: Stammdaten change request not found")
+	// ErrMasterDataRequestNotPending means the Track B request was decided
+	// meanwhile and can no longer be edited.
+	ErrMasterDataRequestNotPending = errors.New("parent: Stammdaten change request is not pending")
 )
 
 // trackAEditableFields is the allowlist of direct-edit (Track A) fields keyed by
