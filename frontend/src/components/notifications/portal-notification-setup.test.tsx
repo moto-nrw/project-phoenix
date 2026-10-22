@@ -38,8 +38,17 @@ describe("PortalNotificationSetup", () => {
       user: null,
     });
 
-    render(<PortalNotificationSetup portal="tenant" />);
+    const { unmount } = render(<PortalNotificationSetup portal="tenant" />);
 
     expect(screen.queryByTestId("setup-dialog")).not.toBeInTheDocument();
+    unmount();
+
+    shellAuth.useShellAuthSafe.mockReturnValue({
+      status: "authenticated",
+      user: { id: "42" },
+    });
+    render(<PortalNotificationSetup portal="tenant" />);
+    // Anker: angemeldet rendert derselbe Aufbau die Einrichtung.
+    expect(screen.getByTestId("setup-dialog")).toBeInTheDocument();
   });
 });

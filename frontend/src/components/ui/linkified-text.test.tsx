@@ -36,6 +36,10 @@ describe("LinkifiedText", () => {
 
   it("never links non-http schemes", () => {
     render(<LinkifiedText text="Achtung javascript:alert(1) und ftp://x" />);
+    // Anker: der Text steht vollständig da, nur ohne Link.
+    expect(
+      screen.getByText("Achtung javascript:alert(1) und ftp://x"),
+    ).toBeInTheDocument();
     expect(screen.queryByRole("link")).not.toBeInTheDocument();
   });
 });

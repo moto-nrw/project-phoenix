@@ -149,6 +149,8 @@ describe("MasterDetailLayout", () => {
         />,
       );
 
+      // Anker: die Liste steht, das Layout ist gerendert.
+      expect(screen.getByText("List")).toBeInTheDocument();
       expect(screen.queryByText("Detail")).not.toBeInTheDocument();
     });
 

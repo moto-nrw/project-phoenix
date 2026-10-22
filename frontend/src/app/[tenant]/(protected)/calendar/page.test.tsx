@@ -870,6 +870,9 @@ describe("StaffCalendarPage", () => {
 
     render(<StaffCalendarPage />);
 
+    // Anker: der Reiter „Meine Termine“ ist geladen und zeigt seine Termine,
+    // nur der Anlegen-Knopf fehlt.
+    expect(screen.getAllByText("Teamplanung").length).toBeGreaterThan(0);
     expect(
       screen.queryByRole("button", { name: "Neuer Termin" }),
     ).not.toBeInTheDocument();

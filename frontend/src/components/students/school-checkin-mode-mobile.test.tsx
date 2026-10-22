@@ -96,6 +96,8 @@ describe("SchoolCheckinModeMobile", () => {
         />,
       );
 
+      // Anker: die aktive Leiste ist gerendert.
+      expect(screen.getByText("An- und Abmelde-Modus aktiv")).toBeVisible();
       expect(screen.queryByText("Bereit")).not.toBeInTheDocument();
       expect(screen.queryByText(/bearbeitet|laufen/)).not.toBeInTheDocument();
     });

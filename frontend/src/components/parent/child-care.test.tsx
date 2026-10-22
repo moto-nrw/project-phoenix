@@ -689,44 +689,70 @@ describe("PickupTimeModal — Änderungsfrist für heute", () => {
     ).toBeDisabled();
   });
 
-  it("bietet nach der Frist kein Zurücknehmen einer heutigen Änderung an", () => {
-    renderLocked({
-      careExceptions: [
-        {
-          date: todayISO(),
-          pickup_time: "14:00",
-          source: "guardian",
-          pickup_source: "guardian",
-          updated_at: "2026-09-09T08:00:00Z",
-        },
-      ],
-    });
+  const todayGuardianChange: CareException = {
+    date: todayISO(),
+    pickup_time: "14:00",
+    source: "guardian",
+    pickup_source: "guardian",
+    updated_at: "2026-09-09T08:00:00Z",
+  };
 
+  const todayPendingRequest = {
+    id: "41",
+    date: todayISO(),
+    pickup_time: "14:00",
+    reason: "Arzttermin",
+    status: "pending" as const,
+    created_at: "2026-09-09T08:00:00Z",
+    is_self: true,
+  };
+
+  const LOCK_NOTICE =
+    "Für heute geht das nur bis 11:00 Uhr. Bitte wenden Sie sich an die OGS. Andere Tage können Sie weiter ändern.";
+
+  it("bietet nach der Frist kein Zurücknehmen einer heutigen Änderung an", () => {
+    renderLocked({ careExceptions: [todayGuardianChange] });
+
+    // Anker: der Dialog steht in der gesperrten Ansicht für heute.
+    expect(screen.getByText(LOCK_NOTICE)).toBeInTheDocument();
     expect(
       screen.queryByRole("button", { name: "Änderung zurücknehmen" }),
     ).not.toBeInTheDocument();
+  });
+
+  it("bietet vor der Frist das Zurücknehmen einer heutigen Änderung an", () => {
+    renderLocked({ careExceptions: [todayGuardianChange], todayClosed: false });
+
+    expect(
+      screen.getByRole("button", { name: "Änderung zurücknehmen" }),
+    ).toBeInTheDocument();
   });
 
   it("bietet nach der Frist kein Bearbeiten einer offenen heutigen Anfrage an", () => {
     vi.spyOn(parentApi, "listParentRequestEvents").mockResolvedValue([]);
     renderLocked({
       studentId: "7",
-      pickupChangeRequests: [
-        {
-          id: "41",
-          date: todayISO(),
-          pickup_time: "14:00",
-          reason: "Arzttermin",
-          status: "pending",
-          created_at: "2026-09-09T08:00:00Z",
-          is_self: true,
-        },
-      ],
+      pickupChangeRequests: [todayPendingRequest],
     });
 
+    // Anker: der Dialog steht in der gesperrten Ansicht für heute.
+    expect(screen.getByText(LOCK_NOTICE)).toBeInTheDocument();
     expect(
       screen.queryByRole("button", { name: "Anfrage bearbeiten" }),
     ).not.toBeInTheDocument();
+  });
+
+  it("bietet vor der Frist das Bearbeiten einer offenen heutigen Anfrage an", () => {
+    vi.spyOn(parentApi, "listParentRequestEvents").mockResolvedValue([]);
+    renderLocked({
+      studentId: "7",
+      pickupChangeRequests: [todayPendingRequest],
+      todayClosed: false,
+    });
+
+    expect(
+      screen.getByRole("button", { name: "Anfrage bearbeiten" }),
+    ).toBeInTheDocument();
   });
 
   it("lässt nach der Frist einen anderen Tag zu", async () => {

@@ -863,6 +863,8 @@ describe("ChildOfferings", () => {
       />,
     );
 
+    // Anker: das Angebot steht als Zeile da, an der die Merkmale stünden.
+    expect(screen.getByText("Frühbetreuung")).toBeVisible();
     expect(screen.queryByText("mit Mittagessen")).toBeNull();
     expect(screen.queryByText("mit Ferienbetreuung")).toBeNull();
     expect(screen.queryByText(/pro Monat/)).toBeNull();

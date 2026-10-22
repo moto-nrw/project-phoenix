@@ -81,6 +81,10 @@ describe("TimetableRosterContent occupancy (#3634)", () => {
   it("keeps the head unchanged without a limit", () => {
     renderHead({ count: 66, limit: null });
 
+    // Anker: der Kopf des laufenden Blocks ist gerendert.
+    expect(
+      screen.getByRole("heading", { name: "Fußball" }),
+    ).toBeInTheDocument();
     expect(screen.queryByText(/Kinder$/)).not.toBeInTheDocument();
     expect(screen.queryByText("Überbucht")).not.toBeInTheDocument();
   });

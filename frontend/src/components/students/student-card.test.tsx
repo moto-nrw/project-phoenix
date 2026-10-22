@@ -258,6 +258,8 @@ describe("StudentCard", () => {
     render(<StudentCard {...defaultProps} photoUrl="https://x/y.jpg" />);
     // aria-label on Avatar is the trimmed full name; absence proves the
     // overlay was skipped despite a photoUrl being passed in.
+    // Anker: der Kartenkopf mit dem Namen ist gerendert.
+    expect(screen.getByText("Max Mustermann")).toBeInTheDocument();
     expect(screen.queryByLabelText("Max Mustermann")).toBeNull();
   });
 
@@ -767,6 +769,10 @@ describe("StudentAbsenceRow day note (#3369)", () => {
   it("adds no line without a note", () => {
     render(<StudentAbsenceRow label="kein Plan für heute" />);
 
+    // Anker: die Abwesenheitszeile ist gerendert.
+    expect(
+      screen.getByText("Kommt heute nicht (kein Plan für heute)"),
+    ).toBeInTheDocument();
     expect(screen.queryByText(/Notiz:/)).not.toBeInTheDocument();
   });
 });

@@ -182,7 +182,17 @@ describe("PlanExportModal", () => {
   it("hides the template picker for the care plan", () => {
     renderModal({ plan: "betreuungsplan" });
 
+    // Anker: der Export-Dialog des Betreuungsplans ist offen.
+    expect(
+      screen.getByText("Betreuungsplan drucken oder exportieren"),
+    ).toBeInTheDocument();
     expect(screen.queryByText("Vorlage")).not.toBeInTheDocument();
+  });
+
+  it("offers the template picker for the duty plan", () => {
+    renderModal({ plan: "dienstplan" });
+
+    expect(screen.getByText("Vorlage")).toBeInTheDocument();
   });
 
   it("states which days actually land on the sheet", () => {

@@ -1,4 +1,5 @@
 import {
+  act,
   fireEvent,
   render as renderPlain,
   screen,
@@ -250,12 +251,15 @@ describe("AccountTenantAccessModal", () => {
     );
 
     expect(await screen.findByText("OGS Süd")).toBeInTheDocument();
-    resolveFirstLoad([access({ schoolName: "OGS Nord" })]);
-
-    await waitFor(() => {
-      expect(screen.getByText("OGS Süd")).toBeInTheDocument();
-      expect(screen.queryByText("OGS Nord")).not.toBeInTheDocument();
+    // Die veraltete Antwort erst vollständig zustellen, dann prüfen: ein
+    // waitFor bestünde schon vor ihrer Verarbeitung.
+    await act(async () => {
+      resolveFirstLoad([access({ schoolName: "OGS Nord" })]);
+      await firstLoad;
     });
+
+    expect(screen.getByText("OGS Süd")).toBeInTheDocument();
+    expect(screen.queryByText("OGS Nord")).not.toBeInTheDocument();
   });
 
   it("offers only schools the account is not active at", async () => {

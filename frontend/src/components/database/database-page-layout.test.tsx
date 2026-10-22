@@ -71,8 +71,27 @@ describe("DatabasePageLayout", () => {
       </DatabasePageLayout>,
     );
 
+    // Anker: das Gerüst steht im Ladezustand, mit dem Skelett der Seite.
+    expect(screen.getByTestId("master-detail-skeleton")).toBeInTheDocument();
     expect(screen.queryByTestId("eigene-statuszeile")).not.toBeInTheDocument();
     expect(container.querySelector("p div")).toBeNull();
+  });
+
+  it("shows the page's own status line once loaded", () => {
+    render(
+      <DatabasePageLayout
+        loading={false}
+        sessionLoading={false}
+        intro={{
+          title: "Personal",
+          description: <span data-testid="eigene-statuszeile" />,
+        }}
+      >
+        <div>Content</div>
+      </DatabasePageLayout>,
+    );
+
+    expect(screen.getByTestId("eigene-statuszeile")).toBeInTheDocument();
   });
 
   it("applies default className", () => {

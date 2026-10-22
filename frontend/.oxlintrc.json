@@ -2,6 +2,7 @@
   "$schema": "./node_modules/oxlint/configuration_schema.json",
   "plugins": ["react", "nextjs", "jsx-a11y", "import", "promise"],
   "jsPlugins": [
+    "./scripts/oxlint-plugin-absence-assertion.mjs",
     "./scripts/oxlint-plugin-bauart.mjs",
     "./scripts/oxlint-plugin-date-safety.mjs",
     "./scripts/oxlint-plugin-error-path.mjs",
@@ -15,6 +16,8 @@
     "suspicious": "warn"
   },
   "rules": {
+    "absence-assertion/needs-anchor": "error",
+    "absence-assertion/no-early-wait-for": "error",
     "bauart/one-delete-confirm": "error",
     "bauart/no-row-action-buttons": "error",
     "bauart/no-unconfirmed-destructive-click": "error",

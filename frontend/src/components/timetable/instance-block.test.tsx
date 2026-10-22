@@ -364,6 +364,8 @@ describe("InstanceBlock -> PlanBlock mapping", () => {
     it("zeigt bei einem abgesagten Block weder Ort noch Namen", () => {
       renderBlock(staffed({ status: "cancelled" }), { staffNames: names });
 
+      // Anker: der abgesagte Block zeigt seinen Titel.
+      expect(screen.getByText("Hausaufgaben")).toBeInTheDocument();
       expect(screen.queryByText(/Raum 104/)).not.toBeInTheDocument();
       expect(screen.queryByText(/Ben M\./)).not.toBeInTheDocument();
     });

@@ -284,6 +284,10 @@ describe("NowStrip (#2180)", () => {
 
     render(<NowStrip access={care} context={context(care)} />);
 
+    // Anker: die Aktionsleiste, in der der Starten-Knopf stünde, ist da.
+    expect(
+      screen.getByRole("link", { name: "Alle Kinder" }),
+    ).toBeInTheDocument();
     expect(
       screen.queryByRole("button", { name: "Aufsicht starten" }),
     ).not.toBeInTheDocument();
@@ -318,6 +322,7 @@ describe("NowStrip (#2180)", () => {
   });
 
   it("zeigt ohne users:read keinen Weg zur Kindersuche", () => {
+    sources.own = [];
     supervision.hasGroups = false;
     const restricted: HomeBlockAccess = {
       ...care,
@@ -327,7 +332,22 @@ describe("NowStrip (#2180)", () => {
 
     render(<NowStrip access={restricted} context={context(restricted)} />);
 
+    // Anker: die Zone ist geladen (Datumszeile statt Skelett).
+    expect(screen.getByText(/08\.09\.2026/)).toBeInTheDocument();
     expect(screen.queryAllByRole("link")).toHaveLength(0);
+  });
+
+  it("zeigt mit users:read den Weg zur Kindersuche", () => {
+    sources.own = [];
+    supervision.hasGroups = false;
+    const allowed: HomeBlockAccess = { ...care, hasOwnGroups: false };
+
+    render(<NowStrip access={allowed} context={context(allowed)} />);
+
+    expect(screen.getByText(/08\.09\.2026/)).toBeInTheDocument();
+    expect(screen.getAllByRole("link").map((link) => link.textContent)).toEqual(
+      ["Alle Kinder"],
+    );
   });
 
   // Auch wer betreut, sieht, wie viele Kinder da sind (#4347): neben dem
@@ -354,6 +374,9 @@ describe("NowStrip (#2180)", () => {
 
     render(<NowStrip access={restricted} context={context(restricted)} />);
 
+    // Anker: der eigene Einsatz steht da, neben ihm stünde die Kinderzahl.
+    expect(screen.getByText("Lernzeit Jahrgang 1")).toBeInTheDocument();
+    expect(screen.getByText("Läuft")).toBeInTheDocument();
     expect(sources.requested).not.toContain("dashboard-analytics");
     expect(screen.queryByText(/Kinder da/)).not.toBeInTheDocument();
   });

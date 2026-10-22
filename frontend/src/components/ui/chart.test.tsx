@@ -190,6 +190,8 @@ describe("ChartContainer", () => {
       </ChartContainer>,
     );
 
+    // Anker: der Container rendert seinen Inhalt im selben Aufbau wie mit Farben.
+    expect(screen.getByText("Content")).toBeInTheDocument();
     const style = container.querySelector("style");
     expect(style).toBeNull();
   });
@@ -247,28 +249,58 @@ describe("ChartTooltipContent", () => {
     ] as never;
 
   it("returns null when not active", () => {
-    const { container } = renderTooltipContent({
+    const { container, unmount } = renderTooltipContent({
       active: false,
       payload: makePayload(),
     });
     // The ChartContainer wrapper renders, but the tooltip content itself should not
     expect(container.querySelector(".border-border\\/50")).toBeNull();
+    unmount();
+
+    const visible = renderTooltipContent({
+      active: true,
+      payload: makePayload(),
+    });
+    // Anker: aktiv mit Payload findet dieselbe Abfrage den Tooltip.
+    expect(
+      visible.container.querySelector(".border-border\\/50"),
+    ).toBeInTheDocument();
   });
 
   it("returns null when payload is empty", () => {
-    const { container } = renderTooltipContent({
+    const { container, unmount } = renderTooltipContent({
       active: true,
       payload: [],
     });
     expect(container.querySelector(".border-border\\/50")).toBeNull();
+    unmount();
+
+    const visible = renderTooltipContent({
+      active: true,
+      payload: makePayload(),
+    });
+    // Anker: mit Payload findet dieselbe Abfrage den Tooltip.
+    expect(
+      visible.container.querySelector(".border-border\\/50"),
+    ).toBeInTheDocument();
   });
 
   it("returns null when payload is undefined", () => {
-    const { container } = renderTooltipContent({
+    const { container, unmount } = renderTooltipContent({
       active: true,
       payload: undefined,
     });
     expect(container.querySelector(".border-border\\/50")).toBeNull();
+    unmount();
+
+    const visible = renderTooltipContent({
+      active: true,
+      payload: makePayload(),
+    });
+    // Anker: mit Payload findet dieselbe Abfrage den Tooltip.
+    expect(
+      visible.container.querySelector(".border-border\\/50"),
+    ).toBeInTheDocument();
   });
 
   it("renders tooltip content when active with payload", () => {
@@ -312,6 +344,8 @@ describe("ChartTooltipContent", () => {
       hideLabel: true,
     });
 
+    // Anker: der Tooltip zeigt seinen Eintrag, nur das Label fehlt.
+    expect(screen.getByText("1,234")).toBeInTheDocument();
     expect(screen.queryByText("January")).toBeNull();
   });
 
@@ -321,6 +355,9 @@ describe("ChartTooltipContent", () => {
       payload: makePayload(),
       hideIndicator: true,
     });
+
+    // Anker: der Tooltip zeigt seinen Eintrag, nur der Indikator fehlt.
+    expect(screen.getByText("1,234")).toBeInTheDocument();
 
     // No indicator div with --color-bg style
     const indicators = container.querySelectorAll("[style*='--color-bg']");
@@ -678,18 +715,32 @@ describe("ChartLegendContent", () => {
   ];
 
   it("returns null when payload is empty", () => {
-    const { container } = renderLegendContent({ payload: [] });
+    const { container, unmount } = renderLegendContent({ payload: [] });
     // Only the chart container wrapper renders, not the legend itself
     expect(
       container.querySelector(".flex.items-center.justify-center"),
     ).toBeNull();
+    unmount();
+
+    const visible = renderLegendContent({ payload: makeLegendPayload() });
+    // Anker: mit Payload findet dieselbe Abfrage die Legende.
+    expect(
+      visible.container.querySelector(".flex.items-center.justify-center"),
+    ).toBeInTheDocument();
   });
 
   it("returns null when payload is undefined", () => {
-    const { container } = renderLegendContent({ payload: undefined });
+    const { container, unmount } = renderLegendContent({ payload: undefined });
     expect(
       container.querySelector(".flex.items-center.justify-center"),
     ).toBeNull();
+    unmount();
+
+    const visible = renderLegendContent({ payload: makeLegendPayload() });
+    // Anker: mit Payload findet dieselbe Abfrage die Legende.
+    expect(
+      visible.container.querySelector(".flex.items-center.justify-center"),
+    ).toBeInTheDocument();
   });
 
   it("renders legend items with labels from config", () => {

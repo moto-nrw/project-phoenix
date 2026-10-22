@@ -19,8 +19,8 @@ describe("FormModal", () => {
     document.documentElement.style.overflow = "";
   });
 
-  it("should not render when isOpen is false", () => {
-    render(
+  it("should not render when isOpen is false", async () => {
+    const { unmount } = render(
       <TestWrapper>
         <FormModal isOpen={false} onClose={vi.fn()} title="Test Modal">
           <p>Modal content</p>
@@ -29,6 +29,20 @@ describe("FormModal", () => {
     );
 
     expect(screen.queryByText("Test Modal")).not.toBeInTheDocument();
+    unmount();
+
+    render(
+      <TestWrapper>
+        <FormModal isOpen={true} onClose={vi.fn()} title="Test Modal">
+          <p>Modal content</p>
+        </FormModal>
+      </TestWrapper>,
+    );
+    await act(async () => {
+      vi.advanceTimersByTime(20);
+    });
+    // Anker: geöffnet findet dieselbe Abfrage den Dialog.
+    expect(screen.getByText("Test Modal")).toBeInTheDocument();
   });
 
   it("should render when isOpen is true", async () => {
@@ -692,6 +706,8 @@ describe("FormModal", () => {
       vi.advanceTimersByTime(20);
     });
 
+    // Anker: der offene Dialog zeigt seinen Inhalt.
+    expect(screen.getByText("Modal content")).toBeInTheDocument();
     expect(screen.queryByRole("alert")).not.toBeInTheDocument();
   });
 });

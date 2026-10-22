@@ -59,6 +59,8 @@ describe("SearchBar", () => {
 
   it("does not show clear button when value is empty", () => {
     render(<SearchBar value="" onChange={mockOnChange} />);
+    // Anker: das Suchfeld steht da, nur ohne Löschknopf.
+    expect(screen.getByPlaceholderText("Name suchen...")).toBeInTheDocument();
     expect(screen.queryByRole("button")).not.toBeInTheDocument();
   });
 

@@ -912,6 +912,10 @@ describe("CareWeeklyPlanEditForm", () => {
   it("offers no lesson choice while the school maintains no lesson end times", () => {
     renderForm();
 
+    // Anker: die Wochenzeile mit dem Ankunftsfeld ist gerendert.
+    expect(
+      screen.getByLabelText("Ankunft", { selector: "#weekly-arrival-1" }),
+    ).toBeInTheDocument();
     expect(screen.queryByRole("combobox")).not.toBeInTheDocument();
   });
 

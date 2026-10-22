@@ -110,9 +110,20 @@ describe("FilesPage upload permission summary", () => {
 
     renderPage(false);
 
+    // Anker: die Upload-Zusammenfassung steht, neben der der Link stünde.
+    expect(screen.getByText("Nur Leitung")).toBeInTheDocument();
     expect(
       screen.queryByRole("link", { name: "Berechtigung ändern" }),
     ).not.toBeInTheDocument();
+  });
+
+  it("links to settings with permission to change them", () => {
+    renderPage(false);
+
+    expect(screen.getByText("Nur Leitung")).toBeInTheDocument();
+    expect(
+      screen.getByRole("link", { name: "Berechtigung ändern" }),
+    ).toBeInTheDocument();
   });
 });
 

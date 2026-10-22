@@ -444,6 +444,8 @@ describe("OperatorOrganizationsPage", () => {
 
     render(<OperatorOrganizationsPage />);
 
+    // Anker: die Trägerzeile der Übersicht ist gerendert.
+    expect(screen.getByText("Test Org")).toBeInTheDocument();
     expect(screen.queryByText("Bearbeiten")).not.toBeInTheDocument();
     expect(screen.queryByText("Löschen")).not.toBeInTheDocument();
     expect(screen.queryByLabelText("Deaktivieren")).not.toBeInTheDocument();

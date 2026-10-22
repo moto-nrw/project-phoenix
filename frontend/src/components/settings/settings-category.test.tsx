@@ -141,7 +141,8 @@ describe("SettingsCategory", () => {
       />,
     );
 
-    expect(queryByText("Datenschutzinformation anzeigen")).toBeDefined();
+    // Anker: der Schalter der geladenen Datenschutz-Einstellungen ist sichtbar.
+    expect(queryByText("Datenschutzinformation anzeigen")).not.toBeNull();
     expect(queryByText("Datenschutzinformation")).toBeNull();
   });
 
@@ -199,38 +200,50 @@ describe("SettingsCategory", () => {
   });
 
   it("renders nothing when all items are hidden", () => {
-    const { container } = renderWithProviders(
+    const hiddenItem: SchemaCategory["items"][number] = {
+      key: "hidden.field",
+      label: "Hidden",
+      description: "",
+      type: "text",
+      default: "",
+      value: "",
+      is_default: true,
+      writable: true,
+      visible: false,
+      sort_order: 1,
+      access_policy: "shared",
+      validation: null,
+      depends_on: null,
+      options: null,
+    };
+    const { container, unmount } = renderWithProviders(
       <SettingsCategory
-        category={makeCategory({
-          items: [
-            {
-              key: "hidden.field",
-              label: "Hidden",
-              description: "",
-              type: "text",
-              default: "",
-              value: "",
-              is_default: true,
-              writable: true,
-              visible: false,
-              sort_order: 1,
-              access_policy: "shared",
-              validation: null,
-              depends_on: null,
-              options: null,
-            },
-          ],
-        })}
+        category={makeCategory({ items: [hiddenItem] })}
         onSave={vi.fn().mockResolvedValue(null)}
         onReset={vi.fn().mockResolvedValue(null)}
       />,
     );
     expect(container.querySelector("h3")).toBeNull();
     expect(container.querySelector("label")).toBeNull();
+
+    unmount();
+
+    const { container: visible } = renderWithProviders(
+      <SettingsCategory
+        category={makeCategory({
+          items: [{ ...hiddenItem, visible: true }],
+        })}
+        onSave={vi.fn().mockResolvedValue(null)}
+        onReset={vi.fn().mockResolvedValue(null)}
+      />,
+    );
+    // Anker: dieselbe Einstellung, nur sichtbar, rendert die Kategorie.
+    expect(visible.querySelector("h3")).toBeInTheDocument();
+    expect(visible).toHaveTextContent("Hidden");
   });
 
   it("renders nothing with empty items", () => {
-    const { container } = renderWithProviders(
+    const { container, unmount } = renderWithProviders(
       <SettingsCategory
         category={makeCategory({ items: [] })}
         onSave={vi.fn().mockResolvedValue(null)}
@@ -239,6 +252,19 @@ describe("SettingsCategory", () => {
     );
     expect(container.querySelector("h3")).toBeNull();
     expect(container.querySelector("label")).toBeNull();
+
+    unmount();
+
+    const { container: visible } = renderWithProviders(
+      <SettingsCategory
+        category={makeCategory()}
+        onSave={vi.fn().mockResolvedValue(null)}
+        onReset={vi.fn().mockResolvedValue(null)}
+      />,
+    );
+    // Anker: mit Einträgen rendert dieselbe Kategorie Überschrift und Felder.
+    expect(visible.querySelector("h3")).toBeInTheDocument();
+    expect(visible).toHaveTextContent("Enabled");
   });
 });
 
@@ -335,7 +361,7 @@ describe("SettingsCategory collapsible (#2830)", () => {
   });
 
   it("filterQuery without a hit renders nothing", () => {
-    const { container } = renderWithProviders(
+    const { container, unmount } = renderWithProviders(
       <SettingsCategory
         category={makeCategory()}
         filterQuery="zzz"
@@ -344,5 +370,18 @@ describe("SettingsCategory collapsible (#2830)", () => {
       />,
     );
     expect(container.querySelector("h3")).toBeNull();
+
+    unmount();
+
+    const { container: visible } = renderWithProviders(
+      <SettingsCategory
+        category={makeCategory()}
+        filterQuery="name"
+        onSave={vi.fn().mockResolvedValue(null)}
+        onReset={vi.fn().mockResolvedValue(null)}
+      />,
+    );
+    // Anker: mit einem Treffer rendert dieselbe Kategorie ihre Überschrift.
+    expect(visible.querySelector("h3")).toBeInTheDocument();
   });
 });

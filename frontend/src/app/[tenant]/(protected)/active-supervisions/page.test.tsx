@@ -3982,12 +3982,9 @@ describe("MeinRaumPage (Active Supervisions) (5/5)", () => {
     });
   });
 
-  it("does not flash first-room students while a direct room URL is syncing", async () => {
-    navigationMockState.roomParam = "11";
-    // The aggregate re-run for the URL-targeted session never resolves in
-    // this test — the point is that the first room's visits from the stale
-    // payload must not be shown meanwhile (#2096).
-    mockMutate.mockReturnValue(new Promise(() => undefined) as never);
+  // Zwei beaufsichtigte Räume; der Stand enthält die Besuche des ersten
+  // Raums (Raum 101, Max Mustermann).
+  const mockTwoRoomDashboard = () => {
     const dashboardData = {
       supervisedGroups: [
         {
@@ -4039,16 +4036,49 @@ describe("MeinRaumPage (Active Supervisions) (5/5)", () => {
         isValidating: false,
       };
     }) as never);
+  };
+
+  it("shows the first room's students when no room URL is set", async () => {
+    navigationMockState.roomParam = null;
+    mockTwoRoomDashboard();
 
     render(<MeinRaumPage />);
 
+    // Gegenprobe zum direkten Raum-URL-Fall: ohne ?room= zeigt derselbe
+    // Stand die Kinder des ersten Raums.
+    expect(await screen.findByText("Max Mustermann")).toBeInTheDocument();
+    expect(screen.getByTestId("student-card")).toBeInTheDocument();
+  });
+
+  it("does not flash first-room students while a direct room URL is syncing", async () => {
+    navigationMockState.roomParam = "11";
+    // The aggregate re-run for the URL-targeted session never resolves in
+    // this test — the point is that the first room's visits from the stale
+    // payload must not be shown meanwhile (#2096).
+    mockMutate.mockReturnValue(new Promise(() => undefined) as never);
+    mockTwoRoomDashboard();
+
+    render(<MeinRaumPage />);
+
+    // Anker: die Seite ist gerendert und steht im Ladezustand. Dass sie dort
+    // wegen der Raum-Synchronisation steht, belegt erst der mockMutate-Aufruf
+    // unten, nach dem der Ladezustand noch immer steht.
+    expect(
+      await screen.findByRole("status", {
+        name: "Aktuelle Aufsicht wird geladen…",
+      }),
+    ).toBeInTheDocument();
+
+    // The URL target resolves to session "2" and triggers the aggregate
+    // re-run; the first room's students never appear meanwhile.
     await waitFor(() => {
-      // The URL target resolves to session "2" and triggers the aggregate
-      // re-run; the first room's students never appear meanwhile.
       expect(mockMutate).toHaveBeenCalled();
-      expect(screen.queryByTestId("student-card")).not.toBeInTheDocument();
-      expect(screen.queryByText("Max Mustermann")).not.toBeInTheDocument();
     });
+    expect(
+      screen.getByRole("status", { name: "Aktuelle Aufsicht wird geladen…" }),
+    ).toBeInTheDocument();
+    expect(screen.queryByTestId("student-card")).not.toBeInTheDocument();
+    expect(screen.queryByText("Max Mustermann")).not.toBeInTheDocument();
   });
 
   it("handles permission errors gracefully", async () => {

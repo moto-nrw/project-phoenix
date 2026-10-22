@@ -54,6 +54,10 @@ describe("TenantPage", () => {
   it("zeigt ohne `back` keinen Rückweg", () => {
     render(<TenantPage title="Kinder" />);
 
+    // Anker: der Seitenkopf mit Titel ist gerendert.
+    expect(
+      screen.getByRole("heading", { level: 1, name: "Kinder" }),
+    ).toBeInTheDocument();
     expect(screen.queryByRole("link", { name: /Zurück/ })).toBeNull();
   });
 
@@ -135,6 +139,8 @@ describe("TenantPage", () => {
       </TenantPage>,
     );
 
+    // Anker: das Status-Skelett ist gerendert.
+    expect(container.querySelector(".animate-pulse")).toBeInTheDocument();
     expect(container.querySelector("p .animate-pulse")).toBeNull();
   });
 
@@ -528,6 +534,10 @@ describe("TenantPage", () => {
       </TenantPage>,
     );
 
+    // Anker: der Seitenkopf mit Titel ist gerendert.
+    expect(
+      screen.getByRole("heading", { level: 1, name: "Kinder" }),
+    ).toBeInTheDocument();
     expect(screen.queryByRole("button", { name: /Erklärung/ })).toBeNull();
   });
 
