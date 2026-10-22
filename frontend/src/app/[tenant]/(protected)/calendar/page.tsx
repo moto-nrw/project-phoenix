@@ -704,6 +704,20 @@ function StaffCalendarPageInner() {
     setRespondingRecipientId(recipientId);
     try {
       await respondStaffCalendar(recipientId, status);
+      // Die gespeicherte Antwort gilt sofort im Raster. Wer den Termin vor dem
+      // Neuladen wieder öffnet, sähe sonst noch die alte Antwort.
+      void mutate(
+        (current) =>
+          current && {
+            ...current,
+            events: current.events.map((event) =>
+              event.recipient_id === recipientId
+                ? { ...event, response_status: status }
+                : event,
+            ),
+          },
+        { revalidate: false },
+      );
       toast.success(
         status === "accepted"
           ? "Ihre Zusage ist gespeichert."

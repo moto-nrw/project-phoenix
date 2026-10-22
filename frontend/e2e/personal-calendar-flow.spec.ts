@@ -140,11 +140,9 @@ test.describe("Personal calendar flow", () => {
     );
     await eventDetail.getByRole("button", { name: "Zusagen" }).click();
     await expect((await responseUpdate).ok()).toBeTruthy();
-    // The POST finishes before SWR refreshes the calendar. Reopening now can
-    // capture the old event object in the detail sheet. Reload to verify the
-    // persisted response through a fresh calendar read instead.
+    // Zusagen schließt die Detailansicht; der neue Status steht nach erneutem
+    // Öffnen darin, ohne Neuladen der Seite.
     await expect(eventDetail).toBeHidden();
-    await page.reload({ waitUntil: "domcontentloaded" });
     await currentWeekEvent.click();
     await expect(eventDetail).toContainText("Zugesagt");
     await waitForAnimations(eventDetail);
