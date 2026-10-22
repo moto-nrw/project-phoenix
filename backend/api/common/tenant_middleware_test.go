@@ -1,7 +1,6 @@
 package common
 
 import (
-	"bytes"
 	"context"
 	"errors"
 	"io"
@@ -404,40 +403,59 @@ func TestTenantTxMiddlewarePreservesInterimResponseBeforeFinalResponse(t *testin
 	})
 	id, err := tenant.NewTenantID(42)
 	require.NoError(t, err)
-	handler := TenantTxMiddleware(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		w.Header().Set("Link", "</app.css>; rel=preload; as=style")
-		w.WriteHeader(http.StatusEarlyHints)
-		Respond(w, r, http.StatusOK, map[string]string{"result": "complete"}, "")
-	}))
-	recorder := &interimResponseRecorder{header: make(http.Header)}
-	request := httptest.NewRequest(http.MethodGet, "/api/example", nil)
-	request = request.WithContext(tenant.WithUnitOfWork(tenant.WithTenant(request.Context(), id), runtime))
-	handler.ServeHTTP(recorder, request)
+	for _, tc := range []struct {
+		name          string
+		handler       http.HandlerFunc
+		status        int
+		contentType   string
+		bodyAssertion func(*testing.T, []byte)
+	}{
+		{
+			name: "bodyless final response",
+			handler: func(w http.ResponseWriter, r *http.Request) {
+				w.Header().Set("Link", "</app.css>; rel=preload; as=style")
+				w.WriteHeader(http.StatusEarlyHints)
+				Respond(w, r, http.StatusResetContent, nil, "")
+			},
+			status: http.StatusResetContent,
+			bodyAssertion: func(t *testing.T, body []byte) {
+				assert.Empty(t, body)
+			},
+		},
+		{
+			name: "error final response",
+			handler: func(w http.ResponseWriter, _ *http.Request) {
+				w.WriteHeader(http.StatusEarlyHints)
+				http.Error(w, "failed", http.StatusInternalServerError)
+			},
+			status:      http.StatusInternalServerError,
+			contentType: problemContentType,
+			bodyAssertion: func(t *testing.T, body []byte) {
+				assert.Contains(t, string(body), `"status":500`)
+				assert.Contains(t, string(body), `"code":"general.server"`)
+			},
+		},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			handler := ProblemResponseMiddleware(TenantTxMiddleware(tc.handler))
+			server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				ctx := tenant.WithUnitOfWork(tenant.WithTenant(r.Context(), id), runtime)
+				handler.ServeHTTP(w, r.WithContext(ctx))
+			}))
+			t.Cleanup(server.Close)
 
-	assert.Equal(t, []int{http.StatusEarlyHints, http.StatusOK}, recorder.statuses)
-	assert.Equal(t, http.StatusOK, recorder.finalStatus)
-	assert.JSONEq(t, `{"status":"success","data":{"result":"complete"}}`, recorder.body.String())
-}
+			request, err := http.NewRequestWithContext(t.Context(), http.MethodGet, server.URL, nil)
+			require.NoError(t, err)
+			response, err := server.Client().Do(request)
+			require.NoError(t, err)
+			body, err := io.ReadAll(response.Body)
+			require.NoError(t, err)
+			require.NoError(t, response.Body.Close())
 
-type interimResponseRecorder struct {
-	header      http.Header
-	statuses    []int
-	finalStatus int
-	body        bytes.Buffer
-}
-
-func (r *interimResponseRecorder) Header() http.Header { return r.header }
-
-func (r *interimResponseRecorder) WriteHeader(status int) {
-	r.statuses = append(r.statuses, status)
-	if !isInterimStatus(status) && r.finalStatus == 0 {
-		r.finalStatus = status
+			assert.Equal(t, tc.status, response.StatusCode)
+			assert.Equal(t, tc.contentType, response.Header.Get("Content-Type"))
+			tc.bodyAssertion(t, body)
+		})
 	}
-}
-
-func (r *interimResponseRecorder) Write(body []byte) (int, error) {
-	if r.finalStatus == 0 {
-		r.WriteHeader(http.StatusOK)
-	}
-	return r.body.Write(body)
 }

@@ -329,10 +329,6 @@ func (w *tenantStatusWriter) WriteHeader(code int) {
 	}
 }
 
-func isInterimStatus(code int) bool {
-	return code >= 100 && code <= 199 && code != http.StatusSwitchingProtocols
-}
-
 func (w *tenantStatusWriter) Write(body []byte) (int, error) {
 	if !w.wroteHeader {
 		w.status = http.StatusOK

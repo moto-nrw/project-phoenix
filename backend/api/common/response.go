@@ -71,6 +71,10 @@ func statusAllowsBody(status int) bool {
 	return true
 }
 
+func isInterimStatus(status int) bool {
+	return status >= http.StatusContinue && status < http.StatusOK && status != http.StatusSwitchingProtocols
+}
+
 // RespondNoContent sends a 204 No Content response
 func RespondNoContent(w http.ResponseWriter, r *http.Request) {
 	render.NoContent(w, r)
