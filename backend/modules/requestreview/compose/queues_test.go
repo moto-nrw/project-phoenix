@@ -446,16 +446,25 @@ func TestRequestReviewEnforcesRLS(t *testing.T) {
 				testpkg.OwnTenant(t)
 				school := testpkg.CreateTestRequestReviewSchool(t, db, side)
 				school.Context = context.WithValue(school.Context, queueWriteKey{}, true)
-				// The filing account is known to its own school by name, so
-				// every queue's row must carry it (#4359), and only there.
-				_, err := db.NewRaw(`INSERT INTO users.guardian_profiles
- (tenant_id, first_name, last_name, email, account_id, has_account, preferred_contact_method, language_preference)
- VALUES (?, 'Filer', ?, ?, ?, true, 'email', 'de')`, school.TenantID, side, fmt.Sprintf("review-rls-filer-%s-%d@example.test", side, testpkg.UniqueSuffix()), school.AccountID).Exec(testpkg.Ctx(t))
-				require.NoError(t, err)
 				schools = append(schools, school)
 			})
 		}
 		require.Len(t, schools, 2)
+
+		// Every queue's row names its filer as the filer's own school knows
+		// them (#4359). The own school's account is also known to the foreign
+		// school under another name, through the OLDER profile: the binding
+		// prefers the lowest profile ID, so a lost tenant filter would show
+		// "Leak" in the own school instead of "Filer own".
+		insertFiler := func(tenantID, accountID int64, lastName string) {
+			_, err := db.NewRaw(`INSERT INTO users.guardian_profiles
+ (tenant_id, first_name, last_name, email, account_id, has_account, preferred_contact_method, language_preference)
+ VALUES (?, 'Filer', ?, ?, ?, true, 'email', 'de')`, tenantID, lastName, fmt.Sprintf("review-rls-filer-%d@example.test", testpkg.UniqueSuffix()), accountID).Exec(testpkg.Ctx(t))
+			require.NoError(t, err)
+		}
+		insertFiler(schools[1].TenantID, schools[0].AccountID, "Leak")
+		insertFiler(schools[0].TenantID, schools[0].AccountID, "own")
+		insertFiler(schools[1].TenantID, schools[1].AccountID, "foreign")
 
 		for table, ownID := range schools[0].Rows {
 			t.Run(table, func(t *testing.T) {
