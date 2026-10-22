@@ -446,23 +446,27 @@ export function TagesplanView() {
     );
   }
 
-  // Ein Satz, mehr nicht: die Liste erklärt sich selbst (Chevron am
-  // laufenden Block, Starten-Knopf am eigenen). Nur die eingeschränkte
-  // Sicht (#2380) muss gesagt werden, sonst fehlen scheinbar Termine.
-  const scopeLine =
+  // Die Liste erklärt sich selbst (Chevron am laufenden Block, Starten-Knopf
+  // am eigenen). Nur die eingeschränkte Sicht (#2380) muss gesagt werden,
+  // sonst fehlen scheinbar Termine.
+  const description =
     overviewScope === "all_staff"
-      ? "Der Betreuungstag Ihrer Schule."
+      ? undefined
       : "Ihre Einsätze. Sie sehen nur Termine, für die Sie eingeteilt sind.";
-  // Der Titel heißt heute „Heute“ (#4348); welcher Tag das ist, steht davor.
-  // Ein anderer Tag trägt sein Datum schon im Titel.
-  const description = isToday
-    ? `${formatStatusDate(day)} · ${scopeLine}`
-    : scopeLine;
 
   return (
     <div className="w-full space-y-4">
       <SectionCard
         title={isToday ? "Heute" : formatDate(day)}
+        // Welcher Tag „Heute“ ist, steht direkt daneben (#4348). Ein anderer
+        // Tag trägt sein Datum schon im Titel.
+        titleBadge={
+          isToday ? (
+            <span className="text-sm text-gray-500 tabular-nums">
+              {formatStatusDate(day)}
+            </span>
+          ) : undefined
+        }
         description={description}
         headingLevel={1}
         actions={

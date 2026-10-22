@@ -140,19 +140,19 @@ describe("TagesplanView", () => {
     setSWR({ data: [], isLoading: false, error: null });
   });
 
-  // Die Seite heißt „Heute“ (#4348); damit klar ist, welcher Tag das ist,
-  // steht das Datum direkt darunter. Ein anderer Tag trägt es schon im Titel.
-  it("titles today 'Heute' and names the date below", () => {
+  // Die Seite heißt „Heute“ (#4348); welcher Tag das ist, steht direkt
+  // daneben. Ein anderer Tag trägt sein Datum schon im Titel. Eine
+  // Beschreibung braucht nur die eingeschränkte Sicht (#2380).
+  it("titles today 'Heute' with the date beside it and no description", () => {
     render(<TagesplanView />);
 
     expect(
       screen.getByRole("heading", { level: 1, name: "Heute" }),
     ).toBeInTheDocument();
+    expect(screen.getByText("Mittwoch, 09.09.2026")).toBeInTheDocument();
     expect(
-      screen.getByText(
-        "Mittwoch, 09.09.2026 · Der Betreuungstag Ihrer Schule.",
-      ),
-    ).toBeInTheDocument();
+      screen.queryByText(/Der Betreuungstag Ihrer Schule/),
+    ).not.toBeInTheDocument();
   });
 
   it("titles another day with its date and no second date", () => {
@@ -162,9 +162,7 @@ describe("TagesplanView", () => {
     expect(
       screen.getByRole("heading", { level: 1, name: "15.07.2026" }),
     ).toBeInTheDocument();
-    expect(
-      screen.getByText("Der Betreuungstag Ihrer Schule."),
-    ).toBeInTheDocument();
+    expect(screen.queryByText(/Mittwoch|Donnerstag/)).not.toBeInTheDocument();
   });
 
   it("names the switched-off page 'Heute' too", () => {
