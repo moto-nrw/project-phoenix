@@ -4,6 +4,7 @@ import {
   DEPLOYMENTS,
   FEATURES,
   POSTHOG_HOST,
+  SCHOOL_BREAKDOWN,
   dashboards,
   featureExpression,
   featureOfPage,
@@ -68,7 +69,7 @@ test('no insight looks at a single person', () => {
     const query = JSON.stringify(insight.query);
     assert.doesNotMatch(query, /distinct_id|\bpersons?\b|person_id|\$user_id|\bpdi\b|email|\bdau\b|weekly_active|monthly_active|unique_users/i, insight.name);
     const breakdown = insight.query.source.breakdownFilter?.breakdown;
-    if (breakdown) assert.ok(['surface', 'role'].includes(breakdown), insight.name);
+    if (breakdown) assert.ok(['surface', 'role', SCHOOL_BREAKDOWN].includes(breakdown), insight.name);
   }
 });
 
