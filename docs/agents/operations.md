@@ -217,31 +217,23 @@ For env changes, read `.claude/rules/env-docker-sync.md` before editing.
 
 The hosted **GitGuardian Security Checks** GitHub App scans every commit in a
 PR, not just its final diff. Editing or deleting a literal in a later commit
-does not remove its earlier occurrence. The root `.gitguardian.yaml` configures
-the pinned ggshield CLI used by Lefthook; it does not configure the hosted check.
+does not remove its earlier occurrence. Local configuration does not change
+its detectors or clear its historical incidents.
 
 ### Local prevention
 
-1. Run `devbox install` to install the pinned scanner. Authenticate once with
-   `devbox run -- ggshield auth login --lifetime 30`. This stores a personal
-   token outside the repository; review the requested scopes in the browser.
-   An existing token with only the `scan` scope can instead be entered through
-   `devbox run -- ggshield auth login --method token`.
-2. Pre-commit scans the staged changes. Pre-push scans every commit from the
-   merge-base with the comparison branch through HEAD, including values added
-   and removed within the branch. Both use the repository config, redact
-   secrets, and fail on missing credentials, scanner errors or findings. They
-   require network access and GitGuardian API quota. Pre-push never uses its
-   success cache to skip secret scanning.
-3. After changing scanner configuration or fixture conventions, run
-   `node scripts/probe-secret-scanner.mjs`. It scans the real fixture sources
-   and disposable credential probes, including test-file extensions. It needs
-   authentication and removes its temporary files afterwards. Unit CI runs the
-   hook regression suite without credentials; it does not run this live probe.
+Lefthook runs the pinned gitleaks scanner through `scripts/check-secrets.sh`.
+It works offline and needs no account or token; `devbox install` installs it.
 
-The hosted App remains the server-side backstop. Local configuration does not
-change its detectors or clear its historical incidents. Fix staged fixture
-noise before the first commit rather than changing later commits repeatedly.
+1. Pre-commit scans the staged changes. Pre-push scans every commit from the
+   merge-base with the comparison branch through HEAD. Both redact secrets and
+   fail on findings or a missing scanner. Pre-push never uses its success
+   cache to skip secret scanning.
+2. `.gitleaks.toml` extends the gitleaks default rules. It skips test files
+   (`*_test.go`, `*.test.ts(x)`, `testdata/`, `*test/` directories) so
+   throwaway fixture credentials do not block commits.
+3. For a verified false positive elsewhere, add a `gitleaks:allow` comment to
+   the line or its fingerprint from the scan output to `.gitleaksignore`.
 
 ### Existing hosted findings
 
@@ -262,14 +254,11 @@ describe the rerun as a clean scan.
 
 For backend password fixtures, use `testpkg.NewTestPassword()`; the
 [fixture guide](backend-testing.md#credential-fixtures) distinguishes generated
-credentials, mapping placeholders and deliberately invalid input. Keep test
-and example paths scanned, retain blocking checks, and handle
-reviewed findings individually instead of disabling generic detectors or
-excluding whole test trees. Rewriting shared history is not needed to classify
-an intentional test credential.
+credentials, mapping placeholders and deliberately invalid input. Rewriting
+shared history is not needed to classify an intentional test credential.
 
 References: [hosted check behavior and incident handling](https://docs.gitguardian.com/internal-monitoring/prevent/detect-secrets-in-real-time-in-github),
-[ggshield configuration](https://docs.gitguardian.com/ggshield-docs/configuration),
+[gitleaks configuration](https://github.com/gitleaks/gitleaks#configuration),
 [dashboard exclusion settings](https://docs.gitguardian.com/secrets-detection/customize-detection/exclusion-rules).
 
 ## Rollback window of a storage cutover

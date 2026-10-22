@@ -60,7 +60,7 @@ printf '%s\\n' "$*"
 if [[ "$*" == *check-quality.sh* && "\${FAIL_QUALITY:-}" == 1 ]]; then exit 9; fi
 if [[ "$*" == *check-quality.sh* && "\${MUTATE_SOURCE:-}" == 1 ]]; then echo changed >> backend/example.go; fi
 `);
-  write('.devbox/nix/profile/default/bin/ggshield', '#!/bin/bash\nexit "${FAIL_SECRETS:-0}"\n');
+  write('.devbox/nix/profile/default/bin/gitleaks', '#!/bin/bash\nexit "${FAIL_SECRETS:-0}"\n');
   symlinkSync(process.execPath, join(root, '.devbox/nix/profile/default/bin/node'));
   write('.devbox/nix/profile/default/bin/go', '#!/bin/bash\nif [[ "$*" == *-json* ]]; then echo \'{"GOVERSION":"go1.27.0","GOWORK":"off"}\'; else echo go1.27.0; fi\n');
   for (const tool of ['gofmt', 'golangci-lint', 'govulncheck']) write(`.devbox/nix/profile/default/bin/${tool}`, '#!/bin/bash\nexit 0\n');
@@ -152,10 +152,10 @@ test('deleted backend files still trigger quality but not integration tests', t 
 test('missing pinned secret scanner fails closed', t => {
   const f = fixture(t);
   f.commit('README.md', 'docs\n');
-  rmSync(join(f.root, '.devbox/nix/profile/default/bin/ggshield'));
+  rmSync(join(f.root, '.devbox/nix/profile/default/bin/gitleaks'));
   const result = f.check();
   assert.notEqual(result.status, 0);
-  assert.match(result.stderr, /Pinned ggshield is missing/);
+  assert.match(result.stderr, /Pinned gitleaks is missing/);
 });
 
 test('secret findings fail the push', t => {
