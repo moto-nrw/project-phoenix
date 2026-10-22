@@ -3,6 +3,7 @@ package application
 import (
 	"context"
 	"errors"
+	"slices"
 	"testing"
 
 	"github.com/moto-nrw/project-phoenix/modules/peopledirectory"
@@ -121,18 +122,25 @@ func TestGuardianRowReadsUseTheEngine(t *testing.T) {
 	if _, err := module.ListGuardianLinksByAccount(ctx, 0); !errors.Is(err, peopledirectory.ErrInvalidGuardian) {
 		t.Fatalf("an account id is required, got %v", err)
 	}
-	if _, err := module.ListGuardianLinksByAccount(ctx, 42); err != nil || engine.guardian.accountID != 42 {
+	if _, err := module.ListGuardianLinksByAccount(ctx, 42); err != nil || !slices.Equal(engine.guardian.accountIDs, []int64{42}) {
 		t.Fatalf("the account read reaches the engine: %v %+v", err, engine.guardian)
 	}
 	guardians, err := module.ListGuardiansByAccount(ctx, []int64{0, -1})
 	if err != nil || len(guardians) != 0 || engine.calls != 1 {
 		t.Fatalf("no positive ids means no engine call: %v %v %d", guardians, err, engine.calls)
 	}
+	links, err := module.ListGuardianLinksByAccounts(ctx, []int64{0, -1})
+	if err != nil || links == nil || len(links) != 0 || engine.calls != 1 {
+		t.Fatalf("no positive account ids means no engine call: %v %v %d", links, err, engine.calls)
+	}
+	if _, err := module.ListGuardianLinksByAccounts(ctx, []int64{7, 7, 0, 8}); err != nil || !slices.Equal(engine.guardian.accountIDs, []int64{7, 8}) {
+		t.Fatalf("account ids are deduplicated before the engine: %v %+v", err, engine.guardian)
+	}
 	if _, err := module.ListGuardiansByID(ctx, []int64{3, 3, 4}); err != nil || len(engine.guardian.ids) != 2 {
 		t.Fatalf("ids are deduplicated before the engine: %v %+v", err, engine.guardian)
 	}
 	counts, err := module.CountGuardianLinks(ctx, nil)
-	if err != nil || len(counts) != 0 || engine.calls != 2 {
+	if err != nil || len(counts) != 0 || engine.calls != 3 {
 		t.Fatalf("an empty count answers without the engine: %v %v %d", counts, err, engine.calls)
 	}
 }

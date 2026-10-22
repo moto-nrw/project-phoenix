@@ -115,7 +115,18 @@ export type BulkIneligibleReason =
   | "child_unavailable"
   | "access_revoked";
 
-export interface RequestReviewMetadata {
+/**
+ * Wer die Anfrage eingereicht hat (#4359). Beide Felder fehlen, wenn die
+ * Schule die Person nicht (mehr) kennt; die Beziehung fehlt, wenn zu diesem
+ * Kind keine hinterlegt ist. Die Oberfläche leitet sie nie aus dem Namen ab.
+ */
+interface SubmittedBy {
+  readonly submitted_by_name?: string;
+  /** Hinterlegte Beziehung zum Kind: `parent`, `guardian`, `relative`, `other`. */
+  readonly submitted_by_relationship?: string;
+}
+
+export interface RequestReviewMetadata extends SubmittedBy {
   readonly student_id: string;
   readonly student_name: string;
   readonly group_name?: string;
@@ -183,7 +194,7 @@ export type AggregatedOpenRequest =
  * beim Korrigieren mitgeschickt, damit zwei gleichzeitige Korrekturen sich
  * nicht überschreiben.
  */
-interface HistoryDecisionMeta {
+interface HistoryDecisionMeta extends SubmittedBy {
   readonly can_correct?: boolean;
   readonly expected_version?: string;
 }
