@@ -48,6 +48,9 @@ function definitionsWithChildTour(
 
 describe("useParentFirstStepsTour", () => {
   it("advances only once when a navigation click reaches the skip path", async () => {
+    // Fake timers that advance with real time: waitFor keeps polling, and the
+    // test skips the advance delay instead of sleeping through it.
+    vi.useFakeTimers({ shouldAdvanceTime: true });
     pathname = "/";
     const settings = addVisibleTarget("settings");
     addVisibleTarget("settings-content");
@@ -92,7 +95,9 @@ describe("useParentFirstStepsTour", () => {
       pathname = "/settings";
       rerender();
     });
-    await act(() => new Promise((resolve) => window.setTimeout(resolve, 300)));
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(300);
+    });
 
     expect(result.current.active?.index).toBe(1);
   });
