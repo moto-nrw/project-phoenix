@@ -1241,10 +1241,10 @@ function carePlanTopic(presenceMode: HelpPresenceMode): HelpTopic {
 function dayPlanTopic(presenceMode: HelpPresenceMode): HelpTopic {
   return {
     id: HELP_TOPICS.dayPlan,
-    title: "Den Betreuungstag im Tagesplan verfolgen",
+    title: "Den Betreuungstag von heute verfolgen",
     question: "Wo sehe ich den Betreuungstag von heute?",
     summary:
-      "Der Tagesplan zeigt die Betreuungsblöcke des Tages der Reihe nach.",
+      "Die Seite `Heute` zeigt die Betreuungsblöcke des Tages der Reihe nach.",
     group: "tagesplanung",
     audience: "caregiver",
     icon: "ClockAfternoon",
@@ -1253,7 +1253,7 @@ function dayPlanTopic(presenceMode: HelpPresenceMode): HelpTopic {
       "Sie dürfen den Betreuungsplan sehen.",
     ],
     steps: [
-      "Öffnen Sie `Tagesplan` in der Seitenleiste.",
+      "Öffnen Sie `Heute` in der Seitenleiste.",
       "Sie sehen die Blöcke des Tages von früh nach spät.",
       "Eine Linie zeigt, wo Sie gerade im Tag stehen.",
       "Tippen Sie auf einen laufenden Block. Das öffnet seine Kinderliste.",
@@ -1269,12 +1269,12 @@ function dayPlanTopic(presenceMode: HelpPresenceMode): HelpTopic {
       "Welche Blöcke Sie sehen, legt Ihre OGS fest. Manche sehen den ganzen Tag der Schule, andere nur die eigene Einteilung.",
       "Ob Sie nur eigene oder alle Blöcke starten dürfen, legt Ihre OGS fest. Wer einen fremden Block startet, wird nicht zur Aufsicht.",
       ...(presenceMode === "unknown"
-        ? ["Bei einfacher Anwesenheit gibt es den Tagesplan nicht."]
+        ? ["Bei einfacher Anwesenheit gibt es die Seite `Heute` nicht."]
         : []),
     ],
     notes: [
       "Mit den Pfeilen oben rechts sehen Sie einen anderen Tag.",
-      "Betreut Ihre OGS am Wochenende? Dann zeigt der Tagesplan auch Samstag und Sonntag. Dort gilt der Freitagsplan.",
+      "Betreut Ihre OGS am Wochenende? Dann zeigt `Heute` auch Samstag und Sonntag. Dort gilt der Freitagsplan.",
     ],
     troubleshootingDetails: [
       // Live geprueft: der haeufigste Leerzustand einer Betreuungskraft.
@@ -2463,11 +2463,11 @@ function missingMenuDifferences(
     // Vollstaendige Liste aus sidebar.tsx BINARY_HIDDEN_HREFS (/rooms,
     // /activities, /tagesplan) plus dem separat gegateten Aufsicht-Akkordeon.
     lines.push(
-      "In Ihrer OGS gibt es `Räume`, `Aktivitäten`, `Aktuelle Aufsicht` und `Tagesplan` nicht. Ihre OGS hält nur fest, ob ein Kind da ist.",
+      "In Ihrer OGS gibt es `Räume`, `Aktivitäten`, `Aktuelle Aufsicht` und `Heute` nicht. Ihre OGS hält nur fest, ob ein Kind da ist.",
     );
   } else if (presenceMode === "unknown") {
     lines.push(
-      "Bei einfacher Anwesenheit fehlen `Räume`, `Aktivitäten`, `Aktuelle Aufsicht` und `Tagesplan`.",
+      "Bei einfacher Anwesenheit fehlen `Räume`, `Aktivitäten`, `Aktuelle Aufsicht` und `Heute`.",
     );
   }
 
@@ -4961,7 +4961,7 @@ function leadCarePlanTopic(): HelpTopic {
       "Legen Sie die Termine der Woche an.",
       "Prüfen Sie zum Schluss die gemeldeten Konflikte.",
     ],
-    result: "Ihr Team sieht den Plan im `Tagesplan` und unter `Mein Kalender`.",
+    result: "Ihr Team sieht den Plan unter `Heute` und unter `Mein Kalender`.",
     notes: [
       "Ein Regeltermin wiederholt sich. Die Ansicht `Serien` zeigt alle Regeltermine.",
       "Aufgaben ohne Kinder, etwa Busaufsicht oder Essensausgabe, legen Sie mit dem `Typ` `Dienst` an. Ein Dienst hat keine Kinderliste und wird nicht gestartet. Der Raum ist freiwillig.",
@@ -5775,7 +5775,7 @@ function leadMissingMenuTopic(): HelpTopic {
     ],
     differences: [
       "Manche Bereiche hängen nicht an Rechten, sondern an Funktionen Ihrer OGS.",
-      "Ohne NFC fehlen `Aktivitäten` und `Geräte`. Bei einfacher Anwesenheit fehlen `Räume` und `Tagesplan`.",
+      "Ohne NFC fehlen `Aktivitäten` und `Geräte`. Bei einfacher Anwesenheit fehlen `Räume` und `Heute`.",
       "Ohne feste Gruppen fehlt `Meine Gruppen`.",
       "`Info-Displays` hängt an einem eigenen Schalter in den `Einstellungen`, nicht an einem Recht.",
     ],

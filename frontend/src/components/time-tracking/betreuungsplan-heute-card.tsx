@@ -142,10 +142,10 @@ export function BetreuungsplanHeuteCard({
           href ? (
             <Link
               href={href}
-              aria-label={`${title}: zum Tagesplan`}
+              aria-label={`${title}: Heute öffnen`}
               className="flex items-center gap-1 text-sm font-medium text-gray-600 transition-colors hover:text-gray-900"
             >
-              Zum Tagesplan
+              Heute öffnen
               <ChevronRight className="h-4 w-4" aria-hidden="true" />
             </Link>
           ) : undefined
@@ -202,10 +202,10 @@ export function BetreuungsplanHeuteCard({
         href ? (
           <Link
             href={href}
-            aria-label={`${title}: zum Tagesplan`}
+            aria-label={`${title}: Heute öffnen`}
             className="flex items-center gap-1 text-sm font-medium text-gray-600 transition-colors hover:text-gray-900"
           >
-            Zum Tagesplan
+            Heute öffnen
             <ChevronRight className="h-4 w-4" aria-hidden="true" />
           </Link>
         ) : undefined
@@ -238,8 +238,8 @@ export function BetreuungsplanHeuteCard({
           className="mt-2 block shrink-0 text-sm font-medium text-gray-600 transition-colors hover:text-gray-900"
         >
           {hidden === 1
-            ? "Noch 1 Einsatz im Tagesplan"
-            : `Noch ${hidden} Einsätze im Tagesplan`}
+            ? "Noch 1 Einsatz ansehen"
+            : `Noch ${hidden} Einsätze ansehen`}
         </Link>
       )}
     </InfoCard>
@@ -383,7 +383,7 @@ function AssignmentRow({
       {href ? (
         <Link
           href={href}
-          aria-label={`${block.title}: im Tagesplan öffnen`}
+          aria-label={`${block.title}: unter Heute öffnen`}
           className={`${rowClass} transition-colors hover:bg-gray-100/50`}
         >
           {content}

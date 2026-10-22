@@ -59,7 +59,7 @@ vi.mock("~/components/home/home-card-rows", () => ({
 }));
 vi.mock("~/lib/hooks/use-day-plan-href", () => ({
   useDayPlanHref: () => "/test-tenant/tagesplan",
-  useDayPlanLabel: () => "Zum Tagesplan",
+  useDayPlanLabel: () => "Heute öffnen",
 }));
 vi.mock("~/lib/tenant-path", () => ({
   useTenantAwarePath: () => (path: string) => `/test-tenant${path}`,
@@ -189,7 +189,7 @@ describe("NowStrip (#2180)", () => {
     ).toBeInTheDocument();
     // Kein Weg in den Tagesplan: „Mein Tag" steht direkt unter der Zone.
     expect(
-      screen.queryByRole("link", { name: "Zum Tagesplan" }),
+      screen.queryByRole("link", { name: "Heute öffnen" }),
     ).not.toBeInTheDocument();
     // Die eigene Gruppe steht als Baustein darunter, nicht in der Zone.
     expect(

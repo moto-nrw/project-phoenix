@@ -117,7 +117,7 @@ describe("BetreuungsplanHeuteCard", () => {
     expect(screen.getByText("Mittagessen")).toBeInTheDocument();
     expect(screen.queryByText("Lernzeit")).not.toBeInTheDocument();
     expect(
-      screen.getByRole("link", { name: "Noch 2 Einsätze im Tagesplan" }),
+      screen.getByRole("link", { name: "Noch 2 Einsätze ansehen" }),
     ).toHaveAttribute("href", "/test-tenant/tagesplan");
   });
 
@@ -227,7 +227,7 @@ describe("BetreuungsplanHeuteCard", () => {
 
     rerender(<BetreuungsplanHeuteCard href="/test-tenant/tagesplan" />);
     expect(
-      screen.getByRole("link", { name: "Lernzeit: im Tagesplan öffnen" }),
+      screen.getByRole("link", { name: "Lernzeit: unter Heute öffnen" }),
     ).toHaveAttribute("href", "/test-tenant/tagesplan");
   });
 

@@ -140,6 +140,41 @@ describe("TagesplanView", () => {
     setSWR({ data: [], isLoading: false, error: null });
   });
 
+  // Die Seite heißt „Heute“ (#4348); damit klar ist, welcher Tag das ist,
+  // steht das Datum direkt darunter. Ein anderer Tag trägt es schon im Titel.
+  it("titles today 'Heute' and names the date below", () => {
+    render(<TagesplanView />);
+
+    expect(
+      screen.getByRole("heading", { level: 1, name: "Heute" }),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByText(
+        "Mittwoch, 09.09.2026 · Der Betreuungstag Ihrer Schule.",
+      ),
+    ).toBeInTheDocument();
+  });
+
+  it("titles another day with its date and no second date", () => {
+    searchParams.current = new URLSearchParams("d=2026-07-15");
+    render(<TagesplanView />);
+
+    expect(
+      screen.getByRole("heading", { level: 1, name: "15.07.2026" }),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByText("Der Betreuungstag Ihrer Schule."),
+    ).toBeInTheDocument();
+  });
+
+  it("names the switched-off page 'Heute' too", () => {
+    vi.mocked(useTimetableEnabled).mockReturnValue(false);
+    render(<TagesplanView />);
+
+    expect(screen.getByTestId("tagesplan-disabled")).toBeInTheDocument();
+    expect(screen.queryByText("Tagesplan")).not.toBeInTheDocument();
+  });
+
   it("steps a day forward and back, skipping the weekend", () => {
     searchParams.current = new URLSearchParams("d=2026-07-15");
     render(<TagesplanView />);
