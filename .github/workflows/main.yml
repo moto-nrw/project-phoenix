@@ -67,7 +67,7 @@ jobs:
       base-ref: ${{ github.base_ref }}
       # The script suites, the env sync and the error-code registry check only
       # files their own filter lists. Docs-only pull requests skip all three.
-      run-ci-scripts: ${{ github.event_name == 'push' || steps.scope.outputs.release == 'true' || steps.filter.outputs.tooling == 'true' || steps.filter.outputs.quality-scripts == 'true' || steps.filter.outputs.hooks == 'true' || steps.filter.outputs.toolchain == 'true' }}
+      run-ci-scripts: ${{ github.event_name == 'push' || steps.scope.outputs.release == 'true' || steps.filter.outputs.tooling == 'true' || steps.filter.outputs.quality-scripts == 'true' || steps.filter.outputs.hooks == 'true' || steps.filter.outputs.toolchain == 'true' || steps.filter.outputs.script-tests == 'true' }}
       run-env-check: ${{ github.event_name == 'push' || steps.scope.outputs.release == 'true' || steps.filter.outputs.env == 'true' }}
       run-error-codes: ${{ github.event_name == 'push' || steps.scope.outputs.release == 'true' || steps.filter.outputs.error-codes == 'true' }}
       tooling-changed: ${{ steps.filter.outputs.tooling == 'true' }}
@@ -227,6 +227,21 @@ jobs:
               - 'environments/**'
               - '.env.example'
               - 'package.json'
+            # Script suites without another trigger (#4436). Each runs when its
+            # script or suite changes; the runner guard reruns when a test
+            # file or a Playwright config appears or moves.
+            script-tests:
+              - 'monitoring/student-contract/**'
+              - 'scripts/student-contract-monitor.test.mjs'
+              - 'scripts/runtime-checkpoint-*.py'
+              - 'scripts/runtime_checkpoint_*_test.py'
+              - 'scripts/check-agent-context*'
+              - 'scripts/check-test-runners*'
+              - '**/*.test.mjs'
+              - '**/*_test.py'
+              - '**/*_test.sh'
+              - 'frontend/e2e/**'
+              - 'frontend/playwright*.config.ts'
             # Inputs of TestToolchainPinsRatchet. Changed-test selection adds
             # ./test only for backend changes, so ci-scripts runs the
             # ratchets for these files instead of the full backend suite.
@@ -305,6 +320,17 @@ jobs:
       - name: Verify pre-push failure and selection behavior
         if: matrix.suite == 'unit'
         run: node --test scripts/pre-push.test.mjs scripts/dev-native.test.mjs scripts/check-release-architecture.test.mjs scripts/check-migration-evidence.test.mjs scripts/release-backup.test.mjs scripts/demo-environment.test.mjs scripts/report-sentry-deploy.test.mjs scripts/posthog-dashboards.test.mjs
+
+      - name: Verify repository script suites
+        if: matrix.suite == 'unit'
+        run: |
+          node --test scripts/student-contract-monitor.test.mjs scripts/check-agent-context.test.mjs scripts/check-test-runners.test.mjs
+          python3 -m unittest scripts/runtime_checkpoint_compare_test.py scripts/runtime_checkpoint_report_test.py
+
+      # Lists test files that no workflow runs (#4436).
+      - name: Check every test file has a CI runner
+        if: matrix.suite == 'unit'
+        run: node scripts/check-test-runners.mjs
 
       - name: Verify complete release restore with PostgreSQL
         if: matrix.suite == 'restore'
