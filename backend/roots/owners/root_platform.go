@@ -94,28 +94,28 @@ type SettingsOwner struct {
 // TenantMailIdentity binds the reply-to of tenant-bound mail to the OGS, not
 // to moto (#1936); one instance is shared by every tenant-bound sender.
 func TenantMailIdentity(schools organizationtenancy.Query, settings settingsCompose.SettingsService, env RootEnvironment) email.ReplyToResolver {
-	return deliveryCompose.NewTenantMailIdentity(SchoolContactDirectory{Schools: schools}, func(ctx context.Context, tenantID int64) (string, error) {
-		if tenant.IsAdminTx(ctx) {
+	resolver := deliveryCompose.NewTenantMailIdentity(SchoolContactDirectory{Schools: schools}, func(ctx context.Context, tenantID int64) (string, error) {
+		if _, active := tenant.TransactionFromContext(ctx); active {
 			return settings.ResolveStringForTenantInTx(ctx, tenantID, configModels.KeyEmailReplyToAddress)
 		}
-		return settings.ResolveStringForTenant(replyToSettingContext(ctx, tenantID), tenantID, configModels.KeyEmailReplyToAddress)
+		return settings.ResolveStringForTenant(ctx, tenantID, configModels.KeyEmailReplyToAddress)
 	}, env.Logger)
+	return deferredForeignTenantMailIdentity{resolver: resolver}
 }
 
-// replyToSettingContext lets the reply-to read join an ambient transaction
-// only when it is the target school's own tenant transaction. A tenant
-// transaction cannot read another school's settings, so that read runs in a
-// transaction of its own for the target school. It stays scoped to that
-// school's rows and leaves the caller's transaction and its after-commit
-// hooks untouched.
-func replyToSettingContext(ctx context.Context, tenantID int64) context.Context {
-	if _, ok := tenant.TransactionFromContext(ctx); !ok {
-		return ctx
+// deferredForeignTenantMailIdentity does not take a second pool connection
+// while a transaction for another school is held. Durable mail snapshots keep
+// Reply-To empty in that case; the outbox transport resolves it after joining
+// the target school's transaction.
+type deferredForeignTenantMailIdentity struct {
+	resolver email.ReplyToResolver
+}
+
+func (r deferredForeignTenantMailIdentity) ResolveReplyTo(ctx context.Context, tenantID int64) (email.ReplyToIdentity, error) {
+	if _, active := tenant.TransactionFromContext(ctx); active && !tenant.IsAdminTx(ctx) && tenant.FromContext(ctx) != tenantID {
+		return email.ReplyToIdentity{}, nil
 	}
-	if !tenant.IsAdminTx(ctx) && tenant.FromContext(ctx) == tenantID {
-		return ctx
-	}
-	return tenant.ContextWithoutAfterCommitHooks(tenant.ContextWithoutTenant(tenant.ContextWithoutTransaction(ctx)))
+	return r.resolver.ResolveReplyTo(ctx, tenantID)
 }
 
 // rootUnitOfWork is the unit of work a root composes its services over.

@@ -12,11 +12,11 @@ import (
 	"github.com/uptrace/bun"
 )
 
-// The reply-to setting must be read for the target school even when the mail
-// is built inside a transaction that cannot serve that school: the operator
-// invites a school admin inside an administrative transaction, and a tenant
-// transaction belongs to exactly one school (#4535).
-func TestTenantMailIdentityReadsReplyToOutsideForeignTransaction(t *testing.T) {
+// A reply-to lookup joins its target or administrative transaction. A foreign
+// tenant transaction defers to the outbox transport, which renders under the
+// target school's transaction and therefore does not need a second connection
+// while the first remains held (#4535).
+func TestTenantMailIdentityUsesTransactionSafeReplyToLookup(t *testing.T) {
 	t.Parallel()
 
 	db := testpkg.SetupTestDB(t)
@@ -61,12 +61,15 @@ func TestTenantMailIdentityReadsReplyToOutsideForeignTransaction(t *testing.T) {
 	t.Run("transaction of another school", func(t *testing.T) {
 		other := testpkg.OwnTenant(t)
 		testpkg.SetTestTenantSetting(t, db, other, configModels.KeyEmailReplyToAddress, `"antworten@andere-schule.example"`)
+		counter := testpkg.CaptureQueriesForContext(t, db)
 		var got string
-		require.NoError(t, tenant.WithinTenant(testpkg.Ctx(t), tenantID(t, other), func(otherCtx context.Context) error {
+		require.NoError(t, tenant.WithinTenant(counter.Context(testpkg.Ctx(t)), tenantID(t, other), func(otherCtx context.Context) error {
+			counter.Reset()
 			got = resolve(t, otherCtx)
+			require.Zero(t, counter.Total(), "a foreign transaction must not start a nested setting lookup")
 			return nil
 		}))
-		require.Equal(t, "antworten-in-admin-transaktion@ziel-schule.example", got, "only the target school's setting may be read")
+		require.Empty(t, got, "the outbox transport resolves Reply-To in the target school's transaction")
 	})
 
 	t.Run("transaction of the same school", func(t *testing.T) {
