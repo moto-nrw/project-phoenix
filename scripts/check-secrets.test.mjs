@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { spawnSync } from 'node:child_process';
-import { copyFileSync, mkdirSync, mkdtempSync, readFileSync, realpathSync, rmSync, writeFileSync } from 'node:fs';
+import { copyFileSync, existsSync, mkdirSync, mkdtempSync, readFileSync, realpathSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -69,6 +69,20 @@ test('missing pinned scanner cannot fall back to another installation', t => {
   assert.notEqual(result.status, 0);
   assert.match(result.stderr, /Pinned ggshield is missing/);
 });
+
+for (const ahead of [false, true]) {
+  test(`pre-push skips scanning when HEAD ${ahead ? 'is behind' : 'equals'} the base`, t => {
+    const f = fixture(t);
+    if (ahead) {
+      f.git('checkout', '-q', 'base');
+      f.commit('base advanced');
+      f.git('checkout', '-q', '--detach', 'HEAD~1');
+    }
+    const result = f.scan(['pre-push', 'base'], { SCANNER_STATUS: '2' });
+    assert.equal(result.status, 0, result.stderr);
+    assert.equal(existsSync(join(f.root, 'scanner-args')), false);
+  });
+}
 
 test('authentication and network failures fail closed', t => {
   const f = fixture(t);

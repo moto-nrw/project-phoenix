@@ -160,6 +160,7 @@ test('missing pinned secret scanner fails closed', t => {
 
 test('secret findings fail the push', t => {
   const f = fixture(t);
+  f.commit('README.md', 'branch change\n');
   const result = f.check({ FAIL_SECRETS: '7' });
   assert.equal(result.status, 7);
 });

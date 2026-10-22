@@ -19,6 +19,10 @@ case "${1:-}" in
   pre-push)
     [[ $# -eq 2 ]] || { echo 'Usage: check-secrets.sh pre-push <base-ref>' >&2; exit 2; }
     merge_base=$(git merge-base "$2" HEAD)
+    # ggshield rejects empty ranges; there are no branch commits to scan.
+    if [[ "$merge_base" == "$(git rev-parse HEAD)" ]]; then
+      exit 0
+    fi
     scan=(commit-range "$merge_base..HEAD")
     ;;
   *) echo 'Usage: check-secrets.sh pre-commit | pre-push <base-ref>' >&2; exit 2 ;;
