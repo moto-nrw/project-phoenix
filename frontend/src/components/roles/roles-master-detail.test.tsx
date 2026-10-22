@@ -122,7 +122,7 @@ describe("RolesMasterDetail", () => {
     expect(screen.getAllByText("Vertretungslehrkraft").length).toBeGreaterThan(
       0,
     );
-    expect(screen.getByText("1 Berechtigungen")).toBeInTheDocument();
+    expect(screen.getByText("1 Berechtigung")).toBeInTheDocument();
   });
 
   it("opens the inline edit form and triggers delete for non-system roles", () => {
@@ -211,7 +211,7 @@ describe("RolesMasterDetail", () => {
     );
 
     // Anker: das Detail der Rolle ist geladen.
-    expect(screen.getByText("1 Berechtigungen")).toBeInTheDocument();
+    expect(screen.getByText("1 Berechtigung")).toBeInTheDocument();
     expect(screen.queryByText(/externen Person/)).not.toBeInTheDocument();
   });
 
