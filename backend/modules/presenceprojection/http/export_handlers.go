@@ -467,6 +467,18 @@ func applyExportFilters(students []StudentResponse, filters studentExportFilters
 	return filtered
 }
 
+func matchesExportStatusFilter(student StudentResponse, filter string) bool {
+	switch filter {
+	case "", "all":
+		return true
+	case "entschuldigt-klassenfahrt":
+		status := exportStatus(student)
+		return status == "entschuldigt" || status == "klassenfahrt"
+	default:
+		return exportStatus(student) == filter
+	}
+}
+
 // exportStudentMatchesFilters reports whether one child survives every requested
 // export filter. byBirthday and months are precomputed by applyExportFilters.
 func exportStudentMatchesFilters(student StudentResponse, filters studentExportFilters, byBirthday bool, months map[time.Month]bool, planningDate calendar.Date) bool {
@@ -476,7 +488,7 @@ func exportStudentMatchesFilters(student StudentResponse, filters studentExportF
 	if !matchesExportYearFilter(student.SchoolClass, filters.Year) {
 		return false
 	}
-	if filters.Status != "" && filters.Status != "all" && exportStatus(student) != filters.Status {
+	if !matchesExportStatusFilter(student, filters.Status) {
 		return false
 	}
 	if !matchesAdministrativeFilters(student, filters.Bus, filters.PhotoConsent, filters.PickupStatus, planningDate) {
