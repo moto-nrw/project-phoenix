@@ -1115,6 +1115,13 @@ func fullSeedAPIMock(t *testing.T, traces ...*fullSeedAPITrace) *seedHTTPTestSer
 			})
 			return
 		}
+		// The default profile checks booked children in for today (#4571).
+		if !manualAuth && r.Method == seedHTTPMethodPost && strings.HasSuffix(r.URL.Path, "/school-checkin") {
+			_ = json.NewEncoder(w).Encode(map[string]any{
+				"status": "success", "data": map[string]any{"status": "checked_in", "changed": true},
+			})
+			return
+		}
 		if manualAuth && r.Method == seedHTTPMethodPost && strings.HasSuffix(r.URL.Path, "/school-checkin") {
 			var body struct {
 				Action string `json:"action"`

@@ -96,7 +96,7 @@ func BuildClassArrivals(db transactionruntime.Database, logger *slog.Logger) (ti
 // CarePlanSchedules are Care Plan's care lifecycle and schedules: the pickup
 // and arrival baselines, the care-day derivation (#1747), the pickup auto
 // excusal (#2360, #3261), the pickup and arrival schedules and the partial
-// absences.
+// absences, and the children each care offering holds on a day (#4571).
 type CarePlanSchedules struct {
 	Lifecycle        careplan.CareLifecycle
 	PickupBaselines  careplan.PickupBaselineReader
@@ -106,6 +106,7 @@ type CarePlanSchedules struct {
 	Pickups          careplan.PickupScheduleService
 	PartialAbsences  careplan.PartialAbsenceService
 	Arrivals         careplan.ArrivalScheduleService
+	OfferingDays     careplan.OfferingDayRoster
 }
 
 // bookingsAuthoritative reports whether the approved bookings supply the
@@ -154,8 +155,13 @@ func BuildCarePlanSchedules(
 	if err != nil {
 		return CarePlanSchedules{}, err
 	}
+	offeringDays, err := careplan.NewOfferingDayRoster(carePlan, approved)
+	if err != nil {
+		return CarePlanSchedules{}, err
+	}
 	schedules := CarePlanSchedules{
 		Lifecycle: lifecycle, PickupBaselines: pickupBaselines, ArrivalBaselines: arrivalBaselines, CareDay: careDay,
+		OfferingDays: offeringDays,
 	}
 	return buildCarePlanPlans(db, logger, carePlan, rows, presence, schedules)
 }

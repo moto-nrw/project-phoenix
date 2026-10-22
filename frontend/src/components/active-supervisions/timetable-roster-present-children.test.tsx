@@ -8,7 +8,10 @@ import type { TimetableRoster } from "~/lib/timetable-operations-types";
 
 const mocks = vi.hoisted(() => ({ fetchStudents: vi.fn() }));
 
-vi.mock("~/lib/student-api", () => ({ fetchStudents: mocks.fetchStudents }));
+vi.mock("~/lib/student-api", () => ({
+  fetchStudents: mocks.fetchStudents,
+  fetchCareOfferingOptions: () => Promise.resolve([]),
+}));
 
 const PICKER_TITLE = "Anwesende Kinder hinzufügen";
 

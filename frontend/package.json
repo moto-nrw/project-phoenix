@@ -98,7 +98,7 @@
     "prettier": "^3.9.10",
     "prettier-plugin-tailwindcss": "^0.8.1",
     "react-scan": "0.5.7",
-    "storybook": "^10.6.0",
+    "storybook": "^10.6.2",
     "tailwindcss": "^4.3.3",
     "typescript": "^6.0.3",
     "typescript-native": "npm:typescript@7.0.2",

@@ -43,6 +43,17 @@ export interface StudentFilters {
   page_size?: number;
   /** Adds today's effective pickup time (`pickup_time`) to every row. */
   include_pickup_times?: boolean;
+  /**
+   * Keeps the present children who booked this care offering for today and
+   * are not signed off for it (#4571). Needs `location_state: "present"`.
+   */
+  care_offering_id?: string;
+}
+
+/** An active care offering that counts as care, as a selection lists it. */
+export interface CareOfferingOption {
+  readonly id: string;
+  readonly name: string;
 }
 
 // Generic API response interface
@@ -131,6 +142,8 @@ async function buildStudentUrl(
     params.append("page_size", filters.page_size.toString());
   if (filters.include_pickup_times)
     params.append("include_pickup_times", "true");
+  if (filters.care_offering_id)
+    params.append("care_offering_id", filters.care_offering_id);
 
   const queryString = params.toString();
   return { url: queryString ? `${baseUrl}?${queryString}` : baseUrl, useProxy };
@@ -227,6 +240,25 @@ function extractApiData<T>(responseData: ApiResponse<T> | T): T {
     return responseData.data;
   }
   return responseData;
+}
+
+/**
+ * The school's active care offerings that count as care (#4571). Browser
+ * only: the present-children picker is its one caller.
+ */
+export async function fetchCareOfferingOptions(): Promise<
+  CareOfferingOption[]
+> {
+  try {
+    const session = await getCachedSession();
+    const responseData = await authFetch<
+      ApiResponse<CareOfferingOption[]> | CareOfferingOption[]
+    >("/api/students/care-offerings", { token: session?.user?.token });
+    const data = extractApiData(responseData);
+    return Array.isArray(data) ? data : [];
+  } catch (error) {
+    handleStudentApiError(error, "fetch care offering options");
+  }
 }
 
 // Fetch a single student by ID

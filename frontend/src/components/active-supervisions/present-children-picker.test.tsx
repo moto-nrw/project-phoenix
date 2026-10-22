@@ -1,4 +1,10 @@
-import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import {
+  cleanup,
+  fireEvent,
+  render,
+  screen,
+  waitFor,
+} from "@testing-library/react";
 import type React from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -6,11 +12,19 @@ import { PresentChildrenPicker } from "./present-children-picker";
 
 const mocks = vi.hoisted(() => ({
   fetchStudents: vi.fn(),
+  fetchCareOfferingOptions: vi.fn(),
 }));
 
 vi.mock("~/lib/student-api", () => ({
   fetchStudents: mocks.fetchStudents,
+  fetchCareOfferingOptions: mocks.fetchCareOfferingOptions,
 }));
+
+vi.mock("~/lib/tenant-context", () => ({
+  useTenantSlugSafe: () => "schule-am-berg",
+}));
+
+const OFFERING_STORAGE_KEY = "moto:present-children-offering:schule-am-berg";
 
 vi.mock("~/components/ui/form-modal", () => ({
   FormModal: ({
@@ -86,8 +100,11 @@ function renderPicker(
 
 describe("PresentChildrenPicker", () => {
   beforeEach(() => {
+    globalThis.localStorage.clear();
     mocks.fetchStudents.mockReset();
     mocks.fetchStudents.mockResolvedValue({ students: presentStudents });
+    mocks.fetchCareOfferingOptions.mockReset();
+    mocks.fetchCareOfferingOptions.mockResolvedValue([]);
   });
 
   it("loads the present children with today's Gehzeit", async () => {
@@ -238,5 +255,185 @@ describe("PresentChildrenPicker", () => {
     expect(
       await screen.findByText("Kein weiteres Kind bleibt noch länger."),
     ).toBeInTheDocument();
+  });
+
+  describe("Nach Angebot", () => {
+    const offerings = [
+      { id: "11", name: "OGS bis 16 Uhr" },
+      { id: "12", name: "Kurzbetreuung" },
+    ];
+    // The backend has already narrowed the list to the offering.
+    const offeringStudents = [presentStudents[1], presentStudents[3]];
+
+    beforeEach(() => {
+      mocks.fetchCareOfferingOptions.mockResolvedValue(offerings);
+      mocks.fetchStudents.mockImplementation(
+        ({ care_offering_id }: { care_offering_id?: string }) =>
+          Promise.resolve({
+            students: care_offering_id ? offeringStudents : presentStudents,
+          }),
+      );
+    });
+
+    it("is missing when the school has no active offering", async () => {
+      mocks.fetchCareOfferingOptions.mockResolvedValue([]);
+      renderPicker();
+
+      await screen.findByText("Anna Abel");
+      expect(
+        screen.getByRole("button", { name: "Alle anwesenden" }),
+      ).toBeInTheDocument();
+      expect(
+        screen.queryByRole("button", { name: "Nach Angebot" }),
+      ).not.toBeInTheDocument();
+    });
+
+    it("is missing when the offerings cannot be loaded", async () => {
+      mocks.fetchCareOfferingOptions.mockRejectedValue(new Error("offline"));
+      renderPicker();
+
+      await screen.findByText("Anna Abel");
+      expect(
+        screen.queryByRole("button", { name: "Nach Angebot" }),
+      ).not.toBeInTheDocument();
+    });
+
+    it("loads the children of the chosen offering from the backend", async () => {
+      renderPicker();
+
+      await screen.findByText("Anna Abel");
+      fireEvent.click(screen.getByRole("button", { name: "Nach Angebot" }));
+
+      // Ben's Gehzeit has passed, but the offering list keeps him; Dana is
+      // already in the block.
+      expect(await screen.findByText("Ben Berg")).toBeInTheDocument();
+      expect(screen.queryByText("Anna Abel")).not.toBeInTheDocument();
+      expect(screen.queryByText("Dana Dorn")).not.toBeInTheDocument();
+      expect(mocks.fetchStudents).toHaveBeenLastCalledWith({
+        location_state: "present",
+        include_pickup_times: true,
+        page: 1,
+        page_size: 100,
+        care_offering_id: "11",
+      });
+      expect(
+        screen.getByText(
+          "Ohne Kinder, die heute früher gehen oder abgemeldet sind.",
+        ),
+      ).toBeInTheDocument();
+    });
+
+    it("remembers the offering for the next opening", async () => {
+      const { onClose } = renderPicker();
+
+      await screen.findByText("Anna Abel");
+      fireEvent.click(screen.getByRole("button", { name: "Nach Angebot" }));
+      fireEvent.click(
+        screen.getByRole("combobox", { name: "Betreuungsangebot" }),
+      );
+      fireEvent.click(screen.getByRole("option", { name: "Kurzbetreuung" }));
+      await waitFor(() =>
+        expect(mocks.fetchStudents).toHaveBeenLastCalledWith(
+          expect.objectContaining({ care_offering_id: "12" }),
+        ),
+      );
+      expect(globalThis.localStorage.getItem(OFFERING_STORAGE_KEY)).toBe("12");
+      fireEvent.click(screen.getByRole("button", { name: "Abbrechen" }));
+      expect(onClose).toHaveBeenCalled();
+
+      mocks.fetchStudents.mockClear();
+      cleanup();
+      renderPicker();
+
+      expect(await screen.findByText("Ben Berg")).toBeInTheDocument();
+      expect(
+        screen.getByRole("button", { name: "Nach Angebot" }),
+      ).toHaveAttribute("aria-pressed", "true");
+      expect(
+        screen.getByRole("combobox", { name: "Betreuungsangebot" }),
+      ).toHaveTextContent("Kurzbetreuung");
+      expect(mocks.fetchStudents).toHaveBeenCalledTimes(1);
+      expect(mocks.fetchStudents).toHaveBeenCalledWith(
+        expect.objectContaining({ care_offering_id: "12" }),
+      );
+    });
+
+    it("opens with the usual default when the stored offering is gone", async () => {
+      globalThis.localStorage.setItem(OFFERING_STORAGE_KEY, "99");
+      renderPicker();
+
+      await screen.findByText("Anna Abel");
+      expect(
+        screen.getByRole("button", { name: "Noch in Betreuung" }),
+      ).toHaveAttribute("aria-pressed", "true");
+    });
+
+    it("keeps the offering when another choice is made", async () => {
+      globalThis.localStorage.setItem(OFFERING_STORAGE_KEY, "11");
+      const { onClose } = renderPicker();
+
+      expect(await screen.findByText("Ben Berg")).toBeInTheDocument();
+      fireEvent.click(screen.getByRole("button", { name: "Alle anwesenden" }));
+
+      expect(await screen.findByText("Anna Abel")).toBeInTheDocument();
+      expect(globalThis.localStorage.getItem(OFFERING_STORAGE_KEY)).toBe("11");
+      fireEvent.click(screen.getByRole("button", { name: "Abbrechen" }));
+      expect(onClose).toHaveBeenCalled();
+
+      cleanup();
+      renderPicker();
+
+      expect(await screen.findByText("Ben Berg")).toBeInTheDocument();
+      expect(
+        screen.getByRole("button", { name: "Nach Angebot" }),
+      ).toHaveAttribute("aria-pressed", "true");
+    });
+
+    it("drops the selection when the list changes", async () => {
+      // At 12:00 Ben's Gehzeit (11:45) is over: he is in the offering list
+      // but not under "Noch in Betreuung".
+      const { onAdd } = renderPicker();
+
+      await screen.findByText("Anna Abel");
+      fireEvent.click(screen.getByRole("button", { name: "Nach Angebot" }));
+      fireEvent.click(
+        await screen.findByRole("checkbox", { name: /Ben Berg/ }),
+      );
+      fireEvent.click(
+        screen.getByRole("button", { name: "Noch in Betreuung" }),
+      );
+      await screen.findByText("Anna Abel");
+      fireEvent.click(screen.getByRole("button", { name: "Alle anwesenden" }));
+
+      expect(
+        screen.getByRole("checkbox", { name: /Ben Berg/ }),
+      ).not.toBeChecked();
+      expect(
+        screen.getByRole("button", { name: "Kinder hinzufügen" }),
+      ).toBeDisabled();
+      expect(onAdd).not.toHaveBeenCalled();
+    });
+
+    it("points to all present children when nobody booked the offering", async () => {
+      globalThis.localStorage.setItem(OFFERING_STORAGE_KEY, "11");
+      mocks.fetchStudents.mockImplementation(
+        ({ care_offering_id }: { care_offering_id?: string }) =>
+          Promise.resolve({
+            students: care_offering_id ? [] : presentStudents,
+          }),
+      );
+      renderPicker();
+
+      expect(
+        await screen.findByText(
+          "Kein weiteres anwesendes Kind hat dieses Angebot heute gebucht.",
+        ),
+      ).toBeInTheDocument();
+      expect(
+        screen.getByText(
+          "Unter „Alle anwesenden“ sehen Sie alle Kinder in der OGS.",
+        ),
+      ).toBeInTheDocument();
+    });
   });
 });
