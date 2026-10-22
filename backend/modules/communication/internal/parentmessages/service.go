@@ -546,6 +546,21 @@ func (s *Service) ListGuardians(ctx context.Context, studentID int64) ([]*Messag
 	return guardians, nil
 }
 
+// ListReachableStudentIDs returns the school's children that ListGuardians
+// would offer at least one recipient for, so the child list of „Neue
+// Nachricht“ can mark the others before a child is picked (#4362). It answers
+// for every child at once, so only a caller who reads every child may ask.
+func (s *Service) ListReachableStudentIDs(ctx context.Context) ([]int64, error) {
+	if !s.scope(ctx) {
+		return nil, ErrForbidden
+	}
+	ids, err := s.ThreadRepo.ListStudentIDsWithMessageableGuardian(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("messaging: list reachable students: %w", err)
+	}
+	return ids, nil
+}
+
 // ListStudentThreads returns the staff view of one child's conversations
 // (newest activity first), for the student-detail card. Authorizes read
 // access to the child, then filters server-side instead of having the card

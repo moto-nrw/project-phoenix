@@ -491,6 +491,57 @@ func TestParentMessaging_ListGuardiansForStudent_ExcludesInactiveTenantMembershi
 	assert.Empty(t, guardians, "guardian without an active account_tenants membership must be excluded")
 }
 
+// TestParentMessaging_ListStudentIDsWithMessageableGuardian applies the
+// recipient picker's rule to every child at once (#4362): a child counts only
+// with a guardian who holds a portal account, parent_portal.access for this
+// child and an active membership of the school.
+func TestParentMessaging_ListStudentIDsWithMessageableGuardian(t *testing.T) {
+	t.Parallel()
+
+	db := testpkg.SetupTestDB(t)
+	ctx := tenantCtx(t)
+	reachable := testpkg.CreateTestParentGuardianChain(t, db)
+	revoked := testpkg.CreateTestParentGuardianChain(t, db)
+	withoutGuardian := testpkg.CreateTestStudent(t, db, "Ohne", "Eltern", "3a")
+
+	// A pickup-only guardian holds an account but no parent_portal.access.
+	pickupOnly := testpkg.CreateTestStudent(t, db, "Nur", "Abholung", "3a")
+	pickupAccount := testpkg.CreateTestAccount(t, db, "pickup-only-list")
+	pickupProfile := &peopleValues.GuardianProfileSnapshot{
+		FirstName:  "Olaf",
+		LastName:   "Helfer",
+		Email:      &pickupAccount.Email,
+		AccountID:  &pickupAccount.ID,
+		HasAccount: true,
+	}
+	pickupProfile.TenantID = reachable.TenantID
+	_, err := db.NewInsert().Model(pickupProfile).ModelTableExpr(`users.guardian_profiles`).ExcludeColumn("id", "created_at", "updated_at", "phone_numbers").Returning("*").Exec(context.Background())
+	require.NoError(t, err)
+	pickupLink := &testpkg.StudentGuardian{
+		StudentID:         pickupOnly.ID,
+		GuardianProfileID: pickupProfile.ID,
+		RelationshipType:  "other",
+		CanPickup:         true,
+	}
+	testpkg.ApplyStudentGuardianRole(pickupLink, testpkg.GuardianRolePickupOnly)
+	pickupLink.TenantID = reachable.TenantID
+	require.NoError(t, testpkg.InsertTestStudentGuardian(context.Background(), db, pickupLink))
+
+	_, err = db.ExecContext(context.Background(),
+		`UPDATE auth.account_tenants SET status = 'inactive' WHERE account_id = ? AND tenant_id = ?`,
+		revoked.AccountID, revoked.TenantID)
+	require.NoError(t, err)
+
+	threadRepo := parentRepos(t, db).Thread
+	ids, err := testpkg.TenantQuery0(t, ctx, db, threadRepo.ListStudentIDsWithMessageableGuardian)
+	require.NoError(t, err)
+	assert.Contains(t, ids, reachable.StudentID)
+	assert.NotContains(t, ids, revoked.StudentID, "a guardian without an active membership reaches nobody")
+	assert.NotContains(t, ids, pickupOnly.ID, "a pickup-only guardian has no parent_portal.access")
+	assert.NotContains(t, ids, withoutGuardian.ID)
+	assert.IsIncreasing(t, ids)
+}
+
 // TestParentMessaging_TouchLastMessage_Monotonic verifies the denormalized
 // last-activity fields only ever move FORWARD in time. This is the concurrency
 // guard: when a staff reply and a guardian message hit the same thread at nearly

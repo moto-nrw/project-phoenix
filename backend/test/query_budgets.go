@@ -274,6 +274,9 @@ var queryBudgets = map[string]queryBudget{
 	// modules/communication — inbox reads remain fixed as thread count grows.
 	"modules.communication.parent_messages.list_inbox": {max: 1, exact: true},
 	"modules.communication.staff_messages.list_inbox":  {max: 2, exact: true},
+	// The children with a reachable guardian (#4362): the portal links of the
+	// whole school, then one batched membership check for their accounts.
+	"modules.communication.parent_messages.list_reachable_students": {max: 2, exact: true},
 	// database/repositories/users — due announcement reminders read their rows
 	// and targets in two batches, regardless of the number due in one tick.
 	"repositories.parent_announcements.due_reminders": {max: 2, exact: true},

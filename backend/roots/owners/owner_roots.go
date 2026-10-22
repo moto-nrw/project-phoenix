@@ -113,7 +113,7 @@ func ComposeParentMessagingRepositories(
 	groupNames := parentGroupNames{groups: groups}.list
 	return parentStore.MessagingRepositories{
 		ParentAnnouncement:  parentStore.NewParentAnnouncementRepository(pool, NewParentAnnouncementAudience(db, ParentAnnouncementApplicants(enrollment), now)),
-		ParentMessageThread: parentStore.NewParentMessageThreadRepository(pool, NewParentGuardianLister(db, identity.FindActiveSchoolMemberships)),
+		ParentMessageThread: parentStore.NewParentMessageThreadRepository(pool, NewParentGuardianLister(db, identity.FindActiveSchoolMemberships), NewParentReachableStudents(db, identity.FindActiveSchoolMemberships)),
 		ParentMessageRead: parentStore.WithInboxGroupNames(
 			parentStore.NewStaffParentMessageReadRepository(pool, NewParentMessageInbox(db), members, personAccounts), groupNames),
 		StaffMessageRead: staffStore.NewStaffMessageReadRepository(pool, NewCommunicationStaffColleagues(db,
