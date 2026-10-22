@@ -9,7 +9,6 @@ import (
 	"strings"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/modules/careplan/absencerecords"
 	"github.com/moto-nrw/project-phoenix/workflows/parentportal/internal/care"
 )
 
@@ -484,10 +483,11 @@ func (s *Service) excusedShareIdentity(ctx context.Context, requestID int64) (in
 	return row.SubmittedBy, row.StudentID, RequestShareExcused, nil
 }
 
-// requestLookupError answers a missing request with the sharing not-found,
-// whether the read reported it as no row or as its own not-found value.
+// requestLookupError answers a missing request with the sharing not-found.
+// The bindings report a missing row as ErrRequestSharingNotFound; the
+// master-data read reports the workflow's own not-found.
 func requestLookupError(err error) error {
-	if err == nil || errors.Is(err, care.ErrMasterDataRequestNotFound) || errors.Is(err, absencerecords.ErrExcusedRequestNotFound) {
+	if err == nil || errors.Is(err, care.ErrMasterDataRequestNotFound) {
 		return ErrRequestSharingNotFound
 	}
 	return err

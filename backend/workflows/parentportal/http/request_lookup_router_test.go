@@ -66,7 +66,7 @@ func newRequestLookupRouter(t *testing.T, db *bun.DB) (http.Handler, careplan.Ca
 		ChangeRequestRepo:         owners.NewParentDataRequestReads(carePlan),
 		DataRequests:              owners.NewParentDataRequestCommands(carePlan),
 		CareRequestRepo:           owners.NewParentCareRequestReads(carePlan),
-		ExcusedRequestRepo:        repos.ExcusedAbsenceRequest,
+		ExcusedRequestRepo:        owners.NewParentExcusedRequestReads(repos.ExcusedAbsenceRequest),
 		OfferingChangeRequestRepo: api.NewParentOfferingChangeTestReads(carePlan),
 		FamilyProtectionEvents:    owners.BindParentFamilyProtectionReads(people.FamilyProtection),
 		ParentRequestShares:       owners.BindParentRequestShareRecords(people.ParentRequestShare),

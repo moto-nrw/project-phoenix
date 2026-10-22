@@ -291,10 +291,10 @@ func (s *Service) editMasterDataRequestInTx(
 	// A request that is not the caller's own is reported as missing, never as
 	// forbidden: a stranger must not learn that the id exists.
 	if req.SubmittedBy != accountID || req.StudentID != studentID {
-		return nil, s.ChangeRequestRepo.NotFoundError()
+		return nil, ErrMasterDataRequestNotFound
 	}
 	if req.Status != DataChangeStatusPending {
-		return nil, s.ChangeRequestRepo.NotPendingError()
+		return nil, ErrMasterDataRequestNotPending
 	}
 	if expectedVersion != "" && excusedrequests.ParentRequestVersion(req.UpdatedAt) != expectedVersion {
 		return nil, parentrequests.ErrStale

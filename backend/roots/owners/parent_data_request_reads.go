@@ -35,8 +35,6 @@ func NewParentDataRequestReads(source careplan.CareRequestsQuery) parentportal.D
 			}
 			return result, nil
 		},
-		NotFoundError:   func() error { return parentportal.ErrMasterDataRequestNotFound },
-		NotPendingError: func() error { return parentportal.ErrMasterDataRequestNotPending },
 	})
 }
 
