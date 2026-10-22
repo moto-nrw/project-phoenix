@@ -28,6 +28,7 @@ through `devbox run` when the current process has not loaded the project environ
 | Logs | `tmp/dev-native/backend.log`, `tmp/dev-native/frontend.log` |
 | Full container stack | `docker compose --profile full up -d`, logs via `docker compose logs -f server` |
 | Frontend quality | `cd frontend && pnpm run check` |
+| Frontend E2E flows | seeded native stack, then `scripts/dev-native.sh frontend pnpm run test:e2e` |
 | Backend suite | `cd backend && ../scripts/run-go-toolchain.sh go test ./...` |
 | Backend suite with immediate sweep | `scripts/run-go-toolchain.sh scripts/test-backend.sh` |
 | Backend unit-only loop | `cd backend && ../scripts/run-go-toolchain.sh go test -short ./...` (skips DB tests) |

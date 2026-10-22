@@ -61,7 +61,9 @@ export default defineConfig({
   fullyParallel: true,
   forbidOnly: !!process.env.CI,
   workers: process.env.CI ? 1 : undefined,
-  reporter: "html",
+  // CI (.github/workflows/e2e.yml) braucht die Fehler im Log; der HTML-Report
+  // landet bei einem Fehlschlag als Artefakt.
+  reporter: process.env.CI ? [["list"], ["html", { open: "never" }]] : "html",
   use: {
     baseURL: "http://localhost:3000",
     screenshot: "only-on-failure",
