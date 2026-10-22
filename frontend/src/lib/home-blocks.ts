@@ -399,7 +399,7 @@ export const HOME_BLOCKS: readonly HomeBlockDefinition[] = [
     kind: "section",
     label: "Kinder",
     description:
-      "Wie viele Kinder gerade da, in der Schule, zuhause, krank oder entschuldigt sind. Jede Zahl öffnet die passende Liste in „Alle Kinder“.",
+      "Wie viele Kinder gerade da, in der Schule, zuhause, krank oder entschuldigt sind.",
     concept: "children",
     spans: SECTION_SPANS,
     // Fünf Zeilen passen erst in drei Rasterzeilen ganz hinein.
