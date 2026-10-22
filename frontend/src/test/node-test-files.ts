@@ -161,7 +161,6 @@ export const nodeLogicTestFiles = [
   "src/lib/notification-preferences-api.test.ts",
   "src/lib/offering-request-review-api.test.ts",
   "src/lib/ogs-group-live-api.test.ts",
-  "src/lib/ogs-group-sections.test.ts",
   "src/lib/operator/account-tenant-access-api.test.ts",
   "src/lib/operator/api-helpers.test.ts",
   "src/lib/operator/operator-invitation-api.test.ts",

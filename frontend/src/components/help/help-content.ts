@@ -104,7 +104,7 @@ function loginResult(
     return "Nach der Anmeldung öffnet moto den Bereich `Alle Kinder`.";
   }
   if (presenceMode === "detailed" && groupMode === "fixed_groups") {
-    return "Nach der Anmeldung öffnet moto den Bereich `Meine Gruppen`.";
+    return "Nach der Anmeldung öffnet moto den Bereich `Gruppen`.";
   }
   return "Nach der Anmeldung öffnet moto die für Sie vorgesehene Startseite.";
 }
@@ -507,7 +507,7 @@ function studentSearchTopic(
         ],
       },
       {
-        // #3834: derselbe Umschalter steht auch in `Meine Gruppen` und in der
+        // #3834: derselbe Umschalter steht auch in `Gruppen` und in der
         // aktuellen Aufsicht, auch auf dem Handy.
         title: "Als Liste ansehen",
         description:
@@ -527,7 +527,7 @@ function studentSearchTopic(
       "Haben Sie einen anderen Tag gewählt? Dann sehen Sie die geplante Anwesenheit. Ein aktueller Aufenthaltsort wird nicht gezeigt.",
       "Ansicht und Spalten bleiben auf diesem Gerät so, wie Sie sie gewählt haben.",
       // Einstellung „Kinder nur über ‚Alle Kinder‘ finden“ (#1321).
-      "Fehlen `Meine Gruppen` und `Aktuelle Aufsicht` in der Navigation? Dann wählen Sie in `Alle Kinder` oben `Meine Gruppe` oder `Meine Aufsicht`.",
+      "Fehlen `Gruppen` und `Aktuelle Aufsicht` in der Navigation? Dann wählen Sie in `Alle Kinder` oben `Meine Gruppe` oder `Meine Aufsicht`.",
       "Einige Bereiche brauchen zusätzliche Rechte: `Betreuungsplan`, `Dokumente` und `Änderungsprotokoll`. Fehlt ein Bereich? Fragen Sie Ihre Leitung.",
       ...(presenceDifference ? [presenceDifference] : []),
     ],
@@ -986,7 +986,7 @@ function ownGroupsTopic(
   if (groupMode === "open_care") {
     return {
       id: HELP_TOPICS.ownGroups,
-      title: "Meine Gruppen ansehen",
+      title: "Gruppen ansehen",
       question: "Wie sehe ich meine Gruppen an?",
       summary:
         "Bei offener Betreuung gibt es keine festen eigenen Gruppen in moto.",
@@ -998,14 +998,14 @@ function ownGroupsTopic(
         "Nutzen Sie die Suche oder die Filter für die benötigten Kinder.",
       ],
       result:
-        "Sie sehen die Kinder der OGS gemeinsam. Der Bereich `Meine Gruppen` wird nicht angezeigt.",
+        "Sie sehen die Kinder der OGS gemeinsam. Der Bereich `Gruppen` wird nicht angezeigt.",
       related: [HELP_TOPICS.studentSearch, HELP_TOPICS.webAttendance],
     };
   }
   if (groupMode === "unknown") {
     return {
       id: HELP_TOPICS.ownGroups,
-      title: "Meine Gruppen ansehen",
+      title: "Gruppen ansehen",
       question: "Wie sehe ich meine Gruppen an?",
       summary:
         "Ob Sie eigene Gruppen sehen, hängt von der Arbeitsweise Ihrer OGS ab.",
@@ -1013,9 +1013,9 @@ function ownGroupsTopic(
       audience: ["caregiver", "lead"],
       icon: "UsersThree",
       steps: [
-        "Prüfen Sie, ob `Meine Gruppen` oder `Weitere Gruppen` in der Seitenleiste steht.",
-        "Ist einer der Bereiche vorhanden? Öffnen Sie dort die gewünschte Gruppe.",
-        "Fehlen beide Bereiche? Öffnen Sie `Alle Kinder` und nutzen Sie Suche und Filter.",
+        "Prüfen Sie, ob `Gruppen` in der Seitenleiste steht.",
+        "Ist der Bereich vorhanden? Wählen Sie dort die gewünschte Gruppe.",
+        "Fehlt der Bereich? Öffnen Sie `Alle Kinder` und nutzen Sie Suche und Filter.",
       ],
       result:
         "Sie sehen die Kinder entweder in festen eigenen Gruppen oder in einer gemeinsamen Kinderliste.",
@@ -1030,15 +1030,15 @@ function ownGroupsTopic(
 
   return {
     id: HELP_TOPICS.ownGroups,
-    title: "Meine Gruppen ansehen",
+    title: "Gruppen ansehen",
     question: "Wie sehe ich meine Gruppen an?",
-    summary: "Öffnen Sie Ihre festen Gruppen und die zugehörigen Kinder.",
+    summary: "Wählen Sie eine Gruppe und sehen Sie ihre Kinder.",
     group: "gruppen",
     audience: ["caregiver", "lead"],
     icon: "UsersThree",
     steps: [
-      "Öffnen Sie `Meine Gruppen` oder `Weitere Gruppen` in der Seitenleiste.",
-      "Wählen Sie die gewünschte Gruppe.",
+      "Öffnen Sie `Gruppen` in der Seitenleiste.",
+      "Wählen Sie die gewünschte Gruppe. Ihre eigene Gruppe ist mit `Ihre Gruppe` markiert.",
       "Prüfen Sie die Zahlen für `krank` und `entschuldigt`.",
       "Suchen Sie bei Bedarf über `Name suchen...` nach einem Kind.",
       // Live geprueft: die Seite hat keinen Knopf `Filter`, sondern einen
@@ -1049,12 +1049,13 @@ function ownGroupsTopic(
     ],
     result: statusResult,
     differences: [
-      "In der Seitenleiste steht hinter jeder Gruppe, wie viele Kinder gerade da sind.",
-      "Eine vorübergehend übernommene Gruppe erscheint ebenfalls unter `Meine Gruppen`.",
-      "Gruppen, die nicht Ihre eigenen sind, stehen unter `Weitere Gruppen`.",
+      "Sehen Sie nur eine Gruppe? Dann öffnet moto sie direkt, ohne Auswahl.",
+      "Auf jeder Karte steht die Gruppenleitung, wenn die Leitung eine eingetragen hat.",
+      "Eine vorübergehend übernommene Gruppe ist mit `Vertretung` markiert.",
+      "In der Seitenleiste stehen unter `Gruppen` nur Ihre eigenen Gruppen. Dahinter steht, wie viele Kinder gerade da sind.",
       "Fehlt eine Gruppe? Bitten Sie Ihre Leitung, Ihre Gruppenzuordnung zu prüfen.",
       // Einstellung „Kinder nur über ‚Alle Kinder‘ finden“ (#1321).
-      "Fehlt `Meine Gruppen` in der Navigation? Öffnen Sie `Alle Kinder` und wählen Sie oben `Meine Gruppe`. Die Gruppenseite öffnen Sie im Menü mit den drei Punkten unter `Zur Gruppenseite`.",
+      "Fehlt `Gruppen` in der Navigation? Öffnen Sie `Alle Kinder` und wählen Sie oben `Meine Gruppe`. Die Gruppenseite öffnen Sie im Menü mit den drei Punkten unter `Zur Gruppenseite`.",
     ],
     troubleshooting: HELP_TOPICS.missingChildOrGroup,
     related: [
@@ -1095,7 +1096,7 @@ function transferGroupTopic(groupMode: HelpGroupMode): HelpTopic {
       audience: ["caregiver", "lead"],
       icon: "ArrowsLeftRight",
       steps: [
-        "Prüfen Sie, ob `Meine Gruppen` in der Seitenleiste steht.",
+        "Prüfen Sie, ob `Gruppen` in der Seitenleiste steht.",
         "Ist der Bereich vorhanden? Öffnen Sie Ihre Gruppe und das Menü mit den drei Punkten.",
         "Fehlt der Bereich? Dann müssen Sie keine feste Gruppe übergeben.",
       ],
@@ -1119,7 +1120,7 @@ function transferGroupTopic(groupMode: HelpGroupMode): HelpTopic {
       {
         title: "Gruppe übergeben",
         steps: [
-          "Öffnen Sie Ihre Gruppe unter `Meine Gruppen`.",
+          "Öffnen Sie Ihre Gruppe unter `Gruppen`.",
           "Öffnen Sie oben rechts das Menü mit den drei Punkten.",
           "Wählen Sie `Gruppe übergeben`.",
           "Wählen Sie unter `Übergeben an:` im Feld `Fachkraft auswählen...` die Person aus.",
@@ -1139,7 +1140,7 @@ function transferGroupTopic(groupMode: HelpGroupMode): HelpTopic {
       },
     ],
     result:
-      "Die andere Betreuungskraft sieht die Gruppe bis zum Ende des Tages unter `Meine Gruppen`. Sie behalten selbst den Zugriff.",
+      "Die andere Betreuungskraft sieht die Gruppe bis zum Ende des Tages unter `Gruppen`, markiert mit `Vertretung`. Sie behalten selbst den Zugriff.",
     notes: [
       "Sie können die Gruppe an mehrere Betreuungskräfte übergeben. Wiederholen Sie dafür die Schritte.",
       "Alle Übergaben stehen im Fenster unter `Aktuell übergeben an:`.",
@@ -1148,7 +1149,7 @@ function transferGroupTopic(groupMode: HelpGroupMode): HelpTopic {
       "Fehlt der Eintrag `Gruppe übergeben` im Menü? Dann betreuen Sie die Gruppe nur als Vertretung. Eine Vertretung kann die Gruppe nicht weitergeben.",
       "Steht dort `Keine pädagogische Fachkraft verfügbar`? Dann gibt es niemanden zum Übergeben. Fragen Sie Ihre Leitung.",
       // Einstellung „Kinder nur über ‚Alle Kinder‘ finden“ (#1321).
-      "Fehlt `Meine Gruppen` in der Navigation? Öffnen Sie `Alle Kinder`. Wählen Sie im Menü mit den drei Punkten `Zur Gruppenseite`.",
+      "Fehlt `Gruppen` in der Navigation? Öffnen Sie `Alle Kinder`. Wählen Sie im Menü mit den drei Punkten `Zur Gruppenseite`.",
     ],
     related: [HELP_TOPICS.ownGroups, HELP_TOPICS.missingChildOrGroup],
   };
@@ -2493,10 +2494,10 @@ function missingMenuDifferences(
 
   if (groupMode === "open_care") {
     lines.push(
-      "In Ihrer OGS gibt es `Meine Gruppen` nicht. Ihre OGS arbeitet mit offener Betreuung.",
+      "In Ihrer OGS gibt es den Bereich `Gruppen` nicht. Ihre OGS arbeitet mit offener Betreuung.",
     );
   } else if (groupMode === "unknown") {
-    lines.push("Bei offener Betreuung fehlt `Meine Gruppen`.");
+    lines.push("Bei offener Betreuung fehlt `Gruppen`.");
   }
 
   if (nfcEnabled === false) {
@@ -2563,7 +2564,7 @@ function missingChildOrGroupTopic(groupMode: HelpGroupMode): HelpTopic {
       "Suchen Sie das Kind unter `Alle Kinder`.",
       ...(groupMode === "fixed_groups"
         ? [
-            "Fehlt das Kind nur unter `Meine Gruppen`? Prüfen Sie, ob Sie die richtige Gruppe geöffnet haben.",
+            "Fehlt das Kind nur unter `Gruppen`? Prüfen Sie, ob Sie die richtige Gruppe geöffnet haben.",
             "Bitten Sie Ihre Leitung, die Gruppe des Kindes und Ihre Gruppenzuordnung zu prüfen.",
           ]
         : groupMode === "open_care"
@@ -2870,7 +2871,7 @@ function roomsCatalogTopic(presenceMode: HelpPresenceMode): HelpTopic {
 /**
  * Gruppenkatalog unter `/database/groups`. An keine Einstellung gebunden: der
  * `OpenCareModeGuard` schuetzt nur `/ogs-groups`, und die Seitenleiste blendet
- * bei offener Betreuung nur das Akkordeon `Meine Gruppen` aus
+ * bei offener Betreuung nur das Akkordeon `Gruppen` aus
  * (sidebar.tsx:1391). Der Katalog selbst bleibt in jeder Arbeitsweise stehen.
  */
 function groupsCatalogTopic(groupMode: HelpGroupMode): HelpTopic {
@@ -2923,7 +2924,7 @@ function groupsCatalogTopic(groupMode: HelpGroupMode): HelpTopic {
       "Über `Alle Räume` filtern Sie die Liste auf die Gruppen eines Raums.",
       ...(openCare
         ? [
-            "Ihre OGS arbeitet ohne feste Gruppen. Ihr Team sieht deshalb keine `Meine Gruppen`.",
+            "Ihre OGS arbeitet ohne feste Gruppen. Ihr Team sieht deshalb den Bereich `Gruppen` nicht.",
           ]
         : []),
     ],
@@ -5796,7 +5797,7 @@ function leadMissingMenuTopic(): HelpTopic {
     differences: [
       "Manche Bereiche hängen nicht an Rechten, sondern an Funktionen Ihrer OGS.",
       "Ohne NFC fehlen `Aktivitäten` und `Geräte`. Bei einfacher Anwesenheit fehlen `Räume` und `Heute`.",
-      "Ohne feste Gruppen fehlt `Meine Gruppen`.",
+      "Ohne feste Gruppen fehlt `Gruppen`.",
       "`Info-Displays` hängt an einem eigenen Schalter in den `Einstellungen`, nicht an einem Recht.",
     ],
     troubleshootingDetails: [
@@ -7583,7 +7584,7 @@ const DETAILED_ONLY_TOPIC_IDS: ReadonlySet<HelpTopicId> = new Set([
 ]);
 
 // Und dasselbe fuer die offene Betreuung: ohne feste eigene Gruppen gibt es
-// weder `Meine Gruppen` noch eine Gruppe, die man uebergeben koennte.
+// weder `Gruppen` noch eine Gruppe, die man uebergeben koennte.
 const FIXED_GROUPS_ONLY_TOPIC_IDS: ReadonlySet<HelpTopicId> = new Set([
   HELP_TOPICS.ownGroups,
   HELP_TOPICS.transferGroup,

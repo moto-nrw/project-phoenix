@@ -44,7 +44,7 @@ interface SidebarAccordionSectionProps {
   readonly labelsMounted?: boolean;
   readonly labelsVisible?: boolean;
   // Nur für den Bereich, der beim Einklappen als Ganzes verschwindet
-  // ("Weitere Gruppen", #2923): dort zieht die Hülle die volle Höhe des
+  // ("Offene Räume", #2923): dort zieht die Hülle die volle Höhe des
   // offenen Bereichs auf null. Klappte der Inhalt gleichzeitig seine eigene
   // Höhe zu, liefen zwei ineinander geschachtelte Höhenbewegungen — die Hülle
   // misst dann eine Höhe, die sich unter ihr weiter ändert, und die Zeilen
