@@ -2490,6 +2490,7 @@
         "care_exit_preview_changed": "Seit der Vorschau hat sich etwas geändert. Bitte prüfen Sie die Vorschau erneut.",
         "care_exit_too_many_students": "Bitte wählen Sie höchstens 500 Kinder auf einmal aus.",
         "care_offerings_disabled": "{object} ist hier zurzeit nicht verfügbar. Bitte fragen Sie Ihre Ansprechperson.",
+        "care_resume_alumnus": "Dieses Kind wurde beim Jahrgangswechsel abgemeldet. Sie finden es unter Jahrgangswechsel, Bereich Abgänge.",
         "care_resume_missing": "Für dieses Kind ist keine beendete Betreuung hinterlegt.",
         "care_resume_not_checked": "Bitte bestätigen Sie zuerst die Prüfung. Sonst bleiben Gruppe, Angebote, Wochenplan und Zeiten ungeprüft.",
         "care_resume_not_ended": "Die Betreuung dieses Kindes läuft noch. Sie müssen sie nicht wieder aufnehmen.",

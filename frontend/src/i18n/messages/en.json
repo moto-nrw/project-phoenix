@@ -2490,6 +2490,7 @@
         "care_exit_preview_changed": "{object} could not be changed. Please check its current status.",
         "care_exit_too_many_students": "{object} could not be saved. Please check your entries.",
         "care_offerings_disabled": "{object} is not available here at the moment. Please ask your contact person.",
+        "care_resume_alumnus": "{object} could not be changed. Please check its current status.",
         "care_resume_missing": "{object} could not be changed. Please check its current status.",
         "care_resume_not_checked": "{object} could not be saved. Please check your entries.",
         "care_resume_not_ended": "{object} could not be changed. Please check its current status.",

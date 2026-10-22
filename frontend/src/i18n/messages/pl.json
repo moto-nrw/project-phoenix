@@ -2490,6 +2490,7 @@
         "care_exit_preview_changed": "Nie udało się zmienić: {object}. Sprawdź aktualny stan.",
         "care_exit_too_many_students": "Nie udało się zapisać: {object}. Sprawdź wpisane dane.",
         "care_offerings_disabled": "Obecnie niedostępne tutaj: {object}. Zapytaj swoją osobę kontaktową.",
+        "care_resume_alumnus": "Nie udało się zmienić: {object}. Sprawdź aktualny stan.",
         "care_resume_missing": "Nie udało się zmienić: {object}. Sprawdź aktualny stan.",
         "care_resume_not_checked": "Nie udało się zapisać: {object}. Sprawdź wpisane dane.",
         "care_resume_not_ended": "Nie udało się zmienić: {object}. Sprawdź aktualny stan.",
