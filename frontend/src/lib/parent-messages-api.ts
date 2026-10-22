@@ -315,10 +315,6 @@ export async function openThread(input: {
 }
 
 /**
- * Fetch the guardians of a child who have a parents-portal account and can
- * receive a new message thread.
- */
-/**
  * IDs of the school's children with at least one guardian fetchGuardians
  * would offer. „Neue Nachricht“ marks every other child (#4362).
  */
@@ -333,6 +329,10 @@ export async function fetchReachableStudentIds(): Promise<ReadonlySet<string>> {
   return new Set(result.data.student_ids);
 }
 
+/**
+ * Fetch the guardians of a child who have a parents-portal account and can
+ * receive a new message thread.
+ */
 export async function fetchGuardians(studentId: string): Promise<Guardian[]> {
   const result = await getEnvelope<Guardian[]>(
     `/api/messages/students/${studentId}/guardians`,

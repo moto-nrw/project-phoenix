@@ -279,8 +279,9 @@ export function NewMessageModal({
               />
               {showsUnreachable ? (
                 <p className="text-sm text-gray-500">
-                  Bei „{NO_PARENT_ACCESS}“ brauchen die Eltern zuerst eine
-                  Einladung in die Eltern-App.
+                  Bei „{NO_PARENT_ACCESS}“ kann niemand die Nachricht in der
+                  Eltern-App lesen. Den Zugang der Eltern legen Sie beim Kind
+                  fest.
                 </p>
               ) : null}
             </SlideOverBody>

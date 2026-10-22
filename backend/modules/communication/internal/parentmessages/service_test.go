@@ -549,18 +549,24 @@ func TestListReachableStudentIDsQueryBudgetStaysFlat(t *testing.T) {
 	svc, _, _, db := buildMessagingWithSettings(t, stubSettings{messagingEnabled: true})
 	_, staffAccount := testpkg.CreateTestStaffWithAccount(t, db, "Olivia", "Berg")
 	ctx := adminCtx(t, staffAccount.ID)
-	chains := make([]testpkg.ParentChain, 0, 3)
-	for range 3 {
-		chains = append(chains, testpkg.CreateTestParentGuardianChain(t, db))
+	measure := func(chainCount int) int {
+		t.Helper()
+		chains := make([]testpkg.ParentChain, 0, chainCount)
+		for range chainCount {
+			chains = append(chains, testpkg.CreateTestParentGuardianChain(t, db))
+		}
+		counter := testpkg.CaptureQueriesForContext(t, db)
+		ids, err := testpkg.MeasuredTenantQuery0(t, counter.Context(ctx), db, counter, svc.ListReachableStudentIDs)
+		require.NoError(t, err)
+		for _, chain := range chains {
+			assert.Contains(t, ids, chain.StudentID)
+		}
+		testpkg.AssertQueryBudget(t, "modules.communication.parent_messages.list_reachable_students", counter.Queries())
+		return len(counter.Queries())
 	}
 
-	counter := testpkg.CaptureQueriesForContext(t, db)
-	ids, err := testpkg.MeasuredTenantQuery0(t, counter.Context(ctx), db, counter, svc.ListReachableStudentIDs)
-	require.NoError(t, err)
-	for _, chain := range chains {
-		assert.Contains(t, ids, chain.StudentID)
-	}
-	testpkg.AssertQueryBudget(t, "modules.communication.parent_messages.list_reachable_students", counter.Queries())
+	atThree := measure(3)
+	assert.Equal(t, atThree, measure(3), "six children with guardians cost as many statements as three")
 }
 
 // TestListStudentThreads_FiltersToChild: the student-detail card sees the child's

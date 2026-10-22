@@ -1610,7 +1610,6 @@ function parentMessageTopic(): HelpTopic {
           "Öffnen Sie unter `Eltern` den Bereich `Nachrichten`.",
           "Wählen Sie `Neue Nachricht`.",
           "Wählen Sie das Kind aus der Liste. Über das Suchfeld finden Sie es schneller.",
-          "Steht beim Kind `Kein Eltern-Zugang`, können Sie es nicht wählen. Die Eltern brauchen zuerst eine Einladung in die Eltern-App.",
           "Wählen Sie `Weiter` und dann die passende Bezugsperson.",
           "Schreiben Sie Ihre Nachricht in das Textfeld.",
           "Wählen Sie `Senden`.",
@@ -1664,6 +1663,7 @@ function parentMessageTopic(): HelpTopic {
       "Sehen Sie `Nachrichten` nicht? Vielleicht ist die Funktion ausgeschaltet.",
       "Möglicherweise fehlt Ihnen auch der Zugriff auf die betroffenen Kinder.",
       "Fehlen bei einer Anfrage `Anfrage ansehen` oder `Anfrage bearbeiten`? Dann dürfen Sie die Anfrage für dieses Kind nicht prüfen.",
+      "Steht beim Kind `Kein Eltern-Zugang`? Dann kann niemand die Nachricht in der Eltern-App lesen. Den Zugang der Eltern legen Sie beim Kind fest.",
     ],
     notes: [
       "Schreiben Sie persönliche Angaben nur in die Unterhaltung der richtigen Bezugsperson.",

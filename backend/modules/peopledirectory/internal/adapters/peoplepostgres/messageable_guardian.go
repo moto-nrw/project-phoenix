@@ -78,20 +78,14 @@ func (r *MessageableGuardianRepository) ListGuardiansForStudent(ctx context.Cont
 	if len(rows) == 0 {
 		return []*users.MessageableGuardian{}, nil
 	}
-	accountIDs := make([]int64, 0, len(rows))
-	schoolIDs := make([]int64, 0, len(rows))
-	for _, row := range rows {
-		accountIDs = append(accountIDs, row.AccountID)
-		schoolIDs = append(schoolIDs, row.SchoolID)
-	}
-	memberships, err := r.activeMemberships(ctx, accountIDs, schoolIDs)
+	active, err := r.activeAtSchool(ctx, len(rows), func(i int) (int64, int64) { return rows[i].AccountID, rows[i].SchoolID })
 	if err != nil {
 		return nil, &ports.DatabaseError{Op: "list guardians for student", Err: err}
 	}
 	result := make([]*users.MessageableGuardian, 0, len(rows))
-	for _, row := range rows {
-		if slices.Contains(memberships[row.AccountID], row.SchoolID) {
-			result = append(result, &row.MessageableGuardian)
+	for i := range rows {
+		if active[i] {
+			result = append(result, &rows[i].MessageableGuardian)
 		}
 	}
 	return result, nil
@@ -127,19 +121,13 @@ func (r *MessageableGuardianRepository) ListStudentIDsWithMessageableGuardian(ct
 	if len(rows) == 0 {
 		return []int64{}, nil
 	}
-	accountIDs := make([]int64, 0, len(rows))
-	schoolIDs := make([]int64, 0, len(rows))
-	for _, row := range rows {
-		accountIDs = append(accountIDs, row.AccountID)
-		schoolIDs = append(schoolIDs, row.SchoolID)
-	}
-	memberships, err := r.activeMemberships(ctx, accountIDs, schoolIDs)
+	active, err := r.activeAtSchool(ctx, len(rows), func(i int) (int64, int64) { return rows[i].AccountID, rows[i].SchoolID })
 	if err != nil {
 		return nil, &ports.DatabaseError{Op: op, Err: err}
 	}
 	studentIDs := make([]int64, 0, len(rows))
-	for _, row := range rows {
-		if slices.Contains(memberships[row.AccountID], row.SchoolID) {
+	for i, row := range rows {
+		if active[i] {
 			studentIDs = append(studentIDs, row.StudentID)
 		}
 	}
@@ -158,4 +146,24 @@ func (r *MessageableGuardianRepository) portalGuardianLinks(ctx context.Context,
 		Where("gp.has_account = true").
 		Where(`"student_guardian".permissions @> ?::jsonb`, `{"parent_portal.access": true}`)
 	return withTenantFilter(ctx, r.runtime, query, "student_guardian")
+}
+
+// activeAtSchool reports, per candidate row, whether its guardian account
+// holds an active membership of that row's school, in one batched lookup.
+// Both recipient reads filter through it so they apply one rule.
+func (r *MessageableGuardianRepository) activeAtSchool(ctx context.Context, n int, row func(int) (accountID, schoolID int64)) ([]bool, error) {
+	accountIDs := make([]int64, n)
+	schoolIDs := make([]int64, n)
+	for i := range n {
+		accountIDs[i], schoolIDs[i] = row(i)
+	}
+	memberships, err := r.activeMemberships(ctx, accountIDs, schoolIDs)
+	if err != nil {
+		return nil, err
+	}
+	active := make([]bool, n)
+	for i := range n {
+		active[i] = slices.Contains(memberships[accountIDs[i]], schoolIDs[i])
+	}
+	return active, nil
 }
