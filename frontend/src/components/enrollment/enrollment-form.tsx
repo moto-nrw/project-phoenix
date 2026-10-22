@@ -1833,6 +1833,35 @@ export function EnrollmentForm({
             child,
             childOfferings,
           );
+          // #4515: offerings limited by grade stay hidden until a grade is
+          // picked. Say so up front, or a parent reads the missing block as
+          // "no care offered here" or "comes in a later step". Only when the
+          // grade select is on screen and some selectable grade would reveal
+          // more offerings, so a switched-off grade question or a catalog
+          // without grade rules never asks for a grade.
+          const gradeChosen = Number(child.target_grade_level) >= 1;
+          const offeringsAwaitGrade =
+            careOfferingsEnabled &&
+            collectGradeLevel &&
+            !restrictToOfferings &&
+            !gradeChosen &&
+            selectableGradeLevels(gradeLevelMax, eligibleGradeLevels).some(
+              (grade) =>
+                availableCareOfferings(offerings, grade).length >
+                childOfferings.length,
+            );
+          const noOfferingsForGrade =
+            careOfferingsEnabled &&
+            gradeChosen &&
+            offerings.length > 0 &&
+            childOfferings.length === 0 &&
+            blockedOfferings.length === 0;
+          const showCareSection =
+            careOfferingsEnabled &&
+            (childOfferings.length > 0 ||
+              blockedOfferings.length > 0 ||
+              offeringsAwaitGrade ||
+              noOfferingsForGrade);
           if (child.locked) {
             const name = `${child.first_name} ${child.last_name}`.trim();
             const booked = offerings
@@ -2046,232 +2075,244 @@ export function EnrollmentForm({
                 </p>
               ) : null}
 
-              {careOfferingsEnabled &&
-                (childOfferings.length > 0 || blockedOfferings.length > 0) && (
-                  <div className="space-y-4">
-                    {/* Required offerings are part of the enrollment regardless of
+              {showCareSection && (
+                <div className="space-y-4">
+                  {childOfferings.length === 0 &&
+                    blockedOfferings.length === 0 && (
+                      <p className="text-sm font-semibold text-gray-700">
+                        {tr("care.offers")}
+                      </p>
+                    )}
+                  {offeringsAwaitGrade && (
+                    <p className="border-moto-blue/30 bg-moto-blue/5 rounded-lg border px-3 py-2 text-sm leading-6 text-gray-700">
+                      {tr("care.chooseGradeFirst")}
+                    </p>
+                  )}
+                  {noOfferingsForGrade && (
+                    <p
+                      role="status"
+                      className="border-moto-blue/30 bg-moto-blue/5 rounded-lg border px-3 py-2 text-sm leading-6 text-gray-700"
+                    >
+                      {tr("care.noOfferingsForGrade", {
+                        grade: child.target_grade_level,
+                      })}
+                    </p>
+                  )}
+                  {/* Required offerings are part of the enrollment regardless of
                     the parent's choice. They are presented as an "always
                     included" block - locked, no checkbox-style selection - so
                     they never read as "something I picked". The selection mode
                     and its "choose at least one" requirement live entirely in
                     the choosable block below. */}
-                    {childOfferings.some((o) => o.is_required) && (
-                      <div>
-                        <p className="text-sm font-semibold text-gray-700">
-                          {tr("care.requiredTitle")}
-                        </p>
-                        <p className="mt-1 text-xs leading-5 text-gray-500">
-                          {tr("care.requiredDescription")}
-                        </p>
-                        <div className="mt-2 space-y-2">
-                          {childOfferings
-                            .filter((o) => o.is_required)
-                            .map((o) => (
-                              <OfferingCard
-                                key={o.id}
-                                offering={o}
-                                childIndex={i}
-                                checked
-                                selectedDays={
-                                  materializedCare.offeringDays[o.id]
-                                }
-                                automaticDays={
-                                  materializedCare.automaticDays[o.id]
-                                }
-                                toggleLocked
-                                dayError={
-                                  offeringDayErrors[`${i}_${o.id}`] ?? false
-                                }
-                                stats={offeringBookingStats?.[o.id]}
-                                onToggle={() => toggleOffering(i, o.id)}
-                                onToggleDay={(day) =>
-                                  toggleOfferingDay(i, o.id, day)
-                                }
-                                tr={tr}
-                              />
-                            ))}
-                        </div>
-                      </div>
-                    )}
-                    {childOfferings.some((o) => !o.is_required) && (
-                      <div>
-                        <p className="text-sm font-semibold text-gray-700">
-                          {childOfferings.some((o) => o.is_required)
-                            ? tr("care.additional")
-                            : tr("care.offers")}
-                          {careOfferingSelectionMode !== "optional" && (
-                            <span className="text-moto-red ml-1">*</span>
-                          )}
-                        </p>
-                        <p className="mt-1 text-xs leading-5 text-gray-500">
-                          {careOfferingSelectionMode === "exactly_one"
-                            ? tr("care.exactlyOneHint")
-                            : careOfferingSelectionMode === "at_least_one"
-                              ? tr("care.atLeastOneHint")
-                              : tr("care.optionalHint")}{" "}
-                          {tr("care.reviewHint")}
-                        </p>
-                        <div
-                          aria-invalid={
-                            childOfferingErrors[i] ? true : undefined
-                          }
-                          className={`mt-2 space-y-2 ${
-                            childOfferingErrors[i]
-                              ? "border-moto-red bg-moto-red/5 rounded-md border p-2"
-                              : ""
-                          }`}
-                        >
-                          {groupOfferings(
-                            childOfferings.filter((o) => !o.is_required),
-                          ).map((bucket) =>
-                            bucket.kind === "single" ? (
-                              <OfferingCard
-                                key={bucket.offering.id}
-                                offering={bucket.offering}
-                                childIndex={i}
-                                checked={materializedCare.offeringIds.has(
-                                  bucket.offering.id,
-                                )}
-                                selectedDays={
-                                  materializedCare.offeringDays[
-                                    bucket.offering.id
-                                  ]
-                                }
-                                automaticDays={
-                                  materializedCare.automaticDays[
-                                    bucket.offering.id
-                                  ]
-                                }
-                                toggleLocked={
-                                  Boolean(
-                                    materializedCare.automaticDays[
-                                      bucket.offering.id
-                                    ],
-                                  ) &&
-                                  !child.offering_ids.has(bucket.offering.id)
-                                }
-                                dayError={
-                                  offeringDayErrors[
-                                    `${i}_${bucket.offering.id}`
-                                  ] ?? false
-                                }
-                                stats={
-                                  offeringBookingStats?.[bucket.offering.id]
-                                }
-                                onToggle={() => {
-                                  toggleOffering(i, bucket.offering.id);
-                                  if (childOfferingErrors[i]) {
-                                    setChildOfferingErrors((prev) => {
-                                      const next = { ...prev };
-                                      delete next[i];
-                                      return next;
-                                    });
-                                  }
-                                }}
-                                onToggleDay={(day) =>
-                                  toggleOfferingDay(i, bucket.offering.id, day)
-                                }
-                                tr={tr}
-                              />
-                            ) : (
-                              <div
-                                key={`group-${bucket.group}`}
-                                className="rounded-lg border border-gray-200 bg-gray-50/60 p-2"
-                              >
-                                <div className="mb-2 flex flex-wrap items-center gap-2 px-1">
-                                  <span className="text-xs font-semibold text-gray-800">
-                                    {selectionGroupLabel(
-                                      offerings,
-                                      bucket.group,
-                                      contentLocale,
-                                    )}
-                                  </span>
-                                  {offeringRuleHint(bucket.rule, tr) && (
-                                    <span className="bg-moto-blue/10 text-moto-blue-hover rounded-full px-2 py-0.5 text-xs font-medium">
-                                      {offeringRuleHint(bucket.rule, tr)}
-                                    </span>
-                                  )}
-                                </div>
-                                <div className="space-y-2">
-                                  {bucket.offerings.map((o) => (
-                                    <OfferingCard
-                                      key={o.id}
-                                      offering={o}
-                                      childIndex={i}
-                                      checked={materializedCare.offeringIds.has(
-                                        o.id,
-                                      )}
-                                      selectedDays={
-                                        materializedCare.offeringDays[o.id]
-                                      }
-                                      automaticDays={
-                                        materializedCare.automaticDays[o.id]
-                                      }
-                                      toggleLocked={
-                                        Boolean(
-                                          materializedCare.automaticDays[o.id],
-                                        ) && !child.offering_ids.has(o.id)
-                                      }
-                                      dayError={
-                                        offeringDayErrors[`${i}_${o.id}`] ??
-                                        false
-                                      }
-                                      stats={offeringBookingStats?.[o.id]}
-                                      onToggle={() => {
-                                        toggleOffering(i, o.id);
-                                        if (childOfferingErrors[i]) {
-                                          setChildOfferingErrors((prev) => {
-                                            const next = { ...prev };
-                                            delete next[i];
-                                            return next;
-                                          });
-                                        }
-                                      }}
-                                      onToggleDay={(day) =>
-                                        toggleOfferingDay(i, o.id, day)
-                                      }
-                                      tr={tr}
-                                    />
-                                  ))}
-                                </div>
-                              </div>
-                            ),
-                          )}
-                        </div>
-                        {childOfferingErrors[i] && (
-                          <p className="text-moto-red mt-1 text-xs">
-                            {careOfferingSelectionMode === "exactly_one"
-                              ? tr("care.chooseExactlyOne")
-                              : tr("care.chooseAtLeastOne")}
-                          </p>
-                        )}
-                      </div>
-                    )}
-                    {blockedOfferings.length > 0 && (
-                      <div>
-                        <p className="text-sm font-semibold text-gray-700">
-                          Für dieses Kind nicht wählbar
-                        </p>
-                        <p className="mt-1 text-xs leading-5 text-gray-500">
-                          Diese Angebote sind durch eine Verfügbarkeitsregel im
-                          Angebots-Katalog eingeschränkt. Um sie freizugeben,
-                          passe die Regel dort an.
-                        </p>
-                        <div className="mt-2 space-y-2">
-                          {blockedOfferings.map((offering) => (
-                            <BlockedOfferingCard
-                              key={offering.id}
-                              offering={offering}
-                              gradeLevel={child.target_grade_level}
-                              gradeLevelMax={gradeLevelMax}
-                              stats={offeringBookingStats?.[offering.id]}
+                  {childOfferings.some((o) => o.is_required) && (
+                    <div>
+                      <p className="text-sm font-semibold text-gray-700">
+                        {tr("care.requiredTitle")}
+                      </p>
+                      <p className="mt-1 text-xs leading-5 text-gray-500">
+                        {tr("care.requiredDescription")}
+                      </p>
+                      <div className="mt-2 space-y-2">
+                        {childOfferings
+                          .filter((o) => o.is_required)
+                          .map((o) => (
+                            <OfferingCard
+                              key={o.id}
+                              offering={o}
+                              childIndex={i}
+                              checked
+                              selectedDays={materializedCare.offeringDays[o.id]}
+                              automaticDays={
+                                materializedCare.automaticDays[o.id]
+                              }
+                              toggleLocked
+                              dayError={
+                                offeringDayErrors[`${i}_${o.id}`] ?? false
+                              }
+                              stats={offeringBookingStats?.[o.id]}
+                              onToggle={() => toggleOffering(i, o.id)}
+                              onToggleDay={(day) =>
+                                toggleOfferingDay(i, o.id, day)
+                              }
+                              tr={tr}
                             />
                           ))}
-                        </div>
                       </div>
-                    )}
-                  </div>
-                )}
+                    </div>
+                  )}
+                  {childOfferings.some((o) => !o.is_required) && (
+                    <div>
+                      <p className="text-sm font-semibold text-gray-700">
+                        {childOfferings.some((o) => o.is_required)
+                          ? tr("care.additional")
+                          : tr("care.offers")}
+                        {careOfferingSelectionMode !== "optional" && (
+                          <span className="text-moto-red ml-1">*</span>
+                        )}
+                      </p>
+                      <p className="mt-1 text-xs leading-5 text-gray-500">
+                        {careOfferingSelectionMode === "exactly_one"
+                          ? tr("care.exactlyOneHint")
+                          : careOfferingSelectionMode === "at_least_one"
+                            ? tr("care.atLeastOneHint")
+                            : tr("care.optionalHint")}{" "}
+                        {tr("care.reviewHint")}
+                      </p>
+                      <div
+                        aria-invalid={childOfferingErrors[i] ? true : undefined}
+                        className={`mt-2 space-y-2 ${
+                          childOfferingErrors[i]
+                            ? "border-moto-red bg-moto-red/5 rounded-md border p-2"
+                            : ""
+                        }`}
+                      >
+                        {groupOfferings(
+                          childOfferings.filter((o) => !o.is_required),
+                        ).map((bucket) =>
+                          bucket.kind === "single" ? (
+                            <OfferingCard
+                              key={bucket.offering.id}
+                              offering={bucket.offering}
+                              childIndex={i}
+                              checked={materializedCare.offeringIds.has(
+                                bucket.offering.id,
+                              )}
+                              selectedDays={
+                                materializedCare.offeringDays[
+                                  bucket.offering.id
+                                ]
+                              }
+                              automaticDays={
+                                materializedCare.automaticDays[
+                                  bucket.offering.id
+                                ]
+                              }
+                              toggleLocked={
+                                Boolean(
+                                  materializedCare.automaticDays[
+                                    bucket.offering.id
+                                  ],
+                                ) && !child.offering_ids.has(bucket.offering.id)
+                              }
+                              dayError={
+                                offeringDayErrors[
+                                  `${i}_${bucket.offering.id}`
+                                ] ?? false
+                              }
+                              stats={offeringBookingStats?.[bucket.offering.id]}
+                              onToggle={() => {
+                                toggleOffering(i, bucket.offering.id);
+                                if (childOfferingErrors[i]) {
+                                  setChildOfferingErrors((prev) => {
+                                    const next = { ...prev };
+                                    delete next[i];
+                                    return next;
+                                  });
+                                }
+                              }}
+                              onToggleDay={(day) =>
+                                toggleOfferingDay(i, bucket.offering.id, day)
+                              }
+                              tr={tr}
+                            />
+                          ) : (
+                            <div
+                              key={`group-${bucket.group}`}
+                              className="rounded-lg border border-gray-200 bg-gray-50/60 p-2"
+                            >
+                              <div className="mb-2 flex flex-wrap items-center gap-2 px-1">
+                                <span className="text-xs font-semibold text-gray-800">
+                                  {selectionGroupLabel(
+                                    offerings,
+                                    bucket.group,
+                                    contentLocale,
+                                  )}
+                                </span>
+                                {offeringRuleHint(bucket.rule, tr) && (
+                                  <span className="bg-moto-blue/10 text-moto-blue-hover rounded-full px-2 py-0.5 text-xs font-medium">
+                                    {offeringRuleHint(bucket.rule, tr)}
+                                  </span>
+                                )}
+                              </div>
+                              <div className="space-y-2">
+                                {bucket.offerings.map((o) => (
+                                  <OfferingCard
+                                    key={o.id}
+                                    offering={o}
+                                    childIndex={i}
+                                    checked={materializedCare.offeringIds.has(
+                                      o.id,
+                                    )}
+                                    selectedDays={
+                                      materializedCare.offeringDays[o.id]
+                                    }
+                                    automaticDays={
+                                      materializedCare.automaticDays[o.id]
+                                    }
+                                    toggleLocked={
+                                      Boolean(
+                                        materializedCare.automaticDays[o.id],
+                                      ) && !child.offering_ids.has(o.id)
+                                    }
+                                    dayError={
+                                      offeringDayErrors[`${i}_${o.id}`] ?? false
+                                    }
+                                    stats={offeringBookingStats?.[o.id]}
+                                    onToggle={() => {
+                                      toggleOffering(i, o.id);
+                                      if (childOfferingErrors[i]) {
+                                        setChildOfferingErrors((prev) => {
+                                          const next = { ...prev };
+                                          delete next[i];
+                                          return next;
+                                        });
+                                      }
+                                    }}
+                                    onToggleDay={(day) =>
+                                      toggleOfferingDay(i, o.id, day)
+                                    }
+                                    tr={tr}
+                                  />
+                                ))}
+                              </div>
+                            </div>
+                          ),
+                        )}
+                      </div>
+                      {childOfferingErrors[i] && (
+                        <p className="text-moto-red mt-1 text-xs">
+                          {careOfferingSelectionMode === "exactly_one"
+                            ? tr("care.chooseExactlyOne")
+                            : tr("care.chooseAtLeastOne")}
+                        </p>
+                      )}
+                    </div>
+                  )}
+                  {blockedOfferings.length > 0 && (
+                    <div>
+                      <p className="text-sm font-semibold text-gray-700">
+                        Für dieses Kind nicht wählbar
+                      </p>
+                      <p className="mt-1 text-xs leading-5 text-gray-500">
+                        Diese Angebote sind durch eine Verfügbarkeitsregel im
+                        Angebots-Katalog eingeschränkt. Um sie freizugeben,
+                        passe die Regel dort an.
+                      </p>
+                      <div className="mt-2 space-y-2">
+                        {blockedOfferings.map((offering) => (
+                          <BlockedOfferingCard
+                            key={offering.id}
+                            offering={offering}
+                            gradeLevel={child.target_grade_level}
+                            gradeLevelMax={gradeLevelMax}
+                            stats={offeringBookingStats?.[offering.id]}
+                          />
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                </div>
+              )}
 
               {!restrictToOfferings &&
                 (schema?.fields ?? [])

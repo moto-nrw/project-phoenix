@@ -670,6 +670,175 @@ describe("EnrollmentForm", () => {
     ).toBeVisible();
   });
 
+  // #4515: in Bissendorf every offering is limited by grade. Before a grade
+  // was picked the whole offering block vanished and parents assumed a
+  // second step after the form.
+  describe("grade-restricted offerings before the grade is picked", () => {
+    const CHOOSE_GRADE_FIRST =
+      "Wählen Sie zuerst die Klassenstufe Ihres Kindes. Danach sehen Sie hier die passenden Betreuungsangebote.";
+
+    function gradeOffering(
+      id: string,
+      name: string,
+      grades: number[],
+    ): PublicCareOffering {
+      return {
+        ...offerings()[1]!,
+        id,
+        name,
+        availability_rule: {
+          match: "all",
+          conditions: [
+            { source: "grade_level", operator: "in", value: grades },
+          ],
+        },
+      };
+    }
+
+    function mockCatalog(
+      catalog: PublicCareOffering[],
+      overrides: Record<string, unknown> = {},
+    ) {
+      mockFetchPublicCareOfferings.mockResolvedValue({
+        offerings: catalog,
+        careOfferingSelectionMode: "at_least_one",
+        careRequired: true,
+        collectGradeLevel: true,
+        careOfferingsEnabled: true,
+        ...overrides,
+      });
+    }
+
+    it("explains the offering block before the grade and shows only matching offerings after it", async () => {
+      mockCatalog([
+        gradeOffering("91", "Betreuung Klasse 1 und 2", [1, 2]),
+        gradeOffering("92", "Betreuung Klasse 3 und 4", [3, 4]),
+      ]);
+
+      renderForm();
+      await waitForLoaded();
+
+      expect(screen.getByText("Betreuungsangebote")).toBeVisible();
+      expect(screen.getByText(CHOOSE_GRADE_FIRST)).toBeVisible();
+      expect(
+        screen.queryByText("Betreuung Klasse 1 und 2"),
+      ).not.toBeInTheDocument();
+
+      await chooseOption("Klassenstufe *", "3. Klasse");
+
+      expect(screen.getByText("Betreuung Klasse 3 und 4")).toBeVisible();
+      expect(
+        screen.queryByText("Betreuung Klasse 1 und 2"),
+      ).not.toBeInTheDocument();
+      expect(screen.queryByText(CHOOSE_GRADE_FIRST)).not.toBeInTheDocument();
+    });
+
+    it("keeps the hint next to offerings that need no grade", async () => {
+      mockCatalog([offerings()[0]!, gradeOffering("91", "Randstunde", [1, 2])]);
+
+      renderForm();
+      await waitForLoaded();
+
+      expect(screen.getByText("Flexible Betreuung")).toBeVisible();
+      expect(screen.getByText(CHOOSE_GRADE_FIRST)).toBeVisible();
+
+      await chooseOption("Klassenstufe *", "1. Klasse");
+      expect(screen.getByText("Randstunde")).toBeVisible();
+      expect(screen.queryByText(CHOOSE_GRADE_FIRST)).not.toBeInTheDocument();
+    });
+
+    it("explains when no offering fits the chosen grade", async () => {
+      mockCatalog([gradeOffering("91", "Betreuung Klasse 1 und 2", [1, 2])]);
+
+      renderForm();
+      await waitForLoaded();
+      await chooseOption("Klassenstufe *", "4. Klasse");
+
+      expect(
+        screen.getByText(
+          "Für die 4. Klasse gibt es hier keine passenden Betreuungsangebote. Bei Fragen wenden Sie sich bitte an die OGS.",
+        ),
+      ).toBeVisible();
+      expect(screen.queryByText(CHOOSE_GRADE_FIRST)).not.toBeInTheDocument();
+    });
+
+    it("asks for no grade when every offering is open to all grades", async () => {
+      mockCatalog(offerings());
+
+      renderForm();
+      await waitForLoaded();
+
+      expect(screen.getByText("Flexible Betreuung")).toBeVisible();
+      expect(screen.queryByText(CHOOSE_GRADE_FIRST)).not.toBeInTheDocument();
+    });
+
+    it("asks for no grade when the school does not ask for one", async () => {
+      mockCatalog(
+        [offerings()[0]!, gradeOffering("91", "Randstunde", [1, 2])],
+        {
+          collectGradeLevel: false,
+        },
+      );
+
+      renderForm();
+      await waitForLoaded();
+
+      expect(screen.getByText("Flexible Betreuung")).toBeVisible();
+      expect(screen.queryByText(CHOOSE_GRADE_FIRST)).not.toBeInTheDocument();
+    });
+
+    it("shows no offering block when the school switched the offering choice off", async () => {
+      mockCatalog([gradeOffering("91", "Betreuung Klasse 1 und 2", [1, 2])], {
+        careOfferingsEnabled: false,
+      });
+
+      renderForm();
+      await waitForLoaded();
+
+      expect(screen.getByLabelText("Klassenstufe *")).toBeInTheDocument();
+      expect(screen.queryByText("Betreuungsangebote")).not.toBeInTheDocument();
+      expect(screen.queryByText(CHOOSE_GRADE_FIRST)).not.toBeInTheDocument();
+    });
+
+    it("shows no offering block for an empty catalog", async () => {
+      mockCatalog([]);
+
+      renderForm();
+      await waitForLoaded();
+
+      expect(screen.getByLabelText("Klassenstufe *")).toBeInTheDocument();
+      expect(screen.queryByText("Betreuungsangebote")).not.toBeInTheDocument();
+      expect(screen.queryByText(CHOOSE_GRADE_FIRST)).not.toBeInTheDocument();
+    });
+
+    it("tracks the hint per child", async () => {
+      mockCatalog([
+        gradeOffering("91", "Betreuung Klasse 1 und 2", [1, 2]),
+        gradeOffering("92", "Betreuung Klasse 3 und 4", [3, 4]),
+      ]);
+
+      renderForm();
+      await waitForLoaded();
+      fireEvent.click(screen.getByRole("button", { name: "Weiteres Kind" }));
+
+      await waitFor(() => {
+        expect(screen.getAllByText(CHOOSE_GRADE_FIRST)).toHaveLength(2);
+      });
+
+      fireEvent.click(screen.getAllByLabelText("Klassenstufe *")[1]!);
+      fireEvent.click(await screen.findByRole("option", { name: "1. Klasse" }));
+
+      expect(screen.getAllByText(CHOOSE_GRADE_FIRST)).toHaveLength(1);
+      expect(screen.getByText("Betreuung Klasse 1 und 2")).toBeVisible();
+      expect(
+        document.querySelector('input[name="children_1_offering_91"]'),
+      ).not.toBeNull();
+      expect(
+        document.querySelector('input[name="children_0_offering_91"]'),
+      ).toBeNull();
+    });
+  });
+
   it("shows no occupancy or blocked section on the parent form", async () => {
     const conditional: PublicCareOffering = {
       ...offerings()[1]!,
