@@ -246,8 +246,20 @@ describe("Alle als gelesen markieren", () => {
 
   it("does not offer the hidden setting while messaging is off", () => {
     mockTenant.messagingEnabled = false;
+    // Eine vorhandene Unterhaltung ist der Anker: die Seite ist geladen,
+    // nur das Menü fehlt.
+    mockInbox.threads = [
+      {
+        thread_id: "7",
+        student_id: "3",
+        student_name: "Felix Schneider",
+        guardian_name: "Sabine Schneider",
+        unread_count: 1,
+      },
+    ];
     render(<MessagesPage />);
 
+    expect(screen.getByText("Sabine Schneider")).toBeInTheDocument();
     expect(
       screen.queryByRole("button", { name: "Weitere Aktionen" }),
     ).not.toBeInTheDocument();

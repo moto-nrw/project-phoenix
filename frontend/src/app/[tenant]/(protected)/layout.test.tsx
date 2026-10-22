@@ -94,6 +94,10 @@ describe("ProtectedLayout", () => {
       </ProtectedLayout>,
     );
 
+    // Anker: das Layout hat seine eigenen Bausteine neben dem Hinweis
+    // gerendert; der Samsung-Test unten findet die Überschrift im selben
+    // Aufbau.
+    expect(screen.getByTestId("announcement-modal")).toBeInTheDocument();
     expect(
       screen.queryByRole("heading", { name: "moto als App nutzen" }),
     ).not.toBeInTheDocument();
@@ -123,8 +127,9 @@ describe("ProtectedLayout", () => {
     );
 
     expect(
-      await screen.findByText(/nicht über Samsung Internet/),
+      await screen.findByRole("heading", { name: "moto als App nutzen" }),
     ).toBeInTheDocument();
+    expect(screen.getByText(/nicht über Samsung Internet/)).toBeInTheDocument();
     expect(
       screen.getByRole("link", { name: "In Chrome öffnen" }),
     ).toBeInTheDocument();

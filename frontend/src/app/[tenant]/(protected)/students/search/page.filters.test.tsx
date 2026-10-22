@@ -537,6 +537,8 @@ describe("StudentSearchPage — Kinder nur über Alle Kinder (#1321)", () => {
 
     render(<StudentSearchPage />);
 
+    // Anker: die Kinderliste ist geladen, nur die Reiter fehlen.
+    expect(screen.getByTestId("student-card-7")).toBeInTheDocument();
     expect(screen.queryByRole("tab", { name: "Meine Gruppe" })).toBeNull();
     expect(screen.queryByRole("tab", { name: "Meine Aufsicht" })).toBeNull();
   });

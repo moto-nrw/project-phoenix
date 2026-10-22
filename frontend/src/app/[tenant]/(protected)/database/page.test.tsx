@@ -289,17 +289,44 @@ describe("DatabasePage", () => {
 
     render(<DatabasePage />);
 
+    // Anker: die übrigen Stammdaten-Kacheln sind geladen.
+    expect(screen.getByText("Terminkategorien")).toBeInTheDocument();
+    expect(screen.getByText("Abwesenheitsarten")).toBeInTheDocument();
     expect(screen.queryByText("Planungsspuren")).not.toBeInTheDocument();
     expect(screen.queryByText("Schichtarten")).not.toBeInTheDocument();
   });
 
+  it("shows planning catalogs to delegated users while planning is on", () => {
+    vi.mocked(useSession).mockReturnValue({
+      data: {
+        ...mockSession,
+        user: {
+          ...mockSession.user,
+          roles: [],
+          permissions: ["schedules:manage", "time_tracking:manage"],
+        },
+      },
+      status: "authenticated",
+      update: vi.fn(),
+    } as never);
+    vi.mocked(useTimetableEnabled).mockReturnValue(true);
+
+    render(<DatabasePage />);
+
+    expect(screen.getByText("Planungsspuren")).toBeInTheDocument();
+    expect(screen.getByText("Schichtarten")).toBeInTheDocument();
+  });
+
   it("hides planning catalogs for delegated users when planning is switched off", () => {
+    // time_tracking:manage öffnet Schichtarten (Planung) und Abwesenheitsarten
+    // (ohne Planung). Die zweite Kachel ist der Anker: das Raster ist
+    // geladen, nur die Planungskataloge fehlen.
     const scheduleManager = {
       ...mockSession,
       user: {
         ...mockSession.user,
         roles: [],
-        permissions: ["schedules:manage"],
+        permissions: ["schedules:manage", "time_tracking:manage"],
       },
     };
     vi.mocked(useSession).mockReturnValue({
@@ -311,6 +338,7 @@ describe("DatabasePage", () => {
 
     render(<DatabasePage />);
 
+    expect(screen.getByText("Abwesenheitsarten")).toBeInTheDocument();
     expect(screen.queryByText("Planungsspuren")).not.toBeInTheDocument();
     expect(screen.queryByText("Schichtarten")).not.toBeInTheDocument();
   });

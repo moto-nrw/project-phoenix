@@ -388,6 +388,11 @@ describe("StaffPage", () => {
 
       render(<StaffPage />);
 
+      // Anker: die Seite steht in den Zeitkonten, der einzigen Ansicht
+      // dieses Rechts.
+      expect(
+        screen.getByRole("heading", { name: "Zeitkonten" }),
+      ).toBeInTheDocument();
       expect(requestedKeys()).not.toContain(formerKey);
       expect(screen.queryByText("Grace Hopper")).not.toBeInTheDocument();
     });
@@ -503,6 +508,8 @@ describe("StaffPage", () => {
 
     render(<StaffPage />);
 
+    // Anker: die Personalliste ist geladen, nur der Hinweis fehlt.
+    expect(screen.getByText("Anna Meyer")).toBeInTheDocument();
     expect(
       screen.queryByRole("link", { name: /Anträge von Mitarbeitenden/ }),
     ).not.toBeInTheDocument();

@@ -321,6 +321,8 @@ describe("AnfragenPage", () => {
   it("bietet die Anfrageart Anmeldung nur mit config:manage an", () => {
     render(<AnfragenPage />);
     fireEvent.click(screen.getAllByRole("button", { name: /Filter/ })[0]!);
+    // Anker: der Art-Filter ist offen, nur die Anmeldung fehlt.
+    expect(screen.getAllByText("Stammdaten")[0]).toBeInTheDocument();
     expect(screen.queryAllByText("Anmeldung")).toHaveLength(0);
   });
 
@@ -373,6 +375,8 @@ describe("AnfragenPage", () => {
   it("versteckt den Mitarbeitende-Reiter ohne vacation:approve", () => {
     render(<AnfragenPage />);
 
+    // Anker: die Eltern-Anfragen sind geladen.
+    expect(screen.getByTestId("aggregated-list")).toBeInTheDocument();
     expect(screen.queryByRole("tab", { name: "Mitarbeitende" })).toBeNull();
     expect(screen.queryByTestId("absence-list")).toBeNull();
   });
@@ -445,6 +449,7 @@ describe("AnfragenPage", () => {
   it("zeigt Gruppenleitungen kein RSS-Menü", () => {
     render(<AnfragenPage />);
 
+    expect(screen.getByTestId("aggregated-list")).toBeInTheDocument();
     expect(
       screen.queryByRole("button", { name: "Weitere Aktionen" }),
     ).toBeNull();
