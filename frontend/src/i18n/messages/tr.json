@@ -1140,7 +1140,9 @@
       "ruleExactlyOne": "Lütfen tam olarak birini seçin",
       "ruleAtLeastOne": "Lütfen en az birini seçin",
       "ruleAtMostOne": "En fazla biri",
-      "availabilitySelectionRemoved": "Sınıf düzeyi değiştiği için bazı bakım teklifleri artık mevcut değil. Bunlara ait seçimler, bakım günleri ve otomatik ek kayıtlar kaldırıldı."
+      "availabilitySelectionRemoved": "Sınıf düzeyi değiştiği için bazı bakım teklifleri artık mevcut değil. Bunlara ait seçimler, bakım günleri ve otomatik ek kayıtlar kaldırıldı.",
+      "chooseGradeFirst": "Önce çocuğunuzun sınıf düzeyini seçin. Ardından uygun bakım tekliflerini burada görürsünüz.",
+      "noOfferingsForGrade": "{grade}. sınıf için uygun bakım teklifi yok. Sorularınız için lütfen OGS ile iletişime geçin."
     },
     "consent": {
       "agb": "Okulun genel şartlarını kabul ediyorum.",

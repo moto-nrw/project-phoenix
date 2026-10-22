@@ -51,7 +51,6 @@ import {
   LOCATION_STATUSES,
   parseLocation,
   isAtSchoolLocation,
-  isHomeLocation,
   isNotCheckedInLocation,
   isPresentLocation,
   isSchoolyardLocation,
@@ -182,7 +181,7 @@ const STATUS_FILTER_OPTIONS: Array<{ value: StatusFilter; label: string }> = [
   { value: "all", label: "Alle" },
   { value: "anwesend", label: "Anwesend" },
   { value: "schule", label: "Schule" },
-  { value: "abwesend", label: "Abwesend" },
+  { value: "abwesend", label: "Zuhause" },
   { value: "krank", label: "Krank" },
   { value: "klassenfahrt", label: "Klassenfahrt" },
   { value: "entschuldigt", label: "Entschuldigt" },
@@ -335,7 +334,7 @@ const STATUS_GROUP_ORDER = new Map([
   ["Krank", 3],
   ["Entschuldigt", 4],
   ["Schule", 5],
-  ["Abwesend", 6],
+  ["Zuhause", 6],
 ]);
 
 const BOOLEAN_FILTER_VALUES: readonly BooleanFilter[] = ["all", "yes", "no"];
@@ -377,7 +376,7 @@ const PICKUP_STATUS_FILTER_OPTIONS: Array<{
 const LIVE_STATUS_FILTER_OPTIONS = [
   { value: "anwesend", label: "Anwesend" },
   { value: "schule", label: "Schule" },
-  { value: "abwesend", label: "Abwesend" },
+  { value: "abwesend", label: "Zuhause" },
   { value: "unterwegs", label: "Unterwegs" },
   { value: "schulhof", label: "Schulhof" },
 ] as const;
@@ -403,7 +402,7 @@ const STATUS_FILTER_LABELS: Record<
   string
 > = {
   schule: "Schule",
-  abwesend: "Abwesend",
+  abwesend: "Zuhause",
   unterwegs: "Unterwegs",
   schulhof: "Schulhof",
   krank: "Krank",
@@ -650,6 +649,16 @@ function compareByName(a: Student, b: Student) {
   return (a.first_name ?? "").localeCompare(b.first_name ?? "", "de");
 }
 
+// Ohne offenen Check-in zählt ein Kind als zuhause, wie in der Betriebszahl
+// „Zuhause“ der Startseite (#4588): ein Kind ohne bekannten Ort oder mit
+// „Kommt heute nicht“ ist nicht in der OGS. Statuszeile, Statusfilter und
+// „Gruppieren nach Status“ lesen diese eine Definition.
+const HOME_STATUSES: ReadonlySet<string> = new Set([
+  LOCATION_STATUSES.HOME,
+  LOCATION_STATUSES.UNKNOWN,
+  LOCATION_STATUSES.NOT_ARRIVAL,
+]);
+
 function statusLabelForStudent(student: Student): string {
   if (student.sick) return "Krank";
   if (student.class_trip) return "Klassenfahrt";
@@ -657,7 +666,9 @@ function statusLabelForStudent(student: Student): string {
   if (isSchoolyardLocation(student.current_location)) return "Schulhof";
   if (isTransitLocation(student.current_location)) return "Unterwegs";
   if (isAtSchoolLocation(student.current_location)) return "Schule";
-  if (isHomeLocation(student.current_location)) return "Abwesend";
+  if (HOME_STATUSES.has(parseLocation(student.current_location).status)) {
+    return "Zuhause";
+  }
   return "Anwesend";
 }
 
@@ -2443,7 +2454,7 @@ function SearchPageContent() {
       const statusLabels: Record<Exclude<StatusFilter, "all">, string> = {
         anwesend: "Anwesend",
         schule: "Schule",
-        abwesend: "Abwesend",
+        abwesend: "Zuhause",
         unterwegs: "Unterwegs",
         schulhof: "Schulhof",
         krank: "Krank",
@@ -2646,7 +2657,14 @@ function SearchPageContent() {
         isTransitLocation(student.current_location) ||
         isSchoolyardLocation(student.current_location);
 
-      if (effectiveAttendanceFilter === "anwesend" && !isOnSite) {
+      // Ein Ort, den keine andere Statusgruppe kennt, zählt wie in
+      // statusLabelForStudent als anwesend; sonst fiele das Kind durch jeden
+      // Statusfilter (#4588).
+      if (
+        effectiveAttendanceFilter === "anwesend" &&
+        !isOnSite &&
+        statusLabelForStudent(student) !== "Anwesend"
+      ) {
         return false;
       }
 
@@ -2817,11 +2835,7 @@ function SearchPageContent() {
         inCare += 1;
         continue;
       }
-      if (
-        status === LOCATION_STATUSES.HOME ||
-        status === LOCATION_STATUSES.UNKNOWN ||
-        status === LOCATION_STATUSES.NOT_ARRIVAL
-      ) {
+      if (HOME_STATUSES.has(status)) {
         atHome += 1;
       }
     }

@@ -10,6 +10,10 @@
 
 title = "Project Phoenix Gitleaks Configuration"
 
+# Used offline by Lefthook through scripts/check-secrets.sh; no account or token.
+[extend]
+useDefault = true
+
 # =============================================================================
 # GLOBAL ALLOWLISTS
 # =============================================================================
@@ -105,6 +109,22 @@ description = "Backend API documentation examples"
 paths = [
     '''backend/docs/rfid-.*\.md$''',
     '''backend/docs/token-family-security\.md$''',
+]
+
+# -----------------------------------------------------------------------------
+# Allowlist 7: Test fixtures
+# -----------------------------------------------------------------------------
+# Tests use throwaway credentials and kept producing false positives. Real
+# secrets belong in env files, never in tests. For a single line elsewhere use
+# a `gitleaks:allow` comment or add its fingerprint to .gitleaksignore.
+[[allowlists]]
+description = "Test fixtures"
+paths = [
+    '''_test\.go$''',
+    '''\.test\.[cm]?[jt]sx?$''',
+    '''(^|/)testdata/''',
+    '''(^|/)[a-z]*test/''',
+    '''^backend/test/''',
 ]
 
 # =============================================================================
