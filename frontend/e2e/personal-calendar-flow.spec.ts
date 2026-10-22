@@ -147,6 +147,14 @@ test.describe("Personal calendar flow", () => {
     await expect(eventDetail).toContainText("Zugesagt");
     await waitForAnimations(eventDetail);
 
+    // Gespeichert im Backend: nach frischem Laden der Seite steht die Zusage
+    // weiterhin im Termin.
+    await page.reload({ waitUntil: "domcontentloaded" });
+    await expect(currentWeekEvent).toBeVisible();
+    await currentWeekEvent.click();
+    await expect(eventDetail).toContainText("Zugesagt");
+    await waitForAnimations(eventDetail);
+
     await eventDetail.getByRole("button", { name: "Schließen" }).click();
     await page.getByRole("button", { name: "Nächste Woche" }).click();
     await expect(page.getByRole("button", { name: title })).toBeVisible();
