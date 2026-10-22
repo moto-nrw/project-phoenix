@@ -3,7 +3,6 @@
 package api
 
 import (
-	"context"
 	"log/slog"
 	"strings"
 	"time"
@@ -20,7 +19,6 @@ import (
 	peopleCompose "github.com/moto-nrw/project-phoenix/modules/peopledirectory/compose"
 	peoplePorts "github.com/moto-nrw/project-phoenix/modules/peopledirectory/ports"
 	"github.com/moto-nrw/project-phoenix/modules/securityruntime"
-	configModels "github.com/moto-nrw/project-phoenix/modules/settings/records"
 	transactionruntime "github.com/moto-nrw/project-phoenix/modules/transactionruntime/compose"
 	"github.com/moto-nrw/project-phoenix/tenant"
 )
@@ -87,10 +85,7 @@ func NewDeliveryTestModule(db transactionruntime.Database, unit tenant.UnitOfWor
 		return DeliveryTestModule{}, err
 	}
 	pushRepo := deliveryCompose.NewPushSubscriptionRepository(db.Pool())
-	identity := deliveryCompose.NewTenantMailIdentity(owners.SchoolContactDirectory{Schools: organizations},
-		func(ctx context.Context, tenantID int64) (string, error) {
-			return settings.Settings.ResolveStringForTenant(ctx, tenantID, configModels.KeyEmailReplyToAddress)
-		}, logger)
+	identity := owners.TenantMailIdentity(organizations, settings.Settings, owners.RootEnvironment{Logger: logger})
 	guardians := peopleCompose.NewGuardianService(peoplePorts.GuardianServiceDependencies{GuardianProfileRepo: NewGuardianProfileTestRepository(db)}, db.Pool())
 	delivery, err := deliveryCompose.NewModule(deliveryCompose.ModuleDependencies{
 		DB: db.Pool(), People: owners.GuardianDisplayResolver{Query: guardians}, Observe: func(deliveryContract.Observation) {},
