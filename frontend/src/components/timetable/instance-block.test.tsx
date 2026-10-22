@@ -248,6 +248,108 @@ describe("InstanceBlock -> PlanBlock mapping", () => {
       );
     });
 
+    // #4570: Auch ein Block mit nur einer Zeile (15- oder 20-Minuten-Dienst)
+    // zeigt, wer eingeteilt ist. Die Zeitspanne weicht der Startzeit.
+    describe("sehr kurzer Block (bis 30 px)", () => {
+      it("zeigt Startzeit, Titel und die Namen in einer Zeile", () => {
+        renderBlock(
+          staffed({
+            absentStaffCount: 0,
+            staff: [
+              {
+                staffId: "1",
+                isPrimary: true,
+                isAbsent: false,
+                isSubstitute: false,
+              },
+              {
+                staffId: "2",
+                isPrimary: false,
+                isAbsent: false,
+                isSubstitute: false,
+              },
+            ],
+          }),
+          { staffNames: names },
+          30,
+        );
+
+        expect(screen.getByText("Hausaufgaben")).toBeInTheDocument();
+        expect(screen.getByText("Anna K.")).toBeInTheDocument();
+        expect(screen.getByText(/Ben M\./)).toBeInTheDocument();
+        expect(screen.getByText("12:00")).toBeInTheDocument();
+        expect(screen.queryByText("12:00 – 13:00")).not.toBeInTheDocument();
+      });
+
+      it("streicht Abwesende durch und kennzeichnet den Ersatz", () => {
+        renderBlock(staffed(), { staffNames: names }, 22);
+
+        expect(screen.getByText("Anna K.", { exact: false })).toHaveClass(
+          "line-through",
+        );
+        expect(screen.getByText("Ben M. (Ersatz)")).toBeInTheDocument();
+      });
+
+      it("zeigt weitere Fachkräfte als +N", () => {
+        renderBlock(
+          staffed({
+            absentStaffCount: 0,
+            staff: ["1", "2", "3"].map((staffId) => ({
+              staffId,
+              isPrimary: staffId === "1",
+              isAbsent: false,
+              isSubstitute: false,
+            })),
+          }),
+          {
+            staffNames: new Map([...names, ["3", "Cem Yilmaz"]]),
+          },
+          22,
+        );
+
+        expect(screen.getByText("Anna K.")).toBeInTheDocument();
+        expect(screen.getByText("+1")).toBeInTheDocument();
+      });
+
+      it("behält Tooltip und Screenreader-Namen vollständig", () => {
+        renderBlock(staffed(), { staffNames: names }, 22);
+
+        const button = screen.getByRole("button");
+        expect(button).toHaveAttribute(
+          "title",
+          [
+            "Hausaufgaben, 12:00 – 13:00",
+            "Raum: Raum 104",
+            "Gruppe: Sonne",
+            "Fachkräfte: Anna Kowalski (abwesend), Ben Müller (Ersatz)",
+          ].join("\n"),
+        );
+        expect(button).toHaveAccessibleName(
+          /^Hausaufgaben, 12:00 bis 13:00, .*Raum: Raum 104, Gruppe: Sonne, Fachkräfte: Anna Kowalski \(abwesend\), Ben Müller \(Ersatz\)$/,
+        );
+      });
+
+      it("bleibt ohne bekannte Namen bei Zeitspanne und Titel", () => {
+        renderBlock(staffed(), {}, 22);
+
+        expect(screen.getByText("12:00 – 13:00")).toBeInTheDocument();
+        expect(screen.getByText("Hausaufgaben")).toBeInTheDocument();
+        expect(screen.queryByText(/Anna/)).not.toBeInTheDocument();
+      });
+
+      it("zeigt bei einem abgesagten Block keine Namen", () => {
+        renderBlock(
+          staffed({ status: "cancelled" }),
+          { staffNames: names },
+          22,
+        );
+
+        expect(screen.getByText("12:00 – 13:00")).toBeInTheDocument();
+        expect(screen.queryByText(/Anna K\./)).not.toBeInTheDocument();
+        expect(screen.queryByText(/Ben M\./)).not.toBeInTheDocument();
+      });
+    });
+
     it("behält ohne bekannte Namen die Sammelzeile für Abwesenheit und Ersatz", () => {
       renderBlock(staffed());
 

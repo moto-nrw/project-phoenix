@@ -46,6 +46,14 @@ interface PlanBlockProps {
    * nicht-interaktive Inhalte.
    */
   readonly compactDetail?: ReactNode;
+  /**
+   * Ein Zusatz hinter dem Titel in der einzeiligen Kopfzeile, nur bei
+   * size="compact". Für Blöcke, die keine zweite Zeile tragen. Der Titel
+   * belegt dann höchstens 40 Prozent der Zeile, der Zusatz kürzt sich
+   * selbst, und unter 11rem Zeilenbreite entfällt die Zeitspanne.
+   * Dieselbe Einschränkung wie beim Fuß: nur nicht-interaktive Inhalte.
+   */
+  readonly compactInline?: ReactNode;
   /** Nativer Tooltip mit dem vollständigen Inhalt, den der Block kürzt. */
   readonly title?: string;
   /** Rendert <div> statt <button> und deaktiviert das Klick-/Fokusverhalten. */
@@ -93,6 +101,7 @@ export function PlanBlock({
   statusIcon,
   footer,
   compactDetail,
+  compactInline,
   interactive = true,
   onClick,
   className,
@@ -133,12 +142,23 @@ export function PlanBlock({
 
   const content =
     size === "compact" ? (
-      <span className="block min-w-0">
+      <span className={`block min-w-0 ${compactInline ? "@container" : ""}`}>
         <span className="flex min-w-0 items-center gap-1.5">
-          <span className="shrink-0 text-[11px] font-medium text-gray-500 tabular-nums">
+          {/* Mit Zusatz geht die Zeile an Titel und Zusatz; in einer schmalen
+              Spalte entfällt die Zeit, sie steht im Tooltip. */}
+          <span
+            className={`shrink-0 text-[11px] font-medium text-gray-500 tabular-nums ${compactInline ? "@max-[11rem]:hidden" : ""}`}
+          >
             {timeRange}
           </span>
-          <span className={labelClassName}>{label}</span>
+          <span
+            className={`${labelClassName} ${compactInline ? "max-w-[40%] shrink-0" : ""}`}
+          >
+            {label}
+          </span>
+          {compactInline && (
+            <span className="flex min-w-0 flex-1">{compactInline}</span>
+          )}
         </span>
         {compactDetail && <span className="block">{compactDetail}</span>}
       </span>
