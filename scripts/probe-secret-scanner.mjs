@@ -57,6 +57,8 @@ try {
   mkdirSync(clean);
   for (const [index, file] of [
     'backend/test/credentials.go',
+    'backend/test/fixtures.go',
+    'backend/modules/identityaccess/behavior/auth_core_test.go',
     'backend/modules/identityaccess/behavior/auth_login_test.go',
     'backend/modules/identityaccess/behavior/guardian_invitation_service_test.go',
     'backend/modules/identityaccess/behavior/invitation_flow_test.go',

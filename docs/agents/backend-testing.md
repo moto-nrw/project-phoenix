@@ -77,6 +77,10 @@ value for setup, confirmation and login. A package-level generated fixture is
 appropriate when many tests share a credential: the fixture hash cache then
 hashes it only once. Use a second generated value for a different valid password.
 
+Use `testpkg.NewTestSigningSecret()` for an HMAC signing fixture. The shared
+`testpkg.TestJWTSecret` is generated once per binary so routers and token helpers
+agree; a separate issuer or a forged-key scenario gets a separate generated key.
+
 Generate actual cryptographic material at runtime with the existing library
 helpers. The SFTP test server generates its own password and host keys;
 Delivery's VAPID tests generate key pairs with `webpush.GenerateVAPIDKeys()`.

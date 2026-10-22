@@ -139,7 +139,7 @@ func WithJWTBearer(token string) RequestOption {
 	}
 }
 
-// SeedTestJWTConfig installs deterministic viper defaults for JWT auth so that
+// SeedTestJWTConfig installs per-binary viper defaults for JWT auth so that
 // tests work in environments without a populated .env (e.g. CI). Use it from
 // init() or TestMain in test packages that build a Resource which calls
 // jwt.MustNewTokenAuth() and then use MintTestJWT to sign requests — both

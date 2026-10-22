@@ -27,6 +27,9 @@ var testPassword = testpkg.NewTestPassword()
 // testNewPassword is an alternative test password for password change/reset tests.
 var testNewPassword = testpkg.NewTestPassword()
 
+// Keep this issuer distinct from the shared router fixture's signing key.
+var authSigningSecret = testpkg.NewTestSigningSecret()
+
 // recoveryGrace is the refresh recovery window the frontend's old-token
 // deduplication relies on: a rotated predecessor stays recoverable, and a
 // retired family stays usable, for five minutes.
@@ -35,7 +38,7 @@ const recoveryGrace = 5 * time.Minute
 // setupAuthService creates an Auth Service with real database connection
 func authTestFactoryConfig(rateLimitEnabled bool) owners.ServiceConfig {
 	return owners.ServiceConfig{
-		JWTSecret:        "test-jwt-secret-for-unit-tests-minimum-32-chars",
+		JWTSecret:        authSigningSecret,
 		JWTExpiry:        15 * time.Minute,
 		JWTRefreshExpiry: 24 * time.Hour,
 		FrontendURL:      "http://localhost:3000",

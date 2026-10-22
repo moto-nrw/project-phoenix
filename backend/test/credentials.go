@@ -6,9 +6,20 @@ import "github.com/moto-nrw/project-phoenix/modules/securityruntime"
 // Reuse it within a scenario (or a package fixture) so setup and login agree;
 // never use it for assertions about a particular weak or malformed password.
 func NewTestPassword() string {
-	random, err := securityruntime.RandomLowerAlphanumeric(24)
+	return "Aa1!" + randomTestCredential(24)
+}
+
+// NewTestSigningSecret creates an opaque HMAC signing credential for a test.
+// Share one result between that scenario's issuer and verifier; generate another
+// result when the test needs an unrelated signing key.
+func NewTestSigningSecret() string {
+	return randomTestCredential(64)
+}
+
+func randomTestCredential(length int) string {
+	random, err := securityruntime.RandomLowerAlphanumeric(length)
 	if err != nil {
-		panic("generate test password: " + err.Error())
+		panic("generate test credential: " + err.Error())
 	}
-	return "Aa1!" + random
+	return random
 }
