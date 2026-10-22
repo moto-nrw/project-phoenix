@@ -1142,7 +1142,9 @@
       "ruleAtLeastOne": "Proszę wybrać co najmniej jedną",
       "ruleAtMostOne": "Najwyżej jedna",
       "ruleAtMostOnePerDay": "Najwyżej jedna dziennie",
-      "availabilitySelectionRemoved": "Po zmianie poziomu klasy niektóre oferty opieki nie są już dostępne. Powiązany wybór, dni opieki i automatyczne dodatkowe zapisy zostały usunięte."
+      "availabilitySelectionRemoved": "Po zmianie poziomu klasy niektóre oferty opieki nie są już dostępne. Powiązany wybór, dni opieki i automatyczne dodatkowe zapisy zostały usunięte.",
+      "chooseGradeFirst": "Proszę najpierw wybrać klasę dziecka. Potem pojawią się tutaj pasujące oferty opieki.",
+      "noOfferingsForGrade": "Dla klasy {grade} nie ma pasujących ofert opieki. W razie pytań prosimy o kontakt z OGS."
     },
     "consent": {
       "agb": "Akceptuję regulamin szkoły.",

@@ -38,7 +38,7 @@ func TestSplitAtSchoolFromHome(t *testing.T) {
 
 	t.Run("clamps home at zero", func(t *testing.T) {
 		t.Parallel()
-		// StudentsHome is clamped upstream and can be lower than the candidates.
+		// A stale home figure can be lower than the at-school count.
 		atSchool, home, err := splitAtSchoolFromHome(context.Background(), &atSchoolCounterFake{count: 2}, 1, []int64{1, 2})
 		require.NoError(t, err)
 		assert.Equal(t, 2, atSchool)

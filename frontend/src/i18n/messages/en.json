@@ -1140,7 +1140,9 @@
       "ruleAtLeastOne": "Please choose at least one",
       "ruleAtMostOne": "At most one",
       "ruleAtMostOnePerDay": "At most one per day",
-      "availabilitySelectionRemoved": "Some care offerings are no longer available for the selected grade. Their selections, days, and automatic additions were removed."
+      "availabilitySelectionRemoved": "Some care offerings are no longer available for the selected grade. Their selections, days, and automatic additions were removed.",
+      "chooseGradeFirst": "First choose your child's grade. Then you will see the matching care offerings here.",
+      "noOfferingsForGrade": "There are no matching care offerings for grade {grade}. If you have questions, please contact the OGS."
     },
     "consent": {
       "agb": "I accept the school's terms and conditions.",
