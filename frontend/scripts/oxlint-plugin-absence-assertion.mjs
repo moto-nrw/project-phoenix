@@ -352,6 +352,13 @@ function classifyAssertion(sourceCode, call, { chain, subject }) {
   if (kind === "node") {
     // Nullable queries return null, not undefined. Neither check proves presence.
     if (matcher === "toBeDefined" || matcher === "toBeUndefined") return "";
+    if (
+      (matcher === "toBe" || EMPTY_LIST_MATCHERS.has(matcher)) &&
+      argument?.type === "Literal" &&
+      argument.value === null
+    ) {
+      return negated ? "positive" : "absent";
+    }
     if (NULLISH_MATCHERS.has(matcher)) return negated ? "positive" : "absent";
     if (TRUTHY_MATCHERS.has(matcher)) return negated ? "absent" : "positive";
     return "positive";
@@ -378,7 +385,8 @@ function classifyAssertion(sourceCode, call, { chain, subject }) {
     ) {
       return negated ? "positive" : "absent";
     }
-    return "positive";
+    // Arrays and NodeLists are truthy and non-null even when empty.
+    return kind === "list" ? "" : "positive";
   }
   if (kind === "text" || kind === "root") {
     if (negated && (TEXT_MATCHERS.has(matcher) || matcher === "toBe")) {
@@ -578,12 +586,25 @@ function createAnalysis(context, report) {
 
         let positive = false;
         let absent = false;
+        // A retry only succeeds when every assertion in its callback passes,
+        // regardless of their order. Keep this evidence local to that waitFor.
+        const anchoredWaitFors = new Set(
+          events
+            .filter((event) => event.kind === "positive" && event.waitFor)
+            .map((event) => event.waitFor),
+        );
         const earlyWaitFors = new Set();
         for (const event of events) {
           if (event.kind === "positive") positive = true;
           if (event.kind !== "absent") continue;
           absent = true;
-          if (event.waitFor && !positive) earlyWaitFors.add(event.waitFor);
+          if (
+            event.waitFor &&
+            !positive &&
+            !anchoredWaitFors.has(event.waitFor)
+          ) {
+            earlyWaitFors.add(event.waitFor);
+          }
         }
 
         report({

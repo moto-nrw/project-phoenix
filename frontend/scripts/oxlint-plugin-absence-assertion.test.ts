@@ -179,6 +179,12 @@ describe("absence-assertion/needs-anchor", () => {
   );
 
   it.each([
+    'expect(screen.queryAllByRole("row")).toBeTruthy()',
+    'expect(screen.queryAllByRole("row")).not.toBeNull()',
+    'expect(screen.queryAllByRole("row")).not.toEqual(null)',
+    'expect(screen.queryAllByRole("row")).not.toStrictEqual(null)',
+    'expect(screen.queryAllByRole("row")).toBeDefined()',
+    'expect(screen.queryAllByRole("row")).not.toBeUndefined()',
     'expect(screen.queryAllByRole("row")).not.toHaveLength(3)',
     'expect(screen.queryAllByRole("row").length).not.toBe(3)',
     'expect(screen.queryAllByRole("row").length).not.toEqual(3)',
@@ -206,6 +212,11 @@ describe("absence-assertion/needs-anchor", () => {
     'expect(screen.queryAllByRole("row").length).toBe(3)',
     'expect(screen.queryAllByRole("row").length).not.toEqual(0)',
     'expect(screen.queryByText("Loaded")).not.toBeNull()',
+    'expect(screen.queryByText("Loaded")).not.toBe(null)',
+    'expect(screen.queryByText("Loaded")).not.toEqual(null)',
+    'expect(screen.queryByText("Loaded")).not.toStrictEqual(null)',
+    'expect(screen.queryAllByRole("row")).not.toEqual([])',
+    'expect(screen.queryAllByRole("row")).not.toStrictEqual([])',
     'expect(screen.queryByText("Loaded")).toBeTruthy()',
   ])("accepts nonempty evidence: %s", (assertion) => {
     const result = lintSource(`
@@ -221,6 +232,24 @@ describe("absence-assertion/needs-anchor", () => {
     expect(count(result.output, "no-early-wait-for")).toBe(0);
     expect(result.status).toBe(0);
   });
+
+  it.each(["toBe", "toEqual", "toStrictEqual"])(
+    "treats %s(null) as an absence without another absence matcher",
+    (matcher) => {
+      const result = lintSource(`
+        import { screen, waitFor } from "@testing-library/react";
+        import { expect, it } from "vitest";
+        it("has no loaded content", async () => {
+          await waitFor(() => {
+            expect(screen.queryByText("Loaded")).${matcher}(null);
+          });
+        });
+      `);
+
+      expect(count(result.output, "needs-anchor")).toBe(1);
+      expect(count(result.output, "no-early-wait-for")).toBe(1);
+    },
+  );
 
   it("exempts the exact empty-render contract", () => {
     const result = lintSource(`
@@ -306,6 +335,28 @@ describe("absence-assertion/no-early-wait-for", () => {
     expect(count(result.output, "no-early-wait-for")).toBe(1);
     expect(count(result.output, "needs-anchor")).toBe(0);
   });
+
+  it.each([false, true])(
+    "accepts positive evidence anywhere in the same callback (absence first: %s)",
+    (absenceFirst) => {
+      const assertions = [
+        'expect(screen.queryByText("Loaded")).not.toBeNull();',
+        'expect(screen.queryByRole("alert")).toBeNull();',
+      ];
+      if (absenceFirst) assertions.reverse();
+      const result = lintSource(`
+        import { screen, waitFor } from "@testing-library/react";
+        import { expect, it } from "vitest";
+        it("waits for loaded content without an alert", async () => {
+          await waitFor(() => { ${assertions.join("\n")} });
+        });
+      `);
+
+      expect(count(result.output, "needs-anchor")).toBe(0);
+      expect(count(result.output, "no-early-wait-for")).toBe(0);
+      expect(result.status).toBe(0);
+    },
+  );
 
   it("accepts a waitFor after the loaded state or a positive check inside it", () => {
     const result = lintSource(`
