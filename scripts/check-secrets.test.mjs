@@ -25,12 +25,11 @@ function fixture(t) {
   git('config', 'user.email', 'scanner@example.invalid');
   mkdirSync(join(root, 'scripts'));
   copyFileSync(join(source, 'check-secrets.sh'), join(root, 'scripts/check-secrets.sh'));
-  writeFileSync(join(root, '.gitguardian.yaml'), 'version: 2\nsecret:\n  ignored_paths: []\n');
+  writeFileSync(join(root, '.gitleaks.toml'), '[extend]\nuseDefault = true\n');
   const bin = join(root, '.devbox/nix/profile/default/bin');
   mkdirSync(bin, { recursive: true });
-  writeFileSync(join(bin, 'ggshield'), `#!/bin/bash
+  writeFileSync(join(bin, 'gitleaks'), `#!/bin/bash
 printf '%s\\n' "$@" > scanner-args
-printf '%s\\n' "$GITGUARDIAN_EXIT_ZERO" "$GITGUARDIAN_SHOW_SECRETS" > scanner-env
 exit "\${SCANNER_STATUS:-0}"
 `, { mode: 0o755 });
   function commit(text) {
@@ -46,10 +45,10 @@ exit "\${SCANNER_STATUS:-0}"
 
 test('pre-commit scans the index with explicit repository config and redacted failures', t => {
   const f = fixture(t);
-  const result = f.scan(['pre-commit'], { SCANNER_STATUS: '1', GITGUARDIAN_EXIT_ZERO: 'true', GITGUARDIAN_SHOW_SECRETS: 'true' });
+  const root = realpathSync(f.root);
+  const result = f.scan(['pre-commit'], { SCANNER_STATUS: '1' });
   assert.equal(result.status, 1, result.stderr);
-  assert.deepEqual(f.args(), ['--config-path', join(realpathSync(f.root), '.gitguardian.yaml'), '--no-check-for-updates', 'secret', 'scan', 'pre-commit']);
-  assert.equal(readFileSync(join(f.root, 'scanner-env'), 'utf8'), 'false\nfalse\n');
+  assert.deepEqual(f.args(), ['git', root, '--config', join(root, '.gitleaks.toml'), '--redact', '--no-banner', '--exit-code', '1', '--staged', '--pre-commit']);
 });
 
 test('pre-push scans every branch commit, including credentials removed at the tip', t => {
@@ -59,15 +58,15 @@ test('pre-push scans every branch commit, including credentials removed at the t
   f.commit('credential removed');
   const result = f.scan(['pre-push', 'base']);
   assert.equal(result.status, 0, result.stderr);
-  assert.deepEqual(f.args().slice(-2), ['commit-range', `${base}..HEAD`]);
+  assert.equal(f.args().at(-1), `--log-opts=${base}..HEAD`);
 });
 
 test('missing pinned scanner cannot fall back to another installation', t => {
   const f = fixture(t);
-  rmSync(join(f.root, '.devbox/nix/profile/default/bin/ggshield'));
+  rmSync(join(f.root, '.devbox/nix/profile/default/bin/gitleaks'));
   const result = f.scan(['pre-commit']);
   assert.notEqual(result.status, 0);
-  assert.match(result.stderr, /Pinned ggshield is missing/);
+  assert.match(result.stderr, /Pinned gitleaks is missing/);
 });
 
 for (const ahead of [false, true]) {
@@ -84,7 +83,7 @@ for (const ahead of [false, true]) {
   });
 }
 
-test('authentication and network failures fail closed', t => {
+test('scanner failures fail closed', t => {
   const f = fixture(t);
   for (const status of [2, 3]) assert.equal(f.scan(['pre-commit'], { SCANNER_STATUS: String(status) }).status, status);
 });

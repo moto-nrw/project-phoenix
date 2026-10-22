@@ -464,7 +464,7 @@ func composeServeRoot(
 		},
 		func() (err error) {
 			dashboard, err = buildSupervisionDashboard(env, settings.Service, caller, active, presence, rooms, timetableOwner, yard,
-				structureViews, lifecycle, schedules)
+				structureViews, lifecycle, schedules, services.Users)
 			return
 		},
 		func() (err error) {

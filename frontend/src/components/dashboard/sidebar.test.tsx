@@ -1146,7 +1146,7 @@ describe("Sidebar", () => {
       expect(screen.getByText("Datenverwaltung")).toBeInTheDocument();
       expect(screen.getByText("Kinderdaten")).toBeInTheDocument();
       expect(screen.getByText("Personal")).toBeInTheDocument();
-      expect(screen.getByText("Gruppen")).toBeInTheDocument();
+      expect(screen.getByText("Gruppendaten")).toBeInTheDocument();
     });
   });
 

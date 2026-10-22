@@ -108,7 +108,10 @@ export const DATABASE_SUB_PAGES: readonly SectionSubPage[] = [
   { href: "/database/planning-tracks", label: "Planungsspuren" },
   { href: "/database/shift-types", label: "Schichtarten" },
   { href: "/database/absence-types", label: "Abwesenheitsarten" },
-  { href: "/database/groups", label: "Gruppen" },
+  // „Gruppendaten", nicht „Gruppen": im Tagesbetrieb heißt die Auswahl der
+  // Gruppen am laufenden Tag schon „Gruppen" (#4351). Dieselbe Trennung wie
+  // bei „Kinderdaten" (#4590).
+  { href: "/database/groups", label: "Gruppendaten" },
   { href: "/database/roles", label: "Rollen" },
   { href: "/database/devices", label: "Geräte" },
   { href: "/database/permissions", label: "Berechtigungen" },
@@ -128,7 +131,7 @@ export const DATABASE_SUB_PAGES: readonly SectionSubPage[] = [
  * `admin`. Eine Leitungsrolle, die eine Schule selbst anlegt, kam damit nie
  * in die Verwaltung.
  *
- * Für Kinderdaten, Räume, Gruppen und Exporte gilt das `manage`-Recht des
+ * Für Kinderdaten, Räume, Gruppendaten und Exporte gilt das `manage`-Recht des
  * Bereichs, nicht das Leserecht: mit `users:read` allein sähe jede
  * Betreuungskraft eine Kinderdaten-Seite, deren Anlegen und Löschen ihr
  * das Backend verweigert. Die Aktivitäten-Stammdaten haben keinen Eintrag

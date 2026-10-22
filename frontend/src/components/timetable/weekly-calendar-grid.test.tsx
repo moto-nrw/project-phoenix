@@ -246,3 +246,86 @@ describe("WeeklyCalendarGrid planningDisabledDateISOs", () => {
     expect(screen.getAllByText("Schließtag · Ferien")).toHaveLength(2);
   });
 });
+
+/**
+ * Guards the readable column layout: a day with parallel blocks gets one
+ * readable lane per block instead of an equal share of the week, and a block
+ * takes the free lanes to its right.
+ */
+describe("WeeklyCalendarGrid column widths", () => {
+  const at = (id: string, startTime: string, endTime: string) => ({
+    ...instance,
+    id,
+    title: id,
+    startTime,
+    endTime,
+  });
+
+  function renderParallelMonday(laneMinWidthPx?: number) {
+    return render(
+      <WeeklyCalendarGrid
+        weekDays={weekDays}
+        instances={[
+          at("AG-A", "14:00", "16:00"),
+          at("AG-B", "14:00", "15:00"),
+          at("AG-C", "14:00", "15:00"),
+          at("Spiel", "15:00", "16:00"),
+        ]}
+        selectedId={null}
+        onInstanceClick={vi.fn()}
+        todayISO="2026-05-04"
+        dayStartHour={9}
+        dayEndHour={17}
+        hourHeightPx={90}
+        laneMinWidthPx={laneMinWidthPx}
+      />,
+    );
+  }
+
+  function gridStyle(container: HTMLElement) {
+    return (container.firstElementChild as HTMLElement).style;
+  }
+
+  it("widens the day with three parallel blocks and scrolls past its minimum", () => {
+    const { container } = renderParallelMonday();
+
+    expect(gridStyle(container).getPropertyValue("--day-grid-cols")).toBe(
+      "64px minmax(336px,3fr) minmax(120px,1fr) minmax(120px,1fr) minmax(120px,1fr) minmax(120px,1fr)",
+    );
+    expect(gridStyle(container).getPropertyValue("--day-grid-min-w")).toBe(
+      `${64 + 336 + 4 * 120}px`,
+    );
+  });
+
+  it("keeps three parallel blocks side by side on a phone without sideways scrolling", () => {
+    const { container } = renderParallelMonday();
+
+    // Monday is selected (today); a phone lane is narrower than the desktop
+    // lane, so three blocks fit next to the 40px time gutter.
+    expect(
+      gridStyle(container).getPropertyValue("--day-grid-cols-mobile"),
+    ).toBe("40px minmax(210px,3fr)");
+  });
+
+  it("lets a later block take the lanes that became free", () => {
+    renderParallelMonday();
+
+    const third = 100 / 3;
+    expect(screen.getByLabelText(/^AG-B, /)).toHaveStyle({
+      width: `${third}%`,
+    });
+    // Spiel starts when AG-B and AG-C end: it covers lanes 2 and 3.
+    expect(screen.getByLabelText(/^Spiel, /)).toHaveStyle({
+      left: `${third}%`,
+      width: `${2 * third}%`,
+    });
+  });
+
+  it("fits the week into the width at lane width 0 (Kompakt)", () => {
+    const { container } = renderParallelMonday(0);
+
+    expect(gridStyle(container).getPropertyValue("--day-grid-min-w")).toBe(
+      `${64 + 5 * 120}px`,
+    );
+  });
+});

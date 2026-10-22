@@ -53,8 +53,10 @@ import {
   rosterRunState,
   schulhofHeadActionsApply,
   sessionsOutsideOpenRooms,
+  supervisionHeadFacts,
   supervisionTabLabel,
 } from "~/components/active-supervisions/view-model";
+import { SupervisionHeadFacts } from "~/components/active-supervisions/supervision-head-facts";
 import { useSupervisionDashboard } from "~/components/active-supervisions/use-supervision-dashboard";
 import { useTimetableRoster } from "~/components/active-supervisions/use-timetable-roster";
 import type { TimetableRosterRow } from "~/lib/timetable-operations-types";
@@ -339,12 +341,20 @@ function MeinRaumPageContent() {
     currentOpenRoom?.studentCount ??
     currentRoom?.student_count ??
     students.length;
-  // Beim Schulhof steht dazu, wer dort die Aufsicht hat, solange es nicht die
-  // Person selbst ist; das sagt dann das Abzeichen „Eigene Aufsicht".
-  const openRoomSupervisorNames =
-    isSchulhofOpenRoom && !currentOpenRoom?.isUserSupervising
-      ? (schulhofStatus?.supervisors.map((s) => s.name) ?? [])
-      : [];
+  // Dazu Raum und wer die Aufsicht hat, für eigene Aufsichten wie für offene
+  // Räume (#4354). Die Blockkarte darunter nennt den Raum dann nicht mehr.
+  // Fehlt der Raum im Dashboard, nennt ihn der Roster des Blocks.
+  const headFacts = supervisionHeadFacts({
+    title: supervisionName,
+    currentRoom: currentRoom && {
+      room_name:
+        currentRoom.room_name ??
+        currentTimetableRoster?.instance.roomName ??
+        undefined,
+      supervisorNames: currentRoom.supervisorNames,
+    },
+    currentOpenRoom,
+  });
   // Die Teilnehmergrenze gehört zur Sitzung, nicht zum offenen Raum: dort
   // zeigt jeder Abschnitt seine eigene (#3634).
   const supervisionOccupancy: Occupancy = {
@@ -355,15 +365,18 @@ function MeinRaumPageContent() {
     supervisionOccupancy,
     nfcEnabled,
   );
-  const supervisionSummary = supervisionName
-    ? [
+  const supervisionSummary = supervisionName ? (
+    <SupervisionHeadFacts
+      childCount={[
         formatChildCount(supervisionCount, supervisionOccupancy.limit),
         ...(supervisionOverbookedHint ? [OVERBOOKED_LABEL] : []),
-        ...(openRoomSupervisorNames.length > 0
-          ? [`Aktuelle Aufsicht: ${openRoomSupervisorNames.join(", ")}`]
-          : []),
-      ].join(" · ")
-    : "Keine Aufsicht aktiv";
+      ].join(" · ")}
+      roomName={headFacts.roomName}
+      supervisorNames={headFacts.supervisorNames}
+    />
+  ) : (
+    "Keine Aufsicht aktiv"
+  );
 
   // Reiterleiste. Am Desktop wechselt die Seitenleiste, deshalb stehen die
   // Reiter nur darunter. Offene Räume stehen hinter den eigenen Aufsichten:
@@ -689,6 +702,7 @@ function MeinRaumPageContent() {
             roster={currentTimetableRoster}
             showTimetableCounts={showTimetableCounts}
             statusInPageHead
+            roomInPageHead
             occupancy={supervisionOccupancy}
             onAddStudent={actions.handleAddUnplannedStudent}
             onAddPresentStudents={

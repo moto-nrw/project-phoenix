@@ -207,7 +207,7 @@ jobs:
               - 'lefthook.yml'
               - 'scripts/pre-push*'
               - 'scripts/check-secrets*'
-              - '.gitguardian.*'
+              - '.gitleaks*'
               - 'scripts/run-go-toolchain.sh'
               - 'scripts/dev-native*'
             # Release, deploy and demo tooling and the workflow files the
