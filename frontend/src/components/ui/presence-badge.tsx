@@ -1,6 +1,7 @@
 import * as React from "react";
 
 import type { StudentLocationContext } from "@/lib/location-helper";
+import { PresenceHint } from "./presence-hint";
 import {
   LOCATION_COLORS,
   LOCATION_STATUSES,
@@ -19,8 +20,9 @@ import {
  * palette move; red now means SICK/DANGER), which reads "Schule" for an
  * expected child before the first check-in (#3260). No room details, no "Unterwegs",
  * no display-mode switching.
- * Sick / excused overlays mirror LocationBadge so those students still look
- * right in binary-mode tenants.
+ * Sick / excused hints mirror LocationBadge so those students still look
+ * right in binary-mode tenants: at most one pill, further facts as a
+ * {@link PresenceHint} line below it (#4371).
  *
  * Consumers should usually import {@link StudentPresenceBadge} instead —
  * that wrapper routes detailed-mode tenants to LocationBadge automatically
@@ -92,33 +94,6 @@ const SIZE_MAP = {
 
 const DEFAULT_SIZE = "md";
 
-function renderOverlayBadge({
-  overlayLabel,
-  overlayColor,
-  dataAttr,
-  sizeConfig,
-}: {
-  overlayLabel: string;
-  overlayColor: string;
-  dataAttr: string;
-  sizeConfig: (typeof SIZE_MAP)[keyof typeof SIZE_MAP];
-}) {
-  const tone = getLocationBadgeTone(overlayColor);
-
-  return (
-    <span
-      className={`mt-1 ${MODERN_BASE_CLASS} ${sizeConfig.modern}`}
-      style={{
-        backgroundColor: tone.backgroundColor,
-        color: tone.textColor,
-      }}
-      {...{ [dataAttr]: "true" }}
-    >
-      {overlayLabel}
-    </span>
-  );
-}
-
 // Sick/excused status takes visual precedence over absence (a sick student
 // at home reads as "Krank", not "Abwesend") — matches LocationBadge behaviour.
 function resolveBadgeStyle(
@@ -188,7 +163,7 @@ export function PresenceBadge({
   const sizeConfig = SIZE_MAP[sizeKey] ?? SIZE_MAP[DEFAULT_SIZE];
   const tone = getLocationBadgeTone(color);
 
-  // A contradiction between actual presence and the plan is more actionable
+  // One hint at most. A contradiction between actual presence and the plan is more actionable
   // than the underlying absence reason (krank, entschuldigt, etc.).
   const showUnplannedOverlay =
     student.not_arrival_today && state !== "abwesend";
@@ -258,34 +233,10 @@ export function PresenceBadge({
           seit {formattedTime} Uhr
         </span>
       )}
-      {showUnplannedOverlay &&
-        renderOverlayBadge({
-          overlayLabel: LOCATION_STATUSES.UNPLANNED_PRESENT,
-          overlayColor: LOCATION_COLORS.NOT_ARRIVAL,
-          dataAttr: "data-not-arrival-indicator",
-          sizeConfig,
-        })}
-      {showSickOverlay &&
-        renderOverlayBadge({
-          overlayLabel: LOCATION_STATUSES.SICK,
-          overlayColor: LOCATION_COLORS.SICK,
-          dataAttr: "data-sick-indicator",
-          sizeConfig,
-        })}
-      {showClassTripOverlay &&
-        renderOverlayBadge({
-          overlayLabel: LOCATION_STATUSES.CLASS_TRIP,
-          overlayColor: LOCATION_COLORS.CLASS_TRIP,
-          dataAttr: "data-class-trip-indicator",
-          sizeConfig,
-        })}
-      {showExcusedOverlay &&
-        renderOverlayBadge({
-          overlayLabel: LOCATION_STATUSES.EXCUSED,
-          overlayColor: LOCATION_COLORS.EXCUSED,
-          dataAttr: "data-excused-indicator",
-          sizeConfig,
-        })}
+      {showUnplannedOverlay && <PresenceHint kind="notArrival" />}
+      {showSickOverlay && <PresenceHint kind="sick" />}
+      {showClassTripOverlay && <PresenceHint kind="classTrip" />}
+      {showExcusedOverlay && <PresenceHint kind="excused" />}
     </div>
   );
 }

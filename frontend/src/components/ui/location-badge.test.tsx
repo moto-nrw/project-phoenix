@@ -228,19 +228,22 @@ describe("LocationBadge", () => {
         );
       });
 
-      it("applies amber color to sick indicator", () => {
+      // #4371: one pill per child. The location keeps the pill; "Krank"
+      // is a neutral hint line without a tinted surface.
+      it("shows the sick hint as text, not as a second pill", () => {
         const student = createStudent({
           current_location: "Anwesend - Raum 101",
           sick: true,
         });
 
-        render(<LocationBadge student={student} displayMode="roomName" />);
+        const { container } = render(
+          <LocationBadge student={student} displayMode="roomName" />,
+        );
 
-        const sickIndicator = screen.getByText(LOCATION_STATUSES.SICK);
-        expect(sickIndicator.closest("span")).toHaveStyle({
-          backgroundColor: getLocationBadgeTone(LOCATION_COLORS.SICK)
-            .backgroundColor,
-        });
+        const sickIndicator = container.querySelector("[data-sick-indicator]");
+        expect(sickIndicator).toHaveTextContent(LOCATION_STATUSES.SICK);
+        expect((sickIndicator as HTMLElement).style.backgroundColor).toBe("");
+        expect(container.querySelectorAll(".rounded-full")).toHaveLength(1);
       });
 
       it("works with Schulhof location", () => {
@@ -431,7 +434,7 @@ describe("LocationBadge", () => {
         expect(screen.getByText(LOCATION_STATUSES.EXCUSED)).toBeInTheDocument();
       });
 
-      it("renders excused indicator with data attribute and purple color", () => {
+      it("renders the excused hint with data attribute and without a tint", () => {
         const student = createStudent({
           current_location: "Anwesend - Raum 101",
           excused: true,
@@ -443,10 +446,10 @@ describe("LocationBadge", () => {
           "data-excused-indicator",
           "true",
         );
-        expect(ind.closest("span")).toHaveStyle({
-          backgroundColor: getLocationBadgeTone(LOCATION_COLORS.EXCUSED)
+        expect(
+          (ind.closest("[data-excused-indicator]") as HTMLElement).style
             .backgroundColor,
-        });
+        ).toBe("");
       });
     });
 
