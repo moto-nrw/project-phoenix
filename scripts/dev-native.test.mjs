@@ -197,16 +197,20 @@ test('.env references resolve like Compose before the host override', t => {
     'MAILPIT_HOST_PORT=18025', 'MAILPIT_SMTP_HOST_PORT=11025', 'POSTGRES_PASSWORD=from-file',
     'DB_DSN=postgres://postgres:${POSTGRES_PASSWORD}@postgres:5432/postgres?sslmode=require',
     'TEST_DB_DSN="postgres://postgres:${POSTGRES_PASSWORD}@localhost:5433/phoenix_test"',
-    "LITERAL='${POSTGRES_PASSWORD}'", 'MIXED=a$b${POSTGRES_PASSWORD}}${SERVER_HOST_PORT}',
+    "LITERAL='${POSTGRES_PASSWORD}'", 'MIXED=a$$b${POSTGRES_PASSWORD}}${SERVER_HOST_PORT}',
+    'UNBRACED=$POSTGRES_PASSWORD:$SERVER_HOST_PORT',
+    'DOUBLE_UNBRACED="$POSTGRES_PASSWORD"',
     'ESCAPED=$${POSTGRES_PASSWORD}$$',
   ].join('\n'));
-  const result = f.run('backend', 'bash', '-c', 'printf "%s\\n" "$DB_DSN" "$TEST_DB_DSN" "$LITERAL" "$MIXED" "$ESCAPED"');
+  const result = f.run('backend', 'bash', '-c', 'printf "%s\\n" "$DB_DSN" "$TEST_DB_DSN" "$LITERAL" "$MIXED" "$UNBRACED" "$DOUBLE_UNBRACED" "$ESCAPED"');
   assert.equal(result.status, 0, result.stderr);
   assert.deepEqual(result.stdout.trim().split('\n'), [
     'postgres://postgres:from-shell@localhost:15432/postgres?sslmode=require',
     'postgres://postgres:from-shell@localhost:5433/phoenix_test',
     '${POSTGRES_PASSWORD}',
     'a$bfrom-shell}18080',
+    'from-shell:18080',
+    'from-shell',
     '${POSTGRES_PASSWORD}$',
   ]);
 });
@@ -214,6 +218,7 @@ test('.env references resolve like Compose before the host override', t => {
 test('unresolvable .env references stop before any command runs', t => {
   for (const [value, message] of [
     ['postgres://postgres:${MISSING_PASSWORD}@postgres:5432/postgres', /DB_DSN in .env references \$\{MISSING_PASSWORD\}, which is not set/],
+    ['postgres://postgres:$MISSING_PASSWORD@postgres:5432/postgres', /DB_DSN in .env references \$MISSING_PASSWORD, which is not set/],
     ['postgres://postgres:${POSTGRES_PASSWORD:-x}@postgres:5432/postgres', /DB_DSN in .env uses an unsupported \$\{\.\.\.\} form/],
   ]) {
     const f = fixture(t, { tools: [] });

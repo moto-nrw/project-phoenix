@@ -36,8 +36,8 @@ STATE="$ROOT/tmp/dev-native"
 
 # Compose interpolates ${VAR} in .env values (DB_DSN carries
 # ${POSTGRES_PASSWORD}); do the same so the native apps see the value the
-# containers see. Single-quoted values stay literal, as in Compose. A $ without
-# braces stays literal for passwords; $$ is the Compose escape for a literal $.
+# containers see. Single-quoted values stay literal, as in Compose. Both ${VAR}
+# and $VAR are expanded; $$ is the Compose escape for a literal $.
 # Defaults (${VAR:-x}) are not allowed in this repo, so any other braced form,
 # and a reference to an unset variable, fails here instead of reaching the apps
 # as text. Sets EXPANDED; no subshell, so die stops the script.
@@ -63,6 +63,12 @@ expand_refs() {
       [ -n "${!ref+set}" ] || die "$key in .env references \${$ref}, which is not set"
       out+=${!ref}
       i=$((i + ${#ref} + 3))
+    elif [[ $next =~ [A-Za-z_] ]]; then
+      ref=${val:i+1}
+      ref=${ref%%[^A-Za-z0-9_]*}
+      [ -n "${!ref+set}" ] || die "$key in .env references \$$ref, which is not set"
+      out+=${!ref}
+      i=$((i + ${#ref} + 1))
     else
       out+='$'
       i=$((i + 1))
