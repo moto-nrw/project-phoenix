@@ -104,23 +104,4 @@ export async function waitForAnimations(locator: Locator) {
   );
 }
 
-/**
- * Wählt ein Datum im Kit-Datumsfeld (ISODatePicker, seit c21828f2f8 statt
- * `<input type="date">`): Feld öffnen, bei Bedarf einen Monat weiterblättern,
- * den Tag anklicken. Der Kalender rendert per Portal, daher page-weit greifen.
- * Das Tagesraster lädt nach (lazy react-day-picker), und ein Klick während der
- * Hydration öffnet das Feld nicht, und ein Feld rendert nach der Auswahl im
- * Nachbarfeld neu; dann wird erneut geklickt.
- */
-export async function pickDate(page: Page, trigger: Locator, iso: string) {
-  const grid = page.locator("td[data-day]").first();
-  await expect(async () => {
-    if (!(await grid.isVisible())) await trigger.click({ timeout: 5000 });
-    await expect(grid).toBeVisible({ timeout: 2000 });
-  }).toPass({ timeout: 20000 });
-  const day = page.locator(`td[data-day="${iso}"]:not([data-outside]) button`);
-  if ((await day.count()) === 0) {
-    await page.getByRole("button", { name: "Nächster Monat" }).click();
-  }
-  await day.click();
-}
+export { pickDate } from "./date-picker";

@@ -42,19 +42,25 @@ test.describe("Kinderprofil Betreuungsplan-Tab", () => {
   });
 
   test("zeigt die Tagesansicht und schaltet auf Woche um", async ({ page }) => {
+    // Cold profile and timetable routes compile on the CI dev server.
+    test.setTimeout(120000);
     const studentId = await firstStudentId(page);
     test.skip(studentId === null, "Kein Kind im Tenant gefunden");
     if (studentId === null) return;
 
-    const dayResponse = page.waitForResponse(
-      (r) =>
-        /\/api\/timetable\/student\/\d+\/day/.test(r.url()) &&
-        r.status() === 200,
-      DATA,
-    );
-    await page.goto(`${base}/students/${studentId}?tab=betreuungsplan`, {
-      waitUntil: "domcontentloaded",
-    });
+    const [dayResponse] = await Promise.all([
+      page.waitForResponse(
+        (r) =>
+          new URL(r.url()).pathname ===
+            `/api/timetable/student/${studentId}/day` &&
+          r.request().method() === "GET",
+        { timeout: 60000 },
+      ),
+      page.goto(`${base}/students/${studentId}?tab=betreuungsplan`, {
+        waitUntil: "domcontentloaded",
+      }),
+    ]);
+    expect(dayResponse.status()).toBe(200);
 
     // Tab is present and active.
     await expect(page.getByRole("tab", { name: "Betreuungsplan" })).toBeVisible(
@@ -70,7 +76,6 @@ test.describe("Kinderprofil Betreuungsplan-Tab", () => {
     await expect(viewToggle.getByRole("button", { name: "Woche" })).toBeVisible(
       DATA,
     );
-    await dayResponse;
     await expect(
       page.getByRole("button", { name: "Nächster Tag" }),
     ).toBeVisible(DATA);
