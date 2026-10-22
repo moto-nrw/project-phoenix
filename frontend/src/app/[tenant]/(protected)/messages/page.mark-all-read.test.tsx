@@ -246,8 +246,7 @@ describe("Alle als gelesen markieren", () => {
 
   it("does not offer the hidden setting while messaging is off", () => {
     mockTenant.messagingEnabled = false;
-    // Eine vorhandene Unterhaltung ist der Anker: die Seite ist geladen,
-    // nur das Menü fehlt.
+    // Mit einer vorhandenen Unterhaltung rendert das gemockte Gerüst Inhalt.
     mockInbox.threads = [
       {
         thread_id: "7",
@@ -259,6 +258,7 @@ describe("Alle als gelesen markieren", () => {
     ];
     render(<MessagesPage />);
 
+    // Anker: die Unterhaltung ist geladen, nur das Menü fehlt.
     expect(screen.getByText("Sabine Schneider")).toBeInTheDocument();
     expect(
       screen.queryByRole("button", { name: "Weitere Aktionen" }),

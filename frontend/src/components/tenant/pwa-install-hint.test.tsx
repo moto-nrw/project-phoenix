@@ -414,6 +414,7 @@ describe("PwaInstallHint", () => {
 
     seedReturningVisitor();
     renderInEnvironment(VISIBLE[visible]);
+    // Anker: die sichtbare Ausgangszeile zeigt den Hinweis im selben Aufbau.
     expect(screen.getByText("moto als App nutzen")).toBeInTheDocument();
   });
 
@@ -531,6 +532,7 @@ describe("PwaInstallHint", () => {
     stubNavigator({ userAgent: IPHONE_UA });
     stubMatchMedia(false);
     const { unmount } = render(<PwaInstallHint />);
+    // Anker: der Hinweis steht da, bevor er geschlossen wird.
     fireEvent.click(screen.getByLabelText("Hinweis schließen"));
     expect(screen.queryByText("moto als App nutzen")).not.toBeInTheDocument();
     unmount();

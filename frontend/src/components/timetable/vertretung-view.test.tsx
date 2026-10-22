@@ -669,7 +669,8 @@ describe("VertretungView", () => {
     render(<VertretungView />);
 
     // Der Katalog lädt asynchron; im ersten Render steht weder Raster noch
-    // Liste da, sondern das Skelett des Gerüsts.
+    // Liste da.
+    // Anker: das Skelett des Gerüsts.
     expect(
       screen.getByRole("status", {
         name: "Der Bereich „Vertretung“ wird geladen…",
@@ -1185,6 +1186,7 @@ describe("VertretungView", () => {
       });
       render(<VertretungView />);
 
+      // Anker: die Tagesliste ist geladen, nur der Hinweis fehlt.
       expect(screen.getByTestId("day-list")).toBeInTheDocument();
       expect(
         screen.queryByRole("link", { name: "Dienstplan öffnen" }),
@@ -1201,6 +1203,7 @@ describe("VertretungView", () => {
       });
       render(<VertretungView />);
 
+      // Anker: die Tagesliste ist geladen, nur der Hinweis fehlt.
       expect(screen.getByTestId("day-list")).toBeInTheDocument();
       expect(
         screen.queryByRole("link", { name: "Dienstplan öffnen" }),
@@ -1218,6 +1221,7 @@ describe("VertretungView", () => {
       });
       render(<VertretungView />);
 
+      // Anker: die Tagesliste ist geladen, nur der Hinweis fehlt.
       expect(screen.getByTestId("day-list")).toBeInTheDocument();
       expect(
         screen.queryByRole("link", { name: "Dienstplan öffnen" }),
@@ -1235,6 +1239,7 @@ describe("VertretungView", () => {
       });
       render(<VertretungView />);
 
+      // Anker: die Tagesliste ist geladen, nur der Hinweis fehlt.
       expect(screen.getByTestId("day-list")).toBeInTheDocument();
       expect(
         screen.queryByRole("link", { name: "Dienstplan öffnen" }),

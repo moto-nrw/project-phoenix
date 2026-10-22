@@ -320,8 +320,9 @@ describe("AnfragenPage", () => {
 
   it("bietet die Anfrageart Anmeldung nur mit config:manage an", () => {
     render(<AnfragenPage />);
+    // Anker: der Art-Filter der geladenen Liste öffnet sich und bietet
+    // Stammdaten an, nur die Anmeldung fehlt.
     fireEvent.click(screen.getAllByRole("button", { name: /Filter/ })[0]!);
-    // Anker: der Art-Filter ist offen, nur die Anmeldung fehlt.
     expect(screen.getAllByText("Stammdaten")[0]).toBeInTheDocument();
     expect(screen.queryAllByText("Anmeldung")).toHaveLength(0);
   });
@@ -449,6 +450,7 @@ describe("AnfragenPage", () => {
   it("zeigt Gruppenleitungen kein RSS-Menü", () => {
     render(<AnfragenPage />);
 
+    // Anker: die Eltern-Anfragen sind geladen.
     expect(screen.getByTestId("aggregated-list")).toBeInTheDocument();
     expect(
       screen.queryByRole("button", { name: "Weitere Aktionen" }),

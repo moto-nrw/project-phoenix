@@ -319,8 +319,7 @@ describe("DatabasePage", () => {
 
   it("hides planning catalogs for delegated users when planning is switched off", () => {
     // time_tracking:manage öffnet Schichtarten (Planung) und Abwesenheitsarten
-    // (ohne Planung). Die zweite Kachel ist der Anker: das Raster ist
-    // geladen, nur die Planungskataloge fehlen.
+    // (ohne Planung).
     const scheduleManager = {
       ...mockSession,
       user: {
@@ -338,6 +337,8 @@ describe("DatabasePage", () => {
 
     render(<DatabasePage />);
 
+    // Anker: Abwesenheitsarten braucht keine Planung; das Raster ist geladen,
+    // nur die Planungskataloge fehlen.
     expect(screen.getByText("Abwesenheitsarten")).toBeInTheDocument();
     expect(screen.queryByText("Planungsspuren")).not.toBeInTheDocument();
     expect(screen.queryByText("Schichtarten")).not.toBeInTheDocument();

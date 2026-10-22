@@ -380,6 +380,9 @@ describe("StaffPage", () => {
     });
 
     it("does not load former employments without access to the staff list", () => {
+      // Derselbe Weg wie die Gegenprobe „restores the former filter …“: der
+      // Ehemaligen-Filter steht in der URL, nur die Rechte unterscheiden sich.
+      listSearchParams.set("status", "ehemalige");
       vi.mocked(useSession).mockReturnValue({
         data: { user: { id: "1", permissions: ["time_tracking:manage"] } },
         status: "authenticated",

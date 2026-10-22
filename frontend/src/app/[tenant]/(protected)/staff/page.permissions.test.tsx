@@ -370,6 +370,7 @@ describe("/staff — Berechtigungs-Split", () => {
 
     render(<StaffPage />);
 
+    // Anker: die Statusansicht ist geladen.
     expect(screen.getByTestId("schul-uebersicht")).toBeInTheDocument();
     expect(screen.queryByText("Zeitkonten")).not.toBeInTheDocument();
     expect(getTimeAccounts).not.toHaveBeenCalled();

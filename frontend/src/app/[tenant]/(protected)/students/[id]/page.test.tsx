@@ -1636,6 +1636,7 @@ describe("StudentDetailPage", () => {
 
       render(<StudentDetailPage />);
 
+      // Anker: die eingeschränkte Ansicht ist geladen, nicht das Skelett.
       expect(screen.getByTestId("supervisors-card")).toBeInTheDocument();
       expect(
         screen.queryByTestId("sick-report-section"),
@@ -1745,6 +1746,7 @@ describe("StudentDetailPage", () => {
         </SWRConfig>,
       );
 
+      // Anker: die eingeschränkte Ansicht ist geladen, nicht das Skelett.
       expect(screen.getByTestId("supervisors-card")).toBeInTheDocument();
       expect(mockFetchStudentStatusDays).not.toHaveBeenCalled();
     });
@@ -2314,8 +2316,9 @@ describe("StudentDetailPage", () => {
       // würde 403 antworten, also gibt es den Reiter gar nicht erst (#2437).
       render(<StudentDetailPage />);
 
-      // Anker: die übrigen Bereiche, auch die gebündelten, sind da.
-      expect(getTab("Historie")).toBeInTheDocument();
+      // Anker: Inhalt der geladenen vollen Ansicht; das Skelett zeigt alle
+      // Reiter, aber keinen Inhalt.
+      expect(screen.getByTestId("guardian-manager")).toBeInTheDocument();
       expect(queryTab("Änderungsprotokoll")).not.toBeInTheDocument();
     });
 
@@ -2327,7 +2330,8 @@ describe("StudentDetailPage", () => {
 
       render(<StudentDetailPage />);
 
-      expect(getTab("Historie")).toBeInTheDocument();
+      // Anker: Inhalt der geladenen vollen Ansicht.
+      expect(screen.getByTestId("guardian-manager")).toBeInTheDocument();
       expect(queryTab("Anmeldungen")).not.toBeInTheDocument();
     });
 
@@ -2335,9 +2339,8 @@ describe("StudentDetailPage", () => {
       // Default mock session is config:manage only -> no schedules:read.
       render(<StudentDetailPage />);
 
-      expect(
-        screen.getByRole("tab", { name: "Stammdaten" }),
-      ).toBeInTheDocument();
+      // Anker: Inhalt der geladenen vollen Ansicht.
+      expect(screen.getByTestId("guardian-manager")).toBeInTheDocument();
       expect(
         screen.queryByRole("tab", { name: "Betreuungsplan" }),
       ).not.toBeInTheDocument();
@@ -2381,9 +2384,8 @@ describe("StudentDetailPage", () => {
 
       render(<StudentDetailPage />);
 
-      expect(
-        screen.getByRole("tab", { name: "Stammdaten" }),
-      ).toBeInTheDocument();
+      // Anker: Inhalt der geladenen eingeschränkten Ansicht.
+      expect(screen.getByTestId("supervisors-card")).toBeInTheDocument();
       expect(
         screen.queryByRole("tab", { name: "Betreuungsplan" }),
       ).not.toBeInTheDocument();

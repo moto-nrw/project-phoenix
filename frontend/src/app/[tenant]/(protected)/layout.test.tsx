@@ -17,12 +17,17 @@ vi.mock("~/lib/breadcrumb-context", () => ({
   ),
 }));
 
+const shellAuth = vi.hoisted(() => ({
+  current: undefined as
+    { status: "authenticated"; user: { id: string } } | undefined,
+}));
+
 vi.mock("~/lib/shell-auth-context", () => ({
   TeacherShellProvider: ({ children }: { children: React.ReactNode }) => (
     <div data-testid="teacher-shell-provider">{children}</div>
   ),
   // Der geführte Einstieg im Layout (#2831) liest die Sitzung hierüber.
-  useShellAuthSafe: () => undefined,
+  useShellAuthSafe: () => shellAuth.current,
 }));
 
 vi.mock("~/components/dashboard/app-shell", () => ({
@@ -35,12 +40,30 @@ vi.mock("~/components/platform/announcement-modal", () => ({
   AnnouncementModal: () => <div data-testid="announcement-modal" />,
 }));
 
+// Die Einrichtungsassistenten lesen mit angemeldeter Sitzung NextAuth und die
+// API; hier geht es nur um Installationshinweis und Benachrichtigungen.
+vi.mock("~/components/school-setup/school-setup-wizard", () => ({
+  SchoolSetupWizard: () => null,
+}));
+
+vi.mock("~/components/staff-onboarding/staff-onboarding-wizard", () => ({
+  StaffOnboardingWizard: () => null,
+}));
+
+// Die geführte Einrichtung prüft vor dem ersten Schritt die Push-
+// Konfiguration der Schule beim Server.
+vi.mock("~/lib/push-api", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("~/lib/push-api")>()),
+  verifyPushConfiguration: vi.fn().mockResolvedValue(undefined),
+}));
+
 vi.mock("~/lib/hooks/use-settings-cache-bridge", () => ({
   useSettingsCacheBridge: vi.fn(),
 }));
 
 describe("ProtectedLayout", () => {
   afterEach(() => {
+    shellAuth.current = undefined;
     vi.unstubAllGlobals();
     localStorage.clear();
     sessionStorage.clear();
@@ -87,6 +110,7 @@ describe("ProtectedLayout", () => {
       })),
     );
     localStorage.setItem("moto-pwa-install-hint-visits", "1");
+    shellAuth.current = { status: "authenticated", user: { id: "5" } };
 
     render(
       <ProtectedLayout>
@@ -94,10 +118,13 @@ describe("ProtectedLayout", () => {
       </ProtectedLayout>,
     );
 
-    // Anker: das Layout hat seine eigenen Bausteine neben dem Hinweis
-    // gerendert; der Samsung-Test unten findet die Überschrift im selben
-    // Aufbau.
-    expect(screen.getByTestId("announcement-modal")).toBeInTheDocument();
+    // Anker: die geführte Einrichtung hat den Installationsschritt für das
+    // iPhone übernommen.
+    expect(
+      await screen.findByRole("heading", {
+        name: "moto zum Home-Bildschirm hinzufügen",
+      }),
+    ).toBeInTheDocument();
     expect(
       screen.queryByRole("heading", { name: "moto als App nutzen" }),
     ).not.toBeInTheDocument();
