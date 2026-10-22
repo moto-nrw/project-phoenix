@@ -6,8 +6,11 @@
 //   node scripts/posthog-dashboards.mjs --dry-run  show the plan, write nothing
 //   node scripts/posthog-dashboards.mjs --check    run every insight query once
 //
-// Needs POSTHOG_PERSONAL_API_KEY in the local environment (never in the
-// repository), scoped to the project with query:read, insight:read/write, and
+// .github/workflows/posthog-dashboards.yml runs the sync on every merge into
+// development, and --check and --dry-run on pull requests; a local run uses
+// only the two read-only modes. Needs POSTHOG_PERSONAL_API_KEY (a GitHub
+// secret in CI, the local environment otherwise, never the repository),
+// scoped to the project with query:read, insight:read/write, and
 // dashboard:read/write. POSTHOG_PROJECT_ID picks the project when the key sees
 // more than one. Only the EU API is ever called.
 //
@@ -23,7 +26,7 @@
 // Adding a dashboard or an insight: add it to `dashboards()` below, build its
 // query with `hogql()`, `trends()`, or `funnel()` (they add the deployment
 // filter), run the tests (`node --test scripts/posthog-dashboards.test.mjs`)
-// and then this script. Details: .claude/rules/usage-analytics.md.
+// and open a pull request. Details: .claude/rules/usage-analytics.md.
 
 import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';

@@ -2814,6 +2814,46 @@ describe("EnrollmentFormEditor", () => {
     ).toHaveAttribute("href", "/demo/anmeldung/preview?base=1");
   });
 
+  it("scrolls to an added question and focuses its text (#4328)", async () => {
+    mocks.listSchemas.mockResolvedValue([schema()]);
+    mocks.listPhases.mockResolvedValue([]);
+    const scrollIntoView = vi.fn();
+    const original = HTMLElement.prototype.scrollIntoView;
+    HTMLElement.prototype.scrollIntoView = scrollIntoView;
+
+    try {
+      render(<EnrollmentFormEditor />);
+
+      fireEvent.click(
+        await screen.findByRole("button", { name: "Neue Vorlage" }),
+      );
+      fireEvent.click(
+        screen.getByRole("button", { name: "Freie Zusatzfrage" }),
+      );
+
+      const questionInput = screen.getByLabelText("Frage im Elternformular");
+      await waitFor(() => expect(questionInput).toHaveFocus());
+      expect(scrollIntoView).toHaveBeenCalledTimes(1);
+      expect(scrollIntoView.mock.contexts[0]).toBe(
+        questionInput.closest("article"),
+      );
+
+      fireEvent.click(screen.getByRole("button", { name: "Infotext" }));
+      await waitFor(() =>
+        expect(
+          screen.getByPlaceholderText("z. B. Wichtiger Hinweis"),
+        ).toHaveFocus(),
+      );
+      expect(scrollIntoView).toHaveBeenCalledTimes(2);
+
+      // Typing into the new row must not pull the view back again.
+      fireEvent.change(questionInput, { target: { value: "Allergien" } });
+      expect(scrollIntoView).toHaveBeenCalledTimes(2);
+    } finally {
+      HTMLElement.prototype.scrollIntoView = original;
+    }
+  });
+
   it("creates, previews, updates, and deletes schemas", async () => {
     const initialSchema = schema();
     mocks.listSchemas.mockResolvedValue([initialSchema]);
