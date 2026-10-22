@@ -435,10 +435,10 @@ function RolesPageContent() {
             type="warning"
             title={
               unclassifiedCount === 1
-                ? "1 Rolle hat keine Systemrollen-Zuordnung"
-                : `${unclassifiedCount} Rollen haben keine Systemrollen-Zuordnung`
+                ? "Bei 1 Rolle fehlt „Gilt als“"
+                : `Bei ${unclassifiedCount} Rollen fehlt „Gilt als“`
             }
-            message="Ankündigungen werden möglicherweise nicht korrekt zugestellt. Bitte bearbeiten Sie die betroffenen Rollen und wählen Sie eine Systemrolle aus."
+            message="Mitteilungen kommen dort vielleicht nicht an. Öffnen Sie die Rolle, tippen Sie auf „Bearbeiten“ und wählen Sie bei „Gilt als“ einen Eintrag."
           />
         </div>
       )}

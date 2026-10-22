@@ -166,7 +166,7 @@ describe("getStaffDisplayType", () => {
     });
     const result = getStaffDisplayType(staff);
 
-    expect(result).toBe("Admin");
+    expect(result).toBe("Verwaltung");
   });
 
   it("returns formatted accountRole for non-teachers without role", () => {
@@ -205,7 +205,7 @@ describe("getStaffDisplayType", () => {
     expect(result).toBe("Lehrkraft");
   });
 
-  it("maps 'user' accountRole to Betreuer", () => {
+  it("maps 'user' accountRole to Betreuung", () => {
     const staff = createSampleStaff({
       role: undefined,
       isTeacher: false,
@@ -214,7 +214,7 @@ describe("getStaffDisplayType", () => {
     });
     const result = getStaffDisplayType(staff);
 
-    expect(result).toBe("Betreuer");
+    expect(result).toBe("Betreuung");
   });
 
   it("returns empty string when no role, specialization, or accountRole", () => {

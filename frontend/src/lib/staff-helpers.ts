@@ -2,6 +2,7 @@
 
 import type { Staff } from "./staff-api";
 import { LOCATION_COLORS, MOTO_COLOR_PALETTE } from "./location-helper";
+import { systemRoleLabel } from "./role-labels";
 
 // Location status type matching the pattern from OGS groups
 interface LocationStatus {
@@ -82,19 +83,10 @@ export function getStaffLocationStatus(staff: Staff): LocationStatus {
   return buildLocationStatus("Anwesend", LOCATION_COLORS.GROUP_ROOM);
 }
 
-// Map auth role names to German display labels
-const ROLE_DISPLAY_NAMES: Record<string, string> = {
-  admin: "Admin",
-  user: "Betreuer",
-  guest: "Gast",
-  guardian: "Erziehungsberechtigte/r",
-  lehrkraft: "Lehrkraft",
-};
-
-// Role names are stored lowercase in auth.roles; lowercase before the lookup so
-// a raw system role name never reaches the UI in its stored spelling.
+// Role names are stored lowercase in auth.roles; the shared label lookup
+// lowercases too, so a raw system role name never reaches the UI.
 function formatAccountRole(role: string): string {
-  return ROLE_DISPLAY_NAMES[role.toLowerCase()] ?? role;
+  return systemRoleLabel(role) ?? role;
 }
 
 // Get a display-friendly role/type for staff

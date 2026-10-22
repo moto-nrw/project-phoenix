@@ -273,7 +273,7 @@ describe("RolesMasterDetail", () => {
     ).toBeInTheDocument();
     expect(
       screen.getByText(
-        "System-Rollen können nicht bearbeitet oder gelöscht werden.",
+        "Vorgegebene Rollen gelten für alle Schulen. Sie können nicht bearbeitet oder gelöscht werden.",
       ),
     ).toBeInTheDocument();
   });

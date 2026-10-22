@@ -791,7 +791,7 @@ describe("RolesPage", () => {
 
     await waitFor(() => {
       expect(
-        screen.getByText("1 Rolle hat keine Systemrollen-Zuordnung"),
+        screen.getByText("Bei 1 Rolle fehlt „Gilt als“"),
       ).toBeInTheDocument();
     });
   });

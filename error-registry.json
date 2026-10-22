@@ -995,6 +995,14 @@
       "legacy": "identity.role_name_taken"
     },
     {
+      "code": "identity.role_platform_permission",
+      "class": "input",
+      "parameters": [
+        "permission"
+      ],
+      "legacy": "identity.role_platform_permission"
+    },
+    {
       "code": "identity.invitation_account_login_required",
       "class": "permission",
       "parameters": [],

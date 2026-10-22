@@ -2,7 +2,7 @@
 
 // Role Entity Configuration
 
-import { defineEntityConfig } from "@/lib/database/types";
+import { defineEntityConfig, type SectionConfig } from "@/lib/database/types";
 import type { Role, BackendRole } from "@/lib/auth-helpers";
 import {
   mapRoleResponse,
@@ -11,6 +11,53 @@ import {
   getBaseRoleLabel,
   BASE_ROLE_LABELS,
 } from "@/lib/auth-helpers";
+import { ROLE_TEMPLATES } from "@/lib/role-labels";
+
+const nameField = {
+  name: "name",
+  label: "Name",
+  type: "text",
+  required: true,
+  placeholder: "z. B. OGS-Leitung, Springkraft",
+} as const;
+
+const descriptionField = {
+  name: "description",
+  label: "Beschreibung",
+  type: "textarea",
+  required: false,
+  placeholder: "Wofür ist diese Rolle da?",
+} as const;
+
+/**
+ * Stammdaten einer bestehenden Rolle (#4574). „Gilt als" ist base_role: es
+ * steuert Mitteilungen und Einladungen, nicht die Rechte. Die Vorlage gibt
+ * es nur beim Anlegen.
+ */
+export const roleEditSections: SectionConfig[] = [
+  {
+    title: "Rolleninformationen",
+    concept: "roles",
+    columns: 1,
+    fields: [
+      nameField,
+      descriptionField,
+      {
+        name: "baseRole",
+        label: "Gilt als",
+        type: "select",
+        required: true,
+        placeholder: "Bitte wählen",
+        helperText:
+          "Bestimmt, welche Mitteilungen die Rolle bekommt. Ändert keine Rechte.",
+        options: Object.entries(BASE_ROLE_LABELS).map(([value, label]) => ({
+          value,
+          label,
+        })),
+      },
+    ],
+  },
+];
 
 export const rolesConfig = defineEntityConfig<Role>({
   name: {
@@ -27,36 +74,24 @@ export const rolesConfig = defineEntityConfig<Role>({
   },
 
   form: {
+    // Anlegen (#4574): die neue Rolle startet mit den Rechten der Vorlage.
     sections: [
       {
         title: "Rolleninformationen",
         concept: "roles",
         columns: 1,
         fields: [
+          nameField,
+          descriptionField,
           {
-            name: "name",
-            label: "Name",
-            type: "text",
-            required: true,
-            placeholder: "z.B. Pädagogische Fachkraft, Administrator",
-          },
-          {
-            name: "description",
-            label: "Beschreibung",
-            type: "textarea",
-            required: false,
-            placeholder:
-              "Beschreiben Sie die Aufgaben und Verantwortlichkeiten dieser Rolle",
-          },
-          {
-            name: "baseRole",
-            label: "Systemrolle",
+            name: "template",
+            label: "Vorlage",
             type: "select",
             required: true,
-            placeholder: "Systemrolle auswählen",
+            placeholder: "Vorlage wählen",
             helperText:
-              "Ordnet diese Rolle einer Systemrolle zu, damit Ankündigungen korrekt zugestellt werden",
-            options: Object.entries(BASE_ROLE_LABELS).map(([value, label]) => ({
+              "Die neue Rolle startet mit den Rechten der Vorlage. Danach können Sie die Rechte frei ändern.",
+            options: ROLE_TEMPLATES.map(({ value, label }) => ({
               value,
               label,
             })),
@@ -95,7 +130,7 @@ export const rolesConfig = defineEntityConfig<Role>({
               "Keine Beschreibung",
           },
           {
-            label: "Systemrolle",
+            label: "Gilt als",
             value: (role: Role) => getBaseRoleLabel(role.baseRole),
           },
           {
@@ -128,7 +163,7 @@ export const rolesConfig = defineEntityConfig<Role>({
 
   list: {
     title: "Rollen verwalten",
-    description: "Verwalten Sie Systemrollen und deren Berechtigungen",
+    description: "Legen Sie fest, wer in moto was darf.",
     searchPlaceholder: "Rollen durchsuchen…",
 
     // Frontend search configuration
@@ -148,10 +183,15 @@ export const rolesConfig = defineEntityConfig<Role>({
   },
 
   service: {
-    mapRequest: (data: Partial<Role>): Record<string, unknown> => ({
+    mapRequest: (
+      data: Partial<Role> & { template?: string },
+    ): Record<string, unknown> => ({
       name: data.name,
       description: data.description,
-      ...(!data.isSystem && { base_role: data.baseRole }),
+      // Beim Anlegen setzt die Vorlage auch base_role (#4574).
+      ...(data.template
+        ? { template: data.template }
+        : !data.isSystem && { base_role: data.baseRole }),
     }),
     mapResponse: (data: unknown): Role => {
       // Handle wrapped response format

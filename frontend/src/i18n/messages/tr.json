@@ -2361,6 +2361,7 @@
         "preview_token_invalid": "{object} için erişim izniniz yok. Okulla iletişime geçin.",
         "read_only_preview": "{object} için erişim izniniz yok. Okulla iletişime geçin.",
         "role_name_taken": "{object} değiştirilemedi. Güncel durumu kontrol edin.",
+        "role_platform_permission": "{object} kaydedilemedi. Girdiğiniz bilgileri kontrol edin.",
         "session_account_inactive": "Hesabınız kapalı. Lütfen okulunuzun yönetimiyle iletişime geçin.",
         "tenant_access_denied": "{object} için erişim izniniz yok. Okulla iletişime geçin.",
         "use_parent_portal": "{object} için erişim izniniz yok. Okulla iletişime geçin.",

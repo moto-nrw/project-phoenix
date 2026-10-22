@@ -3,25 +3,26 @@ import {
   getAccountRoleLabel,
   getRoleDisplayName,
   getRoleDisplayDescription,
+  isAssignableStaffRole,
   toAssignableRoleOptions,
   type Role,
 } from "./auth-helpers";
 
 describe("getRoleDisplayName", () => {
-  it("translates admin to Administrator", () => {
-    expect(getRoleDisplayName("admin")).toBe("Administrator");
+  it("translates admin to Verwaltung", () => {
+    expect(getRoleDisplayName("admin")).toBe("Verwaltung");
   });
 
-  it("translates Admin (case-insensitive) to Administrator", () => {
-    expect(getRoleDisplayName("Admin")).toBe("Administrator");
+  it("translates Admin (case-insensitive) to Verwaltung", () => {
+    expect(getRoleDisplayName("Admin")).toBe("Verwaltung");
   });
 
-  it("translates ADMIN (uppercase) to Administrator", () => {
-    expect(getRoleDisplayName("ADMIN")).toBe("Administrator");
+  it("translates ADMIN (uppercase) to Verwaltung", () => {
+    expect(getRoleDisplayName("ADMIN")).toBe("Verwaltung");
   });
 
-  it("translates user to Betreuer", () => {
-    expect(getRoleDisplayName("user")).toBe("Betreuer");
+  it("translates user to Betreuung", () => {
+    expect(getRoleDisplayName("user")).toBe("Betreuung");
   });
 
   it("translates guest to Gast", () => {
@@ -36,8 +37,8 @@ describe("getRoleDisplayName", () => {
     expect(getRoleDisplayName("staff")).toBe("staff");
   });
 
-  it("translates guardian to Erziehungsberechtigter", () => {
-    expect(getRoleDisplayName("guardian")).toBe("Erziehungsberechtigter");
+  it("translates guardian to Eltern", () => {
+    expect(getRoleDisplayName("guardian")).toBe("Eltern");
   });
 
   it("returns original name for non-system roles", () => {
@@ -48,19 +49,19 @@ describe("getRoleDisplayName", () => {
 describe("getRoleDisplayDescription", () => {
   it("translates admin description to German", () => {
     expect(getRoleDisplayDescription("admin", "System administrator")).toBe(
-      "Systemadministrator mit vollem Zugriff",
+      "Darf alles an der Schule einrichten und verwalten.",
     );
   });
 
-  it("translates user description to Betreuer description", () => {
+  it("translates user description to Betreuung description", () => {
     expect(getRoleDisplayDescription("user", "Standard user")).toBe(
-      "Pädagogische Fachkraft mit Betreuungsrechten",
+      "Betreut Kinder und Gruppen im Alltag.",
     );
   });
 
   it("translates guest description to German", () => {
     expect(getRoleDisplayDescription("guest", "Limited access")).toBe(
-      "Eingeschränkter Zugriff für nicht authentifizierte Benutzer",
+      "Alte Rolle. Sie wird nicht mehr vergeben.",
     );
   });
 
@@ -78,7 +79,7 @@ describe("getRoleDisplayDescription", () => {
 
   it("translates guardian description to German", () => {
     expect(getRoleDisplayDescription("guardian", "Parent access")).toBe(
-      "Eingeschränkter Zugriff auf Daten der eigenen Kinder",
+      "Sieht die Daten der eigenen Kinder.",
     );
   });
 
@@ -90,7 +91,7 @@ describe("getRoleDisplayDescription", () => {
 
   it("handles case-insensitive role names", () => {
     expect(getRoleDisplayDescription("ADMIN", "Admin")).toBe(
-      "Systemadministrator mit vollem Zugriff",
+      "Darf alles an der Schule einrichten und verwalten.",
     );
   });
 });
@@ -118,6 +119,17 @@ describe("toAssignableRoleOptions", () => {
     expect(options.map((option) => option.id)).toEqual(["3", "4"]);
   });
 
+  it("no longer offers the retired guest role (#4574)", () => {
+    const options = toAssignableRoleOptions([
+      role("1", "guest", true),
+      role("2", "user", true),
+      role("3", "guest", false),
+    ]);
+
+    expect(options.map((option) => option.id)).toEqual(["2", "3"]);
+    expect(isAssignableStaffRole("guest", true)).toBe(false);
+  });
+
   it("excludes roles based on the guardian base role", () => {
     const options = toAssignableRoleOptions([
       { ...role("1", "Elternkoordination", false), baseRole: "guardian" },
@@ -134,9 +146,9 @@ describe("getAccountRoleLabel", () => {
     expect(getAccountRoleLabel(["betreuungskraft"])).toBe("Betreuungskraft");
   });
 
-  it("keeps Admin for an administrator", () => {
-    expect(getAccountRoleLabel(["admin"])).toBe("Admin");
-    expect(getAccountRoleLabel(["ogs-leitung", "admin"])).toBe("Admin");
+  it("names an administrator Verwaltung", () => {
+    expect(getAccountRoleLabel(["admin"])).toBe("Verwaltung");
+    expect(getAccountRoleLabel(["ogs-leitung", "admin"])).toBe("Verwaltung");
   });
 
   it("prefers a school role over the system role behind it", () => {
@@ -146,15 +158,15 @@ describe("getAccountRoleLabel", () => {
   });
 
   it("falls back to the system roles", () => {
-    expect(getAccountRoleLabel(["user"])).toBe("Betreuer");
-    expect(getAccountRoleLabel(["teacher"])).toBe("Betreuer");
-    expect(getAccountRoleLabel([])).toBe("Betreuer");
+    expect(getAccountRoleLabel(["user"])).toBe("Betreuung");
+    expect(getAccountRoleLabel(["teacher"])).toBe("Betreuung");
+    expect(getAccountRoleLabel([])).toBe("Betreuung");
     expect(getAccountRoleLabel(["guest"])).toBe("Gast");
   });
 
   it("uses the role origin when a school role has a system role's name", () => {
     expect(getAccountRoleLabel(["user"], [false])).toBe("User");
-    expect(getAccountRoleLabel(["user"], [true])).toBe("Betreuer");
+    expect(getAccountRoleLabel(["user"], [true])).toBe("Betreuung");
     expect(getAccountRoleLabel(["user", "user"], [true, false])).toBe("User");
   });
 });

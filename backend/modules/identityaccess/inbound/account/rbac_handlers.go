@@ -57,8 +57,14 @@ func (rs *Resource) createRole(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	role, err := rs.Sessions.CreateRole(r.Context(), req.Name, req.Description, req.BaseRole)
+	var templates []identityaccess.RoleTemplate
+	if req.Template != nil {
+		templates = append(templates, identityaccess.RoleTemplate(*req.Template))
+	}
+	role, err := rs.Sessions.CreateRole(r.Context(), req.Name, req.Description, req.BaseRole, templates...)
 	if err != nil {
+		// The template copy writes the role and its permissions together.
+		rs.markRollback(r.Context())
 		common.RenderError(w, r, renderRoleMutationError(err))
 		return
 	}
@@ -150,6 +156,10 @@ func (rs *Resource) deleteRole(w http.ResponseWriter, r *http.Request) {
 func renderRoleMutationError(err error) render.Renderer {
 	if errors.Is(err, identityaccess.ErrRoleNameTaken) {
 		return common.ErrorConflictOnField(err, common.CodeIdentityRoleNameTaken, "name")
+	}
+	var platformErr *identityaccess.PlatformPermissionError
+	if errors.As(err, &platformErr) {
+		return common.ErrorInvalidRequestWithDetails(err, common.CodeIdentityRolePlatformPermission, map[string]any{"permission": platformErr.Permission})
 	}
 	var roleErr *identityaccess.AuthenticationError
 	if errors.As(err, &roleErr) {

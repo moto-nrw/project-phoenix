@@ -4523,7 +4523,7 @@ function inviteStaffTopic(): HelpTopic {
     ],
     differences: [
       "Beim Import muss die Spalte `Rolle` genau einer vorhandenen Rolle entsprechen.",
-      "Zur Wahl stehen `Administrator`, `Betreuer`, `Gast`, `Erziehungsberechtigter` und `Lehrkraft`.",
+      "Zur Wahl stehen `Verwaltung`, `Betreuung`, `Lehrkraft` und die eigenen Rollen der Schule. Die alten Namen `Administrator` und `Betreuer` erkennt moto auch.",
       "Fehlt in einer Zeile die E-Mail-Adresse, gibt es keinen Zugang. Die Person steht dann nur in der Liste.",
     ],
     troubleshootingDetails: [
@@ -4718,8 +4718,9 @@ function removeStaffTopic(): HelpTopic {
 
 /**
  * Rollen unter `/database/roles`, Rechteliste unter `/database/permissions`.
- * Systemrollen sind gesperrt: `role.isSystem` blendet die Kopfaktionen aus
- * (roles-master-detail.tsx:146).
+ * Vorgegebene Rollen (`role.isSystem`) haben keine Kopfaktionen
+ * (roles-master-detail.tsx). Eine neue Rolle startet mit den Rechten ihrer
+ * Vorlage; Plattformrechte bietet der Reiter nicht an (#4574).
  */
 function staffPermissionsTopic(): HelpTopic {
   return {
@@ -4738,6 +4739,7 @@ function staffPermissionsTopic(): HelpTopic {
           "Öffnen Sie `Datenverwaltung` und danach `Rollen`.",
           "Wählen Sie oben rechts `+ Rolle`.",
           "Tragen Sie `Name` und `Beschreibung` ein.",
+          "Wählen Sie eine `Vorlage`: `Wie Betreuung`, `Wie Verwaltung` oder `Wie Lehrkraft`.",
           "Wählen Sie `Erstellen`.",
         ],
       },
@@ -4745,9 +4747,9 @@ function staffPermissionsTopic(): HelpTopic {
         title: "Die Rechte einer Rolle ändern",
         steps: [
           "Öffnen Sie `Rollen` und wählen Sie die Rolle aus der Liste.",
-          "Wählen Sie oben rechts `Berechtigungen`.",
+          "Öffnen Sie den Reiter `Berechtigungen` und wählen Sie `Bearbeiten`.",
           "Haken Sie an, was die Rolle dürfen soll.",
-          "Speichern Sie die Auswahl.",
+          "Wählen Sie `Speichern`.",
         ],
       },
       {
@@ -4755,20 +4757,25 @@ function staffPermissionsTopic(): HelpTopic {
         steps: [
           "Öffnen Sie `Datenverwaltung` und danach `Personal`.",
           "Wählen Sie die Person aus der Liste.",
-          "Ändern Sie die Rolle und wählen Sie `Speichern`.",
+          "Öffnen Sie den Reiter `Konto` und wählen Sie `Bearbeiten`.",
+          "Wählen Sie bei `Rolle` die neue Rolle und dann `Speichern`.",
         ],
       },
     ],
     result:
       "Die neue Rolle gilt, sobald sich die Person das nächste Mal anmeldet.",
     notes: [
+      "Eine neue Rolle bekommt einmal die Rechte ihrer Vorlage. Danach ändern Sie die Rechte nur noch an der Rolle selbst.",
+      "Bei manchen Rechten steht ein Hinweis. Damit kann eine Person Rollen, Konten oder Einstellungen ändern. Geben Sie diese Rechte nur der Leitung.",
+      "`Position` im Reiter `Konto` ist nur ein Text für die Personalliste. Sie ändert keine Rechte.",
       "Unter `Berechtigungen` sehen Sie alle Rechte, die es in moto gibt. Ändern lässt sich dort nichts.",
       "Die Rolle entscheidet auch darüber, welche Menüpunkte jemand sieht.",
     ],
     differences: [
-      "Frisch eingerichtet bringt moto alle Rollen selbst mit: `Administrator`, `Betreuer`, `Lehrkraft`, `Erziehungsberechtigter` und `Gast`. moto nennt sie Systemrollen.",
-      "Bei einer Systemrolle fehlen `Berechtigungen`, `Bearbeiten` und `Löschen`. Dort steht: `System-Rollen können nicht bearbeitet oder gelöscht werden.`",
-      "Zum Ändern von Rechten legen Sie deshalb zuerst eine eigene Rolle an.",
+      "moto bringt einige Rollen schon mit: `Verwaltung`, `Betreuung`, `Lehrkraft`, `Eltern` und `Gast`. Sie sind als `Vorgegeben` markiert.",
+      "Bei einer vorgegebenen Rolle fehlen `Bearbeiten` und `Löschen`. Zum Ändern von Rechten legen Sie deshalb eine eigene Rolle an.",
+      "`Gast` ist eine alte Rolle. Sie lässt sich nicht mehr vergeben. Wer sie schon hat, behält sie.",
+      "Einige Rechte gibt es nur für das moto-Team. Sie stehen nicht zur Auswahl.",
     ],
     troubleshootingDetails: [
       "Eine Person sieht einen Bereich nicht? Prüfen Sie die Rechte ihrer Rolle.",

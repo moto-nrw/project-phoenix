@@ -29,9 +29,11 @@ import type { Permission, Role } from "~/lib/auth-helpers";
 import { createLogger } from "~/lib/logger";
 import {
   formatPermissionDisplay,
+  isPlatformOnlyPermission,
   localizeAction,
   localizeDescription,
   localizeResource,
+  riskyPermissionHint,
 } from "~/lib/permission-labels";
 
 const logger = createLogger({ component: "RolePermissionsTab" });
@@ -61,6 +63,22 @@ function groupByResource(
 
 function permissionLabel(permission: Permission): string {
   return formatPermissionDisplay(permission.resource, permission.action);
+}
+
+function isPlatformOnly(permission: Permission): boolean {
+  return isPlatformOnlyPermission(permission.resource, permission.action);
+}
+
+/**
+ * Der Warnhinweis unter einem Recht im Bearbeiten-Zustand (#4574): ein
+ * Plattformrecht, das die Rolle noch aus der Zeit vor der Sperre trägt, oder
+ * ein Recht, mit dem jemand Rollen, Konten oder Einstellungen ändern kann.
+ */
+function permissionHint(permission: Permission): string | undefined {
+  if (isPlatformOnly(permission)) {
+    return "Nur für das moto-Team. Sie können es entfernen, aber nicht wieder vergeben.";
+  }
+  return riskyPermissionHint(permission.resource, permission.action);
 }
 
 /**
@@ -164,10 +182,20 @@ export function RolePermissionsTab({
     [allPermissions, assignedMap],
   );
 
+  // Plattformrechte bekommt eine Rolle der Schule nicht (#4574). Trägt sie
+  // eins schon, bleibt es sichtbar, damit es entfernt werden kann.
+  const selectablePermissions = useMemo(
+    () =>
+      allPermissions.filter(
+        (p) => !isPlatformOnly(p) || assignedMap[p.id] === true,
+      ),
+    [allPermissions, assignedMap],
+  );
+
   const filteredPermissions = useMemo(() => {
     const query = searchTerm.trim().toLowerCase();
-    if (!query) return allPermissions;
-    return allPermissions.filter(
+    if (!query) return selectablePermissions;
+    return selectablePermissions.filter(
       (permission) =>
         permission.name.toLowerCase().includes(query) ||
         permission.description.toLowerCase().includes(query) ||
@@ -178,7 +206,7 @@ export function RolePermissionsTab({
           .toLowerCase()
           .includes(query),
     );
-  }, [allPermissions, searchTerm]);
+  }, [selectablePermissions, searchTerm]);
 
   const editGroups = useMemo(
     () => groupByResource(filteredPermissions),
@@ -314,7 +342,8 @@ export function RolePermissionsTab({
       <FormErrorAlert message={saveError} />
 
       <p className="text-sm text-gray-600">
-        {draftCount} von {allPermissions.length} Berechtigungen ausgewählt.
+        {draftCount} von {selectablePermissions.length} Berechtigungen
+        ausgewählt.
       </p>
 
       <div className="flex flex-wrap items-end gap-2">
@@ -405,6 +434,7 @@ export function RolePermissionsTab({
                         permission.action,
                         permission.description,
                       );
+                      const hint = permissionHint(permission);
 
                       return (
                         <label
@@ -418,6 +448,11 @@ export function RolePermissionsTab({
                             disabled={saving}
                             onChange={() => toggleOne(permission.id)}
                             aria-label={permissionLabel(permission)}
+                            aria-describedby={
+                              hint
+                                ? `role-permission-hint-${permission.id}`
+                                : undefined
+                            }
                             className="mt-0.5"
                           />
                           <span className="min-w-0 flex-1">
@@ -431,6 +466,14 @@ export function RolePermissionsTab({
                               )}
                               {description ? ` · ${description}` : ""}
                             </span>
+                            {hint ? (
+                              <span
+                                id={`role-permission-hint-${permission.id}`}
+                                className="text-moto-amber-strong mt-0.5 block text-xs font-medium"
+                              >
+                                {hint}
+                              </span>
+                            ) : null}
                           </span>
                         </label>
                       );

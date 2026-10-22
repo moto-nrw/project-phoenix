@@ -3,7 +3,7 @@
  * Tests role config structure and response mapping
  */
 import { describe, it, expect, vi } from "vitest";
-import { rolesConfig } from "./roles.config";
+import { roleEditSections, rolesConfig } from "./roles.config";
 import type { Role } from "@/lib/auth-helpers";
 
 // Mock auth-helpers
@@ -13,9 +13,9 @@ vi.mock("@/lib/auth-helpers", () => ({
   getRoleDisplayDescription: vi.fn((_name: string, desc: string) => desc),
   getBaseRoleLabel: vi.fn((role?: string) => role ?? "Keine Zuordnung"),
   BASE_ROLE_LABELS: {
-    admin: "Administrator",
-    user: "Betreuer",
-    guardian: "Erziehungsberechtigte",
+    admin: "Verwaltung",
+    user: "Betreuung",
+    guardian: "Eltern",
   },
 }));
 
@@ -37,13 +37,46 @@ describe("rolesConfig", () => {
     expect(rolesConfig.form.sections[0]?.title).toBe("Rolleninformationen");
   });
 
-  it("has required form fields", () => {
-    const fields = rolesConfig.form.sections[0]?.fields ?? [];
-    const fieldNames = fields.map((f) => f.name);
+  it("creates a role from a template and edits its tier (#4574)", () => {
+    const createFields = rolesConfig.form.sections[0]?.fields ?? [];
+    expect(createFields.map((f) => f.name)).toEqual([
+      "name",
+      "description",
+      "template",
+    ]);
+    expect(createFields.find((f) => f.name === "template")).toMatchObject({
+      label: "Vorlage",
+      required: true,
+      options: [
+        { value: "user", label: "Wie Betreuung" },
+        { value: "admin", label: "Wie Verwaltung" },
+        { value: "lehrkraft", label: "Wie Lehrkraft" },
+      ],
+    });
 
-    expect(fieldNames).toContain("name");
-    expect(fieldNames).toContain("description");
-    expect(fieldNames).toContain("baseRole");
+    const editFields = roleEditSections[0]?.fields ?? [];
+    expect(editFields.map((f) => f.name)).toEqual([
+      "name",
+      "description",
+      "baseRole",
+    ]);
+    expect(editFields.find((f) => f.name === "baseRole")?.label).toBe(
+      "Gilt als",
+    );
+  });
+
+  it("sends the template instead of base_role when creating", () => {
+    const mapRequest = rolesConfig.service?.mapRequest;
+    expect(
+      mapRequest?.({
+        name: "Springkraft",
+        description: "",
+        template: "user",
+      } as Partial<Role>),
+    ).toEqual({ name: "Springkraft", description: "", template: "user" });
+    expect(
+      mapRequest?.({ name: "Springkraft", description: "", baseRole: "admin" }),
+    ).toEqual({ name: "Springkraft", description: "", base_role: "admin" });
   });
 
   it("has detail header configuration", () => {

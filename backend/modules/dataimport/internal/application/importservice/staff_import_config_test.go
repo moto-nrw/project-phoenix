@@ -67,7 +67,7 @@ func TestStaffImportConfig_PreloadReferenceData_LoadsRoleDisplayNamesAndSchool(t
 
 	require.NoError(t, config.PreloadReferenceData(ctx))
 
-	assert.Equal(t, []string{"Betreuer", "koordination"}, config.roleDisplayNames)
+	assert.Equal(t, []string{"Betreuung", "koordination"}, config.roleDisplayNames)
 	assert.Equal(t, "OGS Phoenix", config.schoolName)
 }
 
@@ -99,6 +99,32 @@ func TestStaffImportConfig_Validate_ResolvesGermanDisplayRole(t *testing.T) {
 	assert.Equal(t, "Betreuer", row.RoleName)
 	assert.Equal(t, "Leitung", row.Position)
 	assert.Equal(t, staffImportTestRoleID, row.RoleID)
+}
+
+// The roles page names each system role once (#4574); import files written
+// against the earlier names keep resolving.
+func TestStaffImportConfig_Validate_ResolvesCurrentAndEarlierRoleNames(t *testing.T) {
+	t.Parallel()
+
+	for display, raw := range map[string]string{
+		"Verwaltung": "admin", "Administrator": "admin",
+		"Betreuung": "user", "Betreuer": "user",
+	} {
+		var looked string
+		config := NewStaffImportConfig(ports.StaffImportDeps{RolePolicy: newTestRolePolicy(), Authorization: newTestAuthorization(), Transactions: newTestTransactions(),
+			Roles: stubStaffRoleRepo{
+				findByName: func(_ context.Context, name string) (*importModels.SchoolRole, error) {
+					looked = name
+					return &importModels.SchoolRole{ID: staffImportTestRoleID, Name: name, IsSystem: true}, nil
+				},
+			},
+		})
+		row := &importModels.StaffImportRow{FirstName: "Anna", LastName: "Lehmann", Email: "anna@example.com", RoleName: display}
+
+		// The grant check behind the lookup is the stub's; this pins the name.
+		config.Validate(context.Background(), row)
+		assert.Equal(t, raw, looked, display)
+	}
 }
 
 func TestStaffImportConfig_Validate_NormalizesDisplayNameEmail(t *testing.T) {

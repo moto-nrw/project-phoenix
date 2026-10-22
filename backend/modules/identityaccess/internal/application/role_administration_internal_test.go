@@ -905,3 +905,130 @@ func TestRoleAdministration_CreateRoleRequiresBaseRole(t *testing.T) {
 	require.NoError(t, err)
 	assert.NotZero(t, role.ID)
 }
+
+func systemRoleOf(name string, tier *string) domain.ManagedRole {
+	return domain.ManagedRole{Name: name, IsSystem: true, BaseRole: tier}
+}
+
+func (s *raStore) grant(roleID int64, names ...string) []int64 {
+	ids := make([]int64, 0, len(names))
+	for _, name := range names {
+		permission := s.addPermission(name)
+		s.rolePerms[roleID] = append(s.rolePerms[roleID], permission.ID)
+		ids = append(ids, permission.ID)
+	}
+	return ids
+}
+
+func (s *raStore) permissionNames(roleID int64) []string {
+	names := []string{}
+	for _, id := range s.rolePerms[roleID] {
+		names = append(names, s.permissions[id].Name)
+	}
+	return names
+}
+
+func TestRoleAdministration_CreateRoleFromTemplate(t *testing.T) {
+	t.Parallel()
+
+	t.Run("copies the template's permissions once", func(t *testing.T) {
+		f := newRAFixture(t)
+		caregiver := f.store.addRole(systemRoleOf("user", nil))
+		f.store.grant(caregiver.ID, "groups:read", "visits:create")
+
+		role, err := f.admin.CreateRole(raContext(), "Springer", "", nil, identityaccess.RoleTemplateCaregiver)
+		require.NoError(t, err)
+		require.NotNil(t, role.BaseRole)
+		assert.Equal(t, "user", *role.BaseRole)
+		assert.ElementsMatch(t, []string{"groups:read", "visits:create"}, f.store.permissionNames(role.ID))
+
+		// A permission the template gains later does not reach the copy.
+		f.store.grant(caregiver.ID, "rooms:read")
+		assert.ElementsMatch(t, []string{"groups:read", "visits:create"}, f.store.permissionNames(role.ID))
+	})
+
+	t.Run("leaves out the platform permissions of the admin template", func(t *testing.T) {
+		f := newRAFixture(t)
+		admin := f.store.addRole(systemRoleOf("admin", nil))
+		f.store.grant(admin.ID, "*:*", "admin:*", "system:manage", "permissions:create", "permissions:update", "permissions:delete", "permissions:read", "users:manage", "config:manage")
+
+		role, err := f.admin.CreateRole(raContext(), "Leitung", "", nil, identityaccess.RoleTemplateAdministration)
+		require.NoError(t, err)
+		require.NotNil(t, role.BaseRole)
+		assert.Equal(t, "admin", *role.BaseRole)
+		assert.ElementsMatch(t, []string{"permissions:read", "users:manage", "config:manage"}, f.store.permissionNames(role.ID))
+	})
+
+	t.Run("takes the stored tier of the Lehrkraft template", func(t *testing.T) {
+		f := newRAFixture(t)
+		tier := "user"
+		lehrkraft := f.store.addRole(systemRoleOf("lehrkraft", &tier))
+		f.store.grant(lehrkraft.ID, "class_day:read")
+
+		role, err := f.admin.CreateRole(raContext(), "Klassenleitung", "", nil, identityaccess.RoleTemplateLehrkraft)
+		require.NoError(t, err)
+		require.NotNil(t, role.BaseRole)
+		assert.Equal(t, "user", *role.BaseRole)
+		assert.Equal(t, []string{"class_day:read"}, f.store.permissionNames(role.ID))
+	})
+
+	t.Run("refuses an unknown or missing template", func(t *testing.T) {
+		f := newRAFixture(t)
+
+		_, err := f.admin.CreateRole(raContext(), "Gast", "", nil, identityaccess.RoleTemplate("guest"))
+		require.ErrorIs(t, err, identityaccess.ErrRoleNotFound)
+		_, err = f.admin.CreateRole(raContext(), "Betreuung", "", nil, identityaccess.RoleTemplateCaregiver)
+		require.ErrorIs(t, err, identityaccess.ErrRoleNotFound)
+		assert.Empty(t, f.store.roles)
+	})
+
+	t.Run("the template sets the tier alone", func(t *testing.T) {
+		f := newRAFixture(t)
+		f.store.addRole(systemRoleOf("user", nil))
+		tier := "admin"
+
+		_, err := f.admin.CreateRole(raContext(), "Springer", "", &tier, identityaccess.RoleTemplateCaregiver)
+		require.ErrorIs(t, err, identityaccess.ErrRoleNotFound)
+		assert.Len(t, f.store.roles, 1)
+	})
+}
+
+func TestRoleAdministration_PlatformPermissionsStayOffSchoolRoles(t *testing.T) {
+	t.Parallel()
+
+	for _, name := range platformOnlyPermissionNames {
+		t.Run(name, func(t *testing.T) {
+			f := newRAFixture(t)
+			role := f.store.addRole(customRoleOf("ogs", "user"))
+			kept := f.store.grant(role.ID, "groups:read")
+			platform := f.store.addPermission(name)
+
+			err := f.admin.ReplaceRolePermissions(raContext(), role.ID, []int64{kept[0], platform.ID})
+			require.ErrorIs(t, err, identityaccess.ErrPlatformPermissionNotAllowed)
+			var platformErr *identityaccess.PlatformPermissionError
+			require.ErrorAs(t, err, &platformErr)
+			assert.Equal(t, name, platformErr.Permission)
+			assert.Equal(t, kept, f.store.rolePerms[role.ID])
+
+			require.ErrorIs(t, f.admin.AssignPermissionToRole(raContext(), role.ID, platform.ID), identityaccess.ErrPlatformPermissionNotAllowed)
+			assert.Equal(t, kept, f.store.rolePerms[role.ID])
+		})
+	}
+
+	t.Run("a role that already holds one stays editable", func(t *testing.T) {
+		f := newRAFixture(t)
+		role := f.store.addRole(customRoleOf("ogs", "admin"))
+		held := f.store.grant(role.ID, "admin:*", "groups:read")
+		added := f.store.addPermission("rooms:read")
+
+		require.NoError(t, f.admin.ReplaceRolePermissions(raContext(), role.ID, []int64{held[0], held[1], added.ID}))
+		assert.ElementsMatch(t, []string{"admin:*", "groups:read", "rooms:read"}, f.store.permissionNames(role.ID))
+
+		require.NoError(t, f.admin.ReplaceRolePermissions(raContext(), role.ID, []int64{held[1], added.ID}))
+		assert.ElementsMatch(t, []string{"groups:read", "rooms:read"}, f.store.permissionNames(role.ID))
+	})
+}
+
+// platformOnlyPermissionNames is the platform list #4574 names, written out
+// so the tests do not read it back from the code under test.
+var platformOnlyPermissionNames = []string{"*:*", "admin:*", "system:manage", "permissions:create", "permissions:update", "permissions:delete"}

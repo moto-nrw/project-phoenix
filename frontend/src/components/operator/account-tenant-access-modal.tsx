@@ -23,6 +23,7 @@ import {
 } from "~/contexts/ToastContext";
 import { isAssignableStaffRole } from "~/lib/auth-helpers";
 import { createLogger } from "~/lib/logger";
+import { systemRoleLabel } from "~/lib/role-labels";
 import {
   accountTenantAccessService,
   type AccountTenantAccess,
@@ -31,15 +32,8 @@ import { operatorProvisioningService } from "~/lib/operator/provisioning-api";
 
 const logger = createLogger({ component: "AccountTenantAccessModal" });
 
-const ROLE_LABELS: Record<string, string> = {
-  admin: "Verwaltung",
-  user: "Betreuung",
-  guest: "Gast",
-  lehrkraft: "Lehrkraft",
-};
-
 function roleLabel(name: string): string {
-  return ROLE_LABELS[name.toLowerCase()] ?? name;
+  return systemRoleLabel(name) ?? name;
 }
 
 function statusTone(status: AccountTenantAccess["status"]) {

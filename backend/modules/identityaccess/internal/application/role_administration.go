@@ -72,11 +72,14 @@ func NewRoleAdministration(deps RoleAdministrationDependencies) (*RoleAdministra
 
 // --- roles -----------------------------------------------------------------
 
-func (r *RoleAdministration) CreateRole(ctx context.Context, name, description string, baseRole *string) (value0 identityaccess.Role, err error) {
+func (r *RoleAdministration) CreateRole(ctx context.Context, name, description string, baseRole *string, template ...identityaccess.RoleTemplate) (value0 identityaccess.Role, err error) {
 	if r == nil {
 		return identityaccess.Role{}, errRoleAdministrationUnavailable
 	}
 	operation := func(ctx context.Context) (domain.ManagedRole, error) {
+		if len(template) > 0 {
+			return r.createRoleFromTemplate(ctx, name, description, baseRole, template)
+		}
 		if baseRole == nil || *baseRole == "" {
 			return domain.ManagedRole{}, failed("create role", domain.ErrBaseRoleRequired)
 		}

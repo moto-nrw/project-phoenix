@@ -27,7 +27,7 @@ func TestSchoolInvitationMailPicksThePortalAndTheRoleName(t *testing.T) {
 	assert.Equal(t, "Einladung zu moto – OGS Am Berg", mail.Subject)
 	assert.Equal(t, "invitation.html", mail.Template)
 	assert.Equal(t, "https://staff.example/invite?token=tok", content(t, mail)["InvitationURL"])
-	assert.Equal(t, "Betreuer", content(t, mail)["RoleName"])
+	assert.Equal(t, "Betreuung", content(t, mail)["RoleName"])
 	assert.Equal(t, 48, content(t, mail)["ExpiryHours"])
 	assert.Equal(t, "Einladung zu moto", identityaccess.SchoolInvitationMail(invitation, "", "o", time.Hour).Subject)
 	assert.Equal(t, "Förderkraft", identityaccess.RoleDisplayName("Förderkraft"), "a school's own role keeps its name")

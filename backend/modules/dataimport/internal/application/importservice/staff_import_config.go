@@ -15,21 +15,32 @@ import (
 )
 
 // systemRoleDisplayNames maps system role raw names to their German display
-// names. This mirrors SYSTEM_ROLE_TRANSLATIONS in the frontend
-// (frontend/src/lib/auth-helpers.ts) so the staff import accepts the same
+// names. This mirrors SYSTEM_ROLE_LABELS in the frontend
+// (frontend/src/lib/role-labels.ts) so the staff import accepts the same
 // names a user sees on the roles page. Tenant-specific custom roles have no
 // translation — their raw name is also their display name.
 var systemRoleDisplayNames = map[string]string{
-	"admin":     "Administrator",
-	"user":      "Betreuer",
+	"admin":     "Verwaltung",
+	"user":      "Betreuung",
 	"guest":     "Gast",
-	"guardian":  "Erziehungsberechtigter",
+	"guardian":  "Eltern",
 	"lehrkraft": "Lehrkraft",
+}
+
+// legacyRoleDisplayNames are the display names the roles page showed before
+// #4574. Import files written against them keep resolving.
+var legacyRoleDisplayNames = map[string]string{
+	"administrator":          "admin",
+	"betreuer":               "user",
+	"erziehungsberechtigter": "guardian",
 }
 
 // displayNameToRawRole is the reverse lookup (lowercased display name → raw name).
 var displayNameToRawRole = func() map[string]string {
-	m := make(map[string]string, len(systemRoleDisplayNames))
+	m := make(map[string]string, len(systemRoleDisplayNames)+len(legacyRoleDisplayNames))
+	for display, raw := range legacyRoleDisplayNames {
+		m[display] = raw
+	}
 	for raw, display := range systemRoleDisplayNames {
 		m[strings.ToLower(display)] = raw
 	}
@@ -324,7 +335,7 @@ func (c *StaffImportConfig) validateRole(ctx context.Context, row *importModels.
 	}
 
 	// Accept either the raw role name (e.g. "user") or the German display name
-	// shown on the roles page (e.g. "Betreuer"). FindByName matches the raw
+	// shown on the roles page (e.g. "Betreuung"). FindByName matches the raw
 	// name case-insensitively, so translate a display name back first.
 	lookup := name
 	if raw, ok := displayNameToRawRole[strings.ToLower(name)]; ok {

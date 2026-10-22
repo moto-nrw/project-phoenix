@@ -2361,6 +2361,7 @@
         "preview_token_invalid": "Nuk keni qasje te: {object}. Kontaktoni shkollën.",
         "read_only_preview": "Nuk keni qasje te: {object}. Kontaktoni shkollën.",
         "role_name_taken": "Nuk u ndryshua: {object}. Kontrolloni gjendjen aktuale.",
+        "role_platform_permission": "Nuk u ruajt: {object}. Kontrolloni të dhënat.",
         "session_account_inactive": "Llogaria juaj është e çaktivizuar. Kontaktoni drejtimin e shkollës suaj.",
         "tenant_access_denied": "Nuk keni qasje te: {object}. Kontaktoni shkollën.",
         "use_parent_portal": "Nuk keni qasje te: {object}. Kontaktoni shkollën.",
