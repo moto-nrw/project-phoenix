@@ -321,7 +321,7 @@ func buildActiveTestModule(db transactionruntime.Database, unit tenant.UnitOfWor
 		Sessions: newSupervisionSessions(presence, owners.OpenRoomSessionPresence{Presence: owners.NewLoggedStudentPresence(db, logger), Activities: timetableOwner}, caller),
 		Rooms:    OpenRoomDirectory{Rooms: rooms}, Groups: newSupervisionGroups(groups.Education, caller),
 		Yard: newSupervisionYard(yard), Schedule: newSupervisionSchedule(operations), Presence: newSupervisionPresence(presence, presence),
-		Planning: newSupervisionPlanning(pickups, arrivals), Settings: newSupervisionSettings(settings.Settings), Calendar: supervisionCalendar{}, Now: OptionalClock(clocks)})
+		Planning: newSupervisionPlanning(pickups, arrivals), Settings: newSupervisionSettings(settings.Settings), Staff: NewTimetablePeople(dataUsers), Calendar: supervisionCalendar{}, Now: OptionalClock(clocks)})
 	if err != nil {
 		return fail(fmt.Errorf("compose supervision dashboard projection: %w", err))
 	}
