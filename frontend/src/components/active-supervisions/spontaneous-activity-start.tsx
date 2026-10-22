@@ -20,11 +20,9 @@ import {
   type PlannerRoomReference,
 } from "~/lib/planner-reference-api";
 import { staffService, type Staff } from "~/lib/staff-api";
-import { isAssignableStaff } from "~/lib/staff-helpers";
-import {
-  ExternalAccountBadge,
-  ExternalBadge,
-} from "~/components/staff/external-badge";
+import { externalAccountMark, isAssignableStaff } from "~/lib/staff-helpers";
+import { ExternalBadge } from "~/components/staff/external-badge";
+import { StatusBadge } from "~/components/ui/status-badge";
 
 import { ExternalCaregiverEntry } from "~/components/staff/external-caregiver-entry";
 
@@ -613,30 +611,39 @@ export function SpontaneousActivityStart({
               </div>
               {assignableStaff.length > 0 ? (
                 <div className="grid max-h-44 gap-2 overflow-y-auto rounded-lg border border-gray-200 bg-gray-50 p-2">
-                  {assignableStaff.map((item) => (
-                    <label
-                      key={item.id}
-                      className="flex min-h-10 cursor-pointer items-center gap-3 rounded-md bg-white px-3 py-2 text-sm text-gray-800"
-                    >
-                      <Checkbox
-                        checked={additionalStaffIds.includes(item.id)}
-                        onChange={() => toggleStaff(item.id)}
-                      />
-                      <span className="min-w-0 truncate">
-                        {staffLabel(item)}
-                      </span>
-                      {item.isExternal ? (
-                        <>
-                          <ExternalBadge
-                            organization={item.externalOrganization}
-                          />
-                          <ExternalAccountBadge
-                            status={item.externalAccountStatus}
-                          />
-                        </>
-                      ) : null}
-                    </label>
-                  ))}
+                  {assignableStaff.map((item) => {
+                    const accountMark = item.isExternal
+                      ? externalAccountMark(item.externalAccountStatus)
+                      : null;
+                    return (
+                      <label
+                        key={item.id}
+                        className="flex min-h-10 cursor-pointer items-center gap-3 rounded-md bg-white px-3 py-2 text-sm text-gray-800"
+                      >
+                        <Checkbox
+                          checked={additionalStaffIds.includes(item.id)}
+                          onChange={() => toggleStaff(item.id)}
+                        />
+                        <span className="min-w-0 flex-1">
+                          <span className="block break-words">
+                            {staffLabel(item)}
+                          </span>
+                          {item.isExternal ? (
+                            <span className="mt-1 flex flex-wrap gap-1">
+                              <span className="max-w-full min-w-0 [overflow-wrap:anywhere] [&>span]:whitespace-normal">
+                                <ExternalBadge
+                                  organization={item.externalOrganization}
+                                />
+                              </span>
+                              {accountMark ? (
+                                <StatusBadge {...accountMark} compact />
+                              ) : null}
+                            </span>
+                          ) : null}
+                        </span>
+                      </label>
+                    );
+                  })}
                 </div>
               ) : null}
               {canCreateExternalCaregiver ? (

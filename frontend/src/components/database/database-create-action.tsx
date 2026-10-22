@@ -1,6 +1,6 @@
 "use client";
 
-import { ChevronDown } from "lucide-react";
+import { ChevronDown, Plus } from "lucide-react";
 import { useEffect, useState } from "react";
 import { createPortal } from "react-dom";
 import {
@@ -30,25 +30,6 @@ const DESKTOP_CLASS =
   "bg-moto-green hover:bg-moto-green-hover h-10 items-center gap-2 rounded-lg px-4 text-sm font-semibold text-gray-950 disabled:cursor-not-allowed disabled:opacity-50";
 const FAB_CLASS =
   "bg-moto-green hover:bg-moto-green-hover h-14 w-14 items-center justify-center rounded-full text-gray-950 shadow-lg disabled:cursor-not-allowed disabled:opacity-50";
-
-function PlusIcon() {
-  return (
-    <svg
-      className="h-6 w-6"
-      fill="none"
-      viewBox="0 0 24 24"
-      stroke="currentColor"
-      strokeWidth={2.5}
-      aria-hidden
-    >
-      <path
-        strokeLinecap="round"
-        strokeLinejoin="round"
-        d="M12 4.5v15m7.5-7.5h-15"
-      />
-    </svg>
-  );
-}
 
 /**
  * Renders both the desktop "+ Label" button and the mobile FAB. Visibility
@@ -104,7 +85,9 @@ export function DatabaseCreateAction({
                 ariaLabel={ariaLabel}
                 items={menuItems}
                 triggerClassName={`${FAB_CLASS} flex`}
-                triggerContent={<PlusIcon />}
+                triggerContent={
+                  <Plus className="h-6 w-6" strokeWidth={2.5} aria-hidden />
+                }
               />
             </span>,
             document.body,
@@ -140,7 +123,7 @@ export function DatabaseCreateAction({
             data-setup-tour="create"
             aria-label={ariaLabel}
           >
-            <PlusIcon />
+            <Plus className="h-6 w-6" strokeWidth={2.5} aria-hidden />
           </button>,
           document.body,
         )}

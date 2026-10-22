@@ -88,12 +88,6 @@ export function OwnSupervisionView() {
   );
   const { mutate: mutateDay } = day;
   const { mutate: mutateUpcoming } = upcoming;
-  const loadError = useSwrLoadError(
-    day.error ?? upcoming.error,
-    "Ihre Aufsicht",
-    () => Promise.all([mutateDay(), mutateUpcoming()]),
-  );
-
   const running = useMemo(() => ownRunningBlocks(day.data ?? []), [day.data]);
   const selected =
     running.find((block) => block.activeGroupId === sessionParam) ??
@@ -105,6 +99,11 @@ export function OwnSupervisionView() {
     currentRoomId: undefined,
   });
   const { currentTimetableRoster } = roster;
+  const loadError = useSwrLoadError(
+    day.error ?? upcoming.error ?? roster.rosterError,
+    "Ihre Aufsicht",
+    () => Promise.all([mutateDay(), mutateUpcoming(), roster.mutateRoster()]),
+  );
   const reopen = useReopenBanner();
 
   const reloadLists = useCallback(

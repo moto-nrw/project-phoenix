@@ -6,12 +6,16 @@ import {
   GroupedList,
   type GroupDefinition,
 } from "~/components/database/grouped-list";
-import { ExternalAccountBadge } from "~/components/staff/external-badge";
+import { StatusBadge } from "~/components/ui/status-badge";
 import { Avatar } from "~/components/ui/avatar";
 import { OverflowMenu } from "~/components/ui/page-header/OverflowMenu";
 import { getRoleDisplayName } from "~/lib/auth-helpers";
 import { staffAvatarUrl } from "~/lib/staff-api";
-import { externalStaffLabel, staffDisplayName } from "~/lib/staff-helpers";
+import {
+  externalAccountMark,
+  externalStaffLabel,
+  staffDisplayName,
+} from "~/lib/staff-helpers";
 import type { Teacher } from "@/lib/teacher-api";
 
 interface StaffListProps {
@@ -81,6 +85,9 @@ export function StaffList({
         groups={groupDefinitions}
         renderItem={(teacher) => {
           const displayName = getStaffDisplayName(teacher);
+          const accountMark = teacher.is_external
+            ? externalAccountMark(teacher.external_account_status)
+            : null;
           const inviteLabel = onInviteExternal
             ? inviteActionLabel(teacher)
             : null;
@@ -99,10 +106,8 @@ export function StaffList({
               title={displayName}
               subtitle={buildSubtitle(teacher)}
               trailingAccessory={
-                teacher.is_external ? (
-                  <ExternalAccountBadge
-                    status={teacher.external_account_status}
-                  />
+                accountMark ? (
+                  <StatusBadge {...accountMark} compact />
                 ) : undefined
               }
               isSelected={false}

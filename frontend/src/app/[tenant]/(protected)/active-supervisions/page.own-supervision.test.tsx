@@ -103,6 +103,7 @@ vi.mock("~/lib/timetable-operations-api", () => ({
   isReopenUnavailableError: vi.fn(() => false),
 }));
 
+import { ApiError } from "~/lib/api-error";
 import { useSWRAuth } from "~/lib/swr";
 import {
   useAttendanceWebEnabled,
@@ -252,6 +253,43 @@ describe("MeinRaumPage without groups:read (#4573)", () => {
     ).toBe(false);
     expect(global.fetch).not.toHaveBeenCalled();
     expect(screen.queryByText("Fremder Block")).not.toBeInTheDocument();
+  });
+
+  it("shows an initial roster failure and retries all three requests", async () => {
+    const rosterError = new ApiError("roster unavailable", 503);
+    const mutateDay = vi.fn().mockResolvedValue(undefined);
+    const mutateUpcoming = vi.fn().mockResolvedValue(undefined);
+    const mutateRoster = vi.fn().mockResolvedValue(undefined);
+    vi.mocked(useSWRAuth).mockImplementation(((key: string | null) => {
+      if (key === "active-supervisions-own-day") {
+        return { ...swr([runningBlock]), mutate: mutateDay };
+      }
+      if (key === "active-supervisions-own-planned-now") {
+        return { ...swr([]), mutate: mutateUpcoming };
+      }
+      if (key === "timetable-roster-99") {
+        return { ...swr(undefined), error: rosterError, mutate: mutateRoster };
+      }
+      return swr(undefined);
+    }) as never);
+
+    const view = render(<MeinRaumPage />);
+
+    expect(await screen.findByRole("alert")).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Wiederholen" }));
+    await waitFor(() => {
+      expect(mutateDay).toHaveBeenCalledOnce();
+      expect(mutateUpcoming).toHaveBeenCalledOnce();
+      expect(mutateRoster).toHaveBeenCalledOnce();
+    });
+
+    vi.mocked(useSWRAuth).mockImplementation(((key: string | null) => {
+      if (key === "active-supervisions-own-day") return swr([runningBlock]);
+      if (key === "active-supervisions-own-planned-now") return swr([]);
+      return swr(key === "timetable-roster-99" ? roster : undefined);
+    }) as never);
+    view.rerender(<MeinRaumPage />);
+    expect(await screen.findByText("Marie Muster")).toBeInTheDocument();
   });
 
   it("checks a child in through the timetable operations route", async () => {
