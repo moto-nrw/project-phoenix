@@ -2,15 +2,16 @@
 // Lists test files that no CI runner picks up (#4436).
 //
 // Go (`go test ./...`) and Vitest find their tests by glob, so a new
-// `_test.go` or `src/**/*.test.ts` cannot fall outside them. Two kinds of tests
-// need an explicit runner and are checked here:
-//   1. Repository script tests outside backend/ and frontend/
-//      (`*.test.{js,mjs,cjs,ts}`, `*_test.{py,sh}`). A workflow must name the
-//      file, or name a script that names it (scripts/check-backend-quality.sh
-//      runs check-deadcode_test.sh, for example). Git hooks alone do not count.
+// `_test.go` or `frontend/src/**/*.test.ts` cannot fall outside them. Two kinds
+// of tests need an explicit runner and are checked here:
+//   1. Script tests outside frontend/ (`*.test.{js,mjs,cjs,ts}`,
+//      `*_test.{py,sh}`, also under backend/, where Go never runs them). A
+//      workflow must name the file by its repository path, or name a script
+//      that does (lint.yml -> check-quality.sh -> check-backend-quality.sh ->
+//      check-deadcode_test.sh). Hooks, comments and paths filters do not count.
 //   2. Playwright specs under frontend/e2e (Vitest excludes them). The spec
-//      must lie in the testDir of a Playwright config, outside its testIgnore,
-//      and a workflow must run a package script that runs that config.
+//      must match a Playwright config (testDir, testMatch, testIgnore), and a
+//      workflow must run a package script that runs that config.
 // Playwright tools under frontend/scripts (screenshots, guides, perf) are
 // generators run by their own workflows, not tests, and stay out of scope.
 import { execFileSync } from 'node:child_process';
@@ -20,13 +21,15 @@ import { fileURLToPath } from 'node:url';
 
 const scriptTest = /(?:\.test\.[cm]?[jt]s|_test\.(?:py|sh))$/;
 const playwrightSpec = /^frontend\/e2e\/.+\.spec\.ts$/;
+const escape = text => text.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 
-function stringOption(source, key) {
-  return source.match(new RegExp(`\\b${key}:\\s*["']([^"']+)["']`))?.[1];
+// A whole repository path, optionally behind `$root/`, `${ROOT}/` or `../`;
+// `scripts/bar_test.py` does not match inside `scripts/foobar_test.py`.
+function namesPath(text, file) {
+  return new RegExp(`(?:^|[^\\w./-])(?:\\$\\{?\\w+\\}?/|(?:\\.\\./)+)?${escape(file)}(?![\\w.-])`, 'm').test(text);
 }
 
-// Playwright prefixes relative globs with `**/`; enough for testIgnore values
-// such as "layout/**".
+// Playwright prefixes relative globs with `**/`.
 function globToRegExp(glob) {
   const pattern = glob.startsWith('**/') ? glob : `**/${glob}`;
   let out = '';
@@ -36,9 +39,20 @@ function globToRegExp(glob) {
     else if (pattern.startsWith('**', i)) { out += '.*'; i += 1; }
     else if (char === '*') out += '[^/]*';
     else if (char === '?') out += '[^/]';
-    else out += char.replace(/[.+^${}()|[\]\\]/g, '\\$&');
+    else out += escape(char);
   }
   return new RegExp(`^${out}$`);
+}
+
+// Only a string literal or an array of string literals is understood; anything
+// else fails loudly instead of counting ignored specs as covered.
+function globOption(source, key, file) {
+  if (!new RegExp(`\\b${key}:`).test(source)) return null;
+  const literal = `["'][^"']+["']`;
+  const value = source.match(new RegExp(`\\b${key}:\\s*(${literal}|\\[\\s*${literal}(?:\\s*,\\s*${literal})*\\s*,?\\s*\\])`))?.[1];
+  if (!value) throw new Error(`${file}: ${key} must be a string literal or an array of them for check-test-runners.mjs`);
+  const globs = [...value.matchAll(/["']([^"']+)["']/g)].map(match => globToRegExp(match[1]));
+  return { test: relative => globs.some(glob => glob.test(relative)) };
 }
 
 /**
@@ -47,24 +61,25 @@ function globToRegExp(glob) {
  * @returns {string[]} test files without a runner
  */
 export function findUnrunTests(files, read) {
-  // Comments and quoted list items (paths filters, path triggers) name files
-  // without running them.
+  // Comments and list items that hold only a path (paths filters, path
+  // triggers) name files without running them.
   const workflows = files
     .filter(file => /^\.github\/workflows\/[^/]+\.ya?ml$/.test(file))
     .map(file => read(file)
       .split('\n')
-      .filter(line => !/^\s*#/.test(line) && !/^\s*-\s*(['"])[^'"]*\1\s*(?:#.*)?$/.test(line))
+      .filter(line => !/^\s*#/.test(line) && !/^\s*-\s*(['"]?)[^\s'":]+\1\s*(?:#.*)?$/.test(line))
+      .map(line => line.replace(/\s+#.*$/, ''))
       .join('\n'));
-  const inWorkflow = text => workflows.some(workflow => workflow.includes(text));
-  // Scripts a workflow runs, directly or through other such scripts
-  // (lint.yml -> check-quality.sh -> check-backend-quality.sh).
+  const inWorkflow = file => workflows.some(workflow => namesPath(workflow, file));
+
+  // Scripts a workflow runs, directly or through other such scripts.
   const helpers = files.filter(file => file.startsWith('scripts/') && !scriptTest.test(file));
-  const reached = new Set(helpers.filter(file => inWorkflow(file)));
+  const reached = new Set(helpers.filter(inWorkflow));
   for (let grew = true; grew;) {
     grew = false;
     const texts = [...reached].map(read);
     for (const file of helpers) {
-      if (!reached.has(file) && texts.some(text => text.includes(`scripts/${path.posix.basename(file)}`))) {
+      if (!reached.has(file) && texts.some(text => namesPath(text, file))) {
         reached.add(file);
         grew = true;
       }
@@ -73,11 +88,8 @@ export function findUnrunTests(files, read) {
   const ciScripts = [...reached].map(read);
 
   const unrun = files
-    .filter(file => !file.startsWith('backend/') && !file.startsWith('frontend/') && scriptTest.test(file))
-    .filter(file => {
-      const name = path.posix.basename(file);
-      return !inWorkflow(name) && !ciScripts.some(script => script.includes(name));
-    });
+    .filter(file => !file.startsWith('frontend/') && scriptTest.test(file))
+    .filter(file => !inWorkflow(file) && !ciScripts.some(script => namesPath(script, file)));
 
   const scripts = files.includes('frontend/package.json')
     ? Object.entries(JSON.parse(read('frontend/package.json')).scripts ?? {})
@@ -87,21 +99,23 @@ export function findUnrunTests(files, read) {
     .map(file => {
       const source = read(file);
       const name = path.posix.basename(file);
-      const testDir = path.posix.join('frontend', stringOption(source, 'testDir') ?? '.');
-      const ignore = stringOption(source, 'testIgnore');
+      const testDir = path.posix.join('frontend', source.match(/\btestDir:\s*["']([^"']+)["']/)?.[1] ?? '.');
+      const match = globOption(source, 'testMatch', file);
+      const ignore = globOption(source, 'testIgnore', file);
       const run = scripts.some(([script, command]) => {
         if (!/\bplaywright test\b/.test(command)) return false;
         const config = command.match(/(?:-c|--config)[ =](\S+)/)?.[1] ?? 'playwright.config.ts';
         return path.posix.basename(config) === name &&
-          workflows.some(workflow => new RegExp(`\\bpnpm (?:run )?${script.replace(/[.*+?^${}()|[\]\\:]/g, '\\$&')}(?![\\w:-])`).test(workflow));
+          workflows.some(workflow => new RegExp(`\\bpnpm (?:run )?${escape(script)}(?![\\w:-])`).test(workflow));
       });
-      return { testDir, ignore: ignore ? globToRegExp(ignore) : null, run };
+      return { testDir, match, ignore, run };
     });
 
   for (const file of files.filter(file => playwrightSpec.test(file))) {
-    const covered = configs.some(({ testDir, ignore, run }) => {
+    const covered = configs.some(({ testDir, match, ignore, run }) => {
       if (!run || !file.startsWith(`${testDir}/`)) return false;
-      return !ignore?.test(file.slice(testDir.length + 1));
+      const relative = file.slice(testDir.length + 1);
+      return (!match || match.test(relative)) && !ignore?.test(relative);
     });
     if (!covered) unrun.push(file);
   }

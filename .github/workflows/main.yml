@@ -237,11 +237,14 @@ jobs:
               - 'scripts/runtime_checkpoint_*_test.py'
               - 'scripts/check-agent-context*'
               - 'scripts/check-test-runners*'
-              - '**/*.test.mjs'
+              - '**/*.test.{js,cjs,mjs,ts}'
               - '**/*_test.py'
               - '**/*_test.sh'
               - 'frontend/e2e/**'
               - 'frontend/playwright*.config.ts'
+              # Vitest discovers these by glob; the guard skips them.
+              - '!frontend/src/**'
+              - '!frontend/scripts/**'
             # Inputs of TestToolchainPinsRatchet. Changed-test selection adds
             # ./test only for backend changes, so ci-scripts runs the
             # ratchets for these files instead of the full backend suite.

@@ -82,7 +82,6 @@ jobs:
       DB_CONN_MAX_IDLE_TIME: 10m
       PHOENIX_AUTH_PASSWORD: phoenix_auth_test
       PHOENIX_DEMO_PASSWORD: phoenix_demo_test
-      PORT: "8080"
       APP_ENV: development
       LOG_LEVEL: info
       LOG_TEXTLOGGING: "true"
@@ -146,8 +145,12 @@ jobs:
         run: |
           "${RUNNER_TEMP}/phoenix" migrate
 
+      # PORT only here: `next dev`, started by playwright.config.ts, reads PORT
+      # too and must stay on 3000.
       - name: Start backend
         working-directory: backend
+        env:
+          PORT: "8080"
         run: |
           "${RUNNER_TEMP}/phoenix" serve > "${RUNNER_TEMP}/server.log" 2>&1 &
           echo $! > "${RUNNER_TEMP}/server.pid"
@@ -207,6 +210,18 @@ jobs:
       - name: Run E2E flows
         working-directory: frontend
         run: pnpm run test:e2e
+
+      # Every spec skips locally without seed data or a weekday; here a run
+      # that executed nothing or skipped a test must not report green.
+      - name: Reject skipped or missing tests
+        working-directory: frontend
+        run: |
+          report=test-results/e2e-results.json
+          jq '.stats' "$report"
+          if ! jq -e '.stats.expected > 0 and .stats.skipped == 0' "$report" > /dev/null; then
+            echo "::error::E2E run executed no test or skipped tests (missing seed data, or not a Berlin weekday)."
+            exit 1
+          fi
 
       - name: Upload Playwright report
         if: failure()

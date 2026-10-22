@@ -25,29 +25,48 @@ test('script tests need a workflow that runs them, directly or through scripts',
   }), ['monitoring/orphan.test.mjs', 'scripts/orphan_test.py']);
 });
 
-test('git hooks, comments and paths filters do not count as runners', () => {
+test('a path matches only as a whole, not inside a longer name', () => {
+  assert.deepEqual(check({
+    '.github/workflows/main.yml': 'run: python3 -m unittest scripts/foobar_test.py',
+    'scripts/foobar_test.py': '',
+    'scripts/bar_test.py': '',
+  }), ['scripts/bar_test.py']);
+});
+
+test('hooks, comments and paths filters do not count as runners', () => {
   assert.deepEqual(check({
     '.github/workflows/main.yml': [
       '# runs scripts/commented.test.mjs',
-      "            hooks:",
+      '            hooks:',
       "              - 'scripts/pre-push.sh'",
       "              - 'scripts/filtered_test.sh'",
+      '              - scripts/unquoted_test.sh',
+      'run: echo ok # scripts/trailing_test.sh',
     ].join('\n'),
     'lefthook.yml': 'run: node --test scripts/hooked.test.mjs',
     'scripts/pre-push.sh': 'node --test scripts/hooked.test.mjs',
     'scripts/commented.test.mjs': '',
     'scripts/filtered_test.sh': '',
     'scripts/hooked.test.mjs': '',
-  }), ['scripts/commented.test.mjs', 'scripts/filtered_test.sh', 'scripts/hooked.test.mjs']);
+    'scripts/unquoted_test.sh': '',
+    'scripts/trailing_test.sh': '',
+  }), [
+    'scripts/commented.test.mjs',
+    'scripts/filtered_test.sh',
+    'scripts/hooked.test.mjs',
+    'scripts/trailing_test.sh',
+    'scripts/unquoted_test.sh',
+  ]);
 });
 
 test('Go and Vitest files are left to their glob-based runners', () => {
   assert.deepEqual(check({
     'backend/core/core_test.go': '',
-    'backend/scripts/helper_test.sh': '',
     'frontend/src/lib/date.test.ts': '',
     'frontend/scripts/plugin.test.mjs': '',
-  }), []);
+    // Go never runs a shell suite, even under backend/.
+    'backend/scripts/helper_test.sh': '',
+  }), ['backend/scripts/helper_test.sh']);
 });
 
 test('Playwright specs need a config whose package script a workflow runs', () => {
@@ -75,4 +94,32 @@ test('Playwright specs need a config whose package script a workflow runs', () =
     ...stack,
     '.github/workflows/e2e.yml': 'run: pnpm run test:e2e-smoke',
   }), ['frontend/e2e/flow.spec.ts', 'frontend/e2e/layout/grid.spec.ts']);
+});
+
+test('testMatch narrows a config to the specs it names', () => {
+  assert.deepEqual(check({
+    'frontend/package.json': packageJson,
+    'frontend/playwright.config.ts': 'testDir: "./e2e",\n  testMatch: "smoke.spec.ts",',
+    'frontend/e2e/smoke.spec.ts': '',
+    'frontend/e2e/other.spec.ts': '',
+    '.github/workflows/e2e.yml': 'run: pnpm run test:e2e',
+  }), ['frontend/e2e/other.spec.ts']);
+});
+
+test('testIgnore accepts an array of globs', () => {
+  assert.deepEqual(check({
+    'frontend/package.json': packageJson,
+    'frontend/playwright.config.ts': 'testDir: "./e2e",\n  testIgnore: ["layout/**", "flaky.spec.ts"],',
+    'frontend/e2e/flow.spec.ts': '',
+    'frontend/e2e/flaky.spec.ts': '',
+    '.github/workflows/e2e.yml': 'run: pnpm run test:e2e',
+  }), ['frontend/e2e/flaky.spec.ts']);
+});
+
+test('a Playwright option the guard cannot read fails instead of passing', () => {
+  assert.throws(() => check({
+    'frontend/package.json': packageJson,
+    'frontend/playwright.config.ts': 'testDir: "./e2e",\n  testIgnore: /layout/,',
+    'frontend/e2e/flow.spec.ts': '',
+  }), /testIgnore must be a string literal/);
 });
