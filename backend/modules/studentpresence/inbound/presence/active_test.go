@@ -1660,7 +1660,10 @@ func TestListCombinedGroupsFilters(t *testing.T) {
 	ended, err := testPresenceQueries(t, tc.db).RecordCombination(testpkg.Ctx(t), endedAt.Add(-time.Hour), &endedAt)
 	require.NoError(t, err)
 
-	listedIDs := func(t *testing.T, query string) []int64 {
+	// The tenant is keyed by the test name, so a repeated run (-count=2) also
+	// lists the rows of earlier runs. Assert on this run's own rows and on
+	// the active state of every listed row instead of the whole list.
+	listed := func(t *testing.T, query string) map[int64]bool {
 		t.Helper()
 		req := testutil.NewJSONRequest(t, "GET", "/active/combined"+query, nil)
 		rr := testutil.ExecuteWithAuthPermissions(t, router, req, adminClaims, []string{permissions.GroupsRead})
@@ -1669,23 +1672,35 @@ func TestListCombinedGroupsFilters(t *testing.T) {
 			Data []presenceAPI.CombinedGroupResponse `json:"data"`
 		}
 		require.NoError(t, json.Unmarshal(rr.Body.Bytes(), &response))
-		ids := make([]int64, 0, len(response.Data))
+		active := make(map[int64]bool, len(response.Data))
 		for _, group := range response.Data {
-			ids = append(ids, group.ID)
+			active[group.ID] = group.IsActive
 		}
-		return ids
+		return active
 	}
 
 	t.Run("without filter lists open and ended combinations", func(t *testing.T) {
-		assert.Equal(t, []int64{open.ID, ended.ID}, listedIDs(t, ""))
+		rows := listed(t, "")
+		assert.Contains(t, rows, open.ID)
+		assert.Contains(t, rows, ended.ID)
 	})
 
 	t.Run("active=true lists only open combinations", func(t *testing.T) {
-		assert.Equal(t, []int64{open.ID}, listedIDs(t, "?active=true"))
+		rows := listed(t, "?active=true")
+		assert.Contains(t, rows, open.ID)
+		assert.NotContains(t, rows, ended.ID)
+		for id, isActive := range rows {
+			assert.True(t, isActive, "combination %d is listed as active", id)
+		}
 	})
 
 	t.Run("active=false lists only ended combinations", func(t *testing.T) {
-		assert.Equal(t, []int64{ended.ID}, listedIDs(t, "?active=false"))
+		rows := listed(t, "?active=false")
+		assert.Contains(t, rows, ended.ID)
+		assert.NotContains(t, rows, open.ID)
+		for id, isActive := range rows {
+			assert.False(t, isActive, "combination %d is listed as ended", id)
+		}
 	})
 }
 

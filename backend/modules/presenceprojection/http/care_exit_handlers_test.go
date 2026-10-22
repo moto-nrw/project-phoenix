@@ -24,7 +24,7 @@ func TestStudentList_UsesBookingParticipationButKeepsAdministrationAndLivePresen
 	student := testpkg.CreateTestStudent(t, tc.db, "Sichtbar", "Grenze", "4c")
 	endedWithoutTask := testpkg.CreateTestStudent(t, tc.db, "Ohne", "Aufgabe", "4d")
 	studentID := student.ID
-	today := calendar.NewDate(2026, 8, 24)
+	today := calendar.DateFromTime(fixedCalendarClock()) // the day the handler sees
 	// The gap must be a future day inside the planning horizon, which closes
 	// on the Sunday of the current week (day_planning.go: maxPlanningDate).
 	// fixedCalendarClock pins today to a Monday, so Tuesday is such a day.
@@ -100,7 +100,7 @@ func TestStudentList_CareStatusDecidesWhichSideIsShown(t *testing.T) {
 	ended := testpkg.CreateTestStudent(t, tc.db, "Listed", "Ended", "3a")
 	endsToday := testpkg.CreateTestStudent(t, tc.db, "Listed", "EndsToday", "3a")
 
-	today := calendar.NewDate(2026, 8, 24)
+	today := calendar.DateFromTime(fixedCalendarClock()) // the day the handler sees
 	setEnrolledUntil(t, tc, planned.ID, today.AddDays(14))
 	setEnrolledUntil(t, tc, ended.ID, today.AddDays(-1))
 	setEnrolledUntil(t, tc, endsToday.ID, today)
