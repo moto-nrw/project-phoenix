@@ -8,6 +8,7 @@ paths:
   - "backend/api/base.go"
   - "backend/api/testdata/route_table.golden"
   - "scripts/posthog-dashboards*"
+  - ".github/workflows/posthog-dashboards.yml"
 ---
 
 # Usage analytics (Nutzungsanalyse)
@@ -31,6 +32,7 @@ commit. Terms: `CONTEXT.md`, section „Nutzungsanalyse"; spec #3598.
 | Pseudonymous user ID (same hash on both sides) | `frontend/src/lib/analytics-pseudonym.ts`, `backend/analytics/pseudonym.go` |
 | PostHog project settings, privacy text draft | `docs/operations/nutzungsanalyse.md` |
 | The PostHog dashboards, their insights, and the feature areas (`FEATURES`) | `scripts/posthog-dashboards.mjs` |
+| Deploying the dashboards to PostHog (preview on PRs, sync on merge) | `.github/workflows/posthog-dashboards.yml` |
 
 The floor for real schools: route templates instead of URLs, the deployment
 instead of the real host (the OGS portal runs on `{slug}.TENANT_DOMAIN`), no
@@ -100,9 +102,11 @@ above), and the browser filter drops the backend's event names.
 ## New dashboard or insight
 
 The PostHog dashboards exist only as `scripts/posthog-dashboards.mjs`; an
-insight built by hand in the PostHog UI is not reproducible. The script needs
-`POSTHOG_PERSONAL_API_KEY` in the local environment (never in the repository)
-and calls only the EU API.
+insight built by hand in the PostHog UI is not reproducible. The workflow
+`posthog-dashboards.yml` deploys them like migrations: a pull request runs
+`--check` and `--dry-run` and shows both in its job summary; a merge into
+development syncs and fails unless a second run reports `Everything is
+current.` Do not sync from a local checkout; that puts unmerged state live.
 
 1. Add the insight to its dashboard in `dashboards()`, or add a dashboard
    with its insights. Build the query with `hogql()`, `trends()`, or
@@ -113,10 +117,12 @@ and calls only the EU API.
    does not rate staff members.
 3. Run `node --test scripts/posthog-dashboards.test.mjs`. It fails for an
    insight without a deployment filter, with staging, or with a person.
-4. Run `node scripts/posthog-dashboards.mjs --check` (every query runs once
-   in PostHog), then `node scripts/posthog-dashboards.mjs`. It creates or
-   updates by exact name; a second run prints `Everything is current.`
+4. Open the pull request. Its `PostHog dashboards / preview` check fails when PostHog
+   rejects a query; the job summary lists what the merge will create or
+   update. Objects are matched by exact name: a renamed definition creates a
+   new one, so delete the old one in PostHog by hand.
 
 The script reads the route templates from `analytics-routes.ts` and the
-browser events from `analytics-policy.ts`. After a new page or a new custom
-event, run it once so the dashboards know them.
+browser events from `analytics-policy.ts`; a change to either file runs the
+workflow too. Locally, `--check` and `--dry-run` only read and need a key in
+`POSTHOG_PERSONAL_API_KEY` (never in the repository).
