@@ -306,7 +306,11 @@ function ActiveGroupsCard({ data }: { readonly data: HomeBlockData }) {
  * Die fünf Zeilen des Bausteins „Kinder" (#4347). Zusammen zählen sie jedes
  * Kind des Tages genau einmal: wer da ist, wer noch in der Schule sitzt, wer
  * zuhause ist und wer krank oder entschuldigt fehlt. Jede Zeile öffnet
- * „Alle Kinder" mit demselben Filter wie die gleichnamige Kennzahl-Kachel.
+ * „Alle Kinder" mit dem Statusfilter ihrer Zeile.
+ *
+ * Die Liste trifft die Zahl nicht immer ganz: „Entschuldigt" zählt im
+ * Backend auch die Klassenfahrt mit, der Filter der Kindersuche führt sie als
+ * eigenen Status. Die Kachel „Entschuldigt" hat dieselbe Lücke.
  */
 const STUDENT_STATUS_ROWS: readonly {
   readonly label: string;
@@ -363,7 +367,7 @@ function StudentsCard({ data }: { readonly data: HomeBlockData }) {
             <Link
               key={row.status}
               href={data.tenantPath(`/students/search?status=${row.status}`)}
-              aria-label={`${row.label}: ${count}`}
+              aria-label={`${row.label}: ${count}, Liste öffnen`}
               className="flex items-center gap-3 rounded-xl bg-gray-50/50 px-3 py-2 transition-colors hover:bg-gray-100/50"
             >
               <MotoConceptIcon concept={row.concept} size={18} />

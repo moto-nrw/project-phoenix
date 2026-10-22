@@ -398,7 +398,9 @@ describe("HomeBlockContent — Kinder (#4347)", () => {
       ["Entschuldigt", "3", "/test-tenant/students/search?status=entschuldigt"],
     ];
     for (const [label, count, href] of rows) {
-      const link = screen.getByRole("link", { name: `${label}: ${count}` });
+      const link = screen.getByRole("link", {
+        name: `${label}: ${count}, Liste öffnen`,
+      });
       expect(link).toHaveAttribute("href", href);
     }
   });
@@ -421,7 +423,9 @@ describe("HomeBlockContent — Kinder (#4347)", () => {
       />,
     );
 
-    expect(screen.getByRole("link", { name: "Krank: –" })).toBeInTheDocument();
+    // Anker: alle fünf Zeilen stehen da, mit Strich statt Zahl. Der
+    // Ladezustand zeichnet an dieser Stelle ein Skelett, keinen Strich.
+    expect(screen.getAllByText("–")).toHaveLength(5);
     expect(screen.queryByText("0")).not.toBeInTheDocument();
   });
 });
