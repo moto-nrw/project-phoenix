@@ -318,10 +318,19 @@ func newTenantStatusWriter(target http.ResponseWriter) *tenantStatusWriter {
 func (w *tenantStatusWriter) Header() http.Header { return w.header }
 
 func (w *tenantStatusWriter) WriteHeader(code int) {
+	if isInterimStatus(code) {
+		w.copyHeadersToTarget()
+		w.target.WriteHeader(code)
+		return
+	}
 	if !w.wroteHeader {
 		w.status = code
 		w.wroteHeader = true
 	}
+}
+
+func isInterimStatus(code int) bool {
+	return code >= 100 && code <= 199 && code != http.StatusSwitchingProtocols
 }
 
 func (w *tenantStatusWriter) Write(body []byte) (int, error) {
@@ -377,15 +386,11 @@ func (w *tenantStatusWriter) reset() {
 
 func (w *tenantStatusWriter) commitResponse() error {
 	defer w.cleanupBodyFile()
-	targetHeader := w.target.Header()
-	clear(targetHeader)
-	for key, values := range w.header {
-		targetHeader[key] = append([]string(nil), values...)
-	}
+	w.copyHeadersToTarget()
 	status := w.statusCode()
 	w.target.WriteHeader(status)
 	if !statusAllowsBody(status) {
-		// net/http rejects any body after 1xx, 204 or 304 with ErrBodyNotAllowed.
+		// Informational statuses are emitted in WriteHeader; 204, 205 and 304 are bodyless.
 		return nil
 	}
 	if w.bodyFile != nil {
@@ -404,6 +409,14 @@ func (w *tenantStatusWriter) commitResponse() error {
 		}
 	}
 	return nil
+}
+
+func (w *tenantStatusWriter) copyHeadersToTarget() {
+	targetHeader := w.target.Header()
+	clear(targetHeader)
+	for key, values := range w.header {
+		targetHeader[key] = append([]string(nil), values...)
+	}
 }
 
 func (w *tenantStatusWriter) cleanupBodyFile() {

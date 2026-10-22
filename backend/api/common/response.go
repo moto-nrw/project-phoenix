@@ -38,7 +38,7 @@ func (r *Response) Render(_ http.ResponseWriter, _ *http.Request) error {
 	return nil
 }
 
-// Respond sends a structured response. Statuses that forbid a body (204,
+// Respond sends a structured response. Statuses that forbid a body (204, 205,
 // 304) are sent without the envelope.
 func Respond(w http.ResponseWriter, r *http.Request, status int, data interface{}, message string) {
 	if !statusAllowsBody(status) {
@@ -59,12 +59,13 @@ func RespondWithError(w http.ResponseWriter, r *http.Request, status int, errorM
 	RenderError(w, r, newErrResponse(status, errors.New(errorMsg)))
 }
 
-// statusAllowsBody mirrors net/http: 1xx, 204 and 304 responses carry no body.
+// statusAllowsBody reports whether a response status permits a body. HTTP 1xx,
+// 204, 205 and 304 responses carry no body.
 func statusAllowsBody(status int) bool {
 	switch {
 	case status >= 100 && status <= 199:
 		return false
-	case status == http.StatusNoContent, status == http.StatusNotModified:
+	case status == http.StatusNoContent, status == http.StatusResetContent, status == http.StatusNotModified:
 		return false
 	}
 	return true
