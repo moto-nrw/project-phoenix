@@ -191,21 +191,23 @@ test('switching from both apps to backend-only cannot let the old supervisor sto
 });
 
 test('.env references resolve like Compose before the host override', t => {
-  const f = fixture(t, { tools: [] });
+  const f = fixture(t, { tools: [], env: { POSTGRES_PASSWORD: 'from-shell' } });
   writeFileSync(join(f.root, '.env'), [
     'SERVER_HOST_PORT=18080', 'FRONTEND_HOST_PORT=13000', 'POSTGRES_HOST_PORT=15432',
-    'MAILPIT_HOST_PORT=18025', 'MAILPIT_SMTP_HOST_PORT=11025', 'POSTGRES_PASSWORD=pw$1',
+    'MAILPIT_HOST_PORT=18025', 'MAILPIT_SMTP_HOST_PORT=11025', 'POSTGRES_PASSWORD=from-file',
     'DB_DSN=postgres://postgres:${POSTGRES_PASSWORD}@postgres:5432/postgres?sslmode=require',
     'TEST_DB_DSN="postgres://postgres:${POSTGRES_PASSWORD}@localhost:5433/phoenix_test"',
     "LITERAL='${POSTGRES_PASSWORD}'", 'MIXED=a$b${POSTGRES_PASSWORD}}${SERVER_HOST_PORT}',
+    'ESCAPED=$${POSTGRES_PASSWORD}$$',
   ].join('\n'));
-  const result = f.run('backend', 'bash', '-c', 'printf "%s\\n" "$DB_DSN" "$TEST_DB_DSN" "$LITERAL" "$MIXED"');
+  const result = f.run('backend', 'bash', '-c', 'printf "%s\\n" "$DB_DSN" "$TEST_DB_DSN" "$LITERAL" "$MIXED" "$ESCAPED"');
   assert.equal(result.status, 0, result.stderr);
   assert.deepEqual(result.stdout.trim().split('\n'), [
-    'postgres://postgres:pw$1@localhost:15432/postgres?sslmode=require',
-    'postgres://postgres:pw$1@localhost:5433/phoenix_test',
+    'postgres://postgres:from-shell@localhost:15432/postgres?sslmode=require',
+    'postgres://postgres:from-shell@localhost:5433/phoenix_test',
     '${POSTGRES_PASSWORD}',
-    'a$bpw$1}18080',
+    'a$bfrom-shell}18080',
+    '${POSTGRES_PASSWORD}$',
   ]);
 });
 

@@ -35,33 +35,52 @@ ROOT=$(git rev-parse --show-toplevel 2>/dev/null) || die "not inside a git repos
 STATE="$ROOT/tmp/dev-native"
 
 # Compose interpolates ${VAR} in .env values (DB_DSN carries
-# ${POSTGRES_PASSWORD}); do the same for the bare form so the native apps see
-# the value the containers see. Single-quoted values stay literal, as in
-# Compose. Defaults (${VAR:-x}) are not allowed in this repo, so any other
-# form, and a reference to an unset variable, fails here instead of reaching
-# the apps as text. Sets EXPANDED; no subshell, so die stops the script.
+# ${POSTGRES_PASSWORD}); do the same so the native apps see the value the
+# containers see. Single-quoted values stay literal, as in Compose. A $ without
+# braces stays literal for passwords; $$ is the Compose escape for a literal $.
+# Defaults (${VAR:-x}) are not allowed in this repo, so any other braced form,
+# and a reference to an unset variable, fails here instead of reaching the apps
+# as text. Sets EXPANDED; no subshell, so die stops the script.
 expand_refs() {
-  local key=$1 val=$2 out='' rest ref
-  while [[ $val == *\$\{* ]]; do
-    rest=${val#*\$\{}
-    ref=${rest%%\}*}
-    [[ $rest == *\}* && $ref =~ ^[A-Za-z_][A-Za-z0-9_]*$ ]] ||
-      die "$key in .env uses an unsupported \${...} form; only \${VAR} is resolved"
-    [ -n "${!ref+set}" ] || die "$key in .env references \${$ref}, which is not set"
-    out+=${val%%\$\{*}${!ref}
-    val=${rest#*\}}
+  local key=$1 val=$2 out='' ref char next i=0
+  while [ "$i" -lt "${#val}" ]; do
+    char=${val:i:1}
+    if [ "$char" != '$' ]; then
+      out+=$char
+      i=$((i + 1))
+      continue
+    fi
+
+    next=${val:i+1:1}
+    if [ "$next" = '$' ]; then
+      out+='$'
+      i=$((i + 2))
+    elif [ "$next" = '{' ]; then
+      ref=${val:i+2}
+      ref=${ref%%\}*}
+      [[ ${val:i+2} == *\}* && $ref =~ ^[A-Za-z_][A-Za-z0-9_]*$ ]] ||
+        die "$key in .env uses an unsupported \${...} form; only \${VAR} is resolved"
+      [ -n "${!ref+set}" ] || die "$key in .env references \${$ref}, which is not set"
+      out+=${!ref}
+      i=$((i + ${#ref} + 3))
+    else
+      out+='$'
+      i=$((i + 1))
+    fi
   done
-  EXPANDED=$out$val
+  EXPANDED=$out
 }
 
 load_env() {
-  local line key val
+  local line key val shell_env_keys=$'\n'
+  while IFS= read -r key; do shell_env_keys+="$key"$'\n'; done < <(compgen -e)
   while IFS= read -r line || [ -n "$line" ]; do
     case "$line" in '' | '#'*) continue ;; esac
     line=${line#export }
     key=${line%%=*}
     val=${line#*=}
     [[ $key =~ ^[A-Za-z_][A-Za-z0-9_]*$ ]] || continue
+    [[ $shell_env_keys == *$'\n'"$key"$'\n'* ]] && continue
     if [[ $val == \'*\' ]]; then
       val=${val:1:${#val}-2}
     else
