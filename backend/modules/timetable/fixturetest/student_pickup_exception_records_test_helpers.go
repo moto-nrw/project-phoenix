@@ -12,11 +12,9 @@ import (
 type StudentPickupExceptionRecords interface {
 	Create(arg0 context.Context, arg1 *StudentPickupException) error
 	DeleteByStudentID(arg0 context.Context, arg1 int64) error
-	DeletePastExceptions(arg0 context.Context, arg1 calendar.Date) (int64, error)
 	FindByID(arg0 context.Context, arg1 int64) (*StudentPickupException, error)
 	FindByStudentID(arg0 context.Context, arg1 int64) ([]*StudentPickupException, error)
 	FindByStudentIDAndDate(arg0 context.Context, arg1 int64, arg2 calendar.Date) (*StudentPickupException, error)
-	FindByStudentIDAndDateRange(arg0 context.Context, arg1 int64, arg2 calendar.Date, arg3 calendar.Date) ([]*StudentPickupException, error)
 	FindByStudentIDsAndDate(arg0 context.Context, arg1 []int64, arg2 calendar.Date) ([]*StudentPickupException, error)
 	FindUpcomingByStudentID(arg0 context.Context, arg1 int64) ([]*StudentPickupException, error)
 	Update(arg0 context.Context, arg1 *StudentPickupException) error
@@ -27,11 +25,6 @@ type fromStudentPickupExceptionRecords struct {
 }
 
 func FromStudentPickupExceptionRecords(value ports.StudentPickupExceptionRecords) StudentPickupExceptionRecords {
-	if original, ok := value.(interface {
-		fixtureStudentPickupExceptionRecords() StudentPickupExceptionRecords
-	}); ok {
-		return original.fixtureStudentPickupExceptionRecords()
-	}
 	if value == nil {
 		return nil
 	}
@@ -46,11 +39,6 @@ func (adapter fromStudentPickupExceptionRecords) Create(arg0 context.Context, ar
 func (adapter fromStudentPickupExceptionRecords) DeleteByStudentID(arg0 context.Context, arg1 int64) error {
 	result0 := adapter.value.DeleteByStudentID(arg0, arg1)
 	return result0
-}
-
-func (adapter fromStudentPickupExceptionRecords) DeletePastExceptions(arg0 context.Context, arg1 calendar.Date) (int64, error) {
-	result0, result1 := adapter.value.DeletePastExceptions(arg0, arg1)
-	return result0, result1
 }
 
 func (adapter fromStudentPickupExceptionRecords) FindByID(arg0 context.Context, arg1 int64) (*StudentPickupException, error) {
@@ -68,11 +56,6 @@ func (adapter fromStudentPickupExceptionRecords) FindByStudentIDAndDate(arg0 con
 	return fromNative16(result0), result1
 }
 
-func (adapter fromStudentPickupExceptionRecords) FindByStudentIDAndDateRange(arg0 context.Context, arg1 int64, arg2 calendar.Date, arg3 calendar.Date) ([]*StudentPickupException, error) {
-	result0, result1 := adapter.value.FindByStudentIDAndDateRange(arg0, arg1, arg2, arg3)
-	return fromNative17(result0), result1
-}
-
 func (adapter fromStudentPickupExceptionRecords) FindByStudentIDsAndDate(arg0 context.Context, arg1 []int64, arg2 calendar.Date) ([]*StudentPickupException, error) {
 	result0, result1 := adapter.value.FindByStudentIDsAndDate(arg0, arg1, arg2)
 	return fromNative17(result0), result1
@@ -87,5 +70,3 @@ func (adapter fromStudentPickupExceptionRecords) Update(arg0 context.Context, ar
 	result0 := adapter.value.Update(arg0, toNative16(arg1))
 	return result0
 }
-
-func (adapter fromStudentPickupExceptionRecords) nativeRecordSource() any { return adapter.value }

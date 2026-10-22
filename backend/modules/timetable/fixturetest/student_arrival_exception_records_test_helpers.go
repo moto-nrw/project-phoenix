@@ -12,11 +12,9 @@ import (
 type StudentArrivalExceptionRecords interface {
 	Create(arg0 context.Context, arg1 *StudentArrivalException) error
 	DeleteByStudentID(arg0 context.Context, arg1 int64) error
-	DeletePastExceptions(arg0 context.Context, arg1 calendar.Date) (int64, error)
 	FindByID(arg0 context.Context, arg1 int64) (*StudentArrivalException, error)
 	FindByStudentID(arg0 context.Context, arg1 int64) ([]*StudentArrivalException, error)
 	FindByStudentIDAndDate(arg0 context.Context, arg1 int64, arg2 calendar.Date) (*StudentArrivalException, error)
-	FindByStudentIDAndDateRange(arg0 context.Context, arg1 int64, arg2 calendar.Date, arg3 calendar.Date) ([]*StudentArrivalException, error)
 	FindByStudentIDsAndDate(arg0 context.Context, arg1 []int64, arg2 calendar.Date) ([]*StudentArrivalException, error)
 	FindUpcomingByStudentID(arg0 context.Context, arg1 int64) ([]*StudentArrivalException, error)
 	Update(arg0 context.Context, arg1 *StudentArrivalException) error
@@ -27,11 +25,6 @@ type fromStudentArrivalExceptionRecords struct {
 }
 
 func FromStudentArrivalExceptionRecords(value ports.StudentArrivalExceptionRecords) StudentArrivalExceptionRecords {
-	if original, ok := value.(interface {
-		fixtureStudentArrivalExceptionRecords() StudentArrivalExceptionRecords
-	}); ok {
-		return original.fixtureStudentArrivalExceptionRecords()
-	}
 	if value == nil {
 		return nil
 	}
@@ -48,11 +41,6 @@ func (adapter fromStudentArrivalExceptionRecords) DeleteByStudentID(arg0 context
 	return result0
 }
 
-func (adapter fromStudentArrivalExceptionRecords) DeletePastExceptions(arg0 context.Context, arg1 calendar.Date) (int64, error) {
-	result0, result1 := adapter.value.DeletePastExceptions(arg0, arg1)
-	return result0, result1
-}
-
 func (adapter fromStudentArrivalExceptionRecords) FindByID(arg0 context.Context, arg1 int64) (*StudentArrivalException, error) {
 	result0, result1 := adapter.value.FindByID(arg0, arg1)
 	return fromNative12(result0), result1
@@ -66,11 +54,6 @@ func (adapter fromStudentArrivalExceptionRecords) FindByStudentID(arg0 context.C
 func (adapter fromStudentArrivalExceptionRecords) FindByStudentIDAndDate(arg0 context.Context, arg1 int64, arg2 calendar.Date) (*StudentArrivalException, error) {
 	result0, result1 := adapter.value.FindByStudentIDAndDate(arg0, arg1, arg2)
 	return fromNative12(result0), result1
-}
-
-func (adapter fromStudentArrivalExceptionRecords) FindByStudentIDAndDateRange(arg0 context.Context, arg1 int64, arg2 calendar.Date, arg3 calendar.Date) ([]*StudentArrivalException, error) {
-	result0, result1 := adapter.value.FindByStudentIDAndDateRange(arg0, arg1, arg2, arg3)
-	return fromNative13(result0), result1
 }
 
 func (adapter fromStudentArrivalExceptionRecords) FindByStudentIDsAndDate(arg0 context.Context, arg1 []int64, arg2 calendar.Date) ([]*StudentArrivalException, error) {
