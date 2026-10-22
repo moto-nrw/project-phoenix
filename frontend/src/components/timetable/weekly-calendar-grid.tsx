@@ -68,7 +68,7 @@ const GRID_COLS_CLASS =
 const MOBILE_TIME_GUTTER_PX = 40;
 // Auf dem Handy zeigt das Raster nur einen Tag. Bis zu vier parallele Blöcke
 // passen dort ohne Querscrollen nebeneinander; erst mehr scrollen waagrecht.
-const MOBILE_LANE_MIN_WIDTH_PX = 76;
+const MOBILE_LANE_MIN_WIDTH_PX = 70;
 const SM_TIME_GUTTER_PX = 64;
 
 interface WeeklyCalendarGridProps {
@@ -251,15 +251,25 @@ export function WeeklyCalendarGrid({
   const [scrollEdges, setScrollEdges] = useState({
     left: false,
     right: false,
+    // Breite einer sichtbaren senkrechten Scrollleiste (Windows, Linux):
+    // der rechte Schatten steht davor, nicht darauf.
+    scrollbarPx: 0,
   });
   const updateScrollEdges = useCallback(() => {
     const scroller = scrollRef.current;
     if (!scroller) return;
-    const left = scroller.scrollLeft > 0;
-    const right =
-      scroller.scrollLeft + scroller.clientWidth < scroller.scrollWidth - 1;
+    const next = {
+      left: scroller.scrollLeft > 0,
+      right:
+        scroller.scrollLeft + scroller.clientWidth < scroller.scrollWidth - 1,
+      scrollbarPx: scroller.offsetWidth - scroller.clientWidth,
+    };
     setScrollEdges((prev) =>
-      prev.left === left && prev.right === right ? prev : { left, right },
+      prev.left === next.left &&
+      prev.right === next.right &&
+      prev.scrollbarPx === next.scrollbarPx
+        ? prev
+        : next,
     );
   }, []);
   useEffect(() => {
@@ -274,28 +284,21 @@ export function WeeklyCalendarGrid({
   // rückt das Raster beim Öffnen einer Woche die heutige Spalte ins Bild;
   // eine andere Woche beginnt wieder am Montag. Das gilt auch, solange die
   // Daten der Woche noch nachladen und die Spalten breiter werden. Sobald
-  // die Person das Raster bedient hat (scrollen, tippen, Taste), bleibt der
-  // Ausschnitt stehen, auch wenn eine Änderung die Spaltenbreiten verschiebt.
+  // die Person das Raster waagrecht bewegt hat, bleibt der Ausschnitt
+  // stehen, auch wenn eine Änderung die Spaltenbreiten verschiebt. Als
+  // Bewegung zählt jede waagrechte Position, die nicht das Raster selbst
+  // gesetzt hat: Rad, Scrollleiste, Wischen, Tab-Fokus, Suche im Browser.
   const userMovedRef = useRef(false);
   const shownWeekRef = useRef<string | null>(null);
-  useEffect(() => {
+  const ownScrollLeftRef = useRef(0);
+  const handleScroll = useCallback(() => {
     const scroller = scrollRef.current;
     if (!scroller) return;
-    // Nur beobachten, nichts abfangen: das Raster bleibt ein normaler
-    // Scrollbereich, die Blöcke darin bleiben die Bedienelemente.
-    const markUserMoved = () => {
+    if (Math.abs(scroller.scrollLeft - ownScrollLeftRef.current) > 1) {
       userMovedRef.current = true;
-    };
-    const events = ["wheel", "pointerdown", "touchstart", "keydown"] as const;
-    for (const type of events) {
-      scroller.addEventListener(type, markUserMoved, { passive: true });
     }
-    return () => {
-      for (const type of events) {
-        scroller.removeEventListener(type, markUserMoved);
-      }
-    };
-  }, []);
+    updateScrollEdges();
+  }, [updateScrollEdges]);
   const weekKey = weekDays.map(toISODate).join(",");
   useEffect(() => {
     const scroller = scrollRef.current;
@@ -321,6 +324,9 @@ export function WeeklyCalendarGrid({
           scroller.scrollLeft = Math.max(left, 0);
         }
       }
+      // Gelesen, nicht gesetzt: der Browser begrenzt den Wert auf die
+      // tatsächliche Scrollbreite.
+      ownScrollLeftRef.current = scroller.scrollLeft;
     }
     updateScrollEdges();
   }, [
@@ -439,7 +445,7 @@ export function WeeklyCalendarGrid({
       <div className="relative">
         <div
           ref={scrollRef}
-          onScroll={updateScrollEdges}
+          onScroll={handleScroll}
           className={`relative overflow-auto overscroll-x-contain ${
             showDayHeader ? "max-h-[776px] sm:max-h-[808px]" : "max-h-[776px]"
           }`}
@@ -711,7 +717,8 @@ export function WeeklyCalendarGrid({
         {scrollEdges.right && (
           <div
             aria-hidden
-            className="pointer-events-none absolute inset-y-0 right-0 z-40 w-4 bg-linear-to-l from-gray-900/10 to-transparent"
+            className="pointer-events-none absolute inset-y-0 z-40 w-4 bg-linear-to-l from-gray-900/10 to-transparent"
+            style={{ right: scrollEdges.scrollbarPx }}
           />
         )}
       </div>

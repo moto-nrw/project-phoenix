@@ -304,7 +304,7 @@ describe("WeeklyCalendarGrid column widths", () => {
     // lane, so three blocks fit next to the 40px time gutter.
     expect(
       gridStyle(container).getPropertyValue("--day-grid-cols-mobile"),
-    ).toBe("40px minmax(228px,3fr)");
+    ).toBe("40px minmax(210px,3fr)");
   });
 
   it("lets a later block take the lanes that became free", () => {
