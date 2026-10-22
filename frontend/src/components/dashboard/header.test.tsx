@@ -167,7 +167,7 @@ vi.mock("./header/breadcrumb-utils", () => ({
       ? {
           sectionLabel: "Datenverwaltung",
           sectionHref: "/database",
-          pageLabel: "Gruppen",
+          pageLabel: "Gruppendaten",
         }
       : null,
   getPageTypeInfo: (pathname: string) => ({
@@ -390,7 +390,7 @@ describe("Header", () => {
     // Die Sektionswurzel heißt wie der Seitenleisten-Eintrag
     // ("Datenverwaltung", nicht mehr "Datenbank").
     expect(breadcrumb).toHaveTextContent("Datenverwaltung");
-    expect(breadcrumb).toHaveTextContent("Gruppen");
+    expect(breadcrumb).toHaveTextContent("Gruppendaten");
   });
 
   it("normalizes tenant-prefixed paths before resolving breadcrumbs", () => {
@@ -400,7 +400,7 @@ describe("Header", () => {
 
     const breadcrumb = screen.getByTestId("section-breadcrumb");
     expect(breadcrumb).toHaveTextContent("Datenverwaltung");
-    expect(breadcrumb).toHaveTextContent("Gruppen");
+    expect(breadcrumb).toHaveTextContent("Gruppendaten");
   });
 
   it("renders OGS groups breadcrumb", () => {
