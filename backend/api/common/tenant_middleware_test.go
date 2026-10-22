@@ -3,8 +3,10 @@ package common
 import (
 	"context"
 	"errors"
+	"io"
 	"net/http"
 	"net/http/httptest"
+	"sync"
 	"testing"
 
 	"github.com/moto-nrw/project-phoenix/tenant"
@@ -328,4 +330,59 @@ func TestTenantOperationMiddlewareDoesNotInventTransactionOutcome(t *testing.T) 
 
 	assert.Equal(t, http.StatusInternalServerError, recorder.Code)
 	assert.False(t, observed)
+}
+
+func TestTenantTxMiddlewareCommitsNoContentWithoutBody(t *testing.T) {
+	t.Parallel()
+	runtime := testRuntime(t, func(ctx context.Context, _ int64, fn func(context.Context, any) error) error {
+		return fn(ctx, struct{}{})
+	})
+	id, err := tenant.NewTenantID(42)
+	require.NoError(t, err)
+
+	for _, tc := range []struct {
+		name    string
+		handler http.HandlerFunc
+	}{
+		{name: "respond helper", handler: func(w http.ResponseWriter, r *http.Request) {
+			Respond(w, r, http.StatusNoContent, nil, "")
+		}},
+		{name: "raw writer", handler: func(w http.ResponseWriter, _ *http.Request) {
+			w.WriteHeader(http.StatusNoContent)
+			_, _ = w.Write([]byte(`{"status":"success"}`))
+		}},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			var observed []TenantRuntimeEvent
+			var mu sync.Mutex
+			handler := TenantRuntimeObserverMiddleware(func(observation TenantRuntimeObservation) {
+				if observation.Event.Kind != TenantRuntimeResponseWrite {
+					return
+				}
+				mu.Lock()
+				defer mu.Unlock()
+				observed = append(observed, observation.Event)
+			})(TenantTxMiddleware(tc.handler))
+			server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				ctx := tenant.WithUnitOfWork(tenant.WithTenant(r.Context(), id), runtime)
+				handler.ServeHTTP(w, r.WithContext(ctx))
+			}))
+			t.Cleanup(server.Close)
+
+			request, err := http.NewRequestWithContext(t.Context(), http.MethodPut, server.URL+"/api/notifications/email-subscriptions/news", nil)
+			require.NoError(t, err)
+			response, err := server.Client().Do(request)
+			require.NoError(t, err)
+			body, err := io.ReadAll(response.Body)
+			require.NoError(t, err)
+			require.NoError(t, response.Body.Close())
+
+			assert.Equal(t, http.StatusNoContent, response.StatusCode)
+			assert.Empty(t, body)
+			mu.Lock()
+			defer mu.Unlock()
+			assert.Empty(t, observed)
+		})
+	}
 }

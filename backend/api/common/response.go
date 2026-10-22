@@ -38,8 +38,13 @@ func (r *Response) Render(_ http.ResponseWriter, _ *http.Request) error {
 	return nil
 }
 
-// Respond sends a structured response
+// Respond sends a structured response. Statuses that forbid a body (204,
+// 304) are sent without the envelope.
 func Respond(w http.ResponseWriter, r *http.Request, status int, data interface{}, message string) {
+	if !statusAllowsBody(status) {
+		w.WriteHeader(status)
+		return
+	}
 	render.Status(r, status)
 	if err := render.Render(w, r, NewResponse(data, message)); err != nil {
 		slog.Default().ErrorContext(r.Context(), "failed to render response", slog.String("error", err.Error()))
@@ -52,6 +57,17 @@ func Respond(w http.ResponseWriter, r *http.Request, status int, data interface{
 // a registered code instead. RenderError logs and reports a 5xx.
 func RespondWithError(w http.ResponseWriter, r *http.Request, status int, errorMsg string) {
 	RenderError(w, r, newErrResponse(status, errors.New(errorMsg)))
+}
+
+// statusAllowsBody mirrors net/http: 1xx, 204 and 304 responses carry no body.
+func statusAllowsBody(status int) bool {
+	switch {
+	case status >= 100 && status <= 199:
+		return false
+	case status == http.StatusNoContent, status == http.StatusNotModified:
+		return false
+	}
+	return true
 }
 
 // RespondNoContent sends a 204 No Content response

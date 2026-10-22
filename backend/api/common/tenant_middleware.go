@@ -382,7 +382,12 @@ func (w *tenantStatusWriter) commitResponse() error {
 	for key, values := range w.header {
 		targetHeader[key] = append([]string(nil), values...)
 	}
-	w.target.WriteHeader(w.statusCode())
+	status := w.statusCode()
+	w.target.WriteHeader(status)
+	if !statusAllowsBody(status) {
+		// net/http rejects any body after 1xx, 204 or 304 with ErrBodyNotAllowed.
+		return nil
+	}
 	if w.bodyFile != nil {
 		if _, err := w.bodyFile.Seek(0, io.SeekStart); err != nil {
 			return err
