@@ -256,9 +256,10 @@ func requireNoNewPlatformPermission(desired map[int64]domain.ManagedPermission, 
 	return nil
 }
 
-// permissionKey is the resource:action name the platform rule compares.
+// permissionKey checks the canonical name before metadata so inconsistent
+// catalog entries cannot hide a platform permission from guards or templates.
 func permissionKey(permission domain.ManagedPermission) string {
-	if permission.Resource == "" && permission.Action == "" {
+	if identityaccess.IsPlatformOnlyPermission(permission.Name) || (permission.Resource == "" && permission.Action == "") {
 		return permission.Name
 	}
 	return permission.Resource + ":" + permission.Action

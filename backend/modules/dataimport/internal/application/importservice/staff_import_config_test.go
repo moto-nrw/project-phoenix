@@ -77,6 +77,9 @@ func TestStaffImportConfig_Validate_ResolvesGermanDisplayRole(t *testing.T) {
 	config := NewStaffImportConfig(ports.StaffImportDeps{RolePolicy: newTestRolePolicy(), Authorization: newTestAuthorization(), Transactions: newTestTransactions(),
 		Roles: stubStaffRoleRepo{
 			findByName: func(_ context.Context, name string) (*importModels.SchoolRole, error) {
+				if name == "Betreuer" {
+					return nil, importModels.ErrRoleNotFound
+				}
 				assert.Equal(t, "user", name)
 				return &importModels.SchoolRole{ID: staffImportTestRoleID, Name: name, IsSystem: true}, nil
 			},
@@ -115,6 +118,9 @@ func TestStaffImportConfig_Validate_ResolvesCurrentAndEarlierRoleNames(t *testin
 			Roles: stubStaffRoleRepo{
 				findByName: func(_ context.Context, name string) (*importModels.SchoolRole, error) {
 					looked = name
+					if name == display {
+						return nil, importModels.ErrRoleNotFound
+					}
 					return &importModels.SchoolRole{ID: staffImportTestRoleID, Name: name, IsSystem: true}, nil
 				},
 			},
@@ -133,6 +139,9 @@ func TestStaffImportConfig_Validate_NormalizesDisplayNameEmail(t *testing.T) {
 	config := NewStaffImportConfig(ports.StaffImportDeps{RolePolicy: newTestRolePolicy(), Authorization: newTestAuthorization(), Transactions: newTestTransactions(),
 		Roles: stubStaffRoleRepo{
 			findByName: func(_ context.Context, name string) (*importModels.SchoolRole, error) {
+				if name == "Betreuer" {
+					return nil, importModels.ErrRoleNotFound
+				}
 				return &importModels.SchoolRole{ID: staffImportTestRoleID, Name: name, IsSystem: true}, nil
 			},
 		},
@@ -426,4 +435,26 @@ func TestStaffImportConfig_EntityNameAndUpdate(t *testing.T) {
 	// Update writes the Stammdatensatz (#2600); without the repositories it
 	// must fail loudly instead of silently skipping the row.
 	require.Error(t, config.Update(context.Background(), 0, importModels.StaffImportRow{}))
+}
+
+func TestStaffImportConfig_Validate_ExactRolePrecedesAlias(t *testing.T) {
+	t.Parallel()
+	for _, name := range []string{"Betreuung", "Verwaltung", "Eltern", "Administrator", "Betreuer", "Erziehungsberechtigter"} {
+		t.Run(name, func(t *testing.T) {
+			baseRole := "user"
+			tenantID := staffImportTestTenantID
+			var looked []string
+			config := NewStaffImportConfig(ports.StaffImportDeps{RolePolicy: newTestRolePolicy(), Authorization: newTestAuthorization(), Transactions: newTestTransactions(),
+				Roles: stubStaffRoleRepo{findByName: func(_ context.Context, lookup string) (*importModels.SchoolRole, error) {
+					looked = append(looked, lookup)
+					return &importModels.SchoolRole{ID: staffImportTestRoleID, TenantID: &tenantID, Name: name, BaseRole: &baseRole}, nil
+				}},
+			})
+			row := &importModels.StaffImportRow{FirstName: "Anna", LastName: "Lehmann", Email: "anna@example.com", RoleName: name}
+			ctx := testpkg.ContextForTenant(context.Background(), tenantID)
+			require.Empty(t, config.Validate(ctx, row))
+			assert.Equal(t, []string{name}, looked)
+			assert.Equal(t, staffImportTestRoleID, row.RoleID)
+		})
+	}
 }

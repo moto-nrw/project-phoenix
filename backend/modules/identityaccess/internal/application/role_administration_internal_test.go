@@ -3,6 +3,7 @@ package application
 import (
 	"context"
 	"errors"
+	"fmt"
 	"slices"
 	"strings"
 	"sync"
@@ -1032,3 +1033,38 @@ func TestRoleAdministration_PlatformPermissionsStayOffSchoolRoles(t *testing.T) 
 // platformOnlyPermissionNames is the platform list #4574 names, written out
 // so the tests do not read it back from the code under test.
 var platformOnlyPermissionNames = []string{"*:*", "admin:*", "system:manage", "permissions:create", "permissions:update", "permissions:delete"}
+
+func TestRoleAdministration_PlatformPermissionsWithInconsistentMetadata(t *testing.T) {
+	t.Parallel()
+	for _, name := range platformOnlyPermissionNames {
+		for _, canonical := range []bool{true, false} {
+			t.Run(fmt.Sprintf("%s/canonical=%t", name, canonical), func(t *testing.T) {
+				f := newRAFixture(t)
+				role := f.store.addRole(customRoleOf("ogs", "user"))
+				kept := f.store.grant(role.ID, "groups:read")
+				permission := f.store.addPermission(name)
+				permission.Resource, permission.Action = "groups", "read"
+				if !canonical {
+					permission.Name = "groups:read"
+					parts := strings.SplitN(name, ":", 2)
+					permission.Resource, permission.Action = parts[0], parts[1]
+				}
+				f.store.permissions[permission.ID] = permission
+
+				err := f.admin.ReplaceRolePermissions(raContext(), role.ID, []int64{kept[0], permission.ID})
+				require.ErrorIs(t, err, identityaccess.ErrPlatformPermissionNotAllowed)
+				var platformErr *identityaccess.PlatformPermissionError
+				require.ErrorAs(t, err, &platformErr)
+				assert.Equal(t, name, platformErr.Permission)
+				require.ErrorIs(t, f.admin.AssignPermissionToRole(raContext(), role.ID, permission.ID), identityaccess.ErrPlatformPermissionNotAllowed)
+				assert.Equal(t, kept, f.store.rolePerms[role.ID])
+
+				source := f.store.addRole(domain.ManagedRole{Name: "user", IsSystem: true})
+				f.store.rolePerms[source.ID] = []int64{permission.ID, kept[0]}
+				copied, err := f.admin.CreateRole(raContext(), "Springer", "", nil, identityaccess.RoleTemplateCaregiver)
+				require.NoError(t, err)
+				assert.Equal(t, []string{"groups:read"}, f.store.permissionNames(copied.ID))
+			})
+		}
+	}
+}

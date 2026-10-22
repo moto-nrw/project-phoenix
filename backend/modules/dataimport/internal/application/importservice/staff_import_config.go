@@ -334,15 +334,13 @@ func (c *StaffImportConfig) validateRole(ctx context.Context, row *importModels.
 		return []importModels.ValidationError{requiredFieldError("role", "Rolle ist erforderlich")}
 	}
 
-	// Accept either the raw role name (e.g. "user") or the German display name
-	// shown on the roles page (e.g. "Betreuung"). FindByName matches the raw
-	// name case-insensitively, so translate a display name back first.
-	lookup := name
-	if raw, ok := displayNameToRawRole[strings.ToLower(name)]; ok {
-		lookup = raw
+	// Existing role names take precedence over display-name aliases.
+	role, err := c.Roles.FindSchoolRoleByName(ctx, name)
+	if (err == nil && role == nil) || errors.Is(err, importModels.ErrRoleNotFound) {
+		if raw, ok := displayNameToRawRole[strings.ToLower(name)]; ok && raw != name {
+			role, err = c.Roles.FindSchoolRoleByName(ctx, raw)
+		}
 	}
-
-	role, err := c.Roles.FindSchoolRoleByName(ctx, lookup)
 	if err == nil && role != nil {
 		return c.validateResolvedStaffRole(ctx, row, role)
 	}
