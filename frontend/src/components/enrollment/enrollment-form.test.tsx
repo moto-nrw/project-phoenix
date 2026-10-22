@@ -776,6 +776,27 @@ describe("EnrollmentForm", () => {
       expect(screen.queryByText(CHOOSE_GRADE_FIRST)).not.toBeInTheDocument();
     });
 
+    it("asks for no grade when every rule admits every grade", async () => {
+      const unrestrictedRuleOffering: PublicCareOffering = {
+        ...offerings()[1]!,
+        availability_rule: {
+          match: "any",
+          conditions: [
+            { source: "grade_level", operator: "not_in", value: [1] },
+            { source: "grade_level", operator: "not_in", value: [2] },
+          ],
+        },
+      };
+      mockCatalog([unrestrictedRuleOffering]);
+
+      renderForm();
+      await waitForLoaded();
+
+      // Anker: Die Kinderkarte ist geladen, in der der Hinweis stünde.
+      expect(screen.getByLabelText("Klassenstufe *")).toBeInTheDocument();
+      expect(screen.queryByText(CHOOSE_GRADE_FIRST)).not.toBeInTheDocument();
+    });
+
     it("asks for no grade when the school does not ask for one", async () => {
       mockCatalog(
         [offerings()[0]!, gradeOffering("91", "Randstunde", [1, 2])],
@@ -862,6 +883,41 @@ describe("EnrollmentForm", () => {
           "Für die 2. Klasse gibt es hier keine passenden Betreuungsangebote. Bei Fragen wenden Sie sich bitte an die OGS.",
         ),
       ).not.toBeInTheDocument();
+    });
+
+    it("ignores a saved grade for automatic offerings", async () => {
+      const draft = editDraft([
+        { id: "c-1", first_name: "Anton", last_name: "Alster" },
+      ]);
+      draft.children[0]!.offering_ids = ["12"];
+      renderForm({
+        initialDraft: draft,
+        prefetchedData: {
+          schema: schema(),
+          offerings: [
+            offerings()[1]!,
+            {
+              ...offerings()[1]!,
+              id: "91",
+              name: "Randstunde",
+              auto_add_trigger_offering_ids: ["12"],
+              auto_add_grade_levels: [2],
+            },
+          ],
+          careOfferingSelectionMode: "optional",
+          captchaConfig: null,
+          legalTexts: legalTexts([]),
+          collectGradeLevel: false,
+          careOfferingsEnabled: true,
+        },
+      });
+      await waitForLoaded();
+
+      // Anker: Das gespeicherte, klassenunabhängige Angebot ist sichtbar.
+      expect(screen.getByText("Fixe Betreuung")).toBeVisible();
+      expect(
+        screen.getByRole("checkbox", { name: /Randstunde/ }),
+      ).not.toBeChecked();
     });
 
     it("shows no offering block when the school switched the offering choice off", async () => {

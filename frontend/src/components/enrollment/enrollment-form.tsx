@@ -73,6 +73,7 @@ import {
   availableCareOfferings,
   careOfferingAvailabilityReason,
   careOfferingIsAvailable,
+  careOfferingRuleExcludesNobody,
 } from "~/lib/care-offering-availability";
 import {
   type CareOfferingBookingStats,
@@ -713,10 +714,20 @@ export function EnrollmentForm({
     );
   };
 
+  const careOfferingGradeForChild = (child: ChildDraft) =>
+    collectGradeLevel ? child.target_grade_level : undefined;
+
   const careOfferingsForChild = (child: ChildDraft) =>
-    availableCareOfferings(
-      offerings,
-      collectGradeLevel ? child.target_grade_level : undefined,
+    availableCareOfferings(offerings, careOfferingGradeForChild(child));
+
+  const materializeCareOfferingsForChild = (
+    child: ChildDraft,
+    childOfferings: readonly PublicCareOffering[],
+  ) =>
+    materializeCareOfferings(
+      child,
+      childOfferings,
+      careOfferingGradeForChild(child),
     );
 
   const toggleOffering = (childIndex: number, offeringID: string) => {
@@ -798,7 +809,10 @@ export function EnrollmentForm({
         const childRequiredIDs = childOfferings
           .filter((o) => o.is_required)
           .map((o) => o.id);
-        const materialized = materializeCareOfferings(c, childOfferings);
+        const materialized = materializeCareOfferingsForChild(
+          c,
+          childOfferings,
+        );
         if (materialized.automaticDays[offeringID]?.has(day)) return c;
         const current = c.offering_days[offeringID] ?? new Set<string>();
         const next = new Set(current);
@@ -875,8 +889,10 @@ export function EnrollmentForm({
     offeringNames: new Set(
       Array.from(
         careOfferingsEnabled
-          ? materializeCareOfferings(child, careOfferingsForChild(child))
-              .offeringIds
+          ? materializeCareOfferingsForChild(
+              child,
+              careOfferingsForChild(child),
+            ).offeringIds
           : [],
       )
         .map((id) => loadedOfferings.find((o) => o.id === id)?.name)
@@ -1017,6 +1033,7 @@ export function EnrollmentForm({
               c,
               childOfferings,
               previewMode,
+              careOfferingGradeForChild(c),
               offerings.length > 0,
             ),
             careDaysAreConstrained(offerings, previewMode),
@@ -1040,6 +1057,7 @@ export function EnrollmentForm({
         c,
         childOfferings,
         previewMode,
+        careOfferingGradeForChild(c),
         offerings.length > 0,
       );
       const accompaniedSelected = (schema?.fields ?? [])
@@ -1108,7 +1126,10 @@ export function EnrollmentForm({
         .map((o) => o.id);
       const selectionModeApplies =
         offerings.length === 0 || childOfferings.some((o) => !o.is_required);
-      const materializedCare = materializeCareOfferings(c, childOfferings);
+      const materializedCare = materializeCareOfferingsForChild(
+        c,
+        childOfferings,
+      );
       const choosableSelectedCount = [...c.offering_ids].filter(
         (id) =>
           childOfferings.some((o) => o.id === id) &&
@@ -1266,6 +1287,7 @@ export function EnrollmentForm({
               c,
               childOfferings,
               previewMode,
+              careOfferingGradeForChild(c),
               offerings.length > 0,
             ),
           );
@@ -1827,7 +1849,7 @@ export function EnrollmentForm({
                   !childOfferings.some((open) => open.id === offering.id),
               )
             : [];
-          const materializedCare = materializeCareOfferings(
+          const materializedCare = materializeCareOfferingsForChild(
             child,
             childOfferings,
           );
@@ -1838,11 +1860,19 @@ export function EnrollmentForm({
           // more offerings, so a switched-off grade question or a catalog
           // without grade rules never asks for a grade.
           const gradeChosen = Number(child.target_grade_level) >= 1;
+          const hasGradeRestrictedOffering = offerings.some(
+            (offering) =>
+              !careOfferingRuleExcludesNobody(
+                offering.availability_rule,
+                gradeLevelMax,
+              ),
+          );
           const offeringsAwaitGrade =
             careOfferingsEnabled &&
             collectGradeLevel &&
             !restrictToOfferings &&
             !gradeChosen &&
+            hasGradeRestrictedOffering &&
             selectableGradeLevels(gradeLevelMax, eligibleGradeLevels).some(
               (grade) =>
                 availableCareOfferings(offerings, grade).length >
@@ -1975,7 +2005,7 @@ export function EnrollmentForm({
                         const nextAvailableIDs = new Set(
                           nextOfferings.map((o) => o.id),
                         );
-                        const before = materializeCareOfferings(
+                        const before = materializeCareOfferingsForChild(
                           child,
                           childOfferings,
                         ).offeringIds;
@@ -2360,6 +2390,7 @@ export function EnrollmentForm({
                           child,
                           childOfferings,
                           previewMode,
+                          careOfferingGradeForChild(child),
                           offerings.length > 0,
                         )}
                         careConstrained={careDaysAreConstrained(
@@ -4245,8 +4276,9 @@ const DEPARTURE_MODE_OPTIONS: ReadonlyArray<DepartureModeValue> = [
 function selectedCareDaysForChild(
   child: ChildDraft,
   offerings: readonly PublicCareOffering[],
+  gradeLevel: string | undefined,
 ): string[] {
-  const materialized = materializeCareOfferings(child, offerings);
+  const materialized = materializeCareOfferings(child, offerings, gradeLevel);
   const days = new Set<string>();
   for (const id of materialized.offeringIds) {
     const offering = offerings.find((o) => o.id === id);
@@ -4273,6 +4305,7 @@ interface MaterializedCareSelection {
 function materializeCareOfferings(
   child: ChildDraft,
   offerings: readonly PublicCareOffering[],
+  gradeLevel: string | undefined,
 ): MaterializedCareSelection {
   const offeringIds = new Set(child.offering_ids);
   const offeringDays: Record<string, Set<string>> = {};
@@ -4285,7 +4318,7 @@ function materializeCareOfferings(
   while (changed) {
     changed = false;
     for (const target of offerings) {
-      if (!autoAddAppliesToGrade(child.target_grade_level, target)) continue;
+      if (!autoAddAppliesToGrade(gradeLevel, target)) continue;
       const triggerIDs = target.auto_add_trigger_offering_ids ?? [];
       if (triggerIDs.length === 0 && !isRequiredLunchOffering(target)) continue;
 
@@ -4363,7 +4396,7 @@ function isRequiredLunchOffering(offering: PublicCareOffering): boolean {
 }
 
 function autoAddAppliesToGrade(
-  gradeValue: string,
+  gradeValue: string | undefined,
   offering: PublicCareOffering,
 ): boolean {
   const gradeLevels = offering.auto_add_grade_levels ?? [];
@@ -4377,6 +4410,7 @@ function relevantCareDaysForChild(
   child: ChildDraft,
   offerings: readonly PublicCareOffering[],
   previewMode: boolean,
+  gradeLevel: string | undefined,
   hasOfferingCatalog = offerings.length > 0,
 ): string[] {
   // No offerings to derive care days from (care-offering feature unused, or
@@ -4386,7 +4420,7 @@ function relevantCareDaysForChild(
   if (previewMode || !hasOfferingCatalog) {
     return [...WEEKDAYS];
   }
-  return selectedCareDaysForChild(child, offerings);
+  return selectedCareDaysForChild(child, offerings, gradeLevel);
 }
 
 // Whether the visible weekdays are genuinely derived from selected care
