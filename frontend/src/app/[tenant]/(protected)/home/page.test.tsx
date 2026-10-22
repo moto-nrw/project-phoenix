@@ -395,12 +395,24 @@ describe("Startseite", () => {
     expect(useSWRAuth).not.toHaveBeenCalled();
   });
 
-  it("lädt die Ablaufwarnungen der Anmeldephasen nur für die Leitung", () => {
+  it("zeigt der Leitung die Ablaufwarnungen der Anmeldephasen", async () => {
+    vi.mocked(leadsSchool).mockReturnValue(true);
+
+    render(<HomePage />);
+
+    expect(
+      await screen.findByTestId("phase-expiry-warnings"),
+    ).toBeInTheDocument();
+  });
+
+  it("lädt die Ablaufwarnungen der Anmeldephasen nur für die Leitung", async () => {
     // Leitung: Adminzuschnitt oder config:manage (#3469).
     vi.mocked(leadsSchool).mockReturnValue(false);
 
     render(<HomePage />);
 
+    // Anker: das Brett ist geladen, nur die Warnungen fehlen.
+    expect(await screen.findByTestId("home-board")).toBeInTheDocument();
     expect(
       screen.queryByTestId("phase-expiry-warnings"),
     ).not.toBeInTheDocument();

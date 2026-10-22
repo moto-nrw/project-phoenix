@@ -1645,6 +1645,8 @@ describe("TimeTrackingPage", () => {
       try {
         setupDefaultMocks();
         render(<TimeTrackingPage />);
+        // Anker: die Wochentabelle ist geladen, nur der Link fehlt.
+        expect(screen.getByLabelText("Export")).toBeInTheDocument();
         expect(
           screen.queryByRole("link", { name: /Mein Dienstplan/ }),
         ).not.toBeInTheDocument();

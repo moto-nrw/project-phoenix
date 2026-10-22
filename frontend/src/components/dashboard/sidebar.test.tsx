@@ -343,7 +343,6 @@ describe("Sidebar", () => {
       // Admin-only items
       expect(screen.getByText("Startseite")).toBeInTheDocument();
       expect(screen.getByText("Vertretungen")).toBeInTheDocument();
-      expect(screen.queryByText("Übergaben")).not.toBeInTheDocument();
       expect(screen.getByText("Datenverwaltung")).toBeInTheDocument();
       // Die Planungsbereiche sind Unterpunkte des Planung-Akkordeons (#1946),
       // inklusive Schuljahr und Ferien.
@@ -527,6 +526,8 @@ describe("Sidebar", () => {
 
       render(<Sidebar />);
 
+      // Anker: die Staff-Navigation ist geladen, nicht nur das Skelett.
+      expect(screen.getByText("Meine Gruppen")).toBeInTheDocument();
       expect(screen.queryByText("Anfragen")).not.toBeInTheDocument();
       expect(
         screen.queryByLabelText("2 offene Anfragen"),
@@ -560,8 +561,10 @@ describe("Sidebar", () => {
     it("hides admin-only items for staff", () => {
       render(<Sidebar />);
 
+      // Anker: die Staff-Navigation ist geladen.
+      expect(screen.getByText("Meine Gruppen")).toBeInTheDocument();
+      expect(screen.getByText("Aktuelle Aufsicht")).toBeInTheDocument();
       // Admin-only items should NOT be visible
-      expect(screen.queryByText("Übergaben")).not.toBeInTheDocument();
       expect(screen.queryByText("Datenverwaltung")).not.toBeInTheDocument();
       expect(screen.queryByText("Betreuungsplan")).not.toBeInTheDocument();
       expect(screen.queryByText("Dienstplan")).not.toBeInTheDocument();
@@ -861,8 +864,24 @@ describe("Sidebar", () => {
 
       render(<Sidebar />);
 
-      expect(screen.queryByText("Dienstpläne")).not.toBeInTheDocument();
+      // Anker: die Staff-Navigation ist geladen.
+      expect(screen.getByText("Zeiterfassung")).toBeInTheDocument();
       expect(screen.queryByText("Statistik")).not.toBeInTheDocument();
+    });
+
+    it("shows the Statistik entry for staff holding config:read and users:read", () => {
+      mockIsAdmin.mockReturnValue(false);
+      mockHasPermission.mockImplementation(
+        (_session, permission) =>
+          permission === "config:read" || permission === "users:read",
+      );
+
+      render(<Sidebar />);
+
+      expect(screen.getByText("Statistik").closest("a")).toHaveAttribute(
+        "href",
+        "/statistics",
+      );
     });
   });
 
@@ -1875,6 +1894,8 @@ describe("Sidebar", () => {
     it("does not render teacher-specific items", () => {
       render(<Sidebar />);
 
+      // Anker: die Operator-Navigation ist geladen.
+      expect(screen.getByText("Ankündigungen")).toBeInTheDocument();
       expect(screen.queryByText("Alle Kinder")).not.toBeInTheDocument();
       expect(screen.queryByText("Aktivitäten")).not.toBeInTheDocument();
       expect(screen.queryByText("Räume")).not.toBeInTheDocument();
@@ -1891,6 +1912,8 @@ describe("Sidebar", () => {
     it("does not render settings in operator navigation", () => {
       render(<Sidebar />);
 
+      // Anker: die Operator-Navigation ist geladen.
+      expect(screen.getByText("Operatoren")).toBeInTheDocument();
       expect(screen.queryByText("Einstellungen")).not.toBeInTheDocument();
     });
   });
@@ -2091,6 +2114,8 @@ describe("Sidebar", () => {
 
       render(<Sidebar />);
 
+      // Anker: die eigene Aufsicht ist geladen.
+      expect(screen.getByText("Raum A")).toBeInTheDocument();
       expect(screen.queryByText("Offene Räume")).not.toBeInTheDocument();
     });
 
@@ -2142,6 +2167,8 @@ describe("Sidebar", () => {
 
     it("hides Räume and Aktivitäten nav items", () => {
       render(<Sidebar />);
+      // Anker: die Navigation ist geladen.
+      expect(screen.getByText("Alle Kinder")).toBeInTheDocument();
       expect(screen.queryByText("Räume")).not.toBeInTheDocument();
       expect(screen.queryByText("Aktivitäten")).not.toBeInTheDocument();
     });
@@ -2162,6 +2189,8 @@ describe("Sidebar", () => {
       render(<Sidebar />);
       // Accordion header is "Aktuelle Aufsicht" (singular) or "Aktuelle
       // Aufsichten" (plural) — neither should appear in binary mode.
+      // Anker: die Staff-Navigation ist geladen.
+      expect(screen.getByText("Meine Gruppen")).toBeInTheDocument();
       expect(screen.queryByText(/Aktuelle Aufsicht/)).not.toBeInTheDocument();
     });
 
@@ -2184,6 +2213,8 @@ describe("Sidebar", () => {
     it("hides the classic Aktivitäten nav item when NFC is disabled", () => {
       render(<Sidebar />);
 
+      // Anker: die Navigation ist geladen.
+      expect(screen.getByText("Räume")).toBeInTheDocument();
       expect(screen.queryByText("Aktivitäten")).not.toBeInTheDocument();
     });
 
@@ -2305,6 +2336,8 @@ describe("Sidebar", () => {
 
       render(<Sidebar />);
 
+      // Anker: die Staff-Navigation ist geladen.
+      expect(screen.getByText("Zeiterfassung")).toBeInTheDocument();
       expect(screen.queryByText("Mein Dienstplan")).not.toBeInTheDocument();
     });
 
@@ -2318,6 +2351,8 @@ describe("Sidebar", () => {
       try {
         render(<Sidebar />);
 
+        // Anker: die Staff-Navigation ist geladen.
+        expect(screen.getByText("Zeiterfassung")).toBeInTheDocument();
         expect(screen.queryByText("Mein Dienstplan")).not.toBeInTheDocument();
       } finally {
         vi.mocked(useTimetableEnabled).mockReturnValue(true);
@@ -2543,6 +2578,8 @@ describe("Sidebar", () => {
 
       render(<Sidebar />);
 
+      // Anker: die Staff-Navigation ist geladen.
+      expect(screen.getByText("Zeiterfassung")).toBeInTheDocument();
       expect(screen.queryByText("Planung")).not.toBeInTheDocument();
       expect(screen.queryByText("Betreuungsplan")).not.toBeInTheDocument();
     });
@@ -3345,6 +3382,8 @@ describe("Sidebar", () => {
 
       render(<Sidebar />);
 
+      // Anker: die Staff-Navigation ist geladen.
+      expect(screen.getByText("Zeiterfassung")).toBeInTheDocument();
       expect(
         screen.queryByLabelText(/ungelesene Anmeldungen/),
       ).not.toBeInTheDocument();

@@ -951,9 +951,22 @@ describe("StudentDetailPage", () => {
     it("hides the notes tab because its endpoint requires full child read access", () => {
       render(<StudentDetailPage />);
 
+      // Anker: die eingeschränkte Ansicht ist geladen, nicht das Skelett.
+      expect(screen.getByTestId("supervisors-card")).toBeInTheDocument();
       expect(
         screen.queryByRole("tab", { name: "Notizen" }),
       ).not.toBeInTheDocument();
+    });
+
+    it("shows the notes tab in the full access view", () => {
+      mockUseStudentData.mockReturnValue({
+        ...mockUseStudentData(),
+        hasFullAccess: true,
+      });
+
+      render(<StudentDetailPage />);
+
+      expect(screen.getByRole("tab", { name: "Notizen" })).toBeInTheDocument();
     });
 
     it("renders guardian manager in read-only mode in limited view", () => {
@@ -1623,6 +1636,8 @@ describe("StudentDetailPage", () => {
 
       render(<StudentDetailPage />);
 
+      // Anker: die eingeschränkte Ansicht ist geladen, nicht das Skelett.
+      expect(screen.getByTestId("supervisors-card")).toBeInTheDocument();
       expect(
         screen.queryByTestId("sick-report-section"),
       ).not.toBeInTheDocument();
@@ -1731,6 +1746,8 @@ describe("StudentDetailPage", () => {
         </SWRConfig>,
       );
 
+      // Anker: die eingeschränkte Ansicht ist geladen, nicht das Skelett.
+      expect(screen.getByTestId("supervisors-card")).toBeInTheDocument();
       expect(mockFetchStudentStatusDays).not.toHaveBeenCalled();
     });
 
@@ -2174,6 +2191,8 @@ describe("StudentDetailPage", () => {
 
       render(<StudentDetailPage />);
 
+      // Anker: die Aktionsleiste ist geladen, nur Ein-/Auschecken fehlt.
+      expect(screen.getByTestId("sick-report-section")).toBeInTheDocument();
       expect(screen.queryByTestId("checkout-section")).not.toBeInTheDocument();
       expect(screen.queryByTestId("checkin-section")).not.toBeInTheDocument();
     });
@@ -2297,6 +2316,9 @@ describe("StudentDetailPage", () => {
       // würde 403 antworten, also gibt es den Reiter gar nicht erst (#2437).
       render(<StudentDetailPage />);
 
+      // Anker: Inhalt der geladenen vollen Ansicht; das Skelett zeigt alle
+      // Reiter, aber keinen Inhalt.
+      expect(screen.getByTestId("guardian-manager")).toBeInTheDocument();
       expect(queryTab("Änderungsprotokoll")).not.toBeInTheDocument();
     });
 
@@ -2308,6 +2330,8 @@ describe("StudentDetailPage", () => {
 
       render(<StudentDetailPage />);
 
+      // Anker: Inhalt der geladenen vollen Ansicht.
+      expect(screen.getByTestId("guardian-manager")).toBeInTheDocument();
       expect(queryTab("Anmeldungen")).not.toBeInTheDocument();
     });
 
@@ -2315,6 +2339,8 @@ describe("StudentDetailPage", () => {
       // Default mock session is config:manage only -> no schedules:read.
       render(<StudentDetailPage />);
 
+      // Anker: Inhalt der geladenen vollen Ansicht.
+      expect(screen.getByTestId("guardian-manager")).toBeInTheDocument();
       expect(
         screen.queryByRole("tab", { name: "Betreuungsplan" }),
       ).not.toBeInTheDocument();
@@ -2358,6 +2384,8 @@ describe("StudentDetailPage", () => {
 
       render(<StudentDetailPage />);
 
+      // Anker: Inhalt der geladenen eingeschränkten Ansicht.
+      expect(screen.getByTestId("supervisors-card")).toBeInTheDocument();
       expect(
         screen.queryByRole("tab", { name: "Betreuungsplan" }),
       ).not.toBeInTheDocument();

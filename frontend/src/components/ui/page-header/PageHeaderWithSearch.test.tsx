@@ -109,6 +109,7 @@ describe("PageHeaderWithSearch", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     setViewportWidth(1024);
+    setScrollY(0);
   });
 
   const baseProps: PageHeaderWithSearchProps = {
@@ -151,6 +152,8 @@ describe("PageHeaderWithSearch", () => {
   it("does not render search bar when search prop not provided", () => {
     const propsWithoutSearch = { ...baseProps, search: undefined };
     render(<PageHeaderWithSearch {...propsWithoutSearch} />);
+    // Anker: die Kopfzeile ist gerendert.
+    expect(screen.getByTestId("page-header")).toHaveTextContent("Test Page");
     expect(screen.queryByTestId("search-bar")).not.toBeInTheDocument();
   });
 
@@ -340,6 +343,8 @@ describe("PageHeaderWithSearch", () => {
 
   it("handles empty filters array", () => {
     render(<PageHeaderWithSearch {...baseProps} filters={[]} />);
+    // Anker: die Suchzeile, in der die Filter stünden, ist da.
+    expect(screen.getAllByTestId("search-bar").length).toBeGreaterThan(0);
     expect(screen.queryByTestId("desktop-filters")).not.toBeInTheDocument();
     expect(
       screen.queryByTestId("mobile-filter-button"),
@@ -407,6 +412,10 @@ describe("PageHeaderWithSearch", () => {
 
     it("rendert nichts, wenn die Prop fehlt", () => {
       render(<PageHeaderWithSearch {...baseProps} tabs={tabs} />);
+      // Anker: die Reiterleiste ist gerendert.
+      expect(screen.getByTestId("navigation-tabs")).toHaveTextContent(
+        "Mitarbeitende",
+      );
       expect(screen.queryByRole("button", { name: "Historie" })).toBeNull();
     });
   });
@@ -414,11 +423,15 @@ describe("PageHeaderWithSearch", () => {
   describe("overflowMenu prop", () => {
     it("renders nothing when prop is omitted (default behaviour)", () => {
       render(<PageHeaderWithSearch {...baseProps} />);
+      // Anker: die Kopfzeile ist gerendert.
+      expect(screen.getByTestId("page-header")).toHaveTextContent("Test Page");
       expect(screen.queryByTestId("overflow-menu")).toBeNull();
     });
 
     it("renders nothing when items array is empty", () => {
       render(<PageHeaderWithSearch {...baseProps} overflowMenu={[]} />);
+      // Anker: die Kopfzeile ist gerendert.
+      expect(screen.getByTestId("page-header")).toHaveTextContent("Test Page");
       expect(screen.queryByTestId("overflow-menu")).toBeNull();
     });
 
@@ -543,6 +556,8 @@ describe("PageHeaderWithSearch", () => {
           activeFilterDisplay="count"
         />,
       );
+      // Anker: die Filter selbst sind geladen, nur die Chips fehlen.
+      expect(screen.getByTestId("desktop-filters")).toBeInTheDocument();
       expect(screen.queryByTestId("active-filter-chips")).toBeNull();
     });
   });
@@ -639,8 +654,28 @@ describe("PageHeaderWithSearch", () => {
   describe("compactOnScroll prop", () => {
     it("does not add scroll-driven classes by default", () => {
       const { container } = render(<PageHeaderWithSearch {...baseProps} />);
+      // Anker: die Kopfzeile ist gerendert.
+      expect(screen.getByTestId("page-header")).toHaveTextContent("Test Page");
       // No transition classes injected when compactOnScroll is off.
       expect(container.innerHTML).not.toContain("backdrop-blur-md");
+    });
+
+    it("stays uncompacted past the scroll threshold without the prop", () => {
+      setScrollY(200);
+      const { container } = render(<PageHeaderWithSearch {...baseProps} />);
+      // Anker: die Kopfzeile ist gerendert.
+      expect(screen.getByTestId("page-header")).toHaveTextContent("Test Page");
+      expect(container.innerHTML).not.toContain("backdrop-blur-md");
+    });
+
+    it("compacts past the scroll threshold when enabled", () => {
+      // Gegenprobe zu den beiden Tests oben: dieselbe Klasse erscheint, sobald
+      // die Prop gesetzt ist und die Seite gescrollt wurde.
+      setScrollY(200);
+      const { container } = render(
+        <PageHeaderWithSearch {...baseProps} compactOnScroll />,
+      );
+      expect(container.innerHTML).toContain("backdrop-blur-md");
     });
 
     it("opts in to scroll-driven transitions when enabled", () => {
@@ -655,6 +690,14 @@ describe("PageHeaderWithSearch", () => {
     });
   });
 });
+
+function setScrollY(y: number) {
+  Object.defineProperty(window, "scrollY", {
+    value: y,
+    configurable: true,
+    writable: true,
+  });
+}
 
 function setViewportWidth(width: number) {
   Object.defineProperty(window, "innerWidth", {

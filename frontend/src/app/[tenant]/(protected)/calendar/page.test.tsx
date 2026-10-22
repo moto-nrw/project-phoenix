@@ -844,6 +844,8 @@ describe("StaffCalendarPage", () => {
 
     render(<StaffCalendarPage />);
 
+    // Anker: die eigenen Termine sind geladen, nur die Reiter fehlen.
+    expect(screen.getAllByText("Teamplanung").length).toBeGreaterThan(0);
     expect(screen.queryByRole("tab")).not.toBeInTheDocument();
   });
 
@@ -855,6 +857,8 @@ describe("StaffCalendarPage", () => {
 
     render(<StaffCalendarPage />);
 
+    // Anker: die eigenen Termine sind geladen, nur die Reiter fehlen.
+    expect(screen.getAllByText("Teamplanung").length).toBeGreaterThan(0);
     expect(screen.queryByRole("tab")).not.toBeInTheDocument();
   });
 

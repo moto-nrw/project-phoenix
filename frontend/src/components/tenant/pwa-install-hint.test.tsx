@@ -193,6 +193,29 @@ function seedReturningVisitor() {
   sessionStorage.clear();
 }
 
+type HintEnvironment = Readonly<{
+  userAgent: string;
+  platform?: string;
+  maxTouchPoints?: number;
+  standalone?: boolean;
+  firstVisit?: boolean;
+}>;
+
+/** Renders the hint in one browser environment on top of the test defaults. */
+function renderInEnvironment({
+  standalone = false,
+  firstVisit = false,
+  ...nav
+}: HintEnvironment) {
+  if (firstVisit) {
+    localStorage.clear();
+    sessionStorage.clear();
+  }
+  stubNavigator(nav);
+  stubMatchMedia(standalone);
+  return render(<PwaInstallHint />);
+}
+
 /** Fires the Chrome event the install-prompt module captures at import time. */
 function dispatchInstallPrompt(outcome: "accepted" | "dismissed" = "accepted") {
   const prompt = vi.fn().mockResolvedValue(undefined);
@@ -277,15 +300,6 @@ describe("PwaInstallHint", () => {
     expect(card?.className).not.toMatch(/10\.5rem/);
   });
 
-  it("stays hidden on the very first visit", () => {
-    localStorage.clear();
-    sessionStorage.clear();
-    stubNavigator({ userAgent: IPHONE_UA });
-    stubMatchMedia(false);
-    render(<PwaInstallHint />);
-    expect(screen.queryByText("moto als App nutzen")).not.toBeInTheDocument();
-  });
-
   it("appears on the second visit", () => {
     localStorage.clear();
     sessionStorage.clear();
@@ -301,18 +315,107 @@ describe("PwaInstallHint", () => {
     expect(screen.getByText("moto als App nutzen")).toBeInTheDocument();
   });
 
-  it("does not render Safari instructions in other iOS browsers", () => {
-    stubNavigator({ userAgent: IOS_CHROME_UA });
-    stubMatchMedia(false);
-    render(<PwaInstallHint />);
-    expect(screen.queryByText("moto als App nutzen")).not.toBeInTheDocument();
-  });
+  // The hidden hint renders nothing, so a hidden row alone would also pass
+  // against a component that never renders. The table therefore holds the
+  // visible environments of the positive cases next to the hidden ones. Each
+  // hidden row spreads the visible row it is checked against, overrides only
+  // what differs, and renders that visible row too.
+  const VISIBLE = {
+    // "renders Safari instructions in a centered floating card",
+    // "appears on the second visit"
+    "iOS Safari": { userAgent: IPHONE_UA },
+    // isIosSafari "detects Safari on iOS": iPadOS sends a Mac user agent and
+    // reports touch points.
+    "iPadOS Safari": {
+      userAgent: IPAD_SAFARI_DESKTOP_UA,
+      platform: "MacIntel",
+      maxTouchPoints: 5,
+    },
+    // "renders browser-menu instructions on Android when no install event
+    // was captured"
+    "Android Chrome": { userAgent: ANDROID_UA, platform: "Linux armv81" },
+  } satisfies Record<string, HintEnvironment>;
+  type VisibleEnvironment = keyof typeof VISIBLE;
 
-  it("does not render inside embedded iOS webviews", () => {
-    stubNavigator({ userAgent: IOS_WEBVIEW_UA });
-    stubMatchMedia(false);
-    render(<PwaInstallHint />);
+  it.each(Object.keys(VISIBLE) as VisibleEnvironment[])(
+    "shows the hint in %s",
+    (name) => {
+      renderInEnvironment(VISIBLE[name]);
+      expect(screen.getByText("moto als App nutzen")).toBeInTheDocument();
+    },
+  );
+
+  it.each<[string, HintEnvironment, VisibleEnvironment]>([
+    // Differs in the visit count.
+    [
+      "stays hidden on the very first visit",
+      { ...VISIBLE["iOS Safari"], firstVisit: true },
+      "iOS Safari",
+    ],
+    // Differs in the browser named by the user agent.
+    [
+      "does not render Safari instructions in other iOS browsers",
+      { ...VISIBLE["iOS Safari"], userAgent: IOS_CHROME_UA },
+      "iOS Safari",
+    ],
+    [
+      "does not render inside embedded iOS webviews",
+      { ...VISIBLE["iOS Safari"], userAgent: IOS_WEBVIEW_UA },
+      "iOS Safari",
+    ],
+    [
+      "does not render inside Android WebViews",
+      { ...VISIBLE["Android Chrome"], userAgent: ANDROID_WEBVIEW_UA },
+      "Android Chrome",
+    ],
+    // Differs in the user agent only: both run with platform MacIntel and no
+    // touch points (the stubNavigator defaults).
+    [
+      "does not render on desktop devices",
+      { ...VISIBLE["iOS Safari"], userAgent: DESKTOP_UA },
+      "iOS Safari",
+    ],
+    // Closest thing to a false positive: iPadOS Safari sends this exact UA.
+    // Only maxTouchPoints tells the two apart, so a Mac must stay excluded
+    // even though the wide iPad layout looks the same.
+    [
+      "does not render in desktop Safari on macOS",
+      { ...VISIBLE["iPadOS Safari"], maxTouchPoints: 0 },
+      "iPadOS Safari",
+    ],
+    // Differs in the whole operating system (user agent, platform, touch
+    // points): touch alone does not make a Windows laptop a phone.
+    [
+      "does not render on a touchscreen Windows laptop",
+      {
+        ...VISIBLE["Android Chrome"],
+        userAgent:
+          "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0 Safari/537.36",
+        platform: "Win32",
+        maxTouchPoints: 10,
+      },
+      "Android Chrome",
+    ],
+    // Differs in the display mode.
+    [
+      "does not render inside an installed PWA",
+      { ...VISIBLE["iOS Safari"], standalone: true },
+      "iOS Safari",
+    ],
+    [
+      "does not render inside an installed PWA on Android",
+      { ...VISIBLE["Android Chrome"], standalone: true },
+      "Android Chrome",
+    ],
+  ])("%s", (_name, hidden, visible) => {
+    const { unmount } = renderInEnvironment(hidden);
     expect(screen.queryByText("moto als App nutzen")).not.toBeInTheDocument();
+    unmount();
+
+    seedReturningVisitor();
+    renderInEnvironment(VISIBLE[visible]);
+    // Anker: die sichtbare Ausgangszeile zeigt den Hinweis im selben Aufbau.
+    expect(screen.getByText("moto als App nutzen")).toBeInTheDocument();
   });
 
   it("renders browser-menu instructions on Android when no install event was captured", () => {
@@ -425,67 +528,11 @@ describe("PwaInstallHint", () => {
     expect(localStorage.getItem("moto-pwa-install-hint-dismissed")).toBe("1");
   });
 
-  it("does not render inside Android WebViews", () => {
-    stubNavigator({
-      userAgent: ANDROID_WEBVIEW_UA,
-      platform: "Linux armv81",
-    });
-    stubMatchMedia(false);
-    render(<PwaInstallHint />);
-    expect(screen.queryByText("moto als App nutzen")).not.toBeInTheDocument();
-  });
-
-  it("does not render on desktop devices", () => {
-    stubNavigator({ userAgent: DESKTOP_UA });
-    stubMatchMedia(false);
-    render(<PwaInstallHint />);
-    expect(screen.queryByText("moto als App nutzen")).not.toBeInTheDocument();
-  });
-
-  it("does not render in desktop Safari on macOS", () => {
-    // Closest thing to a false positive: iPadOS Safari sends this exact UA.
-    // Only maxTouchPoints tells the two apart, so a Mac must stay excluded
-    // even though the wide iPad layout looks the same.
-    stubNavigator({
-      userAgent: IPAD_SAFARI_DESKTOP_UA,
-      platform: "MacIntel",
-      maxTouchPoints: 0,
-    });
-    stubMatchMedia(false);
-    render(<PwaInstallHint />);
-    expect(screen.queryByText("moto als App nutzen")).not.toBeInTheDocument();
-  });
-
-  it("does not render on a touchscreen Windows laptop", () => {
-    stubNavigator({
-      userAgent:
-        "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0 Safari/537.36",
-      platform: "Win32",
-      maxTouchPoints: 10,
-    });
-    stubMatchMedia(false);
-    render(<PwaInstallHint />);
-    expect(screen.queryByText("moto als App nutzen")).not.toBeInTheDocument();
-  });
-
-  it("does not render inside an installed PWA", () => {
-    stubNavigator({ userAgent: IPHONE_UA });
-    stubMatchMedia(true);
-    render(<PwaInstallHint />);
-    expect(screen.queryByText("moto als App nutzen")).not.toBeInTheDocument();
-  });
-
-  it("does not render inside an installed PWA on Android", () => {
-    stubNavigator({ userAgent: ANDROID_UA, platform: "Linux armv81" });
-    stubMatchMedia(true);
-    render(<PwaInstallHint />);
-    expect(screen.queryByText("moto als App nutzen")).not.toBeInTheDocument();
-  });
-
   it("stays hidden after dismissal", () => {
     stubNavigator({ userAgent: IPHONE_UA });
     stubMatchMedia(false);
     const { unmount } = render(<PwaInstallHint />);
+    // Anker: der Hinweis steht da, bevor er geschlossen wird.
     fireEvent.click(screen.getByLabelText("Hinweis schließen"));
     expect(screen.queryByText("moto als App nutzen")).not.toBeInTheDocument();
     unmount();
