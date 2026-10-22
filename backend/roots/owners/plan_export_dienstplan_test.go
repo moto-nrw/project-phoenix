@@ -103,10 +103,13 @@ func TestDienstplanExportStaysInsideTheTenant(t *testing.T) {
 	for _, fixture := range fixtures {
 		t.Run("dienstplan-"+fixture.title, func(t *testing.T) {
 			renderer := &planExportCaptureRenderer{}
-			require.NoError(t, testpkg.WithTenantTx(t, fixture.ctx, db, fixture.tenantID, func(txCtx context.Context, tx bun.Tx) error {
+			counter := testpkg.CaptureQueriesForContext(t, db)
+			require.NoError(t, testpkg.WithTenantTx(t, counter.Context(fixture.ctx), db, fixture.tenantID, func(txCtx context.Context, tx bun.Tx) error {
 				_, err := dienstplanExport(dienstplanOverview(t, db, tx, capability, rooms), renderer).ExportDienstplan(txCtx, params)
 				return err
 			}))
+			// Moved from the opt-in TestDienstplanRuntimeEvidence (#4426).
+			require.Zero(t, counter.WriteRows(), "the plan export must not persist anything")
 			require.Len(t, renderer.doc.Rows, 1, "exactly the tenant's own staff member is printed")
 			row := renderer.doc.Rows[0]
 			require.Equal(t, fixture.staff.Person.LastName+", "+fixture.staff.Person.FirstName, lists.SanitizeUserText(row.Values[lists.ColumnPlanRowLabel]))
@@ -296,6 +299,7 @@ func (s dienstplanInstanceStaff) list(ctx context.Context, filter timetable.Inst
 // (txStaffRoster).
 func TestDienstplanRuntimeEvidence(t *testing.T) {
 	t.Parallel()
+	testpkg.RequireRuntimeEvidence(t)
 	db := testpkg.SetupIsolatedTestDB(t)
 	ctx := testpkg.Ctx(t)
 	room := testpkg.CreateTestRoom(t, db, "Runtime-room")

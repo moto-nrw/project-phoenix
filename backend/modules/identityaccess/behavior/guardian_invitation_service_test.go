@@ -481,7 +481,7 @@ func TestGuardianInvitationService_Accept_AlreadyAccepted(t *testing.T) {
 		Password:        strongTestPassword,
 		ConfirmPassword: strongTestPassword,
 	})
-	require.Error(t, err, "second accept must reject already-accepted token")
+	require.ErrorIs(t, err, identityaccess.ErrInvitationUsed, "second accept must reject already-accepted token")
 }
 
 func TestGuardianInvitationService_Resend_ResetsEmailColumns(t *testing.T) {

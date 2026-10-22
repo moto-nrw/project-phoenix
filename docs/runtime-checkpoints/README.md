@@ -484,6 +484,69 @@ toolchain, database settings, and transport scope. Any workload change needs
 an old/new bridge run on the same runtime commit. Do not extrapolate these
 latencies to deployment capacity.
 
+## Flow-specific runtime evidence (opt-in)
+
+Besides the production-router checkpoint above, the migration tickets left
+flow-specific measurements: tests that repeat one owner flow over warmups and
+samples on a disposable clone and log latency, statements, rows, pool and
+lock waits, deadlocks or `EXPLAIN (ANALYZE, BUFFERS)` plans. Since
+[#4426](https://github.com/moto-nrw/project-phoenix/issues/4426) they skip
+unless `PHX_TEST_RUNTIME_EVIDENCE=1` is set (`testpkg.RequireRuntimeEvidence`).
+`scripts/test-backend.sh`, `scripts/test-changed.sh` and CI never set it. The
+contracts these tests also asserted (read paths write nothing, query budgets,
+replay refusals, rollback and retry) run in the normal suite in the owners'
+budget, golden and integration tests.
+
+Run one measurement from the repository root, in a fresh process, and keep the
+log as evidence:
+
+```bash
+PHX_TEST_RUNTIME_EVIDENCE=1 scripts/run-go-toolchain.sh go -C backend test \
+  -tags=testhooks ./modules/timetable/compose/httpintegration \
+  -run '^TestSessionEndRuntimeEvidence$' -count=1 -parallel 8 -v
+```
+
+Without the variable the test reports `SKIP` and measures nothing. The
+commands recorded in the evidence files below predate this opt-in and partly
+name retired package paths; use the package from this table and add the
+variable. A test without an evidence file keeps its numbers in its migration
+issue at most; it stays opt-in instead of being deleted.
+
+| Test | Package (`backend/`) | Evidence |
+|---|---|---|
+| `TestEmergencySnapshotRuntimeEvidence` | `api` | [emergency-snapshot-2704.md](emergency-snapshot-2704.md) |
+| `TestIdentityMembershipRuntimeEvidence` | `api` | [identity-membership-2721.md](identity-membership-2721.md) |
+| `TestSlotListRuntime` | `modules/classday/compose` | #3108, no evidence file |
+| `TestDataImportRuntimeEvidence` | `modules/dataimport/importtest` | [data-import-2708.md](data-import-2708.md), [data-import-batches-2708.md](data-import-batches-2708.md), [data-import-contract-2744.md](data-import-contract-2744.md) |
+| `TestUnregisteredTagScanRuntime` | `modules/devicefleet/compose/httpadapter` | #2678, no evidence file |
+| `TestDeviceScanRuntimeEvidence` | `modules/devicescan/http/checkin` | [device-scan-2698.md](device-scan-2698.md) |
+| `TestFileStorageRuntimeEvidence` | `modules/filestorage/http/files` | [file-storage-2707.md](file-storage-2707.md) |
+| `TestOGSGroupLiveRuntime` | `modules/grouplive/http` | no evidence file |
+| `TestLinkRuntimeEvidence` | `modules/identityaccess/behavior` | #2722, no evidence file |
+| `TestIdentityPersistenceRuntimeEvidence` | `modules/identityaccess/inbound/account` | [identity-persistence-3226.md](identity-persistence-3226.md) |
+| `TestAccountSessionRuntimeEvidence` | `modules/identityaccess/integration` | [account-sessions-2720.md](account-sessions-2720.md) |
+| `TestOperatorRuntimeEvidence` | `modules/identityaccess/integration` | [operator-sessions-2720.md](operator-sessions-2720.md) |
+| `TestAccountPasskeyRuntimeEvidence`, `TestOperatorPasskeyRuntimeEvidence` | `modules/identityaccess/integration` | #2724, no evidence file |
+| `TestOperatorMFARuntimeEvidence` | `modules/identityaccess/integration` | #2723, no evidence file |
+| `TestOperatorTokenRuntimeEvidence` | `modules/identityaccess/integration` | #2722, no evidence file |
+| `TestOffboardingRuntimeEvidence` | `modules/peopledirectory/contracttest` | [staff-offboarding-2709.md](staff-offboarding-2709.md) |
+| `TestRequestReviewRuntimeEvidence` | `modules/requestreview/http` | [request-review-2705.md](request-review-2705.md), [request-review-3179.md](request-review-3179.md) |
+| `TestReminderRuntimeEvidence` | `modules/schoolcalendar/portal/compose` | [reminder-delivery-2700.md](reminder-delivery-2700.md) |
+| `TestGradeTransitionRuntimeEvidence` | `modules/schoolstructure/internal/application/groups` | [grade-transition-2711.md](grade-transition-2711.md) |
+| `TestStudentPresenceMigrationRuntime` | `modules/studentpresence/compose` | [student-presence-2691.md](student-presence-2691.md) |
+| `TestGroupRecoveryMigrationRuntime` | `modules/studentpresence/compose` | [student-presence-2692.md](student-presence-2692.md) |
+| `TestUnclaimedClaimRuntime` | `modules/studentpresence/internal/application/presence` | no evidence file |
+| `TestInstanceAssignmentMigrationRuntime` | `modules/timetable/compose` | #2685, no evidence file |
+| `TestSessionEndRuntimeEvidence` | `modules/timetable/compose/httpintegration` | [session-end-2697.md](session-end-2697.md) |
+| `TestWorkforceOwnerRuntime` | `modules/workforce/compose` | #2690, no evidence file |
+| `TestPlanExportRuntimeEvidence`, `TestDienstplanRuntimeEvidence` | `roots/owners` | [plan-export-2706.md](plan-export-2706.md) |
+| `TestStudentDeletionRuntimeEvidence` | `workflows/studentdeletion` | [student-deletion-2710.md](student-deletion-2710.md) |
+
+To run all of them, pass the packages and an alternation of the names to one
+`go test` with the variable set. A new flow measurement calls
+`testpkg.RequireRuntimeEvidence(t)` right after `t.Parallel()` and keeps any
+contract it asserts in a normal test as well.
+
 ## Acceptance
 
 The measurement command does not accept a baseline. Follow

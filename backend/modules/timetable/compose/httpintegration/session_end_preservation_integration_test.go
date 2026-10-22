@@ -101,4 +101,12 @@ func TestSessionEndPreservesAttendanceAndStaffAcrossTenants(t *testing.T) {
 	require.Equal(t, foreignBefore, snapshot(foreign.tenantID), "successful end must preserve every foreign row")
 	require.Equal(t, "completed", testpkg.InstanceStatus(t, db, own.instanceID))
 	require.Equal(t, "active", testpkg.InstanceStatus(t, db, foreign.instanceID))
+
+	// Moved from the opt-in TestSessionEndRuntimeEvidence (#4426): ending the
+	// ended session is refused without writing a row.
+	counter := testpkg.CaptureQueriesForContext(t, db)
+	_, err = moduleSessionEnd.SessionEnd.EndSession(counter.Context(testpkg.Ctx(t)), own.groupID)
+	require.EqualError(t, err, "active group session already ended")
+	require.Zero(t, counter.WriteRows(), "a refused end must not write")
+	require.Equal(t, ownAfter, snapshot(own.tenantID))
 }

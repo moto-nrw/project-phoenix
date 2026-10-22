@@ -19,6 +19,7 @@ import (
 // Bounded owner-capability evidence for #2690, not an HTTP or kiosk benchmark.
 func TestWorkforceOwnerRuntime(t *testing.T) {
 	t.Parallel()
+	testpkg.RequireRuntimeEvidence(t)
 	db := testpkg.SetupIsolatedTestDB(t)
 	ctx := testpkg.Ctx(t)
 	config := testpkg.ConfigRuntime(db)

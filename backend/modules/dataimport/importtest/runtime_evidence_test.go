@@ -21,10 +21,11 @@ import (
 // observer, and pool waits and deadlocks from the driver and PostgreSQL.
 // It records no personal data: only counters, durations and the entity name.
 //
-//	CGO_ENABLED=0 scripts/run-go-toolchain.sh go test -C backend \
-//	  ./services/import/integration -run TestDataImportRuntimeEvidence -count=1 -v
+//	PHX_TEST_RUNTIME_EVIDENCE=1 scripts/run-go-toolchain.sh go -C backend test -tags=testhooks \
+//	  ./modules/dataimport/importtest -run '^TestDataImportRuntimeEvidence$' -count=1 -v
 func TestDataImportRuntimeEvidence(t *testing.T) {
 	t.Parallel()
+	testpkg.RequireRuntimeEvidence(t)
 	db := testpkg.SetupIsolatedTestDB(t)
 	module, err := api.NewImportTestModule(testpkg.NewDatabase(t, db), testpkg.TenantRuntime(t, db))
 	require.NoError(t, err)
@@ -42,26 +43,6 @@ func TestDataImportRuntimeEvidence(t *testing.T) {
 		return count
 	}
 	beforeDeadlocks := deadlocks()
-
-	const rowsPerBatch = 10
-	batch := func(iteration int) []importModels.StudentImportRow {
-		rows := make([]importModels.StudentImportRow, 0, rowsPerBatch)
-		for i := range rowsPerBatch {
-			name := fmt.Sprintf("Runtime%d-%d", iteration, i)
-			rows = append(rows, importModels.StudentImportRow{
-				FirstName: name, LastName: "Evidence", SchoolClass: "4A", Birthday: "2017-04-05", DataRetentionDays: 30,
-				AddressStreet: "Messweg 1", AddressPostalCode: "50667", AddressCity: "Köln",
-				DepartureDays:   map[string]string{"mon": "bus", "tue": "pickup"},
-				PrivacyAccepted: true,
-				Guardians: []importModels.GuardianImportData{{
-					FirstName: "Eltern", LastName: name, Email: fmt.Sprintf("%s.runtime@example.test", name), RelationshipType: "Mutter",
-					PhoneNumbers: []importModels.PhoneImportData{{PhoneNumber: fmt.Sprintf("0151 %06d", iteration*100+i), PhoneType: "mobile"}},
-				}},
-				PickupSchedules: []importModels.PickupScheduleImportData{{Weekday: 2, PickupTime: "15:30"}},
-			})
-		}
-		return rows
-	}
 
 	samples := map[string][]testpkg.RuntimeCheckpointSample{}
 	measure := func(operation string, iteration int, dryRun bool, rows []importModels.StudentImportRow) {
@@ -110,7 +91,7 @@ func TestDataImportRuntimeEvidence(t *testing.T) {
 	}
 
 	for iteration := range 12 {
-		rows := batch(iteration)
+		rows := tenStudentBatch(iteration)
 		measure("preview", iteration, true, rows)
 		measure("import", iteration, false, rows)
 	}
@@ -130,4 +111,28 @@ func TestDataImportRuntimeEvidence(t *testing.T) {
 	})
 	require.NoError(t, err)
 	t.Logf("data-import-runtime %s", raw)
+}
+
+// rowsPerBatch is the size of the measured and budgeted import file.
+const rowsPerBatch = 10
+
+// tenStudentBatch builds a valid ten-row student file with one guardian,
+// phone and pickup schedule per row; iteration keeps names and phones unique.
+func tenStudentBatch(iteration int) []importModels.StudentImportRow {
+	rows := make([]importModels.StudentImportRow, 0, rowsPerBatch)
+	for i := range rowsPerBatch {
+		name := fmt.Sprintf("Runtime%d-%d", iteration, i)
+		rows = append(rows, importModels.StudentImportRow{
+			FirstName: name, LastName: "Evidence", SchoolClass: "4A", Birthday: "2017-04-05", DataRetentionDays: 30,
+			AddressStreet: "Messweg 1", AddressPostalCode: "50667", AddressCity: "Köln",
+			DepartureDays:   map[string]string{"mon": "bus", "tue": "pickup"},
+			PrivacyAccepted: true,
+			Guardians: []importModels.GuardianImportData{{
+				FirstName: "Eltern", LastName: name, Email: fmt.Sprintf("%s.runtime@example.test", name), RelationshipType: "Mutter",
+				PhoneNumbers: []importModels.PhoneImportData{{PhoneNumber: fmt.Sprintf("0151 %06d", iteration*100+i), PhoneType: "mobile"}},
+			}},
+			PickupSchedules: []importModels.PickupScheduleImportData{{Weekday: 2, PickupTime: "15:30"}},
+		})
+	}
+	return rows
 }

@@ -19,6 +19,7 @@ import (
 // Transport is a deterministic local sink; the real outbox and claim stores run.
 func TestReminderRuntimeEvidence(t *testing.T) {
 	t.Parallel()
+	testpkg.RequireRuntimeEvidence(t)
 	testpkg.SetupIsolatedTestDB(t)
 	db, calendar := setupCalendarModule(t)
 	_, organizer := testpkg.CreateTestCalendarStaff(t, db, "Reminder", "Runtime")

@@ -28,6 +28,21 @@ func TestBetreuungsplanRendersBlockRoomStaffAndChildren(t *testing.T) {
 	}
 }
 
+// A week without blocks prints its explicit empty row instead of an empty
+// sheet (asserted until #4426 by the opt-in TestPlanExportRuntimeEvidence).
+func TestBetreuungsplanStatesAnEmptyWeek(t *testing.T) {
+	t.Parallel()
+
+	service, renderer := newBetreuungsplanService(nil, nil, nil)
+
+	if _, err := service.ExportBetreuungsplan(context.Background(), careParams()); err != nil {
+		t.Fatalf("ExportBetreuungsplan: %v", err)
+	}
+	if got := rowLabels(renderer.doc); len(got) != 1 || got[0] != "Keine Einträge in dieser Woche" {
+		t.Fatalf("rows = %v, want only the empty week stated", got)
+	}
+}
+
 func TestBetreuungsplanShowsStaffRoomOverride(t *testing.T) {
 	t.Parallel()
 

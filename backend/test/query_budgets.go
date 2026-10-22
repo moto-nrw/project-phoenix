@@ -302,6 +302,13 @@ var queryBudgets = map[string]queryBudget{
 	// the same statement as the row, where the retained repository needed a
 	// second one to reach the scan-only columns.
 	"modules.emergencysnapshot.snapshot": {max: 9, exact: true},
+	// modules/dataimport/importtest — one ten-row student file after two
+	// warmups, the bounds TestDataImportRuntimeEvidence asserted until it
+	// became opt-in (#4426). The preview is exact; the import is a ceiling
+	// (six owner statements per guardian link, three lock statements per
+	// child since #3567).
+	"modules.dataimport.student_batch.preview": {max: 16, exact: true},
+	"modules.dataimport.student_batch.import":  {max: 324},
 	// modules/requestreview/compose — #3179: the open review page of one
 	// child with one request in each of the four native queues (the RLS
 	// proof fixture), inside one tenant transaction: the urgent and the

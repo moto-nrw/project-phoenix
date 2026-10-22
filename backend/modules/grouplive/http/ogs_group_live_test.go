@@ -481,6 +481,11 @@ func TestOGSGroupLive_QueryBudget(t *testing.T) {
 		req := testutil.NewRequest("GET", fmt.Sprintf("/ogs-group-live?group_id=%d", group.ID), nil)
 		rr := authExec(t, tc, req, testutil.TeacherTestClaims(int(account.ID)), ogsLivePerms)
 		require.Equal(t, http.StatusOK, rr.Code, "body: %s", rr.Body.String())
+		// Moved from the opt-in TestOGSGroupLiveRuntime (#4426).
+		for _, operation := range []string{"INSERT", "UPDATE", "DELETE", "MERGE"} {
+			require.Empty(t, counter.Operation(operation), "live projection must not issue DML")
+		}
+		require.Zero(t, counter.WriteRows(), "live projection must not write")
 		return counter.Total()
 	}
 

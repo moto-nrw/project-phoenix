@@ -999,6 +999,7 @@ func TestStudentDeletionWorkflow_RemovesCompanionEdgesAndNotifies(t *testing.T) 
 // outcomes and the deadlock counter over the real composition.
 func TestStudentDeletionRuntimeEvidence(t *testing.T) {
 	t.Parallel()
+	testpkg.RequireRuntimeEvidence(t)
 	db := testpkg.SetupIsolatedTestDB(t)
 	f := newDeletionFixture(t, db)
 	workflow := f.workflow(t)
