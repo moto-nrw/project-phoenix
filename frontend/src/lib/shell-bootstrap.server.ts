@@ -223,14 +223,18 @@ async function loadCounts(
       );
       return (response.data ?? []).length;
     }),
-    loadCount("messagesUnread", tenant.messagingEnabled, async (signal) => {
-      const response = await apiGet<Envelope<{ unread_count?: number }>>(
-        "/api/messages/unread-count",
-        token,
-        { signal },
-      );
-      return response.data?.unread_count ?? 0;
-    }),
+    loadCount(
+      "messagesUnread",
+      tenant.messagingEnabled && hasPermission(session, "users:read"),
+      async (signal) => {
+        const response = await apiGet<Envelope<{ unread_count?: number }>>(
+          "/api/messages/unread-count",
+          token,
+          { signal },
+        );
+        return response.data?.unread_count ?? 0;
+      },
+    ),
     loadCount(
       "teamChatUnread",
       tenant.staffMessagingEnabled,
