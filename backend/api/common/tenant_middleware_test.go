@@ -1,6 +1,7 @@
 package common
 
 import (
+	"bytes"
 	"context"
 	"errors"
 	"io"
@@ -458,4 +459,69 @@ func TestTenantTxMiddlewarePreservesInterimResponseBeforeFinalResponse(t *testin
 			tc.bodyAssertion(t, body)
 		})
 	}
+}
+
+func TestTenantTxMiddlewareIgnoresInterimResponseAfterFinalResponse(t *testing.T) {
+	t.Parallel()
+	runtime := testRuntime(t, func(ctx context.Context, _ int64, fn func(context.Context, any) error) error {
+		return fn(ctx, struct{}{})
+	})
+	id, err := tenant.NewTenantID(42)
+	require.NoError(t, err)
+	for _, tc := range []struct {
+		name       string
+		body       string
+		writeFinal func(http.ResponseWriter)
+	}{
+		{name: "explicit status", writeFinal: func(w http.ResponseWriter) { w.WriteHeader(http.StatusOK) }},
+		{name: "implicit status", body: "complete", writeFinal: func(w http.ResponseWriter) { _, _ = w.Write([]byte("complete")) }},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			recorder := newStatusRecordingResponseWriter()
+			handler := ProblemResponseMiddleware(TenantTxMiddleware(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+				tc.writeFinal(w)
+				w.WriteHeader(http.StatusEarlyHints)
+			})))
+			request := httptest.NewRequest(http.MethodGet, "/api/example", nil)
+			request = request.WithContext(tenant.WithUnitOfWork(tenant.WithTenant(request.Context(), id), runtime))
+			handler.ServeHTTP(recorder, request)
+
+			assert.Equal(t, []int{http.StatusOK}, recorder.statuses)
+			assert.Equal(t, tc.body, recorder.body.String())
+		})
+	}
+}
+
+func TestProblemResponseMiddlewareIgnoresInterimResponseAfterError(t *testing.T) {
+	t.Parallel()
+	recorder := newStatusRecordingResponseWriter()
+	handler := ProblemResponseMiddleware(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.WriteHeader(http.StatusInternalServerError)
+		w.WriteHeader(http.StatusEarlyHints)
+	}))
+	handler.ServeHTTP(recorder, httptest.NewRequest(http.MethodGet, "/api/example", nil))
+
+	assert.Equal(t, []int{http.StatusInternalServerError}, recorder.statuses)
+	assert.Contains(t, recorder.body.String(), `"code":"general.server"`)
+}
+
+type statusRecordingResponseWriter struct {
+	header   http.Header
+	statuses []int
+	body     bytes.Buffer
+}
+
+func newStatusRecordingResponseWriter() *statusRecordingResponseWriter {
+	return &statusRecordingResponseWriter{header: make(http.Header)}
+}
+
+func (w *statusRecordingResponseWriter) Header() http.Header { return w.header }
+
+func (w *statusRecordingResponseWriter) WriteHeader(status int) {
+	w.statuses = append(w.statuses, status)
+}
+
+func (w *statusRecordingResponseWriter) Write(body []byte) (int, error) {
+	return w.body.Write(body)
 }

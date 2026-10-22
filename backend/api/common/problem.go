@@ -206,11 +206,11 @@ type problemWriter struct {
 }
 
 func (w *problemWriter) WriteHeader(status int) {
-	if isInterimStatus(status) {
-		w.ResponseWriter.WriteHeader(status)
+	if w.status != 0 {
 		return
 	}
-	if w.status != 0 {
+	if isInterimStatus(status) {
+		w.ResponseWriter.WriteHeader(status)
 		return
 	}
 	w.status = status

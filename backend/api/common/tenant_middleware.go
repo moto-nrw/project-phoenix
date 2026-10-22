@@ -318,15 +318,16 @@ func newTenantStatusWriter(target http.ResponseWriter) *tenantStatusWriter {
 func (w *tenantStatusWriter) Header() http.Header { return w.header }
 
 func (w *tenantStatusWriter) WriteHeader(code int) {
+	if w.wroteHeader {
+		return
+	}
 	if isInterimStatus(code) {
 		w.copyHeadersToTarget()
 		w.target.WriteHeader(code)
 		return
 	}
-	if !w.wroteHeader {
-		w.status = code
-		w.wroteHeader = true
-	}
+	w.status = code
+	w.wroteHeader = true
 }
 
 func (w *tenantStatusWriter) Write(body []byte) (int, error) {
