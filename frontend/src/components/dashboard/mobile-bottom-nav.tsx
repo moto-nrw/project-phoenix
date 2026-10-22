@@ -223,8 +223,9 @@ const STAFF_MAIN_ITEMS: NavItem[] = [
   {
     // Tagesplan (#2383): der Einstieg in den laufenden Betreuungstag. Gating
     // (binary-Modus, timetable.enabled) unten in filteredMainItemsByMode.
-    href: "/tagesplan",
-    label: "Tagesplan",
+    // Name aus dem Katalog, damit Leiste und Seitenleiste gleich heißen (#4348).
+    href: STAFF_FLAT_PAGES.tagesplan.href,
+    label: STAFF_FLAT_PAGES.tagesplan.label,
     iconKey: "betreuungsplan",
     concept: "carePlan",
     alwaysShow: true,

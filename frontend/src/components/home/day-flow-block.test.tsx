@@ -21,7 +21,7 @@ vi.mock("~/lib/tenant-path", () => ({
 // Wohin „der Tag" führt, hängt an der Rolle und hat einen eigenen Test.
 vi.mock("~/lib/hooks/use-day-plan-href", () => ({
   useDayPlanHref: () => "/test-tenant/tagesplan",
-  useDayPlanLabel: () => "Zum Tagesplan",
+  useDayPlanLabel: () => "Heute öffnen",
 }));
 vi.mock("~/lib/timetable-operations-api", () => ({
   timetableOperationsApi: { plannedNow: vi.fn() },
@@ -94,10 +94,10 @@ describe("DayFlowBlock (#2180)", () => {
     render(<DayFlowBlock />);
 
     const own = screen.getByRole("link", {
-      name: "Basteln (Mein Block): im Tagesplan öffnen",
+      name: "Basteln (Mein Block): unter Heute öffnen",
     });
     const other = screen.getByRole("link", {
-      name: "Fußball-AG: im Tagesplan öffnen",
+      name: "Fußball-AG: unter Heute öffnen",
     });
     expect(own).toHaveStyle({ backgroundColor: "#5080D81A" });
     expect(own).not.toHaveClass("border-l-4");
@@ -117,7 +117,7 @@ describe("DayFlowBlock (#2180)", () => {
     render(<DayFlowBlock />);
 
     const own = screen.getByRole("link", {
-      name: "Basteln: im Tagesplan öffnen",
+      name: "Basteln: unter Heute öffnen",
     });
     expect(own.style.backgroundColor).toBe("");
   });
@@ -243,7 +243,7 @@ describe("DayFlowBlock (#2180)", () => {
     render(<DayFlowBlock />);
 
     expect(
-      screen.getByRole("link", { name: "Lernzeit: im Tagesplan öffnen" }),
+      screen.getByRole("link", { name: "Lernzeit: unter Heute öffnen" }),
     ).toHaveAttribute("href", "/test-tenant/tagesplan");
   });
 

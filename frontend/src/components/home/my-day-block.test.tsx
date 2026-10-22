@@ -40,7 +40,7 @@ vi.mock("~/lib/tenant-router", () => ({
 }));
 vi.mock("~/lib/hooks/use-day-plan-href", () => ({
   useDayPlanHref: () => "/test-tenant/tagesplan",
-  useDayPlanLabel: () => "Zum Tagesplan",
+  useDayPlanLabel: () => "Heute öffnen",
 }));
 vi.mock("~/lib/timetable-operations-api", () => ({
   timetableOperationsApi: api,

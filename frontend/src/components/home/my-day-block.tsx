@@ -178,8 +178,8 @@ export function MyDayBlock() {
             <HomeMoreRow
               hidden={hidden}
               href={dayPlanHref}
-              label="Einsätze im Tagesplan"
-              singular="Einsatz im Tagesplan"
+              label="Einsätze"
+              singular="Einsatz"
             />
           </>
         );
@@ -298,7 +298,7 @@ function BlockRow({
       >
         <Link
           href={href}
-          aria-label={`${block.title} ${hasOpenEnd(block) ? `seit ${block.startTime}` : `${block.startTime} bis ${block.endTime}`}: ${running ? "Kinderliste öffnen" : "im Tagesplan öffnen"}`}
+          aria-label={`${block.title} ${hasOpenEnd(block) ? `seit ${block.startTime}` : `${block.startTime} bis ${block.endTime}`}: ${running ? "Kinderliste öffnen" : "unter Heute öffnen"}`}
           className="flex min-w-0 flex-1 items-center gap-3"
         >
           <span className="w-14 shrink-0 sm:w-16">

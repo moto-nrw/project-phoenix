@@ -2285,8 +2285,8 @@ describe("Sidebar", () => {
       ]) {
         expect(screen.getByText(label)).toBeInTheDocument();
       }
-      // Die Rolle heißt nicht `admin`; der Tagesplan bleibt ihr erhalten.
-      expect(screen.getByText("Tagesplan")).toBeInTheDocument();
+      // Die Rolle heißt nicht `admin`; „Heute“ bleibt ihr erhalten.
+      expect(screen.getByText("Heute")).toBeInTheDocument();
     });
 
     it("hält Planung, Anmeldungen, Verwaltung und Einstellungen von einer Betreuungsrolle fern", () => {
@@ -2308,7 +2308,7 @@ describe("Sidebar", () => {
       ]) {
         expect(screen.queryByText(label)).not.toBeInTheDocument();
       }
-      expect(screen.getByText("Tagesplan")).toBeInTheDocument();
+      expect(screen.getByText("Heute")).toBeInTheDocument();
       expect(screen.getByText("Mein Kalender")).toBeInTheDocument();
     });
 
@@ -2852,8 +2852,8 @@ describe("Sidebar", () => {
       expect(screen.getByLabelText("Hilfe")).toBeInTheDocument();
     });
 
-    it("keeps Tagesplan reachable as an icon in the rail (#2383)", () => {
-      // Betreuungskraft mit schedules:read: ausgeklappt steht Tagesplan ganz
+    it("keeps Heute reachable as an icon in the rail (#2383, #4348)", () => {
+      // Betreuungskraft mit schedules:read: ausgeklappt steht Heute ganz
       // oben — der Streifen darf den Einstieg nicht verlieren.
       mockHasPermission.mockImplementation(
         (_session, permission) => permission === "schedules:read",
@@ -2862,7 +2862,7 @@ describe("Sidebar", () => {
 
       render(<Sidebar />);
 
-      expect(screen.getByLabelText("Tagesplan")).toBeInTheDocument();
+      expect(screen.getByLabelText("Heute")).toBeInTheDocument();
     });
   });
 

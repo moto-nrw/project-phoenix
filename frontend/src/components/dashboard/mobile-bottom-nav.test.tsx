@@ -283,6 +283,23 @@ describe("MobileBottomNav", () => {
       expect(screen.getByRole("button", { name: "Mehr" })).toBeInTheDocument();
     });
 
+    // Der Eintrag zeigt immer den laufenden Tag und heißt deshalb in
+    // Seitenleiste, Leiste und Kopfzeile gleich: „Heute“ (#4348).
+    it("names the day tab 'Heute' like the sidebar", () => {
+      mockHasPermission.mockImplementation(
+        (_session, permission) => permission === "schedules:read",
+      );
+      mockUsePathname.mockReturnValue("/tagesplan");
+
+      render(<MobileBottomNav />);
+
+      expect(screen.getByRole("link", { name: "Heute" })).toHaveAttribute(
+        "href",
+        "/tagesplan",
+      );
+      expect(screen.queryByText("Tagesplan")).not.toBeInTheDocument();
+    });
+
     it("renders navigation bar for admin users", () => {
       mockIsAdmin.mockReturnValue(true);
       mockUseSession.mockReturnValue(createMockSession(true));
