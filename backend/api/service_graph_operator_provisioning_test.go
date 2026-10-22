@@ -725,6 +725,42 @@ func TestOperatorProvisioningIntegration_InviteSchoolAdmin_CreatesInvitation(t *
 	assert.Equal(t, 1, countOperatorAudit(t, db, "create", "invitation", invitation.ID))
 }
 
+// The operator invites inside an administrative transaction. The invitation
+// mail must still answer to the school's configured reply-to address. Before
+// #4535 the lookup failed there and the mail was queued with the contact
+// address, which the outbox keeps at send time.
+func TestOperatorProvisioningIntegration_InviteSchoolAdmin_UsesConfiguredReplyTo(t *testing.T) {
+	t.Parallel()
+	db := testpkg.SetupTestDB(t)
+	service := buildOperatorProvisioning(t, db)
+	operatorID := testpkg.CreateTestOperator(t, db).ID
+	ctx := provisioningContext(t, db)
+
+	_, schoolID := provisionTestSchool(t, db, service, operatorID, "replyto")
+	replyTo := fmt.Sprintf("antworten-%d@schule.example", schoolID)
+	_, err := db.ExecContext(t.Context(), `
+		INSERT INTO config.setting_values (tenant_id, setting_key, value)
+		VALUES (?, 'email.reply_to_address', to_jsonb(?::text))`, schoolID, replyTo)
+	require.NoError(t, err)
+	_, err = db.ExecContext(t.Context(), `UPDATE platform.schools SET email = ? WHERE id = ?`,
+		fmt.Sprintf("sekretariat-%d@schule.example", schoolID), schoolID)
+	require.NoError(t, err)
+
+	input := schoolScopedInput(service.InviteSchoolAdmin)
+	input.Email = fmt.Sprintf("reply-to-admin-%d@example.test", schoolID)
+	invitation, err := service.InviteSchoolAdmin(ctx, schoolID, operatorID, provisioningTestClientIP, input)
+	require.NoError(t, err)
+
+	var queued string
+	require.NoError(t, db.NewSelect().TableExpr("platform.email_outbox").
+		ColumnExpr("payload->'Message'->'ReplyTo'->>'Address'").
+		Where("tenant_id = ?", schoolID).
+		Where("payload->>'Type' = 'invitation'").
+		Where("(payload->>'ReferenceID')::bigint = ?", invitation.ID).
+		Scan(testpkg.Ctx(t), &queued))
+	assert.Equal(t, replyTo, queued)
+}
+
 func TestOperatorProvisioningIntegration_CreateSchoolAccount_BuildsIdentityChain(t *testing.T) {
 	t.Parallel()
 	db := testpkg.SetupTestDB(t)

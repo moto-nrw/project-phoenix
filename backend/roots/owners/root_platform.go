@@ -95,8 +95,25 @@ type SettingsOwner struct {
 // to moto (#1936); one instance is shared by every tenant-bound sender.
 func TenantMailIdentity(schools organizationtenancy.Query, settings settingsCompose.SettingsService, env RootEnvironment) email.ReplyToResolver {
 	return deliveryCompose.NewTenantMailIdentity(SchoolContactDirectory{Schools: schools}, func(ctx context.Context, tenantID int64) (string, error) {
-		return settings.ResolveStringForTenant(ctx, tenantID, configModels.KeyEmailReplyToAddress)
+		return settings.ResolveStringForTenant(replyToSettingContext(ctx, tenantID), tenantID, configModels.KeyEmailReplyToAddress)
 	}, env.Logger)
+}
+
+// replyToSettingContext lets the reply-to read join an ambient transaction
+// only when it is the target school's own tenant transaction. The operator
+// invites a school admin inside an administrative transaction, and a tenant
+// transaction cannot read another school's settings; both refuse the read
+// (#4535). The read then runs in a transaction of its own for the target
+// school, which keeps it to that school's rows and leaves the caller's
+// transaction and its after-commit hooks untouched.
+func replyToSettingContext(ctx context.Context, tenantID int64) context.Context {
+	if _, ok := tenant.TransactionFromContext(ctx); !ok {
+		return ctx
+	}
+	if !tenant.IsAdminTx(ctx) && tenant.FromContext(ctx) == tenantID {
+		return ctx
+	}
+	return tenant.ContextWithoutAfterCommitHooks(tenant.ContextWithoutTenant(tenant.ContextWithoutTransaction(ctx)))
 }
 
 // rootUnitOfWork is the unit of work a root composes its services over.
