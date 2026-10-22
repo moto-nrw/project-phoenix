@@ -27,8 +27,9 @@ minimumReleaseAgeExclude:
   - vite-plugin-storybook-nextjs@10.6.0
 
   # Not a security release: already in the lockfile through the Storybook
-  # 10.6.2 bump. Without it pnpm cannot re-resolve the "^1.9.1" range of
-  # Sentry SDK 11.8.0 (#3687).
+  # 10.6.2 bump. Re-resolving for Sentry SDK 11.8.0 lifts next's auto-installed
+  # peer to it, and the install fails the release-age check (#3687). Dead from
+  # 2026-10-27, when 1.10.0 is seven days old.
   - "@opentelemetry/api@1.10.0"
 
 # next-auth has exactly ONE provenance-signed release in its 727-version history:
