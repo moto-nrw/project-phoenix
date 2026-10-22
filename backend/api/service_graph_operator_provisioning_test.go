@@ -12,6 +12,7 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
 	"github.com/moto-nrw/project-phoenix/modules/organizationtenancy"
+	configModels "github.com/moto-nrw/project-phoenix/modules/settings/records"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -738,11 +739,8 @@ func TestOperatorProvisioningIntegration_InviteSchoolAdmin_UsesConfiguredReplyTo
 
 	_, schoolID := provisionTestSchool(t, db, service, operatorID, "replyto")
 	replyTo := fmt.Sprintf("antworten-%d@schule.example", schoolID)
-	_, err := db.ExecContext(t.Context(), `
-		INSERT INTO config.setting_values (tenant_id, setting_key, value)
-		VALUES (?, 'email.reply_to_address', to_jsonb(?::text))`, schoolID, replyTo)
-	require.NoError(t, err)
-	_, err = db.ExecContext(t.Context(), `UPDATE platform.schools SET email = ? WHERE id = ?`,
+	testpkg.SetTestTenantSetting(t, db, schoolID, configModels.KeyEmailReplyToAddress, fmt.Sprintf("%q", replyTo))
+	_, err := db.ExecContext(t.Context(), `UPDATE platform.schools SET email = ? WHERE id = ?`,
 		fmt.Sprintf("sekretariat-%d@schule.example", schoolID), schoolID)
 	require.NoError(t, err)
 

@@ -29,7 +29,7 @@ func TestTenantMailIdentityReadsReplyToOutsideForeignTransaction(t *testing.T) {
 
 	target := testpkg.Tenant(t)
 	targetCtx := testpkg.Ctx(t)
-	setReplyToAddress(t, db, target, "antworten@ziel-schule.example")
+	testpkg.SetTestTenantSetting(t, db, target, configModels.KeyEmailReplyToAddress, `"antworten@ziel-schule.example"`)
 
 	resolve := func(t *testing.T, ctx context.Context) string {
 		t.Helper()
@@ -41,21 +41,32 @@ func TestTenantMailIdentityReadsReplyToOutsideForeignTransaction(t *testing.T) {
 	t.Run("operator administrative transaction", func(t *testing.T) {
 		var got string
 		require.NoError(t, tenant.WithinAdmin(targetCtx, func(adminCtx context.Context) error {
+			tx, ok := tenant.TransactionFromContext(adminCtx)
+			require.True(t, ok)
+			adminTx, ok := tx.(bun.Tx)
+			require.True(t, ok)
+			_, err := adminTx.ExecContext(adminCtx, `
+				UPDATE config.setting_values
+				SET value = to_jsonb(?::text), updated_at = NOW()
+				WHERE tenant_id = ? AND setting_key = ?`,
+				"antworten-in-admin-transaktion@ziel-schule.example", target, configModels.KeyEmailReplyToAddress)
+			require.NoError(t, err)
 			got = resolve(t, tenant.WithTenantID(adminCtx, target))
 			return nil
 		}))
-		require.Equal(t, "antworten@ziel-schule.example", got)
+		require.Equal(t, "antworten-in-admin-transaktion@ziel-schule.example", got,
+			"the administrative lookup must use its existing transaction")
 	})
 
 	t.Run("transaction of another school", func(t *testing.T) {
 		other := testpkg.OwnTenant(t)
-		setReplyToAddress(t, db, other, "antworten@andere-schule.example")
+		testpkg.SetTestTenantSetting(t, db, other, configModels.KeyEmailReplyToAddress, `"antworten@andere-schule.example"`)
 		var got string
 		require.NoError(t, tenant.WithinTenant(testpkg.Ctx(t), tenantID(t, other), func(otherCtx context.Context) error {
 			got = resolve(t, otherCtx)
 			return nil
 		}))
-		require.Equal(t, "antworten@ziel-schule.example", got, "only the target school's setting may be read")
+		require.Equal(t, "antworten-in-admin-transaktion@ziel-schule.example", got, "only the target school's setting may be read")
 	})
 
 	t.Run("transaction of the same school", func(t *testing.T) {
@@ -64,7 +75,7 @@ func TestTenantMailIdentityReadsReplyToOutsideForeignTransaction(t *testing.T) {
 			got = resolve(t, txCtx)
 			return nil
 		}))
-		require.Equal(t, "antworten@ziel-schule.example", got)
+		require.Equal(t, "antworten-in-admin-transaktion@ziel-schule.example", got)
 	})
 }
 
@@ -73,14 +84,4 @@ func tenantID(t *testing.T, id int64) tenant.TenantID {
 	value, err := tenant.NewTenantID(id)
 	require.NoError(t, err)
 	return value
-}
-
-func setReplyToAddress(t *testing.T, db *bun.DB, tenantID int64, address string) {
-	t.Helper()
-	_, err := db.ExecContext(t.Context(), `
-		INSERT INTO config.setting_values (tenant_id, setting_key, value)
-		VALUES (?, ?, to_jsonb(?::text))
-		ON CONFLICT (tenant_id, setting_key) DO UPDATE SET value = EXCLUDED.value, updated_at = NOW()`,
-		tenantID, configModels.KeyEmailReplyToAddress, address)
-	require.NoError(t, err)
 }
