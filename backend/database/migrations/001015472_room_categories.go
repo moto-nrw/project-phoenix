@@ -95,7 +95,9 @@ func roomCategoriesUp(ctx context.Context, db *bun.DB) error {
 			  AND room.category IS NOT NULL
 			  AND BTRIM(room.category) <> ''
 			  AND char_length(BTRIM(room.category)) <= 60
-			ORDER BY room.tenant_id, LOWER(BTRIM(room.category)), BTRIM(room.category)
+			-- COLLATE "C": the spelling kept for a category must not depend on
+			-- the database collation; capitalised spellings sort first.
+			ORDER BY room.tenant_id, LOWER(BTRIM(room.category)), BTRIM(room.category) COLLATE "C"
 		) AS used
 		WHERE NOT EXISTS (
 			SELECT 1 FROM facilities.room_categories AS existing

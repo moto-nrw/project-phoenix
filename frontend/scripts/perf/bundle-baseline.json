@@ -43,6 +43,7 @@
     "/[tenant]/database/personal/opening-balances": 1091606,
     "/[tenant]/database/planning-tracks": 1067771,
     "/[tenant]/database/roles": 1078845,
+    "/[tenant]/database/room-categories": 1074162,
     "/[tenant]/database/rooms": 1059905,
     "/[tenant]/database/shift-types": 1069528,
     "/[tenant]/database/students": 1193632,
