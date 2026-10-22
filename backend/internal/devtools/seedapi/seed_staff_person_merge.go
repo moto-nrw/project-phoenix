@@ -27,8 +27,13 @@ func (seedStaffPersonMergeStep) Run(_ context.Context, rt *Runtime) error {
 	if alreadySeeded {
 		return nil
 	}
+	// The quick create invites the person (#4573). The address is the
+	// duplicate's own, and the invitation is withdrawn before the employment
+	// ends: a retired duplicate must not keep a way into the school.
+	email := staffPersonMergeDuplicateEmail(staff, rt.FixedSeeder.accountScope)
 	raw, err := rt.Client.Post("/api/staff/externals", map[string]any{
-		"first_name": staff.FirstName, "last_name": staff.LastName, "organization": "Demo: frühere Beschäftigung für die Dublettenprüfung",
+		"first_name": staff.FirstName, "last_name": staff.LastName, "email": email,
+		"organization": "Demo: frühere Beschäftigung für die Dublettenprüfung",
 	})
 	if err != nil {
 		return fmt.Errorf("create staff duplicate example: %w", err)
@@ -37,6 +42,9 @@ func (seedStaffPersonMergeStep) Run(_ context.Context, rt *Runtime) error {
 	if err != nil {
 		return fmt.Errorf("decode duplicate employment: %w", err)
 	}
+	if err := revokeSeedInvitation(rt, email); err != nil {
+		return fmt.Errorf("withdraw duplicate invitation: %w", err)
+	}
 	if _, err := rt.Client.Put(fmt.Sprintf("/api/staff/%d/stammdaten/kontakt", id), map[string]any{"address_city": "Osnabrück", "note": "Demo: Historie bleibt bei der Personen-Zusammenführung erhalten"}); err != nil {
 		return fmt.Errorf("record duplicate history: %w", err)
 	}
@@ -44,6 +52,16 @@ func (seedStaffPersonMergeStep) Run(_ context.Context, rt *Runtime) error {
 		return fmt.Errorf("retire duplicate employment: %w", err)
 	}
 	return nil
+}
+
+// staffPersonMergeDuplicateEmail is the duplicate's own address: the demo
+// colleague's account keeps theirs.
+func staffPersonMergeDuplicateEmail(staff DemoStaffMember, scope string) string {
+	local := emailLocalPart(staff.FirstName, staff.LastName) + ".frueher"
+	if scope != "" {
+		return scopedEmail(local+"@", scope)
+	}
+	return local + "@example.test"
 }
 
 func staffPersonMergeSeedTarget(seeder *FixedSeeder) (DemoStaffMember, int64, error) {

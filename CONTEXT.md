@@ -199,12 +199,26 @@ Eine **zusätzliche Aufsicht** ordnet einer bereits laufenden Betreuung eine
 weitere Betreuungskraft zu. Sie ersetzt keine abwesende Person und verändert
 weder Gruppenübergaben noch geplante Termine.
 
-Eine **externe Betreuungskraft** ist eine Person ohne moto-Konto, etwa eine
-AG-Leitung der Musikschule (#3823). Sie wird als Personal mit Gastprofil
-(`users.guests`) geführt, kann einer spontanen Aktivität und einer zusätzlichen
-Aufsicht zugeordnet werden, übernimmt aber nie eine Gruppe. Zeiterfassung und
-Dienstplan führen sie nicht. Personal, das nur ohne E-Mail-Adresse importiert
-wurde, ist keine externe Betreuungskraft.
+Eine **externe Betreuungskraft** ist Personal mit aktivem Gastprofil
+(`users.guests`), etwa eine AG-Leitung der Musikschule (#3823, #4573). Das
+Gastprofil macht sie extern, nicht das Fehlen eines Kontos. Sie wird mit
+E-Mail-Adresse angelegt und eingeladen; nach der Annahme meldet sie sich mit
+eigenem Konto in der Schulrolle **Extern** an. Ihr Kontostand ist `account`,
+`invitation_pending` oder `none`. Neu zuordnen lässt sie sich nur mit Konto
+oder offener Einladung; dann in Regelterminen, einzelnen und spontanen
+Terminen und als zusätzliche Aufsicht, auch allein und als zuständige Person.
+Bestehende Zuordnungen bleiben. Sie übernimmt nie eine Gruppe, nie eine
+Vertretung und steht nicht im Personalpool. Zeiterfassung und Dienstplan
+führen sie nicht, und ein Aufsichtsstart stempelt keine Arbeitszeit. Personal,
+das nur ohne E-Mail-Adresse importiert wurde, ist keine externe
+Betreuungskraft; wer über die allgemeine Einladung die Rolle Extern bekommt,
+ohne Gastprofil, auch nicht.
+
+Die Schulrolle **Extern** legt moto in jeder Schule an (Basisrolle `user`,
+keine Systemrolle). Sie startet nur mit `schedules:read`: die Person sieht und
+betreut unter „Heute“ ihre eigenen Termine. Die Leitung darf die Rechte
+ändern. Die Schnellanlage findet die Rolle über ihren Namen; ist sie umbenannt
+oder gelöscht, antwortet sie mit `staff.external_role_missing`.
 
 Die **Vertretungsübersicht** ist die gemeinsame Arbeitsfläche für
 Gruppenübergaben, Vertretungen und zusätzliche Aufsichten. Die drei Vorgänge

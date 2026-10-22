@@ -1,6 +1,7 @@
 package api
 
 import (
+	"encoding/json"
 	"fmt"
 	"net/http"
 	"testing"
@@ -25,6 +26,7 @@ func TestSeedStaffPersonMergeStepDoesNotDuplicateExistingExample(t *testing.T) {
 			staff := DemoStaff[0]
 			hasExample := false
 			created := 0
+			openInvitation := false
 			srv := newSeedHTTPTestServer(func(w seedHTTPResponseWriter, r *seedHTTPRequest) {
 				w.Header().Set("Content-Type", "application/json")
 				switch {
@@ -35,11 +37,21 @@ func TestSeedStaffPersonMergeStepDoesNotDuplicateExistingExample(t *testing.T) {
 					}
 					_, _ = fmt.Fprint(w, `{"data":[]}`)
 				case r.Method == http.MethodPost && r.URL.Path == "/api/staff/externals":
+					var body map[string]string
+					require.NoError(t, json.NewDecoder(r.Body).Decode(&body))
+					assert.Equal(t, staffPersonMergeDuplicateEmail(staff, ""), body["email"])
 					created++
+					openInvitation = true
 					_, _ = fmt.Fprint(w, `{"data":{"id":"2"}}`)
+				case r.Method == http.MethodGet && r.URL.Path == "/auth/invitations":
+					_, _ = fmt.Fprintf(w, `{"data":[{"id":7,"email":%q}]}`, staffPersonMergeDuplicateEmail(staff, ""))
+				case r.Method == http.MethodDelete && r.URL.Path == "/auth/invitations/7":
+					openInvitation = false
+					_, _ = fmt.Fprint(w, `{"data":null}`)
 				case r.Method == http.MethodPut && r.URL.Path == "/api/staff/2/stammdaten/kontakt":
 					_, _ = fmt.Fprint(w, `{"data":{}}`)
 				case r.Method == http.MethodDelete && r.URL.Path == "/api/staff/2":
+					assert.False(t, openInvitation, "the invitation is withdrawn before the employment ends")
 					hasExample = true
 					_, _ = fmt.Fprint(w, `{"data":{}}`)
 				default:
@@ -62,6 +74,7 @@ func TestSeedStaffPersonMergeStepDoesNotDuplicateExistingExample(t *testing.T) {
 			require.NoError(t, step.Run(t.Context(), rt))
 
 			assert.Equal(t, 1, created)
+			assert.False(t, openInvitation)
 		})
 	}
 }
