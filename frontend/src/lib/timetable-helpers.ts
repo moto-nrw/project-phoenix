@@ -1399,6 +1399,7 @@ interface LanedInstance {
   instance: EnrichedInstance;
   lane: number; // 0-indexed lane within the overlap cluster
   laneCount: number; // total lanes in this cluster (column-width divisor)
+  laneSpan: number; // lanes the block covers, from `lane` to the right
 }
 
 export function comparePlanningInstances(
@@ -1427,9 +1428,12 @@ export function comparePlanningInstances(
  *    the cluster and start a new one. On flush, every member gets the
  *    cluster's final lane count so they all render at the same width.
  *
- * Result: visually parallel events show side-by-side in equal slices,
- * matching Apple Calendar's behaviour. Non-overlapping events stay
- * full-width.
+ * 5. Each member then grows to the right across every lane that stays free
+ *    for its whole time (`laneSpan`), so a block only gives up width while
+ *    something actually runs next to it.
+ *
+ * Result: visually parallel events show side-by-side, matching Apple and
+ * Google Calendar. Non-overlapping events stay full-width.
  */
 export function assignBlockLanes(
   instances: EnrichedInstance[],
@@ -1445,7 +1449,22 @@ export function assignBlockLanes(
   const flushCluster = (): void => {
     if (cluster.length === 0) return;
     const lanesUsed = cluster.reduce((m, c) => Math.max(m, c.lane), 0) + 1;
-    for (const c of cluster) c.laneCount = lanesUsed;
+    const overlaps = (a: LanedInstance, b: LanedInstance): boolean =>
+      parseTimeToMinutes(a.instance.startTime) <
+        parseTimeToMinutes(b.instance.endTime) &&
+      parseTimeToMinutes(b.instance.startTime) <
+        parseTimeToMinutes(a.instance.endTime);
+    for (const c of cluster) {
+      c.laneCount = lanesUsed;
+      while (
+        c.lane + c.laneSpan < lanesUsed &&
+        !cluster.some(
+          (other) => other.lane === c.lane + c.laneSpan && overlaps(c, other),
+        )
+      ) {
+        c.laneSpan++;
+      }
+    }
     cluster = [];
     clusterMaxEnd = -Infinity;
   };
@@ -1466,7 +1485,12 @@ export function assignBlockLanes(
     let lane = 0;
     while (activeLanes.has(lane)) lane++;
 
-    const laned: LanedInstance = { instance: inst, lane, laneCount: 1 };
+    const laned: LanedInstance = {
+      instance: inst,
+      lane,
+      laneCount: 1,
+      laneSpan: 1,
+    };
     cluster.push(laned);
     result.push(laned);
     clusterMaxEnd = Math.max(clusterMaxEnd, endMin);
@@ -1474,6 +1498,34 @@ export function assignBlockLanes(
 
   flushCluster();
   return result;
+}
+
+/** Narrowest day column: weekday, date and a closing-day chip still fit. */
+const DAY_MIN_WIDTH_PX = 120;
+
+/**
+ * CSS grid-template-columns for a time gutter plus one column per day.
+ *
+ * `laneCounts` holds the most parallel lanes per day (`laneCount` from
+ * `assignBlockLanes`; 0 for an empty day). A day never drops below one
+ * readable lane per parallel block and gets free space in proportion to its
+ * lanes, so a day with five parallel AGs is wider than an empty one instead
+ * of squeezing all five into a fifth of an equal column. `minWidthPx` is the
+ * width the whole grid needs; below it the caller scrolls horizontally.
+ */
+export function buildDayColumnTemplate(
+  laneCounts: readonly number[],
+  gutterPx: number,
+  laneMinWidthPx: number = DENSITY_TO_LANE_MIN_WIDTH_PX.normal,
+): { template: string; minWidthPx: number } {
+  let minWidthPx = gutterPx;
+  const columns = laneCounts.map((count) => {
+    const lanes = Math.max(count, 1);
+    const minPx = Math.max(DAY_MIN_WIDTH_PX, lanes * laneMinWidthPx);
+    minWidthPx += minPx;
+    return `minmax(${minPx}px,${lanes}fr)`;
+  });
+  return { template: [`${gutterPx}px`, ...columns].join(" "), minWidthPx };
 }
 
 /**
@@ -1517,6 +1569,19 @@ export const DENSITY_TO_HOUR_HEIGHT_PX: Record<WeekDensity, number> = {
   compact: 60,
   normal: 90,
   comfortable: 120,
+};
+
+/**
+ * Mindestbreite einer Spur paralleler Blöcke je Zoomstufe. „Normal“ ist die
+ * schmalste Breite, in der ein Block Zeit, Titel und Namen noch lesbar zeigt;
+ * reicht die Fläche nicht, scrollt das Raster waagrecht. „Kompakt“ verzichtet
+ * darauf und passt die ganze Woche in die Breite ein — für den Überblick,
+ * die Blöcke kürzen dann ihren Text.
+ */
+export const DENSITY_TO_LANE_MIN_WIDTH_PX: Record<WeekDensity, number> = {
+  compact: 0,
+  normal: 112,
+  comfortable: 160,
 };
 
 /**
