@@ -417,6 +417,8 @@ export function EnrollmentFormEditor({
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const builderRef = useRef<HTMLDivElement>(null);
+  const fieldListRef = useRef<HTMLDivElement>(null);
+  const revealAddedFieldRef = useRef(false);
   const {
     error: loadError,
     show: showLoadError,
@@ -762,19 +764,45 @@ export function EnrollmentFormEditor({
   };
 
   const addField = () => {
+    revealAddedFieldRef.current = true;
     setFields((prev) => [...prev, blankField(prev.length)]);
   };
 
   const addInfoField = () => {
+    revealAddedFieldRef.current = true;
     setFields((prev) => [...prev, blankInfoField(prev.length)]);
   };
 
   const addTargetField = (target: Exclude<FormFieldTarget, "">) => {
+    if (!fields.some((field) => field.target === target)) {
+      revealAddedFieldRef.current = true;
+    }
     setFields((prev) => {
       if (prev.some((field) => field.target === target)) return prev;
       return [...prev, createTargetField(target, prev.length)];
     });
   };
+
+  // A new row lands at the end of the list, often below the fold. Bring it
+  // into view and put the cursor into its first text field, so the admin
+  // sees what the button did (#4328).
+  useEffect(() => {
+    if (!revealAddedFieldRef.current) return;
+    revealAddedFieldRef.current = false;
+    const row = fieldListRef.current?.lastElementChild;
+    if (!(row instanceof HTMLElement)) return;
+    row
+      .querySelector<HTMLInputElement>('input[type="text"]:not(:disabled)')
+      ?.focus({ preventScroll: true });
+    const reduceMotion =
+      globalThis.matchMedia?.("(prefers-reduced-motion: reduce)").matches ??
+      false;
+    // happy-dom ships no scrollIntoView on elements.
+    row.scrollIntoView?.({
+      behavior: reduceMotion ? "auto" : "smooth",
+      block: "center",
+    });
+  }, [fields]);
 
   const removeField = (index: number) => {
     setFields((prev) =>
@@ -1264,7 +1292,7 @@ export function EnrollmentFormEditor({
                   />
 
                   {fields.length > 0 ? (
-                    <div className="space-y-3">
+                    <div ref={fieldListRef} className="space-y-3">
                       {fields.map((field, index) => (
                         <FieldEditorRow
                           key={getStableObjectKey(field, "custom-field")}
