@@ -79,14 +79,6 @@ func (sg *StudentGuardian) Validate() error {
 	return err
 }
 
-// SetStudent links this relationship to a student
-func (sg *StudentGuardian) SetStudent(student *Student) {
-	sg.Student = student
-	if student != nil {
-		sg.StudentID = student.ID
-	}
-}
-
 // GetPermissions returns permissions map
 func (sg *StudentGuardian) GetPermissions() map[string]interface{} {
 	if sg.Permissions == nil {
@@ -95,28 +87,6 @@ func (sg *StudentGuardian) GetPermissions() map[string]interface{} {
 	return sg.Permissions
 }
 
-// UpdatePermissions updates the permissions map
-func (sg *StudentGuardian) UpdatePermissions(permissions map[string]interface{}) error {
-	sg.Permissions = permissions
-	return nil
-}
-
 // Note: the permission check (formerly StudentGuardian.HasPermission) moved out
 // of the model in issue #586 (Rule 12) to:
 //   - auth/authorize/guardian_permission.go (StudentGuardianHasPermission)
-
-// GetRelationshipName returns a formatted name for the relationship type
-func (sg *StudentGuardian) GetRelationshipName() string {
-	switch sg.RelationshipType {
-	case "parent":
-		return "Parent"
-	case "guardian":
-		return "Guardian"
-	case "relative":
-		return "Relative"
-	case "other":
-		return "Other"
-	default:
-		return "Unknown"
-	}
-}

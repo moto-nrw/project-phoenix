@@ -164,19 +164,6 @@ type DeparturePlanSnapshot struct {
 	PickupDays            PickupDays
 }
 
-// SnapshotDeparturePlan records the student's current in-memory departure plan
-// as the hydrated baseline. Every value is normalized, which also deep-copies
-// the maps, so a caller mutating a plan map in place cannot silently move the
-// baseline with it.
-func (s *Student) SnapshotDeparturePlan() {
-	s.DepartureBaseline = &DeparturePlanSnapshot{
-		DepartureDays:         s.DepartureDays.Normalize(),
-		AllowedDepartureModes: s.AllowedDepartureModes.Normalize(),
-		BusDays:               s.BusDays.Normalize(),
-		PickupDays:            s.PickupDays.Normalize(),
-	}
-}
-
 // Validate ensures student data is valid
 func (s *Student) Validate() error {
 	if s.PersonID <= 0 {
@@ -218,22 +205,6 @@ func (s *Student) Validate() error {
 	return nil
 }
 
-// MarkDepartureCompanionDays records weekdays whose "mit wem" is answered by a
-// structured companion link. Purely additive: a caller that knows about an edge
-// written later in the same transaction marks it here, and a subsequent probe of
-// the STORED edges must never take that cover away again.
-func (s *Student) MarkDepartureCompanionDays(days ...string) {
-	if len(days) == 0 {
-		return
-	}
-	if s.DepartureCompanionDays == nil {
-		s.DepartureCompanionDays = make(map[string]bool, len(days))
-	}
-	for _, day := range days {
-		s.DepartureCompanionDays[day] = true
-	}
-}
-
 // trimPtrStringOrNil trims whitespace and sets to nil if empty
 func trimPtrStringOrNil(sp **string) {
 	if *sp == nil || **sp == "" {
@@ -244,14 +215,6 @@ func trimPtrStringOrNil(sp **string) {
 		*sp = nil
 	} else {
 		**sp = trimmed
-	}
-}
-
-// SetPerson links this student to a person
-func (s *Student) SetPerson(person *Person) {
-	s.Person = person
-	if person != nil {
-		s.PersonID = person.ID
 	}
 }
 

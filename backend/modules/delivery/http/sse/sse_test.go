@@ -113,26 +113,3 @@ func TestSSERouter_WrongMethod(t *testing.T) {
 	assert.Contains(t, []int{http.StatusUnauthorized, http.StatusMethodNotAllowed}, rr.Code,
 		"Expected 401 or 405 for POST to SSE endpoint")
 }
-
-// =============================================================================
-// RESOURCE TESTS
-// =============================================================================
-
-func TestSSEResource_Creation(t *testing.T) {
-	t.Parallel()
-
-	ctx := setupSSERoute(t)
-
-	// Verify resource was created successfully
-	assert.NotNil(t, ctx.resource, "Resource should be created")
-	assert.NotNil(t, ctx.hub, "Hub should be created")
-}
-
-func TestSSEResource_RouterReturnsValidRouter(t *testing.T) {
-	t.Parallel()
-
-	ctx := setupSSERoute(t)
-
-	router := api.NewSSEHTTPRouter(ctx.resource)
-	assert.NotNil(t, router, "Router should not be nil")
-}

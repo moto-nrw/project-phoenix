@@ -107,120 +107,27 @@ func TestStudentGuardian_Validate(t *testing.T) {
 	}
 }
 
-func TestStudentGuardian_SetStudent(t *testing.T) {
+// GetPermissions feeds GuardianAuthorizationData; a row read without stored
+// permissions must yield an empty map the caller can write to, not nil.
+func TestStudentGuardian_GetPermissions(t *testing.T) {
 	t.Parallel()
 
-	student := &Student{
-		Model: Model{
-			ID: 123,
-		},
-		PersonID:    1,
-		SchoolClass: "Class A",
+	sg := &StudentGuardian{}
+	permissions := sg.GetPermissions()
+	if permissions == nil {
+		t.Fatal("GetPermissions() = nil, want an initialised map")
+	}
+	permissions["parent_portal.access"] = true
+	if got, ok := sg.Permissions["parent_portal.access"].(bool); !ok || !got {
+		t.Errorf("GetPermissions() did not return the stored map: %v", sg.Permissions)
 	}
 
-	sg := &StudentGuardian{
-		StudentID:         0,
-		GuardianProfileID: 2,
-		RelationshipType:  "parent",
-	}
-
-	sg.SetStudent(student)
-
-	if sg.StudentID != 123 {
-		t.Errorf("StudentGuardian.SetStudent() failed to set student ID, got %v", sg.StudentID)
-	}
-
-	if sg.Student != student {
-		t.Errorf("StudentGuardian.SetStudent() failed to set student reference")
+	sg = &StudentGuardian{Permissions: map[string]interface{}{"parent_portal.sick_note.submit": true}}
+	if got := sg.GetPermissions(); len(got) != 1 || got["parent_portal.sick_note.submit"] != true {
+		t.Errorf("GetPermissions() = %v, want the stored permissions", got)
 	}
 }
 
 // Note: the permission check (formerly StudentGuardian.HasPermission) moved out
 // of the model in issue #586 (Rule 12). Its test follows the logic to:
 //   - auth/authorize/guardian_permission_test.go (TestStudentGuardianHasPermission)
-
-func TestStudentGuardian_GetRelationshipName(t *testing.T) {
-	t.Parallel()
-
-	tests := []struct {
-		relationshipType string
-		expectedName     string
-	}{
-		{"parent", "Parent"},
-		{"guardian", "Guardian"},
-		{"relative", "Relative"},
-		{"other", "Other"},
-		{"unknown", "Unknown"},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.relationshipType, func(t *testing.T) {
-			sg := &StudentGuardian{
-				RelationshipType: tt.relationshipType,
-			}
-
-			if sg.GetRelationshipName() != tt.expectedName {
-				t.Errorf("StudentGuardian.GetRelationshipName() = %v, want %v", sg.GetRelationshipName(), tt.expectedName)
-			}
-		})
-	}
-}
-
-func TestStudentGuardian_UpdatePermissions(t *testing.T) {
-	t.Parallel()
-
-	sg := &StudentGuardian{
-		StudentID:         1,
-		GuardianProfileID: 2,
-		RelationshipType:  "parent",
-		Permissions:       map[string]interface{}{},
-	}
-
-	// Update permissions
-	newPermissions := map[string]interface{}{
-		"can_view_grades":     true,
-		"can_attend_meetings": true,
-		"can_authorize_trips": false,
-		"contact_preferences": map[string]interface{}{
-			"email": true,
-			"phone": false,
-		},
-	}
-
-	err := sg.UpdatePermissions(newPermissions)
-	if err != nil {
-		t.Errorf("StudentGuardian.UpdatePermissions() error = %v", err)
-	}
-
-	// Check if permissions were updated (read the stored map directly; the
-	// permission predicate moved to auth/authorize in issue #586)
-	permissions := sg.GetPermissions()
-
-	if v, ok := permissions["can_view_grades"].(bool); !ok || !v {
-		t.Errorf("StudentGuardian.UpdatePermissions() failed, expected true for can_view_grades")
-	}
-
-	if v, ok := permissions["can_attend_meetings"].(bool); !ok || !v {
-		t.Errorf("StudentGuardian.UpdatePermissions() failed, expected true for can_attend_meetings")
-	}
-
-	if v, ok := permissions["can_authorize_trips"].(bool); !ok || v {
-		t.Errorf("StudentGuardian.UpdatePermissions() failed, expected false for can_authorize_trips")
-	}
-
-	// Check if nested permissions are correctly handled
-	contactPrefs, ok := permissions["contact_preferences"].(map[string]interface{})
-	if !ok {
-		t.Errorf("StudentGuardian.UpdatePermissions() failed to handle nested permissions")
-	} else {
-		email, ok := contactPrefs["email"].(bool)
-		if !ok || !email {
-			t.Errorf("StudentGuardian.UpdatePermissions() failed to correctly store nested email preference")
-		}
-
-		phone, ok := contactPrefs["phone"].(bool)
-		if !ok || phone {
-			t.Errorf("StudentGuardian.UpdatePermissions() failed to correctly store nested phone preference")
-		}
-	}
-}

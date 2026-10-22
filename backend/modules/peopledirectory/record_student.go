@@ -70,10 +70,3 @@ func recordTrimPtrStringOrNil(sp **string) {
 		**sp = trimmed
 	}
 }
-
-func (s *StudentState) SetPerson(person *DirectoryPersonSnapshot) {
-	s.Person = person
-	if person != nil {
-		s.PersonID = person.ID
-	}
-}
