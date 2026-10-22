@@ -33,7 +33,7 @@ type Query interface {
 // Dependencies are the consumer-owned ports the projection reads through.
 // Queues and Access are required. Students, FamilyProtection and Submitters
 // are optional: without them the open page omits group names and reports no
-// Familienschutz, and no row names who filed it. Today defaults to the Berlin calendar day of the wall
+// Familienschutz, and no row of either view names who filed it. Today defaults to the Berlin calendar day of the wall
 // clock; it is resolved once per call so the queues' urgency phase and the
 // rows' urgency and past flags never straddle midnight.
 type Dependencies struct {

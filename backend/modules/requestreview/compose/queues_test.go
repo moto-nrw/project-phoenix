@@ -385,7 +385,7 @@ type ReviewComposition struct {
 		reviewbindings.MasterDataPeople
 		reviewbindings.ScheduleReviewPeople
 		reviewbindings.OfferingReviewPeople
-		reviewbindings.Guardians
+		reviewbindings.SubmitterPeople
 	}
 	FamilyProtection requestreview.FamilyProtection
 	Settings         interface {
@@ -446,6 +446,12 @@ func TestRequestReviewEnforcesRLS(t *testing.T) {
 				testpkg.OwnTenant(t)
 				school := testpkg.CreateTestRequestReviewSchool(t, db, side)
 				school.Context = context.WithValue(school.Context, queueWriteKey{}, true)
+				// The filing account is known to its own school by name, so
+				// every queue's row must carry it (#4359), and only there.
+				_, err := db.NewRaw(`INSERT INTO users.guardian_profiles
+ (tenant_id, first_name, last_name, email, account_id, has_account, preferred_contact_method, language_preference)
+ VALUES (?, 'Filer', ?, ?, ?, true, 'email', 'de')`, school.TenantID, side, fmt.Sprintf("review-rls-filer-%s-%d@example.test", side, testpkg.UniqueSuffix()), school.AccountID).Exec(testpkg.Ctx(t))
+				require.NoError(t, err)
 				schools = append(schools, school)
 			})
 		}
@@ -479,6 +485,8 @@ func TestRequestReviewEnforcesRLS(t *testing.T) {
 					types = append(types, item.RequestType)
 					assert.Equal(t, fmt.Sprint(side.StudentID), item.StudentID)
 					assert.Equal(t, side.GroupName, item.GroupName)
+					assert.Equal(t, "Filer "+map[int64]string{schools[0].TenantID: "own", schools[1].TenantID: "foreign"}[side.TenantID], item.SubmittedByName,
+						"%s names its own school's filer", item.RequestType)
 				}
 				assert.ElementsMatch(t, []string{requestreview.TypeMasterData, requestreview.TypeCareSchedule, requestreview.TypeOffering, requestreview.TypeExcused}, types)
 				assert.Empty(t, page.ReviewAccess, "no review policy is wired in this fixture")

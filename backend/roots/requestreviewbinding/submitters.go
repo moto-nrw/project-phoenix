@@ -7,17 +7,17 @@ import (
 	"github.com/moto-nrw/project-phoenix/modules/requestreview"
 )
 
-// Guardians is the People Directory read that names who filed a request:
+// SubmitterPeople is the People Directory read that names who filed a request:
 // the profiles of the filing accounts and their links to children, both in
 // the tenant in context.
-type Guardians interface {
+type SubmitterPeople interface {
 	ListGuardiansByAccount(context.Context, []int64) ([]peopledirectory.Guardian, error)
 	ListGuardianLinksByAccounts(context.Context, []int64) ([]peopledirectory.GuardianLink, error)
 }
 
 // NewSubmitterDirectory binds the filer decoration (#4359) to the People
 // Directory. A missing optional people source leaves the decoration disabled.
-func NewSubmitterDirectory(guardians Guardians) requestreview.SubmitterDirectory {
+func NewSubmitterDirectory(guardians SubmitterPeople) requestreview.SubmitterDirectory {
 	if guardians == nil {
 		return nil
 	}
@@ -25,7 +25,7 @@ func NewSubmitterDirectory(guardians Guardians) requestreview.SubmitterDirectory
 }
 
 type submitterDirectory struct {
-	guardians Guardians
+	guardians SubmitterPeople
 }
 
 // Submitters costs two reads per page, however many filings it carries. The

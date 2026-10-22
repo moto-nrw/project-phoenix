@@ -116,6 +116,7 @@ describe("RequestDecisionRow", () => {
   it("nennt niemanden, wenn die Schule die Person nicht kennt", () => {
     renderRow(item());
 
+    // Anker: der Kopf der geladenen Anfrage steht, nur der Name fehlt.
     expect(screen.getByText("Anfrage 1 von 1")).toBeInTheDocument();
     expect(screen.queryByText(/Eingereicht von/)).toBeNull();
   });
