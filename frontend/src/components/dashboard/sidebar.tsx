@@ -49,6 +49,7 @@ import { useSidebarCollapsed } from "~/lib/hooks/use-sidebar-collapsed";
 import { useSidebarCollapseTransition } from "~/lib/hooks/use-sidebar-collapse-transition";
 import { useLocalStorageValue } from "~/lib/hooks/use-local-storage-value";
 import {
+  isOwnGroup,
   OGS_GROUPS_LABEL,
   OGS_GROUPS_OVERVIEW_PATH,
   ogsGroupHref,
@@ -1221,10 +1222,7 @@ function SidebarContent({
   const currentSessionParam = searchParams.get("session");
   // Unter „Gruppen“ stehen nur die eigenen Gruppen; alle übrigen erreicht
   // man über die Auswahlseite (#4351).
-  const personalGroups = useMemo(
-    () => groups.filter((group) => group.is_personal !== false),
-    [groups],
-  );
+  const personalGroups = useMemo(() => groups.filter(isOwnGroup), [groups]);
 
   // On child pages (e.g. student detail with ?from=/ogs-groups), determine
   // which sub-item should stay highlighted using the last selection from localStorage.

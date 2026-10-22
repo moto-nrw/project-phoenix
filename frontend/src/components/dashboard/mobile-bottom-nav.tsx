@@ -28,8 +28,8 @@ import { useEnrollmentsUnread } from "~/lib/hooks/use-enrollments-unread";
 import { UnreadBadge } from "~/components/messaging/unread-badge";
 import { navigationIcons } from "~/lib/navigation-icons";
 import {
+  navigationEntryTarget,
   OGS_GROUPS_LABEL,
-  OGS_GROUPS_OVERVIEW_PATH,
 } from "~/lib/ogs-groups-navigation";
 import { MOTO_CONCEPTS, type MotoConceptKey } from "~/lib/moto-concepts";
 import { MotoDuotoneIcon } from "~/components/ui/moto-duotone-icon";
@@ -235,8 +235,8 @@ const STAFF_MAIN_ITEMS: NavItem[] = [
     alwaysShow: true,
   },
   {
-    // Führt auf die Auswahlseite (groupsEntryHref), der Schlüssel bleibt der
-    // Bereich /ogs-groups (#4351).
+    // Führt auf die Auswahlseite (navigationEntryTarget), der Schlüssel
+    // bleibt der Bereich /ogs-groups (#4351).
     href: "/ogs-groups",
     label: OGS_GROUPS_LABEL,
     iconKey: "group",
@@ -598,15 +598,6 @@ interface DrawerGroup {
 // Tenant-scoped [tenant]/… routes that need the slug prefix in path-routing
 // mode. PAGE_ITEMS and SECTION_ITEMS are the catalogs for every staff drawer
 // entry; only /help is host-agnostic and must not carry the slug.
-/**
- * Wohin ein Eintrag führt. Der Eintrag „Gruppen“ steht für den ganzen
- * Bereich /ogs-groups und leuchtet dort; sein Ziel ist die Auswahlseite
- * (#4351).
- */
-function groupsEntryHref(href: string): string {
-  return href === "/ogs-groups" ? OGS_GROUPS_OVERVIEW_PATH : href;
-}
-
 const TENANT_SCOPED_HREFS = new Set<string>([
   ...PAGE_ITEMS.filter((item) => item.href !== STAFF_FLAT_PAGES.help.href).map(
     (item) => item.href,
@@ -1167,8 +1158,8 @@ export function MobileBottomNav({ className = "" }: MobileBottomNavProps) {
                         item.href === STAFF_FLAT_PAGES.help.href
                           ? helpHref
                           : TENANT_SCOPED_HREFS.has(item.href)
-                            ? tenantPath(item.href)
-                            : groupsEntryHref(item.href);
+                            ? tenantPath(navigationEntryTarget(item.href))
+                            : navigationEntryTarget(item.href);
 
                       // Coming soon items are not clickable
                       if (item.comingSoon) {
@@ -1394,7 +1385,7 @@ export function MobileBottomNav({ className = "" }: MobileBottomNavProps) {
                 return (
                   <NavLink
                     key={item.href}
-                    href={groupsEntryHref(item.href)}
+                    href={navigationEntryTarget(item.href)}
                     ref={(el: HTMLAnchorElement | null) => {
                       navRefs.current[index] = el;
                     }}

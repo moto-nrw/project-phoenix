@@ -316,7 +316,7 @@ describe("MobileBottomNav", () => {
       fireEvent.click(screen.getByRole("button", { name: "Mehr" }));
       expect(screen.getByRole("link", { name: "Gruppen" })).toHaveAttribute(
         "href",
-        "/test-tenant/ogs-groups",
+        "/test-tenant/ogs-groups/overview",
       );
       expect(screen.getByText("Datenverwaltung").closest("a")).toHaveAttribute(
         "href",
@@ -385,7 +385,7 @@ describe("MobileBottomNav", () => {
       fireEvent.click(screen.getByRole("button", { name: "Mehr" }));
       expect(screen.getByRole("link", { name: "Gruppen" })).toHaveAttribute(
         "href",
-        "/test-tenant/ogs-groups",
+        "/test-tenant/ogs-groups/overview",
       );
     });
 

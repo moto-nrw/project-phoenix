@@ -8,10 +8,30 @@
  */
 export const OGS_GROUPS_LABEL = "Gruppen";
 
+/** Der Bereich der Gruppenseiten; Schlüssel des Eintrags in den Navigationen. */
+export const OGS_GROUPS_PATH = "/ogs-groups";
+
 /** Die Auswahlseite mit allen Gruppen, die die Person sehen darf. */
 export const OGS_GROUPS_OVERVIEW_PATH = "/ogs-groups/overview";
 
 /** Die Seite einer Gruppe. */
 export function ogsGroupHref(groupId: string): string {
-  return `/ogs-groups?group=${encodeURIComponent(groupId)}`;
+  return `${OGS_GROUPS_PATH}?group=${encodeURIComponent(groupId)}`;
+}
+
+/**
+ * Wohin ein Navigationseintrag führt. Der Eintrag „Gruppen“ steht für den
+ * ganzen Bereich /ogs-groups und leuchtet dort; sein Ziel ist die
+ * Auswahlseite. Alle anderen Einträge führen auf ihren Pfad.
+ */
+export function navigationEntryTarget(href: string): string {
+  return href === OGS_GROUPS_PATH ? OGS_GROUPS_OVERVIEW_PATH : href;
+}
+
+/**
+ * Eine eigene Gruppe: Gruppenleitung oder Vertretung. Fehlt das Kennzeichen,
+ * zählt die Gruppe als eigene; so liefern die älteren Endpunkte sie.
+ */
+export function isOwnGroup(group: { readonly is_personal?: boolean }): boolean {
+  return group.is_personal !== false;
 }

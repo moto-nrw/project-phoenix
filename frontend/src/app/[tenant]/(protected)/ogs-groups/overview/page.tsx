@@ -5,14 +5,20 @@ import { ChevronRight } from "lucide-react";
 import { RoleGuard } from "~/components/auth/role-guard";
 import { OpenCareModeGuard } from "~/components/tenant/open-care-mode-guard";
 import { CollectionGrid } from "~/components/ui/collection-grid";
+import { Button } from "~/components/ui/button";
 import { MotoConceptIcon } from "~/components/ui/moto-concept-icon";
 import { StatusBadge } from "~/components/ui/status-badge";
 import { TenantPage } from "~/components/ui/tenant-page";
 import { TileCard } from "~/components/ui/tile-card";
-import { ogsGroupHref, OGS_GROUPS_LABEL } from "~/lib/ogs-groups-navigation";
+import {
+  isOwnGroup,
+  ogsGroupHref,
+  OGS_GROUPS_LABEL,
+} from "~/lib/ogs-groups-navigation";
 import { useSupervision } from "~/lib/supervision-context";
 import { useTenantAwarePath } from "~/lib/tenant-path";
 import { useTenantRouter } from "~/lib/tenant-router";
+import GroupOverviewLoading from "./loading";
 import type { NavigationEducationalGroup } from "~/lib/usercontext-helpers";
 
 /**
@@ -29,7 +35,7 @@ export default function GroupOverviewPage() {
         // Wie die Gruppenseite: eine Betreuungsrolle der Schule heißt nicht
         // „user“, die Gruppen liest das Backend mit groups:read (#3469).
         permission="groups:read"
-        fallback={<TenantPage title={OGS_GROUPS_LABEL} loading />}
+        fallback={<GroupOverviewLoading />}
       >
         <GroupOverviewContent />
       </RoleGuard>
@@ -41,13 +47,14 @@ export default function GroupOverviewPage() {
 function ownGroupsFirst(
   groups: readonly NavigationEducationalGroup[],
 ): NavigationEducationalGroup[] {
-  const own = groups.filter((group) => group.is_personal !== false);
-  const other = groups.filter((group) => group.is_personal === false);
+  const own = groups.filter(isOwnGroup);
+  const other = groups.filter((group) => !isOwnGroup(group));
   return [...own, ...other];
 }
 
 function GroupOverviewContent() {
-  const { groups, isLoadingGroups } = useSupervision();
+  const { groups, isLoadingGroups, groupsLoadFailed, refresh } =
+    useSupervision();
   const router = useTenantRouter();
   const tenantPath = useTenantAwarePath();
   const sortedGroups = useMemo(() => ownGroupsFirst(groups), [groups]);
@@ -59,9 +66,7 @@ function GroupOverviewContent() {
     if (onlyGroup) router.replace(ogsGroupHref(onlyGroup.id));
   }, [onlyGroup, router]);
 
-  const ownCount = sortedGroups.filter(
-    (group) => group.is_personal !== false,
-  ).length;
+  const ownCount = sortedGroups.filter(isOwnGroup).length;
   const stats =
     groups.length > 0
       ? `${groups.length} ${groups.length === 1 ? "Gruppe" : "Gruppen"} · ${ownCount} eigene`
@@ -80,6 +85,27 @@ function GroupOverviewContent() {
       }
       loading={isLoadingGroups || onlyGroup !== undefined}
       loadingLabel="Gruppen werden geladen…"
+      // Ein gescheiterter Abruf ist keine leere Liste: sonst hieße es
+      // „Keine Gruppe sichtbar“, und die Person fragte die Leitung.
+      error={
+        groupsLoadFailed && !isLoadingGroups
+          ? {
+              message: "Die Gruppen konnten nicht geladen werden.",
+              action: (
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="md"
+                  onClick={() =>
+                    void refresh({ force: true, groupsOnly: true })
+                  }
+                >
+                  Erneut versuchen
+                </Button>
+              ),
+            }
+          : null
+      }
       empty={
         groups.length === 0
           ? {
@@ -112,7 +138,7 @@ function GroupOverviewContent() {
 }
 
 function GroupMark({ group }: { readonly group: NavigationEducationalGroup }) {
-  if (group.is_personal === false) return null;
+  if (!isOwnGroup(group)) return null;
   if (group.via_substitution) {
     return <StatusBadge label="Vertretung" tone="blue" compact />;
   }

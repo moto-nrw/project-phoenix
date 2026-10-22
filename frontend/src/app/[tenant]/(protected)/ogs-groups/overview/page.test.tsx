@@ -1,5 +1,5 @@
 import "@testing-library/jest-dom/vitest";
-import { render, screen, within } from "@testing-library/react";
+import { fireEvent, render, screen, within } from "@testing-library/react";
 import type { ReactNode } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { NavigationEducationalGroup } from "~/lib/usercontext-helpers";
@@ -8,7 +8,9 @@ import GroupOverviewPage from "./page";
 const { supervision, replace } = vi.hoisted(() => ({
   supervision: {
     isLoadingGroups: false,
+    groupsLoadFailed: false,
     groups: [] as NavigationEducationalGroup[],
+    refresh: vi.fn(),
   },
   replace: vi.fn(),
 }));
@@ -64,7 +66,9 @@ function tileOf(name: string): HTMLElement {
 describe("GroupOverviewPage (#4351)", () => {
   beforeEach(() => {
     supervision.isLoadingGroups = false;
+    supervision.groupsLoadFailed = false;
     supervision.groups = [ahorn, mondgruppe, sonnengruppe];
+    supervision.refresh.mockReset();
     replace.mockReset();
   });
 
@@ -138,5 +142,22 @@ describe("GroupOverviewPage (#4351)", () => {
 
     expect(screen.getByText("Keine Gruppe sichtbar")).toBeInTheDocument();
     expect(replace).not.toHaveBeenCalled();
+  });
+
+  // Ein gescheiterter Abruf darf nicht wie „keine Gruppe“ aussehen.
+  it("reports a failed load with a retry instead of the empty state", () => {
+    supervision.groups = [];
+    supervision.groupsLoadFailed = true;
+    render(<GroupOverviewPage />);
+
+    expect(
+      screen.getByText("Die Gruppen konnten nicht geladen werden."),
+    ).toBeInTheDocument();
+    expect(screen.queryByText("Keine Gruppe sichtbar")).toBeNull();
+    fireEvent.click(screen.getByRole("button", { name: "Erneut versuchen" }));
+    expect(supervision.refresh).toHaveBeenCalledWith({
+      force: true,
+      groupsOnly: true,
+    });
   });
 });

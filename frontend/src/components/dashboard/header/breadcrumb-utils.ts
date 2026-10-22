@@ -72,8 +72,8 @@ const mainRoutes: Record<string, string> = {
   ),
   "/": "Home",
   "/parents": "Start",
-  // Die beiden Akkordeon-Bereiche. Gruppenseite und Auswahlseite heißen
-  // wie der Eintrag in der Seitenleiste (#4351).
+  // Die Bereiche Gruppen und Aktuelle Aufsicht. Gruppenseite und
+  // Auswahlseite heißen wie der Eintrag in der Seitenleiste (#4351).
   "/ogs-groups": OGS_GROUPS_LABEL,
   [OGS_GROUPS_OVERVIEW_PATH]: OGS_GROUPS_LABEL,
   "/active-supervisions": "Aktuelle Aufsicht",
