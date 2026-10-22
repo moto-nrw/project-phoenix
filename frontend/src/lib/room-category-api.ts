@@ -23,7 +23,7 @@ interface BackendRoomCategory {
   room_count: number;
 }
 
-export interface RoomCategoryPayload {
+interface RoomCategoryPayload {
   name: string;
   color: string;
 }
@@ -51,7 +51,7 @@ export function suggestedRoomCategoryColor(
   );
 }
 
-export function mapRoomCategory(category: BackendRoomCategory): RoomCategory {
+function mapRoomCategory(category: BackendRoomCategory): RoomCategory {
   return {
     id: String(category.id),
     name: category.name,
