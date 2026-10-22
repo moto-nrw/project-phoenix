@@ -446,9 +446,6 @@ func (s *service) Dashboard(ctx context.Context, requestedGroupID int64) (*Proje
 	if err := s.loadPresenceSections(ctx, projection, caller, selected, openRooms, staffID, snapshot.businessDay); err != nil {
 		return nil, err
 	}
-	if err := s.nameSupervisors(ctx, projection, openRooms); err != nil {
-		return nil, err
-	}
 	return projection, nil
 }
 
@@ -638,6 +635,9 @@ func (s *service) loadPresenceSections(ctx context.Context, projection *Projecti
 	}
 	projection.Visits = s.buildVisits(selectedRows, attendance, fullAccess, photosEnabled)
 	projection.OpenRooms = s.assembleOpenRooms(openRooms, attendance, fullAccess, photosEnabled, staffID, caller.AdminScope)
+	if err := s.nameSupervisors(ctx, projection, openRooms); err != nil {
+		return err
+	}
 
 	tracking, err := s.loadTracking(ctx, studentIDs)
 	if err != nil {

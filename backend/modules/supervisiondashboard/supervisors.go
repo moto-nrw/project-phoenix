@@ -19,50 +19,14 @@ type SessionSupervisor struct {
 // session in a released room. The tabs' supervisors come in one bulk read,
 // the open rooms already carry theirs, and one name read serves both.
 func (s *service) nameSupervisors(ctx context.Context, projection *Projection, openRooms openRoomInputs) error {
-	groupSupervisors := map[int64][]int64{}
-	if len(projection.Groups) > 0 {
-		ids := make([]int64, 0, len(projection.Groups))
-		for _, group := range projection.Groups {
-			ids = append(ids, group.ID)
-		}
-		loaded, err := s.deps.Sessions.SupervisorStaffIDs(ctx, ids)
-		if err != nil {
-			return fmt.Errorf("load session supervisors: %w", err)
-		}
-		if loaded != nil {
-			groupSupervisors = loaded
-		}
+	groupSupervisors, err := s.groupSupervisorIDs(ctx, projection.Groups)
+	if err != nil {
+		return err
 	}
-
-	staffIDs := make([]int64, 0)
-	seen := map[int64]struct{}{}
-	collect := func(ids []int64) {
-		for _, id := range ids {
-			if _, ok := seen[id]; !ok {
-				seen[id] = struct{}{}
-				staffIDs = append(staffIDs, id)
-			}
-		}
+	names, err := s.supervisorNames(ctx, supervisingStaffIDs(groupSupervisors, openRooms.sessions))
+	if err != nil {
+		return err
 	}
-	for _, ids := range groupSupervisors {
-		collect(ids)
-	}
-	for _, session := range openRooms.sessions {
-		collect(session.SupervisorStaffIDs)
-	}
-
-	names := map[int64]string{}
-	if len(staffIDs) > 0 {
-		sort.Slice(staffIDs, func(i, j int) bool { return staffIDs[i] < staffIDs[j] })
-		loaded, err := s.deps.Staff.StaffNames(ctx, staffIDs)
-		if err != nil {
-			return fmt.Errorf("load supervisor names: %w", err)
-		}
-		if loaded != nil {
-			names = loaded
-		}
-	}
-
 	for i := range projection.Groups {
 		projection.Groups[i].Supervisors = namedSupervisors(groupSupervisors[projection.Groups[i].ID], names)
 	}
@@ -73,6 +37,62 @@ func (s *service) nameSupervisors(ctx context.Context, projection *Projection, o
 		}
 	}
 	return nil
+}
+
+// groupSupervisorIDs reads the current supervisors of the session tabs.
+func (s *service) groupSupervisorIDs(ctx context.Context, groups []Group) (map[int64][]int64, error) {
+	if len(groups) == 0 {
+		return map[int64][]int64{}, nil
+	}
+	ids := make([]int64, 0, len(groups))
+	for _, group := range groups {
+		ids = append(ids, group.ID)
+	}
+	loaded, err := s.deps.Sessions.SupervisorStaffIDs(ctx, ids)
+	if err != nil {
+		return nil, fmt.Errorf("load session supervisors: %w", err)
+	}
+	if loaded == nil {
+		return map[int64][]int64{}, nil
+	}
+	return loaded, nil
+}
+
+// supervisorNames names the staff in one read; nobody to name, no read.
+func (s *service) supervisorNames(ctx context.Context, staffIDs []int64) (map[int64]string, error) {
+	if len(staffIDs) == 0 {
+		return map[int64]string{}, nil
+	}
+	loaded, err := s.deps.Staff.StaffNames(ctx, staffIDs)
+	if err != nil {
+		return nil, fmt.Errorf("load supervisor names: %w", err)
+	}
+	if loaded == nil {
+		return map[int64]string{}, nil
+	}
+	return loaded, nil
+}
+
+// supervisingStaffIDs is every staff id supervising a tab or an open-room
+// session, once each, in ascending order.
+func supervisingStaffIDs(groupSupervisors map[int64][]int64, sessions []RunningSession) []int64 {
+	seen := map[int64]struct{}{}
+	for _, ids := range groupSupervisors {
+		for _, id := range ids {
+			seen[id] = struct{}{}
+		}
+	}
+	for _, session := range sessions {
+		for _, id := range session.SupervisorStaffIDs {
+			seen[id] = struct{}{}
+		}
+	}
+	result := make([]int64, 0, len(seen))
+	for id := range seen {
+		result = append(result, id)
+	}
+	sort.Slice(result, func(i, j int) bool { return result[i] < result[j] })
+	return result
 }
 
 // namedSupervisors keeps the staff with a name, in German dictionary order;
