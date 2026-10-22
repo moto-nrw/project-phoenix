@@ -126,6 +126,10 @@ export function InstanceBlock({
     !showFooter &&
     !isCancelled &&
     (placeLine !== "" || hasStaffNames);
+  // #4570: Ein Block mit nur einer Zeile (ein 15-Minuten-Dienst) zeigt die
+  // Namen hinter dem Titel. Dafür kürzt sich die Zeitspanne zur Startzeit;
+  // Raum und Gruppe bleiben im Tooltip.
+  const showInlineNames = isTiny && !isCancelled && hasStaffNames;
 
   // #1840 Vertretungsplan deviation signals. A removed substitute keeps
   // is_substitute=true but is marked is_absent=true — they are no longer
@@ -255,6 +259,12 @@ export function InstanceBlock({
       <BlockStaffNames entries={staffEntries} className="flex-1" />
     </span>
   );
+  const inlineNames = (
+    <span className="flex min-w-0 flex-1 items-baseline gap-1 text-xs text-gray-500">
+      <span aria-hidden="true">·</span>
+      <BlockStaffNames entries={staffEntries} className="flex-1" />
+    </span>
+  );
   // Fuß: eine Zeile, wenn die Spalte breit genug ist; in einer schmalen
   // Spalte rücken die Namen in die nächste Zeile, statt dass beide Hälften
   // unlesbar gekürzt werden.
@@ -358,7 +368,11 @@ export function InstanceBlock({
 
   return (
     <PlanBlock
-      timeRange={`${instance.startTime} – ${instance.endTime}`}
+      timeRange={
+        showInlineNames
+          ? instance.startTime
+          : `${instance.startTime} – ${instance.endTime}`
+      }
       label={instance.title}
       color={edgeColor}
       tinted={!isUnderstaffedAck}
@@ -372,6 +386,7 @@ export function InstanceBlock({
       statusIcon={statusIcon}
       footer={footer}
       compactDetail={showInfoLine ? infoLine : undefined}
+      compactInline={showInlineNames ? inlineNames : undefined}
       title={[
         `${instance.title}, ${instance.startTime} – ${instance.endTime}`,
         ...detailLines,

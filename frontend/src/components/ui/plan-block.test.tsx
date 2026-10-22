@@ -123,6 +123,38 @@ describe("PlanBlock", () => {
     expect(screen.getByText("Raum 104 · Sonne")).toBeInTheDocument();
   });
 
+  it("renders the inline detail behind the label in the single-line head", () => {
+    render(
+      <PlanBlock
+        timeRange="15:45"
+        label="Busaufsicht"
+        size="compact"
+        compactInline={<span>Anna K.</span>}
+      />,
+    );
+
+    const label = screen.getByText("Busaufsicht");
+    const inline = screen.getByText("Anna K.");
+    expect(label.parentElement).toContainElement(inline);
+    expect(
+      label.compareDocumentPosition(inline) & Node.DOCUMENT_POSITION_FOLLOWING,
+    ).toBeTruthy();
+  });
+
+  it("ignores the inline detail at size=default", () => {
+    render(
+      <PlanBlock
+        timeRange="15:45–16:00"
+        label="Busaufsicht"
+        compactInline={<span>Anna K.</span>}
+      />,
+    );
+
+    // Anker: der Block mit seinem Titel ist gerendert.
+    expect(screen.getByText("Busaufsicht")).toBeInTheDocument();
+    expect(screen.queryByText("Anna K.")).not.toBeInTheDocument();
+  });
+
   it("ignores the compact detail line at size=default", () => {
     render(
       <PlanBlock
