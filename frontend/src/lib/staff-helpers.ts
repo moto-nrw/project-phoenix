@@ -1,6 +1,6 @@
 // Helper functions for staff data transformation and status determination
 
-import { getRoleDisplayName } from "./auth-helpers";
+import { EXTERNAL_CAREGIVER_LABEL, getRoleDisplayName } from "./auth-helpers";
 import type { ExternalAccountStatus, Staff } from "./staff-api";
 import { LOCATION_COLORS, MOTO_COLOR_PALETTE } from "./location-helper";
 
@@ -190,16 +190,48 @@ export function isAssignableStaff(
 }
 
 /**
- * Short account mark for an external caregiver (#4573): "Einladung offen"
- * while the invitation waits, "Kein Konto" without one. An account needs no
- * mark, the person signs in like everyone else.
+ * Account mark of an external caregiver (#4573): "Einladung offen" (orange)
+ * while the invitation waits, "Kein Konto" (gray) without one. An account
+ * needs no mark, the person signs in like everyone else.
  */
+export interface ExternalAccountMark {
+  readonly label: string;
+  readonly tone: "orange" | "gray";
+}
+
+export const EXTERNAL_ACCOUNT_MARKS: Readonly<
+  Record<Exclude<ExternalAccountStatus, "account">, ExternalAccountMark>
+> = {
+  invitation_pending: { label: "Einladung offen", tone: "orange" },
+  none: { label: "Kein Konto", tone: "gray" },
+};
+
+/** The account mark for a status, or null when the person has an account. */
+export function externalAccountMark(
+  status: ExternalAccountStatus | null | undefined,
+): ExternalAccountMark | null {
+  if (status === "invitation_pending" || status === "none") {
+    return EXTERNAL_ACCOUNT_MARKS[status];
+  }
+  return null;
+}
+
+/** Label text of the account mark, or null when the person has an account. */
 export function externalAccountLabel(
   status: ExternalAccountStatus | null | undefined,
 ): string | null {
-  if (status === "invitation_pending") return "Einladung offen";
-  if (status === "none") return "Kein Konto";
-  return null;
+  return externalAccountMark(status)?.label ?? null;
+}
+
+/**
+ * „Extern · Musikschule“, or „Extern“ without organization: how an external
+ * caregiver is marked in lists, badges and select options.
+ */
+export function externalStaffLabel(organization?: string | null): string {
+  const trimmed = organization?.trim();
+  return trimmed
+    ? `${EXTERNAL_CAREGIVER_LABEL} · ${trimmed}`
+    : EXTERNAL_CAREGIVER_LABEL;
 }
 
 /**
@@ -214,8 +246,19 @@ export function externalStaffNote(
   >,
 ): string {
   if (!staff.isExternal) return "";
-  const organization = staff.externalOrganization?.trim();
-  const base = organization ? `Extern · ${organization}` : "Extern";
+  const base = externalStaffLabel(staff.externalOrganization);
   const account = externalAccountLabel(staff.externalAccountStatus);
   return account ? `${base}, ${account}` : base;
+}
+
+/**
+ * Display name of a staff member: the full name from the API, else first and
+ * last name. Empty when none of them is set.
+ */
+export function staffDisplayName(
+  name: string | null | undefined,
+  firstName: string | null | undefined,
+  lastName: string | null | undefined,
+): string {
+  return name?.trim() || `${firstName ?? ""} ${lastName ?? ""}`.trim();
 }

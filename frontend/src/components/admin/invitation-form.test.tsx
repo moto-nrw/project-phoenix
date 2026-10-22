@@ -45,6 +45,8 @@ vi.mock("~/lib/auth-helpers", () => {
     role === "teacher" ? "Lehrkraft" : role === "user" ? "Betreuer" : role;
   return {
     getRoleDisplayName,
+    isExternalCaregiverRole: (name?: string) =>
+      name?.trim().toLowerCase() === "extern",
     toAssignableRoleOptions: (roles: { id: string; name: string }[]) =>
       roles
         .filter(
@@ -53,6 +55,7 @@ vi.mock("~/lib/auth-helpers", () => {
         .map((role) => ({
           id: role.id,
           name: role.name ? getRoleDisplayName(role.name) : `Rolle ${role.id}`,
+          systemName: role.name.toLowerCase(),
         }))
         .filter((role) => role.id.length > 0),
   };
@@ -231,6 +234,63 @@ describe("InvitationForm", () => {
     fireEvent.click(await screen.findByText("Einladung senden"));
 
     await waitFor(() => expect(screen.getByLabelText("Rolle")).toHaveFocus());
+  });
+
+  // #4573: an invitation with the role „Extern“ creates no external
+  // profile. The form says so where the role is picked and offers the right
+  // way.
+  describe("role Extern", () => {
+    const hint =
+      "Mit dieser Einladung zählt die Person als normales Personal, zum Beispiel in der Zeiterfassung.";
+
+    async function pickRole(name: string) {
+      await waitFor(() => {
+        expect(screen.getByLabelText("Rolle")).not.toBeDisabled();
+      });
+      fireEvent.click(screen.getByLabelText("Rolle"));
+      fireEvent.click(screen.getByRole("option", { name }));
+    }
+
+    beforeEach(() => {
+      mockGetRoles.mockResolvedValue([
+        ...mockRoles,
+        { id: "4", name: "extern" },
+      ]);
+    });
+
+    it("points to „Externe Person anlegen“ when Extern is chosen", async () => {
+      const onAddExternal = vi.fn();
+      render(<InvitationForm onAddExternal={onAddExternal} />);
+
+      await pickRole("extern");
+
+      expect(screen.getByText(new RegExp(hint))).toHaveTextContent(
+        "Externe Personen legen Sie mit „Externe Person anlegen“ an.",
+      );
+      fireEvent.click(
+        screen.getByRole("button", { name: "Externe Person anlegen" }),
+      );
+      expect(onAddExternal).toHaveBeenCalledTimes(1);
+    });
+
+    it("only warns when the caller cannot add externals", async () => {
+      render(<InvitationForm />);
+
+      await pickRole("extern");
+
+      expect(screen.getByText(hint)).toBeInTheDocument();
+      expect(
+        screen.queryByRole("button", { name: "Externe Person anlegen" }),
+      ).not.toBeInTheDocument();
+    });
+
+    it("shows no hint for other roles", async () => {
+      render(<InvitationForm onAddExternal={vi.fn()} />);
+
+      await pickRole("Betreuer");
+
+      expect(screen.queryByText(new RegExp(hint))).not.toBeInTheDocument();
+    });
   });
 
   it("calls createInvitation with form data", async () => {

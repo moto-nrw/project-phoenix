@@ -3,9 +3,20 @@ import {
   getAccountRoleLabel,
   getRoleDisplayName,
   getRoleDisplayDescription,
+  isExternalCaregiverRole,
   toAssignableRoleOptions,
   type Role,
 } from "./auth-helpers";
+
+describe("isExternalCaregiverRole", () => {
+  // #4573: the backend finds the role by name, case-insensitive.
+  it("recognizes the role Extern in any spelling, and nothing else", () => {
+    expect(isExternalCaregiverRole("extern")).toBe(true);
+    expect(isExternalCaregiverRole(" Extern ")).toBe(true);
+    expect(isExternalCaregiverRole("externe-ag")).toBe(false);
+    expect(isExternalCaregiverRole(undefined)).toBe(false);
+  });
+});
 
 describe("getRoleDisplayName", () => {
   // #4573: die Schulrolle für externe Kräfte ist klein gespeichert.

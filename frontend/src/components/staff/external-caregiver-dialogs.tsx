@@ -21,8 +21,8 @@ import {
 const logger = createLogger({ component: "ExternalCaregiverDialogs" });
 
 /**
- * „Externe Person eintragen“ in the Personalverwaltung (#4573): the fields of
- * the inline entry in a dialog. It always records a new person; an existing
+ * „Externe Person anlegen“ in the Personalverwaltung (#4573): the fields of
+ * the inline entry in a dialog, worded like the page's create action. It always records a new person; an existing
  * one without account gets „Konto einladen“ from its row.
  */
 export function ExternalCaregiverCreateModal({
@@ -60,7 +60,7 @@ export function ExternalCaregiverCreateModal({
     <FormModal
       isOpen={isOpen}
       onClose={close}
-      title="Externe Person eintragen"
+      title="Externe Person anlegen"
       size="md"
       closeDisabled={form.isSaving}
       isBackdropDismissDisabled
@@ -82,9 +82,9 @@ export function ExternalCaregiverCreateModal({
             size="md"
             onClick={() => void save()}
             isLoading={form.isSaving}
-            loadingText="Wird eingetragen ..."
+            loadingText="Wird angelegt ..."
           >
-            Eintragen
+            Anlegen
           </Button>
         </>
       }

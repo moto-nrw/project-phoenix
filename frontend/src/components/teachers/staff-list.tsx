@@ -11,6 +11,7 @@ import { Avatar } from "~/components/ui/avatar";
 import { OverflowMenu } from "~/components/ui/page-header/OverflowMenu";
 import { getRoleDisplayName } from "~/lib/auth-helpers";
 import { staffAvatarUrl } from "~/lib/staff-api";
+import { externalStaffLabel, staffDisplayName } from "~/lib/staff-helpers";
 import type { Teacher } from "@/lib/teacher-api";
 
 interface StaffListProps {
@@ -30,8 +31,7 @@ function keyForTeacher(teacher: Teacher): string {
 
 function getStaffDisplayName(teacher: Teacher): string {
   return (
-    teacher.name ||
-    `${teacher.first_name ?? ""} ${teacher.last_name ?? ""}`.trim() ||
+    staffDisplayName(teacher.name, teacher.first_name, teacher.last_name) ||
     "Unbekannt"
   );
 }
@@ -39,8 +39,7 @@ function getStaffDisplayName(teacher: Teacher): string {
 function buildSubtitle(teacher: Teacher): string {
   if (teacher.is_external) {
     // Der Kontostand steht als eigene Marke am Zeilenende (#4573).
-    const organization = teacher.external_organization?.trim();
-    return organization ? `Extern · ${organization}` : "Extern";
+    return externalStaffLabel(teacher.external_organization);
   }
   const displayRole = teacher.account_role
     ? getRoleDisplayName(teacher.account_role)

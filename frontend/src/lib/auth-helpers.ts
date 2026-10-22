@@ -159,10 +159,21 @@ export function getRoleDisplayName(roleName: string): string {
  */
 export const EXTERNAL_CAREGIVER_ROLE_NAME = "extern";
 
+/** How the role and its people read on screen: „Extern“. */
+export const EXTERNAL_CAREGIVER_LABEL = "Extern";
+
+/**
+ * Whether a role is the school's „Extern“ role. The backend finds it by name
+ * (case-insensitive), so renaming or deleting it stops external invitations.
+ */
+export function isExternalCaregiverRole(roleName: string | undefined): boolean {
+  return roleName?.trim().toLowerCase() === EXTERNAL_CAREGIVER_ROLE_NAME;
+}
+
 // School roles moto itself provisions in every school. Their stored name is
 // lowercase; the display keeps the spelling the help and the forms use.
 const PROVISIONED_SCHOOL_ROLE_LABELS: Record<string, string> = {
-  [EXTERNAL_CAREGIVER_ROLE_NAME]: "Extern",
+  [EXTERNAL_CAREGIVER_ROLE_NAME]: EXTERNAL_CAREGIVER_LABEL,
 };
 
 /**
@@ -185,7 +196,7 @@ export function getRoleDisplayDescription(
 const SCHOOL_ROLE_LABELS: Record<string, string> = {
   "ogs-leitung": "OGS-Leitung",
   betreuungskraft: "Betreuungskraft",
-  [EXTERNAL_CAREGIVER_ROLE_NAME]: "Extern",
+  [EXTERNAL_CAREGIVER_ROLE_NAME]: EXTERNAL_CAREGIVER_LABEL,
 };
 
 // "teacher" is the retired predecessor of "user". It can no longer be

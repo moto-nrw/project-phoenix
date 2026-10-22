@@ -8,7 +8,10 @@ import {
   sortStaff,
   isAssignableStaff,
   externalAccountLabel,
+  externalAccountMark,
+  externalStaffLabel,
   externalStaffNote,
+  staffDisplayName,
 } from "./staff-helpers";
 
 // Sample staff for testing
@@ -465,5 +468,32 @@ describe("external caregivers (#4573)", () => {
       externalStaffNote({ isExternal: true, externalAccountStatus: "account" }),
     ).toBe("Extern");
     expect(externalStaffNote({ isExternal: false })).toBe("");
+  });
+
+  it("pairs each account state with one tone for its badge", () => {
+    expect(externalAccountMark("invitation_pending")).toEqual({
+      label: "Einladung offen",
+      tone: "orange",
+    });
+    expect(externalAccountMark("none")).toEqual({
+      label: "Kein Konto",
+      tone: "gray",
+    });
+    expect(externalAccountMark("account")).toBeNull();
+  });
+
+  it("marks an external person with the organization when there is one", () => {
+    expect(externalStaffLabel(" Sportverein ")).toBe("Extern · Sportverein");
+    expect(externalStaffLabel("  ")).toBe("Extern");
+    expect(externalStaffLabel(null)).toBe("Extern");
+  });
+});
+
+describe("staffDisplayName", () => {
+  it("prefers the full name and falls back to first and last name", () => {
+    expect(staffDisplayName("Anna Müller", "Anna", "M.")).toBe("Anna Müller");
+    expect(staffDisplayName("", "Anna", "Müller")).toBe("Anna Müller");
+    expect(staffDisplayName(undefined, "Anna", null)).toBe("Anna");
+    expect(staffDisplayName(null, null, undefined)).toBe("");
   });
 });

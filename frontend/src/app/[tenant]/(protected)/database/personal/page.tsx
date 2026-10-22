@@ -26,13 +26,16 @@ import {
   ExternalInvitationModal,
   type ExternalInvitationTarget,
 } from "~/components/staff/external-caregiver-dialogs";
-import { Button } from "~/components/ui/button";
 import { useToast } from "~/contexts/ToastContext";
 import type { Staff } from "~/lib/staff-api";
 import { InvitationForm } from "~/components/admin/invitation-form";
 import { PendingInvitationsList } from "~/components/admin/pending-invitations-list";
 import { hasPermission } from "~/lib/auth-utils";
-import { getRoleDisplayName } from "@/lib/auth-helpers";
+import {
+  EXTERNAL_CAREGIVER_LABEL,
+  getRoleDisplayName,
+} from "@/lib/auth-helpers";
+import { staffDisplayName } from "~/lib/staff-helpers";
 import { createCrudService } from "@/lib/database/service-factory";
 import { teachersConfig } from "@/components/database/configs/teachers.config";
 import type { Teacher } from "@/lib/teacher-api";
@@ -122,7 +125,7 @@ function TeachersPageContent() {
     sessionData,
     "time_tracking:manage",
   );
-  // Externe Person eintragen und einladen (#4573): dasselbe Recht wie
+  // Externe Person anlegen und einladen (#4573): dasselbe Recht wie
   // POST /api/staff/externals und die Einladungsroute.
   const canCreateExternal = hasPermission(sessionData, "users:create");
   const [showExternalModal, setShowExternalModal] = useState(false);
@@ -181,11 +184,12 @@ function TeachersPageContent() {
       );
     }
 
-    filtered.sort((a, b) => {
-      const nameA = a.name ?? `${a.first_name} ${a.last_name}`;
-      const nameB = b.name ?? `${b.first_name} ${b.last_name}`;
-      return nameA.localeCompare(nameB, "de");
-    });
+    filtered.sort((a, b) =>
+      staffDisplayName(a.name, a.first_name, a.last_name).localeCompare(
+        staffDisplayName(b.name, b.first_name, b.last_name),
+        "de",
+      ),
+    );
 
     return filtered;
   }, [teachersData, searchTerm]);
@@ -238,7 +242,11 @@ function TeachersPageContent() {
         // und Rolle „Extern“ (#4573); sie trennt sie von Personal, dem nur
         // die Rolle fehlt.
         if (teacher.is_external) {
-          return { id: "__external__", title: "Extern", sortKey: "zzy" };
+          return {
+            id: "__external__",
+            title: EXTERNAL_CAREGIVER_LABEL,
+            sortKey: "zzy",
+          };
         }
         const role = teacher.account_role?.trim();
         if (!role) {
@@ -257,13 +265,17 @@ function TeachersPageContent() {
     "Personal",
   );
 
-  // Erfolg beim Eintragen oder Einladen einer externen Person (#4573). Eine
+  // Erfolg beim Anlegen oder Einladen einer externen Person (#4573). Eine
   // erneute Einladung ersetzt die alte; der Text sagt „neue Einladung“.
   const handleExternalSaved = useCallback(
     (staff: Staff, outcome: "created" | "invited" | "reinvited") => {
-      const name = staff.name || `${staff.firstName} ${staff.lastName}`.trim();
+      const name = staffDisplayName(
+        staff.name,
+        staff.firstName,
+        staff.lastName,
+      );
       const messages = {
-        created: `${name} ist eingetragen. Die Einladung ist per E-Mail unterwegs.`,
+        created: `${name} ist angelegt. Die Einladung ist per E-Mail unterwegs.`,
         invited: `Die Einladung an ${name} ist unterwegs.`,
         reinvited: `Die neue Einladung an ${name} ist unterwegs.`,
       };
@@ -277,7 +289,11 @@ function TeachersPageContent() {
   const handleInviteExternal = useCallback((teacher: Teacher) => {
     setInviteTarget({
       id: teacher.id,
-      name: teacher.name || `${teacher.first_name} ${teacher.last_name}`.trim(),
+      name: staffDisplayName(
+        teacher.name,
+        teacher.first_name,
+        teacher.last_name,
+      ),
       invitationPending:
         teacher.external_account_status === "invitation_pending",
     });
@@ -287,6 +303,29 @@ function TeachersPageContent() {
     () => setShowInviteModal(false),
     [],
   );
+
+  // Aus der Einladung mit der Rolle „Extern“ in den richtigen Weg wechseln.
+  const openExternalCreate = useCallback(() => {
+    setShowInviteModal(false);
+    setShowExternalModal(true);
+  }, []);
+
+  // Das Menü der Kopfkarte: auf dem Handy auch „Externe Person anlegen“, weil
+  // die zweite Anlegen-Aktion dort keinen eigenen Knopf hat.
+  const headerMenuItems = [
+    ...(isMobile && canCreateExternal
+      ? [{ label: "Externe Person anlegen", onClick: openExternalCreate }]
+      : []),
+    ...(canImportOpeningBalances
+      ? [
+          {
+            label: "Eröffnungssalden importieren",
+            href: tenantPath("/database/personal/opening-balances"),
+            onClick: () => undefined,
+          },
+        ]
+      : []),
+  ];
 
   const canShowList = !loading && filteredTeachers.length > 0;
 
@@ -305,6 +344,9 @@ function TeachersPageContent() {
             >
               <InvitationForm
                 existingPositions={existingPositions}
+                onAddExternal={
+                  canCreateExternal ? openExternalCreate : undefined
+                }
                 onCreated={() => {
                   setInvitationRefreshKey(Date.now());
                   setShowInviteModal(false);
@@ -358,34 +400,29 @@ function TeachersPageContent() {
             ) : null}
             {/* Zweiter Import-Weg (#2132): eigener Flow mit Stichtag und
                 Begründung, deshalb im Menü statt als weiterer Button. */}
-            {canImportOpeningBalances ? (
+            {headerMenuItems.length > 0 ? (
               <OverflowMenu
-                ariaLabel="Weitere Import-Aktionen"
-                items={[
-                  {
-                    label: "Eröffnungssalden importieren",
-                    href: tenantPath("/database/personal/opening-balances"),
-                    onClick: () => undefined,
-                  },
-                ]}
+                ariaLabel="Weitere Aktionen"
+                items={headerMenuItems}
               />
-            ) : null}
-            {canCreateExternal ? (
-              <Button
-                type="button"
-                variant="outline"
-                size="md"
-                onClick={() => setShowExternalModal(true)}
-                aria-label="Externe Person eintragen"
-              >
-                + Externe Person
-              </Button>
             ) : null}
             {canManageUsers ? (
               <DatabaseCreateAction
                 label="Personal"
                 ariaLabel="Personal hinzufügen"
                 onClick={() => setShowInviteModal(true)}
+              />
+            ) : null}
+            {/* Zweite Anlegen-Aktion (#4573), nach „Personal“, damit die
+                geführte Tour weiter auf „Personal“ zeigt. Der schwebende
+                Knopf auf dem Handy bleibt „Personal“; dort steht diese
+                Aktion im Menü. */}
+            {canCreateExternal ? (
+              <DatabaseCreateAction
+                label="Externe Person"
+                ariaLabel="Externe Person anlegen"
+                showMobileFab={false}
+                onClick={openExternalCreate}
               />
             ) : null}
           </div>

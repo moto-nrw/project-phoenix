@@ -10,7 +10,12 @@ import { CustomSelect } from "~/components/ui/custom-select";
 import { FormErrorAlert } from "~/components/ui/form-error-alert";
 import { Input } from "~/components/ui/input";
 import { authService } from "~/lib/auth-service";
-import { toAssignableRoleOptions, type RoleOption } from "~/lib/auth-helpers";
+import { Button } from "~/components/ui/button";
+import {
+  isExternalCaregiverRole,
+  toAssignableRoleOptions,
+  type RoleOption,
+} from "~/lib/auth-helpers";
 import { formatDate } from "~/lib/date-helpers";
 import { createInvitation, findFormerEmployment } from "~/lib/invitation-api";
 import {
@@ -30,6 +35,11 @@ const logger = createLogger({ component: "InvitationForm" });
 interface InvitationFormProps {
   readonly onCreated?: (invitation: PendingInvitation) => void;
   readonly existingPositions?: readonly string[];
+  /**
+   * Opens „Externe Person anlegen“ (#4573). Offered in the hint that shows
+   * when the role „Extern“ is chosen; without it the hint only warns.
+   */
+  readonly onAddExternal?: () => void;
 }
 
 const EMPTY_POSITIONS: readonly string[] = [];
@@ -164,6 +174,42 @@ function FormerEmploymentHint({
   );
 }
 
+/**
+ * The role „Extern“ in the general invitation (#4573): the person gets the
+ * rights, but no external profile, so they count as regular staff. The hint
+ * says so where the role is picked and offers the right way.
+ */
+function ExternalRoleHint({
+  onAddExternal,
+}: {
+  readonly onAddExternal?: () => void;
+}) {
+  return (
+    <Alert
+      type="info"
+      className="mt-2"
+      message={
+        onAddExternal
+          ? "Mit dieser Einladung zählt die Person als normales Personal, zum Beispiel in der Zeiterfassung. Externe Personen legen Sie mit „Externe Person anlegen“ an."
+          : "Mit dieser Einladung zählt die Person als normales Personal, zum Beispiel in der Zeiterfassung."
+      }
+      action={
+        onAddExternal ? (
+          <Button
+            type="button"
+            variant="outline"
+            size="compact"
+            onClick={onAddExternal}
+          >
+            Externe Person anlegen
+          </Button>
+        ) : undefined
+      }
+      actionLayout="stacked"
+    />
+  );
+}
+
 const initialForm: CreateInvitationRequest = {
   email: "",
   roleId: undefined,
@@ -175,6 +221,7 @@ const initialForm: CreateInvitationRequest = {
 export function InvitationForm({
   onCreated,
   existingPositions = EMPTY_POSITIONS,
+  onAddExternal,
 }: InvitationFormProps) {
   const [form, setForm] = useState<CreateInvitationRequest>(initialForm);
   const [roles, setRoles] = useState<RoleOption[]>([]);
@@ -406,6 +453,11 @@ export function InvitationForm({
             disabled={isSubmitting || isLoadingRoles}
           />
           <FieldErrorHint id="invitation-role-error" message={roleError} live />
+          {isExternalCaregiverRole(
+            roles.find((role) => role.id === form.roleId)?.systemName,
+          ) ? (
+            <ExternalRoleHint onAddExternal={onAddExternal} />
+          ) : null}
         </div>
 
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">

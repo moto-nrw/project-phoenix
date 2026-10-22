@@ -1,6 +1,6 @@
 import { StatusBadge } from "~/components/ui/status-badge";
 import type { ExternalAccountStatus } from "~/lib/staff-api";
-import { externalAccountLabel } from "~/lib/staff-helpers";
+import { externalAccountMark, externalStaffLabel } from "~/lib/staff-helpers";
 
 /**
  * Marks an external caregiver (#3823), with or without a moto account
@@ -12,12 +12,11 @@ export function ExternalBadge({
 }: {
   readonly organization?: string | null;
 }) {
-  const trimmed = organization?.trim();
   return (
     <StatusBadge
       tone="gray"
       compact
-      label={trimmed ? `Extern · ${trimmed}` : "Extern"}
+      label={externalStaffLabel(organization)}
       accessibleLabel="Externe Person: "
     />
   );
@@ -32,13 +31,7 @@ export function ExternalAccountBadge({
 }: {
   readonly status?: ExternalAccountStatus | null;
 }) {
-  const label = externalAccountLabel(status);
-  if (!label) return null;
-  return (
-    <StatusBadge
-      tone={status === "invitation_pending" ? "orange" : "gray"}
-      compact
-      label={label}
-    />
-  );
+  const mark = externalAccountMark(status);
+  if (!mark) return null;
+  return <StatusBadge tone={mark.tone} compact label={mark.label} />;
 }

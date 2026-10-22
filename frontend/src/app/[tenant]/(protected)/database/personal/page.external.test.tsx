@@ -4,6 +4,8 @@ import { useSession } from "next-auth/react";
 import type { ReactNode } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
+import { useIsMobile } from "~/components/ui/hooks/useIsMobile";
+
 import TeachersPage from "./page";
 
 // #4573: externe Personen in der Personalverwaltung. Die echte Liste
@@ -122,7 +124,13 @@ vi.mock("~/components/ui/page-header/PageHeaderWithSearch", () => ({
 }));
 
 vi.mock("~/components/admin/invitation-form", () => ({
-  InvitationForm: () => null,
+  // Stands in for the hint the real form shows for the role „Extern“.
+  InvitationForm: ({ onAddExternal }: { onAddExternal?: () => void }) =>
+    onAddExternal ? (
+      <button type="button" onClick={onAddExternal}>
+        Hinweis: Externe Person anlegen
+      </button>
+    ) : null,
 }));
 
 vi.mock("~/components/admin/pending-invitations-list", () => ({
@@ -143,6 +151,7 @@ function signInWith(permissions: string[]) {
 describe("Personalverwaltung: externe Personen", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    vi.mocked(useIsMobile).mockReturnValue(false);
   });
 
   it("marks an external person without account and invites them from the row menu", async () => {
@@ -205,7 +214,7 @@ describe("Personalverwaltung: externe Personen", () => {
     expect(mocks.inviteExternal).not.toHaveBeenCalled();
   });
 
-  it("records a new external person from the header action", async () => {
+  it("creates a new external person from the header action", async () => {
     signInWith(["users:read", "users:create"]);
     mocks.createExternal.mockResolvedValue({
       id: "9",
@@ -218,9 +227,9 @@ describe("Personalverwaltung: externe Personen", () => {
     render(<TeachersPage />);
 
     fireEvent.click(
-      screen.getByRole("button", { name: "Externe Person eintragen" }),
+      screen.getByRole("button", { name: "Externe Person anlegen" }),
     );
-    await screen.findByRole("dialog", { name: "Externe Person eintragen" });
+    await screen.findByRole("dialog", { name: "Externe Person anlegen" });
     fireEvent.change(screen.getByLabelText("Vorname"), {
       target: { value: "Lea" },
     });
@@ -230,11 +239,11 @@ describe("Personalverwaltung: externe Personen", () => {
     fireEvent.change(screen.getByLabelText("E-Mail-Adresse"), {
       target: { value: "lea@example.test" },
     });
-    fireEvent.click(screen.getByRole("button", { name: "Eintragen" }));
+    fireEvent.click(screen.getByRole("button", { name: "Anlegen" }));
 
     await waitFor(() =>
       expect(mocks.toastSuccess).toHaveBeenCalledWith(
-        "Lea Gast ist eingetragen. Die Einladung ist per E-Mail unterwegs.",
+        "Lea Gast ist angelegt. Die Einladung ist per E-Mail unterwegs.",
       ),
     );
     expect(mocks.createExternal).toHaveBeenCalledWith({
@@ -307,9 +316,9 @@ describe("Personalverwaltung: externe Personen", () => {
     render(<TeachersPage />);
 
     fireEvent.click(
-      screen.getByRole("button", { name: "Externe Person eintragen" }),
+      screen.getByRole("button", { name: "Externe Person anlegen" }),
     );
-    await screen.findByRole("dialog", { name: "Externe Person eintragen" });
+    await screen.findByRole("dialog", { name: "Externe Person anlegen" });
     fireEvent.change(screen.getByLabelText("Vorname"), {
       target: { value: "Elli" },
     });
@@ -319,7 +328,7 @@ describe("Personalverwaltung: externe Personen", () => {
     fireEvent.change(screen.getByLabelText("E-Mail-Adresse"), {
       target: { value: "elli@example.test" },
     });
-    fireEvent.click(screen.getByRole("button", { name: "Eintragen" }));
+    fireEvent.click(screen.getByRole("button", { name: "Anlegen" }));
 
     await waitFor(() =>
       expect(mocks.createExternal).toHaveBeenCalledWith({
@@ -330,6 +339,41 @@ describe("Personalverwaltung: externe Personen", () => {
       }),
     );
     expect(mocks.inviteExternal).not.toHaveBeenCalled();
+  });
+
+  it("offers „Externe Person anlegen“ in the header menu on a phone", async () => {
+    vi.mocked(useIsMobile).mockReturnValue(true);
+    signInWith(["users:read", "users:create"]);
+    render(<TeachersPage />);
+
+    fireEvent.click(screen.getByRole("button", { name: "Weitere Aktionen" }));
+    fireEvent.click(
+      screen.getByRole("menuitem", { name: "Externe Person anlegen" }),
+    );
+
+    expect(
+      await screen.findByRole("dialog", { name: "Externe Person anlegen" }),
+    ).toBeInTheDocument();
+  });
+
+  it("switches from the general invitation to „Externe Person anlegen“", async () => {
+    signInWith(["users:read", "users:create", "users:manage"]);
+    render(<TeachersPage />);
+
+    fireEvent.click(screen.getAllByLabelText("Personal hinzufügen")[0]!);
+    await screen.findByRole("dialog", { name: "Personal einladen" });
+    fireEvent.click(
+      screen.getByRole("button", { name: "Hinweis: Externe Person anlegen" }),
+    );
+
+    expect(
+      await screen.findByRole("dialog", { name: "Externe Person anlegen" }),
+    ).toBeInTheDocument();
+    await waitFor(() =>
+      expect(
+        screen.queryByRole("dialog", { name: "Personal einladen" }),
+      ).not.toBeInTheDocument(),
+    );
   });
 
   it("offers neither action without permission to create users", () => {
@@ -344,7 +388,7 @@ describe("Personalverwaltung: externe Personen", () => {
       screen.queryByRole("button", { name: "Aktionen für Elli Alt" }),
     ).not.toBeInTheDocument();
     expect(
-      screen.queryByRole("button", { name: "Externe Person eintragen" }),
+      screen.queryByRole("button", { name: "Externe Person anlegen" }),
     ).not.toBeInTheDocument();
   });
 });

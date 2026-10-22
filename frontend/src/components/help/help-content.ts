@@ -4496,15 +4496,15 @@ function inviteStaffTopic(): HelpTopic {
       },
       {
         // #4573: Schnellanlage mit Einladung und Rolle `Extern`.
-        title: "Eine externe Person einladen",
+        title: "Eine externe Person anlegen",
         description:
-          "Zum Beispiel die AG-Leitung der Musikschule. Sie bekommt die Rolle `Extern`.",
+          "Zum Beispiel die AG-Leitung der Musikschule. Sie bekommt die Rolle `Extern` und eine Einladung. Nehmen Sie dafür nicht `+ Personal`. Dort zählt sie als normales Personal, zum Beispiel in der Zeiterfassung.",
         steps: [
           "Öffnen Sie `Datenverwaltung` und danach `Personal`.",
           "Wählen Sie oben rechts `+ Externe Person`.",
           "Tragen Sie `Vorname`, `Nachname` und `E-Mail-Adresse` ein.",
           "Tragen Sie bei Bedarf die `Organisation (freiwillig)` ein.",
-          "Wählen Sie `Eintragen`.",
+          "Wählen Sie `Anlegen`.",
         ],
       },
       {
@@ -4539,7 +4539,6 @@ function inviteStaffTopic(): HelpTopic {
     notes: [
       "Die `Rolle` bestimmt, was die Person später sehen und tun darf.",
       "Eine externe Person können Sie sofort einplanen. Bis sie die Einladung annimmt, steht bei ihr `Einladung offen`.",
-      "Legen Sie externe Personen immer über `+ Externe Person` an. Wer mit `+ Personal` und der Rolle `Extern` eingeladen wird, zählt als normales Personal, zum Beispiel in der Zeiterfassung.",
       "Steht bei einer externen Person `Einladung offen` und die E-Mail kam nicht an? Wählen Sie im Menü `Einladung erneut senden`. Dort können Sie auch die Adresse korrigieren.",
       "Nach der Annahme steht die Person unter `Mitarbeiter` und lässt sich einer Gruppe zuweisen.",
       "Bei `Wiederaufnahme` wird die frühere Beschäftigung fortgeführt. Ausgewählte Bereiche bleiben unverändert. Zurückgesetzte Angaben bleiben als Historie erhalten.",
@@ -4554,12 +4553,14 @@ function inviteStaffTopic(): HelpTopic {
       "Beim Import muss die Spalte `Rolle` genau einer vorhandenen Rolle entsprechen.",
       "Zur Wahl stehen `Administrator`, `Betreuer`, `Gast`, `Erziehungsberechtigter`, `Lehrkraft`, `Extern` und die eigenen Rollen Ihrer OGS.",
       "Fehlt in einer Zeile die E-Mail-Adresse, gibt es keinen Zugang. Die Person steht dann nur in der Liste.",
+      "Auf dem Handy fehlt `+ Externe Person`? Öffnen Sie oben das Menü mit den drei Punkten und wählen Sie `Externe Person anlegen`.",
     ],
     troubleshootingDetails: [
       "Die Einladung kam nicht an? Prüfen Sie die E-Mail-Adresse und den Spam-Ordner. Danach laden Sie erneut ein.",
       "Eine Zeile wird als Fehler gemeldet? Dann gibt es die Person schon.",
       "moto erkennt eine bekannte Zeile an der Personalnummer, sonst an der E-Mail, sonst am Namen.",
       "Fehlt `Personal` in der Seitenleiste? Dafür braucht Ihre Rolle ein eigenes Recht.",
+      "moto meldet, dass die Rolle `Extern` fehlt? Dann wurde sie umbenannt oder gelöscht. Was Sie dann tun, steht unter `Mitarbeitende und Rechte verwalten`.",
     ],
     related: [
       HELP_TOPICS.leadStaffRecord,
@@ -4796,15 +4797,19 @@ function staffPermissionsTopic(): HelpTopic {
       // #4573: Rolle `Extern`, Startrecht nur `schedules:read`.
       "Jede OGS hat die Rolle `Extern` für externe Personen, etwa eine AG-Leitung. Sie sieht unter `Heute` nur ihre eigenen Termine. Dort startet sie den Termin und meldet die Kinder an und ab.",
       "Mit `Extern` sieht die Person keine Zeiterfassung, keine Einstellungen, kein Personal und keine Nachrichten an Eltern.",
-      "Die Rolle `Extern` ist keine Systemrolle. Sie können ihre Rechte unter `Rollen` ändern. Benennen Sie sie nicht um und löschen Sie sie nicht. Sonst lassen sich keine externen Personen mehr einladen.",
+      "Die Rechte der Rolle `Extern` können Sie unter `Rollen` ändern.",
     ],
     differences: [
-      "Frisch eingerichtet bringt moto diese Systemrollen mit: `Administrator`, `Betreuer`, `Lehrkraft`, `Erziehungsberechtigter` und `Gast`. Dazu kommt die Rolle `Extern`.",
-      "Bei einer Systemrolle fehlen `Berechtigungen`, `Bearbeiten` und `Löschen`. Dort steht: `System-Rollen können nicht bearbeitet oder gelöscht werden.`",
+      "Frisch eingerichtet bringt moto feste Rollen mit: `Administrator`, `Betreuer`, `Lehrkraft`, `Erziehungsberechtigter` und `Gast`. Dazu kommt die Rolle `Extern`.",
+      "Bei den festen Rollen fehlen `Berechtigungen`, `Bearbeiten` und `Löschen`. Dort steht: `System-Rollen können nicht bearbeitet oder gelöscht werden.`",
       "Zum Ändern von Rechten legen Sie deshalb zuerst eine eigene Rolle an.",
     ],
     troubleshootingDetails: [
       "Eine Person sieht einen Bereich nicht? Prüfen Sie die Rechte ihrer Rolle.",
+      // #4573: moto findet die Rolle `Extern` am Namen. Die Rollenansicht
+      // sagt das selbst; hier steht, wie man es repariert.
+      "Externe Personen lassen sich nicht mehr anlegen? Dann fehlt die Rolle `Extern`. Sie wurde umbenannt oder gelöscht.",
+      "Geben Sie der Rolle wieder den Namen `Extern`. Fehlt sie ganz, legen Sie unter `Rollen` eine Rolle `Extern` an. Wählen Sie bei `Systemrolle` `Betreuer`.",
     ],
     related: [
       HELP_TOPICS.leadInviteStaff,

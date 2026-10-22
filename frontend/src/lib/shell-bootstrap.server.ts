@@ -364,14 +364,17 @@ export async function loadShellBootstrap(
       );
       return (response.data ?? []).map(mapAccountTenant);
     }),
-    optional("reminders", async (signal) => {
-      const response = await apiGet<Envelope<RemindersResult>>(
-        "/api/reminders",
-        token,
-        { signal },
-      );
-      return response.data;
-    }),
+    // Same gate as useReminders: the route needs users:read (#4573).
+    hasPermission(session, "users:read")
+      ? optional("reminders", async (signal) => {
+          const response = await apiGet<Envelope<RemindersResult>>(
+            "/api/reminders",
+            token,
+            { signal },
+          );
+          return response.data;
+        })
+      : Promise.resolve(undefined),
     optional("announcements", async (signal) => {
       const response = await apiGet<Envelope<UnreadAnnouncement[] | null>>(
         "/api/platform/announcements/unread",
