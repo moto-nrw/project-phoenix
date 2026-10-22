@@ -352,21 +352,31 @@ func normalizeAndValidateRoom(name *string, capacity *int, color **string) error
 	if *color == nil || strings.TrimSpace(**color) == "" {
 		return nil
 	}
+	normalized, err := normalizeColor(**color)
+	if err != nil {
+		return err
+	}
+	*color = &normalized
+	return nil
+}
 
-	normalized := strings.TrimSpace(**color)
+// normalizeColor turns a hex color into the stored #RRGGBB form and refuses
+// the colors reserved for status badges. Room and category colors share it:
+// both end up on the same presence badge.
+func normalizeColor(raw string) (string, error) {
+	normalized := strings.TrimSpace(raw)
 	if !strings.HasPrefix(normalized, "#") {
 		normalized = "#" + normalized
 	}
 	if !roomColorPattern.MatchString(normalized) {
-		return &facilities.InvalidRoomError{Reason: "invalid color format, must be a valid hex color"}
+		return "", &facilities.InvalidRoomError{Reason: "invalid color format, must be a valid hex color"}
 	}
 	if len(normalized) == 4 {
 		normalized = string([]byte{'#', normalized[1], normalized[1], normalized[2], normalized[2], normalized[3], normalized[3]})
 	}
 	normalized = strings.ToUpper(normalized)
 	if facilities.IsReservedRoomColor(normalized) {
-		return facilities.ErrRoomColorReserved
+		return "", facilities.ErrRoomColorReserved
 	}
-	*color = &normalized
-	return nil
+	return normalized, nil
 }

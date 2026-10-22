@@ -2462,6 +2462,9 @@
         "source_not_found": "{object} değiştirilemedi. Güncel durumu kontrol edin."
       },
       "rooms": {
+        "category_duplicate": "{object} değiştirilemedi. Güncel durumu kontrol edin.",
+        "category_in_use": "{object} değiştirilemedi. Güncel durumu kontrol edin.",
+        "category_not_found": "{object} değiştirilemedi. Güncel durumu kontrol edin.",
         "color_already_in_use": "{object} değiştirilemedi. Güncel durumu kontrol edin.",
         "not_found": "{object} değiştirilemedi. Güncel durumu kontrol edin.",
         "not_released": "{object} değiştirilemedi. Güncel durumu kontrol edin."

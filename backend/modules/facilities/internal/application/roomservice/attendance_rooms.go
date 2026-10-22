@@ -60,6 +60,7 @@ func projectAttendanceRoom(room *facilities.Room) *studentpresence.SessionRoom {
 	return &studentpresence.SessionRoom{
 		ID: room.ID, TenantID: room.TenantID, CreatedAt: room.CreatedAt, UpdatedAt: room.UpdatedAt,
 		Name: room.Name, Building: room.Building, Floor: room.Floor, Capacity: room.Capacity,
-		Category: room.Category, Color: room.Color, IsSystem: room.IsSystem, IsOpenRoom: room.IsOpenRoom,
+		// Attendance shows the room's badge: its own color, else its category's (#4352).
+		Category: room.Category, Color: room.BadgeColor(), IsSystem: room.IsSystem, IsOpenRoom: room.IsOpenRoom,
 	}
 }

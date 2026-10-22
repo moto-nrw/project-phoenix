@@ -4,7 +4,6 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -47,6 +46,17 @@ func apiMock(t *testing.T) *seedHTTPTestServer {
 		case "/auth/permissions":
 			_ = json.NewEncoder(w).Encode(map[string]any{
 				"status": "success", "data": seedTestPermissionCatalog(),
+			})
+
+		case "/api/room-categories":
+			// The demo school holds the default room categories from
+			// provisioning (#4352), so the seed creates none.
+			_ = json.NewEncoder(w).Encode(map[string]any{
+				"status": "success",
+				"data": []map[string]any{
+					{"id": 1, "name": "Gruppenraum"}, {"id": 2, "name": "Normaler Raum"},
+					{"id": 3, "name": "Themenraum"}, {"id": 4, "name": "Sport"},
+				},
 			})
 
 		case "/api/activities/categories":
@@ -767,7 +777,11 @@ func TestDemoData_Counts(t *testing.T) {
 func TestFixedSeeder_SeedRooms_APIError(t *testing.T) {
 	t.Parallel()
 
-	srv := newSeedHTTPTestServer(func(w seedHTTPResponseWriter, _ *seedHTTPRequest) {
+	srv := newSeedHTTPTestServer(func(w seedHTTPResponseWriter, r *seedHTTPRequest) {
+		if r.URL.Path == "/api/room-categories" {
+			_, _ = fmt.Fprint(w, `{"data":[{"name":"Gruppenraum"},{"name":"Normaler Raum"},{"name":"Themenraum"},{"name":"Sport"}]}`)
+			return
+		}
 		w.WriteHeader(seedHTTPStatusInternalServerError)
 		_, _ = fmt.Fprint(w, `{"error":"db error"}`)
 	})
@@ -895,8 +909,12 @@ func TestFixedSeeder_SwitchToStaffAccount_LoginError(t *testing.T) {
 func TestFixedSeeder_SeedRooms_InvalidResponseJSON(t *testing.T) {
 	t.Parallel()
 
-	srv := newSeedHTTPTestServer(func(w seedHTTPResponseWriter, _ *seedHTTPRequest) {
+	srv := newSeedHTTPTestServer(func(w seedHTTPResponseWriter, r *seedHTTPRequest) {
 		w.WriteHeader(seedHTTPStatusOK)
+		if r.URL.Path == "/api/room-categories" {
+			_, _ = fmt.Fprint(w, `{"data":[]}`)
+			return
+		}
 		_, _ = fmt.Fprint(w, `not json`)
 	})
 	defer srv.Close()
@@ -1027,42 +1045,33 @@ func TestFixedSeeder_SeedClassArrivalTimes(t *testing.T) {
 	}
 }
 
-func TestDemoRoomColors_GroupsRoomsByCategory(t *testing.T) {
+func TestDemoRoomCategories_CoverEveryDemoRoom(t *testing.T) {
 	t.Parallel()
 
-	colors, err := demoRoomColors(DemoRooms)
-	require.NoError(t, err)
-	require.Len(t, colors, len(DemoRooms))
-
-	seen := map[string]string{}
-	familyByCategory := map[string]string{}
-	for index, room := range DemoRooms {
-		color := strings.ToUpper(colors[index])
-		require.Regexp(t, `^#[0-9A-F]{6}$`, color)
-
-		// The API rejects a color another room of the school already uses.
-		other, taken := seen[color]
-		require.False(t, taken, "%s and %s share %s", room.Name, other, color)
-		seen[color] = room.Name
-
-		// Same category, same visible color: only the last hex digit may differ.
-		family := color[:6]
-		if want, ok := familyByCategory[room.Category]; ok {
-			assert.Equal(t, want, family, "room %s strays from its category color", room.Name)
-		}
-		familyByCategory[room.Category] = family
+	colors := map[string]string{}
+	for _, category := range demoRoomCategories {
+		require.Regexp(t, `^#[0-9A-F]{6}$`, category.Color)
+		colors[category.Name] = category.Color
 	}
-
+	for _, room := range DemoRooms {
+		assert.Contains(t, colors, room.Category, "room %s has no category color", room.Name)
+	}
 	families := map[string]struct{}{}
-	for _, family := range familyByCategory {
-		families[family] = struct{}{}
+	for _, color := range colors {
+		families[color] = struct{}{}
 	}
-	assert.Len(t, families, len(familyByCategory), "two categories share one color")
+	assert.Len(t, families, len(colors), "two categories share one color")
 }
 
-func TestDemoRoomColors_RejectsUnknownCategory(t *testing.T) {
+func TestMissingRoomCategories_SkipsExistingNamesIgnoringCase(t *testing.T) {
 	t.Parallel()
 
-	_, err := demoRoomColors([]DemoRoom{{Name: "Keller", Category: "Lager"}})
-	require.Error(t, err)
+	missing := missingRoomCategories([]string{"sport", "Gruppenraum"}, []roomCategorySeed{
+		{Name: "Sport", Color: "#827710"},
+		{Name: "Ruhe", Color: "#006064"},
+		{Name: "ruhe", Color: "#000000"},
+		{Name: "Gruppenraum", Color: "#283590"},
+	})
+
+	assert.Equal(t, []roomCategorySeed{{Name: "Ruhe", Color: "#006064"}}, missing)
 }

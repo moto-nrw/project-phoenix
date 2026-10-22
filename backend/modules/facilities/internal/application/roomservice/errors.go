@@ -17,7 +17,6 @@ var (
 	ErrRoomRequiredByCareOffering = facilitiesModule.ErrRoomRequiredByOffering
 	ErrSystemRoomProtected        = facilitiesModule.ErrSystemRoomProtected
 	ErrSystemRoomNameReserved     = facilitiesModule.ErrSystemRoomNameReserved
-	ErrColorAlreadyInUse          = facilitiesModule.ErrRoomColorAlreadyInUse
 	ErrColorReserved              = facilitiesModule.ErrRoomColorReserved
 )
 

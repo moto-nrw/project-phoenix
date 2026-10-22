@@ -10,6 +10,7 @@ import (
 
 	auditModels "github.com/moto-nrw/project-phoenix/modules/auditlog/records"
 	"github.com/moto-nrw/project-phoenix/modules/devicefleet"
+	facilitiesModule "github.com/moto-nrw/project-phoenix/modules/facilities"
 	organizationCompose "github.com/moto-nrw/project-phoenix/modules/organizationtenancy/compose"
 	"github.com/moto-nrw/project-phoenix/modules/peopledirectory"
 
@@ -75,11 +76,11 @@ func NewOperatorProvisioningAdapters(
 		FindActiveByDeviceIDWithNames(ctx context.Context, deviceID int64) (*studentpresence.SessionDetail, error)
 	}, supervisors interface {
 		FindActiveByStaffID(ctx context.Context, staffID int64) ([]*studentpresence.GroupSupervision, error)
-	}, categories OperatorCategoryCreator, auditLog OperatorAuditEntries,
+	}, categories OperatorCategoryCreator, roomCategories facilitiesModule.RoomCategories, auditLog OperatorAuditEntries,
 ) (OperatorProvisioningAdapters, error) {
 	if personStudents == nil || devices == nil || persons == nil || membership == nil || personRows == nil ||
 		staffRows == nil || accounts == nil || activeGroups == nil || supervisors == nil ||
-		categories == nil || auditLog == nil {
+		categories == nil || roomCategories == nil || auditLog == nil {
 		return OperatorProvisioningAdapters{}, errors.New("operator provisioning adapters: all dependencies are required")
 	}
 	return OperatorProvisioningAdapters{
@@ -90,7 +91,7 @@ func NewOperatorProvisioningAdapters(
 			staffRows:  staffRows, accounts: accounts, students: personStudents,
 		},
 		Presence:            provisioningPresence{groups: activeGroups, supervisors: supervisors},
-		Categories:          provisioningCategories{categories: categories},
+		Categories:          provisioningCategories{categories: categories, rooms: roomCategories},
 		Audit:               provisioningAudit{log: auditLog},
 		ActiveAccountCounts: accounts.CountActiveAccountsBySchoolGroups,
 	}, nil
@@ -368,6 +369,7 @@ func (p provisioningPresence) CountActiveSupervisions(ctx context.Context, tenan
 
 type provisioningCategories struct {
 	categories OperatorCategoryCreator
+	rooms      facilitiesModule.RoomCategories
 }
 
 // OperatorCategoryCreator creates one activity category at the school in
@@ -392,6 +394,15 @@ func (c provisioningCategories) SeedCategories(ctx context.Context, tenantID int
 		}
 	}
 	return nil
+}
+
+// SeedRoomCategories creates the default room categories at the school
+// (#4352); one the school already has is kept.
+func (c provisioningCategories) SeedRoomCategories(ctx context.Context, tenantID int64) error {
+	if tenantID <= 0 {
+		return nil
+	}
+	return c.rooms.SeedDefaultRoomCategories(tenant.WithTenantID(ctx, tenantID))
 }
 
 type provisioningAudit struct {

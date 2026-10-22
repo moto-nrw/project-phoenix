@@ -5,20 +5,17 @@ import { Button } from "@/components/ui/button";
 import { LOCATION_COLORS } from "@/lib/location-helper";
 
 /**
- * Custom field component for picking a room's badge color in the Database
- * Rooms edit form. Wraps the native `<input type="color">` (works on touch
- * devices, no extra dependency) plus a clear button so admins can reset to
- * the system default blue.
+ * Custom field component for picking a catalog color: a room's own badge
+ * color, a room category's color and the other school catalogs. Wraps the
+ * native `<input type="color">` (works on touch devices, no extra dependency)
+ * plus a clear button so admins can reset to the default.
  *
- * Backend rules the field surfaces by example, not by enforcement:
- *   - Colors reserved for status badges (Schulhof, Unterwegs, eigener
- *     Gruppenraum, etc.) are rejected with 400 + German message; the toast in
- *     rooms.config.tsx surfaces that.
- *   - Two rooms cannot share a color in the same school; backend returns 409
- *     and the toast tells the user to pick a different color.
+ * Colors reserved for status badges (Schulhof, Unterwegs, eigener
+ * Gruppenraum, etc.) are rejected by the backend with 400; the form shows
+ * that through its error path. Since #4352 rooms may share a color.
  *
- * Display value is normalised to upper-case hex so the audit log and the
- * uniqueness index stay consistent.
+ * Display value is normalised to upper-case hex so stored values compare
+ * consistently.
  */
 export function CatalogColorField(props: {
   value: unknown;
@@ -89,8 +86,7 @@ export function CatalogColorField(props: {
         )}
       </div>
       <p className="mt-1 text-xs text-gray-500">
-        {hint ??
-          "Damit kannst du das Badge dieses Raums einfärben. Wähle eine Farbe, die du noch nicht für einen anderen Raum benutzt."}
+        {hint ?? "Damit färben Sie die Ortsangabe dieses Raums ein."}
       </p>
     </div>
   );

@@ -144,9 +144,14 @@ func BuildProvisioning(
 	sessions presenceCompose.SessionRecords, supervisions studentpresence.SupervisionRecords, owner TimetableOwner,
 	operatorAuditLog OperatorAuditEntries, settings settingsCompose.SettingsService,
 ) (organizationtenancy.Provisioning, error) {
+	roomCategories, err := BuildRoomCategories(db)
+	if err != nil {
+		return nil, fmt.Errorf("compose operator provisioning: %w", err)
+	}
 	adapters, err := NewOperatorProvisioningAdapters(
 		operatorPersonStudentMembership(db), devices, persons, membership, people.Persons, people.Staff, identity,
-		sessions, supervisions, arrivalTimetable.NewActivityCategorySeeder(owner.Repositories.ActivityCategory), operatorAuditLog,
+		sessions, supervisions, arrivalTimetable.NewActivityCategorySeeder(owner.Repositories.ActivityCategory), roomCategories,
+		operatorAuditLog,
 	)
 	if err != nil {
 		return nil, fmt.Errorf("compose operator provisioning: %w", fmt.Errorf("compose operator provisioning adapters: %w", err))

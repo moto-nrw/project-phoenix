@@ -972,9 +972,10 @@ func (f *fakePresence) CountActiveSupervisions(ctx context.Context, tenantID, st
 }
 
 type fakeCategories struct {
-	guard  *adminGuard
-	seeded map[int64][]domain.ActivityCategory
-	err    error
+	guard      *adminGuard
+	seeded     map[int64][]domain.ActivityCategory
+	roomSeeded []int64
+	err        error
 }
 
 func (f *fakeCategories) SeedCategories(ctx context.Context, tenantID int64, categories []domain.ActivityCategory) error {
@@ -983,6 +984,15 @@ func (f *fakeCategories) SeedCategories(ctx context.Context, tenantID int64, cat
 		return f.err
 	}
 	f.seeded[tenantID] = append(f.seeded[tenantID], categories...)
+	return nil
+}
+
+func (f *fakeCategories) SeedRoomCategories(ctx context.Context, tenantID int64) error {
+	f.guard.check(ctx, "Categories.SeedRoomCategories")
+	if f.err != nil {
+		return f.err
+	}
+	f.roomSeeded = append(f.roomSeeded, tenantID)
 	return nil
 }
 

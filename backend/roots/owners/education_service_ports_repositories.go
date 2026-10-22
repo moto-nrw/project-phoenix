@@ -30,6 +30,6 @@ func (r EducationRooms) FindRoom(ctx context.Context, id int64) (*educationRepo.
 	return &educationRepo.RoomProjection{
 		ID: room.ID, CreatedAt: room.CreatedAt, UpdatedAt: room.UpdatedAt,
 		Name: room.Name, Building: room.Building, Floor: room.Floor,
-		Capacity: room.Capacity, Category: room.Category, Color: room.Color,
+		Capacity: room.Capacity, Category: room.Category, Color: room.BadgeColor(),
 	}, nil
 }

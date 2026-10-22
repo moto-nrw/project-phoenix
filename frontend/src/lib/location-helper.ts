@@ -315,9 +315,10 @@ export function getLocationBadgeTone(
     };
   }
 
-  // Anything outside the table is a per-room hex (#1324). Those can never
-  // match a row by construction — the backend reserves exactly the status
-  // hexes, so an admin-picked room color is always something else. Darkening
+  // Anything outside the table is a room or room category hex (#1324,
+  // #4352). Those can never match a row by construction — the backend
+  // reserves exactly the status hexes, so an admin-picked color is always
+  // something else. Darkening
   // the room's own hue keeps the badge distinguishable; a flat neutral label
   // would collapse every custom room onto the same pill.
   return (
@@ -628,8 +629,9 @@ function isStudentInGroupRoom(
  * Priority is intentional:
  *   1. Eigener-Gruppenraum-Grün — viewer-relative signal, kept as-is per the
  *      hard constraint that all non-blue colors keep their meaning.
- *   2. Per-room hex from the backend (`roomColor`) — the new differentiator
- *      that replaces the painful "every other room is the same blue" symptom.
+ *   2. Room hex from the backend (`roomColor`): the room's own color, else
+ *      the color of its room category (#4352). The backend resolves it, so
+ *      rooms of one category look alike.
  *   3. Schulhof-Orange — the yard is a real room in detailed mode, so without
  *      this it would fall through to the generic room blue and read
  *      differently from the same child in binary mode (#2405).

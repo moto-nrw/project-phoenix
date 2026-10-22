@@ -97,6 +97,9 @@ export const DATABASE_SUB_PAGES: readonly SectionSubPage[] = [
   { href: "/database/students", label: "Kinderdaten" },
   { href: "/database/personal", label: "Personal" },
   { href: "/database/rooms", label: "Räume" },
+  // Die Farbe der Ortsangabe hängt an der Raumkategorie (#4352); die Liste
+  // steht deshalb direkt unter den Räumen.
+  { href: "/database/room-categories", label: "Raumkategorien" },
   { href: "/database/activities", label: "Aktivitäten" },
   // Die kurzen Stammdaten-Listen der Schule (#3114). Sie standen vorher in
   // Slide-overs und Auswahlfeldern der Flächen, die sie benutzen.
@@ -150,6 +153,7 @@ export const DATABASE_PAGE_PERMISSIONS: Readonly<
   "/database/students": "users:delete",
   "/database/personal": ["staff:manage", "staff:stammdaten"],
   "/database/rooms": "rooms:manage",
+  "/database/room-categories": "rooms:manage",
   "/database/categories": "activities:manage_categories",
   "/database/planning-tracks": "schedules:manage",
   "/database/shift-types": "time_tracking:manage",

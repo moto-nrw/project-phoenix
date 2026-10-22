@@ -33,9 +33,7 @@ func NewRooms(dependencies Dependencies) (facilities.Catalog, error) {
 	if dependencies.DB == nil || dependencies.Observe == nil {
 		return nil, errors.New("facilities compose: all dependencies are required")
 	}
-	observe := ports.Observer(dependencies.Observe)
-	service := application.NewRooms(postgres.New(postgres.DatabaseRuntime(dependencies.DB)), transaction{}, observe)
-	return service, nil
+	return application.NewRooms(postgres.New(postgres.DatabaseRuntime(dependencies.DB)), transaction{}, dependencies.Observe), nil
 }
 
 // New composes the Facilities module. Every operation requires the caller's
@@ -45,9 +43,15 @@ func New(dependencies Dependencies) (facilities.Capability, error) {
 		return nil, errors.New("facilities compose: all dependencies are required")
 	}
 	store := postgres.New(postgres.DatabaseRuntime(dependencies.DB))
-	observe := ports.Observer(dependencies.Observe)
-	service := application.New(store, transaction{}, dependencies.DeletionLock, dependencies.Usage, observe)
-	return service, nil
+	return application.New(store, transaction{}, dependencies.DeletionLock, dependencies.Usage, dependencies.Observe), nil
+}
+
+// NewRoomCategories composes the room category catalog (#4352) over DB and Observe.
+func NewRoomCategories(dependencies Dependencies) (facilities.RoomCategories, error) {
+	if dependencies.DB == nil || dependencies.Observe == nil {
+		return nil, errors.New("facilities compose: all dependencies are required")
+	}
+	return application.NewCategories(postgres.NewCategoryStore(postgres.DatabaseRuntime(dependencies.DB)), transaction{}, dependencies.Observe), nil
 }
 
 type transaction struct{}

@@ -253,8 +253,7 @@ function RoomsPageContent() {
 
   const handleCreateRoom = useCallback(
     async (data: Partial<Room>) => {
-      // Ein Fehler bleibt im Dialog: DatabaseForm zeigt ihn über errorPath,
-      // eine vergebene Farbe (rooms.color_already_in_use) mit eigenem Text.
+      // Ein Fehler bleibt im Dialog: DatabaseForm zeigt ihn über errorPath.
       const payload = roomsConfig.form.transformBeforeSubmit
         ? roomsConfig.form.transformBeforeSubmit(data)
         : data;

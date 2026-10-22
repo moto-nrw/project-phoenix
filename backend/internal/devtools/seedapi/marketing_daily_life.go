@@ -34,8 +34,8 @@ type marketingSession struct {
 	leader   string
 }
 
-// marketingRooms take colors from the demo room palette: the API rejects the
-// colors reserved for presence states.
+// marketingRooms carry the color of their room category, from the demo room
+// palette: the API rejects the colors reserved for presence states.
 func marketingRooms() []marketingRoom {
 	return []marketingRoom{
 		{key: "bauraum", name: "Bauraum", category: "Spielen", color: "#E65100", capacity: 12},
@@ -73,10 +73,19 @@ var marketingMeals = [5][]map[string]any{
 func seedMarketingDailyLife(ctx context.Context, rt *Runtime, data manualProfileData, admin AccountCredentials, staff []AccountCredentials, parents []ParentCredentials) error {
 	rt.Client.BindAuth(rt.TenantAuth)
 	defer rt.Client.BindAuth(rt.TenantAuth)
+	// The color sits on the room category (#4352): every room of a category
+	// looks alike, and no room carries a color of its own.
+	categories := make([]roomCategorySeed, 0, len(marketingRooms()))
+	for _, room := range marketingRooms() {
+		categories = append(categories, roomCategorySeed{Name: room.category, Color: room.color})
+	}
+	if err := ensureRoomCategories(rt.Client, categories); err != nil {
+		return err
+	}
 	rooms := make(map[string]int64, len(marketingRooms()))
 	for _, room := range marketingRooms() {
 		raw, err := rt.Client.Post("/api/rooms", map[string]any{
-			"name": room.name, "category": room.category, "color": room.color, "capacity": room.capacity,
+			"name": room.name, "category": room.category, "capacity": room.capacity,
 		})
 		if err != nil {
 			return fmt.Errorf("create marketing room %s: %w", room.name, err)

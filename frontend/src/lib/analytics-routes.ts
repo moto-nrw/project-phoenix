@@ -47,6 +47,7 @@ export const TRACKED_TENANT_ROUTE_TEMPLATES = [
   "/database/personal/opening-balances",
   "/database/planning-tracks",
   "/database/roles",
+  "/database/room-categories",
   "/database/rooms",
   "/database/shift-types",
   "/database/students",

@@ -254,6 +254,7 @@ const EXACT_HELP_TOPICS: Readonly<Record<string, HelpTopicId>> = {
   "/database/permissions": HELP_TOPICS.leadStaffPermissions,
   "/database/personal": HELP_TOPICS.leadInviteStaff,
   "/database/roles": HELP_TOPICS.leadStaffPermissions,
+  "/database/room-categories": HELP_TOPICS.leadRooms,
   "/database/rooms": HELP_TOPICS.leadRooms,
   "/database/students": HELP_TOPICS.leadCreateStudent,
   "/database/students/ended-care": HELP_TOPICS.leadEndCare,

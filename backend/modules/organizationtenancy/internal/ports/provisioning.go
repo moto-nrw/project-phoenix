@@ -75,10 +75,12 @@ type ProvisioningPresence interface {
 	CountActiveSupervisions(ctx context.Context, tenantID, staffID int64) (int, error)
 }
 
-// ProvisioningCategories seeds the default activity categories of a new
-// school. A category the school already has is skipped.
+// ProvisioningCategories seeds the default activity categories and the
+// default room categories of a new school. A category the school already has
+// is skipped.
 type ProvisioningCategories interface {
 	SeedCategories(ctx context.Context, tenantID int64, categories []domain.ActivityCategory) error
+	SeedRoomCategories(ctx context.Context, tenantID int64) error
 }
 
 // ProvisioningSettings resolves the per-school device online window.

@@ -2462,6 +2462,9 @@
         "source_not_found": "Nuk u ndryshua: {object}. Kontrolloni gjendjen aktuale."
       },
       "rooms": {
+        "category_duplicate": "Nuk u ndryshua: {object}. Kontrolloni gjendjen aktuale.",
+        "category_in_use": "Nuk u ndryshua: {object}. Kontrolloni gjendjen aktuale.",
+        "category_not_found": "Nuk u ndryshua: {object}. Kontrolloni gjendjen aktuale.",
         "color_already_in_use": "Nuk u ndryshua: {object}. Kontrolloni gjendjen aktuale.",
         "not_found": "Nuk u ndryshua: {object}. Kontrolloni gjendjen aktuale.",
         "not_released": "Nuk u ndryshua: {object}. Kontrolloni gjendjen aktuale."

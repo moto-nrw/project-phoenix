@@ -68,6 +68,12 @@ func BuildServeRooms(db transactionruntime.Database) (facilitiesModule.Catalog, 
 	return facilitiesCompose.NewRooms(facilitiesCompose.Dependencies{DB: db.Pool(), Observe: ObserveFacilities})
 }
 
+// BuildRoomCategories composes the room category catalog of Facilities
+// (#4352); it needs no guard of another owner.
+func BuildRoomCategories(db transactionruntime.Database) (facilitiesModule.RoomCategories, error) {
+	return facilitiesCompose.NewRoomCategories(facilitiesCompose.Dependencies{DB: db.Pool(), Observe: ObserveFacilities})
+}
+
 // BuildFacilitiesModule composes Facilities with its room deletion: the
 // deletion asks Student Presence for open sessions and Care Plan's
 // care-offering catalog for the rooms its offerings need (#4010).

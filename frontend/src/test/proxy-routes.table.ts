@@ -405,6 +405,14 @@ export const PROXY_ROUTES: Record<string, readonly string[]> = {
     "GET tenant /api/platform/announcements/unread",
   ],
   "api/pwa/usage": ["POST tenant /api/pwa/usage"],
+  "api/room-categories": [
+    "GET tenant /api/room-categories",
+    "POST tenant /api/room-categories",
+  ],
+  "api/room-categories/[categoryId]": [
+    "DELETE tenant /api/room-categories/categoryId%2F1",
+    "PUT tenant /api/room-categories/categoryId%2F1",
+  ],
   "api/rooms/by-category": ["GET tenant /api/rooms/by-category raw"],
   "api/school-setup": ["GET tenant /api/school-setup"],
   "api/school-setup/complete": ["POST tenant /api/school-setup/complete"],

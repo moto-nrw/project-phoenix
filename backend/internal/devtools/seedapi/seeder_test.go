@@ -1626,6 +1626,17 @@ func fullSeedAPIMock(t *testing.T, traces ...*fullSeedAPITrace) *seedHTTPTestSer
 				"status": "success", "data": seedTestPermissionCatalog(),
 			})
 
+		case "/api/room-categories":
+			// The demo school holds the default room categories from
+			// provisioning (#4352), so the seed creates none.
+			_ = json.NewEncoder(w).Encode(map[string]any{
+				"status": "success",
+				"data": []map[string]any{
+					{"id": 1, "name": "Gruppenraum"}, {"id": 2, "name": "Normaler Raum"},
+					{"id": 3, "name": "Themenraum"}, {"id": 4, "name": "Sport"},
+				},
+			})
+
 		case "/api/activities/categories":
 			_ = json.NewEncoder(w).Encode(map[string]any{
 				"status": "success",

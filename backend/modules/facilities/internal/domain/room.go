@@ -10,7 +10,6 @@ const (
 	WCRoomAliasName  = "Toilette"
 
 	RoomNameUniqueConstraint    = "idx_rooms_tenant_name"
-	RoomColorUniqueConstraint   = "uniq_facilities_rooms_tenant_color"
 	RoomWCAliasUniqueConstraint = "uniq_facilities_rooms_tenant_wc_alias"
 )
 

@@ -2,6 +2,7 @@
 
 import { defineEntityConfig } from "@/lib/database/types";
 import { CatalogColorField } from "@/components/ui/database/catalog-color-field";
+import { roomCategoryOptions } from "@/lib/room-category-api";
 import { mapRoomResponse, prepareRoomForBackend } from "@/lib/room-helpers";
 import type { Room, BackendRoom } from "@/lib/room-helpers";
 
@@ -40,12 +41,13 @@ export const roomsConfig = defineEntityConfig<Room>({
             label: "Kategorie",
             type: "select",
             required: true,
-            options: [
-              { value: "Normaler Raum", label: "Normaler Raum" },
-              { value: "Gruppenraum", label: "Gruppenraum" },
-              { value: "Themenraum", label: "Themenraum" },
-              { value: "Sport", label: "Sport" },
-            ],
+            // Die Raumkategorien der Schule (#4352); jede trägt die Farbe,
+            // die ihre Räume in der Ortsangabe der Kinder zeigen.
+            options: roomCategoryOptions,
+            manageLink: {
+              href: "/database/room-categories",
+              label: "Raumkategorien verwalten",
+            },
           },
           {
             name: "building",
@@ -77,11 +79,16 @@ export const roomsConfig = defineEntityConfig<Room>({
               "Optional. Begrenzt die Anzahl der gleichzeitig eingecheckten Kinder in diesem Raum.",
           },
           {
+            // Die eigene Farbe geht der Farbe der Raumkategorie vor (#4352).
+            // Ohne sie zeigt der Raum die Kategoriefarbe.
             name: "color",
-            label: "Farbe",
+            label: "Eigene Farbe",
             type: "custom",
             colSpan: 2,
             component: CatalogColorField,
+            componentProps: {
+              hint: "Optional. Ohne eigene Farbe zeigt der Raum die Farbe seiner Raumkategorie.",
+            },
           },
           {
             // "Offener Raum" is the domain term from #3062. The hint names what

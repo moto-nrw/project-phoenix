@@ -46,3 +46,16 @@ type Observation struct {
 }
 
 type Observer func(Observation)
+
+// CategoryStore persists the room category catalog of the caller's school.
+type CategoryStore interface {
+	List(context.Context) ([]facilities.RoomCategory, error)
+	FindForUpdate(context.Context, int64) (facilities.RoomCategory, bool, error)
+	Create(context.Context, facilities.RoomCategoryInput) (facilities.RoomCategory, error)
+	Update(context.Context, int64, facilities.RoomCategoryInput) (facilities.RoomCategory, error)
+	Delete(context.Context, int64) error
+	RenameRooms(ctx context.Context, from, to string) error
+	// CountRoomsByCategory counts the ordinary rooms per category name,
+	// keyed by the lower-case trimmed name.
+	CountRoomsByCategory(context.Context) (map[string]int, error)
+}

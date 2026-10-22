@@ -4154,6 +4154,10 @@
       "write_owner": "enrollment"
     },
     {
+      "name": "facilities.room_categories",
+      "write_owner": "facilities"
+    },
+    {
       "name": "facilities.rooms",
       "write_owner": "facilities"
     },

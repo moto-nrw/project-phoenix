@@ -38,7 +38,8 @@ func (q *roomAvailability) AvailableRooms(ctx context.Context, capacity int) ([]
 		result = append(result, devicescan.AvailableRoom{
 			ID: room.ID, Name: room.Name, Building: room.Building,
 			Floor: room.Floor, Capacity: room.Capacity, Category: room.Category,
-			Color: room.Color, IsOccupied: room.IsOccupied,
+			// The kiosk frames a room in its badge color (#4352).
+			Color: room.BadgeColor(), IsOccupied: room.IsOccupied,
 			IsOpenRoom: room.IsOpenRoom,
 			IsSchulhof: room.IsSystem && room.Name == facilities.SchulhofRoomName,
 		})

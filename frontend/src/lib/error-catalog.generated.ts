@@ -379,6 +379,12 @@ export const ERROR_CATALOG = {
         "Aus dieser Phase gibt es schon eine Anschlussphase. Bitte löschen Sie zuerst die bestehende Anschlussphase.",
       "rollover.source_not_found":
         "Die Ausgangsphase gibt es nicht mehr. Bitte laden Sie die Seite neu.",
+      "rooms.category_duplicate":
+        "Diese Raumkategorie gibt es schon. Bitte wählen Sie einen anderen Namen.",
+      "rooms.category_in_use":
+        "Räume nutzen diese Raumkategorie noch. Bitte ordnen Sie die Räume zuerst einer anderen Kategorie zu.",
+      "rooms.category_not_found":
+        "Diese Raumkategorie gibt es nicht mehr. Bitte laden Sie die Seite neu.",
       "rooms.color_already_in_use":
         "Diese Farbe hat schon ein anderer Raum. Bitte wählen Sie eine andere Farbe.",
       "rooms.not_found":

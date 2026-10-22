@@ -24,6 +24,13 @@ interface FieldConfig {
   required?: boolean;
   placeholder?: string;
   helperText?: string;
+  /**
+   * Link to the school catalog behind a select (`CatalogManageLink`): the form
+   * offers only the choice, the catalog is maintained on its own page. A
+   * select with async options reloads them when the window is focused again,
+   * so an entry added next door shows up without a reload.
+   */
+  manageLink?: { href: string; label: string };
   description?: string;
   validation?: (value: unknown) => string | null;
   // For select/multiselect fields - supports both sync and async options
@@ -322,6 +329,7 @@ export function configToFormSection(section: SectionConfig): FormSection {
       component: field.component,
       componentProps: field.componentProps,
       helperText: field.helperText,
+      manageLink: field.manageLink,
       autoComplete: field.autoComplete,
       colSpan: field.colSpan,
       min: field.min,

@@ -20,7 +20,6 @@ var (
 	ErrDuplicateRoom                      = errors.New("ein Raum mit diesem Namen existiert bereits")
 	ErrDuplicateToiletRoom                = errors.New("es existiert bereits ein Toilettenraum (WC oder Toilette)")
 	ErrRoomColorReserved                  = errors.New("diese Farbe ist für Statusbadges reserviert und kann nicht für Räume verwendet werden")
-	ErrRoomColorAlreadyInUse              = errors.New("diese Farbe ist bereits einem anderen Raum zugeordnet")
 	ErrRoomInUse                          = errors.New("raum kann nicht gelöscht werden: Raum wird aktuell von einer aktiven Gruppe verwendet")
 	ErrRoomRequiredByOffering             = errors.New("raum kann nicht gelöscht werden: Raum wird für ein verknüpftes Betreuungsangebot benötigt")
 	ErrRoomDeletionGuardUnavailable       = errors.New("room deletion guard is unavailable")
@@ -44,13 +43,33 @@ type Room struct {
 	Floor     *int      `json:"floor,omitempty"`
 	Capacity  *int      `json:"capacity,omitempty"`
 	Category  *string   `json:"category,omitempty"`
-	Color     *string   `json:"color,omitempty"`
-	IsSystem  bool      `json:"is_system"`
+	// Color is the room's own color, set by the school as an override. It is
+	// what the room form edits; badges read BadgeColor.
+	Color *string `json:"color,omitempty"`
+	// CategoryColor is the catalog color of the room's category, nil when the
+	// category is not in the catalog. Only reads fill it.
+	CategoryColor *string `json:"category_color,omitempty"`
+	IsSystem      bool    `json:"is_system"`
 	// IsOpenRoom reports whether the OGS administration has permanently
 	// released this room for use ("offener Raum", #3062). The release says
 	// nothing about who supervises the room and grants no home-checkout
 	// rights — those stay separate decisions.
 	IsOpenRoom bool `json:"is_open_room"`
+}
+
+// BadgeColor is the color a presence badge shows for the room (#4352): the
+// room's own color first, otherwise its category's. System rooms take no
+// category color: the Schulhof keeps its orange status default and the
+// toilet rooms have no badge of their own. Nil leaves the badge to the
+// frontend default.
+func (r Room) BadgeColor() *string {
+	if r.Color != nil && *r.Color != "" {
+		return r.Color
+	}
+	if r.IsSystem {
+		return nil
+	}
+	return r.CategoryColor
 }
 
 type Query interface {
@@ -99,8 +118,12 @@ func ErrorCode(err error) string {
 		return "duplicate_toilet_room"
 	case errors.Is(err, ErrRoomColorReserved):
 		return "color_reserved"
-	case errors.Is(err, ErrRoomColorAlreadyInUse):
-		return "color_already_in_use"
+	case errors.Is(err, ErrRoomCategoryNotFound):
+		return "category_not_found"
+	case errors.Is(err, ErrDuplicateRoomCategory):
+		return "duplicate_category"
+	case errors.Is(err, ErrRoomCategoryInUse):
+		return "category_in_use"
 	case errors.Is(err, ErrRoomInUse):
 		return "room_in_use"
 	case errors.Is(err, ErrRoomRequiredByOffering):

@@ -40,6 +40,7 @@ DELETE /api/meal-plan/{date}
 DELETE /api/notifications/preferences/
 DELETE /api/notifications/push/subscriptions
 DELETE /api/parent-announcements/{announcementId}
+DELETE /api/room-categories/{id}
 DELETE /api/rooms/{id}
 DELETE /api/settings/enrollment/legal-agb-document
 DELETE /api/settings/home-layout
@@ -304,6 +305,7 @@ GET /api/parent-announcements/{announcementId}/stats
 GET /api/platform/announcements/unread
 GET /api/platform/announcements/unread/count
 GET /api/reminders/
+GET /api/room-categories/
 GET /api/rooms/
 GET /api/rooms/available
 GET /api/rooms/buildings
@@ -729,6 +731,7 @@ POST /api/parent-announcements/{announcementId}/unpublish
 POST /api/platform/announcements/{id}/dismiss
 POST /api/platform/announcements/{id}/seen
 POST /api/pwa/usage
+POST /api/room-categories/
 POST /api/rooms/
 POST /api/rooms/export
 POST /api/school-setup/complete
@@ -996,6 +999,7 @@ PUT /api/notifications/email-subscriptions/{type}
 PUT /api/notifications/preferences/{type}
 PUT /api/parent-announcements/{announcementId}
 PUT /api/parent-announcements/{announcementId}/reminder
+PUT /api/room-categories/{id}
 PUT /api/rooms/{id}
 PUT /api/school-setup/dismissal
 PUT /api/school-setup/steps/{step}

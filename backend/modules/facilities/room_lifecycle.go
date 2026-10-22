@@ -9,7 +9,6 @@ const (
 	WCRoomName       = "WC"
 	WCRoomAliasName  = "Toilette"
 
-	RoomColorUniqueConstraintName   = "uniq_facilities_rooms_tenant_color"
 	RoomWCAliasUniqueConstraintName = "uniq_facilities_rooms_tenant_wc_alias"
 
 	SchulhofActivityName        = "Schulhof Freispiel"

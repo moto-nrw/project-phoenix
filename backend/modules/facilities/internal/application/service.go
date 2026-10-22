@@ -16,6 +16,7 @@ import (
 // visibility and the service never opens an admin transaction of its own.
 type Service struct {
 	store        ports.Store
+	categories   ports.CategoryStore
 	tx           ports.Transaction
 	lockDeletion ports.DeletionLock
 	usage        ports.RoomUsage

@@ -155,13 +155,16 @@ func (req *RoomRequest) Bind(_ *http.Request) error {
 }
 
 type RoomResponse struct {
-	ID              int64     `json:"id"`
-	Name            string    `json:"name"`
-	Building        string    `json:"building,omitempty"`
-	Floor           *int      `json:"floor,omitempty"`
-	Capacity        *int      `json:"capacity,omitempty"`
-	Category        *string   `json:"category,omitempty"`
-	Color           *string   `json:"color,omitempty"`
+	ID       int64   `json:"id"`
+	Name     string  `json:"name"`
+	Building string  `json:"building,omitempty"`
+	Floor    *int    `json:"floor,omitempty"`
+	Capacity *int    `json:"capacity,omitempty"`
+	Category *string `json:"category,omitempty"`
+	Color    *string `json:"color,omitempty"`
+	// CategoryColor is the catalog color the badge falls back to when the
+	// room has no own color (#4352); system rooms take none.
+	CategoryColor   *string   `json:"category_color,omitempty"`
 	IsOccupied      bool      `json:"is_occupied"`
 	GroupName       *string   `json:"group_name,omitempty"`
 	CategoryName    *string   `json:"category_name,omitempty"`
@@ -174,8 +177,13 @@ type RoomResponse struct {
 }
 
 func newRoomResponse(view RoomView) RoomResponse {
+	var categoryColor *string
+	if !view.IsSystem {
+		categoryColor = view.CategoryColor
+	}
 	return RoomResponse{
-		ID: view.ID, Name: view.Name, Building: view.Building, Floor: view.Floor,
+		CategoryColor: categoryColor,
+		ID:            view.ID, Name: view.Name, Building: view.Building, Floor: view.Floor,
 		Capacity: view.Capacity, Category: view.Category, Color: view.Color,
 		IsOccupied: view.IsOccupied, GroupName: view.GroupName, CategoryName: view.CategoryName,
 		StudentCount: view.StudentCount, SupervisorNames: view.SupervisorNames,
@@ -503,7 +511,7 @@ func classifyFailure(err error) (FailureKind, string) {
 	case errors.Is(err, facilities.ErrSystemRoomProtected):
 		kind = FailureForbidden
 	case errors.Is(err, facilities.ErrDuplicateRoom), errors.Is(err, facilities.ErrDuplicateToiletRoom),
-		errors.Is(err, facilities.ErrRoomColorAlreadyInUse), errors.Is(err, facilities.ErrRoomInUse),
+		errors.Is(err, facilities.ErrRoomInUse),
 		errors.Is(err, facilities.ErrRoomRequiredByOffering):
 		kind = FailureConflict
 	}

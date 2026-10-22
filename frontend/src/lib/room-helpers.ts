@@ -45,6 +45,8 @@ export interface BackendRoom {
   capacity?: number | null; // Optional (nullable in DB)
   category?: string | null; // Optional (nullable in DB)
   color?: string | null; // Optional (nullable in DB)
+  /** Catalog color of the room's category (#4352); absent for system rooms. */
+  category_color?: string | null;
   device_id?: string;
   is_occupied: boolean;
   is_system?: boolean;
@@ -69,6 +71,9 @@ export interface Room {
   capacity?: number; // Optional (nullable in DB)
   category?: string; // Optional (nullable in DB)
   color?: string; // Optional (nullable in DB)
+  /** Catalog color of the room's category; the badge shows it when the room
+   *  has no color of its own (#4352). */
+  categoryColor?: string;
   deviceId?: string;
   isOccupied: boolean;
   isSystem?: boolean;
@@ -143,6 +148,7 @@ export function mapRoomResponse(backendRoom: BackendRoom): Room {
         : undefined,
     category: backendRoom.category ?? undefined,
     color: backendRoom.color ?? undefined,
+    categoryColor: backendRoom.category_color ?? undefined,
     deviceId: backendRoom.device_id,
     isOccupied: backendRoom.is_occupied,
     isSystem: backendRoom.is_system,

@@ -41,6 +41,7 @@ func TestProvisioningCreateSchool(t *testing.T) {
 			Name: "Mensa", Description: "Aktivitäten rund um das Mittagessen", Color: "#FF9500",
 		}, "Essenszeiten need the Mensa category (#2131)")
 		assert.Equal(t, "Sport", categories[0].Name)
+		assert.Equal(t, []int64{created.ID}, h.categories.roomSeeded, "the school starts with the default room categories (#4352)")
 
 		require.Len(t, h.devices.created, 1)
 		device := h.devices.created[0]
@@ -249,6 +250,7 @@ func TestProvisioningCreateSchool(t *testing.T) {
 			assert.Nil(t, created)
 			tc.check(t, err)
 			assert.Empty(t, h.categories.seeded)
+			assert.Empty(t, h.categories.roomSeeded)
 			assert.Empty(t, h.devices.created)
 			assert.Empty(t, h.audit.entries)
 		})

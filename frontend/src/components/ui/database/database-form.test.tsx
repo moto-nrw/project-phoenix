@@ -928,6 +928,53 @@ describe("DatabaseForm", () => {
     );
   });
 
+  it("links a catalog-backed select to its list and reloads it on focus", async () => {
+    const options = vi
+      .fn()
+      .mockResolvedValueOnce([{ value: "Sport", label: "Sport" }])
+      .mockResolvedValueOnce([
+        { value: "Sport", label: "Sport" },
+        { value: "Ruhe", label: "Ruhe" },
+      ]);
+
+    render(
+      <DatabaseForm
+        {...defaultProps}
+        sections={[
+          {
+            title: "Raumdetails",
+            fields: [
+              {
+                name: "category",
+                label: "Kategorie",
+                type: "select",
+                options,
+                manageLink: {
+                  href: "/database/room-categories",
+                  label: "Raumkategorien verwalten",
+                },
+              },
+            ],
+          },
+        ]}
+      />,
+    );
+
+    const link = screen.getByRole("link", { name: /Raumkategorien verwalten/ });
+    expect(link).toHaveAttribute("target", "_blank");
+    expect(link.getAttribute("href")).toContain("/database/room-categories");
+    await waitFor(() => {
+      expect(options).toHaveBeenCalledTimes(1);
+    });
+
+    // An entry added in the second window shows up without a reload.
+    fireEvent.focus(window);
+
+    await waitFor(() => {
+      expect(options).toHaveBeenCalledTimes(2);
+    });
+  });
+
   it("shows a failed option load with the catalog text instead of an empty choice and retries it", async () => {
     const options = vi
       .fn()

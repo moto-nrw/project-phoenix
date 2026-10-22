@@ -177,6 +177,14 @@ const baseDataSections: DataSection[] = [
     badge: "Stammdaten",
   },
   {
+    id: "roomCategories",
+    title: "Raumkategorien",
+    description: "Farbe der Räume in der Ortsangabe der Kinder",
+    href: "/database/room-categories",
+    concept: "rooms",
+    badge: "Stammdaten",
+  },
+  {
     id: "planningTracks",
     title: "Planungsspuren",
     description: "Regeltermine im Betreuungsplan farblich bündeln",

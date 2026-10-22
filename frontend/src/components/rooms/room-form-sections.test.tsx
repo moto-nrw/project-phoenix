@@ -6,6 +6,24 @@ import { LOCATION_COLORS } from "@/lib/location-helper";
 import { buildRoomFormSections } from "./room-form-sections";
 import type { Room } from "@/lib/room-helpers";
 
+// The category options come from the school's room categories (#4352).
+vi.mock("@/lib/room-category-api", () => ({
+  roomCategoryOptions: vi.fn(() =>
+    Promise.resolve([
+      { value: "Gruppenraum", label: "Gruppenraum" },
+      { value: "Sport", label: "Sport" },
+    ]),
+  ),
+}));
+
+async function categoryOptions(room: Room | null) {
+  const field = buildRoomFormSections(room)
+    .flatMap((section) => section.fields)
+    .find((candidate) => candidate.name === "category");
+  const options = field?.options;
+  return typeof options === "function" ? options() : options;
+}
+
 const baseRoom: Room = {
   id: "1",
   name: "Test Raum",
@@ -18,32 +36,38 @@ const baseRoom: Room = {
 };
 
 describe("buildRoomFormSections", () => {
-  it("keeps standard room categories unchanged", () => {
-    const sections = buildRoomFormSections(baseRoom);
-    const categoryField = sections
+  it("offers the school's room categories and links to their list", async () => {
+    const categoryField = buildRoomFormSections(baseRoom)
       .flatMap((section) => section.fields)
       .find((field) => field.name === "category");
 
-    expect(Array.isArray(categoryField?.options)).toBe(true);
-    expect(categoryField?.options).toContainEqual({
-      value: "Gruppenraum",
-      label: "Gruppenraum",
+    expect(await categoryOptions(baseRoom)).toEqual([
+      { value: "Gruppenraum", label: "Gruppenraum" },
+      { value: "Sport", label: "Sport" },
+    ]);
+    expect(categoryField?.manageLink).toEqual({
+      href: "/database/room-categories",
+      label: "Raumkategorien verwalten",
     });
   });
 
-  it("adds the active legacy category to the selectable options", () => {
-    const sections = buildRoomFormSections({
-      ...baseRoom,
-      category: "Legacy-Kategorie",
-    });
-    const categoryField = sections
-      .flatMap((section) => section.fields)
-      .find((field) => field.name === "category");
-
-    expect(categoryField?.options).toContainEqual({
+  it("keeps a category the list no longer has selectable", async () => {
+    expect(
+      await categoryOptions({ ...baseRoom, category: "Legacy-Kategorie" }),
+    ).toContainEqual({
       value: "Legacy-Kategorie",
-      label: "Legacy-Kategorie (Legacy)",
+      label: "Legacy-Kategorie (nicht in den Raumkategorien)",
     });
+  });
+
+  it("keeps the system category of the Schulhof without a remark", async () => {
+    expect(
+      await categoryOptions({
+        ...baseRoom,
+        name: "Schulhof",
+        category: "Schulhof",
+      }),
+    ).toContainEqual({ value: "Schulhof", label: "Schulhof" });
   });
 
   it("disables the name field for system rooms", () => {
@@ -130,16 +154,25 @@ describe("buildRoomFormSections", () => {
     expect(fieldNames).not.toContain("color");
   });
 
-  it("uses the plain color picker for regular rooms", () => {
+  it("previews the category color for a room without its own", () => {
     // Only the Schulhof gets the orange-default binding; every other room
-    // keeps the unbound picker with its blue fallback preview.
-    const sections = buildRoomFormSections({ ...baseRoom, name: "Werkraum" });
-    const colorField = sections
-      .flatMap((section) => section.fields)
-      .find((field) => field.name === "color");
+    // previews the color its badge falls back to: its category's (#4352),
+    // else the picker's generic default.
+    const colorProps = (room: Room) =>
+      buildRoomFormSections(room)
+        .flatMap((section) => section.fields)
+        .find((field) => field.name === "color")?.componentProps;
 
-    expect(colorField?.component).toBe(CatalogColorField);
-    expect(colorField?.componentProps).toBeUndefined();
+    const withCategory = colorProps({
+      ...baseRoom,
+      name: "Werkraum",
+      categoryColor: "#283590",
+    });
+    expect(withCategory?.defaultHex).toBe("#283590");
+    expect(withCategory?.hint).toMatch(/Farbe seiner Raumkategorie/);
+
+    const withoutCategory = colorProps({ ...baseRoom, name: "Werkraum" });
+    expect(withoutCategory?.defaultHex).toBeUndefined();
   });
 
   it("keeps the color field for regular rooms", () => {

@@ -1565,6 +1565,24 @@
       "legacy": "rollover.source_not_found"
     },
     {
+      "code": "rooms.category_duplicate",
+      "class": "business_rejection",
+      "parameters": [],
+      "legacy": "rooms.category_duplicate"
+    },
+    {
+      "code": "rooms.category_in_use",
+      "class": "business_rejection",
+      "parameters": [],
+      "legacy": "rooms.category_in_use"
+    },
+    {
+      "code": "rooms.category_not_found",
+      "class": "business_rejection",
+      "parameters": [],
+      "legacy": "rooms.category_not_found"
+    },
+    {
       "code": "rooms.color_already_in_use",
       "class": "business_rejection",
       "parameters": [],

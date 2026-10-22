@@ -30,6 +30,7 @@ type roomRow struct {
 	Capacity      *int      `bun:"capacity"`
 	Category      *string   `bun:"category"`
 	Color         *string   `bun:"color"`
+	CategoryColor *string   `bun:"category_color,scanonly"`
 	IsSystem      bool      `bun:"is_system,notnull,default:false"`
 	IsOpenRoom    bool      `bun:"is_open_room,notnull,default:false"`
 }
@@ -62,6 +63,9 @@ func (s *Store) Create(ctx context.Context, input facilities.CreateRoom) (facili
 		return facilities.Room{}, stats, fmt.Errorf("facilities postgres: create room: %w", classifyWriteError(err))
 	}
 	stats.Rows = 1
+	if err := withCategoryColor(ctx, db, &row, &stats); err != nil {
+		return facilities.Room{}, stats, err
+	}
 	return toDomain(row), stats, nil
 }
 
@@ -96,6 +100,9 @@ func (s *Store) Update(ctx context.Context, input facilities.UpdateRoom) (facili
 		return facilities.Room{}, stats, fmt.Errorf("facilities postgres: update room: %w", classifyWriteError(err))
 	}
 	stats.Rows = 1
+	if err := withCategoryColor(ctx, db, &row, &stats); err != nil {
+		return facilities.Room{}, stats, err
+	}
 	return toDomain(row), stats, nil
 }
 
@@ -138,7 +145,7 @@ func (s *Store) FindByID(ctx context.Context, id int64, lock string) (facilities
 		Where(`"room".id = ?`, id).
 		Where(`"room".tenant_id = ?`, tenantID)
 	if lock != "" {
-		query = query.For(lock)
+		query = query.For(lock + ` OF "room"`)
 	}
 	err = query.Scan(ctx)
 	stats.StatementDuration = time.Since(started)
@@ -341,7 +348,7 @@ func (s *Store) listByIDs(ctx context.Context, ids []int64, lock string) ([]faci
 		Where(`"room".tenant_id = ?`, tenantID).
 		OrderExpr(`"room".name ASC, "room".id ASC`)
 	if lock != "" {
-		query = query.For(lock)
+		query = query.For(lock + ` OF "room"`)
 	}
 	err = query.Scan(ctx)
 	stats.StatementDuration = time.Since(started)
@@ -356,15 +363,46 @@ func (s *Store) listByIDs(ctx context.Context, ids []int64, lock string) ([]faci
 	return result, stats, nil
 }
 
+// roomSelect reads rooms with the catalog color of their category (#4352).
+// The category is matched case-insensitively by name within the school; a
+// category missing from the catalog leaves category_color NULL. Locking
+// callers must name "room" (FOR UPDATE OF "room"): the catalog is the
+// nullable side of the outer join and cannot be locked.
 func roomSelect(db bun.IDB, model any) *bun.SelectQuery {
-	return db.NewSelect().Model(model).ModelTableExpr(`facilities.rooms AS "room"`)
+	return db.NewSelect().Model(model).ModelTableExpr(`facilities.rooms AS "room"`).
+		ColumnExpr(`"room".*`).
+		ColumnExpr(`"category".color AS category_color`).
+		Join(`LEFT JOIN facilities.room_categories AS "category" ON "category".tenant_id = "room".tenant_id AND LOWER("category".name) = LOWER(BTRIM("room".category))`)
+}
+
+// withCategoryColor fills the catalog color a write's RETURNING cannot join,
+// matched the way roomSelect matches.
+func withCategoryColor(ctx context.Context, db bun.IDB, row *roomRow, stats *domain.OperationStats) error {
+	if row.Category == nil {
+		return nil
+	}
+	colors := []string{}
+	stats.Queries++
+	err := db.NewSelect().
+		TableExpr(`facilities.room_categories AS "category"`).
+		Column("category.color").
+		Where(`"category".tenant_id = ?`, row.TenantID).
+		Where(`LOWER("category".name) = LOWER(BTRIM(?))`, *row.Category).
+		Scan(ctx, &colors)
+	if err != nil {
+		return fmt.Errorf("facilities postgres: read room category color: %w", err)
+	}
+	if len(colors) > 0 {
+		row.CategoryColor = &colors[0]
+	}
+	return nil
 }
 
 func toDomain(row roomRow) facilities.Room {
 	return facilities.Room{
 		ID: row.ID, TenantID: row.TenantID, CreatedAt: row.CreatedAt, UpdatedAt: row.UpdatedAt,
 		Name: row.Name, Building: row.Building, Floor: row.Floor, Capacity: row.Capacity,
-		Category: row.Category, Color: row.Color, IsSystem: row.IsSystem,
+		Category: row.Category, Color: row.Color, CategoryColor: row.CategoryColor, IsSystem: row.IsSystem,
 		IsOpenRoom: row.IsOpenRoom,
 	}
 }
@@ -377,8 +415,6 @@ func classifyWriteError(err error) error {
 	switch postgresError.Field('n') {
 	case domain.RoomNameUniqueConstraint:
 		return facilities.ErrDuplicateRoom
-	case domain.RoomColorUniqueConstraint:
-		return facilities.ErrRoomColorAlreadyInUse
 	case domain.RoomWCAliasUniqueConstraint:
 		return facilities.ErrDuplicateToiletRoom
 	default:

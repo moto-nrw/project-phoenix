@@ -171,7 +171,9 @@ func TestRoomCommandsPreserveToiletAliasAndColorContracts(t *testing.T) {
 	assert.Equal(t, "Altbau", updated.Building)
 }
 
-func TestRoomCommandsRejectDuplicateColorPerTenant(t *testing.T) {
+// Room colors are no longer unique per school (#4352): rooms of one category
+// share the category color, so an own color may repeat as well.
+func TestRoomCommandsAllowSharedColorPerTenant(t *testing.T) {
 	t.Parallel()
 
 	db := testpkg.SetupTestDB(t)
@@ -181,9 +183,10 @@ func TestRoomCommandsRejectDuplicateColorPerTenant(t *testing.T) {
 	_, err := module.CreateRoom(ctx, facilities.CreateRoom{Name: "Igelraum", Color: &color})
 	require.NoError(t, err)
 
-	duplicate := "#123456"
-	_, err = module.CreateRoom(ctx, facilities.CreateRoom{Name: "Fuchsbau", Color: &duplicate})
-	require.ErrorIs(t, err, facilities.ErrRoomColorAlreadyInUse)
+	shared := "#123456"
+	created, err := module.CreateRoom(ctx, facilities.CreateRoom{Name: "Fuchsbau", Color: &shared})
+	require.NoError(t, err)
+	assert.Equal(t, &shared, created.Color)
 }
 
 func TestDeleteRoomRunsGuardInsideWriteTransaction(t *testing.T) {

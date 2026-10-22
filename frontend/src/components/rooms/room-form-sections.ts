@@ -9,7 +9,10 @@ import {
   isToiletRoom,
   type Room,
 } from "@/lib/room-helpers";
-import type { FormSection } from "~/components/ui/database/database-form";
+import type {
+  FormField,
+  FormSection,
+} from "~/components/ui/database/database-form";
 
 /**
  * Preview and hint for the schoolyard's colour picker (#2405): without a
@@ -22,47 +25,68 @@ import type { FormSection } from "~/components/ui/database/database-form";
  */
 const SCHULHOF_COLOR_FIELD_PROPS = {
   defaultHex: LOCATION_COLORS.SCHOOLYARD,
-  hint: "Ohne eigene Farbe erscheint der Schulhof in Orange. Wähle eine Farbe, die du noch nicht für einen anderen Raum benutzt.",
+  hint: "Ohne eigene Farbe erscheint der Schulhof in Orange.",
 };
 
-const STANDARD_CATEGORIES = new Set([
-  "Normaler Raum",
-  "Gruppenraum",
-  "Themenraum",
-  "Sport",
-]);
+type Option = { value: string; label: string };
+
+/**
+ * Keeps a room's current category selectable when the catalog no longer has
+ * it (deleted, or a value from before the catalog, #4352): otherwise saving
+ * the form would silently drop the category.
+ */
+function withCurrentCategory(
+  options: FormField["options"],
+  current: string,
+  systemRoom: boolean,
+): FormField["options"] {
+  // A system room's category (Schulhof, WC) is no catalog entry by design.
+  const label = systemRoom
+    ? current
+    : `${current} (nicht in den Raumkategorien)`;
+  const append = (list: Option[]): Option[] =>
+    list.some((option) => option.value.toLowerCase() === current.toLowerCase())
+      ? list
+      : [...list, { value: current, label }];
+  if (typeof options === "function") {
+    return async () => append(await options());
+  }
+  return append(options ?? []);
+}
 
 export function buildRoomFormSections(
   room: Room | null | undefined,
 ): FormSection[] {
   let sections = roomsConfig.form.sections.map(configToFormSection);
-  const legacyCategory = room?.category;
+  const currentCategory = room?.category;
 
-  if (legacyCategory && !STANDARD_CATEGORIES.has(legacyCategory)) {
-    sections = sections.map((section) => ({
-      ...section,
-      fields: section.fields.map((field) => {
-        if (field.name !== "category" || !Array.isArray(field.options)) {
-          return field;
-        }
-
-        const hasLegacyOption = field.options.some(
-          (option) => option.value === legacyCategory,
-        );
-        if (hasLegacyOption) {
-          return field;
-        }
-
+  sections = sections.map((section) => ({
+    ...section,
+    fields: section.fields.map((field) => {
+      if (field.name === "category" && currentCategory) {
         return {
           ...field,
-          options: [
-            ...field.options,
-            { value: legacyCategory, label: `${legacyCategory} (Legacy)` },
-          ],
+          options: withCurrentCategory(
+            field.options,
+            currentCategory,
+            isSystemRoom(room),
+          ),
         };
-      }),
-    }));
-  }
+      }
+      // Without an own color the room shows its category color, so the
+      // picker previews that one instead of the generic default.
+      if (field.name === "color" && room?.categoryColor) {
+        return {
+          ...field,
+          componentProps: {
+            ...field.componentProps,
+            defaultHex: room.categoryColor,
+          },
+        };
+      }
+      return field;
+    }),
+  }));
 
   // Toilet rooms can never be an open room — the backend refuses the release
   // with ErrToiletRoomNotReleasable. A switch that always fails is worse than

@@ -76,7 +76,7 @@ func (d educationRoomDirectory) ListRoomsByID(ctx context.Context, ids []int64) 
 		result = append(result, educationRepo.DirectoryRoom{
 			ID: room.ID, TenantID: room.TenantID, CreatedAt: room.CreatedAt, UpdatedAt: room.UpdatedAt,
 			Name: room.Name, Building: room.Building, Floor: room.Floor, Capacity: room.Capacity,
-			Category: room.Category, Color: room.Color,
+			Category: room.Category, Color: room.BadgeColor(),
 		})
 	}
 	return result, nil

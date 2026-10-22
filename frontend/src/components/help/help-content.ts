@@ -2810,8 +2810,19 @@ function roomsCatalogTopic(presenceMode: HelpPresenceMode): HelpTopic {
           "Tragen Sie bei `Raumname` den Namen des Raums ein.",
           "Wählen Sie eine `Kategorie`.",
           "Tragen Sie bei Bedarf `Gebäude` und `Etage` ein.",
-          "Wählen Sie bei Bedarf eine `Farbe`.",
+          "Wählen Sie bei Bedarf eine `Eigene Farbe`.",
           "Wählen Sie `Erstellen`.",
+        ],
+      },
+      {
+        title: "Raumkategorien und ihre Farben",
+        description:
+          "Räume derselben Kategorie haben dieselbe Farbe. Die Farbe steht bei der Ortsangabe der Kinder.",
+        steps: [
+          "Öffnen Sie `Datenverwaltung` und danach `Raumkategorien`.",
+          "Wählen Sie eine Kategorie aus der Liste. Oder legen Sie eine neue an.",
+          "Tragen Sie einen `Name` ein und wählen Sie eine `Farbe`.",
+          "Wählen Sie `Speichern`.",
         ],
       },
       {
@@ -2834,7 +2845,8 @@ function roomsCatalogTopic(presenceMode: HelpPresenceMode): HelpTopic {
     result:
       "Der Raum steht sofort zur Auswahl. Sie können ihn einer Gruppe zuweisen.",
     notes: [
-      "Die Farbe erscheint später an jedem Ort-Schild dieses Raums.",
+      "Ein Raum zeigt die Farbe seiner Kategorie. Eine `Eigene Farbe` geht vor.",
+      "Der eigene Gruppenraum, `Unterwegs` und der `Schulhof` behalten ihre festen Farben.",
       "Oben rechts fassen Sie die Liste unter `Gruppieren` nach `Gebäude`, `Etage` oder `Keine` zusammen.",
       ...(tracksRooms
         ? [
@@ -2848,11 +2860,12 @@ function roomsCatalogTopic(presenceMode: HelpPresenceMode): HelpTopic {
     differences: [
       "Auf dem Handy steht statt `+ Raum` ein rundes Plus unten rechts.",
       "`Schulhof`, `WC` und `Toilette` legt moto selbst an. Ihre Namen sind fest, und `Löschen` fehlt.",
-      "Beim `WC` und bei der `Toilette` fehlen zusätzlich `Farbe` und `Offener Raum`.",
+      "Beim `WC` und bei der `Toilette` fehlen zusätzlich `Eigene Farbe` und `Offener Raum`.",
     ],
     troubleshootingDetails: [
       "Fehlt `Datenverwaltung` in der Seitenleiste? Dann fehlen Ihnen die Leitungsrechte. Fragen Sie Ihre Leitung.",
       "Lässt sich ein Raum nicht löschen? Dann ist er gerade belegt. Oder ein Betreuungsangebot braucht ihn.",
+      "Lässt sich eine Raumkategorie nicht löschen? Dann nutzen Räume sie noch. Wählen Sie bei diesen Räumen zuerst eine andere Kategorie.",
       ...(tracksRooms
         ? [
             "Meldet moto oder das Tablet, der Raum ist voll? Dann ist `Maximale Belegung` erreicht. Erhöhen Sie die Zahl hier. Ist dagegen die Aktivität voll, ändern Sie `Maximale Teilnehmer` unter `Aktivitäten`.",
@@ -3218,7 +3231,7 @@ function dataManagementTopic(): HelpTopic {
     notes: [
       "In der Seitenleiste erreichen Sie jeden Bereich auch direkt unter `Datenverwaltung`.",
       "Der Info-Knopf neben dem Seitennamen erklärt kurz, was hierher gehört.",
-      "Die Kacheln `Terminkategorien`, `Planungsspuren`, `Schichtarten` und `Abwesenheitsarten` sind kurze Stammdaten-Listen.",
+      "Die Kacheln `Raumkategorien`, `Terminkategorien`, `Planungsspuren`, `Schichtarten` und `Abwesenheitsarten` sind kurze Stammdaten-Listen.",
     ],
     differences: [
       "Sie sehen weniger Kacheln als eine Kollegin? Jede Kachel hängt an einem eigenen Recht.",

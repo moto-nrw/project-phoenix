@@ -2462,6 +2462,9 @@
         "source_not_found": "Nie udało się zmienić: {object}. Sprawdź aktualny stan."
       },
       "rooms": {
+        "category_duplicate": "Nie udało się zmienić: {object}. Sprawdź aktualny stan.",
+        "category_in_use": "Nie udało się zmienić: {object}. Sprawdź aktualny stan.",
+        "category_not_found": "Nie udało się zmienić: {object}. Sprawdź aktualny stan.",
         "color_already_in_use": "Nie udało się zmienić: {object}. Sprawdź aktualny stan.",
         "not_found": "Nie udało się zmienić: {object}. Sprawdź aktualny stan.",
         "not_released": "Nie udało się zmienić: {object}. Sprawdź aktualny stan."

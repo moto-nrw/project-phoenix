@@ -1,11 +1,21 @@
 "use client";
 
-import { useState, useEffect, useLayoutEffect, useRef } from "react";
+import {
+  useCallback,
+  useState,
+  useEffect,
+  useLayoutEffect,
+  useRef,
+} from "react";
 import type { MotoConceptKey } from "~/lib/moto-concepts";
 import { ConceptSectionHeader } from "~/components/ui/concept-section-header";
 import type { FormErrorInput } from "~/components/ui/form-error";
 import { FormErrorAlert } from "~/components/ui/form-error-alert";
 import { CustomSelect } from "~/components/ui/custom-select";
+import {
+  CatalogManageLink,
+  useCatalogRefreshOnFocus,
+} from "~/components/database/catalog/catalog-manage-link";
 import { Checkbox } from "~/components/ui/checkbox";
 import { createLogger } from "~/lib/logger";
 import { getDefaultMaxLength } from "~/lib/constants/input-limits";
@@ -228,6 +238,13 @@ export interface FormField {
    */
   componentProps?: Record<string, unknown>;
   helperText?: string;
+  /**
+   * Link to the school catalog behind a select (`CatalogManageLink`): the form
+   * offers only the choice, the catalog is maintained on its own page. A
+   * select with async options reloads them when the window is focused again,
+   * so an entry added next door shows up without a reload.
+   */
+  manageLink?: { href: string; label: string };
   autoComplete?: string;
   colSpan?: 1 | 2;
   min?: number;
@@ -359,6 +376,23 @@ export function DatabaseForm<T = Record<string, unknown>>({
     {},
   );
   const loadedFieldsRef = useRef<Set<string>>(new Set());
+  // Selects backed by a school catalog reload their options when the window
+  // is focused again: the catalog opens in a second window (manageLink).
+  const catalogFieldNames = sections.flatMap((section) =>
+    section.fields
+      .filter(
+        (field) => field.manageLink && typeof field.options === "function",
+      )
+      .map((field) => field.name),
+  );
+  const catalogFieldKey = catalogFieldNames.join("|");
+  const reloadCatalogOptions = useCallback(() => {
+    for (const name of catalogFieldKey.split("|")) {
+      loadedFieldsRef.current.delete(name);
+    }
+    setOptionsReload((value) => value + 1);
+  }, [catalogFieldKey]);
+  useCatalogRefreshOnFocus(reloadCatalogOptions, catalogFieldNames.length > 0);
   const dirtyPrivacyFieldsRef = useRef<Set<string>>(new Set());
   const hasInitializedFormRef = useRef(false);
   const renderedFieldNamesRef = useRef<Set<string>>(new Set());
@@ -639,6 +673,14 @@ export function DatabaseForm<T = Record<string, unknown>>({
         {field.helperText && (
           <p className="mt-1 text-xs text-gray-500">{field.helperText}</p>
         )}
+        {field.manageLink ? (
+          <div className="mt-1">
+            <CatalogManageLink
+              href={field.manageLink.href}
+              label={field.manageLink.label}
+            />
+          </div>
+        ) : null}
       </div>
     );
   };

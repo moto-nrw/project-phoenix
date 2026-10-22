@@ -276,10 +276,12 @@ type marketingProfileAPIMock struct {
 	attendance      map[int64]string
 	parentPasswords map[string]string
 	parentGuardian  map[string]int64
-	photos          map[int64]string // student id → consent_acknowledged
-	avatars         []string         // signed-in accounts that uploaded one
-	pictures        []string         // every uploaded picture, children and staff
-	rooms           map[int64]string // room id → name
+	photos          map[int64]string  // student id → consent_acknowledged
+	avatars         []string          // signed-in accounts that uploaded one
+	pictures        []string          // every uploaded picture, children and staff
+	rooms           map[int64]string  // room id → name
+	roomColors      []any             // the color each room creation sent, nil for none
+	roomCategories  map[string]string // room category name → color
 	activities      map[int64]map[string]any
 	instances       map[int64]map[string]any // planned blocks, by id
 	started         map[int64]bool
@@ -313,7 +315,7 @@ func newMarketingProfileAPIMock() *marketingProfileAPIMock {
 		nextID: 7500, settings: make(map[string]json.RawMessage), students: make(map[int64]map[string]any),
 		guardianOf: make(map[int64]int64), guardianEmail: make(map[int64]string), attendance: make(map[int64]string),
 		parentPasswords: make(map[string]string), parentGuardian: make(map[string]int64), photos: make(map[int64]string),
-		rooms: make(map[int64]string), activities: make(map[int64]map[string]any), instances: make(map[int64]map[string]any),
+		rooms: make(map[int64]string), roomCategories: make(map[string]string), activities: make(map[int64]map[string]any), instances: make(map[int64]map[string]any),
 		started: make(map[int64]bool), inRoom: make(map[int64]int64), news: make(map[int64]bool),
 		mealPlan: make(map[string][]any),
 	}
@@ -603,9 +605,19 @@ func (m *marketingProfileAPIMock) respondDailyLife(t *testing.T, r *seedHTTPRequ
 	parts := strings.Split(strings.Trim(path, "/"), "/")
 	sender := strings.TrimPrefix(r.Header.Get("Authorization"), "Bearer ")
 	switch {
+	case path == "/api/room-categories" && r.Method == seedHTTPMethodGet:
+		categories := []map[string]any{{"name": "Sport"}}
+		for name := range m.roomCategories {
+			categories = append(categories, map[string]any{"name": name})
+		}
+		return categories, true
+	case path == "/api/room-categories":
+		m.roomCategories[body["name"].(string)] = body["color"].(string)
+		return map[string]any{"id": m.id()}, true
 	case path == "/api/rooms":
 		id := m.id()
 		m.rooms[id] = body["name"].(string)
+		m.roomColors = append(m.roomColors, body["color"])
 		return map[string]any{"id": id}, true
 	case path == "/api/activities/categories":
 		return []map[string]any{{"id": 51, "name": "Sport"}, {"id": 54, "name": "Spiele"}}, true
@@ -703,6 +715,12 @@ func mustParseID(t *testing.T, raw string) int64 {
 func assertMarketingDailyLife(t *testing.T, mock *marketingProfileAPIMock, profile *SeedProfile) {
 	t.Helper()
 	require.Len(t, mock.rooms, len(marketingRooms()))
+	for _, color := range mock.roomColors {
+		assert.Nil(t, color, "a marketing room takes its category color, not one of its own (#4352)")
+	}
+	for _, room := range marketingRooms() {
+		assert.Equal(t, room.color, mock.roomCategories[room.category], "category %s carries the room color", room.category)
+	}
 	if _, ok := marketingSessionDate(todaySeedDate()); ok {
 		require.Len(t, mock.instances, len(marketingSessions()))
 		titles := []string{}

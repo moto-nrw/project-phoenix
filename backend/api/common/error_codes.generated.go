@@ -367,6 +367,9 @@ const (
 	CodeRolloverReviewNotFound                           = "rollover.review_not_found"
 	CodeRolloverSourceAlreadyRolled                      = "rollover.source_already_rolled"
 	CodeRolloverSourceNotFound                           = "rollover.source_not_found"
+	CodeRoomsCategoryDuplicate                           = "rooms.category_duplicate"
+	CodeRoomsCategoryInUse                               = "rooms.category_in_use"
+	CodeRoomsCategoryNotFound                            = "rooms.category_not_found"
 	CodeRoomsColorAlreadyInUse                           = "rooms.color_already_in_use"
 	CodeRoomsNotFound                                    = "rooms.not_found"
 	CodeRoomsNotReleased                                 = "rooms.not_released"
@@ -1037,6 +1040,9 @@ var errorClassByCode = map[string]string{
 	"rollover.review_not_found":                            "business_rejection",
 	"rollover.source_already_rolled":                       "business_rejection",
 	"rollover.source_not_found":                            "business_rejection",
+	"rooms.category_duplicate":                             "business_rejection",
+	"rooms.category_in_use":                                "business_rejection",
+	"rooms.category_not_found":                             "business_rejection",
 	"rooms.color_already_in_use":                           "business_rejection",
 	"rooms.not_found":                                      "business_rejection",
 	"rooms.not_released":                                   "business_rejection",
