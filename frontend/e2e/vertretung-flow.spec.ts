@@ -1,6 +1,11 @@
 import { expect, type Page, test } from "@playwright/test";
 
-import { loadSeedAccess } from "../scripts/seed-state";
+import {
+  loginToTenant,
+  MISSING_SEED_ACCESS,
+  seedAccess as access,
+  tenantBase as base,
+} from "./tenant-session";
 import { berlinTodayISO } from "../src/lib/date-helpers";
 import { nextWorkdayISO } from "../src/lib/timetable-helpers";
 
@@ -14,23 +19,18 @@ import { nextWorkdayISO } from "../src/lib/timetable-helpers";
 // beide Termine im finally wieder. Die
 // Dev-DB gehört dem Nutzer, daher kein Reset, kein Reseed, keine Fremd-Daten.
 //
-// Login und Tenant-Herkunft: die Nachbar-Specs melden sich über die
-// Login-Maske an und ziehen Credentials aus der Umgebung. Der lokale Stack
-// bedient die Tenant-App aber nur unter der Subdomain
-// {slug}.localhost:3000 (bare localhost ist die Marketing-Seite), und die
-// geschützten Routen rendern ohne Session eine leere Hülle statt auf eine
-// Login-Maske umzuleiten. Die Login-Maske liegt auf der Tenant-Wurzel `/`.
-// Slug und Admin-Zugang stehen in backend/.seed-state.json (regeneriert bei
-// jedem Seed); E2E_TENANT_SLUG / E2E_TEST_EMAIL / E2E_TEST_PASSWORD
-// überschreiben sie. Ohne verwertbare Werte überspringt die Spec.
-
-const access = loadSeedAccess();
-const base = access ? `http://${access.slug}.localhost:3000` : "";
+// Login und Tenant-Herkunft: e2e/tenant-session.ts.
 
 // `view` kam mit der Wochenansicht (#2030) hinzu; die Tagesansicht bleibt der
 // Standard und schreibt den Parameter nicht.
 const ALLOWED_PARAMS = new Set(["d", "view", "block", "verlauf"]);
 const DEVIATIONS_RE = /\/api\/timetable\/instances\/\d+\/deviations$/;
+// Seit 9cdca3668b speichert der Editor Abwesenheit/Ersatz über das gemeinsame
+// Vertretungsmodul (POST /api/substitutions, type schedule_substitution);
+// POST .../deviations bleibt der Weg für Absagen.
+const SUBSTITUTIONS_RE = /\/api\/substitutions$/;
+const isSaveUrl = (url: string) =>
+  SUBSTITUTIONS_RE.test(url) || DEVIATIONS_RE.test(url);
 // Großzügiges Budget für Zusicherungen, die von einem SWR-Refetch gegen den
 // Next-Dev-Server abhängen (Liste nach Save, Verlauf nach Deep-Link).
 const DATA = { timeout: 15000 } as const;
@@ -57,32 +57,11 @@ function assertUrlVocabulary(page: Page, context: string) {
   ).toEqual([]);
 }
 
-async function login(page: Page, email: string, password: string) {
-  // Login-Maske sitzt auf der Tenant-Wurzel; geschützte Routen leiten hier
-  // NICHT auf sie um, sie rendern ohne Session nur eine leere Hülle.
-  // `domcontentloaded` statt des Default-`load`: der Next-Dev-Server hält über
-  // SSE Verbindungen offen, das `load`-Event kann dadurch hängen.
-  await page.goto(`${base}/`, { waitUntil: "domcontentloaded" });
-  await page.waitForSelector('input[type="email"]', { timeout: 20000 });
-  await page.fill('input[type="email"]', email);
-  await page.fill('input[type="password"]', password);
-  await page.click('button:has-text("Anmelden")');
-  // Nicht auf networkidle warten (SSE hält das Netzwerk dauerhaft aktiv);
-  // stattdessen auf das Verschwinden der Login-Maske.
-  await page.waitForSelector('input[type="email"]', {
-    state: "detached",
-    timeout: 20000,
-  });
-}
-
 test.describe("Vertretung UI-Flow (#1886, Inkrement 2)", () => {
   test.beforeEach(async ({ page }) => {
-    test.skip(
-      access === null,
-      "backend/.seed-state.json (oder E2E_TENANT_SLUG/E2E_TEST_EMAIL/E2E_TEST_PASSWORD) erforderlich",
-    );
+    test.skip(access === null, MISSING_SEED_ACCESS);
     if (!access) return;
-    await login(page, access.email, access.password);
+    await loginToTenant(page, access);
   });
 
   test.afterEach(async ({ page }) => {
@@ -145,10 +124,32 @@ test.describe("Vertretung UI-Flow (#1886, Inkrement 2)", () => {
     const staffList = Array.isArray(staffPayload)
       ? staffPayload
       : staffPayload.data;
-    // Nicht die beiden Seed-Admins (id 1/2) einplanen; irgendeine Betreuungskraft.
-    const planned =
-      staffList.find((s) => !["1", "2"].includes(String(s.id))) ?? staffList[0];
-    expect(planned, "Tenant braucht mindestens eine Person").toBeTruthy();
+    // Nicht die beiden Seed-Admins (id 1/2) einplanen; irgendeine
+    // Betreuungskraft OHNE eigene Termine an `day`. Der Seed (seed_planning.go,
+    // seedPlanningException) meldet die erste Betreuungskraft heute in der
+    // Frühbetreuung abwesend mit Ersatz; diese Abwesenheit wäre im Editor unter
+    // "Bestimmte Termine" vorausgewählt und ließe Save 2 mit "Der Termin hat
+    // schon eine andere Ersatzperson" scheitern.
+    const dayInstances = (await (
+      await page.request.get(
+        `${base}/api/timetable/instances?from=${day}&to=${day}`,
+      )
+    ).json()) as {
+      data?: { instances?: Array<{ staff?: Array<{ staff_id: number }> }> };
+    };
+    const busyStaffIds = new Set(
+      (dayInstances.data?.instances ?? []).flatMap((instance) =>
+        (instance.staff ?? []).map((s) => String(s.staff_id)),
+      ),
+    );
+    const planned = staffList.find(
+      (s) =>
+        !["1", "2"].includes(String(s.id)) && !busyStaffIds.has(String(s.id)),
+    );
+    expect(
+      planned,
+      "Tenant braucht mindestens eine Person ohne Termine am Testtag",
+    ).toBeTruthy();
     const plannedStaffId = Number(planned!.id);
 
     const title = `Playwright Vertretung ${Date.now()}`;
@@ -190,12 +191,12 @@ test.describe("Vertretung UI-Flow (#1886, Inkrement 2)", () => {
     cleanupInstanceIds = [instanceId, otherInstanceId];
     cleanupStaffId = plannedStaffId;
 
-    // Genau ein POST .../deviations pro Speichern (Akzeptanzkriterium 7): nur
-    // Seiten-Requests zählen. page.request (Setup/Cleanup) triggert dieses
-    // Event nicht.
+    // Genau ein Speicher-POST (substitutions ODER deviations) pro Speichern
+    // (Akzeptanzkriterium 7): nur Seiten-Requests zählen. page.request
+    // (Setup/Cleanup) triggert dieses Event nicht.
     let deviationPosts = 0;
     page.on("request", (req) => {
-      if (req.method() === "POST" && DEVIATIONS_RE.test(req.url())) {
+      if (req.method() === "POST" && isSaveUrl(req.url())) {
         deviationPosts += 1;
       }
     });
@@ -215,9 +216,14 @@ test.describe("Vertretung UI-Flow (#1886, Inkrement 2)", () => {
 
       // Der frische Termin ist noch ungestört; "Ganzer Tag" zeigt ihn. Der
       // Umschalter ist lokaler State und darf die URL nicht anfassen.
-      const ganzerTag = page.getByRole("tab", { name: "Ganzer Tag" });
+      // Seit 7b2e83b328 ein SegmentedControl (Toggle-Buttons mit
+      // aria-pressed) statt Radix-Tabs (aria-selected).
+      const ganzerTag = page.getByRole("button", {
+        name: "Ganzer Tag",
+        exact: true,
+      });
       await ganzerTag.click();
-      await expect(ganzerTag).toHaveAttribute("aria-selected", "true");
+      await expect(ganzerTag).toHaveAttribute("aria-pressed", "true");
       assertUrlVocabulary(page, "nach Filter-Umschalter (lokaler State)");
 
       await expect(row).toBeVisible({ timeout: 15000 });
@@ -233,7 +239,7 @@ test.describe("Vertretung UI-Flow (#1886, Inkrement 2)", () => {
 
       const save1 = page.waitForResponse(
         (res) =>
-          res.request().method() === "POST" && DEVIATIONS_RE.test(res.url()),
+          res.request().method() === "POST" && SUBSTITUTIONS_RE.test(res.url()),
       );
       await dialog
         .getByRole("button", { name: /als abwesend markieren/ })
@@ -251,7 +257,7 @@ test.describe("Vertretung UI-Flow (#1886, Inkrement 2)", () => {
       await dialog.getByRole("button", { name: "Speichern" }).click();
       expect((await save1).ok()).toBeTruthy();
       await expect(dialog).toBeHidden({ timeout: 10000 });
-      expect(deviationPosts, "Save 1 = genau ein deviations-POST").toBe(1);
+      expect(deviationPosts, "Save 1 = genau ein Speicher-POST").toBe(1);
 
       // Ohne Ersatz nennt die Liste die offene Vertretung ausdrücklich.
       await expect(row).toContainText("Abwesend 1", DATA);
@@ -280,12 +286,12 @@ test.describe("Vertretung UI-Flow (#1886, Inkrement 2)", () => {
 
       const save2 = page.waitForResponse(
         (res) =>
-          res.request().method() === "POST" && DEVIATIONS_RE.test(res.url()),
+          res.request().method() === "POST" && SUBSTITUTIONS_RE.test(res.url()),
       );
       await dialog.getByRole("button", { name: "Speichern" }).click();
       expect((await save2).ok()).toBeTruthy();
       await expect(dialog).toBeHidden({ timeout: 10000 });
-      expect(deviationPosts, "Save 2 = genau ein deviations-POST").toBe(1);
+      expect(deviationPosts, "Save 2 = genau ein Speicher-POST").toBe(1);
 
       // Aktualisiertes Soll/Ist/Abwesend-Tripel plus gesetzter Ersatz.
       await expect(row).toContainText("Soll 1", DATA);

@@ -5,7 +5,12 @@ import {
   test,
 } from "@playwright/test";
 
-import { loadSeedAccess } from "../scripts/seed-state";
+import {
+  loginToTenant,
+  MISSING_SEED_ACCESS,
+  seedAccess as access,
+  tenantBase as base,
+} from "./tenant-session";
 import {
   berlinTodayISO,
   parseISODate,
@@ -26,10 +31,7 @@ import { getWeekNumber } from "../src/lib/time-tracking-helpers";
 // entfernen ausschließlich diese IDs; ein paralleler Nutzer oder Testlauf kann
 // deshalb nie über einen Bereichsvergleich mit aufgeräumt werden.
 //
-// Login/Tenant-Herkunft wie bei den Nachbar-Specs: Slug + Admin-Zugang aus
-// backend/.seed-state.json (regeneriert bei jedem Seed); E2E_TENANT_SLUG /
-// E2E_TEST_EMAIL / E2E_TEST_PASSWORD überschreiben sie. Ohne verwertbare Werte
-// überspringt die Spec.
+// Login und Tenant-Herkunft: e2e/tenant-session.ts.
 //
 // Der lokale Stack bedient die Tenant-App nur unter {slug}.localhost:3000 (bare
 // localhost ist die Marketing-Seite); die geschützten Routen rendern ohne
@@ -38,14 +40,20 @@ import { getWeekNumber } from "../src/lib/time-tracking-helpers";
 // aktiv, deshalb NIE auf `load`/`networkidle` warten, sondern auf konkrete
 // Selektoren mit `domcontentloaded`.
 
-const access = loadSeedAccess();
-const base = access ? `http://${access.slug}.localhost:3000` : "";
 const TODAY = berlinTodayISO();
 
 // Großzügiges Budget für Zusicherungen hinter einem SWR-Refetch gegen den
 // Next-Dev-Server (Grid nach Save, Halbjahres-Spalten).
 const DATA = { timeout: 20000 } as const;
 const GRID = { timeout: 30000 } as const;
+
+// Der Demo-Seed plant seit #3892 (207e60ce1c) alle zeiterfassenden Personen
+// per Dienst-Serie ab morgen bis höchstens heute+41 Tage ein
+// (backend/internal/devtools/seedapi/seed_shift_series.go: Ferienbeginn
+// spätestens heute+20, valid_until = Ferienende+17). Flows, die freie Personen
+// brauchen, legen ihre Zielwochen deshalb hinter dieses Fenster: ein Montag
+// ab FREE_FROM_DAYS liegt frühestens bei heute+43.
+const FREE_FROM_DAYS = 49;
 
 // ─── kleine reine Datums-Helfer (kein toISOString) ──────────────────────────
 function mondayOf(iso: string): string {
@@ -86,8 +94,18 @@ async function fetchNonAdminStaff(
   );
   const json = (await res.json()) as { data?: { staff?: StaffLite[] } };
   const staff = json.data?.staff ?? [];
-  // Die beiden Seed-Admins (id 1/2) nicht einplanen.
-  return staff.filter((s) => s.id !== 1 && s.id !== 2);
+  // Die eigene Zeile der angemeldeten Person nicht einplanen: ihr Personen-Menü
+  // führt zur Zeiterfassung statt zur Vertretung. Früher standen hier feste
+  // IDs (1/2); der Seed vergibt die Admin-IDs inzwischen anders.
+  const me = await request.get(`${base}/api/me/staff`);
+  expect(
+    me.ok(),
+    `eigenes Personal laden fehlgeschlagen (${me.status()})`,
+  ).toBe(true);
+  const own = (await me.json()) as { data?: { id?: number | string } };
+  const ownId = Number(own.data?.id);
+  expect(Number.isFinite(ownId), "eigene Personal-ID fehlt").toBe(true);
+  return staff.filter((s) => s.id !== ownId);
 }
 
 async function createShift(
@@ -229,18 +247,6 @@ async function captureCreatedAbsence(
   if (json.data?.id != null) ownedAbsences.set(json.data.id, staffId);
 }
 
-async function login(page: Page, email: string, password: string) {
-  await page.goto(`${base}/`, { waitUntil: "domcontentloaded" });
-  await page.waitForSelector('input[type="email"]', { timeout: 20000 });
-  await page.fill('input[type="email"]', email);
-  await page.fill('input[type="password"]', password);
-  await page.click('button:has-text("Anmelden")');
-  await page.waitForSelector('input[type="email"]', {
-    state: "detached",
-    timeout: 20000,
-  });
-}
-
 async function openWeek(page: Page, day: string) {
   await page.goto(`${base}/dienstplan?d=${day}&view=woche`, {
     waitUntil: "domcontentloaded",
@@ -277,12 +283,9 @@ test.describe("Dienstplan UI-Flow", () => {
   test.describe.configure({ mode: "serial" });
 
   test.beforeEach(async ({ page }) => {
-    test.skip(
-      access === null,
-      "backend/.seed-state.json (oder E2E_TENANT_SLUG/E2E_TEST_EMAIL/E2E_TEST_PASSWORD) erforderlich",
-    );
+    test.skip(access === null, MISSING_SEED_ACCESS);
     if (!access) return;
-    await login(page, access.email, access.password);
+    await loginToTenant(page, access);
   });
 
   test.afterEach(async ({ page }) => {
@@ -304,9 +307,20 @@ test.describe("Dienstplan UI-Flow", () => {
     if (!access) return;
     test.setTimeout(60000);
 
-    // Der Sidebar-Eintrag öffnet /dienstplan.
+    // Der Sidebar-Eintrag öffnet /dienstplan. Er liegt in der klappbaren Gruppe
+    // "Planung" (2c91cdfc74), die auf /dashboard in einem frischen
+    // Browser-Context zu ist. exact: die Sidebar führt daneben den Eintrag
+    // "Mein Dienstplan" (/mein-dienstplan).
     await page.goto(`${base}/dashboard`, { waitUntil: "domcontentloaded" });
-    await page.locator("aside").getByText("Dienstplan").click();
+    const planungGroup = page
+      .locator("aside")
+      .getByRole("button", { name: "Planung", exact: true });
+    await planungGroup.click();
+    await expect(planungGroup).toHaveAttribute("aria-expanded", "true");
+    await page
+      .locator("aside")
+      .getByText("Dienstplan", { exact: true })
+      .click();
     await page.waitForURL((url) => url.pathname.endsWith("/dienstplan"), {
       timeout: 15000,
     });
@@ -346,8 +360,9 @@ test.describe("Dienstplan UI-Flow", () => {
     const kw = getWeekNumber(parseISODate(monday));
     await openWeek(page, monday);
 
-    // "KW {n}: …" ist die Wochenraster-Beschriftung.
-    await expect(page.getByText(new RegExp(`KW ${kw}:`))).toBeVisible(DATA);
+    // "KW {n} · TT.MM.–TT.MM.JJJJ" ist die Wochenraster-Beschriftung
+    // (formatWeekLabel, seit 91770ea404; vorher "KW {n}: …").
+    await expect(page.getByText(new RegExp(`KW ${kw} · `))).toBeVisible(DATA);
 
     // Wochen-Pfeil schreibt den Montag der Zielwoche nach d (via history-Replace;
     // der Bereich re-rendert ohne Server-Roundtrip).
@@ -358,7 +373,7 @@ test.describe("Dienstplan UI-Flow", () => {
       .toBe(nextMonday);
     await expect(
       page.getByText(
-        new RegExp(`KW ${getWeekNumber(parseISODate(nextMonday))}:`),
+        new RegExp(`KW ${getWeekNumber(parseISODate(nextMonday))} · `),
       ),
     ).toBeVisible(DATA);
   });
@@ -370,7 +385,7 @@ test.describe("Dienstplan UI-Flow", () => {
     if (!access) return;
     test.setTimeout(90000);
     const staff = await fetchNonAdminStaff(page.request);
-    const day = mondayOf(addDaysISO(TODAY, 7)); // Montag nächster Woche
+    const day = mondayOf(addDaysISO(TODAY, FREE_FROM_DAYS)); // erste freie Woche
     const [person] = await findStaffWithEmptyRange(
       page.request,
       staff,
@@ -410,10 +425,11 @@ test.describe("Dienstplan UI-Flow", () => {
       await dialog.getByLabel("Ende", { exact: true }).fill("11:00");
       await dialog.getByRole("button", { name: "Schicht anlegen" }).click();
 
-      // Fehlermeldung erscheint, Editor bleibt offen.
+      // Fehlermeldung erscheint, Editor bleibt offen. Katalogtext für
+      // shift_overlap seit dem gemeinsamen Fehlerweg (6a7fbe609f, #2514).
       await expect(
         dialog.getByText(
-          "Diese Schicht überschneidet sich mit einer bestehenden Schicht.",
+          "Die Schicht überschneidet sich mit einer anderen Schicht dieser Person. Bitte prüfen Sie die Zeiten.",
         ),
       ).toBeVisible(DATA);
       await expect(dialog).toBeVisible();
@@ -429,7 +445,7 @@ test.describe("Dienstplan UI-Flow", () => {
     if (!access) return;
     test.setTimeout(90000);
     const staff = await fetchNonAdminStaff(page.request);
-    const day = mondayOf(addDaysISO(TODAY, 14)); // eigene Woche
+    const day = mondayOf(addDaysISO(TODAY, FREE_FROM_DAYS + 7)); // eigene Woche
     const [source, target] = await findStaffWithEmptyRange(
       page.request,
       staff,
@@ -498,8 +514,9 @@ test.describe("Dienstplan UI-Flow", () => {
     test.setTimeout(90000);
     const staff = await fetchNonAdminStaff(page.request);
     // Woche innerhalb des laufenden Planungszeitraums (Seed-Schuljahr deckt heute
-    // ab), damit eine klickbare Zelle (plannedMinutes > 0) entsteht.
-    const kwMonday = mondayOf(addDaysISO(TODAY, 7));
+    // ab), damit eine klickbare Zelle (plannedMinutes > 0) entsteht; eigene Woche
+    // hinter dem Seed-Serienfenster.
+    const kwMonday = mondayOf(addDaysISO(TODAY, FREE_FROM_DAYS + 14));
     const kwFriday = addDaysISO(kwMonday, 4);
     const kw = getWeekNumber(parseISODate(kwMonday));
     const [person] = await findStaffWithEmptyRange(
@@ -524,8 +541,12 @@ test.describe("Dienstplan UI-Flow", () => {
       });
       await openWeek(page, TODAY);
 
-      // Auf Halbjahr umschalten.
-      await page.getByRole("tab", { name: "Halbjahr" }).click();
+      // Auf Halbjahr umschalten. Der Umschalter ist seit 7b2e83b328 ein
+      // SegmentedControl (Gruppe "Ansicht" mit Umschalt-Buttons), keine Tabs.
+      await page
+        .getByRole("group", { name: "Ansicht" })
+        .getByRole("button", { name: "Halbjahr", exact: true })
+        .click();
       await expect(
         page.getByRole("region", { name: "Dienstplan-Halbjahresansicht" }),
       ).toBeVisible(GRID);

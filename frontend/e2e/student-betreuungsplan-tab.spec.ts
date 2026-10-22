@@ -1,6 +1,11 @@
 import { expect, type Page, test } from "@playwright/test";
 
-import { loadSeedAccess } from "../scripts/seed-state";
+import {
+  loginToTenant,
+  MISSING_SEED_ACCESS,
+  seedAccess as access,
+  tenantBase as base,
+} from "./tenant-session";
 
 // Smoke-Test des kindbezogenen Betreuungsplan-Tabs auf students/[id]
 // (Kinderprofil-Planansicht). Prüft die End-to-End-Verdrahtung: der Tab
@@ -8,27 +13,9 @@ import { loadSeedAccess } from "../scripts/seed-state";
 // (Ankunft/Freie Betreuung/Abholung als Zeitleiste) und lässt sich auf die
 // Wochenansicht umschalten. KEINE Testdaten-Anlage nötig — reine Leseansicht.
 //
-// Login und Tenant-Herkunft spiegeln betreuungsplan-flow.spec.ts: der lokale
-// Stack bedient die Tenant-App nur unter {slug}.localhost:3000, die Login-Maske
-// liegt auf der Tenant-Wurzel `/`. Slug und Admin-Zugang stehen in
-// backend/.seed-state.json; E2E_TENANT_SLUG / E2E_TEST_EMAIL / E2E_TEST_PASSWORD
-// überschreiben sie. Ohne verwertbare Werte überspringt die Spec.
+// Login und Tenant-Herkunft: e2e/tenant-session.ts.
 
-const access = loadSeedAccess();
-const base = access ? `http://${access.slug}.localhost:3000` : "";
 const DATA = { timeout: 15000 } as const;
-
-async function login(page: Page, email: string, password: string) {
-  await page.goto(`${base}/`, { waitUntil: "domcontentloaded" });
-  await page.waitForSelector('input[type="email"]', { timeout: 20000 });
-  await page.fill('input[type="email"]', email);
-  await page.fill('input[type="password"]', password);
-  await page.click('button:has-text("Anmelden")');
-  await page.waitForSelector('input[type="email"]', {
-    state: "detached",
-    timeout: 20000,
-  });
-}
 
 /** Grabs the first student id via the API (admin sees all). */
 async function firstStudentId(page: Page): Promise<string | null> {
@@ -49,12 +36,9 @@ async function firstStudentId(page: Page): Promise<string | null> {
 
 test.describe("Kinderprofil Betreuungsplan-Tab", () => {
   test.beforeEach(async ({ page }) => {
-    test.skip(
-      access === null,
-      "backend/.seed-state.json (oder E2E_TENANT_SLUG/E2E_TEST_EMAIL/E2E_TEST_PASSWORD) erforderlich",
-    );
+    test.skip(access === null, MISSING_SEED_ACCESS);
     if (!access) return;
-    await login(page, access.email, access.password);
+    await loginToTenant(page, access);
   });
 
   test("zeigt die Tagesansicht und schaltet auf Woche um", async ({ page }) => {
@@ -77,15 +61,22 @@ test.describe("Kinderprofil Betreuungsplan-Tab", () => {
       DATA,
     );
     // The day/week toggle + the fetch confirm the view mounted end-to-end.
-    await expect(page.getByRole("tab", { name: "Tag" })).toBeVisible(DATA);
-    await expect(page.getByRole("tab", { name: "Woche" })).toBeVisible(DATA);
+    // Seit 7b2e83b328 ist der Umschalter ein SegmentedControl (Toggle-Buttons
+    // mit aria-pressed in der Gruppe "Ansicht"), keine Tabs mehr.
+    const viewToggle = page.getByRole("group", { name: "Ansicht" });
+    await expect(viewToggle.getByRole("button", { name: "Tag" })).toBeVisible(
+      DATA,
+    );
+    await expect(viewToggle.getByRole("button", { name: "Woche" })).toBeVisible(
+      DATA,
+    );
     await dayResponse;
     await expect(
       page.getByRole("button", { name: "Nächster Tag" }),
     ).toBeVisible(DATA);
 
     // Switch to the week view.
-    await page.getByRole("tab", { name: "Woche" }).click();
+    await viewToggle.getByRole("button", { name: "Woche" }).click();
     await expect(
       page.getByRole("button", { name: "Vorherige Woche" }),
     ).toBeVisible(DATA);
