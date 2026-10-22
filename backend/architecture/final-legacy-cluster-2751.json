@@ -57,7 +57,7 @@
       "docs/architecture/final-legacy-cluster.md",
       "backend/api/school_setup_composition.go",
       "backend/api/staff_offboarding_workforce.go",
-      "backend/modules/peopledirectory/internal/rows/entity_interfaces_test.go",
+      "https://github.com/moto-nrw/project-phoenix/blob/64c86c5b2a5d7b475dab01ea4e4c9fc39702dfc6/backend/modules/peopledirectory/internal/rows/entity_interfaces_test.go",
       "backend/modules/settings/records/settings_snapshot.go",
       "backend/modules/settings/internal/application/settings_request_cache_db_test.go",
       "backend/modules/settings/internal/application/sideeffects/registry.go",
