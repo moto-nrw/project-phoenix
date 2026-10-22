@@ -1,4 +1,4 @@
-import { renderHook, waitFor } from "@testing-library/react";
+import { act, renderHook, waitFor } from "@testing-library/react";
 import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
 import { releaseFakeTimers } from "~/test/clock";
 import { useSSE } from "../use-sse";
@@ -56,12 +56,14 @@ class MockEventSource {
     return (this.eventListeners.get(type)?.length ?? 0) > 0;
   }
 
-  // Test helper methods
+  // Test helper methods. Each one wraps the callback in act(), like a
+  // browser event that React processes before the next check, so waitFor sees
+  // the resulting state without waiting for its next polling interval.
   triggerOpen(): void {
     this.readyState = this.OPEN;
-    if (this.onopen) {
-      this.onopen(new Event("open"));
-    }
+    act(() => {
+      this.onopen?.(new Event("open"));
+    });
   }
 
   triggerMessage(data: SSEEvent, eventType?: string): void {
@@ -69,20 +71,22 @@ class MockEventSource {
       data: JSON.stringify(data),
     });
 
-    if (eventType && this.eventListeners.has(eventType)) {
-      this.eventListeners.get(eventType)!.forEach((listener) => {
-        listener(event);
-      });
-    } else if (this.onmessage) {
-      this.onmessage(event);
-    }
+    act(() => {
+      if (eventType && this.eventListeners.has(eventType)) {
+        this.eventListeners.get(eventType)!.forEach((listener) => {
+          listener(event);
+        });
+      } else if (this.onmessage) {
+        this.onmessage(event);
+      }
+    });
   }
 
   triggerError(): void {
     this.readyState = this.CLOSED;
-    if (this.onerror) {
-      this.onerror(new Event("error"));
-    }
+    act(() => {
+      this.onerror?.(new Event("error"));
+    });
   }
 }
 
@@ -791,6 +795,7 @@ describe("useSSE Hook", () => {
     });
 
     it("should handle parse errors gracefully", async () => {
+      vi.useFakeTimers({ shouldAdvanceTime: true });
       const onMessage = vi.fn();
       renderHook(() => useSSE("/api/sse/events", { onMessage }));
 
@@ -805,7 +810,9 @@ describe("useSSE Hook", () => {
       mockEventSource!.onmessage?.(invalidEvent);
 
       // Wait a bit to ensure no message was processed
-      await new Promise((resolve) => setTimeout(resolve, 100));
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(100);
+      });
 
       // Should not crash, onMessage should not be called
       expect(onMessage).not.toHaveBeenCalled();
@@ -1006,6 +1013,7 @@ describe("useSSE Hook", () => {
     });
 
     it("should not reconnect on visibilitychange if already connected", async () => {
+      vi.useFakeTimers({ shouldAdvanceTime: true });
       renderHook(() =>
         useSSE("/api/sse/events", {
           reconnectInterval: 10,
@@ -1025,7 +1033,9 @@ describe("useSSE Hook", () => {
       document.dispatchEvent(new Event("visibilitychange"));
 
       // Should NOT create a new EventSource
-      await new Promise((resolve) => setTimeout(resolve, 100));
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(100);
+      });
       expect(eventSourceInstances.length).toBe(1);
     });
 
