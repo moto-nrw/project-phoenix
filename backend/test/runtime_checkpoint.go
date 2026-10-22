@@ -17,6 +17,22 @@ import (
 	"github.com/uptrace/bun"
 )
 
+// RuntimeEvidenceEnv opts a test process into the flow-specific runtime
+// evidence tests (#4426). They repeat one flow over warmups and samples and log
+// latency, statements, plans and lock samples for docs/runtime-checkpoints;
+// their contract assertions also live in normal tests. The normal suite,
+// scripts/test-changed.sh and CI never set it.
+const RuntimeEvidenceEnv = "PHX_TEST_RUNTIME_EVIDENCE"
+
+// RequireRuntimeEvidence skips a runtime evidence test unless
+// PHX_TEST_RUNTIME_EVIDENCE=1. Call it right after t.Parallel().
+func RequireRuntimeEvidence(t *testing.T) {
+	t.Helper()
+	if os.Getenv(RuntimeEvidenceEnv) != "1" {
+		t.Skipf("runtime evidence measurement; run it with %s=1 (docs/runtime-checkpoints/README.md)", RuntimeEvidenceEnv)
+	}
+}
+
 type RuntimeCheckpointSample struct {
 	WriteRowsAffected  *int64  `json:"write_rows_affected,omitempty"`
 	RowsAffected       int64   `json:"rows_affected"`

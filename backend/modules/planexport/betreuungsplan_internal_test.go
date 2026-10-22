@@ -28,6 +28,65 @@ func TestBetreuungsplanRendersBlockRoomStaffAndChildren(t *testing.T) {
 	}
 }
 
+// A week without blocks prints its explicit empty row instead of an empty
+// sheet (asserted until #4426 by the opt-in TestPlanExportRuntimeEvidence).
+func TestBetreuungsplanStatesAnEmptyWeek(t *testing.T) {
+	t.Parallel()
+
+	service, renderer := newBetreuungsplanService(nil, nil, nil)
+
+	if _, err := service.ExportBetreuungsplan(context.Background(), careParams()); err != nil {
+		t.Fatalf("ExportBetreuungsplan: %v", err)
+	}
+	if got := rowLabels(renderer.doc); len(got) != 1 || got[0] != "Keine Einträge in dieser Woche" {
+		t.Fatalf("rows = %v, want only the empty week stated", got)
+	}
+}
+
+// A plan over several weeks prints one heading per week and files every block
+// under its own week; blocks of the other week neither show up nor end the
+// scan (asserted until #4426 by the opt-in TestPlanExportRuntimeEvidence).
+func TestBetreuungsplanFilesBlocksUnderTheirWeek(t *testing.T) {
+	t.Parallel()
+
+	nextMonday := monday.AddDays(7)
+	service, renderer := newBetreuungsplanService(
+		[]*Instance{
+			instance(11, monday, clock(12, 0), clock(13, 0), "Mensa", 3),
+			instance(12, nextMonday.AddDays(1), clock(12, 0), clock(13, 0), "Mensa", 3),
+			instance(13, monday.AddDays(2), clock(14, 0), clock(15, 0), "Lernzeit", 4),
+			instance(14, nextMonday.AddDays(3), clock(15, 0), clock(16, 0), "Sport", 4),
+		},
+		nil, nil,
+	)
+	params := careParams()
+	params.To = dayKey(nextMonday.AddDays(4))
+
+	if _, err := service.ExportBetreuungsplan(context.Background(), params); err != nil {
+		t.Fatalf("ExportBetreuungsplan: %v", err)
+	}
+	labels := rowLabels(renderer.doc)
+	if len(labels) != 6 || !strings.HasPrefix(labels[0], "#") || !strings.HasPrefix(labels[3], "#") {
+		t.Fatalf("rows = %v, want a heading and two offerings per week", labels)
+	}
+	if got := strings.Join(labels[1:3], "|") + "/" + strings.Join(labels[4:6], "|"); got != "Mensa|Lernzeit/Mensa|Sport" {
+		t.Fatalf("offerings per week = %q, want Mensa|Lernzeit/Mensa|Sport", got)
+	}
+	week1, week2 := renderer.doc.Rows[1:3], renderer.doc.Rows[4:6]
+	if cell := listexport.StripStyleMarkers(week1[0].Values[listexport.ColumnPlanMonday]); !strings.HasPrefix(cell, "12:00–13:00") {
+		t.Fatalf("week 1 Mensa Monday = %q", cell)
+	}
+	if cell := listexport.StripStyleMarkers(week1[0].Values[listexport.ColumnPlanTuesday]); cell != "—" {
+		t.Fatalf("week 1 Mensa Tuesday = %q, want the next week's block kept out", cell)
+	}
+	if cell := listexport.StripStyleMarkers(week2[0].Values[listexport.ColumnPlanTuesday]); !strings.HasPrefix(cell, "12:00–13:00") {
+		t.Fatalf("week 2 Mensa Tuesday = %q", cell)
+	}
+	if cell := listexport.StripStyleMarkers(week2[1].Values[listexport.ColumnPlanThursday]); !strings.HasPrefix(cell, "15:00–16:00") {
+		t.Fatalf("week 2 Sport Thursday = %q", cell)
+	}
+}
+
 func TestBetreuungsplanShowsStaffRoomOverride(t *testing.T) {
 	t.Parallel()
 

@@ -21,6 +21,7 @@ import (
 // contracts are verified by the separate route and device-auth suites.
 func TestDeviceScanRuntimeEvidence(t *testing.T) {
 	t.Parallel()
+	testpkg.RequireRuntimeEvidence(t)
 	isolated := testpkg.SetupIsolatedTestDB(t)
 	db, module := setupCheckinModule(t)
 	require.Same(t, isolated, db)

@@ -20,6 +20,7 @@ import (
 // checkpoint or claim a staging/production observation window.
 func TestStudentPresenceMigrationRuntime(t *testing.T) {
 	t.Parallel()
+	testpkg.RequireRuntimeEvidence(t)
 	db := testpkg.SetupIsolatedTestDB(t)
 	ctx := testpkg.Ctx(t)
 	var databaseVersion string

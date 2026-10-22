@@ -22,6 +22,7 @@ import (
 // the raw JSON is logged for docs/runtime-checkpoints.
 func TestIdentityMembershipRuntimeEvidence(t *testing.T) {
 	t.Parallel()
+	testpkg.RequireRuntimeEvidence(t)
 	db := testpkg.SetupIsolatedTestDB(t)
 	factory, err := NewRepositoryTestFactoryWithPeopleDirectory(testpkg.NewDatabase(t, db))
 	factoryMessages := NewParentMessagingSuiteRepositories(testpkg.NewDatabase(t, db))

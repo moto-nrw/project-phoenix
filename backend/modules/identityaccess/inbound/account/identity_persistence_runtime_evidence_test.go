@@ -26,6 +26,7 @@ import (
 // since #4485 and #4431. Fixtures are outside the timer.
 func TestIdentityPersistenceRuntimeEvidence(t *testing.T) {
 	t.Parallel()
+	testpkg.RequireRuntimeEvidence(t)
 
 	tc, router := setupProtectedRouter(t)
 	db := tc.db

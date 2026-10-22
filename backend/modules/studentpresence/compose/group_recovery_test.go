@@ -70,6 +70,16 @@ func TestGroupRecoveryPreservesTenantAndRollsBackSnapshotMismatch(t *testing.T) 
 	groupEnded, supervisorEnded = testpkg.ActiveGroupEnded(t, db, own)
 	assert.False(t, groupEnded)
 	assert.False(t, supervisorEnded)
+	// A repeated restore of the reopened group is rejected by the
+	// unchanged-row check instead of silently succeeding (moved from the
+	// opt-in TestGroupRecoveryMigrationRuntime, #4426).
+	err = tenant.WithinCurrentTenant(ctx, func(txCtx context.Context) error {
+		return module.RestoreGroup(txCtx, own.GroupID, now)
+	})
+	require.ErrorContains(t, err, "snapshot mismatch for active group: expected 1 rows, updated 0")
+	groupEnded, supervisorEnded = testpkg.ActiveGroupEnded(t, db, own)
+	assert.False(t, groupEnded, "the refused restore leaves the reopened group open")
+	assert.False(t, supervisorEnded)
 	groupEnded, supervisorEnded = testpkg.ActiveGroupEnded(t, db, foreign)
 	assert.True(t, groupEnded, "the foreign tenant's group stays ended")
 	assert.True(t, supervisorEnded)
