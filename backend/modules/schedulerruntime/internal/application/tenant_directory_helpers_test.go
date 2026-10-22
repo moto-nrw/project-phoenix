@@ -26,6 +26,12 @@ func (d dbTenantDirectory) RecordDueBillingKeyDates(context.Context, time.Time) 
 	return 0, nil
 }
 
+// PublishSchoolNames names nothing: the analytics school names have their own
+// tick and tracker tests.
+func (d dbTenantDirectory) PublishSchoolNames(context.Context) (int, error) {
+	return 0, nil
+}
+
 func (d dbTenantDirectory) list(ctx context.Context, activeOnly bool) ([]int64, error) {
 	ids := []int64{}
 	query := d.db.NewSelect().

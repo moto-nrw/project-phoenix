@@ -55,7 +55,7 @@ func NewWorker(
 	notices EnrollmentNotices, flows EnrollmentFlows, studentDeletion *studentdeletion.Workflow, feedback feedbackModule.Capability,
 	calendarApp calendarCompose.Application, notifications DeliveryNotifications, usage deliveryCompose.PWAUsageService,
 	staffMessaging communication.StaffMessagingRuntime, outbox *deliveryModule.Worker, reminders reminder.Module,
-	fileStore filestorageModule.Capability, announcements communication.ParentAnnouncementCapability,
+	fileStore filestorageModule.Capability, announcements communication.ParentAnnouncementCapability, schoolNames SchoolNamesPublisher,
 ) (schedulerPorts.Worker, error) {
 	billing, err := NewOperatorBilling(logger)
 	if err != nil {
@@ -95,7 +95,7 @@ func NewWorker(
 	return schedulerRuntimeCompose.NewWorker(schedulerPorts.WorkerDependencies{
 		Logger:                    logger.With("service", "scheduler"),
 		Getenv:                    os.Getenv,
-		SchoolRepo:                schedulerTenantDirectory{schools: organizations, billing: billing},
+		SchoolRepo:                schedulerTenantDirectory{schools: organizations, billing: billing, schoolNames: schoolNames},
 		TenantRuntime:             runtime,
 		TenantRuntimeObserver:     observability.RecordTenantRuntimeEvent,
 		UnitOfWorkObserver:        observability.RecordUnitOfWorkEvent,
