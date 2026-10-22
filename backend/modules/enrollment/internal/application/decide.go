@@ -279,7 +279,7 @@ func (d *Decisions) validateApprovalOfferingSelection(ctx context.Context, child
 	// An application submitted before a group got the per-day rule can hold
 	// two variants on one day (#4514). The approval names it; the bookings
 	// stay as they are until staff change them.
-	if err := checkApprovalDayRules(links, offerings); err != nil {
+	if err := checkApprovalDayRules(phase.ID, links, offerings); err != nil {
 		return err
 	}
 	return checkApprovalSelectionMode(phase, offerings)
@@ -311,16 +311,16 @@ func checkApprovalSelectionMode(phase *enrollmentNative.Phase, offerings []*offe
 	return nil
 }
 
-func checkApprovalDayRules(links []*enrollmentNative.RequestChildOfferingRecord, offerings []*offeringContract.CareOfferingRecord) error {
+func checkApprovalDayRules(phaseID int64, links []*enrollmentNative.RequestChildOfferingRecord, offerings []*offeringContract.CareOfferingRecord) error {
 	catalog := make(map[int64]*offeringContract.CareOfferingRecord, len(offerings))
 	for _, offering := range offerings {
-		if offering != nil {
+		if offering != nil && offering.PhaseID == phaseID {
 			catalog[offering.ID] = offering
 		}
 	}
 	var child selection.Child
 	for _, link := range links {
-		if link == nil {
+		if link == nil || catalog[link.CareOfferingID] == nil {
 			continue
 		}
 		child.OfferingIDs = append(child.OfferingIDs, link.CareOfferingID)
