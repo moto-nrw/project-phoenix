@@ -84,27 +84,34 @@ valid: fixture and product code see the same frozen instant. Fixtures that use
 skeleton or renamed text. Permission and feature gates mostly rest on such
 assertions, so each one needs a positive check (#4435):
 
-1. **Anchor in the same render** (`// Anker:` in test comments). Before the
-   absence check, assert an element only the loaded content renders: a
-   neighbour entry of the same group, a list row, a mocked child, the tab bar
-   of the loaded view. A page title or shell that the loading state also
-   renders is no anchor.
+1. **Anchor in the same render.** Before the absence check, assert an element
+   only the loaded content renders: a neighbour entry of the same group, a
+   list row, a mocked child of the loaded view. A page title, shell or tab bar
+   counts only if the loading state does not render it; check the skeleton
+   (for example `LOADING_TABS` in the student record skeleton) before you pick
+   one. Each anchor block, one or more consecutive assertions, starts with a
+   `// Anker: <what it proves>` line, so `grep "// Anker:"` finds every anchor.
 2. **Counterpart.** Next to the test for the forbidden role or the switched-off
    feature, a test for the allowed role or switched-on feature finds the same
-   element with the same query. A label no counterpart can find is a dead
-   check, usually left behind by a rename.
+   element with the same query. Both take the same path (URL, filter, clicks)
+   and differ only in the permission or setting. A label no counterpart can
+   find is a dead check, usually left behind by a rename.
 3. **Components that render nothing when hidden.** Keep the visible
    environments of the positive cases in the table. Each hidden row spreads
-   the visible row it is checked against, overrides only what differs, asserts
-   absent, unmounts and renders the visible row, asserting present
+   the visible row it is checked against and overrides only what differs. It
+   asserts absent, unmounts, resets state the first render changed (visit
+   count, storage), renders the visible row and asserts present
    (`src/components/tenant/pwa-install-hint.test.tsx`).
 4. **Countercheck once per file.** Temporarily let the component return `null`
-   or stay in its loading state, run the absence tests, see them red, revert.
-   Record the result in the PR.
+   or stay in its loading state and run the absence tests. Each must fail, and
+   the failure must come from the anchor assertion itself (its query in the
+   error message), not from an unrelated line. Revert and record the result
+   in the PR.
 
 ```tsx
 render(<Sidebar />);
 
-expect(screen.getByText("Meine Gruppen")).toBeInTheDocument(); // anchor
+// Anker: die Staff-Navigation ist geladen.
+expect(screen.getByText("Meine Gruppen")).toBeInTheDocument();
 expect(screen.queryByText("Datenverwaltung")).not.toBeInTheDocument();
 ```
