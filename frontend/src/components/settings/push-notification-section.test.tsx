@@ -195,7 +195,7 @@ describe("PushNotificationSection", () => {
     );
     pushApi.isPushConfigurationMissing.mockReturnValue(true);
 
-    renderWithToast(<PushNotificationSection />);
+    const { unmount } = renderWithToast(<PushNotificationSection />);
 
     await waitFor(() =>
       expect(pushApi.syncExistingPushSubscription).toHaveBeenCalled(),
@@ -210,6 +210,22 @@ describe("PushNotificationSection", () => {
         name: "Benachrichtigungen einschalten",
       }),
     ).not.toBeInTheDocument();
+    unmount();
+
+    pushApi.syncExistingPushSubscription.mockResolvedValue(null);
+    pushApi.isPushConfigurationMissing.mockReturnValue(false);
+    renderWithToast(<PushNotificationSection />);
+    // Anker: mit Server-Konfiguration steht die Karte im selben Aufbau.
+    expect(
+      await screen.findByRole("heading", {
+        name: "Benachrichtigungen auf diesem Gerät",
+      }),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByRole("button", {
+        name: "Benachrichtigungen einschalten",
+      }),
+    ).toBeInTheDocument();
   });
 
   it("marks unavailable parent notifications for the first-steps tour", async () => {
@@ -239,12 +255,19 @@ describe("PushNotificationSection", () => {
     );
     pushApi.isPushConfigurationMissing.mockReturnValue(true);
 
-    renderWithToast(<PushNotificationSection />);
+    const { unmount } = renderWithToast(<PushNotificationSection />);
 
     await waitFor(() =>
       expect(pushApi.verifyPushConfiguration).toHaveBeenCalledWith("tenant"),
     );
     expect(screen.queryByText(/Zum Home-Bildschirm/)).not.toBeInTheDocument();
+    unmount();
+
+    pushApi.verifyPushConfiguration.mockResolvedValue(undefined);
+    pushApi.isPushConfigurationMissing.mockReturnValue(false);
+    renderWithToast(<PushNotificationSection />);
+    // Anker: mit Server-Konfiguration erscheint die iOS-Anleitung im selben Aufbau.
+    expect(await screen.findByText(/Zum Home-Bildschirm/)).toBeInTheDocument();
   });
 
   it("shows the blocked message when permission is denied", async () => {
@@ -395,16 +418,23 @@ describe("PushNotificationSection", () => {
     expect(
       screen.queryByRole("button", { name: "Testbenachrichtigung senden" }),
     ).not.toBeInTheDocument();
+    // Das Menü schließen, damit der nächste Klick es im Elternportal öffnet
+    // statt das noch offene Menü zu schließen.
+    fireEvent.click(screen.getByRole("button", { name: "Weitere Aktionen" }));
 
     rerender(<PushNotificationSection portal="parent" />);
     await openSecondaryMenu();
-    await waitFor(() =>
-      expect(
-        screen.queryByRole("menuitem", {
-          name: "Testbenachrichtigung senden",
-        }),
-      ).not.toBeInTheDocument(),
-    );
+    // Anker: das Menü des Elternportals ist offen.
+    expect(
+      await screen.findByRole("menuitem", {
+        name: "Einrichtung erneut starten",
+      }),
+    ).toBeInTheDocument();
+    expect(
+      screen.queryByRole("menuitem", {
+        name: "Testbenachrichtigung senden",
+      }),
+    ).not.toBeInTheDocument();
   });
 
   it("sends a test notification and confirms success", async () => {

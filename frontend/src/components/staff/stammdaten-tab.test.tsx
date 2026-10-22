@@ -47,6 +47,13 @@ describe("StammdatenTab", () => {
         canViewFinancial
       />,
     );
+    // Anker: Personalnummer und die freigegebenen Bank- und Steuerdaten stehen da.
+    expect(screen.getByText("Nicht gesetzt")).toBeInTheDocument();
+    expect(
+      screen.getByText(
+        "Jeder Abruf der gespeicherten Werte wird im Audit-Log protokolliert.",
+      ),
+    ).toBeInTheDocument();
     expect(
       screen.queryByRole("button", { name: "Bearbeiten" }),
     ).not.toBeInTheDocument();
@@ -54,6 +61,7 @@ describe("StammdatenTab", () => {
       screen.queryByRole("button", { name: "Speichern" }),
     ).not.toBeInTheDocument();
   });
+
   beforeEach(() => {
     mutate.mockReset();
     useSWRAuth.mockReset();
@@ -65,6 +73,32 @@ describe("StammdatenTab", () => {
       isValidating: false,
       mutate,
     };
+  });
+
+  it("offers financial and payroll editing for a current employment", () => {
+    render(
+      <StammdatenTab
+        staffId="42"
+        canManagePayroll
+        canManagePayrollSettings={false}
+        canViewFinancial
+      />,
+    );
+
+    // Derselbe Weg wie der Test für die ehemalige Beschäftigung, nur ohne
+    // readOnly: dieselben Abfragen direkt nach dem Render.
+    expect(
+      screen.getByRole("button", { name: "Bearbeiten" }),
+    ).toBeInTheDocument();
+    expect(
+      screen.queryByRole("button", { name: "Speichern" }),
+    ).not.toBeInTheDocument();
+    // „Speichern“ gibt es erst im Bearbeiten-Zustand, den nur „Bearbeiten“
+    // öffnet; ohne diesen Knopf kann er nicht erscheinen.
+    fireEvent.click(screen.getByRole("button", { name: "Bearbeiten" }));
+    expect(
+      screen.getByRole("button", { name: "Speichern" }),
+    ).toBeInTheDocument();
   });
 
   it("zeigt bei einem Ladefehler keinen vermeintlich leeren Wert", async () => {
@@ -138,6 +172,8 @@ describe("StammdatenTab", () => {
       />,
     );
 
+    // Anker: der Abschnitt Personalnummer ist mit seinem Wert geladen.
+    expect(screen.getByText("Nicht gesetzt")).toBeInTheDocument();
     expect(
       screen.queryByRole("link", { name: "Abrechnung" }),
     ).not.toBeInTheDocument();

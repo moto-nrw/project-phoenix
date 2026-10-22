@@ -353,6 +353,8 @@ describe("Header", () => {
 
     render(<Header />);
 
+    // Anker: der Kopf mit seinem Profilmenü ist gerendert.
+    expect(screen.getByTestId("profile-trigger")).toBeInTheDocument();
     expect(screen.queryByTestId("context-help-link")).not.toBeInTheDocument();
   });
 

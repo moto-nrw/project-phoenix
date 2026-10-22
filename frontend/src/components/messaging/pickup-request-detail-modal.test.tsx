@@ -231,11 +231,21 @@ describe("PickupRequestDetailModal", () => {
     consoleError.mockRestore();
   });
 
-  it("lädt nichts, solange keine Anfrage gewählt ist", () => {
-    render(<PickupRequestDetailModal requestId={null} onClose={vi.fn()} />, {
-      wrapper: Wrapper,
-    });
+  it("lädt nichts, solange keine Anfrage gewählt ist", async () => {
+    const { unmount } = render(
+      <PickupRequestDetailModal requestId={null} onClose={vi.fn()} />,
+      { wrapper: Wrapper },
+    );
     expect(mockFetch).not.toHaveBeenCalled();
     expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+    unmount();
+
+    mockFetch.mockResolvedValue(detail());
+    render(<PickupRequestDetailModal requestId="42" onClose={vi.fn()} />, {
+      wrapper: Wrapper,
+    });
+    // Anker: mit gewählter Anfrage öffnet derselbe Aufbau den Dialog.
+    expect(await screen.findByRole("dialog")).toBeInTheDocument();
+    expect(await screen.findByText("Mia Muster")).toBeInTheDocument();
   });
 });

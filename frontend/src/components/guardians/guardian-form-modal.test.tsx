@@ -474,6 +474,8 @@ describe("GuardianFormModal", () => {
       />,
     );
 
+    // Anker: der Eintrag steht, unter dem der Knopf stünde.
+    expect(screen.getAllByPlaceholderText("Max")).toHaveLength(1);
     expect(screen.queryByText("Weiteren hinzufügen")).not.toBeInTheDocument();
   });
 

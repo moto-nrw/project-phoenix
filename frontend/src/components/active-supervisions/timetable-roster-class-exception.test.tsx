@@ -128,6 +128,8 @@ describe("TimetableRosterContent class arrival exception", () => {
       ]),
     );
 
+    // Anker: die Zeile des anwesenden Kindes ist gerendert.
+    expect(screen.getByText("Schon da")).toBeInTheDocument();
     expect(
       screen.queryByText(
         "Kommt heute um 12:45 Uhr (Klasse 4a: Unterricht fällt aus)",
@@ -154,6 +156,11 @@ describe("TimetableRosterContent class arrival exception", () => {
       ]),
     );
 
+    // Anker: die Zeilen aller drei Kinder sind gerendert.
+    // „Abwesend“ steht zusätzlich als Status der Zeile da.
+    expect(screen.getAllByText("Abwesend").length).toBeGreaterThan(0);
+    expect(screen.getByText("Gegangen")).toBeInTheDocument();
+    expect(screen.getByText("Nicht betreut")).toBeInTheDocument();
     expect(
       screen.queryByText(
         "Kommt heute um 12:45 Uhr (Klasse 4a: Unterricht fällt aus)",

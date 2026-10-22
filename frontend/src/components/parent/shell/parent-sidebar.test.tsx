@@ -202,8 +202,10 @@ describe("ParentSidebar", () => {
   it("hides Elternbriefe and Essensplan when no school offers them", () => {
     renderSidebar({ gates: { news: false, mealPlan: false } });
 
+    // Anker: die Hauptnavigation mit den immer vorhandenen Zielen steht.
+    expect(screen.getByText("Nachrichten")).toBeVisible();
     expect(screen.queryByText("Elternbriefe")).not.toBeInTheDocument();
-    expect(screen.queryByText("Essensplan")).not.toBeInTheDocument();
+    expect(screen.queryByText("Mittagessen")).not.toBeInTheDocument();
   });
 
   it("shows the unread messages count next to Nachrichten", () => {

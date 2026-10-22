@@ -339,6 +339,8 @@ describe("PasswordResetModal", () => {
 
     render(<ResetModal isOpen={true} onClose={mockOnClose} />);
 
+    // Anker: das Formular steht da und der Knopf ist wieder frei.
+    expect(screen.getByRole("button", { name: /Link senden/i })).toBeEnabled();
     // Should not show the wait
     expect(
       screen.queryByText(/Einen neuen Link können Sie in/i),

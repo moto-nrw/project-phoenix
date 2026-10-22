@@ -307,6 +307,8 @@ describe("SlideOver", () => {
       </SlideOver>,
     );
 
+    // Anker: der Body zeigt seinen Inhalt, nur ohne Fehler.
+    expect(screen.getByText("Formularfelder")).toBeInTheDocument();
     expect(screen.queryByRole("alert")).not.toBeInTheDocument();
   });
 });

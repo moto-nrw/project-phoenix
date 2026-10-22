@@ -429,6 +429,10 @@ describe("TenantGuard", () => {
       </TenantGuard>,
     );
 
+    // Anker: die Guard zeigt den Abmeldehinweis der Operator-Sitzung.
+    expect(
+      screen.getByText("Operator-Sitzung wird beendet..."),
+    ).toBeInTheDocument();
     // Children must NOT render
     expect(screen.queryByText("Protected Content")).not.toBeInTheDocument();
 

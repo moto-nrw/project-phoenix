@@ -200,6 +200,8 @@ describe("BetreuungsplanHeuteCard", () => {
 
     render(<BetreuungsplanHeuteCard />);
 
+    // Anker: der laufende Einsatz steht als Zeile da.
+    expect(screen.getByText("Lernzeit")).toBeInTheDocument();
     expect(screen.queryByText("Läuft")).not.toBeInTheDocument();
   });
 

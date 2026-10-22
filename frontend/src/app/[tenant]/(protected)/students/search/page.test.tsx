@@ -1292,6 +1292,7 @@ describe("StudentSearchPage", () => {
       await waitFor(() => {
         expect(screen.getByText(new RegExp(`^Max\\b`))).toBeInTheDocument();
       });
+      expect(screen.getByText(new RegExp(`^Anna\\b`))).toBeInTheDocument();
 
       fireEvent.change(screen.getByTestId("filter-attendance"), {
         target: { value: "krank" },
@@ -1326,6 +1327,7 @@ describe("StudentSearchPage", () => {
       await waitFor(() => {
         expect(screen.getByText(new RegExp(`^Max\\b`))).toBeInTheDocument();
       });
+      expect(screen.getByText(new RegExp(`^Anna\\b`))).toBeInTheDocument();
 
       fireEvent.change(screen.getByTestId("filter-attendance"), {
         target: { value: "entschuldigt" },
@@ -2693,16 +2695,37 @@ describe("StudentSearchPage", () => {
 
       render(<StudentSearchPage />);
 
-      await waitFor(() => {
-        expect(
-          screen.queryByTestId("filter-photoConsent"),
-        ).not.toBeInTheDocument();
-        expect(
-          screen.queryByTestId("active-filter-photoConsent"),
-        ).not.toBeInTheDocument();
-        expect(screen.getByText(new RegExp(`^Max\\b`))).toBeInTheDocument();
-        expect(screen.getByText(new RegExp(`^Lisa\\b`))).toBeInTheDocument();
-      });
+      // Anker: Liste und Filterleiste sind geladen, nur der Fotofilter fehlt.
+      expect(
+        await screen.findByText(new RegExp(`^Max\\b`)),
+      ).toBeInTheDocument();
+      expect(screen.getByText(new RegExp(`^Lisa\\b`))).toBeInTheDocument();
+      expect(screen.getByTestId("filter-attendance")).toBeInTheDocument();
+      expect(
+        screen.queryByTestId("filter-photoConsent"),
+      ).not.toBeInTheDocument();
+      expect(
+        screen.queryByTestId("active-filter-photoConsent"),
+      ).not.toBeInTheDocument();
+    });
+
+    it("shows the photo consent filter when the tenant photo feature is enabled", async () => {
+      const tenantProvider = await import("~/lib/tenant-context");
+      vi.mocked(tenantProvider.useTenantSafe).mockReturnValue({
+        tenantSlug: "test-tenant",
+        tenant: { studentPhotosEnabled: true },
+      } as unknown as ReturnType<typeof tenantProvider.useTenantSafe>);
+      mockSearchParams.set("photo_consent", "no");
+
+      render(<StudentSearchPage />);
+
+      expect(
+        await screen.findByText(new RegExp(`^Max\\b`)),
+      ).toBeInTheDocument();
+      expect(screen.getByTestId("filter-photoConsent")).toBeInTheDocument();
+      expect(
+        screen.getByTestId("active-filter-photoConsent"),
+      ).toBeInTheDocument();
     });
 
     it("hides the photo consent filter when the API omits consent state", async () => {
@@ -2722,13 +2745,13 @@ describe("StudentSearchPage", () => {
 
       render(<StudentSearchPage />);
 
-      await waitFor(() => {
-        // Anker: die Liste ist geladen, nur der Filter fehlt.
-        expect(screen.getByText(new RegExp(`^Max\\b`))).toBeInTheDocument();
-        expect(
-          screen.queryByTestId("filter-photoConsent"),
-        ).not.toBeInTheDocument();
-      });
+      // Anker: die Liste ist geladen, nur der Filter fehlt.
+      expect(
+        await screen.findByText(new RegExp(`^Max\\b`)),
+      ).toBeInTheDocument();
+      expect(
+        screen.queryByTestId("filter-photoConsent"),
+      ).not.toBeInTheDocument();
     });
 
     // GDPR exclusion of redacted students from administrative filters is now
@@ -2941,6 +2964,9 @@ describe("StudentSearchPage", () => {
       await waitFor(() => {
         expect(screen.getByText(new RegExp(`^Max\\b`))).toBeInTheDocument();
       });
+      for (const name of ["Anna", "Tom", "Lisa"]) {
+        expect(screen.getByText(new RegExp(`^${name}\\b`))).toBeInTheDocument();
+      }
 
       // Filter by 15:30, only Max has this pickup time
       const pickupFilter = screen.getByTestId("filter-pickupTime");
@@ -2966,6 +2992,7 @@ describe("StudentSearchPage", () => {
       await waitFor(() => {
         expect(screen.getByText(new RegExp(`^Max\\b`))).toBeInTheDocument();
       });
+      expect(screen.getByText(new RegExp(`^Tom\\b`))).toBeInTheDocument();
 
       // Filter by "none": Anna and Lisa have no pickup_time
       const pickupFilter = screen.getByTestId("filter-pickupTime");
@@ -3130,6 +3157,9 @@ describe("StudentSearchPage", () => {
       await waitFor(() => {
         expect(screen.getByText(new RegExp(`^Max\\b`))).toBeInTheDocument();
       });
+      for (const name of ["Anna", "Lisa"]) {
+        expect(screen.getByText(new RegExp(`^${name}\\b`))).toBeInTheDocument();
+      }
 
       fireEvent.change(screen.getByTestId("filter-arrivalTime"), {
         target: { value: "08:15" },
@@ -3192,6 +3222,10 @@ describe("StudentSearchPage", () => {
           screen.getByText(new RegExp(`^NoArrival\\b`)),
         ).toBeInTheDocument();
       });
+      expect(screen.getByText(new RegExp(`^Exception\\b`))).toBeInTheDocument();
+      expect(
+        screen.getByText(new RegExp(`^RedactedArrival\\b`)),
+      ).toBeInTheDocument();
 
       fireEvent.change(screen.getByTestId("filter-arrivalTime"), {
         target: { value: "none" },

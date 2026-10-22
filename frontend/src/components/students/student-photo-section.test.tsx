@@ -59,6 +59,10 @@ describe("StudentPhotoSection (controlled)", () => {
       />,
     );
 
+    // Anker: die Einwilligung ist gerendert und nicht angehakt.
+    expect(
+      screen.getByRole("checkbox", { name: /Einwilligung der Eltern/i }),
+    ).not.toBeChecked();
     expect(
       screen.queryByRole("button", { name: /Foto auswählen/i }),
     ).toBeNull();
@@ -318,6 +322,10 @@ describe("StudentPhotoSection (controlled)", () => {
       />,
     );
 
+    // Anker: die Fotoauswahl mit eingewilligter Speicherung ist gerendert.
+    expect(
+      screen.getByRole("button", { name: /Foto auswählen/i }),
+    ).toBeInTheDocument();
     const fileInput = container.querySelector(
       "input[type=file]",
     ) as HTMLInputElement;

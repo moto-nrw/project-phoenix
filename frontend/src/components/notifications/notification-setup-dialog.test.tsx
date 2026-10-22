@@ -147,10 +147,16 @@ describe("NotificationSetupDialog", () => {
       JSON.stringify({ done: true }),
     );
 
-    renderDialog({ portal: "tenant" });
+    const { unmount } = renderDialog({ portal: "tenant" });
 
     await waitFor(() => expect(mocks.fetchPreferences).not.toHaveBeenCalled());
     expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+    unmount();
+
+    localStorage.clear();
+    renderDialog({ portal: "tenant" });
+    // Anker: ohne gespeicherten Abschluss öffnet sich derselbe Dialog.
+    expect(await screen.findByRole("dialog")).toBeInTheDocument();
   });
 
   it("runs again when the settings card restarts the setup", async () => {

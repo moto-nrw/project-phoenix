@@ -151,6 +151,8 @@ describe("SonderarbeitszeitenSection", () => {
   it("hides every write action without the edit permission", () => {
     render(<SonderarbeitszeitenSection staffId="42" canEdit={false} />);
 
+    // Anker: die Liste mit dem Zeitraum ist geladen.
+    expect(screen.getByText("19.10.2026 – 23.10.2026")).toBeInTheDocument();
     expect(
       screen.queryByRole("button", { name: "Sonderarbeitszeit anlegen" }),
     ).toBeNull();

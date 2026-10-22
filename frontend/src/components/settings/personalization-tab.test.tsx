@@ -503,6 +503,9 @@ describe("PersonalizationTab", () => {
     );
 
     render(<PersonalizationTab />);
+    // Anker: der Ladekreis steht da, solange die Antwort aussteht.
+    expect(document.querySelector(".animate-spin")).toBeInTheDocument();
+
     // Should not crash, loading should finish
     await waitFor(() => {
       expect(document.querySelector(".animate-spin")).toBeNull();
@@ -518,6 +521,9 @@ describe("PersonalizationTab", () => {
     mockSessionFetch.mockRejectedValue(new Error("network down"));
 
     render(<PersonalizationTab />);
+    // Anker: der Ladekreis steht da, solange die Antwort aussteht.
+    expect(document.querySelector(".animate-spin")).toBeInTheDocument();
+
     await waitFor(() => {
       expect(document.querySelector(".animate-spin")).toBeNull();
     });

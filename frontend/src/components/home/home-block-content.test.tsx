@@ -144,6 +144,9 @@ describe("HomeBlockContent — Kennzahlen", () => {
       />,
     );
 
+    // Anker: die Kachel steht mit geladenem Wert da.
+    expect(screen.getByText("Krank")).toBeInTheDocument();
+    expect(screen.getByText("4")).toBeInTheDocument();
     expect(screen.queryByRole("link")).not.toBeInTheDocument();
   });
 
@@ -186,6 +189,8 @@ describe("HomeBlockContent — Listen", () => {
       <HomeBlockContent blockKey="section.recent_activity" data={data()} />,
     );
 
+    // Anker: die Bewegung ist als Zeile gerendert.
+    expect(screen.getByText("Gruppe 1")).toBeInTheDocument();
     expect(screen.queryAllByRole("link")).toHaveLength(0);
   });
 

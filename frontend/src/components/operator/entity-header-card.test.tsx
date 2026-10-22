@@ -37,6 +37,9 @@ describe("EntityHeaderCard", () => {
   it("does not render 'Seit' when createdAt is invalid (covers NaN branch)", () => {
     render(<EntityHeaderCard title="Org" active createdAt="not-a-date" />);
 
+    // Anker: der Kopf mit Titel und Status ist gerendert.
+    expect(screen.getByRole("heading", { name: "Org" })).toBeInTheDocument();
+    expect(screen.getByText("Aktiv")).toBeInTheDocument();
     expect(screen.queryByText("Seit")).not.toBeInTheDocument();
   });
 
@@ -68,6 +71,8 @@ describe("EntityHeaderCard", () => {
   it("renders no concept icon tile when concept is omitted", () => {
     const { container } = render(<EntityHeaderCard title="Org" active />);
 
+    // Anker: der Kopf mit Titel ist gerendert.
+    expect(screen.getByRole("heading", { name: "Org" })).toBeInTheDocument();
     expect(
       container.querySelector("[data-moto-duotone-tone]"),
     ).not.toBeInTheDocument();
@@ -96,6 +101,8 @@ describe("EntityHeaderCard", () => {
   it("renders no back link without a target", () => {
     render(<EntityHeaderCard title="Org" active />);
 
+    // Anker: der Kopf mit Titel ist gerendert.
+    expect(screen.getByRole("heading", { name: "Org" })).toBeInTheDocument();
     expect(screen.queryByRole("link")).not.toBeInTheDocument();
   });
 });

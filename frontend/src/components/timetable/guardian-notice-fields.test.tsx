@@ -167,6 +167,8 @@ describe("GuardianNoticeFields", () => {
     getGuardianNoticeReach.mockResolvedValue(reachOn);
     render(<Harness />);
     const checkbox = await screen.findByLabelText(CHECKBOX_LABEL);
+    // Ausgangszustand: angehakt stehen die Textfelder da.
+    expect(screen.getByLabelText("Betreff")).toBeInTheDocument();
     fireEvent.click(checkbox);
     await waitFor(() =>
       expect(screen.queryByLabelText("Betreff")).not.toBeInTheDocument(),

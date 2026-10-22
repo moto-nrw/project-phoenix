@@ -81,6 +81,8 @@ describe("StudentRowCard", () => {
   it("hides errors section when no errors", () => {
     render(<StudentRowCard student={baseStudent} index={0} />);
 
+    // Anker: die Karte steht mit Namen, unter dem die Fehler stünden.
+    expect(screen.getByText("Max Mustermann")).toBeInTheDocument();
     expect(screen.queryByText(/Missing field/)).not.toBeInTheDocument();
   });
 
@@ -98,6 +100,8 @@ describe("StudentRowCard", () => {
       <StudentRowCard student={student} index={0} />,
     );
 
+    // Anker: die Karte steht mit Namen, unter dem die Merkmale stünden.
+    expect(screen.getByText("Max Mustermann")).toBeInTheDocument();
     expect(screen.queryByText("1a")).not.toBeInTheDocument();
     expect(screen.queryByText("Anna Mustermann")).not.toBeInTheDocument();
     expect(container.querySelector(".text-gray-500")).not.toBeInTheDocument();

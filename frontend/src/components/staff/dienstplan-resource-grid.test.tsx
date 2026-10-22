@@ -292,6 +292,10 @@ describe("DienstplanResourceGrid status mapping", () => {
   it("shows no series icon on a standalone shift", () => {
     renderGrid({ shiftsByStaff: shiftMap("2026-07-06", [baseShift()]) });
 
+    // Anker: der Schichtblock selbst ist gerendert, nur ohne Serien-Icon.
+    expect(
+      screen.getByRole("button", { name: /^08:00–12:00 Schicht/ }),
+    ).toBeInTheDocument();
     expect(screen.queryByLabelText("Teil einer Serie")).not.toBeInTheDocument();
     expect(
       screen.queryByLabelText("Serie, für diese Woche angepasst"),

@@ -148,6 +148,7 @@ describe("PlannedNowSection", () => {
       );
       const button = screen.getByRole("button", { name: "Starten ab 13:45" });
       expect(button).toBeDisabled();
+      expect(screen.getAllByText("Hausaufgaben").length).toBeGreaterThan(0);
     } finally {
       releaseFakeTimers();
     }
@@ -171,6 +172,10 @@ describe("PlannedNowSection", () => {
           onStart={vi.fn()}
         />,
       );
+      // Anker: die Liste ist ohne den abgelaufenen Eintrag leer gerendert.
+      expect(
+        screen.getByText("Keine geplante Betreuung in Sicht"),
+      ).toBeInTheDocument();
       expect(screen.queryByText("Hausaufgaben")).not.toBeInTheDocument();
     } finally {
       releaseFakeTimers();

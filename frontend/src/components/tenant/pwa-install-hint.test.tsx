@@ -520,6 +520,8 @@ describe("PwaInstallHint", () => {
     stubMatchMedia(false);
     render(<PwaInstallHint />);
 
+    // Anker: der Hinweis steht da, bevor die Installation gemeldet wird.
+    expect(screen.getByText("moto als App nutzen")).toBeInTheDocument();
     fireEvent(window, new Event("appinstalled"));
 
     await waitFor(() => {

@@ -598,6 +598,8 @@ describe("OperatorAnnouncementsPage", () => {
     it("does not show expand button when content fits within clamp", () => {
       render(<OperatorAnnouncementsPage />);
 
+      // Anker: der Ankündigungstext, an dem der Umschalter hängt, ist gerendert.
+      expect(screen.getByText("Test content")).toBeInTheDocument();
       expect(screen.queryByText("Mehr anzeigen")).not.toBeInTheDocument();
       expect(screen.queryByText("Weniger anzeigen")).not.toBeInTheDocument();
     });
@@ -865,6 +867,8 @@ describe("OperatorAnnouncementsPage", () => {
       await waitFor(() => {
         expect(screen.getByTestId("modal")).toBeInTheDocument();
       });
+      expect(screen.getByText("Schule A")).toBeInTheDocument();
+      expect(screen.getByText("Schule B")).toBeInTheDocument();
 
       // Select Org Beta (id=2) -- only Schule C belongs to it
       fireEvent.click(screen.getByText("Org Beta"));

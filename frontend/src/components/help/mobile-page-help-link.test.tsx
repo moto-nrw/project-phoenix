@@ -115,16 +115,28 @@ describe("mobile page help", () => {
 
   it("does not replace a missing article with the help overview", () => {
     state.pathname = "/testschule/unmapped";
-    render(<MobilePageHelpLink />);
+    const { unmount } = render(<MobilePageHelpLink />);
     expect(screen.queryByRole("link")).not.toBeInTheDocument();
+    unmount();
+
+    state.pathname = "/testschule/students/search";
+    render(<MobilePageHelpLink />);
+    // Anker: dieselbe Komponente zeigt den Link, sobald die Seite einen Artikel hat.
+    expect(screen.getByRole("link")).toBeInTheDocument();
   });
 
   it.each(["school", "operator"])(
     "leaves %s help to its own header",
     (mode) => {
       state.mode = mode;
-      render(<MobilePageHelpLink />);
+      const { unmount } = render(<MobilePageHelpLink />);
       expect(screen.queryByRole("link")).not.toBeInTheDocument();
+      unmount();
+
+      state.mode = "teacher";
+      render(<MobilePageHelpLink />);
+      // Anker: auf derselben Seite zeigt das Personalportal den Link.
+      expect(screen.getByRole("link")).toBeInTheDocument();
     },
   );
 

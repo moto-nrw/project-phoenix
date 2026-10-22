@@ -694,9 +694,34 @@ describe("SubstitutionSlideOver", () => {
       onApply: applyMock(),
     });
 
+    // Anker: die kranke Vertretung steht als Zeile in der Liste.
+    expect(screen.getByText("Bernd Neu")).toBeInTheDocument();
     expect(
       screen.queryByRole("button", { name: "Entfernen" }),
     ).not.toBeInTheDocument();
+  });
+
+  it("bietet das Entfernen bei einer Abwesenheit ohne Krankmeldung an", () => {
+    const instance = makeInstance({
+      staff: [
+        plannedPerson({ isAbsent: true }),
+        plannedPerson({
+          staffId: "12",
+          isPrimary: false,
+          isSubstitute: true,
+          isAbsent: true,
+        }),
+      ],
+    });
+    renderEditor({
+      instance,
+      dayInstances: [instance],
+      onApply: applyMock(),
+    });
+
+    expect(
+      screen.getByRole("button", { name: "Entfernen" }),
+    ).toBeInTheDocument();
   });
 
   it("tauscht eine Vertretung in einem Speichervorgang", async () => {
@@ -1011,6 +1036,8 @@ describe("SubstitutionSlideOver", () => {
         ]);
         renderEditor({ initialTab: "verlauf" });
 
+        // Anker: die Ereigniszeile der Abwesenheit steht im Verlauf.
+        expect(screen.getByText("Abwesenheit eingetragen")).toBeInTheDocument();
         expect(screen.queryByText(/Vorher:/)).not.toBeInTheDocument();
         expect(screen.queryByText(/Status:/)).not.toBeInTheDocument();
       });

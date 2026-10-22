@@ -558,6 +558,10 @@ describe("DienstplanHalbjahrGrid closing days", () => {
 
     renderGrid();
 
+    // Anker: die Wochenspalten des Halbjahres sind gerendert.
+    expect(
+      screen.getByRole("columnheader", { name: /KW 38/ }),
+    ).toBeInTheDocument();
     expect(screen.queryByText(/Schließtag/)).not.toBeInTheDocument();
   });
 });

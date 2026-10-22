@@ -80,10 +80,17 @@ describe("DemoBanner", () => {
   it("exists only in the demo build", () => {
     vi.stubEnv("NEXT_PUBLIC_APP_ENV", "production");
 
-    renderBanner();
+    const { unmount } = renderBanner();
 
     expect(screen.queryByRole("region", { name: "Demo" })).toBeNull();
     expect(screen.queryByText("Kostenlos starten")).toBeNull();
+    unmount();
+
+    vi.stubEnv("NEXT_PUBLIC_APP_ENV", "demo");
+    renderBanner();
+    // Anker: im Demo-Build steht der Banner im selben Aufbau.
+    expect(screen.getByRole("region", { name: "Demo" })).toBeInTheDocument();
+    expect(screen.getByText("Kostenlos starten")).toBeInTheDocument();
   });
 
   // The server has no stored visit. A first render that read it would not

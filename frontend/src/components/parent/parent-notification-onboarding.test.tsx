@@ -1,4 +1,10 @@
-import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import {
+  act,
+  fireEvent,
+  render,
+  screen,
+  waitFor,
+} from "@testing-library/react";
 import { beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 import { ModalProvider } from "~/components/dashboard/modal-context";
 import { ParentNotificationOnboarding } from "./parent-notification-onboarding";
@@ -55,6 +61,20 @@ function renderOnboarding() {
   );
 }
 
+const ENABLED_PREFERENCES = {
+  tenant_enabled: true,
+  types: [
+    {
+      key: "parent_message",
+      label: "Neue Nachricht",
+      description: "Neue Nachricht der OGS",
+      group: "mitteilungen",
+      enabled: false,
+      available: true,
+    },
+  ],
+};
+
 describe("ParentNotificationOnboarding", () => {
   beforeEach(() => {
     vi.clearAllMocks();
@@ -72,19 +92,7 @@ describe("ParentNotificationOnboarding", () => {
     mocks.isInstallationCompleted.mockReturnValue(false);
     mocks.triggerInstallPrompt.mockResolvedValue("accepted");
     mocks.setPreference.mockResolvedValue(undefined);
-    mocks.fetchPreferences.mockResolvedValue({
-      tenant_enabled: true,
-      types: [
-        {
-          key: "parent_message",
-          label: "Neue Nachricht",
-          description: "Neue Nachricht der OGS",
-          group: "mitteilungen",
-          enabled: false,
-          available: true,
-        },
-      ],
-    });
+    mocks.fetchPreferences.mockResolvedValue(ENABLED_PREFERENCES);
   });
 
   it("enables push and the available notification types together", async () => {
@@ -246,7 +254,7 @@ describe("ParentNotificationOnboarding", () => {
   });
 
   it("does not promise notifications when the school disabled them", async () => {
-    mocks.fetchPreferences.mockResolvedValue({
+    const disabledPreferences = {
       tenant_enabled: false,
       types: [
         {
@@ -258,16 +266,31 @@ describe("ParentNotificationOnboarding", () => {
           available: true,
         },
       ],
-    });
+    };
+    mocks.fetchPreferences.mockResolvedValue(disabledPreferences);
 
-    renderOnboarding();
+    const { unmount } = renderOnboarding();
 
     await waitFor(() => expect(mocks.fetchPreferences).toHaveBeenCalled());
+    // Die Antwort der Schule ist ausgewertet, bevor die Abwesenheit zählt.
+    await act(async () => {
+      await mocks.fetchPreferences.mock.results[0]?.value;
+    });
     expect(
       screen.queryByRole("button", {
         name: "Benachrichtigungen aktivieren",
       }),
     ).not.toBeInTheDocument();
     expect(mocks.subscribePush).not.toHaveBeenCalled();
+    unmount();
+
+    mocks.fetchPreferences.mockResolvedValue(ENABLED_PREFERENCES);
+    renderOnboarding();
+    // Anker: mit eingeschalteten Benachrichtigungen erscheint derselbe Knopf.
+    expect(
+      await screen.findByRole("button", {
+        name: "Benachrichtigungen aktivieren",
+      }),
+    ).toBeInTheDocument();
   });
 });

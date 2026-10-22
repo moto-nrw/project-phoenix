@@ -155,6 +155,8 @@ describe("StudentNotizenTab", () => {
 
   it("offers no actions on a note the reader may neither correct nor remove", () => {
     renderTab([note()]);
+    // Anker: die Notiz selbst ist gerendert.
+    expect(screen.getByText("Hat heute vorgelesen.")).toBeInTheDocument();
     expect(
       screen.queryByRole("button", { name: "Aktionen zur Notiz" }),
     ).not.toBeInTheDocument();

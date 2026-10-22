@@ -94,6 +94,10 @@ describe("TimetableRosterContent present children (#3824)", () => {
       onPresentPickerAutoOpened,
     });
 
+    // Anker: der Kopf des Blocks mit seinen Aktionen ist gerendert.
+    expect(
+      screen.getByRole("heading", { name: "Fußball-AG" }),
+    ).toBeInTheDocument();
     expect(
       screen.queryByRole("button", { name: "Anwesende Kinder" }),
     ).not.toBeInTheDocument();
@@ -105,6 +109,10 @@ describe("TimetableRosterContent present children (#3824)", () => {
   it("offers no picker where unplanned children are not allowed", () => {
     renderRoster({ canAddUnplanned: false });
 
+    // Anker: der Kopf des Blocks mit seinen Aktionen ist gerendert.
+    expect(
+      screen.getByRole("heading", { name: "Fußball-AG" }),
+    ).toBeInTheDocument();
     expect(
       screen.queryByRole("button", { name: "Anwesende Kinder" }),
     ).not.toBeInTheDocument();
@@ -113,6 +121,10 @@ describe("TimetableRosterContent present children (#3824)", () => {
   it("offers no picker without a bulk handler", () => {
     renderRoster({ onAddPresentStudents: undefined });
 
+    // Anker: der Kopf des Blocks mit seinen Aktionen ist gerendert.
+    expect(
+      screen.getByRole("heading", { name: "Fußball-AG" }),
+    ).toBeInTheDocument();
     expect(
       screen.queryByRole("button", { name: "Anwesende Kinder" }),
     ).not.toBeInTheDocument();
@@ -121,6 +133,10 @@ describe("TimetableRosterContent present children (#3824)", () => {
   it("offers no picker when the page passes no picker dialog", () => {
     renderRoster({ presentChildrenPicker: undefined });
 
+    // Anker: der Kopf des Blocks mit seinen Aktionen ist gerendert.
+    expect(
+      screen.getByRole("heading", { name: "Fußball-AG" }),
+    ).toBeInTheDocument();
     expect(
       screen.queryByRole("button", { name: "Anwesende Kinder" }),
     ).not.toBeInTheDocument();

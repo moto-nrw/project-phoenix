@@ -577,6 +577,14 @@ describe("StudentsInRoomSection", () => {
 
       render(<StudentsInRoomSection roomId="42" roomName="OGS-Raum 1" />);
 
+      // Anker: die geladene Liste nennt beide Kinder in der Kopfzeile.
+      expect(
+        screen.getByText((_, node) =>
+          /^2\s+Kinder\s+aktuell\s+anwesend$/.test(
+            node?.textContent?.trim() ?? "",
+          ),
+        ),
+      ).toBeInTheDocument();
       expect(screen.queryByRole("status")).not.toBeInTheDocument();
     });
   });
@@ -1241,6 +1249,8 @@ describe("StudentsInRoomSection", () => {
 
       render(<StudentsInRoomSection roomId="42" roomName="OGS-Raum 1" />);
 
+      // Anker: die Kinderliste selbst ist geladen.
+      expect(screen.getByText("Anna Müller")).toBeInTheDocument();
       expect(
         screen.queryByRole("button", { name: "In Raum setzen" }),
       ).toBeNull();

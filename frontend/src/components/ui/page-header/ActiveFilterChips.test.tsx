@@ -70,6 +70,8 @@ describe("ActiveFilterChips", () => {
   it("does not render clear all button when onClearAll not provided", () => {
     render(<ActiveFilterChips filters={defaultFilters} />);
 
+    // Anker: die Filter-Chips stehen da, nur ohne Sammel-Knopf.
+    expect(screen.getByText("Status: Active")).toBeInTheDocument();
     expect(screen.queryByText("Alle löschen")).not.toBeInTheDocument();
   });
 

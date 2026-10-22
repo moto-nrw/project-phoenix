@@ -2316,9 +2316,10 @@ describe("StudentDetailPage", () => {
       // würde 403 antworten, also gibt es den Reiter gar nicht erst (#2437).
       render(<StudentDetailPage />);
 
-      // Anker: Inhalt der geladenen vollen Ansicht; das Skelett zeigt alle
-      // Reiter, aber keinen Inhalt.
-      expect(screen.getByTestId("guardian-manager")).toBeInTheDocument();
+      // Anker: die geladene volle Ansicht. Nur sie rendert die
+      // Betreuungszeiten; das Skelett zeigt alle Reiter, aber keinen Inhalt,
+      // und die eingeschränkte Ansicht hat keine Betreuungszeiten.
+      expect(screen.getByTestId("care-schedule-manager")).toBeInTheDocument();
       expect(queryTab("Änderungsprotokoll")).not.toBeInTheDocument();
     });
 
@@ -2330,8 +2331,8 @@ describe("StudentDetailPage", () => {
 
       render(<StudentDetailPage />);
 
-      // Anker: Inhalt der geladenen vollen Ansicht.
-      expect(screen.getByTestId("guardian-manager")).toBeInTheDocument();
+      // Anker: die geladene volle Ansicht (Betreuungszeiten).
+      expect(screen.getByTestId("care-schedule-manager")).toBeInTheDocument();
       expect(queryTab("Anmeldungen")).not.toBeInTheDocument();
     });
 
@@ -2339,8 +2340,8 @@ describe("StudentDetailPage", () => {
       // Default mock session is config:manage only -> no schedules:read.
       render(<StudentDetailPage />);
 
-      // Anker: Inhalt der geladenen vollen Ansicht.
-      expect(screen.getByTestId("guardian-manager")).toBeInTheDocument();
+      // Anker: die geladene volle Ansicht (Betreuungszeiten).
+      expect(screen.getByTestId("care-schedule-manager")).toBeInTheDocument();
       expect(
         screen.queryByRole("tab", { name: "Betreuungsplan" }),
       ).not.toBeInTheDocument();

@@ -85,7 +85,16 @@ describe("StepPersonalKinder — Klassenfilter (#2482)", () => {
 
   it("offers the class filter only once a source is selected", () => {
     renderStep({ form: sourcedForm({ sourceCareOfferingIds: [] }) });
+    // Anker: die Angebots-Ansicht ohne Quelle zeigt ihren Hinweis.
+    expect(
+      screen.getByText(/Mit Angeboten als Quelle übernimmt der Regeltermin/),
+    ).toBeInTheDocument();
     expect(screen.queryByText("Kinder eingrenzen")).not.toBeInTheDocument();
+  });
+
+  it("offers the class filter with a selected source", () => {
+    renderStep({ form: sourcedForm() });
+    expect(screen.getByText("Kinder eingrenzen")).toBeInTheDocument();
   });
 
   it("shows classes with their child counts in the Klasse mode", () => {
@@ -116,9 +125,24 @@ describe("StepPersonalKinder — Klassenfilter (#2482)", () => {
       sourceGradeOptions: [1, 2],
       sourceClassOptions: ["1a"],
     });
+    // Anker: im Klasse-Modus steht die Klassen-Auswahl da.
+    expect(
+      screen.getByRole("checkbox", { name: /^Klasse 1a/ }),
+    ).toBeInTheDocument();
     expect(
       screen.queryByRole("checkbox", { name: /^Jahrgang/ }),
     ).not.toBeInTheDocument();
+  });
+
+  it("shows the grade checkboxes in the Jahrgang mode", () => {
+    renderStep({
+      form: sourcedForm({ sourceFilterMode: "jahrgang" }),
+      sourceGradeOptions: [1, 2],
+      sourceClassOptions: ["1a"],
+    });
+    expect(screen.getAllByRole("checkbox", { name: /^Jahrgang/ })).toHaveLength(
+      2,
+    );
   });
 
   it("switches the filter mode through the segmented control", () => {
@@ -374,6 +398,8 @@ describe("StepPersonalKinder — Maximale Teilnehmerzahl (#2233)", () => {
   it("hides the field outside the series flow — a single occurrence has no capacity of its own", () => {
     renderStep({ isSeriesFlow: false });
 
+    // Anker: das Nachbarfeld „Benötigtes Personal“ steht da.
+    expect(screen.getByLabelText("Benötigtes Personal")).toBeInTheDocument();
     expect(
       screen.queryByLabelText("Maximale Teilnehmerzahl"),
     ).not.toBeInTheDocument();

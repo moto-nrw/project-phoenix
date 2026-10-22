@@ -663,7 +663,6 @@ describe("MobileBottomNav", () => {
       expect(screen.getByText("Planung")).toBeInTheDocument();
       expect(screen.getByText("Planung").closest("a")).toBeNull();
       expect(screen.getByText("Vertretungen")).toBeInTheDocument();
-      expect(screen.queryByText("Übergaben")).not.toBeInTheDocument();
       expect(screen.getByText("Datenverwaltung")).toBeInTheDocument();
     });
 
@@ -1431,6 +1430,23 @@ describe("MobileBottomNav", () => {
       releaseFakeTimers();
     });
 
+    it("highlights the matching nav item once the indicator delay has passed", async () => {
+      vi.useFakeTimers();
+      mockUsePathname.mockReturnValue("/ogs-groups");
+
+      const { container } = render(<MobileBottomNav />);
+
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(100);
+      });
+
+      const activeLinks = container.querySelectorAll("a.bg-gray-100");
+      expect(activeLinks).toHaveLength(1);
+      expect(activeLinks[0]).toBe(screen.getByRole("link", { name: "Gruppe" }));
+
+      releaseFakeTimers();
+    });
+
     it("hides indicator when no active item found", async () => {
       vi.useFakeTimers();
       // Use a path that doesn't match any nav item
@@ -1443,6 +1459,8 @@ describe("MobileBottomNav", () => {
         await vi.advanceTimersByTimeAsync(100);
       });
 
+      // Anker: die Hauptnavigation ist gerendert, nur ohne aktiven Eintrag.
+      expect(screen.getByRole("link", { name: "Gruppe" })).toBeInTheDocument();
       // No main nav item should be highlighted (no active styling)
       const activeLinks = container.querySelectorAll("a.bg-gray-100");
       expect(activeLinks.length).toBe(0);

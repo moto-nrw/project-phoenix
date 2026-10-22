@@ -1163,10 +1163,10 @@ describe("CareScheduleManager", () => {
     fireEvent.click(screen.getByRole("button", { name: "Wiederholen" }));
 
     await waitFor(() => expect(mockFetchArrivalData).toHaveBeenCalledTimes(2));
-    await waitFor(() =>
-      expect(
-        screen.queryByText(/Übersicht der Betreuungszeiten/),
-      ).not.toBeInTheDocument(),
-    );
+    // Die erneut geladene Übersicht steht da (nicht nur der Ladekreis).
+    expect(await screen.findByText("Betreuungszeiten")).toBeInTheDocument();
+    expect(
+      screen.queryByText(/Übersicht der Betreuungszeiten/),
+    ).not.toBeInTheDocument();
   });
 });

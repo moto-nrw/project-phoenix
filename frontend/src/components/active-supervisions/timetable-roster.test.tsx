@@ -274,6 +274,8 @@ describe("TimetableRosterContent late arrivals", () => {
       true,
     );
 
+    // Anker: das früh eingecheckte Kind steht als Zeile in der Liste.
+    expect(screen.getByText("Früher da Kind")).toBeInTheDocument();
     expect(screen.queryByText("Kommt um 13:45 Uhr")).not.toBeInTheDocument();
     expect(screen.queryByText("Kommt später")).not.toBeInTheDocument();
   });
@@ -298,6 +300,10 @@ describe("TimetableRosterContent late arrivals", () => {
       true,
     );
 
+    // Anker: das abwesende Kind steht als Zeile da, das gegangene im
+    // (eingeklappten) Abschnitt „Nicht mehr im Raum“.
+    expect(screen.getByText("Abwesend Kind")).toBeInTheDocument();
+    expect(screen.getByText("Nicht mehr im Raum")).toBeInTheDocument();
     expect(screen.queryByText("Kommt um 13:45 Uhr")).not.toBeInTheDocument();
   });
 
