@@ -368,15 +368,50 @@ describe("PresentChildrenPicker", () => {
       ).toHaveAttribute("aria-pressed", "true");
     });
 
-    it("forgets the offering when another choice is made", async () => {
+    it("keeps the offering when another choice is made", async () => {
       globalThis.localStorage.setItem(OFFERING_STORAGE_KEY, "11");
-      renderPicker();
+      const { onClose } = renderPicker();
 
       expect(await screen.findByText("Ben Berg")).toBeInTheDocument();
       fireEvent.click(screen.getByRole("button", { name: "Alle anwesenden" }));
 
       expect(await screen.findByText("Anna Abel")).toBeInTheDocument();
-      expect(globalThis.localStorage.getItem(OFFERING_STORAGE_KEY)).toBeNull();
+      expect(globalThis.localStorage.getItem(OFFERING_STORAGE_KEY)).toBe("11");
+      fireEvent.click(screen.getByRole("button", { name: "Abbrechen" }));
+      expect(onClose).toHaveBeenCalled();
+
+      cleanup();
+      renderPicker();
+
+      expect(await screen.findByText("Ben Berg")).toBeInTheDocument();
+      expect(
+        screen.getByRole("button", { name: "Nach Angebot" }),
+      ).toHaveAttribute("aria-pressed", "true");
+    });
+
+    it("drops the selection when the list changes", async () => {
+      // At 12:00 Ben's Gehzeit (11:45) is over: he is in the offering list
+      // but not under "Noch in Betreuung".
+      const { onAdd } = renderPicker();
+
+      await screen.findByText("Anna Abel");
+      fireEvent.click(screen.getByRole("button", { name: "Nach Angebot" }));
+      fireEvent.click(
+        await screen.findByRole("checkbox", { name: /Ben Berg/ }),
+      );
+      fireEvent.click(
+        screen.getByRole("button", { name: "Noch in Betreuung" }),
+      );
+      await screen.findByText("Anna Abel");
+      fireEvent.click(screen.getByRole("button", { name: "Alle anwesenden" }));
+
+      expect(
+        screen.getByRole("checkbox", { name: /Ben Berg/ }),
+      ).not.toBeChecked();
+      expect(
+        screen.getByRole("button", { name: "Kinder hinzufügen" }),
+      ).toBeDisabled();
+      expect(onAdd).not.toHaveBeenCalled();
     });
 
     it("points to all present children when nobody booked the offering", async () => {

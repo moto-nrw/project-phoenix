@@ -83,6 +83,9 @@ var queryBudgets = map[string]queryBudget{
 	// (#4571), 10 booked present children: the offering filter reads its
 	// bookings, exceptions and status days once per request.
 	"api.students.list.care_offering": {max: 26},
+	// api/students — GET /students/care-offerings (#4571), 10 offerings:
+	// the request frame plus one catalog read for the picker selection.
+	"api.students.care_offerings.list": {max: 6},
 	// api/students — GET /care-withdrawals, page_size=1 over four pending
 	// withdrawals (#3412). The count and the page each run as one Care Plan
 	// statement that joins the named student directory projection; the

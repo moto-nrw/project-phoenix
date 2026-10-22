@@ -267,3 +267,31 @@ func TestListStudentsCareOfferingFilterQueryBudget(t *testing.T) {
 	assert.Equal(t, small, large, "query count must not grow with the number of children")
 	testpkg.AssertQueryBudget(t, "api.students.list.care_offering", counter.Queries())
 }
+
+// TestCareOfferingOptionsQueryBudget keeps the offering selection a single
+// catalog read, whatever the number of offerings.
+func TestCareOfferingOptionsQueryBudget(t *testing.T) {
+	t.Parallel()
+	testpkg.SetupIsolatedTestDB(t)
+	tc := setupStudentsRoute(t, fixedCalendarClock)
+	phase := testpkg.CreateTestEnrollmentPhaseAround(t, tc.db, studentsTestToday)
+	addOfferings := func(n int) {
+		for range n {
+			testpkg.CreateTestCareOffering(t, tc.db, phase.ID, "Budget")
+		}
+	}
+	counter := testpkg.CaptureQueries(t, tc.db)
+	run := func() int {
+		counter.Reset()
+		require.NotEmpty(t, listCareOfferingOptions(t, tc, []string{"users:read"}))
+		return counter.Total()
+	}
+
+	addOfferings(3)
+	small := run()
+	addOfferings(7)
+	large := run()
+
+	assert.Equal(t, small, large, "query count must not grow with the number of offerings")
+	testpkg.AssertQueryBudget(t, "api.students.care_offerings.list", counter.Queries())
+}

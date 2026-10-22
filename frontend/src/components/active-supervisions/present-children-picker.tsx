@@ -49,10 +49,9 @@ function offeringStorageKey(tenantSlug: string | null): string | null {
 }
 
 function storeOffering(key: string | null, offeringId: string | null) {
-  if (!key) return;
+  if (!key || !offeringId) return;
   try {
-    if (offeringId) globalThis.localStorage.setItem(key, offeringId);
-    else globalThis.localStorage.removeItem(key);
+    globalThis.localStorage.setItem(key, offeringId);
   } catch {
     // Storage blocked (private mode, policy): the choice is just not
     // remembered for the next opening.
@@ -129,7 +128,8 @@ export interface PresentChildrenPickerProps {
  * gehören nicht mehr in eine neue Aktivität. „Nach Angebot“ zeigt die
  * Kinder, die ein Betreuungsangebot heute gebucht haben und nicht früher
  * abgemeldet sind (#4571); das Backend entscheidet die Liste, der Browser
- * merkt sich das Angebot je Schule.
+ * merkt sich das zuletzt gewählte Angebot je Schule und wählt es beim
+ * nächsten Öffnen vor.
  */
 export function PresentChildrenPicker({
   isOpen,
@@ -214,12 +214,6 @@ export function PresentChildrenPicker({
           kind: "loaded",
           children: result,
         });
-        // A choice from another list stays hidden; it must not come back
-        // when the person switches back.
-        const loadedIds = new Set(result.map((child) => child.id));
-        setSelected(
-          (prev) => new Set([...prev].filter((id) => loadedIds.has(id))),
-        );
       })
       .catch((err) => {
         if (cancelled) return;
@@ -274,9 +268,13 @@ export function PresentChildrenPicker({
   };
   const changeScope = (nextScope: PresentChildScope) => {
     setScopeChoice(nextScope);
-    storeOffering(storageKey, nextScope === "offering" ? offeringId : null);
-    // The offering list is a new list; its load prunes the selection.
-    if (nextScope === "offering" || scope === "offering") return;
+    if (nextScope === "offering") storeOffering(storageKey, offeringId);
+    // Another list starts without a selection: a hidden choice must never
+    // come back and be added unseen.
+    if (nextScope === "offering" || scope === "offering") {
+      if (nextScope !== scope) setSelected(new Set());
+      return;
+    }
     const nextOfferedIds = new Set(
       load.kind === "loaded"
         ? presentChildCandidates(
@@ -292,6 +290,7 @@ export function PresentChildrenPicker({
     );
   };
   const changeOffering = (nextOfferingId: string) => {
+    if (nextOfferingId !== offeringId) setSelected(new Set());
     setOfferingChoice(nextOfferingId);
     storeOffering(storageKey, nextOfferingId);
   };
@@ -300,6 +299,8 @@ export function PresentChildrenPicker({
     setSearch("");
     setScopeChoice(null);
     setOfferingChoice(null);
+    // The next opening loads the offerings first, then the children.
+    setOfferings({ kind: "loading" });
     onClose();
   };
   const handleSubmit = async (event: React.FormEvent<HTMLFormElement>) => {
