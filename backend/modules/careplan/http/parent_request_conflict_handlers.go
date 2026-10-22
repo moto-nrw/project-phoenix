@@ -124,6 +124,9 @@ var resolveConflictErrorRenderer = common.RulesRenderer(parentRequestRules(
 			common.CodeStudentsStaffValueUnsupported,
 		)
 	}},
+	common.ErrorRule{Target: careplan.ErrCareOfferingDayConflict, Render: func(err error) render.Renderer {
+		return common.ErrorInvalidRequestWithCode(err, common.CodeEnrollmentCareOfferingDayConflict)
+	}},
 	common.ErrorRule{Match: isConflictStaffValueInvalid, Render: func(error) render.Renderer {
 		return common.ErrorInvalidRequestMessageWithCode(
 			"Der eingetragene Wert passt nicht zu diesen Anfragen. Bitte prüfen Sie ihn.",

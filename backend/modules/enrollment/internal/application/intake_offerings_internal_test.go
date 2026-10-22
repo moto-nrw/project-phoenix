@@ -90,6 +90,62 @@ func TestChangeRequestCareOfferingsUseEachChildsGradeIndependently(t *testing.T)
 	require.Equal(t, int64(20), selections[1][0].OfferingID)
 }
 
+func TestChangeRequestCareOfferingsRejectSameDayVariants(t *testing.T) {
+	t.Parallel()
+
+	variant := func(id int64) *offeringContract.CareOfferingRecord {
+		return &offeringContract.CareOfferingRecord{
+			ID: id, DaysOfWeekMode: offeringContract.DaysOfWeekModeParentChoice, AvailableDays: []string{"mon"},
+			SelectionGroup: "Betreuungszeit", SelectionRule: selection.SelectionRuleAtMostOnePerDay,
+		}
+	}
+	first, second := variant(10), variant(20)
+	children := []SubmitChild{{
+		OfferingIDs: []int64{first.ID, second.ID},
+		OfferingDays: []SubmitOfferingDays{
+			{OfferingID: first.ID, SelectedDays: []string{"mon"}},
+			{OfferingID: second.ID, SelectedDays: []string{"mon"}},
+		},
+	}}
+
+	_, err := materializeChangeRequestChildren(
+		children,
+		[]*RequestChild{{}},
+		[]map[int64]*offeringContract.CareOfferingRecord{{first.ID: first, second.ID: second}},
+		enrollmentNative.PhaseCareOfferingSelectionOptional,
+		false,
+	)
+
+	requireSelectionError(t, err, selection.ErrCareOfferingDayConflict, enrollmentNative.ErrCareOfferingDayConflict)
+}
+
+func TestInitialEnrollmentCareOfferingsRejectSameDayVariants(t *testing.T) {
+	t.Parallel()
+
+	variant := func(id int64) *offeringContract.CareOfferingRecord {
+		return &offeringContract.CareOfferingRecord{
+			ID: id, DaysOfWeekMode: offeringContract.DaysOfWeekModeParentChoice, AvailableDays: []string{"mon"},
+			SelectionGroup: "Betreuungszeit", SelectionRule: selection.SelectionRuleAtMostOnePerDay,
+		}
+	}
+	first, second := variant(10), variant(20)
+	children := []SubmitChild{{
+		OfferingIDs: []int64{first.ID, second.ID},
+		OfferingDays: []SubmitOfferingDays{
+			{OfferingID: first.ID, SelectedDays: []string{"mon"}},
+			{OfferingID: second.ID, SelectedDays: []string{"mon"}},
+		},
+	}}
+
+	_, err := materializeChildrenOfferingSelections(
+		children,
+		map[int64]*offeringContract.CareOfferingRecord{first.ID: first, second.ID: second},
+		enrollmentNative.PhaseCareOfferingSelectionOptional,
+	)
+
+	requireSelectionError(t, err, selection.ErrCareOfferingDayConflict, enrollmentNative.ErrCareOfferingDayConflict)
+}
+
 func TestMaterializeCareOfferingsMissingGradeRejectsPositiveAndNegativeRules(t *testing.T) {
 	t.Parallel()
 

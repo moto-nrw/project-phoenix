@@ -157,6 +157,8 @@ func renderParentOfferingWriteError(w http.ResponseWriter, r *http.Request, err 
 		common.RenderError(w, r, common.ErrorForbiddenWithCode(err, common.CodeCareOfferingChangeForbidden))
 	case errors.Is(err, careplan.ErrOfferingChangeCapacityFull):
 		common.RenderError(w, r, common.ErrorConflictWithCode(err, common.CodeStudentsOfferingChangeCapacityFull))
+	case errors.Is(err, careplan.ErrCareOfferingDayConflict):
+		common.RenderError(w, r, common.ErrorInvalidRequestWithCode(err, common.CodeEnrollmentCareOfferingDayConflict))
 	case errors.Is(err, careplan.ErrOfferingChangeInvalid):
 		common.RenderError(w, r, common.ErrorInvalidRequestWithCode(err, common.CodeCareOfferingChangeInvalid))
 	case errors.Is(err, careplan.ErrCompleteWithdrawalConfirmationRequired):

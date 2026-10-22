@@ -4171,6 +4171,7 @@ function enrollmentSetupTopic(): HelpTopic {
       "Über `Elternansicht öffnen` sehen Sie das Formular so wie die Eltern.",
       "Das `Basisformular` fragt Elternteil, Kind, Klassenstufe und das gewünschte Betreuungsangebot ab. Brauchen Sie mehr, legen Sie eine eigene Vorlage an.",
       "Eine Phase lässt sich mit einem Kalenderzeitraum verknüpfen. Dann passen die Daten automatisch.",
+      "Sie haben Varianten wie „bis 13 Uhr“ und „bis 17 Uhr“? Geben Sie ihnen bei `Pflichtauswahl` dieselbe `Gruppe (optional)` und die `Regel` `Höchstens eines pro Tag`. Dann mischen Eltern die Varianten über die Woche, aber wählen pro Tag nur eine.",
     ],
     differences: [
       "Auf dem Handy erscheint nur ein Hinweis. Die Anmeldungen laufen am Computer.",
@@ -6444,6 +6445,7 @@ function parentCareChangeTopic(): HelpTopic {
       "moto sagt, Ihre OGS nehme keine Anfragen zum Wochenplan an? Dann laufen Änderungen über die gebuchten Angebote.",
       "moto sagt, für dieses Kind werde bereits eine Änderung geprüft? Warten Sie die Entscheidung ab.",
       "moto sagt, der Betreuungszeitraum sei abgelaufen? Dann melden Sie Ihr Kind für den neuen Zeitraum neu an.",
+      "Ein roter Hinweis nennt einen Tag und zwei Angebote? Diese Angebote gehen am selben Tag nicht zusammen. Nehmen Sie den Tag bei einem der beiden heraus.",
     ],
     related: [
       HELP_TOPICS.parentPickupChange,
@@ -6722,6 +6724,7 @@ function parentEnrollTopic(): HelpTopic {
     troubleshootingDetails: [
       "moto sagt, aktuell sei keine Anmeldephase geöffnet? Dann wenden Sie sich an die OGS.",
       "moto sagt, die Online-Anmeldung sei nicht freigeschaltet? Dann nimmt diese OGS keine Anmeldungen über moto an.",
+      "Ein roter Hinweis nennt einen Tag und zwei Angebote? Diese Angebote gehen am selben Tag nicht zusammen. Nehmen Sie den Tag bei einem der beiden heraus.",
     ],
     related: [
       HELP_TOPICS.parentEnrollStatus,

@@ -205,7 +205,7 @@ func validateCareOfferingScalars(fields *careplan.CareOfferingFields) error {
 	if fields.SelectionRule == "" {
 		fields.SelectionRule = "optional"
 	}
-	if !slices.Contains([]string{"optional", "exactly_one", "at_least_one", "at_most_one"}, fields.SelectionRule) {
+	if !slices.Contains([]string{"optional", "exactly_one", "at_least_one", "at_most_one", "at_most_one_per_day"}, fields.SelectionRule) {
 		return invalid(careplan.ErrInvalidCareOffering, "selection_rule is invalid")
 	}
 	if fields.SelectionRule != "optional" && fields.SelectionGroup == "" {
