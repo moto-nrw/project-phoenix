@@ -732,14 +732,16 @@ describe("resolveSupervisionSelection (#2265)", () => {
     ).toEqual({ kind: "open-room", roomId: "2" });
   });
 
-  it("opens the first released room when the caller has no own session", () => {
+  // Seit #4372 öffnet ohne eigene Sitzung kein offener Raum von selbst: er
+  // gehört zu „Räume“. Die Seite bleibt im Leerzustand.
+  it("opens no released room when the caller has no own session", () => {
     expect(
       resolveSupervisionSelection({
         ...base,
         rooms: [],
         openRoomIds: new Set(["1", "2"]),
       }),
-    ).toEqual({ kind: "open-room", roomId: "1" });
+    ).toEqual({ kind: "persist-first" });
   });
 
   it("falls back to the saved legacy room without switching within the room", () => {

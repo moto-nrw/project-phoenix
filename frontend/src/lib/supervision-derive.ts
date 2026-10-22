@@ -20,9 +20,9 @@ export interface SupervisedRoom {
    */
   isOpenRoom?: boolean;
   /**
-   * The caller supervises a session in this released room. The room stays
-   * listed once, under the released rooms; the flag lets the navigation show
-   * that the caller's own activity runs there (#4349).
+   * The caller supervises a session in this released room. Only then does the
+   * navigation list the room under „Aktuelle Aufsicht“ (#4349); every other
+   * released room is reached through „Räume“ (#4372).
    */
   isOwnSupervision?: boolean;
   /** Active sessions in this released room, used to mark a `?session=` link. */
@@ -176,6 +176,23 @@ function ownSupervisionRoomEntries(
     });
   }
   return [...rooms.values()].sort((a, b) => a.name.localeCompare(b.name, "de"));
+}
+
+/**
+ * The room id names a released room in which the caller runs no supervision
+ * of their own. The navigation files such a room under „Räume“, not under
+ * „Aktuelle Aufsicht“ (#4372).
+ */
+export function isSharedOpenRoom(
+  rooms: readonly SupervisedRoom[],
+  roomId: string | null,
+): boolean {
+  return (
+    roomId !== null &&
+    rooms.some(
+      (room) => room.isOpenRoom && !room.isOwnSupervision && room.id === roomId,
+    )
+  );
 }
 
 export function deriveSupervision(

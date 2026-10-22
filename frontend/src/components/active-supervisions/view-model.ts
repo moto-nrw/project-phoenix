@@ -355,7 +355,8 @@ export function resolveSupervisionSelection(options: {
   // the sidebar without a matching entry. If every running session is in a
   // released room, select that session's room — the matching sidebar row —
   // not the first released room by name. Home "Zur Aufsicht" lands here with
-  // no query.
+  // no query. Without an own session no released room opens: it belongs to
+  // „Räume“, not to the caller's supervision (#4372).
   if (openRoomIds.size > 0) {
     const ownSession = rooms.find(
       (room) => !room.room_id || !openRoomIds.has(room.room_id),
@@ -363,16 +364,6 @@ export function resolveSupervisionSelection(options: {
     if (ownSession) return sessionTarget(ownSession);
     const firstOwn = rooms[0];
     if (firstOwn) return sessionTarget(firstOwn);
-    const firstOpenRoomId = openRoomIds.values().next().value as
-      string | undefined;
-    if (firstOpenRoomId) {
-      return (
-        roomTarget(firstOpenRoomId) ?? {
-          kind: "open-room",
-          roomId: firstOpenRoomId,
-        }
-      );
-    }
   }
   return { kind: "persist-first" };
 }

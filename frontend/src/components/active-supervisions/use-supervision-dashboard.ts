@@ -702,14 +702,10 @@ export function useSupervisionDashboard(
     setSelectedTimetableInstanceId(null);
   }, [allRoomsBase, selectedOpenRoomId, openRoomIds]);
 
-  // With no own supervision at all, open the first shared room rather than
-  // leaving the page empty: released rooms are reachable for everyone, and
-  // that is exactly the caller who has nothing else to show.
-  useEffect(() => {
-    if (allRoomsBase.length > 0 || selectedOpenRoomId) return;
-    const first = openRooms[0];
-    if (first) setSelectedOpenRoomId(first.roomId);
-  }, [allRoomsBase.length, openRooms, selectedOpenRoomId]);
+  // With no own supervision the page stays on its empty state. A released
+  // room opens only by its id (`?room=`), from „Räume“ or from the caller's
+  // own supervision in it: „Aktuelle Aufsicht“ must not present a shared
+  // room as the caller's supervision (#4372).
 
   // ---- Selection → fetch reconciliation ----
 
@@ -815,11 +811,20 @@ export function useSupervisionDashboard(
   // just because a refresh re-resolved a room-keyed URL (#2265).
   useEffect(() => {
     const savedSessionId = localStorage.getItem("supervision-last-session");
+    // A saved released room without an own supervision stays unopened: that
+    // room belongs to „Räume“, and „Aktuelle Aufsicht“ must not reopen it as
+    // the caller's supervision (#4372). Its URL still opens it.
+    const storedRoomId = localStorage.getItem("sidebar-last-room");
+    const savedRoomId = openRooms.some(
+      (room) => room.roomId === storedRoomId && !room.isUserSupervising,
+    )
+      ? null
+      : storedRoomId;
     const target = resolveSupervisionSelection({
       sessionParam,
       roomParam,
       savedSessionId,
-      savedRoomId: localStorage.getItem("sidebar-last-room"),
+      savedRoomId,
       rooms: allRoomsBase,
       currentSessionId: selectedRoomId,
       currentOpenRoomId: selectedOpenRoomId,
@@ -857,7 +862,7 @@ export function useSupervisionDashboard(
     }
     // "none": already in sync
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [allRoomsBase, sessionParam, roomParam, openRoomIds, router]);
+  }, [allRoomsBase, sessionParam, roomParam, openRoomIds, openRooms, router]);
 
   return {
     dashboardError: dashboardError ?? undefined,

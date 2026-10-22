@@ -13,6 +13,7 @@ import { NavLink } from "~/components/ui/nav-link";
 import { usePathname, useSearchParams } from "next/navigation";
 import { useSession } from "next-auth/react";
 import { useOptionalSupervision } from "~/lib/supervision-context";
+import { isSharedOpenRoom } from "~/lib/supervision-derive";
 import { useShellAuth } from "~/lib/shell-auth-context";
 import {
   hasEffectiveAdminScope,
@@ -684,7 +685,13 @@ export function MobileBottomNav({ className = "" }: MobileBottomNavProps) {
     isLoadingGroups,
     isLoadingSupervision,
     overviewEnabled,
+    supervisedRooms,
   } = useOptionalSupervision();
+  // Ein offener Raum ohne eigene Aufsicht gehört zu „Räume“, nicht zur
+  // Aufsicht (#4372), wie in der Seitenleiste.
+  const isViewingSharedOpenRoom =
+    pathname.startsWith("/active-supervisions") &&
+    isSharedOpenRoom(supervisedRooms, searchParams.get("room"));
 
   // Get shell auth mode
   const { mode, isSessionExpired, canStartStaffPreview, profileUrl } =
@@ -702,6 +709,7 @@ export function MobileBottomNav({ className = "" }: MobileBottomNavProps) {
       if (href === "/home") {
         return pathname === "/home" || pathname === "/";
       }
+      if (isViewingSharedOpenRoom) return href === "/rooms";
       // Check if we came from this page via the 'from' query parameter. Grouped
       // items (e.g. Eltern) own several routes via activePaths, so a child page
       // reached with ?from=/messages must still highlight the Eltern entry —
@@ -732,7 +740,7 @@ export function MobileBottomNav({ className = "" }: MobileBottomNavProps) {
       }
       return pathname.startsWith(href);
     },
-    [pathname, searchParams],
+    [pathname, searchParams, isViewingSharedOpenRoom],
   );
 
   const closeOverflowMenu = () => {
