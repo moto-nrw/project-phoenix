@@ -47,8 +47,8 @@ describe("breadcrumb-utils", () => {
         expect(getPageTitle("/database/activities")).toBe("Aktivitäten");
       });
 
-      it("should return 'Gruppen' for database groups page", () => {
-        expect(getPageTitle("/database/groups")).toBe("Gruppen");
+      it("should return 'Gruppendaten' for database groups page", () => {
+        expect(getPageTitle("/database/groups")).toBe("Gruppendaten");
       });
 
       it("should return 'Kinder' for database students page", () => {
