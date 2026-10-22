@@ -68,7 +68,10 @@ func (s *substitutionModule) withExternalTargets(ctx context.Context, caregivers
 	result = append(result, caregivers...)
 	externals := make(map[int64]StaffRef, len(members))
 	for _, member := range members {
-		ref := StaffRef{ID: member.StaffID, FullName: member.FullName, IsExternal: true, ExternalAccountStatus: member.AccountStatus}
+		ref := StaffRef{
+			ID: member.StaffID, FullName: member.FullName, IsExternal: true,
+			ExternalAccountStatus: member.AccountStatus, ExternalOrganization: member.Organization,
+		}
 		externals[member.StaffID] = ref
 		if member.Assignable {
 			result = append(result, ref)
@@ -164,6 +167,7 @@ func projectRunningSupervision(
 		result.Supervisors = append(result.Supervisors, StaffRef{
 			ID: supervisor.StaffID, FullName: supervisor.StaffName,
 			IsExternal: external.IsExternal, ExternalAccountStatus: external.ExternalAccountStatus,
+			ExternalOrganization: external.ExternalOrganization,
 		})
 	}
 	if access.actor != nil {

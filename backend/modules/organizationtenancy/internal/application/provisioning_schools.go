@@ -301,7 +301,9 @@ func (p *Provisioning) SoftDeleteSchool(ctx context.Context, schoolID, operatorI
 }
 
 // RestoreSchool returns a soft-deleted school to its pre-deletion state; an
-// inactive school stays inactive.
+// inactive school stays inactive. The school gets the roles every school
+// starts with, which it lacks when it was deleted while they were introduced
+// (the „Extern“ role of migration 1.15.472 skips deleted schools, #4573).
 func (p *Provisioning) RestoreSchool(ctx context.Context, schoolID, operatorID int64, clientIP net.IP) error {
 	return p.inAdmin(ctx, func(adminCtx context.Context) error {
 		school, err := p.findSchool(adminCtx, schoolID)
@@ -320,6 +322,9 @@ func (p *Provisioning) RestoreSchool(ctx context.Context, schoolID, operatorID i
 		}
 		if _, err := p.organizations.RestoreSchool(adminCtx, schoolID); err != nil {
 			return mapSchoolError(err, schoolID, school.OrganizationID)
+		}
+		if err := p.identity.EnsureSchoolRoles(adminCtx, schoolID); err != nil {
+			return err
 		}
 		p.logAction(adminCtx, operatorID, domain.AuditActionRestore, domain.AuditResourceSchool, &schoolID, clientIP, map[string]any{
 			"name":      school.Name,

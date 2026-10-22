@@ -4744,6 +4744,26 @@ The group handovers of School Structure's substitution module are written
 through Workforce's public commands by the existing `shift-plan-sync`
 workflow, whose public role already reaches Workforce.
 
+### External caregiver with an invitation (#4573)
+
+Recording an external caregiver writes across three owners: the person
+(People Directory), the staff member with its caregiver and guest profile
+(School Membership) and the invitation in the school role „Extern“
+(Identity & Access). The application workflow `workflows/externalcaregiver`
+(owner `external-caregiver`, kind `workflow`, one `public` package) does
+both writes: `Record` for a new external and `Invite` („Konto einladen“) for
+an existing one without an account. It owns no data and issues no SQL. Its
+ports use the owners' public vocabulary, so the root binds the public
+capabilities directly (the care-exit shape) in `api/staff_composition.go`.
+The workflow is a local value of the staff mount, and the School Membership
+HTTP adapter reaches it through `Runtime` closures. Every call joins the
+request transaction, and both writes run in one savepoint: the request
+transaction commits 4xx answers, so a refused invitation must not leave a
+half-created person behind. Policy epoch 90 -> 91 registers the owner, its
+package and three production rules from `external-caregiver/public` into
+the `public` roles of `people-directory`, `school-membership` and
+`identity-access`. No key, alias or exception is added.
+
 The staff directory joins of the retained staff repository (account links,
 reachable and permitted staff, staff contacts, staff by role and the staff
 birthdays) are the read projection `modules/staffdirectoryview` (owner

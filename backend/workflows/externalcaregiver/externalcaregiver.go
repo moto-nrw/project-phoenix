@@ -13,7 +13,6 @@ package externalcaregiver
 import (
 	"context"
 	"errors"
-	"net/mail"
 	"strings"
 	"time"
 
@@ -35,14 +34,14 @@ var (
 	ErrHasAccount = errors.New("external caregiver already has an account")
 	// ErrStaffNotFound: no live staff member of the school has the ID.
 	ErrStaffNotFound = errors.New("staff member not found")
+	// ErrEmailInvited: an open invitation of the school for the address
+	// belongs to someone else. Inviting would spend it silently.
+	ErrEmailInvited = errors.New("the address has an open invitation for someone else")
 )
 
 // Expertise fills the guest profile's required expertise: what the person
 // does follows from the blocks they are planned for.
 const Expertise = "Externe Betreuung"
-
-// maxEmailLength is the longest address an invitation takes (RFC 5321).
-const maxEmailLength = 254
 
 // Actor is the account that records or invites, with its permissions; the
 // role-grant check of the invitation compares them with the role's.
@@ -129,7 +128,8 @@ func New(people People, membership Membership, invitations Invitations, savepoin
 // and invites the address to the role „Extern“. Everything runs in one
 // savepoint: the request transaction commits 4xx answers, so a refused
 // invitation (address already at the school, role grant denied) must not
-// leave a half-created person behind.
+// leave a half-created person behind. An open invitation of the school for
+// the address refuses before any write (ErrEmailInvited).
 func (w *Workflow) Record(ctx context.Context, in RecordInput) (Result, error) {
 	email, err := normalizeEmail(in.Email)
 	if err != nil {
@@ -137,6 +137,11 @@ func (w *Workflow) Record(ctx context.Context, in RecordInput) (Result, error) {
 	}
 	roleID, err := w.externalRole(ctx)
 	if err != nil {
+		return Result{}, err
+	}
+	// The person is new, so every open invitation for the address belongs
+	// to someone else.
+	if _, err := w.pendingOf(ctx, email, 0); err != nil {
 		return Result{}, err
 	}
 	var result Result
@@ -175,7 +180,8 @@ func (w *Workflow) createRecords(ctx context.Context, in RecordInput, email stri
 // also to send an open invitation again or to another address. Every open
 // invitation of the person is revoked first: acceptance attaches the account
 // to the person named in the first invitation redeemed, so a mistyped earlier
-// address must not stay redeemable.
+// address must not stay redeemable. An open invitation for the address that
+// names someone else refuses before any write (ErrEmailInvited).
 func (w *Workflow) Invite(ctx context.Context, in InviteInput) (Result, error) {
 	email, err := normalizeEmail(in.Email)
 	if err != nil {
@@ -189,10 +195,14 @@ func (w *Workflow) Invite(ctx context.Context, in InviteInput) (Result, error) {
 	if err != nil {
 		return Result{}, err
 	}
+	own, err := w.pendingOf(ctx, email, person.ID)
+	if err != nil {
+		return Result{}, err
+	}
 	var result Result
 	err = w.savepoint(ctx, func(ctx context.Context) error {
 		var err error
-		result, err = w.reinvite(ctx, in, person, email, roleID)
+		result, err = w.reinvite(ctx, in, person, own, email, roleID)
 		return err
 	})
 	if err != nil {
@@ -201,13 +211,15 @@ func (w *Workflow) Invite(ctx context.Context, in InviteInput) (Result, error) {
 	return result, nil
 }
 
-func (w *Workflow) reinvite(ctx context.Context, in InviteInput, person peopledirectory.Person, email string, roleID int64) (Result, error) {
+func (w *Workflow) reinvite(ctx context.Context, in InviteInput, person peopledirectory.Person, own []identityaccess.SchoolInvitation, email string, roleID int64) (Result, error) {
 	// Externals recorded before #4573 have no caregiver profile yet.
 	if err := w.ensureCaregiverProfile(ctx, in.StaffID); err != nil {
 		return Result{}, err
 	}
-	if err := w.revokePending(ctx, person.ID, in.Actor.AccountID); err != nil {
-		return Result{}, err
+	for _, invitation := range own {
+		if err := w.invitations.RevokeSchoolInvitation(ctx, invitation.ID, in.Actor.AccountID); err != nil {
+			return Result{}, err
+		}
 	}
 	return w.invite(ctx, in.StaffID, person, email, roleID, in.Actor)
 }
@@ -250,21 +262,23 @@ func (w *Workflow) ensureCaregiverProfile(ctx context.Context, staffID int64) er
 	return err
 }
 
-// revokePending spends every unused, unexpired invitation naming the person.
-func (w *Workflow) revokePending(ctx context.Context, personID, actorAccountID int64) error {
+// pendingOf returns the school's open invitations naming the person
+// (personID 0 names nobody). It refuses with ErrEmailInvited when an open
+// invitation for the address names anyone else: creating the new invitation
+// spends every open invitation for the address, which would silently revoke,
+// for example, a staff invitation the Leitung sent.
+func (w *Workflow) pendingOf(ctx context.Context, email string, personID int64) ([]identityaccess.SchoolInvitation, error) {
 	pending, err := w.invitations.ListPendingSchoolInvitations(ctx)
 	if err != nil {
-		return err
+		return nil, err
 	}
 	for _, invitation := range pending {
-		if invitation.PersonID == nil || *invitation.PersonID != personID {
-			continue
-		}
-		if err := w.invitations.RevokeSchoolInvitation(ctx, invitation.ID, actorAccountID); err != nil {
-			return err
+		named := invitation.PersonID != nil && *invitation.PersonID == personID && personID > 0
+		if !named && strings.EqualFold(strings.TrimSpace(invitation.Email), email) {
+			return nil, ErrEmailInvited
 		}
 	}
-	return nil
+	return identityaccess.PendingInvitationsByPerson(pending)[personID], nil
 }
 
 func (w *Workflow) invite(ctx context.Context, staffID int64, person peopledirectory.Person, email string, roleID int64, actor Actor) (Result, error) {
@@ -292,18 +306,14 @@ func (w *Workflow) externalRole(ctx context.Context) (int64, error) {
 	return role.ID, nil
 }
 
-// normalizeEmail trims and lowercases the address and accepts a plain
-// address only, the form the invitation stores.
+// normalizeEmail is the address in the form the invitation stores
+// (Identity & Access's normalizer), with the workflow's refusals.
 func normalizeEmail(raw string) (string, error) {
-	email := strings.ToLower(strings.TrimSpace(raw))
-	if email == "" {
+	email, err := identityaccess.NormalizeInvitationEmail(raw)
+	switch {
+	case errors.Is(err, identityaccess.ErrInvitationEmailRequired):
 		return "", ErrEmailRequired
-	}
-	if len(email) > maxEmailLength {
-		return "", ErrEmailInvalid
-	}
-	parsed, err := mail.ParseAddress(email)
-	if err != nil || parsed.Address != email {
+	case err != nil:
 		return "", ErrEmailInvalid
 	}
 	return email, nil

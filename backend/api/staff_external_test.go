@@ -409,14 +409,22 @@ func TestInviteRefusesStaffThatIsNoExternalCaregiver(t *testing.T) {
 	foreignTenantID, _ := testpkg.CreateTestTenant(t, e.db)
 	foreign, _ := testpkg.CreateTestStaffWithAccountForTenant(t, e.db, foreignTenantID, "Fremde", "Schule")
 
+	// A real external of another school: staff member with a guest profile
+	// and without an account, which its own school could invite.
+	foreignExternal := foreignGuest(t, e.db, foreignTenantID)
+
 	status, body := e.post(t, fmt.Sprintf("/staff/externals/%d/invitation", internal.ID), map[string]any{"email": uniqueAddress(t, "intern")}, e.betreuer(t))
 	require.Equal(t, http.StatusConflict, status, string(body))
 	assert.Equal(t, "staff.not_external", decodeError(t, body).Code)
 
 	status, body = e.post(t, fmt.Sprintf("/staff/externals/%d/invitation", foreign.ID), map[string]any{"email": uniqueAddress(t, "fremd")}, e.betreuer(t))
 	require.Equal(t, http.StatusNotFound, status, string(body))
-	assert.Zero(t, e.count(t, `SELECT count(*) FROM auth.invitation_tokens WHERE person_id IN (?, ?)`, internal.PersonID, foreign.PersonID),
-		"no invitation names either person")
+	status, body = e.post(t, fmt.Sprintf("/staff/externals/%d/invitation", foreignExternal.ID), map[string]any{"email": uniqueAddress(t, "fremdextern")}, e.betreuer(t))
+	require.Equal(t, http.StatusNotFound, status, string(body), "another school's external is unknown here")
+	assert.Zero(t, e.count(t, `SELECT count(*) FROM auth.invitation_tokens WHERE person_id IN (?, ?, ?)`, internal.PersonID, foreign.PersonID, foreignExternal.PersonID),
+		"no invitation names any of the persons")
+	assert.Zero(t, e.count(t, `SELECT count(*) FROM users.teachers WHERE staff_id = ?`, foreignExternal.ID),
+		"the other school's external gets no caregiver profile")
 
 	status, body = e.post(t, "/staff/externals/abc/invitation", map[string]any{"email": uniqueAddress(t, "abc")}, e.betreuer(t))
 	require.Equal(t, http.StatusBadRequest, status, string(body))
@@ -470,4 +478,106 @@ func TestAccountBackedGuestIsAnExternalCaregiver(t *testing.T) {
 		}
 	}
 	t.Fatalf("account-backed guest %d missing from staff directory", accountGuestID)
+}
+
+// foreignGuest records an external caregiver without an account at another
+// school.
+func foreignGuest(t *testing.T, db *bun.DB, tenantID int64) *testpkg.Staff {
+	t.Helper()
+	staff := testpkg.CreateTestStaffForTenant(t, db, tenantID, "Fremde", "Externe")
+	_, err := db.NewRaw(`INSERT INTO users.guests (tenant_id, staff_id, activity_expertise) VALUES (?, ?, 'AG')`, tenantID, staff.ID).
+		Exec(context.Background())
+	require.NoError(t, err)
+	return staff
+}
+
+// openInvitation issues a school invitation for the address the way the
+// invitation form does, in the role, and returns its ID.
+func (e *externalRoute) openInvitation(t *testing.T, tenantID, roleID int64, address string) int64 {
+	t.Helper()
+	invitation, err := e.identity.CreateSchoolInvitation(context.Background(), identityaccess.SchoolInvitationRequest{
+		Email: address, RoleID: roleID, TenantID: tenantID, OperatorGrant: true,
+	})
+	require.NoError(t, err)
+	return invitation.ID
+}
+
+func (e *externalRoute) stillOpen(t *testing.T, invitationID int64) bool {
+	t.Helper()
+	return e.count(t, `SELECT count(*) FROM auth.invitation_tokens WHERE id = ? AND used_at IS NULL`, invitationID) == 1
+}
+
+// TestExternalCaregiverKeepsAnotherPersonsOpenInvitation: an invitation for
+// the address spends every open invitation for it, so an open invitation of
+// someone else (here a staff invitation the Leitung sent) refuses both the
+// quick create and „Konto einladen“ on the address field, and nothing is
+// written. The external's own open invitation is sent again.
+func TestExternalCaregiverKeepsAnotherPersonsOpenInvitation(t *testing.T) {
+	t.Parallel()
+
+	e := setupExternalCaregiverRoute(t, "")
+	roleID := externRole(t, e.db, e.tenantID, "schedules:read")
+	address := uniqueAddress(t, "vergeben")
+	staffInvitation := e.openInvitation(t, e.tenantID, roleID, address)
+
+	status, body := e.post(t, "/staff/externals",
+		map[string]any{"first_name": "Doppelt", "last_name": "Eingeladen", "email": strings.ToUpper(address)}, e.betreuer(t))
+	require.Equal(t, http.StatusConflict, status, string(body))
+	wire := decodeError(t, body)
+	assert.Equal(t, "staff.external_email_invited", wire.Code)
+	require.Len(t, wire.Errors, 1)
+	assert.Equal(t, "email", wire.Errors[0].Field)
+	assert.Zero(t, e.personsNamed(t, "Eingeladen"), "nothing is written")
+	assert.True(t, e.stillOpen(t, staffInvitation), "the staff invitation stays redeemable")
+
+	legacy := testpkg.CreateTestGuest(t, e.db, "Musik")
+	path := fmt.Sprintf("/staff/externals/%d/invitation", legacy.StaffID)
+	status, body = e.post(t, path, map[string]any{"email": address}, e.betreuer(t))
+	require.Equal(t, http.StatusConflict, status, string(body))
+	assert.Equal(t, "staff.external_email_invited", decodeError(t, body).Code)
+	assert.True(t, e.stillOpen(t, staffInvitation))
+	assert.Zero(t, e.count(t, `SELECT count(*) FROM auth.invitation_tokens WHERE person_id = ?`, legacy.Staff.PersonID))
+	assert.Zero(t, e.count(t, `SELECT count(*) FROM users.teachers WHERE staff_id = ?`, legacy.StaffID), "nothing is written")
+
+	own := uniqueAddress(t, "eigene")
+	status, body = e.post(t, path, map[string]any{"email": own}, e.betreuer(t))
+	require.Equal(t, http.StatusOK, status, string(body))
+	firstToken, _, _ := e.pendingToken(t, strconv.FormatInt(legacy.Staff.PersonID, 10))
+	status, body = e.post(t, path, map[string]any{"email": own}, e.betreuer(t))
+	require.Equal(t, http.StatusOK, status, string(body), "the external's own invitation is sent again")
+	secondToken, _, _ := e.pendingToken(t, strconv.FormatInt(legacy.Staff.PersonID, 10))
+	assert.NotEqual(t, firstToken, secondToken)
+}
+
+// TestExternalCaregiverCannotReachAnotherSchoolsInvitation: another school's
+// open invitation for the same address is invisible here. It neither
+// refuses this school's create or invite, nor is it spent by them, nor does
+// this school's pending-invitation list show it.
+func TestExternalCaregiverCannotReachAnotherSchoolsInvitation(t *testing.T) {
+	t.Parallel()
+
+	e := setupExternalCaregiverRoute(t, "")
+	externRole(t, e.db, e.tenantID, "schedules:read")
+	foreignTenantID, _ := testpkg.CreateTestTenant(t, e.db)
+	foreignRole := externRole(t, e.db, foreignTenantID, "schedules:read")
+	created, invited := uniqueAddress(t, "beide-schulen"), uniqueAddress(t, "auch-dort")
+	foreignCreated := e.openInvitation(t, foreignTenantID, foreignRole, created)
+	foreignInvited := e.openInvitation(t, foreignTenantID, foreignRole, invited)
+
+	status, body := e.post(t, "/staff/externals",
+		map[string]any{"first_name": "Zwei", "last_name": "Schulen", "email": created}, e.betreuer(t))
+	require.Equal(t, http.StatusCreated, status, string(body))
+	legacy := testpkg.CreateTestGuest(t, e.db, "Musik")
+	status, body = e.post(t, fmt.Sprintf("/staff/externals/%d/invitation", legacy.StaffID), map[string]any{"email": invited}, e.betreuer(t))
+	require.Equal(t, http.StatusOK, status, string(body))
+
+	assert.True(t, e.stillOpen(t, foreignCreated), "the other school's invitation is not spent by the create")
+	assert.True(t, e.stillOpen(t, foreignInvited), "the other school's invitation is not spent by the invite")
+	pending, err := e.identity.ListPendingSchoolInvitations(testpkg.Ctx(t))
+	require.NoError(t, err)
+	require.NotEmpty(t, pending)
+	for _, invitation := range pending {
+		assert.Equal(t, e.tenantID, invitation.TenantID)
+		assert.NotContains(t, []int64{foreignCreated, foreignInvited}, invitation.ID)
+	}
 }

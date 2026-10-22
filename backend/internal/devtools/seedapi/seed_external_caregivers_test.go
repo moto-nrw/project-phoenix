@@ -11,6 +11,10 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+// seedStaffPasswordPlaceholder stands in for the shared staff password: the
+// step only passes it on, so no valid credential is needed.
+const seedStaffPasswordPlaceholder = "example-test-password"
+
 // externalCaregiverSeedServer fakes the staff, invitation and acceptance
 // routes the external caregiver step drives, and records what it was sent.
 type externalCaregiverSeedServer struct {
@@ -81,7 +85,7 @@ func TestSeedExternalCaregiversStepInvitesExternalsWithAndWithoutAccount(t *test
 	srv := newSeedHTTPTestServer(fake.handle)
 	defer srv.Close()
 
-	rt := &Runtime{Client: newTestClient(srv.URL, false), FixedSeeder: &FixedSeeder{staffPassword: "Shared1234%"}}
+	rt := &Runtime{Client: newTestClient(srv.URL, false), FixedSeeder: &FixedSeeder{staffPassword: seedStaffPasswordPlaceholder}}
 	step := seedExternalCaregiversStep{}
 	require.NoError(t, step.Run(t.Context(), rt))
 	require.NoError(t, step.Run(t.Context(), rt))
@@ -95,7 +99,7 @@ func TestSeedExternalCaregiversStepInvitesExternalsWithAndWithoutAccount(t *test
 		"selin.aydin@example.test", "dennis.kaya@example.test",
 	}, emails, "every external gets an ASCII address; a second run creates nobody again")
 	assert.Equal(t, []string{"true", "true", "true", "true"}, fake.seedHeader)
-	assert.Equal(t, map[string]string{"token-100": "Shared1234%", "token-101": "Shared1234%"}, fake.accepted,
+	assert.Equal(t, map[string]string{"token-100": seedStaffPasswordPlaceholder, "token-101": seedStaffPasswordPlaceholder}, fake.accepted,
 		"Jonas Becker and Leonie Wagner accept with the shared staff password")
 	assert.Equal(t, []string{"dennis.kaya@example.test"}, fake.revoked, "Dennis Kaya ends without account and invitation")
 	assert.Equal(t, map[int64]string{102: "selin.aydin@example.test"}, fake.open, "Selin Aydın keeps her invitation open")

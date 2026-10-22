@@ -153,7 +153,7 @@ func (s *InstanceLifecycleService) requireStaff(ctx context.Context, staffID int
 	// caregiver is never replacement staff, account or not (#4573 D6). The
 	// raw marker is an active guest profile.
 	if staff.IsGuest {
-		return timetable.DeviationBadRequest("Externe Betreuungskräfte können nicht als Vertretung eingeplant werden.").WithCode(timetable.CodeDeviationSelectionInvalid).OnField("staff_id")
+		return externalSubstituteRefusal("staff_id")
 	}
 	return nil
 }

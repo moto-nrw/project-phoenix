@@ -747,6 +747,21 @@ func TestProvisioningRestoreSchool(t *testing.T) {
 		assert.False(t, h.engine.schools[10].Active)
 		entry := h.onlyAudit(t, domain.AuditActionRestore, domain.AuditResourceSchool, 10)
 		assert.Equal(t, map[string]any{"name": "Burbach", "slug": "burbach", "subdomain": "burbach"}, auditChanges(t, entry))
+		assert.Equal(t, []int64{10}, h.identity.schoolRoles, "a restored school gets the roles it missed while deleted (#4573)")
+	})
+
+	t.Run("role provisioning failure stops the restore", func(t *testing.T) {
+		t.Parallel()
+		h := newHarness(t)
+		h.addOrg(1, "Talent", "talent", false)
+		h.addSchool(10, 1, "Burbach", "burbach").DeletedAt = deletedNow()
+		h.identity.fail["EnsureSchoolRoles"] = errBoom
+
+		err := h.svc.RestoreSchool(context.Background(), 10, testOperatorID, operatorIP)
+
+		require.ErrorIs(t, err, errBoom)
+		require.ErrorIs(t, h.tx.lastErr, errBoom, "the restore rolls back with the role")
+		assert.Empty(t, h.audit.entries)
 	})
 
 	deletedSchool := func(h *provisioningHarness) {

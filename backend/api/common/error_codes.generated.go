@@ -382,6 +382,7 @@ const (
 	CodeSettingsNotFound                                 = "settings.not_found"
 	CodeSettingsPresenceModeSwitchBlocked                = "settings.presence_mode_switch_blocked"
 	CodeStaffExternalEmailInvalid                        = "staff.external_email_invalid"
+	CodeStaffExternalEmailInvited                        = "staff.external_email_invited"
 	CodeStaffExternalEmailRequired                       = "staff.external_email_required"
 	CodeStaffExternalHasAccount                          = "staff.external_has_account"
 	CodeStaffExternalRoleMissing                         = "staff.external_role_missing"
@@ -1057,6 +1058,7 @@ var errorClassByCode = map[string]string{
 	"settings.not_found":                                   "business_rejection",
 	"settings.presence_mode_switch_blocked":                "business_rejection",
 	"staff.external_email_invalid":                         "input",
+	"staff.external_email_invited":                         "business_rejection",
 	"staff.external_email_required":                        "input",
 	"staff.external_has_account":                           "business_rejection",
 	"staff.external_role_missing":                          "business_rejection",

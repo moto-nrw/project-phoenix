@@ -25,9 +25,6 @@ const (
 	opFindFormerEmployment = "find former employment"
 )
 
-// maxInvitationEmailLength is the column limit an address must fit.
-const maxInvitationEmailLength = 255
-
 // baseRoleUser is the tier a caregiver upgrade grants on top of the invited
 // role; the public package owns the tier vocabulary.
 const baseRoleUser = "user"

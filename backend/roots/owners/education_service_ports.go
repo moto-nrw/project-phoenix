@@ -94,9 +94,11 @@ func (s EducationExternalCaregivers) ListExternalCaregivers(ctx context.Context)
 		return nil, err
 	}
 	activeGuestStaffIDs := make([]int64, 0, len(guests))
+	organizations := make(map[int64]string, len(guests))
 	for _, guest := range guests {
 		if guest != nil {
 			activeGuestStaffIDs = append(activeGuestStaffIDs, guest.StaffID)
+			organizations[guest.StaffID] = guest.Organization
 		}
 	}
 	candidates := externalCaregiverCandidates(members)
@@ -109,6 +111,7 @@ func (s EducationExternalCaregivers) ListExternalCaregivers(ctx context.Context)
 		result = append(result, &educationRepo.Caregiver{
 			StaffID: external.StaffID, FullName: external.FullName,
 			Assignable: external.Assignable, AccountStatus: external.AccountStatus,
+			Organization: organizations[external.StaffID],
 		})
 	}
 	return result, nil
@@ -150,15 +153,10 @@ func (s EducationExternalCaregivers) markOpenInvitations(ctx context.Context, ca
 	if err != nil {
 		return err
 	}
-	invited := make(map[int64]bool, len(pending))
-	for _, invitation := range pending {
-		if invitation.PersonID != nil {
-			invited[*invitation.PersonID] = true
-		}
-	}
+	invited := identityaccess.PendingInvitationsByPerson(pending)
 	for i := range candidates {
 		if personID, ok := personIDs[candidates[i].StaffID]; ok {
-			candidates[i].InvitationPending = invited[personID]
+			candidates[i].InvitationPending = len(invited[personID]) > 0
 		}
 	}
 	return nil

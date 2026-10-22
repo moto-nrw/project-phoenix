@@ -100,7 +100,7 @@ func (s *staffDeviations) ensureSubstituteStaff(ctx context.Context, staffID int
 		return err
 	}
 	if staff.IsGuest {
-		return externalSubstituteRefusal()
+		return externalSubstituteRefusal("substitute_staff_id")
 	}
 	return nil
 }

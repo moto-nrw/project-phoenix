@@ -1174,6 +1174,8 @@ export const ERROR_CATALOG = {
         "Diese Person ist nicht als extern eingetragen. Bitte laden Sie sie wie andere Mitarbeitende ein.",
       "staff.external_has_account":
         "Diese Person hat schon ein Konto. Eine Einladung ist nicht nötig.",
+      "staff.external_email_invited":
+        "Diese E-Mail-Adresse hat schon eine offene Einladung für eine andere Person. Bitte nehmen Sie eine andere Adresse.",
     },
   },
   en: {
@@ -1455,6 +1457,8 @@ export const ERROR_CATALOG = {
         "This person is not listed as external. Please invite them like other staff members.",
       "staff.external_has_account":
         "This person already has an account. No invitation is needed.",
+      "staff.external_email_invited":
+        "This email address already has an open invitation for someone else. Please use another address.",
     },
   },
   ru: {

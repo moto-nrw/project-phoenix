@@ -3,7 +3,8 @@ package api
 import (
 	"context"
 	"fmt"
-	"time"
+
+	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 )
 
 // seedExternalAGLeader leads the seeded AG: an external caregiver with an
@@ -46,13 +47,13 @@ const seedExternalAGStudents = 8
 // weekend), so the external's „Heute“ shows it on the day the stack is
 // seeded.
 func seedExternalAGBody(today seedDate, roomID, categoryID, staffID int64, studentIDs []int64) map[string]any {
-	weekday := seedWeekdayOnOrAfter(today).Weekday()
+	day := seedWeekdayOnOrAfter(today)
 	return map[string]any{
 		"name":              "AG Musik",
 		"type":              "activity",
 		"list_kind":         "activity",
 		"target_group_type": "none",
-		"weekdays":          []int{isoWeekday(weekday)},
+		"weekdays":          []int{calendar.ISOWeekday(calendar.NewDate(day.Year(), day.Month(), day.Day()))},
 		"start_time":        "14:00",
 		"end_time":          "15:00",
 		"room_id":           roomID,
@@ -64,12 +65,4 @@ func seedExternalAGBody(today seedDate, roomID, categoryID, staffID int64, stude
 		"materialize_from":  today.String(),
 		"materialize_to":    today.AddDays(6).String(),
 	}
-}
-
-// isoWeekday numbers Monday 1 to Sunday 7, as the timetable does.
-func isoWeekday(weekday time.Weekday) int {
-	if weekday == time.Sunday {
-		return 7
-	}
-	return int(weekday)
 }

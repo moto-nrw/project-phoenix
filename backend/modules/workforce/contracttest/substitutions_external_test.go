@@ -12,9 +12,10 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-// TestSubstitutionCapabilityKeepsTheExternalMarker pins #3823: the picker of
-// a running supervision labels external caregivers, so the workforce facade
-// must pass the marker through instead of rebuilding the reference.
+// TestSubstitutionCapabilityKeepsTheExternalMarker pins #3823 and #4573: the
+// picker of a running supervision labels external caregivers with their
+// account status and organization, so the workforce facade must pass them
+// through instead of rebuilding the reference.
 func TestSubstitutionCapabilityKeepsTheExternalMarker(t *testing.T) {
 	t.Parallel()
 	db := testpkg.SetupTestDB(t)
@@ -24,7 +25,7 @@ func TestSubstitutionCapabilityKeepsTheExternalMarker(t *testing.T) {
 		return &education.OverviewResult{RunningSupervisions: []education.RunningSupervision{{
 			ID: caregiver.ID, AvailableTargets: []education.StaffRef{
 				{ID: caregiver.ID, FullName: "Interne Kraft"},
-				{ID: external.ID, FullName: "Guest Instructor", IsExternal: true},
+				{ID: external.ID, FullName: "Guest Instructor", IsExternal: true, ExternalAccountStatus: "invitation_pending", ExternalOrganization: "Musikschule"},
 			},
 		}}}, nil
 	}})
@@ -33,6 +34,6 @@ func TestSubstitutionCapabilityKeepsTheExternalMarker(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, []workforce.StaffRef{
 		{ID: caregiver.ID, FullName: "Interne Kraft"},
-		{ID: external.ID, FullName: "Guest Instructor", IsExternal: true},
+		{ID: external.ID, FullName: "Guest Instructor", IsExternal: true, ExternalAccountStatus: "invitation_pending", ExternalOrganization: "Musikschule"},
 	}, out.RunningSupervisions[0].AvailableTargets)
 }

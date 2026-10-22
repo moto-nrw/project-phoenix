@@ -2,11 +2,14 @@ package api
 
 import (
 	"context"
+	"errors"
 
 	"github.com/moto-nrw/project-phoenix/modules/devicescan"
 	devicescanCompose "github.com/moto-nrw/project-phoenix/modules/devicescan/compose"
+	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
 	"github.com/moto-nrw/project-phoenix/modules/peopledirectory"
 	peoplePorts "github.com/moto-nrw/project-phoenix/modules/peopledirectory/ports"
+	"github.com/moto-nrw/project-phoenix/modules/schoolmembership"
 )
 
 // deviceScanUserRows is the slice of the retained people service the kiosk
@@ -24,17 +27,37 @@ type deviceScanUserRows interface {
 	GetAllStudentsWithGroups(ctx context.Context) ([]peopledirectory.StudentRosterEntry, error)
 }
 
+// kioskOpenInvitations lists the school's unused, unexpired invitations.
+type kioskOpenInvitations interface {
+	ListPendingSchoolInvitations(ctx context.Context) ([]identityaccess.SchoolInvitation, error)
+}
+
 // DeviceScanPeople maps the retained people service onto the device scans'
-// records.
-type DeviceScanPeople struct{ Users deviceScanUserRows }
+// records. Invitations decide which external caregivers without an account
+// the kiosk teacher list offers (#4573); a binding without them refuses to
+// list such a caregiver.
+type DeviceScanPeople struct {
+	Users       deviceScanUserRows
+	Invitations kioskOpenInvitations
+}
 
 // NewDeviceScanPeople binds the scans to the people service; nil leaves them
-// unbound.
+// unbound. It serves every scan but the kiosk teacher list, which
+// NewDeviceScanDirectoryPeople binds.
 func NewDeviceScanPeople(users deviceScanUserRows) devicescanCompose.PersonDirectory {
 	if users == nil {
 		return nil
 	}
 	return DeviceScanPeople{Users: users}
+}
+
+// NewDeviceScanDirectoryPeople binds the kiosk roster to the people service
+// and the school's open invitations.
+func NewDeviceScanDirectoryPeople(users deviceScanUserRows, invitations kioskOpenInvitations) devicescanCompose.PersonDirectory {
+	if users == nil {
+		return nil
+	}
+	return DeviceScanPeople{Users: users, Invitations: invitations}
 }
 
 func (DeviceScanPeople) NormalizeTag(tag string) string { return peopledirectory.NormalizeTagID(tag) }
@@ -84,16 +107,65 @@ func (p DeviceScanPeople) GetTeacherByStaffID(ctx context.Context, staffID int64
 	return scanTeacher(teacher), err
 }
 
+// ListTeachersWithStaffAndPerson lists the caregivers the kiosk offers as
+// supervisors. An external caregiver (#3823) stays on the list only while a
+// new assignment may name them: with an account or an open invitation
+// (School Membership's rule, #4573). Already running supervisions are not
+// read from this list.
 func (p DeviceScanPeople) ListTeachersWithStaffAndPerson(ctx context.Context) ([]*devicescan.ScanTeacher, error) {
 	rows, err := p.Users.TeacherRows().ListAllWithStaffAndPerson(ctx)
-	if rows == nil {
+	if err != nil || rows == nil {
 		return nil, err
 	}
-	result := make([]*devicescan.ScanTeacher, len(rows))
-	for i, row := range rows {
-		result[i] = scanTeacher(row)
+	invited, err := p.invitedExternals(ctx, rows)
+	if err != nil {
+		return nil, err
 	}
-	return result, err
+	result := make([]*devicescan.ScanTeacher, 0, len(rows))
+	for _, row := range rows {
+		if personID, external := accountlessExternal(row); external &&
+			!schoolmembership.ExternalCaregiverAssignable(false, len(invited[personID]) > 0) {
+			continue
+		}
+		result = append(result, scanTeacher(row))
+	}
+	return result, nil
+}
+
+// accountlessExternal reports the person of an external caregiver without an
+// account; the raw guest marker is an active guest profile.
+func accountlessExternal(teacher *peopledirectory.Teacher) (int64, bool) {
+	if teacher == nil || teacher.Staff == nil || !teacher.Staff.IsGuest {
+		return 0, false
+	}
+	person := teacher.Staff.Person
+	if person == nil || person.AccountID != nil {
+		return 0, false
+	}
+	return person.ID, true
+}
+
+// invitedExternals reads the open invitations by person, only when an
+// external caregiver without an account is on the list.
+func (p DeviceScanPeople) invitedExternals(ctx context.Context, rows []*peopledirectory.Teacher) (map[int64][]identityaccess.SchoolInvitation, error) {
+	needed := false
+	for _, row := range rows {
+		if _, external := accountlessExternal(row); external {
+			needed = true
+			break
+		}
+	}
+	if !needed {
+		return nil, nil
+	}
+	if p.Invitations == nil {
+		return nil, errors.New("kiosk teacher list: open invitations are not bound")
+	}
+	pending, err := p.Invitations.ListPendingSchoolInvitations(ctx)
+	if err != nil {
+		return nil, err
+	}
+	return identityaccess.PendingInvitationsByPerson(pending), nil
 }
 
 func (p DeviceScanPeople) GetStudentByIDForUpdate(ctx context.Context, id int64) (*devicescan.ScanStudent, error) {

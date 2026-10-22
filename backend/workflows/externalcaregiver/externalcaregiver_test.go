@@ -149,7 +149,7 @@ func TestRecordWritesInOrderInsideOneSavepoint(t *testing.T) {
 	result, err := workflow.Record(context.Background(), createInput())
 	require.NoError(t, err)
 
-	assert.Equal(t, []string{"external_role", "create_person", "create_staff", "find_teacher", "create_teacher", "create_guest", "invite"}, owners.calls)
+	assert.Equal(t, []string{"external_role", "pending_invitations", "create_person", "create_staff", "find_teacher", "create_teacher", "create_guest", "invite"}, owners.calls)
 	assert.Equal(t, 1, savepoint.opened)
 	assert.Equal(t, externalcaregiver.Result{StaffID: 601, PersonID: 501, InvitationExpiresAt: expires, InvitationToken: "token"}, result)
 	assert.Equal(t, schoolmembership.GuestFields{StaffID: 601, Organization: "Musikschule", ActivityExpertise: externalcaregiver.Expertise}, owners.guest)
@@ -212,7 +212,7 @@ func inviteOwners() *fakeOwners {
 		staff:  []schoolmembership.Staff{{ID: 601, PersonID: 501, IsGuest: true}},
 		person: &peopledirectory.Person{ID: 501, FirstName: "Selin", LastName: "Aydın"},
 		pending: []identityaccess.SchoolInvitation{
-			{ID: 91, PersonID: int64Ptr(501)},
+			{ID: 91, PersonID: int64Ptr(501), Email: "selin@example.test"},
 			{ID: 92},
 			{ID: 93, PersonID: int64Ptr(502)},
 			{ID: 94, PersonID: int64Ptr(501)},
@@ -231,8 +231,8 @@ func TestInviteRevokesThePersonsOpenInvitationsBeforeInviting(t *testing.T) {
 	require.NoError(t, err)
 
 	assert.Equal(t, []string{
-		"list_staff", "find_person", "external_role",
-		"find_teacher", "create_teacher", "pending_invitations", "revoke", "revoke", "invite",
+		"list_staff", "find_person", "external_role", "pending_invitations",
+		"find_teacher", "create_teacher", "revoke", "revoke", "invite",
 	}, owners.calls)
 	assert.Equal(t, []int64{91, 94}, owners.revoked, "only the person's own invitations are spent")
 	assert.Equal(t, 1, savepoint.opened)
@@ -304,4 +304,52 @@ func TestInviteRequiresAnAddress(t *testing.T) {
 	_, err := workflow.Invite(context.Background(), externalcaregiver.InviteInput{StaffID: 601})
 	require.ErrorIs(t, err, externalcaregiver.ErrEmailRequired)
 	assert.Empty(t, owners.calls)
+}
+
+// TestRecordRefusesAnAddressWithAnOpenInvitation: creating the invitation
+// spends every open invitation for the address, so one sent to someone else
+// (a staff invitation of the Leitung, another external) refuses the record
+// before any write (#4573).
+func TestRecordRefusesAnAddressWithAnOpenInvitation(t *testing.T) {
+	t.Parallel()
+	for name, pending := range map[string]identityaccess.SchoolInvitation{
+		"staff invitation": {ID: 91, Email: "jonas@example.test"},
+		"another external": {ID: 92, Email: "Jonas@Example.test", PersonID: int64Ptr(502)},
+	} {
+		t.Run(name, func(t *testing.T) {
+			t.Parallel()
+			owners := &fakeOwners{roleID: 31, pending: []identityaccess.SchoolInvitation{pending}}
+			workflow, savepoint := newWorkflow(t, owners)
+
+			_, err := workflow.Record(context.Background(), createInput())
+			require.ErrorIs(t, err, externalcaregiver.ErrEmailInvited)
+			assert.Zero(t, savepoint.opened)
+			assert.NotContains(t, owners.calls, "create_person")
+			assert.Empty(t, owners.invited)
+		})
+	}
+}
+
+// TestInviteRefusesAnAddressInvitedForSomeoneElse: the person's own open
+// invitation for the address is sent again; one naming someone else or
+// nobody refuses before any write.
+func TestInviteRefusesAnAddressInvitedForSomeoneElse(t *testing.T) {
+	t.Parallel()
+	for name, pending := range map[string]identityaccess.SchoolInvitation{
+		"staff invitation": {ID: 95, Email: "selin@example.test"},
+		"another external": {ID: 96, Email: "selin@example.test", PersonID: int64Ptr(502)},
+	} {
+		t.Run(name, func(t *testing.T) {
+			t.Parallel()
+			owners := inviteOwners()
+			owners.pending = append(owners.pending, pending)
+			workflow, savepoint := newWorkflow(t, owners)
+
+			_, err := workflow.Invite(context.Background(), externalcaregiver.InviteInput{StaffID: 601, Email: "selin@example.test"})
+			require.ErrorIs(t, err, externalcaregiver.ErrEmailInvited)
+			assert.Zero(t, savepoint.opened)
+			assert.Empty(t, owners.revoked)
+			assert.Empty(t, owners.invited)
+		})
+	}
 }

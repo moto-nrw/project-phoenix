@@ -2819,6 +2819,7 @@
       },
       "staff": {
         "external_email_invalid": "Diese E-Mail-Adresse ist nicht gültig. Bitte prüfen Sie sie.",
+        "external_email_invited": "Diese E-Mail-Adresse hat schon eine offene Einladung für eine andere Person. Bitte nehmen Sie eine andere Adresse.",
         "external_email_required": "Bitte geben Sie eine E-Mail-Adresse ein.",
         "external_has_account": "Diese Person hat schon ein Konto. Eine Einladung ist nicht nötig.",
         "external_role_missing": "Die Rolle „Extern“ fehlt. Die Leitung kann sie unter Rollen anlegen.",

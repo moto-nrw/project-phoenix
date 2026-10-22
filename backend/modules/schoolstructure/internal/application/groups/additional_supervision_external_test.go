@@ -37,7 +37,8 @@ func inviteTestPerson(t *testing.T, db *bun.DB, personID, createdBy int64) {
 // running supervision; one without either is not offered and cannot be
 // assigned, but stays labelled external where it already supervises. Group
 // handover targets keep offering caregivers only, and an external with an
-// account in a caregiver role never becomes one.
+// account in a caregiver role never becomes one. Targets and supervisors
+// carry the guest profile's organization.
 func TestAdditionalSupervisionOffersExternalCaregivers(t *testing.T) {
 	t.Parallel()
 	db := testpkg.SetupTestDB(t)
@@ -85,7 +86,7 @@ func TestAdditionalSupervisionOffersExternalCaregivers(t *testing.T) {
 	require.Equal(t, []StaffRef{
 		{ID: colleague.StaffID, FullName: "Toni Kollege"},
 		{ID: withAccount.StaffID, FullName: "Anna Konto", IsExternal: true, ExternalAccountStatus: "account"},
-		{ID: invited.ID, FullName: "Ina Eingeladen", IsExternal: true, ExternalAccountStatus: "invitation_pending"},
+		{ID: invited.ID, FullName: "Ina Eingeladen", IsExternal: true, ExternalAccountStatus: "invitation_pending", ExternalOrganization: "Test Organization"},
 	}, overview.RunningSupervisions[0].AvailableTargets,
 		"neither the uninvited external nor the expired guest profile is offered")
 	for _, target := range overview.Targets {
@@ -107,6 +108,6 @@ func TestAdditionalSupervisionOffersExternalCaregivers(t *testing.T) {
 	overview, err = testpkg.TenantQuery2(t, ctx, db, module.Overview, caller, OverviewQuery{ActiveGroupID: running.ID, IncludeTargets: true})
 	require.NoError(t, err)
 	supervisors := overview.RunningSupervisions[0].Supervisors
-	require.Contains(t, supervisors, StaffRef{ID: invited.ID, FullName: "Ina Eingeladen", IsExternal: true, ExternalAccountStatus: "invitation_pending"})
-	require.Contains(t, supervisors, StaffRef{ID: uninvited.ID, FullName: "Uwe Ohneeinladung", IsExternal: true, ExternalAccountStatus: "none"})
+	require.Contains(t, supervisors, StaffRef{ID: invited.ID, FullName: "Ina Eingeladen", IsExternal: true, ExternalAccountStatus: "invitation_pending", ExternalOrganization: "Test Organization"})
+	require.Contains(t, supervisors, StaffRef{ID: uninvited.ID, FullName: "Uwe Ohneeinladung", IsExternal: true, ExternalAccountStatus: "none", ExternalOrganization: "Test Organization"})
 }

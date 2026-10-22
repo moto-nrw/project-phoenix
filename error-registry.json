@@ -4193,6 +4193,12 @@
       "class": "business_rejection",
       "parameters": [],
       "legacy": "staff.external_has_account"
+    },
+    {
+      "code": "staff.external_email_invited",
+      "class": "business_rejection",
+      "parameters": [],
+      "legacy": "staff.external_email_invited"
     }
   ]
 }

@@ -84,7 +84,7 @@ func validateSubstitutionStaff(in timetable.ApplyDeviationsInput, refs *staffRef
 // substitution's appointments.
 func validateSubstituteAvailable(in timetable.ApplyDeviationsInput, sub timetable.DeviationSubstitutionInput, readSet *deviationReadSet) error {
 	if readSet.externalStaff[sub.SubstituteStaffID] {
-		return externalSubstituteRefusal()
+		return externalSubstituteRefusal("substitute_staff_id")
 	}
 	if sub.AbsentStaffID == sub.SubstituteStaffID {
 		return timetable.DeviationBadRequest("die abwesende Person kann sich nicht selbst vertreten").WithCode(timetable.CodeSubstituteSelf).OnField("substitute_staff_id")
@@ -105,11 +105,12 @@ func validateSubstituteAvailable(in timetable.ApplyDeviationsInput, sub timetabl
 	return nil
 }
 
-// externalSubstituteRefusal refuses an external caregiver as substitute: they
-// may be planned and marked absent, but never replace anyone, with or
-// without an account (#4573 D6).
-func externalSubstituteRefusal() *timetable.DeviationError {
-	return timetable.DeviationBadRequest("Externe Betreuungskräfte können nicht als Vertretung eingeplant werden.").WithCode(timetable.CodeDeviationSelectionInvalid).OnField("substitute_staff_id")
+// externalSubstituteRefusal refuses an external caregiver as substitute on
+// the field that names them: they may be planned and marked absent, but
+// never replace anyone, with or without an account (#4573 D6). The staff
+// pool's move refuses with the same answer.
+func externalSubstituteRefusal(field string) *timetable.DeviationError {
+	return timetable.DeviationBadRequest("Externe Betreuungskräfte können nicht als Vertretung eingeplant werden.").WithCode(timetable.CodeDeviationSelectionInvalid).OnField(field)
 }
 
 func rejectContradictoryDeviationScopes(in timetable.ApplyDeviationsInput) error {

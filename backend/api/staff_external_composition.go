@@ -21,6 +21,7 @@ var externalCaregiverErrorRules = []apiCommon.ErrorRule{
 	{Target: externalcaregiver.ErrEmailInvalid, Render: externalFieldCode(apiCommon.ErrorInvalidOnField, apiCommon.CodeStaffExternalEmailInvalid)},
 	{Target: identityaccess.ErrAccountAlreadyHasTenantAccess, Render: externalFieldCode(apiCommon.ErrorConflictOnField, apiCommon.CodeIdentityAccountAlreadyHasTenantAccess)},
 	{Target: identityaccess.ErrEmailAlreadyExists, Render: externalFieldCode(apiCommon.ErrorConflictOnField, apiCommon.CodeIdentityEmailAlreadyExists)},
+	{Target: externalcaregiver.ErrEmailInvited, Render: externalFieldCode(apiCommon.ErrorConflictOnField, apiCommon.CodeStaffExternalEmailInvited)},
 	{Target: identityaccess.ErrRoleGrantNotPermitted, Render: apiCommon.FixedRenderer(apiCommon.ErrorForbidden, identityaccess.ErrRoleGrantNotPermitted)},
 	{Target: externalcaregiver.ErrRoleMissing, Render: externalConflictCode(apiCommon.CodeStaffExternalRoleMissing)},
 	{Target: externalcaregiver.ErrNotExternal, Render: externalConflictCode(apiCommon.CodeStaffNotExternal)},
@@ -83,11 +84,10 @@ func pendingInvitationPersons(invitations identityaccess.SchoolInvitations) func
 		if err != nil {
 			return nil, err
 		}
-		persons := make(map[int64]bool, len(pending))
-		for _, invitation := range pending {
-			if invitation.PersonID != nil {
-				persons[*invitation.PersonID] = true
-			}
+		byPerson := identityaccess.PendingInvitationsByPerson(pending)
+		persons := make(map[int64]bool, len(byPerson))
+		for personID := range byPerson {
+			persons[personID] = true
 		}
 		return persons, nil
 	}

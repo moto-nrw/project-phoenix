@@ -62,10 +62,14 @@ var systemRoleDisplayNames = map[string]string{
 }
 
 // RoleDisplayName is the German name the invitation mail shows for a role;
-// a school's own role keeps its name.
+// a school's own role keeps its name. The role store keeps custom names in
+// lower case, so the role „Extern“ (#4573) gets its display name back.
 func RoleDisplayName(roleName string) string {
 	if translated, ok := systemRoleDisplayNames[strings.ToLower(roleName)]; ok {
 		return translated
+	}
+	if IsExternalCaregiverRoleName(roleName) {
+		return ExternalCaregiverRoleName
 	}
 	return roleName
 }

@@ -642,7 +642,7 @@ func mountPresenceRoutes(
 	groupLive grouplive.Query, dashboard supervisiondashboard.Query, yard FacilitiesYard, iot devicefleetCompose.IoTService,
 	activities activityContract.ActivityService, education schoolstructure.GroupManagement, pickups carePlanModule.PickupScheduleService,
 	timeTracking *workforceCompose.TimeTracking, rooms FacilitiesRooms, feedback feedbackModule.Capability,
-	organizations organizationtenancy.Query,
+	organizations organizationtenancy.Query, invitations identityaccess.SchoolInvitations,
 ) error {
 	openRoomMove, err := newOpenRoomMove(facilities, timetableOwner, active, logger)
 	if err != nil {
@@ -658,7 +658,7 @@ func mountPresenceRoutes(
 		return err
 	}
 	iotResource, err := newIoTResource(db, logger, errorReportDSN, deviceAuth, presence, openRoomMove, sessionEnd, iot, facilities, active, users,
-		activities, timetableOwner, timetableRepos, education, pickups, settings, timeTracking, rooms, feedback, organizations, hub)
+		activities, timetableOwner, timetableRepos, education, pickups, settings, timeTracking, rooms, feedback, organizations, hub, invitations)
 	if err != nil {
 		return err
 	}
@@ -707,6 +707,7 @@ func newIoTResource(
 	timetableRepos timetableCompose.Repositories, education schoolstructure.GroupManagement, pickups carePlanModule.PickupScheduleService,
 	settings settingsCompose.SettingsService, timeTracking *workforceCompose.TimeTracking, rooms FacilitiesRooms,
 	feedback feedbackModule.Capability, organizations organizationtenancy.Query, hub *realtime.Hub,
+	invitations identityaccess.SchoolInvitations,
 ) (*iotAPI.Resource, error) {
 	errorReports, err := NewIoTErrorReportRelay(errorReportDSN)
 	if err != nil {
@@ -736,7 +737,7 @@ func newIoTResource(
 		StaffClock:       newStaffClockService(users, owners.NewPeopleIdentityAccess(db, observability.ObserveIdentityAccessOperation), timeTracking.TimeClock),
 		Configuration:    devicescanCompose.NewConfiguration(DeviceConfiguration{Settings: settings}, DeviceScanPrincipal),
 		Rooms:            devicescanCompose.NewRoomAvailability(rooms.RoomService, DeviceScanPrincipal),
-		Directory:        devicescanCompose.NewDirectory(NewDeviceScanPeople(users), DeviceActivityCatalog(activities), logger, DeviceScanPrincipal),
+		Directory:        devicescanCompose.NewDirectory(NewDeviceScanDirectoryPeople(users, invitations), DeviceActivityCatalog(activities), logger, DeviceScanPrincipal),
 		TagAssignments:   devicescanCompose.NewTagAssignments(NewDeviceScanPeople(users), logger, DeviceScanPrincipal),
 		FeedbackStudents: devicescanCompose.NewFeedbackStudents(NewDeviceScanPeople(users)),
 		FeedbackService:  feedback,

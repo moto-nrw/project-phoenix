@@ -21,7 +21,7 @@ const (
 	// provisioning uses for new schools. Migrations cannot import modules, so
 	// keep the values in sync by hand.
 	externRoleName        = "extern"
-	externRoleDescription = "Externe Betreuungskraft: sieht und betreut nur die eigenen Termine"
+	externRoleDescription = "Für externe Betreuungskräfte. Kann den Betreuungsplan ansehen und eigene Termine betreuen."
 )
 
 var externRolePermissions = []string{"schedules:read"}

@@ -2819,6 +2819,7 @@
       },
       "staff": {
         "external_email_invalid": "{object} kaydedilemedi. Girdiğiniz bilgileri kontrol edin.",
+        "external_email_invited": "{object} değiştirilemedi. Güncel durumu kontrol edin.",
         "external_email_required": "{object} kaydedilemedi. Girdiğiniz bilgileri kontrol edin.",
         "external_has_account": "{object} değiştirilemedi. Güncel durumu kontrol edin.",
         "external_role_missing": "{object} değiştirilemedi. Güncel durumu kontrol edin.",

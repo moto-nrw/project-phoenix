@@ -12,13 +12,20 @@ import (
 const ExternalCaregiverRoleName = "Extern"
 
 // ExternalCaregiverRoleDescription is the description the role starts with.
-const ExternalCaregiverRoleDescription = "Externe Betreuungskraft: sieht und betreut nur die eigenen Termine"
+// Migration 1.15.472 stores the same text for existing schools; keep both in
+// sync.
+const ExternalCaregiverRoleDescription = "Für externe Betreuungskräfte. Kann den Betreuungsplan ansehen und eigene Termine betreuen."
 
 // ExternalCaregiverDefaultPermissions are the permissions the role starts
 // with. schedules:read opens the own blocks of the day and running them
-// (start, check-in, check-out, complete); every other area stays closed.
-// Migration 1.15.472 provisions the same list for existing schools; keep both
-// in sync.
+// (start, check-in, check-out, complete). It is not narrowed to the own
+// blocks (#4573 D7, follow-up): it also opens the planner reads (instances,
+// templates, the staff pool with absence reasons, gaps, the deviation
+// history), a child's day and week with arrival and pickup times, and, when
+// the school sets operational_overview_scope to all_staff, the school-wide
+// „Heute“ view. Time tracking, staff, settings, roles, parent communication
+// and student documents stay closed. Migration 1.15.472 provisions the same
+// list for existing schools; keep both in sync.
 var ExternalCaregiverDefaultPermissions = []string{"schedules:read"}
 
 // ExternalCaregiverRoles finds and provisions the school's „Extern“ role.
