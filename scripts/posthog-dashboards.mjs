@@ -95,11 +95,16 @@ function deploymentOf(deployment) {
  * A HogQL table (or number). `sql` receives the deployment condition and
  * must use it in every `from events`.
  */
-function hogql(deployment, sql, display = 'ActionsTable') {
+function hogql(deployment, sql, display = 'ActionsTable', chartSettings) {
   const query = sql(onDeployment(deploymentOf(deployment))).trim();
   return {
     deployment,
-    query: { kind: 'DataVisualizationNode', source: { kind: 'HogQLQuery', query }, display },
+    query: {
+      kind: 'DataVisualizationNode',
+      source: { kind: 'HogQLQuery', query },
+      display,
+      ...(chartSettings ? { chartSettings } : {}),
+    },
   };
 }
 
@@ -117,7 +122,10 @@ const series = (event, name, extra = {}) => ({
   kind: 'EventsNode', event, name: event ?? 'All events', custom_name: name, math: 'total', ...extra,
 });
 
-function trends(deployment, { series: steps, interval = 'week', dateFrom = '-90d', breakdown, display = 'ActionsLineGraph' }) {
+/** Breakdown by school as a HogQL expression, so a chart names „Schule 6“ instead of a bare 6. */
+export const SCHOOL_BREAKDOWN = "concat('Schule ', toString(properties.school_id))";
+
+function trends(deployment, { series: steps, interval = 'week', dateFrom = '-90d', breakdown, breakdownType = 'event', display = 'ActionsLineGraph' }) {
   return {
     deployment,
     query: {
@@ -129,7 +137,7 @@ function trends(deployment, { series: steps, interval = 'week', dateFrom = '-90d
         dateRange: { date_from: dateFrom },
         properties: deploymentFilter(deployment),
         filterTestAccounts: false,
-        ...(breakdown ? { breakdownFilter: { breakdown, breakdown_type: 'event' } } : {}),
+        ...(breakdown ? { breakdownFilter: { breakdown, breakdown_type: breakdownType } } : {}),
         trendsFilter: { display },
       },
     },
@@ -653,13 +661,99 @@ order by Woche desc`),
       description: 'Je Schule (Schul-ID): an welchen Tagen sie moto nutzt und wofür, in echten Schulen (deployment = moto-app.de). Werktage sind Montag bis Freitag; Ferien und Schließtage kennt PostHog nicht, sie sind nicht abgezogen. Ein- und Auschecken wird erst seit dem 25.09.2026 erfasst. Das Elternportal kennt keine Schule und fehlt hier.',
       insights: [
         {
+          name: 'Standorte: mit Anwesenheit in den letzten 7 Tagen',
+          description: 'Schulen mit mindestens einer Ein- oder Auscheck-Buchung.',
+          ...hogql('production', (where) => `
+select uniqIf(Schule, Anwesenheit) as Standorte
+from (${schoolDays(where, 7)})`, 'BoldNumber'),
+        },
+        {
+          name: 'Standorte: mit Nutzung in den letzten 7 Tagen',
+          description: 'Schulen mit mindestens einem Ereignis: Seitenaufruf, Kernaktion oder Kiosk.',
+          ...hogql('production', (where) => `
+select uniq(Schule) as Standorte
+from (${schoolDays(where, 7)})`, 'BoldNumber'),
+        },
+        {
+          name: 'Standorte: Ein- und Auscheck-Buchungen in den letzten 7 Tagen',
+          description: 'Alle Schulen zusammen. Buchungen sind keine Kinder: ein Kind kann mehrmals am Tag buchen.',
+          ...hogql('production', (where) => `
+select countIf(Anwesenheit) as Buchungen
+from (${schoolDays(where, 7)})`, 'BoldNumber'),
+        },
+        {
+          name: 'Standorte: Anwesenheitsquote (60 Tage)',
+          description: 'Anteil der Werktage (Montag bis Freitag) mit Ein- oder Auscheck-Buchung, gezählt ab der ersten Buchung bis gestern. Ferien und Schließtage sind nicht abgezogen, eine Quote unter 100 % kann also Ferien sein. Schulen ohne Buchung fehlen.',
+          ...hogql('production', (where) => `
+select Standort, round(Mit / greatest(Seit, 1), 2) as Anwesenheitsquote
+from (
+  select
+    concat('Schule ', Schule) as Standort,
+    toInt(Schule) as Nr,
+    uniqIf(Tag, Anwesenheit and Werktag and Tag < today()) as Mit,
+    ${workdaysSinceFirstAttendance} as Seit
+  from (${schoolDays(where, 60)})
+  group by Schule
+  having countIf(Anwesenheit) > 0
+)
+order by Anwesenheitsquote desc, Nr`, 'ActionsBarValue', {
+            xAxis: { column: 'Standort' },
+            yAxis: [{ column: 'Anwesenheitsquote', settings: { formatting: { style: 'percent', decimalPlaces: 0 } } }],
+          }),
+        },
+        {
+          name: 'Standorte: Anwesenheit pro Tag',
+          description: 'Ein- und Auscheck-Buchungen je Schule und Tag, letzte 60 Tage. Je dunkler, desto mehr Buchungen; leere Felder sind Tage ohne Anwesenheit (Wochenende, Ferien, Pause). Erfasst seit dem 25.09.2026.',
+          ...trends('production', {
+            series: [series(null, 'Ein- und Auscheck-Buchungen', {
+              properties: [{ key: `event in ${sqlList(ATTENDANCE_EVENTS)}`, type: 'hogql' }],
+            })],
+            interval: 'day',
+            dateFrom: '-60d',
+            breakdown: SCHOOL_BREAKDOWN,
+            breakdownType: 'hogql',
+            display: 'TwoDimensionalHeatmap',
+          }),
+        },
+        {
+          name: 'Standorte: Nutzung pro Tag',
+          description: 'Seitenaufrufe, Kernaktionen und Kiosk-Buchungen je Schule und Tag, letzte 60 Tage. Zeigt auch Schulen, die moto ohne Anwesenheitserfassung nutzen.',
+          ...trends('production', {
+            series: [series(null, 'Seitenaufrufe und Aktionen', {
+              properties: [{ key: "isNotNull(properties.school_id) and (event = '$pageview' or not startsWith(event, '$'))", type: 'hogql' }],
+            })],
+            interval: 'day',
+            dateFrom: '-60d',
+            breakdown: SCHOOL_BREAKDOWN,
+            breakdownType: 'hogql',
+            display: 'TwoDimensionalHeatmap',
+          }),
+        },
+        {
+          name: 'Standorte: genutzte Abläufe (60 Tage)',
+          description: `Je Schule ein Balken, je Ablauf ein Abschnitt: seine Länge ist die Zahl der Tage, an denen die Schule den Ablauf genutzt hat. Ein hoher Balken heißt also breite und regelmäßige Nutzung. „Weitere“ fasst die übrigen Funktionsbereiche zusammen (FEATURES in scripts/posthog-dashboards.mjs).`,
+          ...hogql('production', (where) => `
+select concat('Schule ', Schule) as Standort, Ablauf, uniq(Tag) as Tage
+from (
+  select Schule, Tag, multiIf(Funktion in ${sqlList(KEY_FLOWS)}, Funktion, Funktion in ('', 'Startseite'), '', 'Weitere') as Ablauf
+  from (${schoolDays(where, 60)})
+)
+where Ablauf != ''
+group by Schule, Ablauf
+order by toInt(Schule), Ablauf`, 'ActionsStackedBar', {
+            xAxis: { column: 'Standort' },
+            yAxis: [{ column: 'Tage' }],
+            seriesBreakdownColumn: 'Ablauf',
+          }),
+        },
+        {
           name: 'Standorte: Überblick (60 Tage)',
-          description: 'Anwesenheit heißt: mindestens eine Ein- oder Auscheck-Buchung an dem Tag. Der heutige Tag zählt nicht mit, er ist noch unvollständig. Buchungen sind keine Kinder: ein Kind kann mehrmals am Tag buchen.',
+          description: 'Die Zahlen hinter den Grafiken. Anwesenheit heißt: mindestens eine Ein- oder Auscheck-Buchung an dem Tag. Der heutige Tag zählt nicht mit, er ist noch unvollständig. Buchungen sind keine Kinder: ein Kind kann mehrmals am Tag buchen.',
           ...hogql('production', (where) => `
 select
   Schule as ${quoted('Schule (ID)')},
   uniqIf(Tag, Anwesenheit and Werktag and Tag < today()) as ${quoted('Werktage mit Anwesenheit')},
-  if(countIf(Anwesenheit) = 0, 0, length(arrayFilter(d -> toDayOfWeek(d) <= 5, arrayMap(i -> addDays(minIf(Tag, Anwesenheit), i), range(toInt(greatest(dateDiff('day', minIf(Tag, Anwesenheit), today()), 0))))))) as ${quoted('Werktage seit erster Anwesenheit')},
+  ${workdaysSinceFirstAttendance} as ${quoted('Werktage seit erster Anwesenheit')},
   if(countIf(Anwesenheit) = 0, null, minIf(Tag, Anwesenheit)) as ${quoted('Erste Anwesenheit')},
   if(countIf(Anwesenheit) = 0, null, maxIf(Tag, Anwesenheit)) as ${quoted('Letzte Anwesenheit')},
   uniqIf(Tag, Werktag and Tag < today()) as ${quoted('Werktage mit Nutzung')},
@@ -683,28 +777,6 @@ select
 from (${schoolDays(where, 60)})
 group by Schule
 order by ${quoted('Tage mit Nutzung')} desc`),
-        },
-        {
-          name: 'Standorte: Werktage mit Anwesenheit pro Woche',
-          description: 'Letzte 8 Wochen, höchstens 5 Tage je Woche. Eine 0 mitten im Betrieb ist eine Pause: Ferien, Schließzeit oder fehlende Erfassung.',
-          ...hogql('production', (where) => `
-select
-  Schule as ${quoted('Schule (ID)')},
-  ${weekColumns('uniqIf(Tag, Anwesenheit and Werktag and Woche = {week})')}
-from (${schoolDays(where, 63)})
-group by Schule
-order by Schule`),
-        },
-        {
-          name: 'Standorte: Ein- und Auscheck-Buchungen pro Woche',
-          description: 'Letzte 8 Wochen. Zeigt die Menge hinter der Anwesenheit; Buchungen sind keine Kinder.',
-          ...hogql('production', (where) => `
-select
-  Schule as ${quoted('Schule (ID)')},
-  ${weekColumns('countIf(Anwesenheit and Woche = {week})')}
-from (${schoolDays(where, 63)})
-group by Schule
-order by Schule`),
         },
       ],
     },
@@ -856,13 +928,21 @@ function schoolFeatureEvents(where, days) {
 
 const ATTENDANCE_EVENTS = FEATURES.find((f) => f.name === 'Ein- und Auschecken').events;
 
-/** Production events of schools with their day (project time zone), week, and feature area. */
+/** Feature areas the per-school chart shows on their own (at most eight segments with „Weitere“). */
+const KEY_FLOWS = [
+  'Ein- und Auschecken', 'Aufsichten und Räume', 'Abwesenheiten', 'Elternanfragen',
+  'Nachrichten und Elternbriefe', 'Zeiterfassung', 'Kinder und Kindakte',
+];
+
+/** Workdays (Monday to Friday) from a school's first attendance in `schoolDays` until yesterday. */
+const workdaysSinceFirstAttendance = "if(countIf(Anwesenheit) = 0, 0, length(arrayFilter(d -> toDayOfWeek(d) <= 5, arrayMap(i -> addDays(minIf(Tag, Anwesenheit), i), range(toInt(greatest(dateDiff('day', minIf(Tag, Anwesenheit), today()), 0)))))))";
+
+/** Production events of schools with their day (project time zone) and feature area. */
 function schoolDays(where, days) {
   return `
   select
     toString(properties.school_id) as Schule,
     toDate(timestamp) as Tag,
-    toStartOfWeek(toDate(timestamp), 1) as Woche,
     toDayOfWeek(toDate(timestamp)) <= 5 as Werktag,
     event in ${sqlList(ATTENDANCE_EVENTS)} as Anwesenheit,
     ${featureExpression()} as Funktion,
@@ -871,15 +951,6 @@ function schoolDays(where, days) {
   where ${where}
     and isNotNull(properties.school_id)
     and timestamp > now() - interval ${days} day`;
-}
-
-/** One column per week, oldest first; `cell` uses `{week}` for the week's Monday. */
-function weekColumns(cell, weeks = 8) {
-  return Array.from({ length: weeks }, (_, index) => weeks - 1 - index).map((ago) => {
-    const week = `addDays(toStartOfWeek(today(), 1), ${-7 * ago})`;
-    const label = ago === 0 ? 'diese Woche' : ago === 1 ? 'vor 1 Woche' : `vor ${ago} Wochen`;
-    return `${cell.replaceAll('{week}', week)} as ${quoted(label)}`;
-  }).join(',\n  ');
 }
 
 /** Demo page views after the role pick, with their feature area. */
