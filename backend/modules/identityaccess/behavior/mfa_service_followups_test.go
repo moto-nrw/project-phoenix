@@ -558,16 +558,8 @@ func TestMFAService_OperatorSetGlobalMFAOverride_WritesOperatorAuditLog(t *testi
 	// operator_audit_log.operator_id has a NOT NULL FK to platform.operators,
 	// so the override actor must be a real operator row, not a synthetic ID.
 	op := testpkg.CreateTestOperator(t, db)
-	t.Cleanup(func() {
-		_, _ = db.NewDelete().Table("platform.operators").
-			Where("id = ?", op.ID).Exec(context.Background())
-	})
 
 	acc := testpkg.CreateTestAccount(t, db, "mfa-global-override-audit")
-	t.Cleanup(func() {
-		_, _ = db.NewDelete().Table("platform.operator_audit_log").
-			Where("resource_id = ?", acc.ID).Exec(context.Background())
-	})
 
 	require.NoError(t, svc.OperatorSetGlobalMFAOverride(ctx, op.ID, acc.ID,
 		identityaccess.MFAAdminOverrideForceOff, "mailbox lockout account-wide"))

@@ -276,12 +276,6 @@ func insertSessionWithBusinessDate(t *testing.T, db *testpkg.DB, staffID int64, 
 		Where("id = ?", s.ID).
 		Exec(context.Background())
 	require.NoError(t, err)
-	t.Cleanup(func() {
-		_, _ = db.NewDelete().
-			Table("active.work_sessions").
-			Where("id = ?", s.ID).
-			Exec(context.Background())
-	})
 	return s.ID
 }
 
@@ -338,12 +332,6 @@ func insertAbsenceWithBusinessDates(t *testing.T, db *testpkg.DB, staffID int64,
 		Where("id = ?", a.ID).
 		Exec(context.Background())
 	require.NoError(t, err)
-	t.Cleanup(func() {
-		_, _ = db.NewDelete().
-			Table("active.staff_absences").
-			Where("id = ?", a.ID).
-			Exec(context.Background())
-	})
 	return a.ID
 }
 

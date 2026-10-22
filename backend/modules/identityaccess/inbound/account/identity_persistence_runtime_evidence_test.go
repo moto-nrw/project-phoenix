@@ -40,11 +40,6 @@ func TestIdentityPersistenceRuntimeEvidence(t *testing.T) {
 	_, err := db.NewRaw("INSERT INTO auth.account_roles (account_id, role_id, tenant_id) VALUES (?, ?, ?)",
 		account.ID, adminRole.ID, testpkg.Tenant(t)).Exec(ctx)
 	require.NoError(t, err)
-	t.Cleanup(func() {
-		cleanupCtx := context.Background()
-		_, _ = db.NewDelete().TableExpr("auth.account_roles").Where("account_id = ?", account.ID).Exec(cleanupCtx)
-		_, _ = db.NewDelete().TableExpr("auth.tokens").Where("account_id = ?", account.ID).Exec(cleanupCtx)
-	})
 
 	var postgres string
 	require.NoError(t, db.NewRaw("SHOW server_version").Scan(ctx, &postgres))

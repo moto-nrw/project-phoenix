@@ -79,7 +79,6 @@ func TestStaffPickupWrite_BroadcastsPickupScheduleChanged(t *testing.T) {
 
 	t.Run("weekly_schedule_update", func(t *testing.T) {
 		student := testpkg.CreateTestStudent(t, tc.db, "PickupCast", "Weekly", "PC1")
-		defer deletePickupSchedules(t, tc, student.ID)
 
 		tc.broadcaster.Reset()
 		body := map[string]any{
@@ -98,7 +97,6 @@ func TestStaffPickupWrite_BroadcastsPickupScheduleChanged(t *testing.T) {
 
 	t.Run("exception_create_update_delete", func(t *testing.T) {
 		student := testpkg.CreateTestStudent(t, tc.db, "PickupCast", "Exception", "PC2")
-		defer deletePickupExceptions(t, tc, student.ID)
 
 		// Create
 		tc.broadcaster.Reset()
@@ -142,7 +140,6 @@ func TestStaffPickupWrite_BroadcastsPickupScheduleChanged(t *testing.T) {
 	// header renders it next to the Gehzeit), so it goes stale the same way.
 	t.Run("day_note_create", func(t *testing.T) {
 		student := testpkg.CreateTestStudent(t, tc.db, "PickupCast", "Note", "PC3")
-		defer deletePickupNotes(t, tc, student.ID)
 
 		tc.broadcaster.Reset()
 		body := map[string]any{"note_date": "2026-05-12", "content": "Oma holt ab"}
@@ -153,27 +150,6 @@ func TestStaffPickupWrite_BroadcastsPickupScheduleChanged(t *testing.T) {
 		assert.True(t, hasPickupScheduleBroadcast(tc.broadcaster, student.TenantID),
 			"creating a pickup day note must broadcast pickup_schedule_changed")
 	})
-}
-
-func deletePickupSchedules(t *testing.T, tc *testContext, studentID int64) {
-	t.Helper()
-	_, _ = tc.db.NewDelete().TableExpr("schedule.student_pickup_schedules").
-		Where("student_id = ?", studentID).
-		Exec(context.Background())
-}
-
-func deletePickupExceptions(t *testing.T, tc *testContext, studentID int64) {
-	t.Helper()
-	_, _ = tc.db.NewDelete().TableExpr("schedule.student_pickup_exceptions").
-		Where("student_id = ?", studentID).
-		Exec(context.Background())
-}
-
-func deletePickupNotes(t *testing.T, tc *testContext, studentID int64) {
-	t.Helper()
-	_, _ = tc.db.NewDelete().TableExpr("schedule.student_pickup_notes").
-		Where("student_id = ?", studentID).
-		Exec(context.Background())
 }
 
 // latestPickupExceptionID returns the newest pickup exception of the student —

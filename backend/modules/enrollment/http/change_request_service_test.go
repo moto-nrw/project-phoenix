@@ -25,7 +25,7 @@ import (
 )
 
 // These tests use setupRequestTest from request_service_test.go; that helper
-// calls testpkg.SetupTestDB and owns cleanup for the shared request fixtures.
+// calls testpkg.SetupTestDB and builds the shared request fixtures.
 func newChangeRequestServiceForTest(env *requestTestEnv) enrollmentAPI.ChangeRequestService {
 	repoFactory := env.repos
 	return newChangeRequestServiceForTestWithAuthorizer(env, repoFactory.StudentGuardian)
@@ -256,8 +256,7 @@ func enableChangeRequestMode(t *testing.T, env *requestTestEnv, childID int64) {
 func TestRequestService_ReplaceEditable_PreservesLegacyCustomDataWithoutSchema(t *testing.T) {
 	t.Parallel()
 
-	env, cleanup := setupRequestTest(t)
-	defer cleanup()
+	env := setupRequestTest(t)
 	ctx := testpkg.Ctx(t)
 	result := makeLegacyNoSchemaRequest(t, env, "")
 
@@ -283,8 +282,7 @@ func TestRequestService_ReplaceEditable_PreservesLegacyCustomDataWithoutSchema(t
 func TestRequestService_ReplaceEditable_PreservesChildCustomDataByIDWhenMiddleChildRemoved(t *testing.T) {
 	t.Parallel()
 
-	env, cleanup := setupRequestTest(t)
-	defer cleanup()
+	env := setupRequestTest(t)
 	ctx := testpkg.Ctx(t)
 
 	base := validSubmission(t, env.phaseID)
@@ -366,8 +364,7 @@ func TestRequestService_ReplaceEditable_PreservesChildCustomDataByIDWhenMiddleCh
 func TestChangeRequestService_Approve_PreservesLegacyCustomDataWithoutSchema(t *testing.T) {
 	t.Parallel()
 
-	env, cleanup := setupRequestTest(t)
-	defer cleanup()
+	env := setupRequestTest(t)
 	ctx := testpkg.Ctx(t)
 	result := makeLegacyNoSchemaRequest(t, env, enrollmentNative.ChildStatusWaitlisted)
 	svc := newChangeRequestServiceForTest(env)
@@ -408,8 +405,7 @@ func TestChangeRequestService_Approve_PreservesLegacyCustomDataWithoutSchema(t *
 func TestChangeRequestService_Create_RequiresStableChildIdentity(t *testing.T) {
 	t.Parallel()
 
-	env, cleanup := setupRequestTest(t)
-	defer cleanup()
+	env := setupRequestTest(t)
 	ctx := testpkg.Ctx(t)
 
 	base := validSubmission(t, env.phaseID)
@@ -447,8 +443,7 @@ func TestChangeRequestService_Create_RequiresStableChildIdentity(t *testing.T) {
 func TestChangeRequestService_Approve_RejectsStaleBaseSnapshot(t *testing.T) {
 	t.Parallel()
 
-	env, cleanup := setupRequestTest(t)
-	defer cleanup()
+	env := setupRequestTest(t)
 	ctx := testpkg.Ctx(t)
 	result, err := env.svc.Submit(ctx, validSubmission(t, env.phaseID))
 	require.NoError(t, err)
@@ -481,8 +476,7 @@ func TestChangeRequestService_Approve_RejectsStaleBaseSnapshot(t *testing.T) {
 func TestChangeRequestService_Approve_RejectsActiveDuplicateAfterRename(t *testing.T) {
 	t.Parallel()
 
-	env, cleanup := setupRequestTest(t)
-	defer cleanup()
+	env := setupRequestTest(t)
 	ctx := testpkg.Ctx(t)
 	env.settings.stringValues[settingKeyDuplicateHandling] = settingValueDuplicateBlock
 
@@ -527,8 +521,7 @@ func TestChangeRequestService_Approve_RejectsActiveDuplicateAfterRename(t *testi
 func TestChangeRequestService_Approve_PreservesAdditionalGuardianProfileID(t *testing.T) {
 	t.Parallel()
 
-	env, cleanup := setupRequestTest(t)
-	defer cleanup()
+	env := setupRequestTest(t)
 	ctx := testpkg.Ctx(t)
 
 	phone := "+49 221 555 010"
@@ -584,8 +577,7 @@ func TestChangeRequestService_Approve_PreservesAdditionalGuardianProfileID(t *te
 func TestChangeRequestService_Create_AllowsOnlyOneOpenRequest(t *testing.T) {
 	t.Parallel()
 
-	env, cleanup := setupRequestTest(t)
-	defer cleanup()
+	env := setupRequestTest(t)
 	ctx := testpkg.Ctx(t)
 	result, err := env.svc.Submit(ctx, validSubmission(t, env.phaseID))
 	require.NoError(t, err)
@@ -613,8 +605,7 @@ func TestChangeRequestService_Create_AllowsOnlyOneOpenRequest(t *testing.T) {
 func TestChangeRequestService_Create_AllowsKeepingInactiveCurrentOffering(t *testing.T) {
 	t.Parallel()
 
-	env, cleanup := setupRequestTest(t)
-	defer cleanup()
+	env := setupRequestTest(t)
 	ctx := testpkg.Ctx(t)
 	_, repoFactoryCare, _, _, _, _ := flowRepositories(t, env.db)
 	offering := setupCareOfferingForCapacity(t, env, 10)
@@ -646,8 +637,7 @@ func TestChangeRequestService_Create_AllowsKeepingInactiveCurrentOffering(t *tes
 func TestChangeRequestService_Create_PreservesGradeCapabilityForInactiveConditionalOffering(t *testing.T) {
 	t.Parallel()
 
-	env, cleanup := setupRequestTest(t)
-	defer cleanup()
+	env := setupRequestTest(t)
 	ctx := testpkg.Ctx(t)
 	_, repoFactoryCare, _, _, _, _ := flowRepositories(t, env.db)
 	env.settings.boolValues[settingKeyCollectGradeLevel] = false
@@ -687,8 +677,7 @@ func TestChangeRequestService_Create_PreservesGradeCapabilityForInactiveConditio
 func TestChangeRequestService_Approve_PreservesHiddenOfferingsAcrossDisabledToEnabledToggle(t *testing.T) {
 	t.Parallel()
 
-	env, cleanup := setupRequestTest(t)
-	defer cleanup()
+	env := setupRequestTest(t)
 	ctx := testpkg.Ctx(t)
 	repoFactory, _, _, _, _, _ := flowRepositories(t, env.db)
 	offering := setupCareOfferingForCapacity(t, env, 10)
@@ -740,10 +729,9 @@ func TestChangeRequestService_Approve_AppliesPinnedOfferingChangeToApprovedChild
 	t.Parallel()
 
 	careOfferingsEnabled := true
-	env, cleanup := setupDecisionTestWithSettings(t, stubActivationSettings{
+	env := setupDecisionTestWithSettings(t, stubActivationSettings{
 		careOfferingsEnabled: &careOfferingsEnabled,
 	})
-	defer cleanup()
 	ctx := testpkg.Ctx(t)
 	currentOffering := createAdjustmentCareOffering(t, env, "Frühbetreuung vor Umschaltung")
 	replacementOffering := createAdjustmentCareOffering(t, env, "Spätbetreuung vor Umschaltung")
@@ -838,8 +826,7 @@ func TestChangeRequestService_Approve_AppliesPinnedOfferingChangeToApprovedChild
 func TestChangeRequestService_Approve_ReplacesOffenPlaceholderWithNewGrade(t *testing.T) {
 	t.Parallel()
 
-	env, cleanup := setupDecisionTest(t)
-	defer cleanup()
+	env := setupDecisionTest(t)
 	ctx := testpkg.Ctx(t)
 	env.settings.boolValues[settingKeyCollectGradeLevel] = false
 
@@ -907,8 +894,7 @@ func TestChangeRequestService_Approve_ReplacesOffenPlaceholderWithNewGrade(t *te
 func TestChangeRequestService_CorrectApprovedChildData_UpdatesEnrollmentStudentAndAudit(t *testing.T) {
 	t.Parallel()
 
-	env, cleanup := setupDecisionTest(t)
-	defer cleanup()
+	env := setupDecisionTest(t)
 	ctx := testpkg.Ctx(t)
 	gradeOne := int16(1)
 	submission := enrollmentAPI.SubmitRequest{
@@ -998,8 +984,8 @@ func TestChangeRequestService_CorrectApprovedChildData_RejectsOpenParentChangeRe
 		enrollmentNative.ChangeRequestStatusNeedsParentResponse,
 	} {
 		t.Run(openStatus, func(t *testing.T) {
-			env, cleanup := setupDecisionTest(t)
-			defer cleanup()
+			testpkg.OwnTenant(t)
+			env := setupDecisionTest(t)
 			ctx := testpkg.Ctx(t)
 			env.settings.boolValues[settingKeyChangeRequestEmailNotificationsEnabled] = true
 
@@ -1082,8 +1068,7 @@ func TestChangeRequestService_CorrectApprovedChildData_RejectsOpenParentChangeRe
 func TestChangeRequestService_CorrectApprovedChildData_PreservesTerminalParentChangeRequest(t *testing.T) {
 	t.Parallel()
 
-	env, cleanup := setupDecisionTest(t)
-	defer cleanup()
+	env := setupDecisionTest(t)
 	ctx := testpkg.Ctx(t)
 
 	submission, result := createApprovedAdminCorrectionFixture(t, env, "terminal-correction@example.com")
@@ -1134,8 +1119,7 @@ func TestChangeRequestService_CorrectApprovedChildData_PreservesTerminalParentCh
 func TestChangeRequestService_CorrectApprovedChildData_RollsBackRejectedRequestWhenAuditFails(t *testing.T) {
 	t.Parallel()
 
-	env, cleanup := setupDecisionTest(t)
-	defer cleanup()
+	env := setupDecisionTest(t)
 	ctx := testpkg.Ctx(t)
 
 	submission, result := createApprovedAdminCorrectionFixture(t, env, "rollback-correction@example.com")
@@ -1247,8 +1231,7 @@ func createApprovedAdminCorrectionFixture(
 func TestChangeRequestService_CorrectApprovedChildData_PreservesHistoricalTargetsWhenCollectionIsDisabled(t *testing.T) {
 	t.Parallel()
 
-	env, cleanup := setupDecisionTest(t)
-	defer cleanup()
+	env := setupDecisionTest(t)
 	ctx := testpkg.Ctx(t)
 
 	env.settings.boolValues[settingKeyCollectSchoolClass] = true
@@ -1357,8 +1340,7 @@ func TestChangeRequestService_CorrectApprovedChildData_PreservesHistoricalTarget
 func TestChangeRequestService_Create_RejectsInactiveOfferingOnlyCurrentForAnotherChild(t *testing.T) {
 	t.Parallel()
 
-	env, cleanup := setupRequestTest(t)
-	defer cleanup()
+	env := setupRequestTest(t)
 	ctx := testpkg.Ctx(t)
 	_, repoFactoryCare, _, _, _, _ := flowRepositories(t, env.db)
 	firstOffering := setupCareOfferingForCapacity(t, env, 10)
@@ -1402,8 +1384,7 @@ func TestChangeRequestService_Create_RejectsInactiveOfferingOnlyCurrentForAnothe
 func TestChangeRequestService_Create_ForcesStoredGuardianEmail(t *testing.T) {
 	t.Parallel()
 
-	env, cleanup := setupRequestTest(t)
-	defer cleanup()
+	env := setupRequestTest(t)
 	ctx := testpkg.Ctx(t)
 	result, err := env.svc.Submit(ctx, validSubmission(t, env.phaseID))
 	require.NoError(t, err)
@@ -1424,8 +1405,7 @@ func TestChangeRequestService_Create_ForcesStoredGuardianEmail(t *testing.T) {
 func TestChangeRequestService_Approve_DoesNotReopenUnchangedRejectedChild(t *testing.T) {
 	t.Parallel()
 
-	env, cleanup := setupRequestTest(t)
-	defer cleanup()
+	env := setupRequestTest(t)
 	ctx := testpkg.Ctx(t)
 
 	base := validSubmission(t, env.phaseID)
@@ -1470,8 +1450,7 @@ func TestChangeRequestService_Approve_DoesNotReopenUnchangedRejectedChild(t *tes
 func TestChangeRequestService_Approve_WaitlistsNonApprovedChildMovedOntoFullOffering(t *testing.T) {
 	t.Parallel()
 
-	env, cleanup := setupRequestTest(t)
-	defer cleanup()
+	env := setupRequestTest(t)
 	ctx := testpkg.Ctx(t)
 	setPhaseOverflowMode(t, env, enrollmentNative.PhaseCareOverflowWaitlist)
 	offering := setupCareOfferingForCapacity(t, env, 1)
@@ -1525,8 +1504,7 @@ func TestChangeRequestService_Approve_WaitlistsNonApprovedChildMovedOntoFullOffe
 func TestChangeRequestService_Approve_DoesNotDoubleCountPreservedOfferingCapacity(t *testing.T) {
 	t.Parallel()
 
-	env, cleanup := setupRequestTest(t)
-	defer cleanup()
+	env := setupRequestTest(t)
 	ctx := testpkg.Ctx(t)
 	setPhaseOverflowMode(t, env, enrollmentNative.PhaseCareOverflowWaitlist)
 	offering := setupCareOfferingForCapacity(t, env, 2)
@@ -1580,8 +1558,7 @@ func TestChangeRequestService_Approve_DoesNotDoubleCountPreservedOfferingCapacit
 func TestChangeRequestService_Approve_RejectsNonApprovedChildMovedOntoFullOffering(t *testing.T) {
 	t.Parallel()
 
-	env, cleanup := setupRequestTest(t)
-	defer cleanup()
+	env := setupRequestTest(t)
 	ctx := testpkg.Ctx(t)
 	setPhaseOverflowMode(t, env, enrollmentNative.PhaseCareOverflowReject)
 	offering := setupCareOfferingForCapacity(t, env, 1)
@@ -1638,8 +1615,7 @@ func TestChangeRequestService_Approve_RejectsNonApprovedChildMovedOntoFullOfferi
 func TestChangeRequestService_Approve_RollsBackApprovedChildScheduleReplacementFailure(t *testing.T) {
 	t.Parallel()
 
-	env, cleanup := setupDecisionTest(t)
-	defer cleanup()
+	env := setupDecisionTest(t)
 	ctx := testpkg.Ctx(t)
 	publishDecisionScheduleSchema(t, env, "pickup_times", enrollmentNative.TargetSchedulePickup)
 	_, reviewerWithStaffAccountID := createReviewerStaffWithDistinctAccount(t, env)
@@ -1762,8 +1738,7 @@ func (r failingChangeRequestCatalog) Phase(context.Context, int64) (*enrollmentN
 
 func TestChangeRequestService_PreservesReadFailures(t *testing.T) {
 	t.Parallel()
-	env, cleanup := setupRequestTest(t)
-	defer cleanup()
+	env := setupRequestTest(t)
 	ctx := testpkg.Ctx(t)
 	result, err := env.svc.Submit(ctx, validSubmission(t, env.phaseID))
 	require.NoError(t, err)

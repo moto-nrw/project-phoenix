@@ -130,11 +130,7 @@ func TestSchoolPortalTokenMatrix(t *testing.T) {
 
 	staff, account := testpkg.CreateTestStaffWithAccountForTenant(t, db, tenantID, "School", fmt.Sprintf("Matrix-%d", time.Now().UnixNano()))
 	className := fmt.Sprintf("sm%d", time.Now().UnixNano()%100000)
-	assignment := testpkg.CreateTestClassTeacherForTenant(t, db, tenantID, staff.ID, className)
-	t.Cleanup(func() {
-		tenantCtx := testpkg.TenantContext(tenantID)
-		_, _ = db.NewDelete().TableExpr("education.class_teachers").Where("id = ?", assignment.ID).Exec(tenantCtx)
-	})
+	testpkg.CreateTestClassTeacherForTenant(t, db, tenantID, staff.ID, className)
 
 	classDayResource := classdayhttp.NewResource(resource.ClassDay.(*classdayhttp.Resource).ClassDay, nil)
 	schoolRouter := NewSchoolPortalHTTP(resource.AuthService, resource.MFAService, resource.Resets, classDayResource, newSchoolTimetableResource(db, resource), resource.StaffMessaging, nil, nil).Router(SchoolSessionChain, ProtectedSchoolRoutes)

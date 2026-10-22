@@ -43,11 +43,6 @@ func TestTrackingIndicatorsIssuesOneSettingValuesQuery(t *testing.T) {
 
 	tenantID := testpkg.UniqueTestTenantID(t)
 	testpkg.EnsureTestTenant(t, db, tenantID)
-	t.Cleanup(func() {
-		ctx := context.Background()
-		_, _ = db.ExecContext(ctx, `DELETE FROM config.setting_audit WHERE tenant_id = ?`, tenantID)
-		_, _ = db.ExecContext(ctx, `DELETE FROM config.setting_values WHERE tenant_id = ?`, tenantID)
-	})
 
 	settings := ComposeTrackingSettings(t, db)
 

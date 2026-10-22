@@ -25,17 +25,6 @@ func setupSchemaTest(t *testing.T) (*bun.DB, capability.FormSchemaAdministration
 
 	// Need a real auth.accounts row to satisfy the created_by FK.
 	_, account := testpkg.CreateTestPersonWithAccount(t, db, "Form", "Editor")
-	t.Cleanup(func() {
-		// Clean up any schemas + the test account in the right order.
-		_, _ = db.NewDelete().
-			TableExpr("enrollment.form_schemas").
-			Where("created_by = ?", account.ID).
-			Exec(context.Background())
-		_, _ = db.NewDelete().
-			TableExpr("auth.accounts").
-			Where("id = ?", account.ID).
-			Exec(context.Background())
-	})
 
 	return db, svc, account.ID, tenantID
 }

@@ -51,9 +51,6 @@ func TestBalanceAdjustmentAPI(t *testing.T) {
 	editorPerson, editorAccount := testpkg.CreateTestPersonWithAccount(t, tc.db, "Balance", fmt.Sprintf("Editor-%d", suffix))
 	testpkg.CreateTestStaffForPerson(t, tc.db, editorPerson.ID)
 	subject := testpkg.CreateTestStaff(t, tc.db, "Balance", fmt.Sprintf("Subject-%d", suffix))
-	t.Cleanup(func() {
-		_, _ = tc.db.Exec("DELETE FROM active.staff_balance_adjustments WHERE staff_id = ?", subject.ID)
-	})
 
 	claims := testutil.DefaultTestClaims()
 	claims.ID = int(editorAccount.ID)

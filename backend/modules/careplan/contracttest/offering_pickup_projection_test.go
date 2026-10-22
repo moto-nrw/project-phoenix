@@ -73,8 +73,7 @@ func nextWeekday(from calendar.Date, weekday time.Weekday) calendar.Date {
 func TestOfferingPickupProjection_FutureBookingEndIsNotVisibleOnEffectiveDate(t *testing.T) {
 	t.Parallel()
 
-	env, cleanup := setupDecisionTest(t)
-	defer cleanup()
+	env := setupDecisionTest(t)
 	setSourcePhaseServiceStartDate(t, env, calendar.NewDate(2026, 8, 24).AddDays(-30))
 	ctx := testpkg.Ctx(t)
 
@@ -124,8 +123,7 @@ func TestOfferingPickupProjection_FutureBookingEndIsNotVisibleOnEffectiveDate(t 
 func TestOfferingPickupProjection_FutureReplacementStartsExactlyOnEffectiveDate(t *testing.T) {
 	t.Parallel()
 
-	env, cleanup := setupDecisionTest(t)
-	defer cleanup()
+	env := setupDecisionTest(t)
 	setSourcePhaseServiceStartDate(t, env, calendar.NewDate(2026, 8, 24).AddDays(-30))
 	ctx := testpkg.Ctx(t)
 
@@ -188,8 +186,7 @@ func TestOfferingPickupProjection_FutureReplacementStartsExactlyOnEffectiveDate(
 func TestOfferingPickupProjection_StaffOverrideSurvivesOfferingEdit(t *testing.T) {
 	t.Parallel()
 
-	env, cleanup := setupDecisionTest(t)
-	defer cleanup()
+	env := setupDecisionTest(t)
 	setSourcePhaseServiceStartDate(t, env, decisionTestToday.AddDays(-1))
 	ctx := testpkg.Ctx(t)
 
@@ -222,8 +219,7 @@ func TestOfferingPickupProjection_StaffOverrideSurvivesOfferingEdit(t *testing.T
 func TestOfferingPickupResetClearsManualWeekdayExtension(t *testing.T) {
 	t.Parallel()
 
-	env, cleanup := setupDecisionTest(t)
-	defer cleanup()
+	env := setupDecisionTest(t)
 	setSourcePhaseServiceStartDate(t, env, decisionTestToday.AddDays(-1))
 	ctx := testpkg.Ctx(t)
 	offering := createPickupTimeOffering(t, env, "gehzeit-reset-extension",
@@ -252,8 +248,7 @@ func TestOfferingPickupResetClearsManualWeekdayExtension(t *testing.T) {
 func TestOfferingPickupProjection_IgnoresInactiveOffering(t *testing.T) {
 	t.Parallel()
 
-	env, cleanup := setupDecisionTest(t)
-	defer cleanup()
+	env := setupDecisionTest(t)
 	setSourcePhaseServiceStartDate(t, env, decisionTestToday.AddDays(-1))
 	ctx := testpkg.Ctx(t)
 
@@ -273,8 +268,7 @@ func TestOfferingPickupProjection_IgnoresInactiveOffering(t *testing.T) {
 func TestOfferingPickupProjection_IgnoresNonCareOffering(t *testing.T) {
 	t.Parallel()
 
-	env, cleanup := setupDecisionTest(t)
-	defer cleanup()
+	env := setupDecisionTest(t)
 	setSourcePhaseServiceStartDate(t, env, decisionTestToday.AddDays(-1))
 	ctx := testpkg.Ctx(t)
 
@@ -294,8 +288,7 @@ func TestOfferingPickupProjection_IgnoresNonCareOffering(t *testing.T) {
 
 func TestOfferingPickupProjection_ResetWaitsForOfferingSourceGate(t *testing.T) {
 	t.Parallel()
-	env, cleanup := setupDecisionTest(t)
-	defer cleanup()
+	env := setupDecisionTest(t)
 	setSourcePhaseServiceStartDate(t, env, decisionTestToday.AddDays(-30))
 
 	offering := createPickupTimeOffering(t, env, "gehzeit-reset-gate",

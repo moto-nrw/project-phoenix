@@ -788,9 +788,6 @@ func TestVisitRepository_GetVisitRetentionStats(t *testing.T) {
 			VALUES (?, 'v1.0', true, false, 7, ?, NOW(), NOW())
 		`, student.ID, testpkg.Tenant(t)).Exec(ctx)
 		require.NoError(t, err)
-		defer func() {
-			_, _ = db.NewDelete().Table("users.privacy_consents").Where("student_id = ?", student.ID).Exec(ctx)
-		}()
 
 		// Create old completed visit using raw SQL
 		now := time.Now()
@@ -842,9 +839,6 @@ func TestVisitRepository_CountExpiredVisits(t *testing.T) {
 			VALUES (?, 'v1.0', true, false, 7, ?, NOW(), NOW())
 		`, student.ID, testpkg.Tenant(t)).Exec(ctx)
 		require.NoError(t, err)
-		defer func() {
-			_, _ = db.NewDelete().Table("users.privacy_consents").Where("student_id = ?", student.ID).Exec(ctx)
-		}()
 
 		// Create old completed visit
 		now := time.Now()

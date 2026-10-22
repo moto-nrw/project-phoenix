@@ -178,14 +178,6 @@ func TestLogin(t *testing.T) {
 		testutil.AssertUnauthorized(t, rr)
 	})
 
-	// Cleanup test account
-	t.Cleanup(func() {
-		ctx := testpkg.Ctx(t)
-		_, _ = tc.db.NewDelete().TableExpr("auth.tokens").Where("account_id = ?", account.ID).Exec(ctx)
-		_, _ = tc.db.NewDelete().TableExpr("auth.account_tenants").Where("account_id = ?", account.ID).Exec(ctx)
-		_, _ = tc.db.NewDelete().TableExpr("auth.accounts").Where("id = ?", account.ID).Exec(ctx)
-	})
-
 	t.Run("bad request with invalid email format", func(t *testing.T) {
 		body := map[string]string{
 			"email":    "not-an-email",
@@ -258,12 +250,6 @@ func loginAsAdmin(t *testing.T, db *bun.DB, router chi.Router) (token string, va
 	loginResp := testutil.ParseJSONResponse(t, loginRR.Body.Bytes())
 	accessToken, ok := loginResp["access_token"].(string)
 	require.True(t, ok, "Expected access_token string in login response")
-
-	// 5. Cleanup admin account on test completion
-	t.Cleanup(func() {
-		_, _ = db.NewDelete().TableExpr("auth.account_roles").Where("account_id = ?", adminAccount.ID).Exec(ctx)
-		_, _ = db.NewDelete().TableExpr("auth.tokens").Where("account_id = ?", adminAccount.ID).Exec(ctx)
-	})
 
 	return accessToken, userRole.ID
 }
@@ -468,9 +454,6 @@ func TestRegisterRejectsGuardianRole(t *testing.T) {
 	db, router := setupPublicRouterWithDB(t)
 
 	guardianRole := testpkg.CreateTestSystemRole(t, db, "guardian")
-	t.Cleanup(func() {
-		_, _ = db.NewDelete().TableExpr("auth.roles").Where("id = ?", guardianRole.ID).Exec(context.Background())
-	})
 
 	adminToken, _ := loginAsAdmin(t, db, router)
 
@@ -535,12 +518,6 @@ func TestRegisterRequiresAdminAuth(t *testing.T) {
 		_, err := db.NewRaw("INSERT INTO auth.account_roles (account_id, role_id, tenant_id) VALUES (?, ?, ?)",
 			userAccount.ID, noPermsRole.ID, testpkg.Tenant(t)).Exec(ctx)
 		require.NoError(t, err)
-
-		t.Cleanup(func() {
-			_, _ = db.NewDelete().TableExpr("auth.account_roles").Where("account_id = ?", userAccount.ID).Exec(ctx)
-			_, _ = db.NewDelete().TableExpr("auth.tokens").Where("account_id = ?", userAccount.ID).Exec(ctx)
-			_, _ = db.NewDelete().TableExpr("auth.roles").Where("id = ?", noPermsRole.ID).Exec(ctx)
-		})
 
 		// Login to get a real token — JWT will have zero permissions
 		loginReq := testutil.NewJSONRequest(t, "POST", "/auth/login", map[string]string{
@@ -1202,10 +1179,10 @@ func TestPermissionManagement(t *testing.T) {
 		assert.Equal(t, resource, data["resource"])
 		assert.Equal(t, "read", data["action"])
 
-		// Cleanup: delete the created permission
+		// auth.permissions is tenantless; the fixture helper owns its teardown.
 		permID, err := strconv.ParseInt(data["id"].(string), 10, 64)
 		require.NoError(t, err)
-		_, _ = tc.db.NewDelete().TableExpr("auth.permissions").Where("id = ?", permID).Exec(context.Background())
+		testpkg.OwnTestPermission(t, tc.db, permID)
 	})
 
 	t.Run("create permission bad request with missing resource", func(t *testing.T) {
@@ -1994,20 +1971,12 @@ func TestInvitationCreateSuccess(t *testing.T) {
 		require.Equal(t, http.StatusCreated, rr.Code,
 			"Expected 201 Created, got %d. Body: %s", rr.Code, rr.Body.String())
 
-		// Parse the created invitation to get its ID for cleanup
+		// Parse the created invitation
 		response := testutil.ParseJSONResponse(t, rr.Body.Bytes())
 		data, ok := response["data"].(map[string]interface{})
 		require.True(t, ok, "Expected data in response")
 		assert.Equal(t, inviteeEmail, data["email"])
 		assert.NotZero(t, data["id"])
-
-		// Cleanup the created invitation
-		if id, ok := data["id"].(float64); ok {
-			_, _ = tc.db.NewDelete().
-				TableExpr("auth.invitation_tokens").
-				Where("id = ?", int64(id)).
-				Exec(context.Background())
-		}
 	})
 
 	t.Run("list pending invitations through tenant transaction", func(t *testing.T) {
@@ -2059,13 +2028,6 @@ func TestInvitationCreateSuccess(t *testing.T) {
 		if subdomain, ok := acceptData["tenant_subdomain"].(string); ok {
 			assert.NotEmpty(t, subdomain, "tenant_subdomain should be non-empty")
 		}
-
-		if id, ok := data["id"].(float64); ok {
-			_, _ = tc.db.NewDelete().
-				TableExpr("auth.invitation_tokens").
-				Where("id = ?", int64(id)).
-				Exec(context.Background())
-		}
 	})
 }
 
@@ -2107,16 +2069,6 @@ func TestLinkToTenant(t *testing.T) {
 		data, ok := response["data"].(map[string]interface{})
 		require.True(t, ok, "Expected data to be an object")
 		assert.Equal(t, email, data["email"])
-
-		// Cleanup tenant mapping + role assignment created by link
-		_, _ = db.NewDelete().
-			TableExpr("auth.account_roles").
-			Where("account_id = ?", account.ID).
-			Exec(context.Background())
-		_, _ = db.NewDelete().
-			TableExpr("auth.account_tenants").
-			Where("account_id = ?", account.ID).
-			Exec(context.Background())
 	})
 
 	t.Run("returns 404 for non-existent email", func(t *testing.T) {

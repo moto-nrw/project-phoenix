@@ -20,8 +20,7 @@ import (
 func TestEnrollmentListChildOfferingsQueryBudget(t *testing.T) {
 	t.Parallel()
 	testpkg.SetupIsolatedTestDB(t)
-	env, cleanup := setupDecisionTest(t)
-	defer cleanup()
+	env := setupDecisionTest(t)
 	ctx := testpkg.Ctx(t)
 	smallID := createBudgetRequest(t, env.rolloverTestEnv, env.sourcePhase.ID, "child-small", 3, enrollmentNative.ChildStatusSubmitted, nil)
 	largeID := createBudgetRequest(t, env.rolloverTestEnv, env.sourcePhase.ID, "child-large", 8, enrollmentNative.ChildStatusSubmitted, nil)
@@ -46,8 +45,7 @@ func TestEnrollmentListChildOfferingsQueryBudget(t *testing.T) {
 func TestEnrollmentOfferingSourceOptionsQueryBudget(t *testing.T) {
 	t.Parallel()
 	testpkg.SetupIsolatedTestDB(t)
-	env, cleanup := setupDecisionTest(t)
-	defer cleanup()
+	env := setupDecisionTest(t)
 	ctx := testpkg.Ctx(t)
 	for i := range 3 {
 		createSourceOffering(t, env, fmt.Sprintf("Budget small %d", i), nil)
@@ -78,8 +76,7 @@ func TestEnrollmentOfferingSourceOptionsQueryBudget(t *testing.T) {
 func TestTemplateRosterMaintenanceFeedsQueryBudget(t *testing.T) {
 	t.Parallel()
 	testpkg.SetupIsolatedTestDB(t)
-	env, cleanup := setupDecisionTest(t)
-	defer cleanup()
+	env := setupDecisionTest(t)
 	ctx := testpkg.Ctx(t)
 	period := offeringSourcePeriod(t, env)
 	source := createSourceOffering(t, env, "Teilnehmerpflege Budget", nil)
@@ -121,8 +118,7 @@ func TestTemplateRosterMaintenanceFeedsQueryBudget(t *testing.T) {
 func TestEnrollmentRolloverReviewQueueQueryBudget(t *testing.T) {
 	t.Parallel()
 	testpkg.SetupIsolatedTestDB(t)
-	env, cleanup := setupRolloverTest(t)
-	defer cleanup()
+	env := setupRolloverTest(t)
 	ctx := testpkg.Ctx(t)
 	createBudgetReviewRows(t, env, 3)
 	counter := testpkg.CaptureQueries(t, env.db)

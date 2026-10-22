@@ -40,16 +40,6 @@ func TestWorkTimeMonthSummary_DB(t *testing.T) {
 	repos := api.NewStaffAbsenceSuiteRepositories(testpkg.NewDatabase(t, db))
 	ctx := testpkg.TenantContext(tenantID)
 
-	t.Cleanup(func() {
-		for _, table := range []string{
-			"active.staff_absences",
-			"active.work_sessions",
-			"config.staff_work_schedules",
-		} {
-			_, _ = db.NewDelete().ModelTableExpr(table+" AS t").Where("t.tenant_id = ?", tenantID).Exec(context.Background())
-		}
-	})
-
 	// Contract: Mondays 480 minutes since 2020.
 	testpkg.CreateTestStaffWorkScheduleForTenant(t, db, tenantID, staff.ID, timetracking.DayMonday, 480, scheduleValidFrom)
 

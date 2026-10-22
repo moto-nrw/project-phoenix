@@ -21,8 +21,7 @@ func TestOfferingChangeRequestService_Create_RequiresAndAuditsCompleteWithdrawal
 	t.Parallel()
 
 	authoritative := true
-	env, cleanup := setupDecisionTestWithSettings(t, stubActivationSettings{bookingsAuthoritative: &authoritative})
-	defer cleanup()
+	env := setupDecisionTestWithSettings(t, stubActivationSettings{bookingsAuthoritative: &authoritative})
 	env.settings.boolValues[enrollmentKeys.BookingsAuthoritative] = true
 	svc := newOfferingChangeServiceForTest(t, env)
 	fx := setupOfferingChangeFixture(t, env, "ParentCompleteWithdrawal")
@@ -51,8 +50,7 @@ func TestDirectOfferingAdjustment_PreviewRejectsCompleteWithdrawalWhenBookingsAr
 	t.Parallel()
 
 	authoritative := false
-	env, cleanup := setupDecisionTestWithSettings(t, stubActivationSettings{bookingsAuthoritative: &authoritative})
-	defer cleanup()
+	env := setupDecisionTestWithSettings(t, stubActivationSettings{bookingsAuthoritative: &authoritative})
 	env.settings.boolValues[enrollmentKeys.BookingsAuthoritative] = false
 	ctx := offeringChangeAdminContext(t)
 	svc := newOfferingChangeServiceForTest(t, env)
@@ -74,8 +72,7 @@ func TestOfferingChangeRequestService_Decide_RequiresStaffWithdrawalConfirmation
 	t.Parallel()
 
 	authoritative := true
-	env, cleanup := setupDecisionTestWithSettings(t, stubActivationSettings{bookingsAuthoritative: &authoritative})
-	defer cleanup()
+	env := setupDecisionTestWithSettings(t, stubActivationSettings{bookingsAuthoritative: &authoritative})
 	env.settings.boolValues[enrollmentKeys.BookingsAuthoritative] = true
 	ctx := offeringChangeAdminContext(t)
 	svc := newOfferingChangeServiceForTest(t, env)
@@ -117,8 +114,7 @@ func TestOfferingChangeRequestService_Reject_DoesNotCreateWithdrawalCompletion(t
 	t.Parallel()
 
 	authoritative := true
-	env, cleanup := setupDecisionTestWithSettings(t, stubActivationSettings{bookingsAuthoritative: &authoritative})
-	defer cleanup()
+	env := setupDecisionTestWithSettings(t, stubActivationSettings{bookingsAuthoritative: &authoritative})
 	ctx := offeringChangeAdminContext(t)
 	svc := newOfferingChangeServiceForTest(t, env)
 	fx := setupOfferingChangeFixture(t, env, "RejectCompleteWithdrawal")
@@ -149,8 +145,7 @@ func TestOfferingChangeRequestService_Decide_ReportsAppliedWithdrawalResult(t *t
 	t.Parallel()
 
 	authoritative := true
-	env, cleanup := setupDecisionTestWithSettings(t, stubActivationSettings{bookingsAuthoritative: &authoritative})
-	defer cleanup()
+	env := setupDecisionTestWithSettings(t, stubActivationSettings{bookingsAuthoritative: &authoritative})
 	env.settings.boolValues[enrollmentKeys.BookingsAuthoritative] = true
 	ctx := offeringChangeAdminContext(t)
 	svc := newOfferingChangeServiceForTest(t, env)
@@ -192,8 +187,7 @@ func TestOfferingChangeRequestService_Decide_RequiresConfirmationAfterTargetBeco
 	t.Parallel()
 
 	authoritative := true
-	env, cleanup := setupDecisionTestWithSettings(t, stubActivationSettings{bookingsAuthoritative: &authoritative})
-	defer cleanup()
+	env := setupDecisionTestWithSettings(t, stubActivationSettings{bookingsAuthoritative: &authoritative})
 	env.settings.boolValues[enrollmentKeys.BookingsAuthoritative] = true
 	ctx := offeringChangeAdminContext(t)
 	svc := newOfferingChangeServiceForTest(t, env)
@@ -233,8 +227,7 @@ func TestOfferingChangeRequestService_GetForStudent_DropsOldWithdrawalAfterCareR
 	t.Parallel()
 
 	authoritative := true
-	env, cleanup := setupDecisionTestWithSettings(t, stubActivationSettings{bookingsAuthoritative: &authoritative})
-	defer cleanup()
+	env := setupDecisionTestWithSettings(t, stubActivationSettings{bookingsAuthoritative: &authoritative})
 	env.settings.boolValues[enrollmentKeys.BookingsAuthoritative] = true
 	ctx := offeringChangeAdminContext(t)
 	svc := newOfferingChangeServiceForTest(t, env)
@@ -294,8 +287,7 @@ func pendingViewForRequest(
 func TestOfferingChangeRequestService_ListPending_MarksFullWithdrawal(t *testing.T) {
 	t.Parallel()
 
-	env, cleanup := setupDecisionTest(t)
-	defer cleanup()
+	env := setupDecisionTest(t)
 	svc := newOfferingChangeServiceForTest(t, env)
 	fx := setupOfferingChangeFixture(t, env, "FullWithdrawal")
 
@@ -315,8 +307,7 @@ func TestOfferingChangeRequestService_ListPending_MarksFullWithdrawal(t *testing
 func TestOfferingChangeRequestService_ListPending_MarksRequiredCareWithdrawal(t *testing.T) {
 	t.Parallel()
 
-	env, cleanup := setupDecisionTest(t)
-	defer cleanup()
+	env := setupDecisionTest(t)
 	env.settings.boolValues[enrollmentKeys.BookingsAuthoritative] = true
 	ctx := offeringChangeAdminContext(t)
 	svc := newOfferingChangeServiceForTest(t, env)
@@ -339,8 +330,7 @@ func TestOfferingChangeRequestService_ListPending_MarksRequiredCareWithdrawal(t 
 func TestOfferingChangeRequestService_ListPending_KeepsUntouchedBookingsOutOfTheWarning(t *testing.T) {
 	t.Parallel()
 
-	env, cleanup := setupDecisionTest(t)
-	defer cleanup()
+	env := setupDecisionTest(t)
 	svc := newOfferingChangeServiceForTest(t, env)
 	fx := setupOfferingChangeFixture(t, env, "KeepsOther")
 	// A second child that holds both offerings, so dropping one leaves one.

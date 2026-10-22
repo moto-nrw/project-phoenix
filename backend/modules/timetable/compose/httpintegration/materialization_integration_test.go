@@ -428,11 +428,6 @@ func TestMaterializeForTenant_NoTemplates_ReturnsWarning(t *testing.T) {
 	testpkg.EnsureTestTenant(t, db, emptyTemplateTenantID)
 	_, err := db.ExecContext(context.Background(), `DELETE FROM schedule.calendar_periods WHERE tenant_id = ?`, emptyTemplateTenantID)
 	require.NoError(t, err)
-	defer func() {
-		_, _ = db.ExecContext(context.Background(), `DELETE FROM schedule.calendar_periods WHERE tenant_id = ?`, emptyTemplateTenantID)
-		_, _ = db.ExecContext(context.Background(), `DELETE FROM platform.schools WHERE id = ?`, emptyTemplateTenantID)
-		_, _ = db.ExecContext(context.Background(), `DELETE FROM platform.organizations WHERE id = ?`, emptyTemplateTenantID)
-	}()
 
 	from := calendar.NewDate(2026, 4, 20)
 	to := from.AddDays(6)

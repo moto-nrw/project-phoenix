@@ -70,16 +70,6 @@ func (f *overviewFixture) accessLogs(t *testing.T) []accessLogRow {
 	return logs
 }
 
-func (f *overviewFixture) cleanupAccessLogs(t *testing.T) {
-	t.Helper()
-	t.Cleanup(func() {
-		_, _ = f.db.NewDelete().
-			ModelTableExpr("audit.data_access_log AS t").
-			Where("t.tenant_id = ?", f.tenantID).
-			Exec(context.Background())
-	})
-}
-
 // newActorAccount creates a real auth account — actor_account_id carries an FK.
 func (f *overviewFixture) newActorAccount(t *testing.T) int64 {
 	t.Helper()
@@ -257,7 +247,6 @@ func TestStaffTimeExport_CSVAndAudit(t *testing.T) {
 
 	f := newOverviewFixture(t, 2)
 	actorID := f.newActorAccount(t)
-	f.cleanupAccessLogs(t)
 	exportSvc := f.newExportService()
 
 	file, err := testpkg.TenantQuery3(t, f.ctx, testpkg.SetupTestDB(t), exportSvc.Export, timetracking.TimeExportRequest{
@@ -317,7 +306,6 @@ func TestStaffTimeExport_DayRowsMatchSingleExport(t *testing.T) {
 
 	f := newOverviewFixture(t, 2)
 	actorID := f.newActorAccount(t)
-	f.cleanupAccessLogs(t)
 	sessionSvc := f.newWorkSessionService()
 	exportSvc := timetracking.NewStaffTimeExportService(
 		f.svc, sessionSvc, owners.TimeExportStaff(f.repos.Staff), owners.NewTimeTrackingDataAccessAudit(owners.NewTestAuditPersistence(testpkg.NewDatabase(t, f.db), nil).DataAccessLog), nil, nil,

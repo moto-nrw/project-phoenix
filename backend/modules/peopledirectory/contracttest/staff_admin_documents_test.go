@@ -202,9 +202,6 @@ func (s *staffDocumentScenario) accessLogRowsFor(t *testing.T) []*testpkg.DataAc
 		Order("id ASC").
 		Scan(context.Background())
 	require.NoError(t, err)
-	t.Cleanup(func() {
-		_, _ = s.db.ExecContext(context.Background(), `DELETE FROM audit.data_access_log WHERE actor_account_id = ?`, s.account)
-	})
 	return rows
 }
 
@@ -309,9 +306,6 @@ func TestStaffDocumentService_RetentionSchedule(t *testing.T) {
 		ContractEndDate: end.String(),
 	})
 	require.NoError(t, err)
-	t.Cleanup(func() {
-		_, _ = s.db.ExecContext(context.Background(), `DELETE FROM users.staff_master_data WHERE staff_id = ?`, s.staffID)
-	})
 	vertragWithEnd := s.create(t, userModels.StaffDocumentCategoryArbeitsvertrag, admin)
 	assert.Equal(t, calendar.NewDate(2033, 7, 31), staffDocumentDate(t, vertragWithEnd.RetainUntil))
 

@@ -29,20 +29,6 @@ func setupFullSchemaTest(t *testing.T) (*bun.DB, enrollmentCapability.FormSchema
 	svc := NewTestFormSchemas(repoFactory.Enrollment())
 
 	_, account := testpkg.CreateTestPersonWithAccount(t, db, "Form", "Editor2")
-	t.Cleanup(func() {
-		_, _ = db.NewDelete().TableExpr("enrollment.requests").
-			Where("tenant_id = ? AND guardian_email LIKE 'form-schema-extra-%@test'", testpkg.Tenant(t)).
-			Exec(context.Background())
-		_, _ = db.NewDelete().TableExpr("enrollment.phases").
-			Where("tenant_id = ? AND name LIKE 'form-schema-extra-%'", testpkg.Tenant(t)).
-			Exec(context.Background())
-		_, _ = db.NewDelete().TableExpr("enrollment.form_schemas").
-			Where("created_by = ?", account.ID).
-			Exec(context.Background())
-		_, _ = db.NewDelete().TableExpr("auth.accounts").
-			Where("id = ?", account.ID).
-			Exec(context.Background())
-	})
 
 	return db, svc, account.ID, repoFactory
 }

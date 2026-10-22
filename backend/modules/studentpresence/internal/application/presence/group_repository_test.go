@@ -100,14 +100,6 @@ func TestActiveGroupRepository_FindActiveSessionsOlderThanPreservesTenant(t *tes
 		Exec(ctx)
 	require.NoError(t, err)
 
-	defer func() {
-		_, _ = db.NewDelete().
-			TableExpr("active.groups").
-			Where("id = ?", group.ID).
-			Where("tenant_id = ?", tenantID).
-			Exec(context.Background())
-	}()
-
 	_, err = repo.FindActiveSessionsOlderThan(context.Background(), time.Now().Add(-5*time.Minute))
 	require.Error(t, err, "missing school must fail closed")
 	sessions, err := testpkg.TenantQuery1(t, ctx, db, repo.FindActiveSessionsOlderThan, time.Now().Add(-5*time.Minute))
@@ -973,9 +965,6 @@ func TestActiveGroupRepository_FindWithSupervisors(t *testing.T) {
 			ModelTableExpr("active.group_supervisors").
 			Exec(ctx)
 		require.NoError(t, err)
-		defer func() {
-			_, _ = db.NewDelete().Table("active.group_supervisors").Where("group_id = ?", group.ID).Exec(ctx)
-		}()
 
 		found, err := repo.FindWithSupervisors(ctx, group.ID)
 		require.NoError(t, err)

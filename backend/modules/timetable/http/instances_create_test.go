@@ -297,13 +297,6 @@ func TestCreateInstance_DuplicateTemplateBoundReturnsConflict(t *testing.T) {
 	period := testpkg.CreateTestCalendarPeriod(t, db, fmt.Sprintf("Create-Dupe-Period-%d", suffix),
 		instanceDate.AddDays(-1), instanceDate.AddDays(7))
 	testpkg.SetCalendarPeriodActive(t, db, period, true)
-	t.Cleanup(func() {
-		_, _ = db.NewDelete().
-			TableExpr("schedule.activity_instances").
-			Where("activity_group_id = ?", template.ID).
-			Where("tenant_id = ?", tenant.FromContext(ctx)).
-			Exec(ctx)
-	})
 
 	router := setupDuplicateInstanceRoute(t, db, ctx, clock)
 

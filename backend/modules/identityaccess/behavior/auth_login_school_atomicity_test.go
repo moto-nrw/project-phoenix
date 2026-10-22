@@ -121,10 +121,6 @@ func TestVerifyCodeForAccount_RefusesForeignPortalChallenge(t *testing.T) {
 
 	tenantID, _ := newSchoolTenant(t, db)
 	testpkg.EnsureAccountTenant(t, db, accountID, tenantID)
-	t.Cleanup(func() {
-		_, _ = db.NewDelete().Table("auth.mfa_email_challenges").
-			Where("account_id = ?", accountID).Exec(context.Background())
-	})
 
 	// One school-portal challenge in flight, nothing else.
 	_, err := svc.StartMFAChallenge(ctx, accountID, tenantID, identityaccess.MFAChallengeScopeSchool, net.ParseIP("203.0.113.7"))

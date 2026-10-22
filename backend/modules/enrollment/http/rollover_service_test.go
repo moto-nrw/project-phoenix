@@ -50,14 +50,9 @@ type rolloverTestEnv struct {
 	creatorID       int64
 }
 
-func setupRolloverTest(t *testing.T) (*rolloverTestEnv, func()) {
+func setupRolloverTest(t *testing.T) *rolloverTestEnv {
 	t.Helper()
 	db := testpkg.SetupTestDB(t)
-	// Close the pool after all fixture cleanups registered by the test. The
-	// decision-service tests reuse this setup and may register additional
-	// t.Cleanup hooks (for example calendar periods); closing inside the
-	// returned cleanup made those hooks run against a closed pool and leak rows
-	// into subsequent tests in the package-isolated database.
 	testpkg.EnsureTestTenant(t, db, testpkg.Tenant(t))
 
 	repoFactory, repoFactoryCare, repoFactoryAudit, repoFactoryTimetable, _, repoFactorySchools := flowRepositories(t, db)
@@ -154,52 +149,7 @@ func setupRolloverTest(t *testing.T) (*rolloverTestEnv, func()) {
 		creatorID:       account.ID,
 	}
 
-	cleanup := func() {
-		bg := context.Background()
-		tenantID := testpkg.Tenant(t)
-		_, _ = db.NewRaw(`
-			WITH phase_scope AS (
-				SELECT id
-				FROM enrollment.phases
-				WHERE tenant_id = ?
-				  AND (id = ? OR rollover_source_phase_id = ?)
-			)
-			DELETE FROM enrollment.care_offering_bookings rco
-			USING enrollment.request_children rc, enrollment.requests r, phase_scope ps
-			WHERE rco.request_child_id = rc.id
-			  AND rc.request_id = r.id
-			  AND r.phase_id = ps.id
-		`, tenantID, sourcePhase.ID, sourcePhase.ID).Exec(bg)
-		_, _ = db.NewRaw(`
-			WITH phase_scope AS (
-				SELECT id
-				FROM enrollment.phases
-				WHERE tenant_id = ?
-				  AND (id = ? OR rollover_source_phase_id = ?)
-			)
-			DELETE FROM enrollment.request_children rc
-			USING enrollment.requests r, phase_scope ps
-			WHERE rc.request_id = r.id
-			  AND r.phase_id = ps.id
-		`, tenantID, sourcePhase.ID, sourcePhase.ID).Exec(bg)
-		_, _ = db.NewRaw(`
-			DELETE FROM enrollment.requests r
-			USING enrollment.phases p
-			WHERE r.phase_id = p.id
-			  AND p.tenant_id = ?
-			  AND (p.id = ? OR p.rollover_source_phase_id = ?)
-		`, tenantID, sourcePhase.ID, sourcePhase.ID).Exec(bg)
-		_, _ = db.NewDelete().TableExpr("enrollment.care_offerings").
-			Where("phase_id IN (SELECT id FROM enrollment.phases WHERE tenant_id = ? AND (id = ? OR rollover_source_phase_id = ?))",
-				tenantID, sourcePhase.ID, sourcePhase.ID).Exec(bg)
-		_, _ = db.NewDelete().TableExpr("enrollment.submission_rate_limits").
-			Where("tenant_id = ? AND key_value LIKE ?", tenantID, "%@example.com").Exec(bg)
-		_, _ = db.NewDelete().TableExpr("enrollment.phases").
-			Where("tenant_id = ? AND (id = ? OR rollover_source_phase_id = ?)", tenantID, sourcePhase.ID, sourcePhase.ID).Exec(bg)
-		_, _ = db.NewDelete().TableExpr("enrollment.form_schemas").Where("created_by = ?", account.ID).Exec(bg)
-		_, _ = db.NewDelete().TableExpr("auth.accounts").Where("id = ?", account.ID).Exec(bg)
-	}
-	return env, cleanup
+	return env
 }
 
 // seedApprovedChild walks one parent submission through Submit + admin
@@ -284,8 +234,7 @@ func rolloverServiceWithSettings(
 func TestRolloverService_CreatePhaseFromSource_RejectsMissingGradeSettingsService(t *testing.T) {
 	t.Parallel()
 
-	env, cleanup := setupRolloverTest(t)
-	defer cleanup()
+	env := setupRolloverTest(t)
 	ctx := testpkg.Ctx(t)
 
 	service := rolloverServiceWithSettings(env, nil)
@@ -302,8 +251,7 @@ func TestRolloverService_CreatePhaseFromSource_RejectsMissingGradeSettingsServic
 func TestRolloverService_CreatePhaseFromSource_RejectsGradeSettingReadFailure(t *testing.T) {
 	t.Parallel()
 
-	env, cleanup := setupRolloverTest(t)
-	defer cleanup()
+	env := setupRolloverTest(t)
 	ctx := testpkg.Ctx(t)
 	env.settings.intErrors[settingKeyGradeLevelMax] = errors.New("settings unavailable")
 
@@ -325,8 +273,8 @@ func TestRolloverService_CreatePhaseFromSource_RejectsOutOfRangeGradeSetting(t *
 
 	for _, value := range []int{0, 14} {
 		t.Run(fmt.Sprintf("value_%d", value), func(t *testing.T) {
-			env, cleanup := setupRolloverTest(t)
-			defer cleanup()
+			testpkg.OwnTenant(t)
+			env := setupRolloverTest(t)
 			ctx := testpkg.Ctx(t)
 			env.settings.intValues[settingKeyGradeLevelMax] = value
 
@@ -348,8 +296,7 @@ func TestRolloverService_CreatePhaseFromSource_RejectsOutOfRangeGradeSetting(t *
 func TestRolloverService_CreatePhaseFromSource_OptOutHappyPath(t *testing.T) {
 	t.Parallel()
 
-	env, cleanup := setupRolloverTest(t)
-	defer cleanup()
+	env := setupRolloverTest(t)
 	ctx := testpkg.Ctx(t)
 
 	one := int16(1)
@@ -392,8 +339,7 @@ func TestRolloverService_CreatePhaseFromSource_OptOutHappyPath(t *testing.T) {
 func TestRolloverService_CreatePhaseFromSource_CarriesEligibilityForward(t *testing.T) {
 	t.Parallel()
 
-	env, cleanup := setupRolloverTest(t)
-	defer cleanup()
+	env := setupRolloverTest(t)
 	ctx := testpkg.Ctx(t)
 
 	env.sourcePhase.Audience = capability.PhaseAudienceLinkedParents
@@ -424,8 +370,7 @@ func TestRolloverService_CreatePhaseFromSource_CarriesEligibilityForward(t *test
 func TestRolloverService_CreatePhaseFromSource_OptInLandsInPendingRenewal(t *testing.T) {
 	t.Parallel()
 
-	env, cleanup := setupRolloverTest(t)
-	defer cleanup()
+	env := setupRolloverTest(t)
 	ctx := testpkg.Ctx(t)
 
 	two := int16(2)
@@ -444,8 +389,7 @@ func TestRolloverService_CreatePhaseFromSource_OptInLandsInPendingRenewal(t *tes
 func TestRolloverService_CreatePhaseFromSource_GradeAboveMaxGoesToReview(t *testing.T) {
 	t.Parallel()
 
-	env, cleanup := setupRolloverTest(t)
-	defer cleanup()
+	env := setupRolloverTest(t)
 	ctx := testpkg.Ctx(t)
 
 	four := int16(4) // max is 4, bumped → 5 → above cap
@@ -467,8 +411,7 @@ func TestRolloverService_CreatePhaseFromSource_GradeAboveMaxGoesToReview(t *test
 func TestRolloverService_CreatePhaseFromSource_NoGradeLevelGoesToReview(t *testing.T) {
 	t.Parallel()
 
-	env, cleanup := setupRolloverTest(t)
-	defer cleanup()
+	env := setupRolloverTest(t)
 	ctx := testpkg.Ctx(t)
 
 	// The public Submit path now requires a grade level (form-level
@@ -509,8 +452,7 @@ func TestRolloverService_CreatePhaseFromSource_NoGradeLevelGoesToReview(t *testi
 func TestRolloverService_CreatePhaseFromSource_BumpsGradeFalseKeepsGrade(t *testing.T) {
 	t.Parallel()
 
-	env, cleanup := setupRolloverTest(t)
-	defer cleanup()
+	env := setupRolloverTest(t)
 	ctx := testpkg.Ctx(t)
 
 	two := int16(2)
@@ -529,8 +471,7 @@ func TestRolloverService_CreatePhaseFromSource_BumpsGradeFalseKeepsGrade(t *test
 func TestRolloverService_CreatePhaseFromSource_SkipsNonApproved(t *testing.T) {
 	t.Parallel()
 
-	env, cleanup := setupRolloverTest(t)
-	defer cleanup()
+	env := setupRolloverTest(t)
 	ctx := testpkg.Ctx(t)
 
 	// Approved child — rolls forward.
@@ -562,8 +503,7 @@ func TestRolloverService_CreatePhaseFromSource_SkipsNonApproved(t *testing.T) {
 func TestRolloverService_CreatePhaseFromSource_SourceWithNoApprovedCreatesEmptyPhase(t *testing.T) {
 	t.Parallel()
 
-	env, cleanup := setupRolloverTest(t)
-	defer cleanup()
+	env := setupRolloverTest(t)
 	ctx := testpkg.Ctx(t)
 
 	// No seed at all — source phase has zero approved children. The
@@ -584,8 +524,7 @@ func TestRolloverService_CreatePhaseFromSource_SourceWithNoApprovedCreatesEmptyP
 func TestRolloverService_CreatePhaseFromSource_RejectsMissingFields(t *testing.T) {
 	t.Parallel()
 
-	env, cleanup := setupRolloverTest(t)
-	defer cleanup()
+	env := setupRolloverTest(t)
 	ctx := testpkg.Ctx(t)
 
 	bad := validRolloverRequest(env, capability.PhaseRolloverModeOptIn, true)
@@ -603,8 +542,7 @@ func TestRolloverService_CreatePhaseFromSource_RejectsMissingFields(t *testing.T
 func TestRolloverService_CreatePhaseFromSource_EnqueuesCorrectEmailKind(t *testing.T) {
 	t.Parallel()
 
-	env, cleanup := setupRolloverTest(t)
-	defer cleanup()
+	env := setupRolloverTest(t)
 	ctx := testpkg.Ctx(t)
 
 	one := int16(1)
@@ -622,8 +560,7 @@ func TestRolloverService_CreatePhaseFromSource_EnqueuesCorrectEmailKind(t *testi
 func TestRolloverService_ListReviewQueue_ReturnsPendingReviewRows(t *testing.T) {
 	t.Parallel()
 
-	env, cleanup := setupRolloverTest(t)
-	defer cleanup()
+	env := setupRolloverTest(t)
 	ctx := testpkg.Ctx(t)
 
 	four := int16(4)
@@ -646,8 +583,7 @@ func TestRolloverService_ListReviewQueue_ReturnsPendingReviewRows(t *testing.T) 
 func TestRolloverService_DecideReview_KeepWithClassOverride(t *testing.T) {
 	t.Parallel()
 
-	env, cleanup := setupRolloverTest(t)
-	defer cleanup()
+	env := setupRolloverTest(t)
 	ctx := testpkg.Ctx(t)
 
 	four := int16(4)
@@ -682,8 +618,7 @@ func TestRolloverService_DecideReview_KeepWithClassOverride(t *testing.T) {
 func TestRolloverService_DecideReview_DropWithdraws(t *testing.T) {
 	t.Parallel()
 
-	env, cleanup := setupRolloverTest(t)
-	defer cleanup()
+	env := setupRolloverTest(t)
 	ctx := testpkg.Ctx(t)
 
 	four := int16(4)
@@ -713,8 +648,7 @@ func TestRolloverService_DecideReview_DropWithdraws(t *testing.T) {
 func TestRolloverService_CreatePhaseFromSource_DropsClassForReviewRow(t *testing.T) {
 	t.Parallel()
 
-	env, cleanup := setupRolloverTest(t)
-	defer cleanup()
+	env := setupRolloverTest(t)
 	ctx := testpkg.Ctx(t)
 
 	// Seed at a valid grade, then push the source above the grade cap
@@ -745,8 +679,7 @@ func TestRolloverService_CreatePhaseFromSource_DropsClassForReviewRow(t *testing
 func TestRolloverService_DecideReview_RejectsUnknownDecision(t *testing.T) {
 	t.Parallel()
 
-	env, cleanup := setupRolloverTest(t)
-	defer cleanup()
+	env := setupRolloverTest(t)
 	ctx := testpkg.Ctx(t)
 
 	err := env.rolloverSvc.DecideReview(ctx, enrollmentAPI.DecideReviewRequest{
@@ -762,8 +695,7 @@ func TestRolloverService_DecideReview_RejectsUnknownDecision(t *testing.T) {
 func TestRolloverService_RunDeadlineWorker_TransitionsStatuses(t *testing.T) {
 	t.Parallel()
 	testpkg.SetupIsolatedTestDB(t)
-	env, cleanup := setupRolloverTest(t)
-	defer cleanup()
+	env := setupRolloverTest(t)
 	ctx := testpkg.Ctx(t)
 
 	one := int16(1)
@@ -800,8 +732,7 @@ func TestRolloverService_RunDeadlineWorker_TransitionsStatuses(t *testing.T) {
 func TestRolloverService_RunDeadlineWorker_IsIdempotent(t *testing.T) {
 	t.Parallel()
 	testpkg.SetupIsolatedTestDB(t)
-	env, cleanup := setupRolloverTest(t)
-	defer cleanup()
+	env := setupRolloverTest(t)
 	ctx := testpkg.Ctx(t)
 
 	one := int16(1)
@@ -853,8 +784,7 @@ func (f *fakeApproveDecisionService) ApplyDueClassSwitches(context.Context, cale
 func TestRolloverService_RunDeadlineWorker_AutoApprovePromotesToApproved(t *testing.T) {
 	t.Parallel()
 	testpkg.SetupIsolatedTestDB(t)
-	env, cleanup := setupRolloverTest(t)
-	defer cleanup()
+	env := setupRolloverTest(t)
 	ctx := testpkg.Ctx(t)
 
 	one := int16(1)
@@ -895,8 +825,7 @@ func TestRolloverService_RunDeadlineWorker_AutoApprovePromotesToApproved(t *test
 func TestRolloverService_RunDeadlineWorker_AutoApproveFallbackWithoutDecisionService(t *testing.T) {
 	t.Parallel()
 	testpkg.SetupIsolatedTestDB(t)
-	env, cleanup := setupRolloverTest(t)
-	defer cleanup()
+	env := setupRolloverTest(t)
 	ctx := testpkg.Ctx(t)
 
 	one := int16(1)
@@ -922,8 +851,7 @@ func TestRolloverService_RunDeadlineWorker_AutoApproveFallbackWithoutDecisionSer
 func TestRequestService_ConfirmRenewal_TransitionsPendingRenewalToSubmitted(t *testing.T) {
 	t.Parallel()
 
-	env, cleanup := setupRolloverTest(t)
-	defer cleanup()
+	env := setupRolloverTest(t)
 	ctx := testpkg.Ctx(t)
 
 	one := int16(1)
@@ -953,8 +881,7 @@ func TestRequestService_ConfirmRenewal_TransitionsPendingRenewalToSubmitted(t *t
 func TestRequestService_ConfirmRenewal_IsIdempotent(t *testing.T) {
 	t.Parallel()
 
-	env, cleanup := setupRolloverTest(t)
-	defer cleanup()
+	env := setupRolloverTest(t)
 	ctx := testpkg.Ctx(t)
 
 	one := int16(1)
@@ -979,8 +906,7 @@ func TestRequestService_ConfirmRenewal_IsIdempotent(t *testing.T) {
 func TestRolloverService_RunDeadlineWorker_LeavesAdminReviewAlone(t *testing.T) {
 	t.Parallel()
 
-	env, cleanup := setupRolloverTest(t)
-	defer cleanup()
+	env := setupRolloverTest(t)
 	ctx := testpkg.Ctx(t)
 
 	four := int16(4) // bumps to 5, above cap → admin review

@@ -49,10 +49,6 @@ func TestListStaffWithPermission_RoleGrantOnly(t *testing.T) {
 		TableExpr(`auth.account_permissions`).
 		Exec(sqlCtx)
 	require.NoError(t, err)
-	t.Cleanup(func() {
-		_, _ = db.NewDelete().TableExpr("auth.account_permissions").
-			Where("account_id = ?", approverAccount.ID).Exec(context.Background())
-	})
 
 	listed := func() map[int64]string {
 		t.Helper()

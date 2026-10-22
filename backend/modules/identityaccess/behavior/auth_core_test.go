@@ -2363,15 +2363,6 @@ func TestAcceptInvitation_WithTenantID_CreatesAccountTenant(t *testing.T) {
 	// ASSERT
 	require.NoError(t, err)
 	require.NotNil(t, account)
-	defer func() {
-		// Clean up: staff, person, invitation tokens, then auth fixtures (includes account_tenants)
-		_, _ = db.ExecContext(context.Background(),
-			`DELETE FROM users.staff_school_memberships WHERE person_id IN (SELECT id FROM users.persons WHERE account_id = ?)`, account.ID)
-		_, _ = db.ExecContext(context.Background(),
-			`DELETE FROM users.persons WHERE account_id = ?`, account.ID)
-		_, _ = db.ExecContext(context.Background(),
-			`DELETE FROM auth.invitation_tokens WHERE email = ?`, email)
-	}()
 
 	// Verify account_tenant mapping was created
 	var tenantCount int
@@ -2451,12 +2442,6 @@ func TestAuthService_LinkAccountToTenant(t *testing.T) {
 			Scan(context.Background(), &roleCount)
 		require.NoError(t, err)
 		assert.Equal(t, 1, roleCount, "role should be assigned")
-
-		// Cleanup role assignment
-		_, _ = db.NewDelete().
-			TableExpr("auth.account_roles").
-			Where("account_id = ? AND role_id = ? AND tenant_id = ?", account.ID, roleID, tenantID).
-			Exec(context.Background())
 	})
 
 	t.Run("links an existing account with a system role", func(t *testing.T) {

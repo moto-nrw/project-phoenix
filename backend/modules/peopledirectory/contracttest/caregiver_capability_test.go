@@ -136,14 +136,6 @@ func ensureSystemRoleExists(t *testing.T, db *bun.DB, name string) {
 		ModelTableExpr(`auth.roles`).
 		Scan(context.Background())
 	require.NoError(t, err)
-	// A system role has no tenant, so the row this test had to create is
-	// shared state for every other test in the binary (#2419).
-	t.Cleanup(func() {
-		_, _ = db.NewDelete().TableExpr("auth.account_roles").Where("role_id = ?", role.ID).
-			Exec(context.Background())
-		_, _ = db.NewDelete().TableExpr("auth.roles").Where("id = ?", role.ID).
-			Exec(context.Background())
-	})
 }
 
 func loadLatestAuthEvent(

@@ -174,8 +174,7 @@ func (p arrivalBaselineProjection) ExpectedArrival(studentID int64, date calenda
 func TestTimetableRead_StudentWeekAppliesTheBookingMode(t *testing.T) {
 	t.Parallel()
 
-	env, cleanup := setupDecisionTest(t)
-	defer cleanup()
+	env := setupDecisionTest(t)
 	setSourcePhaseServiceStartDate(t, env, decisionTestToday.AddDays(-30))
 	ctx := testpkg.Ctx(t)
 
@@ -231,8 +230,7 @@ func TestTimetableRead_StudentWeekAppliesTheBookingMode(t *testing.T) {
 func TestTimetableRead_StudentWeekCareDayWithoutClassTime(t *testing.T) {
 	t.Parallel()
 
-	env, cleanup := setupDecisionTest(t)
-	defer cleanup()
+	env := setupDecisionTest(t)
 	setSourcePhaseServiceStartDate(t, env, decisionTestToday.AddDays(-30))
 	ctx := testpkg.Ctx(t)
 
@@ -285,8 +283,7 @@ func TestTimetableRead_StudentWeekCareDayWithoutClassTime(t *testing.T) {
 func TestTimetableRead_ExceptionConflictsApplyTheBookingMode(t *testing.T) {
 	t.Parallel()
 
-	env, cleanup := setupDecisionTest(t)
-	defer cleanup()
+	env := setupDecisionTest(t)
 	setSourcePhaseServiceStartDate(t, env, decisionTestToday.AddDays(-30))
 	ctx := testpkg.Ctx(t)
 

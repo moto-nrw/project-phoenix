@@ -15,9 +15,16 @@ and [fixture helpers](../../backend/test/fixtures.go).
 Copy their tenant/parallel setup, not literal IDs or legacy factory composition.
 
 - **One pool per package (#2419)**: `SetupTestDB` returns the same `*bun.DB` for every test in the binary. Never `db.Close()` it (gate: `no_shared_pool_close`). Tests that close their DB on purpose to force error paths use `testpkg.SetupClosableTestDB(t)`.
-- **No explicit `Cleanup*` calls**: `cleanupCallBaseline` is empty and the
-  AST-based gate rejects fixture cleanup through any import alias. The package
-  clone owns tenant rows. Tenantless fixture builders register their lifecycle
+- **No hand-written cleanup deletes**: the AST-based gate
+  `no_ignored_cleanup_deletes` rejects DB deletes with a discarded error in
+  `t.Cleanup`, deferred calls, cleanup closures, `wipe*`/`cleanup*`/`teardown*`
+  helpers, same-file functions those call, and at the end of a test or
+  subtest. It does not follow helpers in other files, misses SQL built at
+  runtime (`fmt.Sprintf`, local variables, ranged `[]string`), and treats a
+  merely logged error as handled. The package clone owns tenant rows.
+  Under `go test -count=N` a rerun gets a fresh tenant once its top-level test
+  calls `SetupTestDB` or `testpkg.Tenant`; a test that opens the database only
+  in subtests reuses the previous run's tenant. Tenantless fixture builders register their lifecycle
   internally; schema-migration tests use `testpkg.OwnTenantRows`; subtests that
   need isolated state use `testpkg.OwnTenant` / `testpkg.OwnCtx`. If a missing
   row is the test arrangement, use a production delete operation or reserve an

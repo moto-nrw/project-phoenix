@@ -30,23 +30,14 @@ func (env *guardianTestEnv) linkExists(t *testing.T, studentID, guardianProfileI
 	return false
 }
 
-func (env *guardianTestEnv) deleteStudentGuardianLinks(studentID int64) {
-	_, _ = env.db.NewDelete().
-		TableExpr("users.student_guardian_relationships").
-		Where("student_id = ?", studentID).
-		Exec(context.Background())
-}
-
 func TestInviteToStudent_NewEmail_CreatesProfileLinkAndInvite(t *testing.T) {
 	t.Parallel()
 
 	env := setupGuardianInvitationTest(t)
-	defer env.cleanup()
 
 	student := testpkg.CreateTestStudent(t, env.db, "Invite", "Target", "1a")
 	creatorID := env.inviterAccountID(t)
 	email := fmt.Sprintf("new-guardian-%d@example.test", time.Now().UnixNano())
-	defer env.deleteStudentGuardianLinks(student.ID)
 
 	ctx := testpkg.Ctx(t)
 	result, err := env.service.InviteToStudent(ctx, identityaccess.InviteToStudentRequest{
@@ -58,11 +49,6 @@ func TestInviteToStudent_NewEmail_CreatesProfileLinkAndInvite(t *testing.T) {
 	})
 	require.NoError(t, err)
 	require.NotNil(t, result)
-	defer func() {
-		if result.InvitationID != nil {
-			env.cleanupInvitation(t, *result.InvitationID, result.GuardianProfileID)
-		}
-	}()
 
 	assert.Equal(t, identityaccess.InviteOutcomeInvited, result.Outcome)
 	assert.NotNil(t, result.InvitationID, "a token invitation should have been created")
@@ -75,20 +61,15 @@ func TestInviteToStudent_ExistingAccount_AutoLinks(t *testing.T) {
 	t.Parallel()
 
 	env := setupGuardianInvitationTest(t)
-	defer env.cleanup()
 
 	student := testpkg.CreateTestStudent(t, env.db, "Sibling", "Parent", "2b")
 	creatorID := env.inviterAccountID(t)
-	defer env.deleteStudentGuardianLinks(student.ID)
 
 	// A guardian who already has an account (sibling parent).
 	profile := testpkg.CreateTestGuardianProfile(t, env.db, "existing-acct")
 	_, account := testpkg.CreateTestPersonWithAccount(t, env.db, "Existing", "Account")
 	ctx := testpkg.Ctx(t)
 	require.NoError(t, env.repos.GuardianProfile.LinkAccount(ctx, profile.ID, account.ID))
-	defer func() {
-		_, _ = env.db.NewDelete().TableExpr("users.guardian_profiles").Where("id = ?", profile.ID).Exec(context.Background())
-	}()
 
 	result, err := env.service.InviteToStudent(ctx, identityaccess.InviteToStudentRequest{
 		StudentID: student.ID,
@@ -114,11 +95,9 @@ func TestInviteToStudent_StaffAccountAsParent_GetsPortalAccessEmail(t *testing.T
 	env := setupGuardianInvitationTest(t, func(_ *bun.DB, cfg *api.GuardianInvitationTestConfig) {
 		cfg.Outbox = outbox
 	})
-	defer env.cleanup()
 
 	student := testpkg.CreateTestStudent(t, env.db, "Admin", "Kind", "1c")
 	creatorID := env.inviterAccountID(t)
-	defer env.deleteStudentGuardianLinks(student.ID)
 
 	_, adminAccount := testpkg.CreateTestPersonWithAccount(t, env.db, "Schul", "Admin")
 	profile := testpkg.CreateTestGuardianProfile(t, env.db, "admin-parent")
@@ -129,9 +108,6 @@ func TestInviteToStudent_StaffAccountAsParent_GetsPortalAccessEmail(t *testing.T
 		Exec(ctx)
 	require.NoError(t, err)
 	testpkg.CreateTestStudentGuardianLink(t, env.db, student.ID, profile.ID, "legal_guardian")
-	defer func() {
-		_, _ = env.db.NewDelete().TableExpr("users.guardian_profiles").Where("id = ?", profile.ID).Exec(context.Background())
-	}()
 
 	result, err := env.service.InviteToStudent(ctx, identityaccess.InviteToStudentRequest{
 		StudentID: student.ID,
@@ -160,12 +136,10 @@ func TestInviteToStudent_ExistingAccountWithoutTenantProfile_AutoLinks(t *testin
 	t.Parallel()
 
 	env := setupGuardianInvitationTest(t)
-	defer env.cleanup()
 
 	student := testpkg.CreateTestStudent(t, env.db, "Cross", "Tenant", "2c")
 	_, account := testpkg.CreateTestPersonWithAccount(t, env.db, "Cross", "Account")
 	creatorID := env.inviterAccountID(t)
-	defer env.deleteStudentGuardianLinks(student.ID)
 
 	ctx := testpkg.Ctx(t)
 	result, err := env.service.InviteToStudent(ctx, identityaccess.InviteToStudentRequest{
@@ -175,9 +149,6 @@ func TestInviteToStudent_ExistingAccountWithoutTenantProfile_AutoLinks(t *testin
 	})
 	require.NoError(t, err)
 	require.NotNil(t, result)
-	defer func() {
-		_, _ = env.db.NewDelete().TableExpr("users.guardian_profiles").Where("id = ?", result.GuardianProfileID).Exec(context.Background())
-	}()
 
 	assert.Equal(t, identityaccess.InviteOutcomeLinkedExistingAccount, result.Outcome)
 	assert.Nil(t, result.InvitationID, "existing accounts are linked without a password invite")
@@ -194,12 +165,10 @@ func TestInviteToStudent_RequireApprovalExistingAccountWithoutTenantProfile_Defe
 	t.Parallel()
 
 	env := setupGuardianInvitationTest(t)
-	defer env.cleanup()
 
 	student := testpkg.CreateTestStudent(t, env.db, "Pending", "Existing", "2d")
 	_, account := testpkg.CreateTestPersonWithAccount(t, env.db, "Pending", "Account")
 	creatorID := env.inviterAccountID(t)
-	defer env.deleteStudentGuardianLinks(student.ID)
 
 	ctx := testpkg.Ctx(t)
 	result, err := env.service.InviteToStudent(ctx, identityaccess.InviteToStudentRequest{
@@ -211,7 +180,6 @@ func TestInviteToStudent_RequireApprovalExistingAccountWithoutTenantProfile_Defe
 	})
 	require.NoError(t, err)
 	require.NotNil(t, result.InvitationID)
-	defer env.cleanupInvitation(t, *result.InvitationID, result.GuardianProfileID)
 
 	assert.Equal(t, identityaccess.InviteOutcomePendingApproval, result.Outcome)
 	assert.False(t, env.linkExists(t, student.ID, result.GuardianProfileID), "staff approval must not create the child link")
@@ -235,14 +203,9 @@ func TestRevokeAccess_ParentCannotRemovePrimary_StaffCan(t *testing.T) {
 	t.Parallel()
 
 	env := setupGuardianInvitationTest(t)
-	defer env.cleanup()
 
 	student := testpkg.CreateTestStudent(t, env.db, "Primary", "Guard", "3c")
 	profile := testpkg.CreateTestGuardianProfile(t, env.db, "primary-guard")
-	defer env.deleteStudentGuardianLinks(student.ID)
-	defer func() {
-		_, _ = env.db.NewDelete().TableExpr("users.guardian_profiles").Where("id = ?", profile.ID).Exec(context.Background())
-	}()
 
 	// Link as the primary guardian.
 	ctx := testpkg.Ctx(t)
@@ -285,15 +248,9 @@ func TestRevokeAccess_PayerStaysWithoutFinancialPermission(t *testing.T) {
 	env := setupGuardianInvitationTest(t, func(db *bun.DB, cfg *api.GuardianInvitationTestConfig) {
 		cfg.Audit = testpkg.NewAuditCommand(owners.NewTestAuditPersistence(testpkg.NewDatabase(t, db), nil).GuardianFinancialChange.Create)
 	})
-	defer env.cleanup()
 
 	student := testpkg.CreateTestStudent(t, env.db, "Payer", "Guard", "3c")
 	profile := testpkg.CreateTestGuardianProfile(t, env.db, "payer-guard")
-	defer env.deleteStudentGuardianLinks(student.ID)
-	defer func() {
-		_, _ = env.db.NewDelete().TableExpr("audit.guardian_financial_changes").Where("guardian_profile_id = ?", profile.ID).Exec(context.Background())
-		_, _ = env.db.NewDelete().TableExpr("users.guardian_profiles").Where("id = ?", profile.ID).Exec(context.Background())
-	}()
 
 	ctx := testpkg.Ctx(t)
 	insertGuardianLink(t, env.db, guardianLinkSpec{
@@ -345,15 +302,10 @@ func TestRevokeAccess_ParentCannotRemoveStaffManagedNoAccountContact(t *testing.
 	t.Parallel()
 
 	env := setupGuardianInvitationTest(t)
-	defer env.cleanup()
 
 	student := testpkg.CreateTestStudent(t, env.db, "Staff", "Contact", "3d")
 	profile := testpkg.CreateTestGuardianProfile(t, env.db, "staff-managed-no-account")
 	actorID := env.inviterAccountID(t)
-	defer env.deleteStudentGuardianLinks(student.ID)
-	defer func() {
-		_, _ = env.db.NewDelete().TableExpr("users.guardian_profiles").Where("id = ?", profile.ID).Exec(context.Background())
-	}()
 
 	ctx := testpkg.Ctx(t)
 	insertGuardianLink(t, env.db, guardianLinkSpec{
@@ -375,16 +327,10 @@ func TestRevokeAccess_ParentCancelsInviteForStaffManagedContactWithoutDeletingLi
 	t.Parallel()
 
 	env := setupGuardianInvitationTest(t)
-	defer env.cleanup()
 
 	student := testpkg.CreateTestStudent(t, env.db, "Staff", "Pending", "3f")
 	profile := testpkg.CreateTestGuardianProfile(t, env.db, "staff-managed-pending")
 	actorID := env.inviterAccountID(t)
-	defer env.deleteStudentGuardianLinks(student.ID)
-	defer func() {
-		_, _ = env.db.NewDelete().TableExpr("auth.guardian_invitations").Where("guardian_profile_id = ?", profile.ID).Exec(context.Background())
-		_, _ = env.db.NewDelete().TableExpr("users.guardian_profiles").Where("id = ?", profile.ID).Exec(context.Background())
-	}()
 
 	ctx := testpkg.Ctx(t)
 	insertGuardianLink(t, env.db, guardianLinkSpec{
@@ -418,12 +364,10 @@ func TestRevokeAccess_ParentPendingInviteRemovalExpiresToken(t *testing.T) {
 	t.Parallel()
 
 	env := setupGuardianInvitationTest(t)
-	defer env.cleanup()
 
 	student := testpkg.CreateTestStudent(t, env.db, "Pending", "Remove", "3e")
 	creatorID := env.inviterAccountID(t)
 	email := fmt.Sprintf("pending-remove-%d@example.test", time.Now().UnixNano())
-	defer env.deleteStudentGuardianLinks(student.ID)
 
 	ctx := testpkg.Ctx(t)
 	result, err := env.service.InviteToStudent(ctx, identityaccess.InviteToStudentRequest{
@@ -434,7 +378,6 @@ func TestRevokeAccess_ParentPendingInviteRemovalExpiresToken(t *testing.T) {
 	})
 	require.NoError(t, err)
 	require.NotNil(t, result.InvitationID)
-	defer env.cleanupInvitation(t, *result.InvitationID, result.GuardianProfileID)
 	assert.True(t, env.linkExists(t, student.ID, result.GuardianProfileID))
 
 	require.NoError(t, env.service.RevokeAccess(ctx, identityaccess.RevokeAccessRequest{
@@ -453,12 +396,10 @@ func TestInviteToStudent_RequireApproval_QueuesPending(t *testing.T) {
 	t.Parallel()
 
 	env := setupGuardianInvitationTest(t)
-	defer env.cleanup()
 
 	student := testpkg.CreateTestStudent(t, env.db, "Approval", "Flow", "4d")
 	creatorID := env.inviterAccountID(t)
 	email := fmt.Sprintf("pending-guardian-%d@example.test", time.Now().UnixNano())
-	defer env.deleteStudentGuardianLinks(student.ID)
 
 	ctx := testpkg.Ctx(t)
 	result, err := env.service.InviteToStudent(ctx, identityaccess.InviteToStudentRequest{
@@ -470,7 +411,6 @@ func TestInviteToStudent_RequireApproval_QueuesPending(t *testing.T) {
 	})
 	require.NoError(t, err)
 	require.NotNil(t, result.InvitationID)
-	defer env.cleanupInvitation(t, *result.InvitationID, result.GuardianProfileID)
 
 	assert.Equal(t, identityaccess.InviteOutcomePendingApproval, result.Outcome)
 	// No link is created until approval.
@@ -504,12 +444,10 @@ func TestInviteToStudent_PendingApprovalTokenIsNotDeliverableOrRedeemable(t *tes
 	env := setupGuardianInvitationTest(t, func(_ *bun.DB, cfg *api.GuardianInvitationTestConfig) {
 		cfg.Outbox = outbox
 	})
-	defer env.cleanup()
 
 	student := testpkg.CreateTestStudent(t, env.db, "Frozen", "Token", "4g")
 	creatorID := env.inviterAccountID(t)
 	email := fmt.Sprintf("frozen-token-%d@example.test", time.Now().UnixNano())
-	defer env.deleteStudentGuardianLinks(student.ID)
 
 	ctx := testpkg.Ctx(t)
 	result, err := env.service.InviteToStudent(ctx, identityaccess.InviteToStudentRequest{
@@ -521,7 +459,6 @@ func TestInviteToStudent_PendingApprovalTokenIsNotDeliverableOrRedeemable(t *tes
 	})
 	require.NoError(t, err)
 	require.NotNil(t, result.InvitationID)
-	defer env.cleanupInvitation(t, *result.InvitationID, result.GuardianProfileID)
 	require.Empty(t, outbox.Requests(), "a queued request mails nothing before staff decide")
 
 	invitation := testpkg.GuardianInvitationByID(t, env.db, *result.InvitationID)
@@ -554,12 +491,10 @@ func TestPendingApprovalQueue_LeavesOutExpiredRequests(t *testing.T) {
 	t.Parallel()
 
 	env := setupGuardianInvitationTest(t)
-	defer env.cleanup()
 
 	student := testpkg.CreateTestStudent(t, env.db, "Stale", "Request", "4h")
 	creatorID := env.inviterAccountID(t)
 	email := fmt.Sprintf("stale-request-%d@example.test", time.Now().UnixNano())
-	defer env.deleteStudentGuardianLinks(student.ID)
 
 	ctx := testpkg.Ctx(t)
 	result, err := env.service.InviteToStudent(ctx, identityaccess.InviteToStudentRequest{
@@ -571,7 +506,6 @@ func TestPendingApprovalQueue_LeavesOutExpiredRequests(t *testing.T) {
 	})
 	require.NoError(t, err)
 	require.NotNil(t, result.InvitationID)
-	defer env.cleanupInvitation(t, *result.InvitationID, result.GuardianProfileID)
 
 	_, err = env.db.NewUpdate().
 		TableExpr("auth.guardian_invitations").
@@ -594,12 +528,10 @@ func TestInviteToStudent_DirectInvitePromotesPendingApproval(t *testing.T) {
 	t.Parallel()
 
 	env := setupGuardianInvitationTest(t)
-	defer env.cleanup()
 
 	student := testpkg.CreateTestStudent(t, env.db, "Promote", "Pending", "4e")
 	creatorID := env.inviterAccountID(t)
 	email := fmt.Sprintf("promote-pending-%d@example.test", time.Now().UnixNano())
-	defer env.deleteStudentGuardianLinks(student.ID)
 
 	ctx := testpkg.Ctx(t)
 	pending, err := env.service.InviteToStudent(ctx, identityaccess.InviteToStudentRequest{
@@ -611,7 +543,6 @@ func TestInviteToStudent_DirectInvitePromotesPendingApproval(t *testing.T) {
 	})
 	require.NoError(t, err)
 	require.NotNil(t, pending.InvitationID)
-	defer env.cleanupInvitation(t, *pending.InvitationID, pending.GuardianProfileID)
 
 	direct, err := env.service.InviteToStudent(ctx, identityaccess.InviteToStudentRequest{
 		StudentID: student.ID,
@@ -631,12 +562,10 @@ func TestListPendingApprovalsDetailed_ResolvesNames(t *testing.T) {
 	t.Parallel()
 
 	env := setupGuardianInvitationTest(t)
-	defer env.cleanup()
 
 	student := testpkg.CreateTestStudent(t, env.db, "Mila", "Schmidt", "1a")
 	requester := testpkg.CreateTestAccount(t, env.db, "requester-parent")
 	email := fmt.Sprintf("invitee-%d@example.test", time.Now().UnixNano())
-	defer env.deleteStudentGuardianLinks(student.ID)
 
 	ctx := testpkg.Ctx(t)
 	result, err := env.service.InviteToStudent(ctx, identityaccess.InviteToStudentRequest{
@@ -650,7 +579,6 @@ func TestListPendingApprovalsDetailed_ResolvesNames(t *testing.T) {
 	})
 	require.NoError(t, err)
 	require.NotNil(t, result.InvitationID)
-	defer env.cleanupInvitation(t, *result.InvitationID, result.GuardianProfileID)
 
 	views, err := env.service.ListPendingApprovalsDetailed(ctx)
 	require.NoError(t, err)
@@ -673,12 +601,10 @@ func TestRejectInvitation_MarksRejectedAndCleansOrphan(t *testing.T) {
 	t.Parallel()
 
 	env := setupGuardianInvitationTest(t)
-	defer env.cleanup()
 
 	student := testpkg.CreateTestStudent(t, env.db, "Reject", "Flow", "5e")
 	creatorID := env.inviterAccountID(t)
 	email := fmt.Sprintf("rejected-guardian-%d@example.test", time.Now().UnixNano())
-	defer env.deleteStudentGuardianLinks(student.ID)
 
 	ctx := testpkg.Ctx(t)
 	// Parent-initiated, requires approval → creates a fresh orphan profile +
@@ -718,17 +644,12 @@ func TestApproveInvitation_ExistingAccount_LinksWithoutEmail(t *testing.T) {
 	t.Parallel()
 
 	env := setupGuardianInvitationTest(t)
-	defer env.cleanup()
 
 	student := testpkg.CreateTestStudent(t, env.db, "Approve", "Existing", "6f")
 	// A guardian who already has an account.
 	profile := testpkg.CreateTestGuardianProfile(t, env.db, "approve-existing")
 	_, account := testpkg.CreateTestPersonWithAccount(t, env.db, "Has", "Account")
 	creatorID := env.inviterAccountID(t)
-	defer env.deleteStudentGuardianLinks(student.ID)
-	defer func() {
-		_, _ = env.db.NewDelete().TableExpr("users.guardian_profiles").Where("id = ?", profile.ID).Exec(context.Background())
-	}()
 
 	ctx := testpkg.Ctx(t)
 	require.NoError(t, env.repos.GuardianProfile.LinkAccount(ctx, profile.ID, account.ID))
@@ -743,7 +664,6 @@ func TestApproveInvitation_ExistingAccount_LinksWithoutEmail(t *testing.T) {
 	})
 	require.NoError(t, err)
 	require.NotNil(t, result.InvitationID)
-	defer env.cleanupInvitation(t, *result.InvitationID, profile.ID)
 	assert.Equal(t, profile.ID, result.GuardianProfileID)
 	assert.False(t, env.linkExists(t, student.ID, profile.ID), "no link before approval")
 
@@ -760,7 +680,6 @@ func TestInviteToStudent_ValidationErrors(t *testing.T) {
 	t.Parallel()
 
 	env := setupGuardianInvitationTest(t)
-	defer env.cleanup()
 	ctx := testpkg.Ctx(t)
 	creator := env.inviterAccountID(t)
 	student := testpkg.CreateTestStudent(t, env.db, "Val", "Idation", "1a")
@@ -779,7 +698,6 @@ func TestApproveRejectInvitation_NotFoundAndNotPending(t *testing.T) {
 	t.Parallel()
 
 	env := setupGuardianInvitationTest(t)
-	defer env.cleanup()
 	ctx := testpkg.Ctx(t)
 	approver := env.inviterAccountID(t)
 
@@ -788,12 +706,10 @@ func TestApproveRejectInvitation_NotFoundAndNotPending(t *testing.T) {
 
 	// A direct invite is approval_status=not_required → cannot be approved/rejected.
 	student := testpkg.CreateTestStudent(t, env.db, "NotP", "Ending", "2b")
-	defer env.deleteStudentGuardianLinks(student.ID)
 	email := fmt.Sprintf("notpending-%d@example.test", time.Now().UnixNano())
 	res, err := env.service.InviteToStudent(ctx, identityaccess.InviteToStudentRequest{StudentID: student.ID, Email: email, CreatedBy: approver})
 	require.NoError(t, err)
 	require.NotNil(t, res.InvitationID)
-	defer env.cleanupInvitation(t, *res.InvitationID, res.GuardianProfileID)
 
 	require.Error(t, env.service.ApproveInvitation(ctx, *res.InvitationID, approver), "not awaiting approval")
 	require.Error(t, env.service.RejectInvitation(ctx, *res.InvitationID, approver), "not awaiting approval")
@@ -803,12 +719,10 @@ func TestInviteToStudent_ReusesOpenInvitationForSameChildAndProfile(t *testing.T
 	t.Parallel()
 
 	env := setupGuardianInvitationTest(t)
-	defer env.cleanup()
 	ctx := testpkg.Ctx(t)
 	creator := env.inviterAccountID(t)
 	student := testpkg.CreateTestStudent(t, env.db, "Repeat", "Invite", "4a")
 	email := fmt.Sprintf("repeat-invite-%d@example.test", time.Now().UnixNano())
-	defer env.deleteStudentGuardianLinks(student.ID)
 
 	first, err := env.service.InviteToStudent(ctx, identityaccess.InviteToStudentRequest{
 		StudentID: student.ID,
@@ -817,7 +731,6 @@ func TestInviteToStudent_ReusesOpenInvitationForSameChildAndProfile(t *testing.T
 	})
 	require.NoError(t, err)
 	require.NotNil(t, first.InvitationID)
-	defer env.cleanupInvitation(t, *first.InvitationID, first.GuardianProfileID)
 
 	second, err := env.service.InviteToStudent(ctx, identityaccess.InviteToStudentRequest{
 		StudentID: student.ID,
@@ -845,14 +758,10 @@ func TestRevokeAccess_ValidationAndNotLinked(t *testing.T) {
 	t.Parallel()
 
 	env := setupGuardianInvitationTest(t)
-	defer env.cleanup()
 	ctx := testpkg.Ctx(t)
 	actor := env.inviterAccountID(t)
 	student := testpkg.CreateTestStudent(t, env.db, "Rev", "Oke", "3c")
 	profile := testpkg.CreateTestGuardianProfile(t, env.db, "not-linked")
-	defer func() {
-		_, _ = env.db.NewDelete().TableExpr("users.guardian_profiles").Where("id = ?", profile.ID).Exec(context.Background())
-	}()
 
 	require.Error(t, env.service.RevokeAccess(ctx, identityaccess.RevokeAccessRequest{StudentID: 0, GuardianProfileID: profile.ID, ActorAccountID: actor}), "missing ids")
 	require.Error(t, env.service.RevokeAccess(ctx, identityaccess.RevokeAccessRequest{StudentID: student.ID, GuardianProfileID: profile.ID, ActorAccountID: actor}), "not linked")
@@ -862,17 +771,11 @@ func TestRejectInvitation_PreservesProfileWithOtherLinks(t *testing.T) {
 	t.Parallel()
 
 	env := setupGuardianInvitationTest(t)
-	defer env.cleanup()
 	ctx := testpkg.Ctx(t)
 	approver := env.inviterAccountID(t)
 	studentA := testpkg.CreateTestStudent(t, env.db, "Sib", "Aaa", "1a")
 	studentB := testpkg.CreateTestStudent(t, env.db, "Sib", "Bbb", "1b")
 	profile := testpkg.CreateTestGuardianProfile(t, env.db, "multi-link")
-	defer env.deleteStudentGuardianLinks(studentA.ID)
-	defer env.deleteStudentGuardianLinks(studentB.ID)
-	defer func() {
-		_, _ = env.db.NewDelete().TableExpr("users.guardian_profiles").Where("id = ?", profile.ID).Exec(context.Background())
-	}()
 
 	// Existing link to student A.
 	insertGuardianLink(t, env.db, guardianLinkSpec{
@@ -890,7 +793,6 @@ func TestRejectInvitation_PreservesProfileWithOtherLinks(t *testing.T) {
 	require.NoError(t, err)
 	require.NotNil(t, res.InvitationID)
 	require.Equal(t, profile.ID, res.GuardianProfileID)
-	defer env.cleanupInvitation(t, *res.InvitationID, profile.ID)
 
 	require.NoError(t, env.service.RejectInvitation(ctx, *res.InvitationID, approver))
 	// Profile is NOT cleaned up: it still has its link to student A.
@@ -903,15 +805,10 @@ func TestRejectInvitation_PreservesPreexistingProfileWithoutLinks(t *testing.T) 
 	t.Parallel()
 
 	env := setupGuardianInvitationTest(t)
-	defer env.cleanup()
 	ctx := testpkg.Ctx(t)
 	approver := env.inviterAccountID(t)
 	student := testpkg.CreateTestStudent(t, env.db, "Existing", "Contact", "1a")
 	profile := testpkg.CreateTestGuardianProfile(t, env.db, "preexisting-contact")
-	defer env.deleteStudentGuardianLinks(student.ID)
-	defer func() {
-		_, _ = env.db.NewDelete().TableExpr("users.guardian_profiles").Where("id = ?", profile.ID).Exec(context.Background())
-	}()
 
 	res, err := env.service.InviteToStudent(ctx, identityaccess.InviteToStudentRequest{
 		StudentID:                  student.ID,
@@ -923,7 +820,6 @@ func TestRejectInvitation_PreservesPreexistingProfileWithoutLinks(t *testing.T) 
 	require.NoError(t, err)
 	require.NotNil(t, res.InvitationID)
 	require.Equal(t, profile.ID, res.GuardianProfileID)
-	defer env.cleanupInvitation(t, *res.InvitationID, profile.ID)
 
 	require.NoError(t, env.service.RejectInvitation(ctx, *res.InvitationID, approver))
 	p, err := testpkg.TenantQuery1(t, ctx, testpkg.SetupTestDB(t), env.repos.GuardianProfile.FindByID, profile.ID)
@@ -935,14 +831,11 @@ func TestRejectInvitation_PreservesSharedPendingProfile(t *testing.T) {
 	t.Parallel()
 
 	env := setupGuardianInvitationTest(t)
-	defer env.cleanup()
 	ctx := testpkg.Ctx(t)
 	approver := env.inviterAccountID(t)
 	studentA := testpkg.CreateTestStudent(t, env.db, "Shared", "Aaa", "1a")
 	studentB := testpkg.CreateTestStudent(t, env.db, "Shared", "Bbb", "1b")
 	email := fmt.Sprintf("shared-pending-%d@example.test", time.Now().UnixNano())
-	defer env.deleteStudentGuardianLinks(studentA.ID)
-	defer env.deleteStudentGuardianLinks(studentB.ID)
 
 	first, err := env.service.InviteToStudent(ctx, identityaccess.InviteToStudentRequest{
 		StudentID:                  studentA.ID,
@@ -966,8 +859,6 @@ func TestRejectInvitation_PreservesSharedPendingProfile(t *testing.T) {
 	require.NoError(t, err)
 	require.NotNil(t, second.InvitationID)
 	require.Equal(t, first.GuardianProfileID, second.GuardianProfileID)
-	defer env.cleanupInvitation(t, *first.InvitationID, first.GuardianProfileID)
-	defer env.cleanupInvitation(t, *second.InvitationID, second.GuardianProfileID)
 
 	require.NoError(t, env.service.RejectInvitation(ctx, *first.InvitationID, approver))
 
@@ -1000,15 +891,10 @@ func TestInviteToStudent_RestrictedContact_RequiresConfirmation(t *testing.T) {
 	t.Parallel()
 
 	env := setupGuardianInvitationTest(t)
-	defer env.cleanup()
 
 	student := testpkg.CreateTestStudent(t, env.db, "Restricted", "Contact", "7a")
 	profile := testpkg.CreateTestGuardianProfile(t, env.db, "restricted-contact")
 	creatorID := env.inviterAccountID(t)
-	defer env.deleteStudentGuardianLinks(student.ID)
-	defer func() {
-		_, _ = env.db.NewDelete().TableExpr("users.guardian_profiles").Where("id = ?", profile.ID).Exec(context.Background())
-	}()
 
 	ctx := testpkg.Ctx(t)
 	env.createRestrictedContactLink(t, student.ID, profile.ID, guardianRoleEmergency)
@@ -1047,15 +933,10 @@ func TestInviteToStudent_ConfirmedUpgrade_DirectNoAccount(t *testing.T) {
 	t.Parallel()
 
 	env := setupGuardianInvitationTest(t)
-	defer env.cleanup()
 
 	student := testpkg.CreateTestStudent(t, env.db, "Upgrade", "NoAccount", "7b")
 	profile := testpkg.CreateTestGuardianProfile(t, env.db, "upgrade-no-account")
 	creatorID := env.inviterAccountID(t)
-	defer env.deleteStudentGuardianLinks(student.ID)
-	defer func() {
-		_, _ = env.db.NewDelete().TableExpr("users.guardian_profiles").Where("id = ?", profile.ID).Exec(context.Background())
-	}()
 
 	ctx := testpkg.Ctx(t)
 	env.createRestrictedContactLink(t, student.ID, profile.ID, guardianRolePickupOnly)
@@ -1068,7 +949,6 @@ func TestInviteToStudent_ConfirmedUpgrade_DirectNoAccount(t *testing.T) {
 	})
 	require.NoError(t, err)
 	require.NotNil(t, result.InvitationID, "no-account contact still needs a token invitation")
-	defer env.cleanupInvitation(t, *result.InvitationID, profile.ID)
 
 	assert.Equal(t, identityaccess.InviteOutcomeInvited, result.Outcome)
 	link := env.fetchLink(t, student.ID, profile.ID)
@@ -1084,16 +964,11 @@ func TestInviteToStudent_ConfirmedUpgrade_DirectExistingAccount(t *testing.T) {
 	t.Parallel()
 
 	env := setupGuardianInvitationTest(t)
-	defer env.cleanup()
 
 	student := testpkg.CreateTestStudent(t, env.db, "Upgrade", "HasAccount", "7c")
 	profile := testpkg.CreateTestGuardianProfile(t, env.db, "upgrade-has-account")
 	_, account := testpkg.CreateTestPersonWithAccount(t, env.db, "Upgrade", "Account")
 	creatorID := env.inviterAccountID(t)
-	defer env.deleteStudentGuardianLinks(student.ID)
-	defer func() {
-		_, _ = env.db.NewDelete().TableExpr("users.guardian_profiles").Where("id = ?", profile.ID).Exec(context.Background())
-	}()
 
 	ctx := testpkg.Ctx(t)
 	require.NoError(t, env.repos.GuardianProfile.LinkAccount(ctx, profile.ID, account.ID))
@@ -1119,16 +994,11 @@ func TestInviteToStudent_ConfirmedUpgrade_ApprovalPersistsFlagAndAppliesOnApprov
 	t.Parallel()
 
 	env := setupGuardianInvitationTest(t)
-	defer env.cleanup()
 
 	student := testpkg.CreateTestStudent(t, env.db, "Upgrade", "Approval", "7d")
 	profile := testpkg.CreateTestGuardianProfile(t, env.db, "upgrade-approval")
 	_, account := testpkg.CreateTestPersonWithAccount(t, env.db, "Approval", "Account")
 	creatorID := env.inviterAccountID(t)
-	defer env.deleteStudentGuardianLinks(student.ID)
-	defer func() {
-		_, _ = env.db.NewDelete().TableExpr("users.guardian_profiles").Where("id = ?", profile.ID).Exec(context.Background())
-	}()
 
 	ctx := testpkg.Ctx(t)
 	require.NoError(t, env.repos.GuardianProfile.LinkAccount(ctx, profile.ID, account.ID))
@@ -1144,7 +1014,6 @@ func TestInviteToStudent_ConfirmedUpgrade_ApprovalPersistsFlagAndAppliesOnApprov
 	})
 	require.NoError(t, err)
 	require.NotNil(t, result.InvitationID)
-	defer env.cleanupInvitation(t, *result.InvitationID, profile.ID)
 	assert.Equal(t, identityaccess.InviteOutcomePendingApproval, result.Outcome)
 
 	inv := testpkg.GuardianInvitationByID(t, env.db, *result.InvitationID)
@@ -1174,16 +1043,10 @@ func TestInviteToStudent_ConfirmedUpgrade_ReusedPendingInvitationGetsFlag(t *tes
 	t.Parallel()
 
 	env := setupGuardianInvitationTest(t)
-	defer env.cleanup()
 
 	student := testpkg.CreateTestStudent(t, env.db, "Upgrade", "Reuse", "7e")
 	profile := testpkg.CreateTestGuardianProfile(t, env.db, "upgrade-reuse")
 	creatorID := env.inviterAccountID(t)
-	defer env.deleteStudentGuardianLinks(student.ID)
-	defer func() {
-		_, _ = env.db.NewDelete().TableExpr("auth.guardian_invitations").Where("guardian_profile_id = ?", profile.ID).Exec(context.Background())
-		_, _ = env.db.NewDelete().TableExpr("users.guardian_profiles").Where("id = ?", profile.ID).Exec(context.Background())
-	}()
 
 	ctx := testpkg.Ctx(t)
 	env.createRestrictedContactLink(t, student.ID, profile.ID, guardianRoleEmergency)
@@ -1220,16 +1083,11 @@ func TestInviteToStudent_FullRoleLink_NoConfirmationNeeded(t *testing.T) {
 	t.Parallel()
 
 	env := setupGuardianInvitationTest(t)
-	defer env.cleanup()
 
 	student := testpkg.CreateTestStudent(t, env.db, "Full", "Role", "7f")
 	profile := testpkg.CreateTestGuardianProfile(t, env.db, "full-role-link")
 	_, account := testpkg.CreateTestPersonWithAccount(t, env.db, "Full", "Account")
 	creatorID := env.inviterAccountID(t)
-	defer env.deleteStudentGuardianLinks(student.ID)
-	defer func() {
-		_, _ = env.db.NewDelete().TableExpr("users.guardian_profiles").Where("id = ?", profile.ID).Exec(context.Background())
-	}()
 
 	ctx := testpkg.Ctx(t)
 	require.NoError(t, env.repos.GuardianProfile.LinkAccount(ctx, profile.ID, account.ID))
@@ -1250,15 +1108,10 @@ func TestInviteToStudent_SocialWorkerLink_RefusedEvenWithConfirmation(t *testing
 	t.Parallel()
 
 	env := setupGuardianInvitationTest(t)
-	defer env.cleanup()
 
 	student := testpkg.CreateTestStudent(t, env.db, "Social", "Worker", "7g")
 	profile := testpkg.CreateTestGuardianProfile(t, env.db, "social-worker-link")
 	creatorID := env.inviterAccountID(t)
-	defer env.deleteStudentGuardianLinks(student.ID)
-	defer func() {
-		_, _ = env.db.NewDelete().TableExpr("users.guardian_profiles").Where("id = ?", profile.ID).Exec(context.Background())
-	}()
 
 	ctx := testpkg.Ctx(t)
 	env.createRestrictedContactLink(t, student.ID, profile.ID, guardianRoleSocialWorker)
@@ -1310,15 +1163,10 @@ func TestApproveInvitation_RoleUpgradeRefusesSocialWorkerLink(t *testing.T) {
 	env := setupGuardianInvitationTest(t, func(_ *bun.DB, cfg *api.GuardianInvitationTestConfig) {
 		cfg.Outbox = outbox
 	})
-	defer env.cleanup()
 
 	student := testpkg.CreateTestStudent(t, env.db, "Upgrade", "Repurposed", "7h")
 	profile := testpkg.CreateTestGuardianProfile(t, env.db, "upgrade-repurposed")
 	creatorID := env.inviterAccountID(t)
-	defer env.deleteStudentGuardianLinks(student.ID)
-	defer func() {
-		_, _ = env.db.NewDelete().TableExpr("users.guardian_profiles").Where("id = ?", profile.ID).Exec(context.Background())
-	}()
 
 	ctx := testpkg.Ctx(t)
 	env.createRestrictedContactLink(t, student.ID, profile.ID, guardianRoleCustom)
@@ -1333,7 +1181,6 @@ func TestApproveInvitation_RoleUpgradeRefusesSocialWorkerLink(t *testing.T) {
 	})
 	require.NoError(t, err)
 	require.NotNil(t, result.InvitationID)
-	defer env.cleanupInvitation(t, *result.InvitationID, profile.ID)
 
 	// The link becomes a school-managed social-worker contact between the
 	// request and the staff approval.
@@ -1365,15 +1212,10 @@ func TestInviteToStudent_ConfirmedUpgrade_ParentDirectModeQueuesApproval(t *test
 	t.Parallel()
 
 	env := setupGuardianInvitationTest(t)
-	defer env.cleanup()
 
 	student := testpkg.CreateTestStudent(t, env.db, "Upgrade", "ParentDirect", "7i")
 	profile := testpkg.CreateTestGuardianProfile(t, env.db, "upgrade-parent-direct")
 	creatorID := env.inviterAccountID(t)
-	defer env.deleteStudentGuardianLinks(student.ID)
-	defer func() {
-		_, _ = env.db.NewDelete().TableExpr("users.guardian_profiles").Where("id = ?", profile.ID).Exec(context.Background())
-	}()
 
 	ctx := testpkg.Ctx(t)
 	env.createRestrictedContactLink(t, student.ID, profile.ID, guardianRolePickupOnly)
@@ -1390,7 +1232,6 @@ func TestInviteToStudent_ConfirmedUpgrade_ParentDirectModeQueuesApproval(t *test
 	})
 	require.NoError(t, err)
 	require.NotNil(t, result.InvitationID)
-	defer env.cleanupInvitation(t, *result.InvitationID, profile.ID)
 	assert.Equal(t, identityaccess.InviteOutcomePendingApproval, result.Outcome)
 
 	inv := testpkg.GuardianInvitationByID(t, env.db, *result.InvitationID)
@@ -1419,16 +1260,10 @@ func TestInviteToStudent_ConfirmedUpgrade_RequeuesOpenDirectInvitation(t *testin
 	t.Parallel()
 
 	env := setupGuardianInvitationTest(t)
-	defer env.cleanup()
 
 	student := testpkg.CreateTestStudent(t, env.db, "Upgrade", "Requeue", "7j")
 	profile := testpkg.CreateTestGuardianProfile(t, env.db, "upgrade-requeue")
 	creatorID := env.inviterAccountID(t)
-	defer env.deleteStudentGuardianLinks(student.ID)
-	defer func() {
-		_, _ = env.db.NewDelete().TableExpr("auth.guardian_invitations").Where("guardian_profile_id = ?", profile.ID).Exec(context.Background())
-		_, _ = env.db.NewDelete().TableExpr("users.guardian_profiles").Where("id = ?", profile.ID).Exec(context.Background())
-	}()
 
 	ctx := testpkg.Ctx(t)
 	env.createRestrictedContactLink(t, student.ID, profile.ID, guardianRoleCustom)
@@ -1494,16 +1329,10 @@ func TestInviteToStudent_ConfirmedUpgrade_RequeueRefreshesExpiry(t *testing.T) {
 	t.Parallel()
 
 	env := setupGuardianInvitationTest(t)
-	defer env.cleanup()
 
 	student := testpkg.CreateTestStudent(t, env.db, "Upgrade", "Expiry", "7k")
 	profile := testpkg.CreateTestGuardianProfile(t, env.db, "upgrade-expiry")
 	creatorID := env.inviterAccountID(t)
-	defer env.deleteStudentGuardianLinks(student.ID)
-	defer func() {
-		_, _ = env.db.NewDelete().TableExpr("auth.guardian_invitations").Where("guardian_profile_id = ?", profile.ID).Exec(context.Background())
-		_, _ = env.db.NewDelete().TableExpr("users.guardian_profiles").Where("id = ?", profile.ID).Exec(context.Background())
-	}()
 
 	ctx := testpkg.Ctx(t)
 	env.createRestrictedContactLink(t, student.ID, profile.ID, guardianRoleCustom)
@@ -1558,17 +1387,11 @@ func TestInviteToStudent_DirectLinkClosesPendingApprovalRequest(t *testing.T) {
 	t.Parallel()
 
 	env := setupGuardianInvitationTest(t)
-	defer env.cleanup()
 
 	student := testpkg.CreateTestStudent(t, env.db, "Upgrade", "Superseded", "7l")
 	profile := testpkg.CreateTestGuardianProfile(t, env.db, "upgrade-superseded")
 	_, account := testpkg.CreateTestPersonWithAccount(t, env.db, "Superseded", "Account")
 	creatorID := env.inviterAccountID(t)
-	defer env.deleteStudentGuardianLinks(student.ID)
-	defer func() {
-		_, _ = env.db.NewDelete().TableExpr("auth.guardian_invitations").Where("guardian_profile_id = ?", profile.ID).Exec(context.Background())
-		_, _ = env.db.NewDelete().TableExpr("users.guardian_profiles").Where("id = ?", profile.ID).Exec(context.Background())
-	}()
 
 	ctx := testpkg.Ctx(t)
 	require.NoError(t, env.repos.GuardianProfile.LinkAccount(ctx, profile.ID, account.ID))
@@ -1624,14 +1447,9 @@ func TestInviteToStudent_PlainReinviteKeepsResolvedInvitation(t *testing.T) {
 	t.Parallel()
 
 	env := setupGuardianInvitationTest(t)
-	defer env.cleanup()
 
 	profile := testpkg.CreateTestGuardianProfile(t, env.db, "plain-reinvite")
 	creatorID := env.inviterAccountID(t)
-	defer func() {
-		_, _ = env.db.NewDelete().TableExpr("auth.guardian_invitations").Where("guardian_profile_id = ?", profile.ID).Exec(context.Background())
-		_, _ = env.db.NewDelete().TableExpr("users.guardian_profiles").Where("id = ?", profile.ID).Exec(context.Background())
-	}()
 
 	ctx := testpkg.Ctx(t)
 

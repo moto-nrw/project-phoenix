@@ -71,12 +71,6 @@ func TestListStudents_WithPickupTimes(t *testing.T) {
 
 	// Insert a pickup schedule for today's weekday
 	testpkg.CreateTestPickupSchedule(t, tc.db, studentWithSchedule.ID, todayWeekday, createStudentsAPITestStaffID(t, tc), "15:30")
-	defer func() {
-		_, _ = tc.db.NewDelete().
-			TableExpr("schedule.student_pickup_schedules").
-			Where("student_id = ?", studentWithSchedule.ID).
-			Exec(context.Background())
-	}()
 
 	t.Run("include_pickup_times_returns_pickup_time_field", func(t *testing.T) {
 		req := testutil.NewRequest("GET", "/?include_pickup_times=true&school_class=PT1&page_size=50", nil)
@@ -155,12 +149,6 @@ func TestListStudents_WithArrivalTimes(t *testing.T) {
 	const todayWeekday = 1
 
 	testpkg.CreateTestArrivalSchedule(t, tc.db, studentWithSchedule.ID, todayWeekday, staff.ID, "08:15")
-	defer func() {
-		_, _ = tc.db.NewDelete().
-			TableExpr("schedule.student_arrival_schedules").
-			Where("student_id = ?", studentWithSchedule.ID).
-			Exec(context.Background())
-	}()
 
 	t.Run("include_arrival_times_returns_arrival_time_field", func(t *testing.T) {
 		req := testutil.NewRequest("GET", fmt.Sprintf("/?include_arrival_times=true&school_class=%s&page_size=50", schoolClass), nil)
@@ -517,11 +505,6 @@ func TestGetStudentIncludesConsentWithdrawalForStaff(t *testing.T) {
 	}
 	_, err = tc.db.NewInsert().Model(change).Returning("id").Exec(t.Context())
 	require.NoError(t, err)
-	t.Cleanup(func() {
-		_, _ = tc.db.NewDelete().Model((*studentConsentChangeRow)(nil)).
-			Where("id = ?", change.ID).
-			Exec(context.Background())
-	})
 
 	req := testutil.NewRequest("GET", fmt.Sprintf("/%d", student.ID), nil)
 	rr := authExec(t, tc, req, testutil.AdminTestClaims(1), []string{"admin:*"})

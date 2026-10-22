@@ -2,7 +2,6 @@
 package presence_test
 
 import (
-	"context"
 	"log/slog"
 	"testing"
 	"time"
@@ -313,9 +312,6 @@ func TestCreateVisit_AutoClearsExcused_WhenSettingNextCheckin(t *testing.T) {
 		DO UPDATE SET value = EXCLUDED.value, updated_at = now()
 	`, testpkg.Tenant(t)).Exec(ctx)
 	require.NoError(t, err)
-	defer func() {
-		_, _ = db.NewRaw(`DELETE FROM config.setting_values WHERE tenant_id = ? AND setting_key = 'operations.excused_clear_mode'`, testpkg.Tenant(t)).Exec(context.Background())
-	}()
 
 	activity := testpkg.CreateTestActivityGroup(t, db, "autoclear-exc-test")
 	room := testpkg.CreateTestRoom(t, db, "Autoclear Excused Room")

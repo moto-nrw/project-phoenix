@@ -1,7 +1,6 @@
 package behavior_test
 
 import (
-	"context"
 	"testing"
 
 	"github.com/moto-nrw/project-phoenix/api"
@@ -21,23 +20,14 @@ func TestBulkInviteToStudents_InvitesEachGuardianOnce(t *testing.T) {
 
 	outbox := api.NewCapturingOutbox()
 	env := setupGuardianInvitationTest(t, func(_ *bun.DB, cfg *api.GuardianInvitationTestConfig) { cfg.Outbox = outbox })
-	defer env.cleanup()
 
 	older := testpkg.CreateTestStudent(t, env.db, "Bulk", "Older", "3a")
 	younger := testpkg.CreateTestStudent(t, env.db, "Bulk", "Younger", "1a")
-	defer env.deleteStudentGuardianLinks(older.ID)
-	defer env.deleteStudentGuardianLinks(younger.ID)
 	parent := testpkg.CreateTestGuardianProfileNamed(t, env.db, "Katharina", "Brenner", "bulk-parent")
 	grandma := testpkg.CreateTestGuardianProfileNamed(t, env.db, "Oma", "Brenner", "bulk-grandma")
 	testpkg.CreateTestStudentGuardianLink(t, env.db, older.ID, parent.ID, guardianRoleLegalGuardian)
 	testpkg.CreateTestStudentGuardianLink(t, env.db, younger.ID, parent.ID, guardianRoleLegalGuardian)
 	grandmaLink := testpkg.CreateTestStudentGuardianLink(t, env.db, older.ID, grandma.ID, guardianRolePickupOnly)
-	defer func() {
-		_, _ = env.db.NewDelete().TableExpr("auth.guardian_invitations").
-			Where("guardian_profile_id IN (?)", bun.List([]int64{parent.ID, grandma.ID})).Exec(context.Background())
-		_, _ = env.db.NewDelete().TableExpr("users.guardian_profiles").
-			Where("id IN (?)", bun.List([]int64{parent.ID, grandma.ID})).Exec(context.Background())
-	}()
 
 	ctx := testpkg.Ctx(t)
 	req := identityaccess.BulkInviteRequest{StudentIDs: []int64{older.ID, younger.ID}, CreatedBy: env.inviterAccountID(t)}
