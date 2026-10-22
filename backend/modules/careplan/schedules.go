@@ -209,7 +209,6 @@ type ArrivalExceptionsCommand interface {
 	UpdateArrivalException(context.Context, ArrivalException) error
 	DeleteArrivalException(context.Context, int64) error
 	DeleteArrivalExceptionsByStudent(context.Context, int64) error
-	DeleteArrivalExceptionsBefore(context.Context, Date) (int64, error)
 }
 
 // ArrivalNotesCommand writes arrival notes.
@@ -218,7 +217,6 @@ type ArrivalNotesCommand interface {
 	UpdateArrivalNote(context.Context, ArrivalNote) error
 	DeleteArrivalNote(context.Context, int64) error
 	DeleteArrivalNotesByStudent(context.Context, int64) error
-	DeleteArrivalNotesBefore(context.Context, Date) (int64, error)
 }
 
 // PickupSchedulesCommand writes weekly pickup schedules.
@@ -236,7 +234,6 @@ type PickupExceptionsCommand interface {
 	UpdatePickupException(context.Context, PickupException) error
 	DeletePickupException(context.Context, int64) error
 	DeletePickupExceptionsByStudent(context.Context, int64) error
-	DeletePickupExceptionsBefore(context.Context, Date) (int64, error)
 }
 
 // PickupNotesCommand writes pickup notes.
@@ -245,7 +242,6 @@ type PickupNotesCommand interface {
 	UpdatePickupNote(context.Context, PickupNote) error
 	DeletePickupNote(context.Context, int64) error
 	DeletePickupNotesByStudent(context.Context, int64) error
-	DeletePickupNotesBefore(context.Context, Date) (int64, error)
 }
 
 // WeekdayPickupNotesCommand replaces recurring notes without enlarging the

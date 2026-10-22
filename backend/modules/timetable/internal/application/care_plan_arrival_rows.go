@@ -162,7 +162,3 @@ func (r CareArrivalExceptionRows) list(ctx context.Context, filter ports.CareSch
 func (r CareArrivalExceptionRows) DeleteByStudentID(ctx context.Context, id int64) error {
 	return r.rows.ScheduleError("delete by student id", r.rows.Records.DeleteArrivalExceptionsByStudent(ctx, id))
 }
-func (r CareArrivalExceptionRows) DeletePastExceptions(ctx context.Context, d calendar.Date) (int64, error) {
-	rows, err := r.rows.Records.DeleteArrivalExceptionsBefore(ctx, ports.CareDate(d))
-	return rows, r.rows.ScheduleError("delete past exceptions", err)
-}

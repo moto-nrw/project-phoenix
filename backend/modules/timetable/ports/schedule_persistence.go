@@ -157,9 +157,6 @@ type StudentArrivalExceptionRecords interface {
 
 	// DeleteByStudentID deletes all arrival exceptions for a student
 	DeleteByStudentID(ctx context.Context, studentID int64) error
-
-	// DeletePastExceptions deletes all exceptions older than the given date
-	DeletePastExceptions(ctx context.Context, beforeDate calendar.Date) (int64, error)
 }
 
 type StudentArrivalNoteRecords interface {
@@ -178,9 +175,6 @@ type StudentArrivalNoteRecords interface {
 
 	// DeleteByStudentID deletes all arrival notes for a student
 	DeleteByStudentID(ctx context.Context, studentID int64) error
-
-	// DeletePastNotes deletes all notes older than the given date
-	DeletePastNotes(ctx context.Context, beforeDate calendar.Date) (int64, error)
 }
 
 type StudentArrivalScheduleRecords interface {
@@ -229,9 +223,6 @@ type StudentPickupExceptionRecords interface {
 
 	// DeleteByStudentID deletes all pickup exceptions for a student
 	DeleteByStudentID(ctx context.Context, studentID int64) error
-
-	// DeletePastExceptions deletes all exceptions older than the given date
-	DeletePastExceptions(ctx context.Context, beforeDate calendar.Date) (int64, error)
 }
 
 type StudentPickupNoteRecords interface {
@@ -250,9 +241,6 @@ type StudentPickupNoteRecords interface {
 
 	// DeleteByStudentID deletes all pickup notes for a student
 	DeleteByStudentID(ctx context.Context, studentID int64) error
-
-	// DeletePastNotes deletes all notes older than the given date
-	DeletePastNotes(ctx context.Context, beforeDate calendar.Date) (int64, error)
 }
 
 type StudentPickupScheduleRecords interface {
