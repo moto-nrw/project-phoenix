@@ -20,7 +20,7 @@ import (
 	"github.com/uptrace/bun"
 )
 
-const operatorTestPassword = "SecurePass123!" //nolint:gosec // pragma: allowlist secret
+var operatorTestPassword = testpkg.NewTestPassword()
 
 // buildServiceFactory composes the service root the way the server does.
 func buildServiceFactory(t *testing.T, db *bun.DB) identityaccess.Owner {
@@ -306,7 +306,7 @@ func TestIntegration_EmailChange_ChangePassword_InvalidatesToken(t *testing.T) {
 	require.NotEmpty(t, tokenStr)
 
 	// 3. Change password — must atomically invalidate the outstanding token
-	newPassword := "ChangedPass789!"
+	newPassword := testpkg.NewTestPassword()
 	err = buildOperatorPasswordChange(t, db).ChangeOperatorPassword(ctx, operatorID, operatorTestPassword, newPassword)
 	require.NoError(t, err)
 

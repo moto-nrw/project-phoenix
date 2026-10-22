@@ -548,6 +548,56 @@
         }
       }
     },
+    "ggshield@1.54.0": {
+      "last_modified": "2026-10-02T22:55:44Z",
+      "resolved": "github:NixOS/nixpkgs/55ba7f49ef2962b42cbd126522b7df5f95037679#ggshield",
+      "source": "devbox-search",
+      "version": "1.54.0",
+      "systems": {
+        "aarch64-darwin": {
+          "outputs": [
+            {
+              "name": "out",
+              "path": "/nix/store/k02a9fmhp2isw41r8vf45a8xj8axws7d-ggshield-1.54.0",
+              "default": true
+            },
+            {
+              "name": "dist",
+              "path": "/nix/store/w4djngjfvn7rnw9r1f6jrqz2wr9281nv-ggshield-1.54.0-dist"
+            }
+          ],
+          "store_path": "/nix/store/k02a9fmhp2isw41r8vf45a8xj8axws7d-ggshield-1.54.0"
+        },
+        "aarch64-linux": {
+          "outputs": [
+            {
+              "name": "out",
+              "path": "/nix/store/ham23ic6rvlhphk39afj66hrlhr3rzcs-ggshield-1.54.0",
+              "default": true
+            },
+            {
+              "name": "dist",
+              "path": "/nix/store/kawi4ipmlnx4sna0yj0dgqkndv49mva3-ggshield-1.54.0-dist"
+            }
+          ],
+          "store_path": "/nix/store/ham23ic6rvlhphk39afj66hrlhr3rzcs-ggshield-1.54.0"
+        },
+        "x86_64-linux": {
+          "outputs": [
+            {
+              "name": "out",
+              "path": "/nix/store/v4zwkk25ggh0rw24jig5kg6rxq21zv9b-ggshield-1.54.0",
+              "default": true
+            },
+            {
+              "name": "dist",
+              "path": "/nix/store/cc1kp0ykk62aw55f4kgdy4v806qyiq35-ggshield-1.54.0-dist"
+            }
+          ],
+          "store_path": "/nix/store/v4zwkk25ggh0rw24jig5kg6rxq21zv9b-ggshield-1.54.0"
+        }
+      }
+    },
     "gh@latest": {
       "last_modified": "2026-10-08T19:21:32Z",
       "resolved": "github:NixOS/nixpkgs/8edc0c72e3a38faf5434e40d1f19431125fe4b30#gh",
@@ -591,54 +641,6 @@
             }
           ],
           "store_path": "/nix/store/66h5dr9v94x04myh2kabx06rq9763jfc-gh-2.102.0"
-        }
-      }
-    },
-    "git-secrets@latest": {
-      "last_modified": "2026-10-08T19:21:32Z",
-      "resolved": "github:NixOS/nixpkgs/8edc0c72e3a38faf5434e40d1f19431125fe4b30#git-secrets",
-      "source": "devbox-search",
-      "version": "1.3.0",
-      "systems": {
-        "aarch64-darwin": {
-          "outputs": [
-            {
-              "name": "out",
-              "path": "/nix/store/jhpzh89i7lcw12izavk0ghzghm79qidf-git-secrets-1.3.0",
-              "default": true
-            }
-          ],
-          "store_path": "/nix/store/jhpzh89i7lcw12izavk0ghzghm79qidf-git-secrets-1.3.0"
-        },
-        "aarch64-linux": {
-          "outputs": [
-            {
-              "name": "out",
-              "path": "/nix/store/538mb0v778wnhkzz7b6pdyd113m8f5hm-git-secrets-1.3.0",
-              "default": true
-            }
-          ],
-          "store_path": "/nix/store/538mb0v778wnhkzz7b6pdyd113m8f5hm-git-secrets-1.3.0"
-        },
-        "x86_64-darwin": {
-          "outputs": [
-            {
-              "name": "out",
-              "path": "/nix/store/3afv6hpky23fwswcwiw599wmaql5syi8-git-secrets-1.3.0",
-              "default": true
-            }
-          ],
-          "store_path": "/nix/store/3afv6hpky23fwswcwiw599wmaql5syi8-git-secrets-1.3.0"
-        },
-        "x86_64-linux": {
-          "outputs": [
-            {
-              "name": "out",
-              "path": "/nix/store/7598xrqnrcw4hz6y9scz5q57aw5r089h-git-secrets-1.3.0",
-              "default": true
-            }
-          ],
-          "store_path": "/nix/store/7598xrqnrcw4hz6y9scz5q57aw5r089h-git-secrets-1.3.0"
         }
       }
     },
