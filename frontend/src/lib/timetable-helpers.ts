@@ -1444,28 +1444,31 @@ export function assignBlockLanes(
 
   const result: LanedInstance[] = [];
   let cluster: LanedInstance[] = [];
+  // Start/end minutes of the cluster members, index-aligned with `cluster`.
+  let clusterStarts: number[] = [];
+  let clusterEnds: number[] = [];
   let clusterMaxEnd = -Infinity;
 
   const flushCluster = (): void => {
     if (cluster.length === 0) return;
     const lanesUsed = cluster.reduce((m, c) => Math.max(m, c.lane), 0) + 1;
-    const overlaps = (a: LanedInstance, b: LanedInstance): boolean =>
-      parseTimeToMinutes(a.instance.startTime) <
-        parseTimeToMinutes(b.instance.endTime) &&
-      parseTimeToMinutes(b.instance.startTime) <
-        parseTimeToMinutes(a.instance.endTime);
-    for (const c of cluster) {
+    const overlaps = (a: number, b: number): boolean =>
+      clusterStarts[a]! < clusterEnds[b]! &&
+      clusterStarts[b]! < clusterEnds[a]!;
+    cluster.forEach((c, i) => {
       c.laneCount = lanesUsed;
       while (
         c.lane + c.laneSpan < lanesUsed &&
         !cluster.some(
-          (other) => other.lane === c.lane + c.laneSpan && overlaps(c, other),
+          (other, j) => other.lane === c.lane + c.laneSpan && overlaps(i, j),
         )
       ) {
         c.laneSpan++;
       }
-    }
+    });
     cluster = [];
+    clusterStarts = [];
+    clusterEnds = [];
     clusterMaxEnd = -Infinity;
   };
 
@@ -1478,9 +1481,7 @@ export function assignBlockLanes(
     }
 
     const activeLanes = new Set(
-      cluster
-        .filter((c) => parseTimeToMinutes(c.instance.endTime) > startMin)
-        .map((c) => c.lane),
+      cluster.filter((_, i) => clusterEnds[i]! > startMin).map((c) => c.lane),
     );
     let lane = 0;
     while (activeLanes.has(lane)) lane++;
@@ -1492,6 +1493,8 @@ export function assignBlockLanes(
       laneSpan: 1,
     };
     cluster.push(laned);
+    clusterStarts.push(startMin);
+    clusterEnds.push(endMin);
     result.push(laned);
     clusterMaxEnd = Math.max(clusterMaxEnd, endMin);
   }
@@ -1575,8 +1578,9 @@ export const DENSITY_TO_HOUR_HEIGHT_PX: Record<WeekDensity, number> = {
  * Mindestbreite einer Spur paralleler Blöcke je Zoomstufe. „Normal“ ist die
  * schmalste Breite, in der ein Block Zeit, Titel und Namen noch lesbar zeigt;
  * reicht die Fläche nicht, scrollt das Raster waagrecht. „Kompakt“ verzichtet
- * darauf und passt die ganze Woche in die Breite ein — für den Überblick,
- * die Blöcke kürzen dann ihren Text.
+ * darauf: Jeder Tag braucht dann nur seine Tagesmindestbreite (120 px), eine
+ * Sieben-Tage-Woche passt ab gut 900 px Rasterbreite ganz ins Bild — für den
+ * Überblick, die Blöcke kürzen dann ihren Text.
  */
 export const DENSITY_TO_LANE_MIN_WIDTH_PX: Record<WeekDensity, number> = {
   compact: 0,

@@ -297,6 +297,16 @@ describe("WeeklyCalendarGrid column widths", () => {
     );
   });
 
+  it("keeps three parallel blocks side by side on a phone without sideways scrolling", () => {
+    const { container } = renderParallelMonday();
+
+    // Monday is selected (today); a phone lane is narrower than the desktop
+    // lane, so three blocks fit next to the 40px time gutter.
+    expect(
+      gridStyle(container).getPropertyValue("--day-grid-cols-mobile"),
+    ).toBe("40px minmax(228px,3fr)");
+  });
+
   it("lets a later block take the lanes that became free", () => {
     renderParallelMonday();
 

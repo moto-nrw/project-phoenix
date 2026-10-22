@@ -15,6 +15,7 @@
  */
 
 import {
+  useCallback,
   useEffect,
   useMemo,
   useRef,
@@ -32,6 +33,7 @@ import {
   assignBlockLanes,
   buildDayColumnTemplate,
   countPlannedStaff,
+  DENSITY_TO_LANE_MIN_WIDTH_PX,
   formatDayHeader,
   getCurrentTimeOffset,
   getEventBlockPosition,
@@ -64,6 +66,9 @@ import { timetableSurface } from "./timetable-style";
 const GRID_COLS_CLASS =
   "grid-cols-(--day-grid-cols-mobile) sm:grid-cols-(--day-grid-cols)";
 const MOBILE_TIME_GUTTER_PX = 40;
+// Auf dem Handy zeigt das Raster nur einen Tag. Bis zu vier parallele Blöcke
+// passen dort ohne Querscrollen nebeneinander; erst mehr scrollen waagrecht.
+const MOBILE_LANE_MIN_WIDTH_PX = 76;
 const SM_TIME_GUTTER_PX = 64;
 
 interface WeeklyCalendarGridProps {
@@ -233,37 +238,98 @@ export function WeeklyCalendarGrid({
   const mobileColumns = buildDayColumnTemplate(
     [dayLaneCounts[safeSelectedIndex] ?? 0],
     MOBILE_TIME_GUTTER_PX,
-    laneMinWidthPx,
+    Math.min(
+      laneMinWidthPx ?? DENSITY_TO_LANE_MIN_WIDTH_PX.normal,
+      MOBILE_LANE_MIN_WIDTH_PX,
+    ),
   );
+
+  // Randschatten zeigen, dass links oder rechts weitere Tage liegen: die
+  // Scrollleiste sitzt am Fuß des Rasters, oft unter dem Bildschirmrand,
+  // und macOS blendet sie ohnehin aus.
+  const scrollRef = useRef<HTMLDivElement>(null);
+  const [scrollEdges, setScrollEdges] = useState({
+    left: false,
+    right: false,
+  });
+  const updateScrollEdges = useCallback(() => {
+    const scroller = scrollRef.current;
+    if (!scroller) return;
+    const left = scroller.scrollLeft > 0;
+    const right =
+      scroller.scrollLeft + scroller.clientWidth < scroller.scrollWidth - 1;
+    setScrollEdges((prev) =>
+      prev.left === left && prev.right === right ? prev : { left, right },
+    );
+  }, []);
+  useEffect(() => {
+    const scroller = scrollRef.current;
+    if (!scroller || typeof ResizeObserver === "undefined") return;
+    const observer = new ResizeObserver(updateScrollEdges);
+    observer.observe(scroller);
+    return () => observer.disconnect();
+  }, [updateScrollEdges]);
 
   // Liegt heute außerhalb des sichtbaren Ausschnitts (breite Tage davor),
   // rückt das Raster beim Öffnen einer Woche die heutige Spalte ins Bild;
-  // eine andere Woche beginnt wieder am Montag. Eine Spalte, die schon ganz
-  // zu sehen ist, verschiebt nichts — das Raster springt dem Lesenden nicht
-  // unter der Hand weg.
-  const scrollRef = useRef<HTMLDivElement>(null);
-  const weekKey = weekDays.map(toISODate).join(",");
-  const smTemplateKey = smColumns.template;
+  // eine andere Woche beginnt wieder am Montag. Das gilt auch, solange die
+  // Daten der Woche noch nachladen und die Spalten breiter werden. Sobald
+  // die Person das Raster bedient hat (scrollen, tippen, Taste), bleibt der
+  // Ausschnitt stehen, auch wenn eine Änderung die Spaltenbreiten verschiebt.
+  const userMovedRef = useRef(false);
+  const shownWeekRef = useRef<string | null>(null);
   useEffect(() => {
     const scroller = scrollRef.current;
     if (!scroller) return;
-    const todayColumn = scroller.querySelector<HTMLElement>(
-      "[data-today-column]",
-    );
-    const gutter = scroller.querySelector<HTMLElement>("[data-time-gutter]");
-    if (!todayColumn || todayColumn.offsetParent === null) {
-      scroller.scrollLeft = 0;
-      return;
+    // Nur beobachten, nichts abfangen: das Raster bleibt ein normaler
+    // Scrollbereich, die Blöcke darin bleiben die Bedienelemente.
+    const markUserMoved = () => {
+      userMovedRef.current = true;
+    };
+    const events = ["wheel", "pointerdown", "touchstart", "keydown"] as const;
+    for (const type of events) {
+      scroller.addEventListener(type, markUserMoved, { passive: true });
     }
-    const left = todayColumn.offsetLeft - (gutter?.offsetWidth ?? 0);
-    const right = todayColumn.offsetLeft + todayColumn.offsetWidth;
-    if (
-      left < scroller.scrollLeft ||
-      right > scroller.scrollLeft + scroller.clientWidth
-    ) {
-      scroller.scrollLeft = Math.max(left, 0);
+    return () => {
+      for (const type of events) {
+        scroller.removeEventListener(type, markUserMoved);
+      }
+    };
+  }, []);
+  const weekKey = weekDays.map(toISODate).join(",");
+  useEffect(() => {
+    const scroller = scrollRef.current;
+    if (!scroller) return;
+    if (shownWeekRef.current !== weekKey) {
+      shownWeekRef.current = weekKey;
+      userMovedRef.current = false;
     }
-  }, [weekKey, todayISO, smTemplateKey]);
+    if (!userMovedRef.current) {
+      const todayColumn = scroller.querySelector<HTMLElement>(
+        "[data-today-column]",
+      );
+      const gutter = scroller.querySelector<HTMLElement>("[data-time-gutter]");
+      if (!todayColumn || todayColumn.offsetParent === null) {
+        scroller.scrollLeft = 0;
+      } else {
+        const left = todayColumn.offsetLeft - (gutter?.offsetWidth ?? 0);
+        const right = todayColumn.offsetLeft + todayColumn.offsetWidth;
+        if (
+          left < scroller.scrollLeft ||
+          right > scroller.scrollLeft + scroller.clientWidth
+        ) {
+          scroller.scrollLeft = Math.max(left, 0);
+        }
+      }
+    }
+    updateScrollEdges();
+  }, [
+    weekKey,
+    todayISO,
+    smColumns.template,
+    mobileColumns.template,
+    updateScrollEdges,
+  ]);
 
   const planningDisabledDayCount = weekDays.reduce(
     (count, day) =>
@@ -370,237 +436,239 @@ export function WeeklyCalendarGrid({
           scrollt derselbe Container, wenn die Tage ihre Mindestbreite
           brauchen; der innere Rahmen trägt diese Breite für alle drei
           Zeilen, damit Kopf und Raster gemeinsam scrollen. */}
-      <div
-        ref={scrollRef}
-        className={`relative overflow-auto overscroll-x-contain ${
-          showDayHeader ? "max-h-[776px] sm:max-h-[808px]" : "max-h-[776px]"
-        }`}
-      >
-        <div className="min-w-(--day-grid-min-w-mobile) sm:min-w-(--day-grid-min-w)">
-          {/* Day header (desktop — mobile uses the day strip above). Die
+      <div className="relative">
+        <div
+          ref={scrollRef}
+          onScroll={updateScrollEdges}
+          className={`relative overflow-auto overscroll-x-contain ${
+            showDayHeader ? "max-h-[776px] sm:max-h-[808px]" : "max-h-[776px]"
+          }`}
+        >
+          <div className="min-w-(--day-grid-min-w-mobile) sm:min-w-(--day-grid-min-w)">
+            {/* Day header (desktop — mobile uses the day strip above). Die
             Kopfzeile behält ihre feste Höhe, weil die Kapazitätszeile mit
             `top-14` darunter klebt: Wochentag und Datum stehen deshalb an
             einem Schließtag in einer eigenen Zeile, der Chip einzeilig
             darunter. Der vollständige Grund steht im Tooltip. */}
-          <div
-            className={`sticky top-0 z-30 hidden h-[52px] border-b border-gray-200 bg-white sm:grid sm:h-14 ${gridColsClass}`}
-          >
-            <div aria-hidden className="sticky left-0 z-10 bg-white" />
-            {weekDays.map((day) => {
-              const iso = toISODate(day);
-              const isToday = iso === todayISO;
-              const closingReason = closingDays?.get(iso);
-              const planningDisabled =
-                planningDisabledDateISOs?.has(iso) ?? false;
-              return (
-                <div
-                  key={iso}
-                  className={`flex min-w-0 flex-col items-center justify-center gap-0.5 border-l border-gray-200 px-1 py-1 sm:px-2 ${
-                    closingReason === undefined && !planningDisabled
-                      ? ""
-                      : "bg-gray-50"
-                  }`}
-                >
-                  <div className="flex min-w-0 items-center gap-1 sm:gap-2">
-                    <span className="text-[10px] font-medium tracking-wide text-gray-500 uppercase sm:text-[11px]">
-                      {getGermanWeekdayShort(day)}
-                    </span>
-                    {isToday ? (
-                      <span
-                        className="inline-flex h-5 w-5 items-center justify-center rounded-full bg-gray-900 text-[11px] font-semibold text-white tabular-nums sm:h-6 sm:w-6 sm:text-xs"
-                        aria-label={formatDayHeader(day)}
-                      >
-                        {day.getDate()}
+            <div
+              className={`sticky top-0 z-30 hidden h-[52px] border-b border-gray-200 bg-white sm:grid sm:h-14 ${gridColsClass}`}
+            >
+              <div aria-hidden className="sticky left-0 z-10 bg-white" />
+              {weekDays.map((day) => {
+                const iso = toISODate(day);
+                const isToday = iso === todayISO;
+                const closingReason = closingDays?.get(iso);
+                const planningDisabled =
+                  planningDisabledDateISOs?.has(iso) ?? false;
+                return (
+                  <div
+                    key={iso}
+                    className={`flex min-w-0 flex-col items-center justify-center gap-0.5 border-l border-gray-200 px-1 py-1 sm:px-2 ${
+                      closingReason === undefined && !planningDisabled
+                        ? ""
+                        : "bg-gray-50"
+                    }`}
+                  >
+                    <div className="flex min-w-0 items-center gap-1 sm:gap-2">
+                      <span className="text-[10px] font-medium tracking-wide text-gray-500 uppercase sm:text-[11px]">
+                        {getGermanWeekdayShort(day)}
                       </span>
-                    ) : (
-                      <span
-                        className="text-xs font-semibold text-gray-900 tabular-nums sm:text-sm"
-                        aria-label={formatDayHeader(day)}
-                      >
-                        {String(day.getDate()).padStart(2, "0")}
-                      </span>
-                    )}
-                  </div>
-                  {/* Der Schließtag-Grund („Ferien") schlägt das generische
+                      {isToday ? (
+                        <span
+                          className="inline-flex h-5 w-5 items-center justify-center rounded-full bg-gray-900 text-[11px] font-semibold text-white tabular-nums sm:h-6 sm:w-6 sm:text-xs"
+                          aria-label={formatDayHeader(day)}
+                        >
+                          {day.getDate()}
+                        </span>
+                      ) : (
+                        <span
+                          className="text-xs font-semibold text-gray-900 tabular-nums sm:text-sm"
+                          aria-label={formatDayHeader(day)}
+                        >
+                          {String(day.getDate()).padStart(2, "0")}
+                        </span>
+                      )}
+                    </div>
+                    {/* Der Schließtag-Grund („Ferien") schlägt das generische
                     „Nicht planbar": ein Schließtag ist ohnehin nicht planbar,
                     und der konkrete Grund darf nicht verschwinden. */}
-                  {closingReason !== undefined ? (
-                    <ClosingDayChip
-                      reason={closingReason}
-                      className="w-full justify-center text-center"
-                    />
-                  ) : planningDisabled ? (
-                    <span className="text-[10px] font-medium text-gray-500">
-                      Nicht planbar
-                    </span>
-                  ) : null}
-                </div>
-              );
-            })}
-          </div>
+                    {closingReason !== undefined ? (
+                      <ClosingDayChip
+                        reason={closingReason}
+                        className="w-full justify-center text-center"
+                      />
+                    ) : planningDisabled ? (
+                      <span className="text-[10px] font-medium text-gray-500">
+                        Nicht planbar
+                      </span>
+                    ) : null}
+                  </div>
+                );
+              })}
+            </div>
 
-          {/* Day-header capacity strip (Betreuungsplan opt-in) — sm+ only, matches the desktop day-header columns;
+            {/* Day-header capacity strip (Betreuungsplan opt-in) — sm+ only, matches the desktop day-header columns;
             on mobile the day strip above already shows one day at a time.
             Klebt unter der Tageskopfzeile (sm:h-14 = 56px). */}
-          {showDayHeader && (
-            <div className="sticky top-14 z-20 hidden bg-white sm:block">
-              <CapacityStrip
-                as="div"
-                position="header"
-                labelWidthClassName="w-[64px]"
-                rowLabel=""
-                gridTemplateColumns={smColumns.template}
-                cells={dayHeaderCells}
-              />
-            </div>
-          )}
+            {showDayHeader && (
+              <div className="sticky top-14 z-25 hidden bg-white sm:block">
+                <CapacityStrip
+                  as="div"
+                  position="header"
+                  labelWidthClassName="w-[64px]"
+                  rowLabel=""
+                  gridTemplateColumns={smColumns.template}
+                  cells={dayHeaderCells}
+                />
+              </div>
+            )}
 
-          <div className={`grid ${gridColsClass}`}>
-            {/* Time gutter — klebt links, wenn das Raster waagrecht scrollt. */}
-            <div
-              data-time-gutter
-              className="sticky left-0 z-20 border-r border-gray-200 bg-gray-50"
-              style={{ height: `${gridHeightPx}px` }}
-            >
-              {hours.slice(0, -1).map((hour) => (
-                <div
-                  key={hour}
-                  className="flex items-start justify-end px-1 pt-1 text-[10px] font-medium text-gray-400 sm:px-2 sm:text-[11px]"
-                  style={{ height: `${hourHeightPx}px` }}
-                >
-                  {String(hour).padStart(2, "0")}:00
-                </div>
-              ))}
-            </div>
+            <div className={`grid ${gridColsClass}`}>
+              {/* Time gutter — klebt links, wenn das Raster waagrecht scrollt. */}
+              <div
+                data-time-gutter
+                className="sticky left-0 z-20 border-r border-gray-200 bg-gray-50"
+                style={{ height: `${gridHeightPx}px` }}
+              >
+                {hours.slice(0, -1).map((hour) => (
+                  <div
+                    key={hour}
+                    className="flex items-start justify-end px-1 pt-1 text-[10px] font-medium text-gray-400 sm:px-2 sm:text-[11px]"
+                    style={{ height: `${hourHeightPx}px` }}
+                  >
+                    {String(hour).padStart(2, "0")}:00
+                  </div>
+                ))}
+              </div>
 
-            {/* Day columns */}
-            {weekDays.map((day, dayIndex) => {
-              const iso = toISODate(day);
-              const isToday = iso === todayISO;
-              const dayInstances = grouped.get(iso) ?? [];
-              const closingReason = closingDays?.get(iso);
-              const planningDisabled =
-                planningDisabledDateISOs?.has(iso) ?? false;
-              const laned = lanedByDay[dayIndex] ?? [];
-              const nowOffset = isToday
-                ? getCurrentTimeOffset(
-                    hourHeightPx,
-                    renderStartHour,
-                    renderEndHour,
-                  )
-                : null;
-              let backgroundClass = "";
-              if (closingReason !== undefined || planningDisabled) {
-                backgroundClass = "bg-gray-100/70";
-              } else if (isToday) {
-                backgroundClass = "bg-gray-50/60";
-              }
-
-              return (
-                <div
-                  key={iso}
-                  data-today-column={isToday ? "" : undefined}
-                  className={`relative min-w-0 border-l border-gray-200 ${backgroundClass} ${dayIndex === safeSelectedIndex ? "" : "hidden sm:block"}`}
-                  style={{ height: `${gridHeightPx}px` }}
-                >
-                  {/* Hour grid lines */}
-                  {hours.slice(1, -1).map((hour) => {
-                    const top = (hour - renderStartHour) * hourHeightPx;
-                    return (
-                      <div
-                        key={hour}
-                        className="pointer-events-none absolute right-0 left-0 border-t border-gray-100"
-                        style={{ top: `${top}px` }}
-                      />
-                    );
-                  })}
-
-                  {/* Half-hour grid lines (lighter) */}
-                  {hours.slice(0, -1).map((hour) => {
-                    const top =
-                      (hour - renderStartHour) * hourHeightPx +
-                      hourHeightPx / 2;
-                    return (
-                      <div
-                        key={`half-${hour}`}
-                        className="pointer-events-none absolute right-0 left-0 border-t border-gray-50"
-                        style={{ top: `${top}px` }}
-                      />
-                    );
-                  })}
-
-                  {/* Empty-slot click targets — before the event blocks in DOM
-                    order, so blocks paint on top and keep their own click
-                    handlers without z-index tricks. */}
-                  {onSlotClick &&
-                    !planningDisabled &&
-                    hours.slice(0, -1).map((hour) => (
-                      <button
-                        key={`slot-${hour}`}
-                        type="button"
-                        // Out of the tab order: ~100 hourly slots would bury
-                        // the first event behind dozens of tab stops; keyboard
-                        // users create events via the "Neu" menu instead.
-                        tabIndex={-1}
-                        onClick={() => onSlotClick(iso, hour)}
-                        aria-label={`Neuen Termin anlegen: ${formatDayHeader(day)}, ${String(hour).padStart(2, "0")}:00 Uhr`}
-                        className="group absolute inset-x-0 flex items-center justify-center p-0.5 focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none focus-visible:ring-inset"
-                        style={{
-                          top: `${(hour - renderStartHour) * hourHeightPx}px`,
-                          height: `${hourHeightPx}px`,
-                        }}
-                      >
-                        {/* Dieselbe Anlege-Geste wie in den Zellen von Dienstplan
-                          und ResourceGrid (#2031) statt der früheren Textpille
-                          "+ Termin". */}
-                        <PlanAddAffordance />
-                      </button>
-                    ))}
-
-                  {/* Event blocks */}
-                  {laned.map(({ instance, lane, laneCount, laneSpan }) => {
-                    const { top, height } = getEventBlockPosition(
-                      instance.startTime,
-                      instance.endTime,
+              {/* Day columns */}
+              {weekDays.map((day, dayIndex) => {
+                const iso = toISODate(day);
+                const isToday = iso === todayISO;
+                const dayInstances = grouped.get(iso) ?? [];
+                const closingReason = closingDays?.get(iso);
+                const planningDisabled =
+                  planningDisabledDateISOs?.has(iso) ?? false;
+                const laned = lanedByDay[dayIndex] ?? [];
+                const nowOffset = isToday
+                  ? getCurrentTimeOffset(
                       hourHeightPx,
                       renderStartHour,
-                    );
-                    const widthPct = 100 / laneCount;
-                    return (
-                      <InstanceBlock
-                        key={instance.id}
-                        instance={instance}
-                        top={top}
-                        height={height}
-                        left={`${lane * widthPct}%`}
-                        // Volle Spaltenbreite: der frühere 4px-Abzug ließ rechts
-                        // einen Streifen der Spalte frei und der Block stand
-                        // sichtbar neben seiner eigenen Spaltenkante. Freie
-                        // Spuren rechts davon nimmt der Block mit.
-                        width={`${laneSpan * widthPct}%`}
-                        isSelected={selectedId === instance.id}
-                        isGap={gapInstanceIds?.has(instance.id) ?? false}
-                        staffNames={staffNames}
-                        onClick={() => onInstanceClick(instance)}
-                      />
-                    );
-                  })}
+                      renderEndHour,
+                    )
+                  : null;
+                let backgroundClass = "";
+                if (closingReason !== undefined || planningDisabled) {
+                  backgroundClass = "bg-gray-100/70";
+                } else if (isToday) {
+                  backgroundClass = "bg-gray-50/60";
+                }
 
-                  {/* Now line (today only) */}
-                  {nowOffset !== null && (
-                    <>
-                      <div
-                        className="bg-moto-red pointer-events-none absolute -left-1 z-10 h-2 w-2 rounded-full"
-                        style={{ top: `${nowOffset - 4}px` }}
-                      />
-                      <div
-                        className="border-moto-red pointer-events-none absolute right-0 left-0 z-10 border-t-2"
-                        style={{ top: `${nowOffset}px` }}
-                      />
-                    </>
-                  )}
+                return (
+                  <div
+                    key={iso}
+                    data-today-column={isToday ? "" : undefined}
+                    className={`relative min-w-0 border-l border-gray-200 ${backgroundClass} ${dayIndex === safeSelectedIndex ? "" : "hidden sm:block"}`}
+                    style={{ height: `${gridHeightPx}px` }}
+                  >
+                    {/* Hour grid lines */}
+                    {hours.slice(1, -1).map((hour) => {
+                      const top = (hour - renderStartHour) * hourHeightPx;
+                      return (
+                        <div
+                          key={hour}
+                          className="pointer-events-none absolute right-0 left-0 border-t border-gray-100"
+                          style={{ top: `${top}px` }}
+                        />
+                      );
+                    })}
 
-                  {/* Kein "Keine Aktivitäten" pro leerer Tagesspalte mehr
+                    {/* Half-hour grid lines (lighter) */}
+                    {hours.slice(0, -1).map((hour) => {
+                      const top =
+                        (hour - renderStartHour) * hourHeightPx +
+                        hourHeightPx / 2;
+                      return (
+                        <div
+                          key={`half-${hour}`}
+                          className="pointer-events-none absolute right-0 left-0 border-t border-gray-50"
+                          style={{ top: `${top}px` }}
+                        />
+                      );
+                    })}
+
+                    {/* Empty-slot click targets — before the event blocks in DOM
+                    order, so blocks paint on top and keep their own click
+                    handlers without z-index tricks. */}
+                    {onSlotClick &&
+                      !planningDisabled &&
+                      hours.slice(0, -1).map((hour) => (
+                        <button
+                          key={`slot-${hour}`}
+                          type="button"
+                          // Out of the tab order: ~100 hourly slots would bury
+                          // the first event behind dozens of tab stops; keyboard
+                          // users create events via the "Neu" menu instead.
+                          tabIndex={-1}
+                          onClick={() => onSlotClick(iso, hour)}
+                          aria-label={`Neuen Termin anlegen: ${formatDayHeader(day)}, ${String(hour).padStart(2, "0")}:00 Uhr`}
+                          className="group absolute inset-x-0 flex items-center justify-center p-0.5 focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none focus-visible:ring-inset"
+                          style={{
+                            top: `${(hour - renderStartHour) * hourHeightPx}px`,
+                            height: `${hourHeightPx}px`,
+                          }}
+                        >
+                          {/* Dieselbe Anlege-Geste wie in den Zellen von Dienstplan
+                          und ResourceGrid (#2031) statt der früheren Textpille
+                          "+ Termin". */}
+                          <PlanAddAffordance />
+                        </button>
+                      ))}
+
+                    {/* Event blocks */}
+                    {laned.map(({ instance, lane, laneCount, laneSpan }) => {
+                      const { top, height } = getEventBlockPosition(
+                        instance.startTime,
+                        instance.endTime,
+                        hourHeightPx,
+                        renderStartHour,
+                      );
+                      const widthPct = 100 / laneCount;
+                      return (
+                        <InstanceBlock
+                          key={instance.id}
+                          instance={instance}
+                          top={top}
+                          height={height}
+                          left={`${lane * widthPct}%`}
+                          // Volle Spaltenbreite: der frühere 4px-Abzug ließ rechts
+                          // einen Streifen der Spalte frei und der Block stand
+                          // sichtbar neben seiner eigenen Spaltenkante. Freie
+                          // Spuren rechts davon nimmt der Block mit.
+                          width={`${laneSpan * widthPct}%`}
+                          isSelected={selectedId === instance.id}
+                          isGap={gapInstanceIds?.has(instance.id) ?? false}
+                          staffNames={staffNames}
+                          onClick={() => onInstanceClick(instance)}
+                        />
+                      );
+                    })}
+
+                    {/* Now line (today only) */}
+                    {nowOffset !== null && (
+                      <>
+                        <div
+                          className="bg-moto-red pointer-events-none absolute -left-1 z-10 h-2 w-2 rounded-full"
+                          style={{ top: `${nowOffset - 4}px` }}
+                        />
+                        <div
+                          className="border-moto-red pointer-events-none absolute right-0 left-0 z-10 border-t-2"
+                          style={{ top: `${nowOffset}px` }}
+                        />
+                      </>
+                    )}
+
+                    {/* Kein "Keine Aktivitäten" pro leerer Tagesspalte mehr
                     (#2031): die leere Spalte sagt es selbst, die Spaltenkopfzeile
                     zeigt zusätzlich die Personenzahl, und beim Hovern erscheint
                     die Anlege-Fläche. Der Leerzustand für die KOMPLETT leere
@@ -609,29 +677,42 @@ export function WeeklyCalendarGrid({
                     Der Schließtag-Hinweis (#2032) bleibt dagegen stehen: er
                     trägt einen Grund, den die leere Spalte nicht selbst
                     zeigt. */}
-                  {closingReason !== undefined &&
-                    dayInstances.length === 0 &&
-                    !emptyState && (
-                      <div className="pointer-events-none absolute inset-0 flex items-center justify-center px-1">
-                        <ClosingDayChip reason={closingReason} />
-                      </div>
-                    )}
-                </div>
-              );
-            })}
-          </div>
-        </div>
-
-        {emptyState && (
-          <div className="pointer-events-none absolute inset-x-0 top-1/2 z-20 flex -translate-y-1/2 justify-center px-4">
-            <div className="moto-content-surface max-w-sm rounded-2xl border px-4 py-1 shadow-sm">
-              <EmptyState
-                variant="compact"
-                title={emptyState.title}
-                description={emptyState.description}
-              />
+                    {closingReason !== undefined &&
+                      dayInstances.length === 0 &&
+                      !emptyState && (
+                        <div className="pointer-events-none absolute inset-0 flex items-center justify-center px-1">
+                          <ClosingDayChip reason={closingReason} />
+                        </div>
+                      )}
+                  </div>
+                );
+              })}
             </div>
           </div>
+
+          {emptyState && (
+            <div className="pointer-events-none absolute inset-x-0 top-1/2 z-20 flex -translate-y-1/2 justify-center px-4">
+              <div className="moto-content-surface max-w-sm rounded-2xl border px-4 py-1 shadow-sm">
+                <EmptyState
+                  variant="compact"
+                  title={emptyState.title}
+                  description={emptyState.description}
+                />
+              </div>
+            </div>
+          )}
+        </div>
+        {scrollEdges.left && (
+          <div
+            aria-hidden
+            className="pointer-events-none absolute inset-y-0 left-10 z-40 w-4 bg-linear-to-r from-gray-900/10 to-transparent sm:left-16"
+          />
+        )}
+        {scrollEdges.right && (
+          <div
+            aria-hidden
+            className="pointer-events-none absolute inset-y-0 right-0 z-40 w-4 bg-linear-to-l from-gray-900/10 to-transparent"
+          />
         )}
       </div>
 
