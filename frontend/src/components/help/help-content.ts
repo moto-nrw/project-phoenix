@@ -1457,6 +1457,8 @@ function activeSupervisionTopic(presenceMode: HelpPresenceMode): HelpTopic {
           "Suchen Sie ein Kind in der laufenden Aufsicht.",
           "Wählen Sie `Hinzufügen`, wenn das Kind anwesend ist und zur Aufsicht kommen soll.",
           "Mehrere Kinder auf einmal? Wählen Sie `Anwesende Kinder`. Dort stehen die Kinder, die gerade in der OGS sind und laut Gehzeit noch bleiben. Haken Sie die Kinder an und wählen Sie `Kinder hinzufügen`.",
+          // #4571: live geprüft im Dialog `Anwesende Kinder hinzufügen`.
+          "Sie kennen die Kinder an ihrem Betreuungsangebot, zum Beispiel „bis 16 Uhr“? Wählen Sie `Nach Angebot` und darunter das Angebot. Dann stehen dort nur Kinder, die dieses Angebot heute gebucht haben. Kinder, die heute früher gehen oder abgemeldet sind, fehlen. moto merkt sich das Angebot für das nächste Mal.",
           "Prüfen Sie geplante Abholzeiten und Hinweise in der Liste.",
           "Wechselt ein Kind den Raum oder geht nach Hause? Ändern Sie seinen Aufenthaltsort.",
         ],
@@ -1484,6 +1486,7 @@ function activeSupervisionTopic(presenceMode: HelpPresenceMode): HelpTopic {
       "Eine externe Person steht danach unter `Personal` in der Gruppe `Extern`. In Zeiterfassung und Dienstplan erscheint sie nicht.",
       "Fehlt `Spontane Aktivität starten`? Dann hat Ihre OGS in den `Einstellungen` unter `Betrieb` den Schalter `Spontane Aktivitäten erlauben` ausgeschaltet.",
       "Fehlt ein Kind unter `Anwesende Kinder`? Ist seine Gehzeit schon erreicht, steht es nur unter `Alle anwesenden`. Ist es noch nicht angemeldet, suchen Sie es über `Kind hinzufügen`.",
+      "Fehlt `Nach Angebot`? Dann hat Ihre OGS kein aktives Betreuungsangebot, das als Betreuungstag zählt.",
       // Einstellung „Kinder nur über ‚Alle Kinder‘ finden“ (#1321).
       "Fehlt `Aktuelle Aufsicht` in der Navigation? Öffnen Sie `Alle Kinder`. Wählen Sie im Menü mit den drei Punkten `Zur Aufsicht`.",
     ],
