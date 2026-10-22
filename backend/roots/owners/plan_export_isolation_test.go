@@ -2,6 +2,7 @@ package owners
 
 import (
 	"context"
+	"strings"
 	"testing"
 
 	"github.com/moto-nrw/project-phoenix/modules/documentrendering/lists"
@@ -135,6 +136,13 @@ func TestPlanExportInputsEnforceRLS(t *testing.T) {
 			// Moved from the opt-in TestPlanExportRuntimeEvidence (#4426).
 			require.Zero(t, counter.WriteRows(), "the plan export must not persist anything")
 			require.Len(t, renderer.doc.Rows, 1, "exactly the tenant's own block is printed")
+			// The production renderer turns the same plan into a PDF.
+			require.NoError(t, testpkg.WithTenantTx(t, fixture.ctx, db, fixture.tenantID, func(txCtx context.Context, tx bun.Tx) error {
+				file, err := newPlanExport(planExportBetreuungsplanSources(t, db, tx, names, lists.NewRenderer())).ExportBetreuungsplan(txCtx, params)
+				require.NoError(t, err)
+				require.True(t, strings.HasPrefix(string(file.Data), "%PDF-"), "the Betreuungsplan renders as PDF")
+				return nil
+			}))
 			row := renderer.doc.Rows[0]
 			assertPlanCell(t, row.Values[lists.ColumnPlanRowLabel], fixture.title)
 			assertPlanCell(t, row.Values[lists.ColumnPlanMonday], "12:00–13:00 · "+fixture.room,

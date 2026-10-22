@@ -56,6 +56,16 @@ func TestStudentImportBatchQueryBudget(t *testing.T) {
 	// guardian link; this is the driver-reported DML counter, not physical
 	// table writes.
 	require.EqualValues(t, 51, counter.WriteRows())
+	smallImport := counter.Total()
+
+	// A second point, eleven times the file: one more statement per row in
+	// either path costs 110 statements here instead of 10 above.
+	large := studentBatch(3, 11*studentBatchRows)
+	run(large, true)
+	testpkg.AssertQueryBudget(t, "modules.dataimport.student_batch.preview_110", counter.Queries())
+	run(large, false)
+	testpkg.AssertQueryBudget(t, "modules.dataimport.student_batch.import_110", counter.Queries())
+	t.Logf("import statements: %d rows -> %d, %d rows -> %d", studentBatchRows, smallImport, len(large), counter.Total())
 }
 
 // studentBatchRows is the size of the budgeted and measured import file.
@@ -64,8 +74,14 @@ const studentBatchRows = 10
 // tenStudentBatch builds a valid ten-row student file with one guardian,
 // phone and pickup schedule per row; iteration keeps names and phones unique.
 func tenStudentBatch(iteration int) []importModels.StudentImportRow {
-	rows := make([]importModels.StudentImportRow, 0, studentBatchRows)
-	for i := range studentBatchRows {
+	return studentBatch(iteration, studentBatchRows)
+}
+
+// studentBatch builds a valid n-row student file like tenStudentBatch; n
+// stays below 1000 so the phone numbers of two iterations do not collide.
+func studentBatch(iteration, n int) []importModels.StudentImportRow {
+	rows := make([]importModels.StudentImportRow, 0, n)
+	for i := range n {
 		name := fmt.Sprintf("Runtime%d-%d", iteration, i)
 		rows = append(rows, importModels.StudentImportRow{
 			FirstName: name, LastName: "Evidence", SchoolClass: "4A", Birthday: "2017-04-05", DataRetentionDays: 30,
@@ -74,7 +90,7 @@ func tenStudentBatch(iteration int) []importModels.StudentImportRow {
 			PrivacyAccepted: true,
 			Guardians: []importModels.GuardianImportData{{
 				FirstName: "Eltern", LastName: name, Email: fmt.Sprintf("%s.runtime@example.test", name), RelationshipType: "Mutter",
-				PhoneNumbers: []importModels.PhoneImportData{{PhoneNumber: fmt.Sprintf("0151 %06d", iteration*100+i), PhoneType: "mobile"}},
+				PhoneNumbers: []importModels.PhoneImportData{{PhoneNumber: fmt.Sprintf("0151 %06d", iteration*1000+i), PhoneType: "mobile"}},
 			}},
 			PickupSchedules: []importModels.PickupScheduleImportData{{Weekday: 2, PickupTime: "15:30"}},
 		})

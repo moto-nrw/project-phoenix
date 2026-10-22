@@ -297,9 +297,18 @@ func TestOGSGroupLive_AggregatesGroupData(t *testing.T) {
 		_ = tc.settings().ResetValue(settingsCtx, settings.KeyTrackingIndicator2, nil, nil)
 	})
 
+	counter := testpkg.CaptureQueriesForContext(t, tc.db)
 	req := testutil.NewRequest("GET", "/ogs-group-live", nil)
+	req = req.WithContext(counter.Context(req.Context()))
 	rr := authExec(t, tc, req, testutil.TeacherTestClaims(int(account.ID)), ogsLivePerms)
 	require.Equal(t, http.StatusOK, rr.Code, "body: %s", rr.Body.String())
+	// The live projection reads attendance, visits and the active group and
+	// writes nothing (moved from the opt-in TestOGSGroupLiveRuntime, #4426).
+	require.NotEmpty(t, counter.Operation("SELECT"), "the counter must see the request")
+	for _, operation := range []string{"INSERT", "UPDATE", "DELETE", "MERGE"} {
+		require.Empty(t, counter.Operation(operation), "live projection must not issue DML")
+	}
+	require.Zero(t, counter.WriteRows(), "live projection must not write")
 
 	envelope := decodeOGSLive(t, rr.Body.Bytes())
 	data := envelope.Data
@@ -486,6 +495,7 @@ func TestOGSGroupLive_QueryBudget(t *testing.T) {
 			require.Empty(t, counter.Operation(operation), "live projection must not issue DML")
 		}
 		require.Zero(t, counter.WriteRows(), "live projection must not write")
+		require.Len(t, decodeOGSLive(t, rr.Body.Bytes()).Data.Students, len(studentIDs), "every group member is listed")
 		return counter.Total()
 	}
 

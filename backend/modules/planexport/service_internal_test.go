@@ -2,6 +2,7 @@ package planexport
 
 import (
 	"context"
+	"fmt"
 	"strings"
 	"testing"
 
@@ -202,6 +203,46 @@ func TestDienstplanByAreaGroupsNamesUnderTasks(t *testing.T) {
 	labels := rowLabels(renderer.doc)
 	if labels[0] != "Randstunde" {
 		t.Fatalf("row order = %v, want the earliest window first", labels)
+	}
+}
+
+// Every staff member with shifts prints in every week they work, under that
+// week's heading, and a week without entries prints exactly its one empty row
+// (asserted until #4426 by the opt-in TestDienstplanRuntimeEvidence).
+func TestDienstplanPrintsEveryStaffMemberInEveryWeek(t *testing.T) {
+	t.Parallel()
+
+	nextMonday := monday.AddDays(7)
+	overview := &StaffScheduleOverview{
+		Staff: []*StaffMember{staffMember(7, "Franziska", "Kessener"), staffMember(8, "Anna", "Müller")},
+		Shifts: []*Shift{
+			shift(1, 7, monday, clock(7, 30), clock(14, 0)),
+			shift(2, 8, monday.AddDays(1), clock(8, 0), clock(15, 0)),
+			shift(3, 7, nextMonday.AddDays(2), clock(7, 30), clock(14, 0)),
+			shift(4, 8, nextMonday.AddDays(3), clock(8, 0), clock(15, 0)),
+		},
+	}
+	service, renderer := newDienstplanService(overview, nil)
+	params := defaultParams()
+	params.To = dayKey(nextMonday.AddDays(11)) // three weeks, the last one empty
+	if _, err := service.ExportDienstplan(context.Background(), params); err != nil {
+		t.Fatalf("ExportDienstplan: %v", err)
+	}
+	var weeks [][]string
+	for _, label := range rowLabels(renderer.doc) {
+		if strings.HasPrefix(label, "#") {
+			weeks = append(weeks, nil)
+			continue
+		}
+		if len(weeks) == 0 {
+			t.Fatalf("rows = %v, want a heading before the first row", rowLabels(renderer.doc))
+		}
+		weeks[len(weeks)-1] = append(weeks[len(weeks)-1], label)
+	}
+	got := fmt.Sprint(weeks)
+	want := "[[Kessener, Franziska Müller, Anna] [Kessener, Franziska Müller, Anna] [Keine Einträge in dieser Woche]]"
+	if got != want {
+		t.Fatalf("rows per week = %s, want %s", got, want)
 	}
 }
 

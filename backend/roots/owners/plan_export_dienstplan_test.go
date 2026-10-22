@@ -111,6 +111,13 @@ func TestDienstplanExportStaysInsideTheTenant(t *testing.T) {
 			// Moved from the opt-in TestDienstplanRuntimeEvidence (#4426).
 			require.Zero(t, counter.WriteRows(), "the plan export must not persist anything")
 			require.Len(t, renderer.doc.Rows, 1, "exactly the tenant's own staff member is printed")
+			// The production renderer turns the same plan into a PDF.
+			require.NoError(t, testpkg.WithTenantTx(t, fixture.ctx, db, fixture.tenantID, func(txCtx context.Context, tx bun.Tx) error {
+				file, err := dienstplanExport(dienstplanOverview(t, db, tx, capability, rooms), lists.NewRendererService()).ExportDienstplan(txCtx, params)
+				require.NoError(t, err)
+				require.True(t, strings.HasPrefix(string(file.Data), "%PDF-"), "the Dienstplan renders as PDF")
+				return nil
+			}))
 			row := renderer.doc.Rows[0]
 			require.Equal(t, fixture.staff.Person.LastName+", "+fixture.staff.Person.FirstName, lists.SanitizeUserText(row.Values[lists.ColumnPlanRowLabel]))
 			cell := lists.SanitizeUserText(row.Values[lists.ColumnPlanMonday])
