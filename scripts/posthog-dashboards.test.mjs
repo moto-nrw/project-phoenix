@@ -27,6 +27,7 @@ test('defines the dashboards of #3604, the feature areas, and the demo behaviour
     'Nutzungsanalyse: Aktive Schulen',
     'Nutzungsanalyse: Funktionen in Schulen',
     'Nutzungsanalyse: Nutzung je Standort',
+    'Nutzungsanalyse: Schule im Verlauf',
     'Nutzungsanalyse: Demo-Verhalten',
   ]);
   const names = insights.map((insight) => insight.name);
@@ -71,6 +72,12 @@ test('no insight looks at a single person', () => {
     const breakdown = insight.query.source.breakdownFilter?.breakdown;
     if (breakdown) assert.ok(['surface', 'role', SCHOOL_BREAKDOWN].includes(breakdown), insight.name);
   }
+});
+
+test('charts name a school from its production group and fall back to its ID', () => {
+  assert.match(SCHOOL_BREAKDOWN, /from groups where index = 0 and startsWith\(key, 'moto-app\.de:'\)/);
+  assert.match(SCHOOL_BREAKDOWN, /concat\('Schule ', toString\(properties\.school_id\)\)\)$/);
+  assert.doesNotMatch(SCHOOL_BREAKDOWN, /demo|staging|localhost/);
 });
 
 test('reads the route templates of every portal from analytics-routes.ts', () => {
