@@ -22,10 +22,10 @@ import (
 
 // testPassword is a valid password for integration tests that meets strength requirements.
 // This is NOT a real secret - it's only used in test code with test databases.
-const testPassword = "Test1234%" //nolint:gosec // pragma: allowlist secret
+var testPassword = testpkg.NewTestPassword()
 
 // testNewPassword is an alternative test password for password change/reset tests.
-const testNewPassword = "NewStr0ng!Pass" //nolint:gosec // pragma: allowlist secret
+var testNewPassword = testpkg.NewTestPassword()
 
 // recoveryGrace is the refresh recovery window the frontend's old-token
 // deduplication relies on: a rotated predecessor stays recoverable, and a
@@ -799,7 +799,7 @@ func TestAuthService_ChangePassword(t *testing.T) {
 		// ARRANGE
 		email, username := uniqueTestCredentials("changepwd")
 		oldPassword := testPassword
-		newPassword := "NewPassword1%"
+		newPassword := testpkg.NewTestPassword()
 		account, err := service.Register(ctx, email, username, oldPassword, nil, 0)
 		require.NoError(t, err)
 		testpkg.EnsureAccountTenant(t, db, account.ID, testpkg.Tenant(t))
@@ -822,7 +822,7 @@ func TestAuthService_ChangePassword(t *testing.T) {
 		require.NoError(t, err)
 
 		// ACT
-		err = service.ChangePassword(ctx, int(account.ID), "WrongPassword1!", "NewPassword1%")
+		err = service.ChangePassword(ctx, int(account.ID), testpkg.NewTestPassword(), testpkg.NewTestPassword())
 
 		// ASSERT
 		require.Error(t, err)

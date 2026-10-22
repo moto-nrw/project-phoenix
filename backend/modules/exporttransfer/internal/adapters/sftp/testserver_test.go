@@ -23,7 +23,7 @@ func (s testServer) target(dir string) sftp.Target {
 		Host:               s.Host,
 		Port:               s.Port,
 		Username:           sftptest.User,
-		Password:           sftptest.Password,
+		Password:           s.Password,
 		RemoteDirectory:    dir,
 		HostKeyFingerprint: s.Fingerprint,
 	}

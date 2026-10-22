@@ -69,6 +69,28 @@ Copy their tenant/parallel setup, not literal IDs or legacy factory composition.
 - From `backend/`, run the gate before pushing: `../scripts/run-go-toolchain.sh go test -tags=testhooks ./test/ -run TestHermeticTestPatterns -v`
 - Preserve test contracts; use `.claude/rules/no-test-modifications.md` to distinguish regressions from authorized expectation changes.
 
+## Credential fixtures
+
+Use `testpkg.NewTestPassword()` for a valid password in authentication,
+invitation and password-change scenarios. Keep the result and use the same
+value for setup, confirmation and login. A package-level generated fixture is
+appropriate when many tests share a credential: the fixture hash cache then
+hashes it only once. Use a second generated value for a different valid password.
+
+Generate actual cryptographic material at runtime with the existing library
+helpers. The SFTP test server generates its own password and host keys;
+Delivery's VAPID tests generate key pairs with `webpush.GenerateVAPIDKeys()`.
+Tests that only map or store credentials should use explicit placeholders such
+as `example-test-password`, `p256dh-key` and `auth-key`, not copied documentation
+keys. Preserve exact whitespace, serialization and redaction assertions.
+
+Keep literal weak, empty, malformed or wrong inputs when those properties are
+the behavior under test. Do not replace them with valid generated credentials
+or weaken their refusal assertions. Test files remain secret-scanned.
+
+Scanner setup, the live acceptance probe and historical findings are documented
+under [GitGuardian findings](operations.md#gitguardian-findings).
+
 ## Local test-server lifetime
 
 Database clones are cleaned separately from their PostgreSQL server. Managed

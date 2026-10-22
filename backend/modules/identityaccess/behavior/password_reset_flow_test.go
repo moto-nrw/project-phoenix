@@ -20,7 +20,7 @@ import (
 // below drive the public capability the way the reset routes of the three
 // portals do (#3332), against a real database.
 
-const resetPassword = "Str0ngP@ssword!" //nolint:gosec // test-only value, never a real credential
+var resetPassword = testpkg.NewTestPassword()
 
 func newResetCapability(t *testing.T, db *bun.DB, options ...api.AuthTestOption) identityaccess.PasswordResets {
 	t.Helper()

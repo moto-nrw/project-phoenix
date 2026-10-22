@@ -43,7 +43,7 @@ func TestToolchainPinsRatchet(t *testing.T) {
 	packages := readDevboxPackages(t, filepath.Join(repoRoot, "devbox.json"))
 	assertDevboxUsesDefaultGoCache(t, filepath.Join(repoRoot, "devbox.json"))
 	nixpkgsPins := readDevboxNixpkgsPins(t, filepath.Join(repoRoot, "devbox.json"))
-	lockedPackages := []string{"pnpm_10", "govulncheck", "air"}
+	lockedPackages := []string{"pnpm_10", "govulncheck", "air", "ggshield"}
 	major, rest, _ := strings.Cut(goVersion, ".")
 	minor, _, _ := strings.Cut(rest, ".")
 	if goPin, ok := nixpkgsPins["go_"+major+"_"+minor]; ok {
@@ -65,6 +65,7 @@ func TestToolchainPinsRatchet(t *testing.T) {
 	}
 	airVersion := requireDevboxPackageVersion(t, packages, "air")
 	requireDevboxPackageVersion(t, packages, "govulncheck")
+	requireDevboxPackageVersion(t, packages, "ggshield")
 	assertDevboxLock(t, filepath.Join(repoRoot, "devbox.lock"), packages, lockedPackages)
 
 	for _, dockerfile := range []string{"backend/Dockerfile", "backend/Dockerfile.dev"} {
