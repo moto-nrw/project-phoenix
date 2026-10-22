@@ -17,6 +17,7 @@ import (
 // cross-module runtime checkpoint. Each sample starts with one planned row.
 func TestInstanceAssignmentMigrationRuntime(t *testing.T) {
 	t.Parallel()
+	testpkg.RequireRuntimeEvidence(t)
 	db := testpkg.SetupIsolatedTestDB(t)
 	module, ctx := buildModule(t, db), testpkg.Ctx(t)
 	fixture := newOwnedActivityInstanceFixture(t, db, "assignment-runtime")

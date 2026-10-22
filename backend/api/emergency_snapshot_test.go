@@ -3,6 +3,7 @@ package api
 import (
 	"context"
 	"errors"
+	"strings"
 	"testing"
 	"time"
 
@@ -443,6 +444,16 @@ func TestEmergencySnapshotInputsEnforceRLS(t *testing.T) {
 			assert.Equal(t, fixture.roomName, row.Location, "the room of the own tenant is visible")
 			assert.Equal(t, fixture.guardian, row.ContactName)
 			assert.Equal(t, fixture.phone, row.ContactPhone)
+
+			// Moved from the opt-in TestEmergencySnapshotRuntimeEvidence
+			// (#4426): projection, document and PDF export are read-only.
+			doc, err := query.Document(txCtx, time.Now())
+			require.NoError(t, err)
+			require.Len(t, doc.Rows, 1)
+			file, err := query.Export(txCtx)
+			require.NoError(t, err)
+			require.True(t, strings.HasPrefix(string(file.Data), "%PDF-"))
+			require.Zero(t, counter.WriteRows(), "projection and export must not persist authoritative state")
 			return nil
 		}))
 	}

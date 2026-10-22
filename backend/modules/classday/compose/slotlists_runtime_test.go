@@ -19,6 +19,7 @@ import (
 // the pre-cutover reader for comparison. This does not claim staging parity.
 func TestSlotListRuntime(t *testing.T) {
 	t.Parallel()
+	testpkg.RequireRuntimeEvidence(t)
 	db := testpkg.SetupIsolatedTestDB(t)
 	f := buildMensaFixtureOn(t, db)
 	ctx := testpkg.Ctx(t)

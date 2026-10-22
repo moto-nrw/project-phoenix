@@ -188,7 +188,9 @@ func TestRequestReviewGolden(t *testing.T) {
 	absenceReviewer := goldenCaller{claims: testutil.AdminTestClaims(int(adminAccount.ID)), perms: []string{"users:read", "users:absence"}}
 	readOnly := goldenCaller{claims: testutil.TeacherTestClaims(int(leaderAccount.ID)), perms: []string{"users:read"}}
 
-	rec := &goldenRecorder{t: t, tc: tc, scrub: scrub}
+	// Every recorded read is also checked for writes (moved from the opt-in
+	// TestRequestReviewRuntimeEvidence, #4426).
+	rec := &goldenRecorder{t: t, tc: tc, scrub: scrub, counter: testpkg.CaptureQueriesForContext(t, tc.db)}
 	asterID, birkeID := strconv.FormatInt(aster.ID, 10), strconv.FormatInt(birke.ID, 10)
 
 	rec.pages("open", "view=open&search=Golda&limit=2", admin)
@@ -274,10 +276,11 @@ type goldenCase struct {
 // goldenRecorder runs requests through the production students router and
 // collects their scrubbed responses in order.
 type goldenRecorder struct {
-	t     *testing.T
-	tc    *testContext
-	scrub *goldenScrubber
-	cases []goldenCase
+	t       *testing.T
+	tc      *testContext
+	scrub   *goldenScrubber
+	counter *testpkg.QueryCounter
+	cases   []goldenCase
 }
 
 func (r *goldenRecorder) list(name, query string, caller goldenCaller) {
@@ -310,7 +313,10 @@ func (r *goldenRecorder) pages(name, query string, caller goldenCaller) {
 // get records one response and returns its raw next_cursor, if any.
 func (r *goldenRecorder) get(name, path, label string, caller goldenCaller) string {
 	r.t.Helper()
-	rr := authExec(r.t, r.tc, testutil.NewRequest(http.MethodGet, path, nil), caller.claims, caller.perms)
+	r.counter.Reset()
+	req := testutil.NewRequest(http.MethodGet, path, nil)
+	rr := authExec(r.t, r.tc, req.WithContext(r.counter.Context(req.Context())), caller.claims, caller.perms)
+	require.Zero(r.t, r.counter.WriteRows(), "%s: the review reads must not persist state", name)
 	decoder := json.NewDecoder(bytes.NewReader(rr.Body.Bytes()))
 	decoder.UseNumber()
 	var body any

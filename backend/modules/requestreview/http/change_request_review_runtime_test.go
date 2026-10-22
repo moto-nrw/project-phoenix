@@ -30,6 +30,7 @@ import (
 // outside the timer.
 func TestRequestReviewRuntimeEvidence(t *testing.T) {
 	t.Parallel()
+	testpkg.RequireRuntimeEvidence(t)
 
 	tc := setupStudentsRoute(t)
 	ctx := testpkg.Ctx(t)

@@ -22,6 +22,7 @@ import (
 // Bounded local evidence for #2678, not a replacement for a runtime checkpoint.
 func TestUnregisteredTagScanRuntime(t *testing.T) {
 	t.Parallel()
+	testpkg.RequireRuntimeEvidence(t)
 	db := testpkg.SetupIsolatedTestDB(t)
 	ctx := testpkg.Ctx(t)
 	rooms, err := api.NewFacilities(testpkg.NewDatabase(t, db))

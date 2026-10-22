@@ -34,6 +34,11 @@ Copy their tenant/parallel setup, not literal IDs or legacy factory composition.
   The `tests_run_in_parallel` gate has an empty baseline and rejects every
   exception. Inject process configuration and output; use per-test database
   clones for schema changes, sweeps, query measurements, and lock tests.
+- **Runtime measurements are opt-in (#4426)**: a test that repeats a flow
+  for latency, plans or lock samples calls `testpkg.RequireRuntimeEvidence(t)`
+  right after `t.Parallel()` and runs only with `PHX_TEST_RUNTIME_EVIDENCE=1`.
+  Every contract it asserts (no writes, query budgets, row counts) also
+  lives in a normal test.
 - **Concurrency is bounded, not inherited**: `scripts/test-backend.sh` and
   `scripts/test-changed.sh` use the same local package budget: half the CPUs,
   one worker per 8 GiB RAM, at most two on macOS or four on Linux, minimum one.
@@ -97,6 +102,7 @@ workspace settings.
 PHX_TEST_LEFTOVERS=1 ../scripts/run-go-toolchain.sh go test -tags=testhooks -v ./modules/studentpresence/internal/application/presence  # Also print tolerated leftovers
 PHX_TEST_LEFTOVERS=test ../scripts/run-go-toolchain.sh go test -tags=testhooks -parallel 1 ./modules/studentpresence/internal/application/presence  # Name the leaking test
 PHX_TEST_KEEP_CLONE=1 ../scripts/run-go-toolchain.sh go test -tags=testhooks ./modules/studentpresence/internal/application/presence  # Keep the clone for a post-mortem
+PHX_TEST_RUNTIME_EVIDENCE=1 ../scripts/run-go-toolchain.sh go test -tags=testhooks ./modules/timetable/compose/httpintegration -run '^TestSessionEndRuntimeEvidence$' -count=1 -v  # Opt-in runtime measurement; list in docs/runtime-checkpoints/README.md, never set in CI
 ../scripts/run-go-toolchain.sh go run ./internal/testdb/cmd/sweep  # Drop this/dead runs' clones manually
 ../scripts/run-go-toolchain.sh go test -tags=testhooks -short ./...             # Fast inner loop; NEVER in CI — guts coverage.
 ../scripts/run-go-toolchain.sh go test -tags=testhooks ./modules/studentpresence/internal/application/presence/... -v # Specific package

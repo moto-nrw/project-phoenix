@@ -317,6 +317,7 @@ func assertConcurrentPlanningRejected(t *testing.T, operation string) {
 
 func TestOffboardingRuntimeEvidence(t *testing.T) {
 	t.Parallel()
+	testpkg.RequireRuntimeEvidence(t)
 	sc := newOffboardingScenario(t, testpkg.SetupIsolatedTestDB(t))
 	actor := testpkg.CreateTestStaff(t, sc.db, "Runtime", "Actor")
 	queue, err := api.NewStaffDocumentCleanup(testpkg.NewDatabase(t, sc.db), nil)

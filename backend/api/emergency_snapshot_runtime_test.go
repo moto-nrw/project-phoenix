@@ -22,6 +22,7 @@ import (
 // resolution. The same workload runs against the pre-cutover reader.
 func TestEmergencySnapshotRuntimeEvidence(t *testing.T) {
 	t.Parallel()
+	testpkg.RequireRuntimeEvidence(t)
 	db := testpkg.SetupIsolatedTestDB(t)
 	ctx := testpkg.Ctx(t)
 	teacher, _ := testpkg.CreateTestTeacherWithAccount(t, db, "Runtime", "Supervisor")
