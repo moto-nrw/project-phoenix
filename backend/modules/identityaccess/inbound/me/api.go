@@ -207,6 +207,7 @@ var ErrorRenderer = common.RulesRenderer([]common.ErrorRule{
 	{Target: identityaccess.ErrCallerNotLinkedToStaff, Render: common.ErrorNotFound},
 	{Target: identityaccess.ErrCallerNotLinkedToTeacher, Render: common.ErrorNotFound},
 	{Target: identityaccess.ErrCallerGroupNotFound, Render: common.ErrorNotFound},
+	{Target: identityaccess.ErrCallerSessionNotFound, Render: common.ErrorNotFound},
 }, common.ErrorInternalServer)
 
 var errAuthenticationRequired = errors.New("authentication required")

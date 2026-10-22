@@ -25,6 +25,7 @@ func TestCallerErrorVariables(t *testing.T) {
 		{"ErrCallerNotLinkedToStaff", ErrCallerNotLinkedToStaff, "user not linked to a staff member"},
 		{"ErrCallerNotLinkedToTeacher", ErrCallerNotLinkedToTeacher, "user not linked to a teacher"},
 		{"ErrCallerGroupNotFound", ErrCallerGroupNotFound, "group not found"},
+		{"ErrCallerSessionNotFound", ErrCallerSessionNotFound, "session not found"},
 	}
 
 	for _, tt := range tests {
@@ -45,6 +46,7 @@ func TestCallerErrorsAreDistinct(t *testing.T) {
 		ErrCallerNotLinkedToStaff,
 		ErrCallerNotLinkedToTeacher,
 		ErrCallerGroupNotFound,
+		ErrCallerSessionNotFound,
 	}
 
 	for i, err1 := range errorVars {

@@ -123,3 +123,24 @@ func TestRouterRejectsUsersRead(t *testing.T) {
 		require.Equal(t, http.StatusForbidden, recorder.Code)
 	}
 }
+
+// A stale model ID is an expected refusal (#4599): the production failure
+// renderer answers 404 with the class code, not a server error.
+func TestUpdateOfAnUnknownWorkTimeModelAnswersNotFound(t *testing.T) {
+	t.Parallel()
+
+	runtime := workTimeModelsRuntime(func(context.Context) {})
+	runtime.Protected = func(router chi.Router, routes func(chi.Router, worktimemodelsHTTP.Middleware)) {
+		routes(router, workTimeModelsPassthrough)
+	}
+	runtime.Permission = func(string) worktimemodelsHTTP.Middleware { return workTimeModelsPassthrough }
+	capability := &workTimeModelsCapabilityStub{updateErr: workforce.ErrWorkTimeModelNotFound}
+	resource := worktimemodelsHTTP.NewResource(capability, runtime)
+	body := `{"name":"Vollzeit","rotation_length":1,"rotation_anchor_date":"2026-07-01","entries":[]}`
+	request := httptest.NewRequest(http.MethodPut, "/7", strings.NewReader(body))
+	recorder := httptest.NewRecorder()
+	resource.Router().ServeHTTP(recorder, request)
+
+	require.Equal(t, http.StatusNotFound, recorder.Code, recorder.Body.String())
+	assert.Equal(t, routetest.ClassCode(http.StatusNotFound), routetest.ParseJSONResponse(t, recorder.Body.Bytes())["code"])
+}

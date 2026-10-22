@@ -316,3 +316,62 @@ func TestAggregatedChangeRequests_RouterStudentFilter(t *testing.T) {
 		assert.Equal(t, http.StatusBadRequest, rr.Code, bad)
 	}
 }
+
+// "Von wem?" (#4359): every request names the account that filed it as the
+// school knows that person, with the relationship stored for exactly this
+// child. Nothing is guessed: a filer without a link to the child gets no
+// relationship, and an account the school keeps no profile for stays unnamed.
+func TestAggregatedChangeRequests_RouterNamesWhoFiled(t *testing.T) {
+	t.Parallel()
+	tc := setupStudentsRoute(t)
+	_, reviewer := testpkg.CreateTestTeacherWithAccount(t, tc.db, "Filer", "Reviewer")
+	chain := testpkg.CreateTestParentGuardianChain(t, tc.db)
+	sibling := testpkg.CreateTestStudent(t, tc.db, "Zfiler", "Geschwister", "2b")
+	stranger := testpkg.CreateTestAccount(t, tc.db, "filer-without-profile@example.test")
+
+	insert := func(studentID, accountID int64, field string, createdAt time.Time) string {
+		row := &masterdatarequests.Request{StudentID: studentID, SubmittedBy: accountID,
+			Target: "person", FieldKey: field, NewValue: json.RawMessage(`"Neu"`), Status: "pending"}
+		row.TenantID = chain.TenantID
+		row.CreatedAt, row.UpdatedAt = createdAt, createdAt
+		testpkg.InsertTestMasterDataChangeRequest(t, tc.db, (*testpkg.MasterDataChangeRequestRow)(row))
+		return strconv.FormatInt(row.ID, 10)
+	}
+	base := time.Now().UTC().Add(-time.Hour)
+	own := insert(chain.StudentID, chain.AccountID, "first_name", base)
+	ofSibling := insert(sibling.ID, chain.AccountID, "first_name", base.Add(-time.Minute))
+	unknown := insert(sibling.ID, stranger.ID, "last_name", base.Add(-2*time.Minute))
+
+	type filed struct{ Name, Relationship string }
+	list := func(query string) map[string]filed {
+		rr := authExec(t, tc, testutil.NewRequest("GET", "/change-requests?types=master_data&"+query, nil),
+			testutil.AdminTestClaims(int(reviewer.ID)), []string{"users:read", "users:update"})
+		require.Equal(t, http.StatusOK, rr.Code, rr.Body.String())
+		var env struct {
+			Data struct {
+				Items []struct {
+					SubmittedByName         string          `json:"submitted_by_name"`
+					SubmittedByRelationship string          `json:"submitted_by_relationship"`
+					Data                    json.RawMessage `json:"data"`
+				} `json:"items"`
+			} `json:"data"`
+		}
+		require.NoError(t, json.Unmarshal(rr.Body.Bytes(), &env))
+		result := map[string]filed{}
+		for _, item := range env.Data.Items {
+			var payload struct {
+				ID string `json:"id"`
+			}
+			require.NoError(t, json.Unmarshal(item.Data, &payload))
+			result[payload.ID] = filed{item.SubmittedByName, item.SubmittedByRelationship}
+		}
+		return result
+	}
+
+	byChild := list("student_id=" + strconv.FormatInt(chain.StudentID, 10))
+	assert.Equal(t, filed{"Sabine Schneider", "parent"}, byChild[own])
+	bySibling := list("student_id=" + strconv.FormatInt(sibling.ID, 10))
+	require.Len(t, bySibling, 2)
+	assert.Equal(t, filed{"Sabine Schneider", ""}, bySibling[ofSibling], "no stored link to this child, so no relationship")
+	assert.Equal(t, filed{}, bySibling[unknown], "an account without a profile at this school stays unnamed")
+}

@@ -24,7 +24,11 @@ export interface CareOfferingAvailabilityRule {
  * Mirrors the backend SelectionRule* constants.
  */
 export type CareSelectionRule =
-  "optional" | "exactly_one" | "at_least_one" | "at_most_one";
+  | "optional"
+  | "exactly_one"
+  | "at_least_one"
+  | "at_most_one"
+  | "at_most_one_per_day";
 
 /** German labels for the selection-rule dropdown in the admin editor. */
 export const SELECTION_RULE_LABELS: Record<CareSelectionRule, string> = {
@@ -32,6 +36,7 @@ export const SELECTION_RULE_LABELS: Record<CareSelectionRule, string> = {
   exactly_one: "Genau eines (Pflicht)",
   at_least_one: "Mindestens eines (Pflicht)",
   at_most_one: "Höchstens eines",
+  at_most_one_per_day: "Höchstens eines pro Tag",
 };
 
 export interface CareOffering {
