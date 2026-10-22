@@ -237,7 +237,7 @@ jobs:
               - 'scripts/runtime_checkpoint_*_test.py'
               - 'scripts/check-agent-context*'
               - 'scripts/check-test-runners*'
-              - '**/*.test.{js,cjs,mjs,ts}'
+              - '**/*.test.{js,cjs,mjs,ts,cts,mts}'
               - '**/*_test.py'
               - '**/*_test.sh'
               - 'frontend/e2e/**'

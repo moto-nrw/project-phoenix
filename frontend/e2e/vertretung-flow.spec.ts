@@ -124,7 +124,8 @@ test.describe("Vertretung UI-Flow (#1886, Inkrement 2)", () => {
     const staffList = Array.isArray(staffPayload)
       ? staffPayload
       : staffPayload.data;
-    // Nicht die beiden Seed-Admins (id 1/2) einplanen; irgendeine
+    // Nicht die angemeldete Person einplanen (wie dienstplan.spec.ts: feste
+    // Admin-IDs passen nicht zum Seed); irgendeine
     // Betreuungskraft OHNE eigene Termine an `day`. Der Seed (seed_planning.go,
     // seedPlanningException) meldet die erste Betreuungskraft heute in der
     // Frühbetreuung abwesend mit Ersatz; diese Abwesenheit wäre im Editor unter
@@ -145,9 +146,18 @@ test.describe("Vertretung UI-Flow (#1886, Inkrement 2)", () => {
         (instance.staff ?? []).map((s) => String(s.staff_id)),
       ),
     );
+    const meResponse = await page.request.get(`${base}/api/me/staff`);
+    expect(
+      meResponse.ok(),
+      `eigenes Personal laden fehlgeschlagen (${meResponse.status()})`,
+    ).toBe(true);
+    const own = (await meResponse.json()) as {
+      data?: { id?: number | string };
+    };
+    const ownId = String(own.data?.id ?? "");
+    expect(ownId, "eigene Personal-ID fehlt").not.toBe("");
     const planned = staffList.find(
-      (s) =>
-        !["1", "2"].includes(String(s.id)) && !busyStaffIds.has(String(s.id)),
+      (s) => String(s.id) !== ownId && !busyStaffIds.has(String(s.id)),
     );
     expect(
       planned,
