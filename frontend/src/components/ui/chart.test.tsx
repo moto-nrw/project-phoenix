@@ -345,7 +345,7 @@ describe("ChartTooltipContent", () => {
     });
 
     // Anker: der Tooltip zeigt seinen Eintrag, nur das Label fehlt.
-    expect(screen.getByText("1,234")).toBeInTheDocument();
+    expect(screen.getByText((1234).toLocaleString())).toBeInTheDocument();
     expect(screen.queryByText("January")).toBeNull();
   });
 
@@ -357,7 +357,7 @@ describe("ChartTooltipContent", () => {
     });
 
     // Anker: der Tooltip zeigt seinen Eintrag, nur der Indikator fehlt.
-    expect(screen.getByText("1,234")).toBeInTheDocument();
+    expect(screen.getByText((1234).toLocaleString())).toBeInTheDocument();
 
     // No indicator div with --color-bg style
     const indicators = container.querySelectorAll("[style*='--color-bg']");
