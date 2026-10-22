@@ -2189,14 +2189,77 @@ describe("Sidebar", () => {
       expect(
         screen.getByRole("button", { name: /Offene Räume/ }),
       ).toHaveAttribute("aria-expanded", "true");
-      // Kein zweiter Eintrag unter „Aktuelle Aufsicht“; der leere Bereich
-      // sagt, wo die eigene Aufsicht steht.
+      // Kein zweiter Eintrag unter „Aktuelle Aufsicht“; der Bereich sagt,
+      // wo die eigene Aufsicht steht.
       expect(screen.getAllByText("Kreativraum")).toHaveLength(1);
+      // Anker: der Hinweis steht im sonst leeren Bereich.
       expect(
         screen.getByText("Ihre Aufsicht steht unter „Offene Räume“."),
       ).toBeInTheDocument();
       expect(
         screen.queryByText("Keine aktive Aufsicht"),
+      ).not.toBeInTheDocument();
+    });
+
+    it("points to Offene Räume next to other people's supervisions in the overview (#4349)", () => {
+      // Mit der Schulübersicht stehen fremde Aufsichten unter „Aktuelle
+      // Aufsichten“. Gerade dort fehlte die eigene Tätigkeit.
+      mockUseSupervision.mockReturnValue({
+        hasGroups: true,
+        isSupervising: true,
+        isLoadingGroups: false,
+        isLoadingSupervision: false,
+        overviewEnabled: true,
+        supervisedRooms: [
+          { id: "10", name: "Raum A", groupId: "1" },
+          { id: "11", name: "Raum B", groupId: "2" },
+          {
+            id: "7",
+            name: "Kreativraum",
+            groupId: "",
+            isOpenRoom: true,
+            isOwnSupervision: true,
+          },
+        ],
+        groups: [],
+        refresh: vi.fn(),
+      });
+      mockUsePathname.mockReturnValue("/active-supervisions");
+
+      render(<Sidebar />);
+
+      expect(screen.getByText("Raum A")).toBeInTheDocument();
+      expect(
+        screen.getByText("Ihre Aufsicht steht unter „Offene Räume“."),
+      ).toBeInTheDocument();
+      expect(screen.getAllByText("Kreativraum")).toHaveLength(1);
+    });
+
+    it("shows no open-room hint without an own supervision there", () => {
+      mockUseSupervision.mockReturnValue({
+        hasGroups: true,
+        isSupervising: true,
+        isLoadingGroups: false,
+        isLoadingSupervision: false,
+        overviewEnabled: false,
+        supervisedRooms: [
+          { id: "10", name: "Raum A", groupId: "1" },
+          { id: "7", name: "Kreativraum", groupId: "", isOpenRoom: true },
+        ],
+        groups: [],
+        refresh: vi.fn(),
+      });
+      mockUsePathname.mockReturnValue("/active-supervisions");
+
+      render(<Sidebar />);
+
+      // Anker: beide Bereiche sind geladen.
+      expect(screen.getByText("Raum A")).toBeInTheDocument();
+      expect(screen.getByText("Kreativraum").closest("a")).toHaveTextContent(
+        /^Kreativraum$/,
+      );
+      expect(
+        screen.queryByText("Ihre Aufsicht steht unter „Offene Räume“."),
       ).not.toBeInTheDocument();
     });
   });

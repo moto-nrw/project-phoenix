@@ -1270,8 +1270,9 @@ function SidebarContent({
     () => supervisedRooms.filter((room) => room.isOpenRoom),
     [supervisedRooms],
   );
-  // Eine eigene Aufsicht in einem offenen Raum steht nur dort (#4349). Der
-  // leere Bereich „Aktuelle Aufsicht“ sagt dann, wo sie zu finden ist.
+  // Eine eigene Aufsicht in einem offenen Raum steht nur dort (#4349).
+  // „Aktuelle Aufsicht“ sagt dann, wo sie zu finden ist, auch wenn dort mit
+  // der Schulübersicht fremde Aufsichten stehen.
   const hasOwnSupervisionInOpenRoom = openSupervisedRooms.some(
     (room) => room.isOwnSupervision,
   );
@@ -1686,12 +1687,10 @@ function SidebarContent({
             pathname.startsWith("/active-supervisions") || Boolean(childRoomId)
           }
           isLoading={isLoadingSupervision}
-          emptyText={
-            hasOwnSupervisionInOpenRoom
-              ? "Ihre Aufsicht steht unter „Offene Räume“."
-              : "Keine aktive Aufsicht"
+          emptyText="Keine aktive Aufsicht"
+          hasChildren={
+            ownSupervisedRooms.length > 0 || hasOwnSupervisionInOpenRoom
           }
-          hasChildren={ownSupervisedRooms.length > 0}
         >
           {ownSupervisedRooms.map((room, index) => (
             <SidebarSubItem
@@ -1711,6 +1710,11 @@ function SidebarContent({
               )}
             />
           ))}
+          {hasOwnSupervisionInOpenRoom && (
+            <p className="py-2 pr-3 pl-11 text-xs text-gray-400">
+              Ihre Aufsicht steht unter „Offene Räume“.
+            </p>
+          )}
         </SidebarAccordionSection>
         {/* Offene Räume sind ein Raum-Bereich, keine zweite eigene Aufsicht:
             Das Tür-Icon trennt sie in der Navigation sichtbar von der

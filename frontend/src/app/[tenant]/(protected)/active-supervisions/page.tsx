@@ -378,9 +378,13 @@ function MeinRaumPageContent() {
         dashboard.sessionInfoByActiveGroup.get(room.id) ?? null,
       ),
     })),
+    // Wie bei den eigenen Reitern: läuft die eigene Aufsicht im offenen
+    // Raum, trägt sein Reiter den Hinweis (#4349).
     ...openRooms.map((room) => ({
       value: `room:${room.roomId}`,
-      label: room.name,
+      label: room.isUserSupervising
+        ? `${room.name} · Eigene Aufsicht`
+        : room.name,
     })),
   ];
   const supervisionTabs =

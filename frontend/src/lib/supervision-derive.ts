@@ -261,7 +261,7 @@ export function sameSupervision(
     rooms
       .map(
         (r) =>
-          `${r.id}:${r.groupId}:${r.name}:${r.sessionIds?.join(".") ?? ""}`,
+          `${r.id}:${r.groupId}:${r.name}:${r.sessionIds?.join(".") ?? ""}:${r.isOwnSupervision === true}`,
       )
       .join(",");
   return (
