@@ -12,6 +12,9 @@ interface SidebarSubItemProps {
   readonly label: string;
   readonly isActive: boolean;
   readonly count?: number | string;
+  // Kurzer grauer Hinweis an derselben Stelle wie `count`, z. B. „Eigene
+  // Aufsicht“ an einem offenen Raum (#4349).
+  readonly note?: string;
   // Domain-colored pill for unread messages or pending requests. Distinct from
   // `count`, which is the muted gray attendance count.
   readonly badgeCount?: number;
@@ -26,11 +29,13 @@ export function SidebarSubItem({
   label,
   isActive,
   count,
+  note,
   badgeCount = 0,
   badgeTone,
   badgeNoun,
   tourId,
 }: SidebarSubItemProps) {
+  const trailing = count ?? note;
   return (
     <NavLink
       href={href}
@@ -50,8 +55,10 @@ export function SidebarSubItem({
           className="ml-2"
         />
       ) : (
-        count !== undefined && (
-          <span className="ml-2 shrink-0 text-xs text-gray-400">{count}</span>
+        trailing !== undefined && (
+          <span className="ml-2 shrink-0 text-xs text-gray-400">
+            {trailing}
+          </span>
         )
       )}
     </NavLink>

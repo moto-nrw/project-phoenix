@@ -2150,6 +2150,55 @@ describe("Sidebar", () => {
         "bg-gray-100",
       );
     });
+
+    it("marks an own supervision in a released room under Offene Räume (#4349)", () => {
+      mockUseSupervision.mockReturnValue({
+        hasGroups: true,
+        isSupervising: true,
+        isLoadingGroups: false,
+        isLoadingSupervision: false,
+        overviewEnabled: false,
+        supervisedRooms: [
+          {
+            id: "7",
+            name: "Kreativraum",
+            groupId: "",
+            isOpenRoom: true,
+            isOwnSupervision: true,
+            sessionIds: ["55"],
+          },
+          { id: "8", name: "Turnhalle", groupId: "", isOpenRoom: true },
+        ],
+        groups: [],
+        refresh: vi.fn(),
+      });
+      mockUsePathname.mockReturnValue("/active-supervisions");
+      // „Mein Tag“ und der Tagesplan öffnen die Aufsicht über ihre Sitzung.
+      mockUseSearchParams.mockReturnValue(
+        createMockSearchParams((key) => (key === "session" ? "55" : null)),
+      );
+
+      render(<Sidebar />);
+
+      const ownRoomLink = screen.getByText("Kreativraum").closest("a");
+      expect(ownRoomLink).toHaveTextContent("Eigene Aufsicht");
+      expect(ownRoomLink).toHaveClass("bg-gray-100");
+      expect(screen.getByText("Turnhalle").closest("a")).toHaveTextContent(
+        /^Turnhalle$/,
+      );
+      expect(
+        screen.getByRole("button", { name: /Offene Räume/ }),
+      ).toHaveAttribute("aria-expanded", "true");
+      // Kein zweiter Eintrag unter „Aktuelle Aufsicht“; der leere Bereich
+      // sagt, wo die eigene Aufsicht steht.
+      expect(screen.getAllByText("Kreativraum")).toHaveLength(1);
+      expect(
+        screen.getByText("Ihre Aufsicht steht unter „Offene Räume“."),
+      ).toBeInTheDocument();
+      expect(
+        screen.queryByText("Keine aktive Aufsicht"),
+      ).not.toBeInTheDocument();
+    });
   });
 
   describe("binary presence mode", () => {

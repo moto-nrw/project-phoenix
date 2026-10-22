@@ -19,6 +19,12 @@ export interface SupervisedRoom {
    * shared rooms visibly apart from the caller's own supervisions.
    */
   isOpenRoom?: boolean;
+  /**
+   * The caller supervises a session in this released room. The room stays
+   * listed once, under the released rooms; the flag lets the navigation show
+   * that the caller's own activity runs there (#4349).
+   */
+  isOwnSupervision?: boolean;
   /** Active sessions in this released room, used to mark a `?session=` link. */
   sessionIds?: readonly string[];
 }
@@ -114,8 +120,14 @@ function hasOwnSupervision(
 function openRoomEntries(
   rooms: OpenRoomPayload[] | null,
   supervised: SupervisedGroupPayload[] | null,
+  ownSupervised: SupervisedGroupPayload[] | null,
 ): SupervisedRoom[] {
   if (!rooms) return [];
+  const ownRoomIds = new Set(
+    (ownSupervised ?? []).flatMap((session) =>
+      session.room_id ? [session.room_id.toString()] : [],
+    ),
+  );
   const sessionIdsByRoom = new Map<string, string[]>();
   for (const session of supervised ?? []) {
     if (!session.room_id) continue;
@@ -135,6 +147,9 @@ function openRoomEntries(
         // unrelated facilities id.
         groupId: "",
         isOpenRoom: true,
+        ...(ownRoomIds.has(room.id.toString())
+          ? { isOwnSupervision: true }
+          : {}),
         ...(sessionIds ? { sessionIds } : {}),
       };
     })
@@ -169,18 +184,14 @@ export function deriveSupervision(
   overviewOk: boolean,
   ownSupervised: SupervisedGroupPayload[] | null = null,
 ): DerivedSupervision {
-  const openEntries = openRoomEntries(openRooms, supervised);
+  // Ohne Übersicht stammt jede Zeile aus /api/me/groups/supervised und ist
+  // eine eigene Aufsicht; mit Übersicht nur die zusätzliche eigene Abfrage.
+  const ownSessions = overviewOk ? ownSupervised : supervised;
+  const openEntries = openRoomEntries(openRooms, supervised, ownSessions);
   const openRoomIDs = new Set(openEntries.map((room) => room.id));
   const first = supervised?.[0];
-  const ownSupervisedRooms = ownSupervisionRoomEntries(
-    overviewOk ? ownSupervised : supervised,
-  );
-  // Ohne Übersicht stammt jede Zeile aus /api/me/groups/supervised und ist
-  // eine eigene Aufsicht. Mit Übersicht liefert die zusätzliche eigene
-  // Abfrage das Signal für „Aufsicht fortsetzen".
-  const ownSupervision = overviewOk
-    ? hasOwnSupervision(ownSupervised)
-    : hasOwnSupervision(supervised);
+  const ownSupervisedRooms = ownSupervisionRoomEntries(ownSessions);
+  const ownSupervision = hasOwnSupervision(ownSessions);
 
   if (!supervised || !first) {
     // No own supervision (or that request failed). Released rooms are still

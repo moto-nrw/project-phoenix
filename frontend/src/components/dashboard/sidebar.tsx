@@ -1270,6 +1270,11 @@ function SidebarContent({
     () => supervisedRooms.filter((room) => room.isOpenRoom),
     [supervisedRooms],
   );
+  // Eine eigene Aufsicht in einem offenen Raum steht nur dort (#4349). Der
+  // leere Bereich „Aktuelle Aufsicht“ sagt dann, wo sie zu finden ist.
+  const hasOwnSupervisionInOpenRoom = openSupervisedRooms.some(
+    (room) => room.isOwnSupervision,
+  );
   const [openRoomsExpanded, setOpenRoomsExpanded] = useState<boolean | null>(
     null,
   );
@@ -1681,7 +1686,11 @@ function SidebarContent({
             pathname.startsWith("/active-supervisions") || Boolean(childRoomId)
           }
           isLoading={isLoadingSupervision}
-          emptyText="Keine aktive Aufsicht"
+          emptyText={
+            hasOwnSupervisionInOpenRoom
+              ? "Ihre Aufsicht steht unter „Offene Räume“."
+              : "Keine aktive Aufsicht"
+          }
           hasChildren={ownSupervisedRooms.length > 0}
         >
           {ownSupervisedRooms.map((room, index) => (
@@ -1757,6 +1766,7 @@ function SidebarContent({
                     key={`${room.id}-open`}
                     href={supervisionHref(room)}
                     label={room.name}
+                    note={room.isOwnSupervision ? "Eigene Aufsicht" : undefined}
                     isActive={isRoomSubItemActive(
                       childSessionId,
                       childRoomId,
