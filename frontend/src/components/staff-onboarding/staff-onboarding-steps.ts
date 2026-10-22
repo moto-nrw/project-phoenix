@@ -252,7 +252,7 @@ export const STAFF_ONBOARDING_TOURS: Readonly<
         // sieht, landet direkt in ihr; dann entfällt diese Station.
         target: '[data-setup-tour="group-tile"]',
         title: "Gruppe öffnen",
-        text: "Wählen Sie Ihre Gruppe. Sie ist mit „Ihre Gruppe“ markiert.",
+        text: "Wählen Sie Ihre Gruppe. Sie ist mit „Meine Gruppe“ markiert.",
         advance: "click",
         pathPattern: /\/ogs-groups(\/overview)?$/,
         skipWhenVisible: '[data-setup-tour="student-card"]',

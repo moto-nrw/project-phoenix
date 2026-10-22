@@ -92,13 +92,15 @@ describe("GroupOverviewPage (#4351)", () => {
   it("marks the own group and a substitution, and nothing on a foreign group", () => {
     render(<GroupOverviewPage />);
 
-    expect(within(tileOf("Mondgruppe")).getByText("Ihre Gruppe")).toBeVisible();
+    expect(
+      within(tileOf("Mondgruppe")).getByText("Meine Gruppe"),
+    ).toBeVisible();
     expect(
       within(tileOf("Sonnengruppe")).getByText("Vertretung"),
     ).toBeVisible();
     const foreign = tileOf("Ahorngruppe");
     expect(within(foreign).getByText("Ahorngruppe")).toBeVisible();
-    expect(within(foreign).queryByText("Ihre Gruppe")).toBeNull();
+    expect(within(foreign).queryByText("Meine Gruppe")).toBeNull();
     expect(within(foreign).queryByText("Vertretung")).toBeNull();
   });
 

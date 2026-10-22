@@ -475,7 +475,7 @@ describe("getParentHelpTopicForPath", () => {
     );
     // #4351: die Auswahlseite markiert die eigene Gruppe.
     expect(article(detailedTopics, HELP_TOPICS.ownGroups)?.steps).toContain(
-      "Wählen Sie die gewünschte Gruppe. Ihre eigene Gruppe ist mit `Ihre Gruppe` markiert.",
+      "Wählen Sie die gewünschte Gruppe. Ihre eigene Gruppe ist mit `Meine Gruppe` markiert.",
     );
     expect(
       getHelpTopics("unknown", "unknown", true).find(

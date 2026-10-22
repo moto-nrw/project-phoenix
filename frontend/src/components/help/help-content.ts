@@ -1038,7 +1038,7 @@ function ownGroupsTopic(
     icon: "UsersThree",
     steps: [
       "Öffnen Sie `Gruppen` in der Seitenleiste.",
-      "Wählen Sie die gewünschte Gruppe. Ihre eigene Gruppe ist mit `Ihre Gruppe` markiert.",
+      "Wählen Sie die gewünschte Gruppe. Ihre eigene Gruppe ist mit `Meine Gruppe` markiert.",
       "Prüfen Sie die Zahlen für `krank` und `entschuldigt`.",
       "Suchen Sie bei Bedarf über `Name suchen...` nach einem Kind.",
       // Live geprueft: die Seite hat keinen Knopf `Filter`, sondern einen

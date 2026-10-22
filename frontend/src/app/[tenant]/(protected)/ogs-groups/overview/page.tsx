@@ -79,7 +79,7 @@ function GroupOverviewContent() {
       statsLoading={isLoadingGroups}
       info={
         <>
-          „Ihre Gruppe“: Sie sind dort als Gruppenleitung eingetragen.
+          „Meine Gruppe“: Sie sind dort als Gruppenleitung eingetragen.
           „Vertretung“: Sie vertreten die Gruppe gerade.
         </>
       }
@@ -142,7 +142,7 @@ function GroupMark({ group }: { readonly group: NavigationEducationalGroup }) {
   if (group.via_substitution) {
     return <StatusBadge label="Vertretung" tone="blue" compact />;
   }
-  return <StatusBadge label="Ihre Gruppe" tone="green" compact />;
+  return <StatusBadge label="Meine Gruppe" tone="green" compact />;
 }
 
 function GroupTile({
