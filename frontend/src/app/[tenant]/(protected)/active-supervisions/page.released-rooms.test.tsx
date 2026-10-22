@@ -1403,6 +1403,9 @@ describe("open-room tab onTabChange callback", () => {
     // Ohne eigene Aufsicht öffnet die Raumseite den offenen Raum per
     // Raum-ID (#4372); einen Reiter hat er nur, solange er geöffnet ist.
     navigationMockState.roomParam = "schulhof-r1";
+    // Die zuletzt gewählte eigene Aufsicht bleibt gemerkt: dorthin führt
+    // „Aktuelle Aufsicht“ zurück.
+    const removeItem = vi.spyOn(localStorage, "removeItem");
 
     render(<MeinRaumPage />);
 
@@ -1416,6 +1419,7 @@ describe("open-room tab onTabChange callback", () => {
     expect(
       screen.getByRole("link", { name: /Zurück zum Raum/ }),
     ).toHaveAttribute("href", expect.stringContaining("/rooms/schulhof-r1"));
+    expect(removeItem).not.toHaveBeenCalledWith("supervision-last-session");
 
     // The head card names the room an open room and carries no "Eigene
     // Aufsicht" — and the room stays open anyway. Hiding it from everyone but

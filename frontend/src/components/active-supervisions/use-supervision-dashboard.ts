@@ -833,7 +833,15 @@ export function useSupervisionDashboard(
 
     if (target.kind === "open-room") {
       selectOpenRoom(target.roomId);
-      localStorage.removeItem("supervision-last-session");
+      // A released room without an own supervision is only visited from
+      // „Räume“; the caller's last own supervision stays the one „Aktuelle
+      // Aufsicht“ returns to (#4372).
+      const isOwnOpenRoom = openRooms.some(
+        (room) => room.roomId === target.roomId && room.isUserSupervising,
+      );
+      if (isOwnOpenRoom) {
+        localStorage.removeItem("supervision-last-session");
+      }
       localStorage.setItem("sidebar-last-room", target.roomId);
       if (!roomParam) {
         router.replace(`/active-supervisions?room=${target.roomId}`);
