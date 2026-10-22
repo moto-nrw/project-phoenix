@@ -164,7 +164,6 @@ vi.mock("~/lib/room-helpers", async (importOriginal) => {
   return {
     ...actual,
     formatFloor: (n: number) => `Etage ${n}`,
-    getRoomCategoryColor: () => "#6B7280",
   };
 });
 

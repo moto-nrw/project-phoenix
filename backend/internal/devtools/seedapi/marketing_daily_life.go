@@ -34,13 +34,14 @@ type marketingSession struct {
 	leader   string
 }
 
-// marketingRooms carry the color of their room category, from the demo room
-// palette: the API rejects the colors reserved for presence states.
+// marketingRooms carry the color of their room category (#4352). The colors
+// are muted and stay away from the status hues (own group green, Schulhof
+// orange), so a room never reads like a presence state.
 func marketingRooms() []marketingRoom {
 	return []marketingRoom{
-		{key: "bauraum", name: "Bauraum", category: "Spielen", color: "#E65100", capacity: 12},
+		{key: "bauraum", name: "Bauraum", category: "Spielen", color: "#8D3B1E", capacity: 12},
 		{key: "turnhalle", name: "Turnhalle", category: "Bewegen", color: "#283593", capacity: 25},
-		{key: "kreativraum", name: "Kreativraum", category: "Kreativ", color: "#2E7D32", capacity: 14},
+		{key: "kreativraum", name: "Kreativraum", category: "Kreativ", color: "#6A1B90", capacity: 14},
 		{key: "leseecke", name: "Leseecke", category: "Ruhe", color: "#006064", capacity: 8},
 	}
 }

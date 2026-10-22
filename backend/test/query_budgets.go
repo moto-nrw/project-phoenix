@@ -154,7 +154,10 @@ var queryBudgets = map[string]queryBudget{
 	// #2941: formerly one identity query per supervisor / teacher.
 	"api.activities.available_supervisors.specialization.reads": {max: 5},
 	"api.iot.teacher_students.reads":                            {max: 5},
-	"api.rooms.snapshot_export.reads":                           {max: 4},
+	// api/room-categories: the tenant transaction's read, the catalog and the
+	// room count per category, flat in the number of categories.
+	"api.room_categories.list.reads":  {max: 3},
+	"api.rooms.snapshot_export.reads": {max: 4},
 	// modules/timetable/http — 14-day /week: FindByID + 7 preloads + class-exception
 	// lookup (#2962) with headroom for bun metadata reads; was ~98 pre-fix.
 	"api.timetable.student_week.14d": {max: 13},

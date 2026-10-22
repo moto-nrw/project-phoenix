@@ -1,25 +1,9 @@
 // lib/room-helpers.ts
 // Type definitions and helper functions for rooms
 
-import { MOTO_COLOR_PALETTE } from "~/lib/location-helper";
 import { createLogger } from "~/lib/logger";
 
 const logger = createLogger({ component: "RoomHelpers" });
-
-// Accent per room category — used by the rooms grid card and the
-// room-detail history timeline so a category reads the same way in both
-// places. Values come from MOTO_COLOR_PALETTE (Querregel Farbe); the
-// fallback for unknown / missing categories is the neutral gray below.
-// Single source of truth: previously this map was duplicated in
-// rooms/page.tsx and components/rooms/room-detail-content.tsx.
-const ROOM_CATEGORY_COLORS: Record<string, string> = {
-  "Normaler Raum": MOTO_COLOR_PALETTE.indigo.base,
-  Gruppenraum: MOTO_COLOR_PALETTE.roomCategory.group,
-  Themenraum: MOTO_COLOR_PALETTE.roomCategory.theme,
-  Sport: MOTO_COLOR_PALETTE.roomCategory.sport,
-};
-
-const ROOM_CATEGORY_FALLBACK_COLOR = MOTO_COLOR_PALETTE.neutral.base;
 
 // Status sentinel the /api/rooms/[id]/history proxy emits when the backend
 // has gated the endpoint off via gdpr.attendance_log_enabled (issue #1425).
@@ -28,13 +12,6 @@ const ROOM_CATEGORY_FALLBACK_COLOR = MOTO_COLOR_PALETTE.neutral.base;
 // Shared so the proxy route and the drawer can't drift; both sides import
 // from here.
 export const ROOM_HISTORY_STATUS_FEATURE_DISABLED = "feature_disabled";
-
-export function getRoomCategoryColor(
-  category: string | null | undefined,
-): string {
-  if (!category) return ROOM_CATEGORY_FALLBACK_COLOR;
-  return ROOM_CATEGORY_COLORS[category] ?? ROOM_CATEGORY_FALLBACK_COLOR;
-}
 
 // Backend types (from Go structs)
 export interface BackendRoom {

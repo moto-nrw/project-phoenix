@@ -24,11 +24,7 @@ import type {
   ActiveFilter,
   OverflowMenuItem,
 } from "~/components/ui/page-header/types";
-import {
-  formatFloor,
-  getRoomCategoryColor,
-  mapRoomsResponse,
-} from "~/lib/room-helpers";
+import { formatFloor, mapRoomsResponse } from "~/lib/room-helpers";
 import type { BackendRoom } from "~/lib/room-helpers";
 import { useSWRAuth } from "~/lib/swr";
 import { useApiErrorDisplay } from "~/contexts/ToastContext";
@@ -325,11 +321,7 @@ function RoomsPageContent() {
         throw new Error("unexpected rooms response shape");
       }
 
-      // Apply color defaults
-      return roomsData.map((room) => ({
-        ...room,
-        color: room.color ?? getRoomCategoryColor(room.category),
-      }));
+      return roomsData;
     },
     {
       keepPreviousData: true,

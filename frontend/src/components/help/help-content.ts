@@ -2821,7 +2821,8 @@ function roomsCatalogTopic(presenceMode: HelpPresenceMode): HelpTopic {
         steps: [
           "Öffnen Sie `Datenverwaltung` und danach `Raumkategorien`.",
           "Wählen Sie eine Kategorie aus der Liste. Oder legen Sie eine neue an.",
-          "Tragen Sie einen `Name` ein und wählen Sie eine `Farbe`.",
+          "Tragen Sie bei `Name` einen Namen ein.",
+          "Wählen Sie eine `Farbe`.",
           "Wählen Sie `Speichern`.",
         ],
       },

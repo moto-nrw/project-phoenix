@@ -2463,7 +2463,7 @@
       },
       "rooms": {
         "category_duplicate": "Diese Raumkategorie gibt es schon. Bitte wählen Sie einen anderen Namen.",
-        "category_in_use": "Räume nutzen diese Raumkategorie noch. Bitte ordnen Sie die Räume zuerst einer anderen Kategorie zu.",
+        "category_in_use": "Räume nutzen diese Raumkategorie noch. Wählen Sie bei diesen Räumen zuerst eine andere Kategorie.",
         "category_not_found": "Diese Raumkategorie gibt es nicht mehr. Bitte laden Sie die Seite neu.",
         "color_already_in_use": "Diese Farbe hat schon ein anderer Raum. Bitte wählen Sie eine andere Farbe.",
         "not_found": "Diesen Raum gibt es nicht mehr. Bitte wählen Sie ihn in der Liste neu aus.",

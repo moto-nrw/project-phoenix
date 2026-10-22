@@ -2,6 +2,7 @@ package httpadapter
 
 import (
 	"encoding/json"
+	"fmt"
 	"net/http"
 	"strings"
 	"testing"
@@ -104,4 +105,41 @@ func TestRoomCategoriesRoute(t *testing.T) {
 		roomCategoryRequest(http.MethodPut, path, `{"name":"Bewegung","color":"#827710"}`), claims, write)
 	routetest.AssertErrorResponse(t, rr, http.StatusNotFound)
 	assert.Equal(t, "rooms.category_not_found", errorCode(t, rr.Body.Bytes()))
+}
+
+// The catalog reads its categories and the room count per category in one
+// statement each, however many of both a school has (Rule 15).
+func TestRoomCategoriesListQueryBudget(t *testing.T) {
+	t.Parallel()
+	router, db := setupRoomCategoriesRoute(t)
+	claims := testutil.DefaultTestClaims()
+	add := func(from, to int) {
+		for i := from; i < to; i++ {
+			name := fmt.Sprintf("Budget %d", i)
+			rr := testutil.ExecuteWithAuthPermissions(t, router,
+				roomCategoryRequest(http.MethodPost, "/", fmt.Sprintf(`{"name":%q,"color":"#374750"}`, name)),
+				claims, []string{"rooms:update"})
+			require.Equal(t, http.StatusCreated, rr.Code, "Body: %s", rr.Body.String())
+			room := testpkg.CreateTestRoom(t, db, "Raum "+name)
+			_, err := db.NewUpdate().TableExpr("facilities.rooms").
+				Set("category = ?", name).Where("id = ?", room.ID).Exec(testpkg.Ctx(t))
+			require.NoError(t, err)
+		}
+	}
+	add(0, 3)
+	counter := testpkg.CaptureQueriesForContext(t, db)
+	run := func() []string {
+		counter.Reset()
+		req := roomCategoryRequest(http.MethodGet, "/", "")
+		req = req.WithContext(counter.Context(req.Context()))
+		rr := testutil.ExecuteWithAuthPermissions(t, router, req, claims, []string{"rooms:read"})
+		require.Equal(t, http.StatusOK, rr.Code, "Body: %s", rr.Body.String())
+		return counter.Operation("SELECT")
+	}
+	small := run()
+	add(3, 8)
+	large := run()
+	t.Logf("query budget: 3 categories -> %d reads, 8 categories -> %d reads", len(small), len(large))
+	assert.Equal(t, len(small), len(large))
+	testpkg.AssertQueryBudget(t, "api.room_categories.list.reads", large)
 }

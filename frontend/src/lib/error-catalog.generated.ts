@@ -382,7 +382,7 @@ export const ERROR_CATALOG = {
       "rooms.category_duplicate":
         "Diese Raumkategorie gibt es schon. Bitte wählen Sie einen anderen Namen.",
       "rooms.category_in_use":
-        "Räume nutzen diese Raumkategorie noch. Bitte ordnen Sie die Räume zuerst einer anderen Kategorie zu.",
+        "Räume nutzen diese Raumkategorie noch. Wählen Sie bei diesen Räumen zuerst eine andere Kategorie.",
       "rooms.category_not_found":
         "Diese Raumkategorie gibt es nicht mehr. Bitte laden Sie die Seite neu.",
       "rooms.color_already_in_use":
