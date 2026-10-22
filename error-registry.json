@@ -4163,6 +4163,36 @@
       "class": "input",
       "parameters": [],
       "legacy": "billing.invalid_key_day"
+    },
+    {
+      "code": "staff.external_email_required",
+      "class": "input",
+      "parameters": [],
+      "legacy": "staff.external_email_required"
+    },
+    {
+      "code": "staff.external_email_invalid",
+      "class": "input",
+      "parameters": [],
+      "legacy": "staff.external_email_invalid"
+    },
+    {
+      "code": "staff.external_role_missing",
+      "class": "business_rejection",
+      "parameters": [],
+      "legacy": "staff.external_role_missing"
+    },
+    {
+      "code": "staff.not_external",
+      "class": "business_rejection",
+      "parameters": [],
+      "legacy": "staff.not_external"
+    },
+    {
+      "code": "staff.external_has_account",
+      "class": "business_rejection",
+      "parameters": [],
+      "legacy": "staff.external_has_account"
     }
   ]
 }

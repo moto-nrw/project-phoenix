@@ -261,16 +261,24 @@ func newHarness(t *testing.T, membership *fakeMembership) *harness {
 			}
 			return result, nil
 		},
-		CreatePerson: func(_ context.Context, firstName, lastName string) (staffHTTP.Person, error) {
-			return staffHTTP.Person{FirstName: firstName, LastName: lastName}, nil
+		CreateExternalCaregiver: func(context.Context, staffHTTP.ExternalCaregiverInput) (staffHTTP.ExternalCaregiverResult, error) {
+			return staffHTTP.ExternalCaregiverResult{}, errors.New("not used by these tests")
 		},
-		PresentStaffIDs: func(context.Context) ([]int64, error) { return h.present, nil },
-		WorkStatusMap:   func(context.Context) (map[int64]string, error) { return h.workStatus, nil },
-		AbsenceMap:      func(context.Context) (map[int64]string, error) { return h.absence, nil },
-		AbsenceLabelMap: func(context.Context) (map[int64]string, error) { return h.absenceLbl, nil },
-		AccountRoles:    func(_ context.Context, ids []int64) (map[int64]string, error) { return pick(h.accountRole, ids), nil },
-		AccountEmails:   func(_ context.Context, ids []int64) (map[int64]string, error) { return pick(h.emails, ids), nil },
-		AccountAvatars:  func(_ context.Context, ids []int64) (map[int64]string, error) { return pick(h.avatars, ids), nil },
+		InviteExternalCaregiver: func(context.Context, staffHTTP.ExternalInvitationInput) (staffHTTP.ExternalCaregiverResult, error) {
+			return staffHTTP.ExternalCaregiverResult{}, errors.New("not used by these tests")
+		},
+		ExternalFailure: func(w http.ResponseWriter, r *http.Request, err error) {
+			_ = render.Render(w, r, errorResponse{StatusCode: http.StatusConflict, Status: http.StatusConflict, Kind: "external", Detail: err.Error()})
+		},
+		ExposeSeedInvitationToken: func(*http.Request) bool { return false },
+		PendingInvitationPersons:  func(context.Context) (map[int64]bool, error) { return map[int64]bool{}, nil },
+		PresentStaffIDs:           func(context.Context) ([]int64, error) { return h.present, nil },
+		WorkStatusMap:             func(context.Context) (map[int64]string, error) { return h.workStatus, nil },
+		AbsenceMap:                func(context.Context) (map[int64]string, error) { return h.absence, nil },
+		AbsenceLabelMap:           func(context.Context) (map[int64]string, error) { return h.absenceLbl, nil },
+		AccountRoles:              func(_ context.Context, ids []int64) (map[int64]string, error) { return pick(h.accountRole, ids), nil },
+		AccountEmails:             func(_ context.Context, ids []int64) (map[int64]string, error) { return pick(h.emails, ids), nil },
+		AccountAvatars:            func(_ context.Context, ids []int64) (map[int64]string, error) { return pick(h.avatars, ids), nil },
 		AccountHasRole: func(_ context.Context, accountID int64, role string) bool {
 			return h.roles[accountID] == role
 		},

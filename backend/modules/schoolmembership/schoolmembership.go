@@ -74,8 +74,9 @@ type Staff struct {
 	// PersonalDataErasedAt marks a retired membership the automatic deletion
 	// of staff erased (#3963); no Wiederaufnahme continues it.
 	PersonalDataErasedAt *time.Time `json:"-"`
-	// IsGuest marks an external caregiver without a moto account, recorded
-	// as a guest profile (#3823). Time tracking and the duty roster leave
+	// IsGuest marks an active guest profile (#3823). Readers that attach the
+	// person narrow it to an external caregiver (ExternalCaregiver), with or
+	// without a moto account (#4573). Time tracking and the duty roster leave
 	// these people out; supervision pickers offer them.
 	IsGuest           bool   `json:"is_guest"`
 	GuestOrganization string `json:"guest_organization,omitempty"`
@@ -369,8 +370,9 @@ func ErrorCode(err error) string {
 }
 
 // ExternalCaregiver reports whether a staff member is an external caregiver
-// (#3823): a guest profile alone is not one; a guest whose person holds no
-// account is.
-func ExternalCaregiver(guestProfile, personKnown, hasAccount bool) bool {
-	return guestProfile && personKnown && !hasAccount
+// (#3823, #4573): a staff member with an active guest profile whose person is
+// known, with or without a moto account. Whether a new assignment may name
+// the person is ExternalCaregiverAssignable.
+func ExternalCaregiver(guestProfile, personKnown bool) bool {
+	return guestProfile && personKnown
 }

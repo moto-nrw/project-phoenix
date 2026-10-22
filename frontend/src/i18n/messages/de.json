@@ -2816,6 +2816,13 @@
       },
       "feedback": {
         "disabled": "Rückmeldungen sind an dieser Schule ausgeschaltet."
+      },
+      "staff": {
+        "external_email_invalid": "Diese E-Mail-Adresse stimmt nicht. Bitte prüfen Sie sie.",
+        "external_email_required": "Bitte geben Sie eine E-Mail-Adresse ein.",
+        "external_has_account": "Diese Person hat schon ein Konto. Eine Einladung ist nicht nötig.",
+        "external_role_missing": "Die Rolle „Extern“ fehlt. Die Leitung kann sie unter Rollen anlegen.",
+        "not_external": "Diese Person ist nicht als extern eingetragen. Bitte laden Sie sie wie andere Mitarbeitende ein."
       }
     },
     "actions": {

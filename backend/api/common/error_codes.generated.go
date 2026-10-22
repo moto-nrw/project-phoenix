@@ -381,6 +381,11 @@ const (
 	CodeSettingsManagedByUpload                          = "settings.managed_by_upload"
 	CodeSettingsNotFound                                 = "settings.not_found"
 	CodeSettingsPresenceModeSwitchBlocked                = "settings.presence_mode_switch_blocked"
+	CodeStaffExternalEmailInvalid                        = "staff.external_email_invalid"
+	CodeStaffExternalEmailRequired                       = "staff.external_email_required"
+	CodeStaffExternalHasAccount                          = "staff.external_has_account"
+	CodeStaffExternalRoleMissing                         = "staff.external_role_missing"
+	CodeStaffNotExternal                                 = "staff.not_external"
 	CodeStudentsAbsenceReadRequired                      = "students.absence_read_required"
 	CodeStudentsBulkApprovalIneligible                   = "students.bulk_approval_ineligible"
 	CodeStudentsCareDayManagedByBooking                  = "students.care_day_managed_by_booking"
@@ -1051,6 +1056,11 @@ var errorClassByCode = map[string]string{
 	"settings.managed_by_upload":                           "business_rejection",
 	"settings.not_found":                                   "business_rejection",
 	"settings.presence_mode_switch_blocked":                "business_rejection",
+	"staff.external_email_invalid":                         "input",
+	"staff.external_email_required":                        "input",
+	"staff.external_has_account":                           "business_rejection",
+	"staff.external_role_missing":                          "business_rejection",
+	"staff.not_external":                                   "business_rejection",
 	"students.absence_read_required":                       "permission",
 	"students.bulk_approval_ineligible":                    "business_rejection",
 	"students.care_day_managed_by_booking":                 "business_rejection",

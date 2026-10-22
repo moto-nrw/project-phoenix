@@ -2,7 +2,9 @@ package owners
 
 import (
 	"context"
+	"errors"
 
+	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
 	peopleValues "github.com/moto-nrw/project-phoenix/modules/peopledirectory"
 
 	peoplePorts "github.com/moto-nrw/project-phoenix/modules/peopledirectory/ports"
@@ -44,7 +46,7 @@ func (s EducationStaff) LockStaff(ctx context.Context, id int64) error {
 }
 
 // EducationExternalCaregivers serves the running-supervision directory from
-// the staff and guest repositories.
+// the staff and guest repositories and the school's open invitations.
 type EducationExternalCaregivers struct {
 	staff interface {
 		ListAllWithPerson(ctx context.Context) ([]*peopleValues.Staff, error)
@@ -52,10 +54,17 @@ type EducationExternalCaregivers struct {
 	guests interface {
 		ActiveGuests(ctx context.Context) ([]*peopleValues.Guest, error)
 	}
+	invitations pendingInvitations
+}
+
+// pendingInvitations lists the school's unused, unexpired invitations.
+type pendingInvitations interface {
+	ListPendingSchoolInvitations(ctx context.Context) ([]identityaccess.SchoolInvitation, error)
 }
 
 // NewEducationExternalCaregivers binds the external-caregiver directory to
-// the staff and guest repositories.
+// the staff and guest repositories. The open invitations come from the
+// Identity & Access owner, which the root builds later (WithInvitations).
 func NewEducationExternalCaregivers(staff interface {
 	ListAllWithPerson(ctx context.Context) ([]*peopleValues.Staff, error)
 }, guests interface {
@@ -64,9 +73,17 @@ func NewEducationExternalCaregivers(staff interface {
 	return EducationExternalCaregivers{staff: staff, guests: guests}
 }
 
+// WithInvitations binds the school's open invitations, which decide whether
+// an external caregiver without an account may be assigned (#4573).
+func (s EducationExternalCaregivers) WithInvitations(invitations pendingInvitations) EducationExternalCaregivers {
+	s.invitations = invitations
+	return s
+}
+
 // ListExternalCaregivers returns the currently valid external caregivers
-// (#3823) in the caregiver directory's order. Which staff members count is
-// School Membership's rule; the root maps the retained rows onto it.
+// (#3823), with or without an account (#4573), in the caregiver directory's
+// order. Which staff members count and which may be assigned is School
+// Membership's rule; the root maps the retained rows onto it.
 func (s EducationExternalCaregivers) ListExternalCaregivers(ctx context.Context) ([]*educationRepo.Caregiver, error) {
 	guests, err := s.guests.ActiveGuests(ctx)
 	if err != nil {
@@ -82,6 +99,22 @@ func (s EducationExternalCaregivers) ListExternalCaregivers(ctx context.Context)
 			activeGuestStaffIDs = append(activeGuestStaffIDs, guest.StaffID)
 		}
 	}
+	candidates := externalCaregiverCandidates(members)
+	if err := s.markOpenInvitations(ctx, candidates, members); err != nil {
+		return nil, err
+	}
+	externals := schoolmembership.ActiveExternalCaregivers(activeGuestStaffIDs, candidates)
+	result := make([]*educationRepo.Caregiver, 0, len(externals))
+	for _, external := range externals {
+		result = append(result, &educationRepo.Caregiver{
+			StaffID: external.StaffID, FullName: external.FullName,
+			Assignable: external.Assignable, AccountStatus: external.AccountStatus,
+		})
+	}
+	return result, nil
+}
+
+func externalCaregiverCandidates(members []*peopleValues.Staff) []schoolmembership.ExternalCaregiverCandidate {
 	candidates := make([]schoolmembership.ExternalCaregiverCandidate, 0, len(members))
 	for _, member := range members {
 		if member == nil {
@@ -94,12 +127,41 @@ func (s EducationExternalCaregivers) ListExternalCaregivers(ctx context.Context)
 		}
 		candidates = append(candidates, candidate)
 	}
-	externals := schoolmembership.ActiveExternalCaregivers(activeGuestStaffIDs, candidates)
-	result := make([]*educationRepo.Caregiver, 0, len(externals))
-	for _, external := range externals {
-		result = append(result, &educationRepo.Caregiver{StaffID: external.StaffID, FullName: external.FullName})
+	return candidates
+}
+
+// markOpenInvitations marks the candidates an open invitation names. The
+// invitations are read only when a guest without an account is among them,
+// so a school without such externals pays no extra query.
+func (s EducationExternalCaregivers) markOpenInvitations(ctx context.Context, candidates []schoolmembership.ExternalCaregiverCandidate, members []*peopleValues.Staff) error {
+	personIDs := make(map[int64]int64, len(candidates))
+	for _, member := range members {
+		if member != nil && member.IsGuest && member.Person != nil && member.Person.AccountID == nil {
+			personIDs[member.ID] = member.Person.ID
+		}
 	}
-	return result, nil
+	if len(personIDs) == 0 {
+		return nil
+	}
+	if s.invitations == nil {
+		return errors.New("external caregiver directory: open invitations are not bound")
+	}
+	pending, err := s.invitations.ListPendingSchoolInvitations(ctx)
+	if err != nil {
+		return err
+	}
+	invited := make(map[int64]bool, len(pending))
+	for _, invitation := range pending {
+		if invitation.PersonID != nil {
+			invited[*invitation.PersonID] = true
+		}
+	}
+	for i := range candidates {
+		if personID, ok := personIDs[candidates[i].StaffID]; ok {
+			candidates[i].InvitationPending = invited[personID]
+		}
+	}
+	return nil
 }
 
 // EducationCaregivers serves the substitution module's caregiver directory

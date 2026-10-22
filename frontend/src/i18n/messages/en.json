@@ -2816,6 +2816,13 @@
       },
       "feedback": {
         "disabled": "You cannot access {object}. Please contact the school."
+      },
+      "staff": {
+        "external_email_invalid": "This email address is not valid. Please check it.",
+        "external_email_required": "Please enter an email address.",
+        "external_has_account": "This person already has an account. No invitation is needed.",
+        "external_role_missing": "The role “Extern” is missing. The school management can create it under Roles.",
+        "not_external": "This person is not listed as external. Please invite them like other staff members."
       }
     },
     "actions": {

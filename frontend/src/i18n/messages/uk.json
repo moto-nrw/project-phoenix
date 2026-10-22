@@ -2816,6 +2816,13 @@
       },
       "feedback": {
         "disabled": "У вас немає доступу до: {object}. Зверніться до школи."
+      },
+      "staff": {
+        "external_email_invalid": "Не вдалося зберегти: {object}. Перевірте введені дані.",
+        "external_email_required": "Не вдалося зберегти: {object}. Перевірте введені дані.",
+        "external_has_account": "Не вдалося змінити: {object}. Перевірте поточний стан.",
+        "external_role_missing": "Не вдалося змінити: {object}. Перевірте поточний стан.",
+        "not_external": "Не вдалося змінити: {object}. Перевірте поточний стан."
       }
     },
     "actions": {

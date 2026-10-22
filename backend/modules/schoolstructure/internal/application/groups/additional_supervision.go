@@ -27,8 +27,9 @@ func (s *substitutionModule) listRunningSupervisions(
 	if err != nil {
 		return nil, err
 	}
+	externals := map[int64]StaffRef{}
 	if len(groups) > 0 {
-		if targets, err = s.withExternalTargets(ctx, targets); err != nil {
+		if targets, externals, err = s.withExternalTargets(ctx, targets); err != nil {
 			return nil, err
 		}
 	}
@@ -41,7 +42,7 @@ func (s *substitutionModule) listRunningSupervisions(
 		if !broad && !own {
 			continue
 		}
-		result = append(result, projectRunningSupervision(group.ID, loaded[group.ID], byGroup[group.ID], targets, access, own))
+		result = append(result, projectRunningSupervision(group.ID, loaded[group.ID], byGroup[group.ID], targets, externals, access, own))
 	}
 	if query.ActiveGroupID > 0 && len(result) == 0 {
 		return nil, ErrNotFound
@@ -50,27 +51,35 @@ func (s *substitutionModule) listRunningSupervisions(
 	return result, nil
 }
 
-// withExternalTargets appends the external caregivers to the caregiver
-// targets: an external caregiver (#3823) can help with a running supervision,
-// while group handovers keep offering caregivers only.
-func (s *substitutionModule) withExternalTargets(ctx context.Context, caregivers []StaffRef) ([]StaffRef, error) {
+// withExternalTargets appends the assignable external caregivers to the
+// caregiver targets: an external caregiver (#3823) with an account or an
+// open invitation (#4573) can help with a running supervision, while group
+// handovers keep offering caregivers only. It also returns every external
+// caregiver by staff ID, so one already supervising stays labelled.
+func (s *substitutionModule) withExternalTargets(ctx context.Context, caregivers []StaffRef) ([]StaffRef, map[int64]StaffRef, error) {
 	if s.deps.ExternalCaregivers == nil {
-		return caregivers, nil
+		return caregivers, map[int64]StaffRef{}, nil
 	}
-	externals, err := s.deps.ExternalCaregivers.ListExternalCaregivers(ctx)
+	members, err := s.deps.ExternalCaregivers.ListExternalCaregivers(ctx)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
-	result := make([]StaffRef, 0, len(caregivers)+len(externals))
+	result := make([]StaffRef, 0, len(caregivers)+len(members))
 	result = append(result, caregivers...)
-	for _, member := range externals {
-		result = append(result, StaffRef{ID: member.StaffID, FullName: member.FullName, IsExternal: true})
+	externals := make(map[int64]StaffRef, len(members))
+	for _, member := range members {
+		ref := StaffRef{ID: member.StaffID, FullName: member.FullName, IsExternal: true, ExternalAccountStatus: member.AccountStatus}
+		externals[member.StaffID] = ref
+		if member.Assignable {
+			result = append(result, ref)
+		}
 	}
-	return result, nil
+	return result, externals, nil
 }
 
 // findAndLockSupervisionTarget resolves an additional supervisor: an active
-// caregiver or, when the directory is wired, an external caregiver.
+// caregiver or, when the directory is wired, an assignable external
+// caregiver.
 func (s *substitutionModule) findAndLockSupervisionTarget(ctx context.Context, staffID int64) (*domain.Caregiver, bool, error) {
 	target, err := s.findAndLockTarget(ctx, staffID)
 	if !errors.Is(err, ErrNotFound) || s.deps.ExternalCaregivers == nil {
@@ -81,7 +90,7 @@ func (s *substitutionModule) findAndLockSupervisionTarget(ctx context.Context, s
 		return nil, false, err
 	}
 	for _, member := range externals {
-		if member.StaffID == staffID {
+		if member.StaffID == staffID && member.Assignable {
 			return member, true, nil
 		}
 	}
@@ -130,6 +139,7 @@ func projectRunningSupervision(
 	group *studentpresence.SessionDetail,
 	supervisors []*studentpresence.StaffedSupervision,
 	caregivers []StaffRef,
+	externals map[int64]StaffRef,
 	access substitutionAccess,
 	own bool,
 ) RunningSupervision {
@@ -147,18 +157,13 @@ func projectRunningSupervision(
 			result.Name = group.Room.Name
 		}
 	}
-	externalIDs := make(map[int64]struct{}, len(caregivers))
-	for _, caregiver := range caregivers {
-		if caregiver.IsExternal {
-			externalIDs[caregiver.ID] = struct{}{}
-		}
-	}
 	participantIDs := make(map[int64]struct{}, len(supervisors)+1)
 	for _, supervisor := range supervisors {
 		participantIDs[supervisor.StaffID] = struct{}{}
-		_, isExternal := externalIDs[supervisor.StaffID]
+		external := externals[supervisor.StaffID]
 		result.Supervisors = append(result.Supervisors, StaffRef{
-			ID: supervisor.StaffID, FullName: supervisor.StaffName, IsExternal: isExternal,
+			ID: supervisor.StaffID, FullName: supervisor.StaffName,
+			IsExternal: external.IsExternal, ExternalAccountStatus: external.ExternalAccountStatus,
 		})
 	}
 	if access.actor != nil {

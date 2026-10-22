@@ -1,6 +1,6 @@
 {
   "schema_version": 5,
-  "policy_epoch": 90,
+  "policy_epoch": 91,
   "module_path": "github.com/moto-nrw/project-phoenix",
   "shared_kernel_types": [
     "CorrelationID",
@@ -279,6 +279,10 @@
     },
     {
       "id": "care-exit",
+      "kind": "workflow"
+    },
+    {
+      "id": "external-caregiver",
       "kind": "workflow"
     },
     {
@@ -3158,6 +3162,13 @@
     {
       "path": "workflows/careexit",
       "owner": "care-exit",
+      "role": "public",
+      "internal_test_role": "workflow-decision-test",
+      "external_test_role": "workflow-integration-test"
+    },
+    {
+      "path": "workflows/externalcaregiver",
+      "owner": "external-caregiver",
       "role": "public",
       "internal_test_role": "workflow-decision-test",
       "external_test_role": "workflow-integration-test"
@@ -12240,6 +12251,39 @@
       "source_owner": "care-exit",
       "source_role": "public",
       "target_owner": "timetable-activities",
+      "target_role": "public"
+    },
+    {
+      "id": "external-caregiver.public.people-directory.public",
+      "description": "External Caregiver creates the person of an external caregiver and reads it through the People Directory public contract (#4573).",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "external-caregiver",
+      "source_role": "public",
+      "target_owner": "people-directory",
+      "target_role": "public"
+    },
+    {
+      "id": "external-caregiver.public.school-membership.public",
+      "description": "External Caregiver records the staff member with its caregiver and guest profile through the School Membership public contract (#4573).",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "external-caregiver",
+      "source_role": "public",
+      "target_owner": "school-membership",
+      "target_role": "public"
+    },
+    {
+      "id": "external-caregiver.public.identity-access.public",
+      "description": "External Caregiver resolves the role Extern and issues and revokes account invitations through the Identity & Access public contract (#4573).",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "external-caregiver",
+      "source_role": "public",
+      "target_owner": "identity-access",
       "target_role": "public"
     },
     {

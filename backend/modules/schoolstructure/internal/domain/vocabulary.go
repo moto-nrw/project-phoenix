@@ -72,6 +72,11 @@ type Caregiver struct {
 	StaffID   int64
 	TeacherID int64
 	FullName  string
+	// The external caregiver directory (#4573) sets these two: Assignable
+	// tells whether a new assignment may name the person, AccountStatus is
+	// "account" | "invitation_pending" | "none".
+	Assignable    bool
+	AccountStatus string
 }
 
 // SubstitutionAction is the audited step of a responsibility change.

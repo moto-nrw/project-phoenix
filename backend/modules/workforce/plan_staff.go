@@ -6,7 +6,7 @@ import "github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 // read them from People Directory: the staff row, the work-time model and the
 // rotation anchor that set the weekly target, and the person behind it. A nil
 // Person is a staff row without a resolvable person. IsGuest marks an
-// external caregiver (#3823).
+// external caregiver (#3823), with or without an account (#4573).
 type PlanStaff struct {
 	ID                 int64
 	PersonID           int64

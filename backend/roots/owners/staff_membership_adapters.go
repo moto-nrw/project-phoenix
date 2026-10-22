@@ -265,9 +265,10 @@ func (r StaffMembershipRepository) hydrateStaffPersons(ctx context.Context, memb
 		if person, found := persons[member.PersonID]; found {
 			member.Person = person
 		}
-		// The People Directory owns the account link, so School Membership
-		// resolves the marker only after its projection is attached.
-		member.IsGuest = schoolmembership.ExternalCaregiver(member.IsGuest, member.Person != nil, member.Person != nil && member.Person.AccountID != nil)
+		// The People Directory owns the person, so School Membership
+		// resolves the marker only after its projection is attached. An
+		// account does not change it (#4573).
+		member.IsGuest = schoolmembership.ExternalCaregiver(member.IsGuest, member.Person != nil)
 	}
 	return nil
 }

@@ -373,7 +373,7 @@ func composeServeRoot(
 		func() (err error) {
 			structureViews.Education = buildGroupManagement(db, hub, structure, people, substitutions, audit)
 			structureViews.Substitution, err = buildSubstitutions(db, env, hub, structure, people, substitutions, workTime,
-				caller.Caller(), presence.SessionRecords, supervisions, active, lifecycle.Deviations, timetableRows, audit, settings.Service)
+				caller.Caller(), presence.SessionRecords, supervisions, active, lifecycle.Deviations, timetableRows, audit, settings.Service, identity)
 			return
 		},
 		func() error {

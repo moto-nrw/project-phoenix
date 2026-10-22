@@ -61,7 +61,7 @@ func (rs *Resource) listFormerStaff(w http.ResponseWriter, r *http.Request, filt
 	for _, staff := range former {
 		person := persons[staff.PersonID]
 		if person == nil ||
-			schoolmembership.ExternalCaregiver(staff.IsGuest, true, person.AccountID != nil) ||
+			schoolmembership.ExternalCaregiver(staff.IsGuest, true) ||
 			!matchesBatchRoleFilter(person, filters.filterByRole, roleMatches) ||
 			!matchesNameFilter(person, filters.firstName, filters.lastName) {
 			continue

@@ -29,6 +29,8 @@ import (
 	workforceCompose "github.com/moto-nrw/project-phoenix/modules/workforce/compose"
 	timeTrackingHTTP "github.com/moto-nrw/project-phoenix/modules/workforce/http/timetracking"
 	"github.com/moto-nrw/project-phoenix/observability"
+	"github.com/moto-nrw/project-phoenix/tenant"
+	"github.com/moto-nrw/project-phoenix/workflows/externalcaregiver"
 )
 
 // The staff surface under /api/staff is composed from two adapters (#2667):
@@ -123,7 +125,7 @@ func newStaffComposition(
 	module schoolMembershipModule.Capability, workforce workforceModule.Capability, users peoplePorts.PersonDirectory,
 	documents *workforceModule.StaffAdmin, timeTracking *workforceCompose.TimeTracking, education schoolstructure.GroupManagement,
 	people peopleModule.Capability, settings settingsCompose.SettingsService, hub *realtime.Hub,
-	identity identityaccess.Owner, db transactionruntime.Database, logger *slog.Logger,
+	identity identityaccess.Owner, appEnv string, db transactionruntime.Database, logger *slog.Logger,
 ) (*staffHTTP.Resource, *timeTrackingHTTP.StaffAdminResource, error) {
 	exportTransfer, err := newExportTransferModule(settings, db, logger)
 	if err != nil {
@@ -131,9 +133,13 @@ func newStaffComposition(
 	}
 	capabilities := owners.NewWorkforceAdminCapabilities(users, documents, timeTracking)
 	staffAdmin := newStaffAdminResource(capabilities, workforce, staffTimeTrackingNotifier(hub), exportTransfer, db, logger)
-	return newStaffResource(module, people, func(hooks StaffMembershipHooks) StaffMembershipRuntime {
+	resource, err := newStaffResource(module, people, identity, appEnv, func(hooks StaffMembershipHooks) StaffMembershipRuntime {
 		return NewStaffMembershipRuntime(users, education, timeTracking.StaffDay, hub, db, identity, logger, hooks)
-	}, staffAdmin, logger), staffAdmin, nil
+	}, staffAdmin, logger)
+	if err != nil {
+		return nil, nil, err
+	}
+	return resource, staffAdmin, nil
 }
 
 // newExportTransferModule wires the Export Transfer capability (#3050) over
@@ -168,8 +174,19 @@ func newExportTransferModule(settings settingsCompose.SettingsService, db transa
 }
 
 // newStaffResource binds the School Membership HTTP adapter to the shared
-// renderer, the JWT identity and the legacy-service composition.
-func newStaffResource(module schoolMembershipModule.Capability, people peopleModule.Capability, buildRuntime func(StaffMembershipHooks) StaffMembershipRuntime, staffAdmin *timeTrackingHTTP.StaffAdminResource, logger *slog.Logger) *staffHTTP.Resource {
+// renderer, the JWT identity, the legacy-service composition and the
+// external-caregiver workflow (#4573), built here as a local value. appEnv
+// gates the seed-only invitation token.
+func newStaffResource(
+	module schoolMembershipModule.Capability, people peopleModule.Capability, identity identityaccess.Owner, appEnv string,
+	buildRuntime func(StaffMembershipHooks) StaffMembershipRuntime, staffAdmin *timeTrackingHTTP.StaffAdminResource, logger *slog.Logger,
+) (*staffHTTP.Resource, error) {
+	// The owners' public capabilities satisfy the workflow's ports; its
+	// savepoint runs inside the request's tenant transaction.
+	externals, err := externalcaregiver.New(people, module, identity, tenant.WithSavepoint)
+	if err != nil {
+		return nil, err
+	}
 	runtime := buildRuntime(StaffMembershipHooks{
 		ResolveEditorStaffID:           staffAdmin.ResolveEditorStaffID,
 		QueueOffboardedDocumentCleanup: staffAdmin.QueueOffboardedStaffDocumentCleanup,
@@ -201,7 +218,14 @@ func newStaffResource(module schoolMembershipModule.Capability, people peopleMod
 		Person:         staffPersonLookup(runtime),
 		PersonNotFound: apiCommon.IsNotFound,
 		Persons:        staffPersonsLookup(runtime),
-		CreatePerson:   staffPersonCreate(people),
+
+		CreateExternalCaregiver: externalCaregiverCreate(externals),
+		InviteExternalCaregiver: externalCaregiverInvite(externals),
+		ExternalFailure:         renderExternalCaregiverFailure,
+		ExposeSeedInvitationToken: func(r *http.Request) bool {
+			return apiCommon.ShouldExposeSeedInvitationToken(r, appEnv)
+		},
+		PendingInvitationPersons: pendingInvitationPersons(identity),
 
 		PresentStaffIDs:     runtime.PresentStaffIDs,
 		WorkStatusMap:       runtime.WorkStatusMap,
@@ -226,7 +250,7 @@ func newStaffResource(module schoolMembershipModule.Capability, people peopleMod
 		Offboard:    runtime.Offboard,
 
 		Log: logger,
-	})
+	}), nil
 }
 
 func staffPermissionGate(required ...string) staffHTTP.Middleware {
@@ -270,21 +294,6 @@ func staffPersonLookup(runtime StaffMembershipRuntime) func(context.Context, int
 			return staffHTTP.Person{}, err
 		}
 		return toStaffHTTPPerson(person), nil
-	}
-}
-
-// staffPersonCreate adds an account-less People Directory entry for the
-// external caregiver flow (#3823).
-func staffPersonCreate(people peopleModule.Capability) func(context.Context, string, string) (staffHTTP.Person, error) {
-	return func(ctx context.Context, firstName, lastName string) (staffHTTP.Person, error) {
-		person, err := people.CreatePerson(ctx, peopleModule.CreatePerson{FirstName: firstName, LastName: lastName})
-		if err != nil {
-			return staffHTTP.Person{}, err
-		}
-		return staffHTTP.Person{
-			ID: person.ID, FirstName: person.FirstName, LastName: person.LastName,
-			AccountID: person.AccountID, CreatedAt: person.CreatedAt, UpdatedAt: person.UpdatedAt,
-		}, nil
 	}
 }
 

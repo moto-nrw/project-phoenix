@@ -112,6 +112,17 @@ func TestActiveCaregiversOfASchool(t *testing.T) {
 	assert.Empty(t, none, "an account of another school is no caregiver here")
 }
 
+// An external caregiver is never a caregiver of the group handover or the
+// substitution pickers, even with an account in a caregiver role (#4573).
+func TestActiveCaregiversLeaveExternalCaregiversOut(t *testing.T) {
+	t.Parallel()
+	membership, directory := caregiverFixture()
+	membership.staff[0].IsGuest = true
+	caregivers, err := schoolmembership.ActiveCaregivers(context.Background(), membership, directory, caregiverSchool, nil)
+	require.NoError(t, err)
+	assert.Empty(t, caregivers)
+}
+
 func TestCaregiverStatusNeedsTheUserRoleToBeActive(t *testing.T) {
 	t.Parallel()
 	profile, active := schoolmembership.CaregiverStatus(true, false)
@@ -124,12 +135,22 @@ func TestCaregiverStatusNeedsTheUserRoleToBeActive(t *testing.T) {
 	assert.True(t, active)
 }
 
-func TestExternalCaregiverIsAGuestWithoutAccount(t *testing.T) {
+// An external caregiver is a guest, with or without an account (#4573).
+func TestExternalCaregiverIsAGuestWithOrWithoutAccount(t *testing.T) {
 	t.Parallel()
-	assert.True(t, schoolmembership.ExternalCaregiver(true, true, false))
-	assert.False(t, schoolmembership.ExternalCaregiver(true, true, true), "a guest with an account is staff")
-	assert.False(t, schoolmembership.ExternalCaregiver(true, false, false), "without the person nothing is known")
-	assert.False(t, schoolmembership.ExternalCaregiver(false, true, false))
+	assert.True(t, schoolmembership.ExternalCaregiver(true, true))
+	assert.False(t, schoolmembership.ExternalCaregiver(true, false), "without the person nothing is known")
+	assert.False(t, schoolmembership.ExternalCaregiver(false, true))
+}
+
+func TestExternalCaregiverIsAssignableWithAccountOrOpenInvitation(t *testing.T) {
+	t.Parallel()
+	assert.True(t, schoolmembership.ExternalCaregiverAssignable(true, false))
+	assert.True(t, schoolmembership.ExternalCaregiverAssignable(false, true))
+	assert.False(t, schoolmembership.ExternalCaregiverAssignable(false, false), "nobody vouched for an uninvited external")
+	assert.Equal(t, schoolmembership.ExternalAccountStatusAccount, schoolmembership.ExternalAccountStatus(true, true))
+	assert.Equal(t, schoolmembership.ExternalAccountStatusInvitationPending, schoolmembership.ExternalAccountStatus(false, true))
+	assert.Equal(t, schoolmembership.ExternalAccountStatusNone, schoolmembership.ExternalAccountStatus(false, false))
 }
 
 func TestTeachingAssignmentValidation(t *testing.T) {

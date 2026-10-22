@@ -349,6 +349,7 @@ func TestFullProductionRouterGolden(t *testing.T) {
 			t.Run("IoT error codes", func(t *testing.T) { checkIoTErrorCodes(t, api) })
 			t.Run("phase response query budget", func(t *testing.T) { checkPhaseResponseQueryBudget(t, api) })
 			t.Run("rate limited operator invitations", func(t *testing.T) { checkOperatorInvitationMount(t, api) })
+			t.Run("extern role route permissions", func(t *testing.T) { checkExternRoleRoutePermissions(t, api) })
 		})
 		return nil
 	})

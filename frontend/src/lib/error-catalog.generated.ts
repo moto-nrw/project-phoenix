@@ -1164,6 +1164,16 @@ export const ERROR_CATALOG = {
         "Dieser Scan ist schon erledigt. Bitte laden Sie die Seite neu.",
       "billing.invalid_key_day":
         "Der Stichtag muss zwischen dem 1. und dem 28. des Monats liegen. Bitte wählen Sie einen dieser Tage.",
+      "staff.external_email_required":
+        "Bitte geben Sie eine E-Mail-Adresse ein.",
+      "staff.external_email_invalid":
+        "Diese E-Mail-Adresse stimmt nicht. Bitte prüfen Sie sie.",
+      "staff.external_role_missing":
+        "Die Rolle „Extern“ fehlt. Die Leitung kann sie unter Rollen anlegen.",
+      "staff.not_external":
+        "Diese Person ist nicht als extern eingetragen. Bitte laden Sie sie wie andere Mitarbeitende ein.",
+      "staff.external_has_account":
+        "Diese Person hat schon ein Konto. Eine Einladung ist nicht nötig.",
     },
   },
   en: {
@@ -1436,6 +1446,15 @@ export const ERROR_CATALOG = {
         "The status of this change request has changed. Please reload the page.",
       "identity.operator_self_deactivation":
         "You cannot deactivate your own account. Ask another team member to do this.",
+      "staff.external_email_required": "Please enter an email address.",
+      "staff.external_email_invalid":
+        "This email address is not valid. Please check it.",
+      "staff.external_role_missing":
+        "The role “Extern” is missing. The school management can create it under Roles.",
+      "staff.not_external":
+        "This person is not listed as external. Please invite them like other staff members.",
+      "staff.external_has_account":
+        "This person already has an account. No invitation is needed.",
     },
   },
   ru: {

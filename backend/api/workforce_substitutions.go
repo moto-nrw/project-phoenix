@@ -272,7 +272,9 @@ func groupRefsToCapability(values []education.GroupRef) []workforceModule.GroupR
 func staffRefsToCapability(values []education.StaffRef) []workforceModule.StaffRef {
 	result := make([]workforceModule.StaffRef, 0, len(values))
 	for _, value := range values {
-		result = append(result, workforceModule.StaffRef{ID: value.ID, FullName: value.FullName, IsExternal: value.IsExternal})
+		result = append(result, workforceModule.StaffRef{
+			ID: value.ID, FullName: value.FullName, IsExternal: value.IsExternal, ExternalAccountStatus: value.ExternalAccountStatus,
+		})
 	}
 	return result
 }

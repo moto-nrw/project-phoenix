@@ -41,7 +41,9 @@ type StructureRows struct {
 	}
 	SubstitutionPersons education.PersonQuery
 	Caregivers          education.CaregiverDirectory
-	ExternalCaregivers  education.ExternalCaregiverDirectory
+	// ExternalCaregivers still needs the open invitations of the Identity &
+	// Access owner the root builds later (WithInvitations).
+	ExternalCaregivers EducationExternalCaregivers
 }
 
 // PresencePeopleReads are Student Presence's reads of the students, the

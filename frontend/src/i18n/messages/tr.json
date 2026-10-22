@@ -2816,6 +2816,13 @@
       },
       "feedback": {
         "disabled": "{object} için erişim izniniz yok. Okulla iletişime geçin."
+      },
+      "staff": {
+        "external_email_invalid": "{object} kaydedilemedi. Girdiğiniz bilgileri kontrol edin.",
+        "external_email_required": "{object} kaydedilemedi. Girdiğiniz bilgileri kontrol edin.",
+        "external_has_account": "{object} değiştirilemedi. Güncel durumu kontrol edin.",
+        "external_role_missing": "{object} değiştirilemedi. Güncel durumu kontrol edin.",
+        "not_external": "{object} değiştirilemedi. Güncel durumu kontrol edin."
       }
     },
     "actions": {

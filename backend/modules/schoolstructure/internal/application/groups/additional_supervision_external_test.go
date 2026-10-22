@@ -1,6 +1,7 @@
 package groups_test
 
 import (
+	"context"
 	"testing"
 	"time"
 
@@ -9,12 +10,34 @@ import (
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/require"
+	"github.com/uptrace/bun"
 )
 
-// TestAdditionalSupervisionOffersExternalCaregivers pins #3823: an external
-// caregiver without a moto account can join a running supervision, while the
-// group handover targets keep offering account holders only, and other staff
-// without an account stay out of both.
+// renameTestPerson gives a fixture person a name the assertions can tell
+// apart; every CreateTestGuest person is called „Guest Instructor“.
+func renameTestPerson(t *testing.T, db *bun.DB, personID int64, firstName, lastName string) {
+	t.Helper()
+	_, err := db.NewRaw(`UPDATE users.persons SET first_name = ?, last_name = ? WHERE id = ?`, firstName, lastName, personID).
+		Exec(context.Background())
+	require.NoError(t, err)
+}
+
+// inviteTestPerson stores an open invitation that names the person.
+func inviteTestPerson(t *testing.T, db *bun.DB, personID, createdBy int64) {
+	t.Helper()
+	role := testpkg.GetOrCreateTestRole(t, db, "user")
+	invitation := testpkg.CreateTestInvitationToken(t, db, "extern", role.ID, createdBy, time.Now().Add(48*time.Hour))
+	_, err := db.NewRaw(`UPDATE auth.invitation_tokens SET person_id = ? WHERE id = ?`, personID, invitation.ID).
+		Exec(context.Background())
+	require.NoError(t, err)
+}
+
+// TestAdditionalSupervisionOffersExternalCaregivers pins #3823 and #4573: an
+// external caregiver with an account or an open invitation can join a
+// running supervision; one without either is not offered and cannot be
+// assigned, but stays labelled external where it already supervises. Group
+// handover targets keep offering caregivers only, and an external with an
+// account in a caregiver role never becomes one.
 func TestAdditionalSupervisionOffersExternalCaregivers(t *testing.T) {
 	t.Parallel()
 	db := testpkg.SetupTestDB(t)
@@ -34,13 +57,24 @@ func TestAdditionalSupervisionOffersExternalCaregivers(t *testing.T) {
 	ctx := testpkg.Ctx(t)
 	owner, ownerAccountID := activeTeacher(t, db, "Robin", "Owner")
 	colleague, _ := activeTeacher(t, db, "Toni", "Kollege")
-	external := testpkg.CreateTestGuest(t, db, "Trommeln").Staff
+
+	invited := testpkg.CreateTestGuest(t, db, "Trommeln").Staff
+	renameTestPerson(t, db, invited.PersonID, "Ina", "Eingeladen")
+	inviteTestPerson(t, db, invited.PersonID, ownerAccountID)
+	uninvited := testpkg.CreateTestGuest(t, db, "Gitarre").Staff
+	renameTestPerson(t, db, uninvited.PersonID, "Uwe", "Ohneeinladung")
+	withAccount, _ := activeTeacher(t, db, "Anna", "Konto")
+	_, err = db.NewRaw(`INSERT INTO users.guests (tenant_id, staff_id, activity_expertise) VALUES (?, ?, ?)`,
+		testpkg.Tenant(t), withAccount.StaffID, "Theater").Exec(context.Background())
+	require.NoError(t, err)
+
 	expiredFixture := testpkg.CreateTestGuest(t, db, "Abgelaufen")
 	expired, err := repos.Guest.FindByID(ctx, expiredFixture.ID)
 	require.NoError(t, err)
 	expiredUntil := calendar.DateFromTime(now).AddDays(-1)
 	expired.EndDate = &expiredUntil
 	require.NoError(t, repos.Guest.Update(ctx, expired))
+	inviteTestPerson(t, db, expiredFixture.Staff.PersonID, ownerAccountID)
 	testpkg.CreateTestStaff(t, db, "Ohne", "Konto")
 	testpkg.CreateTestGroupSupervisor(t, db, owner.StaffID, running.ID, "supervisor")
 	caller := substitutionCaller(t, ownerAccountID, false)
@@ -50,27 +84,29 @@ func TestAdditionalSupervisionOffersExternalCaregivers(t *testing.T) {
 	require.Len(t, overview.RunningSupervisions, 1)
 	require.Equal(t, []StaffRef{
 		{ID: colleague.StaffID, FullName: "Toni Kollege"},
-		{ID: external.ID, FullName: "Guest Instructor", IsExternal: true},
-	}, overview.RunningSupervisions[0].AvailableTargets)
-	for _, target := range overview.RunningSupervisions[0].AvailableTargets {
-		require.NotEqual(t, expired.StaffID, target.ID, "expired guest profiles are not available")
-	}
+		{ID: withAccount.StaffID, FullName: "Anna Konto", IsExternal: true, ExternalAccountStatus: "account"},
+		{ID: invited.ID, FullName: "Ina Eingeladen", IsExternal: true, ExternalAccountStatus: "invitation_pending"},
+	}, overview.RunningSupervisions[0].AvailableTargets,
+		"neither the uninvited external nor the expired guest profile is offered")
 	for _, target := range overview.Targets {
-		require.NotEqual(t, external.ID, target.ID, "a person without an account never takes over a group")
+		require.NotEqual(t, invited.ID, target.ID, "a person without an account never takes over a group")
+		require.NotEqual(t, withAccount.StaffID, target.ID, "an external caregiver never takes over a group")
 	}
 
-	created, err := testpkg.TenantQuery2(t, ctx, db, module.Assign, caller, Assignment{
-		Type: TargetAdditionalSupervision,
-		AdditionalSupervision: &AdditionalSupervisionAssignment{
-			ActiveGroupID: running.ID, TargetStaffID: external.ID,
-		},
-	})
+	_, err = testpkg.TenantQuery2(t, ctx, db, module.Assign, caller, additionalSupervisionAssignment(running.ID, uninvited.ID))
+	require.ErrorIs(t, err, ErrNotFound, "nobody vouched for the uninvited external with an address")
+
+	created, err := testpkg.TenantQuery2(t, ctx, db, module.Assign, caller, additionalSupervisionAssignment(running.ID, invited.ID))
 	require.NoError(t, err)
-	require.Equal(t, StaffRef{ID: external.ID, FullName: "Guest Instructor"}, created.Target)
+	require.Equal(t, StaffRef{ID: invited.ID, FullName: "Ina Eingeladen"}, created.Target)
 	require.Equal(t, "additional_supervisor", testpkg.GroupSupervisorRowByID(t, db, created.ID).Role)
 
+	// An external recorded before #4573 who already supervises keeps the
+	// label, though nobody may add them anew.
+	testpkg.CreateTestGroupSupervisor(t, db, uninvited.ID, running.ID, "additional_supervisor")
 	overview, err = testpkg.TenantQuery2(t, ctx, db, module.Overview, caller, OverviewQuery{ActiveGroupID: running.ID, IncludeTargets: true})
 	require.NoError(t, err)
-	require.Contains(t, overview.RunningSupervisions[0].Supervisors,
-		StaffRef{ID: external.ID, FullName: "Guest Instructor", IsExternal: true})
+	supervisors := overview.RunningSupervisions[0].Supervisors
+	require.Contains(t, supervisors, StaffRef{ID: invited.ID, FullName: "Ina Eingeladen", IsExternal: true, ExternalAccountStatus: "invitation_pending"})
+	require.Contains(t, supervisors, StaffRef{ID: uninvited.ID, FullName: "Uwe Ohneeinladung", IsExternal: true, ExternalAccountStatus: "none"})
 }

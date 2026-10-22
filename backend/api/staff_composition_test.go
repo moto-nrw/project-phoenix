@@ -61,7 +61,9 @@ func setupStaffCompositionRoute(t *testing.T) *staffCompositionContext {
 	require.NoError(t, err)
 	membership, err := owners.NewSchoolMembership(testpkg.NewDatabase(t, db))
 	require.NoError(t, err)
-	resource := newStaffTestResource(membership, svc, work, testpkg.NewDatabase(t, db), slog.Default())
+	identity, err := NewAuthTestModule(testpkg.NewDatabase(t, db), testpkg.TenantRuntime(t, db))
+	require.NoError(t, err)
+	resource := newStaffTestResource(membership, svc, work, identity.Auth, "", testpkg.NewDatabase(t, db), slog.Default())
 
 	router := chi.NewRouter()
 	router.Use(testpkg.TenantRuntimeMiddleware(t, db))
