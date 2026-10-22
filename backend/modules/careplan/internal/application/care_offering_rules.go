@@ -374,13 +374,29 @@ func autoAddViolatesExclusiveGroup(target, trigger careplan.CareOffering) bool {
 		return false
 	}
 	switch normalizeSelectionRule(target.SelectionRule) {
-	// An automatic addition copies the trigger's days, so inside a per-day
-	// group it always lands on a day the trigger already holds.
-	case selectionRuleExactlyOne, selectionRuleAtMostOne, selectionRuleAtMostOnePerDay:
+	case selectionRuleExactlyOne, selectionRuleAtMostOne:
 		return true
+	case selectionRuleAtMostOnePerDay:
+		return offeringsShareADay(target.AvailableDays, trigger.AvailableDays)
 	default:
 		return false
 	}
+}
+
+// offeringsShareADay reports whether an automatic target can inherit one of
+// the trigger's selected days. Auto-add only copies days available to both
+// offerings, so disjoint weekdays are valid in a per-day selection group.
+func offeringsShareADay(first, second []string) bool {
+	firstDays := make(map[string]bool, len(first))
+	for _, day := range first {
+		firstDays[strings.ToLower(strings.TrimSpace(day))] = true
+	}
+	for _, day := range second {
+		if firstDays[strings.ToLower(strings.TrimSpace(day))] {
+			return true
+		}
+	}
+	return false
 }
 
 // validateCatalogGroupRuleConsistency checks a whole clone set at once: every

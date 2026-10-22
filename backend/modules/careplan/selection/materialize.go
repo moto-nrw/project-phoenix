@@ -70,6 +70,12 @@ func materializeAdjustmentChild(
 	); err != nil {
 		return nil, withChildIndex(err, index)
 	}
+	// Grandfathered automatic offerings are part of the materialized booking
+	// and must take part in per-day conflicts, while they remain unavailable
+	// for the ordinary group rules above.
+	if err := CheckDayRules(*child, materializeByID); err != nil {
+		return nil, withChildIndex(err, index)
+	}
 	choosable := len(openByID) == 0 || hasChoosableCareOffering(availableByID)
 	if err := validateAdjustmentRequirements(*child, manualChild, availableByID, selectionMode, choosable, completeWithdrawal); err != nil {
 		return nil, err

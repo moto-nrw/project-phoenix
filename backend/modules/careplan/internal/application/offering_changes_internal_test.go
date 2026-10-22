@@ -148,14 +148,24 @@ func TestSelectionRefusalKeepsAWeekdayConflictRecognizable(t *testing.T) {
 	assert.NotErrorIs(t, other, errCareOfferingExactlyOneRequired, "other engine refusals keep their former text-only wrapping")
 }
 
-// An automatic addition copies its trigger's days, so inside a per-day group
-// it would always conflict; the catalog refuses that rule like an exclusive one.
-func TestAutoAddInsideAPerDayGroupIsRefused(t *testing.T) {
+func TestAutoAddInsideAPerDayGroupRequiresAnOverlappingWeekday(t *testing.T) {
 	t.Parallel()
-	target := careplan.CareOffering{SelectionGroup: "Betreuungszeit", SelectionRule: selectionRuleAtMostOnePerDay}
-	trigger := careplan.CareOffering{SelectionGroup: "Betreuungszeit", SelectionRule: selectionRuleAtMostOnePerDay}
+	target := careplan.CareOffering{
+		SelectionGroup: "Betreuungszeit", SelectionRule: selectionRuleAtMostOnePerDay,
+		AvailableDays: []string{"fri"},
+	}
+	trigger := careplan.CareOffering{
+		SelectionGroup: "Betreuungszeit", SelectionRule: selectionRuleAtMostOnePerDay,
+		AvailableDays: []string{"mon", "tue", "wed", "thu"},
+	}
+	assert.False(t, autoAddViolatesExclusiveGroup(target, trigger))
+
+	trigger.AvailableDays = append(trigger.AvailableDays, "fri")
 	assert.True(t, autoAddViolatesExclusiveGroup(target, trigger))
 	trigger.SelectionGroup = "Kurse"
 	assert.False(t, autoAddViolatesExclusiveGroup(target, trigger))
+	trigger.SelectionGroup = target.SelectionGroup
+	target.SelectionRule = selectionRuleAtMostOne
+	assert.True(t, autoAddViolatesExclusiveGroup(target, trigger), "ordinary exclusive groups reject any automatic addition")
 	assert.True(t, validSelectionRules[selectionRuleAtMostOnePerDay])
 }

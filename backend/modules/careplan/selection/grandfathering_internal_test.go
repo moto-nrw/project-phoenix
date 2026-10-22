@@ -272,6 +272,39 @@ func TestAutomaticOnlyGrandfatheredBookingsSurviveAnUnrelatedSave(t *testing.T) 
 	})
 }
 
+func TestGrandfatheredAutomaticOfferingStillEnforcesPerDayGroupRule(t *testing.T) {
+	t.Parallel()
+
+	grade := int16(3)
+	trigger := &Offering{ID: 10, DaysOfWeekMode: daysOfWeekModeFixed, AvailableDays: []string{"mon"}}
+	grandfatheredAutomatic := &Offering{
+		ID: 20, DaysOfWeekMode: daysOfWeekModeParentChoice, AvailableDays: []string{"mon"},
+		SelectionGroup: "Betreuungszeit", SelectionRule: SelectionRuleAtMostOnePerDay,
+		AutoAddTriggerOfferingIDs: []int64{trigger.ID},
+		AvailabilityRule:          testGradeAvailabilityRule(availabilityOperatorIn, 1, 2),
+	}
+	newManualChoice := &Offering{
+		ID: 30, DaysOfWeekMode: daysOfWeekModeParentChoice, AvailableDays: []string{"mon"},
+		SelectionGroup: "Betreuungszeit", SelectionRule: SelectionRuleAtMostOnePerDay,
+	}
+	catalog := map[int64]*Offering{
+		trigger.ID:                trigger,
+		grandfatheredAutomatic.ID: grandfatheredAutomatic,
+		newManualChoice.ID:        newManualChoice,
+	}
+	child := Child{
+		TargetGradeLevel: &grade,
+		OfferingIDs:      []int64{trigger.ID, newManualChoice.ID},
+		OfferingDays:     []DaySelection{{OfferingID: newManualChoice.ID, SelectedDays: []string{"mon"}}},
+	}
+
+	_, err := MaterializeAdjustments(
+		[]Child{child}, catalog, selectionModeOptional,
+		Grandfathered{Automatic: map[int64]bool{grandfatheredAutomatic.ID: true}}, false,
+	)
+	require.ErrorIs(t, err, ErrCareOfferingDayConflict)
+}
+
 // #2186 review blocker: a booking holding BOTH manual and automatic days
 // belongs in both grandfathering buckets. Classified as manual only, unticking
 // it removed the whole booking — including the automatic days its still-
