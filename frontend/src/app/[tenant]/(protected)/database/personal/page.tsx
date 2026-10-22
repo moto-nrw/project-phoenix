@@ -387,8 +387,11 @@ function TeachersPageContent() {
       intro={{
         title: "Personal",
         description: statusLine,
+        // Ohne Hülle: TenantPage ordnet jede Aktion selbst an. Auf dem Handy
+        // bleibt das Kebab-Menü dann neben dem Titel statt in einer eigenen,
+        // fast leeren Zeile.
         actions: (
-          <div className="flex items-center gap-2">
+          <>
             {!isMobile ? (
               <>
                 <DatabaseGroupingToggle
@@ -430,7 +433,7 @@ function TeachersPageContent() {
                 menuItems={createMenuItems}
               />
             ) : null}
-          </div>
+          </>
         ),
       }}
       search={
