@@ -59,7 +59,7 @@ interface RolesMasterDetailProps {
  * Wofür moto die Rolle „Extern“ braucht (#4573). Das Backend findet sie am
  * Namen; umbenannt oder gelöscht, lassen sich keine Externen mehr anlegen.
  */
-export const EXTERNAL_ROLE_NOTICE =
+const EXTERNAL_ROLE_NOTICE =
   "moto gibt diese Rolle jeder externen Person, die Sie anlegen oder einladen. Benennen Sie die Rolle nicht um und löschen Sie sie nicht. Sonst können Sie keine externen Personen mehr anlegen.";
 
 function keyForRole(role: Role): string {

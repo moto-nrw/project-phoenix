@@ -58,7 +58,7 @@ export interface BackendAdditionalSupervisionResult {
   target: { id: string; full_name: string };
 }
 
-export interface SupervisionStaffRef {
+interface SupervisionStaffRef {
   id: string;
   fullName: string;
   isExternal?: true;

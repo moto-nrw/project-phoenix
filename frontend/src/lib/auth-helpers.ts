@@ -157,7 +157,7 @@ export function getRoleDisplayName(roleName: string): string {
  * The school role every school gets for external caregivers (#4573). The
  * role store keeps custom names lowercase, so it arrives as „extern“.
  */
-export const EXTERNAL_CAREGIVER_ROLE_NAME = "extern";
+const EXTERNAL_CAREGIVER_ROLE_NAME = "extern";
 
 /** How the role and its people read on screen: „Extern“. */
 export const EXTERNAL_CAREGIVER_LABEL = "Extern";

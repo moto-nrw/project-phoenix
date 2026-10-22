@@ -199,7 +199,7 @@ export interface ExternalAccountMark {
   readonly tone: "orange" | "gray";
 }
 
-export const EXTERNAL_ACCOUNT_MARKS: Readonly<
+const EXTERNAL_ACCOUNT_MARKS: Readonly<
   Record<Exclude<ExternalAccountStatus, "account">, ExternalAccountMark>
 > = {
   invitation_pending: { label: "Einladung offen", tone: "orange" },

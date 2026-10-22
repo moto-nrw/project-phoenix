@@ -44,7 +44,7 @@ function sessionHref(activeGroupId: string): string {
 }
 
 /** Die laufenden Blöcke, für die die Person eingeteilt ist, nach Beginn. */
-export function ownRunningBlocks(
+function ownRunningBlocks(
   day: readonly PlannedTimetableInstance[],
 ): PlannedTimetableInstance[] {
   return day
