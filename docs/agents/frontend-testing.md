@@ -1,6 +1,7 @@
-# Frontend test clock and timers
+# Frontend tests: clock, timers, absence assertions
 
-Read before writing or diagnosing a date- or time-sensitive Vitest test.
+Read before writing or diagnosing a date- or time-sensitive Vitest test, or a
+test that asserts something is absent.
 Paths start at `frontend/`; commands run from `frontend/`.
 
 ## Projects
@@ -75,3 +76,35 @@ valid: fixture and product code see the same frozen instant. Fixtures that use
   `useRealClock` call.
 - `.claude/rules/no-test-modifications.md` applies: a date-dependent failure is
   fixed by pinning the clock, not by loosening the assertion.
+
+## Absence assertions
+
+`queryBy…` with `not.toBeInTheDocument()`, `toBeNull()`, `toHaveLength(0)` or
+`not.toHaveBeenCalled()` also passes against an empty render, a permanent
+skeleton or renamed text. Permission and feature gates mostly rest on such
+assertions, so each one needs a positive check (#4435):
+
+1. **Anchor in the same render** (`// Anker:` in test comments). Before the
+   absence check, assert an element only the loaded content renders: a
+   neighbour entry of the same group, a list row, a mocked child, the tab bar
+   of the loaded view. A page title or shell that the loading state also
+   renders is no anchor.
+2. **Counterpart.** Next to the test for the forbidden role or the switched-off
+   feature, a test for the allowed role or switched-on feature finds the same
+   element with the same query. A label no counterpart can find is a dead
+   check, usually left behind by a rename.
+3. **Components that render nothing when hidden.** Keep the visible
+   environments of the positive cases in the table. Each hidden row spreads
+   the visible row it is checked against, overrides only what differs, asserts
+   absent, unmounts and renders the visible row, asserting present
+   (`src/components/tenant/pwa-install-hint.test.tsx`).
+4. **Countercheck once per file.** Temporarily let the component return `null`
+   or stay in its loading state, run the absence tests, see them red, revert.
+   Record the result in the PR.
+
+```tsx
+render(<Sidebar />);
+
+expect(screen.getByText("Meine Gruppen")).toBeInTheDocument(); // anchor
+expect(screen.queryByText("Datenverwaltung")).not.toBeInTheDocument();
+```
