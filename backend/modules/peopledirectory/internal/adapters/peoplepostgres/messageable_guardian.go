@@ -7,6 +7,7 @@ import (
 
 	users "github.com/moto-nrw/project-phoenix/modules/peopledirectory/internal/rows"
 	ports "github.com/moto-nrw/project-phoenix/modules/peopledirectory/ports"
+	"github.com/uptrace/bun"
 )
 
 // MessageableGuardianRepository answers which guardians of a child may receive
@@ -61,21 +62,15 @@ func (r *MessageableGuardianRepository) ListGuardiansForStudent(ctx context.Cont
 	if databaseErr1 != nil {
 		return *new([]*users.MessageableGuardian), databaseErr1
 	}
-	query := guardianLinkRows(ctx, r.runtime, r.links, ambientDB1).
+	query := r.portalGuardianLinks(ctx, ambientDB1).
 		ColumnExpr("student_guardian.tenant_id AS school_id").
 		ColumnExpr("gp.account_id AS account_id").
 		ColumnExpr("btrim(COALESCE(gp.first_name,'') || ' ' || COALESCE(gp.last_name,'')) AS name").
 		ColumnExpr("student_guardian.relationship_type AS relationship_type").
 		ColumnExpr("student_guardian.is_primary AS is_primary").
 		ColumnExpr("COALESCE(gp.portal_locale, 'de') AS portal_locale").
-		Join("JOIN users.guardian_profiles AS gp ON gp.id = student_guardian.guardian_profile_id").
 		Where("student_guardian.student_id = ?", studentID).
-		Where("gp.account_id IS NOT NULL").
-		Where("gp.has_account = true").
-		Where(`"student_guardian".permissions @> ?::jsonb`, `{"parent_portal.access": true}`).
 		OrderExpr("student_guardian.is_primary DESC, name ASC")
-
-	query = withTenantFilter(ctx, r.runtime, query, "student_guardian")
 
 	if err := query.Scan(ctx, &rows); err != nil {
 		return nil, &ports.DatabaseError{Op: "list guardians for student", Err: translateNotFound(err)}
@@ -100,4 +95,67 @@ func (r *MessageableGuardianRepository) ListGuardiansForStudent(ctx context.Cont
 		}
 	}
 	return result, nil
+}
+
+// ListStudentIDsWithMessageableGuardian returns, ascending, the IDs of the
+// school's children that have at least one guardian ListGuardiansForStudent
+// would offer: the same portal account, parent_portal.access and active
+// membership rules, evaluated for every child in two statements. The staff
+// "new message" child list marks the others (#4362).
+func (r *MessageableGuardianRepository) ListStudentIDsWithMessageableGuardian(ctx context.Context) ([]int64, error) {
+	const op = "list students with messageable guardian"
+	if r.activeMemberships == nil {
+		return nil, &ports.DatabaseError{Op: op, Err: errors.New("active membership query is required")}
+	}
+	db, err := r.runtime.DB(ctx)
+	if err != nil {
+		return nil, err
+	}
+	var rows []struct {
+		StudentID int64 `bun:"student_id"`
+		AccountID int64 `bun:"account_id"`
+		SchoolID  int64 `bun:"school_id"`
+	}
+	query := r.portalGuardianLinks(ctx, db).
+		Distinct().
+		ColumnExpr("student_guardian.student_id AS student_id").
+		ColumnExpr("gp.account_id AS account_id").
+		ColumnExpr("student_guardian.tenant_id AS school_id")
+	if err := query.Scan(ctx, &rows); err != nil {
+		return nil, &ports.DatabaseError{Op: op, Err: translateNotFound(err)}
+	}
+	if len(rows) == 0 {
+		return []int64{}, nil
+	}
+	accountIDs := make([]int64, 0, len(rows))
+	schoolIDs := make([]int64, 0, len(rows))
+	for _, row := range rows {
+		accountIDs = append(accountIDs, row.AccountID)
+		schoolIDs = append(schoolIDs, row.SchoolID)
+	}
+	memberships, err := r.activeMemberships(ctx, accountIDs, schoolIDs)
+	if err != nil {
+		return nil, &ports.DatabaseError{Op: op, Err: err}
+	}
+	studentIDs := make([]int64, 0, len(rows))
+	for _, row := range rows {
+		if slices.Contains(memberships[row.AccountID], row.SchoolID) {
+			studentIDs = append(studentIDs, row.StudentID)
+		}
+	}
+	slices.Sort(studentIDs)
+	return slices.Compact(studentIDs), nil
+}
+
+// portalGuardianLinks selects the caller school's student-guardian links whose
+// guardian holds a portal account and whose relationship grants
+// parent_portal.access, joined to the guardian profile as gp. Both recipient
+// reads build on it so they apply one rule.
+func (r *MessageableGuardianRepository) portalGuardianLinks(ctx context.Context, db bun.IDB) *bun.SelectQuery {
+	query := guardianLinkRows(ctx, r.runtime, r.links, db).
+		Join("JOIN users.guardian_profiles AS gp ON gp.id = student_guardian.guardian_profile_id").
+		Where("gp.account_id IS NOT NULL").
+		Where("gp.has_account = true").
+		Where(`"student_guardian".permissions @> ?::jsonb`, `{"parent_portal.access": true}`)
+	return withTenantFilter(ctx, r.runtime, query, "student_guardian")
 }

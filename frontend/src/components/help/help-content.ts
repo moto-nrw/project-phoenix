@@ -1610,6 +1610,7 @@ function parentMessageTopic(): HelpTopic {
           "Öffnen Sie unter `Eltern` den Bereich `Nachrichten`.",
           "Wählen Sie `Neue Nachricht`.",
           "Wählen Sie das Kind aus der Liste. Über das Suchfeld finden Sie es schneller.",
+          "Steht beim Kind `Kein Eltern-Zugang`, können Sie es nicht wählen. Die Eltern brauchen zuerst eine Einladung in die Eltern-App.",
           "Wählen Sie `Weiter` und dann die passende Bezugsperson.",
           "Schreiben Sie Ihre Nachricht in das Textfeld.",
           "Wählen Sie `Senden`.",

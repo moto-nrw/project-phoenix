@@ -83,3 +83,6 @@ func (r *threadRepository) ParentThreadGetOrCreate(ctx context.Context, tenantID
 func (r *threadRepository) ParentThreadListGuardiansForStudent(ctx context.Context, studentID int64) ([]*communication.ParentGuardianRecipient, error) {
 	return r.ListGuardiansForStudent(ctx, studentID)
 }
+func (r *threadRepository) ParentThreadListStudentIDsWithMessageableGuardian(ctx context.Context) ([]int64, error) {
+	return r.ListStudentIDsWithMessageableGuardian(ctx)
+}

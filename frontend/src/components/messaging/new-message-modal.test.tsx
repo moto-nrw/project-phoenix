@@ -4,17 +4,22 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { ApiError } from "~/lib/api-error";
 import { catalogText } from "~/test/error-catalog-text";
 
-const { mockFetchGuardians, mockOpenThread, mockFetchStudents } = vi.hoisted(
-  () => ({
-    mockFetchGuardians: vi.fn(),
-    mockOpenThread: vi.fn(),
-    mockFetchStudents: vi.fn(),
-  }),
-);
+const {
+  mockFetchGuardians,
+  mockOpenThread,
+  mockFetchStudents,
+  mockFetchReachableStudentIds,
+} = vi.hoisted(() => ({
+  mockFetchGuardians: vi.fn(),
+  mockOpenThread: vi.fn(),
+  mockFetchStudents: vi.fn(),
+  mockFetchReachableStudentIds: vi.fn(),
+}));
 
 vi.mock("~/lib/parent-messages-api", async (importOriginal) => ({
   ...(await importOriginal<typeof import("~/lib/parent-messages-api")>()),
   fetchGuardians: mockFetchGuardians,
+  fetchReachableStudentIds: mockFetchReachableStudentIds,
   openThread: mockOpenThread,
 }));
 
@@ -61,6 +66,9 @@ function renderPreset(onOpened = vi.fn()) {
 describe("NewMessageModal", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    mockFetchReachableStudentIds.mockResolvedValue(
+      new Set(["1", "2", "3", "4"]),
+    );
   });
 
   // #2517: kein „kein Eltern-Zugang hinterlegt“ für eine Liste, die nicht
@@ -212,5 +220,44 @@ describe("NewMessageModal", () => {
     expect(
       await screen.findByRole("radio", { name: /Marie Beier/ }),
     ).toBeInTheDocument();
+  });
+
+  // #4362: Kinder ohne erreichbare Eltern stehen in der Liste, sind aber
+  // markiert und nicht wählbar; die Elternwahl wäre für sie leer.
+  it("marks children without parent access and keeps them out of reach", async () => {
+    mockFetchStudents.mockResolvedValue({
+      students: [student("1", "Marie Beier"), student("2", "Ben Neu")],
+    });
+    mockFetchReachableStudentIds.mockResolvedValue(new Set(["1"]));
+    render(<NewMessageModal onClose={vi.fn()} onOpened={vi.fn()} />);
+
+    const ben = await screen.findByRole("radio", { name: /Ben Neu/ });
+    expect(ben).toBeDisabled();
+    expect(ben.closest("label")).toHaveTextContent("Kein Eltern-Zugang");
+    expect(screen.getByRole("radio", { name: /Marie Beier/ })).toBeEnabled();
+    expect(
+      screen.getByText(
+        "Bei „Kein Eltern-Zugang“ brauchen die Eltern zuerst eine Einladung in die Eltern-App.",
+      ),
+    ).toBeInTheDocument();
+
+    // The only reachable match is taken straight on, never the marked child.
+    const search = screen.getByRole("searchbox", { name: "Kind suchen" });
+    fireEvent.change(search, { target: { value: "e" } });
+    expect(screen.getByRole("radio", { name: /Marie Beier/ })).toBeChecked();
+  });
+
+  it("still lists every child when parent access cannot be loaded", async () => {
+    mockFetchStudents.mockResolvedValue({
+      students: [student("1", "Marie Beier"), student("2", "Ben Neu")],
+    });
+    mockFetchReachableStudentIds.mockRejectedValue(
+      new ApiError("reach kaputt", 500, { code: "general.server" }),
+    );
+    render(<NewMessageModal onClose={vi.fn()} onOpened={vi.fn()} />);
+
+    expect(await screen.findByRole("radio", { name: /Ben Neu/ })).toBeEnabled();
+    expect(screen.getByText("2 Kinder")).toBeInTheDocument();
+    expect(screen.queryByText("Kein Eltern-Zugang")).not.toBeInTheDocument();
   });
 });

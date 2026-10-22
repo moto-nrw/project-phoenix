@@ -1,9 +1,10 @@
 "use client";
 
-import { useEffect, useLayoutEffect, useRef, useState } from "react";
+import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { ArrowLeft } from "lucide-react";
 import {
   StudentChoiceList,
+  type StudentChoicesLoad,
   matchStudentChoices,
   useStudentChoices,
 } from "~/components/students/student-choice-list";
@@ -28,12 +29,48 @@ import {
   type Guardian,
   type ThreadDetail,
   fetchGuardians,
+  fetchReachableStudentIds,
   openThread,
   relationshipLabel,
 } from "~/lib/parent-messages-api";
 import { createLogger } from "~/lib/logger";
 
 const logger = createLogger({ component: "NewMessageModal" });
+
+const NO_PARENT_ACCESS = "Kein Eltern-Zugang";
+const NO_STUDENT_IDS: ReadonlySet<string> = new Set();
+
+/**
+ * The children with a guardian who can receive a message (#4362): undefined
+ * while loading, null when the answer is unknown.
+ */
+function useReachableStudentIds(
+  enabled: boolean,
+): ReadonlySet<string> | null | undefined {
+  const [ids, setIds] = useState<ReadonlySet<string> | null | undefined>(
+    undefined,
+  );
+  useEffect(() => {
+    if (!enabled) return;
+    let active = true;
+    fetchReachableStudentIds()
+      .then((result) => {
+        if (active) setIds(result);
+      })
+      .catch((err) => {
+        // The mark is an extra: without it the list works as before and the
+        // parents step still says when a child has no parent access.
+        logger.warn("new_message_reachable_students_load_failed", {
+          error: err instanceof Error ? err.message : String(err),
+        });
+        if (active) setIds(null);
+      });
+    return () => {
+      active = false;
+    };
+  }, [enabled]);
+  return ids;
+}
 
 interface PickedStudent {
   id: string;
@@ -44,7 +81,8 @@ interface PickedStudent {
 
 /**
  * Lets staff start a conversation: (1) pick a child from the alphabetical
- * list of all children, filtered by the search field (#4362), (2) pick the
+ * list of all children, filtered by the search field (#4362); a child without
+ * a guardian who can receive a message is marked and cannot be picked, (2) pick the
  * recipient guardian — then the chat opens directly (WhatsApp-style), no
  * compose step in the modal. The backend get-or-creates the conversation
  * (history shown if one already exists) and `onOpened` receives the
@@ -68,8 +106,33 @@ export function NewMessageModal({
 
   const [search, setSearch] = useState("");
   const [selectedId, setSelectedId] = useState<string | null>(null);
-  const { load, error: loadError } = useStudentChoices(!hasPreset);
-  const { target } = matchStudentChoices(load, search, selectedId);
+  const { load: choicesLoad, error: loadError } = useStudentChoices(!hasPreset);
+  const reachableIds = useReachableStudentIds(!hasPreset);
+  // Both answers arrive together, so no mark appears after the list stands.
+  const load: StudentChoicesLoad =
+    reachableIds === undefined && choicesLoad.kind === "loaded"
+      ? { kind: "loading" }
+      : choicesLoad;
+  const unreachableIds = useMemo(
+    () =>
+      reachableIds && choicesLoad.kind === "loaded"
+        ? new Set(
+            choicesLoad.choices
+              .filter((child) => !reachableIds.has(child.id))
+              .map((child) => child.id),
+          )
+        : NO_STUDENT_IDS,
+    [reachableIds, choicesLoad],
+  );
+  const { target, visible } = matchStudentChoices(
+    load,
+    search,
+    selectedId,
+    unreachableIds,
+  );
+  const showsUnreachable = visible.some((child) =>
+    unreachableIds.has(child.id),
+  );
 
   const [student, setStudent] = useState<PickedStudent | null>(
     presetStudentId
@@ -209,9 +272,17 @@ export function NewMessageModal({
                 radioName="new-message-student"
                 selectedId={selectedId}
                 onSelectedIdChange={setSelectedId}
+                unavailableIds={unreachableIds}
+                unavailableLabel={NO_PARENT_ACCESS}
                 autoFocus
                 fillHeight
               />
+              {showsUnreachable ? (
+                <p className="text-sm text-gray-500">
+                  Bei „{NO_PARENT_ACCESS}“ brauchen die Eltern zuerst eine
+                  Einladung in die Eltern-App.
+                </p>
+              ) : null}
             </SlideOverBody>
             <SlideOverFooter className="flex-row justify-end">
               <Button
