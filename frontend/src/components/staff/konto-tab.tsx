@@ -56,6 +56,11 @@ export interface KontoEditing {
   readonly existingPositions: readonly string[];
   /** Systemrolle (users:manage und ein verknüpftes Konto). */
   readonly canEditRole: boolean;
+  /**
+   * Die Seite zeigt im Menü der Kopfkarte „Löschen“ (users:delete). Nur dann
+   * darf der Hinweis zum Rollenwechsel einer Lehrkraft dorthin schicken.
+   */
+  readonly canDeleteStaff: boolean;
   /** Rollen des Kontos; `undefined`, solange sie laden. */
   readonly roleAssignment?: AccountRoleAssignment;
   /** Die Rollen konnten nicht geladen werden; das Feld bleibt dann aus. */
@@ -492,6 +497,7 @@ function KontoEditForm({
               assignment={assignment}
               loadFailed={editing.roleAssignmentError === true}
               displayRole={displayRole}
+              canDeleteStaff={editing.canDeleteStaff}
               value={roleValue}
               disabled={saving}
               error={fieldError("role_id")}
@@ -574,6 +580,7 @@ function RoleField({
   assignment,
   loadFailed,
   displayRole,
+  canDeleteStaff,
   value,
   disabled,
   error,
@@ -582,6 +589,7 @@ function RoleField({
   readonly assignment: AccountRoleAssignment | undefined;
   readonly loadFailed: boolean;
   readonly displayRole: string;
+  readonly canDeleteStaff: boolean;
   readonly value: string;
   readonly disabled: boolean;
   readonly error: string | undefined;
@@ -607,10 +615,25 @@ function RoleField({
           <DataField label="Systemrolle">{displayRole}</DataField>
         </DataGrid>
         <p className="text-xs text-gray-600">
-          Lehrkraft-Zugänge haben kein Betreuungsprofil und können hier nicht
-          umgestellt werden. Für einen Wechsel den Zugang deaktivieren und die
-          Person neu anlegen oder einladen.
+          Lehrkraft-Zugänge haben kein Betreuungsprofil. Deshalb lässt sich die
+          Rolle hier nicht ändern.
         </p>
+        {canDeleteStaff ? (
+          <div className="text-xs text-gray-600">
+            <p>So geben Sie der Person eine andere Rolle:</p>
+            <ol className="mt-1 list-decimal space-y-0.5 pl-5">
+              <li>Öffnen Sie oben rechts das Menü mit den drei Punkten.</li>
+              <li>Wählen Sie „Löschen“.</li>
+              <li>Laden Sie die Person danach neu ein.</li>
+            </ol>
+          </div>
+        ) : (
+          <p className="text-xs text-gray-600">
+            Für eine andere Rolle wird die Person gelöscht und neu eingeladen.
+            Das kann nur, wer Personal löschen darf. Fragen Sie zum Beispiel die
+            Schulleitung.
+          </p>
+        )}
       </div>
     );
   }

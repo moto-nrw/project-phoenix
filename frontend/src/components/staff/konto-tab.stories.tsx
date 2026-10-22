@@ -40,6 +40,7 @@ export const Editable: Story = {
       canEditStaffFields: true,
       existingPositions: ["Betreuung", "Gruppenleitung", "OGS-Büro"],
       canEditRole: true,
+      canDeleteStaff: true,
       roleAssignment: {
         options: [
           { id: "1", name: "Administration", systemName: "admin" },
@@ -62,6 +63,7 @@ export const EditableWithoutPersonFields: Story = {
       canEditStaffFields: true,
       existingPositions: [],
       canEditRole: false,
+      canDeleteStaff: false,
       onEditingChange: () => undefined,
       onSave: async () => undefined,
     },
