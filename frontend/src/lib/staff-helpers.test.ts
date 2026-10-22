@@ -149,6 +149,20 @@ describe("getStaffDisplayType", () => {
     expect(result).toBe("Extern");
   });
 
+  // #4573: a new external has a caregiver profile and, once the invitation
+  // is redeemed, the school role „extern“, stored in lower case.
+  it("spells the school role of an external caregiver as „Extern“", () => {
+    const staff = createSampleStaff({
+      role: undefined,
+      isTeacher: true,
+      specialization: undefined,
+      accountRole: "extern",
+      isExternal: true,
+    });
+
+    expect(getStaffDisplayType(staff)).toBe("Extern");
+  });
+
   it("returns specialization for teachers without role", () => {
     const staff = createSampleStaff({
       role: undefined,
@@ -247,11 +261,12 @@ describe("getStaffDisplayType", () => {
       role: undefined,
       isTeacher: false,
       specialization: undefined,
-      accountRole: "extern",
+      // Not „extern“: moto provisions that role in every school (#4573).
+      accountRole: "hausmeister",
     });
     const result = getStaffDisplayType(staff);
 
-    expect(result).toBe("extern");
+    expect(result).toBe("hausmeister");
   });
 });
 

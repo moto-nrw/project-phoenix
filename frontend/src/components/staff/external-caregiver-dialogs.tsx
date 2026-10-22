@@ -15,33 +15,27 @@ import {
   EXTERNAL_FIELDS,
   ExternalCaregiverFields,
   emailFieldHint,
-  showExternalFailure,
   useExternalCaregiverForm,
-  type ExistingCaregiver,
-  type ExternalCaregiverResult,
 } from "./external-caregiver-entry";
 
 const logger = createLogger({ component: "ExternalCaregiverDialogs" });
 
 /**
  * „Externe Person eintragen“ in the Personalverwaltung (#4573): the fields of
- * the inline entry in a dialog. A name match without account invites that
- * person instead of recording a second one.
+ * the inline entry in a dialog. It always records a new person; an existing
+ * one without account gets „Konto einladen“ from its row.
  */
 export function ExternalCaregiverCreateModal({
   isOpen,
   onClose,
-  existing,
   onSaved,
 }: {
   readonly isOpen: boolean;
   readonly onClose: () => void;
-  readonly existing: readonly ExistingCaregiver[];
-  readonly onSaved: (result: ExternalCaregiverResult) => void;
+  readonly onSaved: (staff: Staff) => void;
 }) {
   const bodyRef = useRef<HTMLDivElement>(null);
   const form = useExternalCaregiverForm({
-    existing,
     onAdded: onSaved,
     containerRef: bodyRef,
   });
@@ -118,7 +112,7 @@ export interface ExternalInvitationTarget {
 /**
  * „Konto einladen“ for an external person without account (#4573). With an
  * open invitation the same dialog sends a new one, for example to a
- * corrected address.
+ * corrected address; the backend revokes the old one in the same step.
  */
 export function ExternalInvitationModal({
   target,
@@ -161,8 +155,8 @@ export function ExternalInvitationModal({
       logger.error("external_caregiver_invite_failed", {
         error: cause instanceof Error ? cause.message : String(cause),
       });
-      await showExternalFailure(formErrors, cause, {
-        object: `die Einladung für ${target.name}`,
+      void formErrors.show(cause, {
+        object: `die Einladung an ${target.name}`,
         retry: () => void invite(),
       });
     } finally {
@@ -205,8 +199,9 @@ export function ExternalInvitationModal({
     >
       <div ref={bodyRef} className="space-y-3">
         <p className="text-sm text-gray-600">
-          {target?.name} bekommt eine Einladung per E-Mail. Damit meldet sich
-          die Person selbst bei moto an.
+          {target?.name} bekommt eine {pending ? "neue " : ""}Einladung per
+          E-Mail. Damit meldet sich die Person selbst bei moto an.
+          {/* The backend revokes every open invitation of the person first. */}
           {pending ? " Die alte Einladung gilt dann nicht mehr." : null}
         </p>
         <Input

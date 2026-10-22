@@ -2,6 +2,7 @@ import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { ApiError } from "~/lib/api-error";
+import { catalogText } from "~/test/error-catalog-text";
 
 const { createExternal, inviteExternal } = vi.hoisted(() => ({
   createExternal: vi.fn(),
@@ -68,17 +69,16 @@ describe("ExternalCaregiverEntry", () => {
 
   it("records and invites an external person and hands the new entry back", async () => {
     const onAdded = vi.fn();
-    render(<ExternalCaregiverEntry existing={[]} onAdded={onAdded} />);
+    render(<ExternalCaregiverEntry onAdded={onAdded} />);
 
     openEntry();
     fillEntry(" Lea ", "Gast", " lea@example.test ", "Musikschule");
     submit();
 
     await waitFor(() =>
-      expect(onAdded).toHaveBeenCalledWith({
-        kind: "created",
-        staff: expect.objectContaining({ id: "88" }),
-      }),
+      expect(onAdded).toHaveBeenCalledWith(
+        expect.objectContaining({ id: "88" }),
+      ),
     );
     expect(createExternal).toHaveBeenCalledWith({
       firstName: "Lea",
@@ -92,7 +92,7 @@ describe("ExternalCaregiverEntry", () => {
   });
 
   it("tells the user that the person gets an email invitation", () => {
-    render(<ExternalCaregiverEntry existing={[]} onAdded={vi.fn()} />);
+    render(<ExternalCaregiverEntry onAdded={vi.fn()} />);
 
     openEntry();
 
@@ -103,7 +103,7 @@ describe("ExternalCaregiverEntry", () => {
 
   it("asks for both names before sending anything", () => {
     const onAdded = vi.fn();
-    render(<ExternalCaregiverEntry existing={[]} onAdded={onAdded} />);
+    render(<ExternalCaregiverEntry onAdded={onAdded} />);
 
     openEntry();
     fillEntry("Lea", "  ");
@@ -119,7 +119,7 @@ describe("ExternalCaregiverEntry", () => {
 
   it("requires the email address and marks the field", () => {
     const onAdded = vi.fn();
-    render(<ExternalCaregiverEntry existing={[]} onAdded={onAdded} />);
+    render(<ExternalCaregiverEntry onAdded={onAdded} />);
 
     openEntry();
     fillEntry("Lea", "Gast", "  ");
@@ -137,7 +137,7 @@ describe("ExternalCaregiverEntry", () => {
   });
 
   it("rejects an address that is not one", () => {
-    render(<ExternalCaregiverEntry existing={[]} onAdded={vi.fn()} />);
+    render(<ExternalCaregiverEntry onAdded={vi.fn()} />);
 
     openEntry();
     fillEntry("Lea", "Gast", "lea-at-example");
@@ -156,7 +156,7 @@ describe("ExternalCaregiverEntry", () => {
         errors: [{ field: "email", reason: "invalid" }],
       }),
     );
-    render(<ExternalCaregiverEntry existing={[]} onAdded={vi.fn()} />);
+    render(<ExternalCaregiverEntry onAdded={vi.fn()} />);
 
     openEntry();
     fillEntry("Lea", "Gast");
@@ -169,103 +169,62 @@ describe("ExternalCaregiverEntry", () => {
     );
   });
 
-  it("marks the email field when the address already has access", async () => {
-    createExternal.mockRejectedValueOnce(
-      new ApiError("conflict", 409, {
-        code: "identity.account_already_has_tenant_access",
-      }),
-    );
-    render(<ExternalCaregiverEntry existing={[]} onAdded={vi.fn()} />);
-
-    openEntry();
-    fillEntry("Lea", "Gast");
-    submit();
-
-    const email = screen.getByLabelText("E-Mail-Adresse");
-    await waitFor(() =>
-      expect(email).toHaveAccessibleDescription(
-        "Bitte eine andere E-Mail-Adresse eingeben.",
-      ),
-    );
-    expect(email).toHaveAttribute("aria-invalid", "true");
-  });
-
-  it("selects an invited person who is already in the list instead of adding a twin", () => {
-    const onAdded = vi.fn();
-    render(
-      <ExternalCaregiverEntry
-        existing={[
-          {
-            id: "5",
-            fullName: "Lea Gast",
-            isExternal: true,
-            accountStatus: "invitation_pending",
-          },
-        ]}
-        onAdded={onAdded}
-      />,
-    );
-
-    openEntry();
-    fillEntry("  lea ", "GAST");
-    submit();
-
-    expect(onAdded).toHaveBeenCalledWith({ kind: "existing", id: "5" });
-    expect(createExternal).not.toHaveBeenCalled();
-    expect(inviteExternal).not.toHaveBeenCalled();
-  });
-
-  it("invites a recorded person without an account instead of adding a twin", async () => {
-    const onAdded = vi.fn();
-    render(
-      <ExternalCaregiverEntry
-        existing={[
-          {
-            id: "5",
-            fullName: "Lea Gast",
-            isExternal: true,
-            accountStatus: "none",
-          },
-        ]}
-        onAdded={onAdded}
-      />,
-    );
-
-    openEntry();
-    fillEntry("Lea", "Gast", "lea@example.test");
-    submit();
-
-    await waitFor(() =>
-      expect(onAdded).toHaveBeenCalledWith({
-        kind: "invited",
-        staff: expect.objectContaining({
-          id: "5",
-          externalAccountStatus: "invitation_pending",
+  // The backend names the email field for an address that is taken (#4573).
+  it.each([
+    "identity.account_already_has_tenant_access",
+    "identity.email_already_exists",
+  ] as const)(
+    "puts %s on the email field with its catalog text",
+    async (code) => {
+      createExternal.mockRejectedValueOnce(
+        new ApiError("conflict", 409, {
+          code,
+          errors: [{ field: "email", reason: "taken" }],
         }),
-      }),
-    );
-    expect(inviteExternal).toHaveBeenCalledWith("5", "lea@example.test");
-    expect(createExternal).not.toHaveBeenCalled();
-  });
+      );
+      render(<ExternalCaregiverEntry onAdded={vi.fn()} />);
 
-  it("does not select an internal person with the same name", async () => {
+      openEntry();
+      fillEntry("Lea", "Gast");
+      submit();
+
+      const email = screen.getByLabelText("E-Mail-Adresse");
+      await waitFor(() =>
+        expect(email).toHaveAttribute("aria-invalid", "true"),
+      );
+      expect(
+        screen.getByText(
+          catalogText(code, "das Eintragen der externen Person"),
+        ),
+      ).toBeInTheDocument();
+      expect(email).toHaveFocus();
+    },
+  );
+
+  it.each([
+    [new ApiError("forbidden", 403, { code: "general.permission" })],
+    [new ApiError("no role", 409, { code: "staff.external_role_missing" })],
+  ])("shows a refusal without field through the catalog", async (error) => {
+    createExternal.mockRejectedValueOnce(error);
     const onAdded = vi.fn();
-    render(
-      <ExternalCaregiverEntry
-        existing={[{ id: "5", fullName: "Lea Gast", isExternal: false }]}
-        onAdded={onAdded}
-      />,
-    );
+    render(<ExternalCaregiverEntry onAdded={onAdded} />);
 
     openEntry();
     fillEntry("Lea", "Gast");
     submit();
 
-    await waitFor(() => expect(createExternal).toHaveBeenCalledOnce());
-    expect(onAdded).toHaveBeenCalledWith({
-      kind: "created",
-      staff: expect.objectContaining({ id: "88" }),
-    });
+    expect(
+      await screen.findByText(
+        catalogText(
+          error.code as "general.permission" | "staff.external_role_missing",
+          "das Eintragen der externen Person",
+        ),
+      ),
+    ).toBeInTheDocument();
+    expect(screen.getByLabelText("E-Mail-Adresse")).not.toHaveAttribute(
+      "aria-invalid",
+    );
+    expect(onAdded).not.toHaveBeenCalled();
   });
 
   it("keeps Enter and Escape inside the panel when the dialog is a form", async () => {
@@ -275,7 +234,7 @@ describe("ExternalCaregiverEntry", () => {
     const onAdded = vi.fn();
     render(
       <form onSubmit={onSubmit}>
-        <ExternalCaregiverEntry existing={[]} onAdded={onAdded} />
+        <ExternalCaregiverEntry onAdded={onAdded} />
       </form>,
     );
 

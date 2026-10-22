@@ -163,9 +163,12 @@ describe("SpontaneousActivityStart external caregivers", () => {
     expect(screen.queryByLabelText(/Elli Alt/)).not.toBeInTheDocument();
   });
 
-  it("invites a listed external person without account and ticks them", async () => {
-    mocks.inviteExternal.mockResolvedValue({
-      id: "75",
+  // #4573 decision: the quick entry always records a new person. The
+  // namesake without account may be someone else; inviting that person goes
+  // only through „Konto einladen“ in the Personalverwaltung.
+  it("records a namesake of an external without account as a new person", async () => {
+    mocks.createExternal.mockResolvedValue({
+      id: "90",
       name: "Elli Alt",
       firstName: "Elli",
       lastName: "Alt",
@@ -197,11 +200,13 @@ describe("SpontaneousActivityStart external caregivers", () => {
     fireEvent.click(screen.getByRole("button", { name: "Eintragen" }));
 
     expect(await screen.findByLabelText(/Elli Alt/)).toBeChecked();
-    expect(mocks.inviteExternal).toHaveBeenCalledWith(
-      "75",
-      "elli@example.test",
-    );
-    expect(mocks.createExternal).not.toHaveBeenCalled();
+    expect(mocks.createExternal).toHaveBeenCalledWith({
+      firstName: "Elli",
+      lastName: "Alt",
+      email: "elli@example.test",
+      organization: "",
+    });
+    expect(mocks.inviteExternal).not.toHaveBeenCalled();
   });
 
   it("records a new external person, ticks it and starts with it", async () => {

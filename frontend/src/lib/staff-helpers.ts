@@ -1,5 +1,6 @@
 // Helper functions for staff data transformation and status determination
 
+import { getRoleDisplayName } from "./auth-helpers";
 import type { ExternalAccountStatus, Staff } from "./staff-api";
 import { LOCATION_COLORS, MOTO_COLOR_PALETTE } from "./location-helper";
 
@@ -92,9 +93,10 @@ const ROLE_DISPLAY_NAMES: Record<string, string> = {
 };
 
 // Role names are stored lowercase in auth.roles; lowercase before the lookup so
-// a raw system role name never reaches the UI in its stored spelling.
+// a raw system role name never reaches the UI in its stored spelling. School
+// roles moto provisions itself („extern“, #4573) take the shared label.
 function formatAccountRole(role: string): string {
-  return ROLE_DISPLAY_NAMES[role.toLowerCase()] ?? role;
+  return ROLE_DISPLAY_NAMES[role.toLowerCase()] ?? getRoleDisplayName(role);
 }
 
 // Get a display-friendly role/type for staff

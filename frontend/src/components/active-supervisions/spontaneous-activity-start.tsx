@@ -26,10 +26,7 @@ import {
   ExternalBadge,
 } from "~/components/staff/external-badge";
 
-import {
-  ExternalCaregiverEntry,
-  type ExternalCaregiverResult,
-} from "~/components/staff/external-caregiver-entry";
+import { ExternalCaregiverEntry } from "~/components/staff/external-caregiver-entry";
 
 const logger = createLogger({ component: "SpontaneousActivityStart" });
 const EMPTY_OCCUPIED_ROOM_IDS: readonly string[] = [];
@@ -316,19 +313,17 @@ export function SpontaneousActivityStart({
     );
   }
 
-  function addExternalCaregiver(result: ExternalCaregiverResult) {
-    const id = result.kind === "existing" ? result.id : result.staff.id;
-    if (result.kind !== "existing") {
-      // Created or newly invited: the record now carries its open invitation
-      // and is offered like everyone else.
-      const saved = result.staff;
-      setStaff((prev) =>
-        [...prev.filter((item) => item.id !== saved.id), saved].sort((a, b) =>
-          staffLabel(a).localeCompare(staffLabel(b), "de"),
-        ),
-      );
-    }
-    setAdditionalStaffIds((prev) => (prev.includes(id) ? prev : [...prev, id]));
+  function addExternalCaregiver(saved: Staff) {
+    // The new record carries its open invitation and is offered like
+    // everyone else.
+    setStaff((prev) =>
+      [...prev.filter((item) => item.id !== saved.id), saved].sort((a, b) =>
+        staffLabel(a).localeCompare(staffLabel(b), "de"),
+      ),
+    );
+    setAdditionalStaffIds((prev) =>
+      prev.includes(saved.id) ? prev : [...prev, saved.id],
+    );
   }
 
   function resetAndClose() {
@@ -645,15 +640,7 @@ export function SpontaneousActivityStart({
                 </div>
               ) : null}
               {canCreateExternalCaregiver ? (
-                <ExternalCaregiverEntry
-                  existing={staff.map((item) => ({
-                    id: item.id,
-                    fullName: staffLabel(item),
-                    isExternal: item.isExternal === true,
-                    accountStatus: item.externalAccountStatus,
-                  }))}
-                  onAdded={addExternalCaregiver}
-                />
+                <ExternalCaregiverEntry onAdded={addExternalCaregiver} />
               ) : null}
             </div>
           )}

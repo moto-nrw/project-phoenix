@@ -46,6 +46,16 @@ vi.mock("~/lib/swr", () => ({
         external_organization: "Sportverein",
         external_account_status: "none",
       },
+      {
+        id: "8",
+        name: "Jonas Neu",
+        first_name: "Jonas",
+        last_name: "Neu",
+        account_role: null,
+        is_external: true,
+        external_organization: null,
+        external_account_status: "invitation_pending",
+      },
     ],
     isLoading: false,
     error: null,
@@ -233,6 +243,93 @@ describe("Personalverwaltung: externe Personen", () => {
       email: "lea@example.test",
       organization: "",
     });
+  });
+
+  it("sends a new invitation to a pending person and says the old one ends", async () => {
+    signInWith(["users:read", "users:create"]);
+    mocks.inviteExternal.mockResolvedValue({
+      id: "8",
+      name: "Jonas Neu",
+      firstName: "Jonas",
+      lastName: "Neu",
+      isExternal: true,
+      externalAccountStatus: "invitation_pending",
+    });
+    render(<TeachersPage />);
+
+    expect(screen.getByRole("link", { name: /Jonas Neu/ })).toHaveTextContent(
+      "Einladung offen",
+    );
+    fireEvent.click(
+      screen.getByRole("button", { name: "Aktionen für Jonas Neu" }),
+    );
+    fireEvent.click(
+      screen.getByRole("menuitem", { name: "Einladung erneut senden" }),
+    );
+    const dialog = await screen.findByRole("dialog", {
+      name: "Einladung erneut senden",
+    });
+    expect(dialog).toHaveTextContent(
+      "Jonas Neu bekommt eine neue Einladung per E-Mail.",
+    );
+    expect(dialog).toHaveTextContent(
+      "Die alte Einladung gilt dann nicht mehr.",
+    );
+    fireEvent.change(screen.getByLabelText("E-Mail-Adresse"), {
+      target: { value: "jonas@example.test" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Erneut senden" }));
+
+    await waitFor(() =>
+      expect(mocks.toastSuccess).toHaveBeenCalledWith(
+        "Die neue Einladung an Jonas Neu ist unterwegs.",
+      ),
+    );
+    expect(mocks.inviteExternal).toHaveBeenCalledWith(
+      "8",
+      "jonas@example.test",
+    );
+  });
+
+  // #4573 decision: the header action always records a new person. A person
+  // without account who shares the name may be someone else; inviting them
+  // goes only through „Konto einladen“ in their row.
+  it("records a namesake of an external without account as a new person", async () => {
+    signInWith(["users:read", "users:create"]);
+    mocks.createExternal.mockResolvedValue({
+      id: "9",
+      name: "Elli Alt",
+      firstName: "Elli",
+      lastName: "Alt",
+      isExternal: true,
+      externalAccountStatus: "invitation_pending",
+    });
+    render(<TeachersPage />);
+
+    fireEvent.click(
+      screen.getByRole("button", { name: "Externe Person eintragen" }),
+    );
+    await screen.findByRole("dialog", { name: "Externe Person eintragen" });
+    fireEvent.change(screen.getByLabelText("Vorname"), {
+      target: { value: "Elli" },
+    });
+    fireEvent.change(screen.getByLabelText("Nachname"), {
+      target: { value: "Alt" },
+    });
+    fireEvent.change(screen.getByLabelText("E-Mail-Adresse"), {
+      target: { value: "elli@example.test" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Eintragen" }));
+
+    await waitFor(() =>
+      expect(mocks.createExternal).toHaveBeenCalledWith({
+        firstName: "Elli",
+        lastName: "Alt",
+        email: "elli@example.test",
+        organization: "",
+      }),
+    );
+    expect(mocks.inviteExternal).not.toHaveBeenCalled();
   });
 
   it("offers neither action without permission to create users", () => {

@@ -389,9 +389,9 @@ export function useEventForm({
   const [planningTracks, setPlanningTracks] = useState<PlanningTrack[]>([]);
   const [groups, setGroups] = useState<GroupOption[]>([]);
   const [students, setStudents] = useState<PersonOption[]>([]);
-  // The whole staff list, externals without account included: the entry for
-  // a new external person matches names against it (#4573). The roster
-  // options below offer only who may be newly assigned.
+  // The whole staff list, externals without account included (#4573). The
+  // roster options below offer only who may be newly assigned, plus whoever
+  // the event already names.
   const [staffDirectory, setStaffDirectory] = useState<Staff[]>([]);
   const staff = useMemo(
     () =>
@@ -4017,7 +4017,6 @@ export function useEventForm({
     groups,
     students,
     staff,
-    staffDirectory,
     addStaffOption,
     loadingRefs,
     loadingStudents,

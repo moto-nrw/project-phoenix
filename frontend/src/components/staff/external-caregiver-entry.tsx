@@ -8,33 +8,10 @@ import { Button } from "~/components/ui/button";
 import { FormErrorAlert } from "~/components/ui/form-error-alert";
 import { Input } from "~/components/ui/input";
 import { useApiFormError } from "~/contexts/ToastContext";
-import { ApiError } from "~/lib/api-error";
 import { createLogger } from "~/lib/logger";
-import {
-  staffService,
-  type ExternalAccountStatus,
-  type Staff,
-} from "~/lib/staff-api";
+import { staffService, type Staff } from "~/lib/staff-api";
 
 const logger = createLogger({ component: "ExternalCaregiverEntry" });
-
-/** A person already visible to the picker, matched by name before a new entry. */
-export interface ExistingCaregiver {
-  readonly id: string;
-  readonly fullName: string;
-  readonly isExternal: boolean;
-  readonly isAlreadyAssigned?: boolean;
-  /**
-   * Account state of an external person (#4573). A match with `none` gets an
-   * invitation instead of a second person with the same name.
-   */
-  readonly accountStatus?: ExternalAccountStatus | null;
-}
-
-export type ExternalCaregiverResult =
-  | { readonly kind: "created"; readonly staff: Staff }
-  | { readonly kind: "invited"; readonly staff: Staff }
-  | { readonly kind: "existing"; readonly id: string };
 
 /** Control names equal the wire fields, so server field errors find them. */
 export const EXTERNAL_FIELDS = {
@@ -50,13 +27,6 @@ export const EXTERNAL_CAREGIVER_HINT =
 
 // Deliberately loose: the backend decides; this only catches typing slips.
 const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-
-/** The address already belongs to someone at this school (#4573, §3.4). */
-const EMAIL_TAKEN_CODE = "identity.account_already_has_tenant_access";
-
-function normalizeName(value: string): string {
-  return value.trim().replace(/\s+/g, " ").toLocaleLowerCase("de");
-}
 
 /** Email check shared by the entry and the invitation dialog. */
 export function emailFieldHint(email: string): string | null {
@@ -95,38 +65,18 @@ function validate(
 }
 
 /**
- * Puts a failed request on the form. A taken address also marks the email
- * field, because the backend answers it without a field (plan §3.4).
- */
-export async function showExternalFailure(
-  formErrors: ReturnType<typeof useApiFormError>,
-  cause: unknown,
-  options: { object: string; retry: () => void },
-): Promise<void> {
-  const presentation = await formErrors.show(cause, options);
-  if (
-    presentation &&
-    cause instanceof ApiError &&
-    cause.code === EMAIL_TAKEN_CODE &&
-    !presentation.fields.includes(EXTERNAL_FIELDS.email)
-  ) {
-    formErrors.invalid(presentation.message, {
-      [EXTERNAL_FIELDS.email]: "Bitte eine andere E-Mail-Adresse eingeben.",
-    });
-  }
-}
-
-/**
  * State and submit of the external caregiver fields (#3823, #4573). The
- * inline entry and the dialog of the Personalverwaltung share it.
+ * inline entry and the dialog of the Personalverwaltung share it. A submit
+ * always records a new person: a name says too little to pick an existing
+ * one, and an existing person without account is invited only through
+ * „Konto einladen“ in the Personalverwaltung. The backend refuses an address
+ * that already signs in at the school, at the email field.
  */
 export function useExternalCaregiverForm({
-  existing,
   onAdded,
   containerRef,
 }: {
-  readonly existing: readonly ExistingCaregiver[];
-  readonly onAdded: (result: ExternalCaregiverResult) => void;
+  readonly onAdded: (staff: Staff) => void;
   readonly containerRef?: RefObject<HTMLElement | null>;
 }) {
   const [firstName, setFirstName] = useState("");
@@ -144,7 +94,7 @@ export function useExternalCaregiverForm({
     formErrors.clear();
   }
 
-  /** Resolves true once the person is recorded, invited or selected. */
+  /** Resolves true once the person is recorded and invited. */
   async function submit(): Promise<boolean> {
     if (isSaving) return false;
     const invalid = validate({ firstName, lastName, email });
@@ -152,52 +102,24 @@ export function useExternalCaregiverForm({
       formErrors.invalid(invalid.message, invalid.fields);
       return false;
     }
-    const first = firstName.trim();
-    const last = lastName.trim();
-    const match = existing.find(
-      (person) =>
-        person.isExternal &&
-        normalizeName(person.fullName) === normalizeName(`${first} ${last}`),
-    );
-    if (match?.isAlreadyAssigned) {
-      formErrors.invalid("Diese Person ist schon eingetragen.");
-      return false;
-    }
-    if (match && match.accountStatus !== "none") {
-      onAdded({ kind: "existing", id: match.id });
-      reset();
-      return true;
-    }
     formErrors.clear();
     setIsSaving(true);
     try {
-      // A recorded person without an account gets the invitation instead of
-      // a second entry with the same name.
-      const result: ExternalCaregiverResult = match
-        ? {
-            kind: "invited",
-            staff: await staffService.inviteExternal(match.id, email),
-          }
-        : {
-            kind: "created",
-            staff: await staffService.createExternal({
-              firstName: first,
-              lastName: last,
-              email,
-              organization,
-            }),
-          };
-      onAdded(result);
+      const staff = await staffService.createExternal({
+        firstName: firstName.trim(),
+        lastName: lastName.trim(),
+        email,
+        organization,
+      });
+      onAdded(staff);
       reset();
       return true;
     } catch (cause) {
       logger.error("external_caregiver_create_failed", {
         error: cause instanceof Error ? cause.message : String(cause),
       });
-      await showExternalFailure(formErrors, cause, {
-        object: match
-          ? "die Einladung für die externe Person"
-          : "der Eintrag für die externe Person",
+      void formErrors.show(cause, {
+        object: "das Eintragen der externen Person",
         retry: () => void submit(),
       });
       return false;
@@ -220,7 +142,7 @@ export function useExternalCaregiverForm({
   };
 }
 
-export type ExternalCaregiverForm = ReturnType<typeof useExternalCaregiverForm>;
+type ExternalCaregiverForm = ReturnType<typeof useExternalCaregiverForm>;
 
 /** Vorname, Nachname, E-Mail-Adresse and Organisation as kit inputs. */
 export function ExternalCaregiverFields({
@@ -298,10 +220,8 @@ export function ExternalCaregiverFields({
 }
 
 interface ExternalCaregiverEntryProps {
-  /** Everyone the picker knows; only external entries may match by name. */
-  readonly existing: readonly ExistingCaregiver[];
-  /** Called with the new or invited entry, or with the matching entry's id. */
-  readonly onAdded: (result: ExternalCaregiverResult) => void;
+  /** Called with the new, invited entry. */
+  readonly onAdded: (staff: Staff) => void;
   readonly disabled?: boolean;
 }
 
@@ -311,17 +231,12 @@ interface ExternalCaregiverEntryProps {
  * a form already, so Enter is handled here instead of submitting the dialog.
  */
 export function ExternalCaregiverEntry({
-  existing,
   onAdded,
   disabled = false,
 }: ExternalCaregiverEntryProps) {
   const [isOpen, setIsOpen] = useState(false);
   const panelRef = useRef<HTMLDivElement>(null);
-  const form = useExternalCaregiverForm({
-    existing,
-    onAdded,
-    containerRef: panelRef,
-  });
+  const form = useExternalCaregiverForm({ onAdded, containerRef: panelRef });
 
   function close() {
     form.reset();

@@ -20,10 +20,8 @@ import { createLogger } from "~/lib/logger";
 import { substitutionService } from "~/lib/substitution-api";
 import type { RunningSupervision } from "~/lib/substitution-helpers";
 
-import {
-  ExternalCaregiverEntry,
-  type ExternalCaregiverResult,
-} from "~/components/staff/external-caregiver-entry";
+import { ExternalCaregiverEntry } from "~/components/staff/external-caregiver-entry";
+import type { Staff } from "~/lib/staff-api";
 
 const logger = createLogger({ component: "AddSupervisorModal" });
 
@@ -87,7 +85,7 @@ function SupervisionDetails({
   selectedStaffId: string;
   setSelectedStaffId: (value: string) => void;
   canCreateExternalCaregiver: boolean;
-  onExternalAdded: (result: ExternalCaregiverResult) => void;
+  onExternalAdded: (staff: Staff) => void;
 }) {
   if (!overview.canAssign)
     return (
@@ -111,24 +109,7 @@ function SupervisionDetails({
         />
       )}
       {canCreateExternalCaregiver ? (
-        <ExternalCaregiverEntry
-          existing={[
-            ...targets.map((target) => ({
-              id: target.id,
-              fullName: target.fullName,
-              isExternal: target.isExternal === true,
-              accountStatus: target.externalAccountStatus,
-            })),
-            ...overview.supervisors.map((supervisor) => ({
-              id: supervisor.id,
-              fullName: supervisor.fullName,
-              isExternal: supervisor.isExternal === true,
-              accountStatus: supervisor.externalAccountStatus,
-              isAlreadyAssigned: true,
-            })),
-          ]}
-          onAdded={onExternalAdded}
-        />
+        <ExternalCaregiverEntry onAdded={onExternalAdded} />
       ) : null}
     </div>
   );
@@ -234,7 +215,7 @@ function ModalBody(props: {
   isLoading: boolean;
   selectedStaffId: string;
   setSelectedStaffId: (value: string) => void;
-  onExternalAdded: (result: ExternalCaregiverResult) => void;
+  onExternalAdded: (staff: Staff) => void;
   canCreateExternalCaregiver: boolean;
 }) {
   return (
@@ -314,13 +295,8 @@ function useSupervisionTargets(
     ...offered,
     ...added.filter((extra) => !offered.some((item) => item.id === extra.id)),
   ];
-  const onExternalAdded = (result: ExternalCaregiverResult) => {
-    if (result.kind === "existing") {
-      setSelectedStaffId(result.id);
-      return;
-    }
-    // Created or newly invited: selectable with its open invitation.
-    const { staff } = result;
+  // A new entry is selectable right away, with its open invitation.
+  const onExternalAdded = (staff: Staff) => {
     const fullName =
       staff.name || [staff.firstName, staff.lastName].join(" ").trim();
     setAdded((prev) => [

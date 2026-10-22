@@ -1167,7 +1167,7 @@ export const ERROR_CATALOG = {
       "staff.external_email_required":
         "Bitte geben Sie eine E-Mail-Adresse ein.",
       "staff.external_email_invalid":
-        "Diese E-Mail-Adresse stimmt nicht. Bitte prüfen Sie sie.",
+        "Diese E-Mail-Adresse ist nicht gültig. Bitte prüfen Sie sie.",
       "staff.external_role_missing":
         "Die Rolle „Extern“ fehlt. Die Leitung kann sie unter Rollen anlegen.",
       "staff.not_external":

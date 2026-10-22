@@ -26,7 +26,6 @@ import {
   ExternalInvitationModal,
   type ExternalInvitationTarget,
 } from "~/components/staff/external-caregiver-dialogs";
-import type { ExternalCaregiverResult } from "~/components/staff/external-caregiver-entry";
 import { Button } from "~/components/ui/button";
 import { useToast } from "~/contexts/ToastContext";
 import type { Staff } from "~/lib/staff-api";
@@ -258,44 +257,21 @@ function TeachersPageContent() {
     "Personal",
   );
 
-  // Namen der externen Personen für die Prüfung vor dem Eintragen: wer schon
-  // ein Konto oder eine offene Einladung hat, wird nicht doppelt angelegt;
-  // wer keins hat, bekommt die Einladung statt eines zweiten Eintrags.
-  const existingExternals = useMemo(
-    () =>
-      (teachersData ?? [])
-        .filter((teacher) => teacher.is_external)
-        .map((teacher) => ({
-          id: teacher.id,
-          fullName:
-            teacher.name || `${teacher.first_name} ${teacher.last_name}`.trim(),
-          isExternal: true,
-          accountStatus: teacher.external_account_status ?? null,
-          isAlreadyAssigned: teacher.external_account_status !== "none",
-        })),
-    [teachersData],
-  );
-
+  // Erfolg beim Eintragen oder Einladen einer externen Person (#4573). Eine
+  // erneute Einladung ersetzt die alte; der Text sagt „neue Einladung“.
   const handleExternalSaved = useCallback(
-    (staff: Staff, invitedLater: boolean) => {
+    (staff: Staff, outcome: "created" | "invited" | "reinvited") => {
       const name = staff.name || `${staff.firstName} ${staff.lastName}`.trim();
-      toast.success(
-        invitedLater
-          ? `Die Einladung an ${name} ist unterwegs.`
-          : `${name} ist eingetragen. Die Einladung ist per E-Mail unterwegs.`,
-      );
+      const messages = {
+        created: `${name} ist eingetragen. Die Einladung ist per E-Mail unterwegs.`,
+        invited: `Die Einladung an ${name} ist unterwegs.`,
+        reinvited: `Die neue Einladung an ${name} ist unterwegs.`,
+      };
+      toast.success(messages[outcome]);
       void refreshTeachers();
       setInvitationRefreshKey(Date.now());
     },
     [refreshTeachers, toast],
-  );
-
-  const handleExternalCreated = useCallback(
-    (result: ExternalCaregiverResult) => {
-      if (result.kind === "existing") return;
-      handleExternalSaved(result.staff, result.kind === "invited");
-    },
-    [handleExternalSaved],
   );
 
   const handleInviteExternal = useCallback((teacher: Teacher) => {
@@ -341,13 +317,17 @@ function TeachersPageContent() {
               <ExternalCaregiverCreateModal
                 isOpen={showExternalModal}
                 onClose={() => setShowExternalModal(false)}
-                existing={existingExternals}
-                onSaved={handleExternalCreated}
+                onSaved={(staff) => handleExternalSaved(staff, "created")}
               />
               <ExternalInvitationModal
                 target={inviteTarget}
                 onClose={() => setInviteTarget(null)}
-                onInvited={(staff) => handleExternalSaved(staff, true)}
+                onInvited={(staff) =>
+                  handleExternalSaved(
+                    staff,
+                    inviteTarget?.invitationPending ? "reinvited" : "invited",
+                  )
+                }
               />
             </>
           ) : null}

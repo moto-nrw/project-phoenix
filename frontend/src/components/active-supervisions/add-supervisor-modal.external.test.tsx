@@ -170,7 +170,18 @@ describe("AddSupervisorModal external caregivers", () => {
     await waitFor(() => expect(addSupervisor).toHaveBeenCalledWith("41", "88"));
   });
 
-  it("does not duplicate an external person already assigned to the supervision", async () => {
+  // #4573 decision: the quick entry always records a new person. A name
+  // match no longer picks or blocks anyone; the address decides, and the
+  // backend refuses one that already signs in at the school.
+  it("records a namesake of an assigned external as a new person", async () => {
+    createExternal.mockResolvedValue({
+      id: "89",
+      name: "Elli Extern",
+      firstName: "Elli",
+      lastName: "Extern",
+      isExternal: true,
+      externalAccountStatus: "invitation_pending",
+    });
     renderModal();
 
     fireEvent.click(
@@ -187,10 +198,15 @@ describe("AddSupervisorModal external caregivers", () => {
     });
     fireEvent.click(screen.getByRole("button", { name: "Eintragen" }));
 
-    expect(
-      await screen.findByText("Diese Person ist schon eingetragen."),
-    ).toBeInTheDocument();
-    expect(createExternal).not.toHaveBeenCalled();
+    await waitFor(() =>
+      expect(screen.getByLabelText("Betreuer auswählen")).toHaveValue("89"),
+    );
+    expect(createExternal).toHaveBeenCalledWith({
+      firstName: "Elli",
+      lastName: "Extern",
+      email: "elli@example.test",
+      organization: "",
+    });
   });
 
   it("still offers a new external person when every caregiver is assigned", async () => {

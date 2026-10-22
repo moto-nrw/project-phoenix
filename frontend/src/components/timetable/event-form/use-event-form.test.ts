@@ -102,9 +102,6 @@ describe("useEventForm staff selection", () => {
         { id: "2", name: "Konto Kraft (Extern · Musikschule)" },
       ]),
     );
-    // The entry still knows everyone, so a name match can invite instead of
-    // recording a twin.
-    expect(result.current.staffDirectory.map((item) => item.id)).toContain("4");
   });
 
   it("keeps an already assigned external without account in the options", async () => {

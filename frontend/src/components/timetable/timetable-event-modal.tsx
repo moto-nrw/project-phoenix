@@ -213,7 +213,6 @@ export function TimetableEventModal({
     groups,
     students,
     staff,
-    staffDirectory,
     addStaffOption,
     loadingRefs,
     loadingStudents,
@@ -701,7 +700,6 @@ export function TimetableEventModal({
                 groups={groups}
                 students={students}
                 staff={staff}
-                staffDirectory={staffDirectory}
                 addStaffOption={addStaffOption}
                 canCreateExternalCaregiver={canCreateExternalCaregiver}
                 loadingRefs={loadingRefs}

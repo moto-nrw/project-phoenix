@@ -25,7 +25,6 @@ function renderStep(
       groups={[]}
       students={[]}
       staff={[]}
-      staffDirectory={[]}
       addStaffOption={vi.fn()}
       loadingRefs={false}
       loadingStudents={false}
