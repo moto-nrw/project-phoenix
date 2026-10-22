@@ -2,9 +2,9 @@
 // Extracted to reduce cognitive complexity in header.tsx
 
 import {
-  OGS_GROUP_SECTION_LABELS,
-  type OgsGroupSection,
-} from "~/lib/ogs-group-sections";
+  OGS_GROUPS_LABEL,
+  OGS_GROUPS_OVERVIEW_PATH,
+} from "~/lib/ogs-groups-navigation";
 import { getActivePlanningSubPage } from "~/lib/planning-navigation";
 import {
   COMMUNICATION_SECTION,
@@ -72,10 +72,10 @@ const mainRoutes: Record<string, string> = {
   ),
   "/": "Home",
   "/parents": "Start",
-  // Die beiden Akkordeon-Bereiche. Ohne geöffnete Gruppe heißt die
-  // Gruppenseite wie ihr Bereich in der Seitenleiste; mit Gruppe setzt die
-  // Seite den Bereich der Gruppe selbst (#3890).
-  "/ogs-groups": OGS_GROUP_SECTION_LABELS.personal,
+  // Die Bereiche Gruppen und Aktuelle Aufsicht. Gruppenseite und
+  // Auswahlseite heißen wie der Eintrag in der Seitenleiste (#4351).
+  "/ogs-groups": OGS_GROUPS_LABEL,
+  [OGS_GROUPS_OVERVIEW_PATH]: OGS_GROUPS_LABEL,
   "/active-supervisions": "Aktuelle Aufsicht",
   // Ohne Navigationseintrag, nur über Verlinkung erreichbar.
   "/reminders": "Erinnerungen",
@@ -259,13 +259,8 @@ export function getSubPageLabel(pathname: string): string {
 /**
  * Determine breadcrumb context based on referrer
  */
-export function getBreadcrumbLabel(
-  referrer: string,
-  ogsGroupSection?: OgsGroupSection,
-): string {
-  // Der Bereich, unter dem die Gruppe in der Seitenleiste steht (#3890).
-  if (referrer.startsWith("/ogs-groups"))
-    return OGS_GROUP_SECTION_LABELS[ogsGroupSection ?? "personal"];
+export function getBreadcrumbLabel(referrer: string): string {
+  if (referrer.startsWith("/ogs-groups")) return OGS_GROUPS_LABEL;
   if (referrer.startsWith("/active-supervisions")) return "Aktuelle Aufsicht";
   // Drill-in from a room: the room page /rooms/{id} (#3115) or an old
   // /rooms?room={id} link. The breadcrumb has to point back to the entry

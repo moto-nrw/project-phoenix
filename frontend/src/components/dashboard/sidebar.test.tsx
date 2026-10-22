@@ -368,11 +368,15 @@ describe("Sidebar", () => {
     it("shows group navigation but hides room supervision for admins", () => {
       render(<Sidebar />);
 
-      expect(screen.getByText("Meine Gruppen")).toBeInTheDocument();
+      expect(
+        screen.getByRole("button", { name: "Gruppen" }),
+      ).toBeInTheDocument();
       expect(screen.queryByText("Aktuelle Aufsicht")).not.toBeInTheDocument();
     });
 
-    it("puts all admin-visible groups under Weitere Gruppen", () => {
+    // #4351: ein Eintrag „Gruppen“; fremde Gruppen stehen auf der
+    // Auswahlseite, nicht als Unterpunkte und nicht in einem zweiten Bereich.
+    it("lists only own groups under the single Gruppen entry", () => {
       mockUseSupervision.mockReturnValue({
         hasGroups: true,
         isSupervising: false,
@@ -381,7 +385,7 @@ describe("Sidebar", () => {
         overviewEnabled: false,
         supervisedRooms: [],
         groups: [
-          { id: "1", name: "Eulen", is_personal: false },
+          { id: "1", name: "Eulen", is_personal: true },
           { id: "2", name: "Adler", is_personal: false },
         ],
         refresh: vi.fn(),
@@ -389,8 +393,13 @@ describe("Sidebar", () => {
 
       render(<Sidebar />);
 
-      expect(screen.getByText("Meine Gruppen")).toBeInTheDocument();
-      expect(screen.getByText("Weitere Gruppen")).toBeInTheDocument();
+      expect(screen.getByRole("button", { name: "Gruppen" })).toBeVisible();
+      expect(screen.getByRole("link", { name: "Eulen" })).toHaveAttribute(
+        "href",
+        "/ogs-groups?group=1",
+      );
+      expect(screen.queryByRole("link", { name: "Adler" })).toBeNull();
+      expect(screen.queryByText("Weitere Gruppen")).toBeNull();
     });
 
     it("shows group navigation for an effective admin", () => {
@@ -398,7 +407,9 @@ describe("Sidebar", () => {
 
       render(<Sidebar />);
 
-      expect(screen.getByText("Meine Gruppen")).toBeInTheDocument();
+      expect(
+        screen.getByRole("button", { name: "Gruppen" }),
+      ).toBeInTheDocument();
     });
 
     it("shows data management for an effective admin", () => {
@@ -475,7 +486,7 @@ describe("Sidebar", () => {
       render(<Sidebar />);
 
       // Staff items with alwaysShow: true
-      expect(screen.getByText("Meine Gruppen")).toBeInTheDocument();
+      expect(screen.getByText("Gruppen")).toBeInTheDocument();
       expect(screen.getByText("Aktuelle Aufsicht")).toBeInTheDocument();
     });
 
@@ -527,7 +538,7 @@ describe("Sidebar", () => {
       render(<Sidebar />);
 
       // Anker: die Staff-Navigation ist geladen, nicht nur das Skelett.
-      expect(screen.getByText("Meine Gruppen")).toBeInTheDocument();
+      expect(screen.getByText("Gruppen")).toBeInTheDocument();
       expect(screen.queryByText("Anfragen")).not.toBeInTheDocument();
       expect(
         screen.queryByLabelText("2 offene Anfragen"),
@@ -562,7 +573,7 @@ describe("Sidebar", () => {
       render(<Sidebar />);
 
       // Anker: die Staff-Navigation ist geladen.
-      expect(screen.getByText("Meine Gruppen")).toBeInTheDocument();
+      expect(screen.getByText("Gruppen")).toBeInTheDocument();
       expect(screen.getByText("Aktuelle Aufsicht")).toBeInTheDocument();
       // Admin-only items should NOT be visible
       expect(screen.queryByText("Datenverwaltung")).not.toBeInTheDocument();
@@ -741,7 +752,7 @@ describe("Sidebar", () => {
 
       render(<Sidebar />);
 
-      const groupHeader = screen.getByText("Meine Gruppen").closest("button");
+      const groupHeader = screen.getByText("Gruppen").closest("button");
       expect(groupHeader).toHaveClass("bg-gray-100");
     });
 
@@ -917,7 +928,7 @@ describe("Sidebar", () => {
       render(<Sidebar />);
 
       // Should still render, but supervision-dependent items behavior changes
-      expect(screen.getByText("Meine Gruppen")).toBeInTheDocument();
+      expect(screen.getByText("Gruppen")).toBeInTheDocument();
     });
 
     it("handles loading supervision state correctly", () => {
@@ -962,7 +973,7 @@ describe("Sidebar", () => {
   });
 
   describe("accordion sub-items", () => {
-    it("opens personal groups and keeps additional groups closed by default", () => {
+    it("opens the Gruppen entry by default", () => {
       mockUseSupervision.mockReturnValue({
         hasGroups: true,
         isSupervising: false,
@@ -979,73 +990,13 @@ describe("Sidebar", () => {
 
       render(<Sidebar />);
 
-      expect(
-        screen.getByText("Meine Gruppen").closest("button"),
-      ).toHaveAttribute("aria-expanded", "true");
-      expect(
-        screen.getByText("Weitere Gruppen").closest("button"),
-      ).toHaveAttribute("aria-expanded", "false");
-    });
-
-    it("keeps personal and additional groups mutually exclusive", () => {
-      mockUseSupervision.mockReturnValue({
-        hasGroups: true,
-        isSupervising: false,
-        isLoadingGroups: false,
-        isLoadingSupervision: false,
-        overviewEnabled: false,
-        supervisedRooms: [],
-        groups: [
-          { id: "1", name: "Eulen", is_personal: true },
-          { id: "2", name: "Adler", is_personal: false },
-        ],
-        refresh: vi.fn(),
-      });
-
-      render(<Sidebar />);
-      fireEvent.click(screen.getByText("Weitere Gruppen"));
-
-      expect(
-        screen.getByText("Meine Gruppen").closest("button"),
-      ).toHaveAttribute("aria-expanded", "false");
-      expect(
-        screen.getByText("Weitere Gruppen").closest("button"),
-      ).toHaveAttribute("aria-expanded", "true");
-    });
-
-    it("closes additional groups after leaving the groups section", async () => {
-      mockUseSupervision.mockReturnValue({
-        hasGroups: true,
-        isSupervising: false,
-        isLoadingGroups: false,
-        isLoadingSupervision: false,
-        overviewEnabled: false,
-        supervisedRooms: [],
-        groups: [
-          { id: "1", name: "Eulen", is_personal: true },
-          { id: "2", name: "Adler", is_personal: false },
-        ],
-        refresh: vi.fn(),
-      });
-
-      const { rerender } = render(<Sidebar />);
-      fireEvent.click(screen.getByText("Weitere Gruppen"));
-      mockUsePathname.mockReturnValue("/activities");
-      rerender(<Sidebar />);
-      await waitFor(() =>
-        expect(
-          screen.getByText("Weitere Gruppen").closest("button"),
-        ).toHaveAttribute("aria-expanded", "false"),
+      expect(screen.getByRole("button", { name: "Gruppen" })).toHaveAttribute(
+        "aria-expanded",
+        "true",
       );
-
-      mockUsePathname.mockReturnValue("/ogs-groups");
-      rerender(<Sidebar />);
-      expect(
-        screen.getByText("Meine Gruppen").closest("button"),
-      ).toHaveAttribute("aria-expanded", "true");
     });
 
-    it("opens additional groups when the current group is selected", () => {
+    it("keeps the Gruppen entry open on a foreign group without marking an own one", () => {
       mockUsePathname.mockReturnValue("/ogs-groups");
       mockUseSearchParams.mockReturnValue(
         createMockSearchParams((key: string) => (key === "group" ? "2" : null)),
@@ -1066,12 +1017,17 @@ describe("Sidebar", () => {
 
       render(<Sidebar />);
 
-      expect(
-        screen.getByText("Weitere Gruppen").closest("button"),
-      ).toHaveAttribute("aria-expanded", "true");
+      expect(screen.getByRole("button", { name: "Gruppen" })).toHaveAttribute(
+        "aria-expanded",
+        "true",
+      );
+      expect(screen.getByRole("link", { name: "Eulen" })).not.toHaveClass(
+        "bg-gray-100",
+      );
     });
 
-    it("hides additional groups when the backend returns only personal groups", () => {
+    it("marks no own group on the group selection", () => {
+      mockUsePathname.mockReturnValue("/ogs-groups/overview");
       mockUseSupervision.mockReturnValue({
         hasGroups: true,
         isSupervising: false,
@@ -1079,14 +1035,21 @@ describe("Sidebar", () => {
         isLoadingSupervision: false,
         overviewEnabled: false,
         supervisedRooms: [],
-        groups: [{ id: "1", name: "Eulen", is_personal: true }],
+        groups: [
+          { id: "1", name: "Eulen", is_personal: true },
+          { id: "2", name: "Adler", is_personal: true },
+        ],
         refresh: vi.fn(),
       });
 
       render(<Sidebar />);
 
-      expect(screen.getByText("Meine Gruppen")).toBeInTheDocument();
-      expect(screen.queryByText("Weitere Gruppen")).not.toBeInTheDocument();
+      expect(screen.getByRole("link", { name: "Eulen" })).not.toHaveClass(
+        "bg-gray-100",
+      );
+      expect(screen.getByRole("link", { name: "Adler" })).not.toHaveClass(
+        "bg-gray-100",
+      );
     });
 
     it("renders group sub-items when groups are available", () => {
@@ -1146,7 +1109,12 @@ describe("Sidebar", () => {
       expect(screen.getByText("Datenverwaltung")).toBeInTheDocument();
       expect(screen.getByText("Kinderdaten")).toBeInTheDocument();
       expect(screen.getByText("Personal")).toBeInTheDocument();
-      expect(screen.getByText("Gruppendaten")).toBeInTheDocument();
+      expect(
+        screen.getByRole("button", { name: "Gruppen" }),
+      ).toBeInTheDocument();
+      expect(
+        screen.getByRole("link", { name: "Gruppendaten" }),
+      ).toBeInTheDocument();
     });
   });
 
@@ -1160,7 +1128,7 @@ describe("Sidebar", () => {
       });
     });
 
-    it("navigates to ogs-groups when groups toggle clicked from another page", () => {
+    it("navigates to the group selection when the groups toggle is clicked from another page", () => {
       mockUsePathname.mockReturnValue("/activities");
       mockUseSupervision.mockReturnValue({
         hasGroups: true,
@@ -1175,15 +1143,15 @@ describe("Sidebar", () => {
 
       render(<Sidebar />);
 
-      const groupHeader = screen.getByText("Meine Gruppen");
-      fireEvent.click(groupHeader);
+      fireEvent.click(screen.getByText("Gruppen"));
 
       expect(mockRouterPush).toHaveBeenCalledWith(
-        "/test-tenant/ogs-groups?group=1",
+        "/test-tenant/ogs-groups/overview",
       );
     });
 
-    it("does not navigate from an empty personal groups section", () => {
+    // Ohne sichtbare Gruppe sagt die Auswahlseite, wer eine zuordnet.
+    it("opens the group selection also without own groups", () => {
       mockUsePathname.mockReturnValue("/activities");
       mockUseSupervision.mockReturnValue({
         hasGroups: false,
@@ -1198,10 +1166,11 @@ describe("Sidebar", () => {
 
       render(<Sidebar />);
 
-      const groupHeader = screen.getByText("Meine Gruppen");
-      fireEvent.click(groupHeader);
+      fireEvent.click(screen.getByText("Gruppen"));
 
-      expect(mockRouterPush).not.toHaveBeenCalled();
+      expect(mockRouterPush).toHaveBeenCalledWith(
+        "/test-tenant/ogs-groups/overview",
+      );
     });
 
     it("navigates to active-supervisions when supervisions toggle clicked from another page", () => {
@@ -1345,7 +1314,7 @@ describe("Sidebar", () => {
 
       render(<Sidebar />);
 
-      expect(screen.getByText("Meine Gruppen")).toBeInTheDocument();
+      expect(screen.getByText("Gruppen")).toBeInTheDocument();
     });
 
     it("shows 'Meine Gruppen' for multiple groups", () => {
@@ -1365,7 +1334,7 @@ describe("Sidebar", () => {
 
       render(<Sidebar />);
 
-      expect(screen.getByText("Meine Gruppen")).toBeInTheDocument();
+      expect(screen.getByText("Gruppen")).toBeInTheDocument();
     });
 
     it("shows 'Aktuelle Aufsicht' for single room", () => {
@@ -1537,35 +1506,6 @@ describe("Sidebar", () => {
       );
     });
 
-    // #3890: die Kinderseiten nennen im Breadcrumb den Bereich der Gruppe
-    // und lesen ihn aus dem Speicher.
-    it("persists the sidebar section of the selected group", () => {
-      mockUsePathname.mockReturnValue("/ogs-groups");
-      mockUseSearchParams.mockReturnValue(
-        createMockSearchParams((key: string) => (key === "group" ? "2" : null)),
-      );
-      mockUseSupervision.mockReturnValue({
-        hasGroups: true,
-        isSupervising: false,
-        isLoadingGroups: false,
-        isLoadingSupervision: false,
-        overviewEnabled: false,
-        supervisedRooms: [],
-        groups: [
-          { id: "1", name: "Eulen", is_personal: true },
-          { id: "2", name: "Mondgruppe", is_personal: false },
-        ],
-        refresh: vi.fn(),
-      });
-
-      render(<Sidebar />);
-
-      expect(mockSetItem).toHaveBeenCalledWith(
-        "sidebar-last-group-section",
-        "other",
-      );
-    });
-
     it("persists selected room and room name to localStorage", () => {
       mockUsePathname.mockReturnValue("/active-supervisions");
       mockUseSearchParams.mockReturnValue(
@@ -1669,13 +1609,11 @@ describe("Sidebar", () => {
       vi.spyOn(localStorage, "removeItem").mockImplementation(() => undefined);
     });
 
-    it("navigates to saved group from localStorage when toggling groups", () => {
-      const mockGetItem = vi.fn((key: string) => {
-        if (key === "sidebar-last-group") return "2";
-        return null;
-      });
-      vi.spyOn(localStorage, "getItem").mockImplementation(mockGetItem);
-      mockUsePathname.mockReturnValue("/activities");
+    it("returns from a group to the group selection", () => {
+      mockUsePathname.mockReturnValue("/ogs-groups");
+      mockUseSearchParams.mockReturnValue(
+        createMockSearchParams((key: string) => (key === "group" ? "2" : null)),
+      );
       mockUseSupervision.mockReturnValue({
         hasGroups: true,
         isSupervising: false,
@@ -1692,11 +1630,10 @@ describe("Sidebar", () => {
 
       render(<Sidebar />);
 
-      const groupHeader = screen.getByText("Meine Gruppen");
-      fireEvent.click(groupHeader);
+      fireEvent.click(screen.getByText("Gruppen"));
 
       expect(mockRouterPush).toHaveBeenCalledWith(
-        "/test-tenant/ogs-groups?group=2",
+        "/test-tenant/ogs-groups/overview",
       );
     });
 
@@ -1801,13 +1738,31 @@ describe("Sidebar", () => {
       );
     });
 
-    it("falls back to first group when saved group not found", () => {
-      const mockGetItem = vi.fn((key: string) => {
-        if (key === "sidebar-last-group") return "999";
-        return null;
+    // Die Auswahlseite öffnete die einzige Gruppe ohnehin gleich wieder.
+    it("only folds the entry inside the only group", () => {
+      mockUsePathname.mockReturnValue("/ogs-groups");
+      mockUseSupervision.mockReturnValue({
+        hasGroups: true,
+        isSupervising: false,
+        isLoadingGroups: false,
+        isLoadingSupervision: false,
+        overviewEnabled: false,
+        supervisedRooms: [],
+        groups: [{ id: "1", name: "Eulen" }],
+        refresh: vi.fn(),
       });
-      vi.spyOn(localStorage, "getItem").mockImplementation(mockGetItem);
-      mockUsePathname.mockReturnValue("/activities");
+
+      render(<Sidebar />);
+
+      const header = screen.getByRole("button", { name: "Gruppen" });
+      fireEvent.click(header);
+
+      expect(mockRouterPush).not.toHaveBeenCalled();
+      expect(header).toHaveAttribute("aria-expanded", "false");
+    });
+
+    it("only folds the entry on the group selection", () => {
+      mockUsePathname.mockReturnValue("/ogs-groups/overview");
       mockUseSupervision.mockReturnValue({
         hasGroups: true,
         isSupervising: false,
@@ -1824,12 +1779,11 @@ describe("Sidebar", () => {
 
       render(<Sidebar />);
 
-      const groupHeader = screen.getByText("Meine Gruppen");
-      fireEvent.click(groupHeader);
+      const header = screen.getByRole("button", { name: "Gruppen" });
+      fireEvent.click(header);
 
-      expect(mockRouterPush).toHaveBeenCalledWith(
-        "/test-tenant/ogs-groups?group=1",
-      );
+      expect(mockRouterPush).not.toHaveBeenCalled();
+      expect(header).toHaveAttribute("aria-expanded", "false");
     });
 
     it("falls back to first room when saved room not found", () => {
@@ -2065,8 +2019,7 @@ describe("Sidebar", () => {
 
       render(<Sidebar />);
 
-      // Shared rooms are visibly apart from own supervisions (#3065), the
-      // same way "Weitere Gruppen" stands apart from "Meine Gruppen".
+      // Shared rooms are visibly apart from own supervisions (#3065).
       expect(screen.getByText("Offene Räume")).toBeInTheDocument();
       expect(screen.getByText("Aktuelle Aufsichten")).toBeInTheDocument();
       expect(screen.getByText("Schulhof").closest("a")).toHaveAttribute(
@@ -2309,7 +2262,7 @@ describe("Sidebar", () => {
       // Accordion header is "Aktuelle Aufsicht" (singular) or "Aktuelle
       // Aufsichten" (plural) — neither should appear in binary mode.
       // Anker: die Staff-Navigation ist geladen.
-      expect(screen.getByText("Meine Gruppen")).toBeInTheDocument();
+      expect(screen.getByText("Gruppen")).toBeInTheDocument();
       expect(screen.queryByText(/Aktuelle Aufsicht/)).not.toBeInTheDocument();
     });
 
@@ -2762,7 +2715,7 @@ describe("Sidebar", () => {
 
       render(<Sidebar />);
 
-      expect(screen.queryByText("Meine Gruppen")).not.toBeInTheDocument();
+      expect(screen.queryByText("Gruppen")).not.toBeInTheDocument();
       expect(
         screen.queryByText("Keine Gruppen zugeordnet"),
       ).not.toBeInTheDocument();
@@ -2774,7 +2727,7 @@ describe("Sidebar", () => {
     it("shows the Meine Gruppen accordion for fixed-groups tenants", () => {
       render(<Sidebar />);
 
-      expect(screen.getByText("Meine Gruppen")).toBeInTheDocument();
+      expect(screen.getByText("Gruppen")).toBeInTheDocument();
     });
   });
 
@@ -2800,7 +2753,7 @@ describe("Sidebar", () => {
     it("keeps Meine Gruppen and Aktuelle Aufsicht while the school keeps them", () => {
       render(<Sidebar />);
 
-      expect(screen.getByText("Meine Gruppen")).toBeInTheDocument();
+      expect(screen.getByText("Gruppen")).toBeInTheDocument();
       expect(screen.getByText("Aktuelle Aufsicht")).toBeInTheDocument();
       expect(screen.getByText("Alle Kinder")).toBeInTheDocument();
     });
@@ -2810,7 +2763,7 @@ describe("Sidebar", () => {
 
       render(<Sidebar />);
 
-      expect(screen.queryByText("Meine Gruppen")).not.toBeInTheDocument();
+      expect(screen.queryByText("Gruppen")).not.toBeInTheDocument();
       expect(screen.queryByText("Aktuelle Aufsicht")).not.toBeInTheDocument();
       expect(screen.getByText("Alle Kinder")).toBeInTheDocument();
     });
@@ -2886,7 +2839,7 @@ describe("Sidebar", () => {
 
     it("expands the sidebar and opens the section when a rail accordion icon is clicked", () => {
       // Betreuungskraft mit Aufsicht: der Aufsicht-Bereich ist im Streifen
-      // zu (nur "Meine Gruppen" steht standardmäßig offen).
+      // zu (nur "Gruppen" steht standardmäßig offen).
       mockUseSupervision.mockReturnValue({
         hasGroups: true,
         isSupervising: true,
@@ -3016,7 +2969,7 @@ describe("Sidebar", () => {
       // Zeilenraster der Seitenleiste. Die Grundklassen des Buttons dürfen
       // dabei nicht durchschlagen: keine zentrierte Ausrichtung, keine
       // eigene Innenbreite, kein transparenter Grund über dem Aktiv-Zustand.
-      const header = screen.getByRole("button", { name: "Meine Gruppen" });
+      const header = screen.getByRole("button", { name: "Gruppen" });
       for (const token of ["h-10", "px-3", "rounded-lg", "justify-start"]) {
         expect(header.className).toContain(token);
       }
@@ -3082,70 +3035,6 @@ describe("Sidebar", () => {
       expect(screen.getByLabelText("Aktivitäten")).toBeInTheDocument();
     });
 
-    // "Weitere Gruppen" erscheint nur, wenn es Gruppen gibt, die der Person
-    // nicht selbst zugeordnet sind.
-    const withOtherGroups = () => {
-      mockUseSupervision.mockReturnValue({
-        hasGroups: true,
-        isSupervising: false,
-        isLoadingGroups: false,
-        isLoadingSupervision: false,
-        overviewEnabled: false,
-        supervisedRooms: [],
-        groups: [{ id: "1", name: "Eulen", is_personal: false }],
-        refresh: vi.fn(),
-      });
-    };
-
-    it("zeigt im Streifen kein zweites, gleich aussehendes Gruppen-Icon", () => {
-      withOtherGroups();
-      localStorage.setItem("sidebar-collapsed", "true");
-
-      render(<Sidebar />);
-
-      // "Weitere Gruppen" trägt dasselbe Icon wie "Meine Gruppen" — ohne
-      // Bezeichnung wären das zwei nicht unterscheidbare Schaltflächen.
-      expect(
-        screen.getByRole("button", { name: "Meine Gruppen" }),
-      ).toBeInTheDocument();
-      expect(
-        screen.queryByRole("button", { name: "Weitere Gruppen" }),
-      ).not.toBeInTheDocument();
-    });
-
-    it("blendet das zweite Gruppen-Icon während des Einklappens aus", async () => {
-      withOtherGroups();
-
-      const { container } = render(<Sidebar />);
-      expect(
-        screen.getByRole("button", { name: "Weitere Gruppen" }),
-      ).toBeInTheDocument();
-
-      act(() => {
-        localStorage.setItem("sidebar-collapsed", "true");
-        globalThis.dispatchEvent(new Event("sidebar-collapsed-change"));
-      });
-
-      // Der Bereich bleibt für die Dauer der Bewegung stehen — sonst
-      // sprängen die Zeilen darunter im ersten Bild um seine ganze Höhe
-      // hoch. Sichtbar ist er dabei nicht: er blendet aus und zieht seine
-      // Höhe auf null, exponiert wird er auch nicht.
-      const fading = container.querySelector(
-        'div[aria-hidden="true"].grid.opacity-0.grid-rows-\\[0fr\\]',
-      );
-      expect(fading).not.toBeNull();
-      expect(fading).toContainElement(screen.getByText("Weitere Gruppen"));
-      expect(fading?.firstElementChild).toHaveAttribute("inert");
-      // Die übrigen Bezeichnungen stehen noch und blenden aus.
-      expect(screen.getByText("Aktivitäten")).toBeInTheDocument();
-
-      // Nach der Bewegung ist der Bereich weg: im Streifen stünden sonst
-      // zwei nicht unterscheidbare Gruppen-Icons untereinander.
-      await waitFor(() =>
-        expect(screen.queryByText("Weitere Gruppen")).not.toBeInTheDocument(),
-      );
-    });
-
     it("entfernt die Bezeichnungen bei prefers-reduced-motion sofort", () => {
       // Ohne Bewegung gibt es nichts, worauf die Texte warten könnten: die
       // Breite springt. Blieben sie die Dauer der Blende stehen, stünden im
@@ -3176,119 +3065,6 @@ describe("Sidebar", () => {
       } finally {
         globalThis.matchMedia = original;
       }
-    });
-
-    it("blendet das zweite Gruppen-Icon erst mit den Bezeichnungen wieder ein", async () => {
-      withOtherGroups();
-      localStorage.setItem("sidebar-collapsed", "true");
-
-      const { container } = render(<Sidebar />);
-      expect(screen.queryByText("Weitere Gruppen")).not.toBeInTheDocument();
-
-      act(() => {
-        localStorage.setItem("sidebar-collapsed", "false");
-        globalThis.dispatchEvent(new Event("sidebar-collapsed-change"));
-      });
-
-      // Der Bereich hängt sich unsichtbar ein und wächst mit den
-      // Bezeichnungen auf — sonst stünden die beiden gleichen Icons ein Bild
-      // lang unbeschriftet untereinander.
-      const growing = container.querySelector(
-        'div[aria-hidden="true"].grid.opacity-0.grid-rows-\\[0fr\\]',
-      );
-      expect(growing).toContainElement(screen.getByText("Weitere Gruppen"));
-
-      await waitFor(() =>
-        expect(
-          container.querySelector(
-            "div.grid.opacity-100.grid-rows-\\[1fr\\] .truncate",
-          ),
-        ).toHaveTextContent("Weitere Gruppen"),
-      );
-    });
-
-    it("öffnet über das Gruppen-Icon wieder Meine Gruppen", async () => {
-      mockUseSupervision.mockReturnValue({
-        hasGroups: true,
-        isSupervising: false,
-        isLoadingGroups: false,
-        isLoadingSupervision: false,
-        overviewEnabled: false,
-        supervisedRooms: [],
-        groups: [
-          { id: "1", name: "Eulen", is_personal: true },
-          { id: "2", name: "Adler", is_personal: false },
-        ],
-        refresh: vi.fn(),
-      });
-
-      render(<Sidebar />);
-      fireEvent.click(screen.getByText("Weitere Gruppen"));
-      // Ausgangszustand: die Bezeichnung steht, bevor die Leiste einklappt.
-      expect(screen.getByText("Meine Gruppen")).toBeInTheDocument();
-
-      act(() => {
-        localStorage.setItem("sidebar-collapsed", "true");
-        globalThis.dispatchEvent(new Event("sidebar-collapsed-change"));
-      });
-      await waitFor(() =>
-        expect(screen.queryByText("Meine Gruppen")).not.toBeInTheDocument(),
-      );
-
-      // Das Icon im Streifen heißt "Meine Gruppen"; danach müssen die
-      // eigenen Gruppen offen stehen und nicht der zuletzt gewählte
-      // Unterbereich.
-      fireEvent.click(screen.getByRole("button", { name: "Meine Gruppen" }));
-
-      // "Weitere Gruppen" kommt erst mit den Bezeichnungen dazu, deshalb
-      // beide Erwartungen in derselben Wartebedingung.
-      await waitFor(() => {
-        expect(
-          screen.getByText("Meine Gruppen").closest("button"),
-        ).toHaveAttribute("aria-expanded", "true");
-        expect(
-          screen.getByText("Weitere Gruppen").closest("button"),
-        ).toHaveAttribute("aria-expanded", "false");
-      });
-    });
-
-    it("öffnet Meine Gruppen auch bei geöffneter fremder Gruppe", async () => {
-      // Die geöffnete Gruppe ist eine fremde — "Weitere Gruppen" steht
-      // deshalb offen. Das Icon im Streifen heißt trotzdem "Meine Gruppen"
-      // und muss genau die öffnen.
-      mockUsePathname.mockReturnValue("/ogs-groups");
-      mockUseSearchParams.mockReturnValue(
-        createMockSearchParams((key: string) => (key === "group" ? "2" : null)),
-      );
-      mockUseSupervision.mockReturnValue({
-        hasGroups: true,
-        isSupervising: false,
-        isLoadingGroups: false,
-        isLoadingSupervision: false,
-        overviewEnabled: false,
-        supervisedRooms: [],
-        groups: [
-          { id: "1", name: "Eulen", is_personal: true },
-          { id: "2", name: "Adler", is_personal: false },
-        ],
-        refresh: vi.fn(),
-      });
-      localStorage.setItem("sidebar-collapsed", "true");
-
-      render(<Sidebar />);
-
-      fireEvent.click(screen.getByRole("button", { name: "Meine Gruppen" }));
-
-      // "Weitere Gruppen" kommt erst mit den Bezeichnungen dazu, deshalb
-      // beide Erwartungen in derselben Wartebedingung.
-      await waitFor(() => {
-        expect(
-          screen.getByText("Meine Gruppen").closest("button"),
-        ).toHaveAttribute("aria-expanded", "true");
-        expect(
-          screen.getByText("Weitere Gruppen").closest("button"),
-        ).toHaveAttribute("aria-expanded", "false");
-      });
     });
 
     it("nennt den Zähler während der Bewegung nur einmal", () => {
@@ -3379,13 +3155,26 @@ describe("Sidebar", () => {
       ).toHaveLength(1);
     });
 
-    it("hält den offenen Bereich 'Weitere Gruppen' samt Unterpunkten bis zum Ende der Bewegung", async () => {
-      withOtherGroups();
+    // Seit #4351 trägt nur noch „Offene Räume“ diese Bewegung (#2923).
+    it("hält den offenen Bereich 'Offene Räume' samt Unterpunkten bis zum Ende der Bewegung", async () => {
+      mockUseSupervision.mockReturnValue({
+        hasGroups: false,
+        isSupervising: true,
+        isLoadingGroups: false,
+        isLoadingSupervision: false,
+        overviewEnabled: false,
+        supervisedRooms: [
+          { id: "10", name: "Raum A", groupId: "1" },
+          { id: "7", name: "Schulhof", groupId: "", isOpenRoom: true },
+        ],
+        groups: [],
+        refresh: vi.fn(),
+      });
 
       const { container } = render(<Sidebar />);
-      fireEvent.click(screen.getByText("Weitere Gruppen"));
+      fireEvent.click(screen.getByText("Offene Räume"));
       await waitFor(() =>
-        expect(screen.getByText("Eulen")).toBeInTheDocument(),
+        expect(screen.getByText("Schulhof")).toBeInTheDocument(),
       );
 
       act(() => {
@@ -3400,23 +3189,35 @@ describe("Sidebar", () => {
       const fading = container.querySelector(
         'div[aria-hidden="true"].grid.grid-rows-\\[0fr\\]',
       );
-      expect(fading).toContainElement(screen.getByText("Weitere Gruppen"));
-      expect(fading).toContainElement(screen.getByText("Eulen"));
+      expect(fading).toContainElement(screen.getByText("Offene Räume"));
+      expect(fading).toContainElement(screen.getByText("Schulhof"));
 
       // Erst nach der Bewegung geht der Bereich aus dem Baum.
       await waitFor(() =>
-        expect(screen.queryByText("Weitere Gruppen")).not.toBeInTheDocument(),
+        expect(screen.queryByText("Offene Räume")).not.toBeInTheDocument(),
       );
-      expect(screen.queryByText("Eulen")).not.toBeInTheDocument();
+      expect(screen.queryByText("Schulhof")).not.toBeInTheDocument();
     });
 
     it("klappt den offenen Bereich nicht zusätzlich zur Hülle zu", async () => {
-      withOtherGroups();
+      mockUseSupervision.mockReturnValue({
+        hasGroups: false,
+        isSupervising: true,
+        isLoadingGroups: false,
+        isLoadingSupervision: false,
+        overviewEnabled: false,
+        supervisedRooms: [
+          { id: "10", name: "Raum A", groupId: "1" },
+          { id: "7", name: "Schulhof", groupId: "", isOpenRoom: true },
+        ],
+        groups: [],
+        refresh: vi.fn(),
+      });
 
       render(<Sidebar />);
-      fireEvent.click(screen.getByText("Weitere Gruppen"));
+      fireEvent.click(screen.getByText("Offene Räume"));
       await waitFor(() =>
-        expect(screen.getByText("Eulen")).toBeInTheDocument(),
+        expect(screen.getByText("Schulhof")).toBeInTheDocument(),
       );
 
       act(() => {
@@ -3427,7 +3228,7 @@ describe("Sidebar", () => {
       // Die Hülle zieht die volle Höhe zusammen. Der Inhalt behält seine
       // Höhe bis zum Ende der Bewegung — zwei geschachtelte Höhenwechsel
       // ergäben sonst eine zweite Bewegung der Zeilen darunter.
-      const header = screen.getByText("Weitere Gruppen").closest("button");
+      const header = screen.getByText("Offene Räume").closest("button");
       expect(header!.nextElementSibling).toHaveClass("grid-rows-[1fr]");
     });
 

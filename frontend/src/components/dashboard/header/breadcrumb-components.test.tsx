@@ -153,24 +153,18 @@ describe("OgsGroupsBreadcrumb", () => {
   it("renders simple title when no group name", () => {
     render(<OgsGroupsBreadcrumb />);
 
-    expect(screen.getByText("Meine Gruppen")).toBeInTheDocument();
+    expect(screen.getByText("Gruppen")).toBeInTheDocument();
   });
 
-  it("renders breadcrumb with group name", () => {
+  // #4351: „Gruppen › Eulen“, und „Gruppen“ führt zurück zur Auswahlseite.
+  it("renders breadcrumb with group name under „Gruppen“", () => {
     render(<OgsGroupsBreadcrumb groupName="Eulen" />);
 
-    expect(screen.getByText("Meine Gruppen")).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "Gruppen" })).toHaveAttribute(
+      "href",
+      "/test-tenant/ogs-groups/overview",
+    );
     expect(screen.getByText("Eulen")).toBeInTheDocument();
-  });
-
-  // #3890: eine Gruppe aus „Weitere Gruppen" steht im Breadcrumb unter
-  // diesem Bereich, nicht unter „Meine Gruppen".
-  it("names 'Weitere Gruppen' for a group from that sidebar section", () => {
-    render(<OgsGroupsBreadcrumb groupName="Mondgruppe" section="other" />);
-
-    expect(screen.getByText("Weitere Gruppen")).toBeInTheDocument();
-    expect(screen.getByText("Mondgruppe")).toBeInTheDocument();
-    expect(screen.queryByText("Meine Gruppen")).not.toBeInTheDocument();
   });
 
   it("uses the same compact text size as the rest of the topbar", () => {
@@ -182,7 +176,7 @@ describe("OgsGroupsBreadcrumb", () => {
   it("uses the compact text size for the plain title without a group", () => {
     render(<OgsGroupsBreadcrumb />);
 
-    expect(screen.getByText("Meine Gruppen")).toHaveClass("text-sm");
+    expect(screen.getByText("Gruppen")).toHaveClass("text-sm");
   });
 });
 

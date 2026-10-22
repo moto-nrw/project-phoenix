@@ -436,7 +436,7 @@ describe("getParentHelpTopicForPath", () => {
       (topic) => topic.id === HELP_TOPICS.login,
     );
 
-    expect(detailedLogin?.result).toContain("Meine Gruppen");
+    expect(detailedLogin?.result).toContain("`Gruppen`");
     expect(openCareLogin?.result).toContain("Alle Kinder");
     expect(binaryLogin?.result).toContain("Alle Kinder");
   });
@@ -471,15 +471,17 @@ describe("getParentHelpTopicForPath", () => {
       "Bei einfacher Anwesenheit zeigt die Liste `Anwesend` statt eines Raums.",
     );
     expect(article(detailedTopics, HELP_TOPICS.ownGroups)?.steps).toContain(
-      "Öffnen Sie `Meine Gruppen` oder `Weitere Gruppen` in der Seitenleiste.",
+      "Öffnen Sie `Gruppen` in der Seitenleiste.",
+    );
+    // #4351: die Auswahlseite markiert die eigene Gruppe.
+    expect(article(detailedTopics, HELP_TOPICS.ownGroups)?.steps).toContain(
+      "Wählen Sie die gewünschte Gruppe. Ihre eigene Gruppe ist mit `Meine Gruppe` markiert.",
     );
     expect(
       getHelpTopics("unknown", "unknown", true).find(
         (topic) => topic.id === HELP_TOPICS.ownGroups,
       )?.steps,
-    ).toContain(
-      "Prüfen Sie, ob `Meine Gruppen` oder `Weitere Gruppen` in der Seitenleiste steht.",
-    );
+    ).toContain("Prüfen Sie, ob `Gruppen` in der Seitenleiste steht.");
     expect(article(openCareTopics, HELP_TOPICS.ownGroups)).toBeUndefined();
     expect(article(openCareTopics, HELP_TOPICS.transferGroup)).toBeUndefined();
   });

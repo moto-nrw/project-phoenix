@@ -249,7 +249,7 @@ export const FEATURES = Object.freeze([
     pages: { ogs: ['/students/**'], parents: ['/children/**'], school: ['/klasse'] },
     events: ['student_note_created', 'photo_consent_changed'],
   },
-  { name: 'Gruppen', pages: { ogs: ['/ogs-groups'] }, events: ['group_created', 'group_updated'] },
+  { name: 'Gruppen', pages: { ogs: ['/ogs-groups', '/ogs-groups/overview'] }, events: ['group_created', 'group_updated'] },
   {
     name: 'Aufsichten und Räume',
     pages: { ogs: ['/active-supervisions', '/rooms/**', '/activities'], school: ['/aufsichten'] },

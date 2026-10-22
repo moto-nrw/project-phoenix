@@ -49,10 +49,11 @@ import { useSidebarCollapsed } from "~/lib/hooks/use-sidebar-collapsed";
 import { useSidebarCollapseTransition } from "~/lib/hooks/use-sidebar-collapse-transition";
 import { useLocalStorageValue } from "~/lib/hooks/use-local-storage-value";
 import {
-  LAST_GROUP_SECTION_STORAGE_KEY,
-  OGS_GROUP_SECTION_LABELS,
-  ogsGroupSectionOf,
-} from "~/lib/ogs-group-sections";
+  isOwnGroup,
+  OGS_GROUPS_LABEL,
+  OGS_GROUPS_OVERVIEW_PATH,
+  ogsGroupHref,
+} from "~/lib/ogs-groups-navigation";
 import { useStaffAbsencesPending } from "~/lib/hooks/use-staff-absences-pending";
 import { useMessagesUnread } from "~/lib/hooks/use-messages-unread";
 import { useStaffMessagesUnread } from "~/lib/hooks/use-staff-messages-unread";
@@ -467,6 +468,8 @@ function isGroupSubItemActive(
 ): boolean {
   if (childGroupId) return childGroupId === groupId;
   if (!pathname.startsWith("/ogs-groups")) return false;
+  // Auf der Auswahlseite ist keine einzelne Gruppe geöffnet (#4351).
+  if (pathname.startsWith(OGS_GROUPS_OVERVIEW_PATH)) return false;
   if (currentGroupParam) return currentGroupParam === groupId;
   return index === 0;
 }
@@ -734,7 +737,7 @@ function SidebarContent({
   // festen Gruppen sinnvoll; bei offener Betreuung arbeiten ohnehin alle
   // Berechtigten mit allen Kindern.
   const openCareGroupMode = useOpenCareGroupMode();
-  // Kinder nur über „Alle Kinder“ (#1321): Meine Gruppen und Aktuelle
+  // Kinder nur über „Alle Kinder“ (#1321): Gruppen und Aktuelle
   // Aufsicht verlassen die Leiste und stehen dort als Reiter.
   const childSearchOnlyNavigation = useChildSearchOnlyNavigation();
 
@@ -1217,22 +1220,9 @@ function SidebarContent({
   const currentGroupParam = searchParams.get("group");
   const currentRoomParam = searchParams.get("room");
   const currentSessionParam = searchParams.get("session");
-  const personalGroups = useMemo(
-    () => groups.filter((group) => group.is_personal !== false),
-    [groups],
-  );
-  const otherGroups = useMemo(
-    () => groups.filter((group) => group.is_personal === false),
-    [groups],
-  );
-  // `null` heißt: der Unterbereich richtet sich nach der geöffneten Gruppe.
-  // Ein Klick setzt ihn auf `true`/`false` und übersteuert die Auswahl damit.
-  // Ohne diese Übersteuerung hielte eine geöffnete fremde Gruppe "Weitere
-  // Gruppen" dauerhaft offen — "Meine Gruppen" ließe sich dann gar nicht mehr
-  // aufklappen, auch nicht über das Icon im eingeklappten Streifen (#2923).
-  const [otherGroupsExpanded, setOtherGroupsExpanded] = useState<
-    boolean | null
-  >(null);
+  // Unter „Gruppen“ stehen nur die eigenen Gruppen; alle übrigen erreicht
+  // man über die Auswahlseite (#4351).
+  const personalGroups = useMemo(() => groups.filter(isOwnGroup), [groups]);
 
   // On child pages (e.g. student detail with ?from=/ogs-groups), determine
   // which sub-item should stay highlighted using the last selection from localStorage.
@@ -1243,13 +1233,6 @@ function SidebarContent({
     "sidebar-last-group",
     childFromParam?.startsWith("/ogs-groups") ?? false,
   );
-  const hasSelectedOtherGroup = otherGroups.some(
-    (group) =>
-      group.id.toString() === currentGroupParam ||
-      group.id.toString() === childGroupId,
-  );
-  const areOtherGroupsExpanded =
-    expanded === "groups" && (otherGroupsExpanded ?? hasSelectedOtherGroup);
   const childRoomId = useLocalStorageValue(
     "sidebar-last-room",
     childFromParam?.startsWith("/active-supervisions") ?? false,
@@ -1258,8 +1241,8 @@ function SidebarContent({
     "supervision-last-session",
     childFromParam?.startsWith("/active-supervisions") ?? false,
   );
-  // Offene Räume (#3065) stehen wie "Weitere Gruppen" in einem eigenen
-  // Bereich unter der eigenen Aufsicht: für alle erreichbar, aber nicht die
+  // Offene Räume (#3065) stehen in einem eigenen Bereich unter der eigenen
+  // Aufsicht: für alle erreichbar, aber nicht die
   // eigene Aufsicht. `null` heißt wie dort: richtet sich nach dem geöffneten
   // Raum, ein Klick übersteuert.
   const ownSupervisedRooms = useMemo(
@@ -1290,9 +1273,6 @@ function SidebarContent({
     expanded === "supervisions" && (openRoomsExpanded ?? hasSelectedOpenRoom);
 
   useEffect(() => {
-    if (expanded !== "groups") {
-      setOtherGroupsExpanded(null);
-    }
     if (expanded !== "supervisions") {
       setOpenRoomsExpanded(null);
     }
@@ -1306,10 +1286,6 @@ function SidebarContent({
       const group = groups.find((g) => g.id.toString() === currentGroupParam);
       if (group) {
         localStorage.setItem("sidebar-last-group-name", group.name);
-        localStorage.setItem(
-          LAST_GROUP_SECTION_STORAGE_KEY,
-          ogsGroupSectionOf(group.is_personal),
-        );
       }
     }
   }, [pathname, currentGroupParam, groups]);
@@ -1337,34 +1313,22 @@ function SidebarContent({
 
   // Toggle accordion AND navigate to the correct URL (with last-selected sub-item).
   // Reads localStorage at click-time so the page loads with the right param immediately.
+  // „Gruppen“ führt auf die Auswahlseite (#4351), so wie die
+  // Datenverwaltung auf ihren Hub. Auf der Auswahlseite selbst klappt der
+  // Eintrag nur auf und zu; ebenso in der einzigen Gruppe, denn die
+  // Auswahlseite öffnet sie dann ohnehin wieder direkt.
   const handleGroupsToggle = useCallback(() => {
+    const onGroupsPage = pathname.startsWith("/ogs-groups");
     if (
-      expanded === "groups" &&
-      (otherGroupsExpanded ?? hasSelectedOtherGroup)
+      pathname.startsWith(OGS_GROUPS_OVERVIEW_PATH) ||
+      (onGroupsPage && groups.length <= 1)
     ) {
-      setOtherGroupsExpanded(false);
+      toggle("groups");
       return;
     }
-    toggle("groups");
-    if (!pathname.startsWith("/ogs-groups")) {
-      const savedGroupId = localStorage.getItem("sidebar-last-group");
-      const targetGroup = savedGroupId
-        ? personalGroups.find((g) => g.id.toString() === savedGroupId)
-        : personalGroups[0];
-      const groupId = targetGroup?.id ?? personalGroups[0]?.id;
-      if (groupId) {
-        router.push(`/ogs-groups?group=${groupId}`);
-      }
-    }
-  }, [
-    expanded,
-    hasSelectedOtherGroup,
-    otherGroupsExpanded,
-    pathname,
-    personalGroups,
-    router,
-    toggle,
-  ]);
+    if (!onGroupsPage) toggle("groups");
+    router.push(OGS_GROUPS_OVERVIEW_PATH);
+  }, [groups.length, pathname, router, toggle]);
 
   const handleSupervisionsToggle = useCallback(() => {
     if (areOpenRoomsExpanded) {
@@ -1524,139 +1488,53 @@ function SidebarContent({
   }
 
   // Die vier Akkordeon-Bereiche, jeder als Zeile innerhalb seiner Gruppe
-  // (#2826). Meine Gruppen mit Weitere Gruppen darunter: tenant staff/admin,
-  // hidden in open-care mode.
+  // (#2826). Gruppen: tenant staff/admin, hidden in open-care mode. Ein
+  // Eintrag führt auf die Auswahlseite, darunter stehen die eigenen Gruppen
+  // (#4351).
   const renderGroupsSection = () =>
     showGroupAccordion && !openCareGroupMode && !childSearchOnlyNavigation ? (
-      <>
-        <SidebarAccordionSection
-          icon={GROUP_NAV_ICON}
-          concept="groups"
-          label={OGS_GROUP_SECTION_LABELS.personal}
-          tourId="nav-section-groups"
-          activeColor="text-moto-green"
-          isExpanded={expanded === "groups" && !areOtherGroupsExpanded}
-          {...sectionProps("groups", handleGroupsToggle, () =>
-            // Das Icon im Streifen heißt "Meine Gruppen". Ohne diesen
-            // Rücksetzer öffnet es die Leiste im zuletzt gewählten
-            // Unterbereich "Weitere Gruppen" — die eigenen Gruppen
-            // blieben dann zu, obwohl man sie angeklickt hat.
-            setOtherGroupsExpanded(false),
-          )}
-          isActive={isAccordionSectionActive(
-            "/ogs-groups",
-            Boolean(currentGroupParam) ||
-              Boolean(childGroupId) ||
-              groups.length > 0,
-          )}
-          isIconActive={
-            pathname.startsWith("/ogs-groups") || Boolean(childGroupId)
-          }
-          isLoading={isLoadingGroups}
-          emptyText="Keine eigenen Gruppen"
-          hasChildren={personalGroups.length > 0}
-        >
-          {personalGroups.map((group, index) => (
-            <SidebarSubItem
-              key={group.id}
-              href={`/ogs-groups?group=${group.id}`}
-              label={group.name}
-              count={formatGroupAttendanceCount(group.id)}
-              isActive={isGroupSubItemActive(
-                childGroupId,
-                group.id.toString(),
-                pathname,
-                currentGroupParam,
-                index,
-              )}
-            />
-          ))}
-        </SidebarAccordionSection>
-        {/* "Weitere Gruppen" trägt dasselbe Icon wie "Meine Gruppen".
-                  Ausgeklappt trennen die Bezeichnungen die beiden Bereiche;
-                  im Streifen stünden zwei nicht unterscheidbare Icons
-                  untereinander, deshalb bleibt der zweite dort weg.
-                  Er verschwindet aber nicht schlagartig: für die Dauer der
-                  Bewegung bleibt der Bereich mit seinen offenen Unterpunkten
-                  stehen, blendet aus und zieht seine ganze Höhe mit derselben
-                  Kurve auf null wie die Breite der Leiste. Ohne das sprängen
-                  die Zeilen darunter im ersten Bild um die volle Höhe des
-                  offenen Bereichs hoch — genau der zweite Sprung, den dieser
-                  PR beseitigt. Beim Aufklappen läuft dieselbe Bewegung
-                  rückwärts: der Bereich wächst mit der Breite auf und wird
-                  erst dabei durch seine Bezeichnung unterscheidbar. */}
-        {otherGroups.length > 0 && (!collapsed || labelsMounted) && (
-          <div
-            aria-hidden={!labelsVisible}
-            className={`grid motion-safe:transition-[grid-template-rows,opacity] motion-safe:duration-200 motion-safe:ease-in-out ${
-              labelsVisible
-                ? "grid-rows-[1fr] opacity-100"
-                : "grid-rows-[0fr] opacity-0"
-            }`}
-          >
-            {/* inert: der ausblendende Bereich darf keinen
-                      Tastaturfokus mehr fangen. */}
-            <div className="overflow-hidden" inert={!labelsVisible}>
-              <SidebarAccordionSection
-                icon={GROUP_NAV_ICON}
-                concept="groups"
-                label={OGS_GROUP_SECTION_LABELS.other}
-                activeColor="text-moto-green"
-                isExpanded={areOtherGroupsExpanded}
-                collapsed={collapsed}
-                labelsMounted={labelsMounted}
-                labelsVisible={labelsVisible}
-                // Die Hülle darüber zieht die ganze Höhe des offenen
-                // Bereichs zusammen. Der Inhalt behält seine Höhe
-                // solange bei, sonst liefen zwei geschachtelte
-                // Höhenbewegungen und die Zeilen darunter bewegten sich
-                // zweimal (#2923).
-                keepBodyExpandedWhileCollapsing={labelsMounted}
-                onToggle={() => {
-                  // Aus dem Streifen heraus zuerst aufklappen: die
-                  // Untergruppen sind sonst nicht sichtbar.
-                  if (collapsed) onExpandSidebar();
-                  if (expanded !== "groups") {
-                    toggle("groups");
-                  }
-                  setOtherGroupsExpanded(
-                    (current) => !(current ?? hasSelectedOtherGroup),
-                  );
-                }}
-                isActive={isAccordionSectionActive(
-                  "/ogs-groups",
-                  Boolean(currentGroupParam) || Boolean(childGroupId),
-                )}
-                isIconActive={
-                  pathname.startsWith("/ogs-groups") || Boolean(childGroupId)
-                }
-                hasChildren
-              >
-                {otherGroups.map((group, index) => (
-                  <SidebarSubItem
-                    key={group.id}
-                    href={`/ogs-groups?group=${group.id}`}
-                    label={group.name}
-                    count={formatGroupAttendanceCount(group.id)}
-                    isActive={isGroupSubItemActive(
-                      childGroupId,
-                      group.id.toString(),
-                      pathname,
-                      currentGroupParam,
-                      personalGroups.length + index,
-                    )}
-                  />
-                ))}
-              </SidebarAccordionSection>
-            </div>
-          </div>
+      <SidebarAccordionSection
+        icon={GROUP_NAV_ICON}
+        concept="groups"
+        label={OGS_GROUPS_LABEL}
+        tourId="nav-section-groups"
+        activeColor="text-moto-green"
+        isExpanded={expanded === "groups"}
+        {...sectionProps("groups", handleGroupsToggle)}
+        isActive={isAccordionSectionActive(
+          "/ogs-groups",
+          Boolean(currentGroupParam) ||
+            Boolean(childGroupId) ||
+            groups.length > 0,
         )}
-      </>
+        isIconActive={
+          pathname.startsWith("/ogs-groups") || Boolean(childGroupId)
+        }
+        isLoading={isLoadingGroups}
+        emptyText="Keine eigenen Gruppen"
+        hasChildren={personalGroups.length > 0}
+      >
+        {personalGroups.map((group, index) => (
+          <SidebarSubItem
+            key={group.id}
+            href={ogsGroupHref(group.id)}
+            label={group.name}
+            count={formatGroupAttendanceCount(group.id)}
+            isActive={isGroupSubItemActive(
+              childGroupId,
+              group.id.toString(),
+              pathname,
+              currentGroupParam,
+              index,
+            )}
+          />
+        ))}
+      </SidebarAccordionSection>
     ) : null;
 
   // Aktuelle Aufsicht (staff only; hidden in binary mode because room-level
-  // supervision has no meaning without visits). Offene Räume darunter wie
-  // "Weitere Gruppen" unter "Meine Gruppen" (#3065).
+  // supervision has no meaning without visits). Offene Räume darunter als
+  // eigener Bereich (#3065).
   const renderSupervisionsSection = () =>
     showStaffAccordions && !isBinaryMode && !childSearchOnlyNavigation ? (
       <>
@@ -1719,7 +1597,7 @@ function SidebarContent({
         {/* Offene Räume sind ein Raum-Bereich, keine zweite eigene Aufsicht:
             Das Tür-Icon trennt sie in der Navigation sichtbar von der
             aktuellen Aufsicht. Im eingeklappten Streifen blendet der Bereich
-            wie „Weitere Gruppen“ aus und zieht seine Höhe auf null. */}
+            aus und zieht seine Höhe mit der Breite der Leiste auf null. */}
         {openSupervisedRooms.length > 0 && (!collapsed || labelsMounted) && (
           <div
             aria-hidden={!labelsVisible}

@@ -26,6 +26,7 @@ type fakes struct {
 	tenantGroups       func(context.Context) ([]GroupRecord, error)
 	substitutedGroups  func(context.Context) (map[int64]bool, error)
 	roomNames          func(context.Context, []int64) (map[int64]string, error)
+	leaderNames        func(context.Context, []int64) (map[int64][]string, error)
 	members            func(context.Context, int64) ([]RosterStudent, error)
 	participants       func(context.Context, []int64, Date) (map[int64]bool, error)
 	snapshot           func(context.Context, []int64, Date) (PresenceSnapshot, error)
@@ -48,6 +49,7 @@ type fakes struct {
 	handoverCalls      int
 	pendingCalls       int
 	trackingCalls      int
+	leaderCalls        [][]int64
 	participantsCalled [][]int64
 	snapshotIDs        []int64
 }
@@ -91,6 +93,14 @@ func (f *fakes) GroupRoomNames(ctx context.Context, ids []int64) (map[int64]stri
 		return map[int64]string{}, nil
 	}
 	return f.roomNames(ctx, ids)
+}
+
+func (f *fakes) GroupLeaderNames(ctx context.Context, ids []int64) (map[int64][]string, error) {
+	f.leaderCalls = append(f.leaderCalls, ids)
+	if f.leaderNames == nil {
+		return map[int64][]string{}, nil
+	}
+	return f.leaderNames(ctx, ids)
 }
 
 func (f *fakes) GroupMembers(ctx context.Context, groupID int64) ([]RosterStudent, error) {
@@ -876,6 +886,67 @@ func TestListGroupsToleratesMissingRoomNames(t *testing.T) {
 	empty, err := newService(&fakes{caller: fullCaller}).ListGroups(context.Background())
 	require.NoError(t, err)
 	assert.Nil(t, empty)
+}
+
+// TestListGroupsNamesTheGroupLeadership pins the selection page's leadership
+// line (#4351): every listed group carries the names of its assigned
+// Gruppenleitung from one bulk lookup, and a group without one carries none.
+func TestListGroupsNamesTheGroupLeadership(t *testing.T) {
+	t.Parallel()
+
+	f := &fakes{
+		caller:           fullCaller,
+		supervisedGroups: func(context.Context) ([]GroupRecord, error) { return twoGroups(), nil },
+		leaderNames: func(context.Context, []int64) (map[int64][]string, error) {
+			return map[int64][]string{1: {"Carla Dorn", "Anna Berg"}}, nil
+		},
+	}
+
+	got, err := New(Dependencies{
+		Access: f, Groups: f, Roster: f, Presence: f, Planning: f, Transfers: f,
+		Settings: f, Calendar: f, Collate: strings.Compare,
+	}).ListGroups(context.Background())
+	require.NoError(t, err)
+	require.Len(t, got, 2)
+	assert.Equal(t, [][]int64{{2, 1}}, f.leaderCalls, "one bulk lookup for every listed group")
+	// strings.Compare puts "Zebra" (2) ahead of "Äpfel" (1).
+	assert.Nil(t, got[0].Leaders, "a group without Gruppenleitung names nobody")
+	assert.Equal(t, []string{"Anna Berg", "Carla Dorn"}, got[1].Leaders, "names follow the collation")
+
+	raw, err := json.Marshal(got[0])
+	require.NoError(t, err)
+	assert.NotContains(t, string(raw), "leaders", "an empty leadership stays off the wire")
+}
+
+func TestListGroupsToleratesMissingLeadership(t *testing.T) {
+	t.Parallel()
+
+	f := &fakes{
+		caller:           fullCaller,
+		supervisedGroups: func(context.Context) ([]GroupRecord, error) { return twoGroups(), nil },
+		leaderNames: func(context.Context, []int64) (map[int64][]string, error) {
+			return nil, errors.New("teachers unavailable")
+		},
+	}
+
+	got, err := newService(f).ListGroups(context.Background())
+	require.NoError(t, err, "the navigation degrades to groups without leadership instead of failing")
+	require.Len(t, got, 2)
+	assert.Nil(t, got[0].Leaders)
+	assert.Nil(t, got[1].Leaders)
+}
+
+func TestLiveGroupDoesNotLoadTheLeadership(t *testing.T) {
+	t.Parallel()
+
+	f := &fakes{
+		caller:           fullCaller,
+		supervisedGroups: func(context.Context) ([]GroupRecord, error) { return twoGroups(), nil },
+	}
+
+	_, err := newService(f).LiveGroup(context.Background(), 0)
+	require.NoError(t, err)
+	assert.Empty(t, f.leaderCalls, "the live view keeps its query budget; only the navigation names the leadership")
 }
 
 // TestListGroupsSortsWithTheInjectedCollation pins that the projection, not
