@@ -429,7 +429,7 @@ function appOverviewTopic(): HelpTopic {
       "Unter `Bausteine` fehlt eine Karte? Dann steht sie schon auf Ihrer Startseite. Oder Ihre Rolle oder Ihre OGS sieht sie nicht vor.",
     ],
     notes: [
-      "Die Karte `Kinder` zählt die Kinder nach `Anwesend`, `Schule`, `Zuhause`, `Krank` und `Entschuldigt`. Ein Klick auf eine Zeile öffnet `Alle Kinder` mit diesem Filter.",
+      "Die Karte `Kinder` zählt die Kinder nach `Anwesend`, `Schule`, `Zuhause`, `Krank` und `Entschuldigt`. Ein Klick auf eine Zahl öffnet `Alle Kinder` mit diesem Filter. `Entschuldigt` zeigt auch Kinder auf Klassenfahrt.",
       "Zu viel verändert? Wählen Sie in `Anpassen` den Knopf `Standardansicht wiederherstellen`.",
     ],
     related: [

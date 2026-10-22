@@ -308,9 +308,6 @@ function ActiveGroupsCard({ data }: { readonly data: HomeBlockData }) {
  * zuhause ist und wer krank oder entschuldigt fehlt. Jede Zeile öffnet
  * „Alle Kinder" mit dem Statusfilter ihrer Zeile.
  *
- * Die Liste trifft die Zahl nicht immer ganz: „Entschuldigt" zählt im
- * Backend auch die Klassenfahrt mit, der Filter der Kindersuche führt sie als
- * eigenen Status. Die Kachel „Entschuldigt" hat dieselbe Lücke.
  */
 const STUDENT_STATUS_ROWS: readonly {
   readonly label: string;
@@ -345,7 +342,7 @@ const STUDENT_STATUS_ROWS: readonly {
   {
     label: "Entschuldigt",
     concept: "excused",
-    status: "entschuldigt",
+    status: "entschuldigt-klassenfahrt",
     count: (a) => a.studentsExcused,
   },
 ];
@@ -364,24 +361,16 @@ function StudentsCard({ data }: { readonly data: HomeBlockData }) {
           // Ohne Zahlen ein Strich: eine Null hieße „kein Kind krank".
           const count = analytics ? row.count(analytics) : "–";
           return (
-            <Link
+            <StatCard
               key={row.status}
+              variant="row"
+              label={row.label}
+              value={count}
+              tone="neutral"
+              icon={<MotoConceptIcon concept={row.concept} size={18} />}
               href={data.tenantPath(`/students/search?status=${row.status}`)}
-              aria-label={`${row.label}: ${count}, Liste öffnen`}
-              className="flex items-center gap-3 rounded-xl bg-gray-50/50 px-3 py-2 transition-colors hover:bg-gray-100/50"
-            >
-              <MotoConceptIcon concept={row.concept} size={18} />
-              <span className="min-w-0 flex-1 truncate text-sm font-medium text-gray-900">
-                {row.label}
-              </span>
-              {data.analyticsLoading ? (
-                <Skeleton className="h-4 w-8 rounded" />
-              ) : (
-                <span className="text-sm font-semibold text-gray-900 tabular-nums">
-                  {count}
-                </span>
-              )}
-            </Link>
+              loading={data.analyticsLoading}
+            />
           );
         })}
       </div>

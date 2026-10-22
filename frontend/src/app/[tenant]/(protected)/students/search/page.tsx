@@ -163,7 +163,8 @@ type StatusFilter =
   | "schulhof"
   | "krank"
   | "klassenfahrt"
-  | "entschuldigt";
+  | "entschuldigt"
+  | "entschuldigt-klassenfahrt";
 type BooleanFilter = "all" | "yes" | "no";
 type PickupStatusFilter = "all" | "self" | "pickedUp" | "none";
 type DayStatusFilter = "all" | "comes_today" | "not_coming_today";
@@ -185,6 +186,10 @@ const STATUS_FILTER_OPTIONS: Array<{ value: StatusFilter; label: string }> = [
   { value: "krank", label: "Krank" },
   { value: "klassenfahrt", label: "Klassenfahrt" },
   { value: "entschuldigt", label: "Entschuldigt" },
+  {
+    value: "entschuldigt-klassenfahrt",
+    label: "Entschuldigt oder Klassenfahrt",
+  },
   { value: "unterwegs", label: "Unterwegs" },
   { value: "schulhof", label: "Schulhof" },
 ];
@@ -381,6 +386,10 @@ const PLANNED_ABSENCE_STATUS_FILTER_OPTIONS = [
   { value: "krank", label: "Krank" },
   { value: "klassenfahrt", label: "Klassenfahrt" },
   { value: "entschuldigt", label: "Entschuldigt" },
+  {
+    value: "entschuldigt-klassenfahrt",
+    label: "Entschuldigt oder Klassenfahrt",
+  },
 ] as const;
 
 function isPlannedAbsenceStatusFilter(filter: StatusFilter): boolean {
@@ -400,6 +409,7 @@ const STATUS_FILTER_LABELS: Record<
   krank: "Krank",
   klassenfahrt: "Klassenfahrt",
   entschuldigt: "Entschuldigt",
+  "entschuldigt-klassenfahrt": "Entschuldigt oder Klassenfahrt",
 };
 
 // Keeps only school years the dropdown actually offers, so a hand-edited
@@ -2439,6 +2449,7 @@ function SearchPageContent() {
         krank: "Krank",
         klassenfahrt: "Klassenfahrt",
         entschuldigt: "Entschuldigt",
+        "entschuldigt-klassenfahrt": "Entschuldigt oder Klassenfahrt",
       };
       filters.push({
         id: "attendance",
@@ -2641,8 +2652,12 @@ function SearchPageContent() {
 
       if (
         effectiveAttendanceFilter !== "anwesend" &&
-        statusLabelForStudent(student) !==
-          STATUS_FILTER_LABELS[effectiveAttendanceFilter]
+        (effectiveAttendanceFilter === "entschuldigt-klassenfahrt"
+          ? !["Entschuldigt", "Klassenfahrt"].includes(
+              statusLabelForStudent(student),
+            )
+          : statusLabelForStudent(student) !==
+            STATUS_FILTER_LABELS[effectiveAttendanceFilter])
       ) {
         return false;
       }

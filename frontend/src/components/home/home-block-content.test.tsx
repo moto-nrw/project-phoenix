@@ -395,7 +395,11 @@ describe("HomeBlockContent — Kinder (#4347)", () => {
       ["Schule", "21", "/test-tenant/students/search?status=schule"],
       ["Zuhause", "33", "/test-tenant/students/search?status=abwesend"],
       ["Krank", "4", "/test-tenant/students/search?status=krank"],
-      ["Entschuldigt", "3", "/test-tenant/students/search?status=entschuldigt"],
+      [
+        "Entschuldigt",
+        "3",
+        "/test-tenant/students/search?status=entschuldigt-klassenfahrt",
+      ],
     ];
     for (const [label, count, href] of rows) {
       const link = screen.getByRole("link", {
@@ -413,6 +417,21 @@ describe("HomeBlockContent — Kinder (#4347)", () => {
     expect(
       screen.getByRole("link", { name: "Kinder: Alle Kinder" }),
     ).toHaveAttribute("href", "/test-tenant/students/search");
+  });
+
+  it("zeigt beim Laden keine veralteten Zahlen im Linknamen", () => {
+    render(
+      <HomeBlockContent
+        blockKey="section.students"
+        data={data({ analyticsLoading: true })}
+      />,
+    );
+
+    // Anker: die Statuszeile bleibt während des Ladens erreichbar.
+    expect(
+      screen.getByRole("link", { name: "Krank: …, Liste öffnen" }),
+    ).toHaveAttribute("href", "/test-tenant/students/search?status=krank");
+    expect(screen.queryByText("4")).not.toBeInTheDocument();
   });
 
   it("zeigt Striche statt Nullen, wenn keine Zahlen da sind", () => {
