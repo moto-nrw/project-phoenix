@@ -881,6 +881,8 @@ describe("long poll for several children (#3861)", () => {
       />,
     );
 
+    // Anker: beide Kinderkarten stehen offen mit ihren Antwortoptionen.
+    expect(screen.getAllByRole("radio", { name: "Ja" })).toHaveLength(2);
     expect(
       screen.queryByRole("button", { name: /ausklappen|einklappen/ }),
     ).not.toBeInTheDocument();

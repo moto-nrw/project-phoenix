@@ -235,6 +235,8 @@ describe("OperatorSchoolsPage", () => {
 
     render(<OperatorSchoolsPage />);
 
+    // Anker: die Schulzeile, an der das Abzeichen hängt, ist gerendert.
+    expect(screen.getByText("Test School")).toBeInTheDocument();
     expect(screen.queryByText("Verborgen")).not.toBeInTheDocument();
   });
 

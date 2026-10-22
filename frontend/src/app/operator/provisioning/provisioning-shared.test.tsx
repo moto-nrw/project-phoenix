@@ -82,6 +82,8 @@ describe("FormField", () => {
       </FormField>,
     );
 
+    // Anker: das Label, an dem der Pflichtstern hängt, ist gerendert.
+    expect(screen.getByText("Name")).toBeInTheDocument();
     expect(screen.queryByText("*")).not.toBeInTheDocument();
   });
 
@@ -258,6 +260,8 @@ describe("SimpleEmptyState", () => {
       <SimpleEmptyState title="No data" description="Nothing to display" />,
     );
 
+    // Anker: der leere Zustand ist mit Titel gerendert.
+    expect(screen.getByText("No data")).toBeInTheDocument();
     expect(screen.queryByRole("button")).not.toBeInTheDocument();
   });
 });

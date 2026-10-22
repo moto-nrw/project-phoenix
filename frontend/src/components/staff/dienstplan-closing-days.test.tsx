@@ -126,6 +126,11 @@ describe("DienstplanResourceGrid closing days (#2032)", () => {
       closingDaysLoading: true,
     });
 
+    // Anker: Zeile und Tagesspalte der leeren Zelle sind gerendert.
+    expect(screen.getByText("Lovelace, Ada")).toBeInTheDocument();
+    expect(
+      screen.getByRole("columnheader", { name: /Mo 06\.07\./ }),
+    ).toBeInTheDocument();
     expect(
       screen.queryByRole("button", {
         name: /Schicht anlegen, Ada Lovelace, Mo 06\.07\./,
@@ -255,6 +260,10 @@ describe("ShiftMoveDialog closing days (#2032)", () => {
       />,
     );
 
+    // Anker: das Verschiebe-Formular ist offen.
+    expect(
+      screen.getByRole("button", { name: "Verschieben" }),
+    ).toBeInTheDocument();
     expect(screen.queryByText(/Schließtag/)).not.toBeInTheDocument();
   });
 });

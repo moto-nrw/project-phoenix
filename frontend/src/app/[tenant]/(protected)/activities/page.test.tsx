@@ -289,6 +289,7 @@ describe("ActivitiesPage", () => {
   it("filters activities by search and my activities", async () => {
     render(<ActivitiesPage />);
 
+    expect(screen.getByText("Schach")).toBeInTheDocument();
     fireEvent.change(screen.getByTestId("search-input"), {
       target: { value: "Kunst" },
     });

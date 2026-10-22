@@ -217,7 +217,7 @@ describe("DesktopSearchAction", () => {
   });
 
   it("does not render action button when has tabs", () => {
-    render(
+    const { unmount } = render(
       <DesktopSearchAction
         hasTabs={true}
         hasTitle={false}
@@ -226,6 +226,17 @@ describe("DesktopSearchAction", () => {
     );
 
     expect(screen.queryByTestId("action-btn")).not.toBeInTheDocument();
+    unmount();
+
+    render(
+      <DesktopSearchAction
+        hasTabs={false}
+        hasTitle={false}
+        actionButton={mockActionButton}
+      />,
+    );
+    // Anker: ohne Tabs findet dieselbe Abfrage den Aktionsknopf.
+    expect(screen.getByTestId("action-btn")).toBeInTheDocument();
   });
 
   it("renders inline status/badge when conditions met", () => {

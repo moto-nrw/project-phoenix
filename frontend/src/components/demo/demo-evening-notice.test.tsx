@@ -35,8 +35,14 @@ describe("DemoEveningRow", () => {
   });
 
   it("stays hidden during the school day", () => {
-    render(<DemoEveningRow inParentsApp={false} />);
+    const { unmount } = render(<DemoEveningRow inParentsApp={false} />);
     expect(screen.queryByRole("note")).not.toBeInTheDocument();
+    unmount();
+
+    setTestClock("2026-09-09T20:30:00+02:00");
+    render(<DemoEveningRow inParentsApp={false} />);
+    // Anker: am Abend desselben Tages erscheint die Zeile im selben Aufbau.
+    expect(screen.getByRole("note")).toBeInTheDocument();
   });
 
   it("shows on a weekend evening too, but leaves the dialog to the weekend notice", async () => {

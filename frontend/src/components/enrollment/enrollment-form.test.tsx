@@ -352,11 +352,12 @@ function renderForm(
 }
 
 async function waitForLoaded() {
+  // Erst steht das Formular (oder seine Ladefehlermeldung) statt des
+  // Ladetexts, dann zählt dessen Abwesenheit.
   await waitFor(() => {
-    expect(
-      screen.queryByText("Formular wird geladen…"),
-    ).not.toBeInTheDocument();
+    expect(document.querySelector("form, [role='alert']")).toBeInTheDocument();
   });
+  expect(screen.queryByText("Formular wird geladen…")).not.toBeInTheDocument();
 }
 
 async function chooseOption(label: string, optionName: string) {
@@ -709,6 +710,8 @@ describe("EnrollmentForm", () => {
     renderForm();
     await waitForLoaded();
 
+    // Anker: die Kinderkarte steht, in der Klassenstufe und Angebote stünden.
+    expect(screen.getByLabelText("Jahr")).toBeInTheDocument();
     expect(screen.queryByLabelText("Klassenstufe *")).not.toBeInTheDocument();
     expect(screen.queryByText("Flexible Betreuung")).not.toBeInTheDocument();
     expect(screen.queryByText("Fixe Betreuung")).not.toBeInTheDocument();
@@ -1650,6 +1653,8 @@ describe("EnrollmentForm", () => {
     });
     await waitForLoaded();
 
+    // Anker: das Elternprofil ist geladen und übernommen.
+    expect(screen.getByDisplayValue("Mara")).toBeInTheDocument();
     expect(screen.queryByText("Bestehende Kinder")).not.toBeInTheDocument();
     expect(
       screen.queryByRole("button", { name: "Übernehmen" }),
@@ -1679,6 +1684,8 @@ describe("EnrollmentForm", () => {
     });
     await waitForLoaded();
 
+    // Anker: das Elternprofil ist geladen und übernommen.
+    expect(screen.getByDisplayValue("Mara")).toBeInTheDocument();
     expect(screen.queryByText("Bestehende Kinder")).not.toBeInTheDocument();
     expect(
       screen.queryByRole("button", { name: "Übernehmen" }),

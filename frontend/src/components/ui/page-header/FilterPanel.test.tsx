@@ -605,6 +605,8 @@ describe("FilterPanel", () => {
         />,
       );
 
+      // Anker: das offene Panel zeigt seine Filteroptionen.
+      expect(screen.getByText("Aktiv")).toBeInTheDocument();
       expect(screen.queryByText("Zurücksetzen")).not.toBeInTheDocument();
       expect(screen.queryByText("Anwenden")).not.toBeInTheDocument();
     });

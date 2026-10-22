@@ -84,6 +84,8 @@ describe("PersonsTable", () => {
   it("does not show the Schule column when showSchool is not set", () => {
     render(<PersonsTable persons={[makePerson()]} />);
 
+    // Anker: die Tabelle zeigt die Person, nur ohne Schulspalte.
+    expect(screen.getByText("anna@example.com")).toBeInTheDocument();
     expect(screen.queryByText("Schule")).not.toBeInTheDocument();
   });
 
@@ -103,6 +105,8 @@ describe("PersonsTable", () => {
   it("does not render the delete action when onDelete is not provided", () => {
     render(<PersonsTable persons={[makePerson()]} />);
 
+    // Anker: die Tabelle zeigt die Person, nur ohne Löschaktion.
+    expect(screen.getByText("anna@example.com")).toBeInTheDocument();
     expect(screen.queryByText("Löschen")).not.toBeInTheDocument();
   });
 

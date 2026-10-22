@@ -148,6 +148,8 @@ describe("GuardianList", () => {
   it("hides relationship type when showRelationship is false", () => {
     render(<GuardianList guardians={mockGuardians} showRelationship={false} />);
 
+    // Anker: die Karten der beiden Personen sind gerendert.
+    expect(screen.getAllByText("Anna Müller").length).toBeGreaterThan(0);
     expect(screen.queryByText("Mutter")).not.toBeInTheDocument();
     expect(screen.queryByText("Vater")).not.toBeInTheDocument();
   });
@@ -199,6 +201,8 @@ describe("GuardianList", () => {
       />,
     );
 
+    // Anker: die Karten der beiden Personen sind gerendert.
+    expect(screen.getAllByText("Anna Müller").length).toBeGreaterThan(0);
     expect(
       screen.queryByRole("button", { name: /^Aktionen für/ }),
     ).not.toBeInTheDocument();
@@ -248,6 +252,17 @@ describe("GuardianList", () => {
     expect(onInvite).toHaveBeenCalledWith(guardian);
   });
 
+  it("offers Einladen in the row menu for a guardian without an account", () => {
+    const guardian = {
+      ...mockGuardians[1]!,
+      accountStatus: "none" as const,
+    };
+    render(<GuardianList guardians={[guardian]} onInvite={vi.fn()} />);
+
+    fireEvent.click(rowMenuTriggers()[0]!);
+    expect(screen.getByText("Einladen")).toBeInTheDocument();
+  });
+
   it("hides the invite action entirely for active accounts", () => {
     const guardian = {
       ...mockGuardians[1]!,
@@ -256,6 +271,8 @@ describe("GuardianList", () => {
     };
     render(<GuardianList guardians={[guardian]} onInvite={vi.fn()} />);
 
+    // Anker: die Karte zeigt den Kontostatus, an dem die Aktion hängt.
+    expect(screen.getByText("Konto aktiv")).toBeInTheDocument();
     expect(
       screen.queryByRole("button", { name: /^Aktionen für/ }),
     ).not.toBeInTheDocument();
@@ -356,6 +373,10 @@ describe("GuardianList", () => {
     };
     render(<GuardianList guardians={[guardian]} onInvite={vi.fn()} />);
 
+    // Anker: dieselbe Statuszeile wie beim Notfallkontakt mit Zugriff gewähren.
+    expect(
+      screen.getByText("Konto aktiv, kein Portalzugriff"),
+    ).toBeInTheDocument();
     expect(
       screen.queryByRole("button", { name: /^Aktionen für/ }),
     ).not.toBeInTheDocument();

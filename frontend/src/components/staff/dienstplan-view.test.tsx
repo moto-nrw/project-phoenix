@@ -775,6 +775,8 @@ describe("DienstplanView", () => {
 
     render(<DienstplanView />);
 
+    // Anker: der Deep-Link ist auf die geladene Wochenansicht zurückgefallen.
+    expect(screen.getByTestId("dienstplan-grid")).toBeInTheDocument();
     expect(screen.queryByTestId("halbjahr-grid")).not.toBeInTheDocument();
     expect(
       screen.queryByRole("button", { name: "Halbjahr" }),
@@ -802,6 +804,11 @@ describe("DienstplanView", () => {
 
     render(<DienstplanView />);
 
+    // Anker: der Kopf der vollen Planansicht steht da (der Halbjahr-Tab hängt
+    // an denselben Rechten wie der Export, ohne users:read).
+    expect(
+      screen.getByRole("button", { name: "Halbjahr" }),
+    ).toBeInTheDocument();
     expect(
       screen.queryByRole("button", { name: "Weitere Aktionen" }),
     ).not.toBeInTheDocument();

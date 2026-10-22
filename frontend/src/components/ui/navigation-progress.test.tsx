@@ -435,6 +435,8 @@ describe("NavigationProgress", () => {
       window.dispatchEvent(new PopStateEvent("popstate"));
     });
 
+    // Anker: Balken und Ansagebereich der Shell sind gerendert.
+    expect(screen.getByRole("status")).toHaveTextContent("");
     expect(screen.queryByTestId("navigation-progress")).toBeNull();
   });
 
@@ -469,6 +471,9 @@ describe("NavigationProgress", () => {
       window.history.replaceState({}, "", "/calendar-periods?q=a%20b");
       window.dispatchEvent(new PopStateEvent("popstate"));
     });
+
+    // Anker: die Verlaufsnavigation hat den Balken gestartet.
+    expect(screen.getByTestId("navigation-progress")).toBeInTheDocument();
 
     route.pathname = "/calendar-periods";
     route.search = "?q=a+b";
@@ -514,6 +519,8 @@ describe("NavigationProgress", () => {
       window.dispatchEvent(new PopStateEvent("popstate"));
     });
 
+    // Anker: Balken und Ansagebereich der Shell sind gerendert.
+    expect(screen.getByRole("status")).toHaveTextContent("");
     expect(screen.queryByTestId("navigation-progress")).toBeNull();
   });
 
@@ -694,6 +701,8 @@ describe("NavigationProgress", () => {
   it("renders nothing outside a provider instead of throwing", () => {
     render(<NavigationProgressBar />);
 
+    // Anker: der Balken rendert seinen Ansagebereich ohne Provider.
+    expect(screen.getByRole("status")).toHaveTextContent("");
     expect(screen.queryByTestId("navigation-progress")).toBeNull();
   });
 });

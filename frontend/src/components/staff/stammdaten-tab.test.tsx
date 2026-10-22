@@ -47,12 +47,35 @@ describe("StammdatenTab", () => {
         canViewFinancial
       />,
     );
+    // Anker: Personalnummer und die freigegebenen Bank- und Steuerdaten stehen da.
+    expect(screen.getByText("Nicht gesetzt")).toBeInTheDocument();
+    expect(
+      screen.getByText(
+        "Jeder Abruf der gespeicherten Werte wird im Audit-Log protokolliert.",
+      ),
+    ).toBeInTheDocument();
     expect(
       screen.queryByRole("button", { name: "Bearbeiten" }),
     ).not.toBeInTheDocument();
     expect(
       screen.queryByRole("button", { name: "Speichern" }),
     ).not.toBeInTheDocument();
+  });
+
+  it("offers financial and payroll editing for a current employment", () => {
+    render(
+      <StammdatenTab
+        staffId="42"
+        canManagePayroll
+        canManagePayrollSettings={false}
+        canViewFinancial
+      />,
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: "Bearbeiten" }));
+    expect(
+      screen.getByRole("button", { name: "Speichern" }),
+    ).toBeInTheDocument();
   });
   beforeEach(() => {
     mutate.mockReset();
@@ -138,6 +161,8 @@ describe("StammdatenTab", () => {
       />,
     );
 
+    // Anker: der Abschnitt Personalnummer ist mit seinem Wert geladen.
+    expect(screen.getByText("Nicht gesetzt")).toBeInTheDocument();
     expect(
       screen.queryByRole("link", { name: "Abrechnung" }),
     ).not.toBeInTheDocument();

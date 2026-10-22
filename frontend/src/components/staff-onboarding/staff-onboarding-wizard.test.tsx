@@ -172,20 +172,39 @@ describe("StaffOnboardingWizard", () => {
   });
 
   it("stays hidden until the school is ready, once hidden, and in a preview", () => {
-    onboarding = { ...newPerson(), schoolReady: false };
-    const { unmount } = render(<StaffOnboardingWizard />);
-    expect(screen.queryByText("Erste Schritte")).toBeNull();
-    unmount();
+    // Jede verdeckte Zeile weicht von der sichtbaren Ausgangslage (Schule
+    // bereit, nicht ausgeblendet, keine Vorschau) nur in einem Punkt ab. Der
+    // reguläre Ausdruck trifft die offene Checkliste und den Knopf.
+    const showVisible = () => {
+      onboarding = newPerson();
+      preview = false;
+    };
+    const hiddenRows = [
+      () => {
+        onboarding = { ...newPerson(), schoolReady: false };
+      },
+      () => {
+        onboarding = { ...newPerson(), dismissed: true };
+      },
+      () => {
+        preview = true;
+      },
+    ];
 
-    onboarding = { ...newPerson(), dismissed: true };
-    const second = render(<StaffOnboardingWizard />);
-    expect(screen.queryByText("Erste Schritte")).toBeNull();
-    second.unmount();
+    for (const hide of hiddenRows) {
+      showVisible();
+      hide();
+      const hidden = render(<StaffOnboardingWizard />);
+      expect(screen.queryByText(/Erste Schritte/)).toBeNull();
+      hidden.unmount();
 
-    onboarding = newPerson();
-    preview = true;
-    render(<StaffOnboardingWizard />);
-    expect(screen.queryByText("Erste Schritte")).toBeNull();
+      sessionStorage.clear();
+      showVisible();
+      const shown = render(<StaffOnboardingWizard />);
+      // Anker: dieselbe Abfrage findet die Checkliste in der sichtbaren Ausgangslage.
+      expect(screen.getByText(/Erste Schritte/)).toBeInTheDocument();
+      shown.unmount();
+    }
   });
 
   it("marks a step done once the person reaches the end of its tour", async () => {

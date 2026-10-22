@@ -71,6 +71,8 @@ describe("ResourceGrid", () => {
 
   it("renders no empty-cell button when the empty-cell props are omitted", () => {
     renderGrid();
+    // Anker: das Raster zeigt seine Zeilen, nur ohne Anlege-Knöpfe.
+    expect(screen.getByText("A. Krause")).toBeInTheDocument();
     expect(screen.queryByRole("button")).not.toBeInTheDocument();
   });
 

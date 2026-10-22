@@ -410,6 +410,8 @@ describe("staff-session-table.targets", () => {
     it("blendet leere Wochenenden weiter aus", () => {
       renderWeekend({});
 
+      // Anker: die Tabelle zeigt den Freitag davor als Zeile.
+      expect(screen.getByText("09.01.")).toBeInTheDocument();
       // 10.01. = Sa, 11.01. = So — beide Datumszellen fehlen.
       expect(screen.queryByText("10.01.")).not.toBeInTheDocument();
       expect(screen.queryByText("11.01.")).not.toBeInTheDocument();

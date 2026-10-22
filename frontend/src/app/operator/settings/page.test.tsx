@@ -1,6 +1,13 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { render, screen, fireEvent, waitFor } from "@testing-library/react";
 import { catalogText } from "~/test/error-catalog-text";
+import { ERROR_CATALOG } from "~/lib/error-catalog.generated";
+
+/** What the shared path shows for a failure that is no API error. */
+function crashText(object: string) {
+  const text = ERROR_CATALOG.de.actions.crash.replace("{object}", object);
+  return text.charAt(0).toUpperCase() + text.slice(1);
+}
 
 const {
   mockUseSession,
@@ -171,7 +178,22 @@ describe("OperatorSettingsPage", () => {
         method: "GET",
       });
     });
+    // Anker: der Fehlerzweig des Profilladens ist gerendert.
+    expect(
+      await screen.findByText(crashText("das Profil")),
+    ).toBeInTheDocument();
     expect(screen.queryByText("operator:2")).not.toBeInTheDocument();
+  });
+
+  it("keeps an email session fallback when profile loading fails", async () => {
+    mockSessionFetch.mockRejectedValueOnce(new Error("Network error"));
+
+    render(<OperatorSettingsPage />);
+
+    expect(
+      await screen.findByText(crashText("das Profil")),
+    ).toBeInTheDocument();
+    expect(screen.getByText("john@example.com")).toBeInTheDocument();
   });
 
   // #2519: a failed profile load is visible with retry instead of silent.

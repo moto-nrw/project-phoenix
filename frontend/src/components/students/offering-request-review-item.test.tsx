@@ -371,6 +371,8 @@ describe("OfferingRequestReviewItem", () => {
       }),
     );
     renderItem(request({ diff: mixedRuleDiff }));
+    // Ausgangszustand: der Hinweis steht vor dem Abwählen da.
+    expect(screen.getByText(/kommen automatisch dazu/)).toBeInTheDocument();
 
     fireEvent.click(
       screen.getByRole("checkbox", {

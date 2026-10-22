@@ -107,6 +107,8 @@ describe("PlanBlock", () => {
       />,
     );
 
+    // Anker: der kompakte Block zeigt seine Kopfzeile.
+    expect(screen.getByText("Mensa")).toBeInTheDocument();
     expect(screen.queryByText("Soll 3, da 1")).not.toBeInTheDocument();
   });
 
@@ -132,6 +134,8 @@ describe("PlanBlock", () => {
       />,
     );
 
+    // Anker: der Block zeigt seine Kopfzeile, nur ohne Detailzeile.
+    expect(screen.getByText("Mensa")).toBeInTheDocument();
     expect(screen.queryByText("Raum 104 · Sonne")).not.toBeInTheDocument();
   });
 

@@ -2,7 +2,6 @@ import {
   act,
   fireEvent,
   render,
-  renderHook,
   screen,
   waitFor,
 } from "@testing-library/react";
@@ -155,12 +154,21 @@ describe("useApiErrorDisplay", () => {
     const assign = vi
       .spyOn(window.location, "assign")
       .mockImplementation(() => undefined);
-    const { result } = renderHook(() => useApiErrorDisplay(), {
-      wrapper: ToastProvider,
-    });
+    let display: ReturnType<typeof useApiErrorDisplay> | undefined;
+    function Probe() {
+      display = useApiErrorDisplay();
+      return <p>Fehleranzeige bereit</p>;
+    }
+    render(
+      <ToastProvider>
+        <Probe />
+      </ToastProvider>,
+    );
+    // Anker: der Toast-Provider mit der Fehleranzeige ist montiert.
+    expect(screen.getByText("Fehleranzeige bereit")).toBeInTheDocument();
     let presentation;
     await act(async () => {
-      presentation = await result.current.show(
+      presentation = await display!.show(
         new ApiError("backend diagnostic", 401, { code: "general.permission" }),
         { object: "die Gruppe" },
       );
@@ -168,6 +176,15 @@ describe("useApiErrorDisplay", () => {
     expect(presentation).toMatchObject({ kind: "api", requiresLogin: true });
     expect(assign).toHaveBeenCalledWith("/?error=SessionExpired");
     expect(screen.queryByRole("alert")).not.toBeInTheDocument();
+
+    // Gegenprobe im selben Provider: ein anderer Fehler erscheint als Toast.
+    await act(async () => {
+      await display!.show(
+        new ApiError("backend diagnostic", 500, { code: "general.server" }),
+        { object: "die Gruppe" },
+      );
+    });
+    expect(await screen.findByRole("alert")).toBeInTheDocument();
     assign.mockRestore();
   });
 });

@@ -74,9 +74,14 @@ describe("RequestSharingControl", () => {
     });
   });
 
-  it("is only available to the guardian who submitted the request", () => {
-    renderControl(false);
+  it("is only available to the guardian who submitted the request", async () => {
+    const { unmount } = renderControl(false);
     expect(screen.queryByText("Anfrage teilen")).not.toBeInTheDocument();
+    unmount();
+
+    renderControl(true);
+    // Anker: für die einreichende Person steht dieselbe Aktion da.
+    expect(await screen.findByText("Anfrage teilen")).toBeInTheDocument();
   });
 
   it("saves only the explicitly selected guardian", async () => {

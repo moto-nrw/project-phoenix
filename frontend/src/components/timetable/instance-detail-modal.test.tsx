@@ -750,14 +750,18 @@ describe("InstanceDetailModal", () => {
       />,
     );
 
+    // Anker: die Kinderliste des Termins steht da, nur ohne Schreibknöpfe.
+    expect(screen.getByText("Kind #21")).toBeInTheDocument();
     expect(
-      screen.queryByRole("button", { name: "Als anwesend markieren" }),
+      screen.queryByRole("button", { name: "Kind #21 als anwesend markieren" }),
     ).not.toBeInTheDocument();
     expect(
-      screen.queryByRole("button", { name: "Als fehlend markieren" }),
+      screen.queryByRole("button", { name: "Kind #21 als fehlend markieren" }),
     ).not.toBeInTheDocument();
     expect(
-      screen.queryByRole("button", { name: "Status zurücksetzen" }),
+      screen.queryByRole("button", {
+        name: "Status von Kind #22 zurücksetzen",
+      }),
     ).not.toBeInTheDocument();
     expect(
       screen.queryByRole("button", { name: "Beenden" }),
@@ -1318,7 +1322,7 @@ describe("InstanceDetailModal", () => {
 
   it("hides itself while another overlay is stacked on top", () => {
     const onClose = vi.fn();
-    render(
+    const { unmount } = render(
       <InstanceDetailModal
         instance={instance({})}
         onClose={onClose}
@@ -1328,8 +1332,23 @@ describe("InstanceDetailModal", () => {
     );
 
     expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+    // Das gemockte Panel trägt keine dialog-Rolle; sein Titel zeigt, ob es da ist.
+    expect(
+      screen.queryByRole("heading", { name: "Mensa" }),
+    ).not.toBeInTheDocument();
     fireEvent.keyDown(document, { key: "Escape" });
     expect(onClose).not.toHaveBeenCalled();
+    unmount();
+
+    render(
+      <InstanceDetailModal
+        instance={instance({})}
+        onClose={onClose}
+        onLifecycleAction={vi.fn()}
+      />,
+    );
+    // Anker: ohne überlagerndes Fenster findet dieselbe Abfrage das Panel.
+    expect(screen.getByRole("heading", { name: "Mensa" })).toBeInTheDocument();
   });
 
   it("shows the Regeltermin OriginChip only when the instance stems from one", () => {
@@ -1462,8 +1481,11 @@ describe("Personalpool-Affordanz (#1884)", () => {
         onClose={vi.fn()}
         onLifecycleAction={vi.fn()}
         onOpenPool={vi.fn()}
+        canManageStaffPool
       />,
     );
+    // Anker: der Abschnitt Personal mit seiner Zeile steht da.
+    expect(screen.getByText("Personal #11")).toBeInTheDocument();
     expect(
       screen.queryByRole("button", { name: /Person hinzuziehen/ }),
     ).not.toBeInTheDocument();
@@ -1476,8 +1498,11 @@ describe("Personalpool-Affordanz (#1884)", () => {
         onClose={vi.fn()}
         onLifecycleAction={vi.fn()}
         onOpenPool={vi.fn()}
+        canManageStaffPool
       />,
     );
+    // Anker: der Abschnitt Personal mit seiner Zeile steht da.
+    expect(screen.getByText("Personal #11")).toBeInTheDocument();
     expect(
       screen.queryByRole("button", { name: /Person hinzuziehen/ }),
     ).not.toBeInTheDocument();
@@ -1506,8 +1531,11 @@ describe("Personalpool-Affordanz (#1884)", () => {
         instance={instance({ date: "2099-05-04" })}
         onClose={vi.fn()}
         onLifecycleAction={vi.fn()}
+        canManageStaffPool
       />,
     );
+    // Anker: der Abschnitt Personal mit seiner Zeile steht da.
+    expect(screen.getByText("Personal #11")).toBeInTheDocument();
     expect(
       screen.queryByRole("button", { name: /Person hinzuziehen/ }),
     ).not.toBeInTheDocument();

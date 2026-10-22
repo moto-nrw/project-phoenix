@@ -876,11 +876,11 @@ describe("Tenant name display", () => {
 
     render(<HomePage />);
 
-    await waitFor(() => {
-      expect(
-        screen.queryByText("Grundschule Musterstadt"),
-      ).not.toBeInTheDocument();
-    });
+    // Anker: der Titelplatz zeigt den allgemeinen Gruß statt eines Namens.
+    expect(await screen.findByText("Willkommen bei moto")).toBeInTheDocument();
+    expect(
+      screen.queryByText("Grundschule Musterstadt"),
+    ).not.toBeInTheDocument();
   });
 
   it("does not display tenant name when tenant.name is empty", async () => {
@@ -1162,6 +1162,10 @@ describe("Deliberate logout suppression", () => {
       render(<HomePage />);
     });
 
+    // Anker: das Anmeldeformular, über dem der Sitzungshinweis stünde, ist da.
+    expect(
+      screen.getByRole("button", { name: /anmelden/i }),
+    ).toBeInTheDocument();
     expect(screen.queryByTestId("alert-info")).not.toBeInTheDocument();
     expect(screen.queryByTestId("alert-error")).not.toBeInTheDocument();
   });
@@ -1193,6 +1197,10 @@ describe("Deliberate logout suppression", () => {
       render(<HomePage />);
     });
 
+    // Anker: das Anmeldeformular, über dem der Sitzungshinweis stünde, ist da.
+    expect(
+      screen.getByRole("button", { name: /anmelden/i }),
+    ).toBeInTheDocument();
     expect(screen.queryByTestId("alert-info")).not.toBeInTheDocument();
     expect(screen.queryByTestId("alert-error")).not.toBeInTheDocument();
   });

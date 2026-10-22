@@ -137,6 +137,9 @@ describe("AppShell", () => {
           <div>Content</div>
         </AppShell>,
       );
+      // Anker: die Shell mit Kopfzeile und Seiteninhalt steht.
+      expect(screen.getByTestId("header")).toBeInTheDocument();
+      expect(screen.getByText("Content")).toBeInTheDocument();
       expect(screen.queryByTestId("demo-banner")).toBeNull();
       expect(container.firstElementChild?.className ?? "").not.toContain(
         "pt-12",

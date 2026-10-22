@@ -206,7 +206,20 @@ describe("OperatorOperatorsPage", () => {
     setupSWR({ invitations: [], operators: sampleData.operators });
     render(<OperatorOperatorsPage />);
 
+    // Anker: die Operatorenliste ist geladen.
+    expect(screen.getByText("Admin User")).toBeInTheDocument();
     expect(screen.queryByText("Offene Einladungen")).not.toBeInTheDocument();
+  });
+
+  it("shows pending invitations section when invitations exist", () => {
+    setupSWR({
+      invitations: sampleData.invitations,
+      operators: sampleData.operators,
+    });
+    render(<OperatorOperatorsPage />);
+
+    expect(screen.getByText("Admin User")).toBeInTheDocument();
+    expect(screen.getByText("Offene Einladungen")).toBeInTheDocument();
   });
 
   it("submits invite form and shows toast", async () => {

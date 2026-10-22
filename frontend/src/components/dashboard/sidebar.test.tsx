@@ -3105,6 +3105,8 @@ describe("Sidebar", () => {
 
       render(<Sidebar />);
       fireEvent.click(screen.getByText("Weitere Gruppen"));
+      // Ausgangszustand: die Bezeichnung steht, bevor die Leiste einklappt.
+      expect(screen.getByText("Meine Gruppen")).toBeInTheDocument();
 
       act(() => {
         localStorage.setItem("sidebar-collapsed", "true");

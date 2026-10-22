@@ -208,9 +208,21 @@ describe("OpenRoomSections (#3281)", () => {
     ).toBeInTheDocument();
   });
 
+  it("offers the present-children picker with directory access", () => {
+    renderRoom([block("own", { own: true, canOperate: true })], true, true);
+
+    expect(
+      screen.getByRole("button", { name: "Anwesende Kinder" }),
+    ).toBeInTheDocument();
+  });
+
   it("hides the present-children picker without directory access", () => {
     renderRoom([block("own", { own: true, canOperate: true })], true, false);
 
+    // Anker: die Kopfzeile des eigenen, bedienbaren Blocks ist gerendert.
+    expect(
+      screen.getByRole("button", { name: "Kind hinzufügen" }),
+    ).toBeInTheDocument();
     expect(
       screen.queryByRole("button", { name: "Anwesende Kinder" }),
     ).not.toBeInTheDocument();

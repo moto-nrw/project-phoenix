@@ -355,13 +355,14 @@ describe("Startseite", () => {
 
     render(<HomePage />);
 
-    await waitFor(() =>
-      expect(screen.queryByText("Kein Zugriff")).not.toBeInTheDocument(),
-    );
+    // Die Standardansicht der Betreuungskraft ist geladen.
+    expect(
+      await screen.findByText("Ihre Startseite ist leer"),
+    ).toBeInTheDocument();
+    expect(screen.queryByText("Kein Zugriff")).not.toBeInTheDocument();
     // Ohne Rechte auf die Betriebszahlen bleiben die Kennzahlen weg; die
     // Bausteine mit eigener Quelle stehen da, sobald ihr Recht reicht.
     expect(screen.queryByText("Kinder anwesend")).not.toBeInTheDocument();
-    expect(screen.getByText("Ihre Startseite ist leer")).toBeInTheDocument();
   });
 
   it("zeigt die Skelettfläche, solange die Sitzung lädt", () => {

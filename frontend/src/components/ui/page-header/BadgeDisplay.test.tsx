@@ -26,6 +26,8 @@ describe("BadgeDisplay", () => {
 
   it("does not render label when showLabel is false", () => {
     render(<BadgeDisplay count={10} label="Kinder" showLabel={false} />);
+    // Anker: das Badge zeigt seine Zahl, nur ohne Beschriftung.
+    expect(screen.getByText("10")).toBeInTheDocument();
     expect(screen.queryByText("Kinder")).not.toBeInTheDocument();
   });
 
@@ -36,6 +38,8 @@ describe("BadgeDisplay", () => {
 
   it("does not render icon when not provided", () => {
     render(<BadgeDisplay count={5} />);
+    // Anker: das Badge zeigt seine Zahl, nur ohne Icon.
+    expect(screen.getByText("5")).toBeInTheDocument();
     expect(screen.queryByTestId("test-icon")).not.toBeInTheDocument();
   });
 

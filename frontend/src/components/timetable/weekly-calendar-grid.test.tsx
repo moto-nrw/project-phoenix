@@ -71,12 +71,20 @@ describe("WeeklyCalendarGrid gapInstanceIds", () => {
   it("shows no gap icon when the block id is not in the set", () => {
     renderGrid(new Set(["999"]));
 
+    // Anker: der Block selbst ist gerendert, nur ohne Lücken-Icon.
+    expect(
+      screen.getByLabelText(/^Mensa, 12:00 bis 13:00/),
+    ).toBeInTheDocument();
     expect(screen.queryByLabelText("Offene Lücke")).not.toBeInTheDocument();
   });
 
   it("shows no gap icon without the prop (default behavior)", () => {
     renderGrid();
 
+    // Anker: der Block selbst ist gerendert, nur ohne Lücken-Icon.
+    expect(
+      screen.getByLabelText(/^Mensa, 12:00 bis 13:00/),
+    ).toBeInTheDocument();
     expect(screen.queryByLabelText("Offene Lücke")).not.toBeInTheDocument();
   });
 });
@@ -108,6 +116,10 @@ describe("WeeklyCalendarGrid showDayHeader", () => {
       />,
     );
 
+    // Anker: das Raster mit dem besetzten Block ist gerendert.
+    expect(
+      screen.getByLabelText(/^Mensa, 12:00 bis 13:00/),
+    ).toBeInTheDocument();
     expect(screen.queryByText("1 P.")).not.toBeInTheDocument();
   });
 

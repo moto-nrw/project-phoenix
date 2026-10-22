@@ -126,6 +126,8 @@ describe("StudentSickReportSection", () => {
     const { container } = render(
       <StudentSickReportSection {...defaultProps} />,
     );
+    // Anker: die Karte mit ihrem Titel ist gerendert.
+    expect(screen.getByText("Krank melden")).toBeInTheDocument();
     expect(container.querySelector(".animate-spin")).not.toBeInTheDocument();
   });
 });
@@ -201,6 +203,8 @@ describe("StudentExcusedReportSection", () => {
     const { container } = render(
       <StudentExcusedReportSection {...defaultProps} />,
     );
+    // Anker: die Karte mit ihrem Titel ist gerendert.
+    expect(screen.getByText("Entschuldigen")).toBeInTheDocument();
     expect(container.querySelector(".animate-spin")).not.toBeInTheDocument();
   });
 });
