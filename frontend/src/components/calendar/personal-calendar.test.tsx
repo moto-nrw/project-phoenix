@@ -204,6 +204,30 @@ describe("PersonalCalendar", () => {
     expect(onRespond).toHaveBeenCalledWith("42", "declined");
   });
 
+  it("keeps an open detail sheet on the current data of its event", () => {
+    const { rerender } = render(
+      <PersonalCalendar
+        events={[appointment]}
+        weekStart={new Date(2026, 0, 5)}
+        onRespond={vi.fn()}
+      />,
+    );
+    openEvent("Staff meeting");
+
+    // Die Antwort kommt an, während die Detailansicht offen ist.
+    rerender(
+      <PersonalCalendar
+        events={[{ ...appointment, response_status: "accepted" }]}
+        weekStart={new Date(2026, 0, 5)}
+        onRespond={vi.fn()}
+      />,
+    );
+
+    // Raster und Detailansicht zeigen beide die neue Antwort.
+    expect(screen.queryAllByText("Offen")).toHaveLength(0);
+    expect(screen.getAllByText("Zugesagt").length).toBeGreaterThan(1);
+  });
+
   it("splits the column when an inflated short event visually overlaps the next one", () => {
     // 30-Minuten-Termin mit RSVP: die gerenderte Karte ist höher als das
     // Zeitfenster und ragt über 10:00 hinaus — der Folgetermin darf sie nicht

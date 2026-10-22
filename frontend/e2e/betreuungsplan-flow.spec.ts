@@ -1,6 +1,12 @@
 import { expect, type Page, test } from "@playwright/test";
 
-import { loadSeedAccess } from "../scripts/seed-state";
+import {
+  loginToTenant,
+  MISSING_SEED_ACCESS,
+  pickDate,
+  seedAccess as access,
+  tenantBase as base,
+} from "./tenant-session";
 import { berlinTodayISO } from "../src/lib/date-helpers";
 import { nextWorkdayISO } from "../src/lib/timetable-helpers";
 
@@ -16,15 +22,7 @@ import { nextWorkdayISO } from "../src/lib/timetable-helpers";
 // Sprungliste erscheint — und löscht jede angelegte Instanz im finally/afterEach
 // wieder. Die Dev-DB gehört dem Nutzer, daher kein Reset, kein Reseed.
 //
-// Login und Tenant-Herkunft spiegeln vertretung-flow.spec.ts: der lokale Stack
-// bedient die Tenant-App nur unter {slug}.localhost:3000 (bare localhost ist
-// die Marketing-Seite), die Login-Maske liegt auf der Tenant-Wurzel `/`. Slug
-// und Admin-Zugang stehen in backend/.seed-state.json; E2E_TENANT_SLUG /
-// E2E_TEST_EMAIL / E2E_TEST_PASSWORD überschreiben sie. Ohne verwertbare Werte
-// überspringt die Spec.
-
-const access = loadSeedAccess();
-const base = access ? `http://${access.slug}.localhost:3000` : "";
+// Login und Tenant-Herkunft: e2e/tenant-session.ts.
 
 // Das verbindliche Drei-Parameter-Vokabular (06 §2.1). Kein Navigationsschritt
 // darf einen der sieben Alt-Parameter (week/month/year/instance/day/period/
@@ -56,22 +54,6 @@ function assertUrlVocabulary(page: Page, context: string) {
     unexpected,
     `${context}: unerwartete URL-Parameter ${unexpected.join(",")} in ${page.url()}`,
   ).toEqual([]);
-}
-
-async function login(page: Page, email: string, password: string) {
-  // Login-Maske sitzt auf der Tenant-Wurzel; geschützte Routen leiten hier
-  // NICHT auf sie um, sie rendern ohne Session nur eine leere Hülle.
-  // `domcontentloaded` statt `load`: der Next-Dev-Server hält über SSE
-  // Verbindungen offen, das `load`-Event kann dadurch hängen.
-  await page.goto(`${base}/`, { waitUntil: "domcontentloaded" });
-  await page.waitForSelector('input[type="email"]', { timeout: 20000 });
-  await page.fill('input[type="email"]', email);
-  await page.fill('input[type="password"]', password);
-  await page.click('button:has-text("Anmelden")');
-  await page.waitForSelector('input[type="email"]', {
-    state: "detached",
-    timeout: 20000,
-  });
 }
 
 /** Legt einen unterbesetzten Einzeltermin über die API an: Bedarf 2, aber
@@ -118,12 +100,9 @@ async function createGapInstance(
 
 test.describe("Betreuungsplan UI-Flow (Inkrement 4)", () => {
   test.beforeEach(async ({ page }) => {
-    test.skip(
-      access === null,
-      "backend/.seed-state.json (oder E2E_TENANT_SLUG/E2E_TEST_EMAIL/E2E_TEST_PASSWORD) erforderlich",
-    );
+    test.skip(access === null, MISSING_SEED_ACCESS);
     if (!access) return;
-    await login(page, access.email, access.password);
+    await loginToTenant(page, access);
   });
 
   test.afterEach(async ({ page }) => {
@@ -167,7 +146,7 @@ test.describe("Betreuungsplan UI-Flow (Inkrement 4)", () => {
 
     // --- Navigation: nach dem ersten Schritt sind die Alt-Params weg --------
     const before = new URL(page.url()).searchParams.get("d");
-    await page.getByRole("button", { name: "Weiter" }).click();
+    await page.getByRole("button", { name: "Weiter", exact: true }).click();
     await expect
       .poll(() => new URL(page.url()).searchParams.get("d"))
       .not.toBe(before);
@@ -184,26 +163,29 @@ test.describe("Betreuungsplan UI-Flow (Inkrement 4)", () => {
     // Montag der Vorwoche. Geprüft wird, dass jeder Schritt `d` bewegt und das
     // Vokabular sauber hält (Kriterium 2), nicht die Tag-Identität.
     const afterNext = new URL(page.url()).searchParams.get("d");
-    await page.getByRole("button", { name: "Zurück" }).click();
+    await page.getByRole("button", { name: "Zurück", exact: true }).click();
     await expect
       .poll(() => new URL(page.url()).searchParams.get("d"))
       .not.toBe(afterNext);
     assertUrlVocabulary(page, "nach Zurück");
 
     // --- Ansichtswechsel: view=monat / view=serien / zurück auf woche -------
-    await page.getByRole("tab", { name: "Monat" }).click();
+    // Seit 7b2e83b328 ist der Ansichtsumschalter ein SegmentedControl
+    // (Toggle-Buttons in der Gruppe "Ansicht"), keine Tabs mehr.
+    const viewSwitch = page.getByRole("group", { name: "Ansicht" });
+    await viewSwitch.getByRole("button", { name: "Monat" }).click();
     await expect
       .poll(() => new URL(page.url()).searchParams.get("view"))
       .toBe("monat");
     assertUrlVocabulary(page, "nach Ansicht Monat");
 
-    await page.getByRole("tab", { name: "Serien" }).click();
+    await viewSwitch.getByRole("button", { name: "Serien" }).click();
     await expect
       .poll(() => new URL(page.url()).searchParams.get("view"))
       .toBe("serien");
     assertUrlVocabulary(page, "nach Ansicht Serien");
 
-    await page.getByRole("tab", { name: "Woche" }).click();
+    await viewSwitch.getByRole("button", { name: "Woche" }).click();
     // Woche ist der Default -> view-Param entfällt.
     await expect
       .poll(() => new URL(page.url()).searchParams.has("view"))
@@ -284,7 +266,8 @@ test.describe("Betreuungsplan UI-Flow (Inkrement 4)", () => {
     const gapTrigger = page.getByRole("button", { name: /L(ü|ue)cke/ });
     await expect(gapTrigger).toBeVisible(DATA);
     await gapTrigger.click();
-    const gapPopover = page.getByRole("dialog", { name: "Offene Lücken" });
+    // Die Sprungliste ist seit 1e72bf6719 eine benannte Region, kein Dialog.
+    const gapPopover = page.getByRole("region", { name: "Offene Lücken" });
     await expect(gapPopover).toBeVisible();
     await gapPopover.getByRole("button", { name: new RegExp(title) }).click();
 
@@ -322,18 +305,23 @@ test.describe("Betreuungsplan UI-Flow (Inkrement 4)", () => {
     await expect(modal.locator("#event_title")).toBeVisible(DATA);
 
     // Das Formular ist ein Drei-Schritt-Wizard: der Stepper steht sichtbar über
-    // den Feldern und beginnt auf Schritt 1 ("Termin"). Alles, was danach
-    // ausgefüllt wird, gehört zu Schritt 1 — der anschließende Speichern-Klick
-    // ist damit der Beleg, dass Speichern schon aus Schritt 1 möglich ist
-    // (Kriterium 1), ohne "Weiter" durch die Schritte 2 und 3.
+    // den Feldern und beginnt auf Schritt 1 ("Termin"). Speichern gibt es seit
+    // #2025 (2139e21072) nur auf dem letzten Schritt; "Weiter" führt dorthin.
     await expect(modal.getByText("Schritt 1 von 3")).toBeVisible();
 
     await modal.locator("#event_title").fill(title);
-    await modal.locator("#event_date").fill(day);
+    await pickDate(page, modal.locator("#event_date"), day);
     await modal.locator("#event_start").fill("14:00");
     await modal.locator("#event_end").fill("15:00");
-    // Erster echter Raum (Index 0 ist der Platzhalter "Raum auswählen …").
-    await modal.locator("#event_room").selectOption({ index: 1 });
+    // Raum: CustomSelect-Combobox (seit b2b7a333b1 statt `<select>`). Erster
+    // echter Raum (Option 0 ist der Platzhalter "Raum auswählen …").
+    await modal.locator("#event_room").click();
+    await page.getByRole("option").nth(1).click();
+
+    for (const step of [2, 3]) {
+      await modal.getByRole("button", { name: "Weiter", exact: true }).click();
+      await expect(modal.getByText(`Schritt ${step} von 3`)).toBeVisible();
+    }
 
     // Nach dem Speichern setzt onSaved `block` auf die neue Instanz-ID; die
     // fangen wir für den Cleanup ein.
@@ -402,11 +390,12 @@ test.describe("Betreuungsplan UI-Flow (Inkrement 4)", () => {
     const modal = page.getByRole("dialog", { name: "Termin wiederholen" });
     await expect(modal).toBeVisible(DATA);
     await expect(modal.getByText("Schritt 2 von 3")).toBeVisible();
-    // Die volle Variante rendert "Wiederholt sich" als Überschrift über einer
-    // Tab-Gruppe (kein <label> an einem Feld) — daher über die Rolle greifen.
+    // Die volle Variante rendert "Wiederholt sich" als Überschrift über einem
+    // SegmentedControl (seit 7b2e83b328 Gruppe statt Tab-Gruppe, kein <label>
+    // an einem Feld) — daher über die Rolle greifen.
     await expect(modal.getByText("Wiederholt sich")).toBeVisible();
     await expect(
-      modal.getByRole("tablist", { name: "Wiederholung" }),
+      modal.getByRole("group", { name: "Wiederholung" }),
     ).toBeVisible();
 
     // Gegenprobe, dass wirklich Schritt 2 offen ist und nicht Schritt 1:
