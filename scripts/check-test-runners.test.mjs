@@ -59,6 +59,27 @@ test('hooks, comments and paths filters do not count as runners', () => {
   ]);
 });
 
+test('helper comments do not count as direct or transitive runners', () => {
+  assert.deepEqual(check({
+    '.github/workflows/main.yml': 'run: bash scripts/check.sh',
+    'scripts/check.sh': [
+      '# removed: node --test scripts/orphan.test.mjs',
+      'echo ok # bash scripts/removed.sh',
+      'bash scripts/active.sh # node --test scripts/trailing.test.mjs',
+    ].join('\n'),
+    'scripts/removed.sh': 'node --test scripts/transitive.test.mjs',
+    'scripts/active.sh': 'node --test scripts/active.test.mjs',
+    'scripts/orphan.test.mjs': '',
+    'scripts/trailing.test.mjs': '',
+    'scripts/transitive.test.mjs': '',
+    'scripts/active.test.mjs': '',
+  }), [
+    'scripts/orphan.test.mjs',
+    'scripts/trailing.test.mjs',
+    'scripts/transitive.test.mjs',
+  ]);
+});
+
 test('Go and Vitest files are left to their glob-based runners', () => {
   assert.deepEqual(check({
     'backend/core/core_test.go': '',

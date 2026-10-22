@@ -29,6 +29,14 @@ function namesPath(text, file) {
   return new RegExp(`(?:^|[^\\w./-])(?:\\$\\{?\\w+\\}?/|(?:\\.\\./)+)?${escape(file)}(?![\\w.-])`, 'm').test(text);
 }
 
+// Shell/Python comments cannot establish a CI runner, including in helpers.
+function withoutComments(source) {
+  return source.split('\n')
+    .filter(line => !/^\s*#/.test(line))
+    .map(line => line.replace(/\s+#.*$/, ''))
+    .join('\n');
+}
+
 // Playwright prefixes relative globs with `**/`.
 function globToRegExp(glob) {
   const pattern = glob.startsWith('**/') ? glob : `**/${glob}`;
@@ -65,19 +73,19 @@ export function findUnrunTests(files, read) {
   // triggers) name files without running them.
   const workflows = files
     .filter(file => /^\.github\/workflows\/[^/]+\.ya?ml$/.test(file))
-    .map(file => read(file)
+    .map(file => withoutComments(read(file))
       .split('\n')
-      .filter(line => !/^\s*#/.test(line) && !/^\s*-\s*(['"]?)[^\s'":]+\1\s*(?:#.*)?$/.test(line))
-      .map(line => line.replace(/\s+#.*$/, ''))
+      .filter(line => !/^\s*-\s*(['"]?)[^\s'":]+\1\s*$/.test(line))
       .join('\n'));
   const inWorkflow = file => workflows.some(workflow => namesPath(workflow, file));
 
   // Scripts a workflow runs, directly or through other such scripts.
   const helpers = files.filter(file => file.startsWith('scripts/') && !scriptTest.test(file));
+  const readHelper = file => withoutComments(read(file));
   const reached = new Set(helpers.filter(inWorkflow));
   for (let grew = true; grew;) {
     grew = false;
-    const texts = [...reached].map(read);
+    const texts = [...reached].map(readHelper);
     for (const file of helpers) {
       if (!reached.has(file) && texts.some(text => namesPath(text, file))) {
         reached.add(file);
@@ -85,7 +93,7 @@ export function findUnrunTests(files, read) {
       }
     }
   }
-  const ciScripts = [...reached].map(read);
+  const ciScripts = [...reached].map(readHelper);
 
   const unrun = files
     .filter(file => !file.startsWith('frontend/') && scriptTest.test(file))
