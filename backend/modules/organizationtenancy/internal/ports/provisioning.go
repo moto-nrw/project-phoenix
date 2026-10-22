@@ -33,6 +33,9 @@ type ProvisioningIdentity interface {
 	DeactivateAccount(ctx context.Context, accountID int64) error
 	// AnonymizeAccount replaces the account's e-mail for a deleted person.
 	AnonymizeAccount(ctx context.Context, accountID int64, email string) error
+	// EnsureSchoolRoles gives the school the roles every school starts
+	// with; a role the school already has stays as it is.
+	EnsureSchoolRoles(ctx context.Context, tenantID int64) error
 }
 
 // ProvisioningDevices is the Device Fleet part of provisioning. A missing

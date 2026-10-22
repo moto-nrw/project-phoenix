@@ -41,6 +41,7 @@ func TestProvisioningCreateSchool(t *testing.T) {
 			Name: "Mensa", Description: "Aktivitäten rund um das Mittagessen", Color: "#FF9500",
 		}, "Essenszeiten need the Mensa category (#2131)")
 		assert.Equal(t, "Sport", categories[0].Name)
+		assert.Equal(t, []int64{created.ID}, h.identity.schoolRoles, "every school starts with its roles (#4573)")
 
 		require.Len(t, h.devices.created, 1)
 		device := h.devices.created[0]
@@ -259,6 +260,21 @@ func TestProvisioningCreateSchool(t *testing.T) {
 		h := newHarness(t)
 		h.addOrg(1, "Talent", "talent", false)
 		h.categories.err = errBoom
+
+		created, err := h.svc.CreateSchool(context.Background(), validCreateSchool(1), testOperatorID, operatorIP)
+
+		assert.Nil(t, created)
+		require.ErrorIs(t, err, errBoom)
+		require.ErrorIs(t, h.tx.lastErr, errBoom)
+		assert.Empty(t, h.devices.created)
+		assert.Empty(t, h.audit.entries)
+	})
+
+	t.Run("role provisioning failure stops the creation", func(t *testing.T) {
+		t.Parallel()
+		h := newHarness(t)
+		h.addOrg(1, "Talent", "talent", false)
+		h.identity.fail["EnsureSchoolRoles"] = errBoom
 
 		created, err := h.svc.CreateSchool(context.Background(), validCreateSchool(1), testOperatorID, operatorIP)
 

@@ -35,6 +35,7 @@ func newOperatorProvisioning(
 		Identity: ProvisioningIdentity{
 			Sessions: identity, Invitations: identity, Provisioning: identity,
 			Administration: identity, SchoolIdentity: identity, Roles: identity, Accounts: accounts,
+			ExternalCaregiverRoles: identity,
 		},
 		Devices:    adapters.Devices,
 		People:     adapters.People,
@@ -74,6 +75,9 @@ type ProvisioningIdentity struct {
 	Administration identityaccess.AccountAdministration
 	SchoolIdentity identityaccess.SchoolIdentityProvisioning
 	Roles          ProvisioningRoles
+	// ExternalCaregiverRoles provisions the „Extern“ role every school
+	// starts with (#4573).
+	ExternalCaregiverRoles identityaccess.ExternalCaregiverRoles
 }
 
 // provisioningTenantScope scopes an operator's identity write to the school
@@ -205,6 +209,13 @@ func (p ProvisioningIdentity) EnsureSchoolIdentity(ctx context.Context, request 
 		return invalidSchoolIdentityError{err: err}
 	}
 	return err
+}
+
+// EnsureSchoolRoles gives a new school its „Extern“ role inside the
+// provisioning transaction, scoped to that school.
+func (p ProvisioningIdentity) EnsureSchoolRoles(ctx context.Context, tenantID int64) error {
+	_, err := p.ExternalCaregiverRoles.EnsureExternalCaregiverRole(provisioningTenantScope.WithTenantID(ctx, tenantID), tenantID)
+	return provisioningIdentityError(err)
 }
 
 func (p ProvisioningIdentity) AssignRole(ctx context.Context, tenantID, accountID, roleID int64) error {

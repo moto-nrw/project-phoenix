@@ -31,8 +31,9 @@ var defaultActivityCategories = []domain.ActivityCategory{
 
 const webManualDeviceName = "Web-Portal (Manuell)"
 
-// CreateSchool creates a school with its default activity categories and the
-// virtual device that attributes manual web check-ins.
+// CreateSchool creates a school with its default activity categories, the
+// roles every school starts with and the virtual device that attributes
+// manual web check-ins.
 func (p *Provisioning) CreateSchool(ctx context.Context, input *organizationtenancy.CreateSchool, operatorID int64, clientIP net.IP) (*organizationtenancy.School, error) {
 	if input == nil {
 		return nil, &organizationtenancy.InvalidProvisioningDataError{Err: errors.New("school is required")}
@@ -50,6 +51,9 @@ func (p *Provisioning) CreateSchool(ctx context.Context, input *organizationtena
 			return nil, mapSchoolError(err, 0, school.OrganizationID)
 		}
 		if err := p.categories.SeedCategories(adminCtx, created.ID, defaultActivityCategories); err != nil {
+			return nil, err
+		}
+		if err := p.identity.EnsureSchoolRoles(adminCtx, created.ID); err != nil {
 			return nil, err
 		}
 		if err := p.createWebManualDevice(adminCtx, created.ID); err != nil {
