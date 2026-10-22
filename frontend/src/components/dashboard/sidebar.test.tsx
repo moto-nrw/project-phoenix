@@ -142,6 +142,7 @@ import {
   hasEffectiveAdminScope,
   hasPermission,
   isAdmin,
+  isCaregiver,
 } from "~/lib/auth-utils";
 import { useShellAuth } from "~/lib/shell-auth-context";
 import { useStaffAbsencesPending } from "~/lib/hooks/use-staff-absences-pending";
@@ -168,6 +169,7 @@ const mockUseSupervision = vi.mocked(useOptionalSupervision);
 const mockIsAdmin = vi.mocked(isAdmin);
 const mockHasEffectiveAdminScope = vi.mocked(hasEffectiveAdminScope);
 const mockHasPermission = vi.mocked(hasPermission);
+const mockIsCaregiver = vi.mocked(isCaregiver);
 // Standardverhalten des geteilten hasPermission-Mocks: der Admin hält alles,
 // eine Betreuungskraft die Rechte der Systemrolle „user“, die die
 // Navigation prüft (users:read, time_tracking:own, rooms:read,
@@ -2360,6 +2362,42 @@ describe("Sidebar", () => {
         expect(screen.queryByText(label)).not.toBeInTheDocument();
       }
     });
+
+    // Review #4573: „Aktuelle Aufsicht“ hängt am Recht der Seite, nicht am
+    // Rollennamen. Eine selbst benannte Betreuungsrolle (groups:read) und
+    // die Rolle „Extern“ (schedules:read) behalten den Eintrag; ohne beide
+    // Rechte fehlt er.
+    it.each([
+      ["einer selbst benannten Betreuungsrolle", "groups:read", true],
+      ["der Rolle „Extern“", "schedules:read", true],
+      ["einer Rolle ohne beide Rechte", "users:read", false],
+    ])(
+      "zeigt „Aktuelle Aufsicht“ %s nach Recht",
+      (_who, permission, visible) => {
+        mockIsCaregiver.mockReturnValue(false);
+        mockHasPermission.mockImplementation(
+          (_session: unknown, granted: string) =>
+            granted === permission || granted === "calendar:own",
+        );
+        try {
+          render(<Sidebar />);
+
+          // Anker: die Navigation ist geladen.
+          expect(screen.getByText("Mein Kalender")).toBeInTheDocument();
+          if (visible) {
+            expect(screen.getByText("Aktuelle Aufsicht")).toBeInTheDocument();
+          } else {
+            expect(
+              screen.queryByText("Aktuelle Aufsicht"),
+            ).not.toBeInTheDocument();
+          }
+        } finally {
+          mockIsCaregiver.mockImplementation(
+            (session) => !mockIsAdmin(session),
+          );
+        }
+      },
+    );
 
     it("zeigt dieselben Einträge einer Betreuungsrolle mit ihren Rechten", () => {
       mockHasPermission.mockImplementation(

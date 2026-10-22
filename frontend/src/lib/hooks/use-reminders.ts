@@ -1,6 +1,8 @@
 "use client";
 
 import { useEffect } from "react";
+import { useSession } from "next-auth/react";
+import { hasPermission } from "~/lib/auth-utils";
 import { useSWRAuth } from "~/lib/swr/hooks";
 import {
   fetchReminders,
@@ -188,8 +190,13 @@ function scheduleNextChangeRefresh(
  * so SWR dedupes to a single request.
  */
 export function useReminders() {
+  // GET /api/reminders verlangt users:read. Ohne das Recht (Rolle „Extern“,
+  // #4573) fragt niemand: jede Abfrage wäre ein sicheres 403, und das alle
+  // 60 Sekunden aus Glocke, Startseite und Liste.
+  const { data: session } = useSession();
+  const canRead = hasPermission(session, "users:read");
   const { data, error, isLoading, mutate } = useSWRAuth<RemindersResult>(
-    REMINDERS_SWR_KEY,
+    canRead ? REMINDERS_SWR_KEY : null,
     fetchReminders,
     {
       refreshInterval: (latest) =>

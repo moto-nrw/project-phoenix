@@ -36,6 +36,8 @@ interface BackendSupervisionStaffRef {
   id: string;
   full_name: string;
   is_external?: boolean;
+  /** Organisation der externen Kraft; fehlt, wenn leer (#4573). */
+  external_organization?: string;
   external_account_status?: ExternalAccountStatus;
 }
 
@@ -60,6 +62,8 @@ export interface SupervisionStaffRef {
   id: string;
   fullName: string;
   isExternal?: true;
+  /** Organisation der externen Kraft (#4573); fehlt, wenn leer. */
+  externalOrganization?: string;
   /** Kontostand der externen Kraft (#4573); fehlt bei allen anderen. */
   externalAccountStatus?: ExternalAccountStatus;
 }
@@ -193,6 +197,9 @@ function mapSupervisionStaffRef(
     id: staff.id.toString(),
     fullName: staff.full_name,
     ...(staff.is_external ? { isExternal: true as const } : {}),
+    ...(staff.is_external && staff.external_organization
+      ? { externalOrganization: staff.external_organization }
+      : {}),
     ...(staff.is_external && staff.external_account_status
       ? { externalAccountStatus: staff.external_account_status }
       : {}),

@@ -1244,7 +1244,9 @@ describe("MobileBottomNav", () => {
 
   // #4573: die Schulrolle „Extern“ hält nur schedules:read und heißt nicht
   // `user`. Reiter und Menüeinträge, deren Route sie nicht öffnen darf,
-  // fehlen; eine Betreuungskraft sieht sie.
+  // fehlen; eine Betreuungskraft sieht sie. Die Aufsicht öffnet sie mit
+  // schedules:read (nur die eigene laufende Aufsicht), also behält sie den
+  // Reiter.
   describe("Rolle „Extern“", () => {
     const GATED_MENU_LABELS = [
       "Zeiterfassung",
@@ -1278,7 +1280,7 @@ describe("MobileBottomNav", () => {
       const hrefs = mainHrefs();
       expect(hrefs).toContain("/home");
       expect(hrefs).not.toContain("/students/search");
-      expect(hrefs).not.toContain("/active-supervisions");
+      expect(hrefs).toContain("/active-supervisions");
 
       fireEvent.click(getMoreButton());
       // Anker: das Mehr-Menü ist offen.
@@ -1286,6 +1288,35 @@ describe("MobileBottomNav", () => {
       for (const label of [...GATED_MENU_LABELS, "Alle Kinder"]) {
         expect(screen.queryByText(label)).not.toBeInTheDocument();
       }
+    });
+
+    // Review #4573: eine Betreuungsrolle, die die Schule selbst benannt hat,
+    // heißt nicht `user`. Die Aufsicht hängt am Recht, nicht am Namen.
+    it("zeigt einer selbst benannten Betreuungsrolle die Aufsicht", () => {
+      mockIsCaregiver.mockReturnValue(false);
+      mockHasPermission.mockImplementation(
+        (_session, permission) =>
+          CAREGIVER_NAV_PERMISSIONS.has(permission) ||
+          permission === "groups:read",
+      );
+
+      render(<MobileBottomNav />);
+
+      expect(mainHrefs()).toContain("/active-supervisions");
+    });
+
+    it("zeigt die Aufsicht ohne groups:read und schedules:read nicht", () => {
+      mockIsCaregiver.mockReturnValue(false);
+      mockHasPermission.mockImplementation((_session, permission) =>
+        CAREGIVER_NAV_PERMISSIONS.has(permission),
+      );
+
+      render(<MobileBottomNav />);
+
+      const hrefs = mainHrefs();
+      // Anker: die Leiste ist geladen.
+      expect(hrefs).toContain("/home");
+      expect(hrefs).not.toContain("/active-supervisions");
     });
 
     it("zeigt dieselben Einträge einer Betreuungskraft", () => {

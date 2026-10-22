@@ -83,6 +83,7 @@ const overview = {
       id: "76",
       fullName: "Mira Neu",
       isExternal: true as const,
+      externalOrganization: "Musikschule",
       externalAccountStatus: "invitation_pending" as const,
     },
   ],
@@ -122,20 +123,21 @@ describe("AddSupervisorModal external caregivers", () => {
     renderModal();
 
     expect(
-      await screen.findByRole("option", { name: "Jonas Becker (extern)" }),
+      await screen.findByRole("option", { name: "Jonas Becker (Extern)" }),
     ).toBeInTheDocument();
     expect(
       screen.getByRole("option", { name: "Toni Test" }),
     ).toBeInTheDocument();
   });
 
-  // #4573: eine offene Einladung steht am Namen.
-  it("labels an external person whose invitation is still open", async () => {
+  // #4573: Organisation und offene Einladung stehen am Namen, wie in den
+  // anderen Auswahllisten („Extern · Musikschule, Einladung offen“).
+  it("labels an external person with organization and open invitation", async () => {
     renderModal();
 
     expect(
       await screen.findByRole("option", {
-        name: "Mira Neu (extern, Einladung offen)",
+        name: "Mira Neu (Extern · Musikschule, Einladung offen)",
       }),
     ).toBeInTheDocument();
   });
@@ -162,7 +164,7 @@ describe("AddSupervisorModal external caregivers", () => {
     );
     expect(
       screen.getByRole("option", {
-        name: "Lea Gast (extern, Einladung offen)",
+        name: "Lea Gast (Extern, Einladung offen)",
       }),
     ).toBeInTheDocument();
     fireEvent.click(screen.getByRole("button", { name: "Hinzufügen" }));
@@ -245,7 +247,7 @@ describe("AddSupervisorModal external caregivers", () => {
     renderModal(false);
 
     expect(
-      await screen.findByRole("option", { name: "Jonas Becker (extern)" }),
+      await screen.findByRole("option", { name: "Jonas Becker (Extern)" }),
     ).toBeInTheDocument();
     expect(
       screen.queryByRole("button", { name: "Externe Person eintragen" }),

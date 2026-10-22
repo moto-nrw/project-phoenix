@@ -19,6 +19,7 @@ import { useSetupTour } from "~/components/school-setup/use-setup-tour";
 import { CoachMark } from "~/components/ui/coach-mark";
 import { ConfirmationModal } from "~/components/ui/modal";
 import { useApiFormError } from "~/contexts/ToastContext";
+import { canOpenActiveSupervision } from "~/lib/active-supervision-access";
 import { hasPermission } from "~/lib/auth-utils";
 import {
   buildHelpGroupHref,
@@ -122,6 +123,10 @@ function StaffOnboardingForPerson() {
   const hasOwnGroup =
     !openCareGroupMode && groups.some((group) => group.is_personal !== false);
   const canSeeCalendar = hasPermission(session, "calendar:own");
+  // Jeder Schritt nur mit dem Recht, das sein Ziel verlangt (#4573).
+  const canSearchChildren = hasPermission(session, "users:read");
+  const canSupervise = canOpenActiveSupervision(session);
+  const canTrackWorkTime = hasPermission(session, "time_tracking:own");
   const steps = useMemo(
     () =>
       state
@@ -130,9 +135,21 @@ function StaffOnboardingForPerson() {
             webAttendance,
             canSeeCalendar,
             roomsTracked: presenceMode !== "binary",
+            canSearchChildren,
+            canSupervise,
+            canTrackWorkTime,
           })
         : [],
-    [state, hasOwnGroup, webAttendance, canSeeCalendar, presenceMode],
+    [
+      state,
+      hasOwnGroup,
+      webAttendance,
+      canSeeCalendar,
+      presenceMode,
+      canSearchChildren,
+      canSupervise,
+      canTrackWorkTime,
+    ],
   );
 
   const run = useCallback(

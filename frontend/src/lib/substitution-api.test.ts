@@ -61,7 +61,9 @@ describe("substitutionService", () => {
       "/api/substitutions?from=2026-08-31&to=2026-09-04",
       { credentials: "include" },
     );
-    expect(result.staff).toEqual([{ id: "8", name: "Nora Neu" }]);
+    expect(result.staff).toEqual([
+      { id: "8", name: "Nora Neu", isExternal: false },
+    ]);
     expect(result.appointments[0]).toMatchObject({
       id: "42",
       staff: [{ assignmentId: "9", id: "7", isAbsent: true }],
@@ -335,7 +337,7 @@ describe("substitutionService", () => {
     });
   });
 
-  it("keeps the account state of external supervisors and targets (#4573)", async () => {
+  it("keeps the account state and organization of external supervisors and targets (#4573)", async () => {
     sessionFetch.mockResolvedValue({
       ok: true,
       json: async () => ({
@@ -360,6 +362,7 @@ describe("substitutionService", () => {
                   id: "76",
                   full_name: "Jonas Becker",
                   is_external: true,
+                  external_organization: "Musikschule",
                   external_account_status: "invitation_pending",
                 },
                 { id: "73", full_name: "Toni Test" },
@@ -387,6 +390,7 @@ describe("substitutionService", () => {
         id: "76",
         fullName: "Jonas Becker",
         isExternal: true,
+        externalOrganization: "Musikschule",
         externalAccountStatus: "invitation_pending",
       },
       { id: "73", fullName: "Toni Test" },

@@ -22,6 +22,7 @@ import type { RunningSupervision } from "~/lib/substitution-helpers";
 
 import { ExternalCaregiverEntry } from "~/components/staff/external-caregiver-entry";
 import type { Staff } from "~/lib/staff-api";
+import { externalStaffNote } from "~/lib/staff-helpers";
 
 const logger = createLogger({ component: "AddSupervisorModal" });
 
@@ -115,12 +116,11 @@ function SupervisionDetails({
   );
 }
 
+// Wie in den anderen Auswahllisten: „Name (Extern · Musikschule, Einladung
+// offen)“ (#4573). Nur Externe mit Konto oder offener Einladung kommen hier an.
 function targetLabel(target: SupervisionTarget): string {
-  if (!target.isExternal) return target.fullName;
-  // Nur Externe mit Konto oder offener Einladung kommen hier an (#4573).
-  return target.externalAccountStatus === "invitation_pending"
-    ? `${target.fullName} (extern, Einladung offen)`
-    : `${target.fullName} (extern)`;
+  const note = externalStaffNote(target);
+  return note ? `${target.fullName} (${note})` : target.fullName;
 }
 
 function SupervisorSelect({
@@ -305,6 +305,9 @@ function useSupervisionTargets(
         id: staff.id,
         fullName,
         isExternal: true,
+        ...(staff.externalOrganization
+          ? { externalOrganization: staff.externalOrganization }
+          : {}),
         ...(staff.externalAccountStatus
           ? { externalAccountStatus: staff.externalAccountStatus }
           : {}),

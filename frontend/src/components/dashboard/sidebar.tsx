@@ -39,6 +39,7 @@ import {
   isCaregiver,
   leadsSchool,
 } from "~/lib/auth-utils";
+import { canOpenActiveSupervision } from "~/lib/active-supervision-access";
 import { canReviewGuardianApprovals } from "~/lib/guardian-approval-access";
 import { useCareWithdrawalsPending } from "~/lib/hooks/use-care-withdrawals-pending";
 import { useChangeRequestAccess } from "~/lib/hooks/use-change-request-access";
@@ -1662,10 +1663,17 @@ function SidebarContent({
     ) : null;
 
   // Aktuelle Aufsicht (staff only; hidden in binary mode because room-level
-  // supervision has no meaning without visits). Offene Räume darunter wie
+  // supervision has no meaning without visits). Gated on the page's own
+  // permission, not the role name (#4573): a school-named caregiver role and
+  // the role „Extern“ (schedules:read only) keep their entry. Admins keep
+  // reaching it through the school-wide overview (#2380); their wildcard
+  // alone is no own supervision. Offene Räume darunter wie
   // "Weitere Gruppen" unter "Meine Gruppen" (#3065).
   const renderSupervisionsSection = () =>
-    showStaffAccordions && !isBinaryMode && !childSearchOnlyNavigation ? (
+    (overviewEnabled ||
+      (!userHasEffectiveAdminScope && canOpenActiveSupervision(session))) &&
+    !isBinaryMode &&
+    !childSearchOnlyNavigation ? (
       <>
         <SidebarAccordionSection
           icon={SUPERVISION_NAV_ICON}

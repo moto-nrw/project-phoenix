@@ -21,6 +21,7 @@ import {
   isCaregiver,
   leadsSchool,
 } from "~/lib/auth-utils";
+import { canOpenActiveSupervision } from "~/lib/active-supervision-access";
 import { canReviewGuardianApprovals } from "~/lib/guardian-approval-access";
 import { useChangeRequestAccess } from "~/lib/hooks/use-change-request-access";
 import { useHelpHref } from "~/lib/hooks/use-help-href";
@@ -803,6 +804,11 @@ export function MobileBottomNav({ className = "" }: MobileBottomNavProps) {
   const userIsAdmin = hasRole(session, "admin");
   const userHasEffectiveAdminScope = hasEffectiveAdminScope(session);
   const userIsCaregiver = isCaregiver(session);
+  // Aufsicht am Recht der Seite, nicht am Rollennamen (#4573). Die Leitung
+  // führt sie wie bisher über die schulweite Übersicht (#2380): ihr
+  // Wildcard-Recht allein ist noch keine eigene Aufsicht.
+  const userCanOpenSupervision =
+    !hasEffectiveAdminScope(session) && canOpenActiveSupervision(session);
   const nfcEnabled = useNFCEnabled();
   const presenceMode = usePresenceMode();
   const showActivityNav = nfcEnabled && presenceMode !== "binary";
@@ -880,10 +886,10 @@ export function MobileBottomNav({ className = "" }: MobileBottomNavProps) {
         // Bei offener Betreuung gibt es keine "meine Gruppe" — der
         // gruppenbasierte Einstieg entfällt (#1544).
         !(openCareGroupMode && item.href === "/ogs-groups") &&
-        // Suchen führt auf Alle Kinder und braucht wie dort users:read;
-        // die Aufsicht gilt wie in der Seitenleiste nur für Betreuungskräfte
-        // und die schulweite Übersicht. Beides trifft die Rolle „Extern“
-        // nicht (#4573), sonst stünden dort zwei Sackgassen.
+        // Suchen führt auf Alle Kinder und braucht wie dort users:read; die
+        // Rolle „Extern“ (#4573) hat es nicht, sonst stünde dort eine
+        // Sackgasse. Die Aufsicht hängt wie in der Seitenleiste am Recht der
+        // Seite (groups:read oder schedules:read), nicht am Rollennamen.
         !(
           item.href === "/students/search" &&
           !userIsAdmin &&
@@ -891,7 +897,7 @@ export function MobileBottomNav({ className = "" }: MobileBottomNavProps) {
         ) &&
         !(
           item.href === "/active-supervisions" &&
-          !userIsCaregiver &&
+          !userCanOpenSupervision &&
           !overviewEnabled &&
           !userHasEffectiveAdminScope
         ) &&
@@ -929,10 +935,10 @@ export function MobileBottomNav({ className = "" }: MobileBottomNavProps) {
         !openCareGroupMode
       );
     }
-    // Aufsicht wie in der Seitenleiste: eigene Aufsicht der Betreuungskräfte
-    // oder die schulweite Übersicht (#2380); im binären Modus ohne Bedeutung.
+    // Aufsicht wie in der Seitenleiste: das Recht der Seite (#4573) oder die
+    // schulweite Übersicht (#2380); im binären Modus ohne Bedeutung.
     if (href === "/active-supervisions") {
-      return (userIsCaregiver || overviewEnabled) && !isBinaryMode;
+      return (userCanOpenSupervision || overviewEnabled) && !isBinaryMode;
     }
     if (
       href === "/tagesplan" &&

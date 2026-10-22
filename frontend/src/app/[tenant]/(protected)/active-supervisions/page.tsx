@@ -31,7 +31,8 @@ import {
 } from "~/lib/activity-occupancy";
 import { CompleteInstanceModal } from "~/components/active-supervisions/complete-instance-modal";
 import { useMinuteClock } from "~/lib/pickup-helpers";
-import { hasPermission, isCaregiver } from "~/lib/auth-utils";
+import { hasPermission } from "~/lib/auth-utils";
+import { canReadSupervisionDashboard } from "~/lib/active-supervision-access";
 import { UnclaimedRooms } from "~/components/active/unclaimed-rooms";
 import { SSEErrorBoundary } from "~/components/sse/SSEErrorBoundary";
 import {
@@ -59,7 +60,10 @@ import { useSupervisionDashboard } from "~/components/active-supervisions/use-su
 import { useTimetableRoster } from "~/components/active-supervisions/use-timetable-roster";
 import type { TimetableRosterRow } from "~/lib/timetable-operations-types";
 import { useStudentFilters } from "~/components/active-supervisions/use-student-filters";
-import { useReopenBanner } from "~/components/active-supervisions/use-reopen-banner";
+import {
+  reopenBannerMessage,
+  useReopenBanner,
+} from "~/components/active-supervisions/use-reopen-banner";
 import { useTimetableActions } from "~/components/active-supervisions/use-timetable-actions";
 import { useSchulhofActions } from "~/components/active-supervisions/use-schulhof-actions";
 import { AddUnplannedStudentModal } from "~/components/active-supervisions/add-unplanned-student-modal";
@@ -84,13 +88,7 @@ import { BELOW_MD, useMediaQuery } from "~/lib/hooks/use-media-query";
 import { useStudentPhotosEnabled } from "~/lib/hooks/use-student-photos-enabled";
 import { OpenRoomSections } from "~/components/active-supervisions/open-room-sections";
 import { AddSupervisorModal } from "~/components/active-supervisions/add-supervisor-modal";
-
-function reopenBannerMessage(title: string | null): string {
-  const ended = title
-    ? `„${title}“ wurde beendet.`
-    : "Die Aktivität wurde beendet.";
-  return `${ended} Sie können das fünf Minuten lang rückgängig machen.`;
-}
+import { OwnSupervisionView } from "~/components/active-supervisions/own-supervision-view";
 
 function hasSameGroupNames(
   previous: readonly string[] | undefined,
@@ -929,8 +927,10 @@ function MeinRaumPageContent() {
   );
 }
 
-// Gate component: allows caregivers always, everyone else only when the
-// server confirmed the school-wide overview covers them (#2380).
+// Gate component, by permission rather than role name (#4573): `groups:read`
+// opens the full page, so does a server-confirmed school-wide overview
+// (#2380). `schedules:read` alone (role „Extern“) opens only the own running
+// supervision, without any school-wide request.
 function ActiveSupervisionGate({
   children,
 }: Readonly<{ children: React.ReactNode }>) {
@@ -953,8 +953,7 @@ function ActiveSupervisionGate({
     );
   }
 
-  // Caregivers (user/teacher role) always have access
-  if (isCaregiver(session)) {
+  if (canReadSupervisionDashboard(session)) {
     return <>{children}</>;
   }
 
@@ -965,6 +964,12 @@ function ActiveSupervisionGate({
   // reachable for everyone and grants no supervision (#3065).
   if (overviewEnabled) {
     return <>{children}</>;
+  }
+
+  // Ohne groups:read zeigte die volle Seite die Anwesenheit der ganzen
+  // Schule. Wer Blöcke führt (schedules:read), sieht seine eigene Aufsicht.
+  if (hasPermission(session, "schedules:read")) {
+    return <OwnSupervisionView />;
   }
 
   // Fehlendes Recht ist ein Zustand der Seite, kein Fehler: dieselbe

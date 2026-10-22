@@ -113,8 +113,8 @@ export function SpontaneousActivityStart({
   const [activities, setActivities] = useState<Activity[]>([]);
   const [rooms, setRooms] = useState<RoomOption[]>([]);
   const [staff, setStaff] = useState<Staff[]>([]);
-  // Without the staff list the name check of a new external entry cannot
-  // run, so the section stays hidden after a failed load.
+  // Without the staff list the section has nobody to offer, so it stays
+  // hidden after a failed load; the load error in the dialog says why.
   const [staffLoaded, setStaffLoaded] = useState(false);
   const [activityInput, setActivityInput] = useState("");
   const [roomId, setRoomId] = useState("");
@@ -134,7 +134,7 @@ export function SpontaneousActivityStart({
   const [activeActivityIndex, setActiveActivityIndex] = useState(0);
   const activityFieldRef = useRef<HTMLDivElement>(null);
   // Externe ohne Konto und ohne offene Einladung stehen nicht zur Wahl
-  // (#4573); die Namensprüfung des Eintrags kennt sie trotzdem.
+  // (#4573).
   const assignableStaff = useMemo(
     () => staff.filter(isAssignableStaff),
     [staff],
