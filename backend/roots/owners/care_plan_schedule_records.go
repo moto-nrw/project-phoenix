@@ -206,11 +206,6 @@ func (r carePlanRecords) ListArrivalExceptions(ctx context.Context, filter timet
 	return carePlanSlice(values, CareArrivalExceptionToRows), carePlanScheduleError(err)
 }
 
-func (r carePlanRecords) DeleteArrivalExceptionsBefore(ctx context.Context, before timetablePorts.CareDate) (int64, error) {
-	rows, err := r.capability.DeleteArrivalExceptionsBefore(ctx, careplan.Date(before))
-	return rows, carePlanScheduleError(err)
-}
-
 func (r carePlanRecords) CreatePickupException(ctx context.Context, value timetablePorts.CarePickupException) (timetablePorts.CarePickupException, error) {
 	created, err := r.capability.CreatePickupException(ctx, CarePickupExceptionFromRows(value))
 	return CarePickupExceptionToRows(created), carePlanScheduleError(err)
@@ -232,11 +227,6 @@ func (r carePlanRecords) DeletePickupExceptionsByStudent(ctx context.Context, st
 func (r carePlanRecords) ListPickupExceptions(ctx context.Context, filter timetablePorts.CareScheduleFilter) ([]timetablePorts.CarePickupException, error) {
 	values, err := r.capability.ListPickupExceptions(ctx, carePlanScheduleFilter(filter))
 	return carePlanSlice(values, CarePickupExceptionToRows), carePlanScheduleError(err)
-}
-
-func (r carePlanRecords) DeletePickupExceptionsBefore(ctx context.Context, before timetablePorts.CareDate) (int64, error) {
-	rows, err := r.capability.DeletePickupExceptionsBefore(ctx, careplan.Date(before))
-	return rows, carePlanScheduleError(err)
 }
 
 func (r carePlanRecords) CreateArrivalNote(ctx context.Context, value timetablePorts.CareArrivalNote) (timetablePorts.CareArrivalNote, error) {
@@ -262,11 +252,6 @@ func (r carePlanRecords) ListArrivalNotes(ctx context.Context, filter timetableP
 	return carePlanSlice(values, careArrivalNoteToRows), carePlanScheduleError(err)
 }
 
-func (r carePlanRecords) DeleteArrivalNotesBefore(ctx context.Context, before timetablePorts.CareDate) (int64, error) {
-	rows, err := r.capability.DeleteArrivalNotesBefore(ctx, careplan.Date(before))
-	return rows, carePlanScheduleError(err)
-}
-
 func (r carePlanRecords) CreatePickupNote(ctx context.Context, value timetablePorts.CarePickupNote) (timetablePorts.CarePickupNote, error) {
 	created, err := r.capability.CreatePickupNote(ctx, carePickupNoteFromRows(value))
 	return carePickupNoteToRows(created), carePlanScheduleError(err)
@@ -288,11 +273,6 @@ func (r carePlanRecords) DeletePickupNotesByStudent(ctx context.Context, student
 func (r carePlanRecords) ListPickupNotes(ctx context.Context, filter timetablePorts.CareScheduleFilter) ([]timetablePorts.CarePickupNote, error) {
 	values, err := r.capability.ListPickupNotes(ctx, carePlanScheduleFilter(filter))
 	return carePlanSlice(values, carePickupNoteToRows), carePlanScheduleError(err)
-}
-
-func (r carePlanRecords) DeletePickupNotesBefore(ctx context.Context, before timetablePorts.CareDate) (int64, error) {
-	rows, err := r.capability.DeletePickupNotesBefore(ctx, careplan.Date(before))
-	return rows, carePlanScheduleError(err)
 }
 
 func (r carePlanRecords) CreateCareScheduleRequest(ctx context.Context, value timetablePorts.CareScheduleRequest) (timetablePorts.CareScheduleRequest, error) {

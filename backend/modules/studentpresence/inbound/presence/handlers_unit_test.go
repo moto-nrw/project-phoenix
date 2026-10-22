@@ -568,9 +568,6 @@ func TestExportedHandlers_NotNil(t *testing.T) {
 
 	// Checkout Handler
 	assert.NotNil(t, rs.checkoutStudent)
-
-	// Checkin Handler
-	assert.NotNil(t, rs.checkinStudent)
 }
 
 // =============================================================================

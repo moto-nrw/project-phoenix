@@ -1,7 +1,6 @@
 package account
 
 import (
-	"context"
 	"errors"
 	"net/http"
 
@@ -205,18 +204,6 @@ func (rs *Resource) getAccountsByRole(w http.ResponseWriter, r *http.Request) {
 	}
 
 	common.Respond(w, r, http.StatusOK, accountResponses(accounts), "Accounts retrieved successfully")
-}
-
-// activateAccount and deactivateAccount re-enable and disable an account
-// the caller may administer. A deactivation also revokes the account's
-// sessions, which is why it is its own command and not a field of the
-// account update.
-func (rs *Resource) activateAccount(ctx context.Context, accountID int64) error {
-	return rs.Sessions.ActivateAccount(ctx, accountID)
-}
-
-func (rs *Resource) deactivateAccount(ctx context.Context, accountID int64) error {
-	return rs.Sessions.DeactivateAccount(ctx, accountID)
 }
 
 // accountResponses is the account listing's wire shape: the identifying

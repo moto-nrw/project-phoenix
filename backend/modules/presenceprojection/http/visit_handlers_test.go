@@ -13,72 +13,6 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func TestGetStudentCurrentLocation(t *testing.T) {
-	t.Parallel()
-
-	tc := setupStudentsRoute(t)
-
-	student := testpkg.CreateTestStudent(t, tc.db, "Location", "Test", "LT1")
-
-	t.Run("success_gets_student_location", func(t *testing.T) {
-		req := testutil.NewRequest("GET", fmt.Sprintf("/%d/current-location", student.ID), nil)
-		rr := authExec(t, tc, req, testutil.AdminTestClaims(1), []string{"admin:*"})
-
-		assert.Equal(t, http.StatusOK, rr.Code, "Expected 200 OK. Body: %s", rr.Body.String())
-		assert.Contains(t, rr.Body.String(), "current_location")
-	})
-
-	t.Run("not_found_for_nonexistent_student", func(t *testing.T) {
-		req := testutil.NewRequest("GET", "/999999/current-location", nil)
-		rr := authExec(t, tc, req, testutil.AdminTestClaims(1), []string{"admin:*"})
-
-		testutil.AssertNotFound(t, rr)
-	})
-}
-
-func TestGetStudentCurrentLocation_Extended(t *testing.T) {
-	t.Parallel()
-
-	tc := setupStudentsRoute(t)
-
-	t.Run("returns_absent_for_student_without_visit", func(t *testing.T) {
-		student := testpkg.CreateTestStudent(t, tc.db, "Absent", "Student", "AB1")
-
-		req := testutil.NewRequest("GET", fmt.Sprintf("/%d/current-location", student.ID), nil)
-
-		rr := authExec(t, tc, req, testutil.AdminTestClaims(1), []string{"admin:*"})
-
-		assert.Equal(t, http.StatusOK, rr.Code, "Expected 200 OK. Body: %s", rr.Body.String())
-		// Location should be "Abwesend" (absent) when student has no active visit
-		assert.Contains(t, rr.Body.String(), "current_location")
-	})
-}
-
-func TestGetStudentCurrentLocation_ExpectedChildReadsSchoolBeforeFirstCheckIn(t *testing.T) {
-	t.Parallel()
-
-	tc := setupStudentsRoute(t)
-	// Friday 12:00 Berlin.
-	fixedNow := time.Date(2026, time.August, 21, 10, 0, 0, 0, time.UTC)
-	tc.resource.Now = func() time.Time { return fixedNow }
-
-	student := testpkg.CreateTestStudent(t, tc.db, "Waiting", "Location", "School-3260")
-	staff := testpkg.CreateTestStaff(t, tc.db, "Location", "Supervisor")
-	testpkg.CreateTestPickupSchedule(t, tc.db, student.ID, 5, staff.ID, "15:30") // Friday
-
-	req := testutil.NewRequest("GET", fmt.Sprintf("/%d/current-location", student.ID), nil)
-	rr := authExec(t, tc, req, testutil.AdminTestClaims(1), []string{"admin:*"})
-	require.Equal(t, http.StatusOK, rr.Code, "body: %s", rr.Body.String())
-
-	var response struct {
-		Data struct {
-			Location string `json:"current_location"`
-		} `json:"data"`
-	}
-	require.NoError(t, json.Unmarshal(rr.Body.Bytes(), &response))
-	assert.Equal(t, "Schule", response.Data.Location)
-}
-
 func TestGetStudentCurrentVisit(t *testing.T) {
 	t.Parallel()
 
@@ -183,288 +117,6 @@ func TestGetStudentVisitHistory_WithVisits(t *testing.T) {
 	assert.JSONEq(t, expectedVisit, string(currentBody.Data))
 }
 
-func TestGetStudentInGroupRoom_InvalidStudentID(t *testing.T) {
-	t.Parallel()
-
-	tc := setupStudentsRoute(t)
-
-	req := testutil.NewRequest("GET", "/invalid/in-group-room", nil)
-	rr := authExec(t, tc, req, testutil.AdminTestClaims(1), []string{"admin:*"})
-
-	testutil.AssertBadRequest(t, rr)
-}
-
-func TestGetStudentInGroupRoom_NonexistentStudent(t *testing.T) {
-	t.Parallel()
-
-	tc := setupStudentsRoute(t)
-
-	req := testutil.NewRequest("GET", "/999999/in-group-room", nil)
-	rr := authExec(t, tc, req, testutil.AdminTestClaims(1), []string{"admin:*"})
-
-	testutil.AssertNotFound(t, rr)
-}
-
-func TestGetStudentInGroupRoom_WithValidStudent(t *testing.T) {
-	t.Parallel()
-
-	tc := setupStudentsRoute(t)
-
-	student := testpkg.CreateTestStudent(t, tc.db, "GroupRoom", "Test", "GR1")
-
-	req := testutil.NewRequest("GET", fmt.Sprintf("/%d/in-group-room", student.ID), nil)
-	rr := authExec(t, tc, req, testutil.AdminTestClaims(1), []string{"admin:*"})
-
-	// Student has no group, so should return OK with no_group reason
-	assert.Equal(t, http.StatusOK, rr.Code)
-	assert.Contains(t, rr.Body.String(), "no_group")
-}
-
-func TestGetStudentInGroupRoom_Extended(t *testing.T) {
-	t.Parallel()
-
-	tc := setupStudentsRoute(t)
-
-	t.Run("student_no_educational_group", func(t *testing.T) {
-		// Student without group assigned
-		student := testpkg.CreateTestStudent(t, tc.db, "NoEdGroup", "Student", "NEG1")
-
-		req := testutil.NewRequest("GET", fmt.Sprintf("/%d/in-group-room", student.ID), nil)
-		rr := authExec(t, tc, req, testutil.AdminTestClaims(1), []string{"admin:*"})
-
-		assert.Equal(t, http.StatusOK, rr.Code, "Expected 200 OK. Body: %s", rr.Body.String())
-		assert.Contains(t, rr.Body.String(), "no_group", "Should indicate no group")
-	})
-
-	t.Run("student_group_has_no_room", func(t *testing.T) {
-		// Create group without room, then assign student
-		group := testpkg.CreateTestEducationGroup(t, tc.db, "NoRoomGroup")
-		student := testpkg.CreateTestStudent(t, tc.db, "NoRoom", "Student", "NR1")
-		testpkg.AssignStudentToGroup(t, tc.db, student.ID, group.ID)
-
-		req := testutil.NewRequest("GET", fmt.Sprintf("/%d/in-group-room", student.ID), nil)
-		rr := authExec(t, tc, req, testutil.AdminTestClaims(1), []string{"admin:*"})
-
-		assert.Equal(t, http.StatusOK, rr.Code, "Expected 200 OK. Body: %s", rr.Body.String())
-		assert.Contains(t, rr.Body.String(), "group_no_room", "Should indicate group has no room")
-	})
-
-	t.Run("student_with_no_active_visit", func(t *testing.T) {
-		// Create student with group and room, but no active visit
-		room := testpkg.CreateTestRoom(t, tc.db, "GroupRoomTest")
-		group := testpkg.CreateTestEducationGroup(t, tc.db, "WithRoomGroup")
-		student := testpkg.CreateTestStudent(t, tc.db, "NoVisit", "Student", "NV1")
-
-		// Assign room to group using raw SQL to avoid BUN ORM syntax issues
-		ctx := testpkg.Ctx(t)
-		_, err := tc.db.ExecContext(ctx, "UPDATE education.groups SET room_id = ? WHERE id = ?", room.ID, group.ID)
-		require.NoError(t, err)
-
-		testpkg.AssignStudentToGroup(t, tc.db, student.ID, group.ID)
-
-		req := testutil.NewRequest("GET", fmt.Sprintf("/%d/in-group-room", student.ID), nil)
-		rr := authExec(t, tc, req, testutil.AdminTestClaims(1), []string{"admin:*"})
-
-		assert.Equal(t, http.StatusOK, rr.Code, "Expected 200 OK. Body: %s", rr.Body.String())
-		assert.Contains(t, rr.Body.String(), "no_active_visit", "Should indicate no active visit")
-	})
-}
-
-func TestGetStudentInGroupRoom_Authorization(t *testing.T) {
-	t.Parallel()
-
-	tc := setupStudentsRoute(t)
-
-	// Create teacher and group
-	teacher, account := testpkg.CreateTestTeacherWithAccount(t, tc.db, "Room", "Auth")
-	group := testpkg.CreateTestEducationGroup(t, tc.db, "RoomAuthGroup")
-	student := testpkg.CreateTestStudent(t, tc.db, "Room", "AuthStudent", "RA1")
-
-	// Assign teacher to group and student to group
-	testpkg.CreateTestGroupTeacher(t, tc.db, group.ID, teacher.ID)
-	testpkg.AssignStudentToGroup(t, tc.db, student.ID, group.ID)
-
-	t.Run("teacher_supervisor_can_access", func(t *testing.T) {
-		req := testutil.NewRequest("GET", fmt.Sprintf("/%d/in-group-room", student.ID), nil)
-		claims := testutil.TeacherTestClaims(int(account.ID))
-		rr := authExec(t, tc, req, claims, []string{"users:read"})
-
-		// Teacher supervises this student's group, so should get OK (even if group has no room)
-		assert.Equal(t, http.StatusOK, rr.Code, "Teacher should access group room status. Body: %s", rr.Body.String())
-	})
-
-	t.Run("staff_outside_the_group_can_access", func(t *testing.T) {
-		// #2329: the room status is a read surface open to every staff member,
-		// supervision of the child's group no longer matters.
-		_, otherAccount := testpkg.CreateTestTeacherWithAccount(t, tc.db, "Other", "Teacher")
-
-		req := testutil.NewRequest("GET", fmt.Sprintf("/%d/in-group-room", student.ID), nil)
-		claims := testutil.TeacherTestClaims(int(otherAccount.ID))
-		rr := authExec(t, tc, req, claims, []string{"users:read"})
-
-		assert.Equal(t, http.StatusOK, rr.Code, "Body: %s", rr.Body.String())
-	})
-
-	t.Run("account_without_staff_record_forbidden", func(t *testing.T) {
-		// Guests and guardians hold users:read but no staff record in the tenant.
-		guest := testpkg.CreateTestAccount(t, tc.db, "group-room-guest@example.com")
-
-		req := testutil.NewRequest("GET", fmt.Sprintf("/%d/in-group-room", student.ID), nil)
-		claims := testutil.TeacherTestClaims(int(guest.ID))
-		rr := authExec(t, tc, req, claims, []string{"users:read"})
-
-		testutil.AssertForbidden(t, rr)
-	})
-}
-
-func TestGetStudentInGroupRoom_WithActiveVisit(t *testing.T) {
-	t.Parallel()
-
-	tc := setupStudentsRoute(t)
-
-	t.Run("student_in_group_room", func(t *testing.T) {
-		// Create room, group, student
-		room := testpkg.CreateTestRoom(t, tc.db, "GroupRoomActive")
-		group := testpkg.CreateTestEducationGroup(t, tc.db, "ActiveVisitGroup")
-		student := testpkg.CreateTestStudent(t, tc.db, "Active", "Visitor", "AV1")
-		activityGroup := testpkg.CreateTestActivityGroup(t, tc.db, "ActiveSession")
-		staff := testpkg.CreateTestStaff(t, tc.db, "Check", "InStaff")
-		device := testpkg.CreateTestDevice(t, tc.db, "checkin-device")
-
-		// Assign room to group
-		ctx := testpkg.Ctx(t)
-		_, err := tc.db.ExecContext(ctx, "UPDATE education.groups SET room_id = ? WHERE id = ?", room.ID, group.ID)
-		require.NoError(t, err)
-
-		// Assign student to group
-		testpkg.AssignStudentToGroup(t, tc.db, student.ID, group.ID)
-
-		// Create attendance (check-in)
-		now := time.Now()
-		testpkg.CreateTestAttendance(t, tc.db, student.ID, staff.ID, device.ID, now, nil)
-
-		// Create active group in the same room
-		activeGroup := testpkg.CreateTestActiveGroup(t, tc.db, activityGroup.ID, room.ID)
-
-		// Create visit to the active group
-		testpkg.CreateTestVisit(t, tc.db, student.ID, activeGroup.ID, now, nil)
-
-		req := testutil.NewRequest("GET", fmt.Sprintf("/%d/in-group-room", student.ID), nil)
-		rr := authExec(t, tc, req, testutil.AdminTestClaims(1), []string{"admin:*"})
-
-		assert.Equal(t, http.StatusOK, rr.Code, "Expected 200 OK. Body: %s", rr.Body.String())
-		// Should have in_group_room response
-		assert.Contains(t, rr.Body.String(), "in_group_room")
-	})
-
-	t.Run("student_in_different_room", func(t *testing.T) {
-		// Create two rooms - one for group, one for visit
-		groupRoom := testpkg.CreateTestRoom(t, tc.db, "GroupRoomDiff")
-		visitRoom := testpkg.CreateTestRoom(t, tc.db, "VisitRoomDiff")
-		group := testpkg.CreateTestEducationGroup(t, tc.db, "DiffRoomGroup")
-		student := testpkg.CreateTestStudent(t, tc.db, "Diff", "Room", "DR2")
-		activityGroup := testpkg.CreateTestActivityGroup(t, tc.db, "DiffRoomActivity")
-		staff := testpkg.CreateTestStaff(t, tc.db, "Diff", "Staff")
-		device := testpkg.CreateTestDevice(t, tc.db, "diff-device")
-
-		// Assign group room to group
-		ctx := testpkg.Ctx(t)
-		_, err := tc.db.ExecContext(ctx, "UPDATE education.groups SET room_id = ? WHERE id = ?", groupRoom.ID, group.ID)
-		require.NoError(t, err)
-
-		// Assign student to group
-		testpkg.AssignStudentToGroup(t, tc.db, student.ID, group.ID)
-
-		// Create attendance
-		now := time.Now()
-		testpkg.CreateTestAttendance(t, tc.db, student.ID, staff.ID, device.ID, now, nil)
-
-		// Create active group in DIFFERENT room
-		activeGroup := testpkg.CreateTestActiveGroup(t, tc.db, activityGroup.ID, visitRoom.ID)
-
-		// Create visit to that different room
-		testpkg.CreateTestVisit(t, tc.db, student.ID, activeGroup.ID, now, nil)
-
-		req := testutil.NewRequest("GET", fmt.Sprintf("/%d/in-group-room", student.ID), nil)
-		rr := authExec(t, tc, req, testutil.AdminTestClaims(1), []string{"admin:*"})
-
-		assert.Equal(t, http.StatusOK, rr.Code, "Expected 200 OK. Body: %s", rr.Body.String())
-		// Should indicate not in group room
-		assert.Contains(t, rr.Body.String(), "in_group_room")
-	})
-}
-
-func TestGetStudentCurrentLocation_WithActiveVisit(t *testing.T) {
-	t.Parallel()
-
-	tc := setupStudentsRoute(t)
-
-	t.Run("student_checked_in_with_room", func(t *testing.T) {
-		// Create fixtures for a fully checked-in student with room assignment
-		room := testpkg.CreateTestRoom(t, tc.db, "LocationRoom")
-		student := testpkg.CreateTestStudent(t, tc.db, "Location", "CheckedIn", "LC1")
-		activityGroup := testpkg.CreateTestActivityGroup(t, tc.db, "LocationActivity")
-		staff := testpkg.CreateTestStaff(t, tc.db, "Location", "Staff")
-		device := testpkg.CreateTestDevice(t, tc.db, "location-device")
-
-		// Create attendance (check-in)
-		now := time.Now()
-		testpkg.CreateTestAttendance(t, tc.db, student.ID, staff.ID, device.ID, now, nil)
-
-		// Create active group with room
-		activeGroup := testpkg.CreateTestActiveGroup(t, tc.db, activityGroup.ID, room.ID)
-
-		// Create visit
-		testpkg.CreateTestVisit(t, tc.db, student.ID, activeGroup.ID, now, nil)
-
-		req := testutil.NewRequest("GET", fmt.Sprintf("/%d/current-location", student.ID), nil)
-
-		rr := authExec(t, tc, req, testutil.AdminTestClaims(1), []string{"admin:*"})
-
-		assert.Equal(t, http.StatusOK, rr.Code, "Expected 200 OK. Body: %s", rr.Body.String())
-		assert.Contains(t, rr.Body.String(), "current_location")
-		// Should show room name
-		assert.Contains(t, rr.Body.String(), "LocationRoom")
-	})
-
-	t.Run("student_checked_in_no_visit", func(t *testing.T) {
-		// Student checked in but no active visit (transit state)
-		student := testpkg.CreateTestStudent(t, tc.db, "Transit", "Student", "TS1")
-		staff := testpkg.CreateTestStaff(t, tc.db, "Transit", "Staff")
-		device := testpkg.CreateTestDevice(t, tc.db, "transit-device")
-
-		// Create attendance (check-in) but NO visit
-		now := time.Now()
-		testpkg.CreateTestAttendance(t, tc.db, student.ID, staff.ID, device.ID, now, nil)
-
-		req := testutil.NewRequest("GET", fmt.Sprintf("/%d/current-location", student.ID), nil)
-
-		rr := authExec(t, tc, req, testutil.AdminTestClaims(1), []string{"admin:*"})
-
-		assert.Equal(t, http.StatusOK, rr.Code, "Expected 200 OK. Body: %s", rr.Body.String())
-		assert.Contains(t, rr.Body.String(), "current_location")
-	})
-
-	t.Run("student_checked_out", func(t *testing.T) {
-		// Student with completed attendance (checked out)
-		student := testpkg.CreateTestStudent(t, tc.db, "CheckedOut", "Student", "CO1")
-		staff := testpkg.CreateTestStaff(t, tc.db, "CheckedOut", "Staff")
-		device := testpkg.CreateTestDevice(t, tc.db, "checkout-device")
-
-		// Create attendance with check-out time
-		now := time.Now()
-		checkOut := now.Add(-1 * time.Hour)
-		testpkg.CreateTestAttendance(t, tc.db, student.ID, staff.ID, device.ID, now.Add(-2*time.Hour), &checkOut)
-
-		req := testutil.NewRequest("GET", fmt.Sprintf("/%d/current-location", student.ID), nil)
-
-		rr := authExec(t, tc, req, testutil.AdminTestClaims(1), []string{"admin:*"})
-
-		assert.Equal(t, http.StatusOK, rr.Code, "Expected 200 OK. Body: %s", rr.Body.String())
-		assert.Contains(t, rr.Body.String(), "current_location")
-	})
-}
-
 func TestGetStudentCurrentVisit_WithActiveVisit(t *testing.T) {
 	t.Parallel()
 
@@ -493,4 +145,36 @@ func TestGetStudentCurrentVisit_WithActiveVisit(t *testing.T) {
 		// Should return the visit data
 		assert.Equal(t, http.StatusOK, rr.Code, "Expected 200 OK. Body: %s", rr.Body.String())
 	})
+}
+
+// TestGetStudent_CheckedOutReadsAbsentSinceCheckout pins the checked-out
+// location on the student payload, which replaced the retired
+// /students/{id}/current-location endpoint (#4431): a full-access reader sees
+// "Abwesend" with the checkout time.
+func TestGetStudent_CheckedOutReadsAbsentSinceCheckout(t *testing.T) {
+	t.Parallel()
+
+	tc := setupStudentsRoute(t)
+	student := testpkg.CreateTestStudent(t, tc.db, "CheckedOut", "Payload", "CO2")
+	staff := testpkg.CreateTestStaff(t, tc.db, "CheckedOut", "PayloadStaff")
+	device := testpkg.CreateTestDevice(t, tc.db, "checkout-payload-device")
+	// Minutes, not hours, keep both stamps on today's date.
+	now := time.Now()
+	checkOut := now.Add(-1 * time.Minute).Truncate(time.Second)
+	testpkg.CreateTestAttendance(t, tc.db, student.ID, staff.ID, device.ID, now.Add(-2*time.Minute), &checkOut)
+
+	req := testutil.NewRequest("GET", fmt.Sprintf("/%d", student.ID), nil)
+	rr := authExec(t, tc, req, testutil.AdminTestClaims(1), []string{"admin:*"})
+	require.Equal(t, http.StatusOK, rr.Code, "body: %s", rr.Body.String())
+
+	var response struct {
+		Data struct {
+			Location      string     `json:"current_location"`
+			LocationSince *time.Time `json:"location_since"`
+		} `json:"data"`
+	}
+	require.NoError(t, json.Unmarshal(rr.Body.Bytes(), &response))
+	assert.Equal(t, "Abwesend", response.Data.Location)
+	require.NotNil(t, response.Data.LocationSince)
+	assert.True(t, checkOut.Equal(*response.Data.LocationSince), "location_since %s, want %s", response.Data.LocationSince, checkOut)
 }

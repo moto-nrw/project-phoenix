@@ -122,11 +122,6 @@ func (r CareArrivalNoteRows) DeleteByStudentID(ctx context.Context, id int64) er
 	return r.rows.ScheduleError("delete by student id", r.rows.Records.DeleteArrivalNotesByStudent(ctx, id))
 }
 
-func (r CareArrivalNoteRows) DeletePastNotes(ctx context.Context, d calendar.Date) (int64, error) {
-	rows, err := r.rows.Records.DeleteArrivalNotesBefore(ctx, ports.CareDate(d))
-	return rows, r.rows.ScheduleError("delete past notes", err)
-}
-
 func (r CarePickupNoteRows) Create(ctx context.Context, row *scheduleModels.StudentPickupNote) error {
 	if row == nil {
 		return invalidLegacyEntity("StudentPickupNote")
@@ -195,11 +190,6 @@ func (r CarePickupNoteRows) list(ctx context.Context, filter ports.CareScheduleF
 
 func (r CarePickupNoteRows) DeleteByStudentID(ctx context.Context, id int64) error {
 	return r.rows.ScheduleError("delete by student id", r.rows.Records.DeletePickupNotesByStudent(ctx, id))
-}
-
-func (r CarePickupNoteRows) DeletePastNotes(ctx context.Context, d calendar.Date) (int64, error) {
-	rows, err := r.rows.Records.DeletePickupNotesBefore(ctx, ports.CareDate(d))
-	return rows, r.rows.ScheduleError("delete past notes", err)
 }
 
 var (
