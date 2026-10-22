@@ -153,6 +153,13 @@ const mockIsAdmin = vi.mocked(isAdmin);
 const mockIsCaregiver = vi.mocked(isCaregiver);
 const mockHasEffectiveAdminScope = vi.mocked(hasEffectiveAdminScope);
 const mockHasPermission = vi.mocked(hasPermission);
+const CAREGIVER_NAV_PERMISSIONS = new Set([
+  "users:read",
+  "time_tracking:own",
+  "rooms:read",
+  "activities:read",
+  "substitutions:read",
+]);
 const mockUseShellAuth = vi.mocked(useShellAuth);
 const mockUseChangeRequestAccess = vi.mocked(useChangeRequestAccess);
 const mockUseAttendanceLogEnabled = vi.mocked(useAttendanceLogEnabled);
@@ -243,12 +250,11 @@ describe("MobileBottomNav", () => {
     );
     // Eine Betreuungskraft hält die Rechte der Systemrolle „user“, die die
     // Navigation prüft. Seit #4573 hängen Suchen/Alle Kinder, Mitarbeiter,
-    // Zeiterfassung und Elternnachrichten an users:read bzw.
-    // time_tracking:own.
+    // Zeiterfassung, Elternnachrichten, Räume, Aktivitäten, Vertretungen
+    // und Notfall am Recht ihrer Route.
     mockHasPermission.mockImplementation(
       (session, permission) =>
-        !mockIsAdmin(session) &&
-        (permission === "users:read" || permission === "time_tracking:own"),
+        !mockIsAdmin(session) && CAREGIVER_NAV_PERMISSIONS.has(permission),
     );
     mockUseNFCEnabled.mockReturnValue(true);
     mockUsePresenceMode.mockReturnValue("detailed");
@@ -1240,7 +1246,15 @@ describe("MobileBottomNav", () => {
   // `user`. Reiter und Menüeinträge, deren Route sie nicht öffnen darf,
   // fehlen; eine Betreuungskraft sieht sie.
   describe("Rolle „Extern“", () => {
-    const GATED_MENU_LABELS = ["Zeiterfassung", "Mitarbeiter", "Nachrichten"];
+    const GATED_MENU_LABELS = [
+      "Zeiterfassung",
+      "Mitarbeiter",
+      "Nachrichten",
+      "Räume",
+      "Aktivitäten",
+      "Vertretungen",
+      "Notfall",
+    ];
     const getMoreButton = () => {
       const navButtons = screen.getAllByRole("button");
       return navButtons.find((btn) => !btn.hasAttribute("data-testid"))!;

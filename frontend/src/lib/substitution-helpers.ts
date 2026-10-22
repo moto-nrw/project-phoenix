@@ -21,7 +21,13 @@ export interface BackendSubstitutionOverview {
   group_handovers: BackendGroupHandover[];
   targets: Array<{ id: string; full_name: string }>;
   schedule_appointments?: BackendScheduleAppointment[];
-  schedule_targets?: Array<{ id: string; full_name: string }>;
+  // is_external marks an external caregiver (#4573): markable absent, never
+  // offered as substitute.
+  schedule_targets?: Array<{
+    id: string;
+    full_name: string;
+    is_external?: boolean;
+  }>;
   running_supervisions: BackendRunningSupervision[];
 }
 
@@ -113,7 +119,7 @@ export interface ScheduleSubstitutionOverview {
       canEnd: boolean;
     }>;
   }>;
-  staff: Array<{ id: string; name: string }>;
+  staff: Array<{ id: string; name: string; isExternal: boolean }>;
 }
 
 export interface SubstitutionProxyEnvelope<T> {
@@ -256,6 +262,7 @@ export function mapScheduleSubstitutionOverview(
     staff: (backend.schedule_targets ?? []).map((member) => ({
       id: String(member.id),
       name: member.full_name,
+      isExternal: member.is_external === true,
     })),
   };
 }

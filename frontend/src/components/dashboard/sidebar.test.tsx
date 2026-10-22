@@ -170,12 +170,19 @@ const mockHasEffectiveAdminScope = vi.mocked(hasEffectiveAdminScope);
 const mockHasPermission = vi.mocked(hasPermission);
 // Standardverhalten des geteilten hasPermission-Mocks: der Admin hält alles,
 // eine Betreuungskraft die Rechte der Systemrolle „user“, die die
-// Navigation prüft (users:read, time_tracking:own). Seit #4573 hängen Alle
-// Kinder, Mitarbeiter, Zeiterfassung und Elternnachrichten an diesen
-// Rechten. Tests, die einzelne Rechte gezielt vergeben, stellen darüber
+// Navigation prüft (users:read, time_tracking:own, rooms:read,
+// activities:read, substitutions:read). Seit #4573 hängen Alle Kinder,
+// Mitarbeiter, Zeiterfassung, Elternnachrichten, Räume, Aktivitäten,
+// Vertretungen und Notfall an diesen Rechten. Tests, die einzelne Rechte gezielt vergeben, stellen darüber
 // wieder den Ausgangszustand her (vi.clearAllMocks setzt Implementierungen
 // nicht zurück).
-const CAREGIVER_NAV_PERMISSIONS = new Set(["users:read", "time_tracking:own"]);
+const CAREGIVER_NAV_PERMISSIONS = new Set([
+  "users:read",
+  "time_tracking:own",
+  "rooms:read",
+  "activities:read",
+  "substitutions:read",
+]);
 const restoreDefaultHasPermission = () =>
   mockHasPermission.mockImplementation(
     (session, permission) =>
@@ -2333,6 +2340,10 @@ describe("Sidebar", () => {
       "Mitarbeiter",
       "Zeiterfassung",
       "Nachrichten",
+      "Räume",
+      "Aktivitäten",
+      "Vertretungen",
+      "Notfall",
     ];
 
     it("zeigt der Rolle „Extern“ keine Einträge, deren Route sie nicht öffnen darf", () => {
@@ -2354,7 +2365,7 @@ describe("Sidebar", () => {
       mockHasPermission.mockImplementation(
         (_session: unknown, permission: string) =>
           CAREGIVER_PERMISSIONS.has(permission) ||
-          permission === "time_tracking:own",
+          CAREGIVER_NAV_PERMISSIONS.has(permission),
       );
 
       render(<Sidebar />);

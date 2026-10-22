@@ -175,14 +175,16 @@ const NAV_ITEMS: NavItem[] = [
     icon: "M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2",
     concept: "activities",
     activeColor: "text-moto-coral",
-    alwaysShow: true,
+    // Dasselbe Recht wie GET /api/activities (#4573, Rolle „Extern“).
+    requiresPermission: ["activities:list", "activities:read"],
   },
   {
     ...STAFF_FLAT_PAGES.rooms,
     icon: navigationIcons.rooms,
     concept: "rooms",
     activeColor: "text-moto-navy",
-    alwaysShow: true,
+    // Dasselbe Recht wie GET /api/rooms (#4573, Rolle „Extern“).
+    requiresPermission: "rooms:read",
   },
   {
     ...STAFF_FLAT_PAGES.staff,
@@ -208,6 +210,8 @@ const NAV_ITEMS: NavItem[] = [
     icon: "M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15",
     concept: "groupAccess",
     activeColor: "text-moto-purple",
+    // Die Seite öffnet nur mit substitutions:read (#4573, Rolle „Extern“).
+    requiresPermission: "substitutions:read",
   },
   {
     ...STAFF_FLAT_PAGES.infoDisplays,
@@ -277,7 +281,9 @@ const NAV_ITEMS: NavItem[] = [
     icon: navigationIcons.emergency,
     concept: "emergency",
     activeColor: "text-moto-wine",
-    alwaysShow: true,
+    // Die Notfallliste exportiert das Backend nur mit users:read (#4573,
+    // Rolle „Extern“).
+    requiresPermission: "users:read",
     bottomPinned: true,
   },
   {

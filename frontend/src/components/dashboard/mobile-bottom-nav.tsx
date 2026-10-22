@@ -393,22 +393,26 @@ const PAGE_ITEMS: readonly AdditionalNavItem[] = [
     requiresPermission: "users:read",
   },
   {
+    // Wie in der Seitenleiste: das Recht von GET /api/rooms (#4573).
     ...STAFF_FLAT_PAGES.rooms,
     iconKey: "rooms",
     concept: "rooms",
-    alwaysShow: true,
+    requiresPermission: "rooms:read",
   },
   {
+    // Wie in der Seitenleiste: das Recht von GET /api/activities (#4573).
     ...STAFF_FLAT_PAGES.activities,
     iconKey: "activities",
     concept: "activities",
-    alwaysShow: true,
+    requiresPermission: ["activities:list", "activities:read"],
   },
   {
-    // Gemeinsame Übersicht für alle drei Vertretungsvorgänge.
+    // Gemeinsame Übersicht für alle drei Vertretungsvorgänge; die Seite
+    // öffnet nur mit substitutions:read (#4573).
     ...STAFF_FLAT_PAGES.substitutions,
     iconKey: "substitutions",
     concept: "groupAccess",
+    requiresPermission: "substitutions:read",
   },
   {
     // Anfragen-Modul (#2429). Gating unten in isHrefEnabled über
@@ -506,10 +510,11 @@ const PAGE_ITEMS: readonly AdditionalNavItem[] = [
     requiresPermission: ["display:read", "display:manage"],
   },
   {
+    // Wie in der Seitenleiste: der Export verlangt users:read (#4573).
     ...STAFF_FLAT_PAGES.emergency,
     iconKey: "emergency",
     concept: "emergency",
-    alwaysShow: true,
+    requiresPermission: "users:read",
   },
   {
     ...STAFF_FLAT_PAGES.help,

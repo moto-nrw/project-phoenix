@@ -488,7 +488,7 @@ src/components/students/school-checkin-fab.tsx|text-[10px]@198
 src/components/time-tracking/edit-history-accordion.tsx|text-[10px]@118 text-[10px]@139 text-[10px]@150
 src/components/time-tracking/leave-requests-card.tsx|text-[10px]@542
 src/components/time-tracking/vacation-request-modal.tsx|text-[11px]@372
-src/components/timetable/bulk-substitution-modal.tsx|text-[11px]@479 text-[11px]@523
+src/components/timetable/bulk-substitution-modal.tsx|text-[11px]@481 text-[11px]@525
 src/components/timetable/event-form/multi-select-field.tsx|text-[11px]@147 text-[10px]@295 text-[11px]@301
 src/components/timetable/event-form/step-termin.tsx|text-[10px]@163 text-[11px]@233 text-[11px]@266 text-[11px]@343 text-[11px]@349 text-[11px]@397
 src/components/timetable/gap-jump-list.tsx|text-[10px]@108 text-[11px]@131 text-[11px]@146
@@ -498,7 +498,7 @@ src/components/timetable/month-planner-grid.tsx|text-[11px]@65 text-[11px]@141 t
 src/components/timetable/period-switcher-dropdown.tsx|text-[11px]@200 text-[10px]@216 text-[11px]@225 text-[10px]@267 text-[10px]@291 text-[10px]@364 text-[10px]@378 text-[10px]@390 text-[11px]@398 text-[11px]@405
 src/components/timetable/staff-pool-slide-over.tsx|text-[10px]@396 text-[11px]@461
 src/components/timetable/substitution-person-card.tsx|text-[11px]@56 text-[11px]@334 text-[11px]@341 text-[11px]@348 text-[11px]@356 text-[11px]@368
-src/components/timetable/substitution-slide-over.tsx|text-[10px]@576 text-[9px]@581 text-[11px]@740 text-[11px]@744 text-[10px]@784 text-[10px]@788 text-[10px]@792 text-[10px]@796 text-[11px]@1238
+src/components/timetable/substitution-slide-over.tsx|text-[10px]@578 text-[9px]@583 text-[11px]@742 text-[11px]@746 text-[10px]@786 text-[10px]@790 text-[10px]@794 text-[10px]@798 text-[11px]@1240
 src/components/timetable/template-card.tsx|text-[11px]@119 text-[11px]@131 text-[10px]@174
 src/components/timetable/vertretung-day-list.tsx|text-[11px]@351 text-[11px]@391 text-[11px]@398 text-[11px]@419 text-[11px]@425
 src/components/timetable/vertretung-week-list.tsx|text-[10px]@157

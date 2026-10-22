@@ -189,9 +189,11 @@ func (a *SubstitutionAdapter) loadTargets(ctx context.Context, include bool) ([]
 	if err != nil {
 		return nil, err
 	}
+	// An external caregiver may be marked absent but never substitutes
+	// (#4573 D6); the mark lets the pickers leave them out.
 	for _, member := range members {
 		if member != nil {
-			targets = append(targets, education.StaffRef{ID: member.ID, FullName: member.FullName()})
+			targets = append(targets, education.StaffRef{ID: member.ID, FullName: member.FullName(), IsExternal: member.IsGuest})
 		}
 	}
 	return targets, nil

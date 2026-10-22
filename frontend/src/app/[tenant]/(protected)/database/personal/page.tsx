@@ -425,7 +425,10 @@ function TeachersPageContent() {
           Personalseite selbst gehört ihr (#3469). */}
       {canManageUsers ? (
         <div className="mb-4">
-          <PendingInvitationsList refreshKey={invitationRefreshKey} />
+          <PendingInvitationsList
+            refreshKey={invitationRefreshKey}
+            onRevoked={() => void refreshTeachers()}
+          />
         </div>
       ) : null}
 
