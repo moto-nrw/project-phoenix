@@ -56,13 +56,14 @@ type Dependencies struct {
 	Presence Presence
 	Planning Planning
 	Settings Settings
+	Staff    Staff
 	Calendar Calendar
 	Now      func() time.Time
 }
 
 func (d Dependencies) complete() bool {
 	return d.Access != nil && d.Sessions != nil && d.Yard != nil && d.Groups != nil &&
-		d.Schedule != nil && d.Presence != nil && d.Planning != nil && d.Settings != nil && d.Calendar != nil
+		d.Schedule != nil && d.Presence != nil && d.Planning != nil && d.Settings != nil && d.Staff != nil && d.Calendar != nil
 }
 
 type service struct{ deps Dependencies }
@@ -95,6 +96,9 @@ type Group struct {
 	// ParticipantLimit is the started activity's limit; nil without one.
 	// The page compares it with the session's children (#3634).
 	ParticipantLimit *int `json:"participant_limit,omitempty"`
+	// Supervisors names who supervises the session now (#4354); absent
+	// without one.
+	Supervisors []SessionSupervisor `json:"supervisors,omitempty"`
 }
 
 type UnclaimedGroup struct {
@@ -440,6 +444,9 @@ func (s *service) Dashboard(ctx context.Context, requestedGroupID int64) (*Proje
 		return nil, err
 	}
 	if err := s.loadPresenceSections(ctx, projection, caller, selected, openRooms, staffID, snapshot.businessDay); err != nil {
+		return nil, err
+	}
+	if err := s.nameSupervisors(ctx, projection, openRooms); err != nil {
 		return nil, err
 	}
 	return projection, nil
