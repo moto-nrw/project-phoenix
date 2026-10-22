@@ -62,8 +62,15 @@ export default defineConfig({
   forbidOnly: !!process.env.CI,
   workers: process.env.CI ? 1 : undefined,
   // CI (.github/workflows/e2e.yml) braucht die Fehler im Log; der HTML-Report
-  // landet bei einem Fehlschlag als Artefakt.
-  reporter: process.env.CI ? [["list"], ["html", { open: "never" }]] : "html",
+  // landet bei einem Fehlschlag als Artefakt. Aus dem JSON-Bericht prüft der
+  // Workflow, dass Tests gelaufen und keine übersprungen sind.
+  reporter: process.env.CI
+    ? [
+        ["list"],
+        ["html", { open: "never" }],
+        ["json", { outputFile: "test-results/e2e-results.json" }],
+      ]
+    : "html",
   use: {
     baseURL: "http://localhost:3000",
     screenshot: "only-on-failure",

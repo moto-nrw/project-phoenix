@@ -3,6 +3,7 @@ import { expect, type Page, test } from "@playwright/test";
 import {
   loginToTenant,
   MISSING_SEED_ACCESS,
+  openSidebarGroup,
   seedAccess as access,
 } from "./tenant-session";
 
@@ -65,17 +66,10 @@ async function stubProbe(page: Page) {
  * saveSeriesForm). Mutates nothing — the caller cancels the warning.
  */
 async function openSeriesScopeDialog(page: Page): Promise<boolean> {
-  // "Betreuungsplan" lives in the collapsible "Planung" sidebar group, which
-  // starts collapsed; open it first.
-  const sidebar = page.locator("aside");
-  const planungGroup = sidebar.getByRole("button", {
-    name: "Planung",
-    exact: true,
-  });
-  if ((await planungGroup.getAttribute("aria-expanded")) !== "true") {
-    await planungGroup.click();
-  }
-  await sidebar
+  // "Betreuungsplan" lives in the collapsible "Planung" sidebar group.
+  await openSidebarGroup(page, "Planung");
+  await page
+    .locator("aside")
     .getByRole("link", { name: "Betreuungsplan", exact: true })
     .click();
   await page.waitForURL((url) => url.pathname.endsWith("/betreuungsplan"));

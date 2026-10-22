@@ -1,4 +1,4 @@
-import { expect, type Page } from "@playwright/test";
+import { expect, type Locator, type Page } from "@playwright/test";
 
 import { loadSeedAccess, type SeedAccess } from "../scripts/seed-state";
 
@@ -10,6 +10,14 @@ import { loadSeedAccess, type SeedAccess } from "../scripts/seed-state";
 // überspringen die Specs.
 
 export const seedAccess: SeedAccess | null = loadSeedAccess();
+
+// Lokal überspringen die Specs ohne Seed-Zugang. In CI (.github/workflows/
+// e2e.yml) wäre ein Lauf aus lauter Skips grün, ohne etwas zu prüfen.
+if (process.env.CI && seedAccess === null) {
+  throw new Error(
+    "E2E in CI braucht backend/.seed-state.json; der Seed-Schritt ist ausgefallen.",
+  );
+}
 
 export const tenantBase = seedAccess
   ? `http://${seedAccess.slug}.localhost:3000`
@@ -55,4 +63,64 @@ export async function loginToTenant(
     localStorage.setItem(storageKey, JSON.stringify({ done: true }));
   }, key);
   await page.reload({ waitUntil: "domcontentloaded" });
+}
+
+/**
+ * Klappt eine Gruppe der Desktop-Seitenleiste auf (etwa "Planung", #2826).
+ * Die Gruppen stellen ihren gemerkten Zustand erst nach der Hydration her; ein
+ * einzelner Klick kann eine gerade aufgeklappte Gruppe wieder zuklappen.
+ */
+export async function openSidebarGroup(page: Page, name: string) {
+  const group = page
+    .locator("aside")
+    .getByRole("button", { name, exact: true });
+  await expect(async () => {
+    if ((await group.getAttribute("aria-expanded")) !== "true") {
+      await group.click();
+    }
+    await expect(group).toHaveAttribute("aria-expanded", "true", {
+      timeout: 1000,
+    });
+  }).toPass({ timeout: 15000 });
+}
+
+/**
+ * Wartet, bis die endlichen Animationen in einem Bereich durch sind, etwa das
+ * Einfahren eines SlideOvers. Ein Klick während des Einfahrens trifft die Stelle,
+ * an der der Knopf gerade noch nicht ist, also den Hintergrund; das schließt den
+ * Dialog ohne Aktion.
+ */
+export async function waitForAnimations(locator: Locator) {
+  await locator.evaluate((element) =>
+    Promise.all(
+      element
+        .getAnimations({ subtree: true })
+        .filter(
+          (animation) =>
+            animation.effect?.getComputedTiming().endTime !== Infinity,
+        )
+        .map((animation) => animation.finished.catch(() => undefined)),
+    ),
+  );
+}
+
+/**
+ * Wählt ein Datum im Kit-Datumsfeld (ISODatePicker, seit c21828f2f8 statt
+ * `<input type="date">`): Feld öffnen, bei Bedarf einen Monat weiterblättern,
+ * den Tag anklicken. Der Kalender rendert per Portal, daher page-weit greifen.
+ * Das Tagesraster lädt nach (lazy react-day-picker), und ein Klick während der
+ * Hydration öffnet das Feld nicht, und ein Feld rendert nach der Auswahl im
+ * Nachbarfeld neu; dann wird erneut geklickt.
+ */
+export async function pickDate(page: Page, trigger: Locator, iso: string) {
+  const grid = page.locator("td[data-day]").first();
+  await expect(async () => {
+    if (!(await grid.isVisible())) await trigger.click({ timeout: 5000 });
+    await expect(grid).toBeVisible({ timeout: 2000 });
+  }).toPass({ timeout: 20000 });
+  const day = page.locator(`td[data-day="${iso}"]:not([data-outside]) button`);
+  if ((await day.count()) === 0) {
+    await page.getByRole("button", { name: "Nächster Monat" }).click();
+  }
+  await day.click();
 }

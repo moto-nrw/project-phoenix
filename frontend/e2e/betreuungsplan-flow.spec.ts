@@ -3,6 +3,7 @@ import { expect, type Page, test } from "@playwright/test";
 import {
   loginToTenant,
   MISSING_SEED_ACCESS,
+  pickDate,
   seedAccess as access,
   tenantBase as base,
 } from "./tenant-session";
@@ -309,19 +310,7 @@ test.describe("Betreuungsplan UI-Flow (Inkrement 4)", () => {
     await expect(modal.getByText("Schritt 1 von 3")).toBeVisible();
 
     await modal.locator("#event_title").fill(title);
-    // Datum: Kit-Datumsfeld (ISODatePicker, seit c21828f2f8 statt
-    // `<input type="date">`). Feld öffnen, bei Bedarf einen Monat weiter-
-    // blättern, Tag anklicken. Der Kalender rendert per Portal ausserhalb
-    // des Modals, daher page-weit greifen.
-    await modal.locator("#event_date").click();
-    await page.locator("td[data-day]").first().waitFor();
-    const dayCell = page.locator(
-      `td[data-day="${day}"]:not([data-outside]) button`,
-    );
-    if ((await dayCell.count()) === 0) {
-      await page.getByRole("button", { name: "Nächster Monat" }).click();
-    }
-    await dayCell.click();
+    await pickDate(page, modal.locator("#event_date"), day);
     await modal.locator("#event_start").fill("14:00");
     await modal.locator("#event_end").fill("15:00");
     // Raum: CustomSelect-Combobox (seit b2b7a333b1 statt `<select>`). Erster

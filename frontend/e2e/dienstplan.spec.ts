@@ -8,8 +8,10 @@ import {
 import {
   loginToTenant,
   MISSING_SEED_ACCESS,
+  openSidebarGroup,
   seedAccess as access,
   tenantBase as base,
+  waitForAnimations,
 } from "./tenant-session";
 import {
   berlinTodayISO,
@@ -312,11 +314,7 @@ test.describe("Dienstplan UI-Flow", () => {
     // Browser-Context zu ist. exact: die Sidebar führt daneben den Eintrag
     // "Mein Dienstplan" (/mein-dienstplan).
     await page.goto(`${base}/dashboard`, { waitUntil: "domcontentloaded" });
-    const planungGroup = page
-      .locator("aside")
-      .getByRole("button", { name: "Planung", exact: true });
-    await planungGroup.click();
-    await expect(planungGroup).toHaveAttribute("aria-expanded", "true");
+    await openSidebarGroup(page, "Planung");
     await page
       .locator("aside")
       .getByText("Dienstplan", { exact: true })
@@ -406,6 +404,7 @@ test.describe("Dienstplan UI-Flow", () => {
       // Leere Zelle -> Editor im create-Modus.
       await emptyCellButton(page, person, day).first().click();
       await expect(dialog).toBeVisible();
+      await waitForAnimations(dialog);
       await dialog.getByLabel("Beginn", { exact: true }).fill("08:00");
       await dialog.getByLabel("Ende", { exact: true }).fill("10:00");
       await captureCreatedShift(page, () =>
@@ -421,6 +420,7 @@ test.describe("Dienstplan UI-Flow", () => {
       // 409-Provokation: zweite, überlappende Schicht in derselben Zelle.
       await emptyCellButton(page, person, day).first().click();
       await expect(dialog).toBeVisible();
+      await waitForAnimations(dialog);
       await dialog.getByLabel("Beginn", { exact: true }).fill("09:00");
       await dialog.getByLabel("Ende", { exact: true }).fill("11:00");
       await dialog.getByRole("button", { name: "Schicht anlegen" }).click();

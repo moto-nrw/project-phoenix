@@ -1,10 +1,12 @@
-import { expect, type Page, test } from "@playwright/test";
+import { expect, test } from "@playwright/test";
 
 import {
   loginToTenant,
   MISSING_SEED_ACCESS,
+  pickDate,
   seedAccess as access,
   tenantBase as base,
+  waitForAnimations,
 } from "./tenant-session";
 import { toISODate } from "../src/lib/date-helpers";
 
@@ -16,22 +18,6 @@ function addDays(date: Date, days: number): Date {
   const next = new Date(date);
   next.setDate(next.getDate() + days);
   return next;
-}
-
-/**
- * Wählt ein Datum im Kit-Datumsfeld (ISODatePicker, seit c21828f2f8 statt
- * `<input type="date">`): Feld öffnen, bei Bedarf einen Monat weiterblättern,
- * den Tag der laufenden Monatsansicht anklicken.
- */
-async function pickDate(page: Page, label: string, iso: string) {
-  await page.getByRole("button", { name: label, exact: true }).click();
-  // Das Tagesraster lädt nach (lazy react-day-picker): erst darauf warten.
-  await page.locator("td[data-day]").first().waitFor();
-  const day = page.locator(`td[data-day="${iso}"]:not([data-outside]) button`);
-  if ((await day.count()) === 0) {
-    await page.getByRole("button", { name: "Nächster Monat" }).click();
-  }
-  await day.click();
 }
 
 // Der angelegte Termin wird wieder gelöscht. Sonst stapeln sich bei
@@ -50,9 +36,13 @@ test.describe("Personal calendar flow", () => {
     if (!createdAppointmentId) return;
     const id = createdAppointmentId;
     createdAppointmentId = null;
-    await page.request
-      .delete(`${base}/api/calendar/appointments/${id}`)
-      .catch(() => undefined);
+    const res = await page.request.delete(
+      `${base}/api/calendar/appointments/${id}`,
+    );
+    expect(
+      res.ok(),
+      `Termin ${id} löschen fehlgeschlagen (${res.status()})`,
+    ).toBe(true);
   });
 
   test("staff creates, accepts, and sees a recurring all-staff appointment", async ({
@@ -72,9 +62,13 @@ test.describe("Personal calendar flow", () => {
     ).toBeVisible();
 
     await page.getByRole("button", { name: "Neuer Termin" }).click();
-    await expect(
-      page.getByRole("heading", { name: "Termin erstellen" }),
-    ).toBeVisible();
+    const createHeading = page.getByRole("heading", {
+      name: "Termin erstellen",
+    });
+    await expect(createHeading).toBeVisible();
+    await waitForAnimations(
+      page.getByRole("dialog").filter({ has: createHeading }),
+    );
 
     // Rolle statt getByLabel: die Checkbox "Eltern per E-Mail benachrichtigen"
     // trägt "Titel" in ihrer Beschreibung, "Ort" steckt in weiteren Labels.
@@ -82,8 +76,16 @@ test.describe("Personal calendar flow", () => {
     await page
       .getByRole("textbox", { name: "Ort", exact: true })
       .fill("E2E Raum");
-    await pickDate(page, "Startdatum", startDate);
-    await pickDate(page, "Enddatum", startDate);
+    await pickDate(
+      page,
+      page.getByRole("button", { name: "Startdatum", exact: true }),
+      startDate,
+    );
+    await pickDate(
+      page,
+      page.getByRole("button", { name: "Enddatum", exact: true }),
+      startDate,
+    );
     await page.getByLabel("Startzeit").fill("09:00");
     await page.getByLabel("Endzeit").fill("10:00");
     // Kit-Checkbox: das <input> ist sr-only, klickbar ist das umschließende
@@ -96,7 +98,11 @@ test.describe("Personal calendar flow", () => {
     ).toBeVisible();
     await page.getByRole("combobox", { name: "Wiederholung" }).click();
     await page.getByRole("option", { name: "Wöchentlich" }).click();
-    await pickDate(page, "Endet am", recurrenceEnd);
+    await pickDate(
+      page,
+      page.getByRole("button", { name: "Endet am", exact: true }),
+      recurrenceEnd,
+    );
 
     const createResponse = page.waitForResponse(
       (response) =>
@@ -106,12 +112,13 @@ test.describe("Personal calendar flow", () => {
     await page.getByRole("button", { name: "Termin speichern" }).click();
     const created = await createResponse;
     await expect(created.ok()).toBeTruthy();
+    // Antwort: Termin-Detail ({ appointment: { id, … }, … }).
     const createdJson = (await created.json()) as {
-      data?: { id?: string | number };
-      id?: string | number;
+      data?: { appointment?: { id?: string | number } };
     };
-    const createdId = createdJson.data?.id ?? createdJson.id;
-    createdAppointmentId = createdId == null ? null : String(createdId);
+    const createdId = createdJson.data?.appointment?.id;
+    expect(createdId, "Termin-Anlage muss eine ID liefern").toBeTruthy();
+    createdAppointmentId = String(createdId);
 
     // Seit 0fccd5815c ("tap-to-detail") ist ein Termin im Raster ein
     // kompakter Block; Antwortstatus, Ort und Zusagen/Absagen trägt die
@@ -123,6 +130,7 @@ test.describe("Personal calendar flow", () => {
     await expect(eventDetail).toContainText(title);
     await expect(eventDetail).toContainText("Offen");
     await expect(eventDetail).toContainText("E2E Raum");
+    await waitForAnimations(eventDetail);
 
     const responseUpdate = page.waitForResponse(
       (response) =>
@@ -137,6 +145,7 @@ test.describe("Personal calendar flow", () => {
     await expect(eventDetail).toBeHidden();
     await currentWeekEvent.click();
     await expect(eventDetail).toContainText("Zugesagt");
+    await waitForAnimations(eventDetail);
 
     await eventDetail.getByRole("button", { name: "Schließen" }).click();
     await page.getByRole("button", { name: "Nächste Woche" }).click();

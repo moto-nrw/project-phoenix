@@ -130,11 +130,14 @@ test.describe("Vertretung UI-Flow (#1886, Inkrement 2)", () => {
     // Frühbetreuung abwesend mit Ersatz; diese Abwesenheit wäre im Editor unter
     // "Bestimmte Termine" vorausgewählt und ließe Save 2 mit "Der Termin hat
     // schon eine andere Ersatzperson" scheitern.
-    const dayInstances = (await (
-      await page.request.get(
-        `${base}/api/timetable/instances?from=${day}&to=${day}`,
-      )
-    ).json()) as {
+    const dayInstancesResponse = await page.request.get(
+      `${base}/api/timetable/instances?from=${day}&to=${day}`,
+    );
+    expect(
+      dayInstancesResponse.ok(),
+      `Termine am Testtag laden fehlgeschlagen (${dayInstancesResponse.status()})`,
+    ).toBe(true);
+    const dayInstances = (await dayInstancesResponse.json()) as {
       data?: { instances?: Array<{ staff?: Array<{ staff_id: number }> }> };
     };
     const busyStaffIds = new Set(
