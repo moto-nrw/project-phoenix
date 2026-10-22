@@ -77,10 +77,6 @@ type StudentRecord struct {
 
 func (r StudentRecord) IsAlumnus() bool { return r.Status == StudentStatusAlumnus }
 
-// IsActive reports a child whose care is running: not pending, inactive or
-// graduated.
-func (r StudentRecord) IsActive() bool { return r.Status == StudentStatusActive }
-
 // CareEndedOn reports whether the child's care has ended by day: a last care
 // day is set and day lies after it.
 func (r StudentRecord) CareEndedOn(day calendar.Date) bool {

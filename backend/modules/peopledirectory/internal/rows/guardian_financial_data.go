@@ -36,13 +36,6 @@ func (f *GuardianFinancialData) Validate() error {
 	return nil
 }
 
-// HasData reports whether the row carries anything worth keeping. An edit that
-// clears both fields leaves an empty shell, which readers must treat as "no
-// bank details stored".
-func (f *GuardianFinancialData) HasData() bool {
-	return (f.IBAN != nil && *f.IBAN != "") || (f.AccountHolder != nil && *f.AccountHolder != "")
-}
-
 // GuardianFinancialDataRepository persists the 1:1 guardian bank rows.
 type GuardianFinancialDataRepository interface {
 	Create(ctx context.Context, data *GuardianFinancialData) error

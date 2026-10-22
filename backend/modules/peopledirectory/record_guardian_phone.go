@@ -48,29 +48,6 @@ func (g *GuardianProfilePhoneSnapshot) Validate() error {
 	return nil
 }
 
-func (g *GuardianProfilePhoneSnapshot) GetDisplayString() string {
-	result := g.PhoneNumber
-	if g.Label != nil && *g.Label != "" {
-		result += " (" + *g.Label + ")"
-	}
-	return result
-}
-
-func (g *GuardianProfilePhoneSnapshot) PhoneTypeLabel() string {
-	switch g.PhoneType {
-	case PhoneTypeMobile:
-		return "Mobil"
-	case PhoneTypeHome:
-		return "Telefon"
-	case PhoneTypeWork:
-		return "Dienstlich"
-	case PhoneTypeOther:
-		return "Sonstige"
-	default:
-		return string(g.PhoneType)
-	}
-}
-
 const recordMinPhoneDigits = 3
 const recordMinPhonePriority = 1
 

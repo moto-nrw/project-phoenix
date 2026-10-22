@@ -12,32 +12,9 @@ import (
 	"github.com/moto-nrw/project-phoenix/modules/communication/http/platformannouncements"
 )
 
-// TestNewResource verifies that the platform resource can be constructed successfully.
-func TestNewResource(t *testing.T) {
-	t.Parallel()
-
-	t.Run("creates resource with nil services", func(t *testing.T) {
-		cfg := platformannouncements.ResourceConfig{
-			AnnouncementsService: nil,
-			Runtime:              testRuntime(),
-		}
-
-		resource := platformannouncements.NewResource(cfg)
-		require.NotNil(t, resource)
-	})
-}
-
 // TestRouter verifies that the platform router can be constructed.
 func TestRouter(t *testing.T) {
 	t.Parallel()
-
-	t.Run("creates router successfully", func(t *testing.T) {
-		cfg := platformannouncements.ResourceConfig{Runtime: testRuntime()}
-		resource := platformannouncements.NewResource(cfg)
-
-		router := resource.Router()
-		require.NotNil(t, router)
-	})
 
 	t.Run("router has expected routes", func(t *testing.T) {
 		cfg := platformannouncements.ResourceConfig{Runtime: testRuntime()}

@@ -32,20 +32,3 @@ func (p *DirectoryPersonSnapshot) SetAccount(account *PersonAccountSnapshot) {
 		p.AccountID = nil
 	}
 }
-
-func (p *DirectoryPersonSnapshot) SetRFIDCard(card *PersonRFIDSnapshot) {
-	p.RFIDCard = card
-	if card != nil {
-		p.TagID = &card.ID
-	} else {
-		p.TagID = nil
-	}
-}
-
-func (p *DirectoryPersonSnapshot) HasRFIDCard() bool {
-	return p.TagID != nil && *p.TagID != ""
-}
-
-func (p *DirectoryPersonSnapshot) HasAccount() bool {
-	return p.AccountID != nil && *p.AccountID > 0
-}

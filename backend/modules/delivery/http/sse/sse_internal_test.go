@@ -336,31 +336,6 @@ func TestConnectedEvent_Marshaling(t *testing.T) {
 	assert.Equal(t, event.SubscribedTopicCount, unmarshaled.SubscribedTopicCount)
 }
 
-// =============================================================================
-// RESOURCE TESTS
-// =============================================================================
-
-func TestNewResource(t *testing.T) {
-	t.Parallel()
-
-	hub := realtime.NewHub(slog.Default())
-
-	// Test with nil services (should not panic)
-	resource := NewResource(hub, nil, testSSETransportRuntime(), slog.Default())
-	assert.NotNil(t, resource)
-	assert.Equal(t, hub, resource.hub)
-}
-
-func TestResource_EventsHandler(t *testing.T) {
-	t.Parallel()
-
-	hub := realtime.NewHub(slog.Default())
-	resource := NewResource(hub, nil, testSSETransportRuntime(), slog.Default())
-
-	handler := resource.StaffEvents
-	assert.NotNil(t, handler)
-}
-
 // Helper function
 func ptr(s string) *string {
 	return &s

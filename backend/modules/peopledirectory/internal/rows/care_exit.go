@@ -13,10 +13,3 @@ import "github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 func (s *Student) CareEndedOn(day calendar.Date) bool {
 	return s != nil && s.EnrolledUntil != nil && day.After(*s.EnrolledUntil)
 }
-
-// CareEndsLater reports whether an end of care is recorded but has not taken
-// effect yet on the given day. This is the "Betreuung endet am …" state the
-// child management shows while the child still attends normally.
-func (s *Student) CareEndsLater(day calendar.Date) bool {
-	return s != nil && s.EnrolledUntil != nil && !day.After(*s.EnrolledUntil)
-}

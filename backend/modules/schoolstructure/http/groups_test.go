@@ -6,8 +6,10 @@ package schoolstructurehttp_test
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"net/http"
+	"net/http/httptest"
 	"testing"
 	"time"
 
@@ -86,6 +88,34 @@ func setupProtectedRouter(t *testing.T, publishers ...*testpkg.RecordingBroadcas
 	return tc, router
 }
 
+// groupListResponse is the part of the paginated GET /groups body the list
+// tests assert on.
+type groupListResponse struct {
+	Data []struct {
+		ID int64 `json:"id"`
+	} `json:"data"`
+	Pagination struct {
+		PageSize     int `json:"page_size"`
+		TotalPages   int `json:"total_pages"`
+		TotalRecords int `json:"total_records"`
+	} `json:"pagination"`
+}
+
+func decodeGroupList(t *testing.T, rr *httptest.ResponseRecorder) groupListResponse {
+	t.Helper()
+	var list groupListResponse
+	require.NoError(t, json.Unmarshal(rr.Body.Bytes(), &list), rr.Body.String())
+	return list
+}
+
+func (l groupListResponse) ids() []int64 {
+	ids := make([]int64, 0, len(l.Data))
+	for _, group := range l.Data {
+		ids = append(ids, group.ID)
+	}
+	return ids
+}
+
 // =============================================================================
 // LIST GROUPS TESTS
 // =============================================================================
@@ -109,24 +139,34 @@ func TestListGroups_WithNameFilter(t *testing.T) {
 
 	tc, router := setupProtectedRouter(t)
 
-	// Create test group fixture
-	testpkg.CreateTestEducationGroup(t, tc.db, "UniqueFilterName")
+	match := testpkg.CreateTestEducationGroup(t, tc.db, "UniqueFilterName")
+	other := testpkg.CreateTestEducationGroup(t, tc.db, "OtherGroup")
 
 	req := newReq(t, "GET", "/groups?name=UniqueFilterName", nil, testutil.DefaultTestClaims(), "groups:read")
 
 	rr := testutil.ExecuteRequest(router, req)
 	testutil.AssertSuccessResponse(t, rr, http.StatusOK)
+	ids := decodeGroupList(t, rr).ids()
+	assert.Contains(t, ids, match.ID)
+	assert.NotContains(t, ids, other.ID)
 }
 
 func TestListGroups_WithPagination(t *testing.T) {
 	t.Parallel()
 
-	_, router := setupProtectedRouter(t)
+	tc, router := setupProtectedRouter(t)
+	testpkg.CreateTestEducationGroup(t, tc.db, "PageOne")
+	testpkg.CreateTestEducationGroup(t, tc.db, "PageTwo")
 
-	req := newReq(t, "GET", "/groups?page=1&page_size=10", nil, testutil.DefaultTestClaims(), "groups:read")
+	req := newReq(t, "GET", "/groups?page=1&page_size=1", nil, testutil.DefaultTestClaims(), "groups:read")
 
 	rr := testutil.ExecuteRequest(router, req)
 	testutil.AssertSuccessResponse(t, rr, http.StatusOK)
+	list := decodeGroupList(t, rr)
+	assert.Len(t, list.Data, 1)
+	assert.Equal(t, 1, list.Pagination.PageSize)
+	assert.Equal(t, 2, list.Pagination.TotalRecords)
+	assert.Equal(t, 2, list.Pagination.TotalPages)
 }
 
 func TestListGroups_WithoutPermission(t *testing.T) {
@@ -499,18 +539,6 @@ func TestGetGroupSupervisors_NotFound(t *testing.T) {
 // =============================================================================
 
 // =============================================================================
-// ROUTER TEST
-// =============================================================================
-
-func TestRouter_ReturnsValidRouter(t *testing.T) {
-	t.Parallel()
-
-	tc := setupGroupsRoute(t)
-	router := tc.resource.Router(rootAPI.ProtectedTenantRoutes)
-	require.NotNil(t, router, "Router should return a valid chi.Router")
-}
-
-// =============================================================================
 // GROUP WITH STUDENTS TESTS
 // =============================================================================
 
@@ -624,19 +652,6 @@ func TestUpdateGroup_EmptyName(t *testing.T) {
 // LIST GROUPS ADDITIONAL TESTS
 // =============================================================================
 
-func TestListGroups_InvalidPagination(t *testing.T) {
-	t.Parallel()
-
-	_, router := setupProtectedRouter(t)
-
-	// Test with invalid page number
-	req := newReq(t, "GET", "/groups?page=-1", nil, testutil.DefaultTestClaims(), "groups:read")
-
-	rr := testutil.ExecuteRequest(router, req)
-	// May succeed with default pagination or fail depending on validation
-	t.Logf("Response: %d - %s", rr.Code, rr.Body.String())
-}
-
 func TestListGroups_LargePageSize(t *testing.T) {
 	t.Parallel()
 
@@ -645,8 +660,8 @@ func TestListGroups_LargePageSize(t *testing.T) {
 	req := newReq(t, "GET", "/groups?page_size=1000", nil, testutil.DefaultTestClaims(), "groups:read")
 
 	rr := testutil.ExecuteRequest(router, req)
-	// Should succeed - large page size might be capped
 	testutil.AssertSuccessResponse(t, rr, http.StatusOK)
+	assert.Equal(t, 1000, decodeGroupList(t, rr).Pagination.PageSize, "page sizes below the maximum are not capped")
 }
 
 // =============================================================================
@@ -715,6 +730,7 @@ func TestListGroups_WithRoomIDFilter(t *testing.T) {
 
 	// Create group with room
 	group := testpkg.CreateTestEducationGroup(t, tc.db, "RoomFilterTest")
+	withoutRoom := testpkg.CreateTestEducationGroup(t, tc.db, "NoRoomFilterTest")
 
 	_, err := tc.db.NewUpdate().
 		Model((*testpkg.EducationGroup)(nil)).
@@ -728,6 +744,9 @@ func TestListGroups_WithRoomIDFilter(t *testing.T) {
 
 	rr := testutil.ExecuteRequest(router, req)
 	testutil.AssertSuccessResponse(t, rr, http.StatusOK)
+	list := decodeGroupList(t, rr)
+	assert.Equal(t, []int64{group.ID}, list.ids())
+	assert.NotContains(t, list.ids(), withoutRoom.ID)
 }
 
 // =============================================================================
@@ -753,30 +772,6 @@ func TestCreateGroup_WithTeacherIDs(t *testing.T) {
 	rr := testutil.ExecuteRequest(router, req)
 	testutil.AssertSuccessResponse(t, rr, http.StatusCreated)
 
-}
-
-// =============================================================================
-// UPDATE GROUP WITH TEACHER IDS TEST
-// =============================================================================
-
-func TestUpdateGroup_WithTeacherIDs(t *testing.T) {
-	t.Parallel()
-
-	tc, router := setupProtectedRouter(t)
-
-	group := testpkg.CreateTestEducationGroup(t, tc.db, "UpdateTeachersTest")
-
-	teacher := testpkg.CreateTestTeacher(t, tc.db, "Update", "Teacher")
-
-	body := map[string]interface{}{
-		"name":        fmt.Sprintf("UpdatedWithTeachers-%d", group.ID),
-		"teacher_ids": []int64{teacher.ID},
-	}
-
-	req := newReq(t, "PUT", fmt.Sprintf("/groups/%d", group.ID), body, testutil.DefaultTestClaims(), "groups:update")
-
-	rr := testutil.ExecuteRequest(router, req)
-	testutil.AssertSuccessResponse(t, rr, http.StatusOK)
 }
 
 // =============================================================================

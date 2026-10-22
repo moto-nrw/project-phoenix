@@ -889,38 +889,59 @@ func TestListChildGuardians_RedactsSocialWorkerContact(t *testing.T) {
 	assert.True(t, sw.ContactLockedSocialWorker, "lock reason surfaced")
 }
 
-// TestUpdateGuardianContact_RejectsSocialWorker verifies a parent cannot rewrite
-// a school-managed social worker's contact data.
-func TestUpdateGuardianContact_RejectsSocialWorker(t *testing.T) {
+// TestUpdateGuardian_RejectsSchoolManagedRoles verifies a parent cannot rewrite
+// the contact data, pickup/emergency flags or per-child pickup note of a
+// school-managed social worker or of a full guardian (legal/co) without their
+// own portal account. The note follows contact-edit eligibility.
+func TestUpdateGuardian_RejectsSchoolManagedRoles(t *testing.T) {
 	t.Parallel()
 
 	svc, db := buildGuardianService(t)
-
-	chain := testpkg.CreateTestParentGuardianChain(t, db)
-	swID := linkRoleGuardian(t, db, chain.StudentID, "sw-edit", "social_worker")
-
-	_, err := svc.UpdateGuardianContact(testpkg.WithPackageTenantRuntime(context.Background()), chain.AccountID, chain.StudentID, swID, parentService.GuardianContactInput{
-		FirstName: "Neuer",
-		LastName:  "Name",
-	})
-	require.ErrorIs(t, err, parentService.ErrGuardianSocialWorkerManaged)
-}
-
-// TestUpdateGuardianRelationship_RejectsFlagsOnSocialWorker verifies a parent
-// cannot toggle a social worker's pickup/emergency flags.
-func TestUpdateGuardianRelationship_RejectsFlagsOnSocialWorker(t *testing.T) {
-	t.Parallel()
-
-	svc, db := buildGuardianService(t)
-
-	chain := testpkg.CreateTestParentGuardianChain(t, db)
-	swID := linkRoleGuardian(t, db, chain.StudentID, "sw-flag", "social_worker")
-
+	ctx := testpkg.WithPackageTenantRuntime(context.Background())
 	canPickup := true
-	_, err := svc.UpdateGuardianRelationship(testpkg.WithPackageTenantRuntime(context.Background()), chain.AccountID, chain.StudentID, swID, parentService.GuardianRelationshipInput{
-		CanPickup: &canPickup,
-	})
-	require.ErrorIs(t, err, parentService.ErrGuardianSocialWorkerManaged)
+	writeContact := func(accountID, studentID, guardianID int64) error {
+		_, err := svc.UpdateGuardianContact(ctx, accountID, studentID, guardianID, parentService.GuardianContactInput{
+			FirstName: "Neuer",
+			LastName:  "Name",
+		})
+		return err
+	}
+	writeFlag := func(accountID, studentID, guardianID int64) error {
+		_, err := svc.UpdateGuardianRelationship(ctx, accountID, studentID, guardianID, parentService.GuardianRelationshipInput{
+			CanPickup: &canPickup,
+		})
+		return err
+	}
+	writeNote := func(accountID, studentID, guardianID int64) error {
+		_, err := svc.UpdateGuardianRelationship(ctx, accountID, studentID, guardianID, parentService.GuardianRelationshipInput{
+			PickupNotes: ptr("nicht erlaubt"),
+		})
+		return err
+	}
+
+	tests := []struct {
+		name  string
+		role  string
+		write func(accountID, studentID, guardianID int64) error
+		want  error
+	}{
+		{"contact of social worker", "social_worker", writeContact, parentService.ErrGuardianSocialWorkerManaged},
+		{"pickup flag of social worker", "social_worker", writeFlag, parentService.ErrGuardianSocialWorkerManaged},
+		{"pickup note of social worker", "social_worker", writeNote, parentService.ErrGuardianSocialWorkerManaged},
+		{"contact of co-guardian without account", "co_guardian", writeContact, parentService.ErrGuardianRoleManaged},
+		{"pickup flag of legal guardian without account", "legal_guardian", writeFlag, parentService.ErrGuardianRoleManaged},
+		{"pickup note of legal guardian without account", "legal_guardian", writeNote, parentService.ErrGuardianRoleManaged},
+	}
+	for i, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			chain := testpkg.CreateTestParentGuardianChain(t, db)
+			guardianID := linkRoleGuardian(t, db, chain.StudentID, fmt.Sprintf("managed-role-%d", i), tt.role)
+
+			require.ErrorIs(t, tt.write(chain.AccountID, chain.StudentID, guardianID), tt.want)
+		})
+	}
 }
 
 // TestListChildGuardians_LocksFullGuardianWithoutAccount verifies a full guardian
@@ -949,40 +970,6 @@ func TestListChildGuardians_LocksFullGuardianWithoutAccount(t *testing.T) {
 	assert.False(t, legal.CanManagePickup, "full guardian pickup flags are not parent-manageable")
 	assert.True(t, legal.ContactLockedFullGuardian, "full-guardian lock reason surfaced")
 	assert.False(t, legal.ContactLockedSocialWorker, "not a social-worker lock")
-}
-
-// TestUpdateGuardianContact_RejectsFullGuardian verifies a parent cannot rewrite
-// a non-registered full guardian's (legal/co) contact data.
-func TestUpdateGuardianContact_RejectsFullGuardian(t *testing.T) {
-	t.Parallel()
-
-	svc, db := buildGuardianService(t)
-
-	chain := testpkg.CreateTestParentGuardianChain(t, db)
-	legalID := linkRoleGuardian(t, db, chain.StudentID, "co-parent-edit", "co_guardian")
-
-	_, err := svc.UpdateGuardianContact(testpkg.WithPackageTenantRuntime(context.Background()), chain.AccountID, chain.StudentID, legalID, parentService.GuardianContactInput{
-		FirstName: "Neuer",
-		LastName:  "Name",
-	})
-	require.ErrorIs(t, err, parentService.ErrGuardianRoleManaged)
-}
-
-// TestUpdateGuardianRelationship_RejectsFullGuardian verifies a parent cannot
-// toggle a non-registered full guardian's pickup/emergency flags.
-func TestUpdateGuardianRelationship_RejectsFullGuardian(t *testing.T) {
-	t.Parallel()
-
-	svc, db := buildGuardianService(t)
-
-	chain := testpkg.CreateTestParentGuardianChain(t, db)
-	legalID := linkRoleGuardian(t, db, chain.StudentID, "co-parent-flag", "legal_guardian")
-
-	canPickup := true
-	_, err := svc.UpdateGuardianRelationship(testpkg.WithPackageTenantRuntime(context.Background()), chain.AccountID, chain.StudentID, legalID, parentService.GuardianRelationshipInput{
-		CanPickup: &canPickup,
-	})
-	require.ErrorIs(t, err, parentService.ErrGuardianRoleManaged)
 }
 
 // TestUpdateGuardianContact_AllowsHelperRoleWithoutAccount is the regression
@@ -1091,48 +1078,6 @@ func TestUpdateGuardianRelationship_RejectsNoteOnContactLockedAccountHolder(t *t
 		CanPickup: &canPickup,
 	})
 	require.ErrorIs(t, err, parentService.ErrGuardianHasOwnAccount)
-}
-
-// TestUpdateGuardianRelationship_RejectsNoteOnFullGuardian verifies the per-child
-// note is NOT editable for a full legal guardian (school/self-managed): the
-// listing shows can_edit_contact=false and a note write is rejected.
-func TestUpdateGuardianRelationship_RejectsNoteOnFullGuardian(t *testing.T) {
-	t.Parallel()
-
-	svc, db := buildGuardianService(t)
-
-	chain := testpkg.CreateTestParentGuardianChain(t, db)
-	legalID := linkRoleGuardian(t, db, chain.StudentID, "co-parent-note", "legal_guardian")
-
-	guardians, err := svc.ListChildGuardians(testpkg.WithPackageTenantRuntime(context.Background()), chain.AccountID, chain.StudentID)
-	require.NoError(t, err)
-	for _, g := range guardians {
-		if g.GuardianProfileID == legalID {
-			assert.False(t, g.CanEditContact, "full guardian contact is read-only (note follows it)")
-		}
-	}
-
-	_, err = svc.UpdateGuardianRelationship(testpkg.WithPackageTenantRuntime(context.Background()), chain.AccountID, chain.StudentID, legalID, parentService.GuardianRelationshipInput{
-		PickupNotes: ptr("nicht erlaubt"),
-	})
-	require.ErrorIs(t, err, parentService.ErrGuardianRoleManaged)
-}
-
-// TestUpdateGuardianRelationship_RejectsNoteOnSocialWorker verifies a note edit
-// on a school-managed social worker is rejected (note follows contact, which is
-// redacted for social workers).
-func TestUpdateGuardianRelationship_RejectsNoteOnSocialWorker(t *testing.T) {
-	t.Parallel()
-
-	svc, db := buildGuardianService(t)
-
-	chain := testpkg.CreateTestParentGuardianChain(t, db)
-	swID := linkRoleGuardian(t, db, chain.StudentID, "sw-note", "social_worker")
-
-	_, err := svc.UpdateGuardianRelationship(testpkg.WithPackageTenantRuntime(context.Background()), chain.AccountID, chain.StudentID, swID, parentService.GuardianRelationshipInput{
-		PickupNotes: ptr("nicht erlaubt"),
-	})
-	require.ErrorIs(t, err, parentService.ErrGuardianSocialWorkerManaged)
 }
 
 // TestUpdateGuardianContact_LabelOnlyPhoneEditWritesAuditRow is the regression

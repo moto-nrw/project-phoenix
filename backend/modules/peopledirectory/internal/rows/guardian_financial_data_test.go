@@ -35,14 +35,3 @@ func TestGuardianFinancialDataValidate(t *testing.T) {
 	require.NoError(t, (&GuardianFinancialData{GuardianProfileID: 7}).Validate())
 	require.Error(t, (&GuardianFinancialData{}).Validate())
 }
-
-// TestGuardianFinancialDataHasData pins that a row cleared of both fields reads
-// as "no bank details", not as an empty-but-present record.
-func TestGuardianFinancialDataHasData(t *testing.T) {
-	t.Parallel()
-
-	assert.False(t, (&GuardianFinancialData{GuardianProfileID: 7}).HasData())
-	assert.False(t, (&GuardianFinancialData{GuardianProfileID: 7, IBAN: strPtr("")}).HasData())
-	assert.True(t, (&GuardianFinancialData{GuardianProfileID: 7, IBAN: strPtr("DE89")}).HasData())
-	assert.True(t, (&GuardianFinancialData{GuardianProfileID: 7, AccountHolder: strPtr("A")}).HasData())
-}
