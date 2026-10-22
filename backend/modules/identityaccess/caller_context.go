@@ -18,6 +18,7 @@ var (
 	ErrCallerNotLinkedToStaff   = errors.New("user not linked to a staff member")
 	ErrCallerNotLinkedToTeacher = errors.New("user not linked to a teacher")
 	ErrCallerGroupNotFound      = errors.New("group not found")
+	ErrCallerSessionNotFound    = errors.New("session not found")
 )
 
 // CallerError names the failed caller-context operation.
@@ -179,7 +180,7 @@ type CallerIdentities interface {
 // CallerReach answers which groups, room sessions and live-update topics
 // the caller reaches. A caller who is no staff member reaches none; room
 // session reads of another caller's session fail with
-// ErrCallerNotAuthorized, of a missing one with ErrCallerGroupNotFound.
+// ErrCallerNotAuthorized, of a missing one with ErrCallerSessionNotFound.
 type CallerReach interface {
 	MyGroupIDs(context.Context) ([]int64, error)
 	MyTeacherGroupIDs(context.Context) ([]int64, error)

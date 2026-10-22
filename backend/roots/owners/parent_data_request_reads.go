@@ -9,20 +9,15 @@ import (
 	"github.com/moto-nrw/project-phoenix/workflows/parentportal"
 )
 
-// NewParentDataRequestReads retains the original owner queries and the two
-// distinct missing-row mappings of unlocked and locked reads.
+// NewParentDataRequestReads retains the original owner queries and answers a
+// missing or decided request with the workflow's own values, which the parent
+// routes render as 404 and 409.
 func NewParentDataRequestReads(source careplan.CareRequestsQuery) parentportal.DataRequestReads {
 	return parentportal.NewDataRequestReads(parentportal.DataRequestReadCallbacks{
 		Find: func(ctx context.Context, id int64, lock bool) (*parentportal.DataRequestSnapshot, error) {
 			row, err := source.FindStudentDataRequest(ctx, id, lock)
 			if err != nil {
-				if lock {
-					return nil, mapStudentDataRequestError(err)
-				}
-				if errors.Is(err, careplan.ErrStudentDataRequestNotFound) {
-					return nil, RetainedNotFound("find by id")
-				}
-				return nil, err
+				return nil, mapParentDataRequestError(err)
 			}
 			value := parentportal.DataRequestSnapshot(row)
 			return &value, nil
@@ -40,8 +35,8 @@ func NewParentDataRequestReads(source careplan.CareRequestsQuery) parentportal.D
 			}
 			return result, nil
 		},
-		NotFoundError:   func() error { return mapStudentDataRequestError(careplan.ErrStudentDataRequestNotFound) },
-		NotPendingError: func() error { return mapStudentDataRequestError(careplan.ErrStudentDataRequestNotPending) },
+		NotFoundError:   func() error { return parentportal.ErrMasterDataRequestNotFound },
+		NotPendingError: func() error { return parentportal.ErrMasterDataRequestNotPending },
 	})
 }
 
@@ -55,7 +50,20 @@ func NewParentDataRequestCommands(source careplan.CareRequestsCommand) parentpor
 			return parentportal.DataRequestSnapshot(created), err
 		},
 		Update: func(ctx context.Context, id int64, value json.RawMessage) error {
-			return mapStudentDataRequestError(source.UpdatePendingStudentDataRequest(ctx, id, value))
+			return mapParentDataRequestError(source.UpdatePendingStudentDataRequest(ctx, id, value))
 		},
 	})
+}
+
+// mapParentDataRequestError maps Care Plan's missing and decided request to
+// the workflow's values; the staff review keeps its own mapping.
+func mapParentDataRequestError(err error) error {
+	switch {
+	case errors.Is(err, careplan.ErrStudentDataRequestNotFound):
+		return parentportal.ErrMasterDataRequestNotFound
+	case errors.Is(err, careplan.ErrStudentDataRequestNotPending):
+		return parentportal.ErrMasterDataRequestNotPending
+	default:
+		return err
+	}
 }

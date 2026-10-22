@@ -62,6 +62,10 @@ func renderParentMasterDataWriteError(w http.ResponseWriter, r *http.Request, er
 		common.RenderError(w, r, common.ErrorConflictWithCode(err, common.CodeCareMasterDataDuplicatePending))
 	case errors.Is(err, parentService.ErrMasterDataNoChanges):
 		common.RenderError(w, r, common.ErrorInvalidRequestWithCode(err, common.CodeCareMasterDataNoChanges))
+	case errors.Is(err, parentService.ErrMasterDataRequestNotFound):
+		common.RenderError(w, r, common.ErrorNotFoundWithCode(err, common.CodeCareRequestNotFound))
+	case errors.Is(err, parentService.ErrMasterDataRequestNotPending):
+		common.RenderError(w, r, common.ErrorConflictWithCode(err, common.CodeCareRequestNotOpen))
 	case errors.Is(err, parentService.ErrCareExceptionConflict):
 		common.RenderError(w, r, common.ErrorConflictWithCode(err, common.CodeCareCareExceptionConflict))
 	case errors.Is(err, parentService.ErrCareExceptionAlreadyLeft):

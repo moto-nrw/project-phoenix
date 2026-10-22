@@ -2,7 +2,6 @@ package application
 
 import (
 	"context"
-	"errors"
 	"sort"
 	"time"
 
@@ -100,7 +99,7 @@ func (c *effectiveTimeCore[S, E, N, D]) createException(
 		if c.domain.CollisionPolicy() == domain.ExceptionCollisionReject {
 			return &careplan.ScheduleError{
 				Op:  op,
-				Err: errors.New("exception already exists for this date"),
+				Err: careplan.ErrCareExceptionDateTaken,
 			}
 		}
 
@@ -153,7 +152,7 @@ func (c *effectiveTimeCore[S, E, N, D]) updateExceptionRow(
 	if !isZeroEntity(existing) && c.domain.ExceptionFields(existing).ID != fields.ID {
 		return &careplan.ScheduleError{
 			Op:  op,
-			Err: errors.New("exception already exists for this date"),
+			Err: careplan.ErrCareExceptionDateTaken,
 		}
 	}
 

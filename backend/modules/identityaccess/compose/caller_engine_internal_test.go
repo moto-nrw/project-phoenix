@@ -146,14 +146,13 @@ func TestCallerEngineMapsTheSessionSentinels(t *testing.T) {
 	ctx := context.Background()
 	seams := engineSeams{authenticated: true, people: engineTestPeople{found: true}, membership: engineTestMembership{staff: true}}
 
-	// A missing session stays a failed session read (500 on /api/me), as it
-	// was before the caller context: never ErrCallerGroupNotFound (404).
+	// A missing session is an expected refusal (#4599): it reports
+	// ErrCallerSessionNotFound (404 on /api/me) instead of the former
+	// anonymous lookup failure (500), and stays distinct from a missing group.
 	_, err := seams.compose(t).GroupVisits(ctx, 55)
-	var callerErr *identityaccess.CallerError
-	require.ErrorAs(t, err, &callerErr)
-	assert.Equal(t, "get group visits", callerErr.Op)
+	requireCallerError(t, err, "get group visits", identityaccess.ErrCallerSessionNotFound)
 	assert.NotErrorIs(t, err, identityaccess.ErrCallerGroupNotFound)
-	assert.Equal(t, "usercontext.get group visits: find by id: record not found", err.Error())
+	assert.Equal(t, "usercontext.get group visits: session not found", err.Error())
 
 	seams.sessions.exists = true
 	_, err = seams.compose(t).GroupStudentIDs(ctx, 55)

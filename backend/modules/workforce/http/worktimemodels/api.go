@@ -220,10 +220,15 @@ func (rs *Resource) delete(w http.ResponseWriter, r *http.Request) {
 }
 
 // renderSaveError maps a create/update capability error to its HTTP response:
-// caller-input validation failures become 400, everything else 500.
+// caller-input validation failures become 400, an unknown model 404,
+// everything else 500.
 func (rs *Resource) renderSaveError(w http.ResponseWriter, r *http.Request, err error) {
 	if errors.Is(err, workforce.ErrInvalidWorkTime) {
 		rs.runtime.Failure(w, r, FailureInvalid, err)
+		return
+	}
+	if errors.Is(err, workforce.ErrWorkTimeModelNotFound) {
+		rs.runtime.Failure(w, r, FailureNotFound, err)
 		return
 	}
 	rs.runtime.Failure(w, r, FailureInternal, err)
