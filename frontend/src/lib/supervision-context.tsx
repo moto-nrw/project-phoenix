@@ -42,6 +42,12 @@ interface SupervisionState extends DerivedSupervision {
   hasGroups: boolean;
   isLoadingGroups: boolean;
   groups: NavigationEducationalGroup[];
+  /**
+   * Der letzte Abruf der Gruppen ist gescheitert. Dann ist `groups` leer,
+   * ohne dass die Person keine Gruppe hätte; die Auswahlseite sagt das
+   * (#4351).
+   */
+  groupsLoadFailed?: boolean;
 
   // Room supervision (for active sessions)
   supervisedRooms: SupervisedRoom[];
@@ -180,20 +186,28 @@ export function SupervisionProvider({
     | null
   >(null);
 
-  const applyGroups = useCallback((groupList: NavigationEducationalGroup[]) => {
-    setState((prev) => {
-      // Only update if value actually changed
-      if (sameGroups(prev.groups, groupList) && !prev.isLoadingGroups) {
-        return prev;
-      }
-      return {
-        ...prev,
-        hasGroups: groupList.length > 0,
-        groups: groupList,
-        isLoadingGroups: false,
-      };
-    });
-  }, []);
+  const applyGroups = useCallback(
+    (groupList: NavigationEducationalGroup[], loadFailed = false) => {
+      setState((prev) => {
+        // Only update if value actually changed
+        if (
+          sameGroups(prev.groups, groupList) &&
+          !prev.isLoadingGroups &&
+          (prev.groupsLoadFailed ?? false) === loadFailed
+        ) {
+          return prev;
+        }
+        return {
+          ...prev,
+          hasGroups: groupList.length > 0,
+          groups: groupList,
+          isLoadingGroups: false,
+          groupsLoadFailed: loadFailed,
+        };
+      });
+    },
+    [],
+  );
 
   // Every request reads the school from the session cookie, never from the
   // URL. While the session still belongs to another school (TenantGuard is
@@ -227,8 +241,13 @@ export function SupervisionProvider({
   const checkGroups = useCallback(async () => {
     const token = tokenRef.current;
     const generation = schoolGenerationRef.current;
-    const applyCurrent = (groupList: NavigationEducationalGroup[]) => {
-      if (generation === schoolGenerationRef.current) applyGroups(groupList);
+    const applyCurrent = (
+      groupList: NavigationEducationalGroup[],
+      loadFailed = false,
+    ) => {
+      if (generation === schoolGenerationRef.current) {
+        applyGroups(groupList, loadFailed);
+      }
     };
     if (!token) {
       setState((prev) => ({
@@ -259,10 +278,10 @@ export function SupervisionProvider({
           sortNavigationGroups(json.data?.groups ?? json.groups ?? []),
         );
       } else {
-        applyCurrent([]);
+        applyCurrent([], true);
       }
     } catch {
-      applyCurrent([]);
+      applyCurrent([], true);
     }
   }, [applyGroups, tokenRef]);
 
@@ -442,7 +461,7 @@ export function SupervisionProvider({
         setState((s) => ({
           ...s,
           isLoadingGroups: true,
-          isLoadingSupervision: true,
+          isLoadingSupervision: groupsOnly ? s.isLoadingSupervision : true,
         }));
       }
 

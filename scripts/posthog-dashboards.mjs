@@ -83,8 +83,60 @@ export function readBrowserEvents(
 const sqlString = (value) => `'${String(value).replaceAll('\\', '\\\\').replaceAll("'", "\\'")}'`;
 const sqlList = (values) => `(${values.map(sqlString).join(', ')})`;
 
-/** HogQL condition on the deployment; every HogQL insight uses it. */
-const onDeployment = (deployment) => `properties.deployment = ${sqlString(DEPLOYMENTS[deployment])}`;
+/** Easter Sunday of a year (Gregorian, anonymous algorithm), as UTC date. */
+function easterSunday(year) {
+  const a = year % 19;
+  const b = Math.floor(year / 100);
+  const c = year % 100;
+  const f = Math.floor((b + 8) / 25);
+  const g = Math.floor((b - f + 1) / 3);
+  const h = (19 * a + b - Math.floor(b / 4) - g + 15) % 30;
+  const l = (32 + 2 * (b % 4) + 2 * Math.floor(c / 4) - h - (c % 4)) % 7;
+  const m = Math.floor((a + 11 * h + 22 * l) / 451);
+  const month = Math.floor((h + l - 7 * m + 114) / 31);
+  const day = ((h + l - 7 * m + 114) % 31) + 1;
+  return new Date(Date.UTC(year, month - 1, day));
+}
+
+/** First and last year whose public holidays the school charts leave out. */
+const HOLIDAY_YEARS = [2026, 2035];
+
+/**
+ * Statutory public holidays of North Rhine-Westphalia (YYYY-MM-DD), the state
+ * of every moto school (the backend's DE-NW calendar). School holidays and
+ * closing days are per school and unknown to PostHog.
+ */
+export function publicHolidays([from, to] = HOLIDAY_YEARS) {
+  const dates = [];
+  for (let year = from; year <= to; year++) {
+    const easter = easterSunday(year);
+    const fromEaster = (days) => new Date(easter.getTime() + days * 86_400_000);
+    const fixed = (month, day) => new Date(Date.UTC(year, month - 1, day));
+    dates.push(
+      fixed(1, 1), fromEaster(-2), fromEaster(1), fixed(5, 1), fromEaster(39), fromEaster(50), fromEaster(60),
+      fixed(10, 3), fixed(11, 1), fixed(12, 25), fixed(12, 26),
+    );
+  }
+  return dates.map((date) => date.toISOString().slice(0, 10)).sort();
+}
+
+/**
+ * HogQL condition: the event fell on a school day, Monday to Friday and no
+ * public holiday (project time zone Europe/Berlin). The OGS is closed on the
+ * other days, so every school chart leaves them out.
+ */
+export const ON_WORKDAY = `toDayOfWeek(toDate(timestamp)) <= 5 and toString(toDate(timestamp)) not in ${sqlList(publicHolidays())}`;
+
+/**
+ * HogQL condition on the deployment; every HogQL insight uses it. Production
+ * counts school days only (ON_WORKDAY); the demo is open every day.
+ */
+/** Note on every dashboard with school data. */
+const WORKDAYS_NOTE = 'Gezählt werden nur Werktage: Montag bis Freitag ohne gesetzliche Feiertage in NRW.';
+
+const onDeployment = (deployment) => deployment === 'production'
+  ? `properties.deployment = ${sqlString(DEPLOYMENTS[deployment])} and ${ON_WORKDAY}`
+  : `properties.deployment = ${sqlString(DEPLOYMENTS[deployment])}`;
 
 function deploymentOf(deployment) {
   if (!Object.hasOwn(DEPLOYMENTS, deployment)) throw new Error(`unknown deployment ${deployment}`);
@@ -95,11 +147,16 @@ function deploymentOf(deployment) {
  * A HogQL table (or number). `sql` receives the deployment condition and
  * must use it in every `from events`.
  */
-function hogql(deployment, sql, display = 'ActionsTable') {
+function hogql(deployment, sql, display = 'ActionsTable', chartSettings) {
   const query = sql(onDeployment(deploymentOf(deployment))).trim();
   return {
     deployment,
-    query: { kind: 'DataVisualizationNode', source: { kind: 'HogQLQuery', query }, display },
+    query: {
+      kind: 'DataVisualizationNode',
+      source: { kind: 'HogQLQuery', query },
+      display,
+      ...(chartSettings ? { chartSettings } : {}),
+    },
   };
 }
 
@@ -109,7 +166,7 @@ function deploymentFilter(deployment) {
     values: [{
       type: 'AND',
       values: [{ key: 'deployment', type: 'event', operator: 'exact', value: [DEPLOYMENTS[deploymentOf(deployment)]] }],
-    }],
+    }, ...(deployment === 'production' ? [{ type: 'AND', values: [{ key: ON_WORKDAY, type: 'hogql' }] }] : [])],
   };
 }
 
@@ -117,7 +174,22 @@ const series = (event, name, extra = {}) => ({
   kind: 'EventsNode', event, name: event ?? 'All events', custom_name: name, math: 'total', ...extra,
 });
 
-function trends(deployment, { series: steps, interval = 'week', dateFrom = '-90d', breakdown, display = 'ActionsLineGraph' }) {
+/**
+ * HogQL expression: the name of the event's school. The backend publishes
+ * every school as a group of type `school` (index 0) with the key
+ * `<deployment>:<school_id>` and the property `name`; a school without one
+ * reads „Schule 6“.
+ */
+export function schoolLabel(deployment) {
+  const prefix = `${DEPLOYMENTS[deploymentOf(deployment)]}:`;
+  const groups = `from groups where index = 0 and startsWith(key, ${sqlString(prefix)}) and notEmpty(toString(properties.name))`;
+  return `transform(toString(properties.school_id), (select groupArray(replaceOne(key, ${sqlString(prefix)}, '')) ${groups}), (select groupArray(toString(properties.name)) ${groups}), concat('Schule ', toString(properties.school_id)))`;
+}
+
+/** Breakdown by school name (`schoolLabel`) for charts of real schools. */
+export const SCHOOL_BREAKDOWN = schoolLabel('production');
+
+function trends(deployment, { series: steps, interval = 'week', dateFrom = '-90d', breakdown, breakdownType = 'event', display = 'ActionsLineGraph', compare = false }) {
   return {
     deployment,
     query: {
@@ -129,7 +201,8 @@ function trends(deployment, { series: steps, interval = 'week', dateFrom = '-90d
         dateRange: { date_from: dateFrom },
         properties: deploymentFilter(deployment),
         filterTestAccounts: false,
-        ...(breakdown ? { breakdownFilter: { breakdown, breakdown_type: 'event' } } : {}),
+        ...(breakdown ? { breakdownFilter: { breakdown, breakdown_type: breakdownType } } : {}),
+        ...(compare ? { compareFilter: { compare: true } } : {}),
         trendsFilter: { display },
       },
     },
@@ -176,7 +249,7 @@ export const FEATURES = Object.freeze([
     pages: { ogs: ['/students/**'], parents: ['/children/**'], school: ['/klasse'] },
     events: ['student_note_created', 'photo_consent_changed'],
   },
-  { name: 'Gruppen', pages: { ogs: ['/ogs-groups'] }, events: ['group_created', 'group_updated'] },
+  { name: 'Gruppen', pages: { ogs: ['/ogs-groups', '/ogs-groups/overview'] }, events: ['group_created', 'group_updated'] },
   {
     name: 'Aufsichten und Räume',
     pages: { ogs: ['/active-supervisions', '/rooms/**', '/activities'], school: ['/aufsichten'] },
@@ -388,7 +461,7 @@ order by Einstiege desc`),
     },
     {
       name: 'Nutzungsanalyse: Nutzung pro Rolle und Oberfläche',
-      description: 'Welche Rolle welche Oberfläche wie oft nutzt, in echten Schulen (deployment = moto-app.de). Kleinste Einheit ist die Rolle.',
+      description: `Welche Rolle welche Oberfläche wie oft nutzt, in echten Schulen (deployment = moto-app.de). Kleinste Einheit ist die Rolle. ${WORKDAYS_NOTE}`,
       insights: [
         {
           name: 'Nutzung: Seitenaufrufe pro Oberfläche und Woche',
@@ -440,7 +513,7 @@ limit 100`),
     },
     {
       name: 'Nutzungsanalyse: Seiten',
-      description: 'Meistbesuchte und kaum genutzte Seiten als Routenmuster (frontend/src/lib/analytics-routes.ts), in echten Schulen (deployment = moto-app.de).',
+      description: `Meistbesuchte und kaum genutzte Seiten als Routenmuster (frontend/src/lib/analytics-routes.ts), in echten Schulen (deployment = moto-app.de). ${WORKDAYS_NOTE}`,
       insights: [
         {
           name: 'Seiten: meistbesucht in den letzten 30 Tagen',
@@ -497,7 +570,7 @@ limit 300`),
     },
     {
       name: 'Nutzungsanalyse: Reibung',
-      description: 'Dead Clicks (Klick ohne Wirkung) und Rage Clicks (schnelle Mehrfachklicks) nach Seite, mit Link zur Heatmap der Seite. Schulen (moto-app.de) und Demo getrennt.',
+      description: `Dead Clicks (Klick ohne Wirkung) und Rage Clicks (schnelle Mehrfachklicks) nach Seite, mit Link zur Heatmap der Seite. Schulen (moto-app.de) und Demo getrennt. ${WORKDAYS_NOTE}`,
       insights: [
         {
           name: 'Reibung: Seiten in Schulen',
@@ -519,7 +592,7 @@ limit 300`),
     },
     {
       name: 'Nutzungsanalyse: Aktive Schulen',
-      description: 'Schulen mit mindestens einem Ereignis (Seitenaufruf, Kernaktion oder Kiosk) pro Woche, in echten Schulen (deployment = moto-app.de).',
+      description: `Schulen mit mindestens einem Ereignis (Seitenaufruf, Kernaktion oder Kiosk) pro Woche, in echten Schulen (deployment = moto-app.de). ${WORKDAYS_NOTE}`,
       insights: [
         {
           name: 'Aktive Schulen: letzte 7 Tage',
@@ -562,7 +635,7 @@ order by Woche desc`),
     },
     {
       name: 'Nutzungsanalyse: Funktionen in Schulen',
-      description: 'Welche Funktionsbereiche echte Schulen nutzen (deployment = moto-app.de): Seitenaufrufe und Aktionen, einschließlich Ein- und Auschecken am Kiosk. Die Zuordnung steht in FEATURES in scripts/posthog-dashboards.mjs. Das Elternportal kennt keine Schule und erscheint nur in der Tabelle nach Rolle.',
+      description: `Welche Funktionsbereiche echte Schulen nutzen (deployment = moto-app.de): Seitenaufrufe und Aktionen, einschließlich Ein- und Auschecken am Kiosk. Die Zuordnung steht in FEATURES in scripts/posthog-dashboards.mjs. Das Elternportal kennt keine Schule und erscheint nur in der Tabelle nach Rolle. ${WORKDAYS_NOTE}`,
       insights: [
         {
           name: 'Funktionen: Reichweite in Schulen (30 Tage)',
@@ -650,19 +723,123 @@ order by Woche desc`),
     },
     {
       name: 'Nutzungsanalyse: Nutzung je Standort',
-      description: 'Je Schule (Schul-ID): an welchen Tagen sie moto nutzt und wofür, in echten Schulen (deployment = moto-app.de). Werktage sind Montag bis Freitag; Ferien und Schließtage kennt PostHog nicht, sie sind nicht abgezogen. Ein- und Auschecken wird erst seit dem 25.09.2026 erfasst. Das Elternportal kennt keine Schule und fehlt hier.',
+      description: 'Je Schule (Schul-ID): an welchen Tagen sie moto nutzt und wofür, in echten Schulen (deployment = moto-app.de). Gezählt werden nur Werktage: Montag bis Freitag ohne gesetzliche Feiertage in NRW. Ferien und Schließtage kennt PostHog nicht, sie sind nicht abgezogen. Ein- und Auschecken wird erst seit dem 25.09.2026 erfasst. Das Elternportal kennt keine Schule und fehlt hier.',
       insights: [
         {
+          name: 'Standorte: mit Anwesenheit in den letzten 7 Tagen',
+          description: 'Schulen mit mindestens einer Ein- oder Auscheck-Buchung.',
+          ...hogql('production', (where) => `
+select uniqIf(Schule, Anwesenheit) as Standorte
+from (${schoolDays(where, 7)})`, 'BoldNumber'),
+        },
+        {
+          name: 'Standorte: mit Nutzung in den letzten 7 Tagen',
+          description: 'Schulen mit mindestens einem Ereignis: Seitenaufruf, Kernaktion oder Kiosk.',
+          ...hogql('production', (where) => `
+select uniq(Schule) as Standorte
+from (${schoolDays(where, 7)})`, 'BoldNumber'),
+        },
+        {
+          name: 'Standorte: Ein- und Auscheck-Buchungen in den letzten 7 Tagen',
+          description: 'Alle Schulen zusammen. Buchungen sind keine Kinder: ein Kind kann mehrmals am Tag buchen.',
+          ...hogql('production', (where) => `
+select countIf(Anwesenheit) as Buchungen
+from (${schoolDays(where, 7)})`, 'BoldNumber'),
+        },
+        {
+          name: 'Standorte: Anwesenheitsquote (60 Tage)',
+          description: 'Anteil der Werktage (Montag bis Freitag ohne Feiertage) mit Ein- oder Auscheck-Buchung, gezählt ab der ersten Buchung bis gestern. Ferien und Schließtage sind nicht abgezogen, eine Quote unter 100 % kann also Ferien sein. Schulen ohne Buchung fehlen.',
+          ...hogql('production', (where) => `
+select Standort, round(Mit / greatest(Seit, 1), 2) as Anwesenheitsquote
+from (
+  select
+    any(Standort) as Standort,
+    uniqIf(Tag, Anwesenheit and Tag < today()) as Mit,
+    ${workdaysSinceFirstAttendance} as Seit
+  from (${schoolDays(where, 60)})
+  group by Schule
+  having countIf(Anwesenheit) > 0
+)
+order by Anwesenheitsquote desc, Standort`, 'ActionsBarValue', {
+            xAxis: { column: 'Standort' },
+            yAxis: [{ column: 'Anwesenheitsquote', settings: { formatting: { style: 'percent', decimalPlaces: 0 } } }],
+          }),
+        },
+        {
+          name: 'Standorte: Anwesenheit pro Tag',
+          description: 'Ein- und Auscheck-Buchungen je Schule und Tag, letzte 60 Tage. Je dunkler, desto mehr Buchungen; Wochenenden und Feiertage bleiben immer leer, weitere leere Felder sind Tage ohne Anwesenheit (Ferien, Pause). Erfasst seit dem 25.09.2026.',
+          ...trends('production', {
+            series: [series(null, 'Ein- und Auscheck-Buchungen', {
+              properties: [{ key: `event in ${sqlList(ATTENDANCE_EVENTS)}`, type: 'hogql' }],
+            })],
+            interval: 'day',
+            dateFrom: '-60d',
+            breakdown: SCHOOL_BREAKDOWN,
+            breakdownType: 'hogql',
+            display: 'TwoDimensionalHeatmap',
+          }),
+        },
+        {
+          name: 'Standorte: Nutzung pro Tag',
+          description: 'Seitenaufrufe, Kernaktionen und Kiosk-Buchungen je Schule und Tag, letzte 60 Tage. Zeigt auch Schulen, die moto ohne Anwesenheitserfassung nutzen.',
+          ...trends('production', {
+            series: [series(null, 'Seitenaufrufe und Aktionen', {
+              properties: [{ key: "isNotNull(properties.school_id) and (event = '$pageview' or not startsWith(event, '$'))", type: 'hogql' }],
+            })],
+            interval: 'day',
+            dateFrom: '-60d',
+            breakdown: SCHOOL_BREAKDOWN,
+            breakdownType: 'hogql',
+            display: 'TwoDimensionalHeatmap',
+          }),
+        },
+        {
+          name: 'Standorte: Nutzung im Vergleich zum eigenen Schnitt',
+          description: 'Jede Schule an sich selbst gemessen: Seitenaufrufe und Aktionen einer Woche gegenüber ihrem eigenen Wochenschnitt der letzten 12 abgeschlossenen Wochen (100 %). Über 100 % heißt mehr Nutzung als sonst, unter 100 % weniger, etwa in den Ferien. Eine Woche ohne jede Nutzung fehlt als Punkt. In der Legende lassen sich Schulen ein- und ausblenden.',
+          ...hogql('production', (where) => `
+select Woche, Standort, round(Anzahl / greatest(avg(Anzahl) over (partition by Schule), 1), 2) as ${quoted('Anteil am eigenen Schnitt')}
+from (
+  select toStartOfWeek(Tag, 1) as Woche, Schule, any(Standort) as Standort, countIf(event = '$pageview' or not startsWith(event, '$')) as Anzahl
+  from (${schoolDays(where, 91)})
+  where Tag >= addDays(toStartOfWeek(today(), 1), -84) and Tag < toStartOfWeek(today(), 1)
+  group by Woche, Schule
+)
+order by Woche, Standort`, 'ActionsLineGraph', {
+            xAxis: { column: 'Woche' },
+            yAxis: [{ column: 'Anteil am eigenen Schnitt', settings: { formatting: { style: 'percent', decimalPlaces: 0 } } }],
+            seriesBreakdownColumn: 'Standort',
+            goalLines: [{ label: 'eigener Schnitt', value: 1 }],
+          }),
+        },
+        {
+          name: 'Standorte: genutzte Abläufe (60 Tage)',
+          description: `Je Schule ein Balken, je Ablauf ein Abschnitt: seine Länge ist die Zahl der Tage, an denen die Schule den Ablauf genutzt hat. Ein hoher Balken heißt also breite und regelmäßige Nutzung. „Weitere“ fasst die übrigen Funktionsbereiche zusammen (FEATURES in scripts/posthog-dashboards.mjs).`,
+          ...hogql('production', (where) => `
+select Standort, Ablauf, uniq(Tag) as Tage
+from (
+  select Standort, Tag, multiIf(Funktion in ${sqlList(KEY_FLOWS)}, Funktion, Funktion in ('', 'Startseite'), '', 'Weitere') as Ablauf
+  from (${schoolDays(where, 60)})
+)
+where Ablauf != ''
+group by Standort, Ablauf
+order by Standort, Ablauf`, 'ActionsStackedBar', {
+            xAxis: { column: 'Standort' },
+            yAxis: [{ column: 'Tage' }],
+            seriesBreakdownColumn: 'Ablauf',
+          }),
+        },
+        {
           name: 'Standorte: Überblick (60 Tage)',
-          description: 'Anwesenheit heißt: mindestens eine Ein- oder Auscheck-Buchung an dem Tag. Der heutige Tag zählt nicht mit, er ist noch unvollständig. Buchungen sind keine Kinder: ein Kind kann mehrmals am Tag buchen.',
+          description: 'Die Zahlen hinter den Grafiken. Anwesenheit heißt: mindestens eine Ein- oder Auscheck-Buchung an dem Tag. Der heutige Tag zählt nicht mit, er ist noch unvollständig. Buchungen sind keine Kinder: ein Kind kann mehrmals am Tag buchen.',
           ...hogql('production', (where) => `
 select
-  Schule as ${quoted('Schule (ID)')},
-  uniqIf(Tag, Anwesenheit and Werktag and Tag < today()) as ${quoted('Werktage mit Anwesenheit')},
-  if(countIf(Anwesenheit) = 0, 0, length(arrayFilter(d -> toDayOfWeek(d) <= 5, arrayMap(i -> addDays(minIf(Tag, Anwesenheit), i), range(toInt(greatest(dateDiff('day', minIf(Tag, Anwesenheit), today()), 0))))))) as ${quoted('Werktage seit erster Anwesenheit')},
+  any(Standort) as Standort,
+  Schule as ${quoted('Schul-ID')},
+  uniqIf(Tag, Anwesenheit and Tag < today()) as ${quoted('Werktage mit Anwesenheit')},
+  ${workdaysSinceFirstAttendance} as ${quoted('Werktage seit erster Anwesenheit')},
   if(countIf(Anwesenheit) = 0, null, minIf(Tag, Anwesenheit)) as ${quoted('Erste Anwesenheit')},
   if(countIf(Anwesenheit) = 0, null, maxIf(Tag, Anwesenheit)) as ${quoted('Letzte Anwesenheit')},
-  uniqIf(Tag, Werktag and Tag < today()) as ${quoted('Werktage mit Nutzung')},
+  uniqIf(Tag, Tag < today()) as ${quoted('Werktage mit Nutzung')},
   uniqIf(Tag, event = 'login_success') as ${quoted('Tage mit Login')},
   countIf(Anwesenheit) as ${quoted('Ein- und Auscheck-Buchungen')},
   countIf(${coreAction}) as Kernaktionen,
@@ -676,7 +853,8 @@ order by ${quoted('Werktage mit Anwesenheit')} desc, ${quoted('Werktage mit Nutz
           description: 'An wie vielen Tagen eine Schule einen Funktionsbereich genutzt hat, mit Seitenaufruf oder Aktion. Die Zuordnung steht in FEATURES in scripts/posthog-dashboards.mjs.',
           ...hogql('production', (where) => `
 select
-  Schule as ${quoted('Schule (ID)')},
+  any(Standort) as Standort,
+  Schule as ${quoted('Schul-ID')},
   uniq(Tag) as ${quoted('Tage mit Nutzung')},
   uniqIf(Tag, event = 'login_success') as Logins,
   ${FEATURES.map((f) => `uniqIf(Tag, Funktion = ${sqlString(f.name)}) as ${quoted(f.name)}`).join(',\n  ')}
@@ -684,27 +862,66 @@ from (${schoolDays(where, 60)})
 group by Schule
 order by ${quoted('Tage mit Nutzung')} desc`),
         },
+      ],
+    },
+    {
+      name: 'Nutzungsanalyse: Schule im Verlauf',
+      description: `Eine Schule über die Zeit, verglichen mit ihr selbst statt mit anderen Schulen. Oben unter „Filter“ die Ereigniseigenschaft school_id auf eine Schul-ID setzen (die IDs stehen im Dashboard „Nutzung je Standort“, Tabelle Überblick). Ohne Filter zeigen die Grafiken alle Schulen zusammen. Die gestrichelte Linie ist der Zeitraum davor. Nur echte Schulen (deployment = moto-app.de). ${WORKDAYS_NOTE}`,
+      insights: [
         {
-          name: 'Standorte: Werktage mit Anwesenheit pro Woche',
-          description: 'Letzte 8 Wochen, höchstens 5 Tage je Woche. Eine 0 mitten im Betrieb ist eine Pause: Ferien, Schließzeit oder fehlende Erfassung.',
-          ...hogql('production', (where) => `
-select
-  Schule as ${quoted('Schule (ID)')},
-  ${weekColumns('uniqIf(Tag, Anwesenheit and Werktag and Woche = {week})')}
-from (${schoolDays(where, 63)})
-group by Schule
-order by Schule`),
+          name: 'Verlauf: Tage mit Nutzung pro Woche',
+          description: 'An wie vielen Tagen der Woche die Schule moto genutzt hat (Seitenaufruf, Kernaktion oder Kiosk). 5 heißt jeden Werktag.',
+          ...trends('production', {
+            series: [series(null, 'Tage mit Nutzung', {
+              math: 'hogql',
+              math_hogql: 'uniq(toDate(timestamp))',
+              properties: [{ key: "isNotNull(properties.school_id) and (event = '$pageview' or not startsWith(event, '$'))", type: 'hogql' }],
+            })],
+            dateFrom: '-180d',
+            display: 'ActionsBar',
+          }),
         },
         {
-          name: 'Standorte: Ein- und Auscheck-Buchungen pro Woche',
-          description: 'Letzte 8 Wochen. Zeigt die Menge hinter der Anwesenheit; Buchungen sind keine Kinder.',
-          ...hogql('production', (where) => `
-select
-  Schule as ${quoted('Schule (ID)')},
-  ${weekColumns('countIf(Anwesenheit and Woche = {week})')}
-from (${schoolDays(where, 63)})
-group by Schule
-order by Schule`),
+          name: 'Verlauf: Ein- und Auscheck-Buchungen pro Tag',
+          description: 'Buchungen pro Tag, letzte 60 Tage, gestrichelt die 60 Tage davor. Buchungen sind keine Kinder. Erfasst seit dem 25.09.2026.',
+          ...trends('production', {
+            series: [series(null, 'Ein- und Auscheck-Buchungen', {
+              properties: [{ key: `event in ${sqlList(ATTENDANCE_EVENTS)}`, type: 'hogql' }],
+            })],
+            interval: 'day',
+            dateFrom: '-60d',
+            compare: true,
+          }),
+        },
+        {
+          name: 'Verlauf: Seitenaufrufe und Aktionen pro Woche',
+          description: 'Wie viel die Schule mit moto arbeitet, gestrichelt die 90 Tage davor.',
+          ...trends('production', {
+            series: [series(null, 'Seitenaufrufe und Aktionen', {
+              properties: [{ key: "isNotNull(properties.school_id) and (event = '$pageview' or not startsWith(event, '$'))", type: 'hogql' }],
+            })],
+            compare: true,
+          }),
+        },
+        {
+          name: 'Verlauf: Abläufe pro Woche',
+          description: 'Seitenaufrufe und Aktionen je Ablauf. Zeigt, welche Abläufe die Schule neu aufnimmt oder liegen lässt.',
+          ...trends('production', {
+            series: KEY_FLOWS.map((flow) => series(null, flow, {
+              properties: [{ key: `isNotNull(properties.school_id) and ${featureExpression()} = ${sqlString(flow)}`, type: 'hogql' }],
+            })),
+            display: 'ActionsBar',
+          }),
+        },
+        {
+          name: 'Verlauf: Logins pro Woche',
+          description: 'Erfolgreiche Anmeldungen im OGS- und Schulportal, gestrichelt die 90 Tage davor.',
+          ...trends('production', {
+            series: [series('login_success', 'Logins', {
+              properties: [{ key: 'isNotNull(properties.school_id)', type: 'hogql' }],
+            })],
+            compare: true,
+          }),
         },
       ],
     },
@@ -856,14 +1073,22 @@ function schoolFeatureEvents(where, days) {
 
 const ATTENDANCE_EVENTS = FEATURES.find((f) => f.name === 'Ein- und Auschecken').events;
 
-/** Production events of schools with their day (project time zone), week, and feature area. */
+/** Feature areas the per-school chart shows on their own (at most eight segments with „Weitere“). */
+const KEY_FLOWS = [
+  'Ein- und Auschecken', 'Aufsichten und Räume', 'Abwesenheiten', 'Elternanfragen',
+  'Nachrichten und Elternbriefe', 'Zeiterfassung', 'Kinder und Kindakte',
+];
+
+/** School days (ON_WORKDAY) from a school's first attendance in `schoolDays` until yesterday. */
+const workdaysSinceFirstAttendance = `if(countIf(Anwesenheit) = 0, 0, length(arrayFilter(d -> toDayOfWeek(d) <= 5 and toString(d) not in ${sqlList(publicHolidays())}, arrayMap(i -> addDays(minIf(Tag, Anwesenheit), i), range(toInt(greatest(dateDiff('day', minIf(Tag, Anwesenheit), today()), 0)))))))`;
+
+/** Production events of schools with their day (project time zone) and feature area. */
 function schoolDays(where, days) {
   return `
   select
     toString(properties.school_id) as Schule,
+    ${SCHOOL_BREAKDOWN} as Standort,
     toDate(timestamp) as Tag,
-    toStartOfWeek(toDate(timestamp), 1) as Woche,
-    toDayOfWeek(toDate(timestamp)) <= 5 as Werktag,
     event in ${sqlList(ATTENDANCE_EVENTS)} as Anwesenheit,
     ${featureExpression()} as Funktion,
     event
@@ -871,15 +1096,6 @@ function schoolDays(where, days) {
   where ${where}
     and isNotNull(properties.school_id)
     and timestamp > now() - interval ${days} day`;
-}
-
-/** One column per week, oldest first; `cell` uses `{week}` for the week's Monday. */
-function weekColumns(cell, weeks = 8) {
-  return Array.from({ length: weeks }, (_, index) => weeks - 1 - index).map((ago) => {
-    const week = `addDays(toStartOfWeek(today(), 1), ${-7 * ago})`;
-    const label = ago === 0 ? 'diese Woche' : ago === 1 ? 'vor 1 Woche' : `vor ${ago} Wochen`;
-    return `${cell.replaceAll('{week}', week)} as ${quoted(label)}`;
-  }).join(',\n  ');
 }
 
 /** Demo page views after the role pick, with their feature area. */

@@ -28,6 +28,10 @@ import { useHelpHref } from "~/lib/hooks/use-help-href";
 import { useEnrollmentsUnread } from "~/lib/hooks/use-enrollments-unread";
 import { UnreadBadge } from "~/components/messaging/unread-badge";
 import { navigationIcons } from "~/lib/navigation-icons";
+import {
+  navigationEntryTarget,
+  OGS_GROUPS_LABEL,
+} from "~/lib/ogs-groups-navigation";
 import { MOTO_CONCEPTS, type MotoConceptKey } from "~/lib/moto-concepts";
 import { MotoDuotoneIcon } from "~/components/ui/moto-duotone-icon";
 import { operatorPath } from "~/lib/operator-url";
@@ -232,8 +236,10 @@ const STAFF_MAIN_ITEMS: NavItem[] = [
     alwaysShow: true,
   },
   {
+    // Führt auf die Auswahlseite (navigationEntryTarget), der Schlüssel
+    // bleibt der Bereich /ogs-groups (#4351).
     href: "/ogs-groups",
-    label: "Gruppe",
+    label: OGS_GROUPS_LABEL,
     iconKey: "group",
     concept: "groups",
     alwaysShow: true,
@@ -546,7 +552,7 @@ const DATABASE_PAGE_PERMISSION_LIST = [
 ];
 
 /**
- * Die Akkordeon-Bereiche der Seitenleiste als je eine Zeile: Meine Gruppen
+ * Die Akkordeon-Bereiche der Seitenleiste als je eine Zeile: Gruppen
  * und Aktuelle Aufsicht führen auf ihre Übersicht, Datenverwaltung und
  * Anmeldungen auf ihre Hub-Seite; die Unterseiten erreicht man dort über
  * die Kacheln.
@@ -554,7 +560,7 @@ const DATABASE_PAGE_PERMISSION_LIST = [
 const SECTION_ITEMS: Readonly<Record<StaffNavSectionKey, AdditionalNavItem>> = {
   groups: {
     href: "/ogs-groups",
-    label: "Meine Gruppen",
+    label: OGS_GROUPS_LABEL,
     iconKey: "group",
     concept: "groups",
     alwaysShow: true,
@@ -1184,8 +1190,8 @@ export function MobileBottomNav({ className = "" }: MobileBottomNavProps) {
                         item.href === STAFF_FLAT_PAGES.help.href
                           ? helpHref
                           : TENANT_SCOPED_HREFS.has(item.href)
-                            ? tenantPath(item.href)
-                            : item.href;
+                            ? tenantPath(navigationEntryTarget(item.href))
+                            : navigationEntryTarget(item.href);
 
                       // Coming soon items are not clickable
                       if (item.comingSoon) {
@@ -1411,7 +1417,7 @@ export function MobileBottomNav({ className = "" }: MobileBottomNavProps) {
                 return (
                   <NavLink
                     key={item.href}
-                    href={item.href}
+                    href={navigationEntryTarget(item.href)}
                     ref={(el: HTMLAnchorElement | null) => {
                       navRefs.current[index] = el;
                     }}

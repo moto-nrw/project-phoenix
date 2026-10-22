@@ -16368,6 +16368,7 @@
     "registered_route_count": 968,
     "registered_job_ids": [
       "activate-students",
+      "analytics-school-names",
       "announcement-reminders",
       "appointment-reminders",
       "auto-checkout",
@@ -16463,6 +16464,7 @@
   ],
   "worker_job_ids": [
     "activate-students",
+    "analytics-school-names",
     "announcement-reminders",
     "appointment-reminders",
     "auto-checkout",

@@ -114,6 +114,10 @@ var queryBudgets = map[string]queryBudget{
 	"workflows.studentdeletion.execute.companions_4.student_rows": {max: 10},
 	// api/students — #2056: aggregated OGS group view, 10 students.
 	"api.students.ogs_group_live": {max: 41},
+	// api/students — GET /students/ogs-group-navigation over every tenant
+	// group: the group list, rooms, substitutions and one bulk Gruppenleitung
+	// lookup (#4351), independent of the number of groups and teachers.
+	"api.students.ogs_group_navigation": {max: 19},
 	// api/students — #2099: identity chain resolved once per request.
 	"api.students.ogs_group_live.identity.person":        {max: 1, exact: true},
 	"api.students.ogs_group_live.identity.staff":         {max: 1, exact: true},

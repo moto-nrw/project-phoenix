@@ -86,6 +86,7 @@ const BAUART: Readonly<Record<string, Bauart>> = {
   "info-displays/page.tsx": "sammlung",
   "messages/page.tsx": "sammlung",
   "ogs-groups/page.tsx": "sammlung",
+  "ogs-groups/overview/page.tsx": "sammlung",
   "parent-announcements/page.tsx": "sammlung",
   "reminders/page.tsx": "sammlung",
   "rooms/page.tsx": "sammlung",

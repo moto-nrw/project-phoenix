@@ -395,6 +395,16 @@ func TestExportFilterLabelsCombinesDayStatusAndAdministrative(t *testing.T) {
 	assert.Contains(t, labels, "Tagesplanung: Kommt heute nicht")
 }
 
+// #4588: the export names the "abwesend" filter like the "Zuhause" tile and
+// the page filter that open it.
+func TestExportFilterLabelsNameHomeFilterZuhause(t *testing.T) {
+	t.Parallel()
+
+	labels := exportFilterLabelsForDate(studentExportFilters{Status: "abwesend"}, testExportDate, true)
+
+	assert.Contains(t, labels, "Momentaufnahme: Zuhause")
+}
+
 // #2218: an export started from the Kindersuche inherits the page's filters,
 // so a multi-class / multi-group selection must survive the trip into the list
 // query instead of collapsing to its first value.

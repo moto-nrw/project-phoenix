@@ -62,6 +62,9 @@ type GroupDirectory interface {
 	SubstitutedGroupIDs(ctx context.Context) (map[int64]bool, error)
 	// GroupRoomNames resolves the room name of every group that has a room.
 	GroupRoomNames(ctx context.Context, groupIDs []int64) (map[int64]string, error)
+	// GroupLeaderNames resolves the full names of each group's assigned
+	// Gruppenleitung. A group without one is absent or maps to no names.
+	GroupLeaderNames(ctx context.Context, groupIDs []int64) (map[int64][]string, error)
 }
 
 // RosterStudent is a group member with the directory facts the roster shows.

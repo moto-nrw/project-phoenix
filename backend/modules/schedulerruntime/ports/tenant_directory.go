@@ -18,4 +18,8 @@ type TenantDirectory interface {
 	// school once the month's key date is due (#2791). It is idempotent,
 	// opens its own administrative transaction and returns the rows written.
 	RecordDueBillingKeyDates(ctx context.Context, now time.Time) (int, error)
+	// PublishSchoolNames names every non-deleted school in the product
+	// analytics, so the usage dashboards show school names instead of IDs.
+	// It returns the schools named.
+	PublishSchoolNames(ctx context.Context) (int, error)
 }

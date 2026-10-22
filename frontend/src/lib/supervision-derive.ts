@@ -287,8 +287,10 @@ export function sameGroups(
         group.id === other?.id &&
         group.name === other.name &&
         group.room_id === other.room_id &&
+        group.room_name === other.room_name &&
         group.via_substitution === other.via_substitution &&
-        group.is_personal === other.is_personal
+        group.is_personal === other.is_personal &&
+        (group.leaders ?? []).join("\n") === (other.leaders ?? []).join("\n")
       );
     })
   );

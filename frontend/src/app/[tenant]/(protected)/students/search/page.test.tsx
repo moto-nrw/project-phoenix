@@ -129,7 +129,7 @@ vi.mock("~/components/ui/page-header/PageHeaderWithSearch", () => ({
             <>
               <option value="all">All</option>
               <option value="anwesend">Anwesend</option>
-              <option value="abwesend">Abwesend</option>
+              <option value="abwesend">Zuhause</option>
               <option value="unterwegs">Unterwegs</option>
               <option value="schulhof">Schulhof</option>
             </>
@@ -238,6 +238,7 @@ vi.mock("~/lib/location-helper", async (importOriginal) => {
       UNKNOWN: "Unbekannt",
       SICK: "Krank",
       EXCUSED: "Entschuldigt",
+      NOT_ARRIVAL: "Kommt heute nicht",
     },
   };
 });
@@ -1161,6 +1162,49 @@ describe("StudentSearchPage", () => {
           screen.queryByText(new RegExp(`^Max\\b`)),
         ).not.toBeInTheDocument();
       });
+    });
+
+    // #4588: ein Kind ohne bekannten Ort oder mit „Kommt heute nicht“ zählt
+    // in der Statuszeile als zuhause; der Filter hinter der Kachel „Zuhause“
+    // muss genau diese Kinder zeigen und darf keins davon verlieren.
+    it("shows every child the summary counts as home under the 'Zuhause' filter", async () => {
+      const swrModule = await import("~/lib/swr");
+      mockUseSWRAuthWithStudents(swrModule, {
+        data: {
+          students: [
+            { ...mockStudents[0]!, current_location: "Zuhause" },
+            { ...mockStudents[1]!, current_location: "" },
+            { ...mockStudents[2]!, current_location: "Kommt heute nicht" },
+            { ...mockStudents[3]!, current_location: "Anwesend - Raum 101" },
+          ],
+        },
+        isLoading: false,
+        error: null,
+      } as ReturnType<typeof swrModule.useSWRAuth>);
+
+      mockSearchParams.set("status", "abwesend");
+
+      render(<StudentSearchPage />);
+
+      await waitFor(() => {
+        expect(
+          screen.getByText(
+            "4 Kinder · 1 in der OGS · 0 in der Schule · 3 zuhause · 0 krank",
+          ),
+        ).toBeInTheDocument();
+      });
+      expect(
+        screen.getByText(new RegExp(`^${mockStudents[0]!.first_name}\\b`)),
+      ).toBeInTheDocument();
+      expect(
+        screen.getByText(new RegExp(`^${mockStudents[1]!.first_name}\\b`)),
+      ).toBeInTheDocument();
+      expect(
+        screen.getByText(new RegExp(`^${mockStudents[2]!.first_name}\\b`)),
+      ).toBeInTheDocument();
+      expect(
+        screen.queryByText(new RegExp(`^${mockStudents[3]!.first_name}\\b`)),
+      ).not.toBeInTheDocument();
     });
 
     it("collapses a sick student's time rows into one neutral 'not coming' line (Variant B)", async () => {
@@ -3448,7 +3492,7 @@ describe("StudentSearchPage", () => {
         "Schulhof",
         "Krank",
         "Entschuldigt",
-        "Abwesend",
+        "Zuhause",
       ]);
     });
 
@@ -3835,7 +3879,7 @@ describe("StudentSearchPage", () => {
         screen.getAllByText(new RegExp(`^Anwesend\\b`)).length,
       ).toBeGreaterThan(0);
       expect(
-        screen.getAllByText(new RegExp(`^Abwesend\\b`)).length,
+        screen.getAllByText(new RegExp(`^Zuhause\\b`)).length,
       ).toBeGreaterThan(0);
     });
 

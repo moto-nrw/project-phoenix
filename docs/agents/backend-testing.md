@@ -90,9 +90,9 @@ keys. Preserve exact whitespace, serialization and redaction assertions.
 
 Keep literal weak, empty, malformed or wrong inputs when those properties are
 the behavior under test. Do not replace them with valid generated credentials
-or weaken their refusal assertions. Test files remain secret-scanned.
+or weaken their refusal assertions.
 
-Scanner setup, the live acceptance probe and historical findings are documented
+Scanner setup and historical findings are documented
 under [GitGuardian findings](operations.md#gitguardian-findings).
 
 ## Local test-server lifetime

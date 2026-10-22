@@ -86,10 +86,8 @@ func (s *service) applyDashboardAbsences(ctx context.Context, analytics *Dashboa
 	}
 	analytics.StudentsSick = statusCounts.Sick
 	analytics.StudentsExcused = statusCounts.Excused
-	analytics.StudentsHome = calculateStudentsHome(
-		statusCounts.Total, analytics.StudentsPresent, statusCounts.Sick, statusCounts.Excused,
-	)
 	analytics.HomeCandidateIDs = homeCandidateIDs(statusCounts.UnaccountedIDs, studentsPresent)
+	analytics.StudentsHome = len(analytics.HomeCandidateIDs)
 }
 
 func (s *service) countEffectiveAbsencesForDate(ctx context.Context, date calendar.Date) (studentStatusCounts, error) {
@@ -106,7 +104,6 @@ func (s *service) countEffectiveAbsencesForDate(ctx context.Context, date calend
 	return studentStatusCounts{
 		Sick:           counts.Sick,
 		Excused:        counts.Excused,
-		Total:          counts.Total,
 		UnaccountedIDs: counts.UnaccountedIDs,
 	}, nil
 }
@@ -114,12 +111,18 @@ func (s *service) countEffectiveAbsencesForDate(ctx context.Context, date calend
 type studentStatusCounts struct {
 	Sick           int
 	Excused        int
-	Total          int
 	UnaccountedIDs []int64
 }
 
 // homeCandidateIDs keeps the unaccounted students that are not present, in
-// the repository's order.
+// the repository's order. They are the "Zuhause" figure before the "Schule"
+// split (#3260): every active student who is neither checked in nor sick,
+// excused or on a class trip.
+//
+// The figure is counted from this list, not derived as total minus present
+// minus sick minus excused. A child checked in despite a sick or excused day
+// sits in two of those buckets, so the subtraction removed it twice and the
+// tile showed one child fewer than "Alle Kinder" (#4588).
 func homeCandidateIDs(unaccounted []int64, present map[int64]bool) []int64 {
 	candidates := make([]int64, 0, len(unaccounted))
 	for _, id := range unaccounted {
@@ -128,27 +131,4 @@ func homeCandidateIDs(unaccounted []int64, present map[int64]bool) []int64 {
 		}
 	}
 	return candidates
-}
-
-// calculateStudentsHome derives the "Zuhause" figure as the remainder of the
-// dashboard's other buckets: every active student who is neither checked in
-// nor accounted for by an absence status is assumed to be at home.
-//
-// Deriving it rather than subtracting presence from a raw headcount is what
-// keeps the tiles reconciling. Sick and excused children never check in, so a
-// plain total-minus-present would count each of them twice, once in their own
-// tile and once here. The buckets are disjoint by construction — the repository
-// query gives sick precedence over excused/class_trip — so subtracting all
-// three is sound.
-//
-// Clamped at zero: presence is counted from today's attendance records while
-// the totals come from the student table, so a child checked in and then
-// deactivated mid-day can briefly push the arithmetic negative. A negative
-// headcount on a dashboard is worse than a slightly stale zero.
-func calculateStudentsHome(total, present, sick, excused int) int {
-	home := total - present - sick - excused
-	if home < 0 {
-		return 0
-	}
-	return home
 }
