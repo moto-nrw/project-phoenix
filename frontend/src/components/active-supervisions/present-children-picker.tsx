@@ -360,6 +360,9 @@ export function PresentChildrenPicker({
           value={scope}
           onChange={changeScope}
           fullWidth
+          className={
+            offeringItems.length > 0 ? "max-sm:grid-flow-row" : undefined
+          }
           ariaLabel="Welche Kinder zeigen"
         />
         {scope === "offering" && offeringId ? (
