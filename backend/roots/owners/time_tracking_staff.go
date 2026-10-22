@@ -111,6 +111,24 @@ func (q staffDisplayNameQuery) StaffDisplayNames(ctx context.Context, ids []int6
 	return names, nil
 }
 
+type externalCaregiverStaff struct{ source staffNameRecords }
+
+// externalCaregiverLookup answers whether a staff member is an external
+// caregiver by School Membership's rule (#4573), which the person-hydrated
+// staff rows apply: an active guest profile, whatever the account.
+func externalCaregiverLookup(source staffNameRecords) externalCaregiverStaff {
+	return externalCaregiverStaff{source: source}
+}
+
+func (q externalCaregiverStaff) IsExternalCaregiver(ctx context.Context, staffID int64) (bool, error) {
+	rows, err := q.source.FindWithPersonByIDs(ctx, []int64{staffID})
+	if err != nil {
+		return false, err
+	}
+	row := rows[staffID]
+	return row != nil && row.IsGuest, nil
+}
+
 type workSessionStaffRecords interface {
 	staffNameRecords
 }

@@ -41,31 +41,37 @@ func TestStaffScheduleOverview_LeavesExternalCaregiversOut(t *testing.T) {
 	require.Empty(t, got.Assignments, "external caregivers have no Dienstplan assignments")
 }
 
-func TestStaffScheduleOverview_KeepsAccountBackedGuestStaff(t *testing.T) {
+// TestStaffScheduleOverview_LeavesAccountBackedExternalCaregiversOut pins
+// #4573: an account does not make an external caregiver Dienstplan staff.
+// Before #4573 an account-backed guest kept their row and assignments.
+func TestStaffScheduleOverview_LeavesAccountBackedExternalCaregiversOut(t *testing.T) {
 	t.Parallel()
 
 	employee := fakeStaff(1, "Ada", "Lovelace")
-	guest := fakeStaff(2, "Grace", "Hopper")
+	external := fakeStaff(2, "Grace", "Hopper")
 	accountID := int64(42)
-	guest.IsGuest = true
-	guest.Person.AccountID = &accountID
-	employee.ID, guest.ID = 1, 2
+	external.IsGuest = true
+	external.Person.AccountID = &accountID
+	employee.ID, external.ID = 1, 2
 	monday := calendar.NewDate(2026, time.July, 6)
 	instance := &timetable.ScheduledInstance{
 		Date: calendar.Date(monday), Title: "Robotik-AG", StartTime: testClock(t, "14:00"), EndTime: testClock(t, "15:00"), Status: timetable.InstanceStatusPlanned,
 	}
 	instance.ID = 3
 	service := NewStaffScheduleOverviewService(StaffScheduleOverviewDependencies{
-		Shifts:        &fakeShiftReader{},
-		Instances:     &fakeInstanceReader{rows: []*timetable.ScheduledInstance{instance}},
-		InstanceStaff: &fakeInstanceStaffReader{rows: []*timetable.InstanceStaff{{InstanceID: instance.ID, StaffID: guest.ID}}},
-		Rooms:         &fakeRoomReader{},
-		Staff:         &fakeStaffReader{rows: []*workforce.PlanStaff{employee, guest}},
+		Shifts:    &fakeShiftReader{},
+		Instances: &fakeInstanceReader{rows: []*timetable.ScheduledInstance{instance}},
+		InstanceStaff: &fakeInstanceStaffReader{rows: []*timetable.InstanceStaff{
+			{InstanceID: instance.ID, StaffID: external.ID}, {InstanceID: instance.ID, StaffID: employee.ID},
+		}},
+		Rooms: &fakeRoomReader{},
+		Staff: &fakeStaffReader{rows: []*workforce.PlanStaff{employee, external}},
 	})
 
 	got, err := service.GetOverview(context.Background(), monday, monday.AddDays(4))
 	require.NoError(t, err)
-	require.Len(t, got.Staff, 2)
-	require.Len(t, got.Assignments, 1)
-	require.Equal(t, guest.ID, got.Assignments[0].StaffID)
+	require.Len(t, got.Staff, 1)
+	require.Equal(t, employee.ID, got.Staff[0].ID)
+	require.Len(t, got.Assignments, 1, "the employee keeps the assignment, the external has none")
+	require.Equal(t, employee.ID, got.Assignments[0].StaffID)
 }

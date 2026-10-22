@@ -223,6 +223,22 @@ func TestStaffPoolForInstance_LeavesExternalCaregiversOut(t *testing.T) {
 	}
 }
 
+// The pool is replacement staffing, which an account does not open to an
+// external caregiver (#4573 D6).
+func TestStaffPoolForInstance_LeavesAccountBackedExternalCaregiversOut(t *testing.T) {
+	t.Parallel()
+
+	s := makePoolSetup(t)
+	externalID := createAccountBackedExternal(t, s.db, s.ctx, s.tenantID)
+
+	pool, err := s.detection.StaffPoolForInstance(s.ctx, s.target.ID)
+	require.NoError(t, err)
+	poolEntryOf(t, pool, s.staffID) // positive anchor: regular staff is listed
+	for _, entry := range pool.Entries {
+		assert.NotEqual(t, externalID, entry.StaffID)
+	}
+}
+
 // TestStaffPoolForInstance_TouchingWindowsDoNotOverlap: a block ending
 // exactly when the target starts does not occupy the person.
 func TestStaffPoolForInstance_TouchingWindowsDoNotOverlap(t *testing.T) {

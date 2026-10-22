@@ -83,6 +83,9 @@ func validateSubstitutionStaff(in timetable.ApplyDeviationsInput, refs *staffRef
 // validateSubstituteAvailable rejects a substitute who cannot cover the
 // substitution's appointments.
 func validateSubstituteAvailable(in timetable.ApplyDeviationsInput, sub timetable.DeviationSubstitutionInput, readSet *deviationReadSet) error {
+	if readSet.externalStaff[sub.SubstituteStaffID] {
+		return externalSubstituteRefusal()
+	}
 	if sub.AbsentStaffID == sub.SubstituteStaffID {
 		return timetable.DeviationBadRequest("die abwesende Person kann sich nicht selbst vertreten").WithCode(timetable.CodeSubstituteSelf).OnField("substitute_staff_id")
 	}
@@ -100,6 +103,13 @@ func validateSubstituteAvailable(in timetable.ApplyDeviationsInput, sub timetabl
 		}
 	}
 	return nil
+}
+
+// externalSubstituteRefusal refuses an external caregiver as substitute: they
+// may be planned and marked absent, but never replace anyone, with or
+// without an account (#4573 D6).
+func externalSubstituteRefusal() *timetable.DeviationError {
+	return timetable.DeviationBadRequest("Externe Betreuungskräfte können nicht als Vertretung eingeplant werden.").WithCode(timetable.CodeDeviationSelectionInvalid).OnField("substitute_staff_id")
 }
 
 func rejectContradictoryDeviationScopes(in timetable.ApplyDeviationsInput) error {

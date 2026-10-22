@@ -285,6 +285,17 @@ func (s *workSessionService) EnsureCheckedIn(ctx context.Context, staffID int64,
 		return nil, nil
 	}
 
+	// External caregivers record no working time (#3823), with or without
+	// an account (#4573): their supervision opens no block. Asked only now,
+	// when a block would be opened.
+	external, err := s.externalCaregivers.IsExternalCaregiver(ctx, staffID)
+	if err != nil {
+		return nil, fmt.Errorf("failed to check external caregiver: %w", err)
+	}
+	if external {
+		return nil, nil
+	}
+
 	// No session today, create one with the channel the caller passed in.
 	// The F9 deviation gate is bypassed: this auto-stamp fires because the
 	// staff member started a supervision, and that flow cannot collect a

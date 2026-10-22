@@ -96,6 +96,9 @@ func (d *conflictDetection) loadStaffPoolFacts(ctx context.Context, instance *sc
 	if err != nil {
 		return nil, false, nil, fmt.Errorf("load staff directory: %w", err)
 	}
+	// The pool is replacement staffing, which excludes every external
+	// caregiver, with or without an account (#4573 D6). The hydrated marker
+	// already means "external", whatever the account.
 	staff = slices.DeleteFunc(staff, func(member *timetable.StaffMember) bool {
 		return member != nil && member.IsGuest
 	})
