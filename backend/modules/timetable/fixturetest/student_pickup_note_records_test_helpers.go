@@ -12,7 +12,6 @@ import (
 type StudentPickupNoteRecords interface {
 	Create(arg0 context.Context, arg1 *StudentPickupNote) error
 	DeleteByStudentID(arg0 context.Context, arg1 int64) error
-	DeletePastNotes(arg0 context.Context, arg1 calendar.Date) (int64, error)
 	FindByID(arg0 context.Context, arg1 int64) (*StudentPickupNote, error)
 	FindByStudentID(arg0 context.Context, arg1 int64) ([]*StudentPickupNote, error)
 	FindByStudentIDAndDate(arg0 context.Context, arg1 int64, arg2 calendar.Date) ([]*StudentPickupNote, error)
@@ -25,11 +24,6 @@ type fromStudentPickupNoteRecords struct {
 }
 
 func FromStudentPickupNoteRecords(value ports.StudentPickupNoteRecords) StudentPickupNoteRecords {
-	if original, ok := value.(interface {
-		fixtureStudentPickupNoteRecords() StudentPickupNoteRecords
-	}); ok {
-		return original.fixtureStudentPickupNoteRecords()
-	}
 	if value == nil {
 		return nil
 	}
@@ -44,11 +38,6 @@ func (adapter fromStudentPickupNoteRecords) Create(arg0 context.Context, arg1 *S
 func (adapter fromStudentPickupNoteRecords) DeleteByStudentID(arg0 context.Context, arg1 int64) error {
 	result0 := adapter.value.DeleteByStudentID(arg0, arg1)
 	return result0
-}
-
-func (adapter fromStudentPickupNoteRecords) DeletePastNotes(arg0 context.Context, arg1 calendar.Date) (int64, error) {
-	result0, result1 := adapter.value.DeletePastNotes(arg0, arg1)
-	return result0, result1
 }
 
 func (adapter fromStudentPickupNoteRecords) FindByID(arg0 context.Context, arg1 int64) (*StudentPickupNote, error) {
@@ -75,5 +64,3 @@ func (adapter fromStudentPickupNoteRecords) Update(arg0 context.Context, arg1 *S
 	result0 := adapter.value.Update(arg0, toNative18(arg1))
 	return result0
 }
-
-func (adapter fromStudentPickupNoteRecords) nativeRecordSource() any { return adapter.value }

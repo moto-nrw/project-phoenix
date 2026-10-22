@@ -393,13 +393,6 @@ func (s *Store) DeleteArrivalExceptionsByStudent(ctx context.Context, id int64) 
 	}
 	return execAny(ctx, db.NewDelete().TableExpr(`schedule.student_arrival_exceptions AS "student_arrival_exception"`).Where(`"student_arrival_exception".tenant_id = ?`, tid).Where(`"student_arrival_exception".student_id = ?`, id), "delete arrival exceptions by student")
 }
-func (s *Store) DeleteArrivalExceptionsBefore(ctx context.Context, d careplan.Date) (domain.OperationStats, error) {
-	db, tid, err := s.databaseForWrite(ctx, "delete old arrival exceptions")
-	if err != nil {
-		return domain.OperationStats{}, err
-	}
-	return execAny(ctx, db.NewDelete().TableExpr(`schedule.student_arrival_exceptions AS "student_arrival_exception"`).Where(`"student_arrival_exception".tenant_id = ?`, tid).Where(`"student_arrival_exception".exception_date < ?`, calendarDate(d)), "delete past arrival exceptions")
-}
 
 func (s *Store) FindArrivalNote(ctx context.Context, id int64) (careplan.ArrivalNote, bool, domain.OperationStats, error) {
 	db, tid, err := s.database(ctx)
@@ -481,13 +474,6 @@ func (s *Store) DeleteArrivalNotesByStudent(ctx context.Context, id int64) (doma
 		return domain.OperationStats{}, err
 	}
 	return execAny(ctx, db.NewDelete().TableExpr(`schedule.student_arrival_notes AS "student_arrival_note"`).Where(`"student_arrival_note".tenant_id = ?`, tid).Where(`"student_arrival_note".student_id = ?`, id), "delete arrival notes by student")
-}
-func (s *Store) DeleteArrivalNotesBefore(ctx context.Context, d careplan.Date) (domain.OperationStats, error) {
-	db, tid, err := s.databaseForWrite(ctx, "delete old arrival notes")
-	if err != nil {
-		return domain.OperationStats{}, err
-	}
-	return execAny(ctx, db.NewDelete().TableExpr(`schedule.student_arrival_notes AS "student_arrival_note"`).Where(`"student_arrival_note".tenant_id = ?`, tid).Where(`"student_arrival_note".note_date < ?`, calendarDate(d)), "delete past arrival notes")
 }
 
 func (s *Store) FindPickupSchedule(ctx context.Context, id int64) (careplan.PickupSchedule, bool, domain.OperationStats, error) {

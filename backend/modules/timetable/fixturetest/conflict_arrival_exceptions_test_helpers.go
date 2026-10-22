@@ -24,11 +24,6 @@ func IntoConflictArrivalExceptions(value ConflictArrivalExceptions) ports.Confli
 			return capability
 		}
 	}
-	if original, ok := value.(interface {
-		nativeConflictArrivalExceptions() ports.ConflictArrivalExceptions
-	}); ok {
-		return original.nativeConflictArrivalExceptions()
-	}
 	if value == nil {
 		return nil
 	}
