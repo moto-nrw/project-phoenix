@@ -135,9 +135,6 @@ func TestListRelatedAccounts_NoAccountWithoutInviteIsNotPending(t *testing.T) {
 	repos := api.NewPeopleRepositorySuiteFactory(testpkg.NewDatabase(t, db))
 	ctx := testpkg.Ctx(t)
 	profile := testpkg.CreateTestGuardianProfile(t, db, "staff-contact")
-	defer func() {
-		_, _ = db.NewDelete().TableExpr("users.guardian_profiles").Where("id = ?", profile.ID).Exec(testpkg.WithPackageTenantRuntime(context.Background()))
-	}()
 	link := &peopledirectory.GuardianLinkFixture{
 		StudentID:         chain.StudentID,
 		GuardianProfileID: profile.ID,
@@ -169,10 +166,6 @@ func TestListRelatedAccounts_NoAccountWithOpenInviteIsPending(t *testing.T) {
 	repos := api.NewPeopleRepositorySuiteFactory(testpkg.NewDatabase(t, db))
 	ctx := testpkg.Ctx(t)
 	profile := testpkg.CreateTestGuardianProfile(t, db, "pending-contact")
-	defer func() {
-		_, _ = db.NewDelete().TableExpr("auth.guardian_invitations").Where("guardian_profile_id = ?", profile.ID).Exec(testpkg.WithPackageTenantRuntime(context.Background()))
-		_, _ = db.NewDelete().TableExpr("users.guardian_profiles").Where("id = ?", profile.ID).Exec(testpkg.WithPackageTenantRuntime(context.Background()))
-	}()
 	link := &peopledirectory.GuardianLinkFixture{
 		StudentID:         chain.StudentID,
 		GuardianProfileID: profile.ID,
@@ -216,12 +209,6 @@ func TestListRelatedAccounts_OpenInviteForAnotherChildIsNotPending(t *testing.T)
 	ctx := testpkg.Ctx(t)
 	profile := testpkg.CreateTestGuardianProfile(t, db, "sibling-pending-contact")
 	otherStudent := testpkg.CreateTestStudent(t, db, "Other", "Child", "9z")
-	defer func() {
-		_, _ = db.NewDelete().TableExpr("auth.guardian_invitations").Where("guardian_profile_id = ?", profile.ID).Exec(testpkg.WithPackageTenantRuntime(context.Background()))
-		_, _ = db.NewDelete().TableExpr("users.student_guardian_relationships").Where("guardian_profile_id = ?", profile.ID).Exec(testpkg.WithPackageTenantRuntime(context.Background()))
-		_, _ = db.NewDelete().TableExpr("users.guardian_profiles").Where("id = ?", profile.ID).Exec(testpkg.WithPackageTenantRuntime(context.Background()))
-		_, _ = db.NewDelete().TableExpr("users.student_profiles").Where("id = ?", otherStudent.ID).Exec(testpkg.WithPackageTenantRuntime(context.Background()))
-	}()
 	link := &peopledirectory.GuardianLinkFixture{
 		StudentID:         chain.StudentID,
 		GuardianProfileID: profile.ID,
@@ -304,9 +291,6 @@ func TestInviteRelatedAccount_UnownedChildIsRejected(t *testing.T) {
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
 	// A student the account is NOT a guardian of.
 	other := testpkg.CreateTestStudent(t, db, "Not", "Mine", "9z")
-	defer func() {
-		_, _ = db.NewDelete().TableExpr("users.student_profiles").Where("id = ?", other.ID).Exec(testpkg.WithPackageTenantRuntime(context.Background()))
-	}()
 
 	_, err := svc.InviteRelatedAccount(testpkg.WithPackageTenantRuntime(context.Background()), chain.AccountID, other.ID, "x@example.test", "", "", false)
 	require.Error(t, err)
@@ -549,9 +533,6 @@ func TestListRelatedAccounts_UnownedChildErrors(t *testing.T) {
 	svc, _, db := buildRelAcctService(t, parentService.ParentInviteModeDirect, false)
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
 	other := testpkg.CreateTestStudent(t, db, "Not", "Owned", "9z")
-	defer func() {
-		_, _ = db.NewDelete().TableExpr("users.student_profiles").Where("id = ?", other.ID).Exec(testpkg.WithPackageTenantRuntime(context.Background()))
-	}()
 
 	_, err := svc.ListRelatedAccounts(testpkg.WithPackageTenantRuntime(context.Background()), chain.AccountID, other.ID)
 	require.Error(t, err, "listing an unowned child must be rejected")
@@ -587,9 +568,6 @@ func TestListRelatedAccounts_AccountWithoutAccessIsActiveNoAccess(t *testing.T) 
 	ctx := testpkg.Ctx(t)
 	profile := testpkg.CreateTestGuardianProfile(t, db, "active-no-access")
 	_, account := testpkg.CreateTestPersonWithAccount(t, db, "NoAccess", "Account")
-	defer func() {
-		_, _ = db.NewDelete().TableExpr("users.guardian_profiles").Where("id = ?", profile.ID).Exec(testpkg.WithPackageTenantRuntime(context.Background()))
-	}()
 	require.NoError(t, repos.GuardianProfile.LinkAccount(ctx, profile.ID, account.ID))
 	// Restrictive contact role → empty permission set, no parent_portal.access.
 	link := &peopledirectory.GuardianLinkFixture{
@@ -626,10 +604,6 @@ func TestListRelatedAccounts_AccountWithoutAccessWithOpenInviteIsPending(t *test
 	ctx := testpkg.Ctx(t)
 	profile := testpkg.CreateTestGuardianProfile(t, db, "no-access-pending")
 	_, account := testpkg.CreateTestPersonWithAccount(t, db, "NoAccessPending", "Account")
-	defer func() {
-		_, _ = db.NewDelete().TableExpr("auth.guardian_invitations").Where("guardian_profile_id = ?", profile.ID).Exec(testpkg.WithPackageTenantRuntime(context.Background()))
-		_, _ = db.NewDelete().TableExpr("users.guardian_profiles").Where("id = ?", profile.ID).Exec(testpkg.WithPackageTenantRuntime(context.Background()))
-	}()
 	require.NoError(t, repos.GuardianProfile.LinkAccount(ctx, profile.ID, account.ID))
 	link := &peopledirectory.GuardianLinkFixture{
 		StudentID:         chain.StudentID,

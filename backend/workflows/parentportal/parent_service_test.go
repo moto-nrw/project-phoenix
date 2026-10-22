@@ -88,27 +88,17 @@ func TestService_ListEnrollmentsForAccount_PassesAccountIDThrough(t *testing.T) 
 		"service must forward account_id to the repo unmodified")
 }
 
-func TestService_ListEnrollmentsForAccount_RejectsZeroAccount(t *testing.T) {
+func TestService_ListEnrollmentsForAccount_RejectsNonPositiveAccount(t *testing.T) {
 	t.Parallel()
 
-	repo := &stubEnrollmentRequestRepo{}
-	svc := buildParentService(t, repo)
+	for _, accountID := range []int64{0, -5} {
+		repo := &stubEnrollmentRequestRepo{}
+		svc := buildParentService(t, repo)
 
-	_, err := svc.ListEnrollmentsForAccount(testpkg.WithPackageTenantRuntime(context.Background()), 0)
-	require.Error(t, err)
-	assert.Contains(t, err.Error(), "account_id must be positive")
-	assert.Equal(t, int64(0), repo.gotAccountID, "repo must not be called for invalid input")
-}
-
-func TestService_ListEnrollmentsForAccount_RejectsNegativeAccount(t *testing.T) {
-	t.Parallel()
-
-	repo := &stubEnrollmentRequestRepo{}
-	svc := buildParentService(t, repo)
-
-	_, err := svc.ListEnrollmentsForAccount(testpkg.WithPackageTenantRuntime(context.Background()), -5)
-	require.Error(t, err)
-	assert.Contains(t, err.Error(), "account_id must be positive")
+		_, err := svc.ListEnrollmentsForAccount(testpkg.WithPackageTenantRuntime(context.Background()), accountID)
+		require.ErrorContains(t, err, "account_id must be positive", "account %d", accountID)
+		assert.Zero(t, repo.gotAccountID, "repo must not be called for account %d", accountID)
+	}
 }
 
 func TestService_ListEnrollmentsForAccount_PropagatesRepoError(t *testing.T) {

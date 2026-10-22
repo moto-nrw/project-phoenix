@@ -295,14 +295,7 @@ func TestGetTeacherActivities_WithOccupancy(t *testing.T) {
 	room := testpkg.CreateTestRoom(t, tc.db, "occ-test-room")
 
 	// Create an active session for this activity group
-	bgCtx := context.Background()
-	activeGroup := testpkg.CreateTestActiveGroup(t, tc.db, activityGroup.ID, room.ID)
-	defer func() {
-		_, _ = tc.db.NewDelete().
-			TableExpr("active.groups").
-			Where("id = ?", activeGroup.ID).
-			Exec(bgCtx)
-	}()
+	testpkg.CreateTestActiveGroup(t, tc.db, activityGroup.ID, room.ID)
 
 	router := tc.resource.Router()
 

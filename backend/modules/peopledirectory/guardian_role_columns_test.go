@@ -18,10 +18,7 @@ func TestStudentRecordCareDayRules(t *testing.T) {
 	running := peopledirectory.StudentRecord{Status: peopledirectory.StudentStatusActive}
 	ended := peopledirectory.StudentRecord{Status: peopledirectory.StudentStatusActive, EnrolledUntil: "2026-10-16"}
 	alumnus := peopledirectory.StudentRecord{Status: peopledirectory.StudentStatusAlumnus}
-	pending := peopledirectory.StudentRecord{Status: peopledirectory.StudentStatusPending}
 
-	assert.True(t, running.IsActive())
-	assert.False(t, pending.IsActive())
 	assert.False(t, running.CareEndedOn("2026-10-19"))
 	assert.False(t, ended.CareEndedOn("2026-10-16"), "the last care day is still in care")
 	assert.True(t, ended.CareEndedOn("2026-10-17"))

@@ -25,7 +25,6 @@ func TestPhaseRepository_ListPublicOpen_HidesLinkedParentsPhases(t *testing.T) {
 	openName := uniquePhaseName("audienceOpen")
 	newStudentsName := uniquePhaseName("audienceNew")
 	linkedName := uniquePhaseName("audienceLinked")
-	defer wipePhases(db, tenantID, openName, newStudentsName, linkedName)
 
 	now := time.Date(2026, 6, 15, 12, 0, 0, 0, time.UTC)
 
@@ -74,7 +73,6 @@ func TestPhaseRepository_ListPublicOpen_HidesExistingStudentsPhases(t *testing.T
 	repo := ownerCompose.New()
 	openName := uniquePhaseName("audienceOpenB")
 	existingName := uniquePhaseName("audienceExisting")
-	defer wipePhases(db, tenantID, openName, existingName)
 
 	now := time.Date(2026, 6, 15, 12, 0, 0, 0, time.UTC)
 
@@ -116,7 +114,6 @@ func TestPhaseRepository_EligibilityColumnsRoundtrip(t *testing.T) {
 	testpkg.EnsureTestTenant(t, db, tenantID)
 	repo := ownerCompose.New()
 	name := uniquePhaseName("eligibilityRoundtrip")
-	defer wipePhases(db, tenantID, name)
 
 	p := makeOwnerEligibilityPhase(name)
 	p.Audience = capability.PhaseAudienceNewStudents
@@ -168,7 +165,6 @@ func TestPhaseRepository_EligibleGradeLevelsRoundtrip(t *testing.T) {
 	testpkg.EnsureTestTenant(t, db, tenantID)
 	repo := ownerCompose.New()
 	name := uniquePhaseName("gradeEligibilityRoundtrip")
-	defer wipePhases(db, tenantID, name)
 
 	p := makeOwnerEligibilityPhase(name)
 	p.EligibleGradeLevels = []int{3, 4}
@@ -212,7 +208,6 @@ func TestEnrollment_HasActiveGradeRestrictedPhase(t *testing.T) {
 	unrestrictedName := uniquePhaseName("gradeGuardUnrestricted")
 	inactiveName := uniquePhaseName("gradeGuardInactive")
 	activeName := uniquePhaseName("gradeGuardActive")
-	defer wipePhases(db, tenantID, unrestrictedName, inactiveName, activeName)
 
 	unrestricted := makeOwnerEligibilityPhase(unrestrictedName)
 	unrestricted.IsActive = true
@@ -263,7 +258,6 @@ func TestEnrollment_MaxActivePhaseGrade(t *testing.T) {
 	inactiveName := uniquePhaseName("gradeCapInactive")
 	activeName := uniquePhaseName("gradeCapActive")
 	lowerName := uniquePhaseName("gradeCapLower")
-	defer wipePhases(db, tenantID, unrestrictedName, inactiveName, activeName, lowerName)
 
 	unrestricted := makeOwnerEligibilityPhase(unrestrictedName)
 	unrestricted.IsActive = true

@@ -109,11 +109,6 @@ func TestSetStaffSchoolClasses(t *testing.T) {
 
 	t.Run("audits every actual change, skips no-ops", func(t *testing.T) {
 		staff := testpkg.CreateTestStaff(t, db, "CTSvc", "Audit")
-		defer func() {
-			tenantCtx := testpkg.Ctx(t)
-			_, _ = db.NewDelete().TableExpr("audit.staff_master_data_changes").
-				Where("staff_id = ?", staff.ID).Exec(tenantCtx)
-		}()
 
 		auditCount := func() int {
 			count, err := db.NewSelect().

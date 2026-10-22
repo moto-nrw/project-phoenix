@@ -44,7 +44,6 @@ func TestOperatorMFAStartChallengeFailsClosedAndInvalidatesCode(t *testing.T) {
 		api.WithAuthTestMailer(mailer),
 		api.WithAuthTestMFABackoff(time.Millisecond))
 	operator := testpkg.CreateTestOperator(t, db)
-	deleteOperatorChallenges(t, db, operator.ID)
 
 	token, err := module.OperatorMFA.StartOperatorMFAChallenge(
 		context.Background(), operator.ID, net.ParseIP("203.0.113.73"))

@@ -33,13 +33,7 @@ func TestStudentRepository_EndedCareExcludedFromRosterReads(t *testing.T) {
 	suffix := uuid.Must(uuid.NewV4()).String()[:8]
 	group := testpkg.CreateTestEducationGroup(t, db, fmt.Sprintf("CareEndGroup-%s", suffix))
 	teacher := testpkg.CreateTestTeacher(t, db, "CareEnd", "Teacher")
-	gt := testpkg.CreateTestGroupTeacher(t, db, group.ID, teacher.ID)
-	defer func() {
-		_, _ = db.NewDelete().
-			TableExpr("education.group_teacher").
-			Where("id = ?", gt.ID).
-			Exec(ctx)
-	}()
+	testpkg.CreateTestGroupTeacher(t, db, group.ID, teacher.ID)
 
 	class := fmt.Sprintf("1ce-%s", suffix)
 	staying := testpkg.CreateTestStudent(t, db, "CareStaying", "Kid", class)

@@ -182,9 +182,6 @@ func TestEnrollmentRequestRepository_ListByAccount_BasicHappyPath(t *testing.T) 
 	tenantA := testpkg.Tenant(t)
 
 	account := testpkg.CreateTestAccount(t, db, "parentlist-basic")
-	defer func() {
-		_, _ = db.NewDelete().TableExpr("auth.accounts").Where("id = ?", account.ID).Exec(context.Background())
-	}()
 
 	phaseID := insertTestPhase(t, db, tenantA, "phase-list-basic-"+t.Name())
 
@@ -217,9 +214,6 @@ func TestEnrollmentRequestRepository_ListByAccount_OrdersBySubmittedAtDesc(t *te
 	tenantA := testpkg.Tenant(t)
 
 	account := testpkg.CreateTestAccount(t, db, "parentlist-order")
-	defer func() {
-		_, _ = db.NewDelete().TableExpr("auth.accounts").Where("id = ?", account.ID).Exec(context.Background())
-	}()
 
 	phaseID := insertTestPhase(t, db, tenantA, "phase-list-order-"+t.Name())
 
@@ -277,9 +271,6 @@ func TestEnrollmentRequestRepository_ListByAccount_CrossTenant(t *testing.T) {
 	// One account with submissions at two different tenants — the cross-
 	// tenant query must return both rows (parent dashboard is global).
 	account := testpkg.CreateTestAccount(t, db, "parentlist-cross")
-	defer func() {
-		_, _ = db.NewDelete().TableExpr("auth.accounts").Where("id = ?", account.ID).Exec(context.Background())
-	}()
 
 	t1Phase := insertTestPhase(t, db, tenantA, "phase-cross-t1-"+t.Name())
 	t2Phase := insertTestPhase(t, db, tenantB, "phase-cross-t2-"+t.Name())
@@ -321,10 +312,6 @@ func TestEnrollmentRequestRepository_ListByAccount_IgnoresOtherAccounts(t *testi
 
 	mine := testpkg.CreateTestAccount(t, db, "parentlist-mine")
 	other := testpkg.CreateTestAccount(t, db, "parentlist-other")
-	defer func() {
-		bg := context.Background()
-		_, _ = db.NewDelete().TableExpr("auth.accounts").Where("id IN (?, ?)", mine.ID, other.ID).Exec(bg)
-	}()
 
 	phaseID := insertTestPhase(t, db, tenantA, "phase-list-mine-"+t.Name())
 
@@ -452,9 +439,6 @@ func TestEnrollmentRequestRepository_ListByAccount_EmptyForUnknownAccount(t *tes
 
 	// Don't insert any requests for this account.
 	account := testpkg.CreateTestAccount(t, db, "parentlist-empty")
-	defer func() {
-		_, _ = db.NewDelete().TableExpr("auth.accounts").Where("id = ?", account.ID).Exec(context.Background())
-	}()
 
 	results := listByAccount(t, db, account.ID)
 	assert.NotNil(t, results)
@@ -468,9 +452,6 @@ func TestEnrollmentRequestRepository_ListByAccount_GroupsMultipleChildren(t *tes
 	tenantA := testpkg.Tenant(t)
 
 	account := testpkg.CreateTestAccount(t, db, "parentlist-multikid")
-	defer func() {
-		_, _ = db.NewDelete().TableExpr("auth.accounts").Where("id = ?", account.ID).Exec(context.Background())
-	}()
 
 	phaseID := insertTestPhase(t, db, tenantA, "phase-list-multikid-"+t.Name())
 
@@ -516,9 +497,6 @@ func TestEnrollmentRequestRepository_Backfill_HappyPath(t *testing.T) {
 	tenantA := testpkg.Tenant(t)
 
 	account := testpkg.CreateTestAccount(t, db, "backfill-happy")
-	defer func() {
-		_, _ = db.NewDelete().TableExpr("auth.accounts").Where("id = ?", account.ID).Exec(context.Background())
-	}()
 
 	phaseID := insertTestPhase(t, db, tenantA, "phase-backfill-happy-"+t.Name())
 
@@ -547,9 +525,6 @@ func TestEnrollmentRequestRepository_Backfill_CaseInsensitive(t *testing.T) {
 	tenantA := testpkg.Tenant(t)
 
 	account := testpkg.CreateTestAccount(t, db, "backfill-case")
-	defer func() {
-		_, _ = db.NewDelete().TableExpr("auth.accounts").Where("id = ?", account.ID).Exec(context.Background())
-	}()
 
 	phaseID := insertTestPhase(t, db, tenantA, "phase-backfill-case-"+t.Name())
 
@@ -580,10 +555,6 @@ func TestEnrollmentRequestRepository_Backfill_SkipsAlreadyStamped(t *testing.T) 
 
 	owner := testpkg.CreateTestAccount(t, db, "backfill-owner")
 	intruder := testpkg.CreateTestAccount(t, db, "backfill-intruder")
-	defer func() {
-		bg := context.Background()
-		_, _ = db.NewDelete().TableExpr("auth.accounts").Where("id IN (?, ?)", owner.ID, intruder.ID).Exec(bg)
-	}()
 
 	phaseID := insertTestPhase(t, db, tenantA, "phase-backfill-skip-"+t.Name())
 
@@ -612,9 +583,6 @@ func TestEnrollmentRequestRepository_Backfill_DoesNotTouchOtherEmails(t *testing
 	tenantA := testpkg.Tenant(t)
 
 	account := testpkg.CreateTestAccount(t, db, "backfill-other")
-	defer func() {
-		_, _ = db.NewDelete().TableExpr("auth.accounts").Where("id = ?", account.ID).Exec(context.Background())
-	}()
 
 	phaseID := insertTestPhase(t, db, tenantA, "phase-backfill-other-"+t.Name())
 
@@ -655,9 +623,6 @@ func TestEnrollmentRequestRepository_Backfill_EmptyEmailIsNoop(t *testing.T) {
 	tenantA := testpkg.Tenant(t)
 
 	account := testpkg.CreateTestAccount(t, db, "backfill-empty")
-	defer func() {
-		_, _ = db.NewDelete().TableExpr("auth.accounts").Where("id = ?", account.ID).Exec(context.Background())
-	}()
 
 	phaseID := insertTestPhase(t, db, tenantA, "phase-backfill-empty-"+t.Name())
 
@@ -689,9 +654,6 @@ func TestEnrollmentRequestRepository_Backfill_CrossTenant(t *testing.T) {
 	testpkg.EnsureTestTenant(t, db, tenantB)
 
 	account := testpkg.CreateTestAccount(t, db, "backfill-cross")
-	defer func() {
-		_, _ = db.NewDelete().TableExpr("auth.accounts").Where("id = ?", account.ID).Exec(context.Background())
-	}()
 
 	t1Phase := insertTestPhase(t, db, tenantA, "phase-backfill-cross-t1-"+t.Name())
 	t2Phase := insertTestPhase(t, db, tenantB, "phase-backfill-cross-t2-"+t.Name())

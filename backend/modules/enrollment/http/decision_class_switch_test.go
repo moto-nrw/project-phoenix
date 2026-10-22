@@ -21,8 +21,7 @@ import (
 func TestDecisionService_Decide_ExistingStudentRenewalKeepsRunningClassUntilYearStarts(t *testing.T) {
 	t.Parallel()
 
-	env, cleanup := setupDecisionTest(t)
-	defer cleanup()
+	env := setupDecisionTest(t)
 	ctx := testpkg.Ctx(t)
 
 	newYearStart := calendar.NewDate(2030, 8, 1)
@@ -94,8 +93,7 @@ func TestDecisionService_Decide_ExistingStudentRenewalKeepsRunningClassUntilYear
 func TestDecisionService_Decide_InactiveExistingStudentRenewalSwitchesAtOnce(t *testing.T) {
 	t.Parallel()
 
-	env, cleanup := setupDecisionTest(t)
-	defer cleanup()
+	env := setupDecisionTest(t)
 	ctx := testpkg.Ctx(t)
 
 	newYearStart := calendar.NewDate(2030, 8, 1)
@@ -140,8 +138,8 @@ func TestDecisionService_Decide_ActiveExistingStudentNonSchoolYearRenewalSwitche
 
 	for _, kind := range []string{capability.PhaseKindHoliday, capability.PhaseKindCustom} {
 		t.Run(kind, func(t *testing.T) {
-			env, cleanup := setupDecisionTest(t)
-			defer cleanup()
+			testpkg.OwnTenant(t)
+			env := setupDecisionTest(t)
 			ctx := testpkg.Ctx(t)
 
 			phaseStart := calendar.NewDate(2030, 10, 14)

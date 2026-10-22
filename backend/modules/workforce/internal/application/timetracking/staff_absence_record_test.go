@@ -2,7 +2,6 @@ package timetracking
 
 import (
 	"testing"
-	"time"
 
 	"github.com/moto-nrw/project-phoenix/modules/workforce"
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
@@ -144,20 +143,6 @@ func TestAbsenceDurationDays(t *testing.T) {
 		}
 		assert.GreaterOrEqual(t, absenceDurationDays(a), 1)
 	})
-}
-
-func TestStaffAbsence_Getters(t *testing.T) {
-	t.Parallel()
-
-	now := time.Now()
-	a := &StaffAbsence{}
-	a.ID = 99
-	a.CreatedAt = now
-	a.UpdatedAt = now
-
-	assert.Equal(t, int64(99), a.GetID())
-	assert.Equal(t, now, a.GetCreatedAt())
-	assert.Equal(t, now, a.GetUpdatedAt())
 }
 
 func TestAbsenceTypeConstants(t *testing.T) {

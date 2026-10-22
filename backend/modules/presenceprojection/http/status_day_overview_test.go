@@ -128,12 +128,6 @@ func TestGetStudentStatusDaysOverview_AdminSeesEntries(t *testing.T) {
 		OrderExpr("id DESC").
 		Limit(1).
 		Scan(context.Background()))
-	t.Cleanup(func() {
-		_, _ = tc.db.NewDelete().
-			TableExpr("audit.data_access_log").
-			Where("id = ?", auditEntry.ID).
-			Exec(context.Background())
-	})
 	assert.True(t, today.BerlinMidnight().Equal(auditEntry.RangeStart))
 	assert.True(t, calendar.NewDate(today.Year(), today.Month()+2, today.Day()).EndOfDay().Equal(auditEntry.RangeEnd))
 	groupIDs, ok := auditEntry.Metadata["group_ids"].([]interface{})

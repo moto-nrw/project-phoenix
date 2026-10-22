@@ -769,13 +769,6 @@
       "external_test_role": "adapter-test"
     },
     {
-      "path": "modules/devicescan/http/internal/shared",
-      "owner": "process-device-scan",
-      "role": "http",
-      "internal_test_role": "adapter-test",
-      "external_test_role": "adapter-test"
-    },
-    {
       "path": "modules/devicescan/http/sessions",
       "owner": "process-device-scan",
       "role": "http",
@@ -15803,11 +15796,6 @@
     {
       "from": "api/iot/devices",
       "to": "modules/devicefleet/http/devices",
-      "issue": "https://github.com/moto-nrw/project-phoenix/issues/4078"
-    },
-    {
-      "from": "api/iot/internal/shared",
-      "to": "modules/devicescan/http/internal/shared",
       "issue": "https://github.com/moto-nrw/project-phoenix/issues/4078"
     },
     {

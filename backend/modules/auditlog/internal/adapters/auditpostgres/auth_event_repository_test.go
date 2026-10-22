@@ -252,9 +252,6 @@ func TestAuthEventRepository_ListPendingAccountWideWipesIncludesOlderThanSevenDa
 		VALUES (?, ?, 'token_revoked', true, '0.0.0.0', jsonb_build_object('reason', 'password_reset', 'pending_account_wide_wipe', true), ?)
 	`, testpkg.Tenant(t), account.ID, createdAt).Exec(ctx)
 	require.NoError(t, err)
-	defer func() {
-		_, _ = db.NewDelete().TableExpr("audit.auth_events").Where("account_id = ?", account.ID).Exec(ctx)
-	}()
 
 	recentOnly, err := testpkg.TenantQuery1(t, ctx, db, repo.ListPendingAccountWideWipes, time.Now().Add(-7*24*time.Hour))
 	require.NoError(t, err)

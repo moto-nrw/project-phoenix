@@ -556,9 +556,6 @@ func TestStartThread_InvalidGuardian(t *testing.T) {
 
 	f := newFixture(t, true)
 	stranger := testpkg.CreateTestAccount(t, f.db, "stranger")
-	t.Cleanup(func() {
-		_, _ = f.db.ExecContext(context.Background(), `DELETE FROM auth.accounts WHERE id = ?`, stranger.ID)
-	})
 
 	_, err := testpkg.TenantQuery3(t, adminCtx(t, f.staffAccount), f.db, f.svc.StartThread, f.chain.StudentID, stranger.ID, "Hallo")
 	require.ErrorIs(t, err, messaging.ErrInvalidGuardian)
@@ -576,9 +573,6 @@ func TestMessaging_Forbidden(t *testing.T) {
 	require.NoError(t, err)
 
 	outsider := testpkg.CreateTestAccount(t, f.db, "outsider")
-	t.Cleanup(func() {
-		_, _ = f.db.ExecContext(context.Background(), `DELETE FROM auth.accounts WHERE id = ?`, outsider.ID)
-	})
 	ctx := claimsCtx(t, outsider.ID, []string{"users:read"})
 
 	_, err = testpkg.TenantQuery1(t, ctx, f.db, f.svc.GetThread, started.ThreadID)

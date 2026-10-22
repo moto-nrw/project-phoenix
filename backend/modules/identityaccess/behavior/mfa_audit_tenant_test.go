@@ -37,10 +37,6 @@ func TestMFAService_RecordAuthEvent_LandsRowWithExplicitTenantID(t *testing.T) {
 	tenantID := testpkg.UniqueTestTenantID(t)
 	testpkg.EnsureTestTenant(t, db, tenantID)
 	acc := testpkg.CreateTestAccount(t, db, "mfa-audit-tenant")
-	t.Cleanup(func() {
-		_, _ = db.NewDelete().Table("audit.auth_events").
-			Where("account_id = ?", acc.ID).Exec(context.Background())
-	})
 	testpkg.EnsureAccountTenant(t, db, acc.ID, tenantID)
 
 	require.NoError(t, svc.EnrollMFA(ctx, acc.ID))
@@ -77,10 +73,6 @@ func TestMFAService_RecordAuthEvent_FallsBackToSentinelIPForInternalEvents(t *te
 	tenantID := testpkg.UniqueTestTenantID(t)
 	testpkg.EnsureTestTenant(t, db, tenantID)
 	acc := testpkg.CreateTestAccount(t, db, "mfa-audit-sentinel-ip")
-	t.Cleanup(func() {
-		_, _ = db.NewDelete().Table("audit.auth_events").
-			Where("account_id = ?", acc.ID).Exec(context.Background())
-	})
 	testpkg.EnsureAccountTenant(t, db, acc.ID, tenantID)
 
 	// Seed a real active challenge so VerifyCodeForAccount reaches the

@@ -31,8 +31,7 @@ func setChildStatus(t *testing.T, env *requestTestEnv, childID int64, status str
 func TestChangeRequestService_Create_FlipsPendingRenewalToSubmitted(t *testing.T) {
 	t.Parallel()
 
-	env, cleanup := setupRequestTest(t)
-	defer cleanup()
+	env := setupRequestTest(t)
 	ctx := testpkg.TenantContext(env.phase.TenantID)
 
 	result, err := env.svc.Submit(ctx, validSubmission(t, env.phaseID))
@@ -72,8 +71,7 @@ func TestChangeRequestService_Create_FlipsPendingRenewalToSubmitted(t *testing.T
 func TestChangeRequestService_Create_FlipsAutoRenewedToSubmitted(t *testing.T) {
 	t.Parallel()
 
-	env, cleanup := setupRequestTest(t)
-	defer cleanup()
+	env := setupRequestTest(t)
 	ctx := testpkg.TenantContext(env.phase.TenantID)
 
 	result, err := env.svc.Submit(ctx, validSubmission(t, env.phaseID))
@@ -94,8 +92,7 @@ func TestChangeRequestService_Create_FlipsAutoRenewedToSubmitted(t *testing.T) {
 func TestChangeRequestService_Create_LeavesNonRenewalStatusesAlone(t *testing.T) {
 	t.Parallel()
 
-	env, cleanup := setupRequestTest(t)
-	defer cleanup()
+	env := setupRequestTest(t)
 	ctx := testpkg.TenantContext(env.phase.TenantID)
 
 	result, err := env.svc.Submit(ctx, validSubmission(t, env.phaseID))

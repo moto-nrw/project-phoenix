@@ -2,7 +2,6 @@ package email
 
 import (
 	"testing"
-	"time"
 
 	mailcontract "github.com/moto-nrw/project-phoenix/modules/delivery/mail"
 
@@ -38,99 +37,6 @@ func TestNewEmail_SpecialCharacters(t *testing.T) {
 
 	assert.Equal(t, "José O'Connor", email.Name)
 	assert.Equal(t, "jose+tag@example.com", email.Address)
-}
-
-// =============================================================================
-// Format Function Tests
-// =============================================================================
-
-func TestFormatAsDate(t *testing.T) {
-	t.Parallel()
-
-	tests := []struct {
-		name     string
-		time     time.Time
-		expected string
-	}{
-		{
-			name:     "standard date",
-			time:     time.Date(2024, 3, 15, 0, 0, 0, 0, time.UTC),
-			expected: "15.3.2024",
-		},
-		{
-			name:     "single digit day and month",
-			time:     time.Date(2024, 1, 5, 0, 0, 0, 0, time.UTC),
-			expected: "5.1.2024",
-		},
-		{
-			name:     "end of year",
-			time:     time.Date(2024, 12, 31, 23, 59, 59, 0, time.UTC),
-			expected: "31.12.2024",
-		},
-		{
-			name:     "beginning of year",
-			time:     time.Date(2024, 1, 1, 0, 0, 0, 0, time.UTC),
-			expected: "1.1.2024",
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			result := formatAsDate(tt.time)
-			assert.Equal(t, tt.expected, result)
-		})
-	}
-}
-
-func TestFormatAsDuration(t *testing.T) {
-	t.Parallel()
-
-	now := time.Now()
-
-	tests := []struct {
-		name        string
-		futureTime  time.Time
-		shouldMatch func(string) bool
-	}{
-		{
-			name:       "hours and minutes",
-			futureTime: now.Add(2*time.Hour + 30*time.Minute),
-			shouldMatch: func(s string) bool {
-				return s == "2 hours and 150 minutes" || s == "2 hours and 149 minutes"
-			},
-		},
-		{
-			name:       "only minutes",
-			futureTime: now.Add(45 * time.Minute),
-			shouldMatch: func(s string) bool {
-				return s == "45 minutes" || s == "44 minutes"
-			},
-		},
-		{
-			name:       "one hour",
-			futureTime: now.Add(1*time.Hour + 10*time.Minute),
-			shouldMatch: func(s string) bool {
-				return s == "1 hours and 70 minutes" || s == "1 hours and 69 minutes"
-			},
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			result := formatAsDuration(tt.futureTime)
-			assert.True(t, tt.shouldMatch(result), "unexpected result: %s", result)
-		})
-	}
-}
-
-func TestFormatAsDuration_ZeroMinutes(t *testing.T) {
-	t.Parallel()
-
-	now := time.Now()
-	futureTime := now.Add(1 * time.Second)
-
-	result := formatAsDuration(futureTime)
-	assert.Contains(t, result, "minutes")
 }
 
 // =============================================================================
@@ -200,54 +106,6 @@ func TestMockMailer_SendFnReturnsError(t *testing.T) {
 	assert.Error(t, err)
 	assert.Equal(t, expectedErr, err)
 	assert.True(t, mailer.SendInvoked.Load())
-}
-
-// =============================================================================
-// Message Struct Tests
-// =============================================================================
-
-func TestMessage_Fields(t *testing.T) {
-	t.Parallel()
-
-	msg := mailcontract.Message{
-		From:     mailcontract.Email{Name: "From Name", Address: "from@example.com"},
-		To:       mailcontract.Email{Name: "To Name", Address: "to@example.com"},
-		Subject:  "Test Subject",
-		Template: "test_template.html",
-		Content:  map[string]string{"key": "value"},
-	}
-
-	assert.Equal(t, "From Name", msg.From.Name)
-	assert.Equal(t, "from@example.com", msg.From.Address)
-	assert.Equal(t, "To Name", msg.To.Name)
-	assert.Equal(t, "to@example.com", msg.To.Address)
-	assert.Equal(t, "Test Subject", msg.Subject)
-	assert.Equal(t, "test_template.html", msg.Template)
-}
-
-// =============================================================================
-// FuncMap Tests
-// =============================================================================
-
-func TestFMap_Contains_FormatFunctions(t *testing.T) {
-	t.Parallel()
-
-	assert.NotNil(t, fMap["formatAsDate"])
-	assert.NotNil(t, fMap["formatAsDuration"])
-}
-
-// =============================================================================
-// Mailer Interface Tests
-// =============================================================================
-
-func TestMailerInterface_MockMailerImplements(t *testing.T) {
-	t.Parallel()
-	var _ mailcontract.Mailer = &MockMailer{}
-}
-
-func TestMailerInterface_SMTPMailerImplements(t *testing.T) {
-	t.Parallel()
-	var _ mailcontract.Mailer = &SMTPMailer{}
 }
 
 // =============================================================================

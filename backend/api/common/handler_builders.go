@@ -53,29 +53,6 @@ func IDAction[I IDType](param, invalidMsg string, fn func(ctx context.Context, i
 	}
 }
 
-// TwoIDAction is IDAction for handlers addressing a pair of resources
-// (account+role, account+permission, role+permission).
-func TwoIDAction[I IDType](param1, invalidMsg1, param2, invalidMsg2 string, fn func(ctx context.Context, id1, id2 I) error, renderErr func(error) render.Renderer) http.HandlerFunc {
-	return func(w http.ResponseWriter, r *http.Request) {
-		id1, ok := parseIDOrRender[I](w, r, param1, invalidMsg1)
-		if !ok {
-			return
-		}
-
-		id2, ok := parseIDOrRender[I](w, r, param2, invalidMsg2)
-		if !ok {
-			return
-		}
-
-		if err := fn(r.Context(), id1, id2); err != nil {
-			RenderError(w, r, renderErr(err))
-			return
-		}
-
-		RespondNoContent(w, r)
-	}
-}
-
 // IDFetch returns a handler that parses one URL id parameter, fetches a
 // payload via fn, and responds 200 with the payload wrapped in the standard
 // success envelope.

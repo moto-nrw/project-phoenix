@@ -28,14 +28,14 @@ func TestStudentValidate_AccompaniedCoverIsPerWeekday(t *testing.T) {
 
 	t.Run("link on one of two accompanied days is rejected", func(t *testing.T) {
 		student := newStudent()
-		student.MarkDepartureCompanionDays(PickupDayMonday)
+		student.DepartureCompanionDays = map[string]bool{PickupDayMonday: true}
 
 		require.True(t, errors.Is(student.Validate(), ErrDepartureCompanionNoteRequired))
 	})
 
 	t.Run("link on every accompanied day is accepted", func(t *testing.T) {
 		student := newStudent()
-		student.MarkDepartureCompanionDays(PickupDayMonday, PickupDayTuesday)
+		student.DepartureCompanionDays = map[string]bool{PickupDayMonday: true, PickupDayTuesday: true}
 
 		require.NoError(t, student.Validate())
 	})
@@ -60,11 +60,11 @@ func TestStudentValidate_AccompaniedCoverIsPerWeekday(t *testing.T) {
 			PickupDayFriday:  DepartureAccompanied,
 			PickupDayTuesday: DepartureBus,
 		}
-		student.MarkDepartureCompanionDays(PickupDayMonday)
+		student.DepartureCompanionDays = map[string]bool{PickupDayMonday: true}
 
 		require.True(t, errors.Is(student.Validate(), ErrDepartureCompanionNoteRequired))
 
-		student.MarkDepartureCompanionDays(PickupDayFriday)
+		student.DepartureCompanionDays[PickupDayFriday] = true
 		require.NoError(t, student.Validate())
 	})
 }

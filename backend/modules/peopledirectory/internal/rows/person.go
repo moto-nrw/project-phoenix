@@ -53,11 +53,6 @@ func (p *Person) Validate() error {
 	return nil
 }
 
-// GetFullName returns the complete name of the person
-func (p *Person) GetFullName() string {
-	return p.FirstName + " " + p.LastName
-}
-
 // SetAccount links this person to an account
 func (p *Person) SetAccount(account *PersonAccount) {
 	p.Account = account
@@ -66,24 +61,4 @@ func (p *Person) SetAccount(account *PersonAccount) {
 	} else {
 		p.AccountID = nil
 	}
-}
-
-// SetRFIDCard links this person to an RFID card
-func (p *Person) SetRFIDCard(card *PersonRFIDCard) {
-	p.RFIDCard = card
-	if card != nil {
-		p.TagID = &card.ID
-	} else {
-		p.TagID = nil
-	}
-}
-
-// HasRFIDCard checks if the person has an RFID card assigned
-func (p *Person) HasRFIDCard() bool {
-	return p.TagID != nil && *p.TagID != ""
-}
-
-// HasAccount checks if the person has an account assigned
-func (p *Person) HasAccount() bool {
-	return p.AccountID != nil && *p.AccountID > 0
 }

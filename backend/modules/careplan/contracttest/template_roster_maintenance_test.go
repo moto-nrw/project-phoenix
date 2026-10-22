@@ -208,8 +208,7 @@ func TestDeriveTemplateRosterMaintenance(t *testing.T) {
 func TestTemplateRosterMaintenanceFeeds_ResolvesSourcesLinksAndSeries(t *testing.T) {
 	t.Parallel()
 
-	env, cleanup := setupDecisionTest(t)
-	defer cleanup()
+	env := setupDecisionTest(t)
 	ctx := testpkg.Ctx(t)
 
 	period := api.CreateCareOfferingCalendarPeriod(func(err error) { require.NoError(t, err) }, testpkg.NewDatabase(t, env.db), testpkg.Ctx(t), testpkg.Tenant(t), uniqueSchemaName(t.Name()), calendar.Date(env.sourcePhase.ServiceStartDate).AddDays(-31), calendar.Date(env.sourcePhase.ServiceEndDate).AddDays(31))
@@ -260,8 +259,7 @@ func TestTemplateRosterMaintenanceFeeds_ReportsSwitchedOffCareOfferings(t *testi
 	t.Parallel()
 
 	disabled := false
-	env, cleanup := setupDecisionTestWithSettings(t, stubActivationSettings{careOfferingsEnabled: &disabled})
-	defer cleanup()
+	env := setupDecisionTestWithSettings(t, stubActivationSettings{careOfferingsEnabled: &disabled})
 
 	template := createCareOfferingTemplateGroup(t, env.db, "FeedDisabled")
 	reader, ok := env.bookings.(careplan.OfferingSourceEditor)
@@ -274,8 +272,7 @@ func TestTemplateRosterMaintenanceFeeds_ReportsSwitchedOffCareOfferings(t *testi
 func TestTemplateRosterMaintenanceFeeds_RejectsSourceOutsideTemplatePeriod(t *testing.T) {
 	t.Parallel()
 
-	env, cleanup := setupDecisionTest(t)
-	defer cleanup()
+	env := setupDecisionTest(t)
 	ctx := testpkg.Ctx(t)
 
 	source := createSourceOffering(t, env, "FeedAusserhalbZeitraum", nil)
@@ -307,8 +304,7 @@ func TestTemplateRosterMaintenanceFeeds_RejectsSourceOutsideTemplatePeriod(t *te
 func TestTemplateRosterMaintenanceFeeds_RejectsLinkedOfferingOutsideTemplatePeriod(t *testing.T) {
 	t.Parallel()
 
-	env, cleanup := setupDecisionTest(t)
-	defer cleanup()
+	env := setupDecisionTest(t)
 	ctx := testpkg.Ctx(t)
 
 	period := api.CreateCareOfferingCalendarPeriod(func(err error) { require.NoError(t, err) }, testpkg.NewDatabase(t, env.db), testpkg.Ctx(t), testpkg.Tenant(t), uniqueSchemaName("linked-feed-too-short"+"-"+
@@ -340,8 +336,7 @@ func TestTemplateRosterMaintenanceFeeds_RejectsLinkedOfferingOutsideTemplatePeri
 func TestTemplateRosterMaintenanceFeeds_RejectsSourcesFromDifferentPhases(t *testing.T) {
 	t.Parallel()
 
-	env, cleanup := setupDecisionTest(t)
-	defer cleanup()
+	env := setupDecisionTest(t)
 	ctx := testpkg.Ctx(t)
 
 	period := api.CreateCareOfferingCalendarPeriod(func(err error) { require.NoError(t, err) }, testpkg.NewDatabase(t, env.db), testpkg.Ctx(t), testpkg.Tenant(t), uniqueSchemaName(t.Name()), calendar.Date(env.sourcePhase.ServiceStartDate).AddDays(-31), calendar.Date(env.sourcePhase.ServiceEndDate).AddDays(31))

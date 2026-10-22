@@ -1280,10 +1280,6 @@ func TestGuardianService_AddGuardiansToStudent(t *testing.T) {
 		req := validNewStudentGuardian(email)
 
 		err := testpkg.TenantCommand2(t, ctx, db, service.AddGuardiansToStudent, missingStudentID, []peoplePorts.NewStudentGuardian{req})
-		t.Cleanup(func() {
-			_, _ = db.NewDelete().TableExpr("users.guardian_profiles").
-				Where("email = ?", email).Exec(context.Background())
-		})
 
 		require.Error(t, err)
 		assert.Contains(t, err.Error(), "failed to link guardian at index 0")
@@ -2223,10 +2219,6 @@ func TestGetStudentGuardians_NonOpenInvitationsNotPending(t *testing.T) {
 		t.Run(c.name, func(t *testing.T) {
 			guardian := testpkg.CreateTestGuardianProfile(t, db, "inv-"+c.name)
 			student := testpkg.CreateTestStudent(t, db, "Inv", "State", "1a")
-			defer func() {
-				_, _ = db.NewDelete().TableExpr("users.student_guardian_relationships").Where("student_id = ?", student.ID).Exec(ctx)
-				_, _ = db.NewDelete().TableExpr("users.guardian_profiles").Where("id = ?", guardian.ID).Exec(ctx)
-			}()
 
 			_, err := testpkg.TenantQuery1(t, ctx, db, service.LinkGuardianToStudent, peoplePorts.StudentGuardianCreateRequest{
 				StudentID: student.ID, GuardianProfileID: guardian.ID, RelationshipType: "parent",
@@ -2272,11 +2264,6 @@ func TestGuardianService_ContactWritersShareProfileLock(t *testing.T) {
 
 	email := fmt.Sprintf("lock-guardian-%d@example.com", time.Now().UnixNano())
 	profile := testpkg.CreateTestGuardianProfile(t, db, email)
-	defer func() {
-		bg := context.Background()
-		_, _ = db.NewDelete().TableExpr("users.guardian_phone_numbers").Where("guardian_profile_id = ?", profile.ID).Exec(bg)
-		_, _ = db.NewDelete().TableExpr("users.guardian_profiles").Where("id = ?", profile.ID).Exec(bg)
-	}()
 
 	// Seed one phone so the update/delete writers have a live target.
 	seedPhone, err := testpkg.TenantQuery2(t, ctx, db, service.AddPhoneNumber, profile.ID, peoplePorts.PhoneNumberCreateRequest{
@@ -2361,12 +2348,6 @@ func TestGetStudentGuardians_AccountHolderPendingUpgradeApproval(t *testing.T) {
 	student := testpkg.CreateTestStudent(t, db, "AcctPending", "Student", "1a")
 	sibling := testpkg.CreateTestStudent(t, db, "AcctPending", "Sibling", "1a")
 	_, account := testpkg.CreateTestPersonWithAccount(t, db, "AcctPending", "Account")
-	defer func() {
-		_, _ = db.NewDelete().TableExpr("auth.guardian_invitations").Where("guardian_profile_id = ?", guardian.ID).Exec(context.Background())
-		_, _ = db.NewDelete().TableExpr("users.student_guardian_relationships").Where("guardian_profile_id = ?", guardian.ID).Exec(context.Background())
-		_, _ = db.NewDelete().TableExpr("users.guardian_profiles").Where("id = ?", guardian.ID).Exec(context.Background())
-		_, _ = db.NewDelete().TableExpr("users.student_profiles").Where("id IN (?, ?)", student.ID, sibling.ID).Exec(context.Background())
-	}()
 
 	require.NoError(t, repoFactory.GuardianProfile.LinkAccount(ctx, guardian.ID, account.ID))
 	_, err := testpkg.TenantQuery1(t, ctx, db, service.LinkGuardianToStudent, peoplePorts.StudentGuardianCreateRequest{

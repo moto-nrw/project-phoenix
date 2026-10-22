@@ -22,11 +22,6 @@ func setupRequestCacheDBTest(t *testing.T) (*testpkg.DB, int64, config.SettingsS
 	db := testpkg.SetupTestDB(t)
 	tenantID := testpkg.UniqueTestTenantID(t)
 	testpkg.EnsureTestTenant(t, db, tenantID)
-	t.Cleanup(func() {
-		ctx := context.Background()
-		_, _ = db.ExecContext(ctx, `DELETE FROM config.setting_audit WHERE tenant_id = ?`, tenantID)
-		_, _ = db.ExecContext(ctx, `DELETE FROM config.setting_values WHERE tenant_id = ?`, tenantID)
-	})
 
 	repository := configRepository.NewSettingValueRepository(testpkg.ConfigRuntime(db))
 	auditRepository := configRepository.NewSettingAuditRepository(testpkg.ConfigRuntime(db))

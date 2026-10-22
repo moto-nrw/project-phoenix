@@ -43,15 +43,6 @@ func TestOperatorAccountDirectory_ListAccountsByTenantID(t *testing.T) {
 		`UPDATE users.persons SET account_id = ? WHERE id = ?`, account.ID, person.ID)
 	require.NoError(t, err)
 
-	// Cleanup in reverse order (data deps)
-	defer func() {
-		_, _ = db.ExecContext(ctx, `DELETE FROM auth.account_tenants WHERE account_id = ?`, account.ID)
-		_, _ = db.ExecContext(ctx, `DELETE FROM users.persons WHERE id = ?`, person.ID)
-		_, _ = db.ExecContext(ctx, `DELETE FROM auth.accounts WHERE id = ?`, account.ID)
-		_, _ = db.ExecContext(ctx, `DELETE FROM platform.schools WHERE id = ?`, tenantID)
-		_, _ = db.ExecContext(ctx, `DELETE FROM platform.organizations WHERE id = ?`, tenantID)
-	}()
-
 	repo := newProjectedOperatorAccountDirectory(t, db)
 
 	t.Run("returns accounts for tenant", func(t *testing.T) {
@@ -94,12 +85,6 @@ func TestOperatorAccountDirectory_ListAccountsByTenantID_IncludesPendingInvitati
 		`UPDATE auth.invitation_tokens SET tenant_id = ? WHERE id = ?`, tenantID, invitation.ID)
 	require.NoError(t, err)
 
-	defer func() {
-		_, _ = db.ExecContext(ctx, `DELETE FROM auth.invitation_tokens WHERE id = ?`, invitation.ID)
-		_, _ = db.ExecContext(ctx, `DELETE FROM platform.schools WHERE id = ?`, tenantID)
-		_, _ = db.ExecContext(ctx, `DELETE FROM platform.organizations WHERE id = ?`, tenantID)
-	}()
-
 	repo := newProjectedOperatorAccountDirectory(t, db)
 	accounts, err := repo.ListAccountsByTenantID(ctx, tenantID)
 	require.NoError(t, err)
@@ -128,13 +113,6 @@ func TestOperatorAccountDirectory_ListAccountsByOrganizationID(t *testing.T) {
 
 	account := testpkg.CreateTestAccount(t, db, "list-by-org")
 	testpkg.MapAccountToTenant(t, db, account.ID, tenantID)
-
-	defer func() {
-		_, _ = db.ExecContext(ctx, `DELETE FROM auth.account_tenants WHERE account_id = ?`, account.ID)
-		_, _ = db.ExecContext(ctx, `DELETE FROM auth.accounts WHERE id = ?`, account.ID)
-		_, _ = db.ExecContext(ctx, `DELETE FROM platform.schools WHERE id = ?`, tenantID)
-		_, _ = db.ExecContext(ctx, `DELETE FROM platform.organizations WHERE id = ?`, tenantID)
-	}()
 
 	repo := newProjectedOperatorAccountDirectory(t, db)
 
@@ -175,13 +153,6 @@ func TestOperatorAccountDirectory_ListAllAccounts(t *testing.T) {
 
 	account := testpkg.CreateTestAccount(t, db, "list-all")
 	testpkg.MapAccountToTenant(t, db, account.ID, tenantID)
-
-	defer func() {
-		_, _ = db.ExecContext(ctx, `DELETE FROM auth.account_tenants WHERE account_id = ?`, account.ID)
-		_, _ = db.ExecContext(ctx, `DELETE FROM auth.accounts WHERE id = ?`, account.ID)
-		_, _ = db.ExecContext(ctx, `DELETE FROM platform.schools WHERE id = ?`, tenantID)
-		_, _ = db.ExecContext(ctx, `DELETE FROM platform.organizations WHERE id = ?`, tenantID)
-	}()
 
 	repo := newProjectedOperatorAccountDirectory(t, db)
 	accounts, err := repo.ListAllAccounts(ctx)
@@ -227,13 +198,6 @@ func TestOperatorAccountDirectory_ListAllAccounts_ExcludesDeletedSchool(t *testi
 	// (#2419) — otherwise the account stays visible through that second school.
 	testpkg.UnclaimTestAccount(t, db, account.ID)
 	testpkg.MapAccountToTenant(t, db, account.ID, tenantID)
-
-	t.Cleanup(func() {
-		_, _ = db.ExecContext(ctx, `DELETE FROM auth.account_tenants WHERE account_id = ?`, account.ID)
-		_, _ = db.ExecContext(ctx, `DELETE FROM auth.accounts WHERE id = ?`, account.ID)
-		_, _ = db.ExecContext(ctx, `DELETE FROM platform.schools WHERE id = ?`, tenantID)
-		_, _ = db.ExecContext(ctx, `DELETE FROM platform.organizations WHERE id = ?`, tenantID)
-	})
 
 	repo := newProjectedOperatorAccountDirectory(t, db)
 

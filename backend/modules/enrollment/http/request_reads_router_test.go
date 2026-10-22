@@ -334,8 +334,7 @@ func TestUnreadEnrollments_TenantIsolation(t *testing.T) {
 
 func TestSubmit_AdminNotificationLinksToAdminDetail(t *testing.T) {
 	t.Parallel()
-	env, cleanup := setupRequestTest(t)
-	defer cleanup()
+	env := setupRequestTest(t)
 	env.settings.stringValues[settingKeyNotificationEmails] = "admin@example.com"
 
 	result, err := env.svc.Submit(testpkg.Ctx(t), validSubmission(t, env.phaseID))

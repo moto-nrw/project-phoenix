@@ -13,25 +13,3 @@ func (sg *GuardianRelationshipSnapshot) Validate() error {
 	}
 	return err
 }
-
-func (sg *GuardianRelationshipSnapshot) SetStudent(student *StudentState) {
-	sg.Student = student
-	if student != nil {
-		sg.StudentID = student.ID
-	}
-}
-
-func (sg *GuardianRelationshipSnapshot) GetRelationshipName() string {
-	switch sg.RelationshipType {
-	case "parent":
-		return "Parent"
-	case "guardian":
-		return "Guardian"
-	case "relative":
-		return "Relative"
-	case "other":
-		return "Other"
-	default:
-		return "Unknown"
-	}
-}

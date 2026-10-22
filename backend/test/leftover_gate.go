@@ -5,6 +5,8 @@ import (
 	"flag"
 	"fmt"
 	"os"
+	"strings"
+	"sync"
 	"testing"
 	"time"
 
@@ -123,6 +125,9 @@ func dropPackageClone() {
 // the test instead of the package. Only meaningful serially.
 func perTestLeftoverCheck(tb testing.TB) {
 	tb.Helper()
+	if !claimPerTestLeftoverCheck(tb) {
+		return
+	}
 	if parallelism() > 1 {
 		tb.Fatalf("%s=test needs -parallel 1: with up to %d tests in flight, a leftover cannot be attributed to one of them",
 			leftoverModeEnv, parallelism())
@@ -144,6 +149,31 @@ func perTestLeftoverCheck(tb testing.TB) {
 			tb.Errorf("re-snapshot baseline after leftover: %v", err)
 		}
 	})
+}
+
+// perTestLeftoverChecks holds the names of the tests whose check is
+// registered.
+var perTestLeftoverChecks sync.Map // test name -> struct{}
+
+// claimPerTestLeftoverCheck reports whether tb should register the per-test
+// check: once per test, at its first SetupTestDB, and for a subtest only when
+// its top-level test has no check of its own. Fixtures and subtests call
+// SetupTestDB again after the test registered teardowns; a check registered
+// there would run before those teardowns (cleanups run last in, first out),
+// report the rows they are about to delete, and blame the next test once they
+// are gone.
+func claimPerTestLeftoverCheck(tb testing.TB) bool {
+	name := tb.Name()
+	if top, _, sub := strings.Cut(name, "/"); sub {
+		if _, checked := perTestLeftoverChecks.Load(top); checked {
+			return false
+		}
+	}
+	if _, loaded := perTestLeftoverChecks.LoadOrStore(name, struct{}{}); loaded {
+		return false
+	}
+	tb.Cleanup(func() { perTestLeftoverChecks.Delete(name) })
+	return true
 }
 
 // parallelism reports the binary's -test.parallel.

@@ -14,16 +14,6 @@ import (
 )
 
 // =============================================================================
-// SMTPMailer Interface Tests
-// =============================================================================
-
-func TestSMTPMailer_ImplementsMailer(t *testing.T) {
-	t.Parallel()
-	// SMTPMailer should implement Mailer interface
-	var _ mailcontract.Mailer = &SMTPMailer{}
-}
-
-// =============================================================================
 // NewMailer Tests
 // =============================================================================
 
@@ -174,7 +164,6 @@ func TestParseTemplates_WithValidTemplates(t *testing.T) {
 <head><title>Test</title></head>
 <body>
 <p>Hello {{.Name}}</p>
-<p>Date: {{formatAsDate .Date}}</p>
 </body>
 </html>`
 	require.NoError(t, os.WriteFile(
@@ -186,6 +175,16 @@ func TestParseTemplates_WithValidTemplates(t *testing.T) {
 	templates, err := parseTemplates(templatesDir)
 	assert.NoError(t, err)
 	assert.NotNil(t, templates)
+}
+
+// The SMTP mailer parses every shipped template at startup without template
+// functions; a template calling an undefined function would stop the server.
+func TestParseTemplatesParsesTheShippedEmailTemplates(t *testing.T) {
+	t.Parallel()
+
+	templates, err := parseTemplates(filepath.Join("..", "..", "..", "..", "..", "templates", "email"))
+	require.NoError(t, err)
+	assert.NotNil(t, templates.Lookup("invitation.html"))
 }
 
 func TestParseTemplates_NoTemplatesDirectory(t *testing.T) {

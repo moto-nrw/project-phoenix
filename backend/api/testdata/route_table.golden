@@ -81,14 +81,12 @@ DELETE /api/users/{id}
 DELETE /api/work-time-models/{id}
 DELETE /auth/accounts/{accountId}/caregiver-capability
 DELETE /auth/accounts/{accountId}/mfa/
-DELETE /auth/accounts/{accountId}/roles/{roleId}
 DELETE /auth/accounts/{accountId}/tokens/
 DELETE /auth/invitations/{id}/
 DELETE /auth/mfa/trusted-devices/{deviceId}
 DELETE /auth/passkeys/{passkeyId}
 DELETE /auth/permissions/{id}/
 DELETE /auth/roles/{id}/
-DELETE /auth/roles/{roleId}/permissions/{permissionId}
 DELETE /auth/tokens/expired
 DELETE /internal/metrics
 DELETE /operator/accounts/{accountId}/tenants/{tenantId}
@@ -231,7 +229,6 @@ GET /api/files/folders/{folderId}/files/{fileId}/download
 GET /api/groups/
 GET /api/groups/{id}
 GET /api/groups/{id}/students
-GET /api/groups/{id}/students/room-status
 GET /api/groups/{id}/supervisors
 GET /api/guardians/
 GET /api/guardians/invitable
@@ -396,14 +393,12 @@ GET /api/students/{id}/attendance-history
 GET /api/students/{id}/attendance-history/export
 GET /api/students/{id}/change-history
 GET /api/students/{id}/companions
-GET /api/students/{id}/current-location
 GET /api/students/{id}/current-visit
 GET /api/students/{id}/delete-impact
 GET /api/students/{id}/documents
 GET /api/students/{id}/documents/{documentId}/download
 GET /api/students/{id}/enrollment-extra-fields
 GET /api/students/{id}/family-protection
-GET /api/students/{id}/in-group-room
 GET /api/students/{id}/note-subjects
 GET /api/students/{id}/notes
 GET /api/students/{id}/partial-absences
@@ -621,7 +616,6 @@ POST /api/active/visits/
 POST /api/active/visits/move-to-group
 POST /api/active/visits/move-to-room
 POST /api/active/visits/move-to-transit
-POST /api/active/visits/student/{studentId}/checkin
 POST /api/active/visits/student/{studentId}/checkout
 POST /api/active/visits/transit/assign
 POST /api/active/visits/{id}/end
@@ -854,7 +848,6 @@ POST /api/timetable/templates/{id}/split
 POST /api/users/
 POST /api/work-time-models/
 POST /auth/accounts/{accountId}/caregiver-capability
-POST /auth/accounts/{accountId}/roles/{roleId}
 POST /auth/guardian-invitations/{id}/resend
 POST /auth/guardian-invitations/{token}/accept
 POST /auth/invitations/
@@ -880,7 +873,6 @@ POST /auth/permissions/
 POST /auth/refresh
 POST /auth/register
 POST /auth/roles/
-POST /auth/roles/{roleId}/permissions/{permissionId}
 POST /auth/session/validate
 POST /auth/staff-preview
 POST /auth/staff-preview/end
@@ -1054,8 +1046,6 @@ PUT /api/timetable/templates/{id}
 PUT /api/users/{id}
 PUT /api/work-time-models/{id}
 PUT /auth/accounts/{accountId}/
-PUT /auth/accounts/{accountId}/activate
-PUT /auth/accounts/{accountId}/deactivate
 PUT /auth/accounts/{accountId}/mfa/override
 PUT /auth/accounts/{accountId}/roles/
 PUT /auth/permissions/{id}/

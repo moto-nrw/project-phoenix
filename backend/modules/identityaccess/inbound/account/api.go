@@ -15,14 +15,13 @@ import (
 
 // Constants for permission strings, headers, route patterns, and error messages (S1192 - avoid duplicate string literals)
 const (
-	permUsersCreate  = "users:create"
-	permUsersManage  = "users:manage"
-	permUsersList    = "users:list"
-	permRolesRead    = "roles:read"
-	permUsersUpdate  = "users:update"
-	permRolesManage  = "roles:manage"
-	pathPermissionID = "/{permissionId}"
-	pathPermissions  = "/permissions"
+	permUsersCreate = "users:create"
+	permUsersManage = "users:manage"
+	permUsersList   = "users:list"
+	permRolesRead   = "roles:read"
+	permUsersUpdate = "users:update"
+	permRolesManage = "roles:manage"
+	pathPermissions = "/permissions"
 )
 
 // AccountSessions is the Identity & Access capability the login, refresh,
@@ -333,8 +332,6 @@ func (rs *Resource) mountAdminRoutes(r chi.Router) {
 	r.Route("/roles/{roleId}/permissions", func(r chi.Router) {
 		r.With(common.RequiresPermission(permRolesManage)).Get("/", rs.getRolePermissions)
 		r.With(common.RequiresPermission(permRolesManage)).Put("/", rs.replaceRolePermissions)
-		r.With(common.RequiresPermission(permRolesManage)).Post(pathPermissionID, common.TwoIDAction("roleId", common.MsgInvalidRoleID, "permissionId", common.MsgInvalidPermissionID, rs.assignPermissionToRole, renderRoleMutationError))
-		r.With(common.RequiresPermission(permRolesManage)).Delete(pathPermissionID, common.TwoIDAction("roleId", common.MsgInvalidRoleID, "permissionId", common.MsgInvalidPermissionID, rs.removePermissionFromRole, renderRoleMutationError))
 	})
 
 	// Token cleanup
@@ -382,11 +379,6 @@ func (rs *Resource) mountRoleAndPermissionRoutes(r chi.Router) {
 func (rs *Resource) mountAccountRoutes(r chi.Router) {
 	// Account update operations
 	r.With(common.RequiresPermission(permUsersUpdate)).Put("/", rs.updateAccount)
-	// Bound through the resource rather than as a method value
-	// on rs.Sessions: the router must build before the
-	// capability is wired, as it does for every other route.
-	r.With(common.RequiresPermission(permUsersUpdate)).Put("/activate", common.IDAction("accountId", common.MsgInvalidAccountID, rs.activateAccount, accountManagementErrorRenderer))
-	r.With(common.RequiresPermission(permUsersUpdate)).Put("/deactivate", common.IDAction("accountId", common.MsgInvalidAccountID, rs.deactivateAccount, accountManagementErrorRenderer))
 	r.With(common.RequiresPermission(permUsersManage)).Get("/caregiver-capability", rs.getCaregiverCapability)
 	r.With(common.RequiresPermission(permUsersManage)).Post("/caregiver-capability", rs.enableCaregiverCapability)
 	r.With(common.RequiresPermission(permUsersManage)).Delete("/caregiver-capability", rs.disableCaregiverCapability)
@@ -395,8 +387,6 @@ func (rs *Resource) mountAccountRoutes(r chi.Router) {
 	r.Route("/roles", func(r chi.Router) {
 		r.With(common.RequiresPermission(permUsersManage)).Get("/", rs.getAccountRoles)
 		r.With(common.RequiresPermission(permUsersManage)).Put("/", rs.replaceAccountRole)
-		r.With(common.RequiresPermission(permUsersManage)).Post("/{roleId}", rs.assignRoleToAccount)
-		r.With(common.RequiresPermission(permUsersManage)).Delete("/{roleId}", common.TwoIDAction("accountId", common.MsgInvalidAccountID, "roleId", common.MsgInvalidRoleID, rs.removeRoleFromAccount, accountRoleErrorRenderer))
 	})
 
 	// Token management

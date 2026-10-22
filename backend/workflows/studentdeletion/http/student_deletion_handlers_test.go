@@ -38,9 +38,6 @@ func TestStudentDeletionHandlers_RequirePreviewAndExplicitConfirmation(t *testin
 	sparedAssignment := testpkg.CreateTestInstanceStudent(t, tc.db, instance.ID, spared.ID, "")
 	actor := testpkg.CreateTestAccount(t, tc.db, "student-delete-api@example.com")
 	var auditID int64
-	t.Cleanup(func() {
-		_, _ = tc.db.NewDelete().TableExpr(`audit.data_deletions`).Where(`student_id = ?`, target.ID).Exec(context.Background())
-	})
 	claims := testutil.AdminTestClaims(int(actor.ID))
 
 	previewRequest := testutil.NewAuthenticatedRequest(t, http.MethodGet, fmt.Sprintf("/%d/delete-impact", target.ID), nil)

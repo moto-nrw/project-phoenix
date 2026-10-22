@@ -360,10 +360,6 @@ func TestPostChildMessage_NotOwned(t *testing.T) {
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
 
 	other := testpkg.CreateTestStudent(t, db, "Mara", "Fremd", "2b")
-	defer func() {
-		_, _ = db.ExecContext(testpkg.WithPackageTenantRuntime(context.Background()), `DELETE FROM users.student_profiles WHERE id = ?`, other.ID)
-		_, _ = db.ExecContext(testpkg.WithPackageTenantRuntime(context.Background()), `DELETE FROM users.persons WHERE id = ?`, other.PersonID)
-	}()
 
 	_, err := svc.PostChildMessage(testpkg.WithPackageTenantRuntime(context.Background()), chain.AccountID, other.ID, "Hallo OGS")
 	require.ErrorIs(t, err, parentService.ErrChildNotLinked,
@@ -381,10 +377,6 @@ func TestGetChildConversation_NotOwned(t *testing.T) {
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
 
 	other := testpkg.CreateTestStudent(t, db, "Mara", "Fremd", "2b")
-	defer func() {
-		_, _ = db.ExecContext(testpkg.WithPackageTenantRuntime(context.Background()), `DELETE FROM users.student_profiles WHERE id = ?`, other.ID)
-		_, _ = db.ExecContext(testpkg.WithPackageTenantRuntime(context.Background()), `DELETE FROM users.persons WHERE id = ?`, other.PersonID)
-	}()
 
 	_, err := svc.GetChildConversation(testpkg.WithPackageTenantRuntime(context.Background()), chain.AccountID, other.ID)
 	require.ErrorIs(t, err, parentService.ErrChildNotLinked,
@@ -562,10 +554,6 @@ func TestSubmitSickNote_NotOwnedChild(t *testing.T) {
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
 
 	other := testpkg.CreateTestStudent(t, db, "Mara", "Fremd", "2b")
-	defer func() {
-		_, _ = db.ExecContext(testpkg.WithPackageTenantRuntime(context.Background()), `DELETE FROM users.student_profiles WHERE id = ?`, other.ID)
-		_, _ = db.ExecContext(testpkg.WithPackageTenantRuntime(context.Background()), `DELETE FROM users.persons WHERE id = ?`, other.PersonID)
-	}()
 
 	_, err := svc.SubmitSickNote(testpkg.WithPackageTenantRuntime(context.Background()), chain.AccountID, other.ID,
 		[]calendar.Date{calendar.TodayDate()}, "", absencerecords.StudentStatusDaySick, nil)

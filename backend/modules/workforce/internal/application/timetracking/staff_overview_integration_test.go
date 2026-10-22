@@ -69,20 +69,6 @@ func newOverviewFixture(t *testing.T, count int) *overviewFixture {
 		reposPresence: reposPresence, workforce: workTime, ctx: ctx, today: today,
 	}
 
-	t.Cleanup(func() {
-		for _, table := range []string{
-			"active.staff_month_balance_snapshots",
-			"active.staff_balance_adjustments",
-			"active.staff_vacation_quotas",
-			"active.staff_absences",
-			"active.work_sessions",
-			"schedule.staff_shifts",
-			"config.staff_work_schedules",
-		} {
-			_, _ = db.NewDelete().ModelTableExpr(table+" AS t").Where("t.tenant_id = ?", tenantID).Exec(context.Background())
-		}
-	})
-
 	for i := range count {
 		staff := testpkg.CreateTestStaffForTenant(t, db, tenantID, "Ueber", "Sicht")
 		f.staff = append(f.staff, staff.ID)

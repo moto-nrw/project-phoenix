@@ -1485,6 +1485,22 @@ func TestAuthService_RemoveRoleFromAccount(t *testing.T) {
 		assert.Empty(t, newAccessToken)
 		assert.Empty(t, newRefreshToken)
 	})
+
+	// The retired DELETE /auth/accounts/{id}/roles/{roleId} route (#4431)
+	// pinned this refusal over HTTP; offboarding and the caregiver capability
+	// still remove roles through this method.
+	t.Run("rejects an account without membership at this school", func(t *testing.T) {
+		email, username := uniqueTestCredentials("remove-role-foreign")
+		account, err := service.Register(ctx, email, username, testPassword, nil, 0)
+		require.NoError(t, err)
+
+		roleName := fmt.Sprintf("remove-role-foreign-%d", time.Now().UnixNano())
+		role, err := rbac.CreateRole(ctx, roleName, "foreign account", testpkg.StrPtr("user"))
+		require.NoError(t, err)
+
+		err = rbac.RemoveRoleFromAccount(ctx, account.ID, role.ID)
+		require.ErrorIs(t, err, identityaccess.ErrAccountNotFound)
+	})
 }
 
 // =============================================================================
@@ -2347,15 +2363,6 @@ func TestAcceptInvitation_WithTenantID_CreatesAccountTenant(t *testing.T) {
 	// ASSERT
 	require.NoError(t, err)
 	require.NotNil(t, account)
-	defer func() {
-		// Clean up: staff, person, invitation tokens, then auth fixtures (includes account_tenants)
-		_, _ = db.ExecContext(context.Background(),
-			`DELETE FROM users.staff_school_memberships WHERE person_id IN (SELECT id FROM users.persons WHERE account_id = ?)`, account.ID)
-		_, _ = db.ExecContext(context.Background(),
-			`DELETE FROM users.persons WHERE account_id = ?`, account.ID)
-		_, _ = db.ExecContext(context.Background(),
-			`DELETE FROM auth.invitation_tokens WHERE email = ?`, email)
-	}()
 
 	// Verify account_tenant mapping was created
 	var tenantCount int
@@ -2435,12 +2442,6 @@ func TestAuthService_LinkAccountToTenant(t *testing.T) {
 			Scan(context.Background(), &roleCount)
 		require.NoError(t, err)
 		assert.Equal(t, 1, roleCount, "role should be assigned")
-
-		// Cleanup role assignment
-		_, _ = db.NewDelete().
-			TableExpr("auth.account_roles").
-			Where("account_id = ? AND role_id = ? AND tenant_id = ?", account.ID, roleID, tenantID).
-			Exec(context.Background())
 	})
 
 	t.Run("links an existing account with a system role", func(t *testing.T) {

@@ -230,10 +230,6 @@ func TestListChildThreads_NotOwnedDenied(t *testing.T) {
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
 
 	other := testpkg.CreateTestStudent(t, db, "Mara", "Fremd", "2b")
-	defer func() {
-		_, _ = db.ExecContext(testpkg.WithPackageTenantRuntime(context.Background()), `DELETE FROM users.student_profiles WHERE id = ?`, other.ID)
-		_, _ = db.ExecContext(testpkg.WithPackageTenantRuntime(context.Background()), `DELETE FROM users.persons WHERE id = ?`, other.PersonID)
-	}()
 
 	_, err := svc.ListChildThreads(testpkg.WithPackageTenantRuntime(context.Background()), chain.AccountID, other.ID)
 	require.ErrorIs(t, err, parentportal.ErrChildNotLinked)

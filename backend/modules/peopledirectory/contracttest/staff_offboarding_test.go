@@ -395,11 +395,6 @@ func TestOffboardStaff_WithAttendanceHistory(t *testing.T) {
 	device := testpkg.CreateTestDevice(t, sc.db, fmt.Sprintf("offb-dev-%d", time.Now().UnixNano()))
 	attendance := testpkg.CreateTestAttendance(t, sc.db, student.ID, staff.ID, device.ID, time.Now(), nil)
 
-	t.Cleanup(func() {
-		ctx := context.Background()
-		_, _ = sc.db.ExecContext(ctx, `DELETE FROM active.attendance WHERE id = ?`, attendance.ID)
-	})
-
 	require.NoError(t, testpkg.TenantCommand3(t, sc.ctx, sc.db, sc.svc.OffboardStaff, staff.ID, staff.ID, "test-admin"))
 
 	var attendanceCount int
@@ -586,17 +581,7 @@ func TestOffboardStaff_ReinviteSameEmailSameSchool(t *testing.T) {
 	_, err = sc.db.ExecContext(context.Background(),
 		`UPDATE users.staff_employment_profiles SET work_time_model_id = ? WHERE membership_id = ?`, model.ID, staff.ID)
 	require.NoError(t, err)
-	t.Cleanup(func() {
-		ctx := context.Background()
-		_, _ = sc.db.ExecContext(ctx, `DELETE FROM config.work_time_model_entries WHERE work_time_model_id = ?`, model.ID)
-		_, _ = sc.db.ExecContext(ctx, `DELETE FROM config.work_time_models WHERE id = ?`, model.ID)
-	})
-
-	t.Cleanup(func() {
-		ctx := context.Background()
-		_, _ = sc.db.ExecContext(ctx, `DELETE FROM auth.invitation_tokens WHERE email = ?`, emailAddr)
-		_, _ = sc.db.ExecContext(ctx, `DELETE FROM users.staff_school_memberships WHERE person_id IN (SELECT id FROM users.persons WHERE account_id = ?)`, account.ID)
-	})
+	testpkg.OwnTestWorkTimeModel(t, sc.db, model.ID)
 
 	// Before offboarding the re-invite is blocked (current production behavior).
 	_, err = invSvc.CreateSchoolInvitation(sc.ctx, api.SchoolInvitationRequest{
@@ -704,12 +689,6 @@ func TestOffboardStaff_ReinviteResumesFormerEmployment(t *testing.T) {
 	_, err := sc.db.ExecContext(context.Background(),
 		`UPDATE users.staff_employment_profiles SET personnel_number = ? WHERE membership_id = ?`, personnelNumber, staff.ID)
 	require.NoError(t, err)
-	t.Cleanup(func() {
-		ctx := context.Background()
-		_, _ = sc.db.ExecContext(ctx, `DELETE FROM auth.invitation_tokens WHERE email = ?`, emailAddr)
-		_, _ = sc.db.ExecContext(ctx, `DELETE FROM users.teachers WHERE staff_id IN (SELECT id FROM users.staff_school_memberships WHERE person_id = ?)`, person.ID)
-		_, _ = sc.db.ExecContext(ctx, `DELETE FROM users.staff_school_memberships WHERE person_id = ?`, person.ID)
-	})
 
 	require.NoError(t, testpkg.TenantCommand3(t, sc.ctx, sc.db, sc.svc.OffboardStaff, staff.ID, staff.ID, "test-admin"))
 	reinviteAndAccept(t, sc, emailAddr, role.ID, account.ID)
@@ -754,12 +733,6 @@ func TestOffboardStaff_ReinviteDropsPersonnelNumberTakenMeanwhile(t *testing.T) 
 	_, err := sc.db.ExecContext(context.Background(),
 		`UPDATE users.staff_employment_profiles SET personnel_number = ? WHERE membership_id = ?`, personnelNumber, staff.ID)
 	require.NoError(t, err)
-	t.Cleanup(func() {
-		ctx := context.Background()
-		_, _ = sc.db.ExecContext(ctx, `DELETE FROM auth.invitation_tokens WHERE email = ?`, emailAddr)
-		_, _ = sc.db.ExecContext(ctx, `DELETE FROM users.teachers WHERE staff_id IN (SELECT id FROM users.staff_school_memberships WHERE person_id = ?)`, person.ID)
-		_, _ = sc.db.ExecContext(ctx, `DELETE FROM users.staff_school_memberships WHERE person_id = ?`, person.ID)
-	})
 
 	require.NoError(t, testpkg.TenantCommand3(t, sc.ctx, sc.db, sc.svc.OffboardStaff, staff.ID, staff.ID, "test-admin"))
 	successor := testpkg.CreateTestStaff(t, sc.db, "Neue", "Nummer")
@@ -826,13 +799,7 @@ func TestOffboardStaff_ActiveSupervisionBlocks(t *testing.T) {
 	activityGroup := testpkg.CreateTestActivityGroup(t, sc.db, "OffboardSupervision")
 	room := testpkg.CreateTestRoom(t, sc.db, fmt.Sprintf("OffbRoom-%d", time.Now().UnixNano()))
 	activeGroup := testpkg.CreateTestActiveGroup(t, sc.db, activityGroup.ID, room.ID)
-	supervisor := testpkg.CreateTestGroupSupervisor(t, sc.db, staff.ID, activeGroup.ID, "supervisor")
-
-	t.Cleanup(func() {
-		ctx := context.Background()
-		_, _ = sc.db.ExecContext(ctx, `DELETE FROM active.group_supervisors WHERE id = ?`, supervisor.ID)
-		_, _ = sc.db.ExecContext(ctx, `DELETE FROM active.groups WHERE id = ?`, activeGroup.ID)
-	})
+	testpkg.CreateTestGroupSupervisor(t, sc.db, staff.ID, activeGroup.ID, "supervisor")
 
 	err := testpkg.TenantCommand3(t, sc.ctx, sc.db, sc.svc.OffboardStaff, staff.ID, staff.ID, "test-admin")
 	require.Error(t, err)
@@ -892,13 +859,6 @@ func TestOffboardStaff_CleansUpAssignments(t *testing.T) {
 		Where(`id = ?`, staffID).
 		Scan(context.Background(), &personID))
 
-	t.Cleanup(func() {
-		ctx := context.Background()
-		_, _ = sc.db.ExecContext(ctx, `DELETE FROM education.group_substitution WHERE id = ?`, substitution.ID)
-		_, _ = sc.db.ExecContext(ctx, `DELETE FROM education.group_teacher WHERE id = ?`, groupTeacher.ID)
-		_, _ = sc.db.ExecContext(ctx, `DELETE FROM education.groups WHERE id = ?`, educationGroup.ID)
-	})
-
 	require.NoError(t, testpkg.TenantCommand3(t, sc.ctx, sc.db, sc.svc.OffboardStaff, staffID, staffID, "test-admin"))
 
 	var gtCount int
@@ -938,11 +898,11 @@ func TestOffboardStaff_BroadcastsGroupAccessChanged(t *testing.T) {
 
 	teacher := testpkg.CreateTestTeacher(t, sc.db, "Broadcast", "Teacher")
 	group := testpkg.CreateTestEducationGroup(t, sc.db, "OffboardBroadcastGroup")
-	groupTeacher := testpkg.CreateTestGroupTeacher(t, sc.db, group.ID, teacher.ID)
+	testpkg.CreateTestGroupTeacher(t, sc.db, group.ID, teacher.ID)
 	today := calendar.TodayDate()
 	regularStaffID := teacher.StaffID
 	otherStaff := testpkg.CreateTestStaff(t, sc.db, "Broadcast", "Substitute")
-	substitution := testpkg.CreateTestGroupSubstitution(
+	testpkg.CreateTestGroupSubstitution(
 		t, sc.db, group.ID, &regularStaffID, otherStaff.ID, today, today.AddDays(1),
 	)
 
@@ -952,13 +912,6 @@ func TestOffboardStaff_BroadcastsGroupAccessChanged(t *testing.T) {
 		ColumnExpr(`person_id`).
 		Where(`id = ?`, teacher.StaffID).
 		Scan(context.Background(), &personID))
-
-	t.Cleanup(func() {
-		ctx := context.Background()
-		_, _ = sc.db.ExecContext(ctx, `DELETE FROM education.group_substitution WHERE id = ?`, substitution.ID)
-		_, _ = sc.db.ExecContext(ctx, `DELETE FROM education.group_teacher WHERE id = ?`, groupTeacher.ID)
-		_, _ = sc.db.ExecContext(ctx, `DELETE FROM education.groups WHERE id = ?`, group.ID)
-	})
 
 	require.NoError(t, testpkg.TenantCommand3(t, sc.ctx, sc.db, sc.svc.OffboardStaff, teacher.StaffID, teacher.StaffID, "test-admin"))
 
@@ -979,12 +932,6 @@ func TestOffboardStaff_RollbackBroadcastsNothing(t *testing.T) {
 	teacher := testpkg.CreateTestTeacher(t, sc.db, "Rollback", "Broadcast")
 	group := testpkg.CreateTestEducationGroup(t, sc.db, "OffboardRollbackGroup")
 	groupTeacher := testpkg.CreateTestGroupTeacher(t, sc.db, group.ID, teacher.ID)
-
-	t.Cleanup(func() {
-		ctx := context.Background()
-		_, _ = sc.db.ExecContext(ctx, `DELETE FROM education.group_teacher WHERE id = ?`, groupTeacher.ID)
-		_, _ = sc.db.ExecContext(ctx, `DELETE FROM education.groups WHERE id = ?`, group.ID)
-	})
 
 	err := testpkg.TenantCommand3(t, sc.ctx, testpkg.SetupTestDB(t), svc.OffboardStaff, teacher.StaffID, teacher.StaffID, "test-admin")
 	require.Error(t, err)
@@ -1059,11 +1006,6 @@ func TestOffboardStaff_ClearsDirectPermissions(t *testing.T) {
 		"INSERT INTO auth.account_permissions (account_id, permission_id, granted, tenant_id) VALUES (?, ?, TRUE, ?)",
 		account.ID, perm.ID, testpkg.Tenant(t))
 	require.NoError(t, grantErr)
-
-	t.Cleanup(func() {
-		ctx := context.Background()
-		_, _ = sc.db.ExecContext(ctx, `DELETE FROM auth.account_permissions WHERE account_id = ?`, account.ID)
-	})
 
 	require.NoError(t, testpkg.TenantCommand3(t, sc.ctx, sc.db, sc.svc.OffboardStaff, staff.ID, staff.ID, "test-admin"))
 
@@ -1360,12 +1302,6 @@ func TestOffboardStaff_KeepsWorkTimeModelAssignment(t *testing.T) {
 	_, err = sc.db.ExecContext(context.Background(),
 		`UPDATE users.staff_employment_profiles SET work_time_model_id = ? WHERE membership_id = ?`, model.ID, staff.ID)
 	require.NoError(t, err)
-
-	t.Cleanup(func() {
-		ctx := context.Background()
-		_, _ = sc.db.ExecContext(ctx, `DELETE FROM config.work_time_model_entries WHERE work_time_model_id = ?`, model.ID)
-		_, _ = sc.db.ExecContext(ctx, `DELETE FROM config.work_time_models WHERE id = ?`, model.ID)
-	})
 
 	require.NoError(t, testpkg.TenantCommand3(t, sc.ctx, sc.db, sc.svc.OffboardStaff, staff.ID, staff.ID, "test-admin"))
 

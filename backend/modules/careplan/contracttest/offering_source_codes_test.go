@@ -17,8 +17,7 @@ import (
 func TestOfferingSourceRefusalsCarryTheirCode(t *testing.T) {
 	t.Parallel()
 
-	env, cleanup := setupDecisionTest(t)
-	defer cleanup()
+	env := setupDecisionTest(t)
 	ctx := testpkg.Ctx(t)
 
 	template := createCareOfferingTemplateGroup(t, env.db, "CodeTermin")

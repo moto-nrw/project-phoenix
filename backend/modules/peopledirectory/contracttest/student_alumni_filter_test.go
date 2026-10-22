@@ -41,12 +41,6 @@ func TestStudentRepository_AlumniExcludedFromGroupReads(t *testing.T) {
 
 	activeStudent := testpkg.CreateTestStudent(t, db, "GroupActive", "Kid", fmt.Sprintf("1ga-%s", suffix))
 	alumnusStudent := testpkg.CreateTestStudent(t, db, "GroupAlumnus", "Kid", fmt.Sprintf("1ga-%s", suffix))
-	defer func() {
-		_, _ = db.NewDelete().
-			TableExpr(`education.groups`).
-			Where("id = ?", group.ID).
-			Exec(t.Context())
-	}()
 
 	assignGroup(t, db, activeStudent.ID, group.ID)
 	assignGroup(t, db, alumnusStudent.ID, group.ID)
@@ -97,16 +91,10 @@ func TestStudentRepository_AlumniExcludedFromGroupInfoReads(t *testing.T) {
 	suffix := uuid.Must(uuid.NewV4()).String()[:8]
 	group := testpkg.CreateTestEducationGroup(t, db, fmt.Sprintf("AlumniInfoGroup-%s", suffix))
 	teacher := testpkg.CreateTestTeacher(t, db, "Roster", "Teacher")
-	gt := testpkg.CreateTestGroupTeacher(t, db, group.ID, teacher.ID)
+	testpkg.CreateTestGroupTeacher(t, db, group.ID, teacher.ID)
 
 	activeStudent := testpkg.CreateTestStudent(t, db, "InfoActive", "Kid", fmt.Sprintf("1gi-%s", suffix))
 	alumnusStudent := testpkg.CreateTestStudent(t, db, "InfoAlumnus", "Kid", fmt.Sprintf("1gi-%s", suffix))
-	defer func() {
-		_, _ = db.NewDelete().
-			TableExpr("education.group_teacher").
-			Where("id = ?", gt.ID).
-			Exec(ctx)
-	}()
 
 	assignGroup(t, db, activeStudent.ID, group.ID)
 	assignGroup(t, db, alumnusStudent.ID, group.ID)

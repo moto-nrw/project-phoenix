@@ -7,6 +7,7 @@
 package contracttest_test
 
 import (
+	"fmt"
 	"testing"
 
 	peopleValues "github.com/moto-nrw/project-phoenix/modules/peopledirectory"
@@ -516,8 +517,9 @@ func TestPersonService_LinkToRFIDCard(t *testing.T) {
 	t.Run("auto-creates RFID card if not exists", func(t *testing.T) {
 		// ARRANGE
 		person := testpkg.CreateTestPerson(t, db, "AutoCreate", "RFID")
-		// Use valid hexadecimal format for RFID card ID
-		newTagID := "ABCDEF1234567890"
+		// Use valid hexadecimal format for RFID card ID; the card table is
+		// global, so a rerun (-count) needs a tag of its own.
+		newTagID := fmt.Sprintf("%016X", testpkg.Tenant(t))
 
 		// ACT
 		err := testpkg.TenantCommand2(t, ctx, db, service.LinkToRFIDCard, person.ID, newTagID)

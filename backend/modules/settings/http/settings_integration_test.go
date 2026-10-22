@@ -256,25 +256,6 @@ func TestSettingsSetValue_InvalidValue(t *testing.T) {
 	testutil.AssertErrorResponse(t, rr, 400)
 }
 
-func TestSettingsSetValue_WithConfigManage(t *testing.T) {
-	t.Parallel()
-
-	ctx := setupSettingsModule(t)
-
-	router := ctx.resource.SettingsRouter()
-
-	body := map[string]interface{}{
-		"value": "17:00",
-	}
-
-	req := testutil.NewAuthenticatedRequest(t, "PUT", "/values/gdpr.data_cleanup_time", body,
-		testutil.WithTestTenant(t),
-	)
-
-	rr := testutil.ExecuteRequest(router, req)
-	testutil.AssertSuccessResponse(t, rr, 200)
-}
-
 // =============================================================================
 // DELETE /values/{key}
 // =============================================================================
@@ -489,26 +470,6 @@ func TestSettingsSetValue_PostCommitSkippedOnHookError(t *testing.T) {
 	testutil.AssertErrorResponse(t, rr, 500)
 
 	assert.False(t, postCommitRan, "post-commit closure must not run when the tx rolled back")
-}
-
-func TestSettingsSetValue_NilCallbackDoesNotPanic(t *testing.T) {
-	t.Parallel()
-
-	ctx := setupSettingsModule(t)
-
-	// No OnValueSet registered — should not panic
-	router := ctx.resource.SettingsRouter()
-
-	body := map[string]interface{}{
-		"value": true,
-	}
-
-	req := testutil.NewAuthenticatedRequest(t, "PUT", "/values/checkout.wc_enabled", body,
-		testutil.WithTestTenant(t),
-	)
-
-	rr := testutil.ExecuteRequest(router, req)
-	testutil.AssertSuccessResponse(t, rr, 200)
 }
 
 // TestSettingsResetValue_OnValueSetCallbackInvoked guarantees the side-effect

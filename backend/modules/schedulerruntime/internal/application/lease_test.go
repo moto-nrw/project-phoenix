@@ -285,24 +285,26 @@ func TestStandbyWorkerIsNotReadyAndRunsNoJob(t *testing.T) {
 
 func TestSoleWorkerLeadsAtStartAndStaysReadyAcrossRenewals(t *testing.T) {
 	t.Parallel()
-	store := newMemoryLeaseStore()
-	worker := leaseWorker(t, store, "leader", nil)
-	stop := stopOnce(t, worker)
+	synctest.Test(t, func(t *testing.T) {
+		store := newMemoryLeaseStore()
+		worker := leaseWorker(t, store, "leader", nil)
+		stop := stopOnce(t, worker)
 
-	worker.Start()
-	require.True(t, worker.Ready(), "a sole Worker leads before its first job check")
-	_, firstToken := store.current()
+		worker.Start()
+		require.True(t, worker.Ready(), "a sole Worker leads before its first job check")
+		_, firstToken := store.current()
 
-	time.Sleep(3 * testLeaseTTL)
-	assert.True(t, worker.Ready(), "renewal keeps the term beyond its TTL")
-	holder, token := store.current()
-	assert.Equal(t, "leader", holder)
-	assert.Equal(t, firstToken, token, "renewal keeps the fencing token")
+		time.Sleep(3 * testLeaseTTL)
+		assert.True(t, worker.Ready(), "renewal keeps the term beyond its TTL")
+		holder, token := store.current()
+		assert.Equal(t, "leader", holder)
+		assert.Equal(t, firstToken, token, "renewal keeps the fencing token")
 
-	stop()
-	holder, _ = store.current()
-	assert.Empty(t, holder, "a graceful stop releases the lease")
-	assert.False(t, worker.Ready())
+		stop()
+		holder, _ = store.current()
+		assert.Empty(t, holder, "a graceful stop releases the lease")
+		assert.False(t, worker.Ready())
+	})
 }
 
 func TestLeaseLossMidJobCancelsTheRunAndFencesItsCommit(t *testing.T) {
@@ -338,80 +340,86 @@ func TestLeaseLossMidJobCancelsTheRunAndFencesItsCommit(t *testing.T) {
 
 func TestLostRenewalEndsTheTermAndCancelsItsJob(t *testing.T) {
 	t.Parallel()
-	store := newMemoryLeaseStore()
-	recorder := &leaseRecorder{}
-	worker := leaseWorker(t, store, "leader", recorder)
-	stopOnce(t, worker)
-	worker.Start()
+	synctest.Test(t, func(t *testing.T) {
+		store := newMemoryLeaseStore()
+		recorder := &leaseRecorder{}
+		worker := leaseWorker(t, store, "leader", recorder)
+		stopOnce(t, worker)
+		worker.Start()
 
-	var cancelled error
-	probeRun(worker, func(ctx context.Context) {
-		store.takeOver("usurper")
-		select {
-		case <-ctx.Done():
-			cancelled = ctx.Err()
-		case <-time.After(2 * testLeaseRenew):
-		}
+		var cancelled error
+		probeRun(worker, func(ctx context.Context) {
+			store.takeOver("usurper")
+			select {
+			case <-ctx.Done():
+				cancelled = ctx.Err()
+			case <-time.After(2 * testLeaseRenew):
+			}
+		})
+
+		require.ErrorIs(t, cancelled, context.Canceled, "the next renewal finds the term gone and stops the job")
+		require.Eventually(t, func() bool { return recorder.changed("lost") }, time.Second, time.Millisecond)
+		assert.False(t, worker.Ready())
 	})
-
-	require.ErrorIs(t, cancelled, context.Canceled, "the next renewal finds the term gone and stops the job")
-	require.Eventually(t, func() bool { return recorder.changed("lost") }, time.Second, time.Millisecond)
-	assert.False(t, worker.Ready())
 }
 
 func TestLocalDeadlineCancelsJobWhileRenewalIsInFlight(t *testing.T) {
 	t.Parallel()
-	store := &delayedRenewStore{memoryLeaseStore: newMemoryLeaseStore(), started: make(chan struct{}, 1), release: make(chan struct{})}
-	worker := leaseWorker(t, store, "leader", nil)
-	lease := worker.leadership
-	require.True(t, lease.acquire(context.Background()))
-	term, _, validUntil := lease.snapshot()
-	renewed := make(chan bool, 1)
-	go func() { renewed <- lease.renew(context.Background(), term, validUntil) }()
-	<-store.started
+	synctest.Test(t, func(t *testing.T) {
+		store := &delayedRenewStore{memoryLeaseStore: newMemoryLeaseStore(), started: make(chan struct{}, 1), release: make(chan struct{})}
+		worker := leaseWorker(t, store, "leader", nil)
+		lease := worker.leadership
+		require.True(t, lease.acquire(context.Background()))
+		term, _, validUntil := lease.snapshot()
+		renewed := make(chan bool, 1)
+		go func() { renewed <- lease.renew(context.Background(), term, validUntil) }()
+		<-store.started
 
-	_, jobCtx, held := lease.current()
-	require.True(t, held)
-	select {
-	case <-jobCtx.Done():
-	case <-time.After(testLeaseTTL):
-		t.Fatal("the local deadline did not cancel the running job")
-	}
-	_, _, held = lease.current()
-	assert.False(t, held)
-	close(store.release)
-	assert.False(t, <-renewed, "a late successful response cannot restore the expired term")
-	_, _, held = lease.current()
-	assert.False(t, held)
+		_, jobCtx, held := lease.current()
+		require.True(t, held)
+		select {
+		case <-jobCtx.Done():
+		case <-time.After(testLeaseTTL):
+			t.Fatal("the local deadline did not cancel the running job")
+		}
+		_, _, held = lease.current()
+		assert.False(t, held)
+		close(store.release)
+		assert.False(t, <-renewed, "a late successful response cannot restore the expired term")
+		_, _, held = lease.current()
+		assert.False(t, held)
+	})
 }
 
 func TestStandbyRunsIntervalStartupCheckOnTakeover(t *testing.T) {
 	t.Parallel()
-	store := newMemoryLeaseStore()
-	store.takeOver("other-worker")
-	recorder := &leaseRecorder{}
-	worker := leaseWorker(t, store, "standby", recorder)
-	stopOnce(t, worker)
-	worker.Start()
+	synctest.Test(t, func(t *testing.T) {
+		store := newMemoryLeaseStore()
+		store.takeOver("other-worker")
+		recorder := &leaseRecorder{}
+		worker := leaseWorker(t, store, "standby", recorder)
+		stopOnce(t, worker)
+		worker.Start()
 
-	checked := make(chan struct{}, 1)
-	worker.registerTask("takeover-check", "1h", func(task *ScheduledTask) {
-		worker.runIntervalPolling(task, "takeover check", "takeover check started", 0,
-			func() time.Duration { return time.Hour }, func(context.Context, *ScheduledTask) {
-				select {
-				case checked <- struct{}{}:
-				default:
-				}
-			})
+		checked := make(chan struct{}, 1)
+		worker.registerTask("takeover-check", "1h", func(task *ScheduledTask) {
+			worker.runIntervalPolling(task, "takeover check", "takeover check started", 0,
+				func() time.Duration { return time.Hour }, func(context.Context, *ScheduledTask) {
+					select {
+					case checked <- struct{}{}:
+					default:
+					}
+				})
+		})
+		require.Eventually(t, func() bool { return recorder.count("standby") > 0 }, time.Second, time.Millisecond)
+		store.set(func(m *memoryLeaseStore) { m.until = time.Now() })
+		require.Eventually(t, worker.Ready, time.Second, time.Millisecond)
+		select {
+		case <-checked:
+		case <-time.After(time.Second):
+			t.Fatal("the skipped startup check was not retried on takeover")
+		}
 	})
-	require.Eventually(t, func() bool { return recorder.count("standby") > 0 }, time.Second, time.Millisecond)
-	store.set(func(m *memoryLeaseStore) { m.until = time.Now() })
-	require.Eventually(t, worker.Ready, time.Second, time.Millisecond)
-	select {
-	case <-checked:
-	case <-time.After(time.Second):
-		t.Fatal("the skipped startup check was not retried on takeover")
-	}
 }
 
 func TestStandbyRunsMinuteStartupCheckOnTakeover(t *testing.T) {
@@ -464,36 +472,38 @@ func testMinuteTakeoverCheck(t *testing.T, standbyFor time.Duration) {
 
 func TestDatabaseOutageEndsTheTermLocallyBeforeTheLeaseExpires(t *testing.T) {
 	t.Parallel()
-	store := newMemoryLeaseStore()
-	recorder := &leaseRecorder{}
-	worker := leaseWorker(t, store, "leader", recorder)
-	stopOnce(t, worker)
-	worker.Start()
-	_, firstToken := store.current()
+	synctest.Test(t, func(t *testing.T) {
+		store := newMemoryLeaseStore()
+		recorder := &leaseRecorder{}
+		worker := leaseWorker(t, store, "leader", recorder)
+		stopOnce(t, worker)
+		worker.Start()
+		_, firstToken := store.current()
 
-	var stoppedAt time.Time
-	var dbExpiry time.Time
-	probeRun(worker, func(ctx context.Context) {
-		store.set(func(m *memoryLeaseStore) {
-			m.down = true
-			dbExpiry = m.until
+		var stoppedAt time.Time
+		var dbExpiry time.Time
+		probeRun(worker, func(ctx context.Context) {
+			store.set(func(m *memoryLeaseStore) {
+				m.down = true
+				dbExpiry = m.until
+			})
+			select {
+			case <-ctx.Done():
+				stoppedAt = time.Now()
+			case <-time.After(3 * testLeaseTTL):
+			}
 		})
-		select {
-		case <-ctx.Done():
-			stoppedAt = time.Now()
-		case <-time.After(3 * testLeaseTTL):
-		}
+
+		require.False(t, stoppedAt.IsZero(), "an unreachable database ends the term on the Worker's own clock")
+		assert.True(t, stoppedAt.Before(dbExpiry), "the Worker stops before the database lets a standby in")
+		require.Eventually(t, func() bool { return recorder.changed("expired") }, time.Second, time.Millisecond)
+		assert.False(t, worker.Ready())
+
+		store.set(func(m *memoryLeaseStore) { m.down = false })
+		require.Eventually(t, worker.Ready, 3*testLeaseTTL, 10*time.Millisecond, "the Worker leads again once the database is back")
+		_, token := store.current()
+		assert.Greater(t, token, firstToken, "the recovered Worker leads under a newer token")
 	})
-
-	require.False(t, stoppedAt.IsZero(), "an unreachable database ends the term on the Worker's own clock")
-	assert.True(t, stoppedAt.Before(dbExpiry), "the Worker stops before the database lets a standby in")
-	require.Eventually(t, func() bool { return recorder.changed("expired") }, time.Second, time.Millisecond)
-	assert.False(t, worker.Ready())
-
-	store.set(func(m *memoryLeaseStore) { m.down = false })
-	require.Eventually(t, worker.Ready, 3*testLeaseTTL, 10*time.Millisecond, "the Worker leads again once the database is back")
-	_, token := store.current()
-	assert.Greater(t, token, firstToken, "the recovered Worker leads under a newer token")
 }
 
 func TestWorkerTrustsItsOwnMonotonicClockNotTheReportedLeaseTime(t *testing.T) {
@@ -501,66 +511,73 @@ func TestWorkerTrustsItsOwnMonotonicClockNotTheReportedLeaseTime(t *testing.T) {
 	for name, skew := range map[string]time.Duration{"database behind": -time.Hour, "database ahead": time.Hour} {
 		t.Run(name, func(t *testing.T) {
 			t.Parallel()
-			store := newMemoryLeaseStore()
-			store.skew = skew
-			worker := leaseWorker(t, store, "leader", nil)
-			stopOnce(t, worker)
-			worker.Start()
+			synctest.Test(t, func(t *testing.T) {
+				store := newMemoryLeaseStore()
+				store.skew = skew
+				worker := leaseWorker(t, store, "leader", nil)
+				stopOnce(t, worker)
+				worker.Start()
 
-			time.Sleep(2 * testLeaseTTL)
-			require.True(t, worker.Ready(), "a skewed lease time neither ends nor extends a renewed term")
+				time.Sleep(2 * testLeaseTTL)
+				require.True(t, worker.Ready(), "a skewed lease time neither ends nor extends a renewed term")
 
-			store.set(func(m *memoryLeaseStore) { m.down = true })
-			require.Eventually(t, func() bool { return !worker.Ready() }, testLeaseTTL, 5*time.Millisecond,
-				"without renewal the term ends within its TTL however far the reported time lies ahead")
+				store.set(func(m *memoryLeaseStore) { m.down = true })
+				require.Eventually(t, func() bool { return !worker.Ready() }, testLeaseTTL, 5*time.Millisecond,
+					"without renewal the term ends within its TTL however far the reported time lies ahead")
+			})
 		})
 	}
 }
 
 func TestStandbyTakesOverAReleasedLeaseWithinTheRetryInterval(t *testing.T) {
 	t.Parallel()
-	store := newMemoryLeaseStore()
-	leader := leaseWorker(t, store, "leader", nil)
-	stopLeader := stopOnce(t, leader)
-	leader.Start()
-	_, leaderToken := store.current()
-	standby := leaseWorker(t, store, "standby", nil)
-	stopOnce(t, standby)
-	standby.Start()
-	require.True(t, leader.Ready())
-	require.False(t, standby.Ready())
+	synctest.Test(t, func(t *testing.T) {
+		store := newMemoryLeaseStore()
+		leader := leaseWorker(t, store, "leader", nil)
+		stopLeader := stopOnce(t, leader)
+		leader.Start()
+		_, leaderToken := store.current()
+		standby := leaseWorker(t, store, "standby", nil)
+		stopOnce(t, standby)
+		standby.Start()
+		require.True(t, leader.Ready())
+		require.False(t, standby.Ready())
 
-	stopLeader()
-	released := time.Now()
-	require.Eventually(t, standby.Ready, time.Second, time.Millisecond)
+		stopLeader()
+		// Fake time is exact: the only slack below is Eventually's 1ms poll.
+		released := time.Now()
+		require.Eventually(t, standby.Ready, time.Second, time.Millisecond)
 
-	assert.Less(t, time.Since(released), testLeaseRetry+250*time.Millisecond, "graceful takeover is bounded by the retry interval")
-	holder, token := store.current()
-	assert.Equal(t, "standby", holder)
-	assert.Equal(t, leaderToken+1, token, "the new holder leads under the next token")
+		assert.LessOrEqual(t, time.Since(released), testLeaseRetry+time.Millisecond, "graceful takeover is bounded by the retry interval")
+		holder, token := store.current()
+		assert.Equal(t, "standby", holder)
+		assert.Equal(t, leaderToken+1, token, "the new holder leads under the next token")
+	})
 }
 
 func TestStandbyTakesOverACrashedLeaderAfterItsTermExpires(t *testing.T) {
 	t.Parallel()
-	store := newMemoryLeaseStore()
-	leader := leaseWorker(t, store, "leader", nil)
-	stopOnce(t, leader)
-	leader.Start()
-	standby := leaseWorker(t, store, "standby", nil)
-	stopOnce(t, standby)
-	standby.Start()
+	synctest.Test(t, func(t *testing.T) {
+		store := newMemoryLeaseStore()
+		leader := leaseWorker(t, store, "leader", nil)
+		stopOnce(t, leader)
+		leader.Start()
+		standby := leaseWorker(t, store, "standby", nil)
+		stopOnce(t, standby)
+		standby.Start()
 
-	var dbExpiry time.Time
-	store.set(func(m *memoryLeaseStore) {
-		m.unreachable["leader"] = true // the leader process is gone
-		dbExpiry = m.until
+		var dbExpiry time.Time
+		store.set(func(m *memoryLeaseStore) {
+			m.unreachable["leader"] = true // the leader process is gone
+			dbExpiry = m.until
+		})
+		crashed := time.Now()
+		require.Eventually(t, standby.Ready, 3*testLeaseTTL, time.Millisecond)
+
+		assert.False(t, time.Now().Before(dbExpiry), "the standby waits for the crashed term to expire")
+		assert.LessOrEqual(t, time.Since(crashed), testLeaseTTL+testLeaseRetry+time.Millisecond, "crash takeover is bounded by TTL plus the retry interval")
+		assert.False(t, leader.Ready(), "the cut-off leader stepped down on its own")
 	})
-	crashed := time.Now()
-	require.Eventually(t, standby.Ready, 3*testLeaseTTL, time.Millisecond)
-
-	assert.False(t, time.Now().Before(dbExpiry), "the standby waits for the crashed term to expire")
-	assert.Less(t, time.Since(crashed), testLeaseTTL+testLeaseRetry+250*time.Millisecond, "crash takeover is bounded by TTL plus the retry interval")
-	assert.False(t, leader.Ready(), "the cut-off leader stepped down on its own")
 }
 
 func TestTwoWorkersNeverRunAJobAtTheSameTime(t *testing.T) {
@@ -619,31 +636,33 @@ func TestTwoWorkersNeverRunAJobAtTheSameTime(t *testing.T) {
 
 func TestGracefulStopDrainsRunningJobsBeforeReleasingTheLease(t *testing.T) {
 	t.Parallel()
-	store := newMemoryLeaseStore()
-	drained := &atomic.Bool{}
-	store.drained = drained
-	recorder := &leaseRecorder{}
-	worker := leaseWorker(t, store, "leader", recorder)
-	worker.Start()
+	synctest.Test(t, func(t *testing.T) {
+		store := newMemoryLeaseStore()
+		drained := &atomic.Bool{}
+		store.drained = drained
+		recorder := &leaseRecorder{}
+		worker := leaseWorker(t, store, "leader", recorder)
+		worker.Start()
 
-	running := make(chan struct{})
-	worker.wg.Go(func() {
+		running := make(chan struct{})
+		worker.wg.Go(func() {
 
-		probeRun(worker, func(ctx context.Context) {
-			close(running)
-			<-ctx.Done()
-			time.Sleep(2 * testLeaseRenew) // finishing work while the term stays renewed
-			drained.Store(true)
+			probeRun(worker, func(ctx context.Context) {
+				close(running)
+				<-ctx.Done()
+				time.Sleep(2 * testLeaseRenew) // finishing work while the term stays renewed
+				drained.Store(true)
+			})
 		})
+
+		<-running
+
+		worker.Stop()
+
+		assert.Equal(t, []bool{true}, store.releasedAt, "the lease is released only after the running job drained")
+		holder, _ := store.current()
+		assert.Empty(t, holder)
+		require.Len(t, recorder.drains, 1)
+		assert.GreaterOrEqual(t, recorder.drains[0], 2*testLeaseRenew)
 	})
-
-	<-running
-
-	worker.Stop()
-
-	assert.Equal(t, []bool{true}, store.releasedAt, "the lease is released only after the running job drained")
-	holder, _ := store.current()
-	assert.Empty(t, holder)
-	require.Len(t, recorder.drains, 1)
-	assert.GreaterOrEqual(t, recorder.drains[0], 2*testLeaseRenew)
 }

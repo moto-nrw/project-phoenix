@@ -54,15 +54,6 @@ func runInSchool(t *testing.T, db *bun.DB, tenantID int64, fn func(ctx context.C
 	})
 }
 
-// wipeRateLimitsForKey best-effort removes the rows we created so the
-// next test starts clean.
-func wipeRateLimitsForKey(db *bun.DB, tenantID int64, keyValuePrefix string) {
-	_, _ = db.NewDelete().
-		Table("enrollment.submission_rate_limits").
-		Where("tenant_id = ? AND key_value LIKE ?", tenantID, keyValuePrefix+"%").
-		Exec(context.Background())
-}
-
 // --- IncrementAttempts -----------------------------------------------
 
 func TestSubmissionRateLimitIncrementRollbackAndRetry(t *testing.T) {
@@ -133,7 +124,6 @@ func TestSubmissionRateLimitRepository_IncrementAttempts_FirstCallReturnsOne(t *
 
 	db, repo, tenantID := setupRateLimitTest(t)
 	key := uniqueKeyValue("first")
-	defer wipeRateLimitsForKey(db, tenantID, key)
 
 	var state *enrollmentCapability.SubmissionRateLimitState
 	err := runUnscoped(t, db, func(ctx context.Context) error {
@@ -153,7 +143,6 @@ func TestSubmissionRateLimitRepository_IncrementAttempts_RepeatHitsAccumulate(t 
 
 	db, repo, tenantID := setupRateLimitTest(t)
 	key := uniqueKeyValue("accumulate")
-	defer wipeRateLimitsForKey(db, tenantID, key)
 
 	for expected := 1; expected <= 3; expected++ {
 		var state *enrollmentCapability.SubmissionRateLimitState
@@ -177,7 +166,6 @@ func TestSubmissionRateLimitRepository_IncrementAttempts_ExpiredWindowResetsToOn
 	// MUST detect the expired window and reset attempts back to 1.
 	db, repo, tenantID := setupRateLimitTest(t)
 	key := uniqueKeyValue("expired")
-	defer wipeRateLimitsForKey(db, tenantID, key)
 
 	// Pre-seed an existing row with attempts=5 + ancient window. Raw
 	// SQL because the bun builder needs a Model().
@@ -212,8 +200,6 @@ func TestSubmissionRateLimitRepository_IncrementAttempts_SeparateKeysSeparateBuc
 	db, repo, tenantID := setupRateLimitTest(t)
 	keyA := uniqueKeyValue("bucketA")
 	keyB := uniqueKeyValue("bucketB")
-	defer wipeRateLimitsForKey(db, tenantID, keyA)
-	defer wipeRateLimitsForKey(db, tenantID, keyB)
 
 	for i := 0; i < 3; i++ {
 		_, err := repoIncrement(t, db, repo, tenantID, enrollmentCapability.SubmissionRateLimitKeyTypeIP, keyA, time.Hour)
@@ -231,7 +217,6 @@ func TestSubmissionRateLimitRepository_IncrementAttempts_SeparateKeyTypesSeparat
 	// share a counter — UNIQUE is on (tenant, type, value).
 	db, repo, tenantID := setupRateLimitTest(t)
 	key := uniqueKeyValue("keytypeshare")
-	defer wipeRateLimitsForKey(db, tenantID, key)
 
 	for i := 0; i < 3; i++ {
 		_, err := repoIncrement(t, db, repo, tenantID, enrollmentCapability.SubmissionRateLimitKeyTypeIP, key, time.Hour)
@@ -254,8 +239,6 @@ func TestSubmissionRateLimitRepository_IncrementAttempts_SeparateTenantsSeparate
 	testpkg.EnsureTestTenant(t, db, tenantA)
 	testpkg.EnsureTestTenant(t, db, tenantB)
 	key := uniqueKeyValue("tenantshare")
-	defer wipeRateLimitsForKey(db, tenantA, key)
-	defer wipeRateLimitsForKey(db, tenantB, key)
 
 	for i := 0; i < 3; i++ {
 		_, err := repoIncrement(t, db, repo, tenantA, enrollmentCapability.SubmissionRateLimitKeyTypeIP, key, time.Hour)
@@ -300,7 +283,6 @@ func TestSubmissionRateLimitRepository_IncrementAttempts_RetryAtIsWindowStartPlu
 	// want to leak more (or less) than the actual reset time.
 	db, repo, tenantID := setupRateLimitTest(t)
 	key := uniqueKeyValue("retryat")
-	defer wipeRateLimitsForKey(db, tenantID, key)
 
 	state, err := repoIncrement(t, db, repo, tenantID,
 		enrollmentCapability.SubmissionRateLimitKeyTypeIP, key, time.Hour)
@@ -329,8 +311,6 @@ func TestSubmissionRateLimitRepository_CleanupExpired_RemovesAncientRows(t *test
 	db, repo, tenantID := setupRateLimitTest(t)
 	ancientKey := uniqueKeyValue("ancient")
 	freshKey := uniqueKeyValue("fresh")
-	defer wipeRateLimitsForKey(db, tenantID, ancientKey)
-	defer wipeRateLimitsForKey(db, tenantID, freshKey)
 
 	// Insert an ancient row (>24h) and a fresh row. Raw SQL because
 	// the bun builder needs a Model() and we want to backdate
@@ -355,7 +335,6 @@ func TestSubmissionRateLimitRepository_CleanupExpired_RemovesAncientRows(t *test
 
 	otherTenantID := testpkg.UniqueTestTenantID(t)
 	testpkg.EnsureTestTenant(t, db, otherTenantID)
-	defer wipeRateLimitsForKey(db, otherTenantID, ancientKey)
 	_, err := db.NewRaw(`
 		INSERT INTO enrollment.submission_rate_limits
 		  (tenant_id, key_type, key_value, attempts, window_start)

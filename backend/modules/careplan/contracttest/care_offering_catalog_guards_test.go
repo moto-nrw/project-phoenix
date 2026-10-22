@@ -332,7 +332,7 @@ func TestCareOfferingCalendarPeriodValidation_AllowsCompatibleFallbacks(t *testi
 // setupCareGuardTest replaces the deleted setupCareTest of the old catalog
 // suite for the materializability tests: a catalog over the test database,
 // its row adapter and a school-year phase of the test tenant.
-func setupCareGuardTest(t *testing.T) (*bun.DB, *scopedCareOfferingRows, careplan.CareOfferingCatalogCapability, *enrollmentTest.Phase, func()) {
+func setupCareGuardTest(t *testing.T) (*bun.DB, *scopedCareOfferingRows, careplan.CareOfferingCatalogCapability, *enrollmentTest.Phase) {
 	t.Helper()
 	db := testpkg.SetupTestDB(t)
 	testpkg.EnsureTestTenant(t, db, testpkg.Tenant(t))
@@ -351,19 +351,7 @@ func setupCareGuardTest(t *testing.T) (*bun.DB, *scopedCareOfferingRows, carepla
 	phase.TenantID = testpkg.Tenant(t)
 	require.NoError(t, insertOwnerPhaseForTest(testpkg.Ctx(t), repoFactory.Enrollment(), phase))
 
-	cleanup := func() {
-		bg := context.Background()
-		_, _ = db.NewDelete().
-			TableExpr("enrollment.care_offerings").
-			Where("phase_id = ?", phase.ID).
-			Exec(bg)
-		_, _ = db.NewDelete().
-			TableExpr("enrollment.phases").
-			Where("id = ?", phase.ID).
-			Exec(bg)
-	}
-
-	return db, newScopedOfferingRows(catalog), catalog, phase, cleanup
+	return db, newScopedOfferingRows(catalog), catalog, phase
 }
 
 func baseGuardLinkedOffering(t *testing.T, phaseID int64, groupID int64) *offeringContract.CareOfferingRecord {
@@ -435,8 +423,7 @@ func TestCareOfferingMaterializability_RejectsIncompleteTimeframeAndRoom(t *test
 	t.Parallel()
 
 	t.Run("missing timeframe", func(t *testing.T) {
-		db, svc, _, phase, cleanup := setupCareGuardTest(t)
-		defer cleanup()
+		db, svc, _, phase := setupCareGuardTest(t)
 		period := api.CreateCareOfferingCalendarPeriod(func(err error) { require.NoError(t, err) }, testpkg.NewDatabase(t, db), testpkg.Ctx(t), testpkg.Tenant(t), uniqueSchemaName("missing-timeframe"+"-"+
 			t.Name()),
 
@@ -455,8 +442,7 @@ func TestCareOfferingMaterializability_RejectsIncompleteTimeframeAndRoom(t *test
 	})
 
 	t.Run("open ended timeframe", func(t *testing.T) {
-		db, svc, _, phase, cleanup := setupCareGuardTest(t)
-		defer cleanup()
+		db, svc, _, phase := setupCareGuardTest(t)
 		period := api.CreateCareOfferingCalendarPeriod(func(err error) { require.NoError(t, err) }, testpkg.NewDatabase(t, db), testpkg.Ctx(t), testpkg.Tenant(t), uniqueSchemaName("open-timeframe"+"-"+
 			t.Name()),
 
@@ -470,8 +456,7 @@ func TestCareOfferingMaterializability_RejectsIncompleteTimeframeAndRoom(t *test
 	})
 
 	t.Run("missing effective room", func(t *testing.T) {
-		db, svc, _, phase, cleanup := setupCareGuardTest(t)
-		defer cleanup()
+		db, svc, _, phase := setupCareGuardTest(t)
 		period := api.CreateCareOfferingCalendarPeriod(func(err error) { require.NoError(t, err) }, testpkg.NewDatabase(t, db), testpkg.Ctx(t), testpkg.Tenant(t), uniqueSchemaName("missing-room"+"-"+
 			t.Name()),
 
@@ -491,8 +476,7 @@ func TestCareOfferingMaterializability_RejectsIncompleteTimeframeAndRoom(t *test
 func TestCareOfferingMaterializability_ExceptionCannotRescueMissingTimeframe(t *testing.T) {
 	t.Parallel()
 
-	db, svc, _, phase, cleanup := setupCareGuardTest(t)
-	defer cleanup()
+	db, svc, _, phase := setupCareGuardTest(t)
 	monday := calendar.NewDate(2026, time.September, 7)
 	setCareTestPhaseWindow(t, db, phase, monday, monday)
 	period := api.CreateCareOfferingCalendarPeriod(func(err error) { require.NoError(t, err) }, testpkg.NewDatabase(t, db), testpkg.Ctx(t), testpkg.Tenant(t), uniqueSchemaName("exception-no-timeframe"+"-"+
@@ -532,8 +516,7 @@ func TestCareOfferingMaterializability_ExceptionCannotRescueMissingTimeframe(t *
 func TestCareOfferingMaterializability_CancellationCannotFabricateRecurrence(t *testing.T) {
 	t.Parallel()
 
-	db, svc, _, phase, cleanup := setupCareGuardTest(t)
-	defer cleanup()
+	db, svc, _, phase := setupCareGuardTest(t)
 	monday := calendar.NewDate(2026, time.September, 7)
 	setCareTestPhaseWindow(t, db, phase, monday, monday)
 	period := api.CreateCareOfferingCalendarPeriod(func(err error) { require.NoError(t, err) }, testpkg.NewDatabase(t, db), testpkg.Ctx(t), testpkg.Tenant(t), uniqueSchemaName("cancellation-no-recurrence"+"-"+
@@ -565,8 +548,7 @@ func TestCareOfferingMaterializability_CancellationCannotFabricateRecurrence(t *
 func TestCareOfferingMaterializability_UsesDateSpecificExceptionRoom(t *testing.T) {
 	t.Parallel()
 
-	db, svc, catalog, phase, cleanup := setupCareGuardTest(t)
-	defer cleanup()
+	db, svc, catalog, phase := setupCareGuardTest(t)
 	firstMonday := calendar.NewDate(2026, time.September, 7)
 	setCareTestPhaseWindow(t, db, phase, firstMonday, firstMonday)
 	period := api.CreateCareOfferingCalendarPeriod(func(err error) { require.NoError(t, err) }, testpkg.NewDatabase(t, db), testpkg.Ctx(t), testpkg.Tenant(t), uniqueSchemaName("exception-room"+"-"+
@@ -614,8 +596,7 @@ func TestCareOfferingMaterializability_UsesDateSpecificExceptionRoom(t *testing.
 func TestCareOfferingMaterializability_ExceptionIsScopedToSplitSeriesSegment(t *testing.T) {
 	t.Parallel()
 
-	db, svc, _, phase, cleanup := setupCareGuardTest(t)
-	defer cleanup()
+	db, svc, _, phase := setupCareGuardTest(t)
 	firstMonday := calendar.NewDate(2026, time.September, 7)
 	secondMonday := firstMonday.AddDays(7)
 	setCareTestPhaseWindow(t, db, phase, firstMonday, secondMonday)
@@ -687,8 +668,7 @@ func inCareTenantTx(t *testing.T, db *bun.DB, fn func(ctx context.Context) error
 func TestCareOfferingMaterializability_ValidatesRoomDeletion(t *testing.T) {
 	t.Parallel()
 	testpkg.SetupIsolatedTestDB(t)
-	db, svc, catalog, phase, cleanup := setupCareGuardTest(t)
-	defer cleanup()
+	db, svc, catalog, phase := setupCareGuardTest(t)
 	period := api.CreateCareOfferingCalendarPeriod(func(err error) { require.NoError(t, err) }, testpkg.NewDatabase(t, db), testpkg.Ctx(t), testpkg.Tenant(t), uniqueSchemaName("resource-change"+"-"+
 		t.Name()),
 
@@ -709,8 +689,7 @@ func TestCareOfferingMaterializability_ValidatesRoomDeletion(t *testing.T) {
 func TestCareOfferingMaterializability_CancellationDoesNotRequireRoom(t *testing.T) {
 	t.Parallel()
 
-	db, svc, _, phase, cleanup := setupCareGuardTest(t)
-	defer cleanup()
+	db, svc, _, phase := setupCareGuardTest(t)
 	monday := calendar.NewDate(2026, time.September, 7)
 	setCareTestPhaseWindow(t, db, phase, monday, monday)
 	period := api.CreateCareOfferingCalendarPeriod(func(err error) { require.NoError(t, err) }, testpkg.NewDatabase(t, db), testpkg.Ctx(t), testpkg.Tenant(t), uniqueSchemaName("cancelled-room"+"-"+
@@ -738,8 +717,7 @@ func TestCareOfferingMaterializability_CancellationDoesNotRequireRoom(t *testing
 func TestCareOfferingMaterializability_RejectsInvalidEffectiveTimes(t *testing.T) {
 	t.Parallel()
 
-	db, svc, _, phase, cleanup := setupCareGuardTest(t)
-	defer cleanup()
+	db, svc, _, phase := setupCareGuardTest(t)
 	monday := calendar.NewDate(2026, time.September, 7)
 	setCareTestPhaseWindow(t, db, phase, monday, monday)
 	period := api.CreateCareOfferingCalendarPeriod(func(err error) { require.NoError(t, err) }, testpkg.NewDatabase(t, db), testpkg.Ctx(t), testpkg.Tenant(t), uniqueSchemaName("invalid-effective-time"+"-"+

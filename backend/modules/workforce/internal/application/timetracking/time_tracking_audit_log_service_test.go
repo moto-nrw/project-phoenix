@@ -68,20 +68,6 @@ func newAuditLogFixture(t *testing.T) *auditLogFixture {
 	reposPeople := api.NewPeopleRepositorySuiteFactory(testpkg.NewDatabase(t, db))
 	ctx := testpkg.TenantContext(tenantID)
 
-	t.Cleanup(func() {
-		for _, table := range []string{
-			"audit.time_tracking_deletions",
-			"active.staff_month_balance_snapshots",
-			"active.staff_balance_adjustments",
-			"active.staff_absence_audit",
-			"active.staff_absences",
-			"audit.work_session_edits",
-			"active.work_sessions",
-		} {
-			_, _ = db.NewDelete().ModelTableExpr(table+" AS t").Where("t.tenant_id = ?", tenantID).Exec(context.Background())
-		}
-	})
-
 	// Session + two edit rows from one save action.
 	checkIn := time.Date(2025, time.August, 4, 8, 0, 0, 0, time.UTC)
 	checkOut := checkIn.Add(8 * time.Hour)

@@ -1,7 +1,6 @@
 package studentpresencehttp
 
 import (
-	"context"
 	"encoding/json"
 	"fmt"
 	"log/slog"
@@ -44,11 +43,6 @@ func TestStaffStatusDay_ReasonStoredAndReturned(t *testing.T) {
 	router := staffNotesRouter(newStaffNotesResource(db))
 
 	student := testpkg.CreateTestStudent(t, db, "Reason", "Kind", "1a")
-	defer func() {
-		_, _ = db.ExecContext(context.Background(), `DELETE FROM active.student_status_days WHERE student_id = ?`, student.ID)
-		_, _ = db.ExecContext(context.Background(), `DELETE FROM users.student_profiles WHERE id = ?`, student.ID)
-		_, _ = db.ExecContext(context.Background(), `DELETE FROM users.persons WHERE id = ?`, student.PersonID)
-	}()
 
 	createReq := testutil.NewAuthenticatedRequest(t, "POST", fmt.Sprintf("/%d/status-days", student.ID), map[string]any{
 		"status": "sick",

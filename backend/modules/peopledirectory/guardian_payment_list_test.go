@@ -42,3 +42,25 @@ func TestGuardianPaymentListNamesEveryGap(t *testing.T) {
 		t.Errorf("headings %+v", list.Headings)
 	}
 }
+
+// A payment row cleared of both fields reads as "no bank details", not as an
+// empty-but-present record.
+func TestGuardianPaymentHasData(t *testing.T) {
+	t.Parallel()
+
+	empty, iban, holder := "", "DE89", "A"
+	cases := []struct {
+		row  peopledirectory.GuardianPayment
+		want bool
+	}{
+		{peopledirectory.GuardianPayment{GuardianProfileID: 7}, false},
+		{peopledirectory.GuardianPayment{GuardianProfileID: 7, IBAN: &empty}, false},
+		{peopledirectory.GuardianPayment{GuardianProfileID: 7, IBAN: &iban}, true},
+		{peopledirectory.GuardianPayment{GuardianProfileID: 7, AccountHolder: &holder}, true},
+	}
+	for i, tc := range cases {
+		if got := tc.row.HasData(); got != tc.want {
+			t.Errorf("case %d: HasData() = %v, want %v", i, got, tc.want)
+		}
+	}
+}

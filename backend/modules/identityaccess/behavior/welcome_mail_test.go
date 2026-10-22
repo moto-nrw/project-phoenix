@@ -413,7 +413,6 @@ func TestGuardianWelcomeFailureKeepsTheInvitation(t *testing.T) {
 		})
 		return err
 	}), "the invitation commits although its welcome failed")
-	defer env.cleanupInvitation(t, invitation.ID, profile.ID)
 
 	stored := testpkg.GuardianInvitationByID(t, env.db, invitation.ID)
 	assert.Equal(t, invitation.Token, stored.Token, "the invitation is stored")

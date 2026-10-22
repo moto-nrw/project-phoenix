@@ -3,6 +3,7 @@ package integration
 import (
 	"context"
 	"errors"
+	"fmt"
 	"testing"
 	"time"
 
@@ -26,7 +27,7 @@ func TestChangeRequestReviewCountIsTenantAndStatusScoped(t *testing.T) {
 			testpkg.OwnTenant(t)
 			ctx := testpkg.Ctx(t)
 			phase := testpkg.CreateTestEnrollmentPhase(t, db)
-			request := &enrollment.Request{PhaseID: phase.ID, GuardianFirstName: "First", GuardianLastName: "Last", GuardianEmail: "guardian@example.test", StatusToken: "review-count-" + name}
+			request := &enrollment.Request{PhaseID: phase.ID, GuardianFirstName: "First", GuardianLastName: "Last", GuardianEmail: "guardian@example.test", StatusToken: fmt.Sprintf("review-count-%s-%d", name, testpkg.Tenant(t))}
 			require.NoError(t, testpkg.TenantCommand1(t, ctx, db, owner.InsertRequest, request))
 			requestIDs = append(requestIDs, request.ID)
 			for _, status := range []string{"pending_review", "rejected"} {

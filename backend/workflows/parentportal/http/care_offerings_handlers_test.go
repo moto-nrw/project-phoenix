@@ -11,14 +11,6 @@ import (
 	parentService "github.com/moto-nrw/project-phoenix/workflows/parentportal"
 )
 
-func TestCareOfferingsResponseOmitsActivityGroups(t *testing.T) {
-	t.Parallel()
-
-	payload, err := json.Marshal(toCareOfferingsResponse(&parentService.ChildCareOfferings{}))
-	require.NoError(t, err)
-	assert.NotContains(t, string(payload), `"groups"`)
-}
-
 func TestToCareOfferingsResponseIncludesOfferingInterval(t *testing.T) {
 	t.Parallel()
 

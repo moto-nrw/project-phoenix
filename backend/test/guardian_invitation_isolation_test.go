@@ -40,9 +40,6 @@ func TestGuardianInvitationsAreIsolatedPerSchool(t *testing.T) {
 			RETURNING id`,
 			tenantID, token, profile.ID, inviter.ID, time.Now().Add(48*time.Hour),
 		).Scan(context.Background(), &id))
-		t.Cleanup(func() {
-			_, _ = db.NewDelete().TableExpr("auth.guardian_invitations").Where("id = ?", id).Exec(context.Background())
-		})
 		return invitation{id: id, token: token}
 	}
 	own := invite(tenantA, "a")

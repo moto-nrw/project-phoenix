@@ -166,14 +166,13 @@ func TestDevicePing_ReportsRunningSession(t *testing.T) {
 	device, deviceID := k.deviceRow(t, "ping-session")
 	_, _, sessionID := k.roomWithSession(t, "Ping Room")
 	testpkg.LinkDeviceToActiveGroup(t, k.db, sessionID, deviceID)
-	before := testpkg.ActiveGroupLastActivity(t, k.db, sessionID)
-	time.Sleep(10 * time.Millisecond)
+	stale := backdateLastActivity(t, k.db, sessionID)
 
 	rr := k.call(t, "POST", "/ping", nil, device)
 
 	testutil.AssertSuccessResponse(t, rr, 200)
 	assert.Equal(t, true, responseData(t, rr.Body.Bytes())["session_active"])
-	assert.False(t, testpkg.ActiveGroupLastActivity(t, k.db, sessionID).Before(before), "the ping keeps the session alive")
+	assert.True(t, testpkg.ActiveGroupLastActivity(t, k.db, sessionID).After(stale), "the ping keeps the session alive")
 }
 
 func TestDevicePing_Unauthorized(t *testing.T) {
@@ -473,15 +472,24 @@ func TestDeviceCheckin_ActiveStudentsScopedToDeviceSession(t *testing.T) {
 	testpkg.CreateTestVisit(t, k.db, scannedID, deviceGroup.ID, time.Now().Add(-10*time.Minute), nil)
 	testpkg.CreateTestVisit(t, k.db, peer.ID, deviceGroup.ID, time.Now().Add(-8*time.Minute), nil)
 	testpkg.CreateTestVisit(t, k.db, other.ID, otherGroup.ID, time.Now().Add(-6*time.Minute), nil)
-	before := testpkg.ActiveGroupLastActivity(t, k.db, deviceGroup.ID)
-	time.Sleep(10 * time.Millisecond)
+	stale := backdateLastActivity(t, k.db, deviceGroup.ID)
 
 	rr := k.call(t, "POST", "/checkin", checkinBody(tag, room.ID), device, staff)
 
 	testutil.AssertSuccessResponse(t, rr, 200)
 	data := responseData(t, rr.Body.Bytes())
 	assert.Equal(t, float64(1), data["active_students"], "only the remaining students of the device session count")
-	assert.False(t, testpkg.ActiveGroupLastActivity(t, k.db, deviceGroup.ID).Before(before), "the scan refreshes the session heartbeat")
+	assert.True(t, testpkg.ActiveGroupLastActivity(t, k.db, deviceGroup.ID).After(stale), "the scan refreshes the session heartbeat")
+}
+
+// backdateLastActivity moves a session's heartbeat an hour into the past, so
+// a later read proves that the request wrote it rather than that no time
+// passed. It returns the stored stale value.
+func backdateLastActivity(t *testing.T, db *testpkg.DB, activeGroupID int64) time.Time {
+	t.Helper()
+	_, err := db.NewRaw("UPDATE active.groups SET last_activity = last_activity - interval '1 hour' WHERE id = ?", activeGroupID).Exec(testpkg.Ctx(t))
+	require.NoError(t, err)
+	return testpkg.ActiveGroupLastActivity(t, db, activeGroupID)
 }
 
 func TestDeviceCheckin_ActiveStudentsCountsRoomWithoutDeviceLink(t *testing.T) {
