@@ -189,7 +189,7 @@ export function schoolLabel(deployment) {
 /** Breakdown by school name (`schoolLabel`) for charts of real schools. */
 export const SCHOOL_BREAKDOWN = schoolLabel('production');
 
-function trends(deployment, { series: steps, interval = 'week', dateFrom = '-90d', breakdown, breakdownType = 'event', display = 'ActionsLineGraph', compare = false }) {
+function trends(deployment, { series: steps, interval = 'week', dateFrom = '-90d', breakdown, breakdownType = 'event', display = 'ActionsLineGraph', compare = false, showLegend = false }) {
   return {
     deployment,
     query: {
@@ -203,7 +203,7 @@ function trends(deployment, { series: steps, interval = 'week', dateFrom = '-90d
         filterTestAccounts: false,
         ...(breakdown ? { breakdownFilter: { breakdown, breakdown_type: breakdownType } } : {}),
         ...(compare ? { compareFilter: { compare: true } } : {}),
-        trendsFilter: { display },
+        trendsFilter: { display, ...(showLegend ? { showLegend } : {}) },
       },
     },
   };
@@ -767,48 +767,31 @@ order by Anwesenheitsquote desc, Standort`, 'ActionsBarValue', {
         },
         {
           name: 'Standorte: Anwesenheit pro Tag',
-          description: 'Ein- und Auscheck-Buchungen je Schule und Tag, letzte 60 Tage. Je dunkler, desto mehr Buchungen; Wochenenden und Feiertage bleiben immer leer, weitere leere Felder sind Tage ohne Anwesenheit (Ferien, Pause). Erfasst seit dem 25.09.2026.',
-          ...trends('production', {
-            series: [series(null, 'Ein- und Auscheck-Buchungen', {
-              properties: [{ key: `event in ${sqlList(ATTENDANCE_EVENTS)}`, type: 'hogql' }],
-            })],
-            interval: 'day',
-            dateFrom: '-60d',
-            breakdown: SCHOOL_BREAKDOWN,
-            breakdownType: 'hogql',
-            display: 'TwoDimensionalHeatmap',
-          }),
+          description: 'Ein- und Auscheck-Buchungen je Schule und Werktag, letzte 60 Tage. Je dunkler, desto mehr Buchungen; leere Felder sind Werktage ohne Anwesenheit (Ferien, Pause). Erfasst seit dem 25.09.2026.',
+          ...dailyHeatmap('Anwesenheit', 'Buchungen'),
         },
         {
           name: 'Standorte: Nutzung pro Tag',
-          description: 'Seitenaufrufe, Kernaktionen und Kiosk-Buchungen je Schule und Tag, letzte 60 Tage. Zeigt auch Schulen, die moto ohne Anwesenheitserfassung nutzen.',
-          ...trends('production', {
-            series: [series(null, 'Seitenaufrufe und Aktionen', {
-              properties: [{ key: "isNotNull(properties.school_id) and (event = '$pageview' or not startsWith(event, '$'))", type: 'hogql' }],
-            })],
-            interval: 'day',
-            dateFrom: '-60d',
-            breakdown: SCHOOL_BREAKDOWN,
-            breakdownType: 'hogql',
-            display: 'TwoDimensionalHeatmap',
-          }),
+          description: 'Seitenaufrufe, Kernaktionen und Kiosk-Buchungen je Schule und Werktag, letzte 60 Tage. Zeigt auch Schulen, die moto ohne Anwesenheitserfassung nutzen. Seitenaufrufe tragen erst seit Ende September 2026 eine Schule, davor zählen nur Aktionen.',
+          ...dailyHeatmap("event = '$pageview' or not startsWith(event, '$')", 'Seitenaufrufe und Aktionen'),
         },
         {
           name: 'Standorte: Nutzung im Vergleich zum eigenen Schnitt',
-          description: 'Jede Schule an sich selbst gemessen: Seitenaufrufe und Aktionen einer Woche gegenüber ihrem eigenen Wochenschnitt der letzten 12 abgeschlossenen Wochen (100 %). Über 100 % heißt mehr Nutzung als sonst, unter 100 % weniger, etwa in den Ferien. Eine Woche ohne jede Nutzung fehlt als Punkt. In der Legende lassen sich Schulen ein- und ausblenden.',
+          description: 'Jede Schule an sich selbst gemessen: Seitenaufrufe und Aktionen einer Woche in Prozent ihres eigenen Wochenschnitts der letzten 12 abgeschlossenen Wochen. 100 heißt so viel wie sonst, darüber mehr, darunter weniger, etwa in den Ferien. Leer heißt: in der Woche keine Nutzung. Seitenaufrufe tragen erst seit Ende September 2026 eine Schule, die Wochen davor liegen deshalb niedriger.',
           ...hogql('production', (where) => `
-select Woche, Standort, round(Anzahl / greatest(avg(Anzahl) over (partition by Schule), 1), 2) as ${quoted('Anteil am eigenen Schnitt')}
+select toString(Woche) as Woche, Standort, round(100 * Anzahl / greatest(avg(Anzahl) over (partition by Schule), 1)) as ${quoted('Prozent des eigenen Schnitts')}
 from (
   select toStartOfWeek(Tag, 1) as Woche, Schule, any(Standort) as Standort, countIf(event = '$pageview' or not startsWith(event, '$')) as Anzahl
   from (${schoolDays(where, 91)})
   where Tag >= addDays(toStartOfWeek(today(), 1), -84) and Tag < toStartOfWeek(today(), 1)
   group by Woche, Schule
 )
-order by Woche, Standort`, 'ActionsLineGraph', {
-            xAxis: { column: 'Woche' },
-            yAxis: [{ column: 'Anteil am eigenen Schnitt', settings: { formatting: { style: 'percent', decimalPlaces: 0 } } }],
-            seriesBreakdownColumn: 'Standort',
-            goalLines: [{ label: 'eigener Schnitt', value: 1 }],
+order by Woche, Standort
+limit 1000`, 'TwoDimensionalHeatmap', {
+            heatmap: {
+              xAxisColumn: 'Woche', yAxisColumn: 'Standort', valueColumn: 'Prozent des eigenen Schnitts',
+              xAxisLabel: 'Woche ab Montag', yAxisLabel: 'Standort', gradientScaleMode: 'relative',
+            },
           }),
         },
         {
@@ -822,10 +805,13 @@ from (
 )
 where Ablauf != ''
 group by Standort, Ablauf
-order by Standort, Ablauf`, 'ActionsStackedBar', {
+order by Standort, Ablauf
+limit 1000`, 'ActionsStackedBar', {
             xAxis: { column: 'Standort' },
             yAxis: [{ column: 'Tage' }],
             seriesBreakdownColumn: 'Ablauf',
+            showLegend: true,
+            legendPosition: 'bottom',
           }),
         },
         {
@@ -905,12 +891,13 @@ order by ${quoted('Tage mit Nutzung')} desc`),
         },
         {
           name: 'Verlauf: Abläufe pro Woche',
-          description: 'Seitenaufrufe und Aktionen je Ablauf. Zeigt, welche Abläufe die Schule neu aufnimmt oder liegen lässt.',
+          description: 'Seitenaufrufe und Aktionen je Ablauf. Zeigt, welche Abläufe die Schule neu aufnimmt oder liegen lässt. Seitenaufrufe tragen erst seit Ende September 2026 eine Schule.',
           ...trends('production', {
             series: KEY_FLOWS.map((flow) => series(null, flow, {
               properties: [{ key: `isNotNull(properties.school_id) and ${featureExpression()} = ${sqlString(flow)}`, type: 'hogql' }],
             })),
             display: 'ActionsBar',
+            showLegend: true,
           }),
         },
         {
@@ -1081,6 +1068,19 @@ const KEY_FLOWS = [
 
 /** School days (ON_WORKDAY) from a school's first attendance in `schoolDays` until yesterday. */
 const workdaysSinceFirstAttendance = `if(countIf(Anwesenheit) = 0, 0, length(arrayFilter(d -> toDayOfWeek(d) <= 5 and toString(d) not in ${sqlList(publicHolidays())}, arrayMap(i -> addDays(minIf(Tag, Anwesenheit), i), range(toInt(greatest(dateDiff('day', minIf(Tag, Anwesenheit), today()), 0)))))))`;
+
+/** Heatmap of `schoolDays` rows matching `condition`: one row per school, one column per school day. */
+function dailyHeatmap(condition, value) {
+  return hogql('production', (where) => `
+select toString(Tag) as Tag, Standort, countIf(${condition}) as ${quoted(value)}
+from (${schoolDays(where, 60)})
+group by Tag, Standort
+having ${quoted(value)} > 0
+order by Tag, Standort
+limit 2000`, 'TwoDimensionalHeatmap', {
+    heatmap: { xAxisColumn: 'Tag', yAxisColumn: 'Standort', valueColumn: value, xAxisLabel: 'Werktag', yAxisLabel: 'Standort' },
+  });
+}
 
 /** Production events of schools with their day (project time zone) and feature area. */
 function schoolDays(where, days) {
