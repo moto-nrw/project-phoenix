@@ -5,7 +5,6 @@ package presence
 import (
 	"net/http/httptest"
 	"testing"
-	"time"
 
 	"github.com/moto-nrw/project-phoenix/api/testutil"
 
@@ -13,7 +12,6 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/moto-nrw/project-phoenix/api/common"
-	"github.com/moto-nrw/project-phoenix/internal/ptrtest"
 	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
 )
 
@@ -143,140 +141,3 @@ func TestErrorRenderer_AllBadRequestErrors(t *testing.T) {
 
 // NOTE: parseStudentIDFromRequest tests are in checkout_test.go
 // NOTE: buildCheckoutResponse tests are in checkout_test.go
-
-// =============================================================================
-// Type Struct Tests
-// =============================================================================
-
-func TestCheckoutContext_Fields(t *testing.T) {
-	t.Parallel()
-
-	attendance := &studentpresence.AttendanceStatus{Status: "checked_in"}
-
-	ctx := &checkoutContext{
-		StudentID:        123,
-		AttendanceStatus: attendance,
-	}
-
-	assert.Equal(t, int64(123), ctx.StudentID)
-	assert.Equal(t, attendance, ctx.AttendanceStatus)
-}
-
-func TestCheckoutContext_NilFields(t *testing.T) {
-	t.Parallel()
-
-	ctx := &checkoutContext{
-		StudentID:        456,
-		AttendanceStatus: nil,
-	}
-
-	assert.Equal(t, int64(456), ctx.StudentID)
-	assert.Nil(t, ctx.AttendanceStatus)
-}
-
-func TestCheckoutResult_Fields(t *testing.T) {
-	t.Parallel()
-
-	result := studentpresence.CheckoutOutcome{Action: "checked_out"}
-	attendance := &studentpresence.AttendanceStatus{Status: "checked_out"}
-
-	checkoutRes := &checkoutResult{
-		Result:            result,
-		UpdatedAttendance: attendance,
-	}
-
-	assert.Equal(t, result, checkoutRes.Result)
-	assert.Equal(t, attendance, checkoutRes.UpdatedAttendance)
-}
-
-// =============================================================================
-// Response Types Tests
-// =============================================================================
-
-func TestActiveGroupResponse_Fields(t *testing.T) {
-	t.Parallel()
-
-	now := time.Now()
-	endTime := now.Add(1 * time.Hour)
-
-	resp := ActiveGroupResponse{
-		ID:              1,
-		GroupID:         ptrtest.Ptr(int64(10)),
-		RoomID:          20,
-		StartTime:       now,
-		EndTime:         &endTime,
-		IsActive:        true,
-		VisitCount:      5,
-		SupervisorCount: 2,
-		Supervisors: []GroupSupervisorSimple{
-			{StaffID: 100, Role: "lead"},
-		},
-		Room: &RoomSimple{
-			ID:   20,
-			Name: "Test Room",
-		},
-		CreatedAt: now,
-		UpdatedAt: now,
-	}
-
-	assert.Equal(t, int64(1), resp.ID)
-	if assert.NotNil(t, resp.GroupID) {
-		assert.Equal(t, int64(10), *resp.GroupID)
-	}
-	assert.Equal(t, int64(20), resp.RoomID)
-	assert.True(t, resp.IsActive)
-	assert.Equal(t, 5, resp.VisitCount)
-	assert.Equal(t, 2, resp.SupervisorCount)
-	assert.Len(t, resp.Supervisors, 1)
-	assert.NotNil(t, resp.Room)
-}
-
-func TestGroupSupervisorSimple_Fields(t *testing.T) {
-	t.Parallel()
-
-	supervisor := GroupSupervisorSimple{
-		StaffID: 123,
-		Role:    "supervisor",
-	}
-
-	assert.Equal(t, int64(123), supervisor.StaffID)
-	assert.Equal(t, "supervisor", supervisor.Role)
-}
-
-func TestRoomSimple_Fields(t *testing.T) {
-	t.Parallel()
-
-	room := RoomSimple{
-		ID:   456,
-		Name: "Room A",
-	}
-
-	assert.Equal(t, int64(456), room.ID)
-	assert.Equal(t, "Room A", room.Name)
-}
-
-func TestVisitResponse_Fields(t *testing.T) {
-	t.Parallel()
-
-	now := time.Now()
-	checkOutTime := now.Add(1 * time.Hour)
-
-	resp := VisitResponse{
-		ID:              1,
-		StudentID:       100,
-		ActiveGroupID:   200,
-		CheckInTime:     now,
-		CheckOutTime:    &checkOutTime,
-		IsActive:        false,
-		StudentName:     "John Doe",
-		ActiveGroupName: "Activity A",
-		CreatedAt:       now,
-		UpdatedAt:       now,
-	}
-
-	assert.Equal(t, int64(1), resp.ID)
-	assert.Equal(t, int64(100), resp.StudentID)
-	assert.Equal(t, int64(200), resp.ActiveGroupID)
-	assert.False(t, resp.IsActive)
-	assert.Equal(t, "John Doe", resp.StudentName)
-}

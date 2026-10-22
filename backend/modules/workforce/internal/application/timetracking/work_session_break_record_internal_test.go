@@ -81,17 +81,3 @@ func TestWorkSessionBreak_IsActive(t *testing.T) {
 		assert.False(t, b.IsActive())
 	})
 }
-
-func TestWorkSessionBreak_Getters(t *testing.T) {
-	t.Parallel()
-
-	now := time.Now()
-	b := &WorkSessionBreak{}
-	b.ID = 7
-	b.CreatedAt = now
-	b.UpdatedAt = now
-
-	assert.Equal(t, int64(7), b.GetID())
-	assert.Equal(t, now, b.GetCreatedAt())
-	assert.Equal(t, now, b.GetUpdatedAt())
-}

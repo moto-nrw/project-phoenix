@@ -36,23 +36,6 @@ func TestGetStudentCurrentVisit(t *testing.T) {
 	})
 }
 
-func TestGetStudentCurrentVisit_Extended(t *testing.T) {
-	t.Parallel()
-
-	tc := setupStudentsRoute(t)
-
-	t.Run("returns_null_when_no_visit", func(t *testing.T) {
-		student := testpkg.CreateTestStudent(t, tc.db, "NoVisit", "Student", "NV2")
-
-		req := testutil.NewRequest("GET", fmt.Sprintf("/%d/current-visit", student.ID), nil)
-
-		rr := authExec(t, tc, req, testutil.AdminTestClaims(1), []string{"admin:*"})
-
-		// The handler may return 500 (internal error) or 200 with null when no visit
-		assert.Contains(t, []int{http.StatusOK, http.StatusInternalServerError}, rr.Code)
-	})
-}
-
 func TestGetStudentVisitHistory(t *testing.T) {
 	t.Parallel()
 

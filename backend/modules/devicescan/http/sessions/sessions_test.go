@@ -6,10 +6,12 @@ package sessions_test
 
 import (
 	"bytes"
+	"fmt"
 	"net/http/httptest"
 	"testing"
 	"time"
 
+	"github.com/go-chi/chi/v5"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
@@ -430,8 +432,11 @@ func TestUpdateActivity_InvalidActivityType(t *testing.T) {
 
 	rr := testutil.ExecuteRequest(router, req)
 
-	// Should return error for invalid activity type
-	assert.Contains(t, []int{400, 422, 500}, rr.Code)
+	// A rejected binding goes through renderError, which classifies every
+	// error outside the device-scan failures as 500. This pins today's
+	// status; answering 400 needs a production change.
+	testutil.AssertErrorResponse(t, rr, 500)
+	assert.Contains(t, rr.Body.String(), "activity_type: must be a valid value.")
 }
 
 // =============================================================================
@@ -439,51 +444,46 @@ func TestUpdateActivity_InvalidActivityType(t *testing.T) {
 // Note: Relies on middleware for device auth, so we only test with device context
 // =============================================================================
 
-func TestValidateTimeout_MissingTimeoutMinutes(t *testing.T) {
+func TestValidateTimeout_StatusCodes(t *testing.T) {
 	t.Parallel()
 	ctx := setupSessionsRoute(t)
 
-	testDevice := testpkg.CreateTestDevice(t, ctx.db, "sessions-test-device-12")
+	testDevice := testpkg.CreateTestDevice(t, ctx.db, "sessions-validate-timeout")
 
 	router := testutil.NewTenantRouter(ctx.db)
 	router.Mount("/", ctx.resource.Router())
 
-	body := map[string]interface{}{
-		"last_activity": time.Now().Format(time.RFC3339),
+	now := time.Now().Format(time.RFC3339)
+	// A rejected binding goes through renderError, which classifies every
+	// error outside the device-scan failures as 500. The 500 rows pin
+	// today's status; answering 400 needs a production change.
+	tests := []struct {
+		name   string
+		body   map[string]interface{}
+		status int
+		detail string
+	}{
+		{"missing timeout_minutes", map[string]interface{}{"last_activity": now}, 500, "timeout_minutes: cannot be blank."},
+		{"zero timeout", map[string]interface{}{"timeout_minutes": 0, "last_activity": now}, 500, "timeout_minutes: cannot be blank."},
+		{"negative timeout", map[string]interface{}{"timeout_minutes": -5, "last_activity": now}, 500, "timeout_minutes: must be no less than 1."},
+		{"one above maximum", map[string]interface{}{"timeout_minutes": 481, "last_activity": now}, 500, "timeout_minutes: must be no greater than 480."},
+		{"far above maximum", map[string]interface{}{"timeout_minutes": 1000, "last_activity": now}, 500, "timeout_minutes: must be no greater than 480."},
+		{"missing last_activity", map[string]interface{}{"timeout_minutes": 30}, 500, "last_activity: cannot be blank."},
+		{"valid request without session", map[string]interface{}{"timeout_minutes": 30, "last_activity": time.Now().Add(-10 * time.Minute).Format(time.RFC3339)}, 404, "no active session found"},
 	}
 
-	req := testutil.NewAuthenticatedRequest(t, "POST", "/validate-timeout", body,
-		testutil.WithDeviceContext(testDevice),
-	)
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			req := testutil.NewAuthenticatedRequest(t, "POST", "/validate-timeout", tt.body,
+				testutil.WithDeviceContext(testDevice),
+			)
 
-	rr := testutil.ExecuteRequest(router, req)
+			rr := testutil.ExecuteRequest(router, req)
 
-	// Should return error for missing timeout_minutes (may return 500 if validation fails in service)
-	assert.Contains(t, []int{400, 422, 500}, rr.Code)
-}
-
-func TestValidateTimeout_InvalidTimeoutMinutes(t *testing.T) {
-	t.Parallel()
-	ctx := setupSessionsRoute(t)
-
-	testDevice := testpkg.CreateTestDevice(t, ctx.db, "sessions-test-device-13")
-
-	router := testutil.NewTenantRouter(ctx.db)
-	router.Mount("/", ctx.resource.Router())
-
-	body := map[string]interface{}{
-		"timeout_minutes": 1000, // Too large (max 480)
-		"last_activity":   time.Now().Format(time.RFC3339),
+			testutil.AssertErrorResponse(t, rr, tt.status)
+			assert.Contains(t, rr.Body.String(), tt.detail)
+		})
 	}
-
-	req := testutil.NewAuthenticatedRequest(t, "POST", "/validate-timeout", body,
-		testutil.WithDeviceContext(testDevice),
-	)
-
-	rr := testutil.ExecuteRequest(router, req)
-
-	// Should return error for invalid timeout_minutes (may return 500 if validation fails in service)
-	assert.Contains(t, []int{400, 422, 500}, rr.Code)
 }
 
 // =============================================================================
@@ -506,8 +506,8 @@ func TestGetTimeoutInfo_NoActiveSession(t *testing.T) {
 
 	rr := testutil.ExecuteRequest(router, req)
 
-	// Should return error when no active session
-	assert.Contains(t, []int{400, 404, 500}, rr.Code)
+	testutil.AssertNotFound(t, rr)
+	assert.Contains(t, rr.Body.String(), "no active session found")
 }
 
 // =============================================================================
@@ -530,8 +530,8 @@ func TestProcessTimeout_NoActiveSession(t *testing.T) {
 
 	rr := testutil.ExecuteRequest(router, req)
 
-	// Should return error when no active session
-	assert.Contains(t, []int{400, 404, 500}, rr.Code)
+	testutil.AssertNotFound(t, rr)
+	assert.Contains(t, rr.Body.String(), "no active session - please start an activity first")
 }
 
 // =============================================================================
@@ -573,61 +573,6 @@ func TestStartSession_NonExistentActivity(t *testing.T) {
 	assert.Contains(t, []int{400, 404, 500}, rr.Code)
 }
 
-func TestStartSession_WithRealActivity(t *testing.T) {
-	t.Parallel()
-	ctx := setupSessionsRoute(t)
-
-	// Create real fixtures
-	testDevice := testpkg.CreateTestDevice(t, ctx.db, "sessions-test-device-17")
-	activity := testpkg.CreateTestActivityGroup(t, ctx.db, "Test Session Activity")
-	room := testpkg.CreateTestRoom(t, ctx.db, "Test Session Room")
-	staff := testpkg.CreateTestStaff(t, ctx.db, "TestSession", "Supervisor")
-
-	router := testutil.NewTenantRouter(ctx.db)
-	router.Mount("/", ctx.resource.Router())
-
-	body := map[string]interface{}{
-		"activity_id":    activity.ID,
-		"room_id":        room.ID,
-		"supervisor_ids": []int64{staff.ID},
-	}
-
-	req := testutil.NewAuthenticatedRequest(t, "POST", "/start", body,
-		testutil.WithDeviceContext(testDevice),
-	)
-
-	rr := testutil.ExecuteRequest(router, req)
-
-	// Should succeed or return a specific error (like no room configured)
-	// This tests more of the startSession and helper code paths
-	t.Logf("Response: %d - %s", rr.Code, rr.Body.String())
-}
-
-func TestStartSession_WithForceFlag(t *testing.T) {
-	t.Parallel()
-	ctx := setupSessionsRoute(t)
-
-	testDevice := testpkg.CreateTestDevice(t, ctx.db, "sessions-test-device-18")
-	activity := testpkg.CreateTestActivityGroup(t, ctx.db, "Force Session Activity")
-
-	router := testutil.NewTenantRouter(ctx.db)
-	router.Mount("/", ctx.resource.Router())
-
-	body := map[string]interface{}{
-		"activity_id": activity.ID,
-		"force":       true,
-	}
-
-	req := testutil.NewAuthenticatedRequest(t, "POST", "/start", body,
-		testutil.WithDeviceContext(testDevice),
-	)
-
-	rr := testutil.ExecuteRequest(router, req)
-
-	// Tests the force flag path
-	t.Logf("Response: %d - %s", rr.Code, rr.Body.String())
-}
-
 // =============================================================================
 // CHECK CONFLICT WITH REAL ACTIVITY TESTS
 // =============================================================================
@@ -652,8 +597,38 @@ func TestCheckConflict_NoConflict(t *testing.T) {
 
 	rr := testutil.ExecuteRequest(router, req)
 
-	// Should return success with no conflict or 200/409 depending on state
-	t.Logf("Response: %d - %s", rr.Code, rr.Body.String())
+	testutil.AssertSuccessResponse(t, rr, 200)
+	data := testutil.ParseJSONResponse(t, rr.Body.Bytes())["data"].(map[string]interface{})
+	assert.Equal(t, false, data["has_conflict"])
+	assert.Equal(t, true, data["can_override"])
+	assert.Equal(t, "", data["conflict_message"])
+	assert.NotContains(t, data, "conflicting_device")
+}
+
+func TestCheckConflict_ActivityRunningOnAnotherDevice(t *testing.T) {
+	t.Parallel()
+	ctx := setupSessionsRoute(t)
+
+	runningDevice := testpkg.CreateTestDevice(t, ctx.db, "sessions-conflict-running")
+	askingDevice := testpkg.CreateTestDevice(t, ctx.db, "sessions-conflict-asking")
+	activity := testpkg.CreateTestActivityGroup(t, ctx.db, "Conflict Activity")
+
+	router := testutil.NewTenantRouter(ctx.db)
+	router.Mount("/", ctx.resource.Router())
+	startSession(t, ctx, router, runningDevice, activity.ID)
+
+	req := testutil.NewAuthenticatedRequest(t, "POST", "/check-conflict", map[string]interface{}{"activity_id": activity.ID},
+		testutil.WithDeviceContext(askingDevice),
+	)
+
+	rr := testutil.ExecuteRequest(router, req)
+
+	require.Equal(t, 409, rr.Code, rr.Body.String())
+	details := testutil.ParseJSONResponse(t, rr.Body.Bytes())["details"].(map[string]interface{})
+	assert.Equal(t, true, details["has_conflict"])
+	assert.Equal(t, true, details["can_override"])
+	assert.Equal(t, float64(runningDevice.ID), details["conflicting_device"])
+	assert.Equal(t, fmt.Sprintf("Activity is already active on device %d", runningDevice.ID), details["conflict_message"])
 }
 
 // =============================================================================
@@ -680,8 +655,8 @@ func TestUpdateSupervisors_NonExistentSession(t *testing.T) {
 
 	rr := testutil.ExecuteRequest(router, req)
 
-	// Should return error for non-existent session
-	assert.Contains(t, []int{400, 404, 500}, rr.Code)
+	testutil.AssertNotFound(t, rr)
+	assert.Contains(t, rr.Body.String(), "active group not found")
 }
 
 func TestUpdateSupervisors_InvalidJSON(t *testing.T) {
@@ -707,7 +682,7 @@ func TestUpdateSupervisors_InvalidJSON(t *testing.T) {
 // SESSION ACTIVITY UPDATE TESTS
 // =============================================================================
 
-func TestUpdateActivity_ValidTypes(t *testing.T) {
+func TestUpdateActivity_ValidTypesWithoutSession(t *testing.T) {
 	t.Parallel()
 	ctx := setupSessionsRoute(t)
 
@@ -731,10 +706,44 @@ func TestUpdateActivity_ValidTypes(t *testing.T) {
 
 			rr := testutil.ExecuteRequest(router, req)
 
-			// Will fail due to no active session, but tests validation
-			t.Logf("Activity type %s: %d - %s", activityType, rr.Code, rr.Body.String())
+			// The type passes validation; the device has no session to touch.
+			testutil.AssertNotFound(t, rr)
+			assert.Contains(t, rr.Body.String(), "no active session found")
 		})
 	}
+}
+
+// TestUpdateActivity_RefreshesActiveSession sends PyrePortal's keep-alive
+// (services/api.ts updateSessionActivity: rfid_scan with an ISO timestamp)
+// and pins that it answers 200 for the device's session and writes the
+// session heartbeat.
+func TestUpdateActivity_RefreshesActiveSession(t *testing.T) {
+	t.Parallel()
+	ctx := setupSessionsRoute(t)
+
+	testDevice := testpkg.CreateTestDevice(t, ctx.db, "sessions-activity-refresh")
+	activity := testpkg.CreateTestActivityGroup(t, ctx.db, "Activity Refresh")
+
+	router := testutil.NewTenantRouter(ctx.db)
+	router.Mount("/", ctx.resource.Router())
+	sessionID := startSession(t, ctx, router, testDevice, activity.ID)
+	stale := backdateLastActivity(t, ctx.db, sessionID)
+
+	body := map[string]interface{}{
+		"activity_type": "rfid_scan",
+		"timestamp":     time.Now().UTC().Format(time.RFC3339Nano),
+	}
+	req := testutil.NewAuthenticatedRequest(t, "POST", "/activity", body,
+		testutil.WithDeviceContext(testDevice),
+	)
+
+	rr := testutil.ExecuteRequest(router, req)
+
+	testutil.AssertSuccessResponse(t, rr, 200)
+	data := testutil.ParseJSONResponse(t, rr.Body.Bytes())["data"].(map[string]interface{})
+	assert.Equal(t, float64(sessionID), data["session_id"])
+	assert.Equal(t, "rfid_scan", data["activity_type"])
+	assert.True(t, testpkg.ActiveGroupLastActivity(t, ctx.db, sessionID).After(stale), "the keep-alive refreshes the session heartbeat")
 }
 
 func TestUpdateActivity_MissingTimestamp(t *testing.T) {
@@ -742,14 +751,16 @@ func TestUpdateActivity_MissingTimestamp(t *testing.T) {
 	ctx := setupSessionsRoute(t)
 
 	testDevice := testpkg.CreateTestDevice(t, ctx.db, "sessions-test-device-23")
+	activity := testpkg.CreateTestActivityGroup(t, ctx.db, "Activity Without Timestamp")
 
 	router := testutil.NewTenantRouter(ctx.db)
 	router.Mount("/", ctx.resource.Router())
+	sessionID := startSession(t, ctx, router, testDevice, activity.ID)
+	stale := backdateLastActivity(t, ctx.db, sessionID)
 
-	// Test that timestamp defaults to now when not provided
+	// The timestamp is optional and defaults to now.
 	body := map[string]interface{}{
 		"activity_type": "rfid_scan",
-		// timestamp is missing - should default to now
 	}
 
 	req := testutil.NewAuthenticatedRequest(t, "POST", "/activity", body,
@@ -758,107 +769,35 @@ func TestUpdateActivity_MissingTimestamp(t *testing.T) {
 
 	rr := testutil.ExecuteRequest(router, req)
 
-	// Will fail due to no active session, but tests the timestamp defaulting path
-	t.Logf("Response: %d - %s", rr.Code, rr.Body.String())
+	testutil.AssertSuccessResponse(t, rr, 200)
+	assert.True(t, testpkg.ActiveGroupLastActivity(t, ctx.db, sessionID).After(stale), "the keep-alive refreshes the session heartbeat")
 }
 
-// =============================================================================
-// VALIDATE TIMEOUT ADDITIONAL TESTS
-// =============================================================================
-
-func TestValidateTimeout_ValidRequest_NoSession(t *testing.T) {
-	t.Parallel()
-	ctx := setupSessionsRoute(t)
-
-	testDevice := testpkg.CreateTestDevice(t, ctx.db, "sessions-test-device-24")
-
-	router := testutil.NewTenantRouter(ctx.db)
-	router.Mount("/", ctx.resource.Router())
-
+// startSession starts a session for the activity on the device through the
+// start route, with an explicit room and one supervisor, and returns its ID.
+func startSession(t *testing.T, ctx *testContext, router chi.Router, device *testpkg.Device, activityID int64) int64 {
+	t.Helper()
+	room := testpkg.CreateTestRoom(t, ctx.db, "Session Room")
+	staff := testpkg.CreateTestStaff(t, ctx.db, "Session", "Supervisor")
 	body := map[string]interface{}{
-		"timeout_minutes": 30,
-		"last_activity":   time.Now().Add(-10 * time.Minute).Format(time.RFC3339),
+		"activity_id":    activityID,
+		"room_id":        room.ID,
+		"supervisor_ids": []int64{staff.ID},
 	}
-
-	req := testutil.NewAuthenticatedRequest(t, "POST", "/validate-timeout", body,
-		testutil.WithDeviceContext(testDevice),
-	)
-
-	rr := testutil.ExecuteRequest(router, req)
-
-	// Returns 404 when no active session - tests validation path before session check fails
-	assert.Contains(t, []int{400, 404, 500}, rr.Code)
+	rr := testutil.ExecuteRequest(router, testutil.NewAuthenticatedRequest(t, "POST", "/start", body,
+		testutil.WithDeviceContext(device),
+	))
+	require.Equal(t, 200, rr.Code, "Session start must succeed; body: %s", rr.Body.String())
+	data := testutil.ParseJSONResponse(t, rr.Body.Bytes())["data"].(map[string]interface{})
+	return int64(data["active_group_id"].(float64))
 }
 
-func TestValidateTimeout_InvalidTimeoutZero(t *testing.T) {
-	t.Parallel()
-	ctx := setupSessionsRoute(t)
-
-	testDevice := testpkg.CreateTestDevice(t, ctx.db, "sessions-test-device-25")
-
-	router := testutil.NewTenantRouter(ctx.db)
-	router.Mount("/", ctx.resource.Router())
-
-	// Zero timeout is invalid (min is 1)
-	body := map[string]interface{}{
-		"timeout_minutes": 0,
-		"last_activity":   time.Now().Format(time.RFC3339),
-	}
-
-	req := testutil.NewAuthenticatedRequest(t, "POST", "/validate-timeout", body,
-		testutil.WithDeviceContext(testDevice),
-	)
-
-	rr := testutil.ExecuteRequest(router, req)
-
-	// Should fail validation
-	assert.Contains(t, []int{400, 422, 500}, rr.Code)
-}
-
-func TestValidateTimeout_NegativeTimeout(t *testing.T) {
-	t.Parallel()
-	ctx := setupSessionsRoute(t)
-
-	testDevice := testpkg.CreateTestDevice(t, ctx.db, "sessions-test-device-26")
-
-	router := testutil.NewTenantRouter(ctx.db)
-	router.Mount("/", ctx.resource.Router())
-
-	body := map[string]interface{}{
-		"timeout_minutes": -5,
-		"last_activity":   time.Now().Format(time.RFC3339),
-	}
-
-	req := testutil.NewAuthenticatedRequest(t, "POST", "/validate-timeout", body,
-		testutil.WithDeviceContext(testDevice),
-	)
-
-	rr := testutil.ExecuteRequest(router, req)
-
-	// Should fail validation
-	assert.Contains(t, []int{400, 422, 500}, rr.Code)
-}
-
-func TestValidateTimeout_ExceedsMaximum(t *testing.T) {
-	t.Parallel()
-	ctx := setupSessionsRoute(t)
-
-	testDevice := testpkg.CreateTestDevice(t, ctx.db, "sessions-test-device-27")
-
-	router := testutil.NewTenantRouter(ctx.db)
-	router.Mount("/", ctx.resource.Router())
-
-	body := map[string]interface{}{
-		"timeout_minutes": 481, // Exceeds maximum (480)
-		"last_activity":   time.Now().Format(time.RFC3339),
-	}
-
-	req := testutil.NewAuthenticatedRequest(t, "POST", "/validate-timeout", body,
-		testutil.WithDeviceContext(testDevice),
-	)
-
-	rr := testutil.ExecuteRequest(router, req)
-
-	// Should fail validation
-	assert.Contains(t, []int{400, 422, 500}, rr.Code)
+// backdateLastActivity moves a session's heartbeat an hour into the past, so
+// a later read proves that the request wrote it rather than that no time
+// passed. It returns the stored stale value.
+func backdateLastActivity(t *testing.T, db *testpkg.DB, activeGroupID int64) time.Time {
+	t.Helper()
+	_, err := db.NewRaw("UPDATE active.groups SET last_activity = last_activity - interval '1 hour' WHERE id = ?", activeGroupID).Exec(testpkg.Ctx(t))
+	require.NoError(t, err)
+	return testpkg.ActiveGroupLastActivity(t, db, activeGroupID)
 }

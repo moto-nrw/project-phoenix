@@ -529,10 +529,11 @@ func TestClaimActiveGroup(t *testing.T) {
 		staff := testpkg.CreateTestStaff(t, db, "NotFound", "Staff")
 
 		// ACT
-		_, err := testpkg.TenantQuery3(t, ctx, db, service.ClaimActiveGroup, 99999999, staff.ID, "supervisor")
+		supervisor, err := testpkg.TenantQuery3(t, ctx, db, service.ClaimActiveGroup, 99999999, staff.ID, "supervisor")
 
 		// ASSERT
 		require.Error(t, err)
+		assert.Nil(t, supervisor)
 		assert.Contains(t, err.Error(), "not found")
 	})
 

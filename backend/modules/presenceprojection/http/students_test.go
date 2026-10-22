@@ -64,20 +64,10 @@ func TestListStudents_WithPickupTimes(t *testing.T) {
 	studentWithSchedule := testpkg.CreateTestStudent(t, tc.db, "Pickup", "WithSchedule", "PT1")
 	studentNoSchedule := testpkg.CreateTestStudent(t, tc.db, "Pickup", "NoSchedule", "PT2")
 
-	// The handler derives the weekday via timezone.DateOf(time.Now()), which
-	// converts to Europe/Berlin before extracting the date. The test must use
-	// the same conversion so the inserted schedule matches the handler's query,
-	// even when CI runs near midnight UTC (where UTC and Berlin dates differ).
-	berlinToday := calendar.DateOf(time.Date(2026, 8, 24, 12, 0, 0, 0, time.UTC))
-	todayWeekday := int(berlinToday.Weekday())
-	if todayWeekday == 0 {
-		todayWeekday = 7 // Sunday
-	}
-
-	// Skip on weekends — pickup schedules only apply Mon-Fri
-	if todayWeekday > 5 { // ISO Friday
-		t.Skip("Skipping pickup time test on weekend — schedules only apply Mon-Fri")
-	}
+	// fixedCalendarClock pins today to Monday 2026-08-24, so the schedule for
+	// ISO weekday 1 is today's.
+	require.Equal(t, time.Monday, studentsTestToday.Weekday())
+	const todayWeekday = 1
 
 	// Insert a pickup schedule for today's weekday
 	testpkg.CreateTestPickupSchedule(t, tc.db, studentWithSchedule.ID, todayWeekday, createStudentsAPITestStaffID(t, tc), "15:30")
@@ -159,15 +149,10 @@ func TestListStudents_WithArrivalTimes(t *testing.T) {
 	studentNoSchedule := testpkg.CreateTestStudent(t, tc.db, "Arrival", "NoSchedule", schoolClass)
 	staff := testpkg.CreateTestStaff(t, tc.db, "Arrival", "Creator")
 
-	berlinToday := calendar.DateOf(time.Date(2026, 8, 24, 12, 0, 0, 0, time.UTC))
-	todayWeekday := int(berlinToday.Weekday())
-	if todayWeekday == 0 {
-		todayWeekday = 7
-	}
-
-	if todayWeekday > 5 { // ISO Friday
-		t.Skip("Skipping arrival time test on weekend — schedules only apply Mon-Fri")
-	}
+	// fixedCalendarClock pins today to Monday 2026-08-24, so the schedule for
+	// ISO weekday 1 is today's.
+	require.Equal(t, time.Monday, studentsTestToday.Weekday())
+	const todayWeekday = 1
 
 	testpkg.CreateTestArrivalSchedule(t, tc.db, studentWithSchedule.ID, todayWeekday, staff.ID, "08:15")
 	defer func() {

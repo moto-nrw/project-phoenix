@@ -650,6 +650,109 @@ func TestHubBroadcastToAllSkipsFullChannel(t *testing.T) {
 	}
 }
 
+func TestHubBroadcastToTenantAdmins_ExcludesScopedStaffAndOtherTenants(t *testing.T) {
+	t.Parallel()
+
+	hub := NewHub(slog.Default())
+
+	admin := &Client{
+		Channel:          make(chan Event, 1),
+		UserID:           1,
+		IsAdmin:          true,
+		SubscribedGroups: make(map[string]bool),
+	}
+	caregiver := &Client{
+		Channel:          make(chan Event, 1),
+		UserID:           2,
+		SubscribedGroups: make(map[string]bool),
+	}
+	otherTenantAdmin := &Client{
+		Channel:          make(chan Event, 1),
+		UserID:           3,
+		IsAdmin:          true,
+		SubscribedGroups: make(map[string]bool),
+	}
+	hub.Register(admin, int64(100), nil)
+	hub.Register(caregiver, int64(100), nil)
+	hub.Register(otherTenantAdmin, int64(200), nil)
+
+	event := NewEvent(EventNotification, "", EventData{})
+	if err := hub.BroadcastToTenantAdmins(int64(100), event); err != nil {
+		t.Fatalf("BroadcastToTenantAdmins returned error: %v", err)
+	}
+
+	select {
+	case got := <-admin.Channel:
+		if got.Type != EventNotification {
+			t.Errorf("admin got type %v, want %v", got.Type, EventNotification)
+		}
+	default:
+		t.Fatal("admin should have received the admin-scoped broadcast")
+	}
+	for name, client := range map[string]*Client{
+		"caregiver":          caregiver,
+		"other tenant admin": otherTenantAdmin,
+	} {
+		select {
+		case <-client.Channel:
+			t.Errorf("%s should not receive the admin-scoped broadcast", name)
+		default:
+		}
+	}
+}
+
+// TestHubBroadcastToTenant_SkipsFullChannel — a tenant client whose
+// channel buffer is full must be skipped without blocking the broadcast,
+// and other clients in the same tenant must still receive the event.
+// Without this, a single slow SSE consumer could hold up the whole
+// fan-out path that runs inside the post-commit settings hook.
+func TestHubBroadcastToTenant_SkipsFullChannel(t *testing.T) {
+	t.Parallel()
+
+	hub := NewHub(slog.Default())
+
+	full := &Client{
+		Channel:          make(chan Event, 1),
+		UserID:           1,
+		SubscribedGroups: make(map[string]bool),
+	}
+	open := &Client{
+		Channel:          make(chan Event, 10),
+		UserID:           2,
+		SubscribedGroups: make(map[string]bool),
+	}
+	hub.Register(full, int64(42), []string{})
+	hub.Register(open, int64(42), []string{})
+
+	// Fill the slow client's buffer.
+	full.Channel <- NewEvent(EventStudentCheckIn, "g", EventData{})
+
+	if err := hub.BroadcastToTenant(int64(42), NewEvent(EventDashboardCountsChanged, "", EventData{})); err != nil {
+		t.Errorf("BroadcastToTenant must not error on full channel, got: %v", err)
+	}
+
+	// Open client must have received the event.
+	select {
+	case received := <-open.Channel:
+		if received.Type != EventDashboardCountsChanged {
+			t.Errorf("open client got type %v, want %v", received.Type, EventDashboardCountsChanged)
+		}
+	case <-time.After(100 * time.Millisecond):
+		t.Error("open client should have received the broadcast")
+	}
+
+	// Full client's first event still in buffer (the new one was skipped).
+	first := <-full.Channel
+	if first.Type != EventStudentCheckIn {
+		t.Errorf("full client first event = %v, want %v", first.Type, EventStudentCheckIn)
+	}
+	select {
+	case <-full.Channel:
+		t.Error("full client's channel should be empty after consuming the pre-existing event (the broadcast was skipped)")
+	default:
+	}
+}
+
 // Helper function to create string pointers
 func strPtr(s string) *string {
 	return &s
