@@ -51,7 +51,9 @@ interface PlanBlockProps {
    * size="compact". Für Blöcke, die keine zweite Zeile tragen. Der Zusatz
    * nimmt seine natürliche Breite, höchstens 60 Prozent der Zeile, und kürzt
    * sich darin selbst; der Titel kürzt sich erst, wenn der Platz nicht
-   * reicht. Unter 11rem Zeilenbreite entfällt die Zeitspanne.
+   * reicht. Unter 11rem Zeilenbreite entfällt die Zeitspanne. Unter 5rem
+   * passt kein lesbarer Name mehr: Dann entfällt der Zusatz, und die Zeile
+   * zeigt wieder Zeitspanne und Titel.
    * Dieselbe Einschränkung wie beim Fuß: nur nicht-interaktive Inhalte.
    */
   readonly compactInline?: ReactNode;
@@ -146,9 +148,10 @@ export function PlanBlock({
       <span className={`block min-w-0 ${compactInline ? "@container" : ""}`}>
         <span className="flex min-w-0 items-center gap-1.5">
           {/* Mit Zusatz geht die Zeile an Titel und Zusatz; in einer schmalen
-              Spalte entfällt die Zeit, sie steht im Tooltip. */}
+              Spalte entfällt die Zeit, sie steht im Tooltip. In einer sehr
+              schmalen Spalte entfällt stattdessen der Zusatz. */}
           <span
-            className={`shrink-0 text-[11px] font-medium text-gray-500 tabular-nums ${compactInline ? "@max-[11rem]:hidden" : ""}`}
+            className={`shrink-0 text-[11px] font-medium text-gray-500 tabular-nums ${compactInline ? "@min-[5rem]:@max-[11rem]:hidden" : ""}`}
           >
             {timeRange}
           </span>
@@ -158,7 +161,7 @@ export function PlanBlock({
             {label}
           </span>
           {compactInline && (
-            <span className="flex max-w-[60%] min-w-0 shrink-0">
+            <span className="flex max-w-[60%] min-w-0 shrink-0 @max-[5rem]:hidden">
               {compactInline}
             </span>
           )}
