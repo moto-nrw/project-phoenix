@@ -165,8 +165,8 @@ func TestListGroups_WithPagination(t *testing.T) {
 	list := decodeGroupList(t, rr)
 	assert.Len(t, list.Data, 1)
 	assert.Equal(t, 1, list.Pagination.PageSize)
-	assert.GreaterOrEqual(t, list.Pagination.TotalRecords, 2)
-	assert.GreaterOrEqual(t, list.Pagination.TotalPages, 2)
+	assert.Equal(t, 2, list.Pagination.TotalRecords)
+	assert.Equal(t, 2, list.Pagination.TotalPages)
 }
 
 func TestListGroups_WithoutPermission(t *testing.T) {
