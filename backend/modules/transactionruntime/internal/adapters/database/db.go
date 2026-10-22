@@ -9,6 +9,7 @@ import (
 	"log/slog"
 	"os"
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/uptrace/bun"
@@ -30,7 +31,11 @@ func openPool(dsn, logMsg string) (*bun.DB, error) {
 	if err != nil {
 		return nil, err
 	}
-	sqldb := sql.OpenDB(pgdriver.NewConnector(pgdriver.WithDSN(dsn)))
+	connector, err := newConnector(dsn)
+	if err != nil {
+		return nil, err
+	}
+	sqldb := sql.OpenDB(connector)
 
 	sqldb.SetMaxOpenConns(pool.maxOpen)
 	sqldb.SetMaxIdleConns(pool.maxIdle)
@@ -51,6 +56,22 @@ func openPool(dsn, logMsg string) (*bun.DB, error) {
 	}
 
 	return db, nil
+}
+
+// newConnector turns pgdriver's panic on an unparsable DSN into a startup
+// error. The message omits the DSN and the parser error because both can
+// contain credentials.
+func newConnector(dsn string) (connector *pgdriver.Connector, err error) {
+	defer func() {
+		if recover() == nil {
+			return
+		}
+		err = errors.New("invalid database DSN")
+		if strings.Contains(dsn, "${") {
+			err = errors.New("invalid database DSN: it contains an unresolved ${...} reference")
+		}
+	}()
+	return pgdriver.NewConnector(pgdriver.WithDSN(dsn)), nil
 }
 
 type poolConfig struct {

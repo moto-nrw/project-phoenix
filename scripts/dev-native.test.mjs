@@ -189,3 +189,57 @@ test('switching from both apps to backend-only cannot let the old supervisor sto
   assert.equal(existsSync(join(f.root, 'tmp/dev-native/frontend.pid')), false);
   await stop(replacement);
 });
+
+test('.env references resolve like Compose before the host override', t => {
+  const f = fixture(t, { tools: [], env: { POSTGRES_PASSWORD: 'from-shell' } });
+  writeFileSync(join(f.root, '.env'), [
+    'SERVER_HOST_PORT=18080', 'FRONTEND_HOST_PORT=13000', 'POSTGRES_HOST_PORT=15432',
+    'MAILPIT_HOST_PORT=18025', 'MAILPIT_SMTP_HOST_PORT=11025', 'POSTGRES_PASSWORD=from-file',
+    'DB_DSN=postgres://postgres:${POSTGRES_PASSWORD}@postgres:5432/postgres?sslmode=require',
+    'TEST_DB_DSN="postgres://postgres:${POSTGRES_PASSWORD}@localhost:5433/phoenix_test"',
+    "LITERAL='${POSTGRES_PASSWORD}'", 'MIXED=a$$b${POSTGRES_PASSWORD}}${SERVER_HOST_PORT}',
+    'UNBRACED=$POSTGRES_PASSWORD:$SERVER_HOST_PORT',
+    'DOUBLE_UNBRACED="$POSTGRES_PASSWORD"',
+    'ESCAPED=$${POSTGRES_PASSWORD}$$',
+  ].join('\n'));
+  const result = f.run('backend', 'bash', '-c', 'printf "%s\\n" "$DB_DSN" "$TEST_DB_DSN" "$LITERAL" "$MIXED" "$UNBRACED" "$DOUBLE_UNBRACED" "$ESCAPED"');
+  assert.equal(result.status, 0, result.stderr);
+  assert.deepEqual(result.stdout.trim().split('\n'), [
+    'postgres://postgres:from-shell@localhost:15432/postgres?sslmode=require',
+    'postgres://postgres:from-shell@localhost:5433/phoenix_test',
+    '${POSTGRES_PASSWORD}',
+    'a$bfrom-shell}18080',
+    'from-shell:18080',
+    'from-shell',
+    '${POSTGRES_PASSWORD}$',
+  ]);
+});
+
+test('a shell-provided native DB_DSN bypasses the Compose host rewrite', t => {
+  const dbDsn = 'postgres://shell@localhost:5432/custom';
+  const f = fixture(t, { tools: [], env: { DB_DSN: dbDsn } });
+  const result = f.run('backend', 'bash', '-c', 'printf "%s\\n" "$DB_DSN"');
+  assert.equal(result.status, 0, result.stderr);
+  assert.equal(result.stdout.trim(), dbDsn);
+});
+
+test('unresolvable .env references stop before any command runs', t => {
+  for (const [value, message] of [
+    ['postgres://postgres:${MISSING_PASSWORD}@postgres:5432/postgres', /DB_DSN in .env references \$\{MISSING_PASSWORD\}, which is not set/],
+    ['postgres://postgres:$MISSING_PASSWORD@postgres:5432/postgres', /DB_DSN in .env references \$MISSING_PASSWORD, which is not set/],
+    ['postgres://postgres:${POSTGRES_PASSWORD:-x}@postgres:5432/postgres', /DB_DSN in .env uses an unsupported \$\{\.\.\.\} form/],
+  ]) {
+    const f = fixture(t, { tools: [] });
+    writeFileSync(join(f.root, '.env'), [
+      'SERVER_HOST_PORT=18080', 'FRONTEND_HOST_PORT=13000', 'POSTGRES_HOST_PORT=15432',
+      'MAILPIT_HOST_PORT=18025', 'MAILPIT_SMTP_HOST_PORT=11025', `DB_DSN=${value}`,
+    ].join('\n'));
+    for (const args of [['env'], ['backend', 'bash', '-c', 'echo ran']]) {
+      const result = f.run(...args);
+      assert.equal(result.status, 1, result.stdout);
+      assert.match(result.stderr, message);
+      assert.doesNotMatch(result.stdout, /ran/);
+    }
+    assert.deepEqual(f.lines(), []);
+  }
+});
