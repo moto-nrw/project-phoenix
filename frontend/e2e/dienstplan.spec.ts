@@ -513,10 +513,15 @@ test.describe("Dienstplan UI-Flow", () => {
     if (!access) return;
     test.setTimeout(90000);
     const staff = await fetchNonAdminStaff(page.request);
-    // Woche innerhalb des laufenden Planungszeitraums (Seed-Schuljahr deckt heute
-    // ab), damit eine klickbare Zelle (plannedMinutes > 0) entsteht; eigene Woche
-    // hinter dem Seed-Serienfenster.
-    const kwMonday = mondayOf(addDaysISO(TODAY, FREE_FROM_DAYS + 14));
+    // Eigene Woche hinter dem Seed-Serienfenster. Würde sie das geseedete
+    // Schuljahr (August bis Juli) verlassen, liegt sie stattdessen in der
+    // Vergangenheit desselben Schuljahres. openWeek(TODAY) zeigt dessen Raster.
+    const today = parseISODate(TODAY);
+    const schoolYearEnd = `${today.getFullYear() + (today.getMonth() >= 7 ? 1 : 0)}-07-31`;
+    let kwMonday = mondayOf(addDaysISO(TODAY, FREE_FROM_DAYS + 14));
+    if (addDaysISO(kwMonday, 4) > schoolYearEnd) {
+      kwMonday = mondayOf(addDaysISO(TODAY, -(FREE_FROM_DAYS + 14)));
+    }
     const kwFriday = addDaysISO(kwMonday, 4);
     const kw = getWeekNumber(parseISODate(kwMonday));
     const [person] = await findStaffWithEmptyRange(
