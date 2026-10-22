@@ -461,7 +461,7 @@ export function SupervisionProvider({
         setState((s) => ({
           ...s,
           isLoadingGroups: true,
-          isLoadingSupervision: true,
+          isLoadingSupervision: groupsOnly ? s.isLoadingSupervision : true,
         }));
       }
 
