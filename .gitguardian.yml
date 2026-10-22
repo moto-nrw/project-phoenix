@@ -1,5 +1,6 @@
 paths-ignore:
   - "**/*_test.go"
+  - "**/*.test.mjs"
   - "**/*.test.ts"
   - "**/*.test.tsx"
   - "**/test/**"
