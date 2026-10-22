@@ -129,3 +129,32 @@ export const Tiny: Story = {
     height: 24,
   },
 };
+
+/** #4570: Ein kurzer Dienst am Tagesende zeigt seine Besetzung im Block. */
+export const TinyWithNames: Story = {
+  args: {
+    instance: makeInstance({
+      title: "Busaufsicht",
+      activityType: "duty",
+      startTime: "15:45",
+      endTime: "16:00",
+      absentStaffCount: 1,
+      staff: [
+        { staffId: "1", isPrimary: true, isAbsent: true, isSubstitute: false },
+        { staffId: "2", isPrimary: false, isAbsent: false, isSubstitute: true },
+        {
+          staffId: "3",
+          isPrimary: false,
+          isAbsent: false,
+          isSubstitute: false,
+        },
+      ],
+    }),
+    staffNames: new Map([
+      ["1", "Anna Kowalski"],
+      ["2", "Ben Müller"],
+      ["3", "Cem Yilmaz"],
+    ]),
+    height: 22,
+  },
+};
