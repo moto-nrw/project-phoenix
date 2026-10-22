@@ -25,6 +25,7 @@ test('defines the dashboards of #3604, the feature areas, and the demo behaviour
     'Nutzungsanalyse: Reibung',
     'Nutzungsanalyse: Aktive Schulen',
     'Nutzungsanalyse: Funktionen in Schulen',
+    'Nutzungsanalyse: Nutzung je Standort',
     'Nutzungsanalyse: Demo-Verhalten',
   ]);
   const names = insights.map((insight) => insight.name);
