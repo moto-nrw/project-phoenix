@@ -4060,8 +4060,9 @@ describe("MeinRaumPage (Active Supervisions) (5/5)", () => {
 
     render(<MeinRaumPage />);
 
-    // Anker: die Seite hält den Inhalt im Ladezustand zurück, solange der
-    // URL-Raum synchronisiert wird.
+    // Anker: die Seite ist gerendert und steht im Ladezustand. Dass sie dort
+    // wegen der Raum-Synchronisation steht, belegt erst der mockMutate-Aufruf
+    // unten, nach dem der Ladezustand noch immer steht.
     expect(
       await screen.findByRole("status", {
         name: "Aktuelle Aufsicht wird geladen…",

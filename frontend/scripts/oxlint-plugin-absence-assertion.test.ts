@@ -185,6 +185,7 @@ describe("absence-assertion/needs-anchor", () => {
     'expect(screen.queryAllByRole("row").length).not.toStrictEqual(3)',
     'expect(screen.queryByText("Loaded")).toBeDefined()',
     'expect(screen.queryByText("Loaded")).not.toBeUndefined()',
+    "expect(document.body).not.toBeEmptyDOMElement()",
   ])("does not accept empty-tolerant evidence: %s", (assertion) => {
     const result = lintSource(`
       import { screen, waitFor } from "@testing-library/react";
@@ -236,10 +237,36 @@ describe("absence-assertion/needs-anchor", () => {
         expect(container).toBeEmptyDOMElement();
         expect(screen.queryByRole("alert")).not.toBeInTheDocument();
       });
+
+      it("renders no markup without warnings", () => {
+        const { container } = render(<Banner warnings={[]} />);
+        expect(container.innerHTML).toBe("");
+      });
     `);
 
     expect(count(result.output, "needs-anchor")).toBe(0);
   });
+
+  it.each([
+    'expect(container.textContent).toBe("")',
+    'expect(container.textContent).toEqual("")',
+    "expect(container.textContent).toHaveLength(0)",
+  ])(
+    "treats empty text as an absence, not an empty render: %s",
+    (assertion) => {
+      // A skeleton of bare boxes has no text either.
+      const result = lintSource(`
+      import { render } from "@testing-library/react";
+      import { expect, it } from "vitest";
+      it("renders no text", () => {
+        const { container } = render(<Banner warnings={[]} />);
+        ${assertion};
+      });
+    `);
+
+      expect(count(result.output, "needs-anchor")).toBe(1);
+    },
+  );
 
   it("covers it.each and test.skip variants", () => {
     const result = lintSource(`

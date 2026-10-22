@@ -355,7 +355,7 @@ describe("Startseite", () => {
 
     render(<HomePage />);
 
-    // Die Standardansicht der Betreuungskraft ist geladen.
+    // Anker: die Standardansicht der Betreuungskraft ist geladen.
     expect(
       await screen.findByText("Ihre Startseite ist leer"),
     ).toBeInTheDocument();

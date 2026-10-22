@@ -593,6 +593,7 @@ describe("StudentsPage", () => {
     const searchInput = screen.getByTestId("search-input");
     fireEvent.change(searchInput, { target: { value: "Hans" } });
 
+    // Anker: die Suche ist ausgewertet, die Liste zeigt ihren Leerzustand.
     expect(
       await screen.findByText("Keine Kinder gefunden"),
     ).toBeInTheDocument();
@@ -611,6 +612,7 @@ describe("StudentsPage", () => {
     const searchInput = screen.getByTestId("search-input");
     fireEvent.change(searchInput, { target: { value: "Erika" } });
 
+    // Anker: die Suche ist ausgewertet, die Liste zeigt ihren Leerzustand.
     expect(
       await screen.findByText("Keine Kinder gefunden"),
     ).toBeInTheDocument();

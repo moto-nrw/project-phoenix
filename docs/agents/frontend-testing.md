@@ -136,7 +136,10 @@ mock-call assertions do not. `absence-assertion/no-early-wait-for` rejects a
 counts from the test, the `beforeEach`/`beforeAll` hooks of its `describe`
 blocks and same-file helpers it calls; imported helpers are opaque. The only
 exception is the exact empty-render contract,
-`expect(container.firstChild).toBeNull()` or
-`expect(container).toBeEmptyDOMElement()`, for a component whose hidden state
-renders nothing and that has no visible environment worth tabling. There is no
+`expect(container.firstChild).toBeNull()`,
+`expect(container).toBeEmptyDOMElement()` or
+`expect(container.innerHTML).toBe("")`, for a component whose hidden state
+renders nothing and that has no visible environment worth tabling. Empty text
+(`container.textContent` is `""`) stays an absence, and
+`not.toBeEmptyDOMElement()` is no anchor: a skeleton passes both. There is no
 baseline or allowlist.

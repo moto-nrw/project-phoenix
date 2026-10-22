@@ -164,7 +164,8 @@ describe("useApiErrorDisplay", () => {
         <Probe />
       </ToastProvider>,
     );
-    // Anker: der Toast-Provider mit der Fehleranzeige ist montiert.
+    // Die Probe ist montiert. Das belegt nur den Render; dass der
+    // Toast-Bereich Fehler zeigen kann, belegt die Gegenprobe am Ende.
     expect(screen.getByText("Fehleranzeige bereit")).toBeInTheDocument();
     let presentation;
     await act(async () => {

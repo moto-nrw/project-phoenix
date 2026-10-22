@@ -22,8 +22,9 @@
 // same file that the test calls. Imported helpers are opaque.
 //
 // Exception, not baseline: a test that asserts the exact empty render
-// (`expect(container.firstChild).toBeNull()` or
-// `expect(container).toBeEmptyDOMElement()`) documents a component that
+// (`expect(container.firstChild).toBeNull()`,
+// `expect(container).toBeEmptyDOMElement()` or
+// `expect(container.innerHTML).toBe("")`) documents a component that
 // renders nothing; it has nothing positive to anchor on. There is no
 // allowlist; a test that cannot anchor is rewritten, not exempted.
 
@@ -291,6 +292,15 @@ function isZeroLiteral(node) {
   return node?.type === "Literal" && node.value === 0;
 }
 
+function isEmptyString(node) {
+  return (
+    (node?.type === "Literal" && node.value === "") ||
+    (node?.type === "TemplateLiteral" &&
+      node.expressions.length === 0 &&
+      node.quasis.every((quasi) => (quasi.value.cooked ?? "") === ""))
+  );
+}
+
 function isEmptyArray(node) {
   return node?.type === "ArrayExpression" && node.elements.length === 0;
 }
@@ -309,12 +319,23 @@ function classifyAssertion(sourceCode, call, { chain, subject }) {
       !target.computed &&
       target.property.name === "firstChild" &&
       isContainer(target.object)) ||
-      (matcher === "toBeEmptyDOMElement" && isContainer(target)))
+      (matcher === "toBeEmptyDOMElement" && isContainer(target)) ||
+      // `innerHTML` is empty only without any element; `textContent` is
+      // also empty for a skeleton of bare boxes and stays an absence.
+      (matcher === "toBe" &&
+        isEmptyString(argument) &&
+        target?.type === "MemberExpression" &&
+        !target.computed &&
+        target.property.name === "innerHTML" &&
+        isContainer(target.object)))
   ) {
     return "empty-render";
   }
 
   if (matcher === "toBeInTheDocument") return negated ? "absent" : "positive";
+  // Outside the empty-render contract, emptiness proves nothing either way:
+  // `not.toBeEmptyDOMElement()` also holds for a skeleton.
+  if (matcher === "toBeEmptyDOMElement") return "";
   if (JEST_DOM_MATCHERS.has(matcher)) {
     // `expect(container).not.toHaveTextContent("x")` holds for an empty render.
     if (negated && TEXT_MATCHERS.has(matcher)) {
@@ -361,6 +382,15 @@ function classifyAssertion(sourceCode, call, { chain, subject }) {
   }
   if (kind === "text" || kind === "root") {
     if (negated && (TEXT_MATCHERS.has(matcher) || matcher === "toBe")) {
+      return "absent";
+    }
+    // `expect(container.textContent).toBe("")` holds for an empty render.
+    if (
+      !negated &&
+      (((matcher === "toBe" || EMPTY_LIST_MATCHERS.has(matcher)) &&
+        isEmptyString(argument)) ||
+        (matcher === "toHaveLength" && isZeroLiteral(argument)))
+    ) {
       return "absent";
     }
     return "positive";

@@ -212,9 +212,12 @@ describe("ParentBottomNav", () => {
     fireEvent.click(screen.getByRole("button", { name: "Mehr" }));
 
     expect(screen.queryByText("Elternbriefe")).not.toBeInTheDocument();
-    expect(screen.queryByText("Essensplan")).not.toBeInTheDocument();
+    // Der Eintrag heißt „Mittagessen“; „opens the Mehr sheet with the
+    // secondary targets“ findet ihn auf demselben Weg.
+    expect(screen.queryByText("Mittagessen")).not.toBeInTheDocument();
     expect(screen.getByText("Einstellungen")).toBeVisible();
   });
+
   it("uses the development drawer row density and gives targets an arrow", () => {
     renderNav();
 
