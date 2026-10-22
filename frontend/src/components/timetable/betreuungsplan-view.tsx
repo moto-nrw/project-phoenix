@@ -107,6 +107,7 @@ import {
 import { timetableService } from "~/lib/timetable-api";
 import {
   DENSITY_TO_HOUR_HEIGHT_PX,
+  DENSITY_TO_LANE_MIN_WIDTH_PX,
   chunkDateRange,
   firstSchoolDayInPeriod,
   formatFullDayLabel,
@@ -317,10 +318,12 @@ function TimetablesContent() {
   // bootstrap POST from firing twice per mount.
   const bootstrapAttemptedRef = useRef(false);
   // Density picker for the week grid (Kompakt/Normal/Komfortabel maps to
-  // 60/90/120 px per hour). Local-only, never synced to URL (06 §2.1). Der
+  // 60/90/120 px per hour and to the lane width: Kompakt fits the week into
+  // the screen, Normal and Komfortabel keep blocks readable and scroll). Local-only, never synced to URL (06 §2.1). Der
   // Bedienknopf sitzt als Kebab-Menü in der PlanningContextBar-Aktionszeile.
   const [density, setDensity] = useState<WeekDensity>("normal");
   const hourHeightPx = DENSITY_TO_HOUR_HEIGHT_PX[density];
+  const laneMinWidthPx = DENSITY_TO_LANE_MIN_WIDTH_PX[density];
   const { dayStartHour, dayEndHour } = useTimetableDayHours();
 
   const openPeriodCreate = useCallback(() => {
@@ -1514,10 +1517,11 @@ function TimetablesContent() {
     );
 
   // Dichte-Umschalter als kleines Kebab-Menü in der Aktionszeile (nur in der
-  // Wochenansicht, weil nur das Wochenraster Zeilenhöhen kennt). Reiner
+  // Wochenansicht, weil nur das Wochenraster Zeilenhöhen kennt). Die
+  // Zoomstufe setzt Höhe UND Breite der Blöcke, daher „Darstellung“. Reiner
   // Component-State, kein URL-Parameter (06 §2.1).
   const densityMenuItems: OverflowMenuEntry[] = [
-    { kind: "header", label: "Zeilenhöhe" },
+    { kind: "header", label: "Darstellung" },
     ...DENSITY_OPTIONS.map((opt) => ({
       kind: "radio" as const,
       label: opt.label,
@@ -2029,6 +2033,7 @@ function TimetablesContent() {
           dayStartHour={dayStartHour}
           dayEndHour={dayEndHour}
           hourHeightPx={hourHeightPx}
+          laneMinWidthPx={laneMinWidthPx}
           staffNames={blockStaffNames}
           showDayHeader
           emptyState={
@@ -2074,6 +2079,7 @@ function TimetablesContent() {
           dayStartHour={dayStartHour}
           dayEndHour={dayEndHour}
           hourHeightPx={hourHeightPx}
+          laneMinWidthPx={laneMinWidthPx}
           staffNames={blockStaffNames}
           showDayHeader
           emptyState={weekEmptyState}

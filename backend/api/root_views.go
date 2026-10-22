@@ -161,7 +161,7 @@ func buildGroupLive(
 func buildSupervisionDashboard(
 	env owners.RootEnvironment, settings settingsCompose.BatchSettingsService, caller *owners.CallerRows, active studentpresence.Presence,
 	presence owners.PresenceOwner, rooms facilitiesModule.Catalog, timetableOwner timetable.Capability, yard FacilitiesYard,
-	structure StructureServices, lifecycle owners.TimetableLifecycle, schedules owners.CarePlanSchedules,
+	structure StructureServices, lifecycle owners.TimetableLifecycle, schedules owners.CarePlanSchedules, users peoplePorts.PersonDirectory,
 ) (supervisiondashboard.Query, error) {
 	supervision := SupervisionCaller{caller}
 	dashboard, err := newSupervisionDashboard(supervisiondashboard.Dependencies{
@@ -172,7 +172,7 @@ func buildSupervisionDashboard(
 		Schedule: newSupervisionSchedule(lifecycle.Operations),
 		Presence: newSupervisionPresence(active, active),
 		Planning: newSupervisionPlanning(schedules.Pickups, schedules.Arrivals),
-		Settings: newSupervisionSettings(settings), Calendar: supervisionCalendar{}, Now: env.Now,
+		Settings: newSupervisionSettings(settings), Staff: NewTimetablePeople(users), Calendar: supervisionCalendar{}, Now: env.Now,
 	})
 	if err != nil {
 		return nil, fmt.Errorf("compose supervision dashboard projection: %w", err)

@@ -1,10 +1,13 @@
 package common
 
 import (
+	"bytes"
 	"context"
 	"errors"
+	"io"
 	"net/http"
 	"net/http/httptest"
+	"sync"
 	"testing"
 
 	"github.com/moto-nrw/project-phoenix/tenant"
@@ -328,4 +331,197 @@ func TestTenantOperationMiddlewareDoesNotInventTransactionOutcome(t *testing.T) 
 
 	assert.Equal(t, http.StatusInternalServerError, recorder.Code)
 	assert.False(t, observed)
+}
+
+func TestTenantTxMiddlewareCommitsBodylessResponseWithoutBody(t *testing.T) {
+	t.Parallel()
+	runtime := testRuntime(t, func(ctx context.Context, _ int64, fn func(context.Context, any) error) error {
+		return fn(ctx, struct{}{})
+	})
+	id, err := tenant.NewTenantID(42)
+	require.NoError(t, err)
+
+	for _, tc := range []struct {
+		name    string
+		status  int
+		handler http.HandlerFunc
+	}{
+		{name: "respond helper no content", status: http.StatusNoContent, handler: func(w http.ResponseWriter, r *http.Request) {
+			Respond(w, r, http.StatusNoContent, nil, "")
+		}},
+		{name: "raw writer no content", status: http.StatusNoContent, handler: func(w http.ResponseWriter, _ *http.Request) {
+			w.WriteHeader(http.StatusNoContent)
+			_, _ = w.Write([]byte(`{"status":"success"}`))
+		}},
+		{name: "respond helper reset content", status: http.StatusResetContent, handler: func(w http.ResponseWriter, r *http.Request) {
+			Respond(w, r, http.StatusResetContent, nil, "")
+		}},
+		{name: "raw writer reset content", status: http.StatusResetContent, handler: func(w http.ResponseWriter, _ *http.Request) {
+			w.WriteHeader(http.StatusResetContent)
+			_, _ = w.Write([]byte(`{"status":"success"}`))
+		}},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			var observed []TenantRuntimeEvent
+			var mu sync.Mutex
+			handler := TenantRuntimeObserverMiddleware(func(observation TenantRuntimeObservation) {
+				if observation.Event.Kind != TenantRuntimeResponseWrite {
+					return
+				}
+				mu.Lock()
+				defer mu.Unlock()
+				observed = append(observed, observation.Event)
+			})(TenantTxMiddleware(tc.handler))
+			server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				ctx := tenant.WithUnitOfWork(tenant.WithTenant(r.Context(), id), runtime)
+				handler.ServeHTTP(w, r.WithContext(ctx))
+			}))
+			t.Cleanup(server.Close)
+
+			request, err := http.NewRequestWithContext(t.Context(), http.MethodPut, server.URL+"/api/notifications/email-subscriptions/news", nil)
+			require.NoError(t, err)
+			response, err := server.Client().Do(request)
+			require.NoError(t, err)
+			body, err := io.ReadAll(response.Body)
+			require.NoError(t, err)
+			require.NoError(t, response.Body.Close())
+
+			assert.Equal(t, tc.status, response.StatusCode)
+			assert.Empty(t, body)
+			assert.Empty(t, response.Header.Get("Content-Type"))
+			mu.Lock()
+			defer mu.Unlock()
+			assert.Empty(t, observed)
+		})
+	}
+}
+
+func TestTenantTxMiddlewarePreservesInterimResponseBeforeFinalResponse(t *testing.T) {
+	t.Parallel()
+	runtime := testRuntime(t, func(ctx context.Context, _ int64, fn func(context.Context, any) error) error {
+		return fn(ctx, struct{}{})
+	})
+	id, err := tenant.NewTenantID(42)
+	require.NoError(t, err)
+	for _, tc := range []struct {
+		name          string
+		handler       http.HandlerFunc
+		status        int
+		contentType   string
+		bodyAssertion func(*testing.T, []byte)
+	}{
+		{
+			name: "bodyless final response",
+			handler: func(w http.ResponseWriter, r *http.Request) {
+				w.Header().Set("Link", "</app.css>; rel=preload; as=style")
+				w.WriteHeader(http.StatusEarlyHints)
+				Respond(w, r, http.StatusResetContent, nil, "")
+			},
+			status: http.StatusResetContent,
+			bodyAssertion: func(t *testing.T, body []byte) {
+				assert.Empty(t, body)
+			},
+		},
+		{
+			name: "error final response",
+			handler: func(w http.ResponseWriter, _ *http.Request) {
+				w.WriteHeader(http.StatusEarlyHints)
+				http.Error(w, "failed", http.StatusInternalServerError)
+			},
+			status:      http.StatusInternalServerError,
+			contentType: problemContentType,
+			bodyAssertion: func(t *testing.T, body []byte) {
+				assert.Contains(t, string(body), `"status":500`)
+				assert.Contains(t, string(body), `"code":"general.server"`)
+			},
+		},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			handler := ProblemResponseMiddleware(TenantTxMiddleware(tc.handler))
+			server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				ctx := tenant.WithUnitOfWork(tenant.WithTenant(r.Context(), id), runtime)
+				handler.ServeHTTP(w, r.WithContext(ctx))
+			}))
+			t.Cleanup(server.Close)
+
+			request, err := http.NewRequestWithContext(t.Context(), http.MethodGet, server.URL, nil)
+			require.NoError(t, err)
+			response, err := server.Client().Do(request)
+			require.NoError(t, err)
+			body, err := io.ReadAll(response.Body)
+			require.NoError(t, err)
+			require.NoError(t, response.Body.Close())
+
+			assert.Equal(t, tc.status, response.StatusCode)
+			assert.Equal(t, tc.contentType, response.Header.Get("Content-Type"))
+			tc.bodyAssertion(t, body)
+		})
+	}
+}
+
+func TestTenantTxMiddlewareIgnoresInterimResponseAfterFinalResponse(t *testing.T) {
+	t.Parallel()
+	runtime := testRuntime(t, func(ctx context.Context, _ int64, fn func(context.Context, any) error) error {
+		return fn(ctx, struct{}{})
+	})
+	id, err := tenant.NewTenantID(42)
+	require.NoError(t, err)
+	for _, tc := range []struct {
+		name       string
+		body       string
+		writeFinal func(http.ResponseWriter)
+	}{
+		{name: "explicit status", writeFinal: func(w http.ResponseWriter) { w.WriteHeader(http.StatusOK) }},
+		{name: "implicit status", body: "complete", writeFinal: func(w http.ResponseWriter) { _, _ = w.Write([]byte("complete")) }},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			recorder := newStatusRecordingResponseWriter()
+			handler := ProblemResponseMiddleware(TenantTxMiddleware(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+				tc.writeFinal(w)
+				w.WriteHeader(http.StatusEarlyHints)
+			})))
+			request := httptest.NewRequest(http.MethodGet, "/api/example", nil)
+			request = request.WithContext(tenant.WithUnitOfWork(tenant.WithTenant(request.Context(), id), runtime))
+			handler.ServeHTTP(recorder, request)
+
+			assert.Equal(t, []int{http.StatusOK}, recorder.statuses)
+			assert.Equal(t, tc.body, recorder.body.String())
+		})
+	}
+}
+
+func TestProblemResponseMiddlewareIgnoresInterimResponseAfterError(t *testing.T) {
+	t.Parallel()
+	recorder := newStatusRecordingResponseWriter()
+	handler := ProblemResponseMiddleware(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.WriteHeader(http.StatusInternalServerError)
+		w.WriteHeader(http.StatusEarlyHints)
+	}))
+	handler.ServeHTTP(recorder, httptest.NewRequest(http.MethodGet, "/api/example", nil))
+
+	assert.Equal(t, []int{http.StatusInternalServerError}, recorder.statuses)
+	assert.Contains(t, recorder.body.String(), `"code":"general.server"`)
+}
+
+type statusRecordingResponseWriter struct {
+	header   http.Header
+	statuses []int
+	body     bytes.Buffer
+}
+
+func newStatusRecordingResponseWriter() *statusRecordingResponseWriter {
+	return &statusRecordingResponseWriter{header: make(http.Header)}
+}
+
+func (w *statusRecordingResponseWriter) Header() http.Header { return w.header }
+
+func (w *statusRecordingResponseWriter) WriteHeader(status int) {
+	w.statuses = append(w.statuses, status)
+}
+
+func (w *statusRecordingResponseWriter) Write(body []byte) (int, error) {
+	return w.body.Write(body)
 }

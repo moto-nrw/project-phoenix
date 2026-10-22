@@ -1501,6 +1501,8 @@ function activeSupervisionTopic(presenceMode: HelpPresenceMode): HelpTopic {
       "Steht am Termin `Nur für Eingeplante`? Dann dürfen hier nur eingeplante Kräfte starten. Ihre OGS kann das Starten für das ganze Team freigeben.",
       "Sie starten einen Termin, für den Sie nicht eingeplant sind? Dann werden Sie nicht zur Aufsicht. Wer beenden darf, legt Ihre OGS fest.",
       "Fehlt `Beenden`? Dann dürfen hier nur eingeplante Kräfte beenden. Ihre OGS kann das Beenden für das ganze Team freigeben.",
+      // #4349: der Raum steht nur einmal, unter den offenen Räumen.
+      "Läuft Ihre Aufsicht in einem offenen Raum? Dann steht sie unter `Offene Räume`. Ein Auge neben dem Raum zeigt Ihre Aufsicht.",
       "Auf dem Handy stehen die offenen Räume nicht in der Seitenleiste, sondern oben auf der Seite `Aufsicht` als Reiter.",
       "Welche Räume offen sind, legt Ihre OGS fest.",
       "Eine externe Person steht danach unter `Personal` in der Gruppe `Extern`, auch mit Konto. In Zeiterfassung und Dienstplan erscheint sie nicht.",
@@ -2894,7 +2896,7 @@ function groupsCatalogTopic(groupMode: HelpGroupMode): HelpTopic {
         title: "Eine Gruppe anlegen",
         steps: [
           "Klappen Sie in der Seitenleiste `Verwaltung` auf.",
-          "Öffnen Sie `Datenverwaltung` und danach `Gruppen`.",
+          "Öffnen Sie `Datenverwaltung` und danach `Gruppendaten`.",
           "Wählen Sie oben rechts `+ Gruppe`.",
           "Tragen Sie bei `Gruppenname` den Namen der Gruppe ein.",
           "Wählen Sie bei Bedarf einen `Gruppenraum`.",
@@ -2905,7 +2907,7 @@ function groupsCatalogTopic(groupMode: HelpGroupMode): HelpTopic {
       {
         title: "Eine Gruppe ändern",
         steps: [
-          "Öffnen Sie `Gruppen` und wählen Sie die Gruppe aus der Liste.",
+          "Öffnen Sie `Gruppendaten` und wählen Sie die Gruppe aus der Liste.",
           "Ändern Sie die Angaben unter `Stammdaten`.",
           "Wählen Sie `Speichern`.",
         ],
@@ -2913,7 +2915,7 @@ function groupsCatalogTopic(groupMode: HelpGroupMode): HelpTopic {
       {
         title: "Eine Gruppe löschen",
         steps: [
-          "Öffnen Sie `Gruppen` und wählen Sie die Gruppe aus der Liste.",
+          "Öffnen Sie `Gruppendaten` und wählen Sie die Gruppe aus der Liste.",
           "Wählen Sie oben rechts `Löschen`.",
           "Bestätigen Sie mit `Ja, löschen`.",
         ],
@@ -3090,7 +3092,7 @@ function createStudentTopic(): HelpTopic {
       "Auf dem Handy steht statt `+ Kinder` ein rundes Plus unten rechts. `Importieren` fehlt dort ganz.",
     ],
     troubleshootingDetails: [
-      "Fehlt die passende `Gruppe`? Legen Sie sie zuerst in der `Datenverwaltung` unter `Gruppen` an.",
+      "Fehlt die passende `Gruppe`? Legen Sie sie zuerst in der `Datenverwaltung` unter `Gruppendaten` an.",
       "Der grüne Knopf ist grau? Dann hat die Vorschau noch Fehler. Beheben Sie sie in der Datei und laden Sie erneut hoch.",
       "Über der Vorschau steht rot, der Import würde mehr Kinder hinzufügen, als im Kinderkontingent frei sind? Dann startet der Import gar nicht. Nehmen Sie Kinder aus der Datei heraus oder melden Sie sich beim moto-Team. Kinder, die der Import nur aktualisiert, zählen dabei nicht.",
       "moto erkennt eine Zeile an Vorname, Nachname und Klasse. Bei einem Klassenwechsel an der Spalte `RFID-Karte` oder am Geburtstag.",

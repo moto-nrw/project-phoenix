@@ -209,6 +209,10 @@ func (w *problemWriter) WriteHeader(status int) {
 	if w.status != 0 {
 		return
 	}
+	if isInterimStatus(status) {
+		w.ResponseWriter.WriteHeader(status)
+		return
+	}
 	w.status = status
 	if status < 400 || status > 599 {
 		w.ResponseWriter.WriteHeader(status)

@@ -73,6 +73,16 @@ type SessionDirectory interface {
 	// InRooms lists every running session in the supplied released rooms in
 	// one bulk read.
 	InRooms(ctx context.Context, roomIDs []int64) ([]RunningSession, error)
+	// SupervisorStaffIDs maps the asked sessions to the staff ids of their
+	// current supervisors in one bulk read; sessions without one are left out.
+	SupervisorStaffIDs(ctx context.Context, sessionIDs []int64) (map[int64][]int64, error)
+}
+
+// Staff names staff members for the page head (#4354).
+type Staff interface {
+	// StaffNames maps the staff ids to display names in one read; unknown
+	// ids are left out.
+	StaffNames(ctx context.Context, staffIDs []int64) (map[int64]string, error)
 }
 
 // Yard reads the Schulhof workflow state of a staff member.

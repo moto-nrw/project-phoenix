@@ -129,6 +129,10 @@ describe("GET /api/active-supervision-dashboard", () => {
             is_current_user_supervising: true,
             can_assign: true,
             participant_limit: 45,
+            supervisors: [
+              { staff_id: "5", name: "Anna Alt" },
+              { staff_id: "6", name: "Ben Bauer" },
+            ],
           },
         ],
         selected_group_id: "7",
@@ -323,6 +327,7 @@ describe("GET /api/active-supervision-dashboard", () => {
         canAssign: true,
         isCurrentUserSupervising: true,
         participantLimit: 45,
+        supervisorNames: ["Anna Alt", "Ben Bauer"],
         room_id: "10",
         room: { id: "10", name: "Raum 101", color: "#83CD2D" },
       },
@@ -394,6 +399,7 @@ describe("GET /api/active-supervision-dashboard", () => {
                 can_assign: false,
                 student_count: 1,
                 participant_limit: 45,
+                supervisors: [{ staff_id: "8", name: "Cem Cakir" }],
                 block: {
                   instance_id: "510",
                   start_time: "13:00",
@@ -455,6 +461,7 @@ describe("GET /api/active-supervision-dashboard", () => {
         canAssign: false,
         studentCount: 1,
         participantLimit: 45,
+        supervisorNames: ["Cem Cakir"],
         block: {
           instanceId: "510",
           startTime: "13:00",
@@ -472,6 +479,7 @@ describe("GET /api/active-supervision-dashboard", () => {
         canAssign: true,
         studentCount: 0,
         participantLimit: null,
+        supervisorNames: [],
         block: null,
       },
       {
@@ -482,6 +490,7 @@ describe("GET /api/active-supervision-dashboard", () => {
         canAssign: false,
         studentCount: 1,
         participantLimit: null,
+        supervisorNames: [],
         block: null,
       },
     ]);

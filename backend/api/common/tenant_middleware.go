@@ -318,10 +318,16 @@ func newTenantStatusWriter(target http.ResponseWriter) *tenantStatusWriter {
 func (w *tenantStatusWriter) Header() http.Header { return w.header }
 
 func (w *tenantStatusWriter) WriteHeader(code int) {
-	if !w.wroteHeader {
-		w.status = code
-		w.wroteHeader = true
+	if w.wroteHeader {
+		return
 	}
+	if isInterimStatus(code) {
+		w.copyHeadersToTarget()
+		w.target.WriteHeader(code)
+		return
+	}
+	w.status = code
+	w.wroteHeader = true
 }
 
 func (w *tenantStatusWriter) Write(body []byte) (int, error) {
@@ -377,12 +383,13 @@ func (w *tenantStatusWriter) reset() {
 
 func (w *tenantStatusWriter) commitResponse() error {
 	defer w.cleanupBodyFile()
-	targetHeader := w.target.Header()
-	clear(targetHeader)
-	for key, values := range w.header {
-		targetHeader[key] = append([]string(nil), values...)
+	w.copyHeadersToTarget()
+	status := w.statusCode()
+	w.target.WriteHeader(status)
+	if !statusAllowsBody(status) {
+		// Informational statuses are emitted in WriteHeader; 204, 205 and 304 are bodyless.
+		return nil
 	}
-	w.target.WriteHeader(w.statusCode())
 	if w.bodyFile != nil {
 		if _, err := w.bodyFile.Seek(0, io.SeekStart); err != nil {
 			return err
@@ -399,6 +406,14 @@ func (w *tenantStatusWriter) commitResponse() error {
 		}
 	}
 	return nil
+}
+
+func (w *tenantStatusWriter) copyHeadersToTarget() {
+	targetHeader := w.target.Header()
+	clear(targetHeader)
+	for key, values := range w.header {
+		targetHeader[key] = append([]string(nil), values...)
+	}
 }
 
 func (w *tenantStatusWriter) cleanupBodyFile() {

@@ -502,7 +502,7 @@ src/components/timetable/substitution-slide-over.tsx|text-[10px]@578 text-[9px]@
 src/components/timetable/template-card.tsx|text-[11px]@119 text-[11px]@131 text-[10px]@174
 src/components/timetable/vertretung-day-list.tsx|text-[11px]@351 text-[11px]@391 text-[11px]@398 text-[11px]@419 text-[11px]@425
 src/components/timetable/vertretung-week-list.tsx|text-[10px]@157
-src/components/timetable/weekly-calendar-grid.tsx|text-[10px]@259 text-[9px]@275 text-[10px]@331 text-[11px]@331 text-[11px]@336 text-[10px]@359 text-[10px]@394 text-[11px]@394
+src/components/timetable/weekly-calendar-grid.tsx|text-[10px]@400 text-[9px]@416 text-[10px]@479 text-[11px]@479 text-[11px]@484 text-[10px]@507 text-[10px]@542 text-[11px]@542
 src/components/ui/avatar.tsx|text-[10px]@32
 src/components/ui/coverage-indicator.tsx|text-[11px]@61 text-[11px]@163
 src/components/ui/location-badge.tsx|text-[11px]@121 text-[11px]@122 text-[10px]@333 text-[10px]@363

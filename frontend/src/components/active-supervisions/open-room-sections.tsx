@@ -340,6 +340,7 @@ function OpenRoomBlock({
           roster={currentRoster}
           showTimetableCounts={showTimetableCounts}
           occupancy={occupancy}
+          roomInPageHead
           headerActions={section.assignableSessionId ? addSupervisor : null}
           headerToggle={
             <SectionCollapseToggle

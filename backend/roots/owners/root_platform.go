@@ -94,9 +94,28 @@ type SettingsOwner struct {
 // TenantMailIdentity binds the reply-to of tenant-bound mail to the OGS, not
 // to moto (#1936); one instance is shared by every tenant-bound sender.
 func TenantMailIdentity(schools organizationtenancy.Query, settings settingsCompose.SettingsService, env RootEnvironment) email.ReplyToResolver {
-	return deliveryCompose.NewTenantMailIdentity(SchoolContactDirectory{Schools: schools}, func(ctx context.Context, tenantID int64) (string, error) {
+	resolver := deliveryCompose.NewTenantMailIdentity(SchoolContactDirectory{Schools: schools}, func(ctx context.Context, tenantID int64) (string, error) {
+		if _, active := tenant.TransactionFromContext(ctx); active {
+			return settings.ResolveStringForTenantInTx(ctx, tenantID, configModels.KeyEmailReplyToAddress)
+		}
 		return settings.ResolveStringForTenant(ctx, tenantID, configModels.KeyEmailReplyToAddress)
 	}, env.Logger)
+	return deferredForeignTenantMailIdentity{resolver: resolver}
+}
+
+// deferredForeignTenantMailIdentity does not take a second pool connection
+// while a transaction for another school is held. Durable mail snapshots keep
+// Reply-To empty in that case; the outbox transport resolves it after joining
+// the target school's transaction.
+type deferredForeignTenantMailIdentity struct {
+	resolver email.ReplyToResolver
+}
+
+func (r deferredForeignTenantMailIdentity) ResolveReplyTo(ctx context.Context, tenantID int64) (email.ReplyToIdentity, error) {
+	if _, active := tenant.TransactionFromContext(ctx); active && !tenant.IsAdminTx(ctx) && tenant.FromContext(ctx) != tenantID {
+		return email.ReplyToIdentity{}, nil
+	}
+	return r.resolver.ResolveReplyTo(ctx, tenantID)
 }
 
 // rootUnitOfWork is the unit of work a root composes its services over.
