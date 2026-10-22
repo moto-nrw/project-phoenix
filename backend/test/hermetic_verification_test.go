@@ -1036,6 +1036,27 @@ func TestX(t *testing.T) {
 			want: []int{3},
 		},
 		{
+			name: "CTE delete in cleanup",
+			code: `package sample
+func TestX(t *testing.T) {
+	t.Cleanup(func() {
+		_, _ = db.NewRaw(` + "`" + `
+			WITH doomed AS (SELECT id FROM enrollment.requests WHERE phase_id = ?)
+			DELETE FROM enrollment.request_children WHERE request_id IN (SELECT id FROM doomed)` + "`" + `, id).Exec(ctx)
+	})
+}`,
+			want: []int{4},
+		},
+		{
+			name: "CTE that only reads in cleanup",
+			code: `package sample
+func TestX(t *testing.T) {
+	t.Cleanup(func() {
+		_, _ = db.ExecContext(ctx, "WITH latest AS (SELECT 1) SELECT pg_advisory_unlock(1) FROM latest")
+	})
+}`,
+		},
+		{
 			name: "exec context delete in cleanup",
 			code: `package sample
 func TestX(t *testing.T) {
@@ -1195,8 +1216,10 @@ var cleanupHelperName = regexp.MustCompile(`(?i)^(wipe|cleanup|teardown)`)
 // teardown, typically returned by a setup helper and deferred by its caller.
 var cleanupVariableName = regexp.MustCompile(`(?i)(cleanup|teardown|wipe)`)
 
-// rawDeleteSQL matches SQL text that deletes rows.
-var rawDeleteSQL = regexp.MustCompile(`(?i)^\s*(DELETE|TRUNCATE)\b`)
+// rawDeleteSQL matches SQL text that deletes rows: a statement starting with
+// DELETE or TRUNCATE, or a WITH query whose main or data-modifying part is a
+// DELETE FROM.
+var rawDeleteSQL = regexp.MustCompile(`(?is)^\s*(DELETE|TRUNCATE)\b|^\s*WITH\b.*\bDELETE\s+FROM\b`)
 
 // checkIgnoredCleanupDeletes reports discarded DB deletes in test cleanup
 // code. The package clone and per-test tenants already own every tenant row;
@@ -1231,9 +1254,10 @@ func checkIgnoredCleanupDeletes(t *testing.T, root string) []string {
 // wipe*/cleanup*/teardown* helpers, same-file functions and methods those
 // call, and the trailing statements of a test or subtest body.
 //
-// Known limits: helpers in other files are not followed, SQL is recognised
-// only as a string literal or a file-level string constant, and a delete
-// whose error is merely logged counts as handled.
+// Known limits: helpers in other files are not followed; SQL is recognised
+// only as a string literal or a file-level string constant, so SQL built with
+// fmt.Sprintf or taken from a local variable or a ranged []string is missed;
+// and a delete whose error is merely logged counts as handled.
 func ignoredCleanupDeletes(filename string, code []byte) ([]int, error) {
 	fset := token.NewFileSet()
 	file, err := parser.ParseFile(fset, filename, code, parser.SkipObjectResolution)
