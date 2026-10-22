@@ -58,4 +58,5 @@ type ParentThreadRecords interface {
 	ParentThreadFindByStudentGuardian(ctx context.Context, studentID, guardianAccountID int64) (*PortalParentMessageThread, error)
 	ParentThreadGetOrCreate(ctx context.Context, tenantID, studentID, guardianAccountID int64) (*PortalParentMessageThread, error)
 	ParentThreadListGuardiansForStudent(ctx context.Context, studentID int64) ([]*ParentGuardianRecipient, error)
+	ParentThreadListStudentIDsWithMessageableGuardian(ctx context.Context) ([]int64, error)
 }

@@ -285,6 +285,7 @@ GET /api/meal-plan/participants
 GET /api/meal-plan/participants/export
 GET /api/messages/
 GET /api/messages/count-scope
+GET /api/messages/reachable-students
 GET /api/messages/students/{studentId}/guardians
 GET /api/messages/students/{studentId}/threads
 GET /api/messages/threads/{threadId}

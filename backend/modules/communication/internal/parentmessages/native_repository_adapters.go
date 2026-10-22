@@ -106,6 +106,9 @@ func (r *nativeParentThreadRepository) ListGuardiansForStudent(ctx context.Conte
 	}
 	return mapped, err
 }
+func (r *nativeParentThreadRepository) ListStudentIDsWithMessageableGuardian(ctx context.Context) ([]int64, error) {
+	return r.source.ParentThreadListStudentIDsWithMessageableGuardian(ctx)
+}
 func NewReadRepository(source values.ParentMessageReadRepositorySource) ParentMessageReadRepository {
 	if source == nil {
 		return nil

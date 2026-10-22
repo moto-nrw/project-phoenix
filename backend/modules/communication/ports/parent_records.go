@@ -117,6 +117,7 @@ type ParentMessageThreadRepository interface {
 	FindByStudentGuardian(ctx context.Context, studentID, guardianAccountID int64) (*communication.PortalParentMessageThread, error)
 	GetOrCreate(ctx context.Context, tenantID, studentID, guardianAccountID int64) (*communication.PortalParentMessageThread, error)
 	ListGuardiansForStudent(ctx context.Context, studentID int64) ([]*communication.ParentGuardianRecipient, error)
+	ListStudentIDsWithMessageableGuardian(ctx context.Context) ([]int64, error)
 }
 type ParentMessageReadRepository interface {
 	communication.ParentReadRecords

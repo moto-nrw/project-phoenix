@@ -142,17 +142,22 @@ func messageModel(value *domain.ParentMessage) (*communication.PortalParentMessa
 }
 
 // NewParentMessageThreadRepository returns the thread store behind the existing
-// repository contract. guardians supplies the recipient picker's rows.
-func NewParentMessageThreadRepository(db *bun.DB, guardians recordports.GuardianLister) recordports.ParentMessageThreadRepository {
+// repository contract. guardians supplies the recipient picker's rows,
+// reachable the children that have such a recipient.
+func NewParentMessageThreadRepository(db *bun.DB, guardians recordports.GuardianLister, reachable recordports.ReachableStudentLister) recordports.ParentMessageThreadRepository {
 	if guardians == nil {
 		panic("communication parent store: guardian lister is required")
 	}
-	return &threadRepository{store: NewThreadStore(NewParentRecordDatabase(db)), guardians: guardians}
+	if reachable == nil {
+		panic("communication parent store: reachable student lister is required")
+	}
+	return &threadRepository{store: NewThreadStore(NewParentRecordDatabase(db)), guardians: guardians, reachable: reachable}
 }
 
 type threadRepository struct {
 	store     *ThreadStore
 	guardians recordports.GuardianLister
+	reachable recordports.ReachableStudentLister
 }
 
 func (r *threadRepository) Create(ctx context.Context, thread *communication.PortalParentMessageThread) error {
@@ -203,6 +208,10 @@ func (r *threadRepository) ClaimStaffMessageNotification(ctx context.Context, th
 
 func (r *threadRepository) ListGuardiansForStudent(ctx context.Context, studentID int64) ([]*communication.ParentGuardianRecipient, error) {
 	return r.guardians(ctx, studentID)
+}
+
+func (r *threadRepository) ListStudentIDsWithMessageableGuardian(ctx context.Context) ([]int64, error) {
+	return r.reachable(ctx)
 }
 
 func threadValue(thread *communication.PortalParentMessageThread) *domain.ParentMessageThread {

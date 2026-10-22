@@ -27,3 +27,9 @@ func NewParentGuardianLister(db transactionruntime.Database, memberships func(co
 		return out, err
 	}
 }
+
+// NewParentReachableStudents lists the school's children with a guardian
+// NewParentGuardianLister would offer, over the same People Directory rule.
+func NewParentReachableStudents(db transactionruntime.Database, memberships func(context.Context, []int64, []int64) (map[int64][]int64, error)) recordports.ReachableStudentLister {
+	return peopleCompose.NewMessageableGuardians(db.Pool(), guardianLinkView.NewReader(), memberships).ListStudentIDsWithMessageableGuardian
+}

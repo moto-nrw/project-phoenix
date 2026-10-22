@@ -95,6 +95,10 @@ type ParentMessagingQuery interface {
 	ListParentMessageInbox(context.Context, bool) ([]ParentMessageInboxThread, error)
 	CountUnreadParentMessages(context.Context) (int, error)
 	ListMessageableGuardians(context.Context, int64) ([]MessageableGuardian, error)
+	// ListParentMessageReachableStudents returns, ascending, the IDs of the
+	// school's children with at least one guardian ListMessageableGuardians
+	// would offer (#4362).
+	ListParentMessageReachableStudents(context.Context) ([]int64, error)
 	ListParentMessageThreadsForStudent(context.Context, int64) ([]ParentMessageInboxThread, error)
 	// ParentMessageCountScope returns which conversations the caller's own
 	// counter counts (#3673).

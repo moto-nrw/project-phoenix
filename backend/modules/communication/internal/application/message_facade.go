@@ -109,6 +109,12 @@ func (m *parentMessaging[I, T, M, G]) ListMessageableGuardians(ctx context.Conte
 		return result, nil
 	})
 }
+func (m *parentMessaging[I, T, M, G]) ListParentMessageReachableStudents(ctx context.Context) ([]int64, error) {
+	return observeMessageResult(ctx, m.observe, "parent_messages.list_reachable_students", func(runCtx context.Context) ([]int64, error) {
+		ids, err := m.service.ListReachableStudentIDs(runCtx)
+		return ids, m.mapError(err)
+	})
+}
 func (m *parentMessaging[I, T, M, G]) ListParentMessageThreadsForStudent(ctx context.Context, studentID int64) ([]communication.ParentMessageInboxThread, error) {
 	return observeMessageResult(ctx, m.observe, "parent_messages.list_student_threads", func(runCtx context.Context) ([]communication.ParentMessageInboxThread, error) {
 		rows, err := m.service.ListStudentThreads(runCtx, studentID)

@@ -55,6 +55,7 @@ func (rs *Resource) Router(protectedTenantRoutes func(chi.Router, func(chi.Route
 		r.With(read, withTx).Post("/threads/{threadId}", rs.postMessage)
 		r.With(read, withTx).Post("/threads/{threadId}/unread", rs.markThreadUnread)
 		r.With(read, withTx).Get("/students/{studentId}/guardians", rs.listGuardians)
+		r.With(read, withTx).Get("/reachable-students", rs.listReachableStudents)
 		r.With(read, withTx).Get("/students/{studentId}/threads", rs.listStudentThreads)
 	})
 
@@ -104,6 +105,12 @@ type ThreadDetailResponse struct {
 	GuardianName     string            `json:"guardian_name"`
 	RelationshipType string            `json:"relationship_type,omitempty"`
 	Messages         []MessageResponse `json:"messages"`
+}
+
+// ReachableStudentsResponse lists the children with at least one guardian
+// the recipient step would offer.
+type ReachableStudentsResponse struct {
+	StudentIDs []string `json:"student_ids"`
 }
 
 type GuardianResponse struct {
@@ -399,6 +406,19 @@ func (rs *Resource) listGuardians(w http.ResponseWriter, r *http.Request) {
 		})
 	}
 	common.Respond(w, r, http.StatusOK, out, "Guardians retrieved")
+}
+
+func (rs *Resource) listReachableStudents(w http.ResponseWriter, r *http.Request) {
+	ids, err := rs.Service.ListParentMessageReachableStudents(r.Context())
+	if err != nil {
+		renderMessagingError(w, r, err)
+		return
+	}
+	out := ReachableStudentsResponse{StudentIDs: make([]string, 0, len(ids))}
+	for _, id := range ids {
+		out.StudentIDs = append(out.StudentIDs, strconv.FormatInt(id, 10))
+	}
+	common.Respond(w, r, http.StatusOK, out, "Reachable students retrieved")
 }
 
 func parseInt64Param(w http.ResponseWriter, r *http.Request, param, label string) (int64, bool) {
