@@ -33,4 +33,4 @@ Treat your codebase as public and untrusted. Any credential that appears in sour
 - Base64 encoded strings near authentication code
 - Any string that grants access to external services
 
-In this repo, secrets belong in env files (local: `dev.env` / `.env.local`; deployed: SOPS-encrypted `environments/*.sops.env`). Enforcement already exists (gitleaks, lefthook git-secrets hook, CI plaintext guard) — don't fight it with allowlist edits; fix the leak.
+In this repo, secrets belong in env files (local: `dev.env` / `.env.local`; deployed: SOPS-encrypted `environments/*.sops.env`). Lefthook runs the pinned ggshield scanner; the hosted GitGuardian App and CI SOPS plaintext guard remain separate backstops. Fix real leaks rather than adding exclusions. For test-only fixtures and verified false positives, follow [the fixture guide](../../../docs/agents/backend-testing.md#credential-fixtures) and [GitGuardian findings](../../../docs/agents/operations.md#gitguardian-findings).

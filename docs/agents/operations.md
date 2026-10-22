@@ -213,6 +213,65 @@ Rollbacks restore matching images, configuration, roles, database and uploads;
 an old image alone is not compatible with every newer schema.
 For env changes, read `.claude/rules/env-docker-sync.md` before editing.
 
+## GitGuardian findings
+
+The hosted **GitGuardian Security Checks** GitHub App scans every commit in a
+PR, not just its final diff. Editing or deleting a literal in a later commit
+does not remove its earlier occurrence. The root `.gitguardian.yaml` configures
+the pinned ggshield CLI used by Lefthook; it does not configure the hosted check.
+
+### Local prevention
+
+1. Run `devbox install` to install the pinned scanner. Authenticate once with
+   `devbox run -- ggshield auth login --lifetime 30`. This stores a personal
+   token outside the repository; review the requested scopes in the browser.
+   An existing token with only the `scan` scope can instead be entered through
+   `devbox run -- ggshield auth login --method token`.
+2. Pre-commit scans the staged changes. Pre-push scans every commit from the
+   merge-base with the comparison branch through HEAD, including values added
+   and removed within the branch. Both use the repository config, redact
+   secrets, and fail on missing credentials, scanner errors or findings. They
+   require network access and GitGuardian API quota. Pre-push never uses its
+   success cache to skip secret scanning.
+3. After changing scanner configuration or fixture conventions, run
+   `node scripts/probe-secret-scanner.mjs`. It scans the real fixture sources
+   and disposable credential probes, including test-file extensions. It needs
+   authentication and removes its temporary files afterwards. Unit CI runs the
+   hook regression suite without credentials; it does not run this live probe.
+
+The hosted App remains the server-side backstop. Local configuration does not
+change its detectors or clear its historical incidents. Fix staged fixture
+noise before the first commit rather than changing later commits repeatedly.
+
+### Existing hosted findings
+
+For a failing hosted check:
+
+1. Open the check's findings table. Inspect the flagged commit, file, callers,
+   and credential use. A test filename alone does not prove a value is safe.
+2. For a verified test-only credential, open its linked GitGuardian incident
+   and choose **Ignore → Test credential**. For a detector match that is not a
+   credential, choose **Ignore → False positive**. Closed incidents no longer
+   appear in check runs. Keep real credentials on the revoke/rotate path.
+3. Re-run the check and verify it succeeds. If it still fails, inspect the new
+   findings rather than assuming the same incident caused it.
+
+A **Neutral** result with **Pull request too large to scan** means GitGuardian
+skipped scanning, not that it found no secrets. Report this coverage gap; do not
+describe the rerun as a clean scan.
+
+For backend password fixtures, use `testpkg.NewTestPassword()`; the
+[fixture guide](backend-testing.md#credential-fixtures) distinguishes generated
+credentials, mapping placeholders and deliberately invalid input. Keep test
+and example paths scanned, retain blocking checks, and handle
+reviewed findings individually instead of disabling generic detectors or
+excluding whole test trees. Rewriting shared history is not needed to classify
+an intentional test credential.
+
+References: [hosted check behavior and incident handling](https://docs.gitguardian.com/internal-monitoring/prevent/detect-secrets-in-real-time-in-github),
+[ggshield configuration](https://docs.gitguardian.com/ggshield-docs/configuration),
+[dashboard exclusion settings](https://docs.gitguardian.com/secrets-detection/customize-detection/exclusion-rules).
+
 ## Rollback window of a storage cutover
 
 A storage cutover leaves the old shape in place as a compatibility mirror so the

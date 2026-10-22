@@ -1,18 +1,9 @@
-# GitGuardian Configuration
-# https://docs.gitguardian.com/ggshield-docs/reference/gitguardian-yaml
-
-# Paths to ignore in secret scanning
-paths-ignore:
-  # Test files contain intentional test credentials
-  - "**/test/**"
-  - "**/*_test.go"
-  - "**/*.test.ts"
-  - "**/*.test.tsx"
-  - "**/*.spec.ts"
-  - "**/*.spec.tsx"
-
-  # Example environment files (templates, not real secrets)
-  - "**/*.example"
-  - "**/dev.env.example"
-  - "**/.env.example"
-  - "**/.env.local.example"
+# ggshield CLI configuration, not the hosted GitGuardian GitHub App.
+# Hosted-check remediation: docs/agents/operations.md#gitguardian-findings
+# https://docs.gitguardian.com/ggshield-docs/configuration
+version: 2
+exit_zero: false
+secret:
+  show_secrets: false
+  # Scan tests and examples too: real credentials can leak in either.
+  ignored_paths: []

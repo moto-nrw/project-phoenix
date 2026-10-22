@@ -1540,9 +1540,9 @@ func GetOrCreateTestRole(tb testing.TB, db *bun.DB, name string) *RoleFixture {
 // JWT Test Helpers
 // ============================================================================
 
-// TestJWTSecret is the fixed secret shared by test routers and token helpers.
+// TestJWTSecret is generated once per binary and shared by test routers and token helpers.
 // Never use it outside tests.
-const TestJWTSecret = "test-jwt-secret-32-chars-minimum"
+var TestJWTSecret = NewTestSigningSecret()
 
 // GetTestTokenAuth returns a TokenAuth instance for testing.
 // A fresh instance avoids shared mutable initialization between parallel tests.

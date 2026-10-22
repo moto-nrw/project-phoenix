@@ -19,7 +19,7 @@ func TestFactoryOperatorMFARefusesChallengeWithoutSMTP(t *testing.T) {
 	t.Parallel()
 	db := testpkg.SetupTestDB(t)
 	cfg := owners.ServiceConfig{
-		JWTSecret:        "configured-operator-mfa-secret-at-least-32-chars",
+		JWTSecret:        testpkg.NewTestSigningSecret(),
 		JWTExpiry:        15 * time.Minute,
 		JWTRefreshExpiry: 24 * time.Hour,
 		FrontendURL:      "http://localhost:3000",
