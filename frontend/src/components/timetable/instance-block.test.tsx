@@ -251,7 +251,7 @@ describe("InstanceBlock -> PlanBlock mapping", () => {
     // #4570: Auch ein Block mit nur einer Zeile (15- oder 20-Minuten-Dienst)
     // zeigt, wer eingeteilt ist. Die Zeitspanne weicht der Startzeit.
     describe("sehr kurzer Block (bis 30 px)", () => {
-      it("zeigt Startzeit, Titel und die Namen in einer Zeile", () => {
+      it("zeigt Startzeit, Titel und die Namen", () => {
         renderBlock(
           staffed({
             absentStaffCount: 0,
@@ -274,6 +274,7 @@ describe("InstanceBlock -> PlanBlock mapping", () => {
           30,
         );
 
+        // Anker: Titel, Namen und die gekürzte Zeit stehen im Block.
         expect(screen.getByText("Hausaufgaben")).toBeInTheDocument();
         expect(screen.getByText("Anna K.")).toBeInTheDocument();
         expect(screen.getByText(/Ben M\./)).toBeInTheDocument();
@@ -332,6 +333,7 @@ describe("InstanceBlock -> PlanBlock mapping", () => {
       it("bleibt ohne bekannte Namen bei Zeitspanne und Titel", () => {
         renderBlock(staffed(), {}, 22);
 
+        // Anker: die Kopfzeile mit voller Zeitspanne und Titel ist gerendert.
         expect(screen.getByText("12:00 – 13:00")).toBeInTheDocument();
         expect(screen.getByText("Hausaufgaben")).toBeInTheDocument();
         expect(screen.queryByText(/Anna/)).not.toBeInTheDocument();
@@ -344,6 +346,7 @@ describe("InstanceBlock -> PlanBlock mapping", () => {
           22,
         );
 
+        // Anker: die Kopfzeile des abgesagten Blocks ist gerendert.
         expect(screen.getByText("12:00 – 13:00")).toBeInTheDocument();
         expect(screen.queryByText(/Anna K\./)).not.toBeInTheDocument();
         expect(screen.queryByText(/Ben M\./)).not.toBeInTheDocument();

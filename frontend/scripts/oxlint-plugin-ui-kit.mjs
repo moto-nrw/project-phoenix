@@ -512,7 +512,7 @@ src/components/ui/origin-chip.tsx|text-[11px]@24
 src/components/ui/page-header/FilterButton.tsx|text-[10px]@61
 src/components/ui/page-header/OverflowMenu.tsx|text-[10px]@463 text-[11px]@535
 src/components/ui/parent-visible-badge.tsx|text-[11px]@44
-src/components/ui/plan-block.tsx|text-[11px]@150 text-[11px]@169
+src/components/ui/plan-block.tsx|text-[11px]@151 text-[11px]@172
 src/components/ui/plan-legend.tsx|text-[11px]@106
 src/components/ui/presence-badge.tsx|text-[11px]@80 text-[11px]@81 text-[10px]@257
 `);

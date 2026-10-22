@@ -48,9 +48,10 @@ interface PlanBlockProps {
   readonly compactDetail?: ReactNode;
   /**
    * Ein Zusatz hinter dem Titel in der einzeiligen Kopfzeile, nur bei
-   * size="compact". Für Blöcke, die keine zweite Zeile tragen. Der Titel
-   * belegt dann höchstens 40 Prozent der Zeile, der Zusatz kürzt sich
-   * selbst, und unter 11rem Zeilenbreite entfällt die Zeitspanne.
+   * size="compact". Für Blöcke, die keine zweite Zeile tragen. Der Zusatz
+   * nimmt seine natürliche Breite, höchstens 60 Prozent der Zeile, und kürzt
+   * sich darin selbst; der Titel kürzt sich erst, wenn der Platz nicht
+   * reicht. Unter 11rem Zeilenbreite entfällt die Zeitspanne.
    * Dieselbe Einschränkung wie beim Fuß: nur nicht-interaktive Inhalte.
    */
   readonly compactInline?: ReactNode;
@@ -152,12 +153,14 @@ export function PlanBlock({
             {timeRange}
           </span>
           <span
-            className={`${labelClassName} ${compactInline ? "max-w-[40%] shrink-0" : ""}`}
+            className={`${labelClassName} ${compactInline ? "min-w-0" : ""}`}
           >
             {label}
           </span>
           {compactInline && (
-            <span className="flex min-w-0 flex-1">{compactInline}</span>
+            <span className="flex max-w-[60%] min-w-0 shrink-0">
+              {compactInline}
+            </span>
           )}
         </span>
         {compactDetail && <span className="block">{compactDetail}</span>}

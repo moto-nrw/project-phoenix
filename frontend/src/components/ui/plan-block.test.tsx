@@ -150,6 +150,8 @@ describe("PlanBlock", () => {
       />,
     );
 
+    // Anker: der Block mit seinem Titel ist gerendert.
+    expect(screen.getByText("Busaufsicht")).toBeInTheDocument();
     expect(screen.queryByText("Anna K.")).not.toBeInTheDocument();
   });
 
