@@ -148,6 +148,29 @@ describe("GET /api/rooms/[id]", () => {
     expect(json.data.is_system).toBe(true);
     expect(json.data.is_open_room).toBe(false);
   });
+
+  // The color picker previews the category color for a room without its
+  // own (#4352); dropping the field showed the generic blue instead.
+  it("keeps the category color of the room", async () => {
+    mockApiGet.mockResolvedValueOnce({
+      data: {
+        id: 9,
+        name: "Leseecke",
+        category: "Themenraum",
+        category_color: "#6A1B90",
+        is_occupied: false,
+      },
+    });
+
+    const request = createMockRequest("/api/rooms/9");
+    const response = await GET(request, createMockContext({ id: "9" }));
+
+    const json =
+      await parseJsonResponse<ApiResponse<{ category_color?: string }>>(
+        response,
+      );
+    expect(json.data.category_color).toBe("#6A1B90");
+  });
 });
 
 describe("PUT /api/rooms/[id]", () => {

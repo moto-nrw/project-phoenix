@@ -45,6 +45,7 @@ interface BackendRoomResponse {
     capacity: number;
     category: string;
     color: string;
+    category_color?: string;
     device_id?: string;
     is_occupied: boolean;
     is_system?: boolean;
@@ -64,6 +65,7 @@ interface BackendRoomResponse {
   capacity?: number;
   category?: string;
   color?: string;
+  category_color?: string;
   device_id?: string;
   is_occupied?: boolean;
   is_system?: boolean;
@@ -116,6 +118,7 @@ export const GET = createGetHandler(
             capacity: roomData.capacity,
             category: roomData.category,
             color: roomData.color,
+            category_color: roomData.category_color,
             device_id: roomData.device_id,
             is_occupied: roomData.is_occupied ?? false,
             is_system: roomData.is_system,
@@ -138,6 +141,7 @@ export const GET = createGetHandler(
             capacity: response.capacity,
             category: response.category,
             color: response.color,
+            category_color: response.category_color,
             device_id: response.device_id,
             is_occupied: response.is_occupied ?? false,
             is_system: response.is_system,
