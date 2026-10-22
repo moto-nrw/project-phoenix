@@ -2150,6 +2150,125 @@ describe("Sidebar", () => {
         "bg-gray-100",
       );
     });
+
+    it("marks an own supervision in a released room under Offene Räume (#4349)", () => {
+      mockUseSupervision.mockReturnValue({
+        hasGroups: true,
+        isSupervising: true,
+        isLoadingGroups: false,
+        isLoadingSupervision: false,
+        overviewEnabled: false,
+        supervisedRooms: [
+          {
+            id: "7",
+            name: "Kreativraum",
+            groupId: "",
+            isOpenRoom: true,
+            isOwnSupervision: true,
+            sessionIds: ["55"],
+          },
+          { id: "8", name: "Turnhalle", groupId: "", isOpenRoom: true },
+        ],
+        groups: [],
+        refresh: vi.fn(),
+      });
+      mockUsePathname.mockReturnValue("/active-supervisions");
+      // „Mein Tag“ und der Tagesplan öffnen die Aufsicht über ihre Sitzung.
+      mockUseSearchParams.mockReturnValue(
+        createMockSearchParams((key) => (key === "session" ? "55" : null)),
+      );
+
+      render(<Sidebar />);
+
+      const ownRoomLink = screen.getByText("Kreativraum").closest("a");
+      expect(
+        within(ownRoomLink!).getByRole("img", { name: "Eigene Aufsicht" }),
+      ).toBeInTheDocument();
+      expect(ownRoomLink).toHaveClass("bg-gray-100");
+      expect(
+        within(screen.getByText("Turnhalle").closest("a")!).queryByRole("img", {
+          name: "Eigene Aufsicht",
+        }),
+      ).not.toBeInTheDocument();
+      expect(
+        screen.getByRole("button", { name: /Offene Räume/ }),
+      ).toHaveAttribute("aria-expanded", "true");
+      // Kein zweiter Eintrag unter „Aktuelle Aufsicht“; der Bereich sagt,
+      // wo die eigene Aufsicht steht.
+      expect(screen.getAllByText("Kreativraum")).toHaveLength(1);
+      // Anker: der Hinweis steht im sonst leeren Bereich.
+      expect(
+        screen.getByText("Ihre Aufsicht steht unter „Offene Räume“."),
+      ).toBeInTheDocument();
+      expect(
+        screen.queryByText("Keine aktive Aufsicht"),
+      ).not.toBeInTheDocument();
+    });
+
+    it("points to Offene Räume next to other people's supervisions in the overview (#4349)", () => {
+      // Mit der Schulübersicht stehen fremde Aufsichten unter „Aktuelle
+      // Aufsichten“. Gerade dort fehlte die eigene Tätigkeit.
+      mockUseSupervision.mockReturnValue({
+        hasGroups: true,
+        isSupervising: true,
+        isLoadingGroups: false,
+        isLoadingSupervision: false,
+        overviewEnabled: true,
+        supervisedRooms: [
+          { id: "10", name: "Raum A", groupId: "1" },
+          { id: "11", name: "Raum B", groupId: "2" },
+          {
+            id: "7",
+            name: "Kreativraum",
+            groupId: "",
+            isOpenRoom: true,
+            isOwnSupervision: true,
+          },
+        ],
+        groups: [],
+        refresh: vi.fn(),
+      });
+      mockUsePathname.mockReturnValue("/active-supervisions");
+
+      render(<Sidebar />);
+
+      expect(screen.getByText("Raum A")).toBeInTheDocument();
+      expect(
+        screen.getByText("Ihre Aufsicht steht unter „Offene Räume“."),
+      ).toBeInTheDocument();
+      expect(screen.getAllByText("Kreativraum")).toHaveLength(1);
+    });
+
+    it("shows no open-room hint without an own supervision there", () => {
+      mockUseSupervision.mockReturnValue({
+        hasGroups: true,
+        isSupervising: true,
+        isLoadingGroups: false,
+        isLoadingSupervision: false,
+        overviewEnabled: false,
+        supervisedRooms: [
+          { id: "10", name: "Raum A", groupId: "1" },
+          { id: "7", name: "Kreativraum", groupId: "", isOpenRoom: true },
+        ],
+        groups: [],
+        refresh: vi.fn(),
+      });
+      mockUsePathname.mockReturnValue("/active-supervisions");
+
+      render(<Sidebar />);
+
+      // Anker: beide Bereiche sind geladen.
+      expect(screen.getByText("Raum A")).toBeInTheDocument();
+      expect(
+        within(screen.getByText("Kreativraum").closest("a")!).queryByRole(
+          "img",
+          { name: "Eigene Aufsicht" },
+        ),
+      ).not.toBeInTheDocument();
+      expect(
+        screen.queryByText("Ihre Aufsicht steht unter „Offene Räume“."),
+      ).not.toBeInTheDocument();
+    });
   });
 
   describe("binary presence mode", () => {

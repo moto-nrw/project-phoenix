@@ -1,6 +1,7 @@
 "use client";
 
 import { NavLink } from "~/components/ui/nav-link";
+import { MotoConceptIcon } from "~/components/ui/moto-concept-icon";
 import {
   UnreadBadge,
   type UnreadBadgeTone,
@@ -12,6 +13,10 @@ interface SidebarSubItemProps {
   readonly label: string;
   readonly isActive: boolean;
   readonly count?: number | string;
+  // Die Person führt hier selbst Aufsicht, z. B. in einem offenen Raum
+  // (#4349). Das Auge ist dasselbe Symbol wie bei „Aktuelle Aufsicht“; als
+  // Text wäre der Hinweis zu breit und kürzte den Raumnamen.
+  readonly ownSupervision?: boolean;
   // Domain-colored pill for unread messages or pending requests. Distinct from
   // `count`, which is the muted gray attendance count.
   readonly badgeCount?: number;
@@ -26,6 +31,7 @@ export function SidebarSubItem({
   label,
   isActive,
   count,
+  ownSupervision = false,
   badgeCount = 0,
   badgeTone,
   badgeNoun,
@@ -42,6 +48,15 @@ export function SidebarSubItem({
       }`}
     >
       <span className="truncate">{label}</span>
+      {ownSupervision && (
+        <span title="Eigene Aufsicht" className="ml-2 flex shrink-0">
+          <MotoConceptIcon
+            concept="supervision"
+            size={16}
+            label="Eigene Aufsicht"
+          />
+        </span>
+      )}
       {badgeCount > 0 ? (
         <UnreadBadge
           count={badgeCount}

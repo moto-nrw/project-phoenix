@@ -923,12 +923,16 @@ describe("open-room tab onTabChange callback", () => {
 
     // Wait for tabs to render
     await waitFor(() => {
-      expect(screen.getByRole("tab", { name: "Schulhof" })).toBeInTheDocument();
+      expect(
+        screen.getByRole("tab", { name: "Schulhof · Eigene Aufsicht" }),
+      ).toBeInTheDocument();
     });
 
     // A released room is addressed by its room id, never by a synthetic tab
     // id — several sessions can run in it, so no session identifies it.
-    const schulhofTab = screen.getByRole("tab", { name: "Schulhof" });
+    const schulhofTab = screen.getByRole("tab", {
+      name: "Schulhof · Eigene Aufsicht",
+    });
     fireEvent.click(schulhofTab);
 
     await waitFor(() => {
