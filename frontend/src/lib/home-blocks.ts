@@ -160,6 +160,7 @@ export type HomeBlockKey =
   | "section.active_groups"
   | "section.my_day"
   | "section.my_group"
+  | "section.students"
   | "section.staff_notices"
   | "section.day_flow"
   | "section.open_requests"
@@ -393,6 +394,23 @@ export const HOME_BLOCKS: readonly HomeBlockDefinition[] = [
   },
 
   // ---- Der laufende Betrieb ----------------------------------------------
+  {
+    key: "section.students",
+    kind: "section",
+    label: "Kinder",
+    description:
+      "Wie viele Kinder gerade da, in der Schule, zuhause, krank oder entschuldigt sind. Jede Zahl öffnet die passende Liste in „Alle Kinder“.",
+    concept: "children",
+    spans: SECTION_SPANS,
+    // Fünf Zeilen passen erst in drei Rasterzeilen ganz hinein.
+    height: 3,
+    // Die Zahlen kommen aus den Betriebszahlen (groups:read), und jede Zeile
+    // führt nach „Alle Kinder" (users:read). Ohne den Weg dorthin wäre die
+    // Karte nur eine Wiederholung der Kennzahl-Kacheln (#4347).
+    permitted: (access) =>
+      operationalNumbers(access) && access.has(PERMISSION.usersRead),
+    available: always,
+  },
   {
     key: "section.day_flow",
     kind: "section",

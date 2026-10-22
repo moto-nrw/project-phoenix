@@ -512,6 +512,24 @@ describe("resolveHomeLayout — Berechtigung", () => {
     expect(keysOf(placements)).toContain("section.open_requests");
   });
 
+  // Der Baustein „Kinder" (#4347) zählt aus den Betriebszahlen (groups:read)
+  // und führt nach „Alle Kinder" (users:read). Er steht in keiner
+  // Standardansicht, sondern im Hinzufügen-Menü, für jede Rolle mit beiden
+  // Rechten.
+  it("bietet den Baustein Kinder an, wer die Zahlen und Alle Kinder sehen darf", () => {
+    const both = resolveFor(["groups:read", "users:read"]);
+    expect(both.addable.map((block) => block.key)).toContain(
+      "section.students",
+    );
+    expect(keysOf(both.placements)).not.toContain("section.students");
+
+    for (const permissions of [["groups:read"], ["users:read"]]) {
+      expect(
+        resolveFor(permissions).available.map((block) => block.key),
+      ).not.toContain("section.students");
+    }
+  });
+
   it("stellt einen Baustein ohne Recht auch dann nicht auf, wenn er angeordnet ist", () => {
     const { placements, addable } = resolveHomeLayout(
       { ...fullContext, access: accessWith([]) },

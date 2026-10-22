@@ -380,6 +380,52 @@ describe("HomeBlockContent — Listen", () => {
   });
 });
 
+describe("HomeBlockContent — Kinder (#4347)", () => {
+  const withAtSchool = data({
+    analytics: { ...analytics, studentsAtSchool: 21 },
+  });
+
+  it("zählt die Kinder nach Status und führt jede Zahl in die passende Liste", () => {
+    render(
+      <HomeBlockContent blockKey="section.students" data={withAtSchool} />,
+    );
+
+    const rows: [string, string, string][] = [
+      ["Anwesend", "150", "/test-tenant/students/search?status=anwesend"],
+      ["Schule", "21", "/test-tenant/students/search?status=schule"],
+      ["Zuhause", "33", "/test-tenant/students/search?status=abwesend"],
+      ["Krank", "4", "/test-tenant/students/search?status=krank"],
+      ["Entschuldigt", "3", "/test-tenant/students/search?status=entschuldigt"],
+    ];
+    for (const [label, count, href] of rows) {
+      const link = screen.getByRole("link", { name: `${label}: ${count}` });
+      expect(link).toHaveAttribute("href", href);
+    }
+  });
+
+  it("führt im Kopf der Karte nach Alle Kinder", () => {
+    render(
+      <HomeBlockContent blockKey="section.students" data={withAtSchool} />,
+    );
+
+    expect(
+      screen.getByRole("link", { name: "Kinder: Alle Kinder" }),
+    ).toHaveAttribute("href", "/test-tenant/students/search");
+  });
+
+  it("zeigt Striche statt Nullen, wenn keine Zahlen da sind", () => {
+    render(
+      <HomeBlockContent
+        blockKey="section.students"
+        data={data({ analytics: undefined })}
+      />,
+    );
+
+    expect(screen.getByRole("link", { name: "Krank: –" })).toBeInTheDocument();
+    expect(screen.queryByText("0")).not.toBeInTheDocument();
+  });
+});
+
 describe("HomeBlockContent — eigene Quellen", () => {
   it("rendert den eigenen Tag als eigenen Baustein", () => {
     render(<HomeBlockContent blockKey="section.my_day" data={data()} />);
