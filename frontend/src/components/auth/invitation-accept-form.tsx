@@ -3,7 +3,6 @@
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 // eslint-disable-next-line no-restricted-imports -- redirect targets root login, not tenant route
 import { useRouter } from "next/navigation";
-import { Check, Circle } from "lucide-react";
 import { signOut } from "next-auth/react";
 import {
   AuthFieldError,
@@ -14,6 +13,7 @@ import {
   credentialError,
   INVITATION_REFUSALS,
 } from "~/components/auth/credential-error";
+import { PasswordRequirements } from "~/components/auth/password-requirements";
 import { FormErrorAlert } from "~/components/ui/form-error-alert";
 import { useApiFormError } from "~/contexts/ToastContext";
 import { PasswordToggleButton } from "~/components/shared/password-toggle-button";
@@ -446,39 +446,7 @@ export function InvitationAcceptForm({
         />
       </div>
 
-      <div className="rounded-lg border border-gray-200 bg-gray-50 p-3">
-        <p className="mb-2 text-xs font-medium text-gray-700">
-          Passwortanforderungen
-        </p>
-        <div className="grid grid-cols-2 gap-x-3 gap-y-1.5">
-          {requirementStatus.map((requirement) => (
-            <div
-              key={requirement.label}
-              className="flex items-center gap-1.5 text-xs"
-            >
-              <span
-                className={`flex h-4 w-4 flex-shrink-0 items-center justify-center rounded-full border ${
-                  requirement.met
-                    ? "border-moto-green bg-moto-green/10 text-moto-green-strong"
-                    : "border-gray-300 bg-white text-gray-400"
-                }`}
-                aria-hidden="true"
-              >
-                {requirement.met ? (
-                  <Check className="h-3 w-3" />
-                ) : (
-                  <Circle className="h-3 w-3" />
-                )}
-              </span>
-              <span
-                className={requirement.met ? "text-gray-700" : "text-gray-500"}
-              >
-                {requirement.label}
-              </span>
-            </div>
-          ))}
-        </div>
-      </div>
+      <PasswordRequirements requirements={requirementStatus} />
 
       <button
         type="submit"

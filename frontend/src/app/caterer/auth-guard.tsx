@@ -2,8 +2,12 @@
 
 import { redirect, usePathname } from "next/navigation";
 import { useSession } from "next-auth/react";
+import { CatererShell } from "~/components/caterer/caterer-shell";
+import { ShellIntlProvider } from "~/components/dashboard/shell-intl-provider";
 import { Loading } from "~/components/ui/loading";
+import { BreadcrumbProvider } from "~/lib/breadcrumb-context";
 import { catererPath } from "~/lib/caterer-url";
+import { CatererShellProvider } from "~/lib/shell-auth-context";
 
 /** Pages of the caterer portal that need no session. */
 const CATERER_PUBLIC_PAGES = [
@@ -48,5 +52,13 @@ export function CatererAuthGuard({
       </div>
     );
   }
-  return <>{children}</>;
+  return (
+    <CatererShellProvider>
+      <BreadcrumbProvider>
+        <ShellIntlProvider>
+          <CatererShell>{children}</CatererShell>
+        </ShellIntlProvider>
+      </BreadcrumbProvider>
+    </CatererShellProvider>
+  );
 }

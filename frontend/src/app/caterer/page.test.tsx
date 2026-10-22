@@ -10,7 +10,6 @@ const mocks = vi.hoisted(() => ({
 }));
 
 vi.mock("~/lib/caterer-api", () => mocks);
-vi.mock("next-auth/react", () => ({ signOut: vi.fn() }));
 
 import { ToastProvider } from "~/contexts/ToastContext";
 import CatererOverviewPage from "./page";
@@ -74,7 +73,9 @@ describe("CatererOverviewPage (#3873)", () => {
   it("shows every school per day with sums per school and per day", async () => {
     render(<CatererOverviewPage />, { wrapper: ToastProvider });
 
-    expect(await screen.findByText("Küche am Markt")).toBeInTheDocument();
+    expect(
+      await screen.findByText("Bestellungen für Küche am Markt"),
+    ).toBeInTheDocument();
     // The test clock is Wednesday, 2026-09-09: this week opens.
     expect(mocks.fetchCatererOrders).toHaveBeenCalledWith(
       "1",

@@ -1,4 +1,10 @@
-import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import {
+  fireEvent,
+  render,
+  screen,
+  waitFor,
+  within,
+} from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import "@testing-library/jest-dom/vitest";
 
@@ -53,10 +59,18 @@ describe("MealCaterer", () => {
         deliveryAddress: "",
       }),
     );
-    expect(await screen.findByText("Offene Einladungen")).toBeInTheDocument();
+    // Liste fürs Handy und Tabelle stehen beide im DOM (stackedOnMobile).
+    expect(await screen.findAllByText("Offene Einladungen")).not.toHaveLength(
+      0,
+    );
     expect(screen.queryByText(/einladung\//i)).not.toBeInTheDocument();
 
-    fireEvent.click(screen.getByRole("button", { name: "Zurücknehmen" }));
+    fireEvent.click(
+      within(screen.getByRole("table")).getByRole("button", {
+        name: "Aktionen für die Einladung an kueche@example.com",
+      }),
+    );
+    fireEvent.click(screen.getByRole("menuitem", { name: "Zurücknehmen" }));
     expect(mocks.revokeMealCatererInvitation).not.toHaveBeenCalled();
     const dialog = await screen.findByRole("dialog");
     fireEvent.click(

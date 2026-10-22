@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 
 import { Button } from "~/components/ui/button";
+import { DataTable, type DataTableColumn } from "~/components/ui/data-table";
 import { DataField, DataGrid } from "~/components/ui/detail-modal-components";
 import {
   FormErrorAlert,
@@ -10,9 +11,9 @@ import {
 } from "~/components/ui/form-error-alert";
 import { Input } from "~/components/ui/input";
 import { ConfirmationModal } from "~/components/ui/modal";
+import { OverflowMenu } from "~/components/ui/page-header/OverflowMenu";
 import { SectionCard } from "~/components/ui/section-card";
 import { Skeleton } from "~/components/ui/skeleton";
-import { StatusBadge } from "~/components/ui/status-badge";
 import {
   useApiErrorDisplay,
   useApiFormError,
@@ -129,6 +130,44 @@ export function MealCaterer() {
     [];
   const supply = state?.supply ?? null;
 
+  const invitationColumns: DataTableColumn<MealCatererInvitation>[] = [
+    {
+      key: "caterer",
+      header: "Caterer",
+      stacked: "title",
+      render: (invitation) => invitation.catererName,
+    },
+    {
+      key: "email",
+      header: "E-Mail-Adresse",
+      stacked: "meta",
+      render: (invitation) => invitation.email,
+    },
+    {
+      key: "expires",
+      header: "Gültig bis",
+      stacked: "meta",
+      render: (invitation) => formatBerlinDate(invitation.expiresAt),
+    },
+    {
+      key: "actions",
+      header: "",
+      align: "right",
+      render: (invitation) => (
+        <OverflowMenu
+          ariaLabel={`Aktionen für die Einladung an ${invitation.email}`}
+          items={[
+            {
+              label: "Zurücknehmen",
+              destructive: true,
+              onClick: () => setRevokeTarget(invitation),
+            },
+          ]}
+        />
+      ),
+    },
+  ];
+
   return (
     <SectionCard
       title="Caterer"
@@ -227,41 +266,17 @@ export function MealCaterer() {
           </form>
 
           {openInvitations.length > 0 ? (
-            <div className="space-y-2">
-              <h3 className="text-sm font-semibold text-gray-900">
-                Offene Einladungen
-              </h3>
-              <ul className="divide-y divide-gray-100">
-                {openInvitations.map((invitation) => (
-                  <li
-                    key={invitation.id}
-                    className="flex flex-wrap items-center justify-between gap-2 py-2"
-                  >
-                    <div className="text-sm">
-                      <span className="font-medium text-gray-900">
-                        {invitation.catererName}
-                      </span>{" "}
-                      <span className="text-gray-600">{invitation.email}</span>
-                    </div>
-                    <div className="flex items-center gap-2">
-                      <StatusBadge
-                        label={`Gültig bis ${formatBerlinDate(invitation.expiresAt)}`}
-                        tone="gray"
-                        compact
-                      />
-                      <Button
-                        type="button"
-                        variant="ghost"
-                        size="compact"
-                        onClick={() => setRevokeTarget(invitation)}
-                      >
-                        Zurücknehmen
-                      </Button>
-                    </div>
-                  </li>
-                ))}
-              </ul>
-            </div>
+            <DataTable
+              heading={{
+                title: "Offene Einladungen",
+                count: openInvitations.length,
+              }}
+              columns={invitationColumns}
+              rows={openInvitations}
+              getRowKey={(invitation) => invitation.id}
+              rowHasInteractiveControls
+              stackedOnMobile
+            />
           ) : null}
         </div>
       )}

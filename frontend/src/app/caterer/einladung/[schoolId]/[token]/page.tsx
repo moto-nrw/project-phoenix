@@ -14,7 +14,6 @@ import {
 } from "react";
 import { useParams } from "next/navigation";
 import { signIn } from "next-auth/react";
-import { Check, Circle } from "lucide-react";
 import {
   AuthFieldError,
   AuthShell,
@@ -27,6 +26,7 @@ import {
   credentialError,
   LOGIN_REFUSALS,
 } from "~/components/auth/credential-error";
+import { PasswordRequirements } from "~/components/auth/password-requirements";
 import { PasswordToggleButton } from "~/components/shared/password-toggle-button";
 import { Alert } from "~/components/ui/alert";
 import {
@@ -223,27 +223,12 @@ function AcceptForm({
 
         {existing ? null : (
           <>
-            <ul
-              className="space-y-1 text-sm"
-              aria-label="Das braucht das Passwort"
-            >
-              {PASSWORD_RULES.map((rule) => {
-                const met = rule.test(password);
-                return (
-                  <li
-                    key={rule.label}
-                    className={`flex items-center gap-2 ${met ? "text-gray-900" : "text-gray-500"}`}
-                  >
-                    {met ? (
-                      <Check className="h-4 w-4" aria-hidden="true" />
-                    ) : (
-                      <Circle className="h-4 w-4" aria-hidden="true" />
-                    )}
-                    {rule.label}
-                  </li>
-                );
-              })}
-            </ul>
+            <PasswordRequirements
+              requirements={PASSWORD_RULES.map((rule) => ({
+                label: rule.label,
+                met: rule.test(password),
+              }))}
+            />
             <div>
               <label
                 htmlFor="confirm-password"

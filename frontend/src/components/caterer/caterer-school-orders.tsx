@@ -84,7 +84,20 @@ export function CatererSchoolOrders({
   onConfirmed: () => Promise<void>;
 }>) {
   const [confirming, setConfirming] = useState<string | null>(null);
+  // Die Namen eines Tages sind zugeklappt: ausgeschrieben machen sie jede
+  // Zeile so hoch wie die Kinderliste und verdrängen die Zahlen.
+  const [namesShown, setNamesShown] = useState<ReadonlySet<string>>(
+    () => new Set(),
+  );
   const { show: showActionError } = useApiErrorDisplay();
+  const toggleNames = useCallback((date: string) => {
+    setNamesShown((current) => {
+      const next = new Set(current);
+      if (next.has(date)) next.delete(date);
+      else next.add(date);
+      return next;
+    });
+  }, []);
 
   const confirm = useCallback(
     async (orderId: string) => {
@@ -167,10 +180,28 @@ export function CatererSchoolOrders({
       result.push({
         key: "children",
         header: "Kinder",
-        render: (day) =>
-          day.children.length === 0
-            ? "–"
-            : day.children.map(childLabel).join(", "),
+        render: (day) => {
+          if (day.children.length === 0) return "–";
+          const shown = namesShown.has(day.date);
+          return (
+            <div className="flex flex-col items-start gap-1">
+              {shown ? (
+                <span>{day.children.map(childLabel).join(", ")}</span>
+              ) : null}
+              <Button
+                type="button"
+                variant="ghost"
+                size="compact"
+                aria-expanded={shown}
+                onClick={() => toggleNames(day.date)}
+              >
+                {shown
+                  ? "Namen ausblenden"
+                  : `${day.children.length} Namen anzeigen`}
+              </Button>
+            </div>
+          );
+        },
       });
     }
     result.push(
@@ -201,7 +232,7 @@ export function CatererSchoolOrders({
       },
     );
     return result;
-  }, [byClass, confirm, confirming, firstDays, named]);
+  }, [byClass, confirm, confirming, firstDays, named, namesShown, toggleNames]);
 
   return (
     <DataTable

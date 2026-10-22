@@ -103,7 +103,17 @@ describe("CatererSchoolOrders", () => {
       ],
     } as never);
 
-    expect(await screen.findAllByText("Lea Koch (4b)")).not.toHaveLength(0);
+    // Die Namen sind zugeklappt, bis jemand sie für den Tag aufklappt.
+    const show = await screen.findAllByRole("button", {
+      name: "1 Namen anzeigen",
+    });
+    expect(screen.queryByText("Lea Koch (4b)")).not.toBeInTheDocument();
+    expect(show[0]).toHaveAttribute("aria-expanded", "false");
+    fireEvent.click(show[0]!);
+    expect(screen.getAllByText("Lea Koch (4b)")).not.toHaveLength(0);
+    expect(
+      screen.getAllByRole("button", { name: "Namen ausblenden" })[0],
+    ).toHaveAttribute("aria-expanded", "true");
     expect(screen.getAllByText("4b: 1")).not.toHaveLength(0);
     expect(screen.getAllByText("+1 Ben Neu (2a)")).not.toHaveLength(0);
     expect(
