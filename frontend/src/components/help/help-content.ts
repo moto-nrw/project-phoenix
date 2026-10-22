@@ -698,7 +698,7 @@ function changeLocationTopic(presenceMode: HelpPresenceMode): HelpTopic {
         "Wählen Sie `Anmelden` oder `Abmelden`.",
       ],
       result:
-        "moto zeigt nur, ob das Kind anwesend oder abwesend ist. Ein Raum wird nicht gespeichert.",
+        "moto zeigt nur, ob das Kind `Anwesend` oder `Zuhause` ist. Ein Raum wird nicht gespeichert.",
       related: [HELP_TOPICS.webAttendance, HELP_TOPICS.studentSearch],
     };
   }
@@ -2410,7 +2410,7 @@ function nfcCheckInTopic(
         },
       ],
       result:
-        "moto zeigt `Anwesend` oder `Abwesend`. Räume werden nicht erfasst.",
+        "moto zeigt `Anwesend` oder `Zuhause`. Räume werden nicht erfasst.",
       differences: [
         "Die Frage `Wohin geht ...?` erscheint nicht. Das zweite Scannen meldet das Kind direkt ab.",
         "Eine Auswahl von Raum oder Aktivität am Tablet ändert nichts an der Anwesenheit.",
