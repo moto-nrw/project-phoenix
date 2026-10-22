@@ -542,8 +542,16 @@ issue at most; it stays opt-in instead of being deleted.
 | `TestPlanExportRuntimeEvidence`, `TestDienstplanRuntimeEvidence` | `roots/owners` | [plan-export-2706.md](plan-export-2706.md) |
 | `TestStudentDeletionRuntimeEvidence` | `workflows/studentdeletion` | [student-deletion-2710.md](student-deletion-2710.md) |
 
-To run all of them, pass the packages and an alternation of the names to one
-`go test` with the variable set. A new flow measurement calls
+To run all of them, select them by name across the backend; packages without
+a match report `no tests to run`. The alternation names exactly the tests in
+the table:
+
+```bash
+PHX_TEST_RUNTIME_EVIDENCE=1 scripts/run-go-toolchain.sh go -C backend test \
+  -tags=testhooks ./... -count=1 -parallel 8 -v -run '^Test((EmergencySnapshot|IdentityMembership|DataImport|DeviceScan|FileStorage|Link|IdentityPersistence|AccountPasskey|AccountSession|OperatorMFA|OperatorPasskey|Operator|OperatorToken|Offboarding|RequestReview|Reminder|GradeTransition|SessionEnd|PlanExport|Dienstplan|StudentDeletion)RuntimeEvidence|(SlotList|UnregisteredTagScan|OGSGroupLive|UnclaimedClaim|WorkforceOwner)Runtime|(GroupRecovery|StudentPresence|InstanceAssignment)MigrationRuntime)$'
+```
+
+A new flow measurement calls
 `testpkg.RequireRuntimeEvidence(t)` right after `t.Parallel()` and keeps any
 contract it asserts in a normal test as well.
 

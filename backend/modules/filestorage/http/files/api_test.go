@@ -317,9 +317,10 @@ func TestFolderManagementRequiresPermission(t *testing.T) {
 	assert.NotEmpty(t, audience.Data.Roles)
 }
 
-// TestFileRoutesWriteOnlyOnUpload holds the write split the opt-in
+// TestFileRoutesWriteOnlyOnUpload holds what the opt-in
 // TestFileStorageRuntimeEvidence asserted on every sample (#4426): the folder
-// and file reads and the download write no row, an upload writes metadata.
+// and file reads and the download write no row and issue a stable number of
+// statements, an upload writes metadata.
 func TestFileRoutesWriteOnlyOnUpload(t *testing.T) {
 	t.Parallel()
 	c := setupFileStoreRoute(t)
@@ -346,10 +347,17 @@ func TestFileRoutesWriteOnlyOnUpload(t *testing.T) {
 		{"list-files", fmt.Sprintf("/files/folders/%d/files", folder), c.admin, permissions.AdminWildcard},
 		{"download", fmt.Sprintf("/files/folders/%d/files/%d/download", folder, uploaded.Data.ID.Int64()), c.member, permissions.UsersRead},
 	} {
-		counter.Reset()
-		rec := c.request(counter.Context(ctx), http.MethodGet, read.path, nil, "", read.accountID, read.perm)
-		require.Equal(t, http.StatusOK, rec.Code, "%s: %s", read.name, rec.Body.String())
-		require.Zero(t, counter.WriteRows(), "%s: a read must not write", read.name)
+		// Twice: the statement count of a read must not vary between
+		// identical requests, so a per-row query cannot hide in an average.
+		var statements []int
+		for range 2 {
+			counter.Reset()
+			rec := c.request(counter.Context(ctx), http.MethodGet, read.path, nil, "", read.accountID, read.perm)
+			require.Equal(t, http.StatusOK, rec.Code, "%s: %s", read.name, rec.Body.String())
+			require.Zero(t, counter.WriteRows(), "%s: a read must not write", read.name)
+			statements = append(statements, counter.Total())
+		}
+		require.Equal(t, statements[0], statements[1], "%s: statement count must not vary across requests", read.name)
 	}
 
 	counter.Reset()

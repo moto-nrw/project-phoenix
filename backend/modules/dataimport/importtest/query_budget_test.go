@@ -1,6 +1,7 @@
 package integration
 
 import (
+	"fmt"
 	"testing"
 
 	"github.com/stretchr/testify/require"
@@ -48,10 +49,35 @@ func TestStudentImportBatchQueryBudget(t *testing.T) {
 	// #2756: a savepoint, the People Directory relationship, the Care Plan
 	// pickup permission and the Identity & Access portal access. Since #3567
 	// each new child takes the class-write gate and Kinderkontingent lock
-	// before reading the limit, also without a Kinderkontingent.
+	// before reading the limit, also without a Kinderkontingent. The count
+	// scales with the rows, so the ceiling holds for this ten-row file only.
 	testpkg.AssertQueryBudget(t, "modules.dataimport.student_batch.import", counter.Queries())
 	// BUN labels RawQuery as SELECT, including the three owner INSERTs of each
 	// guardian link; this is the driver-reported DML counter, not physical
 	// table writes.
 	require.EqualValues(t, 51, counter.WriteRows())
+}
+
+// studentBatchRows is the size of the budgeted and measured import file.
+const studentBatchRows = 10
+
+// tenStudentBatch builds a valid ten-row student file with one guardian,
+// phone and pickup schedule per row; iteration keeps names and phones unique.
+func tenStudentBatch(iteration int) []importModels.StudentImportRow {
+	rows := make([]importModels.StudentImportRow, 0, studentBatchRows)
+	for i := range studentBatchRows {
+		name := fmt.Sprintf("Runtime%d-%d", iteration, i)
+		rows = append(rows, importModels.StudentImportRow{
+			FirstName: name, LastName: "Evidence", SchoolClass: "4A", Birthday: "2017-04-05", DataRetentionDays: 30,
+			AddressStreet: "Messweg 1", AddressPostalCode: "50667", AddressCity: "Köln",
+			DepartureDays:   map[string]string{"mon": "bus", "tue": "pickup"},
+			PrivacyAccepted: true,
+			Guardians: []importModels.GuardianImportData{{
+				FirstName: "Eltern", LastName: name, Email: fmt.Sprintf("%s.runtime@example.test", name), RelationshipType: "Mutter",
+				PhoneNumbers: []importModels.PhoneImportData{{PhoneNumber: fmt.Sprintf("0151 %06d", iteration*100+i), PhoneType: "mobile"}},
+			}},
+			PickupSchedules: []importModels.PickupScheduleImportData{{Weekday: 2, PickupTime: "15:30"}},
+		})
+	}
+	return rows
 }

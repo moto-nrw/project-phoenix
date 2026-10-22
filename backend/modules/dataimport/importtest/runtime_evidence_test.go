@@ -3,7 +3,6 @@ package integration
 import (
 	"context"
 	"encoding/json"
-	"fmt"
 	"testing"
 	"time"
 
@@ -105,34 +104,10 @@ func TestDataImportRuntimeEvidence(t *testing.T) {
 		counters[mode] = append(counters[mode], observation)
 	}
 	raw, err := json.Marshal(map[string]any{
-		"postgres": version, "warmup": 2, "samples_per_operation": 10, "rows_per_batch": rowsPerBatch, "concurrency": 1,
+		"postgres": version, "warmup": 2, "samples_per_operation": 10, "rows_per_batch": studentBatchRows, "concurrency": 1,
 		"samples": samples, "row_counters": counters,
 		"unit_of_work_events_including_warmup": events(), "deadlocks": deadlocks() - beforeDeadlocks,
 	})
 	require.NoError(t, err)
 	t.Logf("data-import-runtime %s", raw)
-}
-
-// rowsPerBatch is the size of the measured and budgeted import file.
-const rowsPerBatch = 10
-
-// tenStudentBatch builds a valid ten-row student file with one guardian,
-// phone and pickup schedule per row; iteration keeps names and phones unique.
-func tenStudentBatch(iteration int) []importModels.StudentImportRow {
-	rows := make([]importModels.StudentImportRow, 0, rowsPerBatch)
-	for i := range rowsPerBatch {
-		name := fmt.Sprintf("Runtime%d-%d", iteration, i)
-		rows = append(rows, importModels.StudentImportRow{
-			FirstName: name, LastName: "Evidence", SchoolClass: "4A", Birthday: "2017-04-05", DataRetentionDays: 30,
-			AddressStreet: "Messweg 1", AddressPostalCode: "50667", AddressCity: "Köln",
-			DepartureDays:   map[string]string{"mon": "bus", "tue": "pickup"},
-			PrivacyAccepted: true,
-			Guardians: []importModels.GuardianImportData{{
-				FirstName: "Eltern", LastName: name, Email: fmt.Sprintf("%s.runtime@example.test", name), RelationshipType: "Mutter",
-				PhoneNumbers: []importModels.PhoneImportData{{PhoneNumber: fmt.Sprintf("0151 %06d", iteration*100+i), PhoneType: "mobile"}},
-			}},
-			PickupSchedules: []importModels.PickupScheduleImportData{{Weekday: 2, PickupTime: "15:30"}},
-		})
-	}
-	return rows
 }
