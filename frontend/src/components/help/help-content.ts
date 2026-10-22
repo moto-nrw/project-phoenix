@@ -429,7 +429,7 @@ function appOverviewTopic(): HelpTopic {
       "Unter `Bausteine` fehlt eine Karte? Dann steht sie schon auf Ihrer Startseite. Oder Ihre Rolle oder Ihre OGS sieht sie nicht vor.",
     ],
     notes: [
-      "Die Karte `Kinder` zählt die Kinder nach `Anwesend`, `Schule`, `Zuhause`, `Krank` und `Entschuldigt`. Ein Klick auf eine Zahl öffnet `Alle Kinder` mit diesem Filter. `Entschuldigt` zeigt auch Kinder auf Klassenfahrt.",
+      "Die Karte `Kinder` zählt die Kinder nach `Anwesend`, `Schule`, `Zuhause`, `Krank` und `Entschuldigt`. Ein Klick auf eine Zahl öffnet `Alle Kinder` mit diesem Filter. `Entschuldigt` zeigt auch Kinder auf Klassenfahrt. `Zuhause` zeigt auch Kinder, die heute nicht kommen.",
       "Zu viel verändert? Wählen Sie in `Anpassen` den Knopf `Standardansicht wiederherstellen`.",
     ],
     related: [
@@ -624,7 +624,7 @@ function webAttendanceTopic(presenceMode: HelpPresenceMode): HelpTopic {
     presenceMode === "detailed"
       ? "Nach dem Anmelden steht das Kind zunächst unter `Unterwegs`. Ein Raum wird erst bei der nächsten Zuordnung eingetragen. Nach dem Abmelden steht das Kind unter `Zuhause`."
       : presenceMode === "binary"
-        ? "Nach dem Anmelden steht das Kind auf `Anwesend`. Nach dem Abmelden steht es auf `Abwesend`."
+        ? "Nach dem Anmelden steht das Kind auf `Anwesend`. Nach dem Abmelden steht es auf `Zuhause`."
         : "moto zeigt nach der Aktion den neuen Anwesenheitsstatus des Kindes.";
 
   return {
@@ -698,7 +698,7 @@ function changeLocationTopic(presenceMode: HelpPresenceMode): HelpTopic {
         "Wählen Sie `Anmelden` oder `Abmelden`.",
       ],
       result:
-        "moto zeigt nur, ob das Kind anwesend oder abwesend ist. Ein Raum wird nicht gespeichert.",
+        "moto zeigt nur, ob das Kind `Anwesend` oder `Zuhause` ist. Ein Raum wird nicht gespeichert.",
       related: [HELP_TOPICS.webAttendance, HELP_TOPICS.studentSearch],
     };
   }
@@ -2410,7 +2410,7 @@ function nfcCheckInTopic(
         },
       ],
       result:
-        "moto zeigt `Anwesend` oder `Abwesend`. Räume werden nicht erfasst.",
+        "moto zeigt `Anwesend` oder `Zuhause`. Räume werden nicht erfasst.",
       differences: [
         "Die Frage `Wohin geht ...?` erscheint nicht. Das zweite Scannen meldet das Kind direkt ab.",
         "Eine Auswahl von Raum oder Aktivität am Tablet ändert nichts an der Anwesenheit.",

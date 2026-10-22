@@ -584,7 +584,9 @@ func exportStatusLabel(status string) string {
 	case "entschuldigt-klassenfahrt":
 		return "Entschuldigt oder Klassenfahrt"
 	case "abwesend":
-		return "Abwesend"
+		// The filter value stays "abwesend" for saved links; the word matches
+		// the "Zuhause" tile that opens it (#4588).
+		return "Zuhause"
 	case "schule":
 		return "Schule"
 	case "unterwegs":
