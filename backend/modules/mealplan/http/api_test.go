@@ -64,6 +64,7 @@ func TestStaffRoutesKeepProtectedPermissionBoundaries(t *testing.T) {
 		},
 		Success:        routetest.RespondSuccess,
 		InvalidRequest: routetest.RespondInvalidRequest,
+		ParseIDParam:   testpkg.ParseHTTPIDParam,
 		ModuleFailure:  routetest.ErrorResponder(resolveModuleFailure),
 		RenderList: func(mealplanModule.ListExport, string) (mealplanHTTP.ExportFile, error) {
 			return mealplanHTTP.ExportFile{}, nil
@@ -159,6 +160,7 @@ func resourceFor(module mealplanModule.Capability, registering bool) *mealplanHT
 		},
 		Success:        routetest.RespondSuccess,
 		InvalidRequest: routetest.RespondInvalidRequest,
+		ParseIDParam:   testpkg.ParseHTTPIDParam,
 		ModuleFailure:  routetest.ErrorResponder(resolveModuleFailure),
 		RenderList: func(mealplanModule.ListExport, string) (mealplanHTTP.ExportFile, error) {
 			return mealplanHTTP.ExportFile{}, nil
@@ -269,7 +271,7 @@ func TestStaffDayChangeIsTheSchools(t *testing.T) {
 	router := mealplanHTTP.NewResource(module, mealplanHTTP.Runtime{
 		Protected:  routetest.UnprotectedGroupFunc(),
 		Permission: func(mealplanHTTP.Access) mealplanHTTP.Middleware { return routetest.IdentityMiddleware },
-		Success:    routetest.RespondSuccess, InvalidRequest: routetest.RespondInvalidRequest,
+		Success:    routetest.RespondSuccess, InvalidRequest: routetest.RespondInvalidRequest, ParseIDParam: testpkg.ParseHTTPIDParam,
 		ModuleFailure: routetest.ErrorResponder(resolveModuleFailure),
 		RenderList: func(mealplanModule.ListExport, string) (mealplanHTTP.ExportFile, error) {
 			return mealplanHTTP.ExportFile{}, nil

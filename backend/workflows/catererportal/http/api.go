@@ -7,7 +7,6 @@ import (
 	"context"
 	"errors"
 	"net/http"
-	"strconv"
 
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/render"
@@ -93,7 +92,7 @@ func (rs *Resource) CatererRouter(authRateLimiter func(http.Handler) http.Handle
 }
 
 func pathID(r *http.Request, name string) (int64, bool) {
-	id, err := strconv.ParseInt(chi.URLParam(r, name), 10, 64)
+	id, err := common.ParseIDParam(r, name)
 	return id, err == nil && id > 0
 }
 

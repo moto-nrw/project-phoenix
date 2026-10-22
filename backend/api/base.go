@@ -112,7 +112,8 @@ func newMealPlanResource(module mealplanModule.Capability, renderer SimpleListRe
 		Permission: func(access mealplanAPI.Access) mealplanAPI.Middleware {
 			return requireMealPlanAccess(access)
 		},
-		Success: apiCommon.Respond,
+		Success:      apiCommon.Respond,
+		ParseIDParam: apiCommon.ParseIDParam,
 		InvalidRequest: func(w http.ResponseWriter, r *http.Request, err error) {
 			apiCommon.RenderError(w, r, apiCommon.ErrorInvalidRequest(err))
 		},

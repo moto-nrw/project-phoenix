@@ -3,7 +3,6 @@ package mealplan
 import (
 	"errors"
 	"net/http"
-	"strconv"
 	"time"
 
 	"github.com/go-chi/chi/v5"
@@ -152,7 +151,7 @@ func (rs *Resource) schoolChange(w http.ResponseWriter, r *http.Request) (mealpl
 }
 
 func (rs *Resource) studentID(w http.ResponseWriter, r *http.Request) (int64, bool) {
-	studentID, err := strconv.ParseInt(chi.URLParam(r, "studentId"), 10, 64)
+	studentID, err := rs.runtime.ParseIDParam(r, "studentId")
 	if err != nil || studentID <= 0 {
 		rs.runtime.InvalidRequest(w, r, errors.New("invalid student id"))
 		return 0, false

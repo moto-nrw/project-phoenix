@@ -21,7 +21,8 @@ func createTestCaterer(t *testing.T, db *bun.DB, name string) int64 {
 	var id int64
 	require.NoError(t, db.NewRaw(`INSERT INTO auth.caterers (name) VALUES (?) RETURNING id`, fmt.Sprintf("%s %d", name, time.Now().UnixNano())).Scan(context.Background(), &id))
 	t.Cleanup(func() {
-		_, _ = db.NewRaw(`DELETE FROM auth.caterers WHERE id = ?`, id).Exec(context.Background())
+		_, err := db.NewRaw(`DELETE FROM auth.caterers WHERE id = ?`, id).Exec(context.Background())
+		require.NoError(t, err)
 	})
 	return id
 }

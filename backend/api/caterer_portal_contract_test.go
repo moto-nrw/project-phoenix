@@ -55,11 +55,15 @@ func catererInvitationLink(t *testing.T, db *bun.DB, invitationID string) string
 func forgetContractCaterer(t *testing.T, db *bun.DB, email string) {
 	t.Cleanup(func() {
 		ctx := context.Background()
-		_, _ = db.NewRaw(`DELETE FROM auth.caterers WHERE id IN (
+		_, err := db.NewRaw(`DELETE FROM auth.caterers WHERE id IN (
 			SELECT caterer_id FROM auth.caterer_accounts ca JOIN auth.accounts a ON a.id = ca.account_id WHERE a.email = ?)`, email).Exec(ctx)
-		_, _ = db.NewRaw(`DELETE FROM audit.auth_events WHERE account_id IN (SELECT id FROM auth.accounts WHERE email = ?)`, email).Exec(ctx)
-		_, _ = db.NewRaw(`DELETE FROM auth.tokens WHERE account_id IN (SELECT id FROM auth.accounts WHERE email = ?)`, email).Exec(ctx)
-		_, _ = db.NewRaw(`DELETE FROM auth.accounts WHERE email = ?`, email).Exec(ctx)
+		require.NoError(t, err)
+		_, err = db.NewRaw(`DELETE FROM audit.auth_events WHERE account_id IN (SELECT id FROM auth.accounts WHERE email = ?)`, email).Exec(ctx)
+		require.NoError(t, err)
+		_, err = db.NewRaw(`DELETE FROM auth.tokens WHERE account_id IN (SELECT id FROM auth.accounts WHERE email = ?)`, email).Exec(ctx)
+		require.NoError(t, err)
+		_, err = db.NewRaw(`DELETE FROM auth.accounts WHERE email = ?`, email).Exec(ctx)
+		require.NoError(t, err)
 	})
 }
 

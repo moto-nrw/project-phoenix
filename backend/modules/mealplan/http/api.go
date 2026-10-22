@@ -40,7 +40,9 @@ type Runtime struct {
 	Permission     func(Access) Middleware
 	Success        func(http.ResponseWriter, *http.Request, int, any, string)
 	InvalidRequest func(http.ResponseWriter, *http.Request, error)
-	ModuleFailure  func(http.ResponseWriter, *http.Request, error, string)
+	// ParseIDParam reads an int64 path parameter: api/common.ParseIDParam.
+	ParseIDParam  func(*http.Request, string) (int64, error)
+	ModuleFailure func(http.ResponseWriter, *http.Request, error, string)
 	// RenderList renders a list export as PDF or XLSX.
 	RenderList func(mealplanModule.ListExport, string) (ExportFile, error)
 	// CurrentAccountID is the staff account of the request, recorded on a

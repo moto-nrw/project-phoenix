@@ -196,7 +196,8 @@ func TestCatererSuppliesSeveralSchools(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, []int64{first, second}, schools)
 	t.Cleanup(func() {
-		_, _ = db.NewRaw(`DELETE FROM audit.auth_events WHERE account_id = ?`, acceptance.AccountID).Exec(context.Background())
+		_, err := db.NewRaw(`DELETE FROM audit.auth_events WHERE account_id = ?`, acceptance.AccountID).Exec(context.Background())
+		require.NoError(t, err)
 	})
 	_, refresh, err := caterers.LoginCatererWithAudit(context.Background(), email, catererPassword, "192.0.2.11", "test")
 	require.NoError(t, err)
@@ -296,7 +297,8 @@ func TestCatererSessionsAreLoggedAndEndWithTheLastSchool(t *testing.T) {
 	require.NoError(t, err)
 	forgetCaterer(t, db, acceptance)
 	t.Cleanup(func() {
-		_, _ = db.NewRaw(`DELETE FROM audit.auth_events WHERE account_id = ?`, acceptance.AccountID).Exec(context.Background())
+		_, err := db.NewRaw(`DELETE FROM audit.auth_events WHERE account_id = ?`, acceptance.AccountID).Exec(context.Background())
+		require.NoError(t, err)
 	})
 
 	_, refresh, err := caterers.LoginCatererWithAudit(context.Background(), email, catererPassword, "192.0.2.10", "test")
@@ -351,9 +353,12 @@ func TestCatererPasswordResetServesCaterersOnly(t *testing.T) {
 	_, _, err = caterers.LoginCatererWithAudit(context.Background(), email, renewed, "", "")
 	require.NoError(t, err)
 	t.Cleanup(func() {
-		_, _ = db.NewRaw(`DELETE FROM platform.email_outbox WHERE tenant_id IS NULL AND related_entity_type = 'password_reset' AND related_entity_id = ?`, link.ID).Exec(context.Background())
-		_, _ = db.NewRaw(`DELETE FROM auth.password_reset_tokens WHERE account_id = ?`, acceptance.AccountID).Exec(context.Background())
-		_, _ = db.NewRaw(`DELETE FROM audit.auth_events WHERE account_id = ?`, acceptance.AccountID).Exec(context.Background())
+		_, err := db.NewRaw(`DELETE FROM platform.email_outbox WHERE tenant_id IS NULL AND related_entity_type = 'password_reset' AND related_entity_id = ?`, link.ID).Exec(context.Background())
+		require.NoError(t, err)
+		_, err = db.NewRaw(`DELETE FROM auth.password_reset_tokens WHERE account_id = ?`, acceptance.AccountID).Exec(context.Background())
+		require.NoError(t, err)
+		_, err = db.NewRaw(`DELETE FROM audit.auth_events WHERE account_id = ?`, acceptance.AccountID).Exec(context.Background())
+		require.NoError(t, err)
 	})
 }
 
