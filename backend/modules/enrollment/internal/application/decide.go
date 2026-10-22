@@ -9,6 +9,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/modules/careplan"
 	"github.com/moto-nrw/project-phoenix/modules/careplan/selection"
 	enrollmentNative "github.com/moto-nrw/project-phoenix/modules/enrollment"
+	offeringContract "github.com/moto-nrw/project-phoenix/modules/enrollment/offeringcontract"
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 )
 
@@ -267,10 +268,6 @@ func (d *Decisions) validateApprovalOfferingSelection(ctx context.Context, child
 	if !careOfferingsEnabled {
 		return nil
 	}
-	if phase.CareOfferingSelectionMode == "" ||
-		phase.CareOfferingSelectionMode == enrollmentNative.PhaseCareOfferingSelectionOptional {
-		return nil
-	}
 	links, err := enrollmentNative.OfferingSelectionRecordsAt(ctx, d.deps.Children, child.ID, calendar.Date(phase.ServiceStartDate))
 	if err != nil {
 		return fmt.Errorf("decision: validate child offerings: %w", err)
@@ -278,6 +275,22 @@ func (d *Decisions) validateApprovalOfferingSelection(ctx context.Context, child
 	offerings, err := d.deps.Offerings.ListByIDs(ctx, uniqueCareOfferingIDs(links))
 	if err != nil {
 		return fmt.Errorf("decision: list child offerings: %w", err)
+	}
+	// An application submitted before a group got the per-day rule can hold
+	// two variants on one day (#4514). The approval names it; the bookings
+	// stay as they are until staff change them.
+	if err := checkApprovalDayRules(links, offerings); err != nil {
+		return err
+	}
+	return checkApprovalSelectionMode(phase, offerings)
+}
+
+// checkApprovalSelectionMode counts the choosable offerings of the phase
+// against its selection mode.
+func checkApprovalSelectionMode(phase *enrollmentNative.Phase, offerings []*offeringContract.CareOfferingRecord) error {
+	if phase.CareOfferingSelectionMode == "" ||
+		phase.CareOfferingSelectionMode == enrollmentNative.PhaseCareOfferingSelectionOptional {
+		return nil
 	}
 	choosableCount := 0
 	for _, offering := range offerings {
@@ -296,6 +309,24 @@ func (d *Decisions) validateApprovalOfferingSelection(ctx context.Context, child
 		}
 	}
 	return nil
+}
+
+func checkApprovalDayRules(links []*enrollmentNative.RequestChildOfferingRecord, offerings []*offeringContract.CareOfferingRecord) error {
+	catalog := make(map[int64]*offeringContract.CareOfferingRecord, len(offerings))
+	for _, offering := range offerings {
+		if offering != nil {
+			catalog[offering.ID] = offering
+		}
+	}
+	var child selection.Child
+	for _, link := range links {
+		if link == nil {
+			continue
+		}
+		child.OfferingIDs = append(child.OfferingIDs, link.CareOfferingID)
+		child.OfferingDays = append(child.OfferingDays, selection.DaySelection{OfferingID: link.CareOfferingID, SelectedDays: link.SelectedDays})
+	}
+	return selection.CheckDayRules(child, nativeOfferingCatalog(catalog))
 }
 
 // waitlistEnabled, autoInviteGuardianOnApprove and careOfferingsEnabled

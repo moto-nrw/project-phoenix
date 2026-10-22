@@ -23,6 +23,9 @@ const (
 	selectionRuleExactlyOne = "exactly_one"
 	selectionRuleAtLeastOne = "at_least_one"
 	selectionRuleAtMostOne  = "at_most_one"
+	// selectionRuleAtMostOnePerDay allows several offerings of the group, but
+	// never two on the same weekday (#4514).
+	selectionRuleAtMostOnePerDay = "at_most_one_per_day"
 
 	availabilityMatchAll         = "all"
 	availabilityMatchAny         = "any"
@@ -35,10 +38,11 @@ const (
 )
 
 var validSelectionRules = map[string]bool{
-	selectionRuleOptional:   true,
-	selectionRuleExactlyOne: true,
-	selectionRuleAtLeastOne: true,
-	selectionRuleAtMostOne:  true,
+	selectionRuleOptional:        true,
+	selectionRuleExactlyOne:      true,
+	selectionRuleAtLeastOne:      true,
+	selectionRuleAtMostOne:       true,
+	selectionRuleAtMostOnePerDay: true,
 }
 
 // offeringDayISOWeekday maps each canonical day to its ISO weekday.
@@ -370,7 +374,9 @@ func autoAddViolatesExclusiveGroup(target, trigger careplan.CareOffering) bool {
 		return false
 	}
 	switch normalizeSelectionRule(target.SelectionRule) {
-	case selectionRuleExactlyOne, selectionRuleAtMostOne:
+	// An automatic addition copies the trigger's days, so inside a per-day
+	// group it always lands on a day the trigger already holds.
+	case selectionRuleExactlyOne, selectionRuleAtMostOne, selectionRuleAtMostOnePerDay:
 		return true
 	default:
 		return false

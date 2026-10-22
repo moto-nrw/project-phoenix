@@ -1102,6 +1102,7 @@
       "groupExactlyOne": "Proszę wybrać w „{group}” dokładnie jedną ofertę.",
       "groupAtLeastOne": "Proszę wybrać w „{group}” co najmniej jedną ofertę.",
       "groupAtMostOne": "Proszę wybrać w „{group}” najwyżej jedną ofertę.",
+      "groupDayConflict": "{day}: wybrano {offerings}. Wybierz tylko jedną ofertę na dzień.",
       "pickupConfirm": "Proszę potwierdzić zasady odbioru (wybrać dni lub zostawić puste).",
       "weekdayRequired": "Proszę wybrać co najmniej jeden dzień tygodnia.",
       "weekdayModeConfirm": "Proszę potwierdzić zasady powrotu do domu i odbioru.",
@@ -1140,6 +1141,7 @@
       "ruleExactlyOne": "Proszę wybrać dokładnie jedną",
       "ruleAtLeastOne": "Proszę wybrać co najmniej jedną",
       "ruleAtMostOne": "Najwyżej jedna",
+      "ruleAtMostOnePerDay": "Najwyżej jedna dziennie",
       "availabilitySelectionRemoved": "Po zmianie poziomu klasy niektóre oferty opieki nie są już dostępne. Powiązany wybór, dni opieki i automatyczne dodatkowe zapisy zostały usunięte."
     },
     "consent": {
@@ -1649,6 +1651,7 @@
       "cancel": "Anuluj",
       "noChange": "Państwa wybór jest taki sam jak obecny zapis. Aby wysłać prośbę, proszę coś zmienić.",
       "noDaysSelected": "Dla każdej wybranej oferty proszę wybrać co najmniej jeden dzień.",
+      "dayConflict": "{day}: wybrano {offerings}. Wybierz tylko jedną ofertę na dzień.",
       "capacityFull": "W jednej z wybranych ofert nie ma już wolnych miejsc. Proszę wybrać inną ofertę lub skontaktować się ze szkołą.",
       "alreadyPending": "Dla Państwa dziecka jest już otwarta prośba. Proszę poczekać na jej rozpatrzenie.",
       "withdrawalConfirmTitle": "Całkowicie wypisać z opieki?",
@@ -2194,6 +2197,7 @@
       },
       "enrollment": {
         "form_attachment_invalid": "Sprawdź nazwę i plik PDF.",
+        "approval_care_offering_day_conflict": "Nie udało się zmienić: {object}. Sprawdź aktualny stan.",
         "approval_care_offering_exactly_one": "Nie udało się zmienić: {object}. Sprawdź aktualny stan.",
         "approval_care_offering_missing": "Nie udało się zmienić: {object}. Sprawdź aktualny stan.",
         "approval_data_invalid": "Nie udało się zapisać: {object}. Sprawdź wpisane dane.",
@@ -2202,6 +2206,7 @@
         "care_offering_auto_add_invalid": "Nie udało się zapisać: {object}. Sprawdź wpisane dane.",
         "care_offering_capacity_invalid": "Nie udało się zapisać: {object}. Sprawdź wpisane dane.",
         "care_offering_closed": "Wybrana oferta opieki nie przyjmuje teraz zapisów. Wybierz inną ofertę.",
+        "care_offering_day_conflict": "Na ten sam dzień wybrano dwie oferty, których nie można łączyć. Wybierz tylko jedną na dzień.",
         "care_offering_days_required": "Nie udało się zapisać: {object}. Sprawdź wpisane dane.",
         "care_offering_exactly_one": "Wybierz dokładnie jedną ofertę opieki dla każdego dziecka.",
         "care_offering_full": "Wybrana oferta opieki jest już pełna. Wybierz inną lub zapytaj szkołę.",

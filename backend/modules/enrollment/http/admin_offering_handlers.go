@@ -41,6 +41,10 @@ func renderRequestNotFound(err error) render.Renderer {
 var updateAdminOfferingsErrorRenderer = common.RulesRenderer([]common.ErrorRule{
 	{Target: capability.ErrDecisionChildNotFound, Render: renderRequestNotFound},
 	{Target: capability.ErrDecisionRequestNotFound, Render: renderRequestNotFound},
+	// A weekday conflict is also an invalid adjustment; its own code wins.
+	{Target: capability.ErrCareOfferingDayConflict, Render: func(err error) render.Renderer {
+		return common.ErrorInvalidRequestWithCode(err, common.CodeEnrollmentCareOfferingDayConflict)
+	}},
 	{Target: capability.ErrOfferingAdjustmentInvalid, Render: func(err error) render.Renderer {
 		return common.ErrorInvalidRequestWithCode(err, common.CodeEnrollmentOfferingAdjustmentInvalid)
 	}},

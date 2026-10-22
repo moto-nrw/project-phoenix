@@ -14,6 +14,11 @@ var (
 	// ErrOfferingChangeInvalid marks a request the caller can correct: no
 	// selection, an unknown offering, a bad effective date.
 	ErrOfferingChangeInvalid = errors.New("enrollment: invalid offering change request")
+	// ErrCareOfferingDayConflict marks an invalid change or adjustment that
+	// books two offerings of a per-day selection group on the same weekday
+	// (#4514). It travels next to ErrOfferingChangeInvalid or
+	// ErrOfferingAdjustmentInvalid, so their rules keep matching.
+	ErrCareOfferingDayConflict = errors.New("care offerings of one selection group share a weekday")
 	// ErrOfferingChangeNoEnrollment means the child has no approved enrollment
 	// an offering change could be applied to.
 	ErrOfferingChangeNoEnrollment = errors.New("enrollment: child has no approved enrollment")

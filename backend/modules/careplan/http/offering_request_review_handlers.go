@@ -231,6 +231,9 @@ var offeringDecisionErrorRenderer = common.RulesRenderer(parentRequestRules(
 		Target: careplan.ErrCompleteWithdrawalConfirmationRequired,
 		Render: conflictWithCode(common.CodeEnrollmentCompleteWithdrawalConfirmationRequired),
 	},
+	common.ErrorRule{Target: careplan.ErrCareOfferingDayConflict, Render: func(err error) render.Renderer {
+		return common.ErrorInvalidRequestWithCode(err, common.CodeEnrollmentCareOfferingDayConflict)
+	}},
 	common.ErrorRule{Target: careplan.ErrOfferingChangeInvalid, Render: common.ErrorInvalidRequest},
 	common.ErrorRule{Target: careplan.ErrOfferingAdjustmentInvalid, Render: common.ErrorInvalidRequest},
 ), common.ErrorInternalServer)

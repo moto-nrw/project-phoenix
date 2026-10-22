@@ -42,6 +42,9 @@ const (
 	requiredOnly       offeringLinkFixture = "required_only"
 	twoOfferings       offeringLinkFixture = "two_offerings"
 	crossPhaseOffering offeringLinkFixture = "cross_phase"
+	// Two variants of a per-day group (#4514), on a shared or on separate days.
+	perDayShared   offeringLinkFixture = "per_day_shared"
+	perDaySeparate offeringLinkFixture = "per_day_separate"
 )
 
 type offeringGuardHarness struct {
@@ -81,6 +84,9 @@ func TestDecideAdminChild_ApprovalOfferingGuard(t *testing.T) {
 		{"cross-phase link", enrollmentNative.PhaseCareOfferingSelectionAtLeastOne, crossPhaseOffering, true, http.StatusConflict, "enrollment.approval_care_offering_missing"},
 		{"optional missing", enrollmentNative.PhaseCareOfferingSelectionOptional, noOffering, true, http.StatusOK, ""},
 		{"required effective", enrollmentNative.PhaseCareOfferingSelectionAtLeastOne, effectiveOffering, true, http.StatusOK, ""},
+		{"per-day variants share a day", enrollmentNative.PhaseCareOfferingSelectionOptional, perDayShared, true, http.StatusConflict, "enrollment.approval_care_offering_day_conflict"},
+		{"per-day variants on separate days", enrollmentNative.PhaseCareOfferingSelectionAtLeastOne, perDaySeparate, true, http.StatusOK, ""},
+		{"per-day conflict while feature disabled", enrollmentNative.PhaseCareOfferingSelectionOptional, perDayShared, false, http.StatusOK, ""},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -196,6 +202,10 @@ func attachOfferingGuardLink(t *testing.T, repos api.EnrollmentTestRepositories,
 	if fixture == noOffering {
 		return
 	}
+	if fixture == perDayShared || fixture == perDaySeparate {
+		attachPerDayLinks(t, reposCare, ctx, phase.ID, childID, fixture == perDayShared)
+		return
+	}
 	createLink := func(name string, required bool) *enrollmentNative.RequestChildOffering {
 		phaseID := phase.ID
 		if fixture == crossPhaseOffering {
@@ -237,6 +247,29 @@ func attachOfferingGuardLink(t *testing.T, repos api.EnrollmentTestRepositories,
 		link.ValidFrom, link.ValidUntil = datePointers(calendar.Date(phase.ServiceStartDate), today)
 	}
 	require.NoError(t, api.NewEnrollmentBookingFixture().InsertRequestChildOffering(ctx, link))
+}
+
+// attachPerDayLinks books two fixed variants of one per-day group, written
+// directly as an application from before the rule would hold them.
+func attachPerDayLinks(t *testing.T, reposCare owners.TimetableCarePlanRows, ctx context.Context, phaseID, childID int64, shared bool) {
+	t.Helper()
+	secondDays := []string{"tue"}
+	if shared {
+		secondDays = []string{"mon", "tue"}
+	}
+	for _, variant := range []struct {
+		name string
+		days []string
+	}{{"bis 13 Uhr", []string{"mon"}}, {"bis 17 Uhr", secondDays}} {
+		offering := &offeringContract.CareOfferingRecord{
+			PhaseID: phaseID, Name: variant.name, DaysOfWeekMode: offeringContract.DaysOfWeekModeFixed,
+			AvailableDays: variant.days, IsActive: true, CountsAsCare: true,
+			SelectionGroup: "Betreuungszeit", SelectionRule: offeringContract.SelectionRuleAtMostOnePerDay,
+		}
+		require.NoError(t, newCareOfferingFixtures(reposCare.CarePlan).Create(ctx, offering))
+		require.NoError(t, api.NewEnrollmentBookingFixture().InsertRequestChildOffering(ctx,
+			&enrollmentNative.RequestChildOffering{RequestChildID: childID, CareOfferingID: offering.ID}))
+	}
 }
 
 func datePointers(from, until calendar.Date) (*enrollmentNative.Date, *enrollmentNative.Date) {

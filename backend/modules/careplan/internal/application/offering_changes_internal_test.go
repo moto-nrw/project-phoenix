@@ -106,3 +106,56 @@ func TestCompleteWithdrawalDetectionUsesFinalAutoMaterialization(t *testing.T) {
 	assert.True(t, selectionsHaveCareDays(materialized, catalog),
 		"an automatically materialized care day prevents a false complete-withdrawal warning")
 }
+
+// A per-day group (#4514) refuses two variants on one weekday on the change
+// and adjustment paths, and the refusal stays recognizable behind the
+// path's invalid value; other engine refusals stay text only.
+func TestSelectionRefusalKeepsAWeekdayConflictRecognizable(t *testing.T) {
+	t.Parallel()
+	variant := func(id int64, name string) *careplan.CareOffering {
+		return &careplan.CareOffering{
+			ID: id, Name: name, CountsAsCare: true, SelectionGroup: "Betreuungszeit",
+			SelectionRule:  selectionRuleAtMostOnePerDay,
+			DaysOfWeekMode: daysOfWeekModeParentChoice, AvailableDays: []string{"mon", "tue"},
+		}
+	}
+	short, long := variant(1, "bis 13 Uhr"), variant(2, "bis 17 Uhr")
+	catalog := map[int64]*careplan.CareOffering{short.ID: short, long.ID: long}
+	pick := func(longDay string) selectionChild {
+		return selectionChild{
+			OfferingIDs: []int64{short.ID, long.ID},
+			OfferingDays: []daySelection{
+				{OfferingID: short.ID, SelectedDays: []string{"mon"}},
+				{OfferingID: long.ID, SelectedDays: []string{longDay}},
+			},
+		}
+	}
+
+	_, err := materializeForAdjustment(pick("tue"), catalog, "optional", nil, false)
+	require.NoError(t, err, "different days are a valid week")
+
+	_, err = materializeForAdjustment(pick("mon"), catalog, "optional", nil, false)
+	require.Error(t, err)
+	for _, invalid := range []error{careplan.ErrOfferingChangeInvalid, careplan.ErrOfferingAdjustmentInvalid} {
+		refusal := selectionRefusal(invalid, err)
+		assert.ErrorIs(t, refusal, invalid)
+		assert.ErrorIs(t, refusal, careplan.ErrCareOfferingDayConflict)
+	}
+
+	other := selectionRefusal(careplan.ErrOfferingChangeInvalid, errCareOfferingExactlyOneRequired)
+	assert.ErrorIs(t, other, careplan.ErrOfferingChangeInvalid)
+	assert.NotErrorIs(t, other, careplan.ErrCareOfferingDayConflict)
+	assert.NotErrorIs(t, other, errCareOfferingExactlyOneRequired, "other engine refusals keep their former text-only wrapping")
+}
+
+// An automatic addition copies its trigger's days, so inside a per-day group
+// it would always conflict; the catalog refuses that rule like an exclusive one.
+func TestAutoAddInsideAPerDayGroupIsRefused(t *testing.T) {
+	t.Parallel()
+	target := careplan.CareOffering{SelectionGroup: "Betreuungszeit", SelectionRule: selectionRuleAtMostOnePerDay}
+	trigger := careplan.CareOffering{SelectionGroup: "Betreuungszeit", SelectionRule: selectionRuleAtMostOnePerDay}
+	assert.True(t, autoAddViolatesExclusiveGroup(target, trigger))
+	trigger.SelectionGroup = "Kurse"
+	assert.False(t, autoAddViolatesExclusiveGroup(target, trigger))
+	assert.True(t, validSelectionRules[selectionRuleAtMostOnePerDay])
+}

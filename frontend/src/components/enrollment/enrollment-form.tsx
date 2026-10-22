@@ -65,6 +65,12 @@ import {
 } from "~/components/ui/form-error-alert";
 import { ApiError } from "~/lib/api-error";
 import {
+  AT_MOST_ONE_PER_DAY,
+  type CareOfferingDayConflict,
+  careOfferingDayConflicts,
+  conflictOfferingList,
+} from "~/lib/care-offering-day-conflicts";
+import {
   copyStableObjectKey,
   getStableObjectKey,
 } from "~/lib/stable-object-key";
@@ -1143,7 +1149,7 @@ export function EnrollmentForm({
         }
       }
       const groupRuleMessage = offeringGroupRuleError(
-        materializedCare.offeringIds,
+        materializedCare,
         childOfferings,
         tr,
         contentLocale,
@@ -1833,6 +1839,13 @@ export function EnrollmentForm({
             child,
             childOfferings,
           );
+          const dayConflicts = careOfferingDayConflicts(
+            childOfferings,
+            materializedCare.offeringIds,
+            materializedCare.offeringDays,
+          );
+          const groupDayConflicts = (group: string) =>
+            dayConflicts.filter((conflict) => conflict.group === group);
           if (child.locked) {
             const name = `${child.first_name} ${child.last_name}`.trim();
             const booked = offerings
@@ -2176,7 +2189,16 @@ export function EnrollmentForm({
                             ) : (
                               <div
                                 key={`group-${bucket.group}`}
-                                className="rounded-lg border border-gray-200 bg-gray-50/60 p-2"
+                                aria-invalid={
+                                  groupDayConflicts(bucket.group).length > 0
+                                    ? true
+                                    : undefined
+                                }
+                                className={`rounded-lg border p-2 ${
+                                  groupDayConflicts(bucket.group).length > 0
+                                    ? "border-moto-red bg-moto-red/5"
+                                    : "border-gray-200 bg-gray-50/60"
+                                }`}
                               >
                                 <div className="mb-2 flex flex-wrap items-center gap-2 px-1">
                                   <span className="text-xs font-semibold text-gray-800">
@@ -2234,6 +2256,21 @@ export function EnrollmentForm({
                                     />
                                   ))}
                                 </div>
+                                {groupDayConflicts(bucket.group).map(
+                                  (conflict) => (
+                                    <p
+                                      key={conflict.day}
+                                      className="text-moto-red mt-2 px-1 text-xs"
+                                    >
+                                      {dayConflictMessage(
+                                        conflict,
+                                        childOfferings,
+                                        tr,
+                                        contentLocale,
+                                      )}
+                                    </p>
+                                  ),
+                                )}
                               </div>
                             ),
                           )}
@@ -2730,11 +2767,20 @@ export function submitFieldName(path: string): string {
 // selection is valid. The backend re-checks the same in
 // validateOfferingGroupRules (defense-in-depth).
 function offeringGroupRuleError(
-  selectedOfferingIds: ReadonlySet<string>,
+  materialized: Pick<MaterializedCareSelection, "offeringIds" | "offeringDays">,
   offerings: PublicCareOffering[],
-  tr: TranslationFn,
+  tr: EnrollmentFormTranslator,
   locale: string,
 ): string | null {
+  const selectedOfferingIds = materialized.offeringIds;
+  const [dayConflict] = careOfferingDayConflicts(
+    offerings,
+    selectedOfferingIds,
+    materialized.offeringDays,
+  );
+  if (dayConflict) {
+    return dayConflictMessage(dayConflict, offerings, tr, locale);
+  }
   const ruleByGroup = new Map<string, string>();
   for (const o of offerings) {
     const group = o.selection_group?.trim() ?? "";
@@ -2762,7 +2808,26 @@ function offeringGroupRuleError(
   return null;
 }
 
+// dayConflictMessage names the day and the offerings of one conflict, so the
+// family sees what to change without the form changing it for them (#4514).
+function dayConflictMessage(
+  conflict: CareOfferingDayConflict,
+  offerings: readonly PublicCareOffering[],
+  tr: EnrollmentFormTranslator,
+  locale: string,
+): string {
+  const weekdays = asStringMap(tr.raw("weekdays"));
+  const names = conflict.offeringIds.map(
+    (id) => offerings.find((o) => o.id === id)?.name ?? id,
+  );
+  return tr("errors.groupDayConflict", {
+    day: weekdays[conflict.day] ?? conflict.day,
+    offerings: conflictOfferingList(names, locale),
+  });
+}
+
 function offeringRuleHint(rule: string, tr: TranslationFn): string {
+  if (rule === AT_MOST_ONE_PER_DAY) return tr("care.ruleAtMostOnePerDay");
   if (rule === "exactly_one") return tr("care.ruleExactlyOne");
   if (rule === "at_least_one") return tr("care.ruleAtLeastOne");
   if (rule === "at_most_one") return tr("care.ruleAtMostOne");

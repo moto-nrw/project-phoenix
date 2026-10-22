@@ -1100,6 +1100,7 @@
       "groupExactlyOne": "Please choose exactly one offer for “{group}”.",
       "groupAtLeastOne": "Please choose at least one offer for “{group}”.",
       "groupAtMostOne": "Please choose at most one offer for “{group}”.",
+      "groupDayConflict": "{day}: {offerings} are selected. Please choose only one offer per day.",
       "pickupConfirm": "Please confirm the pickup arrangement (select days or leave empty).",
       "weekdayRequired": "Please select at least one weekday.",
       "weekdayModeConfirm": "Please confirm the departure arrangement.",
@@ -1138,6 +1139,7 @@
       "ruleExactlyOne": "Please choose exactly one",
       "ruleAtLeastOne": "Please choose at least one",
       "ruleAtMostOne": "At most one",
+      "ruleAtMostOnePerDay": "At most one per day",
       "availabilitySelectionRemoved": "Some care offerings are no longer available for the selected grade. Their selections, days, and automatic additions were removed."
     },
     "consent": {
@@ -1649,6 +1651,7 @@
       "cancel": "Cancel",
       "noChange": "Your selection matches the current booking. Change something to send a request.",
       "noDaysSelected": "Pick at least one day for every selected offering.",
+      "dayConflict": "{day}: {offerings} are selected. Please choose only one offer per day.",
       "capacityFull": "One of the selected offerings has no places left. Please choose another offering or contact the school.",
       "alreadyPending": "There is already a request for your child. Please wait for it to be reviewed.",
       "withdrawalConfirmTitle": "End all booked care?",
@@ -2194,6 +2197,7 @@
       },
       "enrollment": {
         "form_attachment_invalid": "Please check the label and the PDF file.",
+        "approval_care_offering_day_conflict": "{object} could not be changed. Please check its current status.",
         "approval_care_offering_exactly_one": "{object} could not be changed. Please check its current status.",
         "approval_care_offering_missing": "{object} could not be changed. Please check its current status.",
         "approval_data_invalid": "{object} could not be saved. Please check your entries.",
@@ -2202,6 +2206,7 @@
         "care_offering_auto_add_invalid": "{object} could not be saved. Please check your entries.",
         "care_offering_capacity_invalid": "{object} could not be saved. Please check your entries.",
         "care_offering_closed": "A selected care option is not accepting enrollments right now. Please choose another option.",
+        "care_offering_day_conflict": "Two options that do not go together are chosen for the same day. Please choose only one per day.",
         "care_offering_days_required": "{object} could not be saved. Please check your entries.",
         "care_offering_exactly_one": "Please choose exactly one care option for each child.",
         "care_offering_full": "A selected care option is already full. Please choose another option or ask the school.",
