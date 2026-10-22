@@ -3868,6 +3868,7 @@ describe("MeinRaumPage (Active Supervisions) (5/5)", () => {
     expect(head.getByText("Aula")).toBeInTheDocument();
     expect(head.getByText("Anna Alt, Ben Bauer")).toBeInTheDocument();
     // Der Raum steht nur im Kopf; die Blockkarte nennt nur die Uhrzeit.
+    // Anker: die Blockkarte ist mit ihrer Uhrzeit gerendert (waitFor oben).
     expect(screen.getAllByText("Aula")).toHaveLength(1);
     expect(screen.queryByText(/Aula ·/)).not.toBeInTheDocument();
   });

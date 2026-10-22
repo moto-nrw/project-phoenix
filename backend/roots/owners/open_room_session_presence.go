@@ -88,30 +88,40 @@ func (s OpenRoomSessionPresence) SessionSupervisorStaffIDs(ctx context.Context, 
 	if len(sessionIDs) == 0 {
 		return result, nil
 	}
-	day := timezone.TodayDate().String()
-	rows, err := s.Presence.QueryGroupSupervisions(ctx, studentpresence.GroupSupervisionFilter{GroupIDs: sessionIDs, ActiveOn: &day})
+	rows, err := supervisionsToday(ctx, s.Presence, studentpresence.GroupSupervisionFilter{GroupIDs: sessionIDs}, "SessionSupervisorStaffIDs")
 	if err != nil {
-		return nil, &studentpresence.OperationError{Op: "FindSupervisorsByActiveGroupIDs", Err: studentpresence.ErrDatabaseOperation}
+		return nil, err
 	}
-	// ActiveOn is the owner's rule: started on or before the day, not ended by it.
 	for _, row := range rows {
 		result[row.GroupID] = append(result[row.GroupID], row.StaffID)
 	}
 	return result, nil
 }
 
-func activeStaffGroupIDs(ctx context.Context, presence interface {
+type groupSupervisionQuery interface {
 	QueryGroupSupervisions(context.Context, studentpresence.GroupSupervisionFilter) ([]studentpresence.GroupSupervision, error)
-}, staffID int64) ([]int64, error) {
-	day := timezone.TodayDate().String()
-	rows, err := presence.QueryGroupSupervisions(ctx, studentpresence.GroupSupervisionFilter{StaffID: &staffID, ActiveOn: &day})
+}
+
+func activeStaffGroupIDs(ctx context.Context, presence groupSupervisionQuery, staffID int64) ([]int64, error) {
+	rows, err := supervisionsToday(ctx, presence, studentpresence.GroupSupervisionFilter{StaffID: &staffID}, "GetStaffActiveSupervisions")
 	if err != nil {
-		return nil, &studentpresence.OperationError{Op: "GetStaffActiveSupervisions", Err: studentpresence.ErrDatabaseOperation}
+		return nil, err
 	}
-	// ActiveOn is the owner's rule: started on or before the day, not ended by it.
 	ids := make([]int64, 0, len(rows))
 	for _, row := range rows {
 		ids = append(ids, row.GroupID)
 	}
 	return ids, nil
+}
+
+// supervisionsToday reads the supervisions running today under the filter.
+// ActiveOn is the owner's rule: started on or before the day, not ended by it.
+func supervisionsToday(ctx context.Context, presence groupSupervisionQuery, filter studentpresence.GroupSupervisionFilter, op string) ([]studentpresence.GroupSupervision, error) {
+	day := timezone.TodayDate().String()
+	filter.ActiveOn = &day
+	rows, err := presence.QueryGroupSupervisions(ctx, filter)
+	if err != nil {
+		return nil, &studentpresence.OperationError{Op: op, Err: studentpresence.ErrDatabaseOperation}
+	}
+	return rows, nil
 }

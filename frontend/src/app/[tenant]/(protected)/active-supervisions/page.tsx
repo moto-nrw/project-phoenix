@@ -343,9 +343,16 @@ function MeinRaumPageContent() {
     students.length;
   // Dazu Raum und wer die Aufsicht hat, für eigene Aufsichten wie für offene
   // Räume (#4354). Die Blockkarte darunter nennt den Raum dann nicht mehr.
+  // Fehlt der Raum im Dashboard, nennt ihn der Roster des Blocks.
   const headFacts = supervisionHeadFacts({
     title: supervisionName,
-    currentRoom: currentOpenRoom ? null : currentRoom,
+    currentRoom: currentRoom && {
+      room_name:
+        currentRoom.room_name ??
+        currentTimetableRoster?.instance.roomName ??
+        undefined,
+      supervisorNames: currentRoom.supervisorNames,
+    },
     currentOpenRoom,
   });
   // Die Teilnehmergrenze gehört zur Sitzung, nicht zum offenen Raum: dort
