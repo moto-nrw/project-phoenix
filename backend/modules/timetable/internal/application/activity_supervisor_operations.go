@@ -70,7 +70,7 @@ func (s *ActivityService) addSupervisorInTx(ctx context.Context, txService activ
 func (s *ActivityService) checkSupervisorNotDuplicate(staffID int64, existingSupervisors []*activityContract.SupervisorPlanned) error {
 	for _, existing := range existingSupervisors {
 		if existing.StaffID == staffID {
-			return &activityContract.ActivityError{Op: "add supervisor", Err: errors.New("supervisor already assigned to this group")}
+			return &activityContract.ActivityError{Op: "add supervisor", Err: activityContract.ErrSupervisorAlreadyAssigned}
 		}
 	}
 	return nil
@@ -206,7 +206,7 @@ func (s *ActivityService) handlePrimaryStatusChangeInTx(ctx context.Context, txS
 	}
 
 	if !supervisor.IsPrimary {
-		return &activityContract.ActivityError{Op: opUpdateSupervisor, Err: errors.New("at least one supervisor must remain primary")}
+		return &activityContract.ActivityError{Op: opUpdateSupervisor, Err: activityContract.ErrPrimarySupervisorRequired}
 	}
 
 	otherSupervisors, err := groupPlannedSupervisors(ctx, txActivities.timetable, txActivities.directories, supervisor.GroupID)

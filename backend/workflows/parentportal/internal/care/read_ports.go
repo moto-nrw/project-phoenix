@@ -72,8 +72,6 @@ type DataRequestReads interface {
 	HasPendingForField(ctx context.Context, studentID int64, target, fieldKey string) (bool, error)
 	ListByStudent(ctx context.Context, studentID int64, statuses []string, limit int) ([]*StudentDataChangeRequest, error)
 	ListParentVisibleByStudent(ctx context.Context, studentID int64, limit int) ([]*StudentDataChangeRequest, error)
-	NotFoundError() error
-	NotPendingError() error
 }
 
 // StatusDayReads reads the child's active status days.

@@ -20,6 +20,7 @@ func TestMapCallerErrorCoversEveryPublicSentinel(t *testing.T) {
 		identityaccess.ErrCallerNotAuthenticated, identityaccess.ErrCallerNotFound, identityaccess.ErrCallerNotAuthorized,
 		identityaccess.ErrCallerNotLinkedToPerson, identityaccess.ErrCallerNotLinkedToStaff,
 		identityaccess.ErrCallerNotLinkedToTeacher, identityaccess.ErrCallerGroupNotFound,
+		identityaccess.ErrCallerSessionNotFound,
 	}
 	require.Len(t, callerSentinels, len(public))
 	for i, pair := range callerSentinels {

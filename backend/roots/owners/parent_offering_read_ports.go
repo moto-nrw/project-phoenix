@@ -2,8 +2,10 @@ package owners
 
 import (
 	"context"
+	"errors"
 
 	"github.com/moto-nrw/project-phoenix/modules/enrollment"
+	"github.com/moto-nrw/project-phoenix/modules/transactionruntime"
 	"github.com/moto-nrw/project-phoenix/workflows/parentportal"
 )
 
@@ -52,6 +54,9 @@ type parentOfferingChangeReads struct {
 
 func (r parentOfferingChangeReads) FindByID(ctx context.Context, id int64) (*parentportal.OfferingChangeIdentity, error) {
 	row, err := r.source.OfferingChangeIdentity(ctx, id)
+	if errors.Is(err, transactionruntime.ErrNoRows) {
+		return nil, parentportal.ErrRequestSharingNotFound
+	}
 	if row == nil {
 		return nil, err
 	}
