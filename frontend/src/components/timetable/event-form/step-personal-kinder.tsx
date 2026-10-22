@@ -13,6 +13,7 @@ import {
   conflictWarningText,
   shiftCoverageWarningText,
   type EventFormState,
+  rosterForWeekday,
   type PersonOption,
   type SourceFilterMode,
   type WeekdayRosterState,
@@ -32,6 +33,11 @@ import type {
   TargetGroupType,
 } from "~/lib/timetable-types";
 import { normalizeSchoolClass } from "~/lib/timetable-helpers";
+import {
+  ExternalCaregiverEntry,
+  type ExternalCaregiverResult,
+} from "~/components/staff/external-caregiver-entry";
+import type { Staff } from "~/lib/staff-api";
 
 /** Zielgruppe (target group) tab options, issue #1838. */
 const TARGET_GROUP_OPTIONS: Array<{ value: TargetGroupType; label: string }> = [
@@ -53,6 +59,12 @@ export interface StepPersonalKinderProps {
   groups: GroupOption[];
   students: PersonOption[];
   staff: PersonOption[];
+  /** The whole staff list; the external entry matches names against it. */
+  staffDirectory: readonly Staff[];
+  /** Puts a just recorded or invited external person into the options. */
+  addStaffOption: (person: Staff) => void;
+  /** users:create: offer „Externe Person eintragen“ below the roster. */
+  canCreateExternalCaregiver?: boolean;
   loadingRefs: boolean;
   loadingStudents: boolean;
   /** The Kinderliste failed: the roster stays read-only and unchanged. */
@@ -133,6 +145,9 @@ export function StepPersonalKinder({
   groups,
   students,
   staff,
+  staffDirectory,
+  addStaffOption,
+  canCreateExternalCaregiver = false,
   loadingRefs,
   loadingStudents,
   studentLoadFailed,
@@ -220,6 +235,40 @@ export function StepPersonalKinder({
     form.perWeekdayRoster &&
     rosterWeekdays.length >= 2 &&
     !showWeekdayRoster;
+
+  // #4573: a recorded or invited external person joins the roster that is
+  // being edited, the active weekday's in the per-weekday mode.
+  const handleExternalAdded = (result: ExternalCaregiverResult) => {
+    if (result.kind !== "existing") addStaffOption(result.staff);
+    const id = result.kind === "existing" ? result.id : result.staff.id;
+    staffRosterTouched.current = true;
+    if (usePerWeekdayRoster) {
+      const roster = rosterForWeekday(form, activeRosterWeekday);
+      if (!roster.staffIds.includes(id)) {
+        setWeekdayRoster(activeRosterWeekday, {
+          ...roster,
+          staffIds: [...roster.staffIds, id],
+        });
+      }
+      return;
+    }
+    if (!form.staffIds.includes(id)) update("staffIds", [...form.staffIds, id]);
+  };
+  const externalEntry =
+    canCreateExternalCaregiver &&
+    !loadingStaff &&
+    !staffLoadFailed &&
+    !preserveUnavailableWeekdayRoster ? (
+      <ExternalCaregiverEntry
+        existing={staffDirectory.map((person) => ({
+          id: person.id,
+          fullName: person.name,
+          isExternal: person.isExternal === true,
+          accountStatus: person.externalAccountStatus,
+        }))}
+        onAdded={handleExternalAdded}
+      />
+    ) : null;
 
   let studentRosterField: React.ReactNode;
   if (loadingStudents) {
@@ -716,6 +765,8 @@ export function StepPersonalKinder({
       {!usePerWeekdayRoster &&
         !preserveUnavailableWeekdayRoster &&
         staffRosterField}
+
+      {externalEntry}
 
       <Field label="Benötigtes Personal" htmlFor="event_required_staff">
         <Input

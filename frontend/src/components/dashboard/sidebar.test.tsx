@@ -168,12 +168,20 @@ const mockUseSupervision = vi.mocked(useOptionalSupervision);
 const mockIsAdmin = vi.mocked(isAdmin);
 const mockHasEffectiveAdminScope = vi.mocked(hasEffectiveAdminScope);
 const mockHasPermission = vi.mocked(hasPermission);
-// Standardverhalten des geteilten hasPermission-Mocks: Rechte hat nur der
-// Admin. Tests, die einzelne Rechte gezielt vergeben, stellen darüber wieder
-// den Ausgangszustand her (vi.clearAllMocks setzt Implementierungen nicht
-// zurück).
+// Standardverhalten des geteilten hasPermission-Mocks: der Admin hält alles,
+// eine Betreuungskraft die Rechte der Systemrolle „user“, die die
+// Navigation prüft (users:read, time_tracking:own). Seit #4573 hängen Alle
+// Kinder, Mitarbeiter, Zeiterfassung und Elternnachrichten an diesen
+// Rechten. Tests, die einzelne Rechte gezielt vergeben, stellen darüber
+// wieder den Ausgangszustand her (vi.clearAllMocks setzt Implementierungen
+// nicht zurück).
+const CAREGIVER_NAV_PERMISSIONS = new Set(["users:read", "time_tracking:own"]);
 const restoreDefaultHasPermission = () =>
-  mockHasPermission.mockImplementation((session) => mockIsAdmin(session));
+  mockHasPermission.mockImplementation(
+    (session, permission) =>
+      mockIsAdmin(session) ||
+      (!mockIsAdmin(session) && CAREGIVER_NAV_PERMISSIONS.has(permission)),
+  );
 const mockUseShellAuth = vi.mocked(useShellAuth);
 const mockUseStaffAbsencesPending = vi.mocked(useStaffAbsencesPending);
 const mockUseChangeRequestsPending = vi.mocked(useChangeRequestsPending);
@@ -546,12 +554,16 @@ describe("Sidebar", () => {
     });
 
     it("keeps the Team group without its internal pages when none is accessible", () => {
-      mockHasPermission.mockReturnValue(false);
+      // Nur die eigene Zeiterfassung, kein users:read (#4573: Mitarbeiter
+      // und Tagesinformationen hängen daran).
+      mockHasPermission.mockImplementation(
+        (_session, permission) => permission === "time_tracking:own",
+      );
 
       render(<Sidebar />);
 
       // Team-Chat ist aus, Tagesinformationen brauchen users:read — die
-      // Gruppe bleibt wegen Zeiterfassung und Mitarbeiter trotzdem da.
+      // Gruppe bleibt wegen der Zeiterfassung trotzdem da.
       expect(screen.queryByText("Team-Chat")).not.toBeInTheDocument();
       expect(screen.queryByText("Tagesinformationen")).not.toBeInTheDocument();
       expect(screen.getByRole("button", { name: "Team" })).toBeInTheDocument();
@@ -858,8 +870,10 @@ describe("Sidebar", () => {
 
     it("hides the Statistik entry unless staff have both required permissions", () => {
       mockIsAdmin.mockReturnValue(false);
+      // Ohne users:read; time_tracking:own hält die Zeiterfassung als Anker.
       mockHasPermission.mockImplementation(
-        (_session, permission) => permission === "config:read",
+        (_session, permission) =>
+          permission === "config:read" || permission === "time_tracking:own",
       );
 
       render(<Sidebar />);
@@ -2312,6 +2326,45 @@ describe("Sidebar", () => {
       expect(screen.getByText("Mein Kalender")).toBeInTheDocument();
     });
 
+    // #4573: die Schulrolle „Extern“ hält nur schedules:read. Einträge, deren
+    // Route ein anderes Recht verlangt, wären für sie Sackgassen.
+    const EXTERN_GATED_LABELS = [
+      "Alle Kinder",
+      "Mitarbeiter",
+      "Zeiterfassung",
+      "Nachrichten",
+    ];
+
+    it("zeigt der Rolle „Extern“ keine Einträge, deren Route sie nicht öffnen darf", () => {
+      mockHasPermission.mockImplementation(
+        (_session: unknown, permission: string) =>
+          permission === "schedules:read",
+      );
+
+      render(<Sidebar />);
+
+      // Anker: „Heute“ ist der Arbeitsplatz der Rolle und geladen.
+      expect(screen.getByText("Heute")).toBeInTheDocument();
+      for (const label of EXTERN_GATED_LABELS) {
+        expect(screen.queryByText(label)).not.toBeInTheDocument();
+      }
+    });
+
+    it("zeigt dieselben Einträge einer Betreuungsrolle mit ihren Rechten", () => {
+      mockHasPermission.mockImplementation(
+        (_session: unknown, permission: string) =>
+          CAREGIVER_PERMISSIONS.has(permission) ||
+          permission === "time_tracking:own",
+      );
+
+      render(<Sidebar />);
+
+      expect(screen.getByText("Heute")).toBeInTheDocument();
+      for (const label of EXTERN_GATED_LABELS) {
+        expect(screen.getByText(label)).toBeInTheDocument();
+      }
+    });
+
     // Eigener Dienstplan (#3821): Eintrag unter Team für alle, die ihre
     // eigene Zeit erfassen, solange die Schule den Betreuungsplan nutzt.
     it("zeigt Mitarbeitenden mit eigener Zeiterfassung „Mein Dienstplan“", () => {
@@ -2336,8 +2389,10 @@ describe("Sidebar", () => {
 
       render(<Sidebar />);
 
-      // Anker: die Staff-Navigation ist geladen.
-      expect(screen.getByText("Zeiterfassung")).toBeInTheDocument();
+      // Anker: die Staff-Navigation ist geladen (Mitarbeiter über
+      // users:read; die Zeiterfassung hängt seit #4573 selbst an
+      // time_tracking:own).
+      expect(screen.getByText("Mitarbeiter")).toBeInTheDocument();
       expect(screen.queryByText("Mein Dienstplan")).not.toBeInTheDocument();
     });
 
@@ -2578,8 +2633,9 @@ describe("Sidebar", () => {
 
       render(<Sidebar />);
 
-      // Anker: die Staff-Navigation ist geladen.
-      expect(screen.getByText("Zeiterfassung")).toBeInTheDocument();
+      // Anker: die Staff-Navigation ist geladen (Dateien stehen für alle da;
+      // die Zeiterfassung braucht seit #4573 time_tracking:own).
+      expect(screen.getByText("Dateien")).toBeInTheDocument();
       expect(screen.queryByText("Planung")).not.toBeInTheDocument();
       expect(screen.queryByText("Betreuungsplan")).not.toBeInTheDocument();
     });
@@ -3385,7 +3441,7 @@ describe("Sidebar", () => {
       render(<Sidebar />);
 
       // Anker: die Staff-Navigation ist geladen.
-      expect(screen.getByText("Zeiterfassung")).toBeInTheDocument();
+      expect(screen.getByText("Mitarbeiter")).toBeInTheDocument();
       expect(
         screen.queryByLabelText(/ungelesene Anmeldungen/),
       ).not.toBeInTheDocument();

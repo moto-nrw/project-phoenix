@@ -8,6 +8,7 @@ const mocks = vi.hoisted(() => ({
   getActivities: vi.fn(),
   getAllStaff: vi.fn(),
   createExternal: vi.fn(),
+  inviteExternal: vi.fn(),
 }));
 
 vi.mock("~/lib/activity-service", () => ({
@@ -20,6 +21,7 @@ vi.mock("~/lib/staff-api", () => ({
   staffService: {
     getAllStaff: mocks.getAllStaff,
     createExternal: mocks.createExternal,
+    inviteExternal: mocks.inviteExternal,
   },
 }));
 
@@ -90,7 +92,7 @@ function submitForm(): void {
   fireEvent.submit(form);
 }
 
-// #3823: externe Betreuungskräfte ohne Konto beim Start eintragen.
+// #3823/#4573: externe Betreuungskräfte beim Start eintragen und einladen.
 describe("SpontaneousActivityStart external caregivers", () => {
   beforeEach(() => {
     vi.clearAllMocks();
@@ -104,6 +106,16 @@ describe("SpontaneousActivityStart external caregivers", () => {
         lastName: "Becker",
         isExternal: true,
         externalOrganization: "Musikschule",
+        externalAccountStatus: "invitation_pending",
+      },
+      {
+        id: "75",
+        name: "Elli Alt",
+        firstName: "Elli",
+        lastName: "Alt",
+        isExternal: true,
+        externalOrganization: "Sportverein",
+        externalAccountStatus: "none",
       },
     ]);
     mocks.createExternal.mockResolvedValue({
@@ -132,6 +144,64 @@ describe("SpontaneousActivityStart external caregivers", () => {
     await openModalAndWaitForRefs();
 
     expect(screen.getByText("Extern · Musikschule")).toBeInTheDocument();
+    expect(screen.getByText("Einladung offen")).toBeInTheDocument();
+  });
+
+  // #4573: wer weder Konto noch offene Einladung hat, steht nicht zur Wahl.
+  it("does not offer an external person without account or invitation", async () => {
+    render(
+      <SpontaneousActivityStart
+        canCreateExternalCaregiver
+        currentStaffId="11"
+        onStart={vi.fn()}
+      />,
+    );
+    await openModalAndWaitForRefs();
+
+    // Anker: die Liste der weiteren Betreuer ist geladen.
+    expect(screen.getByLabelText(/Jonas Becker/)).toBeInTheDocument();
+    expect(screen.queryByLabelText(/Elli Alt/)).not.toBeInTheDocument();
+  });
+
+  it("invites a listed external person without account and ticks them", async () => {
+    mocks.inviteExternal.mockResolvedValue({
+      id: "75",
+      name: "Elli Alt",
+      firstName: "Elli",
+      lastName: "Alt",
+      isExternal: true,
+      externalOrganization: "Sportverein",
+      externalAccountStatus: "invitation_pending",
+    });
+    render(
+      <SpontaneousActivityStart
+        canCreateExternalCaregiver
+        currentStaffId="11"
+        onStart={vi.fn()}
+      />,
+    );
+    await openModalAndWaitForRefs();
+
+    fireEvent.click(
+      screen.getByRole("button", { name: "Externe Person eintragen" }),
+    );
+    fireEvent.change(screen.getByLabelText("Vorname"), {
+      target: { value: "Elli" },
+    });
+    fireEvent.change(screen.getByLabelText("Nachname"), {
+      target: { value: "Alt" },
+    });
+    fireEvent.change(screen.getByLabelText("E-Mail-Adresse"), {
+      target: { value: "elli@example.test" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Eintragen" }));
+
+    expect(await screen.findByLabelText(/Elli Alt/)).toBeChecked();
+    expect(mocks.inviteExternal).toHaveBeenCalledWith(
+      "75",
+      "elli@example.test",
+    );
+    expect(mocks.createExternal).not.toHaveBeenCalled();
   });
 
   it("records a new external person, ticks it and starts with it", async () => {
@@ -153,6 +223,9 @@ describe("SpontaneousActivityStart external caregivers", () => {
     });
     fireEvent.change(screen.getByLabelText("Nachname"), {
       target: { value: "Gast" },
+    });
+    fireEvent.change(screen.getByLabelText("E-Mail-Adresse"), {
+      target: { value: "lea@example.test" },
     });
     fireEvent.click(screen.getByRole("button", { name: "Eintragen" }));
 

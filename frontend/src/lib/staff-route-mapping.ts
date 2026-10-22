@@ -1,4 +1,5 @@
 // Wire mapping shared by the /api/staff route handlers.
+import type { ExternalAccountStatus } from "~/lib/staff-api";
 import type { WireID } from "~/lib/wire-id";
 import { toIdString, toOptionalIdString } from "~/lib/wire-id";
 
@@ -36,9 +37,11 @@ export interface BackendStaffResponse {
   was_present_today?: boolean;
   work_status?: string;
   absence_type?: string;
-  // Externe Betreuungskraft ohne Konto (#3823).
+  // Externe Betreuungskraft, mit oder ohne Konto (#3823, #4573).
   is_external?: boolean;
   external_organization?: string;
+  // Kontostand der externen Kraft (#4573); fehlt bei allen anderen.
+  external_account_status?: ExternalAccountStatus;
 }
 
 /**
@@ -79,5 +82,6 @@ export function mapBackendStaff(staff: BackendStaffResponse) {
     absence_type: staff.absence_type,
     is_external: staff.is_external ?? false,
     external_organization: staff.external_organization ?? null,
+    external_account_status: staff.external_account_status ?? null,
   };
 }

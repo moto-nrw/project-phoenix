@@ -79,6 +79,12 @@ const overview = {
   availableTargets: [
     { id: "73", fullName: "Toni Test" },
     { id: "74", fullName: "Jonas Becker", isExternal: true as const },
+    {
+      id: "76",
+      fullName: "Mira Neu",
+      isExternal: true as const,
+      externalAccountStatus: "invitation_pending" as const,
+    },
   ],
   isCurrentUserSupervising: true,
   canAssign: true,
@@ -96,7 +102,7 @@ function renderModal(canCreateExternalCaregiver = true) {
   );
 }
 
-// #3823: externe Betreuungskräfte ohne Konto in der laufenden Aufsicht.
+// #3823/#4573: externe Betreuungskräfte in der laufenden Aufsicht.
 describe("AddSupervisorModal external caregivers", () => {
   beforeEach(() => {
     vi.clearAllMocks();
@@ -108,6 +114,7 @@ describe("AddSupervisorModal external caregivers", () => {
       firstName: "Lea",
       lastName: "Gast",
       isExternal: true,
+      externalAccountStatus: "invitation_pending",
     });
   });
 
@@ -119,6 +126,17 @@ describe("AddSupervisorModal external caregivers", () => {
     ).toBeInTheDocument();
     expect(
       screen.getByRole("option", { name: "Toni Test" }),
+    ).toBeInTheDocument();
+  });
+
+  // #4573: eine offene Einladung steht am Namen.
+  it("labels an external person whose invitation is still open", async () => {
+    renderModal();
+
+    expect(
+      await screen.findByRole("option", {
+        name: "Mira Neu (extern, Einladung offen)",
+      }),
     ).toBeInTheDocument();
   });
 
@@ -134,13 +152,18 @@ describe("AddSupervisorModal external caregivers", () => {
     fireEvent.change(screen.getByLabelText("Nachname"), {
       target: { value: "Gast" },
     });
+    fireEvent.change(screen.getByLabelText("E-Mail-Adresse"), {
+      target: { value: "lea@example.test" },
+    });
     fireEvent.click(screen.getByRole("button", { name: "Eintragen" }));
 
     await waitFor(() =>
       expect(screen.getByLabelText("Betreuer auswählen")).toHaveValue("88"),
     );
     expect(
-      screen.getByRole("option", { name: "Lea Gast (extern)" }),
+      screen.getByRole("option", {
+        name: "Lea Gast (extern, Einladung offen)",
+      }),
     ).toBeInTheDocument();
     fireEvent.click(screen.getByRole("button", { name: "Hinzufügen" }));
 
@@ -158,6 +181,9 @@ describe("AddSupervisorModal external caregivers", () => {
     });
     fireEvent.change(screen.getByLabelText("Nachname"), {
       target: { value: "Extern" },
+    });
+    fireEvent.change(screen.getByLabelText("E-Mail-Adresse"), {
+      target: { value: "elli@example.test" },
     });
     fireEvent.click(screen.getByRole("button", { name: "Eintragen" }));
 

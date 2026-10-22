@@ -20,12 +20,16 @@ import {
   type PlannerRoomReference,
 } from "~/lib/planner-reference-api";
 import { staffService, type Staff } from "~/lib/staff-api";
-import { ExternalBadge } from "~/components/staff/external-badge";
+import { isAssignableStaff } from "~/lib/staff-helpers";
+import {
+  ExternalAccountBadge,
+  ExternalBadge,
+} from "~/components/staff/external-badge";
 
 import {
   ExternalCaregiverEntry,
   type ExternalCaregiverResult,
-} from "./external-caregiver-entry";
+} from "~/components/staff/external-caregiver-entry";
 
 const logger = createLogger({ component: "SpontaneousActivityStart" });
 const EMPTY_OCCUPIED_ROOM_IDS: readonly string[] = [];
@@ -132,6 +136,12 @@ export function SpontaneousActivityStart({
   const [activityMenuOpen, setActivityMenuOpen] = useState(false);
   const [activeActivityIndex, setActiveActivityIndex] = useState(0);
   const activityFieldRef = useRef<HTMLDivElement>(null);
+  // Externe ohne Konto und ohne offene Einladung stehen nicht zur Wahl
+  // (#4573); die Namensprüfung des Eintrags kennt sie trotzdem.
+  const assignableStaff = useMemo(
+    () => staff.filter(isAssignableStaff),
+    [staff],
+  );
   const occupiedRoomIdSet = useMemo(
     () => new Set(occupiedRoomIds),
     [occupiedRoomIds],
@@ -307,12 +317,14 @@ export function SpontaneousActivityStart({
   }
 
   function addExternalCaregiver(result: ExternalCaregiverResult) {
-    const id = result.kind === "created" ? result.staff.id : result.id;
-    if (result.kind === "created") {
-      const created = result.staff;
+    const id = result.kind === "existing" ? result.id : result.staff.id;
+    if (result.kind !== "existing") {
+      // Created or newly invited: the record now carries its open invitation
+      // and is offered like everyone else.
+      const saved = result.staff;
       setStaff((prev) =>
-        [...prev.filter((item) => item.id !== created.id), created].sort(
-          (a, b) => staffLabel(a).localeCompare(staffLabel(b), "de"),
+        [...prev.filter((item) => item.id !== saved.id), saved].sort((a, b) =>
+          staffLabel(a).localeCompare(staffLabel(b), "de"),
         ),
       );
     }
@@ -604,9 +616,9 @@ export function SpontaneousActivityStart({
                 <MotoConceptIcon concept="staff" size={16} />
                 Weitere Betreuer
               </div>
-              {staff.length > 0 ? (
+              {assignableStaff.length > 0 ? (
                 <div className="grid max-h-44 gap-2 overflow-y-auto rounded-lg border border-gray-200 bg-gray-50 p-2">
-                  {staff.map((item) => (
+                  {assignableStaff.map((item) => (
                     <label
                       key={item.id}
                       className="flex min-h-10 cursor-pointer items-center gap-3 rounded-md bg-white px-3 py-2 text-sm text-gray-800"
@@ -619,9 +631,14 @@ export function SpontaneousActivityStart({
                         {staffLabel(item)}
                       </span>
                       {item.isExternal ? (
-                        <ExternalBadge
-                          organization={item.externalOrganization}
-                        />
+                        <>
+                          <ExternalBadge
+                            organization={item.externalOrganization}
+                          />
+                          <ExternalAccountBadge
+                            status={item.externalAccountStatus}
+                          />
+                        </>
                       ) : null}
                     </label>
                   ))}
@@ -633,6 +650,7 @@ export function SpontaneousActivityStart({
                     id: item.id,
                     fullName: staffLabel(item),
                     isExternal: item.isExternal === true,
+                    accountStatus: item.externalAccountStatus,
                   }))}
                   onAdded={addExternalCaregiver}
                 />

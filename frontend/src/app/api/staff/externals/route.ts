@@ -10,13 +10,15 @@ import {
 interface ExternalStaffCreateRequest {
   first_name: string;
   last_name: string;
+  email: string;
   organization?: string;
 }
 
 /**
  * Handler for POST /api/staff/externals
- * Records an external caregiver without a moto account (#3823). The backend
- * validates the names; this hop only forwards them.
+ * Records an external caregiver (#3823) and invites them by email with the
+ * school role „Extern“ (#4573). The backend validates names and address;
+ * this hop only forwards them.
  */
 export const POST = createPostHandler<
   ReturnType<typeof mapBackendStaff>,
@@ -30,6 +32,7 @@ export const POST = createPostHandler<
     {
       first_name: body.first_name,
       last_name: body.last_name,
+      email: body.email,
       organization: body.organization,
     },
   );

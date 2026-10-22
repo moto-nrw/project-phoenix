@@ -21,6 +21,15 @@ import { OverflowMenu } from "~/components/ui/page-header/OverflowMenu";
 import type { ActiveFilter } from "~/components/ui/page-header/types";
 import { useIsMobile } from "~/components/ui/hooks/useIsMobile";
 import { StaffList } from "@/components/teachers/staff-list";
+import {
+  ExternalCaregiverCreateModal,
+  ExternalInvitationModal,
+  type ExternalInvitationTarget,
+} from "~/components/staff/external-caregiver-dialogs";
+import type { ExternalCaregiverResult } from "~/components/staff/external-caregiver-entry";
+import { Button } from "~/components/ui/button";
+import { useToast } from "~/contexts/ToastContext";
+import type { Staff } from "~/lib/staff-api";
 import { InvitationForm } from "~/components/admin/invitation-form";
 import { PendingInvitationsList } from "~/components/admin/pending-invitations-list";
 import { hasPermission } from "~/lib/auth-utils";
@@ -114,6 +123,13 @@ function TeachersPageContent() {
     sessionData,
     "time_tracking:manage",
   );
+  // Externe Person eintragen und einladen (#4573): dasselbe Recht wie
+  // POST /api/staff/externals und die Einladungsroute.
+  const canCreateExternal = hasPermission(sessionData, "users:create");
+  const [showExternalModal, setShowExternalModal] = useState(false);
+  const [inviteTarget, setInviteTarget] =
+    useState<ExternalInvitationTarget | null>(null);
+  const toast = useToast();
 
   const service = useMemo(() => createCrudService(teachersConfig), []);
 
@@ -121,6 +137,7 @@ function TeachersPageContent() {
     data: teachersData,
     isLoading: loading,
     error: teachersError,
+    mutate: refreshTeachers,
   } = useSWRAuth("database-teachers-list", async () => {
     const data = await service.getList({ page: 1, pageSize: 1000 });
     return Array.isArray(data.data) ? data.data : [];
@@ -218,8 +235,9 @@ function TeachersPageContent() {
   >(
     () => ({
       role: (teacher) => {
-        // Externe Kräfte ohne Konto (#3823) haben keine Rolle; eine eigene
-        // Gruppe trennt sie von Personal, dem nur die Rolle fehlt.
+        // Externe Kräfte (#3823) bilden eine eigene Gruppe, auch mit Konto
+        // und Rolle „Extern“ (#4573); sie trennt sie von Personal, dem nur
+        // die Rolle fehlt.
         if (teacher.is_external) {
           return { id: "__external__", title: "Extern", sortKey: "zzy" };
         }
@@ -240,6 +258,55 @@ function TeachersPageContent() {
     "Personal",
   );
 
+  // Namen der externen Personen für die Prüfung vor dem Eintragen: wer schon
+  // ein Konto oder eine offene Einladung hat, wird nicht doppelt angelegt;
+  // wer keins hat, bekommt die Einladung statt eines zweiten Eintrags.
+  const existingExternals = useMemo(
+    () =>
+      (teachersData ?? [])
+        .filter((teacher) => teacher.is_external)
+        .map((teacher) => ({
+          id: teacher.id,
+          fullName:
+            teacher.name || `${teacher.first_name} ${teacher.last_name}`.trim(),
+          isExternal: true,
+          accountStatus: teacher.external_account_status ?? null,
+          isAlreadyAssigned: teacher.external_account_status !== "none",
+        })),
+    [teachersData],
+  );
+
+  const handleExternalSaved = useCallback(
+    (staff: Staff, invitedLater: boolean) => {
+      const name = staff.name || `${staff.firstName} ${staff.lastName}`.trim();
+      toast.success(
+        invitedLater
+          ? `Die Einladung an ${name} ist unterwegs.`
+          : `${name} ist eingetragen. Die Einladung ist per E-Mail unterwegs.`,
+      );
+      void refreshTeachers();
+      setInvitationRefreshKey(Date.now());
+    },
+    [refreshTeachers, toast],
+  );
+
+  const handleExternalCreated = useCallback(
+    (result: ExternalCaregiverResult) => {
+      if (result.kind === "existing") return;
+      handleExternalSaved(result.staff, result.kind === "invited");
+    },
+    [handleExternalSaved],
+  );
+
+  const handleInviteExternal = useCallback((teacher: Teacher) => {
+    setInviteTarget({
+      id: teacher.id,
+      name: teacher.name || `${teacher.first_name} ${teacher.last_name}`.trim(),
+      invitationPending:
+        teacher.external_account_status === "invitation_pending",
+    });
+  }, []);
+
   const handleCloseInviteModal = useCallback(
     () => setShowInviteModal(false),
     [],
@@ -253,21 +320,38 @@ function TeachersPageContent() {
       sessionLoading={status === "loading"}
       error={error}
       overlays={
-        canManageUsers ? (
-          <Modal
-            isOpen={showInviteModal}
-            onClose={handleCloseInviteModal}
-            title="Personal einladen"
-          >
-            <InvitationForm
-              existingPositions={existingPositions}
-              onCreated={() => {
-                setInvitationRefreshKey(Date.now());
-                setShowInviteModal(false);
-              }}
-            />
-          </Modal>
-        ) : null
+        <>
+          {canManageUsers ? (
+            <Modal
+              isOpen={showInviteModal}
+              onClose={handleCloseInviteModal}
+              title="Personal einladen"
+            >
+              <InvitationForm
+                existingPositions={existingPositions}
+                onCreated={() => {
+                  setInvitationRefreshKey(Date.now());
+                  setShowInviteModal(false);
+                }}
+              />
+            </Modal>
+          ) : null}
+          {canCreateExternal ? (
+            <>
+              <ExternalCaregiverCreateModal
+                isOpen={showExternalModal}
+                onClose={() => setShowExternalModal(false)}
+                existing={existingExternals}
+                onSaved={handleExternalCreated}
+              />
+              <ExternalInvitationModal
+                target={inviteTarget}
+                onClose={() => setInviteTarget(null)}
+                onInvited={(staff) => handleExternalSaved(staff, true)}
+              />
+            </>
+          ) : null}
+        </>
       }
       className="flex w-full flex-col"
       intro={{
@@ -305,6 +389,17 @@ function TeachersPageContent() {
                   },
                 ]}
               />
+            ) : null}
+            {canCreateExternal ? (
+              <Button
+                type="button"
+                variant="outline"
+                size="md"
+                onClick={() => setShowExternalModal(true)}
+                aria-label="Externe Person eintragen"
+              >
+                + Externe Person
+              </Button>
             ) : null}
             {canManageUsers ? (
               <DatabaseCreateAction
@@ -379,6 +474,9 @@ function TeachersPageContent() {
           <StaffList
             groupDefinitions={groupDefinitions}
             objectHref={objectHref}
+            onInviteExternal={
+              canCreateExternal ? handleInviteExternal : undefined
+            }
           />
         </div>
       ) : null}

@@ -48,10 +48,18 @@ export interface BackendStaffResponse {
   absence_type?: string;
   /** The school's own Abwesenheitsart wording for today's absence (#2403). */
   absence_type_label?: string;
-  /** External caregiver without a moto account (#3823). */
+  /** External caregiver, with or without a moto account (#3823, #4573). */
   is_external?: boolean;
   external_organization?: string | null;
+  /** Account state of an external caregiver; absent for everyone else. */
+  external_account_status?: ExternalAccountStatus | null;
 }
+
+/**
+ * Account state of an external caregiver (#4573): `account` signs in,
+ * `invitation_pending` has an unused invitation, `none` has neither.
+ */
+export type ExternalAccountStatus = "account" | "invitation_pending" | "none";
 
 interface ActiveSupervisionResponse {
   id: number;
@@ -111,16 +119,19 @@ export interface Staff {
   absenceTypeLabel?: string;
   isFinancialProfile?: boolean;
   isLimitedProfile?: boolean;
-  /** Externe Betreuungskraft ohne moto-Konto (#3823). */
+  /** Externe Betreuungskraft, mit oder ohne moto-Konto (#3823, #4573). */
   isExternal?: boolean;
   /** Organisation der externen Kraft, z. B. die Musikschule. */
   externalOrganization?: string;
+  /** Kontostand der externen Kraft; `null` für alle anderen (#4573). */
+  externalAccountStatus?: ExternalAccountStatus | null;
 }
 
-/** Name of an external caregiver recorded from a supervision (#3823). */
+/** An external caregiver recorded with an invitation (#3823, #4573). */
 interface ExternalStaffInput {
   firstName: string;
   lastName: string;
+  email: string;
   organization?: string;
 }
 
@@ -385,6 +396,7 @@ function mapStaffMember(
     absenceTypeLabel: staff.absence_type_label,
     isExternal: staff.is_external ?? false,
     externalOrganization: staff.external_organization ?? undefined,
+    externalAccountStatus: staff.external_account_status ?? null,
   };
 }
 
@@ -493,8 +505,8 @@ class StaffService {
     return applyStaffFilters(mappedStaff, filters);
   }
 
-  // Records an external caregiver without a moto account (#3823): a name and,
-  // optionally, the organization. The new entry is selectable right away.
+  // Records an external caregiver (#3823) and invites them by email (#4573).
+  // The new entry is selectable right away, before the invitation is used.
   async createExternal(input: ExternalStaffInput): Promise<Staff> {
     const response = await sessionFetch("/api/staff/externals", {
       method: "POST",
@@ -502,6 +514,7 @@ class StaffService {
       body: JSON.stringify({
         first_name: input.firstName.trim(),
         last_name: input.lastName.trim(),
+        email: input.email.trim(),
         organization: input.organization?.trim() ?? "",
       }),
     });
@@ -509,6 +522,27 @@ class StaffService {
       throw await apiErrorFromResponse(
         response,
         `Failed to create external caregiver: ${response.statusText}`,
+      );
+    }
+    const payload = (await response.json()) as { data: BackendStaffResponse };
+    return mapStaffMember(payload.data, {});
+  }
+
+  // Invites an external caregiver who has no account yet (#4573). A second
+  // invitation replaces an open one, for example with a corrected address.
+  async inviteExternal(id: string, email: string): Promise<Staff> {
+    const response = await sessionFetch(
+      `/api/staff/externals/${encodeURIComponent(id)}/invitation`,
+      {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email: email.trim() }),
+      },
+    );
+    if (!response.ok) {
+      throw await apiErrorFromResponse(
+        response,
+        `Failed to invite external caregiver: ${response.statusText}`,
       );
     }
     const payload = (await response.json()) as { data: BackendStaffResponse };
@@ -563,6 +597,7 @@ class StaffService {
       absenceTypeLabel: staff.absence_type_label,
       isExternal: staff.is_external ?? false,
       externalOrganization: staff.external_organization ?? undefined,
+      externalAccountStatus: staff.external_account_status ?? null,
     };
   }
 

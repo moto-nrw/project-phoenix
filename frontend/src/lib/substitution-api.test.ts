@@ -335,6 +335,64 @@ describe("substitutionService", () => {
     });
   });
 
+  it("keeps the account state of external supervisors and targets (#4573)", async () => {
+    sessionFetch.mockResolvedValue({
+      ok: true,
+      json: async () => ({
+        data: {
+          group_handovers: [],
+          targets: [],
+          running_supervisions: [
+            {
+              id: "41",
+              type: "additional_supervision",
+              name: "Trommel-AG",
+              supervisors: [
+                {
+                  id: "75",
+                  full_name: "Elli Extern",
+                  is_external: true,
+                  external_account_status: "none",
+                },
+              ],
+              available_targets: [
+                {
+                  id: "76",
+                  full_name: "Jonas Becker",
+                  is_external: true,
+                  external_account_status: "invitation_pending",
+                },
+                { id: "73", full_name: "Toni Test" },
+              ],
+              is_current_user_supervising: true,
+              can_assign: true,
+            },
+          ],
+        },
+      }),
+    });
+
+    const result = await substitutionService.fetchRunningSupervision("41");
+
+    expect(result.supervisors).toEqual([
+      {
+        id: "75",
+        fullName: "Elli Extern",
+        isExternal: true,
+        externalAccountStatus: "none",
+      },
+    ]);
+    expect(result.availableTargets).toEqual([
+      {
+        id: "76",
+        fullName: "Jonas Becker",
+        isExternal: true,
+        externalAccountStatus: "invitation_pending",
+      },
+      { id: "73", fullName: "Toni Test" },
+    ]);
+  });
+
   it("adds a supervisor with only the two allowed ids", async () => {
     const json = vi.fn(async () => ({
       data: {

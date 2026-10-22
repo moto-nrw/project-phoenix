@@ -8,6 +8,16 @@ import {
 } from "./auth-helpers";
 
 describe("getRoleDisplayName", () => {
+  // #4573: die Schulrolle für externe Kräfte ist klein gespeichert.
+  it("shows the provisioned school role extern as Extern", () => {
+    expect(getRoleDisplayName("extern")).toBe("Extern");
+    expect(getRoleDisplayName(" EXTERN ")).toBe("Extern");
+  });
+
+  it("keeps other custom school roles as stored", () => {
+    expect(getRoleDisplayName("externe-ag")).toBe("externe-ag");
+  });
+
   it("translates admin to Administrator", () => {
     expect(getRoleDisplayName("admin")).toBe("Administrator");
   });
@@ -125,6 +135,16 @@ describe("toAssignableRoleOptions", () => {
     ]);
 
     expect(options.map((option) => option.id)).toEqual(["2"]);
+  });
+
+  it("offers the school role extern as Extern in the invitation picker (#4573)", () => {
+    const options = toAssignableRoleOptions([
+      { ...role("5", "extern", false), baseRole: "user" },
+    ]);
+
+    expect(options).toEqual([
+      { id: "5", name: "Extern", systemName: "extern" },
+    ]);
   });
 });
 

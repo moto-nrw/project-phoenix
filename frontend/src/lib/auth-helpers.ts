@@ -145,8 +145,25 @@ const SYSTEM_ROLE_TRANSLATIONS: Record<
  * Falls back to the original name if no translation exists.
  */
 export function getRoleDisplayName(roleName: string): string {
-  return SYSTEM_ROLE_TRANSLATIONS[roleName.toLowerCase()]?.name ?? roleName;
+  const key = roleName.trim().toLowerCase();
+  return (
+    SYSTEM_ROLE_TRANSLATIONS[key]?.name ??
+    PROVISIONED_SCHOOL_ROLE_LABELS[key] ??
+    roleName
+  );
 }
+
+/**
+ * The school role every school gets for external caregivers (#4573). The
+ * role store keeps custom names lowercase, so it arrives as „extern“.
+ */
+export const EXTERNAL_CAREGIVER_ROLE_NAME = "extern";
+
+// School roles moto itself provisions in every school. Their stored name is
+// lowercase; the display keeps the spelling the help and the forms use.
+const PROVISIONED_SCHOOL_ROLE_LABELS: Record<string, string> = {
+  [EXTERNAL_CAREGIVER_ROLE_NAME]: "Extern",
+};
 
 /**
  * Get the German description for a system role.
@@ -168,6 +185,7 @@ export function getRoleDisplayDescription(
 const SCHOOL_ROLE_LABELS: Record<string, string> = {
   "ogs-leitung": "OGS-Leitung",
   betreuungskraft: "Betreuungskraft",
+  [EXTERNAL_CAREGIVER_ROLE_NAME]: "Extern",
 };
 
 // "teacher" is the retired predecessor of "user". It can no longer be

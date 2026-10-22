@@ -237,6 +237,9 @@ function TimetablesContent() {
   // Perioden-Bootstrap an schedules:create — keine Proxy-Permissions.
   const canReadEnrollmentPhases = hasPermission(session, "config:read");
   const canBootstrapPeriods = hasPermission(session, "schedules:create");
+  // Externe Person im Schritt „Personal“ eintragen (#4573): dasselbe Recht
+  // wie POST /api/staff/externals.
+  const canCreateExternalCaregiver = hasPermission(session, "users:create");
   const canManageCategories = hasPermission(
     session,
     "activities:manage_categories",
@@ -1722,6 +1725,7 @@ function TimetablesContent() {
         canCheckShiftCoverage={canCheckShiftCoverage}
         canManageCategories={canManageCategories}
         canManagePlanningTracks={canManageSchedules}
+        canCreateExternalCaregiver={canCreateExternalCaregiver}
         isOpen={eventModalOpen}
         onClose={() => {
           setEventModalOpen(false);

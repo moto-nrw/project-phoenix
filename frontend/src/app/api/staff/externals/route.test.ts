@@ -1,6 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { Session } from "next-auth";
 import { NextRequest } from "next/server";
+import { ApiResponseError } from "~/lib/api-response-error.server";
 import { POST } from "./route";
 
 const { mockAuth, mockApiPost } = vi.hoisted(() => ({
@@ -24,7 +25,7 @@ function postRequest(body: unknown): NextRequest {
 
 const context = { params: Promise.resolve({}) };
 
-// #3823: externe Betreuungskraft ohne Konto anlegen.
+// #3823/#4573: externe Betreuungskraft anlegen und per E-Mail einladen.
 describe("POST /api/staff/externals", () => {
   beforeEach(() => {
     vi.clearAllMocks();
@@ -34,7 +35,7 @@ describe("POST /api/staff/externals", () => {
     } as Session);
   });
 
-  it("forwards the names and maps the record out of the backend envelope", async () => {
+  it("forwards names and email and maps the record out of the backend envelope", async () => {
     mockApiPost.mockResolvedValueOnce({
       status: "success",
       data: {
@@ -43,6 +44,7 @@ describe("POST /api/staff/externals", () => {
         is_teacher: false,
         is_external: true,
         external_organization: "Musikschule",
+        external_account_status: "invitation_pending",
         person: {
           id: 198,
           first_name: "Lea",
@@ -59,6 +61,7 @@ describe("POST /api/staff/externals", () => {
       postRequest({
         first_name: "Lea",
         last_name: "Gast",
+        email: "lea@example.test",
         organization: "Musikschule",
       }),
       context,
@@ -68,7 +71,12 @@ describe("POST /api/staff/externals", () => {
     expect(mockApiPost).toHaveBeenCalledWith(
       "/api/staff/externals",
       "test-token",
-      { first_name: "Lea", last_name: "Gast", organization: "Musikschule" },
+      {
+        first_name: "Lea",
+        last_name: "Gast",
+        email: "lea@example.test",
+        organization: "Musikschule",
+      },
     );
     const body = (await response.json()) as {
       data: { id: string; name: string; is_external: boolean };
@@ -78,6 +86,34 @@ describe("POST /api/staff/externals", () => {
       name: "Lea Gast",
       is_external: true,
       external_organization: "Musikschule",
+      external_account_status: "invitation_pending",
+    });
+  });
+
+  it("keeps the backend's field error for the email unchanged", async () => {
+    const envelope = JSON.stringify({
+      type: "about:blank",
+      title: "Bad Request",
+      status: 400,
+      detail: "email required",
+      code: "general.input",
+      errors: [{ field: "email", reason: "required" }],
+    });
+    mockApiPost.mockRejectedValueOnce(
+      new ApiResponseError(400, envelope, {
+        contentType: "application/problem+json",
+      }),
+    );
+
+    const response = await POST(
+      postRequest({ first_name: "Lea", last_name: "Gast", email: "" }),
+      context,
+    );
+
+    expect(response.status).toBe(400);
+    expect(await response.json()).toMatchObject({
+      code: "general.input",
+      errors: [{ field: "email", reason: "required" }],
     });
   });
 });

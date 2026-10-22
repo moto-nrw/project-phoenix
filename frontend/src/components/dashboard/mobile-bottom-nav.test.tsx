@@ -241,7 +241,15 @@ describe("MobileBottomNav", () => {
     mockHasEffectiveAdminScope.mockImplementation((session) =>
       mockIsAdmin(session),
     );
-    mockHasPermission.mockReturnValue(false);
+    // Eine Betreuungskraft hält die Rechte der Systemrolle „user“, die die
+    // Navigation prüft. Seit #4573 hängen Suchen/Alle Kinder, Mitarbeiter,
+    // Zeiterfassung und Elternnachrichten an users:read bzw.
+    // time_tracking:own.
+    mockHasPermission.mockImplementation(
+      (session, permission) =>
+        !mockIsAdmin(session) &&
+        (permission === "users:read" || permission === "time_tracking:own"),
+    );
     mockUseNFCEnabled.mockReturnValue(true);
     mockUsePresenceMode.mockReturnValue("detailed");
     mockUseOpenCareGroupMode.mockReturnValue(false);
@@ -1225,6 +1233,58 @@ describe("MobileBottomNav", () => {
 
       expect(screen.queryByText("Dienstpläne")).not.toBeInTheDocument();
       expect(screen.getByText("Statistik")).toBeInTheDocument();
+    });
+  });
+
+  // #4573: die Schulrolle „Extern“ hält nur schedules:read und heißt nicht
+  // `user`. Reiter und Menüeinträge, deren Route sie nicht öffnen darf,
+  // fehlen; eine Betreuungskraft sieht sie.
+  describe("Rolle „Extern“", () => {
+    const GATED_MENU_LABELS = ["Zeiterfassung", "Mitarbeiter", "Nachrichten"];
+    const getMoreButton = () => {
+      const navButtons = screen.getAllByRole("button");
+      return navButtons.find((btn) => !btn.hasAttribute("data-testid"))!;
+    };
+
+    function mainHrefs(): (string | null)[] {
+      return screen
+        .getAllByRole("link")
+        .map((link) => link.getAttribute("href"));
+    }
+
+    it("zeigt keine Sackgassen in Leiste und Mehr-Menü", () => {
+      mockIsCaregiver.mockReturnValue(false);
+      mockHasPermission.mockImplementation(
+        (_session, permission) => permission === "schedules:read",
+      );
+
+      render(<MobileBottomNav />);
+
+      // Anker: die Leiste ist geladen und führt zur Startseite.
+      const hrefs = mainHrefs();
+      expect(hrefs).toContain("/home");
+      expect(hrefs).not.toContain("/students/search");
+      expect(hrefs).not.toContain("/active-supervisions");
+
+      fireEvent.click(getMoreButton());
+      // Anker: das Mehr-Menü ist offen.
+      expect(screen.getByText("Dateien")).toBeInTheDocument();
+      for (const label of [...GATED_MENU_LABELS, "Alle Kinder"]) {
+        expect(screen.queryByText(label)).not.toBeInTheDocument();
+      }
+    });
+
+    it("zeigt dieselben Einträge einer Betreuungskraft", () => {
+      render(<MobileBottomNav />);
+
+      const hrefs = mainHrefs();
+      expect(hrefs).toContain("/students/search");
+      expect(hrefs).toContain("/active-supervisions");
+
+      fireEvent.click(getMoreButton());
+      for (const label of GATED_MENU_LABELS) {
+        expect(screen.getByText(label)).toBeInTheDocument();
+      }
     });
   });
 

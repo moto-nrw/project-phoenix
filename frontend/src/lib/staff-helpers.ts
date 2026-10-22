@@ -1,6 +1,6 @@
 // Helper functions for staff data transformation and status determination
 
-import type { Staff } from "./staff-api";
+import type { ExternalAccountStatus, Staff } from "./staff-api";
 import { LOCATION_COLORS, MOTO_COLOR_PALETTE } from "./location-helper";
 
 // Location status type matching the pattern from OGS groups
@@ -174,3 +174,46 @@ export const employmentTypeLabels: Record<string, string> = {
   part_time: "Teilzeit",
   minijob: "Minijob",
 };
+
+/**
+ * Whether a person may be picked for a NEW assignment (#4573): everyone on
+ * the staff, plus external caregivers who have an account or an open
+ * invitation. The only place the picker rule lives; existing assignments are
+ * never dropped because of it.
+ */
+export function isAssignableStaff(
+  staff: Pick<Staff, "isExternal" | "externalAccountStatus">,
+): boolean {
+  return !staff.isExternal || staff.externalAccountStatus !== "none";
+}
+
+/**
+ * Short account mark for an external caregiver (#4573): "Einladung offen"
+ * while the invitation waits, "Kein Konto" without one. An account needs no
+ * mark, the person signs in like everyone else.
+ */
+export function externalAccountLabel(
+  status: ExternalAccountStatus | null | undefined,
+): string | null {
+  if (status === "invitation_pending") return "Einladung offen";
+  if (status === "none") return "Kein Konto";
+  return null;
+}
+
+/**
+ * Text label for an external caregiver in places that only take strings
+ * (select options): "Extern · Musikschule, Einladung offen". Empty for
+ * everyone else.
+ */
+export function externalStaffNote(
+  staff: Pick<
+    Staff,
+    "isExternal" | "externalOrganization" | "externalAccountStatus"
+  >,
+): string {
+  if (!staff.isExternal) return "";
+  const organization = staff.externalOrganization?.trim();
+  const base = organization ? `Extern · ${organization}` : "Extern";
+  const account = externalAccountLabel(staff.externalAccountStatus);
+  return account ? `${base}, ${account}` : base;
+}

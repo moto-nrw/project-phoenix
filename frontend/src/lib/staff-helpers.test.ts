@@ -6,6 +6,9 @@ import {
   getStaffCardInfo,
   formatStaffNotes,
   sortStaff,
+  isAssignableStaff,
+  externalAccountLabel,
+  externalStaffNote,
 } from "./staff-helpers";
 
 // Sample staff for testing
@@ -408,5 +411,44 @@ describe("sortStaff", () => {
 
     expect(staff[0]?.lastName).toBe("Zeta"); // Original unchanged
     expect(result[0]?.lastName).toBe("Alpha"); // Sorted copy
+  });
+});
+
+describe("external caregivers (#4573)", () => {
+  it("offers staff and externals with an account or open invitation", () => {
+    expect(isAssignableStaff({ isExternal: false })).toBe(true);
+    expect(
+      isAssignableStaff({ isExternal: true, externalAccountStatus: "account" }),
+    ).toBe(true);
+    expect(
+      isAssignableStaff({
+        isExternal: true,
+        externalAccountStatus: "invitation_pending",
+      }),
+    ).toBe(true);
+    expect(
+      isAssignableStaff({ isExternal: true, externalAccountStatus: "none" }),
+    ).toBe(false);
+  });
+
+  it("names the account state only where it differs from a normal account", () => {
+    expect(externalAccountLabel("invitation_pending")).toBe("Einladung offen");
+    expect(externalAccountLabel("none")).toBe("Kein Konto");
+    expect(externalAccountLabel("account")).toBeNull();
+    expect(externalAccountLabel(null)).toBeNull();
+  });
+
+  it("builds the option label from organization and account state", () => {
+    expect(
+      externalStaffNote({
+        isExternal: true,
+        externalOrganization: " Musikschule ",
+        externalAccountStatus: "invitation_pending",
+      }),
+    ).toBe("Extern · Musikschule, Einladung offen");
+    expect(
+      externalStaffNote({ isExternal: true, externalAccountStatus: "account" }),
+    ).toBe("Extern");
+    expect(externalStaffNote({ isExternal: false })).toBe("");
   });
 });

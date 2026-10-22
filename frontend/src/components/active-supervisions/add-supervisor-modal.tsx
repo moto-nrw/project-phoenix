@@ -23,7 +23,7 @@ import type { RunningSupervision } from "~/lib/substitution-helpers";
 import {
   ExternalCaregiverEntry,
   type ExternalCaregiverResult,
-} from "./external-caregiver-entry";
+} from "~/components/staff/external-caregiver-entry";
 
 const logger = createLogger({ component: "AddSupervisorModal" });
 
@@ -117,11 +117,13 @@ function SupervisionDetails({
               id: target.id,
               fullName: target.fullName,
               isExternal: target.isExternal === true,
+              accountStatus: target.externalAccountStatus,
             })),
             ...overview.supervisors.map((supervisor) => ({
               id: supervisor.id,
               fullName: supervisor.fullName,
               isExternal: supervisor.isExternal === true,
+              accountStatus: supervisor.externalAccountStatus,
               isAlreadyAssigned: true,
             })),
           ]}
@@ -133,7 +135,11 @@ function SupervisionDetails({
 }
 
 function targetLabel(target: SupervisionTarget): string {
-  return target.isExternal ? `${target.fullName} (extern)` : target.fullName;
+  if (!target.isExternal) return target.fullName;
+  // Nur Externe mit Konto oder offener Einladung kommen hier an (#4573).
+  return target.externalAccountStatus === "invitation_pending"
+    ? `${target.fullName} (extern, Einladung offen)`
+    : `${target.fullName} (extern)`;
 }
 
 function SupervisorSelect({
@@ -309,18 +315,26 @@ function useSupervisionTargets(
     ...added.filter((extra) => !offered.some((item) => item.id === extra.id)),
   ];
   const onExternalAdded = (result: ExternalCaregiverResult) => {
-    if (result.kind === "created") {
-      const { staff } = result;
-      const fullName =
-        staff.name || [staff.firstName, staff.lastName].join(" ").trim();
-      setAdded((prev) => [
-        ...prev,
-        { id: staff.id, fullName, isExternal: true },
-      ]);
-      setSelectedStaffId(staff.id);
+    if (result.kind === "existing") {
+      setSelectedStaffId(result.id);
       return;
     }
-    setSelectedStaffId(result.id);
+    // Created or newly invited: selectable with its open invitation.
+    const { staff } = result;
+    const fullName =
+      staff.name || [staff.firstName, staff.lastName].join(" ").trim();
+    setAdded((prev) => [
+      ...prev.filter((item) => item.id !== staff.id),
+      {
+        id: staff.id,
+        fullName,
+        isExternal: true,
+        ...(staff.externalAccountStatus
+          ? { externalAccountStatus: staff.externalAccountStatus }
+          : {}),
+      },
+    ]);
+    setSelectedStaffId(staff.id);
   };
   return { targets, onExternalAdded };
 }
