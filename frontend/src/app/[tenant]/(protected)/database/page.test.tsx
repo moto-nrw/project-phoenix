@@ -162,7 +162,7 @@ describe("DatabasePage", () => {
       expect(screen.getByText("Personal")).toBeInTheDocument();
       expect(screen.getByText("Räume")).toBeInTheDocument();
       expect(screen.getByText("Aktivitäten")).toBeInTheDocument();
-      expect(screen.getByText("Gruppen")).toBeInTheDocument();
+      expect(screen.getByText("Gruppendaten")).toBeInTheDocument();
       expect(screen.getByText("Rollen")).toBeInTheDocument();
       expect(screen.getByText("Geräte")).toBeInTheDocument();
       expect(screen.getByText("Berechtigungen")).toBeInTheDocument();

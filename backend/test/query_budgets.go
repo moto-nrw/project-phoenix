@@ -144,15 +144,23 @@ var queryBudgets = map[string]queryBudget{
 	// 42 since #3946: the Kinderkarte marks an Abholart set for today only,
 	// read for all listed children in one statement. The same 3-vs-10 check
 	// above holds; approval is recorded in the #3946 pull request.
-	"api.active.supervision_dashboard": {max: 42},
+	//
+	// 45 since #4354: the page head names who supervises the open session or
+	// room. One read of the sessions' current supervisors and one bulk name
+	// read for them (staff, profile, person) serve every tab and every
+	// released room together, so the cost stays fixed: the 3-vs-10 check
+	// above and the rooms/blocks check below hold unchanged. Approval for the
+	// raise belongs in the #4354 pull request.
+	"api.active.supervision_dashboard": {max: 45},
 	// api/active — the same aggregate with released rooms running timetable
 	// blocks (#3281): three rooms, five blocks, every block supervised. The
 	// block rows cost four fixed statements on top of the shared view (the
 	// day's instances, their plan entries, the caller's person and staff
 	// rows); TestOpenRooms_BlockCostDoesNotGrowWithRoomsOrBlocks asserts the
 	// count is identical for one room with one block. 51 since #3946: the
-	// shared view's one read of today's Abholart (see above).
-	"api.active.supervision_dashboard.open_room_blocks": {max: 51},
+	// shared view's one read of today's Abholart (see above). 54 since #4354:
+	// the supervisors' names (see above).
+	"api.active.supervision_dashboard.open_room_blocks": {max: 54},
 	// api/active — GET /active/groups list, 8 active groups with visits.
 	"api.active.groups.list": {max: 9},
 	// #2941: formerly one identity query per supervisor / teacher.

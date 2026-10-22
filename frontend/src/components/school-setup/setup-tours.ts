@@ -218,7 +218,7 @@ export const SETUP_TOURS: Readonly<
   groups: {
     path: "/database/groups",
     stops: [
-      ...viaSidebar("/database/groups", "Gruppen"),
+      ...viaSidebar("/database/groups", "Gruppendaten"),
       {
         target: create,
         title: "Gruppe anlegen",

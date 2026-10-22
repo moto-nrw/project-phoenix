@@ -11,6 +11,7 @@ import {
   waitFor,
   cleanup,
   fireEvent,
+  within,
 } from "@testing-library/react";
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 
@@ -470,6 +471,13 @@ beforeEach(() => {
       isValidating: false,
     } as never);
 });
+
+// Die Statuszeile steht in der Kopfkarte der Seite (#4354: mit Symbolen).
+function pageHead(): HTMLElement {
+  const head = document.querySelector("header");
+  if (!head) throw new Error("page head missing");
+  return head;
+}
 
 describe("Action button click handlers", () => {
   const mockMutate = vi.fn();
@@ -1318,7 +1326,7 @@ describe("open-room tab onTabChange callback", () => {
       screen.getByText("13:00–14:00 Uhr · Sie sind hier nicht eingeplant."),
     ).toBeInTheDocument();
     expect(screen.getByRole("heading", { name: "Sporthalle" })).toBeVisible();
-    expect(screen.getByText("1 Kind", { selector: "div" })).toBeVisible();
+    expect(within(pageHead()).getByText("1 Kind")).toBeVisible();
   });
 
   it("shows a released room the caller does not supervise", async () => {
@@ -1639,7 +1647,7 @@ describe("released room with running blocks (#3281)", () => {
     // The head counts every child in the room once: the blocks' and the
     // independent stay.
     expect(screen.getByRole("heading", { name: "Schulhof" })).toBeVisible();
-    expect(screen.getByText("5 Kinder", { selector: "div" })).toBeVisible();
+    expect(within(pageHead()).getByText("5 Kinder")).toBeVisible();
     // Block children live in the rosters; only the independent stay is a card.
     expect(screen.getByRole("heading", { name: "Ohne Angebot" })).toBeVisible();
     expect(
@@ -1744,7 +1752,7 @@ describe("released room with running blocks (#3281)", () => {
     ).toHaveAttribute("aria-expanded", "true");
     expect(rosterKeysRequested()).toEqual([]);
     expect(screen.getByRole("heading", { name: "Schulhof" })).toBeVisible();
-    expect(screen.getByText("1 Kind", { selector: "div" })).toBeVisible();
+    expect(within(pageHead()).getByText("1 Kind")).toBeVisible();
   });
 
   it("lets an admin operate and staff every block", async () => {

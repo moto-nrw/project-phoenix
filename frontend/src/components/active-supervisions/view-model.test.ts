@@ -12,6 +12,7 @@ import {
   resolveSupervisionSelection,
   rosterRunState,
   sessionsOutsideOpenRooms,
+  supervisionHeadFacts,
   supervisionTabLabel,
   additionalSupervisionTarget,
   occupiedRoomIdsForSpontaneousStart,
@@ -930,5 +931,68 @@ describe("run state in the page head (#4354)", () => {
       label: "Beendet",
       tone: "gray",
     });
+  });
+});
+
+describe("room and supervisors in the page head (#4354)", () => {
+  it("names an own session's room and supervisors", () => {
+    expect(
+      supervisionHeadFacts({
+        title: "Lese-AG",
+        currentRoom: {
+          room_name: "Raum 101",
+          supervisorNames: ["Anna Alt", "Ben Bauer"],
+        },
+        currentOpenRoom: null,
+      }),
+    ).toEqual({
+      roomName: "Raum 101",
+      supervisorNames: ["Anna Alt", "Ben Bauer"],
+    });
+  });
+
+  it("leaves the room out when it already is the title", () => {
+    expect(
+      supervisionHeadFacts({
+        title: "Raum 101",
+        currentRoom: { room_name: "Raum 101", supervisorNames: [] },
+        currentOpenRoom: null,
+      }),
+    ).toEqual({ roomName: null, supervisorNames: [] });
+  });
+
+  it("names everyone supervising in a released room once, without the room", () => {
+    expect(
+      supervisionHeadFacts({
+        title: "Schulhof",
+        currentRoom: null,
+        currentOpenRoom: {
+          sessions: [
+            { supervisorNames: ["Ben Bauer", "Anna Alt"] },
+            { supervisorNames: ["Anna Alt"] },
+            { supervisorNames: [] },
+          ],
+        },
+      }),
+    ).toEqual({ roomName: null, supervisorNames: ["Anna Alt", "Ben Bauer"] });
+  });
+
+  it("names nobody for a released room from an older backend", () => {
+    expect(
+      supervisionHeadFacts({
+        title: "Schulhof",
+        currentRoom: null,
+        currentOpenRoom: {},
+      }),
+    ).toEqual({ roomName: null, supervisorNames: [] });
+  });
+
+  it("keeps the supervisors of a session tab", () => {
+    expect(
+      mapSupervisedGroupsToRooms([
+        { id: "1", name: "Lese-AG", supervisorNames: ["Anna Alt"] },
+        { id: "2", name: "Werken" },
+      ]).map((room) => room.supervisorNames),
+    ).toEqual([["Anna Alt"], []]);
   });
 });

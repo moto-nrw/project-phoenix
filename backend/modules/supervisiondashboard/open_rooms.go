@@ -44,6 +44,9 @@ type OpenRoomSession struct {
 	// ParticipantLimit is the activity's limit; nil without one. Above it
 	// the terminal rejects every further check-in (#3634).
 	ParticipantLimit *int `json:"participant_limit,omitempty"`
+	// Supervisors names who supervises the session now (#4354); absent
+	// without one.
+	Supervisors []SessionSupervisor `json:"supervisors,omitempty"`
 	// Block is the timetable block running in the session. It is nil for a
 	// kiosk session, for the room's own session, and for callers without
 	// schedules:read, whose page shows the children without a roster.

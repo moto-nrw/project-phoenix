@@ -140,7 +140,7 @@ const baseDataSections: DataSection[] = [
   },
   {
     id: "groups",
-    title: "Gruppen",
+    title: "Gruppendaten",
     description: "Gruppen und Kombinationen verwalten",
     href: "/database/groups",
     concept: "groups",
