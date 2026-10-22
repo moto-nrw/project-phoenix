@@ -6,6 +6,16 @@ trustPolicy: no-downgrade
 # them one planned upgrade (Sentry SDK 11). Keep the seven-day delay for every
 # other package/version.
 minimumReleaseAgeExclude:
+  # Dependabot #164/#165: patched mocker, with matching Vitest packages.
+  - vitest@4.1.12
+  - "@vitest/coverage-v8@4.1.12"
+  - "@vitest/expect@4.1.12"
+  - "@vitest/mocker@4.1.12"
+  - "@vitest/pretty-format@4.1.12"
+  - "@vitest/runner@4.1.12"
+  - "@vitest/snapshot@4.1.12"
+  - "@vitest/spy@4.1.12"
+  - "@vitest/utils@4.1.12"
   - fast-uri@3.1.7
   - storybook@10.6.0
   - "@storybook/addon-a11y@10.6.0"
@@ -79,6 +89,7 @@ overrides:
   "fast-uri@>=3.0.0 <3.1.8": 3.1.8
   "brace-expansion@>=4.0.0 <5.0.12": 5.0.12
   "source-map-js@<1.2.2": 1.2.2
+  "follow-redirects@<1.16.1": 1.16.1
 
 peerDependencyRules:
   allowedVersions:

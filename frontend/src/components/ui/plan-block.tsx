@@ -46,6 +46,17 @@ interface PlanBlockProps {
    * nicht-interaktive Inhalte.
    */
   readonly compactDetail?: ReactNode;
+  /**
+   * Ein Zusatz hinter dem Titel in der einzeiligen Kopfzeile, nur bei
+   * size="compact". Für Blöcke, die keine zweite Zeile tragen. Der Zusatz
+   * nimmt seine natürliche Breite, höchstens 60 Prozent der Zeile, und kürzt
+   * sich darin selbst; der Titel kürzt sich erst, wenn der Platz nicht
+   * reicht. Unter 11rem Zeilenbreite entfällt die Zeitspanne. Unter 5rem
+   * passt kein lesbarer Name mehr: Dann entfällt der Zusatz, und die Zeile
+   * zeigt wieder Zeitspanne und Titel.
+   * Dieselbe Einschränkung wie beim Fuß: nur nicht-interaktive Inhalte.
+   */
+  readonly compactInline?: ReactNode;
   /** Nativer Tooltip mit dem vollständigen Inhalt, den der Block kürzt. */
   readonly title?: string;
   /** Rendert <div> statt <button> und deaktiviert das Klick-/Fokusverhalten. */
@@ -93,6 +104,7 @@ export function PlanBlock({
   statusIcon,
   footer,
   compactDetail,
+  compactInline,
   interactive = true,
   onClick,
   className,
@@ -133,12 +145,26 @@ export function PlanBlock({
 
   const content =
     size === "compact" ? (
-      <span className="block min-w-0">
+      <span className={`block min-w-0 ${compactInline ? "@container" : ""}`}>
         <span className="flex min-w-0 items-center gap-1.5">
-          <span className="shrink-0 text-[11px] font-medium text-gray-500 tabular-nums">
+          {/* Mit Zusatz geht die Zeile an Titel und Zusatz; in einer schmalen
+              Spalte entfällt die Zeit, sie steht im Tooltip. In einer sehr
+              schmalen Spalte entfällt stattdessen der Zusatz. */}
+          <span
+            className={`shrink-0 text-[11px] font-medium text-gray-500 tabular-nums ${compactInline ? "@min-[5rem]:@max-[11rem]:hidden" : ""}`}
+          >
             {timeRange}
           </span>
-          <span className={labelClassName}>{label}</span>
+          <span
+            className={`${labelClassName} ${compactInline ? "min-w-0" : ""}`}
+          >
+            {label}
+          </span>
+          {compactInline && (
+            <span className="flex max-w-[60%] min-w-0 shrink-0 @max-[5rem]:hidden">
+              {compactInline}
+            </span>
+          )}
         </span>
         {compactDetail && <span className="block">{compactDetail}</span>}
       </span>

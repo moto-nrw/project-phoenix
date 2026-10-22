@@ -21,8 +21,9 @@ import (
 // below drive them through the retained invitation service the way the
 // invitation routes and the staff import do, against a real database.
 
+var invitationPassword = testpkg.NewTestPassword()
+
 const (
-	invitationPassword = "Str0ngP@ssword!" //nolint:gosec // test-only value, never a real credential
 	// The permission names the invitation routes pass from the caller's JWT.
 	usersManagePermission = "users:manage"
 	usersCreatePermission = "users:create"

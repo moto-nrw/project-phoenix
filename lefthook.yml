@@ -17,8 +17,8 @@ pre-commit:
       run: node scripts/check-agent-context.mjs && node --test scripts/check-agent-context.test.mjs
 
     # Fail closed if the pinned secret scanner is unavailable.
-    git-secrets:
-      run: bash scripts/check-secrets.sh --pre_commit_hook
+    gitguardian:
+      run: bash scripts/check-secrets.sh pre-commit
 
     # Frontend lint-staged (prettier + oxlint with auto-fix)
     frontend-lint:

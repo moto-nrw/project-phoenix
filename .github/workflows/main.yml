@@ -206,7 +206,8 @@ jobs:
             hooks:
               - 'lefthook.yml'
               - 'scripts/pre-push*'
-              - 'scripts/check-secrets.sh'
+              - 'scripts/check-secrets*'
+              - '.gitguardian.*'
               - 'scripts/run-go-toolchain.sh'
               - 'scripts/dev-native*'
             # Release, deploy and demo tooling and the workflow files the
@@ -322,7 +323,7 @@ jobs:
 
       - name: Verify pre-push failure and selection behavior
         if: matrix.suite == 'unit'
-        run: node --test scripts/pre-push.test.mjs scripts/dev-native.test.mjs scripts/check-release-architecture.test.mjs scripts/check-migration-evidence.test.mjs scripts/release-backup.test.mjs scripts/demo-environment.test.mjs scripts/report-sentry-deploy.test.mjs scripts/posthog-dashboards.test.mjs
+        run: node --test scripts/pre-push.test.mjs scripts/check-secrets.test.mjs scripts/dev-native.test.mjs scripts/check-release-architecture.test.mjs scripts/check-migration-evidence.test.mjs scripts/release-backup.test.mjs scripts/demo-environment.test.mjs scripts/report-sentry-deploy.test.mjs scripts/posthog-dashboards.test.mjs
 
       - name: Verify repository script suites
         if: matrix.suite == 'unit'

@@ -80,7 +80,7 @@ func staticSettings(server sftptest.Server, dir string) Settings {
 		Host:               str(server.Host),
 		Port:               func(context.Context) (int, error) { return server.Port, nil },
 		Username:           str(sftptest.User),
-		Password:           str(sftptest.Password),
+		Password:           str(server.Password),
 		RemoteDirectory:    str(dir),
 		HostKeyFingerprint: str(server.Fingerprint),
 	}

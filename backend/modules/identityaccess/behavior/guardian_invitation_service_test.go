@@ -20,8 +20,8 @@ import (
 )
 
 // strongTestPassword is a password meeting the project's strength rules.
-// Test-only constant, reused across guardian invitation tests.
-const strongTestPassword = "GuardianTest!2026"
+// Generated once per binary and reused across guardian invitation tests.
+var strongTestPassword = testpkg.NewTestPassword()
 
 // guardianTestEnv bundles the real-DB dependencies tests need.
 type guardianTestEnv struct {
@@ -428,7 +428,7 @@ func TestGuardianInvitationService_Accept_PasswordMismatch(t *testing.T) {
 
 	_, err = env.service.AcceptGuardianInvitation(context.Background(), invitation.Token, identityaccess.GuardianRegistration{
 		Password:        strongTestPassword,
-		ConfirmPassword: "DifferentP@ss!1",
+		ConfirmPassword: testpkg.NewTestPassword(),
 	})
 	require.Error(t, err)
 }
@@ -677,7 +677,7 @@ func TestGuardianInvitationService_Accept_NotInvokedOnPasswordMismatch(t *testin
 
 	_, err = env.service.AcceptGuardianInvitation(context.Background(), invitation.Token, identityaccess.GuardianRegistration{
 		Password:        strongTestPassword,
-		ConfirmPassword: "DifferentP@ss!1",
+		ConfirmPassword: testpkg.NewTestPassword(),
 	})
 	require.Error(t, err)
 	assert.Equal(t, 0, bf.calls, "backfiller must not run when accept fails")
