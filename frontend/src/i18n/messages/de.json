@@ -1140,7 +1140,9 @@
       "ruleExactlyOne": "Bitte genau eines wählen",
       "ruleAtLeastOne": "Bitte mindestens eines wählen",
       "ruleAtMostOne": "Höchstens eines",
-      "availabilitySelectionRemoved": "Durch die geänderte Klassenstufe sind Betreuungsangebote nicht mehr verfügbar. Die zugehörige Auswahl, Betreuungstage und automatische Mitbuchungen wurden entfernt."
+      "availabilitySelectionRemoved": "Durch die geänderte Klassenstufe sind Betreuungsangebote nicht mehr verfügbar. Die zugehörige Auswahl, Betreuungstage und automatische Mitbuchungen wurden entfernt.",
+      "chooseGradeFirst": "Wählen Sie zuerst die Klassenstufe Ihres Kindes. Danach sehen Sie hier die passenden Betreuungsangebote.",
+      "noOfferingsForGrade": "Für die {grade}. Klasse gibt es hier keine passenden Betreuungsangebote. Bei Fragen wenden Sie sich bitte an die OGS."
     },
     "consent": {
       "agb": "Ich akzeptiere die AGB der Schule.",
