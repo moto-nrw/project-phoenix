@@ -241,8 +241,16 @@ describe("getParentHelpTopicForPath", () => {
       group: "einstieg",
     });
     // Am Computer, Wie die Seitenleiste geordnet ist, Auf dem Handy oder
-    // Tablet, Hilfe öffnen.
-    expect(caregiverTopics[3]?.instructionGroups).toHaveLength(4);
+    // Tablet, Die Startseite anpassen (#4347), Hilfe öffnen.
+    expect(
+      caregiverTopics[3]?.instructionGroups?.map((group) => group.title),
+    ).toEqual([
+      "Am Computer",
+      "Wie die Seitenleiste geordnet ist",
+      "Auf dem Handy oder Tablet",
+      "Die Startseite anpassen",
+      "Hilfe öffnen",
+    ]);
     expect(caregiverTopics[4]).toMatchObject({
       id: HELP_TOPICS.caregiverFirstSteps,
       group: "einstieg",

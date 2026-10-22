@@ -196,6 +196,42 @@ func TestApplyExportFiltersClassTripStatus(t *testing.T) {
 	assert.Equal(t, int64(101), got[0].ID)
 }
 
+func TestApplyExportFiltersExcusedAndClassTrip(t *testing.T) {
+	t.Parallel()
+
+	students := []StudentResponse{
+		{ID: 101, ClassTrip: true},
+		{ID: 102, Excused: true},
+		{ID: 103, Sick: true},
+		{ID: 104, Location: "Zuhause"},
+	}
+
+	for _, tt := range []struct {
+		status  string
+		wantIDs []int64
+		label   string
+	}{
+		{"entschuldigt-klassenfahrt", []int64{101, 102}, "Entschuldigt oder Klassenfahrt"},
+		{"entschuldigt", []int64{102}, "Entschuldigt"},
+		{"klassenfahrt", []int64{101}, "Klassenfahrt"},
+	} {
+		t.Run(tt.status, func(t *testing.T) {
+			t.Parallel()
+
+			filters := studentExportFilters{Status: tt.status}
+			got := applyExportFilters(students, filters, lists.PresetOGSWeekly, testExportDate)
+
+			gotIDs := make([]int64, 0, len(got))
+			for _, student := range got {
+				gotIDs = append(gotIDs, student.ID)
+			}
+			assert.Equal(t, tt.wantIDs, gotIDs)
+			assert.Contains(t, exportFilterLabelsForDate(filters, testExportDate, true), "Momentaufnahme: "+tt.label)
+			assert.Contains(t, exportFilterLabelsForDate(filters, testExportDate, false), "Geplanter Status: "+tt.label)
+		})
+	}
+}
+
 func TestPopulateExportPhotoConsentFilterDataSupportsFeatureOffResponses(t *testing.T) {
 	t.Parallel()
 

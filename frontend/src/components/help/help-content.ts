@@ -401,6 +401,19 @@ function appOverviewTopic(): HelpTopic {
         ],
       },
       {
+        // Labels aus home/page.tsx (Knopf „Anpassen", „Fertig") und
+        // home-board.tsx („Bausteine", „Standardansicht wiederherstellen").
+        title: "Die Startseite anpassen",
+        description:
+          "Die `Startseite` besteht aus Karten. Welche dort stehen, legen Sie selbst fest.",
+        steps: [
+          "Wählen Sie auf der `Startseite` oben rechts das Symbol `Anpassen`.",
+          "Wählen Sie `Bausteine` und dann eine Karte, zum Beispiel `Kinder`.",
+          "Die Karte steht jetzt unten. Am Computer ziehen Sie sie an ihren Platz.",
+          "Wählen Sie `Fertig`.",
+        ],
+      },
+      {
         title: "Hilfe öffnen",
         steps: [
           "Sehen Sie oben rechts ein Fragezeichen? Es öffnet die passende Anleitung.",
@@ -413,6 +426,11 @@ function appOverviewTopic(): HelpTopic {
       "Sie wissen, wo Sie die wichtigsten Bereiche und die passende Hilfe finden.",
     differences: [
       "Welche Bereiche Sie sehen, hängt von Ihrer Rolle und den Einstellungen Ihrer OGS ab.",
+      "Unter `Bausteine` fehlt eine Karte? Dann steht sie schon auf Ihrer Startseite. Oder Ihre Rolle oder Ihre OGS sieht sie nicht vor.",
+    ],
+    notes: [
+      "Die Karte `Kinder` zählt die Kinder nach `Anwesend`, `Schule`, `Zuhause`, `Krank` und `Entschuldigt`. Ein Klick auf eine Zahl öffnet `Alle Kinder` mit diesem Filter. `Entschuldigt` zeigt auch Kinder auf Klassenfahrt.",
+      "Zu viel verändert? Wählen Sie in `Anpassen` den Knopf `Standardansicht wiederherstellen`.",
     ],
     related: [
       HELP_TOPICS.login,

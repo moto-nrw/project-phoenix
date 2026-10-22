@@ -581,6 +581,8 @@ func exportStatusLabel(status string) string {
 		return "Klassenfahrt"
 	case "entschuldigt":
 		return "Entschuldigt"
+	case "entschuldigt-klassenfahrt":
+		return "Entschuldigt oder Klassenfahrt"
 	case "abwesend":
 		return "Abwesend"
 	case "schule":

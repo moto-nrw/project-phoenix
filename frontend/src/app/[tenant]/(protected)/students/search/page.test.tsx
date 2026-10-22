@@ -1345,6 +1345,57 @@ describe("StudentSearchPage", () => {
     });
   });
 
+  describe("combined excused drill-down", () => {
+    it.each([
+      [
+        "entschuldigt-klassenfahrt",
+        ["Max", "Anna"],
+        "Entschuldigt oder Klassenfahrt",
+      ],
+      ["entschuldigt", ["Max"], "Entschuldigt"],
+      ["klassenfahrt", ["Anna"], "Klassenfahrt"],
+    ] as const)(
+      "restores %s from the URL without changing the single-status filters",
+      async (status, visibleNames, label) => {
+        mockSearchParams.set("status", status);
+        const swrModule = await import("~/lib/swr");
+        mockUseSWRAuthWithStudents(swrModule, {
+          data: {
+            students: [
+              { ...mockStudents[0]!, excused: true },
+              { ...mockStudents[1]!, class_trip: true },
+              { ...mockStudents[2]!, sick: true },
+            ],
+          },
+          isLoading: false,
+          error: null,
+        } as ReturnType<typeof swrModule.useSWRAuth>);
+
+        render(<StudentSearchPage />);
+
+        await waitFor(() => {
+          // Anker: die erwarteten Kinder sind als geladene Ergebnisse sichtbar.
+          for (const name of visibleNames) {
+            expect(
+              screen.getByText(new RegExp(`^${name}\\b`)),
+            ).toBeInTheDocument();
+          }
+          for (const name of ["Max", "Anna", "Tom"]) {
+            if (!visibleNames.some((visible) => visible === name)) {
+              expect(
+                screen.queryByText(new RegExp(`^${name}\\b`)),
+              ).not.toBeInTheDocument();
+            }
+          }
+          expect(screen.getByTestId("filter-attendance")).toHaveValue(status);
+          expect(
+            screen.getByTestId("active-filter-attendance"),
+          ).toHaveTextContent(label);
+        });
+      },
+    );
+  });
+
   describe("Year Filtering", () => {
     it("renders the school year filter as a stage multi-select", async () => {
       render(<StudentSearchPage />);

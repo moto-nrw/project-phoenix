@@ -87,6 +87,7 @@ const ANALYTICS_BLOCKS: readonly HomeBlockKey[] = [
   "section.recent_activity",
   "section.current_activities",
   "section.active_groups",
+  "section.students",
   // Die Kräfte in Aufsicht kommen aus derselben Antwort.
   "section.staff_today",
 ];
