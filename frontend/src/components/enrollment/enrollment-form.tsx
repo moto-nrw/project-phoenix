@@ -51,6 +51,7 @@ import {
 import ReactMarkdown, { type Components } from "react-markdown";
 import { ConfirmationModal, Modal } from "~/components/ui/modal";
 import { CustomSelect } from "~/components/ui/custom-select";
+import { Alert } from "~/components/ui/alert";
 import { Checkbox } from "~/components/ui/checkbox";
 import { SegmentedControl } from "~/components/ui/segmented-control";
 import { ToggleChip } from "~/components/ui/toggle-chip";
@@ -312,6 +313,7 @@ export function EnrollmentForm({
   const isExistingStudentsPhase =
     prefetchedData?.audience === "existing_students";
   const initialOfferings = prefetchedData?.offerings ?? [];
+  const initialCollectGradeLevel = prefetchedData?.collectGradeLevel !== false;
   const initialRequiredOfferingIDs = initialOfferings
     .filter((o) => o.is_required && careOfferingIsAvailable(o, undefined))
     .map((o) => o.id);
@@ -438,6 +440,7 @@ export function EnrollmentForm({
       ? seedRequiredAvailableOfferings(
           draftChildren(initialDraft, initialRequiredOfferingIDs),
           initialOfferings,
+          initialCollectGradeLevel,
         )
       : [blankChild(initialRequiredOfferingIDs)]),
   ]);
@@ -463,11 +466,12 @@ export function EnrollmentForm({
       seedRequiredAvailableOfferings(
         draftChildren(initialDraft, requiredOfferingIDs),
         offerings,
+        collectGradeLevel,
       ),
     );
     setAdditionalGuardians(draftGuardians(initialDraft));
     setCustomData(initialDraft.custom_data ?? {});
-  }, [initialDraft, offerings, requiredOfferingIDs]);
+  }, [initialDraft, offerings, requiredOfferingIDs, collectGradeLevel]);
   // Once the phase's class config is known (prefetched or fetched in load()),
   // drop any hydrated class an edit draft carries that the phase no longer
   // offers so it collapses to "Klasse offen" instead of being silently
@@ -529,6 +533,7 @@ export function EnrollmentForm({
         seedRequiredAvailableOfferings(
           prev.length > 0 ? prev : [blankChild()],
           prefetchedData.offerings,
+          prefetchedData.collectGradeLevel !== false,
         ),
       );
       if (prefetchedData.lateInvite) {
@@ -646,7 +651,11 @@ export function EnrollmentForm({
         // Seed mandatory offerings into the children that already exist
         // (the initial blank slot is created before offerings load).
         setChildren((prev) =>
-          seedRequiredAvailableOfferings(prev, offeringsResult.offerings),
+          seedRequiredAvailableOfferings(
+            prev,
+            offeringsResult.offerings,
+            offeringsResult.collectGradeLevel !== false,
+          ),
         );
         setCaptchaConfig(captchaResult);
         setLegalTexts(legalResult);
@@ -704,6 +713,12 @@ export function EnrollmentForm({
     );
   };
 
+  const careOfferingsForChild = (child: ChildDraft) =>
+    availableCareOfferings(
+      offerings,
+      collectGradeLevel ? child.target_grade_level : undefined,
+    );
+
   const toggleOffering = (childIndex: number, offeringID: string) => {
     // "Genau eines" / "höchstens eines" selection_groups behave like radios:
     // selecting one clears the other selected member(s) of the same group.
@@ -711,10 +726,7 @@ export function EnrollmentForm({
     setChildren((prev) =>
       prev.map((c, i) => {
         if (i !== childIndex) return c;
-        const childOfferings = availableCareOfferings(
-          offerings,
-          c.target_grade_level,
-        );
+        const childOfferings = careOfferingsForChild(c);
         const childRequiredIDs = childOfferings
           .filter((o) => o.is_required)
           .map((o) => o.id);
@@ -782,10 +794,7 @@ export function EnrollmentForm({
     setChildren((prev) =>
       prev.map((c, i) => {
         if (i !== childIndex) return c;
-        const childOfferings = availableCareOfferings(
-          offerings,
-          c.target_grade_level,
-        );
+        const childOfferings = careOfferingsForChild(c);
         const childRequiredIDs = childOfferings
           .filter((o) => o.is_required)
           .map((o) => o.id);
@@ -866,10 +875,8 @@ export function EnrollmentForm({
     offeringNames: new Set(
       Array.from(
         careOfferingsEnabled
-          ? materializeCareOfferings(
-              child,
-              availableCareOfferings(offerings, child.target_grade_level),
-            ).offeringIds
+          ? materializeCareOfferings(child, careOfferingsForChild(child))
+              .offeringIds
           : [],
       )
         .map((id) => loadedOfferings.find((o) => o.id === id)?.name)
@@ -966,10 +973,7 @@ export function EnrollmentForm({
     for (const [i, c] of children.entries()) {
       if (c.locked) continue;
       const childCtx = childConditionCtx(c);
-      const childOfferings = availableCareOfferings(
-        offerings,
-        c.target_grade_level,
-      );
+      const childOfferings = careOfferingsForChild(c);
       if (!c.first_name.trim()) {
         newFieldErrors[`children_${i}_first_name`] = tr("errors.firstName");
       }
@@ -990,6 +994,7 @@ export function EnrollmentForm({
       // rather than an unsubmittable required-but-empty dropdown. Mirror the
       // backend gate (#1833).
       if (
+        collectGradeLevel &&
         schoolClassConfig.require &&
         collectsConcreteClassForGrade(
           schoolClassConfig,
@@ -1097,10 +1102,7 @@ export function EnrollmentForm({
     // would make exactly_one unsatisfiable.
     for (const [i, c] of children.entries()) {
       if (c.locked) continue;
-      const childOfferings = availableCareOfferings(
-        offerings,
-        c.target_grade_level,
-      );
+      const childOfferings = careOfferingsForChild(c);
       const childRequiredIDs = childOfferings
         .filter((o) => o.is_required)
         .map((o) => o.id);
@@ -1227,10 +1229,7 @@ export function EnrollmentForm({
     // validation above, so this only builds data (no further checks).
     const payloadChildren: SubmitChildPayload[] = children.map((c) => {
       if (c.lockedPayload) return c.lockedPayload;
-      const childOfferings = availableCareOfferings(
-        offerings,
-        c.target_grade_level,
-      );
+      const childOfferings = careOfferingsForChild(c);
       const childOfferingIDs = new Set(childOfferings.map((o) => o.id));
       const offeringDaysPayload: Array<{
         offering_id: number;
@@ -1315,10 +1314,12 @@ export function EnrollmentForm({
         // only when the phase offers a grade-1 class, otherwise omitted
         // ("Klasse offen").
         target_school_class:
+          collectGradeLevel &&
           collectsConcreteClassForGrade(
             schoolClassConfig,
             c.target_grade_level,
-          ) && c.target_school_class.trim()
+          ) &&
+          c.target_school_class.trim()
             ? c.target_school_class.trim()
             : undefined,
         custom_data: customData,
@@ -1760,8 +1761,8 @@ export function EnrollmentForm({
                 // grade the phase accepts. Grades are not collected at all
                 // when collect_grade_level is off — the phase-side
                 // collectability guard keeps that pair from carrying a
-                // restriction — so the prefill stays untouched there and
-                // keeps driving the care-offering filter.
+                // restriction — the value stays in the draft but must not
+                // drive any hidden grade-dependent controls.
                 const reusedGrade =
                   child.grade_level != null ? String(child.grade_level) : "";
                 newSlot.target_grade_level =
@@ -1774,7 +1775,7 @@ export function EnrollmentForm({
                     : "";
                 for (const offering of availableCareOfferings(
                   offerings,
-                  newSlot.target_grade_level,
+                  collectGradeLevel ? newSlot.target_grade_level : undefined,
                 )) {
                   if (offering.is_required) {
                     newSlot.offering_ids.add(offering.id);
@@ -1816,10 +1817,7 @@ export function EnrollmentForm({
           )}
 
         {children.map((child, i) => {
-          const childOfferings = availableCareOfferings(
-            offerings,
-            child.target_grade_level,
-          );
+          const childOfferings = careOfferingsForChild(child);
           // Admin flows only (#2186): everything the grade rule filtered out,
           // so the picker can show it greyed with a reason. The parent form
           // leaves this empty and is byte-for-byte unchanged.
@@ -1852,6 +1850,7 @@ export function EnrollmentForm({
             );
           const noOfferingsForGrade =
             careOfferingsEnabled &&
+            collectGradeLevel &&
             gradeChosen &&
             offerings.length > 0 &&
             childOfferings.length === 0 &&
@@ -2084,19 +2083,15 @@ export function EnrollmentForm({
                       </p>
                     )}
                   {offeringsAwaitGrade && (
-                    <p className="border-moto-blue/30 bg-moto-blue/5 rounded-lg border px-3 py-2 text-sm leading-6 text-gray-700">
-                      {tr("care.chooseGradeFirst")}
-                    </p>
+                    <Alert type="info" message={tr("care.chooseGradeFirst")} />
                   )}
                   {noOfferingsForGrade && (
-                    <p
-                      role="status"
-                      className="border-moto-blue/30 bg-moto-blue/5 rounded-lg border px-3 py-2 text-sm leading-6 text-gray-700"
-                    >
-                      {tr("care.noOfferingsForGrade", {
+                    <Alert
+                      type="info"
+                      message={tr("care.noOfferingsForGrade", {
                         grade: child.target_grade_level,
                       })}
-                    </p>
+                    />
                   )}
                   {/* Required offerings are part of the enrollment regardless of
                     the parent's choice. They are presented as an "always
@@ -2689,17 +2684,21 @@ function asStringMap(value: unknown): Record<string, string> {
   );
 }
 
-// Add mandatory offerings that apply to each child's grade after the catalog
-// loads. Conditional required offerings stay absent while their grade input is
-// empty and are added by the grade-change handler once they become applicable.
+// Add mandatory offerings that apply to each child's visible grade after the
+// catalog loads. Conditional required offerings stay absent while their grade
+// input is empty and are added by the grade-change handler once applicable.
 function seedRequiredAvailableOfferings(
   children: ChildDraft[],
   offerings: readonly PublicCareOffering[],
+  collectGradeLevel: boolean,
 ): ChildDraft[] {
   return children.map((c) => {
     if (c.locked) return c;
     const nextIDs = new Set(c.offering_ids);
-    availableCareOfferings(offerings, c.target_grade_level)
+    availableCareOfferings(
+      offerings,
+      collectGradeLevel ? c.target_grade_level : undefined,
+    )
       .filter((offering) => offering.is_required)
       .forEach((offering) => nextIDs.add(offering.id));
     return { ...c, offering_ids: nextIDs };

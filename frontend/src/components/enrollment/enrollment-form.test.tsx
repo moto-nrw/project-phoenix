@@ -720,6 +720,7 @@ describe("EnrollmentForm", () => {
 
       expect(screen.getByText("Betreuungsangebote")).toBeVisible();
       expect(screen.getByText(CHOOSE_GRADE_FIRST)).toBeVisible();
+      expect(screen.getByRole("status")).toHaveTextContent(CHOOSE_GRADE_FIRST);
       expect(
         screen.queryByText("Betreuung Klasse 1 und 2"),
       ).not.toBeInTheDocument();
@@ -759,6 +760,9 @@ describe("EnrollmentForm", () => {
           "Für die 4. Klasse gibt es hier keine passenden Betreuungsangebote. Bei Fragen wenden Sie sich bitte an die OGS.",
         ),
       ).toBeVisible();
+      expect(screen.getByRole("status")).toHaveTextContent(
+        "Für die 4. Klasse gibt es hier keine passenden Betreuungsangebote. Bei Fragen wenden Sie sich bitte an die OGS.",
+      );
       expect(screen.queryByText(CHOOSE_GRADE_FIRST)).not.toBeInTheDocument();
     });
 
@@ -785,6 +789,79 @@ describe("EnrollmentForm", () => {
 
       expect(screen.getByText("Flexible Betreuung")).toBeVisible();
       expect(screen.queryByText(CHOOSE_GRADE_FIRST)).not.toBeInTheDocument();
+    });
+
+    it("ignores a saved grade when the school does not ask for one", async () => {
+      const submitter = vi
+        .fn()
+        .mockResolvedValue({ status_url: "/status/grade-independent" });
+      const draft = editDraft([
+        { id: "c-1", first_name: "Anton", last_name: "Alster" },
+      ]);
+      draft.children[0]!.offering_ids = ["91"];
+
+      renderForm({
+        skipCaptcha: true,
+        submitter,
+        initialDraft: draft,
+        prefetchedData: {
+          schema: schema(),
+          offerings: [
+            offerings()[1]!,
+            gradeOffering("91", "Randstunde Klasse 2", [2]),
+          ],
+          careOfferingSelectionMode: "at_least_one",
+          captchaConfig: null,
+          legalTexts: legalTexts([]),
+          collectGradeLevel: false,
+          careOfferingsEnabled: true,
+        },
+      });
+      await waitForLoaded();
+
+      // Anker: Das weiterhin verfügbare, klassenunabhängige Angebot zeigt,
+      // dass die Auswahl geladen ist.
+      expect(screen.getByText("Fixe Betreuung")).toBeVisible();
+      expect(screen.queryByText("Randstunde Klasse 2")).not.toBeInTheDocument();
+
+      fireEvent.click(screen.getByRole("checkbox", { name: /Fixe Betreuung/ }));
+      fireEvent.click(
+        screen.getByRole("button", { name: "Anmeldung absenden" }),
+      );
+
+      await waitFor(() => expect(submitter).toHaveBeenCalledOnce());
+      const payload = submitter.mock.calls[0]![0] as SubmitEnrollmentPayload;
+      expect(payload.children[0]).toMatchObject({
+        target_grade_level: undefined,
+        offering_ids: [12],
+      });
+    });
+
+    it("does not show a grade notice for a hidden saved grade", async () => {
+      const draft = editDraft([
+        { id: "c-1", first_name: "Anton", last_name: "Alster" },
+      ]);
+      renderForm({
+        initialDraft: draft,
+        prefetchedData: {
+          schema: schema(),
+          offerings: [gradeOffering("91", "Betreuung Klasse 1", [1])],
+          careOfferingSelectionMode: "optional",
+          captchaConfig: null,
+          legalTexts: legalTexts([]),
+          collectGradeLevel: false,
+          careOfferingsEnabled: true,
+        },
+      });
+      await waitForLoaded();
+
+      // Anker: Die Kinderkarte ist geladen, obwohl kein Angebot sichtbar ist.
+      expect(screen.getByLabelText("Jahr")).toBeInTheDocument();
+      expect(
+        screen.queryByText(
+          "Für die 2. Klasse gibt es hier keine passenden Betreuungsangebote. Bei Fragen wenden Sie sich bitte an die OGS.",
+        ),
+      ).not.toBeInTheDocument();
     });
 
     it("shows no offering block when the school switched the offering choice off", async () => {
