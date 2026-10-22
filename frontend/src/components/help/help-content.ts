@@ -1274,7 +1274,7 @@ function dayPlanTopic(presenceMode: HelpPresenceMode): HelpTopic {
     ],
     notes: [
       "Mit den Pfeilen oben rechts sehen Sie einen anderen Tag.",
-      "Betreut Ihre OGS am Wochenende? Dann zeigt `Heute` auch Samstag und Sonntag. Dort gilt der Freitagsplan.",
+      "Betreut Ihre OGS am Wochenende? Dann zeigt die Seite `Heute` auch Samstag und Sonntag. Dort gilt der Freitagsplan.",
     ],
     troubleshootingDetails: [
       // Live geprueft: der haeufigste Leerzustand einer Betreuungskraft.
