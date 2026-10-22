@@ -141,6 +141,86 @@ describe("absence-assertion/needs-anchor", () => {
     expect(count(result.output, "needs-anchor")).toBe(1);
   });
 
+  it.each([false, true])(
+    "resolves sibling helpers lexically (reverse: %s)",
+    (reverse) => {
+      const groups = [
+        `describe("anchored", () => {
+        function load() { screen.getByText("Loaded"); }
+        it("has its own anchor", async () => {
+          load();
+          await waitFor(() => expect(screen.queryByRole("alert")).toBeNull());
+        });
+      });`,
+        `describe("bare", () => {
+        const load = () => {};
+        it("has no anchor", async () => {
+          load();
+          await waitFor(() => expect(screen.queryByRole("alert")).toBeNull());
+        });
+      });`,
+      ];
+      if (reverse) groups.reverse();
+      const result = lintSource(`
+      import { screen, waitFor } from "@testing-library/react";
+      import { describe, expect, it } from "vitest";
+      function load() { screen.getByText("Outer"); }
+      ${groups.join("\n")}
+      it("uses the outer helper", async () => {
+        load();
+        await waitFor(() => expect(screen.queryByRole("alert")).toBeNull());
+      });
+    `);
+
+      expect(count(result.output, "needs-anchor")).toBe(1);
+      expect(count(result.output, "no-early-wait-for")).toBe(1);
+      expect(result.output).toContain("has no anchor");
+    },
+  );
+
+  it.each([
+    'expect(screen.queryAllByRole("row")).not.toHaveLength(3)',
+    'expect(screen.queryAllByRole("row").length).not.toBe(3)',
+    'expect(screen.queryAllByRole("row").length).not.toEqual(3)',
+    'expect(screen.queryAllByRole("row").length).not.toStrictEqual(3)',
+    'expect(screen.queryByText("Loaded")).toBeDefined()',
+    'expect(screen.queryByText("Loaded")).not.toBeUndefined()',
+  ])("does not accept empty-tolerant evidence: %s", (assertion) => {
+    const result = lintSource(`
+      import { screen, waitFor } from "@testing-library/react";
+      import { expect, it } from "vitest";
+      it("has no anchor", async () => {
+        ${assertion};
+        await waitFor(() => expect(screen.queryByRole("alert")).toBeNull());
+      });
+    `);
+
+    expect(count(result.output, "needs-anchor")).toBe(1);
+    expect(count(result.output, "no-early-wait-for")).toBe(1);
+  });
+
+  it.each([
+    'expect(screen.queryAllByRole("row")).toHaveLength(3)',
+    'expect(screen.queryAllByRole("row")).not.toHaveLength(0)',
+    'expect(screen.queryAllByRole("row").length).toBe(3)',
+    'expect(screen.queryAllByRole("row").length).not.toEqual(0)',
+    'expect(screen.queryByText("Loaded")).not.toBeNull()',
+    'expect(screen.queryByText("Loaded")).toBeTruthy()',
+  ])("accepts nonempty evidence: %s", (assertion) => {
+    const result = lintSource(`
+      import { screen, waitFor } from "@testing-library/react";
+      import { expect, it } from "vitest";
+      it("has an anchor", async () => {
+        ${assertion};
+        await waitFor(() => expect(screen.queryByRole("alert")).toBeNull());
+      });
+    `);
+
+    expect(count(result.output, "needs-anchor")).toBe(0);
+    expect(count(result.output, "no-early-wait-for")).toBe(0);
+    expect(result.status).toBe(0);
+  });
+
   it("exempts the exact empty-render contract", () => {
     const result = lintSource(`
       import { render, screen } from "@testing-library/react";

@@ -108,8 +108,8 @@ const JEST_DOM_MATCHERS = new Set([
   "toHaveSelection",
   "toBeEmptyDOMElement",
 ]);
-const NULLISH_MATCHERS = new Set(["toBeNull", "toBeFalsy", "toBeUndefined"]);
-const TRUTHY_MATCHERS = new Set(["toBeTruthy", "toBeDefined"]);
+const NULLISH_MATCHERS = new Set(["toBeNull", "toBeFalsy"]);
+const TRUTHY_MATCHERS = new Set(["toBeTruthy"]);
 const TEXT_MATCHERS = new Set([
   "toContain",
   "toMatch",
@@ -329,6 +329,8 @@ function classifyAssertion(sourceCode, call, { chain, subject }) {
   if (kind === "positive") return "positive";
 
   if (kind === "node") {
+    // Nullable queries return null, not undefined. Neither check proves presence.
+    if (matcher === "toBeDefined" || matcher === "toBeUndefined") return "";
     if (NULLISH_MATCHERS.has(matcher)) return negated ? "positive" : "absent";
     if (TRUTHY_MATCHERS.has(matcher)) return negated ? "absent" : "positive";
     return "positive";
@@ -337,10 +339,16 @@ function classifyAssertion(sourceCode, call, { chain, subject }) {
     const lengthMatcher = kind === "list" ? "toHaveLength" : "toBe";
     if (
       matcher === lengthMatcher ||
-      (kind === "length" && matcher === "toEqual")
+      (kind === "length" && EMPTY_LIST_MATCHERS.has(matcher))
     ) {
       if (isZeroLiteral(argument)) return negated ? "positive" : "absent";
-      return "positive";
+      // Only a known positive count rules out an empty result.
+      return !negated &&
+        argument?.type === "Literal" &&
+        Number.isInteger(argument.value) &&
+        argument.value > 0
+        ? "positive"
+        : "";
     }
     if (
       kind === "list" &&
@@ -396,7 +404,6 @@ function within(outer, inner) {
 function createAnalysis(context, report) {
   const sourceCode = context.sourceCode ?? context.getSourceCode();
   const owners = new Map(); // owner node -> { kind, node, events, … }
-  const helpers = new Map(); // name -> [owner]
   const describeFns = [];
 
   function ownerOf(node) {
@@ -434,8 +441,6 @@ function createAnalysis(context, report) {
       const name = helperName(fn);
       if (name) {
         owner = { kind: "helper", name };
-        if (!helpers.has(name)) helpers.set(name, []);
-        helpers.get(name).push(owner);
       }
     }
     if (!owner) return null;
@@ -456,15 +461,14 @@ function createAnalysis(context, report) {
     });
   }
 
-  function resolveHelper(name, callNode) {
-    const candidates = helpers.get(name);
-    if (!candidates) return null;
-    let best = null;
-    for (const candidate of candidates) {
-      if (within(candidate.fn, callNode)) continue; // recursion
-      if (!best || candidate.fn.range[0] > best.fn.range[0]) best = candidate;
-    }
-    return best;
+  function resolveHelper(callNode) {
+    const variable = findVariable(sourceCode, callNode.callee);
+    const definition = variable?.defs[0]?.node;
+    const fn =
+      definition?.type === "FunctionDeclaration"
+        ? definition
+        : unwrap(definition?.init);
+    return fn && isFunction(fn) ? ensureOwner(fn) : null;
   }
 
   function flatten(owner, visited, out) {
@@ -473,7 +477,7 @@ function createAnalysis(context, report) {
     const events = owner.events.toSorted((a, b) => a.start - b.start);
     for (const event of events) {
       if (event.kind === "call") {
-        const helper = resolveHelper(event.name, event.node);
+        const helper = resolveHelper(event.node);
         if (helper) {
           const nested = [];
           flatten(helper, visited, nested);
@@ -527,7 +531,7 @@ function createAnalysis(context, report) {
       }
       if (node.callee.type === "Identifier") {
         // A same-file helper may be declared later; resolved at Program:exit.
-        record(node, { kind: "call", name });
+        record(node, { kind: "call" });
       }
     },
     FunctionDeclaration(node) {

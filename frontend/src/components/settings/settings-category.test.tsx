@@ -141,7 +141,8 @@ describe("SettingsCategory", () => {
       />,
     );
 
-    expect(queryByText("Datenschutzinformation anzeigen")).toBeDefined();
+    // Anker: der Schalter der geladenen Datenschutz-Einstellungen ist sichtbar.
+    expect(queryByText("Datenschutzinformation anzeigen")).not.toBeNull();
     expect(queryByText("Datenschutzinformation")).toBeNull();
   });
 
