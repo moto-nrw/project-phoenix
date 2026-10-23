@@ -1,5 +1,5 @@
 ---
-status: proposed
+status: accepted
 ---
 
 # Träger-Portal liest über eine Projektion und schreibt in der Schule
@@ -11,11 +11,11 @@ Sie beantwortet [#2809](https://github.com/moto-nrw/project-phoenix/issues/2809)
 [#2811](https://github.com/moto-nrw/project-phoenix/issues/2811),
 [#2821](https://github.com/moto-nrw/project-phoenix/issues/2821) und
 [#2822](https://github.com/moto-nrw/project-phoenix/issues/2822).
-Sie bleibt `proposed`, bis der Product Owner sie annimmt
-([ADR 0081](0081-owner-granularity-follows-invariants-not-source-size.md)),
-weil sie einen neuen Owner einführt und
+Der Product Owner hat sie am 23.10.2026 angenommen
+([ADR 0081](0081-owner-granularity-follows-invariants-not-source-size.md)).
+Sie führt einen neuen Owner ein und erweitert
 [ADR 0066](0066-principle-every-module-table-and-cross-owner-read-has-one-owner.md)
-Punkt 7 erweitert.
+Punkt 7.
 
 Die Schule bleibt der Tenant. Das Träger-Büro arbeitet in einem eigenen
 Träger-Portal mit einer eigenen Träger-Sitzung. Es liest über Schulgrenzen nur
