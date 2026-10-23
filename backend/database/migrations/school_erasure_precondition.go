@@ -23,36 +23,9 @@ func requireSchoolErasureReferences(ctx context.Context, db bun.IDB) error {
  WHERE to_regclass(name) IS NOT NULL`).Scan(ctx, &existing); err != nil {
 		return fmt.Errorf("check school erasure source tables: %w", err)
 	}
-	var counts [5]int64
-	if slices.Contains(existing, "active.presence_backfill_batches") {
-		if err := db.NewRaw(`SELECT count(*) FROM active.presence_backfill_batches r
-   WHERE r.tenant_id IS NOT NULL AND NOT EXISTS (SELECT FROM platform.schools s WHERE s.id=r.tenant_id)`).Scan(ctx, &counts[0]); err != nil {
-			return fmt.Errorf("count active.presence_backfill_batches orphan references: %w", err)
-		}
-	}
-	if slices.Contains(existing, "audit.room_color_migration_backup") {
-		if err := db.NewRaw(`SELECT count(*) FROM audit.room_color_migration_backup r
-   WHERE r.tenant_id IS NOT NULL AND NOT EXISTS (SELECT FROM platform.schools s WHERE s.id=r.tenant_id)`).Scan(ctx, &counts[1]); err != nil {
-			return fmt.Errorf("count audit.room_color_migration_backup orphan references: %w", err)
-		}
-	}
-	if slices.Contains(existing, "audit.wc_alias_migration_backup") {
-		if err := db.NewRaw(`SELECT count(*) FROM audit.wc_alias_migration_backup r
-   WHERE r.tenant_id IS NOT NULL AND NOT EXISTS (SELECT FROM platform.schools s WHERE s.id=r.tenant_id)`).Scan(ctx, &counts[2]); err != nil {
-			return fmt.Errorf("count audit.wc_alias_migration_backup orphan references: %w", err)
-		}
-	}
-	if slices.Contains(existing, "auth.mfa_email_challenges") {
-		if err := db.NewRaw(`SELECT count(*) FROM auth.mfa_email_challenges r
-   WHERE r.tenant_id IS NOT NULL AND NOT EXISTS (SELECT FROM platform.schools s WHERE s.id=r.tenant_id)`).Scan(ctx, &counts[3]); err != nil {
-			return fmt.Errorf("count auth.mfa_email_challenges orphan references: %w", err)
-		}
-	}
-	if slices.Contains(existing, "auth.parent_declaration_permission_grants") {
-		if err := db.NewRaw(`SELECT count(*) FROM auth.parent_declaration_permission_grants r
-   WHERE r.tenant_id IS NOT NULL AND NOT EXISTS (SELECT FROM platform.schools s WHERE s.id=r.tenant_id)`).Scan(ctx, &counts[4]); err != nil {
-			return fmt.Errorf("count auth.parent_declaration_permission_grants orphan references: %w", err)
-		}
+	counts, err := countSchoolErasureOrphans(ctx, db, existing)
+	if err != nil {
+		return err
 	}
 	var failures []string
 	for i, table := range []string{"active.presence_backfill_batches", "audit.room_color_migration_backup", "audit.wc_alias_migration_backup", "auth.mfa_email_challenges", "auth.parent_declaration_permission_grants"} {
@@ -64,4 +37,39 @@ func requireSchoolErasureReferences(ctx context.Context, db bun.IDB) error {
 		return fmt.Errorf("school erasure requires valid school references: %s; run docs/operations/sql/mandantenloeschung-vorpruefung-3837.sql and follow docs/reference/mandantenloeschung-datenbank.md before deployment", strings.Join(failures, "; "))
 	}
 	return nil
+}
+
+func countSchoolErasureOrphans(ctx context.Context, db bun.IDB, existing []string) ([5]int64, error) {
+	var counts [5]int64
+	if slices.Contains(existing, "active.presence_backfill_batches") {
+		if err := db.NewRaw(`SELECT count(*) FROM active.presence_backfill_batches r
+   WHERE r.tenant_id IS NOT NULL AND NOT EXISTS (SELECT FROM platform.schools s WHERE s.id=r.tenant_id)`).Scan(ctx, &counts[0]); err != nil {
+			return counts, fmt.Errorf("count active.presence_backfill_batches orphan references: %w", err)
+		}
+	}
+	if slices.Contains(existing, "audit.room_color_migration_backup") {
+		if err := db.NewRaw(`SELECT count(*) FROM audit.room_color_migration_backup r
+   WHERE r.tenant_id IS NOT NULL AND NOT EXISTS (SELECT FROM platform.schools s WHERE s.id=r.tenant_id)`).Scan(ctx, &counts[1]); err != nil {
+			return counts, fmt.Errorf("count audit.room_color_migration_backup orphan references: %w", err)
+		}
+	}
+	if slices.Contains(existing, "audit.wc_alias_migration_backup") {
+		if err := db.NewRaw(`SELECT count(*) FROM audit.wc_alias_migration_backup r
+   WHERE r.tenant_id IS NOT NULL AND NOT EXISTS (SELECT FROM platform.schools s WHERE s.id=r.tenant_id)`).Scan(ctx, &counts[2]); err != nil {
+			return counts, fmt.Errorf("count audit.wc_alias_migration_backup orphan references: %w", err)
+		}
+	}
+	if slices.Contains(existing, "auth.mfa_email_challenges") {
+		if err := db.NewRaw(`SELECT count(*) FROM auth.mfa_email_challenges r
+   WHERE r.tenant_id IS NOT NULL AND NOT EXISTS (SELECT FROM platform.schools s WHERE s.id=r.tenant_id)`).Scan(ctx, &counts[3]); err != nil {
+			return counts, fmt.Errorf("count auth.mfa_email_challenges orphan references: %w", err)
+		}
+	}
+	if slices.Contains(existing, "auth.parent_declaration_permission_grants") {
+		if err := db.NewRaw(`SELECT count(*) FROM auth.parent_declaration_permission_grants r
+   WHERE r.tenant_id IS NOT NULL AND NOT EXISTS (SELECT FROM platform.schools s WHERE s.id=r.tenant_id)`).Scan(ctx, &counts[4]); err != nil {
+			return counts, fmt.Errorf("count auth.parent_declaration_permission_grants orphan references: %w", err)
+		}
+	}
+	return counts, nil
 }

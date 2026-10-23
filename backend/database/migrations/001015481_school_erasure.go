@@ -20,33 +20,35 @@ func init() {
 }
 
 func schoolErasureUp(ctx context.Context, db *bun.DB) error {
-	return db.RunInTx(ctx, nil, func(ctx context.Context, tx bun.Tx) error {
-		if err := requireSchoolErasureReferences(ctx, tx); err != nil {
-			return err
-		}
-		if _, err := tx.ExecContext(ctx, schoolErasureSchemaSQL); err != nil {
-			return fmt.Errorf("create school erasure evidence: %w", err)
-		}
-		if err := installSchoolErasurePlan(ctx, tx); err != nil {
-			return fmt.Errorf("install school erasure plan: %w", err)
-		}
-		if err := installSchoolErasurePreflight(ctx, tx); err != nil {
-			return fmt.Errorf("install school erasure preflight: %w", err)
-		}
-		if err := installSchoolErasureResidual(ctx, tx); err != nil {
-			return fmt.Errorf("install school erasure residual check: %w", err)
-		}
-		if err := installSchoolErasureDelete(ctx, tx); err != nil {
-			return fmt.Errorf("install school erasure deletion: %w", err)
-		}
-		if _, err := tx.ExecContext(ctx, schoolErasureFunctionsSQL); err != nil {
-			return fmt.Errorf("install school erasure functions: %w", err)
-		}
-		if err := installSchoolErasureBilling(ctx, tx); err != nil {
-			return fmt.Errorf("restrict retained billing evidence: %w", err)
-		}
-		return nil
-	})
+	return db.RunInTx(ctx, nil, installSchoolErasure)
+}
+
+func installSchoolErasure(ctx context.Context, tx bun.Tx) error {
+	if err := requireSchoolErasureReferences(ctx, tx); err != nil {
+		return err
+	}
+	if _, err := tx.ExecContext(ctx, schoolErasureSchemaSQL); err != nil {
+		return fmt.Errorf("create school erasure evidence: %w", err)
+	}
+	if err := installSchoolErasurePlan(ctx, tx); err != nil {
+		return fmt.Errorf("install school erasure plan: %w", err)
+	}
+	if err := installSchoolErasurePreflight(ctx, tx); err != nil {
+		return fmt.Errorf("install school erasure preflight: %w", err)
+	}
+	if err := installSchoolErasureResidual(ctx, tx); err != nil {
+		return fmt.Errorf("install school erasure residual check: %w", err)
+	}
+	if err := installSchoolErasureDelete(ctx, tx); err != nil {
+		return fmt.Errorf("install school erasure deletion: %w", err)
+	}
+	if _, err := tx.ExecContext(ctx, schoolErasureFunctionsSQL); err != nil {
+		return fmt.Errorf("install school erasure functions: %w", err)
+	}
+	if err := installSchoolErasureBilling(ctx, tx); err != nil {
+		return fmt.Errorf("restrict retained billing evidence: %w", err)
+	}
+	return nil
 }
 
 const schoolErasureSchemaSQL = `
