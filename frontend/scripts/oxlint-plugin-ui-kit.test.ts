@@ -312,9 +312,7 @@ describe("ui-kit/no-hand-rolled-page-card", () => {
 describe("ui-kit/no-tabs-as-value-switcher", () => {
   const tabsSource = (
     label: string,
-  ) => `function TabsTrigger(_: { value: string; children: string }) {
-      return null;
-    }
+  ) => `import { TabsTrigger } from "~/components/ui/tabs";
     function Probe() {
       return <TabsTrigger value="probe">${label}</TabsTrigger>;
     }
@@ -335,9 +333,7 @@ describe("ui-kit/no-tabs-as-value-switcher", () => {
 
   it("reports nested and translated value-choice labels", () => {
     const result = lintSource(
-      `function TabsTrigger(_: { value: string; children: unknown }) {
-        return null;
-      }
+      `import { TabsTrigger } from "~/components/ui/tabs";
       function t(key: string) {
         return key;
       }
@@ -360,20 +356,16 @@ describe("ui-kit/no-tabs-as-value-switcher", () => {
 
   it("reports dynamic tabs without content panels", () => {
     const result = lintSource(
-      `function Tabs(_: { children: unknown }) {
-        return null;
-      }
-      function TabsList(_: { children: unknown }) {
-        return null;
-      }
-      function TabsTrigger(_: { value: string; children: unknown }) {
-        return null;
-      }
+      `import {
+        Tabs as ValueTabs,
+        TabsList as ValueTabsList,
+        TabsTrigger as ValueTabsTrigger,
+      } from "~/components/ui/tabs";
       const tab = { id: "custom", label: "Eigene Ansicht" };
       function Probe() {
-        return <Tabs><TabsList>
-          <TabsTrigger value={tab.id}>{tab.label}</TabsTrigger>
-        </TabsList></Tabs>;
+        return <ValueTabs><ValueTabsList>
+          <ValueTabsTrigger value={tab.id}>{tab.label}</ValueTabsTrigger>
+        </ValueTabsList></ValueTabs>;
       }
       void Probe;`,
       "src/components/probe.tsx",
@@ -386,18 +378,7 @@ describe("ui-kit/no-tabs-as-value-switcher", () => {
 
   it("does not count content panels in nested tab groups", () => {
     const result = lintSource(
-      `function Tabs(_: { children: unknown }) {
-        return null;
-      }
-      function TabsList(_: { children: unknown }) {
-        return null;
-      }
-      function TabsTrigger(_: { value: string; children: unknown }) {
-        return null;
-      }
-      function TabsContent(_: { value: string; children: unknown }) {
-        return null;
-      }
+      `import { Tabs, TabsList, TabsTrigger, TabsContent } from "~/components/ui/tabs";
       const tab = { id: "custom", label: "Eigene Ansicht" };
       function Probe() {
         return <Tabs>
@@ -417,19 +398,15 @@ describe("ui-kit/no-tabs-as-value-switcher", () => {
   it("accepts dynamic labels with all supported content-panel imports", () => {
     const result = lintSource(
       `import * as TabsPrimitive from "@radix-ui/react-tabs";
-      import { TabsContent as TildeContent } from "~/components/ui/tabs";
+      import {
+        Tabs,
+        TabsList,
+        TabsTrigger,
+        TabsContent as TildeContent,
+      } from "~/components/ui/tabs";
       import { TabsContent as AtContent } from "@/components/ui/tabs";
       import { TabsContent as RelativeContent } from "./ui/tabs";
-      function Tabs(_: { children: unknown }) {
-        return null;
-      }
-      function TabsList(_: { children: unknown }) {
-        return null;
-      }
-      function TabsTrigger(_: { value: string; children: unknown }) {
-        return null;
-      }
-      const tab = { id: "custom", label: "Eigene Ansicht" };
+      const tab = { id: "week", label: "Eigene Ansicht" };
       function Probe() {
         return <Tabs>
           <TabsList><TabsTrigger value={tab.id}>{tab.label}</TabsTrigger></TabsList>
@@ -438,6 +415,23 @@ describe("ui-kit/no-tabs-as-value-switcher", () => {
           <AtContent value={tab.id}>Inhalt</AtContent>
           <RelativeContent value={tab.id}>Inhalt</RelativeContent>
         </Tabs>;
+      }
+      void Probe;`,
+      "src/components/probe.tsx",
+    );
+    const output = `${result.stdout}${result.stderr}`;
+
+    expect(result.status, output).toBe(0);
+    expect(output).not.toContain("no-tabs-as-value-switcher");
+  });
+
+  it("ignores unrelated components named TabsTrigger", () => {
+    const result = lintSource(
+      `function TabsTrigger(_: { children: unknown }) {
+        return null;
+      }
+      function Probe() {
+        return <TabsTrigger>Woche</TabsTrigger>;
       }
       void Probe;`,
       "src/components/probe.tsx",

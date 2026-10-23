@@ -691,27 +691,24 @@ function collectStaticTabText(children, texts) {
   }
 }
 
-function staticAttributeValue(openingElement, name) {
-  const attribute = openingElement.attributes.find(
-    (candidate) =>
-      candidate.type === "JSXAttribute" &&
-      candidate.name.type === "JSXIdentifier" &&
-      candidate.name.name === name,
+function isTabsElement(node, tabsNames, tabsPrimitiveNamespaces) {
+  const name = node.openingElement?.name;
+  if (tabsNames.has(jsxName(name))) return true;
+  return (
+    name?.type === "JSXMemberExpression" &&
+    tabsPrimitiveNamespaces.has(jsxName(name.object)) &&
+    jsxName(name.property) === "Root"
   );
-  if (attribute?.value?.type === "Literal") {
-    return typeof attribute.value.value === "string"
-      ? attribute.value.value
-      : null;
-  }
-  const expression = attribute?.value?.expression;
-  if (expression?.type === "Literal" && typeof expression.value === "string") {
-    return expression.value;
-  }
-  return null;
 }
 
-function isTabsElement(node) {
-  return jsxName(node.openingElement?.name) === "Tabs";
+function isTabsTriggerElement(node, tabsTriggerNames, tabsPrimitiveNamespaces) {
+  const name = node.openingElement?.name;
+  if (tabsTriggerNames.has(jsxName(name))) return true;
+  return (
+    name?.type === "JSXMemberExpression" &&
+    tabsPrimitiveNamespaces.has(jsxName(name.object)) &&
+    jsxName(name.property) === "Trigger"
+  );
 }
 
 function isTabsContentElement(
@@ -730,6 +727,7 @@ function isTabsContentElement(
 
 function hasTabsContent(
   node,
+  tabsNames,
   tabsContentNames,
   tabsPrimitiveNamespaces,
   seen = new WeakSet(),
@@ -740,7 +738,9 @@ function hasTabsContent(
     if (isTabsContentElement(node, tabsContentNames, tabsPrimitiveNamespaces)) {
       return true;
     }
-    if (!isRoot && isTabsElement(node)) return false;
+    if (!isRoot && isTabsElement(node, tabsNames, tabsPrimitiveNamespaces)) {
+      return false;
+    }
   }
   seen.add(node);
 
@@ -750,6 +750,7 @@ function hasTabsContent(
       return value.some((child) =>
         hasTabsContent(
           child,
+          tabsNames,
           tabsContentNames,
           tabsPrimitiveNamespaces,
           seen,
@@ -759,6 +760,7 @@ function hasTabsContent(
     }
     return hasTabsContent(
       value,
+      tabsNames,
       tabsContentNames,
       tabsPrimitiveNamespaces,
       seen,
@@ -767,11 +769,20 @@ function hasTabsContent(
   });
 }
 
-function isTabsWithoutContent(node, tabsContentNames, tabsPrimitiveNamespaces) {
+function isTabsWithoutContent(
+  node,
+  tabsNames,
+  tabsContentNames,
+  tabsPrimitiveNamespaces,
+) {
   for (let ancestor = node.parent; ancestor; ancestor = ancestor.parent) {
-    if (ancestor.type === "JSXElement" && isTabsElement(ancestor)) {
+    if (
+      ancestor.type === "JSXElement" &&
+      isTabsElement(ancestor, tabsNames, tabsPrimitiveNamespaces)
+    ) {
       return !hasTabsContent(
         ancestor,
+        tabsNames,
         tabsContentNames,
         tabsPrimitiveNamespaces,
       );
@@ -799,8 +810,10 @@ const noTabsAsValueSwitcher = {
     ).replace(/\\/g, "/");
     if (OTHER_PORTALS_RE.test(filename)) return {};
     if (/\.(test|stories)\.[jt]sx?$/.test(filename)) return {};
-    const tabsContentNames = new Set(["TabsContent"]);
-    const tabsPrimitiveNamespaces = new Set(["TabsPrimitive"]);
+    const tabsNames = new Set();
+    const tabsTriggerNames = new Set();
+    const tabsContentNames = new Set();
+    const tabsPrimitiveNamespaces = new Set();
 
     return {
       ImportDeclaration(node) {
@@ -808,19 +821,26 @@ const noTabsAsValueSwitcher = {
         if (typeof source !== "string") return;
 
         for (const specifier of node.specifiers) {
-          if (
-            isUiKitTabsModule(source, filename) &&
-            specifier.type === "ImportSpecifier" &&
-            specifier.imported.name === "TabsContent"
-          ) {
-            tabsContentNames.add(specifier.local.name);
+          if (isUiKitTabsModule(source, filename)) {
+            if (specifier.type !== "ImportSpecifier") continue;
+            if (specifier.imported.name === "Tabs") {
+              tabsNames.add(specifier.local.name);
+            } else if (specifier.imported.name === "TabsTrigger") {
+              tabsTriggerNames.add(specifier.local.name);
+            } else if (specifier.imported.name === "TabsContent") {
+              tabsContentNames.add(specifier.local.name);
+            }
+            continue;
           }
           if (source !== "@radix-ui/react-tabs") continue;
-          if (
-            specifier.type === "ImportSpecifier" &&
-            specifier.imported.name === "Content"
-          ) {
-            tabsContentNames.add(specifier.local.name);
+          if (specifier.type === "ImportSpecifier") {
+            if (specifier.imported.name === "Root") {
+              tabsNames.add(specifier.local.name);
+            } else if (specifier.imported.name === "Trigger") {
+              tabsTriggerNames.add(specifier.local.name);
+            } else if (specifier.imported.name === "Content") {
+              tabsContentNames.add(specifier.local.name);
+            }
           }
           if (specifier.type === "ImportNamespaceSpecifier") {
             tabsPrimitiveNamespaces.add(specifier.local.name);
@@ -828,11 +848,16 @@ const noTabsAsValueSwitcher = {
         }
       },
       JSXElement(node) {
-        const name = node.openingElement?.name?.name;
-        if (name !== "TabsTrigger") return;
+        if (
+          !isTabsTriggerElement(
+            node,
+            tabsTriggerNames,
+            tabsPrimitiveNamespaces,
+          )
+        )
+          return;
         const texts = [];
         collectStaticTabText(node.children, texts);
-        const value = staticAttributeValue(node.openingElement, "value");
         if (
           texts.some((text) => {
             const token = text.trim();
@@ -841,9 +866,9 @@ const noTabsAsValueSwitcher = {
               VALUE_SWITCHER_VALUES.has(token)
             );
           }) ||
-          (value !== null && VALUE_SWITCHER_VALUES.has(value)) ||
           isTabsWithoutContent(
             node,
+            tabsNames,
             tabsContentNames,
             tabsPrimitiveNamespaces,
           )
