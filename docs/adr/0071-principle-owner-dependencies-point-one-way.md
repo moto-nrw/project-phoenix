@@ -82,3 +82,46 @@ filters at that port; tenant transactions and the projection's SQL stay
 unchanged. Communication already owns its audience port and values; its
 announcement-audience mapping moves from the owner composition to the root.
 The three domain-to-projection rules are deleted with no replacements.
+
+## Addendum 2026-10-23: explicit care-resumption entry (#4740)
+
+Care Plan no longer publishes `CareResumption` or embeds `Resume` in
+`CareExitCommands` / `CareLifecycle`. Its application and composition accept
+no resumption collaborator. This supersedes ADR 0067's #4538 compatibility
+binding and implements ADR 0083's preferred explicit workflow entry.
+
+`modules/careplan/http.CareResumption` is a consumer-owned transport port,
+not a domain command. The root constructs `careexit.Resumption` and passes it
+separately to that HTTP adapter. The handler calls the workflow directly;
+no Care Plan domain command calls it. Point 2 applies to runtime calls as
+well as imports: declaring this port in HTTP does not permit a workflow
+callback from a domain application. Only the root names the workflow type.
+Care Plan retains its input value and error identities; neither declares a
+workflow dependency. No policy rule, owner, epoch or cycle is added.
+
+The workflow keeps its complete unit and protocol: shared class gate → child
+lock and re-read → exit check → guarded Membership resume → exit deletion →
+removal-ledger deletion → audit. It restores no plan and acquires no recurrence
+gate. Tenant scope, conditional refusal, HTTP responses and audit stay intact.
+The contract/workflow tests keep their assertions through the separate root
+entry; the HTTP regression removes the domain lifecycle and still resumes
+through the real workflow binding.
+
+### Remaining roster callback: bounded E2 compatibility
+
+`NewCareLifecycleOwners` still binds `careexit.NewRoster` into the lifecycle's
+private roster port. This is the same runtime direction, not evidence that
+root binding makes domain-to-workflow calls generally valid. Unlike the
+standalone resumption entry, the roster reads attendance, removes/restores
+Timetable participants and restores/reconnects Presence state inside the
+existing confirm/cancel/due protocol. Moving its constructor or adding a
+forwarder would leave that coordination in the domain.
+
+Retain exactly this roster callback as the runtime part of ADR 0067's E2
+exception: the existing roster-port methods, caller's tenant transaction,
+ledger snapshot/restore and class(shared) → recurrence → child/plan locking
+remain unchanged. No new method, owner, effect or independent transaction is
+covered. Remove this exception when E2's complete end/cancel/due and withdrawal
+protocol moves into an explicit workflow. This larger cut is outside #4740;
+resumption is not covered by this exception. ADR 0083's typed effect successor
+must continue to report the roster binding as workflow-backed, not as a leaf.
