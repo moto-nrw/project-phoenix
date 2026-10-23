@@ -59,7 +59,8 @@ of every target implementation or a proof of the caller's protocol.
 Unresolved bindings, cycles and function-valued fields produce exact
 `unresolved:` targets. They fail unless an exact entry has effect and
 classification `unresolved`, cites ADR 0089, and explains the boundary. These
-entries remain visibly unresolved in JSON, not approved leaves or queries.
+entries remain visibly unresolved in JSON and the PR-check summary, not approved
+leaves or queries.
 New unresolved entries require a new approval ADR in PR mode.
 
 ## Effects and PR-base contract
@@ -95,7 +96,9 @@ a base without the register is permitted only while ADR 0089 is new.
 - Other source owners, platform targets, direct foreign calls not supplied
   through an inventoried interface, generic/variadic and multi-result binding
   flow, reflection and runtime container/function dispatch need later slices.
-  Function fields reached inside a scanned adapter are diagnosed, not resolved.
+  Function fields and unknown callable variables/parameters reached inside a
+  scanned adapter are diagnosed, not resolved. Local static method/function
+  values retain their typed selector/body evidence without a dynamic diagnostic.
 - Type-level assignment union can overapproximate which concrete implementation
   reaches Enrollment. It does not prove instance-level wiring, command liveness,
   transaction participation, authorization equivalence or deadlock freedom.

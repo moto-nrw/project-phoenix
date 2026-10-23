@@ -30,7 +30,7 @@ func CompareCommandEffects(project, ref string) error {
 	if len(failures) > 0 {
 		return fmt.Errorf("command effects against base %s:\n  %s", context.sha, strings.Join(failures, "\n  "))
 	}
-	fmt.Printf("command effects: %d entries; %d added, %d changed against base %s\n", len(candidate.Entries), added, changed, context.sha)
+	fmt.Printf("command effects: %d entries (%d reviewed unresolved); %d added, %d changed against base %s\n", len(candidate.Entries), candidate.unresolvedCount(), added, changed, context.sha)
 	return nil
 }
 
@@ -125,4 +125,14 @@ func compareCommandEffectsIfEnabled(project, ref string, policy *Policy) error {
 		return nil
 	}
 	return CompareCommandEffects(project, ref)
+}
+
+func (manifest *commandEffectManifest) unresolvedCount() int {
+	count := 0
+	for _, entry := range manifest.Entries {
+		if entry.Effect == "unresolved" {
+			count++
+		}
+	}
+	return count
 }

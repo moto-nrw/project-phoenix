@@ -234,8 +234,11 @@ func normalizeEffectBody(body effectBody) (string, error) {
 }
 
 func (s *effectScanner) walkBody(port, binding string, pkg *packages.Package, body *ast.BlockStmt, seen map[string]bool, trail []string) {
+	known := knownEffectCallables(pkg, body)
 	ast.Inspect(body, func(node ast.Node) bool {
 		switch n := node.(type) {
+		case *ast.CallExpr:
+			s.walkCallable(port, binding, pkg, n, trail, known)
 		case *ast.SelectorExpr:
 			s.walkSelector(port, binding, pkg, n, seen, trail)
 		case *ast.Ident:
@@ -392,4 +395,18 @@ func effectASTField(name string, value reflect.Value) bool {
 		return false
 	}
 	return value.Type() != reflect.TypeFor[token.Pos]()
+}
+
+func (s *effectScanner) walkCallable(port, binding string, pkg *packages.Package, call *ast.CallExpr, trail []string, known map[*types.Var]bool) {
+	id, ok := call.Fun.(*ast.Ident)
+	if !ok {
+		return
+	}
+	variable, ok := pkg.TypesInfo.Uses[id].(*types.Var)
+	if !ok || known[variable] {
+		return
+	}
+	if _, callable := variable.Type().Underlying().(*types.Signature); callable {
+		s.record(port, binding, "unresolved:callable:"+pkg.PkgPath+"."+id.Name, "", trail)
+	}
 }

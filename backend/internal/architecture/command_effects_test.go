@@ -50,6 +50,10 @@ func Build() { enrollment.Run(binding{}) }
 	return project, &Policy{ModulePath: "example.test/effects", Build: Build{GOOS: "linux", GOARCH: "amd64"},
 		Owners:   []Owner{{ID: "enrollment", Kind: "domain"}, {ID: "foreign", Kind: "domain"}, {ID: "root-composition", Kind: "composition"}},
 		Packages: []Package{{Path: "enrollment", Owner: "enrollment", Role: "application"}, {Path: "foreign", Owner: "foreign", Role: "public"}, {Path: "roots", Owner: "root-composition", Role: "compose"}},
+		Rules: []Rule{
+			{ID: "root-enrollment", SourceOwner: "root-composition", SourceRole: "compose", TargetOwner: "enrollment", TargetRole: "application", Scopes: []string{"production"}},
+			{ID: "root-foreign", SourceOwner: "root-composition", SourceRole: "compose", TargetOwner: "foreign", TargetRole: "public", Scopes: []string{"production"}},
+		},
 	}
 }
 
@@ -73,10 +77,8 @@ func TestCommandEffectsAllowReviewedQueryAndException(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			for _, violation := range Check(policy, graph) {
-				if strings.HasPrefix(violation.Rule, "effects.") {
-					t.Fatalf("reviewed %s rejected: %+v", tc.name, violation)
-				}
+			if violations := Check(policy, graph); len(violations) != 0 {
+				t.Fatalf("reviewed %s rejected: %+v", tc.name, violations)
 			}
 		})
 	}
@@ -141,12 +143,18 @@ func Build() { var port enrollment.Writer = binding{}; enrollment.Run(port) }
 	if err != nil {
 		t.Fatal(err)
 	}
+	found := false
 	for _, v := range Check(policy, graph) {
+		if v.Rule == "effects.unresolved" {
+			t.Fatalf("statically bound method value reported dynamic: %+v", v)
+		}
 		if v.Rule == "effects.uninventoried" && strings.Contains(v.Source, "Writer.Record") && strings.Contains(v.Target, "Ledger.Record") {
-			return
+			found = true
 		}
 	}
-	t.Fatal("embedded interface, promoted implementation or method value hid a command")
+	if !found {
+		t.Fatal("embedded interface, promoted implementation or method value hid a command")
+	}
 }
 
 func TestCommandEffectsFollowConsumerAliasToForeignContract(t *testing.T) {
@@ -324,4 +332,28 @@ func Build() { enrollment.Run(forward(foreign.Ledger{})) }
 		}
 	}
 	t.Fatal("consumer-owned interface forwarding hid the outer port's command edge")
+}
+
+func TestCommandEffectsDiagnoseCallableReceiverAdapter(t *testing.T) {
+	t.Parallel()
+	project, policy := commandEffectFixture(t)
+	writeFile(t, filepath.Join(project, "roots", "binding.go"), `package roots
+import (
+ "example.test/effects/enrollment"
+ "example.test/effects/foreign"
+)
+type binding func()
+func (b binding) Record() { b() }
+func Build() { enrollment.Run(binding(foreign.Ledger{}.Record)) }
+`)
+	graph, err := LoadGraph(project, policy)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, v := range Check(policy, graph) {
+		if v.Rule == "effects.unresolved" && strings.Contains(v.Target, "callable:") {
+			return
+		}
+	}
+	t.Fatal("callable receiver hid a dynamic command behind an inventoried interface")
 }

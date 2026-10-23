@@ -405,6 +405,18 @@
       "reason": "Read or pure value helper on the supplied interface: modules/organizationtenancy.Query.FindSchoolBySlug. No mutation or locking read at this terminal; type-level binding coverage, not proof that Enrollment calls every exposed method."
     },
     {
+      "port": "github.com/moto-nrw/project-phoenix/modules/enrollment/http.SchoolDirectory.GetSchoolBySlug",
+      "binding": "github.com/moto-nrw/project-phoenix/api.enrollmentSchoolDirectory.GetSchoolBySlug",
+      "target": "unresolved:callable:github.com/moto-nrw/project-phoenix/api.find",
+      "target_owner": "",
+      "binding_digest": "c876a68aabd19df60ef23d98f40e1532",
+      "effect": "unresolved",
+      "classification": "unresolved",
+      "reason": "Exact function-parameter boundary: api/school_directories.go findSchool calls its find parameter; enrollmentSchoolDirectory.GetSchoolBySlug supplies Organization Query.FindSchoolBySlug as a method value. The selector is separately inventoried as a query, but generic helper argument-to-parameter flow is not resolved in this slice. Keep this visibly unresolved rather than assuming all supplied functions are queries.",
+      "adr": "0089",
+      "approval_adr": "0089"
+    },
+    {
       "port": "github.com/moto-nrw/project-phoenix/modules/enrollment/internal/application.CalendarPeriods.FindCalendarPeriod",
       "binding": "github.com/moto-nrw/project-phoenix/modules/schoolcalendar.Days.FindCalendarPeriod",
       "target": "github.com/moto-nrw/project-phoenix/modules/schoolcalendar.Days.FindCalendarPeriod",

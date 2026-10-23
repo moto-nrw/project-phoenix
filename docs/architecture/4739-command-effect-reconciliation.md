@@ -4,10 +4,10 @@ Inspected `origin/development` at `c00bd12eb7` (includes #4736 / PR #4742),
 then generated from this PR. Paths start at `backend/`.
 
 The [machine inventory](../../backend/architecture/command-effects.json) has
-**127 exact may-bind entries: 79 query, 41 mutation, 6 lock, 1 unresolved**.
+**128 exact may-bind entries: 79 query, 41 mutation, 6 lock, 2 unresolved**.
 Of the 47 resolved non-query entries, **36 are E1 and 11 are leaf**. No E1
-coordinator is auto-approved as a leaf. The unresolved entry remains a visible
-known limitation. These are port/binding/target-method identities, not 127
+coordinator is auto-approved as a leaf. The two unresolved entries remain visible
+known limitations. These are port/binding/target-method identities, not 128
 runtime owner-pair edges, nor a replacement for 40 manually grouped operations.
 
 [ADR 0089](../adr/0089-enrollment-interface-bindings-have-reviewed-command-effects.md)
@@ -82,12 +82,16 @@ one records a transitive first-hop limit, and 32 have a different source owner.
    settings interface. This is an overapproximation, not a discovered Enrollment
    write into Presence. `dataimport.MapRelationshipType` is a pure function,
    not workflow command coordination. Foreign validation/value helpers are queries.
-4. **One unresolved method-value field:**
+4. **Two unresolved callable boundaries:**
    `roots/owners/enrollment_decision_people.go:566` calls `c.delete`.
    `enrollment_decision_composition.go:83` receives the function and
    `root_enrollment_services.go:99` supplies `carePlan.DeleteCompanionEdges`.
    The exact register preserves the E1 context and this evidence under ADR 0089;
    the static scanner does not infer that field's target owner or call it safe.
+   Separately, `api/school_directories.go:185` calls generic helper parameter
+   `find`, supplied at `:151` by `d.schools.FindSchoolBySlug`. Its typed selector
+   is inventoried as a query, but generic function-parameter flow remains an
+   exact reviewed unresolved entry, not an inferred query.
 5. **Transitive protocols remain manual:** calls stop at foreign contracts.
    Enrollment → Care Plan → Timetable and Enrollment → People → Membership/
    Care Plan are not flattened. Scope/transaction participation, authorization,
