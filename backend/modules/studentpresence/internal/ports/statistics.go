@@ -103,6 +103,7 @@ type StatusDays interface {
 
 // StatisticsRetention resolves the tenant retention windows the report names.
 type StatisticsRetention interface {
+	// RoomRetentionDays returns zero when room history is switched off.
 	RoomRetentionDays(context.Context) (int, error)
 	CourseRetentionDays(context.Context) (int, error)
 }

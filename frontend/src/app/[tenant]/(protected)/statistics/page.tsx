@@ -660,9 +660,10 @@ export default function StatisticsPage() {
     },
     rooms: {
       title: "Räume",
-      hint: data
-        ? `Raumdaten können höchstens ${data.room_data_days} Tage zurückreichen (ab ${formatDate(data.room_data_from)}). Je Kind kann die Frist kürzer sein.`
-        : "",
+      hint:
+        data && !data.room_history_disabled
+          ? `Raumdaten können höchstens ${data.room_data_days} Tage zurückreichen (ab ${formatDate(data.room_data_from)}). Je Kind kann die Frist kürzer sein.`
+          : "",
     },
   }[view];
 
@@ -740,7 +741,12 @@ export default function StatisticsPage() {
   // Kursbereich zusätzlich den Wechsel zwischen Kurs- und Kind-Sicht. Das ist
   // eine Wertauswahl, kein Reiter, deshalb SegmentedControl.
   let sectionActions: ReactNode;
-  if (view === "rooms" && !roomDataAllBeforeWindow) {
+  if (
+    view === "rooms" &&
+    data &&
+    !data.room_history_disabled &&
+    !roomDataAllBeforeWindow
+  ) {
     sectionActions = (
       <OverflowMenu
         items={exportMenuItems("rooms")}
@@ -974,7 +980,12 @@ export default function StatisticsPage() {
               ))}
 
             {view === "rooms" &&
-              (roomDataAllBeforeWindow ? (
+              (data.room_history_disabled ? (
+                <EmptyState
+                  title="Raumhistorie ist ausgeschaltet"
+                  description="Raumstatistiken brauchen das eingeschaltete Anwesenheitsprotokoll. Ihre Administration kann es unter Einstellungen > Datenschutz einschalten."
+                />
+              ) : roomDataAllBeforeWindow ? (
                 <EmptyState
                   title="Keine Raumdaten für diesen Zeitraum"
                   description={`Wählen Sie einen Zeitraum ab ${formatDate(data.room_data_from)}.`}
