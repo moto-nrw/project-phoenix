@@ -6,8 +6,6 @@ import (
 	"fmt"
 	"time"
 
-	timezone "github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
-
 	appointmentsModule "github.com/moto-nrw/project-phoenix/modules/appointments"
 	appointmentsCompose "github.com/moto-nrw/project-phoenix/modules/appointments/compose"
 	"github.com/moto-nrw/project-phoenix/modules/careplan"
@@ -202,9 +200,9 @@ func mealPlanStudentNames(names studentNames) mealplanModule.StudentNameFinder {
 
 // mealPlanCalendar binds the School Calendar for the Meal Plan: closing days
 // and public holidays close a day, school holiday periods suspend the weekly
-// registration pattern (#3873).
+// registration pattern (#3873). The Meal Plan turns the periods into days.
 func mealPlanCalendar(records schoolcalendar.Days) mealplanModule.CalendarFinder {
-	return func(ctx context.Context, from, to string) (map[string]bool, map[string]bool, error) {
+	return func(ctx context.Context, from, to string) (map[string]bool, []mealplanModule.HolidayPeriod, error) {
 		closed, err := records.NonWorkingDayDates(ctx, from, to)
 		if err != nil {
 			return nil, nil, err
@@ -213,24 +211,12 @@ func mealPlanCalendar(records schoolcalendar.Days) mealplanModule.CalendarFinder
 		if err != nil {
 			return nil, nil, err
 		}
-		holiday := make(map[string]bool)
+		holidays := make([]mealplanModule.HolidayPeriod, 0, len(periods))
 		for _, period := range periods {
-			for day := max(period.StartDate, from); day <= min(period.EndDate, to); day = calendarNextDay(day) {
-				holiday[day] = true
-			}
+			holidays = append(holidays, mealplanModule.HolidayPeriod{Start: period.StartDate, End: period.EndDate})
 		}
-		return closed, holiday, nil
+		return closed, holidays, nil
 	}
-}
-
-// calendarNextDay advances a YYYY-MM-DD day by one. The School Calendar
-// validated it, so a parse failure only ends the loop.
-func calendarNextDay(day string) string {
-	value, err := timezone.ParseDate(day)
-	if err != nil {
-		return "9999-12-31"
-	}
-	return value.AddDays(1).String()
 }
 
 // BuildServeFeedback composes Feedback over its settings.
