@@ -84,6 +84,8 @@ type Device struct {
 	Name                  *string      `json:"name,omitempty"`
 	Status                DeviceStatus `json:"status"`
 	APIKey                *string      `json:"-"`
+	APIKeyHash            *string      `json:"-"`
+	MaskedAPIKey          string       `json:"masked_api_key"`
 	LastSeen              *time.Time   `json:"last_seen,omitempty"`
 	RegisteredByID        *int64       `json:"registered_by_id,omitempty"`
 	RoomID                *int64       `json:"room_id,omitempty"`
@@ -96,12 +98,15 @@ type Device struct {
 func (d Device) IsActive() bool { return d.Status == DeviceStatusActive }
 
 // CreateDevice registers one device. An empty APIKey is minted by the owner.
+// APIKeyHash is reserved for moving an existing credential between schools.
 type CreateDevice struct {
 	DeviceID       string
 	DeviceType     string
 	Name           *string
 	Status         DeviceStatus
 	APIKey         *string
+	APIKeyHash     *string
+	MaskedAPIKey   string
 	LastSeen       *time.Time
 	RegisteredByID *int64
 	RoomID         *int64
@@ -115,6 +120,8 @@ type UpdateDevice struct {
 	Name                  *string
 	Status                DeviceStatus
 	APIKey                *string
+	APIKeyHash            *string
+	MaskedAPIKey          string
 	LastSeen              *time.Time
 	RegisteredByID        *int64
 	RoomID                *int64

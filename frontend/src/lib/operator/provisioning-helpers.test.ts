@@ -665,7 +665,7 @@ describe("mapOperatorDevice", () => {
       deviceType: "raspberry_pi",
       name: "Entrance Reader",
       status: "active",
-      apiKey: "secret-key-123",
+      apiKey: "",
       maskedApiKey: "sec***123",
       lastSeen: "2026-03-20T15:30:00Z",
       isOnline: true,
@@ -685,6 +685,13 @@ describe("mapOperatorDevice", () => {
     };
 
     expect(mapOperatorDevice(backend).name).toBe("");
+  });
+
+  it("exposes credentials only for an explicit one-shot command response", () => {
+    expect(mapOperatorDevice(fullBackendDevice).apiKey).toBe("");
+    expect(mapOperatorDevice(fullBackendDevice, true).apiKey).toBe(
+      fullBackendDevice.api_key,
+    );
   });
 
   it("defaults api_key to empty string when undefined", () => {

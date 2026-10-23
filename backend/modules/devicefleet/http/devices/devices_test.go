@@ -1,14 +1,17 @@
 package devices
 
 import (
+	"encoding/json"
 	"fmt"
 	"net/http"
+	"strings"
 	"testing"
 	"time"
 
 	"github.com/moto-nrw/project-phoenix/modules/devicefleet"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 	"github.com/uptrace/bun"
 
 	"github.com/moto-nrw/project-phoenix/api/testutil"
@@ -241,7 +244,20 @@ func TestCreateDevice_Success(t *testing.T) {
 	rr := testutil.ExecuteRequest(router, req)
 
 	testutil.AssertSuccessResponse(t, rr, http.StatusCreated)
-
+	var created struct {
+		Data struct {
+			ID     int64  `json:"id"`
+			APIKey string `json:"api_key"`
+		} `json:"data"`
+	}
+	require.NoError(t, json.Unmarshal(rr.Body.Bytes(), &created))
+	require.True(t, created.Data.APIKey != "", "device creation must issue the one-time credential for provisioning")
+	require.Equal(t, "no-store", rr.Header().Get("Cache-Control"))
+	read := testutil.NewAuthenticatedRequest(t, "GET", fmt.Sprintf("/devices/%d", created.Data.ID), nil,
+		testutil.WithClaims(t, testutil.DefaultTestClaims()), testutil.WithPermissions("iot:read"))
+	found := testutil.ExecuteRequest(router, read)
+	testutil.AssertSuccessResponse(t, found, http.StatusOK)
+	require.False(t, strings.Contains(found.Body.String(), `"api_key"`), "a later HTTP read must not repeat the credential")
 }
 
 func TestCreateDevice_NewDeviceHasNoRoom(t *testing.T) {

@@ -58,7 +58,7 @@ func (s *Service) FindDeviceByAPIKey(ctx context.Context, apiKey string) (device
 	err := s.deps.Tx.AdminScope(ctx, func(ctx context.Context) error {
 		var err error
 		value, err = s.findDevice(ctx, "find_device_by_api_key", false, func(ctx context.Context) (devicefleet.Device, bool, domain.OperationStats, error) {
-			return s.deps.Devices.FindByAPIKey(ctx, apiKey)
+			return s.deps.Devices.FindByAPIKey(ctx, s.deps.APIKeys.Hash(apiKey))
 		})
 
 		return err
@@ -118,7 +118,7 @@ func (s *Service) DeleteUnregisteredTagScansAfterRetention(ctx context.Context) 
 func toDomainUpdate(input devicefleet.UpdateDevice) domain.UpdateDevice {
 	return domain.UpdateDevice{
 		ID: input.ID, DeviceID: input.DeviceID, DeviceType: input.DeviceType, Name: input.Name,
-		Status: string(input.Status), APIKey: input.APIKey, LastSeen: input.LastSeen,
+		Status: string(input.Status), APIKeyHash: input.APIKeyHash, MaskedAPIKey: input.MaskedAPIKey, LastSeen: input.LastSeen,
 		RegisteredByID: input.RegisteredByID, RoomID: input.RoomID, ArchivedAt: input.ArchivedAt,
 		TransferredToDeviceID: input.TransferredToDeviceID,
 	}

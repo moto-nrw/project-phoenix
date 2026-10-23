@@ -172,6 +172,8 @@ type Device struct {
 	Name                  *string
 	Status                string
 	APIKey                *string
+	APIKeyHash            *string
+	MaskedAPIKey          string
 	LastSeen              *time.Time
 	RegisteredByID        *int64
 	RoomID                *int64
@@ -181,12 +183,14 @@ type Device struct {
 
 // NewDevice registers a device at one school.
 type NewDevice struct {
-	TenantID   int64
-	DeviceID   string
-	DeviceType string
-	Name       *string
-	Status     string
-	APIKey     *string
+	TenantID     int64
+	DeviceID     string
+	DeviceType   string
+	Name         *string
+	Status       string
+	APIKey       *string
+	APIKeyHash   *string
+	MaskedAPIKey string
 }
 
 // DeviceSession is the open kiosk session of a device.

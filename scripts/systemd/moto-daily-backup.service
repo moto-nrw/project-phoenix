@@ -7,6 +7,9 @@ OnFailure=moto-backup-failure@%n.service
 
 [Service]
 Type=oneshot
+SyslogIdentifier=moto-daily-backup
+StandardOutput=journal
+StandardError=journal
 User=root
 UMask=0077
 LimitCORE=0

@@ -115,7 +115,7 @@ func New(dependencies Dependencies) (devicefleet.Capability, error) {
 		Tenants:   tenants,
 		Tx:        transaction{db: dependencies.DB},
 		Tokens:    credentials.DisplayTokens{},
-		APIKeys:   dependencies.APIKeys,
+		APIKeys:   credentials.DeviceKeys{Minter: dependencies.APIKeys},
 		Now:       ports.Clock(now),
 		Window:    devicefleet.OnlineWindowFromMinutes(dependencies.OnlineWindowMinutes),
 		Observe:   observe,
