@@ -41,7 +41,10 @@ func (b effectBindings) add(destination, source types.Type) {
 	if source == types.Typ[types.UntypedNil] {
 		return
 	}
-	if effectInterface(destination) == nil || source == nil {
+	if destination == nil || source == nil {
+		return
+	}
+	if b.addContainer(destination, source) || effectInterface(destination) == nil {
 		return
 	}
 	for _, previous := range b[destination] {
@@ -67,11 +70,7 @@ func (b effectBindings) collectNode(pkg *packages.Package, node ast.Node) {
 	case *ast.CompositeLit:
 		b.collectLiteral(pkg, n)
 	case *ast.AssignStmt:
-		if len(n.Lhs) == len(n.Rhs) {
-			for i, lhs := range n.Lhs {
-				b.add(pkg.TypesInfo.TypeOf(lhs), pkg.TypesInfo.TypeOf(n.Rhs[i]))
-			}
-		}
+		b.collectAssignments(pkg, n.Lhs, n.Rhs)
 	case *ast.ValueSpec:
 		b.collectValueSpec(pkg, n)
 	case *ast.CallExpr:
@@ -90,6 +89,7 @@ func (b effectBindings) collectNode(pkg *packages.Package, node ast.Node) {
 func (b effectBindings) collectLiteral(pkg *packages.Package, literal *ast.CompositeLit) {
 	shape, ok := pkg.TypesInfo.TypeOf(literal).Underlying().(*types.Struct)
 	if !ok {
+		b.collectContainerLiteral(pkg, literal)
 		return
 	}
 	for index, element := range literal.Elts {
@@ -118,18 +118,31 @@ func effectLiteralFieldIndex(shape *types.Struct, key ast.Expr) int {
 }
 
 func (b effectBindings) collectCall(pkg *packages.Package, call *ast.CallExpr) {
+	if b.collectAppend(pkg, call) {
+		return
+	}
 	if tv, ok := pkg.TypesInfo.Types[call.Fun]; ok && tv.IsType() && len(call.Args) == 1 {
 		b.add(tv.Type, pkg.TypesInfo.TypeOf(call.Args[0]))
 		return
 	}
-	signature, ok := pkg.TypesInfo.TypeOf(call.Fun).(*types.Signature)
+	signature, ok := effectSignature(pkg.TypesInfo.TypeOf(call.Fun))
 	if !ok {
 		return
 	}
-	for i, arg := range call.Args {
-		if i < signature.Params().Len() {
-			b.add(signature.Params().At(i).Type(), pkg.TypesInfo.TypeOf(arg))
+	arguments := effectArgumentTypes(pkg, call.Args)
+	for i, source := range arguments {
+		parameter := i
+		if signature.Variadic() && parameter >= signature.Params().Len()-1 {
+			parameter = signature.Params().Len() - 1
 		}
+		if parameter < 0 || parameter >= signature.Params().Len() {
+			continue
+		}
+		destination := signature.Params().At(parameter).Type()
+		if signature.Variadic() && parameter == signature.Params().Len()-1 && !call.Ellipsis.IsValid() {
+			destination = destination.(*types.Slice).Elem()
+		}
+		b.add(destination, source)
 	}
 }
 
@@ -172,10 +185,17 @@ func (b effectBindings) collectTupleReturn(pkg *packages.Package, value ast.Expr
 }
 
 func (b effectBindings) collectValueSpec(pkg *packages.Package, declaration *ast.ValueSpec) {
-	if declaration.Type == nil || len(declaration.Names) != len(declaration.Values) {
-		return
+	left := make([]ast.Expr, len(declaration.Names))
+	for i, name := range declaration.Names {
+		left[i] = name
 	}
-	for _, value := range declaration.Values {
-		b.add(pkg.TypesInfo.TypeOf(declaration.Type), pkg.TypesInfo.TypeOf(value))
+	b.collectAssignments(pkg, left, declaration.Values)
+}
+
+func effectSignature(t types.Type) (*types.Signature, bool) {
+	if t == nil {
+		return nil, false
 	}
+	signature, ok := t.Underlying().(*types.Signature)
+	return signature, ok
 }

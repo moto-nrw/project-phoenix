@@ -1,7 +1,6 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import { useSession } from "next-auth/react";
 import { Send } from "lucide-react";
 import type {
   PhaseResponseChild,
@@ -9,16 +8,12 @@ import type {
   PhaseResponseOverview as PhaseResponseOverviewData,
 } from "~/lib/enrollment-phase-api";
 import type { ChildStatus } from "~/lib/enrollment-admin-api";
-import { hasPermission } from "~/lib/auth-utils";
-import { useSettingsSchema } from "~/lib/hooks/use-settings-schema";
-import { getSettingValue } from "~/lib/settings-api";
+import { useParentAnnouncementsAvailable } from "~/lib/hooks/use-parent-announcements-available";
 import { useTenantRouter } from "~/lib/tenant-router";
 import { useTenantAwarePath } from "~/lib/tenant-path";
 import { useTenantSlugSafe } from "~/lib/tenant-context";
 import {
-  ANNOUNCEMENT_PREFILL_PARAM,
-  ANNOUNCEMENT_PREFILL_STUDENTS,
-  ANNOUNCEMENT_PREFILL_TOKEN_PARAM,
+  announcementPrefillPath,
   stashAnnouncementStudents,
 } from "~/lib/announcement-prefill";
 import { Button } from "~/components/ui/button";
@@ -74,19 +69,7 @@ export function PhaseResponseOverview({
   const tenantPath = useTenantAwarePath();
   const router = useTenantRouter();
   const tenantSlug = useTenantSlugSafe();
-  const { data: session } = useSession();
-
-  // Dieselbe Bedingung wie der Eintrag „Mitteilungen" in der Seitenleiste:
-  // Der Knopf führt nie auf eine Seite, die der Person fehlt.
-  const canAnnounce = hasPermission(session, "admin:*");
-  const { data: settingsSchema } = useSettingsSchema(canAnnounce, {
-    revalidateOnFocus: false,
-    revalidateOnReconnect: false,
-    shouldRetryOnError: false,
-  });
-  const announcementsAvailable =
-    canAnnounce &&
-    getSettingValue(settingsSchema, "operations.parent_news_enabled") === true;
+  const announcementsAvailable = useParentAnnouncementsAvailable();
 
   const missing = useMemo(
     () => overview.children.filter((child) => !child.responded),
@@ -186,11 +169,7 @@ export function PhaseResponseOverview({
       : null;
     // Ohne Ablage öffnet sich die Mitteilungsliste; die Kinder lassen sich
     // dort von Hand wählen.
-    router.push(
-      token
-        ? `/parent-announcements?${ANNOUNCEMENT_PREFILL_PARAM}=${ANNOUNCEMENT_PREFILL_STUDENTS}&${ANNOUNCEMENT_PREFILL_TOKEN_PARAM}=${encodeURIComponent(token)}`
-        : "/parent-announcements",
-    );
+    router.push(announcementPrefillPath(token));
   };
 
   const exclusions = overview.excluded

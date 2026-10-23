@@ -45,3 +45,7 @@ func NewRosterReconciler(
 ) ports.RosterReconciler {
 	return application.NewRosterReconciler(instanceRepo, instanceStudentRepo, enrollments, directories, logger, now...)
 }
+
+func NewInstanceAutoEnd(instances ports.LegacyInstanceReads, completion timetable.InstanceLifecycle, logger *slog.Logger) (timetable.InstanceAutoEnd, error) {
+	return application.NewInstanceAutoEnd(instances, completion, logger)
+}

@@ -3,6 +3,8 @@ package api
 import (
 	"net/http"
 
+	birthdaysAPI "github.com/moto-nrw/project-phoenix/modules/peopledirectory/inbound/birthdays"
+
 	"github.com/moto-nrw/project-phoenix/modules/devicefleet/deviceauth"
 
 	owners "github.com/moto-nrw/project-phoenix/roots/owners"
@@ -179,7 +181,7 @@ func composeServeRoot(
 		outbox           *deliveryModule.Worker
 		iot              devicefleetCompose.IoTService
 		guardianProfiles *peopleCompose.GuardianProfileLoader
-		birthdays        peopledirectory.Birthdays
+		birthdays        birthdaysAPI.Service
 		dataImports      imports
 		databaseStats    DatabaseStatsReader
 		staffGroups      schoolstructure.StaffGroupQuery
@@ -489,14 +491,14 @@ func composeServeRoot(
 			calendarAdmin, err = buildCalendarAdministration(db, owners.ObserveSchoolCalendar, calendar, timetableRows.RecurrenceLock, requests.CareOfferings)
 			return
 		},
-		func() error {
+		func() (err error) {
 			iot = devicefleetCompose.NewIoTService(deviceFleet)
 			guardianProfiles = peopleCompose.NewGuardianProfileLoader(people.GuardianProfiles, db.Pool(), env.Logger.With("service", "guardian-profile-loader"))
-			birthdays = NewBirthdays(BirthdayRepositories{Students: people.Students, Staff: people.Staff, Persons: people.Persons},
+			birthdays, err = buildBirthdayEntry(db, membership, BirthdayRepositories{Students: people.Students, Staff: people.Staff, Persons: people.Persons},
 				settings.Service, env.Logger.With("service", "birthdays"), nil)
 			dataImports = newServeImports(audit, identity, groups, rooms, persons, carePlan, presence, organizations, membership, workTime, workforce)
 			databaseStats = newDatabaseStats(people.Repositories, structure.Groups, facilities, timetableRepos, identity, devices, env.Logger)
-			return nil
+			return err
 		},
 		func() (err error) {
 			outbox, err = owners.BuildDeliveryWorker(db, env, mailSender, mailFrom, pushVAPID, mailIdentity, delivery, owners.BuildCalendarAppointmentRenderer(db, mailFrom, people),
@@ -520,7 +522,7 @@ func composeServeRoot(
 		func() error {
 			return mountDemoAccess(router, authAPI.ComposedDemoAccess(identity.DemoAccess()), viper.GetString("app_env"), config.FrontendURL, viper.GetString("tenant_domain"))
 		},
-		func() error { mountPublicRoutes(router, metricsToken); return nil },
+		func() error { mountPublicRoutes(router, metricsToken, db.Pool().PingContext); return nil },
 		func() error { return mountRequestFeed(router, tenant, db, logger, config.FrontendURL) },
 		func() error { return mountModuleRoutes(tenant, settings.Service) },
 		func() error {

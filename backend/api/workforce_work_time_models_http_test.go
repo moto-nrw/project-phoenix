@@ -3,6 +3,7 @@ package api
 import (
 	"context"
 	"errors"
+	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -27,6 +28,19 @@ type workTimeModelsCapabilityStub struct {
 	workforce.Capability
 	updateErr error
 	updated   bool
+	findErr   error
+	deleteErr error
+}
+
+func (s *workTimeModelsCapabilityStub) FindWorkTimeModel(_ context.Context, id int64) (workforce.WorkTimeModel, error) {
+	if s.findErr != nil {
+		return workforce.WorkTimeModel{}, s.findErr
+	}
+	return workforce.WorkTimeModel{ID: id, Name: "Vollzeit", RotationLength: 1, RotationAnchorDate: "2026-07-01"}, nil
+}
+
+func (s *workTimeModelsCapabilityStub) DeleteWorkTimeModel(context.Context, int64) error {
+	return s.deleteErr
 }
 
 func (s *workTimeModelsCapabilityStub) UpdateWorkTimeModel(_ context.Context, input workforce.UpdateWorkTimeModel) (workforce.WorkTimeModel, error) {
@@ -143,4 +157,46 @@ func TestUpdateOfAnUnknownWorkTimeModelAnswersNotFound(t *testing.T) {
 
 	require.Equal(t, http.StatusNotFound, recorder.Code, recorder.Body.String())
 	assert.Equal(t, routetest.ClassCode(http.StatusNotFound), routetest.ParseJSONResponse(t, recorder.Body.Bytes())["code"])
+}
+
+// Reading and deleting a model keep their refusals apart (#4601): an unknown
+// model is 404, one still assigned to staff 409, and a failed read or write
+// is a server error rather than a masked "not found".
+func TestGetAndDeleteSeparateNotFoundConflictAndServerErrors(t *testing.T) {
+	t.Parallel()
+
+	runtime := workTimeModelsRuntime(func(context.Context) {})
+	runtime.Protected = func(router chi.Router, routes func(chi.Router, worktimemodelsHTTP.Middleware)) {
+		routes(router, workTimeModelsPassthrough)
+	}
+	runtime.Permission = func(string) worktimemodelsHTTP.Middleware { return workTimeModelsPassthrough }
+	dbFailure := errors.New("connection reset")
+
+	for _, test := range []struct {
+		name       string
+		method     string
+		capability *workTimeModelsCapabilityStub
+		status     int
+	}{
+		{name: "get unknown", method: http.MethodGet, capability: &workTimeModelsCapabilityStub{findErr: workforce.ErrWorkTimeModelNotFound}, status: http.StatusNotFound},
+		{name: "get read failure", method: http.MethodGet, capability: &workTimeModelsCapabilityStub{findErr: dbFailure}, status: http.StatusInternalServerError},
+		{name: "get found", method: http.MethodGet, capability: &workTimeModelsCapabilityStub{}, status: http.StatusOK},
+		{name: "delete unknown", method: http.MethodDelete, capability: &workTimeModelsCapabilityStub{deleteErr: workforce.ErrWorkTimeModelNotFound}, status: http.StatusNotFound},
+		{name: "delete assigned", method: http.MethodDelete, capability: &workTimeModelsCapabilityStub{deleteErr: fmt.Errorf("delete: %w", workforce.ErrWorkTimeModelAssigned)}, status: http.StatusConflict},
+		{name: "delete write failure", method: http.MethodDelete, capability: &workTimeModelsCapabilityStub{deleteErr: dbFailure}, status: http.StatusInternalServerError},
+		{name: "delete succeeds", method: http.MethodDelete, capability: &workTimeModelsCapabilityStub{}, status: http.StatusOK},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			t.Parallel()
+			resource := worktimemodelsHTTP.NewResource(test.capability, runtime)
+			request := httptest.NewRequest(test.method, "/7", nil)
+			recorder := httptest.NewRecorder()
+			resource.Router().ServeHTTP(recorder, request)
+
+			require.Equal(t, test.status, recorder.Code, recorder.Body.String())
+			if test.status >= http.StatusBadRequest {
+				assert.Equal(t, routetest.ClassCode(test.status), routetest.ParseJSONResponse(t, recorder.Body.Bytes())["code"])
+			}
+		})
+	}
 }

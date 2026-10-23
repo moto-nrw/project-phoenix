@@ -1,6 +1,7 @@
 package api
 
 import (
+	"context"
 	"log/slog"
 	"net/http"
 
@@ -12,7 +13,7 @@ import (
 // mountPublicRoutes registers unauthenticated root-level routes: the
 // landing/health probes, the public image/legal-document servers, and the
 // bearer-protected metrics endpoint.
-func mountPublicRoutes(root chi.Router, metricsToken string) {
+func mountPublicRoutes(root chi.Router, metricsToken string, ping func(context.Context) error) {
 	root.Get("/", func(w http.ResponseWriter, r *http.Request) {
 		_, _ = w.Write([]byte("MOTO API - Phoenix Project"))
 	})
@@ -20,6 +21,7 @@ func mountPublicRoutes(root chi.Router, metricsToken string) {
 	root.Get("/health", func(w http.ResponseWriter, r *http.Request) {
 		_, _ = w.Write([]byte("OK"))
 	})
+	root.Method(http.MethodGet, "/ready", apiCommon.NewReadinessHandler(ping))
 
 	// Note: Avatar files are served through authenticated endpoints, not as static files
 	// This prevents unauthorized access to user avatars
