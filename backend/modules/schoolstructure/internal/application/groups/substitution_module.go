@@ -50,8 +50,8 @@ type CaregiverDirectory interface {
 
 // ExternalCaregiverDirectory reads the currently valid external caregivers
 // (#3823), with or without a moto account (#4573). They may join a running
-// supervision as an additional supervisor, never take over a group; only
-// the Assignable ones are offered for a new assignment.
+// supervision as an additional supervisor, never take over a group. A
+// placeholder without an account is offered too (ADR 0083).
 type ExternalCaregiverDirectory interface {
 	ListExternalCaregivers(ctx context.Context) ([]*domain.Caregiver, error)
 }

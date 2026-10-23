@@ -24,11 +24,12 @@ func ExternalAccountStatus(hasAccount, invitationPending bool) string {
 	}
 }
 
-// ExternalCaregiverAssignable reports whether an external caregiver may be
-// named in a new assignment (#4573): only with an account or an open
-// invitation, so somebody vouched for the person with an address. Existing
-// assignments are never re-checked.
-func ExternalCaregiverAssignable(hasAccount, invitationPending bool) bool {
+// ExternalCaregiverCanSignIn reports whether an external caregiver can act in
+// moto themselves: with an account or an open invitation. A placeholder
+// without either („Kein Zugang“, ADR 0083) is planned and supervised by
+// others, so the kiosk does not offer them as a supervisor; every other new
+// assignment may name them.
+func ExternalCaregiverCanSignIn(hasAccount, invitationPending bool) bool {
 	return hasAccount || invitationPending
 }
 
@@ -49,12 +50,11 @@ type ExternalCaregiverCandidate struct {
 }
 
 // ExternalCaregiverOption is a currently valid external caregiver with the
-// name the picker shows. Assignable tells whether a new assignment may name
-// the person (ExternalCaregiverAssignable).
+// name the picker shows. Every option may be named in a new assignment, with
+// or without an account (ADR 0083).
 type ExternalCaregiverOption struct {
 	StaffID       int64
 	FullName      string
-	Assignable    bool
 	AccountStatus string
 }
 
@@ -86,7 +86,6 @@ func ActiveExternalCaregivers(activeRecordStaffIDs []int64, candidates []Externa
 		candidate := byStaffID[caregiver.StaffID]
 		result = append(result, ExternalCaregiverOption{
 			StaffID: caregiver.StaffID, FullName: caregiver.FirstName + " " + caregiver.LastName,
-			Assignable:    ExternalCaregiverAssignable(candidate.HasAccount, candidate.InvitationPending),
 			AccountStatus: ExternalAccountStatus(candidate.HasAccount, candidate.InvitationPending),
 		})
 	}

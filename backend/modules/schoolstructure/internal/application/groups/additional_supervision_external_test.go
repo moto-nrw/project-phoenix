@@ -32,10 +32,10 @@ func inviteTestPerson(t *testing.T, db *bun.DB, personID, createdBy int64) {
 	require.NoError(t, err)
 }
 
-// TestAdditionalSupervisionOffersExternalCaregivers pins #3823 and #4573: an
-// external caregiver with an account or an open invitation can join a
-// running supervision; one without either is not offered and cannot be
-// assigned, but stays labelled external where it already supervises. Group
+// TestAdditionalSupervisionOffersExternalCaregivers pins #3823, #4573 and
+// ADR 0083: every currently valid external caregiver can join a running
+// supervision, with an account, an open invitation or neither (a placeholder
+// with „Kein Zugang“), and stays labelled external there. Group
 // handover targets keep offering caregivers only, and an external with an
 // account in a caregiver role never becomes one. Targets and supervisors
 // carry the external caregiver record's organization.
@@ -87,24 +87,26 @@ func TestAdditionalSupervisionOffersExternalCaregivers(t *testing.T) {
 		{ID: colleague.StaffID, FullName: "Toni Kollege"},
 		{ID: withAccount.StaffID, FullName: "Anna Konto", IsExternal: true, ExternalAccountStatus: "account"},
 		{ID: invited.ID, FullName: "Ina Eingeladen", IsExternal: true, ExternalAccountStatus: "invitation_pending", ExternalOrganization: "Test Organization"},
+		{ID: uninvited.ID, FullName: "Uwe Ohneeinladung", IsExternal: true, ExternalAccountStatus: "none", ExternalOrganization: "Test Organization"},
 	}, overview.RunningSupervisions[0].AvailableTargets,
-		"neither the uninvited external nor the expired external caregiver record is offered")
+		"the placeholder is offered, the expired external caregiver record is not")
 	for _, target := range overview.Targets {
 		require.NotEqual(t, invited.ID, target.ID, "a person without an account never takes over a group")
 		require.NotEqual(t, withAccount.StaffID, target.ID, "an external caregiver never takes over a group")
 	}
-
-	_, err = testpkg.TenantQuery2(t, ctx, db, module.Assign, caller, additionalSupervisionAssignment(running.ID, uninvited.ID))
-	require.ErrorIs(t, err, ErrNotFound, "nobody vouched for the uninvited external with an address")
 
 	created, err := testpkg.TenantQuery2(t, ctx, db, module.Assign, caller, additionalSupervisionAssignment(running.ID, invited.ID))
 	require.NoError(t, err)
 	require.Equal(t, StaffRef{ID: invited.ID, FullName: "Ina Eingeladen"}, created.Target)
 	require.Equal(t, "additional_supervisor", testpkg.GroupSupervisorRowByID(t, db, created.ID).Role)
 
-	// An external recorded before #4573 who already supervises keeps the
-	// label, though nobody may add them anew.
-	testpkg.CreateTestGroupSupervisor(t, db, uninvited.ID, running.ID, "additional_supervisor")
+	placeholder, err := testpkg.TenantQuery2(t, ctx, db, module.Assign, caller, additionalSupervisionAssignment(running.ID, uninvited.ID))
+	require.NoError(t, err, "a placeholder without an account can be added")
+	require.Equal(t, "additional_supervisor", testpkg.GroupSupervisorRowByID(t, db, placeholder.ID).Role)
+
+	_, err = testpkg.TenantQuery2(t, ctx, db, module.Assign, caller, additionalSupervisionAssignment(running.ID, expiredFixture.Staff.ID))
+	require.ErrorIs(t, err, ErrNotFound, "an expired external caregiver record is no longer offered")
+
 	overview, err = testpkg.TenantQuery2(t, ctx, db, module.Overview, caller, OverviewQuery{ActiveGroupID: running.ID, IncludeTargets: true})
 	require.NoError(t, err)
 	supervisors := overview.RunningSupervisions[0].Supervisors

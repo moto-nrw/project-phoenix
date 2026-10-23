@@ -375,8 +375,8 @@ func ErrorCode(err error) string {
 
 // ExternalCaregiver reports whether a staff member is an external caregiver
 // (#3823, #4573): a staff member with an active external caregiver record whose person is
-// known, with or without a moto account. Whether a new assignment may name
-// the person is ExternalCaregiverAssignable.
+// known, with or without a moto account. Whether the person can act in moto
+// themselves is ExternalCaregiverCanSignIn.
 func ExternalCaregiver(hasRecord, personKnown bool) bool {
 	return hasRecord && personKnown
 }

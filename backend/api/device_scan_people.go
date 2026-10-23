@@ -108,9 +108,9 @@ func (p DeviceScanPeople) GetTeacherByStaffID(ctx context.Context, staffID int64
 }
 
 // ListTeachersWithStaffAndPerson lists the caregivers the kiosk offers as
-// supervisors. An external caregiver (#3823) stays on the list only while a
-// new assignment may name them: with an account or an open invitation
-// (School Membership's rule, #4573). Already running supervisions are not
+// supervisors. An external caregiver (#3823) stays on the list only while
+// they can act themselves: with an account or an open invitation (School
+// Membership's rule, ADR 0083); a placeholder is supervised by others. Already running supervisions are not
 // read from this list.
 func (p DeviceScanPeople) ListTeachersWithStaffAndPerson(ctx context.Context) ([]*devicescan.ScanTeacher, error) {
 	rows, err := p.Users.TeacherRows().ListAllWithStaffAndPerson(ctx)
@@ -124,7 +124,7 @@ func (p DeviceScanPeople) ListTeachersWithStaffAndPerson(ctx context.Context) ([
 	result := make([]*devicescan.ScanTeacher, 0, len(rows))
 	for _, row := range rows {
 		if personID, external := accountlessExternal(row); external &&
-			!schoolmembership.ExternalCaregiverAssignable(false, len(invited[personID]) > 0) {
+			!schoolmembership.ExternalCaregiverCanSignIn(false, len(invited[personID]) > 0) {
 			continue
 		}
 		result = append(result, scanTeacher(row))

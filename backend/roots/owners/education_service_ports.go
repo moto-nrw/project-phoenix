@@ -110,8 +110,8 @@ func (s EducationExternalCaregivers) ListExternalCaregivers(ctx context.Context)
 	for _, external := range externals {
 		result = append(result, &educationRepo.Caregiver{
 			StaffID: external.StaffID, FullName: external.FullName,
-			Assignable: external.Assignable, AccountStatus: external.AccountStatus,
-			Organization: organizations[external.StaffID],
+			AccountStatus: external.AccountStatus,
+			Organization:  organizations[external.StaffID],
 		})
 	}
 	return result, nil

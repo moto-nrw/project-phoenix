@@ -23,9 +23,9 @@ func TestActiveExternalCaregivers(t *testing.T) {
 	// Every active external is listed (#4573); only those with an account or
 	// an open invitation may be picked for a new assignment.
 	assert.Equal(t, []ExternalCaregiverOption{
-		{StaffID: accountHolder, FullName: "Anna Konto", Assignable: true, AccountStatus: ExternalAccountStatusAccount},
+		{StaffID: accountHolder, FullName: "Anna Konto", AccountStatus: ExternalAccountStatusAccount},
 		{StaffID: otto, FullName: "otto Berg", AccountStatus: ExternalAccountStatusNone},
-		{StaffID: oezlem, FullName: "Özlem Kaya", Assignable: true, AccountStatus: ExternalAccountStatusInvitationPending},
+		{StaffID: oezlem, FullName: "Özlem Kaya", AccountStatus: ExternalAccountStatusInvitationPending},
 		{StaffID: zoe, FullName: "Zoe Albers", AccountStatus: ExternalAccountStatusNone},
 	}, ActiveExternalCaregivers(active, candidates))
 	assert.Empty(t, ActiveExternalCaregivers(nil, candidates))

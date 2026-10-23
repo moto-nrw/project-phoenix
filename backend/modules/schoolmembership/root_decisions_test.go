@@ -144,11 +144,11 @@ func TestExternalCaregiverNeedsARecordWithOrWithoutAccount(t *testing.T) {
 	assert.False(t, schoolmembership.ExternalCaregiver(false, true))
 }
 
-func TestExternalCaregiverIsAssignableWithAccountOrOpenInvitation(t *testing.T) {
+func TestExternalCaregiverCanSignInWithAccountOrOpenInvitation(t *testing.T) {
 	t.Parallel()
-	assert.True(t, schoolmembership.ExternalCaregiverAssignable(true, false))
-	assert.True(t, schoolmembership.ExternalCaregiverAssignable(false, true))
-	assert.False(t, schoolmembership.ExternalCaregiverAssignable(false, false), "nobody vouched for an uninvited external")
+	assert.True(t, schoolmembership.ExternalCaregiverCanSignIn(true, false))
+	assert.True(t, schoolmembership.ExternalCaregiverCanSignIn(false, true))
+	assert.False(t, schoolmembership.ExternalCaregiverCanSignIn(false, false), "a placeholder cannot act in moto")
 	assert.Equal(t, schoolmembership.ExternalAccountStatusAccount, schoolmembership.ExternalAccountStatus(true, true))
 	assert.Equal(t, schoolmembership.ExternalAccountStatusInvitationPending, schoolmembership.ExternalAccountStatus(false, true))
 	assert.Equal(t, schoolmembership.ExternalAccountStatusNone, schoolmembership.ExternalAccountStatus(false, false))

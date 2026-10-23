@@ -73,16 +73,14 @@ func (s *substitutionModule) withExternalTargets(ctx context.Context, caregivers
 			ExternalAccountStatus: member.AccountStatus, ExternalOrganization: member.Organization,
 		}
 		externals[member.StaffID] = ref
-		if member.Assignable {
-			result = append(result, ref)
-		}
+		result = append(result, ref)
 	}
 	return result, externals, nil
 }
 
 // findAndLockSupervisionTarget resolves an additional supervisor: an active
-// caregiver or, when the directory is wired, an assignable external
-// caregiver.
+// caregiver or, when the directory is wired, an external caregiver with or
+// without an account.
 func (s *substitutionModule) findAndLockSupervisionTarget(ctx context.Context, staffID int64) (*domain.Caregiver, bool, error) {
 	target, err := s.findAndLockTarget(ctx, staffID)
 	if !errors.Is(err, ErrNotFound) || s.deps.ExternalCaregivers == nil {
@@ -93,7 +91,7 @@ func (s *substitutionModule) findAndLockSupervisionTarget(ctx context.Context, s
 		return nil, false, err
 	}
 	for _, member := range externals {
-		if member.StaffID == staffID && member.Assignable {
+		if member.StaffID == staffID {
 			return member, true, nil
 		}
 	}
