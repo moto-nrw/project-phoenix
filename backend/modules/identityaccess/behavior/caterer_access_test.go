@@ -339,8 +339,9 @@ func TestCatererSessionsAreLoggedAndEndWithTheLastSchool(t *testing.T) {
 	require.Error(t, err, "without a school the session cannot be renewed")
 }
 
-// ADR 0077: the caterer portal's reset serves caterer accounts only, and the
-// new password signs the caterer in.
+// ADR 0077: the caterer portal's reset serves caterer accounts only, the
+// staff portal's serves no caterer account, and the new password signs the
+// caterer in.
 func TestCatererPasswordResetServesCaterersOnly(t *testing.T) {
 	t.Parallel()
 	db := testpkg.SetupTestDB(t)
@@ -356,6 +357,9 @@ func TestCatererPasswordResetServesCaterersOnly(t *testing.T) {
 	staffLink, err := module.InitiatePasswordReset(context.Background(), staff.Email, identityaccess.PasswordResetScopeCaterer)
 	require.NoError(t, err, "another account answers like a caterer")
 	assert.Nil(t, staffLink)
+	catererStaffLink, err := module.InitiatePasswordReset(context.Background(), email, identityaccess.PasswordResetScopeStaff)
+	require.NoError(t, err, "a caterer answers the staff portal like an unknown address")
+	assert.Nil(t, catererStaffLink, "the staff portal sends no link to a caterer account")
 
 	link, err := module.InitiatePasswordReset(context.Background(), email, identityaccess.PasswordResetScopeCaterer)
 	require.NoError(t, err)
