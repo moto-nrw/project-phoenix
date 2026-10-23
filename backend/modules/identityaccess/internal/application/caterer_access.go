@@ -99,6 +99,11 @@ func (c *CatererAccess) createInvitation(ctx context.Context, request domain.Cat
 	if err != nil {
 		return domain.CatererInvitation{}, "", err
 	}
+	// Serialize the supply check and invitation writes with acceptance and
+	// ending the link, including when the school has no caterer yet.
+	if err := c.runtime.AcquireLock(ctx, fmt.Sprintf("caterer-school:%d", c.runtime.TenantID(ctx))); err != nil {
+		return domain.CatererInvitation{}, "", fmt.Errorf("lock caterer school: %w", err)
+	}
 	token, err := newInvitationToken()
 	if err != nil {
 		return domain.CatererInvitation{}, "", err

@@ -430,15 +430,14 @@ func TestCatererRefreshRequiresLiveSchool(t *testing.T) {
 	}
 }
 
-// Acceptance and ending the link serialize before either owner changes the
-// supply. The transaction holds the same school lock through the supply hook.
+// Invitation creation, acceptance and ending the link serialize before either
+// owner changes the supply. The transaction holds the same school lock.
 func TestCatererLifecycleHoldsTheSameSchoolLock(t *testing.T) {
 	t.Parallel()
 	db := testpkg.SetupTestDB(t)
 	caterers := setupAuthFactory(t, db).Caterers()
 	school := testpkg.Tenant(t)
 	staff := testpkg.CreateTestAccount(t, db, "caterer-lifecycle-lock")
-	token := invite(t, db, caterers, school, staff.ID, fmt.Sprintf("lifecycle-%d@example.com", time.Now().UnixNano()))
 	probe := func(want bool) {
 		t.Helper()
 		competing, err := db.BeginTx(context.Background(), nil)
@@ -448,6 +447,16 @@ func TestCatererLifecycleHoldsTheSameSchoolLock(t *testing.T) {
 		require.NoError(t, competing.NewRaw("SELECT pg_try_advisory_xact_lock(hashtextextended(?, 0))", fmt.Sprintf("caterer-school:%d", school)).Scan(context.Background(), &acquired))
 		assert.Equal(t, want, acquired, "the school lifecycle lock lasts until the outer transaction commits")
 	}
+	require.NoError(t, inSchool(t, db, school, func(ctx context.Context) error {
+		_, err := caterers.CreateCatererInvitation(ctx, identityaccess.CatererInvitationRequest{
+			Email: "lifecycle-invitation@example.com", CatererName: "Küche", CreatedBy: staff.ID,
+		})
+		require.NoError(t, err)
+		probe(false)
+		return nil
+	}))
+	probe(true)
+	token := invite(t, db, caterers, school, staff.ID, fmt.Sprintf("lifecycle-%d@example.com", time.Now().UnixNano()))
 	var acceptance identityaccess.CatererAcceptance
 	require.NoError(t, inSchool(t, db, school, func(ctx context.Context) error {
 		var err error
