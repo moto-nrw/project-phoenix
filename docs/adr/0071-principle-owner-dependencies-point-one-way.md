@@ -92,7 +92,9 @@ binding and implements ADR 0083's preferred explicit workflow entry.
 
 `modules/careplan/http.CareResumption` is a consumer-owned transport port,
 not a domain command. The root constructs `careexit.Resumption` and passes it
-separately to that HTTP adapter. The handler calls the workflow directly;
+as a separate mount argument to that HTTP adapter, not as a field of the
+Care Plan schedules or another root service graph (ADR 0059). The handler
+calls the workflow directly;
 no Care Plan domain command calls it. Point 2 applies to runtime calls as
 well as imports: declaring this port in HTTP does not permit a workflow
 callback from a domain application. Only the root names the workflow type.

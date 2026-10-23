@@ -102,6 +102,18 @@ func NewStudentHTTPTestCareLifecycle(db transactionruntime.Database, config Stud
 	return lifecycle, repos.NewCareResumption(deps), err
 }
 
+// MustNewStudentHTTPTestCareResumption builds the workflow beside the domain
+// services, not as another field of a root fixture graph.
+func MustNewStudentHTTPTestCareResumption(db transactionruntime.Database) carePlanHTTP.CareResumption {
+	repos, err := NewCareLifecycleTestRepositories(db, nil)
+	if err != nil {
+		panic(err)
+	}
+	return repos.NewCareResumption(CareLifecycleTestConfig{
+		Audit: peopleCompose.NewStudentAuditService(requestTokenReads.AuditActor, NewStudentAudit(db)),
+	})
+}
+
 // MustNewStudentHTTPTestRows is the Care Plan side of NewStudentHTTPTestRows
 // recording into the test audit store; a composition failure is a broken
 // graph and panics.

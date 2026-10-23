@@ -98,7 +98,6 @@ func BuildClassArrivals(db transactionruntime.Database, logger *slog.Logger) (ti
 // excusal (#2360, #3261), the pickup and arrival schedules and the partial
 // absences, and the children each care offering holds on a day (#4571).
 type CarePlanSchedules struct {
-	Resumption       func(context.Context, careplan.CareResumeInput) error
 	Lifecycle        careplan.CareLifecycle
 	PickupBaselines  careplan.PickupBaselineReader
 	ArrivalBaselines careplan.ArrivalBaselineReader
@@ -161,8 +160,7 @@ func BuildCarePlanSchedules(
 		return CarePlanSchedules{}, err
 	}
 	schedules := CarePlanSchedules{
-		Resumption: NewCareResumption(rows.LifecycleOwners.Students, carePlan, rows.LifecycleOwners.ChangeTrail, nil, logger.With("service", "care_lifecycle")).Resume,
-		Lifecycle:  lifecycle, PickupBaselines: pickupBaselines, ArrivalBaselines: arrivalBaselines, CareDay: careDay,
+		Lifecycle: lifecycle, PickupBaselines: pickupBaselines, ArrivalBaselines: arrivalBaselines, CareDay: careDay,
 		OfferingDays: offeringDays,
 	}
 	return buildCarePlanPlans(db, logger, carePlan, rows, presence, schedules)

@@ -96,7 +96,7 @@ func NewStudentHTTPTestResources(store transactionruntime.Database, unit tenant.
 	if err != nil {
 		return nil, nil, nil, nil, nil, nil, nil, err
 	}
-	lifecycle, resumption := svc.CareLifecycle, svc.CareResumption
+	lifecycle, resumption := svc.CareLifecycle, MustNewStudentHTTPTestCareResumption(store)
 	if authoritative != nil {
 		bookings := *authoritative
 		lifecycle, resumption, err = NewStudentHTTPTestCareLifecycle(store, StudentHTTPTestCareLifecycle{
