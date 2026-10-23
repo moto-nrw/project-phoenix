@@ -116,7 +116,7 @@ func TestLoadMinuteSnapshotResolvesEverySchoolInOneBatch(t *testing.T) {
 		done:          make(chan struct{}),
 		logger:        slog.Default()})
 
-	snapshot, err := scheduler.loadMinuteSnapshot(context.Background())
+	snapshot, err := scheduler.loadMinuteSnapshot(context.Background(), false)
 	require.NoError(t, err)
 	require.NotNil(t, snapshot)
 	assert.Contains(t, snapshot.tenantIDs, tenantA)
