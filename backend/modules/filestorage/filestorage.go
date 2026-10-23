@@ -234,14 +234,14 @@ type AttachmentQuery interface {
 	// first, and whether the announcement may still be changed.
 	ListAttachments(ctx context.Context, announcementID int64) (AttachmentList, error)
 	OpenAttachment(ctx context.Context, announcementID, attachmentID int64) (Content, error)
-	// ListGuardianAttachments returns the attachments a guardian account may
-	// see, or ErrAttachmentNotFound when it is outside the audience.
-	ListGuardianAttachments(ctx context.Context, accountID, announcementID int64) ([]Attachment, error)
-	OpenGuardianAttachment(ctx context.Context, accountID, announcementID, attachmentID int64) (Content, error)
-	// OpenGuardianDeclarationProofAttachment opens an attachment frozen in the
-	// caller's own declaration proof, including after the announcement expired
-	// or was withdrawn.
-	OpenGuardianDeclarationProofAttachment(ctx context.Context, accountID, announcementID, studentID, attachmentID int64) (Content, error)
+	// ListAnnouncementAttachmentsInTenant, FindAnnouncementAttachmentInTenant
+	// and OpenAnnouncementAttachmentInTenant read an announcement's
+	// attachments under the named school's RLS, for a caller that has
+	// already decided the audience; they check nothing else. An invalid id or
+	// a missing attachment is ErrAttachmentNotFound.
+	ListAnnouncementAttachmentsInTenant(ctx context.Context, tenantID, announcementID int64) ([]Attachment, error)
+	FindAnnouncementAttachmentInTenant(ctx context.Context, tenantID, announcementID, attachmentID int64) (Attachment, error)
+	OpenAnnouncementAttachmentInTenant(ctx context.Context, tenantID, announcementID, attachmentID int64) (Content, error)
 }
 
 // AttachmentCommand changes the attachments of a draft announcement.

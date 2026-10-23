@@ -6,8 +6,10 @@ package files_test
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
 	"fmt"
+	"io"
 	"log/slog"
 	"mime/multipart"
 	"net/http"
@@ -20,6 +22,7 @@ import (
 	nativeUploads "github.com/moto-nrw/project-phoenix/modules/delivery/objects"
 
 	"github.com/moto-nrw/project-phoenix/auth/authorize/permissions"
+	filestorageModule "github.com/moto-nrw/project-phoenix/modules/filestorage"
 	filestoreAPI "github.com/moto-nrw/project-phoenix/modules/filestorage/http/files"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
@@ -227,4 +230,41 @@ func TestAnnouncementAttachmentRequiresAdmin(t *testing.T) {
 		fmt.Sprintf("/announcement-attachments/%d", c.announcementID),
 		nil, "", c.member, "students:read")
 	assert.Equal(t, http.StatusForbidden, rec.Code)
+}
+
+// The guardian entry of the parents portal decides the audience and then
+// reads through these tenant-scoped reads (#4825); they serve exactly the
+// named school's rows.
+func TestAnnouncementAttachmentTenantReadsServeOnlyTheNamedSchool(t *testing.T) {
+	t.Parallel()
+	c := setupAttachmentRoute(t)
+	rec := c.uploadAttachment("Einverständnis.pdf", fakePDF)
+	require.Equal(t, http.StatusCreated, rec.Code, rec.Body.String())
+	ctx := testpkg.WithTestTenantRuntime(t, context.Background())
+	tenantID := testpkg.Tenant(t)
+
+	attachments, err := c.files.ListAnnouncementAttachmentsInTenant(ctx, tenantID, c.announcementID)
+	require.NoError(t, err)
+	require.Len(t, attachments, 1)
+	attachmentID := attachments[0].ID
+	found, err := c.files.FindAnnouncementAttachmentInTenant(ctx, tenantID, c.announcementID, attachmentID)
+	require.NoError(t, err)
+	assert.Equal(t, "Einverständnis.pdf", found.Filename)
+	content, err := c.files.OpenAnnouncementAttachmentInTenant(ctx, tenantID, c.announcementID, attachmentID)
+	require.NoError(t, err)
+	t.Cleanup(func() { _ = content.Close() })
+	body, err := io.ReadAll(io.NewSectionReader(content.Object, 0, content.Object.Size()))
+	require.NoError(t, err)
+	assert.Equal(t, fakePDF, body)
+
+	otherTenant, _ := testpkg.CreateTestTenant(t, c.db)
+	other, err := c.files.ListAnnouncementAttachmentsInTenant(ctx, otherTenant, c.announcementID)
+	require.NoError(t, err)
+	assert.Empty(t, other, "another school's RLS hides the rows")
+	_, err = c.files.FindAnnouncementAttachmentInTenant(ctx, otherTenant, c.announcementID, attachmentID)
+	require.ErrorIs(t, err, filestorageModule.ErrAttachmentNotFound)
+	_, err = c.files.OpenAnnouncementAttachmentInTenant(ctx, otherTenant, c.announcementID, attachmentID)
+	require.ErrorIs(t, err, filestorageModule.ErrAttachmentNotFound)
+	_, err = c.files.OpenAnnouncementAttachmentInTenant(ctx, 0, c.announcementID, attachmentID)
+	require.ErrorIs(t, err, filestorageModule.ErrAttachmentNotFound)
 }
