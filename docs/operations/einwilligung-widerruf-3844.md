@@ -24,8 +24,10 @@ geprüftes Skript für selektive Löschungen. Die Abnahme steht in Abschnitt 7.
 3. Stützt sich die Funktion auf Einwilligung, führt die Schule den Nachweis
    extern: konkreter Zweck, gültige Textfassung, Erteilung oder Ablehnung,
    Zeitpunkt, erklärungsberechtigte Person und gegebenenfalls Widerruf. Sie
-   bestimmt einen ebenso einfachen Widerrufsweg. Kein allgemeines
-   Einwilligungsportal und keinen Portal-Widerruf für diesen Ablauf zusagen.
+   bestimmt einen ebenso einfachen Widerrufsweg. Zusätzlich bestehende
+   Portaländerungen berücksichtigen: Für Fotos gibt es Widerruf und
+   Neuerteilung nach Widerruf im Elternportal. Das ist kein allgemeiner
+   Portal-Widerrufsweg für andere Funktionen (Abschnitt 1.1 und 2.1).
 4. Die Schule weist ihre berechtigte Leitung bzw. Datenpflege an. Reicht der
    vorhandene Weg nicht aus, erhält das moto-Team eine begrenzte Weisung in
    Textform über den vereinbarten geschützten Supportweg. Vor jeder Aktion
@@ -43,6 +45,27 @@ Kinder endgültig löschen `users:delete` und diese Berechtigung. Nicht allein
 vom Rollennamen ausgehen. Fehlende Rechte durch die Leitung klären, nicht
 vorübergehend pauschale Adminrechte vergeben. Dokumentrechte stehen unten.
 
+### 1.1 Eingangswege und Abgleich
+
+Externe Erklärungen sind nicht die einzige Quelle. Schule und moto-Team
+berücksichtigen folgende im Code vorhandene Wege; API-Pfade beziehen sich
+auf das Backend unter `/api`, nicht auf eine Freigabe für direkte Requests.
+
+| Funktion | Erklärungen, Änderungen und weitere Erfassungswege |
+|---|---|
+| Kinderfotos | Externer Nachweis; Personal-UI bzw. `PUT /students/{id}` mit `photo_consent_given`; `POST /students/{id}/photo` kann mit `consent_acknowledged=true` zugleich erteilen. Elternportal: `GET /parent/me/children/{studentId}/consents`, `PUT`/`DELETE /parent/me/children/{studentId}/consents/photo`. Hinzu kommen Anmeldeübernahme/-abgleich und Kinderimport (Abschnitt 2.5). |
+| Raumhistorie/Aufbewahrung | Externe Erklärung; Personal-UI und `GET`/`PUT /students/{id}/privacy-consent`; Kinderimport kann die Aufbewahrungseinwilligung initial anlegen, schreibt eine bestehende dabei nicht um. Das ist `users.privacy_consents`, nicht der Schlüssel `data_processing` des Einwilligungsprotokolls. Raumbesuche entstehen über Personal-/Web-Anmeldung und Raumwechsel, Geräte-Anmeldung/-Raumwechsel und Stundenplanabläufe. Kein entsprechender Elternportal-Einwilligungs- oder Widerrufsweg in den geprüften Routen. |
+| Stimmungsabfrage/Feedback | Externe Erklärung; Geräteeingabe `POST /iot/feedback`; Personal-API `POST /feedback/` und `/feedback/batch`, Löschen `DELETE /feedback/{id}`. Keine kindbezogene Einwilligungs-API und kein entsprechender Elternportal-Weg in den geprüften Routen. |
+| Gesundheitsangaben | Externe Erklärung, soweit diese Grundlage gilt; Personal-UI und Kinderanlage/-änderung (`POST /students/`, `PUT /students/{id}`, Feld `health_info`); direkte Elternbearbeitung `PATCH /parent/me/children/{studentId}/master-data/student/health_info`; Anmeldeübernahme und Kinderimport. Krankmeldungen (`POST /parent/me/children/{studentId}/sick-note`), Personal-Statusänderungen und Gesundheitsdokumente sind gesonderte Bestände, kein Widerruf dieses Feldes. Keine eigene Gesundheits-Einwilligungs-API. |
+| AGB, Datenschutzkenntnisnahme, E-Mail-Kontakt | Anmeldeformular: öffentliche oder angemeldete Einreichung, danach Übernahme/Abgleich; Kinderimport mit Einwilligungsdaten. Eltern-/Personalansicht zeigt die gespeicherten Zustände. `GET /parent/me/children/{studentId}/consents` ist nur lesend; keine `PUT`/`DELETE`-Wege für diese drei Schlüssel. Der reguläre Kinder-Änderungsrequest bietet dafür ebenfalls keine Felder (Abschnitt 2.5). |
+
+Eine Erklärung über Elternbriefe/Einverständnisse (`POST
+/parent/me/news/{announcementId}/respond`) hat einen eigenen Antwortverlauf.
+Sie ändert die oben genannten Kinderfelder oder Schalter nicht automatisch.
+Auch externe Rückmeldungen per vereinbartem Kontaktweg müssen in den Auftrag
+einfließen. Für Fotos gilt vor Setzen des Häkchens, vor einem Upload und vor
+erneutem Einschalten zwingend der quellenübergreifende Abgleich aus Abschnitt 2.1.
+
 ## 2. Erteilung, Ablehnung und Widerruf je Funktion
 
 ### 2.1 Kinderfotos
@@ -51,11 +74,47 @@ Schulweit: **Einstellungen → Betrieb → Kinderfotos**
 (`operations.student_photos_enabled`). Kindbezogen:
 **Datenverwaltung → Kinderdaten → Kind → Bearbeiten → Foto**.
 
-1. **Erteilung:** Externen Nachweis und dessen Zweck prüfen. Nur bei
-   eingeschalteten Kinderfotos „Einwilligung der Eltern liegt vor“ setzen,
+**Foto-Portalweg:** Eltern öffnen das Kind im Elternportal und dort
+**Angaben → Einwilligungen und Bestätigungen → Foto-Einwilligung**. Bei laufender
+Betreuung und passender Beziehungsberechtigung `consent_manage`
+(`GuardianPermissionConsentManage`, `parent_portal.consent.manage`) können sie
+**Widerrufen → Jetzt widerrufen** wählen. Nach einem protokollierten Widerruf
+ist **Erneut geben → Einwilligung geben** möglich, auch nach weiteren
+Widerrufen. Es ist kein Weg zur allerersten Erteilung ohne vorherigen Widerruf.
+Beide Änderungen funktionieren **unabhängig vom Kinderfotos-Schalter** und
+schreiben wirksame Übergänge mit Quelle `parent_portal` ins Einwilligungsprotokoll.
+Der Widerruf entfernt auch den Fotoverweis und beauftragt die Dateilöschung;
+eine Neuerteilung stellt kein Foto wieder her. Rechte sind kindbezogen, nicht
+allein durch ein Elternkonto gegeben. Nach Betreuungsende verweigert der
+Schreibweg die Änderung; dann den externen Kontaktweg zur Schule nutzen.
+
+**Verbindlicher Quellenabgleich:** Vor **jedem** Setzen von „Einwilligung der
+Eltern liegt vor“, vor **jedem** Foto-Upload (auch mit
+`consent_acknowledged=true`) und vor erneutem Einschalten prüft die zuständige
+Person den aktuellen Zustand **und** den Einwilligungsverlauf in moto,
+einschließlich `parent_portal`, gegen die externen Erklärungen. Der vollständige
+Verlauf samt Quelle ist nicht die bloße Statusanzeige im Kinderprofil;
+geschützter Prüfweg über das moto-Team: Abschnitt 5.1. Fehlt der Verlauf oder
+ist die Zuordnung unklar, kein Häkchen setzen und kein Foto hochladen.
+
+Ein **jüngerer ausdrücklicher Widerruf** aus Portal oder externem Kontakt hat
+Vorrang vor einer älteren Erteilung, einem Importdatum oder einer späteren
+technischen Übernahme eines alten Formulars. Nicht allein den jüngsten
+Datenbankzeitstempel werten: Er kann nur das Nachtragen dokumentieren. Bei
+Widerspruch oder unklarer Reihenfolge gilt: **kein Häkchen, kein Upload und
+Rückfrage bei den Eltern**. Einen bestehenden widersprechenden Haken nach
+Weisung entfernen; einen Portal-Widerruf niemals mit einem alten Papiernachweis
+überschreiben. Eine spätere Portal-Neuerteilung ist eine neue ausdrückliche
+Erklärung, belegt aber nicht automatisch den extern geführten Zweck-/Fassungs-
+nachweis. Schule gleicht diesen ab bzw. klärt ihn mit den Eltern, bevor Fotos
+erneut genutzt werden. Nicht automatisch aus „Hinterlegt“ auf Freigabe schließen.
+
+1. **Erteilung:** Quellenabgleich durchführen und den zweckbezogenen Nachweis
+   bestätigen. Nur dann bei eingeschalteten Kinderfotos das Häkchen setzen,
    gegebenenfalls ein Foto auswählen und **Speichern**. Der gespeicherte
-   Zeitpunkt in moto belegt die Eintragung, nicht den ursprünglichen Zeitpunkt
-   der externen Erklärung oder deren Textfassung.
+   Zeitpunkt belegt die Eintragung, nicht den ursprünglichen Zeitpunkt oder
+   die Textfassung einer externen Erklärung. Portal-Neuerteilungen nicht
+   ungeprüft als extern nachgewiesen übernehmen.
 2. **Ablehnung/fehlender Nachweis:** Häkchen nicht setzen, kein Foto hochladen.
    Einen bestehenden widersprechenden Zustand wie einen Widerruf bereinigen.
    Ablehnung extern festhalten: Ein fehlender Zeitstempel allein unterscheidet
@@ -76,37 +135,49 @@ betroffene. Die Einwilligungsnachweise bleiben dabei bestehen. Das ist ein
 Ersatzweg bei nicht beherrschbarer Nutzung, kein kindbezogener Widerruf.
 Das moto-Team bestätigt den Abschluss offener Datei-Aufräumaufträge separat.
 
-**Widerruf bei bereits ausgeschalteten Kinderfotos:** Der Fotobereich samt
-Häkchen ist dann nicht sichtbar. Die alte Einwilligung lässt sich dort nicht
-entfernen und überlebt das Aus-/Einschalten. Deshalb gilt folgender Ablauf:
+**Widerruf bei bereits ausgeschalteten Kinderfotos:** Nur der Fotobereich der
+**Personal-UI** samt Häkchen ist dann nicht sichtbar. Der oben genannte
+Elternportal-Widerruf bleibt möglich und wirksam; auch Neuerteilung bleibt
+möglich. Das Ausschalten selbst entfernt alte Einwilligungen nicht.
 
-1. Schule hält den Widerruf im bestehenden externen Nachweis fest. Kinderfotos
-   bleiben ausgeschaltet. Im bestehenden externen Auftrag vermerken:
-   **Widerruf in moto noch nicht nachgetragen**. Nicht als technisch vollständig
-   umgesetzt melden; dafür gibt es kein eigenes Statusfeld in moto.
-2. **Vor jedem erneuten Einschalten** gleicht die zuständige Leitung alle
-   extern geführten Foto-Widerrufe ab und bereitet die betroffenen Kindakten
-   vor. Für das Nachtragen eine verbindliche Uploadpause mit allen zum
-   Foto-Upload berechtigten Personen vereinbaren und sicherstellen, dass keine
-   laufenden Uploads mehr bestehen. Kann die Schule diese Pause nicht
-   zuverlässig gewährleisten, bleiben Kinderfotos aus; Nachtragen bleibt offen.
-3. Während der Uploadpause **Einstellungen → Betrieb → Kinderfotos** einschalten.
-   Sofort für jedes betroffene Kind **Datenverwaltung → Kinderdaten → Kind →
-   Bearbeiten → Foto** öffnen, Häkchen entfernen und **Speichern**. Jede Kindakte
-   erneut öffnen und prüfen: Häkchen aus, kein Foto. Bis zum vollständigen
-   Abgleich keine Uploads zulassen, auch nicht bei anderen Kindern.
-4. Erst nach erfolgreichem Nachtragen und Prüfen aller Widerrufe die Uploadpause
-   beenden. Bei Fehler oder unterbrochenem Abgleich Kinderfotos wieder
-   ausschalten und offene Schritte dokumentieren; dabei werden erneut alle
-   Fotos gelöscht. Vor dem nächsten Einschalten den Abgleich wiederholen.
+1. Schule führt externe Widerrufe im bestehenden Auftrag nach und berücksichtigt
+   bereits erfolgte Portaländerungen. Ist der wirksame Widerruf in moto schon
+   protokolliert, nicht nochmals als fehlend behandeln. Andernfalls extern
+   **Widerruf in moto noch nicht nachgetragen** vermerken. Eltern mit passender
+   Berechtigung können selbst im Portal widerrufen, ohne Fotos einzuschalten;
+   diesen Weg nicht für unberechtigte Personen oder andere Funktionen zusagen.
+2. **Vor jedem erneuten Einschalten** aktuellen Zustand und vollständigen
+   Verlauf aller betroffenen Kinder einschließlich Portaländerungen und
+   Anmelde-/Importübernahmen nach obiger Regel abgleichen. Während des
+   Abgleichs verbindliche Pause aller Foto-Uploads und aller Änderungen an
+   Fotoeinwilligungen organisieren, einschließlich Portal-Neuerteilungen,
+   Anmeldeübernahmen und Importen; laufende Vorgänge erst abschließen lassen.
+   Neue Widerrufe trotzdem sofort entgegennehmen und berücksichtigen. Ist
+   diese Koordination nicht zuverlässig, bleiben Fotos aus und der Auftrag offen.
+3. Nur noch fehlende Widerrufe durch berechtigte Eltern im Portal nachtragen
+   lassen oder während der vereinbarten Pause Fotos einschalten und in der
+   Personal-UI sofort das Häkchen der betroffenen Kinder entfernen, speichern
+   und erneut prüfen. **Kein Häkchen aufgrund älterer externer Nachweise setzen.**
+   Auch bereits im Portal widerrufene Kinder müssen widerrufen bleiben.
+4. Nach dem letzten Nachtrag den Verlauf und aktuellen Zustand nochmals prüfen.
+   Erst nach vollständigem Abgleich Uploads wieder zulassen. Bei neuer Erklärung,
+   Fehler oder Unterbrechung die Prüfung wiederholen; bei nicht beherrschbarer
+   Nutzung Fotos wieder ausschalten (löscht erneut alle Fotos). Danach gilt der
+   Quellenabgleich weiterhin vor jedem Häkchen und Upload, nicht nur einmalig.
 
 Dieser Ersatzweg vermeidet ein zusätzliches kurzes Einschalten allein für den
 Widerruf. Ausgeschaltet sind Uploads bereits gesperrt; kritisch ist das spätere
-Einschalten mit alten Einwilligungszeitstempeln. **Offen:** Die Oberfläche erlaubt
-keinen Foto-Widerruf bei ausgeschalteter Funktion, und Wiedereinschalten verwirft
-alte Einwilligungen nicht. Vorschlag: Das Entfernen der Fotoeinwilligung auch
-bei ausgeschalteten Kinderfotos ermöglichen, ohne Uploads freizugeben. Bis dahin
-ersetzt das Ausschalten den externen Abgleich vor erneutem Einschalten nicht.
+Einschalten mit alten Einwilligungszeitstempeln. **Offen:** Nur die Personal-UI
+verbirgt den Foto-Widerruf bei ausgeschalteter Funktion, nicht das Elternportal.
+`ApplyPhotoConsent` hat kein Feature-Gate; `PUT /students/{id}` kann den
+Fotozustand auch dann ändern. Vorschlag: Der Personal-UI das Entfernen der
+Fotoeinwilligung auch bei ausgeschalteten Fotos anbieten, ohne Uploads
+freizugeben. Ein eigenes neues Einwilligungssystem ist dafür nicht nötig.
+Keine der vorhandenen Stellen prüft den externen Nachweis automatisch; auch
+Portal-Neuerteilung, Uploadbestätigung, Import und Anmeldeübernahme können einen
+Zustand neu setzen. Der vorgeschriebene Quellenabgleich und die Koordination
+gleichzeitiger Änderungen sind organisatorisch zu prüfen, kein technischer
+Schutz vor jedem Konflikt. Bis dahin ersetzt das Ausschalten diesen Abgleich nicht.
 Der beschriebene Ersatzweg ist durch Schule und Betrieb noch zu erproben.
 
 ### 2.2 Raumhistorie und Anwesenheitsprotokoll
@@ -115,6 +186,14 @@ Schulweit: **Einstellungen → Datenschutz → Anwesenheitsprotokoll**
 (`gdpr.attendance_log_enabled`). Kindbezogen gibt es unter **Bearbeiten →
 Datenschutz** „Einwilligung zur Datenverarbeitung erteilt“ und eine
 Aufbewahrungsfrist. Diese Werte sind **kein Erfassungsverbot**.
+
+Der zugehörige Personal-API-Weg ist `GET`/`PUT /students/{id}/privacy-consent`
+(`users:read` bzw. `users:update` plus Kinderzugriff). Auch der Kinderimport
+kann diesen Aufbewahrungsdatensatz initial anlegen. Er ist von
+`data_processing` aus Anmeldung/Einwilligungsprotokoll zu unterscheiden.
+In den geprüften Elternportal-Routen gibt es hierfür keinen Erteilungs-/
+Widerrufsweg. Geräte-, Web- und Stundenplan-Eingaben bleiben als Erfassungswege
+für Besuche zu berücksichtigen, auch wenn dieser Datensatz nicht akzeptiert ist.
 
 1. **Erteilung:** Extern zweckbezogen nachweisen. Die kindbezogenen Werte nur
    gemäß geprüfter Weisung pflegen. Eine Einwilligung eines Kindes erlaubt
@@ -154,6 +233,13 @@ Details und Mengenprüfung: [Raumhistorie, Slice 3844-b](raumhistorie-3844-b.md)
 Schulweit: **Einstellungen → Datenschutz → Feedback der Kinder beim Gehen**
 (`feedback.enabled`). Berechtigung: `config:manage`.
 
+Erfassung erfolgt über Geräte-API `POST /iot/feedback` (Geräteauthentisierung)
+und Personal-API `POST /feedback/` bzw. `/feedback/batch` (`feedback:create`).
+Beide nutzen die Feedback-Funktion mit schulweiter Sperre. In den geprüften
+Elternportal-Routen gibt es weder eine Stimmungsabfrage noch einen eigenen
+Feedback-Einwilligungs-/Widerrufsweg. Eine Rückmeldung zu einem Elternbrief ist
+ein anderer Vorgang und schaltet diese Erfassung nicht um.
+
 1. **Erteilung:** Extern für den konkreten Zweck nachweisen. Erst nach Prüfung
    des erfassten Personenkreises einschalten. Einwilligung eines Kindes ist
    keine Freigabe für die ganze Schule.
@@ -184,6 +270,16 @@ Gesundheitsinformationen** (`health_info`), Berechtigung `users:update`.
 Es gibt keinen eigenen Gesundheits-Einwilligungsschalter. Das Häkchen unter
 „Datenschutz“ steuert diese Angaben nicht. Slice 3844-h bleibt unberührt.
 
+Weitere Eingänge für `health_info`: Kinderanlage/-änderung in der Personal-API,
+Übernahme passender Anmeldefelder und Kinderimport. Im Elternportal unter
+**Kind → Angaben → Gesundheit** lässt sich das Feld direkt ändern, über
+`PATCH /parent/me/children/{studentId}/master-data/student/health_info`.
+Das braucht laufende Betreuung, die kindbezogene Berechtigung
+`parent_portal.master_data.edit` und die schulweite Freigabe
+`operations.parent_master_data_edit_enabled`. Das ist eine Datenänderung,
+keine Gesundheits-Einwilligung und kein automatischer Widerruf anderer
+Bestände. Krankmeldungen, Kranktage und Dokumente haben eigene Schreibwege.
+
 1. **Erteilung:** Nur die erforderlichen Angaben für den geprüften Zweck
    eintragen und speichern. Falls Einwilligung die Grundlage ist, den externen
    Nachweis vorher prüfen. Sonst die bestätigte Art.-6-/Art.-9-Grundlage
@@ -206,6 +302,42 @@ Neue Gesundheitsänderungen speichern im Änderungsprotokoll nur Zustandsmarken,
 nicht den freien Gesundheitsinhalt. Für Altbestand existieren Maskierungs-
 migrationen; deren produktive Ausführung ist nachzuweisen. Andere Felder und
 Dokument-Dateinamen können weiterhin Personenbezug enthalten.
+
+### 2.5 AGB, Datenschutzkenntnisnahme und E-Mail-Kontakt
+
+Die drei Schlüssel `agb`, `data_processing` und `email_contact` im
+Einwilligungsprotokoll sind keine Schalter für Gesundheit, Raumhistorie oder
+Feedback. Insbesondere ist `data_processing` nicht `users.privacy_consents`.
+Der im Code verwendete Begriff „consent“ entscheidet nicht, ob rechtlich eine
+Einwilligung, Kenntnisnahme oder Vertragsbestätigung vorliegt.
+
+1. **Anmeldung:** Öffentliche Einreichung oder `POST
+   /parent/enrollments/{tenantSlug}/submit` im Elternportal enthält die
+   konfigurierten Erklärungen. Erst die Übernahme bzw. der Abgleich schreibt
+   die Zeitpunkte am Kind; Auditquelle `enrollment`. Erneute Abgleiche können
+   vorliegende Zustände ersetzen. Bei ersetzender Übernahme werden explizit
+   nicht erteilte konfigurierte Erklärungen geleert; fehlende Formularschlüssel
+   bedeuten nicht automatisch Widerruf. Das betrifft auch `photo`.
+2. **Import:** Kinderimport kann diese Zeitpunkte sowie Fotoeinwilligung bei
+   Anlage und Aktualisierung übernehmen, Quelle `import`. Vor Übernahme mit
+   neueren Erklärungen und Widerrufen abgleichen; eine alte Importdatei oder
+   wiederholte Anmeldeübernahme ist keine neue Erklärung der Eltern.
+   `migration_snapshot` kennzeichnet historischen Bestand, keinen laufenden
+   Eingangsweg für eine aktuelle Erklärung.
+3. **Anzeige:** Eltern sehen die drei Zustände unter **Einwilligungen und
+   Bestätigungen**, Personal im Kinderprofil. Die Eltern-API bietet dafür nur
+   `GET /parent/me/children/{studentId}/consents`; Änderungsaktionen existieren
+   dort nur für Fotos. Der reguläre `PUT /students/{id}` hat für diese drei
+   Zeitpunkte keine Änderungsfelder. Keine pauschale Portal-Widerrufsfunktion
+   aus der Überschrift oder dem Auditmodell ableiten.
+4. **Ablehnung/Widerrufs- oder Korrekturanfrage:** Über den vereinbarten
+   Kontaktweg an die Schule geben, Zweck und rechtliche Wirkung einzeln klären.
+   Die Oberfläche zeigt keinen individuellen Änderungsweg für diese drei
+   Zustände. Eine nötige Korrektur bzw. Umsetzung als gesonderte Weisung an
+   moto bearbeiten; dieses Runbook liefert dafür keinen geprüften Schreibweg.
+   Keine neue Anmeldung oder Importdatei nur zur Umgehung eines Widerrufs
+   verwenden. Auch eine E-Mail-Kontakt-Zeitmarke belegt nicht, dass sämtliche
+   Nachrichtenwege automatisch gesperrt oder freigegeben werden.
 
 ## 3. Lösch- und Einschränkungsweisung ausführen
 
@@ -297,7 +429,7 @@ nicht rückgängig machen.
 
 | Vorhandener Mechanismus | Aussage und Grenze |
 |---|---|
-| `audit.student_consent_changes` | Ereignisse für `agb`, `data_processing`, `email_contact`, `photo`; Aktion, Quelle, Zeitpunkt und Akteur. Kein eigener Gesundheitstyp, keine externe Originalerklärung oder Textfassung. „Nicht hinterlegt“ ist kein Ablehnungsnachweis. |
+| `audit.student_consent_changes` | Ereignisse für `agb`, `data_processing`, `email_contact`, `photo`; Aktion, Quelle, Zeitpunkt und Akteur. Foto-Portaländerungen tragen `parent_portal`; weitere Quellen sind `tenant_portal`, `enrollment`, `import`, historisch `migration_snapshot`. Kein eigener Gesundheitstyp, keine externe Originalerklärung oder Textfassung. „Nicht hinterlegt“ ist kein Ablehnungsnachweis. |
 | Änderungsprotokoll beim Kind (`audit.student_field_edits`) | Feldänderungen und Dokumentereignisse. Gesundheitswerte sind im aktuellen Schreibweg maskiert; Dateinamen und Akteure können Personenbezug tragen. Kein vollständiges Weisungsregister. |
 | `audit.data_deletions` und Nachweis der Kinderlöschung | Datenart, Mengen und Ausführung; der Workflow erhält einen Löschungsnachweis. Belegt weder physische Dateientfernung noch ausgelaufene Sicherungen. Nicht jede manuelle Feld-/Dateiänderung schreibt in diese Tabelle. |
 | Datei-Aufräumaufträge und Laufnachweise | Betrieb muss Erfolg und Restmenge prüfen. Ein angelegter Auftrag ist noch keine gelöschte Datei. |
@@ -326,6 +458,46 @@ Offene Schritte, zuständige Rolle und Termin:
 Bestätigung an Schule: Teilstand / vollständig im bestätigten Umfang:
 ```
 
+### 5.1 Fotoverlauf vor Abgleich, Häkchen und Upload prüfen
+
+Die Personalansicht und `GET /parent/me/children/{studentId}/consents` liefern
+den aktuellen Zustand samt Zeitpunkt, **nicht** den vollständigen Verlauf mit
+Quelle. Fehlt dieser zur Prüfung, bittet die Schule das berechtigte moto-Team
+über den geschützten Auftrag um eine begrenzte lesende Prüfung. Bis zum Ergebnis
+kein Häkchen setzen, kein Upload und keine Import-/Anmeldeübernahme, die den
+Fotozustand ändert. Keine generelle Datenbankberechtigung an die Schule vergeben.
+
+Codequelle: `ListByStudentID` in
+`backend/modules/auditlog/internal/adapters/auditpostgres/student_consent_change.go`.
+Für einen bestehenden berechtigten Lesezugang kann das moto-Team in `psql`
+die intern bestätigten Variablen `school_id` und `student_id` binden und
+folgenden **nur lesenden** Prüfblock verwenden. Keine DSN oder Rohzeilen in
+GitHub übernehmen. Der Block ist anhand des Schemas abgeglichen, in diesem
+Slice aber nicht gegen eine Datenbank ausgeführt; die lokale Erprobung bleibt
+Teil der Abnahme. Keine Erweiterung auf andere Kinder oder Schulen.
+
+```sql
+BEGIN READ ONLY;
+SET LOCAL ROLE phoenix_tenant;
+SET LOCAL app.current_tenant_id = :'school_id';
+SELECT created_at, action, source
+FROM audit.student_consent_changes
+WHERE tenant_id = :'school_id'::bigint
+  AND student_id = :'student_id'::bigint
+  AND consent_key = 'photo'
+ORDER BY created_at, id;
+ROLLBACK;
+```
+
+Schule und moto-Team gleichen diesen Verlauf mit dem aktuellen Fotozustand und
+den externen Erklärungen ab. `created_at` ordnet die Eintragung in moto, nicht
+zwingend die ursprüngliche externe Erklärung. Keine Zeilen sind kein Beleg für
+eine Erteilung oder Ablehnung. Bei lückenhaftem Verlauf oder widersprechenden
+Zeitpunkten bei den Eltern nachfragen, nicht aus einem alten Haken folgern.
+Neue Portaländerungen zwischen Prüfung und Aktion erfordern einen erneuten
+Abgleich; die Abfrage sperrt keine gleichzeitige Neuerteilung und ist kein
+automatischer Konfliktschutz.
+
 ## 6. Abgleich mit bestehenden Vorarbeiten
 
 - **#1583:** Anmeldehinweise und gespeicherte Zustimmungen sind kein Ersatz
@@ -352,6 +524,12 @@ danach ein berechtigter Mensch gesondert bestätigen.
 2. In einer lokalen Schule zwei synthetische Kinder, in einer zweiten Schule
    ein Kontrollkind nutzen. Für Fotos Erteilung, Ablehnung, Widerruf,
    gespeicherten Zustand, gesperrten Abruf/Upload und Dateientfernung prüfen.
+   Elternportal-Widerruf und anschließende Neuerteilung jeweils bei ein- und
+   ausgeschalteten Fotos, mit/ohne Beziehungsrecht und nach Betreuungsende prüfen.
+   Alten externen Nachweis, jüngeren Portal-Widerruf sowie spätere
+   Portal-Neuerteilung ohne geklärten externen Nachweis als Konfliktfälle
+   durchspielen. Vor Häkchen, Upload, Import/Anmeldeübernahme und erneutem
+   Einschalten den Verlauf aus 5.1 abgleichen, auch bei parallelen Änderungen.
    Schulweite Ersatzmaßnahmen vorher als solche freigeben.
 3. Historie ausschalten: ältere Abschlüsse weg, Tagesdaten/offene Besuche
    vorhanden, Nachtlauf nachvollziehbar. Feedback ausschalten: neue Erfassung
@@ -374,10 +552,26 @@ Pfade relativ zur Repository-Wurzel, Stand siehe Kopf:
 - Foto: `frontend/src/components/students/student-photo-section.tsx`,
   `backend/modules/peopledirectory/internal/domain/student_photo.go`,
   `internal/application/student_photo.go` unter demselben Modul.
+- Foto-Portalweg und Grenzen anderer Portaländerungen:
+  `backend/workflows/parentportal/http/routes.go`,
+  `backend/workflows/parentportal/internal/care/parent_consent_service.go`,
+  `backend/modules/peopledirectory/internal/domain/student_consent.go`,
+  `frontend/src/components/parent/child/child-consents-section.tsx`.
+- Anmelde-/Importeingänge:
+  `backend/modules/enrollment/internal/application/targeted_field_student.go`,
+  `backend/modules/enrollment/internal/application/targeted_fields.go`,
+  `backend/modules/dataimport/internal/application/importservice/student_import_owner.go`.
+- Personal-Änderungsfelder und Eltern-Gesundheitseingabe:
+  `backend/modules/careplan/http/types.go`,
+  `backend/modules/careplan/http/student_update_handlers.go`,
+  `backend/workflows/parentportal/internal/care/parent_master_data_service.go`.
 - Historie: `backend/modules/studentpresence/internal/application/presence/cleanup_service.go`;
+  API `backend/modules/studentpresence/http/student_resource.go`,
+  `backend/modules/studentpresence/inbound/presence/api.go`;
   UI-Bestätigung `frontend/src/components/settings/settings-field.tsx`.
 - Feedback: `backend/modules/feedback/internal/application/service.go`,
   `public_operations.go` daneben, `backend/modules/feedback/http/api.go`.
+  Geräteeingang: `backend/modules/devicescan/http/data/feedback_resource.go`.
 - Gesundheit/Änderungsprotokoll:
   `frontend/src/components/students/personal-info-edit-panel.tsx`,
   `backend/modules/peopledirectory/internal/domain/student_audit.go`,
