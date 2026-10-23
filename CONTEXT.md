@@ -655,17 +655,17 @@ _Vermeiden_: Gastkind (unklar, ob mit Buchung), Ferienkind.
 ## Betreuungsvertrag
 
 Ein **Betreuungsvertrag** ist die Vereinbarung zwischen dem Träger und den
-Eltern über die Betreuung eines Kindes an einem Betreuungsort. Er kommt aus
-einer Anmeldung zustande, auch jede bestätigte Ferienbuchung ist einer. Er ist
-die einzige Grundlage für Elternbeiträge.
+Eltern über die Betreuung eines Kindes an einem Betreuungsort. Er entsteht aus
+einer angenommenen Anmeldung oder aus einem Import; auch jede bestätigte
+Ferienbuchung ist einer. Er ist die einzige Grundlage für Elternbeiträge.
 _Vermeiden_: Vertrag allein (meint auch den Vertrag zwischen moto und einer
 Schule), Betreuungsvereinbarung.
 
 ## Vertragsversion
 
 Eine **Vertragsversion** ist der Inhalt eines Betreuungsvertrags ab einem
-Wirkdatum: gebuchte Leistungen, Zeiten und der Preis, der beim Zustandekommen
-galt. Jede Änderung erzeugt eine neue Version; spätere Tarifänderungen ändern
+Wirkdatum: gebuchte Leistungen, Zeiten und der Preis, der beim Anlegen der
+Version galt. Jede Änderung erzeugt eine neue Version; spätere Tarifänderungen ändern
 keine bestehende Version.
 
 ## Betreuungsort
