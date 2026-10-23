@@ -423,6 +423,8 @@ export const ERROR_CATALOG = {
         "Bitte wählen Sie höchstens 500 Kinder auf einmal aus.",
       "students.care_offerings_disabled":
         "{object} ist hier zurzeit nicht verfügbar. Bitte fragen Sie Ihre Ansprechperson.",
+      "students.care_resume_alumnus":
+        "Dieses Kind wurde beim Jahrgangswechsel abgemeldet. Sie finden es unter Jahrgangswechsel, Bereich Abgänge.",
       "students.care_resume_missing":
         "Für dieses Kind ist keine beendete Betreuung hinterlegt.",
       "students.care_resume_not_checked":
