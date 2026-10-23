@@ -2,6 +2,8 @@ package architecture
 
 import (
 	"encoding/json"
+	"errors"
+	"fmt"
 	"os"
 	"path/filepath"
 	"runtime"
@@ -10,10 +12,40 @@ import (
 	"testing"
 )
 
+func TestCheckPassesParsedOptionsToProjectCheck(t *testing.T) {
+	t.Parallel()
+	for _, prefix := range []string{"-", "--"} {
+		for _, joined := range []bool{false, true} {
+			t.Run(fmt.Sprintf("%s/joined=%t", prefix, joined), func(t *testing.T) {
+				t.Parallel()
+				repo, base := ratchetRepository(t, legacyRecord(2583))
+				args := []string{"check"}
+				for _, option := range [][2]string{{"project", repo}, {"baseline", "architecture/legacy.jsonl"}, {"base-ref", base}} {
+					if joined {
+						args = append(args, prefix+option[0]+"="+option[1])
+					} else {
+						args = append(args, prefix+option[0], option[1])
+					}
+				}
+				failure := errors.New("project evidence rejected")
+				err := RunCLI(args, CLIDependencies{CheckProject: func(project, baseRef string) error {
+					if project != repo || baseRef != base {
+						t.Fatalf("project check received (%q, %q), want (%q, %q)", project, baseRef, repo, base)
+					}
+					return failure
+				}})
+				if !errors.Is(err, failure) {
+					t.Fatalf("project evidence failure must propagate: %v", err)
+				}
+			})
+		}
+	}
+}
+
 func TestRunCLIRejectsMissingAndUnknownCommands(t *testing.T) {
 	t.Parallel()
 
-	const commands = "check, effects, explain, diagram, dependencies, cycles, audit-issues, or relocations"
+	const commands = "check, effects, passthrough-snapshot, explain, diagram, dependencies, cycles, audit-issues, or relocations"
 	err := RunCLI(nil, CLIDependencies{})
 	if err == nil || err.Error() != "command is required: "+commands {
 		t.Fatalf("missing command error = %v", err)
@@ -21,6 +53,46 @@ func TestRunCLIRejectsMissingAndUnknownCommands(t *testing.T) {
 	err = RunCLI([]string{"validate-ticket"}, CLIDependencies{})
 	if err == nil || err.Error() != `unknown command "validate-ticket": expected `+commands {
 		t.Fatalf("unknown command error = %v", err)
+	}
+}
+
+func TestEffectsUsesParsedProjectWithoutRunningPassThroughCheck(t *testing.T) {
+	t.Parallel()
+	project, policy := commandEffectFixture(t)
+	template, err := LoadPolicy(fixturePath(t, "allowed-edge.json"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	template.ModulePath, template.Owners, template.Packages, template.Rules = policy.ModulePath, policy.Owners, policy.Packages, policy.Rules
+	template.Roles = append(template.Roles, "public", "compose")
+	for i := range template.Packages {
+		template.Packages[i].InternalTestRole = "module-internal-test"
+		template.Packages[i].ExternalTestRole = "module-behavior-test"
+	}
+	for i := range template.Rules {
+		template.Rules[i].Description = "The fixture root binds its domain capability."
+	}
+	policy = template
+	data, err := json.Marshal(policy)
+	if err != nil {
+		t.Fatal(err)
+	}
+	writeFile(t, filepath.Join(project, "architecture", "policy.json"), string(data))
+	err = RunCLI([]string{"effects", "--project", project}, CLIDependencies{
+		CheckProject: func(string, string) error {
+			t.Fatal("effects must not run the pass-through check")
+			return nil
+		},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	inventory, err := os.ReadFile(filepath.Join(project, commandEffectInventory))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(string(inventory), "example.test/effects/foreign.Ledger.Record") {
+		t.Fatalf("effects did not generate the project inventory: %s", inventory)
 	}
 }
 
