@@ -1,3 +1,5 @@
+import { dirname, normalize } from "node:path/posix";
+
 // UI-kit drift ratchet (issue #1629).
 //
 // Five hard-zero rules that stop drift away from the shared UI kit. The
@@ -662,6 +664,20 @@ const VALUE_SWITCHER_VALUES = new Set([
   "whole-day",
   "this-block",
 ]);
+const UI_KIT_TABS_MODULES = new Set([
+  "~/components/ui/tabs",
+  "@/components/ui/tabs",
+]);
+
+function isUiKitTabsModule(source, filename) {
+  if (UI_KIT_TABS_MODULES.has(source)) return true;
+  if (!source.startsWith(".")) return false;
+  const posixFilename = filename.replaceAll("\\", "/");
+  const sourceStart = posixFilename.lastIndexOf("/src/");
+  const importer =
+    sourceStart === -1 ? posixFilename : posixFilename.slice(sourceStart + 1);
+  return normalize(`${dirname(importer)}/${source}`) === "src/components/ui/tabs";
+}
 
 function collectStaticTabText(children, texts) {
   for (const child of children) {
@@ -793,7 +809,7 @@ const noTabsAsValueSwitcher = {
 
         for (const specifier of node.specifiers) {
           if (
-            source === "~/components/ui/tabs" &&
+            isUiKitTabsModule(source, filename) &&
             specifier.type === "ImportSpecifier" &&
             specifier.imported.name === "TabsContent"
           ) {

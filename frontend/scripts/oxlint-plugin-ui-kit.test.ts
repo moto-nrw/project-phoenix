@@ -414,10 +414,12 @@ describe("ui-kit/no-tabs-as-value-switcher", () => {
     expect(output).toContain("ui-kit(no-tabs-as-value-switcher)");
   });
 
-  it("accepts dynamic labels with kit, Radix, and aliased content panels", () => {
+  it("accepts dynamic labels with all supported content-panel imports", () => {
     const result = lintSource(
       `import * as TabsPrimitive from "@radix-ui/react-tabs";
-      import { TabsContent as Content } from "~/components/ui/tabs";
+      import { TabsContent as TildeContent } from "~/components/ui/tabs";
+      import { TabsContent as AtContent } from "@/components/ui/tabs";
+      import { TabsContent as RelativeContent } from "./ui/tabs";
       function Tabs(_: { children: unknown }) {
         return null;
       }
@@ -432,7 +434,9 @@ describe("ui-kit/no-tabs-as-value-switcher", () => {
         return <Tabs>
           <TabsList><TabsTrigger value={tab.id}>{tab.label}</TabsTrigger></TabsList>
           <TabsPrimitive.Content value={tab.id}>Inhalt</TabsPrimitive.Content>
-          <Content value={tab.id}>Inhalt</Content>
+          <TildeContent value={tab.id}>Inhalt</TildeContent>
+          <AtContent value={tab.id}>Inhalt</AtContent>
+          <RelativeContent value={tab.id}>Inhalt</RelativeContent>
         </Tabs>;
       }
       void Probe;`,
