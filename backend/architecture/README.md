@@ -41,6 +41,12 @@ Its [edge inventory](../../docs/architecture/4538-cross-owner-write-inventory.md
 records the retained exceptions and enforcement limits; an allowed import is
 not proof of a safe cross-owner command.
 
+[ADR 0083](../../docs/adr/0083-ratchets-protect-invariants-and-expose-command-effects.md)
+reviews the post-migration gates and policy (#4548), with a
+[reproducible measurement record](../../docs/architecture/4548-ratchet-policy-measurement.md).
+It keeps current gates and records separate typed-effect, source-coverage and
+method-level pass-through follow-ups; no new policy permission follows.
+
 ## Canonical module map
 
 [ADR 0066](../../docs/adr/0066-principle-every-module-table-and-cross-owner-read-has-one-owner.md)
