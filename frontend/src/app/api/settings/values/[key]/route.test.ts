@@ -144,30 +144,36 @@ describe("settings values tenant cache busting", () => {
     else process.env.TENANT_DOMAIN = ORIGINAL_TENANT_DOMAIN;
   });
 
-  it("revalidates tenant tag + path on PUT for student_photos_enabled with subdomain host", async () => {
-    await (PUT as Function)(
-      reqWithHost("school-a.moto-app.de"),
-      { value: true },
-      "test-token",
-      { key: "operations.student_photos_enabled" },
-    );
-    expect(mockRevalidateTag).toHaveBeenCalledWith("tenant-school-a", {
-      expire: 0,
-    });
-    expect(mockRevalidatePath).toHaveBeenCalledWith("/school-a", "layout");
-  });
+  it.each(["operations.student_photos_enabled", "analytics.enabled"])(
+    "revalidates tenant tag + path on PUT for %s with subdomain host",
+    async (key) => {
+      await (PUT as Function)(
+        reqWithHost("school-a.moto-app.de"),
+        { value: false },
+        "test-token",
+        { key },
+      );
+      expect(mockRevalidateTag).toHaveBeenCalledWith("tenant-school-a", {
+        expire: 0,
+      });
+      expect(mockRevalidatePath).toHaveBeenCalledWith("/school-a", "layout");
+    },
+  );
 
-  it("revalidates tenant tag on DELETE for student_photos_enabled", async () => {
-    await (DELETE as Function)(
-      reqWithHost("school-b.moto-app.de"),
-      "test-token",
-      { key: "operations.student_photos_enabled" },
-    );
-    expect(mockRevalidateTag).toHaveBeenCalledWith("tenant-school-b", {
-      expire: 0,
-    });
-    expect(mockRevalidatePath).toHaveBeenCalledWith("/school-b", "layout");
-  });
+  it.each(["operations.student_photos_enabled", "analytics.enabled"])(
+    "revalidates tenant tag on DELETE for %s",
+    async (key) => {
+      await (DELETE as Function)(
+        reqWithHost("school-b.moto-app.de"),
+        "test-token",
+        { key },
+      );
+      expect(mockRevalidateTag).toHaveBeenCalledWith("tenant-school-b", {
+        expire: 0,
+      });
+      expect(mockRevalidatePath).toHaveBeenCalledWith("/school-b", "layout");
+    },
+  );
 
   it("revalidates tenant tag on PUT for presence_mode", async () => {
     await (PUT as Function)(
