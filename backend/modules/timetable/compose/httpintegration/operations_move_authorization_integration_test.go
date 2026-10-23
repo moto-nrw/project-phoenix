@@ -16,7 +16,7 @@ import (
 // This characterizes option A of #4736, not an authorization equivalence:
 // a planned operator may check a child into B without supervising A or B,
 // while the ordinary Presence move rejects that exact actor and child.
-// Changing this contract awaits the explicit A/B business decision.
+// Decision A retains this contract; adopting B would be a separate behavior change.
 func TestTimetableCheckInPlannedOperatorWithoutMoveSupervision(t *testing.T) {
 	t.Parallel()
 	for _, bulk := range []bool{false, true} {
@@ -74,6 +74,25 @@ func checkPlannedOperatorMove(t *testing.T, bulk bool) {
 	current, err = presence.GetStudentCurrentVisit(ctx, child.ID)
 	require.NoError(t, err)
 	require.Equal(t, source.ID, current.ActiveGroupID, "Timetable refusal preserves the source visit")
+
+	// Planning authority is school-wide at most: even an assigned operator
+	// in another school cannot take this child into their own valid block.
+	foreignTenant, _ := testpkg.CreateTestTenant(t, db)
+	foreignStaff, foreignAccount := testpkg.CreateTestStaffWithAccountForTenant(t, db, foreignTenant, "Foreign", "Operator")
+	foreignTarget := testpkg.CreateTestActiveGroupForTenant(t, db, foreignTenant)
+	foreignInstance := testpkg.CreateTestActivityInstanceForTenant(t, db, foreignTenant, testpkg.TodayDate(), foreignTarget.RoomID, testpkg.ActivityInstanceOpts{
+		Status: "active", ActivityGroupID: foreignTarget.GroupID, ActiveGroupID: &foreignTarget.ID, Title: "Foreign target",
+	})
+	testpkg.CreateTestInstanceStaffForTenant(t, db, foreignTenant, foreignInstance.ID, foreignStaff.ID, testpkg.InstanceStaffOpts{IsPrimary: true})
+	foreignCtx := testpkg.IdentityContext(testpkg.TenantContext(foreignTenant), foreignAccount.ID, foreignTenant, "tenant", []string{"schedules:read"})
+	err = testpkg.WithinTenantContext(t, foreignCtx, db, foreignTenant, func(txCtx context.Context) error {
+		_, err := checkInMove(module.TimetableOperations, txCtx, foreignAccount.ID, foreignInstance.ID, child.ID, bulk)
+		return err
+	})
+	require.ErrorIs(t, err, studentpresence.ErrStudentNotFound)
+	current, err = presence.GetStudentCurrentVisit(ctx, child.ID)
+	require.NoError(t, err)
+	require.Equal(t, source.ID, current.ActiveGroupID, "foreign operator preserves the source visit")
 
 	require.NoError(t, testpkg.WithinTenantContext(t, ctx, db, testpkg.Tenant(t), func(txCtx context.Context) error {
 		roster, err := checkInMove(module.TimetableOperations, txCtx, account.ID, instance.ID, child.ID, bulk)

@@ -43,10 +43,25 @@ func checkMoveBypassAuthorization(t *testing.T, graph *goldenRuntime) {
 	})
 	refused := request(staffToken)
 	require.Equal(t, http.StatusForbidden, refused.Code, refused.Body.String())
+	assert.Contains(t, refused.Body.String(), `"code":"general.permission"`)
 	assert.Equal(t, []int64{source.ID}, openVisitSessions(t, db, child.ID))
 	anonymous := request("")
 	require.Equal(t, http.StatusUnauthorized, anonymous.Code, anonymous.Body.String())
 	assert.Equal(t, []int64{source.ID}, openVisitSessions(t, db, child.ID))
+
+	// Admin resource access is school-wide, never cross-school. Give the
+	// foreign admin a valid target in their own school, but this school's child.
+	foreignTenant, _ := testpkg.CreateTestTenant(t, db)
+	_, foreignAccount := testpkg.CreateTestStaffWithAccountForTenant(t, db, foreignTenant, "Foreign", "Admin")
+	foreignTarget := testpkg.CreateTestActiveGroupForTenant(t, db, foreignTenant)
+	foreignToken := testutil.MintTestJWT(t, testutil.AdminTestClaimsForTenant(int(foreignAccount.ID), foreignTenant))
+	foreignMove := checkpointRequest(graph, checkpointScenario{
+		Method: http.MethodPost, Path: "/api/active/visits/move-to-group", Authenticated: true,
+		Body: fmt.Sprintf(`{"student_ids":[%d],"target_active_group_id":%d}`, child.ID, foreignTarget.ID),
+	}, foreignToken)
+	require.Equal(t, http.StatusConflict, foreignMove.Code, foreignMove.Body.String())
+	assert.Contains(t, foreignMove.Body.String(), `"code":"general.business_rejection"`)
+	assert.Equal(t, []int64{source.ID}, openVisitSessions(t, db, child.ID), "foreign admin cannot move the child")
 
 	adminToken := testutil.MintTestJWT(t, testutil.AdminTestClaimsForTenant(int(account.ID), testpkg.Tenant(t)))
 	moved := request(adminToken)
