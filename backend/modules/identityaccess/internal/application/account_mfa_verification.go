@@ -118,7 +118,17 @@ func (f *AccountMFAFlows) VerifyCodeForAccount(ctx context.Context, accountID, t
 		f.recordFailure(ctx, accountID, 0, "consume race")
 		return identityaccess.ErrMFACodeInvalid
 	}
-	_ = f.records.ResetMFAAttempts(ctx, accountID)
+	// The caller may run this inside its own transaction (passkey
+	// registration), where a failed statement aborts everything after it. The
+	// failure is therefore returned, not just logged, so it cannot surface
+	// later as an unrelated error.
+	if err := f.records.ResetMFAAttempts(ctx, accountID); err != nil {
+		f.logger.Warn("failed to reset MFA attempts",
+			slog.Int64("account_id", accountID),
+			slog.String("error", err.Error()),
+		)
+		return identityaccess.ErrMFAStatusUnavailable
+	}
 	f.recordAuthEvent(ctx, domain.AuthEvent{
 		AccountID: accountID, Type: domain.AuthEventMFAVerified, Success: true,
 		IPAddress: domain.MFAAuditFallbackIP,
