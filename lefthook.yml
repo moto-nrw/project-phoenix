@@ -57,7 +57,7 @@ pre-commit:
 
     # Go imports check (formatting and organization)
     go-imports:
-      glob: "backend/**/*.go"
+      glob: "{backend/*.go,backend/**/*.go}"
       run: |
         # Only the staged files. `goimports -d .` walks every package, which
         # takes ~10 minutes on a WSL checkout, and it reads the WORKING TREE:
