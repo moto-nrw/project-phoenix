@@ -2540,6 +2540,7 @@
         "plan_disabled": "{object} şu anda burada kullanılamıyor. Lütfen ilgili kişinize danışın.",
         "plan_week_out_of_range": "{object} kaydedilemedi. Girdiğiniz bilgileri kontrol edin.",
         "registration_disabled": "{object} şu anda burada kullanılamıyor. Lütfen ilgili kişinize danışın.",
+        "delivery_range_too_long": "Teslimat listesi en fazla yedi günü kapsar. Lütfen daha kısa bir dönem seçin.",
         "not_supplied": "Artık bu okula yemek sağlamıyorsunuz. Lütfen okula danışın.",
         "order_not_found": "Bu sipariş mevcut değil. Lütfen sayfayı yeniden yükleyin.",
         "supply_active": "{object} şu anda mümkün değil. Okula hâlâ bir yemek firması yemek sağlıyor. Önce bu tedariki sonlandırın."

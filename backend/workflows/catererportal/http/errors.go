@@ -21,6 +21,7 @@ var (
 // caterer login tells nobody which addresses hold other accounts.
 var errorRules = []common.ErrorRule{
 	{Target: identityaccess.ErrCatererAlreadySupplies, Render: common.FixedCodedRenderer(common.ErrorConflictWithCode, identityaccess.ErrCatererAlreadySupplies, common.CodeMealsSupplyActive)},
+	{Target: catererportal.ErrDeliveryRangeTooLong, Render: common.FixedCodedRenderer(common.ErrorInvalidRequestWithCode, catererportal.ErrDeliveryRangeTooLong, common.CodeMealsDeliveryRangeTooLong)},
 	{Target: catererportal.ErrSchoolNotSupplied, Render: common.FixedCodedRenderer(common.ErrorForbiddenWithCode, catererportal.ErrSchoolNotSupplied, common.CodeMealsNotSupplied)},
 	{Target: mealplan.ErrOrderNotFound, Render: common.FixedCodedRenderer(common.ErrorNotFoundWithCode, errors.New(mealplan.ErrOrderNotFound.Detail), common.CodeMealsOrderNotFound)},
 	{Target: mealplan.ErrDisabled, Render: common.FixedCodedRenderer(common.ErrorForbiddenWithCode, errors.New(mealplan.ErrDisabled.Detail), common.CodeMealsPlanDisabled)},

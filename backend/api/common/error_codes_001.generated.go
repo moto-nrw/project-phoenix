@@ -24,6 +24,7 @@ const (
 	CodeMealsChildNotEnrolled                         = "meals.child_not_enrolled"
 	CodeMealsDayClosed                                = "meals.day_closed"
 	CodeMealsDayPast                                  = "meals.day_past"
+	CodeMealsDeliveryRangeTooLong                     = "meals.delivery_range_too_long"
 	CodeMealsInvalidDishes                            = "meals.invalid_dishes"
 	CodeMealsInvalidMealDate                          = "meals.invalid_meal_date"
 	CodeMealsInvalidParticipation                     = "meals.invalid_participation"
@@ -301,7 +302,6 @@ const (
 	CodeTimetableTemplateEducationGroupInvalid        = "timetable.template_education_group_invalid"
 	CodeTimetableTemplateEndBeforeStart               = "timetable.template_end_before_start"
 	CodeTimetableTemplateGradeAboveMax                = "timetable.template_grade_above_max"
-	CodeTimetableTemplateInvalid                      = "timetable.template_invalid"
 )
 
 var errorCodeClasses1 = map[string]string{
@@ -327,6 +327,7 @@ var errorCodeClasses1 = map[string]string{
 	"meals.child_not_enrolled":                            "business_rejection",
 	"meals.day_closed":                                    "business_rejection",
 	"meals.day_past":                                      "business_rejection",
+	"meals.delivery_range_too_long":                       "input",
 	"meals.invalid_dishes":                                "input",
 	"meals.invalid_meal_date":                             "input",
 	"meals.invalid_participation":                         "input",
@@ -604,7 +605,6 @@ var errorCodeClasses1 = map[string]string{
 	"timetable.template_education_group_invalid":          "input",
 	"timetable.template_end_before_start":                 "input",
 	"timetable.template_grade_above_max":                  "input",
-	"timetable.template_invalid":                          "input",
 }
 
 func init() {

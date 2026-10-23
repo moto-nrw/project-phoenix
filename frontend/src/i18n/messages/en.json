@@ -2540,6 +2540,7 @@
         "plan_disabled": "{object} is not available here at the moment. Please ask your contact person.",
         "plan_week_out_of_range": "{object} could not be saved. Please check your entries.",
         "registration_disabled": "{object} is not available here at the moment. Please ask your contact person.",
+        "delivery_range_too_long": "The delivery list covers at most seven days. Please choose a shorter period.",
         "not_supplied": "You no longer supply this school. Please ask the school.",
         "order_not_found": "This order does not exist. Please reload the page.",
         "supply_active": "{object} is not possible right now. A caterer still supplies the school. Please end that supply first."

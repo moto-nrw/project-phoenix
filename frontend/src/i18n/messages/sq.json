@@ -2540,6 +2540,7 @@
         "plan_disabled": "Për momentin nuk është i disponueshëm këtu: {object}. Pyetni personin tuaj të kontaktit.",
         "plan_week_out_of_range": "Nuk u ruajt: {object}. Kontrolloni të dhënat.",
         "registration_disabled": "Për momentin nuk është i disponueshëm këtu: {object}. Pyetni personin tuaj të kontaktit.",
+        "delivery_range_too_long": "Lista e dorëzimit përfshin të shumtën shtatë ditë. Ju lutemi zgjidhni një periudhë më të shkurtër.",
         "not_supplied": "Ju nuk e furnizoni më këtë shkollë. Ju lutemi pyesni shkollën.",
         "order_not_found": "Kjo porosi nuk ekziston. Ju lutemi ringarkoni faqen.",
         "supply_active": "{object} nuk është e mundur tani. Një furnizues ushqimi e furnizon ende shkollën. Përfundoni fillimisht atë furnizim."

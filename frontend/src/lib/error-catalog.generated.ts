@@ -1179,6 +1179,8 @@ export const ERROR_CATALOG = {
         "Diese E-Mail-Adresse gehört schon zu einem anderen moto-Konto. Bitte nehmen Sie eine andere Adresse.",
       "identity.caterer_without_school":
         "Sie beliefern zurzeit keine Schule über moto. Bitte fragen Sie die Schule.",
+      "meals.delivery_range_too_long":
+        "Die Lieferliste umfasst höchstens sieben Tage. Bitte wählen Sie einen kürzeren Zeitraum.",
       "meals.not_supplied":
         "Sie beliefern diese Schule nicht mehr. Bitte fragen Sie die Schule.",
       "meals.order_not_found":
@@ -1481,6 +1483,8 @@ export const ERROR_CATALOG = {
         "This email address already belongs to another moto account. Please use a different address.",
       "identity.caterer_without_school":
         "You do not supply any school through moto at the moment. Please ask the school.",
+      "meals.delivery_range_too_long":
+        "The delivery list covers at most seven days. Please choose a shorter period.",
       "meals.not_supplied":
         "You no longer supply this school. Please ask the school.",
       "meals.order_not_found":
@@ -1773,6 +1777,8 @@ export const ERROR_CATALOG = {
         "Этот адрес электронной почты уже принадлежит другой учётной записи moto. Пожалуйста, укажите другой адрес.",
       "identity.caterer_without_school":
         "Сейчас вы не снабжаете ни одну школу через moto. Пожалуйста, обратитесь в школу.",
+      "meals.delivery_range_too_long":
+        "Список доставки охватывает не более семи дней. Пожалуйста, выберите более короткий период.",
       "meals.not_supplied":
         "Вы больше не снабжаете эту школу. Пожалуйста, обратитесь в школу.",
       "meals.order_not_found":
@@ -2069,6 +2075,8 @@ export const ERROR_CATALOG = {
         "Kjo adresë email i përket tashmë një llogarie tjetër moto. Ju lutemi përdorni një adresë tjetër.",
       "identity.caterer_without_school":
         "Aktualisht nuk furnizoni asnjë shkollë përmes moto. Ju lutemi pyesni shkollën.",
+      "meals.delivery_range_too_long":
+        "Lista e dorëzimit përfshin të shumtën shtatë ditë. Ju lutemi zgjidhni një periudhë më të shkurtër.",
       "meals.not_supplied":
         "Ju nuk e furnizoni më këtë shkollë. Ju lutemi pyesni shkollën.",
       "meals.order_not_found":
@@ -2352,6 +2360,8 @@ export const ERROR_CATALOG = {
         "Ten adres e-mail należy już do innego konta moto. Proszę użyć innego adresu.",
       "identity.caterer_without_school":
         "Obecnie nie zaopatrujesz żadnej szkoły przez moto. Proszę zapytać szkołę.",
+      "meals.delivery_range_too_long":
+        "Lista dostaw obejmuje maksymalnie siedem dni. Proszę wybrać krótszy okres.",
       "meals.not_supplied":
         "Nie zaopatrujesz już tej szkoły. Proszę zapytać szkołę.",
       "meals.order_not_found":
@@ -2641,6 +2651,8 @@ export const ERROR_CATALOG = {
         "Bu e-posta adresi zaten başka bir moto hesabına ait. Lütfen başka bir adres kullanın.",
       "identity.caterer_without_school":
         "Şu anda moto üzerinden hiçbir okula yemek sağlamıyorsunuz. Lütfen okula danışın.",
+      "meals.delivery_range_too_long":
+        "Teslimat listesi en fazla yedi günü kapsar. Lütfen daha kısa bir dönem seçin.",
       "meals.not_supplied":
         "Artık bu okula yemek sağlamıyorsunuz. Lütfen okula danışın.",
       "meals.order_not_found":
@@ -2920,6 +2932,8 @@ export const ERROR_CATALOG = {
         "Ця адреса електронної пошти вже належить іншому обліковому запису moto. Будь ласка, вкажіть іншу адресу.",
       "identity.caterer_without_school":
         "Зараз ви не постачаєте жодну школу через moto. Будь ласка, зверніться до школи.",
+      "meals.delivery_range_too_long":
+        "Список доставки охоплює щонайбільше сім днів. Будь ласка, виберіть коротший період.",
       "meals.not_supplied":
         "Ви більше не постачаєте цю школу. Будь ласка, зверніться до школи.",
       "meals.order_not_found":

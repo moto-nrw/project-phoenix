@@ -22,6 +22,16 @@ import (
 // ErrSchoolNotSupplied refuses a caterer a school it does not supply.
 var ErrSchoolNotSupplied = errors.New("the caterer does not supply this school")
 
+// MaxDeliveryDays bounds one delivery list: a week, the longest period the
+// portal offers. The caterer's list reads every school it supplies, each in
+// its own transaction, so the bound keeps one request's cost fixed per
+// school.
+const MaxDeliveryDays = 7
+
+// ErrDeliveryRangeTooLong refuses a delivery list over more than
+// MaxDeliveryDays days, before any school is read.
+var ErrDeliveryRangeTooLong = errors.New("a delivery list covers at most seven days")
+
 // SchoolCaterer is the school's caterer as the school sees it: the running
 // supply, if any, and the school's invitations.
 type SchoolCaterer struct {
@@ -68,7 +78,7 @@ type SchoolSide interface {
 	// once.
 	EndSupply(ctx context.Context, accountID int64) (bool, error)
 	// SchoolDeliveryExport is the school's delivery list of [from, to]: the
-	// same document its caterer gets.
+	// same document its caterer gets, over at most MaxDeliveryDays days.
 	SchoolDeliveryExport(ctx context.Context, from, to mealplan.Date) (mealplan.ListExport, error)
 }
 
@@ -86,8 +96,9 @@ type CatererSide interface {
 	Schools(ctx context.Context, accountID int64) (CatererSchools, error)
 	SchoolOrders(ctx context.Context, accountID, schoolID int64, from, to mealplan.Date) (SchoolOrders, error)
 	ConfirmOrder(ctx context.Context, accountID, schoolID, orderID int64) error
-	// DeliveryExport is the delivery list of every school the caterer
-	// supplies, each read in its own transaction.
+	// DeliveryExport is the delivery list of [from, to] of every school the
+	// caterer supplies, each read in its own transaction, over at most
+	// MaxDeliveryDays days.
 	DeliveryExport(ctx context.Context, accountID int64, from, to mealplan.Date) (mealplan.ListExport, error)
 }
 

@@ -2540,6 +2540,7 @@
         "plan_disabled": "Obecnie niedostępne tutaj: {object}. Zapytaj swoją osobę kontaktową.",
         "plan_week_out_of_range": "Nie udało się zapisać: {object}. Sprawdź wpisane dane.",
         "registration_disabled": "Obecnie niedostępne tutaj: {object}. Zapytaj swoją osobę kontaktową.",
+        "delivery_range_too_long": "Lista dostaw obejmuje maksymalnie siedem dni. Proszę wybrać krótszy okres.",
         "not_supplied": "Nie zaopatrujesz już tej szkoły. Proszę zapytać szkołę.",
         "order_not_found": "To zamówienie nie istnieje. Proszę odświeżyć stronę.",
         "supply_active": "{object} nie jest teraz możliwe. Szkołę nadal zaopatruje firma cateringowa. Najpierw zakończ to zaopatrzenie."

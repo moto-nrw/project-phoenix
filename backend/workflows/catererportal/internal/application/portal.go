@@ -10,6 +10,7 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
 	"github.com/moto-nrw/project-phoenix/modules/mealplan"
+	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 	"github.com/moto-nrw/project-phoenix/workflows/catererportal"
 	"github.com/moto-nrw/project-phoenix/workflows/catererportal/ports"
 )
@@ -213,6 +214,9 @@ func (p *Portal) supplier(ctx context.Context, accountID, schoolID int64) (ident
 // SchoolDeliveryExport lays out the school's own orders of [from, to] as the
 // delivery list, in the school's transaction.
 func (p *Portal) SchoolDeliveryExport(ctx context.Context, from, to mealplan.Date) (mealplan.ListExport, error) {
+	if err := deliveryWindow(from, to); err != nil {
+		return mealplan.ListExport{}, err
+	}
 	schoolID := p.deps.CurrentSchool(ctx)
 	names, err := p.deps.SchoolNames(ctx, []int64{schoolID})
 	if err != nil {
@@ -240,6 +244,9 @@ func (p *Portal) SchoolDeliveryExport(ctx context.Context, from, to mealplan.Dat
 // caterer supplies as one delivery list. Each school is read in its own
 // transaction, with what its caterer may see.
 func (p *Portal) DeliveryExport(ctx context.Context, accountID int64, from, to mealplan.Date) (mealplan.ListExport, error) {
+	if err := deliveryWindow(from, to); err != nil {
+		return mealplan.ListExport{}, err
+	}
 	caterer, schools, err := p.deps.Caterers.CatererSchools(ctx, accountID)
 	if err != nil {
 		return mealplan.ListExport{}, err
@@ -253,19 +260,8 @@ func (p *Portal) DeliveryExport(ctx context.Context, accountID int64, from, to m
 		if _, live := names[schoolID]; !live {
 			continue
 		}
-		err := p.deps.WithinSchool(ctx, schoolID, func(txCtx context.Context) error {
-			supply, supplyErr := p.supplyOf(txCtx, caterer.ID)
-			if supplyErr != nil {
-				return supplyErr
-			}
-			week, ordersErr := p.deps.Orders.CatererOrders(txCtx, supply.StartedAt, from, to)
-			if ordersErr != nil {
-				return ordersErr
-			}
-			schoolLines, linesErr := week.DeliveryLines(names[schoolID], supply.DeliveryAddress)
-			lines = append(lines, schoolLines...)
-			return linesErr
-		})
+		schoolLines, err := p.catererDeliveryLines(ctx, caterer.ID, schoolID, names[schoolID], from, to)
+		lines = append(lines, schoolLines...)
 		if skipsDelivery(err) {
 			continue
 		}
@@ -274,6 +270,38 @@ func (p *Portal) DeliveryExport(ctx context.Context, accountID int64, from, to m
 		}
 	}
 	return mealplan.DeliveryExport(from, to, lines)
+}
+
+// catererDeliveryLines reads one school's lines of the caterer's delivery
+// list in that school's transaction, with what its caterer may see.
+func (p *Portal) catererDeliveryLines(ctx context.Context, catererID, schoolID int64, school string, from, to mealplan.Date) (lines [][]string, err error) {
+	err = p.deps.WithinSchool(ctx, schoolID, func(txCtx context.Context) error {
+		supply, supplyErr := p.supplyOf(txCtx, catererID)
+		if supplyErr != nil {
+			return supplyErr
+		}
+		week, ordersErr := p.deps.Orders.CatererOrders(txCtx, supply.StartedAt, from, to)
+		if ordersErr != nil {
+			return ordersErr
+		}
+		lines, err = week.DeliveryLines(school, supply.DeliveryAddress)
+		return err
+	})
+	if err != nil {
+		return nil, err
+	}
+	return lines, nil
+}
+
+// deliveryWindow refuses a delivery list over more than MaxDeliveryDays
+// days. A window the Meal Plan cannot read at all is its own error.
+func deliveryWindow(from, to mealplan.Date) error {
+	start, startErr := calendar.ParseDate(string(from))
+	end, endErr := calendar.ParseDate(string(to))
+	if startErr == nil && endErr == nil && start.DaysUntil(end) >= catererportal.MaxDeliveryDays {
+		return catererportal.ErrDeliveryRangeTooLong
+	}
+	return nil
 }
 
 // skipsDelivery reports a school that has nothing to deliver right now: it

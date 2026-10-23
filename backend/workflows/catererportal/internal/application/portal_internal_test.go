@@ -306,6 +306,27 @@ func TestDeliveryExportSkipsASchoolWithoutOrders(t *testing.T) {
 	assert.Empty(t, export.Lines)
 }
 
+// A delivery list covers at most a week; a longer one is refused before any
+// school transaction opens, so the caterer's request stays bounded per school.
+func TestDeliveryExportRefusesMoreThanAWeek(t *testing.T) {
+	t.Parallel()
+	caterers := &fakeCaterers{caterer: identityaccess.Caterer{ID: 7}, schools: []int64{11, 12}, supply: supplying(7), active: true}
+	orders := &fakeOrders{}
+	var opened schoolsOpened
+	portal := newTestPortal(t, caterers, orders, &opened)
+
+	_, err := portal.DeliveryExport(context.Background(), 3, "2026-09-07", "2026-09-14")
+	require.ErrorIs(t, err, catererportal.ErrDeliveryRangeTooLong)
+	_, err = portal.SchoolDeliveryExport(context.Background(), "2026-09-07", "2026-09-14")
+	require.ErrorIs(t, err, catererportal.ErrDeliveryRangeTooLong)
+	assert.Empty(t, opened, "no school is read")
+	assert.False(t, orders.ordersRead)
+
+	_, err = portal.DeliveryExport(context.Background(), 3, "2026-09-07", "2026-09-13")
+	require.NoError(t, err, "seven days are a week")
+	assert.Equal(t, schoolsOpened{11, 12}, opened)
+}
+
 func TestSchoolDeliveryExportRequiresActiveSupply(t *testing.T) {
 	t.Parallel()
 	orders := &fakeOrders{week: mealplan.OrderWeek{
@@ -316,7 +337,7 @@ func TestSchoolDeliveryExportRequiresActiveSupply(t *testing.T) {
 	export, err := newTestPortal(t, &fakeCaterers{}, orders, &opened).SchoolDeliveryExport(context.Background(), "2026-09-07", "2026-09-11")
 	require.ErrorIs(t, err, catererportal.ErrSchoolNotSupplied)
 	assert.Empty(t, export.Lines)
-	assert.False(t, orders.ordersRead, "an inactive supply must not settle or read orders")
+	assert.False(t, orders.ordersRead, "an inactive supply must not read orders")
 }
 
 func TestPortalRejectsDeletedSchools(t *testing.T) {

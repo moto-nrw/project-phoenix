@@ -4213,6 +4213,12 @@
       "legacy": "identity.caterer_without_school"
     },
     {
+      "code": "meals.delivery_range_too_long",
+      "class": "input",
+      "parameters": [],
+      "legacy": "meals.delivery_range_too_long"
+    },
+    {
       "code": "meals.not_supplied",
       "class": "permission",
       "parameters": [],

@@ -217,8 +217,14 @@ var queryBudgets = map[string]queryBudget{
 	"services.platform.pending_operator_invitations.reads": {max: 1, exact: true},
 	// ADR 0077: the school's caterer invitations and the caterer's schools,
 	// including one bulk school-directory read to exclude deleted schools.
-	"modules.identityaccess.caterer_invitations.reads":   {max: 1, exact: true},
-	"modules.identityaccess.caterer_schools.reads":       {max: 3, exact: true},
+	"modules.identityaccess.caterer_invitations.reads": {max: 1, exact: true},
+	"modules.identityaccess.caterer_schools.reads":     {max: 3, exact: true},
+	// ADR 0077: the caterer's delivery list of a week over three schools
+	// through the production router. Each school runs in its own
+	// transaction with the supply check and the order read of
+	// modules.mealplan.orders.read_week, so it grows by a fixed number per
+	// school and never with the children; the window is at most a week.
+	"workflows.catererportal.delivery_export":            {max: 999},
 	"services.education.suggest_mappings.reads":          {max: 4},
 	"services.reminders.present_students_in_rooms.reads": {max: 6},
 	"services.users.list_guardians.reads":                {max: 2},
