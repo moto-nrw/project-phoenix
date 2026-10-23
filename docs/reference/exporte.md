@@ -30,7 +30,7 @@ Hilfe-PDFs sind nicht Teil davon (Nicht-Ziel in #2223).
 
 | # | Export | Einstieg | Entscheidung |
 |---|---|---|---|
-| 1 | Kinderlisten (8 Vorlagen) | Kindersuche, Exportzentrale | **Angleichen.** Wechselt auf den gemeinsamen Export-Dialog. Die Vorlage „Klassenliste“ bekommt Spalten und Zellformat der Anmelde-Klassenliste (#16). |
+| 1 | Kinderlisten (8 Vorlagen) | Kindersuche, Exportzentrale | **Angleichen.** Wechselt auf den gemeinsamen Export-Dialog. Die Vorlage „Klassenliste“ hat Spalten und Zellformat der Anmelde-Klassenliste (#16, angeglichen mit #4749). |
 | 2 | Geburtstagsliste Personal | Exportzentrale | **Angleichen.** Gemeinsamer Export-Dialog statt der Kopie des Kinderlisten-Modals. |
 | 3 | Raumbelegung „Wer ist wo“ | Räume, Exportzentrale | **Bewusst so lassen.** Die Fachseite exportiert die gefilterten Räume, die Exportzentrale alle Räume mit „Unterwegs“. Das ist gewollt: die Zentrale ist der Einstieg ohne Vorauswahl. |
 | 4 | Notfallliste | Notfallliste, Exportzentrale | **Angeglichen.** Der Druck-Tab öffnet sich jetzt vor dem Laden; vorher konnte der Browser ihn blockieren. |
@@ -45,7 +45,7 @@ Hilfe-PDFs sind nicht Teil davon (Nicht-Ziel in #2223).
 | 13 | Anmeldungen der Phase | Anmeldephase | **Angleichen.** Teilt sich die Block-Bausteine mit #14 und #15 statt eigener Builder. Selbstgebautes Menü wird `OverflowMenu`. |
 | 14 | Anmeldungen eines Kindes | Kind, Tab Anmeldungen | Wie #13. Inline-Knöpfe werden ein Menü. |
 | 15 | Anmelde-Auswertung | Anmeldephase | Wie #13. Die kompakte Variante (#2215) nutzt den Tabellen-Builder der Anmelde-Klassenliste statt eigener Spalten. |
-| 16 | Klassenlisten der Phase | Anmeldephase | **Getrennt lassen, Layout angleichen.** Siehe unten. |
+| 16 | Klassenlisten der Phase | Anmeldephase | **Getrennt lassen, Layout angeglichen** (#4749). Siehe unten. |
 | 17 | Statistik | Statistik | **Bewusst so lassen.** Menü pro Abschnitt folgt Regel 2. |
 | 18 | Mittagessen-Teilnehmer | Essensplan | **Angleichen.** Inline-Knöpfe werden ein Menü. |
 | 19 | Bankverbindungen | Eltern, Bankverbindungen | **Angleichen.** Gemeinsamer Export-Dialog statt eigener Formatwahl. |
@@ -63,11 +63,25 @@ Eine gemeinsame Datenquelle gibt es also nicht. Beide behalten ihren Endpunkt,
 teilen sich aber Spalten, Wochentagszelle („14:30 Uhr, wird abgeholt“) und den
 Tabellen-Builder.
 
+Der Tabellen-Builder liegt in
+`backend/modules/documentrendering/records/class_roster.go`: gemeinsame
+Spalten (Name, Klasse, Montag bis Freitag), die Wochentagszelle und die
+Abschnitte je Klasse („alle Klassen“). Die Geh-/Abholregelung je Tag kommt aus
+`departure.DayRules`. Die Anmelde-Klassenliste hängt ihre Erziehungsberechtigten
+als eigene Spalte an. Die Kinderlisten-Vorlage behält Gruppe,
+Betreuungs-/Anmeldestatus, Betreuungstage und Geh-/Abholweise hinter den
+gemeinsamen Spalten. Es kommen keine neuen Datenfelder hinzu.
+
+Die Wochentagszelle übernimmt das Format der Anmelde-Klassenliste: Abholzeit
+und taggenaue Geh-/Abholregelung stehen zusammen, damit die Liste für die
+Abholung lesbar bleibt. Tage ohne Betreuung bleiben „—“. Die
+Kinderlisten-Vorlage hat keine Ankunftszeit mehr in
+der Zelle; die bleibt der OGS Wochenliste vorbehalten.
+
 ## Offen
 
 - Gemeinsamer Export-Dialog und Umstellung der Einstiege (Regel 2).
 - Gemeinsame Block-Bausteine für die Anmelde-Exporte (#13 bis #15).
-- Gemeinsamer Tabellen-Builder für beide Klassenlisten (#1, #16).
 - `frontend/src/app/api/time-tracking/export` ruft die Oberfläche nicht mehr
   auf; die eigene Zeiterfassung nutzt `/api/staff/{id}/time-tracking/export`.
   Entfernen, sobald `StaffExportButton` umgestellt ist.
