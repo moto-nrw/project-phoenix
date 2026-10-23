@@ -45,7 +45,10 @@ func birthdaySettings(enabled, includeStaff bool) *settingsDouble {
 	}
 }
 
-func newBirthdayService(db *bun.DB, settings *settingsDouble, now func() time.Time) peopledirectory.Birthdays {
+func newBirthdayService(db *bun.DB, settings *settingsDouble, now func() time.Time) interface {
+	peopledirectory.Birthdays
+	SetOptOut(context.Context, int64, bool) error
+} {
 	return api.NewBirthdayCapabilityForTests(testpkg.MustDatabase(db), settings, now)
 }
 
@@ -449,6 +452,37 @@ func TestBirthdayOptOutWithoutStaffRecord(t *testing.T) {
 		_, err := testpkg.TenantQuery1(t, ctx, db, service.GetOptOut, account.ID)
 		require.ErrorIs(t, err, peopledirectory.ErrStaffNotFound)
 	})
+}
+
+func TestBirthdayOptOutRollsBackWithTheCaller(t *testing.T) {
+	t.Parallel()
+	db := testpkg.SetupTestDB(t)
+	_, account := testpkg.CreateTestStaffWithAccount(t, db, "Greta", "Rollback")
+	service := newBirthdayService(db, birthdaySettings(true, true), nil)
+	abort := errors.New("abort birthday preference")
+	err := testpkg.TenantCommand0(t, testpkg.Ctx(t), db, func(ctx context.Context) error {
+		require.NoError(t, service.SetOptOut(ctx, account.ID, true))
+		return abort
+	})
+	require.ErrorIs(t, err, abort)
+	optOut, err := testpkg.TenantQuery1(t, testpkg.Ctx(t), db, service.GetOptOut, account.ID)
+	require.NoError(t, err)
+	assert.False(t, optOut)
+}
+
+func TestBirthdayOptOutCannotWriteAnotherSchool(t *testing.T) {
+	t.Parallel()
+	db := testpkg.SetupTestDB(t)
+	_, account := testpkg.CreateTestStaffWithAccount(t, db, "Greta", "Schulgrenze")
+	service := newBirthdayService(db, birthdaySettings(true, true), nil)
+	t.Run("foreign school", func(t *testing.T) {
+		foreign := testpkg.OwnCtx(t)
+		err := testpkg.TenantCommand2(t, foreign, db, service.SetOptOut, account.ID, true)
+		require.ErrorIs(t, err, peopledirectory.ErrStaffNotFound)
+	})
+	optOut, err := testpkg.TenantQuery1(t, testpkg.Ctx(t), db, service.GetOptOut, account.ID)
+	require.NoError(t, err)
+	assert.False(t, optOut)
 }
 
 // Datenschutz-Blocker aus dem Review: a birthday row is student data. Since

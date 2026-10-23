@@ -214,11 +214,16 @@ func (s *Service) requestSharingState(
 	if err != nil {
 		return nil, err
 	}
-	selected := effectiveRecipientSet(current[requestShareKey{typ: requestType, id: requestID}], protected, protectedAt)
+	selected := effectiveRecipientSet(s.SharePolicy, current[requestShareKey{typ: requestType, id: requestID}], protected, protectedAt)
 	for i := range recipients {
 		recipients[i].Selected = selected[recipients[i].accountID]
 	}
 	return &RequestSharingState{FamilyProtected: protected, Recipients: recipients}, nil
+}
+
+// RequestSharePolicy reads the meaning of the two People Directory ledgers.
+type RequestSharePolicy interface {
+	EffectiveRecipientSet(time.Time, []int64, bool, time.Time) map[int64]bool
 }
 
 // effectiveRecipientSet answers who may currently see one request. A share is
@@ -227,15 +232,11 @@ func (s *Service) requestSharingState(
 // and after protection is switched off the guardian must share again. Nothing
 // here revives a voided share.
 // Pinned by TestRequestSharingIsNamedAndFamilyProtectionDoesNotReviveOldShares.
-func effectiveRecipientSet(event *ParentRequestShareEvent, protected bool, protectedAt time.Time) map[int64]bool {
-	selected := map[int64]bool{}
-	if event == nil || protected || (!protectedAt.IsZero() && !event.CreatedAt.After(protectedAt)) {
-		return selected
+func effectiveRecipientSet(policy RequestSharePolicy, event *ParentRequestShareEvent, protected bool, protectedAt time.Time) map[int64]bool {
+	if event == nil {
+		return map[int64]bool{}
 	}
-	for _, accountID := range event.RecipientAccountIDs {
-		selected[accountID] = true
-	}
-	return selected
+	return policy.EffectiveRecipientSet(event.CreatedAt, event.RecipientAccountIDs, protected, protectedAt)
 }
 
 // shareLedger reads the request-sharing ledger and the family protection the
@@ -243,10 +244,11 @@ func effectiveRecipientSet(event *ParentRequestShareEvent, protected bool, prote
 type shareLedger struct {
 	shares     RequestShareRecords
 	protection FamilyProtectionReads
+	policy     RequestSharePolicy
 }
 
 func (s *Service) ledger() shareLedger {
-	return shareLedger{shares: s.ParentRequestShares, protection: s.FamilyProtectionEvents}
+	return shareLedger{shares: s.ParentRequestShares, protection: s.FamilyProtectionEvents, policy: s.SharePolicy}
 }
 
 func (l shareLedger) currentRequestShares(ctx context.Context, studentID int64) (map[requestShareKey]*ParentRequestShareEvent, error) {
@@ -494,6 +496,7 @@ func requestLookupError(err error) error {
 }
 
 type RequestShareVisibility struct {
+	policy      RequestSharePolicy
 	current     map[requestShareKey]*ParentRequestShareEvent
 	protected   bool
 	protectedAt time.Time
@@ -512,7 +515,7 @@ func (l shareLedger) visibility(ctx context.Context, studentID int64) (*RequestS
 	if err != nil {
 		return nil, err
 	}
-	return &RequestShareVisibility{current: current, protected: protected, protectedAt: protectedAt}, nil
+	return &RequestShareVisibility{current: current, protected: protected, protectedAt: protectedAt, policy: l.policy}, nil
 }
 
 func (v *RequestShareVisibility) Allows(requestType string, requestID, accountID, submittedBy int64) bool {
@@ -520,7 +523,7 @@ func (v *RequestShareVisibility) Allows(requestType string, requestID, accountID
 		return true
 	}
 	event := v.current[requestShareKey{typ: requestType, id: requestID}]
-	return effectiveRecipientSet(event, v.protected, v.protectedAt)[accountID]
+	return effectiveRecipientSet(v.policy, event, v.protected, v.protectedAt)[accountID]
 }
 
 // SharedRecipientAccountIDs names the guardians the submitting parent
@@ -545,34 +548,12 @@ func (s *Service) SharedRecipientAccountIDs(
 	return s.ledger().sharedRecipientAccountIDs(ctx, studentID, requestType, requestID)
 }
 
-// ShareRecipients answers SharedRecipientAccountIDs for the staff request
-// queues over the sharing ledger alone, so the composition root can build it
-// before the queues the parents portal itself reads.
-type ShareRecipients struct {
-	ledger shareLedger
-}
-
-// NewShareRecipients binds the share visibility to the sharing ledger and
-// the family protection; both are required.
-func NewShareRecipients(shares RequestShareRecords, protection FamilyProtectionReads) (*ShareRecipients, error) {
-	if shares == nil || protection == nil {
-		return nil, errors.New("parent: request share visibility needs the sharing ledger and the family protection")
-	}
-	return &ShareRecipients{ledger: shareLedger{shares: shares, protection: protection}}, nil
-}
-
-// SharedRecipientAccountIDs is Service.SharedRecipientAccountIDs. Call it
-// inside the caller's tenant transaction.
-func (r *ShareRecipients) SharedRecipientAccountIDs(ctx context.Context, studentID int64, requestType string, requestID int64) ([]int64, error) {
-	return r.ledger.sharedRecipientAccountIDs(ctx, studentID, requestType, requestID)
-}
-
 func (l shareLedger) sharedRecipientAccountIDs(ctx context.Context, studentID int64, requestType string, requestID int64) ([]int64, error) {
 	visibility, err := l.visibility(ctx, studentID)
 	if err != nil {
 		return nil, err
 	}
-	recipients := effectiveRecipientSet(
+	recipients := effectiveRecipientSet(l.policy,
 		visibility.current[requestShareKey{typ: requestType, id: requestID}],
 		visibility.protected, visibility.protectedAt,
 	)

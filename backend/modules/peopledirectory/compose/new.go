@@ -189,3 +189,8 @@ func (transaction) RunSavepoint(ctx context.Context, callback func(context.Conte
 func (transaction) RunAdminRead(ctx context.Context, callback func(context.Context) error) error {
 	return postgres.TransactionRunAdminReadBinding(ctx, callback, tenant.WithinAdmin)
 }
+
+// NewRequestShareVisibility interprets the two owner-local append-only ledgers.
+func NewRequestShareVisibility(shares peopledirectory.ParentRequestShares, protection peopledirectory.GuardianFamilyProtectionReads) (peopledirectory.RequestShareVisibility, error) {
+	return application.NewRequestShareRecipients(shares, protection)
+}

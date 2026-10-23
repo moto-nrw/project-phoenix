@@ -106,12 +106,6 @@ func New(deps Dependencies) *parentportal.Portal {
 	return &parentportal.Portal{ChildFlows: childFlows, MessagingFlows: messagingFlows}
 }
 
-// NewRequestShareVisibility builds the staff queues' request-share
-// visibility (#2267, story 47) over its two required readers.
-func NewRequestShareVisibility(shares messaging.RequestShareRecords, protection messaging.FamilyProtectionReads) (*messaging.ShareRecipients, error) {
-	return messaging.NewShareRecipients(shares, protection)
-}
-
 func careConfig(deps Dependencies, bound owners, messagingFlows *messaging.Service) care.Config {
 	cfg := care.Config{
 		CareExceptions: bound.careExceptions, DataRequests: deps.DataRequests,
@@ -145,7 +139,7 @@ func careConfig(deps Dependencies, bound owners, messagingFlows *messaging.Servi
 
 func messagingConfig(deps Dependencies, resolver messaging.ChildResolver) messaging.Config {
 	return messaging.Config{
-		Logger: deps.Logger, Now: deps.Now, Runtime: deps.Runtime, Children: resolver, GuardianPolicy: deps.GuardianPolicy, Fingerprints: deps.Fingerprints, Declarations: deps.Declarations,
+		SharePolicy: NewRequestSharePolicy(), Logger: deps.Logger, Now: deps.Now, Runtime: deps.Runtime, Children: resolver, GuardianPolicy: deps.GuardianPolicy, Fingerprints: deps.Fingerprints, Declarations: deps.Declarations,
 		ChildRepo: deps.ChildRepo, EnrollmentRequestRepo: deps.EnrollmentRequestRepo, Settings: deps.Settings,
 		StudentRepo: deps.StudentRepo, StudentGuardianRepo: deps.StudentGuardianRepo, GuardianProfileRepo: deps.GuardianProfileRepo,
 		AnnouncementRepo:  deps.AnnouncementRepo,

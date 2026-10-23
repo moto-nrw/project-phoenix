@@ -25,7 +25,6 @@ import (
 	meAPI "github.com/moto-nrw/project-phoenix/modules/identityaccess/inbound/me"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess/sessiontoken"
 	mealplanModule "github.com/moto-nrw/project-phoenix/modules/mealplan"
-	"github.com/moto-nrw/project-phoenix/modules/peopledirectory"
 	peopleCompose "github.com/moto-nrw/project-phoenix/modules/peopledirectory/compose"
 	birthdaysAPI "github.com/moto-nrw/project-phoenix/modules/peopledirectory/inbound/birthdays"
 	peoplePorts "github.com/moto-nrw/project-phoenix/modules/peopledirectory/ports"
@@ -87,7 +86,7 @@ func mountModuleRoutes(tenant chi.Router, settings settingsCompose.SettingsServi
 func mountPeopleRoutes(
 	tenant chi.Router, db transactionruntime.Database, logger *slog.Logger, reports owners.PresenceReports, renderer *lists.RendererService,
 	persons *peopleCompose.Directory, guardians peoplePorts.GuardianService, identity identityaccess.Owner, caller *owners.CallerRows,
-	feedback feedbackModule.Capability, mealPlan mealplanModule.Capability, birthdays peopledirectory.Birthdays,
+	feedback feedbackModule.Capability, mealPlan mealplanModule.Capability, birthdays birthdaysAPI.Service,
 	emergency emergencysnapshot.Query,
 ) {
 	tenant.Mount("/statistics", statisticsAPI.NewResource(reports.Statistics, statisticsHTTPRuntime(renderer), logger.With("handler", "statistics")).Router(ProtectedTenantRoutes))
