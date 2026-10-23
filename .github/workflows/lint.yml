@@ -48,7 +48,7 @@ jobs:
         run: |
           node --test scripts/generate-error-codes.test.mjs
           node scripts/generate-error-codes.mjs
-          git diff --exit-code -- backend/api/common/error_codes.generated.go frontend/src/lib/error-codes.generated.ts
+          git diff --exit-code -- backend/api/common/error_codes.generated.go backend/api/common/error_classes.generated.go frontend/src/lib/error-codes.generated.ts
 
   backend-quality:
     if: ${{ inputs.run-backend }}

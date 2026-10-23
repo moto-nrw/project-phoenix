@@ -9,6 +9,7 @@ test("every registered code generates one Go constant and one TypeScript union m
   const entries = validateRegistry(registry);
   const generated = generate(registry);
   assert.equal((generated.go.match(/ = "/g) ?? []).length, entries.length);
+  assert.equal((generated.goClasses.match(/^\t"[a-z][a-z0-9_]*\.[a-z][a-z0-9_]*": +"/gm) ?? []).length, entries.length);
   assert.equal((generated.ts.match(/^  "[a-z][a-z0-9_]*\.[a-z][a-z0-9_]*",$/gm) ?? []).length, entries.length);
 });
 
