@@ -59,8 +59,12 @@ einladen“ wählt man eine von drei Stufen:
   Die Rolle macht niemanden extern; eine interne Kraft kann sie auch haben.
 - **Gast** bleibt die Rolle fürs reine Ansehen, für Externe genauso wie für
   Grundschul-Personal. Sie verliert `users:read` und jedes Schreibrecht und
-  bekommt reine Leserechte. Damit sieht ein Gast keine Elternnachrichten, kein
-  Elternverzeichnis und keine Telefonnummern der Eltern mehr. Die
+  bekommt reine Leserechte: `students:read`, `groups:read`, `rooms:read`,
+  `activities:read` (Migration 1.15.476). `students:read` ist neu und öffnet
+  nur die Leserouten der Kinder (Liste, Detail, aktueller Ort, Klassen, Foto,
+  OGS-Gruppenansicht), die bisher allein an `users:read` hingen. Damit sieht
+  ein Gast keine Elternnachrichten, kein Elternverzeichnis, keine
+  Telefonnummern der Eltern, keine Notizen und keine Exporte mehr. Die
   Beschreibung „Eingeschränkter Zugriff für nicht authentifizierte Benutzer“
   war falsch; Gast ist ein angemeldetes Konto, das nur liest.
 
@@ -104,3 +108,7 @@ Umbenennung eine neue Zuordnung. Shrink-only-Register ändern sich nicht.
   Mangel: Platzhalter werden für neue Zuordnungen angeboten.
 - Wer über die allgemeine Einladung „Gast“ oder „AG-Leitung“ bekommt, ist
   ohne den Datensatz nicht extern und zählt als normales Personal.
+- Offen, nicht Teil dieser Entscheidung: Anlegen, Ändern und Löschen von
+  Aktivitäten (`/api/activities`) prüft kein Recht, nur einen
+  Personaldatensatz. Den haben auch Gast und AG-Leitung. Das galt schon vorher
+  für jede Rolle und braucht ein eigenes Issue.
