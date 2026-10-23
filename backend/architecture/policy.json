@@ -3652,6 +3652,10 @@
   ],
   "data_objects": [
     {
+      "name": "platform.school_erasures",
+      "write_owner": "organization-tenancy"
+    },
+    {
       "name": "platform.demo_school_states",
       "write_owner": "organization-tenancy"
     },

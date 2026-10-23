@@ -81,6 +81,7 @@ func staffRetention(owner string) tableRetention {
 
 // tableRetentions classifies every table of the schema.
 var tableRetentions = map[string]tableRetention{
+	"platform.school_erasures":                              own("administrative platform.delete_expired_school_erasures: completed evidence expires three years after completion; unresolved orders remain for recovery (#3837)"),
 	"active.activity_session_attendance":                    parent("schedule.instance_students"),
 	"active.activity_sessions":                              parent("schedule.activity_instances"),
 	"active.attendance":                                     own("nightly retention step attendance_retention (api/worker_retention.go), Student Presence DeleteExpiredAttendance (school window gdpr.attendance_retention_days after the care day, #3957)"),

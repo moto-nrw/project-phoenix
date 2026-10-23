@@ -74,6 +74,7 @@ diesen Slice nicht maskiert.
 | Nicht registrierte Transponder-Scans | 90 Tage | Scan | Device Fleet | Prüfung durch das moto-Team, danach ohne Zweck | umgesetzt (#3950) |
 | Anmeldeereignisse | 90 Tage | Ereignis | Audit Platform | BSI-Mindeststandard „bspw. 90 Tage“ für Sicherheitsprotokolle | umgesetzt (#3956) |
 | Zugriffsprotokoll | Ende des Folgejahres | Zugriff | Audit Platform | Analogie § 76 Abs. 4 BDSG | umgesetzt (#3956) |
+| Abgeschlossene Nachweise der Mandantenlöschung | 3 Jahre | Gesamtabschluss (`completed_at`) | Organisation & Tenancy | Datensparsamer Durchführungsnachweis, analog Löschprotokoll; `platform.delete_expired_school_erasures()` entfernt fällige Nachweise. Offene/fehlgeschlagene Aufträge bleiben zur Fortsetzung bestehen | DB-Funktion umgesetzt (3837-b); Einbindung in das interne Verfahren folgt in 3837-c, produktiver Nachweis offen |
 | Löschprotokoll | 3 Jahre | Löschung | Audit Platform | BayLDA: Nachweis bis 3 Jahre | umgesetzt (#3956) |
 | Mail- und Push-Warteschlange, Zustellprotokolle | 30 Tage | Zustellung, endgültiger Fehlschlag oder Abbruch; Zustellprotokoll ohne Mail: Eintrag | Delivery | Inhalt ohne Zweck nach Zustellung | umgesetzt (#3955) |
 | Einladungen für Eltern | 30 Tage | Einlösung, sonst Ablauf | Identity Access | Link ohne Zweck nach Ablauf oder Einlösung | umgesetzt (#3954) |
