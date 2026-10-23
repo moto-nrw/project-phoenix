@@ -405,6 +405,35 @@ func TestChildFeatures_ExposesRelatedAccountsFlags(t *testing.T) {
 		assert.False(t, flags.RelatedAccountsInviteEnabled)
 		assert.False(t, flags.RelatedAccountsRemoveEnabled, "disabled invite mode must suppress stale remove flag")
 	})
+
+	// #4603: the school switches alone no longer decide; the guardian needs
+	// parent_portal.related_accounts.manage, and editing an open absence
+	// request needs parent_portal.sick_note.submit.
+	t.Run("guardian without manage and submit permission", func(t *testing.T) {
+		svc, _, db := buildRelAcctService(t, parentService.ParentInviteModeDirect, true)
+		chain := testpkg.CreateTestParentGuardianChain(t, db)
+		ctx := testpkg.WithPackageTenantRuntime(context.Background())
+
+		flags, err := svc.ChildFeatures(ctx, chain.AccountID, chain.StudentID)
+		require.NoError(t, err)
+		assert.True(t, flags.RelatedAccountsInviteEnabled, "the full guardian preset carries the manage permission")
+		assert.True(t, flags.AbsenceRequestEditEnabled, "the full guardian preset carries sick_note.submit")
+
+		_, err = db.ExecContext(ctx, `
+			UPDATE auth.guardian_student_access AS a
+			SET permissions = '{"parent_portal.access": true}'::jsonb
+			FROM users.student_guardian_relationships AS r
+			WHERE r.tenant_id = a.tenant_id AND r.id = a.relationship_id
+			  AND r.tenant_id = ? AND r.student_id = ? AND r.guardian_profile_id = ?
+		`, chain.TenantID, chain.StudentID, chain.GuardianProfileID)
+		require.NoError(t, err)
+
+		flags, err = svc.ChildFeatures(ctx, chain.AccountID, chain.StudentID)
+		require.NoError(t, err)
+		assert.False(t, flags.RelatedAccountsInviteEnabled, "no manage permission → invite hidden")
+		assert.False(t, flags.RelatedAccountsRemoveEnabled, "no manage permission → remove hidden")
+		assert.False(t, flags.AbsenceRequestEditEnabled, "no sick_note.submit → edit hidden")
+	})
 }
 
 func buildRelAcctServiceWith(t *testing.T, settings parentService.SettingsService) (*parentService.Portal, *bun.DB) {

@@ -311,15 +311,16 @@ func (s *Service) hasActiveAbsenceToday(ctx context.Context, studentID int64, to
 // anything else is wrapped as an internal error.
 // EditCareScheduleRequest rewrites the caller's own pending weekly-plan
 // request (#2267, story 37). It replaces withdrawal, so the request keeps its
-// id and its share. Like the withdraw it replaces it does not re-check the
-// per-field capability switches: a request already filed must stay
-// correctable even after the school turns a field off — otherwise the parent
-// is left with an open request they can neither fix nor retract.
+// id and its share. Editing proposes a new plan, so it needs the same
+// parent_portal.request.submit as filing one (#4603), like the offering and
+// Stammdaten edits. It does not re-check the per-field capability switches: a
+// request already filed must stay correctable even after the school turns a
+// field off — that is the school's switch, not the guardian's authority.
 func (s *Service) EditCareScheduleRequest(
 	ctx context.Context, accountID, studentID, requestID int64,
 	payload map[string]any, expectedVersion string,
 ) (*ChildCareSchedule, error) {
-	child, err := s.ResolveOwnedChild(ctx, accountID, studentID)
+	child, err := s.ResolvePermittedChild(ctx, accountID, studentID, GuardianPermissionRequestSubmit)
 	if err != nil {
 		return nil, err
 	}

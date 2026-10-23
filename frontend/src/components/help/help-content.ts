@@ -6245,6 +6245,7 @@ function parentGuardiansTopic(): HelpTopic {
       "moto sagt, die Person verwalte ihre Daten über ein eigenes Konto? Dann ändert sie ihre Angaben selbst.",
       "moto sagt, die Kontaktdaten würden von der Schule verwaltet? Dann wenden Sie sich an die OGS.",
       "Die Verwaltung ist deaktiviert? Dann nimmt Ihre OGS das nicht über die App an.",
+      "`Einladen` fehlt? Dann dürfen Sie für dieses Kind niemanden einladen. Fragen Sie die OGS.",
     ],
     related: [
       HELP_TOPICS.parentChildData,
@@ -6289,6 +6290,7 @@ function parentReportAbsenceTopic(): HelpTopic {
     ],
     troubleshootingDetails: [
       "moto meldet, für einen Tag liege schon eine Abmeldung vor? Prüfen Sie die bestehende Meldung mit `Anfrage bearbeiten`.",
+      "Bei Ihrer offenen Anfrage fehlt `Anfrage bearbeiten`? Dann dürfen Sie für dieses Kind keine Abwesenheit melden. Fragen Sie die OGS.",
       "Ihr Kind kommt nur später? Ändern Sie stattdessen die Abholzeit oder schreiben Sie der OGS.",
     ],
     related: [
