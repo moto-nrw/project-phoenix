@@ -1740,6 +1740,7 @@ function parentGroupMessageTopic(): HelpTopic {
         description: "Danach können die Eltern nicht mehr antworten.",
         steps: [
           "Öffnen Sie die Gruppennachricht.",
+          "Öffnen Sie oben das Menü mit den drei Punkten.",
           "Wählen Sie `Schließen` und bestätigen Sie.",
         ],
       },
@@ -6784,8 +6785,8 @@ function parentGroupMessagesTopic(): HelpTopic {
     steps: [
       "Tippen Sie unten auf `Nachrichten`.",
       "Tippen Sie unter `Gruppennachrichten der OGS` auf die Nachricht.",
-      "Schreiben Sie unten Ihre Antwort an die OGS.",
-      "Tippen Sie auf `Senden`.",
+      "Tippen Sie unter `Antwort an die OGS` in das Feld `Antwort an die OGS schreiben`.",
+      "Tippen Sie rechts auf den Pfeil `Senden`.",
     ],
     result:
       "Ihre Antwort steht danach im Chat mit der OGS zu Ihrem Kind. Andere Eltern sehen sie nicht.",
