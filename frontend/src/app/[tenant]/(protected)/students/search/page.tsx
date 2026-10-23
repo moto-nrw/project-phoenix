@@ -9,7 +9,7 @@ import {
   useRef,
   useState,
 } from "react";
-import { CalendarRange, Download, Search } from "lucide-react";
+import { CalendarRange, Download, FileText, Search } from "lucide-react";
 // SSE is handled globally by TenantAuthWrapper - real-time updates work automatically
 import { useSession } from "next-auth/react";
 import { useSearchParams } from "next/navigation";
@@ -105,6 +105,12 @@ import { StudentCardGridSkeleton } from "~/components/students/student-card-skel
 import { SchoolCheckinFab } from "~/components/students/school-checkin-fab";
 import { SchoolCheckinModeMobile } from "~/components/students/school-checkin-mode-mobile";
 import { canCheckInChildren, canExportStudents } from "~/lib/student-access";
+import { useParentAnnouncementsAvailable } from "~/lib/hooks/use-parent-announcements-available";
+import {
+  announcementPrefillPath,
+  stashAnnouncementStudents,
+} from "~/lib/announcement-prefill";
+import { KIND_PARAM } from "~/components/announcements/announcement-meta";
 import { SchoolCheckinSelectionBar } from "~/components/students/school-checkin-selection-bar";
 import {
   checkoutConfirmationRoom,
@@ -112,7 +118,10 @@ import {
   useSchoolCheckinMode,
 } from "~/lib/hooks/use-school-checkin-mode";
 import { useEarlyCheckoutDialog } from "~/components/students/early-checkout-note";
-import { useAttendanceWebEnabled } from "~/lib/tenant-context";
+import {
+  useAttendanceWebEnabled,
+  useTenantSlugSafe,
+} from "~/lib/tenant-context";
 import { useSWRAuth, useImmutableSWR } from "~/lib/swr";
 import { SEARCH_ROOMS_LIST_CACHE_KEY } from "~/lib/swr/room-derived-caches";
 import {
@@ -1517,6 +1526,7 @@ function SearchPageContent() {
   const {
     data: studentsData,
     isLoading: isSearching,
+    isValidating: isSearchResultValidating,
     error: studentsError,
     mutate: mutateStudents,
   } = useSWRAuth<{
@@ -2853,6 +2863,25 @@ function SearchPageContent() {
     [filteredStudents, schoolCheckin.selectedIds],
   );
 
+  // „Elternbrief schreiben" (#4779): übernimmt die gefilterte Liste als
+  // einzelne Kinder in den Verfasser. Die Auswahl ist ein Schnappschuss dieses
+  // Moments, kein mitlaufender Filter; ändert sich später ein Merkmal, bleibt
+  // der Brief bei diesen Kindern. Namen reisen über die Ablage, nie in der URL.
+  const parentAnnouncementsAvailable = useParentAnnouncementsAvailable();
+  const tenantSlug = useTenantSlugSafe();
+  const writeParentLetter = () => {
+    const token = tenantSlug
+      ? stashAnnouncementStudents(
+          tenantSlug,
+          filteredStudents.map((student) => ({
+            id: student.id.toString(),
+            name: student.name,
+          })),
+        )
+      : null;
+    router.push(announcementPrefillPath(token, KIND_PARAM.letter));
+  };
+
   const bulkCheckin = useBulkCheckinActions(
     schoolCheckin,
     selectedStudentsForBulk,
@@ -3094,6 +3123,24 @@ function SearchPageContent() {
                           badge: rowsLoaded
                             ? filteredStudents.length
                             : undefined,
+                        },
+                      ]
+                    : []),
+                  // Nur mit vollständig geladenen, sichtbaren Kindern: ein
+                  // Brief an eine abgeschnittene Liste würde Empfänger
+                  // auslassen.
+                  ...(parentAnnouncementsAvailable &&
+                  rowsLoaded &&
+                  !isSearchResultValidating &&
+                  !hasLoadError &&
+                  truncatedTotal === null &&
+                  filteredStudents.length > 0
+                    ? [
+                        {
+                          label: "Elternbrief schreiben",
+                          icon: <FileText className="h-4 w-4" aria-hidden />,
+                          onClick: writeParentLetter,
+                          badge: filteredStudents.length,
                         },
                       ]
                     : []),
