@@ -419,9 +419,23 @@ weder den Produktionshost noch den Monitoring-Host dafür gelesen.
 
    `phoenix_tenant` und `phoenix_admin` sind NOLOGIN und benötigen kein Passwort.
    Auch außerhalb der Demo existiert `phoenix_demo`; sein Wert ist erforderlich.
-   Weitere LOGIN-Rollen werden bei `step=role_passwords` abgewiesen, nicht
-   unbemerkt passwortlos freigegeben. Vor Wiederholung deren Zweck/Mapping klären
-   und das Verfahren gezielt erweitern. `migrate` ersetzt diese Passwortsetzung
+   Ausnahme für [persönliche Diagnosezugänge](diagnose-lesezugang-3840.md):
+   Ausschließliche Mitgliedschaft in `phoenix_diagnostics` ohne ADMIN-/INHERIT-
+   Option, mit SET-Option und ohne erhöhte Attribute, individuelle Einstellungen,
+   direkte Rechte oder Objektbesitz wird akzeptiert. Diese Zugänge werden vor
+   dem Datenimport auf **NOLOGIN** gesetzt, nicht mit einem Passwort versehen.
+   Nach dem Datenimport prüft der Restore zusätzlich sämtliche direkten
+   Objektabhängigkeiten (einschließlich Spalten-/Default-Rechten und Besitz).
+   Bei Abweichung scheitert er weiterhin bei `step=role_passwords`, die
+   Freigabesperre bleibt bestehen. Nur die Anzahl wird als
+   `restore_diagnostics_disabled=<Anzahl>` gemeldet, keine persönlichen Rollennamen.
+   Alle anderen unbekannten LOGIN-Rollen werden weiterhin abgewiesen.
+   Vor Wiederholung deren Zweck/Mapping klären und das Verfahren gezielt erweitern.
+   Persönliche Diagnosezugänge nach Restore **bewusst einzeln neu freischalten**:
+   Auftrag und Schulwahl bestätigen, Rechte und MFA-Netzweg/HBA nach dem
+   Diagnose-Runbook prüfen, Passwort neu setzen, erst danach LOGIN aktivieren.
+   Nicht benötigte Zugänge bleiben gesperrt.
+   `migrate` ersetzt diese Passwortsetzung
    nicht: bereits ausgeführte Migrationen laufen nach Restore nicht erneut.
    Das Restore-Skript ruft `psql -X -c '\password <Rolle>'` ohne TTY auf und
    liefert beide Passworteingaben ausschließlich über stdin. Keine Passwörter

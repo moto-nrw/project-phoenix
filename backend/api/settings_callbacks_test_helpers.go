@@ -52,8 +52,12 @@ func NewSettingsCallbacksTestModule(db transactionruntime.Database, unit tenant.
 		return SettingsCallbacksTestModule{}, nil, err
 	}
 	photos := NewStudentPhotos(directory, photoDeps)
+	visits, err := NewTestPresenceCleanup(db, slog.Default())
+	if err != nil {
+		return SettingsCallbacksTestModule{}, nil, err
+	}
 	registry, err := settingsCompose.NewSideEffects(func(string) {}, append(effects,
-		settingsCompose.SettingSideEffect{Key: configModel.KeyStudentPhotosEnabled, Handle: photos.HandleFeatureToggle})...)
+		settingsCompose.SettingSideEffect{Key: configModel.KeyStudentPhotosEnabled, Handle: photos.HandleFeatureToggle}, attendanceLogSettingSideEffect(visits))...)
 	if err != nil {
 		return SettingsCallbacksTestModule{}, nil, err
 	}

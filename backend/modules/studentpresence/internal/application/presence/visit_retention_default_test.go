@@ -202,8 +202,8 @@ type visitRetentionSetting struct {
 	err  error
 }
 
-func (s visitRetentionSetting) VisitRetentionDays(context.Context) (int, error) {
-	return s.days, s.err
+func (s visitRetentionSetting) VisitHistoryRetention(context.Context) (bool, int, error) {
+	return true, s.days, s.err
 }
 
 // TestCleanupExpiredVisits_RefusesWithoutUsableTenantWindow fails the run
