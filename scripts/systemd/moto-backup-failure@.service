@@ -1,0 +1,6 @@
+[Unit]
+Description=moto backup failure hook placeholder (3836-b must add delivery)
+
+[Service]
+Type=oneshot
+ExecStart=/usr/bin/logger -p daemon.err backup_result=failed step=systemd_failure alerting=not_configured
