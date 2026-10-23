@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"log/slog"
 	"time"
 
 	"github.com/moto-nrw/project-phoenix/modules/timetable/ports"
@@ -18,20 +19,27 @@ import (
 type instanceAutoEnd struct {
 	instances  ports.LegacyInstanceReads
 	completion timetable.InstanceLifecycle
+	logger     *slog.Logger
 }
 
 // NewInstanceAutoEnd composes the tenant-scoped automatic completion, which
-// completes through the lifecycle the manual completion uses.
-func NewInstanceAutoEnd(instances ports.LegacyInstanceReads, completion timetable.InstanceLifecycle) (timetable.InstanceAutoEnd, error) {
+// completes through the lifecycle the manual completion uses. A nil logger
+// falls back to slog.Default().
+func NewInstanceAutoEnd(instances ports.LegacyInstanceReads, completion timetable.InstanceLifecycle, logger *slog.Logger) (timetable.InstanceAutoEnd, error) {
 	if instances == nil || completion == nil {
 		return nil, errors.New("timetable auto-end: instances and lifecycle are required")
 	}
-	return &instanceAutoEnd{instances: instances, completion: completion}, nil
+	if logger == nil {
+		logger = slog.Default()
+	}
+	return &instanceAutoEnd{instances: instances, completion: completion, logger: logger}, nil
 }
 
 // RunForTenant completes every running block of the tenant whose planned
 // end plus grace has passed. A failed completion does not stop the others;
-// it stays in the result and is retried on the next tick.
+// it stays in the result, is logged with its cause and is retried on the next
+// tick. A savepoint-control failure aborts the run: the surrounding
+// transaction is unusable, so every later block would fail as well.
 func (s *instanceAutoEnd) RunForTenant(ctx context.Context, now time.Time, grace time.Duration) (*timetable.AutoEndResult, error) {
 	startedAt := time.Now()
 	result := &timetable.AutoEndResult{}
@@ -44,7 +52,17 @@ func (s *instanceAutoEnd) RunForTenant(ctx context.Context, now time.Time, grace
 	}
 	for _, instance := range instances {
 		result.Checked++
-		_ = s.completeIfDueIsolated(ctx, instance, now, grace, result)
+		err := s.completeIfDueIsolated(ctx, instance, now, grace, result)
+		if err == nil {
+			continue
+		}
+		if errors.Is(err, tenant.ErrSavepointControl) {
+			return result, fmt.Errorf("auto-end activity instance %d: %w", instance.ID, err)
+		}
+		s.logger.Warn("timetable auto-end could not complete activity instance",
+			slog.Int64("instance_id", instance.ID),
+			slog.String("error", err.Error()),
+		)
 	}
 	return result, nil
 }

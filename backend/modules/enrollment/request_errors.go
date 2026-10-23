@@ -16,6 +16,9 @@ var (
 	ErrEditNotAllowed         = errors.New("request can no longer be edited")
 	ErrWithdrawNotAllowed     = errors.New("child cannot be withdrawn in its current state")
 	ErrDuplicateEnrollment    = errors.New("an active enrollment already exists for this parent and child in this phase")
+	// ErrRequestChildNotFound refuses a child ID that does not belong to the
+	// request the status token resolves to.
+	ErrRequestChildNotFound = errors.New("child does not belong to this enrollment request")
 	// ErrExistingStudentAlreadyRequested rejects an existing_students
 	// submission (or parent edit) whose child matched an already-enrolled
 	// student that ANOTHER active request in the same phase already targets.
