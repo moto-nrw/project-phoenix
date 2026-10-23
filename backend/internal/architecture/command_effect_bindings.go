@@ -141,14 +141,34 @@ func collectEffectReturns(bindings effectBindings, pkg *packages.Package, body *
 		if _, nested := node.(*ast.FuncLit); nested {
 			return false
 		}
-		ret, ok := node.(*ast.ReturnStmt)
-		if ok && len(ret.Results) == signature.Results().Len() {
-			for i, value := range ret.Results {
-				bindings.add(signature.Results().At(i).Type(), pkg.TypesInfo.TypeOf(value))
-			}
+		if ret, ok := node.(*ast.ReturnStmt); ok {
+			bindings.collectReturn(pkg, ret, signature.Results())
 		}
 		return true
 	})
+}
+
+func (b effectBindings) collectReturn(pkg *packages.Package, ret *ast.ReturnStmt, results *types.Tuple) {
+	if len(ret.Results) == 1 && b.collectTupleReturn(pkg, ret.Results[0], results) {
+		return
+	}
+	if len(ret.Results) != results.Len() {
+		return
+	}
+	for i, value := range ret.Results {
+		b.add(results.At(i).Type(), pkg.TypesInfo.TypeOf(value))
+	}
+}
+
+func (b effectBindings) collectTupleReturn(pkg *packages.Package, value ast.Expr, results *types.Tuple) bool {
+	tuple, multi := pkg.TypesInfo.TypeOf(value).(*types.Tuple)
+	if !multi || tuple.Len() != results.Len() {
+		return false
+	}
+	for i := 0; i < tuple.Len(); i++ {
+		b.add(results.At(i).Type(), tuple.At(i).Type())
+	}
+	return true
 }
 
 func (b effectBindings) collectValueSpec(pkg *packages.Package, declaration *ast.ValueSpec) {
