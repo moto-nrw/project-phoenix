@@ -27,7 +27,7 @@ export const ERROR_DISPLAYED = "error_displayed";
  * The registry classes, plus `crash` (an exception, no API answer) and
  * `local` (a failure the screen found itself, without a request).
  */
-export type LoggedErrorClass = ErrorClass | "crash" | "local";
+type LoggedErrorClass = ErrorClass | "crash" | "local";
 
 /** Where the person saw the failure. */
 export type ErrorSurface = "toast" | "form" | "load" | "page";
