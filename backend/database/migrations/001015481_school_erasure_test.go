@@ -469,7 +469,7 @@ func TestSchoolErasureMigrationRoundTripPreservesEvidence(t *testing.T) {
 	t.Parallel()
 	db := testpkg.SetupTestDB(t)
 	schoolID := testpkg.Tenant(t)
-	// 1.15.484 splices active.morning_attendance into the phases; it rolls
+	// 1.15.491 freezes the phases anew with active.morning_attendance; it rolls
 	// back first and reapplies last, as a migration run would.
 	require.NoError(t, morningAttendanceDown(t.Context(), db))
 	require.NoError(t, schoolErasureDown(t.Context(), db))

@@ -9,18 +9,18 @@ import (
 	"github.com/uptrace/bun"
 )
 
-const morningAttendanceVersion = "1.15.484"
+const morningAttendanceVersion = "1.15.491"
 
 func init() {
 	MigrationRegistry.Register(&Migration{
 		Version:     morningAttendanceVersion,
 		Description: "Anwesenheit am Vormittag: die Lehrkraft trägt je Kind da oder fehlt ein (#4790)",
 		DependsOn: []string{
-			maskParentHealthHistoryVersion, // the last migration before this one
-			schoolContentRetentionVersion,  // previous subject check of audit.data_deletions
-			lehrkraftRoleVersion,           // the role the write permission goes to
-			classListEntriesVersion,        // the class-list-only children a row may name
-			schoolErasureVersion,           // the erasure phases the table is spliced into
+			"1.15.490",                    // the last migration before this one; its erasure preview is replaced
+			schoolContentRetentionVersion, // previous subject check of audit.data_deletions
+			lehrkraftRoleVersion,          // the role the write permission goes to
+			classListEntriesVersion,       // the class-list-only children a row may name
+			schoolErasureVersion,          // the erasure phases frozen anew with the table
 		},
 	})
 	Migrations.MustRegister(morningAttendanceUp, morningAttendanceDown)

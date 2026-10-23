@@ -9,7 +9,7 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-// TestMorningAttendanceRollsBack pins 1.15.484 (#4790): the table exists only
+// TestMorningAttendanceRollsBack pins 1.15.491 (#4790): the table exists only
 // after the migration, with forced RLS, the one-child and status checks and
 // one row per child and date; the deletion log accepts the new kind; the
 // lehrkraft role holds the write permission; and the rollback refuses while
@@ -61,7 +61,7 @@ func TestMorningAttendanceRollsBack(t *testing.T) {
 	assert.False(t, tableExists())
 	assert.False(t, lehrkraftHolds())
 	assert.False(t, inErasurePlan(), "the down migration restores the 1.15.481 erasure plan")
-	require.ErrorContains(t, logRow(), "chk_data_deletions_subject", "before 1.15.484 the data kind needs a subject")
+	require.ErrorContains(t, logRow(), "chk_data_deletions_subject", "before 1.15.491 the data kind needs a subject")
 
 	require.NoError(t, morningAttendanceUp(ctx, db))
 	assert.True(t, tableExists())
@@ -88,7 +88,7 @@ func TestMorningAttendanceRollsBack(t *testing.T) {
 }
 
 // TestSchoolErasureDeletesMorningAttendance proves the erasure phases of
-// 1.15.481 cover the table after 1.15.484 spliced it in.
+// 1.15.481 cover the table after 1.15.491 froze them anew with it.
 func TestSchoolErasureDeletesMorningAttendance(t *testing.T) {
 	t.Parallel()
 	db := testpkg.SetupTestDB(t)

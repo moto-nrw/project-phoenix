@@ -7,7 +7,7 @@ import (
 )
 
 // The 1.15.481 residual phase with active.morning_attendance (#4790), installed
-// by 1.15.484. Frozen like its predecessor; see
+// by 1.15.491. Frozen like its predecessor; see
 // school_erasure_morning_attendance.go.
 func installMorningAttendanceErasureResidual(ctx context.Context, tx bun.Tx) error {
 	_, err := tx.ExecContext(ctx, morningAttendanceErasureResidualSQL)
