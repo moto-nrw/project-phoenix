@@ -71,5 +71,5 @@ func (rs *Resource) Register(r chi.Router, withTx common.Middleware) {
 	r.With(common.RequiresPermission(permissions.UsersRead), withTx).Get("/{id}/attendance-history", rs.getStudentAttendanceHistory)
 	r.With(common.RequiresPermission(permissions.UsersRead), withTx).Get("/{id}/attendance-history/export", rs.exportStudentAttendanceHistory)
 	r.With(common.RequiresPermission(permissions.UsersRead), withTx).Get("/{id}/status-days", rs.getStudentStatusDays)
-	r.With(childRead, withTx).Get("/status-days", rs.getStudentStatusDaysOverview)
+	r.With(common.RequiresPermission(permissions.UsersRead), withTx).Get("/status-days", rs.getStudentStatusDaysOverview)
 }

@@ -105,7 +105,7 @@ type Student struct {
 	ActualArrivalTime  *string    `json:"actual_arrival_time,omitempty"`
 	ActualPickupTime   *string    `json:"actual_pickup_time,omitempty"`
 	PhotoURL           string     `json:"photo_url,omitempty"`
-	fullAccess         bool
+	fullAccess         bool       // Planning access: staff/admin eligibility plus users:read.
 }
 
 type RoomStatus struct {
@@ -338,18 +338,18 @@ func (s *service) projectRoster(ctx context.Context, state *buildState) error {
 	if err != nil {
 		return fmt.Errorf("resolve student access: %w", err)
 	}
-	state.projected = projectStudents(state.students, state.presence, fullAccess, photosEnabled)
+	state.projected = projectStudents(state.students, state.presence, fullAccess, photosEnabled, state.caller.CanReadStudentPlans)
 	return s.applyStatusDays(ctx, state)
 }
 
-func projectStudents(students []RosterStudent, presence PresenceSnapshot, fullAccess, photosEnabled bool) []Student {
+func projectStudents(students []RosterStudent, presence PresenceSnapshot, fullAccess, photosEnabled, canReadPlans bool) []Student {
 	result := make([]Student, 0, len(students))
 	for _, model := range students {
 		location := presence.Location(model.ID, fullAccess)
 		student := Student{
 			ID: model.ID, FirstName: model.FirstName, LastName: model.LastName,
 			SchoolClass: model.SchoolClass, Location: location.Name,
-			LocationSince: location.Since, RoomColor: location.RoomColor, fullAccess: fullAccess,
+			LocationSince: location.Since, RoomColor: location.RoomColor, fullAccess: fullAccess && canReadPlans,
 			Sick: model.Sick, SickSince: model.SickSince,
 			Excused: model.Excused, ExcusedSince: model.ExcusedSince,
 		}

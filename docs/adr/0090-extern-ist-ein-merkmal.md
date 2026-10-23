@@ -70,7 +70,10 @@ einladen“ wählt man eine von drei Stufen:
   Elternnotizen, keine freien Abholhinweise oder Ankunfts- und Abholnotizen aus.
   Diese Felder brauchen `users:read`. Wohnadressen und der Vollzugriff auf
   Tagespläne brauchen weiterhin auch den bisherigen Personal- oder
-  Admin-Zugriff. Kinderfotos bleiben für Gäste sichtbar, wenn die Schule sie aktiviert hat.
+  Admin-Zugriff. Das gilt auch für die Tagespläne und Notizen der
+  Gruppenansicht. Die Abwesenheitsübersicht (`/students/status-days`) bleibt
+  hinter `users:read`, ebenso die Abwesenheiten eines einzelnen Kindes.
+  Kinderfotos bleiben für Gäste sichtbar, wenn die Schule sie aktiviert hat.
   Die Beschreibung „Eingeschränkter Zugriff für nicht authentifizierte Benutzer“
   war falsch; Gast ist ein angemeldetes Konto, das nur liest.
 

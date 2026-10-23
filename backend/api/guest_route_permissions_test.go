@@ -57,15 +57,11 @@ func checkGuestRoutePermissions(t *testing.T, api *goldenRuntime) {
 		// handler, which answers that the file does not exist.
 		status, body := request(http.MethodGet, fmt.Sprintf("/api/students/%d/photo/none.jpg", child.ID))
 		require.Equalf(t, http.StatusNotFound, status, "photo: %s", body)
-		// The status-day overview passes the gate; its own rule then scopes
-		// it to the caller's groups, as for every staff member without one.
-		status, body = request(http.MethodGet, "/api/students/status-days")
-		require.Equalf(t, http.StatusForbidden, status, "status-days: %s", body)
-		require.Containsf(t, body, `"code":"students.day_log_no_groups"`, "status-days: %s", body)
 	})
 
 	t.Run("refused", func(t *testing.T) {
 		for _, route := range []struct{ method, path string }{
+			{http.MethodGet, "/api/students/status-days"},
 			{http.MethodGet, "/api/guardians/"},
 			{http.MethodGet, "/api/messages/"},
 			{http.MethodGet, fmt.Sprintf("/api/messages/students/%d/guardians", child.ID)},
