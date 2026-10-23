@@ -32,6 +32,8 @@ import {
 import { CompleteInstanceModal } from "~/components/active-supervisions/complete-instance-modal";
 import { useMinuteClock } from "~/lib/pickup-helpers";
 import { canReadSupervisionData, hasPermission } from "~/lib/auth-utils";
+import { canGrantExternalViewAccess } from "~/lib/external-caregiver-access";
+import { canReadStudents } from "~/lib/student-access";
 import { UnclaimedRooms } from "~/components/active/unclaimed-rooms";
 import { SSEErrorBoundary } from "~/components/sse/SSEErrorBoundary";
 import {
@@ -441,6 +443,7 @@ function MeinRaumPageContent() {
   const spontaneousStartBanner = dashboard.webSpontaneousActivitiesEnabled ? (
     <SpontaneousActivityStart
       canCreateExternalCaregiver={hasPermission(session, "users:create")}
+      canGrantExternalView={canGrantExternalViewAccess(session)}
       currentStaffId={currentStaffId}
       defaultRoomId={currentRoom?.room_id ?? currentOpenRoom?.roomId}
       disabled={dashboard.spontaneousStartAvailability?.available === false}
@@ -638,9 +641,9 @@ function MeinRaumPageContent() {
   });
 
   // „Profil ansehen“ in den Block-Listen (#4356). Die Kinderseite lädt
-  // GET /api/students/{id}, das `users:read` verlangt; ohne das Recht fehlt
-  // der Link, statt auf eine Fehlerseite zu führen.
-  const studentProfileHref = hasPermission(session, "users:read")
+  // GET /api/students/{id}, das `users:read` oder `students:read` verlangt;
+  // ohne beides fehlt der Link, statt auf eine Fehlerseite zu führen.
+  const studentProfileHref = canReadStudents(session)
     ? (row: TimetableRosterRow) =>
         tenantPath(`/students/${row.studentId}?from=/active-supervisions`)
     : undefined;
@@ -856,6 +859,7 @@ function MeinRaumPageContent() {
                 session,
                 "users:create",
               )}
+              canGrantExternalView={canGrantExternalViewAccess(session)}
               isOpen
               onClose={() => setAddSupervisorTarget(null)}
               onAdded={mutateDashboard}

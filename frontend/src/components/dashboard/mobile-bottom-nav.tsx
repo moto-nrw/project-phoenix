@@ -23,6 +23,10 @@ import {
   isCaregiver,
   leadsSchool,
 } from "~/lib/auth-utils";
+import {
+  canReadStudents,
+  STUDENT_READ_PERMISSIONS,
+} from "~/lib/student-access";
 import { canOpenActiveSupervision } from "~/lib/active-supervision-access";
 import { canReviewGuardianApprovals } from "~/lib/guardian-approval-access";
 import { useChangeRequestAccess } from "~/lib/hooks/use-change-request-access";
@@ -395,11 +399,12 @@ const PAGE_ITEMS: readonly AdditionalNavItem[] = [
     hideForAdmin: true,
   },
   {
-    // Wie in der Seitenleiste: das Recht des Schülerverzeichnisses (#4573).
+    // Wie in der Seitenleiste: das Recht des Schülerverzeichnisses (#4573,
+    // ADR 0083).
     ...STAFF_FLAT_PAGES.studentSearch,
     iconKey: "search",
     concept: "children",
-    requiresPermission: "users:read",
+    requiresPermission: STUDENT_READ_PERMISSIONS,
   },
   {
     // Wie in der Seitenleiste: das Recht von GET /api/rooms (#4573).
@@ -903,14 +908,14 @@ export function MobileBottomNav({ className = "" }: MobileBottomNavProps) {
         // Bei offener Betreuung gibt es keine "meine Gruppe" — der
         // gruppenbasierte Einstieg entfällt (#1544).
         !(openCareGroupMode && item.href === "/ogs-groups") &&
-        // Suchen führt auf Alle Kinder und braucht wie dort users:read; die
-        // Rolle „Extern“ (#4573) hat es nicht, sonst stünde dort eine
-        // Sackgasse. Die Aufsicht hängt wie in der Seitenleiste am Recht der
-        // Seite (groups:read oder schedules:read), nicht am Rollennamen.
+        // Suchen führt auf Alle Kinder und braucht wie dort users:read oder
+        // students:read (ADR 0083); ohne beides stünde dort eine Sackgasse.
+        // Die Aufsicht hängt wie in der Seitenleiste am Recht der Seite
+        // (groups:read oder schedules:read), nicht am Rollennamen.
         !(
           item.href === "/students/search" &&
           !userIsAdmin &&
-          !hasPermission(session, "users:read")
+          !canReadStudents(session)
         ) &&
         !(
           item.href === "/active-supervisions" &&

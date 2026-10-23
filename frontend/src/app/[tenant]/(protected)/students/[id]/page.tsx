@@ -234,6 +234,7 @@ function studentTabs(
   canViewCarePlan: boolean,
   canViewDocuments: boolean,
   canViewRequestLog: boolean,
+  canReadParentData = true,
 ): StudentTabId[] {
   const base = hasStudentReadAccess
     ? canViewEnrollments
@@ -271,10 +272,22 @@ function studentTabs(
   // Änderungsprotokoll (#2437) mirrors the aggregate route's gate exactly:
   // RequiresAnyPermission(users:update, users:absence). Without either, the
   // list would only answer 403, so the tab stays away.
-  return canViewRequestLog
+  const withRequestLog = canViewRequestLog
     ? withDocuments
     : withDocuments.filter((tab) => tab !== "aenderungsprotokoll");
+  // Notizen, Nachrichten and Erziehungsberechtigte read parent data and
+  // notes, which stay on users:read. The role „Gast“ opens the child with
+  // students:read only (ADR 0083); those tabs would only answer 403.
+  return canReadParentData
+    ? withRequestLog
+    : withRequestLog.filter((tab) => !PARENT_DATA_TABS.has(tab));
 }
+
+const PARENT_DATA_TABS: ReadonlySet<StudentTabId> = new Set<StudentTabId>([
+  "notizen",
+  "nachrichten",
+  "erziehungsberechtigte",
+]);
 
 /**
  * Reiter der Kindakte für die Kopfkarte. Alle Reiter stehen nebeneinander;
@@ -510,6 +523,10 @@ function StudentDetailPageContent() {
     (hasPermission(session, "users:update") ||
       hasPermission(session, "student_documents:health") ||
       hasPermission(session, "student_documents:legal"));
+  // Eltern, Notizen und Nachrichten hängen an users:read; die Rolle „Gast“
+  // sieht das Kind nur mit students:read (ADR 0083).
+  const canReadParentData =
+    sessionStatus === "authenticated" && hasPermission(session, "users:read");
   // Same gate the aggregate request route uses (#2437).
   const canViewRequestLog =
     sessionStatus === "authenticated" &&
@@ -541,6 +558,7 @@ function StudentDetailPageContent() {
         canViewCarePlan,
         canViewDocuments,
         canViewRequestLog,
+        canReadParentData,
       ),
     [
       canViewEnrollments,
@@ -548,6 +566,7 @@ function StudentDetailPageContent() {
       hasFullAccess,
       canViewDocuments,
       canViewRequestLog,
+      canReadParentData,
     ],
   );
   const tabResolutionTabs =
@@ -1853,13 +1872,15 @@ function LimitedAccessView({
         <PersonalInfoReadOnly student={student} />
       </StudentTabPanel>
 
-      <StudentTabPanel
-        value="erziehungsberechtigte"
-        activeTab={activeTab}
-        className={TAB_CONTENT_CLASS}
-      >
-        <StudentGuardianManager studentId={student.id} readOnly={true} />
-      </StudentTabPanel>
+      {tabs.includes("erziehungsberechtigte") ? (
+        <StudentTabPanel
+          value="erziehungsberechtigte"
+          activeTab={activeTab}
+          className={TAB_CONTENT_CLASS}
+        >
+          <StudentGuardianManager studentId={student.id} readOnly={true} />
+        </StudentTabPanel>
+      ) : null}
 
       {canViewEnrollments ? (
         <StudentTabPanel
@@ -2040,7 +2061,10 @@ function FullAccessView({
             onEditClick={hasWriteAccess ? onOpenPersonalInfoEdit : undefined}
           />
         )}
-        <StudentPermanentNotesCard studentId={studentId} />
+        {/* Die Hinweise sind Notizen: wie der Reiter nur mit users:read. */}
+        {tabs.includes("notizen") ? (
+          <StudentPermanentNotesCard studentId={studentId} />
+        ) : null}
         <StudentConsentsReadOnly consents={student.consents} />
         {canManageFamilyProtection ? (
           <SectionCard
@@ -2057,7 +2081,7 @@ function FullAccessView({
         activeTab={activeTab}
         className={TAB_CONTENT_CLASS}
       >
-        {notesTabSeen ? (
+        {notesTabSeen && tabs.includes("notizen") ? (
           <StudentNotizenTab
             studentId={studentId}
             educationGroupId={student.group_id ?? ""}
@@ -2071,7 +2095,7 @@ function FullAccessView({
         activeTab={activeTab}
         className={TAB_CONTENT_CLASS}
       >
-        {studentId && messagesTabSeen && (
+        {studentId && messagesTabSeen && tabs.includes("nachrichten") && (
           <ParentMessagesCard
             studentId={studentId}
             studentName={student?.name}
@@ -2079,17 +2103,19 @@ function FullAccessView({
         )}
       </StudentTabPanel>
 
-      <StudentTabPanel
-        value="erziehungsberechtigte"
-        activeTab={activeTab}
-        className={TAB_CONTENT_CLASS}
-      >
-        <StudentGuardianManager
-          studentId={studentId}
-          readOnly={!hasWriteAccess}
-          onUpdate={hasWriteAccess ? onRefreshData : undefined}
-        />
-      </StudentTabPanel>
+      {tabs.includes("erziehungsberechtigte") ? (
+        <StudentTabPanel
+          value="erziehungsberechtigte"
+          activeTab={activeTab}
+          className={TAB_CONTENT_CLASS}
+        >
+          <StudentGuardianManager
+            studentId={studentId}
+            readOnly={!hasWriteAccess}
+            onUpdate={hasWriteAccess ? onRefreshData : undefined}
+          />
+        </StudentTabPanel>
+      ) : null}
 
       {canViewCarePlan ? (
         <StudentTabPanel

@@ -248,8 +248,13 @@ describe("MobileBottomNav", () => {
     });
     mockIsAdmin.mockReturnValue(false);
     mockIsCaregiver.mockImplementation((session) => !mockIsAdmin(session));
-    mockCanReadSupervisionData.mockImplementation((session) =>
-      mockIsCaregiver(session),
+    // Wie die echte Funktion: Adminzuschnitt, groups:read oder (ohne
+    // Rechteliste) die Betreuungsrolle. canOpenActiveSupervision baut darauf.
+    mockCanReadSupervisionData.mockImplementation(
+      (session) =>
+        mockHasEffectiveAdminScope(session) ||
+        mockHasPermission(session, "groups:read") ||
+        mockIsCaregiver(session),
     );
     mockHasEffectiveAdminScope.mockImplementation((session) =>
       mockIsAdmin(session),
@@ -1300,12 +1305,12 @@ describe("MobileBottomNav", () => {
     });
   });
 
-  // #4573: die Schulrolle „Extern“ hält nur schedules:read und heißt nicht
+  // ADR 0083: die AG-Leitung hält nur schedules:read und heißt nicht
   // `user`. Reiter und Menüeinträge, deren Route sie nicht öffnen darf,
   // fehlen; eine Betreuungskraft sieht sie. Die Aufsicht öffnet sie mit
   // schedules:read (nur die eigene laufende Aufsicht), also behält sie den
   // Reiter.
-  describe("Rolle „Extern“", () => {
+  describe("AG-Leitung und Gast", () => {
     const GATED_MENU_LABELS = [
       "Zeiterfassung",
       "Mitarbeiter",
@@ -1375,6 +1380,30 @@ describe("MobileBottomNav", () => {
       // Anker: die Leiste ist geladen.
       expect(hrefs).toContain("/home");
       expect(hrefs).not.toContain("/active-supervisions");
+    });
+
+    // Der Gast hält students:read statt users:read: „Suchen“ führt auf
+    // Alle Kinder, Elternnachrichten und Notfall fehlen.
+    it("zeigt dem Gast die Suche nach Kindern, aber keine Elterndaten", () => {
+      mockIsCaregiver.mockReturnValue(false);
+      mockHasPermission.mockImplementation((_session, permission) =>
+        [
+          "students:read",
+          "groups:read",
+          "rooms:read",
+          "activities:read",
+        ].includes(permission),
+      );
+
+      render(<MobileBottomNav />);
+
+      expect(mainHrefs()).toContain("/students/search");
+      fireEvent.click(getMoreButton());
+      // Anker: das Mehr-Menü ist offen.
+      expect(screen.getByText("Dateien")).toBeInTheDocument();
+      for (const label of ["Nachrichten", "Notfall", "Mitarbeiter"]) {
+        expect(screen.queryByText(label)).not.toBeInTheDocument();
+      }
     });
 
     it("zeigt dieselben Einträge einer Betreuungskraft", () => {

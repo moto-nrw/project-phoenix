@@ -36,6 +36,7 @@ import {
   isCaregiver,
   leadsSchool,
 } from "~/lib/auth-utils";
+import { STUDENT_READ_PERMISSIONS } from "~/lib/student-access";
 import { canOpenActiveSupervision } from "~/lib/active-supervision-access";
 import { canReviewGuardianApprovals } from "~/lib/guardian-approval-access";
 import { useCareWithdrawalsPending } from "~/lib/hooks/use-care-withdrawals-pending";
@@ -162,19 +163,20 @@ const NAV_ITEMS: NavItem[] = [
     hideForAdmin: true,
   },
   {
-    // Alle Kinder liest das Schülerverzeichnis (users:read). Ohne das Recht,
-    // etwa mit der Rolle „Extern“ (#4573), wäre der Eintrag eine Sackgasse.
+    // Alle Kinder liest das Schülerverzeichnis: users:read oder, für die
+    // Rolle „Gast“, students:read (ADR 0083). Ohne beides, etwa als
+    // AG-Leitung, wäre der Eintrag eine Sackgasse.
     ...STAFF_FLAT_PAGES.studentSearch,
     icon: navigationIcons.userSingle,
     concept: "children",
-    requiresPermission: "users:read",
+    requiresPermission: STUDENT_READ_PERMISSIONS,
   },
   {
     ...STAFF_FLAT_PAGES.activities,
     icon: "M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2",
     concept: "activities",
     activeColor: "text-moto-coral",
-    // Dasselbe Recht wie GET /api/activities (#4573, Rolle „Extern“).
+    // Dasselbe Recht wie GET /api/activities (#4573, AG-Leitung).
     requiresPermission: ["activities:list", "activities:read"],
   },
   {
@@ -182,7 +184,7 @@ const NAV_ITEMS: NavItem[] = [
     icon: navigationIcons.rooms,
     concept: "rooms",
     activeColor: "text-moto-navy",
-    // Dasselbe Recht wie GET /api/rooms (#4573, Rolle „Extern“).
+    // Dasselbe Recht wie GET /api/rooms (#4573, AG-Leitung).
     requiresPermission: "rooms:read",
   },
   {
@@ -190,7 +192,7 @@ const NAV_ITEMS: NavItem[] = [
     concept: "staff",
     icon: "M10 6H5a2 2 0 00-2 2v9a2 2 0 002 2h14a2 2 0 002-2V8a2 2 0 00-2-2h-5m-4 0V5a2 2 0 114 0v1m-4 0a2 2 0 104 0m-5 8a2 2 0 100-4 2 2 0 000 4zm0 0c1.306 0 2.417.835 2.83 2M9 14a3.001 3.001 0 00-2.83 2M15 11h3m-3 4h2",
     activeColor: "text-moto-orange",
-    // Dasselbe Recht wie GET /api/staff (#4573, Rolle „Extern“).
+    // Dasselbe Recht wie GET /api/staff (#4573, AG-Leitung).
     requiresPermission: ["users:read", "staff:manage", "staff:stammdaten"],
   },
   {
@@ -209,7 +211,7 @@ const NAV_ITEMS: NavItem[] = [
     icon: "M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15",
     concept: "groupAccess",
     activeColor: "text-moto-purple",
-    // Die Seite öffnet nur mit substitutions:read (#4573, Rolle „Extern“).
+    // Die Seite öffnet nur mit substitutions:read (#4573, AG-Leitung).
     requiresPermission: "substitutions:read",
   },
   {
@@ -281,7 +283,7 @@ const NAV_ITEMS: NavItem[] = [
     concept: "emergency",
     activeColor: "text-moto-wine",
     // Die Notfallliste exportiert das Backend nur mit users:read (#4573,
-    // Rolle „Extern“).
+    // AG-Leitung).
     requiresPermission: "users:read",
     bottomPinned: true,
   },
@@ -791,7 +793,7 @@ function SidebarContent({
         switch (page.feature) {
           case "messages":
             // Elternnachrichten verlangen users:read (#4573: nicht für
-            // die Rolle „Extern“).
+            // die AG-Leitung).
             return userIsAdmin || hasPermission(session, "users:read");
           case "approvals":
             // Lesen users:manage, Entscheiden users:update (#3469).

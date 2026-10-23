@@ -281,8 +281,13 @@ describe("Sidebar", () => {
     });
     mockIsAdmin.mockReturnValue(false);
     mockIsCaregiver.mockImplementation((session) => !mockIsAdmin(session));
-    mockCanReadSupervisionData.mockImplementation((session) =>
-      mockIsCaregiver(session),
+    // Wie die echte Funktion: Adminzuschnitt, groups:read oder (ohne
+    // Rechteliste) die Betreuungsrolle. canOpenActiveSupervision baut darauf.
+    mockCanReadSupervisionData.mockImplementation(
+      (session) =>
+        mockHasEffectiveAdminScope(session) ||
+        mockHasPermission(session, "groups:read") ||
+        mockIsCaregiver(session),
     );
     mockHasEffectiveAdminScope.mockImplementation((session) =>
       mockIsAdmin(session),
@@ -390,13 +395,15 @@ describe("Sidebar", () => {
       expect(screen.queryByText("Kalender")).not.toBeInTheDocument();
     });
 
-    it("shows group navigation but hides room supervision for admins", () => {
+    // canReadSupervisionData gilt für den Adminzuschnitt (auch auf
+    // development); nur der frühere Mock sprach Admins die Aufsicht ab.
+    it("shows group navigation and room supervision for admins", () => {
       render(<Sidebar />);
 
       expect(
         screen.getByRole("button", { name: "Gruppen" }),
       ).toBeInTheDocument();
-      expect(screen.queryByText("Aktuelle Aufsicht")).not.toBeInTheDocument();
+      expect(screen.getByText("Aktuelle Aufsicht")).toBeInTheDocument();
     });
 
     // #4351: ein Eintrag „Gruppen“; fremde Gruppen stehen auf der
@@ -2310,7 +2317,7 @@ describe("Sidebar", () => {
       expect(screen.getByText("Mein Kalender")).toBeInTheDocument();
     });
 
-    // #4573: die Schulrolle „Extern“ hält nur schedules:read. Einträge, deren
+    // ADR 0083: die AG-Leitung hält nur schedules:read. Einträge, deren
     // Route ein anderes Recht verlangt, wären für sie Sackgassen.
     const EXTERN_GATED_LABELS = [
       "Alle Kinder",
@@ -2323,7 +2330,7 @@ describe("Sidebar", () => {
       "Notfall",
     ];
 
-    it("zeigt der Rolle „Extern“ keine Einträge, deren Route sie nicht öffnen darf", () => {
+    it("zeigt der AG-Leitung keine Einträge, deren Route sie nicht öffnen darf", () => {
       mockHasPermission.mockImplementation(
         (_session: unknown, permission: string) =>
           permission === "schedules:read",
@@ -2338,13 +2345,39 @@ describe("Sidebar", () => {
       }
     });
 
+    // ADR 0083: der Gast hält students:read statt users:read. „Alle Kinder“
+    // öffnet er; Elternnachrichten und Notfall bleiben an users:read.
+    it("zeigt dem Gast „Alle Kinder“, aber keine Elterndaten", () => {
+      mockIsCaregiver.mockReturnValue(false);
+      mockHasPermission.mockImplementation(
+        (_session: unknown, permission: string) =>
+          [
+            "students:read",
+            "groups:read",
+            "rooms:read",
+            "activities:read",
+          ].includes(permission),
+      );
+      try {
+        render(<Sidebar />);
+
+        expect(screen.getByText("Alle Kinder")).toBeInTheDocument();
+        expect(screen.getByText("Räume")).toBeInTheDocument();
+        for (const label of ["Nachrichten", "Notfall", "Mitarbeiter"]) {
+          expect(screen.queryByText(label)).not.toBeInTheDocument();
+        }
+      } finally {
+        mockIsCaregiver.mockImplementation((session) => !mockIsAdmin(session));
+      }
+    });
+
     // Review #4573: „Aktuelle Aufsicht“ hängt am Recht der Seite, nicht am
     // Rollennamen. Eine selbst benannte Betreuungsrolle (groups:read) und
-    // die Rolle „Extern“ (schedules:read) behalten den Eintrag; ohne beide
+    // die AG-Leitung (schedules:read) behalten den Eintrag; ohne beide
     // Rechte fehlt er.
     it.each([
       ["einer selbst benannten Betreuungsrolle", "groups:read", true],
-      ["der Rolle „Extern“", "schedules:read", true],
+      ["der AG-Leitung", "schedules:read", true],
       ["einer Rolle ohne beide Rechte", "users:read", false],
     ])(
       "zeigt „Aktuelle Aufsicht“ %s nach Recht",

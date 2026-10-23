@@ -42,8 +42,15 @@ vi.mock("swr", async (importOriginal) => {
 // Mock next-auth/react
 vi.mock("next-auth/react", () => ({
   getSession: vi.fn(() => Promise.resolve({ user: { token: "test-token" } })),
+  // Staff reads parent data with users:read; the role „Gast“ holds only
+  // students:read (ADR 0083, see „students:read only“ below).
   useSession: vi.fn(() => ({
-    data: { user: { token: "test-token", permissions: ["config:manage"] } },
+    data: {
+      user: {
+        token: "test-token",
+        permissions: ["config:manage", "users:read"],
+      },
+    },
     status: "authenticated",
   })),
 }));
@@ -598,7 +605,7 @@ describe("StudentDetailPage", () => {
       data: {
         user: {
           token: "test-token",
-          permissions: ["config:manage", "users:checkin"],
+          permissions: ["config:manage", "users:checkin", "users:read"],
         },
       },
       status: "authenticated",
@@ -2294,6 +2301,43 @@ describe("StudentDetailPage", () => {
       expect(getTab("Anmeldungen")).toBeInTheDocument();
       expect(getTab("Historie")).toBeInTheDocument();
     });
+
+    // ADR 0083: the role „Gast“ opens the child with students:read only.
+    // Parent data, notes and messages stay on users:read, so those tabs and
+    // the guardian manager are absent instead of answering 403.
+    it.each([
+      ["full", true],
+      ["limited", false],
+    ])(
+      "hides parent data, notes and messages with students:read only (%s view)",
+      (_view, hasFullAccess) => {
+        vi.mocked(useSession).mockReturnValue({
+          data: {
+            user: { token: "test-token", permissions: ["students:read"] },
+          },
+          status: "authenticated",
+        } as ReturnType<typeof useSession>);
+        mockUseStudentData.mockReturnValue({
+          ...limitedAccess,
+          hasFullAccess,
+        });
+
+        render(<StudentDetailPage />);
+
+        expect(getTab("Stammdaten")).toBeInTheDocument();
+        expect(getTab("Historie")).toBeInTheDocument();
+        for (const name of [
+          "Erziehungsberechtigte",
+          "Notizen",
+          "Nachrichten",
+        ]) {
+          expect(queryTab(name)).not.toBeInTheDocument();
+        }
+        expect(
+          screen.queryByTestId("guardian-manager"),
+        ).not.toBeInTheDocument();
+      },
+    );
 
     it("shows the Änderungsprotokoll tab with users:update", () => {
       vi.mocked(useSession).mockReturnValue({
