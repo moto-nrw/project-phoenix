@@ -271,7 +271,7 @@ describe("ui-kit/no-hand-rolled-page-card", () => {
       function Probe({ surface, rounded }: { surface: boolean; rounded: boolean }) {
         return <>
           <div className={cn("moto-content-surface", "rounded-2xl", "p-6")} />
-          <div className={\`${surface ? "moto-content-surface" : ""} ${rounded ? "rounded-2xl" : ""} p-6\`} />
+          <div className={\`\${surface ? "moto-content-surface" : ""} \${rounded ? "rounded-2xl" : ""} p-6\`} />
         </>;
       }
       void Probe;`,
