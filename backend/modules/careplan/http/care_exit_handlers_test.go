@@ -317,5 +317,5 @@ func TestCareResumeHandlerUsesIndependentWorkflowEntry(t *testing.T) {
 	assert.Zero(t, exits)
 	edits, err := tc.db.NewSelect().TableExpr("audit.student_field_edits").Where("student_id = ?", student.ID).Where("field_name = ?", "care_end").Where("edited_by = ?", actor.ID).Count(ctx)
 	require.NoError(t, err)
-	assert.Equal(t, int64(1), edits, "the workflow keeps the care-end audit")
+	assert.EqualValues(t, 1, edits, "the workflow keeps the care-end audit")
 }
