@@ -8,7 +8,7 @@ import (
 )
 
 const (
-	guestViewOnlyVersion     = "1.15.476"
+	guestViewOnlyVersion     = "1.15.477"
 	guestViewOnlyDescription = "Guest role only views: students:read, groups:read, rooms:read, activities:read (#4573, ADR 0089)"
 
 	guestViewOnlyText = "Nur ansehen: Kinder, Räume und AGs. Keine Elterndaten, keine Nachrichten."

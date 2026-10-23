@@ -1,6 +1,6 @@
 package migrations
 
-// Migration 1.15.474 renames users.guests to users.external_caregivers
+// Migration 1.15.475 renames users.guests to users.external_caregivers
 // (ADR 0089). A rename must keep everything PostgreSQL ties to the table:
 // rows, row-level security, the least-privilege grants, the tenant and
 // composite foreign keys and the unique index the store classifies

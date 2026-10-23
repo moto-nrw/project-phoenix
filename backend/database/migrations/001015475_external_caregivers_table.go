@@ -8,15 +8,15 @@ import (
 	"github.com/uptrace/bun"
 )
 
-const externalCaregiversTableVersion = "1.15.474"
+const externalCaregiversTableVersion = "1.15.475"
 
 func init() {
 	MigrationRegistry.Register(&Migration{
 		Version:     externalCaregiversTableVersion,
 		Description: "Rename users.guests to users.external_caregivers (#4573, ADR 0089)",
 		DependsOn: []string{
-			UsersGuestsVersion,                     // creates users.guests
-			relatedAccountsManagePermissionVersion, // previous head
+			UsersGuestsVersion,       // creates users.guests
+			hashDeviceAPIKeysVersion, // previous head
 		},
 	})
 	Migrations.MustRegister(externalCaregiversTableUp, externalCaregiversTableDown)

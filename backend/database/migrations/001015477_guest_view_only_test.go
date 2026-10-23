@@ -1,6 +1,6 @@
 package migrations
 
-// Coverage for 1.15.476 (ADR 0089): the system role guest only views. It
+// Coverage for 1.15.477 (ADR 0089): the system role guest only views. It
 // holds exactly students:read, groups:read, rooms:read and activities:read,
 // no other role holds students:read, a school's own role named guest stays
 // untouched, and Down restores the permissions of migration 1.7.0.

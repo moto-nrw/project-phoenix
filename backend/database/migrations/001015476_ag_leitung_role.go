@@ -8,7 +8,7 @@ import (
 )
 
 const (
-	agLeitungRoleVersion     = "1.15.475"
+	agLeitungRoleVersion     = "1.15.476"
 	agLeitungRoleDescription = "AG-Leitung system role with schedules:read (#4573, ADR 0089)"
 
 	// agLeitungRoleName and agLeitungRoleText mirror

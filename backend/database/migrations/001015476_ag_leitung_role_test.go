@@ -1,6 +1,6 @@
 package migrations
 
-// Coverage for 1.15.475 (ADR 0089): the platform system role ag-leitung
+// Coverage for 1.15.476 (ADR 0089): the platform system role ag-leitung
 // exists once with base role user and schedules:read only, a rerun changes
 // nothing, a school's own role of the same name stays untouched, and Down
 // removes the role with its grants and assignments.
