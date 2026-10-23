@@ -430,7 +430,7 @@ export default function DayLogPage() {
         }
         // Without a tab (popup blocked even in the gesture) the helper makes
         // a last attempt itself and throws if that is blocked too.
-        openBlobForPrint(await res.blob(), tab);
+        await openBlobForPrint(await res.blob(), tab);
       } catch (error) {
         tab?.close();
         logger.error("day_log_print_failed", {

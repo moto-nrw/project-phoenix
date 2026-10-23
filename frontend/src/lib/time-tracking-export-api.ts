@@ -28,7 +28,7 @@ export async function exportStaffTimeTracking(
   }
   const blob = await response.blob();
   if (printTarget) {
-    openBlobForPrint(blob, printTarget);
+    await openBlobForPrint(blob, printTarget);
     return;
   }
   downloadBlob(

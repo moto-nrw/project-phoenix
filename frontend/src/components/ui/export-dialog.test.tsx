@@ -156,6 +156,25 @@ describe("ExportDialog", () => {
     expect(onPrint).not.toHaveBeenCalled();
   });
 
+  it("keeps a failed print in the dialog and closes its tab", async () => {
+    const tab = { closed: false, close: vi.fn() } as unknown as Window;
+    vi.spyOn(globalThis, "open").mockReturnValue(tab);
+    const onPrint = vi
+      .fn()
+      .mockRejectedValue(
+        new ApiError("boom", 500, { code: "general.server", instance: "r1" }),
+      );
+    const onClose = vi.fn();
+    renderHarness({ onDownload: vi.fn(), onPrint, onClose });
+
+    fireEvent.click(screen.getByRole("button", { name: "Drucken" }));
+
+    const message = catalogText("general.server", "die Liste");
+    expect(await screen.findByText(message)).toBeInTheDocument();
+    expect(onClose).not.toHaveBeenCalled();
+    expect(tab.close).toHaveBeenCalledOnce();
+  });
+
   it("keeps a failure in the dialog and retries with the current options", async () => {
     const onDownload = vi
       .fn()

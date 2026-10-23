@@ -36,9 +36,10 @@ function addDays(date: Date, days: number): Date {
   return next;
 }
 
-function defaultRange(): DateRange {
+function defaultRange(yearStart: Date): DateRange {
   const today = parseISODate(berlinTodayISO());
-  return { from: addDays(today, -29), to: today };
+  const from = addDays(today, -29);
+  return { from: from < yearStart ? yearStart : from, to: today };
 }
 
 /**
@@ -54,12 +55,14 @@ export function StaffExportButton({
   readonly yearStart: Date;
 }) {
   const [open, setOpen] = useState(false);
-  const [range, setRange] = useState<DateRange | undefined>(defaultRange);
+  const [range, setRange] = useState<DateRange | undefined>(() =>
+    defaultRange(yearStart),
+  );
 
   // Jeder neue Export beginnt mit den letzten 30 Tagen.
   useEffect(() => {
-    if (open) setRange(defaultRange());
-  }, [open]);
+    if (open) setRange(defaultRange(yearStart));
+  }, [open, yearStart]);
 
   const run = useExportRun({
     isOpen: open,

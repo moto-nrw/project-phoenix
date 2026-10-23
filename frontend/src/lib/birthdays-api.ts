@@ -180,7 +180,7 @@ export async function exportStaffBirthdays(
 
   const blob = await response.blob();
   if (printTarget) {
-    openBlobForPrint(blob, printTarget);
+    await openBlobForPrint(blob, printTarget);
     return;
   }
   downloadBlob(

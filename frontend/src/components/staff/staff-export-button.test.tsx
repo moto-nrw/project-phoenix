@@ -4,6 +4,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { ToastProvider } from "~/contexts/ToastContext";
 import { ApiError } from "~/lib/api-error";
 import { catalogText } from "~/test/error-catalog-text";
+import { setTestClock } from "~/test/clock";
 import { StaffExportButton } from "./staff-export-button";
 
 const exportStaffTimeTracking = vi.hoisted(() => vi.fn());
@@ -12,10 +13,10 @@ vi.mock("~/lib/time-tracking-export-api", () => ({ exportStaffTimeTracking }));
 // Der Export-Dialog ist ein SlideOver; Vaul rendert in jsdom nichts.
 vi.mock("vaul", () => import("~/test/mocks/vaul"));
 
-function renderButton() {
+function renderButton(yearStart = new Date(2026, 0, 1)) {
   render(
     <ToastProvider>
-      <StaffExportButton staffId="7" yearStart={new Date(2026, 0, 1)} />
+      <StaffExportButton staffId="7" yearStart={yearStart} />
     </ToastProvider>,
   );
   fireEvent.click(screen.getByRole("button", { name: "Menü öffnen" }));
@@ -54,6 +55,23 @@ describe("StaffExportButton", () => {
       expect(
         screen.queryByRole("heading", { name: "Zeitnachweis exportieren" }),
       ).not.toBeInTheDocument(),
+    );
+  });
+
+  it("starts at the beginning of the year when fewer than 30 days have passed", async () => {
+    setTestClock("2026-01-12T12:00:00+01:00");
+    exportStaffTimeTracking.mockResolvedValue(undefined);
+    renderButton(new Date(2026, 0, 1));
+
+    fireEvent.click(screen.getByRole("button", { name: "Herunterladen" }));
+
+    await waitFor(() =>
+      expect(exportStaffTimeTracking).toHaveBeenCalledWith(
+        "7",
+        "2026-01-01",
+        "2026-01-12",
+        "pdf",
+      ),
     );
   });
 
