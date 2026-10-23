@@ -153,17 +153,9 @@ type Resolver interface {
 	ResolveString(ctx context.Context, key string) (string, error)
 }
 
-// ResolveBoolOrDefault resolves the tenant override or registry default.
-// Only unavailable reads use fallback. Privacy and authorization callers must
-// use ResolveBool and propagate errors instead.
-func ResolveBoolOrDefault(ctx context.Context, resolver interface {
-	HasTenantOverride(context.Context, string) (bool, error)
-	ResolveBool(context.Context, string) (bool, error)
-}, key string, fallback bool, logger *slog.Logger) bool {
-	return configSvc.ResolveBoolOrDefault(ctx, resolver, key, fallback, logger)
-}
-
-// ResolveIntOrDefault is ResolveBoolOrDefault for an integer setting.
+// ResolveIntOrDefault resolves the tenant override or registry default.
+// Only unavailable reads use fallback. Privacy and authorization callers use
+// the typed resolver directly so they can propagate errors. Missing wiring panics.
 func ResolveIntOrDefault(ctx context.Context, resolver Resolver, key string, fallback int, logger *slog.Logger) int {
 	return configSvc.ResolveIntOrDefault(ctx, resolver, key, fallback, logger)
 }
