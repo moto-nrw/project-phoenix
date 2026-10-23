@@ -203,9 +203,10 @@ describe("RoomDetailPage", () => {
     });
     render(<RoomDetailPage />);
 
-    expect(
-      screen.getByRole("link", { name: "Aufsicht öffnen" }),
-    ).toHaveAttribute("href", "/active-supervisions?room=7");
+    expect(screen.getByRole("link", { name: "Zur Aufsicht" })).toHaveAttribute(
+      "href",
+      "/active-supervisions?room=7",
+    );
   });
 
   it("offers the supervision view to staff covered by the school overview", () => {
@@ -220,7 +221,7 @@ describe("RoomDetailPage", () => {
     render(<RoomDetailPage />);
 
     expect(
-      screen.getByRole("link", { name: "Aufsicht öffnen" }),
+      screen.getByRole("link", { name: "Zur Aufsicht" }),
     ).toBeInTheDocument();
   });
 
@@ -230,7 +231,7 @@ describe("RoomDetailPage", () => {
     // Anker: die Raumseite ist geladen.
     expect(screen.getByText("Belegt")).toBeInTheDocument();
     expect(
-      screen.queryByRole("link", { name: "Aufsicht öffnen" }),
+      screen.queryByRole("link", { name: "Zur Aufsicht" }),
     ).not.toBeInTheDocument();
     unmount();
 
@@ -246,7 +247,7 @@ describe("RoomDetailPage", () => {
     render(<RoomDetailPage />);
     expect(screen.getByText("Belegt")).toBeInTheDocument();
     expect(
-      screen.queryByRole("link", { name: "Aufsicht öffnen" }),
+      screen.queryByRole("link", { name: "Zur Aufsicht" }),
     ).not.toBeInTheDocument();
   });
 

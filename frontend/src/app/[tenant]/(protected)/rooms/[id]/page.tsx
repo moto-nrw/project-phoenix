@@ -309,7 +309,7 @@ function RoomDetailPageContent() {
               size="md"
               href={tenantPath(`/active-supervisions?room=${room.id}`)}
             >
-              Aufsicht öffnen
+              Zur Aufsicht
             </ButtonLink>
           ) : null}
           {menuItems.length > 0 ? (

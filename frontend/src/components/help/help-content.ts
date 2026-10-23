@@ -1374,7 +1374,7 @@ function roomsTopic(presenceMode: HelpPresenceMode): HelpTopic {
           "Wählen Sie einen Raum aus.",
           "Prüfen Sie die aktuelle Aktivität, die Aufsicht und die Kinder im Raum.",
           // #4372: offene Räume sind nur noch über `Räume` erreichbar.
-          "Bei einem offenen Raum wählen Sie oben `Aufsicht öffnen`. Dort sehen Sie alle Kinder im Raum.",
+          "Bei einem offenen Raum wählen Sie oben `Zur Aufsicht`. Dort sehen Sie alle Kinder im Raum.",
           "Wählen Sie bei Bedarf ein Kind, um seine Angaben zu öffnen.",
         ],
       },
@@ -1457,7 +1457,7 @@ function activeSupervisionTopic(presenceMode: HelpPresenceMode): HelpTopic {
           "Öffnen Sie `Aktuelle Aufsicht`.",
           "Wählen Sie unter `Als Nächstes` einen geplanten Termin.",
           "Starten Sie ihn, sobald die Schaltfläche freigegeben ist.",
-          "Oder übernehmen Sie einen offenen Raum, zum Beispiel den Schulhof: Öffnen Sie ihn unter `Räume` und wählen Sie `Aufsicht öffnen`. Wählen Sie dann oben `Beaufsichtigen`.",
+          "Oder übernehmen Sie einen offenen Raum, zum Beispiel den Schulhof: Öffnen Sie ihn unter `Räume` und wählen Sie `Zur Aufsicht`. Wählen Sie dann oben `Beaufsichtigen`.",
           // Live geprueft: der gruene Streifen steht immer oben auf der
           // Seite, auch ohne geplanten Block und ohne NFC.
           "Oder wählen Sie `Spontane Aktivität starten`, wenn nichts geplant ist.",
