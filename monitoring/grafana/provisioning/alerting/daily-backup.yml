@@ -1,0 +1,113 @@
+# Additive rules for the encrypted systemd backup, not the legacy cron stream.
+# Default notification policy only; recipients remain on the monitoring host.
+# absent_over_time returns 1 for silence, including a never-created stream;
+# its empty healthy result is intentionally OK. Query errors must alert.
+apiVersion: 1
+groups:
+  - orgId: 1
+    name: Phoenix Daily Backup
+    folder: Phoenix Alerts
+    interval: 1m
+    rules:
+      - uid: moto-daily-backup-missing
+        title: Production Daily Backup Missing
+        condition: C
+        data:
+          - refId: A
+            relativeTimeRange:
+              from: 93600
+              to: 0
+            datasourceUid: P8E80F9AEF21F6940
+            model:
+              expr: 'absent_over_time({env="prod", service="daily-backup"} |~ "^backup_result=ok step=complete$" [26h])'
+              instant: true
+              intervalMs: 1000
+              maxDataPoints: 43200
+              refId: A
+          - refId: B
+            datasourceUid: __expr__
+            model:
+              expression: A
+              intervalMs: 1000
+              maxDataPoints: 43200
+              reducer: last
+              refId: B
+              type: reduce
+          - refId: C
+            datasourceUid: __expr__
+            model:
+              conditions:
+                - evaluator:
+                    params:
+                      - 0
+                    type: gt
+                  operator:
+                    type: and
+                  reducer:
+                    type: last
+              expression: B
+              intervalMs: 1000
+              maxDataPoints: 43200
+              refId: C
+              type: threshold
+        noDataState: OK
+        execErrState: Alerting
+        annotations:
+          summary: No verified daily backup in 26 hours. Check moto-daily-backup.timer,
+            the service journal and Alloy ingestion. Follow docs/operations/daily-backup.md.
+        labels:
+          env: prod
+          service: daily-backup
+          severity: critical
+        isPaused: false
+      - uid: moto-daily-backup-failed
+        title: Production Daily Backup Failed
+        condition: C
+        data:
+          - refId: A
+            relativeTimeRange:
+              from: 1800
+              to: 0
+            datasourceUid: P8E80F9AEF21F6940
+            model:
+              expr: 'sum(count_over_time({env="prod", service="daily-backup"} |~ "^backup_result=failed( |$)" [30m]))'
+              instant: true
+              intervalMs: 1000
+              maxDataPoints: 43200
+              refId: A
+          - refId: B
+            datasourceUid: __expr__
+            model:
+              expression: A
+              intervalMs: 1000
+              maxDataPoints: 43200
+              reducer: last
+              refId: B
+              type: reduce
+          - refId: C
+            datasourceUid: __expr__
+            model:
+              conditions:
+                - evaluator:
+                    params:
+                      - 0
+                    type: gt
+                  operator:
+                    type: and
+                  reducer:
+                    type: last
+              expression: B
+              intervalMs: 1000
+              maxDataPoints: 43200
+              refId: C
+              type: threshold
+        noDataState: OK
+        execErrState: Alerting
+        annotations:
+          summary: Daily backup failed. Check the sanitized step in the service journal
+            and follow docs/operations/daily-backup.md. Never attach raw tool output.
+        labels:
+          env: prod
+          service: daily-backup
+          severity: high
+        isPaused: false
