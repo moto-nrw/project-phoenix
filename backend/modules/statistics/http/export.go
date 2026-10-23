@@ -179,6 +179,14 @@ func buildRoomExportDocument(report *studentpresence.StatisticsReport) ExportDoc
 		},
 		Footer: exportConfidentialityNote,
 	}
+	if report.RoomHistoryDisabled {
+		doc.Filters = []string{
+			"Raumhistorie ist ausgeschaltet.",
+			"Raumstatistiken brauchen das eingeschaltete Anwesenheitsprotokoll.",
+			"Ihre Administration kann es unter Einstellungen > Datenschutz einschalten.",
+		}
+		return doc
+	}
 	for _, room := range report.Rooms {
 		capacity := ""
 		if room.Capacity != nil {

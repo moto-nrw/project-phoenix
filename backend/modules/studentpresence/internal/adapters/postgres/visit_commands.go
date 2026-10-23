@@ -4,6 +4,7 @@ import (
 	"context"
 	"time"
 
+	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
 	"github.com/moto-nrw/project-phoenix/modules/studentpresence/internal/ports"
 	"github.com/uptrace/bun"
 )
@@ -68,15 +69,20 @@ func (s *Store) TransferRecentDeviceVisits(ctx context.Context, to, deviceID int
 	return stats, err
 }
 
-func (s *Store) DeleteCompletedVisitsBefore(ctx context.Context, studentID int64, cutoff time.Time) (ports.Stats, error) {
+func (s *Store) DeleteCompletedVisitsBefore(ctx context.Context, studentID int64, policy studentpresence.VisitRetentionPolicy, cutoff time.Time) (ports.Stats, error) {
 	db, tenantID, err := s.database(ctx)
 	if err != nil {
 		return ports.Stats{}, err
 	}
 	started := time.Now()
-	result, err := db.NewDelete().Table("active.visits").Where("tenant_id = ?", tenantID).
-		Where("student_id = ?", studentID).Where("created_at < ?", cutoff).
-		Where("exit_time IS NOT NULL").Exec(ctx)
+	query := db.NewDelete().Table("active.visits").Where("tenant_id = ?", tenantID).
+		Where("student_id = ?", studentID).Where("exit_time IS NOT NULL")
+	if policy.CompletedBefore != nil {
+		query = query.Where("exit_time < ?", *policy.CompletedBefore)
+	} else {
+		query = query.Where("created_at < ?", cutoff)
+	}
+	result, err := query.Exec(ctx)
 	stats := ports.Stats{Queries: 1, StatementDuration: time.Since(started)}
 	if err != nil {
 		return stats, err

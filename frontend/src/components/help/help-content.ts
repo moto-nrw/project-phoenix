@@ -5389,7 +5389,10 @@ function statisticsTopic(): HelpTopic {
       "Die Pfeile schieben den Zeitraum um seine eigene Länge weiter.",
     ],
     differences: [
-      "`Räume` und `Kurse` zeigen nur dann Zahlen, wenn Ihre OGS damit arbeitet.",
+      "`Räume` zeigt nur mit eingeschaltetem `Anwesenheitsprotokoll` Zahlen.",
+      "Ohne `Anwesenheitsprotokoll` fehlt dort auch das Menü zum Exportieren.",
+      "Ist die Raumhistorie ausgeschaltet? Ihre Administration kann das `Anwesenheitsprotokoll` einschalten. Die Einstellung steht unter `Einstellungen` und `Datenschutz`.",
+      "`Kurse` zeigt nur dann Zahlen, wenn Ihre OGS damit arbeitet.",
     ],
     troubleshootingDetails: [
       "Fehlt `Statistik` in der Seitenleiste? Der Bereich ist der Leitung vorbehalten.",
@@ -5616,9 +5619,8 @@ function settingsGuideTopic(): HelpTopic {
         description: "Was moto speichert und wie lange.",
         ordered: false,
         steps: [
-          "`Anwesenheitsprotokoll`: Das Team sieht bei jedem Kind, wann es da war und in welchen Räumen.",
+          "`Anwesenheitsprotokoll`: Das Team sieht die Anwesenheit und frühere Räume. Ausgeschaltet bleiben frühere Raumbesuche nur für den heutigen Tag. Beim Ausschalten bestätigen Sie zuerst die endgültige Löschung. Geben Sie dafür `LÖSCHEN` ein. Das gilt auch bei `Zurücksetzen` auf den ausgeschalteten Standard. Abgeschlossene Raumbesuche vor heute werden sofort gelöscht. Das lässt sich nicht rückgängig machen. Erneutes Einschalten stellt nichts wieder her. Heutige Raumbesuche bleiben bis zum nächtlichen Löschen erhalten. Der aktuelle Raum und die Anwesenheitszeiten bleiben erhalten.",
           "Vor dem Einschalten prüft die Schule die Rechtsgrundlage. Sie ist für die Nutzung verantwortlich.",
-          "Ausschalten beendet die Erfassung nicht und löscht keine Daten. Der aktuelle Aufenthaltsort bleibt davon unabhängig.",
           "`Nutzungsanalyse`: moto erhält Nutzungsstatistiken Ihrer Schule, aber keine eingegebenen Inhalte.",
           "Löschfristen wie `Anwesenheit aufbewahren (Tage)`: Wie lange moto Daten behält. Sie können sie nur lesen.",
         ],

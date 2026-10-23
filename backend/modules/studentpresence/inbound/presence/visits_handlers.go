@@ -40,7 +40,7 @@ func (rs *Resource) listVisits(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Get visits
-	visits, err := rs.Presence.ListVisits(r.Context(), filter)
+	visits, err := rs.listReadableVisits(r.Context(), filter)
 	if err != nil {
 		common.RenderError(w, r, common.ErrorInternalServer(presenceQueryError("ListVisits", err)))
 		return
@@ -109,7 +109,7 @@ func (rs *Resource) getStudentVisits(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Get visits for student
-	visits, err := rs.Presence.ListVisits(r.Context(), studentpresence.VisitFilter{StudentIDs: []int64{studentID}, OpenOnly: true})
+	visits, err := rs.listReadableVisits(r.Context(), studentpresence.VisitFilter{StudentIDs: []int64{studentID}, OpenOnly: true})
 	if err != nil {
 		common.RenderError(w, r, ErrorRenderer(presenceQueryError("FindVisitsByStudentID", err)))
 		return
@@ -162,7 +162,7 @@ func (rs *Resource) getVisitsByGroup(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Get visits for active group
-	visits, err := rs.Presence.ListVisits(r.Context(), studentpresence.VisitFilter{ActiveGroupIDs: []int64{groupID}})
+	visits, err := rs.listReadableVisits(r.Context(), studentpresence.VisitFilter{ActiveGroupIDs: []int64{groupID}})
 	if err != nil {
 		common.RenderError(w, r, ErrorRenderer(presenceQueryError("FindVisitsByActiveGroupID", err)))
 		return

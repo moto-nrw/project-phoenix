@@ -20,14 +20,14 @@ type AttendanceCleanup interface {
 type PresenceRetention interface {
 	AttendanceCleanup
 	studentpresence.VisitRetentionQuery
-	DeleteCompletedVisitsBefore(context.Context, int64, time.Time) (int64, error)
+	DeleteCompletedVisitsBefore(context.Context, int64, studentpresence.VisitRetentionPolicy, time.Time) (int64, error)
 }
 
 // VisitRetentionSettings supplies the tenant's visit retention window for
 // children without an accepted consent: gdpr.privacy_consent_retention_days,
 // tenant override or registry default (#3835).
 type VisitRetentionSettings interface {
-	VisitRetentionDays(context.Context) (int, error)
+	VisitHistoryRetention(context.Context) (bool, int, error)
 }
 
 // cleanupService implements the CleanupService interface
@@ -70,21 +70,45 @@ func NewCleanupService(
 	return service
 }
 
-// defaultRetentionDays resolves the window for children without an accepted
-// consent. A missing or unusable value stops the run: guessing a window could
-// delete too much or keep data forever.
-func (s *cleanupService) defaultRetentionDays(ctx context.Context) (int, error) {
+func (s *cleanupService) retentionPolicy(ctx context.Context) (studentpresence.VisitRetentionPolicy, error) {
 	if s.settings == nil {
-		return 0, errors.New("visit retention settings are not configured")
+		return studentpresence.VisitRetentionPolicy{}, errors.New("visit retention settings are not configured")
 	}
-	days, err := s.settings.VisitRetentionDays(ctx)
+	enabled, days, err := s.settings.VisitHistoryRetention(ctx)
 	if err != nil {
-		return 0, fmt.Errorf("resolve visit retention days: %w", err)
+		return studentpresence.VisitRetentionPolicy{}, fmt.Errorf("resolve attendance log: %w", err)
+	}
+	if !enabled {
+		cutoff := s.todayDate().BerlinMidnight()
+		return studentpresence.VisitRetentionPolicy{CompletedBefore: &cutoff}, nil
 	}
 	if days < 1 {
-		return 0, fmt.Errorf("invalid visit retention days: %d", days)
+		return studentpresence.VisitRetentionPolicy{}, fmt.Errorf("invalid visit retention days: %d", days)
 	}
-	return days, nil
+	return studentpresence.VisitRetentionPolicy{DefaultDays: days}, nil
+}
+
+// ApplyAttendanceLogSetting removes older completed visits in the setting's
+// transaction. Failure of any deletion or audit aborts the setting change.
+func (s *cleanupService) ApplyAttendanceLogSetting(ctx context.Context, enabled bool) error {
+	if enabled {
+		return nil
+	}
+	cutoff := s.todayDate().BerlinMidnight()
+	policy := studentpresence.VisitRetentionPolicy{CompletedBefore: &cutoff}
+	if err := tenant.RequireTransaction(ctx); err != nil {
+		return err
+	}
+	rows, err := s.presence.ListVisitRetentionCounts(ctx, policy)
+	if err != nil {
+		return err
+	}
+	for _, row := range rows {
+		if _, err := s.processStudent(ctx, row); err != nil {
+			return err
+		}
+	}
+	return nil
 }
 
 // CleanupExpiredVisits deletes the completed visits of every student whose
@@ -98,11 +122,11 @@ func (s *cleanupService) CleanupExpiredVisits(ctx context.Context) (*CleanupResu
 
 	var students []studentpresence.VisitRetentionCount
 	err := s.txHandler.RunInTx(ctx, func(txCtx context.Context) error {
-		defaultDays, err := s.defaultRetentionDays(txCtx)
+		policy, err := s.retentionPolicy(txCtx)
 		if err != nil {
 			return err
 		}
-		students, err = s.presence.ListVisitRetentionCounts(txCtx, defaultDays)
+		students, err = s.presence.ListVisitRetentionCounts(txCtx, policy)
 		if err != nil {
 			return fmt.Errorf("failed to get students with expired visits: %w", err)
 		}
@@ -140,7 +164,7 @@ func (s *cleanupService) CleanupExpiredVisits(ctx context.Context) (*CleanupResu
 
 // GetRetentionStatistics gets statistics about data that will be deleted
 func (s *cleanupService) GetRetentionStatistics(ctx context.Context) (*RetentionStats, error) {
-	defaultDays, err := s.defaultRetentionDays(ctx)
+	policy, err := s.retentionPolicy(ctx)
 	if err != nil {
 		return nil, err
 	}
@@ -149,21 +173,21 @@ func (s *cleanupService) GetRetentionStatistics(ctx context.Context) (*Retention
 	}
 
 	// Get total expired visits count
-	count, err := s.presence.CountExpiredVisits(ctx, defaultDays)
+	count, err := s.presence.CountExpiredVisits(ctx, policy)
 	if err != nil {
 		return nil, fmt.Errorf("failed to count expired visits: %w", err)
 	}
 	stats.TotalExpiredVisits = count
 
 	// Get per-student statistics
-	studentStats, err := s.presence.ListVisitRetentionCounts(ctx, defaultDays)
+	studentStats, err := s.presence.ListVisitRetentionCounts(ctx, policy)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get visit retention stats: %w", err)
 	}
 	stats.StudentsAffected = len(studentStats)
 
 	// Get oldest expired visit
-	oldest, err := s.presence.OldestExpiredVisitDate(ctx, defaultDays)
+	oldest, err := s.presence.OldestExpiredVisitDate(ctx, policy)
 	if err != nil {
 		return nil, fmt.Errorf("failed to find oldest expired visit: %w", err)
 	}
@@ -171,7 +195,7 @@ func (s *cleanupService) GetRetentionStatistics(ctx context.Context) (*Retention
 		stats.OldestExpiredVisit = oldest
 
 		// Get monthly breakdown
-		monthly, err := s.presence.ListExpiredVisitMonths(ctx, defaultDays)
+		monthly, err := s.presence.ListExpiredVisitMonths(ctx, policy)
 		if err != nil {
 			return nil, fmt.Errorf("failed to get monthly expired visits: %w", err)
 		}
@@ -185,7 +209,7 @@ func (s *cleanupService) GetRetentionStatistics(ctx context.Context) (*Retention
 
 // PreviewCleanup shows what would be deleted without actually deleting
 func (s *cleanupService) PreviewCleanup(ctx context.Context) (*CleanupPreview, error) {
-	defaultDays, err := s.defaultRetentionDays(ctx)
+	policy, err := s.retentionPolicy(ctx)
 	if err != nil {
 		return nil, err
 	}
@@ -194,7 +218,7 @@ func (s *cleanupService) PreviewCleanup(ctx context.Context) (*CleanupPreview, e
 	}
 
 	// Get per-student statistics
-	studentStats, err := s.presence.ListVisitRetentionCounts(ctx, defaultDays)
+	studentStats, err := s.presence.ListVisitRetentionCounts(ctx, policy)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get visit retention stats: %w", err)
 	}
@@ -211,7 +235,7 @@ func (s *cleanupService) PreviewCleanup(ctx context.Context) (*CleanupPreview, e
 	preview.TotalVisits = total
 
 	// Get oldest visit that would be deleted
-	oldest, err := s.presence.OldestExpiredVisitDate(ctx, defaultDays)
+	oldest, err := s.presence.OldestExpiredVisitDate(ctx, policy)
 	if err != nil {
 		return nil, fmt.Errorf("failed to find oldest expired visit: %w", err)
 	}
@@ -260,7 +284,8 @@ func (s *cleanupService) processStudent(ctx context.Context, student studentpres
 
 	err := s.txHandler.RunInTx(ctx, func(ctx context.Context) error {
 		// Delete expired visits
-		count, err := s.presence.DeleteCompletedVisitsBefore(ctx, student.StudentID, time.Now().AddDate(0, 0, -student.RetentionDays))
+		policy := studentpresence.VisitRetentionPolicy{DefaultDays: student.RetentionDays, CompletedBefore: student.CompletedBefore}
+		count, err := s.presence.DeleteCompletedVisitsBefore(ctx, student.StudentID, policy, time.Now().AddDate(0, 0, -student.RetentionDays))
 		if err != nil {
 			return err
 		}
@@ -276,6 +301,10 @@ func (s *cleanupService) processStudent(ctx context.Context, student studentpres
 				Metadata:       map[string]interface{}{"retention_days": student.RetentionDays, "batch_cleanup": true},
 			}
 
+			if student.CompletedBefore != nil {
+				deletion.DeletionReason = "Attendance log disabled: completed visits before today's Berlin midnight"
+				deletion.Metadata = map[string]interface{}{"attendance_log_enabled": false, "completed_before": student.CompletedBefore.Format(time.RFC3339), "batch_cleanup": true}
+			}
 			if err := s.dataDeletionRepo.Create(ctx, deletion); err != nil {
 				return err
 			}
