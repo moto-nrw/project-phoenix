@@ -5460,7 +5460,8 @@ function payrollTopic(): HelpTopic {
 /**
  * `/settings`. Die Reiter kommen aus dem Schema des Servers und sind je Schule
  * verschieden (settings/page.tsx:32) -- deshalb nennt der Artikel keine feste
- * Liste, sondern den Weg und die Regeln.
+ * Liste, sondern den Weg und die Regeln. Die wichtigsten Einstellungen stehen
+ * in `settingsGuideTopic`.
  */
 function settingsTopic(): HelpTopic {
   return {
@@ -5496,9 +5497,139 @@ function settingsTopic(): HelpTopic {
       "Der Wechsel des Anwesenheitsmodus wird abgelehnt? Das geht nicht, solange Kinder eingecheckt sind.",
     ],
     related: [
+      HELP_TOPICS.settingsGuide,
       HELP_TOPICS.leadParentVisibility,
       HELP_TOPICS.leadDevices,
       HELP_TOPICS.leadMissingMenu,
+    ],
+  };
+}
+
+/**
+ * Die wichtigsten Einstellungen je Reiter (#3727). Bewusst eine Auswahl, keine
+ * vollständige Liste: Die vollständige Liste steht auf `/settings` selbst, mit
+ * einem Satz unter jeder Einstellung. Bezeichnungen stammen aus der Registry
+ * (`backend/modules/settings/internal/defaults/`) und aus `TAB_LABELS` in
+ * `components/settings/settings-page.tsx`. Wer dort umbenennt, ändert hier mit.
+ */
+function settingsGuideTopic(): HelpTopic {
+  return {
+    id: HELP_TOPICS.settingsGuide,
+    title: "Die wichtigsten Einstellungen im Überblick",
+    question: "Welche Einstellungen gibt es, und was bewirken sie?",
+    summary: "Was Sie in welchem Bereich der Einstellungen festlegen.",
+    group: "konfiguration",
+    audience: "lead",
+    icon: "SlidersHorizontal",
+    steps: [],
+    instructionGroups: [
+      {
+        title: "Betrieb",
+        description: "Wie Ihr Team im Alltag arbeitet.",
+        ordered: false,
+        steps: [
+          "`Arbeit mit festen Gruppen`: Ob Kinder festen Gruppen angehören oder alle mit allen Kindern arbeiten.",
+          "`Welche Gruppen und Blöcke sieht das Team?`: Was das Team im Überblick sieht. Was das Team bearbeiten darf, ändert das nicht.",
+          "`Wo darf das Team Kinder an- und abmelden?`: Nur bei den eigenen Gruppen und Blöcken oder überall.",
+          "`Wer darf Kinder krank oder entschuldigt melden?`: Nur OGS-Admins oder das ganze Team.",
+          "`Übliche Ankunftszeit` und `Übliche Abholzeit`: Diese Zeiten tragen Sie im Wochenplan eines Kindes mit einem Klick ein.",
+          "`Betreuungsplan nutzen`: Zeigt den Betreuungsplan im Menü.",
+          "`Benachrichtigungen senden`: Hinweise in moto und auf dem Handy. Was ankommt, wählt jede Person selbst.",
+          "`Team-Chat für Mitarbeitende`: Das Team schreibt sich Nachrichten. Eltern sehen davon nichts.",
+          "`Kinderfotos`: Fotos bei den Kindern. Nur mit Einwilligung der Eltern.",
+          "`Automatisch ausstempeln`: Wer das Ausstempeln vergisst, wird zum Dienstende ausgestempelt.",
+        ],
+      },
+      {
+        title: "Elternportal",
+        description: "Steht im Bereich `Betrieb` unter `Elternportal`.",
+        ordered: false,
+        steps: [
+          "`Nachrichten von Eltern`: Eltern schreiben dem Team zu ihrem Kind.",
+          "`Krankmeldung über Elternportal`: Eltern melden ihr Kind selbst krank.",
+          "`Essensplan`: Eltern sehen, was es diese und nächste Woche zu essen gibt.",
+          "Alle Schalter für Eltern erklärt die Anleitung „Festlegen, was Eltern in moto sehen“.",
+        ],
+      },
+      {
+        title: "Erinnerungen",
+        description: "Hinweise für das Team rund um Abholung und Termine.",
+        ordered: false,
+        steps: [
+          "`Anstehende Abholung`: Erinnert, wenn die Abholzeit eines Kindes näher rückt.",
+          "`Überfällige Abholung`: Erinnert, wenn ein Kind nach seiner Abholzeit noch da ist.",
+          "`Terminerinnerung für Eltern`: Eltern bekommen kurz vor einem Termin eine E-Mail.",
+        ],
+      },
+      {
+        title: "Geräte",
+        description: "Nur wenn Ihre OGS NFC-Tablets nutzt.",
+        ordered: false,
+        steps: [
+          "`Geräte-PIN`: Mit dieser PIN meldet sich Ihr Team am Tablet an.",
+          "`„Nach Hause“ ab Uhrzeit`: Ab dieser Uhrzeit können Kinder am Tablet „Nach Hause“ wählen.",
+          "`„Toilette“ am Tablet anbieten`: Kinder können beim Auschecken „Toilette“ wählen. Für „Schulhof“ und „Raumwechsel“ gibt es eigene Schalter.",
+        ],
+      },
+      {
+        title: "Anmeldung",
+        description: "Wie Eltern ihr Kind bei Ihnen anmelden.",
+        ordered: false,
+        steps: [
+          "`Online-Anmeldung`: Eltern melden ihr Kind über ein Formular im Internet an.",
+          "`Empfänger für neue Anmeldungen`: Diese Adressen bekommen bei jeder neuen Anmeldung eine E-Mail.",
+          "`Rechtstexte`: Was Eltern im Formular lesen und bestätigen, zum Beispiel die Datenschutzinformation.",
+        ],
+      },
+      {
+        title: "Datenschutz",
+        description: "Was moto speichert und wie lange.",
+        ordered: false,
+        steps: [
+          "`Anwesenheitsprotokoll`: Das Team sieht bei jedem Kind, wann es da war und in welchen Räumen.",
+          "`Nutzungsanalyse`: moto erhält Nutzungsstatistiken Ihrer Schule, aber keine eingegebenen Inhalte.",
+          "Löschfristen wie `Anwesenheit aufbewahren (Tage)`: Wie lange moto Daten behält. Sie können sie nur lesen.",
+        ],
+      },
+      {
+        title: "Kalender und Export",
+        description: "Termine und Zeitkonten außerhalb von moto nutzen.",
+        ordered: false,
+        steps: [
+          "`Kalenderzugang mit App-Passwort erlauben`: Das Team sieht seine Termine in einem Kalenderprogramm.",
+          "`Zeitkonten per SFTP übertragen`: moto überträgt die Zeitkonten direkt an Ihre Lohnabrechnung.",
+        ],
+      },
+      {
+        title: "Sicherheit",
+        description: "Wie gut Konten bei der Anmeldung geschützt sind.",
+        ordered: false,
+        steps: [
+          "`Zwei-Faktor-Anmeldung (Code per E-Mail)`: Beim Anmelden kommt zusätzlich ein Code per E-Mail.",
+          "`Fehlversuche bis zur Kontosperre`: Nach so vielen falschen Eingaben sperrt moto das Konto für eine Weile.",
+        ],
+      },
+      {
+        title: "Startseite für alle und Personalisierung",
+        ordered: false,
+        steps: [
+          "`Startseite für alle`: Welche Bereiche alle auf ihrer Startseite sehen.",
+          "`Personalisierung`: Ein eigenes Bild für die Login-Seite Ihrer OGS.",
+        ],
+      },
+    ],
+    notes: [
+      "Unter jeder Einstellung steht in moto ein Satz, der sagt, was sie bewirkt.",
+      "Sie suchen eine bestimmte Einstellung? Nutzen Sie oben das Feld `Einstellung suchen`. Es sucht in allen Bereichen.",
+    ],
+    differences: [
+      "Welche Bereiche und Einstellungen Sie sehen, hängt von Ihren Rechten und den Funktionen Ihrer OGS ab.",
+      "Manche Einstellungen erscheinen erst, wenn Sie eine andere einschalten.",
+    ],
+    related: [
+      HELP_TOPICS.settings,
+      HELP_TOPICS.leadParentVisibility,
+      HELP_TOPICS.leadNfcSettings,
     ],
   };
 }
@@ -5949,6 +6080,7 @@ function leadTopics(
 
     // --- Einstellungen und Geräte ---
     settingsTopic(),
+    settingsGuideTopic(),
     parentVisibilityTopic(),
     infoDisplaysTopic(),
     leadBirthdaysTopic(),
