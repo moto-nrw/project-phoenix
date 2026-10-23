@@ -7,14 +7,16 @@ Inspected fetched `origin/development` at
 that immutable **pre-change** tree unless marked “new”. Paths start at
 `backend/`; `roots/owners/` bindings preserve the passed context.
 
-## Machine-checked first slice (#4739)
+## Machine-checked domain sources (#4739)
 
 The generated/reviewed [command-effect inventory](../../backend/architecture/command-effects.json)
-checks Enrollment's supplied interface bindings to foreign domains/workflows/
-projections. The [40-row reconciliation](4739-command-effect-reconciliation.md)
-records coverage, additional method surfaces and explicit gaps. It is a
-conservative may-bind inventory, not a replacement for this protocol/lock
-evidence; the other source owners and two exact callable bindings remain follow-up.
+checks supplied interface bindings from all 18 policy domain source owners to
+foreign domains/workflows/projections. The [40-row reconciliation](4739-command-effect-reconciliation.md)
+records exact comparisons, full native method surfaces, workflow backing, known
+coordination/direction debt and the remaining binding-flow/protocol limits. It
+is a conservative may-bind inventory, not a replacement for this transaction/
+lock audit. The original first-hop gap is covered at both real source owners;
+unresolved bindings remain visibly unresolved, not inferred as safe queries.
 
 ## Reading the table
 

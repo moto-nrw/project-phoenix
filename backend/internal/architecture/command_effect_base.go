@@ -8,8 +8,9 @@ import (
 )
 
 type effectBase struct {
-	root, sha string
-	addedADRs map[string]bool
+	root, sha    string
+	addedADRs    map[string]bool
+	domainCensus bool
 }
 
 // CompareCommandEffects checks reviewed effects against the immutable PR base.
@@ -29,8 +30,14 @@ func CompareCommandEffects(project, ref string) error {
 	}
 	if bootstrap {
 		context.addedADRs["0083"] = true
+	} else {
+		expansion, err := newDomainEffectAddendum(context)
+		if err != nil {
+			return err
+		}
+		context.domainCensus = expansion
 	}
-	failures, added, changed := compareEffectEntries(base, candidate, context.addedADRs)
+	failures, added, changed := compareEffectEntries(base, candidate, context.addedADRs, context.domainCensus)
 	if len(failures) > 0 {
 		return fmt.Errorf("command effects against base %s:\n  %s", context.sha, strings.Join(failures, "\n  "))
 	}
@@ -49,7 +56,7 @@ func resolveEffectBase(project, ref string) (effectBase, error) {
 		return effectBase{}, err
 	}
 	adrs, err := addedADRs(root, sha)
-	return effectBase{root, sha, adrs}, err
+	return effectBase{root: root, sha: sha, addedADRs: adrs}, err
 }
 
 const commandEffectDecision = "docs/adr/0083-ratchets-protect-invariants-and-expose-command-effects.md"
@@ -98,28 +105,90 @@ func validateEffectBootstrap(base effectBase) error {
 	return nil
 }
 
-func compareEffectEntries(base, candidate *commandEffectManifest, adrs map[string]bool) ([]string, int, int) {
-	previous := map[string]commandEffectEntry{}
-	for _, entry := range base.Entries {
-		previous[entry.key()] = entry
+const commandEffectDomainAddendum = "\n## Domain-source expansion 2026-10-23 (#4739)\n"
+
+// The new census decision covers previously unscanned owners and newly exposed
+// providers/diagnostics of already reviewed bindings, never existing changes or
+// growth once the decision is present at the immutable base.
+func newDomainEffectAddendum(base effectBase) (bool, error) {
+	candidate, err := os.ReadFile(filepath.Join(base.root, commandEffectDecision))
+	if os.IsNotExist(err) {
+		return false, nil
 	}
+	if err != nil {
+		return false, err
+	}
+	if !strings.Contains(string(candidate), commandEffectDomainAddendum) {
+		return false, nil
+	}
+	previous, err := readGitBlob(base.root, base.root, base.sha, commandEffectDecision)
+	if err != nil {
+		return false, err
+	}
+	return !strings.Contains(string(previous), commandEffectDomainAddendum), nil
+}
+
+type effectBaseReview struct {
+	previous        map[string]commandEffectEntry
+	coveredOwners   map[string]bool
+	ports, bindings map[string]bool
+	addedADRs       map[string]bool
+	domainCensus    bool
+}
+
+func newEffectBaseReview(base *commandEffectManifest, adrs map[string]bool, domainCensus bool) effectBaseReview {
+	review := effectBaseReview{
+		previous: map[string]commandEffectEntry{}, coveredOwners: map[string]bool{},
+		ports: map[string]bool{}, bindings: map[string]bool{}, addedADRs: adrs, domainCensus: domainCensus,
+	}
+	for _, entry := range base.Entries {
+		review.previous[entry.key()] = entry
+		review.coveredOwners[entry.sourceOwner()] = true
+		review.bindings[entry.sourceOwner()+"|"+entry.Port+"|"+entry.Binding] = true
+		review.ports[entry.reviewedPortKey()] = true
+	}
+	return review
+}
+
+func (review effectBaseReview) approves(entry commandEffectEntry, existed bool) bool {
+	if review.addedADRs[entry.ApprovalADR] {
+		return true
+	}
+	if existed || entry.ApprovalADR != "0083" || !review.domainCensus {
+		return false
+	}
+	if !review.coveredOwners[entry.sourceOwner()] && entry.sourceOwner() != "enrollment" {
+		return true
+	}
+	if review.ports[entry.reviewedPortKey()] {
+		return true
+	}
+	return entry.Effect == "unresolved" && entry.Classification == "unresolved" && entry.ADR == "0083" && strings.HasPrefix(entry.Target, "unresolved:") && review.bindings[entry.sourceOwner()+"|"+entry.Port+"|"+entry.Binding]
+}
+
+func compareEffectEntries(base, candidate *commandEffectManifest, adrs map[string]bool, domainCensus bool) ([]string, int, int) {
+	review := newEffectBaseReview(base, adrs, domainCensus)
 	var failures []string
 	added, changed := 0, 0
 	for _, entry := range candidate.Entries {
-		was, existed := previous[entry.key()]
+		was, existed := review.previous[entry.key()]
 		if !existed {
 			added++
 		}
 		if existed && was.BindingDigest != entry.BindingDigest {
 			changed++
 		}
-		failures = append(failures, entry.effectBaseFailures(was, existed, adrs[entry.ApprovalADR])...)
+		failures = append(failures, entry.effectBaseFailures(was, existed, review.approves(entry, existed))...)
 	}
 	return failures, added, changed
 }
 
+func (entry commandEffectEntry) reviewedPortKey() string {
+	return strings.Join([]string{entry.sourceOwner(), entry.Port, entry.Binding, entry.TargetOwner, entry.Effect, entry.Classification, entry.ADR}, "|")
+}
+
 func (entry commandEffectEntry) effectBaseFailures(was commandEffectEntry, existed, newADR bool) []string {
-	isException := strings.HasPrefix(entry.Classification, "E") || entry.Classification == "unresolved"
+	isException := strings.HasPrefix(entry.Classification, "E") || entry.Classification == "unresolved" || entry.Classification == "debt"
 	if !existed {
 		if isException && !newADR {
 			return []string{"new exception needs approval_adr naming an ADR added in this change: " + entry.key()}
@@ -150,6 +219,11 @@ func (entry commandEffectEntry) changedBindingFailures(was commandEffectEntry, i
 
 func compareCommandEffectsIfEnabled(project, ref string, policy *Policy) error {
 	if !commandEffectsEnabled(policy) {
+		return nil
+	}
+	// LoadGraph has already rejected an absent register if a foreign binding
+	// exists. Policies with no binding surface need no empty register/bootstrap.
+	if _, err := os.Stat(filepath.Join(project, commandEffectInventory)); os.IsNotExist(err) {
 		return nil
 	}
 	return CompareCommandEffects(project, ref)
