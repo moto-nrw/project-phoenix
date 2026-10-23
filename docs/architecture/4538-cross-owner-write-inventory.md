@@ -229,7 +229,11 @@ succeed, not merely avoid `40P01`. Request terminal state and expected version
 are checked again under `FOR UPDATE`; missing, terminal and stale requests may
 be rejected before the gates. The preliminary read supplies the immutable student
 ID, not authority to mutate. Authorization and the mutation still use locked state.
-Tenant transactions, errors, responses and preview fingerprints are unchanged.
+Tenant transactions and preview fingerprints are unchanged. #4639 deliberately
+changed two responses from HTTP 500 to HTTP 404 with the existing `general.input`
+code: previewing a missing offering-change request and resolving an offering
+conflict with a missing offering request ID. Other error/status contracts stay
+unchanged.
 The existing consumer-owned gates suffice; no new root logic or policy rule.
 
 Round-2 error-path regression: the unlocked `Rows.Find` must return
@@ -249,7 +253,7 @@ update and `recordOfferingDecision` reloads after deciding; both already hold
 the request lock in the same tenant transaction, so concurrent deletion cannot
 remove that row before either reload. Those reloads still wrap other failures.
 
-Additional request/child audit (static evidence, not a claim of global freedom):
+Additional request/child audit at #4638 (historical findings; corrected below by #4640):
 
 | Flow that takes both request and child rows | Current order / disposition |
 |---|---|
@@ -267,8 +271,81 @@ The earlier gate table also audits transition creation/update (transition only),
 Apply/Revert (class → recurrence → transition → rows), timetable materialization
 (recurrence → transition → rows), class writes/locked directory reads and
 resumption (class → child), and offering catalog/phase/participation (recurrence
-only). The remaining request-kind findings above predate #4638; they need a
-separate issue, not a new exception to ADR 0067 point 5.
+only). The remaining request-kind findings above predate #4638; #4640 corrects them
+below without a new exception to ADR 0067 point 5.
+
+### Family-request row-order correction (#4640)
+
+Audited `origin/development` `c40cab16f54590b58a573ca7e1fad4bc06e9314e`
+with recursive `grep -RnE` and `rg -n` for `Records.Find`, `Find*Request`, `FindByIDForUpdate`,
+`LockStudent`, `Lock*Request`, `LockOfferingDerivedWrites`, `Withdraw` and
+`Edit` in Care Plan, Parent Portal, Enrollment, care-exit/student-deletion and
+their root bindings. Paths below are relative to `backend/`; CP abbreviates
+`modules/careplan/internal/application/`, PP abbreviates
+`workflows/parentportal/internal/care/`. This table includes the direct owner
+commands and their portal/coordinator callers, not just HTTP decisions.
+
+| Flow / code entry point | Before #4640 | After #4640 |
+|---|---|---|
+| Care-schedule and pickup approve/reject/MarkDone (`CP/request_decisions.go`, `loadAuthorized`; `request_completion.go`) | Request → class(shared)/child | Unlocked request locator → class(shared) → child → locked request; pending/version/scope checks before mutation |
+| Care/pickup correction, including undo (`CP/request_corrections.go`, `loadCorrection`) | Decided request → class/child → pickup/departure exception rows | Class → child → decided request → same exception rows; correction/version/scope guards unchanged. Care end locks pending rows only, so a decided correction alone was not a direct same-request cycle with care end |
+| Care/pickup conflict pre-lock and winner/reject/staff-value paths (`CP/request_conflicts.go`; `parent_request_resolution.go`) | Sorted requests → child, then optional child/day plan locks | Each pre-lock locates the child unlocked, then class → child → sorted request IDs. Decisions and optional child/day writes reacquire that same child |
+| Excused approve/reject/MarkDone (`CP/excused_request_decisions.go`) | Pending request → class/child → optional sorted day locks/status rows | Class → child → request → same day/status suffix; status/version/reviewer checks use locked rows |
+| Excused correction/undo (`CP/excused_request_decisions.go`, `lockCorrectableRequest`) | Decided request → class/child → day/status rows | Class → child → decided request → same suffix; care end did not directly lock this decided request either |
+| Direct excused guardian edit (`CP/excused_requests.go`, `EditRequest`) | Request → class/child/day via `ensureNoPartialAbsence` | Unlocked locator → class → child → request → sorted day locks; ownership still precedes pending/version checks |
+| Excused bulk/conflict pre-lock (`CP/excused_request_coordination.go`) | Request first; decision later locks child | Class → child → request, even when invoked directly. Coordinator keeps the multi-child frontier below |
+| Master-data approve/reject, bulk/conflict pre-lock (`CP/master_data_decisions.go`, `lockPendingRequest`; `master_data_conflicts.go`) | Request → class/child → person or guarded child update | Class → child → request → same person/update suffix; locked pending/version and authorization checks retained |
+| Master-data correction/undo (`CP/master_data_corrections.go`) | Decided request → class/child → live field check/write | Class → child → decided request → same guarded undo/apply |
+| Parent master-data edit (`PP/parent_master_data_request_service.go`, `editMasterDataRequestInTx`) | Request → class/child → current person read | Unlocked request/ownership → class → child → locked request/ownership/status/version → same field validation. This was another confirmed inversion, fixed in #4640 |
+| Mixed master-data/excused bulk approval (`CP/parent_request_coordinator.go`, `BulkApprove`) | Requests in kind/ID order → children ascending | Children ascending → requests in unchanged kind/ID order → apply in child/kind/ID order. Pre-lock helpers may safely reacquire children already held |
+| Cross-kind conflict coordinator (`CP/parent_request_resolution.go`, `prepareConflictGroup`) | Non-offering requests ascending → child; offering port already gates/locks child before its request | Candidates/version check remain unlocked; prove one child, then each port takes its prefix before ascending request IDs. Later `LockBulkStudents` is reentrant; no child is moved ahead of offering recurrence |
+| Offering approve/reject/MarkDone/conflict and offering adjustment/reset (`CP/offering_change_decisions.go`, `offering_adjustment.go`, `offering_pickup_times.go`) | Class(shared) → recurrence → child → request/pickup rows after #4638 | Unchanged. These commands retain recurrence before child |
+| Portal care/pickup/excused/offering edits and submissions (`PP/parent_care_schedule_service.go`, `pickup_change_requests.go`, `absence_requests.go`, `parent_care_offerings_service.go`); master-data submission (`parent_master_data_request_service.go`, `lockMasterDataSubject`) | Class/child before calling the request command; excused submission also locks sorted days before its duplicate-submission advisory key | Unchanged outer protocol. Direct care/pickup/offering edit only locks a request and reads plan/catalog facts; it acquires no child or recurrence lock. New inserts lock no previously existing request first |
+| Course withdrawal (`CP/course_requests.go`, `WithdrawCourseRequest`; `PP/parent_courses_service.go`) | Request only; permission/catalog reads acquire no child or recurrence lock | Unchanged. The old generic care/master-data/absence withdrawal flows were replaced by edits in #2267; there is no additional active withdrawal command to reorder. Guardian pickup-exception removal locks child/day then its exception, not a family-request row |
+| Care confirmation/withdrawal confirmation and effective-day cleanup (`CP/care_lifecycle.go`, `care_exit_preview.go`, `care_exit_cleanup.go`, `care_due_effects.go`) | Class(shared) → recurrence → ascending child cohort → open family requests | Unchanged. Family rows lock master-data, excused, schedule, then offering, ascending ID within each table. Future confirmation also locks pending requests; effective-day effects close them |
+| Enrollment decision/sync/form-change (`modules/enrollment/internal/application/decide.go`, `approved_child_sync.go`, `change_request_apply.go`) | Enrollment request/sibling children → class → recurrence → directory child | Unchanged. These are different request tables, not the family-request rows care end locks; Enrollment's account-before-roster protocol is untouched |
+| Student deletion / withdrawal completion (`workflows/studentdeletion/deletion.go`); care resumption (`workflows/careexit/resumption.go`) | Deletion locks child before request cleanup; withdrawal completion takes class → recurrence → completion row → child. Resumption takes class → child | Unchanged. Withdrawal/care confirmation share recurrence before completion/child, so those phases serialize; resumption takes no family-request lock or recurrence |
+
+The request's student ID is immutable in every audited edit/decision command.
+This makes the unlocked locator safe for choosing a lock, not for deciding a
+status, version, payload or permission. Both request read modes already expose
+the same not-found sentinel; no preview/error normalization like #4639 is needed.
+Root bindings translate a missing child after the locator to the existing
+request-not-found sentinel. They add no ordering, SQL or policy rule. The
+parent edit workflow rechecks request existence on a failed child lookup to
+preserve that same outcome without changing its generic student-reader port.
+Excused edit checks ownership before locking the child, then repeats it under
+the request lock: its portal caller can already hold the supplied child, so a
+mismatched request must not cause a second, possibly descending child lock.
+
+Bulk's request-kind order differs from care end's table order. That cannot form
+a same-child cycle once **all** children precede **all** requests: overlapping
+children serialize first, and disjoint children have disjoint immutable request
+rows. Sorted child IDs, request IDs, day keys and companion locking remain in
+place. Existing downward companion locks use NOWAIT and refuse rather than wait
+on a lower child ID. No claim of global deadlock freedom follows from this audit.
+
+Evidence:
+
+- `request_lock_order_test.go`: all six approve/reject decision/care-end cases
+  reproduce `40P01` before the fix. Approve and reject now both commit after a
+  scheduled care exit. Child-held tests cover MarkDone, corrections, all three
+  conflict pre-locks, direct excused edit, mixed bulk and grouped conflict paths.
+  Request rows must remain lockable while a writer waits for its child.
+- `TestBulkRequestLocksAllChildrenBeforeRequests` fails if only individual
+  pre-locks are reordered but the old bulk coordinator remains: a higher child
+  is already held while the lower child is awaited. The fixed frontier passes.
+  `TestRequestDecisionRechecksStateAfterWaitingForChild` pins fresh status/version
+  checks after the wait. A cascading deletion at the new bulk child frontier
+  retains the old request-race outcome (409 `students.change_request_stale`),
+  not an unclassified student error.
+- `request_not_found_test.go` and `http/request_not_found_db_test.go`: missing
+  and tenant-hidden IDs, request deletion during the row wait, and unchanged
+  404 `general.input` / 409 status-and-code responses pass before and after the
+  fix. Additional child-deletion waits cover the new preliminary-read race.
+- `workflows/parentportal/parent_request_lock_order_test.go` fails before the
+  parent master-data edit correction and passes afterwards, including request
+  and cascading-child deletion. Existing ownership/permission tests stay intact.
 
 ### Checker proposal for #4548
 

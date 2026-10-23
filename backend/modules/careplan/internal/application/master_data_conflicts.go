@@ -69,9 +69,8 @@ func (s *MasterDataDecisions) LockBulkRequest(ctx context.Context, requestID int
 	return err
 }
 
-// LockBulkStudents establishes one canonical student-lock frontier after all
-// request rows have been locked in request-kind/id order. Single decisions
-// use the same request-before-student order.
+// LockBulkStudents takes all children in ascending ID order BEFORE any request
+// rows. Per-request helpers may safely reacquire these locks afterwards.
 func (s *MasterDataDecisions) LockBulkStudents(ctx context.Context, studentIDs []int64) error {
 	for _, studentID := range studentIDs {
 		if err := s.lockStudent(ctx, studentID); err != nil {

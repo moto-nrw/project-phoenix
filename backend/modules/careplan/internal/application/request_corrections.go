@@ -65,22 +65,11 @@ func (s *RequestCorrections) Correct(ctx context.Context, id int64, approve bool
 }
 
 func (s *RequestCorrections) loadCorrection(ctx context.Context, id int64, version string) (*carerequests.Request, error) {
-	request, err := s.Records.Find(ctx, id, true)
+	request, student, err := lockCareRequestStudent(ctx, s.Records, s.People, id, func(row carerequests.Request) error {
+		return validateCareCorrection(row, version)
+	})
 	if err != nil {
 		return nil, err
-	}
-	if request.Status != "approved" && request.Status != "rejected" {
-		return nil, careplan.ErrParentRequestNotDecided
-	}
-	if version != "" && careplan.ParentRequestVersion(request.UpdatedAt) != version {
-		return nil, careplan.ErrParentRequestStale
-	}
-	if request.RequestKind != "pickup_change" {
-		return nil, fmt.Errorf("%w: Betreuungszeiten speichern keinen Stand von vor der Entscheidung. Bitte ändern Sie den Wochenplan des Kindes direkt", careplan.ErrParentRequestCorrectionUnsupported)
-	}
-	student, err := s.People.LockStudent(ctx, request.StudentID)
-	if err != nil {
-		return nil, fmt.Errorf("schedule: load student for care request correction: %w", err)
 	}
 	allowed, err := s.People.CanReview(ctx, student)
 	if err != nil {
@@ -166,4 +155,17 @@ func correctionExceptionID(value any) (int64, bool) {
 	default:
 		return 0, false
 	}
+}
+
+func validateCareCorrection(request carerequests.Request, version string) error {
+	if request.Status != "approved" && request.Status != "rejected" {
+		return careplan.ErrParentRequestNotDecided
+	}
+	if version != "" && careplan.ParentRequestVersion(request.UpdatedAt) != version {
+		return careplan.ErrParentRequestStale
+	}
+	if request.RequestKind != "pickup_change" {
+		return fmt.Errorf("%w: Betreuungszeiten speichern keinen Stand von vor der Entscheidung. Bitte ändern Sie den Wochenplan des Kindes direkt", careplan.ErrParentRequestCorrectionUnsupported)
+	}
+	return nil
 }
