@@ -24,7 +24,7 @@ unverändert. Globale Systemrollen mit `tenant_id IS NULL` sind kein
 Schulbestand; erforderliche Rollenbedeutung muss die spätere Rückgabe
 als Kontext liefern, nicht durch ungefilterten Export globaler Rollen.
 
-Die Mittagessen-Migrationen 1.15.480 bis 1.15.484 ergänzen zehn Tabellen.
+Die Mittagessen-Migrationen 1.15.484 bis 1.15.488 ergänzen zehn Tabellen.
 Bestellungen, Anmeldeänderungen, Einladungen und Belieferungen sind schulbezogen.
 Caterer-Konten und Betriebe sind schulübergreifend; eine Schule darf sie nicht
 allein löschen oder als eigenen Bestand ausgeben. Einladungs-Hashes bleiben

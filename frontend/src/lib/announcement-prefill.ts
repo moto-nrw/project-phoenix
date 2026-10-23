@@ -1,7 +1,8 @@
 // Übergabe einer Kinderauswahl an den Verfasser der Elternmitteilungen.
 //
-// Eine andere Seite (der Rücklauf einer Anmeldephase, #3379) legt die Kinder
-// ab und führt mit `?neu=kinder&vorbelegung=<token>` zur Mitteilungsliste.
+// Eine andere Seite (der Rücklauf einer Anmeldephase, #3379, oder die
+// Kindersuche, #4779) legt die Kinder ab und führt mit
+// `?neu=kinder&vorbelegung=<token>` zur Mitteilungsliste.
 // Der Token verweist nur im aktuellen Browser-Tab auf die Auswahl und bindet
 // sie an den Mandanten. Dort wird sie genau einmal gelesen und sofort gelöscht.
 // Namen gehören nicht in eine URL, und für achtzig Kinder wäre sie auch zu lang.
@@ -36,6 +37,27 @@ export function stashAnnouncementStudents(
   } catch {
     return null;
   }
+}
+
+/**
+ * Pfad zum Verfasser mit der abgelegten Auswahl. Ohne Token (keine Ablage
+ * möglich) öffnet sich nur die Liste; die Kinder lassen sich dort von Hand
+ * wählen. `art` wählt den Reiter, zum Beispiel `elternbriefe`.
+ */
+export function announcementPrefillPath(
+  token: string | null,
+  art?: string,
+): string {
+  const query = new URLSearchParams();
+  if (art) query.set("art", art);
+  if (token) {
+    query.set(ANNOUNCEMENT_PREFILL_PARAM, ANNOUNCEMENT_PREFILL_STUDENTS);
+    query.set(ANNOUNCEMENT_PREFILL_TOKEN_PARAM, token);
+  }
+  const serialized = query.toString();
+  return serialized
+    ? `/parent-announcements?${serialized}`
+    : "/parent-announcements";
 }
 
 function isPrefillStudent(value: unknown): value is AnnouncementPrefillStudent {

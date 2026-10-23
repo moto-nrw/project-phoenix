@@ -582,6 +582,7 @@ GET /public/enrollment-form-legal-documents/{filename}
 GET /public/enrollment-legal-documents/{filename}
 GET /public/login-image/{filename}
 GET /public/request-feed/{token}
+GET /ready
 GET /school-sse/events
 GET /school/class-day/
 GET /school/class-day/arrival-exceptions

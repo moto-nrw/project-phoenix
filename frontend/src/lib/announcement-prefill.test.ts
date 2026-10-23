@@ -1,5 +1,6 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import {
+  announcementPrefillPath,
   stashAnnouncementStudents,
   takeAnnouncementStudents,
 } from "./announcement-prefill";
@@ -92,5 +93,23 @@ describe("announcement prefill handoff", () => {
       throw new Error("blocked");
     });
     expect(takeAnnouncementStudents("testschule", "test-token")).toEqual([]);
+  });
+});
+
+describe("announcementPrefillPath", () => {
+  it("points at the composer with the token and the chosen tab", () => {
+    expect(announcementPrefillPath("abc", "elternbriefe")).toBe(
+      "/parent-announcements?art=elternbriefe&neu=kinder&vorbelegung=abc",
+    );
+    expect(announcementPrefillPath("abc")).toBe(
+      "/parent-announcements?neu=kinder&vorbelegung=abc",
+    );
+  });
+
+  it("falls back to the list when nothing could be stashed", () => {
+    expect(announcementPrefillPath(null)).toBe("/parent-announcements");
+    expect(announcementPrefillPath(null, "elternbriefe")).toBe(
+      "/parent-announcements?art=elternbriefe",
+    );
   });
 });
