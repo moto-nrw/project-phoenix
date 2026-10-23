@@ -24,8 +24,8 @@ func newMealPlan(provider MealPlanProvider) care.MealPlan {
 		Entry: func(row mealplanModule.Entry) care.MealPlanEntry {
 			return care.MealPlanEntry{Date: string(row.Date), Position: row.Position, Dish: row.Dish, Note: row.Note}
 		},
-		Plan: func(row mealplanModule.ParticipationPlan) (string, string, []mealplanModule.Weekday, []mealplanModule.ParticipationDay) {
-			return string(row.EffectiveFrom), row.CutoffTime, row.Weekdays, row.Days
+		Plan: func(row mealplanModule.ParticipationPlan) (string, string, int, []mealplanModule.Weekday, []mealplanModule.ParticipationDay) {
+			return string(row.EffectiveFrom), row.CutoffTime, row.CutoffLeadDays, row.Weekdays, row.Days
 		},
 		ParticipationDay: func(row mealplanModule.ParticipationDay) care.MealParticipationDay {
 			return care.MealParticipationDay{Date: string(row.Date), Participating: row.Participating, Source: string(row.Source), Changeable: row.Changeable}
