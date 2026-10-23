@@ -10,8 +10,8 @@ import (
 )
 
 // careExitEnrollment serves the care lifecycle's Enrollment port: the
-// applications that created the children and the source bookings a care exit
-// ends and restores, over the composed booking projection.
+// applications that created the children and the snapshots and restores of
+// their source bookings, over the composed booking projection.
 type careExitEnrollment struct {
 	projection EnrollmentBookingProjection
 }
@@ -51,10 +51,6 @@ func (e careExitEnrollment) CareExitOfferingLinks(ctx context.Context, studentID
 	return result, nil
 }
 
-func (e careExitEnrollment) LockCareExitOfferingLinks(ctx context.Context, requestChildIDs []int64, from owner0.Date) error {
-	return e.projection.LockCareExitOfferingLinks(ctx, requestChildIDs, enrollment.Date(from))
-}
-
 func (e careExitEnrollment) CareExitOfferingSnapshots(ctx context.Context, studentIDs []int64, validUntil owner0.Date, sourceRequestChildID *int64) ([]carePlanCompose.CareExitOfferingSnapshot, error) {
 	snapshots, err := e.projection.CareExitOfferingSnapshots(ctx, studentIDs, enrollment.Date(validUntil), sourceRequestChildID)
 	if err != nil {
@@ -68,10 +64,6 @@ func (e careExitEnrollment) CareExitOfferingSnapshots(ctx context.Context, stude
 		})
 	}
 	return result, nil
-}
-
-func (e careExitEnrollment) EndCareExitOfferingLinks(ctx context.Context, requestChildIDs []int64, sourceRequestChildID *int64, validUntil owner0.Date) (int64, error) {
-	return e.projection.EndCareExitOfferingLinks(ctx, requestChildIDs, sourceRequestChildID, enrollment.Date(validUntil))
 }
 
 func (e careExitEnrollment) RestoreCareExitOfferingLinks(ctx context.Context, restores []carePlanCompose.CareExitOfferingRestore) (int64, error) {

@@ -28,13 +28,22 @@ type CareLifecycleOwners struct {
 	ChangeTrail ports.CareEndRecorder
 }
 
-// CareLifecycleDependencies wires the lifecycle. Records is Care Plan's own
-// record capability; Directory is the named student directory projection.
+// CareExitSourceBookings are Care Plan's own offering bookings behind the
+// children's applications. A care exit locks and ends them in the caller's
+// transaction (ADR 0075).
+type CareExitSourceBookings interface {
+	LockCareOfferingBookings(ctx context.Context, requestChildIDs []int64) error
+	EndCareOfferingBookings(ctx context.Context, requestChildIDs []int64, until careplan.Date) (int64, error)
+}
+
+// CareLifecycleDependencies wires the lifecycle. Records and SourceBookings
+// are Care Plan's own; Directory is the named student directory projection.
 type CareLifecycleDependencies struct {
-	Owners    CareLifecycleOwners
-	Records   careplan.Capability
-	Directory ports.CareExitDirectory
-	Unit      ports.UnitOfWork
+	Owners         CareLifecycleOwners
+	Records        careplan.Capability
+	SourceBookings CareExitSourceBookings
+	Directory      ports.CareExitDirectory
+	Unit           ports.UnitOfWork
 	// LockCareBookingWrites is the transaction-scoped gate authoritative
 	// offering adjustments take. Taking it before any plan lock makes
 	// rebooking and care-end confirmation a total order instead of letting a
@@ -52,6 +61,7 @@ type CareLifecycleDependencies struct {
 type CareLifecycle struct {
 	owners                CareLifecycleOwners
 	records               careplan.Capability
+	sourceBookings        CareExitSourceBookings
 	directory             ports.CareExitDirectory
 	unit                  ports.UnitOfWork
 	lockCareBookingWrites func(context.Context) error
@@ -76,16 +86,16 @@ func NewCareLifecycle(deps CareLifecycleDependencies) (*CareLifecycle, error) {
 		owners.Presence == nil || owners.Calendar == nil || owners.Tags == nil || owners.ChangeTrail == nil {
 		return nil, errors.New("care lifecycle: every owner port is required")
 	}
-	if deps.Records == nil || deps.Directory == nil || deps.Unit == nil ||
+	if deps.Records == nil || deps.SourceBookings == nil || deps.Directory == nil || deps.Unit == nil ||
 		deps.LockCareBookingWrites == nil || deps.BookingsAuthoritative == nil || deps.Fingerprint == nil || deps.Today == nil {
-		return nil, errors.New("care lifecycle: records, directory, unit of work, booking lock, booking setting, fingerprint and clock are required")
+		return nil, errors.New("care lifecycle: records, source bookings, directory, unit of work, booking lock, booking setting, fingerprint and clock are required")
 	}
 	logger := deps.Logger
 	if logger == nil {
 		logger = slog.Default()
 	}
 	return &CareLifecycle{
-		owners: owners, records: deps.Records, directory: deps.Directory, unit: deps.Unit,
+		owners: owners, records: deps.Records, sourceBookings: deps.SourceBookings, directory: deps.Directory, unit: deps.Unit,
 		lockCareBookingWrites: deps.LockCareBookingWrites, bookingsAuthoritative: deps.BookingsAuthoritative,
 		fingerprint: deps.Fingerprint, logger: logger, today: deps.Today,
 	}, nil
