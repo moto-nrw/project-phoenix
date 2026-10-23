@@ -178,7 +178,7 @@ func TestInvalidPathIDsAnswerBadRequest(t *testing.T) {
 
 func TestStudentReadDoesNotSwallowSettingsFailure(t *testing.T) {
 	t.Parallel()
-	recorder := execute(t, testResource(engine{availableErr: errors.New("settings down")}), http.MethodGet, "/student/42", nil)
+	recorder := execute(t, testResource(engine{err: errors.New("settings down")}), http.MethodGet, "/student/42", nil)
 	assert.Equal(t, http.StatusInternalServerError, recorder.Code)
 	assert.Contains(t, recorder.Body.String(), "settings down")
 }

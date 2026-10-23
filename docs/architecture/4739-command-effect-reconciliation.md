@@ -1,5 +1,10 @@
 # Command-effect reconciliation (#4739, all domain sources)
 
+Historical second-census snapshot: later corrections and current counts are
+recorded in [ADR 0094](../adr/0094-command-effect-gap-reconciliation.md).
+Its round-2 addendum covers query direction debt and the remaining domain-owned
+callback-field gap; the counts below are not the current register.
+
 Second census starts at fetched `origin/development` `673652d030` (PR #4822),
 then integrates `62bc33f3c5` (#4826 and #4760) and `e2ac57ec88`
 (#4828, #4829 and #4757). Regeneration after those merges changes no effect

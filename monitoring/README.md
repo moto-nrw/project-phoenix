@@ -5,6 +5,9 @@ production and staging.
 
 ## Services
 
+Production incident response, readiness-probe cutover, detection gaps and
+SLA evidence: [Störungs-Runbook](../docs/operations/stoerungen.md).
+
 - Prometheus stores 30 days of metrics.
 - Node Exporter captures host CPU, load, RAM, swap, disk, network, and file-descriptor pressure.
 - cAdvisor captures Docker container CPU, memory, network, filesystem I/O, restarts, and OOM signals.

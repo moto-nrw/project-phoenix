@@ -2,8 +2,10 @@ package application
 
 import (
 	"context"
+	"fmt"
 	"time"
 
+	"github.com/moto-nrw/project-phoenix/modules/feedback"
 	"github.com/moto-nrw/project-phoenix/modules/feedback/internal/domain"
 	"github.com/moto-nrw/project-phoenix/modules/feedback/internal/ports"
 )
@@ -29,6 +31,21 @@ func (s *Service) Available(ctx context.Context) (available bool, err error) {
 		return domain.OperationStats{}, err
 	})
 	return available, err
+}
+
+// Deletion, its preview counts and retention use run directly so switching
+// feedback off never prevents erasure of already stored entries.
+func (s *Service) runWhenEnabled(ctx context.Context, operation string, fn func(context.Context) (domain.OperationStats, error)) error {
+	return s.run(ctx, operation, func(txCtx context.Context) (domain.OperationStats, error) {
+		enabled, err := s.settings.FeedbackEnabled(txCtx)
+		if err != nil {
+			return domain.OperationStats{}, fmt.Errorf("feedback: resolve availability: %w", err)
+		}
+		if !enabled {
+			return domain.OperationStats{}, feedback.ErrFeatureDisabled
+		}
+		return fn(txCtx)
+	})
 }
 
 func (s *Service) run(ctx context.Context, operation string, fn func(context.Context) (domain.OperationStats, error)) (err error) {

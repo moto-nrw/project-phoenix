@@ -15,12 +15,12 @@ import (
 
 type Middleware = func(http.Handler) http.Handler
 
-// Failure is a refused request: its HTTP status and the error whose text the
-// shared error envelope carries.
 // ErrFeatureDisabled refuses the feedback of a school that has switched it
 // off; the root answers it with its registered code.
-var ErrFeatureDisabled = errors.New("feature_disabled")
+var ErrFeatureDisabled = feedbackModule.ErrFeatureDisabled
 
+// Failure is a refused request: its HTTP status and the error whose text the
+// shared error envelope carries.
 type Failure struct {
 	Status int
 	Err    error
@@ -169,15 +169,6 @@ func (rs *Resource) getFeedback(w http.ResponseWriter, r *http.Request) {
 }
 
 func (rs *Resource) getStudentFeedback(w http.ResponseWriter, r *http.Request) {
-	enabled, err := rs.module.Available(r.Context())
-	if err != nil {
-		rs.moduleFailure(w, r, err)
-		return
-	}
-	if !enabled {
-		rs.failure(w, r, Failure{Status: http.StatusForbidden, Err: ErrFeatureDisabled}, "feature_disabled")
-		return
-	}
 	studentID, err := rs.parseID(r)
 	if err != nil {
 		rs.invalid(w, r, errors.New("invalid student ID"))
@@ -356,6 +347,8 @@ func (rs *Resource) failure(w http.ResponseWriter, r *http.Request, failure Fail
 
 func moduleErrorStatus(err error) int {
 	switch {
+	case errors.Is(err, feedbackModule.ErrFeatureDisabled):
+		return http.StatusForbidden
 	case errors.Is(err, feedbackModule.ErrEntryNotFound), errors.Is(err, feedbackModule.ErrStudentNotFound):
 		return http.StatusNotFound
 	case errors.Is(err, feedbackModule.ErrInvalidEntryData), errors.Is(err, feedbackModule.ErrInvalidDateRange):

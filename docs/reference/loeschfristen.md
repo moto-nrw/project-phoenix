@@ -51,7 +51,7 @@ Die Inhalte aus #4045 haben keine eigene Einstellung. Sie folgen der Frist der D
 
 Die Uhrzeit des nächtlichen Laufs (`gdpr.data_cleanup_time`) stellt die Schule selbst ein. Den Schalter `gdpr.data_cleanup_enabled` ändert nur das moto-Team (#3951).
 
-## Gesundheitsangaben im Änderungsprotokoll (#3840, Slice 3840-b)
+## Gesundheitsangaben in Änderungsnachweisen (#3840, Slices 3840-b und 4844-a)
 
 **Im Code umgesetzt:** Bei `health_info` hält das Änderungsprotokoll nur noch
 fest, dass eine Angabe hinzugefügt, geändert oder entfernt wurde. Alter und
@@ -61,6 +61,15 @@ Zuordnung zu löschen. Das ist eine begrenzte, irreversible Ausnahme von
 Append-only durch den Migrations-Superuser; Schulrechte und RLS bleiben
 unverändert. Die Frist für den verbleibenden Änderungsnachweis bleibt bei
 90 Tagen als Voreinstellung (je Schule 30 bis 365 Tage).
+
+Auch direkte Gesundheitsänderungen aus dem Elternportal speichern in
+`users.student_data_change_requests` nur diese Marker (#4844). Migration
+`1.15.483` maskiert den Bestand aller Schulen, nur für `student/health_info`
+und unabhängig vom Status, ohne Metadaten zu ändern. Gesundheitsangaben sind
+nicht zur Freigabe beantragbar; ein Klartext-Zwischenspeicher ist daher nicht
+nötig. Für die verbleibenden Anfragen gilt keine eigene Protokollfrist: Sie
+werden mit dem Kind oder dem einreichenden Konto gelöscht. Die 90-Tage-Frist
+oben gilt nur für `audit.student_field_edits`, nicht für Elternanfragen.
 
 **Produktiver Nachweis offen:** Rollout und Bereinigung einschließlich einer
 Wiederherstellung älterer Sicherungen muss der Betrieb bestätigen. Ablauf und
