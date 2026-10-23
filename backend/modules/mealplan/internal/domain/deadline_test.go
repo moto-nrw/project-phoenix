@@ -89,6 +89,19 @@ func TestDeadlineNextEffectiveDate(t *testing.T) {
 	}
 }
 
+func TestDeadlineNextEffectiveDateSkipsClosedDays(t *testing.T) {
+	t.Parallel()
+	deadline := Deadline{
+		Time: "09:00",
+		Closed: map[Date]bool{
+			"2026-10-21": true,
+			"2026-10-22": true,
+		},
+	}
+
+	assert.Equal(t, Date("2026-10-23"), deadline.NextEffectiveDate(berlin(2026, 10, 21, 8, 0)))
+}
+
 func TestDeadlineAtSkipsClosedDays(t *testing.T) {
 	t.Parallel()
 	// 2026-10-30 is a closing day; Monday 2026-11-02 with one day of lead

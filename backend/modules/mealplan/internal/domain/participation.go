@@ -106,7 +106,7 @@ func (d Deadline) Changeable(now time.Time, date Date) bool {
 // at now; a changed weekly pattern applies from there.
 func (d Deadline) NextEffectiveDate(now time.Time) Date {
 	date := Date(now.In(calendar.Berlin).Format("2006-01-02"))
-	for weekend(date) || now.After(d.At(date)) {
+	for weekend(date) || d.Closed[date] || now.After(d.At(date)) {
 		date = date.AddDays(1)
 	}
 	return date
