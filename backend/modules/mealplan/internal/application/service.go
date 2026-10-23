@@ -106,7 +106,8 @@ func (s *Service) replaceSchedule(ctx context.Context, studentID, accountID int6
 }
 
 // scheduleStart is the first day of new regular days: for a parent the
-// first day whose order is not fixed, for the school the day it names.
+// first day whose order is not fixed, for the school the day it names,
+// provided the child is in care on that day.
 func (s *Service) scheduleStart(ctx context.Context, rules domain.OrderingRules, studentID int64, schoolFrom domain.Date) (domain.Date, domain.OperationStats, error) {
 	now := s.now()
 	today := domain.DateFromInstant(now)
@@ -120,10 +121,7 @@ func (s *Service) scheduleStart(ctx context.Context, rules domain.OrderingRules,
 	case schoolFrom.After(today.AddDays(maxScheduleLeadDays)):
 		return "", domain.OperationStats{}, ErrTooFarAhead
 	}
-	names, stats, err := s.directory.FindStudentNames(ctx, []int64{studentID})
-	if _, known := names[studentID]; err == nil && !known {
-		err = ErrStudentNotFound
-	}
+	stats, err := s.requireInCare(ctx, studentID, schoolFrom)
 	return schoolFrom, stats, err
 }
 
