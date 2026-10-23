@@ -18,6 +18,7 @@ const (
 	reviewGroupLeaderKey = "review.enabled"
 	reviewRequestKey     = "operations.parent_request_review_scope"
 	reviewAbsenceKey     = "operations.parent_absence_review_scope"
+	reviewGroupModeKey   = "operations.group_mode"
 	reviewGroupID        = int64(71)
 )
 
@@ -37,17 +38,25 @@ var reviewPermissionFacts = map[string]domain.ReviewPermissions{
 }
 
 // reviewTestSettings stands in for the tenant settings: scope is the absence
-// scope, request the request scope, enabled the group-leader switch. An
-// empty scope resolves to the registry default inherit.
+// scope, request the request scope, enabled the group-leader switch and
+// groupMode the group mode. An empty scope resolves to the registry default
+// inherit, an empty group mode to fixed groups.
 type reviewTestSettings struct {
-	scope   string
-	request string
-	enabled bool
-	err     error
-	key     string
+	scope     string
+	request   string
+	groupMode string
+	enabled   bool
+	err       error
+	key       string
 }
 
 func (s *reviewTestSettings) ResolveString(_ context.Context, key string) (string, error) {
+	if key == reviewGroupModeKey {
+		if s.groupMode == "" {
+			return "fixed_groups", s.err
+		}
+		return s.groupMode, s.err
+	}
 	scope := s.scope
 	if key == reviewRequestKey {
 		scope = s.request
@@ -85,6 +94,7 @@ func newTestReview(t *testing.T, h *callerHarness, settings *reviewTestSettings)
 		GroupLeaderSettingKey: reviewGroupLeaderKey,
 		RequestSettingKey:     reviewRequestKey,
 		AbsenceSettingKey:     reviewAbsenceKey,
+		GroupModeSettingKey:   reviewGroupModeKey,
 		AbsenceReadRequired:   errReviewAbsenceReadRequired,
 	}
 	if settings != nil {
@@ -474,4 +484,28 @@ func TestParentRequestReviewScopeFailsClosedOnUnknownScope(t *testing.T) {
 	assert.Empty(t, ids)
 	_, err = review.AccessLevel(context.Background(), []string{"users:update"})
 	require.Error(t, err)
+}
+
+// Open care has no group leaders (#1480): the inherited scope ignores the old
+// switch and falls to admins. An explicit group-leader scope still applies.
+func TestParentRequestReviewInheritIgnoresSwitchInOpenCare(t *testing.T) {
+	t.Parallel()
+	settings := &reviewTestSettings{enabled: true, groupMode: "open_care"}
+	review := newTestReview(t, reviewerHarness(reviewGroupID), settings)
+	wide, ids, err := review.Scope(context.Background(), []string{"users:update"})
+	require.NoError(t, err)
+	assert.False(t, wide)
+	assert.Empty(t, ids)
+	assert.Empty(t, settings.key, "the old switch must not be read in open care")
+	wide, ids, err = review.AbsenceScope(context.Background(), []string{"users:update"})
+	require.NoError(t, err)
+	assert.False(t, wide)
+	assert.Empty(t, ids)
+
+	explicit := newTestReview(t, reviewerHarness(reviewGroupID), &reviewTestSettings{
+		enabled: true, groupMode: "open_care", request: reviewScopeGroupLeaders,
+	})
+	_, ids, err = explicit.Scope(context.Background(), []string{"users:update"})
+	require.NoError(t, err)
+	assert.Equal(t, []int64{reviewGroupID}, ids)
 }

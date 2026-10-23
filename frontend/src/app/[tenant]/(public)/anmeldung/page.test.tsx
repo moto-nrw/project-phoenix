@@ -12,6 +12,22 @@ const mocks = vi.hoisted(() => ({
   },
 }));
 
+// Next's soft navigation keeps the current document and its restrictive CSP.
+// Model that external router boundary; form links must keep native navigation.
+vi.mock("next/link", () => ({
+  default: ({
+    href,
+    children,
+  }: {
+    href: string;
+    children: React.ReactNode;
+  }) => (
+    <a href={href} onClick={(event) => event.preventDefault()}>
+      {children}
+    </a>
+  ),
+}));
+
 vi.mock("~/lib/tenant-context", () => ({
   useTenant: () => mocks.tenant,
   useTenantSlugSafe: () => mocks.tenant.tenantSlug,
@@ -58,6 +74,29 @@ describe("EnrollPhasePickerPage", () => {
     expect(
       await screen.findByRole("link", { name: /Schuljahr 2026\/27/ }),
     ).toHaveAttribute("href", "/demo/anmeldung/phase%2F1");
+  });
+
+  it("uses a document navigation so the form receives its Turnstile CSP", async () => {
+    render(<EnrollPhasePickerPage />);
+    const link = await screen.findByRole("link", {
+      name: /Schuljahr 2026\/27/,
+    });
+    const click = new MouseEvent("click", { bubbles: true, cancelable: true });
+
+    let intercepted: boolean | undefined;
+    window.addEventListener(
+      "click",
+      (event) => {
+        // Observe after React's handlers, then stop happy-dom from fetching a page.
+        intercepted = event.defaultPrevented;
+        event.preventDefault();
+      },
+      { once: true },
+    );
+    fireEvent(link, click);
+
+    expect(link).toHaveAttribute("href", "/demo/anmeldung/phase%2F1");
+    expect(intercepted).toBe(false);
   });
 
   it("shows a failed load instead of claiming no phase is open (#2515)", async () => {
