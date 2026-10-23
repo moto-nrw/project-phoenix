@@ -99,6 +99,27 @@ func TestAccountRetentionRetriesFileFailures(t *testing.T) {
 	assert.Empty(t, store.pending)
 }
 
+func TestAccountRetentionKeepsIntentsWhenAvatarRootIsMissing(t *testing.T) {
+	t.Parallel()
+	root := filepath.Join(t.TempDir(), "avatars")
+	store := &erasingStore{pending: []domain.AvatarCleanup{{ID: 41, Avatar: "/uploads/avatars/global/missing.png"}}}
+	retention := NewAccountRetention(store, unattached, runAdminNow, func(avatar string) error {
+		return removeErasedAvatarFileFrom(root, avatar)
+	}, nil)
+	count, err := retention.CleanupErasedAccountAvatars(t.Context())
+	require.Error(t, err, "a missing storage root must not acknowledge deletion intents")
+	assert.NotContains(t, err.Error(), root)
+	assert.Zero(t, count)
+	require.Len(t, store.pending, 1)
+
+	// Once storage returns, only the absent file is acknowledged as removed.
+	require.NoError(t, os.Mkdir(root, 0o700))
+	count, err = retention.CleanupErasedAccountAvatars(t.Context())
+	require.NoError(t, err)
+	assert.Equal(t, 1, count)
+	assert.Empty(t, store.pending)
+}
+
 func TestAccountAvatarRemovalStaysInsideAvatarStorage(t *testing.T) {
 	t.Parallel()
 	base := t.TempDir()

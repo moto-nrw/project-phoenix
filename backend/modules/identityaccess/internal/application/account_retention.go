@@ -99,7 +99,9 @@ func removeErasedAvatarFileFrom(directory, avatar string) error {
 	}
 	root, err := os.OpenRoot(directory)
 	if err != nil {
-		return err
+		// An unavailable mount is not proof that the file is absent. Do not
+		// expose ErrNotExist here: the caller would acknowledge every intent.
+		return errors.New("avatar storage root unavailable")
 	}
 	err = root.Remove(relative)
 	return errors.Join(err, root.Close())
