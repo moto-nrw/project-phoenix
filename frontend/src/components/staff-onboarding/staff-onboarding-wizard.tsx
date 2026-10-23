@@ -122,6 +122,15 @@ function StaffOnboardingForPerson() {
   const hasOwnGroup =
     !openCareGroupMode && groups.some((group) => group.is_personal !== false);
   const canSeeCalendar = hasPermission(session, "calendar:own");
+  // Jeder Schritt nur mit dem Recht, das sein Ziel verlangt (#4573).
+  const canSearchChildren = hasPermission(session, "users:read");
+  // Der Schritt lädt zum Starten ein: einen Raum übernehmen verlangt
+  // groups:update, einen geplanten Termin starten schedules:read. Ansehen
+  // allein (der Gast, ADR 0091) reicht nicht.
+  const canSupervise =
+    hasPermission(session, "groups:update") ||
+    hasPermission(session, "schedules:read");
+  const canTrackWorkTime = hasPermission(session, "time_tracking:own");
   const steps = useMemo(
     () =>
       state
@@ -130,9 +139,21 @@ function StaffOnboardingForPerson() {
             webAttendance,
             canSeeCalendar,
             roomsTracked: presenceMode !== "binary",
+            canSearchChildren,
+            canSupervise,
+            canTrackWorkTime,
           })
         : [],
-    [state, hasOwnGroup, webAttendance, canSeeCalendar, presenceMode],
+    [
+      state,
+      hasOwnGroup,
+      webAttendance,
+      canSeeCalendar,
+      presenceMode,
+      canSearchChildren,
+      canSupervise,
+      canTrackWorkTime,
+    ],
   );
 
   const run = useCallback(

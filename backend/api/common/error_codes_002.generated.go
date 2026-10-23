@@ -2,6 +2,12 @@
 package common
 
 const (
+	CodeTimetableTemplateStartOutsidePeriod          = "timetable.template_start_outside_period"
+	CodeTimetableTemplateStartPredecessorOverlap     = "timetable.template_start_predecessor_overlap"
+	CodeTimetableTemplateWeekPatternInvalid          = "timetable.template_week_pattern_invalid"
+	CodeTimetableTemplateWeekend                     = "timetable.template_weekend"
+	CodeTimetableTooManyDates                        = "timetable.too_many_dates"
+	CodeTimetableUnderstaffedStillStaffed            = "timetable.understaffed_still_staffed"
 	CodeTimetableWindowEndBeforeStart                = "timetable.window_end_before_start"
 	CodeTimetableWindowTooLarge                      = "timetable.window_too_large"
 	CodeWorkforceAbsenceAllowanceExceeded            = "workforce.absence_allowance_exceeded"
@@ -75,6 +81,12 @@ const (
 )
 
 var errorCodeClasses2 = map[string]string{
+	"timetable.template_start_outside_period":           "input",
+	"timetable.template_start_predecessor_overlap":      "input",
+	"timetable.template_week_pattern_invalid":           "input",
+	"timetable.template_weekend":                        "input",
+	"timetable.too_many_dates":                          "input",
+	"timetable.understaffed_still_staffed":              "business_rejection",
 	"timetable.window_end_before_start":                 "input",
 	"timetable.window_too_large":                        "input",
 	"workforce.absence_allowance_exceeded":              "business_rejection",

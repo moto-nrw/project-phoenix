@@ -238,7 +238,7 @@ func fullDemoWorkflow(seeder *Seeder) Workflow {
 		seedStaffMessagingStep{},
 		seedParentMessageCountScopeStep{},
 		seedStaffNoticesStep{},
-		seedExternalCaregiversStep{},
+		seedExternalCaregiversStep{}, seedExternalAGStep{},
 		seedStudentNotesStep{},
 		seedFileStorageStep{},
 		// Der einzige Block, der über die Stempeluhr läuft: nach ihm stempelt

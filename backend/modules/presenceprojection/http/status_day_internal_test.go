@@ -11,6 +11,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/modules/careplan/absencerecords"
 	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
+	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -117,7 +118,7 @@ func TestApplyStatusDaysForDateUsesRequestedDate(t *testing.T) {
 		StudentStatusDayService: ComposeStatusDays(repo), Logger: slog.Default()})
 	responses := []StudentResponse{{ID: 90}, {ID: 91}}
 
-	require.NoError(t, resource.applyStatusDaysForDate(context.Background(), responses, now))
+	require.NoError(t, resource.applyStatusDaysForDate(testpkg.WithPermissionsContext(context.Background(), []string{"users:read"}), responses, now))
 
 	assert.Equal(t, calendar.DateFromTime(now), repo.findByIDsDate)
 	assert.Equal(t, []int64{90, 91}, repo.findByIDsStudentIDs)

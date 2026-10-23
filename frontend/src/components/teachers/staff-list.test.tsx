@@ -1,5 +1,5 @@
 import "@testing-library/jest-dom/vitest";
-import { render, screen } from "@testing-library/react";
+import { fireEvent, render, screen } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 import type { Teacher } from "~/lib/teacher-api";
 import { StaffList } from "./staff-list";
@@ -124,5 +124,105 @@ describe("StaffList", () => {
     render(<StaffList groupDefinitions={[]} objectHref={() => "/staff/0"} />);
 
     expect(screen.getByText("Kein Personal gefunden.")).toBeInTheDocument();
+  });
+});
+
+// #4573: externe Personen zeigen Organisation und Kontostand; ohne Konto
+// steht „Konto einladen“ im Kebab der Zeile.
+describe("StaffList external caregivers", () => {
+  const externals = [
+    makeTeacher("7", {
+      name: "Elli Alt",
+      account_role: null,
+      is_external: true,
+      external_organization: "Sportverein",
+      external_account_status: "none",
+    }),
+    makeTeacher("8", {
+      name: "Mira Neu",
+      account_role: null,
+      is_external: true,
+      external_organization: "Musikschule",
+      external_account_status: "invitation_pending",
+    }),
+    makeTeacher("9", {
+      name: "Jonas Konto",
+      account_role: null,
+      is_external: true,
+      external_account_status: "account",
+    }),
+  ];
+
+  function renderExternals(onInviteExternal?: (teacher: Teacher) => void) {
+    render(
+      <StaffList
+        groupDefinitions={[
+          { id: "__external__", title: "Extern", items: externals },
+        ]}
+        objectHref={(teacher) => `/staff/${teacher.id}`}
+        onInviteExternal={onInviteExternal}
+      />,
+    );
+  }
+
+  it("shows organization and account state of each external person", () => {
+    renderExternals();
+
+    const elli = screen.getByRole("link", { name: /Elli Alt/ });
+    expect(elli).toHaveTextContent("Extern · Sportverein");
+    expect(elli).toHaveTextContent("Kein Konto");
+    expect(screen.getByRole("link", { name: /Mira Neu/ })).toHaveTextContent(
+      "Einladung offen",
+    );
+    const jonas = screen.getByRole("link", { name: /Jonas Konto/ });
+    expect(jonas).toHaveTextContent("Extern");
+    expect(jonas).not.toHaveTextContent("Kein Konto");
+    expect(jonas).not.toHaveTextContent("Einladung offen");
+  });
+
+  it("offers the invitation in the row menu of a person without account", () => {
+    const onInviteExternal = vi.fn();
+    renderExternals(onInviteExternal);
+
+    fireEvent.click(
+      screen.getByRole("button", { name: "Aktionen für Elli Alt" }),
+    );
+    fireEvent.click(screen.getByRole("menuitem", { name: "Konto einladen" }));
+
+    expect(onInviteExternal).toHaveBeenCalledWith(
+      expect.objectContaining({ id: "7" }),
+    );
+  });
+
+  it("offers a new invitation while the first is still open", () => {
+    renderExternals(vi.fn());
+
+    fireEvent.click(
+      screen.getByRole("button", { name: "Aktionen für Mira Neu" }),
+    );
+
+    expect(
+      screen.getByRole("menuitem", { name: "Einladung erneut senden" }),
+    ).toBeInTheDocument();
+  });
+
+  it("has no row menu for a person with account", () => {
+    renderExternals(vi.fn());
+    // Anker: die Zeile mit Konto ist da, nur ohne Kebab.
+    expect(
+      screen.getByRole("link", { name: /Jonas Konto/ }),
+    ).toBeInTheDocument();
+    expect(
+      screen.queryByRole("button", { name: "Aktionen für Jonas Konto" }),
+    ).not.toBeInTheDocument();
+  });
+
+  it("has no row menu at all without the invite permission", () => {
+    renderExternals();
+    // Anker: die Zeile ohne Konto ist da, nur ohne Kebab.
+    expect(screen.getByRole("link", { name: /Elli Alt/ })).toBeInTheDocument();
+    expect(
+      screen.queryByRole("button", { name: "Aktionen für Elli Alt" }),
+    ).not.toBeInTheDocument();
   });
 });

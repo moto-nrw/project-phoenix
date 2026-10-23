@@ -132,7 +132,7 @@ var seedCoverageDebt = map[string]string{}
 // their lifecycle completes. Unlike exemptions, a populated transient table
 // is not stale classification debt.
 var seedCoverageTransient = map[string]string{
-	"auth.invitation_tokens": "short-lived invitation state; successful acceptance consumes the seeded tokens",
+	"auth.invitation_tokens": "short-lived invitation state; the seed accepts some and leaves some open",
 	"platform.push_outbox":   "transient delivery state that requires an honest browser/VAPID-bound push subscription, which the server-side seed cannot create",
 }
 

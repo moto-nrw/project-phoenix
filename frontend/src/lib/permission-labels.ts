@@ -10,6 +10,7 @@
 
 export const resourceLabels: Record<string, string> = {
   users: "Benutzer",
+  students: "Kinder",
   roles: "Rollen",
   permissions: "Berechtigungen",
   activities: "Aktivitäten",
@@ -108,6 +109,9 @@ const permissionDescriptions: Record<string, string> = {
   "users:checkin": "Kinder in moto anmelden und abmelden",
   "users:absence":
     "Krankmeldungen und Abwesenheiten von Kindern eintragen und über Anfragen der Eltern entscheiden",
+
+  // Students (ADR 0091): the read-only child views of the role „Gast“.
+  "students:read": "Kinder ansehen, ohne Elterndaten",
 
   // Activities
   "activities:create": "Neue Aktivitäten erstellen",

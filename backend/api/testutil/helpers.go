@@ -51,20 +51,17 @@ func DeviceIdentity(ctx context.Context) (int64, string, bool) {
 }
 
 // NewDeviceAuthenticators composes the production device authentication
-// middleware for handler tests. settings may be nil to authenticate with
-// fallbackPIN alone.
+// middleware for handler tests. The settings resolver is required.
 func NewDeviceAuthenticators(
 	devices deviceauth.Fleet,
 	schools deviceauth.SchoolDirectory,
 	settings deviceauth.Settings,
-	fallbackPIN string,
 ) *deviceauth.Authenticators {
 	return deviceauth.New(deviceauth.Dependencies{
 		Devices:      devices,
 		Schools:      schools,
 		SchoolErrors: devicetest.SchoolErrors(),
 		Settings:     settings,
-		FallbackPIN:  fallbackPIN,
 	})
 }
 

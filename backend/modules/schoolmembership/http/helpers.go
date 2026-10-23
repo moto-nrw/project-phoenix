@@ -197,6 +197,33 @@ type directory struct {
 	accountRole map[int64]string
 	email       map[int64]string
 	avatar      map[int64]string
+	// invited holds the person IDs an open invitation names (#4573).
+	invited map[int64]bool
+}
+
+// withInvitations adds the open invitations to the directory, but only when
+// an external caregiver without an account is among the members: no other
+// row shows them, so other pages pay no extra query. Non-critical like
+// stringMap.
+func (rs *Resource) withInvitations(ctx context.Context, d directory, members []schoolmembership.Staff, persons map[int64]*Person) directory {
+	needed := false
+	for _, staff := range members {
+		person := persons[staff.PersonID]
+		if staff.HasExternalCaregiverRecord && person != nil && person.AccountID == nil {
+			needed = true
+			break
+		}
+	}
+	if !needed {
+		return d
+	}
+	invited, err := rs.runtime.PendingInvitationPersons(ctx)
+	if err != nil {
+		rs.runtime.Log.Warn("failed to fetch pending invitations", slog.String("error", err.Error()))
+		return d
+	}
+	d.invited = invited
+	return d
 }
 
 func (rs *Resource) loadDirectory(ctx context.Context, accountIDs []int64) directory {
@@ -222,6 +249,9 @@ func (d directory) enrich(staff schoolmembership.Staff, person *Person, personne
 	}
 	if personnel {
 		data.absenceTypeLabel = d.absenceLbl[staff.ID]
+	}
+	if person != nil {
+		data.invitationPending = d.invited[person.ID]
 	}
 	if person != nil && person.AccountID != nil {
 		data.accountRole = d.accountRole[*person.AccountID]
@@ -256,7 +286,7 @@ func (rs *Resource) parseAndFindStaffForRead(w http.ResponseWriter, r *http.Requ
 	if !ok {
 		return schoolmembership.Staff{}, false
 	}
-	members, err := rs.membership.ListStaff(r.Context(), schoolmembership.StaffFilter{IDs: []int64{id}, IncludeDeleted: true, IncludeInactiveGuests: true})
+	members, err := rs.membership.ListStaff(r.Context(), schoolmembership.StaffFilter{IDs: []int64{id}, IncludeDeleted: true, IncludeInactiveExternalCaregiverRecords: true})
 	if err != nil {
 		rs.internal(w, r, err)
 		return schoolmembership.Staff{}, false

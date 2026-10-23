@@ -84,8 +84,8 @@ type Erasure struct {
 func (e Erasure) Counts() map[string]int64 {
 	counts := map[string]int64{
 		"teachers": e.Membership.Teachers, "group_teacher": e.Membership.GroupAssignments,
-		"guests":         e.Membership.Guests,
-		"class_teachers": e.Membership.ClassAssignments, "group_supervisors": e.Supervisions,
+		"external_caregivers": e.Membership.ExternalCaregiverRecords,
+		"class_teachers":      e.Membership.ClassAssignments, "group_supervisors": e.Supervisions,
 		"planned_supervisors":      e.PlannedSupervisions,
 		"timetable_instance_staff": e.InstanceAssignments,
 	}

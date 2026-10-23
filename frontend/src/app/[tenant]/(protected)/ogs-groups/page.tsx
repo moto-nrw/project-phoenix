@@ -61,6 +61,7 @@ import {
 import { StudentCardGridSkeleton } from "~/components/students/student-card-skeleton";
 import { SchoolCheckinFab } from "~/components/students/school-checkin-fab";
 import { SchoolCheckinModeMobile } from "~/components/students/school-checkin-mode-mobile";
+import { canCheckInChildren } from "~/lib/student-access";
 import {
   deriveCheckinState,
   useSchoolCheckinMode,
@@ -357,6 +358,8 @@ function OGSGroupPageContent() {
   // it did before this feature landed.
   const presenceMode = usePresenceMode();
   const isBinaryMode = presenceMode === "binary";
+  // Der An- und Abmelde-Modus nur mit users:checkin; der Gast hat es nicht.
+  const offersCheckinMode = isBinaryMode && canCheckInChildren(session);
 
   // Photo feature flag — only the OGS-groups view has compact StudentCards
   // (no Klasse / Gruppe rows in extraContent because the user is already
@@ -1128,7 +1131,7 @@ function OGSGroupPageContent() {
               const checkinState = deriveCheckinState(student.current_location);
               const studentIdStr = student.id.toString();
               const isGroupCardCheckinMode =
-                isBinaryMode && schoolCheckin.isActive;
+                offersCheckinMode && schoolCheckin.isActive;
               return (
                 <StudentCard
                   key={student.id}
@@ -1315,7 +1318,7 @@ function OGSGroupPageContent() {
                 onChange={changeView}
               />
             </div>
-            {isBinaryMode && !showTable ? (
+            {offersCheckinMode && !showTable ? (
               <div className="hidden lg:block">
                 <SchoolCheckinFab
                   variant="inline"
@@ -1435,7 +1438,7 @@ function OGSGroupPageContent() {
             desktop the header inline pill, both rendered below. */}
         {/* In der Liste markieren die Kästchen; der Modus gehört zu den
             Kacheln (#3834). */}
-        {isBinaryMode && !showTable && (
+        {offersCheckinMode && !showTable && (
           <div className="md:hidden">
             <SchoolCheckinModeMobile
               isActive={schoolCheckin.isActive}
@@ -1465,7 +1468,7 @@ function OGSGroupPageContent() {
       {/* Tablet (md..lg) check-in mode trigger — floating FAB. Mobile
           renders the inline pill / sticky bar combo above; desktop
           renders the inline pill inside the page header. */}
-      {isBinaryMode && !showTable && (
+      {offersCheckinMode && !showTable && (
         <div className="hidden md:block lg:hidden">
           <SchoolCheckinFab
             variant="floating"

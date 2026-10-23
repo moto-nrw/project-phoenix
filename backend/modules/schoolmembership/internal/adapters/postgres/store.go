@@ -19,11 +19,10 @@ import (
 // that created them. Migration 1.15.409 gave the membership's live-person index
 // the name users.staff carried.
 const (
-	staffPersonIndex       = "idx_staff_tenant_person"
-	teacherStaffIndex      = "idx_teachers_tenant_staff"
-	teacherStaffConstraint = "teachers_staff_id_key"
-	guestStaffIndex        = "idx_guests_tenant_staff"
-	guestStaffConstraint   = "guests_staff_id_key"
+	staffPersonIndex                  = "idx_staff_tenant_person"
+	teacherStaffIndex                 = "idx_teachers_tenant_staff"
+	teacherStaffConstraint            = "teachers_staff_id_key"
+	externalCaregiverRecordStaffIndex = "idx_external_caregivers_tenant_staff"
 )
 
 // Database resolves the connection and the tenant of the current request.
@@ -54,10 +53,11 @@ type staffRow struct {
 	// staff erased (#3963). The "staff".* reads return it, so the row maps
 	// it; scanonly keeps inserts and updates from overwriting the marker.
 	PersonalDataErasedAt *time.Time `bun:"personal_data_erased_at,scanonly"`
-	// IsGuest and GuestOrganization come from the staff member's guest
-	// profile (users.guests, #3823); reads fill them, writes never send them.
-	IsGuest           bool   `bun:"is_guest,scanonly"`
-	GuestOrganization string `bun:"guest_organization,scanonly"`
+	// HasExternalCaregiverRecord and ExternalOrganization come from the staff
+	// member's external caregiver record (users.external_caregivers, #3823);
+	// reads fill them, writes never send them.
+	HasExternalCaregiverRecord bool   `bun:"has_external_caregiver_record,scanonly"`
+	ExternalOrganization       string `bun:"external_organization,scanonly"`
 }
 
 type teacherRow struct {
@@ -73,8 +73,8 @@ type teacherRow struct {
 	DeletedAt      *time.Time `bun:"deleted_at"`
 }
 
-type guestRow struct {
-	bun.BaseModel     `bun:"table:guests,alias:guest"`
+type externalCaregiverRecordRow struct {
+	bun.BaseModel     `bun:"table:external_caregivers,alias:external_caregiver"`
 	ID                int64          `bun:"id,pk,autoincrement"`
 	CreatedAt         time.Time      `bun:"created_at,nullzero,notnull,default:current_timestamp"`
 	UpdatedAt         time.Time      `bun:"updated_at,nullzero,notnull,default:current_timestamp"`
@@ -135,7 +135,7 @@ func (s *Store) ListStaff(ctx context.Context, filter schoolmembership.StaffFilt
 		return nil, domain.OperationStats{}, err
 	}
 	rows := []staffRow{}
-	query := withTenant(staffSelect(db, &rows, filter.IncludeInactiveGuests), "staff", scope)
+	query := withTenant(staffSelect(db, &rows, filter.IncludeInactiveExternalCaregiverRecords), "staff", scope)
 	if !filter.IncludeDeleted {
 		query = query.Where(`"staff".deleted_at IS NULL`)
 	}
@@ -421,140 +421,140 @@ func (s *Store) ReinstateTeacher(ctx context.Context, id int64) (schoolmembershi
 	return teacherToPublic(row), stats, nil
 }
 
-// --- guests ---
+// --- external caregiver records ---
 
-func (s *Store) FindGuest(ctx context.Context, id int64, lock string) (schoolmembership.Guest, bool, domain.OperationStats, error) {
+func (s *Store) FindExternalCaregiverRecord(ctx context.Context, id int64, lock string) (schoolmembership.ExternalCaregiverRecord, bool, domain.OperationStats, error) {
 	db, scope, err := s.database(ctx)
 	if err != nil {
-		return schoolmembership.Guest{}, false, domain.OperationStats{}, err
+		return schoolmembership.ExternalCaregiverRecord{}, false, domain.OperationStats{}, err
 	}
-	row := &guestRow{}
-	query := withTenant(guestSelect(db, row).Where(`"guest".id = ?`, id), "guest", scope)
+	row := &externalCaregiverRecordRow{}
+	query := withTenant(externalCaregiverRecordSelect(db, row).Where(`"external_caregiver".id = ?`, id), "external_caregiver", scope)
 	if lock != "" {
 		query = query.For(lock)
 	}
-	found, stats, err := scanOne(ctx, query, "find guest")
+	found, stats, err := scanOne(ctx, query, "find external caregiver record")
 	if err != nil || !found {
-		return schoolmembership.Guest{}, found, stats, err
+		return schoolmembership.ExternalCaregiverRecord{}, found, stats, err
 	}
-	return guestToPublic(*row), true, stats, nil
+	return externalCaregiverRecordToPublic(*row), true, stats, nil
 }
 
-func (s *Store) FindGuestByStaff(ctx context.Context, staffID int64) (schoolmembership.Guest, bool, domain.OperationStats, error) {
+func (s *Store) FindExternalCaregiverRecordByStaff(ctx context.Context, staffID int64) (schoolmembership.ExternalCaregiverRecord, bool, domain.OperationStats, error) {
 	db, scope, err := s.database(ctx)
 	if err != nil {
-		return schoolmembership.Guest{}, false, domain.OperationStats{}, err
+		return schoolmembership.ExternalCaregiverRecord{}, false, domain.OperationStats{}, err
 	}
-	row := &guestRow{}
-	query := withTenant(guestSelect(db, row).
-		Where(`"guest".staff_id = ?`, staffID).
-		OrderExpr(`"guest".id ASC`).
-		Limit(1), "guest", scope)
-	found, stats, err := scanOne(ctx, query, "find guest by staff")
+	row := &externalCaregiverRecordRow{}
+	query := withTenant(externalCaregiverRecordSelect(db, row).
+		Where(`"external_caregiver".staff_id = ?`, staffID).
+		OrderExpr(`"external_caregiver".id ASC`).
+		Limit(1), "external_caregiver", scope)
+	found, stats, err := scanOne(ctx, query, "find external caregiver record by staff")
 	if err != nil || !found {
-		return schoolmembership.Guest{}, found, stats, err
+		return schoolmembership.ExternalCaregiverRecord{}, found, stats, err
 	}
-	return guestToPublic(*row), true, stats, nil
+	return externalCaregiverRecordToPublic(*row), true, stats, nil
 }
 
-func (s *Store) ListGuests(ctx context.Context, filter schoolmembership.GuestFilter) ([]schoolmembership.Guest, domain.OperationStats, error) {
+func (s *Store) ListExternalCaregiverRecords(ctx context.Context, filter schoolmembership.ExternalCaregiverRecordFilter) ([]schoolmembership.ExternalCaregiverRecord, domain.OperationStats, error) {
 	db, scope, err := s.database(ctx)
 	if err != nil {
 		return nil, domain.OperationStats{}, err
 	}
-	rows := []guestRow{}
-	query, ok, err := guestListQuery(withTenant(guestSelect(db, &rows), "guest", scope), filter)
+	rows := []externalCaregiverRecordRow{}
+	query, ok, err := externalCaregiverRecordListQuery(withTenant(externalCaregiverRecordSelect(db, &rows), "external_caregiver", scope), filter)
 	if err != nil {
 		return nil, domain.OperationStats{}, err
 	}
 	if !ok {
-		return []schoolmembership.Guest{}, domain.OperationStats{}, nil
+		return []schoolmembership.ExternalCaregiverRecord{}, domain.OperationStats{}, nil
 	}
-	stats, err := scanAll(ctx, query.OrderExpr(`"guest".id ASC`), "list guests")
+	stats, err := scanAll(ctx, query.OrderExpr(`"external_caregiver".id ASC`), "list external caregiver records")
 	if err != nil {
 		return nil, stats, err
 	}
-	result := make([]schoolmembership.Guest, 0, len(rows))
+	result := make([]schoolmembership.ExternalCaregiverRecord, 0, len(rows))
 	for _, row := range rows {
-		result = append(result, guestToPublic(row))
+		result = append(result, externalCaregiverRecordToPublic(row))
 	}
 	stats.Rows = int64(len(result))
 	return result, stats, nil
 }
 
-func (s *Store) CreateGuest(ctx context.Context, fields schoolmembership.GuestFields) (schoolmembership.Guest, domain.OperationStats, error) {
-	row, err := guestRowFrom(0, fields)
+func (s *Store) CreateExternalCaregiverRecord(ctx context.Context, fields schoolmembership.ExternalCaregiverRecordFields) (schoolmembership.ExternalCaregiverRecord, domain.OperationStats, error) {
+	row, err := externalCaregiverRecordRowFrom(0, fields)
 	if err != nil {
-		return schoolmembership.Guest{}, domain.OperationStats{}, err
+		return schoolmembership.ExternalCaregiverRecord{}, domain.OperationStats{}, err
 	}
 	db, scope, err := s.database(ctx)
 	if err != nil {
-		return schoolmembership.Guest{}, domain.OperationStats{}, err
+		return schoolmembership.ExternalCaregiverRecord{}, domain.OperationStats{}, err
 	}
 	if scope.TenantID <= 0 {
-		return schoolmembership.Guest{}, domain.OperationStats{}, errors.New("school membership postgres: tenant is required to create a guest")
+		return schoolmembership.ExternalCaregiverRecord{}, domain.OperationStats{}, errors.New("school membership postgres: tenant is required to create an external caregiver record")
 	}
 	row.TenantID = scope.TenantID
 	stats := domain.OperationStats{Queries: 1}
 	started := time.Now()
-	err = db.NewInsert().Model(&row).ModelTableExpr(`users.guests`).Returning("*").Scan(ctx)
+	err = db.NewInsert().Model(&row).ModelTableExpr(`users.external_caregivers`).Returning("*").Scan(ctx)
 	stats.StatementDuration = time.Since(started)
 	if err != nil {
-		return schoolmembership.Guest{}, stats, wrapGuestWriteError("create", err)
+		return schoolmembership.ExternalCaregiverRecord{}, stats, wrapExternalCaregiverRecordWriteError("create", err)
 	}
 	stats.Rows = 1
-	return guestToPublic(row), stats, nil
+	return externalCaregiverRecordToPublic(row), stats, nil
 }
 
-func (s *Store) UpdateGuest(ctx context.Context, id int64, fields schoolmembership.GuestFields) (schoolmembership.Guest, domain.OperationStats, error) {
-	row, err := guestRowFrom(id, fields)
+func (s *Store) UpdateExternalCaregiverRecord(ctx context.Context, id int64, fields schoolmembership.ExternalCaregiverRecordFields) (schoolmembership.ExternalCaregiverRecord, domain.OperationStats, error) {
+	row, err := externalCaregiverRecordRowFrom(id, fields)
 	if err != nil {
-		return schoolmembership.Guest{}, domain.OperationStats{}, err
+		return schoolmembership.ExternalCaregiverRecord{}, domain.OperationStats{}, err
 	}
 	db, scope, err := s.database(ctx)
 	if err != nil {
-		return schoolmembership.Guest{}, domain.OperationStats{}, err
+		return schoolmembership.ExternalCaregiverRecord{}, domain.OperationStats{}, err
 	}
 	query := withTenant(db.NewUpdate().Model(&row).
-		ModelTableExpr(`users.guests AS "guest"`).
+		ModelTableExpr(`users.external_caregivers AS "external_caregiver"`).
 		Column("staff_id", "organization", "contact_email", "contact_phone", "activity_expertise", "start_date", "end_date", "notes").
 		Set(`updated_at = NOW()`).
-		Where(`"guest".id = ?`, id), "guest", scope)
+		Where(`"external_caregiver".id = ?`, id), "external_caregiver", scope)
 	stats := domain.OperationStats{Queries: 1}
 	started := time.Now()
 	err = query.Returning("*").Scan(ctx)
 	stats.StatementDuration = time.Since(started)
 	if errors.Is(err, sql.ErrNoRows) {
-		return schoolmembership.Guest{}, stats, schoolmembership.ErrGuestNotFound
+		return schoolmembership.ExternalCaregiverRecord{}, stats, schoolmembership.ErrExternalCaregiverRecordNotFound
 	}
 	if err != nil {
-		return schoolmembership.Guest{}, stats, wrapGuestWriteError("update", err)
+		return schoolmembership.ExternalCaregiverRecord{}, stats, wrapExternalCaregiverRecordWriteError("update", err)
 	}
 	stats.Rows = 1
-	return guestToPublic(row), stats, nil
+	return externalCaregiverRecordToPublic(row), stats, nil
 }
 
-func (s *Store) DeleteGuest(ctx context.Context, id int64) (domain.OperationStats, error) {
+func (s *Store) DeleteExternalCaregiverRecord(ctx context.Context, id int64) (domain.OperationStats, error) {
 	db, scope, err := s.database(ctx)
 	if err != nil {
 		return domain.OperationStats{}, err
 	}
-	query := withTenant(db.NewDelete().Model((*guestRow)(nil)).
-		ModelTableExpr(`users.guests AS "guest"`).
-		Where(`"guest".id = ?`, id), "guest", scope)
+	query := withTenant(db.NewDelete().Model((*externalCaregiverRecordRow)(nil)).
+		ModelTableExpr(`users.external_caregivers AS "external_caregiver"`).
+		Where(`"external_caregiver".id = ?`, id), "external_caregiver", scope)
 	stats := domain.OperationStats{Queries: 1}
 	started := time.Now()
 	result, err := query.Exec(ctx)
 	stats.StatementDuration = time.Since(started)
 	if err != nil {
-		return stats, fmt.Errorf("school membership postgres: delete guest: %w", err)
+		return stats, fmt.Errorf("school membership postgres: delete external caregiver record: %w", err)
 	}
 	rows, err := result.RowsAffected()
 	if err != nil {
-		return stats, fmt.Errorf("school membership postgres: delete guest: count rows: %w", err)
+		return stats, fmt.Errorf("school membership postgres: delete external caregiver record: count rows: %w", err)
 	}
 	if rows != 1 {
-		return stats, schoolmembership.ErrGuestNotFound
+		return stats, schoolmembership.ErrExternalCaregiverRecordNotFound
 	}
 	stats.Rows = rows
 	return stats, nil
@@ -562,31 +562,32 @@ func (s *Store) DeleteGuest(ctx context.Context, id int64) (domain.OperationStat
 
 // --- helpers ---
 
-// staffSelect reads the membership row together with its guest marker. The
-// marker normally follows the guest's activity window; historical readers
-// may retain it after that window ended. The guest columns are correlated
+// staffSelect reads the membership row together with its external caregiver
+// record marker. The marker normally follows the record's activity window;
+// historical readers may retain it after that window ended. The record
+// columns are correlated
 // subqueries rather than a join, so FOR UPDATE locks stay on the membership
 // row alone.
-func staffSelect(db bun.IDB, model any, includeInactiveGuests bool) *bun.SelectQuery {
+func staffSelect(db bun.IDB, model any, includeInactiveExternalCaregiverRecords bool) *bun.SelectQuery {
 	query := db.NewSelect().Model(model).ModelTableExpr(`users.staff_school_memberships AS "staff"`).
 		ColumnExpr(`"staff".*`)
-	if includeInactiveGuests {
+	if includeInactiveExternalCaregiverRecords {
 		return query.
-			ColumnExpr(`EXISTS (SELECT 1 FROM users.guests AS "guest" WHERE "guest".tenant_id = "staff".tenant_id AND "guest".staff_id = "staff".id) AS is_guest`).
-			ColumnExpr(`COALESCE((SELECT "guest".organization FROM users.guests AS "guest" WHERE "guest".tenant_id = "staff".tenant_id AND "guest".staff_id = "staff".id), '') AS guest_organization`)
+			ColumnExpr(`EXISTS (SELECT 1 FROM users.external_caregivers AS "external_caregiver" WHERE "external_caregiver".tenant_id = "staff".tenant_id AND "external_caregiver".staff_id = "staff".id) AS has_external_caregiver_record`).
+			ColumnExpr(`COALESCE((SELECT "external_caregiver".organization FROM users.external_caregivers AS "external_caregiver" WHERE "external_caregiver".tenant_id = "staff".tenant_id AND "external_caregiver".staff_id = "staff".id), '') AS external_organization`)
 	}
 	today := calendar.TodayDate()
 	return query.
-		ColumnExpr(`EXISTS (SELECT 1 FROM users.guests AS "guest" WHERE "guest".tenant_id = "staff".tenant_id AND "guest".staff_id = "staff".id AND ("guest".start_date IS NULL OR "guest".start_date <= ?) AND ("guest".end_date IS NULL OR "guest".end_date >= ?)) AS is_guest`, today, today).
-		ColumnExpr(`COALESCE((SELECT "guest".organization FROM users.guests AS "guest" WHERE "guest".tenant_id = "staff".tenant_id AND "guest".staff_id = "staff".id AND ("guest".start_date IS NULL OR "guest".start_date <= ?) AND ("guest".end_date IS NULL OR "guest".end_date >= ?)), '') AS guest_organization`, today, today)
+		ColumnExpr(`EXISTS (SELECT 1 FROM users.external_caregivers AS "external_caregiver" WHERE "external_caregiver".tenant_id = "staff".tenant_id AND "external_caregiver".staff_id = "staff".id AND ("external_caregiver".start_date IS NULL OR "external_caregiver".start_date <= ?) AND ("external_caregiver".end_date IS NULL OR "external_caregiver".end_date >= ?)) AS has_external_caregiver_record`, today, today).
+		ColumnExpr(`COALESCE((SELECT "external_caregiver".organization FROM users.external_caregivers AS "external_caregiver" WHERE "external_caregiver".tenant_id = "staff".tenant_id AND "external_caregiver".staff_id = "staff".id AND ("external_caregiver".start_date IS NULL OR "external_caregiver".start_date <= ?) AND ("external_caregiver".end_date IS NULL OR "external_caregiver".end_date >= ?)), '') AS external_organization`, today, today)
 }
 
 func teacherSelect(db bun.IDB, model any) *bun.SelectQuery {
 	return db.NewSelect().Model(model).ModelTableExpr(`users.teachers AS "teacher"`)
 }
 
-func guestSelect(db bun.IDB, model any) *bun.SelectQuery {
-	return db.NewSelect().Model(model).ModelTableExpr(`users.guests AS "guest"`)
+func externalCaregiverRecordSelect(db bun.IDB, model any) *bun.SelectQuery {
+	return db.NewSelect().Model(model).ModelTableExpr(`users.external_caregivers AS "external_caregiver"`)
 }
 
 func withTenant[Q interface {
@@ -647,16 +648,16 @@ func execOne(ctx context.Context, query *bun.UpdateQuery, operation string, notF
 	return stats, nil
 }
 
-func guestRowFrom(id int64, fields schoolmembership.GuestFields) (guestRow, error) {
+func externalCaregiverRecordRowFrom(id int64, fields schoolmembership.ExternalCaregiverRecordFields) (externalCaregiverRecordRow, error) {
 	start, err := optionalDate(fields.StartDate, "start date")
 	if err != nil {
-		return guestRow{}, err
+		return externalCaregiverRecordRow{}, err
 	}
 	end, err := optionalDate(fields.EndDate, "end date")
 	if err != nil {
-		return guestRow{}, err
+		return externalCaregiverRecordRow{}, err
 	}
-	return guestRow{
+	return externalCaregiverRecordRow{
 		ID: id, StaffID: fields.StaffID, Organization: fields.Organization,
 		ContactEmail: fields.ContactEmail, ContactPhone: fields.ContactPhone,
 		ActivityExpertise: fields.ActivityExpertise, StartDate: start, EndDate: end, Notes: fields.Notes,
@@ -667,7 +668,7 @@ func staffToPublic(row staffRow) schoolmembership.Staff {
 	return schoolmembership.Staff{
 		ID: row.ID, TenantID: row.TenantID, CreatedAt: row.CreatedAt, UpdatedAt: row.UpdatedAt,
 		PersonID: row.PersonID, DeletedAt: row.DeletedAt, PersonalDataErasedAt: row.PersonalDataErasedAt,
-		IsGuest: row.IsGuest, GuestOrganization: row.GuestOrganization,
+		HasExternalCaregiverRecord: row.HasExternalCaregiverRecord, ExternalOrganization: row.ExternalOrganization,
 	}
 }
 
@@ -679,8 +680,8 @@ func teacherToPublic(row teacherRow) schoolmembership.Teacher {
 	}
 }
 
-func guestToPublic(row guestRow) schoolmembership.Guest {
-	return schoolmembership.Guest{
+func externalCaregiverRecordToPublic(row externalCaregiverRecordRow) schoolmembership.ExternalCaregiverRecord {
+	return schoolmembership.ExternalCaregiverRecord{
 		ID: row.ID, TenantID: row.TenantID, CreatedAt: row.CreatedAt, UpdatedAt: row.UpdatedAt,
 		StaffID: row.StaffID, Organization: row.Organization, ContactEmail: row.ContactEmail,
 		ContactPhone: row.ContactPhone, ActivityExpertise: row.ActivityExpertise,
@@ -729,11 +730,11 @@ func wrapTeacherWriteError(operation string, err error) error {
 	return fmt.Errorf("school membership postgres: %s teacher: %w", operation, err)
 }
 
-func wrapGuestWriteError(operation string, err error) error {
-	if isUniqueViolationOn(err, guestStaffIndex, guestStaffConstraint) {
-		return schoolmembership.ErrGuestStaffConflict
+func wrapExternalCaregiverRecordWriteError(operation string, err error) error {
+	if isUniqueViolationOn(err, externalCaregiverRecordStaffIndex) {
+		return schoolmembership.ErrExternalCaregiverRecordStaffConflict
 	}
-	return fmt.Errorf("school membership postgres: %s guest: %w", operation, err)
+	return fmt.Errorf("school membership postgres: %s external caregiver record: %w", operation, err)
 }
 
 func isUniqueViolationOn(err error, names ...string) bool {
