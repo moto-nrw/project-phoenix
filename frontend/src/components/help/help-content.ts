@@ -1457,7 +1457,8 @@ function activeSupervisionTopic(presenceMode: HelpPresenceMode): HelpTopic {
           "Öffnen Sie `Aktuelle Aufsicht`.",
           "Wählen Sie unter `Als Nächstes` einen geplanten Termin.",
           "Starten Sie ihn, sobald die Schaltfläche freigegeben ist.",
-          "Oder übernehmen Sie einen offenen Raum, zum Beispiel den Schulhof: Öffnen Sie ihn unter `Räume` und wählen Sie `Zur Aufsicht`. Wählen Sie dann oben `Beaufsichtigen`.",
+          "Öffnen Sie unter `Räume` einen offenen Raum, zum Beispiel den Schulhof.",
+          "Wählen Sie `Zur Aufsicht` und dann `Beaufsichtigen`.",
           // Live geprueft: der gruene Streifen steht immer oben auf der
           // Seite, auch ohne geplanten Block und ohne NFC.
           "Oder wählen Sie `Spontane Aktivität starten`, wenn nichts geplant ist.",

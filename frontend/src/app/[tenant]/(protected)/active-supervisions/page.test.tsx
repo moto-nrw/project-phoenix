@@ -21,16 +21,18 @@ const navigationMockState = vi.hoisted(() => ({
   roomParam: null as string | null,
   sessionParam: null as string | null,
 }));
+const authMockState = vi.hoisted(() => ({
+  canReadSupervisionData: true,
+  isCaregiver: true,
+}));
 
 // Mock auth-utils with hasRole that reads session roles
 vi.mock("~/lib/auth-utils", () => ({
   hasPermission: () => false,
-  canReadSupervisionData: (session: { user?: { isAdmin?: boolean } } | null) =>
-    !(session?.user?.isAdmin ?? false),
+  canReadSupervisionData: () => authMockState.canReadSupervisionData,
   isAdmin: (session: { user?: { isAdmin?: boolean } } | null) =>
     session?.user?.isAdmin ?? false,
-  isCaregiver: (session: { user?: { isAdmin?: boolean } } | null) =>
-    !(session?.user?.isAdmin ?? false),
+  isCaregiver: () => authMockState.isCaregiver,
   hasRole: (session: { user?: { isAdmin?: boolean } } | null, role: string) => {
     if (role === "admin") return session?.user?.isAdmin ?? false;
     if (role === "user") return !(session?.user?.isAdmin ?? false);
@@ -323,6 +325,8 @@ const defaultPageHeader = vi
 beforeEach(() => {
   navigationMockState.roomParam = null;
   navigationMockState.sessionParam = null;
+  authMockState.canReadSupervisionData = true;
+  authMockState.isCaregiver = true;
   localStorage.clear();
   vi.mocked(PageHeaderWithSearch)
     .mockReset()
@@ -336,6 +340,17 @@ beforeEach(() => {
       mutate: vi.fn(),
       isValidating: false,
     } as never);
+});
+
+describe("ActiveSupervisionGate", () => {
+  it("allows a custom staff role with groups:read", () => {
+    authMockState.isCaregiver = false;
+    authMockState.canReadSupervisionData = true;
+
+    render(<MeinRaumPage />);
+
+    expect(screen.getByTestId("sse-boundary")).toBeInTheDocument();
+  });
 });
 
 // Die Statuszeile steht in der Kopfkarte der Seite (#4354: mit Symbolen).

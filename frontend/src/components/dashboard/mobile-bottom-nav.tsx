@@ -16,6 +16,7 @@ import { useOptionalSupervision } from "~/lib/supervision-context";
 import { isSharedOpenRoom } from "~/lib/supervision-derive";
 import { useShellAuth } from "~/lib/shell-auth-context";
 import {
+  canReadSupervisionData,
   hasEffectiveAdminScope,
   hasPermission,
   hasRole,
@@ -812,6 +813,7 @@ export function MobileBottomNav({ className = "" }: MobileBottomNavProps) {
   const userIsAdmin = hasRole(session, "admin");
   const userHasEffectiveAdminScope = hasEffectiveAdminScope(session);
   const userIsCaregiver = isCaregiver(session);
+  const canReadSupervisions = canReadSupervisionData(session);
   const nfcEnabled = useNFCEnabled();
   const presenceMode = usePresenceMode();
   const showActivityNav = nfcEnabled && presenceMode !== "binary";
@@ -884,7 +886,7 @@ export function MobileBottomNav({ className = "" }: MobileBottomNavProps) {
         // der Desktop-Sidebar.
         !(isBinaryMode && BINARY_HIDDEN_HREFS.has(item.href)) &&
         (item.href !== "/ogs-groups" ||
-          userIsCaregiver ||
+          canReadSupervisions ||
           userHasEffectiveAdminScope) &&
         // Bei offener Betreuung gibt es keine "meine Gruppe" — der
         // gruppenbasierte Einstieg entfällt (#1544).
@@ -919,14 +921,16 @@ export function MobileBottomNav({ className = "" }: MobileBottomNavProps) {
       // Seitenleiste zählt auch die schulweite Übersicht (#2380): eine
       // Betreuungsrolle der Schule heißt nicht `user` (#3469).
       return (
-        (userIsCaregiver || overviewEnabled || userHasEffectiveAdminScope) &&
+        (canReadSupervisions ||
+          overviewEnabled ||
+          userHasEffectiveAdminScope) &&
         !openCareGroupMode
       );
     }
     // Aufsicht wie in der Seitenleiste: eigene Aufsicht der Betreuungskräfte
     // oder die schulweite Übersicht (#2380); im binären Modus ohne Bedeutung.
     if (href === "/active-supervisions") {
-      return (userIsCaregiver || overviewEnabled) && !isBinaryMode;
+      return (canReadSupervisions || overviewEnabled) && !isBinaryMode;
     }
     if (
       href === "/tagesplan" &&

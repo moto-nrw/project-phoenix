@@ -32,6 +32,7 @@ vi.mock("~/lib/auth-utils", () => {
   return {
     isAdmin: isAdminFn,
     isCaregiver: isCaregiverFn,
+    canReadSupervisionData: vi.fn(() => isCaregiverFn()),
     hasEffectiveAdminScope: hasEffectiveAdminScopeFn,
     hasRole: vi.fn((_session: unknown, role: string) => {
       if (role === "admin") return isAdminFn();
@@ -125,6 +126,7 @@ import { usePathname, useSearchParams } from "next/navigation";
 import { useSession } from "next-auth/react";
 import { useOptionalSupervision } from "~/lib/supervision-context";
 import {
+  canReadSupervisionData,
   hasEffectiveAdminScope,
   hasPermission,
   isAdmin,
@@ -151,6 +153,7 @@ const mockUseSession = vi.mocked(useSession);
 const mockUseSupervision = vi.mocked(useOptionalSupervision);
 const mockIsAdmin = vi.mocked(isAdmin);
 const mockIsCaregiver = vi.mocked(isCaregiver);
+const mockCanReadSupervisionData = vi.mocked(canReadSupervisionData);
 const mockHasEffectiveAdminScope = vi.mocked(hasEffectiveAdminScope);
 const mockHasPermission = vi.mocked(hasPermission);
 const mockUseShellAuth = vi.mocked(useShellAuth);
@@ -238,6 +241,9 @@ describe("MobileBottomNav", () => {
     });
     mockIsAdmin.mockReturnValue(false);
     mockIsCaregiver.mockImplementation((session) => !mockIsAdmin(session));
+    mockCanReadSupervisionData.mockImplementation((session) =>
+      mockIsCaregiver(session),
+    );
     mockHasEffectiveAdminScope.mockImplementation((session) =>
       mockIsAdmin(session),
     );
@@ -374,6 +380,22 @@ describe("MobileBottomNav", () => {
       expect(screen.queryByRole("link", { name: "Gruppen" })).toBeNull();
       fireEvent.click(screen.getByRole("button", { name: "Mehr" }));
       expect(screen.queryByRole("link", { name: "Gruppen" })).toBeNull();
+    });
+
+    it("shows group and supervision navigation for custom staff with groups:read", () => {
+      mockIsCaregiver.mockReturnValue(false);
+      mockCanReadSupervisionData.mockReturnValue(true);
+
+      render(<MobileBottomNav />);
+
+      expect(screen.getByRole("link", { name: "Gruppen" })).toHaveAttribute(
+        "href",
+        "/ogs-groups/overview",
+      );
+      expect(screen.getByRole("link", { name: "Aufsicht" })).toHaveAttribute(
+        "href",
+        "/active-supervisions",
+      );
     });
 
     it("shows groups to effective admins", () => {

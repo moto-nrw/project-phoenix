@@ -33,11 +33,7 @@ import { RoomStammdatenTab } from "~/components/rooms/room-stammdaten-tab";
 import { roomsConfig } from "~/components/database/configs/rooms.config";
 import { useApiFormError, useToast } from "~/contexts/ToastContext";
 import { roomService } from "~/lib/api";
-import {
-  canReadSupervisionData,
-  hasPermission,
-  isCaregiver,
-} from "~/lib/auth-utils";
+import { canReadSupervisionData, hasPermission } from "~/lib/auth-utils";
 import { useSetBreadcrumb } from "~/lib/breadcrumb-context";
 import { useOptionalSupervision } from "~/lib/supervision-context";
 import { createCrudService } from "~/lib/database/service-factory";
@@ -126,9 +122,7 @@ function RoomDetailPageContent() {
   // seit #4372 nur noch über „Räume“ erreichbar, also über diese Seite.
   // Dieselbe Regel wie der Zugang zur Aufsichtsseite.
   const { overviewEnabled } = useOptionalSupervision();
-  const canOpenSupervision =
-    (isCaregiver(session) && canReadSupervisionData(session)) ||
-    overviewEnabled;
+  const canOpenSupervision = canReadSupervisionData(session) || overviewEnabled;
 
   const tabItems: TenantPageTab[] = [
     ...(hasOccupancy ? [{ value: "uebersicht", label: "Übersicht" }] : []),

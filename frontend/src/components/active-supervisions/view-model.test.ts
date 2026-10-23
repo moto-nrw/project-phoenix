@@ -558,9 +558,27 @@ describe("active-supervisions view model", () => {
 
 describe("resolveSupervisionSelection (#2265)", () => {
   const rooms = [
-    { id: "group-a", name: "GT 1", room_name: "Raum 54", room_id: "54" },
-    { id: "group-b", name: "GT 2", room_name: "Raum 54", room_id: "54" },
-    { id: "group-c", name: "Kreativ", room_name: "Atelier", room_id: "55" },
+    {
+      id: "group-a",
+      name: "GT 1",
+      room_name: "Raum 54",
+      room_id: "54",
+      isCurrentUserSupervising: true,
+    },
+    {
+      id: "group-b",
+      name: "GT 2",
+      room_name: "Raum 54",
+      room_id: "54",
+      isCurrentUserSupervising: true,
+    },
+    {
+      id: "group-c",
+      name: "Kreativ",
+      room_name: "Atelier",
+      room_id: "55",
+      isCurrentUserSupervising: true,
+    },
   ];
   const base = {
     sessionParam: null,
@@ -702,14 +720,42 @@ describe("resolveSupervisionSelection (#2265)", () => {
     ).toEqual({ kind: "session", sessionId: "group-c" });
   });
 
-  it("opens the shared view when every available session is in a released room", () => {
+  it("opens no shared view when every available session belongs to others", () => {
     expect(
       resolveSupervisionSelection({
         ...base,
-        rooms: rooms.slice(0, 2),
+        rooms: rooms.slice(0, 2).map((room) => ({
+          ...room,
+          isCurrentUserSupervising: false,
+        })),
         openRoomIds: new Set(["54"]),
       }),
-    ).toEqual({ kind: "open-room", roomId: "54" });
+    ).toEqual({ kind: "persist-first" });
+  });
+
+  it("selects the caller's released room instead of a foreign regular room", () => {
+    expect(
+      resolveSupervisionSelection({
+        ...base,
+        rooms: [
+          {
+            id: "foreign",
+            name: "Fremde Aufsicht",
+            room_name: "Gruppenraum",
+            room_id: "1",
+            isCurrentUserSupervising: false,
+          },
+          {
+            id: "own-open",
+            name: "Eigene Aufsicht",
+            room_name: "Sporthalle",
+            room_id: "2",
+            isCurrentUserSupervising: true,
+          },
+        ],
+        openRoomIds: new Set(["2"]),
+      }),
+    ).toEqual({ kind: "open-room", roomId: "2" });
   });
 
   it("opens the caller's supervised released room, not the first released room by name", () => {
@@ -725,6 +771,7 @@ describe("resolveSupervisionSelection (#2265)", () => {
             name: "Fußball",
             room_name: "Sporthalle",
             room_id: "2",
+            isCurrentUserSupervising: true,
           },
         ],
         openRoomIds: new Set(["1", "2"]),

@@ -209,6 +209,23 @@ describe("RoomDetailPage", () => {
     );
   });
 
+  it("opens the shared supervision view for a custom staff role", () => {
+    mockSession(["rooms:read", "groups:read"], ["Honorarkraft"]);
+    useRoomDetailMock.mockReturnValue({
+      room: { ...room, isOpenRoom: true },
+      history: [],
+      loading: false,
+      error: null,
+      historyDisabled: false,
+    });
+    render(<RoomDetailPage />);
+
+    expect(screen.getByRole("link", { name: "Zur Aufsicht" })).toHaveAttribute(
+      "href",
+      "/active-supervisions?room=7",
+    );
+  });
+
   it("hides the supervision view from a caregiver without groups:read", () => {
     mockSession(["rooms:read"], ["user"]);
     useRoomDetailMock.mockReturnValue({

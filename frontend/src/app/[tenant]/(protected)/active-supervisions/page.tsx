@@ -31,11 +31,7 @@ import {
 } from "~/lib/activity-occupancy";
 import { CompleteInstanceModal } from "~/components/active-supervisions/complete-instance-modal";
 import { useMinuteClock } from "~/lib/pickup-helpers";
-import {
-  canReadSupervisionData,
-  hasPermission,
-  isCaregiver,
-} from "~/lib/auth-utils";
+import { canReadSupervisionData, hasPermission } from "~/lib/auth-utils";
 import { UnclaimedRooms } from "~/components/active/unclaimed-rooms";
 import { SSEErrorBoundary } from "~/components/sse/SSEErrorBoundary";
 import {
@@ -967,8 +963,8 @@ function MeinRaumPageContent() {
   );
 }
 
-// Gate component: allows caregivers always, everyone else only when the
-// server confirmed the school-wide overview covers them (#2380).
+// Gate component: allows callers who can read supervision data, or callers
+// covered by the server-confirmed school-wide overview (#2380).
 function ActiveSupervisionGate({
   children,
 }: Readonly<{ children: React.ReactNode }>) {
@@ -991,9 +987,7 @@ function ActiveSupervisionGate({
     );
   }
 
-  // An explicit permissions claim is authoritative. The caregiver role only
-  // remains a fallback for legacy sessions without that claim.
-  if (isCaregiver(session) && canReadSupervisionData(session)) {
+  if (canReadSupervisionData(session)) {
     return <>{children}</>;
   }
 

@@ -47,6 +47,7 @@ vi.mock("~/lib/auth-utils", () => {
   return {
     isAdmin: isAdminFn,
     hasEffectiveAdminScope: hasEffectiveAdminScopeFn,
+    canReadSupervisionData: vi.fn(() => !isAdminFn()),
     isCaregiver: vi.fn(() => !isAdminFn()),
     hasRole: vi.fn((_session: unknown, role: string) => {
       if (role === "admin") return isAdminFn();
@@ -140,9 +141,11 @@ import { useSession } from "next-auth/react";
 import { useOptionalSupervision } from "~/lib/supervision-context";
 import type { SupervisedRoom } from "~/lib/supervision-derive";
 import {
+  canReadSupervisionData,
   hasEffectiveAdminScope,
   hasPermission,
   isAdmin,
+  isCaregiver,
 } from "~/lib/auth-utils";
 import { useShellAuth } from "~/lib/shell-auth-context";
 import { useStaffAbsencesPending } from "~/lib/hooks/use-staff-absences-pending";
@@ -167,6 +170,8 @@ const mockUseSearchParams = vi.mocked(useSearchParams);
 const mockUseSession = vi.mocked(useSession);
 const mockUseSupervision = vi.mocked(useOptionalSupervision);
 const mockIsAdmin = vi.mocked(isAdmin);
+const mockIsCaregiver = vi.mocked(isCaregiver);
+const mockCanReadSupervisionData = vi.mocked(canReadSupervisionData);
 const mockHasEffectiveAdminScope = vi.mocked(hasEffectiveAdminScope);
 const mockHasPermission = vi.mocked(hasPermission);
 // Standardverhalten des geteilten hasPermission-Mocks: Rechte hat nur der
@@ -260,6 +265,10 @@ describe("Sidebar", () => {
       refresh: vi.fn(),
     });
     mockIsAdmin.mockReturnValue(false);
+    mockIsCaregiver.mockImplementation((session) => !mockIsAdmin(session));
+    mockCanReadSupervisionData.mockImplementation((session) =>
+      mockIsCaregiver(session),
+    );
     mockHasEffectiveAdminScope.mockImplementation((session) =>
       mockIsAdmin(session),
     );
@@ -487,6 +496,16 @@ describe("Sidebar", () => {
       render(<Sidebar />);
 
       // Staff items with alwaysShow: true
+      expect(screen.getByText("Gruppen")).toBeInTheDocument();
+      expect(screen.getByText("Aktuelle Aufsicht")).toBeInTheDocument();
+    });
+
+    it("shows supervision navigation for custom staff with groups:read", () => {
+      mockIsCaregiver.mockReturnValue(false);
+      mockCanReadSupervisionData.mockReturnValue(true);
+
+      render(<Sidebar />);
+
       expect(screen.getByText("Gruppen")).toBeInTheDocument();
       expect(screen.getByText("Aktuelle Aufsicht")).toBeInTheDocument();
     });

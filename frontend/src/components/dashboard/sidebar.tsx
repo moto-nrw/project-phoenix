@@ -29,6 +29,7 @@ import { useShellAuth } from "~/lib/shell-auth-context";
 import { isDemoBannerShown } from "~/components/demo/demo-banner";
 import { useDemoEveningActive } from "~/components/demo/demo-evening-notice";
 import {
+  canReadSupervisionData,
   hasEffectiveAdminScope,
   hasPermission,
   hasRole,
@@ -659,6 +660,7 @@ function SidebarContent({
   const userIsAdmin = hasRole(session, "admin");
   const userHasEffectiveAdminScope = hasEffectiveAdminScope(session);
   const userIsCaregiver = isCaregiver(session);
+  const canReadSupervisions = canReadSupervisionData(session);
   // Leitung der Einrichtung: Adminzuschnitt oder config:manage, das Recht
   // hinter Anmeldungen und Einstellungen (#3469). Entscheidet über die
   // Anmeldungen und die Rolle der Hilfe, nicht über einzelne Rechte.
@@ -1405,12 +1407,13 @@ function SidebarContent({
     }
   }, [toggle, pathname, router]);
 
-  // Caregivers see their own supervision. A successful overview request also
-  // covers effective admins and verified staff under all_staff (#2380).
+  // Everyone with group-read access sees own supervisions. A successful
+  // overview request also covers effective admins and verified staff under
+  // all_staff (#2380).
   // overviewEnabled keeps a released room (#3065) from opening the accordion:
   // it is reachable for everyone and grants no supervision, so it must not
   // stand for one when the school keeps everyone on their own supervisions.
-  const showStaffAccordions = userIsCaregiver || overviewEnabled;
+  const showStaffAccordions = canReadSupervisions || overviewEnabled;
   const showGroupAccordion = showStaffAccordions || userHasEffectiveAdminScope;
 
   // Resolve operator nav hrefs once (operatorPath is deterministic for the page lifetime)
