@@ -500,10 +500,20 @@ function studentSearchTopic(
           // Live geprueft: mit Betreuer-Rechten fehlt der Reiter ganz. Er
           // bleibt trotzdem in der Liste -- die Leitung liest denselben
           // Artikel und sieht ihn (canViewEnrollments = `config:manage`).
-          "Wählen Sie `Anmeldungen` für Angaben aus der Halbjahresanmeldung. Diesen Reiter sieht nur die Leitung.",
+          "Wählen Sie `Anmeldungen` für Angaben aus der Halbjahresanmeldung. Diesen Reiter sieht nur die Leitung. Über `Herunterladen` wählen Sie dort `PDF`, `Word` oder `Excel`.",
           "Wählen Sie `Dokumente` für Dateien zum Kind.",
           "Wählen Sie `Änderungsprotokoll` für Änderungen an den Angaben.",
           "Wählen Sie `Historie` für Anwesenheit, Feedback und weitere Verläufe.",
+        ],
+      },
+      {
+        title: "Ein Anwesenheitsprotokoll herunterladen",
+        steps: [
+          "Öffnen Sie beim Kind `Historie` und danach `Anwesenheitsprotokoll`.",
+          "Wählen Sie im Drei-Punkte-Menü `Exportieren`.",
+          "Wählen Sie unter `Von` und `Bis` den Zeitraum.",
+          "Möglich sind nur die sichtbaren Tage bis heute.",
+          "Wählen Sie das Format und danach `Herunterladen`.",
         ],
       },
       {
@@ -1949,6 +1959,7 @@ function correctWorkTimeTopic(): HelpTopic {
     ],
     notes: [
       "Klappen Sie einen geänderten Tag auf, um die Änderungshistorie zu sehen.",
+      "Öffnen Sie für Ihren Zeitnachweis oben rechts das Drei-Punkte-Menü. Wählen Sie `Exportieren`, den Zeitraum und das Format. Mit `Herunterladen` bekommen Sie die Datei.",
     ],
     related: [HELP_TOPICS.trackWorkTime, HELP_TOPICS.vacation],
   };
@@ -4020,7 +4031,7 @@ function parentDeclarationTopic(): HelpTopic {
       "Mit `Widerruf erlauben` können Eltern eine Zustimmung später zurücknehmen, auch nach der Frist.",
       "Mit `Passwort vor dem Antworten abfragen` geben Eltern vor jeder Antwort ihr Passwort ein.",
       "`Offene erinnern` schickt eine Erinnerung an alle, die noch nicht geantwortet haben.",
-      "`Bericht als PDF` lädt den Stand und alle Antworten als PDF herunter. `Verlauf als CSV` enthält dieselben Antworten als Tabelle.",
+      "Unter `Herunterladen` lädt `Bericht als PDF` den Stand und alle Antworten als PDF herunter. `Verlauf als CSV` enthält dieselben Antworten als Tabelle.",
       "Das ist eine einfache Erklärung per Knopfdruck. Verlangt ein Gesetz eine Erklärung auf Papier, reicht sie nicht aus.",
     ],
     differences: [
@@ -4070,7 +4081,7 @@ function mealPlanTopic(): HelpTopic {
       "Der heutige Tag trägt das Kennzeichen `Heute`.",
       "Unter dem Plan steht die Liste für die Küche. Mit `Tag` und `Woche` wechseln Sie die Ansicht.",
       "Die Wochenliste zeigt jedes angemeldete Kind mit einem Haken je Tag. Darüber steht, wie viele Kinder an jedem Tag essen.",
-      "Beide Listen laden Sie als `PDF` oder `Excel` herunter.",
+      "Öffnen Sie `Tagesliste herunterladen` oder `Wochenliste herunterladen`. Wählen Sie `PDF` oder `Excel`.",
       "Bis wann Eltern ändern können, legen Sie in den Einstellungen fest: `Änderungsfrist für das Mittagessen` und `Vorlauf für das Mittagessen (Werktage)`.",
     ],
     differences: [
@@ -4106,10 +4117,13 @@ function bankDetailsTopic(): HelpTopic {
       "Klappen Sie in der Seitenleiste `Eltern` auf.",
       "Öffnen Sie `Bankverbindungen`.",
       "Wählen Sie `Alle Kinder` oder `Ohne IBAN`.",
-      "Wählen Sie das Format: `PDF`, `Excel` oder `Word`.",
+      "Öffnen Sie oben rechts das Menü mit den drei Punkten.",
+      "Wählen Sie `Exportieren`.",
+      "Wählen Sie unter `Format` `Excel`, `PDF` oder `Word`.",
       "Wählen Sie `Herunterladen`.",
     ],
-    result: "Die Liste wird als Datei erstellt und heruntergeladen.",
+    result:
+      "Die Liste wird als Datei erstellt und heruntergeladen. Sie enthält immer alle Kinder, auch wenn die Liste gerade gefiltert ist.",
     notes: [
       "Die IBAN tragen Sie beim Kind ein, im Reiter `Erziehungsberechtigte`.",
       "Die Datei enthält die vollständigen IBANs und wird protokolliert. Geben Sie sie nicht per E-Mail weiter.",
@@ -4120,7 +4134,7 @@ function bankDetailsTopic(): HelpTopic {
     ],
     troubleshootingDetails: [
       "Fehlt `Bankverbindungen` in der Seitenleiste? Dafür braucht es ein eigenes Recht. Fragen Sie Ihre Leitung.",
-      "`Herunterladen` bleibt grau? Dann ist die Liste leer.",
+      "`Exportieren` bleibt grau? Dann ist die Liste leer.",
     ],
     related: [
       HELP_TOPICS.leadInviteGuardians,
@@ -4404,7 +4418,7 @@ function enrollmentReviewTopic(): HelpTopic {
   };
 }
 
-/** Export einer Phase, `ExportMenuButton` in der Kopfzeile der Phasenseite. */
+/** Export einer Phase, Export-Menü in der Kopfzeile der Phasenseite. */
 function enrollmentExportTopic(): HelpTopic {
   return {
     id: HELP_TOPICS.leadEnrollmentExport,
@@ -4418,13 +4432,14 @@ function enrollmentExportTopic(): HelpTopic {
       "Öffnen Sie `Anmeldungen` und danach `Überblick`.",
       "Wählen Sie bei der Phase `Anmeldungen ansehen`.",
       "Wählen Sie oben `Anmeldungen exportieren`.",
-      "Wählen Sie `Als PDF exportieren`, `Als Word-Dokument exportieren` oder `Als Excel-Datei exportieren`.",
+      "Wählen Sie `PDF`, `Word` oder `Excel`.",
     ],
     result: "Die Datei wird erstellt und heruntergeladen.",
     notes: [
       "Oben steht, wie viele Eingänge die Phase hat und wie viele davon offen sind.",
       "Die Seite hat drei Exporte: `Anmeldungen exportieren`, `Klassenliste exportieren` und `Auswertung exportieren`.",
       "`Klassenliste exportieren` gilt für die Klasse, die Sie unter `Klasse für Klassenliste` wählen.",
+      "`Auswertung exportieren` bietet PDF und Word `ausführlich` oder als `kompakte Tabelle`.",
     ],
     differences: [
       "Auf dem Handy erscheint nur ein Hinweis. Der Export läuft am Computer.",
@@ -5051,7 +5066,7 @@ function leadCarePlanTopic(): HelpTopic {
       "Externe Personen wählen Sie im Schritt `Personal und Kinder` unter `Personal` wie alle anderen, auch mit `Kein Zugang`. Fehlt jemand, wählen Sie darunter `Externe Person eintragen`.",
       "Hat die externe Person `Kein Zugang`, startet eine OGS-Kraft den Termin. Mit `Eigene Termine betreuen` startet sie ihn selbst.",
       "Eine externe Person kann einen Termin allein betreuen. Sie kann auch die `Zuständige Person` sein.",
-      "Über das Menü mit den drei Punkten geht `Drucken oder exportieren`.",
+      "Wählen Sie im Drei-Punkte-Menü `Drucken oder exportieren`. Wählen Sie Vorlage, Fassung und Zeitraum. `Drucken` öffnet die Druckansicht. Für eine Datei wählen Sie das Format und `Herunterladen`.",
       "Betreut Ihre OGS am Wochenende? Dann zeigt die Wochenansicht auch Samstag und Sonntag. Dort gilt der Freitagsplan.",
     ],
     differences: [
@@ -5134,7 +5149,7 @@ function dutyRosterTopic(): HelpTopic {
       "Unter dem Plan steht `Stunden der Woche`. Dort sehen Sie je Person die Stunden je Schichtart und das Soll.",
       "Unter `Person` sehen Sie die Woche einer Person in Viertelstunden. Darunter stehen die Stunden je Tag und Schichtart.",
       "Ziehen Sie dort über die Viertelstunden, um eine Schicht anzulegen.",
-      "Über das Menü mit den drei Punkten geht `Drucken oder exportieren`.",
+      "Wählen Sie im Drei-Punkte-Menü `Drucken oder exportieren`. Wählen Sie Vorlage, Fassung und Zeitraum. `Drucken` öffnet die Druckansicht. Für eine Datei wählen Sie das Format und `Herunterladen`.",
       "Die Vorlage `Stundenübersicht` druckt diese Stunden als Liste.",
       "Eine Serie lässt Ferien, Schließtage und Feiertage aus. Arbeitet die Person auch in den Ferien, setzen Sie bei der Serie das Häkchen `Auch in den Ferien und an Schließtagen planen`.",
       "An Feiertagen plant eine Serie nie eine Schicht.",
@@ -5385,14 +5400,14 @@ function exportsTopic(): HelpTopic {
     steps: [
       "Öffnen Sie `Datenverwaltung` und danach `Exporte`.",
       "Suchen Sie die passende Liste und wählen Sie `Liste erstellen`.",
-      "Wählen Sie im Fenster unter `Format` `PDF`, `DOCX` oder `XLSX`.",
       "Haken Sie unter `Spalten` an, was in der Liste stehen soll.",
-      "Wählen Sie `Exportieren`.",
+      "Wählen Sie unter `Format` `PDF`, `Word` oder `Excel`.",
+      "Wählen Sie `Herunterladen`.",
     ],
     result: "Die Datei liegt im Download-Ordner Ihres Geräts.",
     notes: [
       "Die Listen sind in `Kinderlisten`, `Personallisten` und `Momentaufnahmen` geordnet.",
-      "Eine `Momentaufnahme` wie die `Notfallliste` zeigt den Stand von jetzt.",
+      "Eine `Momentaufnahme` wie die `Notfallliste` zeigt den Stand von jetzt. Dort öffnet `Liste erstellen` ein Menü: `Drucken` oder das Format.",
       "Die `Gesundheitsliste` zeigt Allergien, Medikamente und andere Gesundheitsinformationen.",
       "Sie enthält zuerst nur Kinder mit einem Eintrag.",
       "`Auch Kinder ohne Eintrag` nimmt alle Kinder auf.",

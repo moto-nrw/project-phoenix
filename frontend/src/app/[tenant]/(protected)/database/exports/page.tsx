@@ -10,10 +10,7 @@ import {
   CalendarCheck,
   CalendarRange,
   Download,
-  FileSpreadsheet,
-  FileText,
   HeartPulse,
-  Printer,
 } from "lucide-react";
 import { CollectionGrid } from "~/components/ui/collection-grid";
 import { MotoConceptIcon } from "~/components/ui/moto-concept-icon";
@@ -24,16 +21,18 @@ import { hasPermission, isAdmin } from "~/lib/auth-utils";
 import { useSettingsSchema } from "~/lib/hooks/use-settings-schema";
 import { getSettingValue } from "~/lib/settings-api";
 import { Button } from "~/components/ui/button";
+import {
+  ExportMenu,
+  exportFormatOptions,
+  type ExportMenuOption,
+} from "~/components/ui/export-menu";
 import { InfoCard } from "~/components/ui/info-card";
 import { SectionCard } from "~/components/ui/section-card";
 import { TenantPage } from "~/components/ui/tenant-page";
 import { useApiErrorDisplay, useToast } from "~/contexts/ToastContext";
 import { createLogger } from "~/lib/logger";
 import { exportEmergencySnapshot } from "~/lib/emergency-export-api";
-import {
-  exportRoomSnapshot,
-  type RoomSnapshotExportFormat,
-} from "~/lib/room-export-api";
+import { exportRoomSnapshot } from "~/lib/room-export-api";
 import {
   STUDENT_EXPORT_PRESETS,
   type StudentExportPreset,
@@ -42,18 +41,12 @@ import { useTenantAwarePath } from "~/lib/tenant-path";
 
 const logger = createLogger({ component: "DatabaseExportsPage" });
 
-const ROOM_FORMATS: Array<{
-  format: RoomSnapshotExportFormat;
-  label: string;
-  icon: ReactNode;
-}> = [
-  { format: "pdf", label: "PDF", icon: <FileText className="h-4 w-4" /> },
-  { format: "docx", label: "DOCX", icon: <FileText className="h-4 w-4" /> },
-  {
-    format: "xlsx",
-    label: "XLSX",
-    icon: <FileSpreadsheet className="h-4 w-4" />,
-  },
+const ROOM_EXPORT_OPTIONS = exportFormatOptions(["pdf", "docx", "xlsx"]);
+
+// Drucken zuerst: die Notfallliste wird im Ernstfall ausgedruckt.
+const EMERGENCY_EXPORT_OPTIONS: readonly ExportMenuOption[] = [
+  { key: "print" },
+  { key: "pdf", format: "pdf" },
 ];
 
 interface StudentModalConfig {
@@ -255,34 +248,24 @@ export default function DatabaseExportsPage() {
               Momentaufnahme.
             </ExportDescription>
             <ExportActions>
-              <Button
-                type="button"
-                size="md"
-                variant="outline"
-                disabled={busy.has("emergency-download")}
-                onClick={() =>
-                  void runExport("emergency-download", () =>
-                    exportEmergencySnapshot("download"),
-                  )
+              <ExportMenu
+                label="Liste erstellen"
+                ariaLabel="Notfallliste erstellen"
+                options={EMERGENCY_EXPORT_OPTIONS}
+                busyKey={
+                  busy.has("emergency-print")
+                    ? "print"
+                    : busy.has("emergency-download")
+                      ? "pdf"
+                      : null
                 }
-              >
-                <Download className="mr-2 h-4 w-4" aria-hidden />
-                PDF
-              </Button>
-              <Button
-                type="button"
-                size="md"
-                variant="outline"
-                disabled={busy.has("emergency-print")}
-                onClick={() =>
-                  void runExport("emergency-print", () =>
-                    exportEmergencySnapshot("print"),
-                  )
-                }
-              >
-                <Printer className="mr-2 h-4 w-4" aria-hidden />
-                Drucken
-              </Button>
+                onSelect={(option) => {
+                  const mode = option.format ? "download" : "print";
+                  void runExport(`emergency-${mode}`, () =>
+                    exportEmergencySnapshot(mode),
+                  );
+                }}
+              />
             </ExportActions>
           </InfoCard>
 
@@ -296,30 +279,35 @@ export default function DatabaseExportsPage() {
                 Momentaufnahme.
               </ExportDescription>
               <ExportActions>
-                {ROOM_FORMATS.map(({ format, label, icon }) => (
-                  <Button
-                    key={format}
-                    type="button"
-                    size="md"
-                    variant="outline"
-                    disabled={busy.has(`rooms-${format}`)}
-                    onClick={() =>
-                      void runExport(`rooms-${format}`, () =>
-                        exportRoomSnapshot({
-                          format,
-                          title: "Wer ist wo",
-                          // room_ids stays omitted on purpose: every room. An
-                          // empty array would select nothing and render an
-                          // empty file.
-                          include_transit: true,
-                        }),
-                      )
-                    }
-                  >
-                    <span className="mr-2">{icon}</span>
-                    {label}
-                  </Button>
-                ))}
+                <ExportMenu
+                  label="Liste erstellen"
+                  ariaLabel="Wer ist wo erstellen"
+                  options={ROOM_EXPORT_OPTIONS}
+                  busyKey={
+                    ROOM_EXPORT_OPTIONS.find((option) =>
+                      busy.has(`rooms-${option.key}`),
+                    )?.key ?? null
+                  }
+                  onSelect={(option) => {
+                    const format = option.format;
+                    if (
+                      format !== "pdf" &&
+                      format !== "docx" &&
+                      format !== "xlsx"
+                    )
+                      return;
+                    void runExport(`rooms-${format}`, () =>
+                      exportRoomSnapshot({
+                        format,
+                        title: "Wer ist wo",
+                        // room_ids stays omitted on purpose: every room. An
+                        // empty array would select nothing and render an
+                        // empty file.
+                        include_transit: true,
+                      }),
+                    );
+                  }}
+                />
               </ExportActions>
             </InfoCard>
           )}

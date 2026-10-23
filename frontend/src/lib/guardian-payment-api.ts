@@ -1,5 +1,9 @@
 import { apiErrorFromResponse } from "./api-error";
-import { downloadBlob, filenameFromDisposition } from "./file-download";
+import {
+  downloadBlob,
+  filenameFromDisposition,
+  openBlobForPrint,
+} from "./file-download";
 import { sessionFetch } from "./session-cache";
 
 /**
@@ -167,6 +171,7 @@ export async function fetchPaymentOverview(): Promise<PaymentOverviewRow[]> {
  */
 export async function exportPaymentOverview(
   format: PaymentExportFormat,
+  printTarget?: Window,
 ): Promise<void> {
   const response = await sessionFetch(
     "/api/guardians/payment-overview/export",
@@ -182,8 +187,13 @@ export async function exportPaymentOverview(
       "export payment overview failed",
     );
   }
+  const blob = await response.blob();
+  if (printTarget) {
+    await openBlobForPrint(blob, printTarget);
+    return;
+  }
   downloadBlob(
-    await response.blob(),
+    blob,
     filenameFromDisposition(response) ?? `Bankverbindungen.${format}`,
   );
 }
