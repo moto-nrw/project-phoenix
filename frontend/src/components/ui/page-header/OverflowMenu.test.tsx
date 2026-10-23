@@ -176,6 +176,20 @@ describe("OverflowMenu", () => {
     expect(onClick).not.toHaveBeenCalled();
   });
 
+  it("does not open when its trigger is disabled", () => {
+    render(
+      <OverflowMenu
+        disabled
+        items={[{ label: "Export", onClick: () => undefined }]}
+      />,
+    );
+
+    const trigger = screen.getByRole("button", { name: /Weitere Aktionen/i });
+    expect(trigger).toBeDisabled();
+    fireEvent.click(trigger);
+    expect(screen.queryByRole("menu")).toBeNull();
+  });
+
   it("closes on Escape", () => {
     render(
       <OverflowMenu items={[{ label: "Export", onClick: () => undefined }]} />,

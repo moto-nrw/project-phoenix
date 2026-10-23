@@ -39,7 +39,6 @@ type CareExitSourceBookings interface {
 // CareLifecycleDependencies wires the lifecycle. Records and SourceBookings
 // are Care Plan's own; Directory is the named student directory projection.
 type CareLifecycleDependencies struct {
-	Resumption     careplan.CareResumption
 	Owners         CareLifecycleOwners
 	Records        careplan.Capability
 	SourceBookings CareExitSourceBookings
@@ -60,7 +59,6 @@ type CareLifecycleDependencies struct {
 
 // CareLifecycle is the native care-lifecycle application (#3427).
 type CareLifecycle struct {
-	careplan.CareResumption
 	owners                CareLifecycleOwners
 	records               careplan.Capability
 	sourceBookings        CareExitSourceBookings
@@ -82,17 +80,16 @@ func NewCareLifecycle(deps CareLifecycleDependencies) (*CareLifecycle, error) {
 		owners.Presence == nil || owners.Calendar == nil || owners.Tags == nil || owners.ChangeTrail == nil {
 		return nil, errors.New("care lifecycle: every owner port is required")
 	}
-	if deps.Resumption == nil || deps.Records == nil || deps.SourceBookings == nil || deps.Directory == nil || deps.Unit == nil ||
+	if deps.Records == nil || deps.SourceBookings == nil || deps.Directory == nil || deps.Unit == nil ||
 		deps.LockCareBookingWrites == nil || deps.BookingsAuthoritative == nil || deps.Fingerprint == nil || deps.Today == nil {
-		return nil, errors.New("care lifecycle: resumption, records, source bookings, directory, unit of work, booking lock, booking setting, fingerprint and clock are required")
+		return nil, errors.New("care lifecycle: records, source bookings, directory, unit of work, booking lock, booking setting, fingerprint and clock are required")
 	}
 	logger := deps.Logger
 	if logger == nil {
 		logger = slog.Default()
 	}
 	return &CareLifecycle{
-		CareResumption: deps.Resumption,
-		owners:         owners, records: deps.Records, sourceBookings: deps.SourceBookings, directory: deps.Directory, unit: deps.Unit,
+		owners: owners, records: deps.Records, sourceBookings: deps.SourceBookings, directory: deps.Directory, unit: deps.Unit,
 		lockCareBookingWrites: deps.LockCareBookingWrites, bookingsAuthoritative: deps.BookingsAuthoritative,
 		fingerprint: deps.Fingerprint, logger: logger, today: deps.Today,
 	}, nil

@@ -14,23 +14,17 @@ import (
 // composition root binds over the retained repositories, and two tenant
 // settings it binds over the Settings Platform.
 type (
-	BirthdayStore    = internalports.BirthdayStore
-	BirthdaySettings = internalports.BirthdaySettings
 	BirthdayEntry    = domain.BirthdayEntry
-	BirthdayKind     = domain.BirthdayKind
 	BirthdayMonthDay = domain.MonthDay
 	BirthdayStaff    = domain.BirthdayStaff
 )
 
-const (
-	BirthdayKindStudent = domain.BirthdayKindStudent
-	BirthdayKindStaff   = domain.BirthdayKindStaff
-)
+const BirthdayKindStaff = domain.BirthdayKindStaff
 
 // BirthdayDependencies wires the birthday capability.
 type BirthdayDependencies struct {
-	Store    BirthdayStore
-	Settings BirthdaySettings
+	Store    internalports.BirthdayStore
+	Settings internalports.BirthdaySettings
 	Logger   *slog.Logger
 	// Now is injectable so tests can pin a weekday; nil means time.Now.
 	Now func() time.Time

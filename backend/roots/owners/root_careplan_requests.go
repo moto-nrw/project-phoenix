@@ -18,7 +18,6 @@ import (
 	settingsCompose "github.com/moto-nrw/project-phoenix/modules/settings/compose"
 	"github.com/moto-nrw/project-phoenix/modules/timetable"
 	transactionruntime "github.com/moto-nrw/project-phoenix/modules/transactionruntime/compose"
-	parentportalcompose "github.com/moto-nrw/project-phoenix/workflows/parentportal/compose"
 )
 
 // CarePlanRequests are the parent request queues of Care Plan: the
@@ -37,13 +36,13 @@ type CarePlanRequests struct {
 	Documents       careplan.StudentDocuments
 }
 
-// requestShareVisibility builds the parents domain's sharing rules over the
+// NewRequestShareVisibility builds People Directory's sharing rules over the
 // sharing ledger and the family protection alone, so every request queue
 // receives them at construction (#2267, story 47).
-func requestShareVisibility(db transactionruntime.Database) (eventContract.ShareVisibilityResolver, error) {
-	return parentportalcompose.NewRequestShareVisibility(
-		BindParentRequestShareRecords(peopleCompose.NewParentRequestShareEventRepository(db.Pool())),
-		BindParentFamilyProtectionReads(peopleCompose.NewFamilyProtectionEventRepository(db.Pool())),
+func NewRequestShareVisibility(db transactionruntime.Database) (eventContract.ShareVisibilityResolver, error) {
+	return peopleCompose.NewRequestShareVisibility(
+		peopleCompose.NewParentRequestShareEventRepository(db.Pool()),
+		peopleCompose.NewFamilyProtectionEventRepository(db.Pool()),
 	)
 }
 
@@ -56,7 +55,7 @@ func BuildCarePlanRequests(
 	audit AuditOwner, services PeopleServices, emitter eventContract.Emitter, caller *CallerRows,
 	reviews *ParentRequestReviewPolicy, permissions func(context.Context) []string, absences deliveryCompose.AbsenceNotifier, documentPermissions carePlanCompose.StudentDocumentPermissions,
 ) (CarePlanRequests, error) {
-	shares, err := requestShareVisibility(db)
+	shares, err := NewRequestShareVisibility(db)
 	if err != nil {
 		return CarePlanRequests{}, err
 	}

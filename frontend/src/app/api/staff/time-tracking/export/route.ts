@@ -12,7 +12,7 @@ const logger = createLogger({ component: "StaffTimeExportRoute" });
 /**
  * Cross-staff time-tracking export proxy (#1417 2b).
  * Streams the CSV/XLSX download from the backend, mirroring
- * /api/time-tracking/export: binary body plus Content-Disposition, so it
+ * the individual time report: binary body plus Content-Disposition, so it
  * bypasses the JSON route wrapper.
  */
 async function GETHandler(request: NextRequest) {

@@ -148,7 +148,7 @@ func newLifecycle(t *testing.T, deps timetablePorts.InstanceLifecycleDependencie
 // as the composition root does.
 func newLifecycleAutoEnd(t *testing.T, instances fixtures.ActivityInstanceRecords, lifecycle timetable.InstanceLifecycle) timetable.InstanceAutoEnd {
 	t.Helper()
-	autoEnd, err := compose.NewInstanceAutoEnd(fixtures.InstanceReadsOf(instances), lifecycle)
+	autoEnd, err := compose.NewInstanceAutoEnd(fixtures.InstanceReadsOf(instances), lifecycle, nil)
 	require.NoError(t, err)
 	return autoEnd
 }

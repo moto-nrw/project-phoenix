@@ -5,7 +5,6 @@ package api
 import (
 	peoplePorts "github.com/moto-nrw/project-phoenix/modules/peopledirectory/ports"
 	transactionruntime "github.com/moto-nrw/project-phoenix/modules/transactionruntime/compose"
-	workforceCompose "github.com/moto-nrw/project-phoenix/modules/workforce/compose"
 	owners "github.com/moto-nrw/project-phoenix/roots/owners"
 )
 
@@ -40,6 +39,6 @@ func newInvitationMembershipRepositories(db transactionruntime.Database) (people
 		return nil, nil, err
 	}
 	groupTeachers := NewGroupTeacherRepository(membership, NewEducationGroupRepository(db))
-	deps := owners.NewStaffMembershipDeps(owners.NewPersonRepository(db), owners.NewPeopleIdentityAccess(db, nil), workforceCompose.MustNewStaffEmployment(db.Pool()), groupTeachers)
+	deps := owners.NewStaffMembershipDeps(owners.NewPersonRepository(db), owners.NewPeopleIdentityAccess(db, nil), groupTeachers)
 	return owners.StaffMembershipRepository{Membership: membership, Deps: deps}, owners.TeacherMembershipRepository{Membership: membership, Deps: deps}, nil
 }

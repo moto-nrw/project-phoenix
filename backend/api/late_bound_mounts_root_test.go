@@ -38,10 +38,8 @@ func checkFormerLateBoundMounts(t *testing.T, graph *goldenRuntime) {
 	})
 	t.Run("feedback settings", func(t *testing.T) {
 		code, body := request(http.MethodGet, "/api/feedback/", "")
-		assert.Contains(t, []int{http.StatusOK, http.StatusForbidden}, code, body)
-		if code == http.StatusForbidden {
-			assert.Contains(t, body, "feedback_disabled", "a refusal comes from the tenant setting")
-		}
+		assert.Equal(t, http.StatusForbidden, code, body)
+		assert.Contains(t, body, `"code":"feedback.disabled"`, "the registry default must refuse feedback")
 	})
 	t.Run("room deletion guard", func(t *testing.T) {
 		room := testpkg.CreateTestRoom(t, db, fmt.Sprintf("late-bound-room-%d", time.Now().UnixNano()))

@@ -1,8 +1,11 @@
 package application
 
 import (
+	"bytes"
 	"context"
+	"errors"
 	"fmt"
+	"log/slog"
 	"testing"
 	"time"
 
@@ -10,13 +13,14 @@ import (
 	schedule "github.com/moto-nrw/project-phoenix/modules/timetable/internal/domain/schedulerecords"
 	"github.com/moto-nrw/project-phoenix/modules/timetable/ports"
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
+	"github.com/moto-nrw/project-phoenix/tenant"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
 func newTestAutoEnd(t *testing.T, instances ports.LegacyInstanceReads, completion timetable.InstanceLifecycle) timetable.InstanceAutoEnd {
 	t.Helper()
-	svc, err := NewInstanceAutoEnd(instances, completion)
+	svc, err := NewInstanceAutoEnd(instances, completion, nil)
 	require.NoError(t, err)
 	return svc
 }
@@ -126,6 +130,50 @@ func TestAutoEnd_RunForTenant_ContinuesAfterFailedCompletion(t *testing.T) {
 	assert.Equal(t, 1, result.Failed)
 	assert.Zero(t, result.SkippedConcurrent)
 	assert.Equal(t, []int64{401, 402}, completer.completedIDs)
+}
+
+// #4601: a failed completion is logged with its cause instead of only being
+// counted, so the operator can see why a block stayed running.
+func TestAutoEnd_RunForTenant_LogsFailedCompletionCause(t *testing.T) {
+	t.Parallel()
+
+	now := time.Date(2026, 4, 20, 14, 15, 0, 0, calendar.Berlin)
+	var logs bytes.Buffer
+	completer := &autoEndCompleter{errorsByID: map[int64]error{
+		451: errors.New("close active group: connection reset"),
+	}}
+	svc, err := NewInstanceAutoEnd(&autoStartInstanceRepo{instances: []*schedule.ActivityInstance{
+		autoStartInstance(451, schedule.InstanceStatusActive, 13, 0, 14, 0),
+	}}, completer, slog.New(slog.NewTextHandler(&logs, nil)))
+	require.NoError(t, err)
+
+	result, err := svc.RunForTenant(context.Background(), now, 15*time.Minute)
+
+	require.NoError(t, err)
+	assert.Equal(t, 1, result.Failed)
+	assert.Contains(t, logs.String(), "instance_id=451")
+	assert.Contains(t, logs.String(), "connection reset")
+}
+
+// A savepoint-control failure leaves the surrounding transaction unusable,
+// so the run stops instead of failing every later block the same way.
+func TestAutoEnd_RunForTenant_StopsOnSavepointControlFailure(t *testing.T) {
+	t.Parallel()
+
+	now := time.Date(2026, 4, 20, 14, 15, 0, 0, calendar.Berlin)
+	completer := &autoEndCompleter{errorsByID: map[int64]error{
+		461: fmt.Errorf("%w: release: connection reset", tenant.ErrSavepointControl),
+	}}
+	svc := newTestAutoEnd(t, &autoStartInstanceRepo{instances: []*schedule.ActivityInstance{
+		autoStartInstance(461, schedule.InstanceStatusActive, 13, 0, 14, 0),
+		autoStartInstance(462, schedule.InstanceStatusActive, 13, 0, 14, 0),
+	}}, completer)
+
+	result, err := svc.RunForTenant(context.Background(), now, 15*time.Minute)
+
+	require.ErrorIs(t, err, tenant.ErrSavepointControl)
+	assert.Equal(t, 1, result.Failed)
+	assert.Equal(t, []int64{461}, completer.completedIDs)
 }
 
 type autoEndCompleter struct {

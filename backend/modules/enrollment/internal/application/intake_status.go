@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
+	"slices"
 	"strings"
 	"time"
 
@@ -46,8 +47,11 @@ func (s *Intake) requestByStatusToken(ctx context.Context, token string, lock bo
 		return nil, enrollmentNative.ErrRequestNotFound
 	}
 	req, err := decodedRequestByToken(ctx, s.deps.Requests, token, lock)
-	if err != nil || req == nil {
+	if (err != nil && s.deps.Runtime.NotFound(err)) || (err == nil && req == nil) {
 		return nil, enrollmentNative.ErrRequestNotFound
+	}
+	if err != nil {
+		return nil, fmt.Errorf("load request by status token: %w", err)
 	}
 	if req.StatusTokenExpires != nil && time.Now().After(*req.StatusTokenExpires) {
 		return nil, enrollmentNative.ErrRequestNotFound
@@ -365,7 +369,13 @@ func (s *Intake) withdrawInTenant(ctx context.Context, token string, childID int
 	return s.enqueueWithdrawDecision(ctx, lockedReq)
 }
 
+// withdrawChildren withdraws the open children of the request, or only the
+// one named by childID. A childID that is not a child of this request is
+// refused as not found rather than answered as a successful no-op.
 func (s *Intake) withdrawChildren(ctx context.Context, children []*RequestChild, childID int64) (bool, error) {
+	if childID != 0 && !slices.ContainsFunc(children, func(child *RequestChild) bool { return child.ID == childID }) {
+		return false, enrollmentNative.ErrRequestChildNotFound
+	}
 	anyWithdrawn := false
 	for _, child := range children {
 		if childID != 0 && child.ID != childID {

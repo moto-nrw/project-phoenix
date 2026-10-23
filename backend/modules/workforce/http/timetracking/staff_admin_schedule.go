@@ -21,7 +21,7 @@ func (rs *StaffAdminResource) getSchedule(w http.ResponseWriter, r *http.Request
 		common.RenderError(w, r, common.ErrorInvalidRequest(err))
 		return
 	}
-	if !rs.canReadSchedule(r.Context(), staffID) {
+	if !rs.canActForStaff(r.Context(), staffID) {
 		common.RenderError(w, r, common.ErrorForbidden(errors.New("insufficient permission to read schedule")))
 		return
 	}
@@ -41,7 +41,9 @@ func (rs *StaffAdminResource) getSchedule(w http.ResponseWriter, r *http.Request
 	common.Respond(w, r, http.StatusOK, resp, "Schedule retrieved successfully")
 }
 
-func (rs *StaffAdminResource) canReadSchedule(ctx context.Context, staffID int64) bool {
+// canActForStaff allows time_tracking:manage for every person and
+// time_tracking:own only for the signed-in person's own staff record.
+func (rs *StaffAdminResource) canActForStaff(ctx context.Context, staffID int64) bool {
 	userPermissions := rs.identity(ctx).Permissions
 	if common.HasPermission(permissions.TimeTrackingManage, userPermissions) {
 		return true

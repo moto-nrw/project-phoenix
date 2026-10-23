@@ -70,13 +70,16 @@ describe("downloadBlob", () => {
 });
 
 describe("openBlobForPrint", () => {
-  it("prints into the tab the caller opened before the fetch", () => {
+  it("prints into the tab the caller opened before the fetch", async () => {
     vi.useFakeTimers();
     const target = { focus: vi.fn(), print: vi.fn(), location: { href: "" } };
     const open = vi.fn();
     globalThis.open = open as unknown as typeof globalThis.open;
 
-    openBlobForPrint(new Blob(["%PDF"]), target as unknown as Window);
+    const printing = openBlobForPrint(
+      new Blob(["%PDF"]),
+      target as unknown as Window,
+    );
 
     // Opening a second tab here is what popup blockers refuse after an await.
     expect(open).not.toHaveBeenCalled();
@@ -84,33 +87,57 @@ describe("openBlobForPrint", () => {
     expect(target.print).not.toHaveBeenCalled();
 
     vi.runAllTimers();
+    await printing;
     expect(target.focus).toHaveBeenCalledOnce();
     expect(target.print).toHaveBeenCalledOnce();
     expect(URL.revokeObjectURL).toHaveBeenCalledWith("blob:export");
   });
 
-  it("opens the tab itself when the caller did no async work first", () => {
+  it("opens the tab itself when the caller did no async work first", async () => {
     vi.useFakeTimers();
     const tab = { focus: vi.fn(), print: vi.fn() };
     globalThis.open = vi
       .fn()
       .mockReturnValue(tab) as unknown as typeof globalThis.open;
 
-    openBlobForPrint(new Blob(["%PDF"]));
+    const printing = openBlobForPrint(new Blob(["%PDF"]));
 
     expect(globalThis.open).toHaveBeenCalledWith("blob:export", "_blank");
     vi.runAllTimers();
+    await printing;
     expect(tab.print).toHaveBeenCalledOnce();
   });
 
   // A blocked popup must surface as an error the caller can show, not as a
   // silent no-op that looks like a broken export.
-  it("reports a blocked popup and releases the URL", () => {
+  it("reports a blocked popup and releases the URL", async () => {
     globalThis.open = vi
       .fn()
       .mockReturnValue(null) as unknown as typeof globalThis.open;
 
-    expect(() => openBlobForPrint(new Blob(["%PDF"]))).toThrow(/Druckdialog/);
+    await expect(openBlobForPrint(new Blob(["%PDF"]))).rejects.toThrow(
+      /Druckdialog/,
+    );
+    expect(URL.revokeObjectURL).toHaveBeenCalledWith("blob:export");
+  });
+
+  it("reports a failed print and still releases the URL", async () => {
+    vi.useFakeTimers();
+    const target = {
+      focus: vi.fn(),
+      print: vi.fn(() => {
+        throw new Error("Drucken fehlgeschlagen");
+      }),
+      location: { href: "" },
+    };
+
+    const printing = openBlobForPrint(
+      new Blob(["%PDF"]),
+      target as unknown as Window,
+    );
+    vi.runAllTimers();
+
+    await expect(printing).rejects.toThrow("Drucken fehlgeschlagen");
     expect(URL.revokeObjectURL).toHaveBeenCalledWith("blob:export");
   });
 });

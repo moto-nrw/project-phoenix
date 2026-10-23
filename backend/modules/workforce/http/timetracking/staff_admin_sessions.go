@@ -72,6 +72,10 @@ func (rs *StaffAdminResource) exportStaffSessions(w http.ResponseWriter, r *http
 		common.RenderError(w, r, common.ErrorInvalidRequest(err))
 		return
 	}
+	if !rs.canActForStaff(r.Context(), staffID) {
+		common.RenderError(w, r, common.ErrorForbidden(errors.New("insufficient permission to export time tracking")))
+		return
+	}
 	if _, err := rs.PersonService.StaffByID(r.Context(), staffID); err != nil {
 		common.RenderError(w, r, common.ErrorNotFound(errors.New("staff not found")))
 		return

@@ -88,8 +88,14 @@ describe("exportSlotList", () => {
       location: { href: "" },
     };
 
-    await exportSlotList(request, "pdf", "print", target as unknown as Window);
+    const printing = exportSlotList(
+      request,
+      "pdf",
+      "print",
+      target as unknown as Window,
+    );
     await vi.runAllTimersAsync();
+    await printing;
 
     expect(target.print).toHaveBeenCalledOnce();
     expect(target.close).not.toHaveBeenCalled();
