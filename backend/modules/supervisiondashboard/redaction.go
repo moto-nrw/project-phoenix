@@ -14,7 +14,7 @@ func redactPlannedPickupTimes(instances []PlannedInstance) {
 }
 
 // redactAbsenceStatuses clears sick and excused status with their timestamps.
-// They need users:read like in the child list and group view (ADR 0090); a
+// They need users:read like in the child list and group view (ADR 0091); a
 // guest reads the dashboard with groups:read only.
 func redactAbsenceStatuses(projection *Projection) {
 	redact := func(visit *Visit) {

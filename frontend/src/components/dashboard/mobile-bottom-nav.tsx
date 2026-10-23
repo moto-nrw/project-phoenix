@@ -400,7 +400,7 @@ const PAGE_ITEMS: readonly AdditionalNavItem[] = [
   },
   {
     // Wie in der Seitenleiste: das Recht des Schülerverzeichnisses (#4573,
-    // ADR 0090).
+    // ADR 0091).
     ...STAFF_FLAT_PAGES.studentSearch,
     iconKey: "search",
     concept: "children",
@@ -909,7 +909,7 @@ export function MobileBottomNav({ className = "" }: MobileBottomNavProps) {
         // gruppenbasierte Einstieg entfällt (#1544).
         !(openCareGroupMode && item.href === "/ogs-groups") &&
         // Suchen führt auf Alle Kinder und braucht wie dort users:read oder
-        // students:read (ADR 0090); ohne beides stünde dort eine Sackgasse.
+        // students:read (ADR 0091); ohne beides stünde dort eine Sackgasse.
         // Die Aufsicht hängt wie in der Seitenleiste am Recht der Seite
         // (groups:read oder schedules:read), nicht am Rollennamen.
         !(

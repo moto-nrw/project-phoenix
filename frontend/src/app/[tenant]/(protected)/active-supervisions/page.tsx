@@ -158,7 +158,7 @@ function MeinRaumPageContent() {
     ? openRoomSections(currentOpenRoom)
     : null;
   // Die Kinderliste eines Termins liest das Backend nur mit schedules:read.
-  // Der Gast (ADR 0090) hat es nicht und sieht die Kinder aus dem Raum.
+  // Der Gast (ADR 0091) hat es nicht und sieht die Kinder aus dem Raum.
   // Eine Sitzung ohne Rechteliste (vor den Rechte-Claims) fragt weiter.
   const sessionPermissions = session?.user?.permissions;
   const canReadRosters =

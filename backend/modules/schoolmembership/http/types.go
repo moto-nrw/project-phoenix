@@ -174,7 +174,7 @@ const (
 )
 
 // ExternalStaffRequest records an external caregiver (#3823) with an access
-// level (#4573, ADR 0090): name, optionally the organization they come from,
+// level (#4573, ADR 0091): name, optionally the organization they come from,
 // the access ("none" | "view" | "supervise") and, for view and supervise,
 // the e-mail address the invitation goes to. The workflow validates access
 // and address, so its refusals carry the field codes

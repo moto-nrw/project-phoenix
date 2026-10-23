@@ -10,7 +10,7 @@ import (
 )
 
 // Sick and excused status with their timestamps need users:read, in the
-// selected group and in the released rooms alike (ADR 0090). A guest reads
+// selected group and in the released rooms alike (ADR 0091). A guest reads
 // the dashboard with groups:read only.
 func TestDashboardAbsenceStatusFollowsStudentRead(t *testing.T) {
 	t.Parallel()

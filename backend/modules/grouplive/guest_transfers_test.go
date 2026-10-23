@@ -8,7 +8,7 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-// A guest reads the group with groups:read but without users:read (ADR 0090).
+// A guest reads the group with groups:read but without users:read (ADR 0091).
 // The substitution owner refuses the guest role, so the roster must not ask
 // it: the transfers stay empty instead of failing the whole projection.
 func TestGuestRosterLoadsWithoutTransfers(t *testing.T) {

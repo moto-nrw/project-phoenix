@@ -172,7 +172,7 @@ describe("StaffOnboardingWizard", () => {
     ]);
   });
 
-  // ADR 0090: die AG-Leitung hält nur schedules:read. Sie findet keine
+  // ADR 0091: die AG-Leitung hält nur schedules:read. Sie findet keine
   // Kinder über „Alle Kinder“ und erfasst keine Arbeitszeit.
   it("offers an external person only the supervision step", () => {
     permissions = ["schedules:read"];
@@ -182,7 +182,7 @@ describe("StaffOnboardingWizard", () => {
     expect(stepTitles()).toEqual(["Eine Aufsicht starten"]);
   });
 
-  // ADR 0090: der Gast sieht Gruppen und Aufsichten, startet aber keine.
+  // ADR 0091: der Gast sieht Gruppen und Aufsichten, startet aber keine.
   // Ohne einen Schritt, der für ihn gilt, bleibt die Checkliste weg.
   it("offers a guest no step and hides the checklist", () => {
     permissions = [

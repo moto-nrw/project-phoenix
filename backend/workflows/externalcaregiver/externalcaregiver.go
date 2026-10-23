@@ -1,5 +1,5 @@
 // Package externalcaregiver records an external caregiver with the access
-// level chosen for them (#4573, ADR 0090), and invites an existing external
+// level chosen for them (#4573, ADR 0091), and invites an existing external
 // caregiver who has no account yet. Being external is the external caregiver
 // record; the access is a separate choice: none (a placeholder without an
 // account), view (an invitation into the system role guest „Gast“) or
@@ -45,7 +45,7 @@ var (
 	ErrEmailInvited = errors.New("the address has an open invitation for someone else")
 )
 
-// Access is the access level of an external caregiver (ADR 0090).
+// Access is the access level of an external caregiver (ADR 0091).
 type Access string
 
 const (
@@ -86,7 +86,7 @@ func parseAccess(raw Access, invited bool) (Access, error) {
 }
 
 // errSystemRoleMissing: the platform system role an access level invites
-// into does not exist; migrations 1.0.4 and 1.15.477 create them, so this is
+// into does not exist; migrations 1.0.4 and 1.15.478 create them, so this is
 // a broken deployment, not a request error.
 var errSystemRoleMissing = errors.New("external caregiver: system role missing")
 

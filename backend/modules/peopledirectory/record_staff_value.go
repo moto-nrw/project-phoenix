@@ -32,7 +32,7 @@ type Staff struct {
 	BirthdayDisplayOptOut bool       `json:"birthday_display_opt_out"`
 	DeletedAt             *time.Time `json:"-"`
 	// HasExternalCaregiverRecord is School Membership's raw marker: the staff
-	// member has an active external caregiver record (#3823, ADR 0090). Every
+	// member has an active external caregiver record (#3823, ADR 0091). Every
 	// read fills it.
 	HasExternalCaregiverRecord bool `json:"-"`
 	// IsExternalCaregiver applies School Membership's rule

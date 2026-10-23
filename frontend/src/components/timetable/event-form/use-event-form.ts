@@ -389,7 +389,7 @@ export function useEventForm({
   const [planningTracks, setPlanningTracks] = useState<PlanningTrack[]>([]);
   const [groups, setGroups] = useState<GroupOption[]>([]);
   const [students, setStudents] = useState<PersonOption[]>([]);
-  // The whole staff list, externals with any access included (ADR 0090).
+  // The whole staff list, externals with any access included (ADR 0091).
   const [staffDirectory, setStaffDirectory] = useState<Staff[]>([]);
   const staff = useMemo(
     () => staffRosterOptions(staffDirectory),

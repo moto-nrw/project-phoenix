@@ -164,7 +164,7 @@ const NAV_ITEMS: NavItem[] = [
   },
   {
     // Alle Kinder liest das Schülerverzeichnis: users:read oder, für die
-    // Rolle „Gast“, students:read (ADR 0090). Ohne beides, etwa als
+    // Rolle „Gast“, students:read (ADR 0091). Ohne beides, etwa als
     // AG-Leitung, wäre der Eintrag eine Sackgasse.
     ...STAFF_FLAT_PAGES.studentSearch,
     icon: navigationIcons.userSingle,

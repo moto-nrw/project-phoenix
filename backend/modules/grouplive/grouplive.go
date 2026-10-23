@@ -630,7 +630,7 @@ func (s *service) finishProjection(ctx context.Context, state *buildState) (*Pro
 	projection.TrackingIndicators = tracking
 
 	// Transfers name the substituting staff. A guest reads groups without
-	// users:read and sees no staff (ADR 0090); the substitution owner would
+	// users:read and sees no staff (ADR 0091); the substitution owner would
 	// refuse the guest role and fail the whole roster.
 	if !state.caller.CanReadStudentPlans {
 		return projection, nil

@@ -81,7 +81,7 @@ const (
 // (list, detail, current visit, status-day overview, school classes, photo,
 // OGS group live view), never the guardian directory, parent messages,
 // student notes or exports. It is the child access of the system role guest
-// („Gast“, access level „Nur ansehen“, ADR 0090). Every staff role keeps
+// („Gast“, access level „Nur ansehen“, ADR 0091). Every staff role keeps
 // users:read, which opens the same routes and more, so no staff role needs it.
 const StudentsRead = ResourceStudents + ":" + ActionRead
 

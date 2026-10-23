@@ -60,7 +60,7 @@ einladen“ wählt man eine von drei Stufen:
 - **Gast** bleibt die Rolle fürs reine Ansehen, für Externe genauso wie für
   Grundschul-Personal. Sie verliert `users:read` und jedes Schreibrecht und
   bekommt reine Leserechte: `students:read`, `groups:read`, `rooms:read`,
-  `activities:read` (Migration 1.15.478). `students:read` ist neu und öffnet
+  `activities:read` (Migration 1.15.479). `students:read` ist neu und öffnet
   nur die Leserouten der Kinder (Liste, Detail, aktueller Ort, Klassen, Foto,
   OGS-Gruppenansicht), die bisher allein an `users:read` hingen. Damit sieht
   ein Gast keine Elternnachrichten, kein Elternverzeichnis, keine
@@ -93,7 +93,7 @@ Nicht gewählt:
 
 ## Begriff „Gastprofil“ entfällt
 
-Die Tabelle `users.guests` heißt ab Migration 1.15.476
+Die Tabelle `users.guests` heißt ab Migration 1.15.477
 `users.external_caregivers`; Sequenz, Indizes, Constraints, RLS-Policy und
 Trigger folgen dem Namen. Zeilen, Row-Level-Security, Rechte der
 Datenbankrollen und Fremdschlüssel bleiben, weil PostgreSQL sie an die Tabelle

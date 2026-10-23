@@ -8,7 +8,7 @@ import {
 } from "./auth-helpers";
 
 describe("getRoleDisplayName", () => {
-  // ADR 0090: „Extern“ ist keine Rolle mehr; eine gleichnamige Schulrolle
+  // ADR 0091: „Extern“ ist keine Rolle mehr; eine gleichnamige Schulrolle
   // bleibt, wie sie gespeichert ist.
   it("keeps custom school roles as stored, extern included", () => {
     expect(getRoleDisplayName("extern")).toBe("extern");
@@ -70,7 +70,7 @@ describe("getRoleDisplayDescription", () => {
     );
   });
 
-  // ADR 0090: Gast is a signed-in account that only reads.
+  // ADR 0091: Gast is a signed-in account that only reads.
   it("translates guest description to German", () => {
     expect(getRoleDisplayDescription("guest", "Limited access")).toBe(
       "Nur ansehen: Kinder, Räume und AGs. Keine Elterndaten, keine Nachrichten.",
@@ -181,7 +181,7 @@ describe("getAccountRoleLabel", () => {
     expect(getAccountRoleLabel(["guest"])).toBe("Gast");
   });
 
-  // ADR 0090: the two access levels of external caregivers are system roles.
+  // ADR 0091: the two access levels of external caregivers are system roles.
   it("names the system roles Gast and AG-Leitung", () => {
     expect(getAccountRoleLabel(["ag-leitung"])).toBe("AG-Leitung");
     expect(getAccountRoleLabel(["ag-leitung"], [true])).toBe("AG-Leitung");

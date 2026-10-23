@@ -83,7 +83,7 @@ describe("useEventForm staff selection", () => {
     vi.spyOn(staffService, "getAllStaff").mockResolvedValue(staff);
   }
 
-  // ADR 0090 changes the contract of #4573: an external without account
+  // ADR 0091 changes the contract of #4573: an external without account
   // („Kein Zugang“) is a placeholder for planning and is offered like the
   // others, with its mark in the name.
   it("offers externals with every access, also those without account", async () => {

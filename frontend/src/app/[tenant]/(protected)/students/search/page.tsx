@@ -1388,7 +1388,7 @@ function SearchPageContent() {
   // wrappers (mobile spacing, the grid's bottom padding) out of the tree when
   // the school has web attendance switched off.
   const attendanceWebEnabled = useAttendanceWebEnabled();
-  // Ohne users:checkin (etwa als Gast, ADR 0090) scheiterte jeder Tipp.
+  // Ohne users:checkin (etwa als Gast, ADR 0091) scheiterte jeder Tipp.
   const checkinModeAvailable =
     isToday && attendanceWebEnabled && canCheckInChildren(session);
   const schoolCheckin = useSchoolCheckinMode();

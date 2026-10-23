@@ -15,7 +15,7 @@ func RequireActiveGroupAssign() Middleware { return RequiresPermission(permissio
 func RequireVisitUpdate() Middleware       { return RequiresPermission(permissions.VisitsUpdate) }
 
 // CanReadStudentAbsence reports users:read. Sick and excused status need it
-// like in the child list and group view (ADR 0090); a guest reads the active
+// like in the child list and group view (ADR 0091); a guest reads the active
 // groups with groups:read only.
 func CanReadStudentAbsence(ctx context.Context) bool {
 	principal, err := CurrentPrincipal(ctx)

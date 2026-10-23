@@ -757,7 +757,7 @@ interface PersonalInfoReadOnlyProps {
   onEditClick?: () => void;
   /**
    * Load and show „Geht mit“. GET /students/{id}/companions needs users:read;
-   * the role „Gast“ reads the child without it (ADR 0090).
+   * the role „Gast“ reads the child without it (ADR 0091).
    */
   showCompanions?: boolean;
 }

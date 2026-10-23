@@ -16,7 +16,7 @@ import (
 )
 
 // Sick and excused status with their timestamps need users:read, like in the
-// child list and group view (ADR 0090). A guest reads the visit display with
+// child list and group view (ADR 0091). A guest reads the visit display with
 // groups:read only.
 func TestVisitDisplayAbsenceStatusRequiresUsersRead(t *testing.T) {
 	t.Parallel()

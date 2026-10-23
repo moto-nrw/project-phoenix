@@ -8,22 +8,22 @@ import (
 	"github.com/uptrace/bun"
 )
 
-const externalCaregiversTableVersion = "1.15.476"
+const externalCaregiversTableVersion = "1.15.477"
 
 func init() {
 	MigrationRegistry.Register(&Migration{
 		Version:     externalCaregiversTableVersion,
-		Description: "Rename users.guests to users.external_caregivers (#4573, ADR 0090)",
+		Description: "Rename users.guests to users.external_caregivers (#4573, ADR 0091)",
 		DependsOn: []string{
-			UsersGuestsVersion,            // creates users.guests
-			maskStudentHealthAuditVersion, // previous head
+			UsersGuestsVersion,   // creates users.guests
+			authTenantRLSVersion, // previous head
 		},
 	})
 	Migrations.MustRegister(externalCaregiversTableUp, externalCaregiversTableDown)
 }
 
 // externalCaregiversTableUp gives the record that makes a staff member an
-// external caregiver the name of what it is (ADR 0090). The former name
+// external caregiver the name of what it is (ADR 0091). The former name
 // „guests“ was easy to confuse with the system role guest.
 //
 // A rename keeps the rows, the row-level security, the grants and the foreign
@@ -56,7 +56,7 @@ func externalCaregiversTableUp(ctx context.Context, db *bun.DB) error {
 			ALTER POLICY tenant_isolation_users_guests ON users.external_caregivers RENAME TO tenant_isolation_users_external_caregivers;
 			ALTER TRIGGER update_guests_updated_at ON users.external_caregivers RENAME TO update_external_caregivers_updated_at;
 			COMMENT ON TABLE users.external_caregivers IS
-				'Externe Betreuungskraft: macht eine Person des Personals extern, mit Organisation und optionalem Zeitraum (ADR 0090).';
+				'Externe Betreuungskraft: macht eine Person des Personals extern, mit Organisation und optionalem Zeitraum (ADR 0091).';
 		`); err != nil {
 			return fmt.Errorf("rename users.guests to users.external_caregivers: %w", err)
 		}
