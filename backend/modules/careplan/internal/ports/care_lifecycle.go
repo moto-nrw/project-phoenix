@@ -17,6 +17,9 @@ import (
 // CareStudentDirectory is the People Directory half: the child rows and the
 // reversible membership commands the care-exit transaction runs.
 type CareStudentDirectory interface {
+	// LockCareStudentWrites takes the shared class-writes gate before the
+	// recurrence gate and any child row locks (ADR 0067 point 5).
+	LockCareStudentWrites(ctx context.Context) error
 	// FindCareStudents reads the tenant's rows of the given children, FOR
 	// UPDATE when lock is set. A missing child is absent from the map.
 	FindCareStudents(ctx context.Context, studentIDs []int64, lock bool) (map[int64]domain.CareStudent, error)
