@@ -19,10 +19,11 @@ vi.mock("~/lib/guardian-payment-api", () => ({
 }));
 
 let mockPermissions: string[] = ["guardians:financial"];
+let mockSessionStatus: "authenticated" | "loading" = "authenticated";
 vi.mock("next-auth/react", () => ({
   useSession: () => ({
     data: { user: { permissions: mockPermissions } },
-    status: "authenticated",
+    status: mockSessionStatus,
   }),
 }));
 
@@ -70,6 +71,7 @@ function row(overrides: Partial<PaymentOverviewRow>): PaymentOverviewRow {
 describe("BankverbindungenPage", () => {
   beforeEach(() => {
     mockPermissions = ["guardians:financial"];
+    mockSessionStatus = "authenticated";
     mockFetchOverview.mockReset();
     mockExport.mockReset();
     mockFetchOverview.mockResolvedValue([]);
@@ -233,6 +235,35 @@ describe("BankverbindungenPage", () => {
       await screen.findAllByText("Noch keine Kinder in der Liste"),
     ).toHaveLength(2);
     expect(actions).toBeDisabled();
+  });
+
+  it("keeps export available after a failed refetch with retained rows", async () => {
+    mockFetchOverview
+      .mockResolvedValueOnce([row({})])
+      .mockRejectedValueOnce(
+        new ApiError("down", 503, { code: "general.unavailable" }),
+      );
+
+    const { rerender } = render(<BankverbindungenPage />);
+    await waitFor(() =>
+      expect(table().getByText("Mia Schneider")).toBeInTheDocument(),
+    );
+
+    mockSessionStatus = "loading";
+    rerender(<BankverbindungenPage />);
+    mockSessionStatus = "authenticated";
+    rerender(<BankverbindungenPage />);
+
+    await waitFor(() => expect(mockFetchOverview).toHaveBeenCalledTimes(2));
+    expect(table().getByText("Mia Schneider")).toBeInTheDocument();
+    expect(
+      screen.getByRole("button", { name: "Weitere Aktionen" }),
+    ).toBeEnabled();
+
+    openExportDialog();
+    expect(
+      screen.getByRole("heading", { name: "Bankverbindungen exportieren" }),
+    ).toBeInTheDocument();
   });
 
   // #2517: a failed load replaces the list, never "Noch keine Kinder".

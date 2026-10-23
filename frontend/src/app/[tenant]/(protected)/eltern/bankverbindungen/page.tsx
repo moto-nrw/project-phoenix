@@ -209,7 +209,7 @@ function BankverbindungenContent() {
   const failedWithoutData = loadFailed && rows.length === 0;
   const awaitingErrorText =
     loadFailed && formErrorMessage(loadError.error) === null;
-  const exportUnavailable = isLoading || loadFailed || rows.length === 0;
+  const exportUnavailable = isLoading || rows.length === 0;
 
   return (
     <TenantPage
