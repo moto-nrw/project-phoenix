@@ -4,6 +4,7 @@ import { defineEntityConfig } from "@/lib/database/types";
 import type { Teacher, TeacherWithCredentials } from "@/lib/teacher-api";
 import { teacherService } from "@/lib/teacher-api";
 import { createLogger } from "~/lib/logger";
+import type { ExternalAccountStatus } from "~/lib/staff-api";
 import type { WireID } from "~/lib/wire-id";
 import { toOptionalIdString } from "~/lib/wire-id";
 
@@ -87,6 +88,10 @@ function mapTeacherResponse(data: unknown): Teacher {
           external_organization:
             (typedData.external_organization as string | null | undefined) ??
             null,
+          // Kontostand für „Kein Konto“ / „Einladung offen“ (#4573).
+          external_account_status:
+            (typedData.external_account_status as
+              ExternalAccountStatus | null | undefined) ?? null,
         }
       : {}),
     staff_id: typedData.staff_id as string | undefined,

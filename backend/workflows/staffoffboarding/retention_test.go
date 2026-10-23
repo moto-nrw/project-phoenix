@@ -169,7 +169,7 @@ func TestStaffRetentionCountsTheRecordsOfOneErasure(t *testing.T) {
 	}
 
 	assert.Equal(t, map[string]int64{
-		"teachers": 1, "group_teacher": 2, "guests": 0, "class_teachers": 2, "group_supervisors": 3, "planned_supervisors": 2, "timetable_instance_staff": 2, "master_data": 1, "documents": 4,
+		"teachers": 1, "group_teacher": 2, "external_caregivers": 0, "class_teachers": 2, "group_supervisors": 3, "planned_supervisors": 2, "timetable_instance_staff": 2, "master_data": 1, "documents": 4,
 	}, erasure.Counts())
 	assert.Equal(t, 18, erasure.Records(), "every deleted row and the anonymized person")
 }

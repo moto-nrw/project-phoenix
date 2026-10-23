@@ -199,10 +199,6 @@ other inventoried debt remains unchanged.
 
 **Known exceptions, not patterns for new code:**
 
-- `security.ogs_device_pin` still converts a read failure or a missing resolver
-  into the legacy `OGS_DEVICE_PIN` chain. Removing that fail-open chain and
-  choosing the setup/default-PIN policy belongs to
-  [#3841](https://github.com/moto-nrw/project-phoenix/issues/3841), not #4543.
 - Existing fail-closed feature/display readers (for example staff-name
   visibility and offering-change availability) still
   suppress errors. Some older constructors still permit nil settings and the
@@ -211,8 +207,8 @@ other inventoried debt remains unchanged.
 - Existing operational readers still use literals on errors or nil resolvers.
   The complete per-reader classification, including nil-only cases, lives in
   [PR #4631, Literal-Fallback-Inventar](https://github.com/moto-nrw/project-phoenix/pull/4631#literal-fallback-inventar).
-  That inventory separates fixed paths, the #3841 exception and remaining
-  debt; it is not permission to add a fallback.
+  The #3841 device-PIN chain is now removed; other inventoried debt remains.
+  The inventory is not permission to add a fallback.
 
 `Resolve*OrDefault` resolves the registry default without an override; its
 caller literal applies only to a failed read. New consumers use `Resolve*`

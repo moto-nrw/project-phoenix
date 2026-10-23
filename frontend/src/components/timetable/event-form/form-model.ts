@@ -1,4 +1,6 @@
 import { formatDate } from "~/lib/date-helpers";
+import type { Staff } from "~/lib/staff-api";
+import { externalStaffNote } from "~/lib/staff-helpers";
 import { fetchStudents } from "~/lib/student-api";
 import { getSchoolYear } from "~/lib/student-helpers";
 import { resolveTemplateCalendarPeriodId } from "~/lib/timetable-helpers";
@@ -719,6 +721,26 @@ export function parseMaxParticipants(value: string): number | null {
   if (!/^\d+$/.test(trimmed)) return null;
   const parsed = Number(trimmed);
   return Number.isSafeInteger(parsed) && parsed > 0 ? parsed : null;
+}
+
+/**
+ * The Personal options of the event form: the whole staff list, externals
+ * with any access included (ADR 0091; „Kein Zugang“ is a placeholder for
+ * exactly this planning). Externals carry their mark in the name, because
+ * the pickers take plain strings.
+ */
+export function staffRosterOptions(
+  directory: readonly Staff[],
+): PersonOption[] {
+  return sortPeople(
+    directory.map((item) => {
+      const note = externalStaffNote(item);
+      return {
+        id: item.id,
+        name: note ? `${item.name} (${note})` : item.name,
+      };
+    }),
+  );
 }
 
 export function sortPeople<T extends PersonOption>(items: T[]): T[] {

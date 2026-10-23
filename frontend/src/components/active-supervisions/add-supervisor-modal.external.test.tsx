@@ -79,6 +79,13 @@ const overview = {
   availableTargets: [
     { id: "73", fullName: "Toni Test" },
     { id: "74", fullName: "Jonas Becker", isExternal: true as const },
+    {
+      id: "76",
+      fullName: "Mira Neu",
+      isExternal: true as const,
+      externalOrganization: "Musikschule",
+      externalAccountStatus: "invitation_pending" as const,
+    },
   ],
   isCurrentUserSupervising: true,
   canAssign: true,
@@ -96,7 +103,7 @@ function renderModal(canCreateExternalCaregiver = true) {
   );
 }
 
-// #3823: externe Betreuungskräfte ohne Konto in der laufenden Aufsicht.
+// #3823/#4573: externe Betreuungskräfte in der laufenden Aufsicht.
 describe("AddSupervisorModal external caregivers", () => {
   beforeEach(() => {
     vi.clearAllMocks();
@@ -108,6 +115,7 @@ describe("AddSupervisorModal external caregivers", () => {
       firstName: "Lea",
       lastName: "Gast",
       isExternal: true,
+      externalAccountStatus: "invitation_pending",
     });
   });
 
@@ -115,10 +123,22 @@ describe("AddSupervisorModal external caregivers", () => {
     renderModal();
 
     expect(
-      await screen.findByRole("option", { name: "Jonas Becker (extern)" }),
+      await screen.findByRole("option", { name: "Jonas Becker (Extern)" }),
     ).toBeInTheDocument();
     expect(
       screen.getByRole("option", { name: "Toni Test" }),
+    ).toBeInTheDocument();
+  });
+
+  // #4573: Organisation und offene Einladung stehen am Namen, wie in den
+  // anderen Auswahllisten („Extern · Musikschule, Einladung offen“).
+  it("labels an external person with organization and open invitation", async () => {
+    renderModal();
+
+    expect(
+      await screen.findByRole("option", {
+        name: "Mira Neu (Extern · Musikschule, Einladung offen)",
+      }),
     ).toBeInTheDocument();
   });
 
@@ -134,20 +154,39 @@ describe("AddSupervisorModal external caregivers", () => {
     fireEvent.change(screen.getByLabelText("Nachname"), {
       target: { value: "Gast" },
     });
+    fireEvent.click(
+      screen.getByRole("radio", { name: /Eigene Termine betreuen/ }),
+    );
+    fireEvent.change(screen.getByLabelText("E-Mail-Adresse"), {
+      target: { value: "lea@example.test" },
+    });
     fireEvent.click(screen.getByRole("button", { name: "Eintragen" }));
 
     await waitFor(() =>
       expect(screen.getByLabelText("Betreuer auswählen")).toHaveValue("88"),
     );
     expect(
-      screen.getByRole("option", { name: "Lea Gast (extern)" }),
+      screen.getByRole("option", {
+        name: "Lea Gast (Extern, Einladung offen)",
+      }),
     ).toBeInTheDocument();
     fireEvent.click(screen.getByRole("button", { name: "Hinzufügen" }));
 
     await waitFor(() => expect(addSupervisor).toHaveBeenCalledWith("41", "88"));
   });
 
-  it("does not duplicate an external person already assigned to the supervision", async () => {
+  // #4573 decision: the quick entry always records a new person. A name
+  // match no longer picks or blocks anyone; the address decides, and the
+  // backend refuses one that already signs in at the school.
+  it("records a namesake of an assigned external as a new person", async () => {
+    createExternal.mockResolvedValue({
+      id: "89",
+      name: "Elli Extern",
+      firstName: "Elli",
+      lastName: "Extern",
+      isExternal: true,
+      externalAccountStatus: "invitation_pending",
+    });
     renderModal();
 
     fireEvent.click(
@@ -159,12 +198,24 @@ describe("AddSupervisorModal external caregivers", () => {
     fireEvent.change(screen.getByLabelText("Nachname"), {
       target: { value: "Extern" },
     });
+    fireEvent.click(
+      screen.getByRole("radio", { name: /Eigene Termine betreuen/ }),
+    );
+    fireEvent.change(screen.getByLabelText("E-Mail-Adresse"), {
+      target: { value: "elli@example.test" },
+    });
     fireEvent.click(screen.getByRole("button", { name: "Eintragen" }));
 
-    expect(
-      await screen.findByText("Diese Person ist schon eingetragen."),
-    ).toBeInTheDocument();
-    expect(createExternal).not.toHaveBeenCalled();
+    await waitFor(() =>
+      expect(screen.getByLabelText("Betreuer auswählen")).toHaveValue("89"),
+    );
+    expect(createExternal).toHaveBeenCalledWith({
+      firstName: "Elli",
+      lastName: "Extern",
+      email: "elli@example.test",
+      organization: "",
+      access: "supervise",
+    });
   });
 
   it("still offers a new external person when every caregiver is assigned", async () => {
@@ -203,7 +254,7 @@ describe("AddSupervisorModal external caregivers", () => {
     renderModal(false);
 
     expect(
-      await screen.findByRole("option", { name: "Jonas Becker (extern)" }),
+      await screen.findByRole("option", { name: "Jonas Becker (Extern)" }),
     ).toBeInTheDocument();
     expect(
       screen.queryByRole("button", { name: "Externe Person eintragen" }),

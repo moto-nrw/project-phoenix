@@ -43,7 +43,7 @@ Widerruf oder Reset darf keinen neuen Sitzungsnachweis erzeugen. Die Einstellung
 gemerkte Geräte bleiben deshalb auch bei `off` sichtbar. Ein noch nicht
 angemeldetes Konto kann die Einrichtung nicht mit einem alten Cookie überspringen.
 
-Migration `1.15.477` setzt für alle vorhandenen Refresh-Sitzungen den neuen
+Migration `1.15.480` setzt für alle vorhandenen Refresh-Sitzungen den neuen
 Nachweis `mfa_verified` auf `false`. Beim nächsten Refresh muss ein inzwischen
 MFA-pflichtiges Konto sich neu anmelden. Es erhält dann die Einrichtungsabfrage
 oder eine Code-Abfrage. Neue bestätigte Sitzungen behalten ihren Nachweis über

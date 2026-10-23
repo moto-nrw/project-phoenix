@@ -585,6 +585,69 @@ func TestCheckRequiresCandidateMigrationOwnership(t *testing.T) {
 	}
 }
 
+// A table a new migration renames keeps its write owner (ADR 0091). The old
+// name must be owned at the base and leave the policy, the new name must keep
+// the owner, and only a top-level ALTER TABLE ... RENAME TO counts.
+func TestCheckAcceptsARenamedTableOnlyWithItsOwner(t *testing.T) {
+	t.Parallel()
+	for _, tt := range []struct {
+		name, sql, want string
+		owner           string
+		keepOld         bool
+	}{
+		{name: "rename keeps the owner", sql: `ALTER TABLE ghost.records RENAME TO entries`, owner: "module"},
+		{name: "rename with IF EXISTS and ONLY", sql: `ALTER TABLE IF EXISTS ONLY "ghost"."records" RENAME TO "entries"`, owner: "module"},
+		{name: "rename with a rollback back", sql: `ALTER TABLE ghost.records RENAME TO entries; ALTER TABLE ghost.entries RENAME TO records`, owner: "module"},
+		{name: "rename changes the owner", sql: `ALTER TABLE ghost.records RENAME TO entries`, owner: "migrations", want: "data object ghost.entries renamed from ghost.records changed write owner from module to migrations"},
+		{name: "old name stays in the policy", sql: `ALTER TABLE ghost.records RENAME TO entries`, owner: "module", keepOld: true, want: "data object ghost.entries renamed from ghost.records keeps the old name in the policy"},
+		{name: "unowned table renamed", sql: `ALTER TABLE ghost.unowned RENAME TO entries`, owner: "module", want: "renamed from ghost.unowned, which the base policy does not own"},
+		{name: "column rename", sql: `ALTER TABLE ghost.records RENAME COLUMN entries TO rows`, owner: "module", want: "data object ghost.entries was newly assigned to owner module"},
+		{name: "constraint rename", sql: `ALTER TABLE ghost.records RENAME CONSTRAINT records_pkey TO entries`, owner: "module", want: "data object ghost.entries was newly assigned to owner module"},
+		{name: "rename in a procedural body", sql: `DO $$ BEGIN ALTER TABLE ghost.records RENAME TO entries; END $$`, owner: "module", want: "data object ghost.entries was newly assigned to owner module"},
+		{name: "rename in a literal", sql: `SELECT 'ALTER TABLE ghost.records RENAME TO entries'`, owner: "module", want: "data object ghost.entries was newly assigned to owner module"},
+		{name: "unqualified rename", sql: `ALTER TABLE records RENAME TO entries`, owner: "module", want: "renamed data object must be schema-qualified"},
+		{name: "no rename", sql: `SELECT 1`, owner: "module", want: "data object ghost.entries was newly assigned to owner module"},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			repo, _, migrationPolicy := ratchetRepositoryWithMigrationPackage(t, `package migrations
+ type rawDB struct{}
+ func (rawDB) NewRaw(string) {}
+ func historical(db rawDB) { db.NewRaw("CREATE TABLE ghost.records (id bigint)") }
+ `)
+			basePolicy := policyWithDataObject(t, migrationPolicy, "ghost.records", "module")
+			writeFile(t, filepath.Join(repo, "architecture", "policy.json"), basePolicy)
+			runGit(t, repo, "add", ".")
+			runGit(t, repo, "commit", "-qm", "own ghost.records")
+			baseRef := strings.TrimSpace(runGit(t, repo, "rev-parse", "HEAD"))
+
+			policy := mutatePolicy(t, basePolicy, func(document map[string]any) {
+				if tt.keepOld {
+					return
+				}
+				kept := []any{}
+				for _, object := range document["data_objects"].([]any) {
+					if object.(map[string]any)["name"] != "ghost.records" {
+						kept = append(kept, object)
+					}
+				}
+				document["data_objects"] = kept
+			})
+			policy = policyWithDataObject(t, policy, "ghost.entries", tt.owner)
+			writeFile(t, filepath.Join(repo, "architecture", "policy.json"), policy)
+			writeFile(t, filepath.Join(repo, "database", "migrations", "001_rename.go"), fmt.Sprintf("package migrations\nfunc rename(db rawDB) { db.NewRaw(%q) }\n", tt.sql))
+			output, err := runRepositoryCheck(t, repo, baseRef)
+			if tt.want == "" {
+				if err != nil {
+					t.Fatalf("rename that keeps the owner rejected: %v\n%s", err, output)
+				}
+			} else if err == nil || !strings.Contains(output, tt.want) {
+				t.Fatalf("want %q, got %v\n%s", tt.want, err, output)
+			}
+		})
+	}
+}
+
 func TestCheckPreservesHistoricalMigrationOwnershipBaseline(t *testing.T) {
 	t.Parallel()
 	repo, baseRef, _ := ratchetRepositoryWithMigrationPackage(t, `package migrations

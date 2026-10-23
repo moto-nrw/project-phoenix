@@ -30,7 +30,7 @@ func TestSessionStartMirrorsTenantAndWallClock(t *testing.T) {
 	device := testpkg.CreateTestDevice(t, db, "mirror-device")
 	schools, err := NewDeviceSchools(testpkg.NewDatabase(t, db), testpkg.TenantRuntime(t, db))
 	require.NoError(t, err)
-	deviceAuth := testutil.NewDeviceAuthenticators(active.IoT.Fleet(), schools, auth, "1234")
+	deviceAuth := testutil.NewDeviceAuthenticators(active.IoT.Fleet(), schools, auth)
 	resource := newIoTRouterTestResource()
 	resource.DeviceAuthenticator = deviceAuth.Device()
 	resource.DeviceOnlyAuthenticator = deviceAuth.DeviceOnly()

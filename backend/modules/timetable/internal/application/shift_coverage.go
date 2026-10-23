@@ -69,7 +69,41 @@ func (d *conflictDetection) DetectShiftCoverage(ctx context.Context, probe timet
 	if err != nil {
 		return timetable.ShiftCoverageResult{}, fmt.Errorf("load staff names for coverage warnings: %w", err)
 	}
+	// External caregivers stay out of the Dienstplan (#4573), so a missing
+	// shift of theirs is no gap. The same read that names the warnings
+	// identifies them; the pure count then runs again without them.
+	if externals := externalCoverageStaff(staff); len(externals) > 0 {
+		pending, total = collectPendingCoverageWarnings(dates, withoutCoverageStaff(coverageDays, externals), shifts, usedWeeks)
+		if len(pending) == 0 {
+			return emptyShiftCoverageResult(), nil
+		}
+	}
 	return timetable.ShiftCoverageResult{Warnings: buildShiftCoverageWarnings(pending, staff), TotalWarningCount: total}, nil
+}
+
+func externalCoverageStaff(staff map[int64]*timetable.StaffMember) map[int64]bool {
+	externals := make(map[int64]bool)
+	for id, member := range staff {
+		if member != nil && member.IsExternalCaregiver {
+			externals[id] = true
+		}
+	}
+	return externals
+}
+
+func withoutCoverageStaff(days map[calendar.Date]effectiveShiftCoverageDay, excluded map[int64]bool) map[calendar.Date]effectiveShiftCoverageDay {
+	result := make(map[calendar.Date]effectiveShiftCoverageDay, len(days))
+	for date, day := range days {
+		kept := make([]int64, 0, len(day.staffIDs))
+		for _, id := range day.staffIDs {
+			if !excluded[id] {
+				kept = append(kept, id)
+			}
+		}
+		day.staffIDs = kept
+		result[date] = day
+	}
+	return result
 }
 
 func emptyShiftCoverageResult() timetable.ShiftCoverageResult {

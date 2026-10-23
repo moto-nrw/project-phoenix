@@ -392,7 +392,12 @@ function VertretungContent() {
     [visibleInstances],
   );
   const staffOptions = useMemo(
-    () => (staffData?.staff ?? []).map((s) => ({ id: s.id, name: s.name })),
+    () =>
+      (staffData?.staff ?? []).map((s) => ({
+        id: s.id,
+        name: s.name,
+        isExternal: s.isExternal,
+      })),
     [staffData],
   );
   // Auch die Fachkräfte der Termine: die Blöcke und die Tagesliste nennen
