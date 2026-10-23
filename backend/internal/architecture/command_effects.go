@@ -76,7 +76,7 @@ func analyzeCommandEffects(project string, policy *Policy, loaded []*packages.Pa
 	if err != nil {
 		return nil, err
 	}
-	return manifest.siteViolations(discovered), nil
+	return manifest.siteViolations(discovered, policy), nil
 }
 
 func loadCanonicalCommandEffects(project string) (*commandEffectManifest, error) {
@@ -98,7 +98,11 @@ func loadCanonicalCommandEffects(project string) (*commandEffectManifest, error)
 	return manifest, nil
 }
 
-func (manifest *commandEffectManifest) siteViolations(discovered []commandEffectSite) []Violation {
+func (manifest *commandEffectManifest) siteViolations(discovered []commandEffectSite, policy *Policy) []Violation {
+	ownerKinds := map[string]string{}
+	for _, owner := range policy.Owners {
+		ownerKinds[owner.ID] = owner.Kind
+	}
 	entries := map[string]commandEffectEntry{}
 	for _, entry := range manifest.Entries {
 		entries[entry.key()] = entry
@@ -118,6 +122,9 @@ func (manifest *commandEffectManifest) siteViolations(discovered []commandEffect
 			violations = append(violations, commandEffectViolation("changed", site, "binding body or target signature changed; regenerate and review evidence"))
 		}
 		if err := validateEffectEntry(entry); err != nil {
+			violations = append(violations, commandEffectViolation("classification", site, err.Error()))
+		}
+		if err := validateEffectDirection(entry, ownerKinds); err != nil {
 			violations = append(violations, commandEffectViolation("classification", site, err.Error()))
 		}
 		delete(entries, site.key())

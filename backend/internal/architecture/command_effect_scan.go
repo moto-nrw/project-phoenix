@@ -379,8 +379,12 @@ func validateEffectEntry(entry commandEffectEntry) error {
 	}
 	switch entry.Effect {
 	case "query":
-		if entry.Classification != "query" {
-			return fmt.Errorf("query %s must be classified query", entry.key())
+		switch entry.Classification {
+		case "query":
+		case "debt", "workflow", "E1", "E2", "E3", "E4", "E5":
+			return validateCommandEffectEntry(entry)
+		default:
+			return fmt.Errorf("query %s must be classified query, debt or a named exception", entry.key())
 		}
 	case "mutation", "lock", "scope", "durable", "notice":
 		return validateCommandEffectEntry(entry)

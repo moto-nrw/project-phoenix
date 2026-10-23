@@ -22,7 +22,7 @@
       "effect": "mutation",
       "classification": "debt",
       "adr": "0083",
-      "approval_adr": "0092",
+      "approval_adr": "0094",
       "reason": "Workflow-backed direction-accounting debt #4825; not a new runtime exception. Workflow-backed outer HTTP entry supplied by the root (Care resumption / Timetable pickup-extension command), not evidence of a domain-application callback. Full supplied contract methods are retained, including unused promoted methods. Guarded target record/byte command; preserve ambient scope, target validation and existing failure propagation. Target-local locks/savepoints alone do not establish a new source coordinator. Target workflows/careexit.Resumption.Resume; workflows/careexit/resumption.go:70. "
     },
     {
@@ -1017,8 +1017,10 @@
       "target_owner": "parent-portal",
       "binding_digest": "e04bbf4824b373241486bd560103764f",
       "effect": "query",
-      "classification": "query",
-      "reason": "Workflow-backed, known runtime-direction debt beyond the finite Roster/Bookings exception; no new ADR exception. Proposed follow-up: root-owned workflow entry or relocate the consumed capability to its domain/projection owner. See reconciliation callback audit. Reviewed read/value/construction method; no owned-row mutation or locking read at this terminal. Target workflows/parentportal/internal/care.SameDayCutoff.Closed; workflows/parentportal/internal/care/care_plan_policy.go:29. May-bind method surface, not a production-call/liveness claim."
+      "classification": "debt",
+      "adr": "0083",
+      "approval_adr": "0094",
+      "reason": "Workflow-backed, known runtime-direction debt beyond the finite Roster/Bookings exception; no new ADR exception. Proposed follow-up: root-owned workflow entry or relocate the consumed capability to its domain/projection owner. See reconciliation callback audit. Reviewed read/value/construction method; no owned-row mutation or locking read at this terminal. Target workflows/parentportal/internal/care.SameDayCutoff.Closed; workflows/parentportal/internal/care/care_plan_policy.go:29. May-bind method surface, not a production-call/liveness claim. Runtime direction debt #4825 (ADR 0071 point 2): this read/construction may-bind is not a granted Domain-to-Workflow exception; move the binding out of the domain in the follow-up."
     },
     {
       "source_owner": "care-plan",
@@ -3110,8 +3112,10 @@
       "target_owner": "care-exit",
       "binding_digest": "1c84efd40fcf1e907c9e12e894fb8227",
       "effect": "query",
-      "classification": "query",
-      "reason": "Workflow-backed ADR 0071/PR #4753 finite E2 callback: careexit Roster or Bookings snapshot/restore only; hand row 6, not a general domain-to-workflow permission. Reviewed read/value/construction method; no owned-row mutation or locking read at this terminal. Target workflows/careexit.Bookings.CareExitOfferingSnapshots; workflows/careexit/bookings.go:54. May-bind method surface, not a production-call/liveness claim."
+      "classification": "debt",
+      "adr": "0083",
+      "approval_adr": "0094",
+      "reason": "Workflow-backed ADR 0071/PR #4753 finite E2 callback: careexit Roster or Bookings snapshot/restore only; hand row 6, not a general domain-to-workflow permission. Reviewed read/value/construction method; no owned-row mutation or locking read at this terminal. Target workflows/careexit.Bookings.CareExitOfferingSnapshots; workflows/careexit/bookings.go:54. May-bind method surface, not a production-call/liveness claim. Runtime direction debt #4825 (ADR 0071 point 2): this read/construction may-bind is not a granted Domain-to-Workflow exception; move the binding out of the domain in the follow-up."
     },
     {
       "source_owner": "care-plan",
@@ -3215,8 +3219,10 @@
       "target_owner": "care-exit",
       "binding_digest": "e5eeb008ee09e1985b346fad98cb901d",
       "effect": "query",
-      "classification": "query",
-      "reason": "Workflow-backed ADR 0071/PR #4753 finite E2 callback: careexit Roster or Bookings snapshot/restore only; hand row 6, not a general domain-to-workflow permission. Reviewed read/value/construction method; no owned-row mutation or locking read at this terminal. Target workflows/careexit.Roster.CountPlannedRosterForCareExit; workflows/careexit/roster.go:140. May-bind method surface, not a production-call/liveness claim."
+      "classification": "debt",
+      "adr": "0083",
+      "approval_adr": "0094",
+      "reason": "Workflow-backed ADR 0071/PR #4753 finite E2 callback: careexit Roster or Bookings snapshot/restore only; hand row 6, not a general domain-to-workflow permission. Reviewed read/value/construction method; no owned-row mutation or locking read at this terminal. Target workflows/careexit.Roster.CountPlannedRosterForCareExit; workflows/careexit/roster.go:140. May-bind method surface, not a production-call/liveness claim. Runtime direction debt #4825 (ADR 0071 point 2): this read/construction may-bind is not a granted Domain-to-Workflow exception; move the binding out of the domain in the follow-up."
     },
     {
       "source_owner": "care-plan",
@@ -3226,8 +3232,10 @@
       "target_owner": "care-exit",
       "binding_digest": "77fddfbdf72e2ea821ebc7feefe9e981",
       "effect": "query",
-      "classification": "query",
-      "reason": "Workflow-backed ADR 0071/PR #4753 finite E2 callback: careexit Roster or Bookings snapshot/restore only; hand row 6, not a general domain-to-workflow permission. Reviewed read/value/construction method; no owned-row mutation or locking read at this terminal. Target workflows/careexit.Roster.LatestStudentAssignmentAttendanceDate; workflows/careexit/roster.go:162. May-bind method surface, not a production-call/liveness claim."
+      "classification": "debt",
+      "adr": "0083",
+      "approval_adr": "0094",
+      "reason": "Workflow-backed ADR 0071/PR #4753 finite E2 callback: careexit Roster or Bookings snapshot/restore only; hand row 6, not a general domain-to-workflow permission. Reviewed read/value/construction method; no owned-row mutation or locking read at this terminal. Target workflows/careexit.Roster.LatestStudentAssignmentAttendanceDate; workflows/careexit/roster.go:162. May-bind method surface, not a production-call/liveness claim. Runtime direction debt #4825 (ADR 0071 point 2): this read/construction may-bind is not a granted Domain-to-Workflow exception; move the binding out of the domain in the follow-up."
     },
     {
       "source_owner": "care-plan",
@@ -3237,8 +3245,10 @@
       "target_owner": "care-exit",
       "binding_digest": "8422b3e0bbd5ccfc32f1613e8bf03ea0",
       "effect": "query",
-      "classification": "query",
-      "reason": "Workflow-backed ADR 0071/PR #4753 finite E2 callback: careexit Roster or Bookings snapshot/restore only; hand row 6, not a general domain-to-workflow permission. Reviewed read/value/construction method; no owned-row mutation or locking read at this terminal. Target workflows/careexit.Roster.ListOpenStudentAssignments; workflows/careexit/roster.go:146. May-bind method surface, not a production-call/liveness claim."
+      "classification": "debt",
+      "adr": "0083",
+      "approval_adr": "0094",
+      "reason": "Workflow-backed ADR 0071/PR #4753 finite E2 callback: careexit Roster or Bookings snapshot/restore only; hand row 6, not a general domain-to-workflow permission. Reviewed read/value/construction method; no owned-row mutation or locking read at this terminal. Target workflows/careexit.Roster.ListOpenStudentAssignments; workflows/careexit/roster.go:146. May-bind method surface, not a production-call/liveness claim. Runtime direction debt #4825 (ADR 0071 point 2): this read/construction may-bind is not a granted Domain-to-Workflow exception; move the binding out of the domain in the follow-up."
     },
     {
       "source_owner": "care-plan",
@@ -5941,8 +5951,10 @@
       "target_owner": "parent-portal",
       "binding_digest": "3fea75116517eaf1b654269ea8fc82da",
       "effect": "query",
-      "classification": "query",
-      "reason": "Workflow-backed, Schuld #4825: Care Share-Visibility via Communication interface, root_careplan_requests.go:43-48 and care_request_effects.go:305; not a normal leaf or approved callback exception. Reviewed read/value/construction method; no owned-row mutation or locking read at this terminal. Target workflows/parentportal/internal/messaging.ShareRecipients.SharedRecipientAccountIDs; workflows/parentportal/internal/messaging/parent_request_sharing_service.go:566. May-bind method surface, not a production-call/liveness claim."
+      "classification": "debt",
+      "adr": "0083",
+      "approval_adr": "0094",
+      "reason": "Workflow-backed, Schuld #4825: Care Share-Visibility via Communication interface, root_careplan_requests.go:43-48 and care_request_effects.go:305; not a normal leaf or approved callback exception. Reviewed read/value/construction method; no owned-row mutation or locking read at this terminal. Target workflows/parentportal/internal/messaging.ShareRecipients.SharedRecipientAccountIDs; workflows/parentportal/internal/messaging/parent_request_sharing_service.go:566. May-bind method surface, not a production-call/liveness claim. Runtime direction debt #4825 (ADR 0071 point 2): this read/construction may-bind is not a granted Domain-to-Workflow exception; move the binding out of the domain in the follow-up."
     },
     {
       "source_owner": "care-plan",
@@ -12767,8 +12779,10 @@
       "target_owner": "parent-portal",
       "binding_digest": "3fea75116517eaf1b654269ea8fc82da",
       "effect": "query",
-      "classification": "query",
-      "reason": "Workflow-backed, Schuld #4825: Care Share-Visibility via Communication interface, root_careplan_requests.go:43-48 and care_request_effects.go:305; not a normal leaf or approved callback exception. Reviewed read/value/construction method; no owned-row mutation or locking read at this terminal. Target workflows/parentportal/internal/messaging.ShareRecipients.SharedRecipientAccountIDs; workflows/parentportal/internal/messaging/parent_request_sharing_service.go:566. May-bind method surface, not a production-call/liveness claim."
+      "classification": "debt",
+      "adr": "0083",
+      "approval_adr": "0094",
+      "reason": "Workflow-backed, Schuld #4825: Care Share-Visibility via Communication interface, root_careplan_requests.go:43-48 and care_request_effects.go:305; not a normal leaf or approved callback exception. Reviewed read/value/construction method; no owned-row mutation or locking read at this terminal. Target workflows/parentportal/internal/messaging.ShareRecipients.SharedRecipientAccountIDs; workflows/parentportal/internal/messaging/parent_request_sharing_service.go:566. May-bind method surface, not a production-call/liveness claim. Runtime direction debt #4825 (ADR 0071 point 2): this read/construction may-bind is not a granted Domain-to-Workflow exception; move the binding out of the domain in the follow-up."
     },
     {
       "source_owner": "communication",
@@ -12814,7 +12828,7 @@
       "effect": "unresolved",
       "classification": "unresolved",
       "adr": "0083",
-      "approval_adr": "0092",
+      "approval_adr": "0094",
       "reason": "Unresolved binding-flow boundary, not a query or approved leaf. Function-valued field; callable instance flow is deferred. Exact boundary: unresolved:function:github.com/moto-nrw/project-phoenix/roots/owners.TokenAdapter.Claims. See ADR 0083 domain-source expansion and reconciliation binding-flow follow-up. #4836 assignment-evidence review: fingerprint now includes typed callable assignments and referenced root helpers; existing unresolved boundary is retained, not approved as a query or leaf."
     },
     {
@@ -12827,7 +12841,7 @@
       "effect": "unresolved",
       "classification": "unresolved",
       "adr": "0083",
-      "approval_adr": "0092",
+      "approval_adr": "0094",
       "reason": "Unresolved binding-flow boundary, not a query or approved leaf. Function-valued field; callable instance flow is deferred. Exact boundary: unresolved:function:github.com/moto-nrw/project-phoenix/roots/owners.TokenAdapter.Claims. See ADR 0083 domain-source expansion and reconciliation binding-flow follow-up. #4836 assignment-evidence review: fingerprint now includes typed callable assignments and referenced root helpers; existing unresolved boundary is retained, not approved as a query or leaf."
     },
     {
@@ -12840,7 +12854,7 @@
       "effect": "unresolved",
       "classification": "unresolved",
       "adr": "0083",
-      "approval_adr": "0092",
+      "approval_adr": "0094",
       "reason": "Unresolved binding-flow boundary, not a query or approved leaf. Function-valued field; callable instance flow is deferred. Exact boundary: unresolved:function:github.com/moto-nrw/project-phoenix/roots/owners.TokenAdapter.Claims. See ADR 0083 domain-source expansion and reconciliation binding-flow follow-up. #4836 assignment-evidence review: fingerprint now includes typed callable assignments and referenced root helpers; existing unresolved boundary is retained, not approved as a query or leaf."
     },
     {
@@ -12853,7 +12867,7 @@
       "effect": "unresolved",
       "classification": "unresolved",
       "adr": "0083",
-      "approval_adr": "0092",
+      "approval_adr": "0094",
       "reason": "Unresolved binding-flow boundary, not a query or approved leaf. Function-valued field; callable instance flow is deferred. Exact boundary: unresolved:function:github.com/moto-nrw/project-phoenix/roots/owners.TokenAdapter.Permissions. See ADR 0083 domain-source expansion and reconciliation binding-flow follow-up. #4836 assignment-evidence review: fingerprint now includes typed callable assignments and referenced root helpers; existing unresolved boundary is retained, not approved as a query or leaf."
     },
     {
@@ -13772,7 +13786,7 @@
       "effect": "unresolved",
       "classification": "unresolved",
       "adr": "0083",
-      "approval_adr": "0092",
+      "approval_adr": "0094",
       "reason": "Unresolved binding-flow boundary, not a query or approved leaf. Function-valued field; callable instance flow is deferred. Exact boundary: unresolved:function:github.com/moto-nrw/project-phoenix/api.deviceSchools.lookup. See ADR 0083 domain-source expansion and reconciliation binding-flow follow-up. #4836 assignment-evidence review: fingerprint now includes typed callable assignments and referenced root helpers; existing unresolved boundary is retained, not approved as a query or leaf."
     },
     {
@@ -16083,7 +16097,7 @@
       "effect": "unresolved",
       "classification": "unresolved",
       "adr": "0083",
-      "approval_adr": "0092",
+      "approval_adr": "0094",
       "reason": "Exact function-field boundary: roots/owners/enrollment_decision_people.go enrollmentDepartureCompanions.delete is supplied by EnrollmentDecisionCompanions with Care Plan DeleteCompanionEdges (root_enrollment_services.go). Method-value instance flow is not resolved in this slice; retain E1 evidence from approved_child_sync.go/guardian_links.go, not a query or safe leaf. #4836 assignment-evidence review: fingerprint now includes typed callable assignments and referenced root helpers; existing unresolved boundary is retained, not approved as a query or leaf."
     },
     {
@@ -16423,8 +16437,10 @@
       "target_owner": "data-import",
       "binding_digest": "015c528725c2cc455a43315cfa5f7a5c",
       "effect": "query",
-      "classification": "query",
-      "reason": "Read or pure value helper on the supplied interface: modules/dataimport.MapRelationshipType. No mutation or locking read at this terminal; type-level binding coverage, not proof that Enrollment calls every exposed method."
+      "classification": "debt",
+      "adr": "0083",
+      "approval_adr": "0094",
+      "reason": "Read or pure value helper on the supplied interface: modules/dataimport.MapRelationshipType. No mutation or locking read at this terminal; type-level binding coverage, not proof that Enrollment calls every exposed method. Runtime direction debt #4825 (ADR 0071 point 2): this read/construction may-bind is not a granted Domain-to-Workflow exception; move the binding out of the domain in the follow-up."
     },
     {
       "source_owner": "enrollment",
@@ -18616,7 +18632,7 @@
       "effect": "mutation",
       "classification": "leaf",
       "adr": "0067",
-      "approval_adr": "0092",
+      "approval_adr": "0094",
       "reason": "Newly exposed named-function argument binding: Care Plan HTTP StudentDocumentFileStore forwards to StudentDocuments cleanup bookkeeping (http/document_storage.go:12; internal/application/compose_bindings_care_lifecycle.go:22-29). The same target commands were already reviewed as mutation/leaf through native providers. Preserve caller context, owner-local cleanup validation and error propagation; no new coordinator or independent unit is introduced."
     },
     {
@@ -18653,7 +18669,7 @@
       "effect": "mutation",
       "classification": "leaf",
       "adr": "0067",
-      "approval_adr": "0092",
+      "approval_adr": "0094",
       "reason": "Newly exposed named-function argument binding: Care Plan HTTP StudentDocumentFileStore forwards to StudentDocuments cleanup bookkeeping (http/document_storage.go:12; internal/application/compose_bindings_care_lifecycle.go:22-29). The same target commands were already reviewed as mutation/leaf through native providers. Preserve caller context, owner-local cleanup validation and error propagation; no new coordinator or independent unit is introduced."
     },
     {
@@ -18690,7 +18706,7 @@
       "effect": "mutation",
       "classification": "leaf",
       "adr": "0067",
-      "approval_adr": "0092",
+      "approval_adr": "0094",
       "reason": "Newly exposed named-function argument binding: Care Plan HTTP StudentDocumentFileStore forwards to StudentDocuments cleanup bookkeeping (http/document_storage.go:12; internal/application/compose_bindings_care_lifecycle.go:22-29). The same target commands were already reviewed as mutation/leaf through native providers. Preserve caller context, owner-local cleanup validation and error propagation; no new coordinator or independent unit is introduced."
     },
     {
@@ -18847,8 +18863,10 @@
       "target_owner": "parent-portal",
       "binding_digest": "858431e32dd43794c4bc064e2c788e99",
       "effect": "query",
-      "classification": "query",
-      "reason": "Workflow-backed, known runtime-direction debt beyond the finite Roster/Bookings exception; no new ADR exception. Proposed follow-up: root-owned workflow entry or relocate the consumed capability to its domain/projection owner. See reconciliation callback audit. Reviewed read/value/construction method; no owned-row mutation or locking read at this terminal. Target workflows/parentportal.Portal.GuardianAnnouncementTenant; workflows/parentportal.Portal (supplied contract method). May-bind method surface, not a production-call/liveness claim."
+      "classification": "debt",
+      "adr": "0083",
+      "approval_adr": "0094",
+      "reason": "Workflow-backed, known runtime-direction debt beyond the finite Roster/Bookings exception; no new ADR exception. Proposed follow-up: root-owned workflow entry or relocate the consumed capability to its domain/projection owner. See reconciliation callback audit. Reviewed read/value/construction method; no owned-row mutation or locking read at this terminal. Target workflows/parentportal.Portal.GuardianAnnouncementTenant; workflows/parentportal.Portal (supplied contract method). May-bind method surface, not a production-call/liveness claim. Runtime direction debt #4825 (ADR 0071 point 2): this read/construction may-bind is not a granted Domain-to-Workflow exception; move the binding out of the domain in the follow-up."
     },
     {
       "source_owner": "file-storage",
@@ -18858,8 +18876,10 @@
       "target_owner": "parent-portal",
       "binding_digest": "cf1d141aac82be61eb8a3beecc3b1713",
       "effect": "query",
-      "classification": "query",
-      "reason": "Workflow-backed, known runtime-direction debt beyond the finite Roster/Bookings exception; no new ADR exception. Proposed follow-up: root-owned workflow entry or relocate the consumed capability to its domain/projection owner. See reconciliation callback audit. Reviewed read/value/construction method; no owned-row mutation or locking read at this terminal. Target workflows/parentportal.Portal.GuardianDeclarationProofAttachmentTenant; workflows/parentportal.Portal (supplied contract method). May-bind method surface, not a production-call/liveness claim."
+      "classification": "debt",
+      "adr": "0083",
+      "approval_adr": "0094",
+      "reason": "Workflow-backed, known runtime-direction debt beyond the finite Roster/Bookings exception; no new ADR exception. Proposed follow-up: root-owned workflow entry or relocate the consumed capability to its domain/projection owner. See reconciliation callback audit. Reviewed read/value/construction method; no owned-row mutation or locking read at this terminal. Target workflows/parentportal.Portal.GuardianDeclarationProofAttachmentTenant; workflows/parentportal.Portal (supplied contract method). May-bind method surface, not a production-call/liveness claim. Runtime direction debt #4825 (ADR 0071 point 2): this read/construction may-bind is not a granted Domain-to-Workflow exception; move the binding out of the domain in the follow-up."
     },
     {
       "source_owner": "identity-access",
@@ -20336,7 +20356,7 @@
       "effect": "unresolved",
       "classification": "unresolved",
       "adr": "0083",
-      "approval_adr": "0092",
+      "approval_adr": "0094",
       "reason": "Unresolved binding-flow boundary, not a query or approved leaf. Dynamic callable/parameter flow; typed assignments do not prove its runtime function target. Exact boundary: unresolved:callable:github.com/moto-nrw/project-phoenix/api.send. See ADR 0083 domain-source expansion and reconciliation binding-flow follow-up. #4836 assignment-evidence review: fingerprint now includes typed callable assignments and referenced root helpers; existing unresolved boundary is retained, not approved as a query or leaf."
     },
     {
@@ -20349,7 +20369,7 @@
       "effect": "unresolved",
       "classification": "unresolved",
       "adr": "0083",
-      "approval_adr": "0092",
+      "approval_adr": "0094",
       "reason": "Unresolved binding-flow boundary, not a query or approved leaf. Function-valued field; callable instance flow is deferred. Exact boundary: unresolved:function:github.com/moto-nrw/project-phoenix/roots/owners.MFAMailer.Deliver. See ADR 0083 domain-source expansion and reconciliation binding-flow follow-up. #4836 assignment-evidence review: fingerprint now includes typed callable assignments and referenced root helpers; existing unresolved boundary is retained, not approved as a query or leaf."
     },
     {
@@ -20362,7 +20382,7 @@
       "effect": "unresolved",
       "classification": "unresolved",
       "adr": "0083",
-      "approval_adr": "0092",
+      "approval_adr": "0094",
       "reason": "Unresolved binding-flow boundary, not a query or approved leaf. Function-valued field; callable instance flow is deferred. Exact boundary: unresolved:function:github.com/moto-nrw/project-phoenix/roots/owners.MFAMailer.Enqueue. See ADR 0083 domain-source expansion and reconciliation binding-flow follow-up. #4836 assignment-evidence review: fingerprint now includes typed callable assignments and referenced root helpers; existing unresolved boundary is retained, not approved as a query or leaf."
     },
     {
@@ -20388,7 +20408,7 @@
       "effect": "unresolved",
       "classification": "unresolved",
       "adr": "0083",
-      "approval_adr": "0092",
+      "approval_adr": "0094",
       "reason": "Unresolved binding-flow boundary, not a query or approved leaf. Function-valued field; callable instance flow is deferred. Exact boundary: unresolved:function:github.com/moto-nrw/project-phoenix/roots/owners.MFAMailer.Deliver. See ADR 0083 domain-source expansion and reconciliation binding-flow follow-up. #4836 assignment-evidence review: fingerprint now includes typed callable assignments and referenced root helpers; existing unresolved boundary is retained, not approved as a query or leaf."
     },
     {
@@ -20401,7 +20421,7 @@
       "effect": "unresolved",
       "classification": "unresolved",
       "adr": "0083",
-      "approval_adr": "0092",
+      "approval_adr": "0094",
       "reason": "Unresolved binding-flow boundary, not a query or approved leaf. Function-valued field; callable instance flow is deferred. Exact boundary: unresolved:function:github.com/moto-nrw/project-phoenix/roots/owners.MFAMailer.Enqueue. See ADR 0083 domain-source expansion and reconciliation binding-flow follow-up. #4836 assignment-evidence review: fingerprint now includes typed callable assignments and referenced root helpers; existing unresolved boundary is retained, not approved as a query or leaf."
     },
     {
@@ -20414,7 +20434,7 @@
       "effect": "unresolved",
       "classification": "unresolved",
       "adr": "0083",
-      "approval_adr": "0092",
+      "approval_adr": "0094",
       "reason": "Unresolved binding-flow boundary, not a query or approved leaf. Function-valued field; callable instance flow is deferred. Exact boundary: unresolved:function:github.com/moto-nrw/project-phoenix/roots/owners.MFAMailer.Deliver. See ADR 0083 domain-source expansion and reconciliation binding-flow follow-up. #4836 assignment-evidence review: fingerprint now includes typed callable assignments and referenced root helpers; existing unresolved boundary is retained, not approved as a query or leaf."
     },
     {
@@ -20427,7 +20447,7 @@
       "effect": "unresolved",
       "classification": "unresolved",
       "adr": "0083",
-      "approval_adr": "0092",
+      "approval_adr": "0094",
       "reason": "Unresolved binding-flow boundary, not a query or approved leaf. Function-valued field; callable instance flow is deferred. Exact boundary: unresolved:function:github.com/moto-nrw/project-phoenix/roots/owners.MFAMailer.Enqueue. See ADR 0083 domain-source expansion and reconciliation binding-flow follow-up. #4836 assignment-evidence review: fingerprint now includes typed callable assignments and referenced root helpers; existing unresolved boundary is retained, not approved as a query or leaf."
     },
     {
@@ -20453,7 +20473,7 @@
       "effect": "unresolved",
       "classification": "unresolved",
       "adr": "0083",
-      "approval_adr": "0092",
+      "approval_adr": "0094",
       "reason": "Unresolved binding-flow boundary, not a query or approved leaf. Function-valued field; callable instance flow is deferred. Exact boundary: unresolved:function:github.com/moto-nrw/project-phoenix/roots/owners.MFAMailer.Enqueue. See ADR 0083 domain-source expansion and reconciliation binding-flow follow-up. #4836 assignment-evidence review: fingerprint now includes typed callable assignments and referenced root helpers; existing unresolved boundary is retained, not approved as a query or leaf."
     },
     {
@@ -20466,7 +20486,7 @@
       "effect": "unresolved",
       "classification": "unresolved",
       "adr": "0083",
-      "approval_adr": "0092",
+      "approval_adr": "0094",
       "reason": "Unresolved binding-flow boundary, not a query or approved leaf. Dynamic callable/parameter flow; typed assignments do not prove its runtime function target. Exact boundary: unresolved:callable:github.com/moto-nrw/project-phoenix/roots/owners.cancel. See ADR 0083 domain-source expansion and reconciliation binding-flow follow-up. #4836 assignment-evidence review: fingerprint now includes typed callable assignments and referenced root helpers; existing unresolved boundary is retained, not approved as a query or leaf."
     },
     {
@@ -20625,7 +20645,7 @@
       "effect": "unresolved",
       "classification": "unresolved",
       "adr": "0083",
-      "approval_adr": "0092",
+      "approval_adr": "0094",
       "reason": "Unresolved binding-flow boundary, not a query or approved leaf. Function-valued field; callable instance flow is deferred. Exact boundary: unresolved:function:github.com/moto-nrw/project-phoenix/roots/owners.passwordResetDelivery.host. See ADR 0083 domain-source expansion and reconciliation binding-flow follow-up. #4836 assignment-evidence review: fingerprint now includes typed callable assignments and referenced root helpers; existing unresolved boundary is retained, not approved as a query or leaf."
     },
     {
@@ -20649,7 +20669,7 @@
       "effect": "unresolved",
       "classification": "unresolved",
       "adr": "0083",
-      "approval_adr": "0092",
+      "approval_adr": "0094",
       "reason": "Unresolved binding-flow boundary, not a query or approved leaf. Function-valued field; callable instance flow is deferred. Exact boundary: unresolved:function:github.com/moto-nrw/project-phoenix/roots/owners.precedingMails.status. See ADR 0083 domain-source expansion and reconciliation binding-flow follow-up. #4836 assignment-evidence review: fingerprint now includes typed callable assignments and referenced root helpers; existing unresolved boundary is retained, not approved as a query or leaf."
     },
     {
@@ -21708,7 +21728,7 @@
       "effect": "unresolved",
       "classification": "unresolved",
       "adr": "0083",
-      "approval_adr": "0092",
+      "approval_adr": "0094",
       "reason": "Unresolved binding-flow boundary, not a query or approved leaf. Function-valued field; callable instance flow is deferred. Exact boundary: unresolved:function:github.com/moto-nrw/project-phoenix/roots/owners.BillingCounts.Students. See ADR 0083 domain-source expansion and reconciliation binding-flow follow-up. #4836 assignment-evidence review: fingerprint now includes typed callable assignments and referenced root helpers; existing unresolved boundary is retained, not approved as a query or leaf."
     },
     {
@@ -21721,7 +21741,7 @@
       "effect": "unresolved",
       "classification": "unresolved",
       "adr": "0083",
-      "approval_adr": "0092",
+      "approval_adr": "0094",
       "reason": "Unresolved binding-flow boundary, not a query or approved leaf. Function-valued field; callable instance flow is deferred. Exact boundary: unresolved:function:github.com/moto-nrw/project-phoenix/roots/owners.BillingCounts.Terminals. See ADR 0083 domain-source expansion and reconciliation binding-flow follow-up. #4836 assignment-evidence review: fingerprint now includes typed callable assignments and referenced root helpers; existing unresolved boundary is retained, not approved as a query or leaf."
     },
     {
@@ -22013,7 +22033,7 @@
       "effect": "unresolved",
       "classification": "unresolved",
       "adr": "0083",
-      "approval_adr": "0092",
+      "approval_adr": "0094",
       "reason": "Unresolved binding-flow boundary, not a query or approved leaf. Dynamic callable/parameter flow; typed assignments do not prove its runtime function target. Exact boundary: unresolved:callable:github.com/moto-nrw/project-phoenix/roots/owners.fn. See ADR 0083 domain-source expansion and reconciliation binding-flow follow-up. #4836 assignment-evidence review: fingerprint now includes typed callable assignments and referenced root helpers; existing unresolved boundary is retained, not approved as a query or leaf."
     },
     {
@@ -22074,7 +22094,7 @@
       "effect": "unresolved",
       "classification": "unresolved",
       "adr": "0083",
-      "approval_adr": "0092",
+      "approval_adr": "0094",
       "reason": "Unresolved binding-flow boundary, not a query or approved leaf. Dynamic callable/parameter flow; typed assignments do not prove its runtime function target. Exact boundary: unresolved:callable:github.com/moto-nrw/project-phoenix/roots/owners.fn. See ADR 0083 domain-source expansion and reconciliation binding-flow follow-up. #4836 assignment-evidence review: fingerprint now includes typed callable assignments and referenced root helpers; existing unresolved boundary is retained, not approved as a query or leaf."
     },
     {
@@ -22263,7 +22283,7 @@
       "effect": "unresolved",
       "classification": "unresolved",
       "adr": "0083",
-      "approval_adr": "0092",
+      "approval_adr": "0094",
       "reason": "Unresolved binding-flow boundary, not a query or approved leaf. Dynamic callable/parameter flow; typed assignments do not prove its runtime function target. Exact boundary: unresolved:callable:github.com/moto-nrw/project-phoenix/roots/owners.fn. See ADR 0083 domain-source expansion and reconciliation binding-flow follow-up. #4836 assignment-evidence review: fingerprint now includes typed callable assignments and referenced root helpers; existing unresolved boundary is retained, not approved as a query or leaf."
     },
     {
@@ -22538,7 +22558,7 @@
       "effect": "unresolved",
       "classification": "unresolved",
       "adr": "0083",
-      "approval_adr": "0092",
+      "approval_adr": "0094",
       "reason": "Unresolved binding-flow boundary, not a query or approved leaf. Function-valued field; callable instance flow is deferred. Exact boundary: unresolved:function:github.com/moto-nrw/project-phoenix/roots/owners.provisioningPeople.students. See ADR 0083 domain-source expansion and reconciliation binding-flow follow-up. #4836 assignment-evidence review: fingerprint now includes typed callable assignments and referenced root helpers; existing unresolved boundary is retained, not approved as a query or leaf."
     },
     {
@@ -22783,7 +22803,7 @@
       "effect": "unresolved",
       "classification": "unresolved",
       "adr": "0083",
-      "approval_adr": "0092",
+      "approval_adr": "0094",
       "reason": "Unresolved binding-flow boundary, not a query or approved leaf. Function-valued field; callable instance flow is deferred. Exact boundary: unresolved:function:github.com/moto-nrw/project-phoenix/roots/owners.StudentPhotoRuntime.Actor. See ADR 0083 domain-source expansion and reconciliation binding-flow follow-up. #4836 assignment-evidence review: fingerprint now includes typed callable assignments and referenced root helpers; existing unresolved boundary is retained, not approved as a query or leaf."
     },
     {
@@ -22796,7 +22816,7 @@
       "effect": "unresolved",
       "classification": "unresolved",
       "adr": "0083",
-      "approval_adr": "0092",
+      "approval_adr": "0094",
       "reason": "Unresolved binding-flow boundary, not a query or approved leaf. Function-valued field; callable instance flow is deferred. Exact boundary: unresolved:function:github.com/moto-nrw/project-phoenix/roots/owners.StudentPhotoRuntime.Cleanup. See ADR 0083 domain-source expansion and reconciliation binding-flow follow-up. #4836 assignment-evidence review: fingerprint now includes typed callable assignments and referenced root helpers; existing unresolved boundary is retained, not approved as a query or leaf."
     },
     {
@@ -23416,7 +23436,7 @@
       "effect": "unresolved",
       "classification": "unresolved",
       "adr": "0083",
-      "approval_adr": "0092",
+      "approval_adr": "0094",
       "reason": "Unresolved binding-flow boundary, not a query or approved leaf. Function-valued field; callable instance flow is deferred. Exact boundary: unresolved:function:github.com/moto-nrw/project-phoenix/roots/owners.StudentPhotoRuntime.Actor. See ADR 0083 domain-source expansion and reconciliation binding-flow follow-up. #4836 assignment-evidence review: fingerprint now includes typed callable assignments and referenced root helpers; existing unresolved boundary is retained, not approved as a query or leaf."
     },
     {
@@ -23429,7 +23449,7 @@
       "effect": "unresolved",
       "classification": "unresolved",
       "adr": "0083",
-      "approval_adr": "0092",
+      "approval_adr": "0094",
       "reason": "Unresolved binding-flow boundary, not a query or approved leaf. Function-valued field; callable instance flow is deferred. Exact boundary: unresolved:function:github.com/moto-nrw/project-phoenix/roots/owners.StudentPhotoRuntime.Cleanup. See ADR 0083 domain-source expansion and reconciliation binding-flow follow-up. #4836 assignment-evidence review: fingerprint now includes typed callable assignments and referenced root helpers; existing unresolved boundary is retained, not approved as a query or leaf."
     },
     {
@@ -23486,7 +23506,7 @@
       "effect": "mutation",
       "classification": "debt",
       "adr": "0083",
-      "approval_adr": "0092",
+      "approval_adr": "0094",
       "reason": "Workflow-backed direction-accounting debt #4825; not a new runtime exception. Workflow-backed, Schuld #4825: People BirthdayStore/StaffRepository reaches LiveStaffEmployment (staff_membership_adapters.go:545-551); not a normal leaf. Guarded target record/byte command; preserve ambient scope, target validation and existing failure propagation. Target-local locks/savepoints alone do not establish a new source coordinator. Target workflows/staffoffboarding.LiveStaffEmployment.SetBirthdayDisplayOptOut; workflows/staffoffboarding/live_staff_employment.go:42. "
     },
     {
@@ -23497,8 +23517,10 @@
       "target_owner": "staff-offboarding",
       "binding_digest": "70d57f1131cb2d8b68327be70d4cd856",
       "effect": "query",
-      "classification": "query",
-      "reason": "Workflow-backed, Schuld #4825: People BirthdayStore/StaffRepository reaches LiveStaffEmployment (staff_membership_adapters.go:545-551); not a normal leaf. Reviewed read/value/construction method; no owned-row mutation or locking read at this terminal. Target workflows/staffoffboarding.NewLiveStaffEmployment; workflows/staffoffboarding/live_staff_employment.go:33. May-bind method surface, not a production-call/liveness claim."
+      "classification": "debt",
+      "adr": "0083",
+      "approval_adr": "0094",
+      "reason": "Workflow-backed, Schuld #4825: People BirthdayStore/StaffRepository reaches LiveStaffEmployment (staff_membership_adapters.go:545-551); not a normal leaf. Reviewed read/value/construction method; no owned-row mutation or locking read at this terminal. Target workflows/staffoffboarding.NewLiveStaffEmployment; workflows/staffoffboarding/live_staff_employment.go:33. May-bind method surface, not a production-call/liveness claim. Runtime direction debt #4825 (ADR 0071 point 2): this read/construction may-bind is not a granted Domain-to-Workflow exception; move the binding out of the domain in the follow-up."
     },
     {
       "source_owner": "people-directory",
@@ -23690,7 +23712,7 @@
       "effect": "unresolved",
       "classification": "unresolved",
       "adr": "0083",
-      "approval_adr": "0092",
+      "approval_adr": "0094",
       "reason": "Unresolved binding-flow boundary, not a query or approved leaf. Function-valued field; callable instance flow is deferred. Exact boundary: unresolved:function:github.com/moto-nrw/project-phoenix/roots/owners.StudentPhotoRuntime.Actor. See ADR 0083 domain-source expansion and reconciliation binding-flow follow-up. #4836 assignment-evidence review: fingerprint now includes typed callable assignments and referenced root helpers; existing unresolved boundary is retained, not approved as a query or leaf."
     },
     {
@@ -23703,7 +23725,7 @@
       "effect": "unresolved",
       "classification": "unresolved",
       "adr": "0083",
-      "approval_adr": "0092",
+      "approval_adr": "0094",
       "reason": "Unresolved binding-flow boundary, not a query or approved leaf. Function-valued field; callable instance flow is deferred. Exact boundary: unresolved:function:github.com/moto-nrw/project-phoenix/roots/owners.StudentPhotoRuntime.Cleanup. See ADR 0083 domain-source expansion and reconciliation binding-flow follow-up. #4836 assignment-evidence review: fingerprint now includes typed callable assignments and referenced root helpers; existing unresolved boundary is retained, not approved as a query or leaf."
     },
     {
@@ -23891,7 +23913,7 @@
       "effect": "unresolved",
       "classification": "unresolved",
       "adr": "0083",
-      "approval_adr": "0092",
+      "approval_adr": "0094",
       "reason": "Unresolved binding-flow boundary, not a query or approved leaf. Dynamic callable/parameter flow; typed assignments do not prove its runtime function target. Exact boundary: unresolved:callable:github.com/moto-nrw/project-phoenix/roots/owners.apply. See ADR 0083 domain-source expansion and reconciliation binding-flow follow-up. #4836 assignment-evidence review: fingerprint now includes typed callable assignments and referenced root helpers; existing unresolved boundary is retained, not approved as a query or leaf."
     },
     {
@@ -24537,7 +24559,7 @@
       "effect": "mutation",
       "classification": "debt",
       "adr": "0083",
-      "approval_adr": "0092",
+      "approval_adr": "0094",
       "reason": "Workflow-backed direction-accounting debt #4825; not a new runtime exception. Workflow-backed, Schuld #4825: People BirthdayStore/StaffRepository reaches LiveStaffEmployment (staff_membership_adapters.go:545-551); not a normal leaf. E3 named People student/companion or staff-identity edit protocol. Preserve class gate, foreign row/cohort locks, in-lock checks and composite savepoint/best-effort caregiver behavior; hand rows 14-19, People student_write.go, student_enrollment.go, staff_directory.go. Target workflows/staffoffboarding.LiveStaffEmployment.SetBirthdayDisplayOptOut; workflows/staffoffboarding/live_staff_employment.go:42. "
     },
     {
@@ -24548,8 +24570,10 @@
       "target_owner": "staff-offboarding",
       "binding_digest": "9be50d530b5fd9c07e5cf1fb56af9a70",
       "effect": "query",
-      "classification": "query",
-      "reason": "Workflow-backed, Schuld #4825: People BirthdayStore/StaffRepository reaches LiveStaffEmployment (staff_membership_adapters.go:545-551); not a normal leaf. Reviewed read/value/construction method; no owned-row mutation or locking read at this terminal. Target workflows/staffoffboarding.NewLiveStaffEmployment; workflows/staffoffboarding/live_staff_employment.go:33. May-bind method surface, not a production-call/liveness claim."
+      "classification": "debt",
+      "adr": "0083",
+      "approval_adr": "0094",
+      "reason": "Workflow-backed, Schuld #4825: People BirthdayStore/StaffRepository reaches LiveStaffEmployment (staff_membership_adapters.go:545-551); not a normal leaf. Reviewed read/value/construction method; no owned-row mutation or locking read at this terminal. Target workflows/staffoffboarding.NewLiveStaffEmployment; workflows/staffoffboarding/live_staff_employment.go:33. May-bind method surface, not a production-call/liveness claim. Runtime direction debt #4825 (ADR 0071 point 2): this read/construction may-bind is not a granted Domain-to-Workflow exception; move the binding out of the domain in the follow-up."
     },
     {
       "source_owner": "people-directory",
@@ -24713,7 +24737,7 @@
       "effect": "unresolved",
       "classification": "unresolved",
       "adr": "0083",
-      "approval_adr": "0092",
+      "approval_adr": "0094",
       "reason": "Unresolved binding-flow boundary, not a query or approved leaf. Dynamic callable/parameter flow; typed assignments do not prove its runtime function target. Exact boundary: unresolved:callable:github.com/moto-nrw/project-phoenix/roots/owners.notify. See ADR 0083 domain-source expansion and reconciliation binding-flow follow-up. #4836 assignment-evidence review: fingerprint now includes typed callable assignments and referenced root helpers; existing unresolved boundary is retained, not approved as a query or leaf."
     },
     {
@@ -26815,7 +26839,7 @@
       "effect": "unresolved",
       "classification": "unresolved",
       "adr": "0083",
-      "approval_adr": "0092",
+      "approval_adr": "0094",
       "reason": "Unresolved binding-flow boundary, not a query or approved leaf. Dynamic callable/parameter flow; typed assignments do not prove its runtime function target. Exact boundary: unresolved:callable:github.com/moto-nrw/project-phoenix/roots/owners.apply. See ADR 0083 domain-source expansion and reconciliation binding-flow follow-up. #4836 assignment-evidence review: fingerprint now includes typed callable assignments and referenced root helpers; existing unresolved boundary is retained, not approved as a query or leaf."
     },
     {
@@ -29511,7 +29535,7 @@
       "effect": "mutation",
       "classification": "debt",
       "adr": "0083",
-      "approval_adr": "0092",
+      "approval_adr": "0094",
       "reason": "Workflow-backed direction-accounting debt #4825; not a new runtime exception. Workflow-backed, known runtime-direction debt beyond the finite Roster/Bookings exception; no new ADR exception. Proposed follow-up: root-owned workflow entry or relocate the consumed capability to its domain/projection owner. See reconciliation callback audit. Guarded target record/byte command; preserve ambient scope, target validation and existing failure propagation. Target-local locks/savepoints alone do not establish a new source coordinator. Target workflows/shiftplansync/internal/application.SubstitutionAdapter.Assign; workflows/shiftplansync/internal/application/substitution.go:200. "
     },
     {
@@ -29524,7 +29548,7 @@
       "effect": "mutation",
       "classification": "debt",
       "adr": "0083",
-      "approval_adr": "0092",
+      "approval_adr": "0094",
       "reason": "Workflow-backed direction-accounting debt #4825; not a new runtime exception. Workflow-backed, known runtime-direction debt beyond the finite Roster/Bookings exception; no new ADR exception. Proposed follow-up: root-owned workflow entry or relocate the consumed capability to its domain/projection owner. See reconciliation callback audit. Guarded target record/byte command; preserve ambient scope, target validation and existing failure propagation. Target-local locks/savepoints alone do not establish a new source coordinator. Target workflows/shiftplansync/internal/application.SubstitutionAdapter.End; workflows/shiftplansync/internal/application/substitution.go:260. "
     },
     {
@@ -29535,8 +29559,10 @@
       "target_owner": "shift-plan-sync",
       "binding_digest": "e70def31664b8db4381949c8aa846ced",
       "effect": "query",
-      "classification": "query",
-      "reason": "Workflow-backed, known runtime-direction debt beyond the finite Roster/Bookings exception; no new ADR exception. Proposed follow-up: root-owned workflow entry or relocate the consumed capability to its domain/projection owner. See reconciliation callback audit. Reviewed read/value/construction method; no owned-row mutation or locking read at this terminal. Target workflows/shiftplansync/internal/application.SubstitutionAdapter.Overview; workflows/shiftplansync/internal/application/substitution.go:81. May-bind method surface, not a production-call/liveness claim."
+      "classification": "debt",
+      "adr": "0083",
+      "approval_adr": "0094",
+      "reason": "Workflow-backed, known runtime-direction debt beyond the finite Roster/Bookings exception; no new ADR exception. Proposed follow-up: root-owned workflow entry or relocate the consumed capability to its domain/projection owner. See reconciliation callback audit. Reviewed read/value/construction method; no owned-row mutation or locking read at this terminal. Target workflows/shiftplansync/internal/application.SubstitutionAdapter.Overview; workflows/shiftplansync/internal/application/substitution.go:81. May-bind method surface, not a production-call/liveness claim. Runtime direction debt #4825 (ADR 0071 point 2): this read/construction may-bind is not a granted Domain-to-Workflow exception; move the binding out of the domain in the follow-up."
     },
     {
       "source_owner": "school-structure",
@@ -30064,7 +30090,7 @@
       "effect": "mutation",
       "classification": "debt",
       "adr": "0083",
-      "approval_adr": "0092",
+      "approval_adr": "0094",
       "reason": "Workflow-backed direction-accounting debt #4825; not a new runtime exception. Workflow-backed, known runtime-direction debt beyond the finite Roster/Bookings exception; no new ADR exception. Proposed follow-up: root-owned workflow entry or relocate the consumed capability to its domain/projection owner. See reconciliation callback audit. Guarded target record/byte command; preserve ambient scope, target validation and existing failure propagation. Target-local locks/savepoints alone do not establish a new source coordinator. Target workflows/shiftplansync.GroupHandovers.CreateHandover; workflows/shiftplansync/group_handover.go:39. "
     },
     {
@@ -30077,7 +30103,7 @@
       "effect": "mutation",
       "classification": "debt",
       "adr": "0083",
-      "approval_adr": "0092",
+      "approval_adr": "0094",
       "reason": "Workflow-backed direction-accounting debt #4825; not a new runtime exception. Workflow-backed, known runtime-direction debt beyond the finite Roster/Bookings exception; no new ADR exception. Proposed follow-up: root-owned workflow entry or relocate the consumed capability to its domain/projection owner. See reconciliation callback audit. Guarded target record/byte command; preserve ambient scope, target validation and existing failure propagation. Target-local locks/savepoints alone do not establish a new source coordinator. Target workflows/shiftplansync.GroupHandovers.DeleteHandover; workflows/shiftplansync/group_handover.go:48. "
     },
     {
@@ -40095,7 +40121,7 @@
       "effect": "unresolved",
       "classification": "unresolved",
       "adr": "0083",
-      "approval_adr": "0092",
+      "approval_adr": "0094",
       "reason": "Unresolved binding-flow boundary, not a query or approved leaf. Function-valued field; callable instance flow is deferred. Exact boundary: unresolved:function:*github.com/moto-nrw/project-phoenix/api.statusDayStudents.authorize. See ADR 0083 domain-source expansion and reconciliation binding-flow follow-up. #4836 assignment-evidence review: fingerprint now includes typed callable assignments and referenced root helpers; existing unresolved boundary is retained, not approved as a query or leaf."
     },
     {
@@ -41769,7 +41795,7 @@
       "effect": "unresolved",
       "classification": "unresolved",
       "adr": "0083",
-      "approval_adr": "0092",
+      "approval_adr": "0094",
       "reason": "Unresolved binding-flow boundary, not a query or approved leaf. Function-valued field; callable instance flow is deferred. Exact boundary: unresolved:function:github.com/moto-nrw/project-phoenix/roots/owners.sessionDevices.window. See ADR 0083 domain-source expansion and reconciliation binding-flow follow-up. #4836 assignment-evidence review: fingerprint now includes typed callable assignments and referenced root helpers; existing unresolved boundary is retained, not approved as a query or leaf."
     },
     {
@@ -53296,7 +53322,7 @@
       "effect": "mutation",
       "classification": "debt",
       "adr": "0083",
-      "approval_adr": "0092",
+      "approval_adr": "0094",
       "reason": "Workflow-backed direction-accounting debt #4825; not a new runtime exception. Workflow-backed outer HTTP entry supplied by the root (Care resumption / Timetable pickup-extension command), not evidence of a domain-application callback. Full supplied contract methods are retained, including unused promoted methods. Guarded target record/byte command; preserve ambient scope, target validation and existing failure propagation. Target-local locks/savepoints alone do not establish a new source coordinator. Target workflows/careexit.pickupExtensions.ClearPickupDayExtension; workflows/careexit.pickupExtensions (supplied contract method). "
     },
     {
@@ -53309,7 +53335,7 @@
       "effect": "mutation",
       "classification": "debt",
       "adr": "0083",
-      "approval_adr": "0092",
+      "approval_adr": "0094",
       "reason": "Workflow-backed direction-accounting debt #4825; not a new runtime exception. Workflow-backed outer HTTP entry supplied by the root (Care resumption / Timetable pickup-extension command), not evidence of a domain-application callback. Full supplied contract methods are retained, including unused promoted methods. Guarded target record/byte command; preserve ambient scope, target validation and existing failure propagation. Target-local locks/savepoints alone do not establish a new source coordinator. Target workflows/careexit.pickupExtensions.ClearPickupWeekdayExtension; workflows/careexit.pickupExtensions (supplied contract method). "
     },
     {
@@ -53320,8 +53346,10 @@
       "target_owner": "care-exit",
       "binding_digest": "f5c3fe091ce8a40affe3b1fff514ffd5",
       "effect": "query",
-      "classification": "query",
-      "reason": "Workflow-backed outer HTTP entry supplied by the root (Care resumption / Timetable pickup-extension command), not evidence of a domain-application callback. Full supplied contract methods are retained, including unused promoted methods. Reviewed read/value/construction method; no owned-row mutation or locking read at this terminal. Target workflows/careexit.pickupExtensions.FindPickupExtensionStudent; workflows/careexit.pickupExtensions (supplied contract method). May-bind method surface, not a production-call/liveness claim."
+      "classification": "debt",
+      "adr": "0083",
+      "approval_adr": "0094",
+      "reason": "Workflow-backed outer HTTP entry supplied by the root (Care resumption / Timetable pickup-extension command), not evidence of a domain-application callback. Full supplied contract methods are retained, including unused promoted methods. Reviewed read/value/construction method; no owned-row mutation or locking read at this terminal. Target workflows/careexit.pickupExtensions.FindPickupExtensionStudent; workflows/careexit.pickupExtensions (supplied contract method). May-bind method surface, not a production-call/liveness claim. Runtime direction debt #4825 (ADR 0071 point 2): this read/construction may-bind is not a granted Domain-to-Workflow exception; move the binding out of the domain in the follow-up."
     },
     {
       "source_owner": "timetable-activities",
@@ -53331,8 +53359,10 @@
       "target_owner": "care-exit",
       "binding_digest": "94701baa57703b473e38e77818f7ce43",
       "effect": "query",
-      "classification": "query",
-      "reason": "Workflow-backed outer HTTP entry supplied by the root (Care resumption / Timetable pickup-extension command), not evidence of a domain-application callback. Full supplied contract methods are retained, including unused promoted methods. Reviewed read/value/construction method; no owned-row mutation or locking read at this terminal. Target workflows/careexit.pickupExtensions.ListOpenPickupExtensions; workflows/careexit.pickupExtensions (supplied contract method). May-bind method surface, not a production-call/liveness claim."
+      "classification": "debt",
+      "adr": "0083",
+      "approval_adr": "0094",
+      "reason": "Workflow-backed outer HTTP entry supplied by the root (Care resumption / Timetable pickup-extension command), not evidence of a domain-application callback. Full supplied contract methods are retained, including unused promoted methods. Reviewed read/value/construction method; no owned-row mutation or locking read at this terminal. Target workflows/careexit.pickupExtensions.ListOpenPickupExtensions; workflows/careexit.pickupExtensions (supplied contract method). May-bind method surface, not a production-call/liveness claim. Runtime direction debt #4825 (ADR 0071 point 2): this read/construction may-bind is not a granted Domain-to-Workflow exception; move the binding out of the domain in the follow-up."
     },
     {
       "source_owner": "timetable-activities",
@@ -53344,7 +53374,7 @@
       "effect": "mutation",
       "classification": "debt",
       "adr": "0083",
-      "approval_adr": "0092",
+      "approval_adr": "0094",
       "reason": "Workflow-backed direction-accounting debt #4825; not a new runtime exception. Workflow-backed outer HTTP entry supplied by the root (Care resumption / Timetable pickup-extension command), not evidence of a domain-application callback. Full supplied contract methods are retained, including unused promoted methods. Guarded target record/byte command; preserve ambient scope, target validation and existing failure propagation. Target-local locks/savepoints alone do not establish a new source coordinator. Target workflows/careexit.pickupExtensions.RecordPickupDayExtension; workflows/careexit.pickupExtensions (supplied contract method). "
     },
     {
@@ -53357,7 +53387,7 @@
       "effect": "mutation",
       "classification": "debt",
       "adr": "0083",
-      "approval_adr": "0092",
+      "approval_adr": "0094",
       "reason": "Workflow-backed direction-accounting debt #4825; not a new runtime exception. Workflow-backed outer HTTP entry supplied by the root (Care resumption / Timetable pickup-extension command), not evidence of a domain-application callback. Full supplied contract methods are retained, including unused promoted methods. Guarded target record/byte command; preserve ambient scope, target validation and existing failure propagation. Target-local locks/savepoints alone do not establish a new source coordinator. Target workflows/careexit.pickupExtensions.RecordPickupWeekdayExtension; workflows/careexit.pickupExtensions (supplied contract method). "
     },
     {
@@ -53370,7 +53400,7 @@
       "effect": "mutation",
       "classification": "debt",
       "adr": "0083",
-      "approval_adr": "0092",
+      "approval_adr": "0094",
       "reason": "Workflow-backed direction-accounting debt #4825; not a new runtime exception. Workflow-backed outer HTTP entry supplied by the root (Care resumption / Timetable pickup-extension command), not evidence of a domain-application callback. Full supplied contract methods are retained, including unused promoted methods. Guarded target record/byte command; preserve ambient scope, target validation and existing failure propagation. Target-local locks/savepoints alone do not establish a new source coordinator. Target workflows/careexit.pickupExtensions.ResolvePickupExtension; workflows/careexit/pickup_extensions.go:41. "
     },
     {
@@ -57232,7 +57262,7 @@
       "effect": "unresolved",
       "classification": "unresolved",
       "adr": "0083",
-      "approval_adr": "0092",
+      "approval_adr": "0094",
       "reason": "Unresolved binding-flow boundary, not a query or approved leaf. Function-valued field; callable instance flow is deferred. Exact boundary: unresolved:function:github.com/moto-nrw/project-phoenix/roots/owners.timetableOperationAttendance.withStaff. See ADR 0083 domain-source expansion and reconciliation binding-flow follow-up. #4836 assignment-evidence review: fingerprint now includes typed callable assignments and referenced root helpers; existing unresolved boundary is retained, not approved as a query or leaf."
     },
     {
@@ -57257,7 +57287,7 @@
       "effect": "unresolved",
       "classification": "unresolved",
       "adr": "0083",
-      "approval_adr": "0092",
+      "approval_adr": "0094",
       "reason": "Unresolved binding-flow boundary, not a query or approved leaf. Function-valued field; callable instance flow is deferred. Exact boundary: unresolved:function:github.com/moto-nrw/project-phoenix/roots/owners.timetableOperationAttendance.withStaff. See ADR 0083 domain-source expansion and reconciliation binding-flow follow-up. #4836 assignment-evidence review: fingerprint now includes typed callable assignments and referenced root helpers; existing unresolved boundary is retained, not approved as a query or leaf."
     },
     {
@@ -57282,7 +57312,7 @@
       "effect": "unresolved",
       "classification": "unresolved",
       "adr": "0083",
-      "approval_adr": "0092",
+      "approval_adr": "0094",
       "reason": "Unresolved binding-flow boundary, not a query or approved leaf. Function-valued field; callable instance flow is deferred. Exact boundary: unresolved:function:github.com/moto-nrw/project-phoenix/roots/owners.TokenAdapter.Claims. See ADR 0083 domain-source expansion and reconciliation binding-flow follow-up. #4836 assignment-evidence review: fingerprint now includes typed callable assignments and referenced root helpers; existing unresolved boundary is retained, not approved as a query or leaf."
     },
     {
@@ -57295,7 +57325,7 @@
       "effect": "unresolved",
       "classification": "unresolved",
       "adr": "0083",
-      "approval_adr": "0092",
+      "approval_adr": "0094",
       "reason": "Unresolved binding-flow boundary, not a query or approved leaf. Function-valued field; callable instance flow is deferred. Exact boundary: unresolved:function:github.com/moto-nrw/project-phoenix/roots/owners.TokenAdapter.Permissions. See ADR 0083 domain-source expansion and reconciliation binding-flow follow-up. #4836 assignment-evidence review: fingerprint now includes typed callable assignments and referenced root helpers; existing unresolved boundary is retained, not approved as a query or leaf."
     },
     {
@@ -57308,7 +57338,7 @@
       "effect": "unresolved",
       "classification": "unresolved",
       "adr": "0083",
-      "approval_adr": "0092",
+      "approval_adr": "0094",
       "reason": "Unresolved binding-flow boundary, not a query or approved leaf. Function-valued field; callable instance flow is deferred. Exact boundary: unresolved:function:github.com/moto-nrw/project-phoenix/roots/owners.TokenAdapter.Claims. See ADR 0083 domain-source expansion and reconciliation binding-flow follow-up. #4836 assignment-evidence review: fingerprint now includes typed callable assignments and referenced root helpers; existing unresolved boundary is retained, not approved as a query or leaf."
     },
     {
@@ -57332,7 +57362,7 @@
       "effect": "unresolved",
       "classification": "unresolved",
       "adr": "0083",
-      "approval_adr": "0092",
+      "approval_adr": "0094",
       "reason": "Unresolved binding-flow boundary, not a query or approved leaf. Function-valued field; callable instance flow is deferred. Exact boundary: unresolved:function:github.com/moto-nrw/project-phoenix/roots/owners.TokenAdapter.Claims. See ADR 0083 domain-source expansion and reconciliation binding-flow follow-up. #4836 assignment-evidence review: fingerprint now includes typed callable assignments and referenced root helpers; existing unresolved boundary is retained, not approved as a query or leaf."
     },
     {
@@ -57345,7 +57375,7 @@
       "effect": "unresolved",
       "classification": "unresolved",
       "adr": "0083",
-      "approval_adr": "0092",
+      "approval_adr": "0094",
       "reason": "Unresolved binding-flow boundary, not a query or approved leaf. Function-valued field; callable instance flow is deferred. Exact boundary: unresolved:function:github.com/moto-nrw/project-phoenix/roots/owners.TokenAdapter.Permissions. See ADR 0083 domain-source expansion and reconciliation binding-flow follow-up. #4836 assignment-evidence review: fingerprint now includes typed callable assignments and referenced root helpers; existing unresolved boundary is retained, not approved as a query or leaf."
     },
     {
@@ -58356,7 +58386,7 @@
       "effect": "unresolved",
       "classification": "unresolved",
       "adr": "0083",
-      "approval_adr": "0092",
+      "approval_adr": "0094",
       "reason": "Unresolved binding-flow boundary, not a query or approved leaf. Function-valued field; callable instance flow is deferred. Exact boundary: unresolved:function:github.com/moto-nrw/project-phoenix/roots/owners.TokenAdapter.Claims. See ADR 0083 domain-source expansion and reconciliation binding-flow follow-up. #4836 assignment-evidence review: fingerprint now includes typed callable assignments and referenced root helpers; existing unresolved boundary is retained, not approved as a query or leaf."
     },
     {
@@ -58369,7 +58399,7 @@
       "effect": "unresolved",
       "classification": "unresolved",
       "adr": "0083",
-      "approval_adr": "0092",
+      "approval_adr": "0094",
       "reason": "Unresolved binding-flow boundary, not a query or approved leaf. Function-valued field; callable instance flow is deferred. Exact boundary: unresolved:function:github.com/moto-nrw/project-phoenix/roots/owners.TokenAdapter.Permissions. See ADR 0083 domain-source expansion and reconciliation binding-flow follow-up. #4836 assignment-evidence review: fingerprint now includes typed callable assignments and referenced root helpers; existing unresolved boundary is retained, not approved as a query or leaf."
     },
     {
@@ -59924,7 +59954,7 @@
       "effect": "mutation",
       "classification": "debt",
       "adr": "0083",
-      "approval_adr": "0092",
+      "approval_adr": "0094",
       "reason": "Workflow-backed direction-accounting debt #4825; not a new runtime exception. Workflow-backed import/helper or observed test-support provider in the type-level interface union; no live domain application coordinator is asserted. Do not label a workflow method as a normal leaf. Guarded target record/byte command; preserve ambient scope, target validation and existing failure propagation. Target-local locks/savepoints alone do not establish a new source coordinator. Target modules/dataimport/ports.observedOpeningBalanceBookings.CreateOpeningBalance; modules/dataimport/ports/observed_commands.go:232. "
     },
     {
@@ -59935,8 +59965,10 @@
       "target_owner": "data-import",
       "binding_digest": "112224c35e628b9b384c123426519656",
       "effect": "query",
-      "classification": "query",
-      "reason": "Workflow-backed import/helper or observed test-support provider in the type-level interface union; no live domain application coordinator is asserted. Do not label a workflow method as a normal leaf. Reviewed read/value/construction method; no owned-row mutation or locking read at this terminal. Target modules/dataimport/ports.observedOpeningBalanceBookings.ValidateOpeningBalance; modules/dataimport/ports.observedOpeningBalanceBookings (supplied contract method). May-bind method surface, not a production-call/liveness claim."
+      "classification": "debt",
+      "adr": "0083",
+      "approval_adr": "0094",
+      "reason": "Workflow-backed import/helper or observed test-support provider in the type-level interface union; no live domain application coordinator is asserted. Do not label a workflow method as a normal leaf. Reviewed read/value/construction method; no owned-row mutation or locking read at this terminal. Target modules/dataimport/ports.observedOpeningBalanceBookings.ValidateOpeningBalance; modules/dataimport/ports.observedOpeningBalanceBookings (supplied contract method). May-bind method surface, not a production-call/liveness claim. Runtime direction debt #4825 (ADR 0071 point 2): this read/construction may-bind is not a granted Domain-to-Workflow exception; move the binding out of the domain in the follow-up."
     },
     {
       "source_owner": "workforce",
@@ -59970,7 +60002,7 @@
       "effect": "mutation",
       "classification": "debt",
       "adr": "0083",
-      "approval_adr": "0092",
+      "approval_adr": "0094",
       "reason": "Workflow-backed direction-accounting debt #4825; not a new runtime exception. Workflow-backed, known runtime-direction debt beyond the finite Roster/Bookings exception; no new ADR exception. Proposed follow-up: root-owned workflow entry or relocate the consumed capability to its domain/projection owner. See reconciliation callback audit. Guarded target record/byte command; preserve ambient scope, target validation and existing failure propagation. Target-local locks/savepoints alone do not establish a new source coordinator. Target workflows/shiftplansync/internal/application.sickCascade.ClearSickForRange; workflows/shiftplansync/internal/application/sick_cascade.go:282. "
     },
     {
@@ -59983,7 +60015,7 @@
       "effect": "mutation",
       "classification": "debt",
       "adr": "0083",
-      "approval_adr": "0092",
+      "approval_adr": "0094",
       "reason": "Workflow-backed direction-accounting debt #4825; not a new runtime exception. Workflow-backed, known runtime-direction debt beyond the finite Roster/Bookings exception; no new ADR exception. Proposed follow-up: root-owned workflow entry or relocate the consumed capability to its domain/projection owner. See reconciliation callback audit. Guarded target record/byte command; preserve ambient scope, target validation and existing failure propagation. Target-local locks/savepoints alone do not establish a new source coordinator. Target workflows/shiftplansync/internal/application.sickCascade.MarkSickForRange; workflows/shiftplansync/internal/application/sick_cascade.go:130. "
     },
     {
@@ -59996,7 +60028,7 @@
       "effect": "mutation",
       "classification": "debt",
       "adr": "0083",
-      "approval_adr": "0092",
+      "approval_adr": "0094",
       "reason": "Workflow-backed direction-accounting debt #4825; not a new runtime exception. Workflow-backed, known runtime-direction debt beyond the finite Roster/Bookings exception; no new ADR exception. Proposed follow-up: root-owned workflow entry or relocate the consumed capability to its domain/projection owner. See reconciliation callback audit. Guarded target record/byte command; preserve ambient scope, target validation and existing failure propagation. Target-local locks/savepoints alone do not establish a new source coordinator. Target workflows/shiftplansync/internal/application.sickCascade.ReassignSickStamps; workflows/shiftplansync/internal/application/sick_cascade.go:636. "
     },
     {
@@ -60009,7 +60041,7 @@
       "effect": "mutation",
       "classification": "debt",
       "adr": "0083",
-      "approval_adr": "0092",
+      "approval_adr": "0094",
       "reason": "Workflow-backed direction-accounting debt #4825; not a new runtime exception. Workflow-backed, known runtime-direction debt beyond the finite Roster/Bookings exception; no new ADR exception. Proposed follow-up: root-owned workflow entry or relocate the consumed capability to its domain/projection owner. See reconciliation callback audit. Guarded target record/byte command; preserve ambient scope, target validation and existing failure propagation. Target-local locks/savepoints alone do not establish a new source coordinator. Target workflows/shiftplansync/internal/application.sickCascade.ReconcileSickRange; workflows/shiftplansync/internal/application/sick_cascade.go:309. "
     },
     {
@@ -60485,7 +60517,7 @@
       "effect": "unresolved",
       "classification": "unresolved",
       "adr": "0083",
-      "approval_adr": "0092",
+      "approval_adr": "0094",
       "reason": "Unresolved binding-flow boundary, not a query or approved leaf. Function-valued field; callable instance flow is deferred. Exact boundary: unresolved:function:github.com/moto-nrw/project-phoenix/modules/workforce.SubstitutionCaller.HasPermission. See ADR 0083 domain-source expansion and reconciliation binding-flow follow-up. #4836 assignment-evidence review: fingerprint now includes typed callable assignments and referenced root helpers; existing unresolved boundary is retained, not approved as a query or leaf."
     },
     {
@@ -60510,7 +60542,7 @@
       "effect": "unresolved",
       "classification": "unresolved",
       "adr": "0083",
-      "approval_adr": "0092",
+      "approval_adr": "0094",
       "reason": "Unresolved binding-flow boundary, not a query or approved leaf. Function-valued field; callable instance flow is deferred. Exact boundary: unresolved:function:github.com/moto-nrw/project-phoenix/modules/workforce.SubstitutionCaller.HasPermission. See ADR 0083 domain-source expansion and reconciliation binding-flow follow-up. #4836 assignment-evidence review: fingerprint now includes typed callable assignments and referenced root helpers; existing unresolved boundary is retained, not approved as a query or leaf."
     },
     {
@@ -60534,7 +60566,7 @@
       "effect": "unresolved",
       "classification": "unresolved",
       "adr": "0083",
-      "approval_adr": "0092",
+      "approval_adr": "0094",
       "reason": "Unresolved binding-flow boundary, not a query or approved leaf. Function-valued field; callable instance flow is deferred. Exact boundary: unresolved:function:github.com/moto-nrw/project-phoenix/modules/workforce.SubstitutionCaller.HasPermission. See ADR 0083 domain-source expansion and reconciliation binding-flow follow-up. #4836 assignment-evidence review: fingerprint now includes typed callable assignments and referenced root helpers; existing unresolved boundary is retained, not approved as a query or leaf."
     },
     {
@@ -60547,7 +60579,7 @@
       "effect": "mutation",
       "classification": "debt",
       "adr": "0083",
-      "approval_adr": "0092",
+      "approval_adr": "0094",
       "reason": "Workflow-backed direction-accounting debt #4825; not a new runtime exception. Workflow-backed import/helper or observed test-support provider in the type-level interface union; no live domain application coordinator is asserted. Do not label a workflow method as a normal leaf. Guarded target record/byte command; preserve ambient scope, target validation and existing failure propagation. Target-local locks/savepoints alone do not establish a new source coordinator. Target modules/dataimport/ports.observedVacationTakeovers.SetVacationOpening; modules/dataimport/ports/observed_commands.go:254. "
     },
     {
@@ -60560,7 +60592,7 @@
       "effect": "mutation",
       "classification": "debt",
       "adr": "0083",
-      "approval_adr": "0092",
+      "approval_adr": "0094",
       "reason": "Workflow-backed direction-accounting debt #4825; not a new runtime exception. Workflow-backed import/helper or observed test-support provider in the type-level interface union; no live domain application coordinator is asserted. Do not label a workflow method as a normal leaf. Guarded target record/byte command; preserve ambient scope, target validation and existing failure propagation. Target-local locks/savepoints alone do not establish a new source coordinator. Target modules/dataimport/ports.observedVacationTakeovers.UpsertVacationQuota; modules/dataimport/ports/observed_commands.go:249. "
     },
     {
@@ -60571,8 +60603,10 @@
       "target_owner": "data-import",
       "binding_digest": "377922117a91a5977fbbe3303a8c5610",
       "effect": "query",
-      "classification": "query",
-      "reason": "Workflow-backed import/helper or observed test-support provider in the type-level interface union; no live domain application coordinator is asserted. Do not label a workflow method as a normal leaf. Reviewed read/value/construction method; no owned-row mutation or locking read at this terminal. Target modules/dataimport/ports.observedVacationTakeovers.VacationQuotaSummary; modules/dataimport/ports.observedVacationTakeovers (supplied contract method). May-bind method surface, not a production-call/liveness claim."
+      "classification": "debt",
+      "adr": "0083",
+      "approval_adr": "0094",
+      "reason": "Workflow-backed import/helper or observed test-support provider in the type-level interface union; no live domain application coordinator is asserted. Do not label a workflow method as a normal leaf. Reviewed read/value/construction method; no owned-row mutation or locking read at this terminal. Target modules/dataimport/ports.observedVacationTakeovers.VacationQuotaSummary; modules/dataimport/ports.observedVacationTakeovers (supplied contract method). May-bind method surface, not a production-call/liveness claim. Runtime direction debt #4825 (ADR 0071 point 2): this read/construction may-bind is not a granted Domain-to-Workflow exception; move the binding out of the domain in the follow-up."
     },
     {
       "source_owner": "workforce",
@@ -60582,8 +60616,10 @@
       "target_owner": "data-import",
       "binding_digest": "3d99cb50e87780b98c0d83a4cc4261e0",
       "effect": "query",
-      "classification": "query",
-      "reason": "Workflow-backed import/helper or observed test-support provider in the type-level interface union; no live domain application coordinator is asserted. Do not label a workflow method as a normal leaf. Reviewed read/value/construction method; no owned-row mutation or locking read at this terminal. Target modules/dataimport/ports.observedVacationTakeovers.ValidateVacationOpeningAbsencesBefore; modules/dataimport/ports.observedVacationTakeovers (supplied contract method). May-bind method surface, not a production-call/liveness claim."
+      "classification": "debt",
+      "adr": "0083",
+      "approval_adr": "0094",
+      "reason": "Workflow-backed import/helper or observed test-support provider in the type-level interface union; no live domain application coordinator is asserted. Do not label a workflow method as a normal leaf. Reviewed read/value/construction method; no owned-row mutation or locking read at this terminal. Target modules/dataimport/ports.observedVacationTakeovers.ValidateVacationOpeningAbsencesBefore; modules/dataimport/ports.observedVacationTakeovers (supplied contract method). May-bind method surface, not a production-call/liveness claim. Runtime direction debt #4825 (ADR 0071 point 2): this read/construction may-bind is not a granted Domain-to-Workflow exception; move the binding out of the domain in the follow-up."
     },
     {
       "source_owner": "workforce",
@@ -61310,7 +61346,7 @@
       "effect": "unresolved",
       "classification": "unresolved",
       "adr": "0083",
-      "approval_adr": "0092",
+      "approval_adr": "0094",
       "reason": "Unresolved binding-flow boundary, not a query or approved leaf. Function-valued field; callable instance flow is deferred. Exact boundary: unresolved:function:github.com/moto-nrw/project-phoenix/modules/workforce/http/timetracking.ExportTransferRequest.PrepareFile. See ADR 0083 domain-source expansion and reconciliation binding-flow follow-up. #4836 assignment-evidence review: fingerprint now includes typed callable assignments and referenced root helpers; existing unresolved boundary is retained, not approved as a query or leaf."
     },
     {
@@ -61722,7 +61758,7 @@
       "effect": "unresolved",
       "classification": "unresolved",
       "adr": "0083",
-      "approval_adr": "0092",
+      "approval_adr": "0094",
       "reason": "Unresolved binding-flow boundary, not a query or approved leaf. Function-valued field; callable instance flow is deferred. Exact boundary: unresolved:function:github.com/moto-nrw/project-phoenix/roots/owners.workSessionStaff.bindSchedule. See ADR 0083 domain-source expansion and reconciliation binding-flow follow-up. #4836 assignment-evidence review: fingerprint now includes typed callable assignments and referenced root helpers; existing unresolved boundary is retained, not approved as a query or leaf."
     },
     {

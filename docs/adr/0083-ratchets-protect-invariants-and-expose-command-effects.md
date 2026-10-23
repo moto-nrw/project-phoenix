@@ -516,7 +516,7 @@ This implements the three gate repairs from
 platform/protocol follow-up. No runtime owner, command, transaction, permission,
 policy rule or shape budget changes. ADR 0071 remains unchanged; the finite
 Roster/Bookings description in PR #4753 is context, not a merged decision.
-[ADR 0092](0092-command-effect-gap-reconciliation.md) supplies the fresh-numbered
+[ADR 0094](0094-command-effect-gap-reconciliation.md) supplies the fresh-numbered
 approval for the measured register reconciliation. Appending this heading to
 ADR 0083 itself grants no approval.
 
@@ -557,8 +557,10 @@ E1–E5, unresolved bindings and debt. Only the seven already recorded Care Exit
 Roster/Bookings E2 command/lock identities retain that label. All other prior
 workflow-labelled surfaces become `debt` with #4825, including HTTP entry and
 compiled support may-bind surfaces. That conservative classification does not
-assert those unused methods are live application callbacks. Read-only targets
-remain `query`; their evidence still records direction debt where applicable.
+assert those unused methods are live application callbacks. Read-only effects remain `query`; the round-2 validation in
+[ADR 0094](0094-command-effect-gap-reconciliation.md#runtime-direction-validation-round-2)
+classifies workflow-directed reads as `debt` too. That decision also records
+the still-unscanned domain-owned callable-field boundary (M3).
 
 ### Verification and measured reconciliation
 
@@ -568,9 +570,9 @@ passes without approval. After repair, the same fixture generation, base
 comparison and CLI `check` reject all three. Additional fixtures cover assignment
 and constructor aliases, helper changes, containers/variadics/tuples, comments,
 unrelated wiring and recursive containers. The real repository counterprobe
-removes ADR 0092 and this addendum, checks failure, then restores exact bytes.
+removes ADR 0094 and this addendum, checks failure, then restores exact bytes.
 
-Against `1f1d42ef1b`: **5,341 → 5,344 entries; 3 added, 0 removed**.
+Historical pre-merge measurement against `1f1d42ef1b`: **5,341 → 5,344 entries; 3 added, 0 removed**.
 Container/tuple flow exposes no new unresolved identity. Named-function argument
 flow exposes three existing File Storage → Care Plan cleanup-bookkeeping
 providers (`StudentDocumentFileStore` → `StudentDocuments`: ActivateQueuedCleanup,
@@ -581,7 +583,7 @@ needs classification.
 **48 fingerprints change**: all 40 function-field entries and 8 callable-variable
 entries gain assignment evidence. **19 workflow → debt**, leaving **7 workflow**
 and **73 → 92 debt** entries. The union of those changes is **70 reviewed entries**
-carrying `approval_adr: "0092"`. Effects remain 2,779 query, 1,614 mutation,
+carrying `approval_adr: "0094"`. Effects remain 2,779 query, 1,614 mutation,
 298 lock, 7 scope, 1 durable, 5 notice and 640 unresolved. No policy or
 pass-through entry changes.
 
