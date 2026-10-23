@@ -28,6 +28,10 @@ principle states the target. The migration (#2580, consolidation #4069) is
 closed; its final state and the follow-up issues are in
 [WORKPLAN.md](WORKPLAN.md#endstand).
 
+[ADR 0080](../../docs/adr/0080-owner-boundary-costs-are-measured-before-consolidation.md)
+records the post-migration wiring-cost measurement for #4546, including the
+small-projection inventory for #4547. It changes no boundary or policy rule.
+
 ## Canonical module map
 
 [ADR 0066](../../docs/adr/0066-principle-every-module-table-and-cross-owner-read-has-one-owner.md)
@@ -5025,6 +5029,7 @@ one-time conversion (#4070); ADR 0058 points 5 and 6, the transition (#3417,
 | 0060 | accepted | 0066, 0068, 0071 |
 | 0072, 0073 (budgets), 0075, 0079 (budget) | accepted | 0070 |
 | 0076 | accepted | 0066, 0067, 0068, 0070 |
+| 0080 | accepted | 0066, 0067, 0068, 0070, 0071 |
 
 ADRs 0001 to 0009, 0011, 0019, 0021, 0024, 0027 to 0029, 0034, 0042 to 0044,
 0048 and 0055 record product, data-contract and operations decisions outside
