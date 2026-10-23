@@ -275,7 +275,11 @@ func weekChanges(rules domain.OrderingRules, now time.Time, days []domain.Partic
 // readParticipation resolves the child's days in [from, to] from its
 // registration and the school calendar.
 func (s *Service) readParticipation(ctx context.Context, studentID int64, from, to domain.Date, rules domain.OrderingRules, scheduleDate domain.Date) (domain.ParticipationPlan, domain.OperationStats, error) {
-	data, stats, err := s.store.FindParticipation(ctx, studentID, from, to)
+	dataThrough := to
+	if scheduleDate.After(dataThrough) {
+		dataThrough = scheduleDate
+	}
+	data, stats, err := s.store.FindParticipation(ctx, studentID, from, dataThrough)
 	if err != nil {
 		return domain.ParticipationPlan{}, stats, err
 	}
