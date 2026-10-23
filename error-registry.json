@@ -3915,6 +3915,12 @@
       "legacy": "identity.email_change_link_invalid"
     },
     {
+      "code": "identity.mfa_status_unavailable",
+      "class": "unavailable",
+      "parameters": [],
+      "legacy": "identity.mfa_status_unavailable"
+    },
+    {
       "code": "identity.mfa_session_required",
       "class": "permission",
       "parameters": [],

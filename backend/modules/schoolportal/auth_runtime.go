@@ -63,7 +63,7 @@ type AuthRuntime struct {
 	// its identity through the second factor; the role is re-checked.
 	IssueTokens func(ctx context.Context, accountID, tenantID int64, ipAddress, userAgent string) (accessToken, refreshToken string, err error)
 	// SwitchSchool re-authenticates a school session at another school.
-	SwitchSchool func(ctx context.Context, accountID int64, tenantSlug, ipAddress, userAgent string) (accessToken, refreshToken string, err error)
+	SwitchSchool func(ctx context.Context, accountID int64, tenantSlug, ipAddress, userAgent, presentedFamilyID string) (accessToken, refreshToken string, err error)
 
 	// Cause strips the owner's operation envelope so the portal renders the
 	// refusal itself, not the envelope around it.
@@ -79,6 +79,8 @@ type AuthRuntime struct {
 	SchoolNotFound func(error) bool
 	// SchoolAccessDenied reports a revoked membership at the school.
 	SchoolAccessDenied func(error) bool
+	// MFAProofRequired reports a school switch without live second-factor proof.
+	MFAProofRequired func(error) bool
 	// MFABlocked reports a locked-out or rate-limited second factor.
 	MFABlocked func(error) bool
 	// MFAUnavailable reports the fail-closed gate: the portal answers 503
@@ -90,7 +92,7 @@ func (rt *AuthRuntime) complete() bool {
 	return rt != nil && rt.Login != nil && rt.LoginAtSchool != nil && rt.IssueTokens != nil &&
 		rt.SwitchSchool != nil && rt.Cause != nil && rt.InvalidCredentials != nil &&
 		rt.AccountInactive != nil && rt.NoSchoolPortalRole != nil && rt.SchoolNotFound != nil &&
-		rt.SchoolAccessDenied != nil && rt.MFABlocked != nil && rt.MFAUnavailable != nil
+		rt.SchoolAccessDenied != nil && rt.MFAProofRequired != nil && rt.MFABlocked != nil && rt.MFAUnavailable != nil
 }
 
 // MFARuntime is the school portal's second-factor port. Every challenge call

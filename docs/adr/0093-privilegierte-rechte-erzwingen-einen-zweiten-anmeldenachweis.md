@@ -33,8 +33,8 @@ Grundlage ist die [Zugriffsbewertung für Gesundheits- und Personaldaten](../sec
    sie. Mint und Refresh prüfen aktuelle Rechte und Policy unter den vorhandenen
    Sperren erneut. Elternsitzungen sind ein eigener Bereich ohne Personalrechte.
 4. Der Schulwechsel selbst ist keine zweite Authentisierung. Er erhält den
-   vorhandenen Nachweis nur aus der vorgelegten, lebenden OGS-Sitzungsfamilie
-   desselben Kontos, auch beim Wechsel in einen anderen Träger. Nicht die Schule
+   vorhandenen Nachweis nur aus der vorgelegten, lebenden Sitzungsfamilie desselben Portals
+   und desselben Kontos, auch beim Wechsel in einen anderen Träger. Nicht die Schule
    oder der Träger, sondern diese Sitzung bindet den Nachweis. Identity & Access
    liest ihn unter der Kontosperre erneut. MFA-Zurücksetzung, Widerruf, Ablauf
    und fremde Portalbereiche dürfen keinen
@@ -47,6 +47,15 @@ Grundlage ist die [Zugriffsbewertung für Gesundheits- und Personaldaten](../sec
    zurückgegebene, lebende Zielsitzung übernehmen. Fehlt eine solche Sitzung,
    durchläuft die nächste Anmeldung unverändert den regulären MFA-Weg. Die bisherigen
    Operator- und Eltern-Anmeldeverfahren bleiben unverändert.
+
+5. Bewusste Ausnahme: Die öffentliche Demo unter `APP_ENV=demo` darf mit
+   ausschließlich synthetischen Daten auch Demo-Admins und die Rolle `all`
+   ohne zweiten Faktor anmelden. `DemoAccess.Redeem` prägt dabei über
+   `IssueTokensForAuthenticatedAccount` den Sitzungsnachweis. Das ist kein
+   tatsächlich bestandener Faktor. Außerhalb Demo ist dieser Einlöseweg nicht
+   erreichbar; die produktiven Aufrufer folgen ausschließlich einem echten
+   MFA-/Passkey-Nachweis. Aufruferprüfung und betriebliche Abgrenzung stehen
+   im [Runbook](../operations/mfa-pflicht-3841.md#bewusste-demo-ausnahme).
 
 ## Folgen
 

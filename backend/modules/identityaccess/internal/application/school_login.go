@@ -82,9 +82,9 @@ func (s *AccountAuthentication) issueSchoolTokensForAuthenticatedAccount(ctx con
 }
 
 // SwitchSchool re-authenticates a school-portal session to another school
-// where the account holds a school-portal role. No MFA gate: the caller
-// already holds a school session whose second factor was settled at login.
-func (s *AccountAuthentication) SwitchSchool(ctx context.Context, accountID int64, tenantSlug, ipAddress, userAgent string) (_ string, _ string, err error) {
+// where the account holds a school-portal role. Target-school MFA requires
+// proof from the presented live school-session family, not membership alone.
+func (s *AccountAuthentication) SwitchSchool(ctx context.Context, accountID int64, tenantSlug, ipAddress, userAgent, presentedFamilyID string) (_ string, _ string, err error) {
 	if s == nil {
 		return "", "", errAccountAuthenticationUnavailable
 	}
@@ -116,7 +116,7 @@ func (s *AccountAuthentication) SwitchSchool(ctx context.Context, accountID int6
 		return "", "", failed("switch school", identityaccess.ErrAccountNoSchoolPortalRole)
 	}
 	var claims *domain.AccountClaimsPayload
-	session, err := s.createRefreshSessionGuarded(ctx, account, targetTenantID, domain.ScopeSchool, s.schoolMintGuard(accountID, targetTenantID, &claims), "")
+	session, err := s.createRefreshSessionGuarded(ctx, account, targetTenantID, domain.ScopeSchool, s.schoolMintGuard(accountID, targetTenantID, &claims), presentedFamilyID)
 	if err != nil {
 		return "", "", wrapSchoolMintError("switch school", err)
 	}

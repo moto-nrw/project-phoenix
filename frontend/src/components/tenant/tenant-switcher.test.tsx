@@ -34,10 +34,18 @@ const { mockTrackTenantEvent } = vi.hoisted(() => ({
 // Ein gescheiterter Wechsel ist eine Aktion ohne Formular: Toast über
 // useApiErrorDisplay (#2517).
 const showSwitchError = vi.hoisted(() => vi.fn());
-vi.mock("~/contexts/ToastContext", async (importOriginal) => ({
-  ...(await importOriginal<typeof import("~/contexts/ToastContext")>()),
-  useApiErrorDisplay: () => ({ show: showSwitchError }),
-}));
+const realErrorDisplay = vi.hoisted(() => ({ enabled: false }));
+vi.mock("~/contexts/ToastContext", async (importOriginal) => {
+  const importedErrorDisplay =
+    await importOriginal<typeof import("~/contexts/ToastContext")>();
+  return {
+    ...importedErrorDisplay,
+    useApiErrorDisplay: () =>
+      realErrorDisplay.enabled
+        ? importedErrorDisplay.useApiErrorDisplay()
+        : { show: showSwitchError },
+  };
+});
 
 vi.mock("~/lib/tenant-api", () => ({
   listAvailableTenants: mockListAvailableTenants,
@@ -47,6 +55,8 @@ vi.mock("~/lib/tenant-api", () => ({
 vi.mock("next-auth/react", () => ({
   signIn: mockSignIn,
   useSession: mockUseSession,
+  getSession: vi.fn(async () => ({ user: { token: "test-session" } })),
+  signOut: vi.fn(),
 }));
 
 vi.mock("~/lib/swr", () => ({
@@ -117,6 +127,8 @@ vi.mock("next/image", () => ({
   ),
 }));
 
+import { ToastProvider } from "~/contexts/ToastContext";
+
 import { BrandTenantSwitcher } from "./tenant-switcher";
 
 const TRIGGER_LABEL = "Einrichtung wechseln";
@@ -164,6 +176,7 @@ describe("BrandTenantSwitcher", () => {
 
   beforeEach(() => {
     vi.clearAllMocks();
+    realErrorDisplay.enabled = false;
     mockUseSession.mockReturnValue({ status: "authenticated" });
     mockUseTenantSlugSafe.mockReturnValue("school-a");
     mockListAvailableTenants.mockResolvedValue([]);
@@ -178,11 +191,20 @@ describe("BrandTenantSwitcher", () => {
     originalLocation = window.location;
     Object.defineProperty(window, "location", {
       writable: true,
-      value: { ...originalLocation, href: "", protocol: "http:", port: "3000" },
+      value: {
+        ...originalLocation,
+        assign: vi.fn((url: string) => {
+          window.location.href = url;
+        }),
+        href: "",
+        protocol: "http:",
+        port: "3000",
+      },
     });
   });
 
   afterEach(() => {
+    vi.restoreAllMocks();
     Object.defineProperty(window, "location", {
       writable: true,
       value: originalLocation,
@@ -346,6 +368,48 @@ describe("BrandTenantSwitcher", () => {
 
     // Should NOT redirect (performTenantSwitch threw)
     expect(window.location.href).toBe("");
+  });
+
+  it("shows missing MFA proof and opens the target school's login without expiring the source session", async () => {
+    realErrorDisplay.enabled = true;
+    mockListAvailableTenants.mockResolvedValue([tenantA, tenantB]);
+    const actual =
+      await vi.importActual<typeof import("~/lib/tenant-api")>(
+        "~/lib/tenant-api",
+      );
+    mockPerformTenantSwitch.mockImplementationOnce(actual.performTenantSwitch);
+    vi.spyOn(globalThis, "fetch").mockImplementation(
+      async () =>
+        new Response(
+          JSON.stringify({
+            status: 401,
+            code: "identity.mfa_session_required",
+            detail: "second factor required",
+          }),
+          {
+            status: 401,
+            headers: { "Content-Type": "application/problem+json" },
+          },
+        ),
+    );
+    render(
+      <ToastProvider>
+        <BrandTenantSwitcher />
+      </ToastProvider>,
+    );
+    await screen.findByRole("button", { name: TRIGGER_LABEL });
+    openDropdown();
+    fireEvent.click(screen.getByText("School B"));
+
+    const login = await screen.findByRole("button", {
+      name: "Zur Schulanmeldung",
+    });
+    expect(screen.getByRole("alert")).toHaveTextContent(
+      "Für die Anmeldung bei School B brauchen Sie einen zweiten Anmeldenachweis.",
+    );
+    expect(window.location.href).toBe("");
+    fireEvent.click(login);
+    expect(window.location.href).toBe("http://school-b.localhost:3000/");
   });
 
   it("offers moto schule when the selected school only grants Lehrkraft access", async () => {

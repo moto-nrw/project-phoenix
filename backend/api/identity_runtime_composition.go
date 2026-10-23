@@ -130,6 +130,7 @@ func SchoolPortalAuth(sessions identityaccess.SchoolAccountLogin) schoolPortal.A
 		SchoolAccessDenied: identityIs(identityaccess.ErrTenantAccessDenied),
 		MFABlocked:         identityMFABlocked,
 		MFAUnavailable:     identityIs(identityaccess.ErrMFAStatusUnavailable),
+		MFAProofRequired:   identityIs(identityaccess.ErrInvalidToken),
 	}
 }
 

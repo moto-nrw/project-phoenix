@@ -34,7 +34,10 @@ import {
 
 const logger = createLogger({ component: "BrandTenantSwitcher" });
 
-const NO_ACCESS = ["identity.tenant_access_denied"] as const;
+const SWITCH_REFUSALS = [
+  "identity.tenant_access_denied",
+  "identity.mfa_session_required",
+] as const;
 
 interface BrandTenantSwitcherProps {
   readonly href?: string;
@@ -174,9 +177,26 @@ export function BrandTenantSwitcher({
         } else {
           // Kein Zugang zur Schule kommt als 401: ohne den Code-Abgleich
           // spränge der Fehlerweg wortlos zur Anmeldung (#2517).
-          void showSwitchError(credentialError(err, NO_ACCESS), {
-            object: `das Wechseln zu ${targetTenant.name}`,
-            retry: () => latestSwitchRef.current(targetTenant),
+          void showSwitchError(credentialError(err, SWITCH_REFUSALS), {
+            object:
+              err instanceof ApiError &&
+              err.code === "identity.mfa_session_required"
+                ? targetTenant.name
+                : `das Wechseln zu ${targetTenant.name}`,
+            ...(err instanceof ApiError &&
+            err.code === "identity.mfa_session_required"
+              ? {
+                  action: {
+                    label: "Zur Schulanmeldung",
+                    onClick: () => {
+                      const port = window.location.port
+                        ? `:${window.location.port}`
+                        : "";
+                      window.location.href = `${window.location.protocol}//${targetTenant.subdomain}.${clientEnv.NEXT_PUBLIC_TENANT_DOMAIN}${port}/`;
+                    },
+                  },
+                }
+              : { retry: () => latestSwitchRef.current(targetTenant) }),
           });
         }
         setIsSwitching(false);

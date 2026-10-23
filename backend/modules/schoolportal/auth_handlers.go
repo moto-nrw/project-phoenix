@@ -379,7 +379,7 @@ func (rs *Resource) switchSchool(w http.ResponseWriter, r *http.Request) {
 
 	accessToken, refreshToken, err := rs.AuthService.SwitchSchool(
 		r.Context(), int64(claims.ID), req.TenantSlug,
-		common.GetClientIPString(r), r.Header.Get(headerUserAgent),
+		common.GetClientIPString(r), r.Header.Get(headerUserAgent), claims.FamilyID,
 	)
 	if err != nil {
 		switch {
@@ -392,6 +392,10 @@ func (rs *Resource) switchSchool(w http.ResponseWriter, r *http.Request) {
 		case rs.AuthService.SchoolAccessDenied(err):
 			// No access to the school switched to: the tenant switch answers the same code.
 			common.RenderError(w, r, common.ErrorUnauthorizedWithCode(ErrTenantAccessDenied, common.CodeIdentityTenantAccessDenied))
+		case rs.AuthService.MFAProofRequired != nil && rs.AuthService.MFAProofRequired(err):
+			common.RenderError(w, r, common.ErrorUnauthorizedWithCode(err, common.CodeIdentityMfaSessionRequired))
+		case rs.AuthService.MFAUnavailable(err):
+			common.RenderError(w, r, common.ErrorServiceUnavailableWithCode(err, common.CodeIdentityMfaStatusUnavailable))
 		case rs.AuthService.NoSchoolPortalRole(err):
 			common.RenderError(w, r, common.ErrorForbiddenWithCode(
 				ErrAccountNoSchoolPortalRole, common.CodeSchoolNoSchoolPortalRole))

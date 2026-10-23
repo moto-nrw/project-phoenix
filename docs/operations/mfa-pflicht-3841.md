@@ -48,7 +48,7 @@ Widerruf oder Reset darf keinen neuen Sitzungsnachweis erzeugen. Die Einstellung
 gemerkte Geräte bleiben deshalb auch bei `off` sichtbar. Ein noch nicht
 angemeldetes Konto kann die Einrichtung nicht mit einem alten Cookie überspringen.
 
-Migration `1.15.480` setzt für alle vorhandenen Refresh-Sitzungen den neuen
+Migration `1.15.484` setzt für alle vorhandenen Refresh-Sitzungen den neuen
 Nachweis `mfa_verified` auf `false`. Beim nächsten Refresh muss ein inzwischen
 MFA-pflichtiges Konto sich neu anmelden. Es erhält dann die Einrichtungsabfrage
 oder eine Code-Abfrage. Neue bestätigte Sitzungen behalten ihren Nachweis über
@@ -56,10 +56,13 @@ Rotation und zulässige Wiederherstellung verlorener Refresh-Antworten.
 Access-Token bleiben bis zu ihrer vorhandenen Ablaufzeit gültig; es gibt keine
 nachträgliche Sofortsperre aller Access-Token.
 
-Ein Schulwechsel erhält die Bestätigung der laufenden Anmeldung im OGS-Portal.
+Ein Schulwechsel erhält die Bestätigung der laufenden Anmeldung. Das gilt im
+OGS- und Schulportal, jeweils nur aus einer lebenden Sitzungsfamilie desselben
+Portals.
 Nach Zurücksetzen der zweiten Prüfung gilt diese Bestätigung nicht mehr.
 Sie gilt auch nicht nach Abmeldung oder Ablauf der Sitzung.
-Fehlt die Bestätigung, melden Sie sich direkt bei der Zielschule an.
+Fehlt die Bestätigung, melden Sie sich direkt bei der Zielschule an. Im
+OGS-Portal führt `Zur Schulanmeldung` zur passenden Anmeldeseite.
 Eine Passwort-Zurücksetzung stellt keine Sitzung und keinen MFA-Nachweis aus.
 
 ## Verlorener zweiter Faktor
@@ -111,6 +114,27 @@ MFA über die echten Enrollment-/Verify-Endpunkte und das lokale Mailpit ab,
 wie bisher beim Operator. Ein Seed-Admin erhält dadurch eine bestätigte Sitzung;
 spätere manuelle Anmeldungen nutzen den Code aus Mailpit oder einen eigenen
 Passkey. Mailpit-Automatik gehört nur in `cmd/devtools`, nicht in die API.
+
+## Bewusste Demo-Ausnahme
+
+Nur unter `APP_ENV=demo` ist die öffentliche Demo-Einlösung erreichbar
+(`api/demo_access.go` und `MountDemoRoutes`). `DemoAccess.Redeem` stellt dort
+über `IssueTokensForAuthenticatedAccount` auch für Demo-Admins und die Rolle
+`all` Sitzungen mit `mfa_verified=true` ohne zweiten Faktor aus. Diese bewusste
+Ausnahme ist auf die Demo mit synthetischen Daten begrenzt. Sie gilt weder für
+Produktivschulen noch als Nachweis einer bestandenen MFA-Prüfung. Betreiber
+müssen die Trennung und ausschließlich synthetische Demo-Daten sicherstellen.
+
+Außerhalb der Demo sind die produktiven Aufrufer dieser Capability:
+`completeMFAExchange` nach `VerifyChallenge` bzw. nach dem Verbrauch einer
+abgeschlossenen Enrollment-Challenge und `AccountPasskeyFlows.FinishLogin`
+nach `finishPasskeyLogin` (WebAuthn-Prüfung mit Nutzerverifikation). Die
+Capability selbst vertraut dem aufrufenden Adapter; sie prüft den Faktor nicht
+noch einmal. Passwort-Login und Refresh rufen sie nicht auf. Die lokale
+Seed-Automatik durchläuft ebenfalls den echten E-Mail-Code über Mailpit.
+Tests: Demo-Routen außerhalb Demo sind 404 (`demo_access_test.go`), MFA- und
+Passkey-Austausch prüfen die jeweiligen Nachweise. Dies ist ein Code-Nachweis,
+kein produktiver Betriebsnachweis.
 
 ## Vorschlag AVV/TOM
 

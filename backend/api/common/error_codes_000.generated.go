@@ -257,6 +257,7 @@ const (
 	CodeIdentityMfaCodeInvalid                           = "identity.mfa_code_invalid"
 	CodeIdentityMfaNotEnrolled                           = "identity.mfa_not_enrolled"
 	CodeIdentityMfaSessionRequired                       = "identity.mfa_session_required"
+	CodeIdentityMfaStatusUnavailable                     = "identity.mfa_status_unavailable"
 	CodeIdentityOperatorInvitationInvalid                = "identity.operator_invitation_invalid"
 	CodeIdentityOperatorSelfDeactivation                 = "identity.operator_self_deactivation"
 	CodeIdentityPasskeyLoginFailed                       = "identity.passkey_login_failed"
@@ -301,8 +302,6 @@ const (
 	CodeIotNoActiveGroupsInRoom                          = "iot.no_active_groups_in_room"
 	CodeIotNoActiveSession                               = "iot.no_active_session"
 	CodeIotNoAttendanceRecordToday                       = "iot.no_attendance_record_today"
-	CodeIotNoRoomAvailable                               = "iot.no_room_available"
-	CodeIotNoSessionToEnd                                = "iot.no_session_to_end"
 )
 
 var errorCodeClasses0 = map[string]string{
@@ -561,6 +560,7 @@ var errorCodeClasses0 = map[string]string{
 	"identity.mfa_code_invalid":                            "input",
 	"identity.mfa_not_enrolled":                            "business_rejection",
 	"identity.mfa_session_required":                        "permission",
+	"identity.mfa_status_unavailable":                      "unavailable",
 	"identity.operator_invitation_invalid":                 "business_rejection",
 	"identity.operator_self_deactivation":                  "business_rejection",
 	"identity.passkey_login_failed":                        "business_rejection",
@@ -605,8 +605,6 @@ var errorCodeClasses0 = map[string]string{
 	"iot.no_active_groups_in_room":                         "input",
 	"iot.no_active_session":                                "input",
 	"iot.no_attendance_record_today":                       "input",
-	"iot.no_room_available":                                "input",
-	"iot.no_session_to_end":                                "input",
 }
 
 func init() {

@@ -198,3 +198,43 @@ func checkRevokedDeviceAtMint(t *testing.T, schoolPortal bool) {
 	require.ErrorIs(t, err, identityaccess.ErrInvalidToken)
 	assert.Nil(t, result, "revoked device proof must never create a completed login")
 }
+
+func TestSchoolSwitchRequiresLiveSchoolMFAProof(t *testing.T) {
+	t.Parallel()
+	for _, verified := range []bool{false, true} {
+		t.Run(map[bool]string{false: "unverified source", true: "verified source"}[verified], func(t *testing.T) {
+			t.Parallel()
+			testpkg.OwnTenant(t)
+			db := testpkg.SetupTestDB(t)
+			module := newMFATestModule(t, db, withDeliveringMailer(nil)...)
+			service := newFixtureAuthService(t, db, module.Auth)
+			source, _ := newSchoolTenant(t, db)
+			target, targetSlug := newSchoolTenant(t, db)
+			email, accountID := createLehrkraftAccount(t, db, service, "school-switch-proof", source)
+			testpkg.EnsureAccountTenant(t, db, accountID, target)
+			testpkg.AssignLehrkraftSystemRole(t, db, accountID, target)
+			testpkg.GrantTestPermission(t, db, target, accountID, "staff:financial")
+			if verified {
+				_, _, err := service.IssueSchoolTokensForAuthenticatedAccount(context.Background(), accountID, source, "", "")
+				require.NoError(t, err)
+			} else {
+				login, err := service.LoginSchoolWithMFAGate(context.Background(), email, testPassword, "", "", "")
+				require.NoError(t, err)
+				require.Equal(t, identityaccess.LoginStatusAuthenticated, login.Status)
+			}
+			family := tokenFamilyID(t, db, accountID, 0)
+			access, refresh, err := service.SwitchSchool(context.Background(), accountID, targetSlug, switchIP, switchUserAgent, family)
+			if !verified {
+				require.ErrorIs(t, err, identityaccess.ErrInvalidToken)
+				assert.Empty(t, access)
+				assert.Empty(t, refresh)
+				return
+			}
+			require.NoError(t, err)
+			assert.NotEmpty(t, access)
+			_, rotated, err := service.RefreshTokenWithAudit(context.Background(), refresh, "", "", "")
+			require.NoError(t, err, "school switching must preserve real proof across refresh")
+			assert.NotEmpty(t, rotated)
+		})
+	}
+}

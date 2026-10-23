@@ -20,6 +20,7 @@ var (
 	errFakeSchoolNotFound     = errors.New("fake: school not found")
 	errFakeSchoolAccessDenied = errors.New("fake: school access denied")
 	errFakeMFABlocked         = errors.New("fake: mfa blocked")
+	errFakeMFAProofRequired   = errors.New("fake: mfa proof required")
 	errFakeMFAUnavailable     = errors.New("fake: mfa unavailable")
 )
 
@@ -33,7 +34,7 @@ func refusalRuntime(err error) *Resource {
 		IssueTokens: func(context.Context, int64, int64, string, string) (string, string, error) {
 			return "", "", err
 		},
-		SwitchSchool: func(context.Context, int64, string, string, string) (string, string, error) {
+		SwitchSchool: func(context.Context, int64, string, string, string, string) (string, string, error) {
 			return "", "", err
 		},
 		Cause:              func(err error) error { return err },
@@ -44,6 +45,7 @@ func refusalRuntime(err error) *Resource {
 		SchoolAccessDenied: is(errFakeSchoolAccessDenied),
 		MFABlocked:         is(errFakeMFABlocked),
 		MFAUnavailable:     is(errFakeMFAUnavailable),
+		MFAProofRequired:   is(errFakeMFAProofRequired),
 	}}
 }
 
@@ -118,6 +120,8 @@ func TestSchoolSwitchRefusalsCarryIdentityCodes(t *testing.T) {
 	t.Parallel()
 
 	for _, tc := range []refusalCase{
+		{errFakeMFAProofRequired, http.StatusUnauthorized, "identity.mfa_session_required"},
+		{errFakeMFAUnavailable, http.StatusServiceUnavailable, "identity.mfa_status_unavailable"},
 		{errFakeInvalidCredentials, http.StatusUnauthorized, "identity.account_not_found"},
 		{errFakeAccountInactive, http.StatusUnauthorized, "identity.session_account_inactive"},
 		{errFakeSchoolNotFound, http.StatusNotFound, "general.input"},
