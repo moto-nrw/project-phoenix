@@ -64,7 +64,7 @@ func (rs *Resource) uploadStudentPhoto(w http.ResponseWriter, r *http.Request) {
 	// {tenantID}_{studentID} prefix prevents cross-tenant collisions and
 	// makes orphaned files traceable.
 	prefix := fmt.Sprintf("%d_%d", tenantID, id)
-	filePath, err := common.SaveImage(uploaded.File, publicPhotoBaseDir, prefix, uploaded.ContentType, rs.Uploads)
+	filePath, err := common.SavePrivateImage(uploaded.File, publicPhotoBaseDir, prefix, uploaded.ContentType, rs.Uploads)
 	if err != nil {
 		renderError(w, r, common.ErrorInternalServer(err))
 		return

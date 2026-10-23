@@ -160,7 +160,8 @@ groups:
         for: 5m
         annotations:
           summary: Production server health probe has returned zero successful responses
-            in the last 5 minutes. The /health endpoint is unreachable.
+            in the last 5 minutes. Check the configured probe endpoint and healthcheck
+            log delivery.
         labels:
           env: prod
           severity: critical
