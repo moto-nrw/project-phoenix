@@ -28,6 +28,28 @@ backend and its pin move together; the PyrePortal side is a manual
 coordination step.
 Backend header and attribution rules: `backend/CLAUDE.md` RFID/IoT Integration.
 
+### Device credentials (#3841, slice 3841-a)
+
+Device Fleet stores SHA-256 fingerprints and a masked suffix, never raw keys.
+Migration 1.15.474 hashes existing values exactly (no trimming) and drops the
+plaintext column; old bearer credentials keep working. New operator keys are
+server-generated only. Creation and rotation return `api_key` once;
+operator lists, details and school transfers omit it and expose only
+`masked_api_key`. Transfers move the fingerprint, preserving kiosk access.
+Deploy the matching backend and operator frontend together; do not run an old
+backend against the migrated schema. Migration rollback requires a forward fix.
+
+PyrePortal imports `#key=` into localStorage and removes it with
+`history.replaceState`. It temporarily accepts and scrubs `?key=` too;
+fragments take precedence when both are present. Restarts contain no key.
+The backend still accepts the same Bearer header, never a URL key. HTTP
+statuses, staff PIN headers and `iot.*` codes are unchanged.
+
+Human slice 3841-g switches configured start URLs, rotates all legacy keys and
+cleans up old kiosk-host access logs. Follow-up 3841-k removes query import
+only after that inventory is complete. Implementation is not production
+evidence: [rollout and recovery](../operations/geraete-zugang-3841.md).
+
 ### Kiosk error codes
 
 Each kiosk refusal answers with its own `iot.*` code (#3939). The text in

@@ -18,16 +18,25 @@ func (s *Service) CreateDevice(ctx context.Context, input devicefleet.CreateDevi
 		if err := input.Validate(); err != nil {
 			return err
 		}
-		if input.APIKey == nil || *input.APIKey == "" {
+		if (input.APIKey == nil || *input.APIKey == "") && input.APIKeyHash == nil {
 			key, mintErr := s.deps.APIKeys.Mint()
 			if mintErr != nil {
 				return fmt.Errorf("failed to generate API key: %w", mintErr)
 			}
 			input.APIKey = &key
 		}
+		raw := input.APIKey
+		if raw != nil {
+			hash := s.deps.APIKeys.Hash(*raw)
+			input.APIKeyHash, input.MaskedAPIKey = &hash, s.deps.APIKeys.Mask(*raw)
+			input.APIKey = nil
+		}
 		stored, queryStats, err := s.deps.Devices.Create(ctx, input)
 		stats.Add(queryStats)
-		created = stored
+		if err == nil {
+			created = stored
+			created.APIKey = raw
+		}
 		return err
 	})
 	return created, err
@@ -44,7 +53,7 @@ func (s *Service) UpdateDevice(ctx context.Context, input devicefleet.UpdateDevi
 		if err := input.Validate(); err != nil {
 			return err
 		}
-		stored, queryStats, err := s.deps.Devices.Update(ctx, toDomainUpdate(input))
+		stored, queryStats, err := s.deps.Devices.Update(ctx, s.storedDeviceUpdate(input))
 		stats.Add(queryStats)
 		updated = stored
 		return err
@@ -58,7 +67,7 @@ func (s *Service) UpdateDeviceColumns(ctx context.Context, input devicefleet.Upd
 	if input.ID <= 0 || len(columns) == 0 {
 		return 0, s.reject("update_device_columns", devicefleet.ErrInvalidDevice)
 	}
-	storedInput := toDomainUpdate(input)
+	storedInput := s.storedDeviceUpdate(input)
 	var affected int64
 	err := s.runWrite(ctx, "update_device_columns", func(ctx context.Context, stats *domain.OperationStats) error {
 		var queryStats domain.OperationStats
@@ -279,4 +288,12 @@ func (s *Service) attachRoomNames(ctx context.Context, devices []devicefleet.Dev
 		}
 	}
 	return nil
+}
+
+func (s *Service) storedDeviceUpdate(input devicefleet.UpdateDevice) domain.UpdateDevice {
+	if input.APIKey != nil {
+		hash := s.deps.APIKeys.Hash(*input.APIKey)
+		input.APIKeyHash, input.MaskedAPIKey = &hash, s.deps.APIKeys.Mask(*input.APIKey)
+	}
+	return toDomainUpdate(input)
 }
