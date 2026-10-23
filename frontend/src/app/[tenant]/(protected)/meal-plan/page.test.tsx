@@ -1,4 +1,4 @@
-import { render, screen } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { ToastProvider } from "~/contexts/ToastContext";
@@ -7,10 +7,11 @@ import { catalogText } from "~/test/error-catalog-text";
 
 import MealPlanPage from "./page";
 
-const { getMealPlanWeek, rights, features } = vi.hoisted(() => ({
+const { getMealPlanWeek, getMealOrders, rights, features } = vi.hoisted(() => ({
   features: { mealPlanEnabled: true },
   rights: { admin: true, permissions: [] as string[] },
   getMealPlanWeek: vi.fn(),
+  getMealOrders: vi.fn(),
 }));
 
 vi.mock("next/navigation", () => ({
@@ -52,6 +53,7 @@ vi.mock("~/lib/hooks/use-berlin-today", () => ({
 vi.mock("~/lib/meal-plan-api", async (importOriginal) => ({
   ...(await importOriginal<typeof import("~/lib/meal-plan-api")>()),
   getMealPlanWeek,
+  getMealOrders,
 }));
 
 vi.mock("~/lib/tenant-context", async (importOriginal) => ({
@@ -63,15 +65,19 @@ vi.mock("~/components/meal-plan/meal-participant-list", () => ({
   MealParticipantList: ({
     canRegister,
     canExport,
+    onRegistrationChanged,
   }: {
     canRegister: boolean;
     canExport: boolean;
+    onRegistrationChanged: () => void;
   }) => (
     <div
       data-testid="participants"
       data-register={String(canRegister)}
       data-export={String(canExport)}
-    />
+    >
+      <button onClick={onRegistrationChanged}>Save registration</button>
+    </div>
   ),
 }));
 
@@ -86,8 +92,24 @@ function renderPage() {
 describe("Essensplan: Statuszeile bei Ladefehler (#2517)", () => {
   beforeEach(() => {
     getMealPlanWeek.mockReset();
+    getMealOrders.mockReset();
+    getMealOrders.mockResolvedValue({
+      rhythm: "daily",
+      detail: "total",
+      days: [],
+    });
     rights.admin = true;
     rights.permissions = [];
+  });
+
+  it("reloads the order overview after saving a registration", async () => {
+    getMealPlanWeek.mockResolvedValue([]);
+    renderPage();
+    await waitFor(() => expect(getMealOrders).toHaveBeenCalledTimes(1));
+    fireEvent.click(
+      await screen.findByRole("button", { name: "Save registration" }),
+    );
+    await waitFor(() => expect(getMealOrders).toHaveBeenCalledTimes(2));
   });
 
   it("shows the catalog load error and no planned-days count", async () => {

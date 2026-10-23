@@ -105,6 +105,9 @@ func (e engine) RegistrationAvailable(context.Context) (bool, error) { return e.
 func (e engine) Participation(context.Context, int64, mealplanModule.Date, mealplanModule.Date) (mealplanModule.ParticipationPlan, error) {
 	return mealplanModule.ParticipationPlan{}, nil
 }
+func (e engine) ParticipationBySchool(context.Context, int64, mealplanModule.Date, mealplanModule.Date) (mealplanModule.ParticipationPlan, error) {
+	return mealplanModule.ParticipationPlan{}, nil
+}
 func (e engine) ReplaceParticipationSchedule(context.Context, mealplanModule.ReplaceParticipationSchedule) (mealplanModule.Date, error) {
 	return "2026-09-07", nil
 }

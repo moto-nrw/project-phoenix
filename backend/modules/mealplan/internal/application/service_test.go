@@ -36,7 +36,7 @@ func TestResolveParticipationExposesTheEffectiveRegistrationDeadline(t *testing.
 			}
 			for _, now := range []time.Time{want, want.Add(time.Nanosecond)} {
 				service := &Service{now: func() time.Time { return now }}
-				plan := service.resolveParticipation(domain.ParticipationData{}, day, day, rules, domain.CalendarDays{})
+				plan := service.resolveParticipation(domain.ParticipationData{}, day, day, rules, domain.CalendarDays{}, "")
 				require.Len(t, plan.Days, 1)
 				assert.Equal(t, want, plan.Days[0].RegisterUntil)
 				assert.Equal(t, rules.CancellationAt(day), plan.Days[0].CancelUntil)
@@ -97,6 +97,7 @@ func TestResolveParticipationUsesScheduleForNextEffectiveDate(t *testing.T) {
 				domain.Date("2026-09-11"),
 				defaultOrderingRules("09:00"),
 				domain.CalendarDays{},
+				"",
 			)
 
 			assert.Equal(t, test.wantEffective, plan.EffectiveFrom)

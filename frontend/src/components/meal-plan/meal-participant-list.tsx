@@ -47,7 +47,12 @@ function nextWeekday(date: string): string {
 export function MealParticipantList({
   canRegister,
   canExport = true,
-}: Readonly<{ canRegister: boolean; canExport?: boolean }>) {
+  onRegistrationChanged,
+}: Readonly<{
+  canRegister: boolean;
+  canExport?: boolean;
+  onRegistrationChanged?: () => void;
+}>) {
   const t = useTranslations("mealParticipantList");
   const locale = useLocale();
   const datePicker = useLocalizedDatePicker();
@@ -286,7 +291,10 @@ export function MealParticipantList({
       <MealRegistrationChangeModal
         isOpen={canRegister && changing}
         onClose={() => setChanging(false)}
-        onSaved={() => void load()}
+        onSaved={() => {
+          void load();
+          onRegistrationChanged?.();
+        }}
         date={date}
         participants={participants}
         others={others}

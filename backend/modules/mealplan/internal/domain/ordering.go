@@ -222,7 +222,10 @@ func (r OrderingRules) ParentCanChangeSchedule(now time.Time) bool {
 func (r OrderingRules) NextEffectiveDate(now time.Time) Date {
 	date := calendar.DateFromTime(now)
 	for range 2 * (maxLeadDays + 14) {
-		if date.Weekday() != time.Saturday && date.Weekday() != time.Sunday && !now.After(r.FreezeAt(date)) {
+		// Both deadline kinds are monotonic within a week, so its first
+		// day has the earliest freeze deadline of the ordering period.
+		periodStart, _ := OrderPeriod(r.Rhythm, date)
+		if date.Weekday() != time.Saturday && date.Weekday() != time.Sunday && now.Before(r.FreezeAt(periodStart)) {
 			return date
 		}
 		date = date.AddDays(1)

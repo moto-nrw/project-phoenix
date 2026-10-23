@@ -1229,3 +1229,38 @@ func TestClosedDaysAreOrderedEmpty(t *testing.T) {
 	assert.Equal(t, mealplan.OrderOrdered, monday.Status)
 	assert.Zero(t, monday.Total)
 }
+
+func TestSchoolParticipationSelectsTheScheduleAtTheRequestedDate(t *testing.T) {
+	t.Parallel()
+	db := testpkg.SetupTestDB(t)
+	module := buildModuleAt(t, db, true, nil, time.Date(2026, 9, 7, 8, 0, 0, 0, testBerlin))
+	student := testpkg.CreateTestStudent(t, db, "Mia", "Voraus", "2a")
+	account := testpkg.CreateTestAccount(t, db, "meal-future-schedule")
+	ctx := testpkg.Ctx(t)
+	for _, schedule := range []struct {
+		date mealplan.Date
+		days []mealplan.Weekday
+	}{
+		{"2026-09-07", []mealplan.Weekday{1}},
+		{"2026-09-14", []mealplan.Weekday{2, 4}},
+		{"2026-09-21", []mealplan.Weekday{3, 5}},
+	} {
+		_, err := module.ReplaceScheduleBySchool(ctx, mealplan.SchoolSchedule{StudentID: student.ID, StaffAccountID: account.ID, EffectiveFrom: schedule.date, Weekdays: schedule.days})
+		require.NoError(t, err)
+	}
+	for _, test := range []struct {
+		date mealplan.Date
+		days []mealplan.Weekday
+	}{
+		{"2026-09-14", []mealplan.Weekday{2, 4}},
+		{"2026-09-21", []mealplan.Weekday{3, 5}},
+		{"2026-09-10", []mealplan.Weekday{1}},
+	} {
+		plan, err := module.ParticipationBySchool(ctx, student.ID, test.date, test.date)
+		require.NoError(t, err)
+		assert.Equal(t, test.days, plan.Weekdays)
+	}
+	parent, err := module.Participation(ctx, student.ID, "2026-09-14", "2026-09-18")
+	require.NoError(t, err)
+	assert.Equal(t, []mealplan.Weekday{1}, parent.Weekdays, "parents still edit the pattern for the next unfixed period")
+}

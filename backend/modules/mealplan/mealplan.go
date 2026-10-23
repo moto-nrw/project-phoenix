@@ -220,6 +220,7 @@ type Menu interface {
 type Registration interface {
 	RegistrationAvailable(context.Context) (bool, error)
 	Participation(context.Context, int64, Date, Date) (ParticipationPlan, error)
+	ParticipationBySchool(context.Context, int64, Date, Date) (ParticipationPlan, error)
 	ReplaceParticipationSchedule(context.Context, ReplaceParticipationSchedule) (Date, error)
 	ReplaceScheduleBySchool(context.Context, SchoolSchedule) (Date, error)
 	SetParticipationForDay(context.Context, SetParticipationDay) error

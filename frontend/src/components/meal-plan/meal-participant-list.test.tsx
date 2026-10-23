@@ -349,7 +349,13 @@ describe("MealParticipantList", () => {
   // #3873: the school changes a registration, also after the deadline.
   describe("Anmeldung ändern", () => {
     it("registers a child for the day after the deadline", async () => {
-      render(<MealParticipantList canRegister />);
+      const onRegistrationChanged = vi.fn();
+      render(
+        <MealParticipantList
+          canRegister
+          onRegistrationChanged={onRegistrationChanged}
+        />,
+      );
 
       fireEvent.click(
         await screen.findByRole("button", { name: "Anmeldung ändern" }),
@@ -387,6 +393,7 @@ describe("MealParticipantList", () => {
       expect(
         await screen.findByText("Die Anmeldung von Ben Bauer ist geändert."),
       ).toBeInTheDocument();
+      expect(onRegistrationChanged).toHaveBeenCalledOnce();
     });
 
     it("returns a day to the regular days", async () => {
@@ -506,6 +513,70 @@ describe("MealParticipantList", () => {
       expect(
         within(dialog).getByRole("checkbox", { name: "Freitag" }),
       ).toBeChecked();
+    });
+
+    it("reloads the regular days for each selected effective date", async () => {
+      let finishLoad: (value: { weekdays: number[] }) => void = () => undefined;
+      render(<MealParticipantList canRegister />);
+      fireEvent.click(
+        await screen.findByRole("button", { name: "Anmeldung ändern" }),
+      );
+      const dialog = await screen.findByRole("dialog");
+      fireEvent.click(within(dialog).getByRole("combobox", { name: "Kind" }));
+      fireEvent.click(
+        await screen.findByRole("option", {
+          name: "Muster, Mia · 2a · Isst mit",
+        }),
+      );
+      fireEvent.click(
+        within(dialog).getByRole("button", { name: "Feste Tage" }),
+      );
+      await waitFor(() =>
+        expect(
+          within(dialog).getByRole("checkbox", { name: "Montag" }),
+        ).toBeChecked(),
+      );
+      mocks.getChildMealSchedule.mockReturnValueOnce(
+        new Promise((resolve) => {
+          finishLoad = resolve;
+        }),
+      );
+      fireEvent.click(
+        within(dialog).getByRole("button", { name: "07.09.2026" }),
+      );
+      fireEvent.click(
+        await screen.findByRole("button", {
+          name: "Montag, 14. September 2026",
+        }),
+      );
+      await waitFor(() =>
+        expect(mocks.getChildMealSchedule).toHaveBeenLastCalledWith(
+          "42",
+          "2026-09-14",
+        ),
+      );
+      expect(
+        within(dialog).getByRole("button", { name: "Speichern" }),
+      ).toBeDisabled();
+      finishLoad({ weekdays: [2, 4] });
+      await waitFor(() =>
+        expect(
+          within(dialog).getByRole("checkbox", { name: "Dienstag" }),
+        ).toBeChecked(),
+      );
+      expect(
+        within(dialog).getByRole("checkbox", { name: "Donnerstag" }),
+      ).toBeChecked();
+      fireEvent.click(
+        within(dialog).getByRole("button", { name: "Speichern" }),
+      );
+      await waitFor(() =>
+        expect(mocks.replaceChildMealSchedule).toHaveBeenCalledWith(
+          "42",
+          [2, 4],
+          "2026-09-14",
+        ),
+      );
     });
 
     it("sets a child's regular days from a date on", async () => {

@@ -60,14 +60,14 @@ func (s *Service) registrationAvailable(ctx context.Context) (available bool, er
 	return available, err
 }
 
-func (s *Service) participationPlan(ctx context.Context, studentID int64, from, to domain.Date) (plan domain.ParticipationPlan, err error) {
+func (s *Service) participationPlan(ctx context.Context, studentID int64, from, to, scheduleDate domain.Date) (plan domain.ParticipationPlan, err error) {
 	err = s.run(ctx, "read_participation", func(txCtx context.Context) (domain.OperationStats, error) {
 		rules, rulesErr := s.requireRegistration(txCtx)
 		if rulesErr != nil {
 			return domain.OperationStats{}, rulesErr
 		}
 		var stats domain.OperationStats
-		plan, stats, err = s.readParticipation(txCtx, studentID, from, to, rules)
+		plan, stats, err = s.readParticipation(txCtx, studentID, from, to, rules, scheduleDate)
 		return stats, err
 	})
 	return plan, err
@@ -217,7 +217,7 @@ func (s *Service) setParticipationWeek(ctx context.Context, studentID, accountID
 		if rulesErr != nil {
 			return domain.OperationStats{}, rulesErr
 		}
-		plan, stats, readErr := s.readParticipation(txCtx, studentID, monday, monday.AddDays(4), rules)
+		plan, stats, readErr := s.readParticipation(txCtx, studentID, monday, monday.AddDays(4), rules, "")
 		if readErr != nil {
 			return stats, readErr
 		}
@@ -261,7 +261,7 @@ func weekChanges(rules domain.OrderingRules, now time.Time, days []domain.Partic
 
 // readParticipation resolves the child's days in [from, to] from its
 // registration and the school calendar.
-func (s *Service) readParticipation(ctx context.Context, studentID int64, from, to domain.Date, rules domain.OrderingRules) (domain.ParticipationPlan, domain.OperationStats, error) {
+func (s *Service) readParticipation(ctx context.Context, studentID int64, from, to domain.Date, rules domain.OrderingRules, scheduleDate domain.Date) (domain.ParticipationPlan, domain.OperationStats, error) {
 	data, stats, err := s.store.FindParticipation(ctx, studentID, from, to)
 	if err != nil {
 		return domain.ParticipationPlan{}, stats, err
@@ -271,7 +271,7 @@ func (s *Service) readParticipation(ctx context.Context, studentID int64, from, 
 	if err != nil {
 		return domain.ParticipationPlan{}, stats, err
 	}
-	return s.resolveParticipation(data, from, to, rules, days), stats, nil
+	return s.resolveParticipation(data, from, to, rules, days, scheduleDate), stats, nil
 }
 
 // clearParticipationDay drops the day's exception, so the weekly pattern
@@ -308,7 +308,7 @@ func (s *Service) requireClearableDay(ctx context.Context, rules domain.Ordering
 	if bySchool && date.Before(domain.DateFromInstant(s.now())) {
 		return domain.OperationStats{}, ErrPastDay
 	}
-	plan, stats, err := s.readParticipation(ctx, studentID, date, date, rules)
+	plan, stats, err := s.readParticipation(ctx, studentID, date, date, rules, "")
 	if err != nil {
 		return stats, err
 	}
@@ -448,7 +448,7 @@ func (s *Service) requireRegistration(ctx context.Context) (domain.OrderingRules
 	return orderingRules(settings)
 }
 
-func (s *Service) resolveParticipation(data domain.ParticipationData, from, to domain.Date, rules domain.OrderingRules, days domain.CalendarDays) domain.ParticipationPlan {
+func (s *Service) resolveParticipation(data domain.ParticipationData, from, to domain.Date, rules domain.OrderingRules, days domain.CalendarDays, scheduleDate domain.Date) domain.ParticipationPlan {
 	now := s.now()
 	overrides := make(map[domain.Date]bool, len(data.Overrides))
 	for _, override := range data.Overrides {
@@ -483,7 +483,10 @@ func (s *Service) resolveParticipation(data domain.ParticipationData, from, to d
 		}
 		plan.Days = append(plan.Days, day)
 	}
-	editableSchedule := scheduleForDate(data.Schedules, rules.NextEffectiveDate(now))
+	if scheduleDate == "" {
+		scheduleDate = rules.NextEffectiveDate(now)
+	}
+	editableSchedule := scheduleForDate(data.Schedules, scheduleDate)
 	if editableSchedule != nil {
 		plan.EffectiveFrom = editableSchedule.EffectiveFrom
 		plan.Weekdays = append([]domain.Weekday(nil), editableSchedule.Weekdays...)

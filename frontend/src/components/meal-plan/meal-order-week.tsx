@@ -31,7 +31,12 @@ const logger = createLogger({ component: "MealOrderWeek" });
 export function MealOrderWeek({
   mondayISO,
   canExportMonth,
-}: Readonly<{ mondayISO: string; canExportMonth: boolean }>) {
+  refreshVersion = 0,
+}: Readonly<{
+  mondayISO: string;
+  canExportMonth: boolean;
+  refreshVersion?: number;
+}>) {
   const t = useTranslations("mealOrders");
   const locale = useLocale();
   const [days, setDays] = useState<MealOrderDay[]>([]);
@@ -86,7 +91,7 @@ export function MealOrderWeek({
   });
   useEffect(() => {
     void load();
-  }, [load]);
+  }, [load, refreshVersion]);
 
   async function downloadDeliveries(format: "pdf" | "xlsx" | "csv") {
     try {

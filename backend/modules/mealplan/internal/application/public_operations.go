@@ -65,12 +65,22 @@ func (s *Service) RegistrationAvailable(ctx context.Context) (bool, error) {
 }
 
 func (s *Service) Participation(ctx context.Context, studentID int64, from, to mealplan.Date) (mealplan.ParticipationPlan, error) {
+	return s.publicParticipation(ctx, studentID, from, to, "")
+}
+
+// ParticipationBySchool returns the regular days active at the start of the
+// requested window. Parents instead edit the next unfixed ordering period.
+func (s *Service) ParticipationBySchool(ctx context.Context, studentID int64, from, to mealplan.Date) (mealplan.ParticipationPlan, error) {
+	return s.publicParticipation(ctx, studentID, from, to, domain.Date(from))
+}
+
+func (s *Service) publicParticipation(ctx context.Context, studentID int64, from, to mealplan.Date, scheduleDate domain.Date) (mealplan.ParticipationPlan, error) {
 	start, startErr := calendar.ParseDate(string(from))
 	end, endErr := calendar.ParseDate(string(to))
 	if studentID <= 0 || startErr != nil || endErr != nil || end.Before(start) || start.DaysUntil(end) > 31 {
 		return mealplan.ParticipationPlan{}, mealplan.ErrInvalidParticipation
 	}
-	plan, err := s.participationPlan(ctx, studentID, start, end)
+	plan, err := s.participationPlan(ctx, studentID, start, end, scheduleDate)
 	if err != nil {
 		return mealplan.ParticipationPlan{}, mapPublicError(err)
 	}

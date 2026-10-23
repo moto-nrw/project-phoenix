@@ -171,6 +171,7 @@ export default function MealPlanPage() {
   // weekOffset: number of weeks from the current week (0 = this week, can go
   // negative for past weeks or beyond +1 for planning ahead).
   const [weekOffset, setWeekOffset] = useState(0);
+  const [orderRefreshVersion, setOrderRefreshVersion] = useState(0);
   const [loading, setLoading] = useState(true);
   // True once the first week has loaded. Subsequent week switches keep the
   // current grid on screen (dimmed) instead of flashing the skeleton.
@@ -809,6 +810,7 @@ export default function MealPlanPage() {
         <MealOrderWeek
           mondayISO={mondayISO}
           canExportMonth={canReadParticipants}
+          refreshVersion={orderRefreshVersion}
         />
       ) : null}
 
@@ -816,6 +818,9 @@ export default function MealPlanPage() {
         <MealParticipantList
           canRegister={canRegister}
           canExport={canReadParticipants}
+          onRegistrationChanged={() =>
+            setOrderRefreshVersion((value) => value + 1)
+          }
         />
       ) : null}
 
