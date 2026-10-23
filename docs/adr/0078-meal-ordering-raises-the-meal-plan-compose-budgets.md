@@ -42,42 +42,30 @@ Before raising anything, the change was cut down:
   engine already binds, not by a third adapter method.
 - The error mapping of the engine is a table instead of one branch per error.
 
-What remains in this change, after development moved the engine of the
-Meal Plan from `modules/mealplan/compose` into its application layer and
-measured the registers again:
+What remains in this change:
 
 - `modules/mealplan/compose`: the school calendar and the names of past
   orders as dependencies, and the ordering settings as one value: 5 lines.
 - `workflows/parentportal/compose`: the week binding method and the new fields
-  of the participation plan and its days: 25 lines, 29 after development
-  moved the binding onto the shared meal plan adapter of the care flows.
+  of the participation plan and its days, on the shared meal plan adapter of
+  the care flows: 29 lines.
 - `workflows/parentportal`: that adapter forwards the week change in one
   method of its own, one pass-through.
 
 ## Decision
 
-1. `moduleComposeBudgets["modules/mealplan/compose"]` rises from 84 to 89.
-2. `moduleComposeBudgets["workflows/parentportal/compose"]` rises from 450 to
-   475.
-3. `moduleComposeBudgetTotal` rises by the same 30 lines, from 20,119 to
-   20,149.
-
-   After development contracted the compositions (base 16,742 lines, the
-   parent binding at 279), the same changes measure 5 lines for
-   `modules/mealplan/compose` and 29 for `workflows/parentportal/compose`
-   (279 to 308); with ADR 0077 the total is 16,856. After the next
-   contraction (2026-10-20, base 12,419 lines) they measure the same 5 and
-   29 lines: `modules/mealplan/compose` from 69 to 74, and with ADR 0077 the
-   total is 12,534. On the base after the Identity & Access collapse
-   (12,407 lines) the total with ADR 0077 is 12,522; on the base of
-   2026-10-21 (12,355 lines) it is 12,470, on the base of 2026-10-22
-   (12,408 lines) 12,523.
-   `modulePassthroughOwnerBudgets["workflows/parentportal"]` rises from 17
+1. `moduleComposeBudgets["modules/mealplan/compose"]` rises from 69 to 74.
+2. `moduleComposeBudgets["workflows/parentportal/compose"]` rises from 278 to
+   307.
+3. `moduleComposeBudgetTotal` rises by the same 34 lines; with
+   [ADR 0077](0077-the-caterer-is-an-identity-across-schools.md) it is
+   12,498 (12,382 on development).
+4. `modulePassthroughOwnerBudgets["workflows/parentportal"]` rises from 17
    to 18 for the adapter's week method.
-4. `modulePassthroughOwnerBudgets["modules/mealplan"]` stays at 15 and the
-   total with it: the rule methods replaced two delegations, and the engine
-   methods of the orders and of their settling add one each.
-5. The raise covers exactly the methods named above. Every other number keeps
+5. `modulePassthroughOwnerBudgets["modules/mealplan"]` does not rise: the
+   rule methods replaced two delegations, and the engine methods of the
+   orders and of their settling add one each.
+6. The raise covers exactly the methods named above. Every other number keeps
    falling under ADR 0057 point 5.
 
 ## Consequences
