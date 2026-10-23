@@ -74,5 +74,5 @@ func authTenantRLSUp(ctx context.Context, db *bun.DB) error {
 }
 
 func authTenantRLSDown(_ context.Context, _ *bun.DB) error {
-	return fmt.Errorf("refusing to remove auth tenant RLS: rollback would restore cross-school access; deploy the previous application with these policies retained")
+	return fmt.Errorf("refusing to remove auth tenant RLS: rollback would restore cross-school access; use a forward fix, and verify RLS compatibility before deploying an older application")
 }

@@ -27,19 +27,28 @@ Nur die explizit markierten accountweiten Passkey- und Kalender-Token-Kommandos
 Kontext bereits einen Schulhinweis trägt. Laufende Transaktionen werden nicht
 ersetzt; Sitzungszugriffe und andere Schulzugriffe behalten ihre bisherige
 Transaktionsauswahl und ihre RLS-Grenze.
-Die bestehende Träger-Kontoverwaltung nutzt wie ihre Rollenliste eine separate
-administrative Transaktion. Ihre Lese- und Schreibprädikate begrenzen sie
-weiterhin auf die Schulen des Trägers; eine Schultransaktion darf dafür nicht
-auf weitere Schulen erweitert werden.
+Eigenständige Träger-Kontooperationen wählen ihre administrative Grenze vor
+Transaktionsbeginn. Bestehende Transaktionen behalten ihre Sperren, ihre Rolle
+und ihr Rollback. Lese- und Schreibprädikate begrenzen die Kontoverwaltung
+weiterhin auf die Schulen des Trägers; eine Schultransaktion wird dafür nicht
+auf weitere Schulen erweitert. Deaktivierung und Widerrufsauftrag werden
+gemeinsam in der aufrufenden Transaktion gespeichert.
 Für Offboarding gibt `auth.active_school_ids_for_account` nur aktive Schul-IDs
 eines Kontos zurück, das an der aktuellen Schule aktiv zugeordnet ist.
 Fremde Zuordnungszeilen und Kalender-Token bleiben unzugänglich. Die eng
 begrenzte SECURITY-DEFINER-Funktion hat einen festen Suchpfad und keine
 PUBLIC-Ausführungsrechte; Voranmelde- und Admin-Rollen behalten ihre bisherigen
 globalen Abfragen. Sie verwendet dieselbe Transaktionssicht wie das Offboarding.
-Die Rückmigration verweigert das Wiederöffnen der Lücken. Ein älteres App-Image
-muss mit beibehaltenen Policies laufen; ein Datenbank-Restore braucht den
-erneuten Sicherheitsabgleich vor regulärer Nutzung.
+Die Rückmigration verweigert das Wiederöffnen der Lücken. Eine Vorwärtskorrektur
+ist der bevorzugte Rückfallweg. Ältere App-Images dürfen mit diesen Policies
+nicht ohne Kompatibilitätsnachweis eingesetzt werden: Vor der Anpassung las
+Identity schulübergreifende Zuordnungen direkt. Unter den neuen Policies
+übersieht dieser alte Code andere aktive Schulen und kann beim Offboarding ein
+gemeinsam genutztes Konto fälschlich deaktivieren. Der lokale Regressionstest
+hat diesen Fehler nach Einführung der Policies und vor dem Identity-Fix gezeigt.
+Ein koordinierter Restore von Anwendung und Datenbank braucht vor regulärer
+Nutzung den erneuten Sicherheitsabgleich einschließlich RLS und bereits
+ausgeführter Löschungen; eine Wiederherstellung bestätigt keine Vertragsreife.
 
 Die Regressionstests belegen mit synthetischen Daten zweier Schulen, dass
 Fremdlesen, Fremdändern, Fremdlöschen und Umhängen in eine fremde Schule unter
