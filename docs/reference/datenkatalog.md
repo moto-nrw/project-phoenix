@@ -24,11 +24,25 @@ unverändert. Globale Systemrollen mit `tenant_id IS NULL` sind kein
 Schulbestand; erforderliche Rollenbedeutung muss die spätere Rückgabe
 als Kontext liefern, nicht durch ungefilterten Export globaler Rollen.
 
-**Noch nicht umgesetzt:** vollständige Mandantenlöschung, Personen-/Gesamtexport,
-CLI, Durchführungsnachweis und Wiederholung nach Teilausfällen. Die Einträge
-sind keine ausführbaren SQL-Anweisungen oder Berechtigungen.
+**Im Code umgesetzt, Slice 3838-a:** `tenant export --school … --uploads … --out …`
+liest den freigegebenen Katalogbestand in einer schreibgeschützten
+`REPEATABLE READ`-Transaktion über eine eigene administrative Leserolle.
+Direkte Tabellen werden per `tenant_id`, Kindtabellen per Katalog-FK-Pfad,
+Schul-/Trägerwurzeln und gemeinsame Konten per ausdrücklicher Schulzuordnung
+ausgewählt. Originaldateien, JSONL-Tabellen, Modellmetadaten und SHA-256-
+Prüfsummen liegen in einem neuen privaten Verzeichnis. Ein Teilfehler
+verhindert den Fertig-Marker. Zwei-Mandanten-Tests prüfen jede Katalogtabelle,
+alle Datei-Kinds und alle ausgeschlossenen Spalten. Ausführung, Übergabe und
+Nachweis: [Runbook](../operations/auskunft-und-rueckgabe.md).
 
-**Produktiv nachzuweisen:** Einsatz und Wirksamkeit der späteren Verfahren,
+**Noch nicht umgesetzt:** vollständige Mandantenlöschung und Personenauskunft.
+Die breiten Ausschlüsse geheimer/undurchsichtiger Container bleiben wirksam;
+nicht geheimer Settings-/Nachrichtenkontext und rechtlich erforderlicher
+Kontext aus internen Protokollen brauchen weitere geprüfte Projektionen.
+Der technische Export des freigegebenen Umfangs ist daher noch kein Nachweis
+aller Rückgabe-/Data-Act-Pflichten von #3838.
+
+**Produktiv nachzuweisen:** Einsatz und Wirksamkeit der Verfahren,
 Nebensysteme, Sicherungszyklus und erneute Löschung nach Wiederherstellung.
 Dieser Slice verwendet nur lokale Schema-Metadaten, keine produktiven Daten.
 
@@ -104,4 +118,5 @@ gehören zusammen. Ein verwaistes Objekt darf nicht stillschweigend fehlen.
 Loki, Sentry, PostHog, journald und Sicherungen sind separate Systeme.
 Deren Bestände, Fristen, Zuständigkeiten, Fehlerbehandlung und menschliche
 Nachweise müssen die Folge-Slices samt Betrieb konkret abdecken. Es wird
-hier kein produktiver Lösch-/Exportablauf oder Runbook vorgetäuscht.
+hier kein produktiver Lösch-/Exportnachweis vorgetäuscht. Der interne
+Rückgabeablauf ist im oben verlinkten Runbook vorbereitet.

@@ -27,6 +27,8 @@
     "phoenix serve",
     "phoenix settings",
     "phoenix settings overrides",
+    "phoenix tenant",
+    "phoenix tenant export",
     "phoenix worker"
   ],
   "constructor_calls": [
