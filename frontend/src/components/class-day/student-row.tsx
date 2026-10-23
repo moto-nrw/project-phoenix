@@ -81,7 +81,7 @@ export function StudentRow({
     // min-w-0: die Zeile ist ein Grid-Item, und Grid-Items haben
     // min-width:auto — ohne das schiebt ein langer Name die ganze Liste
     // auf schmalen Bildschirmen über den Rand.
-    <li className="moto-content-surface flex min-w-0 items-start justify-between gap-3 rounded-xl border px-3 py-2.5 shadow-sm">
+    <li className="moto-content-surface flex min-w-0 flex-wrap items-start justify-between gap-x-3 gap-y-2 rounded-xl border px-3 py-2.5 shadow-sm">
       <div className="min-w-0 flex-1">
         <p className="truncate text-sm font-medium text-gray-900">
           {row.last_name}, {row.first_name}
@@ -144,19 +144,22 @@ export function StudentRow({
             color={LOCATION_COLORS.WARNING}
           />
         ) : null}
-        {morning?.onChange ? (
-          <SegmentedControl
-            items={MORNING_ITEMS.map((item) => ({
-              ...item,
-              disabled: morning.disabled,
-            }))}
-            value={attendance}
-            onChange={(status) => morning.onChange?.(row, status)}
-            variant="pills"
-            ariaLabel={`Anwesenheit von ${row.first_name} ${row.last_name}`}
-          />
-        ) : null}
       </div>
+      {/* Auf dem Handy steht die Auswahl unter dem Namen und nimmt die
+          ganze Breite, sonst bliebe vom Namen nur „Albrecht, …“. */}
+      {morning?.onChange ? (
+        <SegmentedControl
+          items={MORNING_ITEMS.map((item) => ({
+            ...item,
+            disabled: morning.disabled,
+          }))}
+          value={attendance}
+          onChange={(status) => morning.onChange?.(row, status)}
+          variant="pills"
+          ariaLabel={`Anwesenheit von ${row.first_name} ${row.last_name}`}
+          className="shrink-0 max-sm:w-full"
+        />
+      ) : null}
     </li>
   );
 }
