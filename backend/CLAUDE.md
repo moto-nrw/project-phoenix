@@ -152,9 +152,10 @@ the only source of dev and demo data. Two rules follow from that:
    runs it, and by running the seeder at all it also proves every API contract
    the seeder drives still holds.
 
-Allowlist entries reading `GAP: prod has N rows` are the measured backlog: 58
-tables that production tenants fill and the seeder does not. Shrink that list,
-never grow it.
+The test separates intentional exemptions, transient lifecycle state and
+coverage debt in `seedCoverageExemptions`, `seedCoverageTransient` and
+`seedCoverageDebt`. Inspect those current registers rather than an old table
+count. Shrink coverage debt; never grow it silently.
 
 ```bash
 # From the repo root, against a locally seeded stack (migrate + seed + simulate full-day)

@@ -1,6 +1,6 @@
 ---
 paths:
-  - "backend/**/config/**"
+  - "backend/modules/settings/**"
   - "frontend/src/**/settings/**"
   - "frontend/src/**/*settings*"
 ---

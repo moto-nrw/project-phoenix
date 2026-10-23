@@ -2,10 +2,8 @@
 paths:
   - "backend/auth/**"
   - "backend/api/**"
-  - "backend/services/**"
   - "backend/workflows/**"
   - "backend/modules/**"
-  - "backend/models/users/**"
   - "backend/database/repositories/**"
   - "frontend/src/**"
 ---
@@ -30,7 +28,7 @@ Parent portal code must check explicit `parent_portal.*` permissions stored on `
 
 Staff/admin permissions and parent guardian permissions are different systems:
 
-- Staff/admin permissions are account and tenant scoped. They use `auth.roles`, `auth.permissions`, JWT permissions, and `authorize.RequiresPermission`.
+- Staff/admin permissions are account and tenant scoped. They use `auth.roles`, `auth.permissions`, JWT permissions, and `common.RequiresPermission` (`backend/api/common/security_principal_middleware.go`).
 - Parent portal guardian permissions are student relationship scoped. They use `users.student_guardian_relationships.guardian_role` and `auth.guardian_student_access.permissions`.
 
 Do not model per-child parent portal authority only with `auth.roles` or account-level permissions. One person may be a primary guardian for one student and pickup-only for another.
