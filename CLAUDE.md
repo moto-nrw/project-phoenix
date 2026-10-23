@@ -97,7 +97,9 @@ a missing tool or failed command is not a passed check.
 PRs target `development`, or the branch of the PR below them when stacking;
 the `stacked-pr` skill owns that flow. Commit types: `feat`, `fix`,
 `refactor`, `chore`, `docs`, `test`, `style`. Use descriptive titles and names,
-without AI/tool branding or `Co-Authored-By: Claude`.
+without AI/tool branding or `Co-Authored-By: Claude`. PR bodies follow
+[the PR template](.github/PULL_REQUEST_TEMPLATE.md) also with `gh pr create --body`;
+they open with its user TL;DR: who notices what, or „Keine Änderung für Nutzer“.
 
 Use named and task-relevant skills; load their `SKILL.md` through the available
 skill tool or read the file directly. The runtime catalog is the discovery

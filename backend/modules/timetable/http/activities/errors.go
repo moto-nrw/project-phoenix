@@ -28,7 +28,6 @@ var errorRules = []common.ErrorRule{
 	{Target: activityContract.ErrGroupNotFound, Render: common.ErrorNotFound},
 	{Target: activityContract.ErrScheduleNotFound, Render: common.ErrorNotFound},
 	{Target: activityContract.ErrSupervisorNotFound, Render: common.ErrorNotFound},
-	{Target: activityContract.ErrEnrollmentNotFound, Render: common.ErrorNotFound},
 	{Target: activityContract.ErrStudentNotFound, Render: common.ErrorNotFound},
 	{Target: activityContract.ErrGroupFull, Render: common.ErrorConflict},
 	{Target: activityContract.ErrAlreadyEnrolled, Render: common.ErrorConflict},

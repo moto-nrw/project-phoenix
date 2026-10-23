@@ -4,6 +4,7 @@ import (
 	"context"
 	"log/slog"
 
+	"github.com/moto-nrw/project-phoenix/modules/careplan/parentrequests"
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 )
 
@@ -69,7 +70,7 @@ func (f childFeatureSettings) activeChildFlags(child *Child, hasOpenChangeReques
 		MealPlanEnabled:              f.mealPlan,
 		MealRegistrationEnabled:      f.mealRegistration && child.HasPermission(GuardianPermissionMealParticipationManage),
 		NewsEnabled:                  f.news,
-		ReasonRequired:               RequestReasonPolicy(f.reasonPolicy).RequiresReason(false),
+		ReasonRequired:               parentrequests.ReasonRequired(f.reasonPolicy, parentrequests.ReasonSideGuardian),
 	}
 }
 

@@ -28,7 +28,6 @@ func TestErrorRenderer_NotFoundErrors(t *testing.T) {
 		{"ErrGroupNotFound", activityContract.ErrGroupNotFound},
 		{"ErrScheduleNotFound", activityContract.ErrScheduleNotFound},
 		{"ErrSupervisorNotFound", activityContract.ErrSupervisorNotFound},
-		{"ErrEnrollmentNotFound", activityContract.ErrEnrollmentNotFound},
 		{"ErrStudentNotFound", activityContract.ErrStudentNotFound},
 		{"ErrNotEnrolled", activityContract.ErrNotEnrolled},
 		{"ErrStaffNotFound", activityContract.ErrStaffNotFound},

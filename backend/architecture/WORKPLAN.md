@@ -52,7 +52,7 @@ Stand 19.10.2026 · Ratchet 0 · Composition 0 · Policy-Epoche 86 ·
 der Check ohne Baseline müssen beide mit null Verstößen bestehen. Der letzte
 Data-Import-Autorisierungsport wird in der Root an Security Runtime gebunden.
 Der Nachweis deckt den letzten Key von #4004 ab:
-[Zero-Ratchet-Cutover](zero-ratchet-owner-cutover-4004.json).
+[Zero-Ratchet-Cutover](https://github.com/moto-nrw/project-phoenix/blob/46506b00c695a6f102865cae2dc9f24010371b7c/backend/architecture/zero-ratchet-owner-cutover-4004.json).
 
 | Carrier | Keys |
 |---|---:|
@@ -108,7 +108,7 @@ Policy-Diff null; aktuell 842 Regeln, Epoche 72 und Composition 1.657.
 Communication-Composition 1.481 → 1.480, People-Vokabular 110 → 106,
 Compose-Gesamtstand 34.546 LOC. Keine neue Freigabe, kein Alias, keine
 Ausnahme und kein höheres Budget.
-Nachweis: [native Communication-Records](communication-native-staff-announcements-4074.json).
+Nachweis: [native Communication-Records](https://github.com/moto-nrw/project-phoenix/blob/46506b00c695a6f102865cae2dc9f24010371b7c/backend/architecture/communication-native-staff-announcements-4074.json).
 
 #4074: Elternnachrichten verwenden vollständige native Workflow-Werte und
 Ports. Die gebundenen Stores bieten native Facetten; Schul- und Gruppen-
@@ -125,7 +125,7 @@ Communication-Compose sinkt 1.486 → 1.481 LOC, die Summe 34.577 → 34.572.
 Keine neue Freigabe, Go-Typalias, Klassifizierung, Ausnahme, Root-Graph-Felder
 oder höheren Budgets. Routen, Antworten, Goldens, IoT, Beziehungsrechte,
 Sessions und Portal-Isolation bleiben unverändert.
-Nachweis: [native Elternnachrichten](communication-native-parent-messages-4074.json).
+Nachweis: [native Elternnachrichten](https://github.com/moto-nrw/project-phoenix/blob/46506b00c695a6f102865cae2dc9f24010371b7c/backend/architecture/communication-native-parent-messages-4074.json).
 
 #4074: Der Staff-Store bindet native Records direkt an dieselben SQL-Stores
 und dieselbe Inbox-Projektion. Die Root bindet Picker, Berechtigungsprüfung
@@ -137,7 +137,7 @@ Regeln 844, Epoche 72, Composition 1.657 und Compose 34.584 bleiben gleich.
 Keine neue Freigabe, Go-Typalias, Klassifizierung, Ausnahme, Graph-Felder oder
 höheren Budgets. Routen, Antworten, Goldens, IoT, Beziehungsrechte, Sessions
 und Portal-Isolation bleiben unverändert.
-Nachweis: [nativer Staff-Store](communication-native-staff-store-4074.json).
+Nachweis: [nativer Staff-Store](https://github.com/moto-nrw/project-phoenix/blob/46506b00c695a6f102865cae2dc9f24010371b7c/backend/architecture/communication-native-staff-store-4074.json).
 
 #4074: Staff-Messaging verwendet native Workflow-Records und eigene Ports für
 Threads, Nachrichten, Inbox und Empfänger. Dieselben gebundenen Stores bieten
@@ -151,7 +151,7 @@ Compose-Summe 34.584 bleiben gleich. Keine neue Freigabe, Go-Typalias,
 Klassifizierung, Ausnahme, Root-Graph-Felder oder höheren Budgets. Die übrigen
 Store-Keys bleiben sichtbar. Routen, Antworten, Goldens, IoT, Beziehungsrechte,
 Sessions und Portal-Isolation bleiben unverändert.
-Nachweis: [native Staff-Records](communication-native-staff-records-4074.json).
+Nachweis: [native Staff-Records](https://github.com/moto-nrw/project-phoenix/blob/46506b00c695a6f102865cae2dc9f24010371b7c/backend/architecture/communication-native-staff-records-4074.json).
 
 #4074: Communication besitzt native Mail-Werte und schmale Lese- und Schreibports.
 Die Root bindet dieselbe Outbox, denselben Mail-Transport und dieselbe Audit-Facette.
@@ -167,7 +167,7 @@ die Summe 34.612 → 34.584, das Dateigrößenbudget 1.183 → 1.178.
 Keine neue Freigabe, Go-Typalias, Klassifizierung, Ausnahme, Graph-Felder oder
 höheren Budgets. Routen, Antworten, Goldens, IoT, Beziehungsrechte, Sessions und
 Portal-Isolation bleiben unverändert.
-Nachweis: [native Communication-Mail](communication-native-mail-4074.json).
+Nachweis: [native Communication-Mail](https://github.com/moto-nrw/project-phoenix/blob/46506b00c695a6f102865cae2dc9f24010371b7c/backend/architecture/communication-native-mail-4074.json).
 
 #4074: Communication besitzt native Application-Events und schmale Delivery-Ports.
 Die Root bindet denselben Router über öffentliche Commands. Alle Event- und
@@ -180,7 +180,7 @@ bleiben gleich. Keine neue Freigabe, Go-Typalias, Klassifizierung, Ausnahme,
 Graph-Felder oder höheren Budgets. Eine überholte Funktionslängen-Ausnahme
 entfällt; das Dateigrößenbudget sinkt 1.188 → 1.183. Routen, Antworten, Goldens, IoT, Beziehungsrechte, Sessions und
 Portal-Isolation bleiben unverändert.
-Nachweis: [native Communication-Notifications](communication-native-notifications-4074.json).
+Nachweis: [native Communication-Notifications](https://github.com/moto-nrw/project-phoenix/blob/46506b00c695a6f102865cae2dc9f24010371b7c/backend/architecture/communication-native-notifications-4074.json).
 
 #4074: Communication besitzt eigene semantische Settings-Ports. Die Root
 bindet fünf schmale öffentliche Settings-Facetten an denselben Resolver.
@@ -192,7 +192,7 @@ fallen: 158 → 151, #4074 41 → 34. Regeln 844, Epoche 72, Composition 1.657 u
 Compose 34.612 LOC bleiben gleich. Das Dateigrößenbudget sinkt 1.189 → 1.188.
 Keine neue Freigabe, Go-Typalias, Ausnahme oder höheren Budgets. Routen,
 Antworten, Goldens, IoT, Beziehungsrechte, Sessions und Portal-Isolation bleiben unverändert.
-Nachweis: [native Communication-Settings](communication-native-settings-4074.json).
+Nachweis: [native Communication-Settings](https://github.com/moto-nrw/project-phoenix/blob/46506b00c695a6f102865cae2dc9f24010371b7c/backend/architecture/communication-native-settings-4074.json).
 
 #4074: Communication besitzt schmale Ports für Schul-ID, After-Commit und
 Detached-Transaktionen. Die Root bindet dieselbe öffentliche Tenant Runtime.
@@ -206,7 +206,7 @@ Compose sinkt 1.518 → 1.514 LOC, Transaction Runtime 173 → 172,
 die Summe 34.617 → 34.612. Keine neue Freigabe,
 Alias, Ausnahme oder höheren Budgets. Routen, Antworten, Goldens, IoT,
 Beziehungsrechte, Sessions und Portal-Isolation bleiben unverändert.
-Nachweis: [native Communication-Runtime](communication-native-runtime-4074.json).
+Nachweis: [native Communication-Runtime](https://github.com/moto-nrw/project-phoenix/blob/46506b00c695a6f102865cae2dc9f24010371b7c/backend/architecture/communication-native-runtime-4074.json).
 
 #4073: Messaging verwendet vollständige native Workflow-Werte für Feed,
 Deklarationen, Nachrichten, Inbox, Familienschutz und Request-Sharing. Die Root
@@ -223,7 +223,7 @@ seine alten Adapterverträge bleiben sichtbar. Regeln 844, Epoche 72,
 Composition 1.657 und alle Budgets bleiben gleich. Keine neue Freigabe, Alias,
 Klassifizierung, Ausnahme oder höheren Limits. Routen, Antworten, Goldens,
 IoT, Beziehungsrechte, Sessions und falsches Portal bleiben unverändert.
-Nachweis: [native Messaging-Werte](parent-portal-native-messaging-4073.json).
+Nachweis: [native Messaging-Werte](https://github.com/moto-nrw/project-phoenix/blob/46506b00c695a6f102865cae2dc9f24010371b7c/backend/architecture/parent-portal-native-messaging-4073.json).
 
 #4073: Care verwendet eigene Plan-, Ausnahme-, Abwesenheits- und Angebots-DTOs
 sowie schmale Ports. Die Root bindet die öffentlichen Care-Plan-Facetten;
@@ -237,7 +237,7 @@ Zwei Produktionskeys fallen: 164 → 162, #4073 2 → 1 und #4004 82 → 81.
 Portal-Compose sinkt 478 → 465 LOC, die Summe 34.630 → 34.617. Keine neue
 Freigabe, Regel, Ausnahme, Alias oder höheren Budgets. Routen, Antworten,
 Goldens, IoT, Beziehungsrechte und Portal-Isolation bleiben unverändert.
-Nachweis: [native Care-Plan-Ports](parent-portal-native-care-plan-4073.json).
+Nachweis: [native Care-Plan-Ports](https://github.com/moto-nrw/project-phoenix/blob/46506b00c695a6f102865cae2dc9f24010371b7c/backend/architecture/parent-portal-native-care-plan-4073.json).
 
 #4073: Care verwendet native Workflow-Werte für Beziehungen, Stammdaten-Anträge
 und Ledger-Ereignisse. Die Root bindet die öffentlichen Owner-Facetten an eigene
@@ -250,7 +250,7 @@ Regeln 844, Epoche 72 und Composition 1.657 bleiben gleich. Portal-Compose sinkt
 von 479 auf 478 LOC, die Summe von 34.631 auf 34.630. Keine neue Freigabe,
 Klassifizierung oder Ausnahme; keine neuen Typaliase und keine höheren Budgets. Routen, Antworten,
 Goldens, IoT und Portal-Isolation bleiben unverändert.
-Nachweis: [native Care-Werte](parent-portal-native-care-records-4073.json).
+Nachweis: [native Care-Werte](https://github.com/moto-nrw/project-phoenix/blob/46506b00c695a6f102865cae2dc9f24010371b7c/backend/architecture/parent-portal-native-care-records-4073.json).
 
 #4073: Die äußere Workflow-Suite konstruiert Beziehungen, Telefone und
 Schutzereignisse mit nativen Testwerten. Die Root bindet Test-Facetten derselben
