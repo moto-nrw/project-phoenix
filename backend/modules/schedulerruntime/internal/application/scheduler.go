@@ -75,6 +75,9 @@ type Scheduler struct {
 	// done signals goroutines to stop when closed (replaces stored context)
 	wg sync.WaitGroup
 
+	cleanupMinuteSnapshotLoad   *schedulerMinuteSnapshotLoad
+	cleanupMinuteSnapshotLoader func(context.Context) (*schedulerMinuteSnapshot, error)
+
 	// Per-tenant tracking for minute-polling (keyed by tenant ID)
 	lastSessionEnd              sync.Map // tenant_id → time.Time
 	lastDataCleanup             sync.Map // tenant_id → time.Time

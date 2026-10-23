@@ -47,6 +47,11 @@ func (d schedulerTenantDirectory) ListActiveTenantIDs(ctx context.Context) ([]in
 	return schoolIDs(schools), err
 }
 
+func (d schedulerTenantDirectory) ListCleanupTenantIDs(ctx context.Context) ([]int64, error) {
+	schools, err := d.schools.ListSchools(ctx)
+	return schoolIDs(schools), err
+}
+
 func (d schedulerTenantDirectory) ListNonDeletedTenantIDs(ctx context.Context) ([]int64, error) {
 	schools, err := d.schools.ListNonDeletedSchools(ctx)
 	return schoolIDs(schools), err
