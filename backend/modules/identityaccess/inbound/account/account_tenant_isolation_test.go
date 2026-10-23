@@ -364,6 +364,21 @@ func (e *accountIsolationEnv) createSchoolInOwnOrganization(t *testing.T) (int64
 	return organizationID, schoolID
 }
 
+func TestAccountManagementOrganizationUpdateStaysWithinOrganization(t *testing.T) {
+	t.Parallel()
+	e := newAccountIsolationEnv(t)
+	organizationID, schoolID := e.createSchoolInOwnOrganization(t)
+	sameOrgID, _ := e.accountForTenant(t, "account-scope-org-update", schoolID)
+	foreignID, _ := e.foreignAccount(t, "account-scope-org-update-foreign")
+	claims := e.claims
+	claims.Scope = tenant.ScopeOrg
+	claims.OrgID = organizationID
+	assertAccountActionStatus(t, e, claims, http.MethodPut, fmt.Sprintf("/auth/accounts/%d", sameOrgID),
+		map[string]string{"email": fmt.Sprintf("updated-%d@example.invalid", sameOrgID)}, http.StatusNoContent)
+	assertAccountActionStatus(t, e, claims, http.MethodPut, fmt.Sprintf("/auth/accounts/%d", foreignID),
+		map[string]string{"email": fmt.Sprintf("denied-%d@example.invalid", foreignID)}, http.StatusNotFound)
+}
+
 func TestAccountManagementPlatformScopeRemainsGlobal(t *testing.T) {
 	t.Parallel()
 	e := newAccountIsolationEnv(t)

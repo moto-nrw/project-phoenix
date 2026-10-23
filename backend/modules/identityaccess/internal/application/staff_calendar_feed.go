@@ -19,7 +19,7 @@ func NewStaffCalendarFeeds(service *Service, store ports.StaffCalendarFeedStore)
 func (f *StaffCalendarFeeds) FindStaffCalendarFeedOwner(ctx context.Context, tokenHash string) (identityaccess.StaffCalendarFeedOwner, bool, error) {
 	var result domain.StaffCalendarFeedOwner
 	var found bool
-	err := f.service.run(ctx, f.service.tx.RunPlatform, "find_staff_calendar_feed_owner", func(txCtx context.Context, stats *domain.OperationStats) error {
+	err := f.service.run(withGlobalCredentialScope(ctx), f.service.tx.RunPlatform, "find_staff_calendar_feed_owner", func(txCtx context.Context, stats *domain.OperationStats) error {
 		var queryStats domain.OperationStats
 		var queryErr error
 		result, found, queryStats, queryErr = f.store.FindStaffCalendarFeedOwner(txCtx, tokenHash)
@@ -33,7 +33,7 @@ func (f *StaffCalendarFeeds) FindStaffCalendarFeedOwner(ctx context.Context, tok
 }
 func (f *StaffCalendarFeeds) EnsureStaffCalendarFeedToken(ctx context.Context, accountID, tenantID int64, tokenHash string) (result string, err error) {
 	defer func() { err = MapError(err) }()
-	err = f.service.run(ctx, f.service.tx.RunPlatform, "ensure_staff_calendar_feed_token", func(txCtx context.Context, stats *domain.OperationStats) error {
+	err = f.service.run(withGlobalCredentialScope(ctx), f.service.tx.RunPlatform, "ensure_staff_calendar_feed_token", func(txCtx context.Context, stats *domain.OperationStats) error {
 		var queryStats domain.OperationStats
 		var queryErr error
 		result, queryStats, queryErr = f.store.EnsureStaffCalendarFeedToken(txCtx, accountID, tenantID, tokenHash)
@@ -44,7 +44,7 @@ func (f *StaffCalendarFeeds) EnsureStaffCalendarFeedToken(ctx context.Context, a
 }
 func (f *StaffCalendarFeeds) RotateStaffCalendarFeedToken(ctx context.Context, accountID, tenantID int64, tokenHash string) (result bool, err error) {
 	defer func() { err = MapError(err) }()
-	err = f.service.run(ctx, f.service.tx.RunPlatform, "rotate_staff_calendar_feed_token", func(txCtx context.Context, stats *domain.OperationStats) error {
+	err = f.service.run(withGlobalCredentialScope(ctx), f.service.tx.RunPlatform, "rotate_staff_calendar_feed_token", func(txCtx context.Context, stats *domain.OperationStats) error {
 		var queryStats domain.OperationStats
 		var queryErr error
 		result, queryStats, queryErr = f.store.RotateStaffCalendarFeedToken(txCtx, accountID, tenantID, tokenHash)

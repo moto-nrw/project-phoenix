@@ -373,9 +373,11 @@ func (a *AccountAdministration) FindManageableAccount(ctx context.Context, accou
 	ctx = bindRuntime(a.auth.attach, ctx)
 	var result domain.ManagedAccountRecord
 	err := a.runtime.RunInTx(ctx, func(txCtx context.Context) error {
-		var err error
-		result, err = a.findManageableAccount(txCtx, accountID)
-		return err
+		return a.runManageableAccountTx(txCtx, func(readCtx context.Context) error {
+			var err error
+			result, err = a.findManageableAccount(readCtx, accountID)
+			return err
+		})
 	})
 	return publicManagedAccount(result), administrationError(err)
 }
@@ -387,9 +389,11 @@ func (a *AccountAdministration) ListManageableAccounts(ctx context.Context, filt
 	ctx = bindRuntime(a.auth.attach, ctx)
 	var result []domain.ManagedAccountRecord
 	err := a.runtime.RunInTx(ctx, func(txCtx context.Context) error {
-		var err error
-		result, err = a.listManageableAccounts(txCtx, domain.AccountListFilter{Email: filter.Email, Active: filter.Active})
-		return err
+		return a.runManageableAccountTx(txCtx, func(readCtx context.Context) error {
+			var err error
+			result, err = a.listManageableAccounts(readCtx, domain.AccountListFilter{Email: filter.Email, Active: filter.Active})
+			return err
+		})
 	})
 	if err != nil {
 		return nil, administrationError(err)
@@ -403,12 +407,26 @@ func (a *AccountAdministration) UpdateManageableAccount(ctx context.Context, upd
 	}
 	ctx = bindRuntime(a.auth.attach, ctx)
 	return administrationError(a.runtime.RunInTx(ctx, func(txCtx context.Context) error {
-		return a.updateManageableAccount(txCtx, domain.AccountIdentityUpdate{AccountID: update.AccountID, Email: update.Email, Username: update.Username})
+		return a.runManageableAccountTx(txCtx, func(writeCtx context.Context) error {
+			return a.updateManageableAccount(writeCtx, domain.AccountIdentityUpdate{AccountID: update.AccountID, Email: update.Email, Username: update.Username})
+		})
 	}))
 }
 
 func (a *AccountAdministration) setActive(ctx context.Context, accountID int64, active bool, op string) error {
-	return a.runtime.RunInTx(ctx, func(txCtx context.Context) error { return a.setActiveInTransaction(txCtx, accountID, active, op) })
+	return a.runtime.RunInTx(ctx, func(txCtx context.Context) error {
+		return a.runManageableAccountTx(txCtx, func(writeCtx context.Context) error { return a.setActiveInTransaction(writeCtx, accountID, active, op) })
+	})
+}
+
+// Organization account administration joins memberships from several schools.
+// Like the by-role listing, it must leave the ambient school transaction, while
+// visibility still constrains every read/write to the organization's schools.
+func (a *AccountAdministration) runManageableAccountTx(ctx context.Context, fn func(context.Context) error) error {
+	if a.runtime.Scope(ctx) == domain.ScopeOrg && !a.runtime.IsAdminTx(ctx) {
+		return globalIdentityRead(a.runtime.WithoutTransaction(ctx), a.runtime, fn)
+	}
+	return fn(ctx)
 }
 
 func (a *AccountAdministration) ChangeAccountPassword(ctx context.Context, accountID int64, currentPassword, newPassword string) (err error) {
