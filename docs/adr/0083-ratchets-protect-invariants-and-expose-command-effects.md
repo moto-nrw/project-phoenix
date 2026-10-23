@@ -394,3 +394,114 @@ Extend source owners and target categories with fixtures and an inventory/base
 comparison. Do not remove any existing ratchet. See the row-by-row
 [reconciliation](../architecture/4739-command-effect-reconciliation.md) for
 current counts, exact gaps and proposed follow-up scope.
+
+## Domain-source expansion 2026-10-23 (#4739)
+
+This second census extends the implementation addendum above to **every owner
+whose policy kind is `domain`**, not a hardcoded module list. No production Go
+file, coordinator, transaction, permission, owner or policy rule changes.
+The [reconciliation](../architecture/4739-command-effect-reconciliation.md)
+records all 40 hand rows, counts, known debt and the remaining inference cuts.
+
+### Source identity and provider evidence
+
+A register identity now includes `source_owner`. A native foreign contract can
+be consumed by several domains; they must not overwrite one another's review.
+Old entries without this field mean Enrollment for immutable-base comparison.
+All current generated entries carry the field. A project with no discovered
+foreign binding needs no empty register; any new discovered binding requires it,
+and an existing register still rejects stale entries. Source discovery includes named
+interfaces, aliases and foreign contract fields in every policy-classified
+production package, including compiled fixture support and the additive
+`testhooks` build. Zero discovered edges for an owner is a result, not an
+exclusion from scanning. Type declarations/full method sets are still may-bind
+surfaces, not proof that a domain application invokes every exposed method.
+
+Keep the foreign contract as a first-hop terminal, but also follow its actual
+typed providers when a different owner supplies it. Do not walk a foreign
+owner's command body or guess structurally compatible implementations. This
+exposes Care Plan's Communication `ShareVisibilityResolver` bound to Parent
+Portal's `ShareRecipients` instead of hiding the workflow behind a read label.
+Forwarded tuple returns bind corresponding result slots, including
+`return factory()` returning `(contract, error)`. General tuple assignments,
+variadic/container/generic instance flow remain separate follow-up work.
+
+Builtin/external interfaces such as `error` are outside this policy-owned port
+surface. Unioning every returned error's `Error` method invents unrelated domain
+edges. Local-owner interface forwarding with no external provider is not itself
+a cross-owner edge; do not invent an unresolved foreign command from that alone.
+Dynamic root bindings, instantiated generic methods without indexed bodies,
+function fields, anonymous interfaces and root forwarding cycles remain exact,
+visible `unresolved` entries. The census does not claim to resolve them.
+
+### Effect review, debt and canonical form
+
+`check` requires the exact generator form: field order, omitted optional fields,
+indentation, final newline and identity-sorted entries. It never rewrites the
+file. Run `scripts/backend-architecture.sh effects`, then review new `unknown`
+entries; generation does not infer labels from names. Formatting/reordering,
+missing/stale entries, duplicate identities and conflicting effects for the same
+terminal method fail. Pointer/value receiver spelling is one target method for
+this consistency check. Different source protocols may still have different
+review classifications for that method.
+
+`query` includes read-only value, error, DTO-metadata and construction helpers.
+It excludes locking reads, audited reads that persist an access record,
+administrative/tenant scope transitions and durable delivery intent.
+`notice` records the already exposed non-durable guardian SSE invalidation,
+not a message, pill or outbox write. Its existing after-commit timing remains
+required; this does not claim complete platform/after-commit effect analysis.
+
+`debt` is an explicit **unapproved coordination finding**, not a sixth E
+exception or a leaf. It cites this ADR (`0083`), carries exact evidence and a
+proposed follow-up cut, and needs fresh approval evidence just like E1–E5 or
+`unresolved` growth. Only protocols already named by ADR 0067 receive E1–E5.
+In particular the Calendar portal's appointment lifecycle/reminders and the
+Care family-request decision findings are not newly exempted by this
+census. No follow-up issue is created here.
+
+`workflow` describes a supplied workflow implementation, not permission for a
+domain-application callback. Reasons distinguish outer HTTP workflow entries,
+compiled support/contract-union surfaces, the finite Care Exit Roster/Bookings
+E2 callbacks documented by ADR 0071 / PR #4753, and **workflow-backed, Schuld
+#4825** for Share-Visibility and LiveStaffEmployment. Other confirmed callbacks
+are separately recorded as direction debt; none is a normal guarded leaf.
+ADR 0071 is not amended by this PR.
+
+### One-time expansion review against the immutable base
+
+The first census already occupies ADR 0083, so the original bootstrap cannot
+approve this expansion. The new heading above permits `approval_adr: "0083"`
+only while this exact domain-source addendum is absent from the immutable base:
+
+- New exact entries of previously unscanned source owners may cite it.
+- A newly resolved provider of an already reviewed port may cite it only with
+  the same source owner, port, supplied binding, target owner, effect,
+  classification and ADR as the reviewed boundary. This covers the extra
+  Enrollment providers exposed by interface forwarding, not new Enrollment ports.
+- Newly exposed `unresolved` diagnostics of an already reviewed source/port/binding
+  may also cite this census, without downgrading or relabelling its existing
+  contract terminal. New source ports do not qualify.
+- Existing entry changes, including fingerprints and labels, receive no such
+  approval. Once the addendum is in the base, it approves no further growth.
+
+The counterprobe without this addendum must reject the census. The other
+new-ADR rules and old bootstrap tests remain intact; this is a bounded census
+review, not permission to append to an old decision for future exceptions.
+
+### Fingerprint decision
+
+**Retain traversed root-helper bodies**, not just the outer binding. A mapper
+can change tenant IDs, arguments, error handling or execution order without
+changing its terminal target set. A binding-only digest would miss such real
+behavior changes. Proving that a particular mapper edit is harmless needs a
+separate semantic summary; the current checker has none. The review cost of
+re-approving an exception's helper change is therefore retained and explicit.
+Formatting/comments/positions remain excluded. Fixtures cover real changes to
+both the binding and a called helper while the target set stays the same.
+The original 128 Enrollment fingerprints remain unchanged in this census.
+
+The outstanding recognition work is the explicitly bounded binding-flow and
+platform/protocol cuts, not additional source-domain coverage. This census does
+not prove label truth, production liveness, guard equivalence, transaction
+participation, after-commit durability or deadlock freedom.
