@@ -82,8 +82,9 @@ Die Aufrufe verwenden die Binary des Produktionsimages. Im Entwicklungsimage
 `/app/main` durch `go run .` ersetzen. Der bestehende Dienst `server` und alle
 anderen Schreiber bleiben gestoppt. Der Einmal-Container muss identisches
 Image, Konfiguration und **dasselbe Upload-Volume** verwenden. Vorher den
-Mount prüfen, keine neue Upload-Ablage erzeugen. Der DB-Pool benötigt
-mindestens zwei Verbindungen (Koordinationssperre und Phasen-Commit).
+Mount prüfen, keine neue Upload-Ablage erzeugen. Der CLI reserviert eine DB-Verbindung pro Schule. Jede DB-Funktion wird
+separat per Autocommit ausgeführt; die Sitzung wird danach geschlossen und
+nicht mit Löschrolle oder Sperre in den Pool zurückgegeben.
 Lokal gilt `scripts/dev-native.sh backend go run . tenant ...`; dieses
 Runbook ist keine Erlaubnis für Agenten, Produktionssysteme zu bedienen.
 
@@ -134,6 +135,8 @@ docker compose run --rm --no-deps -T server /app/main tenant receipt --id "$ERAS
 Die JSON-Quittung enthält interne IDs, Vorgangsreferenz, Verfahrens-/Katalog-
 version, Phasen, Zeitpunkte, Anzahlen und gegebenenfalls SQLSTATE, keine
 Dateinamen oder gelöschten Inhalte. Zugriffsbeschränkt im Vorgang ablegen.
+Exportkopien derselben dreijährigen Nachweisfrist zuordnen und fristgerecht
+entfernen; offene Aufträge und begründete gesetzliche Ausnahmen getrennt prüfen.
 Für den Kunden die eigene Schulquittung und den gesonderten Abschluss der
 Mensch-Schritte bereitstellen; keine fremden Schulen/Operator-Stammdaten
 beilegen. CLI-Ausgabe kann zusätzliche Konfigurationshinweise vor JSON

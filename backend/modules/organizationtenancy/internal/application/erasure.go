@@ -98,8 +98,8 @@ func (s *Erasure) Run(ctx context.Context, r organizationtenancy.ErasureRequest)
 	}
 	var results []json.RawMessage
 	for _, id := range ids {
-		err = s.store.WithSchoolLock(ctx, id, func() error {
-			proof, err := s.eraseSchool(ctx, s.store, r, id, kinds)
+		err = s.store.WithSchoolLock(ctx, id, func(lockCtx context.Context) error {
+			proof, err := s.eraseSchool(lockCtx, s.store, r, id, kinds)
 			if proof != nil {
 				results = append(results, proof)
 			}

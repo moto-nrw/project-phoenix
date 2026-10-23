@@ -228,6 +228,8 @@ func TestErasureCLITimeoutAndRoleBoundaries(t *testing.T) {
 func TestErasureCLIOrganizationKeepsRootAndResumesSchoolReceipts(t *testing.T) {
 	t.Parallel()
 	db := testpkg.SetupIsolatedTestDB(t)
+	// A single-connection pool also proves role/session cleanup between phases.
+	db.SetMaxOpenConns(1)
 	a := testpkg.Tenant(t)
 	b, _ := testpkg.CreateTestTenant(t, db)
 	var organizationID int64
