@@ -21,6 +21,7 @@ import { parseMultiValueParam } from "~/lib/multi-value-param";
 import { Checkbox } from "~/components/ui/checkbox";
 import { ExportDialog } from "~/components/ui/export-dialog";
 import { Input } from "~/components/ui/input";
+import { useExportRun } from "~/hooks/use-export-run";
 import { ChoiceTile } from "~/components/ui/choice-tile";
 import { ToggleChip } from "~/components/ui/toggle-chip";
 
@@ -152,8 +153,6 @@ export function StudentExportModal({
     );
   }, [activePreset, columnCatalog, isHealthList, lockedPreset]);
 
-  if (!isOpen) return null;
-
   // "Alle Kinder" would contradict the Gesundheitsliste's default scope,
   // which leaves children without a note off the list. The Kindersuche only
   // knows its general result count, so it must not report that count for
@@ -219,6 +218,15 @@ export function StudentExportModal({
       : `${resultCount} Kinder aus der aktuellen Filterung.`
     : scopeWithoutCount;
 
+  const run = useExportRun({
+    isOpen,
+    onDownload: download,
+    validate,
+    errorObject: "die Exportdatei",
+    onDone: onClose,
+    logName: "student_list",
+  });
+
   return (
     <ExportDialog
       isOpen={isOpen}
@@ -227,9 +235,7 @@ export function StudentExportModal({
       description={description}
       appliedFilters={appliedFilters}
       formats={STUDENT_EXPORT_FORMATS}
-      onDownload={download}
-      validate={validate}
-      errorObject="die Exportdatei"
+      run={run}
       widthClass="sm:w-[640px]"
     >
       <section>

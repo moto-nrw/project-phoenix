@@ -5,6 +5,7 @@ import { useEffect, useState } from "react";
 import { ExportDialog } from "~/components/ui/export-dialog";
 import { Input } from "~/components/ui/input";
 import { ToggleChip } from "~/components/ui/toggle-chip";
+import { useExportRun } from "~/hooks/use-export-run";
 import {
   exportStaffBirthdays,
   type StaffBirthdayExportFormat,
@@ -52,6 +53,16 @@ export function StaffBirthdayExportModal({
     );
   };
 
+  const run = useExportRun({
+    isOpen,
+    onDownload: (format: StaffBirthdayExportFormat) =>
+      exportStaffBirthdays({ format, title, months }),
+    errorObject: "die Geburtstagsliste",
+    successMessage: "Die Geburtstagsliste ist erstellt.",
+    onDone: onClose,
+    logName: "staff_birthdays",
+  });
+
   return (
     <ExportDialog
       isOpen={isOpen}
@@ -59,9 +70,7 @@ export function StaffBirthdayExportModal({
       title="Geburtstagsliste Personal exportieren"
       description="Alle Mitarbeitenden mit hinterlegtem Geburtsdatum. Wer kein Datum hinterlegt hat, fehlt in dieser Liste."
       formats={STAFF_BIRTHDAY_FORMATS}
-      onDownload={(format) => exportStaffBirthdays({ format, title, months })}
-      errorObject="die Geburtstagsliste"
-      successMessage="Die Geburtstagsliste ist erstellt."
+      run={run}
     >
       <section>
         <Input
