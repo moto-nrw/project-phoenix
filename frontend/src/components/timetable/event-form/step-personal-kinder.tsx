@@ -60,7 +60,7 @@ export interface StepPersonalKinderProps {
   addStaffOption: (person: Staff) => void;
   /** users:create: offer „Externe Person eintragen“ below the roster. */
   canCreateExternalCaregiver?: boolean;
-  /** Offer „Nur ansehen“ for an external person (users:manage, ADR 0083). */
+  /** Offer „Nur ansehen“ for an external person (users:manage, ADR 0085). */
   canGrantExternalView?: boolean;
   loadingRefs: boolean;
   loadingStudents: boolean;

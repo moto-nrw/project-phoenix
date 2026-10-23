@@ -552,7 +552,7 @@ describe("StepPersonalKinder — externe Person", () => {
     expect(update).toHaveBeenCalledWith("staffIds", ["1", "88"]);
   });
 
-  // ADR 0083: „Nur ansehen“ only where the planner may grant the role Gast.
+  // ADR 0085: „Nur ansehen“ only where the planner may grant the role Gast.
   it.each([
     [true, true],
     [false, false],

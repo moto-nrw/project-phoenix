@@ -1,5 +1,5 @@
 // Package externalcaregiver records an external caregiver with the access
-// level chosen for them (#4573, ADR 0083), and invites an existing external
+// level chosen for them (#4573, ADR 0085), and invites an existing external
 // caregiver who has no account yet. Being external is the external caregiver
 // record; the access is a separate choice: none (a placeholder without an
 // account), view (an invitation into the system role guest „Gast“) or
@@ -45,7 +45,7 @@ var (
 	ErrEmailInvited = errors.New("the address has an open invitation for someone else")
 )
 
-// Access is the access level of an external caregiver (ADR 0083).
+// Access is the access level of an external caregiver (ADR 0085).
 type Access string
 
 const (

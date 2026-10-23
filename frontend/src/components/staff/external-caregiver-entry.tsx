@@ -34,7 +34,7 @@ export const EXTERNAL_INVITATION_HINT =
   "Die Person bekommt eine Einladung per E-Mail. Damit meldet sie sich selbst bei moto an.";
 
 /**
- * The three access levels of ADR 0083, each with one line on what the person
+ * The three access levels of ADR 0085, each with one line on what the person
  * can do. The order is the order on screen.
  */
 export const EXTERNAL_ACCESS_OPTIONS: Readonly<
@@ -112,7 +112,7 @@ function validate(
 }
 
 /**
- * State and submit of the external caregiver fields (#3823, ADR 0083). The
+ * State and submit of the external caregiver fields (#3823, ADR 0085). The
  * inline entry and the dialog of the Personalverwaltung share it. A submit
  * always records a new person: a name says too little to pick an existing
  * one, and an existing person without account is invited only through
@@ -201,7 +201,7 @@ export function useExternalCaregiverForm({
 type ExternalCaregiverForm = ReturnType<typeof useExternalCaregiverForm>;
 
 /**
- * The access choice of ADR 0083 as radio tiles: each level with the one line
+ * The access choice of ADR 0085 as radio tiles: each level with the one line
  * that says what the person can do. A single level (the invitation without
  * `users:manage`) is stated as text, not offered as a one-option choice.
  * The radios carry the wire field name, so a server field error finds them.
@@ -373,7 +373,7 @@ interface ExternalCaregiverEntryProps {
 }
 
 /**
- * Records an external caregiver (#3823, ADR 0083) right where a supervision
+ * Records an external caregiver (#3823, ADR 0085) right where a supervision
  * is planned, with the chosen access. It renders no `<form>`: the caller's
  * dialog may be a form already, so Enter is handled here instead of
  * submitting the dialog.

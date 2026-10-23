@@ -155,7 +155,7 @@ interface TimetableEventModalProps {
    * may record and invite an external person (#4573).
    */
   canCreateExternalCaregiver?: boolean;
-  /** Offer „Nur ansehen“ for an external person (users:manage, ADR 0083). */
+  /** Offer „Nur ansehen“ for an external person (users:manage, ADR 0085). */
   canGrantExternalView?: boolean;
   /**
    * OGS-Schließtage des Tenants (#2032). Fällt das gewählte Datum auf einen

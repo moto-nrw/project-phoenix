@@ -3483,7 +3483,7 @@ never qualify for this exception, and historical unowned objects do not need
 rebaselining. The check uses the immutable local Git base, not GitHub.
 
 A table renamed by a new candidate migration keeps its write owner
-([ADR 0083](../../docs/adr/0083-extern-ist-ein-merkmal.md)).
+([ADR 0085](../../docs/adr/0085-extern-ist-ein-merkmal.md)).
 The scan reads top-level `ALTER TABLE [IF EXISTS] [ONLY] schema.old RENAME
 TO new` from the same statically resolved SQL; the new name stays in the old
 schema. The policy may then list `schema.new` only when the base policy owns
@@ -4638,7 +4638,7 @@ workflow, whose public role already reaches Workforce.
 ### External caregiver with an access level (#4573)
 
 Being external is the external caregiver record; the access is a separate
-choice ([ADR 0083](../../docs/adr/0083-extern-ist-ein-merkmal.md)):
+choice ([ADR 0085](../../docs/adr/0085-extern-ist-ein-merkmal.md)):
 `none` (a placeholder without account or e-mail), `view` (an invitation into
 the platform system role `guest`, „Gast“) or `supervise` (an invitation into
 the platform system role `ag-leitung`, „AG-Leitung“). Recording an external

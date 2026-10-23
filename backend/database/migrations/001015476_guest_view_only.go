@@ -9,7 +9,7 @@ import (
 
 const (
 	guestViewOnlyVersion     = "1.15.476"
-	guestViewOnlyDescription = "Guest role only views: students:read, groups:read, rooms:read, activities:read (#4573, ADR 0083)"
+	guestViewOnlyDescription = "Guest role only views: students:read, groups:read, rooms:read, activities:read (#4573, ADR 0085)"
 
 	guestViewOnlyText = "Nur ansehen: Kinder, Räume und AGs. Keine Elterndaten, keine Nachrichten."
 	// guestPreviousText is the description migration 1.0.4 gave the role.
@@ -34,7 +34,7 @@ func init() {
 }
 
 // guestViewOnlyUp makes the system role guest („Gast“) the access level
-// „Nur ansehen“ (ADR 0083). users:read opened, besides the child list and
+// „Nur ansehen“ (ADR 0085). users:read opened, besides the child list and
 // detail, the guardian directory, parent messages, student notes and the
 // exports; users:list and activities:create were never needed for looking.
 // The new permission students:read opens only the read routes of the child

@@ -29,7 +29,7 @@ type StaffMember struct {
 	ID       int64
 	PersonID int64
 	// HasExternalCaregiverRecord is the raw marker every read carries: the
-	// staff member has an active external caregiver record (ADR 0083).
+	// staff member has an active external caregiver record (ADR 0085).
 	HasExternalCaregiverRecord bool
 	// IsExternalCaregiver applies School Membership's rule (#3823, #4573):
 	// an active record and a known person, with or without an account. Only

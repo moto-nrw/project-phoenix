@@ -44,7 +44,7 @@ vi.mock("swr", async (importOriginal) => {
 vi.mock("next-auth/react", () => ({
   getSession: vi.fn(() => Promise.resolve({ user: { token: "test-token" } })),
   // Staff reads parent data with users:read; the role „Gast“ holds only
-  // students:read (ADR 0083, see „students:read only“ below).
+  // students:read (ADR 0085, see „students:read only“ below).
   useSession: vi.fn(() => ({
     data: {
       user: {
@@ -607,7 +607,7 @@ describe("StudentDetailPage", () => {
         user: {
           token: "test-token",
           // Staff with absence rights; the route of every absence write
-          // checks users:update or users:absence (ADR 0083 gate).
+          // checks users:update or users:absence (ADR 0085 gate).
           permissions: [
             "config:manage",
             "users:checkin",
@@ -2310,7 +2310,7 @@ describe("StudentDetailPage", () => {
       expect(getTab("Historie")).toBeInTheDocument();
     });
 
-    // ADR 0083: the role „Gast“ opens the child with students:read only.
+    // ADR 0085: the role „Gast“ opens the child with students:read only.
     // Parent data, notes and messages stay on users:read, so those tabs and
     // the guardian manager are absent instead of answering 403.
     it.each([
@@ -2347,7 +2347,7 @@ describe("StudentDetailPage", () => {
       },
     );
 
-    // ADR 0083: the backend may report full access and absence write for
+    // ADR 0085: the backend may report full access and absence write for
     // the Gast, but the routes behind Betreuungszeiten, pickup, arrival and
     // status days need users:read, absence writes users:update or
     // users:absence. Without them the page asks for nothing and offers no

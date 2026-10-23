@@ -725,7 +725,7 @@ export function parseMaxParticipants(value: string): number | null {
 
 /**
  * The Personal options of the event form: the whole staff list, externals
- * with any access included (ADR 0083; „Kein Zugang“ is a placeholder for
+ * with any access included (ADR 0085; „Kein Zugang“ is a placeholder for
  * exactly this planning). Externals carry their mark in the name, because
  * the pickers take plain strings.
  */

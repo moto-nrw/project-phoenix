@@ -12277,7 +12277,7 @@
     },
     {
       "id": "external-caregiver.public.identity-access.public",
-      "description": "External Caregiver resolves the system role of the chosen access level and issues and revokes account invitations through the Identity & Access public contract (#4573, ADR 0083).",
+      "description": "External Caregiver resolves the system role of the chosen access level and issues and revokes account invitations through the Identity & Access public contract (#4573, ADR 0085).",
       "scopes": [
         "production"
       ],

@@ -129,7 +129,7 @@ function invitationAccessOptions(
 
 /**
  * „Konto einladen“ for an external person without account (#4573) with the
- * access „Nur ansehen“ or „Eigene Termine betreuen“ (ADR 0083). With an
+ * access „Nur ansehen“ or „Eigene Termine betreuen“ (ADR 0085). With an
  * open invitation the same dialog sends a new one, for example to a
  * corrected address; the backend revokes the old one in the same step.
  */

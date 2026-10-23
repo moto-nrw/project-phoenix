@@ -18,7 +18,7 @@ interface ExternalStaffCreateRequest {
 
 /**
  * Handler for POST /api/staff/externals
- * Records an external caregiver (#3823) with the chosen access (ADR 0083):
+ * Records an external caregiver (#3823) with the chosen access (ADR 0085):
  * `none` without account, `view` and `supervise` with an email invitation.
  * The backend validates names, access and address; this hop only forwards
  * them.
