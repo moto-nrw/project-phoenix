@@ -489,6 +489,7 @@ func (p SchoolIdentityProvisioner) EnsureSchoolIdentity(ctx context.Context, req
 			AccountID: request.AccountID, TenantID: request.TenantID,
 			Role: &domain.RoleFacts{
 				ID: role.ID, TenantID: role.TenantID, Name: role.Name, IsSystem: role.IsSystem, BaseRole: role.BaseRole,
+				SchoolPortal: role.SchoolPortal,
 			},
 			FirstName: request.FirstName, LastName: request.LastName, Position: request.Position, CreatePerson: request.CreatePerson,
 		})
@@ -529,8 +530,8 @@ func (SchoolRolePolicy) ValidateAssignableSchoolRole(role domain.RoleFact, tenan
 	return identityaccess.ValidateAssignableSchoolRole(operatorRoleFacts(role), tenantID)
 }
 
-func (SchoolRolePolicy) IsLehrkraftSystemRole(role domain.RoleFact) bool {
-	return identityaccess.IsLehrkraftSystemRole(operatorRoleFacts(role))
+func (SchoolRolePolicy) IsLehrkraftRole(role domain.RoleFact) bool {
+	return identityaccess.IsLehrkraftRole(operatorRoleFacts(role))
 }
 
 // RoleNeedsStaffRecord classifies the fact as given, ID zero included, as the
@@ -539,6 +540,7 @@ func (SchoolRolePolicy) IsLehrkraftSystemRole(role domain.RoleFact) bool {
 func (SchoolRolePolicy) RoleNeedsStaffRecord(role domain.RoleFact) bool {
 	return identityaccess.RoleNeedsStaffRecord(&identityaccess.RoleFacts{
 		ID: role.ID, TenantID: role.TenantID, Name: role.Name, IsSystem: role.IsSystem, BaseRole: role.BaseRole,
+		SchoolPortal: role.SchoolPortal,
 	})
 }
 
@@ -577,11 +579,11 @@ func operatorRoleFacts(role domain.RoleFact) *identityaccess.RoleFacts {
 	if role.ID <= 0 {
 		return nil
 	}
-	return &identityaccess.RoleFacts{ID: role.ID, TenantID: role.TenantID, Name: role.Name, IsSystem: role.IsSystem, BaseRole: role.BaseRole}
+	return &identityaccess.RoleFacts{ID: role.ID, TenantID: role.TenantID, Name: role.Name, IsSystem: role.IsSystem, BaseRole: role.BaseRole, SchoolPortal: role.SchoolPortal}
 }
 
 func schoolRoleFact(role domain.RoleFact) identityaccess.SchoolRole {
-	return identityaccess.SchoolRole{ID: role.ID, TenantID: role.TenantID, Name: role.Name, IsSystem: role.IsSystem, BaseRole: role.BaseRole}
+	return identityaccess.SchoolRole{ID: role.ID, TenantID: role.TenantID, Name: role.Name, IsSystem: role.IsSystem, BaseRole: role.BaseRole, SchoolPortal: role.SchoolPortal}
 }
 
 func (s *OperatorAuthentication) mintRotatedOperatorSession(txCtx context.Context, operator domain.Operator, session domain.OperatorSession, recovered bool, now time.Time) (accessToken, refreshToken string, err error) {

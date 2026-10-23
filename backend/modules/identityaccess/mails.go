@@ -52,12 +52,14 @@ func trimmedLogoURL(origin string) string {
 // --- the school invitation ---------------------------------------------------
 
 // systemRoleDisplayNames maps the system role names to the German display
-// names the invitation mail shows.
+// names the invitation mail shows. They match SYSTEM_ROLE_LABELS in
+// frontend/src/lib/role-labels.ts, the one name per role the school sees
+// everywhere (#4574).
 var systemRoleDisplayNames = map[string]string{
-	"admin":      "Administrator",
-	"user":       "Betreuer",
+	"admin":      "Verwaltung",
+	"user":       "Betreuung",
 	"guest":      "Gast",
-	"guardian":   "Erziehungsberechtigter",
+	"guardian":   "Eltern",
 	"lehrkraft":  "Lehrkraft",
 	"ag-leitung": "AG-Leitung",
 }

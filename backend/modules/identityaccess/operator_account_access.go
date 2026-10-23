@@ -23,10 +23,11 @@ var (
 
 // AccountTenantRole is one role an account holds at one school.
 type AccountTenantRole struct {
-	ID       int64
-	Name     string
-	IsSystem bool
-	BaseRole *string
+	ID           int64
+	Name         string
+	IsSystem     bool
+	BaseRole     *string
+	SchoolPortal bool
 }
 
 // AccountTenantAccess is one school an account has (or had) access to,

@@ -238,10 +238,12 @@ describe("CreateAccountModal", () => {
     });
     selectCustomOption(/System-Rolle/, "admin");
 
-    expect(screen.getByText("Auch als Betreuer einsetzen")).toBeInTheDocument();
+    expect(
+      screen.getByText("Auch in der Betreuung einsetzen"),
+    ).toBeInTheDocument();
     expect(
       screen.getByText(
-        "Vergibt zusätzlich die Betreuer-Rolle und legt das nötige Staff-/Teacher-Profil an.",
+        "Vergibt zusätzlich die Rolle Betreuung und legt das nötige Staff-/Teacher-Profil an.",
       ),
     ).toBeInTheDocument();
   });
