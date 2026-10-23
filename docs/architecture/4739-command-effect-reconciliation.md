@@ -38,7 +38,7 @@ both actual source owners without flattening it into an invented edge.
 | 1 | Enrollment decision → Care Plan materialization/adjustment/pickup | Covered: `DecisionBookings` and Care resync/materialization/pickup ports. E1, including the explicit locks; not leaf. |
 | 2 | Enrollment decision → Timetable sourced templates, via Care Plan | Covered as two real first hops: Enrollment → Care Plan resync, then Care Plan `BookingTemplates`/`BookingRosters` → Timetable (E4). No invented direct Enrollment → Timetable edge. |
 | 3 | Enrollment decision → Identity guardian tenant access | Covered: `DecisionGuardianAccess.GrantGuardianTenantAccess` → Identity Owner. E1; account reads remain queries. |
-| 4 | Enrollment decision → People student enrollment/profile | Covered: alias `peopledirectory/enrollment.Commands`, including additional Owner providers. E1; `ReadEnrollmentStudent` is lock-capable, not query. |
+| 4 | Enrollment decision → People student enrollment/profile | Covered: alias `modules/peopledirectory/enrollment.Commands`, including additional Owner providers. E1; `ReadEnrollmentStudent` is lock-capable, not query. |
 | 5 | Enrollment approved-child sync → People/Care Plan | Covered with a bounded deviation: People/Care Plan and direct weekly Timetable effects are recorded E1. `DepartureCompanions.DeleteCompanionEdges` remains exact unresolved function-field evidence, not an inferred safe call; shared after-commit protocol still needs runtime review. |
 | 6 | Care end/cancel → School Membership | Covered: `CareStudentDirectory`/`CareExitEnrollment` → School Membership, E2; Care Exit Roster/Bookings providers are explicitly workflow-backed finite callbacks, not normal leaves. |
 | 7 | Care resume → School Membership | Covered: `CareResumption.Resume` → careexit.Resumption. Workflow-backed outer HTTP entry supplied by root. #4753 changes this seam separately; ADR 0071 is untouched here. |
@@ -125,7 +125,7 @@ protocols; workflow describes implementation backing, not direction approval.
   pills before commit (`care_request_effects.go:213-230`, root
   `offering_change_composition.go:496-514`, Communication `events.go:116-144`);
   older “pills after commit” comments are not evidence of current behavior. Only `BroadcastChildUpdateToGuardians` is a non-durable notice
-  (`communication/internal/application/parentmessaging/emitter.go:145`).
+  (`modules/communication/internal/application/parentmessaging/emitter.go:145`).
 - The two original Enrollment callable limits remain: `enrollment_decision_people.go:566`
   calls `c.delete` (supplied by `root_enrollment_services.go:99`); the generic
   School Directory helper's `find` parameter is called at `api/school_directories.go:185`.
@@ -154,14 +154,14 @@ production caller in this cut, so no invented live edge is added for it.
 
 | Finding / surface | Source evidence | Placement and proposed follow-up (not created) |
 |---|---|---|
-| Care → Parent Portal Share-Visibility | `careplan/internal/application/care_request_effects.go:305`, `offering_change_notices.go:130`; `roots/owners/root_careplan_requests.go:43` | Workflow-backed, Schuld #4825. Move recipient facts to an owner/projection or make this a root workflow entry. Not leaf. |
-| People → Staff Offboarding LiveStaffEmployment | `peopledirectory/internal/application/birthday.go:123`; `roots/owners/staff_membership_adapters.go:545` | Workflow-backed, Schuld #4825. Keep the membership-first lock/check, but relocate the command or outer entry. Not leaf. |
-| School Structure → Shift Plan Sync assignment/end and group handover | `schoolstructure/internal/application/groups/substitution_module.go:298,338,397,453` | Confirmed application callbacks. The hand row's W correctly describes backing, not an ADR 0071 exception. Proposed complete substitution/handover entry cut; do not add to E2. |
-| Workforce → Shift Plan Sync sickness cascade | `workforce/internal/application/timetracking/staff_absence_creation.go:126,218`, `staff_absence_mutations.go:205,320` | Confirmed application callbacks outside the E3 staff-master-data exception. Proposed absence/cascade workflow entry preserving sick-stamp reconciliation and rollback. |
-| Care → Parent Portal day-cutoff policy | `careplan/carerequests/submission.go:63`, `internal/application/request_edits.go:63` | Read-only workflow callback, not a new write coordinator. Proposed owner/shared policy relocation, not a new E exception. |
-| File Storage → Parent Portal attachment audience | `filestorage/internal/application/attachments.go:435,452` | Read-only workflow callbacks. Proposed tenant-safe owner/projection capability; do not treat backing as direction approval. |
-| School Calendar → Appointments lifecycle/reminders | `schoolcalendar/portal/internal/application/appointment_lifecycle.go:194,253,274,338` | `debt`, not E1–E5: locked foreign appointment/organizer re-read, recurrence/recipient changes and notification coordination. Proposed full portal lifecycle/reminder workflow cut. |
-| Care family-request decision/correction | `careplan/internal/application/request_decisions.go:72,88`, `excused_request_decisions.go:38`; weekly departure writes via `WeeklyApprovalPeople` | `debt`, not a widened E4: locked foreign child, combined decision, departure/live-absence mutation and own request ledger/audit. Proposed full family-request decision/correction workflow, preserving #4640 ordering. |
+| Care → Parent Portal Share-Visibility | `modules/careplan/internal/application/care_request_effects.go:305`, `offering_change_notices.go:130`; `roots/owners/root_careplan_requests.go:43` | Workflow-backed, Schuld #4825. Move recipient facts to an owner/projection or make this a root workflow entry. Not leaf. |
+| People → Staff Offboarding LiveStaffEmployment | `modules/peopledirectory/internal/application/birthday.go:123`; `roots/owners/staff_membership_adapters.go:545` | Workflow-backed, Schuld #4825. Keep the membership-first lock/check, but relocate the command or outer entry. Not leaf. |
+| School Structure → Shift Plan Sync assignment/end and group handover | `modules/schoolstructure/internal/application/groups/substitution_module.go:298,338,397,453` | Confirmed application callbacks. The hand row's W correctly describes backing, not an ADR 0071 exception. Proposed complete substitution/handover entry cut; do not add to E2. |
+| Workforce → Shift Plan Sync sickness cascade | `modules/workforce/internal/application/timetracking/staff_absence_creation.go:126,218`, `staff_absence_mutations.go:205,320` | Confirmed application callbacks outside the E3 staff-master-data exception. Proposed absence/cascade workflow entry preserving sick-stamp reconciliation and rollback. |
+| Care → Parent Portal day-cutoff policy | `modules/careplan/carerequests/submission.go:63`, `internal/application/request_edits.go:63` | Read-only workflow callback, not a new write coordinator. Proposed owner/shared policy relocation, not a new E exception. |
+| File Storage → Parent Portal attachment audience | `modules/filestorage/internal/application/attachments.go:435,452` | Read-only workflow callbacks. Proposed tenant-safe owner/projection capability; do not treat backing as direction approval. |
+| School Calendar → Appointments lifecycle/reminders | `modules/schoolcalendar/portal/internal/application/appointment_lifecycle.go:194,253,274,338` | `debt`, not E1–E5: locked foreign appointment/organizer re-read, recurrence/recipient changes and notification coordination. Proposed full portal lifecycle/reminder workflow cut. |
+| Care family-request decision/correction | `modules/careplan/internal/application/request_decisions.go:72,88`, `excused_request_decisions.go:38`; weekly departure writes via `WeeklyApprovalPeople` | `debt`, not a widened E4: locked foreign child, combined decision, departure/live-absence mutation and own request ledger/audit. Proposed full family-request decision/correction workflow, preserving #4640 ordering. |
 
 The finite ADR 0071 / PR #4753 **Care Exit Roster and Bookings snapshot/restore**
 callbacks are explicitly workflow-backed E2 evidence. Care resumption is an

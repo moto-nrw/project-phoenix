@@ -1286,7 +1286,7 @@
       "effect": "notice",
       "classification": "leaf",
       "adr": "0067",
-      "reason": "Non-durable guardian SSE invalidation only; no message/pill/outbox write. Its existing after-commit timing remains required (communication parentmessaging/emitter.go:145-161). Target modules/communication/eventcontract.Emitter.BroadcastChildUpdateToGuardians; modules/communication/eventcontract/events.go:131. "
+      "reason": "Non-durable guardian SSE invalidation only; no message/pill/outbox write. Its existing after-commit timing remains required (modules/communication/internal/application/parentmessaging/emitter.go:145-161). Target modules/communication/eventcontract.Emitter.BroadcastChildUpdateToGuardians; modules/communication/eventcontract/events.go:131. "
     },
     {
       "source_owner": "care-plan",
@@ -4100,7 +4100,7 @@
       "classification": "debt",
       "adr": "0083",
       "approval_adr": "0083",
-      "reason": "Known coordination debt outside the finite E4 master-data/booking exceptions: family care/pickup/excused request decisions lock/re-read the foreign child, mutate departure or absence state and persist their own request decision/audit. Proposed follow-up: extract the complete family-request decision/correction workflow, retaining the #4640 lock prefix and best-effort contracts. careplan/internal/application/request_decisions.go:72,88; excused_request_decisions.go:38; weekly_approvals.go:31,37,50. Target modules/peopledirectory/ports.StudentRepository.FindByIDForUpdate; modules/peopledirectory/ports/repository_contracts.go:197. "
+      "reason": "Known coordination debt outside the finite E4 master-data/booking exceptions: family care/pickup/excused request decisions lock/re-read the foreign child, mutate departure or absence state and persist their own request decision/audit. Proposed follow-up: extract the complete family-request decision/correction workflow, retaining the #4640 lock prefix and best-effort contracts. modules/careplan/internal/application/request_decisions.go:72,88; excused_request_decisions.go:38; weekly_approvals.go:31,37,50. Target modules/peopledirectory/ports.StudentRepository.FindByIDForUpdate; modules/peopledirectory/ports/repository_contracts.go:197. "
     },
     {
       "source_owner": "care-plan",
@@ -4148,7 +4148,7 @@
       "classification": "debt",
       "adr": "0083",
       "approval_adr": "0083",
-      "reason": "Known coordination debt outside the finite E4 master-data/booking exceptions: family care/pickup/excused request decisions lock/re-read the foreign child, mutate departure or absence state and persist their own request decision/audit. Proposed follow-up: extract the complete family-request decision/correction workflow, retaining the #4640 lock prefix and best-effort contracts. careplan/internal/application/request_decisions.go:72,88; excused_request_decisions.go:38; weekly_approvals.go:31,37,50. Target modules/peopledirectory/compose.AuditedStudentUpdates.SetLiveAbsenceFlags; modules/peopledirectory/compose/student_audited_update.go:17. "
+      "reason": "Known coordination debt outside the finite E4 master-data/booking exceptions: family care/pickup/excused request decisions lock/re-read the foreign child, mutate departure or absence state and persist their own request decision/audit. Proposed follow-up: extract the complete family-request decision/correction workflow, retaining the #4640 lock prefix and best-effort contracts. modules/careplan/internal/application/request_decisions.go:72,88; excused_request_decisions.go:38; weekly_approvals.go:31,37,50. Target modules/peopledirectory/compose.AuditedStudentUpdates.SetLiveAbsenceFlags; modules/peopledirectory/compose/student_audited_update.go:17. "
     },
     {
       "source_owner": "care-plan",
@@ -4843,7 +4843,7 @@
       "classification": "debt",
       "adr": "0083",
       "approval_adr": "0083",
-      "reason": "Known coordination debt outside the finite E4 master-data/booking exceptions: family care/pickup/excused request decisions lock/re-read the foreign child, mutate departure or absence state and persist their own request decision/audit. Proposed follow-up: extract the complete family-request decision/correction workflow, retaining the #4640 lock prefix and best-effort contracts. careplan/internal/application/request_decisions.go:72,88; excused_request_decisions.go:38; weekly_approvals.go:31,37,50. Target modules/studentpresence.Owner.ApplyPartialAbsence; modules/studentpresence.Owner (supplied contract method). "
+      "reason": "Known coordination debt outside the finite E4 master-data/booking exceptions: family care/pickup/excused request decisions lock/re-read the foreign child, mutate departure or absence state and persist their own request decision/audit. Proposed follow-up: extract the complete family-request decision/correction workflow, retaining the #4640 lock prefix and best-effort contracts. modules/careplan/internal/application/request_decisions.go:72,88; excused_request_decisions.go:38; weekly_approvals.go:31,37,50. Target modules/studentpresence.Owner.ApplyPartialAbsence; modules/studentpresence.Owner (supplied contract method). "
     },
     {
       "source_owner": "care-plan",
@@ -4856,7 +4856,7 @@
       "classification": "debt",
       "adr": "0083",
       "approval_adr": "0083",
-      "reason": "Known coordination debt outside the finite E4 master-data/booking exceptions: family care/pickup/excused request decisions lock/re-read the foreign child, mutate departure or absence state and persist their own request decision/audit. Proposed follow-up: extract the complete family-request decision/correction workflow, retaining the #4640 lock prefix and best-effort contracts. careplan/internal/application/request_decisions.go:72,88; excused_request_decisions.go:38; weekly_approvals.go:31,37,50. Target modules/studentpresence.Owner.ReleasePartialAbsence; modules/studentpresence.Owner (supplied contract method). "
+      "reason": "Known coordination debt outside the finite E4 master-data/booking exceptions: family care/pickup/excused request decisions lock/re-read the foreign child, mutate departure or absence state and persist their own request decision/audit. Proposed follow-up: extract the complete family-request decision/correction workflow, retaining the #4640 lock prefix and best-effort contracts. modules/careplan/internal/application/request_decisions.go:72,88; excused_request_decisions.go:38; weekly_approvals.go:31,37,50. Target modules/studentpresence.Owner.ReleasePartialAbsence; modules/studentpresence.Owner (supplied contract method). "
     },
     {
       "source_owner": "care-plan",
@@ -5372,7 +5372,7 @@
       "effect": "notice",
       "classification": "leaf",
       "adr": "0067",
-      "reason": "Non-durable guardian SSE invalidation only; no message/pill/outbox write. Its existing after-commit timing remains required (communication parentmessaging/emitter.go:145-161). Target modules/communication/eventcontract.Emitter.BroadcastChildUpdateToGuardians; modules/communication/eventcontract/events.go:131. "
+      "reason": "Non-durable guardian SSE invalidation only; no message/pill/outbox write. Its existing after-commit timing remains required (modules/communication/internal/application/parentmessaging/emitter.go:145-161). Target modules/communication/eventcontract.Emitter.BroadcastChildUpdateToGuardians; modules/communication/eventcontract/events.go:131. "
     },
     {
       "source_owner": "care-plan",
@@ -5461,7 +5461,7 @@
       "classification": "debt",
       "adr": "0083",
       "approval_adr": "0083",
-      "reason": "Known coordination debt outside the finite E4 master-data/booking exceptions: family care/pickup/excused request decisions lock/re-read the foreign child, mutate departure or absence state and persist their own request decision/audit. Proposed follow-up: extract the complete family-request decision/correction workflow, retaining the #4640 lock prefix and best-effort contracts. careplan/internal/application/request_decisions.go:72,88; excused_request_decisions.go:38; weekly_approvals.go:31,37,50. Target modules/peopledirectory.Capability.FindStudentRecordForMutation; modules/peopledirectory.Capability (supplied contract method). "
+      "reason": "Known coordination debt outside the finite E4 master-data/booking exceptions: family care/pickup/excused request decisions lock/re-read the foreign child, mutate departure or absence state and persist their own request decision/audit. Proposed follow-up: extract the complete family-request decision/correction workflow, retaining the #4640 lock prefix and best-effort contracts. modules/careplan/internal/application/request_decisions.go:72,88; excused_request_decisions.go:38; weekly_approvals.go:31,37,50. Target modules/peopledirectory.Capability.FindStudentRecordForMutation; modules/peopledirectory.Capability (supplied contract method). "
     },
     {
       "source_owner": "care-plan",
@@ -5474,7 +5474,7 @@
       "classification": "debt",
       "adr": "0083",
       "approval_adr": "0083",
-      "reason": "Known coordination debt outside the finite E4 master-data/booking exceptions: family care/pickup/excused request decisions lock/re-read the foreign child, mutate departure or absence state and persist their own request decision/audit. Proposed follow-up: extract the complete family-request decision/correction workflow, retaining the #4640 lock prefix and best-effort contracts. careplan/internal/application/request_decisions.go:72,88; excused_request_decisions.go:38; weekly_approvals.go:31,37,50. Target modules/peopledirectory.Owner.FindStudentRecordForMutation; modules/peopledirectory.Owner (supplied contract method). "
+      "reason": "Known coordination debt outside the finite E4 master-data/booking exceptions: family care/pickup/excused request decisions lock/re-read the foreign child, mutate departure or absence state and persist their own request decision/audit. Proposed follow-up: extract the complete family-request decision/correction workflow, retaining the #4640 lock prefix and best-effort contracts. modules/careplan/internal/application/request_decisions.go:72,88; excused_request_decisions.go:38; weekly_approvals.go:31,37,50. Target modules/peopledirectory.Owner.FindStudentRecordForMutation; modules/peopledirectory.Owner (supplied contract method). "
     },
     {
       "source_owner": "care-plan",
@@ -5548,7 +5548,7 @@
       "classification": "debt",
       "adr": "0083",
       "approval_adr": "0083",
-      "reason": "Known coordination debt outside the finite E4 master-data/booking exceptions: family care/pickup/excused request decisions lock/re-read the foreign child, mutate departure or absence state and persist their own request decision/audit. Proposed follow-up: extract the complete family-request decision/correction workflow, retaining the #4640 lock prefix and best-effort contracts. careplan/internal/application/request_decisions.go:72,88; excused_request_decisions.go:38; weekly_approvals.go:31,37,50. Target modules/peopledirectory.Capability.FindStudentRecordForMutation; modules/peopledirectory.Capability (supplied contract method). "
+      "reason": "Known coordination debt outside the finite E4 master-data/booking exceptions: family care/pickup/excused request decisions lock/re-read the foreign child, mutate departure or absence state and persist their own request decision/audit. Proposed follow-up: extract the complete family-request decision/correction workflow, retaining the #4640 lock prefix and best-effort contracts. modules/careplan/internal/application/request_decisions.go:72,88; excused_request_decisions.go:38; weekly_approvals.go:31,37,50. Target modules/peopledirectory.Capability.FindStudentRecordForMutation; modules/peopledirectory.Capability (supplied contract method). "
     },
     {
       "source_owner": "care-plan",
@@ -5561,7 +5561,7 @@
       "classification": "debt",
       "adr": "0083",
       "approval_adr": "0083",
-      "reason": "Known coordination debt outside the finite E4 master-data/booking exceptions: family care/pickup/excused request decisions lock/re-read the foreign child, mutate departure or absence state and persist their own request decision/audit. Proposed follow-up: extract the complete family-request decision/correction workflow, retaining the #4640 lock prefix and best-effort contracts. careplan/internal/application/request_decisions.go:72,88; excused_request_decisions.go:38; weekly_approvals.go:31,37,50. Target modules/peopledirectory.Owner.FindStudentRecordForMutation; modules/peopledirectory.Owner (supplied contract method). "
+      "reason": "Known coordination debt outside the finite E4 master-data/booking exceptions: family care/pickup/excused request decisions lock/re-read the foreign child, mutate departure or absence state and persist their own request decision/audit. Proposed follow-up: extract the complete family-request decision/correction workflow, retaining the #4640 lock prefix and best-effort contracts. modules/careplan/internal/application/request_decisions.go:72,88; excused_request_decisions.go:38; weekly_approvals.go:31,37,50. Target modules/peopledirectory.Owner.FindStudentRecordForMutation; modules/peopledirectory.Owner (supplied contract method). "
     },
     {
       "source_owner": "care-plan",
@@ -5596,7 +5596,7 @@
       "classification": "debt",
       "adr": "0083",
       "approval_adr": "0083",
-      "reason": "Known coordination debt outside the finite E4 master-data/booking exceptions: family care/pickup/excused request decisions lock/re-read the foreign child, mutate departure or absence state and persist their own request decision/audit. Proposed follow-up: extract the complete family-request decision/correction workflow, retaining the #4640 lock prefix and best-effort contracts. careplan/internal/application/request_decisions.go:72,88; excused_request_decisions.go:38; weekly_approvals.go:31,37,50. Target modules/peopledirectory.Capability.FindStudentRecordForMutation; modules/peopledirectory.Capability (supplied contract method). "
+      "reason": "Known coordination debt outside the finite E4 master-data/booking exceptions: family care/pickup/excused request decisions lock/re-read the foreign child, mutate departure or absence state and persist their own request decision/audit. Proposed follow-up: extract the complete family-request decision/correction workflow, retaining the #4640 lock prefix and best-effort contracts. modules/careplan/internal/application/request_decisions.go:72,88; excused_request_decisions.go:38; weekly_approvals.go:31,37,50. Target modules/peopledirectory.Capability.FindStudentRecordForMutation; modules/peopledirectory.Capability (supplied contract method). "
     },
     {
       "source_owner": "care-plan",
@@ -5609,7 +5609,7 @@
       "classification": "debt",
       "adr": "0083",
       "approval_adr": "0083",
-      "reason": "Known coordination debt outside the finite E4 master-data/booking exceptions: family care/pickup/excused request decisions lock/re-read the foreign child, mutate departure or absence state and persist their own request decision/audit. Proposed follow-up: extract the complete family-request decision/correction workflow, retaining the #4640 lock prefix and best-effort contracts. careplan/internal/application/request_decisions.go:72,88; excused_request_decisions.go:38; weekly_approvals.go:31,37,50. Target modules/peopledirectory.Owner.FindStudentRecordForMutation; modules/peopledirectory.Owner (supplied contract method). "
+      "reason": "Known coordination debt outside the finite E4 master-data/booking exceptions: family care/pickup/excused request decisions lock/re-read the foreign child, mutate departure or absence state and persist their own request decision/audit. Proposed follow-up: extract the complete family-request decision/correction workflow, retaining the #4640 lock prefix and best-effort contracts. modules/careplan/internal/application/request_decisions.go:72,88; excused_request_decisions.go:38; weekly_approvals.go:31,37,50. Target modules/peopledirectory.Owner.FindStudentRecordForMutation; modules/peopledirectory.Owner (supplied contract method). "
     },
     {
       "source_owner": "care-plan",
@@ -5748,7 +5748,7 @@
       "effect": "notice",
       "classification": "leaf",
       "adr": "0067",
-      "reason": "Non-durable guardian SSE invalidation only; no message/pill/outbox write. Its existing after-commit timing remains required (communication parentmessaging/emitter.go:145-161). Target modules/communication/eventcontract.Emitter.BroadcastChildUpdateToGuardians; modules/communication/eventcontract/events.go:131. "
+      "reason": "Non-durable guardian SSE invalidation only; no message/pill/outbox write. Its existing after-commit timing remains required (modules/communication/internal/application/parentmessaging/emitter.go:145-161). Target modules/communication/eventcontract.Emitter.BroadcastChildUpdateToGuardians; modules/communication/eventcontract/events.go:131. "
     },
     {
       "source_owner": "care-plan",
@@ -6036,7 +6036,7 @@
       "classification": "debt",
       "adr": "0083",
       "approval_adr": "0083",
-      "reason": "Known coordination debt outside the finite E4 master-data/booking exceptions: family care/pickup/excused request decisions lock/re-read the foreign child, mutate departure or absence state and persist their own request decision/audit. Proposed follow-up: extract the complete family-request decision/correction workflow, retaining the #4640 lock prefix and best-effort contracts. careplan/internal/application/request_decisions.go:72,88; excused_request_decisions.go:38; weekly_approvals.go:31,37,50. Target modules/peopledirectory/ports.StudentAuditService.RecordChangesForActor; modules/peopledirectory/internal/application/compose_bindings_student_audit_port.go:15. "
+      "reason": "Known coordination debt outside the finite E4 master-data/booking exceptions: family care/pickup/excused request decisions lock/re-read the foreign child, mutate departure or absence state and persist their own request decision/audit. Proposed follow-up: extract the complete family-request decision/correction workflow, retaining the #4640 lock prefix and best-effort contracts. modules/careplan/internal/application/request_decisions.go:72,88; excused_request_decisions.go:38; weekly_approvals.go:31,37,50. Target modules/peopledirectory/ports.StudentAuditService.RecordChangesForActor; modules/peopledirectory/internal/application/compose_bindings_student_audit_port.go:15. "
     },
     {
       "source_owner": "care-plan",
@@ -6049,7 +6049,7 @@
       "classification": "debt",
       "adr": "0083",
       "approval_adr": "0083",
-      "reason": "Known coordination debt outside the finite E4 master-data/booking exceptions: family care/pickup/excused request decisions lock/re-read the foreign child, mutate departure or absence state and persist their own request decision/audit. Proposed follow-up: extract the complete family-request decision/correction workflow, retaining the #4640 lock prefix and best-effort contracts. careplan/internal/application/request_decisions.go:72,88; excused_request_decisions.go:38; weekly_approvals.go:31,37,50. Target modules/peopledirectory/ports.StudentChangeRecorder.RecordChangesForActor; modules/peopledirectory/ports/student_audit_port.go:19. "
+      "reason": "Known coordination debt outside the finite E4 master-data/booking exceptions: family care/pickup/excused request decisions lock/re-read the foreign child, mutate departure or absence state and persist their own request decision/audit. Proposed follow-up: extract the complete family-request decision/correction workflow, retaining the #4640 lock prefix and best-effort contracts. modules/careplan/internal/application/request_decisions.go:72,88; excused_request_decisions.go:38; weekly_approvals.go:31,37,50. Target modules/peopledirectory/ports.StudentChangeRecorder.RecordChangesForActor; modules/peopledirectory/ports/student_audit_port.go:19. "
     },
     {
       "source_owner": "care-plan",
@@ -6073,7 +6073,7 @@
       "classification": "debt",
       "adr": "0083",
       "approval_adr": "0083",
-      "reason": "Known coordination debt outside the finite E4 master-data/booking exceptions: family care/pickup/excused request decisions lock/re-read the foreign child, mutate departure or absence state and persist their own request decision/audit. Proposed follow-up: extract the complete family-request decision/correction workflow, retaining the #4640 lock prefix and best-effort contracts. careplan/internal/application/request_decisions.go:72,88; excused_request_decisions.go:38; weekly_approvals.go:31,37,50. Target modules/peopledirectory.Capability.FindStudentRecordForMutation; modules/peopledirectory.Capability (supplied contract method). "
+      "reason": "Known coordination debt outside the finite E4 master-data/booking exceptions: family care/pickup/excused request decisions lock/re-read the foreign child, mutate departure or absence state and persist their own request decision/audit. Proposed follow-up: extract the complete family-request decision/correction workflow, retaining the #4640 lock prefix and best-effort contracts. modules/careplan/internal/application/request_decisions.go:72,88; excused_request_decisions.go:38; weekly_approvals.go:31,37,50. Target modules/peopledirectory.Capability.FindStudentRecordForMutation; modules/peopledirectory.Capability (supplied contract method). "
     },
     {
       "source_owner": "care-plan",
@@ -6086,7 +6086,7 @@
       "classification": "debt",
       "adr": "0083",
       "approval_adr": "0083",
-      "reason": "Known coordination debt outside the finite E4 master-data/booking exceptions: family care/pickup/excused request decisions lock/re-read the foreign child, mutate departure or absence state and persist their own request decision/audit. Proposed follow-up: extract the complete family-request decision/correction workflow, retaining the #4640 lock prefix and best-effort contracts. careplan/internal/application/request_decisions.go:72,88; excused_request_decisions.go:38; weekly_approvals.go:31,37,50. Target modules/peopledirectory.Owner.FindStudentRecordForMutation; modules/peopledirectory.Owner (supplied contract method). "
+      "reason": "Known coordination debt outside the finite E4 master-data/booking exceptions: family care/pickup/excused request decisions lock/re-read the foreign child, mutate departure or absence state and persist their own request decision/audit. Proposed follow-up: extract the complete family-request decision/correction workflow, retaining the #4640 lock prefix and best-effort contracts. modules/careplan/internal/application/request_decisions.go:72,88; excused_request_decisions.go:38; weekly_approvals.go:31,37,50. Target modules/peopledirectory.Owner.FindStudentRecordForMutation; modules/peopledirectory.Owner (supplied contract method). "
     },
     {
       "source_owner": "care-plan",
@@ -6121,7 +6121,7 @@
       "classification": "debt",
       "adr": "0083",
       "approval_adr": "0083",
-      "reason": "Known coordination debt outside the finite E4 master-data/booking exceptions: family care/pickup/excused request decisions lock/re-read the foreign child, mutate departure or absence state and persist their own request decision/audit. Proposed follow-up: extract the complete family-request decision/correction workflow, retaining the #4640 lock prefix and best-effort contracts. careplan/internal/application/request_decisions.go:72,88; excused_request_decisions.go:38; weekly_approvals.go:31,37,50. Target modules/peopledirectory.Capability.UpdateStudent; modules/peopledirectory.Capability (supplied contract method). "
+      "reason": "Known coordination debt outside the finite E4 master-data/booking exceptions: family care/pickup/excused request decisions lock/re-read the foreign child, mutate departure or absence state and persist their own request decision/audit. Proposed follow-up: extract the complete family-request decision/correction workflow, retaining the #4640 lock prefix and best-effort contracts. modules/careplan/internal/application/request_decisions.go:72,88; excused_request_decisions.go:38; weekly_approvals.go:31,37,50. Target modules/peopledirectory.Capability.UpdateStudent; modules/peopledirectory.Capability (supplied contract method). "
     },
     {
       "source_owner": "care-plan",
@@ -6134,7 +6134,7 @@
       "classification": "debt",
       "adr": "0083",
       "approval_adr": "0083",
-      "reason": "Known coordination debt outside the finite E4 master-data/booking exceptions: family care/pickup/excused request decisions lock/re-read the foreign child, mutate departure or absence state and persist their own request decision/audit. Proposed follow-up: extract the complete family-request decision/correction workflow, retaining the #4640 lock prefix and best-effort contracts. careplan/internal/application/request_decisions.go:72,88; excused_request_decisions.go:38; weekly_approvals.go:31,37,50. Target modules/peopledirectory.Owner.UpdateStudent; modules/peopledirectory.Owner (supplied contract method). "
+      "reason": "Known coordination debt outside the finite E4 master-data/booking exceptions: family care/pickup/excused request decisions lock/re-read the foreign child, mutate departure or absence state and persist their own request decision/audit. Proposed follow-up: extract the complete family-request decision/correction workflow, retaining the #4640 lock prefix and best-effort contracts. modules/careplan/internal/application/request_decisions.go:72,88; excused_request_decisions.go:38; weekly_approvals.go:31,37,50. Target modules/peopledirectory.Owner.UpdateStudent; modules/peopledirectory.Owner (supplied contract method). "
     },
     {
       "source_owner": "care-plan",
@@ -20000,7 +20000,7 @@
       "classification": "E3",
       "adr": "0067",
       "approval_adr": "0083",
-      "reason": "E3 guardian-role upgrade locking/recheck surface, not an owner-wide exception; hand row 11, identityaccess/internal/application/guardian_relative_access.go:145. Profile/link insertion remains the separate leaf path. Target modules/peopledirectory/ports.StudentGuardianRepository.FindByStudentAndGuardianForUpdate; modules/peopledirectory/ports/repository_contracts.go:416. "
+      "reason": "E3 guardian-role upgrade locking/recheck surface, not an owner-wide exception; hand row 11, modules/identityaccess/internal/application/guardian_relative_access.go:145. Profile/link insertion remains the separate leaf path. Target modules/peopledirectory/ports.StudentGuardianRepository.FindByStudentAndGuardianForUpdate; modules/peopledirectory/ports/repository_contracts.go:416. "
     },
     {
       "source_owner": "identity-access",
@@ -20107,7 +20107,7 @@
       "classification": "E3",
       "adr": "0067",
       "approval_adr": "0083",
-      "reason": "E3 guardian-role upgrade locking/recheck surface, not an owner-wide exception; hand row 11, identityaccess/internal/application/guardian_relative_access.go:145. Profile/link insertion remains the separate leaf path. Target modules/peopledirectory/ports.GuardianProfileRepository.LockByIDForUpdate; modules/peopledirectory/ports/repository_contracts.go:473. "
+      "reason": "E3 guardian-role upgrade locking/recheck surface, not an owner-wide exception; hand row 11, modules/identityaccess/internal/application/guardian_relative_access.go:145. Profile/link insertion remains the separate leaf path. Target modules/peopledirectory/ports.GuardianProfileRepository.LockByIDForUpdate; modules/peopledirectory/ports/repository_contracts.go:473. "
     },
     {
       "source_owner": "identity-access",
@@ -20131,7 +20131,7 @@
       "classification": "E3",
       "adr": "0067",
       "approval_adr": "0083",
-      "reason": "E3 guardian-role upgrade locking/recheck surface, not an owner-wide exception; hand row 11, identityaccess/internal/application/guardian_relative_access.go:145. Profile/link insertion remains the separate leaf path. Target modules/peopledirectory/ports.StudentRepository.FindByIDForUpdate; modules/peopledirectory/ports/repository_contracts.go:197. "
+      "reason": "E3 guardian-role upgrade locking/recheck surface, not an owner-wide exception; hand row 11, modules/identityaccess/internal/application/guardian_relative_access.go:145. Profile/link insertion remains the separate leaf path. Target modules/peopledirectory/ports.StudentRepository.FindByIDForUpdate; modules/peopledirectory/ports/repository_contracts.go:197. "
     },
     {
       "source_owner": "identity-access",
@@ -20157,7 +20157,7 @@
       "classification": "E3",
       "adr": "0067",
       "approval_adr": "0083",
-      "reason": "E3 guardian-role upgrade locking/recheck surface, not an owner-wide exception; hand row 11, identityaccess/internal/application/guardian_relative_access.go:145. Profile/link insertion remains the separate leaf path. Target modules/peopledirectory.Capability.PromoteGuardianLinkToLegalGuardian; modules/peopledirectory.Capability (supplied contract method). "
+      "reason": "E3 guardian-role upgrade locking/recheck surface, not an owner-wide exception; hand row 11, modules/identityaccess/internal/application/guardian_relative_access.go:145. Profile/link insertion remains the separate leaf path. Target modules/peopledirectory.Capability.PromoteGuardianLinkToLegalGuardian; modules/peopledirectory.Capability (supplied contract method). "
     },
     {
       "source_owner": "identity-access",
@@ -20170,7 +20170,7 @@
       "classification": "E3",
       "adr": "0067",
       "approval_adr": "0083",
-      "reason": "E3 guardian-role upgrade locking/recheck surface, not an owner-wide exception; hand row 11, identityaccess/internal/application/guardian_relative_access.go:145. Profile/link insertion remains the separate leaf path. Target modules/peopledirectory.Owner.PromoteGuardianLinkToLegalGuardian; modules/peopledirectory.Owner (supplied contract method). "
+      "reason": "E3 guardian-role upgrade locking/recheck surface, not an owner-wide exception; hand row 11, modules/identityaccess/internal/application/guardian_relative_access.go:145. Profile/link insertion remains the separate leaf path. Target modules/peopledirectory.Owner.PromoteGuardianLinkToLegalGuardian; modules/peopledirectory.Owner (supplied contract method). "
     },
     {
       "source_owner": "identity-access",
@@ -21725,7 +21725,7 @@
       "classification": "E5",
       "adr": "0067",
       "approval_adr": "0083",
-      "reason": "E5 named provisioning account/device-transfer/person-retirement surface. Preserve explicit admin/tenant units, locked source and best-effort/post-commit audit; not one atomic school-provisioning transaction. Hand rows 37-39 and organizationtenancy/internal/application/provisioning_{accounts,devices,people}.go. Target modules/devicefleet.Capability.CreateDevice; modules/devicefleet.Capability (supplied contract method). "
+      "reason": "E5 named provisioning account/device-transfer/person-retirement surface. Preserve explicit admin/tenant units, locked source and best-effort/post-commit audit; not one atomic school-provisioning transaction. Hand rows 37-39 and modules/organizationtenancy/internal/application/provisioning_{accounts,devices,people}.go. Target modules/devicefleet.Capability.CreateDevice; modules/devicefleet.Capability (supplied contract method). "
     },
     {
       "source_owner": "organization-tenancy",
@@ -21738,7 +21738,7 @@
       "classification": "E5",
       "adr": "0067",
       "approval_adr": "0083",
-      "reason": "E5 named provisioning account/device-transfer/person-retirement surface. Preserve explicit admin/tenant units, locked source and best-effort/post-commit audit; not one atomic school-provisioning transaction. Hand rows 37-39 and organizationtenancy/internal/application/provisioning_{accounts,devices,people}.go. Target modules/devicefleet.Capability.DeleteDevice; modules/devicefleet.Capability (supplied contract method). "
+      "reason": "E5 named provisioning account/device-transfer/person-retirement surface. Preserve explicit admin/tenant units, locked source and best-effort/post-commit audit; not one atomic school-provisioning transaction. Hand rows 37-39 and modules/organizationtenancy/internal/application/provisioning_{accounts,devices,people}.go. Target modules/devicefleet.Capability.DeleteDevice; modules/devicefleet.Capability (supplied contract method). "
     },
     {
       "source_owner": "organization-tenancy",
@@ -21764,7 +21764,7 @@
       "classification": "E5",
       "adr": "0067",
       "approval_adr": "0083",
-      "reason": "E5 named provisioning account/device-transfer/person-retirement surface. Preserve explicit admin/tenant units, locked source and best-effort/post-commit audit; not one atomic school-provisioning transaction. Hand rows 37-39 and organizationtenancy/internal/application/provisioning_{accounts,devices,people}.go. Target modules/devicefleet.Capability.FindDeviceForUpdate; modules/devicefleet.Capability (supplied contract method). "
+      "reason": "E5 named provisioning account/device-transfer/person-retirement surface. Preserve explicit admin/tenant units, locked source and best-effort/post-commit audit; not one atomic school-provisioning transaction. Hand rows 37-39 and modules/organizationtenancy/internal/application/provisioning_{accounts,devices,people}.go. Target modules/devicefleet.Capability.FindDeviceForUpdate; modules/devicefleet.Capability (supplied contract method). "
     },
     {
       "source_owner": "organization-tenancy",
@@ -21788,7 +21788,7 @@
       "classification": "E5",
       "adr": "0067",
       "approval_adr": "0083",
-      "reason": "E5 named provisioning account/device-transfer/person-retirement surface. Preserve explicit admin/tenant units, locked source and best-effort/post-commit audit; not one atomic school-provisioning transaction. Hand rows 37-39 and organizationtenancy/internal/application/provisioning_{accounts,devices,people}.go. Target modules/devicefleet.Capability.UpdateDevice; modules/devicefleet.Capability (supplied contract method). "
+      "reason": "E5 named provisioning account/device-transfer/person-retirement surface. Preserve explicit admin/tenant units, locked source and best-effort/post-commit audit; not one atomic school-provisioning transaction. Hand rows 37-39 and modules/organizationtenancy/internal/application/provisioning_{accounts,devices,people}.go. Target modules/devicefleet.Capability.UpdateDevice; modules/devicefleet.Capability (supplied contract method). "
     },
     {
       "source_owner": "organization-tenancy",
@@ -21801,7 +21801,7 @@
       "classification": "E5",
       "adr": "0067",
       "approval_adr": "0083",
-      "reason": "E5 named provisioning account/device-transfer/person-retirement surface. Preserve explicit admin/tenant units, locked source and best-effort/post-commit audit; not one atomic school-provisioning transaction. Hand rows 37-39 and organizationtenancy/internal/application/provisioning_{accounts,devices,people}.go. Target modules/identityaccess.AccountAdministration.AnonymizeAccountForDeletion; modules/identityaccess/account_administration.go:63. "
+      "reason": "E5 named provisioning account/device-transfer/person-retirement surface. Preserve explicit admin/tenant units, locked source and best-effort/post-commit audit; not one atomic school-provisioning transaction. Hand rows 37-39 and modules/organizationtenancy/internal/application/provisioning_{accounts,devices,people}.go. Target modules/identityaccess.AccountAdministration.AnonymizeAccountForDeletion; modules/identityaccess/account_administration.go:63. "
     },
     {
       "source_owner": "organization-tenancy",
@@ -21814,7 +21814,7 @@
       "classification": "E5",
       "adr": "0067",
       "approval_adr": "0083",
-      "reason": "E5 named provisioning account/device-transfer/person-retirement surface. Preserve explicit admin/tenant units, locked source and best-effort/post-commit audit; not one atomic school-provisioning transaction. Hand rows 37-39 and organizationtenancy/internal/application/provisioning_{accounts,devices,people}.go. Target modules/identityaccess.Owner.AnonymizeAccountForDeletion; modules/identityaccess.Owner (supplied contract method). "
+      "reason": "E5 named provisioning account/device-transfer/person-retirement surface. Preserve explicit admin/tenant units, locked source and best-effort/post-commit audit; not one atomic school-provisioning transaction. Hand rows 37-39 and modules/organizationtenancy/internal/application/provisioning_{accounts,devices,people}.go. Target modules/identityaccess.Owner.AnonymizeAccountForDeletion; modules/identityaccess.Owner (supplied contract method). "
     },
     {
       "source_owner": "organization-tenancy",
@@ -21827,7 +21827,7 @@
       "classification": "E5",
       "adr": "0067",
       "approval_adr": "0083",
-      "reason": "E5 named provisioning account/device-transfer/person-retirement surface. Preserve explicit admin/tenant units, locked source and best-effort/post-commit audit; not one atomic school-provisioning transaction. Hand rows 37-39 and organizationtenancy/internal/application/provisioning_{accounts,devices,people}.go. Target modules/identityaccess.Owner.AssignRoleToAccount; modules/identityaccess.Owner (supplied contract method). "
+      "reason": "E5 named provisioning account/device-transfer/person-retirement surface. Preserve explicit admin/tenant units, locked source and best-effort/post-commit audit; not one atomic school-provisioning transaction. Hand rows 37-39 and modules/organizationtenancy/internal/application/provisioning_{accounts,devices,people}.go. Target modules/identityaccess.Owner.AssignRoleToAccount; modules/identityaccess.Owner (supplied contract method). "
     },
     {
       "source_owner": "organization-tenancy",
@@ -21840,7 +21840,7 @@
       "classification": "E5",
       "adr": "0067",
       "approval_adr": "0083",
-      "reason": "E5 named provisioning account/device-transfer/person-retirement surface. Preserve explicit admin/tenant units, locked source and best-effort/post-commit audit; not one atomic school-provisioning transaction. Hand rows 37-39 and organizationtenancy/internal/application/provisioning_{accounts,devices,people}.go. Target modules/identityaccess/compose.TenantUnitOfWork.WithTenantID; modules/identityaccess/compose/tenant_unit_of_work.go:32. "
+      "reason": "E5 named provisioning account/device-transfer/person-retirement surface. Preserve explicit admin/tenant units, locked source and best-effort/post-commit audit; not one atomic school-provisioning transaction. Hand rows 37-39 and modules/organizationtenancy/internal/application/provisioning_{accounts,devices,people}.go. Target modules/identityaccess/compose.TenantUnitOfWork.WithTenantID; modules/identityaccess/compose/tenant_unit_of_work.go:32. "
     },
     {
       "source_owner": "organization-tenancy",
@@ -21866,7 +21866,7 @@
       "classification": "E5",
       "adr": "0067",
       "approval_adr": "0083",
-      "reason": "E5 named provisioning account/device-transfer/person-retirement surface. Preserve explicit admin/tenant units, locked source and best-effort/post-commit audit; not one atomic school-provisioning transaction. Hand rows 37-39 and organizationtenancy/internal/application/provisioning_{accounts,devices,people}.go. Target modules/identityaccess.AccountAdministration.DeactivateAccount; modules/identityaccess/account_administration.go:70. "
+      "reason": "E5 named provisioning account/device-transfer/person-retirement surface. Preserve explicit admin/tenant units, locked source and best-effort/post-commit audit; not one atomic school-provisioning transaction. Hand rows 37-39 and modules/organizationtenancy/internal/application/provisioning_{accounts,devices,people}.go. Target modules/identityaccess.AccountAdministration.DeactivateAccount; modules/identityaccess/account_administration.go:70. "
     },
     {
       "source_owner": "organization-tenancy",
@@ -21879,7 +21879,7 @@
       "classification": "E5",
       "adr": "0067",
       "approval_adr": "0083",
-      "reason": "E5 named provisioning account/device-transfer/person-retirement surface. Preserve explicit admin/tenant units, locked source and best-effort/post-commit audit; not one atomic school-provisioning transaction. Hand rows 37-39 and organizationtenancy/internal/application/provisioning_{accounts,devices,people}.go. Target modules/identityaccess.Owner.DeactivateAccount; modules/identityaccess.Owner (supplied contract method). "
+      "reason": "E5 named provisioning account/device-transfer/person-retirement surface. Preserve explicit admin/tenant units, locked source and best-effort/post-commit audit; not one atomic school-provisioning transaction. Hand rows 37-39 and modules/organizationtenancy/internal/application/provisioning_{accounts,devices,people}.go. Target modules/identityaccess.Owner.DeactivateAccount; modules/identityaccess.Owner (supplied contract method). "
     },
     {
       "source_owner": "organization-tenancy",
@@ -21905,7 +21905,7 @@
       "classification": "E5",
       "adr": "0067",
       "approval_adr": "0083",
-      "reason": "E5 named provisioning account/device-transfer/person-retirement surface. Preserve explicit admin/tenant units, locked source and best-effort/post-commit audit; not one atomic school-provisioning transaction. Hand rows 37-39 and organizationtenancy/internal/application/provisioning_{accounts,devices,people}.go. Target modules/identityaccess.Owner.EnsureSchoolIdentity; modules/identityaccess.Owner (supplied contract method). "
+      "reason": "E5 named provisioning account/device-transfer/person-retirement surface. Preserve explicit admin/tenant units, locked source and best-effort/post-commit audit; not one atomic school-provisioning transaction. Hand rows 37-39 and modules/organizationtenancy/internal/application/provisioning_{accounts,devices,people}.go. Target modules/identityaccess.Owner.EnsureSchoolIdentity; modules/identityaccess.Owner (supplied contract method). "
     },
     {
       "source_owner": "organization-tenancy",
@@ -21918,7 +21918,7 @@
       "classification": "E5",
       "adr": "0067",
       "approval_adr": "0083",
-      "reason": "E5 named provisioning account/device-transfer/person-retirement surface. Preserve explicit admin/tenant units, locked source and best-effort/post-commit audit; not one atomic school-provisioning transaction. Hand rows 37-39 and organizationtenancy/internal/application/provisioning_{accounts,devices,people}.go. Target modules/identityaccess.SchoolIdentityProvisioning.EnsureSchoolIdentity; modules/identityaccess/account_lifecycle.go:268. "
+      "reason": "E5 named provisioning account/device-transfer/person-retirement surface. Preserve explicit admin/tenant units, locked source and best-effort/post-commit audit; not one atomic school-provisioning transaction. Hand rows 37-39 and modules/organizationtenancy/internal/application/provisioning_{accounts,devices,people}.go. Target modules/identityaccess.SchoolIdentityProvisioning.EnsureSchoolIdentity; modules/identityaccess/account_lifecycle.go:268. "
     },
     {
       "source_owner": "organization-tenancy",
@@ -21931,7 +21931,7 @@
       "classification": "E5",
       "adr": "0067",
       "approval_adr": "0083",
-      "reason": "E5 named provisioning account/device-transfer/person-retirement surface. Preserve explicit admin/tenant units, locked source and best-effort/post-commit audit; not one atomic school-provisioning transaction. Hand rows 37-39 and organizationtenancy/internal/application/provisioning_{accounts,devices,people}.go. Target modules/identityaccess/compose.TenantUnitOfWork.WithTenantID; modules/identityaccess/compose/tenant_unit_of_work.go:32. "
+      "reason": "E5 named provisioning account/device-transfer/person-retirement surface. Preserve explicit admin/tenant units, locked source and best-effort/post-commit audit; not one atomic school-provisioning transaction. Hand rows 37-39 and modules/organizationtenancy/internal/application/provisioning_{accounts,devices,people}.go. Target modules/identityaccess/compose.TenantUnitOfWork.WithTenantID; modules/identityaccess/compose/tenant_unit_of_work.go:32. "
     },
     {
       "source_owner": "organization-tenancy",
@@ -21955,7 +21955,7 @@
       "classification": "E5",
       "adr": "0067",
       "approval_adr": "0083",
-      "reason": "E5 named provisioning account/device-transfer/person-retirement surface. Preserve explicit admin/tenant units, locked source and best-effort/post-commit audit; not one atomic school-provisioning transaction. Hand rows 37-39 and organizationtenancy/internal/application/provisioning_{accounts,devices,people}.go. Target modules/identityaccess/compose.TenantUnitOfWork.WithinAdmin; modules/identityaccess/compose/tenant_unit_of_work.go:21. "
+      "reason": "E5 named provisioning account/device-transfer/person-retirement surface. Preserve explicit admin/tenant units, locked source and best-effort/post-commit audit; not one atomic school-provisioning transaction. Hand rows 37-39 and modules/organizationtenancy/internal/application/provisioning_{accounts,devices,people}.go. Target modules/identityaccess/compose.TenantUnitOfWork.WithinAdmin; modules/identityaccess/compose/tenant_unit_of_work.go:21. "
     },
     {
       "source_owner": "organization-tenancy",
@@ -22016,7 +22016,7 @@
       "classification": "E5",
       "adr": "0067",
       "approval_adr": "0083",
-      "reason": "E5 named provisioning account/device-transfer/person-retirement surface. Preserve explicit admin/tenant units, locked source and best-effort/post-commit audit; not one atomic school-provisioning transaction. Hand rows 37-39 and organizationtenancy/internal/application/provisioning_{accounts,devices,people}.go. Target modules/identityaccess/compose.TenantUnitOfWork.WithinAdmin; modules/identityaccess/compose/tenant_unit_of_work.go:21. "
+      "reason": "E5 named provisioning account/device-transfer/person-retirement surface. Preserve explicit admin/tenant units, locked source and best-effort/post-commit audit; not one atomic school-provisioning transaction. Hand rows 37-39 and modules/organizationtenancy/internal/application/provisioning_{accounts,devices,people}.go. Target modules/identityaccess/compose.TenantUnitOfWork.WithinAdmin; modules/identityaccess/compose/tenant_unit_of_work.go:21. "
     },
     {
       "source_owner": "organization-tenancy",
@@ -22055,7 +22055,7 @@
       "classification": "E5",
       "adr": "0067",
       "approval_adr": "0083",
-      "reason": "E5 named provisioning account/device-transfer/person-retirement surface. Preserve explicit admin/tenant units, locked source and best-effort/post-commit audit; not one atomic school-provisioning transaction. Hand rows 37-39 and organizationtenancy/internal/application/provisioning_{accounts,devices,people}.go. Target modules/identityaccess.Owner.RevokeTenantSchoolInvitations; modules/identityaccess.Owner (supplied contract method). "
+      "reason": "E5 named provisioning account/device-transfer/person-retirement surface. Preserve explicit admin/tenant units, locked source and best-effort/post-commit audit; not one atomic school-provisioning transaction. Hand rows 37-39 and modules/organizationtenancy/internal/application/provisioning_{accounts,devices,people}.go. Target modules/identityaccess.Owner.RevokeTenantSchoolInvitations; modules/identityaccess.Owner (supplied contract method). "
     },
     {
       "source_owner": "organization-tenancy",
@@ -22068,7 +22068,7 @@
       "classification": "E5",
       "adr": "0067",
       "approval_adr": "0083",
-      "reason": "E5 named provisioning account/device-transfer/person-retirement surface. Preserve explicit admin/tenant units, locked source and best-effort/post-commit audit; not one atomic school-provisioning transaction. Hand rows 37-39 and organizationtenancy/internal/application/provisioning_{accounts,devices,people}.go. Target modules/identityaccess.SchoolInvitations.RevokeTenantSchoolInvitations; modules/identityaccess/school_invitation.go:233. "
+      "reason": "E5 named provisioning account/device-transfer/person-retirement surface. Preserve explicit admin/tenant units, locked source and best-effort/post-commit audit; not one atomic school-provisioning transaction. Hand rows 37-39 and modules/organizationtenancy/internal/application/provisioning_{accounts,devices,people}.go. Target modules/identityaccess.SchoolInvitations.RevokeTenantSchoolInvitations; modules/identityaccess/school_invitation.go:233. "
     },
     {
       "source_owner": "organization-tenancy",
@@ -22092,7 +22092,7 @@
       "classification": "E5",
       "adr": "0067",
       "approval_adr": "0083",
-      "reason": "E5 named provisioning account/device-transfer/person-retirement surface. Preserve explicit admin/tenant units, locked source and best-effort/post-commit audit; not one atomic school-provisioning transaction. Hand rows 37-39 and organizationtenancy/internal/application/provisioning_{accounts,devices,people}.go. Target modules/identityaccess.Owner.CreateSchoolInvitation; modules/identityaccess.Owner (supplied contract method). "
+      "reason": "E5 named provisioning account/device-transfer/person-retirement surface. Preserve explicit admin/tenant units, locked source and best-effort/post-commit audit; not one atomic school-provisioning transaction. Hand rows 37-39 and modules/organizationtenancy/internal/application/provisioning_{accounts,devices,people}.go. Target modules/identityaccess.Owner.CreateSchoolInvitation; modules/identityaccess.Owner (supplied contract method). "
     },
     {
       "source_owner": "organization-tenancy",
@@ -22105,7 +22105,7 @@
       "classification": "E5",
       "adr": "0067",
       "approval_adr": "0083",
-      "reason": "E5 named provisioning account/device-transfer/person-retirement surface. Preserve explicit admin/tenant units, locked source and best-effort/post-commit audit; not one atomic school-provisioning transaction. Hand rows 37-39 and organizationtenancy/internal/application/provisioning_{accounts,devices,people}.go. Target modules/identityaccess.SchoolInvitations.CreateSchoolInvitation; modules/identityaccess/school_invitation.go:219. "
+      "reason": "E5 named provisioning account/device-transfer/person-retirement surface. Preserve explicit admin/tenant units, locked source and best-effort/post-commit audit; not one atomic school-provisioning transaction. Hand rows 37-39 and modules/organizationtenancy/internal/application/provisioning_{accounts,devices,people}.go. Target modules/identityaccess.SchoolInvitations.CreateSchoolInvitation; modules/identityaccess/school_invitation.go:219. "
     },
     {
       "source_owner": "organization-tenancy",
@@ -22118,7 +22118,7 @@
       "classification": "E5",
       "adr": "0067",
       "approval_adr": "0083",
-      "reason": "E5 named provisioning account/device-transfer/person-retirement surface. Preserve explicit admin/tenant units, locked source and best-effort/post-commit audit; not one atomic school-provisioning transaction. Hand rows 37-39 and organizationtenancy/internal/application/provisioning_{accounts,devices,people}.go. Target modules/identityaccess/compose.TenantUnitOfWork.WithTenantID; modules/identityaccess/compose/tenant_unit_of_work.go:32. "
+      "reason": "E5 named provisioning account/device-transfer/person-retirement surface. Preserve explicit admin/tenant units, locked source and best-effort/post-commit audit; not one atomic school-provisioning transaction. Hand rows 37-39 and modules/organizationtenancy/internal/application/provisioning_{accounts,devices,people}.go. Target modules/identityaccess/compose.TenantUnitOfWork.WithTenantID; modules/identityaccess/compose/tenant_unit_of_work.go:32. "
     },
     {
       "source_owner": "organization-tenancy",
@@ -22205,7 +22205,7 @@
       "classification": "E5",
       "adr": "0067",
       "approval_adr": "0083",
-      "reason": "E5 named provisioning account/device-transfer/person-retirement surface. Preserve explicit admin/tenant units, locked source and best-effort/post-commit audit; not one atomic school-provisioning transaction. Hand rows 37-39 and organizationtenancy/internal/application/provisioning_{accounts,devices,people}.go. Target modules/identityaccess/compose.TenantUnitOfWork.WithinAdmin; modules/identityaccess/compose/tenant_unit_of_work.go:21. "
+      "reason": "E5 named provisioning account/device-transfer/person-retirement surface. Preserve explicit admin/tenant units, locked source and best-effort/post-commit audit; not one atomic school-provisioning transaction. Hand rows 37-39 and modules/organizationtenancy/internal/application/provisioning_{accounts,devices,people}.go. Target modules/identityaccess/compose.TenantUnitOfWork.WithinAdmin; modules/identityaccess/compose/tenant_unit_of_work.go:21. "
     },
     {
       "source_owner": "organization-tenancy",
@@ -22244,7 +22244,7 @@
       "classification": "E5",
       "adr": "0067",
       "approval_adr": "0083",
-      "reason": "E5 named provisioning account/device-transfer/person-retirement surface. Preserve explicit admin/tenant units, locked source and best-effort/post-commit audit; not one atomic school-provisioning transaction. Hand rows 37-39 and organizationtenancy/internal/application/provisioning_{accounts,devices,people}.go. Target modules/identityaccess.AccountProvisioning.RegisterSchoolAccount; modules/identityaccess/account_provisioning.go:88. "
+      "reason": "E5 named provisioning account/device-transfer/person-retirement surface. Preserve explicit admin/tenant units, locked source and best-effort/post-commit audit; not one atomic school-provisioning transaction. Hand rows 37-39 and modules/organizationtenancy/internal/application/provisioning_{accounts,devices,people}.go. Target modules/identityaccess.AccountProvisioning.RegisterSchoolAccount; modules/identityaccess/account_provisioning.go:88. "
     },
     {
       "source_owner": "organization-tenancy",
@@ -22257,7 +22257,7 @@
       "classification": "E5",
       "adr": "0067",
       "approval_adr": "0083",
-      "reason": "E5 named provisioning account/device-transfer/person-retirement surface. Preserve explicit admin/tenant units, locked source and best-effort/post-commit audit; not one atomic school-provisioning transaction. Hand rows 37-39 and organizationtenancy/internal/application/provisioning_{accounts,devices,people}.go. Target modules/identityaccess.Owner.RegisterSchoolAccount; modules/identityaccess.Owner (supplied contract method). "
+      "reason": "E5 named provisioning account/device-transfer/person-retirement surface. Preserve explicit admin/tenant units, locked source and best-effort/post-commit audit; not one atomic school-provisioning transaction. Hand rows 37-39 and modules/organizationtenancy/internal/application/provisioning_{accounts,devices,people}.go. Target modules/identityaccess.Owner.RegisterSchoolAccount; modules/identityaccess.Owner (supplied contract method). "
     },
     {
       "source_owner": "organization-tenancy",
@@ -22270,7 +22270,7 @@
       "classification": "E5",
       "adr": "0067",
       "approval_adr": "0083",
-      "reason": "E5 named provisioning account/device-transfer/person-retirement surface. Preserve explicit admin/tenant units, locked source and best-effort/post-commit audit; not one atomic school-provisioning transaction. Hand rows 37-39 and organizationtenancy/internal/application/provisioning_{accounts,devices,people}.go. Target modules/identityaccess/compose.TenantUnitOfWork.WithTenantID; modules/identityaccess/compose/tenant_unit_of_work.go:32. "
+      "reason": "E5 named provisioning account/device-transfer/person-retirement surface. Preserve explicit admin/tenant units, locked source and best-effort/post-commit audit; not one atomic school-provisioning transaction. Hand rows 37-39 and modules/organizationtenancy/internal/application/provisioning_{accounts,devices,people}.go. Target modules/identityaccess/compose.TenantUnitOfWork.WithTenantID; modules/identityaccess/compose/tenant_unit_of_work.go:32. "
     },
     {
       "source_owner": "organization-tenancy",
@@ -22296,7 +22296,7 @@
       "classification": "E5",
       "adr": "0067",
       "approval_adr": "0083",
-      "reason": "E5 named provisioning account/device-transfer/person-retirement surface. Preserve explicit admin/tenant units, locked source and best-effort/post-commit audit; not one atomic school-provisioning transaction. Hand rows 37-39 and organizationtenancy/internal/application/provisioning_{accounts,devices,people}.go. Target modules/identityaccess.AccountSessionMaintenance.RevokeTokensByTenantID; modules/identityaccess/account_authentication.go:369. "
+      "reason": "E5 named provisioning account/device-transfer/person-retirement surface. Preserve explicit admin/tenant units, locked source and best-effort/post-commit audit; not one atomic school-provisioning transaction. Hand rows 37-39 and modules/organizationtenancy/internal/application/provisioning_{accounts,devices,people}.go. Target modules/identityaccess.AccountSessionMaintenance.RevokeTokensByTenantID; modules/identityaccess/account_authentication.go:369. "
     },
     {
       "source_owner": "organization-tenancy",
@@ -22309,7 +22309,7 @@
       "classification": "E5",
       "adr": "0067",
       "approval_adr": "0083",
-      "reason": "E5 named provisioning account/device-transfer/person-retirement surface. Preserve explicit admin/tenant units, locked source and best-effort/post-commit audit; not one atomic school-provisioning transaction. Hand rows 37-39 and organizationtenancy/internal/application/provisioning_{accounts,devices,people}.go. Target modules/identityaccess.Owner.RevokeTokensByTenantID; modules/identityaccess.Owner (supplied contract method). "
+      "reason": "E5 named provisioning account/device-transfer/person-retirement surface. Preserve explicit admin/tenant units, locked source and best-effort/post-commit audit; not one atomic school-provisioning transaction. Hand rows 37-39 and modules/organizationtenancy/internal/application/provisioning_{accounts,devices,people}.go. Target modules/identityaccess.Owner.RevokeTokensByTenantID; modules/identityaccess.Owner (supplied contract method). "
     },
     {
       "source_owner": "organization-tenancy",
@@ -22322,7 +22322,7 @@
       "classification": "E5",
       "adr": "0067",
       "approval_adr": "0083",
-      "reason": "E5 named provisioning account/device-transfer/person-retirement surface. Preserve explicit admin/tenant units, locked source and best-effort/post-commit audit; not one atomic school-provisioning transaction. Hand rows 37-39 and organizationtenancy/internal/application/provisioning_{accounts,devices,people}.go. Target modules/peopledirectory.Capability.AnonymizeAndSoftDeletePerson; modules/peopledirectory.Capability (supplied contract method). "
+      "reason": "E5 named provisioning account/device-transfer/person-retirement surface. Preserve explicit admin/tenant units, locked source and best-effort/post-commit audit; not one atomic school-provisioning transaction. Hand rows 37-39 and modules/organizationtenancy/internal/application/provisioning_{accounts,devices,people}.go. Target modules/peopledirectory.Capability.AnonymizeAndSoftDeletePerson; modules/peopledirectory.Capability (supplied contract method). "
     },
     {
       "source_owner": "organization-tenancy",
@@ -22335,7 +22335,7 @@
       "classification": "E5",
       "adr": "0067",
       "approval_adr": "0083",
-      "reason": "E5 named provisioning account/device-transfer/person-retirement surface. Preserve explicit admin/tenant units, locked source and best-effort/post-commit audit; not one atomic school-provisioning transaction. Hand rows 37-39 and organizationtenancy/internal/application/provisioning_{accounts,devices,people}.go. Target modules/peopledirectory.Owner.AnonymizeAndSoftDeletePerson; modules/peopledirectory.Owner (supplied contract method). "
+      "reason": "E5 named provisioning account/device-transfer/person-retirement surface. Preserve explicit admin/tenant units, locked source and best-effort/post-commit audit; not one atomic school-provisioning transaction. Hand rows 37-39 and modules/organizationtenancy/internal/application/provisioning_{accounts,devices,people}.go. Target modules/peopledirectory.Owner.AnonymizeAndSoftDeletePerson; modules/peopledirectory.Owner (supplied contract method). "
     },
     {
       "source_owner": "organization-tenancy",
@@ -22519,7 +22519,7 @@
       "classification": "E5",
       "adr": "0067",
       "approval_adr": "0083",
-      "reason": "E5 named provisioning account/device-transfer/person-retirement surface. Preserve explicit admin/tenant units, locked source and best-effort/post-commit audit; not one atomic school-provisioning transaction. Hand rows 37-39 and organizationtenancy/internal/application/provisioning_{accounts,devices,people}.go. Target modules/peopledirectory.Capability.UnlinkAccount; modules/peopledirectory.Capability (supplied contract method). "
+      "reason": "E5 named provisioning account/device-transfer/person-retirement surface. Preserve explicit admin/tenant units, locked source and best-effort/post-commit audit; not one atomic school-provisioning transaction. Hand rows 37-39 and modules/organizationtenancy/internal/application/provisioning_{accounts,devices,people}.go. Target modules/peopledirectory.Capability.UnlinkAccount; modules/peopledirectory.Capability (supplied contract method). "
     },
     {
       "source_owner": "organization-tenancy",
@@ -22532,7 +22532,7 @@
       "classification": "E5",
       "adr": "0067",
       "approval_adr": "0083",
-      "reason": "E5 named provisioning account/device-transfer/person-retirement surface. Preserve explicit admin/tenant units, locked source and best-effort/post-commit audit; not one atomic school-provisioning transaction. Hand rows 37-39 and organizationtenancy/internal/application/provisioning_{accounts,devices,people}.go. Target modules/peopledirectory.Owner.UnlinkAccount; modules/peopledirectory.Owner (supplied contract method). "
+      "reason": "E5 named provisioning account/device-transfer/person-retirement surface. Preserve explicit admin/tenant units, locked source and best-effort/post-commit audit; not one atomic school-provisioning transaction. Hand rows 37-39 and modules/organizationtenancy/internal/application/provisioning_{accounts,devices,people}.go. Target modules/peopledirectory.Owner.UnlinkAccount; modules/peopledirectory.Owner (supplied contract method). "
     },
     {
       "source_owner": "organization-tenancy",
@@ -22545,7 +22545,7 @@
       "classification": "E5",
       "adr": "0067",
       "approval_adr": "0083",
-      "reason": "E5 named provisioning account/device-transfer/person-retirement surface. Preserve explicit admin/tenant units, locked source and best-effort/post-commit audit; not one atomic school-provisioning transaction. Hand rows 37-39 and organizationtenancy/internal/application/provisioning_{accounts,devices,people}.go. Target modules/peopledirectory.Capability.UnlinkTag; modules/peopledirectory.Capability (supplied contract method). "
+      "reason": "E5 named provisioning account/device-transfer/person-retirement surface. Preserve explicit admin/tenant units, locked source and best-effort/post-commit audit; not one atomic school-provisioning transaction. Hand rows 37-39 and modules/organizationtenancy/internal/application/provisioning_{accounts,devices,people}.go. Target modules/peopledirectory.Capability.UnlinkTag; modules/peopledirectory.Capability (supplied contract method). "
     },
     {
       "source_owner": "organization-tenancy",
@@ -22558,7 +22558,7 @@
       "classification": "E5",
       "adr": "0067",
       "approval_adr": "0083",
-      "reason": "E5 named provisioning account/device-transfer/person-retirement surface. Preserve explicit admin/tenant units, locked source and best-effort/post-commit audit; not one atomic school-provisioning transaction. Hand rows 37-39 and organizationtenancy/internal/application/provisioning_{accounts,devices,people}.go. Target modules/peopledirectory.Owner.UnlinkTag; modules/peopledirectory.Owner (supplied contract method). "
+      "reason": "E5 named provisioning account/device-transfer/person-retirement surface. Preserve explicit admin/tenant units, locked source and best-effort/post-commit audit; not one atomic school-provisioning transaction. Hand rows 37-39 and modules/organizationtenancy/internal/application/provisioning_{accounts,devices,people}.go. Target modules/peopledirectory.Owner.UnlinkTag; modules/peopledirectory.Owner (supplied contract method). "
     },
     {
       "source_owner": "organization-tenancy",
@@ -26807,7 +26807,7 @@
       "classification": "debt",
       "adr": "0083",
       "approval_adr": "0083",
-      "reason": "Known debt, no new ADR 0067 exception: School Calendar portal owns appointment locked re-read/organizer decision, recurrence/recipient writes and notification coordination. Proposed follow-up: move the complete portal lifecycle/reminder coordinator to a workflow, not a forwarding shell. schoolcalendar/portal/internal/application/appointment_lifecycle.go:194,253,274,338; reminder_effects.go. Target modules/appointments.Capability.CancelAppointmentOccurrence; modules/appointments.Capability (supplied contract method). "
+      "reason": "Known debt, no new ADR 0067 exception: School Calendar portal owns appointment locked re-read/organizer decision, recurrence/recipient writes and notification coordination. Proposed follow-up: move the complete portal lifecycle/reminder coordinator to a workflow, not a forwarding shell. modules/schoolcalendar/portal/internal/application/appointment_lifecycle.go:194,253,274,338; reminder_effects.go. Target modules/appointments.Capability.CancelAppointmentOccurrence; modules/appointments.Capability (supplied contract method). "
     },
     {
       "source_owner": "school-calendar",
@@ -26820,7 +26820,7 @@
       "classification": "debt",
       "adr": "0083",
       "approval_adr": "0083",
-      "reason": "Known debt, no new ADR 0067 exception: School Calendar portal owns appointment locked re-read/organizer decision, recurrence/recipient writes and notification coordination. Proposed follow-up: move the complete portal lifecycle/reminder coordinator to a workflow, not a forwarding shell. schoolcalendar/portal/internal/application/appointment_lifecycle.go:194,253,274,338; reminder_effects.go. Target modules/appointments.Owner.CancelAppointmentOccurrence; modules/appointments.Owner (supplied contract method). "
+      "reason": "Known debt, no new ADR 0067 exception: School Calendar portal owns appointment locked re-read/organizer decision, recurrence/recipient writes and notification coordination. Proposed follow-up: move the complete portal lifecycle/reminder coordinator to a workflow, not a forwarding shell. modules/schoolcalendar/portal/internal/application/appointment_lifecycle.go:194,253,274,338; reminder_effects.go. Target modules/appointments.Owner.CancelAppointmentOccurrence; modules/appointments.Owner (supplied contract method). "
     },
     {
       "source_owner": "school-calendar",
@@ -26833,7 +26833,7 @@
       "classification": "debt",
       "adr": "0083",
       "approval_adr": "0083",
-      "reason": "Known debt, no new ADR 0067 exception: School Calendar portal owns appointment locked re-read/organizer decision, recurrence/recipient writes and notification coordination. Proposed follow-up: move the complete portal lifecycle/reminder coordinator to a workflow, not a forwarding shell. schoolcalendar/portal/internal/application/appointment_lifecycle.go:194,253,274,338; reminder_effects.go. Target modules/appointments.Owner.CancelAppointmentOccurrence; modules/appointments.Owner (supplied contract method). "
+      "reason": "Known debt, no new ADR 0067 exception: School Calendar portal owns appointment locked re-read/organizer decision, recurrence/recipient writes and notification coordination. Proposed follow-up: move the complete portal lifecycle/reminder coordinator to a workflow, not a forwarding shell. modules/schoolcalendar/portal/internal/application/appointment_lifecycle.go:194,253,274,338; reminder_effects.go. Target modules/appointments.Owner.CancelAppointmentOccurrence; modules/appointments.Owner (supplied contract method). "
     },
     {
       "source_owner": "school-calendar",
@@ -26846,7 +26846,7 @@
       "classification": "debt",
       "adr": "0083",
       "approval_adr": "0083",
-      "reason": "Known debt, no new ADR 0067 exception: School Calendar portal owns appointment locked re-read/organizer decision, recurrence/recipient writes and notification coordination. Proposed follow-up: move the complete portal lifecycle/reminder coordinator to a workflow, not a forwarding shell. schoolcalendar/portal/internal/application/appointment_lifecycle.go:194,253,274,338; reminder_effects.go. Target modules/appointments.Capability.CancelAppointment; modules/appointments.Capability (supplied contract method). "
+      "reason": "Known debt, no new ADR 0067 exception: School Calendar portal owns appointment locked re-read/organizer decision, recurrence/recipient writes and notification coordination. Proposed follow-up: move the complete portal lifecycle/reminder coordinator to a workflow, not a forwarding shell. modules/schoolcalendar/portal/internal/application/appointment_lifecycle.go:194,253,274,338; reminder_effects.go. Target modules/appointments.Capability.CancelAppointment; modules/appointments.Capability (supplied contract method). "
     },
     {
       "source_owner": "school-calendar",
@@ -26859,7 +26859,7 @@
       "classification": "debt",
       "adr": "0083",
       "approval_adr": "0083",
-      "reason": "Known debt, no new ADR 0067 exception: School Calendar portal owns appointment locked re-read/organizer decision, recurrence/recipient writes and notification coordination. Proposed follow-up: move the complete portal lifecycle/reminder coordinator to a workflow, not a forwarding shell. schoolcalendar/portal/internal/application/appointment_lifecycle.go:194,253,274,338; reminder_effects.go. Target modules/appointments.Owner.CancelAppointment; modules/appointments.Owner (supplied contract method). "
+      "reason": "Known debt, no new ADR 0067 exception: School Calendar portal owns appointment locked re-read/organizer decision, recurrence/recipient writes and notification coordination. Proposed follow-up: move the complete portal lifecycle/reminder coordinator to a workflow, not a forwarding shell. modules/schoolcalendar/portal/internal/application/appointment_lifecycle.go:194,253,274,338; reminder_effects.go. Target modules/appointments.Owner.CancelAppointment; modules/appointments.Owner (supplied contract method). "
     },
     {
       "source_owner": "school-calendar",
@@ -26872,7 +26872,7 @@
       "classification": "debt",
       "adr": "0083",
       "approval_adr": "0083",
-      "reason": "Known debt, no new ADR 0067 exception: School Calendar portal owns appointment locked re-read/organizer decision, recurrence/recipient writes and notification coordination. Proposed follow-up: move the complete portal lifecycle/reminder coordinator to a workflow, not a forwarding shell. schoolcalendar/portal/internal/application/appointment_lifecycle.go:194,253,274,338; reminder_effects.go. Target modules/appointments.Owner.CancelAppointment; modules/appointments.Owner (supplied contract method). "
+      "reason": "Known debt, no new ADR 0067 exception: School Calendar portal owns appointment locked re-read/organizer decision, recurrence/recipient writes and notification coordination. Proposed follow-up: move the complete portal lifecycle/reminder coordinator to a workflow, not a forwarding shell. modules/schoolcalendar/portal/internal/application/appointment_lifecycle.go:194,253,274,338; reminder_effects.go. Target modules/appointments.Owner.CancelAppointment; modules/appointments.Owner (supplied contract method). "
     },
     {
       "source_owner": "school-calendar",
@@ -26885,7 +26885,7 @@
       "classification": "debt",
       "adr": "0083",
       "approval_adr": "0083",
-      "reason": "Known debt, no new ADR 0067 exception: School Calendar portal owns appointment locked re-read/organizer decision, recurrence/recipient writes and notification coordination. Proposed follow-up: move the complete portal lifecycle/reminder coordinator to a workflow, not a forwarding shell. schoolcalendar/portal/internal/application/appointment_lifecycle.go:194,253,274,338; reminder_effects.go. Target modules/appointments.Capability.ClaimReminderPushDelivery; modules/appointments.Capability (supplied contract method). "
+      "reason": "Known debt, no new ADR 0067 exception: School Calendar portal owns appointment locked re-read/organizer decision, recurrence/recipient writes and notification coordination. Proposed follow-up: move the complete portal lifecycle/reminder coordinator to a workflow, not a forwarding shell. modules/schoolcalendar/portal/internal/application/appointment_lifecycle.go:194,253,274,338; reminder_effects.go. Target modules/appointments.Capability.ClaimReminderPushDelivery; modules/appointments.Capability (supplied contract method). "
     },
     {
       "source_owner": "school-calendar",
@@ -26898,7 +26898,7 @@
       "classification": "debt",
       "adr": "0083",
       "approval_adr": "0083",
-      "reason": "Known debt, no new ADR 0067 exception: School Calendar portal owns appointment locked re-read/organizer decision, recurrence/recipient writes and notification coordination. Proposed follow-up: move the complete portal lifecycle/reminder coordinator to a workflow, not a forwarding shell. schoolcalendar/portal/internal/application/appointment_lifecycle.go:194,253,274,338; reminder_effects.go. Target modules/appointments.Owner.ClaimReminderPushDelivery; modules/appointments.Owner (supplied contract method). "
+      "reason": "Known debt, no new ADR 0067 exception: School Calendar portal owns appointment locked re-read/organizer decision, recurrence/recipient writes and notification coordination. Proposed follow-up: move the complete portal lifecycle/reminder coordinator to a workflow, not a forwarding shell. modules/schoolcalendar/portal/internal/application/appointment_lifecycle.go:194,253,274,338; reminder_effects.go. Target modules/appointments.Owner.ClaimReminderPushDelivery; modules/appointments.Owner (supplied contract method). "
     },
     {
       "source_owner": "school-calendar",
@@ -26911,7 +26911,7 @@
       "classification": "debt",
       "adr": "0083",
       "approval_adr": "0083",
-      "reason": "Known debt, no new ADR 0067 exception: School Calendar portal owns appointment locked re-read/organizer decision, recurrence/recipient writes and notification coordination. Proposed follow-up: move the complete portal lifecycle/reminder coordinator to a workflow, not a forwarding shell. schoolcalendar/portal/internal/application/appointment_lifecycle.go:194,253,274,338; reminder_effects.go. Target modules/appointments.Owner.ClaimReminderPushDelivery; modules/appointments.Owner (supplied contract method). "
+      "reason": "Known debt, no new ADR 0067 exception: School Calendar portal owns appointment locked re-read/organizer decision, recurrence/recipient writes and notification coordination. Proposed follow-up: move the complete portal lifecycle/reminder coordinator to a workflow, not a forwarding shell. modules/schoolcalendar/portal/internal/application/appointment_lifecycle.go:194,253,274,338; reminder_effects.go. Target modules/appointments.Owner.ClaimReminderPushDelivery; modules/appointments.Owner (supplied contract method). "
     },
     {
       "source_owner": "school-calendar",
@@ -26957,7 +26957,7 @@
       "classification": "debt",
       "adr": "0083",
       "approval_adr": "0083",
-      "reason": "Known debt, no new ADR 0067 exception: School Calendar portal owns appointment locked re-read/organizer decision, recurrence/recipient writes and notification coordination. Proposed follow-up: move the complete portal lifecycle/reminder coordinator to a workflow, not a forwarding shell. schoolcalendar/portal/internal/application/appointment_lifecycle.go:194,253,274,338; reminder_effects.go. Target modules/appointments.Capability.CreateAppointmentRecipients; modules/appointments.Capability (supplied contract method). "
+      "reason": "Known debt, no new ADR 0067 exception: School Calendar portal owns appointment locked re-read/organizer decision, recurrence/recipient writes and notification coordination. Proposed follow-up: move the complete portal lifecycle/reminder coordinator to a workflow, not a forwarding shell. modules/schoolcalendar/portal/internal/application/appointment_lifecycle.go:194,253,274,338; reminder_effects.go. Target modules/appointments.Capability.CreateAppointmentRecipients; modules/appointments.Capability (supplied contract method). "
     },
     {
       "source_owner": "school-calendar",
@@ -26970,7 +26970,7 @@
       "classification": "debt",
       "adr": "0083",
       "approval_adr": "0083",
-      "reason": "Known debt, no new ADR 0067 exception: School Calendar portal owns appointment locked re-read/organizer decision, recurrence/recipient writes and notification coordination. Proposed follow-up: move the complete portal lifecycle/reminder coordinator to a workflow, not a forwarding shell. schoolcalendar/portal/internal/application/appointment_lifecycle.go:194,253,274,338; reminder_effects.go. Target modules/appointments.Owner.CreateAppointmentRecipients; modules/appointments.Owner (supplied contract method). "
+      "reason": "Known debt, no new ADR 0067 exception: School Calendar portal owns appointment locked re-read/organizer decision, recurrence/recipient writes and notification coordination. Proposed follow-up: move the complete portal lifecycle/reminder coordinator to a workflow, not a forwarding shell. modules/schoolcalendar/portal/internal/application/appointment_lifecycle.go:194,253,274,338; reminder_effects.go. Target modules/appointments.Owner.CreateAppointmentRecipients; modules/appointments.Owner (supplied contract method). "
     },
     {
       "source_owner": "school-calendar",
@@ -26983,7 +26983,7 @@
       "classification": "debt",
       "adr": "0083",
       "approval_adr": "0083",
-      "reason": "Known debt, no new ADR 0067 exception: School Calendar portal owns appointment locked re-read/organizer decision, recurrence/recipient writes and notification coordination. Proposed follow-up: move the complete portal lifecycle/reminder coordinator to a workflow, not a forwarding shell. schoolcalendar/portal/internal/application/appointment_lifecycle.go:194,253,274,338; reminder_effects.go. Target modules/appointments.Owner.CreateAppointmentRecipients; modules/appointments.Owner (supplied contract method). "
+      "reason": "Known debt, no new ADR 0067 exception: School Calendar portal owns appointment locked re-read/organizer decision, recurrence/recipient writes and notification coordination. Proposed follow-up: move the complete portal lifecycle/reminder coordinator to a workflow, not a forwarding shell. modules/schoolcalendar/portal/internal/application/appointment_lifecycle.go:194,253,274,338; reminder_effects.go. Target modules/appointments.Owner.CreateAppointmentRecipients; modules/appointments.Owner (supplied contract method). "
     },
     {
       "source_owner": "school-calendar",
@@ -26996,7 +26996,7 @@
       "classification": "debt",
       "adr": "0083",
       "approval_adr": "0083",
-      "reason": "Known debt, no new ADR 0067 exception: School Calendar portal owns appointment locked re-read/organizer decision, recurrence/recipient writes and notification coordination. Proposed follow-up: move the complete portal lifecycle/reminder coordinator to a workflow, not a forwarding shell. schoolcalendar/portal/internal/application/appointment_lifecycle.go:194,253,274,338; reminder_effects.go. Target modules/appointments.Capability.CreateAppointment; modules/appointments.Capability (supplied contract method). "
+      "reason": "Known debt, no new ADR 0067 exception: School Calendar portal owns appointment locked re-read/organizer decision, recurrence/recipient writes and notification coordination. Proposed follow-up: move the complete portal lifecycle/reminder coordinator to a workflow, not a forwarding shell. modules/schoolcalendar/portal/internal/application/appointment_lifecycle.go:194,253,274,338; reminder_effects.go. Target modules/appointments.Capability.CreateAppointment; modules/appointments.Capability (supplied contract method). "
     },
     {
       "source_owner": "school-calendar",
@@ -27009,7 +27009,7 @@
       "classification": "debt",
       "adr": "0083",
       "approval_adr": "0083",
-      "reason": "Known debt, no new ADR 0067 exception: School Calendar portal owns appointment locked re-read/organizer decision, recurrence/recipient writes and notification coordination. Proposed follow-up: move the complete portal lifecycle/reminder coordinator to a workflow, not a forwarding shell. schoolcalendar/portal/internal/application/appointment_lifecycle.go:194,253,274,338; reminder_effects.go. Target modules/appointments.Owner.CreateAppointment; modules/appointments.Owner (supplied contract method). "
+      "reason": "Known debt, no new ADR 0067 exception: School Calendar portal owns appointment locked re-read/organizer decision, recurrence/recipient writes and notification coordination. Proposed follow-up: move the complete portal lifecycle/reminder coordinator to a workflow, not a forwarding shell. modules/schoolcalendar/portal/internal/application/appointment_lifecycle.go:194,253,274,338; reminder_effects.go. Target modules/appointments.Owner.CreateAppointment; modules/appointments.Owner (supplied contract method). "
     },
     {
       "source_owner": "school-calendar",
@@ -27022,7 +27022,7 @@
       "classification": "debt",
       "adr": "0083",
       "approval_adr": "0083",
-      "reason": "Known debt, no new ADR 0067 exception: School Calendar portal owns appointment locked re-read/organizer decision, recurrence/recipient writes and notification coordination. Proposed follow-up: move the complete portal lifecycle/reminder coordinator to a workflow, not a forwarding shell. schoolcalendar/portal/internal/application/appointment_lifecycle.go:194,253,274,338; reminder_effects.go. Target modules/appointments.Owner.CreateAppointment; modules/appointments.Owner (supplied contract method). "
+      "reason": "Known debt, no new ADR 0067 exception: School Calendar portal owns appointment locked re-read/organizer decision, recurrence/recipient writes and notification coordination. Proposed follow-up: move the complete portal lifecycle/reminder coordinator to a workflow, not a forwarding shell. modules/schoolcalendar/portal/internal/application/appointment_lifecycle.go:194,253,274,338; reminder_effects.go. Target modules/appointments.Owner.CreateAppointment; modules/appointments.Owner (supplied contract method). "
     },
     {
       "source_owner": "school-calendar",
@@ -27035,7 +27035,7 @@
       "classification": "debt",
       "adr": "0083",
       "approval_adr": "0083",
-      "reason": "Known debt, no new ADR 0067 exception: School Calendar portal owns appointment locked re-read/organizer decision, recurrence/recipient writes and notification coordination. Proposed follow-up: move the complete portal lifecycle/reminder coordinator to a workflow, not a forwarding shell. schoolcalendar/portal/internal/application/appointment_lifecycle.go:194,253,274,338; reminder_effects.go. Target modules/appointments.Capability.CreateOccurrenceOverride; modules/appointments.Capability (supplied contract method). "
+      "reason": "Known debt, no new ADR 0067 exception: School Calendar portal owns appointment locked re-read/organizer decision, recurrence/recipient writes and notification coordination. Proposed follow-up: move the complete portal lifecycle/reminder coordinator to a workflow, not a forwarding shell. modules/schoolcalendar/portal/internal/application/appointment_lifecycle.go:194,253,274,338; reminder_effects.go. Target modules/appointments.Capability.CreateOccurrenceOverride; modules/appointments.Capability (supplied contract method). "
     },
     {
       "source_owner": "school-calendar",
@@ -27048,7 +27048,7 @@
       "classification": "debt",
       "adr": "0083",
       "approval_adr": "0083",
-      "reason": "Known debt, no new ADR 0067 exception: School Calendar portal owns appointment locked re-read/organizer decision, recurrence/recipient writes and notification coordination. Proposed follow-up: move the complete portal lifecycle/reminder coordinator to a workflow, not a forwarding shell. schoolcalendar/portal/internal/application/appointment_lifecycle.go:194,253,274,338; reminder_effects.go. Target modules/appointments.Owner.CreateOccurrenceOverride; modules/appointments.Owner (supplied contract method). "
+      "reason": "Known debt, no new ADR 0067 exception: School Calendar portal owns appointment locked re-read/organizer decision, recurrence/recipient writes and notification coordination. Proposed follow-up: move the complete portal lifecycle/reminder coordinator to a workflow, not a forwarding shell. modules/schoolcalendar/portal/internal/application/appointment_lifecycle.go:194,253,274,338; reminder_effects.go. Target modules/appointments.Owner.CreateOccurrenceOverride; modules/appointments.Owner (supplied contract method). "
     },
     {
       "source_owner": "school-calendar",
@@ -27061,7 +27061,7 @@
       "classification": "debt",
       "adr": "0083",
       "approval_adr": "0083",
-      "reason": "Known debt, no new ADR 0067 exception: School Calendar portal owns appointment locked re-read/organizer decision, recurrence/recipient writes and notification coordination. Proposed follow-up: move the complete portal lifecycle/reminder coordinator to a workflow, not a forwarding shell. schoolcalendar/portal/internal/application/appointment_lifecycle.go:194,253,274,338; reminder_effects.go. Target modules/appointments.Owner.CreateOccurrenceOverride; modules/appointments.Owner (supplied contract method). "
+      "reason": "Known debt, no new ADR 0067 exception: School Calendar portal owns appointment locked re-read/organizer decision, recurrence/recipient writes and notification coordination. Proposed follow-up: move the complete portal lifecycle/reminder coordinator to a workflow, not a forwarding shell. modules/schoolcalendar/portal/internal/application/appointment_lifecycle.go:194,253,274,338; reminder_effects.go. Target modules/appointments.Owner.CreateOccurrenceOverride; modules/appointments.Owner (supplied contract method). "
     },
     {
       "source_owner": "school-calendar",
@@ -27074,7 +27074,7 @@
       "classification": "debt",
       "adr": "0083",
       "approval_adr": "0083",
-      "reason": "Known debt, no new ADR 0067 exception: School Calendar portal owns appointment locked re-read/organizer decision, recurrence/recipient writes and notification coordination. Proposed follow-up: move the complete portal lifecycle/reminder coordinator to a workflow, not a forwarding shell. schoolcalendar/portal/internal/application/appointment_lifecycle.go:194,253,274,338; reminder_effects.go. Target modules/appointments.Capability.CreateRecurrenceRule; modules/appointments.Capability (supplied contract method). "
+      "reason": "Known debt, no new ADR 0067 exception: School Calendar portal owns appointment locked re-read/organizer decision, recurrence/recipient writes and notification coordination. Proposed follow-up: move the complete portal lifecycle/reminder coordinator to a workflow, not a forwarding shell. modules/schoolcalendar/portal/internal/application/appointment_lifecycle.go:194,253,274,338; reminder_effects.go. Target modules/appointments.Capability.CreateRecurrenceRule; modules/appointments.Capability (supplied contract method). "
     },
     {
       "source_owner": "school-calendar",
@@ -27087,7 +27087,7 @@
       "classification": "debt",
       "adr": "0083",
       "approval_adr": "0083",
-      "reason": "Known debt, no new ADR 0067 exception: School Calendar portal owns appointment locked re-read/organizer decision, recurrence/recipient writes and notification coordination. Proposed follow-up: move the complete portal lifecycle/reminder coordinator to a workflow, not a forwarding shell. schoolcalendar/portal/internal/application/appointment_lifecycle.go:194,253,274,338; reminder_effects.go. Target modules/appointments.Owner.CreateRecurrenceRule; modules/appointments.Owner (supplied contract method). "
+      "reason": "Known debt, no new ADR 0067 exception: School Calendar portal owns appointment locked re-read/organizer decision, recurrence/recipient writes and notification coordination. Proposed follow-up: move the complete portal lifecycle/reminder coordinator to a workflow, not a forwarding shell. modules/schoolcalendar/portal/internal/application/appointment_lifecycle.go:194,253,274,338; reminder_effects.go. Target modules/appointments.Owner.CreateRecurrenceRule; modules/appointments.Owner (supplied contract method). "
     },
     {
       "source_owner": "school-calendar",
@@ -27100,7 +27100,7 @@
       "classification": "debt",
       "adr": "0083",
       "approval_adr": "0083",
-      "reason": "Known debt, no new ADR 0067 exception: School Calendar portal owns appointment locked re-read/organizer decision, recurrence/recipient writes and notification coordination. Proposed follow-up: move the complete portal lifecycle/reminder coordinator to a workflow, not a forwarding shell. schoolcalendar/portal/internal/application/appointment_lifecycle.go:194,253,274,338; reminder_effects.go. Target modules/appointments.Owner.CreateRecurrenceRule; modules/appointments.Owner (supplied contract method). "
+      "reason": "Known debt, no new ADR 0067 exception: School Calendar portal owns appointment locked re-read/organizer decision, recurrence/recipient writes and notification coordination. Proposed follow-up: move the complete portal lifecycle/reminder coordinator to a workflow, not a forwarding shell. modules/schoolcalendar/portal/internal/application/appointment_lifecycle.go:194,253,274,338; reminder_effects.go. Target modules/appointments.Owner.CreateRecurrenceRule; modules/appointments.Owner (supplied contract method). "
     },
     {
       "source_owner": "school-calendar",
@@ -27113,7 +27113,7 @@
       "classification": "debt",
       "adr": "0083",
       "approval_adr": "0083",
-      "reason": "Known debt, no new ADR 0067 exception: School Calendar portal owns appointment locked re-read/organizer decision, recurrence/recipient writes and notification coordination. Proposed follow-up: move the complete portal lifecycle/reminder coordinator to a workflow, not a forwarding shell. schoolcalendar/portal/internal/application/appointment_lifecycle.go:194,253,274,338; reminder_effects.go. Target modules/appointments.Capability.DeleteAppointment; modules/appointments.Capability (supplied contract method). "
+      "reason": "Known debt, no new ADR 0067 exception: School Calendar portal owns appointment locked re-read/organizer decision, recurrence/recipient writes and notification coordination. Proposed follow-up: move the complete portal lifecycle/reminder coordinator to a workflow, not a forwarding shell. modules/schoolcalendar/portal/internal/application/appointment_lifecycle.go:194,253,274,338; reminder_effects.go. Target modules/appointments.Capability.DeleteAppointment; modules/appointments.Capability (supplied contract method). "
     },
     {
       "source_owner": "school-calendar",
@@ -27126,7 +27126,7 @@
       "classification": "debt",
       "adr": "0083",
       "approval_adr": "0083",
-      "reason": "Known debt, no new ADR 0067 exception: School Calendar portal owns appointment locked re-read/organizer decision, recurrence/recipient writes and notification coordination. Proposed follow-up: move the complete portal lifecycle/reminder coordinator to a workflow, not a forwarding shell. schoolcalendar/portal/internal/application/appointment_lifecycle.go:194,253,274,338; reminder_effects.go. Target modules/appointments.Owner.DeleteAppointment; modules/appointments.Owner (supplied contract method). "
+      "reason": "Known debt, no new ADR 0067 exception: School Calendar portal owns appointment locked re-read/organizer decision, recurrence/recipient writes and notification coordination. Proposed follow-up: move the complete portal lifecycle/reminder coordinator to a workflow, not a forwarding shell. modules/schoolcalendar/portal/internal/application/appointment_lifecycle.go:194,253,274,338; reminder_effects.go. Target modules/appointments.Owner.DeleteAppointment; modules/appointments.Owner (supplied contract method). "
     },
     {
       "source_owner": "school-calendar",
@@ -27139,7 +27139,7 @@
       "classification": "debt",
       "adr": "0083",
       "approval_adr": "0083",
-      "reason": "Known debt, no new ADR 0067 exception: School Calendar portal owns appointment locked re-read/organizer decision, recurrence/recipient writes and notification coordination. Proposed follow-up: move the complete portal lifecycle/reminder coordinator to a workflow, not a forwarding shell. schoolcalendar/portal/internal/application/appointment_lifecycle.go:194,253,274,338; reminder_effects.go. Target modules/appointments.Owner.DeleteAppointment; modules/appointments.Owner (supplied contract method). "
+      "reason": "Known debt, no new ADR 0067 exception: School Calendar portal owns appointment locked re-read/organizer decision, recurrence/recipient writes and notification coordination. Proposed follow-up: move the complete portal lifecycle/reminder coordinator to a workflow, not a forwarding shell. modules/schoolcalendar/portal/internal/application/appointment_lifecycle.go:194,253,274,338; reminder_effects.go. Target modules/appointments.Owner.DeleteAppointment; modules/appointments.Owner (supplied contract method). "
     },
     {
       "source_owner": "school-calendar",
@@ -27152,7 +27152,7 @@
       "classification": "debt",
       "adr": "0083",
       "approval_adr": "0083",
-      "reason": "Known debt, no new ADR 0067 exception: School Calendar portal owns appointment locked re-read/organizer decision, recurrence/recipient writes and notification coordination. Proposed follow-up: move the complete portal lifecycle/reminder coordinator to a workflow, not a forwarding shell. schoolcalendar/portal/internal/application/appointment_lifecycle.go:194,253,274,338; reminder_effects.go. Target modules/appointments.Capability.DeleteFeedTombstonesBefore; modules/appointments.Capability (supplied contract method). "
+      "reason": "Known debt, no new ADR 0067 exception: School Calendar portal owns appointment locked re-read/organizer decision, recurrence/recipient writes and notification coordination. Proposed follow-up: move the complete portal lifecycle/reminder coordinator to a workflow, not a forwarding shell. modules/schoolcalendar/portal/internal/application/appointment_lifecycle.go:194,253,274,338; reminder_effects.go. Target modules/appointments.Capability.DeleteFeedTombstonesBefore; modules/appointments.Capability (supplied contract method). "
     },
     {
       "source_owner": "school-calendar",
@@ -27165,7 +27165,7 @@
       "classification": "debt",
       "adr": "0083",
       "approval_adr": "0083",
-      "reason": "Known debt, no new ADR 0067 exception: School Calendar portal owns appointment locked re-read/organizer decision, recurrence/recipient writes and notification coordination. Proposed follow-up: move the complete portal lifecycle/reminder coordinator to a workflow, not a forwarding shell. schoolcalendar/portal/internal/application/appointment_lifecycle.go:194,253,274,338; reminder_effects.go. Target modules/appointments.Owner.DeleteFeedTombstonesBefore; modules/appointments.Owner (supplied contract method). "
+      "reason": "Known debt, no new ADR 0067 exception: School Calendar portal owns appointment locked re-read/organizer decision, recurrence/recipient writes and notification coordination. Proposed follow-up: move the complete portal lifecycle/reminder coordinator to a workflow, not a forwarding shell. modules/schoolcalendar/portal/internal/application/appointment_lifecycle.go:194,253,274,338; reminder_effects.go. Target modules/appointments.Owner.DeleteFeedTombstonesBefore; modules/appointments.Owner (supplied contract method). "
     },
     {
       "source_owner": "school-calendar",
@@ -27178,7 +27178,7 @@
       "classification": "debt",
       "adr": "0083",
       "approval_adr": "0083",
-      "reason": "Known debt, no new ADR 0067 exception: School Calendar portal owns appointment locked re-read/organizer decision, recurrence/recipient writes and notification coordination. Proposed follow-up: move the complete portal lifecycle/reminder coordinator to a workflow, not a forwarding shell. schoolcalendar/portal/internal/application/appointment_lifecycle.go:194,253,274,338; reminder_effects.go. Target modules/appointments.Owner.DeleteFeedTombstonesBefore; modules/appointments.Owner (supplied contract method). "
+      "reason": "Known debt, no new ADR 0067 exception: School Calendar portal owns appointment locked re-read/organizer decision, recurrence/recipient writes and notification coordination. Proposed follow-up: move the complete portal lifecycle/reminder coordinator to a workflow, not a forwarding shell. modules/schoolcalendar/portal/internal/application/appointment_lifecycle.go:194,253,274,338; reminder_effects.go. Target modules/appointments.Owner.DeleteFeedTombstonesBefore; modules/appointments.Owner (supplied contract method). "
     },
     {
       "source_owner": "school-calendar",
@@ -27191,7 +27191,7 @@
       "classification": "debt",
       "adr": "0083",
       "approval_adr": "0083",
-      "reason": "Known debt, no new ADR 0067 exception: School Calendar portal owns appointment locked re-read/organizer decision, recurrence/recipient writes and notification coordination. Proposed follow-up: move the complete portal lifecycle/reminder coordinator to a workflow, not a forwarding shell. schoolcalendar/portal/internal/application/appointment_lifecycle.go:194,253,274,338; reminder_effects.go. Target modules/appointments.Capability.DeleteOccurrenceOverrides; modules/appointments.Capability (supplied contract method). "
+      "reason": "Known debt, no new ADR 0067 exception: School Calendar portal owns appointment locked re-read/organizer decision, recurrence/recipient writes and notification coordination. Proposed follow-up: move the complete portal lifecycle/reminder coordinator to a workflow, not a forwarding shell. modules/schoolcalendar/portal/internal/application/appointment_lifecycle.go:194,253,274,338; reminder_effects.go. Target modules/appointments.Capability.DeleteOccurrenceOverrides; modules/appointments.Capability (supplied contract method). "
     },
     {
       "source_owner": "school-calendar",
@@ -27204,7 +27204,7 @@
       "classification": "debt",
       "adr": "0083",
       "approval_adr": "0083",
-      "reason": "Known debt, no new ADR 0067 exception: School Calendar portal owns appointment locked re-read/organizer decision, recurrence/recipient writes and notification coordination. Proposed follow-up: move the complete portal lifecycle/reminder coordinator to a workflow, not a forwarding shell. schoolcalendar/portal/internal/application/appointment_lifecycle.go:194,253,274,338; reminder_effects.go. Target modules/appointments.Owner.DeleteOccurrenceOverrides; modules/appointments.Owner (supplied contract method). "
+      "reason": "Known debt, no new ADR 0067 exception: School Calendar portal owns appointment locked re-read/organizer decision, recurrence/recipient writes and notification coordination. Proposed follow-up: move the complete portal lifecycle/reminder coordinator to a workflow, not a forwarding shell. modules/schoolcalendar/portal/internal/application/appointment_lifecycle.go:194,253,274,338; reminder_effects.go. Target modules/appointments.Owner.DeleteOccurrenceOverrides; modules/appointments.Owner (supplied contract method). "
     },
     {
       "source_owner": "school-calendar",
@@ -27217,7 +27217,7 @@
       "classification": "debt",
       "adr": "0083",
       "approval_adr": "0083",
-      "reason": "Known debt, no new ADR 0067 exception: School Calendar portal owns appointment locked re-read/organizer decision, recurrence/recipient writes and notification coordination. Proposed follow-up: move the complete portal lifecycle/reminder coordinator to a workflow, not a forwarding shell. schoolcalendar/portal/internal/application/appointment_lifecycle.go:194,253,274,338; reminder_effects.go. Target modules/appointments.Owner.DeleteOccurrenceOverrides; modules/appointments.Owner (supplied contract method). "
+      "reason": "Known debt, no new ADR 0067 exception: School Calendar portal owns appointment locked re-read/organizer decision, recurrence/recipient writes and notification coordination. Proposed follow-up: move the complete portal lifecycle/reminder coordinator to a workflow, not a forwarding shell. modules/schoolcalendar/portal/internal/application/appointment_lifecycle.go:194,253,274,338; reminder_effects.go. Target modules/appointments.Owner.DeleteOccurrenceOverrides; modules/appointments.Owner (supplied contract method). "
     },
     {
       "source_owner": "school-calendar",
@@ -27230,7 +27230,7 @@
       "classification": "debt",
       "adr": "0083",
       "approval_adr": "0083",
-      "reason": "Known debt, no new ADR 0067 exception: School Calendar portal owns appointment locked re-read/organizer decision, recurrence/recipient writes and notification coordination. Proposed follow-up: move the complete portal lifecycle/reminder coordinator to a workflow, not a forwarding shell. schoolcalendar/portal/internal/application/appointment_lifecycle.go:194,253,274,338; reminder_effects.go. Target modules/appointments.Capability.DeleteRecurrenceRule; modules/appointments.Capability (supplied contract method). "
+      "reason": "Known debt, no new ADR 0067 exception: School Calendar portal owns appointment locked re-read/organizer decision, recurrence/recipient writes and notification coordination. Proposed follow-up: move the complete portal lifecycle/reminder coordinator to a workflow, not a forwarding shell. modules/schoolcalendar/portal/internal/application/appointment_lifecycle.go:194,253,274,338; reminder_effects.go. Target modules/appointments.Capability.DeleteRecurrenceRule; modules/appointments.Capability (supplied contract method). "
     },
     {
       "source_owner": "school-calendar",
@@ -27243,7 +27243,7 @@
       "classification": "debt",
       "adr": "0083",
       "approval_adr": "0083",
-      "reason": "Known debt, no new ADR 0067 exception: School Calendar portal owns appointment locked re-read/organizer decision, recurrence/recipient writes and notification coordination. Proposed follow-up: move the complete portal lifecycle/reminder coordinator to a workflow, not a forwarding shell. schoolcalendar/portal/internal/application/appointment_lifecycle.go:194,253,274,338; reminder_effects.go. Target modules/appointments.Owner.DeleteRecurrenceRule; modules/appointments.Owner (supplied contract method). "
+      "reason": "Known debt, no new ADR 0067 exception: School Calendar portal owns appointment locked re-read/organizer decision, recurrence/recipient writes and notification coordination. Proposed follow-up: move the complete portal lifecycle/reminder coordinator to a workflow, not a forwarding shell. modules/schoolcalendar/portal/internal/application/appointment_lifecycle.go:194,253,274,338; reminder_effects.go. Target modules/appointments.Owner.DeleteRecurrenceRule; modules/appointments.Owner (supplied contract method). "
     },
     {
       "source_owner": "school-calendar",
@@ -27256,7 +27256,7 @@
       "classification": "debt",
       "adr": "0083",
       "approval_adr": "0083",
-      "reason": "Known debt, no new ADR 0067 exception: School Calendar portal owns appointment locked re-read/organizer decision, recurrence/recipient writes and notification coordination. Proposed follow-up: move the complete portal lifecycle/reminder coordinator to a workflow, not a forwarding shell. schoolcalendar/portal/internal/application/appointment_lifecycle.go:194,253,274,338; reminder_effects.go. Target modules/appointments.Owner.DeleteRecurrenceRule; modules/appointments.Owner (supplied contract method). "
+      "reason": "Known debt, no new ADR 0067 exception: School Calendar portal owns appointment locked re-read/organizer decision, recurrence/recipient writes and notification coordination. Proposed follow-up: move the complete portal lifecycle/reminder coordinator to a workflow, not a forwarding shell. modules/schoolcalendar/portal/internal/application/appointment_lifecycle.go:194,253,274,338; reminder_effects.go. Target modules/appointments.Owner.DeleteRecurrenceRule; modules/appointments.Owner (supplied contract method). "
     },
     {
       "source_owner": "school-calendar",
@@ -27269,7 +27269,7 @@
       "classification": "debt",
       "adr": "0083",
       "approval_adr": "0083",
-      "reason": "Known debt, no new ADR 0067 exception: School Calendar portal owns appointment locked re-read/organizer decision, recurrence/recipient writes and notification coordination. Proposed follow-up: move the complete portal lifecycle/reminder coordinator to a workflow, not a forwarding shell. schoolcalendar/portal/internal/application/appointment_lifecycle.go:194,253,274,338; reminder_effects.go. Target modules/appointments.Capability.FindAppointmentForUpdate; modules/appointments.Capability (supplied contract method). "
+      "reason": "Known debt, no new ADR 0067 exception: School Calendar portal owns appointment locked re-read/organizer decision, recurrence/recipient writes and notification coordination. Proposed follow-up: move the complete portal lifecycle/reminder coordinator to a workflow, not a forwarding shell. modules/schoolcalendar/portal/internal/application/appointment_lifecycle.go:194,253,274,338; reminder_effects.go. Target modules/appointments.Capability.FindAppointmentForUpdate; modules/appointments.Capability (supplied contract method). "
     },
     {
       "source_owner": "school-calendar",
@@ -27282,7 +27282,7 @@
       "classification": "debt",
       "adr": "0083",
       "approval_adr": "0083",
-      "reason": "Known debt, no new ADR 0067 exception: School Calendar portal owns appointment locked re-read/organizer decision, recurrence/recipient writes and notification coordination. Proposed follow-up: move the complete portal lifecycle/reminder coordinator to a workflow, not a forwarding shell. schoolcalendar/portal/internal/application/appointment_lifecycle.go:194,253,274,338; reminder_effects.go. Target modules/appointments.Owner.FindAppointmentForUpdate; modules/appointments.Owner (supplied contract method). "
+      "reason": "Known debt, no new ADR 0067 exception: School Calendar portal owns appointment locked re-read/organizer decision, recurrence/recipient writes and notification coordination. Proposed follow-up: move the complete portal lifecycle/reminder coordinator to a workflow, not a forwarding shell. modules/schoolcalendar/portal/internal/application/appointment_lifecycle.go:194,253,274,338; reminder_effects.go. Target modules/appointments.Owner.FindAppointmentForUpdate; modules/appointments.Owner (supplied contract method). "
     },
     {
       "source_owner": "school-calendar",
@@ -27295,7 +27295,7 @@
       "classification": "debt",
       "adr": "0083",
       "approval_adr": "0083",
-      "reason": "Known debt, no new ADR 0067 exception: School Calendar portal owns appointment locked re-read/organizer decision, recurrence/recipient writes and notification coordination. Proposed follow-up: move the complete portal lifecycle/reminder coordinator to a workflow, not a forwarding shell. schoolcalendar/portal/internal/application/appointment_lifecycle.go:194,253,274,338; reminder_effects.go. Target modules/appointments.Owner.FindAppointmentForUpdate; modules/appointments.Owner (supplied contract method). "
+      "reason": "Known debt, no new ADR 0067 exception: School Calendar portal owns appointment locked re-read/organizer decision, recurrence/recipient writes and notification coordination. Proposed follow-up: move the complete portal lifecycle/reminder coordinator to a workflow, not a forwarding shell. modules/schoolcalendar/portal/internal/application/appointment_lifecycle.go:194,253,274,338; reminder_effects.go. Target modules/appointments.Owner.FindAppointmentForUpdate; modules/appointments.Owner (supplied contract method). "
     },
     {
       "source_owner": "school-calendar",
@@ -27671,7 +27671,7 @@
       "classification": "debt",
       "adr": "0083",
       "approval_adr": "0083",
-      "reason": "Known debt, no new ADR 0067 exception: School Calendar portal owns appointment locked re-read/organizer decision, recurrence/recipient writes and notification coordination. Proposed follow-up: move the complete portal lifecycle/reminder coordinator to a workflow, not a forwarding shell. schoolcalendar/portal/internal/application/appointment_lifecycle.go:194,253,274,338; reminder_effects.go. Target modules/appointments.Capability.FindReminderCandidateForUpdate; modules/appointments.Capability (supplied contract method). "
+      "reason": "Known debt, no new ADR 0067 exception: School Calendar portal owns appointment locked re-read/organizer decision, recurrence/recipient writes and notification coordination. Proposed follow-up: move the complete portal lifecycle/reminder coordinator to a workflow, not a forwarding shell. modules/schoolcalendar/portal/internal/application/appointment_lifecycle.go:194,253,274,338; reminder_effects.go. Target modules/appointments.Capability.FindReminderCandidateForUpdate; modules/appointments.Capability (supplied contract method). "
     },
     {
       "source_owner": "school-calendar",
@@ -27684,7 +27684,7 @@
       "classification": "debt",
       "adr": "0083",
       "approval_adr": "0083",
-      "reason": "Known debt, no new ADR 0067 exception: School Calendar portal owns appointment locked re-read/organizer decision, recurrence/recipient writes and notification coordination. Proposed follow-up: move the complete portal lifecycle/reminder coordinator to a workflow, not a forwarding shell. schoolcalendar/portal/internal/application/appointment_lifecycle.go:194,253,274,338; reminder_effects.go. Target modules/appointments.Owner.FindReminderCandidateForUpdate; modules/appointments.Owner (supplied contract method). "
+      "reason": "Known debt, no new ADR 0067 exception: School Calendar portal owns appointment locked re-read/organizer decision, recurrence/recipient writes and notification coordination. Proposed follow-up: move the complete portal lifecycle/reminder coordinator to a workflow, not a forwarding shell. modules/schoolcalendar/portal/internal/application/appointment_lifecycle.go:194,253,274,338; reminder_effects.go. Target modules/appointments.Owner.FindReminderCandidateForUpdate; modules/appointments.Owner (supplied contract method). "
     },
     {
       "source_owner": "school-calendar",
@@ -27697,7 +27697,7 @@
       "classification": "debt",
       "adr": "0083",
       "approval_adr": "0083",
-      "reason": "Known debt, no new ADR 0067 exception: School Calendar portal owns appointment locked re-read/organizer decision, recurrence/recipient writes and notification coordination. Proposed follow-up: move the complete portal lifecycle/reminder coordinator to a workflow, not a forwarding shell. schoolcalendar/portal/internal/application/appointment_lifecycle.go:194,253,274,338; reminder_effects.go. Target modules/appointments.Owner.FindReminderCandidateForUpdate; modules/appointments.Owner (supplied contract method). "
+      "reason": "Known debt, no new ADR 0067 exception: School Calendar portal owns appointment locked re-read/organizer decision, recurrence/recipient writes and notification coordination. Proposed follow-up: move the complete portal lifecycle/reminder coordinator to a workflow, not a forwarding shell. modules/schoolcalendar/portal/internal/application/appointment_lifecycle.go:194,253,274,338; reminder_effects.go. Target modules/appointments.Owner.FindReminderCandidateForUpdate; modules/appointments.Owner (supplied contract method). "
     },
     {
       "source_owner": "school-calendar",
@@ -27710,7 +27710,7 @@
       "classification": "debt",
       "adr": "0083",
       "approval_adr": "0083",
-      "reason": "Known debt, no new ADR 0067 exception: School Calendar portal owns appointment locked re-read/organizer decision, recurrence/recipient writes and notification coordination. Proposed follow-up: move the complete portal lifecycle/reminder coordinator to a workflow, not a forwarding shell. schoolcalendar/portal/internal/application/appointment_lifecycle.go:194,253,274,338; reminder_effects.go. Target modules/appointments.Capability.FindReminderCandidatesForUpdate; modules/appointments.Capability (supplied contract method). "
+      "reason": "Known debt, no new ADR 0067 exception: School Calendar portal owns appointment locked re-read/organizer decision, recurrence/recipient writes and notification coordination. Proposed follow-up: move the complete portal lifecycle/reminder coordinator to a workflow, not a forwarding shell. modules/schoolcalendar/portal/internal/application/appointment_lifecycle.go:194,253,274,338; reminder_effects.go. Target modules/appointments.Capability.FindReminderCandidatesForUpdate; modules/appointments.Capability (supplied contract method). "
     },
     {
       "source_owner": "school-calendar",
@@ -27723,7 +27723,7 @@
       "classification": "debt",
       "adr": "0083",
       "approval_adr": "0083",
-      "reason": "Known debt, no new ADR 0067 exception: School Calendar portal owns appointment locked re-read/organizer decision, recurrence/recipient writes and notification coordination. Proposed follow-up: move the complete portal lifecycle/reminder coordinator to a workflow, not a forwarding shell. schoolcalendar/portal/internal/application/appointment_lifecycle.go:194,253,274,338; reminder_effects.go. Target modules/appointments.Owner.FindReminderCandidatesForUpdate; modules/appointments.Owner (supplied contract method). "
+      "reason": "Known debt, no new ADR 0067 exception: School Calendar portal owns appointment locked re-read/organizer decision, recurrence/recipient writes and notification coordination. Proposed follow-up: move the complete portal lifecycle/reminder coordinator to a workflow, not a forwarding shell. modules/schoolcalendar/portal/internal/application/appointment_lifecycle.go:194,253,274,338; reminder_effects.go. Target modules/appointments.Owner.FindReminderCandidatesForUpdate; modules/appointments.Owner (supplied contract method). "
     },
     {
       "source_owner": "school-calendar",
@@ -27736,7 +27736,7 @@
       "classification": "debt",
       "adr": "0083",
       "approval_adr": "0083",
-      "reason": "Known debt, no new ADR 0067 exception: School Calendar portal owns appointment locked re-read/organizer decision, recurrence/recipient writes and notification coordination. Proposed follow-up: move the complete portal lifecycle/reminder coordinator to a workflow, not a forwarding shell. schoolcalendar/portal/internal/application/appointment_lifecycle.go:194,253,274,338; reminder_effects.go. Target modules/appointments.Owner.FindReminderCandidatesForUpdate; modules/appointments.Owner (supplied contract method). "
+      "reason": "Known debt, no new ADR 0067 exception: School Calendar portal owns appointment locked re-read/organizer decision, recurrence/recipient writes and notification coordination. Proposed follow-up: move the complete portal lifecycle/reminder coordinator to a workflow, not a forwarding shell. modules/schoolcalendar/portal/internal/application/appointment_lifecycle.go:194,253,274,338; reminder_effects.go. Target modules/appointments.Owner.FindReminderCandidatesForUpdate; modules/appointments.Owner (supplied contract method). "
     },
     {
       "source_owner": "school-calendar",
@@ -27914,7 +27914,7 @@
       "classification": "debt",
       "adr": "0083",
       "approval_adr": "0083",
-      "reason": "Known debt, no new ADR 0067 exception: School Calendar portal owns appointment locked re-read/organizer decision, recurrence/recipient writes and notification coordination. Proposed follow-up: move the complete portal lifecycle/reminder coordinator to a workflow, not a forwarding shell. schoolcalendar/portal/internal/application/appointment_lifecycle.go:194,253,274,338; reminder_effects.go. Target modules/appointments.Capability.ReleaseReminderPushDelivery; modules/appointments.Capability (supplied contract method). "
+      "reason": "Known debt, no new ADR 0067 exception: School Calendar portal owns appointment locked re-read/organizer decision, recurrence/recipient writes and notification coordination. Proposed follow-up: move the complete portal lifecycle/reminder coordinator to a workflow, not a forwarding shell. modules/schoolcalendar/portal/internal/application/appointment_lifecycle.go:194,253,274,338; reminder_effects.go. Target modules/appointments.Capability.ReleaseReminderPushDelivery; modules/appointments.Capability (supplied contract method). "
     },
     {
       "source_owner": "school-calendar",
@@ -27927,7 +27927,7 @@
       "classification": "debt",
       "adr": "0083",
       "approval_adr": "0083",
-      "reason": "Known debt, no new ADR 0067 exception: School Calendar portal owns appointment locked re-read/organizer decision, recurrence/recipient writes and notification coordination. Proposed follow-up: move the complete portal lifecycle/reminder coordinator to a workflow, not a forwarding shell. schoolcalendar/portal/internal/application/appointment_lifecycle.go:194,253,274,338; reminder_effects.go. Target modules/appointments.Owner.ReleaseReminderPushDelivery; modules/appointments.Owner (supplied contract method). "
+      "reason": "Known debt, no new ADR 0067 exception: School Calendar portal owns appointment locked re-read/organizer decision, recurrence/recipient writes and notification coordination. Proposed follow-up: move the complete portal lifecycle/reminder coordinator to a workflow, not a forwarding shell. modules/schoolcalendar/portal/internal/application/appointment_lifecycle.go:194,253,274,338; reminder_effects.go. Target modules/appointments.Owner.ReleaseReminderPushDelivery; modules/appointments.Owner (supplied contract method). "
     },
     {
       "source_owner": "school-calendar",
@@ -27940,7 +27940,7 @@
       "classification": "debt",
       "adr": "0083",
       "approval_adr": "0083",
-      "reason": "Known debt, no new ADR 0067 exception: School Calendar portal owns appointment locked re-read/organizer decision, recurrence/recipient writes and notification coordination. Proposed follow-up: move the complete portal lifecycle/reminder coordinator to a workflow, not a forwarding shell. schoolcalendar/portal/internal/application/appointment_lifecycle.go:194,253,274,338; reminder_effects.go. Target modules/appointments.Owner.ReleaseReminderPushDelivery; modules/appointments.Owner (supplied contract method). "
+      "reason": "Known debt, no new ADR 0067 exception: School Calendar portal owns appointment locked re-read/organizer decision, recurrence/recipient writes and notification coordination. Proposed follow-up: move the complete portal lifecycle/reminder coordinator to a workflow, not a forwarding shell. modules/schoolcalendar/portal/internal/application/appointment_lifecycle.go:194,253,274,338; reminder_effects.go. Target modules/appointments.Owner.ReleaseReminderPushDelivery; modules/appointments.Owner (supplied contract method). "
     },
     {
       "source_owner": "school-calendar",
@@ -27953,7 +27953,7 @@
       "classification": "debt",
       "adr": "0083",
       "approval_adr": "0083",
-      "reason": "Known debt, no new ADR 0067 exception: School Calendar portal owns appointment locked re-read/organizer decision, recurrence/recipient writes and notification coordination. Proposed follow-up: move the complete portal lifecycle/reminder coordinator to a workflow, not a forwarding shell. schoolcalendar/portal/internal/application/appointment_lifecycle.go:194,253,274,338; reminder_effects.go. Target modules/appointments.Capability.ReplaceAppointmentTargets; modules/appointments.Capability (supplied contract method). "
+      "reason": "Known debt, no new ADR 0067 exception: School Calendar portal owns appointment locked re-read/organizer decision, recurrence/recipient writes and notification coordination. Proposed follow-up: move the complete portal lifecycle/reminder coordinator to a workflow, not a forwarding shell. modules/schoolcalendar/portal/internal/application/appointment_lifecycle.go:194,253,274,338; reminder_effects.go. Target modules/appointments.Capability.ReplaceAppointmentTargets; modules/appointments.Capability (supplied contract method). "
     },
     {
       "source_owner": "school-calendar",
@@ -27966,7 +27966,7 @@
       "classification": "debt",
       "adr": "0083",
       "approval_adr": "0083",
-      "reason": "Known debt, no new ADR 0067 exception: School Calendar portal owns appointment locked re-read/organizer decision, recurrence/recipient writes and notification coordination. Proposed follow-up: move the complete portal lifecycle/reminder coordinator to a workflow, not a forwarding shell. schoolcalendar/portal/internal/application/appointment_lifecycle.go:194,253,274,338; reminder_effects.go. Target modules/appointments.Owner.ReplaceAppointmentTargets; modules/appointments.Owner (supplied contract method). "
+      "reason": "Known debt, no new ADR 0067 exception: School Calendar portal owns appointment locked re-read/organizer decision, recurrence/recipient writes and notification coordination. Proposed follow-up: move the complete portal lifecycle/reminder coordinator to a workflow, not a forwarding shell. modules/schoolcalendar/portal/internal/application/appointment_lifecycle.go:194,253,274,338; reminder_effects.go. Target modules/appointments.Owner.ReplaceAppointmentTargets; modules/appointments.Owner (supplied contract method). "
     },
     {
       "source_owner": "school-calendar",
@@ -27979,7 +27979,7 @@
       "classification": "debt",
       "adr": "0083",
       "approval_adr": "0083",
-      "reason": "Known debt, no new ADR 0067 exception: School Calendar portal owns appointment locked re-read/organizer decision, recurrence/recipient writes and notification coordination. Proposed follow-up: move the complete portal lifecycle/reminder coordinator to a workflow, not a forwarding shell. schoolcalendar/portal/internal/application/appointment_lifecycle.go:194,253,274,338; reminder_effects.go. Target modules/appointments.Owner.ReplaceAppointmentTargets; modules/appointments.Owner (supplied contract method). "
+      "reason": "Known debt, no new ADR 0067 exception: School Calendar portal owns appointment locked re-read/organizer decision, recurrence/recipient writes and notification coordination. Proposed follow-up: move the complete portal lifecycle/reminder coordinator to a workflow, not a forwarding shell. modules/schoolcalendar/portal/internal/application/appointment_lifecycle.go:194,253,274,338; reminder_effects.go. Target modules/appointments.Owner.ReplaceAppointmentTargets; modules/appointments.Owner (supplied contract method). "
     },
     {
       "source_owner": "school-calendar",
@@ -27992,7 +27992,7 @@
       "classification": "debt",
       "adr": "0083",
       "approval_adr": "0083",
-      "reason": "Known debt, no new ADR 0067 exception: School Calendar portal owns appointment locked re-read/organizer decision, recurrence/recipient writes and notification coordination. Proposed follow-up: move the complete portal lifecycle/reminder coordinator to a workflow, not a forwarding shell. schoolcalendar/portal/internal/application/appointment_lifecycle.go:194,253,274,338; reminder_effects.go. Target modules/appointments.Capability.SoftDeleteAppointment; modules/appointments.Capability (supplied contract method). "
+      "reason": "Known debt, no new ADR 0067 exception: School Calendar portal owns appointment locked re-read/organizer decision, recurrence/recipient writes and notification coordination. Proposed follow-up: move the complete portal lifecycle/reminder coordinator to a workflow, not a forwarding shell. modules/schoolcalendar/portal/internal/application/appointment_lifecycle.go:194,253,274,338; reminder_effects.go. Target modules/appointments.Capability.SoftDeleteAppointment; modules/appointments.Capability (supplied contract method). "
     },
     {
       "source_owner": "school-calendar",
@@ -28005,7 +28005,7 @@
       "classification": "debt",
       "adr": "0083",
       "approval_adr": "0083",
-      "reason": "Known debt, no new ADR 0067 exception: School Calendar portal owns appointment locked re-read/organizer decision, recurrence/recipient writes and notification coordination. Proposed follow-up: move the complete portal lifecycle/reminder coordinator to a workflow, not a forwarding shell. schoolcalendar/portal/internal/application/appointment_lifecycle.go:194,253,274,338; reminder_effects.go. Target modules/appointments.Owner.SoftDeleteAppointment; modules/appointments.Owner (supplied contract method). "
+      "reason": "Known debt, no new ADR 0067 exception: School Calendar portal owns appointment locked re-read/organizer decision, recurrence/recipient writes and notification coordination. Proposed follow-up: move the complete portal lifecycle/reminder coordinator to a workflow, not a forwarding shell. modules/schoolcalendar/portal/internal/application/appointment_lifecycle.go:194,253,274,338; reminder_effects.go. Target modules/appointments.Owner.SoftDeleteAppointment; modules/appointments.Owner (supplied contract method). "
     },
     {
       "source_owner": "school-calendar",
@@ -28018,7 +28018,7 @@
       "classification": "debt",
       "adr": "0083",
       "approval_adr": "0083",
-      "reason": "Known debt, no new ADR 0067 exception: School Calendar portal owns appointment locked re-read/organizer decision, recurrence/recipient writes and notification coordination. Proposed follow-up: move the complete portal lifecycle/reminder coordinator to a workflow, not a forwarding shell. schoolcalendar/portal/internal/application/appointment_lifecycle.go:194,253,274,338; reminder_effects.go. Target modules/appointments.Owner.SoftDeleteAppointment; modules/appointments.Owner (supplied contract method). "
+      "reason": "Known debt, no new ADR 0067 exception: School Calendar portal owns appointment locked re-read/organizer decision, recurrence/recipient writes and notification coordination. Proposed follow-up: move the complete portal lifecycle/reminder coordinator to a workflow, not a forwarding shell. modules/schoolcalendar/portal/internal/application/appointment_lifecycle.go:194,253,274,338; reminder_effects.go. Target modules/appointments.Owner.SoftDeleteAppointment; modules/appointments.Owner (supplied contract method). "
     },
     {
       "source_owner": "school-calendar",
@@ -28031,7 +28031,7 @@
       "classification": "debt",
       "adr": "0083",
       "approval_adr": "0083",
-      "reason": "Known debt, no new ADR 0067 exception: School Calendar portal owns appointment locked re-read/organizer decision, recurrence/recipient writes and notification coordination. Proposed follow-up: move the complete portal lifecycle/reminder coordinator to a workflow, not a forwarding shell. schoolcalendar/portal/internal/application/appointment_lifecycle.go:194,253,274,338; reminder_effects.go. Target modules/appointments.Capability.UpdateAppointmentRecipientResponse; modules/appointments.Capability (supplied contract method). "
+      "reason": "Known debt, no new ADR 0067 exception: School Calendar portal owns appointment locked re-read/organizer decision, recurrence/recipient writes and notification coordination. Proposed follow-up: move the complete portal lifecycle/reminder coordinator to a workflow, not a forwarding shell. modules/schoolcalendar/portal/internal/application/appointment_lifecycle.go:194,253,274,338; reminder_effects.go. Target modules/appointments.Capability.UpdateAppointmentRecipientResponse; modules/appointments.Capability (supplied contract method). "
     },
     {
       "source_owner": "school-calendar",
@@ -28044,7 +28044,7 @@
       "classification": "debt",
       "adr": "0083",
       "approval_adr": "0083",
-      "reason": "Known debt, no new ADR 0067 exception: School Calendar portal owns appointment locked re-read/organizer decision, recurrence/recipient writes and notification coordination. Proposed follow-up: move the complete portal lifecycle/reminder coordinator to a workflow, not a forwarding shell. schoolcalendar/portal/internal/application/appointment_lifecycle.go:194,253,274,338; reminder_effects.go. Target modules/appointments.Owner.UpdateAppointmentRecipientResponse; modules/appointments.Owner (supplied contract method). "
+      "reason": "Known debt, no new ADR 0067 exception: School Calendar portal owns appointment locked re-read/organizer decision, recurrence/recipient writes and notification coordination. Proposed follow-up: move the complete portal lifecycle/reminder coordinator to a workflow, not a forwarding shell. modules/schoolcalendar/portal/internal/application/appointment_lifecycle.go:194,253,274,338; reminder_effects.go. Target modules/appointments.Owner.UpdateAppointmentRecipientResponse; modules/appointments.Owner (supplied contract method). "
     },
     {
       "source_owner": "school-calendar",
@@ -28057,7 +28057,7 @@
       "classification": "debt",
       "adr": "0083",
       "approval_adr": "0083",
-      "reason": "Known debt, no new ADR 0067 exception: School Calendar portal owns appointment locked re-read/organizer decision, recurrence/recipient writes and notification coordination. Proposed follow-up: move the complete portal lifecycle/reminder coordinator to a workflow, not a forwarding shell. schoolcalendar/portal/internal/application/appointment_lifecycle.go:194,253,274,338; reminder_effects.go. Target modules/appointments.Owner.UpdateAppointmentRecipientResponse; modules/appointments.Owner (supplied contract method). "
+      "reason": "Known debt, no new ADR 0067 exception: School Calendar portal owns appointment locked re-read/organizer decision, recurrence/recipient writes and notification coordination. Proposed follow-up: move the complete portal lifecycle/reminder coordinator to a workflow, not a forwarding shell. modules/schoolcalendar/portal/internal/application/appointment_lifecycle.go:194,253,274,338; reminder_effects.go. Target modules/appointments.Owner.UpdateAppointmentRecipientResponse; modules/appointments.Owner (supplied contract method). "
     },
     {
       "source_owner": "school-calendar",
@@ -28070,7 +28070,7 @@
       "classification": "debt",
       "adr": "0083",
       "approval_adr": "0083",
-      "reason": "Known debt, no new ADR 0067 exception: School Calendar portal owns appointment locked re-read/organizer decision, recurrence/recipient writes and notification coordination. Proposed follow-up: move the complete portal lifecycle/reminder coordinator to a workflow, not a forwarding shell. schoolcalendar/portal/internal/application/appointment_lifecycle.go:194,253,274,338; reminder_effects.go. Target modules/appointments.Capability.UpdateAppointment; modules/appointments.Capability (supplied contract method). "
+      "reason": "Known debt, no new ADR 0067 exception: School Calendar portal owns appointment locked re-read/organizer decision, recurrence/recipient writes and notification coordination. Proposed follow-up: move the complete portal lifecycle/reminder coordinator to a workflow, not a forwarding shell. modules/schoolcalendar/portal/internal/application/appointment_lifecycle.go:194,253,274,338; reminder_effects.go. Target modules/appointments.Capability.UpdateAppointment; modules/appointments.Capability (supplied contract method). "
     },
     {
       "source_owner": "school-calendar",
@@ -28083,7 +28083,7 @@
       "classification": "debt",
       "adr": "0083",
       "approval_adr": "0083",
-      "reason": "Known debt, no new ADR 0067 exception: School Calendar portal owns appointment locked re-read/organizer decision, recurrence/recipient writes and notification coordination. Proposed follow-up: move the complete portal lifecycle/reminder coordinator to a workflow, not a forwarding shell. schoolcalendar/portal/internal/application/appointment_lifecycle.go:194,253,274,338; reminder_effects.go. Target modules/appointments.Owner.UpdateAppointment; modules/appointments.Owner (supplied contract method). "
+      "reason": "Known debt, no new ADR 0067 exception: School Calendar portal owns appointment locked re-read/organizer decision, recurrence/recipient writes and notification coordination. Proposed follow-up: move the complete portal lifecycle/reminder coordinator to a workflow, not a forwarding shell. modules/schoolcalendar/portal/internal/application/appointment_lifecycle.go:194,253,274,338; reminder_effects.go. Target modules/appointments.Owner.UpdateAppointment; modules/appointments.Owner (supplied contract method). "
     },
     {
       "source_owner": "school-calendar",
@@ -28096,7 +28096,7 @@
       "classification": "debt",
       "adr": "0083",
       "approval_adr": "0083",
-      "reason": "Known debt, no new ADR 0067 exception: School Calendar portal owns appointment locked re-read/organizer decision, recurrence/recipient writes and notification coordination. Proposed follow-up: move the complete portal lifecycle/reminder coordinator to a workflow, not a forwarding shell. schoolcalendar/portal/internal/application/appointment_lifecycle.go:194,253,274,338; reminder_effects.go. Target modules/appointments.Owner.UpdateAppointment; modules/appointments.Owner (supplied contract method). "
+      "reason": "Known debt, no new ADR 0067 exception: School Calendar portal owns appointment locked re-read/organizer decision, recurrence/recipient writes and notification coordination. Proposed follow-up: move the complete portal lifecycle/reminder coordinator to a workflow, not a forwarding shell. modules/schoolcalendar/portal/internal/application/appointment_lifecycle.go:194,253,274,338; reminder_effects.go. Target modules/appointments.Owner.UpdateAppointment; modules/appointments.Owner (supplied contract method). "
     },
     {
       "source_owner": "school-calendar",
@@ -40546,7 +40546,7 @@
       "effect": "notice",
       "classification": "leaf",
       "adr": "0067",
-      "reason": "Non-durable guardian SSE invalidation only; no message/pill/outbox write. Its existing after-commit timing remains required (communication parentmessaging/emitter.go:145-161). Target modules/communication/eventcontract.Emitter.BroadcastChildUpdateToGuardians; modules/communication/eventcontract/events.go:131. "
+      "reason": "Non-durable guardian SSE invalidation only; no message/pill/outbox write. Its existing after-commit timing remains required (modules/communication/internal/application/parentmessaging/emitter.go:145-161). Target modules/communication/eventcontract.Emitter.BroadcastChildUpdateToGuardians; modules/communication/eventcontract/events.go:131. "
     },
     {
       "source_owner": "student-presence",
@@ -41529,7 +41529,7 @@
       "effect": "notice",
       "classification": "leaf",
       "adr": "0067",
-      "reason": "Non-durable guardian SSE invalidation only; no message/pill/outbox write. Its existing after-commit timing remains required (communication parentmessaging/emitter.go:145-161). Target modules/communication/eventcontract.Emitter.BroadcastChildUpdateToGuardians; modules/communication/eventcontract/events.go:131. "
+      "reason": "Non-durable guardian SSE invalidation only; no message/pill/outbox write. Its existing after-commit timing remains required (modules/communication/internal/application/parentmessaging/emitter.go:145-161). Target modules/communication/eventcontract.Emitter.BroadcastChildUpdateToGuardians; modules/communication/eventcontract/events.go:131. "
     },
     {
       "source_owner": "student-presence",
@@ -59939,7 +59939,7 @@
       "classification": "E3",
       "adr": "0067",
       "approval_adr": "0083",
-      "reason": "E3 named Workforce staff-master-data protocol: foreign staff lock, before/after subject and audit before applying; hand rows 21-22, workforce/internal/application/staffadmin.go. Target modules/peopledirectory/ports.PersonRepository.FindByIDForUpdate; modules/peopledirectory/ports/repository_contracts.go:43. "
+      "reason": "E3 named Workforce staff-master-data protocol: foreign staff lock, before/after subject and audit before applying; hand rows 21-22, modules/workforce/internal/application/staffadmin.go. Target modules/peopledirectory/ports.PersonRepository.FindByIDForUpdate; modules/peopledirectory/ports/repository_contracts.go:43. "
     },
     {
       "source_owner": "workforce",
@@ -59952,7 +59952,7 @@
       "classification": "E3",
       "adr": "0067",
       "approval_adr": "0083",
-      "reason": "E3 named Workforce staff-master-data protocol: foreign staff lock, before/after subject and audit before applying; hand rows 21-22, workforce/internal/application/staffadmin.go. Target modules/peopledirectory/ports.StaffRepository.FindByIDForUpdate; modules/peopledirectory/ports/repository_contracts.go:234. "
+      "reason": "E3 named Workforce staff-master-data protocol: foreign staff lock, before/after subject and audit before applying; hand rows 21-22, modules/workforce/internal/application/staffadmin.go. Target modules/peopledirectory/ports.StaffRepository.FindByIDForUpdate; modules/peopledirectory/ports/repository_contracts.go:234. "
     },
     {
       "source_owner": "workforce",
@@ -59965,7 +59965,7 @@
       "classification": "E3",
       "adr": "0067",
       "approval_adr": "0083",
-      "reason": "E3 named Workforce staff-master-data protocol: foreign staff lock, before/after subject and audit before applying; hand rows 21-22, workforce/internal/application/staffadmin.go. Target modules/schoolmembership.Capability.FindStaffForMutation; modules/schoolmembership.Capability (supplied contract method). "
+      "reason": "E3 named Workforce staff-master-data protocol: foreign staff lock, before/after subject and audit before applying; hand rows 21-22, modules/workforce/internal/application/staffadmin.go. Target modules/schoolmembership.Capability.FindStaffForMutation; modules/schoolmembership.Capability (supplied contract method). "
     },
     {
       "source_owner": "workforce",
@@ -59978,7 +59978,7 @@
       "classification": "E3",
       "adr": "0067",
       "approval_adr": "0083",
-      "reason": "E3 named Workforce staff-master-data protocol: foreign staff lock, before/after subject and audit before applying; hand rows 21-22, workforce/internal/application/staffadmin.go. Target modules/schoolmembership.Owner.FindStaffForMutation; modules/schoolmembership.Owner (supplied contract method). "
+      "reason": "E3 named Workforce staff-master-data protocol: foreign staff lock, before/after subject and audit before applying; hand rows 21-22, modules/workforce/internal/application/staffadmin.go. Target modules/schoolmembership.Owner.FindStaffForMutation; modules/schoolmembership.Owner (supplied contract method). "
     },
     {
       "source_owner": "workforce",
@@ -60024,7 +60024,7 @@
       "classification": "E3",
       "adr": "0067",
       "approval_adr": "0083",
-      "reason": "E3 named Workforce staff-master-data protocol: foreign staff lock, before/after subject and audit before applying; hand rows 21-22, workforce/internal/application/staffadmin.go. Target modules/schoolmembership.Capability.UpdateEmploymentDetails; modules/schoolmembership.Capability (supplied contract method). "
+      "reason": "E3 named Workforce staff-master-data protocol: foreign staff lock, before/after subject and audit before applying; hand rows 21-22, modules/workforce/internal/application/staffadmin.go. Target modules/schoolmembership.Capability.UpdateEmploymentDetails; modules/schoolmembership.Capability (supplied contract method). "
     },
     {
       "source_owner": "workforce",
@@ -60037,7 +60037,7 @@
       "classification": "E3",
       "adr": "0067",
       "approval_adr": "0083",
-      "reason": "E3 named Workforce staff-master-data protocol: foreign staff lock, before/after subject and audit before applying; hand rows 21-22, workforce/internal/application/staffadmin.go. Target modules/schoolmembership.Owner.UpdateEmploymentDetails; modules/schoolmembership.Owner (supplied contract method). "
+      "reason": "E3 named Workforce staff-master-data protocol: foreign staff lock, before/after subject and audit before applying; hand rows 21-22, modules/workforce/internal/application/staffadmin.go. Target modules/schoolmembership.Owner.UpdateEmploymentDetails; modules/schoolmembership.Owner (supplied contract method). "
     },
     {
       "source_owner": "workforce",
@@ -60050,7 +60050,7 @@
       "classification": "E3",
       "adr": "0067",
       "approval_adr": "0083",
-      "reason": "E3 named Workforce staff-master-data protocol: foreign staff lock, before/after subject and audit before applying; hand rows 21-22, workforce/internal/application/staffadmin.go. Target modules/schoolmembership.Capability.UpdateEmploymentDetails; modules/schoolmembership.Capability (supplied contract method). "
+      "reason": "E3 named Workforce staff-master-data protocol: foreign staff lock, before/after subject and audit before applying; hand rows 21-22, modules/workforce/internal/application/staffadmin.go. Target modules/schoolmembership.Capability.UpdateEmploymentDetails; modules/schoolmembership.Capability (supplied contract method). "
     },
     {
       "source_owner": "workforce",
@@ -60063,7 +60063,7 @@
       "classification": "E3",
       "adr": "0067",
       "approval_adr": "0083",
-      "reason": "E3 named Workforce staff-master-data protocol: foreign staff lock, before/after subject and audit before applying; hand rows 21-22, workforce/internal/application/staffadmin.go. Target modules/schoolmembership.Owner.UpdateEmploymentDetails; modules/schoolmembership.Owner (supplied contract method). "
+      "reason": "E3 named Workforce staff-master-data protocol: foreign staff lock, before/after subject and audit before applying; hand rows 21-22, modules/workforce/internal/application/staffadmin.go. Target modules/schoolmembership.Owner.UpdateEmploymentDetails; modules/schoolmembership.Owner (supplied contract method). "
     },
     {
       "source_owner": "workforce",
@@ -60208,7 +60208,7 @@
       "classification": "E3",
       "adr": "0067",
       "approval_adr": "0083",
-      "reason": "E3 named Workforce staff-master-data protocol: foreign staff lock, before/after subject and audit before applying; hand rows 21-22, workforce/internal/application/staffadmin.go. Target modules/peopledirectory/compose.Directory.SetPersonDetails; modules/peopledirectory/internal/application/capability_account_lifecycle_commands.go:62. "
+      "reason": "E3 named Workforce staff-master-data protocol: foreign staff lock, before/after subject and audit before applying; hand rows 21-22, modules/workforce/internal/application/staffadmin.go. Target modules/peopledirectory/compose.Directory.SetPersonDetails; modules/peopledirectory/internal/application/capability_account_lifecycle_commands.go:62. "
     },
     {
       "source_owner": "workforce",
@@ -60221,7 +60221,7 @@
       "classification": "E3",
       "adr": "0067",
       "approval_adr": "0083",
-      "reason": "E3 named Workforce staff-master-data protocol: foreign staff lock, before/after subject and audit before applying; hand rows 21-22, workforce/internal/application/staffadmin.go. Target modules/peopledirectory.Capability.SetPersonDetails; modules/peopledirectory.Capability (supplied contract method). "
+      "reason": "E3 named Workforce staff-master-data protocol: foreign staff lock, before/after subject and audit before applying; hand rows 21-22, modules/workforce/internal/application/staffadmin.go. Target modules/peopledirectory.Capability.SetPersonDetails; modules/peopledirectory.Capability (supplied contract method). "
     },
     {
       "source_owner": "workforce",
@@ -60234,7 +60234,7 @@
       "classification": "E3",
       "adr": "0067",
       "approval_adr": "0083",
-      "reason": "E3 named Workforce staff-master-data protocol: foreign staff lock, before/after subject and audit before applying; hand rows 21-22, workforce/internal/application/staffadmin.go. Target modules/peopledirectory.Owner.SetPersonDetails; modules/peopledirectory.Owner (supplied contract method). "
+      "reason": "E3 named Workforce staff-master-data protocol: foreign staff lock, before/after subject and audit before applying; hand rows 21-22, modules/workforce/internal/application/staffadmin.go. Target modules/peopledirectory.Owner.SetPersonDetails; modules/peopledirectory.Owner (supplied contract method). "
     },
     {
       "source_owner": "workforce",
