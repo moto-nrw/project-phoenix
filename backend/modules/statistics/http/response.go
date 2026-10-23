@@ -130,16 +130,7 @@ func toReportResponse(report *studentpresence.StatisticsReport) reportResponse {
 		out.Groups = append(out.Groups, toGroupResponse(g))
 	}
 	for _, room := range report.Rooms {
-		out.Rooms = append(out.Rooms, roomResponse{
-			RoomID:                 strconv.FormatInt(room.RoomID, 10),
-			Name:                   room.Name,
-			Capacity:               room.Capacity,
-			DaysUsed:               room.DaysUsed,
-			DistinctStudents:       room.DistinctStudents,
-			StudentMinutes:         room.StudentMinutes,
-			PeakOccupancy:          room.PeakOccupancy,
-			PeakUtilizationPercent: room.PeakUtilizationPercent,
-		})
+		out.Rooms = append(out.Rooms, toRoomResponse(room))
 	}
 	for _, course := range report.Courses {
 		out.Courses = append(out.Courses, toCourseResponse(course))
@@ -160,6 +151,19 @@ func toReportResponse(report *studentpresence.StatisticsReport) reportResponse {
 		})
 	}
 	return out
+}
+
+func toRoomResponse(room studentpresence.StatisticsRoomRow) roomResponse {
+	return roomResponse{
+		RoomID:                 strconv.FormatInt(room.RoomID, 10),
+		Name:                   room.Name,
+		Capacity:               room.Capacity,
+		DaysUsed:               room.DaysUsed,
+		DistinctStudents:       room.DistinctStudents,
+		StudentMinutes:         room.StudentMinutes,
+		PeakOccupancy:          room.PeakOccupancy,
+		PeakUtilizationPercent: room.PeakUtilizationPercent,
+	}
 }
 
 func toCourseResponse(course studentpresence.StatisticsCourseRow) courseResponse {
