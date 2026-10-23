@@ -112,8 +112,10 @@ func (rs *Resource) checkStudentFullAccess(r *http.Request, student *peopleModul
 
 // checkStudentReadAccess determines if the current user has full read access
 // to a student's data (profile, location, visit info, privacy details, pickup
-// schedules): admin or verified staff. Other roles (guest, guardian) stay
-// redacted.
+// schedules): admin or verified staff. Accounts without a staff record at the
+// school (guardians) stay redacted. An invited guest has a staff record and
+// reads in full; the routes' permissions (students:read) limit what a guest
+// reaches, not this predicate.
 //
 // Delegates to securityruntime.CanReadStudent so the same predicate is reusable
 // from other handlers (timetable, per-student day view).

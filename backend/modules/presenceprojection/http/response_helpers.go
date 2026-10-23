@@ -362,7 +362,8 @@ func newStudentResponseWithOpts(ctx context.Context, opts StudentResponseOpts, s
 		UpdatedAt:   student.UpdatedAt,
 	}
 
-	// Guardian contact info is visible to all authenticated staff
+	// The response carries no guardian data: guardian contacts are served by
+	// the guardian routes behind users:read.
 
 	response.HasFullAccess = hasFullAccess
 
@@ -411,7 +412,8 @@ func newStudentResponseFromSnapshot(_ context.Context, student *peopleModule.Stu
 		UpdatedAt:   student.UpdatedAt,
 	}
 
-	// Guardian contact info is visible to all authenticated staff
+	// The response carries no guardian data: guardian contacts are served by
+	// the guardian routes behind users:read.
 
 	response.HasFullAccess = hasFullAccess
 

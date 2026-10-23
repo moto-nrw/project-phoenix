@@ -118,7 +118,7 @@ repoint both to the successor. Materialization/replans never touch dates
 - **Error codes returned by `/api/iot/*` are a cross-repo contract** — PyrePortal maps them to German UI text; the `detail` text is diagnostics (see `docs/agents/contracts.md` Ecosystem and IoT)
 
 ### GDPR/Privacy Patterns
-- Student data visibility is permission-scoped: admins and verified staff see full data for every child of the tenant (#2329 removed the per-group scope); guest/guardian accounts stay redacted. The wire keeps separate `has_full_access` (read) vs `has_write_access` (write) flags
+- Student data visibility is permission-scoped: admins and verified staff see full data for every child of the tenant (#2329 removed the per-group scope); accounts without a staff record (guardians) stay redacted. Guests have a staff record, so route permissions limit them: the system role guest holds `students:read`, which opens only the child list/detail reads, never guardians, parent messages, notes or exports (ADR 0083). The wire keeps separate `has_full_access` (read) vs `has_write_access` (write) flags
 - Per-student retention: `DataRetentionDays int` (notnull) — 1-31 days, default 30 via the `DefaultDataRetentionDays` const (`models/users/privacy_consent.go`)
 - Automated cleanup is scheduled per tenant via the `gdpr.data_cleanup_*` settings; manual dry-run: `go run . cleanup preview|stats` (see [Cleanup CLI](../docs/agents/operations.md#cleanup-cli) for the exact CLI shapes — they differ per domain)
 - All deletions logged in `audit.data_deletions`
