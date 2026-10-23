@@ -206,10 +206,10 @@ describe("AccountTenantAccessModal", () => {
       },
     ]);
     mockListAssignableRoles.mockResolvedValue([
-      { id: "1", name: "admin" },
-      { id: "2", name: "user" },
+      { id: "1", name: "admin", isSystem: true, schoolPortal: false },
+      { id: "2", name: "user", isSystem: true, schoolPortal: false },
       // lehrkraft (#1772) is assignable since the class day view shipped.
-      { id: "9", name: "lehrkraft" },
+      { id: "9", name: "lehrkraft", isSystem: true, schoolPortal: false },
     ]);
   });
 
@@ -446,6 +446,39 @@ describe("AccountTenantAccessModal", () => {
     expect(options).not.toContain("Verwaltung");
     expect((roleSelect as HTMLSelectElement).value).toBe("9");
     expect(roleSelect).toBeDisabled();
+  });
+
+  it("keeps an existing Lehrkraft copy on Lehrkraft roles (#4574)", async () => {
+    mockListAssignableRoles.mockResolvedValue([
+      { id: "1", name: "admin", isSystem: true, schoolPortal: false },
+      { id: "2", name: "user", isSystem: true, schoolPortal: false },
+      { id: "9", name: "lehrkraft", isSystem: true, schoolPortal: false },
+      { id: "12", name: "klassenleitung", isSystem: false, schoolPortal: true },
+    ]);
+    mockList.mockResolvedValue([
+      access({
+        roles: [
+          {
+            id: "12",
+            name: "klassenleitung",
+            isSystem: false,
+            baseRole: "user",
+            schoolPortal: true,
+          },
+        ],
+      }),
+    ]);
+    renderModal();
+
+    const roleSelect = await screen.findByLabelText("Rolle an OGS Nord");
+    const options = Array.from(roleSelect.querySelectorAll("option")).map(
+      (option) => option.textContent,
+    );
+
+    expect(options).toContain("klassenleitung");
+    expect(options).not.toContain("Betreuung");
+    expect(options).not.toContain("Verwaltung");
+    expect((roleSelect as HTMLSelectElement).value).toBe("12");
   });
 
   it("changes the role of an existing school access", async () => {

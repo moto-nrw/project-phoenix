@@ -394,6 +394,34 @@ describe("RolesPage", () => {
     });
   });
 
+  it("does not list the system role Eltern (#4574)", async () => {
+    mockGetList.mockResolvedValue({
+      data: [
+        ...mockRoles,
+        {
+          id: "3",
+          name: "guardian",
+          description: "Eltern",
+          isSystem: true,
+          baseRole: "guardian",
+          createdAt: "2026-01-01",
+          updatedAt: "2026-01-02",
+        },
+      ],
+    });
+
+    render(<RolesPage />);
+
+    await waitFor(() => {
+      expect(screen.getByTestId("role-row-1")).toBeInTheDocument();
+    });
+    expect(screen.getByTestId("role-row-2")).toBeInTheDocument();
+    expect(screen.queryByTestId("role-row-3")).not.toBeInTheDocument();
+    expect(screen.getByTestId("page-intro")).toHaveTextContent(
+      "2 Rollen · 1 vom System",
+    );
+  });
+
   it("does not enable permission editing with roles:manage alone", async () => {
     mockUseSession.mockReturnValue({
       data: {
@@ -791,7 +819,7 @@ describe("RolesPage", () => {
 
     await waitFor(() => {
       expect(
-        screen.getByText("1 Rolle hat keine Systemrollen-Zuordnung"),
+        screen.getByText("Bei 1 Rolle fehlt „Gilt als“"),
       ).toBeInTheDocument();
     });
   });
