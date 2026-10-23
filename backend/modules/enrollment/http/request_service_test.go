@@ -3471,3 +3471,31 @@ func TestRequestServiceRejectsUnreadableSubmissionEditPolicy(t *testing.T) {
 	err = testpkg.TenantCommand2(t, ctx, env.db, env.svc.Edit, submitted.Request.StatusToken, enrollmentAPI.EditPatch{GuardianFirstName: &name})
 	require.ErrorIs(t, err, failure)
 }
+
+func TestRequestServiceEditModePreservesSubmissionEditErrors(t *testing.T) {
+	t.Parallel()
+	for _, status := range []string{enrollmentNative.ChildStatusSubmitted, enrollmentNative.ChildStatusWaitlisted} {
+		t.Run(status, func(t *testing.T) {
+			testpkg.OwnTenant(t)
+			env := setupRequestTest(t)
+			ctx := testpkg.Ctx(t)
+			submitted, err := env.svc.Submit(ctx, validSubmission(t, env.phaseID))
+			require.NoError(t, err)
+			for _, child := range submitted.Children {
+				child.Status = status
+			}
+			failure := errors.New("submission edit policy unavailable")
+			env.settings.boolErrors[settingKeyAllowSubmissionEdit] = failure
+
+			mode, err := env.svc.EditModeForStatus(ctx, submitted.Request, submitted.Children)
+			require.ErrorIs(t, err, failure)
+			assert.Equal(t, enrollmentNative.EditModeNone, mode)
+
+			delete(env.settings.boolErrors, settingKeyAllowSubmissionEdit)
+			env.settings.boolValues[settingKeyAllowSubmissionEdit] = false
+			mode, err = env.svc.EditModeForStatus(ctx, submitted.Request, submitted.Children)
+			require.NoError(t, err)
+			assert.Equal(t, enrollmentNative.EditModeNone, mode)
+		})
+	}
+}

@@ -115,16 +115,16 @@ func (s *Intake) editModeForStatus(ctx context.Context, req *Request, children [
 	mode := editModeForChildren(children)
 	switch mode {
 	case enrollmentNative.EditModeDirectEdit:
-		if s.ensureRequestEditable(ctx, req, children) != nil {
-			return enrollmentNative.EditModeNone, nil
+		if err := s.ensureRequestEditable(ctx, req, children); err != nil {
+			return editModeGateResult(err)
 		}
 		if _, err := s.loadPhaseForEditableRequest(ctx, req.PhaseID); err != nil {
 			return editModeGateResult(err)
 		}
 		return enrollmentNative.EditModeDirectEdit, nil
 	case enrollmentNative.EditModeChangeRequest:
-		if s.ensureChangeRequestDraftAvailable(ctx, req, children) != nil {
-			return enrollmentNative.EditModeNone, nil
+		if err := s.ensureChangeRequestDraftAvailable(ctx, req, children); err != nil {
+			return editModeGateResult(err)
 		}
 		phase, err := s.loadPhaseForEditableRequest(ctx, req.PhaseID)
 		if err != nil {
@@ -139,10 +139,10 @@ func (s *Intake) editModeForStatus(ctx context.Context, req *Request, children [
 	}
 }
 
-// editModeGateResult turns a closed phase gate into "no edit" and reports
+// editModeGateResult turns a denied edit or closed phase gate into "no edit" and reports
 // every other failure.
 func editModeGateResult(err error) (string, error) {
-	if errors.Is(err, enrollmentNative.ErrEnrollmentDisabled) || errors.Is(err, enrollmentNative.ErrInvalidSubmission) {
+	if errors.Is(err, enrollmentNative.ErrEditNotAllowed) || errors.Is(err, enrollmentNative.ErrEnrollmentDisabled) || errors.Is(err, enrollmentNative.ErrInvalidSubmission) {
 		return enrollmentNative.EditModeNone, nil
 	}
 	return enrollmentNative.EditModeNone, err
