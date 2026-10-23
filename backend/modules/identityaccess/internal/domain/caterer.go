@@ -88,7 +88,7 @@ func (i CatererInvitation) Redeemable(now time.Time) error {
 		return ErrInvitationRevoked
 	case i.AcceptedAt != nil:
 		return ErrInvitationUsed
-	case now.After(i.ExpiresAt):
+	case !now.Before(i.ExpiresAt):
 		return ErrInvitationExpired
 	default:
 		return nil

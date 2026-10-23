@@ -6,7 +6,46 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/modules/mealplan/internal/domain"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
+
+func TestResolveParticipationExposesTheEffectiveRegistrationDeadline(t *testing.T) {
+	t.Parallel()
+	day := domain.Date("2026-09-17")
+	annualDeadline := domain.Date("2026-08-31")
+	for _, test := range []struct {
+		name     string
+		model    domain.RegistrationModel
+		annual   domain.Date
+		wantYear bool
+	}{
+		{"earlier annual deadline", domain.ModelAnnual, annualDeadline, true},
+		{"later annual deadline", domain.ModelAnnual, domain.Date("2026-09-30"), false},
+		{"no annual deadline", domain.ModelAnnual, "", false},
+		{"single model ignores annual deadline", domain.ModelSingle, annualDeadline, false},
+		{"split model ignores annual deadline", domain.ModelSplit, annualDeadline, false},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			t.Parallel()
+			rules := defaultOrderingRules("09:00")
+			rules.Model, rules.AnnualDeadline = test.model, test.annual
+			rules.Cancellation = domain.Deadline{Kind: domain.DeadlineDaysBefore, LeadDays: 1, Clock: "18:00"}
+			want := rules.RegistrationAt(day)
+			if test.wantYear {
+				want = annualDeadline.EndOfDay()
+			}
+			for _, now := range []time.Time{want, want.Add(time.Nanosecond)} {
+				service := &Service{now: func() time.Time { return now }}
+				plan := service.resolveParticipation(domain.ParticipationData{}, day, day, rules, domain.CalendarDays{})
+				require.Len(t, plan.Days, 1)
+				assert.Equal(t, want, plan.Days[0].RegisterUntil)
+				assert.Equal(t, rules.CancellationAt(day), plan.Days[0].CancelUntil)
+				assert.Equal(t, now.Equal(want), plan.Days[0].CanRegister)
+			}
+			assert.Equal(t, rules.CancellationAt(day), rules.FreezeAt(day), "the annual deadline does not freeze future orders")
+		})
+	}
+}
 
 func TestSickAtCutoffTreatsClearanceAtCutoffAsEffective(t *testing.T) {
 	t.Parallel()

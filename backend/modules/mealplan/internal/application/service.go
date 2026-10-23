@@ -478,7 +478,7 @@ func (s *Service) resolveParticipation(data domain.ParticipationData, from, to d
 		result := resolveDay(state, rules.AbsenceCutoff(date))
 		day := domain.ParticipationDay{
 			Date: date, Participating: result.participating, Registered: result.registered, Regular: result.regular, Source: result.source,
-			RegisterUntil: rules.RegistrationAt(date), CancelUntil: rules.CancellationAt(date),
+			RegisterUntil: rules.ParentRegistrationUntil(date), CancelUntil: rules.CancellationAt(date),
 		}
 		if !state.closed {
 			day.CanRegister, day.CanCancel = rules.ParentCanRegister(now, date), rules.ParentCanCancel(now, date)

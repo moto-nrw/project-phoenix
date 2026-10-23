@@ -148,6 +148,18 @@ func (r OrderingRules) RegistrationAt(day Date) time.Time {
 	}
 }
 
+// ParentRegistrationUntil is the earlier of the day deadline and the annual
+// registration deadline. The annual deadline does not fix the day's order.
+func (r OrderingRules) ParentRegistrationUntil(day Date) time.Time {
+	deadline := r.RegistrationAt(day)
+	if r.Model == ModelAnnual && r.AnnualDeadline != "" {
+		if annual := r.AnnualDeadline.EndOfDay(); annual.Before(deadline) {
+			return annual
+		}
+	}
+	return deadline
+}
+
 // CancellationAt is when cancelling day ends.
 func (r OrderingRules) CancellationAt(day Date) time.Time {
 	switch r.Model {
@@ -185,7 +197,7 @@ func (r OrderingRules) annualClosed(now time.Time) bool {
 
 // ParentCanRegister reports whether a parent may still register for day.
 func (r OrderingRules) ParentCanRegister(now time.Time, day Date) bool {
-	return open(now, day, r.RegistrationAt(day)) && !r.annualClosed(now)
+	return open(now, day, r.ParentRegistrationUntil(day))
 }
 
 // ParentCanCancel reports whether a parent may still cancel day.
