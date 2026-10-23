@@ -479,7 +479,6 @@ node_modules/
 .playwright/**/*
 .playwright-mcp
 .husky/
-.gitattributes
 .beads/
 /qodana.yaml
 

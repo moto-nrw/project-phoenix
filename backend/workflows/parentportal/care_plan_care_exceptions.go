@@ -24,14 +24,11 @@ func (a careExceptions) LockStudentAndExceptionDay(ctx context.Context, id int64
 	return a.callbacks.LockStudentAndExceptionDay(ctx, id, date)
 }
 func (a careExceptions) ListPickupExceptions(ctx context.Context, filter care.StudentScheduleFilter) ([]care.PickupException, error) {
-	value, err := a.callbacks.ListPickupExceptions(ctx, carePlanFromAppStudentScheduleFilter(filter))
-	return carePlanValueSlice(value, carePlanToAppPickupException), err
+	return a.callbacks.ListPickupExceptions(ctx, filter)
 }
 func (a careExceptions) ListArrivalExceptions(ctx context.Context, filter care.StudentScheduleFilter) ([]care.ArrivalException, error) {
-	value, err := a.callbacks.ListArrivalExceptions(ctx, carePlanFromAppStudentScheduleFilter(filter))
-	return carePlanValueSlice(value, carePlanToAppArrivalException), err
+	return a.callbacks.ListArrivalExceptions(ctx, filter)
 }
 func (a careExceptions) ListDepartureExceptions(ctx context.Context, filter care.StudentScheduleFilter) ([]care.DepartureException, error) {
-	value, err := a.callbacks.ListDepartureExceptions(ctx, carePlanFromAppStudentScheduleFilter(filter))
-	return carePlanValueSlice(value, carePlanToAppDepartureException), err
+	return a.callbacks.ListDepartureExceptions(ctx, filter)
 }

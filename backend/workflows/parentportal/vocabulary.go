@@ -160,7 +160,6 @@ type (
 	EnrollablePhase          = care.EnrollablePhase
 	EnrollmentRequestSummary = care.EnrollmentRequestSummary
 	GuardianSubmitStatus     = care.GuardianSubmitStatus
-	RequestReasonPolicy      = care.RequestReasonPolicy
 	SettingsService          = care.SettingsService
 	SettingsSnapshot         = care.SettingsSnapshot
 	BatchSettingsService     = care.BatchSettingsService

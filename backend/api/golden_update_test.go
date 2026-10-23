@@ -1,8 +1,6 @@
 package api
 
 import (
-	"errors"
-	"os"
 	"strings"
 	"testing"
 
@@ -12,19 +10,6 @@ import (
 // Preserve the spellings already accepted by the comparison normalizer while
 // regenerating actual middleware changes. Raw compiler provenance is not stable
 // across builds, and rewriting it obscures the intentional change in the diff.
-func preserveGoldenMiddlewareProvenance(t *testing.T, path, got string, normalizers ...func(string) string) string {
-	t.Helper()
-	if len(normalizers) == 0 {
-		return got
-	}
-	want, err := os.ReadFile(path) // #nosec G304 -- repo-local golden path
-	if errors.Is(err, os.ErrNotExist) {
-		return got
-	}
-	require.NoError(t, err)
-	return preserveEquivalentMiddlewareNames(string(want), got, normalizers...)
-}
-
 func preserveEquivalentMiddlewareNames(want, got string, normalizers ...func(string) string) string {
 	normalize := func(name string) string {
 		value := "GET / -> " + name + "\n"
@@ -71,4 +56,17 @@ func TestGoldenUpdatePreservesOnlyEquivalentMiddlewareNames(t *testing.T) {
 		"GET /added -> api.Added\n"+
 		"POST /reordered -> api.Second > api.First\n", updated)
 	require.Equal(t, stableMiddlewareTable(got), stableMiddlewareTable(updated))
+}
+
+func TestMiddlewareGoldenGroupsRoutesUnderTheirChain(t *testing.T) {
+	t.Parallel()
+
+	table := "GET /a -> api.First > api.Second\n" +
+		"GET /b -> api.First\n" +
+		"POST /a -> api.First > api.Second\n"
+	grouped := groupMiddlewareTable(t, table)
+	require.Equal(t, middlewareTableHeader+
+		"\napi.First\n\tGET /b\n"+
+		"\napi.First > api.Second\n\tGET /a\n\tPOST /a\n", grouped)
+	require.Equal(t, table, expandMiddlewareTable(t, grouped))
 }

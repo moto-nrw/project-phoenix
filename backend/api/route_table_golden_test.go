@@ -31,6 +31,7 @@ import (
 	"flag"
 	"fmt"
 	"log/slog"
+	"maps"
 	"net/http"
 	"net/http/httptest"
 	"os"
@@ -38,6 +39,7 @@ import (
 	"reflect"
 	"regexp"
 	"runtime"
+	"slices"
 	"sort"
 	"strings"
 	"testing"
@@ -88,9 +90,8 @@ func checkRouteTableGolden(t *testing.T, apiInstance *goldenRuntime) {
 
 	compareGolden(t, filepath.Join("testdata", "route_table.golden"), strings.Join(routes, "\n")+"\n",
 		"the route table changed — if intentional, regenerate with -update-goldens and call the change out in the PR description")
-	compareGolden(t, filepath.Join("testdata", "middleware_table.golden"), strings.Join(middlewareRoutes, "\n")+"\n",
-		"a route's middleware chain changed — if intentional, regenerate with -update-goldens and call out the auth, scope, transaction, and observability impact",
-		stableMiddlewareTable)
+	compareMiddlewareGolden(t, filepath.Join("testdata", "middleware_table.golden"), strings.Join(middlewareRoutes, "\n")+"\n",
+		"a route's middleware chain changed — if intentional, regenerate with -update-goldens and call out the auth, scope, transaction, and observability impact")
 
 	// Der Frontend-Client ruft Sammlungen ohne Schrägstrich am Ende auf
 	// (/api/staff-notices), das Backend registriert den Subrouter mit "/".
@@ -252,10 +253,9 @@ func checkIoTAuthMatrixGolden(t *testing.T, apiInstance *goldenRuntime) {
 		"an unauthenticated /api/iot request now gets a different rejection — a route may have slipped between the device-auth and JWT groups; kiosks would see raw 401s. If intentional, regenerate with -update-goldens")
 }
 
-func compareGolden(t *testing.T, path, got, hint string, normalizers ...func(string) string) {
+func compareGolden(t *testing.T, path, got, hint string) {
 	t.Helper()
 	if *updateGoldens {
-		got = preserveGoldenMiddlewareProvenance(t, path, got, normalizers...)
 		require.NoError(t, os.MkdirAll(filepath.Dir(path), 0o750))
 		require.NoError(t, os.WriteFile(path, []byte(got), 0o600))
 		t.Logf("golden rewritten: %s", path)
@@ -263,14 +263,75 @@ func compareGolden(t *testing.T, path, got, hint string, normalizers ...func(str
 	}
 	wantBytes, err := os.ReadFile(path) // #nosec G304 -- repo-local testdata
 	require.NoErrorf(t, err, "golden file %s missing — generate it with -update-goldens", path)
-	want := string(wantBytes)
-	for _, normalize := range normalizers {
-		want = normalize(want)
-		got = normalize(got)
-	}
-	if want != got {
+	if want := string(wantBytes); want != got {
 		t.Errorf("%s\n\ngolden diff for %s:\n%s", hint, path, unifiedDiff(want, got))
 	}
+}
+
+// compareMiddlewareGolden compares "METHOD /route -> chain" lines against a
+// golden file that stores each distinct chain once, with its routes indented
+// below it. An added or moved route is one short line in the file's diff, and
+// a changed chain is one header line.
+func compareMiddlewareGolden(t *testing.T, path, got, hint string) {
+	t.Helper()
+	wantBytes, err := os.ReadFile(path) // #nosec G304 -- repo-local testdata
+	if *updateGoldens {
+		if err == nil {
+			got = preserveEquivalentMiddlewareNames(expandMiddlewareTable(t, string(wantBytes)), got, stableMiddlewareTable)
+		} else {
+			require.ErrorIs(t, err, os.ErrNotExist)
+		}
+		require.NoError(t, os.WriteFile(path, []byte(groupMiddlewareTable(t, got)), 0o600))
+		t.Logf("golden rewritten: %s", path)
+		return
+	}
+	require.NoErrorf(t, err, "golden file %s missing — generate it with -update-goldens", path)
+	want := stableMiddlewareTable(expandMiddlewareTable(t, string(wantBytes)))
+	if got = stableMiddlewareTable(got); want != got {
+		t.Errorf("%s\n\ngolden diff for %s:\n%s", hint, path, unifiedDiff(want, got))
+	}
+}
+
+const middlewareTableHeader = "# Each unindented line is a middleware chain, outermost first.\n" +
+	"# The indented routes below it run through exactly that chain.\n"
+
+func groupMiddlewareTable(t *testing.T, table string) string {
+	t.Helper()
+	routesByChain := make(map[string][]string)
+	for _, line := range strings.Split(strings.TrimSuffix(table, "\n"), "\n") {
+		route, chain, ok := strings.Cut(line, " -> ")
+		require.Truef(t, ok && chain != "", "middleware table line without a chain: %q", line)
+		routesByChain[chain] = append(routesByChain[chain], route)
+	}
+	var b strings.Builder
+	b.WriteString(middlewareTableHeader)
+	for _, chain := range slices.Sorted(maps.Keys(routesByChain)) {
+		b.WriteString("\n" + chain + "\n")
+		routes := routesByChain[chain]
+		slices.Sort(routes)
+		for _, route := range routes {
+			b.WriteString("\t" + route + "\n")
+		}
+	}
+	return b.String()
+}
+
+func expandMiddlewareTable(t *testing.T, grouped string) string {
+	t.Helper()
+	var lines []string
+	chain := ""
+	for _, line := range strings.Split(grouped, "\n") {
+		switch {
+		case line == "" || strings.HasPrefix(line, "#"):
+		case strings.HasPrefix(line, "\t"):
+			require.NotEmptyf(t, chain, "middleware golden route %q precedes every chain", line)
+			lines = append(lines, strings.TrimPrefix(line, "\t")+" -> "+chain)
+		default:
+			chain = line
+		}
+	}
+	slices.Sort(lines)
+	return strings.Join(lines, "\n") + "\n"
 }
 
 // unifiedDiff renders a minimal line diff (no external deps) — enough to see
