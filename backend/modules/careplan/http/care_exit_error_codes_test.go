@@ -32,6 +32,8 @@ func TestCareExitErrorRendererAnswersWithCodes(t *testing.T) {
 		{careplan.ErrCareResumeMissing, http.StatusConflict, common.CodeStudentsCareResumeMissing},
 		{careplan.ErrCareResumeStartInPast, http.StatusBadRequest, common.CodeStudentsCareResumeStartInPast},
 		{careplan.ErrCareResumeNotChecked, http.StatusBadRequest, common.CodeStudentsCareResumeNotChecked},
+		{careplan.ErrCareResumeUnknownStudent, http.StatusNotFound, common.CodeTimetableStudentNotFound},
+		{careplan.ErrCareResumeAlumnus, http.StatusConflict, common.CodeStudentsCareResumeAlumnus},
 		{careplan.ErrCareWithdrawalNotFound, http.StatusNotFound, common.CodeStudentsCareWithdrawalNotFound},
 		{careplan.ErrCareWithdrawalAfterGap, http.StatusBadRequest, common.CodeStudentsCareWithdrawalAfterGap},
 		{careplan.ErrCareWithdrawalAlreadyResolved, http.StatusConflict, common.CodeStudentsCareWithdrawalAlreadyResolved},

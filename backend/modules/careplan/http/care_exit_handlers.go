@@ -510,6 +510,8 @@ var careExitErrorRenderer = common.RulesRenderer([]common.ErrorRule{
 	{Target: careplan.ErrCareResumeMissing, Render: conflictWithCode(common.CodeStudentsCareResumeMissing)},
 	{Target: careplan.ErrCareResumeStartInPast, Render: invalidWithCode(common.CodeStudentsCareResumeStartInPast)},
 	{Target: careplan.ErrCareResumeNotChecked, Render: invalidWithCode(common.CodeStudentsCareResumeNotChecked)},
+	{Target: careplan.ErrCareResumeUnknownStudent, Render: notFoundWithCode(common.CodeTimetableStudentNotFound)},
+	{Target: careplan.ErrCareResumeAlumnus, Render: conflictWithCode(common.CodeStudentsCareResumeAlumnus)},
 	{Target: careplan.ErrCareWithdrawalNotFound, Render: notFoundWithCode(common.CodeStudentsCareWithdrawalNotFound)},
 	{Target: careplan.ErrCareWithdrawalAfterGap, Render: invalidWithCode(common.CodeStudentsCareWithdrawalAfterGap)},
 	{Target: careplan.ErrCareWithdrawalAlreadyResolved, Render: conflictWithCode(common.CodeStudentsCareWithdrawalAlreadyResolved)},
