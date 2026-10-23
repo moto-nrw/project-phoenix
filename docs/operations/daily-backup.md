@@ -1,6 +1,6 @@
 # Tägliche verschlüsselte Sicherung
 
-Slice 3836-a, Refs #3836. Keine Aussage hier bestätigt den produktiven Stand.
+Slices 3836-a und 3836-b, Refs #3836. Keine Aussage hier bestätigt den produktiven Stand.
 Release-Snapshots bleiben getrennte Rollback-Punkte, keine Tagessicherung.
 
 ## Stand und Grenzen
@@ -11,7 +11,8 @@ versteckten Dateien, SHA-256-Manifest, age-Verschlüsselung, S3-Transport mit
 vollständigem Download-/Hashvergleich und altersbasierte Bereinigung.
 Ein täglicher systemd-Timer arbeitet unabhängig von Deployments. Jeder
 Teilfehler liefert einen Fehlerstatus; erst nach Prüfung und Bereinigung
-erscheint `backup_result=ok step=complete`. Fehlerausgaben von Werkzeugen
+erscheint `backup_result=ok step=complete`. Eigene Grafana/Loki-Regeln erkennen
+fehlenden Erfolg seit 26 Stunden und Fehler der letzten 30 Minuten. Fehlerausgaben von Werkzeugen
 werden nicht weitergegeben, weil sie SQL, Dateinamen oder Secrets enthalten
 können. Die Abschlusszeile benennt nur den fehlgeschlagenen Schritt.
 
@@ -27,7 +28,9 @@ Fehlerfälle. Es testet keinen echten S3-Anbieter und keine produktiven Daten.
 deutscher Rechenzentrumsstandort, Zugangsrechte, Schlüsselverwahrung,
 Aufbewahrung einschließlich etwaiger Objektversionen, erste echte
 Wiederherstellung und AVV/TOM-Abgleich. Alarmzustellung und Bearbeitung fehlen
-noch (3836-b); das `OnFailure`-Template schreibt nur einen lokalen Journal-Eintrag.
+als produktiver Nachweis; `OnFailure` schreibt ein zur neuen Regel passendes
+Journal-Ereignis. Alloy-Anbindung und Zustellung muss ein Mensch einrichten
+und Ende-zu-Ende prüfen (siehe unten).
 Release-Snapshot-Altersgrenzen (3836-c) und die Wiederholungsliste für
 Löschungen (3837-d) sind nicht Teil dieses Slices.
 
@@ -136,9 +139,9 @@ installiert oder aktiviert nichts. Der Mensch führt die Befehle aus.
    `systemctl enable --now moto-daily-backup.timer` ausführen.
    `systemctl list-timers moto-daily-backup.timer` kontrollieren: täglich
    02:15 UTC plus höchstens fünf Minuten Zufallsversatz, verpasster Lauf wird
-   nachgeholt. Bis 3836-b muss ein benannter Mensch täglich Ergebnis und
-   Frische prüfen, Fehler bearbeiten und dies dokumentieren. Das ist eine
-   Übergangsanweisung, kein Nachweis bereits funktionierender Alarmierung.
+   nachgeholt. Bis zur nachgewiesenen Alarmzustellung muss ein benannter Mensch
+   täglich Ergebnis und Frische prüfen, Fehler bearbeiten und dies dokumentieren.
+   Die folgenden Alarmregeln ersetzen diesen Übergangsschritt erst nach Abnahme.
 
 Asymmetrisches age statt gemeinsam auf dem Host abgelegtem Entschlüsselungs-
 passwort trennt Daten und Schlüssel bei Hostverlust (ADR 0085). Der öffentliche Schlüssel
@@ -149,6 +152,147 @@ einem Restore vergleichen. Der Empfänger ist kein Signierschlüssel.
 Tool-Verträge: [age](https://github.com/FiloSottile/age),
 [rclone copyto](https://rclone.org/commands/rclone_copyto/),
 [S3-Umgebungskonfiguration](https://rclone.org/s3/).
+
+## Ausfallerkennung und Bearbeitung (Mensch-Schritte)
+
+**Im Repo vorbereitet, nicht produktiv nachgewiesen:**
+`monitoring/grafana/provisioning/alerting/daily-backup.yml` ergänzt die alten
+cron-Regeln unverändert. Der eigene Stream `{env="prod",service="daily-backup"}`
+verhindert, dass ein alter DB-Dump einen fehlenden neuen Sicherungslauf verdeckt.
+`absent_over_time` meldet auch einen noch nie angelegten Stream als fehlend.
+Ein leerer, gesunder Abfragevektor ist deshalb `OK`; Abfragefehler sind `Alerting`.
+Die zweite Regel zählt Fehler seit 30 Minuten, auch wenn später ein Erfolg folgt.
+Beide nutzen die bestehende Standard-Notification-Policy. Keine Contact Points,
+Empfänger oder Notification Policies werden provisioniert.
+
+1. **Bestand und Journalzugriff prüfen:** Ein berechtigter Mensch ermittelt im
+   serverlokalen `/root/monitoring/docker-compose.yml` die Alloy-Version, den
+   Konfigurationspfad und den vorhandenen `loki.write`-Komponentennamen.
+   Die Basis-Compose und Alloy-Konfiguration liegen nicht im Repo. Das folgende
+   Beispiel setzt den Dienstnamen `alloy`, `/etc/alloy/config.alloy` und
+   `loki.write.default` voraus; Namen an den geprüften Bestand anpassen, keine
+   zweite Loki-Verbindung oder neuen Zugang anlegen. Host-Journalzugriff prüfen:
+   persistentes Journal aktivieren, mehr als 26 Stunden Journal-/Loki-Aufbewahrung
+   sicherstellen, Alloy-Cursor über Containerneustarts persistent speichern.
+   Der vorhandene Alloy-Nutzer braucht Leserechte, z. B. über die numerische
+   Host-Gruppe `systemd-journal`; nicht durch weltlesbare Journale lösen.
+   Für containerisiertes Alloy folgende Mounts **ergänzen**, vorhandene erhalten:
+
+   ```yaml
+   services:
+     alloy:
+       volumes:
+         - /var/log/journal:/var/log/journal:ro
+         - /run/log/journal:/run/log/journal:ro
+         - /etc/machine-id:/etc/machine-id:ro
+   ```
+
+   Der Dienst und der Failure-Hook verwenden `SYSLOG_IDENTIFIER=moto-daily-backup`.
+   Der explizite `logger --tag` ist nötig, weil der Failure-Hook unter einer
+   instanziierten anderen Unit läuft. Nicht nur `_SYSTEMD_UNIT` des Hauptdiensts
+   filtern. Nach Installation der geänderten Units `systemd-analyze verify`
+   und `systemctl daemon-reload` ausführen.
+2. **Alloy ergänzen:** Diesen Ausschnitt in die bestehende Konfiguration
+   übernehmen. Keine Journal-Metadaten oder freien Werkzeugausgaben nach Loki
+   weitergeben. Die enge Zeilenprüfung lässt nur den festen Ergebnisvertrag zu.
+
+   ```alloy
+   loki.source.journal "moto_daily_backup" {
+     matches = "SYSLOG_IDENTIFIER=moto-daily-backup"
+     max_age = "27h"
+     labels = { env = "prod", service = "daily-backup" }
+     forward_to = [loki.process.moto_daily_backup.receiver]
+   }
+
+   loki.process "moto_daily_backup" {
+     stage.match {
+       selector = "{service=\"daily-backup\"} !~ \"^backup_result=(ok|failed) step=[a-z_]+( missing=[A-Z_]+)?$\""
+       action = "drop"
+     }
+     forward_to = [loki.write.default.receiver]
+   }
+   ```
+
+   Den Ausschnitt lokal mit Alloy 1.21.2 validiert (nur Syntax/Komponenten,
+   ohne Journal). Die vollständige Konfiguration mit der installierten Version
+   prüfen. `validate` ist in älteren Alloy-Versionen nicht verfügbar; dann
+   zunächst ein separat geprüftes Upgrade vorbereiten, nicht die Prüfung
+   überspringen. Beispiel im vorhandenen Compose-Verzeichnis:
+
+   ```bash
+   docker compose run --rm --no-deps --entrypoint /bin/alloy alloy \
+     validate /etc/alloy/config.alloy
+   docker compose up -d alloy
+   ```
+
+   Bei einem Fehler nicht aktivieren; die vorherige Konfiguration behalten.
+   Validierung prüft Syntax/Komponenten, nicht Journalrechte oder Zustellung.
+   Ein tatsächlich erfolgreicher Sicherungslauf muss im Journal und in Grafana
+   Explore unter dem neuen Stream sichtbar sein. Keine synthetischen
+   Erfolgsmeldungen in den produktiven Stream schreiben.
+3. **Regeln und Zustellung abnehmen:** Nur `alerting/daily-backup.yml` in das
+   vorhandene Grafana-Provisioning übernehmen und Grafana neu laden/starten.
+   Bestehende Contact Points und die Standard-Policy samt etwaiger Label-Routen
+   durch den Betreiber prüfen, nicht ersetzen. Grafana-Provisionierungsfehler
+   ausschließen. Auf einer isolierten Testinstallation mit synthetischen Logs
+   die beiden Regeln und die bestehende Zustellung Ende-zu-Ende prüfen:
+   fehlender/über 26 Stunden alter Erfolg, Skriptfehler, Failure-Hook sowie
+   Wiederanlauf von Alloy/Grafana. Ein fehlendes EnvironmentFile oder ein
+   nicht startbares Skript muss über `OnFailure` erkannt werden. Ein komplett
+   ausgefallener Host/Alloy liefert keine Failure-Zeile: dafür greift spätestens
+   die 26-Stunden-Regel; bestehende Host-/Server-Down-Regeln bleiben bestehen.
+   Keine Zustellung behaupten, solange Empfänger und Bearbeitung nicht bestätigt
+   sind. Zeiten von Auslösung, Zustellung, Übernahme und Abschluss sowie den
+   technischen Ergebnisstatus ohne Rohlogs im geschützten Betriebsnachweis ablegen.
+4. **Bearbeitung festlegen:** Betreiber benennt zuständige Rolle und Vertretung
+   außerhalb des Repos. Bei Alarm Übernahme bestätigen, Timerstatus, letzten
+   verifizierten Erfolg und den bereinigten `step` im Journal prüfen. Bei
+   `missing=<VAR>` nur den genannten Wert im Betreiber-SOPS-Verfahren ergänzen;
+   keine Werte oder Werkzeugdiagnosen in Tickets kopieren. Speicherplatz,
+   Transport, Schlüssel-Empfänger und Retention je Fehlerschritt prüfen.
+   Ursache beheben, beaufsichtigten Lauf starten und vollständigen Erfolg samt
+   Zielprüfung bestätigen. Bei weiterhin fehlender Sicherung nach dem
+   Vorfallverfahren eskalieren, nicht nur den Alarm stummschalten.
+   Die Fehlerregel kann nach 30 Minuten zurückgehen, ohne dass die Ursache
+   behoben ist; Abschluss nur nach bestätigtem Sicherungserfolg dokumentieren.
+
+Lokaler Regressionstest:
+`devbox run -- node --test scripts/daily-backup-alerts.integration.test.mjs`.
+Er wertet die provisionierten LogQL-Ausdrücke in Loki 3.4.3 ohne Netzwerk aus;
+er prüft weder die serverlokale Alloy-Konfiguration noch Notification-Routing.
+Quellen: [Journalquelle](https://grafana.com/docs/alloy/latest/reference/components/loki/loki.source.journal/),
+[Alloy-Validierung](https://grafana.com/docs/alloy/latest/reference/cli/validate/),
+[LogQL-Zeitfenster](https://grafana.com/docs/loki/latest/query/metric_queries/).
+
+## Ablösung der bestehenden cron-Sicherung (Mensch-Schritte)
+
+Die alten Regeln in `alerting/infrastructure.yml` suchen `Backup complete`
+und `Backup FAILED` im Stream `service="backup"`. Das ist ein Hinweis auf ein
+serverlokales Altverfahren, kein Nachweis seiner Eigenschaften. Ein Agent hat
+weder den Produktionshost noch den Monitoring-Host dafür gelesen.
+
+1. Betreiber inventarisiert Cron-/Timer-Einträge, Skriptpfad und -version,
+   Zielanbieter/-standort, Verschlüsselung und Schlüsselzugriff, gesicherte
+   Inhalte (insbesondere `.env`, Rollen-Hashes, Datenbank und Dateien),
+   Aufbewahrung einschließlich Versionen/Replikaten und den tatsächlichen
+   Log-Dateipfad. Befund nur im geschützten Betriebsnachweis festhalten,
+   keine Skript-/Log-Kopien mit Secrets oder Personendaten ins Repo.
+2. Beide Verfahren parallel betreiben, bis die neue Tagessicherung einschließlich
+   Zieltrennung, Aufbewahrung und Zustellung abgenommen ist und daraus eine
+   erste echte Wiederherstellung samt Löschprüfung erfolgreich dokumentiert ist.
+   Alte Alarme bis dahin aktiv lassen. Ein grüner cron-Alarm bestätigt nicht
+   die neue Tagessicherung.
+3. Danach ausschließlich den identifizierten alten Sicherungsjob abschalten,
+   nicht allgemeine Cron-Dienste oder Release-Snapshots. Altbestände gesperrt
+   halten und spätestens 90 Tage nach ihrer jeweiligen Erstellung endgültig
+   löschen, einschließlich Versionen, Replikaten und temporärer Klartextkopien.
+   Bereits ältere Bestände nach Prüfung unverzüglich bereinigen; Abschaltung
+   setzt die Frist nicht neu in Gang. Löschung nachweisen.
+4. Erst danach alte Backup-Regeln gezielt über Provisioning entfernen
+   (`deleteRules`: `orgId: 1`, UIDs `dfsla2b54bgg0a` und `dfsla2b8noa2od`),
+   die beiden Regeldefinitionen aus `infrastructure.yml` nehmen und nur den
+   alten Log-Collector stilllegen. Das ist ein späterer geprüfter Change,
+   nicht Teil dieses PRs. Neue Regeln, Host-Alarme und Default-Policy erhalten.
 
 ## Wiederherstellung, App bleibt gesperrt
 
@@ -196,6 +340,14 @@ Tool-Verträge: [age](https://github.com/FiloSottile/age),
    set -a
    . /srv/moto-restore/.env
    set +a
+   # Beispiel für 8 GiB tmpfs, vorab anhand der obigen Reservierung dimensionieren.
+   # Nur frische, dedizierte Pfade, keine bestehenden Mounts überdecken.
+   install -d -m 700 "$BACKUP_WORK_DIR" "$BACKUP_CIPHER_DIR"
+   mount -t tmpfs -o size=8G,mode=0700,uid=0,gid=0,nosuid,nodev,noexec \
+     tmpfs "$BACKUP_WORK_DIR"
+   chmod 700 "$BACKUP_WORK_DIR" "$BACKUP_CIPHER_DIR"
+   findmnt -n -o FSTYPE -T "$BACKUP_WORK_DIR"   # muss tmpfs sein
+   findmnt -n -o FSTYPE -T "$BACKUP_CIPHER_DIR" # muss ein Disk-Dateisystem sein
    docker compose --env-file /srv/moto-restore/.env \
      -f /srv/moto-restore/compose.yml -p "$BACKUP_PROJECT" up -d --wait postgres
    ```
@@ -223,7 +375,30 @@ Tool-Verträge: [age](https://github.com/FiloSottile/age),
    Es startet keine App. `.daily-restore-review-required` hält den
    Sicherungszeitpunkt und die ausstehende Löschprüfung fest. Bei Teilfehler
    Exit-Code ungleich 0, Umgebung isoliert lassen und frisch neu aufsetzen;
-   keine teilweise wiederhergestellte Umgebung freigeben.
+   keine teilweise wiederhergestellte Umgebung freigeben. Fehlt ein Pflichtwert,
+   lautet die sichere Meldung z. B.
+   `restore_result=failed step=configuration missing=PHOENIX_AUTH_PASSWORD app_start=blocked`.
+   Sie nennt nur den Variablennamen, niemals den Wert.
+
+   **Marker nach Abbruch:** Vor dem ersten Schreibzugriff entsteht neben der
+   Compose-Datei `.daily-restore-review-required`. Bei einem späteren Fehler
+   bleibt er absichtlich erhalten: Daten oder Rollen können bereits teilweise
+   geschrieben sein. Nicht als Fehlerbehebung einfach löschen und weiterarbeiten.
+   Nach Fehler oder Stromausfall alle beteiligten Prozesse stoppen bzw. deren
+   Ende prüfen, die isolierte fehlgeschlagene DB und das Upload-Volume verwerfen
+   oder nach Vorfallverfahren getrennt halten. Erst wenn das Ziel nachweislich
+   wieder frisch ist und kein anderer Restore läuft, darf ein berechtigter Mensch
+   den alten Marker für einen neuen Versuch entfernen:
+
+   ```bash
+   # Nur nach obiger Prüfung auf der getrennten Restore-Maschine.
+   rm -- /srv/moto-restore/.daily-restore-review-required
+   ```
+
+   Ein vorhandener Marker blockiert auch einen ansonsten frischen Versuch;
+   das Skript überschreibt ihn nicht. Nach erfolgreichem Restore bleibt er bis
+   zur vollständigen Freigabe aus Schritt 5 bestehen. Ein Fehler vor seiner
+   Anlage braucht keinen Marker: Das Skript hat noch keine Zieldaten geschrieben.
 
    **Vollständige Zuordnung aus initdb und Migrationen:**
 
