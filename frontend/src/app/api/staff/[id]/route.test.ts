@@ -220,6 +220,7 @@ describe("GET /api/staff/[id]", () => {
         is_teacher: false,
         is_external: true,
         external_organization: "Musikschule Bergstadt",
+        external_account_status: "invitation_pending",
         person: {
           id: 1,
           first_name: "Lea",
@@ -242,12 +243,14 @@ describe("GET /api/staff/[id]", () => {
         id: string;
         is_external: boolean;
         external_organization: string | null;
+        external_account_status: string | null;
       }>
     >(response);
     expect(json.data).toMatchObject({
       id: "9007199254740993",
       is_external: true,
       external_organization: "Musikschule Bergstadt",
+      external_account_status: "invitation_pending",
     });
   });
 

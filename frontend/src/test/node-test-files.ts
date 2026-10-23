@@ -72,6 +72,7 @@ export const nodeLogicTestFiles = [
   "src/lib/attendance-history-helpers.test.ts",
   "src/lib/auth-helpers.test.ts",
   "src/lib/auth-utils.test.ts",
+  "src/lib/student-access.test.ts",
   "src/lib/backend-proxy-response.server.test.ts",
   "src/lib/backend-proxy-route.server.test.ts",
   "src/lib/birthdays-api.server.test.ts",

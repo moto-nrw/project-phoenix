@@ -14,5 +14,5 @@ func (s *Staff) GetTenantID() int64                          { return s.TenantID
 func (s *Staff) SetTenantID(id int64)                        { s.TenantID = id }
 func (s *Teacher) GetTenantID() int64                        { return s.TenantID }
 func (s *Teacher) SetTenantID(id int64)                      { s.TenantID = id }
-func (s *Guest) GetTenantID() int64                          { return s.TenantID }
-func (s *Guest) SetTenantID(id int64)                        { s.TenantID = id }
+func (s *ExternalCaregiverRecord) GetTenantID() int64        { return s.TenantID }
+func (s *ExternalCaregiverRecord) SetTenantID(id int64)      { s.TenantID = id }

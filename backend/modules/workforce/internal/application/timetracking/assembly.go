@@ -74,6 +74,8 @@ type Ports struct {
 	OverviewStaff   OverviewStaffQuery
 	ExportStaff     TimeExportStaffQuery
 	StaffNames      StaffDisplayNameQuery
+	// ExternalCaregivers keeps the auto-stamp off external caregivers.
+	ExternalCaregivers ExternalCaregiverStaff
 
 	Schedules       WorkSessionSchedules
 	TimeModels      WorkSessionTimeModels
@@ -179,6 +181,7 @@ func (deps Dependencies) sessionsAndMonths(absenceTypes AbsenceTypeReader, snaps
 		WithWorkSessionShifts(deps.Shifts),
 		WithWorkSessionEvents(deps.Events),
 		WithWorkSessionHolidays(deps.Holidays),
+		WithWorkSessionExternalCaregivers(deps.ExternalCaregivers),
 		WithWorkSessionAbsenceTypes(absenceTypes),
 		WithWorkSessionTargetOverrides(staffTargetOverrideWeeks{overrides: deps.TargetOverrides, months: func() WorkTimeMonthService { return months }}),
 	)
@@ -273,7 +276,7 @@ func (deps Dependencies) validate() error {
 	case deps.Supervisions == nil || deps.SessionRecords == nil:
 		return errors.New("time tracking: the supervision and session records are required")
 	case deps.Staff == nil || deps.StaffSchedules == nil || deps.MonthCloseStaff == nil ||
-		deps.OverviewStaff == nil || deps.ExportStaff == nil || deps.StaffNames == nil:
+		deps.OverviewStaff == nil || deps.ExportStaff == nil || deps.StaffNames == nil || deps.ExternalCaregivers == nil:
 		return errors.New("time tracking: the staff readers are required")
 	case deps.Schedules == nil || deps.TimeModels == nil || deps.ScheduleTargets == nil || deps.TargetModels == nil ||
 		deps.Shifts == nil || deps.Holidays == nil:

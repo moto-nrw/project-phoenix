@@ -594,16 +594,6 @@ func (s *service) loadScheduleSections(ctx context.Context, projection *Projecti
 	return nil
 }
 
-func redactPlannedPickupTimes(instances []PlannedInstance) {
-	for i := range instances {
-		instances[i].PickupTimesLoaded = false
-		instances[i].PickupTimesRedacted = true
-		for j := range instances[i].RosterPreview {
-			instances[i].RosterPreview[j].PickupTime = nil
-		}
-	}
-}
-
 // loadPresenceSections projects the selected session and every released room
 // together. Student-specific reads therefore run once over their union.
 func (s *service) loadPresenceSections(ctx context.Context, projection *Projection, caller Caller, selectedGroupID *int64, openRooms openRoomInputs, staffID *int64, businessDay Date) error {
@@ -635,6 +625,9 @@ func (s *service) loadPresenceSections(ctx context.Context, projection *Projecti
 	}
 	projection.Visits = s.buildVisits(selectedRows, attendance, fullAccess, photosEnabled)
 	projection.OpenRooms = s.assembleOpenRooms(openRooms, attendance, fullAccess, photosEnabled, staffID, caller.AdminScope)
+	if !caller.CanReadStudents {
+		redactAbsenceStatuses(projection)
+	}
 	if err := s.nameSupervisors(ctx, projection, openRooms); err != nil {
 		return err
 	}

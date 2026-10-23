@@ -6,4 +6,4 @@ import (
 	peoplePorts "github.com/moto-nrw/project-phoenix/modules/peopledirectory/ports"
 )
 
-var _ peoplePorts.GuestRepository = owners.GuestMembershipRepository{}
+var _ peoplePorts.ExternalCaregiverRecordRepository = owners.ExternalCaregiverRecordMembershipRepository{}

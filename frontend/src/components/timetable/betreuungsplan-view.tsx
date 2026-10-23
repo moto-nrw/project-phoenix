@@ -79,6 +79,7 @@ import { resolveDemandOrigin } from "~/components/timetable/demand-origin";
 import { WeeklyCalendarGrid } from "~/components/timetable/weekly-calendar-grid";
 import { staffNamesFromOverview } from "~/components/timetable/block-staff-names";
 import { hasPermission } from "~/lib/auth-utils";
+import { canGrantExternalViewAccess } from "~/lib/external-caregiver-access";
 import { useClosingDaysState } from "~/lib/hooks/use-closing-days";
 import { useTimetableDayHours } from "~/lib/hooks/use-timetable-day-hours";
 import { useSettingsSchema } from "~/lib/hooks/use-settings-schema";
@@ -238,6 +239,10 @@ function TimetablesContent() {
   // Perioden-Bootstrap an schedules:create — keine Proxy-Permissions.
   const canReadEnrollmentPhases = hasPermission(session, "config:read");
   const canBootstrapPeriods = hasPermission(session, "schedules:create");
+  // Externe Person im Schritt „Personal“ eintragen (#4573): dasselbe Recht
+  // wie POST /api/staff/externals.
+  const canCreateExternalCaregiver = hasPermission(session, "users:create");
+  const canGrantExternalView = canGrantExternalViewAccess(session);
   const canManageCategories = hasPermission(
     session,
     "activities:manage_categories",
@@ -1726,6 +1731,8 @@ function TimetablesContent() {
         canCheckShiftCoverage={canCheckShiftCoverage}
         canManageCategories={canManageCategories}
         canManagePlanningTracks={canManageSchedules}
+        canCreateExternalCaregiver={canCreateExternalCaregiver}
+        canGrantExternalView={canGrantExternalView}
         isOpen={eventModalOpen}
         onClose={() => {
           setEventModalOpen(false);

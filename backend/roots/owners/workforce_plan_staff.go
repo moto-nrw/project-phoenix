@@ -64,7 +64,7 @@ func planStaff(row *peopleValues.Staff) *workforce.PlanStaff {
 	}
 	staff := &workforce.PlanStaff{
 		ID: row.ID, PersonID: row.PersonID, WorkTimeModelID: row.WorkTimeModelID,
-		RotationAnchorDate: row.RotationAnchorDate, IsGuest: row.IsGuest,
+		RotationAnchorDate: row.RotationAnchorDate, IsExternalCaregiver: row.IsExternalCaregiver,
 	}
 	if row.Person != nil {
 		staff.Person = &workforce.PlanStaffPerson{FirstName: row.Person.FirstName, LastName: row.Person.LastName, AccountID: row.Person.AccountID}

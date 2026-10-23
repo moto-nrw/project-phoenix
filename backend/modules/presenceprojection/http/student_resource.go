@@ -56,11 +56,15 @@ func (rs *Resource) Register(r chi.Router, withTx common.Middleware) {
 	if rs.SettingsService == nil {
 		panic("presenceprojection HTTP: tenant settings are required")
 	}
-	r.With(common.RequiresPermission(permissions.UsersRead), withTx).Get("/", rs.listStudents)
+	// The child list and detail reads also open for students:read, the
+	// view-only child access of the role guest (ADR 0091). Exports, the day
+	// log, histories and every write stay behind users:read and above.
+	childRead := common.RequiresAnyPermission(permissions.UsersRead, permissions.StudentsRead)
+	r.With(childRead, withTx).Get("/", rs.listStudents)
 	r.With(common.RequiresPermission(permissions.UsersRead), withTx).Post("/export", rs.exportStudents)
 	r.With(common.RequiresPermission(permissions.UsersRead), withTx).Get("/care-offerings", rs.listCareOfferingOptions)
-	r.With(common.RequiresPermission(permissions.UsersRead), withTx).Get("/{id}", rs.getStudent)
-	r.With(common.RequiresPermission(permissions.UsersRead), withTx).Get("/{id}/current-visit", rs.getStudentCurrentVisit)
+	r.With(childRead, withTx).Get("/{id}", rs.getStudent)
+	r.With(childRead, withTx).Get("/{id}/current-visit", rs.getStudentCurrentVisit)
 	r.With(common.RequiresPermission(permissions.UsersRead), withTx).Get("/{id}/visit-history", rs.getStudentVisitHistory)
 	r.With(common.RequiresPermission(permissions.UsersRead), withTx).Get("/day-log", rs.getStudentsDayLog)
 	r.With(common.RequiresPermission(permissions.UsersRead), withTx).Get("/day-log/export", rs.exportStudentsDayLog)

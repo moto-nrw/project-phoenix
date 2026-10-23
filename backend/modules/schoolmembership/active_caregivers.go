@@ -146,7 +146,9 @@ func caregiverCandidates(ctx context.Context, membership CaregiverMembership, di
 // account).
 func teacherCaregiverCandidate(teacher Teacher, staffByID map[int64]Staff, persons map[int64]CaregiverPerson, scope caregiverScope, accountID *int64) (caregiverCandidate, bool) {
 	staff, found := staffByID[teacher.StaffID]
-	if !found {
+	// An external caregiver never takes over a group or a substitution, even
+	// with an account in a caregiver role (#4573).
+	if !found || staff.HasExternalCaregiverRecord {
 		return caregiverCandidate{}, false
 	}
 	if teacher.TenantID != staff.TenantID || (!scope.acrossSchools && teacher.TenantID != scope.schoolID) {

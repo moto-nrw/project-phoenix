@@ -25,13 +25,13 @@ func applyEffectiveStatusDaysToResponses(responses []StudentResponse, statusRows
 }
 
 // applyStatusDaysForDate overlays the requested day's sick/excused/class-trip
-// status rows onto the responses. The error is returned rather than swallowed:
+// status rows onto the responses only with users:read. Errors are returned:
 // on a non-today view resetScheduledStatusFlags has already cleared the
 // row-seeded flags, so a silent lookup failure would report a sick, excused, or
 // class-trip child as expected. Callers must surface the error (500) instead of
 // serving an incorrect attendance plan (#1939).
 func (rs *Resource) applyStatusDaysForDate(ctx context.Context, responses []StudentResponse, now time.Time) error {
-	if rs.StudentStatusDayService == nil || len(responses) == 0 {
+	if !canReadSensitiveStudentData(ctx) || rs.StudentStatusDayService == nil || len(responses) == 0 {
 		return nil
 	}
 
@@ -48,7 +48,7 @@ func (rs *Resource) applyStatusDaysForDate(ctx context.Context, responses []Stud
 }
 
 func (rs *Resource) applyStatusDaysForDateToResponse(ctx context.Context, response *StudentResponse, now time.Time) error {
-	if response == nil || rs.StudentStatusDayService == nil {
+	if !canReadSensitiveStudentData(ctx) || response == nil || rs.StudentStatusDayService == nil {
 		return nil
 	}
 	date := calendar.DateFromTime(now)

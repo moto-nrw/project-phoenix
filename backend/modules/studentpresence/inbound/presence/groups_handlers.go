@@ -267,6 +267,9 @@ func (rs *Resource) getActiveGroupVisitsWithDisplay(w http.ResponseWriter, r *ht
 		return
 	}
 	responses := rs.buildVisitDisplayResponses(results, attendanceStatuses, access, photosEnabled)
+	if !common.CanReadStudentAbsence(r.Context()) {
+		redactVisitAbsenceStatuses(responses)
+	}
 	common.Respond(w, r, http.StatusOK, responses, "Active group visits with display data retrieved successfully")
 }
 
@@ -407,6 +410,15 @@ func (rs *Resource) buildVisitDisplayResponses(results []studentpresence.VisitDi
 		})
 	}
 	return responses
+}
+
+// redactVisitAbsenceStatuses clears sick and excused status with their
+// timestamps.
+func redactVisitAbsenceStatuses(responses []VisitWithDisplayDataResponse) {
+	for i := range responses {
+		responses[i].Sick, responses[i].SickSince = false, nil
+		responses[i].Excused, responses[i].ExcusedSince = false, nil
+	}
 }
 
 // visitActualTimes returns the Berlin clock times of the student's recorded

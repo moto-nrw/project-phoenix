@@ -90,7 +90,7 @@ func (rs *Resource) listCurrentStaff(w http.ResponseWriter, r *http.Request, fil
 		rs.internal(w, r, err)
 		return
 	}
-	data := rs.loadDirectory(ctx, accountIDsOf(persons))
+	data := rs.withInvitations(ctx, rs.loadDirectory(ctx, accountIDsOf(persons)), members, persons)
 	access := rs.fieldAccess(ctx)
 
 	responses := make([]any, 0, len(members))
@@ -179,7 +179,8 @@ func (rs *Resource) getStaff(w http.ResponseWriter, r *http.Request) {
 	if person != nil && person.AccountID != nil {
 		accountIDs = append(accountIDs, *person.AccountID)
 	}
-	data := rs.loadDirectory(ctx, accountIDs).enrich(staff, person, access.personnel)
+	directory := rs.withInvitations(ctx, rs.loadDirectory(ctx, accountIDs), []schoolmembership.Staff{staff}, map[int64]*Person{staff.PersonID: person})
+	data := directory.enrich(staff, person, access.personnel)
 
 	if staff.IsDeleted() {
 		teachers, err := rs.teacherIndex(ctx, []int64{staff.ID}, true)

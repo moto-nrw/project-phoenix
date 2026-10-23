@@ -95,7 +95,11 @@ func NewSubstitutionSuiteModule(repos *PeopleRepositorySuiteFactory, db transact
 		deps.Staff = owners.NewEducationStaff(repos.Staff)
 	}
 	if deps.ExternalCaregivers == nil {
-		deps.ExternalCaregivers = owners.NewEducationExternalCaregivers(repos.Staff, repos.Guest)
+		identity, err := NewTestIdentityAccess(db, slog.Default())
+		if err != nil {
+			panic(fmt.Sprintf("substitution suite: compose identity access: %v", err))
+		}
+		deps.ExternalCaregivers = owners.NewEducationExternalCaregivers(repos.Staff, repos.ExternalCaregiverRecords).WithInvitations(identity)
 	}
 	if deps.Audit == nil {
 		deps.Audit = NewEducationSubstitutionAudit(auditCompose.MustNewPersistence(auditCompose.PersistenceDependencies{DB: db.Pool()}).SubstitutionChange)

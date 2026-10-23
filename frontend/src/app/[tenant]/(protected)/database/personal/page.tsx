@@ -21,10 +21,22 @@ import { OverflowMenu } from "~/components/ui/page-header/OverflowMenu";
 import type { ActiveFilter } from "~/components/ui/page-header/types";
 import { useIsMobile } from "~/components/ui/hooks/useIsMobile";
 import { StaffList } from "@/components/teachers/staff-list";
+import {
+  ExternalCaregiverCreateModal,
+  ExternalInvitationModal,
+  type ExternalInvitationTarget,
+} from "~/components/staff/external-caregiver-dialogs";
+import { useToast } from "~/contexts/ToastContext";
+import type { Staff } from "~/lib/staff-api";
 import { InvitationForm } from "~/components/admin/invitation-form";
 import { PendingInvitationsList } from "~/components/admin/pending-invitations-list";
 import { hasPermission } from "~/lib/auth-utils";
-import { getRoleDisplayName } from "@/lib/auth-helpers";
+import { canGrantExternalViewAccess } from "~/lib/external-caregiver-access";
+import {
+  EXTERNAL_CAREGIVER_LABEL,
+  getRoleDisplayName,
+} from "@/lib/auth-helpers";
+import { staffDisplayName } from "~/lib/staff-helpers";
 import { createCrudService } from "@/lib/database/service-factory";
 import { teachersConfig } from "@/components/database/configs/teachers.config";
 import type { Teacher } from "@/lib/teacher-api";
@@ -114,6 +126,15 @@ function TeachersPageContent() {
     sessionData,
     "time_tracking:manage",
   );
+  // Externe Person anlegen und einladen (#4573): dasselbe Recht wie
+  // POST /api/staff/externals und die Einladungsroute.
+  const canCreateExternal = hasPermission(sessionData, "users:create");
+  // „Nur ansehen“ vergibt die Rolle „Gast“ und braucht users:manage (ADR 0091).
+  const canGrantView = canGrantExternalViewAccess(sessionData);
+  const [showExternalModal, setShowExternalModal] = useState(false);
+  const [inviteTarget, setInviteTarget] =
+    useState<ExternalInvitationTarget | null>(null);
+  const toast = useToast();
 
   const service = useMemo(() => createCrudService(teachersConfig), []);
 
@@ -121,6 +142,7 @@ function TeachersPageContent() {
     data: teachersData,
     isLoading: loading,
     error: teachersError,
+    mutate: refreshTeachers,
   } = useSWRAuth("database-teachers-list", async () => {
     const data = await service.getList({ page: 1, pageSize: 1000 });
     return Array.isArray(data.data) ? data.data : [];
@@ -165,11 +187,12 @@ function TeachersPageContent() {
       );
     }
 
-    filtered.sort((a, b) => {
-      const nameA = a.name ?? `${a.first_name} ${a.last_name}`;
-      const nameB = b.name ?? `${b.first_name} ${b.last_name}`;
-      return nameA.localeCompare(nameB, "de");
-    });
+    filtered.sort((a, b) =>
+      staffDisplayName(a.name, a.first_name, a.last_name).localeCompare(
+        staffDisplayName(b.name, b.first_name, b.last_name),
+        "de",
+      ),
+    );
 
     return filtered;
   }, [teachersData, searchTerm]);
@@ -218,10 +241,14 @@ function TeachersPageContent() {
   >(
     () => ({
       role: (teacher) => {
-        // Externe Kräfte ohne Konto (#3823) haben keine Rolle; eine eigene
-        // Gruppe trennt sie von Personal, dem nur die Rolle fehlt.
+        // Externe Kräfte (#3823) bilden eine eigene Gruppe, mit jedem Zugang
+        // (ADR 0091); sie trennt sie von Personal, dem nur die Rolle fehlt.
         if (teacher.is_external) {
-          return { id: "__external__", title: "Extern", sortKey: "zzy" };
+          return {
+            id: "__external__",
+            title: EXTERNAL_CAREGIVER_LABEL,
+            sortKey: "zzy",
+          };
         }
         const role = teacher.account_role?.trim();
         if (!role) {
@@ -240,10 +267,78 @@ function TeachersPageContent() {
     "Personal",
   );
 
+  // Erfolg beim Anlegen oder Einladen einer externen Person (#4573). Eine
+  // erneute Einladung ersetzt die alte; der Text sagt „neue Einladung“.
+  // „Kein Zugang“ verschickt keine Einladung (ADR 0091).
+  const handleExternalSaved = useCallback(
+    (staff: Staff, outcome: "created" | "invited" | "reinvited") => {
+      const name = staffDisplayName(
+        staff.name,
+        staff.firstName,
+        staff.lastName,
+      );
+      const invited = staff.externalAccountStatus === "invitation_pending";
+      const messages = {
+        created: invited
+          ? `${name} ist angelegt. Die Einladung ist per E-Mail unterwegs.`
+          : `${name} ist angelegt.`,
+        invited: `Die Einladung an ${name} ist unterwegs.`,
+        reinvited: `Die neue Einladung an ${name} ist unterwegs.`,
+      };
+      toast.success(messages[outcome]);
+      void refreshTeachers();
+      setInvitationRefreshKey(Date.now());
+    },
+    [refreshTeachers, toast],
+  );
+
+  const handleInviteExternal = useCallback((teacher: Teacher) => {
+    setInviteTarget({
+      id: teacher.id,
+      name: staffDisplayName(
+        teacher.name,
+        teacher.first_name,
+        teacher.last_name,
+      ),
+      invitationPending:
+        teacher.external_account_status === "invitation_pending",
+    });
+  }, []);
+
   const handleCloseInviteModal = useCallback(
     () => setShowInviteModal(false),
     [],
   );
+
+  const openExternalCreate = useCallback(() => {
+    setShowInviteModal(false);
+    setShowExternalModal(true);
+  }, []);
+
+  // „+ Personal“ klappt auf, sobald es zwei Wege zum Anlegen gibt (#4573):
+  // Personal einladen oder eine externe Person anlegen.
+  const createMenuItems =
+    canManageUsers && canCreateExternal
+      ? [
+          {
+            label: "Personal einladen",
+            onClick: () => setShowInviteModal(true),
+          },
+          { label: "Externe Person anlegen", onClick: openExternalCreate },
+        ]
+      : undefined;
+
+  const headerMenuItems = [
+    ...(canImportOpeningBalances
+      ? [
+          {
+            label: "Eröffnungssalden importieren",
+            href: tenantPath("/database/personal/opening-balances"),
+            onClick: () => undefined,
+          },
+        ]
+      : []),
+  ];
 
   const canShowList = !loading && filteredTeachers.length > 0;
 
@@ -253,28 +348,54 @@ function TeachersPageContent() {
       sessionLoading={status === "loading"}
       error={error}
       overlays={
-        canManageUsers ? (
-          <Modal
-            isOpen={showInviteModal}
-            onClose={handleCloseInviteModal}
-            title="Personal einladen"
-          >
-            <InvitationForm
-              existingPositions={existingPositions}
-              onCreated={() => {
-                setInvitationRefreshKey(Date.now());
-                setShowInviteModal(false);
-              }}
-            />
-          </Modal>
-        ) : null
+        <>
+          {canManageUsers ? (
+            <Modal
+              isOpen={showInviteModal}
+              onClose={handleCloseInviteModal}
+              title="Personal einladen"
+            >
+              <InvitationForm
+                existingPositions={existingPositions}
+                onCreated={() => {
+                  setInvitationRefreshKey(Date.now());
+                  setShowInviteModal(false);
+                }}
+              />
+            </Modal>
+          ) : null}
+          {canCreateExternal ? (
+            <>
+              <ExternalCaregiverCreateModal
+                isOpen={showExternalModal}
+                onClose={() => setShowExternalModal(false)}
+                onSaved={(staff) => handleExternalSaved(staff, "created")}
+                canGrantView={canGrantView}
+              />
+              <ExternalInvitationModal
+                target={inviteTarget}
+                canGrantView={canGrantView}
+                onClose={() => setInviteTarget(null)}
+                onInvited={(staff) =>
+                  handleExternalSaved(
+                    staff,
+                    inviteTarget?.invitationPending ? "reinvited" : "invited",
+                  )
+                }
+              />
+            </>
+          ) : null}
+        </>
       }
       className="flex w-full flex-col"
       intro={{
         title: "Personal",
         description: statusLine,
+        // Ohne Hülle: TenantPage ordnet jede Aktion selbst an. Auf dem Handy
+        // bleibt das Kebab-Menü dann neben dem Titel statt in einer eigenen,
+        // fast leeren Zeile.
         actions: (
-          <div className="flex items-center gap-2">
+          <>
             {!isMobile ? (
               <>
                 <DatabaseGroupingToggle
@@ -294,26 +415,29 @@ function TeachersPageContent() {
             ) : null}
             {/* Zweiter Import-Weg (#2132): eigener Flow mit Stichtag und
                 Begründung, deshalb im Menü statt als weiterer Button. */}
-            {canImportOpeningBalances ? (
+            {headerMenuItems.length > 0 ? (
               <OverflowMenu
-                ariaLabel="Weitere Import-Aktionen"
-                items={[
-                  {
-                    label: "Eröffnungssalden importieren",
-                    href: tenantPath("/database/personal/opening-balances"),
-                    onClick: () => undefined,
-                  },
-                ]}
+                ariaLabel="Weitere Aktionen"
+                items={headerMenuItems}
               />
             ) : null}
-            {canManageUsers ? (
+            {canManageUsers || canCreateExternal ? (
               <DatabaseCreateAction
-                label="Personal"
-                ariaLabel="Personal hinzufügen"
-                onClick={() => setShowInviteModal(true)}
+                label={canManageUsers ? "Personal" : "Externe Person"}
+                ariaLabel={
+                  canManageUsers
+                    ? "Personal hinzufügen"
+                    : "Externe Person anlegen"
+                }
+                onClick={
+                  canManageUsers
+                    ? () => setShowInviteModal(true)
+                    : openExternalCreate
+                }
+                menuItems={createMenuItems}
               />
             ) : null}
-          </div>
+          </>
         ),
       }}
       search={
@@ -350,7 +474,10 @@ function TeachersPageContent() {
           Personalseite selbst gehört ihr (#3469). */}
       {canManageUsers ? (
         <div className="mb-4">
-          <PendingInvitationsList refreshKey={invitationRefreshKey} />
+          <PendingInvitationsList
+            refreshKey={invitationRefreshKey}
+            onRevoked={() => void refreshTeachers()}
+          />
         </div>
       ) : null}
 
@@ -379,6 +506,9 @@ function TeachersPageContent() {
           <StaffList
             groupDefinitions={groupDefinitions}
             objectHref={objectHref}
+            onInviteExternal={
+              canCreateExternal ? handleInviteExternal : undefined
+            }
           />
         </div>
       ) : null}
