@@ -369,7 +369,7 @@
       "effect": "mutation",
       "classification": "E1",
       "adr": "0067",
-      "approval_adr": "0089",
+      "approval_adr": "0083",
       "reason": "E1 existing decision/renewal/approved-child-sync surface: decision_ports.go, approval.go, guardian_profiles.go, guardian_links.go, approved_child_sync.go and change_request_apply.go; caller tenant unit, request/class/recurrence/child ordering and account-before-roster protocol remain as documented in the #4538 inventory. This exact binding is retained coordination, including raw record halves, not newly approved as a guarded leaf. Target: modules/careplan.BookingMaterializationCapability.DetachTemplatesSourcedFromOffering."
     },
     {
@@ -381,7 +381,7 @@
       "effect": "mutation",
       "classification": "E1",
       "adr": "0067",
-      "approval_adr": "0089",
+      "approval_adr": "0083",
       "reason": "E1 existing decision/renewal/approved-child-sync surface: decision_ports.go, approval.go, guardian_profiles.go, guardian_links.go, approved_child_sync.go and change_request_apply.go; caller tenant unit, request/class/recurrence/child ordering and account-before-roster protocol remain as documented in the #4538 inventory. This exact binding is retained coordination, including raw record halves, not newly approved as a guarded leaf. Target: modules/careplan.BookingMaterializationCapability.ResyncTemplatesSourcedFromOffering."
     },
     {
@@ -413,8 +413,8 @@
       "effect": "unresolved",
       "classification": "unresolved",
       "reason": "Exact function-parameter boundary: api/school_directories.go findSchool calls its find parameter; enrollmentSchoolDirectory.GetSchoolBySlug supplies Organization Query.FindSchoolBySlug as a method value. The selector is separately inventoried as a query, but generic helper argument-to-parameter flow is not resolved in this slice. Keep this visibly unresolved rather than assuming all supplied functions are queries.",
-      "adr": "0089",
-      "approval_adr": "0089"
+      "adr": "0083",
+      "approval_adr": "0083"
     },
     {
       "port": "github.com/moto-nrw/project-phoenix/modules/enrollment/internal/application.CalendarPeriods.FindCalendarPeriod",
@@ -446,7 +446,7 @@
       "effect": "lock",
       "classification": "E1",
       "adr": "0067",
-      "approval_adr": "0089",
+      "approval_adr": "0083",
       "reason": "E1 existing decision/renewal/approved-child-sync surface: decision_ports.go, approval.go, guardian_profiles.go, guardian_links.go, approved_child_sync.go and change_request_apply.go; caller tenant unit, request/class/recurrence/child ordering and account-before-roster protocol remain as documented in the #4538 inventory. This exact binding is retained coordination, including raw record halves, not newly approved as a guarded leaf. Target: modules/careplan.BookingMaterializationCapability.LockOfferingDerivedWrites."
     },
     {
@@ -458,7 +458,7 @@
       "effect": "mutation",
       "classification": "E1",
       "adr": "0067",
-      "approval_adr": "0089",
+      "approval_adr": "0083",
       "reason": "E1 existing decision/renewal/approved-child-sync surface: decision_ports.go, approval.go, guardian_profiles.go, guardian_links.go, approved_child_sync.go and change_request_apply.go; caller tenant unit, request/class/recurrence/child ordering and account-before-roster protocol remain as documented in the #4538 inventory. This exact binding is retained coordination, including raw record halves, not newly approved as a guarded leaf. Target: modules/careplan.BookingMaterializationCapability.ReconcileOfferingPickupForStudents."
     },
     {
@@ -500,7 +500,7 @@
       "effect": "mutation",
       "classification": "E1",
       "adr": "0067",
-      "approval_adr": "0089",
+      "approval_adr": "0083",
       "reason": "E1 existing decision/renewal/approved-child-sync surface: decision_ports.go, approval.go, guardian_profiles.go, guardian_links.go, approved_child_sync.go and change_request_apply.go; caller tenant unit, request/class/recurrence/child ordering and account-before-roster protocol remain as documented in the #4538 inventory. This exact binding is retained coordination, including raw record halves, not newly approved as a guarded leaf. Target: modules/careplan.CareLifecycle.ReconcileAuthoritativeBookingChange."
     },
     {
@@ -522,7 +522,7 @@
       "effect": "lock",
       "classification": "E1",
       "adr": "0067",
-      "approval_adr": "0089",
+      "approval_adr": "0083",
       "reason": "E1 existing decision/renewal/approved-child-sync surface: decision_ports.go, approval.go, guardian_profiles.go, guardian_links.go, approved_child_sync.go and change_request_apply.go; caller tenant unit, request/class/recurrence/child ordering and account-before-roster protocol remain as documented in the #4538 inventory. This exact binding is retained coordination, including raw record halves, not newly approved as a guarded leaf. Target: modules/careplan.CompanionLocks.LockCompanionGraph."
     },
     {
@@ -544,7 +544,7 @@
       "effect": "mutation",
       "classification": "E1",
       "adr": "0067",
-      "approval_adr": "0089",
+      "approval_adr": "0083",
       "reason": "E1 existing decision/renewal/approved-child-sync surface: decision_ports.go, approval.go, guardian_profiles.go, guardian_links.go, approved_child_sync.go and change_request_apply.go; caller tenant unit, request/class/recurrence/child ordering and account-before-roster protocol remain as documented in the #4538 inventory. This exact binding is retained coordination, including raw record halves, not newly approved as a guarded leaf. Target: modules/careplan.BookingMaterializationCapability.AdjustOfferings."
     },
     {
@@ -556,7 +556,7 @@
       "effect": "lock",
       "classification": "E1",
       "adr": "0067",
-      "approval_adr": "0089",
+      "approval_adr": "0083",
       "reason": "E1 existing decision/renewal/approved-child-sync surface: decision_ports.go, approval.go, guardian_profiles.go, guardian_links.go, approved_child_sync.go and change_request_apply.go; caller tenant unit, request/class/recurrence/child ordering and account-before-roster protocol remain as documented in the #4538 inventory. This exact binding is retained coordination, including raw record halves, not newly approved as a guarded leaf. Target: modules/careplan.BookingMaterializationCapability.LockOfferingDerivedWrites."
     },
     {
@@ -568,7 +568,7 @@
       "effect": "mutation",
       "classification": "E1",
       "adr": "0067",
-      "approval_adr": "0089",
+      "approval_adr": "0083",
       "reason": "E1 existing decision/renewal/approved-child-sync surface: decision_ports.go, approval.go, guardian_profiles.go, guardian_links.go, approved_child_sync.go and change_request_apply.go; caller tenant unit, request/class/recurrence/child ordering and account-before-roster protocol remain as documented in the #4538 inventory. This exact binding is retained coordination, including raw record halves, not newly approved as a guarded leaf. Target: modules/careplan.BookingMaterializationCapability.MaterializeApprovedBookings."
     },
     {
@@ -580,7 +580,7 @@
       "effect": "mutation",
       "classification": "E1",
       "adr": "0067",
-      "approval_adr": "0089",
+      "approval_adr": "0083",
       "reason": "E1 existing decision/renewal/approved-child-sync surface: decision_ports.go, approval.go, guardian_profiles.go, guardian_links.go, approved_child_sync.go and change_request_apply.go; caller tenant unit, request/class/recurrence/child ordering and account-before-roster protocol remain as documented in the #4538 inventory. This exact binding is retained coordination, including raw record halves, not newly approved as a guarded leaf. Target: modules/careplan.BookingMaterializationCapability.ReconcileOfferingPickupForStudents."
     },
     {
@@ -592,7 +592,7 @@
       "effect": "mutation",
       "classification": "E1",
       "adr": "0067",
-      "approval_adr": "0089",
+      "approval_adr": "0083",
       "reason": "E1 existing decision/renewal/approved-child-sync surface: decision_ports.go, approval.go, guardian_profiles.go, guardian_links.go, approved_child_sync.go and change_request_apply.go; caller tenant unit, request/class/recurrence/child ordering and account-before-roster protocol remain as documented in the #4538 inventory. This exact binding is retained coordination, including raw record halves, not newly approved as a guarded leaf. Target: modules/careplan.BookingMaterializationCapability.ResyncMultiSourceTemplatesForChild."
     },
     {
@@ -604,7 +604,7 @@
       "effect": "mutation",
       "classification": "E1",
       "adr": "0067",
-      "approval_adr": "0089",
+      "approval_adr": "0083",
       "reason": "E1 existing decision/renewal/approved-child-sync surface: decision_ports.go, approval.go, guardian_profiles.go, guardian_links.go, approved_child_sync.go and change_request_apply.go; caller tenant unit, request/class/recurrence/child ordering and account-before-roster protocol remain as documented in the #4538 inventory. This exact binding is retained coordination, including raw record halves, not newly approved as a guarded leaf. Target: modules/careplan.BookingMaterializationCapability.ResyncOfferingSourcedTemplates."
     },
     {
@@ -636,7 +636,7 @@
       "effect": "mutation",
       "classification": "E1",
       "adr": "0067",
-      "approval_adr": "0089",
+      "approval_adr": "0083",
       "reason": "E1 existing decision/renewal/approved-child-sync surface: decision_ports.go, approval.go, guardian_profiles.go, guardian_links.go, approved_child_sync.go and change_request_apply.go; caller tenant unit, request/class/recurrence/child ordering and account-before-roster protocol remain as documented in the #4538 inventory. This exact binding is retained coordination, including raw record halves, not newly approved as a guarded leaf. Target: modules/identityaccess.Owner.GrantGuardianTenantAccess."
     },
     {
@@ -667,8 +667,8 @@
       "binding_digest": "6619440d174263f2f6ef60161add217a",
       "effect": "unresolved",
       "classification": "unresolved",
-      "adr": "0089",
-      "approval_adr": "0089",
+      "adr": "0083",
+      "approval_adr": "0083",
       "reason": "Exact function-field boundary: roots/owners/enrollment_decision_people.go enrollmentDepartureCompanions.delete is supplied by EnrollmentDecisionCompanions with Care Plan DeleteCompanionEdges (root_enrollment_services.go). Method-value instance flow is not resolved in this slice; retain E1 evidence from approved_child_sync.go/guardian_links.go, not a query or safe leaf."
     },
     {
@@ -730,7 +730,7 @@
       "effect": "mutation",
       "classification": "E1",
       "adr": "0067",
-      "approval_adr": "0089",
+      "approval_adr": "0083",
       "reason": "E1 existing decision/renewal/approved-child-sync surface: decision_ports.go, approval.go, guardian_profiles.go, guardian_links.go, approved_child_sync.go and change_request_apply.go; caller tenant unit, request/class/recurrence/child ordering and account-before-roster protocol remain as documented in the #4538 inventory. This exact binding is retained coordination, including raw record halves, not newly approved as a guarded leaf. Target: modules/peopledirectory/ports.GuardianPhoneNumberRepository.Create."
     },
     {
@@ -762,7 +762,7 @@
       "effect": "mutation",
       "classification": "E1",
       "adr": "0067",
-      "approval_adr": "0089",
+      "approval_adr": "0083",
       "reason": "E1 existing decision/renewal/approved-child-sync surface: decision_ports.go, approval.go, guardian_profiles.go, guardian_links.go, approved_child_sync.go and change_request_apply.go; caller tenant unit, request/class/recurrence/child ordering and account-before-roster protocol remain as documented in the #4538 inventory. This exact binding is retained coordination, including raw record halves, not newly approved as a guarded leaf. Target: modules/peopledirectory/ports.GuardianProfileRepository.Create."
     },
     {
@@ -824,7 +824,7 @@
       "effect": "mutation",
       "classification": "E1",
       "adr": "0067",
-      "approval_adr": "0089",
+      "approval_adr": "0083",
       "reason": "E1 existing decision/renewal/approved-child-sync surface: decision_ports.go, approval.go, guardian_profiles.go, guardian_links.go, approved_child_sync.go and change_request_apply.go; caller tenant unit, request/class/recurrence/child ordering and account-before-roster protocol remain as documented in the #4538 inventory. This exact binding is retained coordination, including raw record halves, not newly approved as a guarded leaf. Target: modules/peopledirectory.Capability.LinkGuardianProfileToAccount."
     },
     {
@@ -836,7 +836,7 @@
       "effect": "mutation",
       "classification": "E1",
       "adr": "0067",
-      "approval_adr": "0089",
+      "approval_adr": "0083",
       "reason": "E1 existing decision/renewal/approved-child-sync surface: decision_ports.go, approval.go, guardian_profiles.go, guardian_links.go, approved_child_sync.go and change_request_apply.go; caller tenant unit, request/class/recurrence/child ordering and account-before-roster protocol remain as documented in the #4538 inventory. This exact binding is retained coordination, including raw record halves, not newly approved as a guarded leaf. Target: modules/peopledirectory/ports.GuardianProfileRepository.Update."
     },
     {
@@ -938,7 +938,7 @@
       "effect": "mutation",
       "classification": "E1",
       "adr": "0067",
-      "approval_adr": "0089",
+      "approval_adr": "0083",
       "reason": "E1 existing decision/renewal/approved-child-sync surface: decision_ports.go, approval.go, guardian_profiles.go, guardian_links.go, approved_child_sync.go and change_request_apply.go; caller tenant unit, request/class/recurrence/child ordering and account-before-roster protocol remain as documented in the #4538 inventory. This exact binding is retained coordination, including raw record halves, not newly approved as a guarded leaf. Target: modules/peopledirectory.Capability.CreateChildPerson."
     },
     {
@@ -970,7 +970,7 @@
       "effect": "mutation",
       "classification": "E1",
       "adr": "0067",
-      "approval_adr": "0089",
+      "approval_adr": "0083",
       "reason": "E1 existing decision/renewal/approved-child-sync surface: decision_ports.go, approval.go, guardian_profiles.go, guardian_links.go, approved_child_sync.go and change_request_apply.go; caller tenant unit, request/class/recurrence/child ordering and account-before-roster protocol remain as documented in the #4538 inventory. This exact binding is retained coordination, including raw record halves, not newly approved as a guarded leaf. Target: modules/peopledirectory.Capability.SetPersonDetails."
     },
     {
@@ -1113,7 +1113,7 @@
       "effect": "mutation",
       "classification": "E1",
       "adr": "0067",
-      "approval_adr": "0089",
+      "approval_adr": "0083",
       "reason": "E1 existing decision/renewal/approved-child-sync surface: decision_ports.go, approval.go, guardian_profiles.go, guardian_links.go, approved_child_sync.go and change_request_apply.go; caller tenant unit, request/class/recurrence/child ordering and account-before-roster protocol remain as documented in the #4538 inventory. This exact binding is retained coordination, including raw record halves, not newly approved as a guarded leaf. Target: modules/peopledirectory/ports.StudentAuditService.RecordChangesForActor."
     },
     {
@@ -1125,7 +1125,7 @@
       "effect": "mutation",
       "classification": "E1",
       "adr": "0067",
-      "approval_adr": "0089",
+      "approval_adr": "0083",
       "reason": "E1 existing decision/renewal/approved-child-sync surface: decision_ports.go, approval.go, guardian_profiles.go, guardian_links.go, approved_child_sync.go and change_request_apply.go; caller tenant unit, request/class/recurrence/child ordering and account-before-roster protocol remain as documented in the #4538 inventory. This exact binding is retained coordination, including raw record halves, not newly approved as a guarded leaf. Target: modules/peopledirectory/ports.StudentAuditService.RecordSystemStatusChange."
     },
     {
@@ -1147,7 +1147,7 @@
       "effect": "mutation",
       "classification": "E1",
       "adr": "0067",
-      "approval_adr": "0089",
+      "approval_adr": "0083",
       "reason": "E1 existing decision/renewal/approved-child-sync surface: decision_ports.go, approval.go, guardian_profiles.go, guardian_links.go, approved_child_sync.go and change_request_apply.go; caller tenant unit, request/class/recurrence/child ordering and account-before-roster protocol remain as documented in the #4538 inventory. This exact binding is retained coordination, including raw record halves, not newly approved as a guarded leaf. Target: modules/peopledirectory/ports.StudentGuardianRepository.Create."
     },
     {
@@ -1159,7 +1159,7 @@
       "effect": "mutation",
       "classification": "E1",
       "adr": "0067",
-      "approval_adr": "0089",
+      "approval_adr": "0083",
       "reason": "E1 existing decision/renewal/approved-child-sync surface: decision_ports.go, approval.go, guardian_profiles.go, guardian_links.go, approved_child_sync.go and change_request_apply.go; caller tenant unit, request/class/recurrence/child ordering and account-before-roster protocol remain as documented in the #4538 inventory. This exact binding is retained coordination, including raw record halves, not newly approved as a guarded leaf. Target: modules/peopledirectory.Capability.DeleteStudentGuardianLink."
     },
     {
@@ -1171,7 +1171,7 @@
       "effect": "lock",
       "classification": "E1",
       "adr": "0067",
-      "approval_adr": "0089",
+      "approval_adr": "0083",
       "reason": "E1 existing decision/renewal/approved-child-sync surface: decision_ports.go, approval.go, guardian_profiles.go, guardian_links.go, approved_child_sync.go and change_request_apply.go; caller tenant unit, request/class/recurrence/child ordering and account-before-roster protocol remain as documented in the #4538 inventory. This exact binding is retained coordination, including raw record halves, not newly approved as a guarded leaf. Target: modules/peopledirectory/ports.StudentGuardianRepository.FindByStudentAndGuardianForUpdate."
     },
     {
@@ -1193,7 +1193,7 @@
       "effect": "mutation",
       "classification": "E1",
       "adr": "0067",
-      "approval_adr": "0089",
+      "approval_adr": "0083",
       "reason": "E1 existing decision/renewal/approved-child-sync surface: decision_ports.go, approval.go, guardian_profiles.go, guardian_links.go, approved_child_sync.go and change_request_apply.go; caller tenant unit, request/class/recurrence/child ordering and account-before-roster protocol remain as documented in the #4538 inventory. This exact binding is retained coordination, including raw record halves, not newly approved as a guarded leaf. Target: modules/peopledirectory/ports.StudentGuardianRepository.LinkIfNotExists."
     },
     {
@@ -1215,7 +1215,7 @@
       "effect": "mutation",
       "classification": "E1",
       "adr": "0067",
-      "approval_adr": "0089",
+      "approval_adr": "0083",
       "reason": "E1 existing decision/renewal/approved-child-sync surface: decision_ports.go, approval.go, guardian_profiles.go, guardian_links.go, approved_child_sync.go and change_request_apply.go; caller tenant unit, request/class/recurrence/child ordering and account-before-roster protocol remain as documented in the #4538 inventory. This exact binding is retained coordination, including raw record halves, not newly approved as a guarded leaf. Target: modules/peopledirectory/ports.StudentGuardianRepository.UpdateColumns."
     },
     {
@@ -1227,7 +1227,7 @@
       "effect": "mutation",
       "classification": "E1",
       "adr": "0067",
-      "approval_adr": "0089",
+      "approval_adr": "0083",
       "reason": "E1 existing decision/renewal/approved-child-sync surface: decision_ports.go, approval.go, guardian_profiles.go, guardian_links.go, approved_child_sync.go and change_request_apply.go; caller tenant unit, request/class/recurrence/child ordering and account-before-roster protocol remain as documented in the #4538 inventory. This exact binding is retained coordination, including raw record halves, not newly approved as a guarded leaf. Target: modules/peopledirectory/ports.StudentGuardianRepository.Update."
     },
     {
@@ -1269,7 +1269,7 @@
       "effect": "mutation",
       "classification": "E1",
       "adr": "0067",
-      "approval_adr": "0089",
+      "approval_adr": "0083",
       "reason": "E1 existing decision/renewal/approved-child-sync surface: decision_ports.go, approval.go, guardian_profiles.go, guardian_links.go, approved_child_sync.go and change_request_apply.go; caller tenant unit, request/class/recurrence/child ordering and account-before-roster protocol remain as documented in the #4538 inventory. This exact binding is retained coordination, including raw record halves, not newly approved as a guarded leaf. Target: modules/timetable/internal/application.EnrollmentArrivalSchedules.CreateArrivalSchedule."
     },
     {
@@ -1281,7 +1281,7 @@
       "effect": "mutation",
       "classification": "E1",
       "adr": "0067",
-      "approval_adr": "0089",
+      "approval_adr": "0083",
       "reason": "E1 existing decision/renewal/approved-child-sync surface: decision_ports.go, approval.go, guardian_profiles.go, guardian_links.go, approved_child_sync.go and change_request_apply.go; caller tenant unit, request/class/recurrence/child ordering and account-before-roster protocol remain as documented in the #4538 inventory. This exact binding is retained coordination, including raw record halves, not newly approved as a guarded leaf. Target: modules/timetable/internal/application.EnrollmentArrivalSchedules.DeleteArrivalSchedules."
     },
     {
@@ -1293,7 +1293,7 @@
       "effect": "mutation",
       "classification": "E1",
       "adr": "0067",
-      "approval_adr": "0089",
+      "approval_adr": "0083",
       "reason": "E1 existing decision/renewal/approved-child-sync surface: decision_ports.go, approval.go, guardian_profiles.go, guardian_links.go, approved_child_sync.go and change_request_apply.go; caller tenant unit, request/class/recurrence/child ordering and account-before-roster protocol remain as documented in the #4538 inventory. This exact binding is retained coordination, including raw record halves, not newly approved as a guarded leaf. Target: modules/timetable/internal/application.EnrollmentPickupSchedules.DeletePickupSchedules."
     },
     {
@@ -1305,7 +1305,7 @@
       "effect": "mutation",
       "classification": "E1",
       "adr": "0067",
-      "approval_adr": "0089",
+      "approval_adr": "0083",
       "reason": "E1 existing decision/renewal/approved-child-sync surface: decision_ports.go, approval.go, guardian_profiles.go, guardian_links.go, approved_child_sync.go and change_request_apply.go; caller tenant unit, request/class/recurrence/child ordering and account-before-roster protocol remain as documented in the #4538 inventory. This exact binding is retained coordination, including raw record halves, not newly approved as a guarded leaf. Target: modules/timetable/internal/application.EnrollmentPickupSchedules.UpsertPickupSchedule."
     },
     {
@@ -1317,7 +1317,7 @@
       "effect": "mutation",
       "classification": "E1",
       "adr": "0067",
-      "approval_adr": "0089",
+      "approval_adr": "0083",
       "reason": "E1 existing decision/renewal/approved-child-sync surface: decision_ports.go, approval.go, guardian_profiles.go, guardian_links.go, approved_child_sync.go and change_request_apply.go; caller tenant unit, request/class/recurrence/child ordering and account-before-roster protocol remain as documented in the #4538 inventory. This exact binding is retained coordination, including raw record halves, not newly approved as a guarded leaf. Target: modules/peopledirectory.Capability.ApplyEnrollmentProfile."
     },
     {
@@ -1329,7 +1329,7 @@
       "effect": "mutation",
       "classification": "E1",
       "adr": "0067",
-      "approval_adr": "0089",
+      "approval_adr": "0083",
       "reason": "E1 existing decision/renewal/approved-child-sync surface: decision_ports.go, approval.go, guardian_profiles.go, guardian_links.go, approved_child_sync.go and change_request_apply.go; caller tenant unit, request/class/recurrence/child ordering and account-before-roster protocol remain as documented in the #4538 inventory. This exact binding is retained coordination, including raw record halves, not newly approved as a guarded leaf. Target: modules/peopledirectory.Capability.CreateEnrollmentStudent."
     },
     {
@@ -1341,7 +1341,7 @@
       "effect": "lock",
       "classification": "E1",
       "adr": "0067",
-      "approval_adr": "0089",
+      "approval_adr": "0083",
       "reason": "E1 existing decision/renewal/approved-child-sync surface: decision_ports.go, approval.go, guardian_profiles.go, guardian_links.go, approved_child_sync.go and change_request_apply.go; caller tenant unit, request/class/recurrence/child ordering and account-before-roster protocol remain as documented in the #4538 inventory. This exact binding is retained coordination, including raw record halves, not newly approved as a guarded leaf. Target: modules/peopledirectory.Capability.LockEnrollmentClassWrites."
     },
     {
@@ -1353,7 +1353,7 @@
       "effect": "lock",
       "classification": "E1",
       "adr": "0067",
-      "approval_adr": "0089",
+      "approval_adr": "0083",
       "reason": "E1 existing decision/renewal/approved-child-sync surface: decision_ports.go, approval.go, guardian_profiles.go, guardian_links.go, approved_child_sync.go and change_request_apply.go; caller tenant unit, request/class/recurrence/child ordering and account-before-roster protocol remain as documented in the #4538 inventory. This exact binding is retained coordination, including raw record halves, not newly approved as a guarded leaf. Target: modules/peopledirectory.Capability.ReadEnrollmentStudent."
     },
     {
@@ -1365,7 +1365,7 @@
       "effect": "mutation",
       "classification": "E1",
       "adr": "0067",
-      "approval_adr": "0089",
+      "approval_adr": "0083",
       "reason": "E1 existing decision/renewal/approved-child-sync surface: decision_ports.go, approval.go, guardian_profiles.go, guardian_links.go, approved_child_sync.go and change_request_apply.go; caller tenant unit, request/class/recurrence/child ordering and account-before-roster protocol remain as documented in the #4538 inventory. This exact binding is retained coordination, including raw record halves, not newly approved as a guarded leaf. Target: modules/peopledirectory.Capability.RenewEnrollmentStudent."
     }
   ]

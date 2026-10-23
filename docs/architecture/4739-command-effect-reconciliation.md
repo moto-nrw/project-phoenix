@@ -10,7 +10,7 @@ coordinator is auto-approved as a leaf. The two unresolved entries remain visibl
 known limitations. These are port/binding/target-method identities, not 128
 runtime owner-pair edges, nor a replacement for 40 manually grouped operations.
 
-[ADR 0089](../adr/0089-enrollment-interface-bindings-have-reviewed-command-effects.md)
+[ADR 0083 addendum #4739](../adr/0083-ratchets-protect-invariants-and-expose-command-effects.md#implementation-addendum-2026-10-23-4739)
 defines the scope: Enrollment interface bindings to foreign domains, workflows
 and projections, supplied by every typed production/root package. Platform
 targets and other source owners remain outside. The hand inventory was never
@@ -86,7 +86,7 @@ one records a transitive first-hop limit, and 32 have a different source owner.
    `roots/owners/enrollment_decision_people.go:566` calls `c.delete`.
    `enrollment_decision_composition.go:83` receives the function and
    `root_enrollment_services.go:99` supplies `carePlan.DeleteCompanionEdges`.
-   The exact register preserves the E1 context and this evidence under ADR 0089;
+   The exact register preserves the E1 context and this evidence under ADR 0083 addendum #4739;
    the static scanner does not infer that field's target owner or call it safe.
    Separately, `api/school_directories.go:185` calls generic helper parameter
    `find`, supplied at `:151` by `d.schools.FindSchoolBySlug`. Its typed selector

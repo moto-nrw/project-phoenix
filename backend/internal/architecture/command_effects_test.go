@@ -1,6 +1,7 @@
 package architecture
 
 import (
+	"os"
 	"path/filepath"
 	"strings"
 	"testing"
@@ -356,4 +357,45 @@ func Build() { enrollment.Run(binding(foreign.Ledger{}.Record)) }
 		}
 	}
 	t.Fatal("callable receiver hid a dynamic command behind an inventoried interface")
+}
+
+func TestCommandEffectsBootstrapIsBoundToNewImplementationDecision(t *testing.T) {
+	t.Parallel()
+	for _, tc := range []struct {
+		name                                              string
+		markerAtBase, addMarker, baseHasRegister, allowed bool
+	}{
+		{"missing decision", false, false, false, false},
+		{"new addendum", false, true, false, true},
+		{"existing addendum is not new", true, false, false, false},
+		{"existing register cannot reuse addendum", false, true, true, false},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			project, _ := commandEffectFixture(t)
+			filename := filepath.Join(project, commandEffectInventory)
+			if !tc.baseHasRegister {
+				if err := os.Remove(filename); err != nil {
+					t.Fatal(err)
+				}
+			}
+			document := "# Existing ADR 0083\n"
+			if tc.markerAtBase {
+				document += "\n## Implementation addendum 2026-10-23 (#4739)\n"
+			}
+			writeFile(t, filepath.Join(project, commandEffectDecision), document)
+			runGit(t, project, "init", "--quiet")
+			runGit(t, project, "add", ".")
+			runGit(t, project, "-c", "user.name=Fixture", "-c", "user.email=fixture@example.test", "-c", "commit.gpgsign=false", "commit", "--quiet", "-m", "base")
+			base := strings.TrimSpace(runGit(t, project, "rev-parse", "HEAD"))
+			if tc.addMarker {
+				writeFile(t, filepath.Join(project, commandEffectDecision), document+"\n## Implementation addendum 2026-10-23 (#4739)\n")
+			}
+			writeFile(t, filename, `{"schema_version":1,"entries":[{"port":"enrollment.Writer.Record","binding":"roots.binding.Record","target":"foreign.Ledger.Record","target_owner":"foreign","effect":"mutation","classification":"E1","adr":"0067","approval_adr":"0083","reason":"Reviewed initial E1 boundary."}]}`)
+			err := CompareCommandEffects(project, base)
+			if (err == nil) != tc.allowed {
+				t.Fatalf("bootstrap allowed=%t, error=%v", tc.allowed, err)
+			}
+		})
+	}
 }

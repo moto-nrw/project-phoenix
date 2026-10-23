@@ -2,6 +2,7 @@ package architecture
 
 import (
 	"fmt"
+	"os"
 	"path/filepath"
 	"strings"
 )
@@ -22,9 +23,12 @@ func CompareCommandEffects(project, ref string) error {
 	if err != nil {
 		return err
 	}
-	base, err := loadBaseCommandEffects(project, context)
+	base, bootstrap, err := loadBaseCommandEffects(project, context)
 	if err != nil {
 		return err
+	}
+	if bootstrap {
+		context.addedADRs["0083"] = true
 	}
 	failures, added, changed := compareEffectEntries(base, candidate, context.addedADRs)
 	if len(failures) > 0 {
@@ -48,26 +52,50 @@ func resolveEffectBase(project, ref string) (effectBase, error) {
 	return effectBase{root, sha, adrs}, err
 }
 
-func loadBaseCommandEffects(project string, base effectBase) (*commandEffectManifest, error) {
+const commandEffectDecision = "docs/adr/0083-ratchets-protect-invariants-and-expose-command-effects.md"
+const commandEffectAddendum = "\n## Implementation addendum 2026-10-23 (#4739)\n"
+
+func loadBaseCommandEffects(project string, base effectBase) (*commandEffectManifest, bool, error) {
 	relative, err := repositoryRelativePath(base.root, project, commandEffectInventory)
 	if err != nil {
-		return nil, err
+		return nil, false, err
 	}
 	listing, err := gitOutput(base.root, "ls-tree", "--name-only", base.sha, "--", filepath.ToSlash(relative))
 	if err != nil {
-		return nil, err
+		return nil, false, err
 	}
 	if strings.TrimSpace(listing) == "" {
-		if !base.addedADRs["0089"] {
-			return nil, fmt.Errorf("command effect bootstrap requires new ADR 0089")
+		if err := validateEffectBootstrap(base); err != nil {
+			return nil, false, err
 		}
-		return &commandEffectManifest{SchemaVersion: 1}, nil
+		return &commandEffectManifest{SchemaVersion: 1}, true, nil
 	}
 	blob, err := readGitBlob(base.root, project, base.sha, commandEffectInventory)
 	if err != nil {
-		return nil, err
+		return nil, false, err
 	}
-	return decodeCommandEffects(blob)
+	manifest, err := decodeCommandEffects(blob)
+	return manifest, false, err
+}
+
+// Only the first register may cite the new implementation addendum. Once a
+// base holds the register, future exception growth still needs a new ADR number.
+func validateEffectBootstrap(base effectBase) error {
+	candidate, err := os.ReadFile(filepath.Join(base.root, commandEffectDecision))
+	if err != nil {
+		return fmt.Errorf("read command effect bootstrap decision: %w", err)
+	}
+	var previous []byte
+	if !base.addedADRs["0083"] {
+		previous, err = readGitBlob(base.root, base.root, base.sha, commandEffectDecision)
+		if err != nil {
+			return err
+		}
+	}
+	if !strings.Contains(string(candidate), commandEffectAddendum) || strings.Contains(string(previous), commandEffectAddendum) {
+		return fmt.Errorf("command effect bootstrap requires the new ADR 0083 #4739 implementation addendum")
+	}
+	return nil
 }
 
 func compareEffectEntries(base, candidate *commandEffectManifest, adrs map[string]bool) ([]string, int, int) {

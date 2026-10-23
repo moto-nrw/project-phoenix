@@ -339,8 +339,8 @@ func validateEffectEntry(entry commandEffectEntry) error {
 			return fmt.Errorf("command %s must cite ADR 0067", entry.key())
 		}
 	case "unresolved":
-		if !strings.HasPrefix(entry.Target, "unresolved:") || entry.Classification != "unresolved" || entry.ADR != "0089" {
-			return fmt.Errorf("unresolved %s needs exact ADR 0089 explanation", entry.key())
+		if !strings.HasPrefix(entry.Target, "unresolved:") || entry.Classification != "unresolved" || entry.ADR != "0083" {
+			return fmt.Errorf("unresolved %s needs exact ADR 0083 addendum #4739 explanation", entry.key())
 		}
 	default:
 		return fmt.Errorf("unclassified effect %q for %s", entry.Effect, entry.key())
