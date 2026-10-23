@@ -14,7 +14,7 @@ import (
 func TestPublicMealPlanContractPersistsNormalizedDishes(t *testing.T) {
 	t.Parallel()
 	enabled := func(context.Context) (bool, error) { return true, nil }
-	settings, err := compose.NewBoundSettings(enabled, enabled, func(context.Context) (string, error) { return "09:00", nil })
+	settings, err := compose.NewBoundSettings(enabled, enabled, func(context.Context) (string, int, error) { return "09:00", 0, nil })
 	require.NoError(t, err)
 	module, err := compose.New(compose.Dependencies{DB: testpkg.SetupTestDB(t), Settings: settings, Observe: func(compose.Observation) {}, Now: time.Now, Participants: func(context.Context, string) ([]mealplan.ParticipantCandidate, error) { return nil, nil }})
 	require.NoError(t, err)

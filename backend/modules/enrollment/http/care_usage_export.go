@@ -129,12 +129,17 @@ func careUsageWeeklyCell(row capability.CareUsageRow, day string) string {
 	if careDays == nil {
 		careDays = row.EffectiveDays
 	}
-	return weeklyPickupCell(
-		containsReportDay(careDays, day),
-		row.SchedulePickupByDay[day],
-		row.PickupByDay[day],
-		careUsageDailyOfferingNames(row, day),
-	)
+	pickup := strings.TrimSpace(row.SchedulePickupByDay[day])
+	if pickup == "" {
+		pickup = strings.TrimSpace(row.PickupByDay[day])
+	}
+	// Same cell as the class list (#4749); the compact export carries no
+	// Geh-/Abholregelung.
+	return lists.ClassRosterDayCell(lists.ClassRosterDay{
+		Care:      containsReportDay(careDays, day),
+		Pickup:    pickup,
+		Offerings: careUsageDailyOfferingNames(row, day),
+	})
 }
 
 func careUsageDailyOfferingNames(row capability.CareUsageRow, day string) []string {

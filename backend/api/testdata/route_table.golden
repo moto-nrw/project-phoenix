@@ -283,6 +283,8 @@ GET /api/me/teacher
 GET /api/meal-plan/
 GET /api/meal-plan/participants
 GET /api/meal-plan/participants/export
+GET /api/meal-plan/participants/week
+GET /api/meal-plan/participants/week/export
 GET /api/messages/
 GET /api/messages/count-scope
 GET /api/messages/reachable-students

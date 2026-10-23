@@ -58,13 +58,16 @@ func TestStaffRoutesKeepProtectedPermissionBoundaries(t *testing.T) {
 		ExportDailyList: func(mealplanModule.DailyList, string) (mealplanHTTP.ExportFile, error) {
 			return mealplanHTTP.ExportFile{}, nil
 		},
+		ExportWeeklyList: func(mealplanModule.WeeklyList, string) (mealplanHTTP.ExportFile, error) {
+			return mealplanHTTP.ExportFile{}, nil
+		},
 	})
 
 	resource.Router()
 	if !protected {
 		t.Fatal("routes were registered outside the protected tenant boundary")
 	}
-	want := []mealplanHTTP.Access{mealplanHTTP.AccessRead, mealplanHTTP.AccessWrite, mealplanHTTP.AccessWrite, mealplanHTTP.AccessParticipants, mealplanHTTP.AccessParticipants}
+	want := []mealplanHTTP.Access{mealplanHTTP.AccessRead, mealplanHTTP.AccessWrite, mealplanHTTP.AccessWrite, mealplanHTTP.AccessParticipants, mealplanHTTP.AccessParticipants, mealplanHTTP.AccessParticipants, mealplanHTTP.AccessParticipants}
 	if !reflect.DeepEqual(accesses, want) {
 		t.Fatalf("permission boundaries = %v, want %v", accesses, want)
 	}
@@ -101,6 +104,15 @@ func (e engine) DailyList(context.Context, mealplanModule.Date) (mealplanModule.
 	return mealplanModule.DailyList{Date: "2026-09-07", CutoffTime: "09:00", Participants: []mealplanModule.DailyParticipant{{StudentID: 42, FirstName: "Mia", LastName: "Muster", SchoolClass: "2a"}}}, nil
 }
 
+func (e engine) WeeklyList(context.Context, mealplanModule.Date) (mealplanModule.WeeklyList, error) {
+	days := make([]mealplanModule.DailyList, 0, 5)
+	for _, date := range []mealplanModule.Date{"2026-09-07", "2026-09-08", "2026-09-09", "2026-09-10", "2026-09-11"} {
+		days = append(days, mealplanModule.DailyList{Date: date, CutoffTime: "09:00", CutoffLeadDays: 1})
+	}
+	days[1].Participants = []mealplanModule.DailyParticipant{{StudentID: 42, FirstName: "Mia", LastName: "Muster", SchoolClass: "2a"}}
+	return mealplanModule.WeeklyList{WeekStart: "2026-09-07", CutoffTime: "09:00", CutoffLeadDays: 1, Days: days}, nil
+}
+
 func resource(available bool) *mealplanHTTP.Resource {
 	date, _ := mealplanModule.ParseDate("2026-09-07")
 	module := engine{available: available, entries: []mealplanModule.Entry{{
@@ -121,6 +133,9 @@ func resourceFor(module mealplanModule.Capability) *mealplanHTTP.Resource {
 		ExportDailyList: func(mealplanModule.DailyList, string) (mealplanHTTP.ExportFile, error) {
 			return mealplanHTTP.ExportFile{}, nil
 		},
+		ExportWeeklyList: func(mealplanModule.WeeklyList, string) (mealplanHTTP.ExportFile, error) {
+			return mealplanHTTP.ExportFile{}, nil
+		},
 	})
 }
 
@@ -130,7 +145,31 @@ func TestStaffDailyListResponseContract(t *testing.T) {
 	if response.Code != 200 {
 		t.Fatalf("status = %d, body = %s", response.Code, response.Body.String())
 	}
-	assert.JSONEq(t, `{"status":"success","data":{"date":"2026-09-07","cutoff_time":"09:00","participants":[{"student_id":"42","first_name":"Mia","last_name":"Muster","school_class":"2a"}]},"message":"Meal participation list retrieved successfully"}`, response.Body.String())
+	assert.JSONEq(t, `{"status":"success","data":{"date":"2026-09-07","cutoff_time":"09:00","cutoff_lead_days":0,"participants":[{"student_id":"42","first_name":"Mia","last_name":"Muster","school_class":"2a"}]},"message":"Meal participation list retrieved successfully"}`, response.Body.String())
+}
+
+func TestStaffWeeklyListResponseContract(t *testing.T) {
+	t.Parallel()
+	response := routetest.ExecuteRequest(resource(true).Router(), routetest.NewRequest("GET", "/participants/week?week_start=2026-09-07", nil))
+	if response.Code != 200 {
+		t.Fatalf("status = %d, body = %s", response.Code, response.Body.String())
+	}
+	assert.JSONEq(t, `{"status":"success","data":{"week_start":"2026-09-07","cutoff_time":"09:00","cutoff_lead_days":1,"days":[
+		{"date":"2026-09-07","participants":[]},
+		{"date":"2026-09-08","participants":[{"student_id":"42","first_name":"Mia","last_name":"Muster","school_class":"2a"}]},
+		{"date":"2026-09-09","participants":[]},
+		{"date":"2026-09-10","participants":[]},
+		{"date":"2026-09-11","participants":[]}
+	]},"message":"Weekly meal participation list retrieved successfully"}`, response.Body.String())
+
+	malformed := routetest.ExecuteRequest(resource(true).Router(), routetest.NewRequest("GET", "/participants/week?week_start=07.09.2026", nil))
+	if malformed.Code != 400 {
+		t.Fatalf("malformed week status = %d, body = %s", malformed.Code, malformed.Body.String())
+	}
+	unsupported := routetest.ExecuteRequest(resource(true).Router(), routetest.NewRequest("GET", "/participants/week/export?week_start=2026-09-07&format=csv", nil))
+	if unsupported.Code != 400 {
+		t.Fatalf("unsupported format status = %d, body = %s", unsupported.Code, unsupported.Body.String())
+	}
 }
 
 func TestStaffWeekResponseContract(t *testing.T) {
@@ -175,7 +214,7 @@ func TestStaffWeekendWriteKeepsItsErrorContract(t *testing.T) {
 	t.Parallel()
 
 	enabled := func(context.Context) (bool, error) { return true, nil }
-	settings, err := mealplanCompose.NewBoundSettings(enabled, enabled, func(context.Context) (string, error) { return "09:00", nil })
+	settings, err := mealplanCompose.NewBoundSettings(enabled, enabled, func(context.Context) (string, int, error) { return "09:00", 0, nil })
 	require.NoError(t, err)
 	module, err := mealplanCompose.New(mealplanCompose.Dependencies{
 		DB: testpkg.SetupTestDB(t), Settings: settings,
