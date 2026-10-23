@@ -62,12 +62,14 @@ export function useExportRun<F extends ExportFileFormat>({
   const latestRunRef = useRef<(kind: ExportRunKind, format: F) => void>(
     () => undefined,
   );
+  const latestDownloadFormatRef = useRef<F | null>(null);
 
   useEffect(() => {
     if (isOpen) clearErrors();
   }, [isOpen, clearErrors]);
 
   const run = async (kind: ExportRunKind, format: F) => {
+    if (kind === "download") latestDownloadFormatRef.current = format;
     const problem = validate?.() ?? null;
     if (problem) {
       formErrors.invalid(problem);
@@ -108,7 +110,13 @@ export function useExportRun<F extends ExportFileFormat>({
           typeof errorObject === "string" ? errorObject : errorObject(kind),
         // Der Klick auf „Wiederholen“ ist wieder eine Nutzeraktion: das
         // Druckfenster darf dort erneut aufgehen.
-        retry: () => latestRunRef.current(kind, format),
+        retry: () =>
+          latestRunRef.current(
+            kind,
+            kind === "download"
+              ? (latestDownloadFormatRef.current ?? format)
+              : format,
+          ),
       });
     } finally {
       setBusy(null);
@@ -123,6 +131,9 @@ export function useExportRun<F extends ExportFileFormat>({
     error: formErrors.error,
     bodyRef,
     download: (format) => latestRunRef.current("download", format),
+    updateFormat: (format) => {
+      latestDownloadFormatRef.current = format;
+    },
     print: onPrint
       ? () => latestRunRef.current("print", "pdf" as F)
       : undefined,

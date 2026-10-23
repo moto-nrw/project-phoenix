@@ -46,6 +46,8 @@ export interface ExportDialogRun<F extends ExportFileFormat> {
   readonly error: FormErrorInput;
   readonly bodyRef: RefObject<HTMLDivElement | null>;
   readonly download: (format: F) => void;
+  /** Remembers a newly selected format for a possible retry. */
+  readonly updateFormat: (format: F) => void;
   /** Present when the export can print. */
   readonly print?: () => void;
 }
@@ -167,7 +169,10 @@ export function ExportDialog<F extends ExportFileFormat>({
                 <SegmentedControl<F>
                   ariaLabel="Format der Datei"
                   value={format}
-                  onChange={setFormat}
+                  onChange={(nextFormat) => {
+                    setFormat(nextFormat);
+                    run.updateFormat(nextFormat);
+                  }}
                   items={formats.map((item) => ({
                     value: item,
                     label: EXPORT_FORMAT_LABELS[item],

@@ -178,10 +178,11 @@ describe("ExportDialog", () => {
     fireEvent.change(screen.getByLabelText("Titel"), {
       target: { value: "Neue Liste" },
     });
+    fireEvent.click(screen.getByRole("button", { name: "Word" }));
     fireEvent.click(screen.getByRole("button", { name: "Wiederholen" }));
 
     await waitFor(() => expect(onDownload).toHaveBeenCalledTimes(2));
-    expect(onDownload).toHaveBeenLastCalledWith("pdf", "Neue Liste");
+    expect(onDownload).toHaveBeenLastCalledWith("docx", "Neue Liste");
     await waitFor(() => expect(onClose).toHaveBeenCalled());
   });
 });
