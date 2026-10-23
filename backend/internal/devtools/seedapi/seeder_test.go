@@ -1733,7 +1733,7 @@ func fullSeedAPIMock(t *testing.T, traces ...*fullSeedAPITrace) *seedHTTPTestSer
 }
 
 // serveExternalCaregiverSeedAPI answers the external caregiver quick create
-// (#4573, ADR 0089): an access level is required, an address with every
+// (#4573, ADR 0090): an access level is required, an address with every
 // access but none, and an invited external gets a seed invitation token.
 func serveExternalCaregiverSeedAPI(t *testing.T, w seedHTTPResponseWriter, r *seedHTTPRequest, idCounter *int64) bool {
 	if r.Method != seedHTTPMethodPost || r.URL.Path != "/api/staff/externals" {

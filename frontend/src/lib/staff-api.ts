@@ -58,12 +58,12 @@ export interface BackendStaffResponse {
 /**
  * Account state of an external caregiver (#4573): `account` signs in,
  * `invitation_pending` has an unused invitation, `none` has neither. `none`
- * is a deliberate state (Kein Zugang), not a gap (ADR 0089).
+ * is a deliberate state (Kein Zugang), not a gap (ADR 0090).
  */
 export type ExternalAccountStatus = "account" | "invitation_pending" | "none";
 
 /**
- * Access chosen for an external caregiver (ADR 0089): `none` records a
+ * Access chosen for an external caregiver (ADR 0090): `none` records a
  * placeholder without account, `view` invites into the system role „Gast“,
  * `supervise` into „AG-Leitung“.
  */
@@ -139,7 +139,7 @@ export interface Staff {
 }
 
 /**
- * An external caregiver to record (#3823, ADR 0089). The email address is
+ * An external caregiver to record (#3823, ADR 0090). The email address is
  * only sent with an access that invites.
  */
 interface ExternalStaffInput {
@@ -520,7 +520,7 @@ class StaffService {
     return applyStaffFilters(mappedStaff, filters);
   }
 
-  // Records an external caregiver (#3823) with the chosen access (ADR 0089);
+  // Records an external caregiver (#3823) with the chosen access (ADR 0090);
   // `view` and `supervise` invite by email. The new entry is selectable
   // right away, with or without account.
   async createExternal(input: ExternalStaffInput): Promise<Staff> {
@@ -548,7 +548,7 @@ class StaffService {
   }
 
   // Invites an external caregiver who has no account yet (#4573) with the
-  // chosen access (ADR 0089). A second invitation replaces an open one, for
+  // chosen access (ADR 0090). A second invitation replaces an open one, for
   // example with a corrected address.
   async inviteExternal(
     id: string,

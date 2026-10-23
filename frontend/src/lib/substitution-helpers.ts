@@ -75,7 +75,7 @@ export interface RunningSupervision {
   supervisors: SupervisionStaffRef[];
   /**
    * isExternal: externe Kraft (#3823), mit jedem Zugang einteilbar
-   * (ADR 0089). Vertretungen bieten keine Externen an.
+   * (ADR 0090). Vertretungen bieten keine Externen an.
    */
   availableTargets: SupervisionStaffRef[];
   isCurrentUserSupervising: boolean;

@@ -201,7 +201,7 @@ weder Gruppenübergaben noch geplante Termine.
 
 Eine **externe Betreuungskraft** ist Personal mit einem aktiven Datensatz
 „externe Betreuungskraft“, etwa eine AG-Kraft der Musikschule (#3823, #4573,
-ADR 0089). Der Datensatz trägt die Organisation und einen optionalen Zeitraum.
+ADR 0090). Der Datensatz trägt die Organisation und einen optionalen Zeitraum.
 Extern ist ein Merkmal, keine Rolle: Nur der Datensatz macht extern, nicht ein
 Konto, eine Rolle oder eine fehlende E-Mail-Adresse. Externe sind in
 Regelterminen, einzelnen und spontanen Terminen und als zusätzliche Aufsicht
@@ -773,6 +773,60 @@ Ein **Storno** hebt ein ausgestelltes Beitragsdokument vollständig auf. Eine
 **Gutschrift** gibt einen Teil davon zurück. Beide sind eigene Dokumente mit
 eigener Nummer aus demselben Nummernkreis und verweisen auf das Original.
 _Vermeiden_: Rechnungskorrektur, Löschen einer Rechnung.
+
+## Personalstamm
+
+Der **Personalstamm** ist die eine Identität einer Person, die der Träger
+beschäftigt, über alle seine Schulen, mit der Personalnummer des Trägers.
+Personal, das der Träger nicht beschäftigt (Lehrkräfte des Landes, externe
+Betreuungskräfte, Kräfte von Kooperationspartnern), hat keinen Personalstamm
+und bleibt Personal der Schule.
+_Vermeiden_: Personalakte (meint das vollständige gesetzliche Archiv),
+Träger-Personensatz.
+
+## Arbeitsvertrag
+
+Ein **Arbeitsvertrag** ist ein Vertrag einer Person mit dem Träger, mit seiner
+Art (Vollzeit, Teilzeit, Minijob, Übungsleiter, Ehrenamt), seinem Soll und seinem
+eigenen Stundenkonto. Ein Personalstamm hat einen oder mehrere. Jede
+Beschäftigung an einer Schule gehört zu höchstens einem Arbeitsvertrag; ohne
+Arbeitsvertrag beschäftigt der Träger die Person nicht.
+_Vermeiden_: Beschäftigung (das ist der Verlauf an einer Schule), Stelle.
+
+Das **Vertragsende** beendet einen Arbeitsvertrag und mit ihm alle seine
+Beschäftigungen. Ein Personalaustritt an einer Schule beendet nur die
+Beschäftigung dort; der Arbeitsvertrag läuft weiter.
+_Vermeiden_: Austritt (für das Ende beim Träger), Kündigung.
+
+## Einsatzort
+
+Ein **Einsatzort** ist die Schule einer Beschäftigung, die zu einem
+Arbeitsvertrag gehört. Ein Arbeitsvertrag kann mehrere Einsatzorte haben.
+Genau einer davon ist der **Haupteinsatzort**; dessen Leitung entscheidet über
+Abwesenheitsanträge aus diesem Arbeitsvertrag.
+_Vermeiden_: Standort (meint die Schule allgemein), Stammschule.
+
+## Nachweis
+
+Ein **Nachweis** belegt am Personalstamm, dass eine gesetzlich oder vom Träger
+verlangte Voraussetzung erfüllt ist, etwa Führungszeugnis, Masernschutz oder
+Präventionsschulung, mit Datum der Vorlage, Ablaufdatum und Ergebnis. Beim
+Führungszeugnis hält moto nur die Einsichtnahme fest, keine Kopie. Eine Schule
+sieht für Personen an ihrem Einsatzort nur, ob der Nachweis vollständig ist,
+fehlt oder abläuft.
+_Vermeiden_: Qualifikation (ein Abschluss oder eine Fortbildung, je Schule),
+Personaldokument.
+
+## Vertretungspool
+
+Der **Vertretungspool** sind die Arbeitsverträge eines Trägers, die an jeder
+seiner Schulen eingesetzt werden können. Eine Person mit einem solchen
+Arbeitsvertrag ist ein **Springer**. Eine OGS-Leitung **blockt** einen
+Springer für Tage oder Zeiten; für genau diese Zeit ist ihre Schule sein
+Einsatzort. Andere Schulen sehen nur, dass und von welcher Schule er geblockt
+ist.
+_Vermeiden_: Springerpool, Vertretung (das ist die Zuordnung einer
+Ersatzperson zu Terminen innerhalb einer Schule), Reservierung.
 
 ## Personalaustritt
 

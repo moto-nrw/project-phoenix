@@ -1391,7 +1391,7 @@ func (s *FixedSeeder) seedStaffAccounts(ctx context.Context, result *FixedResult
 
 		// Assign role based on position:
 		// - OGS-Büro → admin (OGS leadership with full access)
-		// - Extern → guest („Gast“: only views children, rooms and AGs, ADR 0089)
+		// - Extern → guest („Gast“: only views children, rooms and AGs, ADR 0090)
 		// - Pädagogische Fachkraft → user (standard pedagogical staff / Betreuer)
 		var roleID int64
 		switch staff.Position {

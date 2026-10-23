@@ -91,7 +91,7 @@ type CreateStaffResult struct {
 }
 
 // ExternalCaregiverInput records an external caregiver with an access
-// level (#4573, ADR 0089): the bound body plus the acting account. Access is
+// level (#4573, ADR 0090): the bound body plus the acting account. Access is
 // passed on as sent; the workflow validates it.
 type ExternalCaregiverInput struct {
 	FirstName        string

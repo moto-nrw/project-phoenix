@@ -1185,6 +1185,13 @@ records the earlier root baselines, the mechanical mount split and the
 pass-through decision: existing consumer-attributed root paths stay counted;
 no new root pass-through allowance is granted.
 
+The [ADR 0087 addendum for #4746](../../docs/adr/0087-every-backend-source-tree-stays-in-the-ratchets.md#addendum-2026-10-23-bounded-error-code-generation-4746)
+keeps generated output inside these same gates: error-code declarations are
+split into chunks of at most 300 codes (615 lines), with no size allowance or
+banner exemption. `node scripts/generate-error-codes.mjs --check` validates the
+entry file, every numbered shard and the unchanged TypeScript output without
+writing; CI also selects this check for changes to any shard.
+
 ### Converting temporary permissions to exact debt
 
 A rule states the target
@@ -3489,7 +3496,7 @@ never qualify for this exception, and historical unowned objects do not need
 rebaselining. The check uses the immutable local Git base, not GitHub.
 
 A table renamed by a new candidate migration keeps its write owner
-([ADR 0089](../../docs/adr/0089-extern-ist-ein-merkmal.md)).
+([ADR 0090](../../docs/adr/0090-extern-ist-ein-merkmal.md)).
 The scan reads top-level `ALTER TABLE [IF EXISTS] [ONLY] schema.old RENAME
 TO new` from the same statically resolved SQL; the new name stays in the old
 schema. The policy may then list `schema.new` only when the base policy owns
@@ -4644,7 +4651,7 @@ workflow, whose public role already reaches Workforce.
 ### External caregiver with an access level (#4573)
 
 Being external is the external caregiver record; the access is a separate
-choice ([ADR 0089](../../docs/adr/0089-extern-ist-ein-merkmal.md)):
+choice ([ADR 0090](../../docs/adr/0090-extern-ist-ein-merkmal.md)):
 `none` (a placeholder without account or e-mail), `view` (an invitation into
 the platform system role `guest`, „Gast“) or `supervise` (an invitation into
 the platform system role `ag-leitung`, „AG-Leitung“). Recording an external

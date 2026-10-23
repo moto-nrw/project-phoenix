@@ -41,7 +41,7 @@ func (rs *Resource) Router(protected func(chi.Router, func(chi.Router, common.Mi
 }
 func (rs *Resource) Register(r chi.Router, withTx common.Middleware) {
 	// The school classes and the photo also open for students:read, the
-	// view-only child access of the role guest (ADR 0089); notes and the
+	// view-only child access of the role guest (ADR 0090); notes and the
 	// change history stay behind users:read.
 	childRead := common.RequiresAnyPermission(permissions.UsersRead, permissions.StudentsRead)
 	r.With(common.RequiresPermission(permissions.UsersDelete), withTx).Get("/child-quota", rs.getChildQuota)

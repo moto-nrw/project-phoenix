@@ -9,7 +9,7 @@ import (
 
 const (
 	agLeitungRoleVersion     = "1.15.476"
-	agLeitungRoleDescription = "AG-Leitung system role with schedules:read (#4573, ADR 0089)"
+	agLeitungRoleDescription = "AG-Leitung system role with schedules:read (#4573, ADR 0090)"
 
 	// agLeitungRoleName and agLeitungRoleText mirror
 	// identityaccess.AGLeitungRoleName; migrations cannot import modules, so
@@ -27,7 +27,7 @@ func init() {
 	Migrations.MustRegister(agLeitungRoleUp, agLeitungRoleDown)
 }
 
-// agLeitungRoleUp adds the platform system role "ag-leitung" (ADR 0089): a
+// agLeitungRoleUp adds the platform system role "ag-leitung" (ADR 0090): a
 // person who runs their own blocks (start, check children in and out,
 // complete) and nothing else. It is the access level „Eigene Termine
 // betreuen“ of an external caregiver, but the role does not make anyone

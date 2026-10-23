@@ -585,7 +585,7 @@ func TestCheckRequiresCandidateMigrationOwnership(t *testing.T) {
 	}
 }
 
-// A table a new migration renames keeps its write owner (ADR 0089). The old
+// A table a new migration renames keeps its write owner (ADR 0090). The old
 // name must be owned at the base and leave the policy, the new name must keep
 // the owner, and only a top-level ALTER TABLE ... RENAME TO counts.
 func TestCheckAcceptsARenamedTableOnlyWithItsOwner(t *testing.T) {

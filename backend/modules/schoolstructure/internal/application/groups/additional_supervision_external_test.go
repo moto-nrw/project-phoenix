@@ -33,7 +33,7 @@ func inviteTestPerson(t *testing.T, db *bun.DB, personID, createdBy int64) {
 }
 
 // TestAdditionalSupervisionOffersExternalCaregivers pins #3823, #4573 and
-// ADR 0089: every currently valid external caregiver can join a running
+// ADR 0090: every currently valid external caregiver can join a running
 // supervision, with an account, an open invitation or neither (a placeholder
 // with „Kein Zugang“), and stays labelled external there. Group
 // handover targets keep offering caregivers only, and an external with an

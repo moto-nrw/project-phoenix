@@ -1305,7 +1305,7 @@ describe("MobileBottomNav", () => {
     });
   });
 
-  // ADR 0089: die AG-Leitung hält nur schedules:read und heißt nicht
+  // ADR 0090: die AG-Leitung hält nur schedules:read und heißt nicht
   // `user`. Reiter und Menüeinträge, deren Route sie nicht öffnen darf,
   // fehlen; eine Betreuungskraft sieht sie. Die Aufsicht öffnet sie mit
   // schedules:read (nur die eigene laufende Aufsicht), also behält sie den

@@ -20,6 +20,13 @@ func (d dbTenantDirectory) ListNonDeletedTenantIDs(ctx context.Context) ([]int64
 	return d.list(ctx, false)
 }
 
+func (d dbTenantDirectory) ListCleanupTenantIDs(ctx context.Context) ([]int64, error) {
+	var ids []int64
+	err := d.db.NewSelect().TableExpr(`platform.schools AS "school"`).Column("school.id").
+		OrderExpr(`"school".name ASC`).Scan(ctx, &ids)
+	return ids, err
+}
+
 // RecordDueBillingKeyDates captures nothing: the wired scheduler tests cover
 // the tenant loops, and the billing capture has its own owner tests.
 func (d dbTenantDirectory) RecordDueBillingKeyDates(context.Context, time.Time) (int, error) {

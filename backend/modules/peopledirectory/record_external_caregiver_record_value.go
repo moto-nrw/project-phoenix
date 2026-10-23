@@ -6,7 +6,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 )
 
-// ExternalCaregiverRecord makes a staff member an external caregiver (ADR 0089).
+// ExternalCaregiverRecord makes a staff member an external caregiver (ADR 0090).
 type ExternalCaregiverRecord struct {
 	ID        int64     `json:"id"`
 	CreatedAt time.Time `json:"created_at"`
