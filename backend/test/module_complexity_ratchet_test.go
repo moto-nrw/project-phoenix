@@ -12,7 +12,8 @@ import (
 
 // TestModuleComplexityRatchet extends .claude/rules/backend-conventions.md
 // Rule 4 — gocognit cognitive complexity ≤ 15 — from api/ to the capability
-// modules, application workflows and complete roots (ADR 0082).
+// modules, application workflows, roots (ADR 0082), and all backend trees
+// (ADR 0087).
 //
 // Why a second ratchet instead of a wider api/ one: migration #2580 moved
 // 228,306 of 638,717 production LOC into modules/ and workflows/, and the
@@ -37,9 +38,11 @@ import (
 //
 // Keys are "relative/file.go:FuncName" with methods rendered exactly like the
 // gocognit CLI ("(*service).ListOptions"), so CLI output maps 1:1 onto
-// entries here. walkModuleRatchetSources scans modules/, workflows/, roots/,
-// api/, cmd/ recursively and direct backend-root non-test .go files. Legacy
-// subdirectories stay counted so a move cannot silence the gate.
+// entries here. walkModuleRatchetSources scans all backend trees recursively,
+// including legacy, migrations, tools, generated code, hooks and test support.
+// Only _test.go and hidden directories are excluded. ADR 0087 records the
+// category audit and exact additions measured at 8aca1925f7. SQL inside
+// strings adds no Go cognitive complexity.
 const moduleComplexityThreshold = 15
 
 // Seeded 2026-09-18 at merge commit ecf0003369, the state of modules/ and
@@ -64,6 +67,8 @@ const moduleComplexityThreshold = 15
 // refactored instead. The module register drained; ADR 0082 adds the root
 // baseline without headroom, measured at 722c5aa147.
 var moduleComplexityAllowlist = map[string]int{
+	// ADR 0087.
+	"analytics/core_actions_middleware.go:CoreActionMiddleware":                                               22,
 	"api/active_test_helpers.go:buildActiveTestModule":                                                        31,
 	"api/auth_test_helpers.go:NewAuthTestModule":                                                              28,
 	"api/enrollment_booking_repository_test_helpers.go:(EnrollmentBookingFixture).InsertRequestChildOffering": 18,
@@ -77,6 +82,288 @@ var moduleComplexityAllowlist = map[string]int{
 	"cmd/devtools/demo_scheduler.go:runDemoSchools":                                                           16,
 	"cmd/serve.go:scrubSentryEvent":                                                                           20,
 	"cmd/serve.go:validateServeConfig":                                                                        18,
+	// ADR 0087.
+	"database/migrations/001006002_create_admin_account.go:createAdminAccount": 16,
+	// ADR 0087.
+	"database/migrations/001008003_activities_groups_created_by.go:migrateActivitiesGroupsCreatedBy": 19,
+	// ADR 0087.
+	"database/migrations/001014002_add_tenant_id_to_all_tables.go:addTenantIDToAllTables": 17,
+	// ADR 0087.
+	"database/migrations/001014003_migrate_unique_constraints.go:migrateUniqueConstraints": 37,
+	// ADR 0087.
+	"database/migrations/001014003_migrate_unique_constraints.go:rollbackUniqueConstraints": 37,
+	// ADR 0087.
+	"database/migrations/001014005_create_tenant_indexes.go:createTenantIndexes": 18,
+	// ADR 0087.
+	"database/migrations/001014005_create_tenant_indexes.go:rollbackTenantIndexes": 18,
+	// ADR 0087.
+	"database/migrations/001015032_create_arrival_schedules.go:createArrivalSchedulesUp": 17,
+	// ADR 0087.
+	"database/migrations/001015036_create_activity_instances.go:createActivityInstancesUp": 29,
+	// ADR 0087.
+	"database/migrations/001015073_request_children_renewal_columns.go:init": 16,
+	// ADR 0087.
+	"database/migrations/001015074_form_schemas_add_name.go:init": 22,
+	// ADR 0087.
+	"database/migrations/001015149_parent_messaging.go:parentMessagingUp": 21,
+	// ADR 0087.
+	"database/migrations/001015166_form_schemas_migrate_legacy_departure_fields.go:convertLegacyDepartureFields": 50,
+	// ADR 0087.
+	"database/migrations/001015166_form_schemas_migrate_legacy_departure_fields.go:formSchemasMigrateLegacyDepartureUp": 33,
+	// ADR 0087.
+	"database/migrations/001015168_add_is_system_flags.go:init": 18,
+	// ADR 0087.
+	"database/migrations/001015192_staff_shift_flexible_changes.go:init": 18,
+	// ADR 0087.
+	"database/migrations/00_migrations.go:DetectVersionCollisions": 23,
+	// ADR 0087.
+	"database/migrations/00_migrations.go:ValidateMigrations": 43,
+	// ADR 0087.
+	"database/migrations/form_schema_validation_166.go:validateConvertedDepartureSchema": 21,
+	// ADR 0087.
+	"database/migrations/form_schema_validation_166.go:validateMigration166Field": 21,
+	// ADR 0087.
+	"database/migrations/form_schema_validation_166.go:validateMigration166LegalBlock": 32,
+	// ADR 0087.
+	"database/migrations/form_schema_validation_166.go:validateMigration166Visibility": 19,
+	// ADR 0087.
+	"database/migrations/guardian_owner_backfill.go:(*guardianOwnerTenantRun).copyBatch": 23,
+	// ADR 0087.
+	"database/migrations/guardian_owner_backfill.go:(*guardianOwnerTenantRun).tryCopyBatch": 20,
+	// ADR 0087.
+	"database/migrations/guardian_owner_backfill.go:runGuardianOwnerTenant": 17,
+	// ADR 0087.
+	"database/migrations/guardian_owner_contract.go:contractGuardianOwnerStorageChecked": 19,
+	// ADR 0087.
+	"database/migrations/presence_backfill_metrics.go:monitorBackfillLocks": 19,
+	// ADR 0087.
+	"database/migrations/presence_contract.go:contractPresenceStorageChecked": 18,
+	// ADR 0087.
+	"database/migrations/request_child_storage_backfill.go:(*tenantBackfillRun).reconcile": 22,
+	// ADR 0087.
+	"database/migrations/request_child_storage_backfill.go:RunRequestChildStorageBackfill": 20,
+	// ADR 0087.
+	"database/migrations/request_child_storage_contract.go:contractRequestChildStorageChecked": 19,
+	// ADR 0087.
+	"database/migrations/staff_owner_backfill.go:(*staffOwnerTenantRun).copyBatch": 23,
+	// ADR 0087.
+	"database/migrations/staff_owner_backfill.go:(*staffOwnerTenantRun).tryCopyBatch": 20,
+	// ADR 0087.
+	"database/migrations/staff_owner_backfill.go:runStaffOwnerTenant": 17,
+	// ADR 0087.
+	"database/migrations/staff_owner_contract.go:contractStaffOwnerStorageChecked": 19,
+	// ADR 0087.
+	"database/migrations/student_owner_backfill.go:(*studentOwnerTenantRun).copyBatch": 23,
+	// ADR 0087.
+	"database/migrations/student_owner_backfill.go:(*studentOwnerTenantRun).tryCopyBatch": 20,
+	// ADR 0087.
+	"database/migrations/student_owner_backfill.go:runStudentOwnerTenant": 17,
+	// ADR 0087.
+	"database/migrations/student_owner_backfill_verify.go:studentOwnerCutoverPrecondition": 23,
+	// ADR 0087.
+	"database/migrations/student_owner_contract.go:contractStudentOwnerStorageChecked": 21,
+	// ADR 0087.
+	"internal/architecture/composition_owners.go:(*compositionOwnership).held": 17,
+	// ADR 0087.
+	"internal/architecture/composition_owners.go:(*rootStructWalk).lexicalName": 59,
+	// ADR 0087.
+	"internal/architecture/composition_owners.go:rootStructInventoryWith": 39,
+	// ADR 0087.
+	"internal/architecture/composition_ratchet.go:(*compositionSnapshot).add": 27,
+	// ADR 0087.
+	"internal/architecture/composition_ratchet.go:(*compositionSnapshot).collectSetters": 23,
+	// ADR 0087.
+	"internal/architecture/composition_ratchet.go:(*compositionSnapshot).dependencyType": 16,
+	// ADR 0087.
+	"internal/architecture/composition_ratchet.go:(*compositionSnapshot).guardedStructureField": 21,
+	// ADR 0087.
+	"internal/architecture/composition_ratchet.go:(*compositionSnapshot).inventory": 40,
+	// ADR 0087.
+	"internal/architecture/composition_ratchet.go:CompareCompositionSurface": 36,
+	// ADR 0087.
+	"internal/architecture/composition_ratchet.go:compositionTarget": 19,
+	// ADR 0087.
+	"internal/architecture/composition_ratchet.go:loadCompositionExternalTypes": 16,
+	// ADR 0087.
+	"internal/architecture/composition_ratchet.go:readCompositionBase": 20,
+	// ADR 0087.
+	"internal/architecture/composition_removals.go:packageDeclarations": 33,
+	// ADR 0087.
+	"internal/architecture/cycles.go:AnalyzeCycles": 17,
+	// ADR 0087.
+	"internal/architecture/cycles.go:cycleEdges": 16,
+	// ADR 0087.
+	"internal/architecture/cycles.go:cyclicComponents": 25,
+	// ADR 0087.
+	"internal/architecture/import_debt.go:CompareCandidateLegacyBaselines": 20,
+	// ADR 0087.
+	"internal/architecture/import_debt.go:basePackageImports": 29,
+	// ADR 0087.
+	"internal/architecture/migration_additions.go:candidateMigrationDataObjects": 24,
+	// ADR 0087.
+	"internal/architecture/migration_additions.go:migrationCreateDataObjects": 21,
+	// ADR 0087.
+	"internal/architecture/migration_queries.go:analyzeMigrationQueries": 48,
+	// ADR 0087.
+	"internal/architecture/migration_sql.go:migrationSQLBodyDataObjects": 85,
+	// ADR 0087.
+	"internal/architecture/migration_sql.go:migrationSQLTokens": 40,
+	// ADR 0087.
+	"internal/architecture/owner_http_rule.go:reviewedOwnerHTTPRule": 51,
+	// ADR 0087.
+	"internal/architecture/policy.go:(*Policy).validate": 16,
+	// ADR 0087.
+	"internal/architecture/policy.go:(*Policy).validateHeader": 16,
+	// ADR 0087.
+	"internal/architecture/policy.go:(*Policy).validateLegacyComposition": 16,
+	// ADR 0087.
+	"internal/architecture/policy.go:(*Policy).validatePackages": 17,
+	// ADR 0087.
+	"internal/architecture/policy.go:(*Policy).validateReadProjections": 18,
+	// ADR 0087.
+	"internal/architecture/policy.go:(*Policy).validateRules": 20,
+	// ADR 0087.
+	"internal/architecture/policy.go:decodePolicy": 21,
+	// ADR 0087.
+	"internal/architecture/policy_compare.go:classificationLoosenings": 20,
+	// ADR 0087.
+	"internal/architecture/policy_compare.go:ownershipLoosenings": 26,
+	// ADR 0087.
+	"internal/architecture/ratchet_budgets.go:(*ratchetBudgets).finalize": 39,
+	// ADR 0087.
+	"internal/architecture/ratchet_budgets.go:(*ratchetBudgets).measureRegister": 22,
+	// ADR 0087.
+	"internal/architecture/ratchet_budgets.go:CompareRatchetBudgets": 22,
+	// ADR 0087.
+	"internal/architecture/ratchet_budgets.go:compareRatchetBudgets": 70,
+	// ADR 0087.
+	"internal/architecture/relocation.go:(*Policy).validateRelocations": 22,
+	// ADR 0087.
+	"internal/architecture/relocation.go:relocatedPackages": 16,
+	// ADR 0087.
+	"internal/architecture/rule_packages.go:(*Policy).validateRulePackages": 16,
+	// ADR 0087.
+	"internal/architecture/semantic.go:(semanticAnalyzer).analyzeFile": 18,
+	// ADR 0087.
+	"internal/architecture/semantic.go:bunModelDataObject": 32,
+	// ADR 0087.
+	"internal/architecture/semantic.go:contractDeclarationPositions": 25,
+	// ADR 0087.
+	"internal/architecture/semantic.go:contractMethodViolationsSeen": 17,
+	// ADR 0087.
+	"internal/architecture/semantic.go:ormTagViolations": 22,
+	// ADR 0087.
+	"internal/architecture/target_rule.go:validateTargetOnlyRule": 25,
+	// ADR 0087.
+	"internal/devtools/seedapi/client.go:extractResponseSummary": 22,
+	// ADR 0087.
+	"internal/devtools/seedapi/demo_roles.go:(*FixedSeeder).seedDemoRoles": 16,
+	// ADR 0087.
+	"internal/devtools/seedapi/enrollment_weekly_profile.go:linkDeveloperAdmin": 20,
+	// ADR 0087.
+	"internal/devtools/seedapi/enrollment_weekly_profile.go:seedWeeklyProfileContents": 29,
+	// ADR 0087.
+	"internal/devtools/seedapi/enrollment_weekly_profile.go:verifyEnrollmentProfileCare": 23,
+	// ADR 0087.
+	"internal/devtools/seedapi/marketing_daily_life.go:seedMarketingSessions": 22,
+	// ADR 0087.
+	"internal/devtools/seedapi/marketing_profile.go:seedMarketingAttendance": 16,
+	// ADR 0087.
+	"internal/devtools/seedapi/marketing_profile.go:seedMarketingChildren": 19,
+	// ADR 0087.
+	"internal/devtools/seedapi/parent_enrollment.go:(parentEnrollmentSeedStep).seedEnrollment": 53,
+	// ADR 0087.
+	"internal/devtools/seedapi/parent_enrollment.go:(parentEnrollmentSeedStep).seedParentAccounts": 26,
+	// ADR 0087.
+	"internal/devtools/seedapi/parent_enrollment.go:(parentRequestsSeedStep).Run": 16,
+	// ADR 0087.
+	"internal/devtools/seedapi/seed_extras.go:(seedCourseParticipationStep).Run": 39,
+	// ADR 0087.
+	"internal/devtools/seedapi/seed_extras.go:(seedStatisticsDemoStep).Run": 19,
+	// ADR 0087.
+	"internal/devtools/seedapi/seed_phase_periods.go:seedPhaseSchoolYear": 30,
+	// ADR 0087.
+	"internal/devtools/seedapi/seed_planning.go:selectRecurringPlanningInstances": 16,
+	// ADR 0087.
+	"internal/devtools/seedapi/seed_staff_messaging.go:(seedStaffMessagingStep).Run": 21,
+	// ADR 0087.
+	"internal/devtools/seedapi/seed_time_tracking.go:(seedTimeTrackingHistoryStep).Run": 35,
+	// ADR 0087.
+	"internal/devtools/seedapi/seed_time_tracking.go:(timeTrackingHistoryPlan).seedStaff": 31,
+	// ADR 0087.
+	"internal/devtools/seedapi/seeder.go:(*Seeder).Seed": 21,
+	// ADR 0087.
+	"internal/devtools/seedapi/seeder.go:(*Seeder).printSuccessSummary": 17,
+	// ADR 0087.
+	"internal/devtools/seedapi/stammdaten.go:(*FixedSeeder).Seed": 22,
+	// ADR 0087.
+	"internal/devtools/seedapi/stammdaten.go:(*FixedSeeder).seedGuardianPayments": 18,
+	// ADR 0087.
+	"internal/devtools/seedapi/stammdaten.go:(*FixedSeeder).seedGuardians": 25,
+	// ADR 0087.
+	"internal/devtools/seedapi/stammdaten.go:(*FixedSeeder).seedStaffAccounts": 29,
+	// ADR 0087.
+	"internal/devtools/seedapi/stammdaten.go:(*FixedSeeder).seedStudents": 18,
+	// ADR 0087.
+	"internal/devtools/simulate/demo.go:(*DemoTicker).Tick": 31,
+	// ADR 0087.
+	"internal/devtools/simulate/demo.go:(*DemoTicker).closeLeftovers": 17,
+	// ADR 0087.
+	"internal/devtools/simulate/demo.go:(*DemoTicker).ensureSessions": 19,
+	// ADR 0087.
+	"internal/devtools/simulate/demo.go:(*DemoTicker).rebuild": 16,
+	// ADR 0087.
+	"internal/devtools/simulate/demo_day.go:(*demoDay).move": 37,
+	// ADR 0087.
+	"internal/devtools/simulate/demo_day.go:(*demoDay).planActivities": 23,
+	// ADR 0087.
+	"internal/devtools/simulate/demo_day.go:(*demoDay).sync": 37,
+	// ADR 0087.
+	"internal/devtools/simulate/demo_day.go:demoDayShift": 17,
+	// ADR 0087.
+	"internal/devtools/simulate/live.go:RunLive": 24,
+	// ADR 0087.
+	"internal/devtools/simulate/live.go:runLiveTick": 19,
+	// ADR 0087.
+	"internal/testdb/cmd/bootstrap/main.go:main": 18,
+	// ADR 0087.
+	"internal/testdb/idle_unix.go:HoldServer": 31,
+	// ADR 0087.
+	"internal/testdb/idle_unix.go:IdleStatus": 17,
+	// ADR 0087.
+	"internal/testdb/idle_unix.go:watchIdle": 17,
+	// ADR 0087.
+	"internal/testdb/server.go:inspectTestContainer": 18,
+	// ADR 0087.
+	"internal/testdb/template.go:migrationsComplete": 17,
+	// ADR 0087.
+	"middleware/log_redaction.go:RedactFeedToken": 17,
+	// ADR 0087.
+	"observability/sentry_envelope.go:TagSentryEnvelope": 16,
+	// ADR 0087.
+	"realtime/hub.go:(*Hub).Unregister": 24,
+	// ADR 0087.
+	"seed/avatar/avatar.go:tracePath": 26,
+	// ADR 0087.
+	"test/fixtures.go:cleanupTenantTestData": 39,
+	// ADR 0087.
+	"test/runtime_checkpoint.go:MeasureDeliveryCheckpoint": 27,
+	// ADR 0087.
+	"test/runtime_checkpoint.go:MeasureTimetableCheckpoint": 17,
+	// ADR 0087.
+	"test/side_effect_register.go:sideEffectRegisterSubset": 16,
+	// ADR 0087.
+	"test/tenant_runtime.go:TenantTxMiddleware": 17,
+	// ADR 0087.
+	"test/transaction_receiver_relocation.go:originalReceiverTransactionKey": 17,
+	// ADR 0087.
+	"test/transaction_receiver_relocation.go:removedTransactionReceiverMethods": 35,
+	// ADR 0087.
+	"test/transaction_relocation.go:transactionFingerprints": 17,
+	// ADR 0087.
+	"test/transaction_relocation.go:transactionFunctionFingerprints": 20,
+	// ADR 0087.
+	"test/transaction_relocation.go:transactionScopeSubset": 20,
 }
 
 func TestModuleComplexityRatchet(t *testing.T) {
@@ -136,7 +423,7 @@ func moduleComplexityViolations(scores, allowlist map[string]int) []string {
 
 // All roots retain coverage and thresholds after a move (ADRs 0064, 0082).
 // moduleComplexityScan returns gocognit scores above the threshold for every
-// function in the shared module/root scope, keyed
+// function in the shared backend source scope, keyed
 // "relpath:FuncName" with methods rendered like the gocognit CLI
 // ("(*service).name"). It shares funcDisplayName with the api/ ratchet so
 // both registers speak the same key language.

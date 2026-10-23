@@ -17,7 +17,7 @@ const seedExternalCaregiverIDsKey = "seed.external_caregiver_ids"
 
 // seedExternalOutcome is the access a seeded external gets and what happens
 // to the invitation the quick create sends: the Personal list shows every
-// account state and access level (#4573, ADR 0085).
+// account state and access level (#4573, ADR 0088).
 type seedExternalOutcome int
 
 const (
@@ -55,7 +55,7 @@ var seedExternalCaregivers = []seedExternalCaregiver{
 }
 
 // seedExternalCaregiversStep records external caregivers through the quick
-// create (#4573, ADR 0085): two get the access supervise and sign in with
+// create (#4573, ADR 0088): two get the access supervise and sign in with
 // the system role „AG-Leitung“, one is invited with the access view („Gast“)
 // and keeps the invitation open, and one is a placeholder without access, so
 // the Personal list and the pickers show every account state on every dev

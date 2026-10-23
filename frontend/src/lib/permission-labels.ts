@@ -110,7 +110,7 @@ const permissionDescriptions: Record<string, string> = {
   "users:absence":
     "Krankmeldungen und Abwesenheiten von Kindern eintragen und über Anfragen der Eltern entscheiden",
 
-  // Students (ADR 0085): the read-only child views of the role „Gast“.
+  // Students (ADR 0088): the read-only child views of the role „Gast“.
   "students:read": "Kinder ansehen, ohne Elterndaten",
 
   // Activities

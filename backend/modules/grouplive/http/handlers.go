@@ -64,7 +64,7 @@ type Resource struct{ OGSGroupLiveService grouplive.Query }
 func NewResource(query grouplive.Query) *Resource { return &Resource{OGSGroupLiveService: query} }
 
 // Register mounts the live view; it also opens for students:read, the
-// view-only child access of the role guest (ADR 0085).
+// view-only child access of the role guest (ADR 0088).
 func (rs *Resource) Register(r chi.Router, withTx common.Middleware) {
 	r.With(common.RequiresAnyPermission(permissions.UsersRead, permissions.StudentsRead), withTx).Get("/ogs-group-live", rs.getOGSGroupLive)
 	r.With(withTx).Get("/ogs-group-navigation", common.Fetch(func(ctx context.Context) ([]grouplive.Group, error) {

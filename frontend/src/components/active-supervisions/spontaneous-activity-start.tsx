@@ -44,7 +44,7 @@ export interface SpontaneousActivityStartPayload {
 
 interface SpontaneousActivityStartProps {
   readonly canCreateExternalCaregiver?: boolean;
-  /** Offer „Nur ansehen“ in the external entry (users:manage, ADR 0085). */
+  /** Offer „Nur ansehen“ in the external entry (users:manage, ADR 0088). */
   readonly canGrantExternalView?: boolean;
   readonly currentStaffId?: string;
   readonly defaultRoomId?: string;

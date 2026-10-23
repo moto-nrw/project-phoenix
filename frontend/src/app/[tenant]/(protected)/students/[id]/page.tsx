@@ -277,7 +277,7 @@ function studentTabs(
     : withDocuments.filter((tab) => tab !== "aenderungsprotokoll");
   // Notizen, Nachrichten and Erziehungsberechtigte read parent data and
   // notes, which stay on users:read. The role „Gast“ opens the child with
-  // students:read only (ADR 0085); those tabs would only answer 403.
+  // students:read only (ADR 0088); those tabs would only answer 403.
   return canReadParentData
     ? withRequestLog
     : withRequestLog.filter((tab) => !PARENT_DATA_TABS.has(tab));
@@ -469,7 +469,7 @@ function StudentDetailPageContent() {
   } = useStudentData(studentId);
   // Die Antwort sagt, was dieses Kind dem Konto erlaubt; die Routen dahinter
   // verlangen zusätzlich ein Recht der Sitzung. Der Gast liest das Kind nur
-  // mit students:read (ADR 0085): Betreuungszeiten, Abholung, Ankunft und
+  // mit students:read (ADR 0088): Betreuungszeiten, Abholung, Ankunft und
   // Statustage hängen an users:read, Abwesenheiten und Klassenfahrten
   // schreiben users:update oder users:absence. Ohne das Recht fehlt die
   // Fläche, statt mit einem 403 zu scheitern.
@@ -540,7 +540,7 @@ function StudentDetailPageContent() {
       hasPermission(session, "student_documents:health") ||
       hasPermission(session, "student_documents:legal"));
   // Eltern, Notizen und Nachrichten hängen an users:read; die Rolle „Gast“
-  // sieht das Kind nur mit students:read (ADR 0085).
+  // sieht das Kind nur mit students:read (ADR 0088).
   const canReadParentData = sessionReadsChildDetails;
   // Same gate the aggregate request route uses (#2437).
   const canViewRequestLog =

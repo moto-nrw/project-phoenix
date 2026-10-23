@@ -181,7 +181,7 @@ describe("Personalverwaltung: externe Personen", () => {
       name: "Konto einladen",
     });
     expect(dialog).toHaveTextContent("Elli Alt bekommt eine Einladung");
-    // Ohne users:manage gibt es nur „Eigene Termine betreuen“ (ADR 0085).
+    // Ohne users:manage gibt es nur „Eigene Termine betreuen“ (ADR 0088).
     expect(dialog).toHaveTextContent(
       "Eigene Termine betreuenStartet und beendet eigene Termine.",
     );
@@ -376,7 +376,7 @@ describe("Personalverwaltung: externe Personen", () => {
     ).toBeInTheDocument();
   });
 
-  // ADR 0085: „Kein Zugang“ records a placeholder without address and
+  // ADR 0088: „Kein Zugang“ records a placeholder without address and
   // without invitation; the toast says only that the person is recorded.
   it("creates an external person without access and without invitation", async () => {
     signInWith(["users:read", "users:create", "users:manage"]);

@@ -407,6 +407,7 @@ func TestFullProductionRouterGolden(t *testing.T) {
 			t.Run("class list entry administration", func(t *testing.T) { checkClassListEntryAdministration(t, api) })
 			t.Run("enrollment submission", func(t *testing.T) { checkEnrollmentSubmissionGolden(t, api) })
 			t.Run("open room kiosk booking", func(t *testing.T) { checkOpenRoomKioskBooking(t, api) })
+			t.Run("move bypass authorization", func(t *testing.T) { checkMoveBypassAuthorization(t, api) })
 			t.Run("IoT error codes", func(t *testing.T) { checkIoTErrorCodes(t, api) })
 			t.Run("phase response query budget", func(t *testing.T) { checkPhaseResponseQueryBudget(t, api) })
 			t.Run("rate limited operator invitations", func(t *testing.T) { checkOperatorInvitationMount(t, api) })

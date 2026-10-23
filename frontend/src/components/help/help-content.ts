@@ -899,7 +899,7 @@ function dayLogTopic(groupMode: HelpGroupMode): HelpTopic {
                 "Bleiben Sie für alle Gruppen in der Übersicht.",
                 "Für eine einzelne Gruppe öffnen Sie deren `Details`.",
               ]),
-          "Wählen Sie `Drucken`, `PDF` oder `Excel`.",
+          "Wählen Sie `Drucken`, `PDF`, `Word` oder `Excel`.",
         ],
       },
     ],
@@ -910,7 +910,7 @@ function dayLogTopic(groupMode: HelpGroupMode): HelpTopic {
       "Steht dort `Anwesenheitsprotokoll ist ausgeschaltet`? Dann ist es für Ihre Schule nicht eingeschaltet.",
     ],
     notes: [
-      "Ist ein Kind früher gegangen, steht der Grund hinter `gegangen`. Er steht auch im `PDF` und in `Excel`.",
+      "Ist ein Kind früher gegangen, steht der Grund hinter `gegangen`. Er steht auch im `PDF`, in `Word` und in `Excel`.",
     ],
     related: [
       HELP_TOPICS.absences,
@@ -1467,7 +1467,7 @@ function activeSupervisionTopic(presenceMode: HelpPresenceMode): HelpTopic {
         ],
       },
       {
-        // #3823, ADR 0085: externe Kräfte mit einer von drei Zugangsstufen.
+        // #3823, ADR 0088: externe Kräfte mit einer von drei Zugangsstufen.
         title: "Weitere Betreuer eintragen",
         steps: [
           "Wählen Sie in der laufenden Aufsicht `Betreuer hinzufügen`.",
@@ -4506,7 +4506,7 @@ function inviteStaffTopic(): HelpTopic {
         ],
       },
       {
-        // ADR 0085: extern ist ein Merkmal, der Zugang eine eigene Wahl.
+        // ADR 0088: extern ist ein Merkmal, der Zugang eine eigene Wahl.
         title: "Eine externe Person anlegen",
         description:
           "Zum Beispiel jemand von der Musikschule. Externe Personen führen keine Zeiterfassung. Nehmen Sie dafür nicht `Personal einladen`. Dort zählt die Person als normales Personal.",
@@ -4816,7 +4816,7 @@ function staffPermissionsTopic(): HelpTopic {
     notes: [
       "Unter `Berechtigungen` sehen Sie alle Rechte, die es in moto gibt. Ändern lässt sich dort nichts.",
       "Die Rolle entscheidet auch darüber, welche Menüpunkte jemand sieht.",
-      // ADR 0085: die zwei Zugangsstufen externer Personen sind feste Rollen.
+      // ADR 0088: die zwei Zugangsstufen externer Personen sind feste Rollen.
       "`AG-Leitung` ist für Personen, die eigene Termine betreuen. Sie sieht unter `Heute` nur ihre eigenen Termine. Dort startet sie den Termin, checkt die Kinder ein und aus und beendet ihn.",
       "`Gast` ist für Personen, die nur zuschauen. Sie sieht Kinder, Räume und AGs. Elterndaten, Nachrichten und Telefonnummern der Eltern sieht sie nicht. Ändern kann sie nichts.",
       "Mit `AG-Leitung` oder `Gast` sieht die Person keine Zeiterfassung, keine Einstellungen und kein Personal.",
@@ -5042,7 +5042,7 @@ function leadCarePlanTopic(): HelpTopic {
     notes: [
       "Ein Regeltermin wiederholt sich. Die Ansicht `Serien` zeigt alle Regeltermine.",
       "Aufgaben ohne Kinder, etwa Busaufsicht oder Essensausgabe, legen Sie mit dem `Typ` `Dienst` an. Ein Dienst hat keine Kinderliste und wird nicht gestartet. Der Raum ist freiwillig.",
-      // #4573, ADR 0085: Externe in Regelterminen, auch allein und zuständig.
+      // #4573, ADR 0088: Externe in Regelterminen, auch allein und zuständig.
       "Externe Personen wählen Sie im Schritt `Personal und Kinder` unter `Personal` wie alle anderen, auch mit `Kein Zugang`. Fehlt jemand, wählen Sie darunter `Externe Person eintragen`.",
       "Hat die externe Person `Kein Zugang`, startet eine OGS-Kraft den Termin. Mit `Eigene Termine betreuen` startet sie ihn selbst.",
       "Eine externe Person kann einen Termin allein betreuen. Sie kann auch die `Zuständige Person` sein.",

@@ -126,7 +126,7 @@ function StaffOnboardingForPerson() {
   const canSearchChildren = hasPermission(session, "users:read");
   // Der Schritt lädt zum Starten ein: einen Raum übernehmen verlangt
   // groups:update, einen geplanten Termin starten schedules:read. Ansehen
-  // allein (der Gast, ADR 0085) reicht nicht.
+  // allein (der Gast, ADR 0088) reicht nicht.
   const canSupervise =
     hasPermission(session, "groups:update") ||
     hasPermission(session, "schedules:read");

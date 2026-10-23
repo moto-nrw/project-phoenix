@@ -1,0 +1,21 @@
+# Dedicated restore machine only. Never run beside a production project.
+# No application service exists here, so `up` cannot start regular processing.
+services:
+  postgres:
+    image: postgres:17-alpine
+    restart: "no"
+    ports:
+      - "127.0.0.1:${RESTORE_POSTGRES_PORT:?RESTORE_POSTGRES_PORT is required}:5432"
+    environment:
+      TZ: ${TZ:?TZ is required}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?POSTGRES_PASSWORD is required}
+      POSTGRES_INITDB_ARGS: --auth-host=scram-sha-256
+    volumes:
+      - database:/var/lib/postgresql/data
+    healthcheck:
+      test: [CMD, pg_isready, -U, postgres]
+      interval: 1s
+      retries: 60
+volumes:
+  database:
+    name: ${RESTORE_DATABASE_VOLUME:?RESTORE_DATABASE_VOLUME is required}

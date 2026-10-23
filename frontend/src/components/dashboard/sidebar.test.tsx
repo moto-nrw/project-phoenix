@@ -2317,7 +2317,7 @@ describe("Sidebar", () => {
       expect(screen.getByText("Mein Kalender")).toBeInTheDocument();
     });
 
-    // ADR 0085: die AG-Leitung hält nur schedules:read. Einträge, deren
+    // ADR 0088: die AG-Leitung hält nur schedules:read. Einträge, deren
     // Route ein anderes Recht verlangt, wären für sie Sackgassen.
     const EXTERN_GATED_LABELS = [
       "Alle Kinder",
@@ -2345,7 +2345,7 @@ describe("Sidebar", () => {
       }
     });
 
-    // ADR 0085: der Gast hält students:read statt users:read. „Alle Kinder“
+    // ADR 0088: der Gast hält students:read statt users:read. „Alle Kinder“
     // öffnet er; Elternnachrichten und Notfall bleiben an users:read.
     it("zeigt dem Gast „Alle Kinder“, aber keine Elterndaten", () => {
       mockIsCaregiver.mockReturnValue(false);

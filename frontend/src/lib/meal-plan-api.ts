@@ -6,6 +6,7 @@ import { apiErrorFromResponse } from "./api-error";
 import { sessionFetch } from "./session-cache";
 import { parseISODate, toISODate } from "./date-helpers";
 import { createLogger } from "~/lib/logger";
+import { downloadBlob } from "~/lib/file-download";
 
 const logger = createLogger({ component: "MealPlanAPI" });
 
@@ -143,15 +144,7 @@ export async function downloadDailyMealParticipants(
       "meal participants export failed",
     );
   }
-  const blob = await response.blob();
-  const url = URL.createObjectURL(blob);
-  const link = document.createElement("a");
-  link.href = url;
-  link.download = `mittagessen-${date}.${format}`;
-  document.body.append(link);
-  link.click();
-  link.remove();
-  URL.revokeObjectURL(url);
+  downloadBlob(await response.blob(), `mittagessen-${date}.${format}`);
 }
 
 /** Monday (ISO) of the week containing the given Date. */

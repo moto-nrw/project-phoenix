@@ -151,7 +151,7 @@ describe("getStaffDisplayType", () => {
     expect(result).toBe("Extern");
   });
 
-  // ADR 0085: „Eigene Termine betreuen“ redeems into the system role
+  // ADR 0088: „Eigene Termine betreuen“ redeems into the system role
   // „ag-leitung“, stored in lower case.
   it("spells the system role ag-leitung as „AG-Leitung“", () => {
     const staff = createSampleStaff({

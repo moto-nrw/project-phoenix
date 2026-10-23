@@ -15,14 +15,16 @@ import (
 // `migrate reset` + `seed` + `simulate full-day`, so it skips by default and
 // is driven by the seed-smoke CI job:
 //
-//	SEED_COVERAGE_DSN=postgres://... go test ./seed/api/ -run TestSeedCoverageRatchet
+//	SEED_COVERAGE_DSN=postgres://... go test -tags=testhooks ./internal/devtools/seedapi/ -run TestSeedCoverageRatchet
 //
 // The rules, mirroring the other ratchets in backend/test:
 //
-//   - A table that ends up EMPTY must be listed in seedCoverageAllowlist with a
-//     reason. A new table without seed coverage fails the build.
-//   - An allowlisted table that now HAS rows fails too: remove the entry. The
-//     ratchet only turns one way, the list may never grow silently.
+//   - An intentionally EMPTY table needs a reason in seedCoverageExemptions or
+//     seedCoverageTransient, according to its lifecycle. seedCoverageDebt must
+//     stay empty; seedCoverageAllowlist only merges these three registers.
+//     A new table without seed coverage or a valid classification fails.
+//   - An exempted table that now HAS rows fails too: remove the exemption.
+//     Transient tables may hold rows. The classifications may not grow silently.
 //
 // Intentional exemptions are durable semantics, not coverage debt. They are
 // limited to security/session artifacts, one-time migration backups, legacy
@@ -236,9 +238,9 @@ func TestSeedCoverageRatchet(t *testing.T) {
 
 	if len(uncovered) > 0 {
 		t.Errorf("%d table(s) hold no seeded data and are not allowlisted:\n  %s\n\n"+
-			"Fix: teach the seeder (backend/seed/api) or the simulator (backend/simulate) to\n"+
+			"Fix: teach the seeder (backend/internal/devtools/seedapi) or the simulator (backend/internal/devtools/simulate) to\n"+
 			"produce this data. Only if that is genuinely impossible, add the table to\n"+
-			"seedCoverageAllowlist with a reason.",
+			"seedCoverageExemptions or seedCoverageTransient with a reason matching its lifecycle; seedCoverageDebt must stay empty.",
 			len(uncovered), strings.Join(uncovered, "\n  "))
 	}
 	if len(stale) > 0 {

@@ -19,7 +19,7 @@ const DECIMAL_ID = /^\d+$/;
 /**
  * Handler for POST /api/staff/externals/[id]/invitation
  * Invites an external caregiver who has no account yet (#4573) with the
- * chosen access, `view` or `supervise` (ADR 0085). The id is the
+ * chosen access, `view` or `supervise` (ADR 0088). The id is the
  * staff id as a decimal string; it is forwarded as is, never as a number.
  */
 export const POST = createPostHandler<

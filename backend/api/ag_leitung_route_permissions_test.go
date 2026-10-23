@@ -29,7 +29,7 @@ func systemRolePermissions(t *testing.T, db *bun.DB, name string) []string {
 }
 
 // checkAGLeitungRoutePermissions is the per-route permission test of the
-// system role ag-leitung (ADR 0085) on the assembled production router. A
+// system role ag-leitung (ADR 0088) on the assembled production router. A
 // token with exactly the role's migrated permissions runs the caller's own
 // block of the day („Heute“: planned-now, roster, start, check-in,
 // check-out, complete) and is refused on time tracking, staff, settings,

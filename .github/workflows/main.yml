@@ -212,6 +212,12 @@ jobs:
             # Release, deploy and demo tooling and the workflow files the
             # script suites read. None of it feeds the test or lint suites.
             tooling:
+              - 'docs/operations/daily-restore.compose.yml'
+              - 'scripts/daily-backup*'
+              - 'monitoring/grafana/provisioning/alerting/daily-backup.yml'
+              - 'scripts/daily_backup.py'
+              - 'scripts/restore-daily-backup.sh'
+              - 'scripts/systemd/moto-*backup*'
               - 'scripts/check-release-architecture*'
               - 'scripts/release-backup*'
               - 'scripts/demo-environment.test.mjs'
@@ -340,6 +346,18 @@ jobs:
       - name: Verify complete release restore with PostgreSQL
         if: matrix.suite == 'restore'
         run: node --test scripts/release-backup.integration.test.mjs
+
+      - name: Install daily backup test tools
+        if: matrix.suite == 'restore'
+        run: sudo apt-get update -qq && sudo apt-get install -y age rclone
+
+      - name: Verify encrypted daily backup and isolated restore
+        if: matrix.suite == 'restore'
+        run: |
+          node --test scripts/daily-backup.integration.test.mjs scripts/daily-backup-alerts.integration.test.mjs
+          sudo install -d /usr/local/lib/moto-backup
+          sudo install scripts/daily-backup.sh /usr/local/lib/moto-backup/
+          systemd-analyze verify scripts/systemd/moto-daily-backup.service scripts/systemd/moto-daily-backup.timer scripts/systemd/moto-backup-failure@.service
 
       # TestToolchainPinsRatchet reads the files of the toolchain filter.
       # Changed-test selection adds ./test only for backend changes, so such a
