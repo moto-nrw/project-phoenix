@@ -27,9 +27,16 @@ type Directory interface {
 type Settings interface {
 	MealPlanEnabled(context.Context) (bool, error)
 	MealRegistrationEnabled(context.Context) (bool, error)
-	// MealRegistrationCutoff is the cutoff time and how many school days
-	// before the meal day it applies.
-	MealRegistrationCutoff(context.Context) (string, int, error)
+	// MealParticipationCutoffs are the school's registration and
+	// cancellation cutoffs.
+	MealParticipationCutoffs(context.Context) (mealplan.Cutoffs, error)
+}
+
+// Calendar is the school calendar of the caller's tenant.
+type Calendar interface {
+	// NonWorkingDayDates are the statutory holidays and closing days in
+	// [from, to], as YYYY-MM-DD.
+	NonWorkingDayDates(ctx context.Context, from, to string) (map[string]bool, error)
 }
 
 type Transaction interface {

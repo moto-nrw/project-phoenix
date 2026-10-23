@@ -11,6 +11,7 @@ import {
 import { useLocale, useTranslations } from "next-intl";
 import {
   Ban,
+  CalendarOff,
   Check,
   ChevronLeft,
   ChevronRight,
@@ -28,6 +29,7 @@ import {
 } from "~/components/ui/form-error-alert";
 import type { FormErrorInput } from "~/components/ui/form-error";
 import { Checkbox } from "~/components/ui/checkbox";
+import { ConfirmationModal } from "~/components/ui/modal";
 import { StatusBadge } from "~/components/ui/status-badge";
 import { ParentPage, ParentPageHeader } from "~/components/parent/parent-page";
 import { parseISODate, toISODate } from "~/lib/date-helpers";
@@ -261,6 +263,63 @@ function WeekNavigation({
 
 const participationWeekdays = [1, 2, 3, 4, 5] as const;
 
+type ParentTranslate = ReturnType<typeof useTranslations<"parentMealPlan">>;
+
+/** Die Fristtexte unter den festen Tagen: Änderungsfrist, spätere Abmeldung. */
+function participationCutoffTexts(
+  participation: MealParticipation,
+  t: ParentTranslate,
+): string[] {
+  const time = participation.cutoff_time;
+  const weekday = participation.cutoff_weekday ?? 0;
+  const days = participation.cutoff_lead_days ?? 0;
+  const texts = [
+    weekday > 0
+      ? t("participationCutoffWeekday", {
+          time,
+          weekday: t(`weekday${weekday}`),
+        })
+      : days > 0
+        ? t("participationCutoffLead", { time, days })
+        : t("participationCutoff", { time }),
+  ];
+  if (participation.cancellation_cutoff_time) {
+    texts.push(
+      t("participationCancellation", {
+        time: participation.cancellation_cutoff_time,
+        days: participation.cancellation_cutoff_lead_days ?? 0,
+      }),
+    );
+  }
+  return texts;
+}
+
+/** Bis wann eine Krankmeldung das Essen abmeldet: die Abmeldefrist. */
+function participationSicknessText(
+  participation: MealParticipation,
+  t: ParentTranslate,
+): string {
+  if (participation.cancellation_cutoff_time) {
+    const days = participation.cancellation_cutoff_lead_days ?? 0;
+    const time = participation.cancellation_cutoff_time;
+    return days > 0
+      ? t("participationSicknessLead", { time, days })
+      : t("participationSickness", { time });
+  }
+  const weekday = participation.cutoff_weekday ?? 0;
+  const days = participation.cutoff_lead_days ?? 0;
+  const time = participation.cutoff_time;
+  if (weekday > 0) {
+    return t("participationSicknessWeekday", {
+      time,
+      weekday: t(`weekday${weekday}`),
+    });
+  }
+  return days > 0
+    ? t("participationSicknessLead", { time, days })
+    : t("participationSickness", { time });
+}
+
 type DraftDayChange =
   | { readonly mode: "set"; readonly participating: boolean }
   | { readonly mode: "reset" };
@@ -387,6 +446,8 @@ function ParticipationWeek({
   const [dayChange, setDayChange] = useState<DraftDayChange | null>(null);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  const [confirmWeekOff, setConfirmWeekOff] = useState(false);
+  const [weekSaving, setWeekSaving] = useState<"on" | "off" | null>(null);
   const {
     error: loadError,
     show: showLoadError,
@@ -604,9 +665,50 @@ function ParticipationWeek({
     setSaving(false);
   }
 
+  // „Ganze Woche“ gilt nur für die Tage, die die Familie noch ändern kann:
+  // anmelden, wo das Kind noch nicht isst, abmelden, wo es isst.
+  const weekDays = weekDates.flatMap((date) => {
+    const day = participation?.days.find((entry) => entry.date === date);
+    return day?.changeable && day.source !== "sick" && day.source !== "closed"
+      ? [day]
+      : [];
+  });
+  const weekToRegister = weekDays.filter((day) => !day.participating);
+  const weekToUnregister = weekDays.filter((day) => day.participating);
+
+  async function saveWeek(participating: boolean) {
+    const dates = (participating ? weekToRegister : weekToUnregister).map(
+      (day) => day.date,
+    );
+    setConfirmWeekOff(false);
+    setWeekSaving(participating ? "on" : "off");
+    clearSaveError();
+    try {
+      for (const date of dates) {
+        await setMealParticipationDay(studentId, date, participating);
+      }
+    } catch (err) {
+      logger.error("parent_meal_participation_week_failed", {
+        error: err instanceof Error ? err.message : String(err),
+      });
+      void showSaveError(err, {
+        object: t("errorObjectParticipation"),
+        retry: () => retrySaveRef.current(),
+      });
+    }
+    // Auch nach einem Fehler zeigt die Liste, was schon gespeichert ist.
+    await load();
+    setWeekSaving(null);
+  }
+
+  const lastWeekActionRef = useRef<boolean | null>(null);
   useLayoutEffect(() => {
     retrySaveRef.current = () =>
-      void (editingRegularDays ? saveRegularDays() : saveDayChange());
+      void (lastWeekActionRef.current !== null && !isEditing
+        ? saveWeek(lastWeekActionRef.current)
+        : editingRegularDays
+          ? saveRegularDays()
+          : saveDayChange());
   });
 
   const regularDaysLabel = useMemo(() => {
@@ -727,16 +829,13 @@ function ParticipationWeek({
           </div>
         )}
 
-        {participation ? (
-          <p className="mt-3 text-sm text-gray-600">
-            {participation.cutoff_lead_days
-              ? t("participationCutoffLead", {
-                  time: participation.cutoff_time,
-                  days: participation.cutoff_lead_days,
-                })
-              : t("participationCutoff", { time: participation.cutoff_time })}
-          </p>
-        ) : null}
+        {participation
+          ? participationCutoffTexts(participation, t).map((line) => (
+              <p key={line} className="mt-3 text-sm text-gray-600">
+                {line}
+              </p>
+            ))
+          : null}
       </div>
 
       <div className="border-t border-gray-200">
@@ -748,6 +847,71 @@ function ParticipationWeek({
           onWeekChange={onWeekChange}
         />
       </div>
+
+      {weekReady &&
+      participation &&
+      !loading &&
+      !isEditing &&
+      (weekToRegister.length > 0 || weekToUnregister.length > 0) ? (
+        <div className="border-b border-gray-200 px-4 py-3 sm:px-5">
+          <div className="flex flex-wrap gap-2">
+            {weekToRegister.length > 0 ? (
+              <Button
+                type="button"
+                variant="success"
+                size="compact"
+                className="min-h-11"
+                disabled={weekSaving !== null}
+                isLoading={weekSaving === "on"}
+                loadingText={t("saving")}
+                onClick={() => {
+                  lastWeekActionRef.current = true;
+                  void saveWeek(true);
+                }}
+              >
+                {t("registerWeek")}
+              </Button>
+            ) : null}
+            {weekToUnregister.length > 0 ? (
+              <Button
+                type="button"
+                variant="outline_danger"
+                size="compact"
+                className="min-h-11"
+                disabled={weekSaving !== null}
+                isLoading={weekSaving === "off"}
+                loadingText={t("saving")}
+                onClick={() => setConfirmWeekOff(true)}
+              >
+                {t("unregisterWeek")}
+              </Button>
+            ) : null}
+          </div>
+          <p className="mt-2 text-xs text-gray-500">{t("weekActionsHint")}</p>
+          {lastWeekActionRef.current !== null ? (
+            <FormErrorAlert message={saveError} className="mt-2" />
+          ) : null}
+        </div>
+      ) : null}
+
+      <ConfirmationModal
+        isOpen={confirmWeekOff}
+        onClose={() => setConfirmWeekOff(false)}
+        onConfirm={() => {
+          lastWeekActionRef.current = false;
+          void saveWeek(false);
+        }}
+        title={t("unregisterWeekTitle")}
+        confirmText={t("unregisterWeek")}
+        cancelText={t("cancel")}
+      >
+        <p className="text-sm text-gray-700">
+          {t("unregisterWeekText", {
+            name: childName,
+            count: weekToUnregister.length,
+          })}
+        </p>
+      </ConfirmationModal>
 
       {!weekReady ? (
         <MealParticipationDaysSkeleton loadingLabel={t("loading")} />
@@ -780,11 +944,13 @@ function ParticipationWeek({
                 : day?.source;
               const isToday = date === today;
               const statusLabel = day
-                ? displayedSource === "sick"
-                  ? t("cancelledBySickNote")
-                  : displayedParticipation
-                    ? t("registered")
-                    : t("notRegistered")
+                ? displayedSource === "closed"
+                  ? t("closedDay")
+                  : displayedSource === "sick"
+                    ? t("cancelledBySickNote")
+                    : displayedParticipation
+                      ? t("registered")
+                      : t("notRegistered")
                 : t("participationUnavailable");
               const statusTone =
                 displayedSource === "sick"
@@ -795,11 +961,13 @@ function ParticipationWeek({
               // Kein Icon für „Anmeldung nicht geladen“: Das ist ein Ladefehler,
               // kein Teilnahmezustand, und darf nicht wie „nicht angemeldet“ aussehen.
               const statusIcon = day
-                ? displayedSource === "sick"
-                  ? Ban
-                  : displayedParticipation
-                    ? Check
-                    : Minus
+                ? displayedSource === "closed"
+                  ? CalendarOff
+                  : displayedSource === "sick"
+                    ? Ban
+                    : displayedParticipation
+                      ? Check
+                      : Minus
                 : undefined;
 
               return (
@@ -884,7 +1052,7 @@ function ParticipationWeek({
                         {t("singleChange")}
                       </p>
                     ) : null}
-                    {day && !day.changeable ? (
+                    {day && !day.changeable && day.source !== "closed" ? (
                       <p className="mt-1.5 text-xs text-gray-500">
                         {t("closed")}
                       </p>
@@ -955,12 +1123,7 @@ function ParticipationWeek({
 
       {participation ? (
         <p className="border-t border-gray-200 bg-gray-50 px-4 py-3 text-sm text-gray-600 sm:px-5">
-          {participation.cutoff_lead_days
-            ? t("participationSicknessLead", {
-                time: participation.cutoff_time,
-                days: participation.cutoff_lead_days,
-              })
-            : t("participationSickness", { time: participation.cutoff_time })}
+          {participationSicknessText(participation, t)}
         </p>
       ) : null}
     </section>

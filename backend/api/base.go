@@ -110,6 +110,11 @@ func newMealPlanResource(module mealplanModule.Capability, renderer SimpleListRe
 		InvalidRequest: func(w http.ResponseWriter, r *http.Request, err error) {
 			apiCommon.RenderError(w, r, apiCommon.ErrorInvalidRequest(err))
 		},
+		ParseIDParam: apiCommon.ParseIDParam,
+		Account: func(r *http.Request) (int64, error) {
+			principal, err := apiCommon.CurrentPrincipal(r.Context())
+			return principal.AccountID(), err
+		},
 		ModuleFailure: func(w http.ResponseWriter, r *http.Request, err error, internalMessage string) {
 			renderMealPlanFailure(w, r, err, internalMessage)
 		},
