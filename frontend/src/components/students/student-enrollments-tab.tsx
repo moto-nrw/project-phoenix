@@ -7,8 +7,6 @@ import {
   useRef,
   useState,
 } from "react";
-import type { ReactNode } from "react";
-import { Download, FileText, FileSpreadsheet, FileType2 } from "lucide-react";
 import {
   type AdminRequestSummary,
   type EnrollmentRequestExportFormat,
@@ -22,7 +20,7 @@ import {
   useToast,
 } from "~/contexts/ToastContext";
 import { LoadErrorAlert } from "~/components/ui/form-error-alert";
-import { Button } from "~/components/ui/button";
+import { ExportMenu, exportFormatOptions } from "~/components/ui/export-menu";
 import { ConceptSectionHeader } from "~/components/ui/concept-section-header";
 import {
   ChildExtraFields,
@@ -37,19 +35,7 @@ import { createLogger } from "~/lib/logger";
 
 const logger = createLogger({ component: "StudentEnrollmentsTab" });
 
-const EXPORT_FORMATS: Array<{
-  format: EnrollmentRequestExportFormat;
-  label: string;
-  icon: ReactNode;
-}> = [
-  { format: "pdf", label: "PDF", icon: <FileText className="h-4 w-4" /> },
-  { format: "docx", label: "DOCX", icon: <FileType2 className="h-4 w-4" /> },
-  {
-    format: "xlsx",
-    label: "XLSX",
-    icon: <FileSpreadsheet className="h-4 w-4" />,
-  },
-];
+const EXPORT_OPTIONS = exportFormatOptions(["pdf", "docx", "xlsx"]);
 
 interface StudentEnrollmentsTabProps {
   studentId: string;
@@ -128,25 +114,15 @@ export function StudentEnrollmentsTab({
         subtitle="Angaben aus der Halbjahresanmeldung, ohne Erziehungsberechtigte."
         actions={
           !isLoading && !error && requests.length > 0 ? (
-            <div className="flex flex-wrap gap-2">
-              {EXPORT_FORMATS.map((item) => (
-                <Button
-                  key={item.format}
-                  type="button"
-                  variant="outline"
-                  size="compact"
-                  disabled={exporting !== null}
-                  onClick={() => void handleExport(item.format)}
-                >
-                  {exporting === item.format ? (
-                    <Download className="h-4 w-4 animate-pulse" aria-hidden />
-                  ) : (
-                    item.icon
-                  )}
-                  {item.label}
-                </Button>
-              ))}
-            </div>
+            <ExportMenu
+              ariaLabel="Anmeldungen herunterladen"
+              options={EXPORT_OPTIONS}
+              busyKey={exporting}
+              onSelect={(option) => {
+                if (option.format && option.format !== "csv")
+                  void handleExport(option.format);
+              }}
+            />
           ) : undefined
         }
       />

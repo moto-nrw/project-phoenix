@@ -1,24 +1,19 @@
 "use client";
 
-import {
-  Suspense,
-  useEffect,
-  useLayoutEffect,
-  useMemo,
-  useRef,
-  useState,
-} from "react";
+import { Suspense, useEffect, useMemo, useState } from "react";
 import { useSession } from "next-auth/react";
 import { Download, Landmark, Lock } from "lucide-react";
 
 import { Alert } from "~/components/ui/alert";
-import { Button } from "~/components/ui/button";
 import { DataTable, type DataTableColumn } from "~/components/ui/data-table";
 import { EmptyState } from "~/components/ui/empty-state";
+import { ExportDialog } from "~/components/ui/export-dialog";
+import { OverflowMenu } from "~/components/ui/page-header/OverflowMenu";
 import { SegmentedControl } from "~/components/ui/segmented-control";
 import { TenantPage } from "~/components/ui/tenant-page";
 import { formErrorMessage } from "~/components/ui/form-error";
-import { useApiErrorDisplay, useApiLoadError } from "~/contexts/ToastContext";
+import { useApiLoadError } from "~/contexts/ToastContext";
+import { useExportRun } from "~/hooks/use-export-run";
 import { hasPermission } from "~/lib/auth-utils";
 import {
   exportPaymentOverview,
@@ -33,11 +28,12 @@ const logger = createLogger({ component: "BankverbindungenPage" });
 
 type CompletenessFilter = "all" | "missing";
 
-const FORMAT_LABELS: Record<PaymentExportFormat, string> = {
-  pdf: "PDF",
-  xlsx: "Excel",
-  docx: "Word",
-};
+// Excel zuerst: die Liste geht meist an die Abrechnung.
+const PAYMENT_EXPORT_FORMATS: readonly PaymentExportFormat[] = [
+  "xlsx",
+  "pdf",
+  "docx",
+];
 
 // A school has hundreds of children; rendering every row at once costs a long
 // scroll on both layouts and a lot of DOM on a phone.
@@ -46,20 +42,17 @@ const ROWS_PER_PAGE = 25;
 function BankverbindungenContent() {
   const { data: session, status } = useSession({ required: true });
   // Ladefehler ersetzen die Liste (#2517), nie durch „Noch keine Kinder“;
-  // der Export ist eine Aktion ohne Formular und meldet sich als Toast.
+  // der Export meldet Fehler im offenen Export-Dialog.
   const loadError = useApiLoadError();
   const { show: showLoadError, clear: clearLoadError } = loadError;
-  const { show: showExportError } = useApiErrorDisplay();
   const [loadFailed, setLoadFailed] = useState(false);
   const [reloadToken, setReloadToken] = useState(0);
-  const latestExportRef = useRef<() => void>(() => undefined);
 
   const [rows, setRows] = useState<PaymentOverviewRow[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [searchValue, setSearchValue] = useState("");
   const [completeness, setCompleteness] = useState<CompletenessFilter>("all");
-  const [format, setFormat] = useState<PaymentExportFormat>("xlsx");
-  const [isExporting, setIsExporting] = useState(false);
+  const [exportOpen, setExportOpen] = useState(false);
 
   const canRead = hasPermission(session, "guardians:financial");
 
@@ -124,25 +117,12 @@ function BankverbindungenContent() {
       ? `${visibleRows.length} von ${rows.length} Kindern`
       : undefined;
 
-  const handleExport = async () => {
-    setIsExporting(true);
-    try {
-      await exportPaymentOverview(format);
-    } catch (error) {
-      logger.error("payment_overview_export_failed", {
-        error: error instanceof Error ? error.message : String(error),
-      });
-      void showExportError(error, {
-        object: "das Herunterladen der Bankverbindungen",
-        retry: () => latestExportRef.current(),
-      });
-    } finally {
-      setIsExporting(false);
-    }
-  };
-  // „Wiederholen“ lädt im dann gewählten Format herunter.
-  useLayoutEffect(() => {
-    latestExportRef.current = () => void handleExport();
+  const exportRun = useExportRun({
+    isOpen: exportOpen,
+    onDownload: exportPaymentOverview,
+    errorObject: "das Herunterladen der Bankverbindungen",
+    onDone: () => setExportOpen(false),
+    logName: "payment_overview",
   });
 
   const columns: DataTableColumn<PaymentOverviewRow>[] = [
@@ -253,26 +233,20 @@ function BankverbindungenContent() {
           ]}
         />
       }
+      // Exportieren steht im Kebab der Kopfkarte; Format und Hinweis zur
+      // Datei stehen im Export-Dialog.
       actions={
-        <>
-          <SegmentedControl<PaymentExportFormat>
-            ariaLabel="Dateiformat des Exports"
-            value={format}
-            onChange={setFormat}
-            items={(Object.keys(FORMAT_LABELS) as PaymentExportFormat[]).map(
-              (key) => ({ value: key, label: FORMAT_LABELS[key] }),
-            )}
-          />
-          <Button
-            type="button"
-            size="md"
-            onClick={() => void handleExport()}
-            disabled={isExporting || rows.length === 0}
-          >
-            <Download className="mr-1.5 h-4 w-4" aria-hidden />
-            {isExporting ? "Wird erstellt…" : "Herunterladen"}
-          </Button>
-        </>
+        <OverflowMenu
+          ariaLabel="Weitere Aktionen"
+          items={[
+            {
+              label: "Exportieren",
+              icon: <Download className="h-4 w-4" aria-hidden />,
+              onClick: () => setExportOpen(true),
+              disabled: rows.length === 0,
+            },
+          ]}
+        />
       }
     >
       <Alert
@@ -294,6 +268,14 @@ function BankverbindungenContent() {
         paginationResetKey={`${completeness}:${searchValue}`}
         emptyState={emptyState}
         stackedOnMobile
+      />
+      <ExportDialog
+        isOpen={exportOpen}
+        onClose={() => setExportOpen(false)}
+        title="Bankverbindungen exportieren"
+        description="Alle Kinder der Schule mit der ganzen IBAN, auch wenn die Liste gerade gefiltert ist. Der Download wird protokolliert."
+        formats={PAYMENT_EXPORT_FORMATS}
+        run={exportRun}
       />
     </TenantPage>
   );

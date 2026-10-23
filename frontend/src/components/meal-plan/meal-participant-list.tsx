@@ -9,12 +9,12 @@ import {
   useState,
 } from "react";
 import { useLocale, useTranslations } from "next-intl";
-import { Download, FileSpreadsheet, Utensils } from "lucide-react";
+import { Utensils } from "lucide-react";
 
-import { Button } from "~/components/ui/button";
 import { DataTable, type DataTableColumn } from "~/components/ui/data-table";
 import { ISODatePicker } from "~/components/ui/date-picker";
 import { EmptyState } from "~/components/ui/empty-state";
+import { ExportMenu } from "~/components/ui/export-menu";
 import { LoadErrorAlert } from "~/components/ui/form-error-alert";
 import { useApiErrorDisplay, useApiLoadError } from "~/contexts/ToastContext";
 import { formatDate, parseISODate, toISODate } from "~/lib/date-helpers";
@@ -170,41 +170,20 @@ export function MealParticipantList() {
               triggerClassName="w-full min-w-44 flex-none justify-between rounded-lg text-sm font-medium"
             />
 
-            <div
-              role="group"
-              aria-label={t("downloadGroup")}
-              className="flex flex-wrap gap-2 sm:justify-end"
-            >
-              <Button
-                type="button"
-                variant="outline"
-                size="md"
-                className="gap-2 bg-white"
-                aria-label={t("downloadPdf")}
-                aria-busy={exporting === "pdf"}
-                onClick={() => void download("pdf")}
-                isLoading={exporting === "pdf"}
-                loadingText={t("downloadLoading")}
-                disabled={loading || Boolean(loadError) || exporting !== null}
-              >
-                <Download className="h-4 w-4" aria-hidden="true" />
-                {t("pdf")}
-              </Button>
-              <Button
-                type="button"
-                variant="outline"
-                size="md"
-                className="gap-2 bg-white"
-                aria-label={t("downloadExcel")}
-                aria-busy={exporting === "xlsx"}
-                onClick={() => void download("xlsx")}
-                isLoading={exporting === "xlsx"}
-                loadingText={t("downloadLoading")}
-                disabled={loading || Boolean(loadError) || exporting !== null}
-              >
-                <FileSpreadsheet className="h-4 w-4" aria-hidden="true" />
-                {t("excel")}
-              </Button>
+            <div className="flex flex-wrap gap-2 sm:justify-end">
+              <ExportMenu
+                label={t("downloadGroup")}
+                options={[
+                  { key: "pdf", format: "pdf", label: t("pdf") },
+                  { key: "xlsx", format: "xlsx", label: t("excel") },
+                ]}
+                busyKey={exporting}
+                unavailable={loading || Boolean(loadError)}
+                onSelect={(option) => {
+                  if (option.format === "pdf" || option.format === "xlsx")
+                    void download(option.format);
+                }}
+              />
               <span className="sr-only" role="status" aria-live="polite">
                 {exporting === "pdf"
                   ? t("pdfDownloadStatus")
