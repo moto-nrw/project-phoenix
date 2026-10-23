@@ -32,6 +32,7 @@ vi.mock("~/lib/auth-utils", () => {
   return {
     isAdmin: isAdminFn,
     isCaregiver: isCaregiverFn,
+    canReadSupervisionData: vi.fn(() => isCaregiverFn()),
     hasEffectiveAdminScope: hasEffectiveAdminScopeFn,
     hasRole: vi.fn((_session: unknown, role: string) => {
       if (role === "admin") return isAdminFn();
@@ -125,6 +126,7 @@ import { usePathname, useSearchParams } from "next/navigation";
 import { useSession } from "next-auth/react";
 import { useOptionalSupervision } from "~/lib/supervision-context";
 import {
+  canReadSupervisionData,
   hasEffectiveAdminScope,
   hasPermission,
   isAdmin,
@@ -151,6 +153,7 @@ const mockUseSession = vi.mocked(useSession);
 const mockUseSupervision = vi.mocked(useOptionalSupervision);
 const mockIsAdmin = vi.mocked(isAdmin);
 const mockIsCaregiver = vi.mocked(isCaregiver);
+const mockCanReadSupervisionData = vi.mocked(canReadSupervisionData);
 const mockHasEffectiveAdminScope = vi.mocked(hasEffectiveAdminScope);
 const mockHasPermission = vi.mocked(hasPermission);
 const mockUseShellAuth = vi.mocked(useShellAuth);
@@ -238,6 +241,9 @@ describe("MobileBottomNav", () => {
     });
     mockIsAdmin.mockReturnValue(false);
     mockIsCaregiver.mockImplementation((session) => !mockIsAdmin(session));
+    mockCanReadSupervisionData.mockImplementation((session) =>
+      mockIsCaregiver(session),
+    );
     mockHasEffectiveAdminScope.mockImplementation((session) =>
       mockIsAdmin(session),
     );
@@ -376,6 +382,22 @@ describe("MobileBottomNav", () => {
       expect(screen.queryByRole("link", { name: "Gruppen" })).toBeNull();
     });
 
+    it("shows group and supervision navigation for custom staff with groups:read", () => {
+      mockIsCaregiver.mockReturnValue(false);
+      mockCanReadSupervisionData.mockReturnValue(true);
+
+      render(<MobileBottomNav />);
+
+      expect(screen.getByRole("link", { name: "Gruppen" })).toHaveAttribute(
+        "href",
+        "/ogs-groups/overview",
+      );
+      expect(screen.getByRole("link", { name: "Aufsicht" })).toHaveAttribute(
+        "href",
+        "/active-supervisions",
+      );
+    });
+
     it("shows groups to effective admins", () => {
       mockIsCaregiver.mockReturnValue(false);
       mockHasEffectiveAdminScope.mockReturnValue(true);
@@ -505,6 +527,40 @@ describe("MobileBottomNav", () => {
 
       // Should show the "Start" label since the start page is active
       expect(screen.getByText("Start")).toBeInTheDocument();
+    });
+
+    it("marks Räume for a shared room addressed by a legacy session link", () => {
+      mockUsePathname.mockReturnValue("/active-supervisions");
+      mockUseSearchParams.mockReturnValue(
+        createMockSearchParams((key) =>
+          key === "session" ? "active-schulhof" : null,
+        ),
+      );
+      mockUseSupervision.mockReturnValue({
+        hasGroups: true,
+        isSupervising: true,
+        isLoadingGroups: false,
+        isLoadingSupervision: false,
+        overviewEnabled: false,
+        supervisedRooms: [
+          {
+            id: "7",
+            name: "Schulhof",
+            groupId: "",
+            isOpenRoom: true,
+            sessionIds: ["active-schulhof"],
+          },
+        ],
+        groups: [],
+        refresh: vi.fn(),
+      });
+
+      render(<MobileBottomNav />);
+      fireEvent.click(screen.getByRole("button", { name: "Mehr" }));
+
+      expect(screen.getByRole("link", { name: "Räume" })).toHaveClass(
+        "bg-gray-100",
+      );
     });
 
     it("detects active route from search params 'from' parameter", () => {

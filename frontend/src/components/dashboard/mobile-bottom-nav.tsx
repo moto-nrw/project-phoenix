@@ -13,8 +13,10 @@ import { NavLink } from "~/components/ui/nav-link";
 import { usePathname, useSearchParams } from "next/navigation";
 import { useSession } from "next-auth/react";
 import { useOptionalSupervision } from "~/lib/supervision-context";
+import { isSharedOpenRoom } from "~/lib/supervision-derive";
 import { useShellAuth } from "~/lib/shell-auth-context";
 import {
+  canReadSupervisionData,
   hasEffectiveAdminScope,
   hasPermission,
   hasRole,
@@ -684,7 +686,16 @@ export function MobileBottomNav({ className = "" }: MobileBottomNavProps) {
     isLoadingGroups,
     isLoadingSupervision,
     overviewEnabled,
+    supervisedRooms,
   } = useOptionalSupervision();
+  // Ein offener Raum ohne eigene Aufsicht gehört zu „Räume“, nicht zur
+  // Aufsicht (#4372), wie in der Seitenleiste.
+  const isViewingSharedOpenRoom =
+    pathname.startsWith("/active-supervisions") &&
+    isSharedOpenRoom(supervisedRooms, {
+      roomId: searchParams.get("room"),
+      sessionId: searchParams.get("session"),
+    });
 
   // Get shell auth mode
   const { mode, isSessionExpired, canStartStaffPreview, profileUrl } =
@@ -702,6 +713,7 @@ export function MobileBottomNav({ className = "" }: MobileBottomNavProps) {
       if (href === "/home") {
         return pathname === "/home" || pathname === "/";
       }
+      if (isViewingSharedOpenRoom) return href === "/rooms";
       // Check if we came from this page via the 'from' query parameter. Grouped
       // items (e.g. Eltern) own several routes via activePaths, so a child page
       // reached with ?from=/messages must still highlight the Eltern entry —
@@ -732,7 +744,7 @@ export function MobileBottomNav({ className = "" }: MobileBottomNavProps) {
       }
       return pathname.startsWith(href);
     },
-    [pathname, searchParams],
+    [pathname, searchParams, isViewingSharedOpenRoom],
   );
 
   const closeOverflowMenu = () => {
@@ -801,6 +813,7 @@ export function MobileBottomNav({ className = "" }: MobileBottomNavProps) {
   const userIsAdmin = hasRole(session, "admin");
   const userHasEffectiveAdminScope = hasEffectiveAdminScope(session);
   const userIsCaregiver = isCaregiver(session);
+  const canReadSupervisions = canReadSupervisionData(session);
   const nfcEnabled = useNFCEnabled();
   const presenceMode = usePresenceMode();
   const showActivityNav = nfcEnabled && presenceMode !== "binary";
@@ -873,7 +886,7 @@ export function MobileBottomNav({ className = "" }: MobileBottomNavProps) {
         // der Desktop-Sidebar.
         !(isBinaryMode && BINARY_HIDDEN_HREFS.has(item.href)) &&
         (item.href !== "/ogs-groups" ||
-          userIsCaregiver ||
+          canReadSupervisions ||
           userHasEffectiveAdminScope) &&
         // Bei offener Betreuung gibt es keine "meine Gruppe" — der
         // gruppenbasierte Einstieg entfällt (#1544).
@@ -908,14 +921,16 @@ export function MobileBottomNav({ className = "" }: MobileBottomNavProps) {
       // Seitenleiste zählt auch die schulweite Übersicht (#2380): eine
       // Betreuungsrolle der Schule heißt nicht `user` (#3469).
       return (
-        (userIsCaregiver || overviewEnabled || userHasEffectiveAdminScope) &&
+        (canReadSupervisions ||
+          overviewEnabled ||
+          userHasEffectiveAdminScope) &&
         !openCareGroupMode
       );
     }
     // Aufsicht wie in der Seitenleiste: eigene Aufsicht der Betreuungskräfte
     // oder die schulweite Übersicht (#2380); im binären Modus ohne Bedeutung.
     if (href === "/active-supervisions") {
-      return (userIsCaregiver || overviewEnabled) && !isBinaryMode;
+      return (canReadSupervisions || overviewEnabled) && !isBinaryMode;
     }
     if (
       href === "/tagesplan" &&
