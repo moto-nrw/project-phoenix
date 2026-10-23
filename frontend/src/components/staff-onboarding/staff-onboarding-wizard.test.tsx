@@ -15,6 +15,7 @@ const CAREGIVER_PERMISSIONS = [
   "calendar:own",
   "users:read",
   "groups:read",
+  "groups:update",
   "time_tracking:own",
 ];
 let permissions: string[] = CAREGIVER_PERMISSIONS;
@@ -38,9 +39,6 @@ vi.mock("next-auth/react", () => ({
 vi.mock("~/lib/auth-utils", () => ({
   hasPermission: (_session: unknown, permission: string) =>
     permissions.includes(permission),
-  // canOpenActiveSupervision builds on it; with an explicit permission list
-  // the real function reads groups:read (or the admin scope).
-  canReadSupervisionData: () => permissions.includes("groups:read"),
 }));
 
 vi.mock("~/lib/shell-auth-context", () => ({
@@ -181,6 +179,26 @@ describe("StaffOnboardingWizard", () => {
     groups = [];
     render(<StaffOnboardingWizard />);
 
+    expect(stepTitles()).toEqual(["Eine Aufsicht starten"]);
+  });
+
+  // ADR 0083: der Gast sieht Gruppen und Aufsichten, startet aber keine.
+  // Ohne einen Schritt, der für ihn gilt, bleibt die Checkliste weg.
+  it("offers a guest no step and hides the checklist", () => {
+    permissions = [
+      "students:read",
+      "groups:read",
+      "rooms:read",
+      "activities:read",
+    ];
+    groups = [];
+    const guest = render(<StaffOnboardingWizard />);
+    expect(screen.queryByText(/Erste Schritte/)).toBeNull();
+    guest.unmount();
+
+    // Anker: mit dem Startrecht der AG-Leitung erscheint dieselbe Liste.
+    permissions = ["schedules:read"];
+    render(<StaffOnboardingWizard />);
     expect(stepTitles()).toEqual(["Eine Aufsicht starten"]);
   });
 

@@ -76,7 +76,7 @@ export interface StaffOnboardingContext {
    * darf es nicht (#4573); auch das An- und Abmelden führt dorthin.
    */
   canSearchChildren: boolean;
-  /** Die Person darf „Aktuelle Aufsicht“ öffnen (`groups:read` oder `schedules:read`). */
+  /** Die Person darf eine Aufsicht starten (`groups:update` oder `schedules:read`). */
   canSupervise: boolean;
   /** Die Person erfasst Arbeitszeit (`time_tracking:own`); Externe nicht. */
   canTrackWorkTime: boolean;

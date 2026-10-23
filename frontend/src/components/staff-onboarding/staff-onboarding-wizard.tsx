@@ -19,7 +19,6 @@ import { useSetupTour } from "~/components/school-setup/use-setup-tour";
 import { CoachMark } from "~/components/ui/coach-mark";
 import { ConfirmationModal } from "~/components/ui/modal";
 import { useApiFormError } from "~/contexts/ToastContext";
-import { canOpenActiveSupervision } from "~/lib/active-supervision-access";
 import { hasPermission } from "~/lib/auth-utils";
 import {
   buildHelpGroupHref,
@@ -125,7 +124,12 @@ function StaffOnboardingForPerson() {
   const canSeeCalendar = hasPermission(session, "calendar:own");
   // Jeder Schritt nur mit dem Recht, das sein Ziel verlangt (#4573).
   const canSearchChildren = hasPermission(session, "users:read");
-  const canSupervise = canOpenActiveSupervision(session);
+  // Der Schritt lädt zum Starten ein: einen Raum übernehmen verlangt
+  // groups:update, einen geplanten Termin starten schedules:read. Ansehen
+  // allein (der Gast, ADR 0083) reicht nicht.
+  const canSupervise =
+    hasPermission(session, "groups:update") ||
+    hasPermission(session, "schedules:read");
   const canTrackWorkTime = hasPermission(session, "time_tracking:own");
   const steps = useMemo(
     () =>

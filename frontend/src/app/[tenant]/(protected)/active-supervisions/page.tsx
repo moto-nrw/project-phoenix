@@ -157,11 +157,18 @@ function MeinRaumPageContent() {
   const openRoomLayout = currentOpenRoom
     ? openRoomSections(currentOpenRoom)
     : null;
+  // Die Kinderliste eines Termins liest das Backend nur mit schedules:read.
+  // Der Gast (ADR 0083) hat es nicht und sieht die Kinder aus dem Raum.
+  // Eine Sitzung ohne Rechteliste (vor den Rechte-Claims) fragt weiter.
+  const sessionPermissions = session?.user?.permissions;
+  const canReadRosters =
+    !Array.isArray(sessionPermissions) ||
+    hasPermission(session, "schedules:read");
   const roster = useTimetableRoster({
-    selectedTimetableInstanceId: currentOpenRoom
-      ? null
-      : selectedTimetableInstanceId,
-    currentRoomId: currentOpenRoom ? undefined : currentRoom?.id,
+    selectedTimetableInstanceId:
+      currentOpenRoom || !canReadRosters ? null : selectedTimetableInstanceId,
+    currentRoomId:
+      currentOpenRoom || !canReadRosters ? undefined : currentRoom?.id,
   });
   const { currentTimetableRoster } = roster;
   const { overviewEnabled } = useOptionalSupervision();
