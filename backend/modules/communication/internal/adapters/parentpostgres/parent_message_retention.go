@@ -75,7 +75,7 @@ WHERE tenant_id = ?
 const repairGroupThreadActivitySQL = `UPDATE users.parent_group_threads AS thread
 SET last_message_at = latest.created_at
 FROM users.parent_group_threads AS stale
-JOIN LATERAL (
+LEFT JOIN LATERAL (
     SELECT message.created_at
     FROM users.parent_group_messages AS message
     WHERE message.thread_id = stale.id
@@ -86,7 +86,7 @@ JOIN LATERAL (
 WHERE thread.id = stale.id
   AND thread.tenant_id = stale.tenant_id
   AND stale.tenant_id = ?
-  AND (stale.last_message_at IS NULL OR stale.last_message_at <> latest.created_at)`
+  AND stale.last_message_at IS DISTINCT FROM latest.created_at`
 
 // deleteEmptyGroupThreadsSQL removes the group threads without any message
 // left. Their read cursors go with them; answers in the 1:1 conversations

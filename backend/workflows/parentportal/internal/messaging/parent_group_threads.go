@@ -188,9 +188,10 @@ func (s *Service) GetGroupThread(ctx context.Context, accountID, threadID int64,
 	// guardian's children of that school only.
 	for tenantID, studentIDs := range childrenBySchool(children) {
 		var view *GroupThreadView
+		var advanced bool
 		err := s.Runtime.WithinTenant(ctx, tenantID, func(txCtx context.Context) error {
 			var readErr error
-			view, _, readErr = s.GroupThreads.ReadGroupThread(txCtx, threadID, accountID, studentIDs)
+			view, advanced, readErr = s.GroupThreads.ReadGroupThread(txCtx, threadID, accountID, studentIDs)
 			return readErr
 		})
 		if errors.Is(err, ErrGroupThreadNotFound) {
@@ -198,6 +199,12 @@ func (s *Service) GetGroupThread(ctx context.Context, accountID, threadID int64,
 		}
 		if err != nil {
 			return nil, fmt.Errorf("parent: get group thread: %w", err)
+		}
+		if advanced {
+			// WithinTenant committed the cursor before returning. The staff group-
+			// thread detail subscribes to this existing read receipt trigger, which
+			// deliberately carries no identifiers through the staff SSE fan-out.
+			s.broadcastReadReceipt(tenantID, accountID, 0, 0)
 		}
 		detail := &GroupThreadDetail{GroupThreadView: *view}
 		detail.Children, detail.SchoolName = pickChildren(byID, view.StudentIDs)

@@ -12,6 +12,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/api"
 	"github.com/moto-nrw/project-phoenix/modules/communication/communicationtest"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess/sessiontoken"
+	"github.com/moto-nrw/project-phoenix/realtime"
 	owners "github.com/moto-nrw/project-phoenix/roots/owners"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	parentService "github.com/moto-nrw/project-phoenix/workflows/parentportal"
@@ -22,7 +23,7 @@ import (
 // in the 1:1 conversation of their child, with a reference to the group
 // thread. No other family ever sees the answer.
 
-func buildGroupThreadPortal(t *testing.T) (*parentService.Portal, *bun.DB) {
+func buildGroupThreadPortal(t *testing.T) (*parentService.Portal, *testpkg.RecordingBroadcaster, *bun.DB) {
 	t.Helper()
 	db := testpkg.SetupTestDB(t)
 	repos := api.NewRepositoryTestFactory(testpkg.NewDatabase(t, db))
@@ -57,12 +58,12 @@ func buildGroupThreadPortal(t *testing.T) (*parentService.Portal, *bun.DB) {
 		DataRequests:      owners.NewParentDataRequestCommands(repos.CarePlan()),
 		CarePlanPolicy:    owners.NewParentCarePlanPolicy(),
 	})
-	return portal, db
+	return portal, bc, db
 }
 
 func TestGroupThreadAnswer_GoesOnlyToTheOGS(t *testing.T) {
 	t.Parallel()
-	portal, db := buildGroupThreadPortal(t)
+	portal, bc, db := buildGroupThreadPortal(t)
 	a := testpkg.CreateTestParentGuardianChain(t, db)
 	b := testpkg.CreateTestParentGuardianChain(t, db)
 	_, staff := testpkg.CreateTestStaffWithAccount(t, db, "Olivia", "Berg")
@@ -103,10 +104,18 @@ func TestGroupThreadAnswer_GoesOnlyToTheOGS(t *testing.T) {
 	bConversation, err := portal.GetChildConversation(ctx, b.AccountID, b.StudentID)
 	require.NoError(t, err)
 	assert.Empty(t, bConversation.Messages, "another family's answer never reaches this conversation")
+	bc.Reset()
 	bThread, err := portal.GetGroupThread(ctx, b.AccountID, threadID)
 	require.NoError(t, err)
 	require.Len(t, bThread.Messages, 1, "the group thread holds only the OGS messages")
 	assert.Equal(t, "Wer bringt einen Kuchen mit?", bThread.Messages[0].Body)
+	readEvents := bc.CallsByMethod("parent")
+	require.Len(t, readEvents, 1, "advancing a group-thread read cursor wakes open staff details")
+	assert.Equal(t, b.TenantID, readEvents[0].TenantID)
+	assert.Equal(t, b.AccountID, readEvents[0].GuardianID)
+	assert.Equal(t, realtime.EventParentMessageRead, readEvents[0].Event.Type)
+	assert.Nil(t, readEvents[0].Event.Data.ThreadID)
+	assert.Nil(t, readEvents[0].Event.Data.StudentID)
 
 	// Family B cannot answer in family A's name or for A's child.
 	_, err = portal.PostChildReply(ctx, b.AccountID, a.StudentID, "Hallo", threadID)

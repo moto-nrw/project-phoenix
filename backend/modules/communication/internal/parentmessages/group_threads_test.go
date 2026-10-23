@@ -453,3 +453,45 @@ func TestGroupThread_RetentionRepairsLatestActivity(t *testing.T) {
 		Scan(testpkg.Ctx(t), &remainingMessageAt))
 	assert.Equal(t, remainingMessageAt, lastMessageAt)
 }
+
+func TestGroupThread_RetentionClearsActivityOfRecentEmptyThread(t *testing.T) {
+	t.Parallel()
+	f, run := newGroupFixture(t)
+	db := testpkg.SetupTestDB(t)
+	staffCtx := adminCtx(t, f.staff)
+
+	var threadID int64
+	require.NoError(t, run(staffCtx, func(ctx context.Context) error {
+		detail, err := f.svc.CreateParentGroupThread(ctx, communication.ParentGroupThreadInput{
+			Target: classTarget("1a"), Title: "Neu", Body: "Alte Nachricht",
+		})
+		if err == nil {
+			threadID = detail.Thread.ID
+		}
+		return err
+	}))
+
+	// Keep the just-created thread, but expire its only message. The activity
+	// timestamp must not keep pointing at the deleted message.
+	_, err := db.ExecContext(testpkg.Ctx(t), `
+		UPDATE users.parent_group_messages
+		SET created_at = NOW() - INTERVAL '400 days'
+		WHERE thread_id = ? AND tenant_id = ?`, threadID, testpkg.Tenant(t))
+	require.NoError(t, err)
+
+	cleanup := composition.NewParentMessageRetention(db, groupRetentionDays(365))
+	require.NoError(t, run(testpkg.Ctx(t), func(ctx context.Context) error {
+		result, err := cleanup.CleanupExpiredParentMessages(ctx)
+		require.NoError(t, err)
+		assert.Equal(t, 1, result.MessagesDeleted)
+		assert.Zero(t, result.ThreadsDeleted)
+		return nil
+	}))
+
+	var lastMessageAt *time.Time
+	require.NoError(t, db.NewRaw(`
+		SELECT last_message_at FROM users.parent_group_threads
+		WHERE id = ? AND tenant_id = ?`, threadID, testpkg.Tenant(t)).
+		Scan(testpkg.Ctx(t), &lastMessageAt))
+	assert.Nil(t, lastMessageAt)
+}

@@ -468,6 +468,16 @@ func (s *Service) finishGuardianReply(txCtx context.Context, child *Child, threa
 }
 
 func (s *Service) postGuardianReply(txCtx context.Context, child *Child, accountID, studentID int64, senderName, body string, groupThreadID *int64, view *MessageThreadView) error {
+	if groupThreadID != nil {
+		// The first group-thread check happens before opening this write
+		// transaction, so it can return a refused answer without creating a
+		// conversation. Repeat it here while the group thread is locked: closing
+		// and appending must serialize, otherwise a close between those two
+		// transactions could still admit an answer to a closed thread.
+		if _, err := s.GroupThreads.GroupReplyTarget(txCtx, *groupThreadID, accountID, studentID); err != nil {
+			return err
+		}
+	}
 	student, err := s.StudentRepo.FindByIDForUpdate(txCtx, studentID)
 	if err != nil {
 		return err

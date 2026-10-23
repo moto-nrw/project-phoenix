@@ -49,7 +49,10 @@ func (p GroupThreadPortal) PortalReadGroupThread(ctx context.Context, threadID, 
 // PortalGroupReplyTarget returns the thread a guardian answers for a child:
 // it must exist, have reached the guardian for that child and be open.
 func (p GroupThreadPortal) PortalGroupReplyTarget(ctx context.Context, threadID, accountID, studentID int64) (*communication.ParentGroupThread, error) {
-	thread, err := p.Store.FindThread(ctx, threadID, false)
+	// Keep an open thread locked until the caller either appends the guardian
+	// reply or rolls the transaction back. This makes the final authorization
+	// check and a staff-side close mutually exclusive.
+	thread, err := p.Store.FindThread(ctx, threadID, true)
 	if err != nil {
 		return nil, err
 	}
