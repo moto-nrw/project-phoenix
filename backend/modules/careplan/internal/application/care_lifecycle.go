@@ -176,8 +176,20 @@ func (s *CareLifecycle) applyCareExitConfirmation(ctx context.Context, state *ca
 	return nil
 }
 
+// lockCareExitWrites establishes class (shared) -> recurrence -> child/plan
+// rows, before any locked preview or mutation. Grade transition takes class
+// exclusively before recurrence; taking recurrence first here would deadlock
+// against it. Locked student reads may safely reacquire the shared class gate.
+// ADR 0067's E2 exception retains this coordinator, not a different lock order.
+func (s *CareLifecycle) lockCareExitWrites(ctx context.Context) error {
+	if err := s.owners.Students.LockCareStudentWrites(ctx); err != nil {
+		return err
+	}
+	return s.lockCareBookingWrites(ctx)
+}
+
 func (s *CareLifecycle) prepareLockedCareExitPreview(ctx context.Context, state *careExitConfirmation) error {
-	if err := s.lockCareBookingWrites(ctx); err != nil {
+	if err := s.lockCareExitWrites(ctx); err != nil {
 		return fmt.Errorf("care lifecycle: lock care booking writes: %w", err)
 	}
 	preview, err := s.buildPreview(ctx, state.input, true, withdrawalOfferings(state.completion))
@@ -316,7 +328,7 @@ func (s *CareLifecycle) Cancel(ctx context.Context, studentIDs []int64, actorAcc
 }
 
 func (s *CareLifecycle) cancelCareExits(ctx context.Context, ids []int64, actorAccountID int64) error {
-	if err := s.lockCareBookingWrites(ctx); err != nil {
+	if err := s.lockCareExitWrites(ctx); err != nil {
 		return fmt.Errorf("care lifecycle: lock care booking writes for cancellation: %w", err)
 	}
 	exits, before, err := s.plannedCareExits(ctx, ids)

@@ -168,11 +168,32 @@ or amend this decision with new evidence first.
 | E5: Organisation provisioning account, device transfer and person retirement | Keep explicit admin/tenant scope boundaries, locked device transfer and the documented best-effort/post-commit audit behavior. The whole provisioning API is not one atomic transaction. Converting it to one would change behavior and authorization, not just placement. |
 
 The [inventory](../architecture/4538-cross-owner-write-inventory.md#retained-protocols-and-lock-order)
-gives the path:line order and limits, including the existing E2 class/recurrence
-lock-order inversion, and estimates separate
+gives the path:line order and limits, including the E2 class/recurrence
+correction in #4636 and the remaining static findings, and estimates separate
 follow-up slices. This PR implements one workflow capability, not all of those
 slices. No follow-up issues are created. No new owner, policy rule, epoch,
 projection grant, baseline key, pass-through allowance or budget is needed.
+
+### E2 lock-order correction (#4636)
+
+The two-connection regression in `api/care_exit_lock_order_test.go` reproduces
+`40P01` before the fix for confirm, cancel and due effects against grade-transition
+Apply, including the scheduler’s ambient-transaction case. This evidence amends
+E2's retained protocol: those three entry points,
+including withdrawal confirmation through the shared confirm path, now take
+School Membership's **shared class gate → recurrence → child/plan row locks**.
+The initial booking-expiry reconciliation uses the same order because an ambient
+unit retains its gates through the later due-effect pages.
+Care Plan requests the class gate through its consumer-owned student port;
+the root binds it to School Membership's existing command. Neither owner gains
+foreign SQL or a new policy rule. Re-reading, fingerprints, ledger operations,
+error identities and the outer tenant unit stay unchanged.
+
+This is a bounded correction of E2 to point 5, not a new coordinator exception
+or a claim of global deadlock freedom. Grade-transition Apply/Revert retain
+class(exclusive) → recurrence → transition; the materializer takes the suffix
+recurrence → transition and no class gate. The inventory records every audited
+shared-gate path and separate, still-static row/gate-order findings.
 
 ### Evidence and enforcement
 
