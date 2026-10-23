@@ -843,7 +843,13 @@ export async function getChildMealPlan(
   );
 }
 
-type MealParticipationSource = "none" | "regular" | "override" | "sick";
+type MealParticipationSource =
+  | "none"
+  | "regular"
+  | "override"
+  | "sick"
+  /** Feiertag oder Schließtag: kein Essen, nicht änderbar. */
+  | "closed";
 
 interface MealParticipationDay {
   readonly date: string;
@@ -858,6 +864,14 @@ export interface MealParticipation {
   readonly cutoff_time: string;
   /** Werktage vor dem Essenstag, an denen die Frist gilt; 0 = am selben Tag. */
   readonly cutoff_lead_days?: number;
+  /**
+   * 1-5 (Mo-Fr): Die Frist der ganzen nächsten Woche endet an diesem
+   * Wochentag; 0 = Vorlauf in Werktagen.
+   */
+  readonly cutoff_weekday?: number;
+  /** Spätere Abmeldefrist; fehlt, wenn sie der Änderungsfrist entspricht. */
+  readonly cancellation_cutoff_time?: string;
+  readonly cancellation_cutoff_lead_days?: number;
   readonly days: MealParticipationDay[];
 }
 

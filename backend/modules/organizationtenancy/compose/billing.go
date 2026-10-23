@@ -38,7 +38,7 @@ func NewBilling(dependencies BillingDependencies) (organizationtenancy.BillingRe
 	}
 	store := postgres.NewBillingStore(postgres.NewBillingDatabase())
 	billing, err := application.NewBilling(application.BillingDependencies{
-		Transaction: transaction{}, Store: store, Counts: dependencies.Counts,
+		Transaction: postgres.Transaction{}, Store: store, Counts: dependencies.Counts,
 		Clock: ports.BillingClock(now), Location: berlin, Logger: dependencies.Logger,
 	})
 	if err != nil {

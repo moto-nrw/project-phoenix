@@ -117,7 +117,7 @@ var gdpr_init_bewegungsdaten_1Definitions = []config.Definition{
 	{
 		Key:             config.KeyAttendanceLogEnabled,
 		Label:           "Anwesenheitsprotokoll",
-		Description:     "Das Team sieht bei jedem Kind, wann es da war und in welchen Räumen. Aus Datenschutzgründen ist das zunächst ausgeschaltet.",
+		Description:     "Eingeschaltet: Das Team sieht die Anwesenheit und frühere Räume. Ausgeschaltet: Frühere Raumbesuche bleiben nur für den heutigen Tag. Ältere abgeschlossene Raumbesuche werden beim Ausschalten und nachts gelöscht. Der aktuelle Raum bleibt sichtbar.",
 		Type:            config.FieldBoolean,
 		Default:         false,
 		ReadPermission:  "config:read",

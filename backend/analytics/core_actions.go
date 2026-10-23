@@ -215,6 +215,8 @@ var coreActions = map[RouteKey]CoreAction{
 	{http.MethodPost, "/api/me/profile/avatar"}:                                                            notCaptured,
 	{http.MethodDelete, "/api/meal-plan/{date}"}:                                                           notCaptured,
 	{http.MethodPut, "/api/meal-plan/{date}"}:                                                              notCaptured,
+	{http.MethodPut, "/api/meal-plan/participants/{studentId}/{date}"}:                                     notCaptured,
+	{http.MethodDelete, "/api/meal-plan/participants/{studentId}/{date}"}:                                  notCaptured,
 	{http.MethodPost, "/api/messages/mark-all-read"}:                                                       event("parent_messages_marked_all_read"),
 	{http.MethodPut, "/api/messages/count-scope"}:                                                          event("parent_message_count_scope_changed"),
 	{http.MethodPost, "/api/messages/threads"}:                                                             notCaptured,

@@ -8189,17 +8189,6 @@
       "target_role": "postgres"
     },
     {
-      "id": "organization-tenancy.compose.tenant-runtime",
-      "description": "Organization and Tenancy composition binds the shared tenant transaction runtime.",
-      "scopes": [
-        "production"
-      ],
-      "source_owner": "organization-tenancy",
-      "source_role": "compose",
-      "target_owner": "tenant-runtime",
-      "target_role": "public"
-    },
-    {
       "id": "organization-tenancy.internal-test.tenant-runtime",
       "description": "Organization and Tenancy composition tests verify transaction and lock behavior through the shared tenant runtime.",
       "scopes": [

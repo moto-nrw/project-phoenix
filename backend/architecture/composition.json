@@ -27,6 +27,9 @@
     "phoenix serve",
     "phoenix settings",
     "phoenix settings overrides",
+    "phoenix tenant",
+    "phoenix tenant erase",
+    "phoenix tenant receipt",
     "phoenix worker"
   ],
   "constructor_calls": [

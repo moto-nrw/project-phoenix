@@ -77,7 +77,7 @@ type ProvisioningDependencies struct {
 func NewProvisioning(dependencies ProvisioningDependencies, dashboard organizationtenancy.OperatorDashboard) (organizationtenancy.Provisioning, error) {
 	return application.NewProvisioning(application.ProvisioningDependencies{
 		PWAUsageWindowDays: dependencies.PWAUsageWindowDays,
-		Organizations:      dependencies.Organizations, Transaction: transaction{}, Dashboard: dashboard,
+		Organizations:      dependencies.Organizations, Transaction: postgresNative.Transaction{}, Dashboard: dashboard,
 		Identity: dependencies.Identity, Devices: dependencies.Devices, People: dependencies.People,
 		Presence: dependencies.Presence, Categories: dependencies.Categories, Settings: dependencies.Settings,
 		Audit: dependencies.Audit, Secrets: dependencies.Secrets, Logger: dependencies.Logger,

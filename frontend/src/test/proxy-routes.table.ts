@@ -150,6 +150,10 @@ export const PROXY_ROUTES: Record<string, readonly string[]> = {
   "api/me/staff": ["GET tenant /api/me/staff"],
   "api/me/teacher": ["GET tenant /api/me/teacher"],
   "api/meal-plan/participants": ["GET tenant /api/meal-plan/participants"],
+  "api/meal-plan/participants/[studentId]/[date]": [
+    "DELETE tenant /api/meal-plan/participants/studentId%2F1/date%2F1",
+    "PUT tenant /api/meal-plan/participants/studentId%2F1/date%2F1",
+  ],
   "api/meal-plan/participants/week": [
     "GET tenant /api/meal-plan/participants/week",
   ],

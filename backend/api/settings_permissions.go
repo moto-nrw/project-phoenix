@@ -22,9 +22,10 @@ var settingsConfigAccess = map[settingsHTTP.Access]securityruntime.ConfigAccess{
 }
 
 var mealPlanAccess = map[mealplanAPI.Access]securityruntime.MealPlanAccess{
-	mealplanAPI.AccessRead:         securityruntime.MealPlanAccessRead,
-	mealplanAPI.AccessWrite:        securityruntime.MealPlanAccessWrite,
-	mealplanAPI.AccessParticipants: securityruntime.MealPlanAccessParticipants,
+	mealplanAPI.AccessRead:              securityruntime.MealPlanAccessRead,
+	mealplanAPI.AccessWrite:             securityruntime.MealPlanAccessWrite,
+	mealplanAPI.AccessParticipants:      securityruntime.MealPlanAccessParticipants,
+	mealplanAPI.AccessParticipantsWrite: securityruntime.MealPlanAccessParticipantsWrite,
 }
 
 // accessGuard builds the route guard of a Security Runtime access rule.

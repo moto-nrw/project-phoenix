@@ -19,7 +19,7 @@ type VisitStore interface {
 	CloseGroupVisits(context.Context, []int64) (Stats, error)
 	TransferOpenVisits(context.Context, int64, int64) (Stats, error)
 	TransferRecentDeviceVisits(context.Context, int64, int64) (Stats, error)
-	DeleteCompletedVisitsBefore(context.Context, int64, time.Time) (Stats, error)
+	DeleteCompletedVisitsBefore(context.Context, int64, studentpresence.VisitRetentionPolicy, time.Time) (Stats, error)
 	FindVisit(context.Context, int64) (*studentpresence.Visit, Stats, error)
 	ListVisits(context.Context, studentpresence.VisitFilter) ([]*studentpresence.Visit, Stats, error)
 	RecordVisit(context.Context, *studentpresence.Visit) (Stats, error)
