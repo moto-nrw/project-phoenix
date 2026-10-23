@@ -157,7 +157,7 @@ func (s *CareLifecycle) lockPlanning(ctx context.Context, studentIDs []int64, af
 	if err != nil {
 		return fmt.Errorf("care lifecycle: find source applications for care exit lock: %w", err)
 	}
-	if err := s.owners.Enrollment.LockCareExitOfferingLinks(ctx, childIDs, validUntil); err != nil {
+	if err := s.sourceBookings.LockCareOfferingBookings(ctx, childIDs); err != nil {
 		return fmt.Errorf("care lifecycle: lock source bookings for care exit: %w", err)
 	}
 	return s.lockWeeklyPlans(ctx, studentIDs, validUntil)
@@ -359,7 +359,7 @@ func (s *CareLifecycle) endSourceBookingRows(ctx context.Context, studentIDs []i
 	if len(childIDs) == 0 {
 		return 0, nil
 	}
-	ended, err := s.owners.Enrollment.EndCareExitOfferingLinks(ctx, childIDs, nil, validUntil)
+	ended, err := s.sourceBookings.EndCareOfferingBookings(ctx, childIDs, careplan.Date(validUntil))
 	if err != nil {
 		return 0, fmt.Errorf("care lifecycle: end source bookings after care exit: %w", err)
 	}
