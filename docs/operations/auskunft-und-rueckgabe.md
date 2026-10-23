@@ -11,7 +11,7 @@ und [Datenkatalog](../reference/datenkatalog.md).
 lokalen, maschinenlesbaren Export aus dem gemeinsamen Katalog. Er liefert
 JSON Lines, Originaldateien, eine Datenmodellbeschreibung, Ausschlussgründe,
 Zeilenzahlen und SHA-256-Prüfsummen. Die Datenbank wird in einer einzigen
-`REPEATABLE READ READ ONLY`-Transaktion gelesen. Migration 1.15.487 stellt
+`REPEATABLE READ READ ONLY`-Transaktion gelesen. Migration 1.15.489 stellt
 die Rolle `phoenix_tenant_export` bereit: `NOLOGIN`, keine Schreibrechte,
 keine Mitgliedschaft für `phoenix_auth`. Der administrative Leser kann RLS
 umgehen; jede Datenauswahl bleibt deshalb ausdrücklich schulbezogen.
@@ -53,7 +53,7 @@ Sicherungen sind nicht Bestandteil dieses PostgreSQL-/Upload-Exports.
 
 ## 2. Geschützten lokalen Arbeitsstand vorbereiten
 
-1. Freigegebenen Commit und Migration 1.15.487 oder neuer verwenden. Das
+1. Freigegebenen Commit und Migration 1.15.489 oder neuer verwenden. Das
    Verfahren benötigt eine privilegierte Wartungsverbindung, die in die
    reine Leserolle wechseln darf. Keine HTTP-Zugangsdaten nachrüsten und
    die Leserolle nicht an Anwendungsrollen vergeben.

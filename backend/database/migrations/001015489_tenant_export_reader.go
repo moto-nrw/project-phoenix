@@ -9,7 +9,7 @@ import (
 
 func init() {
 	MigrationRegistry.Register(&Migration{
-		Version: "1.15.487", Description: "Read-only administrative role for internal tenant return (#3838, ADR 0092)",
+		Version: "1.15.489", Description: "Read-only administrative role for internal tenant return (#3838, ADR 0092)",
 		DependsOn: []string{"1.15.479"},
 	})
 	Migrations.MustRegister(tenantExportReaderUp, tenantExportReaderDown)

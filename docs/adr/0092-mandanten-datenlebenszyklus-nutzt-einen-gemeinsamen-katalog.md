@@ -78,7 +78,7 @@ Der Architekturwächter akzeptiert ausschließlich diesen benannten
 Owner-/Paket-/Rollenpunkt und dessen kataloggebauten `exportTable`-Lesecall.
 Andere dynamische SQL-Aufrufe und owner-fremde Schreibzugriffe bleiben verboten.
 
-Migration 1.15.487 führt `phoenix_tenant_export` ein: `NOLOGIN`, `BYPASSRLS`,
+Migration 1.15.489 führt `phoenix_tenant_export` ein: `NOLOGIN`, `BYPASSRLS`,
 Leserechte über PostgreSQLs `pg_read_all_data`, keine Schreibrechte und keine
 Zuweisung an die HTTP-Rolle. Das Wartungs-CLI wechselt lokal in diese Rolle
 und prüft `REPEATABLE READ READ ONLY`. RLS-Bypass und Leserechte sind nicht
