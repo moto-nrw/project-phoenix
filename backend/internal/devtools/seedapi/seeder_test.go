@@ -1013,9 +1013,6 @@ func fullSeedAPIMock(t *testing.T, traces ...*fullSeedAPITrace) *seedHTTPTestSer
 	// Ids of the parent pickup changes the seeder files, served back as the
 	// open care queue so the decided demo request (#3135) finds its tokens.
 	var pickupRequestIDs []int64
-	// Open staff invitations of the external caregiver quick create (#4573),
-	// by invitation id, so the seeder can withdraw one by its address.
-	externalInvitations := make(map[int64]string)
 	var trace *fullSeedAPITrace
 	if len(traces) > 0 {
 		trace = traces[0]
@@ -1048,7 +1045,7 @@ func fullSeedAPIMock(t *testing.T, traces ...*fullSeedAPITrace) *seedHTTPTestSer
 			})
 			return
 		}
-		if serveExternalCaregiverSeedAPI(t, w, r, &idCounter, externalInvitations) {
+		if serveExternalCaregiverSeedAPI(t, w, r, &idCounter) {
 			return
 		}
 		if r.Method == seedHTTPMethodGet && strings.HasPrefix(r.URL.Path, "/operator/staff-person-merges/") {
@@ -1736,39 +1733,27 @@ func fullSeedAPIMock(t *testing.T, traces ...*fullSeedAPITrace) *seedHTTPTestSer
 }
 
 // serveExternalCaregiverSeedAPI answers the external caregiver quick create
-// with a seed invitation token and the invitation list and revoke routes.
-func serveExternalCaregiverSeedAPI(t *testing.T, w seedHTTPResponseWriter, r *seedHTTPRequest, idCounter *int64, open map[int64]string) bool {
-	switch {
-	case r.Method == seedHTTPMethodPost && r.URL.Path == "/api/staff/externals":
-		var body map[string]string
-		require.NoError(t, json.NewDecoder(r.Body).Decode(&body))
-		require.NotEmpty(t, body["email"])
-		*idCounter++
-		open[*idCounter] = body["email"]
-		w.Header().Set("Content-Type", "application/json")
-		_ = json.NewEncoder(w).Encode(map[string]any{"status": "success", "data": map[string]any{
-			"id": fmt.Sprintf("%d", *idCounter), "is_external": true, "invitation_token": fmt.Sprintf("external-token-%d", *idCounter),
-		}})
-		return true
-	case r.Method == seedHTTPMethodGet && r.URL.Path == "/auth/invitations":
-		data := make([]map[string]any, 0, len(open))
-		for id, email := range open {
-			data = append(data, map[string]any{"id": id, "email": email})
-		}
-		w.Header().Set("Content-Type", "application/json")
-		_ = json.NewEncoder(w).Encode(map[string]any{"status": "success", "data": data})
-		return true
-	case r.Method == seedHTTPMethodDelete && strings.HasPrefix(r.URL.Path, "/auth/invitations/"):
-		var id int64
-		_, err := fmt.Sscanf(strings.TrimPrefix(r.URL.Path, "/auth/invitations/"), "%d", &id)
-		require.NoError(t, err)
-		require.Contains(t, open, id)
-		delete(open, id)
-		w.Header().Set("Content-Type", "application/json")
-		_ = json.NewEncoder(w).Encode(map[string]any{"status": "success", "data": nil})
-		return true
+// (#4573, ADR 0083): an access level is required, an address with every
+// access but none, and an invited external gets a seed invitation token.
+func serveExternalCaregiverSeedAPI(t *testing.T, w seedHTTPResponseWriter, r *seedHTTPRequest, idCounter *int64) bool {
+	if r.Method != seedHTTPMethodPost || r.URL.Path != "/api/staff/externals" {
+		return false
 	}
-	return false
+	var body map[string]string
+	require.NoError(t, json.NewDecoder(r.Body).Decode(&body))
+	require.Contains(t, []string{"none", "view", "supervise"}, body["access"])
+	data := map[string]any{"is_external": true}
+	*idCounter++
+	data["id"] = fmt.Sprintf("%d", *idCounter)
+	if body["access"] == "none" {
+		require.NotContains(t, body, "email")
+	} else {
+		require.NotEmpty(t, body["email"])
+		data["invitation_token"] = fmt.Sprintf("external-token-%d", *idCounter)
+	}
+	w.Header().Set("Content-Type", "application/json")
+	_ = json.NewEncoder(w).Encode(map[string]any{"status": "success", "data": data})
+	return true
 }
 
 func TestTruncateSeedSubdomain(t *testing.T) {

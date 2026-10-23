@@ -8,7 +8,7 @@ import (
 )
 
 // seedExternalAGLeader leads the seeded AG: an external caregiver with an
-// account in the school role „Extern“.
+// account in the system role „AG-Leitung“.
 const seedExternalAGLeader = "Jonas Becker"
 
 // seedExternalAGStep plans a weekly AG as a Regeltermin with an external

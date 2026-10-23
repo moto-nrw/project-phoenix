@@ -22,8 +22,7 @@ type externalCaregiverSeedServer struct {
 	created    []map[string]string
 	seedHeader []string
 	accepted   map[string]string // token -> password
-	revoked    []string
-	open       map[int64]string // invitation id -> email
+	open       map[int64]string  // invitation id -> email
 }
 
 func (s *externalCaregiverSeedServer) handle(w seedHTTPResponseWriter, r *seedHTTPRequest) {
@@ -47,6 +46,10 @@ func (s *externalCaregiverSeedServer) handle(w seedHTTPResponseWriter, r *seedHT
 		s.created = append(s.created, body)
 		s.seedHeader = append(s.seedHeader, r.Header.Get(seedTokenHeader))
 		id := int64(100 + len(s.created) - 1)
+		if body["access"] == "none" {
+			_, _ = fmt.Fprintf(w, `{"status":"success","data":{"id":"%d","is_external":true}}`, id)
+			return
+		}
 		s.open[id] = body["email"]
 		_, _ = fmt.Fprintf(w, `{"status":"success","data":{"id":"%d","is_external":true,"invitation_token":"token-%d"}}`, id, id)
 	case r.Method == http.MethodPost && strings.HasPrefix(r.URL.Path, "/auth/invitations/token-"):
@@ -60,19 +63,6 @@ func (s *externalCaregiverSeedServer) handle(w seedHTTPResponseWriter, r *seedHT
 		require.NoError(t, err)
 		delete(s.open, id) // acceptance consumes the invitation
 		_, _ = fmt.Fprint(w, `{"status":"success","data":{}}`)
-	case r.Method == http.MethodGet && r.URL.Path == "/auth/invitations":
-		data := make([]map[string]any, 0, len(s.open))
-		for id, email := range s.open {
-			data = append(data, map[string]any{"id": id, "email": email})
-		}
-		require.NoError(t, json.NewEncoder(w).Encode(map[string]any{"data": data}))
-	case r.Method == http.MethodDelete && strings.HasPrefix(r.URL.Path, "/auth/invitations/"):
-		var id int64
-		_, err := fmt.Sscanf(strings.TrimPrefix(r.URL.Path, "/auth/invitations/"), "%d", &id)
-		require.NoError(t, err)
-		s.revoked = append(s.revoked, s.open[id])
-		delete(s.open, id)
-		_, _ = fmt.Fprint(w, `{"status":"success","data":null}`)
 	default:
 		t.Fatalf("unexpected request: %s %s", r.Method, r.URL.Path)
 	}
@@ -91,17 +81,21 @@ func TestSeedExternalCaregiversStepInvitesExternalsWithAndWithoutAccount(t *test
 	require.NoError(t, step.Run(t.Context(), rt))
 
 	emails := make([]string, 0, len(fake.created))
+	access := make([]string, 0, len(fake.created))
 	for _, body := range fake.created {
 		emails = append(emails, body["email"])
+		access = append(access, body["access"])
 	}
 	assert.Equal(t, []string{
 		"jonas.becker@example.test", "leonie.wagner@example.test",
-		"selin.aydin@example.test", "dennis.kaya@example.test",
-	}, emails, "every external gets an ASCII address; a second run creates nobody again")
+		"selin.aydin@example.test", "",
+	}, emails, "every invited external gets an ASCII address, the placeholder none; a second run creates nobody again")
+	assert.Equal(t, []string{"supervise", "supervise", "view", "none"}, access,
+		"Jonas Becker and Leonie Wagner lead AGs, Selin Aydın only views, Dennis Kaya is a placeholder")
+	assert.NotContains(t, fake.created[3], "email")
 	assert.Equal(t, []string{"true", "true", "true", "true"}, fake.seedHeader)
 	assert.Equal(t, map[string]string{"token-100": seedStaffPasswordPlaceholder, "token-101": seedStaffPasswordPlaceholder}, fake.accepted,
 		"Jonas Becker and Leonie Wagner accept with the shared staff password")
-	assert.Equal(t, []string{"dennis.kaya@example.test"}, fake.revoked, "Dennis Kaya ends without account and invitation")
 	assert.Equal(t, map[int64]string{102: "selin.aydin@example.test"}, fake.open, "Selin Aydın keeps her invitation open")
 
 	ids := seededExternalCaregiverIDs(rt)

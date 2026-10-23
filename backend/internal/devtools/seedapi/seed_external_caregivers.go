@@ -15,36 +15,50 @@ const defaultSeedExternalPassword = "Extern1234%"
 // caregivers in Runtime.Values, by "first last" name, for later steps.
 const seedExternalCaregiverIDsKey = "seed.external_caregiver_ids"
 
-// seedExternalInvitation is what happens to the invitation the quick create
-// sends: the Personal list shows all three outcomes (#4573).
-type seedExternalInvitation int
+// seedExternalOutcome is the access a seeded external gets and what happens
+// to the invitation the quick create sends: the Personal list shows every
+// account state and access level (#4573, ADR 0083).
+type seedExternalOutcome int
 
 const (
-	externalInvitationAccepted seedExternalInvitation = iota // „Konto“
-	externalInvitationOpen                                   // „Einladung offen“
-	externalInvitationRevoked                                // „Kein Konto“, the state of the accountless externals of #3823
+	externalSupervisorAccepted seedExternalOutcome = iota // AG-Leitung, „Konto“
+	externalViewerInvited                                 // Gast, „Einladung offen“
+	externalPlaceholder                                   // kein Zugang, „Kein Konto“
 )
+
+// access is the access level the quick create sends.
+func (o seedExternalOutcome) access() string {
+	switch o {
+	case externalSupervisorAccepted:
+		return "supervise"
+	case externalViewerInvited:
+		return "view"
+	default:
+		return "none"
+	}
+}
 
 type seedExternalCaregiver struct {
 	FirstName    string
 	LastName     string
 	Organization string
-	Invitation   seedExternalInvitation
+	Outcome      seedExternalOutcome
 }
 
 func (e seedExternalCaregiver) name() string { return e.FirstName + " " + e.LastName }
 
 var seedExternalCaregivers = []seedExternalCaregiver{
-	{FirstName: "Jonas", LastName: "Becker", Organization: "Musikschule Bergstadt", Invitation: externalInvitationAccepted},
-	{FirstName: "Leonie", LastName: "Wagner", Organization: "TuS Sportverein", Invitation: externalInvitationAccepted},
-	{FirstName: "Selin", LastName: "Aydın", Invitation: externalInvitationOpen},
-	{FirstName: "Dennis", LastName: "Kaya", Organization: "Förderverein", Invitation: externalInvitationRevoked},
+	{FirstName: "Jonas", LastName: "Becker", Organization: "Musikschule Bergstadt", Outcome: externalSupervisorAccepted},
+	{FirstName: "Leonie", LastName: "Wagner", Organization: "TuS Sportverein", Outcome: externalSupervisorAccepted},
+	{FirstName: "Selin", LastName: "Aydın", Outcome: externalViewerInvited},
+	{FirstName: "Dennis", LastName: "Kaya", Organization: "Förderverein", Outcome: externalPlaceholder},
 }
 
-// seedExternalCaregiversStep records external AG leaders through the quick
-// create with invitation (#4573): two accept and sign in with the school
-// role „Extern“, one invitation stays open, and one is withdrawn, so the
-// Personal list and the pickers show every account state on every dev
+// seedExternalCaregiversStep records external caregivers through the quick
+// create (#4573, ADR 0083): two get the access supervise and sign in with
+// the system role „AG-Leitung“, one is invited with the access view („Gast“)
+// and keeps the invitation open, and one is a placeholder without access, so
+// the Personal list and the pickers show every account state on every dev
 // machine.
 type seedExternalCaregiversStep struct{}
 
@@ -85,8 +99,10 @@ func seededExternalCaregiverIDs(rt *Runtime) map[string]int64 {
 }
 
 func createSeedExternalCaregiver(rt *Runtime, external seedExternalCaregiver) (int64, error) {
-	email := seedExternalEmail(rt, external)
-	body := map[string]string{"first_name": external.FirstName, "last_name": external.LastName, "email": email}
+	body := map[string]string{"first_name": external.FirstName, "last_name": external.LastName, "access": external.Outcome.access()}
+	if external.Outcome != externalPlaceholder {
+		body["email"] = seedExternalEmail(rt, external)
+	}
 	if external.Organization != "" {
 		body["organization"] = external.Organization
 	}
@@ -107,22 +123,17 @@ func createSeedExternalCaregiver(rt *Runtime, external seedExternalCaregiver) (i
 	if err != nil || id == 0 {
 		return 0, fmt.Errorf("external caregiver response has no id")
 	}
-	switch external.Invitation {
-	case externalInvitationAccepted:
-		if resp.Data.InvitationToken == "" {
-			return 0, fmt.Errorf("external caregiver response did not include the seed invitation token")
-		}
-		password := seedExternalPassword(rt)
-		if _, err := rt.Client.PostPublic(fmt.Sprintf("/auth/invitations/%s/accept", resp.Data.InvitationToken), map[string]any{
-			"password": password, "confirm_password": password,
-		}); err != nil {
-			return 0, fmt.Errorf("accept invitation: %w", err)
-		}
-	case externalInvitationRevoked:
-		if err := revokeSeedInvitation(rt, email); err != nil {
-			return 0, err
-		}
-	case externalInvitationOpen:
+	if external.Outcome != externalSupervisorAccepted {
+		return id, nil
+	}
+	if resp.Data.InvitationToken == "" {
+		return 0, fmt.Errorf("external caregiver response did not include the seed invitation token")
+	}
+	password := seedExternalPassword(rt)
+	if _, err := rt.Client.PostPublic(fmt.Sprintf("/auth/invitations/%s/accept", resp.Data.InvitationToken), map[string]any{
+		"password": password, "confirm_password": password,
+	}); err != nil {
+		return 0, fmt.Errorf("accept invitation: %w", err)
 	}
 	return id, nil
 }
@@ -142,33 +153,6 @@ func seedExternalPassword(rt *Runtime) string {
 		return rt.FixedSeeder.staffPassword
 	}
 	return defaultSeedExternalPassword
-}
-
-// revokeSeedInvitation withdraws the open school invitation sent to email,
-// as the Leitung does under „Offene Einladungen“.
-func revokeSeedInvitation(rt *Runtime, email string) error {
-	raw, err := rt.Client.Get("/auth/invitations")
-	if err != nil {
-		return fmt.Errorf("list open invitations: %w", err)
-	}
-	var resp struct {
-		Data []struct {
-			ID    int64  `json:"id"`
-			Email string `json:"email"`
-		} `json:"data"`
-	}
-	if err := json.Unmarshal(raw, &resp); err != nil {
-		return fmt.Errorf("decode open invitations: %w", err)
-	}
-	for _, invitation := range resp.Data {
-		if strings.EqualFold(invitation.Email, email) {
-			if _, err := rt.Client.Delete(fmt.Sprintf("/auth/invitations/%d", invitation.ID)); err != nil {
-				return fmt.Errorf("revoke invitation: %w", err)
-			}
-			return nil
-		}
-	}
-	return fmt.Errorf("no open invitation for the seeded address")
 }
 
 // seededExternalCaregivers reads the directory once before creating the demo
