@@ -32,6 +32,7 @@ type completeMFAExchangeStub struct {
 	refresh string
 	err     error
 
+	issueCalls   int
 	gotAccountID int64
 	gotTenantID  int64
 	gotIP        string
@@ -45,6 +46,7 @@ func (s *completeMFAExchangeStub) IssueTokensForAuthenticatedAccount(
 	accountID, tenantID int64,
 	ipAddress, userAgent string,
 ) (string, string, error) {
+	s.issueCalls++
 	s.gotAccountID = accountID
 	s.gotTenantID = tenantID
 	s.gotIP = ipAddress
@@ -71,6 +73,15 @@ type trustedDeviceMFAStub struct {
 
 func (s *trustedDeviceMFAStub) VerifyMFAChallenge(_ context.Context, _, _ string) (identityaccess.VerifiedMFAChallenge, error) {
 	return s.verifyResult, s.verifyErr
+}
+
+func (s *trustedDeviceMFAStub) PrepareTrustedDevice(_ context.Context, accountID, tenantID int64, userAgent string, ip net.IP) (identityaccess.TrustedDeviceIssue, error) {
+	if errors.Is(s.issueErr, identityaccess.ErrMFAStatusUnavailable) {
+		return nil, s.issueErr
+	}
+	return func(ctx context.Context) (string, time.Time, error) {
+		return s.IssueTrustedDevice(ctx, accountID, tenantID, userAgent, ip)
+	}, nil
 }
 
 func (s *trustedDeviceMFAStub) IssueTrustedDevice(_ context.Context, accountID, tenantID int64, userAgent string, ip net.IP) (string, time.Time, error) {
@@ -328,9 +339,26 @@ func TestMFAVerify_RememberDeviceSettingsFailureRefusesLogin(t *testing.T) {
 	rr := httptest.NewRecorder()
 	rs.mfaVerify(rr, verifyRequest(t, MFAVerifyRequest{ChallengeToken: "challenge.tok", Code: "123456", RememberDevice: true}))
 	require.Equal(t, http.StatusServiceUnavailable, rr.Code, rr.Body.String())
+	assert.Zero(t, auth.issueCalls, "a rejected exchange must not create a session or enforce the session cap")
 	assert.Contains(t, rr.Body.String(), `"code":"general.unavailable"`)
 	assert.NotContains(t, rr.Body.String(), "private settings details")
 	assert.NotContains(t, rr.Body.String(), "private-access-token")
 	assert.NotContains(t, rr.Body.String(), "private-refresh-token")
 	assert.Empty(t, rr.Result().Cookies())
+}
+
+func TestMFAVerify_SessionFailureDoesNotExposeTrustedCookie(t *testing.T) {
+	t.Parallel()
+	auth := &completeMFAExchangeStub{err: errors.New("session store unavailable")}
+	mfa := &trustedDeviceMFAStub{
+		verifyResult: identityaccess.VerifiedMFAChallenge{AccountID: 4242, TenantID: 70010001},
+		issueCookie:  "private-trusted-cookie", issueExpiresAt: time.Now().Add(24 * time.Hour),
+	}
+	rs := &Resource{ConstraintViolation: transactionFailures.IsConstraintViolation, Sessions: auth, MFAService: mfa}
+	rr := httptest.NewRecorder()
+	rs.mfaVerify(rr, verifyRequest(t, MFAVerifyRequest{ChallengeToken: "challenge.tok", Code: "123456", RememberDevice: true}))
+	require.Equal(t, http.StatusInternalServerError, rr.Code, rr.Body.String())
+	assert.Empty(t, rr.Result().Cookies())
+	assert.NotContains(t, rr.Body.String(), "private-trusted-cookie")
+	assert.Zero(t, mfa.gotIssueAccountID, "failed sessions must not persist a device or send its notification")
 }

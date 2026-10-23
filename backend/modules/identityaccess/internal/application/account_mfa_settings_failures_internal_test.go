@@ -69,10 +69,57 @@ func TestAccountMFARejectsUnreadableSecuritySettings(t *testing.T) {
 			require.NoError(t, err)
 			codec.parse["challenge"] = domain.MFAChallengeClaims{AccountID: 1, TenantID: 10, Scope: domain.MFAChallengeScopeTenant, ChallengeID: challengeRow.ID}
 			challenge := "challenge"
-			verified, err := flows.VerifyChallenge(context.Background(), challenge, "wrong-code")
-			require.ErrorIs(t, err, identityaccess.ErrMFAStatusUnavailable)
+			for range 6 {
+				verified, err := flows.VerifyChallenge(context.Background(), challenge, "wrong-code")
+				require.ErrorIs(t, err, identityaccess.ErrMFAStatusUnavailable)
+				assert.Zero(t, verified.AccountID)
+				require.ErrorIs(t, flows.VerifyCodeForAccount(context.Background(), 1, 10, "wrong-code", domain.MFAChallengeScopeTenant), identityaccess.ErrMFAStatusUnavailable)
+			}
+			// A correct guess must not bypass the unavailable lockout policy.
+			verified, err := flows.VerifyChallenge(context.Background(), challenge, "123456")
+			assert.ErrorIs(t, err, identityaccess.ErrMFAStatusUnavailable)
 			assert.Zero(t, verified.AccountID)
-			require.ErrorIs(t, flows.VerifyCodeForAccount(context.Background(), 1, 10, "wrong-code", domain.MFAChallengeScopeTenant), identityaccess.ErrMFAStatusUnavailable)
+			assert.ErrorIs(t, flows.VerifyCodeForAccount(context.Background(), 1, 10, "123456", domain.MFAChallengeScopeTenant), identityaccess.ErrMFAStatusUnavailable)
+			assert.Nil(t, records.challenges[0].ConsumedAt)
+			// Once settings recover, the same unconsumed challenge still works.
+			flows.settings = optionalMFASettings{}
+			verified, err = flows.VerifyChallenge(context.Background(), challenge, "123456")
+			require.NoError(t, err)
+			assert.Equal(t, int64(1), verified.AccountID)
 		})
 	}
+}
+
+func TestAccountMFAPrepareTrustedDeviceDefersWritesAndFreezesPolicy(t *testing.T) {
+	t.Parallel()
+	records := &securitySettingsRecords{memoryMFARecords: newMemoryMFARecords(domain.AccountIdentity{ID: 1, Email: "mfa@example.test", Active: true})}
+	mail, audit, runtime := &fakeMFAMail{}, &fakeMFAAudit{}, &fakeRuntime{}
+	flows, err := NewAccountMFAFlows(AccountMFAFlowDependencies{
+		Records: records, Settings: optionalMFASettings{}, Codec: &fakeMFAChallengeCodec{}, Codes: fakeShortCodes{},
+		Mail: mail, Audit: audit, Runtime: runtime, Secret: []byte("test-only-secret"),
+	})
+	require.NoError(t, err)
+	now := time.Now()
+	flows.now = func() time.Time { return now }
+	capability := ComposedAccountMFA{Flows: flows}
+	issue, err := capability.PrepareTrustedDevice(context.Background(), 1, 10, "ua", nil)
+	require.NoError(t, err)
+	require.NotNil(t, issue)
+	assert.Empty(t, records.trusted)
+	assert.Empty(t, mail.devices)
+	assert.Empty(t, audit.events)
+	assert.Zero(t, runtime.adminTxCount)
+
+	// A later settings outage must not reject an already-issued session.
+	flows.settings = failingSecuritySettings{key: "days"}
+	cookie, expiresAt, err := issue(context.Background())
+	require.NoError(t, err)
+	assert.NotEmpty(t, cookie)
+	assert.Equal(t, now.Add(30*24*time.Hour), expiresAt)
+	require.Len(t, records.trusted, 1)
+	assert.Equal(t, int64(10), records.trusted[0].TenantID)
+	require.Len(t, mail.devices, 1)
+	assert.Equal(t, 30, mail.devices[0].TrustedDays)
+	require.Len(t, audit.events, 1)
+	assert.Equal(t, domain.AuthEventMFATrustedDeviceAdded, audit.events[0].Type)
 }

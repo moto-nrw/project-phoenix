@@ -173,8 +173,15 @@ type AccountMFAEnrollment interface {
 	DisableMFA(ctx context.Context, accountID int64) error
 }
 
+// TrustedDeviceIssue persists a device using the policy resolved at preparation.
+// Call it only after session issuance succeeds.
+type TrustedDeviceIssue = func(context.Context) (cookieValue string, expiresAt time.Time, err error)
+
 // AccountTrustedDevices is the remember-device cookie.
 type AccountTrustedDevices interface {
+	// PrepareTrustedDevice resolves policy without writes. A nil operation
+	// means the feature is disabled. The operation does not re-read settings.
+	PrepareTrustedDevice(ctx context.Context, accountID, tenantID int64, userAgent string, ip net.IP) (TrustedDeviceIssue, error)
 	// IssueTrustedDevice answers an empty cookie value without persisting a
 	// row when the school turned the feature off; the caller then writes no
 	// Set-Cookie header.

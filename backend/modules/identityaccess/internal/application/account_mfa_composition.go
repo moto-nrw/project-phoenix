@@ -129,6 +129,10 @@ func (unavailableAccountMFA) DisableMFA(context.Context, int64) error {
 	return errAccountMFAUnavailable
 }
 
+func (unavailableAccountMFA) PrepareTrustedDevice(context.Context, int64, int64, string, net.IP) (identityaccess.TrustedDeviceIssue, error) {
+	return nil, errAccountMFAUnavailable
+}
+
 func (unavailableAccountMFA) IssueTrustedDevice(context.Context, int64, int64, string, net.IP) (string, time.Time, error) {
 	return "", time.Time{}, errAccountMFAUnavailable
 }
