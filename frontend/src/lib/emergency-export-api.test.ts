@@ -68,8 +68,9 @@ describe("exportEmergencySnapshot", () => {
       return new Response(new Blob(["pdf"]));
     });
 
-    await exportEmergencySnapshot("print");
+    const printing = exportEmergencySnapshot("print");
     await vi.runAllTimersAsync();
+    await printing;
 
     // Popup blockers refuse a tab opened after an await, so the order matters.
     expect(calls).toEqual(["open", "fetch"]);

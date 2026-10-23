@@ -45,6 +45,8 @@ func renderWorkTimeModelsFailure(w http.ResponseWriter, r *http.Request, kind wo
 		apiCommon.RenderError(w, r, apiCommon.ErrorInvalidRequest(err))
 	case worktimemodelsHTTP.FailureNotFound:
 		apiCommon.RenderError(w, r, apiCommon.ErrorNotFound(err))
+	case worktimemodelsHTTP.FailureConflict:
+		apiCommon.RenderError(w, r, apiCommon.ErrorConflict(err))
 	default:
 		apiCommon.RenderError(w, r, apiCommon.ErrorInternalServer(err))
 	}

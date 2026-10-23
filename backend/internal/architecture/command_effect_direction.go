@@ -7,9 +7,19 @@ import (
 
 // Runtime direction is independent of effect: a read-only callback into a
 // workflow is not an ordinary domain dependency either (ADR 0071 point 2).
-func validateEffectDirection(entry commandEffectEntry, ownerKinds map[string]string) error {
+func validateEffectDirection(entry commandEffectEntry, ownerKinds map[string]string, classified map[string]Package) error {
 	if ownerKinds[entry.sourceOwner()] != "domain" || ownerKinds[entry.TargetOwner] != "workflow" {
 		return nil
+	}
+	// The interface's policy role, not its owner's kind or the root binding's
+	// location, distinguishes a transport entry from a domain callback.
+	if methodSeparator := strings.LastIndex(entry.Port, "."); methodSeparator >= 0 {
+		portType := entry.Port[:methodSeparator]
+		if separator := strings.LastIndex(portType, "."); separator >= 0 {
+			if source := classified[portType[:separator]]; source.Owner == entry.sourceOwner() && source.Role == "http" {
+				return nil
+			}
+		}
 	}
 	switch entry.Classification {
 	case "debt", "E1", "E2", "E3", "E4", "E5":

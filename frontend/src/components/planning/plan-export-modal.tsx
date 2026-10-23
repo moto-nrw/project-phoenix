@@ -1,36 +1,24 @@
 "use client";
 
-import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
-import { Download, FileSpreadsheet, Printer } from "lucide-react";
+import { useEffect, useMemo, useState } from "react";
 
 import { ISODatePicker } from "~/components/ui/date-picker";
-import { Button } from "~/components/ui/button";
-import { FormErrorAlert } from "~/components/ui/form-error-alert";
+import { ExportDialog } from "~/components/ui/export-dialog";
 import { Radio } from "~/components/ui/radio";
 import { SegmentedControl } from "~/components/ui/segmented-control";
-import {
-  SlideOver,
-  SlideOverCloseButton,
-  SlideOverContent,
-  SlideOverFooter,
-  SlideOverHeader,
-  SlideOverTitle,
-} from "~/components/ui/slide-over";
-import { useApiFormError, useToast } from "~/contexts/ToastContext";
+import { useExportRun } from "~/hooks/use-export-run";
 import { formatDate, parseISODate, toISODate } from "~/lib/date-helpers";
-import { createLogger } from "~/lib/logger";
 import {
   exportPlan,
   PLAN_EXPORT_TEMPLATES,
   PLAN_EXPORT_VARIANTS,
   type PlanExportFormat,
-  type PlanExportMode,
   type PlanExportPlan,
   type PlanExportTemplate,
   type PlanExportVariant,
 } from "~/lib/plan-export-api";
 
-const logger = createLogger({ component: "PlanExportModal" });
+const PLAN_EXPORT_FORMATS: readonly PlanExportFormat[] = ["pdf", "xlsx"];
 
 // The backend widens any range to whole Monday-Friday weeks and caps it at
 // eight; the dialog states the same limit rather than letting the user
@@ -56,12 +44,6 @@ interface PlanExportModalProps {
 
 type RangeMode = "week" | "range";
 
-type RunExport = (
-  key: string,
-  format: PlanExportFormat,
-  mode: PlanExportMode,
-) => void;
-
 /**
  * Export dialog for the two weekly plans (#2079).
  *
@@ -77,7 +59,6 @@ export function PlanExportModal({
   canExportInternal,
   onClose,
 }: PlanExportModalProps) {
-  const toast = useToast();
   const templates = PLAN_EXPORT_TEMPLATES[plan];
   const variants = canExportInternal
     ? PLAN_EXPORT_VARIANTS
@@ -89,14 +70,6 @@ export function PlanExportModal({
   const [rangeMode, setRangeMode] = useState<RangeMode>("week");
   const [from, setFrom] = useState(weekDay);
   const [to, setTo] = useState(weekDay);
-  const [busy, setBusy] = useState<string | null>(null);
-  // Fehler bleiben im offenen Panel; ein Toast läge darunter.
-  const formRef = useRef<HTMLDivElement>(null);
-  const formErrors = useApiFormError(formRef);
-  const clearErrors = formErrors.clear;
-  // „Wiederholen“ startet den Export mit der dann gewählten Vorlage und Zeit.
-  const latestRunRef = useRef<RunExport>(() => undefined);
-
   // Reopening the dialog on a different week must not export the week the
   // user looked at last time.
   useEffect(() => {
@@ -106,8 +79,7 @@ export function PlanExportModal({
     setRangeMode("week");
     setFrom(weekDay);
     setTo(weekDay);
-    clearErrors();
-  }, [isOpen, defaultTemplate, weekDay, clearErrors]);
+  }, [isOpen, defaultTemplate, weekDay]);
 
   const range = useMemo(
     () =>
@@ -129,235 +101,134 @@ export function PlanExportModal({
   // Wahl zwischen Aushang und interner Fassung ändert daran nichts.
   const showsVariant = template !== "hours";
 
-  const run = async (
-    key: string,
-    format: PlanExportFormat,
-    mode: PlanExportMode,
-  ) => {
-    if (rangeError) {
-      formErrors.invalid(rangeError);
-      return;
-    }
-    // The print tab has to open while the click's user activation is still
-    // valid: after the fetch, popup blockers refuse.
-    let printTarget: Window | null = null;
-    if (mode === "print") {
-      printTarget = globalThis.open("", "_blank");
-      if (!printTarget) {
-        // Der Browser hat das neue Fenster blockiert. Das ist kein Fehler
-        // des Servers, deshalb ein eigener Hinweis statt des Katalogs.
-        formErrors.invalid(
-          "Das Druckfenster ging nicht auf. Bitte erlauben Sie neue Fenster für moto.",
-        );
-        return;
-      }
-    }
-
-    setBusy(key);
-    formErrors.clear();
-    try {
-      await exportPlan(
-        plan,
-        {
-          from: range.from,
-          to: range.to,
-          template,
-          variant: showsVariant ? variant : "aushang",
-        },
-        format,
-        mode,
-        printTarget,
-      );
-      if (mode === "download") toast.success("Der Plan wurde erstellt.");
-      onClose();
-    } catch (error) {
-      logger.error("plan_export_failed", {
-        plan,
-        format,
-        error: error instanceof Error ? error.message : String(error),
-      });
-      await formErrors.show(error, {
-        object:
-          mode === "print"
-            ? "die Druckfassung des Plans"
-            : "die Datei des Plans",
-        // Der Klick auf „Wiederholen“ ist wieder eine Nutzeraktion: das
-        // Druckfenster darf dort erneut aufgehen.
-        retry: () => latestRunRef.current(key, format, mode),
-      });
-    } finally {
-      setBusy(null);
-    }
-  };
-  useLayoutEffect(() => {
-    latestRunRef.current = (key, format, mode) => void run(key, format, mode);
+  const request = () => ({
+    from: range.from,
+    to: range.to,
+    template,
+    variant: showsVariant ? variant : "aushang",
   });
 
-  if (!isOpen) return null;
-
-  const footer = (
-    <>
-      <Button
-        type="button"
-        variant="outline"
-        size="md"
-        onClick={() => void run("print", "pdf", "print")}
-        disabled={busy !== null || rangeError !== null}
-      >
-        <Printer className="h-4 w-4" aria-hidden />
-        {busy === "print" ? "Wird geöffnet..." : "Drucken"}
-      </Button>
-      <Button
-        type="button"
-        variant="outline"
-        size="md"
-        onClick={() => void run("xlsx", "xlsx", "download")}
-        disabled={busy !== null || rangeError !== null}
-      >
-        <FileSpreadsheet className="h-4 w-4" aria-hidden />
-        {busy === "xlsx" ? "Erstellt..." : "XLSX"}
-      </Button>
-      <Button
-        type="button"
-        variant="primary"
-        size="md"
-        onClick={() => void run("pdf", "pdf", "download")}
-        disabled={busy !== null || rangeError !== null}
-      >
-        <Download className="h-4 w-4" aria-hidden />
-        {busy === "pdf" ? "Erstellt..." : "PDF"}
-      </Button>
-    </>
-  );
+  const run = useExportRun({
+    isOpen,
+    onDownload: (format: PlanExportFormat) =>
+      exportPlan(plan, request(), format, "download", null),
+    onPrint: (target) => exportPlan(plan, request(), "pdf", "print", target),
+    validate: () => rangeError,
+    errorObject: (kind) =>
+      kind === "print" ? "die Druckfassung des Plans" : "die Datei des Plans",
+    successMessage: "Der Plan wurde erstellt.",
+    onDone: onClose,
+    logName: plan,
+  });
 
   return (
-    <SlideOver
-      open={isOpen}
-      onOpenChange={(open) => {
-        // Wie zuvor beim zentrierten Dialog: solange ein Export läuft,
-        // bleibt das Panel stehen.
-        if (!open && busy === null) onClose();
-      }}
+    <ExportDialog
+      isOpen={isOpen}
+      onClose={onClose}
+      title={
+        plan === "dienstplan"
+          ? "Dienstplan drucken oder exportieren"
+          : "Betreuungsplan drucken oder exportieren"
+      }
+      formats={PLAN_EXPORT_FORMATS}
+      run={run}
+      blocked={rangeError !== null}
     >
-      <SlideOverContent widthClass="sm:w-[560px]">
-        <SlideOverHeader className="flex-row items-start justify-between gap-3">
-          <div className="min-w-0">
-            <SlideOverTitle>
-              {plan === "dienstplan"
-                ? "Dienstplan drucken oder exportieren"
-                : "Betreuungsplan drucken oder exportieren"}
-            </SlideOverTitle>
+      {templates.length > 1 && (
+        <section>
+          <p className="text-sm font-medium text-gray-900">Vorlage</p>
+          <div className="mt-2 grid gap-2 sm:grid-cols-2">
+            {templates.map((item) => (
+              <RadioOption
+                key={item.id}
+                id={`plan-export-template-${item.id}`}
+                name="plan-export-template"
+                selected={template === item.id}
+                label={item.label}
+                description={item.description}
+                onClick={() => setTemplate(item.id)}
+              />
+            ))}
           </div>
-          <SlideOverCloseButton
-            aria-label="Export schließen"
-            disabled={busy !== null}
-          />
-        </SlideOverHeader>
-        <div
-          ref={formRef}
-          className="flex-1 space-y-5 overflow-y-auto px-5 py-4"
-        >
-          <FormErrorAlert message={formErrors.error} />
-          {templates.length > 1 && (
-            <section>
-              <p className="text-sm font-medium text-gray-900">Vorlage</p>
-              <div className="mt-2 grid gap-2 sm:grid-cols-2">
-                {templates.map((item) => (
-                  <RadioOption
-                    key={item.id}
-                    id={`plan-export-template-${item.id}`}
-                    name="plan-export-template"
-                    selected={template === item.id}
-                    label={item.label}
-                    description={item.description}
-                    onClick={() => setTemplate(item.id)}
-                  />
-                ))}
-              </div>
-            </section>
-          )}
+        </section>
+      )}
 
-          {showsVariant && (
-            <section>
-              <p className="text-sm font-medium text-gray-900">Fassung</p>
-              <div className="mt-2 grid gap-2 sm:grid-cols-2">
-                {variants.map((item) => (
-                  <RadioOption
-                    key={item.id}
-                    id={`plan-export-variant-${item.id}`}
-                    name="plan-export-variant"
-                    selected={variant === item.id}
-                    label={item.label}
-                    description={item.description}
-                    onClick={() => setVariant(item.id)}
-                  />
-                ))}
-              </div>
-            </section>
-          )}
+      {showsVariant && (
+        <section>
+          <p className="text-sm font-medium text-gray-900">Fassung</p>
+          <div className="mt-2 grid gap-2 sm:grid-cols-2">
+            {variants.map((item) => (
+              <RadioOption
+                key={item.id}
+                id={`plan-export-variant-${item.id}`}
+                name="plan-export-variant"
+                selected={variant === item.id}
+                label={item.label}
+                description={item.description}
+                onClick={() => setVariant(item.id)}
+              />
+            ))}
+          </div>
+        </section>
+      )}
 
-          <section>
-            <p className="text-sm font-medium text-gray-900">Zeitraum</p>
-            <SegmentedControl
-              ariaLabel="Zeitraum des Exports"
-              value={rangeMode}
-              onChange={(next) => setRangeMode(next as RangeMode)}
-              items={[
-                {
-                  value: "week",
-                  label: isWeekOnScreen ? "Angezeigte Woche" : "Einzelne Woche",
-                },
-                { value: "range", label: "Mehrere Wochen" },
-              ]}
-            />
+      <section>
+        <p className="text-sm font-medium text-gray-900">Zeitraum</p>
+        <SegmentedControl
+          ariaLabel="Zeitraum des Exports"
+          value={rangeMode}
+          onChange={(next) => setRangeMode(next as RangeMode)}
+          items={[
+            {
+              value: "week",
+              label: isWeekOnScreen ? "Angezeigte Woche" : "Einzelne Woche",
+            },
+            { value: "range", label: "Mehrere Wochen" },
+          ]}
+        />
 
-            {rangeMode === "range" && (
-              <div className="mt-3 grid grid-cols-1 gap-4 sm:grid-cols-2">
-                <div>
-                  <label
-                    htmlFor="plan-export-from"
-                    className="mb-1 block text-sm font-medium text-gray-700"
-                  >
-                    Von
-                  </label>
-                  <ISODatePicker
-                    id="plan-export-from"
-                    controlSize="lg"
-                    value={from}
-                    onChange={setFrom}
-                    calendarLayout="popover"
-                  />
-                </div>
-                <div>
-                  <label
-                    htmlFor="plan-export-to"
-                    className="mb-1 block text-sm font-medium text-gray-700"
-                  >
-                    Bis
-                  </label>
-                  <ISODatePicker
-                    id="plan-export-to"
-                    controlSize="lg"
-                    value={to}
-                    min={from || undefined}
-                    onChange={setTo}
-                    calendarLayout="popover"
-                  />
-                </div>
-              </div>
-            )}
+        {rangeMode === "range" && (
+          <div className="mt-3 grid grid-cols-1 gap-4 sm:grid-cols-2">
+            <div>
+              <label
+                htmlFor="plan-export-from"
+                className="mb-1 block text-sm font-medium text-gray-700"
+              >
+                Von
+              </label>
+              <ISODatePicker
+                id="plan-export-from"
+                controlSize="lg"
+                value={from}
+                onChange={setFrom}
+                calendarLayout="popover"
+              />
+            </div>
+            <div>
+              <label
+                htmlFor="plan-export-to"
+                className="mb-1 block text-sm font-medium text-gray-700"
+              >
+                Bis
+              </label>
+              <ISODatePicker
+                id="plan-export-to"
+                controlSize="lg"
+                value={to}
+                min={from || undefined}
+                onChange={setTo}
+                calendarLayout="popover"
+              />
+            </div>
+          </div>
+        )}
 
-            <p className="mt-2 text-xs text-gray-500">
-              {rangeError ??
-                describeRange(range.from, range.to, weekCount, template)}
-            </p>
-          </section>
-        </div>
-        <SlideOverFooter className="flex-row justify-end gap-2">
-          {footer}
-        </SlideOverFooter>
-      </SlideOverContent>
-    </SlideOver>
+        <p className="mt-2 text-xs text-gray-500">
+          {rangeError ??
+            describeRange(range.from, range.to, weekCount, template)}
+        </p>
+      </section>
+    </ExportDialog>
   );
 }
 

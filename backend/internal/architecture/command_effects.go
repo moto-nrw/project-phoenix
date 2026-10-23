@@ -99,6 +99,7 @@ func loadCanonicalCommandEffects(project string) (*commandEffectManifest, error)
 }
 
 func (manifest *commandEffectManifest) siteViolations(discovered []commandEffectSite, policy *Policy) []Violation {
+	classified := policy.packageMap()
 	ownerKinds := map[string]string{}
 	for _, owner := range policy.Owners {
 		ownerKinds[owner.ID] = owner.Kind
@@ -124,7 +125,7 @@ func (manifest *commandEffectManifest) siteViolations(discovered []commandEffect
 		if err := validateEffectEntry(entry); err != nil {
 			violations = append(violations, commandEffectViolation("classification", site, err.Error()))
 		}
-		if err := validateEffectDirection(entry, ownerKinds); err != nil {
+		if err := validateEffectDirection(entry, ownerKinds, classified); err != nil {
 			violations = append(violations, commandEffectViolation("classification", site, err.Error()))
 		}
 		delete(entries, site.key())

@@ -101,6 +101,8 @@ interface OverflowMenuProps {
   readonly triggerTabIndex?: number;
   /** Called when the menu is opened from its trigger. */
   readonly onOpen?: () => void;
+  /** Prevents opening the menu while its actions are unavailable. */
+  readonly disabled?: boolean;
   /**
    * Trigger footprint. `"default"` is the 36px page-header kebab; `"sm"` is a
    * compact 24px kebab with a smaller icon and a more muted default color, for
@@ -147,6 +149,7 @@ export function OverflowMenu({
   triggerAriaSelected,
   triggerTabIndex,
   onOpen,
+  disabled = false,
   triggerSize = "default",
   triggerClassName = "",
   triggerContent,
@@ -244,6 +247,7 @@ export function OverflowMenu({
   // - If neither side fits, use the side with more room and clamp to the
   //   viewport inset.
   const handleOpen = (event: ReactMouseEvent<HTMLButtonElement>) => {
+    if (disabled) return;
     const trigger = triggerRef.current;
     if (isOpen) {
       setIsOpen(false);
@@ -364,6 +368,10 @@ export function OverflowMenu({
     )?.focus();
   }, [isOpen, portalContainer]);
 
+  useEffect(() => {
+    if (disabled) setIsOpen(false);
+  }, [disabled]);
+
   const onMenuKey = (event: KeyboardEvent<HTMLDivElement>) => {
     const entries = menuEntries();
     if (entries.length === 0) return;
@@ -413,6 +421,7 @@ export function OverflowMenu({
         ref={triggerRef}
         type="button"
         onClick={handleOpen}
+        disabled={disabled}
         role={triggerRole}
         aria-selected={triggerAriaSelected}
         tabIndex={triggerTabIndex}
@@ -460,7 +469,7 @@ export function OverflowMenu({
                       key={`header-${entry.label}`}
                       className={`px-3 py-2 ${index > 0 ? "mt-1 border-t border-gray-100 pt-3" : ""}`}
                     >
-                      <p className="text-[10px] font-semibold tracking-wider text-gray-500 uppercase">
+                      <p className="text-xs font-semibold tracking-wider text-gray-500 uppercase">
                         {entry.label}
                       </p>
                     </div>
@@ -532,7 +541,7 @@ export function OverflowMenu({
                     ) : null}
                     <span className="flex-1 truncate">{item.label}</span>
                     {item.badge != null ? (
-                      <span className="ml-auto inline-flex h-5 min-w-5 items-center justify-center rounded-full bg-gray-100 px-1.5 text-[11px] font-semibold text-gray-700 tabular-nums">
+                      <span className="ml-auto inline-flex h-5 min-w-5 items-center justify-center rounded-full bg-gray-100 px-1.5 text-sm font-semibold text-gray-700 tabular-nums">
                         {item.badge}
                       </span>
                     ) : null}

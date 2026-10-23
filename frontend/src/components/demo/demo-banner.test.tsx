@@ -148,6 +148,10 @@ describe("DemoBanner", () => {
       "https://moto-ogs.de/start/?src=demo",
     );
     expect(start).toHaveAttribute("target", "_blank");
+    // Prüfen des Klicks darf keine echte Website in Happy DOM öffnen.
+    start.addEventListener("click", (event) => event.preventDefault(), {
+      once: true,
+    });
     fireEvent.click(start);
 
     expect(analytics.trackDemoEvent).toHaveBeenCalledWith(

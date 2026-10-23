@@ -134,3 +134,30 @@ command/lock labels stay unchanged. PR #4833 is still open at this integration.
 The preceding 5,350/110-debt/88-approval figures and first quorum result refer
 to the earlier head; the current counts above supersede them. This is a base
 reconciliation, not a new callback grant or an edit to ADR 0071 itself.
+
+## Round-3 merge reconciliation (#4833)
+
+Development `9fe83f2c2052947ca3a147019de04879def5f67e` contains #4833.
+Regeneration removes six obsolete debt identities: two ShareRecipients
+bindings into Parent Portal and four BirthdayStore/StaffRepository bindings
+into LiveStaffEmployment. They are not retained as debt. Two replacement
+ShareVisibility bindings reach People Directory's own RequestShareVisibility
+query. The five birthdays.Service bindings are HTTP entries: four queries
+and BirthdayPreferences.SetOptOut as mutation/workflow under ADR 0067.
+
+The direction validator now reads the input interface package's policy role.
+An owner of kind domain can host an HTTP entry without making that entry a
+domain-application callback. Only the declared HTTP role is exempted here;
+the binding's root location grants nothing. Additive CLI fixtures reproduce
+the false rejection for query and mutation/workflow before the fix and pass
+after it. Existing domain query/leaf/workflow rejection fixtures stay intact.
+
+The regenerated register contains 5,350 entries, compared with 5,349 before
+this merge: 99 debt (was 105), 8 workflow (was 7, including the new HTTP
+command), 22 E2 and 642 unresolved. Of those entries, 81 retain this PR's
+approval ADR 0094 (was 87). Effects are 2,785 query, 1,612 mutation, 298 lock,
+7 scope, 1 durable, 5 notice and 642 unresolved. The seven E2 workflow
+callbacks are unchanged. The merged pass-through register has 3,521 sites
+(was 3,522), with no change from development. ADR 0094 remains absent from
+development and every other open PR's file list at this reconciliation.
+M3 remains the documented open boundary above.

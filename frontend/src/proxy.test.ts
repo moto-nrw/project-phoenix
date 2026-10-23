@@ -141,6 +141,71 @@ describe("PostHog reverse proxy", () => {
   });
 });
 
+describe("CSP security boundaries", () => {
+  it.each([
+    ["school-a.localhost:3000", "/dashboard"],
+    [PARENTS_HOSTNAME, "/login"],
+    [SCHOOL_HOSTNAME, "/login"],
+    [OPERATOR_HOSTNAME, "/login"],
+    ["localhost:3000", "/demo"],
+    ["demo-school.localhost:3000", "/demo"],
+    [PARENTS_HOSTNAME, "/demo"],
+    ["school-a.localhost:3000", "/anmeldung/5"],
+    ["localhost:3000", "/school-a/anmeldung/5"],
+  ])("restricts objects, base URLs and form targets on %s%s", (host, path) => {
+    const res = proxy(makeRequest(`http://${host}${path}`, host));
+    expect(res.status).toBe(200);
+    const directives = res.headers.get("Content-Security-Policy")?.split("; ");
+    expect(directives).toContain("object-src 'none'");
+    expect(directives).toContain("base-uri 'self'");
+    expect(directives).toContain("form-action 'self'");
+    expect(directives).toContain("frame-ancestors 'none'");
+    expect(res.headers.get("X-Content-Type-Options")).toBe("nosniff");
+    expect(res.headers.get("X-Frame-Options")).toBe("DENY");
+    expect(res.headers.get("Referrer-Policy")).toBe(
+      "strict-origin-when-cross-origin",
+    );
+  });
+
+  it.each(["production", "development"])(
+    "keeps the expected script sources in %s",
+    async (environment) => {
+      const previousNodeEnv = process.env.NODE_ENV;
+      vi.stubEnv("NODE_ENV", environment);
+      vi.resetModules();
+      try {
+        const { proxy: configuredProxy } = await import("./proxy");
+        for (const path of ["/dashboard", "/anmeldung/5"]) {
+          const host = "school-a.localhost:3000";
+          const res = configuredProxy(
+            makeRequest(`http://${host}${path}`, host),
+          );
+          expect(res.status).toBe(200);
+          const directives = res.headers
+            .get("Content-Security-Policy")
+            ?.split("; ");
+          const scriptSources = directives?.find((directive) =>
+            directive.startsWith("script-src "),
+          );
+          const turnstile =
+            path === "/anmeldung/5" ? " https://challenges.cloudflare.com" : "";
+          const evalSource =
+            environment === "development" ? " 'unsafe-eval'" : "";
+          expect(scriptSources).toBe(
+            `script-src 'self'${turnstile} 'unsafe-inline'${evalSource}`,
+          );
+          expect(directives).toContain("object-src 'none'");
+          expect(directives).toContain("base-uri 'self'");
+          expect(directives).toContain("form-action 'self'");
+        }
+      } finally {
+        vi.stubEnv("NODE_ENV", previousNodeEnv);
+        vi.resetModules();
+      }
+    },
+  );
+});
+
 describe("Turnstile CSP", () => {
   it.each([
     ["school-a.localhost:3000", "/anmeldung/5"],

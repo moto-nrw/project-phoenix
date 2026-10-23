@@ -344,6 +344,32 @@ func TestPublicStatus_TakenOverChildIsLockedAndSiblingStaysChangeable(t *testing
 	assert.Equal(t, capability.ChildStatusWithdrawn, withdrawnStatus.Data.Children[1].Status)
 }
 
+// #4601: a child_id that does not belong to the request behind the token is
+// refused as not found. It used to change nothing and still answer 204.
+func TestPublicWithdraw_ForeignChildIDAnswersNotFound(t *testing.T) {
+	t.Parallel()
+	env := setupTakeoverLockTest(t)
+	other := setupTakeoverLockTest(t)
+
+	withdrawReq := httptest.NewRequest(
+		http.MethodPost,
+		fmt.Sprintf("/requests/%s/withdraw", env.token),
+		strings.NewReader(fmt.Sprintf(`{"child_id":"%d"}`, other.request.Children[0].ID)),
+	)
+	withdrawReq.Header.Set("Content-Type", "application/json")
+	withdrawn := httptest.NewRecorder()
+	env.router.ServeHTTP(withdrawn, withdrawReq)
+	require.Equal(t, http.StatusNotFound, withdrawn.Code, withdrawn.Body.String())
+
+	for _, current := range []*takeoverLockEnv{env, other} {
+		status := decodeStatus(t, current.get(t, "/requests/"+current.token))
+		require.NotEmpty(t, status.Data.Children)
+		for _, child := range status.Data.Children {
+			assert.NotEqual(t, capability.ChildStatusWithdrawn, child.Status, "no child may be withdrawn")
+		}
+	}
+}
+
 func TestPublicStatus_AllChildrenTakenOverLeavesNoChangeForm(t *testing.T) {
 	t.Parallel()
 	env := setupTakeoverLockTest(t)

@@ -74,3 +74,35 @@ func workflowDirectionFixture(t *testing.T) (string, *Policy) {
 	writeFile(t, filepath.Join(project, "architecture", "policy.json"), string(blob))
 	return project, policy
 }
+
+func TestCommandEffectsHTTPWorkflowEntryIsNotDomainCallback(t *testing.T) {
+	t.Parallel()
+	for _, tc := range []struct{ effect, classification, adr string }{
+		{"query", "query", ""}, {"mutation", "workflow", "0067"},
+	} {
+		t.Run(tc.effect, func(t *testing.T) {
+			t.Parallel()
+			project, policy := workflowDirectionFixture(t)
+			policy.Roles = append(policy.Roles, "http")
+			for i := range policy.Packages {
+				if policy.Packages[i].Owner == "enrollment" {
+					policy.Packages[i].Role = "http"
+				}
+			}
+			for i := range policy.Rules {
+				if policy.Rules[i].TargetOwner == "enrollment" {
+					policy.Rules[i].TargetRole = "http"
+				}
+			}
+			blob, err := json.Marshal(policy)
+			if err != nil {
+				t.Fatal(err)
+			}
+			writeFile(t, filepath.Join(project, "architecture", "policy.json"), string(blob))
+			reviewGapFixture(t, project, policy, tc.effect, tc.classification, tc.adr)
+			if err := RunCLI([]string{"check", "--project", project, "--baseline", "architecture/legacy.jsonl"}, CLIDependencies{}); err != nil {
+				t.Fatalf("HTTP workflow entry rejected as domain callback: %v", err)
+			}
+		})
+	}
+}

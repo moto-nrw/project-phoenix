@@ -186,7 +186,8 @@ describe("MealParticipantList", () => {
     ).toBeInTheDocument();
   });
 
-  it("groups the established PDF and Excel export actions", async () => {
+  // #4748: ein Export ohne Optionen steht im Menü, ein Eintrag pro Format.
+  it("offers PDF and Excel in one download menu", async () => {
     let finishPdf: () => void = () => undefined;
     mocks.downloadDailyMealParticipants
       .mockReturnValueOnce(
@@ -198,19 +199,10 @@ describe("MealParticipantList", () => {
     render(<MealParticipantList />);
 
     await screen.findByText("Mittagessen am 07.09.2026");
-    expect(
-      screen.getByRole("group", { name: "Tagesliste herunterladen" }),
-    ).toBeInTheDocument();
     fireEvent.click(
-      screen.getByRole("button", {
-        name: "Tagesliste als PDF herunterladen",
-      }),
+      screen.getByRole("button", { name: "Tagesliste herunterladen" }),
     );
-    expect(
-      screen.getByRole("button", {
-        name: "Tagesliste als PDF herunterladen",
-      }),
-    ).toHaveAttribute("aria-busy", "true");
+    fireEvent.click(screen.getByRole("menuitem", { name: "PDF" }));
     expect(screen.getByRole("status")).toHaveTextContent(
       "PDF wird heruntergeladen.",
     );
@@ -221,15 +213,14 @@ describe("MealParticipantList", () => {
       );
     });
     finishPdf();
-    await screen.findByRole("button", {
-      name: "Tagesliste als PDF herunterladen",
-    });
+    await waitFor(() =>
+      expect(screen.getByRole("status")).toHaveTextContent(""),
+    );
 
     fireEvent.click(
-      screen.getByRole("button", {
-        name: "Tagesliste als Excel-Datei herunterladen",
-      }),
+      screen.getByRole("button", { name: "Tagesliste herunterladen" }),
     );
+    fireEvent.click(screen.getByRole("menuitem", { name: "Excel" }));
     await waitFor(() => {
       expect(mocks.downloadDailyMealParticipants).toHaveBeenCalledWith(
         "2026-09-07",
@@ -246,11 +237,11 @@ describe("MealParticipantList", () => {
       .mockResolvedValueOnce(undefined);
     render(<MealParticipantList />);
 
+    await screen.findByText("Mittagessen am 07.09.2026");
     fireEvent.click(
-      await screen.findByRole("button", {
-        name: "Tagesliste als PDF herunterladen",
-      }),
+      screen.getByRole("button", { name: "Tagesliste herunterladen" }),
     );
+    fireEvent.click(screen.getByRole("menuitem", { name: "PDF" }));
 
     expect(
       await screen.findByText(catalogText("general.server", "die Tagesliste")),
@@ -380,9 +371,10 @@ describe("MealParticipantList", () => {
 
     fireEvent.click(
       screen.getByRole("button", {
-        name: "Wochenliste als Excel-Datei herunterladen",
+        name: "Wochenliste herunterladen",
       }),
     );
+    fireEvent.click(screen.getByRole("menuitem", { name: "Excel" }));
     await waitFor(() => {
       expect(mocks.downloadWeeklyMealParticipants).toHaveBeenCalledWith(
         "2026-09-07",
