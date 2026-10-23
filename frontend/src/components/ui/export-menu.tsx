@@ -94,6 +94,7 @@ export function ExportMenu({
   return (
     <OverflowMenu
       ariaLabel={ariaLabel ?? label}
+      disabled={args.unavailable}
       items={exportMenuItems({ ...args, header: args.header ?? null })}
       triggerContent={
         <span

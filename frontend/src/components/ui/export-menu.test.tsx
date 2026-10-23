@@ -40,4 +40,19 @@ describe("ExportMenu", () => {
       screen.getByRole("menuitem", { name: "Wird erstellt…" }),
     ).toBeDisabled();
   });
+
+  it("does not open while the export data is unavailable", () => {
+    render(
+      <ExportMenu
+        unavailable
+        options={exportFormatOptions(["pdf"])}
+        onSelect={vi.fn()}
+      />,
+    );
+
+    const trigger = screen.getByRole("button", { name: "Herunterladen" });
+    expect(trigger).toBeDisabled();
+    fireEvent.click(trigger);
+    expect(screen.queryByRole("menu")).toBeNull();
+  });
 });
