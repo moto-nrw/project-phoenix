@@ -178,9 +178,12 @@ projection grant, baseline key, pass-through allowance or budget is needed.
 
 The two-connection regression in `api/care_exit_lock_order_test.go` reproduces
 `40P01` before the fix for confirm, cancel and due effects against grade-transition
-Apply. This evidence amends E2's retained protocol: those three entry points,
+Apply, including the scheduler’s ambient-transaction case. This evidence amends
+E2's retained protocol: those three entry points,
 including withdrawal confirmation through the shared confirm path, now take
 School Membership's **shared class gate → recurrence → child/plan row locks**.
+The initial booking-expiry reconciliation uses the same order because an ambient
+unit retains its gates through the later due-effect pages.
 Care Plan requests the class gate through its consumer-owned student port;
 the root binds it to School Membership's existing command. Neither owner gains
 foreign SQL or a new policy rule. Re-reading, fingerprints, ledger operations,

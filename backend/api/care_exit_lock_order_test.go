@@ -23,7 +23,7 @@ func TestCareExitAndGradeTransitionDoNotDeadlock(t *testing.T) {
 	t.Parallel()
 	db := testpkg.SetupIsolatedTestDB(t)
 	today := calendar.NewDate(2026, 10, 23)
-	for _, operation := range []string{"confirm", "cancel", "due effects"} {
+	for _, operation := range []string{"confirm", "cancel", "due effects", "due effects in ambient transaction"} {
 		t.Run(operation, func(t *testing.T) {
 			ctx, cancel := context.WithTimeout(testpkg.OwnCtx(t), 20*time.Second)
 			defer cancel()
@@ -71,7 +71,7 @@ func TestCareExitAndGradeTransitionDoNotDeadlock(t *testing.T) {
 					return cancelErr
 				}
 			}
-			if operation == "due effects" {
+			if operation == "due effects" || operation == "due effects in ambient transaction" {
 				_, err = db.NewUpdate().TableExpr("users.student_school_memberships").
 					Set("enrolled_until = ?", today.AddDays(-1)).
 					Where("student_profile_id = ? AND deleted_at IS NULL", student.ID).Exec(ctx)
@@ -79,6 +79,14 @@ func TestCareExitAndGradeTransitionDoNotDeadlock(t *testing.T) {
 				care = func(careCtx context.Context) error {
 					_, dueErr := svc.ApplyDueEffects(careCtx, today)
 					return dueErr
+				}
+			}
+			if operation == "due effects in ambient transaction" {
+				apply := care
+				care = func(careCtx context.Context) error {
+					return testpkg.WithTenantTx(t, careCtx, db, testpkg.Tenant(t), func(txCtx context.Context, _ bun.Tx) error {
+						return apply(txCtx)
+					})
 				}
 			}
 

@@ -121,7 +121,9 @@ func (s *CareLifecycle) applyDueEffects(ctx context.Context, ids []int64, asOf c
 // care whose last care booking ran out. In weekly-plan mode it does nothing.
 func (s *CareLifecycle) reconcileExpiredCareBookings(ctx context.Context, asOf calendar.Date) error {
 	return s.unit(ctx, func(txCtx context.Context) error {
-		if err := s.lockCareBookingWrites(txCtx); err != nil {
+		// The scheduler supplies an ambient transaction, so this gate remains
+		// held through the later child-locking effect pages as well.
+		if err := s.lockCareExitWrites(txCtx); err != nil {
 			return fmt.Errorf("care lifecycle: lock care booking writes for booking expiry: %w", err)
 		}
 		authoritative, err := s.bookingsAuthoritative(txCtx)
