@@ -43,12 +43,9 @@ func compareCandidatePolicyStrictness(project, baseRef string, base, candidate *
 	return comparePolicyStrictnessWithRenames(base, candidate, createdDataObjects, renamedDataObjects, createdPackages, candidateOnlyExternal, deletedLegacySymbols, moves)
 }
 
-func comparePolicyStrictness(base, candidate *Policy, createdDataObjects, createdPackages, candidateOnlyExternal, deletedLegacySymbols map[string]struct{}, verifiedRelocations map[string]string) error {
-	return comparePolicyStrictnessWithRenames(base, candidate, createdDataObjects, nil, createdPackages, candidateOnlyExternal, deletedLegacySymbols, verifiedRelocations)
-}
-
-// comparePolicyStrictnessWithRenames is comparePolicyStrictness with the
-// tables a candidate migration renames (new name -> old name).
+// comparePolicyStrictnessWithRenames compares the policies, given the data
+// objects and packages a candidate creates and the tables a candidate
+// migration renames (new name -> old name).
 func comparePolicyStrictnessWithRenames(base, candidate *Policy, createdDataObjects map[string]struct{}, renamedDataObjects map[string]string, createdPackages, candidateOnlyExternal, deletedLegacySymbols map[string]struct{}, verifiedRelocations map[string]string) error {
 	problems := modulePathLoosenings(base, candidate)
 	problems = append(problems, epochLoosenings(base, candidate)...)
