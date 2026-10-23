@@ -65,35 +65,35 @@ func (s *Service) requireEnabled(ctx context.Context) error {
 	return nil
 }
 
-func (s *Service) requireRegistration(ctx context.Context) (string, error) {
+func (s *Service) requireRegistration(ctx context.Context) (domain.Deadline, error) {
 	if err := s.requireEnabled(ctx); err != nil {
-		return "", err
+		return domain.Deadline{}, err
 	}
 	enabled, err := s.settings.MealRegistrationEnabled(ctx)
 	if err != nil {
-		return "", fmt.Errorf("meal plan: resolve registration availability: %w", err)
+		return domain.Deadline{}, fmt.Errorf("meal plan: resolve registration availability: %w", err)
 	}
 	if !enabled {
-		return "", mealplan.ErrRegistrationDisabled
+		return domain.Deadline{}, mealplan.ErrRegistrationDisabled
 	}
-	cutoff, err := s.settings.MealRegistrationCutoff(ctx)
+	cutoff, leadDays, err := s.settings.MealRegistrationCutoff(ctx)
 	if err != nil {
-		return "", fmt.Errorf("meal plan: resolve registration cutoff: %w", err)
+		return domain.Deadline{}, fmt.Errorf("meal plan: resolve registration cutoff: %w", err)
 	}
-	if _, err := time.Parse("15:04", cutoff); err != nil {
-		return "", mealplan.ErrInvalidParticipation
+	if _, err := time.Parse("15:04", cutoff); err != nil || leadDays < 0 {
+		return domain.Deadline{}, mealplan.ErrInvalidParticipation
 	}
-	return cutoff, nil
+	return domain.Deadline{Time: cutoff, LeadDays: leadDays}, nil
 }
 
-func (s *Service) resolveParticipation(data domain.ParticipationData, from, to domain.Date, cutoffTime string) domain.ParticipationPlan {
+func (s *Service) resolveParticipation(data domain.ParticipationData, from, to domain.Date, deadline domain.Deadline) domain.ParticipationPlan {
 	now := s.now()
 	overrides := make(map[domain.Date]bool, len(data.Overrides))
 	for _, override := range data.Overrides {
 		overrides[override.Date] = override.Participating
 	}
-	sickDays := effectiveSickDays(data.SickDays, cutoffTime)
-	plan := domain.ParticipationPlan{CutoffTime: cutoffTime, Days: make([]domain.ParticipationDay, 0, from.DaysUntil(to)+1)}
+	sickDays := effectiveSickDays(data.SickDays, deadline)
+	plan := domain.ParticipationPlan{Deadline: deadline, Days: make([]domain.ParticipationDay, 0, from.DaysUntil(to)+1)}
 	for date := from; !date.After(to); date = date.AddDays(1) {
 		if date.Weekday() == time.Saturday || date.Weekday() == time.Sunday {
 			continue
@@ -108,13 +108,13 @@ func (s *Service) resolveParticipation(data domain.ParticipationData, from, to d
 			participating = value
 			source = domain.ParticipationOverride
 		}
-		if sick, exists := sickDays[date]; exists && sickAtCutoff(sick.ReportedAt, sick.ClearedAt, domain.CutoffAt(date, cutoffTime)) {
+		if sick, exists := sickDays[date]; exists && sickAtCutoff(sick.ReportedAt, sick.ClearedAt, deadline.At(date)) {
 			participating = false
 			source = domain.ParticipationSick
 		}
-		plan.Days = append(plan.Days, domain.ParticipationDay{Date: date, Participating: participating, Source: source, Changeable: domain.Changeable(now, date, cutoffTime)})
+		plan.Days = append(plan.Days, domain.ParticipationDay{Date: date, Participating: participating, Source: source, Changeable: deadline.Changeable(now, date)})
 	}
-	editableSchedule := scheduleForDate(data.Schedules, domain.NextEffectiveDate(now, cutoffTime))
+	editableSchedule := scheduleForDate(data.Schedules, deadline.NextEffectiveDate(now))
 	if editableSchedule != nil {
 		plan.EffectiveFrom = editableSchedule.EffectiveFrom
 		plan.Weekdays = append([]domain.Weekday(nil), editableSchedule.Weekdays...)
@@ -181,10 +181,10 @@ func appendDailyParticipants(list *mealplan.DailyList, candidates []mealplan.Par
 	}
 }
 
-func effectiveSickDays(days []domain.SickDay, cutoffTime string) map[domain.Date]domain.SickDay {
+func effectiveSickDays(days []domain.SickDay, deadline domain.Deadline) map[domain.Date]domain.SickDay {
 	sickDays := make(map[domain.Date]domain.SickDay, len(days))
 	for _, sick := range days {
-		cutoff := domain.CutoffAt(sick.Date, cutoffTime)
+		cutoff := deadline.At(sick.Date)
 		if sick.ChangedAt.After(cutoff) {
 			continue
 		}

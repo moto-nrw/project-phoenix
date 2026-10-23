@@ -224,6 +224,41 @@ describe("TenantLayout", () => {
   );
 
   it.each([
+    { analytics_enabled: false, expected: false },
+    { analytics_enabled: true, expected: true },
+    { analytics_enabled: undefined, expected: false },
+  ])(
+    "maps analytics_enabled=$analytics_enabled into the server tenant context",
+    async ({ analytics_enabled, expected }) => {
+      vi.spyOn(globalThis, "fetch").mockResolvedValue(
+        new Response(
+          JSON.stringify({
+            status: "success",
+            data: {
+              tenant_id: 1,
+              slug: "school-a",
+              name: "School A",
+              subdomain: "school-a",
+              organization_id: 2,
+              organization_name: "Organization",
+              settings: {},
+              grade_level_max: 4,
+              analytics_enabled,
+            },
+          }),
+          { status: 200 },
+        ),
+      );
+
+      const element = (await TenantLayout({
+        children: null,
+        params: Promise.resolve({ tenant: "school-a" }),
+      })) as ReactElement<{ tenant: { analyticsEnabled?: boolean } }>;
+
+      expect(element.props.tenant.analyticsEnabled).toBe(expected);
+    },
+  );
+  it.each([
     { caldav_enabled: false, expected: false },
     { caldav_enabled: true, expected: true },
     { caldav_enabled: undefined, expected: false },

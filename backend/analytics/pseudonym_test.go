@@ -88,6 +88,7 @@ func TestCaptureWithoutFingerprintKeepsAPersonAnonymous(t *testing.T) {
 func newFreigabeRouter(tracker Tracker, actor Actor, freigabe map[int64]bool) http.Handler {
 	root := chi.NewRouter()
 	root.Use(CoreActionMiddleware(CoreActionConfig{
+		Policy:       CollectionPolicy{Demo: true},
 		Tracker:      tracker,
 		RequestActor: func(*http.Request) (Actor, bool) { return actor, true },
 		AnalyseFreigabe: func(_ context.Context, schoolID int64) bool {
