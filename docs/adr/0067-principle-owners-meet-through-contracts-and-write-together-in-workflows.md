@@ -9,6 +9,8 @@ Principle ADR of 2026-10-19 under
 [#4091](https://github.com/moto-nrw/project-phoenix/issues/4091). It states the
 rules for contracts, workflows and transactions that still hold. The ADRs it
 cites keep their context and history; this ADR changes none of them.
+The [#4538 addendum](#addendum-2026-10-23-command-participation-and-coordination-4538)
+narrows point 4 and records the remaining coordinator exceptions.
 
 ## Decision
 
@@ -67,8 +69,9 @@ cites keep their context and history; this ADR changes none of them.
 
 ## Consequences
 
-- Every write that spans owners is visible as a workflow owner in
-  `policy.json`. A new workflow owner is registered through the reviewed
+- Cross-owner coordinators are visible as workflow owners in `policy.json`,
+  or as the finite exceptions in the #4538 addendum. Transaction-participating
+  leaf commands need no separate owner. A new workflow owner uses the reviewed
   procedure of
   [ADR 0070](0070-principle-only-the-target-is-a-rule-and-debt-leaves-with-evidence.md).
 - The compatibility bindings that ADR 0017, ADR 0018 and ADR 0022 describe for
@@ -83,3 +86,119 @@ ADR 0013, ADR 0016, ADR 0017, ADR 0018 and ADR 0022 carry the workflow
 decisions; ADR 0023, ADR 0046, ADR 0053 and ADR 0062 the points named above.
 The full rule map is the
 [traceability appendix](../../backend/architecture/README.md#appendix-principle-traceability).
+
+## Addendum 2026-10-23: command participation and coordination (#4538)
+
+Accepted for [#4538](https://github.com/moto-nrw/project-phoenix/issues/4538).
+This replaces the unconditional reading of point 4, not ownership, dependency
+directions, the lock order in point 5 or durable effects in point 6. The
+[edge inventory](../architecture/4538-cross-owner-write-inventory.md) records
+every example in the issue and its comment against fetched development
+`e033cf0f27d6ea8d16f24df81176da9ddf042d39`, with transaction and lock evidence.
+
+### Command participation is allowed
+
+A domain may call a foreign owner's **guarded command** through its public
+contract or a consumer-owned port bound by the root when:
+
+1. The command joins the caller's transaction and scope. It makes no separate
+   commit, tenant/admin scope switch or detached-context write. A command may
+   open its own unit when invoked at top level, but not when participating.
+   A savepoint is not an independent transaction.
+2. Each owner retains its own validation, authorization guards and mutation.
+   The caller propagates failure to the outer unit, or a savepoint rolls back
+   the failed compound operation before the caller continues. An explicitly
+   best-effort subcommand remains best effort; atomicity does not mean every
+   requested subcommand must succeed.
+3. The call requires no separate cross-owner protocol: no coordinated gate/row
+   lock order, re-reading foreign state under locks to validate a combined
+   decision, or shared after-commit orchestration. Owner-local row locks and
+   a target command's transactional outbox do not alone create a workflow.
+
+This permits the split membership/employment and relationship/pickup/access
+record commands in the inventory. It does not permit foreign row repositories,
+SQL, generic CRUD, domain-to-projection imports, domain-to-workflow imports,
+cycles, late binding or decisions in the root. ADRs 0066, 0068 and 0071 stand.
+Consumer ports retain the consumer's vocabulary (ADR 0080); no owners merge
+and no internal/public DTO is duplicated just to build a workflow (ADR 0081).
+
+### Coordination needs a workflow
+
+A flow that needs any protocol in condition 3 is a workflow under `workflows/`.
+Its root binds the owner commands; the workflow owns the outer unit, ordering
+and combined check, and delegates mutations to their owners. A multi-owner
+lifecycle assembled in HTTP is a coordinator, not a leaf command. A wrapper
+that merely calls an unchanged domain coordinator does not satisfy this cut.
+
+**Care resumption moves now into the existing `care-exit` workflow owner.**
+`workflows/careexit/resumption.go` owns the complete command previously in
+`CareLifecycle.Resume`/`resumeCare`: input checks, the frozen day, student
+read under lock, exit check, conditional School Membership command, both Care
+Plan ledger deletions and the Audit change trail. The root binds the workflow
+as `careplan.CareResumption`; embedding that command preserves the existing
+`CareLifecycle` contract without a forwarding method or workflow import in
+Care Plan. It uses the existing student read and commands, so it changes no
+SQL, dates, status rules, error identities, error text, scope or callbacks.
+
+Resumption's order is shared class-writes gate → student locks → read exit → guarded
+membership resume → delete exit → discard removal ledger → audit. Every step
+runs in the same tenant unit. The existing People reader takes the class
+gate (`student_records.go:60`) before its sorted row locks. No recurrence or
+booking-write gate is added: resumption never restores an old plan. The read is still
+`FindCareStudents(..., true)` in `roots/owners/care_resumption.go`; the target's
+conditional `ResumeCare` remains authoritative even after that check. Logging
+after returning from the unit is unchanged and is not a durable effect.
+
+### Finite retained coordinator exceptions
+
+The inventory marks the following existing commands **E**, rather than
+pretending their transaction participation makes them leaf commands. Their
+present protocols may stay at the named locations. This is an accepted
+exception to point 4, not permission to add another coordinator or extend
+these commands to more owners. A change to their cross-owner ordering,
+combined guard or effects must move the affected protocol into a workflow
+or amend this decision with new evidence first.
+
+| Exception | Kept invariant and reason for retaining this cut |
+|---|---|
+| E1: Enrollment decision, existing-child approval/sync | Request-before-children serialization, class/recurrence gates, account-before-roster writes and transactional decision outbox already protect the approval. The decision helpers share the renewal/change-request path. Moving only `Decide` would leave the coordinator in Enrollment; a proper cut is a separate PR. |
+| E2: Care confirm/cancel/due effects and withdrawal completion | Booking gate, locked binding preview, removal ledger and conditional Membership command stay together. #4531 already cut own booking lock/end back into Care Plan. Moving the whole lifecycle with its preview, completion and scheduler paths would be a second large protocol cut alongside resumption. |
+| E3: Identity guardian-role upgrade; People student/companion and staff identity edits; Workforce staff master-data edits | Keep the foreign relationship/student/account/staff locks, in-lock checks, savepoints and audit order recorded in the inventory. These are not blanket exceptions for Identity, People or Workforce. Splitting their row halves into small forwarding workflows would retain the actual locks in the old coordinator. |
+| E4: Care booking/roster reconciliation, master-data approval and HTTP child creation | Keep class/recurrence/student ordering, in-lock authorization and all-or-nothing child creation, including its 4xx rollback behavior. They share lower-level commands with E1/E2; extracting them together exceeds this PR's one-workflow scope. |
+| E5: Organisation provisioning account, device transfer and person retirement | Keep explicit admin/tenant scope boundaries, locked device transfer and the documented best-effort/post-commit audit behavior. The whole provisioning API is not one atomic transaction. Converting it to one would change behavior and authorization, not just placement. |
+
+The [inventory](../architecture/4538-cross-owner-write-inventory.md#retained-protocols-and-lock-order)
+gives the path:line order and limits, including the existing E2 class/recurrence
+lock-order inversion, and estimates separate
+follow-up slices. This PR implements one workflow capability, not all of those
+slices. No follow-up issues are created. No new owner, policy rule, epoch,
+projection grant, baseline key, pass-through allowance or budget is needed.
+
+### Evidence and enforcement
+
+- `careplan/contracttest/care_resumption_workflow_test.go` verifies that a late
+  audit failure rolls back Membership and both Care Plan deletes, with and
+  without an ambient unit, and that another school's child is unknown.
+  Existing `TestCareLifecycle_Resume`, `...ResumeForAFutureStartWaitsForTheScheduler`
+  and `...ResumeDoesNotBringThePlanBack` preserve status/date/planning behavior.
+  `workflows/careexit/resumption_mock_test.go` pins pre-unit validation and
+  preserving the ledger after a conditional Membership refusal/error.
+- Enrollment's `TestDecisionService_ApprovalRollsBackEveryOwnerAfterMaterialization`
+  and `TestExistingStudentApprovalGrantsAccountBeforeClassRosterResync` pin E1's
+  rollback and account-first order. `TestCareExitOfferingLinksTenantScopeRollbackAndRestore`
+  pins the #4531 storage boundary; it does not prove the whole care lifecycle
+  is a workflow. Other exact test pointers are in the inventory.
+- Architecture checks enforce data ownership, public contracts and the DAG,
+  not command effects behind a root-bound port. Current green gates cannot
+  prove this addendum's semantic classification. Review enforces the finite
+  exceptions. #4548 should assess a command-effect inventory that follows root
+  bindings; #4542 covers root scan completeness. No name-based checker or new
+  exception register is introduced here.
+- ADR 0075's floor is unchanged. No counted method moves out of a scan to
+  lower a budget: the moved `Resume` was not a counted short delegation.
+  The new root adapter is recorded explicitly even while #4542 is pending.
+
+ADR 0023's old #4076 promise is replaced by this decision: #4076 closed with
+PR #4338 after removing foreign-import debt, not after moving the complete
+care coordinator. PR #4619 (#4531, ADR 0075) subsequently cut the source-booking
+lock/end round trip; it did not move `EndCare` or `ResumeCare` into a workflow.
