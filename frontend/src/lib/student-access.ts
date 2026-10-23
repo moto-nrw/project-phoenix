@@ -18,3 +18,29 @@ export function canReadStudents(session: Session | null): boolean {
     hasPermission(session, permission),
   );
 }
+
+// A session minted before permission claims keeps the action; the backend
+// still decides. An explicit permission list is authoritative.
+function grantedOrUnclaimed(session: Session | null, permission: string) {
+  if (!session?.user) return false;
+  const permissions = session.user.permissions;
+  return !Array.isArray(permissions) || hasPermission(session, permission);
+}
+
+/**
+ * Whether the session may check children in and out on the web (`users:checkin`,
+ * the gate of POST /api/students/{id}/school-checkin). The role „Gast“ lacks
+ * it (ADR 0083), so the check-in mode stays away instead of failing on every
+ * tap.
+ */
+export function canCheckInChildren(session: Session | null): boolean {
+  return grantedOrUnclaimed(session, "users:checkin");
+}
+
+/**
+ * Whether the session may export the child list (POST /api/students/export,
+ * `users:read`). The role „Gast“ reads children without exports (ADR 0083).
+ */
+export function canExportStudents(session: Session | null): boolean {
+  return grantedOrUnclaimed(session, "users:read");
+}
