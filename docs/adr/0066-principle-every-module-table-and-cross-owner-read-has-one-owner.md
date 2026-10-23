@@ -11,6 +11,10 @@ ownership rules that still hold. The ADRs it cites keep their context,
 measurements and history; this ADR changes none of them. A new ownership
 decision amends this ADR or names it.
 
+> Amended on 2026-10-23 by
+> [ADR 0084](0084-traeger-portal-liest-ueber-eine-projektion-und-schreibt-in-der-schule.md):
+> point 7 adds the Träger scope for reads of the Träger-Portal.
+
 ## Decision
 
 1. **The backend has 18 domain modules and 10 platform modules.**
@@ -103,9 +107,14 @@ decision amends this ADR or names it.
    retains the existing port-composed Staff Directory and Emergency Snapshot
    owners without SQL grants; it gives selection criteria for future cuts.
    Consumer-port reads do not generally require a projection owner.
-7. **`tenant_safe` on an installation-wide read means operator scope only.**
-   The read runs inside the cross-tenant administrative transaction, and its
-   routes sit behind the operator gates. A projection that repeats another
+7. **`tenant_safe` on a cross-tenant read means operator scope or Träger
+   scope.** An installation-wide read runs inside the cross-tenant
+   administrative transaction, and its routes sit behind the operator gates.
+   A Träger-Portal read runs inside the same transaction behind the Träger
+   session, filters on the schools of the session's Träger, and a ratchet
+   checks that filter on every query of its package
+   ([ADR 0084](0084-traeger-portal-liest-ueber-eine-projektion-und-schreibt-in-der-schule.md)).
+   A projection that repeats another
    owner's literal, such as a role name, changes it in the same change as that
    owner
    ([ADR 0033](0033-operator-dashboard-view-is-a-projection-owner.md)).

@@ -44,6 +44,7 @@ func NewCallerContext(
 		GroupLeaderSettingKey: configModels.KeyParentRequestGroupLeaderReviewEnabled,
 		RequestSettingKey:     configModels.KeyParentRequestReviewScope,
 		AbsenceSettingKey:     configModels.KeyParentAbsenceReviewScope,
+		GroupModeSettingKey:   configModels.KeyGroupMode,
 		AbsenceReadRequired:   securityruntime.ErrAbsenceReadRequired,
 	}
 	deps := identityCompose.CallerContextDependencies{
