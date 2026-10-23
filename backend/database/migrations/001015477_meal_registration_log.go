@@ -9,7 +9,7 @@ import (
 )
 
 const (
-	mealRegistrationLogVersion     = "1.15.476"
+	mealRegistrationLogVersion     = "1.15.477"
 	mealRegistrationLogDescription = "Mittagessen: eigenes Recht meals:register für Änderungen durch die Schule und Protokoll jeder Anmeldungsänderung (#3873)"
 )
 
