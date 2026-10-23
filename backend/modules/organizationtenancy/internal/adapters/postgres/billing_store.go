@@ -44,7 +44,7 @@ JOIN platform.organizations AS organization ON organization.id = school.organiza
 WHERE school.deleted_at IS NULL
   AND (school.created_at AT TIME ZONE 'Europe/Berlin')::date <= ?::date
   AND NOT EXISTS (
-    SELECT 1 FROM platform.billing_key_date_counts AS captured
+    SELECT 1 FROM platform.live_billing_key_date_counts AS captured
     WHERE captured.school_id = school.id
       AND captured.period = date_trunc('month', ?::date)::date
   )
@@ -52,18 +52,13 @@ ORDER BY school.id`
 
 // insertBillingKeyDateCountsSQL writes every school of one capture in one
 // statement: one array per column, zipped by unnest.
-const insertBillingKeyDateCountsSQL = `INSERT INTO platform.billing_key_date_counts
-  (school_id, period, key_date, school_name, organization_name, active_students, active_terminals)
-SELECT captured.school_id, captured.period::date, captured.key_date::date,
-  captured.school_name, captured.organization_name, captured.active_students, captured.active_terminals
-FROM unnest(?::bigint[], ?::text[], ?::text[], ?::text[], ?::text[], ?::integer[], ?::integer[])
-  AS captured(school_id, period, key_date, school_name, organization_name, active_students, active_terminals)
-ON CONFLICT (school_id, period) DO NOTHING`
+const insertBillingKeyDateCountsSQL = `SELECT platform.capture_billing_key_date_counts(
+ ?::bigint[], ?::text[], ?::text[], ?::text[], ?::text[], ?::integer[], ?::integer[])`
 
 const selectBillingKeyDateCountsSQL = `SELECT school_id, school_name, organization_name,
   period::text AS period, key_date::text AS key_date,
   active_students, active_terminals, recorded_at
-FROM platform.billing_key_date_counts
+FROM platform.live_billing_key_date_counts
 ORDER BY period DESC, organization_name, school_name, school_id`
 
 type billingSettingsRow struct {
@@ -166,19 +161,16 @@ func (s *BillingStore) InsertBillingKeyDateCounts(ctx context.Context, counts []
 		students = append(students, count.ActiveStudents)
 		terminals = append(terminals, count.ActiveTerminals)
 	}
-	result, err := db.NewRaw(insertBillingKeyDateCountsSQL,
+	var affected int
+	err = db.NewRaw(insertBillingKeyDateCountsSQL,
 		pgdialect.Array(schoolIDs), pgdialect.Array(periods), pgdialect.Array(keyDates),
 		pgdialect.Array(schoolNames), pgdialect.Array(organizationNames),
 		pgdialect.Array(students), pgdialect.Array(terminals),
-	).Exec(ctx)
+	).Scan(ctx, &affected)
 	if err != nil {
 		return 0, fmt.Errorf("organization tenancy postgres: insert billing key-date counts: %w", err)
 	}
-	affected, err := result.RowsAffected()
-	if err != nil {
-		return 0, fmt.Errorf("organization tenancy postgres: insert billing key-date counts: %w", err)
-	}
-	return int(affected), nil
+	return affected, nil
 }
 
 // ListBillingKeyDateCounts reads every captured row, newest month first.
