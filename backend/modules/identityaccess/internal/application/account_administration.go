@@ -219,23 +219,25 @@ func (a *AccountAdministration) ActivateAccount(ctx context.Context, accountID i
 }
 
 // DeactivateAccount disables the account and schedules the account-wide
-// session revocation. The revocation is requested after the flag committed,
-// so a refused deactivation leaves no standing wipe behind.
+// session revocation in the same transaction, so neither can survive a
+// rollback of the other or of the calling workflow.
 func (a *AccountAdministration) DeactivateAccount(ctx context.Context, accountID int64) (err error) {
 	if a == nil {
 		return errAccountAdministrationUnavailable
 	}
 	defer func() { err = administrationError(err) }()
 	ctx = bindRuntime(a.auth.attach, ctx)
-	if err := a.runtime.RunInTx(ctx, func(txCtx context.Context) error {
-		return a.setActive(txCtx, accountID, false, opDeactivateAccount)
-	}); err != nil {
-		return err
-	}
-	if err := a.auth.ScheduleAccountWideRevoke(ctx, accountID, domain.RevocationReasonAccountDeactivated, "", ""); err != nil {
-		return failed(opRevokeOnDeactivate, err)
-	}
-	return nil
+	return a.runManageableAccountTx(ctx, func(scopeCtx context.Context) error {
+		return a.runtime.RunInTx(scopeCtx, func(txCtx context.Context) error {
+			if err := a.setActiveInTransaction(txCtx, accountID, false, opDeactivateAccount); err != nil {
+				return err
+			}
+			if err := a.auth.ScheduleAccountWideRevoke(txCtx, accountID, domain.RevocationReasonAccountDeactivated, "", ""); err != nil {
+				return failed(opRevokeOnDeactivate, err)
+			}
+			return nil
+		})
+	})
 }
 
 func (a *AccountAdministration) setActiveInTransaction(ctx context.Context, accountID int64, active bool, op string) error {
@@ -372,10 +374,12 @@ func (a *AccountAdministration) FindManageableAccount(ctx context.Context, accou
 	}
 	ctx = bindRuntime(a.auth.attach, ctx)
 	var result domain.ManagedAccountRecord
-	err := a.runtime.RunInTx(ctx, func(txCtx context.Context) error {
-		var err error
-		result, err = a.findManageableAccount(txCtx, accountID)
-		return err
+	err := a.runManageableAccountTx(ctx, func(scopeCtx context.Context) error {
+		return a.runtime.RunInTx(scopeCtx, func(readCtx context.Context) error {
+			var err error
+			result, err = a.findManageableAccount(readCtx, accountID)
+			return err
+		})
 	})
 	return publicManagedAccount(result), administrationError(err)
 }
@@ -386,10 +390,12 @@ func (a *AccountAdministration) ListManageableAccounts(ctx context.Context, filt
 	}
 	ctx = bindRuntime(a.auth.attach, ctx)
 	var result []domain.ManagedAccountRecord
-	err := a.runtime.RunInTx(ctx, func(txCtx context.Context) error {
-		var err error
-		result, err = a.listManageableAccounts(txCtx, domain.AccountListFilter{Email: filter.Email, Active: filter.Active})
-		return err
+	err := a.runManageableAccountTx(ctx, func(scopeCtx context.Context) error {
+		return a.runtime.RunInTx(scopeCtx, func(readCtx context.Context) error {
+			var err error
+			result, err = a.listManageableAccounts(readCtx, domain.AccountListFilter{Email: filter.Email, Active: filter.Active})
+			return err
+		})
 	})
 	if err != nil {
 		return nil, administrationError(err)
@@ -402,13 +408,30 @@ func (a *AccountAdministration) UpdateManageableAccount(ctx context.Context, upd
 		return errAccountAdministrationUnavailable
 	}
 	ctx = bindRuntime(a.auth.attach, ctx)
-	return administrationError(a.runtime.RunInTx(ctx, func(txCtx context.Context) error {
-		return a.updateManageableAccount(txCtx, domain.AccountIdentityUpdate{AccountID: update.AccountID, Email: update.Email, Username: update.Username})
+	return administrationError(a.runManageableAccountTx(ctx, func(scopeCtx context.Context) error {
+		return a.runtime.RunInTx(scopeCtx, func(writeCtx context.Context) error {
+			return a.updateManageableAccount(writeCtx, domain.AccountIdentityUpdate{AccountID: update.AccountID, Email: update.Email, Username: update.Username})
+		})
 	}))
 }
 
 func (a *AccountAdministration) setActive(ctx context.Context, accountID int64, active bool, op string) error {
-	return a.runtime.RunInTx(ctx, func(txCtx context.Context) error { return a.setActiveInTransaction(txCtx, accountID, active, op) })
+	return a.runManageableAccountTx(ctx, func(scopeCtx context.Context) error {
+		return a.runtime.RunInTx(scopeCtx, func(writeCtx context.Context) error {
+			return a.setActiveInTransaction(writeCtx, accountID, active, op)
+		})
+	})
+}
+
+// Organization account administration joins memberships from several schools.
+// Select administrative access before starting a standalone command, while an
+// existing transaction retains its locks, snapshot, role and rollback outcome.
+// Visibility still constrains every read/write to the organization's schools.
+func (a *AccountAdministration) runManageableAccountTx(ctx context.Context, fn func(context.Context) error) error {
+	if a.runtime.Scope(ctx) == domain.ScopeOrg {
+		return globalIdentityRead(ctx, a.runtime, fn)
+	}
+	return fn(ctx)
 }
 
 func (a *AccountAdministration) ChangeAccountPassword(ctx context.Context, accountID int64, currentPassword, newPassword string) (err error) {
