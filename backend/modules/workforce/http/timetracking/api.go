@@ -3,10 +3,12 @@ package timetracking
 import (
 	"context"
 	"errors"
+	"fmt"
 	"io"
 	"log/slog"
 	"net/http"
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/go-chi/chi/v5"
@@ -434,6 +436,21 @@ func (rs *Resource) getSessionEdits(w http.ResponseWriter, r *http.Request) {
 	common.Respond(w, r, http.StatusOK, edits, "Session edits retrieved successfully")
 }
 
+// parseSessionExportFormat reads the work-session export format. A missing
+// format means CSV; an unknown one is a caller mistake and is rejected rather
+// than silently answered with CSV.
+func parseSessionExportFormat(r *http.Request) (string, error) {
+	format := strings.TrimSpace(r.URL.Query().Get("format"))
+	switch format {
+	case "":
+		return "csv", nil
+	case "csv", "xlsx", "pdf":
+		return format, nil
+	default:
+		return "", fmt.Errorf("unsupported export format %q, expected csv, xlsx or pdf", format)
+	}
+}
+
 // exportSessions handles GET /api/time-tracking/export?from=...&to=...&format=csv|xlsx
 func (rs *Resource) exportSessions(w http.ResponseWriter, r *http.Request) {
 	// Get staff ID from JWT claims
@@ -449,9 +466,10 @@ func (rs *Resource) exportSessions(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	format := r.URL.Query().Get("format")
-	if format != "csv" && format != "xlsx" && format != "pdf" {
-		format = "csv"
+	format, err := parseSessionExportFormat(r)
+	if err != nil {
+		common.RenderError(w, r, common.ErrorInvalidRequest(err))
+		return
 	}
 
 	file, err := rs.WorkSessionService.ExportSessions(r.Context(), staffID, from.String(), to.String(), format)

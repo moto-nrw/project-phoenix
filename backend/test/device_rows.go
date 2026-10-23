@@ -1,6 +1,7 @@
 package test
 
 import (
+	"context"
 	"time"
 
 	"github.com/uptrace/bun"
@@ -29,10 +30,22 @@ type Device struct {
 	DeviceType            string     `bun:"device_type,notnull"`
 	Name                  *string    `bun:"name"`
 	Status                string     `bun:"status,notnull,default:'active'"`
-	APIKey                *string    `bun:"api_key,unique"`
+	APIKey                *string    `bun:"-"`
+	APIKeyHash            *string    `bun:"api_key_hash,unique"`
+	MaskedAPIKey          string     `bun:"masked_api_key"`
 	LastSeen              *time.Time `bun:"last_seen"`
 	RegisteredByID        *int64     `bun:"registered_by_id"`
 	RoomID                *int64     `bun:"room_id"`
 	ArchivedAt            *time.Time `bun:"archived_at"`
 	TransferredToDeviceID *int64     `bun:"transferred_to_device_id"`
+}
+
+// BeforeInsert persists only a fingerprint of the transient fixture key.
+func (*Device) BeforeInsert(_ context.Context, query *bun.InsertQuery) error {
+	d, ok := query.GetModel().Value().(*Device)
+	if ok && d.APIKey != nil {
+		query.Value("api_key_hash", "encode(sha256(convert_to(?, 'UTF8')), 'hex')", *d.APIKey)
+		query.Value("masked_api_key", "?", "...")
+	}
+	return nil
 }

@@ -67,6 +67,7 @@ import {
   type StatisticsStudentRow,
 } from "~/lib/statistics-api";
 import { useTenantAwarePath } from "~/lib/tenant-path";
+import { downloadBlob, filenameFromDisposition } from "~/lib/file-download";
 
 const logger = createLogger({ component: "StatisticsPage" });
 
@@ -189,19 +190,11 @@ export default function StatisticsPage() {
         if (!res.ok) {
           throw await apiErrorFromResponse(res, "statistics export failed");
         }
-        const blob = await res.blob();
-        const disposition = res.headers.get("Content-Disposition") ?? "";
-        const filename =
-          /filename="([^"]+)"/.exec(disposition)?.[1] ??
-          `${EXPORT_FILENAME_STEM[section]}-${fromISO}-${toISO}.${format}`;
-        const url = URL.createObjectURL(blob);
-        const anchor = document.createElement("a");
-        anchor.href = url;
-        anchor.download = filename;
-        document.body.appendChild(anchor);
-        anchor.click();
-        anchor.remove();
-        URL.revokeObjectURL(url);
+        downloadBlob(
+          await res.blob(),
+          filenameFromDisposition(res) ??
+            `${EXPORT_FILENAME_STEM[section]}-${fromISO}-${toISO}.${format}`,
+        );
       } catch (error) {
         logger.error("statistics_export_failed", {
           error: error instanceof Error ? error.message : String(error),
