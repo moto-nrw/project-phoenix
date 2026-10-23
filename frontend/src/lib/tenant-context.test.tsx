@@ -305,6 +305,38 @@ describe("TenantProvider — cross-tab settings sync", () => {
     });
   });
 
+  it("keeps operational metadata but disables analytics when a refresh fails", async () => {
+    const initial = { ...mockTenant, nfcEnabled: true, analyticsEnabled: true };
+    mockResolveTenant.mockResolvedValueOnce(null);
+    const { result } = renderHook(
+      () => ({ tenant: useTenant().tenant, nfcEnabled: useNFCEnabled() }),
+      {
+        wrapper: ({ children }) => (
+          <TenantWrapper tenant={initial}>{children}</TenantWrapper>
+        ),
+      },
+    );
+    expect(result.current.tenant).toEqual(initial);
+    expect(result.current.nfcEnabled).toBe(true);
+
+    await act(async () => {
+      for (const handler of broadcastHandlers) handler();
+    });
+
+    expect(mockResolveTenant).toHaveBeenCalledWith("demo-school");
+    expect(result.current.tenant).toEqual({
+      ...initial,
+      analyticsEnabled: false,
+    });
+    expect(result.current.nfcEnabled).toBe(true);
+
+    mockResolveTenant.mockResolvedValueOnce(initial);
+    await act(async () => {
+      for (const handler of broadcastHandlers) handler();
+    });
+    expect(result.current.tenant).toEqual(initial);
+  });
+
   it("ignores refetched values for a different subdomain", async () => {
     mockResolveTenant.mockResolvedValue({
       ...mockTenant,

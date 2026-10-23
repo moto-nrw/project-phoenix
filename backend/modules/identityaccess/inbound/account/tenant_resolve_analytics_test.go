@@ -24,6 +24,7 @@ import (
 
 type analyticsResolveResp struct {
 	Data struct {
+		AnalyticsEnabled                bool `json:"analytics_enabled"`
 		AnalyticsFreigabe               bool `json:"analytics_freigabe"`
 		AnalyticsRecordingSamplePercent int  `json:"analytics_recording_sample_percent"`
 	} `json:"data"`
@@ -96,4 +97,21 @@ func TestResolveTenant_AnalyticsFreigabe_UnreadableValueFailsRequest(t *testing.
 	router.ServeHTTP(response, httptest.NewRequest(http.MethodGet, "/auth/tenant/resolve?slug="+slug, nil))
 	require.Equal(t, http.StatusInternalServerError, response.Code, response.Body.String())
 	assert.NotContains(t, response.Body.String(), `"data"`)
+}
+
+// A school can opt out without changing the registry default for another school.
+func TestResolveTenant_AnalyticsSwitchIsTenantScoped(t *testing.T) {
+	t.Parallel()
+	db, authRoute, values := setupAuthDependenciesRouteWithSettings(t)
+	schoolA, slugA := newTenantResolveScope(t, db)
+	_, slugB := newTenantResolveScope(t, db)
+	require.NoError(t, values.SetValue(schoolA.Context(), settings.KeyAnalyticsEnabled, false, nil, nil))
+	require.NoError(t, values.SetValue(schoolA.Context(), settings.KeyAnalyticsFreigabe, true, nil, nil))
+	resource := authAPI.NewResource(authRoute.AuthService, authRoute.Invitations, authRoute.SchoolService, authRoute.Sessions, identityaccessCompose.TenantUnitOfWork{}, transactionFailures.IsConstraintViolation, authRoute.SettingsService)
+	off := resolveAnalytics(t, resource, slugA)
+	assert.False(t, off.Data.AnalyticsEnabled)
+	assert.False(t, off.Data.AnalyticsFreigabe)
+	assert.Zero(t, off.Data.AnalyticsRecordingSamplePercent)
+	on := resolveAnalytics(t, resource, slugB)
+	assert.True(t, on.Data.AnalyticsEnabled)
 }

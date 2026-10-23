@@ -29,12 +29,13 @@ type ExportFile struct {
 }
 
 type Runtime struct {
-	Protected       func(chi.Router, func(chi.Router, Middleware))
-	Permission      func(Access) Middleware
-	Success         func(http.ResponseWriter, *http.Request, int, any, string)
-	InvalidRequest  func(http.ResponseWriter, *http.Request, error)
-	ModuleFailure   func(http.ResponseWriter, *http.Request, error, string)
-	ExportDailyList func(mealplanModule.DailyList, string) (ExportFile, error)
+	Protected        func(chi.Router, func(chi.Router, Middleware))
+	Permission       func(Access) Middleware
+	Success          func(http.ResponseWriter, *http.Request, int, any, string)
+	InvalidRequest   func(http.ResponseWriter, *http.Request, error)
+	ModuleFailure    func(http.ResponseWriter, *http.Request, error, string)
+	ExportDailyList  func(mealplanModule.DailyList, string) (ExportFile, error)
+	ExportWeeklyList func(mealplanModule.WeeklyList, string) (ExportFile, error)
 }
 
 type Resource struct {
@@ -43,7 +44,7 @@ type Resource struct {
 }
 
 func NewResource(module mealplanModule.Capability, runtime Runtime) *Resource {
-	if module == nil || runtime.Protected == nil || runtime.Permission == nil || runtime.Success == nil || runtime.InvalidRequest == nil || runtime.ModuleFailure == nil || runtime.ExportDailyList == nil {
+	if module == nil || runtime.Protected == nil || runtime.Permission == nil || runtime.Success == nil || runtime.InvalidRequest == nil || runtime.ModuleFailure == nil || runtime.ExportDailyList == nil || runtime.ExportWeeklyList == nil {
 		panic("meal plan HTTP: all dependencies are required")
 	}
 	return &Resource{module: module, runtime: runtime}
@@ -58,6 +59,8 @@ func (rs *Resource) Router() chi.Router {
 		protected.With(rs.runtime.Permission(AccessWrite), withTx).Delete("/{date}", rs.deleteDay)
 		protected.With(rs.runtime.Permission(AccessParticipants), withTx).Get("/participants", rs.getParticipants)
 		protected.With(rs.runtime.Permission(AccessParticipants), withTx).Get("/participants/export", rs.exportParticipants)
+		protected.With(rs.runtime.Permission(AccessParticipants), withTx).Get("/participants/week", rs.getWeeklyParticipants)
+		protected.With(rs.runtime.Permission(AccessParticipants), withTx).Get("/participants/week/export", rs.exportWeeklyParticipants)
 	})
 	return router
 }
@@ -77,9 +80,22 @@ type DailyParticipantResponse struct {
 }
 
 type DailyListResponse struct {
+	Date           string                     `json:"date"`
+	CutoffTime     string                     `json:"cutoff_time"`
+	CutoffLeadDays int                        `json:"cutoff_lead_days"`
+	Participants   []DailyParticipantResponse `json:"participants"`
+}
+
+type WeeklyDayResponse struct {
 	Date         string                     `json:"date"`
-	CutoffTime   string                     `json:"cutoff_time"`
 	Participants []DailyParticipantResponse `json:"participants"`
+}
+
+type WeeklyListResponse struct {
+	WeekStart      string              `json:"week_start"`
+	CutoffTime     string              `json:"cutoff_time"`
+	CutoffLeadDays int                 `json:"cutoff_lead_days"`
+	Days           []WeeklyDayResponse `json:"days"`
 }
 
 type DishRequest struct {
@@ -161,11 +177,27 @@ func (rs *Resource) getParticipants(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
-	participants := make([]DailyParticipantResponse, 0, len(list.Participants))
-	for _, participant := range list.Participants {
-		participants = append(participants, DailyParticipantResponse{StudentID: strconv.FormatInt(participant.StudentID, 10), FirstName: participant.FirstName, LastName: participant.LastName, SchoolClass: participant.SchoolClass})
+	rs.runtime.Success(w, r, http.StatusOK, DailyListResponse{Date: string(list.Date), CutoffTime: list.CutoffTime, CutoffLeadDays: list.CutoffLeadDays, Participants: participantResponses(list.Participants)}, "Meal participation list retrieved successfully")
+}
+
+func (rs *Resource) getWeeklyParticipants(w http.ResponseWriter, r *http.Request) {
+	week, ok := rs.weeklyList(w, r)
+	if !ok {
+		return
 	}
-	rs.runtime.Success(w, r, http.StatusOK, DailyListResponse{Date: string(list.Date), CutoffTime: list.CutoffTime, Participants: participants}, "Meal participation list retrieved successfully")
+	days := make([]WeeklyDayResponse, 0, len(week.Days))
+	for _, day := range week.Days {
+		days = append(days, WeeklyDayResponse{Date: string(day.Date), Participants: participantResponses(day.Participants)})
+	}
+	rs.runtime.Success(w, r, http.StatusOK, WeeklyListResponse{WeekStart: string(week.WeekStart), CutoffTime: week.CutoffTime, CutoffLeadDays: week.CutoffLeadDays, Days: days}, "Weekly meal participation list retrieved successfully")
+}
+
+func participantResponses(participants []mealplanModule.DailyParticipant) []DailyParticipantResponse {
+	responses := make([]DailyParticipantResponse, 0, len(participants))
+	for _, participant := range participants {
+		responses = append(responses, DailyParticipantResponse{StudentID: strconv.FormatInt(participant.StudentID, 10), FirstName: participant.FirstName, LastName: participant.LastName, SchoolClass: participant.SchoolClass})
+	}
+	return responses
 }
 
 func (rs *Resource) exportParticipants(w http.ResponseWriter, r *http.Request) {
@@ -173,15 +205,40 @@ func (rs *Resource) exportParticipants(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
+	format, ok := rs.exportFormat(w, r)
+	if !ok {
+		return
+	}
+	file, err := rs.runtime.ExportDailyList(list, format)
+	rs.writeExport(w, r, file, err)
+}
+
+func (rs *Resource) exportWeeklyParticipants(w http.ResponseWriter, r *http.Request) {
+	week, ok := rs.weeklyList(w, r)
+	if !ok {
+		return
+	}
+	format, ok := rs.exportFormat(w, r)
+	if !ok {
+		return
+	}
+	file, err := rs.runtime.ExportWeeklyList(week, format)
+	rs.writeExport(w, r, file, err)
+}
+
+func (rs *Resource) exportFormat(w http.ResponseWriter, r *http.Request) (string, bool) {
 	format := r.URL.Query().Get("format")
 	if format == "" {
 		format = "pdf"
 	}
 	if format != "pdf" && format != "xlsx" {
 		rs.runtime.InvalidRequest(w, r, fmt.Errorf("unsupported format %q", format))
-		return
+		return "", false
 	}
-	file, err := rs.runtime.ExportDailyList(list, format)
+	return format, true
+}
+
+func (rs *Resource) writeExport(w http.ResponseWriter, r *http.Request, file ExportFile, err error) {
 	if err != nil {
 		rs.runtime.ModuleFailure(w, r, err, "failed to export meal participation list")
 		return
@@ -191,6 +248,20 @@ func (rs *Resource) exportParticipants(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Length", strconv.Itoa(len(file.Data)))
 	w.WriteHeader(http.StatusOK)
 	_, _ = w.Write(file.Data)
+}
+
+func (rs *Resource) weeklyList(w http.ResponseWriter, r *http.Request) (mealplanModule.WeeklyList, bool) {
+	weekStart, err := mealplanModule.ParseDate(r.URL.Query().Get("week_start"))
+	if err != nil {
+		rs.runtime.InvalidRequest(w, r, errors.New("week_start must be in YYYY-MM-DD format"))
+		return mealplanModule.WeeklyList{}, false
+	}
+	week, err := rs.module.WeeklyList(r.Context(), weekStart)
+	if err != nil {
+		rs.runtime.ModuleFailure(w, r, err, "failed to load meal participation list")
+		return mealplanModule.WeeklyList{}, false
+	}
+	return week, true
 }
 
 func (rs *Resource) dailyList(w http.ResponseWriter, r *http.Request) (mealplanModule.DailyList, bool) {

@@ -42,9 +42,9 @@ Hilfe-PDFs sind nicht Teil davon (Nicht-Ziel in #2223).
 | 10 | Eigene Zeiterfassung | Zeiterfassung | **Angeglichen** im Backend: unbekanntes Format gibt 400 statt still CSV. Die Oberfläche (`StaffExportButton`) nutzt den gemeinsamen Export-Dialog und `/api/staff/{id}/time-tracking/export`. Die alte Route `frontend/src/app/api/time-tracking/export` ist entfernt. |
 | 11 | Zeiterfassung einer Person | Personal, Tab Zeiterfassung | Wie #10. |
 | 12 | Zeitkonten, DATEV | Personal | **Bewusst so lassen.** Eigene Formate (DATEV) und SFTP-Übergabe; kein PDF, kein Druck. Lehnt unbekannte Formate schon ab. |
-| 13 | Anmeldungen der Phase | Anmeldephase | **Angleichen.** Teilt sich die Block-Bausteine mit #14 und #15 statt eigener Builder. Das Menü nutzt `OverflowMenu`. |
+| 13 | Anmeldungen der Phase | Anmeldephase | **Angeglichen.** Teilt sich die Block-Bausteine mit #14 und #15 (#4750). Das Menü nutzt `OverflowMenu`. |
 | 14 | Anmeldungen eines Kindes | Kind, Tab Anmeldungen | Wie #13. Die Einstiege nutzen `OverflowMenu`. |
-| 15 | Anmelde-Auswertung | Anmeldephase | Wie #13. Die kompakte Variante (#2215) nutzt den Tabellen-Builder der Anmelde-Klassenliste statt eigener Spalten. |
+| 15 | Anmelde-Auswertung | Anmeldephase | Wie #13. Die kompakte Variante (#2215) nutzt den Tabellen-Builder der Anmelde-Klassenliste (#4750). |
 | 16 | Klassenlisten der Phase | Anmeldephase | **Getrennt lassen, Layout angeglichen** (#4749). Siehe unten. |
 | 17 | Statistik | Statistik | **Bewusst so lassen.** Menü pro Abschnitt folgt Regel 2. |
 | 18 | Mittagessen-Teilnehmer | Essensplan | **Angeglichen.** Die Einstiege nutzen `OverflowMenu`. |
@@ -78,6 +78,15 @@ Abholung lesbar bleibt. Tage ohne Betreuung bleiben „—“. Die
 Kinderlisten-Vorlage hat keine Ankunftszeit mehr in
 der Zelle; die bleibt der OGS Wochenliste vorbehalten.
 
-## Offen
+## Anmelde-Exporte: gemeinsame Bausteine
 
-- Gemeinsame Block-Bausteine für die Anmelde-Exporte (#13 bis #15).
+Anmeldungen der Phase, Anmeldungen eines Kindes und die Anmelde-Auswertung
+(#13 bis #15) bauen ihre Dokumente aus denselben Teilen in
+`backend/modules/enrollment/http/export_parts.go` (#4750): Seitenkopf mit
+Datenschutz-Fußzeile, Formatweiche (PDF und Word als Blöcke, Excel als
+Tabelle), der Block „ein Kind mit seinen Anmeldeangaben“ und ein
+Spaltenkatalog für Excel. Jeder Export liest weiter seine eigenen Daten und
+wählt seine Felder; der Inhalt der Dokumente ist unverändert. Die kompakte
+Auswertung und die Klassenliste der Phase teilen sich die
+Klassenlisten-Tabelle; die Auswertung beschriftet die Klassenspalte weiter mit
+„Zielklasse“.

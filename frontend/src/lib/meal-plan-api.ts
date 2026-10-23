@@ -42,7 +42,34 @@ export interface DailyMealParticipant {
 export interface DailyMealList {
   date: string;
   cutoffTime: string;
+  /** Werktage vor dem Essenstag, an denen die Frist gilt; 0 = am selben Tag. */
+  cutoffLeadDays: number;
   participants: DailyMealParticipant[];
+}
+
+export interface WeeklyMealList {
+  weekStart: string;
+  cutoffTime: string;
+  cutoffLeadDays: number;
+  days: Array<{ date: string; participants: DailyMealParticipant[] }>;
+}
+
+interface BackendMealParticipant {
+  student_id: string;
+  first_name: string;
+  last_name: string;
+  school_class: string;
+}
+
+function mapParticipant(
+  participant: BackendMealParticipant,
+): DailyMealParticipant {
+  return {
+    studentId: participant.student_id,
+    firstName: participant.first_name,
+    lastName: participant.last_name,
+    schoolClass: participant.school_class,
+  };
 }
 
 function mapEntry(entry: BackendMealPlanEntry): MealPlanEntry {
@@ -108,12 +135,8 @@ export async function getDailyMealParticipants(
     data?: {
       date: string;
       cutoff_time: string;
-      participants: Array<{
-        student_id: string;
-        first_name: string;
-        last_name: string;
-        school_class: string;
-      }>;
+      cutoff_lead_days?: number;
+      participants: BackendMealParticipant[];
     };
   };
   const data = json.data;
@@ -121,30 +144,76 @@ export async function getDailyMealParticipants(
   return {
     date: data.date,
     cutoffTime: data.cutoff_time,
-    participants: data.participants.map((participant) => ({
-      studentId: participant.student_id,
-      firstName: participant.first_name,
-      lastName: participant.last_name,
-      schoolClass: participant.school_class,
+    cutoffLeadDays: data.cutoff_lead_days ?? 0,
+    participants: data.participants.map(mapParticipant),
+  };
+}
+
+/** Kitchen list of every school day in the week containing weekStart. */
+export async function getWeeklyMealParticipants(
+  weekStart: string,
+): Promise<WeeklyMealList> {
+  const response = await sessionFetch(
+    `/api/meal-plan/participants/week?week_start=${encodeURIComponent(weekStart)}`,
+    { credentials: "include" },
+  );
+  if (!response.ok) {
+    throw await apiErrorFromResponse(
+      response,
+      "weekly meal participants load failed",
+    );
+  }
+  const json = (await response.json()) as {
+    data?: {
+      week_start: string;
+      cutoff_time: string;
+      cutoff_lead_days: number;
+      days: Array<{ date: string; participants: BackendMealParticipant[] }>;
+    };
+  };
+  const data = json.data;
+  if (!data)
+    throw new Error("Weekly meal participant response is missing data");
+  return {
+    weekStart: data.week_start,
+    cutoffTime: data.cutoff_time,
+    cutoffLeadDays: data.cutoff_lead_days,
+    days: data.days.map((day) => ({
+      date: day.date,
+      participants: day.participants.map(mapParticipant),
     })),
   };
 }
 
-export async function downloadDailyMealParticipants(
-  date: string,
-  format: "pdf" | "xlsx",
-): Promise<void> {
-  const response = await sessionFetch(
-    `/api/meal-plan/participants/export?date=${encodeURIComponent(date)}&format=${format}`,
-    { credentials: "include" },
-  );
+async function downloadMealList(path: string, filename: string): Promise<void> {
+  const response = await sessionFetch(path, { credentials: "include" });
   if (!response.ok) {
     throw await apiErrorFromResponse(
       response,
       "meal participants export failed",
     );
   }
-  downloadBlob(await response.blob(), `mittagessen-${date}.${format}`);
+  downloadBlob(await response.blob(), filename);
+}
+
+export async function downloadDailyMealParticipants(
+  date: string,
+  format: "pdf" | "xlsx",
+): Promise<void> {
+  await downloadMealList(
+    `/api/meal-plan/participants/export?date=${encodeURIComponent(date)}&format=${format}`,
+    `mittagessen-${date}.${format}`,
+  );
+}
+
+export async function downloadWeeklyMealParticipants(
+  weekStart: string,
+  format: "pdf" | "xlsx",
+): Promise<void> {
+  await downloadMealList(
+    `/api/meal-plan/participants/week/export?week_start=${encodeURIComponent(weekStart)}&format=${format}`,
+    `mittagessen-woche-${weekStart}.${format}`,
+  );
 }
 
 /** Monday (ISO) of the week containing the given Date. */
