@@ -540,7 +540,8 @@ describe("getParentHelpTopicForPath", () => {
     // des Tagesbetriebs, der Umgang mit dem NFC-Tablet und die Notizen zu
     // einem Kind.
     // 83 seit #3821: der eigene Dienstplan ist ein geteilter Artikel.
-    expect(leadTopics).toHaveLength(83);
+    // 84 seit #3727: die wichtigsten Einstellungen im Überblick.
+    expect(leadTopics).toHaveLength(84);
     expect(
       leadTopics.every(
         (topic) =>
