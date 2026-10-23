@@ -56,6 +56,7 @@ type Store interface {
 	LockStaffSupervision(context.Context, int64, Date) ([]int64, Stats, error)
 	UnclaimedStore
 	AttendanceStore
+	MorningAttendanceStore
 	ActivitySessionStore
 	SessionAttendanceStore
 	VisitStore

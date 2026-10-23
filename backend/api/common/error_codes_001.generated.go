@@ -2,6 +2,9 @@
 package common
 
 const (
+	CodeIotNoRoomAvailable                            = "iot.no_room_available"
+	CodeIotNoSessionToEnd                             = "iot.no_session_to_end"
+	CodeIotOpenRoomBinaryMode                         = "iot.open_room_binary_mode"
 	CodeIotPersonNotStudent                           = "iot.person_not_student"
 	CodeIotPickupStudentRfidRequired                  = "iot.pickup_student_rfid_required"
 	CodeIotPlannedStartNotReached                     = "iot.planned_start_not_reached"
@@ -299,12 +302,12 @@ const (
 	CodeTimetableTemplatePlanningTrackUnavailable     = "timetable.template_planning_track_unavailable"
 	CodeTimetableTemplateRosterRebaseConflict         = "timetable.template_roster_rebase_conflict"
 	CodeTimetableTemplateSplitInPast                  = "timetable.template_split_in_past"
-	CodeTimetableTemplateSplitInvalid                 = "timetable.template_split_invalid"
-	CodeTimetableTemplateStartInPast                  = "timetable.template_start_in_past"
-	CodeTimetableTemplateStartNotEarlier              = "timetable.template_start_not_earlier"
 )
 
 var errorCodeClasses1 = map[string]string{
+	"iot.no_room_available":                               "input",
+	"iot.no_session_to_end":                               "input",
+	"iot.open_room_binary_mode":                           "business_rejection",
 	"iot.person_not_student":                              "input",
 	"iot.pickup_student_rfid_required":                    "input",
 	"iot.planned_start_not_reached":                       "business_rejection",
@@ -602,9 +605,6 @@ var errorCodeClasses1 = map[string]string{
 	"timetable.template_planning_track_unavailable":       "business_rejection",
 	"timetable.template_roster_rebase_conflict":           "business_rejection",
 	"timetable.template_split_in_past":                    "input",
-	"timetable.template_split_invalid":                    "input",
-	"timetable.template_start_in_past":                    "input",
-	"timetable.template_start_not_earlier":                "input",
 }
 
 func init() {

@@ -9,6 +9,7 @@
     {"name": "active.group_mappings", "scope": "tenant", "export": "include"},
     {"name": "active.group_supervisors", "scope": "tenant", "export": "include", "personKeys": {"staff_id": "users.staff_school_memberships.id"}},
     {"name": "active.groups", "scope": "tenant", "export": "include"},
+    {"name": "active.morning_attendance", "scope": "tenant", "export": "include", "personKeys": {"student_id": "users.student_profiles.id", "recorded_by_staff_id": "users.staff_school_memberships.id"}},
     {"name": "active.presence_backfill_batches", "scope": "tenant", "export": "excludeInternal", "exportReason": "Administrative migration progress counters, not presence records."},
     {"name": "active.presence_backfill_checkpoints", "scope": "tenant", "export": "excludeInternal", "exportReason": "Administrative migration progress checkpoints, not presence records."},
     {"name": "active.scheduled_checkouts", "scope": "tenant", "export": "include", "personKeys": {"student_id": "users.student_profiles.id", "scheduled_by": "users.staff_school_memberships.id", "cancelled_by": "users.staff_school_memberships.id"}},

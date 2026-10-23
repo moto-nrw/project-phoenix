@@ -20,9 +20,15 @@ func TestDeletionRetentionWindowsReadTheirSettings(t *testing.T) {
 	staff, err := StaffRetentionWindow(source)(t.Context())
 	require.NoError(t, err)
 	assert.Equal(t, 800, staff)
+	morning, err := MorningAttendanceRetentionWindow(retentionSource{configModel.KeyGDPRMorningAttendanceRetentionDays: 60})(t.Context())
+	require.NoError(t, err)
+	assert.Equal(t, 60, morning)
+	_, err = MorningAttendanceRetentionWindow(retentionSource{})(t.Context())
+	require.ErrorContains(t, err, "resolve "+configModel.KeyGDPRMorningAttendanceRetentionDays+": ")
 	assert.Equal(t, []string{
 		configModel.KeyGDPRStatusDayRetentionDays,
 		configModel.KeyGDPRAttendanceRetentionDays,
+		configModel.KeyGDPRMorningAttendanceRetentionDays,
 		configModel.KeyGDPRParentMessageRetentionDays,
 		configModel.KeyGDPRStaffMessageRetentionDays,
 		configModel.KeyGDPRTimetableRetentionDays,

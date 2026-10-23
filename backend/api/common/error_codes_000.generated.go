@@ -78,6 +78,9 @@ const (
 	CodeClassdayArrivalExceptionEditorRequired           = "classday.arrival_exception_editor_required"
 	CodeClassdayArrivalExceptionPastDate                 = "classday.arrival_exception_past_date"
 	CodeClassdayArrivalExceptionWeekend                  = "classday.arrival_exception_weekend"
+	CodeClassdayMorningAttendanceNoSchoolDay             = "classday.morning_attendance_no_school_day"
+	CodeClassdayMorningAttendanceNotToday                = "classday.morning_attendance_not_today"
+	CodeClassdayMorningAttendanceUnknownChild            = "classday.morning_attendance_unknown_child"
 	CodeClassdaySchoolWriteDisabled                      = "classday.school_write_disabled"
 	CodeCommunicationAnnouncementNotFound                = "communication.announcement_not_found"
 	CodeCommunicationAnnouncementNotPublished            = "communication.announcement_not_published"
@@ -299,9 +302,6 @@ const (
 	CodeIotNoActiveGroupsInRoom                          = "iot.no_active_groups_in_room"
 	CodeIotNoActiveSession                               = "iot.no_active_session"
 	CodeIotNoAttendanceRecordToday                       = "iot.no_attendance_record_today"
-	CodeIotNoRoomAvailable                               = "iot.no_room_available"
-	CodeIotNoSessionToEnd                                = "iot.no_session_to_end"
-	CodeIotOpenRoomBinaryMode                            = "iot.open_room_binary_mode"
 )
 
 var errorCodeClasses0 = map[string]string{
@@ -381,6 +381,9 @@ var errorCodeClasses0 = map[string]string{
 	"classday.arrival_exception_editor_required":           "permission",
 	"classday.arrival_exception_past_date":                 "input",
 	"classday.arrival_exception_weekend":                   "input",
+	"classday.morning_attendance_no_school_day":            "input",
+	"classday.morning_attendance_not_today":                "input",
+	"classday.morning_attendance_unknown_child":            "business_rejection",
 	"classday.school_write_disabled":                       "permission",
 	"communication.announcement_not_found":                 "business_rejection",
 	"communication.announcement_not_published":             "business_rejection",
@@ -602,9 +605,6 @@ var errorCodeClasses0 = map[string]string{
 	"iot.no_active_groups_in_room":                         "input",
 	"iot.no_active_session":                                "input",
 	"iot.no_attendance_record_today":                       "input",
-	"iot.no_room_available":                                "input",
-	"iot.no_session_to_end":                                "input",
-	"iot.open_room_binary_mode":                            "business_rejection",
 }
 
 func init() {

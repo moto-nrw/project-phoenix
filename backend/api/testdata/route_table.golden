@@ -1082,6 +1082,7 @@ PUT /parent/me/children/{studentId}/request-sharing/{requestType}/{requestId}
 PUT /parent/me/notification-preferences/{type}
 PUT /parent/me/profile
 PUT /school/class-day/arrival-exceptions/{schoolClass}/{date}
+PUT /school/class-day/morning-attendance/{schoolClass}/{date}
 PUT /school/notifications/preferences/{type}
 QUERY /.well-known/caldav
 QUERY /api/caldav

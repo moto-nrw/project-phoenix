@@ -89,6 +89,7 @@ var tableRetentions = map[string]tableRetention{
 	"active.group_mappings":                                 notPersonal("group-to-combination mapping"),
 	"active.group_supervisors":                              staffRetention("Student Presence RemoveSupervision"),
 	"active.groups":                                         notPersonal("runtime activity/room session rows, no subject column; CASCADE from activities.groups"),
+	"active.morning_attendance":                             own("nightly retention step morning_attendance_retention (roots/owners/worker_retention.go), Student Presence DeleteExpiredMorningAttendance (school window gdpr.morning_attendance_retention_days after the school day, #4790)"),
 	"active.presence_backfill_batches":                      notPersonal("progress of a data migration, counters and positions only"),
 	"active.presence_backfill_checkpoints":                  notPersonal("progress of a data migration, counters and positions only"),
 	"active.scheduled_checkouts":                            parent("users.student_profiles"),

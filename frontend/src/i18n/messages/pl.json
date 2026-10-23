@@ -2202,6 +2202,9 @@
         "arrival_exception_editor_required": "Nie masz dostępu do: {object}. Skontaktuj się ze szkołą.",
         "arrival_exception_past_date": "Nie udało się zapisać: {object}. Sprawdź wpisane dane.",
         "arrival_exception_weekend": "Nie udało się zapisać: {object}. Sprawdź wpisane dane.",
+        "morning_attendance_no_school_day": "Dziś nie ma lekcji. Obecność można wpisać tylko w dni szkolne.",
+        "morning_attendance_not_today": "Obecność można wpisać tylko na dziś. Otwórz dzisiejszy dzień.",
+        "morning_attendance_unknown_child": "Jedno dziecko nie należy już do tej klasy. Odśwież stronę.",
         "school_write_disabled": "Nie masz dostępu do: {object}. Skontaktuj się ze szkołą."
       },
       "communication": {

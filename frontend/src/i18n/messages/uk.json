@@ -2202,6 +2202,9 @@
         "arrival_exception_editor_required": "У вас немає доступу до: {object}. Зверніться до школи.",
         "arrival_exception_past_date": "Не вдалося зберегти: {object}. Перевірте введені дані.",
         "arrival_exception_weekend": "Не вдалося зберегти: {object}. Перевірте введені дані.",
+        "morning_attendance_no_school_day": "Сьогодні не навчальний день. Присутність можна позначати лише в навчальні дні.",
+        "morning_attendance_not_today": "Присутність можна позначити лише на сьогодні. Відкрийте сьогоднішній день.",
+        "morning_attendance_unknown_child": "Одна дитина більше не належить до цього класу. Оновіть сторінку.",
         "school_write_disabled": "У вас немає доступу до: {object}. Зверніться до школи."
       },
       "communication": {

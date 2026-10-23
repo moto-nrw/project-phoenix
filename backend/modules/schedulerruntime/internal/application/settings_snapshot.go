@@ -33,6 +33,7 @@ var schedulerPollingSettingKeys = []string{
 	settingDataCleanupTimeoutMinutes,
 	settingStatusDayRetentionDays,
 	settingAttendanceRetentionDays,
+	settingMorningAttendanceRetentionDays,
 	settingGuardianRetentionDays,
 	settingParentMessageRetentionDays,
 	settingStaffMessageRetentionDays,

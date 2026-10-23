@@ -3712,6 +3712,10 @@
       "write_owner": "student-presence"
     },
     {
+      "name": "active.morning_attendance",
+      "write_owner": "student-presence"
+    },
+    {
       "name": "active.scheduled_checkouts",
       "write_owner": "student-presence"
     },

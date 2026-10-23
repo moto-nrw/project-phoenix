@@ -49339,6 +49339,30 @@
     },
     {
       "source_owner": "timetable-activities",
+      "port": "github.com/moto-nrw/project-phoenix/modules/studentpresence.Owner.DeleteExpiredMorningAttendance",
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/studentpresence/internal/application.Service.DeleteExpiredMorningAttendance",
+      "target": "*github.com/moto-nrw/project-phoenix/modules/studentpresence/internal/application.Service.DeleteExpiredMorningAttendance",
+      "target_owner": "student-presence",
+      "binding_digest": "c2a9f7c189f73d6ca1943e57841158cd",
+      "effect": "mutation",
+      "classification": "leaf",
+      "adr": "0067",
+      "reason": "Guarded target record/byte command; preserve ambient scope, target validation and existing failure propagation. Target-local locks/savepoints alone do not establish a new source coordinator. Target modules/studentpresence/internal/application.Service.DeleteExpiredMorningAttendance; modules/studentpresence/internal/application/morning_attendance.go:73.  Full native contract surface (including production-compiled fixture support); this label does not claim this exposed method is called by a production source flow. The target owner's own coordination is inventoried at that owner, not flattened here."
+    },
+    {
+      "source_owner": "timetable-activities",
+      "port": "github.com/moto-nrw/project-phoenix/modules/studentpresence.Owner.DeleteExpiredMorningAttendance",
+      "binding": "github.com/moto-nrw/project-phoenix/modules/studentpresence.Owner.DeleteExpiredMorningAttendance",
+      "target": "github.com/moto-nrw/project-phoenix/modules/studentpresence.Owner.DeleteExpiredMorningAttendance",
+      "target_owner": "student-presence",
+      "binding_digest": "68ba01e9522cf5948b5423e152c624ae",
+      "effect": "mutation",
+      "classification": "leaf",
+      "adr": "0067",
+      "reason": "Guarded target record/byte command; preserve ambient scope, target validation and existing failure propagation. Target-local locks/savepoints alone do not establish a new source coordinator. Target modules/studentpresence.Owner.DeleteExpiredMorningAttendance; modules/studentpresence.Owner (supplied contract method).  Full native contract surface (including production-compiled fixture support); this label does not claim this exposed method is called by a production source flow. The target owner's own coordination is inventoried at that owner, not flattened here."
+    },
+    {
+      "source_owner": "timetable-activities",
       "port": "github.com/moto-nrw/project-phoenix/modules/studentpresence.Owner.DeleteGroupMapping",
       "binding": "*github.com/moto-nrw/project-phoenix/modules/studentpresence/internal/application.Service.DeleteGroupMapping",
       "target": "*github.com/moto-nrw/project-phoenix/modules/studentpresence/internal/application.Service.DeleteGroupMapping",
@@ -50649,6 +50673,28 @@
     },
     {
       "source_owner": "timetable-activities",
+      "port": "github.com/moto-nrw/project-phoenix/modules/studentpresence.Owner.MorningAttendanceOn",
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/studentpresence/internal/application.Service.MorningAttendanceOn",
+      "target": "*github.com/moto-nrw/project-phoenix/modules/studentpresence/internal/application.Service.MorningAttendanceOn",
+      "target_owner": "student-presence",
+      "binding_digest": "c537206b2cc1e20820eeb33ef3a332c8",
+      "effect": "query",
+      "classification": "query",
+      "reason": "Reviewed read/value/construction method; no owned-row mutation or locking read at this terminal. Target modules/studentpresence/internal/application.Service.MorningAttendanceOn; modules/studentpresence/internal/application/morning_attendance.go:14. May-bind method surface, not a production-call/liveness claim. Full native contract surface (including production-compiled fixture support); this label does not claim this exposed method is called by a production source flow. The target owner's own coordination is inventoried at that owner, not flattened here."
+    },
+    {
+      "source_owner": "timetable-activities",
+      "port": "github.com/moto-nrw/project-phoenix/modules/studentpresence.Owner.MorningAttendanceOn",
+      "binding": "github.com/moto-nrw/project-phoenix/modules/studentpresence.Owner.MorningAttendanceOn",
+      "target": "github.com/moto-nrw/project-phoenix/modules/studentpresence.Owner.MorningAttendanceOn",
+      "target_owner": "student-presence",
+      "binding_digest": "9508c7c1f243f4668cf2303984c5fbb9",
+      "effect": "query",
+      "classification": "query",
+      "reason": "Reviewed read/value/construction method; no owned-row mutation or locking read at this terminal. Target modules/studentpresence.Owner.MorningAttendanceOn; modules/studentpresence.Owner (supplied contract method). May-bind method surface, not a production-call/liveness claim. Full native contract surface (including production-compiled fixture support); this label does not claim this exposed method is called by a production source flow. The target owner's own coordination is inventoried at that owner, not flattened here."
+    },
+    {
+      "source_owner": "timetable-activities",
       "port": "github.com/moto-nrw/project-phoenix/modules/studentpresence.Owner.OccupiedActivityGroupIDs",
       "binding": "*github.com/moto-nrw/project-phoenix/modules/studentpresence/internal/application.Service.OccupiedActivityGroupIDs",
       "target": "*github.com/moto-nrw/project-phoenix/modules/studentpresence/internal/application.Service.OccupiedActivityGroupIDs",
@@ -50952,6 +50998,30 @@
       "classification": "leaf",
       "adr": "0067",
       "reason": "Guarded target record/byte command; preserve ambient scope, target validation and existing failure propagation. Target-local locks/savepoints alone do not establish a new source coordinator. Target modules/studentpresence.Owner.RecordGroup; modules/studentpresence.Owner (supplied contract method).  Full native contract surface (including production-compiled fixture support); this label does not claim this exposed method is called by a production source flow. The target owner's own coordination is inventoried at that owner, not flattened here."
+    },
+    {
+      "source_owner": "timetable-activities",
+      "port": "github.com/moto-nrw/project-phoenix/modules/studentpresence.Owner.RecordMorningAttendance",
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/studentpresence/internal/application.Service.RecordMorningAttendance",
+      "target": "*github.com/moto-nrw/project-phoenix/modules/studentpresence/internal/application.Service.RecordMorningAttendance",
+      "target_owner": "student-presence",
+      "binding_digest": "0816aef300cd2bb5aa75dc61c6c59100",
+      "effect": "mutation",
+      "classification": "leaf",
+      "adr": "0067",
+      "reason": "Guarded target record/byte command; preserve ambient scope, target validation and existing failure propagation. Target-local locks/savepoints alone do not establish a new source coordinator. Target modules/studentpresence/internal/application.Service.RecordMorningAttendance; modules/studentpresence/internal/application/morning_attendance.go:42.  Full native contract surface (including production-compiled fixture support); this label does not claim this exposed method is called by a production source flow. The target owner's own coordination is inventoried at that owner, not flattened here."
+    },
+    {
+      "source_owner": "timetable-activities",
+      "port": "github.com/moto-nrw/project-phoenix/modules/studentpresence.Owner.RecordMorningAttendance",
+      "binding": "github.com/moto-nrw/project-phoenix/modules/studentpresence.Owner.RecordMorningAttendance",
+      "target": "github.com/moto-nrw/project-phoenix/modules/studentpresence.Owner.RecordMorningAttendance",
+      "target_owner": "student-presence",
+      "binding_digest": "265b2eb320f1bc6223a20bca3b9609e3",
+      "effect": "mutation",
+      "classification": "leaf",
+      "adr": "0067",
+      "reason": "Guarded target record/byte command; preserve ambient scope, target validation and existing failure propagation. Target-local locks/savepoints alone do not establish a new source coordinator. Target modules/studentpresence.Owner.RecordMorningAttendance; modules/studentpresence.Owner (supplied contract method).  Full native contract surface (including production-compiled fixture support); this label does not claim this exposed method is called by a production source flow. The target owner's own coordination is inventoried at that owner, not flattened here."
     },
     {
       "source_owner": "timetable-activities",
