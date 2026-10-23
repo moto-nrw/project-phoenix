@@ -57,7 +57,7 @@ describe("exportEmergencySnapshot", () => {
     vi.useFakeTimers();
     const print = vi.fn();
     const focus = vi.fn();
-    const tab = { print, focus, location: { href: "" } };
+    const tab = { print, focus, location: { href: "" }, opener: {} };
     const calls: string[] = [];
     window.open = vi.fn(() => {
       calls.push("open");
@@ -74,6 +74,7 @@ describe("exportEmergencySnapshot", () => {
     // Popup blockers refuse a tab opened after an await, so the order matters.
     expect(calls).toEqual(["open", "fetch"]);
     expect(window.open).toHaveBeenCalledWith("", "_blank");
+    expect(tab.opener).toBeNull();
     expect(tab.location.href).toBe("blob:emergency-export-url");
     expect(focus).toHaveBeenCalled();
     expect(print).toHaveBeenCalled();

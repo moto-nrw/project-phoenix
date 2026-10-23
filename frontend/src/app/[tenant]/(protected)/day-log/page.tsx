@@ -419,6 +419,7 @@ export default function DayLogPage() {
       // blockers discard windows opened after an await. Close it again if
       // the export fails.
       const tab = window.open("", "_blank");
+      if (tab) tab.opener = null;
       setExporting(`print-${groupId ?? "all"}`);
       try {
         const res = await transportFetch(

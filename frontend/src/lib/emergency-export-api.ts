@@ -16,6 +16,7 @@ export async function exportEmergencySnapshot(
   if (mode === "print" && !printTarget) {
     throw new Error("Der Druckdialog konnte nicht geöffnet werden.");
   }
+  if (printTarget) printTarget.opener = null;
 
   try {
     const response = await transportFetch("/api/emergency/snapshot/export", {
