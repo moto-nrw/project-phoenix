@@ -55,50 +55,74 @@ func (a *Adapter) loginWithTenantSession(ctx context.Context, email, password, s
 	if alreadyLoaded {
 		return a.loginTenant(context.WithValue(ctx, tenantSessionContextKey{}, key), email, password, slug)
 	}
-	raw, err := os.ReadFile(key.file)
-	if err != nil && !errors.Is(err, os.ErrNotExist) {
-		return AuthRef{}, fmt.Errorf("read devtools session cache: %w", err)
+	auth, restored, err := a.restoreTenantSession(ctx, key, slug)
+	if err != nil || restored {
+		return auth, err
 	}
-	var saved storedTenantSession
-	if len(raw) > 0 {
-		if err := json.Unmarshal(raw, &saved); err != nil {
-			return AuthRef{}, fmt.Errorf("invalid devtools session cache (remove %s)", key.file)
-		}
-	}
-	if saved.RefreshToken != "" {
-		key.slug = saved.TenantSlug
-		refreshCtx := context.WithValue(ctx, tenantSessionContextKey{}, key)
-		refreshed, _, refreshErr := a.Raw(refreshCtx, AuthRef{Kind: AuthBearer, Token: saved.RefreshToken}, http.MethodPost, "/auth/refresh", nil, nil)
-		if refreshErr == nil {
-			token, parseErr := parseLoginToken(refreshed)
-			if parseErr != nil || token == "" {
-				return AuthRef{}, fmt.Errorf("devtools session refresh returned no access token")
-			}
-			auth := AuthRef{Kind: AuthBearer, Label: saved.TenantSlug, Token: token}
-			if strings.TrimSpace(slug) != "" && slug != saved.TenantSlug {
-				switched, _, switchErr := a.Raw(refreshCtx, auth, http.MethodPost, "/auth/switch-tenant", map[string]string{"tenant_slug": slug}, nil)
-				if switchErr != nil {
-					return AuthRef{}, fmt.Errorf("switch cached devtools session: %w", switchErr)
-				}
-				auth.Token, err = parseLoginToken(switched)
-				if err != nil || auth.Token == "" {
-					return AuthRef{}, fmt.Errorf("devtools tenant switch returned no access token")
-				}
-				auth.Label = slug
-			}
-			return auth, nil
-		}
-		var apiErr *APIError
-		if !errors.As(refreshErr, &apiErr) || (apiErr.StatusCode != http.StatusUnauthorized && apiErr.StatusCode != http.StatusForbidden) {
-			return AuthRef{}, fmt.Errorf("refresh devtools session: %w", refreshErr)
-		}
-		// Expired/revoked sessions and newly required MFA must use the real login.
-		if err := os.Remove(key.file); err != nil && !errors.Is(err, os.ErrNotExist) {
-			return AuthRef{}, fmt.Errorf("remove expired devtools session: %w", err)
-		}
-	}
-	key.slug = slug
 	return a.loginTenant(context.WithValue(ctx, tenantSessionContextKey{}, key), email, password, slug)
+}
+
+func loadStoredTenantSession(file string) (storedTenantSession, error) {
+	var saved storedTenantSession
+	raw, err := os.ReadFile(file)
+	if errors.Is(err, os.ErrNotExist) {
+		return saved, nil
+	}
+	if err != nil {
+		return saved, fmt.Errorf("read devtools session cache: %w", err)
+	}
+	if err := json.Unmarshal(raw, &saved); err != nil {
+		return saved, fmt.Errorf("invalid devtools session cache (remove %s)", file)
+	}
+	return saved, nil
+}
+
+func (a *Adapter) restoreTenantSession(ctx context.Context, key tenantSessionKey, target string) (AuthRef, bool, error) {
+	saved, err := loadStoredTenantSession(key.file)
+	if err != nil || saved.RefreshToken == "" {
+		return AuthRef{}, false, err
+	}
+	key.slug = saved.TenantSlug
+	ctx = context.WithValue(ctx, tenantSessionContextKey{}, key)
+	raw, _, err := a.Raw(ctx, AuthRef{Kind: AuthBearer, Token: saved.RefreshToken}, http.MethodPost, "/auth/refresh", nil, nil)
+	if err != nil {
+		return AuthRef{}, false, discardRejectedTenantSession(key.file, err)
+	}
+	token, err := parseLoginToken(raw)
+	if err != nil || token == "" {
+		return AuthRef{}, false, fmt.Errorf("devtools session refresh returned no access token")
+	}
+	auth := AuthRef{Kind: AuthBearer, Label: saved.TenantSlug, Token: token}
+	auth, err = a.switchRestoredTenantSession(ctx, auth, target)
+	return auth, err == nil, err
+}
+
+func discardRejectedTenantSession(file string, err error) error {
+	var apiErr *APIError
+	if !errors.As(err, &apiErr) || (apiErr.StatusCode != http.StatusUnauthorized && apiErr.StatusCode != http.StatusForbidden) {
+		return fmt.Errorf("refresh devtools session: %w", err)
+	}
+	// Expired/revoked sessions and newly required MFA must use the real login.
+	if err := os.Remove(file); err != nil && !errors.Is(err, os.ErrNotExist) {
+		return fmt.Errorf("remove expired devtools session: %w", err)
+	}
+	return nil
+}
+
+func (a *Adapter) switchRestoredTenantSession(ctx context.Context, auth AuthRef, target string) (AuthRef, error) {
+	if strings.TrimSpace(target) == "" || target == auth.Label {
+		return auth, nil
+	}
+	raw, _, err := a.Raw(ctx, auth, http.MethodPost, "/auth/switch-tenant", map[string]string{"tenant_slug": target}, nil)
+	if err != nil {
+		return AuthRef{}, fmt.Errorf("switch cached devtools session: %w", err)
+	}
+	auth.Token, err = parseLoginToken(raw)
+	if err != nil || auth.Token == "" {
+		return AuthRef{}, fmt.Errorf("devtools tenant switch returned no access token")
+	}
+	auth.Label = target
+	return auth, nil
 }
 
 func (c *tenantSessionCache) record(ctx context.Context, auth AuthRef, method, path string, body any, raw []byte) error {
