@@ -6,6 +6,8 @@ import (
 	"fmt"
 	"log/slog"
 	"strings"
+
+	"github.com/moto-nrw/project-phoenix/modules/careplan/parentrequests"
 )
 
 var (
@@ -141,5 +143,5 @@ func (s *Service) GuardianReasonRequired(ctx context.Context, tenantID int64) bo
 		)
 		return true
 	}
-	return RequestReasonPolicy(policy).RequiresReason(false)
+	return parentrequests.ReasonRequired(policy, parentrequests.ReasonSideGuardian)
 }

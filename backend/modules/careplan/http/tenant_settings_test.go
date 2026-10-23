@@ -3,6 +3,7 @@ package careplanhttp
 import (
 	"testing"
 
+	"github.com/moto-nrw/project-phoenix/modules/careplan/parentrequests"
 	"github.com/moto-nrw/project-phoenix/modules/settings"
 	"github.com/stretchr/testify/assert"
 )
@@ -21,6 +22,10 @@ func TestTenantSettingKeysMatchTheRegistry(t *testing.T) {
 	assert.Equal(t, settings.KeyCareDefaultArrivalTime, settingCareDefaultArrivalTime)
 	assert.Equal(t, settings.KeyCareDefaultPickupTime, settingCareDefaultPickupTime)
 	assert.Equal(t, settings.KeyParentRequestReasonPolicy, settingParentRequestReasonPolicy)
+	assert.Equal(t, settings.ReasonPolicyNobody, parentrequests.ReasonPolicyNobody)
+	assert.Equal(t, settings.ReasonPolicyGuardians, parentrequests.ReasonPolicyGuardians)
+	assert.Equal(t, settings.ReasonPolicyStaff, parentrequests.ReasonPolicyStaff)
+	assert.Equal(t, settings.ReasonPolicyBoth, parentrequests.ReasonPolicyBoth)
 	assert.Equal(t, settings.KeySessionEndTime, settingSessionEndTime)
 	assert.Equal(t, settings.KeyStudentAbsenceEditScope, settingStudentAbsenceEditScope)
 	assert.Equal(t, settings.KeyPresenceMode, settingPresenceMode)
