@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
-import { renderHook } from "@testing-library/react";
+import { act, renderHook } from "@testing-library/react";
 
 // A minimal EventSource stand-in that records every addEventListener name so we
 // can assert which NAMED SSE events the hook subscribes to. The browser's real
@@ -83,5 +83,71 @@ describe("useSSE — named event registration", () => {
     const registered = MockEventSource.instances.at(-1)!.registered;
 
     expect(handled.filter((type) => !registered.includes(type))).toEqual([]);
+  });
+});
+
+describe("useSSE — connection error log (#2512)", () => {
+  let useSSE: typeof import("./use-sse").useSSE;
+
+  beforeEach(async () => {
+    MockEventSource.instances = [];
+    vi.stubGlobal("EventSource", MockEventSource);
+    ({ useSSE } = await import("./use-sse"));
+  });
+
+  afterEach(() => {
+    vi.restoreAllMocks();
+    vi.unstubAllGlobals();
+    vi.resetModules();
+  });
+
+  it("classes a dropped stream as unavailable, so Loki counts it with the other failures", () => {
+    const consoleError = vi
+      .spyOn(console, "error")
+      .mockImplementation(() => {});
+    renderHook(() =>
+      useSSE("/api/sse/events", {
+        onMessage: () => undefined,
+        maxReconnectAttempts: 0,
+      }),
+    );
+    const es = MockEventSource.instances.at(-1)!;
+
+    act(() => {
+      es.onerror?.call(es as unknown as EventSource, new Event("error"));
+    });
+
+    expect(consoleError).toHaveBeenCalledWith(
+      "sse connection error",
+      expect.objectContaining({
+        endpoint: "/api/sse/events",
+        error_class: "unavailable",
+      }),
+    );
+  });
+
+  it("leaves a stream the server closed unclassed, so it stays an error", () => {
+    const consoleError = vi
+      .spyOn(console, "error")
+      .mockImplementation(() => {});
+    renderHook(() =>
+      useSSE("/api/sse/events", {
+        onMessage: () => undefined,
+        maxReconnectAttempts: 0,
+      }),
+    );
+    const es = MockEventSource.instances.at(-1)!;
+    // The browser fails the connection on a non-200 answer: readyState CLOSED.
+    es.readyState = 2;
+
+    act(() => {
+      es.onerror?.call(es as unknown as EventSource, new Event("error"));
+    });
+
+    const context = consoleError.mock.calls.find(
+      ([msg]) => msg === "sse connection error",
+    )?.[1] as Record<string, unknown>;
+    expect(context).toMatchObject({ ready_state: 2 });
+    expect(context).not.toHaveProperty("error_class");
   });
 });

@@ -67,6 +67,7 @@ vi.mock("~/lib/auth-helpers", async (importOriginal) => {
 vi.mock("~/lib/logger", () => ({
   createLogger: () => ({
     error: mockLoggerError,
+    warn: vi.fn(),
   }),
 }));
 

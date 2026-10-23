@@ -32,4 +32,23 @@ describe("parents error boundary", () => {
     expect(retry).toHaveBeenCalledTimes(1);
     expect(captureException).toHaveBeenCalledWith(crash);
   });
+
+  it("logs the crash for Loki without its message (#2512)", () => {
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+
+    render(
+      <ParentError
+        error={new TypeError("Anna is undefined")}
+        retry={vi.fn()}
+      />,
+    );
+
+    expect(warn).toHaveBeenCalledWith("error_displayed", {
+      surface: "page",
+      error_class: "crash",
+      error_name: "TypeError",
+    });
+    expect(JSON.stringify(warn.mock.calls)).not.toContain("Anna");
+    warn.mockRestore();
+  });
 });
