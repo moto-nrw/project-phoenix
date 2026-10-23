@@ -154,7 +154,9 @@ func baseEvidence(root, baseRef string) (Registry, map[string]bool, error) {
 		return Registry{}, nil, err
 	}
 	path := strings.TrimSpace(string(prefix)) + "architecture/passthrough.json"
-	listing, err := git(root, "ls-tree", "-r", "--name-only", sha, "--", path)
+	// ls-tree resolves its pathspec relative to root; show needs the full
+	// repository-relative path computed above.
+	listing, err := git(root, "ls-tree", "-r", "--name-only", sha, "--", "architecture/passthrough.json")
 	if err != nil {
 		return Registry{}, nil, err
 	}
