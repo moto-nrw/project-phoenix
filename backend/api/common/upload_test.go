@@ -331,7 +331,7 @@ func TestParsePDFWithLimits_RejectsFileOverAdvertisedLimit(t *testing.T) {
 func TestSaveImage_CreatesFileWithCorrectExtension(t *testing.T) {
 	t.Parallel()
 
-	dir := t.TempDir()
+	dir := filepath.Join(t.TempDir(), "login-images")
 	content := bytes.NewReader([]byte("fake image data"))
 
 	path, err := SaveImage(content, dir, "avatar", "image/jpeg", nativeUploads.UploadFiles{})
@@ -339,8 +339,12 @@ func TestSaveImage_CreatesFileWithCorrectExtension(t *testing.T) {
 
 	assert.True(t, strings.HasSuffix(path, ".jpg"), "expected .jpg extension, got %s", path)
 
-	_, statErr := os.Stat(path)
-	assert.NoError(t, statErr, "file should exist on disk")
+	fileInfo, err := os.Stat(path)
+	require.NoError(t, err)
+	assert.Equal(t, os.FileMode(0o644), fileInfo.Mode().Perm(), "public image policy must stay unchanged")
+	dirInfo, err := os.Stat(dir)
+	require.NoError(t, err)
+	assert.Equal(t, os.FileMode(0o755), dirInfo.Mode().Perm())
 }
 
 func TestSaveImage_GeneratesUniqueFilenames(t *testing.T) {
@@ -377,7 +381,7 @@ func TestSaveImage_UnknownContentType(t *testing.T) {
 func TestSavePDF_CreatesFileWithPDFExtension(t *testing.T) {
 	t.Parallel()
 
-	dir := t.TempDir()
+	dir := filepath.Join(t.TempDir(), "legal-documents")
 	content := makePDFBytes()
 
 	path, err := SavePDF(bytes.NewReader(content), dir, "agb", nativeUploads.UploadFiles{})
@@ -389,6 +393,12 @@ func TestSavePDF_CreatesFileWithPDFExtension(t *testing.T) {
 	savedContent, err := os.ReadFile(path)
 	require.NoError(t, err)
 	assert.Equal(t, content, savedContent)
+	fileInfo, err := os.Stat(path)
+	require.NoError(t, err)
+	assert.Equal(t, os.FileMode(0o644), fileInfo.Mode().Perm(), "public PDF policy must stay unchanged")
+	dirInfo, err := os.Stat(dir)
+	require.NoError(t, err)
+	assert.Equal(t, os.FileMode(0o755), dirInfo.Mode().Perm())
 }
 
 func TestSavePrivateNamedFile_UsesOwnerOnlyPermissions(t *testing.T) {
