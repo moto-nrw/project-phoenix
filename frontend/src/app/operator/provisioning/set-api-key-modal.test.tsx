@@ -88,7 +88,7 @@ describe("SetApiKeyModal", () => {
     vi.clearAllMocks();
   });
 
-  it("submits a manual replacement key", async () => {
+  it("generates a replacement key and only exposes it inside the dialog", async () => {
     mockSetDeviceAPIKey.mockResolvedValue({ ...device, apiKey: "manual-key" });
 
     render(
@@ -100,16 +100,12 @@ describe("SetApiKeyModal", () => {
       />,
     );
 
-    fireEvent.click(screen.getByLabelText("Eigenen Key eingeben"));
-    fireEvent.change(screen.getByPlaceholderText("API-Key eingeben..."), {
-      target: { value: "  manual-key  " },
-    });
     fireEvent.click(screen.getByText("Übernehmen"));
 
     await waitFor(() => {
-      expect(mockSetDeviceAPIKey).toHaveBeenCalledWith("200", "manual-key");
+      expect(mockSetDeviceAPIKey).toHaveBeenCalledWith("200");
       expect(onKeySet).toHaveBeenCalledWith(
-        expect.objectContaining({ apiKey: "manual-key" }),
+        expect.objectContaining({ apiKey: "" }),
       );
       expect(screen.getByText("Neuer API-Key:")).toBeInTheDocument();
     });
@@ -156,10 +152,6 @@ describe("SetApiKeyModal", () => {
       />,
     );
 
-    fireEvent.click(screen.getByLabelText("Eigenen Key eingeben"));
-    fireEvent.change(screen.getByPlaceholderText("API-Key eingeben..."), {
-      target: { value: "manual-key" },
-    });
     fireEvent.click(screen.getByText("Übernehmen"));
 
     expect(
@@ -167,10 +159,6 @@ describe("SetApiKeyModal", () => {
         catalogText("general.business_rejection", "die Änderung des API-Keys"),
       ),
     ).toBeInTheDocument();
-    expect(screen.getByPlaceholderText("API-Key eingeben...")).toHaveAttribute(
-      "aria-invalid",
-      "true",
-    );
   });
 
   it("logs and shows a generic error", async () => {
@@ -272,7 +260,7 @@ describe("SetApiKeyModal", () => {
     ).toBeInTheDocument();
   });
 
-  it("disables submit for manual mode without a custom key", () => {
+  it("offers generated keys only", () => {
     render(
       <SetApiKeyModal
         isOpen={true}
@@ -282,8 +270,11 @@ describe("SetApiKeyModal", () => {
       />,
     );
 
-    fireEvent.click(screen.getByLabelText("Eigenen Key eingeben"));
-
-    expect(screen.getByText("Übernehmen")).toBeDisabled();
+    // Anker: Der geladene Dialog bietet die Erzeugung eines neuen Keys an.
+    expect(screen.getByText("Übernehmen")).toBeEnabled();
+    expect(
+      screen.getByText(/Ein neuer API-Key wird automatisch/),
+    ).toBeInTheDocument();
+    expect(screen.queryByLabelText("Eigenen Key eingeben")).toBeNull();
   });
 });

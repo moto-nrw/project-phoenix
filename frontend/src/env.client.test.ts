@@ -46,6 +46,17 @@ describe("clientEnv", () => {
     );
   });
 
+  it("starts client components with the Storybook environment alone", async () => {
+    vi.unstubAllEnvs();
+    for (const name of Object.keys(requiredEnv)) vi.stubEnv(name, "");
+    const { storybookProcessEnv } = await import("../.storybook/mocks/env.js");
+    for (const [name, value] of Object.entries(storybookProcessEnv)) {
+      vi.stubEnv(name, value);
+    }
+    const { clientEnv } = await import("./env.client");
+    expect(clientEnv.NEXT_PUBLIC_SCHOOL_HOSTNAME).toContain("localhost");
+  });
+
   // The analytics runs behind the same-origin /ingest proxy (#3601): the key
   // alone switches it on.
   it("enables PostHog with the key alone", async () => {
