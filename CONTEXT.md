@@ -86,6 +86,8 @@ Kernaktionen, Kiosk-Nutzungsereignisse und die Benennung ihrer Analysegruppe.
 Fehlerdiagnose bleibt getrennt. Bei Lesefehlern bleibt die Erfassung aus.
 Im Elternportal müssen alle zugeordneten Schulen Analyse erlauben; vor der
 Zuordnung läuft dort keine Erfassung. Die Demo bleibt unverändert.
+Eingebettete Schulkontexte in Eltern-Anmeldungen ändern diese Portal-Regel
+nicht; die Schulentscheidung des `TenantProvider` gilt nur auf dem OGS-Host.
 Abschaltbarkeit ist keine Rechtsgrundlage: deren Prüfung bleibt offen
 (#3843, Recht-Slice 3843-e). Produktive Wirksamkeit ist gesondert nachzuweisen.
 

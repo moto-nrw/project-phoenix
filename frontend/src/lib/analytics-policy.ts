@@ -168,6 +168,14 @@ export function analyticsCollectionAllowed(context: AnalyticsContext): boolean {
   return context.deployment === DEMO_DEPLOYMENT || context.enabled === true;
 }
 
+/** Embedded school contexts cannot replace the host portal's decision. */
+export function analyticsContextUpdateAllowed(
+  hostSurface: AnalyticsSurface | null,
+  sourceSurface: string,
+): boolean {
+  return hostSurface !== null && hostSurface === sourceSurface;
+}
+
 function tierOf(context: AnalyticsContext): Tier {
   if (!analyticsCollectionAllowed(context)) return "off";
   if (!isKnownSurface(context.surface)) return "strict";

@@ -46,6 +46,11 @@ switch, including on public enrollment pages. School sessions resolve their
 school; parents collect only if **every** active guardian school permits it.
 Until that decision arrives, neither portal loads the SDK. Anonymous parents
 and school login pages stay off because their schools are not yet known.
+The host owns the decision: `posthog-client.ts` accepts context updates only
+from that host's surface, using `analytics-policy.ts`. `TenantProvider`
+publishes OGS updates only; embedded enrollment/edit/adjust pages on the
+parents host cannot override its all-schools decision, including on refresh
+or unmount. Anonymous parents enrollment/status pages stay off as well.
 The demo is exempt. Disabling collection also suppresses recording Freigabe,
 backend core actions, kiosk presence events and school `$groupidentify`.
 `analytics.CollectionPolicy` owns actor/public-school decisions;

@@ -21,6 +21,10 @@ Schulhosts kein PostHog-SDK. Das Schulportal prüft die Schule seiner Sitzung.
 Im Elternportal müssen alle aktiven Schulen der Elternperson die Erfassung
 erlauben; fehlende Zuordnung oder ein einziger Fehler sperrt sie. Vor Anmeldung
 bleiben Eltern- und Schulportal ohne SDK. Demo-Verhalten bleibt unverändert.
+Die Host-Oberfläche bestimmt die Entscheidung. Ein lokaler Schulkontext in
+Eltern-Anmeldungen und deren Bearbeitungsseiten darf die Portal-Entscheidung
+weder beim Öffnen noch bei Einstellungs- oder Sichtbarkeitssignalen ersetzen.
+Anonyme Anmelde- und Token-Statusseiten auf dem Elternhost bleiben ohne SDK.
 Backend-Kernaktionen, Presence-Ereignisse und `$groupidentify` prüfen den
 Schulschalter vor der Erfassung. Öffentliche Anmeldung löst die Zielschule aus
 dem Routenparameter auf, nicht aus einer mitgesendeten Sitzung.
@@ -48,6 +52,11 @@ Die Demo-Umgebung ignoriert den Schalter absichtlich, daher für den Nachweis
    Lesefehler, Schule A aus/B an und Eltern mit zwei Schulen, eine aus.
    Tests: `analytics/collection_policy_mock_test.go`, Tenant-Resolve-Tests und
    `lib/analytics-policy.test.ts` / `lib/posthog-client.test.ts`.
+5. `components/analytics/portal-analytics-policy.integration.test.tsx` prüft
+   echte Policy-, SDK-Client-, Tenant- und Portal-Module gegen ein PostHog-Stub:
+   Portal-Entscheidung aus, eingebettete Schule an, danach Schulkontext erneut
+   laden. Das SDK darf nicht starten. Positive Kontrollen prüfen erlaubte
+   OGS- und Eltern-Erfassung. Dieser Modultest ersetzt keinen Netzwerknachweis.
 
 **Lokal geprüft am 23.10.2026:** Nativer Entwicklungsstack, vollständig
 synthetische Seed-Daten, Test-Platzhalter statt Analyse-Schlüssel und

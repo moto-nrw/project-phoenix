@@ -166,7 +166,7 @@ describe("posthog-client", () => {
     });
   });
 
-  it("filters with the context the portal registered last", async () => {
+  it("rejects another portal's session on the OGS host", async () => {
     const { initializePostHog, setAnalyticsContext, clearPostHogContext } =
       await import("./posthog-client");
     await initializePostHog();
@@ -189,18 +189,22 @@ describe("posthog-client", () => {
 
     setAnalyticsContext({ surface: "parents" });
     expect(pageview()?.properties).toMatchObject({
-      surface: "parents",
-      $pathname: "/children/:id",
+      surface: "ogs",
+      $pathname: "/unknown",
       deployment: "localhost",
     });
 
     clearPostHogContext();
-    expect(pageview()).toBeNull();
+    expect(pageview()?.properties.surface).toBe("ogs");
   });
 
   it.each(["parents", "school"] as const)(
     "restores collection after initialization on the %s portal",
     async (surface) => {
+      vi.resetModules();
+      stubHost(
+        `${surface === "parents" ? "parents" : "schule"}.localhost:3000`,
+      );
       const { initializePostHog, setAnalyticsContext } =
         await import("./posthog-client");
       setAnalyticsContext({ surface, enabled: true });
@@ -217,6 +221,10 @@ describe("posthog-client", () => {
   it.each(["parents", "school"] as const)(
     "clears the previous %s session even while collection is blocked",
     async (surface) => {
+      vi.resetModules();
+      stubHost(
+        `${surface === "parents" ? "parents" : "schule"}.localhost:3000`,
+      );
       const { initializePostHog, setAnalyticsContext, clearPostHogContext } =
         await import("./posthog-client");
       setAnalyticsContext(
@@ -241,6 +249,8 @@ describe("posthog-client", () => {
   );
 
   it("discards a logged-out session's buffered registration before SDK initialization", async () => {
+    vi.resetModules();
+    stubHost("parents.localhost:3000");
     const { initializePostHog, setAnalyticsContext, clearPostHogContext } =
       await import("./posthog-client");
     setAnalyticsContext(

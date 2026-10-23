@@ -62,10 +62,11 @@ export function TenantProvider({
 
   useEffect(() => {
     setAnalyticsContext({
+      surface: "ogs",
       enabled:
         tenant?.subdomain === tenantSlug && tenant.analyticsEnabled === true,
     });
-    return () => setAnalyticsContext({ enabled: false });
+    return () => setAnalyticsContext({ surface: "ogs", enabled: false });
   }, [tenantSlug, tenant]);
 
   // Sequence-token to drop out-of-order resolveTenant responses when
@@ -81,7 +82,7 @@ export function TenantProvider({
     if (!tenantSlug) return undefined;
 
     const refetch = () => {
-      setAnalyticsContext({ enabled: false });
+      setAnalyticsContext({ surface: "ogs", enabled: false });
       const token = ++requestSeqRef.current;
       const requestedSlug = tenantSlug;
       void resolveTenant(requestedSlug).then((fresh) => {

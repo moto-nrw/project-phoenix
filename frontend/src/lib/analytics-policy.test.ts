@@ -2,6 +2,7 @@ import type { CaptureResult, Properties } from "posthog-js";
 import { describe, expect, it } from "vitest";
 import {
   ANALYTICS_BLOCK_ATTRIBUTE,
+  analyticsContextUpdateAllowed,
   analyticsIdentity,
   analyticsInitOptions,
   analyticsRuntimeOptions,
@@ -35,6 +36,23 @@ const PERSON = "pseudo_4b9630678fc1afce76ce690721aaf949";
 const OTHER_PERSON = "pseudo_0123456789abcdef0123456789abcdef";
 
 describe("school analytics switch", () => {
+  it.each([
+    { host: "ogs", source: "ogs", allowed: true },
+    { host: "parents", source: "parents", allowed: true },
+    { host: "school", source: "school", allowed: true },
+    { host: "parents", source: "ogs", allowed: false },
+    { host: "school", source: "ogs", allowed: false },
+    { host: "public", source: "ogs", allowed: false },
+    { host: null, source: "ogs", allowed: false },
+    { host: "parents", source: "school", allowed: false },
+    { host: "ogs", source: "parents", allowed: false },
+  ] as const)(
+    "accepts $source policy on $host only when it owns the host ($allowed)",
+    ({ host, source, allowed }) => {
+      expect(analyticsContextUpdateAllowed(host, source)).toBe(allowed);
+    },
+  );
+
   it.each(["ogs", "school", "parents", "public", "unknown"])(
     "drops every event when analytics is off on %s",
     (surface) => {

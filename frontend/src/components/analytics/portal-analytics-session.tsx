@@ -29,7 +29,7 @@ export function PortalAnalyticsSession({
 
   useEffect(() => {
     let cancelled = false;
-    setAnalyticsContext({ enabled: false });
+    setAnalyticsContext({ surface, enabled: false });
     if (status === "authenticated" && inScope) {
       // Resolve on each session/school change. A failed read leaves collection off.
       void fetch(
@@ -64,7 +64,7 @@ export function PortalAnalyticsSession({
     }
     return () => {
       cancelled = true;
-      setAnalyticsContext({ enabled: false });
+      setAnalyticsContext({ surface, enabled: false });
     };
   }, [status, inScope, schoolId, surface, scope, role]);
 

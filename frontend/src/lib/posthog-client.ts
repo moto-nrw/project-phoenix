@@ -3,6 +3,7 @@ import { clientEnv } from "~/env.client";
 import { analyticsDeployment } from "~/lib/analytics-deployment";
 import {
   analyticsCollectionAllowed,
+  analyticsContextUpdateAllowed,
   analyticsIdentity,
   analyticsInitOptions,
   analyticsRuntimeOptions,
@@ -139,6 +140,13 @@ export function setAnalyticsContext(
 ): void {
   const current = currentContext();
   if (!current) return;
+  if (
+    !analyticsContextUpdateAllowed(
+      startSurface(),
+      update.surface ?? current.surface,
+    )
+  )
+    return;
   const next: AnalyticsContext = { ...current, ...update };
   context = next;
   if (!analyticsCollectionAllowed(next)) {
