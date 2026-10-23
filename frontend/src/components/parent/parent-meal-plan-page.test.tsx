@@ -516,6 +516,47 @@ describe("ParentMealPlanPage", () => {
     });
   });
 
+  it("names the lead days of the school's cutoff", async () => {
+    mocks.getChildFeatures.mockResolvedValue({
+      meal_plan_enabled: true,
+      meal_registration_enabled: true,
+    });
+    mocks.getMealParticipation.mockResolvedValue({
+      weekdays: [1],
+      effective_from: "2026-08-10",
+      cutoff_time: "14:00",
+      cutoff_lead_days: 1,
+      days: [
+        {
+          date: "2026-08-10",
+          participating: true,
+          source: "regular",
+          changeable: false,
+        },
+      ],
+    });
+
+    render(<ParentMealPlanPage />);
+
+    // The global next-intl mock leaves ICU plurals unformatted; the wording
+    // per count is pinned in src/i18n/meal-cutoff-messages.test.ts.
+    expect(
+      await screen.findByText(
+        /^Sie können die Anmeldung bis 14:00 Uhr .*ändern\.$/,
+      ),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByText(
+        /^Eine bestätigte Krankmeldung bis 14:00 Uhr .*Danach bleibt die Anmeldung bestehen\.$/,
+      ),
+    ).toBeInTheDocument();
+    expect(
+      screen.queryByText(
+        "Sie können die Anmeldung am selben Tag bis 14:00 Uhr ändern.",
+      ),
+    ).not.toBeInTheDocument();
+  });
+
   it("marks each participation state with its own icon next to the text", async () => {
     mocks.getChildFeatures.mockResolvedValue({
       meal_plan_enabled: true,
