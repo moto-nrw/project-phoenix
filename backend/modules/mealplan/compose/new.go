@@ -26,7 +26,7 @@ type Dependencies struct {
 	Settings interface {
 		MealPlanEnabled(context.Context) (bool, error)
 		MealRegistrationEnabled(context.Context) (bool, error)
-		MealRegistrationCutoff(context.Context) (string, error)
+		MealRegistrationCutoff(context.Context) (string, int, error)
 	}
 	Observe      func(Observation)
 	Now          func() time.Time
@@ -46,12 +46,12 @@ func New(dependencies Dependencies) (mealplan.Capability, error) {
 type Settings struct {
 	mealPlanEnabled         func(context.Context) (bool, error)
 	mealRegistrationEnabled func(context.Context) (bool, error)
-	mealRegistrationCutoff  func(context.Context) (string, error)
+	mealRegistrationCutoff  func(context.Context) (string, int, error)
 }
 
 // NewBoundSettings binds the resolvers; a missing one is a construction
 // error.
-func NewBoundSettings(mealPlanEnabled, mealRegistrationEnabled func(context.Context) (bool, error), mealRegistrationCutoff func(context.Context) (string, error)) (*Settings, error) {
+func NewBoundSettings(mealPlanEnabled, mealRegistrationEnabled func(context.Context) (bool, error), mealRegistrationCutoff func(context.Context) (string, int, error)) (*Settings, error) {
 	if mealPlanEnabled == nil || mealRegistrationEnabled == nil || mealRegistrationCutoff == nil {
 		return nil, errors.New("meal plan settings: resolvers are required")
 	}
@@ -64,6 +64,6 @@ func (s *Settings) MealRegistrationEnabled(ctx context.Context) (bool, error) {
 	return s.mealRegistrationEnabled(ctx)
 }
 
-func (s *Settings) MealRegistrationCutoff(ctx context.Context) (string, error) {
+func (s *Settings) MealRegistrationCutoff(ctx context.Context) (string, int, error) {
 	return s.mealRegistrationCutoff(ctx)
 }

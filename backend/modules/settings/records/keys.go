@@ -173,6 +173,7 @@ const (
 	KeyParentRequestReasonPolicy             = "operations.parent_request_reason_policy"
 	KeyMealRegistrationEnabled               = "operations.meal_registration_enabled"
 	KeyMealRegistrationCutoffTime            = "operations.meal_registration_cutoff_time"
+	KeyMealRegistrationCutoffLeadDays        = "operations.meal_registration_cutoff_lead_days"
 	KeySickClearMode                         = "operations.sick_clear_mode"
 	KeyExcusedClearMode                      = "operations.excused_clear_mode"
 	KeyPresenceMode                          = "operations.presence_mode"
