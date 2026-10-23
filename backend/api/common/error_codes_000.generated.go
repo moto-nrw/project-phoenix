@@ -302,7 +302,6 @@ const (
 	CodeIotNoActiveSession                               = "iot.no_active_session"
 	CodeIotNoAttendanceRecordToday                       = "iot.no_attendance_record_today"
 	CodeIotNoRoomAvailable                               = "iot.no_room_available"
-	CodeIotNoSessionToEnd                                = "iot.no_session_to_end"
 )
 
 var errorCodeClasses0 = map[string]string{
@@ -606,7 +605,6 @@ var errorCodeClasses0 = map[string]string{
 	"iot.no_active_session":                                "input",
 	"iot.no_attendance_record_today":                       "input",
 	"iot.no_room_available":                                "input",
-	"iot.no_session_to_end":                                "input",
 }
 
 func init() {
