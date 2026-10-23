@@ -110,8 +110,10 @@ jobs:
               - 'backend/go.sum'
               - 'backend/architecture/policy.json'
               - 'backend/**/testdata/**'
+              # Shrink-only ratchet registers, read by ./test.
+              - 'backend/test/*.json'
               - 'backend/modules/delivery/internal/adapters/localization/locales.json'
-              - 'backend/services/listexport/assets/**'
+              - 'backend/modules/documentrendering/internal/application/listrenderer/assets/**'
               - 'backend/templates/email/**'
               - 'scripts/backend-architecture.sh'
               - 'scripts/backend-architecture/**'
@@ -158,7 +160,7 @@ jobs:
               - 'backend/go.mod'
               - 'backend/go.sum'
               - 'backend/modules/delivery/internal/adapters/localization/locales.json'
-              - 'backend/services/listexport/assets/**'
+              - 'backend/modules/documentrendering/internal/application/listrenderer/assets/**'
               - 'backend/templates/email/**'
             seed-smoke-infra:
               - '.github/workflows/main.yml'
