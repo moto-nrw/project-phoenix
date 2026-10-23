@@ -12,6 +12,16 @@ test("every registered code generates one Go constant and one TypeScript union m
   assert.equal((generated.ts.match(/^  "[a-z][a-z0-9_]*\.[a-z][a-z0-9_]*",$/gm) ?? []).length, entries.length);
 });
 
+test("Go error classes are generated separately with every registered mapping", () => {
+  const entries = validateRegistry(registry);
+  const generated = generate(registry);
+  assert.ok(!generated.go.includes("var errorClassByCode"));
+  assert.match(generated.goClasses, /package common\n\nvar errorClassByCode = map\[string\]string\{/);
+  const mappings = [...generated.goClasses.matchAll(/^\s*"([^"]+)":\s*"([^"]+)",$/gm)]
+    .map(([, code, errorClass]) => [code, errorClass]);
+  assert.deepEqual(mappings, entries.map((entry) => [entry.code, entry.class]));
+});
+
 test("duplicate codes are rejected", () => {
   const entry = registry.codes[0];
   assert.ok(entry);
