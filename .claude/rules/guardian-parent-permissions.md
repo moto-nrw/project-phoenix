@@ -67,6 +67,9 @@ Use action-specific permissions:
 - enrollment request visibility: `parent_portal.enrollments.view`
 - enrollment submit when tied to an existing child: `parent_portal.enrollment.submit`
 - meal participation changes: `parent_portal.meal_participation.manage`
+- inviting or removing connected accounts: `parent_portal.related_accounts.manage`
+
+Editing an open request needs the permission that submitting it needs.
 
 School-level feature flags still apply after guardian permission passes.
 

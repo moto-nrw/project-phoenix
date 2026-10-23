@@ -96,14 +96,16 @@ func mapExcusedRequestError(err error, op string) error {
 // EditExcusedRequest rewrites the caller's own pending absence request
 // (#2267, story 37). It replaces withdrawal: a guardian who picked the wrong
 // day corrects it, the request keeps its id and the co-guardians it was shared
-// with stay recipients. Same gate as the withdraw it replaces — available
-// while the child's care is running, ownership enforced in the absence
-// service.
+// with stay recipients. Editing names new absence days, so it needs the same
+// parent_portal.sick_note.submit as reporting them (#4603); a guardian who
+// lost that permission leaves the open request to the school's decision.
+// Available while the child's care is running, ownership enforced in the
+// absence service.
 func (s *Service) EditExcusedRequest(
 	ctx context.Context, accountID, studentID, requestID int64,
 	dates []calendar.Date, note, expectedVersion string,
 ) (*ExcusedAbsenceRequest, error) {
-	child, err := s.ResolveOwnedChild(ctx, accountID, studentID)
+	child, err := s.ResolvePermittedChild(ctx, accountID, studentID, GuardianPermissionSickNoteSubmit)
 	if err != nil {
 		return nil, err
 	}

@@ -85,6 +85,7 @@ func catchUpScheduler(runs ports.CleanupRunLedger, clock *cleanupClock, cleanup 
 		cleanupRuns:      runs,
 		cleanupClock:     clock.Now,
 		settings: &fakeSettingsResolver{
+			intValues:    map[string]int{settingDataCleanupTimeoutMinutes: 30},
 			boolValues:   map[string]bool{settingDataCleanupEnabled: true},
 			stringValues: map[string]string{settingDataCleanupTime: "02:00"},
 		},
@@ -211,7 +212,7 @@ func TestNightlyCleanupUsesRegistryDefaultInsteadOfLegacyEnvironmentFallback(t *
 		logger:           slog.Default(),
 		timetableCleanup: cleanup,
 		cleanupClock:     clock.Now,
-		settings:         &stubSettingsResolver{boolVal: true},
+		settings:         &stubSettingsResolver{boolVal: true, stringVal: "02:00", intVal: 30},
 	})
 	s.getenv = testEnv("CLEANUP_SCHEDULER_ENABLED", "false")
 
@@ -226,7 +227,7 @@ func TestDataCleanupEnabledReturnsResolutionError(t *testing.T) {
 	resolutionErr := errors.New("settings unavailable")
 	s := unitScheduler(&unitSchedulerDependencies{
 		logger:   slog.Default(),
-		settings: &stubSettingsResolver{boolErr: resolutionErr},
+		settings: &stubSettingsResolver{boolErr: resolutionErr, stringVal: "02:00", intVal: 30},
 	})
 
 	enabled, err := s.dataCleanupEnabled(context.Background())
@@ -241,7 +242,7 @@ func TestNightlyCleanupRetriesAfterCleanupSettingReadFailure(t *testing.T) {
 	resolutionErr := errors.New("settings unavailable")
 	clock := &cleanupClock{now: berlin(14, 2, 0)}
 	cleanup := &fakeTimetableCleanup{}
-	settings := &stubSettingsResolver{boolErr: resolutionErr}
+	settings := &stubSettingsResolver{boolErr: resolutionErr, stringVal: "02:00", intVal: 30}
 	s := unitScheduler(&unitSchedulerDependencies{
 		logger:           slog.Default(),
 		timetableCleanup: cleanup,
@@ -436,6 +437,7 @@ func TestNightlyCleanupFollowsATimeMovedLaterInTheDay(t *testing.T) {
 		cleanupRuns:      runs,
 		cleanupClock:     clock.Now,
 		settings: &fakeSettingsResolver{
+			intValues:    map[string]int{settingDataCleanupTimeoutMinutes: 30},
 			boolValues:   map[string]bool{settingDataCleanupEnabled: true},
 			stringValues: map[string]string{settingDataCleanupTime: "22:00"},
 		},
@@ -451,4 +453,29 @@ func TestNightlyCleanupFollowsATimeMovedLaterInTheDay(t *testing.T) {
 	clock.Set(berlin(14, 22, 0))
 	runTimetableTick(s)
 	assert.Equal(t, 1, cleanup.cleanupCalls, "the school's new time runs the cleanup")
+}
+
+func TestNightlyCleanupSkipsUnreadableTimeAndTimeout(t *testing.T) {
+	t.Parallel()
+	for _, key := range []string{settingDataCleanupTime, settingDataCleanupTimeoutMinutes} {
+		t.Run(key, func(t *testing.T) {
+			t.Parallel()
+			runs := newFakeCleanupRuns()
+			cleanup := &fakeTimetableCleanup{}
+			settings := &stubSettingsResolver{boolVal: true, stringVal: "02:00", intVal: 30}
+			failure := errors.New("cleanup settings unavailable")
+			if key == settingDataCleanupTime {
+				settings.stringErr = failure
+			} else {
+				settings.intErr = failure
+			}
+			s := unitScheduler(&unitSchedulerDependencies{
+				logger: slog.Default(), timetableCleanup: cleanup, cleanupRuns: runs,
+				cleanupClock: func() time.Time { return berlin(14, 2, 0) }, settings: settings,
+			})
+			runTimetableTick(s)
+			assert.Zero(t, cleanup.cleanupCalls, "an unreadable GDPR setting must skip this tenant")
+			assert.Zero(t, runs.recorded, "a skipped tenant must not be marked successful")
+		})
+	}
 }

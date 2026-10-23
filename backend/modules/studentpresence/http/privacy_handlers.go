@@ -1,7 +1,7 @@
 package studentpresencehttp
 
 import (
-	context "context"
+	"context"
 	json "encoding/json"
 	errors "errors"
 	http "net/http"
@@ -17,15 +17,6 @@ import (
 // owner capability the route refuses rather than reaching users.privacy_consents
 // through a second path.
 var errPrivacyConsentsUnavailable = errors.New("privacy consent capability is not configured")
-
-// defaultDataRetentionDays is the retention window reported for a child with
-// no recorded consent: the tenant's override when one exists, else the owner's
-// default. The Settings Platform lookup lives here because this resource holds
-// the settings service; the fallback rule belongs to Student Presence.
-func (rs *Resource) defaultDataRetentionDays(ctx context.Context) int {
-	return studentpresence.DataRetentionDaysOrDefault(resolveIntSetting(
-		ctx, rs.SettingsService, settingPrivacyConsentRetentionDays, 0, rs.Logger))
-}
 
 // getStudentPrivacyConsent handles getting a student's privacy consent
 func (rs *Resource) getStudentPrivacyConsent(w http.ResponseWriter, r *http.Request) {
@@ -64,12 +55,17 @@ func (rs *Resource) getStudentPrivacyConsent(w http.ResponseWriter, r *http.Requ
 
 	// If no consent exists, return a default response
 	if consent == nil {
+		retentionDays, err := rs.SettingsService.ResolveInt(r.Context(), settingPrivacyConsentRetentionDays)
+		if err != nil {
+			renderError(w, r, common.ErrorInternalServerWrap("failed to resolve privacy retention", err))
+			return
+		}
 		response := PrivacyConsentResponse{
 			StudentID:         student.ID,
 			PolicyVersion:     "1.0",
 			Accepted:          false,
 			RenewalRequired:   true,
-			DataRetentionDays: rs.defaultDataRetentionDays(r.Context()),
+			DataRetentionDays: retentionDays,
 		}
 		common.Respond(w, r, http.StatusOK, response, "No privacy consent found, returning defaults")
 		return

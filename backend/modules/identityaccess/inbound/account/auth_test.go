@@ -78,9 +78,8 @@ type tenantSettingsWriter interface {
 func setupAuthDependenciesRouteWithSettings(t *testing.T) (*bun.DB, *authAPI.Resource, tenantSettingsWriter) {
 	t.Helper()
 	db, svc := setupAuthModule(t)
-	resource := authAPI.NewResource(svc.Auth, svc.Invitation, testSchoolDirectory{schools: api.NewOrganizationTestRows(testpkg.NewDatabase(t, db)).School, db: db, runtime: testpkg.TenantRuntime(t, db)}, svc.AccountAuthentication, identityaccessCompose.TenantUnitOfWork{}, transactionFailures.IsConstraintViolation)
 	settings := api.NewAuthTestSettings(testpkg.NewDatabase(t, db), testpkg.TenantRuntime(t, db))
-	resource.SettingsService = settings
+	resource := authAPI.NewResource(svc.Auth, svc.Invitation, testSchoolDirectory{schools: api.NewOrganizationTestRows(testpkg.NewDatabase(t, db)).School, db: db, runtime: testpkg.TenantRuntime(t, db)}, svc.AccountAuthentication, identityaccessCompose.TenantUnitOfWork{}, transactionFailures.IsConstraintViolation, settings)
 	resource.RoleGrants = api.AccountRoleGrantPolicy()
 	return db, resource, settings
 }
@@ -1852,7 +1851,7 @@ func TestListTenants(t *testing.T) {
 	t.Parallel()
 	_, authRoute := setupAuthDependenciesRoute(t)
 
-	resource := authAPI.NewResource(authRoute.AuthService, authRoute.Invitations, authRoute.SchoolService, authRoute.Sessions, identityaccessCompose.TenantUnitOfWork{}, transactionFailures.IsConstraintViolation)
+	resource := authAPI.NewResource(authRoute.AuthService, authRoute.Invitations, authRoute.SchoolService, authRoute.Sessions, identityaccessCompose.TenantUnitOfWork{}, transactionFailures.IsConstraintViolation, authRoute.SettingsService)
 
 	router := chi.NewRouter()
 	router.Mount("/auth", resource.Router(api.TenantSessionChain))
@@ -1923,7 +1922,7 @@ func setupAuthRouteWithSchoolRepo(t *testing.T) *testContext {
 	t.Helper()
 
 	db, authRoute := setupAuthDependenciesRoute(t)
-	resource := authAPI.NewResource(authRoute.AuthService, authRoute.Invitations, authRoute.SchoolService, authRoute.Sessions, identityaccessCompose.TenantUnitOfWork{}, transactionFailures.IsConstraintViolation)
+	resource := authAPI.NewResource(authRoute.AuthService, authRoute.Invitations, authRoute.SchoolService, authRoute.Sessions, identityaccessCompose.TenantUnitOfWork{}, transactionFailures.IsConstraintViolation, authRoute.SettingsService)
 
 	return &testContext{
 		db:       db,
@@ -2119,7 +2118,7 @@ func TestResolveTenant_DeletedSchool_ReturnsNotFound(t *testing.T) {
 		`UPDATE platform.schools SET deleted_at = NOW() WHERE id = ?`, tenantID)
 	require.NoError(t, err)
 
-	resource := authAPI.NewResource(authRoute.AuthService, authRoute.Invitations, authRoute.SchoolService, authRoute.Sessions, identityaccessCompose.TenantUnitOfWork{}, transactionFailures.IsConstraintViolation)
+	resource := authAPI.NewResource(authRoute.AuthService, authRoute.Invitations, authRoute.SchoolService, authRoute.Sessions, identityaccessCompose.TenantUnitOfWork{}, transactionFailures.IsConstraintViolation, authRoute.SettingsService)
 
 	router := chi.NewRouter()
 	router.Mount("/auth", resource.Router(api.TenantSessionChain))

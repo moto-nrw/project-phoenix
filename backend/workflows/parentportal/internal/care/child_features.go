@@ -4,6 +4,7 @@ import (
 	"context"
 	"log/slog"
 
+	"github.com/moto-nrw/project-phoenix/modules/careplan/parentrequests"
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 )
 
@@ -45,6 +46,7 @@ func (f childFeatureSettings) activeChildFlags(child *Child, hasOpenChangeReques
 	canEditMasterData := f.masterEdit && child.HasPermission(GuardianPermissionMasterDataEdit)
 	canManagePickup := child.HasPermission(GuardianPermissionPickupManage)
 	canManageGuardianContacts := child.HasPermission(GuardianPermissionGuardianEdit)
+	canManageRelatedAccounts := child.HasPermission(GuardianPermissionRelatedAccountsManage)
 	return ChildFeatureFlags{
 		HasOpenChangeRequest:         hasOpenChangeRequest,
 		SickNoteEnabled:              f.sick && f.sickReports && child.HasPermission(GuardianPermissionSickNoteSubmit),
@@ -59,15 +61,16 @@ func (f childFeatureSettings) activeChildFlags(child *Child, hasOpenChangeReques
 		PickupChangeTodayClosed:      f.pickupCutoff.Closed(calendar.DateFromTime(f.pickupCutoff.Now)),
 		PickupManageAllowed:          f.guardianManagement && canManagePickup,
 		GuardianContactManageAllowed: f.guardianManagement && canManageGuardianContacts,
-		RelatedAccountsInviteEnabled: f.inviteMode != ParentInviteModeDisabled,
-		RelatedAccountsRemoveEnabled: f.canRemove && f.inviteMode != ParentInviteModeDisabled,
+		AbsenceRequestEditEnabled:    child.HasPermission(GuardianPermissionSickNoteSubmit),
+		RelatedAccountsInviteEnabled: canManageRelatedAccounts && f.inviteMode != ParentInviteModeDisabled,
+		RelatedAccountsRemoveEnabled: canManageRelatedAccounts && f.canRemove && f.inviteMode != ParentInviteModeDisabled,
 		MasterDataEditEnabled:        canEditMasterData,
 		MasterDataContactEditEnabled: canEditMasterData && f.guardianManagement,
 		MasterDataRequestEnabled:     f.masterRequest && child.HasPermission(GuardianPermissionMasterDataRequest),
 		MealPlanEnabled:              f.mealPlan,
 		MealRegistrationEnabled:      f.mealRegistration && child.HasPermission(GuardianPermissionMealParticipationManage),
 		NewsEnabled:                  f.news,
-		ReasonRequired:               RequestReasonPolicy(f.reasonPolicy).RequiresReason(false),
+		ReasonRequired:               parentrequests.ReasonRequired(f.reasonPolicy, parentrequests.ReasonSideGuardian),
 	}
 }
 

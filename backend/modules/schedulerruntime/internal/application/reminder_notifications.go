@@ -7,6 +7,7 @@ package application
 
 import (
 	"context"
+	"fmt"
 	"log/slog"
 	"time"
 )
@@ -56,7 +57,10 @@ func (s *Scheduler) checkAndRunReminderNotifications(ctx context.Context, task *
 		if !s.notificationDispatchEnabled(tenantCtx, tenantID) {
 			return nil
 		}
-		onDutyOnly := s.resolveBoolSetting(tenantCtx, settingNotificationsOnDutyOnly, false)
+		onDutyOnly, err := s.settings.ResolveBool(tenantCtx, settingNotificationsOnDutyOnly)
+		if err != nil {
+			return fmt.Errorf("resolve notification duty scope: %w", err)
+		}
 		s.reminderNotifications(tenantCtx, tenantID, time.Now(), onDutyOnly)
 		return nil
 	})

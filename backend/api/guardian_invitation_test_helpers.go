@@ -77,7 +77,7 @@ func lifecycleTestModule(db transactionruntime.Database, unit tenant.UnitOfWork,
 		return nil, err
 	}
 	sessionRepos := owners.SessionRepositoriesOf(repos, organizations, audits.AuthEvent, deliveryCompose.NewPushSubscriptionRepository(db.Pool()))
-	guardianMail, enrollmentClaims, err := owners.GuardianInvitationDependencies(nil, organizations, outbox, claims, "http://localhost:3000", expiry, logger)
+	guardianMail, enrollmentClaims, err := owners.GuardianInvitationDependencies(guardianInvitationTestHours(expiry/time.Hour), organizations, outbox, claims, "http://localhost:3000", logger)
 	if err != nil {
 		return nil, err
 	}
@@ -132,4 +132,18 @@ func NewGuardianInvitationServiceForTests(db transactionruntime.Database, unit t
 		return nil, err
 	}
 	return module, nil
+}
+
+// guardianInvitationTestHours is an explicit settings double for lifecycle fixtures.
+type guardianInvitationTestHours int
+
+func (h guardianInvitationTestHours) ResolveInt(context.Context, string) (int, error) {
+	return int(h), nil
+}
+
+func (guardianInvitationTestHours) ResolveBool(context.Context, string) (bool, error) {
+	return false, nil
+}
+func (guardianInvitationTestHours) ResolveString(context.Context, string) (string, error) {
+	return "", nil
 }

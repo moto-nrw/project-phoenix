@@ -18,7 +18,7 @@ type PresenceReads interface {
 	ListPartialAbsenceBlocks(context.Context, int64, string, time.Time, bool, []int64) ([]scheduleModels.PartialAbsenceBlock, error)
 }
 
-func NewPresenceReads(projection ports.PresenceProjection) (PresenceReads, error) {
+func NewPresenceReads(projection ports.PresenceReader) (PresenceReads, error) {
 	return application.NewProjectedPresenceReads(projection, tenant.NewTransactionRunner().RunInTx)
 }
 

@@ -28,6 +28,19 @@ principle states the target. The migration (#2580, consolidation #4069) is
 closed; its final state and the follow-up issues are in
 [WORKPLAN.md](WORKPLAN.md#endstand).
 
+[ADR 0080](../../docs/adr/0080-owner-boundary-costs-are-measured-before-consolidation.md)
+records the post-migration wiring-cost measurement for #4546, including the
+small-projection inventory for #4547. It changes no boundary or policy rule.
+[ADR 0081](../../docs/adr/0081-owner-granularity-follows-invariants-not-source-size.md)
+keeps the examined small projections and large domains and gives the criteria
+for future owner-granularity decisions (#4547). Read it before proposing a
+projection merger or domain split.
+[ADR 0067's #4538 addendum](../../docs/adr/0067-principle-owners-meet-through-contracts-and-write-together-in-workflows.md#addendum-2026-10-23-command-participation-and-coordination-4538)
+distinguishes transaction-participating commands from workflow coordination.
+Its [edge inventory](../../docs/architecture/4538-cross-owner-write-inventory.md)
+records the retained exceptions and enforcement limits; an allowed import is
+not proof of a safe cross-owner command.
+
 ## Canonical module map
 
 [ADR 0066](../../docs/adr/0066-principle-every-module-table-and-cross-owner-read-has-one-owner.md)
@@ -846,7 +859,7 @@ behavior tests off the retired names. The later-pickup decision that writes to b
 bound at the composition root (`api/pickup_extensions.go`) rather than as a
 new workflow owner. `database/repositories/student_presence.go`, the old
 provider, is gone. The evidence lives in
-[presence-cutover-2762.json](presence-cutover-2762.json) and the runbook in
+[presence-cutover-2762.json](https://github.com/moto-nrw/project-phoenix/blob/46506b00c695a6f102865cae2dc9f24010371b7c/backend/architecture/presence-cutover-2762.json) and the runbook in
 [docs/operations/presence-storage-cutover-2762.md](../../docs/operations/presence-storage-cutover-2762.md),
 the Contract in
 [docs/operations/presence-storage-contract-2763.md](../../docs/operations/presence-storage-contract-2763.md).
@@ -876,7 +889,7 @@ counter until #2757, because the previous image links guardians with
 `INSERT ... ON CONFLICT`; `TestGuardianStorageCallerInventory` keeps every
 provider off it. `database/repositories/users/student_guardian.go`, the old
 provider, is gone. The evidence lives in
-[guardian-owner-cutover-2756.json](guardian-owner-cutover-2756.json) and the
+[guardian-owner-cutover-2756.json](https://github.com/moto-nrw/project-phoenix/blob/46506b00c695a6f102865cae2dc9f24010371b7c/backend/architecture/guardian-owner-cutover-2756.json) and the
 runbook in
 [docs/operations/guardian-owner-storage-cutover.md](../../docs/operations/guardian-owner-storage-cutover.md).
 
@@ -910,8 +923,6 @@ scripts/backend-architecture.sh dependencies \
 scripts/backend-architecture.sh dependencies \
   --focus package:services/mealplan
 scripts/backend-architecture.sh cycles
-scripts/backend-architecture.sh validate-ticket \
-  --ticket backend/architecture/checkpoint-ticket-template.json
 ```
 
 `check` loads packages with `GOOS=linux`, `GOARCH=amd64`, and `CGO_ENABLED=0`.
@@ -959,8 +970,8 @@ ever created by a migration. Access to an obsolete table with no target owner
 therefore remains a `tables.unclassified` finding until that access and table
 are removed; do not invent an owner merely to make the check quiet.
 
-The current backend still violates the target policy, so the normal `check`
-loads the committed exact baseline from `architecture/legacy.jsonl`. It passes
+The normal `check` loads the committed exact baseline from
+`architecture/legacy.jsonl`, which is empty after the migration. It passes
 only when the current violation set is exactly equal to that baseline. Pull
 request CI additionally reads the policy and baseline from the event's full
 base-commit SHA. Debt is shrink-only, except when a policy tightening exposes
@@ -1181,6 +1192,13 @@ policy epoch 47 the loader rejects these rules
   fixed list, matched case-insensitively: "convert … to exact debt",
   "compatibility permission", "compatibility binding", "compatibility
   adapter", "temporary"/"temporarily", "until #N" and "tracked by #N".
+
+From epoch 91 the loader also rejects every domain-to-projection rule,
+including `public` and `contract` targets and test scopes. The selectors may
+not admit such a pair; there are no exceptions. A domain declares its own
+reader port and the root binds it ([ADR 0071, enforcement addendum
+#4540](../../docs/adr/0071-principle-owner-dependencies-point-one-way.md#enforcement-addendum-4540)).
+Earlier epochs remain loadable as immutable PR bases.
 
 From epoch 48 a policy whose target graph closes a cycle is rejected too
 ([ADR 0058](../../docs/adr/0058-owner-dependencies-form-a-dag.md), #3417); a
@@ -3459,166 +3477,16 @@ appear as a green audit.
 
 ## Migration evidence
 
-Migration records use schema 3; checkpoint records retain schema 2. Convert
-older migration records explicitly. Both kinds retain prerequisites, owner/capability,
-packages, tables, exact ratchet keys, atomic cutover, tests, rollback/cleanup,
-and measurable exit criteria. Unknown fields and blank required evidence fail.
-
-### Ordinary waves
-
-Copy `migration-ticket-template.json` and replace all example/guidance values.
-Set `ticket_kind` to `migration`. `checkpoint_reference` must be the canonical
-issue URL of the latest accepted checkpoint in `runtime-checkpoints.json`.
-Missing, malformed, future, unaccepted, and superseded references fail.
-
-Record flow-specific evidence, not an independent rerun of the checkpoint
-benchmark suite. `runtime_evidence.source`, `workload` and `thresholds` describe
-provenance, environment/observation window and acceptance criteria.
-`runtime_evidence.sources` lists explicit repository-relative file paths or
-HTTP(S) references. Local files must exist and resolve inside the repository;
-the validator does not fetch remote references.
-
-Every remaining evidence field is required: `affected_rows`, `query_count`,
-`latency_p50`, `latency_p95`, `errors`, `pool_wait`, `lock_wait`, `deadlocks`,
-`job_duration`, `job_retries`, `job_backlog`, `failure`, `rollback` and `smoke`.
-Each has one of these shapes:
-
-```json
-{"state": "measured", "result": "0 unexpected errors in 30 calls; raw samples in the declared source."}
-```
-
-```json
-{"state": "not_applicable", "reason": "The migrated read capability has no worker path."}
-```
-
-Observed qualitative results are valid. Planned instrumentation and structural
-query estimates are not measurements. Bare placeholders and unchanged template
-example values fail. CI validates representation, not the truth of observations
-or adequacy of reasons; those remain review responsibilities. Keep deployment
-rollback and cleanup in `rollback_and_cleanup`.
-
-[ADR 0026](../../docs/adr/0026-migration-evidence-gate-preserves-provenance.md)
-allows a third state, `historical_gap`, only for exact existing files and metrics
-frozen at commit `e4bb1a38c94180ae337a68726bd565bcfe23ea00`. The field requires
-a concrete `reason` and preserves any old text in `original`. The validator
-checks the frozen record's metadata and source/workload against that Git object;
-renaming a new flow to an old filename does not grant an exemption. Full Git
-history is required when validating these records.
-
-A historical-gap record cannot cover a new retirement. Resolve its gaps or add
-a complete follow-up record for the same issue and scoped keys. Updating only
-the current checkpoint reference does not imply that old measurements were
-rerun. No exemption exists for newly written evidence.
-
-`student-owner-backfill-2758.json` and `student-owner-cutover-2759.json`
-retain the pre-gate observations and acceptance criteria, not current rollout
-approval. The subsequent absence-state fix (#3442) makes care-state mismatches
-diagnostic and preserves absence fields through migration 1.15.398. Current
-behavior and rollout checks are documented in the
-[backfill guide](../../docs/operations/student-owner-storage-backfill.md) and
-[cutover guide](../../docs/operations/student-owner-storage-cutover.md).
-Do not rewrite the frozen records to imply that their old measurements tested
-the later fix.
-
-### Inventory and removal coverage
-
-```bash
-scripts/backend-architecture.sh validate-ticket --ticket backend/architecture/migration-ticket-template.json
-scripts/backend-architecture.sh validate-ticket --all
-scripts/backend-architecture.sh validate-ticket --all --base-ref <full-base-sha>
-```
-
-`--ticket` validates one file. `--all` discovers every JSON file directly under
-`backend/architecture/`, including both required templates. A missing
-`ticket_kind` fails rather than excluding a file. Four named documents use
-other contracts and are excluded: `policy.json` (architecture policy),
-`composition.json` (composition inventory), `runtime-checkpoints.json`
-(acceptance registry), and `contract-active-2737-progress.json` (historical
-progress notes, not cutover evidence). The two templates contain synthetic
-examples and never provide retirement coverage.
-
-`--base-ref` requires a full immutable SHA and always validates the entire
-inventory, even when `--ticket` selects an additional file. It compares the
-base and candidate `legacy.jsonl` sets, reporting raw removals and additions
-separately. It reuses the checked relocation mapping from ADR 0020: a renamed
-debt key is not retirement. Existing architecture checks still decide which
-additions and relocations are permitted.
-
-`exact_ratchet_keys` is scoped debt, not a promise to finish in one PR. Each
-record reports pending keys, keys removed in this diff and keys already absent.
-Every actual retirement needs at least one complete non-template record;
-coverage is the union across records, including records from earlier PRs.
-Both old and new paths of a verified relocation can identify the same debt.
-New claims absent from both base and candidate debt fail. Previously committed
-claims remain historical; the gate does not demand retrospective backfill.
-
-CI runs this command in `Backend architecture ratchet`, using the PR base SHA,
-merge-group base SHA, or pre-push SHA. Missing or zero bases fail explicitly.
-Same-repository development-to-main PRs reuse exact-tree, successful development
-push evidence after the release promotion checks. For the first release push
-to `main` whose base predates this gate, a direct development parent or the
-fast-forward commit must prove the same successful CI and tree equality;
-otherwise the release fails. All current ticket files are still validated.
-Changes under `docs/runtime-checkpoints/` and `docs/operations/` also trigger
-the job. Keep declared local evidence in these routed directories or add its
-directory to the workflow when introducing another source location.
-
-### Checkpoint measurements
-
-Copy `checkpoint-ticket-template.json` and set `ticket_kind` to `checkpoint`.
-Only these canonical checkpoint issue URLs are valid:
-
-1. #3019 establishes the one-third baseline across completed migrations.
-2. #3020 compares with #3019 after its blocking core migrations and before
-   session-end, device-scan, and enrollment-acceptance workflow cutovers.
-3. #3021 compares with both predecessors after contract/storage cutovers and
-   before #2751 removes the remaining legacy composition.
-
-The `checkpoint` object requires an exact commit, reproducible PostgreSQL 17
-and production composition environment, toolchain, versioned workload, data
-volume, concurrency, and warm-up. Cover successful and failing HTTP/module
-flows and applicable Worker paths. `runs` contains exactly three measured runs
-after warm-up; `median` and `worst` report every applicable metric. Each report
-records source, workload, thresholds, query count, p50/p95, stable errors,
-pool waits, measured lock waits, deadlocks/serialization retries, Worker
-duration/retries/backlog, and affected rows. Non-applicable metrics need reasons.
-Full statement duration is not lock-wait evidence.
-
-`comparison` explains every metric against the required predecessors (or
-establishes #3019's baseline). Keep workload/environment equivalent;
-`workload_bridge` confirms equivalence or links old/new workloads measured on
-the same commit. `regression_issues` links focused optimization issues for
-material regressions; unexplained regressions block acceptance. `decision`
-records completed blockers and acceptance/rejection; #3021 permits or blocks
-#2751. Raw output and interpretation stay in the checkpoint issue or review
-evidence, not the repository. Template values are examples, not measurements.
-
-### Recording acceptance
-
-`runtime-checkpoints.json` is a reviewed acceptance registry, not architecture
-policy. Ordinary waves require at least #3019 to be accepted; checkpoint
-measurements can be validated before acceptance. After explicit acceptance in the checkpoint issue,
-append an entry in a reviewed change, in order without gaps:
-
-```json
-{"issue": "https://github.com/moto-nrw/project-phoenix/issues/3019", "acceptance": "https://github.com/moto-nrw/project-phoenix/issues/3019#issuecomment-123"}
-```
-
-Replace the example comment ID with the actual acceptance comment. Validation
-checks issue order and comment-link shape, not comment truth or measurement
-accuracy. Review must verify acceptance, closed blockers, comparable runs,
-and explanations. A ticket-local `accepted` flag cannot grant acceptance.
-In the same change, repoint every migration record and the migration template
-to the new latest accepted checkpoint. Preserve measurement provenance and run
-`validate-ticket --all`; the inventory and checkpoint-transition tests enforce
-this maintenance step. The closed sequence ends at #3021; adding a fourth
-checkpoint requires a separate contract change.
-`--checkpoints path/to/registry.json` supports a reviewed registry snapshot
-and isolated test fixtures; paths resolve from the repository root. Do not
-use a self-authored registry to bypass acceptance.
-
-No ownership or ratchet entries change. This contract sets no
-machine-independent latency limits.
+The per-ticket migration records, their two templates, the checkpoint
+acceptance registry and the `validate-ticket` command were removed after the
+migration closed. `legacy.jsonl` is empty and may only shrink against the base,
+so no retirement remains that a record could cover. The records stay readable
+at commit
+[`46506b00c6`](https://github.com/moto-nrw/project-phoenix/tree/46506b00c695a6f102865cae2dc9f24010371b7c/backend/architecture);
+the measurements they cite remain in `docs/runtime-checkpoints/`. Sections
+above that name a record (`<name>-<issue>.json`) refer to that commit.
+The decision is recorded in the
+[amendment to ADR 0026](../../docs/adr/0026-migration-evidence-gate-preserves-provenance.md#amendment-of-2026-10-23).
 
 ## Composition inventory
 
@@ -5099,7 +4967,7 @@ numbered decision of the principle ADR.
 | `public` and `contract` expose no ORM, repository, internal model or generic CRUD | this README, ADR 0046 | 0067 point 1 |
 | A foreign owner is reached through its contract or a consumer-owned port the root binds | ADR 0053 point 4 | 0067 point 2 |
 | Owners change data through commands that own their guards | ADR 0023 | 0067 point 3 |
-| A write across owners is a workflow with one outer unit of work, reversible or not | ADR 0013, ADR 0016, ADR 0017, ADR 0018, ADR 0022, ADR 0023 amendment | 0067 point 4 |
+| A cross-owner coordinator is a workflow with one outer unit; participating leaf commands and the finite #4538 exceptions follow its addendum, regardless of reversibility | ADR 0013, ADR 0016, ADR 0017, ADR 0018, ADR 0022, ADR 0023 amendment, #4538 inventory | 0067 point 4 and #4538 addendum |
 | A workflow re-reads under its locks; the tenant-wide gate order | ADR 0016, ADR 0017, ADR 0023 | 0067 point 5 |
 | A durable side effect commits with its write; callbacks are losable hints in an exact register | ADR 0013, ADR 0016, #4087 | 0067 point 6 |
 | A cross-owner database function needs its own decision and narrow runtime authorization | ADR 0062 | 0067 point 7 |
@@ -5131,7 +4999,6 @@ numbered decision of the principle ADR.
 | A relocation renames keys and grants nothing | ADR 0020 | 0070 point 6 |
 | The epoch rises only for a reviewed decision with a finite, tested acceptor; dead acceptors are deleted | ADR 0053 point 9, ADR 0013, ADR 0015, ADR 0045, ADR 0057 point 7, ADR 0074 | 0070 point 7 |
 | Exact package selectors only narrow | ADR 0057 addendum of 2026-10-16 | 0070 point 8 |
-| Migration evidence keeps its provenance and fails closed | ADR 0026 | 0070 point 9 |
 | The target owner graph is acyclic | ADR 0058 point 1 | 0071 point 1 |
 | Each owner kind depends in one direction | ADR 0058 point 2 and addendum #4314 | 0071 point 2 |
 | Two domains that need each other get one direction | ADR 0058 point 3 | 0071 point 3 |
@@ -5160,7 +5027,8 @@ one-time conversion (#4070); ADR 0058 points 5 and 6, the transition (#3417,
 | 0010, 0012, 0033 | accepted | 0066 |
 | 0013 | accepted | 0066, 0067, 0070 |
 | 0014, 0039, 0040 | accepted | 0069 |
-| 0015, 0020, 0026, 0045, 0061, 0063, 0064, 0074 | accepted | 0070 |
+| 0015, 0020, 0045, 0061, 0063, 0064, 0074 | accepted | 0070 |
+| 0026 | historical | 0070 |
 | 0016, 0017, 0018, 0022, 0062 | accepted | 0067 |
 | 0023 | accepted | 0066, 0067 |
 | 0025 | historical | 0066 |
@@ -5175,6 +5043,9 @@ one-time conversion (#4070); ADR 0058 points 5 and 6, the transition (#3417,
 | 0057 | accepted | 0066, 0068, 0070 |
 | 0058 | accepted | 0068, 0071 |
 | 0060 | accepted | 0066, 0068, 0071 |
+| 0072, 0073 (budgets), 0075, 0079 (budget) | accepted | 0070 |
+| 0076 | accepted | 0066, 0067, 0068, 0070 |
+| 0080, 0081 | accepted | 0066, 0067, 0068, 0070, 0071 |
 
 ADRs 0001 to 0009, 0011, 0019, 0021, 0024, 0027 to 0029, 0034, 0042 to 0044,
 0048 and 0055 record product, data-contract and operations decisions outside

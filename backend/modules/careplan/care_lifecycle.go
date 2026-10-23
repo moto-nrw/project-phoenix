@@ -44,6 +44,8 @@ var (
 	ErrCareResumeMissing             = errors.New("für dieses Kind ist keine beendete Betreuung hinterlegt")
 	ErrCareResumeStartInPast         = errors.New("der neue Beginn darf nicht in der Vergangenheit liegen")
 	ErrCareResumeNotChecked          = errors.New("bitte bestätigen Sie zuerst die Prüfung. Gruppe, Angebote, Wochenplan und Zeiten bleiben sonst ungeprüft")
+	ErrCareResumeUnknownStudent      = errors.New("dieses Kind gibt es in Ihrer Schule nicht (mehr)")
+	ErrCareResumeAlumnus             = errors.New("dieses Kind wurde beim Jahrgangswechsel abgemeldet. Sie finden es unter Jahrgangswechsel, Bereich Abgänge")
 	ErrCareWithdrawalNotFound        = errors.New("diese Abmeldung gibt es nicht oder nicht mehr")
 	ErrCareWithdrawalAfterGap        = errors.New("der letzte Betreuungstag muss vor dem ersten Tag ohne Buchung liegen")
 	ErrCareWithdrawalAlreadyResolved = errors.New("die Abmeldung wurde bereits erledigt oder ist nicht mehr aktuell")
@@ -240,6 +242,7 @@ type BookingAuthorityImpact struct {
 // CareExitCommands ends, cancels and resumes care, and applies the effect-day
 // housekeeping once an end has taken effect.
 type CareExitCommands interface {
+	CareResumption
 	// Preview describes what ending the care would do, per child.
 	Preview(ctx context.Context, input CareExitInput) (*CareExitPreview, error)
 	// Confirm ends the care for exactly the previewed state, or changes
@@ -247,12 +250,16 @@ type CareExitCommands interface {
 	Confirm(ctx context.Context, token string, input CareExitInput, actorAccountID int64) (*CareExitResult, error)
 	// Cancel withdraws exits that have not taken effect yet.
 	Cancel(ctx context.Context, studentIDs []int64, actorAccountID int64) (int, error)
-	// Resume reopens the care of one child from a new start day.
-	Resume(ctx context.Context, input CareResumeInput) error
 	// ApplyDueEffects performs the effect-day housekeeping for every child
 	// whose care ended before asOf: closing what is still open, freeing the
 	// bracelet, closing the open family requests. Idempotent.
 	ApplyDueEffects(ctx context.Context, asOf calendar.Date) (int, error)
+}
+
+// CareResumption is the care-exit workflow's command for reopening care. The
+// root binds it into the lifecycle without moving coordination into Care Plan.
+type CareResumption interface {
+	Resume(ctx context.Context, input CareResumeInput) error
 }
 
 // CareExitArchive reads the ended care and the recorded exits.

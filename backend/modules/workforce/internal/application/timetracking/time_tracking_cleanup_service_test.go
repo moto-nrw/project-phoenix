@@ -2,6 +2,7 @@ package timetracking_test
 
 import (
 	"context"
+	"errors"
 	"testing"
 	"time"
 
@@ -40,7 +41,7 @@ func TestTimeTrackingCleanup_DeletesOldSessions(t *testing.T) {
 	students := api.MustNewPeopleDirectory(testpkg.NewDatabase(t, db))
 	membership := api.MustNewSchoolMembership(testpkg.NewDatabase(t, db))
 	workTime := api.MustNewWorkforce(testpkg.NewDatabase(t, db))
-	svc := timetracking.NewTimeTrackingCleanupService(workTime, api.NewStaffAbsenceRepository(workTime, membership, students), api.NewTimeTrackingRetentionAudit(api.NewTestAuditPersistence(testpkg.NewDatabase(t, db), nil).DataDeletion), nil, nil)
+	svc := timetracking.NewTimeTrackingCleanupService(workTime, api.NewStaffAbsenceRepository(workTime, membership, students), api.NewTimeTrackingRetentionAudit(api.NewTestAuditPersistence(testpkg.NewDatabase(t, db), nil).DataDeletion), workforceRetentionFixture{}, nil)
 
 	result, err := testpkg.TenantQuery0(t, ctx, db, svc.CleanupExpiredTimeTrackingData)
 	require.NoError(t, err)
@@ -85,7 +86,7 @@ func TestTimeTrackingCleanup_DeletesOldAbsences(t *testing.T) {
 	students := api.MustNewPeopleDirectory(testpkg.NewDatabase(t, db))
 	membership := api.MustNewSchoolMembership(testpkg.NewDatabase(t, db))
 	workTime := api.MustNewWorkforce(testpkg.NewDatabase(t, db))
-	svc := timetracking.NewTimeTrackingCleanupService(workTime, api.NewStaffAbsenceRepository(workTime, membership, students), api.NewTimeTrackingRetentionAudit(api.NewTestAuditPersistence(testpkg.NewDatabase(t, db), nil).DataDeletion), nil, nil)
+	svc := timetracking.NewTimeTrackingCleanupService(workTime, api.NewStaffAbsenceRepository(workTime, membership, students), api.NewTimeTrackingRetentionAudit(api.NewTestAuditPersistence(testpkg.NewDatabase(t, db), nil).DataDeletion), workforceRetentionFixture{}, nil)
 
 	result, err := testpkg.TenantQuery0(t, ctx, db, svc.CleanupExpiredTimeTrackingData)
 	require.NoError(t, err)
@@ -116,7 +117,7 @@ func TestTimeTrackingCleanup_PreviewLeavesDataIntact(t *testing.T) {
 	students := api.MustNewPeopleDirectory(testpkg.NewDatabase(t, db))
 	membership := api.MustNewSchoolMembership(testpkg.NewDatabase(t, db))
 	workTime := api.MustNewWorkforce(testpkg.NewDatabase(t, db))
-	svc := timetracking.NewTimeTrackingCleanupService(workTime, api.NewStaffAbsenceRepository(workTime, membership, students), api.NewTimeTrackingRetentionAudit(api.NewTestAuditPersistence(testpkg.NewDatabase(t, db), nil).DataDeletion), nil, nil)
+	svc := timetracking.NewTimeTrackingCleanupService(workTime, api.NewStaffAbsenceRepository(workTime, membership, students), api.NewTimeTrackingRetentionAudit(api.NewTestAuditPersistence(testpkg.NewDatabase(t, db), nil).DataDeletion), workforceRetentionFixture{}, nil)
 
 	preview, err := svc.PreviewExpiredTimeTrackingData(ctx)
 	require.NoError(t, err)
@@ -146,7 +147,7 @@ func TestTimeTrackingCleanup_PreviewOldestOnlyShowsExpiredRows(t *testing.T) {
 	students := api.MustNewPeopleDirectory(testpkg.NewDatabase(t, db))
 	membership := api.MustNewSchoolMembership(testpkg.NewDatabase(t, db))
 	workTime := api.MustNewWorkforce(testpkg.NewDatabase(t, db))
-	svc := timetracking.NewTimeTrackingCleanupService(workTime, api.NewStaffAbsenceRepository(workTime, membership, students), api.NewTimeTrackingRetentionAudit(api.NewTestAuditPersistence(testpkg.NewDatabase(t, db), nil).DataDeletion), nil, nil)
+	svc := timetracking.NewTimeTrackingCleanupService(workTime, api.NewStaffAbsenceRepository(workTime, membership, students), api.NewTimeTrackingRetentionAudit(api.NewTestAuditPersistence(testpkg.NewDatabase(t, db), nil).DataDeletion), workforceRetentionFixture{}, nil)
 
 	preview, err := svc.PreviewExpiredTimeTrackingData(ctx)
 	require.NoError(t, err)
@@ -178,7 +179,7 @@ func TestTimeTrackingCleanup_NoOpWhenNothingExpired(t *testing.T) {
 	students := api.MustNewPeopleDirectory(testpkg.NewDatabase(t, db))
 	membership := api.MustNewSchoolMembership(testpkg.NewDatabase(t, db))
 	workTime := api.MustNewWorkforce(testpkg.NewDatabase(t, db))
-	svc := timetracking.NewTimeTrackingCleanupService(workTime, api.NewStaffAbsenceRepository(workTime, membership, students), api.NewTimeTrackingRetentionAudit(api.NewTestAuditPersistence(testpkg.NewDatabase(t, db), nil).DataDeletion), nil, nil)
+	svc := timetracking.NewTimeTrackingCleanupService(workTime, api.NewStaffAbsenceRepository(workTime, membership, students), api.NewTimeTrackingRetentionAudit(api.NewTestAuditPersistence(testpkg.NewDatabase(t, db), nil).DataDeletion), workforceRetentionFixture{}, nil)
 
 	result, err := svc.CleanupExpiredTimeTrackingData(ctx)
 	require.NoError(t, err)
@@ -204,7 +205,7 @@ func TestTimeTrackingCleanup_AuditRequired(t *testing.T) {
 	students := api.MustNewPeopleDirectory(testpkg.NewDatabase(t, db))
 	membership := api.MustNewSchoolMembership(testpkg.NewDatabase(t, db))
 	workTime := api.MustNewWorkforce(testpkg.NewDatabase(t, db))
-	svc := timetracking.NewTimeTrackingCleanupService(workTime, api.NewStaffAbsenceRepository(workTime, membership, students), nil, nil, nil)
+	svc := timetracking.NewTimeTrackingCleanupService(workTime, api.NewStaffAbsenceRepository(workTime, membership, students), nil, workforceRetentionFixture{}, nil)
 	_, err := svc.CleanupExpiredTimeTrackingData(ctx)
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "audit repo not configured")
@@ -226,7 +227,7 @@ func TestTimeTrackingCleanup_UsesBusinessDatesNotCreatedAt(t *testing.T) {
 	students := api.MustNewPeopleDirectory(testpkg.NewDatabase(t, db))
 	membership := api.MustNewSchoolMembership(testpkg.NewDatabase(t, db))
 	workTime := api.MustNewWorkforce(testpkg.NewDatabase(t, db))
-	svc := timetracking.NewTimeTrackingCleanupService(workTime, api.NewStaffAbsenceRepository(workTime, membership, students), api.NewTimeTrackingRetentionAudit(api.NewTestAuditPersistence(testpkg.NewDatabase(t, db), nil).DataDeletion), nil, nil)
+	svc := timetracking.NewTimeTrackingCleanupService(workTime, api.NewStaffAbsenceRepository(workTime, membership, students), api.NewTimeTrackingRetentionAudit(api.NewTestAuditPersistence(testpkg.NewDatabase(t, db), nil).DataDeletion), workforceRetentionFixture{}, nil)
 
 	result, err := testpkg.TenantQuery0(t, ctx, db, svc.CleanupExpiredTimeTrackingData)
 	require.NoError(t, err)
@@ -407,4 +408,47 @@ func purgeOldRowsInTenant(t *testing.T, db *testpkg.DB, tenantID int64) {
 		Where("date_end < ?", cutoff).
 		Exec(context.Background())
 	require.NoError(t, err)
+}
+
+type unreadableWorkforceRetention struct {
+	snapshotSessionSettings
+	failure error
+}
+
+func (s unreadableWorkforceRetention) TimeTrackingRetentionDays(context.Context) (int, error) {
+	return 0, s.failure
+}
+func (s unreadableWorkforceRetention) TimeTrackingRetentionOverridden(context.Context) (bool, error) {
+	return false, nil
+}
+
+func TestTimeTrackingCleanupRejectsUnreadableRetention(t *testing.T) {
+	t.Parallel()
+	db := testpkg.SetupTestDB(t)
+	ctx := testpkg.Ctx(t)
+	staff := testpkg.CreateTestStaff(t, db, "Retention", "Failure")
+	sessionID := insertSession(t, db, staff.ID, daysAgo(800))
+	people := api.MustNewPeopleDirectory(testpkg.NewDatabase(t, db))
+	membership := api.MustNewSchoolMembership(testpkg.NewDatabase(t, db))
+	workTime := api.MustNewWorkforce(testpkg.NewDatabase(t, db))
+	failure := errors.New("workforce retention unavailable")
+	service := timetracking.NewTimeTrackingCleanupService(workTime, api.NewStaffAbsenceRepository(workTime, membership, people), api.NewTimeTrackingRetentionAudit(api.NewTestAuditPersistence(testpkg.NewDatabase(t, db), nil).DataDeletion), unreadableWorkforceRetention{failure: failure}, nil)
+	result, err := testpkg.TenantQuery0(t, ctx, db, service.CleanupExpiredTimeTrackingData)
+	require.ErrorIs(t, err, failure)
+	assert.Nil(t, result)
+	assert.True(t, sessionExists(t, db, sessionID))
+	assert.Empty(t, findStaffDeletionRows(t, db, staff.ID))
+}
+
+func TestTimeTrackingCleanupRejectsMissingSettings(t *testing.T) {
+	t.Parallel()
+	require.PanicsWithValue(t, "time tracking cleanup: settings are required", func() {
+		timetracking.NewTimeTrackingCleanupService(nil, nil, nil, nil, nil)
+	})
+}
+
+type workforceRetentionFixture struct{ snapshotSessionSettings }
+
+func (workforceRetentionFixture) TimeTrackingRetentionDays(context.Context) (int, error) {
+	return 730, nil
 }

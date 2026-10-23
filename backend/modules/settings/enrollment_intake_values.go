@@ -18,9 +18,9 @@ type EnrollmentIntakeSource interface {
 }
 
 // EnrollmentIntakeValues are the settings of the enrollment intake. The
-// switches the intake reads without an error path fall back when a school
-// set nothing or the read fails: the intake stays closed, a submission stays
-// editable, a status link lives 365 days and no admin is mailed.
+// switches use the resolved override or registry default. On read failures
+// the intake stays closed and no admin is mailed. Edit permission and status
+// token lifetime reads propagate errors.
 type EnrollmentIntakeValues struct{ source EnrollmentIntakeSource }
 
 // NewEnrollmentIntakeValues binds the values to the resolver.
@@ -32,12 +32,12 @@ func (v EnrollmentIntakeValues) EnrollmentEnabled(ctx context.Context) bool {
 	return configSvc.ResolveBoolOrDefault(ctx, v.source, configModel.KeyEnrollmentEnabled, false, nil)
 }
 
-func (v EnrollmentIntakeValues) AllowSubmissionEdit(ctx context.Context) bool {
-	return configSvc.ResolveBoolOrDefault(ctx, v.source, configModel.KeyEnrollmentAllowSubmissionEdit, true, nil)
+func (v EnrollmentIntakeValues) AllowSubmissionEdit(ctx context.Context) (bool, error) {
+	return v.source.ResolveBool(ctx, configModel.KeyEnrollmentAllowSubmissionEdit)
 }
 
-func (v EnrollmentIntakeValues) StatusTokenTTLDays(ctx context.Context) int {
-	return configSvc.ResolveIntOrDefault(ctx, v.source, configModel.KeyEnrollmentStatusTokenTTLDays, 365, nil)
+func (v EnrollmentIntakeValues) StatusTokenTTLDays(ctx context.Context) (int, error) {
+	return v.source.ResolveInt(ctx, configModel.KeyEnrollmentStatusTokenTTLDays)
 }
 
 func (v EnrollmentIntakeValues) AdminNotificationEmails(ctx context.Context) string {

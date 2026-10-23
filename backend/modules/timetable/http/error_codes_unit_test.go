@@ -439,3 +439,12 @@ func TestAttendanceCorrectionCodes(t *testing.T) {
 		{"entry missing", renderErr(timetable.ErrAttendanceEntryNotFound), http.StatusNotFound, "timetable.attendance_entry_not_found"},
 	})
 }
+
+func TestOperationalSettingsFailureHidesPrivateDetails(t *testing.T) {
+	t.Parallel()
+	response := httptest.NewRecorder()
+	req := httptest.NewRequest("GET", "/operations/planned-now", nil)
+	require.NoError(t, render.Render(response, req, operationErrorRenderer(fmt.Errorf("%w: private operational settings failure", timetable.ErrLifecycleSettings))))
+	assert.Equal(t, http.StatusInternalServerError, response.Code, response.Body.String())
+	assert.NotContains(t, response.Body.String(), "private operational settings failure")
+}

@@ -10,6 +10,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/moto-nrw/project-phoenix/roots/owners"
+
 	rootAPI "github.com/moto-nrw/project-phoenix/api"
 
 	"github.com/go-chi/chi/v5"
@@ -56,7 +58,10 @@ func setupScopedDeviationsRoute(t *testing.T) *scopedDevSetup {
 	y := testpkg.CreateTestStaff(t, db, "Replacement", fmt.Sprintf("%d", suffix+2))
 	b := testpkg.CreateTestStaff(t, db, "Planned2", fmt.Sprintf("%d", suffix+3))
 	account := testpkg.CreateTestAccount(t, db, fmt.Sprintf("scoped-dev-%d", suffix))
+	schoolSettings, err := owners.NewSettingsTestModule(testpkg.NewDatabase(t, db), testpkg.TenantRuntime(t, db))
+	require.NoError(t, err)
 	resource := timetableAPI.NewResource(timetableAPI.Dependencies{
+		SettingsService: schoolSettings.Settings,
 		InstanceService: serviceFactory.Instance,
 		Deviations:      serviceFactory.TimetableData.Deviations,
 	})

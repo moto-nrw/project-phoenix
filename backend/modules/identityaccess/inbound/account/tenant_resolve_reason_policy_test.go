@@ -49,7 +49,7 @@ func TestTenantResolveEmitsReasonPolicy(t *testing.T) {
 	db, authRoute, tenantSettings := setupAuthDependenciesRouteWithSettings(t)
 	scope, slug := newTenantResolveScope(t, db)
 
-	resource := authAPI.NewResource(authRoute.AuthService, authRoute.Invitations, authRoute.SchoolService, authRoute.Sessions, identityaccessCompose.TenantUnitOfWork{}, transactionFailures.IsConstraintViolation)
+	resource := authAPI.NewResource(authRoute.AuthService, authRoute.Invitations, authRoute.SchoolService, authRoute.Sessions, identityaccessCompose.TenantUnitOfWork{}, transactionFailures.IsConstraintViolation, authRoute.SettingsService)
 	resource.SettingsService = authRoute.SettingsService
 
 	assert.Equal(t, settings.ReasonPolicyBoth, resolveReasonPolicy(t, slug, resource),
@@ -78,7 +78,7 @@ func TestTenantResolveReasonPolicyUnknownValueFallsBackToBoth(t *testing.T) {
 	storeRawTenantSetting(t, db, scope.TenantID,
 		settings.KeyParentRequestReasonPolicy, json.RawMessage(`"irgendwas"`))
 
-	resource := authAPI.NewResource(authRoute.AuthService, authRoute.Invitations, authRoute.SchoolService, authRoute.Sessions, identityaccessCompose.TenantUnitOfWork{}, transactionFailures.IsConstraintViolation)
+	resource := authAPI.NewResource(authRoute.AuthService, authRoute.Invitations, authRoute.SchoolService, authRoute.Sessions, identityaccessCompose.TenantUnitOfWork{}, transactionFailures.IsConstraintViolation, authRoute.SettingsService)
 	resource.SettingsService = authRoute.SettingsService
 
 	assert.Equal(t, settings.ReasonPolicyBoth, resolveReasonPolicy(t, slug, resource))

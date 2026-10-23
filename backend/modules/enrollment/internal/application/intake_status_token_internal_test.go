@@ -15,7 +15,7 @@ import (
 
 func statusTokenIntake() *Intake {
 	var draw byte
-	return NewIntake(IntakeDependencies{Random: func(b []byte) error {
+	return NewIntake(IntakeDependencies{Settings: intakeSettingsFake{}, Random: func(b []byte) error {
 		draw++
 		for i := range b {
 			b[i] = draw ^ byte(i*37)
@@ -71,7 +71,7 @@ func TestNewStatusToken_TokensAreDistinct(t *testing.T) {
 func TestNewStatusToken_RequiresEntropySource(t *testing.T) {
 	t.Parallel()
 
-	token, err := NewIntake(IntakeDependencies{}).newStatusToken()
+	token, err := NewIntake(IntakeDependencies{Settings: intakeSettingsFake{}}).newStatusToken()
 	require.Error(t, err)
 	assert.Empty(t, token)
 }

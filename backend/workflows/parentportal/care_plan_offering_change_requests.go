@@ -28,32 +28,25 @@ type offeringChangeRequests struct {
 }
 
 func (a offeringChangeRequests) CatalogAt(ctx context.Context, id int64, date calendar.Date) (*care.OfferingChangeCatalog, error) {
-	value, err := a.callbacks.CatalogAt(ctx, id, date)
-	return carePlanValuePointer(value, carePlanToAppOfferingChangeCatalog), err
+	return a.callbacks.CatalogAt(ctx, id, date)
 }
 func (a offeringChangeRequests) EarliestEffectiveFrom(ctx context.Context) (calendar.Date, error) {
-	value, err := a.callbacks.EarliestEffectiveFrom(ctx)
-	return value, err
+	return a.callbacks.EarliestEffectiveFrom(ctx)
 }
 func (a offeringChangeRequests) Edit(ctx context.Context, id int64, input care.CreateOfferingChangeInput, version string) (*care.OfferingChangeRequest, error) {
-	value, err := a.callbacks.Edit(ctx, id, carePlanFromAppCreateOfferingChangeInput(input), version)
-	return carePlanValuePointer(value, carePlanToAppOfferingChangeRequest), err
+	return a.callbacks.Edit(ctx, id, input, version)
 }
 func (a offeringChangeRequests) GetForStudent(ctx context.Context, id int64) (*care.OfferingChangeView, error) {
-	value, err := a.callbacks.GetForStudent(ctx, id)
-	return carePlanValuePointer(value, carePlanToAppOfferingChangeView), err
+	return a.callbacks.GetForStudent(ctx, id)
 }
 func (a offeringChangeRequests) SubmitOfferingChange(ctx context.Context, input care.CreateOfferingChangeInput) (*care.OfferingChangeRequest, error) {
-	value, err := a.callbacks.SubmitOfferingChange(ctx, carePlanFromAppCreateOfferingChangeInput(input))
-	return carePlanValuePointer(value, carePlanToAppOfferingChangeRequest), err
+	return a.callbacks.SubmitOfferingChange(ctx, input)
 }
 func (a offeringChangeRequests) CourseCatalog(ctx context.Context, studentID int64, accountID int64) (*care.CourseCatalog, error) {
-	value, err := a.callbacks.CourseCatalog(ctx, studentID, accountID)
-	return carePlanValuePointer(value, carePlanToAppCourseCatalog), err
+	return a.callbacks.CourseCatalog(ctx, studentID, accountID)
 }
 func (a offeringChangeRequests) CreateCourseRequest(ctx context.Context, input care.CreateCourseRequestInput) (*care.OfferingChangeRequest, error) {
-	value, err := a.callbacks.CreateCourseRequest(ctx, carePlanFromAppCreateCourseRequestInput(input))
-	return carePlanValuePointer(value, carePlanToAppOfferingChangeRequest), err
+	return a.callbacks.CreateCourseRequest(ctx, input)
 }
 func (a offeringChangeRequests) WithdrawCourseRequest(ctx context.Context, studentID int64, accountID int64, offeringID int64) error {
 	return a.callbacks.WithdrawCourseRequest(ctx, studentID, accountID, offeringID)

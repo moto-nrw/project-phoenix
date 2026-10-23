@@ -136,3 +136,15 @@ func TestCleanupJobsEraseUnusedAccounts(t *testing.T) {
 	}
 	require.Contains(t, descriptions, "Unused account erasure")
 }
+
+func TestNewWorkerRejectsMissingSettings(t *testing.T) {
+	t.Parallel()
+	deps := minimalWorkerDependencies(t)
+	deps.Settings = nil
+	_, err := NewWorker(deps)
+	require.ErrorContains(t, err, "worker dependency settings is required")
+	var typedNil *stubSettingsResolver
+	deps.Settings = typedNil
+	_, err = NewWorker(deps)
+	require.ErrorContains(t, err, "worker dependency settings is required")
+}

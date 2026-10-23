@@ -115,8 +115,8 @@ func TestOperationalOverview_ScopeOwnKeepsStaffPersonalButAllowsAdmins(t *testin
 		UserContextService: verifiedStaffContext(),
 	})
 
-	assert.True(t, rs.operationalOverview(claimsCtx(adminClaims())), "admins always have the school-wide overview")
-	assert.False(t, rs.operationalOverview(claimsCtx(staffClaims())), "staff stay on their own supervisions")
+	assert.True(t, overviewForTest(t, rs, claimsCtx(adminClaims())), "admins always have the school-wide overview")
+	assert.False(t, overviewForTest(t, rs, claimsCtx(staffClaims())), "staff stay on their own supervisions")
 }
 
 func TestOperationalOverview_ScopeAdmins(t *testing.T) {
@@ -127,8 +127,8 @@ func TestOperationalOverview_ScopeAdmins(t *testing.T) {
 		UserContextService: verifiedStaffContext(),
 	})
 
-	assert.True(t, rs.operationalOverview(claimsCtx(adminClaims())))
-	assert.False(t, rs.operationalOverview(claimsCtx(staffClaims())), "the admins scope must not leak to staff")
+	assert.True(t, overviewForTest(t, rs, claimsCtx(adminClaims())))
+	assert.False(t, overviewForTest(t, rs, claimsCtx(staffClaims())), "the admins scope must not leak to staff")
 }
 
 func TestOperationalOverview_ScopeAllStaff(t *testing.T) {
@@ -139,8 +139,8 @@ func TestOperationalOverview_ScopeAllStaff(t *testing.T) {
 		UserContextService: verifiedStaffContext(),
 	})
 
-	assert.True(t, rs.operationalOverview(claimsCtx(adminClaims())))
-	assert.True(t, rs.operationalOverview(claimsCtx(staffClaims())))
+	assert.True(t, overviewForTest(t, rs, claimsCtx(adminClaims())))
+	assert.True(t, overviewForTest(t, rs, claimsCtx(staffClaims())))
 }
 
 func TestOperationalOverview_ScopeAllStaffDeniesNonStaffAccounts(t *testing.T) {
@@ -153,7 +153,7 @@ func TestOperationalOverview_ScopeAllStaffDeniesNonStaffAccounts(t *testing.T) {
 		UserContextService: &stubUserContext{},
 	})
 
-	assert.False(t, rs.operationalOverview(claimsCtx(staffClaims())))
+	assert.False(t, overviewForTest(t, rs, claimsCtx(staffClaims())))
 }
 
 func TestOperationalOverview_UnknownScopeFallsBackToOwn(t *testing.T) {
@@ -164,8 +164,8 @@ func TestOperationalOverview_UnknownScopeFallsBackToOwn(t *testing.T) {
 		UserContextService: verifiedStaffContext(),
 	})
 
-	assert.True(t, rs.operationalOverview(claimsCtx(adminClaims())))
-	assert.False(t, rs.operationalOverview(claimsCtx(staffClaims())))
+	assert.True(t, overviewForTest(t, rs, claimsCtx(adminClaims())))
+	assert.False(t, overviewForTest(t, rs, claimsCtx(staffClaims())))
 }
 
 func TestOperationalOverview_SettingsFaultFailsClosed(t *testing.T) {
@@ -176,7 +176,9 @@ func TestOperationalOverview_SettingsFaultFailsClosed(t *testing.T) {
 		UserContextService: verifiedStaffContext(),
 	})
 
-	assert.False(t, rs.operationalOverview(claimsCtx(adminClaims())))
+	allowed, err := rs.operationalOverview(claimsCtx(adminClaims()))
+	require.Error(t, err)
+	assert.False(t, allowed)
 }
 
 func TestOperationalOverview_NilSettings(t *testing.T) {
@@ -184,7 +186,7 @@ func TestOperationalOverview_NilSettings(t *testing.T) {
 
 	rs := resourceForTest(Resource{Presence: sessionQueryStub{}, SettingsService: nil, UserContextService: verifiedStaffContext()})
 
-	assert.False(t, rs.operationalOverview(claimsCtx(adminClaims())))
+	assert.False(t, overviewForTest(t, rs, claimsCtx(adminClaims())))
 }
 
 // =============================================================================
@@ -280,7 +282,7 @@ func TestGetAllActiveSupervisions_OwnScopeStillAllowsAdmin(t *testing.T) {
 	assert.Equal(t, testutil.StatusOK, w.Code)
 }
 
-func TestGetAllActiveSupervisions_ForbiddenOnSettingError(t *testing.T) {
+func TestGetAllActiveSupervisions_ServerErrorOnSettingError(t *testing.T) {
 	t.Parallel()
 
 	rs := resourceForTest(Resource{Presence: sessionQueryStub{},
@@ -292,7 +294,7 @@ func TestGetAllActiveSupervisions_ForbiddenOnSettingError(t *testing.T) {
 
 	rs.getAllActiveSupervisions(w, r)
 
-	assert.Equal(t, testutil.StatusForbidden, w.Code)
+	assert.Equal(t, testutil.StatusInternalServerError, w.Code)
 }
 
 func TestGetAllActiveSupervisions_SuccessEmptyGroups(t *testing.T) {
@@ -382,4 +384,21 @@ func TestGetAllActiveSupervisions_ServiceError(t *testing.T) {
 	rs.getAllActiveSupervisions(w, r)
 
 	assert.Equal(t, testutil.StatusInternalServerError, w.Code)
+}
+
+func TestOperationalOverviewReadFailureIsNotATenantChoice(t *testing.T) {
+	t.Parallel()
+	rs := resourceForTest(Resource{Presence: sessionQueryStub{}, SettingsService: failingScopeSettings(), UserContextService: verifiedStaffContext()})
+	response := httptest.NewRecorder()
+	rs.getAllActiveSupervisions(response, newRequestWithClaims("GET", "/supervisors/all", staffClaims()))
+	assert.Equal(t, 500, response.Code, response.Body.String())
+	assert.NotContains(t, response.Body.String(), "settings unavailable")
+	assert.NotContains(t, response.Body.String(), `"data"`)
+}
+
+func overviewForTest(t *testing.T, rs *Resource, ctx context.Context) bool {
+	t.Helper()
+	allowed, err := rs.operationalOverview(ctx)
+	require.NoError(t, err)
+	return allowed
 }

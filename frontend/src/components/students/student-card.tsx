@@ -28,11 +28,7 @@ import {
   type StudentDayTimes,
   type StudentTimeStatus,
 } from "~/lib/student-time-status";
-import {
-  LOCATION_COLORS,
-  MOTO_COLOR_PALETTE,
-  getLocationBadgeTone,
-} from "~/lib/location-helper";
+import { LOCATION_COLORS, MOTO_COLOR_PALETTE } from "~/lib/location-helper";
 import type { StudentCheckinState } from "~/lib/hooks/use-school-checkin-mode";
 import { Avatar } from "~/components/ui/avatar";
 import { useStudentPhotosEnabled } from "~/lib/hooks/use-student-photos-enabled";
@@ -707,36 +703,23 @@ export function StudentAbsenceRow({
 }
 
 /**
- * Informational badge for a child with a still-pending absence request covering
- * today. It is NOT an
- * absence — the child stays "expected" and keeps its normal arrival/pickup rows
- * until the OGS confirms — so this renders as a single compact amber pill
- * alongside them, not in place of them. The parent's note (if any) is kept to
- * the hover title so the card stays as dense as its other rows. The amber tone
- * comes directly from MOTO_COLOR_PALETTE because this is a pending-approval
- * hint, not a location or illness signal.
+ * Informational line for a child with a still-pending absence request covering
+ * today. It is NOT an absence — the child stays "expected" and keeps its
+ * normal arrival/pickup rows until the OGS confirms — so this renders as one
+ * row alongside them, not in place of them. Plain text, not a pill: a card and
+ * a table row carry at most one pill, the location (#4371). The parent's note
+ * (if any) is kept to the hover title so the card stays as dense as its other
+ * rows.
  */
 export function StudentPendingExcusedRow({
   note,
 }: Readonly<{ note?: string }>) {
-  const tone = getLocationBadgeTone(MOTO_COLOR_PALETTE.amber.base);
-
-  // Leading icon at the row's left edge (aligned with the other StudentInfoRow
-  // icons) and the amber pill in the text column, so this line sits in the same
-  // rhythm as the sibling rows instead of looking offset.
   return (
-    <div className="mt-1 flex items-center gap-1.5">
+    <div className="mt-1 flex items-center gap-1.5" title={note ?? undefined}>
       <span className="flex-shrink-0">
         <AbsenceIcon />
       </span>
-      <span
-        className="inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium"
-        style={{
-          backgroundColor: tone.backgroundColor,
-          color: tone.textColor,
-        }}
-        title={note ?? undefined}
-      >
+      <span className="text-xs font-medium whitespace-nowrap text-gray-600">
         Freigabe ausstehend
       </span>
     </div>

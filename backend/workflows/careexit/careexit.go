@@ -2,7 +2,9 @@
 // that reach several owners: ending and restoring a child's care across the
 // Timetable roster, the Student Presence attendance and the Care Plan offering
 // bookings behind an Enrollment application, and adding a child to the blocks
-// of a later pickup decision.
+// of a later pickup decision. Resumption owns its complete outer unit; the
+// other capabilities participate in the remaining Care Plan coordinator
+// (ADR 0067's #4538 addendum).
 //
 // The workflow owns no tables. It declares the owner surfaces it coordinates
 // as consumer-owned ports, which the root binds to the owners' public

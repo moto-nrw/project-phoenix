@@ -31,7 +31,6 @@ func (a bookingApplications) SubmittedOfferingChoices(context.Context, []int64) 
 type bookingStore struct {
 	history  []careplan.CareOfferingBooking
 	historyQ []int64
-	ended    []int64
 	restores []careplan.CareOfferingBookingRestore
 }
 
@@ -44,13 +43,6 @@ func (s *bookingStore) CareOfferingBookingHistory(_ context.Context, childIDs []
 		}
 	}
 	return result, nil
-}
-
-func (s *bookingStore) LockCareOfferingBookings(context.Context, []int64) error { return nil }
-
-func (s *bookingStore) EndCareOfferingBookings(_ context.Context, childIDs []int64, _ careplan.Date) (int64, error) {
-	s.ended = childIDs
-	return int64(len(childIDs)), nil
 }
 
 func (s *bookingStore) RestoreCareOfferingBookings(_ context.Context, restores []careplan.CareOfferingBookingRestore) (int64, error) {
@@ -100,23 +92,6 @@ func TestBookingSnapshotsSelectTheRunningBookingsOfTheSchool(t *testing.T) {
 	empty, err := bookings.CareExitOfferingSnapshots(context.Background(), nil, enrollment.Date(until), nil)
 	require.NoError(t, err)
 	assert.Empty(t, empty)
-}
-
-func TestBookingEndHonoursTheSourceChild(t *testing.T) {
-	t.Parallel()
-	store := &bookingStore{}
-	bookings := careexit.NewBookings(bookingApplications{}, store, tenantOf(50))
-
-	changed, err := bookings.EndCareExitOfferingLinks(context.Background(), []int64{21, 22}, new(int64(22)), "2026-10-19")
-	require.NoError(t, err)
-	assert.EqualValues(t, 1, changed)
-	assert.Equal(t, []int64{22}, store.ended)
-
-	store.ended = nil
-	changed, err = bookings.EndCareExitOfferingLinks(context.Background(), []int64{21}, new(int64(22)), "2026-10-19")
-	require.NoError(t, err)
-	assert.Zero(t, changed)
-	assert.Nil(t, store.ended, "a source child outside the exit ends nothing")
 }
 
 func TestBookingRestoreReplaysTheSnapshots(t *testing.T) {

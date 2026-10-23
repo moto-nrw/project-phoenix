@@ -17,9 +17,8 @@ import (
 var ErrAuditLogInvalid = errors.New("invalid audit log request")
 
 const (
-	auditLogMaxLimit             = 200
-	auditLogDefaultPageSize      = 50
-	auditLogRetentionDefaultDays = 730
+	auditLogMaxLimit        = 200
+	auditLogDefaultPageSize = 50
 )
 
 // AuditLogPerson names a staff member in the feed.
@@ -88,6 +87,9 @@ type timeTrackingAuditLogService struct {
 }
 
 func NewTimeTrackingAuditLogService(repo TimeTrackingAuditReader, staffNames StaffDisplayNameQuery, settings settingsResolver) TimeTrackingAuditLogService {
+	if settings == nil {
+		panic("time tracking audit log: settings are required")
+	}
 	return &timeTrackingAuditLogService{repo: repo, staffNames: staffNames, settings: settings}
 }
 
@@ -130,6 +132,10 @@ func (s *timeTrackingAuditLogService) ListAuditLog(ctx context.Context, req Audi
 		filter.Cursor = cursor
 	}
 
+	cutoff, err := s.retentionCutoff(ctx)
+	if err != nil {
+		return nil, err
+	}
 	entries, err := s.repo.ListEntries(ctx, filter)
 	if err != nil {
 		return nil, fmt.Errorf("failed to list audit log entries: %w", err)
@@ -145,7 +151,7 @@ func (s *timeTrackingAuditLogService) ListAuditLog(ctx context.Context, req Audi
 		return nil, err
 	}
 
-	page := &AuditLogPage{Events: events, RetentionCutoff: s.retentionCutoff(ctx).String()}
+	page := &AuditLogPage{Events: events, RetentionCutoff: cutoff.String()}
 	if hasMore {
 		last := entries[len(entries)-1]
 		page.NextCursor = encodeAuditLogCursor(last)
@@ -202,14 +208,12 @@ func (s *timeTrackingAuditLogService) decorate(ctx context.Context, entries []*T
 // retentionCutoff mirrors the cleanup service's window: today minus the
 // configured retention days. Session edits older than this are gone (their
 // sessions were deleted); the ledger sources are unaffected.
-func (s *timeTrackingAuditLogService) retentionCutoff(ctx context.Context) calendar.Date {
-	days := auditLogRetentionDefaultDays
-	if s.settings != nil {
-		if v, err := s.settings.TimeTrackingRetentionDays(ctx); err == nil && v > 0 {
-			days = v
-		}
+func (s *timeTrackingAuditLogService) retentionCutoff(ctx context.Context) (calendar.Date, error) {
+	days, err := resolveTimeTrackingRetentionDays(ctx, s.settings)
+	if err != nil {
+		return "", err
 	}
-	return calendar.TodayDate().AddDays(-days)
+	return calendar.TodayDate().AddDays(-days), nil
 }
 
 func encodeAuditLogCursor(e *TimeTrackingAuditEntry) string {

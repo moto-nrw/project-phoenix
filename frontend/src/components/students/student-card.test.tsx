@@ -778,13 +778,15 @@ describe("StudentAbsenceRow day note (#3369)", () => {
 });
 
 describe("StudentPendingExcusedRow", () => {
-  it("uses the shared amber status tone", () => {
+  // #4371: the location is the only pill on a card; the pending request is a
+  // plain text row that keeps the parent's note on hover.
+  it("renders as a text row, not a pill, with the note as title", () => {
     render(<StudentPendingExcusedRow note="Noch offen" />);
 
-    expect(screen.getByText("Freigabe ausstehend")).toHaveStyle({
-      backgroundColor: "#FEF3C7",
-      color: "#92400E",
-    });
+    const text = screen.getByText("Freigabe ausstehend");
+    expect(text.className).not.toMatch(/\brounded-full\b/);
+    expect(text.style.backgroundColor).toBe("");
+    expect(text.closest("[title]")).toHaveAttribute("title", "Noch offen");
   });
 });
 

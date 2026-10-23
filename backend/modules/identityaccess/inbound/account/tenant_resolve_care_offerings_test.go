@@ -51,9 +51,9 @@ func TestResolveTenant_CareOfferingsEnabled(t *testing.T) {
 	t.Cleanup(cleanup)
 
 	schoolService := authRoute.SchoolService
-	request := func(t *testing.T, reader settings.TenantReader) resolveCareOfferingsResponse {
+	request := func(t *testing.T, reader settings.TenantReader, status int) resolveCareOfferingsResponse {
 		t.Helper()
-		resource := authAPI.NewResource(authRoute.AuthService, authRoute.Invitations, schoolService, authRoute.Sessions, identityaccessCompose.TenantUnitOfWork{}, transactionFailures.IsConstraintViolation)
+		resource := authAPI.NewResource(authRoute.AuthService, authRoute.Invitations, schoolService, authRoute.Sessions, identityaccessCompose.TenantUnitOfWork{}, transactionFailures.IsConstraintViolation, authRoute.SettingsService)
 		resource.SettingsService = reader
 		router := chi.NewRouter()
 		router.Mount("/auth", resource.Router(rootAPI.TenantSessionChain))
@@ -61,15 +61,19 @@ func TestResolveTenant_CareOfferingsEnabled(t *testing.T) {
 		req := httptest.NewRequest(http.MethodGet, "/auth/tenant/resolve?slug="+subdomain, nil)
 		rr := httptest.NewRecorder()
 		router.ServeHTTP(rr, req)
-		require.Equal(t, http.StatusOK, rr.Code, "Body: %s", rr.Body.String())
+		require.Equal(t, status, rr.Code, "Body: %s", rr.Body.String())
 
+		if status != http.StatusOK {
+			assert.NotContains(t, rr.Body.String(), `"data"`)
+			return resolveCareOfferingsResponse{}
+		}
 		var response resolveCareOfferingsResponse
 		require.NoError(t, json.Unmarshal(rr.Body.Bytes(), &response))
 		return response
 	}
 
 	t.Run("registry default stays enabled", func(t *testing.T) {
-		response := request(t, authRoute.SettingsService)
+		response := request(t, authRoute.SettingsService, http.StatusOK)
 		assert.True(t, response.Data.CareOfferingsEnabled)
 	})
 
@@ -80,7 +84,7 @@ func TestResolveTenant_CareOfferingsEnabled(t *testing.T) {
 			cleanupExec(`DELETE FROM config.setting_values WHERE tenant_id = ? AND setting_key = ?`, tenantID, settings.KeyEnrollmentCareOfferingsEnabled)
 		})
 
-		response := request(t, authRoute.SettingsService)
+		response := request(t, authRoute.SettingsService, http.StatusOK)
 		assert.False(t, response.Data.CareOfferingsEnabled)
 	})
 
@@ -99,7 +103,6 @@ func TestResolveTenant_CareOfferingsEnabled(t *testing.T) {
 			},
 		}
 
-		response := request(t, settings)
-		assert.False(t, response.Data.CareOfferingsEnabled)
+		request(t, settings, http.StatusInternalServerError)
 	})
 }

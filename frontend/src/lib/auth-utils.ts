@@ -113,6 +113,20 @@ export function isCaregiver(session: Session | null): boolean {
 }
 
 /**
+ * Whether this session can load the group data that powers active
+ * supervisions. Sessions minted before permission claims existed retain the
+ * caregiver fallback; an explicit permission list is authoritative.
+ */
+export function canReadSupervisionData(session: Session | null): boolean {
+  const permissions = session?.user?.permissions;
+  return (
+    hasEffectiveAdminScope(session) ||
+    hasPermission(session, "groups:read") ||
+    (!Array.isArray(permissions) && isCaregiver(session))
+  );
+}
+
+/**
  * Get the user's display name
  */
 export function getUserDisplayName(session: Session | null): string {

@@ -46,7 +46,7 @@
       "declaration": "TestFullProductionRouterGolden",
       "target": "api.WithRuntime",
       "lines": [
-        317
+        378
       ],
       "tables": []
     },
@@ -78,6 +78,17 @@
       "target": "services/scheduler.NewWorker",
       "lines": [
         61
+      ],
+      "tables": []
+    },
+    {
+      "scope": "test",
+      "file": "modules/schedulerruntime/internal/application/worker_test.go",
+      "declaration": "TestNewWorkerRejectsMissingSettings",
+      "target": "services/scheduler.NewWorker",
+      "lines": [
+        144,
+        148
       ],
       "tables": []
     },

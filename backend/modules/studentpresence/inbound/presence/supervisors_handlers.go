@@ -270,8 +270,7 @@ func (rs *Resource) getAllActiveSupervisions(w http.ResponseWriter, r *http.Requ
 		common.RenderError(w, r, common.ErrorForbidden(errors.New("operational group overview is not available")))
 		return
 	}
-	if !rs.operationalOverview(ctx) {
-		common.RenderError(w, r, common.ErrorForbidden(errors.New("all-group operational access is not enabled for this school")))
+	if !rs.requireOperationalOverview(w, r, "all-group operational access is not enabled for this school") {
 		return
 	}
 

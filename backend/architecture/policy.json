@@ -1,6 +1,6 @@
 {
   "schema_version": 5,
-  "policy_epoch": 90,
+  "policy_epoch": 91,
   "module_path": "github.com/moto-nrw/project-phoenix",
   "shared_kernel_types": [
     "CorrelationID",
@@ -14962,19 +14962,6 @@
       "target_package": "modules/staffannouncementaudience/contract"
     },
     {
-      "id": "communication.compose.staff-audience.native-public",
-      "description": "Native projection values replace the private constructor boundary; bindings are supplied by the root.",
-      "scopes": [
-        "production"
-      ],
-      "source_owner": "communication",
-      "source_role": "compose",
-      "source_package": "modules/communication/composition",
-      "target_owner": "staff-announcement-audience",
-      "target_role": "public",
-      "target_package": "modules/staffannouncementaudience/contract"
-    },
-    {
       "id": "care-plan.contracttest.enrollment-offering-contract",
       "description": "Native availability and offering values replace the retired legacy-model test boundary.",
       "scopes": [
@@ -15135,32 +15122,6 @@
       "source_owner": "presence-legacy-view",
       "source_role": "postgres",
       "source_package": "modules/presenceprojection/internal/adapters/postgres",
-      "target_owner": "presence-legacy-view",
-      "target_role": "public",
-      "target_package": "modules/presenceprojection/presencecontract"
-    },
-    {
-      "id": "timetable-activities.application.native-presence-projection",
-      "description": "Native read values and the consumer-owned port replace the retained composition import.",
-      "scopes": [
-        "production"
-      ],
-      "source_owner": "timetable-activities",
-      "source_role": "application",
-      "source_package": "modules/timetable/internal/application",
-      "target_owner": "presence-legacy-view",
-      "target_role": "public",
-      "target_package": "modules/presenceprojection/presencecontract"
-    },
-    {
-      "id": "timetable-activities.port.native-presence-projection",
-      "description": "Native read values and the consumer-owned port replace the retained composition import.",
-      "scopes": [
-        "production"
-      ],
-      "source_owner": "timetable-activities",
-      "source_role": "port",
-      "source_package": "modules/timetable/ports",
       "target_owner": "presence-legacy-view",
       "target_role": "public",
       "target_package": "modules/presenceprojection/presencecontract"

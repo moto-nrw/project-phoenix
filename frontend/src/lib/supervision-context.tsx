@@ -10,9 +10,8 @@ import React, {
 } from "react";
 import { useSession } from "next-auth/react";
 import {
+  canReadSupervisionData,
   hasEffectiveAdminScope,
-  hasPermission,
-  isCaregiver,
 } from "~/lib/auth-utils";
 import { createLogger } from "~/lib/logger";
 import { useLatest } from "~/lib/hooks/use-latest";
@@ -168,12 +167,7 @@ export function SupervisionProvider({
   // keep their role fallback; staff sessions issued before the permissions
   // claim existed have no list at all, so keep their role-based access alive
   // during that rollout window and let the backend remain the final authority.
-  const sessionPermissions = session?.user?.permissions;
-  const hasExplicitPermissions = Array.isArray(sessionPermissions);
-  const canReadGroups =
-    sessionHasEffectiveAdminScope ||
-    hasPermission(session, "groups:read") ||
-    (!hasExplicitPermissions && isCaregiver(session));
+  const canReadGroups = canReadSupervisionData(session);
   const canReadGroupsRef = useLatest(canReadGroups);
 
   // Use a ref for the refresh function to break dependency cycles

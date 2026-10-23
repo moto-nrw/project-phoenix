@@ -2,6 +2,7 @@ import type {
   DisplayMode,
   StudentLocationContext,
 } from "@/lib/location-helper";
+import { PresenceHint } from "./presence-hint";
 import {
   LOCATION_COLORS,
   LOCATION_STATUSES,
@@ -38,7 +39,7 @@ function formatLocationSince(
 /**
  * Determines how to display sickness status on the badge.
  * - If sick AND at home: replace "Zuhause" with "Krank"
- * - If sick AND present: show additional "Krank" indicator
+ * - If sick AND present: show an additional "Krank" hint line
  */
 function getSickDisplayMode(
   student: StudentLocationContext,
@@ -226,10 +227,6 @@ export function LocationBadge({
   }
 
   const locationTone = getLocationBadgeTone(color);
-  const sickTone = getLocationBadgeTone(LOCATION_COLORS.SICK);
-  const classTripTone = getLocationBadgeTone(LOCATION_COLORS.CLASS_TRIP);
-  const excusedTone = getLocationBadgeTone(LOCATION_COLORS.EXCUSED);
-  const notArrivalTone = getLocationBadgeTone(LOCATION_COLORS.NOT_ARRIVAL);
 
   const sizeKey = size ?? DEFAULT_SIZE;
   const sizeConfig = SIZE_MAP[sizeKey] ?? SIZE_MAP[DEFAULT_SIZE];
@@ -258,58 +255,22 @@ export function LocationBadge({
       classTripMode === "replace" ||
       excusedMode === "replace");
 
-  const sickIndicator = (
-    <span
-      className={`mt-1 ${MODERN_BASE_CLASS} ${sizeConfig.modern}`}
-      style={{
-        backgroundColor: sickTone.backgroundColor,
-        color: sickTone.textColor,
-      }}
-      data-sick-indicator="true"
-    >
-      {LOCATION_STATUSES.SICK}
-    </span>
-  );
-
-  const excusedIndicator = (
-    <span
-      className={`mt-1 ${MODERN_BASE_CLASS} ${sizeConfig.modern}`}
-      style={{
-        backgroundColor: excusedTone.backgroundColor,
-        color: excusedTone.textColor,
-      }}
-      data-excused-indicator="true"
-    >
-      {LOCATION_STATUSES.EXCUSED}
-    </span>
-  );
-
-  const classTripIndicator = (
-    <span
-      className={`mt-1 ${MODERN_BASE_CLASS} ${sizeConfig.modern}`}
-      style={{
-        backgroundColor: classTripTone.backgroundColor,
-        color: classTripTone.textColor,
-      }}
-      data-class-trip-indicator="true"
-    >
-      {LOCATION_STATUSES.CLASS_TRIP}
-    </span>
-  );
-
-  const notArrivalIndicator = (
-    <span
-      className={`mt-1 ${MODERN_BASE_CLASS} ${sizeConfig.modern}`}
-      style={{
-        backgroundColor: notArrivalTone.backgroundColor,
-        color: notArrivalTone.textColor,
-      }}
-      data-not-arrival-indicator="true"
-      title={student.not_arrival_reason ?? undefined}
-    >
-      {LOCATION_STATUSES.UNPLANNED_PRESENT}
-    </span>
-  );
+  // At most one pill per child (#4371): the location stays the pill, a
+  // further fact becomes a neutral line below it.
+  const hint =
+    sickMode === "additional" ? (
+      <PresenceHint kind="sick" size={sizeKey} />
+    ) : classTripMode === "additional" ? (
+      <PresenceHint kind="classTrip" size={sizeKey} />
+    ) : excusedMode === "additional" ? (
+      <PresenceHint kind="excused" size={sizeKey} />
+    ) : notArrivalMode === "additional" ? (
+      <PresenceHint
+        kind="notArrival"
+        size={sizeKey}
+        title={student.not_arrival_reason ?? undefined}
+      />
+    ) : null;
 
   if (variant === "simple") {
     return (
@@ -334,10 +295,7 @@ export function LocationBadge({
             seit {formattedTime} Uhr
           </span>
         )}
-        {sickMode === "additional" && sickIndicator}
-        {classTripMode === "additional" && classTripIndicator}
-        {excusedMode === "additional" && excusedIndicator}
-        {notArrivalMode === "additional" && notArrivalIndicator}
+        {hint}
       </div>
     );
   }
@@ -364,10 +322,7 @@ export function LocationBadge({
           seit {formattedTime} Uhr
         </span>
       )}
-      {sickMode === "additional" && sickIndicator}
-      {classTripMode === "additional" && classTripIndicator}
-      {excusedMode === "additional" && excusedIndicator}
-      {notArrivalMode === "additional" && notArrivalIndicator}
+      {hint}
     </div>
   );
 }

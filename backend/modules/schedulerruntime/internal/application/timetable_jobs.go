@@ -167,7 +167,10 @@ func (s *Scheduler) runTimetableCleanupForTenant(tenantCtx context.Context, tena
 		slog.String("cleanup_time", cleanupTime),
 	)
 
-	timeoutMinutes := s.resolveIntSetting(tenantCtx, settingDataCleanupTimeoutMinutes, 30)
+	timeoutMinutes, err := s.resolveRequiredPositiveIntSetting(tenantCtx, settingDataCleanupTimeoutMinutes)
+	if err != nil {
+		return fmt.Errorf("resolve %s: %w", settingDataCleanupTimeoutMinutes, err)
+	}
 	cleanupCtx, cleanupCancel := context.WithTimeout(tenantCtx, time.Duration(timeoutMinutes)*time.Minute)
 	defer cleanupCancel()
 

@@ -27,6 +27,7 @@ const (
 	GuardianPermissionNotesWrite              = "parent_portal.notes.write"
 	GuardianPermissionPickupManage            = "parent_portal.pickup.manage"
 	GuardianPermissionPortalAccess            = "parent_portal.access"
+	GuardianPermissionRelatedAccountsManage   = "parent_portal.related_accounts.manage"
 	GuardianPermissionRequestSubmit           = "parent_portal.request.submit"
 	GuardianPermissionSickNoteSubmit          = "parent_portal.sick_note.submit"
 	GuardianRoleSocialWorker                  = "social_worker"

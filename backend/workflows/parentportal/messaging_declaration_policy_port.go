@@ -24,14 +24,10 @@ func NewDeclarationPolicy(c DeclarationPolicyCallbacks) DeclarationPolicy {
 type declarationPolicyBinding struct{ callbacks DeclarationPolicyCallbacks }
 
 func (p declarationPolicyBinding) CanonicalRecord(pA messaging.DeclarationSubmission) []byte {
-	nativePA := messagingFromAppDeclarationSubmission(pA)
-	result0 := p.callbacks.CanonicalRecord(nativePA)
-	return result0
+	return p.callbacks.CanonicalRecord(pA)
 }
 func (p declarationPolicyBinding) CanonicalContent(pA messaging.DeclarationVersion) []byte {
-	nativePA := messagingFromAppDeclarationVersion(pA)
-	result0 := p.callbacks.CanonicalContent(nativePA)
-	return result0
+	return p.callbacks.CanonicalContent(pA)
 }
 func (p declarationPolicyBinding) Closed(deadline *time.Time, now time.Time) bool {
 	result0 := p.callbacks.Closed(deadline, now)

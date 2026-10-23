@@ -13,6 +13,7 @@ import (
 	"github.com/go-chi/chi/v5"
 	"github.com/moto-nrw/project-phoenix/api/testutil"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
+	"github.com/moto-nrw/project-phoenix/modules/settings"
 	transactionFailures "github.com/moto-nrw/project-phoenix/modules/transactionruntime"
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 	"github.com/stretchr/testify/assert"
@@ -105,7 +106,7 @@ func TestInvitationHandlers_CreateInvitationAndListPending(t *testing.T) {
 		},
 	}
 
-	resource := NewResource(nil, service, nil, nil, nil, transactionFailures.IsConstraintViolation)
+	resource := NewResource(nil, service, nil, nil, nil, transactionFailures.IsConstraintViolation, unusedTenantSettings{})
 
 	req := httptest.NewRequest(http.MethodPost, "/auth/invitations", bytes.NewBufferString(`{"email":" INVITEE@EXAMPLE.COM ","role_id":"9007199254740993","first_name":" Ada ","last_name":" Lovelace ","position":" Principal "}`))
 	req.Header.Set("Content-Type", "application/json")
@@ -143,7 +144,7 @@ func TestInvitationHandlers_CreateInvitation_AccountAlreadyHasTenantAccess(t *te
 		},
 	}
 
-	resource := NewResource(nil, service, nil, nil, nil, transactionFailures.IsConstraintViolation)
+	resource := NewResource(nil, service, nil, nil, nil, transactionFailures.IsConstraintViolation, unusedTenantSettings{})
 
 	req := httptest.NewRequest(http.MethodPost, "/auth/invitations", bytes.NewBufferString(`{"email":"existing@example.com","role_id":1}`))
 	req.Header.Set("Content-Type", "application/json")
@@ -167,7 +168,7 @@ func TestInvitationHandlers_CreateInvitation_EmailAlreadyExistsNamesTheField(t *
 			}
 		},
 	}
-	resource := NewResource(nil, service, nil, nil, nil, transactionFailures.IsConstraintViolation)
+	resource := NewResource(nil, service, nil, nil, nil, transactionFailures.IsConstraintViolation, unusedTenantSettings{})
 
 	req := httptest.NewRequest(http.MethodPost, "/auth/invitations", bytes.NewBufferString(`{"email":"existing@example.com","role_id":1}`))
 	req.Header.Set("Content-Type", "application/json")
@@ -188,7 +189,7 @@ func TestInvitationHandlers_CreateInvitation_EmailAlreadyExistsNamesTheField(t *
 func TestInvitationHandlers_CreateInvitation_BlankFieldsComeBackAsFieldErrors(t *testing.T) {
 	t.Parallel()
 
-	resource := NewResource(nil, &invitationsStub{}, nil, nil, nil, transactionFailures.IsConstraintViolation)
+	resource := NewResource(nil, &invitationsStub{}, nil, nil, nil, transactionFailures.IsConstraintViolation, unusedTenantSettings{})
 
 	req := httptest.NewRequest(http.MethodPost, "/auth/invitations", bytes.NewBufferString(`{"email":"","role_id":null}`))
 	req.Header.Set("Content-Type", "application/json")
@@ -223,7 +224,7 @@ func TestInvitationHandlers_ValidateAndAccept(t *testing.T) {
 			return identityaccess.Account{ID: 77, Email: "invitee@example.com"}, nil
 		},
 	}
-	resource := NewResource(nil, service, nil, nil, nil, transactionFailures.IsConstraintViolation)
+	resource := NewResource(nil, service, nil, nil, nil, transactionFailures.IsConstraintViolation, unusedTenantSettings{})
 
 	validateReq := httptest.NewRequest(http.MethodGet, "/auth/invitations/abc123", nil)
 	validateCtx := chi.NewRouteContext()
@@ -275,7 +276,7 @@ func TestInvitationHandlerHelpersAndErrors(t *testing.T) {
 	assert.Equal(t, int64(0), invitationCreatedByValue(nil))
 	assert.Equal(t, int64(4), invitationCreatedByValue(ptr64(4)))
 
-	resource := NewResource(nil, nil, nil, nil, nil, transactionFailures.IsConstraintViolation)
+	resource := NewResource(nil, nil, nil, nil, nil, transactionFailures.IsConstraintViolation, unusedTenantSettings{})
 
 	req := httptest.NewRequest(http.MethodGet, "/auth/invitations/token", nil)
 	rr := httptest.NewRecorder()
@@ -290,7 +291,7 @@ func TestInvitationHandlerHelpersAndErrors(t *testing.T) {
 			return identityaccess.Account{}, identityaccess.ErrInvitationPasswordMismatch
 		},
 	}
-	resource = NewResource(nil, errService, nil, nil, nil, transactionFailures.IsConstraintViolation)
+	resource = NewResource(nil, errService, nil, nil, nil, transactionFailures.IsConstraintViolation, unusedTenantSettings{})
 
 	validateCtx := chi.NewRouteContext()
 	validateCtx.URLParams.Add("token", "boom")
@@ -327,7 +328,7 @@ func TestInvitationHandlers_FindFormerEmployment(t *testing.T) {
 			}, true, nil
 		},
 	}
-	resource := NewResource(nil, service, nil, nil, nil, transactionFailures.IsConstraintViolation)
+	resource := NewResource(nil, service, nil, nil, nil, transactionFailures.IsConstraintViolation, unusedTenantSettings{})
 
 	rr := postFormerEmployment(resource, `{"email":" Former@Example.com "}`)
 
@@ -352,7 +353,7 @@ func TestInvitationHandlers_FindFormerEmployment_NoneIsNull(t *testing.T) {
 			return identityaccess.FormerEmployment{}, false, nil
 		},
 	}
-	resource := NewResource(nil, service, nil, nil, nil, transactionFailures.IsConstraintViolation)
+	resource := NewResource(nil, service, nil, nil, nil, transactionFailures.IsConstraintViolation, unusedTenantSettings{})
 
 	rr := postFormerEmployment(resource, `{"email":"new@example.com"}`)
 
@@ -365,7 +366,7 @@ func TestInvitationHandlers_FindFormerEmployment_NoneIsNull(t *testing.T) {
 func TestInvitationHandlers_FindFormerEmployment_InvalidEmail(t *testing.T) {
 	t.Parallel()
 
-	resource := NewResource(nil, &invitationsStub{}, nil, nil, nil, transactionFailures.IsConstraintViolation)
+	resource := NewResource(nil, &invitationsStub{}, nil, nil, nil, transactionFailures.IsConstraintViolation, unusedTenantSettings{})
 
 	rr := postFormerEmployment(resource, `{"email":"not-an-address"}`)
 
@@ -428,3 +429,6 @@ func TestInvitationResetWireContract(t *testing.T) {
 	require.NoError(t, err)
 	require.NotContains(t, string(body), "reset_")
 }
+
+// Unexpected shell reads panic in invitation-only tests.
+type unusedTenantSettings struct{ settings.TenantReader }

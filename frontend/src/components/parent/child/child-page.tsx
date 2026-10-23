@@ -382,6 +382,9 @@ function ChildSections({ child }: Readonly<{ child: Child }>) {
         careEnded={careEnded}
         sickDays={care.sickDays}
         excusedRequests={care.excusedRequests}
+        canEditAbsenceRequests={
+          care.features.absence_request_edit_enabled === true
+        }
         reasonRequired={requiresGuardianReason(care.features)}
         onCareRefresh={care.refresh}
       />
@@ -437,6 +440,7 @@ function ChildAreaTabs({
   careEnded,
   sickDays,
   excusedRequests,
+  canEditAbsenceRequests,
   reasonRequired,
   onCareRefresh,
 }: Readonly<{
@@ -449,6 +453,7 @@ function ChildAreaTabs({
   careEnded: boolean;
   sickDays: import("~/lib/parent-api").StatusDay[];
   excusedRequests: import("~/lib/parent-api").ExcusedRequest[];
+  canEditAbsenceRequests: boolean;
   reasonRequired: boolean;
   onCareRefresh: () => void;
 }>) {
@@ -504,6 +509,7 @@ function ChildAreaTabs({
               studentId={child.student_id}
               sickDays={sickDays}
               excusedRequests={excusedRequests}
+              canEdit={canEditAbsenceRequests}
               reasonRequired={reasonRequired}
               onEdited={onCareRefresh}
             />

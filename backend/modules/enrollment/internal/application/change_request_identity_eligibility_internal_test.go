@@ -15,7 +15,7 @@ import (
 // newIdentityEligibilityService wires a change-request service with only the
 // student repository the enrolled-status probe needs.
 func newIdentityEligibilityService(exists bool) *ChangeRequests {
-	return NewChangeRequests(ChangeRequestDependencies{
+	return NewChangeRequests(ChangeRequestDependencies{Settings: intakeSettingsFake{},
 		Students:   &stubEligibilityStudentRepo{exists: exists},
 		ParentsURL: "https://parents.example.test",
 	})

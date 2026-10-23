@@ -132,7 +132,7 @@ func newDailyCheckoutService(t *testing.T, db *testpkg.DB) (active.Service, *tes
 		ActivityGroupRepo:  owners.NewSessionActivities(timetableRepos.GroupReads()),
 		ActivityCatRepo:    api.NewAttendanceActivityCategories(timetableRepos.ActivityCategory),
 		EducationGroupRepo: owners.NewAttendanceEducationGroups(reposStructure.Group, repos.Student),
-		DeviceRepo:         owners.NewSessionDeviceDirectory(devices, nil, nil),
+		DeviceRepo:         owners.NewSessionDeviceDirectory(devices, &settingsDouble{ResolveIntFn: func(context.Context, string) (int, error) { return 5, nil }}, nil),
 		StaffNames: owners.NewAttendanceStaffNames(repos.Staff, api.NewTestPersonDirectory(testpkg.NewDatabase(t, db), api.TestPersonDirectorySources{
 			Persons: repos.Person, Students: repos.Student, Teachers: repos.Teacher, Staff: repos.Staff,
 			RFIDCards: reposAccounts.RFIDCard, AccountExists: api.AccountExists(reposAccounts.Profile),

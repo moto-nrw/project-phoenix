@@ -312,3 +312,66 @@ func TestCompositionIntoARootIsRejectedInProduction(t *testing.T) {
 		}
 	}
 }
+
+// Domain readers use their own vocabulary even when a projection exposes
+// public or contract types. The root binds that port (ADR 0071 point 2).
+func TestPolicyRejectsDomainProjectionRules(t *testing.T) {
+	t.Parallel()
+	for _, selector := range []struct {
+		name   string
+		source map[string]any
+		target map[string]any
+	}{
+		{"named owners", map[string]any{"source_owner": "alpha"}, map[string]any{"target_owner": "board"}},
+		{"source kind", map[string]any{"source_owner_kind": "domain"}, map[string]any{"target_owner": "board"}},
+		{"target kind", map[string]any{"source_owner": "alpha"}, map[string]any{"target_owner_kind": "projection"}},
+	} {
+		for _, role := range []string{"public", "contract"} {
+			t.Run(selector.name+"/"+role, func(t *testing.T) {
+				t.Parallel()
+				err := targetOnlyFixture(t, func(document map[string]any) {
+					document["policy_epoch"] = 91
+					rule := map[string]any{"id": "domain.projection", "source_role": "application", "target_role": role}
+					for key, value := range selector.source {
+						rule[key] = value
+					}
+					for key, value := range selector.target {
+						rule[key] = value
+					}
+					addFixtureRule(rule)(document)
+				})
+				if err == nil || !strings.Contains(err.Error(), "a domain declares its own reader port") {
+					t.Fatalf("domain-to-projection rule accepted or rejected for another reason: %v", err)
+				}
+			})
+		}
+	}
+}
+
+func TestDomainProjectionDirectionKeepsEarlierBasesAndValidReaders(t *testing.T) {
+	t.Parallel()
+	for _, scenario := range []struct {
+		name           string
+		epoch          int
+		source, target string
+	}{
+		{"immutable earlier base", 90, "alpha", "board"},
+		{"root binds projection", 91, "root", "board"},
+		{"projection reads domain", 91, "board", "alpha"},
+		{"workflow reads projection", 91, "flow", "board"},
+	} {
+		t.Run(scenario.name, func(t *testing.T) {
+			t.Parallel()
+			err := targetOnlyFixture(t, func(document map[string]any) {
+				document["policy_epoch"] = scenario.epoch
+				addFixtureRule(map[string]any{
+					"id": "valid.reader", "source_owner": scenario.source, "source_role": "application",
+					"target_owner": scenario.target, "target_role": "public",
+				})(document)
+			})
+			if err != nil {
+				t.Fatalf("valid reader direction rejected: %v", err)
+			}
+		})
+	}
+}

@@ -28,9 +28,8 @@ const (
 	MFAChallengeScopeSchool   = "school"
 )
 
-// MFA policy constants. The account values are the fallbacks the school's
-// security.* settings override; the operator values are fixed, because every
-// moto operator faces the same posture.
+// Fixed MFA protocol and operator-policy constants. Account lockout and
+// trusted-device lifetime policy comes only from the school settings.
 const (
 	// MFAChallengeTTL is the e-mail code lifetime and the challenge JWT TTL.
 	MFAChallengeTTL = 10 * time.Minute
@@ -45,9 +44,6 @@ const (
 	// MFAEmailRateLimitMaxSent is the hard cap of codes per account and
 	// window. It is an abuse defense, not a UX knob, and stays in code.
 	MFAEmailRateLimitMaxSent = 3
-	// MFATrustedDeviceCookieDefaultDays is the remember-device lifetime the
-	// school's security.mfa_trusted_device_days setting overrides.
-	MFATrustedDeviceCookieDefaultDays = 90
 	// MFAEmailCodeLength is the number of decimal digits in an e-mail code.
 	MFAEmailCodeLength = 6
 	// MFATrustedDeviceTokenBytes is the random-source size of a

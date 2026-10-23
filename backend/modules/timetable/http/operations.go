@@ -4,7 +4,6 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
-	"log/slog"
 	"net/http"
 	"strconv"
 	"strings"
@@ -279,7 +278,12 @@ func (rs *Resource) admitSpontaneousStart(w http.ResponseWriter, r *http.Request
 		common.RenderError(w, r, common.ErrorInternalServer(errors.New("timetable operations resource not fully wired")))
 		return nil, 0, false
 	}
-	if !rs.webSpontaneousActivitiesEnabled(r) {
+	enabled, err := rs.webSpontaneousActivitiesEnabled(r)
+	if err != nil {
+		common.RenderError(w, r, common.ErrorInternalServerWrap(http.StatusText(http.StatusInternalServerError), err))
+		return nil, 0, false
+	}
+	if !enabled {
 		common.RenderError(w, r, common.ErrorForbiddenWithCode(timetable.ErrTimetableOperationForbidden, common.CodeTimetableSpontaneousActivitiesDisabled))
 		return nil, 0, false
 	}
@@ -390,23 +394,18 @@ func clockTimeFromMinutes(minutes int) time.Time {
 }
 
 func (rs *Resource) operationsCapabilities(w http.ResponseWriter, r *http.Request) {
+	enabled, err := rs.webSpontaneousActivitiesEnabled(r)
+	if err != nil {
+		common.RenderError(w, r, common.ErrorInternalServerWrap(http.StatusText(http.StatusInternalServerError), err))
+		return
+	}
 	common.Respond(w, r, http.StatusOK, map[string]any{
-		"web_spontaneous_activities_enabled": rs.webSpontaneousActivitiesEnabled(r),
+		"web_spontaneous_activities_enabled": enabled,
 	}, "Timetable operation capabilities retrieved")
 }
 
-func (rs *Resource) webSpontaneousActivitiesEnabled(r *http.Request) bool {
-	logger := rs.Logger
-	if logger == nil {
-		logger = slog.Default()
-	}
-	return settings.ResolveBoolOrDefault(
-		r.Context(),
-		rs.SettingsService,
-		settings.KeyWebSpontaneousActivities,
-		true,
-		logger,
-	)
+func (rs *Resource) webSpontaneousActivitiesEnabled(r *http.Request) (bool, error) {
+	return rs.SettingsService.ResolveBool(r.Context(), settings.KeyWebSpontaneousActivities)
 }
 
 func (rs *Resource) operationsComplete(w http.ResponseWriter, r *http.Request) {

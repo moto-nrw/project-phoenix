@@ -117,8 +117,8 @@ func assertLocalHooksUsePinnedRunner(t *testing.T, repoRoot string) {
 		"lefthook.yml": {
 			// The hook checks the staged files, not the whole tree, and keeps
 			// goimports' stderr out of the diff variable — but it still has to
-			// go through the pinned runner, which is what this pin is for.
-			`DIFF=$(../scripts/run-go-toolchain.sh go tool goimports -d $FILES)`,
+			// go through the pinned runner and propagate tool failures.
+			`DIFF=$(../scripts/run-go-toolchain.sh go tool goimports -d $FILES) || exit $?`,
 			"run: bash scripts/pre-push.sh --hook",
 		},
 		".claude/hooks/format-go.sh": {
