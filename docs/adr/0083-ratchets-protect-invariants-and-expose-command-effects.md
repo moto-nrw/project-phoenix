@@ -111,6 +111,8 @@ for effect completeness; behavior tests and review still establish semantics.
   that compatibility surface under a separately justified, bounded runtime
   exception. Prefer the explicit workflow entry seam; neither option is
   implemented or granted as a new general exception here.
+  [ADR 0071's #4740 addendum](0071-principle-owner-dependencies-point-one-way.md#care-resumption-domain-command-replaced-by-http-consumer-port)
+  records the later HTTP entry cut and bounds the remaining E2 callbacks.
 - **The reported unused port is live through promotion.**
   `CareStudentDirectory.ResumeCare` in
   `modules/careplan/internal/ports/care_lifecycle.go:38` has no direct Care Plan
@@ -514,8 +516,9 @@ participation, after-commit durability or deadlock freedom.
 This implements the three gate repairs from
 [#4836](https://github.com/moto-nrw/project-phoenix/issues/4836), not the complete
 platform/protocol follow-up. No runtime owner, command, transaction, permission,
-policy rule or shape budget changes. ADR 0071 remains unchanged; the finite
-Roster/Bookings description in PR #4753 is context, not a merged decision.
+policy rule or shape budget changes. At implementation start PR #4753 was
+unmerged; its later base integration brings the finite Roster/Bookings runtime
+grant in ADR 0071. This PR does not independently amend that principle.
 [ADR 0094](0094-command-effect-gap-reconciliation.md) supplies the fresh-numbered
 approval for the measured register reconciliation. Appending this heading to
 ADR 0083 itself grants no approval.
@@ -559,7 +562,8 @@ workflow-labelled surfaces become `debt` with #4825, including HTTP entry and
 compiled support may-bind surfaces. That conservative classification does not
 assert those unused methods are live application callbacks. Read-only effects remain `query`; the round-2 validation in
 [ADR 0094](0094-command-effect-gap-reconciliation.md#runtime-direction-validation-round-2)
-classifies workflow-directed reads as `debt` too. That decision also records
+classifies workflow-directed reads as `debt` or an already granted E2 query
+exception, never an ordinary `query` dependency. That decision also records
 the still-unscanned domain-owned callable-field boundary (M3).
 
 ### Verification and measured reconciliation

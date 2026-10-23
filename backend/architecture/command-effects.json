@@ -14,19 +14,6 @@
     },
     {
       "source_owner": "care-plan",
-      "port": "github.com/moto-nrw/project-phoenix/modules/careplan.CareResumption.Resume",
-      "binding": "*github.com/moto-nrw/project-phoenix/workflows/careexit.Resumption.Resume",
-      "target": "*github.com/moto-nrw/project-phoenix/workflows/careexit.Resumption.Resume",
-      "target_owner": "care-exit",
-      "binding_digest": "d8f07ecd9eace493c49156a2bb732a08",
-      "effect": "mutation",
-      "classification": "debt",
-      "adr": "0083",
-      "approval_adr": "0094",
-      "reason": "Workflow-backed direction-accounting debt #4825; not a new runtime exception. Workflow-backed outer HTTP entry supplied by the root (Care resumption / Timetable pickup-extension command), not evidence of a domain-application callback. Full supplied contract methods are retained, including unused promoted methods. Guarded target record/byte command; preserve ambient scope, target validation and existing failure propagation. Target-local locks/savepoints alone do not establish a new source coordinator. Target workflows/careexit.Resumption.Resume; workflows/careexit/resumption.go:70. "
-    },
-    {
-      "source_owner": "care-plan",
       "port": "github.com/moto-nrw/project-phoenix/modules/careplan.MasterDataDirectory.FindStudents",
       "binding": "github.com/moto-nrw/project-phoenix/roots/requestreviewbinding.masterDataDirectory.FindStudents",
       "target": "github.com/moto-nrw/project-phoenix/modules/peopledirectory.Capability.ListStudentsByID",
@@ -3112,10 +3099,10 @@
       "target_owner": "care-exit",
       "binding_digest": "1c84efd40fcf1e907c9e12e894fb8227",
       "effect": "query",
-      "classification": "debt",
-      "adr": "0083",
+      "classification": "E2",
+      "adr": "0067",
       "approval_adr": "0094",
-      "reason": "Workflow-backed ADR 0071/PR #4753 finite E2 callback: careexit Roster or Bookings snapshot/restore only; hand row 6, not a general domain-to-workflow permission. Reviewed read/value/construction method; no owned-row mutation or locking read at this terminal. Target workflows/careexit.Bookings.CareExitOfferingSnapshots; workflows/careexit/bookings.go:54. May-bind method surface, not a production-call/liveness claim. Runtime direction debt #4825 (ADR 0071 point 2): this read/construction may-bind is not a granted Domain-to-Workflow exception; move the binding out of the domain in the follow-up."
+      "reason": "Workflow-backed ADR 0071/PR #4753 finite E2 callback: careexit Roster or Bookings snapshot/restore only; hand row 6, not a general domain-to-workflow permission. Reviewed read/value/construction method; no owned-row mutation or locking read at this terminal. Target workflows/careexit.Bookings.CareExitOfferingSnapshots; workflows/careexit/bookings.go:54. May-bind method surface, not a production-call/liveness claim. Existing query within the Roster/Bookings callback grant now merged in ADR 0071 (#4753); query/E2 records that finite protocol, not a new runtime grant or an ordinary query dependency."
     },
     {
       "source_owner": "care-plan",
@@ -3219,10 +3206,10 @@
       "target_owner": "care-exit",
       "binding_digest": "e5eeb008ee09e1985b346fad98cb901d",
       "effect": "query",
-      "classification": "debt",
-      "adr": "0083",
+      "classification": "E2",
+      "adr": "0067",
       "approval_adr": "0094",
-      "reason": "Workflow-backed ADR 0071/PR #4753 finite E2 callback: careexit Roster or Bookings snapshot/restore only; hand row 6, not a general domain-to-workflow permission. Reviewed read/value/construction method; no owned-row mutation or locking read at this terminal. Target workflows/careexit.Roster.CountPlannedRosterForCareExit; workflows/careexit/roster.go:140. May-bind method surface, not a production-call/liveness claim. Runtime direction debt #4825 (ADR 0071 point 2): this read/construction may-bind is not a granted Domain-to-Workflow exception; move the binding out of the domain in the follow-up."
+      "reason": "Workflow-backed ADR 0071/PR #4753 finite E2 callback: careexit Roster or Bookings snapshot/restore only; hand row 6, not a general domain-to-workflow permission. Reviewed read/value/construction method; no owned-row mutation or locking read at this terminal. Target workflows/careexit.Roster.CountPlannedRosterForCareExit; workflows/careexit/roster.go:140. May-bind method surface, not a production-call/liveness claim. Existing query within the Roster/Bookings callback grant now merged in ADR 0071 (#4753); query/E2 records that finite protocol, not a new runtime grant or an ordinary query dependency."
     },
     {
       "source_owner": "care-plan",
@@ -3232,10 +3219,10 @@
       "target_owner": "care-exit",
       "binding_digest": "77fddfbdf72e2ea821ebc7feefe9e981",
       "effect": "query",
-      "classification": "debt",
-      "adr": "0083",
+      "classification": "E2",
+      "adr": "0067",
       "approval_adr": "0094",
-      "reason": "Workflow-backed ADR 0071/PR #4753 finite E2 callback: careexit Roster or Bookings snapshot/restore only; hand row 6, not a general domain-to-workflow permission. Reviewed read/value/construction method; no owned-row mutation or locking read at this terminal. Target workflows/careexit.Roster.LatestStudentAssignmentAttendanceDate; workflows/careexit/roster.go:162. May-bind method surface, not a production-call/liveness claim. Runtime direction debt #4825 (ADR 0071 point 2): this read/construction may-bind is not a granted Domain-to-Workflow exception; move the binding out of the domain in the follow-up."
+      "reason": "Workflow-backed ADR 0071/PR #4753 finite E2 callback: careexit Roster or Bookings snapshot/restore only; hand row 6, not a general domain-to-workflow permission. Reviewed read/value/construction method; no owned-row mutation or locking read at this terminal. Target workflows/careexit.Roster.LatestStudentAssignmentAttendanceDate; workflows/careexit/roster.go:162. May-bind method surface, not a production-call/liveness claim. Existing query within the Roster/Bookings callback grant now merged in ADR 0071 (#4753); query/E2 records that finite protocol, not a new runtime grant or an ordinary query dependency."
     },
     {
       "source_owner": "care-plan",
@@ -3245,10 +3232,10 @@
       "target_owner": "care-exit",
       "binding_digest": "8422b3e0bbd5ccfc32f1613e8bf03ea0",
       "effect": "query",
-      "classification": "debt",
-      "adr": "0083",
+      "classification": "E2",
+      "adr": "0067",
       "approval_adr": "0094",
-      "reason": "Workflow-backed ADR 0071/PR #4753 finite E2 callback: careexit Roster or Bookings snapshot/restore only; hand row 6, not a general domain-to-workflow permission. Reviewed read/value/construction method; no owned-row mutation or locking read at this terminal. Target workflows/careexit.Roster.ListOpenStudentAssignments; workflows/careexit/roster.go:146. May-bind method surface, not a production-call/liveness claim. Runtime direction debt #4825 (ADR 0071 point 2): this read/construction may-bind is not a granted Domain-to-Workflow exception; move the binding out of the domain in the follow-up."
+      "reason": "Workflow-backed ADR 0071/PR #4753 finite E2 callback: careexit Roster or Bookings snapshot/restore only; hand row 6, not a general domain-to-workflow permission. Reviewed read/value/construction method; no owned-row mutation or locking read at this terminal. Target workflows/careexit.Roster.ListOpenStudentAssignments; workflows/careexit/roster.go:146. May-bind method surface, not a production-call/liveness claim. Existing query within the Roster/Bookings callback grant now merged in ADR 0071 (#4753); query/E2 records that finite protocol, not a new runtime grant or an ordinary query dependency."
     },
     {
       "source_owner": "care-plan",

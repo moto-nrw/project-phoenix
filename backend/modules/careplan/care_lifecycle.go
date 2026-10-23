@@ -9,7 +9,7 @@ import (
 )
 
 // The care lifecycle (#2487, #3427): ending a child's care ("Betreuung
-// beenden"), cancelling or changing a planned end, resuming care, the guided
+// beenden"), cancelling or changing a planned end, the guided
 // close-out of a full withdrawal, the dated participation decision every
 // operational list applies, and the booking-led care switch. There is one
 // lifecycle contract; there must not be a second way for a child to leave the
@@ -239,10 +239,9 @@ type BookingAuthorityImpact struct {
 	PlannedCompletions []BookingAuthorityImpactChild `json:"planned_completions"`
 }
 
-// CareExitCommands ends, cancels and resumes care, and applies the effect-day
+// CareExitCommands ends and cancels care, and applies the effect-day
 // housekeeping once an end has taken effect.
 type CareExitCommands interface {
-	CareResumption
 	// Preview describes what ending the care would do, per child.
 	Preview(ctx context.Context, input CareExitInput) (*CareExitPreview, error)
 	// Confirm ends the care for exactly the previewed state, or changes
@@ -254,12 +253,6 @@ type CareExitCommands interface {
 	// whose care ended before asOf: closing what is still open, freeing the
 	// bracelet, closing the open family requests. Idempotent.
 	ApplyDueEffects(ctx context.Context, asOf calendar.Date) (int, error)
-}
-
-// CareResumption is the care-exit workflow's command for reopening care. The
-// root binds it into the lifecycle without moving coordination into Care Plan.
-type CareResumption interface {
-	Resume(ctx context.Context, input CareResumeInput) error
 }
 
 // CareExitArchive reads the ended care and the recorded exits.

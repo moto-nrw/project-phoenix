@@ -28,14 +28,16 @@ func TestCommandEffectsDomainWorkflowDirectionCannotUseOrdinaryLabels(t *testing
 	}
 }
 
-func TestCommandEffectsDomainWorkflowDebtNeedsFreshApproval(t *testing.T) {
+func TestCommandEffectsDomainWorkflowExceptionsNeedFreshApproval(t *testing.T) {
 	t.Parallel()
-	for _, effect := range []string{"query", "mutation", "lock"} {
-		t.Run(effect, func(t *testing.T) {
+	for _, tc := range []struct{ effect, classification, adr string }{
+		{"query", "debt", "0083"}, {"mutation", "debt", "0083"}, {"lock", "debt", "0083"}, {"query", "E2", "0067"},
+	} {
+		t.Run(tc.effect+"/"+tc.classification, func(t *testing.T) {
 			t.Parallel()
 			project, policy := workflowDirectionFixture(t)
 			base := commitGapFixture(t, project)
-			reviewGapFixture(t, project, policy, effect, "debt", "0083")
+			reviewGapFixture(t, project, policy, tc.effect, tc.classification, tc.adr)
 			requireGapBaseFailure(t, project, base, "new exception needs approval_adr")
 			manifest, err := loadCommandEffects(project)
 			if err != nil {

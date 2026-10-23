@@ -13,8 +13,8 @@ Existing callable diagnostics gain assignment/closure evidence. Existing
 identities become `debt`, citing #4825. Neither change introduces a runtime
 command, a new exception or a permission to call workflows from domains.
 The retained seven labels record the bounded E2 protocol described by ADR 0067
-and the proposed ADR 0071 addendum in unmerged PR #4753. This decision does not
-claim that proposed addendum is merged or amend ADR 0071.
+and ADR 0071. PR #4753 was unmerged at the initial reconciliation and has now
+entered the base. This decision does not independently amend ADR 0071.
 
 The changed entries cite this newly numbered ADR as `approval_adr`. This uses
 the existing immutable-base approval contract rather than teaching the checker
@@ -63,17 +63,20 @@ command/lock targets; named E1–E5 and explicit `debt` still require their ADR
 and fresh immutable-base approval. Query effects may carry debt or a named
 exception, but cannot become ordinary leaves.
 
-The 18 existing query-labelled workflow targets become `query/debt`, citing
-ADR 0083 and #4825. This includes ShareRecipients, SameDayCutoff,
+The 18 existing query-labelled workflow targets need explicit classification.
+Four existing Care Exit Roster/Bookings reads within the now-merged ADR 0071
+grant become `query/E2`, citing ADR 0067. The other 14 become `query/debt`,
+citing ADR 0083 and #4825. This includes ShareRecipients, SameDayCutoff,
 MapRelationshipType, GuardianAudience/Portal, ScheduleAdapter.Overview,
-Care Exit's reads and workflow-owned construction/import helpers. The register
+workflow-owned construction/import helpers. Care Exit's four granted reads
+remain explicit E2 exceptions, not ordinary domain dependencies. The register
 is conservative may-bind accounting, not evidence that every supplied method
-runs. It grants no read callback exception and does not change ADR 0071 or
-parallel PR #4753.
+runs. It grants no new read callback exception and does not change ADR 0071; it
+records the four reads already granted by merged PR #4753.
 
-Against development `d780efb392ef4d085a5731e615533eead3ee652b`, regeneration
-retains 5,350 entries: 7 workflow, 110 debt, 642 unresolved; 88 entries cite
-approval ADR 0094. Effects remain 2,783 query, 1,614 mutation, 298 lock,
+Against development `9598e00b31741b040445aae6a14a29848b0ef6ac`, regeneration
+retains 5,349 entries: 7 workflow, 105 debt, 22 E2 and 642 unresolved; 87 entries
+cite approval ADR 0094. Effects remain 2,783 query, 1,613 mutation, 298 lock,
 7 scope, 1 durable, 5 notice and 642 unresolved. The 640 unresolved count in
 ADR 0083 describes its original pre-merge census, not this register.
 
@@ -87,7 +90,8 @@ the source owner. Therefore the root closure passed to
 The assignment fingerprints repaired here protect diagnostics that the scanner
 already reaches, not every closure supplied to a domain constructor.
 
-A temporary constructor/field fixture reproduced zero entries before a
+Before the #4753 base integration, a temporary constructor/field fixture
+reproduced zero entries before a
 prototype fix. The prototype fingerprints such root-supplied fields as
 `unresolved` and rejects a changed closure, while ignoring a comment-only edit.
 Even the interface-provider-scoped version exposes 418 additional register
@@ -109,10 +113,24 @@ ADR. Comments, positions and formatting remain excluded.
 
 ## Round-2 repository counterprobes
 
-The default and explicit merge-base checks pass against `d780efb392` with
+The first round-2 default and explicit merge-base checks passed against `d780efb392` with
 0 legacy violations, composition 0 → 0 and 3,522 exact pass-through sites.
 Removing only ADR 0094 rejects 85 existing-entry changes. A static-only
 insertion of `GuardianAccessCommand.GrantGuardianTenantAccess` into the real
 `StaffColleagueReads` root closure still passes, confirming M3 rather than
 claiming it closed. The probe is not executed as application code. Both probes
 restore the exact original file bytes.
+
+## Final base integration (#4753)
+
+While the first round-2 quorum run was finishing, #4753 and #4840 entered
+development (`9598e00b31`). The register conflict is resolved by removing the
+obsolete `CareResumption.Resume` domain binding, never keeping it as debt.
+The generator removes no other reviewed binding. Four query classifications
+now explicitly record the existing E2 read grant from the merged ADR 0071;
+only its other 14 workflow reads become direction debt. The seven workflow
+command/lock labels stay unchanged. PR #4833 is still open at this integration.
+
+The preceding 5,350/110-debt/88-approval figures and first quorum result refer
+to the earlier head; the current counts above supersede them. This is a base
+reconciliation, not a new callback grant or an edit to ADR 0071 itself.

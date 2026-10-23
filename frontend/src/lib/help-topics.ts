@@ -100,6 +100,7 @@ export const HELP_TOPICS = {
   dataManagement: "datenverwaltung",
   enrollments: "anmeldungen-pruefen",
   settings: "einstellungen-ueberblick",
+  settingsGuide: "wichtigste-einstellungen",
 
   // OGS-Leitung und Verwaltung. Gerüst nach der Informationsarchitektur
   // (#2229, Abschnitt 7); die Abläufe sind noch nicht Schritt für Schritt
