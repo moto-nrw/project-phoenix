@@ -1,0 +1,11 @@
+[Unit]
+Description=Run moto backup daily independently of deployments
+
+[Timer]
+OnCalendar=*-*-* 02:15:00 UTC
+Persistent=true
+RandomizedDelaySec=5m
+Unit=moto-daily-backup.service
+
+[Install]
+WantedBy=timers.target
