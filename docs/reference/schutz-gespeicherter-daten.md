@@ -4,18 +4,22 @@ Stand: 23.10.2026, Slice 3840-a, Teil von [#3840](https://github.com/moto-nrw/pr
 und [#3846](https://github.com/moto-nrw/project-phoenix/issues/3846).
 Geprüfte Codebasis: `origin/development` bei
 `d780efb392ef4d085a5731e615533eead3ee652b`.
+Nachprüfung der Dateischreibpfade in Runde 2 nach Merge von `origin/development`
+bei `c66191b29879360e1eb6085ce46d716080a3b3be`.
 
 ## Ergebnis und Nachweisgrenze
 
 Gewählt ist **Option 1 ohne Feld-/Dateiverschlüsselung in der Anwendung**:
 Datenträgerverschlüsselung beim Hoster nachweisen, Sicherungen getrennt und
 verschlüsselt betreiben, Diagnosezugriffe begrenzen und sensible Protokollkopien
-minimieren. Entscheidung und Abwägung: [ADR 0093](../adr/0093-gespeicherte-daten-risikobasiert-ohne-feldverschluesselung-schuetzen.md).
+minimieren. Entscheidung und Abwägung: [ADR 0095](../adr/0095-gespeicherte-daten-risikobasiert-ohne-feldverschluesselung-schuetzen.md).
 
 **Das Schutzniveau ist nicht produktiv nachgewiesen.** Insbesondere fehlen
 Datenträger-/Schlüsselnachweis (3840-c), eingeschränkte Diagnose-Leserolle
 (3840-f) und produktive Backup-Abnahme (#3836). Gesundheitsfreitext bleibt
-außerdem in einem Elternportal-Protokoll erhalten, siehe Befund unten.
+außerdem in einem Elternportal-Protokoll erhalten (#4844, Slice 4844-a).
+Kinderfotos und Avatare werden mit hostseitig zu weiten Dateirechten geschrieben
+(Abhilfe in Slice 3840-h). Beide bestätigten Befunde stehen unten.
 Diese Punkte sind keine akzeptierten Ausnahmen und verhindern den Abschluss
 der betreffenden Akzeptanzkriterien. Der Verzicht auf Feldverschlüsselung
 ist weder eine Freigabe dieser Lücken noch eine Bestätigung laufender Sicherheit.
@@ -45,7 +49,8 @@ hier keine neuen Aufbewahrungsfristen.
 | `audit.student_field_edits`: `health_info` | Nur Änderungsmarkierungen; Migration `1.15.475` bereinigt vorhandene Gesundheitswerte. `extra_info` und weitere Freitexte bleiben inhaltlich erhalten [D6] | Offen | Rollout und Bereinigung nach Restore nach [Prüfablauf](../operations/gesundheitsangaben-aenderungsprotokoll-3840.md); Maskierung ist keine Verschlüsselung |
 | `users.student_data_change_requests`: `old_value`, `new_value` bei `target=student`, `field_key=health_info` | **Klartext-Gesundheitskopien als JSONB**, auch bei `status=auto_applied`; nicht von `1.15.475` erfasst [D7] | Offen | Bestätigter Code-Mangel, Abhilfe einschließlich Altbestand und Restore fehlt; Bewertung unten |
 | Zugriffs-/weitere fachliche Protokolle, insbesondere `audit.data_access_log` | Finanz-Aufdecken als eigener Zugriffstyp vorgesehen; weitere Protokolle enthalten Akteur-/Objektbezug und teils Personal-/Kinderdaten [D4, D5] | Offen | Nicht mit inhaltsfreier Protokollierung gleichsetzen; Rechte, Fristen und privilegierte Betriebszugriffe prüfen |
-| Private Upload-Kinds `files`, `announcement-attachments`, `student-documents`, `staff-documents`, `student-photos`, `avatars` | Datei-Inhalte ohne Anwendungsverschlüsselung, etwa Atteste, AU, Lohnunterlagen und Fotos; bei privaten Object-Store-Schreibvorgängen 0600 für Datei und 0700 für Zielverzeichnis [D5, D8] | Offen | Altdateien, alle Schreibpfade, Eigentümer, übergeordnete Pfade, Mounts, Metadaten und verwaiste Dateien prüfen; Unix-Rechte schützen nicht vor Root |
+| Private Upload-Kinds `files`, `announcement-attachments`, `student-documents`, `staff-documents` | Datei-Inhalte ohne Anwendungsverschlüsselung, etwa Atteste, AU und Lohnunterlagen; `PrivateUploads.SavePrivate` beziehungsweise `SavePrivateNamedFile` für `staff-documents` schreiben 0600 für Datei und 0700 für Zielverzeichnis [D5, D8] | Offen | Altdateien, alle Schreibpfade, Eigentümer, übergeordnete Pfade, Mounts, Metadaten und verwaiste Dateien prüfen; Unix-Rechte schützen nicht vor Root |
+| Kinderfotos `student-photos` und Avatare `avatars` | Ohne Anwendungsverschlüsselung; HTTP-Auslieferung nur authentifiziert, aber Schreiben über `common.SaveImage` mit `private=false`: Datei 0644, neu angelegte Verzeichnisse 0755 (Verzeichnismodus durch umask begrenzbar). Keine zugesicherten 0600/0700 [D8] | Offen | **Bestätigter Code-Mangel:** bei durchsuchbaren Elternverzeichnissen für alle lokalen Hostnutzer lesbar; HTTP-Authentifizierung verhindert das nicht. Abhilfe einschließlich Altbestand und Prüfung in Slice 3840-h, hier keine Codeänderung |
 | Öffentliche Upload-Kinds `login-images`, `enrollment-legal-documents`, `enrollment-form-legal-documents` | Explizit ohne Anmeldung bereitgestellt [D8] | Offen | Nur für öffentliche Inhalte verwenden; keine vertraulichen Dokumente oder personenbezogenen Fehlablagen |
 | Datenträger/Volumes einschließlich PostgreSQL-Daten/WAL, Uploads, temporärer Dateien, Swap und Host-Snapshots | Keine Aussage zur Verschlüsselung beim Hoster aus dem Anwendungscode möglich | Offen | Mensch-Nachweis 3840-c nach [Prüfablauf](../operations/datentraegerschutz-3840.md), einschließlich Schlüsseltrennung und nicht abgedeckter Medien |
 | Dumps und Release-Snapshots | Logische Kopien sind nicht durch die Verschlüsselung des Quelldatenträgers geschützt; Tagessicherung ersetzt keine Prüfung weiterer Kopien [D9] | Offen | Erzeuger, temporäre Klartextorte, Transport, Ziel, Zugriffe und Ablauf sämtlicher Kopien inventarisieren |
@@ -77,12 +82,13 @@ Angriffsbedingungen und Schutzgrenzen statt unbelegter Risikozahlen.
 | Verlorener/ausgemusterter Datenträger: DB, WAL, Dateien oder Reste werden offline gelesen | Nachgewiesene Datenträger-/Volume-Verschlüsselung beim Hoster, geschützte getrennte Schlüssel, sichere Aussonderung; Swap/Temporärorte einschließen | **Offen, hoher möglicher Schaden.** Schutz erst belegbar, wenn konkrete Volumes, Medien und Schlüsselverfahren erfasst sind. Ein entsperrter laufender Host bleibt lesbar |
 | Entwendeter Dump: vollständige logische DB-Kopie wird außerhalb des Volumes gelesen | Dumps nur zweckgebunden und zugriffsbeschränkt; im Backup-Code Klartext-Arbeitsbereich auf tmpfs, age vor Transport; andere Dump-/Snapshotpfade separat prüfen | **Offen.** Volume-Verschlüsselung schützt exportierten Klartext nicht. Feldverschlüsselung mit nicht im Dump enthaltenem Schlüssel könnte hier zusätzlich schützen; Option 1 setzt stattdessen lückenlosen Schutz der Kopien voraus |
 | Gestohlene Sicherung: DB und Dateien samt Historie werden offengelegt oder alle Generationen vernichtet | #3836: verschlüsselte getrennte Sicherung, private Entschlüsselungsschlüssel offline, beschränkte Zugänge, Schutz vor Löschen aller Generationen, Frist und Restore-Test | **Offen bis Betriebsabnahme.** Zielzugänge auf dem Quellhost können ohne separate Zielkontrollen Löschung erlauben. Alte cron-Kopien und Release-Snapshots bleiben eigenständig zu prüfen |
-| Unberechtigter interner Zugriff: Diagnose-/Betriebszugang liest Finanz- oder Gesundheitsdaten ohne Aufgabe | Aufgabenbezogene App-/DB-Rechte, Diagnose-Leserolle ohne sensible Spalten (3840-f), begrenzte persönliche Adminzugänge, Finanz-Zugriffsprotokoll, Datenminimierung | **Offen.** RLS ersetzt keine Spaltenrechte und sperrt keinen Superuser. Unix-Rechte und ein auf demselben Host verfügbarer Feldschlüssel schützen nicht vor uneingeschränktem Root-Zugriff |
+| Unberechtigter interner Zugriff: Diagnose-/Betriebszugang liest Finanz- oder Gesundheitsdaten ohne Aufgabe; lokaler Hostnutzer liest Kinderfotos/Avatare ohne App-Berechtigung | Aufgabenbezogene App-/DB-Rechte, Diagnose-Leserolle ohne sensible Spalten (3840-f), begrenzte persönliche Adminzugänge, Finanz-Zugriffsprotokoll, Datenminimierung; Dateirechte für Fotos/Avatare einschließlich Altbestand beschränken (3840-h) | **Offen, bestätigte Dateirechtelücke im Code.** 0644/0755 erlauben bei durchsuchbaren Elternverzeichnissen lokales Lesen ohne HTTP-Anmeldung. Datenträgerverschlüsselung schützt den entsperrten Host nicht. RLS ersetzt keine Spaltenrechte und sperrt keinen Superuser. Auch 0600/0700 und ein auf demselben Host verfügbarer Feldschlüssel schützen nicht vor uneingeschränktem Root-Zugriff |
 | Kompromittierter Anwendungszugang: Angreifer liest alles, was Konto oder Prozess lesen darf | Rollen, Beziehungserlaubnisse im Elternportal, Tenant-Transaktionen/RLS, Zugangsschutz nach #3841, maskierte Standardanzeigen und minimale Protokolle | **Restrisiko bleibt, Wirksamkeit produktiv offen.** Ein berechtigtes kompromittiertes Konto kann Inhalte sehen; ein übernommener App-Prozess kann auch ihm zugängliche Schlüssel nutzen. Feldverschlüsselung mit demselben Prozess/Host als Entschlüssler löst diesen Angriff nicht allein |
 
 Keine dieser Bewertungen akzeptiert pauschal die offenen Lücken. Vor Abschluss
-von #3840 müssen die Nachweise vorliegen und der Gesundheitskopien-Befund
-behoben oder mit einer konkret geprüften gleichwertigen Maßnahme behandelt sein.
+von #3840 müssen die Nachweise vorliegen und die Gesundheitskopien- sowie
+Dateirechte-Befunde behoben oder mit einer konkret geprüften gleichwertigen
+Maßnahme behandelt sein.
 Fehlt wirksamer Datenträger-/Kopienschutz, muss der Betreiber unmittelbar
 Abhilfe und nötige Begrenzung der betroffenen Verarbeitung festlegen, nicht
 bis zu einer späteren Neubewertung ungeprüft weiterfreigeben.
@@ -133,7 +139,9 @@ berücksichtigen. Regressionen müssen Hinzufügen, Ersetzen, Entfernen,
 unveränderte Werte, unveränderte Live-Daten und Mandantentrennung abdecken.
 Die Abhilfe ist vor Abnahme dieses Teilrisikos von #3840 erforderlich. Sie
 ist hier nicht als kleiner Nebenfix enthalten, weil Altbestand/Migration und
-Wiederherstellung dazugehören. Es wurde kein neues Issue angelegt.
+Wiederherstellung dazugehören. Die Abhilfe wird in
+[#4844](https://github.com/moto-nrw/project-phoenix/issues/4844), Slice 4844-a,
+bearbeitet; Umsetzung und Prüfung bleiben separat nachzuweisen.
 
 `extra_info` und andere freie Notizen können sensible Fehlablagen enthalten.
 Der Code speichert und protokolliert sie weiterhin inhaltlich [D3, D6]. Eine
@@ -141,12 +149,37 @@ regelmäßige Nutzung für Gesundheitsangaben ist daraus nicht belegbar.
 Erforderlichkeit, Eingabehinweise und konkrete Fehlablagen muss der Betrieb
 prüfen; keine pauschale Löschung oder weitere Maskierung in diesem Slice.
 
+## Bestätigter Befund: Dateirechte von Kinderfotos und Avataren
+
+**Schreibpfad:** Kinderfotos gehen nach `public/uploads/student-photos`,
+Avatare nach `public/uploads/avatars/global`. Beide Handler nutzen
+`common.SaveImage` → `saveUploadedFile` → `SaveNamedFile` →
+`UploadFiles.SaveNamed(..., private=false)`. `Local.WriteObject` setzt dann
+Dateien auf 0644 und legt Verzeichnisse mit 0755 an; eine umask kann den
+Verzeichnismodus einschränken, bestehende Verzeichnisse werden in diesem Pfad
+nicht auf 0700 begrenzt. Nur die privaten Schreibpfade setzen 0600/0700.
+Belege: [D8].
+
+**Leser und Folge:** Die authentifizierte HTTP-Auslieferung verhindert keinen
+direkten Dateizugriff durch lokale Hostnutzer oder Prozesse. Bei durchsuchbaren
+Elternverzeichnissen können diese die Fotos ohne App-Berechtigung lesen,
+auch ohne Root. Die tatsächlichen produktiven Verzeichnis-, Mount- und
+Zugangsrechte sind nicht geprüft. Dies ist kein Beleg einer öffentlichen
+HTTP-Freigabe oder eines mandantenübergreifenden API-Lecks.
+
+**Abhilfe:** Kein akzeptiertes Restrisiko von Option 1. Slice 3840-h muss die
+Schreibrechte beschränken, den Altbestand einschließlich Verzeichnissen
+berücksichtigen und die weiter authentifizierte Auslieferung prüfen. Die
+Abhilfe und ihr Rollout sind vor Abnahme dieses Teilrisikos von #3840
+nachzuweisen. Dieser PR korrigiert nur die Dokumentation, nicht den Code.
+
 ## Abschluss und erneute Bewertung
 
 Der [Mensch-Prüfablauf 3840-c](../operations/datentraegerschutz-3840.md) führt
 durch Datenträger-, Schlüssel- und Zugangsbelege. Unabhängig davon sind
 [Backup-Abnahme](../operations/daily-backup.md), Diagnose-Leserolle 3840-f
-und die oben genannte Abhilfe offen. Änderungen an Hosting, Schlüsseln,
+und die Abhilfen für Gesundheitskopien (#4844, Slice 4844-a) und
+Foto-/Avatar-Dateirechte (3840-h) offen. Änderungen an Hosting, Schlüsseln,
 Datenarten, Export-/Dumpwegen, Rechten, Kundenanforderungen oder ein Vorfall
 lösen eine erneute Risikoprüfung aus. Notwendige Anpassungen dürfen nicht
 allein mit Verweis auf Option 1 entfallen.
@@ -160,7 +193,7 @@ allein mit Verweis auf Option 1 entfallen.
 - **D5:** [Produktionskatalog](../../backend/modules/organizationtenancy/data_lifecycle_catalog.json), [Fristenliste](loeschfristen.md). Katalogabdeckung ist kein Nachweis ausgeführter Löschung/Rückgabe.
 - **D6:** [Kind-Änderungsdiff](../../backend/modules/peopledirectory/internal/domain/student_audit.go), [Maskierung des Altbestands](../../backend/database/migrations/001015475_mask_student_health_audit.go).
 - **D7:** [Eltern-Direktbearbeitung](../../backend/workflows/parentportal/internal/care/parent_master_data_service.go), [JSONB-Anfragetabelle](../../backend/database/migrations/001015151_create_student_data_change_requests.go), [Schreib-/Lesespeicher](../../backend/modules/careplan/internal/adapters/postgres/requests.go).
-- **D8:** [Lokaler Dateispeicher](../../backend/modules/delivery/objects/local.go), [private Schreiboption](../../backend/modules/delivery/objects/private_uploads.go), [öffentliche Mounts](../../backend/api/serve_mounts_public.go). Die Rechte beim Schreiben belegen keine nachträgliche Bereinigung aller Altdateien.
+- **D8:** [Lokaler Dateispeicher](../../backend/modules/delivery/objects/local.go), [Upload-Schreibadapter](../../backend/modules/delivery/objects/uploads.go), [Bild-/Dateihelfer](../../backend/api/common/upload.go), [Kinderfoto-Upload](../../backend/modules/peopledirectory/inbound/students/photo.go), [Avatar-Upload](../../backend/modules/identityaccess/inbound/me/profile.go), [private Schreiboption](../../backend/modules/delivery/objects/private_uploads.go), [Personaldokument-Upload](../../backend/modules/workforce/http/timetracking/staff_admin_documents.go), [öffentliche Mounts](../../backend/api/serve_mounts_public.go). Die Rechte beim Schreiben belegen keine nachträgliche Bereinigung aller Altdateien.
 - **D9:** [Backup-Implementierung](../../scripts/daily_backup.py), [Backup-Verfahren und Grenzen](../operations/daily-backup.md), [ADR 0085: Schlüsseltrennung](../adr/0085-backup-decryption-keys-stay-off-the-source-host.md).
 - **D10:** [Betriebsgeheimnisse/SOPS](../agents/operations.md#environment-management-sops). Keine echten Schlüssel oder entschlüsselten Dateien wurden gelesen.
 

@@ -39,8 +39,10 @@ App-Zugänge ein gesondert zu begrenzendes Risiko.
 **Akzeptiert ist die Maßnahmenwahl, nicht deren produktive Wirksamkeit.**
 Datenträger-/Schlüsselnachweis 3840-c, Diagnose-Leserolle 3840-f und produktive
 Backup-Abnahme sind offen. Die Gesundheitskopien in
-`users.student_data_change_requests` sind ein zu behebender Mangel, keine
-Ausnahme dieser Entscheidung. Der [Bewertungsstand](../reference/schutz-gespeicherter-daten.md)
+`users.student_data_change_requests` (#4844, Slice 4844-a) und die zu weiten
+Dateirechte von Kinderfotos/Avataren (Slice 3840-h) sind zu behebende Mängel,
+keine Ausnahmen dieser Entscheidung. Authentifizierte HTTP-Auslieferung
+ersetzt keinen Schutz vor lokalem Dateizugriff. Der [Bewertungsstand](../reference/schutz-gespeicherter-daten.md)
 benennt Quellen, Bedrohungen und offene Kriterien; der
 [Mensch-Prüfablauf](../operations/datentraegerschutz-3840.md) beschreibt die
 erforderlichen Betriebsnachweise. #3840 darf allein wegen dieses ADRs nicht
