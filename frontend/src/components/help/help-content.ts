@@ -500,10 +500,20 @@ function studentSearchTopic(
           // Live geprueft: mit Betreuer-Rechten fehlt der Reiter ganz. Er
           // bleibt trotzdem in der Liste -- die Leitung liest denselben
           // Artikel und sieht ihn (canViewEnrollments = `config:manage`).
-          "Wählen Sie `Anmeldungen` für Angaben aus der Halbjahresanmeldung. Diesen Reiter sieht nur die Leitung.",
+          "Wählen Sie `Anmeldungen` für Angaben aus der Halbjahresanmeldung. Diesen Reiter sieht nur die Leitung. Über `Herunterladen` wählen Sie dort `PDF`, `Word` oder `Excel`.",
           "Wählen Sie `Dokumente` für Dateien zum Kind.",
           "Wählen Sie `Änderungsprotokoll` für Änderungen an den Angaben.",
           "Wählen Sie `Historie` für Anwesenheit, Feedback und weitere Verläufe.",
+        ],
+      },
+      {
+        title: "Ein Anwesenheitsprotokoll herunterladen",
+        steps: [
+          "Öffnen Sie beim Kind `Historie` und danach `Anwesenheitsprotokoll`.",
+          "Wählen Sie im Drei-Punkte-Menü `Exportieren`.",
+          "Wählen Sie unter `Von` und `Bis` den Zeitraum.",
+          "Möglich sind nur die sichtbaren Tage bis heute.",
+          "Wählen Sie das Format und danach `Herunterladen`.",
         ],
       },
       {
@@ -1943,7 +1953,7 @@ function correctWorkTimeTopic(): HelpTopic {
     ],
     notes: [
       "Klappen Sie einen geänderten Tag auf, um die Änderungshistorie zu sehen.",
-      "Ihren Zeitnachweis als Datei bekommen Sie oben rechts im Menü mit den drei Punkten unter `Exportieren`. Wählen Sie dort den Zeitraum und `PDF`, `Excel` oder `CSV`.",
+      "Öffnen Sie für Ihren Zeitnachweis oben rechts das Drei-Punkte-Menü. Wählen Sie `Exportieren`, den Zeitraum und das Format. Mit `Herunterladen` bekommen Sie die Datei.",
     ],
     related: [HELP_TOPICS.trackWorkTime, HELP_TOPICS.vacation],
   };
@@ -4063,6 +4073,7 @@ function mealPlanTopic(): HelpTopic {
       "Pro Tag sind mehrere Gerichte möglich.",
       "Mit `Vorwoche übernehmen` holen Sie die Gerichte der Vorwoche in diese Woche.",
       "Der heutige Tag trägt das Kennzeichen `Heute`.",
+      "Unter `Tagesliste für die Küche` wählen Sie den gewünschten Tag. Öffnen Sie `Tagesliste herunterladen` und wählen Sie `PDF` oder `Excel`.",
     ],
     differences: [
       "Ihre Änderungen zählen erst mit `Speichern`. Vorher steht `Verwerfen` daneben.",
@@ -4999,7 +5010,7 @@ function leadCarePlanTopic(): HelpTopic {
     notes: [
       "Ein Regeltermin wiederholt sich. Die Ansicht `Serien` zeigt alle Regeltermine.",
       "Aufgaben ohne Kinder, etwa Busaufsicht oder Essensausgabe, legen Sie mit dem `Typ` `Dienst` an. Ein Dienst hat keine Kinderliste und wird nicht gestartet. Der Raum ist freiwillig.",
-      "Über das Menü mit den drei Punkten geht `Drucken oder exportieren`.",
+      "Wählen Sie im Drei-Punkte-Menü `Drucken oder exportieren`. Wählen Sie Vorlage, Fassung und Zeitraum. `Drucken` öffnet die Druckansicht. Für eine Datei wählen Sie das Format und `Herunterladen`.",
       "Betreut Ihre OGS am Wochenende? Dann zeigt die Wochenansicht auch Samstag und Sonntag. Dort gilt der Freitagsplan.",
     ],
     differences: [
@@ -5082,7 +5093,7 @@ function dutyRosterTopic(): HelpTopic {
       "Unter dem Plan steht `Stunden der Woche`. Dort sehen Sie je Person die Stunden je Schichtart und das Soll.",
       "Unter `Person` sehen Sie die Woche einer Person in Viertelstunden. Darunter stehen die Stunden je Tag und Schichtart.",
       "Ziehen Sie dort über die Viertelstunden, um eine Schicht anzulegen.",
-      "Über das Menü mit den drei Punkten geht `Drucken oder exportieren`.",
+      "Wählen Sie im Drei-Punkte-Menü `Drucken oder exportieren`. Wählen Sie Vorlage, Fassung und Zeitraum. `Drucken` öffnet die Druckansicht. Für eine Datei wählen Sie das Format und `Herunterladen`.",
       "Die Vorlage `Stundenübersicht` druckt diese Stunden als Liste.",
       "Eine Serie lässt Ferien, Schließtage und Feiertage aus. Arbeitet die Person auch in den Ferien, setzen Sie bei der Serie das Häkchen `Auch in den Ferien und an Schließtagen planen`.",
       "An Feiertagen plant eine Serie nie eine Schicht.",
