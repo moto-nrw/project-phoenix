@@ -107,7 +107,7 @@ Application path abbreviations:
 | Workforce staff name/contact edits → People | `staff_admin_composition.go:127` | J | Y | Y | N | **E3**. `WF/staffadmin.go:124,272`; same locked subject/audit protocol. This extra target is visible in the cited binding, although the comment grouped the row as Membership ↔ Workforce. |
 | School Structure class/group assignments → School Membership | `teaching_assignment_adapters.go:321,326,331,350,355` | J | N | N | N | **Leaf**. `SS/education_service.go`, assignment commands: owner validates each assignment; source has no independent foreign-cohort protocol for these calls. |
 | School Structure group handover → Workforce | `api/staff_projection_education.go:43,61` | J | Y | Y | N | **W, already present**, not a direct Workforce write. `SS/substitution_module.go:319,425` locks group/target, rechecks authority; binding invokes `shiftplansync.GroupHandovers.CreateHandover/DeleteHandover`. School Structure keeps its own group authorization. |
-| Timetable check-in/out/move → Student Presence | `timetable_operations_composition.go:73,77,81` | J | N | N | N | **Leaf**. `TT/operations_attendance.go:118,152,241`; target owns visit uniqueness/move/checkout locks, source updates its participant attendance. Timetable passes `BypassResourceChecks: true`; [ADR 0083’s delegated-authorization finding](../adr/0083-ratchets-protect-invariants-and-expose-command-effects.md#findings-the-successor-must-represent) requires proof that its upstream check is equivalent, or a narrow guarded command. This is not a demonstrated unauthorized write. A conflicting insert uses a savepoint and reloads the active visit, not a combined preview fingerprint. |
+| Timetable check-in/out/move → Student Presence | `timetable_operations_composition.go:73,77,81` | J | N | N | N | **Transaction-participating; guarded-leaf proof pending (#4736)**. `TT/operations_attendance.go:118,152,241`; target owns visit uniqueness/move/checkout locks, source updates its participant attendance. [The bypass audit below](#move-resource-authorization-audit-4736) proves that Timetable assignment access is broader than Presence push/pull access. The business decision remains open; this is not a demonstrated unauthorized write or a new ADR exception. A conflicting insert uses a savepoint and reloads the active visit, not a combined preview fingerprint. |
 | Timetable cancellation → Communication announcement | `timetable_lifecycle_composition.go:75` | J | N | N | N | **Leaf**. `TT/instance_guardian_notice.go:50,118`; validate before cancel, `MarkRollback` on publication failure. Publication/outbox are target commands, not a shared after-commit callback. |
 | Student Presence check-in status clear → Care Plan live flags | `student_records.go:63` | J | N | N | N | **Leaf**. `SP/visit_helpers.go:207,254`; target receives the live-flag patch; zero affected rows aborts the visit in `student_records.go:77`. Presence status-day writes remain with Presence. |
 | Student Presence NFC start → Workforce check-in | `presence_work_sessions.go:19` | J | N | N | N | **Leaf, best effort**. `SP/session_start.go:264,277,413`; savepoint isolates automatic staff check-in failure. Workforce owns its time-clock lock; no guarantee that every supervisor gets a work session. |
@@ -123,6 +123,90 @@ Application path abbreviations:
 | Organisation person retirement → People | `operator_provisioning_adapters.go:324,328,332` | A | N | N | N | **E5**, composite retirement rather than a single leaf edge. `OT/provisioning_people.go:87,149,166`; supervision/account deactivation failures are intentionally tolerated, other writes propagate. |
 | Organisation provisioning/retirement → Identity | `operator_provisioning_composition.go:148,171,193` | Split / A | Y | Y | Y | **E5**. `OT/provisioning_accounts.go:62,85,98`; resolve school/role in admin unit, create account/identity in tenant unit, then separate best-effort admin audit. Retirement stays in its ambient admin unit. These are not one shared transaction. |
 | Organisation school creation → Timetable categories | `operator_provisioning_adapters.go:381` | A | N | N | N | **Leaf**. `OT/provisioning_schools.go:52`; seeding target categories joins school creation; target owns uniqueness, no new cross-owner locks. |
+
+## Move resource authorization audit (#4736)
+
+Audited against fetched `origin/development`
+`8aca1925f79c1e723e35f14e65398cc82877fd7f` on 2026-10-23.
+`rg -n 'BypassResourceChecks' backend --glob '*.go'` finds three production
+constructions of `true`. The HTTP open-room adapter and
+`roots/openroommovebinding/presence.go` only forward the checked actor;
+they grant no additional bypass. The test-only `activeSvcBypassAuth` in
+`SP/transit_service_test.go` arranges trusted moves; it is not a runtime entry.
+
+### Presence rule without the bypass
+
+The HTTP visit move requires `visits:update`, an authenticated tenant principal,
+a tenant transaction and enabled web attendance. Presence then re-checks the
+locked child/session state in `SP/student_move.go` and
+`SP/student_move_access.go`:
+
+- **Pull:** active supervision of the target session permits taking a child
+  from any source session in the school. Source supervision is not required
+  (#2329).
+- **Push:** active supervision of every present child's current source session
+  permits the move only when the target is the sole running session in its
+  room and has an active supervisor (#2969). Membership of an education group
+  or visibility of a room alone grants neither right.
+- **School-wide extension:** the inbound adapter must mark a verified OGS
+  staff actor with the move permission as eligible; Presence requires
+  `operations.attendance_edit_scope=all_staff` together with
+  `operations.operational_overview_scope=all_staff` and staff membership in
+  the current tenant. This is not the admin bypass: locked-state validation
+  and stale-visit handling remain active.
+- **Released-room destination:** ordinary staff still need source rights;
+  destination supervision and the single-session rule do not apply to an
+  independent room stay (ADR 0018). The ordinary pull rule still applies if
+  the actor already supervises that target session.
+
+Existing real-DB coverage: `TestActiveService_MoveStudentsToActiveGroupAuthorized_`
+`AllowsUnsupervisedSource`, `AllowsSupervisedSourceIntoColleagueTarget`,
+`RejectsWhenNeitherRoomSupervised`, `RejectsPushIntoUnsupervisedTarget`,
+`RejectsPushIntoAmbiguousTargetRoom` in `SP/transit_service_test.go`;
+`TestActiveService_SchoolWideAttendanceMove` in that file;
+`TestOpenRoomMoveKeepsTheSourceSideRights` and
+`TestOpenRoomMoveNeedsNoSupervisionAtTheDestination` in
+`SP/open_room_session_test.go`.
+
+### Bypass constructions and guard evidence
+
+| Construction | Upstream guard and remaining owner checks | Executable evidence |
+|---|---|---|
+| `TT/operations_attendance.go`, `moveStudentFromOtherSession` | The web route requires `schedules:read`, a tenant transaction and enabled web attendance, not `visits:update`. `requireScopedAction(ScopedAttendance)` admits tenant admins, planned block staff, current supervisors, or eligible school-wide attendance editors. `requireRosterStudent` additionally limits assignment-bound school-portal actors to today's assigned block and its non-excluded roster; it does not limit OGS walk-ins. The target instance must be active with a session. Neither check requires source supervision; planned assignment need not imply target supervision. Presence still checks tenant-bound child/session state, graduated/ended-care children, open attendance, capacity and visit uniqueness, but skips its resource authorization and restricted-path stale filtering/target-room gate. **Not equivalent to the Presence rule.** | New real-owner/real-DB `TestTimetableCheckInPlannedOperatorWithoutMoveSupervision` in `modules/timetable/compose/httpintegration/operations_move_authorization_integration_test.go` covers both `CheckInStudent` and `CheckInStudents`: identical actor/child denied by ordinary Presence, allowed by Timetable assignment, unassigned actor refused without ending the source visit. Existing `TestTimetableSchoolWideAttendancePreservesAccessBoundaries` covers scope clamps; real-DB `TestSchoolSupervisionStudentBoundary` in `api/school_portal_school_supervisions_test.go` covers the school-portal roster/excluded-child clamp. |
+| `modules/studentpresence/inbound/presence/move_authorization.go`, `BulkStudentMoveAuthorization` | `common.HasEffectiveAdminScope` reads a validated principal, not raw JWT-context claims. The route still authenticates/scopes the caller and requires the visit permission. An admin wildcard/signed admin scope is school-wide; Presence keeps non-resource guards. The same authorization value serves move-to-group, transit assignment and the HTTP released-room workflow. | `TestBulkMoveBypassRequiresValidatedAdminPrincipal` and `TestMoveHandlerOnlyPassesSchoolWideEligibilityForTenantStaff` in `inbound/presence/move_handlers_test.go`; new production-router `TestFullProductionRouterGolden/contracts/move_bypass_authorization` in `api/move_bypass_contract_test.go` proves ordinary `visits:update` without supervision is 403 with unchanged visit, anonymous is 401, validated admin is 200 with the move persisted. |
+| `workflows/openroommove/openroommove.go`, `KioskActor` | Device API key plus the school's shared PIN, device-derived tenant, and resolution of the scanned card to a child in that tenant precede `api/device_open_room.go` constructing the actor. No person is authenticated; caller-supplied `X-Staff-ID` is ignored. School-wide resource access is intentional, not delegated staff supervision. The workflow requires and re-checks the destination release; Presence still requires open attendance and enforces capacity/visit integrity. The child needs no device or supervisor at the destination. | Production-router `TestFullProductionRouterGolden/contracts/open_room_kiosk_booking` in `api/open_room_kiosk_contract_test.go`: successful unsupervised move, idempotence, unreleased/foreign/unknown destination, absent child, wrong PIN, missing key, and a valid foreign-school device scanning the original child's card (404 `iot.rfid_tag_not_found`, original stay unchanged). `TestMoveToOpenRoomStopsAtTheTenantBoundary` and `TestMoveToOpenRoomRejectsAnUnreleasedRoomWithoutWriting` in workflow compose tests preserve owner guards. |
+
+The kiosk trust model is documented in `backend/CLAUDE.md` (RFID/IoT),
+`docs/agents/contracts.md` (Ecosystem and IoT), and the `Actor`/`KioskActor`
+contract itself (#3067). ADR 0018 records the independent released-room stay;
+it does not turn the school PIN into a personal staff identity. These tests
+preserve IoT statuses/codes; they do not add a new device permission.
+
+### Open business decision: planned Timetable operators
+
+Scenario: child is still in running session A. The caller is planned for
+running block B but supervises neither A nor B. The attendance scope is `own`.
+Timetable currently permits check-in to B; ordinary Presence refuses it.
+[#2386](https://github.com/moto-nrw/project-phoenix/issues/2386) requires the
+automatic move when checking into another block, but does not decide whether
+planned assignment suffices for this case. ADR 0083 explicitly leaves that
+permission contract undecided. CONTEXT.md supplies no stricter move rule.
+
+- **A, retained provisionally:** Timetable assignment/attendance access suffices.
+  Keep the current behavior while deciding how a narrow owner-guarded command
+  should represent that authority. The characterization test is not proof of
+  delegated-authorization equivalence or a permanent bypass exception.
+- **B, not implemented:** require Presence's push/pull (or eligible school-wide)
+  rights too. This scenario becomes 403; a target supervisor may still pull
+  from a foreign source under the existing rule. Preserve explicit admin and
+  school-wide eligibility when making that change rather than simply deleting
+  the bypass flag for every actor.
+
+The implementation brief explicitly retains A pending the user's decision.
+No production rule, status, code, transaction or lock order changes in this
+round. The issue's denial criterion is **not satisfied** for the planned-only
+actor; both the final A/B decision and an owner-guarded command/equivalence
+proof remain open. No ADR 0067 exception is added by a characterization test.
 
 ## Retained protocols and lock order
 
