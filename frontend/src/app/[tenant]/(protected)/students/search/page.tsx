@@ -1526,6 +1526,7 @@ function SearchPageContent() {
   const {
     data: studentsData,
     isLoading: isSearching,
+    isValidating: isSearchResultValidating,
     error: studentsError,
     mutate: mutateStudents,
   } = useSWRAuth<{
@@ -3130,6 +3131,8 @@ function SearchPageContent() {
                   // auslassen.
                   ...(parentAnnouncementsAvailable &&
                   rowsLoaded &&
+                  !isSearchResultValidating &&
+                  !hasLoadError &&
                   truncatedTotal === null &&
                   filteredStudents.length > 0
                     ? [

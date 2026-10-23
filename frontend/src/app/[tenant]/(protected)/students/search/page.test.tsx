@@ -1784,6 +1784,51 @@ describe("StudentSearchPage", () => {
         screen.queryByTestId("overflow-Elternbrief schreiben"),
       ).not.toBeInTheDocument();
     });
+
+    it("offers no letter while a new search result is loading", async () => {
+      await allowParentAnnouncements(true);
+      const swrModule = await import("~/lib/swr");
+      mockUseSWRAuthWithStudents(swrModule, {
+        // keepPreviousData still exposes these children for the old filter.
+        data: { students: mockStudents },
+        isLoading: false,
+        isValidating: true,
+        error: undefined,
+      } as ReturnType<typeof swrModule.useSWRAuth>);
+
+      render(<StudentSearchPage />);
+
+      // Anker: das Aktionsmenü bleibt während der Neuladung sichtbar.
+      expect(
+        await screen.findByTestId("overflow-Abwesenheiten"),
+      ).toBeInTheDocument();
+      expect(
+        screen.queryByTestId("overflow-Elternbrief schreiben"),
+      ).not.toBeInTheDocument();
+    });
+
+    it("offers no letter after a new search request failed", async () => {
+      await allowParentAnnouncements(true);
+      const swrModule = await import("~/lib/swr");
+      mockUseSWRAuthWithStudents(swrModule, {
+        // keepPreviousData can retain children from the failed request's
+        // preceding filter.
+        data: { students: mockStudents },
+        isLoading: false,
+        isValidating: false,
+        error: new Error("Die Suche ist fehlgeschlagen"),
+      } as ReturnType<typeof swrModule.useSWRAuth>);
+
+      render(<StudentSearchPage />);
+
+      // Anker: das Aktionsmenü bleibt auch beim Ladefehler sichtbar.
+      expect(
+        await screen.findByTestId("overflow-Abwesenheiten"),
+      ).toBeInTheDocument();
+      expect(
+        screen.queryByTestId("overflow-Elternbrief schreiben"),
+      ).not.toBeInTheDocument();
+    });
   });
 
   describe("Student Card Navigation", () => {
