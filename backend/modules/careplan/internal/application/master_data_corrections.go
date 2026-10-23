@@ -73,7 +73,7 @@ func (s *MasterDataDecisions) loadCorrectableRequest(ctx context.Context, reques
 	if requestID <= 0 {
 		return nil, masterdatarequests.ErrReviewNotFound
 	}
-	req, err := s.requests.FindStudentDataRequest(ctx, requestID, true)
+	req, err := s.lockRequestStudent(ctx, requestID)
 	if errors.Is(err, careplan.ErrStudentDataRequestNotFound) {
 		return nil, masterdatarequests.ErrReviewNotFound
 	}
@@ -86,7 +86,7 @@ func (s *MasterDataDecisions) loadCorrectableRequest(ctx context.Context, reques
 	if expectedVersion != "" && careplan.ParentRequestVersion(req.UpdatedAt) != expectedVersion {
 		return nil, parentrequests.ErrStale
 	}
-	return &req, nil
+	return req, nil
 }
 
 // rewriteDecision brings the child's record in line with the new verdict and

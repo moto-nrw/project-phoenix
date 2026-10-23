@@ -17,6 +17,13 @@ type failingSecuritySettings struct {
 	key string
 }
 
+func (s failingSecuritySettings) TrustedDeviceEnabled(ctx context.Context, tenantID int64) (bool, error) {
+	if s.key == "enabled" {
+		return false, errors.New("private security settings failure")
+	}
+	return s.optionalMFASettings.TrustedDeviceEnabled(ctx, tenantID)
+}
+
 func (s failingSecuritySettings) TrustedDeviceDays(ctx context.Context, tenantID int64) (int, error) {
 	if s.key == "days" {
 		return 0, errors.New("private security settings failure")
@@ -51,13 +58,13 @@ func (r *securitySettingsRecords) IncrementMFAAttempts(context.Context, int64, i
 }
 func TestAccountMFARejectsUnreadableSecuritySettings(t *testing.T) {
 	t.Parallel()
-	for _, key := range []string{"days", "threshold", "duration"} {
+	for _, key := range []string{"enabled", "days", "threshold", "duration"} {
 		t.Run(key, func(t *testing.T) {
 			records := &securitySettingsRecords{memoryMFARecords: newMemoryMFARecords(domain.AccountIdentity{ID: 1, Email: "mfa@example.test", Active: true})}
 			codec := &fakeMFAChallengeCodec{parse: map[string]domain.MFAChallengeClaims{}}
 			flows, err := NewAccountMFAFlows(AccountMFAFlowDependencies{Records: records, Settings: failingSecuritySettings{key: key}, Codec: codec, Codes: fakeShortCodes{}, Mail: &fakeMFAMail{}, Audit: &fakeMFAAudit{}, Runtime: &fakeRuntime{}, Secret: []byte("test-only-secret")})
 			require.NoError(t, err)
-			if key == "days" {
+			if key == "days" || key == "enabled" {
 				token, expires, err := flows.IssueTrustedDevice(context.Background(), 1, 10, "ua", nil)
 				require.ErrorIs(t, err, identityaccess.ErrMFAStatusUnavailable)
 				assert.Empty(t, token)

@@ -102,13 +102,22 @@ func (c *ParentRequestCoordinator) BulkApprove(ctx context.Context, input parent
 	if err := validateBulkParentRequestVersions(input.Requests, masters, excused); err != nil {
 		return c.failed(ctx, err)
 	}
+	// Establish the entire ascending child frontier before any request lock.
+	// Request-kind order is not child order; locking a child per request here
+	// would invert two multi-child approvals (and care end).
+	ordered := sortedBulkRefsByStudent(input.Requests, masters, excused)
+	if err := c.masterData.LockBulkStudents(ctx, bulkStudentIDs(ordered, masters, excused)); err != nil {
+		// A cascading child deletion now reaches this frontier before the
+		// request re-read. Keep the request-race outcome of the old pre-lock.
+		if isParentRequestRace(err) {
+			return c.failed(ctx, fmt.Errorf("%w: bulk student changed before locking", parentrequests.ErrStale))
+		}
+		return c.failed(ctx, fmt.Errorf("parent requests: lock bulk students: %w", err))
+	}
 	if err := c.lockBulkParentRequests(ctx, input.Requests); err != nil {
 		return c.failed(ctx, err)
 	}
-	input.Requests = sortedBulkRefsByStudent(input.Requests, masters, excused)
-	if err := c.masterData.LockBulkStudents(ctx, bulkStudentIDs(input.Requests, masters, excused)); err != nil {
-		return c.failed(ctx, fmt.Errorf("parent requests: lock bulk students: %w", err))
-	}
+	input.Requests = ordered
 	if err := c.applyBulkParentRequests(ctx, input); err != nil {
 		return c.failed(ctx, err)
 	}

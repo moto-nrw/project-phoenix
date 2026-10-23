@@ -208,6 +208,10 @@ re-read the request. Terminal/version checks repeat under the request lock;
 authorization, catalog validation, tenant scope and mutations retain their
 existing contracts. No transition gate, owner, policy rule or root decision is
 added. Existing account-before-roster constraints are unchanged.
+#4639 also deliberately corrected two missing-request responses from HTTP 500
+to HTTP 404 (`general.input`): offering-change preview and offering-conflict
+resolution with a missing offering request ID. This was an error-contract
+correction, not a claim that every response stayed unchanged.
 
 `modules/careplan/contracttest/offering_lock_order_test.go` records real
 `40P01` failures before the fixes: admin correction versus grade Apply, and
@@ -218,6 +222,47 @@ arranges the interleavings; all commands complete after the fixes. The
 records the before/after paths and the remaining, separately scoped
 care-schedule, excused and master-data request-before-child findings. This is
 not a claim of global deadlock freedom or an exemption for those inversions.
+
+### E2/E4 family-request lock-order correction (#4640)
+
+The two-connection tests in
+`modules/careplan/contracttest/request_lock_order_test.go` reproduce `40P01`
+for care-schedule, excused-absence and master-data decisions against care
+confirmation before this correction. This evidence amends the retained
+request protocols: **class(shared) → child → family request** for these
+non-offering writers. Recurrence is not needed by these commands. Offering
+writers retain **class(shared) → recurrence → child → request** from #4638.
+Care end retains that full gate prefix before its sorted child cohort and open
+requests. No new coordinator exception, owner or policy rule is introduced.
+
+Every single decision, completion, correction and conflict pre-lock first
+reads the request without a lock to locate its immutable student ID. It locks
+the child, then re-reads the request `FOR UPDATE`; status, expected version
+and authorization still use the locked state before mutation. Guardian
+master-data edit uses the same protocol, with ownership checked before status
+and again under lock. Direct excused guardian edit also takes child before
+request; its portal caller already held the child. Ownership is checked before
+that acquisition and again under lock, so a mismatched request cannot add a
+second child lock out of order.
+
+Bulk approval locks **all children in ascending ID order before any request**,
+then requests in its existing kind/ID order and applies in child/kind/ID order.
+One child per request would not suffice: request kind/ID order can visit a
+higher child before a lower one. Conflict candidates must still name one child;
+each kind's pre-lock acquires its own gate/child prefix before sorted request
+IDs. In particular the coordinator must not take a child before the offering
+port has acquired recurrence. Companion updates keep their existing sorted
+locks and downward-NOWAIT refusal, not a new blocking acquisition of lower IDs.
+
+The [inventory](../architecture/4538-cross-owner-write-inventory.md#family-request-row-order-correction-4640)
+records the full before/after audit, including unchanged submissions,
+portal edits, course withdrawal, Enrollment and student deletion. Missing or
+tenant-hidden requests, requests deleted while waiting, closed requests and
+stale versions retain their service sentinels and HTTP status/code contracts.
+Deleting the child after the preliminary read maps back to the request's
+not-found sentinel. The new 404/409 regression suites pass on the original
+implementation as well as the fix; the child-wait cases additionally cover
+the new interleaving. No response change is intended by #4640.
 
 ### Evidence and enforcement
 

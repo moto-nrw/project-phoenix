@@ -1165,6 +1165,14 @@ ADR the change adds. An empty `map[string]int` register may disappear
 without one.
 `internal/architecture/ratchet_budgets_test.go` pins the rules.
 
+File size, named function length and cognitive complexity share a complete
+module/root source scope: `modules/`, `workflows/`, `roots/`, `api/`, `cmd/`
+recursively and direct backend-root Go files. Non-`_test.go` hooks and generated
+sources remain included. [ADR 0082](../../docs/adr/0082-roots-stay-in-source-ratchets.md)
+records the measured root baselines, the mechanical mount split and the
+pass-through decision: existing consumer-attributed root paths stay counted;
+no new root pass-through allowance is granted.
+
 ### Converting temporary permissions to exact debt
 
 A rule states the target
