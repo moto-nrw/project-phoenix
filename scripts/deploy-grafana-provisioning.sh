@@ -78,10 +78,15 @@ if ! ssh "$host" "for i in \$(seq 1 30); do curl -fsS $grafana_health >/dev/null
   exit 1
 fi
 
-# A provisioning type without a directory on the host (plugins) is no error.
-errors=$(ssh "$host" "cd $remote_dir && docker compose logs --no-log-prefix --since $since grafana" \
-  | grep 'logger=provisioning' | grep -E 'level=(error|crit)' \
-  | grep -Ev 'error="open /etc/grafana/provisioning/[a-z]+: no such file or directory"' || true)
+if ! log=$(ssh "$host" "cd $remote_dir && docker compose logs --no-log-prefix --since $since grafana"); then
+  echo 'Could not read the Grafana log after the restart; provisioning is unchecked' >&2
+  echo "$restore" >&2
+  exit 1
+fi
+# The host has no plugins provisioning directory; Grafana reports that on
+# every start. Any other missing directory is an error.
+errors=$(printf '%s\n' "$log" | grep 'logger=provisioning' | grep -E 'level=(error|crit)' \
+  | grep -Fv 'error="open /etc/grafana/provisioning/plugins: no such file or directory"' || true)
 if [[ -n "$errors" ]]; then
   echo 'Grafana reported provisioning errors:' >&2
   echo "$errors" >&2

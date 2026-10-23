@@ -28,7 +28,7 @@ case "$*" in
     node -e 'const f=require(process.argv[1]); const v=f[process.argv[2]]; if (v===undefined) process.exit(1); process.stdout.write(v)' "${files}" "$file" ;;
   *'date -u'*) echo 2026-10-23T10:00:00Z ;;
   *'/api/health'*) exit ${remote.unhealthy ? 1 : 0} ;;
-  *'docker compose logs'*) cat "${join(directory, 'grafana.log')}" ;;
+  *'docker compose logs'*) ${remote.logFails ? 'exit 255' : `cat "${join(directory, 'grafana.log')}"`} ;;
 esac
 `);
   chmodSync(join(directory, 'ssh'), 0o755);
@@ -95,6 +95,22 @@ test('accepts a missing optional provisioning directory', t => {
     remote: { log: 'logger=provisioning.plugins level=error msg="Failed to read plugin provisioning files from directory" path=/etc/grafana/provisioning/plugins error="open /etc/grafana/provisioning/plugins: no such file or directory"\n' },
   });
   assert.equal(result.status, 0, result.stderr);
+});
+
+test('fails on a missing dashboards or datasources directory', t => {
+  const result = deploy(t, ['monitoring-host', dashboard], {
+    remote: { log: 'logger=provisioning.dashboard level=error msg="Failed to read" error="open /etc/grafana/provisioning/dashboards: no such file or directory"\n' },
+  });
+  assert.equal(result.status, 1);
+  assert.match(result.stderr, /provisioning\/dashboards/);
+});
+
+test('fails when the Grafana log cannot be read after the restart', t => {
+  const result = deploy(t, ['monitoring-host', dashboard], { remote: { logFails: true } });
+  assert.equal(result.status, 1);
+  assert.match(result.stderr, /Could not read the Grafana log/);
+  assert.match(result.stderr, /Restore: /);
+  assert.doesNotMatch(result.stdout, /provisioned without errors/);
 });
 
 test('fails when Grafana does not become healthy', t => {
