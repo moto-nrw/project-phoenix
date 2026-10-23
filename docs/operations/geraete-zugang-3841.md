@@ -106,6 +106,37 @@ Er erfüllt weder individuelle Einrichtung ohne Standard-PIN noch Hashing.
 Anmeldeversuchsschutz (3841-c), MFA (3841-f) und produktive Nachweise sind
 nicht Gegenstand dieses Slices.
 
+### Settings-Störungen erkennen
+
+Beide Fälle schreiben `ERROR` mit `tenant_id`, ohne PIN oder Geräteschlüssel:
+
+- Lesefehler: `device authentication rejected: tenant PIN lookup failed`,
+  zusätzlich `error` mit der Fehlerursache.
+- Leerer Wert: `device authentication rejected: tenant PIN is empty`,
+  ohne Fehlerursache, weil die Auflösung erfolgreich war.
+
+Die Ursache kommt aus dem Settings-Lesepfad: Tenant-Transaktion,
+Repository-Lesezugriff oder Snapshot-Aufbau. Dieser Pfad formatiert keine
+PIN-Werte in Fehlermeldungen; die Resolver-Schnittstelle verlangt dies auch
+von ihren Implementierungen. Der gesendete Header und aufgelöste Wert werden
+nicht geloggt. Der Client erhält unverändert `401 / iot.device_pin_invalid`.
+
+Die bestehende Loki-Regel `server-error-spike` in
+[server-errors.yml](../../monitoring/grafana/provisioning/alerting/server-errors.yml)
+zählt diese ERROR-Zeilen im Production-Server-Log mit. Sie alarmiert bei
+**mehr als zehn Fehlerzeilen in fünf Minuten**, nicht bei jedem Einzelereignis.
+Siehe [Server-Fehler-Runbook](../../monitoring/runbooks/server-errors.md).
+Aktive Provisionierung, Log-Anlieferung und Alarmzustellung sind produktiv
+nachzuweisen; eine einzelne betroffene Schule unterhalb der Schwelle löst
+nicht zwingend einen Alarm aus.
+
+`phoenix_settings_lookups_total{outcome="error"}` kann ergänzend auf
+Settings-Fehler hinweisen. Die Metrik erfasst aber nicht jeden Fehler vor
+`ResolveMany`, etwa beim Start der Tenant-Transaktion oder im vorgelagerten
+Cache-Pfad. Fehlende Metrikfehler widerlegen deshalb keinen Ausfall. Für die
+Geräteauthentifizierung die obigen Log-Meldungen prüfen und den Settings-/DB-
+Zugriff reparieren, keinen Env-Fallback einschalten.
+
 ### Mensch-Schritte vor und nach dem Deploy
 
 1. **Vor dem Deploy**, getrennt für Staging und Produktion, die nur lesende
@@ -113,13 +144,19 @@ nicht Gegenstand dieses Slices.
    freigegebenen Datenbankzugang ausführen. Eine berechtigte administrative
    Rolle verwenden, die alle Schulen und Settings sieht. Nicht als
    `phoenix_tenant` ausführen: RLS könnte einen unvollständigen Nullbefund
-   liefern. Bei SQL- oder Zugriffsfehlern abbrechen, nicht als null Treffer
-   dokumentieren. Die Abfrage gibt nur Anzahlen aus, keine PINs oder Schul-IDs.
+   liefern. Die Abfrage setzt deshalb `row_security = off`: Ohne Berechtigung
+   zum RLS-Bypass muss sie mit einem Fehler statt mit gefilterten Zahlen enden.
+   `schools_total` mit der bekannten Anzahl nicht gelöschter Schulen abgleichen;
+   eine Abweichung ist kein Freigabebefund. Bei SQL- oder Zugriffsfehlern
+   abbrechen, nicht als null Treffer dokumentieren. Die Abfrage gibt nur
+   Anzahlen aus, keine PINs oder Schul-IDs.
 2. Fehlende Overrides verwenden bereits heute den Registry-Default, nicht
    den Env-Fallback. Trotzdem jeden Treffer vor der Freigabe im geschützten
    Schul-Inventar prüfen und die beabsichtigte PIN über die Schul-Einstellung
    setzen. Leere, JSON-null- oder ungültige Overrides vor dem Deploy
-   korrigieren. Keine PIN per SQL, Shell-Argument, Ticket oder Log übertragen.
+   korrigieren. Leere Strings und JSON-null zählen sowohl als leer als auch
+   als ungültig; die Spalten sind daher nicht zu addieren. Keine PIN per SQL,
+   Shell-Argument, Ticket oder Log übertragen.
    Die PIN-Einstellung ist `admin_only`; die berechtigte Schul-Administration
    setzt sie in der App. Danach die Zählabfrage wiederholen. Nur aggregierte
    Anzahlen, Datum und verantwortliche Person als Nachweis ablegen.
@@ -148,9 +185,11 @@ Eintrag ist keine Laufzeitvorgabe für Geräteauthentifizierung.
 
 **Lokal geprüft:** Die SQL-Zählung lief auf einem isolierten synthetischen
 PostgreSQL-Schema mit fehlendem Override, leerem String, JSON-null, gültiger
-PIN, falschem JSON-Typ und gelöschter Schule. Erwartete Anzahlen: ein fehlender,
-zwei leere und drei ungültige Overrides; die gelöschte Schule zählt nicht.
-Das ist kein Nachweis produktiver Werte oder produktiver Leserechte.
+PIN, falschem JSON-Typ und gelöschter Schule. Erwartete Anzahlen:
+`schools_total = 6`, ein fehlender, zwei leere und drei ungültige Overrides;
+die gelöschte Schule zählt nicht. Eine eingeschränkte Rolle mit filternder
+RLS-Policy scheiterte durch `row_security = off`, statt einen Nullbefund zu
+liefern. Das ist kein Nachweis produktiver Werte oder produktiver Leserechte.
 
 **Produktiv nachzuweisen:** Zählung, Korrekturen, Auslieferung, Geräteprüfung
 und anschließende SOPS-Bereinigung. Hier wurden keine Produktiv- oder

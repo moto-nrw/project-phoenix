@@ -8,6 +8,7 @@ package deviceauth
 import (
 	"context"
 	"fmt"
+	"log/slog"
 	"net/http"
 	"time"
 
@@ -38,7 +39,8 @@ type SchoolDirectory interface {
 }
 
 // Settings resolves tenant settings outside a tenant transaction. The
-// settings service satisfies it.
+// settings service satisfies it. Errors must not contain stored values or credentials;
+// the authentication boundary logs the lookup cause.
 type Settings interface {
 	ResolveStringForTenant(ctx context.Context, tenantID int64, key string) (string, error)
 }
@@ -58,6 +60,8 @@ type SchoolErrors interface {
 
 // Dependencies are the collaborators the device authenticators need.
 type Dependencies struct {
+	// Logger records operational authentication failures.
+	Logger *slog.Logger
 	// Devices resolves API keys and records device activity. Required.
 	Devices Fleet
 	// Schools blocks devices of deleted schools. Optional: a nil directory
@@ -89,6 +93,7 @@ func New(deps Dependencies) *Authenticators {
 		schools = schoolLookup{schools: deps.Schools, errors: deps.SchoolErrors}
 	}
 	return &Authenticators{authenticator: device.NewAuthenticator(device.Dependencies{
+		Logger:     deps.Logger,
 		Devices:    fleetDirectory{fleet: deps.Devices},
 		BindTenant: bindTenant,
 		Schools:    schools,

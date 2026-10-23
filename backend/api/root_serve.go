@@ -514,7 +514,7 @@ func composeServeRoot(
 		return nil, nil, err
 	}
 	logger, limiters, tenant := env.Logger, authRateLimitersFromEnv(), chi.NewRouter()
-	deviceAuth, studentPresence := newDeviceAuthentication(iot, organizations, settings.Service), owners.NewLoggedStudentPresence(db, env.Logger)
+	deviceAuth, studentPresence := newDeviceAuthentication(iot, organizations, settings.Service, env.Logger), owners.NewLoggedStudentPresence(db, env.Logger)
 	careOfferings := requests.CareOfferings
 	err = owners.RunRootSteps(
 		func() error {

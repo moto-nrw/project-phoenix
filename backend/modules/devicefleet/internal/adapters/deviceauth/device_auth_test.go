@@ -146,13 +146,10 @@ func withSchools(schools SchoolLookup) func(*Dependencies) {
 	return func(deps *Dependencies) { deps.Schools = schools }
 }
 
-func withPIN(resolver func(context.Context, int64) string, pin string) func(*Dependencies) {
+func withPIN(resolver func(context.Context, int64) string) func(*Dependencies) {
 	return func(deps *Dependencies) {
 		deps.PIN = func(ctx context.Context, tenantID int64) (string, error) {
-			if resolver != nil {
-				return resolver(ctx, tenantID), nil
-			}
-			return pin, nil
+			return resolver(ctx, tenantID), nil
 		}
 	}
 }
@@ -404,7 +401,7 @@ func TestDevice_ValidAPIKeyAndPIN(t *testing.T) {
 
 	directory := newMockDeviceDirectory()
 	directory.addDevice("valid-api-key-123", activeDevice("device-001"))
-	authenticator := newTestAuthenticator(directory, withPIN(nil, "test-device-pin-123"))
+	authenticator := newTestAuthenticator(directory, withPIN(func(context.Context, int64) string { return "test-device-pin-123" }))
 
 	ctx, errResp := authenticator.authenticateDevice(context.Background(), pinCredentials("valid-api-key-123", "test-device-pin-123"))
 	require.Nil(t, errResp)
@@ -423,7 +420,7 @@ func TestDevice_MissingPIN(t *testing.T) {
 
 	directory := newMockDeviceDirectory()
 	directory.addDevice("valid-api-key-123", activeDevice("device-001"))
-	authenticator := newTestAuthenticator(directory, withPIN(nil, "test-pin"))
+	authenticator := newTestAuthenticator(directory, withPIN(func(context.Context, int64) string { return "test-pin" }))
 
 	_, errResp := authenticator.authenticateDevice(context.Background(), bearer("valid-api-key-123"))
 	require.NotNil(t, errResp)
@@ -436,7 +433,7 @@ func TestDevice_InvalidPIN(t *testing.T) {
 
 	directory := newMockDeviceDirectory()
 	directory.addDevice("valid-api-key-123", activeDevice("device-001"))
-	authenticator := newTestAuthenticator(directory, withPIN(nil, "correct-pin"))
+	authenticator := newTestAuthenticator(directory, withPIN(func(context.Context, int64) string { return "correct-pin" }))
 
 	_, errResp := authenticator.authenticateDevice(context.Background(), pinCredentials("valid-api-key-123", "wrong-pin"))
 	require.NotNil(t, errResp)
@@ -450,7 +447,7 @@ func TestDevice_MissingOGSPINConfig(t *testing.T) {
 
 	directory := newMockDeviceDirectory()
 	directory.addDevice("valid-api-key-123", activeDevice("device-001"))
-	authenticator := newTestAuthenticator(directory, withPIN(nil, ""))
+	authenticator := newTestAuthenticator(directory, withPIN(func(context.Context, int64) string { return "" }))
 
 	_, errResp := authenticator.authenticateDevice(context.Background(), pinCredentials("valid-api-key-123", "any-pin"))
 	require.NotNil(t, errResp)
@@ -461,7 +458,7 @@ func TestDevice_MissingOGSPINConfig(t *testing.T) {
 func TestDevice_MissingAPIKey(t *testing.T) {
 	t.Parallel()
 
-	authenticator := newTestAuthenticator(newMockDeviceDirectory(), withPIN(nil, "test-pin"))
+	authenticator := newTestAuthenticator(newMockDeviceDirectory(), withPIN(func(context.Context, int64) string { return "test-pin" }))
 	_, errResp := authenticator.authenticateDevice(context.Background(), credentials{devicePIN: "test-pin"})
 	require.NotNil(t, errResp)
 	assert.Equal(t, statusUnauthorized, errResp.HTTPStatusCode)
@@ -471,7 +468,7 @@ func TestDevice_MissingAPIKey(t *testing.T) {
 func TestDevice_InvalidAPIKey(t *testing.T) {
 	t.Parallel()
 
-	authenticator := newTestAuthenticator(newMockDeviceDirectory(), withPIN(nil, "test-pin"))
+	authenticator := newTestAuthenticator(newMockDeviceDirectory(), withPIN(func(context.Context, int64) string { return "test-pin" }))
 	_, errResp := authenticator.authenticateDevice(context.Background(), pinCredentials("invalid-key", "test-pin"))
 	require.NotNil(t, errResp)
 	assert.Equal(t, statusUnauthorized, errResp.HTTPStatusCode)
@@ -485,7 +482,7 @@ func TestDevice_InactiveDevice(t *testing.T) {
 	device := activeDevice("device-001")
 	device.Status = "inactive"
 	directory.addDevice("valid-api-key-123", device)
-	authenticator := newTestAuthenticator(directory, withPIN(nil, "test-pin"))
+	authenticator := newTestAuthenticator(directory, withPIN(func(context.Context, int64) string { return "test-pin" }))
 
 	_, errResp := authenticator.authenticateDevice(context.Background(), pinCredentials("valid-api-key-123", "test-pin"))
 	require.NotNil(t, errResp)
@@ -496,7 +493,7 @@ func TestDevice_InactiveDevice(t *testing.T) {
 func TestDevice_NilDeviceReturn(t *testing.T) {
 	t.Parallel()
 
-	authenticator := newTestAuthenticator(newNilDeviceDirectory(), withPIN(nil, "test-pin"))
+	authenticator := newTestAuthenticator(newNilDeviceDirectory(), withPIN(func(context.Context, int64) string { return "test-pin" }))
 	_, errResp := authenticator.authenticateDevice(context.Background(), pinCredentials("some-key", "test-pin"))
 	require.NotNil(t, errResp)
 	assert.Equal(t, statusUnauthorized, errResp.HTTPStatusCode)
@@ -522,7 +519,7 @@ func TestDevice_UsesPINResolver(t *testing.T) {
 		}
 		return ""
 	}
-	authenticator := newTestAuthenticator(directory, withPIN(resolver, ""))
+	authenticator := newTestAuthenticator(directory, withPIN(resolver))
 
 	_, errResp := authenticator.authenticateDevice(context.Background(), pinCredentials("valid-api-key-resolver", "9999"))
 	assert.Nil(t, errResp, "should authenticate using PIN from resolver")
@@ -537,9 +534,9 @@ func TestDevice_EmptyPINResolverRejects(t *testing.T) {
 	device.TenantID = 42
 	directory.addDevice("valid-api-key-fallback", device)
 	resolver := func(_ context.Context, _ int64) string { return "" }
-	authenticator := newTestAuthenticator(directory, withPIN(resolver, "env-pin"))
+	authenticator := newTestAuthenticator(directory, withPIN(resolver))
 
-	_, errResp := authenticator.authenticateDevice(context.Background(), pinCredentials("valid-api-key-fallback", "env-pin"))
+	_, errResp := authenticator.authenticateDevice(context.Background(), pinCredentials("valid-api-key-fallback", "wrong-pin"))
 	require.NotNil(t, errResp, "empty tenant PIN must reject access")
 	assert.Equal(t, statusUnauthorized, errResp.HTTPStatusCode)
 }
@@ -552,10 +549,10 @@ func TestDevice_PINResolverWrongPIN(t *testing.T) {
 	device.TenantID = 42
 	directory.addDevice("valid-api-key-wrong", device)
 	resolver := func(_ context.Context, _ int64) string { return "9999" }
-	authenticator := newTestAuthenticator(directory, withPIN(resolver, "env-pin"))
+	authenticator := newTestAuthenticator(directory, withPIN(resolver))
 
-	_, errResp := authenticator.authenticateDevice(context.Background(), pinCredentials("valid-api-key-wrong", "env-pin"))
-	require.NotNil(t, errResp, "the env PIN is not accepted once the tenant PIN resolves")
+	_, errResp := authenticator.authenticateDevice(context.Background(), pinCredentials("valid-api-key-wrong", "wrong-pin"))
+	require.NotNil(t, errResp, "only the resolved tenant PIN is accepted")
 	assert.Equal(t, statusUnauthorized, errResp.HTTPStatusCode)
 
 	_, errResp = authenticator.authenticateDevice(context.Background(), pinCredentials("valid-api-key-wrong", "0000"))
@@ -717,7 +714,7 @@ func TestAuthenticators_ShareLastSeenDebouncer(t *testing.T) {
 	device := activeDevice("shared-debouncer-device")
 	device.ID = 1
 	directory.addDevice(apiKey, device)
-	authenticator := newTestAuthenticator(directory, withPIN(nil, "pin"))
+	authenticator := newTestAuthenticator(directory, withPIN(func(context.Context, int64) string { return "pin" }))
 
 	_, errResp := authenticator.authenticateDeviceOnly(context.Background(), bearer(apiKey))
 	require.Nil(t, errResp)

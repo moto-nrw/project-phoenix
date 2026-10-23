@@ -2,7 +2,11 @@
 -- Run with a read-only-capable administrative role that can see every school
 -- and setting row, not the tenant application role (RLS would hide rows).
 BEGIN READ ONLY;
+-- Fail rather than silently apply RLS. The role must be allowed to bypass RLS
+-- on both tables (for example the approved administrative role).
+SET LOCAL row_security = off;
 SELECT
+    count(*) AS schools_total,
     count(*) FILTER (WHERE v.id IS NULL) AS schools_without_override,
     count(*) FILTER (WHERE v.id IS NOT NULL AND
         (v.value = 'null'::jsonb OR v.value = '""'::jsonb)) AS schools_with_empty_override,

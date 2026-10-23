@@ -86,6 +86,7 @@ type SchoolLookup interface {
 
 // PINResolver resolves the device PIN for a given tenant.
 // Returns an error when the setting cannot be read. Empty values reject access.
+// Errors are logged: they must describe the lookup failure, never a PIN value.
 type PINResolver func(ctx context.Context, tenantID int64) (string, error)
 
 // TenantBinder makes the device's school the ambient tenant of the request.
@@ -96,6 +97,8 @@ type TenantBinder func(ctx context.Context, tenantID int64) (context.Context, er
 
 // Dependencies are the ports the authenticator needs.
 type Dependencies struct {
+	// Logger records operational authentication failures. Defaults to slog.Default.
+	Logger *slog.Logger
 	// Devices resolves API keys and records activity. Required.
 	Devices DeviceDirectory
 	// BindTenant establishes the tenant boundary. Required.
@@ -121,6 +124,9 @@ func NewAuthenticator(deps Dependencies) *Authenticator {
 	}
 	if deps.PIN == nil {
 		panic("device authenticator: PIN resolver is required")
+	}
+	if deps.Logger == nil {
+		deps.Logger = slog.Default()
 	}
 	if deps.LastSeen == nil {
 		deps.LastSeen = NewLastSeenDebouncer()
@@ -339,8 +345,17 @@ func (a *Authenticator) validateDevicePIN(ctx context.Context, device *Authentic
 	}
 
 	ogsPIN, err := a.deps.PIN(ctx, device.TenantID)
-	if err != nil || ogsPIN == "" {
-		slog.Warn("device authentication rejected: tenant PIN unavailable", slog.Int64("tenant_id", device.TenantID))
+	if err != nil {
+		a.deps.Logger.Error("device authentication rejected: tenant PIN lookup failed",
+			slog.Int64("tenant_id", device.TenantID),
+			slog.String("error", err.Error()),
+		)
+		return ErrDeviceUnauthorized(ErrInvalidPIN)
+	}
+	if ogsPIN == "" {
+		a.deps.Logger.Error("device authentication rejected: tenant PIN is empty",
+			slog.Int64("tenant_id", device.TenantID),
+		)
 		return ErrDeviceUnauthorized(ErrInvalidPIN)
 	}
 

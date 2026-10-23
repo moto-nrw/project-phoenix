@@ -1,10 +1,13 @@
 package deviceauth
 
 import (
+	"bytes"
 	"context"
 	"database/sql"
+	"encoding/json"
 	"errors"
 	"fmt"
+	"log/slog"
 	"net"
 	"net/http"
 	"net/http/httptest"
@@ -481,7 +484,7 @@ func TestBindTenant(t *testing.T) {
 func isTransientDBErr(err error) bool { return devicetest.SchoolErrors().Transient(err) }
 
 // Settings outages must never authenticate with the deployment-wide seed PIN.
-func TestDevice_SettingsFailureRejectsFallback(t *testing.T) {
+func TestDevice_SettingsFailureRejectsAccess(t *testing.T) {
 	t.Parallel()
 	fleet := newFakeFleet()
 	fleet.add("kiosk-key", activeDevice(6, "kiosk"))
@@ -495,4 +498,48 @@ func TestDevice_SettingsFailureRejectsFallback(t *testing.T) {
 func TestNew_RequiresSettings(t *testing.T) {
 	t.Parallel()
 	assert.PanicsWithValue(t, "device authentication composition: settings resolver is required", func() { New(Dependencies{Devices: newFakeFleet()}) })
+}
+
+// The HTTP boundary must reject access and expose an actionable, PIN-free
+// operational error for both unavailable and empty settings.
+func TestDevice_PINSettingFailuresAreLogged(t *testing.T) {
+	t.Parallel()
+	for _, tc := range []struct {
+		name    string
+		err     error
+		message string
+	}{
+		{"read failure", errors.New("settings transaction: permission denied"), "device authentication rejected: tenant PIN lookup failed"},
+		{"empty setting", nil, "device authentication rejected: tenant PIN is empty"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			var output bytes.Buffer
+			logger := slog.New(slog.NewJSONHandler(&output, nil))
+			fleet := newFakeFleet()
+			fleet.add("example-device-key", activeDevice(6, "kiosk"))
+			handler := router(New(Dependencies{Devices: fleet, Settings: fakeSettings{err: tc.err}, Logger: logger}).Device(), func(http.ResponseWriter, *http.Request) {
+				t.Error("unverified PIN reached handler")
+			})
+			submittedPIN := "submitted-pin-marker"
+			rr := serve(handler, request(http.MethodPost, "example-device-key", map[string]string{"X-Staff-PIN": submittedPIN}))
+			assert.Equal(t, http.StatusUnauthorized, rr.Code)
+			assert.Contains(t, rr.Body.String(), `"code":"iot.device_pin_invalid"`)
+			assert.Zero(t, fleet.writes())
+			var entry map[string]any
+			require.NoError(t, json.Unmarshal(output.Bytes(), &entry))
+			assert.Equal(t, "ERROR", entry["level"])
+			assert.Equal(t, tc.message, entry["msg"])
+			assert.Equal(t, float64(testTenantID), entry["tenant_id"])
+			if tc.err != nil {
+				assert.Equal(t, tc.err.Error(), entry["error"])
+				assert.Len(t, entry, 5, "only timestamp, level, message, tenant and cause are logged")
+			} else {
+				assert.NotContains(t, entry, "error")
+				assert.Len(t, entry, 4, "empty settings have no lookup cause")
+			}
+			assert.False(t, bytes.Contains(output.Bytes(), []byte(submittedPIN)), "logs must not contain the submitted PIN")
+			assert.False(t, bytes.Contains(output.Bytes(), []byte("example-device-key")), "logs must not contain device credentials")
+		})
+	}
 }
