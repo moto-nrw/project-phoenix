@@ -1,0 +1,25 @@
+[Unit]
+Description=moto encrypted daily disaster recovery backup
+Requires=docker.service
+After=docker.service network-online.target
+Wants=network-online.target
+OnFailure=moto-backup-failure@%n.service
+
+[Service]
+Type=oneshot
+User=root
+UMask=0077
+LimitCORE=0
+EnvironmentFile=/etc/moto-backup/backup.env
+RuntimeDirectory=moto-backup
+RuntimeDirectoryMode=0700
+StateDirectory=moto-backup-cipher
+StateDirectoryMode=0700
+ExecStart=/usr/local/lib/moto-backup/daily-backup.sh
+TimeoutStartSec=6h
+KillMode=control-group
+PrivateTmp=true
+NoNewPrivileges=true
+ProtectSystem=full
+# The deployment directory must remain writable for .release-operation.lock.
+# Set PATH in backup.env to the installed, pinned tool directory plus system bins.
