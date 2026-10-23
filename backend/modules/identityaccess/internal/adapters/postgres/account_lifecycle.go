@@ -21,6 +21,9 @@ type tenantAccountRow struct {
 	Active    bool   `bun:"active"`
 	Status    string `bun:"status"`
 	RoleNames string `bun:"role_names"`
+	// HoldsSchoolPortalCopy reports a school role made from the Lehrkraft
+	// template among the roles (#4574).
+	HoldsSchoolPortalCopy bool `bun:"holds_school_portal_copy"`
 }
 
 // ListTenantAccounts returns every mapped account of the school with the
@@ -40,6 +43,7 @@ func (s *Store) ListTenantAccounts(ctx context.Context, tenantID int64) ([]domai
 		ColumnExpr(`"a".active`).
 		ColumnExpr(`"at".status`).
 		ColumnExpr(`COALESCE(string_agg(DISTINCT "r".name, ', ' ORDER BY "r".name), '') AS role_names`).
+		ColumnExpr(`COALESCE(bool_or("r".school_portal), false) AS holds_school_portal_copy`).
 		Join(`INNER JOIN auth.accounts AS "a" ON "a".id = "at".account_id`).
 		Join(`LEFT JOIN auth.account_roles AS "ar" ON "ar".account_id = "at".account_id AND "ar".tenant_id = ?`, tenantID).
 		Join(`LEFT JOIN auth.roles AS "r" ON "r".id = "ar".role_id`).
@@ -55,6 +59,7 @@ func (s *Store) ListTenantAccounts(ctx context.Context, tenantID int64) ([]domai
 	for _, row := range rows {
 		accounts = append(accounts, domain.TenantAccount{
 			AccountID: row.AccountID, Email: row.Email, Active: row.Active, Status: row.Status, RoleNames: splitRoleNames(row.RoleNames),
+			HoldsSchoolPortalCopy: row.HoldsSchoolPortalCopy,
 		})
 	}
 	return accounts, stats, nil

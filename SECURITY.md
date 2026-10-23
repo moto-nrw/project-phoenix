@@ -69,13 +69,17 @@ We will not pursue civil or criminal action against researchers who:
 
 ## GDPR Compliance
 
-This project handles student data and implements GDPR-compliant data handling:
+This project handles student data. The following controls are implemented in code;
+this is not a claim of legal compliance or verified production operation:
 
 - **Data Minimization**: Only collect necessary data
 - **Data Retention**: Automated cleanup of expired visit records
 - **Access Control**: Role-based permissions restrict data access
 - **Audit Logging**: All data deletions are logged
-- **Right to Erasure**: Hard delete functionality for student data
+- **Tenant erasure**: Internal CLI for database and local files, with resumable
+  phase evidence. External systems, backups and production verification remain
+  human tasks; organization-root erasure is still open. See the
+  [tenant erasure runbook](docs/operations/tenant-erasure.md).
 
 See the privacy-related documentation in [CLAUDE.md](CLAUDE.md) for implementation details.
 

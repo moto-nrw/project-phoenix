@@ -137,7 +137,7 @@ func (p ProvisioningIdentity) role(id int64, name string, system bool, tenantID 
 	facts := &identityaccess.RoleFacts{ID: id, TenantID: tenantID, Name: name, IsSystem: system, BaseRole: baseRole}
 	return organizationCompose.ProvisioningRole{
 		ID: id, Name: name, IsSystem: system, TenantID: tenantID, BaseRole: baseRole,
-		Lehrkraft:            identityaccess.IsLehrkraftSystemRole(facts),
+		Lehrkraft:            identityaccess.IsLehrkraftRole(facts),
 		CaregiverPermissions: identityaccess.IsPlatformCaregiverRole(facts),
 	}
 }

@@ -28,6 +28,7 @@ import {
   apiErrorFromResponse,
   transportFetch,
 } from "~/lib/api-error";
+import { ConfirmDeleteModal } from "~/components/ui/confirm-delete-modal";
 import { ConfirmationModal } from "~/components/ui/modal";
 import { ChoiceTile } from "~/components/ui/choice-tile";
 import { BooleanField } from "./fields/boolean-field";
@@ -45,10 +46,14 @@ import {
 } from "./retention-shortening";
 
 /** Settings keys that require a confirmation dialog before enabling. */
-const CONFIRM_ON_ENABLE: Record<string, { title: string; body: string }> = {
+const CONFIRM_ON_ENABLE: Record<
+  string,
+  { title: string; body: string; confirmText?: string }
+> = {
   "gdpr.attendance_log_enabled": {
-    title: "Anwesenheitshistorie aktivieren",
-    body: "Die Aktivierung erfordert die datenschutzrechtliche Einwilligung der Erziehungsberechtigten gem. § 120 Abs. 2 SchulG NRW i.V.m. Art. 6 Abs. 1 lit. a DSGVO.",
+    title: "Anwesenheitsprotokoll einschalten?",
+    body: "Das Team sieht Anwesenheitszeiten und Raumverläufe der Kinder. Ausgeschaltet bleiben frühere Raumbesuche nur für den heutigen Tag. Ältere abgeschlossene Raumbesuche werden beim Ausschalten und nachts gelöscht. Der aktuelle Raum bleibt sichtbar. Vor dem Einschalten prüft die Schule die Rechtsgrundlage.",
+    confirmText: "Einschalten",
   },
 };
 
@@ -309,6 +314,13 @@ export function SettingsField({
   // that must change first). Server errors go through the shared path.
   const [hint, setHint] = useState<string | null>(null);
   const [confirmOpen, setConfirmOpen] = useState(false);
+  const [historyDeletion, setHistoryDeletion] = useState<
+    "save" | "reset" | null
+  >(null);
+  const [historyDeletionSaving, setHistoryDeletionSaving] = useState(false);
+  const historyDeletionRef = useRef<HTMLDivElement | null>(null);
+  const historyDeletionErrors = useApiFormError(historyDeletionRef);
+  const deletesRoomHistory = setting.key === "gdpr.attendance_log_enabled";
   // A shorter retention window waits here for the operator's confirmation
   // (ADR 0048): the next nightly run deletes everything older for good.
   const [pendingShortening, setPendingShortening] = useState<{
@@ -629,6 +641,11 @@ export function SettingsField({
         setLegalActivationOpen(true);
         return;
       }
+      if (deletesRoomHistory && value === false) {
+        historyDeletionErrors.clear();
+        setHistoryDeletion("save");
+        return;
+      }
       if (enableConfig && value === true) {
         pendingValueRef.current = value;
         setConfirmOpen(true);
@@ -653,6 +670,8 @@ export function SettingsField({
       activationErrors,
       saveOrConfirm,
       categoryItems,
+      deletesRoomHistory,
+      historyDeletionErrors,
       enableConfig,
       disableConfig,
       legalDocumentURL,
@@ -868,8 +887,42 @@ export function SettingsField({
     }
   }, [setting.key, setting.label, onReset, reportFieldFailure, toastSuccess]);
 
-  /** Resets, unless the default is a shorter retention window: then it asks. */
+  const handleHistoryDeletionConfirm = useCallback(async () => {
+    if (!historyDeletion || historyDeletionSaving) return;
+    historyDeletionErrors.clear();
+    setHistoryDeletionSaving(true);
+    try {
+      if (historyDeletion === "reset") await onReset(setting.key);
+      else await onSave(setting.key, false);
+      setLocalValue(false);
+      setIsDirty(false);
+      setHint(null);
+      setHistoryDeletion(null);
+      toastSuccess(`Die Einstellung „${setting.label}“ ist ausgeschaltet.`);
+    } catch (error) {
+      void historyDeletionErrors.show(error, { object: settingObject });
+    } finally {
+      setHistoryDeletionSaving(false);
+    }
+  }, [
+    historyDeletion,
+    historyDeletionSaving,
+    historyDeletionErrors,
+    onReset,
+    onSave,
+    setting.key,
+    setting.label,
+    settingObject,
+    toastSuccess,
+  ]);
+
+  /** Destructive defaults follow the same confirmation as an explicit save. */
   const handleReset = useCallback(async () => {
+    if (deletesRoomHistory && setting.default === false) {
+      historyDeletionErrors.clear();
+      setHistoryDeletion("reset");
+      return;
+    }
     const days = shortenedRetentionDays(setting, setting.default, audience);
     if (days !== null) {
       if (debounceRef.current) {
@@ -880,7 +933,13 @@ export function SettingsField({
       return;
     }
     await performReset();
-  }, [audience, performReset, setting]);
+  }, [
+    audience,
+    deletesRoomHistory,
+    historyDeletionErrors,
+    performReset,
+    setting,
+  ]);
 
   const handleShorteningConfirm = useCallback(async () => {
     const pending = pendingShortening;
@@ -1006,7 +1065,7 @@ export function SettingsField({
 
         {!setting.is_default &&
           setting.writable &&
-          setting.type !== "boolean" &&
+          (setting.type !== "boolean" || deletesRoomHistory) &&
           !isEnrollmentLegalTextKey(setting.key) && (
             <button
               type="button"
@@ -1019,6 +1078,43 @@ export function SettingsField({
             </button>
           )}
       </div>
+
+      <ConfirmDeleteModal
+        isOpen={historyDeletion !== null}
+        title="Anwesenheitsprotokoll ausschalten?"
+        description={
+          <div ref={historyDeletionRef}>
+            <p>
+              Alle abgeschlossenen Raumbesuche vor heute werden sofort gelöscht.
+            </p>
+            <p>
+              Das lässt sich nicht rückgängig machen. Auch erneutes Einschalten
+              stellt nichts wieder her.
+            </p>
+            <p>
+              Heutige Raumbesuche bleiben bis zum nächtlichen Löschen erhalten.
+              Der aktuelle Raum und die Anwesenheitszeiten bleiben erhalten.
+            </p>
+            {historyDeletion === "reset" && (
+              <p>Der Standard ist ausgeschaltet.</p>
+            )}
+          </div>
+        }
+        gate={{
+          mode: "textConfirm",
+          expected: "LÖSCHEN",
+          inputId: `history-deletion-${audience}`,
+          label:
+            "Geben Sie LÖSCHEN ein, um ältere Raumbesuche endgültig zu löschen.",
+        }}
+        onClose={() => {
+          if (!historyDeletionSaving) setHistoryDeletion(null);
+        }}
+        onConfirm={handleHistoryDeletionConfirm}
+        loading={historyDeletionSaving}
+        error={historyDeletionErrors.error}
+        confirmLabel="Ausschalten und löschen"
+      />
 
       {activeConfirmConfig && (
         <ConfirmationModal
@@ -1034,7 +1130,7 @@ export function SettingsField({
             pendingScopeChangeRef.current?.confirmText ??
             (pendingValueRef.current === false
               ? (disableConfig?.confirmText ?? "Deaktivieren")
-              : "Aktivieren")
+              : (enableConfig?.confirmText ?? "Aktivieren"))
           }
           cancelText="Abbrechen"
           confirmVariant={

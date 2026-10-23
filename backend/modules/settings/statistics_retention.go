@@ -17,14 +17,26 @@ type StatisticsRetentionSource interface {
 // report: room visits are kept as long as the visits of a child without an
 // accepted consent (privacy consent retention), course attendance as long as
 // the timetable keeps its blocks.
-type StatisticsRetention struct{ source StatisticsRetentionSource }
+type StatisticsSettingsSource interface {
+	StatisticsRetentionSource
+	ResolveBool(context.Context, string) (bool, error)
+}
+
+type StatisticsRetention struct{ source StatisticsSettingsSource }
 
 // NewStatisticsRetention binds the windows to the resolver.
-func NewStatisticsRetention(source StatisticsRetentionSource) StatisticsRetention {
+func NewStatisticsRetention(source StatisticsSettingsSource) StatisticsRetention {
 	return StatisticsRetention{source: source}
 }
 
 func (r StatisticsRetention) RoomRetentionDays(ctx context.Context) (int, error) {
+	enabled, err := r.source.ResolveBool(ctx, configModel.KeyAttendanceLogEnabled)
+	if err != nil {
+		return 0, err
+	}
+	if !enabled {
+		return 0, nil
+	}
 	return r.source.ResolveInt(ctx, configModel.KeyPrivacyConsentRetentionDays)
 }
 

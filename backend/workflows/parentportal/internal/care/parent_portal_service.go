@@ -41,7 +41,13 @@ type MealParticipationPlan struct {
 	EffectiveFrom  string
 	CutoffTime     string
 	CutoffLeadDays int
-	Days           []MealParticipationDay
+	// CutoffWeekday 1-5 ends the changes of a week on that weekday of the
+	// week before; 0 uses CutoffLeadDays.
+	CutoffWeekday int
+	// CancellationCutoffTime is empty unless parents may cancel later.
+	CancellationCutoffTime     string
+	CancellationCutoffLeadDays int
+	Days                       []MealParticipationDay
 }
 
 // ChildFeatureFlags reports the resolved per-tenant parent-portal feature

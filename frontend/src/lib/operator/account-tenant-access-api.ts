@@ -6,6 +6,8 @@ interface AccountTenantRole {
   name: string;
   isSystem: boolean;
   baseRole: string | null;
+  /** Made from the template „Wie Lehrkraft“ (#4574). */
+  schoolPortal: boolean;
 }
 
 /** One school an account has (or had) access to. */
@@ -42,6 +44,7 @@ interface BackendAccountTenantAccess {
         name: string;
         is_system: boolean;
         base_role?: string | null;
+        school_portal?: boolean;
       }[]
     | null;
 }
@@ -76,6 +79,7 @@ function mapAccess(entry: BackendAccountTenantAccess): AccountTenantAccess {
       name: role.name,
       isSystem: role.is_system,
       baseRole: role.base_role ?? null,
+      schoolPortal: role.school_portal ?? false,
     })),
   };
 }
@@ -113,7 +117,9 @@ async function request(
 
 async function requestRoles(
   endpoint: string,
-): Promise<{ id: string; name: string; isSystem: boolean }[]> {
+): Promise<
+  { id: string; name: string; isSystem: boolean; schoolPortal: boolean }[]
+> {
   const response = await transportFetch(endpoint, {
     credentials: "include",
     headers: { "Content-Type": "application/json" },
@@ -122,12 +128,20 @@ async function requestRoles(
     await throwApiError(response);
   }
   const payload = (await response.json()) as {
-    data?: { id: string; name: string; is_system: boolean }[] | null;
+    data?:
+      | {
+          id: string;
+          name: string;
+          is_system: boolean;
+          school_portal?: boolean;
+        }[]
+      | null;
   };
   return (payload.data ?? []).map((role) => ({
     id: role.id,
     name: role.name,
     isSystem: role.is_system,
+    schoolPortal: role.school_portal ?? false,
   }));
 }
 

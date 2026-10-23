@@ -7,12 +7,13 @@ Skript installiert und keine Hostkonfiguration verändert.
 
 Ziel und Grenzen stehen in der [Risikobewertung](../reference/schutz-gespeicherter-daten.md)
 und [ADR 0095](../adr/0095-gespeicherte-daten-risikobasiert-ohne-feldverschluesselung-schuetzen.md).
-Nur private Schreibpfade für `staff-documents` und `PrivateUploads.SavePrivate`-Kinds
-setzen 0600/0700. Kinderfotos und Avatare werden dagegen über `common.SaveImage`
-mit 0644/0755 geschrieben und sind bei durchsuchbaren Elternverzeichnissen für
-alle lokalen Hostnutzer lesbar. Ihre HTTP-Auslieferung ist authentifiziert,
-ersetzt aber keinen Dateischutz. Abhilfe ist in Slice 3840-h offen. Auch
-0600/0700 ersetzen den Datenträger-/Schlüsselnachweis nicht.
+Private Schreibpfade für `staff-documents` und `PrivateUploads.SavePrivate`-Kinds
+setzen 0600/0700. Für Kinderfotos und Avatare ist die **Code-Abhilfe umgesetzt
+(#4852, Slice 3840-h)**: `common.SavePrivateImage` schreibt neue Dateien 0600
+und sichert Zielverzeichnisse mit 0700. Bestand, Rollout und produktiver
+Nachweis bleiben nach dem [Foto-Runbook](private-fotodateien-3840.md) offen.
+Ältere Dateien können weiterhin lokal lesbar sein. Authentifizierte
+HTTP-Auslieferung und 0600/0700 ersetzen den Datenträger-/Schlüsselnachweis nicht.
 
 ## Durchführung durch den berechtigten Betrieb
 
@@ -42,12 +43,16 @@ ersetzt aber keinen Dateischutz. Abhilfe ist in Slice 3840-h offen. Auch
    Deployment- und Diagnosezugänge prüfen; Umfang und Entziehbarkeit intern
    festhalten. Für Uploads Datei-/Verzeichnisrechte, Eigentümer, übergeordnete
    Pfade und Mounts prüfen, neue Dateien und Altbestand getrennt. Kinderfotos
-   und Avatare wegen 0644/0755 gesondert als offenen Befund behandeln und die
-   Abhilfe aus 3840-h nachweisen; HTTP-Authentifizierung oder Volume-
+   und Avatare: Code umgesetzt (#4852), neue Dateien 0600/0700; Bestand,
+   Rollout und produktiver Nachweis aus 3840-h bleiben gesondert offen.
+   Den Bestandsschritt nach dem [Foto-Runbook](private-fotodateien-3840.md)
+   prüfen; HTTP-Authentifizierung oder Volume-
    Verschlüsselung allein schließen lokalen Lesezugriff nicht aus.
-   Die Diagnose-Leserolle 3840-f muss sensible Spalten und
-   Umgehungen über Views, Funktionen oder Rollenwechsel ausschließen; keine
-   Abnahme allein anhand eines Rollennamens. Bestehende Dumps, cron-Sicherungen,
+   Die im Code umgesetzte Diagnose-Leserolle 3840-f nach dem
+   [Diagnose-Runbook](diagnose-lesezugang-3840.md) einrichten und ihre effektiven
+   Rechte ohne Kundeninhalte prüfen. Sensible Spalten und Umgehungen über Views,
+   Funktionen oder Rollenwechsel ausschließen; keine Abnahme allein anhand
+   eines Rollennamens. Bestehende Dumps, cron-Sicherungen,
    Release-Snapshots und temporäre Kopien inventarisieren. Getrennte
    Verschlüsselung, Zugriff und Ablauf nach dem [Backup-Runbook](daily-backup.md)
    belegen. Volume-Verschlüsselung schützt keine bereits exportierte Klartextkopie.
@@ -86,11 +91,11 @@ Screenshots mit Kundendaten und Schlüssel bleiben außerhalb dieses Repos.
 - Ein belegter Datenträgerschutz schließt nur den geprüften Teil von 3840-c.
   Backupbetrieb/Restore (#3836), Leserolle (3840-f) und Maskierungsrollout
   haben getrennte Nachweise.
-- Der Befund `users.student_data_change_requests` aus der Risikobewertung
-  bleibt bis zur gezielten Abhilfe in #4844 (Slice 4844-a) einschließlich
-  Altbestand und Restore offen.
-- Die zu weiten Foto-/Avatar-Dateirechte bleiben bis zur Abhilfe in 3840-h
-  einschließlich Altbestand und Prüfung der Auslieferung offen; ein
-  Datenträgernachweis schließt diesen Befund nicht.
+- Die Gesundheitskopien in `users.student_data_change_requests` sind durch
+  #4844 (Slice 4844-a, Migration `1.15.483`) im Code maskiert. Produktiver
+  Rollout und Abnahme einschließlich Altbestand und Restore bleiben offen.
+- Foto-/Avatar-Code-Abhilfe umgesetzt (#4852): neue Dateien 0600/0700.
+  Bestand, Rollout und produktiver Nachweis einschließlich Auslieferung
+  bleiben in 3840-h offen; ein Datenträgernachweis schließt diesen Befund nicht.
 - Nach Hosting-/Volume-/Schlüsseländerung, neuen Kopierwegen oder einem
   Vorfall den betroffenen Nachweis und die Risikobewertung erneuern.

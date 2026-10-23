@@ -5,7 +5,6 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
-	"strings"
 
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess/internal/domain"
@@ -319,11 +318,12 @@ func (s *OperatorAccountAccess) validateAssignableSchoolRole(ctx context.Context
 // also covers a caregiver-tier role, whose profile a Lehrkraft account
 // never has.
 func (s *OperatorAccountAccess) refuseLeavingLehrkraft(current []domain.AccountTenantRole, role domain.RoleFact) error {
-	if s.policy.IsLehrkraftSystemRole(role) {
+	if s.policy.IsLehrkraftRole(role) {
 		return nil
 	}
 	for _, existing := range current {
-		if existing.IsSystem && strings.EqualFold(existing.Name, domain.LehrkraftRoleName) {
+		held := domain.RoleFact{ID: existing.ID, Name: existing.Name, IsSystem: existing.IsSystem, BaseRole: existing.BaseRole, SchoolPortal: existing.SchoolPortal}
+		if s.policy.IsLehrkraftRole(held) {
 			return &domain.InvalidInputError{Err: s.policy.LehrkraftRoleImmutable()}
 		}
 	}
@@ -331,7 +331,7 @@ func (s *OperatorAccountAccess) refuseLeavingLehrkraft(current []domain.AccountT
 }
 
 func (s *OperatorAccountAccess) refuseLehrkraftOverCaregiverProfile(tenantCtx context.Context, accountID int64, role domain.RoleFact) error {
-	if !s.policy.IsLehrkraftSystemRole(role) {
+	if !s.policy.IsLehrkraftRole(role) {
 		return nil
 	}
 	hasProfile, err := s.identities.HasLiveCaregiverProfile(tenantCtx, accountID)
@@ -513,7 +513,7 @@ func (s *OperatorAccountAccess) loadTenantAccess(ctx context.Context, accountID 
 }
 
 func roleProjection(role domain.RoleFact) domain.AccountTenantRole {
-	return domain.AccountTenantRole{ID: role.ID, Name: role.Name, IsSystem: role.IsSystem, BaseRole: role.BaseRole}
+	return domain.AccountTenantRole{ID: role.ID, Name: role.Name, IsSystem: role.IsSystem, BaseRole: role.BaseRole, SchoolPortal: role.SchoolPortal}
 }
 
 // logOperatorAction records the platform-side audit entry; a failed write

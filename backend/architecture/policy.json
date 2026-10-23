@@ -3652,6 +3652,14 @@
   ],
   "data_objects": [
     {
+      "name": "platform.live_billing_key_date_counts",
+      "write_owner": "organization-tenancy"
+    },
+    {
+      "name": "platform.school_erasures",
+      "write_owner": "organization-tenancy"
+    },
+    {
       "name": "platform.demo_school_states",
       "write_owner": "organization-tenancy"
     },
@@ -8175,17 +8183,6 @@
       "source_role": "workflow-integration-test",
       "target_owner": "operator-dashboard-view",
       "target_role": "postgres"
-    },
-    {
-      "id": "organization-tenancy.compose.tenant-runtime",
-      "description": "Organization and Tenancy composition binds the shared tenant transaction runtime.",
-      "scopes": [
-        "production"
-      ],
-      "source_owner": "organization-tenancy",
-      "source_role": "compose",
-      "target_owner": "tenant-runtime",
-      "target_role": "public"
     },
     {
       "id": "organization-tenancy.internal-test.tenant-runtime",

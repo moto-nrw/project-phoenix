@@ -375,3 +375,49 @@ func TestRecordAccess_DeduplicatesOnlyMatchingNormalizedGroupScopes(t *testing.T
 	assert.Equal(t, "2,9", accessLog.metadata[1]["group_ids"])
 	assert.Equal(t, "3", accessLog.metadata[2]["group_ids"])
 }
+
+type disabledRoomRetention struct{ reportRetention }
+
+func (disabledRoomRetention) RoomRetentionDays(context.Context) (int, error) { return 0, nil }
+
+func TestRoomReportDoesNotReadVisitsWhenHistoryIsDisabled(t *testing.T) {
+	t.Parallel()
+	filters := studentpresence.StatisticsFilters{From: calendar.NewDate(2026, 8, 1), To: calendar.NewDate(2026, 8, 2), Sections: []studentpresence.StatisticsSection{studentpresence.StatisticsSectionRooms}}
+	audit := &reportAudit{}
+	svc := NewService(Config{Students: reportStudents{}, Retention: disabledRoomRetention{}, AccessLog: audit, Now: fixedNow})
+	// Room and visit readers are deliberately absent: the disabled section must not call them.
+	report, err := svc.Report(context.Background(), filters, studentpresence.StatisticsActor{AccountID: 1})
+	require.NoError(t, err)
+	assert.Empty(t, report.Rooms)
+	assert.Zero(t, report.RoomDataDays)
+	assert.True(t, report.RoomHistoryDisabled)
+	assert.Equal(t, calendar.NewDate(2026, 8, 25), report.RoomDataFrom)
+
+	injected := errors.New("synthetic attendance log settings failure")
+	svc = NewService(Config{Students: reportStudents{}, Retention: reportRetention{err: injected}, AccessLog: audit, Now: fixedNow})
+	report, err = svc.Report(context.Background(), filters, studentpresence.StatisticsActor{AccountID: 1})
+	require.ErrorIs(t, err, injected)
+	assert.Nil(t, report)
+}
+
+type reportRooms struct{}
+
+func (reportRooms) StatisticsRooms(context.Context) ([]ports.StatisticsRoom, error) {
+	return []ports.StatisticsRoom{{ID: 1, Name: "Gruppenraum"}}, nil
+}
+
+func (reportRooms) RoomUtilization(context.Context, []studentpresence.StudentVisitWindow) ([]studentpresence.RoomUtilization, error) {
+	return nil, nil
+}
+
+func TestRoomReportDoesNotMarkEnabledHistoryAsDisabled(t *testing.T) {
+	t.Parallel()
+	filters := studentpresence.StatisticsFilters{From: calendar.NewDate(2026, 8, 1), To: calendar.NewDate(2026, 8, 2), Sections: []studentpresence.StatisticsSection{studentpresence.StatisticsSectionRooms}}
+	svc := NewService(Config{Students: reportStudents{}, Retention: reportRetention{}, Rooms: reportRooms{}, Statistics: reportRooms{}, AccessLog: &reportAudit{}, Now: fixedNow})
+	report, err := svc.Report(context.Background(), filters, studentpresence.StatisticsActor{AccountID: 1})
+	require.NoError(t, err)
+	assert.False(t, report.RoomHistoryDisabled)
+	require.Len(t, report.Rooms, 1)
+	assert.Equal(t, "Gruppenraum", report.Rooms[0].Name)
+	assert.Equal(t, 30, report.RoomDataDays)
+}

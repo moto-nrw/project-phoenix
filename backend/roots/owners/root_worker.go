@@ -340,7 +340,7 @@ func ComposeWorker(db transactionruntime.Database, env RootEnvironment, hub *rea
 		func() error { operatorAuditLog = NewOperatorAuditLog(db); return nil },
 		func() (err error) { mealPlanSettings, err = BuildMealPlanSettings(settings.Service); return },
 		func() (err error) {
-			mealPlan, err = BuildServeMealPlan(db, mealPlanSettings, NewStudentRootReads(people.Students))
+			mealPlan, err = BuildServeMealPlan(db, mealPlanSettings, calendar, NewStudentRootReads(people.Students))
 			return
 		},
 		func() (err error) { feedbackSettings, err = BuildFeedbackSettings(settings.Service); return },

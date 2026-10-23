@@ -19,8 +19,9 @@ func TestAccessLevelsMapOntoSecurityRuntimeLevels(t *testing.T) {
 		settingsHTTP.AccessReadOrWrite: securityruntime.ConfigAccessReadOrWrite,
 	}, settingsConfigAccess)
 	assert.Equal(t, map[mealplanAPI.Access]securityruntime.MealPlanAccess{
-		mealplanAPI.AccessRead:         securityruntime.MealPlanAccessRead,
-		mealplanAPI.AccessWrite:        securityruntime.MealPlanAccessWrite,
-		mealplanAPI.AccessParticipants: securityruntime.MealPlanAccessParticipants,
+		mealplanAPI.AccessRead:              securityruntime.MealPlanAccessRead,
+		mealplanAPI.AccessWrite:             securityruntime.MealPlanAccessWrite,
+		mealplanAPI.AccessParticipants:      securityruntime.MealPlanAccessParticipants,
+		mealplanAPI.AccessParticipantsWrite: securityruntime.MealPlanAccessParticipantsWrite,
 	}, mealPlanAccess)
 }

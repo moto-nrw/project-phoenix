@@ -27,6 +27,6 @@ func assignmentFacts(role *dataimport.SchoolRole) *identityaccess.RoleFacts {
 	return binding.AssignmentFacts(role, newAssignmentFacts)
 }
 
-func newAssignmentFacts(id int64, school *int64, name string, system bool, base *string) identityaccess.RoleFacts {
-	return identityaccess.RoleFacts{ID: id, TenantID: school, Name: name, IsSystem: system, BaseRole: base}
+func newAssignmentFacts(id int64, school *int64, name string, system bool, base *string, schoolPortal bool) identityaccess.RoleFacts {
+	return identityaccess.RoleFacts{ID: id, TenantID: school, Name: name, IsSystem: system, BaseRole: base, SchoolPortal: schoolPortal}
 }

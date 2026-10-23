@@ -85,22 +85,24 @@ func (s *Service) Participation(ctx context.Context, studentID int64, from, to m
 		return mealplan.ParticipationPlan{}, mealplan.ErrInvalidParticipation
 	}
 	var plan domain.ParticipationPlan
+	var cutoffs mealplan.Cutoffs
 	err := s.run(ctx, "read_participation", func(txCtx context.Context) (domain.OperationStats, error) {
-		deadline, cutoffErr := s.requireRegistration(txCtx)
+		rules, resolved, cutoffErr := s.requireRegistration(txCtx, start, end)
 		if cutoffErr != nil {
 			return domain.OperationStats{}, cutoffErr
 		}
+		cutoffs = resolved
 		data, stats, findErr := s.store.FindParticipation(txCtx, studentID, start, end)
 		if findErr != nil {
 			return stats, findErr
 		}
-		plan = s.resolveParticipation(data, start, end, deadline)
+		plan = s.resolveParticipation(data, start, end, rules)
 		return stats, nil
 	})
 	if err != nil {
 		return mealplan.ParticipationPlan{}, err
 	}
-	return publicParticipationPlan(plan), nil
+	return publicParticipationPlan(plan, cutoffs), nil
 }
 
 func (s *Service) ReplaceParticipationSchedule(ctx context.Context, command mealplan.ReplaceParticipationSchedule) (mealplan.Date, error) {
@@ -117,11 +119,12 @@ func (s *Service) ReplaceParticipationSchedule(ctx context.Context, command meal
 	}
 	var effectiveFrom domain.Date
 	err := s.run(ctx, "replace_participation_schedule", func(txCtx context.Context) (domain.OperationStats, error) {
-		deadline, cutoffErr := s.requireRegistration(txCtx)
+		today := calendar.DateFromTime(s.now())
+		rules, _, cutoffErr := s.requireRegistration(txCtx, today, today)
 		if cutoffErr != nil {
 			return domain.OperationStats{}, cutoffErr
 		}
-		effectiveFrom = deadline.NextEffectiveDate(s.now())
+		effectiveFrom = rules.Registration.NextEffectiveDate(s.now())
 		return s.store.InsertParticipationSchedule(txCtx, command.StudentID, command.GuardianAccountID, effectiveFrom, values)
 	})
 	return mealplan.Date(effectiveFrom.String()), err
@@ -134,14 +137,16 @@ func (s *Service) SetParticipationForDay(ctx context.Context, command mealplan.S
 	}
 
 	return s.run(ctx, "set_participation_day", func(txCtx context.Context) (domain.OperationStats, error) {
-		deadline, cutoffErr := s.requireRegistration(txCtx)
+		rules, _, cutoffErr := s.requireRegistration(txCtx, date, date)
 		if cutoffErr != nil {
 			return domain.OperationStats{}, cutoffErr
 		}
-		if !deadline.Changeable(s.now(), date) {
-			return domain.OperationStats{}, mealplan.ErrParticipationCutoff
+		stats, err := s.requireChangeOpen(txCtx, rules, command.StudentID, date, &command.Participating)
+		if err != nil {
+			return stats, err
 		}
-		return s.store.UpsertParticipationOverride(txCtx, command.StudentID, command.GuardianAccountID, date, command.Participating)
+		writeStats, err := s.store.UpsertParticipationOverride(txCtx, command.StudentID, command.GuardianAccountID, date, command.Participating)
+		return addStats(stats, writeStats), err
 	})
 }
 
@@ -152,14 +157,16 @@ func (s *Service) ClearParticipationForDay(ctx context.Context, command mealplan
 	}
 
 	return s.run(ctx, "clear_participation_day", func(txCtx context.Context) (domain.OperationStats, error) {
-		deadline, cutoffErr := s.requireRegistration(txCtx)
+		rules, _, cutoffErr := s.requireRegistration(txCtx, date, date)
 		if cutoffErr != nil {
 			return domain.OperationStats{}, cutoffErr
 		}
-		if !deadline.Changeable(s.now(), date) {
-			return domain.OperationStats{}, mealplan.ErrParticipationCutoff
+		stats, err := s.requireChangeOpen(txCtx, rules, command.StudentID, date, nil)
+		if err != nil {
+			return stats, err
 		}
-		return s.store.DeleteParticipationOverride(txCtx, command.StudentID, date)
+		writeStats, err := s.store.DeleteParticipationOverride(txCtx, command.StudentID, date)
+		return addStats(stats, writeStats), err
 	})
 }
 
@@ -171,12 +178,12 @@ func (s *Service) DailyList(ctx context.Context, date mealplan.Date) (mealplan.D
 	var list mealplan.DailyList
 
 	err = s.run(ctx, "read_daily_participants", func(txCtx context.Context) (domain.OperationStats, error) {
-		deadline, cutoffErr := s.requireRegistration(txCtx)
+		rules, cutoffs, cutoffErr := s.requireRegistration(txCtx, parsed, parsed)
 		if cutoffErr != nil {
 			return domain.OperationStats{}, cutoffErr
 		}
 		var stats domain.OperationStats
-		list, stats, err = s.dailyList(txCtx, parsed, deadline)
+		list, stats, err = s.dailyList(txCtx, parsed, rules, cutoffs)
 		return stats, err
 	})
 	if err != nil {
@@ -196,14 +203,14 @@ func (s *Service) WeeklyList(ctx context.Context, weekStart mealplan.Date) (meal
 	var week mealplan.WeeklyList
 
 	err = s.run(ctx, "read_weekly_participants", func(txCtx context.Context) (domain.OperationStats, error) {
-		deadline, cutoffErr := s.requireRegistration(txCtx)
+		rules, cutoffs, cutoffErr := s.requireRegistration(txCtx, monday, monday.AddDays(4))
 		if cutoffErr != nil {
 			return domain.OperationStats{}, cutoffErr
 		}
-		week = mealplan.WeeklyList{WeekStart: mealplan.Date(monday.String()), CutoffTime: deadline.Time, CutoffLeadDays: deadline.LeadDays, Days: make([]mealplan.DailyList, 0, 5)}
+		week = mealplan.WeeklyList{Cutoffs: cutoffs, WeekStart: mealplan.Date(monday.String()), Days: make([]mealplan.DailyList, 0, 5)}
 		var stats domain.OperationStats
 		for offset := range 5 {
-			list, dayStats, dayErr := s.dailyList(txCtx, monday.AddDays(offset), deadline)
+			list, dayStats, dayErr := s.dailyList(txCtx, monday.AddDays(offset), rules, cutoffs)
 			stats = addStats(stats, dayStats)
 			if dayErr != nil {
 				return stats, dayErr
@@ -218,8 +225,11 @@ func (s *Service) WeeklyList(ctx context.Context, weekStart mealplan.Date) (meal
 	return week, nil
 }
 
-func (s *Service) dailyList(ctx context.Context, date domain.Date, deadline domain.Deadline) (mealplan.DailyList, domain.OperationStats, error) {
-	cutoff := deadline.At(date)
+func (s *Service) dailyList(ctx context.Context, date domain.Date, rules domain.Rules, cutoffs mealplan.Cutoffs) (mealplan.DailyList, domain.OperationStats, error) {
+	if rules.Closed(date) {
+		return mealplan.DailyList{Cutoffs: cutoffs, Date: mealplan.Date(date.String()), Closed: true, Participants: []mealplan.DailyParticipant{}, Available: []mealplan.DailyParticipant{}}, domain.OperationStats{}, nil
+	}
+	cutoff := rules.CancellationAt(date)
 	candidates, stats, err := s.directory.FindDailyCandidates(ctx, date)
 	if err != nil {
 		return mealplan.DailyList{}, stats, err
@@ -233,9 +243,10 @@ func (s *Service) dailyList(ctx context.Context, date domain.Date, deadline doma
 	if err != nil {
 		return mealplan.DailyList{}, stats, err
 	}
-	list := mealplan.DailyList{Date: mealplan.Date(date.String()), CutoffTime: deadline.Time, CutoffLeadDays: deadline.LeadDays, Participants: make([]mealplan.DailyParticipant, 0, len(candidates))}
+	list := mealplan.DailyList{Cutoffs: cutoffs, Date: mealplan.Date(date.String()), Participants: make([]mealplan.DailyParticipant, 0, len(candidates)), Available: make([]mealplan.DailyParticipant, 0)}
 	appendDailyParticipants(&list, candidates, participation, cutoff)
 	mealplan.SortDailyParticipants(list.Participants)
+	mealplan.SortDailyParticipants(list.Available)
 	return list, stats, nil
 }
 
@@ -275,8 +286,8 @@ func trimOptional(value *string) *string {
 	return &trimmed
 }
 
-func publicParticipationPlan(plan domain.ParticipationPlan) mealplan.ParticipationPlan {
-	result := mealplan.ParticipationPlan{EffectiveFrom: mealplan.Date(plan.EffectiveFrom.String()), CutoffTime: plan.Deadline.Time, CutoffLeadDays: plan.Deadline.LeadDays, Weekdays: make([]mealplan.Weekday, 0, len(plan.Weekdays)), Days: make([]mealplan.ParticipationDay, 0, len(plan.Days))}
+func publicParticipationPlan(plan domain.ParticipationPlan, cutoffs mealplan.Cutoffs) mealplan.ParticipationPlan {
+	result := mealplan.ParticipationPlan{Cutoffs: cutoffs, EffectiveFrom: mealplan.Date(plan.EffectiveFrom.String()), Weekdays: make([]mealplan.Weekday, 0, len(plan.Weekdays)), Days: make([]mealplan.ParticipationDay, 0, len(plan.Days))}
 	for _, weekday := range plan.Weekdays {
 		result.Weekdays = append(result.Weekdays, mealplan.Weekday(weekday))
 	}
