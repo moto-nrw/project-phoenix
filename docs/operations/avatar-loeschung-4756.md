@@ -20,7 +20,9 @@ Wiederholung. Es gibt keine maximale Zahl von Versuchen.
 Die Dateilöschung bleibt mit `os.Root` in `public/uploads/avatars`, einschließlich
 `global/` und der alten Unterordner `<tenantId>/`. Sie folgt keinem Symlink aus
 dieser Ablage heraus. Ungültige Pfade werden nicht gelöscht und bleiben als
-fehlgeschlagene Aufträge sichtbar. Fehlermeldungen enthalten nur die Auftrags-ID,
+fehlgeschlagene Aufträge sichtbar. Fehlt die Speicherwurzel, bleiben die Aufträge
+ebenfalls erhalten; nur eine fehlende Datei innerhalb der geöffneten Wurzel gilt
+als Erfolg. Fehlermeldungen enthalten nur die Auftrags-ID,
 keine Dateipfade oder personenbezogenen Inhalte.
 
 Lokale Tests decken Commit, Rollback, Wiederholung nach Dateifehler,
@@ -48,11 +50,161 @@ für das produktive System.
 3. Nach behobenem Dateifehler den nächsten Lauf auf Erfolg und sinkende Anzahl
    prüfen. Datum, ausgerollte Version und das Ergebnis ohne Personendaten im
    internen Nachweis festhalten. Keine echte Datei absichtlich beschädigen.
-4. Altbestand gesondert prüfen: Vor diesem Fix anonymisierte Konten haben ihre
-   Bildverweise bereits verloren. Diese Dateien lassen sich nicht nachträglich
-   aus den Konten in die Warteschlange übernehmen. Ein Mensch muss aktuelle
-   Referenzen und die alte Ablage abgleichen, bevor er verwaiste Dateien löscht.
-   Dieser Slice führt keinen pauschalen Verzeichnis-Löschlauf ein.
+4. Altbestand nach dem folgenden Verfahren abgleichen und ausschließlich über
+   die Warteschlange löschen. Bereits geleerte Kontoverweise erlauben keinen
+   rückwirkenden Backfill allein aus den Konten.
+
+## Altbestand: Probelauf und Eintragen in die Warteschlange
+
+**Nur für einen berechtigten Menschen auf dem Server.** Hier wurden keine
+Produktions- oder Staging-Zugriffe ausgeführt. Die Befehle verwenden die bereits
+bereitgestellte Compose-Konfiguration in `~/production/`, keine API und kein SSH.
+Die drei SQL-Dateien aus `docs/operations/sql/` dieses geprüften Releases müssen
+lokal auf dem Server bereitliegen. Nicht die `.env` ausgeben oder verändern.
+
+Geprüfter Speicherort: `environments/production.compose.yml` bindet das Volume
+`phoenix-production-uploads` im Dienst `server` nach `/app/public/uploads` ein.
+Die Avatarwurzel ist `/app/public/uploads/avatars`, aktuell mit `global/`, früher
+mit `<tenantId>/`. Der Upload in `identityaccess/inbound/me/profile.go` schreibt
+`/uploads/avatars/global/...`; der Cleaner unterstützt beide Unterordner.
+
+Die dauerhaften Referenzquellen sind `auth.accounts.avatar`,
+`users.profiles.avatar` und offene Aufträge in `auth.account_avatar_file_cleanup`.
+Die Avatarspalten-Migrationen und die aktuellen Upload-/Profilpfade wurden darauf
+geprüft. Auch Profile anderer Schulen und bereits anonymisierte Datensätze
+werden ohne Filter einbezogen. Externe URLs sind keine lokalen Dateireferenzen.
+Andere Upload-Arten liegen außerhalb dieser Wurzel und werden nicht erfasst.
+Vor Anwendung auf einen späteren Release diese Quellen erneut prüfen.
+
+1. Wartungsfenster herstellen: Avatar-Uploads und Änderungen von Avatarverweisen
+   an **allen** App-Instanzen unterbinden und laufende Requests beenden lassen.
+   Diese Sperre bis zum vollständigen Abarbeiten der eingetragenen Aufträge
+   beibehalten. Der Worker muss weiterlaufen. Keine parallelen Deploys,
+   Wiederherstellungen, Datei-Importe oder manuellen Queue-Änderungen.
+   Die Altersgrenze allein ersetzt diese Sperre nicht: Upload und DB-Verweis
+   entstehen nicht atomar. Nur einen Durchlauf gleichzeitig durchführen.
+
+2. In einer Bash-Sitzung ein privates Arbeitsverzeichnis und die lokale
+   administrative Datenbankverbindung vorbereiten. Der PostgreSQL-Container
+   verwendet `postgres` als administrativen Benutzer. `row_security = off`
+   lässt fehlende RLS-Umgehungsrechte als Fehler auffallen, statt Schulen
+   unbemerkt auszulassen. Kein Shell-Tracing, keine Terminal-Aufzeichnung.
+
+   ```bash
+   set -euo pipefail
+   set +x
+   umask 077
+   cd ~/production
+   compose=(docker compose --env-file "$PWD/.env" -f "$PWD/docker-compose.yml")
+   private=$(mktemp -d "${TMPDIR:-/tmp}/avatar-abgleich.XXXXXXXX")
+   # Auf die lokal bereitgestellten SQL-Dateien dieses Releases setzen:
+   sql_dir="$PWD/docs/operations/sql"
+   db() { "${compose[@]}" exec -T postgres psql -X -q -v ON_ERROR_STOP=1 -U postgres -d postgres "$@"; }
+   test -r "$sql_dir/avatar-referenzen-4756.sql"
+   test -r "$sql_dir/avatar-waisen-eintragen-4756.sql"
+   test -r "$sql_dir/avatar-waisen-status-4756.sql"
+   ```
+
+   Pfadlisten enthalten Konto-IDs. Sie bleiben nur im privaten Verzeichnis,
+   nie im Terminal, Ticket, PR, Nachweis oder Versionskontrollsystem. Bei einem
+   Fehler abbrechen, die Sperre beibehalten und den Fehler lokal prüfen;
+   auch Fehlerdateien können Pfade enthalten.
+
+3. Nur reguläre Dateien erfassen, deren Änderungszeit **mehr als 24 Stunden**
+   zurückliegt. `find` folgt keinen Symlinks; nur genau zwei Ebenen unter der
+   Wurzel, bekannte Unterordner und einfache Upload-Dateinamen werden übernommen.
+   Andere Namen werden bewusst nicht automatisch gelöscht. Die Prüfung findet
+   im laufenden `server`-Container statt; die Dateien bleiben unverändert.
+
+   ```bash
+   "${compose[@]}" exec -T server sh -eu -c '
+     cd /app/public/uploads/avatars
+     find . -mindepth 2 -maxdepth 2 -type f -mmin +1440 -exec sh -eu -c '\''
+       for file do
+         relative=${file#./}
+         folder=${relative%%/*}
+         name=${relative#*/}
+         case "$folder" in
+           global) ;;
+           ""|0*|*[!0-9]*) continue ;;
+         esac
+         case "$name" in
+           ""|[!A-Za-z0-9_-]*|*[!A-Za-z0-9_.-]*) continue ;;
+         esac
+         printf "/uploads/avatars/%s\n" "$relative"
+       done
+     '\'' sh {} +
+   ' 2> "$private/inventory.err" | LC_ALL=C sort -u > "$private/files.txt"
+   db -At -f - < "$sql_dir/avatar-referenzen-4756.sql" \
+     > "$private/references.unsorted" 2> "$private/references.err"
+   LC_ALL=C sort -u "$private/references.unsorted" > "$private/references.txt"
+   LC_ALL=C comm -23 "$private/files.txt" "$private/references.txt" > "$private/candidates.txt"
+   printf 'Alte Dateien im bekannten Layout: '; wc -l < "$private/files.txt"
+   printf 'Unreferenzierte Kandidaten: '; wc -l < "$private/candidates.txt"
+   ```
+
+   `avatar-referenzen-4756.sql` läuft mit `BEGIN READ ONLY` und exportiert nur
+   referenzierte lokale Pfade in die private Datei. Für den Import müssen
+   Kandidaten und SQL-Datei im PostgreSQL-Container lesbar sein. Die folgende
+   Shell überträgt sie über stdin in ein privates temporäres Verzeichnis,
+   ohne Pfade auszugeben. Vor dem Eintragen erfolgt der **Probelauf ohne
+   dauerhafte Schreibzugriffe**; angelegt werden nur temporäre Tabellen/Views.
+
+   ```bash
+   container_private=$("${compose[@]}" exec -T postgres sh -eu -c \
+     'umask 077; mktemp -d /tmp/avatar-abgleich.XXXXXXXX')
+   "${compose[@]}" exec -T postgres sh -eu -c \
+     'umask 077; cat > "$1/candidates.txt"' sh "$container_private" < "$private/candidates.txt"
+   "${compose[@]}" exec -T postgres sh -eu -c \
+     'umask 077; cat > "$1/enqueue.sql"' sh "$container_private" < "$sql_dir/avatar-waisen-eintragen-4756.sql"
+   "${compose[@]}" exec -T postgres sh -eu -c \
+     'cd "$1"; psql -X -q -v ON_ERROR_STOP=1 -v apply=false -U postgres -d postgres -f enqueue.sql' \
+     sh "$container_private" 2> "$private/preview.err"
+   ```
+
+4. Mengen prüfen, dann dieselbe Liste eintragen. Der SQL-Pfad validiert erneut
+   das bekannte Layout (strenger als `fs.ValidPath`) und gleicht **erneut alle
+   drei Quellen** ab. Kurze Tabellensperren schützen diesen letzten Abgleich
+   gegen DB-Schreiber; nach fünf Sekunden Sperrwartezeit wird abgebrochen.
+   Ein Konflikt mit einem vorhandenen Auftrag erzeugt kein Duplikat. Kein `rm`
+   an der Avatarablage und keine direkte Dateilöschung verwenden.
+
+   ```bash
+   "${compose[@]}" exec -T postgres sh -eu -c \
+     'cd "$1"; test ! -e enqueued.txt; psql -X -q -v ON_ERROR_STOP=1 -v apply=true -U postgres -d postgres -f enqueue.sql' \
+     sh "$container_private" 2> "$private/apply.err"
+   ```
+
+   Die Shell verweigert das Überschreiben einer vorhandenen Eintragsliste.
+   Nur bei erfolgreichem Commit weitergehen. `enqueued.txt` enthält privat die
+   tatsächlich neu eingetragenen Pfade. Bei unterbrochener Verbindung den
+   Commit-Zustand administrativ klären, nicht die Nachweisliste überschreiben.
+
+5. Nach den regulären Worker-Läufen nur Mengen abfragen. Bei mehr als 100
+   Aufträgen sind mehrere Stunden möglich. Fehlende Wurzel, Rechtefehler oder
+   ungültige Pfade lassen Aufträge offen und erfordern eine Fehlerbehebung.
+
+   ```bash
+   "${compose[@]}" exec -T postgres sh -eu -c \
+     'umask 077; cat > "$1/status.sql"' sh "$container_private" < "$sql_dir/avatar-waisen-status-4756.sql"
+   "${compose[@]}" exec -T postgres sh -eu -c \
+     'cd "$1"; psql -X -q -v ON_ERROR_STOP=1 -U postgres -d postgres -f status.sql' \
+     sh "$container_private" 2> "$private/status.err"
+   ```
+
+   Nachweis: Datum, Release und ausschließlich **Anzahl gefunden, eingetragen,
+   noch offen und abgearbeitet**. `abgearbeitet` bedeutet: vom getesteten Cleaner
+   gelöscht oder als innerhalb der vorhandenen Wurzel fehlend bestätigt. Erst
+   bei `noch_offen = 0` die Upload-/Verweissperre aufheben. Die privaten Listen
+   und Fehlerdateien danach gemäß internem Verfahren in beiden temporären
+   Verzeichnissen entfernen; keine Pfadliste als Nachweis aufbewahren.
+
+**Lokal geprüft, produktiv offen:** SQL-Export, Probelauf, erneuter
+Referenzabgleich, strenge Pfadprüfung, idempotentes Eintragen und
+Mengen-Nachverfolgung wurden mit synthetischen Daten lokal gegen eine isolierte
+Test-DB geprüft. Auch der Dateilistenbefehl wurde im lokalen Alpine-Testcontainer
+mit alten/frischen Dateien und Symlinks ausgeführt. Der produktive Altbestand
+ist erst nach Durchführung dieses Verfahrens nachgewiesen.
 
 ## AVV/TOM-Abgleich
 
