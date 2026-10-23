@@ -102,3 +102,45 @@ func mealPermissionsOfRole(t *testing.T, db *bun.DB, roleID int64) []string {
 	`, roleID).Scan(context.Background(), &names))
 	return names
 }
+
+func TestMealPermissionsMoveStoredLeadDaysWithoutReplacingExplicitValues(t *testing.T) {
+	t.Parallel()
+	db := testpkg.SetupIsolatedTestDB(t)
+	ctx := context.Background()
+	legacyTenant, _ := testpkg.CreateTestTenant(t, db)
+	explicitTenant, _ := testpkg.CreateTestTenant(t, db)
+	untouchedTenant, _ := testpkg.CreateTestTenant(t, db)
+	_, err := db.NewRaw(`
+		INSERT INTO config.setting_values (tenant_id, setting_key, value) VALUES
+			(?, 'operations.meal_registration_cutoff_lead_days', '2'::jsonb),
+			(?, 'operations.meal_registration_cutoff_lead_days', '3'::jsonb),
+			(?, 'operations.meal_registration_lead_days', '0'::jsonb)
+	`, legacyTenant, explicitTenant, explicitTenant).Exec(ctx)
+	require.NoError(t, err)
+
+	require.NoError(t, mealPermissionsUp(ctx, db))
+	require.NoError(t, mealPermissionsUp(ctx, db), "a rerun preserves the migrated values")
+	values := func(key string) map[int64]string {
+		t.Helper()
+		var rows []struct {
+			TenantID int64
+			Value    string
+		}
+		require.NoError(t, db.NewRaw(`
+			SELECT tenant_id, value #>> '{}' AS value FROM config.setting_values
+			WHERE setting_key = ? AND tenant_id IN (?, ?, ?)
+		`, key, legacyTenant, explicitTenant, untouchedTenant).Scan(ctx, &rows))
+		result := make(map[int64]string, len(rows))
+		for _, row := range rows {
+			result[row.TenantID] = row.Value
+		}
+		return result
+	}
+	want := map[int64]string{legacyTenant: "2", explicitTenant: "0"}
+	assert.Equal(t, want, values("operations.meal_registration_lead_days"))
+	assert.Empty(t, values("operations.meal_registration_cutoff_lead_days"))
+
+	require.NoError(t, mealPermissionsDown(ctx, db))
+	assert.Equal(t, want, values("operations.meal_registration_cutoff_lead_days"))
+	assert.Empty(t, values("operations.meal_registration_lead_days"))
+}

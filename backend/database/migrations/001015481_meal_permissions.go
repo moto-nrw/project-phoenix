@@ -36,6 +36,9 @@ func init() {
 // hold all of them through admin:* anyway.
 func mealPermissionsUp(ctx context.Context, db *bun.DB) error {
 	return db.RunInTx(ctx, &sql.TxOptions{}, func(ctx context.Context, tx bun.Tx) error {
+		if err := renameMealLeadDays(ctx, tx, "operations.meal_registration_cutoff_lead_days", "operations.meal_registration_lead_days"); err != nil {
+			return err
+		}
 		if _, err := tx.ExecContext(ctx, `
 			INSERT INTO auth.permissions (name, description, resource, action, is_system) VALUES
 				('meals:read', 'View the meal plan and the number of meals ordered', 'meals', 'read', TRUE),
@@ -60,6 +63,21 @@ func mealPermissionsDown(ctx context.Context, db *bun.DB) error {
 		if err := dropPermission(ctx, db, name); err != nil {
 			return err
 		}
+	}
+	return renameMealLeadDays(ctx, db, "operations.meal_registration_lead_days", "operations.meal_registration_cutoff_lead_days")
+}
+
+// Keep stored lead counts when moving to the ordering rules. An explicit
+// value at the destination wins, including zero; a rerun changes nothing.
+func renameMealLeadDays(ctx context.Context, db bun.IDB, from, to string) error {
+	_, err := db.NewRaw(`
+		DELETE FROM config.setting_values AS old
+		USING config.setting_values AS current
+		WHERE old.tenant_id = current.tenant_id AND old.setting_key = ? AND current.setting_key = ?;
+		UPDATE config.setting_values SET setting_key = ? WHERE setting_key = ?;
+	`, from, to, to, from).Exec(ctx)
+	if err != nil {
+		return fmt.Errorf("move meal registration lead days: %w", err)
 	}
 	return nil
 }
