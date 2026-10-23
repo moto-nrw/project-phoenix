@@ -30,6 +30,16 @@ Diese Anleitung ersetzt weder den PIN- noch den MFA-Slice.
    Vorwärtskorrektur beheben; ein automatisches Down wird bewusst abgelehnt.
 3. Gekoppeltes PyrePortal ausliefern. An jedem Gerät zunächst die bestehende
    Startadresse von Query auf Fragment umstellen: `#key=<Geräteschlüssel>`.
+   Bei GKT/GKTL die gespeicherte Startadresse des Geräts in der
+   zugriffsbeschränkten GKT-Verwaltung ändern, nicht die API-Adresse im Build.
+   Bei Tablet-/Browser-Kiosks (Wedge) dieselbe Kiosk-Adresse mit dem Fragment
+   im vorgesehenen Browserprofil öffnen und auch den hinterlegten Startlink
+   des Kiosk-Modus bzw. den verwendeten Home-Bildschirm-Link ersetzen.
+   PyrePortal stellt dafür keine eigene Einstellungsseite bereit. Die genaue
+   Menübezeichnung der GKT-Verwaltung bzw. des Kiosk-Modus ist in der
+   PyrePortal-Doku nicht festgelegt; die zuständige Geräteverwaltung prüft sie
+   am jeweiligen Gerät. Siehe [Kiosk-Deployment](https://github.com/moto-nrw/PyrePortal/blob/development/docs/kiosk-deployment.md#credential-rollout-3841-slice-3841-a)
+   und [Wedge-Einrichtung](https://github.com/moto-nrw/PyrePortal/blob/development/docs/wedge-reader-setup.md#production-deployment).
    Nur lokal am Gerät oder im zugriffsbeschränkten Geräte-Verwaltungskanal
    arbeiten. Keine Startadresse in gemeinsam sichtbaren Protokollen ablegen.
    Weitere Parameter bleiben vor dem Fragment. Neu laden, Anmeldung und
@@ -46,8 +56,17 @@ Diese Anleitung ersetzt weder den PIN- noch den MFA-Slice.
    sind selbst Zugangsgeheimnisse. Keine gemeinsam genutzten Browserprofile.
 6. Access-Logs des Kiosk-Hosts, dessen vorgeschalteter Dienste sowie lokale
    Browser-Historien und Verwaltungsprotokolle auf alte Query-URLs prüfen.
-   Bereinigung durch die zuständige Person nach geltender Aufbewahrung und
-   etwaiger Beweissicherung durchführen; keine ungeprüften pauschalen Deletes.
+   Das moto-Betriebsteam verantwortet die Bereinigung beim Kiosk-Host und
+   dessen vorgeschalteten Diensten. Die zuständige Geräteverwaltung der Schule
+   bereinigt lokale Browser-Historien und Geräte-Verwaltungsprotokolle in
+   Abstimmung mit dem moto-Betriebsteam. Aufbewahrung nach
+   [Löschfristen: Technische Daten und Protokolle](../reference/loeschfristen.md#technische-daten-und-protokolle-fest-für-alle-schulen)
+   und etwaige Beweissicherung vor der Bereinigung prüfen. Die dort genannten
+   App-Protokolle sind nicht pauschal mit Host-Access-Logs oder lokalen
+   Browser-Historien gleichzusetzen. Ist deren Zuordnung bzw. Frist ungeklärt,
+   klärt das moto-Betriebsteam sie mit der verantwortlichen Schule vor der
+   Löschung; der Nachweis bleibt bis dahin offen. Keine ungeprüften pauschalen
+   Deletes.
    Protokoll-Konfiguration so ändern, dass Zugangsdaten nicht erfasst werden.
    Rotation macht dort verbliebene alte Keys unbrauchbar.
 7. Alte Datenbankkopien, WAL und Sicherungen können noch Klartext enthalten.
