@@ -214,6 +214,9 @@ jobs:
       # Separate frontend + localhost-only synthetic API; never calls vendors.
       - name: Run portal network evidence
         working-directory: frontend
+        env:
+          # Readiness must work even when Node cannot resolve portal hosts.
+          NODE_OPTIONS: "--require ./e2e/network/no-subdomain-dns.cjs"
         run: pnpm run test:network
 
       - name: Upload sanitized network evidence

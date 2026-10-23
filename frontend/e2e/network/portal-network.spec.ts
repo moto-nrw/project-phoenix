@@ -14,6 +14,19 @@ const sentry = "https://o0.ingest.sentry.io";
 const turnstile = "https://challenges.cloudflare.com";
 const port = 13843;
 
+test.beforeAll(async ({ browserName: _browserName }, info) => {
+  const url = info.config.webServer?.url;
+  if (!url) throw new Error("Network evidence requires a readiness URL");
+  // Readiness runs in Node, outside the browser's route/DNS interception.
+  expect(new URL(url).hostname).toBe("127.0.0.1");
+  expect(new URL(url).protocol).toBe("http:");
+  const response = await fetch(url, {
+    redirect: "error",
+    signal: AbortSignal.timeout(5000),
+  });
+  expect(response.status).toBe(200);
+});
+
 // Locator matchers attach a DOM snapshot on failure, including profile/form
 // values. Poll only a boolean instead; PLAYWRIGHT_NO_COPY_PROMPT also disables
 // the runner's automatic page snapshot.

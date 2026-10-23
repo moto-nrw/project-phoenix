@@ -10,6 +10,25 @@ in `frontend`, installiertes Playwright-Chromium und freie Ports 13843/18443.
 Bei fehlendem Browser einmal `cd frontend && pnpm exec playwright install chromium`
 ausführen. Die Browserinstallation ist Vorbereitung, nicht Teil des Nachweises.
 
+Die Bereitschaftsprüfung läuft in Node über
+`http://127.0.0.1:13843/api/health`, nicht über einen Portalhost. Sie benötigt
+keine systemweite Auflösung von `*.localhost`. Vor den Tests wird zusätzlich
+HTTP 200 ohne Weiterleitung geprüft. Chromium löst die Portalhosts selbst
+als Loopback-Adressen auf.
+
+Der härtere lokale Wiederholungslauf entspricht dem CI-Schritt:
+
+```sh
+cd frontend
+NODE_OPTIONS="--require ./e2e/network/no-subdomain-dns.cjs" pnpm run test:network
+```
+
+Der Node-Resolver weist dabei jede `*.localhost`-Auflösung mit `ENOTFOUND`
+zurück, sowohl über Callback- als auch Promise-API. `/etc/hosts` bleibt
+unverändert. Der Next-Unterprozess behält seine eigene Egress-Sperre;
+die Bereitschaftsprüfung des Playwright-Elternprozesses muss unabhängig
+davon funktionieren.
+
 Die Suite prüft zehn Produktfälle in frischen Browserkontexten und eine
 zusätzliche Kontrolle der Netzwerksperre:
 
@@ -61,14 +80,42 @@ Cookies, Tokens, Namen oder Formulareingaben werden gespeichert.
 Screenshots, Videos, Traces und automatische DOM-Fehlerabbilder sind aus.
 Für die Portale gibt es getrennte Dateien vor der Anmeldung und für den
 Sitzungsübergang samt geschützter Seite sowie eine gemeinsame Aufzeichnung.
-Der bestehende Workflow `.github/workflows/e2e.yml` führt die Suite bei
-passenden PR-Änderungen sowie im geplanten Lauf aus und lädt nur diese
-bereinigten JSON-Dateien als eigenes Artefakt hoch.
+**PR-CI, nicht nur lokal:** Der separate Workflow **Frontend E2E**
+(`.github/workflows/e2e.yml`) führt im Job `e2e` (**Playwright E2E flows**)
+den Schritt **Run portal network evidence** mit `pnpm run test:network` aus.
+Dieser Schritt verwendet den oben beschriebenen gesperrten Node-Resolver.
+Danach folgt **Upload sanitized network evidence**, anschließend
+**Run E2E flows** für die bisherigen geseedeten Tests. Die Netzwerksuite
+gehört nicht zum Job `lint / frontend-build` des Hauptworkflows.
+
+Der E2E-Workflow ist kein Required Check. Er läuft auf PRs gegen
+`development` bei Änderungen an E2E-Dateien, den Playwright-Konfigurationen,
+Frontend-Abhängigkeiten, Seed-Zugang oder dem Workflow selbst; zusätzlich
+werktags geplant und per `workflow_dispatch`. PR #4862 trifft diese Pfadfilter.
+
+Bereits am Head `9876f3baa147b45dab76b16a4b66de9e2e81b2e7` wurde die
+CI-Ausführung bestätigt, nicht nur aus der YAML abgeleitet:
+[Joblog, Run 40019687870](https://github.com/moto-nrw/project-phoenix/actions/runs/40019687870/job/120640704783).
+Der Log zeigt am 23.10.2026 um 20:32:43 UTC `pnpm run test:network`,
+danach `Running 11 tests using 1 worker` und um 20:34:05 UTC
+`11 passed (1.4m)`. Auch Artefakt-Upload und nachfolgender E2E-Schritt waren
+erfolgreich. Dieser historische Lauf bestätigt noch nicht den späteren
+Resolver-Fix; dessen CI-Ergebnis wird nach dem Push separat geprüft.
 
 Happy-DOM-Komponententests laden zusätzlich keine iframe-Seiten,
 Stylesheets, externen Skripte oder Bilder aus gerendertem Markup mehr.
+Native Navigationen im Hauptfenster, in Unterframes und in neuen Fenstern
+öffnen ebenfalls keine HTTP-Verbindungen. Die bisherige reine
+Ressourcensperre deckte neue Fenster nicht ab; ein Link mit `target="_blank"`
+konnte noch Verbindungen zu `localhost:3000` und damit `ECONNREFUSED` auslösen.
 `src/test/resource-isolation.test.ts` schützt diesen Vertrag. Das ersetzt
 keine Mocks für explizite Fetch-Aufrufe in Komponententests.
+Die ergänzende Prüfung fand solche fehlenden Mocks im Test der
+Kind-Detailseite: Familienschutz, Notizen und Notiz-Angebote liefen gegen
+`localhost:3000`, teilweise nach Testende. Die drei Lese-APIs sind dort nun
+gemockt; die Assertions bleiben unverändert. Der gezielte Lauf mit 95 Tests
+zeigte danach keine `ECONNREFUSED`-Diagnosen mehr. Die isolierten 14 Tests
+von `external-caregiver-entry.test.tsx` liefen ebenfalls ohne diesen Fehler.
 
 ### Aussagegrenzen und Mensch-Schritte
 

@@ -34,7 +34,8 @@ export default defineConfig({
   },
   webServer: {
     command: "node e2e/network/server.mjs",
-    url: "http://schule.localhost:13843/login",
+    // Node, unlike Chromium, cannot assume wildcard .localhost resolution.
+    url: "http://127.0.0.1:13843/api/health",
     reuseExistingServer: false,
     timeout: 120_000,
     stdout: "ignore",
