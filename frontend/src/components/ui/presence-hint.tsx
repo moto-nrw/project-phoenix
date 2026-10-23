@@ -10,8 +10,8 @@ import { LOCATION_STATUSES } from "~/lib/location-helper";
  * meaning; the icon is the concept glyph and decorative. "Ungeplant anwesend"
  * borrows the glyph of the plan it contradicts ("Kommt heute nicht").
  */
-export type PresenceHintKind = "notArrival" | "sick" | "classTrip" | "excused";
-export type PresenceHintSize = "sm" | "md" | "lg";
+type PresenceHintKind = "notArrival" | "sick" | "classTrip" | "excused";
+type PresenceHintSize = "sm" | "md" | "lg";
 
 const HINT_TEXT_SIZE: Record<PresenceHintSize, string> = {
   sm: "text-xs",
