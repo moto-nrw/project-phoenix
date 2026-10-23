@@ -15,6 +15,7 @@ import {
   ParentSectionSkeleton,
 } from "~/components/parent/parent-page";
 import { TenantProvider } from "~/lib/tenant-context";
+import { useAnalyticsSchoolPolicy } from "~/lib/hooks/use-analytics-school-policy";
 import { isSupportedGradeLevelMax } from "~/lib/grade-level";
 import {
   fetchParentEnrollmentProfile,
@@ -64,6 +65,7 @@ function ParentEnrollFormPageContent({ params }: PageProps) {
   const [loaded, setLoaded] = useState<{
     tenant: TenantInfo;
     prefetchedData: EnrollmentFormPrefetchedData;
+    targetPath: string;
   } | null>(null);
   const [loading, setLoading] = useState(true);
   // A failed load stays where the form would be, with retry (#2515).
@@ -73,6 +75,15 @@ function ParentEnrollFormPageContent({ params }: PageProps) {
     clear: clearLoadError,
   } = useApiLoadError();
   const [loadAttempt, setLoadAttempt] = useState(0);
+  const targetPath = `/anmeldung/${encodeURIComponent(tenantSlug)}/${encodeURIComponent(phaseId)}`;
+  useAnalyticsSchoolPolicy(
+    tenantSlug,
+    !loading &&
+      !loadError &&
+      loaded?.targetPath === targetPath &&
+      loaded.tenant.analyticsEnabled === true,
+    targetPath,
+  );
 
   useEffect(() => {
     let cancelled = false;
@@ -107,6 +118,7 @@ function ParentEnrollFormPageContent({ params }: PageProps) {
         setLoaded({
           tenant,
           prefetchedData: toParentPrefetchedData(bootstrap, profile),
+          targetPath,
         });
       })
       .catch((err: unknown) => {
@@ -131,6 +143,7 @@ function ParentEnrollFormPageContent({ params }: PageProps) {
     clearLoadError,
     showLoadError,
     t,
+    targetPath,
   ]);
 
   const handleSubmitted = (statusURL: string) => {

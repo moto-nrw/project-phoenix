@@ -35,6 +35,14 @@ auch bei angemeldeten Eltern und erlaubenden Schulen. Der Statusvertrag liefert 
 die zentrale Policy sperrt deshalb bereits vor dem Laden der Route und bis
 zum Verlassen der Statusseite. Das betrifft auch den Sprung nach dem Absenden
 (`?submitted=1`). Eine spätere Portal- oder Host-Neulesung hebt die Sperre nicht auf.
+Der SDK-Filter prüft die aktuelle Browserroute und die Ereignis-URL, bevor er
+ein Ereignis weitergibt. Damit gilt die Sperre auch beim synchronen
+History-Update, noch bevor React die Seiteneffekte ausführt, sowie für
+Aufzeichnungen ohne eigene Ereignis-URL. Eltern-Anmeldeformulare und
+Token-Bearbeitungs-/Anpassungsseiten benötigen eine Freigabe für genau ihre
+Route. Solange Routenparameter oder Zielschulmetadaten fehlen, bleibt die
+Erfassung gesperrt. Eine Freigabe für einen anderen Token oder eine andere
+Anmeldephase reicht nicht. Diese lokalen Routenfreigaben werden nicht übertragen.
 Die Oberfläche `public` (Hosts außerhalb Operator-, Eltern-, Schul- und
 OGS-Host) erfasst außerhalb der Demo nie. Diese bereits mit PR #4757
 wirksame Einschränkung wird hier ausdrücklich nachgetragen.

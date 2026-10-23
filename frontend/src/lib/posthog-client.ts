@@ -65,13 +65,24 @@ function startContext(): AnalyticsContext | null {
 function currentContext(): AnalyticsContext | null {
   context ??= startContext();
   if (!context) return null;
+  const schools = [...schoolPolicies.values()];
   return {
     ...context,
+    enrollmentTargetPath: schools.some(
+      (school) =>
+        school.enabled &&
+        school.enrollmentTargetPath &&
+        window.location.pathname
+          .replace(/\/+$/, "")
+          .endsWith(school.enrollmentTargetPath),
+    )
+      ? window.location.pathname
+      : undefined,
     enabled: analyticsSchoolsAllowCollection(
       context,
       window.location.host,
       clientEnv.NEXT_PUBLIC_TENANT_DOMAIN,
-      [...schoolPolicies.values()],
+      schools,
     ),
   };
 }
@@ -259,7 +270,13 @@ export function initializePostHog(): Promise<void> {
         ...analyticsInitOptions(activeBeforeInit, window.location.hostname),
         before_send: (captureResult) => {
           const active = currentContext();
-          return active ? filterAnalyticsEvent(active, captureResult) : null;
+          return active
+            ? filterAnalyticsEvent(
+                active,
+                captureResult,
+                window.location.pathname,
+              )
+            : null;
         },
       });
       instance = posthog;

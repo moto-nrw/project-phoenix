@@ -7,11 +7,16 @@ import { setTenantAnalyticsPolicy } from "~/lib/posthog-client";
 export function useAnalyticsSchoolPolicy(
   tenantSlug: string,
   enabled: boolean,
+  enrollmentTargetPath?: string,
 ): symbol {
   const [source] = useState(() => Symbol("school analytics policy"));
   useEffect(() => {
-    setTenantAnalyticsPolicy(source, { tenantSlug, enabled });
-  }, [source, tenantSlug, enabled]);
+    setTenantAnalyticsPolicy(source, {
+      tenantSlug,
+      enabled,
+      enrollmentTargetPath,
+    });
+  }, [source, tenantSlug, enabled, enrollmentTargetPath]);
   useEffect(() => {
     return () => setTenantAnalyticsPolicy(source, null);
   }, [source]);

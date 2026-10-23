@@ -38,9 +38,11 @@ export function EnrollmentEditPage({ params, adjustOnly = false }: Props) {
   const router = useRouter();
   const pathname = usePathname();
   const statusHref = pathname?.replace(/\/(edit|adjust)\/?$/, "") || ".";
-  const [bootstrap, setBootstrap] = useState<EnrollmentEditBootstrap | null>(
-    null,
-  );
+  const [loaded, setLoaded] = useState<{
+    token: string;
+    bootstrap: EnrollmentEditBootstrap;
+  } | null>(null);
+  const bootstrap = loaded?.token === token ? loaded.bootstrap : null;
   const [changeReason, setChangeReason] = useState("");
   const [loading, setLoading] = useState(true);
   const toast = useToast();
@@ -60,6 +62,7 @@ export function EnrollmentEditPage({ params, adjustOnly = false }: Props) {
       !loadError &&
       bootstrap !== null &&
       isSupportedGradeLevelMax(bootstrap.grade_level_max),
+    `/anmeldung/status/${encodeURIComponent(token)}/${adjustOnly ? "adjust" : "edit"}`,
   );
 
   useEffect(() => {
@@ -72,7 +75,7 @@ export function EnrollmentEditPage({ params, adjustOnly = false }: Props) {
           token,
           t("editLoadError"),
         );
-        if (!cancelled) setBootstrap(result);
+        if (!cancelled) setLoaded({ token, bootstrap: result });
       } catch (err) {
         logger.warn("enrollment_edit_bootstrap_failed", {
           error: err instanceof Error ? err.message : String(err),
