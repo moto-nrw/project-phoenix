@@ -64,6 +64,7 @@ volumes:
   docker('compose', 'up', '-d', '--wait', 'postgres', 'server', 'frontend');
   sql(`CREATE ROLE phoenix_auth LOGIN NOINHERIT;
 CREATE ROLE phoenix_tenant; CREATE ROLE phoenix_admin;
+CREATE ROLE phoenix_diagnostics NOLOGIN NOINHERIT;
 GRANT phoenix_tenant, phoenix_admin TO phoenix_auth;
 CREATE SCHEMA auth; CREATE SCHEMA platform; CREATE SCHEMA active;
 CREATE TABLE auth.accounts(id bigint PRIMARY KEY);
@@ -75,6 +76,7 @@ GRANT SELECT ON auth.accounts, platform.operators TO phoenix_auth;
 GRANT SELECT ON auth.account_tenants TO phoenix_tenant;
 GRANT INSERT ON active.visits TO phoenix_tenant;
 GRANT SELECT ON platform.operators TO phoenix_admin;
+GRANT SELECT (id) ON active.visits TO phoenix_diagnostics;
 INSERT INTO auth.accounts VALUES (41);
 CREATE TABLE platform.email_outbox(id bigint PRIMARY KEY, status text NOT NULL CHECK (status IN ('pending','sending','sent','failed')));
 INSERT INTO platform.email_outbox VALUES (71, 'pending');`);
@@ -99,6 +101,8 @@ ALTER ROLE phoenix_auth NOLOGIN;`);
   assert.equal(sql("SELECT count(*) FROM information_schema.columns WHERE table_schema='platform' AND table_name='email_outbox' AND column_name='recipient';"), '0');
   assert.equal(sql("SELECT rolcanlogin FROM pg_roles WHERE rolname='phoenix_auth';"), 't');
   assert.equal(sql("SELECT pg_has_role('phoenix_auth','phoenix_admin','MEMBER');"), 't');
+  assert.equal(sql("SELECT has_column_privilege('phoenix_diagnostics','active.visits','id','SELECT');"), 't');
+  assert.equal(sql("SELECT rolcanlogin OR rolinherit FROM pg_roles WHERE rolname='phoenix_diagnostics';"), 'f');
   assert.equal(sql("SELECT count(*) FROM pg_roles WHERE rolname='post_release_role';"), '0');
   // The previous main worker's status transition works again after full restore.
   sql("UPDATE platform.email_outbox SET status='sending' WHERE id=71;");

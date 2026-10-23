@@ -69,6 +69,55 @@ Keine Ausführung durch Agents auf Produktion oder Staging. Verbindung und
 TLS-Serverprüfung nach dem betrieblichen Zugangskonzept herstellen; keine
 Zugangsdaten in Kommandozeilen, Dateien dieses Repos, Chat oder Nachweise kopieren.
 
+### Vorbedingungen: Version und persönlicher Zugangsweg
+
+Dieses Runbook benötigt **PostgreSQL ≥17**: `inherit_option` und `set_option`
+gibt es seit 16, das abgefragte Recht `MAINTAIN` erst seit 17.
+`environments/production.compose.yml` verwendet `postgres:17-alpine`; das ist
+kein Nachweis der laufenden Produktionsversion. Vor Einrichtung und Nachweis
+in `psql` prüfen und bei `false` abbrechen:
+
+```sql
+SELECT current_setting('server_version_num')::integer >= 170000 AS supported_version;
+```
+
+Der Betrieb entscheidet ausdrücklich über den MFA-geschützten Netzweg, die
+freigegebene Datenbank, den persönlichen Rollennamen, die vom DB-Server gesehene
+Quelladresse und die vertrauenswürdige CA. Diese Werte im geschützten
+Betriebsauftrag festhalten, nicht in diesem Repository. Keine öffentliche
+DB-Freigabe und kein neues Host-SSH-Verfahren aus diesem Runbook ableiten.
+
+1. Einen bestehenden MFA-geschützten VPN-/DB-Proxy-Zugang verwenden. Fehlt er,
+   Einrichtung durch den Betrieb als Voraussetzung beauftragen, nicht durch
+   eine direkte Internetfreigabe ersetzen. Firewall nur für dessen tatsächliche
+   DB-seitige Quelladresse und den PostgreSQL-Port freigeben.
+2. In der Admin-Sitzung mit `SHOW hba_file;` die tatsächlich aktive Datei
+   ermitteln. Der Betrieb pflegt dort vor allgemeineren Regeln einen Eintrag
+   nach folgendem Schema; Platzhalter bewusst durch die freigegebenen Werte
+   ersetzen, für IPv4 eine einzelne Adresse mit `/32`, für IPv6 mit `/128`:
+
+   ```text
+   hostssl <Datenbank> <persönliche_Rolle> <DB-seitige_Quelladresse/CIDR> scram-sha-256
+   ```
+
+   Kein `trust`, keine Gruppenerweiterung auf App-/Adminrollen, kein Netzbereich
+   `0.0.0.0/0` oder `::/0`. Nach der Regel für diese persönliche Rolle deren
+   sonstige TCP-Wege mit `host all <persönliche_Rolle> 0.0.0.0/0 reject` und
+   `host all <persönliche_Rolle> ::/0 reject` sperren. Auch lokale Regeln auf
+   Umgehungen prüfen. Die erste passende HBA-Regel gewinnt.
+3. Mit `SELECT count(*) FROM pg_hba_file_rules WHERE error IS NOT NULL;`
+   auf **0** Fehler prüfen, dann `SELECT pg_reload_conf();` muss `true` liefern.
+   Eine zweite Admin-Sitzung für Rücknahme offen halten. Den vorherigen
+   Regelstand nur in der geschützten Betriebskonfiguration sichern.
+4. Nach Anlage unten vom freigegebenen Netzweg mit `psql -X`,
+   `sslmode=verify-full` und der freigegebenen CA verbinden. Der Zielname muss
+   zum Serverzertifikat passen. Passwort nur verdeckt eingeben. In dieser
+   Sitzung `SELECT ssl FROM pg_stat_ssl WHERE pid = pg_backend_pid();`
+   auf `true` prüfen und den untenstehenden Rechtenachweis ausführen.
+   Eine Verbindung von einem nicht freigegebenen Weg muss scheitern.
+
+### Rolle anlegen und prüfen
+
 1. Migration ausrollen. Den persönlichen Rollennamen im Beispiel ersetzen.
    Einen eigenen Zugang ohne weitere Mitgliedschaften und Objektbesitz anlegen:
 
@@ -78,9 +127,14 @@ Zugangsdaten in Kommandozeilen, Dateien dieses Repos, Chat oder Nachweise kopier
    GRANT phoenix_diagnostics TO diagnose_person;
    ```
 
-   Falls CONNECT nicht über PUBLIC besteht, ausschließlich CONNECT auf die
-   freigegebene Datenbank gewähren. Keine Tabellen-, Schema- oder Funktionsrechte
-   direkt an den persönlichen Zugang vergeben.
+   Dieses Verfahren setzt das standardmäßige CONNECT über PUBLIC voraus.
+   Vor dem Verbindungsversuch als Admin mit
+   `SELECT has_database_privilege('diagnose_person', current_database(), 'CONNECT');`
+   auf `true` prüfen. Bei `false` abbrechen: Der Betrieb muss einen gesonderten
+   Zugangs-/Restore-Entwurf für diese Datenbank freigeben, nicht PUBLIC pauschal
+   erweitern. Ein Grant an die Gruppe hilft beim NOINHERIT-Login nicht.
+   Keine Rechte direkt an den persönlichen Zugang vergeben, auch kein CONNECT:
+   solche Zugänge lehnt der Restore ab.
 2. Ein neues Geheimnis im Passwortmanager erzeugen und nur im verdeckten
    interaktiven `psql`-Dialog setzen: `\password diagnose_person`.
    Niemals ein Passwort als SQL-Literal, Shell-Argument oder Chattext verwenden.
@@ -113,6 +167,25 @@ Zugangsdaten in Kommandozeilen, Dateien dieses Repos, Chat oder Nachweise kopier
    Rechteentzug allein beendet bestehende Sitzungen nicht. Passwortmanager-
    Freigabe und Zugangsweg ebenfalls entziehen; Termin und interne Referenz
    dokumentieren.
+
+### Nach einer Wiederherstellung
+
+Der [Tagesbackup-Restore](daily-backup.md) setzt persönliche LOGIN-Rollen nur
+dann automatisch auf **NOLOGIN**, wenn sie ausschließlich Mitglied von
+`phoenix_diagnostics` ohne ADMIN-/INHERIT-Option sind, SET ROLE erlaubt ist und
+keine erhöhten Attribute, individuellen Einstellungen, direkten Rechte oder
+Objektbesitz vorliegen. Andere unbekannte LOGIN-Rollen blockieren den Restore.
+Die Prüfung direkter Rechte erfolgt nach dem Datenimport; bei Fehler bleibt
+die Freigabesperre bestehen. Die Ausgabe nennt nur die Anzahl gesperrter
+Diagnosezugänge, keine Rollennamen.
+
+Nach Restore bleiben diese Zugänge gesperrt. Vor bewusster erneuter Freigabe
+je Zugang Auftrag und Schulwahl bestätigen, Netzweg/HBA prüfen, Rechte in der
+Admin-Sitzung vorprüfen und ein neues Passwort im verdeckten `\password`-Dialog
+setzen. Erst dann `ALTER ROLE diagnose_person LOGIN;` ausführen, mit dem
+persönlichen Zugang neu verbinden und vor Freigabe den vollständigen Nachweis
+unten führen. Nicht benötigte Zugänge bleiben NOLOGIN; ein Backup
+reaktiviert keine abgelaufenen Aufträge.
 
 ## Inhaltsfreier produktiver Rechtenachweis
 
