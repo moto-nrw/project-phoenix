@@ -101,10 +101,10 @@ func TestAnalyticsActorFollowsTheTokenScope(t *testing.T) {
 }
 
 // The account leaves the session only for the pseudonymous ID of an OGS
-// account under Analyse-Freigabe (#3603): never from the parents or school
+// account under Analyse-Freigabe (#3603). Parents keep it internal for policy; the school
 // portal, and never from the staff preview, where an admin looks at someone
 // else's view.
-func TestAnalyticsActorNamesTheAccountOnlyForOGS(t *testing.T) {
+func TestAnalyticsActorKeepsAccountOnlyForOGSIdentityAndParentPolicy(t *testing.T) {
 	t.Parallel()
 
 	cases := []struct {
@@ -115,7 +115,7 @@ func TestAnalyticsActorNamesTheAccountOnlyForOGS(t *testing.T) {
 		{"OGS staff", sessiontoken.AppClaims{ID: 7, TenantID: 12}, 7},
 		{"OGS admin", sessiontoken.AppClaims{ID: 7, TenantID: 12, IsAdmin: true, Scope: "tenant"}, 7},
 		{"staff preview", sessiontoken.AppClaims{ID: 7, TenantID: 12, ReadOnly: true, ActingAdminID: 3}, 0},
-		{"parents portal", sessiontoken.AppClaims{ID: 7, Scope: "parent", TenantID: 12}, 0},
+		{"parents portal policy lookup", sessiontoken.AppClaims{ID: 7, Scope: "parent", TenantID: 12}, 7},
 		{"school portal", sessiontoken.AppClaims{ID: 7, Scope: "school", TenantID: 12}, 0},
 	}
 	for _, tc := range cases {

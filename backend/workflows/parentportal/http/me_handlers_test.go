@@ -458,7 +458,7 @@ func TestGetChildMealPlan_DisabledContract(t *testing.T) {
 func TestGetMealParticipation_ResponseContract(t *testing.T) {
 	t.Parallel()
 	rs := &Resource{ParentService: &fakeParentService{mealParticipation: parentService.MealParticipationPlan{
-		Weekdays: []parentService.MealWeekday{1, 3}, EffectiveFrom: "2026-08-24", CutoffTime: "09:00",
+		Weekdays: []parentService.MealWeekday{1, 3}, EffectiveFrom: "2026-08-24", CutoffTime: "09:00", CutoffLeadDays: 2,
 		Days: []parentService.MealParticipationDay{{Date: "2026-08-24", Participating: true, Source: "regular", Changeable: false}},
 	}}}
 	w := httptest.NewRecorder()
@@ -466,7 +466,7 @@ func TestGetMealParticipation_ResponseContract(t *testing.T) {
 	rs.getMealParticipation(w, mealParticipationRequest())
 
 	require.Equal(t, http.StatusOK, w.Code)
-	assert.JSONEq(t, `{"status":"success","data":{"weekdays":[1,3],"effective_from":"2026-08-24","cutoff_time":"09:00","days":[{"date":"2026-08-24","participating":true,"source":"regular","changeable":false}]},"message":"Meal participation retrieved"}`, w.Body.String())
+	assert.JSONEq(t, `{"status":"success","data":{"weekdays":[1,3],"effective_from":"2026-08-24","cutoff_time":"09:00","cutoff_lead_days":2,"days":[{"date":"2026-08-24","participating":true,"source":"regular","changeable":false}]},"message":"Meal participation retrieved"}`, w.Body.String())
 }
 
 func TestSubmitCareException_PassesRequiredReasonAndReturnsIt(t *testing.T) {

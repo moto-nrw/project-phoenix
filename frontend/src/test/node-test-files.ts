@@ -49,6 +49,7 @@ export const nodeLogicTestFiles = [
   "src/env.client.test.ts",
   "src/i18n/date-fns-locale.test.ts",
   "src/i18n/locale-resolution.test.ts",
+  "src/i18n/meal-cutoff-messages.test.ts",
   "src/i18n/meal-participant-list-completeness.test.ts",
   "src/i18n/operator-messages-completeness.test.ts",
   "src/i18n/parent-messages-completeness.test.ts",

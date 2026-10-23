@@ -67,7 +67,10 @@ type ParticipationPlan struct {
 	Weekdays      []Weekday
 	EffectiveFrom Date
 	CutoffTime    string
-	Days          []ParticipationDay
+	// CutoffLeadDays is how many school days before the meal day the
+	// CutoffTime applies; 0 is the meal day itself.
+	CutoffLeadDays int
+	Days           []ParticipationDay
 }
 
 type ReplaceParticipationSchedule struct {
@@ -91,9 +94,18 @@ type DailyParticipant struct {
 }
 
 type DailyList struct {
-	Date         Date
-	CutoffTime   string
-	Participants []DailyParticipant
+	Date           Date
+	CutoffTime     string
+	CutoffLeadDays int
+	Participants   []DailyParticipant
+}
+
+// WeeklyList holds the DailyList of each school day, Monday to Friday.
+type WeeklyList struct {
+	WeekStart      Date
+	CutoffTime     string
+	CutoffLeadDays int
+	Days           []DailyList
 }
 
 type ReplaceDay struct {
@@ -130,4 +142,5 @@ type Capability interface {
 	SetParticipationForDay(context.Context, SetParticipationDay) error
 	ClearParticipationForDay(context.Context, SetParticipationDay) error
 	DailyList(context.Context, Date) (DailyList, error)
+	WeeklyList(context.Context, Date) (WeeklyList, error)
 }
