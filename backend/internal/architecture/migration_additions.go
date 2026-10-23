@@ -17,56 +17,61 @@ import (
 // candidateMigrationDataObjects returns schema-qualified tables and views created by Go
 // migration files that are new relative to the immutable PR base. Modified
 // historical migrations are deliberately excluded: they cannot be used to
-// backfill ownership for an already-existing table.
-func candidateMigrationDataObjects(project, ref string) (map[string]struct{}, error) {
+// backfill ownership for an already-existing table. The second result holds
+// the tables those files rename, keyed by the new name and valued by the old
+// one; a renamed table keeps its write owner (ownershipLoosenings).
+func candidateMigrationDataObjects(project, ref string) (map[string]struct{}, map[string]string, error) {
 	result := make(map[string]struct{})
+	renamed := make(map[string]string)
 	migrationDir := filepath.Join(project, "database", "migrations")
 	if _, err := os.Stat(migrationDir); err != nil {
 		if os.IsNotExist(err) {
-			return result, nil
+			return result, renamed, nil
 		}
-		return nil, fmt.Errorf("inspect migration directory: %w", err)
+		return nil, nil, fmt.Errorf("inspect migration directory: %w", err)
 	}
 
 	root, err := gitOutput(project, "rev-parse", "--show-toplevel")
 	if err != nil {
-		return nil, fmt.Errorf("resolve repository root for migration additions: %w", err)
+		return nil, nil, fmt.Errorf("resolve repository root for migration additions: %w", err)
 	}
 	root = strings.TrimSpace(root)
 	sha, err := resolveBaseCommit(root, ref)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 	relativeMigrationDir, err := repositoryRelativePath(root, project, migrationDir)
 	if err != nil {
-		return nil, fmt.Errorf("resolve migration directory: %w", err)
+		return nil, nil, fmt.Errorf("resolve migration directory: %w", err)
 	}
 
 	changed, err := gitOutput(root, "diff", "--name-only", "--diff-filter=A", "-z", sha, "--", filepath.ToSlash(relativeMigrationDir))
 	if err != nil {
-		return nil, fmt.Errorf("list candidate migrations: %w", err)
+		return nil, nil, fmt.Errorf("list candidate migrations: %w", err)
 	}
 	untracked, err := gitOutput(root, "ls-files", "--others", "--exclude-standard", "-z", "--", filepath.ToSlash(relativeMigrationDir))
 	if err != nil {
-		return nil, fmt.Errorf("list untracked candidate migrations: %w", err)
+		return nil, nil, fmt.Errorf("list untracked candidate migrations: %w", err)
 	}
 	for _, relativeFile := range strings.Split(changed+untracked, "\x00") {
 		if relativeFile == "" || filepath.Ext(relativeFile) != ".go" || strings.HasSuffix(relativeFile, "_test.go") {
 			continue
 		}
-		if err := addCandidateMigrationDataObjects(root, sha, relativeMigrationDir, relativeFile, result); err != nil {
-			return nil, err
+		if err := addCandidateMigration(root, sha, relativeMigrationDir, relativeFile, result, renamed); err != nil {
+			return nil, nil, err
 		}
 	}
-	return result, nil
+	return result, renamed, nil
 }
 
-func addCandidateMigrationDataObjects(root, sha, migrationDir, relativeFile string, result map[string]struct{}) error {
+// addCandidateMigration adds the data objects one new migration file creates
+// or renames, unless a base migration already mentions them.
+func addCandidateMigration(root, sha, migrationDir, relativeFile string, created map[string]struct{}, renamed map[string]string) error {
 	contents, err := os.ReadFile(filepath.Join(root, filepath.FromSlash(relativeFile)))
 	if err != nil {
 		return fmt.Errorf("read candidate migration %s: %w", relativeFile, err)
 	}
-	objects, err := migrationCreateDataObjects(relativeFile, contents)
+	objects, renames, err := migrationCreateDataObjects(relativeFile, contents)
 	if err != nil {
 		return err
 	}
@@ -76,7 +81,16 @@ func addCandidateMigrationDataObjects(root, sha, migrationDir, relativeFile stri
 			return err
 		}
 		if !mentioned {
-			result[object] = struct{}{}
+			created[object] = struct{}{}
+		}
+	}
+	for object, previous := range renames {
+		mentioned, err := baseMigrationsMentionDataObject(root, sha, migrationDir, object)
+		if err != nil {
+			return err
+		}
+		if !mentioned {
+			renamed[object] = previous
 		}
 	}
 	return nil
@@ -84,13 +98,14 @@ func addCandidateMigrationDataObjects(root, sha, migrationDir, relativeFile stri
 
 // migrationCreateDataObjects inspects statically resolved SQL passed to NewRaw
 // or ExecContext. Unresolved SQL fails closed in candidate migrations.
-func migrationCreateDataObjects(filename string, contents []byte) (map[string]struct{}, error) {
+func migrationCreateDataObjects(filename string, contents []byte) (map[string]struct{}, map[string]string, error) {
 	fset := token.NewFileSet()
 	file, err := parser.ParseFile(fset, filename, contents, parser.SkipObjectResolution)
 	if err != nil {
-		return nil, fmt.Errorf("parse candidate migration %s: %w", filename, err)
+		return nil, nil, fmt.Errorf("parse candidate migration %s: %w", filename, err)
 	}
 	result := make(map[string]struct{})
+	renamed := make(map[string]string)
 	queries := analyzeMigrationQueries(file, fset)
 	var problems []error
 	ast.Inspect(file, func(node ast.Node) bool {
@@ -126,15 +141,16 @@ func migrationCreateDataObjects(filename string, contents []byte) (map[string]st
 			problems = append(problems, fmt.Errorf("candidate migration %s: SQL argument cannot be resolved statically", filename))
 			return true
 		}
-		objects, sqlErr := migrationSQLDataObjects(sql)
+		objects, renames, sqlErr := migrationSQLChanges(sql)
 		if sqlErr != nil {
 			problems = append(problems, fmt.Errorf("candidate migration %s: %w", filename, sqlErr))
 			return true
 		}
 		maps.Copy(result, objects)
+		maps.Copy(renamed, renames)
 		return true
 	})
-	return result, errors.Join(problems...)
+	return result, renamed, errors.Join(problems...)
 }
 
 func baseMigrationsMentionDataObject(root, sha, migrationDir, object string) (bool, error) {
