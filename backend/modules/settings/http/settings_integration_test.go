@@ -4,7 +4,10 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"net/http"
 	"testing"
+
+	"github.com/moto-nrw/project-phoenix/modules/settings"
 
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 
@@ -20,6 +23,7 @@ type settingsTestContext struct {
 	resource *settingsHTTP.SettingsResource
 	settings interface {
 		ResolveStringForTenant(context.Context, int64, string) (string, error)
+		ResolveBoolForTenant(context.Context, int64, string) (bool, error)
 	}
 }
 
@@ -691,4 +695,23 @@ func TestSettingsGetSchema_HidesOperatorOnly(t *testing.T) {
 			}
 		}
 	}
+}
+
+func TestSchoolAdminCanSwitchUsageAnalyticsOffAndResetToDefault(t *testing.T) {
+	t.Parallel()
+	ctx := setupSettingsModule(t)
+	router := ctx.resource.SettingsRouter()
+	req := testutil.NewAuthenticatedRequest(t, "PUT", "/values/analytics.enabled",
+		map[string]interface{}{"value": false}, testutil.WithTestTenant(t))
+	rr := testutil.ExecuteRequest(router, req)
+	require.Equal(t, http.StatusOK, rr.Code, rr.Body.String())
+	value, err := ctx.settings.ResolveBoolForTenant(context.Background(), testpkg.Tenant(t), settings.KeyAnalyticsEnabled)
+	require.NoError(t, err)
+	assert.False(t, value)
+	reset := testutil.NewAuthenticatedRequest(t, "DELETE", "/values/analytics.enabled", nil, testutil.WithTestTenant(t))
+	result := testutil.ExecuteRequest(router, reset)
+	require.Equal(t, http.StatusNoContent, result.Code, result.Body.String())
+	value, err = ctx.settings.ResolveBoolForTenant(context.Background(), testpkg.Tenant(t), settings.KeyAnalyticsEnabled)
+	require.NoError(t, err)
+	assert.True(t, value)
 }

@@ -112,6 +112,7 @@ DELETE /school/notifications/preferences/
 DELETE /school/notifications/push/subscriptions
 GET /
 GET /.well-known/caldav
+GET /analytics-policy
 GET /api/absence-types/
 GET /api/absence-types/{id}/allowances/{staffId}
 GET /api/absence-types/{id}/allowances/{staffId}/preview

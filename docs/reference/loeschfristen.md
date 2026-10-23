@@ -44,6 +44,23 @@ Die Inhalte aus #4045 haben keine eigene Einstellung. Sie folgen der Frist der D
 
 Die Uhrzeit des nächtlichen Laufs (`gdpr.data_cleanup_time`) stellt die Schule selbst ein. Den Schalter `gdpr.data_cleanup_enabled` ändert nur das moto-Team (#3951).
 
+## Gesundheitsangaben im Änderungsprotokoll (#3840, Slice 3840-b)
+
+**Im Code umgesetzt:** Bei `health_info` hält das Änderungsprotokoll nur noch
+fest, dass eine Angabe hinzugefügt, geändert oder entfernt wurde. Alter und
+neuer Freitext werden nicht gespeichert. Migration `1.15.475` maskiert auch
+vorhandene Gesundheitswerte aller Schulen, ohne die Protokollzeilen oder ihre
+Zuordnung zu löschen. Das ist eine begrenzte, irreversible Ausnahme von
+Append-only durch den Migrations-Superuser; Schulrechte und RLS bleiben
+unverändert. Die Frist für den verbleibenden Änderungsnachweis bleibt bei
+90 Tagen als Voreinstellung (je Schule 30 bis 365 Tage).
+
+**Produktiver Nachweis offen:** Rollout und Bereinigung einschließlich einer
+Wiederherstellung älterer Sicherungen muss der Betrieb bestätigen. Ablauf und
+inhaltsfreie Zählabfrage: [Prüfablauf](../operations/gesundheitsangaben-aenderungsprotokoll-3840.md).
+Sicherungen folgen unabhängig davon #3836. Andere Freitextfelder werden durch
+diesen Slice nicht maskiert.
+
 ## Technische Daten und Protokolle (fest für alle Schulen)
 
 | Datenart | Frist | Startzeitpunkt | Owner | Begründung | Stand |

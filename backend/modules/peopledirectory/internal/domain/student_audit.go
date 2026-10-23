@@ -81,7 +81,21 @@ func DiffStudentFields(before, after StudentAuditSnapshot) []StudentFieldChange 
 
 	add(StudentFieldStatus, studentStatusLabel(before.Status), studentStatusLabel(after.Status))
 	add(StudentFieldExtraInfo, derefString(before.ExtraInfo), derefString(after.ExtraInfo))
-	add(StudentFieldHealthInfo, derefString(before.HealthInfo), derefString(after.HealthInfo))
+	// Compare the original values, not their masks: replacing a non-empty
+	// value must still produce an event without storing either free text.
+	if oldHealth, newHealth := derefString(before.HealthInfo), derefString(after.HealthInfo); oldHealth != newHealth {
+		oldValue, newValue := "", ""
+		if oldHealth != "" {
+			oldValue = "Angabe vorhanden"
+		}
+		if newHealth != "" {
+			newValue = "Angabe hinzugefügt"
+			if oldHealth != "" {
+				newValue = "Angabe geändert"
+			}
+		}
+		add(StudentFieldHealthInfo, oldValue, newValue)
+	}
 	add(StudentFieldPickupStatus, derefString(before.PickupStatus), derefString(after.PickupStatus))
 	add(StudentFieldCareEnd, careEndLabel(before.CareEnd), careEndLabel(after.CareEnd))
 	add(StudentFieldDepartureDays, departurePlanLabel(before), departurePlanLabel(after))

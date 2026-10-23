@@ -6,6 +6,9 @@
 // The settings page also calls `router.refresh()` so the RSC tree pulls the
 // fresh layout data.
 export const TENANT_RESOLVE_AFFECTING_KEYS: ReadonlySet<string> = new Set([
+  // Expire the analytics policy immediately so reloads and new tabs cannot
+  // start capturing with a stale enabled value after the school opts out.
+  "analytics.enabled",
   "calendar.caldav_enabled",
   "operations.student_photos_enabled",
   // presence_mode is served via /auth/tenant/resolve and drives the

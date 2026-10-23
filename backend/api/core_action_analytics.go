@@ -41,7 +41,7 @@ func analyticsDeployment(appEnv, tenantDomain string) string {
 
 // analyticsSchoolNames binds the Worker's school names (the usage
 // dashboards) to the tracker.
-func analyticsSchoolNames(tracker analytics.Tracker) owners.SchoolNamesPublisher {
+func analyticsSchoolNames(tracker owners.ProductEventTracker) owners.SchoolNamesPublisher {
 	return func(schools []organizationModule.School) int {
 		named := make([]analytics.School, 0, len(schools))
 		for _, school := range schools {
@@ -56,23 +56,12 @@ func analyticsSchoolNames(tracker analytics.Tracker) owners.SchoolNamesPublisher
 // response mints. The root mounts it after the session verifier. The school's
 // Analyse-Freigabe (#3603, settings compose NewAnalyseFreigabe) decides
 // whether an OGS account is a pseudonymous person.
-func coreActionAnalytics(tracker analytics.Tracker, sessionAuth *sessiontoken.TokenAuth, analyseFreigabe func(ctx context.Context, schoolID int64) bool) func(http.Handler) http.Handler {
-	return analytics.CoreActionMiddleware(analytics.CoreActionConfig{
+func coreActionAnalytics(tracker analytics.Tracker, sessionAuth *sessiontoken.TokenAuth, analyseFreigabe func(ctx context.Context, schoolID int64) bool, policy analytics.CollectionPolicy) func(http.Handler) http.Handler {
+	cfg := analytics.CoreActionConfig{
 		Tracker:         tracker,
 		AnalyseFreigabe: analyseFreigabe,
-		RequestActor: func(r *http.Request) (analytics.Actor, bool) {
-			// The root verifier leaves a token only when its signature and
-			// expiry hold; ParseClaims rejects MFA interim tokens.
-			raw, ok := analytics.VerifiedSessionClaims(r)
-			if !ok {
-				return analytics.Actor{}, false
-			}
-			var claims sessiontoken.AppClaims
-			if claims.ParseClaims(raw) != nil {
-				return analytics.Actor{}, false
-			}
-			return analyticsActor(claims)
-		},
+		Policy:          policy,
+		RequestActor:    analyticsRequestActor,
 		SessionActor: func(accessToken string) (analytics.Actor, bool) {
 			claims, err := sessionAuth.ParseAccessJWT(accessToken)
 			if err != nil {
@@ -80,7 +69,8 @@ func coreActionAnalytics(tracker analytics.Tracker, sessionAuth *sessiontoken.To
 			}
 			return analyticsActor(*claims)
 		},
-	})
+	}
+	return analytics.CoreActionMiddleware(cfg)
 }
 
 // analyticsActor hands the session facts of the token to the analytics

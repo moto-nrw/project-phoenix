@@ -523,7 +523,7 @@ describe("SettingsField", () => {
         onReset={vi.fn().mockResolvedValue(null)}
       />,
     );
-    expect(getByRole("switch")).toBeDefined();
+    expect(getByRole("switch", { name: "Test Setting" })).toBeDefined();
   });
 
   it("renders number field", () => {

@@ -5,6 +5,7 @@ import "encoding/json"
 // These are HTTP contract values, kept at the dev-tool boundary because the
 // architecture policy forbids CLI packages from importing a domain model.
 const (
+	profileSettingAnalyticsEnabled      = "analytics.enabled"
 	profileSettingPresenceMode          = "operations.presence_mode"
 	profileSettingAttendanceNFC         = "attendance.nfc_enabled"
 	profileSettingAttendanceWeb         = "attendance.web_enabled"
@@ -152,6 +153,7 @@ func manualProfileDefinition() demoProfileDefinition {
 
 func manualProfileSettings() map[string]SeedSetting {
 	return map[string]SeedSetting{
+		profileSettingAnalyticsEnabled:   {Value: json.RawMessage(`false`), ManagedBy: SettingManagedByTenant},
 		profileSettingOverviewScope:      {Value: json.RawMessage(`"own"`), ManagedBy: SettingManagedByTenant},
 		profileSettingAttendanceScope:    {Value: json.RawMessage(`"own"`), ManagedBy: SettingManagedByTenant},
 		profileSettingBlockStartScope:    {Value: json.RawMessage(`"own"`), ManagedBy: SettingManagedByTenant},
