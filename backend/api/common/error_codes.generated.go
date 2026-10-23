@@ -400,6 +400,7 @@ const (
 	CodeStudentsCareExitPreviewChanged                   = "students.care_exit_preview_changed"
 	CodeStudentsCareExitTooManyStudents                  = "students.care_exit_too_many_students"
 	CodeStudentsCareOfferingsDisabled                    = "students.care_offerings_disabled"
+	CodeStudentsCareResumeAlumnus                        = "students.care_resume_alumnus"
 	CodeStudentsCareResumeMissing                        = "students.care_resume_missing"
 	CodeStudentsCareResumeNotChecked                     = "students.care_resume_not_checked"
 	CodeStudentsCareResumeNotEnded                       = "students.care_resume_not_ended"
@@ -1073,6 +1074,7 @@ var errorClassByCode = map[string]string{
 	"students.care_exit_preview_changed":                   "business_rejection",
 	"students.care_exit_too_many_students":                 "input",
 	"students.care_offerings_disabled":                     "permission",
+	"students.care_resume_alumnus":                         "business_rejection",
 	"students.care_resume_missing":                         "business_rejection",
 	"students.care_resume_not_checked":                     "input",
 	"students.care_resume_not_ended":                       "business_rejection",
