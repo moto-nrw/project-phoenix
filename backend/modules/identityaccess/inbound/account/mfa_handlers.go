@@ -309,8 +309,13 @@ func (rs *Resource) completeMFAExchange(w http.ResponseWriter, r *http.Request, 
 	// Device persistence and notification still wait for successful issuance.
 	issueTrustedDevice, err := rs.prepareTrustedDevice(r, accountID, tenantID, rememberDevice)
 	if err != nil {
-		mapMFAError(w, r, identityaccess.ErrMFAStatusUnavailable)
-		return
+		// Remembering a device is optional. Match the school portal: fail
+		// closed for the device without discarding the verified login.
+		slog.Default().Warn("trusted-device policy unavailable; skipping cookie",
+			slog.Int64("account_id", accountID),
+			slog.String("error", err.Error()),
+		)
+		issueTrustedDevice = nil
 	}
 
 	accessToken, refreshToken, err := rs.Sessions.IssueTokensForAuthenticatedAccount(
