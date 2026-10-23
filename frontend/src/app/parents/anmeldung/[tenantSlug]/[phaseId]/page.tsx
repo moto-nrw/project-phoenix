@@ -43,7 +43,13 @@ interface PageProps {
  */
 export default function ParentEnrollFormPage({ params }: PageProps) {
   return (
-    <Suspense fallback={<ParentPageSkeleton rows={3} />}>
+    <Suspense
+      fallback={
+        <TenantProvider tenantSlug="" tenant={null}>
+          <ParentPageSkeleton rows={3} />
+        </TenantProvider>
+      }
+    >
       <ParentEnrollFormPageContent params={params} />
     </Suspense>
   );
@@ -144,26 +150,29 @@ function ParentEnrollFormPageContent({ params }: PageProps) {
   );
 
   return (
-    <ParentPage>
-      <ParentPageHeader
-        kicker={t("parentEmbeddedKicker")}
-        title={t("formEyebrow")}
-        description={t("parentEmbeddedDescription")}
-        backHref={parentPath("/parents/anmeldung")}
-        backLabel={t("backToParentPicker")}
-      />
+    <TenantProvider
+      tenantSlug={tenantSlug}
+      tenant={loading || loadError ? null : (loaded?.tenant ?? null)}
+    >
+      <ParentPage>
+        <ParentPageHeader
+          kicker={t("parentEmbeddedKicker")}
+          title={t("formEyebrow")}
+          description={t("parentEmbeddedDescription")}
+          backHref={parentPath("/parents/anmeldung")}
+          backLabel={t("backToParentPicker")}
+        />
 
-      {loading ? (
-        <div className="space-y-5" aria-busy="true">
-          <span className="sr-only">{t("detailsLoading")}</span>
-          <ParentSectionSkeleton rows={4} />
-          <ParentSectionSkeleton rows={5} />
-          <ParentSectionSkeleton rows={3} />
-        </div>
-      ) : loadError || !loaded ? (
-        <LoadErrorAlert error={loadError ?? t("detailsLoadFailed")} />
-      ) : (
-        <TenantProvider tenantSlug={tenantSlug} tenant={loaded.tenant}>
+        {loading ? (
+          <div className="space-y-5" aria-busy="true">
+            <span className="sr-only">{t("detailsLoading")}</span>
+            <ParentSectionSkeleton rows={4} />
+            <ParentSectionSkeleton rows={5} />
+            <ParentSectionSkeleton rows={3} />
+          </div>
+        ) : loadError || !loaded ? (
+          <LoadErrorAlert error={loadError ?? t("detailsLoadFailed")} />
+        ) : (
           <EnrollmentForm
             phaseID={phaseId}
             gradeLevelMax={loaded.tenant.gradeLevelMax}
@@ -174,9 +183,9 @@ function ParentEnrollFormPageContent({ params }: PageProps) {
             skipCaptcha
             localizedCopy
           />
-        </TenantProvider>
-      )}
-    </ParentPage>
+        )}
+      </ParentPage>
+    </TenantProvider>
   );
 }
 

@@ -21,17 +21,32 @@ Schulhosts kein PostHog-SDK. Das Schulportal prüft die Schule seiner Sitzung.
 Im Elternportal müssen alle aktiven Schulen der Elternperson die Erfassung
 erlauben; fehlende Zuordnung oder ein einziger Fehler sperrt sie. Vor Anmeldung
 bleiben Eltern- und Schulportal ohne SDK. Demo-Verhalten bleibt unverändert.
-Die Host-Oberfläche bestimmt die Entscheidung. Ein lokaler Schulkontext in
-Eltern-Anmeldungen und deren Bearbeitungsseiten darf die Portal-Entscheidung
-weder beim Öffnen noch bei Einstellungs- oder Sichtbarkeitssignalen ersetzen.
+Auf dem OGS-Host entscheidet die Schule im Hostnamen, nicht die Schule eines
+fremden Anmelde- oder Bearbeitungslinks. Ein eingebetteter Schulkontext darf
+nur zusätzlich sperren: Ist dessen Analyse aus oder noch ungeklärt, bleibt die
+Erfassung aus. Das gilt auch im Eltern- und Schulportal. Dort bleibt die
+Portalentscheidung zusätzlich erforderlich. Eltern-Anmeldeformulare und
+Token-Bearbeitungsseiten sperren bereits während des Ladens der Zielschule
+und bei Ladefehlern, nicht erst beim Einblenden des Formulars. Bei einer Eltern-Anmeldung muss
+also neben allen aktiven Schulzuordnungen auch die Zielschule erlauben.
 Anonyme Anmelde- und Token-Statusseiten auf dem Elternhost bleiben ohne SDK.
+Die Oberfläche `public` (Hosts außerhalb Operator-, Eltern-, Schul- und
+OGS-Host) erfasst außerhalb der Demo nie. Diese bereits mit PR #4757
+wirksame Einschränkung wird hier ausdrücklich nachgetragen.
 Backend-Kernaktionen, Presence-Ereignisse und `$groupidentify` prüfen den
-Schulschalter vor der Erfassung. Öffentliche Anmeldung löst die Zielschule aus
-dem Routenparameter auf, nicht aus einer mitgesendeten Sitzung.
+Schulschalter vor der Erfassung. Öffentliche und Eltern-Anmeldungen lösen die
+Zielschule aus dem Routenparameter auf, nicht aus einer mitgesendeten Sitzung.
+`enrollment_submitted` bleibt bei Zielschule „aus“ auch mit `surface=parents`
+gesperrt; erlaubende Bestandsschulen ersetzen die Zielschulentscheidung nicht.
 
-Der Browser übernimmt die Entscheidung beim nächsten Laden bzw. beim
-Neulesen des Schulkontexts; serverseitige Ereignisse prüfen pro Erfassung.
-Bereits laufende Browser anderer Portale müssen neu geladen werden.
+Eltern- und Schulportal lesen die Policy beim Sichtbarwerden eines Tabs und
+alle fünf Minuten bei sichtbarem Tab neu. Vor jedem Neulesen wird die Erfassung
+ausgeschaltet. Lesefehler lassen sie aus; eine überholte Antwort darf sie nicht
+wieder einschalten. OGS- und eingebettete Schulkontexte lesen wie bisher bei
+Einstellungs- und Sichtbarkeitssignalen neu. Die Neulesung ist keine sofortige
+Zustellung einer Änderung an alle Tabs; ohne Signal gilt im sichtbaren Eltern-
+oder Schultab das Fünf-Minuten-Intervall. Serverseitige Ereignisse prüfen pro
+Erfassung.
 Früher erfasste PostHog-Daten werden durch Ausschalten nicht gelöscht.
 
 **Lokal prüfbar:** Das Seed-Profil `manuell` (maßgeblich: `profiles.go`) speichert
@@ -54,9 +69,18 @@ Die Demo-Umgebung ignoriert den Schalter absichtlich, daher für den Nachweis
    `lib/analytics-policy.test.ts` / `lib/posthog-client.test.ts`.
 5. `components/analytics/portal-analytics-policy.integration.test.tsx` prüft
    echte Policy-, SDK-Client-, Tenant- und Portal-Module gegen ein PostHog-Stub:
-   Portal-Entscheidung aus, eingebettete Schule an, danach Schulkontext erneut
-   laden. Das SDK darf nicht starten. Positive Kontrollen prüfen erlaubte
-   OGS- und Eltern-Erfassung. Dieser Modultest ersetzt keinen Netzwerknachweis.
+   Hostschule A aus, eingebettete Schule B an und B antwortet zuletzt nach
+   `visibilitychange`; außerdem A an/B aus und positive Kontrollen.
+   Eltern- und Schultabs sperren vor der Neulesung; eine verspätete alte
+   Freigabe überschreibt keine neuere Sperre. Eltern-Anmeldungen benötigen
+   zusätzlich eine erlaubende Zielschule. Dieser Modultest ersetzt keinen
+   Netzwerknachweis.
+6. Für den lokalen und später menschlich auszuführenden Produktivnachweis
+   zusätzlich offene Eltern-/Schultabs, Zielschule aus bei erlaubenden
+   Bestandsschulen, fremde Token-Bearbeitungsseite auf einem gesperrten
+   OGS-Host und `public` außerhalb der Demo prüfen. Positive Kontrollen je
+   erlaubender Konstellation verwenden; Inhalte und Kennungen nicht als
+   unbereinigte HAR-Datei ablegen. Netzwerknachweis bleibt Slice 3843-c.
 
 **Lokal geprüft am 23.10.2026:** Nativer Entwicklungsstack, vollständig
 synthetische Seed-Daten, Test-Platzhalter statt Analyse-Schlüssel und

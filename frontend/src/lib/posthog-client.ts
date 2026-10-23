@@ -8,6 +8,8 @@ import {
   analyticsInitOptions,
   analyticsRuntimeOptions,
   analyticsSurfaceForHost,
+  analyticsSchoolsAllowCollection,
+  type AnalyticsSchoolPolicy,
   filterAnalyticsEvent,
   type AnalyticsContext,
   type AnalyticsSurface,
@@ -17,6 +19,10 @@ import { createLogger } from "~/lib/logger";
 
 type PostHog = (typeof import("posthog-js"))["default"];
 type Operation = (posthog: PostHog) => void;
+type SessionRegistration = {
+  readonly properties: Properties;
+  readonly resetFirst: boolean;
+};
 
 const logger = createLogger({ component: "PostHogClient" });
 const pendingOperations: Array<{
@@ -31,6 +37,8 @@ let initializationFailed = false;
 // undefined: not resolved yet; null: this host has no analytics (operator).
 let hostSurface: AnalyticsSurface | null | undefined;
 let context: AnalyticsContext | null = null;
+const schoolPolicies = new Map<symbol, AnalyticsSchoolPolicy>();
+let pendingRegistration: SessionRegistration | undefined;
 
 function startSurface(): AnalyticsSurface | null {
   if (hostSurface === undefined) {
@@ -56,7 +64,32 @@ function startContext(): AnalyticsContext | null {
 
 function currentContext(): AnalyticsContext | null {
   context ??= startContext();
-  return context;
+  if (!context) return null;
+  return {
+    ...context,
+    enabled: analyticsSchoolsAllowCollection(
+      context,
+      window.location.host,
+      clientEnv.NEXT_PUBLIC_TENANT_DOMAIN,
+      [...schoolPolicies.values()],
+    ),
+  };
+}
+
+/** Each mounted school context owns one gate, including during refresh. */
+export function setTenantAnalyticsPolicy(
+  source: symbol,
+  policy: AnalyticsSchoolPolicy | null,
+): void {
+  const previous = schoolPolicies.get(source);
+  if (policy) schoolPolicies.set(source, policy);
+  else schoolPolicies.delete(source);
+  const removedHost =
+    !policy &&
+    previous &&
+    window.location.hostname ===
+      `${previous.tenantSlug}.${clientEnv.NEXT_PUBLIC_TENANT_DOMAIN}`;
+  setAnalyticsContext(removedHost ? { enabled: false } : {});
 }
 
 function analyticsEnabled(): boolean {
@@ -133,12 +166,10 @@ function applyContext(posthog: PostHog, active: AnalyticsContext): void {
  */
 export function setAnalyticsContext(
   update: Partial<Omit<AnalyticsContext, "deployment">>,
-  registration?: {
-    readonly properties: Properties;
-    readonly resetFirst: boolean;
-  },
+  registration?: SessionRegistration,
 ): void {
-  const current = currentContext();
+  context ??= startContext();
+  const current = context;
   if (!current) return;
   if (
     !analyticsContextUpdateAllowed(
@@ -147,8 +178,9 @@ export function setAnalyticsContext(
     )
   )
     return;
-  const next: AnalyticsContext = { ...current, ...update };
-  context = next;
+  if (registration) pendingRegistration = registration;
+  context = { ...current, ...update };
+  const next = currentContext()!;
   if (!analyticsCollectionAllowed(next)) {
     pendingOperations.length = 0;
     runOperation("opt_out", (posthog) => posthog.opt_out_capturing());
@@ -161,11 +193,13 @@ export function setAnalyticsContext(
   execute("apply_context", (posthog) => {
     // A school switch resets and registers before identifying, atomically
     // with the new policy, so no event can inherit the previous school.
-    if (registration) {
-      if (registration.resetFirst) posthog.reset();
-      posthog.register(registration.properties);
+    if (pendingRegistration) {
+      if (pendingRegistration.resetFirst) posthog.reset();
+      posthog.register(pendingRegistration.properties);
+      pendingRegistration = undefined;
     }
-    applyContext(posthog, next);
+    const active = currentContext();
+    if (active) applyContext(posthog, active);
   });
   schedulePostHogInitialization();
 }
@@ -181,6 +215,7 @@ export function setPostHogContext(
 }
 
 export function clearPostHogContext(): void {
+  pendingRegistration = undefined;
   const previous = currentContext();
   if (previous)
     context = {

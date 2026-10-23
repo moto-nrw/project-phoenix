@@ -6,6 +6,7 @@ import {
   analyticsIdentity,
   analyticsInitOptions,
   analyticsRuntimeOptions,
+  analyticsSchoolsAllowCollection,
   analyticsSurfaceForHost,
   filterAnalyticsEvent,
   type AnalyticsContext,
@@ -50,6 +51,69 @@ describe("school analytics switch", () => {
     "accepts $source policy on $host only when it owns the host ($allowed)",
     ({ host, source, allowed }) => {
       expect(analyticsContextUpdateAllowed(host, source)).toBe(allowed);
+    },
+  );
+
+  it.each([
+    {
+      surface: "ogs",
+      enabled: true,
+      schools: [{ tenantSlug: "school-b", enabled: true }],
+      want: false,
+    },
+    {
+      surface: "ogs",
+      enabled: false,
+      schools: [{ tenantSlug: "school-a", enabled: true }],
+      want: true,
+    },
+    {
+      surface: "ogs",
+      enabled: true,
+      schools: [
+        { tenantSlug: "school-a", enabled: false },
+        { tenantSlug: "school-b", enabled: true },
+      ],
+      want: false,
+    },
+    {
+      surface: "ogs",
+      enabled: true,
+      schools: [
+        { tenantSlug: "school-a", enabled: true },
+        { tenantSlug: "school-b", enabled: false },
+      ],
+      want: false,
+    },
+    {
+      surface: "parents",
+      enabled: true,
+      schools: [{ tenantSlug: "school-c", enabled: false }],
+      want: false,
+    },
+    {
+      surface: "parents",
+      enabled: false,
+      schools: [{ tenantSlug: "school-c", enabled: true }],
+      want: false,
+    },
+    {
+      surface: "parents",
+      enabled: true,
+      schools: [{ tenantSlug: "school-c", enabled: true }],
+      want: true,
+    },
+  ])(
+    "combines host and embedded school policies ($surface, $want)",
+    ({ surface, enabled, schools, want }) => {
+      expect(
+        analyticsSchoolsAllowCollection(
+          { deployment: "localhost", surface, enabled, analyseFreigabe: false },
+          "school-a.localhost:3000",
+          "localhost",
+          schools,
+        ),
+      ).toBe(want);
     },
   );
 

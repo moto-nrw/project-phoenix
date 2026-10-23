@@ -7,6 +7,7 @@ import { useTranslations } from "next-intl";
 import { EnrollmentForm } from "~/components/enrollment/enrollment-form";
 import { PublicEnrollmentContentSkeleton } from "~/components/enrollment/public-enrollment-shell";
 import { TenantProvider } from "~/lib/tenant-context";
+import { useAnalyticsSchoolPolicy } from "~/lib/hooks/use-analytics-school-policy";
 import { isSupportedGradeLevelMax } from "~/lib/grade-level";
 import {
   createEnrollmentChangeRequest,
@@ -50,6 +51,16 @@ export function EnrollmentEditPage({ params, adjustOnly = false }: Props) {
     clear: clearLoadError,
   } = useApiLoadError();
   const [loadAttempt, setLoadAttempt] = useState(0);
+
+  // The target school is unknown until bootstrap completes. Never inherit
+  // an already allowed host/parent policy while loading or after a failure.
+  useAnalyticsSchoolPolicy(
+    "",
+    !loading &&
+      !loadError &&
+      bootstrap !== null &&
+      isSupportedGradeLevelMax(bootstrap.grade_level_max),
+  );
 
   useEffect(() => {
     let cancelled = false;

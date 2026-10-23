@@ -1,3 +1,4 @@
+import { Suspense } from "react";
 import { act, cleanup, render, screen } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { TenantInfo } from "~/lib/tenant-api";
@@ -9,8 +10,15 @@ const mocks = vi.hoisted(() => ({
   init: vi.fn(),
   optIn: vi.fn(),
   capture: vi.fn(),
+  fetchBootstrap: vi.fn(),
+  fetchEditBootstrap: vi.fn(),
 }));
 
+vi.mock("next/navigation", () => ({
+  useRouter: () => ({ push: vi.fn() }),
+  useSearchParams: () => new URLSearchParams(),
+  usePathname: () => "/parents/anmeldung/school-c/5",
+}));
 vi.mock("next-auth/react", () => ({ useSession: mocks.useSession }));
 vi.mock("~/env.client", () => ({
   clientEnv: {
@@ -34,6 +42,18 @@ vi.mock("posthog-js", () => ({
     unregister: vi.fn(),
     reset: vi.fn(),
   },
+}));
+
+vi.mock("~/lib/enrollment-submission-api", () => ({
+  fetchParentEnrollmentBootstrap: mocks.fetchBootstrap,
+  fetchEnrollmentEditBootstrap: mocks.fetchEditBootstrap,
+}));
+vi.mock("~/lib/parent-api", () => ({
+  fetchParentEnrollmentProfile: async () => null,
+  submitParentEnrollment: vi.fn(),
+}));
+vi.mock("~/components/enrollment/enrollment-form", () => ({
+  EnrollmentForm: () => <div>Loaded enrollment form</div>,
 }));
 
 const tenant: TenantInfo = {
@@ -80,6 +100,7 @@ describe("embedded enrollment analytics policy", () => {
   afterEach(() => {
     cleanup();
     vi.unstubAllGlobals();
+    vi.restoreAllMocks();
   });
 
   it.each([false, true, "failure"] as const)(
@@ -233,43 +254,339 @@ describe("embedded enrollment analytics policy", () => {
     expect(mocks.init).toHaveBeenCalledOnce();
   });
 
-  it("preserves an allowed parent policy through embedded-school refresh and unmount", async () => {
-    vi.stubGlobal("location", {
-      host: "parents.localhost:3000",
-      hostname: "parents.localhost",
-    });
-    mocks.useSession.mockReturnValue({
-      status: "authenticated",
-      data: { user: { scope: "parent" } },
-    });
-    vi.mocked(fetch).mockResolvedValue(
-      Response.json({ data: { enabled: true } }),
-    );
-    const { PortalAnalyticsSession } =
-      await import("./portal-analytics-session");
-    const { TenantProvider } = await import("~/lib/tenant-context");
-    const { initializePostHog, capturePostHog } =
-      await import("~/lib/posthog-client");
-    const view = render(
-      <>
-        <PortalAnalyticsSession surface="parents" />
+  it.each([
+    { surface: "parents", scope: "parent", host: "parents.localhost" },
+    { surface: "school", scope: "school", host: "schule.localhost" },
+  ] as const)(
+    "revokes an open $surface tab before rereading policy and ignores stale permission",
+    async ({ surface, scope, host }) => {
+      vi.stubGlobal("location", { host: `${host}:3000`, hostname: host });
+      vi.spyOn(document, "visibilityState", "get").mockReturnValue("visible");
+      mocks.useSession.mockReturnValue({
+        status: "authenticated",
+        data: { user: { id: "7", scope, tenantId: 42 } },
+      });
+      vi.mocked(fetch).mockResolvedValueOnce(
+        Response.json({ data: { enabled: true } }),
+      );
+      const { PortalAnalyticsSession } =
+        await import("./portal-analytics-session");
+      const { initializePostHog, capturePostHog } =
+        await import("~/lib/posthog-client");
+      render(<PortalAnalyticsSession surface={surface} />);
+      await act(async () => {});
+      await initializePostHog();
+      capturePostHog("login_failed");
+      expect(mocks.capture).toHaveBeenCalledWith("login_failed", undefined);
+      mocks.capture.mockClear();
+      let resolveStale!: (response: Response) => void;
+      vi.mocked(fetch).mockImplementationOnce(
+        () =>
+          new Promise<Response>((resolve) => {
+            resolveStale = resolve;
+          }),
+      );
+      act(() => document.dispatchEvent(new Event("visibilitychange")));
+      expect(fetch).toHaveBeenCalledTimes(2);
+      capturePostHog("login_failed");
+      expect(mocks.capture).not.toHaveBeenCalled();
+      vi.mocked(fetch).mockResolvedValueOnce(
+        Response.json({ data: { enabled: false } }),
+      );
+      await act(async () =>
+        document.dispatchEvent(new Event("visibilitychange")),
+      );
+      expect(fetch).toHaveBeenCalledTimes(3);
+      await act(async () =>
+        resolveStale(Response.json({ data: { enabled: true } })),
+      );
+      capturePostHog("login_failed");
+      expect(mocks.capture).not.toHaveBeenCalled();
+    },
+  );
+
+  it.each([
+    { hostEnabled: false, foreignEnabled: true },
+    { hostEnabled: true, foreignEnabled: false },
+    { hostEnabled: true, foreignEnabled: true },
+  ])(
+    "keeps the OGS host decision when a foreign school resolves last (host=$hostEnabled, embedded=$foreignEnabled)",
+    async ({ hostEnabled, foreignEnabled }) => {
+      vi.stubGlobal("location", {
+        host: "school-a.localhost:3000",
+        hostname: "school-a.localhost",
+      });
+      vi.spyOn(document, "visibilityState", "get").mockReturnValue("visible");
+      const { TenantProvider } = await import("~/lib/tenant-context");
+      const { initializePostHog } = await import("~/lib/posthog-client");
+      const foreign = {
+        ...tenant,
+        subdomain: "school-b",
+        slug: "school-b",
+        analyticsEnabled: foreignEnabled,
+      };
+      render(
         <TenantProvider
           tenantSlug="school-a"
-          tenant={{ ...tenant, analyticsEnabled: false }}
+          tenant={{ ...tenant, analyticsEnabled: hostEnabled }}
         >
-          <div>Enrollment form</div>
-        </TenantProvider>
-      </>,
-    );
-    expect(screen.getByText("Enrollment form")).toBeInTheDocument();
-    await act(async () => {});
-    await initializePostHog();
-    expect(mocks.init).toHaveBeenCalledOnce();
-    await act(async () => {
-      window.dispatchEvent(new Event("phoenix:tenant-settings-stale"));
-    });
-    view.rerender(<PortalAnalyticsSession surface="parents" />);
-    capturePostHog("login_failed");
-    expect(mocks.capture).toHaveBeenCalledWith("login_failed", undefined);
-  });
+          <TenantProvider tenantSlug="school-b" tenant={foreign}>
+            <div>Foreign enrollment form</div>
+          </TenantProvider>
+        </TenantProvider>,
+      );
+      // Anker: both school providers render the embedded enrollment content.
+      expect(screen.getByText("Foreign enrollment form")).toBeInTheDocument();
+      let resolveHost!: (response: Response) => void;
+      let resolveForeign!: (response: Response) => void;
+      vi.mocked(fetch).mockImplementation(
+        (input) =>
+          new Promise<Response>((resolve) => {
+            if (String(input).endsWith("school-a")) resolveHost = resolve;
+            else resolveForeign = resolve;
+          }),
+      );
+      act(() => document.dispatchEvent(new Event("visibilitychange")));
+      expect(fetch).toHaveBeenCalledWith("/api/tenant/resolve?slug=school-a");
+      expect(fetch).toHaveBeenCalledWith("/api/tenant/resolve?slug=school-b");
+      await act(async () =>
+        resolveHost(
+          Response.json({
+            data: {
+              tenant_id: 42,
+              slug: "school-a",
+              subdomain: "school-a",
+              analytics_enabled: hostEnabled,
+            },
+          }),
+        ),
+      );
+      await act(async () =>
+        resolveForeign(
+          Response.json({
+            data: {
+              tenant_id: 43,
+              slug: "school-b",
+              subdomain: "school-b",
+              analytics_enabled: foreignEnabled,
+            },
+          }),
+        ),
+      );
+      await initializePostHog();
+      expect(mocks.init).toHaveBeenCalledTimes(
+        hostEnabled && foreignEnabled ? 1 : 0,
+      );
+    },
+  );
+
+  it.each([false, true])(
+    "keeps an OGS token edit off until the foreign target is known (%s)",
+    async (enabled) => {
+      vi.stubGlobal("location", {
+        host: "school-a.localhost:3000",
+        hostname: "school-a.localhost",
+      });
+      vi.spyOn(document, "visibilityState", "get").mockReturnValue("visible");
+      let resolveBootstrap!: (value: unknown) => void;
+      mocks.fetchEditBootstrap.mockImplementation(
+        () =>
+          new Promise((resolve) => {
+            resolveBootstrap = resolve;
+          }),
+      );
+      vi.mocked(fetch).mockImplementation(async (input) => {
+        const slug = String(input).endsWith("school-b")
+          ? "school-b"
+          : "school-a";
+        return Response.json({
+          data: {
+            tenant_id: slug === "school-a" ? 42 : 43,
+            slug,
+            subdomain: slug,
+            analytics_enabled: slug === "school-a" || enabled,
+          },
+        });
+      });
+      const { TenantProvider } = await import("~/lib/tenant-context");
+      const { EnrollmentEditPage } =
+        await import("~/components/enrollment/enrollment-edit-page");
+      const { ToastProvider } = await import("~/contexts/ToastContext");
+      const { initializePostHog, capturePostHog } =
+        await import("~/lib/posthog-client");
+      const view = render(
+        <TenantProvider tenantSlug="school-a" tenant={tenant}>
+          <div>Host school content</div>
+        </TenantProvider>,
+      );
+      await initializePostHog();
+      capturePostHog("login_failed");
+      expect(mocks.capture).toHaveBeenCalledWith("login_failed", undefined);
+      mocks.capture.mockClear();
+      await act(async () =>
+        view.rerender(
+          <TenantProvider tenantSlug="school-a" tenant={tenant}>
+            <ToastProvider>
+              <Suspense fallback={<div>Resolving edit route</div>}>
+                <EnrollmentEditPage
+                  params={Promise.resolve({ token: "example-test-token" })}
+                />
+              </Suspense>
+            </ToastProvider>
+          </TenantProvider>,
+        ),
+      );
+      expect(mocks.fetchEditBootstrap).toHaveBeenCalled();
+      capturePostHog("login_failed");
+      expect(mocks.capture).not.toHaveBeenCalled();
+      await act(async () =>
+        resolveBootstrap({
+          draft: { tenant_subdomain: "school-b", phase_id: "5" },
+          grade_level_max: 4,
+          phase: {},
+        }),
+      );
+      // Anker: the token edit loaded its actual foreign-school form.
+      expect(screen.getByText("Loaded enrollment form")).toBeInTheDocument();
+      await act(async () =>
+        document.dispatchEvent(new Event("visibilitychange")),
+      );
+      capturePostHog("login_failed");
+      expect(mocks.capture).toHaveBeenCalledTimes(enabled ? 1 : 0);
+    },
+  );
+
+  it.each([false, true])(
+    "gates the actual parent enrollment page while target metadata loads (%s)",
+    async (enabled) => {
+      vi.stubGlobal("location", {
+        host: "parents.localhost:3000",
+        hostname: "parents.localhost",
+      });
+      mocks.useSession.mockReturnValue({
+        status: "authenticated",
+        data: { user: { id: "7", scope: "parent" } },
+      });
+      mocks.fetchBootstrap.mockResolvedValue({ phase: {} });
+      let resolveTarget!: (response: Response) => void;
+      vi.mocked(fetch).mockImplementation(async (input) => {
+        if (String(input).startsWith("/api/tenant/resolve")) {
+          return new Promise<Response>((resolve) => {
+            resolveTarget = resolve;
+          });
+        }
+        return Response.json({ data: { enabled: true } });
+      });
+      const { PortalAnalyticsSession } =
+        await import("./portal-analytics-session");
+      const { default: ParentEnrollFormPage } =
+        await import("~/app/parents/anmeldung/[tenantSlug]/[phaseId]/page");
+      const { initializePostHog, capturePostHog } =
+        await import("~/lib/posthog-client");
+      const view = render(<PortalAnalyticsSession surface="parents" />);
+      await act(async () => {});
+      await initializePostHog();
+      capturePostHog("login_failed");
+      expect(mocks.capture).toHaveBeenCalledWith("login_failed", undefined);
+      mocks.capture.mockClear();
+      await act(async () =>
+        view.rerender(
+          <>
+            <PortalAnalyticsSession surface="parents" />
+            <Suspense fallback={<div>Resolving route</div>}>
+              <ParentEnrollFormPage
+                params={Promise.resolve({
+                  tenantSlug: "school-c",
+                  phaseId: "5",
+                })}
+              />
+            </Suspense>
+          </>,
+        ),
+      );
+      expect(fetch).toHaveBeenCalledWith("/api/tenant/resolve?slug=school-c");
+      capturePostHog("login_failed");
+      expect(mocks.capture).not.toHaveBeenCalled();
+      await act(async () =>
+        resolveTarget(
+          Response.json({
+            data: {
+              tenant_id: 44,
+              slug: "school-c",
+              subdomain: "school-c",
+              analytics_enabled: enabled,
+              grade_level_max: 4,
+            },
+          }),
+        ),
+      );
+      // Anker: the actual page finished loading its target school's form.
+      expect(screen.getByText("Loaded enrollment form")).toBeInTheDocument();
+      capturePostHog("login_failed");
+      expect(mocks.capture).toHaveBeenCalledTimes(enabled ? 1 : 0);
+    },
+  );
+
+  it.each([false, true])(
+    "requires the enrollment target in addition to allowed parent memberships (%s)",
+    async (targetEnabled) => {
+      vi.stubGlobal("location", {
+        host: "parents.localhost:3000",
+        hostname: "parents.localhost",
+      });
+      mocks.useSession.mockReturnValue({
+        status: "authenticated",
+        data: { user: { scope: "parent" } },
+      });
+      vi.mocked(fetch).mockImplementation(async (input) => {
+        if (String(input).startsWith("/api/tenant/resolve")) {
+          return Response.json({
+            data: {
+              tenant_id: 42,
+              slug: "school-a",
+              subdomain: "school-a",
+              analytics_enabled: targetEnabled,
+            },
+          });
+        }
+        return Response.json({ data: { enabled: true } });
+      });
+      const { PortalAnalyticsSession } =
+        await import("./portal-analytics-session");
+      const { TenantProvider } = await import("~/lib/tenant-context");
+      const { initializePostHog, capturePostHog } =
+        await import("~/lib/posthog-client");
+      const view = render(
+        <>
+          <PortalAnalyticsSession surface="parents" />
+          <TenantProvider
+            tenantSlug="school-a"
+            tenant={{ ...tenant, analyticsEnabled: targetEnabled }}
+          >
+            <div>Enrollment form</div>
+          </TenantProvider>
+        </>,
+      );
+      // Anker: the target-school page is mounted alongside the parent session.
+      expect(screen.getByText("Enrollment form")).toBeInTheDocument();
+      await act(async () => {});
+      await initializePostHog();
+      expect(mocks.init).toHaveBeenCalledTimes(targetEnabled ? 1 : 0);
+      // A portal refresh must not override the target school's veto.
+      await act(async () =>
+        document.dispatchEvent(new Event("visibilitychange")),
+      );
+      await initializePostHog();
+      expect(mocks.init).toHaveBeenCalledTimes(targetEnabled ? 1 : 0);
+      view.rerender(
+        <>
+          <PortalAnalyticsSession surface="parents" />
+        </>,
+      );
+      await act(async () => {});
+      await initializePostHog();
+      capturePostHog("login_failed");
+      expect(mocks.capture).toHaveBeenCalledWith("login_failed", undefined);
+    },
+  );
 });

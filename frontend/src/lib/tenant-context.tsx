@@ -14,7 +14,8 @@ import {
   type PresenceMode,
   type TenantInfo,
 } from "~/lib/tenant-api";
-import { setAnalyticsContext } from "~/lib/posthog-client";
+import { setTenantAnalyticsPolicy } from "~/lib/posthog-client";
+import { useAnalyticsSchoolPolicy } from "~/lib/hooks/use-analytics-school-policy";
 import { subscribeSettingsChanged } from "~/lib/settings-broadcast";
 
 interface TenantContextValue {
@@ -60,14 +61,10 @@ export function TenantProvider({
     setTenant(serverTenant);
   }, [serverTenant]);
 
-  useEffect(() => {
-    setAnalyticsContext({
-      surface: "ogs",
-      enabled:
-        tenant?.subdomain === tenantSlug && tenant.analyticsEnabled === true,
-    });
-    return () => setAnalyticsContext({ surface: "ogs", enabled: false });
-  }, [tenantSlug, tenant]);
+  const analyticsSource = useAnalyticsSchoolPolicy(
+    tenantSlug,
+    tenant?.subdomain === tenantSlug && tenant.analyticsEnabled === true,
+  );
 
   // Sequence-token to drop out-of-order resolveTenant responses when
   // multiple signals land in the same tick. Kept monotonic across slug
@@ -82,7 +79,7 @@ export function TenantProvider({
     if (!tenantSlug) return undefined;
 
     const refetch = () => {
-      setAnalyticsContext({ surface: "ogs", enabled: false });
+      setTenantAnalyticsPolicy(analyticsSource, { tenantSlug, enabled: false });
       const token = ++requestSeqRef.current;
       const requestedSlug = tenantSlug;
       void resolveTenant(requestedSlug).then((fresh) => {
@@ -102,6 +99,10 @@ export function TenantProvider({
         // is the subdomain, while the payload slug column can
         // legitimately differ from it (#1975).
         if (fresh.subdomain !== requestedSlug) return;
+        setTenantAnalyticsPolicy(analyticsSource, {
+          tenantSlug: requestedSlug,
+          enabled: fresh.analyticsEnabled === true,
+        });
         setTenant(fresh);
       });
     };
@@ -151,7 +152,7 @@ export function TenantProvider({
         document.removeEventListener("visibilitychange", onVisibilityChange);
       }
     };
-  }, [tenantSlug]);
+  }, [tenantSlug, analyticsSource]);
 
   const value = useMemo(
     () => ({ tenantSlug, tenant, routingMode }),

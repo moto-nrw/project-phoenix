@@ -168,6 +168,28 @@ export function analyticsCollectionAllowed(context: AnalyticsContext): boolean {
   return context.deployment === DEMO_DEPLOYMENT || context.enabled === true;
 }
 
+export interface AnalyticsSchoolPolicy {
+  readonly tenantSlug: string;
+  readonly enabled: boolean;
+}
+
+/** Host school owns OGS collection; embedded schools can only restrict it. */
+export function analyticsSchoolsAllowCollection(
+  context: AnalyticsContext,
+  host: string,
+  tenantDomain: string,
+  schools: readonly AnalyticsSchoolPolicy[],
+): boolean {
+  if (schools.some((school) => !school.enabled)) return false;
+  if (context.surface === "ogs" && schools.length > 0) {
+    const hostname = host.split(":")[0];
+    return schools.some(
+      (school) => hostname === `${school.tenantSlug}.${tenantDomain}`,
+    );
+  }
+  return context.enabled === true;
+}
+
 /** Embedded school contexts cannot replace the host portal's decision. */
 export function analyticsContextUpdateAllowed(
   hostSurface: AnalyticsSurface | null,

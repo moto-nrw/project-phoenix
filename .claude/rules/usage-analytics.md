@@ -46,11 +46,21 @@ switch, including on public enrollment pages. School sessions resolve their
 school; parents collect only if **every** active guardian school permits it.
 Until that decision arrives, neither portal loads the SDK. Anonymous parents
 and school login pages stay off because their schools are not yet known.
-The host owns the decision: `posthog-client.ts` accepts context updates only
-from that host's surface, using `analytics-policy.ts`. `TenantProvider`
-publishes OGS updates only; embedded enrollment/edit/adjust pages on the
-parents host cannot override its all-schools decision, including on refresh
-or unmount. Anonymous parents enrollment/status pages stay off as well.
+The host owns the decision: `posthog-client.ts` accepts session updates only
+from that host's surface. On OGS, only the `TenantProvider` matching the host
+slug may permit collection. Every mounted school provider is also a separate
+restrictive gate: embedded enrollment/edit/adjust targets must allow collection
+in addition to the host or portal decision, never instead of it. Unknown or
+refreshing target policies deny collection; unmount removes only that gate.
+Keep enrollment target gates mounted during loading and errors, including
+Suspense fallback on the parent enrollment form, not just around the loaded form.
+Parents and school sessions refresh on `visibilitychange` and every five
+minutes while visible, disabling collection before reading. Errors deny; stale
+responses cannot restore permission. Anonymous parents enrollment/status pages
+stay off. The `public` surface (hosts outside operator/parents/school/tenant)
+never collects outside the demo, an intentional behavior change since #4757.
+Parent `enrollment_submitted` additionally resolves and checks its target school,
+even if every existing membership school permits analytics.
 The demo is exempt. Disabling collection also suppresses recording Freigabe,
 backend core actions, kiosk presence events and school `$groupidentify`.
 `analytics.CollectionPolicy` owns actor/public-school decisions;
