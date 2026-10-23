@@ -209,6 +209,7 @@ function BankverbindungenContent() {
   const failedWithoutData = loadFailed && rows.length === 0;
   const awaitingErrorText =
     loadFailed && formErrorMessage(loadError.error) === null;
+  const exportUnavailable = isLoading || loadFailed || rows.length === 0;
 
   return (
     <TenantPage
@@ -239,12 +240,13 @@ function BankverbindungenContent() {
       actions={
         <OverflowMenu
           ariaLabel="Weitere Aktionen"
+          disabled={exportUnavailable}
           items={[
             {
               label: "Exportieren",
               icon: <Download className="h-4 w-4" aria-hidden />,
               onClick: () => setExportOpen(true),
-              disabled: rows.length === 0,
+              disabled: exportUnavailable,
             },
           ]}
         />

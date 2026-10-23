@@ -215,6 +215,26 @@ describe("BankverbindungenPage", () => {
     );
   });
 
+  it("disables export until a non-empty list is available", async () => {
+    let resolveOverview: (rows: PaymentOverviewRow[]) => void = () => undefined;
+    mockFetchOverview.mockReturnValue(
+      new Promise<PaymentOverviewRow[]>((resolve) => {
+        resolveOverview = resolve;
+      }),
+    );
+
+    render(<BankverbindungenPage />);
+
+    const actions = screen.getByRole("button", { name: "Weitere Aktionen" });
+    expect(actions).toBeDisabled();
+
+    resolveOverview([]);
+    expect(
+      await screen.findAllByText("Noch keine Kinder in der Liste"),
+    ).toHaveLength(2);
+    expect(actions).toBeDisabled();
+  });
+
   // #2517: a failed load replaces the list, never "Noch keine Kinder".
   it("shows a failed load instead of the empty list and retries", async () => {
     mockFetchOverview
@@ -233,6 +253,9 @@ describe("BankverbindungenPage", () => {
     expect(
       screen.queryByText("Noch keine Kinder in der Liste"),
     ).not.toBeInTheDocument();
+    expect(
+      screen.getByRole("button", { name: "Weitere Aktionen" }),
+    ).toBeDisabled();
 
     fireEvent.click(screen.getByRole("button", { name: "Wiederholen" }));
 
