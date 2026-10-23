@@ -199,6 +199,9 @@ func (r *exportRun) collectReferences(table string, data []byte) error {
 	if err := r.collectStoredOriginal(table, fields); err != nil {
 		return err
 	}
+	if err := r.collectLegalOriginals(table, fields); err != nil {
+		return err
+	}
 	for column, raw := range fields {
 		if !exportURLReferenceField(table, column) {
 			continue
