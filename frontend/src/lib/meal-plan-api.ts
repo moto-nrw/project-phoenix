@@ -73,7 +73,7 @@ export interface WeeklyMealList extends MealCutoffs {
 }
 
 /** Wire shape of the cutoffs (snake_case). */
-export interface BackendMealCutoffs {
+interface BackendMealCutoffs {
   cutoff_time: string;
   cutoff_lead_days?: number;
   cutoff_weekday?: number;
@@ -81,7 +81,7 @@ export interface BackendMealCutoffs {
   cancellation_cutoff_lead_days?: number;
 }
 
-export function mapMealCutoffs(data: BackendMealCutoffs): MealCutoffs {
+function mapMealCutoffs(data: BackendMealCutoffs): MealCutoffs {
   return {
     cutoffTime: data.cutoff_time,
     cutoffLeadDays: data.cutoff_lead_days ?? 0,
