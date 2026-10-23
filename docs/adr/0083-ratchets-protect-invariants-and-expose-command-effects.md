@@ -13,7 +13,8 @@ The decisions below define follow-up cuts, not new checker permissions.
 The [measurement record](../architecture/4548-ratchet-policy-measurement.md)
 contains immutable SHAs, commands, counts and limits. The inspected development
 is `2c7907c2fe725dd7e124a8b866d5dce2d8b09718`. No policy, budget, owner,
-transaction, production behavior or open #4642/#4725 file changes here.
+transaction or production behavior changes here. #4642 and #4725 are merged
+and included in the PR head; this decision does not change their code.
 
 ## 1. Keep invariants; replace scaffolding only with its successor
 
@@ -125,8 +126,8 @@ for effect completeness; behavior tests and review still establish semantics.
   `operations_attendance.go:154` passes `BypassResourceChecks: true` to Presence.
   `presence/student_move.go:73` then omits the resource authorization branch.
   Timetable's comment says it authorized the target already. The #4538
-  inventory omits this fact, so “each owner retains its authorization guards”
-  is not established for this edge. Record the bypass, upstream check and
+  inventory now links this finding; “each owner retains its authorization
+  guards” is not established for this edge. Record the bypass, upstream check and
   required equivalence tests explicitly. Either prove Timetable's check
   covers the required action/cohort, or replace the bypass with a narrow
   guarded command. This decision does not choose a business authorization
@@ -138,9 +139,12 @@ Keep class(shared/exclusive) → recurrence → transition where applicable;
 child rows precede request/pickup rows in the corrected offering protocols.
 Do not invent a single global row order from a partial inventory. E1's
 request serialization and E2's corrected order are distinct protocols.
-#4636/#4638 contract tests demonstrate real prior `40P01` failures; the open
-#4725 addresses the remaining Care Plan request inversions. This ADR changes
-neither their files nor ADR 0067 nor the shared inventory.
+#4636/#4638 contract tests demonstrate real prior `40P01` failures. Merged
+#4725 (`e5ff1c467f`) fixes the Care Plan family-request inversions with
+**class(shared) → child → family request**, as recorded in
+[ADR 0067’s E2/E4 family-request correction](0067-principle-owners-meet-through-contracts-and-write-together-in-workflows.md#e2e4-family-request-lock-order-correction-4640).
+Merged #4642 (`2ef86106e4`) is also included in the PR head. This ADR does not
+change either fix or ADR 0067; the shared inventory links the bypass finding.
 
 `care_resumption_workflow_test.go` pins ambient/nonambient rollback and tenant
 isolation; `offering_lock_order_test.go` pins concurrent offering paths.
@@ -215,8 +219,16 @@ strictness, overlap, stale-rule and negative-private-role tests. Measure the
 actual saved edits first; do not trade a smaller JSON file for wider rights.
 
 **Historical Cutover/Checkpoint JSONs: already removed, no further archive.**
-Only `policy.json` and `composition_inventory.json` remain as architecture JSON
-files. ADR 0026's amendment and the README point to immutable
+The top level of `backend/architecture/` contains `policy.json` and
+`composition.json` (the manifest read by `TestCompositionInventory`). Six
+historical caller inventories also remain under `callers/` (#2734–#2749).
+**Keep these six for now:** the README and `backend/architecture/WORKPLAN.md`
+still cite them, and caller-inventory generators retain their output paths.
+`scripts/backend-common-http-callers/main.go` scans Go source and writes
+`callers/common-http-2738.json`; it does not read the JSONs as runtime or test
+inputs. Archive them only with their historical references and generator
+output paths in the separate documentation cut, not by deleting evidence here.
+ADR 0026's amendment and the README point to immutable
 `46506b00c695a6f102865cae2dc9f24010371b7c`; runtime measurements remain in
 `docs/runtime-checkpoints/`. Do not restore deleted artifacts to move them.
 

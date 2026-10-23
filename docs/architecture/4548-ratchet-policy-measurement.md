@@ -24,7 +24,8 @@ used. #4642 and #4725 surfaces are read-only inputs to this decision.
 | Domains / platforms / projections / workflows | 18 / 10 / 19 / 13 |
 | Owners, all kinds | 68 |
 | `test/*_ratchet_test.go` files | 19 |
-| Top-level architecture JSON files | 2 |
+| Top-level architecture JSON files (`policy.json`, `composition.json`) | 2 |
+| Historical caller-inventory JSON files (`backend/architecture/callers/`) | 6 |
 | Architecture README lines | 5,060 |
 | Legacy baseline bytes | 0 |
 
@@ -55,7 +56,8 @@ for label, predicate in (
 print(collections.Counter(o['kind'] for o in p['owners']))
 paths = subprocess.check_output(['git', 'ls-tree', '-r', '--name-only', ref], text=True).splitlines()
 print('ratchet files', sum(s.startswith('backend/test/') and s.endswith('_ratchet_test.go') for s in paths))
-print('architecture JSONs', [s for s in paths if s.startswith('backend/architecture/') and s.count('/') == 2 and s.endswith('.json')])
+print('top-level architecture JSONs', [s for s in paths if s.startswith('backend/architecture/') and s.count('/') == 2 and s.endswith('.json')])
+print('historical caller JSONs', [s for s in paths if s.startswith('backend/architecture/callers/') and s.endswith('.json')])
 print('README lines', len(blob('backend/architecture/README.md').splitlines()))
 print('baseline bytes', len(blob('backend/architecture/legacy.jsonl')))
 PY
@@ -63,7 +65,11 @@ PY
 
 The migration JSONs were already removed under ADR 0026's amendment, not
 archived by #4548. The README's Migration evidence section gives their last
-immutable tree. The remaining JSONs are policy and composition inventory.
+immutable tree. The two top-level JSONs are `policy.json` and
+`composition.json`; the recursive count is eight, including six historical
+`callers/*.json` inventories. ADR 0083 keeps those six pending a coordinated
+archive of README/WORKPLAN references and generator output paths. The
+common-HTTP generator writes one inventory from Go source, not from JSON input.
 
 ## Executable scanner measurements
 
