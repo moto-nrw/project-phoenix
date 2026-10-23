@@ -44,6 +44,7 @@ type effectScanner struct {
 	ownerKinds  map[string]string
 	policy      map[string]Package
 	bindings    effectBindings
+	values      effectValues
 	bodies      map[*types.Func]effectBody
 	sites       map[string]commandEffectSite
 	evidence    map[string]map[string]bool
@@ -75,7 +76,7 @@ func discoverCommandEffects(policy *Policy, loaded []*packages.Package) []comman
 }
 
 func newEffectScanner(policy *Policy, loaded []*packages.Package) *effectScanner {
-	s := &effectScanner{ownerKinds: map[string]string{}, policy: policy.packageMap(), bindings: collectEffectBindings(loaded), bodies: map[*types.Func]effectBody{}, sites: map[string]commandEffectSite{}, evidence: map[string]map[string]bool{}}
+	s := &effectScanner{ownerKinds: map[string]string{}, policy: policy.packageMap(), bindings: collectEffectBindings(loaded), values: collectEffectValues(loaded), bodies: map[*types.Func]effectBody{}, sites: map[string]commandEffectSite{}, evidence: map[string]map[string]bool{}}
 	for _, owner := range policy.Owners {
 		s.ownerKinds[owner.ID] = owner.Kind
 	}
@@ -311,7 +312,7 @@ func (s *effectScanner) walkSelector(port, binding string, pkg *packages.Package
 		s.resolve(port, binding, pkg.TypesInfo.TypeOf(selector.X), selector.Sel.Name, seen, trail)
 	}
 	if _, ok := selection.Obj().Type().Underlying().(*types.Signature); ok && selection.Kind() == types.FieldVal {
-		s.record(port, binding, "unresolved:function:"+effectTypeID(pkg.TypesInfo.TypeOf(selector.X))+"."+selector.Sel.Name, "", trail)
+		s.record(port, binding, "unresolved:function:"+effectTypeID(pkg.TypesInfo.TypeOf(selector.X))+"."+selector.Sel.Name, "", s.callableTrail(selection.Obj(), trail))
 	}
 }
 
@@ -472,6 +473,6 @@ func (s *effectScanner) walkCallable(port, binding string, pkg *packages.Package
 		return
 	}
 	if _, callable := variable.Type().Underlying().(*types.Signature); callable {
-		s.record(port, binding, "unresolved:callable:"+pkg.PkgPath+"."+id.Name, "", trail)
+		s.record(port, binding, "unresolved:callable:"+pkg.PkgPath+"."+id.Name, "", s.callableTrail(variable, trail))
 	}
 }

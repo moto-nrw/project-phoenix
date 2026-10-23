@@ -508,3 +508,100 @@ The outstanding recognition work is the explicitly bounded binding-flow and
 platform/protocol cuts, not additional source-domain coverage. This census does
 not prove label truth, production liveness, guard equivalence, transaction
 participation, after-commit durability or deadlock freedom.
+
+## Gate-gap closure 2026-10-23 (#4836)
+
+This implements the three gate repairs from
+[#4836](https://github.com/moto-nrw/project-phoenix/issues/4836), not the complete
+platform/protocol follow-up. No runtime owner, command, transaction, permission,
+policy rule or shape budget changes. ADR 0071 remains unchanged; the finite
+Roster/Bookings description in PR #4753 is context, not a merged decision.
+[ADR 0091](0091-command-effect-gap-reconciliation.md) supplies the fresh-numbered
+approval for the measured register reconciliation. Appending this heading to
+ADR 0083 itself grants no approval.
+
+### Assignment evidence and limits
+
+Function fields and callable variables keep their exact `unresolved` identities,
+but their fingerprint now includes their typed assignments, constructor
+arguments, aliases and closure bodies. Referenced root helper bodies and typed
+function signatures also contribute. The union is keyed by `go/types` objects,
+not field names or structurally compatible signatures. Callable containers and
+tuple-returning factory expressions retain assignment evidence for reached
+diagnostics; this does not claim complete runtime function dispatch. This is
+still conservative may-bind accounting, not instance-level dispatch resolution.
+
+A closure or helper can change arguments, scope, order, errors or foreign calls
+without changing the wrapper method or target set. Therefore semantic changes
+to a still-unresolved binding need fresh ADR evidence, even for a purported
+no-new-foreign-effect edit. The helper fixture exercises that trade-off with an
+unchanged target set. A semantic effect-equivalence solver is out of scope.
+Normalized comments, formatting/positions and unconnected closures do not
+change evidence or require an ADR. No existing assertion is weakened.
+
+### Container and tuple flow
+
+Actual slice/array/map literals, including nested containers and map keys,
+contribute element bindings. Container assignments/returns, variadic arguments
+and expanded slices, append arguments, multi-result assignments/declarations, named-function calls
+and sole tuple arguments bind the corresponding typed slots. Recursive named
+containers terminate without inventing edges. No implementation is guessed
+from assignability. These cases resolve the foreign terminal rather than
+silently dropping it or calling it a query. Generation still leaves new
+identities `unknown` for human classification.
+
+### Workflow labels are not silent exceptions
+
+New or changed `workflow` bindings now need a new `approval_adr`, just like
+E1–E5, unresolved bindings and debt. Only the seven already recorded Care Exit
+Roster/Bookings E2 command/lock identities retain that label. All other prior
+workflow-labelled surfaces become `debt` with #4825, including HTTP entry and
+compiled support may-bind surfaces. That conservative classification does not
+assert those unused methods are live application callbacks. Read-only targets
+remain `query`; their evidence still records direction debt where applicable.
+
+### Verification and measured reconciliation
+
+The three new regressions fail on development: changed closure reports
+`0 changed`, container-only binding reports `0 entries`, and new `workflow`
+passes without approval. After repair, the same fixture generation, base
+comparison and CLI `check` reject all three. Additional fixtures cover assignment
+and constructor aliases, helper changes, containers/variadics/tuples, comments,
+unrelated wiring and recursive containers. The real repository counterprobe
+removes ADR 0091 and this addendum, checks failure, then restores exact bytes.
+
+Against `1f1d42ef1b`: **5,341 → 5,344 entries; 3 added, 0 removed**.
+Container/tuple flow exposes no new unresolved identity. Named-function argument
+flow exposes three existing File Storage → Care Plan cleanup-bookkeeping
+providers (`StudentDocumentFileStore` → `StudentDocuments`: ActivateQueuedCleanup,
+MarkFileDeleted, MarkQueuedCleanupCompleteByFilename). Each is `mutation/leaf`,
+consistent with the same already inventoried owner commands; its exact reason
+records the forwarding/context/error boundary. No new unresolved diagnostic
+needs classification.
+**48 fingerprints change**: all 40 function-field entries and 8 callable-variable
+entries gain assignment evidence. **19 workflow → debt**, leaving **7 workflow**
+and **73 → 92 debt** entries. The union of those changes is **70 reviewed entries**
+carrying `approval_adr: "0091"`. Effects remain 2,779 query, 1,614 mutation,
+298 lock, 7 scope, 1 durable, 5 notice and 640 unresolved. No policy or
+pass-through entry changes.
+
+Serial warm `check` before implementation: **51.33 s wall, 87.37 s user,
+21.97 s system**, pinned Go 1.27.3, `-p=4`, `GOMAXPROCS=4`. Each timed sample
+follows an untimed warmup; no own test/lint runs concurrently with the sample.
+Other worktrees share this machine, so the comparison is observational, not a
+causal benchmark or SLA. The no-new-ADR counterprobe exits 1 and rejects 67 existing-entry changes
+(48 fingerprint changes and 19 relabels); restoring the exact ADR bytes
+restores approval. The 3 new leaf provider entries require exact review but
+no exception-growth approval. Final warm explicit-base `check`: **29.97 s wall, 87.62 s user, 18.48 s
+system**, 5,344 entries, 3 added and 48 changed, 0 legacy violations,
+composition surface 0 → 0 and 3,522 unchanged method pass-through sites. The
+untimed default-base warmup and explicit merge-base check both pass. The wall
+time difference is not attributed to this patch: shared-machine load and
+cache state changed; CPU time is similar.
+
+Generic instance-flow completeness, anonymous-only source discovery and direct
+foreign calls outside supplied interfaces remain proposed binding-flow work.
+Full platform effects, transaction/savepoint, authorization, lock-order and
+after-commit protocol proofs remain a separate 2–4 day follow-up. Combining
+those cuts here would require a broad new register review rather than a bounded
+gate repair. No follow-up issue is created.
