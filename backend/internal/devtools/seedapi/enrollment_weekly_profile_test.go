@@ -277,6 +277,10 @@ func (m *weeklyProfileAPIMock) serve(t *testing.T, w seedHTTPResponseWriter, r *
 		data = []map[string]any{{"tenant_id": schoolID}}
 	case path == "/auth/switch-tenant":
 		if body["tenant_slug"] == "vollbetrieb" {
+			if r.Header.Get("Authorization") == "Bearer developer-secondary" {
+				_ = json.NewEncoder(w).Encode(map[string]any{"access_token": "shared-switched-token"})
+				return true
+			}
 			w.WriteHeader(401)
 			_ = json.NewEncoder(w).Encode(map[string]any{"error": "tenant access denied"})
 			return true

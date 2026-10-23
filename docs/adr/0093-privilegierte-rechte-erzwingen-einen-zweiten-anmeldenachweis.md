@@ -35,8 +35,9 @@ Personalfinanzrechte verlangen MFA unabhängig von der Schuleinstellung.
    Anmeldung; die API lehnt den Wechsel mit 401 und
    `identity.mfa_session_required` ab. Das gilt auch nach Ablauf der Schonfrist
    einer durch Schulwechsel stillgelegten Familie. Ein Login-Cache muss den
-   vorgelegten Eintrag nach erfolgreichem Wechsel verwerfen; die nächste
-   Anmeldung durchläuft unverändert den regulären MFA-Weg. Die bisherigen
+   vorgelegten Eintrag nach erfolgreichem Wechsel verwerfen. Er darf die
+   zurückgegebene, lebende Zielsitzung übernehmen. Fehlt eine solche Sitzung,
+   durchläuft die nächste Anmeldung unverändert den regulären MFA-Weg. Die bisherigen
    Operator- und Eltern-Anmeldeverfahren bleiben unverändert.
 
 ## Folgen

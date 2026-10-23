@@ -2,6 +2,8 @@ package api
 
 import (
 	"context"
+	"encoding/json"
+	"maps"
 	"sync"
 )
 
@@ -12,8 +14,9 @@ import (
 // seeder never changes roles or permissions of an account that already logged
 // in, so the claims of a reused token stay current. Failed logins are not
 // cached. Operator logins pass through because they drive the MFA flow.
-// Successful tenant switches invalidate the presented login: its refresh
-// family is retired even though its access JWT has not expired yet.
+// Successful tenant switches replace the retired source cache with the returned
+// target session. Profile round trips therefore preserve the verified session
+// without requesting another MFA email for each school.
 type loginCachingAdapter struct {
 	Adapter
 	mu     sync.Mutex
@@ -53,22 +56,41 @@ func (a *loginCachingAdapter) Raw(ctx context.Context, auth AuthRef, method, pat
 	raw, status, err := a.Adapter.Raw(ctx, auth, method, path, body, headers)
 	if err == nil && status >= 200 && status < 300 && method == "POST" && path == "/auth/switch-tenant" {
 		a.mu.Lock()
-		entries := make([]*cachedLogin, 0, len(a.logins))
-		for key, entry := range a.logins {
-			if key.portal == "tenant" {
-				entries = append(entries, entry)
-			}
-		}
+		entries := maps.Clone(a.logins)
 		a.mu.Unlock()
-		for _, entry := range entries {
+		targetSlug, targetToken := tenantSwitchCacheTarget(body, raw)
+		for key, entry := range entries {
 			entry.mu.Lock()
-			if entry.auth.Token == auth.Token {
-				entry.auth, entry.done = AuthRef{}, false
+			matched := key.portal == "tenant" && entry.done && auth.Token != "" && entry.auth.Kind == auth.Kind && entry.auth.Token == auth.Token
+			if matched {
+				entry.done = false
 			}
 			entry.mu.Unlock()
+			if matched && targetSlug != "" && targetToken != "" {
+				key.tenantSlug = targetSlug
+				a.mu.Lock()
+				a.logins[key] = &cachedLogin{auth: AuthRef{Kind: AuthBearer, Label: targetSlug, Token: targetToken}, done: true}
+				a.mu.Unlock()
+			}
 		}
 	}
 	return raw, status, err
+}
+
+// Cache bookkeeping is optional: malformed responses still reach the caller,
+// but the retired source is evicted even if no successor can be cached.
+func tenantSwitchCacheTarget(body any, raw []byte) (string, string) {
+	var request struct {
+		TenantSlug string `json:"tenant_slug"`
+	}
+	var response struct {
+		AccessToken string `json:"access_token"`
+	}
+	encoded, err := json.Marshal(body)
+	if err != nil || json.Unmarshal(encoded, &request) != nil || json.Unmarshal(raw, &response) != nil {
+		return "", ""
+	}
+	return request.TenantSlug, response.AccessToken
 }
 
 // login locks per account, so concurrent workers signing in as the same
