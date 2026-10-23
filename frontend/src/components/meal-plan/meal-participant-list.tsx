@@ -16,6 +16,7 @@ import { DataTable, type DataTableColumn } from "~/components/ui/data-table";
 import { ISODatePicker } from "~/components/ui/date-picker";
 import { EmptyState } from "~/components/ui/empty-state";
 import { LoadErrorAlert } from "~/components/ui/form-error-alert";
+import { SectionCard } from "~/components/ui/section-card";
 import { MealRegistrationChangeModal } from "~/components/meal-plan/meal-registration-change-modal";
 import { useApiErrorDisplay, useApiLoadError } from "~/contexts/ToastContext";
 import { formatDate, parseISODate, toISODate } from "~/lib/date-helpers";
@@ -148,120 +149,116 @@ export function MealParticipantList({
     retryDownloadRef.current = (format) => void download(format);
   });
 
+  const cutoffLine = closed
+    ? t("closedDay")
+    : deadline
+      ? t("cutoff", {
+          date: new Date(deadline).toLocaleString(locale, {
+            weekday: "short",
+            day: "2-digit",
+            month: "2-digit",
+            hour: "2-digit",
+            minute: "2-digit",
+            timeZone: "Europe/Berlin",
+          }),
+        })
+      : null;
+
+  // Eine Karte wie „Bestellung“ darüber: Titel, Frist und Aktionen im Kopf,
+  // die Liste der Kinder als Körper (#3873).
   return (
-    <section className="space-y-4" aria-labelledby="meal-participants-title">
-      <div className="moto-content-surface rounded-2xl border p-4 shadow-sm sm:p-6">
-        <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
-          <div>
-            <h2
-              id="meal-participants-title"
-              className="text-lg font-semibold text-gray-900"
+    <SectionCard
+      title={t("title")}
+      description={
+        <>
+          <span className="block">{t("description")}</span>
+          {cutoffLine ? (
+            <span className="mt-1 block font-medium text-gray-700">
+              {cutoffLine}
+            </span>
+          ) : null}
+        </>
+      }
+      actions={
+        <div className="flex w-full flex-col gap-2 sm:w-auto sm:flex-row sm:flex-wrap sm:items-center sm:justify-end">
+          <ISODatePicker
+            id="meal-participant-date"
+            value={date}
+            onChange={setSelectedDate}
+            ariaLabel={t("dateAria", {
+              date: formatDate(date, false, locale),
+            })}
+            {...datePicker}
+            calendarLayout="popover-below"
+            controlSize="md"
+            disabledDay={isWeekendDay}
+            hideClearButton
+            required
+            className="w-full sm:w-44"
+            triggerClassName="w-full min-w-44 flex-none justify-between rounded-lg text-sm font-medium"
+          />
+
+          {canRegister ? (
+            <Button
+              type="button"
+              variant="outline"
+              size="md"
+              className="bg-white"
+              onClick={() => setChanging(true)}
+              disabled={loading || Boolean(loadError) || closed || date < today}
             >
-              {t("title")}
-            </h2>
-            <p className="mt-1 text-sm text-gray-600">{t("description")}</p>
-            {closed ? (
-              <p className="mt-1 text-sm font-medium text-gray-700">
-                {t("closedDay")}
-              </p>
-            ) : deadline ? (
-              <p className="mt-1 text-sm font-medium text-gray-700">
-                {t("cutoff", {
-                  date: new Date(deadline).toLocaleString(locale, {
-                    weekday: "short",
-                    day: "2-digit",
-                    month: "2-digit",
-                    hour: "2-digit",
-                    minute: "2-digit",
-                    timeZone: "Europe/Berlin",
-                  }),
-                })}
-              </p>
-            ) : null}
-          </div>
+              {t("change")}
+            </Button>
+          ) : null}
 
-          <div className="flex flex-col gap-2 sm:flex-row sm:flex-wrap sm:items-center sm:justify-end lg:shrink-0">
-            <ISODatePicker
-              id="meal-participant-date"
-              value={date}
-              onChange={setSelectedDate}
-              ariaLabel={t("dateAria", {
-                date: formatDate(date, false, locale),
-              })}
-              {...datePicker}
-              calendarLayout="popover-below"
-              controlSize="md"
-              disabledDay={isWeekendDay}
-              hideClearButton
-              required
-              className="w-full sm:w-44"
-              triggerClassName="w-full min-w-44 flex-none justify-between rounded-lg text-sm font-medium"
-            />
-
-            {canRegister ? (
+          {canExport ? (
+            <div
+              role="group"
+              aria-label={t("downloadGroup")}
+              className="flex flex-wrap gap-2 sm:justify-end"
+            >
               <Button
                 type="button"
                 variant="outline"
                 size="md"
-                className="bg-white"
-                onClick={() => setChanging(true)}
-                disabled={
-                  loading || Boolean(loadError) || closed || date < today
-                }
+                className="gap-2 bg-white"
+                aria-label={t("downloadPdf")}
+                aria-busy={exporting === "pdf"}
+                onClick={() => void download("pdf")}
+                isLoading={exporting === "pdf"}
+                loadingText={t("downloadLoading")}
+                disabled={loading || Boolean(loadError) || exporting !== null}
               >
-                {t("change")}
+                <Download className="h-4 w-4" aria-hidden="true" />
+                {t("pdf")}
               </Button>
-            ) : null}
-
-            {canExport ? (
-              <div
-                role="group"
-                aria-label={t("downloadGroup")}
-                className="flex flex-wrap gap-2 sm:justify-end"
+              <Button
+                type="button"
+                variant="outline"
+                size="md"
+                className="gap-2 bg-white"
+                aria-label={t("downloadExcel")}
+                aria-busy={exporting === "xlsx"}
+                onClick={() => void download("xlsx")}
+                isLoading={exporting === "xlsx"}
+                loadingText={t("downloadLoading")}
+                disabled={loading || Boolean(loadError) || exporting !== null}
               >
-                <Button
-                  type="button"
-                  variant="outline"
-                  size="md"
-                  className="gap-2 bg-white"
-                  aria-label={t("downloadPdf")}
-                  aria-busy={exporting === "pdf"}
-                  onClick={() => void download("pdf")}
-                  isLoading={exporting === "pdf"}
-                  loadingText={t("downloadLoading")}
-                  disabled={loading || Boolean(loadError) || exporting !== null}
-                >
-                  <Download className="h-4 w-4" aria-hidden="true" />
-                  {t("pdf")}
-                </Button>
-                <Button
-                  type="button"
-                  variant="outline"
-                  size="md"
-                  className="gap-2 bg-white"
-                  aria-label={t("downloadExcel")}
-                  aria-busy={exporting === "xlsx"}
-                  onClick={() => void download("xlsx")}
-                  isLoading={exporting === "xlsx"}
-                  loadingText={t("downloadLoading")}
-                  disabled={loading || Boolean(loadError) || exporting !== null}
-                >
-                  <FileSpreadsheet className="h-4 w-4" aria-hidden="true" />
-                  {t("excel")}
-                </Button>
-                <span className="sr-only" role="status" aria-live="polite">
-                  {exporting === "pdf"
-                    ? t("pdfDownloadStatus")
-                    : exporting === "xlsx"
-                      ? t("excelDownloadStatus")
-                      : ""}
-                </span>
-              </div>
-            ) : null}
-          </div>
+                <FileSpreadsheet className="h-4 w-4" aria-hidden="true" />
+                {t("excel")}
+              </Button>
+              <span className="sr-only" role="status" aria-live="polite">
+                {exporting === "pdf"
+                  ? t("pdfDownloadStatus")
+                  : exporting === "xlsx"
+                    ? t("excelDownloadStatus")
+                    : ""}
+              </span>
+            </div>
+          ) : null}
         </div>
-      </div>
-
+      }
+    >
       {loadError ? (
         <LoadErrorAlert error={loadError} />
       ) : (
@@ -291,6 +288,6 @@ export function MealParticipantList({
         participants={participants}
         others={others}
       />
-    </section>
+    </SectionCard>
   );
 }

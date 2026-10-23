@@ -210,11 +210,13 @@ export function MealCaterer() {
             {formErrors.error ? (
               <FormErrorAlert message={formErrors.error} />
             ) : null}
-            <p className="text-sm text-gray-700">
+            <p className="text-sm font-medium text-gray-700">
               Noch kein Caterer. Laden Sie Ihren Caterer per E-Mail ein. Er legt
               dann selbst sein Passwort fest.
             </p>
-            <div className="grid gap-4 sm:grid-cols-2">
+            {/* Drei kurze Felder in einer Zeile und der Knopf rechts darunter:
+                so bleibt die Karte so niedrig wie ihre Nachbarn. */}
+            <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
               <Input
                 label="Name des Caterers"
                 name="caterer_name"
@@ -238,31 +240,33 @@ export function MealCaterer() {
                 disabled={sending}
                 required
               />
+              <Input
+                label="Lieferadresse (optional)"
+                name="delivery_address"
+                value={form.deliveryAddress}
+                onChange={(event) =>
+                  setForm({ ...form, deliveryAddress: event.target.value })
+                }
+                error={formErrors.fieldError("delivery_address")}
+                disabled={sending}
+              />
             </div>
-            <Input
-              label="Lieferadresse (optional)"
-              name="delivery_address"
-              value={form.deliveryAddress}
-              onChange={(event) =>
-                setForm({ ...form, deliveryAddress: event.target.value })
-              }
-              error={formErrors.fieldError("delivery_address")}
-              disabled={sending}
-            />
-            <Button
-              type="submit"
-              variant="primary"
-              size="md"
-              isLoading={sending}
-              loadingText="Wird gesendet …"
-              disabled={
-                sending ||
-                form.email.trim() === "" ||
-                form.catererName.trim() === ""
-              }
-            >
-              Einladung senden
-            </Button>
+            <div className="flex justify-end">
+              <Button
+                type="submit"
+                variant="primary"
+                size="md"
+                isLoading={sending}
+                loadingText="Wird gesendet …"
+                disabled={
+                  sending ||
+                  form.email.trim() === "" ||
+                  form.catererName.trim() === ""
+                }
+              >
+                Einladung senden
+              </Button>
+            </div>
           </form>
 
           {openInvitations.length > 0 ? (
