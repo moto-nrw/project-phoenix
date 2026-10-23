@@ -25,10 +25,7 @@ import type {
 import { createCrudService } from "@/lib/database/service-factory";
 import { rolesConfig } from "@/components/database/configs/roles.config";
 import type { Role } from "@/lib/auth-helpers";
-import {
-  getRoleDisplayName,
-  isExternalCaregiverRole,
-} from "@/lib/auth-helpers";
+import { getRoleDisplayName } from "@/lib/auth-helpers";
 import { hasPermission, isAdmin } from "~/lib/auth-utils";
 import { RolesMasterDetail } from "@/components/roles/roles-master-detail";
 import { DatabaseFormModal } from "~/components/ui/database/database-form-modal";
@@ -383,10 +380,6 @@ function RolesPageContent() {
                   </span>{" "}
                   wirklich löschen? Alle Personen mit dieser Rolle verlieren
                   ihre Berechtigungen.
-                  {/* #4573: moto findet die Rolle „Extern“ am Namen. */}
-                  {isExternalCaregiverRole(selectedRole.name)
-                    ? " Danach können Sie keine externen Personen mehr anlegen."
-                    : null}
                 </>
               }
               gate={{ mode: "twoStep" }}

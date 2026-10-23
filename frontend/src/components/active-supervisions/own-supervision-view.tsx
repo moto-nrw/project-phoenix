@@ -58,7 +58,7 @@ function ownRunningBlocks(
 }
 
 /**
- * „Aktuelle Aufsicht“ ohne `groups:read` (#4573, Rolle „Extern“): nur die
+ * „Aktuelle Aufsicht“ ohne `groups:read` (#4573, AG-Leitung): nur die
  * eigenen laufenden Blöcke, ihre Kinderliste mit An- und Abmelden und
  * Beenden, darüber „Als Nächstes“ zum Starten. Alles kommt aus der
  * Betriebs-API des Betreuungsplans (`schedules:read`); das Backend prüft

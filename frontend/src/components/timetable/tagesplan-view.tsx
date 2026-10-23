@@ -413,7 +413,7 @@ export function TagesplanView() {
       try {
         const result = await timetableOperationsApi.start(instance.id);
         // Die Seitenleiste soll die neue Aufsicht sofort zeigen, auch ohne
-        // Live-Ereignis (etwa für die Rolle „Extern“, #4573).
+        // Live-Ereignis (etwa für die AG-Leitung, #4573).
         window.dispatchEvent(new CustomEvent("phoenix:supervision-stale"));
         saveScrollPosition(day);
         router.push(`/active-supervisions?session=${result.activeGroupId}`);

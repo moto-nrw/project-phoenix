@@ -58,7 +58,7 @@ describe("staffOnboardingSteps", () => {
     expect(steps.map((step) => step.key)).toEqual(["students", "work_time"]);
   });
 
-  // #4573: die Rolle „Extern“ hält nur schedules:read. Kein Schritt darf auf
+  // #4573: die AG-Leitung hält nur schedules:read. Kein Schritt darf auf
   // eine Seite führen, die sie nicht öffnen darf.
   it("offers only the steps whose page the person may open", () => {
     const steps = staffOnboardingSteps(

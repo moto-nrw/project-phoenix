@@ -72,7 +72,7 @@ export interface StaffOnboardingContext {
   /** Die Schule erfasst Räume (detaillierte Anwesenheit). */
   roomsTracked: boolean;
   /**
-   * Die Person darf „Alle Kinder“ öffnen (`users:read`). Die Rolle „Extern“
+   * Die Person darf „Alle Kinder“ öffnen (`users:read`). Die AG-Leitung
    * darf es nicht (#4573); auch das An- und Abmelden führt dorthin.
    */
   canSearchChildren: boolean;

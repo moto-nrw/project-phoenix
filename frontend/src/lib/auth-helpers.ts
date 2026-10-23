@@ -128,7 +128,8 @@ const SYSTEM_ROLE_TRANSLATIONS: Record<
   },
   guest: {
     name: "Gast",
-    description: "Eingeschränkter Zugriff für nicht authentifizierte Benutzer",
+    description:
+      "Nur ansehen: Kinder, Räume und AGs. Keine Elterndaten, keine Nachrichten.",
   },
   guardian: {
     name: "Erziehungsberechtigter",
@@ -138,6 +139,12 @@ const SYSTEM_ROLE_TRANSLATIONS: Record<
     name: "Lehrkraft",
     description: "Lesezugriff auf die Tagesansicht der zugewiesenen Klassen",
   },
+  // ADR 0083: the access „Eigene Termine betreuen“ of external caregivers.
+  "ag-leitung": {
+    name: "AG-Leitung",
+    description:
+      "Betreut eigene Termine: starten, Kinder ein- und auschecken, beenden",
+  },
 };
 
 /**
@@ -145,36 +152,14 @@ const SYSTEM_ROLE_TRANSLATIONS: Record<
  * Falls back to the original name if no translation exists.
  */
 export function getRoleDisplayName(roleName: string): string {
-  const key = roleName.trim().toLowerCase();
-  return (
-    SYSTEM_ROLE_TRANSLATIONS[key]?.name ??
-    PROVISIONED_SCHOOL_ROLE_LABELS[key] ??
-    roleName
-  );
+  return SYSTEM_ROLE_TRANSLATIONS[roleName.toLowerCase()]?.name ?? roleName;
 }
 
 /**
- * The school role every school gets for external caregivers (#4573). The
- * role store keeps custom names lowercase, so it arrives as „extern“.
+ * How an external caregiver is marked in lists, badges and select options:
+ * „Extern“. An attribute of the person, not a role (ADR 0083).
  */
-const EXTERNAL_CAREGIVER_ROLE_NAME = "extern";
-
-/** How the role and its people read on screen: „Extern“. */
 export const EXTERNAL_CAREGIVER_LABEL = "Extern";
-
-/**
- * Whether a role is the school's „Extern“ role. The backend finds it by name
- * (case-insensitive), so renaming or deleting it stops external invitations.
- */
-export function isExternalCaregiverRole(roleName: string | undefined): boolean {
-  return roleName?.trim().toLowerCase() === EXTERNAL_CAREGIVER_ROLE_NAME;
-}
-
-// School roles moto itself provisions in every school. Their stored name is
-// lowercase; the display keeps the spelling the help and the forms use.
-const PROVISIONED_SCHOOL_ROLE_LABELS: Record<string, string> = {
-  [EXTERNAL_CAREGIVER_ROLE_NAME]: EXTERNAL_CAREGIVER_LABEL,
-};
 
 /**
  * Get the German description for a system role.
@@ -196,7 +181,6 @@ export function getRoleDisplayDescription(
 const SCHOOL_ROLE_LABELS: Record<string, string> = {
   "ogs-leitung": "OGS-Leitung",
   betreuungskraft: "Betreuungskraft",
-  [EXTERNAL_CAREGIVER_ROLE_NAME]: EXTERNAL_CAREGIVER_LABEL,
 };
 
 // "teacher" is the retired predecessor of "user". It can no longer be

@@ -1,5 +1,5 @@
 /**
- * „Aktuelle Aufsicht“ ohne groups:read (#4573, Rolle „Extern“): die Seite
+ * „Aktuelle Aufsicht“ ohne groups:read (#4573, AG-Leitung): die Seite
  * zeigt nur die eigene laufende Aufsicht aus der Betriebs-API des
  * Betreuungsplans, ohne die schulweite Übersicht. Wer groups:read hält,
  * behält die volle Seite.

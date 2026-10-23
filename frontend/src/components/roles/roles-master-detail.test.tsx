@@ -162,59 +162,6 @@ describe("RolesMasterDetail", () => {
     ).toBeInTheDocument();
   });
 
-  // #4573: the backend finds the role „Extern“ by name. The product says so
-  // where the role is renamed, not only the help.
-  it("says on the role „Extern“ that renaming or deleting it stops external invitations", () => {
-    const externalRole: Role = {
-      ...customRole,
-      id: "4",
-      name: "extern",
-      description: "Externe Betreuungskraft",
-      baseRole: "user",
-    };
-    render(
-      <RolesMasterDetail
-        roles={[externalRole]}
-        selectedId="4"
-        selectedRole={externalRole}
-        detailLoading={false}
-        onSelect={onSelect}
-        onSaveRole={onSaveRole}
-        onDeleteClick={onDeleteClick}
-        onPermissionsSaved={onPermissionsSaved}
-      />,
-    );
-
-    const notice =
-      "moto gibt diese Rolle jeder externen Person, die Sie anlegen oder einladen. Benennen Sie die Rolle nicht um und löschen Sie sie nicht. Sonst können Sie keine externen Personen mehr anlegen.";
-    expect(screen.getByText(notice)).toBeInTheDocument();
-
-    fireEvent.click(screen.getByText("Bearbeiten"));
-    expect(
-      screen.getByRole("button", { name: "Speichern" }),
-    ).toBeInTheDocument();
-    expect(screen.getByText(notice)).toBeInTheDocument();
-  });
-
-  it("shows no Extern notice on other roles", () => {
-    render(
-      <RolesMasterDetail
-        roles={[customRole]}
-        selectedId="1"
-        selectedRole={customRole}
-        detailLoading={false}
-        onSelect={onSelect}
-        onSaveRole={onSaveRole}
-        onDeleteClick={onDeleteClick}
-        onPermissionsSaved={onPermissionsSaved}
-      />,
-    );
-
-    // Anker: das Detail der Rolle ist geladen.
-    expect(screen.getByText("1 Berechtigung")).toBeInTheDocument();
-    expect(screen.queryByText(/externen Person/)).not.toBeInTheDocument();
-  });
-
   it("switches the permissions tab into its own edit state", () => {
     render(
       <RolesMasterDetail

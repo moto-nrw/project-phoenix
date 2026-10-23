@@ -69,7 +69,7 @@ describe("useReminders", () => {
     expect(mockUseSWRAuth.mock.calls[0]?.[0]).toBe("reminders");
   });
 
-  // #4573: die Rolle „Extern“ hat kein users:read. Ohne das Recht wäre jede
+  // #4573: die AG-Leitung hat kein users:read. Ohne das Recht wäre jede
   // Abfrage ein 403, minütlich aus Glocke und Startseite.
   it("does not ask without users:read", () => {
     sessionState.permissions = ["schedules:read"];

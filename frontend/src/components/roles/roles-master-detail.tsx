@@ -33,7 +33,6 @@ import {
   getBaseRoleLabel,
   getRoleDisplayDescription,
   getRoleDisplayName,
-  isExternalCaregiverRole,
   type Role,
 } from "@/lib/auth-helpers";
 
@@ -54,13 +53,6 @@ interface RolesMasterDetailProps {
   /** Nach dem Speichern der Berechtigungen: Liste und Detail neu laden. */
   onPermissionsSaved: () => void | Promise<void>;
 }
-
-/**
- * Wofür moto die Rolle „Extern“ braucht (#4573). Das Backend findet sie am
- * Namen; umbenannt oder gelöscht, lassen sich keine Externen mehr anlegen.
- */
-const EXTERNAL_ROLE_NOTICE =
-  "moto gibt diese Rolle jeder externen Person, die Sie anlegen oder einladen. Benennen Sie die Rolle nicht um und löschen Sie sie nicht. Sonst können Sie keine externen Personen mehr anlegen.";
 
 function keyForRole(role: Role): string {
   return role.id;
@@ -284,12 +276,9 @@ function RoleStammdatenTab({
   }
 
   const description = getRoleDisplayDescription(role.name, role.description);
-  const externalNotice = isExternalCaregiverRole(role.name) ? (
-    <Alert type="info" message={EXTERNAL_ROLE_NOTICE} />
-  ) : null;
 
   if (editing) {
-    const form = (
+    return (
       <DatabaseForm<Partial<Role>>
         sections={rolesConfig.form.sections}
         initialData={role}
@@ -301,20 +290,10 @@ function RoleStammdatenTab({
         errorObject="die Rolle"
       />
     );
-    // Beim Umbenennen steht der Hinweis direkt über dem Namensfeld.
-    return externalNotice ? (
-      <div className="space-y-4">
-        {externalNotice}
-        {form}
-      </div>
-    ) : (
-      form
-    );
   }
 
   return (
     <div className="space-y-4">
-      {externalNotice}
       <section className="moto-content-surface rounded-xl border p-4 shadow-sm">
         <div className="flex flex-wrap items-center gap-2">
           {role.isSystem ? (

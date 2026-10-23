@@ -77,17 +77,14 @@ vi.mock("~/components/ui/confirm-delete-modal", () => ({
     onConfirm,
     onClose,
     error,
-    description,
   }: {
     isOpen: boolean;
     onConfirm?: () => void;
     onClose?: () => void;
     error?: unknown;
-    description?: ReactNode;
   }) =>
     isOpen ? (
       <div data-testid="confirmation-modal">
-        <div data-testid="delete-description">{description}</div>
         {errorText(error) ? (
           <span data-testid="delete-error">{errorText(error)}</span>
         ) : null}
@@ -746,48 +743,6 @@ describe("RolesPage", () => {
         scroll: false,
       });
     });
-  });
-
-  // #4573: moto findet die Rolle „Extern“ am Namen; der Dialog sagt, was
-  // das Löschen für externe Personen bedeutet.
-  it("says before deleting the role „Extern“ that externals can no longer be added", async () => {
-    const externalRole = {
-      ...mockRoles[0]!,
-      id: "4",
-      name: "extern",
-      baseRole: "user",
-    };
-    mockGetList.mockResolvedValue({ data: [...mockRoles, externalRole] });
-    mockGetOne.mockResolvedValue(externalRole);
-    setSelectedRole("4");
-
-    render(<RolesPage />);
-
-    await waitFor(() => {
-      expect(screen.getByTestId("role-detail-panel")).toBeInTheDocument();
-    });
-    fireEvent.click(screen.getByTestId("trigger-delete"));
-
-    expect(await screen.findByTestId("delete-description")).toHaveTextContent(
-      "Danach können Sie keine externen Personen mehr anlegen.",
-    );
-  });
-
-  it("keeps the delete text of other roles unchanged", async () => {
-    setSelectedRole("1");
-
-    render(<RolesPage />);
-
-    await waitFor(() => {
-      expect(screen.getByTestId("role-detail-panel")).toBeInTheDocument();
-    });
-    fireEvent.click(screen.getByTestId("trigger-delete"));
-
-    const description = await screen.findByTestId("delete-description");
-    expect(description).toHaveTextContent(
-      "Alle Personen mit dieser Rolle verlieren ihre Berechtigungen.",
-    );
-    expect(description).not.toHaveTextContent("externen Personen");
   });
 
   it("keeps a delete error in the confirmation dialog", async () => {

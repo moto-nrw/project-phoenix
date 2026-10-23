@@ -190,7 +190,7 @@ function scheduleNextChangeRefresh(
  * so SWR dedupes to a single request.
  */
 export function useReminders() {
-  // GET /api/reminders verlangt users:read. Ohne das Recht (Rolle „Extern“,
+  // GET /api/reminders verlangt users:read. Ohne das Recht (AG-Leitung,
   // #4573) fragt niemand: jede Abfrage wäre ein sicheres 403, und das alle
   // 60 Sekunden aus Glocke, Startseite und Liste.
   const { data: session } = useSession();

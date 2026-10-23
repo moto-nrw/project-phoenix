@@ -38,6 +38,9 @@ vi.mock("next-auth/react", () => ({
 vi.mock("~/lib/auth-utils", () => ({
   hasPermission: (_session: unknown, permission: string) =>
     permissions.includes(permission),
+  // canOpenActiveSupervision builds on it; with an explicit permission list
+  // the real function reads groups:read (or the admin scope).
+  canReadSupervisionData: () => permissions.includes("groups:read"),
 }));
 
 vi.mock("~/lib/shell-auth-context", () => ({
@@ -171,7 +174,7 @@ describe("StaffOnboardingWizard", () => {
     ]);
   });
 
-  // #4573: die Rolle „Extern“ hält nur schedules:read. Sie findet keine
+  // ADR 0083: die AG-Leitung hält nur schedules:read. Sie findet keine
   // Kinder über „Alle Kinder“ und erfasst keine Arbeitszeit.
   it("offers an external person only the supervision step", () => {
     permissions = ["schedules:read"];

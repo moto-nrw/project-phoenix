@@ -32,7 +32,7 @@ export function useMessagesUnread() {
   const tenantSlug = useTenantSlugSafe();
   const accountId = session?.user?.id ?? "";
   return useUnreadCount({
-    // The inbox requires users:read; the role „Extern“ (#4573) lacks it.
+    // The inbox requires users:read; the role „AG-Leitung“ (#4573) lacks it.
     enabled:
       status === "authenticated" &&
       mode === "teacher" &&
