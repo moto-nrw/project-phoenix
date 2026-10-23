@@ -209,6 +209,23 @@ describe("RoomDetailPage", () => {
     );
   });
 
+  it("hides the supervision view from a caregiver without groups:read", () => {
+    mockSession(["rooms:read"], ["user"]);
+    useRoomDetailMock.mockReturnValue({
+      room: { ...room, isOpenRoom: true },
+      history: [],
+      loading: false,
+      error: null,
+      historyDisabled: false,
+    });
+    render(<RoomDetailPage />);
+
+    expect(screen.getByText("Belegt")).toBeInTheDocument();
+    expect(
+      screen.queryByRole("link", { name: "Zur Aufsicht" }),
+    ).not.toBeInTheDocument();
+  });
+
   it("offers the supervision view to staff covered by the school overview", () => {
     supervisionState.overviewEnabled = true;
     useRoomDetailMock.mockReturnValue({

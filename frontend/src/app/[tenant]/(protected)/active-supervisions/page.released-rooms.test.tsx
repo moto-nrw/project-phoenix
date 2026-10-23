@@ -863,7 +863,7 @@ describe("open-room tab onTabChange callback", () => {
     });
   });
 
-  it("clicking a released room's tab opens it by its real room id", async () => {
+  it("keeps the last own supervision when selecting a shared room tab", async () => {
     const { activeService } = await import("~/lib/active-api");
     vi.mocked(activeService.getActiveGroupVisitsWithDisplay).mockResolvedValue(
       [] as never,
@@ -890,17 +890,17 @@ describe("open-room tab onTabChange callback", () => {
         roomId: "schulhof-r1",
         roomName: "Schulhof",
         activityGroupId: "ag-1",
-        activeGroupId: "active-schulhof",
-        isUserSupervising: true,
-        supervisionId: "sup-1",
+        activeGroupId: null,
+        isUserSupervising: false,
+        supervisionId: null,
         supervisorCount: 1,
         studentCount: 5,
         supervisors: [
           {
             id: "sup-1",
-            staffId: "staff-1",
-            name: "Test Teacher",
-            isCurrentUser: true,
+            staffId: "staff-2",
+            name: "Andere Betreuungskraft",
+            isCurrentUser: false,
           },
         ],
       },
@@ -908,8 +908,8 @@ describe("open-room tab onTabChange callback", () => {
         {
           roomId: "schulhof-r1",
           name: "Schulhof",
-          isUserSupervising: true,
-          activeGroupIds: ["active-schulhof"],
+          isUserSupervising: false,
+          activeGroupIds: [],
           studentCount: 5,
           students: [],
         },
@@ -936,20 +936,22 @@ describe("open-room tab onTabChange callback", () => {
             isValidating: false,
           } as never)) as never);
 
+    navigationMockState.roomParam = "schulhof-r1";
+    localStorage.setItem("supervision-last-session", "room-1");
+    const removeItem = vi.spyOn(localStorage, "removeItem");
+
     render(<MeinRaumPage />);
 
     // Wait for tabs to render
     await waitFor(() => {
       expect(
-        screen.getByRole("tab", { name: "Schulhof · Eigene Aufsicht" }),
+        screen.getByRole("tab", { name: "Schulhof" }),
       ).toBeInTheDocument();
     });
 
     // A released room is addressed by its room id, never by a synthetic tab
     // id — several sessions can run in it, so no session identifies it.
-    const schulhofTab = screen.getByRole("tab", {
-      name: "Schulhof · Eigene Aufsicht",
-    });
+    const schulhofTab = screen.getByRole("tab", { name: "Schulhof" });
     fireEvent.click(schulhofTab);
 
     await waitFor(() => {
@@ -957,6 +959,8 @@ describe("open-room tab onTabChange callback", () => {
         "/test-tenant/active-supervisions?room=schulhof-r1",
       );
     });
+    expect(removeItem).not.toHaveBeenCalledWith("supervision-last-session");
+    expect(localStorage.getItem("supervision-last-session")).toBe("room-1");
 
     // The room's occupancy already arrived with the dashboard, so opening it
     // starts no visits request of its own.

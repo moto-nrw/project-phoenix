@@ -289,7 +289,9 @@ function MeinRaumPageContent() {
       if (!room) return;
       dashboard.selectOpenRoom(roomId);
       router.push(`/active-supervisions?room=${roomId}`);
-      localStorage.removeItem("supervision-last-session");
+      if (room.isUserSupervising) {
+        localStorage.removeItem("supervision-last-session");
+      }
       localStorage.setItem("sidebar-last-room", roomId);
       localStorage.setItem("sidebar-last-room-name", room.name);
     },
