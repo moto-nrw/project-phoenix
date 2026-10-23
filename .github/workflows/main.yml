@@ -358,6 +358,12 @@ jobs:
           sudo install scripts/daily-backup.sh /usr/local/lib/moto-backup/
           systemd-analyze verify scripts/systemd/moto-daily-backup.service scripts/systemd/moto-daily-backup.timer scripts/systemd/moto-backup-failure@.service
 
+      - name: Setup Node.js for error-code generator fixtures
+        if: matrix.suite == 'ratchets'
+        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v6
+        with:
+          node-version: "24"
+
       # TestToolchainPinsRatchet reads the files of the toolchain filter.
       # Changed-test selection adds ./test only for backend changes, so such a
       # change runs the ratchets here instead of the full backend suite.
