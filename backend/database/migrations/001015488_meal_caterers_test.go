@@ -2,6 +2,7 @@ package migrations
 
 import (
 	"context"
+	"fmt"
 	"testing"
 
 	testpkg "github.com/moto-nrw/project-phoenix/test"
@@ -43,9 +44,9 @@ func TestMealCaterersKeepCaterersAwayFromSchools(t *testing.T) {
 	require.NoError(t, err, "after the end a new supply may start")
 
 	for _, table := range []string{"auth.caterers", "auth.caterer_accounts"} {
-		var rewritable bool
-		require.NoError(t, db.NewRaw(`SELECT has_table_privilege('phoenix_tenant', ?, 'UPDATE') OR has_table_privilege('phoenix_tenant', ?, 'DELETE')`, table, table).Scan(ctx, &rewritable))
-		assert.False(t, rewritable, table)
+		var writable bool
+		require.NoError(t, db.NewRaw(`SELECT has_table_privilege('phoenix_tenant', ?, 'INSERT') OR has_table_privilege('phoenix_tenant', ?, 'UPDATE') OR has_table_privilege('phoenix_tenant', ?, 'DELETE')`, table, table, table).Scan(ctx, &writable))
+		assert.False(t, writable, table)
 	}
 	var deletable bool
 	require.NoError(t, db.NewRaw(`SELECT has_table_privilege('phoenix_tenant', 'auth.caterer_schools', 'DELETE')`).Scan(ctx, &deletable))
@@ -53,6 +54,60 @@ func TestMealCaterersKeepCaterersAwayFromSchools(t *testing.T) {
 
 	require.NoError(t, mealCaterersDown(ctx, db))
 	require.NoError(t, mealCaterersUp(ctx, db))
+}
+
+// TestCatererCreationNeedsAnOpenInvitationOfTheSchool pins the only way a
+// school's role creates a caterer: auth.create_invited_caterer, for an open
+// invitation of the transaction's school and the account of its address.
+func TestCatererCreationNeedsAnOpenInvitationOfTheSchool(t *testing.T) {
+	t.Parallel()
+	db := testpkg.SetupTestDB(t)
+	ctx := t.Context()
+	school := testpkg.UniqueTestTenantID(t)
+	testpkg.EnsureTestTenant(t, db, school)
+	other := testpkg.UniqueTestTenantID(t)
+	testpkg.EnsureTestTenant(t, db, other)
+	invited := testpkg.CreateTestAccount(t, db, "caterer-function-invited")
+	stranger := testpkg.CreateTestAccount(t, db, "caterer-function-stranger")
+	invite := func(tenantID int64, revoked bool) int64 {
+		var id int64
+		require.NoError(t, db.NewRaw(`INSERT INTO auth.caterer_invitations (tenant_id, token_hash, email, caterer_name, expires_at, revoked_at)
+			VALUES (?, md5(random()::text), UPPER(?), 'Küche am Markt', NOW() + INTERVAL '1 day', CASE WHEN ? THEN NOW() END) RETURNING id`,
+			tenantID, invited.Email, revoked).Scan(ctx, &id))
+		return id
+	}
+	asSchool := func(tenantID int64, statement string, args ...any) (int64, error) {
+		tx, err := db.BeginTx(ctx, nil)
+		require.NoError(t, err)
+		defer func() { _ = tx.Rollback() }()
+		_, err = tx.ExecContext(ctx, `SET LOCAL ROLE phoenix_tenant`)
+		require.NoError(t, err)
+		_, err = tx.ExecContext(ctx, `SELECT set_config('app.current_tenant_id', ?, true)`, fmt.Sprint(tenantID))
+		require.NoError(t, err)
+		var id int64
+		if err := tx.NewRaw(statement, args...).Scan(ctx, &id); err != nil {
+			return 0, err
+		}
+		return id, tx.Commit()
+	}
+
+	_, err := asSchool(school, `INSERT INTO auth.caterers (name) VALUES ('Küche') RETURNING id`)
+	require.Error(t, err, "the school's role inserts no caterer directly")
+	_, err = asSchool(school, `SELECT auth.create_invited_caterer(?, ?)`, invite(other, false), invited.ID)
+	require.Error(t, err, "another school's invitation creates nothing")
+	_, err = asSchool(school, `SELECT auth.create_invited_caterer(?, ?)`, invite(school, true), invited.ID)
+	require.Error(t, err, "a revoked invitation creates nothing")
+	open := invite(school, false)
+	_, err = asSchool(school, `SELECT auth.create_invited_caterer(?, ?)`, open, stranger.ID)
+	require.Error(t, err, "only the account of the invited address becomes the caterer")
+
+	catererID, err := asSchool(school, `SELECT auth.create_invited_caterer(?, ?)`, open, invited.ID)
+	require.NoError(t, err)
+	var linked int64
+	require.NoError(t, db.NewRaw(`SELECT caterer_id FROM auth.caterer_accounts WHERE account_id = ?`, invited.ID).Scan(ctx, &linked))
+	assert.Equal(t, catererID, linked)
+	_, err = asSchool(school, `SELECT auth.create_invited_caterer(?, ?)`, open, invited.ID)
+	require.Error(t, err, "an account belongs to one caterer")
 }
 
 // The hourly account erasure of 1.15.464 keeps a caterer's login while the

@@ -331,14 +331,11 @@ func (c *CatererAccess) catererAccount(ctx context.Context, invitation domain.Ca
 	if err != nil {
 		return 0, 0, err
 	}
-	caterer, _, err := c.store.InsertCaterer(ctx, invitation.CatererName)
+	catererID, _, err := c.store.CreateInvitedCaterer(ctx, invitation.ID, created.ID)
 	if err != nil {
 		return 0, 0, err
 	}
-	if _, err := c.store.InsertCatererAccount(ctx, created.ID, caterer.ID); err != nil {
-		return 0, 0, err
-	}
-	return created.ID, caterer.ID, nil
+	return created.ID, catererID, nil
 }
 
 // redeemable resolves the school's invitation by its token and says why it

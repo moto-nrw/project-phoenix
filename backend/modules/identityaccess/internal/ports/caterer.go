@@ -19,8 +19,9 @@ type CatererInvitationDelivery interface {
 // read, filtered on that caterer.
 type CatererStore interface {
 	FindCatererOfAccount(ctx context.Context, accountID int64) (domain.Caterer, bool, domain.OperationStats, error)
-	InsertCaterer(ctx context.Context, name string) (domain.Caterer, domain.OperationStats, error)
-	InsertCatererAccount(ctx context.Context, accountID, catererID int64) (domain.OperationStats, error)
+	// CreateInvitedCaterer creates the caterer of an open invitation of the
+	// school in scope, for the account of the invited address.
+	CreateInvitedCaterer(ctx context.Context, invitationID, accountID int64) (int64, domain.OperationStats, error)
 	InsertCatererInvitation(ctx context.Context, invitation domain.CatererInvitation) (domain.CatererInvitation, domain.OperationStats, error)
 	// ListCatererInvitations lists the school's invitations, newest first.
 	ListCatererInvitations(ctx context.Context) ([]domain.CatererInvitation, domain.OperationStats, error)

@@ -113,6 +113,53 @@ const catererAccountReferences = `
 			FOR EACH ROW EXECUTE FUNCTION auth.lock_live_account_reference('started_by_account_id', 'ended_by_account_id');
 `
 
+// createInvitedCatererSQL is the only way a school's transaction creates a
+// caterer and its account link: both tables are global, so the school's
+// role holds no INSERT on them. The function writes only for an invitation
+// of the transaction's school that is still open, and only for the account
+// of the invited address that belongs to no caterer yet.
+const createInvitedCatererSQL = `
+		CREATE OR REPLACE FUNCTION auth.create_invited_caterer(p_invitation_id BIGINT, p_account_id BIGINT)
+		RETURNS BIGINT
+		LANGUAGE plpgsql
+		VOLATILE
+		SECURITY DEFINER
+		SET search_path = pg_catalog, auth
+		AS $$
+		DECLARE
+			invited_email TEXT;
+			invited_name TEXT;
+			created_id BIGINT;
+		BEGIN
+			SELECT invitation.email, invitation.caterer_name INTO invited_email, invited_name
+			FROM auth.caterer_invitations AS invitation
+			WHERE invitation.id = p_invitation_id
+				AND invitation.tenant_id = NULLIF(current_setting('app.current_tenant_id', true), '')::BIGINT
+				AND invitation.accepted_at IS NULL
+				AND invitation.revoked_at IS NULL
+				AND invitation.expires_at > statement_timestamp()
+			FOR UPDATE;
+			IF NOT FOUND THEN
+				RAISE EXCEPTION 'no open caterer invitation of the transaction school' USING ERRCODE = '42501';
+			END IF;
+			IF NOT EXISTS (
+				SELECT 1 FROM auth.accounts AS account
+				WHERE account.id = p_account_id AND LOWER(account.email) = LOWER(invited_email)
+			) THEN
+				RAISE EXCEPTION 'the account does not hold the invited address' USING ERRCODE = '42501';
+			END IF;
+			IF EXISTS (SELECT 1 FROM auth.caterer_accounts WHERE account_id = p_account_id) THEN
+				RAISE EXCEPTION 'the account already belongs to a caterer' USING ERRCODE = '23505';
+			END IF;
+			INSERT INTO auth.caterers (name) VALUES (invited_name) RETURNING id INTO created_id;
+			INSERT INTO auth.caterer_accounts (account_id, caterer_id) VALUES (p_account_id, created_id);
+			RETURN created_id;
+		END;
+		$$;
+		REVOKE ALL ON FUNCTION auth.create_invited_caterer(BIGINT, BIGINT) FROM PUBLIC;
+		GRANT EXECUTE ON FUNCTION auth.create_invited_caterer(BIGINT, BIGINT) TO phoenix_tenant;
+`
+
 func init() {
 	MigrationRegistry.Register(&Migration{
 		Version:     mealCaterersVersion,
@@ -138,7 +185,7 @@ func mealCaterersUp(ctx context.Context, db *bun.DB) error {
 		if err := provisionTenantRLS(ctx, tx, "auth.caterer_invitations", "auth.caterer_schools"); err != nil {
 			return fmt.Errorf("provision caterer tenant isolation: %w", err)
 		}
-		if _, err := tx.ExecContext(ctx, catererAccountReferences+accountIsUnusedSQL+catererAccountsInUse+accountIsUnusedEnd); err != nil {
+		if _, err := tx.ExecContext(ctx, catererAccountReferences+createInvitedCatererSQL+accountIsUnusedSQL+catererAccountsInUse+accountIsUnusedEnd); err != nil {
 			return fmt.Errorf("keep caterer accounts from the account erasure: %w", err)
 		}
 		return nil
@@ -150,6 +197,7 @@ func mealCaterersDown(ctx context.Context, db *bun.DB) error {
 		return fmt.Errorf("restore the account erasure without caterers: %w", err)
 	}
 	if _, err := db.ExecContext(ctx, `
+		DROP FUNCTION IF EXISTS auth.create_invited_caterer(BIGINT, BIGINT);
 		DELETE FROM auth.tokens WHERE portal_scope = 'caterer';
 		ALTER TABLE auth.tokens DROP CONSTRAINT IF EXISTS chk_tokens_portal_scope;
 		ALTER TABLE auth.tokens ADD CONSTRAINT chk_tokens_portal_scope
@@ -223,12 +271,12 @@ const createMealCatererTablesSQL = `
 			GRANT SELECT, INSERT, UPDATE ON auth.caterer_invitations TO phoenix_tenant;
 			REVOKE DELETE, TRUNCATE ON auth.caterer_invitations FROM phoenix_tenant;
 			GRANT USAGE ON SEQUENCE auth.caterer_invitations_id_seq TO phoenix_tenant;
-			-- The acceptance runs in the invited school's transaction: it
-			-- creates the caterer, its account link and the school's supply.
-			-- Nothing there may be rewritten or deleted by a school.
-			GRANT SELECT, INSERT ON auth.caterers, auth.caterer_accounts TO phoenix_tenant;
-			REVOKE UPDATE, DELETE, TRUNCATE ON auth.caterers, auth.caterer_accounts FROM phoenix_tenant;
-			GRANT USAGE ON SEQUENCE auth.caterers_id_seq TO phoenix_tenant;
+			-- The acceptance runs in the invited school's transaction. The
+			-- caterer and its account link are global rows: the school reads
+			-- them, and creates them only through auth.create_invited_caterer.
+			GRANT SELECT ON auth.caterers, auth.caterer_accounts TO phoenix_tenant;
+			REVOKE INSERT, UPDATE, DELETE, TRUNCATE ON auth.caterers, auth.caterer_accounts FROM phoenix_tenant;
+			REVOKE USAGE ON SEQUENCE auth.caterers_id_seq FROM phoenix_tenant;
 			GRANT SELECT, INSERT, UPDATE ON auth.caterer_schools TO phoenix_tenant;
 			REVOKE DELETE, TRUNCATE ON auth.caterer_schools FROM phoenix_tenant;
 

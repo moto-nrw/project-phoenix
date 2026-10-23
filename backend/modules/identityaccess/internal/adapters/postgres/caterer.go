@@ -21,12 +21,6 @@ type catererRow struct {
 	Name          string `bun:"name,notnull"`
 }
 
-type catererAccountRow struct {
-	bun.BaseModel `bun:"table:auth.caterer_accounts,alias:caterer_account"`
-	AccountID     int64 `bun:"account_id,pk"`
-	CatererID     int64 `bun:"caterer_id,notnull"`
-}
-
 type catererSchoolRow struct {
 	bun.BaseModel   `bun:"table:auth.caterer_schools,alias:caterer_school"`
 	CatererID       int64      `bun:"caterer_id,notnull"`
@@ -81,19 +75,20 @@ func (s *Store) FindCatererOfAccount(ctx context.Context, accountID int64) (doma
 	return domain.Caterer{ID: row.ID, Name: row.Name}, found, stats, err
 }
 
-func (s *Store) InsertCaterer(ctx context.Context, name string) (domain.Caterer, domain.OperationStats, error) {
-	row := catererRow{Name: name}
-	_, stats, err := s.exec(ctx, "insert caterer", func(db bun.IDB) executor {
-		return db.NewInsert().Model(&row).Returning("id")
-	})
-	return domain.Caterer{ID: row.ID, Name: row.Name}, stats, err
-}
-
-func (s *Store) InsertCatererAccount(ctx context.Context, accountID, catererID int64) (domain.OperationStats, error) {
-	_, stats, err := s.exec(ctx, "insert caterer account", func(db bun.IDB) executor {
-		return db.NewInsert().Model(&catererAccountRow{AccountID: accountID, CatererID: catererID})
-	})
-	return stats, err
+// CreateInvitedCaterer creates the caterer and its account link through
+// auth.create_invited_caterer: the school's role holds no INSERT on these
+// global tables, and the function writes only for an open invitation of the
+// school in scope and the account of its address.
+func (s *Store) CreateInvitedCaterer(ctx context.Context, invitationID, accountID int64) (int64, domain.OperationStats, error) {
+	db, err := s.database(ctx)
+	if err != nil {
+		return 0, domain.OperationStats{}, err
+	}
+	var catererID int64
+	started := time.Now()
+	err = db.NewRaw(`SELECT auth.create_invited_caterer(?, ?)`, invitationID, accountID).Scan(ctx, &catererID)
+	_, stats, err := scanOne("create invited caterer", started, err)
+	return catererID, stats, err
 }
 
 func (s *Store) InsertCatererInvitation(ctx context.Context, invitation domain.CatererInvitation) (domain.CatererInvitation, domain.OperationStats, error) {
