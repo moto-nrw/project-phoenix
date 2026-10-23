@@ -217,7 +217,7 @@ func (s *Service) ConfirmOrder(ctx context.Context, catererID, orderID, accountI
 func readWindow(from, to mealplan.Date) (calendar.Date, calendar.Date, error) {
 	start, startErr := calendar.ParseDate(string(from))
 	end, endErr := calendar.ParseDate(string(to))
-	if startErr != nil || endErr != nil || end.Before(start) || start.DaysUntil(end) > maxOrderWindowDays {
+	if startErr != nil || endErr != nil || end.Before(start) || start.DaysUntil(end) >= maxOrderWindowDays {
 		return "", "", mealplan.ErrInvalidParticipation
 	}
 	return start, end, nil
@@ -280,7 +280,11 @@ func publicOrderDay(day domain.OrderDay, names map[int64]domain.DailyCandidate) 
 		name := names[studentID]
 		return mealplan.OrderChild{StudentID: studentID, FirstName: name.FirstName, LastName: name.LastName, SchoolClass: schoolClass}
 	}
-	result := mealplan.OrderDay{Date: mealplan.Date(day.Date.String()), Closed: day.Closed, Deadline: day.Deadline, Status: mealplan.OrderOpen, Total: len(day.Children)}
+	counts := day.Children
+	if day.Order != nil {
+		counts = day.FrozenChildren
+	}
+	result := mealplan.OrderDay{Date: mealplan.Date(day.Date.String()), Closed: day.Closed, Deadline: day.Deadline, Status: mealplan.OrderOpen, Total: len(counts)}
 	if day.Unordered {
 		result.Status = mealplan.OrderUnordered
 	}
@@ -290,7 +294,7 @@ func publicOrderDay(day domain.OrderDay, names map[int64]domain.DailyCandidate) 
 			result.Status = mealplan.OrderConfirmed
 		}
 	}
-	for _, count := range domain.CountByClass(day.Children) {
+	for _, count := range domain.CountByClass(counts) {
 		result.Classes = append(result.Classes, mealplan.ClassCount(count))
 	}
 	for _, eating := range day.Eating {

@@ -306,7 +306,8 @@ type ClassCount struct {
 }
 
 // OrderDay is one weekday of the orders. Children are the children who eat
-// with every change applied; an open day shows the registration as it stands.
+// with every change applied; Total and Classes describe the frozen order.
+// An open day shows the registration as it stands in all three fields.
 type OrderDay struct {
 	Date        Date
 	Closed      bool

@@ -168,6 +168,7 @@ func buildOrderView(rules domain.OrderingRules, window orderWindow, current map[
 		day := domain.OrderDay{Date: date, Closed: window.days.Closed[date], Deadline: rules.FreezeAt(date), Children: current[date].classes}
 		if order, ordered := window.state.OrderFor(date); ordered {
 			day.Order, day.Deadline, day.Children = &order, order.DeadlineAt, window.state.OrderedChildren(date)
+			day.FrozenChildren = window.state.FrozenChildren(date)
 		} else if date.Before(today) {
 			day.Unordered = true
 		}

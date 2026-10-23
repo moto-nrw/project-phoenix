@@ -58,15 +58,21 @@ type OrderState struct {
 	Changes []OrderChange
 }
 
-// OrderedChildren is the net state of a day: the fixed lines with every
-// change applied, by student.
-func (s OrderState) OrderedChildren(date Date) map[int64]string {
+// FrozenChildren is the original order of a day, before late changes.
+func (s OrderState) FrozenChildren(date Date) map[int64]string {
 	children := make(map[int64]string)
 	for _, line := range s.Lines {
 		if line.Date == date {
 			children[line.StudentID] = line.SchoolClass
 		}
 	}
+	return children
+}
+
+// OrderedChildren is the net state of a day: the fixed lines with every
+// change applied, by student.
+func (s OrderState) OrderedChildren(date Date) map[int64]string {
+	children := s.FrozenChildren(date)
 	changes := make([]OrderChange, 0)
 	for _, change := range s.Changes {
 		if change.Date == date {
@@ -143,7 +149,9 @@ type OrderDay struct {
 	Deadline  time.Time
 	Order     *Order
 	Children  map[int64]string
-	Changes   []OrderChange
+	// FrozenChildren holds the fixed lines for counts, without late changes.
+	FrozenChildren map[int64]string
+	Changes        []OrderChange
 	// Eating are the children of the day by name, sorted like the kitchen
 	// list.
 	Eating []DailyParticipant
