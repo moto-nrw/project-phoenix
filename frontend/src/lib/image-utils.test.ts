@@ -31,7 +31,7 @@ describe("compressAvatar", () => {
     expect(imageCompression).toHaveBeenCalledWith(originalFile, {
       maxSizeMB: 0.3,
       maxWidthOrHeight: 512,
-      useWebWorker: true,
+      useWebWorker: false,
       fileType: "image/jpeg",
     });
 
@@ -142,7 +142,7 @@ describe("compressAvatar", () => {
     expect(calledOptions).toEqual({
       maxSizeMB: 0.3,
       maxWidthOrHeight: 512,
-      useWebWorker: true,
+      useWebWorker: false,
       fileType: "image/jpeg",
     });
   });

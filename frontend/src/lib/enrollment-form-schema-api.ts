@@ -381,9 +381,9 @@ export async function fetchEnrollmentPreviewBootstrap(params: {
 /**
  * Public Cloudflare Turnstile config for a tenant. enabled mirrors the
  * server-side enrollment.require_captcha setting; site_key is the
- * public Turnstile site key (safe to render in the widget). When
- * site_key is empty the widget is hidden and submit falls through;
- * the backend's IsEnabled check still gates verification.
+ * public Turnstile site key (safe to render in the widget). Only enabled
+ * captcha with a site key mounts the widget. Enabled captcha without a
+ * site key blocks submission; the backend also enforces verification.
  */
 export interface PublicCaptchaConfig {
   enabled: boolean;
