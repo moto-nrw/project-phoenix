@@ -78,11 +78,11 @@ func (rs *Resource) getStudent(w http.ResponseWriter, r *http.Request) {
 	group := rs.getStudentGroup(r.Context(), student)
 	response, err := rs.buildStudentDetail(r, student, person, group)
 	if err != nil {
-		renderError(w, r, common.ErrorInternalServer(err))
+		renderError(w, r, common.ErrorInternalServerWrap("failed to load students", err))
 		return
 	}
 	if err := rs.enrichStudentDetailForToday(r.Context(), &response, student); err != nil {
-		renderError(w, r, common.ErrorInternalServer(err))
+		renderError(w, r, common.ErrorInternalServerWrap("failed to load students", err))
 		return
 	}
 

@@ -5,8 +5,11 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
+	"net/http/httptest"
 	"testing"
 	"time"
+
+	peopleModule "github.com/moto-nrw/project-phoenix/modules/peopledirectory"
 
 	"github.com/moto-nrw/project-phoenix/api/testutil"
 	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
@@ -99,5 +102,44 @@ func TestAttendanceHistoryRejectsUnreadableVisibilitySettings(t *testing.T) {
 				assert.NotContains(t, response.Body.String(), "private visibility settings read failure")
 			})
 		}
+	}
+}
+
+func TestStudentResponsesHideSettingsReadFailures(t *testing.T) {
+	t.Parallel()
+	tc := setupStudentsRoute(t)
+	student := testpkg.CreateTestStudent(t, tc.db, "Private", "Settings", "3a")
+	account := testpkg.CreateTestAccount(t, tc.db, "student-settings-reader")
+	tc.resource.SettingsService = failedHistorySettings{tc.settingsService, "operations.student_photos_enabled"}
+	for _, path := range []string{"/", fmt.Sprintf("/%d", student.ID)} {
+		t.Run(path, func(t *testing.T) {
+			response := authExec(t, tc, testutil.NewRequest(http.MethodGet, path, nil), testutil.AdminTestClaims(int(account.ID)), []string{"admin:*"})
+			assert.Equal(t, http.StatusInternalServerError, response.Code, response.Body.String())
+			assert.Contains(t, response.Body.String(), `"code":"general.server"`)
+			assert.NotContains(t, response.Body.String(), "private visibility settings read failure")
+			assert.NotContains(t, response.Body.String(), `"data"`)
+		})
+	}
+}
+
+func TestStudentWriteResponsesHideSettingsReadFailures(t *testing.T) {
+	t.Parallel()
+	tc := setupStudentsRoute(t)
+	student := testpkg.CreateTestStudent(t, tc.db, "Private", "Write", "3a")
+	tc.resource.SettingsService = failedHistorySettings{tc.settingsService, "operations.student_photos_enabled"}
+	for _, kind := range []string{"create", "update"} {
+		t.Run(kind, func(t *testing.T) {
+			req := httptest.NewRequest("POST", "/students", nil).WithContext(testpkg.WithTestTenantRuntime(t, testpkg.Ctx(t)))
+			response := httptest.NewRecorder()
+			person := &peopleModule.Person{ID: student.PersonID, FirstName: "Private", LastName: "Write"}
+			state := &peopleModule.StudentState{ID: student.ID, PersonID: student.PersonID}
+			if kind == "create" {
+				tc.resource.RespondCreatedStudent(response, req, state, person)
+			} else {
+				tc.resource.RespondUpdatedStudent(response, req, student.ID, person, true, false, time.Now())
+			}
+			assert.Equal(t, http.StatusInternalServerError, response.Code, response.Body.String())
+			assert.NotContains(t, response.Body.String(), "private visibility settings read failure")
+		})
 	}
 }

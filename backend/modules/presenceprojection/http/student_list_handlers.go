@@ -32,7 +32,7 @@ func (rs *Resource) listStudents(w http.ResponseWriter, r *http.Request) {
 	accessCtx := rs.determineStudentAccess(r)
 	settingsCtx, err := rs.prefetchListSettings(r.Context())
 	if err != nil {
-		renderError(w, r, common.ErrorInternalServer(err))
+		renderError(w, r, common.ErrorInternalServerWrap("failed to load students", err))
 		return
 	}
 	r = r.WithContext(settingsCtx)
@@ -44,18 +44,18 @@ func (rs *Resource) listStudents(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if err != nil {
-		renderError(w, r, common.ErrorInternalServer(err))
+		renderError(w, r, common.ErrorInternalServerWrap("failed to load students", err))
 		return
 	}
 
 	page, err := rs.buildStudentListPage(r.Context(), students, plan, accessCtx)
 	if err != nil {
-		renderError(w, r, common.ErrorInternalServer(err))
+		renderError(w, r, common.ErrorInternalServerWrap("failed to load students", err))
 		return
 	}
 	responses, totalCount, err := rs.finishStudentListPage(r.Context(), page, plan, totalCount)
 	if err != nil {
-		renderError(w, r, common.ErrorInternalServer(err))
+		renderError(w, r, common.ErrorInternalServerWrap("failed to load students", err))
 		return
 	}
 

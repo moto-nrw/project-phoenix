@@ -96,7 +96,7 @@ func renderFailure(w http.ResponseWriter, r *http.Request, kind FailureKind, err
 	case FailureConflict:
 		renderConflict(w, r, err, code)
 	default:
-		apiCommon.RenderError(w, r, apiCommon.ErrorInternalServer(err))
+		apiCommon.RenderError(w, r, apiCommon.ErrorInternalServerWrap("room operation failed", err))
 	}
 }
 
