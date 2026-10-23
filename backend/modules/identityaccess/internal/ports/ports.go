@@ -472,7 +472,7 @@ type SchoolIdentityProvisioner interface {
 // account's role change is refused with.
 type SchoolRolePolicy interface {
 	ValidateAssignableSchoolRole(role domain.RoleFact, tenantID int64) error
-	IsLehrkraftSystemRole(role domain.RoleFact) bool
+	IsLehrkraftRole(role domain.RoleFact) bool
 	RoleNeedsStaffRecord(role domain.RoleFact) bool
 	LehrkraftRoleImmutable() error
 }

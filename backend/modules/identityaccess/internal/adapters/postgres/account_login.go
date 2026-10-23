@@ -172,10 +172,11 @@ func (s *Store) LockActiveTenantMappingShared(ctx context.Context, accountID, te
 }
 
 type roleAssignmentRow struct {
-	RoleID   int64  `bun:"role_id"`
-	Name     string `bun:"name"`
-	IsSystem bool   `bun:"is_system"`
-	TenantID *int64 `bun:"tenant_id"`
+	RoleID       int64  `bun:"role_id"`
+	Name         string `bun:"name"`
+	IsSystem     bool   `bun:"is_system"`
+	TenantID     *int64 `bun:"tenant_id"`
+	SchoolPortal bool   `bun:"school_portal"`
 }
 
 // ListAccountRolesAtTenant returns the roles the account holds at the school.
@@ -193,7 +194,7 @@ func (s *Store) ListAccountRolesAtTenant(ctx context.Context, accountID, tenantI
 	var rows []roleAssignmentRow
 	query := db.NewSelect().
 		TableExpr(`auth.account_roles AS "account_role"`).
-		ColumnExpr(`"role".id AS role_id, "role".name, "role".is_system, "role".tenant_id`).
+		ColumnExpr(`"role".id AS role_id, "role".name, "role".is_system, "role".tenant_id, "role".school_portal`).
 		Join(`JOIN auth.roles AS "role" ON "role".id = "account_role".role_id`).
 		Where(`"account_role".account_id = ?`, accountID)
 	query = query.Where(`"account_role".tenant_id = ?`, tenantID)
@@ -209,7 +210,7 @@ func (s *Store) ListAccountRolesAtTenant(ctx context.Context, accountID, tenantI
 	}
 	roles := make([]domain.RoleAssignment, 0, len(rows))
 	for _, row := range rows {
-		roles = append(roles, domain.RoleAssignment{RoleID: row.RoleID, Name: row.Name, IsSystem: row.IsSystem, TenantID: row.TenantID})
+		roles = append(roles, domain.RoleAssignment{RoleID: row.RoleID, Name: row.Name, IsSystem: row.IsSystem, TenantID: row.TenantID, SchoolPortal: row.SchoolPortal})
 	}
 	return roles, stats, nil
 }

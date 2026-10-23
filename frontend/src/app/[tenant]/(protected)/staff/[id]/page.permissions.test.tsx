@@ -544,7 +544,7 @@ describe("StaffDetailContent permissions", () => {
     expect(
       screen.queryByRole("tab", { name: "Zeiterfassung" }),
     ).not.toBeInTheDocument();
-    expect(screen.getByText("Systemrolle")).toBeInTheDocument();
+    expect(screen.getByText("Rolle")).toBeInTheDocument();
     // Ohne staff:manage kein Bearbeiten, ohne users:delete kein Löschen: das
     // Kebab fehlt ganz statt leer zu bleiben.
     expect(
@@ -670,7 +670,7 @@ describe("StaffDetailContent permissions", () => {
     render(<StaffDetailContent />);
 
     fireEvent.click(screen.getByRole("button", { name: "Bearbeiten" }));
-    expect(screen.getByRole("combobox", { name: "Systemrolle" })).toBeVisible();
+    expect(screen.getByRole("combobox", { name: "Rolle" })).toBeVisible();
     expect(screen.queryByLabelText("Position")).not.toBeInTheDocument();
     expect(
       screen.queryByLabelText("Notizen der Leitung"),
