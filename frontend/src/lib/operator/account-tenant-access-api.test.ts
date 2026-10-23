@@ -60,7 +60,15 @@ describe("accountTenantAccessService", () => {
         deactivatedAt: null,
         hasPerson: true,
         hasStaff: false,
-        roles: [{ id: "1", name: "admin", isSystem: true, baseRole: null }],
+        roles: [
+          {
+            id: "1",
+            name: "admin",
+            isSystem: true,
+            baseRole: null,
+            schoolPortal: false,
+          },
+        ],
       },
     ]);
   });
@@ -128,12 +136,26 @@ describe("accountTenantAccessService", () => {
 
   it("loads assignable roles for the selected school", async () => {
     mockFetch.mockResolvedValue(
-      jsonResponse({ data: [{ id: "4", name: "teamleitung" }] }),
+      jsonResponse({
+        data: [
+          { id: "4", name: "teamleitung", is_system: false },
+          // A copy of the Lehrkraft role keeps its mark (#4574).
+          {
+            id: "5",
+            name: "klassenleitung",
+            is_system: false,
+            school_portal: true,
+          },
+        ],
+      }),
     );
 
     await expect(
       accountTenantAccessService.listAssignableRoles("42", "7"),
-    ).resolves.toEqual([{ id: "4", name: "teamleitung" }]);
+    ).resolves.toEqual([
+      { id: "4", name: "teamleitung", isSystem: false, schoolPortal: false },
+      { id: "5", name: "klassenleitung", isSystem: false, schoolPortal: true },
+    ]);
 
     expect(mockFetch).toHaveBeenCalledWith(
       "/api/operator/accounts/42/tenants/7/roles",
