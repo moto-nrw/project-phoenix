@@ -5127,10 +5127,6 @@
       "class": "standard"
     },
     {
-      "path": "go/format",
-      "class": "standard"
-    },
-    {
       "path": "go/parser",
       "class": "standard"
     },

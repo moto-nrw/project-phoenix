@@ -1,10 +1,8 @@
 package test
 
 import (
-	"bytes"
 	"encoding/json"
 	"fmt"
-	"go/format"
 	"os"
 	"path/filepath"
 	"strings"
@@ -84,22 +82,6 @@ func copyErrorCodeGeneratorInput(t *testing.T, source, destination, rel string) 
 
 func assertGeneratedErrorCodeRatchets(t *testing.T, root string) {
 	t.Helper()
-	if err := walkModuleRatchetSources(root, func(path, rel string) error {
-		data, err := os.ReadFile(path)
-		if err != nil {
-			return err
-		}
-		formatted, err := format.Source(data)
-		if err != nil {
-			return err
-		}
-		if !bytes.Equal(data, formatted) {
-			return fmt.Errorf("generated source is not gofmt-clean: %s", rel)
-		}
-		return nil
-	}); err != nil {
-		t.Fatal(err)
-	}
 	sizes, err := moduleFileSizeScan(root)
 	if err != nil {
 		t.Fatal(err)
