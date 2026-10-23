@@ -15,6 +15,7 @@ import (
 
 type RequestConflicts struct {
 	Records   ports.RequestConflictRecords
+	People    ports.RequestDecisionPeople
 	Plans     ports.RequestConflictPlans
 	Decisions carerequests.Decisions
 	Today     func() calendar.Date
@@ -29,7 +30,10 @@ func (s *RequestConflicts) ConflictCandidate(ctx context.Context, id int64) (*ca
 }
 
 func (s *RequestConflicts) LockConflictRequest(ctx context.Context, id int64) error {
-	_, err := s.pending(ctx, id, true)
+	row, _, err := lockCareRequestStudent(ctx, s.Records, s.People, id, func(row carerequests.Request) error { return validatePendingCareRequest(row, "") })
+	if err == nil && row.Status != "pending" {
+		return careplan.ErrCareScheduleRequestNotPending
+	}
 	return err
 }
 

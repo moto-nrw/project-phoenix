@@ -63,19 +63,9 @@ func validateRequestDecision(input carerequests.DecideInput) (string, error) {
 }
 
 func (s *RequestDecisions) loadAuthorized(ctx context.Context, id int64, version string) (*carerequests.Request, error) {
-	request, err := s.Records.Find(ctx, id, true)
+	request, student, err := lockCareRequestStudent(ctx, s.Records, s.People, id, func(row carerequests.Request) error { return validatePendingCareRequest(row, version) })
 	if err != nil {
 		return nil, err
-	}
-	if request.Status != "pending" {
-		return nil, careplan.ErrCareScheduleRequestNotPending
-	}
-	if version != "" && careplan.ParentRequestVersion(request.UpdatedAt) != version {
-		return nil, careplan.ErrParentRequestStale
-	}
-	student, err := s.People.LockStudent(ctx, request.StudentID)
-	if err != nil {
-		return nil, fmt.Errorf("schedule: load student for care request decision: %w", err)
 	}
 	if student.Alumnus || student.CareEndedOn(domain.Date(s.Today())) {
 		return nil, careplan.ErrCareScheduleRequestNotFound
@@ -172,6 +162,38 @@ func (s *RequestDecisions) guardianStillHoldsChild(ctx context.Context, request 
 	}
 	if !allowed {
 		return carerequests.ErrGuardianAccessRevoked
+	}
+	return nil
+}
+
+// lockCareRequestStudent acquires class(shared) -> child -> request, matching
+// care end. The unlocked read supplies only the immutable child ID. Callers
+// check status, version and authorization against the locked state.
+func lockCareRequestStudent(ctx context.Context, records ports.RequestConflictRecords, people ports.RequestDecisionPeople, id int64, validate func(carerequests.Request) error) (carerequests.Request, careplan.ReviewStudent, error) {
+	snapshot, err := records.Find(ctx, id, false)
+	if err != nil {
+		return carerequests.Request{}, careplan.ReviewStudent{}, err
+	}
+	if err := validate(snapshot); err != nil {
+		return carerequests.Request{}, careplan.ReviewStudent{}, err
+	}
+	student, err := people.LockStudent(ctx, snapshot.StudentID)
+	if err != nil {
+		return carerequests.Request{}, careplan.ReviewStudent{}, fmt.Errorf("schedule: lock care request student: %w", err)
+	}
+	row, err := records.Find(ctx, id, true)
+	if err != nil {
+		return carerequests.Request{}, careplan.ReviewStudent{}, err
+	}
+	return row, student, validate(row)
+}
+
+func validatePendingCareRequest(row carerequests.Request, version string) error {
+	if row.Status != "pending" {
+		return careplan.ErrCareScheduleRequestNotPending
+	}
+	if version != "" && careplan.ParentRequestVersion(row.UpdatedAt) != version {
+		return careplan.ErrParentRequestStale
 	}
 	return nil
 }
