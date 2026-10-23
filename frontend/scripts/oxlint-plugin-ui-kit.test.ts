@@ -263,6 +263,26 @@ describe("ui-kit/no-hand-rolled-page-card", () => {
     }
   });
 
+  it("reports a card surface composed from className arguments or branches", () => {
+    const result = lintSource(
+      `function cn(...classes: string[]) {
+        return classes.join(" ");
+      }
+      function Probe({ surface, rounded }: { surface: boolean; rounded: boolean }) {
+        return <>
+          <div className={cn("moto-content-surface", "rounded-2xl", "p-6")} />
+          <div className={\`${surface ? "moto-content-surface" : ""} ${rounded ? "rounded-2xl" : ""} p-6\`} />
+        </>;
+      }
+      void Probe;`,
+      "src/app/[tenant]/(protected)/rooms/page.tsx",
+    );
+    const output = `${result.stdout}${result.stderr}`;
+
+    expect(result.status).toBe(1);
+    expect(output.match(/ui-kit\(no-hand-rolled-page-card\)/g)).toHaveLength(2);
+  });
+
   it("accepts control surfaces in pages and the chain in components", () => {
     const pageControl = lintSource(
       `function Probe() {

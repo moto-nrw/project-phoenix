@@ -611,6 +611,26 @@ const noHandRolledPageCard = {
           context.report({ node, messageId: "surface" });
         }
       },
+      JSXAttribute(node) {
+        if (
+          node.name.type !== "JSXIdentifier" ||
+          node.name.name !== "className"
+        )
+          return;
+
+        const chunks = [];
+        collectStaticStrings(node.value, chunks);
+        if (chunks.some((chunk) => HANDROLLED_SURFACE_RE.test(chunk))) {
+          return; // already reported by the Literal/TemplateElement visitors
+        }
+        const combos = classCombinations(node.value) ?? [chunks.join(" ")];
+        const rendered = combos.find((combo) =>
+          HANDROLLED_SURFACE_RE.test(combo),
+        );
+        if (rendered !== undefined) {
+          context.report({ node, messageId: "surface" });
+        }
+      },
     };
   },
 };
