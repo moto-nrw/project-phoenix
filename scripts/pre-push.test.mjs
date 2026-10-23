@@ -8,6 +8,37 @@ import test from 'node:test';
 
 const source = dirname(fileURLToPath(import.meta.url));
 
+test('Go imports hook preserves tool failures and rejects formatting diffs', async t => {
+  const hooks = readFileSync(join(source, '../lefthook.yml'), 'utf8');
+  const block = hooks.match(/    go-imports:\n[\s\S]*?      run: \|\n((?:        .*\n|\n)*)/);
+  assert.ok(block, 'Go imports run block must exist');
+  const command = block[1].replace(/^        /gm, '').replaceAll('{staged_files}', 'backend/example.go');
+  for (const [name, extra, status] of [
+    ['stderr-only tool failure', { TOOL_STATUS: '2', TOOL_ERROR: 'parse error\n' }, 2],
+    ['tool failure with output', { TOOL_STATUS: '7', TOOL_OUTPUT: 'partial diff\n', TOOL_ERROR: 'tool failed\n' }, 7],
+    ['clean run', {}, 0],
+    ['formatting diff', { TOOL_OUTPUT: 'formatting diff\n' }, 1],
+  ]) {
+    await t.test(name, t => {
+      const f = fixture(t);
+      f.write('backend/example.go', 'package example\n');
+      f.write('scripts/run-go-toolchain.sh', `#!/bin/sh
+printf '%s\\n' "$@" > ../tool-args
+printf '%s' "\${TOOL_OUTPUT:-}"
+printf '%s' "\${TOOL_ERROR:-}" >&2
+exit "\${TOOL_STATUS:-0}"
+`);
+      const result = f.run('sh', ['-c', command], { env: { ...f.env, ...extra } });
+      assert.equal(result.status, status, result.stdout + result.stderr);
+      assert.deepEqual(readFileSync(join(f.root, 'tool-args'), 'utf8').trim().split('\n'), ['go', 'tool', 'goimports', '-d', 'example.go']);
+      assert.equal(result.stderr, extra.TOOL_ERROR ?? '');
+      if (extra.TOOL_STATUS) assert.doesNotMatch(result.stdout, /Go imports not organized/);
+      else if (extra.TOOL_OUTPUT) assert.match(result.stdout, /Go imports not organized/);
+      else assert.equal(result.stdout, '');
+    });
+  }
+});
+
 test('Lefthook forwards every push to the runner and CI shares its quality commands', () => {
   const hooks = readFileSync(join(source, '../lefthook.yml'), 'utf8');
   const push = hooks.split('\npre-push:\n')[1].split('\npost-merge:')[0];
