@@ -3125,10 +3125,12 @@ function SearchPageContent() {
                         },
                       ]
                     : []),
-                  // Nur mit sichtbaren Kindern: ein Brief an null Kinder
-                  // hätte keinen Empfänger.
+                  // Nur mit vollständig geladenen, sichtbaren Kindern: ein
+                  // Brief an eine abgeschnittene Liste würde Empfänger
+                  // auslassen.
                   ...(parentAnnouncementsAvailable &&
                   rowsLoaded &&
+                  truncatedTotal === null &&
                   filteredStudents.length > 0
                     ? [
                         {

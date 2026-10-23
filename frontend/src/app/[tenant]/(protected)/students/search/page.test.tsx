@@ -1761,6 +1761,29 @@ describe("StudentSearchPage", () => {
         screen.queryByTestId("overflow-Elternbrief schreiben"),
       ).not.toBeInTheDocument();
     });
+
+    it("offers no letter for an incomplete result", async () => {
+      await allowParentAnnouncements(true);
+      const swrModule = await import("~/lib/swr");
+      mockUseSWRAuthWithStudents(swrModule, {
+        data: {
+          students: mockStudents,
+          truncatedTotal: 25000,
+        },
+        isLoading: false,
+        error: null,
+      } as ReturnType<typeof swrModule.useSWRAuth>);
+
+      render(<StudentSearchPage />);
+
+      // Anker: die vollständige Aktionsliste ist geladen.
+      expect(
+        await screen.findByTestId("overflow-Abwesenheiten"),
+      ).toBeInTheDocument();
+      expect(
+        screen.queryByTestId("overflow-Elternbrief schreiben"),
+      ).not.toBeInTheDocument();
+    });
   });
 
   describe("Student Card Navigation", () => {
