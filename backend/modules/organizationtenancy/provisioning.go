@@ -197,7 +197,8 @@ type OrganizationAccount struct {
 }
 
 // OperatorDevice is one device in the operator device listings with its
-// school and organisation. MaskedAPIKey and IsOnline are derived.
+// school and organisation. APIKey is populated only by creation and rotation;
+// every read and transfer returns only MaskedAPIKey.
 type OperatorDevice struct {
 	ID               int64      `json:"id"`
 	DeviceID         string     `json:"device_id"`
