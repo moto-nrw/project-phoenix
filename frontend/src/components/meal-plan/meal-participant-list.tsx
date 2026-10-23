@@ -27,6 +27,7 @@ import {
   getDailyMealParticipants,
   getWeeklyMealParticipants,
   mondayOf,
+  workWeekDates,
   type DailyMealParticipant,
   type WeeklyMealList,
 } from "~/lib/meal-plan-api";
@@ -210,7 +211,7 @@ export function MealParticipantList() {
         : t("cutoff", { time: cutoffTime });
   const isWeek = view === "week";
   const weekdayShort = new Intl.DateTimeFormat(locale, { weekday: "short" });
-  const weekEnd = weekDates.at(-1) ?? weekStart;
+  const weekEnd = workWeekDates(weekStart).at(-1) ?? weekStart;
 
   async function download(format: "pdf" | "xlsx") {
     setExporting(format);

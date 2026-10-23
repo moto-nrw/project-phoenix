@@ -26,8 +26,7 @@ const mocks = vi.hoisted(() => ({
 }));
 
 vi.mock("~/lib/meal-plan-api", async (importOriginal) => ({
-  mondayOf: (await importOriginal<typeof import("~/lib/meal-plan-api")>())
-    .mondayOf,
+  ...(await importOriginal<typeof import("~/lib/meal-plan-api")>()),
   getDailyMealParticipants: mocks.getDailyMealParticipants,
   downloadDailyMealParticipants: mocks.downloadDailyMealParticipants,
   getWeeklyMealParticipants: mocks.getWeeklyMealParticipants,
