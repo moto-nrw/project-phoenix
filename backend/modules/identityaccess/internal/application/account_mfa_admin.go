@@ -327,6 +327,9 @@ func (f *AccountMFAFlows) writeTenantOverride(txCtx context.Context, actorType s
 	if err := f.records.LockAccountForOverrideWrite(txCtx, targetAccountID); err != nil {
 		return err
 	}
+	if err := f.refusePrivilegedForceOff(txCtx, targetAccountID, targetTenantID, override); err != nil {
+		return err
+	}
 	existing, found, err := f.records.FindTenantOverride(txCtx, targetAccountID, targetTenantID)
 	if err != nil {
 		return fmt.Errorf("load existing tenant override: %w", err)
@@ -361,6 +364,9 @@ func (f *AccountMFAFlows) writeGlobalOverride(txCtx context.Context, operatorID,
 	if err := f.records.LockAccountForOverrideWrite(txCtx, targetAccountID); err != nil {
 		return err
 	}
+	if err := f.refusePrivilegedForceOff(txCtx, targetAccountID, 0, override); err != nil {
+		return err
+	}
 	existing, found, err := f.records.FindGlobalOverride(txCtx, targetAccountID)
 	if err != nil {
 		return fmt.Errorf("load existing global override: %w", err)
@@ -386,4 +392,20 @@ func (f *AccountMFAFlows) writeGlobalOverride(txCtx context.Context, operatorID,
 		}
 	}
 	return record(txCtx)
+}
+
+// No break-glass exemption for privileged access: recovery restores a factor,
+// not a password-only session. Existing exemptions are ignored by the policy.
+func (f *AccountMFAFlows) refusePrivilegedForceOff(ctx context.Context, accountID, tenantID int64, override string) error {
+	if override != domain.MFAAdminOverrideForceOff {
+		return nil
+	}
+	permissions, err := f.records.MFAAccountPermissions(ctx, accountID, tenantID)
+	if err != nil {
+		return identityaccess.ErrMFAStatusUnavailable
+	}
+	if domain.HasPrivilegedMFAPermission(permissions) {
+		return identityaccess.ErrMFAPermissionDenied
+	}
+	return nil
 }

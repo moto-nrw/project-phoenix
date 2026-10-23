@@ -154,12 +154,12 @@ func (a *Adapter) LoginOperator(ctx context.Context, email, password string) (Au
 
 	switch {
 	case enrollmentRequired:
-		token, err = a.completeOperatorMFAEnrollment(ctx, token, email)
+		token, err = a.completeMFAEnrollment(ctx, "/operator/auth", token, email)
 		if err != nil {
 			return AuthRef{}, fmt.Errorf("complete operator mfa enrollment: %w", err)
 		}
 	case verifyRequired:
-		token, err = a.completeOperatorMFAVerify(ctx, challengeToken, email)
+		token, err = a.completeMFAVerify(ctx, "/operator/auth", challengeToken, email)
 		if err != nil {
 			return AuthRef{}, fmt.Errorf("complete operator mfa verify: %w", err)
 		}
@@ -174,41 +174,41 @@ func (a *Adapter) LoginOperator(ctx context.Context, email, password string) (Au
 	}, nil
 }
 
-// completeOperatorMFAVerify drives the dev-only mailpit-backed verify
+// completeMFAVerify drives the dev-only Mailpit-backed verify
 // loop for an already-enrolled operator. The login itself triggers the
 // challenge email, so we only need to poll for the code and POST it
 // alongside the challenge_token.
-func (a *Adapter) completeOperatorMFAVerify(ctx context.Context, challengeToken, recipient string) (string, error) {
+func (a *Adapter) completeMFAVerify(ctx context.Context, authPath, challengeToken, recipient string) (string, error) {
 	watermark := time.Now().Add(-5 * time.Second)
 	code, err := a.fetchLatestMFACode(ctx, recipient, watermark)
 	if err != nil {
 		return "", err
 	}
-	respBody, status, err := a.Raw(ctx, AuthRef{}, http.MethodPost, "/operator/auth/mfa/verify",
+	respBody, status, err := a.Raw(ctx, AuthRef{}, http.MethodPost, authPath+"/mfa/verify",
 		map[string]any{"challenge_token": challengeToken, "code": code}, nil)
 	if err != nil {
 		return "", fmt.Errorf("mfa verify: %w", err)
 	}
 	token, err := parseLoginToken(respBody)
 	if err != nil {
-		return "", fmt.Errorf("decode POST /operator/auth/mfa/verify response with status %d: %w", status, err)
+		return "", fmt.Errorf("decode POST %s/mfa/verify response with status %d: %w", authPath, status, err)
 	}
 	if token == "" {
-		return "", fmt.Errorf("POST /operator/auth/mfa/verify response with status %d has no access token", status)
+		return "", fmt.Errorf("POST %s/mfa/verify response with status %d has no access token", authPath, status)
 	}
 	return token, nil
 }
 
-// completeOperatorMFAEnrollment drives the dev-only mailpit-backed
+// completeMFAEnrollment drives the dev-only Mailpit-backed
 // enrollment loop introduced by branch feat/1308-2fa-email. The operator
 // login returns a pending-enrollment token; the seeder cannot proceed
 // until enrollment is confirmed. Triggers the email, polls mailpit for
 // the 6-digit code, and exchanges it for a real access token.
-func (a *Adapter) completeOperatorMFAEnrollment(ctx context.Context, enrollmentToken, recipient string) (string, error) {
-	enrollAuth := AuthRef{Kind: AuthBearer, Label: "operator-enroll", Token: enrollmentToken}
+func (a *Adapter) completeMFAEnrollment(ctx context.Context, authPath, enrollmentToken, recipient string) (string, error) {
+	enrollAuth := AuthRef{Kind: AuthBearer, Label: "mfa-enroll", Token: enrollmentToken}
 
 	watermark := time.Now()
-	if _, _, err := a.Raw(ctx, enrollAuth, http.MethodPost, "/operator/auth/mfa/enroll/start", nil, nil); err != nil {
+	if _, _, err := a.Raw(ctx, enrollAuth, http.MethodPost, authPath+"/mfa/enroll/start", nil, nil); err != nil {
 		return "", fmt.Errorf("enroll start: %w", err)
 	}
 
@@ -217,16 +217,16 @@ func (a *Adapter) completeOperatorMFAEnrollment(ctx context.Context, enrollmentT
 		return "", err
 	}
 
-	respBody, status, err := a.Raw(ctx, enrollAuth, http.MethodPost, "/operator/auth/mfa/enroll/confirm", map[string]string{"code": code}, nil)
+	respBody, status, err := a.Raw(ctx, enrollAuth, http.MethodPost, authPath+"/mfa/enroll/confirm", map[string]string{"code": code}, nil)
 	if err != nil {
 		return "", fmt.Errorf("enroll confirm: %w", err)
 	}
 	token, err := parseLoginToken(respBody)
 	if err != nil {
-		return "", fmt.Errorf("decode POST /operator/auth/mfa/enroll/confirm response with status %d: %w", status, err)
+		return "", fmt.Errorf("decode POST %s/mfa/enroll/confirm response with status %d: %w", authPath, status, err)
 	}
 	if token == "" {
-		return "", fmt.Errorf("POST /operator/auth/mfa/enroll/confirm response with status %d has no access token", status)
+		return "", fmt.Errorf("POST %s/mfa/enroll/confirm response with status %d has no access token", authPath, status)
 	}
 	return token, nil
 }
@@ -249,8 +249,9 @@ func (a *Adapter) LoginTenant(ctx context.Context, email, password, tenantSlug s
 	if err != nil {
 		return AuthRef{}, fmt.Errorf("parse login response from POST /auth/login with status %d: %w", status, err)
 	}
-	if token == "" {
-		return AuthRef{}, fmt.Errorf("POST /auth/login response with status %d has no access token", status)
+	token, err = a.completeTenantLoginMFA(ctx, respBody, token, email)
+	if err != nil {
+		return AuthRef{}, err
 	}
 
 	label := "tenant"

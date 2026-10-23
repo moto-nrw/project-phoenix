@@ -29,7 +29,7 @@ func (s *AccountAuthentication) loginSchoolWithMFAGate(ctx context.Context, emai
 		return nil, err
 	}
 
-	mfaRequired, enrolled, err := s.schoolLoginMFAVerdict(ctx, account.ID, portalTenantID, metadata.RoleNames)
+	mfaRequired, enrolled, err := s.schoolLoginMFAVerdict(ctx, account.ID, portalTenantID, metadata.Permissions)
 	if err != nil {
 		return nil, err
 	}
@@ -45,7 +45,7 @@ func (s *AccountAuthentication) loginSchoolWithMFAGate(ctx context.Context, emai
 		return s.mfaChallengeResult(ctx, account, portalTenantID, domain.ScopeSchool, ipAddress)
 	}
 
-	return s.mintSchoolLogin(ctx, account, portalTenantID, mfaRequired, enrolled, email, ipAddress, userAgent)
+	return s.mintSchoolLogin(ctx, account, portalTenantID, mfaRequired, enrolled, email, ipAddress, userAgent, trustedDeviceCookie)
 }
 
 // IssueSchoolTokensForAuthenticatedAccount mints a school-scope pair for an
@@ -70,7 +70,7 @@ func (s *AccountAuthentication) issueSchoolTokensForAuthenticatedAccount(ctx con
 		return "", "", failed("issue school tokens", identityaccess.ErrAccountNoSchoolPortalRole)
 	}
 	var claims *domain.AccountClaimsPayload
-	session, err := s.createRefreshSessionGuarded(ctx, account, tenantID, domain.ScopeSchool, s.schoolMintGuard(account.ID, tenantID, &claims), "")
+	session, err := s.createRefreshSessionGuarded(ctx, account, tenantID, domain.ScopeSchool, s.schoolMintGuard(account.ID, tenantID, &claims), "", true)
 	if err != nil {
 		return "", "", wrapSchoolMintError("issue school tokens", err)
 	}

@@ -36,7 +36,7 @@ var security_init_mfa_1Definitions = []config.Definition{
 	{
 		Key:             config.KeyMFAMode,
 		Label:           "Zwei-Faktor-Anmeldung (Code per E-Mail)",
-		Description:     "Beim Anmelden kommt zusätzlich ein Code per E-Mail. „Nur Admins“ gilt für Schul-Admins, „Alle Mitarbeitenden“ für das ganze Team.",
+		Description:     "Für Verwaltung, Gesundheitsdaten und Personalfinanzen ist ein zweiter Nachweis immer Pflicht. „Aus“ und „Nur Admins“ ändern daran nichts. „Alle Mitarbeitenden“ schützt zusätzlich das ganze Team.",
 		Type:            config.FieldSelect,
 		Default:         config.MFAModeOff,
 		ReadPermission:  "config:read",
@@ -63,7 +63,6 @@ var security_init_mfa_1Definitions = []config.Definition{
 		Tab:             "security",
 		Category:        "mfa",
 		SortOrder:       20,
-		DependsOn:       config.DependsOnNeq(config.KeyMFAMode, config.MFAModeOff),
 	},
 	{
 		Key:             config.KeyMFATrustedDeviceDays,

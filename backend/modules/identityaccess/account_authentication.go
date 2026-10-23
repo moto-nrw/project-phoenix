@@ -178,9 +178,9 @@ type School struct {
 	LogoURL string
 }
 
-// MFAPolicy is a resolved MFA verdict waiting for the role set it applies to.
+// MFAPolicy is a resolved MFA verdict waiting for the permission set it applies to.
 type MFAPolicy interface {
-	RequiredFor(roleNames []string) bool
+	RequiredFor(permissions []string) bool
 }
 
 // Authentication audit event types, as the Audit platform stores them.

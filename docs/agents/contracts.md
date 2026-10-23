@@ -227,6 +227,32 @@ Backend paths in this section are relative to `backend/`:
   the challenge/enrollment claims in `modules/identityaccess/sessiontoken/`, and trusted-device settings
   `security.mfa_*`. Include the school frontend's MFA chain when changing its login.
 
+#### Privileged MFA floor (#3841, slice 3841-f)
+
+Effective school permissions, not role names, impose the MFA minimum in
+`modules/identityaccess/internal/domain/mfa_privilege.go`: administrative
+account/role/auth/security/system/staff rights, health permissions and
+`staff:financial`, including matching wildcards. `off` and `required_admins`
+cannot lower it. No new `force_off` exemption is accepted for privileged
+targets, even from operators; existing exemptions lose to the runtime floor.
+
+Every account session mint and refresh rechecks policy and permissions under
+policy/account locks. Migration 1.15.477 marks existing refresh sessions
+unverified; their next refresh refuses privileged access and requires login.
+Completed email/passkey exchanges and valid school-bound trusted devices
+produce `auth.tokens.mfa_verified`; rotation and bounded hand-off recovery
+preserve it. MFA reset clears proof across existing sessions. Password reset
+issues no session. Target-school MFA requires direct login at that school when
+switching: a source-school session is not a fresh second-factor exchange.
+Parent-scope sessions remain separate and carry no staff permissions.
+
+Enrollment uses the existing email-code flow in tenant and school portals;
+mail delivery/verification failures issue no completed session. Passkeys for
+school personnel already require verified email registration and WebAuthn user
+verification at login. Local seed tools complete the same email flow through
+local Mailpit, with no production bypass. Human rollout/recovery and count-only
+inventory: [MFA runbook](../operations/mfa-pflicht-3841.md).
+
 Token lifetimes come from `AUTH_JWT_EXPIRY` / `AUTH_JWT_REFRESH_EXPIRY`;
 do not infer them from stale examples. Check credentials, challenge completion,
 refresh, tenant switching, and wrong-portal rejection for affected flows.
