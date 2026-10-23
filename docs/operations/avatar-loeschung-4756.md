@@ -60,7 +60,9 @@ für das produktive System.
 Produktions- oder Staging-Zugriffe ausgeführt. Die Befehle verwenden die bereits
 bereitgestellte Compose-Konfiguration in `~/production/`, keine API und kein SSH.
 Die drei SQL-Dateien aus `docs/operations/sql/` dieses geprüften Releases müssen
-lokal auf dem Server bereitliegen. Nicht die `.env` ausgeben oder verändern.
+lokal auf dem Server bereitliegen: aus dem ausgerollten Release-Verzeichnis
+übernehmen oder aus dem Repo-Stand genau dieser Version per `scp` übertragen.
+Nicht die `.env` ausgeben oder verändern.
 
 Geprüfter Speicherort: `environments/production.compose.yml` bindet das Volume
 `phoenix-production-uploads` im Dienst `server` nach `/app/public/uploads` ein.
@@ -93,6 +95,8 @@ Vor Anwendung auf einen späteren Release diese Quellen erneut prüfen.
    Bei `SIGKILL`, Rechnerausfall oder fehlgeschlagenem Container-Aufräumen muss
    ein Mensch verbliebene `avatar-abgleich.*`-Verzeichnisse lokal entfernen.
    Die aufrufende interaktive Sitzung bleibt bei Fehlern geöffnet.
+   Container-Befehle ohne Dateieingabe erhalten `</dev/null`, damit sie nicht
+   den restlichen Bash-Block von stdin lesen.
 
 3. Der Block erfasst nur reguläre Dateien, deren Änderungszeit **mehr als
    24 Stunden** zurückliegt. `find` folgt keinen Symlinks; nur genau zwei Ebenen
@@ -135,7 +139,7 @@ cleanup() {
   fi
   if [ -n "$container_private" ]; then
     if ! "${compose[@]}" exec -T postgres sh -eu -c \
-      'rm -rf -- "$1"' sh "$container_private" >/dev/null 2>&1; then
+      'rm -rf -- "$1"' sh "$container_private" </dev/null >/dev/null 2>&1; then
       printf 'Container-Aufräumen fehlgeschlagen; temporäre Listen lokal entfernen.\n' >&2
       result=1
     fi
@@ -171,7 +175,7 @@ test -r "$sql_dir/avatar-waisen-status-4756.sql"
       printf "/uploads/avatars/%s\n" "$relative"
     done
   '\'' sh {} +
-' 2> "$private/inventory.err" | LC_ALL=C sort -u > "$private/files.txt"
+' </dev/null 2> "$private/inventory.err" | LC_ALL=C sort -u > "$private/files.txt"
 db -At -f - < "$sql_dir/avatar-referenzen-4756.sql" \
   > "$private/references.unsorted" 2> "$private/references.err"
 LC_ALL=C sort -u "$private/references.unsorted" > "$private/references.txt"
@@ -181,21 +185,21 @@ printf 'Unreferenzierte Kandidaten: '; wc -l < "$private/candidates.txt"
 
 # Probelauf im PostgreSQL-Container.
 container_private=$("${compose[@]}" exec -T postgres sh -eu -c \
-  'umask 077; mktemp -d /tmp/avatar-abgleich.XXXXXXXX')
+  'umask 077; mktemp -d /tmp/avatar-abgleich.XXXXXXXX' </dev/null)
 "${compose[@]}" exec -T postgres sh -eu -c \
   'umask 077; cat > "$1/candidates.txt"' sh "$container_private" < "$private/candidates.txt"
 "${compose[@]}" exec -T postgres sh -eu -c \
   'umask 077; cat > "$1/enqueue.sql"' sh "$container_private" < "$sql_dir/avatar-waisen-eintragen-4756.sql"
 "${compose[@]}" exec -T postgres sh -eu -c \
   'cd "$1"; psql -X -q -v ON_ERROR_STOP=1 -v apply=false -U postgres -d postgres -f enqueue.sql' \
-  sh "$container_private" 2> "$private/preview.err"
+  sh "$container_private" </dev/null 2> "$private/preview.err"
 
 printf 'Probelauf prüfen. Nur bei plausiblen Mengen eintragen.\n'
 read -r -p 'Zum Eintragen ja eingeben: ' answer </dev/tty
 [ "$answer" = ja ] || exit 0
 "${compose[@]}" exec -T postgres sh -eu -c \
   'cd "$1"; test ! -e enqueued.txt; psql -X -q -v ON_ERROR_STOP=1 -v apply=true -U postgres -d postgres -f enqueue.sql' \
-  sh "$container_private" 2> "$private/apply.err"
+  sh "$container_private" </dev/null 2> "$private/apply.err"
 
 # Mengen bis zum Abschluss verfolgen.
 "${compose[@]}" exec -T postgres sh -eu -c \
@@ -203,7 +207,7 @@ read -r -p 'Zum Eintragen ja eingeben: ' answer </dev/tty
 while :; do
   "${compose[@]}" exec -T postgres sh -eu -c \
     'cd "$1"; psql -X -q -v ON_ERROR_STOP=1 -U postgres -d postgres -f status.sql' \
-    sh "$container_private" 2> "$private/status.err"
+    sh "$container_private" </dev/null 2> "$private/status.err"
   read -r -p 'Nach Worker-Lauf Enter; nur bei noch_offen = 0 fertig eingeben: ' answer </dev/tty
   [ "$answer" != fertig ] || break
 done

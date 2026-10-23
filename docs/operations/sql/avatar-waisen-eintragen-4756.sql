@@ -9,8 +9,9 @@ SET LOCAL row_security = off;
 SET LOCAL lock_timeout = '5s';
 CREATE TEMP TABLE avatar_candidates (avatar text PRIMARY KEY) ON COMMIT DROP;
 \copy avatar_candidates FROM 'candidates.txt'
--- Freeze the final reference check against concurrent writers. Uploads must
--- also be paused as described in the runbook (filesystem writes precede SQL).
+-- Freeze the final reference check against concurrent DB writers. Uploads,
+-- API and worker keep running; no concurrent restores or file imports until
+-- the queue drains, as required by step 1 of the runbook.
 \if :apply
 LOCK TABLE auth.accounts, users.profiles IN SHARE MODE;
 LOCK TABLE auth.account_avatar_file_cleanup IN SHARE ROW EXCLUSIVE MODE;
