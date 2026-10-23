@@ -89,7 +89,7 @@ func ParseDemoRole(value string) (DemoRole, error) {
 }
 
 // The reduced roles of the demo school (#3469). The seeder creates both as
-// roles of the school with their permission sets (seed/api/demo_roles.go);
+// roles of the school with their permission sets (internal/devtools/seedapi/demo_roles.go);
 // "all functions" is the administrator.
 const (
 	DemoSchoolRoleCaregiver = "betreuungskraft"

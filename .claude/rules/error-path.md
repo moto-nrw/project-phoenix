@@ -45,7 +45,7 @@ Registry mechanics: [docs/agents/error-registry.md](../../docs/agents/error-regi
    invalid field.
 6. **Codes are additive.** Add a new code for a new failure. A registered code
    keeps its name and stays in the registry. Each new code gets a text in
-   every locale of `backend/localization/locales.json`. A code the parent
+   every locale of `backend/modules/delivery/internal/adapters/localization/locales.json`. A code the parent
    portal can show gets a real translation; a staff-only code may carry its
    class text outside German.
 
