@@ -44998,10 +44998,10 @@
       "binding": "github.com/moto-nrw/project-phoenix/modules/studentpresence.Capability.CountExpiredVisits",
       "target": "github.com/moto-nrw/project-phoenix/modules/studentpresence.Capability.CountExpiredVisits",
       "target_owner": "student-presence",
-      "binding_digest": "4def2e1e7cdd8f3a99747c869ff5751b",
+      "binding_digest": "0b085fba88ab4db4623eb784e888d710",
       "effect": "query",
       "classification": "query",
-      "reason": "Reviewed read/value/construction method; no owned-row mutation or locking read at this terminal. Target modules/studentpresence.Capability.CountExpiredVisits; modules/studentpresence.Capability (supplied contract method). May-bind method surface, not a production-call/liveness claim. Full native contract surface (including production-compiled fixture support); this label does not claim this exposed method is called by a production source flow. The target owner's own coordination is inventoried at that owner, not flattened here."
+      "reason": "Reviewed read/value/construction method; no owned-row mutation or locking read at this terminal. Target modules/studentpresence.Capability.CountExpiredVisits; modules/studentpresence.Capability (supplied contract method). May-bind method surface, not a production-call/liveness claim. Full native contract surface (including production-compiled fixture support); this label does not claim this exposed method is called by a production source flow. The target owner's own coordination is inventoried at that owner, not flattened here. Slice 3844-b review: CountExpiredVisits now takes VisitRetentionPolicy. The method still only selects tenant-scoped retention counts/timestamps/months; the explicit completed-before cutoff ignores consent windows when history is disabled. No owned-row writes or locking reads were added."
     },
     {
       "source_owner": "timetable-activities",
@@ -45009,10 +45009,10 @@
       "binding": "github.com/moto-nrw/project-phoenix/modules/studentpresence.Capability.CountExpiredVisits",
       "target": "github.com/moto-nrw/project-phoenix/modules/studentpresence.Owner.CountExpiredVisits",
       "target_owner": "student-presence",
-      "binding_digest": "497bc79acf79fe5f1d83d71790c02e44",
+      "binding_digest": "ea3757b38db2186aef7079a8f0251507",
       "effect": "query",
       "classification": "query",
-      "reason": "Reviewed read/value/construction method; no owned-row mutation or locking read at this terminal. Target modules/studentpresence.Owner.CountExpiredVisits; modules/studentpresence.Owner (supplied contract method). May-bind method surface, not a production-call/liveness claim. Full native contract surface (including production-compiled fixture support); this label does not claim this exposed method is called by a production source flow. The target owner's own coordination is inventoried at that owner, not flattened here."
+      "reason": "Reviewed read/value/construction method; no owned-row mutation or locking read at this terminal. Target modules/studentpresence.Owner.CountExpiredVisits; modules/studentpresence.Owner (supplied contract method). May-bind method surface, not a production-call/liveness claim. Full native contract surface (including production-compiled fixture support); this label does not claim this exposed method is called by a production source flow. The target owner's own coordination is inventoried at that owner, not flattened here. Slice 3844-b review: CountExpiredVisits now takes VisitRetentionPolicy. The method still only selects tenant-scoped retention counts/timestamps/months; the explicit completed-before cutoff ignores consent windows when history is disabled. No owned-row writes or locking reads were added."
     },
     {
       "source_owner": "timetable-activities",
@@ -45020,10 +45020,10 @@
       "binding": "github.com/moto-nrw/project-phoenix/modules/studentpresence.Owner.CountExpiredVisits",
       "target": "github.com/moto-nrw/project-phoenix/modules/studentpresence.Owner.CountExpiredVisits",
       "target_owner": "student-presence",
-      "binding_digest": "497bc79acf79fe5f1d83d71790c02e44",
+      "binding_digest": "ea3757b38db2186aef7079a8f0251507",
       "effect": "query",
       "classification": "query",
-      "reason": "Reviewed read/value/construction method; no owned-row mutation or locking read at this terminal. Target modules/studentpresence.Owner.CountExpiredVisits; modules/studentpresence.Owner (supplied contract method). May-bind method surface, not a production-call/liveness claim. Full native contract surface (including production-compiled fixture support); this label does not claim this exposed method is called by a production source flow. The target owner's own coordination is inventoried at that owner, not flattened here."
+      "reason": "Reviewed read/value/construction method; no owned-row mutation or locking read at this terminal. Target modules/studentpresence.Owner.CountExpiredVisits; modules/studentpresence.Owner (supplied contract method). May-bind method surface, not a production-call/liveness claim. Full native contract surface (including production-compiled fixture support); this label does not claim this exposed method is called by a production source flow. The target owner's own coordination is inventoried at that owner, not flattened here. Slice 3844-b review: CountExpiredVisits now takes VisitRetentionPolicy. The method still only selects tenant-scoped retention counts/timestamps/months; the explicit completed-before cutoff ignores consent windows when history is disabled. No owned-row writes or locking reads were added."
     },
     {
       "source_owner": "timetable-activities",
@@ -45202,11 +45202,11 @@
       "binding": "github.com/moto-nrw/project-phoenix/modules/studentpresence.Capability.DeleteCompletedVisitsBefore",
       "target": "github.com/moto-nrw/project-phoenix/modules/studentpresence.Capability.DeleteCompletedVisitsBefore",
       "target_owner": "student-presence",
-      "binding_digest": "c761aebfb33956491e845f5b08b62183",
+      "binding_digest": "7a01f0267662af54dafb47f6bc3d6b91",
       "effect": "mutation",
       "classification": "leaf",
       "adr": "0067",
-      "reason": "Guarded target record/byte command; preserve ambient scope, target validation and existing failure propagation. Target-local locks/savepoints alone do not establish a new source coordinator. Target modules/studentpresence.Capability.DeleteCompletedVisitsBefore; modules/studentpresence.Capability (supplied contract method).  Full native contract surface (including production-compiled fixture support); this label does not claim this exposed method is called by a production source flow. The target owner's own coordination is inventoried at that owner, not flattened here."
+      "reason": "Guarded target record/byte command; preserve ambient scope, target validation and existing failure propagation. Target-local locks/savepoints alone do not establish a new source coordinator. Target modules/studentpresence.Capability.DeleteCompletedVisitsBefore; modules/studentpresence.Capability (supplied contract method).  Full native contract surface (including production-compiled fixture support); this label does not claim this exposed method is called by a production source flow. The target owner's own coordination is inventoried at that owner, not flattened here. Slice 3844-b review: DeleteCompletedVisitsBefore now takes VisitRetentionPolicy. The command remains a tenant-scoped leaf DELETE of completed visits, optionally selected by exit_time before Berlin midnight; it joins the current transaction, and its caller appends the deletion audit in that transaction."
     },
     {
       "source_owner": "timetable-activities",
@@ -45214,11 +45214,11 @@
       "binding": "github.com/moto-nrw/project-phoenix/modules/studentpresence.Capability.DeleteCompletedVisitsBefore",
       "target": "github.com/moto-nrw/project-phoenix/modules/studentpresence.Owner.DeleteCompletedVisitsBefore",
       "target_owner": "student-presence",
-      "binding_digest": "78c7e213ef50749da8b85a2699359784",
+      "binding_digest": "2a78dc4fd9cc54dcca0a352f7c97c816",
       "effect": "mutation",
       "classification": "leaf",
       "adr": "0067",
-      "reason": "Guarded target record/byte command; preserve ambient scope, target validation and existing failure propagation. Target-local locks/savepoints alone do not establish a new source coordinator. Target modules/studentpresence.Owner.DeleteCompletedVisitsBefore; modules/studentpresence.Owner (supplied contract method).  Full native contract surface (including production-compiled fixture support); this label does not claim this exposed method is called by a production source flow. The target owner's own coordination is inventoried at that owner, not flattened here."
+      "reason": "Guarded target record/byte command; preserve ambient scope, target validation and existing failure propagation. Target-local locks/savepoints alone do not establish a new source coordinator. Target modules/studentpresence.Owner.DeleteCompletedVisitsBefore; modules/studentpresence.Owner (supplied contract method).  Full native contract surface (including production-compiled fixture support); this label does not claim this exposed method is called by a production source flow. The target owner's own coordination is inventoried at that owner, not flattened here. Slice 3844-b review: DeleteCompletedVisitsBefore now takes VisitRetentionPolicy. The command remains a tenant-scoped leaf DELETE of completed visits, optionally selected by exit_time before Berlin midnight; it joins the current transaction, and its caller appends the deletion audit in that transaction."
     },
     {
       "source_owner": "timetable-activities",
@@ -45226,11 +45226,11 @@
       "binding": "github.com/moto-nrw/project-phoenix/modules/studentpresence.Owner.DeleteCompletedVisitsBefore",
       "target": "github.com/moto-nrw/project-phoenix/modules/studentpresence.Owner.DeleteCompletedVisitsBefore",
       "target_owner": "student-presence",
-      "binding_digest": "78c7e213ef50749da8b85a2699359784",
+      "binding_digest": "2a78dc4fd9cc54dcca0a352f7c97c816",
       "effect": "mutation",
       "classification": "leaf",
       "adr": "0067",
-      "reason": "Guarded target record/byte command; preserve ambient scope, target validation and existing failure propagation. Target-local locks/savepoints alone do not establish a new source coordinator. Target modules/studentpresence.Owner.DeleteCompletedVisitsBefore; modules/studentpresence.Owner (supplied contract method).  Full native contract surface (including production-compiled fixture support); this label does not claim this exposed method is called by a production source flow. The target owner's own coordination is inventoried at that owner, not flattened here."
+      "reason": "Guarded target record/byte command; preserve ambient scope, target validation and existing failure propagation. Target-local locks/savepoints alone do not establish a new source coordinator. Target modules/studentpresence.Owner.DeleteCompletedVisitsBefore; modules/studentpresence.Owner (supplied contract method).  Full native contract surface (including production-compiled fixture support); this label does not claim this exposed method is called by a production source flow. The target owner's own coordination is inventoried at that owner, not flattened here. Slice 3844-b review: DeleteCompletedVisitsBefore now takes VisitRetentionPolicy. The command remains a tenant-scoped leaf DELETE of completed visits, optionally selected by exit_time before Berlin midnight; it joins the current transaction, and its caller appends the deletion audit in that transaction."
     },
     {
       "source_owner": "timetable-activities",
@@ -46072,10 +46072,10 @@
       "binding": "github.com/moto-nrw/project-phoenix/modules/studentpresence.Capability.ListExpiredVisitMonths",
       "target": "github.com/moto-nrw/project-phoenix/modules/studentpresence.Capability.ListExpiredVisitMonths",
       "target_owner": "student-presence",
-      "binding_digest": "e7fc62079736de6f491e7198083fa200",
+      "binding_digest": "47760d77b924800efd597e9a8e8d675f",
       "effect": "query",
       "classification": "query",
-      "reason": "Reviewed read/value/construction method; no owned-row mutation or locking read at this terminal. Target modules/studentpresence.Capability.ListExpiredVisitMonths; modules/studentpresence.Capability (supplied contract method). May-bind method surface, not a production-call/liveness claim. Full native contract surface (including production-compiled fixture support); this label does not claim this exposed method is called by a production source flow. The target owner's own coordination is inventoried at that owner, not flattened here."
+      "reason": "Reviewed read/value/construction method; no owned-row mutation or locking read at this terminal. Target modules/studentpresence.Capability.ListExpiredVisitMonths; modules/studentpresence.Capability (supplied contract method). May-bind method surface, not a production-call/liveness claim. Full native contract surface (including production-compiled fixture support); this label does not claim this exposed method is called by a production source flow. The target owner's own coordination is inventoried at that owner, not flattened here. Slice 3844-b review: ListExpiredVisitMonths now takes VisitRetentionPolicy. The method still only selects tenant-scoped retention counts/timestamps/months; the explicit completed-before cutoff ignores consent windows when history is disabled. No owned-row writes or locking reads were added."
     },
     {
       "source_owner": "timetable-activities",
@@ -46083,10 +46083,10 @@
       "binding": "github.com/moto-nrw/project-phoenix/modules/studentpresence.Capability.ListExpiredVisitMonths",
       "target": "github.com/moto-nrw/project-phoenix/modules/studentpresence.Owner.ListExpiredVisitMonths",
       "target_owner": "student-presence",
-      "binding_digest": "ba890dbc94622b20d716ab7bfc1ffeb3",
+      "binding_digest": "6b4f6b1f3aaf13d36167f7e6c5153a4c",
       "effect": "query",
       "classification": "query",
-      "reason": "Reviewed read/value/construction method; no owned-row mutation or locking read at this terminal. Target modules/studentpresence.Owner.ListExpiredVisitMonths; modules/studentpresence.Owner (supplied contract method). May-bind method surface, not a production-call/liveness claim. Full native contract surface (including production-compiled fixture support); this label does not claim this exposed method is called by a production source flow. The target owner's own coordination is inventoried at that owner, not flattened here."
+      "reason": "Reviewed read/value/construction method; no owned-row mutation or locking read at this terminal. Target modules/studentpresence.Owner.ListExpiredVisitMonths; modules/studentpresence.Owner (supplied contract method). May-bind method surface, not a production-call/liveness claim. Full native contract surface (including production-compiled fixture support); this label does not claim this exposed method is called by a production source flow. The target owner's own coordination is inventoried at that owner, not flattened here. Slice 3844-b review: ListExpiredVisitMonths now takes VisitRetentionPolicy. The method still only selects tenant-scoped retention counts/timestamps/months; the explicit completed-before cutoff ignores consent windows when history is disabled. No owned-row writes or locking reads were added."
     },
     {
       "source_owner": "timetable-activities",
@@ -46094,10 +46094,10 @@
       "binding": "github.com/moto-nrw/project-phoenix/modules/studentpresence.Owner.ListExpiredVisitMonths",
       "target": "github.com/moto-nrw/project-phoenix/modules/studentpresence.Owner.ListExpiredVisitMonths",
       "target_owner": "student-presence",
-      "binding_digest": "ba890dbc94622b20d716ab7bfc1ffeb3",
+      "binding_digest": "6b4f6b1f3aaf13d36167f7e6c5153a4c",
       "effect": "query",
       "classification": "query",
-      "reason": "Reviewed read/value/construction method; no owned-row mutation or locking read at this terminal. Target modules/studentpresence.Owner.ListExpiredVisitMonths; modules/studentpresence.Owner (supplied contract method). May-bind method surface, not a production-call/liveness claim. Full native contract surface (including production-compiled fixture support); this label does not claim this exposed method is called by a production source flow. The target owner's own coordination is inventoried at that owner, not flattened here."
+      "reason": "Reviewed read/value/construction method; no owned-row mutation or locking read at this terminal. Target modules/studentpresence.Owner.ListExpiredVisitMonths; modules/studentpresence.Owner (supplied contract method). May-bind method surface, not a production-call/liveness claim. Full native contract surface (including production-compiled fixture support); this label does not claim this exposed method is called by a production source flow. The target owner's own coordination is inventoried at that owner, not flattened here. Slice 3844-b review: ListExpiredVisitMonths now takes VisitRetentionPolicy. The method still only selects tenant-scoped retention counts/timestamps/months; the explicit completed-before cutoff ignores consent windows when history is disabled. No owned-row writes or locking reads were added."
     },
     {
       "source_owner": "timetable-activities",
@@ -46633,10 +46633,10 @@
       "binding": "github.com/moto-nrw/project-phoenix/modules/studentpresence.Capability.ListVisitRetentionCounts",
       "target": "github.com/moto-nrw/project-phoenix/modules/studentpresence.Capability.ListVisitRetentionCounts",
       "target_owner": "student-presence",
-      "binding_digest": "8032f114200bb135d83fdc88bb3fdf08",
+      "binding_digest": "5f9eeebfed5cdddf4f276ca0e0e30b27",
       "effect": "query",
       "classification": "query",
-      "reason": "Reviewed read/value/construction method; no owned-row mutation or locking read at this terminal. Target modules/studentpresence.Capability.ListVisitRetentionCounts; modules/studentpresence.Capability (supplied contract method). May-bind method surface, not a production-call/liveness claim. Full native contract surface (including production-compiled fixture support); this label does not claim this exposed method is called by a production source flow. The target owner's own coordination is inventoried at that owner, not flattened here."
+      "reason": "Reviewed read/value/construction method; no owned-row mutation or locking read at this terminal. Target modules/studentpresence.Capability.ListVisitRetentionCounts; modules/studentpresence.Capability (supplied contract method). May-bind method surface, not a production-call/liveness claim. Full native contract surface (including production-compiled fixture support); this label does not claim this exposed method is called by a production source flow. The target owner's own coordination is inventoried at that owner, not flattened here. Slice 3844-b review: ListVisitRetentionCounts now takes VisitRetentionPolicy. The method still only selects tenant-scoped retention counts/timestamps/months; the explicit completed-before cutoff ignores consent windows when history is disabled. No owned-row writes or locking reads were added."
     },
     {
       "source_owner": "timetable-activities",
@@ -46644,10 +46644,10 @@
       "binding": "github.com/moto-nrw/project-phoenix/modules/studentpresence.Capability.ListVisitRetentionCounts",
       "target": "github.com/moto-nrw/project-phoenix/modules/studentpresence.Owner.ListVisitRetentionCounts",
       "target_owner": "student-presence",
-      "binding_digest": "07b132abc69501d516d0eb2215f147eb",
+      "binding_digest": "43e1d5e67dbf21944bb89eda4230c444",
       "effect": "query",
       "classification": "query",
-      "reason": "Reviewed read/value/construction method; no owned-row mutation or locking read at this terminal. Target modules/studentpresence.Owner.ListVisitRetentionCounts; modules/studentpresence.Owner (supplied contract method). May-bind method surface, not a production-call/liveness claim. Full native contract surface (including production-compiled fixture support); this label does not claim this exposed method is called by a production source flow. The target owner's own coordination is inventoried at that owner, not flattened here."
+      "reason": "Reviewed read/value/construction method; no owned-row mutation or locking read at this terminal. Target modules/studentpresence.Owner.ListVisitRetentionCounts; modules/studentpresence.Owner (supplied contract method). May-bind method surface, not a production-call/liveness claim. Full native contract surface (including production-compiled fixture support); this label does not claim this exposed method is called by a production source flow. The target owner's own coordination is inventoried at that owner, not flattened here. Slice 3844-b review: ListVisitRetentionCounts now takes VisitRetentionPolicy. The method still only selects tenant-scoped retention counts/timestamps/months; the explicit completed-before cutoff ignores consent windows when history is disabled. No owned-row writes or locking reads were added."
     },
     {
       "source_owner": "timetable-activities",
@@ -46655,10 +46655,10 @@
       "binding": "github.com/moto-nrw/project-phoenix/modules/studentpresence.Owner.ListVisitRetentionCounts",
       "target": "github.com/moto-nrw/project-phoenix/modules/studentpresence.Owner.ListVisitRetentionCounts",
       "target_owner": "student-presence",
-      "binding_digest": "07b132abc69501d516d0eb2215f147eb",
+      "binding_digest": "43e1d5e67dbf21944bb89eda4230c444",
       "effect": "query",
       "classification": "query",
-      "reason": "Reviewed read/value/construction method; no owned-row mutation or locking read at this terminal. Target modules/studentpresence.Owner.ListVisitRetentionCounts; modules/studentpresence.Owner (supplied contract method). May-bind method surface, not a production-call/liveness claim. Full native contract surface (including production-compiled fixture support); this label does not claim this exposed method is called by a production source flow. The target owner's own coordination is inventoried at that owner, not flattened here."
+      "reason": "Reviewed read/value/construction method; no owned-row mutation or locking read at this terminal. Target modules/studentpresence.Owner.ListVisitRetentionCounts; modules/studentpresence.Owner (supplied contract method). May-bind method surface, not a production-call/liveness claim. Full native contract surface (including production-compiled fixture support); this label does not claim this exposed method is called by a production source flow. The target owner's own coordination is inventoried at that owner, not flattened here. Slice 3844-b review: ListVisitRetentionCounts now takes VisitRetentionPolicy. The method still only selects tenant-scoped retention counts/timestamps/months; the explicit completed-before cutoff ignores consent windows when history is disabled. No owned-row writes or locking reads were added."
     },
     {
       "source_owner": "timetable-activities",
@@ -47203,10 +47203,10 @@
       "binding": "github.com/moto-nrw/project-phoenix/modules/studentpresence.Capability.OldestExpiredVisitDate",
       "target": "github.com/moto-nrw/project-phoenix/modules/studentpresence.Capability.OldestExpiredVisitDate",
       "target_owner": "student-presence",
-      "binding_digest": "d9e23c72112122cea67ff5f15c35c8a9",
+      "binding_digest": "4438b62e19e426e9de770285074941a4",
       "effect": "query",
       "classification": "query",
-      "reason": "Reviewed read/value/construction method; no owned-row mutation or locking read at this terminal. Target modules/studentpresence.Capability.OldestExpiredVisitDate; modules/studentpresence.Capability (supplied contract method). May-bind method surface, not a production-call/liveness claim. Full native contract surface (including production-compiled fixture support); this label does not claim this exposed method is called by a production source flow. The target owner's own coordination is inventoried at that owner, not flattened here."
+      "reason": "Reviewed read/value/construction method; no owned-row mutation or locking read at this terminal. Target modules/studentpresence.Capability.OldestExpiredVisitDate; modules/studentpresence.Capability (supplied contract method). May-bind method surface, not a production-call/liveness claim. Full native contract surface (including production-compiled fixture support); this label does not claim this exposed method is called by a production source flow. The target owner's own coordination is inventoried at that owner, not flattened here. Slice 3844-b review: OldestExpiredVisitDate now takes VisitRetentionPolicy. The method still only selects tenant-scoped retention counts/timestamps/months; the explicit completed-before cutoff ignores consent windows when history is disabled. No owned-row writes or locking reads were added."
     },
     {
       "source_owner": "timetable-activities",
@@ -47214,10 +47214,10 @@
       "binding": "github.com/moto-nrw/project-phoenix/modules/studentpresence.Capability.OldestExpiredVisitDate",
       "target": "github.com/moto-nrw/project-phoenix/modules/studentpresence.Owner.OldestExpiredVisitDate",
       "target_owner": "student-presence",
-      "binding_digest": "8794a4bbddde756d6df5465461afe948",
+      "binding_digest": "6c03b5ae2b580ed5f6052d28067c5435",
       "effect": "query",
       "classification": "query",
-      "reason": "Reviewed read/value/construction method; no owned-row mutation or locking read at this terminal. Target modules/studentpresence.Owner.OldestExpiredVisitDate; modules/studentpresence.Owner (supplied contract method). May-bind method surface, not a production-call/liveness claim. Full native contract surface (including production-compiled fixture support); this label does not claim this exposed method is called by a production source flow. The target owner's own coordination is inventoried at that owner, not flattened here."
+      "reason": "Reviewed read/value/construction method; no owned-row mutation or locking read at this terminal. Target modules/studentpresence.Owner.OldestExpiredVisitDate; modules/studentpresence.Owner (supplied contract method). May-bind method surface, not a production-call/liveness claim. Full native contract surface (including production-compiled fixture support); this label does not claim this exposed method is called by a production source flow. The target owner's own coordination is inventoried at that owner, not flattened here. Slice 3844-b review: OldestExpiredVisitDate now takes VisitRetentionPolicy. The method still only selects tenant-scoped retention counts/timestamps/months; the explicit completed-before cutoff ignores consent windows when history is disabled. No owned-row writes or locking reads were added."
     },
     {
       "source_owner": "timetable-activities",
@@ -47225,10 +47225,10 @@
       "binding": "github.com/moto-nrw/project-phoenix/modules/studentpresence.Owner.OldestExpiredVisitDate",
       "target": "github.com/moto-nrw/project-phoenix/modules/studentpresence.Owner.OldestExpiredVisitDate",
       "target_owner": "student-presence",
-      "binding_digest": "8794a4bbddde756d6df5465461afe948",
+      "binding_digest": "6c03b5ae2b580ed5f6052d28067c5435",
       "effect": "query",
       "classification": "query",
-      "reason": "Reviewed read/value/construction method; no owned-row mutation or locking read at this terminal. Target modules/studentpresence.Owner.OldestExpiredVisitDate; modules/studentpresence.Owner (supplied contract method). May-bind method surface, not a production-call/liveness claim. Full native contract surface (including production-compiled fixture support); this label does not claim this exposed method is called by a production source flow. The target owner's own coordination is inventoried at that owner, not flattened here."
+      "reason": "Reviewed read/value/construction method; no owned-row mutation or locking read at this terminal. Target modules/studentpresence.Owner.OldestExpiredVisitDate; modules/studentpresence.Owner (supplied contract method). May-bind method surface, not a production-call/liveness claim. Full native contract surface (including production-compiled fixture support); this label does not claim this exposed method is called by a production source flow. The target owner's own coordination is inventoried at that owner, not flattened here. Slice 3844-b review: OldestExpiredVisitDate now takes VisitRetentionPolicy. The method still only selects tenant-scoped retention counts/timestamps/months; the explicit completed-before cutoff ignores consent windows when history is disabled. No owned-row writes or locking reads were added."
     },
     {
       "source_owner": "timetable-activities",
@@ -49098,10 +49098,10 @@
       "binding": "*github.com/moto-nrw/project-phoenix/modules/studentpresence/internal/application.Service.CountExpiredVisits",
       "target": "*github.com/moto-nrw/project-phoenix/modules/studentpresence/internal/application.Service.CountExpiredVisits",
       "target_owner": "student-presence",
-      "binding_digest": "1ccad50dd69b6df35c36b534e9e32c39",
+      "binding_digest": "9f204265aff26e9d7727384fdc8209fc",
       "effect": "query",
       "classification": "query",
-      "reason": "Reviewed read/value/construction method; no owned-row mutation or locking read at this terminal. Target modules/studentpresence/internal/application.Service.CountExpiredVisits; modules/studentpresence/internal/application/visit_retention.go:19. May-bind method surface, not a production-call/liveness claim. Full native contract surface (including production-compiled fixture support); this label does not claim this exposed method is called by a production source flow. The target owner's own coordination is inventoried at that owner, not flattened here."
+      "reason": "Reviewed read/value/construction method; no owned-row mutation or locking read at this terminal. Target modules/studentpresence/internal/application.Service.CountExpiredVisits; modules/studentpresence/internal/application/visit_retention.go:19. May-bind method surface, not a production-call/liveness claim. Full native contract surface (including production-compiled fixture support); this label does not claim this exposed method is called by a production source flow. The target owner's own coordination is inventoried at that owner, not flattened here. Slice 3844-b review: CountExpiredVisits now takes VisitRetentionPolicy. The method still only selects tenant-scoped retention counts/timestamps/months; the explicit completed-before cutoff ignores consent windows when history is disabled. No owned-row writes or locking reads were added."
     },
     {
       "source_owner": "timetable-activities",
@@ -49109,10 +49109,10 @@
       "binding": "github.com/moto-nrw/project-phoenix/modules/studentpresence.Owner.CountExpiredVisits",
       "target": "github.com/moto-nrw/project-phoenix/modules/studentpresence.Owner.CountExpiredVisits",
       "target_owner": "student-presence",
-      "binding_digest": "497bc79acf79fe5f1d83d71790c02e44",
+      "binding_digest": "ea3757b38db2186aef7079a8f0251507",
       "effect": "query",
       "classification": "query",
-      "reason": "Reviewed read/value/construction method; no owned-row mutation or locking read at this terminal. Target modules/studentpresence.Owner.CountExpiredVisits; modules/studentpresence.Owner (supplied contract method). May-bind method surface, not a production-call/liveness claim. Full native contract surface (including production-compiled fixture support); this label does not claim this exposed method is called by a production source flow. The target owner's own coordination is inventoried at that owner, not flattened here."
+      "reason": "Reviewed read/value/construction method; no owned-row mutation or locking read at this terminal. Target modules/studentpresence.Owner.CountExpiredVisits; modules/studentpresence.Owner (supplied contract method). May-bind method surface, not a production-call/liveness claim. Full native contract surface (including production-compiled fixture support); this label does not claim this exposed method is called by a production source flow. The target owner's own coordination is inventoried at that owner, not flattened here. Slice 3844-b review: CountExpiredVisits now takes VisitRetentionPolicy. The method still only selects tenant-scoped retention counts/timestamps/months; the explicit completed-before cutoff ignores consent windows when history is disabled. No owned-row writes or locking reads were added."
     },
     {
       "source_owner": "timetable-activities",
@@ -49234,11 +49234,11 @@
       "binding": "*github.com/moto-nrw/project-phoenix/modules/studentpresence/internal/application.Service.DeleteCompletedVisitsBefore",
       "target": "*github.com/moto-nrw/project-phoenix/modules/studentpresence/internal/application.Service.DeleteCompletedVisitsBefore",
       "target_owner": "student-presence",
-      "binding_digest": "b31692fd6bebc91214a93acb4dbf3445",
+      "binding_digest": "0bc837325a40d1ef4bba4e9cc28eccb7",
       "effect": "mutation",
       "classification": "leaf",
       "adr": "0067",
-      "reason": "Guarded target record/byte command; preserve ambient scope, target validation and existing failure propagation. Target-local locks/savepoints alone do not establish a new source coordinator. Target modules/studentpresence/internal/application.Service.DeleteCompletedVisitsBefore; modules/studentpresence/internal/application/visit_commands.go:44.  Full native contract surface (including production-compiled fixture support); this label does not claim this exposed method is called by a production source flow. The target owner's own coordination is inventoried at that owner, not flattened here."
+      "reason": "Guarded target record/byte command; preserve ambient scope, target validation and existing failure propagation. Target-local locks/savepoints alone do not establish a new source coordinator. Target modules/studentpresence/internal/application.Service.DeleteCompletedVisitsBefore; modules/studentpresence/internal/application/visit_commands.go:44.  Full native contract surface (including production-compiled fixture support); this label does not claim this exposed method is called by a production source flow. The target owner's own coordination is inventoried at that owner, not flattened here. Slice 3844-b review: DeleteCompletedVisitsBefore now takes VisitRetentionPolicy. The command remains a tenant-scoped leaf DELETE of completed visits, optionally selected by exit_time before Berlin midnight; it joins the current transaction, and its caller appends the deletion audit in that transaction."
     },
     {
       "source_owner": "timetable-activities",
@@ -49246,11 +49246,11 @@
       "binding": "github.com/moto-nrw/project-phoenix/modules/studentpresence.Owner.DeleteCompletedVisitsBefore",
       "target": "github.com/moto-nrw/project-phoenix/modules/studentpresence.Owner.DeleteCompletedVisitsBefore",
       "target_owner": "student-presence",
-      "binding_digest": "78c7e213ef50749da8b85a2699359784",
+      "binding_digest": "2a78dc4fd9cc54dcca0a352f7c97c816",
       "effect": "mutation",
       "classification": "leaf",
       "adr": "0067",
-      "reason": "Guarded target record/byte command; preserve ambient scope, target validation and existing failure propagation. Target-local locks/savepoints alone do not establish a new source coordinator. Target modules/studentpresence.Owner.DeleteCompletedVisitsBefore; modules/studentpresence.Owner (supplied contract method).  Full native contract surface (including production-compiled fixture support); this label does not claim this exposed method is called by a production source flow. The target owner's own coordination is inventoried at that owner, not flattened here."
+      "reason": "Guarded target record/byte command; preserve ambient scope, target validation and existing failure propagation. Target-local locks/savepoints alone do not establish a new source coordinator. Target modules/studentpresence.Owner.DeleteCompletedVisitsBefore; modules/studentpresence.Owner (supplied contract method).  Full native contract surface (including production-compiled fixture support); this label does not claim this exposed method is called by a production source flow. The target owner's own coordination is inventoried at that owner, not flattened here. Slice 3844-b review: DeleteCompletedVisitsBefore now takes VisitRetentionPolicy. The command remains a tenant-scoped leaf DELETE of completed visits, optionally selected by exit_time before Berlin midnight; it joins the current transaction, and its caller appends the deletion audit in that transaction."
     },
     {
       "source_owner": "timetable-activities",
@@ -49860,10 +49860,10 @@
       "binding": "*github.com/moto-nrw/project-phoenix/modules/studentpresence/internal/application.Service.ListExpiredVisitMonths",
       "target": "*github.com/moto-nrw/project-phoenix/modules/studentpresence/internal/application.Service.ListExpiredVisitMonths",
       "target_owner": "student-presence",
-      "binding_digest": "eef19be2c2ca5dbf5022ad48b83e8ce4",
+      "binding_digest": "92a17a49da1acfb680408eaea9b23349",
       "effect": "query",
       "classification": "query",
-      "reason": "Reviewed read/value/construction method; no owned-row mutation or locking read at this terminal. Target modules/studentpresence/internal/application.Service.ListExpiredVisitMonths; modules/studentpresence/internal/application/visit_retention.go:35. May-bind method surface, not a production-call/liveness claim. Full native contract surface (including production-compiled fixture support); this label does not claim this exposed method is called by a production source flow. The target owner's own coordination is inventoried at that owner, not flattened here."
+      "reason": "Reviewed read/value/construction method; no owned-row mutation or locking read at this terminal. Target modules/studentpresence/internal/application.Service.ListExpiredVisitMonths; modules/studentpresence/internal/application/visit_retention.go:35. May-bind method surface, not a production-call/liveness claim. Full native contract surface (including production-compiled fixture support); this label does not claim this exposed method is called by a production source flow. The target owner's own coordination is inventoried at that owner, not flattened here. Slice 3844-b review: ListExpiredVisitMonths now takes VisitRetentionPolicy. The method still only selects tenant-scoped retention counts/timestamps/months; the explicit completed-before cutoff ignores consent windows when history is disabled. No owned-row writes or locking reads were added."
     },
     {
       "source_owner": "timetable-activities",
@@ -49871,10 +49871,10 @@
       "binding": "github.com/moto-nrw/project-phoenix/modules/studentpresence.Owner.ListExpiredVisitMonths",
       "target": "github.com/moto-nrw/project-phoenix/modules/studentpresence.Owner.ListExpiredVisitMonths",
       "target_owner": "student-presence",
-      "binding_digest": "ba890dbc94622b20d716ab7bfc1ffeb3",
+      "binding_digest": "6b4f6b1f3aaf13d36167f7e6c5153a4c",
       "effect": "query",
       "classification": "query",
-      "reason": "Reviewed read/value/construction method; no owned-row mutation or locking read at this terminal. Target modules/studentpresence.Owner.ListExpiredVisitMonths; modules/studentpresence.Owner (supplied contract method). May-bind method surface, not a production-call/liveness claim. Full native contract surface (including production-compiled fixture support); this label does not claim this exposed method is called by a production source flow. The target owner's own coordination is inventoried at that owner, not flattened here."
+      "reason": "Reviewed read/value/construction method; no owned-row mutation or locking read at this terminal. Target modules/studentpresence.Owner.ListExpiredVisitMonths; modules/studentpresence.Owner (supplied contract method). May-bind method surface, not a production-call/liveness claim. Full native contract surface (including production-compiled fixture support); this label does not claim this exposed method is called by a production source flow. The target owner's own coordination is inventoried at that owner, not flattened here. Slice 3844-b review: ListExpiredVisitMonths now takes VisitRetentionPolicy. The method still only selects tenant-scoped retention counts/timestamps/months; the explicit completed-before cutoff ignores consent windows when history is disabled. No owned-row writes or locking reads were added."
     },
     {
       "source_owner": "timetable-activities",
@@ -50234,10 +50234,10 @@
       "binding": "*github.com/moto-nrw/project-phoenix/modules/studentpresence/internal/application.Service.ListVisitRetentionCounts",
       "target": "*github.com/moto-nrw/project-phoenix/modules/studentpresence/internal/application.Service.ListVisitRetentionCounts",
       "target_owner": "student-presence",
-      "binding_digest": "6b191c1730fa91b73cd6229be8fa266c",
+      "binding_digest": "42ef31ec7237ef92b32468fea51137d1",
       "effect": "query",
       "classification": "query",
-      "reason": "Reviewed read/value/construction method; no owned-row mutation or locking read at this terminal. Target modules/studentpresence/internal/application.Service.ListVisitRetentionCounts; modules/studentpresence/internal/application/visit_retention.go:11. May-bind method surface, not a production-call/liveness claim. Full native contract surface (including production-compiled fixture support); this label does not claim this exposed method is called by a production source flow. The target owner's own coordination is inventoried at that owner, not flattened here."
+      "reason": "Reviewed read/value/construction method; no owned-row mutation or locking read at this terminal. Target modules/studentpresence/internal/application.Service.ListVisitRetentionCounts; modules/studentpresence/internal/application/visit_retention.go:11. May-bind method surface, not a production-call/liveness claim. Full native contract surface (including production-compiled fixture support); this label does not claim this exposed method is called by a production source flow. The target owner's own coordination is inventoried at that owner, not flattened here. Slice 3844-b review: ListVisitRetentionCounts now takes VisitRetentionPolicy. The method still only selects tenant-scoped retention counts/timestamps/months; the explicit completed-before cutoff ignores consent windows when history is disabled. No owned-row writes or locking reads were added."
     },
     {
       "source_owner": "timetable-activities",
@@ -50245,10 +50245,10 @@
       "binding": "github.com/moto-nrw/project-phoenix/modules/studentpresence.Owner.ListVisitRetentionCounts",
       "target": "github.com/moto-nrw/project-phoenix/modules/studentpresence.Owner.ListVisitRetentionCounts",
       "target_owner": "student-presence",
-      "binding_digest": "07b132abc69501d516d0eb2215f147eb",
+      "binding_digest": "43e1d5e67dbf21944bb89eda4230c444",
       "effect": "query",
       "classification": "query",
-      "reason": "Reviewed read/value/construction method; no owned-row mutation or locking read at this terminal. Target modules/studentpresence.Owner.ListVisitRetentionCounts; modules/studentpresence.Owner (supplied contract method). May-bind method surface, not a production-call/liveness claim. Full native contract surface (including production-compiled fixture support); this label does not claim this exposed method is called by a production source flow. The target owner's own coordination is inventoried at that owner, not flattened here."
+      "reason": "Reviewed read/value/construction method; no owned-row mutation or locking read at this terminal. Target modules/studentpresence.Owner.ListVisitRetentionCounts; modules/studentpresence.Owner (supplied contract method). May-bind method surface, not a production-call/liveness claim. Full native contract surface (including production-compiled fixture support); this label does not claim this exposed method is called by a production source flow. The target owner's own coordination is inventoried at that owner, not flattened here. Slice 3844-b review: ListVisitRetentionCounts now takes VisitRetentionPolicy. The method still only selects tenant-scoped retention counts/timestamps/months; the explicit completed-before cutoff ignores consent windows when history is disabled. No owned-row writes or locking reads were added."
     },
     {
       "source_owner": "timetable-activities",
@@ -50614,10 +50614,10 @@
       "binding": "*github.com/moto-nrw/project-phoenix/modules/studentpresence/internal/application.Service.OldestExpiredVisitDate",
       "target": "*github.com/moto-nrw/project-phoenix/modules/studentpresence/internal/application.Service.OldestExpiredVisitDate",
       "target_owner": "student-presence",
-      "binding_digest": "9f46773c514e6620204822fa068c49a7",
+      "binding_digest": "ed3f48c32d11100c5581c07dbd01f0e4",
       "effect": "query",
       "classification": "query",
-      "reason": "Reviewed read/value/construction method; no owned-row mutation or locking read at this terminal. Target modules/studentpresence/internal/application.Service.OldestExpiredVisitDate; modules/studentpresence/internal/application/visit_retention.go:27. May-bind method surface, not a production-call/liveness claim. Full native contract surface (including production-compiled fixture support); this label does not claim this exposed method is called by a production source flow. The target owner's own coordination is inventoried at that owner, not flattened here."
+      "reason": "Reviewed read/value/construction method; no owned-row mutation or locking read at this terminal. Target modules/studentpresence/internal/application.Service.OldestExpiredVisitDate; modules/studentpresence/internal/application/visit_retention.go:27. May-bind method surface, not a production-call/liveness claim. Full native contract surface (including production-compiled fixture support); this label does not claim this exposed method is called by a production source flow. The target owner's own coordination is inventoried at that owner, not flattened here. Slice 3844-b review: OldestExpiredVisitDate now takes VisitRetentionPolicy. The method still only selects tenant-scoped retention counts/timestamps/months; the explicit completed-before cutoff ignores consent windows when history is disabled. No owned-row writes or locking reads were added."
     },
     {
       "source_owner": "timetable-activities",
@@ -50625,10 +50625,10 @@
       "binding": "github.com/moto-nrw/project-phoenix/modules/studentpresence.Owner.OldestExpiredVisitDate",
       "target": "github.com/moto-nrw/project-phoenix/modules/studentpresence.Owner.OldestExpiredVisitDate",
       "target_owner": "student-presence",
-      "binding_digest": "8794a4bbddde756d6df5465461afe948",
+      "binding_digest": "6c03b5ae2b580ed5f6052d28067c5435",
       "effect": "query",
       "classification": "query",
-      "reason": "Reviewed read/value/construction method; no owned-row mutation or locking read at this terminal. Target modules/studentpresence.Owner.OldestExpiredVisitDate; modules/studentpresence.Owner (supplied contract method). May-bind method surface, not a production-call/liveness claim. Full native contract surface (including production-compiled fixture support); this label does not claim this exposed method is called by a production source flow. The target owner's own coordination is inventoried at that owner, not flattened here."
+      "reason": "Reviewed read/value/construction method; no owned-row mutation or locking read at this terminal. Target modules/studentpresence.Owner.OldestExpiredVisitDate; modules/studentpresence.Owner (supplied contract method). May-bind method surface, not a production-call/liveness claim. Full native contract surface (including production-compiled fixture support); this label does not claim this exposed method is called by a production source flow. The target owner's own coordination is inventoried at that owner, not flattened here. Slice 3844-b review: OldestExpiredVisitDate now takes VisitRetentionPolicy. The method still only selects tenant-scoped retention counts/timestamps/months; the explicit completed-before cutoff ignores consent windows when history is disabled. No owned-row writes or locking reads were added."
     },
     {
       "source_owner": "timetable-activities",

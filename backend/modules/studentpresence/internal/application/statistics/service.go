@@ -213,16 +213,20 @@ func (s *service) loadAttendanceInputs(ctx context.Context, from, to calendar.Da
 }
 
 func (s *service) fillRoomSection(ctx context.Context, report *studentpresence.StatisticsReport, filters studentpresence.StatisticsFilters, today calendar.Date, students []*ports.StatisticsStudent, studentRows []studentpresence.StatisticsStudentRow) error {
-	rooms, err := s.roomRows(ctx, filters, today, students)
-	if err != nil {
-		return err
-	}
-	report.Rooms = rooms
+	var err error
 	report.RoomDataDays, err = s.roomRetentionDays(ctx, studentRows)
 	if err != nil {
 		return err
 	}
 	report.RoomDataFrom = today.AddDays(-report.RoomDataDays)
+	if report.RoomDataDays == 0 {
+		report.Rooms = []studentpresence.StatisticsRoomRow{}
+		return nil
+	}
+	report.Rooms, err = s.roomRows(ctx, filters, today, students)
+	if err != nil {
+		return err
+	}
 	return nil
 }
 
@@ -592,7 +596,7 @@ func (s *service) roomRetentionDays(ctx context.Context, students []studentprese
 	if err != nil {
 		return 0, fmt.Errorf("load room retention: %w", err)
 	}
-	if s.cfg.PrivacyConsents == nil {
+	if defaultDays == 0 || s.cfg.PrivacyConsents == nil {
 		return defaultDays, nil
 	}
 	settings, err := s.cfg.PrivacyConsents.ListAcceptedRetentionSettings(ctx)

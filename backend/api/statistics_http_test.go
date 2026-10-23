@@ -270,6 +270,7 @@ func TestStatisticsReport_AcceptsNoGroupFilter(t *testing.T) {
 func TestStatisticsReport_ComputesQuotasAndRooms(t *testing.T) {
 	t.Parallel()
 	tc := setupStatisticsRoute(t)
+	enableStatisticsRoomHistory(t, tc.db)
 	tenantID := testpkg.Tenant(t)
 	ctx := testpkg.Ctx(t)
 	_, account := testpkg.CreateTestStaffWithAccountForTenant(t, tc.db, tenantID, "Quote", "Tester")
@@ -416,6 +417,7 @@ func TestStatisticsReport_ComputesQuotasAndRooms(t *testing.T) {
 func TestStatisticsReport_DropsCollapsedRoomVisits(t *testing.T) {
 	t.Parallel()
 	tc := setupStatisticsRoute(t)
+	enableStatisticsRoomHistory(t, tc.db)
 	tenantID := testpkg.Tenant(t)
 	ctx := testpkg.Ctx(t)
 	_, account := testpkg.CreateTestStaffWithAccountForTenant(t, tc.db, tenantID, "Klemm", "Tester")
@@ -471,6 +473,7 @@ func TestStatisticsReport_CountsImmediatelyActivatedChild(t *testing.T) {
 	t.Parallel()
 	now := time.Date(2026, 8, 25, 12, 0, 0, 0, calendar.Berlin)
 	tc := setupStatisticsRoute(t, func() time.Time { return now })
+	enableStatisticsRoomHistory(t, tc.db)
 	tenantID := testpkg.Tenant(t)
 	ctx := testpkg.Ctx(t)
 	_, account := testpkg.CreateTestStaffWithAccountForTenant(t, tc.db, tenantID, "Sofort", "Tester")
@@ -565,6 +568,7 @@ func TestStatisticsReport_CountsImmediatelyActivatedChild(t *testing.T) {
 func TestStatisticsReport_ScopesRoomRetentionToTheFilteredPopulation(t *testing.T) {
 	t.Parallel()
 	tc := setupStatisticsRoute(t)
+	enableStatisticsRoomHistory(t, tc.db)
 	tenantID := testpkg.Tenant(t)
 	ctx := testpkg.Ctx(t)
 	_, account := testpkg.CreateTestStaffWithAccountForTenant(t, tc.db, tenantID, "Frist", "Tester")
@@ -867,5 +871,12 @@ func createCourseEnrollment(
 		}).
 		TableExpr("activities.student_enrollments").
 		Exec(testpkg.Ctx(t))
+	require.NoError(t, err)
+}
+
+// Room-history scenarios explicitly opt in; default-off schools expose no room statistics.
+func enableStatisticsRoomHistory(t *testing.T, db *bun.DB) {
+	t.Helper()
+	_, err := db.NewRaw(`INSERT INTO config.setting_values (tenant_id, setting_key, value) VALUES (?, 'gdpr.attendance_log_enabled', 'true'::jsonb) ON CONFLICT (tenant_id, setting_key) DO UPDATE SET value = EXCLUDED.value`, testpkg.Tenant(t)).Exec(testpkg.Ctx(t))
 	require.NoError(t, err)
 }

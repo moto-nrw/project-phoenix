@@ -177,6 +177,7 @@ type Presence interface {
 
 // PresenceCleanup applies and previews the data-retention cleanup.
 type PresenceCleanup interface {
+	ApplyAttendanceLogSetting(context.Context, bool) error
 	// CleanupExpiredVisits runs the cleanup process for all students
 	CleanupExpiredVisits(ctx context.Context) (*CleanupResult, error)
 	// GetRetentionStatistics gets statistics about data that will be deleted

@@ -5,6 +5,7 @@ import (
 	"errors"
 	"time"
 
+	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
 	"github.com/moto-nrw/project-phoenix/modules/studentpresence/internal/ports"
 )
 
@@ -41,12 +42,12 @@ func (s *Service) TransferRecentDeviceVisits(ctx context.Context, to, deviceID i
 	return result, err
 }
 
-func (s *Service) DeleteCompletedVisitsBefore(ctx context.Context, studentID int64, cutoff time.Time) (result int64, err error) {
+func (s *Service) DeleteCompletedVisitsBefore(ctx context.Context, studentID int64, policy studentpresence.VisitRetentionPolicy, cutoff time.Time) (result int64, err error) {
 	err = s.runWrite(ctx, "delete_completed_visits_before", func(txCtx context.Context) (ports.Stats, error) {
 		if studentID <= 0 || cutoff.IsZero() {
 			return ports.Stats{}, errors.New("student presence: invalid visit retention request")
 		}
-		stats, writeErr := s.store.DeleteCompletedVisitsBefore(txCtx, studentID, cutoff)
+		stats, writeErr := s.store.DeleteCompletedVisitsBefore(txCtx, studentID, policy, cutoff)
 		result = stats.Rows
 		return stats, writeErr
 	})

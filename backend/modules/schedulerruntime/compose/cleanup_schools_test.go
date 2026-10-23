@@ -39,7 +39,10 @@ func seedCleanupSchool(t *testing.T, db *bun.DB, inactive, deleted bool, retenti
 			VALUES (?, ?, to_jsonb(?::integer))`, id, "gdpr.privacy_consent_retention_days", retentionDays)
 		require.NoError(t, err)
 	}
-	_, err := db.ExecContext(context.Background(), `UPDATE platform.schools
+	// These scenarios exercise school-specific retention with history explicitly on.
+	_, err := db.ExecContext(context.Background(), `INSERT INTO config.setting_values (tenant_id, setting_key, value) VALUES (?, 'gdpr.attendance_log_enabled', 'true'::jsonb)`, id)
+	require.NoError(t, err)
+	_, err = db.ExecContext(context.Background(), `UPDATE platform.schools
 		SET active = ?, deleted_at = CASE WHEN ? THEN CURRENT_TIMESTAMP END WHERE id = ?`, !inactive, deleted, id)
 	require.NoError(t, err)
 	return school
@@ -59,6 +62,7 @@ func TestNightlyCleanupIncludesInactiveAndSoftDeletedSchools(t *testing.T) {
 	inactive := seedCleanupSchool(t, admin, true, false, 10)
 	deleted := seedCleanupSchool(t, admin, false, true, 10)
 	paused := seedCleanupSchool(t, admin, true, false, 30)
+	disabled := seedCleanupSchool(t, admin, true, true, 30)
 	_, err := admin.ExecContext(context.Background(), `INSERT INTO config.setting_values (tenant_id, setting_key, value)
 		VALUES (?, ?, 'false'::jsonb)`, paused.id, "gdpr.data_cleanup_enabled")
 	require.NoError(t, err)
@@ -66,6 +70,11 @@ func TestNightlyCleanupIncludesInactiveAndSoftDeletedSchools(t *testing.T) {
 	t.Cleanup(func() { require.NoError(t, serve.Close()) })
 	db := testpkg.NewDatabase(t, serve)
 	now := time.Date(2026, time.October, 14, 2, 0, 0, 0, calendar.Berlin)
+	_, err = admin.ExecContext(context.Background(), `UPDATE config.setting_values SET value = 'false'::jsonb WHERE tenant_id = ? AND setting_key = 'gdpr.attendance_log_enabled'`, disabled.id)
+	require.NoError(t, err)
+	exit := calendar.NewDate(2026, 10, 13).BerlinMidnight().Add(12 * time.Hour)
+	_, err = admin.ExecContext(context.Background(), `UPDATE active.visits SET entry_time = ?, exit_time = ?, created_at = ? WHERE tenant_id = ?`, exit.Add(-time.Hour), exit, exit.Add(-time.Hour), disabled.id)
+	require.NoError(t, err)
 	deps, err := owners.NewSchedulerCleanupTestDependencies(db, testpkg.TenantRuntime(t, serve), func() time.Time { return now })
 	require.NoError(t, err)
 
@@ -84,6 +93,9 @@ func TestNightlyCleanupIncludesInactiveAndSoftDeletedSchools(t *testing.T) {
 		require.NoError(t, admin.NewRaw(`SELECT count(*) FROM platform.cleanup_runs WHERE tenant_id = ? AND job_id = 'visit-cleanup'`, school.id).
 			Scan(context.Background(), &successes))
 		assert.Equal(t, 1, successes, "school %d: success must commit with the deletion", school.id)
+	}
+	for _, id := range []int64{disabled.expired, disabled.retained, disabled.windowed} {
+		assert.False(t, visitExists(t, admin, id), "history-off inactive schools delete prior-day completions regardless of consent retention")
 	}
 	assert.True(t, visitExists(t, admin, paused.expired), "another school's paused cleanup must not be bypassed by RLS")
 }

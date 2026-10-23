@@ -5374,7 +5374,8 @@ function statisticsTopic(): HelpTopic {
       "Die Pfeile schieben den Zeitraum um seine eigene Länge weiter.",
     ],
     differences: [
-      "`Räume` und `Kurse` zeigen nur dann Zahlen, wenn Ihre OGS damit arbeitet.",
+      "`Räume` zeigt nur mit eingeschaltetem `Anwesenheitsprotokoll` Zahlen.",
+      "`Kurse` zeigt nur dann Zahlen, wenn Ihre OGS damit arbeitet.",
     ],
     troubleshootingDetails: [
       "Fehlt `Statistik` in der Seitenleiste? Der Bereich ist der Leitung vorbehalten.",
@@ -5601,7 +5602,7 @@ function settingsGuideTopic(): HelpTopic {
         description: "Was moto speichert und wie lange.",
         ordered: false,
         steps: [
-          "`Anwesenheitsprotokoll`: Das Team sieht bei jedem Kind, wann es da war und in welchen Räumen.",
+          "`Anwesenheitsprotokoll`: Das Team sieht die Anwesenheit und frühere Räume. Ausgeschaltet bleiben frühere Raumbesuche nur für den heutigen Tag. Ältere abgeschlossene Raumbesuche werden beim Ausschalten und nachts gelöscht. Der aktuelle Raum bleibt sichtbar.",
           "`Nutzungsanalyse`: moto erhält Nutzungsstatistiken Ihrer Schule, aber keine eingegebenen Inhalte.",
           "Löschfristen wie `Anwesenheit aufbewahren (Tage)`: Wie lange moto Daten behält. Sie können sie nur lesen.",
         ],
