@@ -54,23 +54,41 @@ const (
 	ParticipationRegular  ParticipationSource = "regular"
 	ParticipationOverride ParticipationSource = "override"
 	ParticipationSick     ParticipationSource = "sick"
+	// ParticipationClosed is a statutory holiday or closing day: no meal.
+	ParticipationClosed ParticipationSource = "closed"
 )
 
 type ParticipationDay struct {
 	Date          Date
 	Participating bool
 	Source        ParticipationSource
-	Changeable    bool
+	// Changeable says the one change the day allows is still open:
+	// cancelling when Participating, registering otherwise.
+	Changeable bool
+}
+
+// Cutoffs are the school's change cutoffs.
+type Cutoffs struct {
+	CutoffTime string
+	// CutoffLeadDays is how many school days before the meal day the
+	// CutoffTime applies; 0 is the meal day itself. Statutory holidays and
+	// closing days do not count.
+	CutoffLeadDays int
+	// CutoffWeekday, when set, ends the changes of a whole week at
+	// CutoffTime on this weekday of the week before; CutoffLeadDays is then
+	// unused.
+	CutoffWeekday Weekday
+	// CancellationCutoffTime, when set, is a later cutoff for taking a
+	// child off a day, CancellationCutoffLeadDays school days before it.
+	CancellationCutoffTime     string
+	CancellationCutoffLeadDays int
 }
 
 type ParticipationPlan struct {
+	Cutoffs
 	Weekdays      []Weekday
 	EffectiveFrom Date
-	CutoffTime    string
-	// CutoffLeadDays is how many school days before the meal day the
-	// CutoffTime applies; 0 is the meal day itself.
-	CutoffLeadDays int
-	Days           []ParticipationDay
+	Days          []ParticipationDay
 }
 
 type ReplaceParticipationSchedule struct {
@@ -93,19 +111,33 @@ type DailyParticipant struct {
 	SchoolClass string
 }
 
+// StaffParticipationChange is a change the team makes for a family, for
+// example after a phone call. It ignores the cutoffs but not past or
+// closed days.
+type StaffParticipationChange struct {
+	StudentID int64
+	AccountID int64
+	Date      Date
+	// Participating nil returns the day to the child's fixed days.
+	Participating *bool
+}
+
 type DailyList struct {
-	Date           Date
-	CutoffTime     string
-	CutoffLeadDays int
-	Participants   []DailyParticipant
+	Cutoffs
+	Date Date
+	// Closed is a statutory holiday or closing day without a meal.
+	Closed       bool
+	Participants []DailyParticipant
+	// Available are the children of the day who are not participating;
+	// the team can sign them up.
+	Available []DailyParticipant
 }
 
 // WeeklyList holds the DailyList of each school day, Monday to Friday.
 type WeeklyList struct {
-	WeekStart      Date
-	CutoffTime     string
-	CutoffLeadDays int
-	Days           []DailyList
+	Cutoffs
+	WeekStart Date
+	Days      []DailyList
 }
 
 type ReplaceDay struct {
@@ -143,4 +175,5 @@ type Capability interface {
 	ClearParticipationForDay(context.Context, SetParticipationDay) error
 	DailyList(context.Context, Date) (DailyList, error)
 	WeeklyList(context.Context, Date) (WeeklyList, error)
+	ChangeParticipationAsStaff(context.Context, StaffParticipationChange) error
 }
