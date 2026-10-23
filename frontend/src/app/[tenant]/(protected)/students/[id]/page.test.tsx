@@ -427,6 +427,28 @@ vi.mock("~/components/students/student-enrollments-tab", () => ({
   StudentEnrollmentsTab: () => <div data-testid="student-enrollments-tab" />,
 }));
 
+// These child panels are real here; isolate their read APIs as well. Otherwise
+// mounts and SWR retries outlive the page test and hit localhost:3000.
+vi.mock("~/lib/change-request-list-api", async (importOriginal) => {
+  const actual =
+    await importOriginal<typeof import("~/lib/change-request-list-api")>();
+  return {
+    ...actual,
+    getFamilyProtection: vi.fn(async (studentId: string) => ({
+      student_id: studentId,
+      enabled: false,
+    })),
+  };
+});
+
+vi.mock("~/lib/student-notes-api", async (importOriginal) => {
+  const actual =
+    await importOriginal<typeof import("~/lib/student-notes-api")>();
+  vi.spyOn(actual.studentNotesService, "list").mockResolvedValue([]);
+  vi.spyOn(actual.studentNotesService, "listActivities").mockResolvedValue([]);
+  return actual;
+});
+
 // Mock pickup schedule API
 vi.mock("~/lib/pickup-schedule-api", () => ({
   fetchStudentPickupData: vi.fn().mockResolvedValue({
