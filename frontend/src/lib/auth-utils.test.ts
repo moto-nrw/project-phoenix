@@ -6,6 +6,7 @@ import {
   hasPermission,
   isAdmin,
   hasEffectiveAdminScope,
+  canReadSupervisionData,
   isCaregiver,
   getUserDisplayName,
 } from "./auth-utils";
@@ -332,6 +333,37 @@ describe("auth-utils", () => {
       };
 
       expect(isCaregiver(session)).toBe(false);
+    });
+  });
+
+  describe("canReadSupervisionData", () => {
+    it("denies a caregiver whose explicit permissions omit groups:read", () => {
+      const session = {
+        user: {
+          id: "1",
+          email: "caregiver@example.com",
+          roles: ["user"],
+          permissions: ["rooms:read"],
+          token: "token",
+        },
+        expires: "2024-12-31",
+      } satisfies Session;
+
+      expect(canReadSupervisionData(session)).toBe(false);
+    });
+
+    it("keeps the caregiver fallback only for sessions without permissions", () => {
+      const session = {
+        user: {
+          id: "1",
+          email: "caregiver@example.com",
+          roles: ["user"],
+          token: "token",
+        },
+        expires: "2024-12-31",
+      } satisfies Session;
+
+      expect(canReadSupervisionData(session)).toBe(true);
     });
   });
 

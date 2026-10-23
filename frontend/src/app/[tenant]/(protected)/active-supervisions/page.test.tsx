@@ -21,14 +21,18 @@ const navigationMockState = vi.hoisted(() => ({
   roomParam: null as string | null,
   sessionParam: null as string | null,
 }));
+const authMockState = vi.hoisted(() => ({
+  canReadSupervisionData: true,
+  isCaregiver: true,
+}));
 
 // Mock auth-utils with hasRole that reads session roles
 vi.mock("~/lib/auth-utils", () => ({
   hasPermission: () => false,
+  canReadSupervisionData: () => authMockState.canReadSupervisionData,
   isAdmin: (session: { user?: { isAdmin?: boolean } } | null) =>
     session?.user?.isAdmin ?? false,
-  isCaregiver: (session: { user?: { isAdmin?: boolean } } | null) =>
-    !(session?.user?.isAdmin ?? false),
+  isCaregiver: () => authMockState.isCaregiver,
   hasRole: (session: { user?: { isAdmin?: boolean } } | null, role: string) => {
     if (role === "admin") return session?.user?.isAdmin ?? false;
     if (role === "user") return !(session?.user?.isAdmin ?? false);
@@ -321,6 +325,8 @@ const defaultPageHeader = vi
 beforeEach(() => {
   navigationMockState.roomParam = null;
   navigationMockState.sessionParam = null;
+  authMockState.canReadSupervisionData = true;
+  authMockState.isCaregiver = true;
   localStorage.clear();
   vi.mocked(PageHeaderWithSearch)
     .mockReset()
@@ -334,6 +340,17 @@ beforeEach(() => {
       mutate: vi.fn(),
       isValidating: false,
     } as never);
+});
+
+describe("ActiveSupervisionGate", () => {
+  it("allows a custom staff role with groups:read", () => {
+    authMockState.isCaregiver = false;
+    authMockState.canReadSupervisionData = true;
+
+    render(<MeinRaumPage />);
+
+    expect(screen.getByTestId("sse-boundary")).toBeInTheDocument();
+  });
 });
 
 // Die Statuszeile steht in der Kopfkarte der Seite (#4354: mit Symbolen).
@@ -934,7 +951,11 @@ describe("the Schulhof as a released room", () => {
     cleanup();
   });
 
-  it("opens the released room when the caller supervises nothing else", async () => {
+  // Ohne eigene Aufsicht öffnet der Raum nicht mehr von selbst, sondern über
+  // seine Raumseite (#4372); geöffnet zeigt er weiter alle Kinder.
+  it("opens the released room by its id when the caller supervises nothing else", async () => {
+    // Den offenen Raum öffnet seine Raumseite per Raum-ID (#4372).
+    navigationMockState.roomParam = "schulhof-1";
     vi.mocked(useSWRAuth)
       .mockReturnValueOnce({
         data: {
@@ -996,6 +1017,8 @@ describe("the Schulhof as a released room", () => {
   });
 
   it("names the Schulhof's current supervisors", async () => {
+    // Den offenen Raum öffnet seine Raumseite per Raum-ID (#4372).
+    navigationMockState.roomParam = "schulhof-1";
     vi.mocked(useSWRAuth)
       .mockReturnValueOnce({
         data: {
@@ -1081,6 +1104,8 @@ describe("the Schulhof as a released room", () => {
   });
 
   it("says plainly that nobody here is the reader's supervision", async () => {
+    // Den offenen Raum öffnet seine Raumseite per Raum-ID (#4372).
+    navigationMockState.roomParam = "schulhof-1";
     vi.mocked(useSWRAuth)
       .mockReturnValueOnce({
         data: {
@@ -1143,6 +1168,8 @@ describe("the Schulhof as a released room", () => {
   });
 
   it("shows the released room's occupancy in the status line", async () => {
+    // Den offenen Raum öffnet seine Raumseite per Raum-ID (#4372).
+    navigationMockState.roomParam = "schulhof-1";
     vi.mocked(useSWRAuth)
       .mockReturnValueOnce({
         data: {
@@ -1296,6 +1323,8 @@ describe("Enhanced rendering: action buttons and search/filter interaction", () 
   });
 
   it("renders the release action when supervising Schulhof", async () => {
+    // Den offenen Raum öffnet seine Raumseite per Raum-ID (#4372).
+    navigationMockState.roomParam = "schulhof-r1";
     vi.mocked(useSWRAuth)
       .mockReturnValueOnce({
         data: {
@@ -2013,6 +2042,8 @@ describe("BFF dashboard data with students and Schulhof", () => {
   });
 
   it("renders Schulhof status when present in BFF data", async () => {
+    // Den offenen Raum öffnet seine Raumseite per Raum-ID (#4372).
+    navigationMockState.roomParam = "r100";
     const swrNull = {
       data: null,
       isLoading: false,
@@ -2463,6 +2494,8 @@ describe("Schulhof user supervising view", () => {
   });
 
   it("renders Schulhof view when user IS supervising (with active group)", async () => {
+    // Den offenen Raum öffnet seine Raumseite per Raum-ID (#4372).
+    navigationMockState.roomParam = "room-schulhof";
     vi.mocked(useSWRAuth)
       .mockReturnValueOnce({
         data: {
@@ -3237,6 +3270,8 @@ describe("MeinRaumPage (Active Supervisions) (3/5)", () => {
   });
 
   it("updates both spontaneous starts when the server day changes to a weekend", async () => {
+    // Den offenen Raum öffnet seine Raumseite per Raum-ID (#4372).
+    navigationMockState.roomParam = "10";
     const weekdayData = {
       businessDay: "2026-08-28",
       spontaneousStartAvailability: {
@@ -3340,6 +3375,8 @@ describe("MeinRaumPage (Active Supervisions) (3/5)", () => {
   });
 
   it("states why Beaufsichtigen is blocked when spontaneous starts are off", async () => {
+    // Den offenen Raum öffnet seine Raumseite per Raum-ID (#4372).
+    navigationMockState.roomParam = "10";
     const dashboardResult = {
       data: {
         businessDay: "2026-08-29",
@@ -5577,6 +5614,8 @@ describe("ID-based selection coverage: currentRoom useMemo", () => {
   });
 
   it("shows the released room and its occupancy in the page header", async () => {
+    // Den offenen Raum öffnet seine Raumseite per Raum-ID (#4372).
+    navigationMockState.roomParam = "schulhof-room";
     // The room carries its own count; the caller's supervision in it changes
     // neither. Its name is the page title, so it is not repeated below it.
     const dashboardData = {
