@@ -1171,11 +1171,17 @@ ADR the change adds. An empty `map[string]int` register may disappear
 without one.
 `internal/architecture/ratchet_budgets_test.go` pins the rules.
 
-File size, named function length and cognitive complexity share a complete
-module/root source scope: `modules/`, `workflows/`, `roots/`, `api/`, `cmd/`
-recursively and direct backend-root Go files. Non-`_test.go` hooks and generated
-sources remain included. [ADR 0082](../../docs/adr/0082-roots-stay-in-source-ratchets.md)
-records the measured root baselines, the mechanical mount split and the
+File size, named function length and cognitive complexity scan every backend
+tree recursively. Only `_test.go` and hidden directories are excluded; tagged
+hooks, generated code, migrations, tools, test support and source fixtures stay
+included. New package trees need no selector-list update. This conservative
+superset covers all policy-classified production packages, independently of
+build tags and platform. [ADR 0085](../../docs/adr/0085-every-backend-source-tree-stays-in-the-ratchets.md)
+records the complete category audit, the choice to count migration SQL strings
+as physical length, and the exact newly exposed shrink-only budgets. The
+thresholds remain 800 newlines/file, 60 body lines/named function and gocognit
+15; no existing entry increases. [ADR 0082](../../docs/adr/0082-roots-stay-in-source-ratchets.md)
+records the earlier root baselines, the mechanical mount split and the
 pass-through decision: existing consumer-attributed root paths stay counted;
 no new root pass-through allowance is granted.
 
@@ -5008,8 +5014,9 @@ numbered decision of the principle ADR.
 | A rule states the target only | ADR 0057 points 1 and 2 | 0070 point 1 |
 | Everything else is an exact key with one open carrier; a cutover never keeps old reach as a rule | ADR 0057 point 2 and consequences, ADR 0030, ADR 0035 to ADR 0038, ADR 0052 | 0070 point 2 |
 | `models/*` carry `legacy-model`, which no foreign owner imports | ADR 0057 point 4 | 0070 point 3 |
-| Ratchet budgets only fall; a raise needs an ADR the change adds | ADR 0057 point 5, ADR 0063, ADR 0064, ADR 0072, ADR 0073 | 0070 point 4 |
+| Ratchet budgets only fall; a raise needs an ADR the change adds | ADR 0057 point 5, ADR 0063, ADR 0064, ADR 0072, ADR 0073, ADR 0085 | 0070 point 4 |
 | Pass-throughs count per owner; moved code stays in the scan; five shapes and four named exceptions form the floor, and every budget equals it | ADR 0061, ADR 0064, ADR 0075 | 0070 point 5 |
+| File size, function length and cognitive complexity follow source across every backend tree, including migrations, tools and generated code | ADR 0082, ADR 0085 | 0070 point 5 |
 | A relocation renames keys and grants nothing | ADR 0020 | 0070 point 6 |
 | The epoch rises only for a reviewed decision with a finite, tested acceptor; dead acceptors are deleted | ADR 0053 point 9, ADR 0013, ADR 0015, ADR 0045, ADR 0057 point 7, ADR 0074 | 0070 point 7 |
 | Exact package selectors only narrow | ADR 0057 addendum of 2026-10-16 | 0070 point 8 |
@@ -5057,7 +5064,7 @@ one-time conversion (#4070); ADR 0058 points 5 and 6, the transition (#3417,
 | 0057 | accepted | 0066, 0068, 0070 |
 | 0058 | accepted | 0068, 0071 |
 | 0060 | accepted | 0066, 0068, 0071 |
-| 0072, 0073 (budgets), 0075, 0079 (budget) | accepted | 0070 |
+| 0072, 0073 (budgets), 0075, 0079 (budget), 0085 | accepted | 0070 |
 | 0076 | accepted | 0066, 0067, 0068, 0070 |
 | 0080, 0081 | accepted | 0066, 0067, 0068, 0070, 0071 |
 

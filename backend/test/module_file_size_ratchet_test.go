@@ -10,7 +10,8 @@ import (
 )
 
 // TestModuleFileSizeRatchet caps the size of production files under modules/
-// and workflows/ and the complete roots at 800 lines. No gate measured file
+// and workflows/, roots (ADR 0082), and every backend tree (ADR 0085)
+// at 800 lines. No gate measured file
 // size there when migration #2580 moved 228k production lines into modules/: on
 // 2026-09-18, 55 files were over the cap and the largest,
 // instance_service.go, held 3194 lines. A file that big has no discoverable
@@ -29,11 +30,11 @@ import (
 //     the test fails until the entry is lowered/removed — the ratchet only
 //     turns one way. Never raise a number.
 //
-// Scope: walkModuleRatchetSources covers modules/, workflows/, roots/, api/,
-// cmd/ recursively and direct backend-root .go files, including the
-// legacy/ subtrees — at seed time they held 19 of the biggest files in the
-// backend, and moving code there must not silence the gate. Keys are repo-relative
-// slash paths relative to backend/.
+// Scope: walkModuleRatchetSources covers all backend trees recursively,
+// including legacy, migrations, tools, generated code, hooks and test support.
+// Only _test.go and hidden directories are excluded. ADR 0085 records the
+// category audit and exact additions measured at 8aca1925f7. Keys are slash
+// paths relative to backend/.
 //
 // A line is a newline, exactly as `wc -l` counts one.
 const moduleFileSizeThreshold = 800
@@ -53,6 +54,30 @@ const moduleFileSizeThreshold = 800
 var moduleFileSizeAllowlist = map[string]int{
 	"api/common/error_codes.generated.go": 1348,
 	"cmd/cleanup.go":                      1139,
+	// ADR 0085.
+	"database/migrations/request_child_storage_backfill.go": 1186,
+	// ADR 0085.
+	"database/migrations/staff_owner_backfill.go": 868,
+	// ADR 0085.
+	"database/migrations/student_owner_backfill.go": 850,
+	// ADR 0085.
+	"internal/architecture/semantic.go": 1498,
+	// ADR 0085.
+	"internal/devtools/seedapi/parent_enrollment.go": 1440,
+	// ADR 0085.
+	"internal/devtools/seedapi/seed_extras.go": 815,
+	// ADR 0085.
+	"internal/devtools/seedapi/seed_time_tracking.go": 849,
+	// ADR 0085.
+	"internal/devtools/seedapi/stammdaten.go": 1477,
+	// ADR 0085.
+	"internal/devtools/simulate/demo_day.go": 818,
+	// ADR 0085.
+	"internal/devtools/simulate/fullday.go": 921,
+	// ADR 0085.
+	"observability/prometheus.go": 1722,
+	// ADR 0085.
+	"test/fixtures.go": 3201,
 }
 
 func TestModuleFileSizeRatchet(t *testing.T) {
@@ -113,7 +138,7 @@ func moduleFileSizeViolations(sizes, allowlist map[string]int) []string {
 }
 
 // moduleFileSizeScan returns the line count of every non-test .go file under
-// the shared module/root scope that exceeds the threshold, keyed by
+// the shared backend source scope that exceeds the threshold, keyed by
 // backend-relative slash path. Files at or below the threshold are omitted, so a file dropping
 // under it reads as a stale allowlist entry.
 func moduleFileSizeScan(backendRoot string) (map[string]int, error) {
