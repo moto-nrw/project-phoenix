@@ -10,8 +10,9 @@ import (
 )
 
 // TestMealCaterersKeepCaterersAwayFromSchools pins ADR 0077: sessions may
-// carry the caterer scope, a school has one active supply and one active
-// caterer link at most, and a school may create but never rewrite a caterer.
+// carry the caterer scope, auth.caterer_schools is the one record of a
+// school's supply and holds one active supply per school, and a school may
+// neither write nor rewrite a caterer or its account link directly.
 func TestMealCaterersKeepCaterersAwayFromSchools(t *testing.T) {
 	t.Parallel()
 
@@ -24,17 +25,21 @@ func TestMealCaterersKeepCaterersAwayFromSchools(t *testing.T) {
 	require.NoError(t, db.NewRaw(`SELECT pg_get_constraintdef(oid) LIKE '%caterer%' FROM pg_constraint WHERE conname = 'chk_tokens_portal_scope'`).Scan(ctx, &allowsCaterer))
 	assert.True(t, allowsCaterer)
 
+	var duplicate bool
+	require.NoError(t, db.NewRaw(`SELECT to_regclass('schedule.meal_caterer_supplies') IS NOT NULL`).Scan(ctx, &duplicate))
+	assert.False(t, duplicate, "the supply has one record, auth.caterer_schools")
+
 	tenantID := testpkg.UniqueTestTenantID(t)
 	testpkg.EnsureTestTenant(t, db, tenantID)
 	var catererID int64
 	require.NoError(t, db.NewRaw(`INSERT INTO auth.caterers (name) VALUES ('Küche am Markt') RETURNING id`).Scan(ctx, &catererID))
-	_, err := db.NewRaw(`INSERT INTO schedule.meal_caterer_supplies (tenant_id, caterer_id) VALUES (?, ?)`, tenantID, catererID).Exec(ctx)
+	_, err := db.NewRaw(`INSERT INTO auth.caterer_schools (caterer_id, tenant_id, delivery_address) VALUES (?, ?, 'Hof')`, catererID, tenantID).Exec(ctx)
 	require.NoError(t, err)
-	_, err = db.NewRaw(`INSERT INTO schedule.meal_caterer_supplies (tenant_id, caterer_id) VALUES (?, ?)`, tenantID, catererID).Exec(ctx)
+	_, err = db.NewRaw(`INSERT INTO auth.caterer_schools (caterer_id, tenant_id, started_at) VALUES (?, ?, NOW() + INTERVAL '1 second')`, catererID, tenantID).Exec(ctx)
 	require.Error(t, err, "a second active supply of the same school")
-	_, err = db.NewRaw(`UPDATE schedule.meal_caterer_supplies SET ended_at = NOW() WHERE tenant_id = ?`, tenantID).Exec(ctx)
+	_, err = db.NewRaw(`UPDATE auth.caterer_schools SET ended_at = NOW() + INTERVAL '1 second' WHERE tenant_id = ?`, tenantID).Exec(ctx)
 	require.NoError(t, err)
-	_, err = db.NewRaw(`INSERT INTO schedule.meal_caterer_supplies (tenant_id, caterer_id) VALUES (?, ?)`, tenantID, catererID).Exec(ctx)
+	_, err = db.NewRaw(`INSERT INTO auth.caterer_schools (caterer_id, tenant_id, started_at) VALUES (?, ?, NOW() + INTERVAL '2 seconds')`, catererID, tenantID).Exec(ctx)
 	require.NoError(t, err, "after the end a new supply may start")
 
 	for _, table := range []string{"auth.caterers", "auth.caterer_accounts"} {
@@ -42,12 +47,8 @@ func TestMealCaterersKeepCaterersAwayFromSchools(t *testing.T) {
 		require.NoError(t, db.NewRaw(`SELECT has_table_privilege('phoenix_tenant', ?, 'UPDATE') OR has_table_privilege('phoenix_tenant', ?, 'DELETE')`, table, table).Scan(ctx, &rewritable))
 		assert.False(t, rewritable, table)
 	}
-	_, err = db.NewRaw(`INSERT INTO auth.caterer_schools (caterer_id, tenant_id) VALUES (?, ?)`, catererID, tenantID).Exec(ctx)
-	require.NoError(t, err)
-	_, err = db.NewRaw(`INSERT INTO auth.caterer_schools (caterer_id, tenant_id, started_at) VALUES (?, ?, NOW() + INTERVAL '1 second')`, catererID, tenantID).Exec(ctx)
-	require.Error(t, err, "a second active caterer of the same school")
 	var deletable bool
-	require.NoError(t, db.NewRaw(`SELECT has_table_privilege('phoenix_tenant', 'schedule.meal_caterer_supplies', 'DELETE')`).Scan(ctx, &deletable))
+	require.NoError(t, db.NewRaw(`SELECT has_table_privilege('phoenix_tenant', 'auth.caterer_schools', 'DELETE')`).Scan(ctx, &deletable))
 	assert.False(t, deletable, "an ended supply stays as the record of it")
 
 	require.NoError(t, mealCaterersDown(ctx, db))

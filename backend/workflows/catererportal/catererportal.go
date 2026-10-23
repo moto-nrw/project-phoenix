@@ -1,12 +1,13 @@
 // Package catererportal is the application workflow of the caterer (ADR
-// 0074): the school invites its caterer and ends its supply, the caterer
+// 0077): the school invites its caterer and ends its supply, the caterer
 // accepts the mailed invitation, signs in and reads and confirms the orders
 // of every school it supplies. It coordinates Identity & Access (the caterer,
-// its account and its schools) and the Meal Plan (the supply and the orders).
+// its account and the supply) and the Meal Plan (the orders), and owns the
+// order of their commands and the school's supply lock.
 //
-// The caterer never searches across schools (#4088): its schools come from
-// the global identity read, and each school's orders are read in that
-// school's own tenant transaction.
+// The caterer's one read across schools is its list of schools, from the
+// global identity read filtered on the caterer; each school's supply and
+// orders are read in that school's own tenant transaction.
 package catererportal
 
 import (
@@ -63,8 +64,8 @@ type SchoolSide interface {
 	// CreateCatererInvitation mails the invitation to the caterer.
 	CreateCatererInvitation(ctx context.Context, request identityaccess.CatererInvitationRequest) (identityaccess.CatererInvitation, error)
 	RevokeCatererInvitation(ctx context.Context, invitationID int64) error
-	// EndSupply ends the supply and the caterer's link to the school
-	// together; the caterer loses the school at once.
+	// EndSupply ends the school's supply; the caterer loses the school at
+	// once.
 	EndSupply(ctx context.Context, accountID int64) (bool, error)
 	// SchoolDeliveryExport is the school's delivery list of [from, to]: the
 	// same document its caterer gets.

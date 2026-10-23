@@ -14,7 +14,7 @@ import (
 // Dependencies are the owner capabilities the portal coordinates.
 type Dependencies struct {
 	Caterers    ports.Caterers
-	Supplies    ports.Supplies
+	Orders      ports.MealOrders
 	SchoolNames ports.SchoolNames
 }
 
@@ -22,9 +22,10 @@ type Dependencies struct {
 func New(deps Dependencies) (catererportal.Portal, error) {
 	return application.New(application.Dependencies{
 		Caterers:      deps.Caterers,
-		Supplies:      deps.Supplies,
+		Orders:        deps.Orders,
 		SchoolNames:   deps.SchoolNames,
 		CurrentSchool: tenant.FromContext,
+		Lock:          func(ctx context.Context, key string) error { return tenant.AcquireLock(ctx, key, false) },
 		WithinSchool: func(ctx context.Context, schoolID int64, fn func(context.Context) error) error {
 			id, err := tenant.NewTenantID(schoolID)
 			if err != nil {

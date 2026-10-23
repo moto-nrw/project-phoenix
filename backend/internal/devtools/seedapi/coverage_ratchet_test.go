@@ -106,7 +106,6 @@ var seedCoverageExemptions = map[string]string{
 	"platform.operator_passkey_sessions":    "short-lived WebAuthn challenge state; fake challenges would be invalid",
 
 	"schedule.dateframes":                       "empty in prod too",
-	"schedule.meal_caterer_supplies":            "a caterer exists only through the link its school mails to it, which no API returns (ADR 0077); the seeder cannot accept an invitation it never receives",
 	"schedule.grade_transition_roster_removals": "empty in prod too",
 	"schedule.recurrence_rules":                 "empty in prod too",
 	"schedule.staff_shift_series_exceptions":    "empty in prod too",

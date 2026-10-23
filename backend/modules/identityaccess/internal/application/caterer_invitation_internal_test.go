@@ -11,21 +11,19 @@ import (
 
 type invitationCatererStore struct {
 	ports.CatererStore
-	checkSupply func()
 }
 
-func (s *invitationCatererStore) FindSchoolCaterer(context.Context) (domain.Caterer, bool, domain.OperationStats, error) {
-	s.checkSupply()
-	return domain.Caterer{}, true, domain.OperationStats{}, nil
+func (s *invitationCatererStore) FindSchoolCaterer(context.Context) (domain.CatererSupply, bool, domain.OperationStats, error) {
+	return domain.CatererSupply{}, true, domain.OperationStats{}, nil
 }
 
-func TestCatererInvitationLocksSchoolBeforeCheckingSupply(t *testing.T) {
+// The caterer portal workflow owns the supply lock (ADR 0067 addendum,
+// condition 3): identity refuses the invitation while a caterer supplies the
+// school and takes no lock of its own.
+func TestCatererInvitationRefusedWhileTheSchoolIsSupplied(t *testing.T) {
 	t.Parallel()
 	f := newAuthFixture(t)
-	store := &invitationCatererStore{checkSupply: func() {
-		require.Equal(t, []string{"caterer-school:10"}, f.runtime.locks, "the supply check must see acceptance committed under the same lock")
-	}}
-	caterers := &CatererAccess{store: store, runtime: f.runtime}
+	caterers := &CatererAccess{store: &invitationCatererStore{}, runtime: f.runtime}
 	err := f.runtime.WithTenantTx(context.Background(), 10, func(ctx context.Context) error {
 		_, _, err := caterers.createInvitation(ctx, domain.CatererInvitationRequest{
 			Email: "kitchen@example.com", CatererName: "Kitchen", CreatedBy: 1,
@@ -33,4 +31,5 @@ func TestCatererInvitationLocksSchoolBeforeCheckingSupply(t *testing.T) {
 		return err
 	})
 	require.ErrorIs(t, err, domain.ErrCatererAlreadySupplies)
+	require.Empty(t, f.runtime.locks, "the workflow holds the supply lock, not identity")
 }

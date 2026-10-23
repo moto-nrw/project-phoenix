@@ -68,7 +68,7 @@ func accept(t *testing.T, db *bun.DB, caterers *identityaccess.CatererAccess, sc
 	var acceptance identityaccess.CatererAcceptance
 	err := inSchool(t, db, school, func(ctx context.Context) error {
 		var err error
-		acceptance, err = caterers.AcceptCatererInvitation(ctx, token, registration, func(context.Context, identityaccess.CatererAcceptance) error { return nil })
+		acceptance, err = caterers.AcceptCatererInvitation(ctx, token, registration)
 		return err
 	})
 	return acceptance, err
@@ -97,22 +97,22 @@ func TestCatererInvitationAcceptanceAndLogin(t *testing.T) {
 	assert.False(t, preview.HasCatererAccount)
 	assert.False(t, preview.AddressTaken)
 
-	var started identityaccess.CatererAcceptance
-	var acceptance identityaccess.CatererAcceptance
-	require.NoError(t, inSchool(t, db, school, func(ctx context.Context) error {
-		var err error
-		acceptance, err = caterers.AcceptCatererInvitation(ctx, token, identityaccess.CatererRegistration{Password: catererPassword, ConfirmPassword: catererPassword},
-			func(_ context.Context, accepted identityaccess.CatererAcceptance) error {
-				started = accepted
-				return nil
-			})
-		return err
-	}))
+	acceptance, err := accept(t, db, caterers, school, token, identityaccess.CatererRegistration{Password: catererPassword, ConfirmPassword: catererPassword})
+	require.NoError(t, err)
 	forgetCaterer(t, db, acceptance)
 	assert.Equal(t, school, acceptance.TenantID)
-	assert.Equal(t, "Schulstraße 1", acceptance.DeliveryAddress)
-	assert.Equal(t, acceptance, started, "the supply starts in the acceptance")
-	_, err := accept(t, db, caterers, school, token, identityaccess.CatererRegistration{Password: catererPassword, ConfirmPassword: catererPassword})
+	require.NoError(t, inSchool(t, db, school, func(ctx context.Context) error {
+		supply, active, err := caterers.SchoolCaterer(ctx)
+		require.True(t, active, "the supply starts in the acceptance")
+		assert.Equal(t, acceptance.CatererID, supply.Caterer.ID)
+		assert.Equal(t, "Küche am Markt", supply.Caterer.Name)
+		assert.Equal(t, "Schulstraße 1", supply.DeliveryAddress)
+		return err
+	}))
+	var startedBy int64
+	require.NoError(t, db.NewRaw(`SELECT started_by_account_id FROM auth.caterer_schools WHERE tenant_id = ? AND ended_at IS NULL`, school).Scan(context.Background(), &startedBy))
+	assert.Equal(t, acceptance.AccountID, startedBy)
+	_, err = accept(t, db, caterers, school, token, identityaccess.CatererRegistration{Password: catererPassword, ConfirmPassword: catererPassword})
 	require.ErrorIs(t, err, identityaccess.ErrInvitationUsed)
 
 	caterer, schools, err := caterers.CatererSchools(context.Background(), acceptance.AccountID)
@@ -139,10 +139,13 @@ func TestCatererInvitationAcceptanceAndLogin(t *testing.T) {
 	require.ErrorIs(t, err, identityaccess.ErrInvalidCredentials)
 
 	require.NoError(t, inSchool(t, db, school, func(ctx context.Context) error {
-		ended, err := caterers.EndCatererSchool(ctx)
+		ended, err := caterers.EndCatererSchool(ctx, staff.ID)
 		assert.True(t, ended)
 		return err
 	}))
+	var endedBy int64
+	require.NoError(t, db.NewRaw(`SELECT ended_by_account_id FROM auth.caterer_schools WHERE tenant_id = ?`, school).Scan(context.Background(), &endedBy))
+	assert.Equal(t, staff.ID, endedBy, "the supply records who ended it")
 	_, _, err = caterers.LoginCatererWithAudit(context.Background(), email, catererPassword, "", "")
 	require.ErrorIs(t, err, identityaccess.ErrCatererWithoutSchool, "without a school there is nothing to sign in to")
 }
@@ -175,17 +178,15 @@ func TestCatererSuppliesSeveralSchools(t *testing.T) {
 	var again identityaccess.CatererAcceptance
 	err = inSchool(t, db, second, func(ctx context.Context) error {
 		var acceptErr error
-		again, acceptErr = caterers.AcceptCatererInvitation(ctx, secondToken, identityaccess.CatererRegistration{Password: catererPassword}, func(context.Context, identityaccess.CatererAcceptance) error {
-			// Retention must wait until acceptance commits. NO KEY UPDATE is
-			// compatible with foreign-key locks, so only the account lock
-			// taken by acceptance prevents this competing transaction.
-			competing, beginErr := db.BeginTx(context.Background(), nil)
-			require.NoError(t, beginErr)
-			defer func() { _ = competing.Rollback() }()
-			_, lockErr := competing.ExecContext(context.Background(), `SELECT id FROM auth.accounts WHERE id = ? FOR NO KEY UPDATE NOWAIT`, acceptance.AccountID)
-			require.ErrorContains(t, lockErr, "could not obtain lock", "acceptance holds the existing account until commit")
-			return nil
-		})
+		again, acceptErr = caterers.AcceptCatererInvitation(ctx, secondToken, identityaccess.CatererRegistration{Password: catererPassword})
+		// Retention must wait until acceptance commits. NO KEY UPDATE is
+		// compatible with foreign-key locks, so only the account lock taken
+		// by acceptance prevents this competing transaction.
+		competing, beginErr := db.BeginTx(context.Background(), nil)
+		require.NoError(t, beginErr)
+		defer func() { _ = competing.Rollback() }()
+		_, lockErr := competing.ExecContext(context.Background(), `SELECT id FROM auth.accounts WHERE id = ? FOR NO KEY UPDATE NOWAIT`, acceptance.AccountID)
+		require.ErrorContains(t, lockErr, "could not obtain lock", "acceptance holds the existing account until commit")
 		return acceptErr
 	})
 	require.NoError(t, err)
@@ -203,7 +204,7 @@ func TestCatererSuppliesSeveralSchools(t *testing.T) {
 	require.NoError(t, err)
 
 	require.NoError(t, inSchool(t, db, first, func(ctx context.Context) error {
-		_, err := caterers.EndCatererSchool(ctx)
+		_, err := caterers.EndCatererSchool(ctx, staff.ID)
 		return err
 	}))
 	_, schools, err = caterers.CatererSchools(context.Background(), acceptance.AccountID)
@@ -332,7 +333,7 @@ func TestCatererSessionsAreLoggedAndEndWithTheLastSchool(t *testing.T) {
 	require.ErrorIs(t, err, identityaccess.ErrCatererAlreadySupplies)
 
 	require.NoError(t, inSchool(t, db, school, func(ctx context.Context) error {
-		_, err := caterers.EndCatererSchool(ctx)
+		_, err := caterers.EndCatererSchool(ctx, staff.ID)
 		return err
 	}))
 	_, _, err = module.RefreshTokenWithAudit(context.Background(), refresh, "", "", "")
@@ -442,50 +443,42 @@ func TestCatererRefreshRequiresLiveSchool(t *testing.T) {
 	}
 }
 
-// Invitation creation, acceptance and ending the link serialize before either
-// owner changes the supply. The transaction holds the same school lock.
-func TestCatererLifecycleHoldsTheSameSchoolLock(t *testing.T) {
+// The caterer portal workflow owns the supply lock (ADR 0067 addendum,
+// condition 3): invitation, acceptance and the end of the supply in
+// Identity & Access take no lock of their own.
+func TestCatererLifecycleTakesNoLockOfItsOwn(t *testing.T) {
 	t.Parallel()
 	db := testpkg.SetupTestDB(t)
 	caterers := setupAuthFactory(t, db).Caterers()
 	school := testpkg.Tenant(t)
 	staff := testpkg.CreateTestAccount(t, db, "caterer-lifecycle-lock")
-	probe := func(want bool) {
+	free := func() {
 		t.Helper()
 		competing, err := db.BeginTx(context.Background(), nil)
 		require.NoError(t, err)
 		defer func() { require.NoError(t, competing.Rollback()) }()
 		var acquired bool
 		require.NoError(t, competing.NewRaw("SELECT pg_try_advisory_xact_lock(hashtextextended(?, 0))", fmt.Sprintf("caterer-school:%d", school)).Scan(context.Background(), &acquired))
-		assert.Equal(t, want, acquired, "the school lifecycle lock lasts until the outer transaction commits")
+		assert.True(t, acquired, "the workflow, not identity, takes the school's supply lock")
 	}
+	token := invite(t, db, caterers, school, staff.ID, fmt.Sprintf("lifecycle-%d@example.com", time.Now().UnixNano()))
 	require.NoError(t, inSchool(t, db, school, func(ctx context.Context) error {
-		_, err := caterers.CreateCatererInvitation(ctx, identityaccess.CatererInvitationRequest{
+		acceptance, err := caterers.AcceptCatererInvitation(ctx, token, identityaccess.CatererRegistration{Password: catererPassword, ConfirmPassword: catererPassword})
+		require.NoError(t, err)
+		forgetCaterer(t, db, acceptance)
+		free()
+		return nil
+	}))
+	require.NoError(t, inSchool(t, db, school, func(ctx context.Context) error {
+		ended, err := caterers.EndCatererSchool(ctx, staff.ID)
+		require.NoError(t, err)
+		require.True(t, ended)
+		free()
+		_, err = caterers.CreateCatererInvitation(ctx, identityaccess.CatererInvitationRequest{
 			Email: "lifecycle-invitation@example.com", CatererName: "Küche", CreatedBy: staff.ID,
 		})
 		require.NoError(t, err)
-		probe(false)
+		free()
 		return nil
 	}))
-	probe(true)
-	token := invite(t, db, caterers, school, staff.ID, fmt.Sprintf("lifecycle-%d@example.com", time.Now().UnixNano()))
-	var acceptance identityaccess.CatererAcceptance
-	require.NoError(t, inSchool(t, db, school, func(ctx context.Context) error {
-		var err error
-		acceptance, err = caterers.AcceptCatererInvitation(ctx, token, identityaccess.CatererRegistration{Password: catererPassword, ConfirmPassword: catererPassword}, func(context.Context, identityaccess.CatererAcceptance) error {
-			probe(false)
-			return nil
-		})
-		return err
-	}))
-	forgetCaterer(t, db, acceptance)
-	probe(true)
-	require.NoError(t, inSchool(t, db, school, func(ctx context.Context) error {
-		ended, err := caterers.EndCatererSchool(ctx)
-		require.NoError(t, err)
-		require.True(t, ended)
-		probe(false)
-		return nil
-	}))
-	probe(true)
 }

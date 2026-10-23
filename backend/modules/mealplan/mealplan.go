@@ -232,8 +232,9 @@ type Registration interface {
 	WeeklyList(context.Context, Date) (WeeklyList, error)
 }
 
-// Ordering is the school's meal orders and its supply by a caterer
-// (ADR 0077, #3873).
+// Ordering is the school's meal orders and what its caterer reads of them
+// (ADR 0077, #3873). Who supplies the school is no Meal Plan data: the
+// caterer portal hands in the start of the running supply.
 type Ordering interface {
 	// SettleOrders fixes the due orders of the school in ctx and records
 	// every change of an ordered day since. The worker runs it every few
@@ -243,21 +244,15 @@ type Ordering interface {
 	// due order and numbers every change since, so all readers see the same
 	// state.
 	Orders(ctx context.Context, from, to Date) (OrderWeek, error)
-	// StartSupply starts the school's supply by a caterer in the caller's
-	// unit of work. Starting the running supply again changes nothing.
-	StartSupply(ctx context.Context, catererID int64, deliveryAddress string, accountID int64) error
-	// EndSupply ends the school's supply and reports whether one ran.
-	EndSupply(ctx context.Context, accountID int64) (bool, error)
-	// CurrentSupply reads the school's running supply.
-	CurrentSupply(context.Context) (Supply, bool, error)
-	// CatererOrders returns the school's orders of [from, to] as its caterer
-	// reads them: numbers by class only when the school orders by class, and
-	// the children's names only while the school shows them to the caterer.
-	// A caterer that does not supply the school gets ErrNotSupplied.
-	CatererOrders(ctx context.Context, catererID int64, from, to Date) (OrderWeek, error)
-	// ConfirmOrder records that the caterer received a fixed order;
-	// confirming twice keeps the first.
-	ConfirmOrder(ctx context.Context, catererID, orderID, accountID int64) error
+	// CatererOrders returns the school's orders of [from, to] as the caterer
+	// whose supply started at since reads them: only days from since on,
+	// numbers by class only when the school orders by class, and the
+	// children's names only while the school shows them to the caterer.
+	CatererOrders(ctx context.Context, since time.Time, from, to Date) (OrderWeek, error)
+	// ConfirmOrder records that the caterer whose supply started at since
+	// received a fixed order of that supply; confirming twice keeps the
+	// first.
+	ConfirmOrder(ctx context.Context, orderID int64, since time.Time, accountID int64) error
 }
 
 // OrderStatus is where a day's order stands (#3873).

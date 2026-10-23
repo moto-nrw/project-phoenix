@@ -109,13 +109,19 @@ type CatererRegistration struct {
 }
 
 // CatererAcceptance is the outcome of an accepted invitation: the account
-// and caterer the school is now supplied by, and the school's delivery
-// address for the supply.
+// and caterer the school is now supplied by.
 type CatererAcceptance struct {
-	AccountID       int64
-	CatererID       int64
-	TenantID        int64
+	AccountID int64
+	CatererID int64
+	TenantID  int64
+}
+
+// CatererSupply is a school's running supply by its caterer: who supplies
+// it, where to and since when. auth.caterer_schools is its only record.
+type CatererSupply struct {
+	Caterer         Caterer
 	DeliveryAddress string
+	StartedAt       time.Time
 }
 
 // CatererInvitationPreview is what the public acceptance page shows. With

@@ -4375,10 +4375,6 @@
       "write_owner": "meal-plan"
     },
     {
-      "name": "schedule.meal_caterer_supplies",
-      "write_owner": "meal-plan"
-    },
-    {
       "name": "schedule.meal_order_changes",
       "write_owner": "meal-plan"
     },

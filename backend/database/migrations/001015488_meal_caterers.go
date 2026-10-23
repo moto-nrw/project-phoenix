@@ -109,7 +109,7 @@ const catererAccountReferences = `
 			BEFORE INSERT OR UPDATE OF created_by_account_id, accepted_account_id ON auth.caterer_invitations
 			FOR EACH ROW EXECUTE FUNCTION auth.lock_live_account_reference('created_by_account_id', 'accepted_account_id');
 		CREATE TRIGGER lock_live_account_reference
-			BEFORE INSERT OR UPDATE OF started_by_account_id, ended_by_account_id ON schedule.meal_caterer_supplies
+			BEFORE INSERT OR UPDATE OF started_by_account_id, ended_by_account_id ON auth.caterer_schools
 			FOR EACH ROW EXECUTE FUNCTION auth.lock_live_account_reference('started_by_account_id', 'ended_by_account_id');
 `
 
@@ -122,20 +122,20 @@ func init() {
 	Migrations.MustRegister(mealCaterersUp, mealCaterersDown)
 }
 
-// mealCaterersUp adds the caterer (ADR 0077). auth.caterer_schools names
-// the schools a caterer supplies, so the login and the caterer portal find
-// them through the global identity read and open each school on its own;
-// nothing searches across schools (#4088). The caterer, its accounts and a
-// school's invitation are identity data; the supply of a school is the
-// school's meal plan data under its RLS. A caterer reaches a school only
-// through an active supply, and a school has at most one. An invitation keeps
-// only the hash of its link token, so a database copy opens no account.
+// mealCaterersUp adds the caterer (ADR 0077). auth.caterer_schools is the
+// supply: the one record of which caterer supplies which school, since and
+// until when, and where it delivers. It is the school's data under its RLS;
+// the login and the caterer portal read a caterer's rows of it through the
+// global identity read, filtered on that caterer, and open each school on
+// its own. A caterer reaches a school only through an active supply, and a
+// school has at most one. An invitation keeps only the hash of its link
+// token, so a database copy opens no account.
 func mealCaterersUp(ctx context.Context, db *bun.DB) error {
 	return db.RunInTx(ctx, &sql.TxOptions{}, func(ctx context.Context, tx bun.Tx) error {
 		if _, err := tx.ExecContext(ctx, createMealCatererTablesSQL); err != nil {
 			return fmt.Errorf("create caterer tables: %w", err)
 		}
-		if err := provisionTenantRLS(ctx, tx, "auth.caterer_invitations", "auth.caterer_schools", "schedule.meal_caterer_supplies"); err != nil {
+		if err := provisionTenantRLS(ctx, tx, "auth.caterer_invitations", "auth.caterer_schools"); err != nil {
 			return fmt.Errorf("provision caterer tenant isolation: %w", err)
 		}
 		if _, err := tx.ExecContext(ctx, catererAccountReferences+accountIsUnusedSQL+catererAccountsInUse+accountIsUnusedEnd); err != nil {
@@ -154,7 +154,6 @@ func mealCaterersDown(ctx context.Context, db *bun.DB) error {
 		ALTER TABLE auth.tokens DROP CONSTRAINT IF EXISTS chk_tokens_portal_scope;
 		ALTER TABLE auth.tokens ADD CONSTRAINT chk_tokens_portal_scope
 			CHECK (portal_scope IN ('tenant', 'org', 'parent', 'school', 'unknown'));
-		DROP TABLE IF EXISTS schedule.meal_caterer_supplies;
 		DROP TABLE IF EXISTS auth.caterer_schools;
 		DROP TABLE IF EXISTS auth.caterer_invitations;
 		DROP TABLE IF EXISTS auth.caterer_accounts;
@@ -208,40 +207,24 @@ const createMealCatererTablesSQL = `
 			CREATE TABLE auth.caterer_schools (
 				caterer_id BIGINT NOT NULL REFERENCES auth.caterers(id) ON DELETE CASCADE,
 				tenant_id BIGINT NOT NULL REFERENCES platform.schools(id) ON DELETE CASCADE,
+				delivery_address TEXT NOT NULL DEFAULT '',
 				started_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+				started_by_account_id BIGINT REFERENCES auth.accounts(id) ON DELETE SET NULL,
 				ended_at TIMESTAMPTZ,
+				ended_by_account_id BIGINT REFERENCES auth.accounts(id) ON DELETE SET NULL,
 				PRIMARY KEY (caterer_id, tenant_id, started_at),
 				CONSTRAINT chk_caterer_school_period CHECK (ended_at IS NULL OR ended_at >= started_at)
 			);
 			CREATE UNIQUE INDEX uq_caterer_school_active ON auth.caterer_schools (tenant_id) WHERE ended_at IS NULL;
 			CREATE INDEX idx_caterer_schools_caterer ON auth.caterer_schools (caterer_id) WHERE ended_at IS NULL;
 			COMMENT ON TABLE auth.caterer_schools IS
-				'Welche Schulen ein Caterer beliefert. Login und Caterer-Portal finden darüber die Schulen, ohne über alle Schulen zu suchen (#4088).';
+				'Belieferung einer Schule durch einen Caterer, mit Lieferadresse und Zeitraum; einzige Quelle dafür (ADR 0077). Endet sie, sieht der Caterer die Schule nicht mehr.';
 
-			CREATE TABLE schedule.meal_caterer_supplies (
-				id BIGSERIAL PRIMARY KEY,
-				tenant_id BIGINT NOT NULL REFERENCES platform.schools(id) ON DELETE CASCADE,
-				caterer_id BIGINT NOT NULL REFERENCES auth.caterers(id) ON DELETE CASCADE,
-				delivery_address TEXT NOT NULL DEFAULT '',
-				started_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-				started_by_account_id BIGINT REFERENCES auth.accounts(id) ON DELETE SET NULL,
-				ended_at TIMESTAMPTZ,
-				ended_by_account_id BIGINT REFERENCES auth.accounts(id) ON DELETE SET NULL,
-				CONSTRAINT chk_meal_caterer_supply_period CHECK (ended_at IS NULL OR ended_at >= started_at)
-			);
-			CREATE UNIQUE INDEX uq_meal_caterer_supply_active ON schedule.meal_caterer_supplies (tenant_id) WHERE ended_at IS NULL;
-			CREATE INDEX idx_meal_caterer_supplies_caterer ON schedule.meal_caterer_supplies (caterer_id) WHERE ended_at IS NULL;
-			COMMENT ON TABLE schedule.meal_caterer_supplies IS
-				'Belieferung einer Schule durch einen Caterer; endet die Belieferung, sieht der Caterer die Schule nicht mehr.';
-
-			GRANT SELECT, INSERT, UPDATE ON schedule.meal_caterer_supplies TO phoenix_tenant;
-			REVOKE DELETE, TRUNCATE ON schedule.meal_caterer_supplies FROM phoenix_tenant;
-			GRANT USAGE ON SEQUENCE schedule.meal_caterer_supplies_id_seq TO phoenix_tenant;
 			GRANT SELECT, INSERT, UPDATE ON auth.caterer_invitations TO phoenix_tenant;
 			REVOKE DELETE, TRUNCATE ON auth.caterer_invitations FROM phoenix_tenant;
 			GRANT USAGE ON SEQUENCE auth.caterer_invitations_id_seq TO phoenix_tenant;
 			-- The acceptance runs in the invited school's transaction: it
-			-- creates the caterer, its account link and the school's link.
+			-- creates the caterer, its account link and the school's supply.
 			-- Nothing there may be rewritten or deleted by a school.
 			GRANT SELECT, INSERT ON auth.caterers, auth.caterer_accounts TO phoenix_tenant;
 			REVOKE UPDATE, DELETE, TRUNCATE ON auth.caterers, auth.caterer_accounts FROM phoenix_tenant;

@@ -9,9 +9,11 @@ import (
 	"github.com/uptrace/bun"
 )
 
-// The caterer, its accounts, its schools and the schools' invitations (ADR
-// 0074). Everything is written in the school's transaction; the caterer of
-// an account and its schools are read through the global identity read.
+// The caterer, its accounts, the schools' supplies and the schools'
+// invitations (ADR 0077). Everything is written in the school's
+// transaction; the caterer of an account and its schools are read through
+// the global identity read. Every query on auth.caterer_schools filters on
+// the school in scope or on the caterer (caterer_schools_filter_test.go).
 
 type catererRow struct {
 	bun.BaseModel `bun:"table:auth.caterers,alias:caterer"`
@@ -26,11 +28,14 @@ type catererAccountRow struct {
 }
 
 type catererSchoolRow struct {
-	bun.BaseModel `bun:"table:auth.caterer_schools,alias:caterer_school"`
-	CatererID     int64      `bun:"caterer_id,notnull"`
-	TenantID      int64      `bun:"tenant_id,notnull"`
-	StartedAt     time.Time  `bun:"started_at,notnull"`
-	EndedAt       *time.Time `bun:"ended_at"`
+	bun.BaseModel   `bun:"table:auth.caterer_schools,alias:caterer_school"`
+	CatererID       int64      `bun:"caterer_id,notnull"`
+	TenantID        int64      `bun:"tenant_id,notnull"`
+	DeliveryAddress string     `bun:"delivery_address,notnull"`
+	StartedAt       time.Time  `bun:"started_at,notnull"`
+	StartedBy       *int64     `bun:"started_by_account_id"`
+	EndedAt         *time.Time `bun:"ended_at"`
+	EndedBy         *int64     `bun:"ended_by_account_id"`
 }
 
 type catererInvitationRow struct {
@@ -159,26 +164,30 @@ func (s *Store) AcceptCatererInvitation(ctx context.Context, invitationID, accou
 	return rows > 0, stats, err
 }
 
-func (s *Store) InsertCatererSchool(ctx context.Context, catererID int64, at time.Time) (domain.OperationStats, error) {
+func (s *Store) InsertCatererSchool(ctx context.Context, catererID int64, deliveryAddress string, startedBy int64, at time.Time) (domain.OperationStats, error) {
 	tenantID := s.scope(ctx).TenantID
 	if tenantID <= 0 {
-		return domain.OperationStats{}, fmt.Errorf("identity access postgres: a caterer school needs the school's transaction")
+		return domain.OperationStats{}, fmt.Errorf("identity access postgres: a caterer supply needs the school's transaction")
 	}
+	row := catererSchoolRow{CatererID: catererID, TenantID: tenantID, DeliveryAddress: deliveryAddress, StartedAt: at, StartedBy: optionalCatererAccount(startedBy)}
 	_, stats, err := s.exec(ctx, "insert caterer school", func(db bun.IDB) executor {
-		return db.NewInsert().Model(&catererSchoolRow{CatererID: catererID, TenantID: tenantID, StartedAt: at})
+		return db.NewInsert().Model(&row).ExcludeColumn("ended_at", "ended_by_account_id")
 	})
 	return stats, err
 }
 
-func (s *Store) EndCatererSchool(ctx context.Context, at time.Time) (bool, domain.OperationStats, error) {
+func (s *Store) EndCatererSchool(ctx context.Context, endedBy int64, at time.Time) (bool, domain.OperationStats, error) {
 	rows, stats, err := s.exec(ctx, "end caterer school", func(db bun.IDB) executor {
 		return scopeTenantQuery(s.scope(ctx), db.NewUpdate().Model((*catererSchoolRow)(nil)).
 			Set("ended_at = ?", at).
+			Set("ended_by_account_id = ?", optionalCatererAccount(endedBy)).
 			Where(`"caterer_school".ended_at IS NULL`), `"caterer_school".tenant_id = ?`)
 	})
 	return rows > 0, stats, err
 }
 
+// ListCatererSchools is the one read of the supply across schools. It runs
+// in the global identity read and filters on the caterer, never on a school.
 func (s *Store) ListCatererSchools(ctx context.Context, catererID int64) ([]int64, domain.OperationStats, error) {
 	db, err := s.database(ctx)
 	if err != nil {
@@ -187,6 +196,7 @@ func (s *Store) ListCatererSchools(ctx context.Context, catererID int64) ([]int6
 	var rows []catererSchoolRow
 	started := time.Now()
 	err = db.NewSelect().Model(&rows).
+		Column("tenant_id").
 		Where(`"caterer_school".caterer_id = ?`, catererID).
 		Where(`"caterer_school".ended_at IS NULL`).
 		OrderExpr(`"caterer_school".started_at, "caterer_school".tenant_id`).
@@ -200,17 +210,33 @@ func (s *Store) ListCatererSchools(ctx context.Context, catererID int64) ([]int6
 	return schools, stats, err
 }
 
-func (s *Store) FindSchoolCaterer(ctx context.Context) (domain.Caterer, bool, domain.OperationStats, error) {
+func (s *Store) FindSchoolCaterer(ctx context.Context) (domain.CatererSupply, bool, domain.OperationStats, error) {
 	db, err := s.database(ctx)
 	if err != nil {
-		return domain.Caterer{}, false, domain.OperationStats{}, err
+		return domain.CatererSupply{}, false, domain.OperationStats{}, err
 	}
-	var row catererRow
+	var row struct {
+		CatererID       int64     `bun:"caterer_id"`
+		Name            string    `bun:"name"`
+		DeliveryAddress string    `bun:"delivery_address"`
+		StartedAt       time.Time `bun:"started_at"`
+	}
 	started := time.Now()
-	err = scopeTenantQuery(s.scope(ctx), db.NewSelect().Model(&row).
-		Join(`JOIN auth.caterer_schools AS "caterer_school" ON "caterer_school".caterer_id = "caterer".id`).
+	err = scopeTenantQuery(s.scope(ctx), db.NewSelect().Model((*catererSchoolRow)(nil)).
+		ColumnExpr(`"caterer_school".caterer_id, "caterer".name, "caterer_school".delivery_address, "caterer_school".started_at`).
+		Join(`JOIN auth.caterers AS "caterer" ON "caterer".id = "caterer_school".caterer_id`).
 		Where(`"caterer_school".ended_at IS NULL`), `"caterer_school".tenant_id = ?`).
-		Scan(ctx)
+		Scan(ctx, &row)
 	found, stats, err := scanOne("find school caterer", started, err)
-	return domain.Caterer{ID: row.ID, Name: row.Name}, found, stats, err
+	return domain.CatererSupply{
+		Caterer:         domain.Caterer{ID: row.CatererID, Name: row.Name},
+		DeliveryAddress: row.DeliveryAddress, StartedAt: row.StartedAt,
+	}, found, stats, err
+}
+
+func optionalCatererAccount(accountID int64) *int64 {
+	if accountID <= 0 {
+		return nil
+	}
+	return &accountID
 }

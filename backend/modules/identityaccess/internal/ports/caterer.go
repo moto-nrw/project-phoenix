@@ -13,10 +13,10 @@ type CatererInvitationDelivery interface {
 	EnqueueCatererInvitation(ctx context.Context, invitationID, schoolID int64, email, catererName, token string, expiresAt time.Time) error
 }
 
-// CatererStore holds the caterer, its accounts, the schools it supplies and
+// CatererStore holds the caterer, its accounts, the schools' supplies and
 // the schools' invitations (ADR 0077). Writes run in the school's
-// transaction; the caterer's schools are read through the global identity
-// read (#4088).
+// transaction; a caterer's schools are read through the global identity
+// read, filtered on that caterer.
 type CatererStore interface {
 	FindCatererOfAccount(ctx context.Context, accountID int64) (domain.Caterer, bool, domain.OperationStats, error)
 	InsertCaterer(ctx context.Context, name string) (domain.Caterer, domain.OperationStats, error)
@@ -30,15 +30,15 @@ type CatererStore interface {
 	// acceptance.
 	FindCatererInvitationByTokenHash(ctx context.Context, tokenHash string) (domain.CatererInvitation, bool, domain.OperationStats, error)
 	AcceptCatererInvitation(ctx context.Context, invitationID, accountID int64, at time.Time) (bool, domain.OperationStats, error)
-	// InsertCatererSchool links the caterer to the school in context;
-	// EndCatererSchool ends the school's active link.
-	InsertCatererSchool(ctx context.Context, catererID int64, at time.Time) (domain.OperationStats, error)
-	EndCatererSchool(ctx context.Context, at time.Time) (bool, domain.OperationStats, error)
-	// FindSchoolCaterer names the caterer that supplies the school in
-	// scope now.
-	FindSchoolCaterer(ctx context.Context) (domain.Caterer, bool, domain.OperationStats, error)
+	// InsertCatererSchool starts the school's supply by the caterer;
+	// EndCatererSchool ends the school's running supply.
+	InsertCatererSchool(ctx context.Context, catererID int64, deliveryAddress string, startedBy int64, at time.Time) (domain.OperationStats, error)
+	EndCatererSchool(ctx context.Context, endedBy int64, at time.Time) (bool, domain.OperationStats, error)
+	// FindSchoolCaterer reads the running supply of the school in scope.
+	FindSchoolCaterer(ctx context.Context) (domain.CatererSupply, bool, domain.OperationStats, error)
 	// ListCatererSchools lists the schools the caterer supplies now, in the
-	// order they started.
+	// order they started. It is the one read of the supply across schools:
+	// it filters on the caterer.
 	ListCatererSchools(ctx context.Context, catererID int64) ([]int64, domain.OperationStats, error)
 	// FindLoginAccountByEmail serves the invitation preview.
 	FindLoginAccountByEmail(ctx context.Context, email string) (domain.LoginAccount, bool, domain.OperationStats, error)

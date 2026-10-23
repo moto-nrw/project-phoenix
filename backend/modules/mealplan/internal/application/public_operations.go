@@ -201,26 +201,19 @@ func (s *Service) Orders(ctx context.Context, from, to mealplan.Date) (mealplan.
 	return publicOrderWeek(view), nil
 }
 
-func (s *Service) StartSupply(ctx context.Context, catererID int64, deliveryAddress string, accountID int64) error {
-	if catererID <= 0 {
-		return mealplan.ErrInvalidParticipation
-	}
-	return s.startSupply(ctx, catererID, strings.TrimSpace(deliveryAddress), accountID)
-}
-
-func (s *Service) CatererOrders(ctx context.Context, catererID int64, from, to mealplan.Date) (mealplan.OrderWeek, error) {
+func (s *Service) CatererOrders(ctx context.Context, since time.Time, from, to mealplan.Date) (mealplan.OrderWeek, error) {
 	start, end, err := readWindow(from, to)
 	if err != nil {
 		return mealplan.OrderWeek{}, err
 	}
-	return s.catererOrders(ctx, catererID, start.String(), end.String())
+	return s.catererOrders(ctx, since, start.String(), end.String())
 }
 
-func (s *Service) ConfirmOrder(ctx context.Context, catererID, orderID, accountID int64) error {
+func (s *Service) ConfirmOrder(ctx context.Context, orderID int64, since time.Time, accountID int64) error {
 	if orderID <= 0 {
 		return mealplan.ErrOrderNotFound
 	}
-	return s.confirmOrder(ctx, catererID, orderID, accountID)
+	return s.confirmOrder(ctx, orderID, since, accountID)
 }
 
 // readWindow parses one read of the orders, at most maxOrderWindowDays long.
@@ -367,8 +360,6 @@ var publicErrors = []struct{ from, to error }{
 	{ErrNotEnrolled, mealplan.ErrChildNotEnrolled},
 	{ErrInvalidCutoff, mealplan.ErrInvalidParticipation},
 	{ErrTooFarAhead, mealplan.ErrInvalidParticipation},
-	{ErrSupplyActive, mealplan.ErrSupplyActive},
-	{ErrNotSupplied, mealplan.ErrNotSupplied},
 	{ErrOrderNotFound, mealplan.ErrOrderNotFound},
 }
 

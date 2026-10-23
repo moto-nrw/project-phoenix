@@ -151,7 +151,7 @@ var moduleLegacyFileBudgets = map[string]int{
 // Raised by ADR 0076: the restricted staff person repair compositions (+53).
 // Raised by ADR 0078 (the meal ordering rules) and ADR 0077 (the caterer
 // flows and the caterer portal).
-const moduleComposeBudgetTotal = 12497
+const moduleComposeBudgetTotal = 12498
 
 // moduleComposeBudgets maps every owner composition package to its production
 // LOC, first measured on 2026-10-15 on top of development c49b81c3a9: 61
@@ -209,7 +209,7 @@ var moduleComposeBudgets = map[string]int{
 	"modules/timetableprojection/compose":             7,
 	"modules/transactionruntime/compose":              133,
 	"modules/workforce/compose":                       888,
-	"workflows/catererportal/compose":                 36, // added by ADR 0077
+	"workflows/catererportal/compose":                 37, // added by ADR 0077
 	"workflows/gradetransition/compose":               49,
 	"workflows/openroommove/compose":                  46,
 	"workflows/parentportal/compose":                  307, // raised by ADR 0078

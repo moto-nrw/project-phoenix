@@ -307,19 +307,11 @@ func TestStaffDayChangeIsTheSchools(t *testing.T) {
 
 func (e engine) SettleOrders(context.Context) error { return nil }
 
-func (e engine) StartSupply(context.Context, int64, string, int64) error { return nil }
-
-func (e engine) EndSupply(context.Context, int64) (bool, error) { return false, nil }
-
-func (e engine) CurrentSupply(context.Context) (mealplanModule.Supply, bool, error) {
-	return mealplanModule.Supply{}, false, nil
-}
-
-func (e engine) CatererOrders(context.Context, int64, mealplanModule.Date, mealplanModule.Date) (mealplanModule.OrderWeek, error) {
+func (e engine) CatererOrders(context.Context, time.Time, mealplanModule.Date, mealplanModule.Date) (mealplanModule.OrderWeek, error) {
 	return mealplanModule.OrderWeek{}, nil
 }
 
-func (e engine) ConfirmOrder(context.Context, int64, int64, int64) error { return nil }
+func (e engine) ConfirmOrder(context.Context, int64, time.Time, int64) error { return nil }
 
 func (e engine) Orders(_ context.Context, from, _ mealplanModule.Date) (mealplanModule.OrderWeek, error) {
 	confirmed := time.Date(2026, 9, 7, 9, 30, 0, 0, time.UTC)

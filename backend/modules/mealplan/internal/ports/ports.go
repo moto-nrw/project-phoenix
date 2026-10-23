@@ -21,16 +21,12 @@ type Store interface {
 	// InsertRegistrationChanges appends to the registration log.
 	InsertRegistrationChanges(context.Context, []domain.RegistrationChange) (domain.OperationStats, error)
 	OrderStore
-	SupplyStore
+	ConfirmationStore
 }
 
-// SupplyStore holds the school's supply by its caterer (ADR 0077).
-type SupplyStore interface {
-	// FindActiveSupply reads the running supply; forUpdate locks it for the
-	// unit of work.
-	FindActiveSupply(ctx context.Context, forUpdate bool) (domain.Supply, bool, domain.OperationStats, error)
-	InsertSupply(ctx context.Context, catererID int64, deliveryAddress string, accountID int64, startedAt time.Time) (domain.OperationStats, error)
-	EndSupply(ctx context.Context, accountID int64, endedAt time.Time) (bool, domain.OperationStats, error)
+// ConfirmationStore records the caterer's confirmation of an order (ADR
+// 0077).
+type ConfirmationStore interface {
 	// ConfirmOrder confirms an order frozen since the supply started once;
 	// false: no such order.
 	ConfirmOrder(ctx context.Context, orderID, accountID int64, since time.Time, confirmedAt time.Time) (bool, domain.OperationStats, error)
