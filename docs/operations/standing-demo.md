@@ -259,8 +259,7 @@ HTTP database roles cannot read that table.
 
 ## Verification
 
-`scripts/run-go-toolchain.sh go -C backend test ./simulate
-./modules/organizationtenancy/compose ./cmd/devtools ./seed/api` covers grace-period
+`scripts/run-go-toolchain.sh go -C backend test -tags=testhooks ./internal/devtools/simulate ./modules/organizationtenancy/compose ./cmd/devtools ./internal/devtools/seedapi` covers grace-period
 boundaries, weekend rebuilds, stored-state restart, competing runners, HTTP-role
 credential isolation and environment/host guards. Keep this command on one line.
 

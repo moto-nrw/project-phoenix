@@ -152,6 +152,17 @@ provision a file rule whose UID already exists in the UI, and it does not
 allow editing a file rule there. Contact points and the notification policy
 stay on the host because they name recipients.
 
+## Encrypted daily backup
+
+`alerting/daily-backup.yml` is prepared, not deployed or delivery-verified.
+It monitors the separate `{env="prod",service="daily-backup"}` journal stream:
+no verified success in 26 hours, or a failure in 30 minutes. Legacy cron backup
+rules in `infrastructure.yml` remain unchanged during the cutover. The operator
+must add the Alloy journal source, verify delivery via the existing default
+policy and complete a restore before retiring cron. No contact points or
+notification policies are provisioned. Configuration snippet, response and
+cutover steps: [daily backup runbook](../docs/operations/daily-backup.md).
+
 ## Student storage Contract observation
 
 Before the #2760 rollback window, install the read-only collector and Grafana

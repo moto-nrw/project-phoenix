@@ -65,7 +65,7 @@ an architecture issue for an ADR decision before continuing.
 
 ### Code conventions
 
-Read `.claude/rules/backend-conventions.md` for repository generics, model
+Read `.claude/rules/backend-conventions.md` for owner-private persistence, row
 conventions, and CI ratchets. They constrain code inside an owner; the policy
 defines the module boundary. Pass-throughs (Rule 8): the shapes that may stay
 and the floor per owner are in `docs/adr/0075-pass-throughs-keep-a-per-owner-floor.md`.
@@ -119,7 +119,7 @@ repoint both to the successor. Materialization/replans never touch dates
 
 ### GDPR/Privacy Patterns
 - Student data visibility is permission-scoped: admins and verified staff see full data for every child of the tenant (#2329 removed the per-group scope); guest/guardian accounts stay redacted. The wire keeps separate `has_full_access` (read) vs `has_write_access` (write) flags
-- Per-student retention: `DataRetentionDays int` (notnull) — 1-31 days, default 30 via the `DefaultDataRetentionDays` const (`models/users/privacy_consent.go`)
+- Per-student retention: `DataRetentionDays int` (notnull) — 1-31 days, default 30 via `DefaultPrivacyConsentRetentionDays` (`modules/studentpresence/privacy_consent.go`); Student Presence owns the consent lifecycle
 - Automated cleanup is scheduled per tenant via the `gdpr.data_cleanup_*` settings; manual dry-run: `go run . cleanup preview|stats` (see [Cleanup CLI](../docs/agents/operations.md#cleanup-cli) for the exact CLI shapes — they differ per domain)
 - All deletions logged in `audit.data_deletions`
 - **Logging: no student names at Info level or above** (IDs only; names at Debug) — CI-enforced by `TestGDPRLogPIIRatchet` (`test/gdpr_log_pii_ratchet_test.go`): no log call at Info+ may read `FirstName`/`LastName`/`GreetingMsg`
@@ -139,26 +139,28 @@ Preserve assertion strength and report failed checks accurately.
 
 ## Seed Coverage (MANDATORY)
 
-The demo seeder (`seed/api`) plus `simulate full-day` are the widest end-to-end
+The demo seeder (`internal/devtools/seedapi`) plus `simulate full-day` are the widest end-to-end
 path in this repo, roughly a hundred real API calls across every module, and
 the only source of dev and demo data. Two rules follow from that:
 
 1. **A user-facing feature ships with seed data in the same PR.** A screen that
    is empty on every dev machine is a screen nobody reviews.
 2. **The coverage ratchet is not optional.** `TestSeedCoverageRatchet`
-   (`seed/api/coverage_ratchet_test.go`) fails when a table ends up with no
+   (`internal/devtools/seedapi/coverage_ratchet_test.go`) fails when a table ends up with no
    seeded rows and is not allowlisted, and just as loudly when an allowlisted
    table starts holding data (then delete the entry). The `seed-smoke` CI job
    runs it, and by running the seeder at all it also proves every API contract
    the seeder drives still holds.
 
-Allowlist entries reading `GAP: prod has N rows` are the measured backlog: 58
-tables that production tenants fill and the seeder does not. Shrink that list,
-never grow it.
+The test separates intentional exemptions, transient lifecycle state and
+coverage debt in `seedCoverageExemptions`, `seedCoverageTransient` and
+`seedCoverageDebt`. Inspect those current registers rather than an old table
+count. Shrink coverage debt; never grow it silently.
 
 ```bash
-# Against a seeded local stack
-docker compose exec server sh -c 'SEED_COVERAGE_DSN="$DB_DSN" go test ./seed/api/ -run TestSeedCoverageRatchet -v'
+# From the repo root, against a locally seeded stack (migrate + seed + simulate full-day)
+# SEED_COVERAGE_DSN must name that local seed database, not the test database.
+scripts/run-go-toolchain.sh scripts/dev-native.sh backend sh -c 'SEED_COVERAGE_DSN="$DB_DSN" go test -tags=testhooks ./internal/devtools/seedapi/ -run TestSeedCoverageRatchet -v'
 ```
 
 ## Logging: slog Only (MANDATORY)
@@ -172,7 +174,7 @@ s.logger.Info("visit recorded", "student_id", sid, "group_id", gid)  // snake_ca
 - Loggers flow from the process root (`composeProcess` in `api/server.go`) into the owner compositions; services scope with `logger.With("service", "active")`
 - Structs that tests construct bare use the nil-safe pattern: `getLogger()` returning `slog.Default()` when nil
 - **GDPR: student names never at Info level** — IDs only; names at Debug
-- Known exceptions (intentional `log.Printf`): `modules/identityaccess/sessiontoken/tokenauth.go` startup logging; `cmd/` and `simulator/` route through slog default at WARN
+- Known exceptions (intentional `log.Printf`): `modules/identityaccess/sessiontoken/tokenauth.go` startup logging; `cmd/` and `internal/devtools/simulate/` route through slog default at WARN
 
 ## Real-time updates
 
@@ -186,7 +188,7 @@ SMTP config via `EMAIL_SMTP_*`, `EMAIL_FROM_*`, `FRONTEND_URL`/`PARENTS_URL` (li
 
 MFA challenges persist the initially consumed challenge and its mail in one administrative command transaction. After commit, the command leases that exact entry and sends synchronously with the existing interactive retries. Only transport acceptance activates the challenge and permits a successful response; exhausted transport failures are terminal. The worker recovers committed entries whose caller died before dispatch. Appointment reminder pushes, including recovered/deferred entries, are cancelled once the occurrence starts. They persist their existing idempotency key in the triggering transaction, then synchronously claim that exact outbox entry after commit. Transport failures remain visible to the caller and terminal (no automatic retry); the worker recovers entries left pending or with an expired pre-dispatch lease. An expired dispatch fence has an unknown outcome and is not resent. The exact, shrink-only register in `test/durable_side_effect_notices.json` records the harmless loss case for each remaining `go`, `Dispatch` and `AfterCommit` in HTTP, application and composition roles; durable writes cannot be added to those callbacks.
 
-Password hashing/strength helpers: `auth/authorize/credentials.go`, served to compositions through `modules/securityruntime` — reuse, don't duplicate.
+Password hashing/strength helpers: `modules/securityruntime/credentials.go` (public root-bound capability) — reuse, don't duplicate.
 
 **Password-reset rate limit is a cross-layer contract**: 3 requests/hour per email; the backend's `429` + `Retry-After` header drives the live countdown in the frontend's password-reset modal (localStorage-persisted). Changing the window or header silently breaks that UX.
 

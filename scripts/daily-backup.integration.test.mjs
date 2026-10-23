@@ -133,8 +133,15 @@ with tarfile.open(sys.argv[1]) as source, tarfile.open(sys.argv[2],'w') as targe
   target.addfile(member,io.BytesIO(data))
 `, join(root, 'bundle.tar'), join(root, 'corrupt.tar')]);
   run('age', ['-r', env.BACKUP_AGE_RECIPIENT, '-o', join(remote, corrupted), join(root, 'corrupt.tar')]);
-  result = restore(name, { PHOENIX_AUTH_PASSWORD: '' });
-  assert.notEqual(result.status, 0); assert.match(result.stdout, /missing=PHOENIX_AUTH_PASSWORD/);
+  for (const key of ['BACKUP_COMPOSE_FILE', 'BACKUP_PROJECT', 'BACKUP_UPLOADS_VOLUME',
+    'BACKUP_TRANSPORT', 'BACKUP_TARGET', 'BACKUP_WORK_DIR', 'BACKUP_CIPHER_DIR',
+    'BACKUP_MIN_FREE_BYTES', 'POSTGRES_PASSWORD', 'PHOENIX_AUTH_PASSWORD',
+    'PHOENIX_DEMO_PASSWORD', 'BACKUP_AGE_IDENTITY_FILE']) {
+    result = restore(name, { [key]: '' });
+    assert.notEqual(result.status, 0);
+    assert.equal(result.stdout, `restore_result=failed step=configuration missing=${key} app_start=blocked\n`);
+    assert.equal(result.stderr, '');
+  }
   result = restore(corrupted);
   assert.notEqual(result.status, 0); assert.match(result.stdout, /step=checksums/);
   result = restore(name);
@@ -144,6 +151,29 @@ with tarfile.open(sys.argv[1]) as source, tarfile.open(sys.argv[2],'w') as targe
   dc('down', '-v'); // Destroy database storage, not just its rows.
   docker('volume', 'rm', volume);
   dc('up', '-d', '--wait', 'postgres');
+  // Fail at the external Docker boundary after the durable review marker is
+  // written. Partial restores must retain the barrier, even on a fresh retry.
+  const failingBin = join(root, 'failing-bin'); mkdirSync(failingBin);
+  const realDocker = run('which', ['docker']);
+  writeFileSync(join(failingBin, 'docker'), `#!/bin/sh
+case "$*" in *psql*ON_ERROR_STOP=1*) case "$*" in *-At*) ;; *) exit 27;; esac;; esac
+exec '${realDocker}' "$@"
+`, { mode: 0o700 });
+  result = restore(name, { PATH: `${failingBin}:${env.PATH}` });
+  assert.notEqual(result.status, 0);
+  assert.equal(result.stdout, 'restore_result=failed step=roles_restore app_start=blocked\n');
+  const reviewMarker = join(root, '.daily-restore-review-required');
+  const pendingReview = readFileSync(reviewMarker, 'utf8');
+  assert.equal(JSON.parse(pendingReview).app_start, 'blocked');
+  assert.deepEqual(readdirSync(work), []);
+  assert.deepEqual(readdirSync(env.BACKUP_CIPHER_DIR), []);
+  dc('down', '-v'); // Only this synthetic, isolated test project.
+  dc('up', '-d', '--wait', 'postgres');
+  result = restore(name);
+  assert.notEqual(result.status, 0);
+  assert.equal(readFileSync(reviewMarker, 'utf8'), pendingReview);
+  // Operator removes it only after discarding the failed isolated target.
+  rmSync(reviewMarker);
   result = restore(name);
   assert.equal(result.status, 0, result.stdout);
   assert.match(result.stdout, /restore_result=ok step=deletion_review_required app_start=blocked/);
