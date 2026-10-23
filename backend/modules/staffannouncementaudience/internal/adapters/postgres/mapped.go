@@ -7,8 +7,8 @@ import (
 )
 
 // Rows maps the projection's rows onto the consumer's values and the
-// consumer's announcement onto the projection's target. The owner's
-// composition supplies it, so the projection never names the owner's types.
+// consumer's announcement onto the projection's target. The root supplies
+// the mapping, so neither owner imports the other's vocabulary.
 // Mapped answers the projection's reads in the consumer's values.
 type Mapped[A, V, S any] struct {
 	projection *Projection
