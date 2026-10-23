@@ -96,7 +96,7 @@ func TestNativePickupEditChecksOldCutoffAndRollsBackLedgerFailure(t *testing.T) 
 	}
 	require.ErrorIs(t, edit(), carerequests.ErrPickupChangeCutoffPassed)
 	require.Empty(t, pickup.dates)
-	input.Cutoff = nil
+	input.Cutoff = careplan.SameDayCutoff{}
 	require.ErrorIs(t, edit(), events.err)
 	unchanged, err := owner.FindCareScheduleRequest(ctx, row.ID, false)
 	require.NoError(t, err)

@@ -77,6 +77,13 @@ func TestSameDayCutoffAtUsesTimeAtValidation(t *testing.T) {
 	assert.False(t, cutoff.Closed(calendar.NewDate(2026, 8, 24)))
 	now = berlinAt(2026, 8, 24, 11, 1, 0)
 	assert.True(t, cutoff.Closed(calendar.NewDate(2026, 8, 24)))
+	assert.False(t, cutoff.Closed(calendar.NewDate(2026, 8, 25)))
+
+	trimmed, err := careplan.NewSameDayCutoffAt(" 11:00 ", func() time.Time { return now })
+	require.NoError(t, err)
+	assert.Equal(t, "11:00", trimmed.Clock)
+	_, err = careplan.NewSameDayCutoffAt("11:00", nil)
+	require.EqualError(t, err, "schedule: same-day cutoff clock is nil")
 }
 
 // The cutoff is a Berlin wall-clock time. The same instant in UTC sits one

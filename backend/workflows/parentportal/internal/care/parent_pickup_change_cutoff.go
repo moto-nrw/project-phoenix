@@ -4,6 +4,8 @@ import (
 	"context"
 	"fmt"
 	"strconv"
+
+	"github.com/moto-nrw/project-phoenix/modules/careplan/carerequests"
 )
 
 type pickupChangePolicy struct {
@@ -51,7 +53,7 @@ func (s *Service) pickupChangePolicyInTx(ctx context.Context, tenantID int64) (p
 	if err != nil {
 		return pickupChangePolicy{}, fmt.Errorf("parent: resolve pickup-change cutoff: %w", err)
 	}
-	cutoff, err := s.CarePlanPolicy.NewSameDayCutoffAt(clock, s.now)
+	cutoff, err := carerequests.NewSameDayCutoffAt(clock, s.now)
 	if err != nil {
 		return pickupChangePolicy{}, fmt.Errorf("parent: %w", err)
 	}
