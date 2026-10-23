@@ -14,10 +14,7 @@ func (f *AccountMFAFlows) disableForAdmin(ctx context.Context, actorType string,
 	if actorType != actorTypeOperator {
 		return f.Disable(ctx, accountID)
 	}
-	return f.runtime.WithAdminTx(ctx, func(txCtx context.Context) error {
-		if err := f.disableInTransaction(txCtx, accountID); err != nil {
-			return err
-		}
+	return f.Disable(ctx, accountID, func(txCtx context.Context) error {
 		return f.recordOperatorMFAChange(txCtx, actorID, accountID, domain.OperatorMFAOverrideEvidence{SchoolID: schoolID, Action: "disable", Scope: "tenant"})
 	})
 }

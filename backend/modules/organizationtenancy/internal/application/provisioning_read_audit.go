@@ -34,7 +34,8 @@ func (p *Provisioning) RecordOperatorRead(ctx context.Context, access organizati
 	if access.AccountID > 0 {
 		resourceID = &access.AccountID
 	}
-	return p.inAdmin(ctx, func(adminCtx context.Context) error {
-		return p.recordAction(adminCtx, access.OperatorID, domain.AuditActionView, resource, resourceID, access.ClientIP, changes)
+	_, err := adminValue(ctx, p, func(adminCtx context.Context) (struct{}, error) {
+		return struct{}{}, p.recordAction(adminCtx, access.OperatorID, domain.AuditActionView, resource, resourceID, access.ClientIP, changes)
 	})
+	return err
 }

@@ -78,10 +78,6 @@ func (f *AccountMFAFlows) adminDisable(ctx context.Context, actorType string, ac
 		f.recordAdminFailure(ctx, failure)
 		return err
 	}
-	if actorType == actorTypeOperator {
-		f.recordAuthEvent(ctx, domain.AuthEvent{AccountID: targetAccountID, TenantID: targetTenantID, Type: domain.AuthEventMFADisabled, Success: true, IPAddress: domain.MFAAuditFallbackIP})
-	}
-
 	f.recordAuthEvent(ctx, domain.AuthEvent{
 		AccountID: targetAccountID, TenantID: targetTenantID, Type: domain.AuthEventMFAAdminOverride,
 		Success: true, IPAddress: domain.MFAAuditFallbackIP,
