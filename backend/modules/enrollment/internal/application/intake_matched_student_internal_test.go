@@ -43,7 +43,7 @@ func TestGuardMatchedStudentUnique_NilPinNoOps(t *testing.T) {
 	t.Parallel()
 
 	repo := &stubMatchLockRequestRepo{has: true}
-	svc := NewIntake(IntakeDependencies{Requests: repo})
+	svc := NewIntake(IntakeDependencies{Settings: intakeSettingsFake{}, Requests: repo})
 
 	err := svc.guardMatchedStudentUnique(context.Background(), 42, nil, 0, 0)
 	require.NoError(t, err)
@@ -57,7 +57,7 @@ func TestGuardMatchedStudentUnique_CollisionRejected(t *testing.T) {
 	t.Parallel()
 
 	repo := &stubMatchLockRequestRepo{has: true}
-	svc := NewIntake(IntakeDependencies{Requests: repo})
+	svc := NewIntake(IntakeDependencies{Settings: intakeSettingsFake{}, Requests: repo})
 
 	pin := int64(555)
 	err := svc.guardMatchedStudentUnique(context.Background(), 42, &pin, 0, 1)
@@ -72,7 +72,7 @@ func TestGuardMatchedStudentUnique_NoCollisionPasses(t *testing.T) {
 	t.Parallel()
 
 	repo := &stubMatchLockRequestRepo{has: false}
-	svc := NewIntake(IntakeDependencies{Requests: repo})
+	svc := NewIntake(IntakeDependencies{Settings: intakeSettingsFake{}, Requests: repo})
 
 	pin := int64(777)
 	err := svc.guardMatchedStudentUnique(context.Background(), 9, &pin, 0, 0)
@@ -85,7 +85,7 @@ func TestGuardMatchedStudentUnique_LockErrorPropagates(t *testing.T) {
 	t.Parallel()
 
 	repo := &stubMatchLockRequestRepo{lockErr: errors.New("boom")}
-	svc := NewIntake(IntakeDependencies{Requests: repo})
+	svc := NewIntake(IntakeDependencies{Settings: intakeSettingsFake{}, Requests: repo})
 
 	pin := int64(1)
 	err := svc.guardMatchedStudentUnique(context.Background(), 3, &pin, 0, 0)
@@ -100,7 +100,7 @@ func TestGuardMatchedStudentUnique_ProbeErrorPropagates(t *testing.T) {
 	t.Parallel()
 
 	repo := &stubMatchLockRequestRepo{hasErr: errors.New("boom")}
-	svc := NewIntake(IntakeDependencies{Requests: repo})
+	svc := NewIntake(IntakeDependencies{Settings: intakeSettingsFake{}, Requests: repo})
 
 	pin := int64(1)
 	err := svc.guardMatchedStudentUnique(context.Background(), 3, &pin, 0, 0)

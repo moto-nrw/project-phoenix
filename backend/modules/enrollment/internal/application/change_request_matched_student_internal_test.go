@@ -59,7 +59,7 @@ func newMatchedStudentFixture(audience string, resolved *int64, collision bool) 
 	children := &stubMatchedStudentChildRepo{}
 	requests := &stubMatchLockRequestRepo{has: collision}
 	auth := &stubReEnrollAuthorizer{granted: true}
-	svc := NewChangeRequests(ChangeRequestDependencies{
+	svc := NewChangeRequests(ChangeRequestDependencies{Settings: intakeSettingsFake{},
 		Requests:           requests,
 		Children:           children,
 		Students:           &stubMatchStudentRepo{matchID: resolved, exists: resolved != nil},

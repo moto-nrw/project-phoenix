@@ -116,6 +116,9 @@ func (o phaseOfferings) CountOfferingsForPhase(ctx context.Context, phaseID int6
 // newTestDecisions composes Enrollment's decision flow over deps and the
 // suite's settings; the optional outbox records its parent mails.
 func newTestDecisions(deps enrollmentCompose.DecisionDependencies, settings owners.EnrollmentDecisionSettings, outboxes ...testMailOutbox) *TestDecisions {
+	if settings == nil {
+		settings = defaultDecisionSettings{}
+	}
 	deps.Settings = owners.EnrollmentDecisionSettingValues(settings)
 	if deps.Notifications == nil {
 		var outbox testMailOutbox
@@ -147,6 +150,9 @@ func newTestRequestService(cfg owners.EnrollmentIntakeSources) enrollmentAPI.Req
 }
 
 func newTestChangeRequestService(cfg owners.EnrollmentChangeRequestSources) enrollmentAPI.ChangeRequestService {
+	if cfg.Settings == nil {
+		cfg.Settings = newStubRequestSettings()
+	}
 	if cfg.Notifications == nil {
 		cfg.Notifications = testNotifications(cfg.Requests, cfg.Settings, cfg.OutboxEnqueuer, nil)
 	}

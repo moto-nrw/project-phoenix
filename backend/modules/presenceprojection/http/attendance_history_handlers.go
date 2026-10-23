@@ -3,6 +3,7 @@ package presenceprojectionhttp
 import (
 	context "context"
 	errors "errors"
+	fmt "fmt"
 	slog "log/slog"
 	http "net/http"
 	sort "sort"
@@ -131,7 +132,12 @@ func (rs *Resource) getStudentAttendanceHistory(w http.ResponseWriter, r *http.R
 	}
 
 	// 1. Feature gate
-	if !resolveBoolSetting(ctx, rs.SettingsService, settingAttendanceLogEnabled, false, logger) {
+	enabled, err := rs.SettingsService.ResolveBool(ctx, settingAttendanceLogEnabled)
+	if err != nil {
+		renderError(w, r, common.ErrorInternalServerWrap("failed to resolve attendance settings", err))
+		return
+	}
+	if !enabled {
 		renderError(w, r, common.ErrorForbiddenWithCode(errors.New("feature_disabled"), common.CodeAttendanceLogDisabled))
 		return
 	}
@@ -145,7 +151,11 @@ func (rs *Resource) getStudentAttendanceHistory(w http.ResponseWriter, r *http.R
 	// 3.+4. Resolve the caps and the requested range clamped against them
 	window, err := rs.resolveAttendanceHistoryWindow(r, logger)
 	if err != nil {
-		renderError(w, r, common.ErrorInvalidRequest(err))
+		if errors.Is(err, errHistorySettings) {
+			renderError(w, r, common.ErrorInternalServerWrap("failed to resolve attendance settings", err))
+		} else {
+			renderError(w, r, common.ErrorInvalidRequest(err))
+		}
 		return
 	}
 	start, end := window.start, window.end
@@ -219,12 +229,20 @@ type attendanceHistoryWindow struct {
 	clamped       bool
 }
 
+var errHistorySettings = errors.New("attendance visibility settings unavailable")
+
 // resolveAttendanceHistoryWindow resolves the tenant's visibility caps and
 // clamps the requested range against them.
 func (rs *Resource) resolveAttendanceHistoryWindow(r *http.Request, logger *slog.Logger) (attendanceHistoryWindow, error) {
 	ctx := r.Context()
-	attendanceCap := resolveIntSetting(ctx, rs.SettingsService, settingAttendanceVisibleDays, 30, logger)
-	roomCap := resolveIntSetting(ctx, rs.SettingsService, settingRoomDetailVisibleDays, 7, logger)
+	attendanceCap, err := rs.SettingsService.ResolveInt(ctx, settingAttendanceVisibleDays)
+	if err != nil {
+		return attendanceHistoryWindow{}, fmt.Errorf("%w: %w", errHistorySettings, err)
+	}
+	roomCap, err := rs.SettingsService.ResolveInt(ctx, settingRoomDetailVisibleDays)
+	if err != nil {
+		return attendanceHistoryWindow{}, fmt.Errorf("%w: %w", errHistorySettings, err)
+	}
 	if roomCap > attendanceCap {
 		// Room detail cap must never exceed the attendance cap — silently clamp.
 		roomCap = attendanceCap

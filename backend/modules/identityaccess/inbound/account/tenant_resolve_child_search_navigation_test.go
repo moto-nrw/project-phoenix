@@ -46,7 +46,7 @@ func TestResolveTenant_ChildSearchOnlyNavigation_DefaultOff(t *testing.T) {
 	db, authRoute := setupAuthDependenciesRoute(t)
 	_, slug := newTenantResolveScope(t, db)
 
-	resource := authAPI.NewResource(authRoute.AuthService, authRoute.Invitations, authRoute.SchoolService, authRoute.Sessions, identityaccessCompose.TenantUnitOfWork{}, transactionFailures.IsConstraintViolation)
+	resource := authAPI.NewResource(authRoute.AuthService, authRoute.Invitations, authRoute.SchoolService, authRoute.Sessions, identityaccessCompose.TenantUnitOfWork{}, transactionFailures.IsConstraintViolation, authRoute.SettingsService)
 	resource.SettingsService = authRoute.SettingsService
 
 	assert.False(t, resolveChildSearchOnlyNavigation(t, resource, slug))
@@ -59,22 +59,27 @@ func TestResolveTenant_ChildSearchOnlyNavigation_SchoolOverride(t *testing.T) {
 	scope, slug := newTenantResolveScope(t, db)
 	require.NoError(t, tenantSettings.SetValue(scope.Context(), settings.KeyChildSearchOnlyNavigation, true, nil, nil))
 
-	resource := authAPI.NewResource(authRoute.AuthService, authRoute.Invitations, authRoute.SchoolService, authRoute.Sessions, identityaccessCompose.TenantUnitOfWork{}, transactionFailures.IsConstraintViolation)
+	resource := authAPI.NewResource(authRoute.AuthService, authRoute.Invitations, authRoute.SchoolService, authRoute.Sessions, identityaccessCompose.TenantUnitOfWork{}, transactionFailures.IsConstraintViolation, authRoute.SettingsService)
 	resource.SettingsService = authRoute.SettingsService
 
 	assert.True(t, resolveChildSearchOnlyNavigation(t, resource, slug))
 }
 
-// An unreadable value keeps the separate entries instead of guessing.
-func TestResolveTenant_ChildSearchOnlyNavigation_UnreadableValueFailsClosed(t *testing.T) {
+// An unreadable value fails the shell instead of guessing navigation.
+func TestResolveTenant_ChildSearchOnlyNavigation_UnreadableValueFailsRequest(t *testing.T) {
 	t.Parallel()
 
 	db, authRoute := setupAuthDependenciesRoute(t)
 	scope, slug := newTenantResolveScope(t, db)
 	storeRawTenantSetting(t, db, scope.TenantID, settings.KeyChildSearchOnlyNavigation, json.RawMessage(`"ja"`))
 
-	resource := authAPI.NewResource(authRoute.AuthService, authRoute.Invitations, authRoute.SchoolService, authRoute.Sessions, identityaccessCompose.TenantUnitOfWork{}, transactionFailures.IsConstraintViolation)
+	resource := authAPI.NewResource(authRoute.AuthService, authRoute.Invitations, authRoute.SchoolService, authRoute.Sessions, identityaccessCompose.TenantUnitOfWork{}, transactionFailures.IsConstraintViolation, authRoute.SettingsService)
 	resource.SettingsService = authRoute.SettingsService
 
-	assert.False(t, resolveChildSearchOnlyNavigation(t, resource, slug))
+	router := chi.NewRouter()
+	router.Mount("/auth", resource.Router(rootAPI.TenantSessionChain))
+	response := httptest.NewRecorder()
+	router.ServeHTTP(response, httptest.NewRequest(http.MethodGet, "/auth/tenant/resolve?slug="+slug, nil))
+	require.Equal(t, http.StatusInternalServerError, response.Code, response.Body.String())
+	assert.NotContains(t, response.Body.String(), `"data"`)
 }

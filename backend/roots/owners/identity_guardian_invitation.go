@@ -11,7 +11,6 @@ import (
 	identityPorts "github.com/moto-nrw/project-phoenix/modules/identityaccess/ports"
 	"github.com/moto-nrw/project-phoenix/modules/organizationtenancy"
 	peoplePorts "github.com/moto-nrw/project-phoenix/modules/peopledirectory/ports"
-	settingsCompose "github.com/moto-nrw/project-phoenix/modules/settings/compose"
 	configModels "github.com/moto-nrw/project-phoenix/modules/settings/records"
 	parentportal "github.com/moto-nrw/project-phoenix/workflows/parentportal"
 )
@@ -26,38 +25,48 @@ type GuardianEnrollmentClaims interface {
 // the lifecycle flows consume: the settings that hold the tenant's token
 // lifetime, the school read for the mail subject, the outbox, the parents
 // portal origin of the accept and login links (a guardian signs in on the
-// parents portal, never on the staff frontend) and the deployment's
-// fallback expiry. A root composed without the guardian mail passes
+// parents portal, never on the staff frontend). A root composed without the guardian mail passes
 // UnsentGuardianMail{} to the lifecycle instead.
-func GuardianInvitationDependencies(settings settingsCompose.SettingsService, schools organizationtenancy.SchoolQuery, outbox MailResultOutbox, enrollments GuardianEnrollmentClaims, parentsURL string, fallbackExpiry time.Duration, logger *slog.Logger) (identityPorts.GuardianInvitationDelivery, identityPorts.GuardianEnrollments, error) {
+func GuardianInvitationDependencies(settings interface {
+	welcomeHelpSettings
+	ResolveInt(context.Context, string) (int, error)
+}, schools organizationtenancy.SchoolQuery, outbox MailResultOutbox, enrollments GuardianEnrollmentClaims, parentsURL string, logger *slog.Logger) (identityPorts.GuardianInvitationDelivery, identityPorts.GuardianEnrollments, error) {
 	if schools == nil || outbox == nil || enrollments == nil {
 		return nil, nil, errors.New("identity access composition: the guardian invitation seams need the school directory, the e-mail outbox and the enrollment claim")
 	}
 	if logger == nil {
 		return nil, nil, errors.New("identity access composition: the guardian invitation seams need a logger")
 	}
+	if settings == nil {
+		return nil, nil, errors.New("identity access composition: guardian invitation settings are required")
+	}
 	return guardianInvitationDelivery{
 		settings: settings, schools: schools, outbox: outbox,
-		parentsURL: parentsURL, fallbackExpiry: fallbackExpiry, logger: logger,
+		parentsURL: parentsURL, logger: logger,
 	}, identityaccessCompose.NewSavepointGuardianEnrollments(enrollments), nil
 }
 
 // guardianInvitationDelivery holds the settings, school read, outbox,
-// parents portal origin, fallback expiry and logger of the guardian mails.
+// parents portal origin and logger of the guardian mails.
 type guardianInvitationDelivery struct {
-	settings       settingsCompose.SettingsService
-	schools        schoolFinder
-	outbox         MailResultOutbox
-	parentsURL     string
-	fallbackExpiry time.Duration
-	logger         *slog.Logger
+	settings interface {
+		welcomeHelpSettings
+		ResolveInt(context.Context, string) (int, error)
+	}
+	schools    schoolFinder
+	outbox     MailResultOutbox
+	parentsURL string
+	logger     *slog.Logger
 }
 
 // InvitationExpiry reads the school's token lifetime (tenant override, then
-// registry default) and lets the owner fall back to the deployment's.
-func (d guardianInvitationDelivery) InvitationExpiry(ctx context.Context) time.Duration {
-	hours := settingsCompose.ResolveIntOrDefault(ctx, d.settings, configModels.KeyGuardianInvitationTokenExpiryHours, 0, d.logger)
-	return identityaccess.GuardianInvitationExpiry(hours, d.fallbackExpiry)
+// registry default). Lookup errors abort the invitation command.
+func (d guardianInvitationDelivery) InvitationExpiry(ctx context.Context) (time.Duration, error) {
+	hours, err := d.settings.ResolveInt(ctx, configModels.KeyGuardianInvitationTokenExpiryHours)
+	if err != nil {
+		return 0, err
+	}
+	return identityaccess.GuardianInvitationExpiry(hours)
 }
 
 // SchoolName resolves the school for the mail subject. Best-effort: an

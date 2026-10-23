@@ -10,6 +10,7 @@ import (
 	"time"
 
 	rootAPI "github.com/moto-nrw/project-phoenix/api"
+	owners "github.com/moto-nrw/project-phoenix/roots/owners"
 
 	"github.com/go-chi/chi/v5"
 	apiTest "github.com/moto-nrw/project-phoenix/api/testutil"
@@ -40,8 +41,11 @@ func setupIdempotentCreateRoute(t *testing.T) *idempotentCreateSetup {
 	account := testpkg.CreateTestAccount(t, db, fmt.Sprintf("create-idempotent-%d", suffix))
 	period := testpkg.CreateTestCalendarPeriod(t, db, fmt.Sprintf("Create-Idempotent-Period-%d", suffix), calendar.TodayDate().AddDays(-1), calendar.TodayDate().AddDays(7))
 	testpkg.SetCalendarPeriodActive(t, db, period, true)
+	schoolSettings, err := owners.NewSettingsTestModule(testpkg.NewDatabase(t, db), testpkg.TenantRuntime(t, db))
+	require.NoError(t, err)
 	resource := timetableAPI.NewResource(timetableAPI.Dependencies{
 		CalendarPeriods: schoolCalendar,
+		SettingsService: schoolSettings.Settings,
 		Templates:       serviceFactory.TimetableData.Templates,
 		TimetableData:   serviceFactory.TimetableData.Data,
 		InstanceService: serviceFactory.Instance,

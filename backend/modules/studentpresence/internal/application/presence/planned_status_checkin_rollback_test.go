@@ -115,7 +115,7 @@ func testStatusCheckinRollback(t *testing.T, mode, stage, kind string) {
 	reposTimetable := api.NewActiveTestTimetableRows(testpkg.NewDatabase(t, db), owners.MustNewMembershipTestRepositories(testpkg.NewDatabase(t, db)))
 	devices, err := api.NewDeviceRepository(testpkg.NewDatabase(t, db))
 	require.NoError(t, err)
-	deviceFault := activeService.NewCheckinDeviceFault(owners.NewSessionDeviceDirectory(devices, nil, nil))
+	deviceFault := activeService.NewCheckinDeviceFault(owners.NewSessionDeviceDirectory(devices, &settingsDouble{ResolveIntFn: func(context.Context, string) (int, error) { return 5, nil }}, nil))
 	groupFault := &checkinAttributionFault{ActiveGroupRepository: sessionGroups(repos.ActiveGroup)}
 	presence := testSchoolPresence(t, db)
 	statuses := &plannedStatusFault{StudentStatusDayRepository: reposCare.StudentStatusDay}

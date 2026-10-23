@@ -41,11 +41,10 @@ func NewMFADependencies(codec identityPorts.MFAChallengeCodec, settings settings
 	}, nil
 }
 
-// mfaSettingsFor binds the gate's parameters to the settings service; a root
-// composed without one gets Identity & Access's answers for that case.
+// mfaSettingsFor requires the school-policy resolver at composition time.
 func mfaSettingsFor(settings settingsCompose.SettingsService) identityPorts.MFASettings {
 	if settings == nil {
-		return identityaccess.MFASettingsWithoutService{}
+		panic("identity access MFA: settings are required")
 	}
 	return mfaSettings{settings: settings}
 }

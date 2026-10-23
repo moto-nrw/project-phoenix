@@ -21,10 +21,12 @@ type DeviceOnlineWindowSettings interface {
 }
 
 // NewOnlineWindowMinutes reads the per-tenant raw
-// iot.device_online_window_minutes setting. A missing override or a lookup
-// failure yields zero; Device Fleet applies its default to a non-positive
-// value.
+// iot.device_online_window_minutes setting, including the registry default.
+// A lookup failure yields zero; Device Fleet applies its safe offline window.
 func NewOnlineWindowMinutes(settings DeviceOnlineWindowSettings, logger *slog.Logger) func(context.Context) int {
+	if settings == nil {
+		panic("device online window: tenant settings are required")
+	}
 	if logger == nil {
 		logger = slog.Default()
 	}

@@ -27,12 +27,8 @@ import (
 //   - One audit.data_deletions row per affected child, written BEFORE the
 //     deletes, so an audit failure rolls the whole run back. Exceptions carry
 //     no personal data and are only logged.
-//   - Retention days resolve tenant override → registry default through the
-//     Settings Platform; 365 is the last resort when no settings are wired.
-
-// timetableRetentionDefaultDays is the last-resort window. Production never
-// reaches it: the settings registry defines 365 as the default.
-const timetableRetentionDefaultDays = 365
+//   - Retention resolves tenant override → registry default through Settings
+//     Platform. Missing settings and lookup failures abort instead of guessing.
 
 type timetableCleanup struct {
 	deps   ports.TimetableCleanupDependencies
@@ -44,6 +40,9 @@ type timetableCleanup struct {
 func NewTimetableCleanup(deps ports.TimetableCleanupDependencies) (timetable.TimetableCleanup, error) {
 	if deps.Timetable == nil {
 		return nil, errors.New("timetable cleanup: the timetable owner is required")
+	}
+	if deps.Settings == nil {
+		return nil, errors.New("timetable cleanup: settings are required")
 	}
 	logger := deps.Logger
 	if logger == nil {
@@ -65,7 +64,10 @@ func (s *timetableCleanup) CleanupExpiredTimetableData(ctx context.Context) (*ti
 		return nil, fmt.Errorf("timetable cleanup: no tenant in context")
 	}
 	start := time.Now()
-	retentionDays := s.resolveRetentionDays(ctx)
+	retentionDays, err := s.resolveRetentionDays(ctx)
+	if err != nil {
+		return nil, err
+	}
 	cutoff := s.today().AddDays(-retentionDays)
 
 	impact, err := s.collectStudentImpact(ctx, cutoff)
@@ -128,7 +130,10 @@ func (s *timetableCleanup) PreviewExpiredTimetableData(ctx context.Context) (*ti
 	if tenant.FromContext(ctx) == 0 {
 		return nil, fmt.Errorf("timetable cleanup preview: no tenant in context")
 	}
-	retentionDays := s.resolveRetentionDays(ctx)
+	retentionDays, err := s.resolveRetentionDays(ctx)
+	if err != nil {
+		return nil, err
+	}
 	cutoff := s.today().AddDays(-retentionDays)
 	before := cutoff.String()
 
@@ -163,7 +168,10 @@ func (s *timetableCleanup) GetStats(ctx context.Context) (*timetable.TimetableCl
 	if tenant.FromContext(ctx) == 0 {
 		return nil, fmt.Errorf("timetable cleanup stats: no tenant in context")
 	}
-	retentionDays := s.resolveRetentionDays(ctx)
+	retentionDays, err := s.resolveRetentionDays(ctx)
+	if err != nil {
+		return nil, err
+	}
 	cutoff := s.today().AddDays(-retentionDays)
 
 	totalInstances, err := s.deps.Timetable.CountActivityInstances(ctx, nil)
@@ -221,16 +229,16 @@ func optionalCleanupDate(value *string) (*calendar.Date, error) {
 	return &date, nil
 }
 
-// resolveRetentionDays uses the tenant's window; a failed or non-positive
-// resolution keeps the cleanup on the 365-day default instead of failing.
-func (s *timetableCleanup) resolveRetentionDays(ctx context.Context) int {
-	if s.deps.Settings == nil {
-		return timetableRetentionDefaultDays
+// resolveRetentionDays rejects an unreadable or invalid retention window.
+func (s *timetableCleanup) resolveRetentionDays(ctx context.Context) (int, error) {
+	days, err := s.deps.Settings.TimetableRetentionDays(ctx)
+	if err != nil {
+		return 0, fmt.Errorf("resolve gdpr.timetable_retention_days: %w", err)
 	}
-	if days, err := s.deps.Settings.TimetableRetentionDays(ctx); err == nil && days > 0 {
-		return days
+	if days <= 0 {
+		return 0, fmt.Errorf("gdpr.timetable_retention_days must be positive, got %d", days)
 	}
-	return timetableRetentionDefaultDays
+	return days, nil
 }
 
 // collectStudentImpact counts, per child, the planned slots the run removes

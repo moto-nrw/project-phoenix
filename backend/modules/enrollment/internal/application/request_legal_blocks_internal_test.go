@@ -53,7 +53,7 @@ func TestBuildTemplateLegalBlocks_FiltersDisabledAndKeepsCustomKeys(t *testing.T
 func TestResolveRequiredConsents_UsesTemplateLegalBlocks(t *testing.T) {
 	t.Parallel()
 
-	svc := NewIntake(IntakeDependencies{})
+	svc := NewIntake(IntakeDependencies{Settings: intakeSettingsFake{}})
 	schema := &enrollmentNative.FormSchema{
 		LegalBlocks: []enrollmentNative.FormLegalBlock{
 			{

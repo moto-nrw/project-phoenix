@@ -106,7 +106,7 @@ func buildPatchSetup(t *testing.T) *patchSetup {
 	row := testpkg.CreateTestInstanceStudent(t, db, inst.ID, student.ID, timetable.SlotAttendancePresent)
 
 	data := testTimetableData(db)
-	res := NewResource(Dependencies{Templates: data, AttendanceCorrections: data.AttendanceCorrections(), TimetableData: data.TimetableData()})
+	res := newResourceForTest(Dependencies{Templates: data, AttendanceCorrections: data.AttendanceCorrections(), TimetableData: data.TimetableData()})
 
 	return &patchSetup{
 		res:        res,

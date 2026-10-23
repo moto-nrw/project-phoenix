@@ -51,18 +51,6 @@ type StudentRetentionSetting struct {
 	DataRetentionDays int
 }
 
-// DataRetentionDaysOrDefault is the retention window a child without a
-// recorded consent falls back to. override is the tenant's resolved
-// gdpr.privacy_consent_retention_days value, or 0 when the tenant has none —
-// the settings lookup belongs to the Settings Platform consumer, the fallback
-// rule to this owner.
-func DataRetentionDaysOrDefault(override int) int {
-	if override > 0 {
-		return override
-	}
-	return DefaultPrivacyConsentRetentionDays
-}
-
 // AcceptPrivacyConsent marks a consent accepted at now and derives the expiry
 // from the configured duration. It returns the changed value; persisting it is
 // the caller's job. This is the consent lifecycle the owner decides, not the

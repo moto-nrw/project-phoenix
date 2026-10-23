@@ -49,11 +49,15 @@ func (s *recordingEndActiveGroupService) EndActiveGroupSession(ctx context.Conte
 }
 
 // setupActiveRoute creates test resources for active handler tests
-func setupActiveRoute(t *testing.T) *testContext {
+func setupActiveRoute(t *testing.T, settingReaders ...presenceAPI.Settings) *testContext {
 	t.Helper()
 
 	db, svc, svcPresence, svcPeople, svcEducation, svcCaller, svcCare := setupActiveModule(t)
-	resource := presenceAPI.NewResource(svcPresence.PresenceOperations(), activePeople{source: svcPeople.AttendancePeople()}, svcEducation.TeacherGroupIDs, activeStaffAccess{source: rootAPI.NewActiveTestAttendanceStaff(svcCaller)}, svc.Settings, rootAPI.ProtectedTenantRoutes, slog.Default(), testPresenceQueries(t, db), requestRuntimeForTest(svcCare.WithAttendanceStaff), authorizationForTest(), tenantsettings.NewDisplaySettings(svc.Settings))
+	var settingsReader presenceAPI.Settings = svc.Settings
+	if len(settingReaders) > 0 {
+		settingsReader = settingReaders[0]
+	}
+	resource := presenceAPI.NewResource(svcPresence.PresenceOperations(), activePeople{source: svcPeople.AttendancePeople()}, svcEducation.TeacherGroupIDs, activeStaffAccess{source: rootAPI.NewActiveTestAttendanceStaff(svcCaller)}, settingsReader, rootAPI.ProtectedTenantRoutes, slog.Default(), testPresenceQueries(t, db), requestRuntimeForTest(svcCare.WithAttendanceStaff), authorizationForTest(), tenantsettings.NewDisplaySettings(settingsReader))
 
 	return &testContext{
 		db:       db,

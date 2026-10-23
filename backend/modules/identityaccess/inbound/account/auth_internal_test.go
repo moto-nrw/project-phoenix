@@ -562,7 +562,7 @@ func TestRouterWithAuthRateLimiter(t *testing.T) {
 			w.WriteHeader(http.StatusTooManyRequests)
 		})
 	}
-	router := NewResource(nil, nil, nil, nil, nil, transactionFailures.IsConstraintViolation).RouterWithAuthRateLimiter(throttled, scopeTestTenantSession(testpkg.TenantSessionGates()))
+	router := NewResource(nil, nil, nil, nil, nil, transactionFailures.IsConstraintViolation, unusedTenantSettings{}).RouterWithAuthRateLimiter(throttled, scopeTestTenantSession(testpkg.TenantSessionGates()))
 
 	for _, path := range []string{
 		"/login",

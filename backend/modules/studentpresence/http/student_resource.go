@@ -38,6 +38,9 @@ func NewResource(cfg ResourceConfig) *Resource {
 }
 
 func (rs *Resource) Register(r chi.Router, withTx common.Middleware) {
+	if rs.SettingsService == nil {
+		panic("studentpresence HTTP: tenant settings are required")
+	}
 	r.With(common.RequiresAnyPermission(permissions.UsersUpdate, permissions.UsersAbsence), withTx).Post("/status-days/bulk", rs.bulkCreateStudentStatusDays)
 	r.With(common.RequiresAnyPermission(permissions.UsersUpdate, permissions.UsersAbsence), withTx).Post("/{id}/status-days", rs.createStudentStatusDays)
 	r.With(common.RequiresAnyPermission(permissions.UsersUpdate, permissions.UsersAbsence), withTx).Delete("/{id}/status-days/{statusDayId}", rs.deleteStudentStatusDay)

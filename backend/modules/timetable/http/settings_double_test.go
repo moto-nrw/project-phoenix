@@ -1,6 +1,10 @@
 package timetablehttp
 
-import "context"
+import (
+	"context"
+
+	"github.com/moto-nrw/project-phoenix/modules/settings"
+)
 
 // settingsDouble is a func-field double for the settings ports this
 // package's code under test declares. A nil field answers the zero value.
@@ -37,4 +41,24 @@ func (s *settingsDouble) HasTenantOverride(ctx context.Context, key string) (boo
 		return s.HasTenantOverrideFn(ctx, key)
 	}
 	return false, nil
+}
+
+// Route tests supply a deliberate settings double even when testing other ports.
+func newResourceForTest(deps Dependencies) *Resource {
+	if deps.SettingsService == nil {
+		deps.SettingsService = &settingsDouble{
+			ResolveBoolFn: func(context.Context, string) (bool, error) { return true, nil },
+			ResolveIntFn: func(_ context.Context, key string) (int, error) {
+				switch key {
+				case settings.KeyEnrollmentGradeLevelMax:
+					return 4, nil
+				case settings.KeyTimetableChildrenPerStaffRatio:
+					return 12, nil
+				default:
+					return 0, nil
+				}
+			},
+		}
+	}
+	return NewResource(deps)
 }

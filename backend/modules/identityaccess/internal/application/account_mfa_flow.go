@@ -259,121 +259,6 @@ type challengeOwner struct {
 	tenantID  int64
 }
 
-// VerifyChallenge verifies a tenant-portal challenge.
-func (f *AccountMFAFlows) VerifyChallenge(ctx context.Context, challengeToken, code string) (domain.VerifiedMFAChallenge, error) {
-	return f.VerifyChallengeForScope(ctx, challengeToken, code, domain.MFAChallengeScopeTenant)
-}
-
-// VerifyChallengeForScope refuses a challenge started for another portal
-// before any code is compared, so a school code can never be burned — or
-// redeemed — at the tenant endpoint and the other way round.
-func (f *AccountMFAFlows) VerifyChallengeForScope(ctx context.Context, challengeToken, code, expectedScope string) (domain.VerifiedMFAChallenge, error) {
-	return f.verifyChallengeBound(ctx, challengeToken, code, expectedScope, nil)
-}
-
-// VerifyChallengeForOwner additionally pins the challenge to an account and
-// a school the caller authenticated by other means. The ownership check runs
-// before the code comparison and therefore before the single-use consume:
-// checking the result afterwards burns a foreign challenge on its way to the
-// 401, which kills the rightful owner's in-flight login.
-func (f *AccountMFAFlows) VerifyChallengeForOwner(ctx context.Context, challengeToken, code, expectedScope string, accountID, tenantID int64) (domain.VerifiedMFAChallenge, error) {
-	return f.verifyChallengeBound(ctx, challengeToken, code, expectedScope, &challengeOwner{accountID: accountID, tenantID: tenantID})
-}
-
-func (f *AccountMFAFlows) verifyChallengeBound(ctx context.Context, challengeToken, code, expectedScope string, owner *challengeOwner) (domain.VerifiedMFAChallenge, error) {
-	claims, err := f.challengeClaims(challengeToken, expectedScope, owner)
-	if err != nil {
-		return domain.VerifiedMFAChallenge{}, err
-	}
-	account, found, err := f.records.FindAccountIdentity(ctx, claims.AccountID)
-	if err != nil || !found {
-		return domain.VerifiedMFAChallenge{}, identityaccess.ErrMFAChallengeTokenInvalid
-	}
-	if domain.MFALocked(account.MFALockedUntil, f.now()) {
-		return domain.VerifiedMFAChallenge{}, identityaccess.ErrMFALocked
-	}
-	// The token names the exact row it was minted for. "Newest active code
-	// for this account" would let two concurrent challenges — a tenant login
-	// and a school login of the same person — redeem each other's code. A
-	// token without the claim predates it and is refused rather than
-	// downgraded to the ambiguous lookup.
-	if claims.ChallengeID == 0 {
-		return domain.VerifiedMFAChallenge{}, identityaccess.ErrMFAChallengeTokenInvalid
-	}
-	active, activeFound, err := f.records.FindActiveChallengeForAccount(ctx, claims.ChallengeID, claims.AccountID)
-	if err != nil || !activeFound {
-		f.recordFailure(ctx, claims.AccountID, claims.TenantID, "no active challenge")
-		return domain.VerifiedMFAChallenge{}, identityaccess.ErrMFACodeInvalid
-	}
-	// The scope check above trusts the JWT alone. Re-check it against the
-	// stored row so a forged or mixed-up pairing is refused before the code
-	// comparison rather than after it.
-	if active.Scope != expectedScope || (claims.TenantID > 0 && active.TenantID != claims.TenantID) {
-		f.recordFailure(ctx, claims.AccountID, claims.TenantID, "challenge portal mismatch")
-		return domain.VerifiedMFAChallenge{}, identityaccess.ErrMFAUnsupportedScope
-	}
-
-	ok, verifyErr := f.codes.VerifyShortCode(code, active.CodeHash)
-	if verifyErr != nil || !ok {
-		f.handleFailedAttempt(ctx, account, claims.TenantID)
-		f.recordFailure(ctx, claims.AccountID, claims.TenantID, "code mismatch")
-		return domain.VerifiedMFAChallenge{}, identityaccess.ErrMFACodeInvalid
-	}
-
-	if err := f.completeChallengeVerification(ctx, claims, account.ID, active.ID); err != nil {
-		return domain.VerifiedMFAChallenge{}, err
-	}
-	return domain.VerifiedMFAChallenge{AccountID: claims.AccountID, Scope: claims.Scope, TenantID: claims.TenantID}, nil
-}
-
-// VerifyCodeForAccount runs the same pipeline without the JWT round trip:
-// the caller authenticated the user out of band (an enrollment token, a
-// tenant session at passkey registration).
-//
-// Without a challenge id the row is resolved as "the newest active code of
-// this account", which is only safe once narrowed to the portal asking.
-// expectedScope and tenantID are therefore required, not decorative:
-// without them a Lehrkraft with a school login challenge in one tab could
-// have that code consumed here and a tenant session minted from a second
-// factor issued for another portal.
-func (f *AccountMFAFlows) VerifyCodeForAccount(ctx context.Context, accountID, tenantID int64, code, expectedScope string) error {
-	account, found, err := f.records.FindAccountIdentity(ctx, accountID)
-	if err != nil || !found {
-		return identityaccess.ErrMFACodeInvalid
-	}
-	if domain.MFALocked(account.MFALockedUntil, f.now()) {
-		return identityaccess.ErrMFALocked
-	}
-	// The callers run inside a school context, so the zero school below lets
-	// the audit and the lockout fall back to the context. The tenantID
-	// argument narrows the challenge lookup, which is a different job.
-	active, activeFound, err := f.records.FindActiveChallengeInScope(ctx, accountID, tenantID, expectedScope)
-	if err != nil || !activeFound {
-		f.recordFailure(ctx, accountID, 0, "no active challenge")
-		return identityaccess.ErrMFACodeInvalid
-	}
-	ok, verifyErr := f.codes.VerifyShortCode(code, active.CodeHash)
-	if verifyErr != nil || !ok {
-		f.handleFailedAttempt(ctx, account, 0)
-		f.recordFailure(ctx, accountID, 0, "code mismatch")
-		return identityaccess.ErrMFACodeInvalid
-	}
-	if err := f.records.ConsumeChallenge(ctx, active.ID, f.now()); err != nil {
-		f.logger.Warn("failed to mark challenge consumed; refusing verify",
-			slog.Int64("account_id", accountID),
-			slog.Int64("challenge_id", active.ID),
-			slog.String("error", err.Error()))
-		f.recordFailure(ctx, accountID, 0, "consume race")
-		return identityaccess.ErrMFACodeInvalid
-	}
-	_ = f.records.ResetMFAAttempts(ctx, accountID)
-	f.recordAuthEvent(ctx, domain.AuthEvent{
-		AccountID: accountID, Type: domain.AuthEventMFAVerified, Success: true,
-		IPAddress: domain.MFAAuditFallbackIP,
-	})
-	return nil
-}
-
 // ResendChallengeForScope is the variant every portal resend endpoint uses:
 // no surface may re-drive a foreign portal's challenge and burn its budget.
 func (f *AccountMFAFlows) ResendChallengeForScope(ctx context.Context, challengeToken string, ip net.IP, expectedScope string) (string, error) {
@@ -405,44 +290,14 @@ func (f *AccountMFAFlows) resend(ctx context.Context, claims domain.MFAChallenge
 	return f.StartChallenge(ctx, claims.AccountID, claims.TenantID, claims.Scope, ip)
 }
 
-// handleFailedAttempt bumps the lockout counter atomically and records the
-// cooldown exactly when this increment crossed the threshold. A read-modify-
-// write would let two concurrent failed verifies collapse into one counted
-// attempt and double an attacker's budget.
-func (f *AccountMFAFlows) handleFailedAttempt(ctx context.Context, account domain.AccountIdentity, tenantID int64) {
-	threshold := f.lockoutThreshold(ctx, tenantID)
-	result, err := f.records.IncrementMFAAttempts(ctx, account.ID, threshold, f.lockoutDuration(ctx, tenantID))
-	if err != nil {
-		f.logger.Warn("failed to persist MFA attempt counter",
-			slog.String("error", err.Error()),
-		)
-		return
-	}
-	// result.Attempts == threshold means this increment was the N-th, and
-	// only this caller sees it. Later attempts push the window forward
-	// without re-emitting.
-	if result.Attempts == threshold {
-		f.recordAuthEvent(ctx, domain.AuthEvent{
-			AccountID: account.ID, TenantID: tenantID, Type: domain.AuthEventMFALocked,
-			IPAddress: domain.MFAAuditFallbackIP, MFA: &domain.MFAEvidence{LockedUntil: result.LockedUntil},
-		})
-	}
-}
-
-func (f *AccountMFAFlows) lockoutThreshold(ctx context.Context, tenantID int64) int {
-	value, err := f.settings.LockoutThreshold(ctx, tenantID)
-	if err != nil || value <= 0 {
-		return domain.MFALockoutThreshold
-	}
-	return value
-}
-
-func (f *AccountMFAFlows) lockoutDuration(ctx context.Context, tenantID int64) time.Duration {
-	value, err := f.settings.LockoutDuration(ctx, tenantID)
-	if err != nil || value <= 0 {
-		return domain.MFALockoutDuration
-	}
-	return value
+// securitySettingsFailure keeps diagnostics in logs and the established MFA
+// unavailable identity on the wire.
+func (f *AccountMFAFlows) securitySettingsFailure(setting string, err error) error {
+	f.logger.Error("MFA security setting unavailable",
+		slog.String("setting", setting),
+		slog.Any("error", err),
+	)
+	return identityaccess.ErrMFAStatusUnavailable
 }
 
 // ===== Enrollment =====
@@ -507,24 +362,55 @@ func (f *AccountMFAFlows) IsTrustedDeviceEnabled(ctx context.Context, tenantID i
 	return enabled
 }
 
-// TrustedDeviceDays resolves the school's remember-device lifetime, falling
-// back to the default so the cookie still issues with a sane one.
+// TrustedDeviceDays is a display hint. An unreadable lifetime disables the
+// hint; issuance resolves the value with an error before minting anything.
 func (f *AccountMFAFlows) TrustedDeviceDays(ctx context.Context, tenantID int64) int {
-	days, err := f.settings.TrustedDeviceDays(ctx, tenantID)
-	if err != nil || days <= 0 {
-		return domain.MFATrustedDeviceCookieDefaultDays
+	days, err := f.resolveTrustedDeviceDays(ctx, tenantID)
+	if err != nil {
+		return 0
 	}
 	return days
 }
 
-// IssueTrustedDevice mints a remember-device cookie for one school. It
-// answers an empty value without persisting a row when the school turned the
-// feature off, and the caller then skips the Set-Cookie write.
-func (f *AccountMFAFlows) IssueTrustedDevice(ctx context.Context, accountID, tenantID int64, userAgent string, ip net.IP) (string, time.Time, error) {
-	if !f.IsTrustedDeviceEnabled(ctx, tenantID) {
-		return "", time.Time{}, nil
+func (f *AccountMFAFlows) resolveTrustedDeviceDays(ctx context.Context, tenantID int64) (int, error) {
+	days, err := f.settings.TrustedDeviceDays(ctx, tenantID)
+	if err != nil || days <= 0 {
+		return 0, f.securitySettingsFailure("trusted device lifetime", err)
 	}
-	days := f.TrustedDeviceDays(ctx, tenantID)
+	return days, nil
+}
+
+// PrepareTrustedDevice freezes this exchange's policy without creating a
+// device or notification before the session has been authorized and issued.
+func (f *AccountMFAFlows) PrepareTrustedDevice(ctx context.Context, accountID, tenantID int64, userAgent string, ip net.IP) (identityaccess.TrustedDeviceIssue, error) {
+	if !f.IsTrustedDeviceEnabled(ctx, tenantID) {
+		return nil, nil
+	}
+	days, err := f.resolveTrustedDeviceDays(ctx, tenantID)
+	if err != nil {
+		return nil, err
+	}
+	return func(issueCtx context.Context) (string, time.Time, error) {
+		preparedCtx := context.WithValue(issueCtx, trustedDevicePolicyKey{accountID, tenantID}, days)
+		return f.IssueTrustedDevice(preparedCtx, accountID, tenantID, userAgent, ip)
+	}, nil
+}
+
+// trustedDevicePolicyKey binds the prepared lifetime to its account and school.
+// Only PrepareTrustedDevice populates it, for this one exchange.
+type trustedDevicePolicyKey struct{ accountID, tenantID int64 }
+
+// IssueTrustedDevice mints a remember-device cookie using a prepared policy,
+// or resolves one first for callers that do not split preparation and issuance.
+func (f *AccountMFAFlows) IssueTrustedDevice(ctx context.Context, accountID, tenantID int64, userAgent string, ip net.IP) (string, time.Time, error) {
+	days, prepared := ctx.Value(trustedDevicePolicyKey{accountID, tenantID}).(int)
+	if !prepared {
+		issue, err := f.PrepareTrustedDevice(ctx, accountID, tenantID, userAgent, ip)
+		if err != nil || issue == nil {
+			return "", time.Time{}, err
+		}
+		return issue(ctx)
+	}
 	expiresAt := f.now().Add(time.Duration(days) * 24 * time.Hour)
 	rawToken, err := domain.GenerateTrustedDeviceToken()
 	if err != nil {
@@ -600,7 +486,8 @@ func (f *AccountMFAFlows) trustedDeviceHint(ctx context.Context, tenantID int64)
 	if !f.IsTrustedDeviceEnabled(ctx, tenantID) {
 		return false, 0
 	}
-	return true, f.TrustedDeviceDays(ctx, tenantID)
+	days := f.TrustedDeviceDays(ctx, tenantID)
+	return days > 0, days
 }
 
 func (f *AccountMFAFlows) notifyTrustedDeviceAdded(ctx context.Context, accountID, deviceID int64, userAgent string, ip net.IP, days int) error {

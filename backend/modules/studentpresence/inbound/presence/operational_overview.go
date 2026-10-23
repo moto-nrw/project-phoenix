@@ -2,24 +2,31 @@ package presence
 
 import (
 	"context"
-	"log/slog"
+	"errors"
+	"net/http"
 
 	"github.com/moto-nrw/project-phoenix/api/common"
 )
 
-// operationalOverview reports whether the caller may see every
-// running module of this school (#2380). It fails closed: a settings fault is
-// logged as an operational error and never read as a tenant choice.
-//
-// This is a read-visibility rule. Mutation paths enforce their own resource
-// checks and must not use this setting as authorization.
-func (rs *Resource) operationalOverview(ctx context.Context) bool {
+// operationalOverview propagates an unreadable visibility policy instead of
+// interpreting it as the school's own-group choice.
+func (rs *Resource) operationalOverview(ctx context.Context) (bool, error) {
 	assignmentBound := common.IsAssignmentBoundPortal(ctx)
 	admin := common.HasEffectiveAdminScope(ctx)
-	allowed, err := rs.authorization.OperationalOverview(ctx, rs.SettingsService, rs.UserContextService, assignmentBound, admin)
+	return rs.authorization.OperationalOverview(ctx, rs.SettingsService, rs.UserContextService, assignmentBound, admin)
+}
+
+// requireOperationalOverview renders policy faults separately from a genuine
+// access denial, so both overview endpoints preserve the same failure contract.
+func (rs *Resource) requireOperationalOverview(w http.ResponseWriter, r *http.Request, denial string) bool {
+	allowed, err := rs.operationalOverview(r.Context())
 	if err != nil {
-		rs.getLogger().ErrorContext(ctx, "failed to resolve operational overview scope", slog.String("error", err.Error()))
+		common.RenderError(w, r, common.ErrorInternalServerWrap("failed to resolve operational overview", err))
 		return false
 	}
-	return allowed
+	if !allowed {
+		common.RenderError(w, r, common.ErrorForbidden(errors.New(denial)))
+		return false
+	}
+	return true
 }

@@ -60,17 +60,9 @@ func TestCaptchaDisabledAcceptsEveryToken(t *testing.T) {
 	assert.Zero(t, provider.calls)
 }
 
-func TestCaptchaWithoutSettingsIsDisabled(t *testing.T) {
+func TestCaptchaWithoutSettingsIsRejected(t *testing.T) {
 	t.Parallel()
-	svc := newCaptchaForTest(nil, &captchaProviderStub{})
-
-	enabled, err := svc.IsEnabled(context.Background())
-	assert.NoError(t, err)
-	assert.False(t, enabled)
-	assert.NoError(t, svc.Verify(context.Background(), "", ""))
-	siteKey, err := svc.SiteKey(context.Background())
-	assert.NoError(t, err)
-	assert.Empty(t, siteKey)
+	assert.Panics(t, func() { newCaptchaForTest(nil, &captchaProviderStub{}) })
 }
 
 func TestCaptchaRequiresASecret(t *testing.T) {

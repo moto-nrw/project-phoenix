@@ -73,19 +73,17 @@ type fakeSettingsServiceOpts struct {
 	strErr         error
 }
 
-func TestResolveBoolOrDefault_NilService_ReturnsFallback(t *testing.T) {
+func TestResolveBoolOrDefault_NilService_RejectsMissingWiring(t *testing.T) {
 	t.Parallel()
-
-	got := ResolveBoolOrDefault(context.Background(), nil, "any.key", true, nil)
-	assert.True(t, got)
+	assert.Panics(t, func() { ResolveBoolOrDefault(context.Background(), nil, "any.key", true, nil) })
 }
 
-func TestResolveBoolOrDefault_NoOverride_ReturnsFallback(t *testing.T) {
+func TestResolveBoolOrDefault_NoOverride_ReturnsRegistryDefault(t *testing.T) {
 	t.Parallel()
 
 	svc := newFakeSettingsService(fakeSettingsServiceOpts{hasOverride: false, boolVal: true})
 	got := ResolveBoolOrDefault(context.Background(), svc, "any.key", false, slog.Default())
-	assert.False(t, got, "must return fallback when HasTenantOverride is false, not the registry default")
+	assert.True(t, got, "must use the registry default without an override")
 }
 
 func TestResolveBoolOrDefault_Override_ReturnsResolvedValue(t *testing.T) {
@@ -96,12 +94,12 @@ func TestResolveBoolOrDefault_Override_ReturnsResolvedValue(t *testing.T) {
 	assert.True(t, got)
 }
 
-func TestResolveBoolOrDefault_HasOverrideError_ReturnsFallback(t *testing.T) {
+func TestResolveBoolOrDefault_OverrideProbeIsNotNeeded(t *testing.T) {
 	t.Parallel()
 
 	svc := newFakeSettingsService(fakeSettingsServiceOpts{hasOverrideErr: errors.New("db down")})
 	got := ResolveBoolOrDefault(context.Background(), svc, "any.key", true, slog.Default())
-	assert.True(t, got)
+	assert.False(t, got)
 }
 
 func TestResolveBoolOrDefault_ResolveError_ReturnsFallback(t *testing.T) {
@@ -112,12 +110,12 @@ func TestResolveBoolOrDefault_ResolveError_ReturnsFallback(t *testing.T) {
 	assert.True(t, got)
 }
 
-func TestResolveIntOrDefault_NoOverride_ReturnsFallback(t *testing.T) {
+func TestResolveIntOrDefault_NoOverride_ReturnsRegistryDefault(t *testing.T) {
 	t.Parallel()
 
 	svc := newFakeSettingsService(fakeSettingsServiceOpts{hasOverride: false, intVal: 99})
 	got := ResolveIntOrDefault(context.Background(), svc, "any.key", 7, slog.Default())
-	assert.Equal(t, 7, got)
+	assert.Equal(t, 99, got)
 }
 
 func TestResolveIntOrDefault_Override_ReturnsResolvedValue(t *testing.T) {
@@ -128,19 +126,17 @@ func TestResolveIntOrDefault_Override_ReturnsResolvedValue(t *testing.T) {
 	assert.Equal(t, 42, got)
 }
 
-func TestResolveIntOrDefault_NilService_ReturnsFallback(t *testing.T) {
+func TestResolveIntOrDefault_NilService_RejectsMissingWiring(t *testing.T) {
 	t.Parallel()
-
-	got := ResolveIntOrDefault(context.Background(), nil, "any.key", 99, nil)
-	assert.Equal(t, 99, got)
+	assert.Panics(t, func() { ResolveIntOrDefault(context.Background(), nil, "any.key", 99, nil) })
 }
 
-func TestResolveIntOrDefault_HasOverrideError_ReturnsFallback(t *testing.T) {
+func TestResolveIntOrDefault_OverrideProbeIsNotNeeded(t *testing.T) {
 	t.Parallel()
 
 	svc := newFakeSettingsService(fakeSettingsServiceOpts{hasOverrideErr: errors.New("db down")})
 	got := ResolveIntOrDefault(context.Background(), svc, "any.key", 10, slog.Default())
-	assert.Equal(t, 10, got)
+	assert.Zero(t, got)
 }
 
 func TestResolveIntOrDefault_ResolveError_ReturnsFallback(t *testing.T) {
@@ -151,19 +147,17 @@ func TestResolveIntOrDefault_ResolveError_ReturnsFallback(t *testing.T) {
 	assert.Equal(t, 10, got)
 }
 
-func TestResolveStringOrDefault_NilService_ReturnsFallback(t *testing.T) {
+func TestResolveStringOrDefault_NilService_RejectsMissingWiring(t *testing.T) {
 	t.Parallel()
-
-	got := ResolveStringOrDefault(context.Background(), nil, "any.key", "fb", nil)
-	assert.Equal(t, "fb", got)
+	assert.Panics(t, func() { ResolveStringOrDefault(context.Background(), nil, "any.key", "fb", nil) })
 }
 
-func TestResolveStringOrDefault_HasOverrideError_ReturnsFallback(t *testing.T) {
+func TestResolveStringOrDefault_OverrideProbeIsNotNeeded(t *testing.T) {
 	t.Parallel()
 
 	svc := newFakeSettingsService(fakeSettingsServiceOpts{hasOverrideErr: errors.New("db down")})
 	got := ResolveStringOrDefault(context.Background(), svc, "any.key", "fb", slog.Default())
-	assert.Equal(t, "fb", got)
+	assert.Empty(t, got)
 }
 
 func TestResolveStringOrDefault_ResolveError_ReturnsFallback(t *testing.T) {
@@ -174,12 +168,12 @@ func TestResolveStringOrDefault_ResolveError_ReturnsFallback(t *testing.T) {
 	assert.Equal(t, "fb", got)
 }
 
-func TestResolveStringOrDefault_NoOverride_ReturnsFallback(t *testing.T) {
+func TestResolveStringOrDefault_NoOverride_ReturnsRegistryDefault(t *testing.T) {
 	t.Parallel()
 
 	svc := newFakeSettingsService(fakeSettingsServiceOpts{hasOverride: false, strVal: "override"})
 	got := ResolveStringOrDefault(context.Background(), svc, "any.key", "fallback", slog.Default())
-	assert.Equal(t, "fallback", got)
+	assert.Equal(t, "override", got)
 }
 
 func TestResolveStringOrDefault_EmptyOverride_ReturnsFallback(t *testing.T) {
@@ -187,7 +181,7 @@ func TestResolveStringOrDefault_EmptyOverride_ReturnsFallback(t *testing.T) {
 
 	svc := newFakeSettingsService(fakeSettingsServiceOpts{hasOverride: true, strVal: ""})
 	got := ResolveStringOrDefault(context.Background(), svc, "any.key", "fallback", slog.Default())
-	assert.Equal(t, "fallback", got, "empty override value should fall back")
+	assert.Equal(t, "", got, "empty override remains authoritative")
 }
 
 func TestResolveStringOrDefault_Override_ReturnsResolvedValue(t *testing.T) {

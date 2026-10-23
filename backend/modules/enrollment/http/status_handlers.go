@@ -175,7 +175,7 @@ func (rs *Resource) getStatus(w http.ResponseWriter, r *http.Request) {
 	})
 	if err != nil {
 		if statusErr != nil {
-			common.RenderError(w, r, common.ErrorInternalServer(statusErr))
+			common.RenderError(w, r, common.ErrorInternalServerWrap("failed to load enrollment status", statusErr))
 			return
 		}
 		common.RenderError(w, r, common.ErrorNotFoundWithCode(err, common.CodeEnrollmentStatusLinkInvalid))
@@ -435,7 +435,7 @@ func (rs *Resource) patchStatus(w http.ResponseWriter, r *http.Request) {
 		case errors.Is(err, capability.ErrInvalidGuardianPhone):
 			common.RenderError(w, r, common.ErrorInvalidRequestWithCode(err, common.CodeEnrollmentInvalidPhone))
 		default:
-			common.RenderError(w, r, common.ErrorInternalServer(err))
+			common.RenderError(w, r, common.ErrorInternalServerWrap("enrollment operation failed", err))
 		}
 		return
 	}
@@ -531,7 +531,7 @@ func (rs *Resource) withdrawStatus(w http.ResponseWriter, r *http.Request) {
 		case errors.Is(err, capability.ErrWithdrawNotAllowed):
 			common.RenderError(w, r, common.ErrorForbiddenWithCode(err, common.CodeEnrollmentWithdrawNotAllowed))
 		default:
-			common.RenderError(w, r, common.ErrorInternalServer(err))
+			common.RenderError(w, r, common.ErrorInternalServerWrap("enrollment operation failed", err))
 		}
 		return
 	}
@@ -569,7 +569,7 @@ func (rs *Resource) confirmRenewal(w http.ResponseWriter, r *http.Request) {
 		case errors.Is(err, capability.ErrRequestNotFound):
 			common.RenderError(w, r, common.ErrorNotFoundWithCode(err, common.CodeEnrollmentStatusLinkInvalid))
 		default:
-			common.RenderError(w, r, common.ErrorInternalServer(err))
+			common.RenderError(w, r, common.ErrorInternalServerWrap("enrollment operation failed", err))
 		}
 		return
 	}

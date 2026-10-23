@@ -88,7 +88,7 @@ func (s stubActivationSettings) ResolveBool(_ context.Context, key string) (bool
 }
 
 func setupDecisionTest(t *testing.T) *decisionTestEnv {
-	// nil Settings exercises the safe default (scheduled).
+	// The harness supplies explicit scheduled-mode fixture settings.
 	return setupDecisionTestWithSettings(t, nil)
 }
 
@@ -4631,4 +4631,20 @@ func newTestCareLifecycle(db *bun.DB, config api.CareLifecycleTestConfig) carepl
 		panic(err)
 	}
 	return lifecycle
+}
+
+// defaultDecisionSettings explicitly supplies the former fixture defaults.
+// Missing production dependencies must never stand in for these values.
+type defaultDecisionSettings struct{}
+
+func (defaultDecisionSettings) ResolveBool(context.Context, string) (bool, error) { return true, nil }
+func (defaultDecisionSettings) ResolveString(_ context.Context, key string) (string, error) {
+	switch key {
+	case settingKeyDefaultActivationMode:
+		return "scheduled", nil
+	case settingKeyNotifyPerDecision:
+		return "digest", nil
+	default:
+		return "", nil
+	}
 }

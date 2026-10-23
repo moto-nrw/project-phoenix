@@ -126,16 +126,15 @@ type GuardianStudentAuthorizer interface {
 	GuardianEmailHasStudentPermission(ctx context.Context, email string, studentID, tenantID int64, permission string) (bool, error)
 }
 
-// IntakeSettings resolves the tenant settings of the intake. The *Default
-// reads fall back to the registry default on any failure, the others report
-// it.
+// IntakeSettings resolves tenant overrides or registry defaults. Permission
+// and token-lifetime reads propagate lookup failures.
 type IntakeSettings interface {
 	// EnrollmentEnabled defaults to false.
 	EnrollmentEnabled(ctx context.Context) bool
-	// AllowSubmissionEdit defaults to true.
-	AllowSubmissionEdit(ctx context.Context) bool
-	// StatusTokenTTLDays defaults to 365.
-	StatusTokenTTLDays(ctx context.Context) int
+	// AllowSubmissionEdit reports lookup failures instead of granting an edit.
+	AllowSubmissionEdit(ctx context.Context) (bool, error)
+	// StatusTokenTTLDays resolves the token lifetime or reports the read failure.
+	StatusTokenTTLDays(ctx context.Context) (int, error)
 	// AdminNotificationEmails is the comma-separated recipient list, empty
 	// when unset.
 	AdminNotificationEmails(ctx context.Context) string
@@ -233,6 +232,9 @@ var (
 
 // NewIntake composes the intake. A nil logger falls back to slog.Default().
 func NewIntake(deps IntakeDependencies) *Intake {
+	if deps.Settings == nil {
+		panic("enrollment intake: settings are required")
+	}
 	if deps.Logger == nil {
 		deps.Logger = slog.Default()
 	}
