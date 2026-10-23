@@ -8,6 +8,7 @@ import type {
   SubmitEnrollmentPayload,
   SubmitEnrollmentResult,
 } from "~/lib/enrollment-submission-api";
+import { downloadBlob, filenameFromDisposition } from "~/lib/file-download";
 
 const logger = createLogger({ component: "EnrollmentAdminAPI" });
 
@@ -612,15 +613,10 @@ export async function exportStudentEnrollmentRequests(
     throw await readError(response, "Export konnte nicht erstellt werden");
   }
 
-  const blob = await response.blob();
-  const url = URL.createObjectURL(blob);
-  const link = document.createElement("a");
-  link.href = url;
-  link.download = filenameFromDisposition(response) ?? `anmeldungen.${format}`;
-  document.body.append(link);
-  link.click();
-  link.remove();
-  URL.revokeObjectURL(url);
+  downloadBlob(
+    await response.blob(),
+    filenameFromDisposition(response) ?? `anmeldungen.${format}`,
+  );
 }
 
 export async function decideAdminChild(
@@ -824,10 +820,4 @@ export async function rejectEnrollmentChangeRequest(
     );
   }
   return readJSON<AdminEnrollmentChangeRequest>(response);
-}
-
-function filenameFromDisposition(response: Response): string | null {
-  const disposition = response.headers.get("content-disposition");
-  const match = /filename="([^"]+)"/.exec(disposition ?? "");
-  return match?.[1] ?? null;
 }
