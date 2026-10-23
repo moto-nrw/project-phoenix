@@ -5,6 +5,10 @@
 
 Diese Liste nennt jede Datenart mit Personenbezug, ihre Löschfrist, den Startzeitpunkt, wer die Frist einstellt und welcher Owner im Code löscht. Der Wächtertest `TestEveryTableHasARetentionPath` (`backend/database/migrations/retention_coverage_test.go`) hält die Tabellen dazu im Code fest: Jede Tabelle hat einen Löschweg, eine begründete Ausnahme oder steht als offene Lücke mit Ticket. Die Lückenliste darf nur schrumpfen.
 
+Für die vollständige Mandantenlöschung und Datenrückgabe gibt es zusätzlich
+einen [gemeinsamen Produktionskatalog](datenkatalog.md). Er klassifiziert den
+Bestand, setzt diese Verfahren aber noch nicht um und ändert keine Frist.
+
 ## Wie gelöscht wird
 
 - **Stündlicher Token-Aufräumjob.** Einladungen für Eltern, MFA-Codes per E-Mail, Passkey-Sitzungen und abgelaufene Refresh-Tokens löscht der stündliche Aufräumjob für alle Schulen und Operatoren gemeinsam (#3954). Derselbe Job löscht das Operator-Protokoll und deaktivierte Operator-Konten des moto-Teams (#4047) und anonymisiert Konten, die keine Schule mehr braucht (#4043). Diese Läufe stehen nicht im Löschprotokoll, weil sie keiner Schule zugeordnet sind.
