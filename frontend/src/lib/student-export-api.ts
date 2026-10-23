@@ -164,7 +164,7 @@ export const STUDENT_EXPORT_COLUMNS: StudentExportColumnOption[] = [
     id,
     label,
     group: "weekly" as const,
-    description: `Regelmäßige ${weekday}-Ankunft und ${weekday}-Abholung aus dem Wochenplan.`,
+    description: `Regelmäßige ${weekday}-Ankunft und ${weekday}-Abholung aus dem Wochenplan. In der Klassenliste: Abholzeit und Geh-/Abholweise.`,
   })),
   {
     id: "planned_arrival",
@@ -261,18 +261,20 @@ export const STUDENT_EXPORT_PRESETS: Array<{
     id: "class_roster",
     label: "Klassenliste",
     description:
-      "Gesamter Klassenverband mit Anmeldestatus, Betreuungstagen und Geh-/Abholweise.",
+      "Ganze Klasse mit Anmeldestatus und Abholangaben je Wochentag.",
+    // Same columns and weekday cell as the Klassenliste of an enrollment
+    // phase (#4749): "14:30 Uhr, wird abgeholt".
     columns: [
       "name",
       "school_class",
-      "group",
-      "enrollment_summary",
-      "care_days",
       "weekly_monday",
       "weekly_tuesday",
       "weekly_wednesday",
       "weekly_thursday",
       "weekly_friday",
+      "group",
+      "enrollment_summary",
+      "care_days",
       "departure",
     ],
   },
