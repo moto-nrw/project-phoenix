@@ -168,11 +168,10 @@ describe("StudentExportModal", () => {
     await waitFor(() => {
       expect(screen.getByLabelText("Titel")).toHaveValue("Klassenliste");
     });
-    expect(
-      screen.getByRole("checkbox", {
-        name: /Betreuungs-\/Anmeldestatus/,
-      }),
-    ).toBeChecked();
+    // The class roster prints the shared class-list columns (#4749): the
+    // weekdays, but no group column, unlike the OGS Wochenliste.
+    expect(screen.getByRole("checkbox", { name: /Montag/ })).toBeChecked();
+    expect(screen.getByRole("checkbox", { name: /^Gruppe/ })).not.toBeChecked();
   });
 
   it("lets users edit title, format, and columns before exporting", async () => {
