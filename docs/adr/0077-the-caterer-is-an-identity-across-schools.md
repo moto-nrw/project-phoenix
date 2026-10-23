@@ -99,7 +99,13 @@ tenant transaction.
    `gdpr.meal_caterer_names_enabled` is on. The reason a child does not eat
    never reaches it. It reads and confirms only days from the start of its
    supply on, so a new caterer never sees its predecessor's orders. Its only
-   write in V1 is confirming an order.
+   write in V1 is confirming an order. No read writes: the Meal Plan's
+   worker and the school's registration writes fix due orders and record
+   their changes; a read shows a due order the worker has not stored yet as
+   it will be stored, without an ID, so it can be confirmed only once
+   stored. A delivery list covers at most seven days
+   (`meals.delivery_range_too_long`) and costs a fixed number of statements
+   per school (`workflows.catererportal.delivery_export`).
 7. **Password first.** Caterer accounts sign in with e-mail and password,
    like parent accounts. A second factor is a follow-up: the existing MFA is
    bound to a school's policy, and a caterer has no school.

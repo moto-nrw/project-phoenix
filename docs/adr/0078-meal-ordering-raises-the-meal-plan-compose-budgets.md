@@ -17,7 +17,9 @@ parents cancel a whole week, and lets the school calendar close days and
 suspend the weekly pattern in the holidays. The school's list of a day also
 names the children who do not eat, so staff can register them late. The
 orders of a day or a week are fixed at the deadline and later changes are
-numbered; school, caterer and exports read them through one engine method. The parent portal reaches the Meal Plan only
+numbered, by the worker and the registration writes only; school, caterer
+and exports read them, without writing, through one engine method. The
+parent portal reaches the Meal Plan only
 through its public module, and the public module reaches the application
 layer only through the engine in `modules/mealplan/compose`. Every new
 operation therefore needs one engine method that parses the dates, calls the
