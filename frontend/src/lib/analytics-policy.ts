@@ -53,6 +53,8 @@ export interface AnalyticsContext {
   readonly surface: string;
   /** Resolved school switch. Unknown means no collection outside the demo. */
   readonly enabled?: boolean;
+  /** Local-only route whose enrollment target has resolved; never transmitted. */
+  readonly enrollmentTargetPath?: string;
   /** Analyse-Freigabe of the school; only effective on `ogs`. */
   readonly analyseFreigabe: boolean;
   /**
@@ -166,6 +168,30 @@ function isKnownSurface(surface: string): surface is AnalyticsSurface {
 
 export function analyticsCollectionAllowed(context: AnalyticsContext): boolean {
   return context.deployment === DEMO_DEPLOYMENT || context.enabled === true;
+}
+
+export interface AnalyticsSchoolPolicy {
+  readonly tenantSlug: string;
+  readonly enabled: boolean;
+  /** Set only by a loaded enrollment form, not by the host's provider. */
+  readonly enrollmentTargetPath?: string;
+}
+
+/** Host school owns OGS collection; embedded schools can only restrict it. */
+export function analyticsSchoolsAllowCollection(
+  context: AnalyticsContext,
+  host: string,
+  tenantDomain: string,
+  schools: readonly AnalyticsSchoolPolicy[],
+): boolean {
+  if (schools.some((school) => !school.enabled)) return false;
+  if (context.surface === "ogs" && schools.length > 0) {
+    const hostname = host.split(":")[0];
+    return schools.some(
+      (school) => hostname === `${school.tenantSlug}.${tenantDomain}`,
+    );
+  }
+  return context.enabled === true;
 }
 
 /** Embedded school contexts cannot replace the host portal's decision. */
@@ -882,8 +908,32 @@ function isAllowedEvent(
 export function filterAnalyticsEvent(
   context: AnalyticsContext,
   captureResult: CaptureResult | null,
+  currentPage?: string,
 ): CaptureResult | null {
   if (!captureResult || !analyticsCollectionAllowed(context)) return null;
+  if (context.deployment !== DEMO_DEPLOYMENT) {
+    // History hooks run before React's passive effects. Check both the live
+    // page (also for snapshots without a URL) and the event's original page.
+    for (const page of [currentPage, captureResult.properties.$current_url]) {
+      if (typeof page !== "string") continue;
+      let pathname: string;
+      try {
+        pathname = new URL(page, "http://localhost").pathname;
+      } catch {
+        continue;
+      }
+      const route = resolveAnalyticsRoute(routeSurfaceOf(context), pathname);
+      if (route === "/anmeldung/status/:token") return null;
+      if (
+        (route === "/anmeldung/status/:token/edit" ||
+          route === "/anmeldung/status/:token/adjust" ||
+          (context.surface === "parents" &&
+            route === "/anmeldung/:tenantSlug/:phaseId")) &&
+        context.enrollmentTargetPath !== pathname
+      )
+        return null;
+    }
+  }
   const { event } = captureResult;
   const identity = analyticsIdentity(context);
   if (!isAllowedEvent(context, event, identity)) return null;

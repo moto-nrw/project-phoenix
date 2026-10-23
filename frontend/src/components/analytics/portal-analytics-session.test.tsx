@@ -1,5 +1,5 @@
-import { render, waitFor } from "@testing-library/react";
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { act, render, waitFor } from "@testing-library/react";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { PortalAnalyticsSession } from "./portal-analytics-session";
 
 const mocks = vi.hoisted(() => ({
@@ -29,6 +29,58 @@ describe("PortalAnalyticsSession", () => {
       ),
     );
   });
+
+  afterEach(() => {
+    vi.useRealTimers();
+    vi.unstubAllGlobals();
+    vi.restoreAllMocks();
+  });
+
+  it.each(["parents", "school"] as const)(
+    "refreshes a visible %s tab every five minutes and cleans up the timer",
+    async (surface) => {
+      vi.useFakeTimers();
+      mocks.useSession.mockReturnValue({
+        status: "authenticated",
+        data: {
+          user: {
+            id: "7",
+            scope: surface === "parents" ? "parent" : "school",
+            tenantId: 42,
+          },
+        },
+      });
+      const visible = vi
+        .spyOn(document, "visibilityState", "get")
+        .mockReturnValue("visible");
+      const view = render(<PortalAnalyticsSession surface={surface} />);
+      await act(async () => {});
+      expect(mocks.registerPortalSession).toHaveBeenCalledOnce();
+      visible.mockReturnValue("hidden");
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(5 * 60 * 1_000);
+      });
+      expect(fetch).toHaveBeenCalledTimes(1);
+      visible.mockReturnValue("visible");
+      vi.mocked(fetch).mockRejectedValueOnce(new Error("Policy unavailable"));
+      mocks.setAnalyticsContext.mockClear();
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(5 * 60 * 1_000);
+      });
+      expect(fetch).toHaveBeenCalledTimes(2);
+      expect(mocks.setAnalyticsContext).toHaveBeenLastCalledWith({
+        surface,
+        enabled: false,
+      });
+      expect(mocks.registerPortalSession).toHaveBeenCalledOnce();
+      view.unmount();
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(5 * 60 * 1_000);
+      });
+      document.dispatchEvent(new Event("visibilitychange"));
+      expect(fetch).toHaveBeenCalledTimes(2);
+    },
+  );
 
   it("registers a parent at login without a school", async () => {
     mocks.useSession.mockReturnValue({
