@@ -45,9 +45,11 @@ ersetzt aber keinen Dateischutz. Abhilfe ist in Slice 3840-h offen. Auch
    und Avatare wegen 0644/0755 gesondert als offenen Befund behandeln und die
    Abhilfe aus 3840-h nachweisen; HTTP-Authentifizierung oder Volume-
    Verschlüsselung allein schließen lokalen Lesezugriff nicht aus.
-   Die Diagnose-Leserolle 3840-f muss sensible Spalten und
-   Umgehungen über Views, Funktionen oder Rollenwechsel ausschließen; keine
-   Abnahme allein anhand eines Rollennamens. Bestehende Dumps, cron-Sicherungen,
+   Die im Code umgesetzte Diagnose-Leserolle 3840-f nach dem
+   [Diagnose-Runbook](diagnose-lesezugang-3840.md) einrichten und ihre effektiven
+   Rechte ohne Kundeninhalte prüfen. Sensible Spalten und Umgehungen über Views,
+   Funktionen oder Rollenwechsel ausschließen; keine Abnahme allein anhand
+   eines Rollennamens. Bestehende Dumps, cron-Sicherungen,
    Release-Snapshots und temporäre Kopien inventarisieren. Getrennte
    Verschlüsselung, Zugriff und Ablauf nach dem [Backup-Runbook](daily-backup.md)
    belegen. Volume-Verschlüsselung schützt keine bereits exportierte Klartextkopie.
@@ -86,9 +88,9 @@ Screenshots mit Kundendaten und Schlüssel bleiben außerhalb dieses Repos.
 - Ein belegter Datenträgerschutz schließt nur den geprüften Teil von 3840-c.
   Backupbetrieb/Restore (#3836), Leserolle (3840-f) und Maskierungsrollout
   haben getrennte Nachweise.
-- Der Befund `users.student_data_change_requests` aus der Risikobewertung
-  bleibt bis zur gezielten Abhilfe in #4844 (Slice 4844-a) einschließlich
-  Altbestand und Restore offen.
+- Die Gesundheitskopien in `users.student_data_change_requests` sind durch
+  #4844 (Slice 4844-a, Migration `1.15.483`) im Code maskiert. Produktiver
+  Rollout und Abnahme einschließlich Altbestand und Restore bleiben offen.
 - Die zu weiten Foto-/Avatar-Dateirechte bleiben bis zur Abhilfe in 3840-h
   einschließlich Altbestand und Prüfung der Auslieferung offen; ein
   Datenträgernachweis schließt diesen Befund nicht.
