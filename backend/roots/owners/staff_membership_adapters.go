@@ -550,11 +550,3 @@ func (r StaffMembershipRepository) SetBirthdayDisplayOptOut(ctx context.Context,
 	}
 	return membershipError(op, MembershipEmploymentError(employment.SetBirthdayDisplayOptOut(ctx, staffID, optOut)))
 }
-
-func (r StaffMembershipRepository) AddNotes(ctx context.Context, id int64, notes string) error {
-	employment, err := staffoffboarding.NewLiveStaffEmployment(r.Membership, r.Deps.employment)
-	if err != nil {
-		return membershipError("add notes", err)
-	}
-	return membershipError("add notes", MembershipEmploymentError(employment.AppendNotes(ctx, id, notes)))
-}
