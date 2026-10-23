@@ -17,8 +17,8 @@ import (
 	configModel "github.com/moto-nrw/project-phoenix/modules/settings/records"
 )
 
-// BirthdayRepositories are the retained rows the birthday display reads and
-// the staff opt-out writes through (#1542).
+// BirthdayRepositories are the retained rows the birthday display reads.
+// The root supplies the staff opt-out workflow command separately (#1542).
 type BirthdayRepositories struct {
 	Students birthdayStudents
 	Staff    birthdayStaff
@@ -40,8 +40,8 @@ type (
 	}
 )
 
-// NewBirthdays binds the People Directory birthday capability over the
-// retained repositories and the tenant settings.
+// NewBirthdays binds People Directory birthday reads and the staff opt-out
+// workflow to the HTTP entry surface.
 func NewBirthdays(repos BirthdayRepositories, writes staffoffboarding.StaffBirthdayWrites, settings BirthdaySettingsSource, logger *slog.Logger, now func() time.Time) birthdaysAPI.Service {
 	reads := peopleCompose.NewBirthdays(peopleCompose.BirthdayDependencies{
 		Store:    birthdayStore{repos: repos},
