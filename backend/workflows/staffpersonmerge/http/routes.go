@@ -49,6 +49,9 @@ func (rs resource) execute(w http.ResponseWriter, r *http.Request) {
 }
 
 var errorRenderer = common.RulesRenderer([]common.ErrorRule{
+	{Target: staffpersonmerge.ErrAuditUnavailable, Render: func(error) render.Renderer {
+		return common.OperatorRejection(http.StatusServiceUnavailable, common.CodeOperatorAuditUnavailable, "Operator audit unavailable")
+	}},
 	{Target: staffpersonmerge.ErrInvalid, Render: common.OperatorInvalidRequest},
 	{Target: staffpersonmerge.ErrUnauthorized, Render: common.ErrorForbidden},
 	{Target: staffpersonmerge.ErrConflict, Render: common.ErrorConflict},

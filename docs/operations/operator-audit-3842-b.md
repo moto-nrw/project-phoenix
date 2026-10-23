@@ -8,6 +8,10 @@ schulbezogene, trägerbezogene und globale Kontolisten sowie schul- und
 trägerbezogene Personenlisten. Kontodetails zu Betreuung, MFA und Schulzugängen
 werden ebenfalls erfasst, einschließlich beider Schreibweisen der
 Schulzugangsliste mit und ohne abschließenden Schrägstrich.
+Die Vorschau zum Zusammenführen doppelter Mitarbeitendendatensätze protokolliert
+ebenfalls einen Lesezugriff über ihren vorhandenen Workflow-Audit-Port. Dieser
+Eintrag teilt die bestehende administrative Anfrage-Transaktion; scheitert das
+Lesen danach, rollt auch der Eintrag zurück.
 
 Ein Eintrag bezeichnet einen **Zugriffsversuch**, keinen bestätigten Empfang.
 Er enthält Operator-ID, Zeitpunkt, Anfrage-IP, eine feste Ansichtskategorie und
@@ -29,8 +33,9 @@ Transaktion zurück und rollen mit ihr zurück:
 
 Bei diesen Audit-Ausfällen und bei nicht protokollierbaren Lesezugriffen antwortet
 die API mit `503`, Code `operator.audit_unavailable`. Der Operator erhält eine
-Fehlermeldung; es gibt keinen Erfolg und keine Datenfreigabe. Das Betriebslog
-meldet den Audit-Ausfall mit fester Aktionskategorie, ohne Anfrageinhalt.
+Fehlermeldung; es gibt keinen Erfolg und keine Datenfreigabe. Provisioning und MFA melden den Audit-Ausfall im Betriebslog mit fester
+Aktionskategorie, ohne Anfrageinhalt. Beim Merge-Workflow macht die bestehende
+Anfrageprotokollierung die abgelehnte Antwort sichtbar.
 Andere bisherige best-effort-Auditpfade werden nicht pauschal umgestellt.
 Eine künftige endgültige Mandantenlöschung muss ihren Audit-Schritt ebenfalls
 in ihre Löschtransaktion aufnehmen; dieser Slice implementiert sie nicht.

@@ -16,9 +16,10 @@ import (
 )
 
 var (
-	ErrInvalid      = errors.New("select reviewed cases and confirm school consultation")
-	ErrConflict     = errors.New("staff person merge preview is no longer current")
-	ErrUnauthorized = errors.New("staff person merge requires an operator")
+	ErrInvalid          = errors.New("select reviewed cases and confirm school consultation")
+	ErrConflict         = errors.New("staff person merge preview is no longer current")
+	ErrUnauthorized     = errors.New("staff person merge requires an operator")
+	ErrAuditUnavailable = errors.New("operator audit unavailable")
 )
 
 type Employment struct {
@@ -66,6 +67,7 @@ type Runtime interface {
 }
 type Audit interface {
 	RecordStaffPersonMerge(context.Context, int64, int64, Candidate) error
+	RecordStaffPersonMergePreview(context.Context, int64, int64) error
 }
 type Workflow struct {
 	people      peopledirectory.StaffPersonMerge
@@ -89,6 +91,10 @@ func (w *Workflow) Preview(ctx context.Context, schoolID int64) ([]Candidate, er
 	}
 	if err := w.runtime.RequireAdmin(ctx); err != nil {
 		return nil, err
+	}
+	if err := w.audit.RecordStaffPersonMergePreview(ctx, w.runtime.OperatorID(ctx), schoolID); err != nil {
+		w.runtime.MarkRollback(ctx)
+		return nil, ErrAuditUnavailable
 	}
 	return w.candidates(ctx, schoolID, false)
 }
