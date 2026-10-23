@@ -4629,22 +4629,30 @@ The group handovers of School Structure's substitution module are written
 through Workforce's public commands by the existing `shift-plan-sync`
 workflow, whose public role already reaches Workforce.
 
-### External caregiver with an invitation (#4573)
+### External caregiver with an access level (#4573)
 
-Recording an external caregiver writes across three owners: the person
-(People Directory), the staff member with its caregiver profile and
-external caregiver record (School Membership) and the invitation in the school role „Extern“
+Being external is the external caregiver record; the access is a separate
+choice ([ADR 0083](../../docs/adr/0083-extern-ist-ein-merkmal.md)):
+`none` (a placeholder without account or e-mail), `view` (an invitation into
+the platform system role `guest`, „Gast“) or `supervise` (an invitation into
+the platform system role `ag-leitung`, „AG-Leitung“). Recording an external
+caregiver writes across three owners: the person (People Directory), the
+staff member with its caregiver profile and external caregiver record
+(School Membership) and, for `view` and `supervise`, the invitation
 (Identity & Access). The application workflow `workflows/externalcaregiver`
 (owner `external-caregiver`, kind `workflow`, one `public` package) does
-both writes: `Record` for a new external and `Invite` („Konto einladen“) for
-an existing one without an account. It owns no data and issues no SQL. Its
+both writes: `Record` for a new external and `Invite` („Konto einladen“,
+`view` or `supervise`) for an existing one without an account. It resolves
+the system role by name through Identity & Access's public `ListRoles` and
+`PlatformSystemRole`, so a school's own role of the same name never
+matches; no school provisions a role. It owns no data and issues no SQL. Its
 ports use the owners' public vocabulary, so the root binds the public
 capabilities directly (the care-exit shape) in `api/staff_composition.go`.
 The workflow is a local value of the staff mount, and the School Membership
 HTTP adapter reaches it through `Runtime` closures. Every call joins the
 request transaction, and both writes run in one savepoint: the request
 transaction commits 4xx answers, so a refused invitation must not leave a
-half-created person behind. Policy epoch 90 -> 91 registers the owner, its
+half-created person behind. Policy epoch 91 -> 92 registers the owner, its
 package and three production rules from `external-caregiver/public` into
 the `public` roles of `people-directory`, `school-membership` and
 `identity-access`. No key, alias or exception is added.
