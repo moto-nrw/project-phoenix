@@ -22,6 +22,8 @@ import {
 import { useTimetableActions } from "~/components/active-supervisions/use-timetable-actions";
 import { useTimetableRoster } from "~/components/active-supervisions/use-timetable-roster";
 import { rosterRunState } from "~/components/active-supervisions/view-model";
+import type { ActiveGroup } from "~/lib/usercontext-helpers";
+import { userContextService } from "~/lib/usercontext-api";
 import { formatChildCount } from "~/lib/activity-occupancy";
 import { BELOW_LG, useMediaQuery } from "~/lib/hooks/use-media-query";
 import { hasPermission } from "~/lib/auth-utils";
@@ -43,26 +45,45 @@ function sessionHref(activeGroupId: string): string {
   return `/active-supervisions?session=${activeGroupId}`;
 }
 
-/** Die laufenden Blöcke, für die die Person eingeteilt ist, nach Beginn. */
+/** Eigene laufende Blöcke und tatsächlich übernommene zusätzliche Aufsichten. */
 function ownRunningBlocks(
   day: readonly PlannedTimetableInstance[],
-): PlannedTimetableInstance[] {
-  return day
+  sessions: readonly ActiveGroup[],
+): {
+  id: string | null;
+  title: string;
+  activeGroupId?: string | null;
+}[] {
+  // Der eigene Endpunkt liefert ausschließlich offene, selbst beaufsichtigte Sessions.
+  const ownSessions = sessions;
+  const ownIds = new Set(ownSessions.map((session) => session.id));
+  const planned = day
     .filter(
       (block) =>
-        block.isAssigned &&
         block.status === "active" &&
-        Boolean(block.activeGroupId),
+        block.activeGroupId != null &&
+        (block.isAssigned || ownIds.has(block.activeGroupId)),
     )
     .sort((a, b) => a.startTime.localeCompare(b.startTime));
+  const plannedIds = new Set(planned.map((block) => block.activeGroupId));
+  return [
+    ...planned,
+    ...ownSessions
+      .filter((session) => !plannedIds.has(session.id))
+      .map((session) => ({
+        id: null,
+        title: session.name ?? session.room?.name ?? "Aktuelle Aufsicht",
+        activeGroupId: session.id,
+      })),
+  ];
 }
 
 /**
  * „Aktuelle Aufsicht“ ohne `groups:read` (#4573, AG-Leitung): nur die
  * eigenen laufenden Blöcke, ihre Kinderliste mit An- und Abmelden und
- * Beenden, darüber „Als Nächstes“ zum Starten. Alles kommt aus der
- * Betriebs-API des Betreuungsplans (`schedules:read`); das Backend prüft
- * jede Aktion an der Einteilung. Die schulweite Übersicht, Gruppen, offene
+ * Beenden, darüber „Als Nächstes“ zum Starten. Die eigene Aufsicht ergänzt
+ * die Betriebs-API des Betreuungsplans (`schedules:read`); das Backend prüft
+ * jede Aktion an der Einteilung oder tatsächlichen Aufsicht. Die schulweite Übersicht, Gruppen, offene
  * Räume und der Schulhof fehlen bewusst: sie zeigen die Anwesenheit der
  * ganzen Schule.
  */
@@ -86,9 +107,18 @@ export function OwnSupervisionView() {
     () => timetableOperationsApi.plannedNow({ includeRoster: true }),
     { refreshInterval: LIST_REFRESH_MS },
   );
+  const ownSessions = useSWRAuth<ActiveGroup[]>(
+    "active-supervisions-own-sessions",
+    () => userContextService.getMySupervisedGroups(),
+    { refreshInterval: LIST_REFRESH_MS },
+  );
+  const { mutate: mutateOwnSessions } = ownSessions;
   const { mutate: mutateDay } = day;
   const { mutate: mutateUpcoming } = upcoming;
-  const running = useMemo(() => ownRunningBlocks(day.data ?? []), [day.data]);
+  const running = useMemo(
+    () => ownRunningBlocks(day.data ?? [], ownSessions.data ?? []),
+    [day.data, ownSessions.data],
+  );
   const selected =
     running.find((block) => block.activeGroupId === sessionParam) ??
     running[0] ??
@@ -96,19 +126,25 @@ export function OwnSupervisionView() {
 
   const roster = useTimetableRoster({
     selectedTimetableInstanceId: selected?.id ?? null,
-    currentRoomId: undefined,
+    currentRoomId: selected?.activeGroupId,
   });
   const { currentTimetableRoster } = roster;
   const loadError = useSwrLoadError(
-    day.error ?? upcoming.error ?? roster.rosterError,
+    day.error ?? upcoming.error ?? ownSessions.error ?? roster.rosterError,
     "Ihre Aufsicht",
-    () => Promise.all([mutateDay(), mutateUpcoming(), roster.mutateRoster()]),
+    () =>
+      Promise.all([
+        mutateDay(),
+        mutateUpcoming(),
+        mutateOwnSessions(),
+        roster.mutateRoster(),
+      ]),
   );
   const reopen = useReopenBanner();
 
   const reloadLists = useCallback(
-    () => Promise.all([mutateDay(), mutateUpcoming()]),
-    [mutateDay, mutateUpcoming],
+    () => Promise.all([mutateDay(), mutateUpcoming(), mutateOwnSessions()]),
+    [mutateDay, mutateUpcoming, mutateOwnSessions],
   );
   // Die Auswahl folgt der Adresse; die Seite merkt sich keinen Block selbst.
   const adoptSession = useCallback(
@@ -132,11 +168,15 @@ export function OwnSupervisionView() {
     clearReopenable: reopen.clearReopenable,
   });
 
-  const title = selected?.title ?? "Aktuelle Aufsicht";
-  useSetBreadcrumb({ activeSupervisionName: selected?.title });
+  const title =
+    currentTimetableRoster?.instance.title ??
+    selected?.title ??
+    "Aktuelle Aufsicht";
+  useSetBreadcrumb({ activeSupervisionName: selected ? title : undefined });
 
   const isLoading =
     (day.data === undefined && !day.error) ||
+    (ownSessions.data === undefined && !ownSessions.error) ||
     roster.isWaitingForTimetableRoster;
   const presentCount =
     currentTimetableRoster?.rows.filter((row) => row.currentlyPresent).length ??
@@ -244,7 +284,9 @@ export function OwnSupervisionView() {
             onSearchChange={actions.handleAddStudentSearchChange}
           />
         </>
-      ) : selected === null && day.data !== undefined ? (
+      ) : selected === null &&
+        day.data !== undefined &&
+        ownSessions.data !== undefined ? (
         <SectionCard>
           <EmptyState
             icon={<MotoConceptIcon concept="rooms" size={48} />}

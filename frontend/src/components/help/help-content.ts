@@ -1478,6 +1478,7 @@ function activeSupervisionTopic(presenceMode: HelpPresenceMode): HelpTopic {
           "Bei `Nur ansehen` und `Eigene Termine betreuen` tragen Sie die `E-Mail-Adresse` ein. Die Person bekommt dann eine Einladung.",
           "Wählen Sie `Eintragen`. Sie können die Person sofort auswählen.",
           "Beim Start einer spontanen Aktivität geht das genauso unter `Weitere Betreuer`.",
+          "Wurde eine AG-Leitung hinzugefügt? Sie öffnet die Kinderliste unter `Aktuelle Aufsicht`.",
         ],
       },
       {
