@@ -23,6 +23,7 @@ import {
 } from "~/components/ui/form-error-alert";
 import { SectionCard } from "~/components/ui/section-card";
 import { TenantPage } from "~/components/ui/tenant-page";
+import NavigationLink from "~/components/ui/navigation-link";
 import { OverflowMenu } from "~/components/ui/page-header/OverflowMenu";
 import { MessageComposer } from "~/components/messaging/message-composer";
 import { ChatBubble, ChatEventCard } from "~/components/messaging/chat-bubble";
@@ -500,19 +501,26 @@ function MessageThreadContent() {
                       action={eventAction(message)}
                     />
                   ) : (
-                    <ChatBubble
-                      key={message.id}
-                      body={message.body}
-                      own={message.sender_kind === "staff"}
-                      senderName={message.sender_name}
-                      createdAt={message.created_at}
-                      readReceiptLabel={
-                        message.sender_kind === "staff" &&
-                        message.read_by_guardian
-                          ? "Gelesen"
-                          : undefined
-                      }
-                    />
+                    <div key={message.id}>
+                      {message.group_thread_id && (
+                        <GroupThreadReference
+                          id={message.group_thread_id}
+                          title={message.group_thread_title}
+                        />
+                      )}
+                      <ChatBubble
+                        body={message.body}
+                        own={message.sender_kind === "staff"}
+                        senderName={message.sender_name}
+                        createdAt={message.created_at}
+                        readReceiptLabel={
+                          message.sender_kind === "staff" &&
+                          message.read_by_guardian
+                            ? "Gelesen"
+                            : undefined
+                        }
+                      />
+                    </div>
                   ),
                 )
               ) : loadError ? (
@@ -582,6 +590,25 @@ function RequestHistoryCard({ message }: Readonly<{ message: Message }>) {
         />
       </div>
     </SectionCard>
+  );
+}
+
+// A guardian's answer to a Gruppennachricht (#4784) names the thread it
+// answers, so the OGS reads it in context. The other families never see it.
+function GroupThreadReference({
+  id,
+  title,
+}: Readonly<{ id: string; title?: string }>) {
+  return (
+    <p className="mb-1 px-1 text-xs text-gray-500">
+      Antwort auf Gruppennachricht:{" "}
+      <NavigationLink
+        href={`/messages/groups/${encodeURIComponent(id)}`}
+        className="font-medium text-gray-700 underline underline-offset-2 hover:text-gray-900"
+      >
+        {title ?? "Gruppennachricht"}
+      </NavigationLink>
+    </p>
   );
 }
 

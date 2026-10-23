@@ -2020,6 +2020,25 @@
     "errorObjectMessage": "mesazhi",
     "errorObjectList": "lista e bisedave"
   },
+  "parentGroupThreads": {
+    "sectionTitle": "Mesazhe grupi nga OGS",
+    "sectionDescription": "Këtu OGS i shkruan grupit, klasës ose kursit të fëmijës suaj.",
+    "closed": "Mbyllur",
+    "forChildren": "Për {names}",
+    "privacyNote": "Përgjigjja juaj shkon vetëm te OGS. Prindërit e tjerë nuk e shohin.",
+    "replyTitle": "Përgjigje për OGS",
+    "replyChildLabel": "Përgjigje për",
+    "replyPlaceholder": "Shkruani një përgjigje për OGS",
+    "replyFieldLabel": "Përgjigje",
+    "sentConfirmation": "OGS e ka marrë përgjigjen tuaj.",
+    "toChat": "Te biseda me OGS",
+    "closedNote": "Ky mesazh grupi është mbyllur. Mund t'i shkruani akoma OGS në bisedën për fëmijën tuaj.",
+    "writingDisabled": "Nuk mund t'i përgjigjeni këtij mesazhi. Mund ta lexoni akoma.",
+    "answerTo": "Përgjigje për: {title}",
+    "errorObjectThread": "mesazhi i grupit",
+    "errorObjectAnswer": "përgjigjja",
+    "errorObjectList": "mesazhet e grupit"
+  },
   "parentCalendar": {
     "kicker": "Terminet me një vështrim",
     "title": "Kalendari",

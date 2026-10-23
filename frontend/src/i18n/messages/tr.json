@@ -2020,6 +2020,25 @@
     "errorObjectMessage": "mesaj",
     "errorObjectList": "yazışma listesi"
   },
+  "parentGroupThreads": {
+    "sectionTitle": "OGS'den grup mesajları",
+    "sectionDescription": "OGS burada çocuğunuzun grubuna, sınıfına veya kulübüne yazar.",
+    "closed": "Kapatıldı",
+    "forChildren": "{names} için",
+    "privacyNote": "Yanıtınız yalnızca OGS'ye gider. Diğer veliler göremez.",
+    "replyTitle": "OGS'ye yanıt",
+    "replyChildLabel": "Yanıt kimin için",
+    "replyPlaceholder": "OGS'ye bir yanıt yazın",
+    "replyFieldLabel": "Yanıt",
+    "sentConfirmation": "Yanıtınız OGS'ye ulaştı.",
+    "toChat": "OGS ile sohbete git",
+    "closedNote": "Bu grup mesajı kapatıldı. Çocuğunuzla ilgili sohbette OGS'ye yazmaya devam edebilirsiniz.",
+    "writingDisabled": "Bu mesaja yanıt veremezsiniz. Okumaya devam edebilirsiniz.",
+    "answerTo": "Yanıtlanan: {title}",
+    "errorObjectThread": "grup mesajı",
+    "errorObjectAnswer": "yanıt",
+    "errorObjectList": "grup mesajları"
+  },
   "parentCalendar": {
     "kicker": "Randevulara genel bakış",
     "title": "Takvim",

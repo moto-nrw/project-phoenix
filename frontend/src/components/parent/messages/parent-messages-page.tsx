@@ -15,10 +15,13 @@ import { ConceptIconTile } from "~/components/ui/concept-icon-tile";
 import NavigationLink from "~/components/ui/navigation-link";
 import { UnreadBadge } from "~/components/messaging/unread-badge";
 import { OgsConversation } from "~/components/parent/ogs-conversation";
+import { GroupThreadsSection } from "~/components/parent/messages/group-threads-section";
 import { useMessagesActivity } from "~/lib/hooks/use-messages-activity";
 import {
   type Child,
+  type GroupThreadSummary,
   type ThreadSummary,
+  listGroupThreads,
   listMessageThreads,
   listMyChildren,
 } from "~/lib/parent-api";
@@ -104,6 +107,7 @@ export function ParentMessagesPage() {
   const t = useTranslations("parentMessages");
   const [children, setChildren] = useState<Child[]>([]);
   const [rows, setRows] = useState<ChildConversation[]>([]);
+  const [groupThreads, setGroupThreads] = useState<GroupThreadSummary[]>([]);
   const [loading, setLoading] = useState(true);
   // A failed load replaces the list with retry (#2518), never an empty page.
   const {
@@ -129,7 +133,10 @@ export function ParentMessagesPage() {
       const seq = ++loadSeqRef.current;
       if (!silent) setLoading(true);
       try {
-        const childList = await listMyChildren();
+        const [childList, nextGroupThreads] = await Promise.all([
+          listMyChildren(),
+          listGroupThreads(),
+        ]);
         // Nur die Mehr-Kinder-Liste braucht die Uebersicht der Unterhaltungen.
         const nextRows =
           childList.length > 1
@@ -138,6 +145,7 @@ export function ParentMessagesPage() {
         if (!mountedRef.current || seq !== loadSeqRef.current) return;
         setChildren(childList);
         setRows(nextRows);
+        setGroupThreads(nextGroupThreads);
         clearLoadError();
       } catch (err) {
         logger.warn("parent_messages_load_failed", {
@@ -227,6 +235,13 @@ export function ParentMessagesPage() {
             description={t("description")}
           />
         </div>
+        {/* Gruppennachrichten der OGS (#4784) stehen kompakt ueber dem Chat,
+            der den Rest des Bildschirms fuellt. */}
+        {groupThreads.length > 0 && (
+          <div className="in-data-chat-keyboard:hidden">
+            <GroupThreadsSection threads={groupThreads} compact />
+          </div>
+        )}
         <OgsConversation studentId={children[0]!.student_id} showChild />
       </ParentPage>
     );
@@ -265,6 +280,7 @@ export function ParentMessagesPage() {
           </li>
         ))}
       </ul>
+      <GroupThreadsSection threads={groupThreads} />
     </ParentPage>
   );
 }

@@ -3,7 +3,11 @@ import { ApiError } from "~/lib/api-error";
 import { NextIntlClientProvider } from "next-intl";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import deMessages from "~/i18n/messages/de.json";
-import { listMessageThreads, listMyChildren } from "~/lib/parent-api";
+import {
+  listGroupThreads,
+  listMessageThreads,
+  listMyChildren,
+} from "~/lib/parent-api";
 import { catalogText } from "~/test/error-catalog-text";
 import { ParentMessagesPage } from "./parent-messages-page";
 
@@ -15,6 +19,7 @@ vi.mock("~/lib/parent-api", async (importOriginal) => ({
   ...(await importOriginal<typeof import("~/lib/parent-api")>()),
   listMyChildren: vi.fn(),
   listMessageThreads: vi.fn(),
+  listGroupThreads: vi.fn(),
 }));
 
 vi.mock("~/lib/hooks/use-messages-activity", () => ({
@@ -29,6 +34,7 @@ vi.mock("~/components/parent/ogs-conversation", () => ({
 
 const mockedChildren = vi.mocked(listMyChildren);
 const mockedThreads = vi.mocked(listMessageThreads);
+const mockedGroupThreads = vi.mocked(listGroupThreads);
 
 const felix = {
   student_id: "42",
@@ -54,6 +60,65 @@ function renderPage() {
 beforeEach(() => {
   vi.clearAllMocks();
   mockedThreads.mockResolvedValue([]);
+  mockedGroupThreads.mockResolvedValue([]);
+});
+
+const sommerfest = {
+  id: "9",
+  title: "Sommerfest am Freitag",
+  target_label: "Gruppe Sonnenblumen",
+  school_name: "Schule am Berg",
+  counterpart_name: "OGS Schule am Berg",
+  closed: false,
+  last_message_at: "2026-09-09T08:00:00Z",
+  last_message_body: "Wer kann einen Kuchen mitbringen?",
+  unread: 1,
+  children: [{ student_id: "42", first_name: "Felix", last_name: "Schneider" }],
+};
+
+describe("ParentMessagesPage – Gruppennachrichten (#4784)", () => {
+  it("zeigt bei einem Kind die Gruppennachrichten ueber dem Chat", async () => {
+    mockedChildren.mockResolvedValue([felix]);
+    mockedGroupThreads.mockResolvedValue([sommerfest]);
+
+    renderPage();
+
+    expect(await screen.findByTestId("conversation")).toHaveTextContent("42");
+    expect(
+      screen.getByRole("heading", { name: "Gruppennachrichten der OGS" }),
+    ).toBeInTheDocument();
+    const link = screen.getByRole("link", { name: /Sommerfest am Freitag/ });
+    expect(link).toHaveAttribute("href", "/parents/messages/group/9");
+    expect(link).toHaveTextContent("Gruppe Sonnenblumen");
+    expect(link).toHaveTextContent("Wer kann einen Kuchen mitbringen?");
+    expect(link).toHaveTextContent("1");
+  });
+
+  it("markiert eine geschlossene Gruppennachricht bei mehreren Kindern", async () => {
+    mockedChildren.mockResolvedValue([felix, mia]);
+    mockedGroupThreads.mockResolvedValue([
+      { ...sommerfest, closed: true, unread: 0 },
+    ]);
+
+    renderPage();
+
+    const link = await screen.findByRole("link", {
+      name: /Sommerfest am Freitag/,
+    });
+    expect(link).toHaveTextContent("Geschlossen");
+  });
+
+  it("zeigt ohne Gruppennachricht keinen leeren Abschnitt", async () => {
+    mockedChildren.mockResolvedValue([felix]);
+
+    renderPage();
+
+    expect(await screen.findByTestId("conversation")).toBeInTheDocument();
+    expect(screen.getByTestId("conversation")).toHaveTextContent("42");
+    expect(
+      screen.queryByRole("heading", { name: "Gruppennachrichten der OGS" }),
+    ).not.toBeInTheDocument();
+  });
 });
 
 describe("ParentMessagesPage", () => {
