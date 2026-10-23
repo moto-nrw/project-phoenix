@@ -206,7 +206,9 @@ func TestParentReviewScopesHideGroupLeadersInOpenCare(t *testing.T) {
 		absence := schemaSetting(t, ctx, settings, absenceKey)
 		require.NotContains(t, reviewScopeOptionValues(t, absence), groupLeaders)
 	})
-	t.Run("open care keeps an inherited group-leader choice", func(t *testing.T) {
+	// The old switch names group leaders a school without groups has none of;
+	// the inherited scope falls to admins, as the review policy enforces.
+	t.Run("open care ignores the switch on the inherited path", func(t *testing.T) {
 		t.Parallel()
 		ctx := testpkg.OwnCtx(t)
 		settings := attendanceScopeSettings(t)
@@ -215,8 +217,9 @@ func TestParentReviewScopesHideGroupLeadersInOpenCare(t *testing.T) {
 
 		for _, key := range []string{requestKey, absenceKey} {
 			field := schemaSetting(t, ctx, settings, key)
-			require.Equal(t, groupLeaders, field.Value, key)
-			require.Contains(t, reviewScopeOptionValues(t, field), groupLeaders, key)
+			require.Equal(t, configModel.ParentRequestReviewScopeAdmins, field.Value, key)
+			require.Equal(t, configModel.ParentRequestReviewScopeAdmins, field.Default, key)
+			require.NotContains(t, reviewScopeOptionValues(t, field), groupLeaders, key)
 		}
 	})
 }

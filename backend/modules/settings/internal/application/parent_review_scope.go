@@ -14,26 +14,29 @@ import (
 //
 // A school without fixed groups has no group leaders to choose (#1480). The
 // option leaves both selects unless it is the effective value, so the page
-// still shows what applies and stored choices stay untouched.
+// still shows what applies and stored choices stay untouched. Inherit ignores
+// the old switch there and falls to admins, as the review policy enforces.
 func projectParentReviewScopes(settings, output map[string]*config.ResolvedSetting, snapshot *config.SettingsSnapshot) error {
 	request := settings[config.KeyParentRequestReviewScope]
 	absence := settings[config.KeyParentAbsenceReviewScope]
 	if request == nil && absence == nil {
 		return nil
 	}
-	groupLeaders, err := snapshot.Bool(config.KeyParentRequestGroupLeaderReviewEnabled)
-	if err != nil {
-		return err
-	}
-	inherited := config.ParentRequestReviewScopeAdmins
-	if groupLeaders {
-		inherited = config.ParentRequestReviewScopeGroupLeaders
-	}
 	groupMode, err := snapshot.String(config.KeyGroupMode)
 	if err != nil {
 		return err
 	}
 	offerGroupLeaders := config.GroupModeOf(groupMode) == config.GroupModeFixedGroups
+	inherited := config.ParentRequestReviewScopeAdmins
+	if offerGroupLeaders {
+		groupLeaders, err := snapshot.Bool(config.KeyParentRequestGroupLeaderReviewEnabled)
+		if err != nil {
+			return err
+		}
+		if groupLeaders {
+			inherited = config.ParentRequestReviewScopeGroupLeaders
+		}
+	}
 	requestScope := inherited
 	if request != nil {
 		// Read the stored choice before the projection replaces inherit.
