@@ -621,6 +621,23 @@ Verwaltung, Abrechnung, Personal oder nur lesen. Eine Person kann mehrere
 Träger-Rollen haben. Eine Träger-Rolle gilt für alle OGS des Trägers, auch für
 später hinzukommende. Sie ist unabhängig von einer Rolle in einer OGS.
 
+## Träger-Wert
+
+Ein **Träger-Wert** ist der Wert einer Einstellung, den das Träger-Büro für
+alle OGS des Trägers setzt. Er gilt in jeder OGS des Trägers ohne eigene
+Schul-Abweichung, auch in später hinzukommenden. Manche Einstellungen gibt es
+nur beim Träger; dort kann keine OGS abweichen. Tarife, Vorlagen,
+Nummernkreise und Bankverbindungen sind keine Träger-Werte, sondern eigene
+Objekte des Trägers.
+_Vermeiden_: Träger-Default, Vorgabe (klingt nach Sperre), Org-Setting.
+
+## Schul-Abweichung
+
+Eine **Schul-Abweichung** ist der eigene Wert einer OGS für eine Einstellung.
+Er ersetzt dort den Träger-Wert oder den Standardwert. Setzt die OGS ihn
+zurück, gilt wieder der Träger-Wert, ohne Träger-Wert der Standardwert.
+_Vermeiden_: Override (nur im Code), Ausnahme.
+
 ## Ausrichtende OGS
 
 Die **ausrichtende OGS** betreut in einer Ferienwoche die Kinder, die für diese
