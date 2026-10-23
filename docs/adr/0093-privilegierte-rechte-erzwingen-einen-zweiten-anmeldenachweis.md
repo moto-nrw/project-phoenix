@@ -33,12 +33,12 @@ Grundlage ist die [Zugriffsbewertung für Gesundheits- und Personaldaten](../sec
    sie. Mint und Refresh prüfen aktuelle Rechte und Policy unter den vorhandenen
    Sperren erneut. Elternsitzungen sind ein eigener Bereich ohne Personalrechte.
 4. Der Schulwechsel selbst ist keine zweite Authentisierung. Er erhält den
-   vorhandenen Nachweis nur aus der vorgelegten, lebenden OGS-Sitzungsfamilie
+   vorhandenen Nachweis nur aus der vorgelegten, lebenden Sitzungsfamilie
    desselben Kontos, auch beim Wechsel in einen anderen Träger. Nicht die Schule
    oder der Träger, sondern diese Sitzung bindet den Nachweis. Identity & Access
-   liest ihn unter der Kontosperre erneut. MFA-Zurücksetzung, Widerruf, Ablauf
-   und fremde Portalbereiche dürfen keinen
-   Nachweis liefern. Die Rechte und MFA-Regel der Zielschule gelten unverändert.
+   liest ihn unter der Kontosperre erneut. OGS-Portal und Schulportal übernehmen
+   ihn jeweils nur innerhalb ihres eigenen Portalbereichs. MFA-Zurücksetzung,
+   Widerruf, Ablauf und fremde Portalbereiche dürfen keinen Nachweis liefern. Die Rechte und MFA-Regel der Zielschule gelten unverändert.
    Ohne gültigen Nachweis verlangt eine MFA-pflichtige Zielschule eine direkte
    Anmeldung; die API lehnt den Wechsel mit 401 und
    `identity.mfa_session_required` ab. Das gilt auch nach Ablauf der Schonfrist
@@ -58,5 +58,11 @@ Grundlage ist die [Zugriffsbewertung für Gesundheits- und Personaldaten](../sec
   Anmeldeweg wiederherstellen. Es gibt keine Passwort-Notfallausnahme.
 - Der dev-only Seed-Adapter bestätigt dieselben E-Mail-Codes über Mailpit.
   Die API erhält keinen Entwicklungs-Bypass.
+- Der Demo-Sidecar bestätigt dieselben Codes über einen In-Memory-Empfänger
+  auf `127.0.0.1:10026` in seiner mit dem Server geteilten Netzwerknamespace.
+  Nur der Demo-Mailer liefert dort an. Der TCP-Empfänger bestätigt Zustellung,
+  bietet aber keinen Lese-Endpunkt; nur der Sidecar liest die Codes im eigenen
+  Prozess. Ohne Empfänger schlägt die Zustellung fehl. So bleiben externe
+  Demo-Mails gesperrt und MFA-Policy, Einrichtung und Code-Prüfung unverändert.
 - [Runbook](../operations/mfa-pflicht-3841.md) trennt Implementierung und offene
   produktive Nachweise. Der AVV/TOM-Text ist ein Vorschlag, kein Betriebsnachweis.

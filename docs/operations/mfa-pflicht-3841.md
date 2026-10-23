@@ -48,7 +48,7 @@ Widerruf oder Reset darf keinen neuen Sitzungsnachweis erzeugen. Die Einstellung
 gemerkte Geräte bleiben deshalb auch bei `off` sichtbar. Ein noch nicht
 angemeldetes Konto kann die Einrichtung nicht mit einem alten Cookie überspringen.
 
-Migration `1.15.480` setzt für alle vorhandenen Refresh-Sitzungen den neuen
+Migration `1.15.484` setzt für alle vorhandenen Refresh-Sitzungen den neuen
 Nachweis `mfa_verified` auf `false`. Beim nächsten Refresh muss ein inzwischen
 MFA-pflichtiges Konto sich neu anmelden. Es erhält dann die Einrichtungsabfrage
 oder eine Code-Abfrage. Neue bestätigte Sitzungen behalten ihren Nachweis über
@@ -56,7 +56,9 @@ Rotation und zulässige Wiederherstellung verlorener Refresh-Antworten.
 Access-Token bleiben bis zu ihrer vorhandenen Ablaufzeit gültig; es gibt keine
 nachträgliche Sofortsperre aller Access-Token.
 
-Ein Schulwechsel erhält die Bestätigung der laufenden Anmeldung im OGS-Portal.
+Ein Schulwechsel erhält die Bestätigung der laufenden Anmeldung im OGS-Portal
+oder im Schulportal. Die Bestätigung bleibt im jeweiligen Portalbereich und
+gilt nur für dasselbe Konto.
 Nach Zurücksetzen der zweiten Prüfung gilt diese Bestätigung nicht mehr.
 Sie gilt auch nicht nach Abmeldung oder Ablauf der Sitzung.
 Fehlt die Bestätigung, melden Sie sich direkt bei der Zielschule an.
@@ -111,6 +113,25 @@ MFA über die echten Enrollment-/Verify-Endpunkte und das lokale Mailpit ab,
 wie bisher beim Operator. Ein Seed-Admin erhält dadurch eine bestätigte Sitzung;
 spätere manuelle Anmeldungen nutzen den Code aus Mailpit oder einen eigenen
 Passkey. Mailpit-Automatik gehört nur in `cmd/devtools`, nicht in die API.
+
+### Demo-Betrieb
+
+Auch der Demo-Schuladmin durchläuft Einrichtung und Code-Prüfung. Statt Mailpit
+nimmt der Demo-Sidecar Codes im eigenen Arbeitsspeicher entgegen. Der Demo-Mailer
+sendet sie ausschließlich an `127.0.0.1:10026` in der mit dem Server geteilten
+Netzwerknamespace. Dieser TCP-Port ist nicht veröffentlicht und bietet keinen
+Lese-Endpunkt. MFA-Codes gehen nicht an externe Postfächer. Der Empfänger hält
+sie nur im Arbeitsspeicher und legt keine Dateien an. Der bestehende
+serverseitige MFA-/Outbox-Ablauf bleibt unverändert. Die MFA-Regel erhält
+keine Demo-Ausnahme.
+
+Der Sidecar startet den Empfänger vor Provisionierung und Simulation. Ohne
+Empfänger scheitert die Zustellung geschlossen; bei einem Portkonflikt startet
+der Sidecar nicht. Bei Demo-Anmeldefehlern zuerst Sidecar-Start und gemeinsame
+Netzwerknamespace prüfen. Keine Codes in Logs oder Betriebsnachweise aufnehmen.
+Der Demo-Adapter nutzt keinen Dateicache, da der Sidecar schreibgeschützt läuft.
+Der Ablauf ist lokal mit Test-DB geprüft, der ausgerollte Demo-Betrieb bleibt
+gesondert nachzuweisen.
 
 ## Vorschlag AVV/TOM
 

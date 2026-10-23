@@ -94,6 +94,12 @@ func (a *Adapter) restoreTenantSession(ctx context.Context, key tenantSessionKey
 	}
 	auth := AuthRef{Kind: AuthBearer, Label: saved.TenantSlug, Token: token}
 	auth, err = a.switchRestoredTenantSession(ctx, auth, target)
+	var apiErr *APIError
+	// A 401 (including missing MFA proof at the target) means this restored
+	// session cannot authenticate the switch. Re-enter the real target login.
+	if errors.As(err, &apiErr) && apiErr.StatusCode == http.StatusUnauthorized {
+		return AuthRef{}, false, discardRejectedTenantSession(key.file, err)
+	}
 	return auth, err == nil, err
 }
 
