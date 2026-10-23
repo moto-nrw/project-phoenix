@@ -3448,3 +3448,26 @@ func TestRequestService_NoticeAttachmentEvidenceSurvivesLaterPublication(t *test
 	require.NoError(t, err)
 	require.Equal(t, documents, pinned.Fields[0].Attachments)
 }
+
+func TestRequestServiceRejectsUnreadableStatusTokenLifetime(t *testing.T) {
+	t.Parallel()
+	env := setupRequestTest(t)
+	failure := errors.New("status token lifetime unavailable")
+	env.settings.intErrors[settingKeyStatusTokenTTLDays] = failure
+	result, err := env.svc.Submit(testpkg.Ctx(t), validSubmission(t, env.phaseID))
+	require.ErrorIs(t, err, failure)
+	assert.Nil(t, result)
+}
+
+func TestRequestServiceRejectsUnreadableSubmissionEditPolicy(t *testing.T) {
+	t.Parallel()
+	env := setupRequestTest(t)
+	ctx := testpkg.Ctx(t)
+	submitted, err := env.svc.Submit(ctx, validSubmission(t, env.phaseID))
+	require.NoError(t, err)
+	failure := errors.New("submission edit policy unavailable")
+	env.settings.boolErrors[settingKeyAllowSubmissionEdit] = failure
+	name := "Unchanged"
+	err = testpkg.TenantCommand2(t, ctx, env.db, env.svc.Edit, submitted.Request.StatusToken, enrollmentAPI.EditPatch{GuardianFirstName: &name})
+	require.ErrorIs(t, err, failure)
+}

@@ -84,6 +84,17 @@
     {
       "scope": "test",
       "file": "modules/schedulerruntime/internal/application/worker_test.go",
+      "declaration": "TestNewWorkerRejectsMissingSettings",
+      "target": "services/scheduler.NewWorker",
+      "lines": [
+        144,
+        148
+      ],
+      "tables": []
+    },
+    {
+      "scope": "test",
+      "file": "modules/schedulerruntime/internal/application/worker_test.go",
       "declaration": "TestNewWorkerRejectsMissingTokenCleanupDependencies",
       "target": "services/scheduler.NewWorker",
       "lines": [

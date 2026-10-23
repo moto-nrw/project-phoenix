@@ -268,7 +268,11 @@ func (rs *Resource) getActiveGroupVisitsWithDisplay(w http.ResponseWriter, r *ht
 		return
 	}
 
-	photosEnabled := rs.displaySettings.StudentPhotosEnabled(r.Context(), rs.getLogger())
+	photosEnabled, err := rs.displaySettings.StudentPhotosEnabled(r.Context())
+	if err != nil {
+		common.RenderError(w, r, common.ErrorInternalServerWrap(http.StatusText(http.StatusInternalServerError), err))
+		return
+	}
 	responses := rs.buildVisitDisplayResponses(results, attendanceStatuses, access, photosEnabled)
 	common.Respond(w, r, http.StatusOK, responses, "Active group visits with display data retrieved successfully")
 }

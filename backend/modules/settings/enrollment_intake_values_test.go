@@ -51,8 +51,20 @@ func TestEnrollmentIntakeValuesUseResolvedDefaultsAndFailClosed(t *testing.T) {
 	for name, source := range map[string]intakeSource{"unset": {}, "failing": {fail: errors.New("down")}} {
 		values := NewEnrollmentIntakeValues(source)
 		assert.False(t, values.EnrollmentEnabled(ctx), name)
-		assert.True(t, values.AllowSubmissionEdit(ctx), name)
-		assert.Equal(t, 365, values.StatusTokenTTLDays(ctx), name)
+		allowed, editErr := values.AllowSubmissionEdit(ctx)
+		if source.fail != nil {
+			require.ErrorIs(t, editErr, source.fail)
+		} else {
+			require.NoError(t, editErr)
+			assert.True(t, allowed, name)
+		}
+		days, err := values.StatusTokenTTLDays(ctx)
+		if source.fail != nil {
+			require.ErrorIs(t, err, source.fail)
+		} else {
+			require.NoError(t, err)
+			assert.Equal(t, 365, days, name)
+		}
 		assert.Empty(t, values.AdminNotificationEmails(ctx), name)
 		assert.False(t, values.ChangeRequestMailsEnabled(ctx), name)
 	}
@@ -63,8 +75,12 @@ func TestEnrollmentIntakeValuesUseResolvedDefaultsAndFailClosed(t *testing.T) {
 		configModel.KeyEnrollmentChangeRequestEmailNotificationsEnabled: true,
 	}})
 	assert.True(t, values.EnrollmentEnabled(ctx))
-	assert.False(t, values.AllowSubmissionEdit(ctx))
-	assert.Equal(t, 30, values.StatusTokenTTLDays(ctx))
+	allowed, editErr := values.AllowSubmissionEdit(ctx)
+	require.NoError(t, editErr)
+	assert.False(t, allowed)
+	days, err := values.StatusTokenTTLDays(ctx)
+	require.NoError(t, err)
+	assert.Equal(t, 30, days)
 	assert.Equal(t, "a@b.test", values.AdminNotificationEmails(ctx))
 	assert.True(t, values.ChangeRequestMailsEnabled(ctx))
 }

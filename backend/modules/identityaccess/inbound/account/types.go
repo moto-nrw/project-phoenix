@@ -75,8 +75,7 @@ type TenantResolveResponse struct {
 	GradeLevelMax int `json:"grade_level_max"`
 	// CareOfferingsEnabled is shell metadata for approved-child offering
 	// corrections. Missing metadata stays enabled for compatibility with older
-	// backends; an explicit settings-resolution error fails closed so the UI
-	// cannot offer a mutation that the authoritative service will reject.
+	// backends; a settings-resolution error fails the shell request.
 	CareOfferingsEnabled bool `json:"care_offerings_enabled"`
 	AttendanceWebEnabled bool `json:"attendance_web_enabled"`
 	// AttendanceLogEnabled is the tenant's resolved gdpr.attendance_log_enabled
@@ -141,8 +140,8 @@ type TenantResolveResponse struct {
 	// operations.child_search_only_navigation setting (#1321): staff find
 	// children through the child search alone, and "Meine Gruppe" and
 	// "Aktuelle Aufsicht" leave the navigation. Shell metadata because every
-	// staff member's navigation follows it, also without config:read. Fails
-	// closed (false), which keeps the separate entries.
+	// staff member's navigation follows it, also without config:read. A lookup
+	// error fails the shell request.
 	ChildSearchOnlyNavigation bool `json:"child_search_only_navigation"`
 }
 

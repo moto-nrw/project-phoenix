@@ -59,9 +59,7 @@ type Resource struct {
 	GuardianInvitations        identityaccess.GuardianInvitations
 	CaregiverCapabilityService Caregivers
 	SchoolService              SchoolDirectory
-	// SettingsService enriches tenant-shell metadata. Some optional feature
-	// flags retain defensive fallbacks, but resolveTenant requires this service
-	// for the grade-level validation contract and returns 500 when it is absent.
+	// SettingsService is required at construction; unreadable shell policy fails the request.
 	SettingsService settings.TenantReader
 	// RoleGrants is Security Runtime's decision whether the caller may hand
 	// out a role when creating an account (#2736). Without it every grant is
@@ -102,12 +100,16 @@ type RoleGrantPolicy interface {
 
 // NewResource creates a new auth resource. sessions is the Identity & Access
 // capability the session routes (#3251) and the RBAC routes (#3314) call.
-func NewResource(lifecycle AccountLifecycle, invitations Invitations, schoolService SchoolDirectory, sessions AccountSessions, transactions UnitOfWork, constraintViolation func(error) bool) *Resource {
+func NewResource(lifecycle AccountLifecycle, invitations Invitations, schoolService SchoolDirectory, sessions AccountSessions, transactions UnitOfWork, constraintViolation func(error) bool, settingsService settings.TenantReader) *Resource {
 	if constraintViolation == nil {
 		panic("account resource: database failure classifier is required")
 	}
+	if settingsService == nil {
+		panic("account resource: settings service is required")
+	}
 	return &Resource{
 		ConstraintViolation: constraintViolation,
+		SettingsService:     settingsService,
 		AuthService:         lifecycle,
 		Sessions:            sessions,
 		Invitations:         invitations,

@@ -52,7 +52,7 @@ func buildCreateSetup(t *testing.T) *createSetup {
 	}
 
 	mock := &mockInstanceService{}
-	res := NewResource(Dependencies{
+	res := newResourceForTest(Dependencies{
 		TimetableData:   testTimetableData(db).TimetableData(),
 		InstanceService: mock,
 		SettingsService: &settingsDouble{
@@ -323,7 +323,7 @@ func setupDuplicateInstanceRoute(
 	t.Helper()
 
 	_, serviceFactory := RootCompositions.Module(t)
-	resource := NewResource(Dependencies{
+	resource := newResourceForTest(Dependencies{
 		TimetableData:   testTimetableData(db, clock).TimetableData(),
 		SettingsService: &settingsDouble{ResolveIntFn: func(context.Context, string) (int, error) { return 12, nil }},
 		InstanceService: serviceFactory.Instance,
@@ -336,7 +336,7 @@ func TestCreateInstance_UnwiredResource(t *testing.T) {
 
 	s := buildCreateSetup(t)
 	defer s.cleanupFn()
-	router := createRouter(s.ctx, NewResource(Dependencies{InstanceService: s.mock}))
+	router := createRouter(s.ctx, newResourceForTest(Dependencies{InstanceService: s.mock}))
 
 	body := map[string]any{
 		"date":       nextTimetableWorkday().String(),

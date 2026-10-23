@@ -181,10 +181,18 @@ without returning data; route composition rejects a missing settings port.
 Guardian invitation commands also propagate lifetime lookup errors and never
 use the deployment lifetime for staff invitations.
 
-The remaining `Resolve*OrDefault` compatibility helpers resolve registry
-defaults when no override exists, but still substitute a caller value on read
-errors. They are migration debt, not a pattern for new consumers, and must not
-serve privacy or permission decisions.
+Privacy and permission settings (including `gdpr.*`, visibility/scope keys,
+photo policy, edit permission and token lifetimes) propagate lookup errors.
+HTTP readers return the shared error envelope without data; scheduler jobs log
+the error and skip that tenant in the current tick. Required settings ports
+fail at construction, before requests or jobs can run.
+
+The existing operational error fallbacks are inventoried by key and source
+location in [PR #4631, Literal-Fallback-Inventar](https://github.com/moto-nrw/project-phoenix/pull/4631#literal-fallback-inventar).
+That finite inventory is migration debt, not permission to add a fallback.
+`Resolve*OrDefault` still resolves the registry default without an override;
+its caller literal applies only to a failed read. New consumers use `Resolve*`
+and handle the error; touching an inventoried consumer should remove its fallback.
 
 Require the settings service at composition time. A missing service is a
 configuration error, not a reason to read env vars or invent a local default.

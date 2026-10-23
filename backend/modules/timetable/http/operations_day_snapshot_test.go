@@ -54,7 +54,7 @@ func TestOperationsCreateAndStartSpontaneousRechecksWorkdayAfterRequestValidatio
 	roomChecked := false
 	spontaneous := &dayTransitionSpontaneousStart{onRoomExists: func() { roomChecked = true }}
 	service := &fakeOperationsService{start: &timetable.StartedOperation{Status: timetable.InstanceStatusActive}}
-	res := NewResource(Dependencies{
+	res := newResourceForTest(Dependencies{
 		TimetableData:     spontaneous.data(),
 		OperationsService: service,
 		People:            staffAccountPeople(220, 320),
@@ -92,7 +92,7 @@ func TestOperationsCreateAndStartSpontaneousRechecksWorkdayBeforeInstanceCreatio
 		onResolve:  func() { activityResolved = true },
 	}
 	service := &fakeOperationsService{start: &timetable.StartedOperation{Status: timetable.InstanceStatusActive}}
-	res := NewResource(Dependencies{
+	res := newResourceForTest(Dependencies{
 		TimetableData:     spontaneous.data(),
 		OperationsService: service,
 		People:            staffAccountPeople(220, 320),

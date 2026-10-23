@@ -173,15 +173,6 @@ func ResolveIntOrDefault(ctx context.Context, resolver Resolver, key string, fal
 // ResolveManyForTenant(ctx, tenantID, keys).
 type Snapshot = configModel.SettingsSnapshot
 
-// ResolvePresenceModeForTenant returns the tenant's presence mode, or the
-// detailed mode when the reader is missing or fails.
-func ResolvePresenceModeForTenant(ctx context.Context, reader TenantReader, tenantID int64) string {
-	if reader == nil {
-		return PresenceModeDetailed
-	}
-	return configSvc.ResolvePresenceModeForTenant(ctx, reader, tenantID, nil)
-}
-
 // The settings errors the operator routes map to responses.
 type (
 	SettingsError           = configModel.SettingsError

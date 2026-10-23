@@ -35,7 +35,7 @@ func TestOperationsCreateAndStartSpontaneousResolvesActivityAgainstRealRepositor
 	existingGroup := testpkg.CreateTestActivityGroup(t, db, fmt.Sprintf("Bestehende AG %d", time.Now().UnixNano()))
 
 	service := &fakeOperationsService{start: &timetable.StartedOperation{Status: timetable.InstanceStatusActive}}
-	res := NewResource(Dependencies{
+	res := newResourceForTest(Dependencies{
 		OperationsService: service,
 		TimetableData:     testTimetableData(db).TimetableData(),
 		People:            staffAccountPeople(staff.PersonID, staff.ID),

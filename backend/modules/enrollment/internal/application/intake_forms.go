@@ -33,11 +33,18 @@ func (s *Intake) isEnrollmentEnabled(ctx context.Context) bool {
 	return s.deps.Settings.EnrollmentEnabled(ctx)
 }
 
-func (s *Intake) allowSubmissionEdit(ctx context.Context) bool {
+func (s *Intake) requireSubmissionEdit(ctx context.Context) error {
 	if s.deps.Settings == nil {
-		return true
+		return errSettingsNotConfigured
 	}
-	return s.deps.Settings.AllowSubmissionEdit(ctx)
+	allowed, err := s.deps.Settings.AllowSubmissionEdit(ctx)
+	if err != nil {
+		return fmt.Errorf("resolve enrollment.allow_submission_edit: %w", err)
+	}
+	if !allowed {
+		return enrollmentNative.ErrEditNotAllowed
+	}
+	return nil
 }
 
 // collectsSchoolClass resolves the effective school-class capability.
@@ -119,16 +126,18 @@ func (s *Intake) resolveGradeMax(ctx context.Context) (int, error) {
 	return value, nil
 }
 
-func (s *Intake) resolveStatusTokenExpiry(ctx context.Context) time.Duration {
-	const defaultDays = 365
-	days := defaultDays
-	if s.deps.Settings != nil {
-		days = s.deps.Settings.StatusTokenTTLDays(ctx)
+func (s *Intake) resolveStatusTokenExpiry(ctx context.Context) (time.Duration, error) {
+	if s.deps.Settings == nil {
+		return 0, errSettingsNotConfigured
+	}
+	days, err := s.deps.Settings.StatusTokenTTLDays(ctx)
+	if err != nil {
+		return 0, fmt.Errorf("resolve enrollment.status_token_ttl_days: %w", err)
 	}
 	if days <= 0 {
-		days = defaultDays
+		return 0, errors.New("enrollment.status_token_ttl_days must be positive")
 	}
-	return time.Duration(days) * 24 * time.Hour
+	return time.Duration(days) * 24 * time.Hour, nil
 }
 
 // LegalTexts resolves the tenant's legal Markdown and derives the public

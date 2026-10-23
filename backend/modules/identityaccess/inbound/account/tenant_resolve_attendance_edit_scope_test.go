@@ -49,7 +49,7 @@ func TestTenantResolveEmitsAttendanceEditScope(t *testing.T) {
 	db, authRoute, tenantSettings := setupAuthDependenciesRouteWithSettings(t)
 	scope, slug := newTenantResolveScope(t, db)
 
-	resource := authAPI.NewResource(authRoute.AuthService, authRoute.Invitations, authRoute.SchoolService, authRoute.Sessions, identityaccessCompose.TenantUnitOfWork{}, transactionFailures.IsConstraintViolation)
+	resource := authAPI.NewResource(authRoute.AuthService, authRoute.Invitations, authRoute.SchoolService, authRoute.Sessions, identityaccessCompose.TenantUnitOfWork{}, transactionFailures.IsConstraintViolation, authRoute.SettingsService)
 	resource.SettingsService = authRoute.SettingsService
 
 	assert.Equal(t, settings.AttendanceEditScopeOwn, resolveAttendanceEditScope(t, slug, resource),
@@ -76,7 +76,7 @@ func TestTenantResolveAttendanceEditScopeUnknownValueFallsBackToOwn(t *testing.T
 	storeRawTenantSetting(t, db, scope.TenantID,
 		settings.KeyAttendanceEditScope, json.RawMessage(`"irgendwas"`))
 
-	resource := authAPI.NewResource(authRoute.AuthService, authRoute.Invitations, authRoute.SchoolService, authRoute.Sessions, identityaccessCompose.TenantUnitOfWork{}, transactionFailures.IsConstraintViolation)
+	resource := authAPI.NewResource(authRoute.AuthService, authRoute.Invitations, authRoute.SchoolService, authRoute.Sessions, identityaccessCompose.TenantUnitOfWork{}, transactionFailures.IsConstraintViolation, authRoute.SettingsService)
 	resource.SettingsService = authRoute.SettingsService
 
 	assert.Equal(t, settings.AttendanceEditScopeOwn, resolveAttendanceEditScope(t, slug, resource))
