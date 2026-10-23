@@ -651,6 +651,76 @@ const VALUE_SWITCHER_LABELS = new Set([
   "Ganzer Tag",
   "Dieser Block",
 ]);
+const VALUE_SWITCHER_VALUES = new Set([
+  "week",
+  "month",
+  "day",
+  "half-year",
+  "series",
+  "week-a",
+  "week-b",
+  "whole-day",
+  "this-block",
+]);
+
+function collectStaticTabText(children, texts) {
+  for (const child of children) {
+    if (child.type === "JSXText") {
+      texts.push(child.value);
+    } else if (child.type === "JSXElement" || child.type === "JSXFragment") {
+      collectStaticTabText(child.children, texts);
+    } else if (child.type === "JSXExpressionContainer") {
+      collectStaticStrings(child.expression, texts);
+    }
+  }
+}
+
+function staticAttributeValue(openingElement, name) {
+  const attribute = openingElement.attributes.find(
+    (candidate) =>
+      candidate.type === "JSXAttribute" &&
+      candidate.name.type === "JSXIdentifier" &&
+      candidate.name.name === name,
+  );
+  if (attribute?.value?.type === "Literal") {
+    return typeof attribute.value.value === "string"
+      ? attribute.value.value
+      : null;
+  }
+  const expression = attribute?.value?.expression;
+  if (expression?.type === "Literal" && typeof expression.value === "string") {
+    return expression.value;
+  }
+  return null;
+}
+
+function hasTabsContent(node, seen = new WeakSet()) {
+  if (!node || typeof node !== "object" || seen.has(node)) return false;
+  if (node.type === "JSXElement" && node.openingElement.name?.name === "TabsContent") {
+    return true;
+  }
+  seen.add(node);
+
+  return Object.entries(node).some(([key, value]) => {
+    if (key === "parent") return false;
+    if (Array.isArray(value)) {
+      return value.some((child) => hasTabsContent(child, seen));
+    }
+    return hasTabsContent(value, seen);
+  });
+}
+
+function isTabsWithoutContent(node) {
+  for (let ancestor = node.parent; ancestor; ancestor = ancestor.parent) {
+    if (
+      ancestor.type === "JSXElement" &&
+      ancestor.openingElement.name?.name === "Tabs"
+    ) {
+      return !hasTabsContent(ancestor);
+    }
+  }
+  return false;
+}
 
 const noTabsAsValueSwitcher = {
   meta: {
@@ -676,9 +746,20 @@ const noTabsAsValueSwitcher = {
       JSXElement(node) {
         const name = node.openingElement?.name?.name;
         if (name !== "TabsTrigger") return;
-        const child = node.children?.find((c) => c.type === "JSXText");
-        const label = child?.value?.trim();
-        if (label && VALUE_SWITCHER_LABELS.has(label)) {
+        const texts = [];
+        collectStaticTabText(node.children, texts);
+        const value = staticAttributeValue(node.openingElement, "value");
+        if (
+          texts.some((text) => {
+            const token = text.trim();
+            return (
+              VALUE_SWITCHER_LABELS.has(token) ||
+              VALUE_SWITCHER_VALUES.has(token)
+            );
+          }) ||
+          (value !== null && VALUE_SWITCHER_VALUES.has(value)) ||
+          isTabsWithoutContent(node)
+        ) {
           context.report({ node, messageId: "valueSwitcher" });
         }
       },

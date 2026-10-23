@@ -331,6 +331,87 @@ describe("ui-kit/no-tabs-as-value-switcher", () => {
     }
   });
 
+  it("reports nested and translated value-choice labels", () => {
+    const result = lintSource(
+      `function TabsTrigger(_: { value: string; children: unknown }) {
+        return null;
+      }
+      function t(key: string) {
+        return key;
+      }
+      function Probe() {
+        return <>
+          <TabsTrigger value="custom"><span>Woche</span></TabsTrigger>
+          <TabsTrigger value="custom">{t("week")}</TabsTrigger>
+        </>;
+      }
+      void Probe;`,
+      "src/components/probe.tsx",
+    );
+    const output = `${result.stdout}${result.stderr}`;
+
+    expect(result.status).toBe(1);
+    expect(output.match(/ui-kit\(no-tabs-as-value-switcher\)/g)).toHaveLength(
+      2,
+    );
+  });
+
+  it("reports dynamic tabs without content panels", () => {
+    const result = lintSource(
+      `function Tabs(_: { children: unknown }) {
+        return null;
+      }
+      function TabsList(_: { children: unknown }) {
+        return null;
+      }
+      function TabsTrigger(_: { value: string; children: unknown }) {
+        return null;
+      }
+      const tab = { id: "custom", label: "Eigene Ansicht" };
+      function Probe() {
+        return <Tabs><TabsList>
+          <TabsTrigger value={tab.id}>{tab.label}</TabsTrigger>
+        </TabsList></Tabs>;
+      }
+      void Probe;`,
+      "src/components/probe.tsx",
+    );
+    const output = `${result.stdout}${result.stderr}`;
+
+    expect(result.status).toBe(1);
+    expect(output).toContain("ui-kit(no-tabs-as-value-switcher)");
+  });
+
+  it("accepts dynamic labels when tabs render content panels", () => {
+    const result = lintSource(
+      `function Tabs(_: { children: unknown }) {
+        return null;
+      }
+      function TabsList(_: { children: unknown }) {
+        return null;
+      }
+      function TabsTrigger(_: { value: string; children: unknown }) {
+        return null;
+      }
+      function TabsContent(_: { value: string; children: unknown }) {
+        return null;
+      }
+      const tab = { id: "custom", label: "Eigene Ansicht" };
+      function Probe() {
+        return <Tabs>
+          <TabsList><TabsTrigger value={tab.id}>{tab.label}</TabsTrigger></TabsList>
+          <TabsContent value={tab.id}>Inhalt</TabsContent>
+        </Tabs>;
+      }
+      void Probe;`,
+      "src/components/probe.tsx",
+    );
+    const output = `${result.stdout}${result.stderr}`;
+
+    expect(result.status, output).toBe(0);
+    expect(output).not.toContain("no-tabs-as-value-switcher");
+  });
+
   it("accepts content tabs and leaves the other portals alone", () => {
     for (const [label, path] of [
       ["Bearbeiten", "src/components/probe.tsx"],
