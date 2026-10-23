@@ -12,6 +12,7 @@ import { ToastProvider } from "~/contexts/ToastContext";
 import { ApiError } from "~/lib/api-error";
 import type { StatisticsReport } from "~/lib/statistics-api";
 import { catalogText } from "~/test/error-catalog-text";
+import { TEST_CLOCK_TODAY } from "~/test/clock";
 
 // Exportfehler kommen als Toast (#2517).
 function render(ui: ReactElement) {
@@ -263,18 +264,30 @@ describe("Statistik — Bereich Kurse (#2891)", () => {
 describe("Statistik — ausgeschaltete Raumhistorie (#3844)", () => {
   beforeEach(() => mockFetchReport.mockReset());
 
-  it.each(["2026-06-01", "2026-09-09"])(
-    "erklärt ausgeschaltete Historie unabhängig von der Zeitgrenze %s",
-    async (roomDataFrom) => {
+  it.each([false, true])(
+    "erklärt ausgeschaltete Historie auch im historischen Zeitraum: %s",
+    async (historical) => {
       mockFetchReport.mockResolvedValue(
         report({
           room_history_disabled: true,
           room_data_days: 0,
-          room_data_from: roomDataFrom,
+          room_data_from: TEST_CLOCK_TODAY,
         }),
       );
       render(<StatisticsPage />);
       fireEvent.click(await screen.findByRole("tab", { name: "Räume" }));
+      if (historical) {
+        fireEvent.click(
+          screen.getByRole("button", { name: "Vorheriger Zeitraum" }),
+        );
+        await waitFor(() =>
+          expect(mockFetchReport).toHaveBeenLastCalledWith(
+            "2026-07-12",
+            "2026-08-10",
+            [],
+          ),
+        );
+      }
       // Anker: Der geladene Raumbereich erklärt die fehlende Voraussetzung.
       expect(
         await screen.findByText("Raumhistorie ist ausgeschaltet"),
