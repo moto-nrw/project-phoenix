@@ -201,11 +201,23 @@ export function OgsGroupsBreadcrumb({ groupName }: OgsGroupsBreadcrumbProps) {
  */
 interface ActiveSupervisionsBreadcrumbProps {
   readonly supervisionName?: string;
+  /** Offener Raum ohne eigene Aufsicht: „Räume › Name“ (#4372). */
+  readonly isSharedRoom?: boolean;
 }
 
 export function ActiveSupervisionsBreadcrumb({
   supervisionName,
+  isSharedRoom = false,
 }: ActiveSupervisionsBreadcrumbProps) {
+  if (isSharedRoom && supervisionName) {
+    return (
+      <SectionBreadcrumb
+        sectionLabel="Räume"
+        sectionHref="/rooms"
+        pageLabel={supervisionName}
+      />
+    );
+  }
   return (
     <AccordionSectionBreadcrumb
       sectionLabel="Aktuelle Aufsicht"

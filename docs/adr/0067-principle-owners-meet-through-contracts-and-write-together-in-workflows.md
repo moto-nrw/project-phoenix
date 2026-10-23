@@ -193,7 +193,31 @@ This is a bounded correction of E2 to point 5, not a new coordinator exception
 or a claim of global deadlock freedom. Grade-transition Apply/Revert retain
 class(exclusive) → recurrence → transition; the materializer takes the suffix
 recurrence → transition and no class gate. The inventory records every audited
-shared-gate path and separate, still-static row/gate-order findings.
+shared-gate path; #4638 below corrects the two offering findings.
+
+### E1/E4 offering lock-order correction (#4638)
+
+Offering-derived writers use the same prefix as E2: **class(shared) →
+recurrence → child rows → offering-change request rows / pickup rows**.
+`BookingMaterialization.loadOfferingAdjustmentSubject` acquires the existing
+`LockOfferingDerivedWrites` gate itself, protecting the admin correction as
+well as already-gated callers. Pickup reset takes those gates before its child
+lock. Offering approve/reject, MarkDone and conflict pre-locking locate the
+immutable student ID without locking, acquire that prefix, then lock and
+re-read the request. Terminal/version checks repeat under the request lock;
+authorization, catalog validation, tenant scope and mutations retain their
+existing contracts. No transition gate, owner, policy rule or root decision is
+added. Existing account-before-roster constraints are unchanged.
+
+`modules/careplan/contracttest/offering_lock_order_test.go` records real
+`40P01` failures before the fixes: admin correction versus grade Apply, and
+approve/reset versus care end, plus a child-held interleaving for approve,
+reject, MarkDone and offering conflict resolution. PostgreSQL lock observation
+arranges the interleavings; all commands complete after the fixes. The
+[inventory](../architecture/4538-cross-owner-write-inventory.md#offering-lock-order-correction-and-row-audit-4638)
+records the before/after paths and the remaining, separately scoped
+care-schedule, excused and master-data request-before-child findings. This is
+not a claim of global deadlock freedom or an exemption for those inversions.
 
 ### Evidence and enforcement
 
