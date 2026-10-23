@@ -1,5 +1,5 @@
 // Package schoolmembership is the public School Membership capability. It
-// owns users.staff_school_memberships, users.teachers, users.guests,
+// owns users.staff_school_memberships, users.teachers, users.external_caregivers,
 // users.class_list_entries, education.class_teachers and
 // education.group_teacher. Every read or write of those rows by another owner
 // goes through Query or Command instead of a foreign SQL join.

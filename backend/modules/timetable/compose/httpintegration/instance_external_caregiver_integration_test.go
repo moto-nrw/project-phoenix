@@ -120,7 +120,7 @@ func TestInstance_CreatePlanned_AllowsAccountBackedGuest(t *testing.T) {
 	s := buildLifecycle(t)
 	staff, _ := testpkg.CreateTestStaffWithAccount(t, s.db, "Gast", "MitKonto")
 	guest := &testpkg.Guest{TenantID: testpkg.Tenant(t), StaffID: staff.ID, ActivityExpertise: "Musik"}
-	_, err := s.db.NewInsert().Model(guest).ModelTableExpr(`users.guests`).Exec(s.ctx)
+	_, err := s.db.NewInsert().Model(guest).ModelTableExpr(`users.external_caregivers`).Exec(s.ctx)
 	require.NoError(t, err)
 
 	created, err := s.svc.CreateInstance(s.ctx, timetable.CreateInstanceInput{

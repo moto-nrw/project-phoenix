@@ -1346,7 +1346,7 @@ func CreateTestGuest(tb testing.TB, db *bun.DB, expertise string) *Guest {
 
 	err := db.NewInsert().
 		Model(guest).
-		ModelTableExpr(`users.guests`).
+		ModelTableExpr(`users.external_caregivers`).
 		Scan(ctx)
 	require.NoError(tb, err, "Failed to create test guest")
 

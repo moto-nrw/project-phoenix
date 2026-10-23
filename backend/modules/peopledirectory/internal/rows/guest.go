@@ -6,7 +6,7 @@ import (
 
 // Guest represents a guest instructor in the system
 type Guest struct {
-	Model `bun:"schema:users,table:guests"`
+	Model `bun:"schema:users,table:external_caregivers"`
 	TenantModel
 	StaffID           int64          `bun:"staff_id,notnull" json:"staff_id"`
 	Organization      string         `bun:"organization" json:"organization,omitempty"`

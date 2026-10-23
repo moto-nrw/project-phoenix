@@ -86,7 +86,7 @@ func (s *Store) DeleteGuestsByStaff(ctx context.Context, staffID int64) (domain.
 		return domain.OperationStats{}, err
 	}
 	query := withTenant(db.NewDelete().Model((*guestRow)(nil)).
-		ModelTableExpr(`users.guests AS "guest"`).
+		ModelTableExpr(`users.external_caregivers AS "guest"`).
 		Where(`"guest".staff_id = ?`, staffID), "guest", scope)
 	return execDelete(ctx, query, "delete guests by staff")
 }

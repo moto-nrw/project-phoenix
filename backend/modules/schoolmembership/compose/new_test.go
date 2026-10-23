@@ -404,7 +404,7 @@ func TestModuleFiltersGuestListings(t *testing.T) {
 	noOrganizationStaff := createStaff(t, ctx, db, module, "Anonymous", "Guest", schoolmembership.StaffFields{})
 	var withoutOrganizationID int64
 	require.NoError(t, db.NewRaw(
-		`INSERT INTO users.guests (tenant_id, staff_id, activity_expertise, organization)
+		`INSERT INTO users.external_caregivers (tenant_id, staff_id, activity_expertise, organization)
 		 VALUES (?, ?, ?, NULL) RETURNING id`,
 		testpkg.Tenant(t), noOrganizationStaff.ID, "Kochen",
 	).Scan(context.Background(), &withoutOrganizationID))

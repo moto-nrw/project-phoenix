@@ -97,6 +97,9 @@ var unmappedDateColumns = map[string]string{
 // The scanner only sees declarations; renames are direction-blind in
 // migration+rollback strings, so they are recorded explicitly.
 var renamedDateColumns = map[string]string{
+	// 001015480_external_caregivers_table.go renames the table, keeping its dates.
+	"users.guests.start_date": "users.external_caregivers.start_date",
+	"users.guests.end_date":   "users.external_caregivers.end_date",
 	// Student owner cutover moves the dates to school membership; the Student
 	// DTO no longer declares the removed compatibility table as owned storage.
 	"users.students.enrolled_from":  "users.student_school_memberships.enrolled_from",

@@ -4473,7 +4473,7 @@
       "write_owner": "people-directory"
     },
     {
-      "name": "users.guests",
+      "name": "users.external_caregivers",
       "write_owner": "school-membership"
     },
     {

@@ -289,7 +289,7 @@ var tableRetentions = map[string]tableRetention{
 	"users.guardian_financial_data":                         parent("users.guardian_profiles"),
 	"users.guardian_phone_numbers":                          parent("users.guardian_profiles"),
 	"users.guardian_profiles":                               own("nightly retention step guardian_retention (api/worker_retention.go), People Directory DeleteExpiredChildlessGuardians (school window gdpr.guardian_retention_days after childless_since, #4043)"),
-	"users.guests":                                          staffRetention("School Membership EraseNextRetiredStaff"),
+	"users.external_caregivers":                             staffRetention("School Membership EraseNextRetiredStaff"),
 	"users.notification_preferences":                        parent("auth.accounts"),
 	"users.parent_announcement_declaration_submissions":     parent("users.student_profiles"),
 	"users.parent_announcement_declaration_versions":        parent("users.parent_announcements"),

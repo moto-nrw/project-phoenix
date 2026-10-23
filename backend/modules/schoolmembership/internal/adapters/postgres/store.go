@@ -22,8 +22,8 @@ const (
 	staffPersonIndex       = "idx_staff_tenant_person"
 	teacherStaffIndex      = "idx_teachers_tenant_staff"
 	teacherStaffConstraint = "teachers_staff_id_key"
-	guestStaffIndex        = "idx_guests_tenant_staff"
-	guestStaffConstraint   = "guests_staff_id_key"
+	guestStaffIndex        = "idx_external_caregivers_tenant_staff"
+	guestStaffConstraint   = "external_caregivers_staff_id_key"
 )
 
 // Database resolves the connection and the tenant of the current request.
@@ -55,7 +55,7 @@ type staffRow struct {
 	// it; scanonly keeps inserts and updates from overwriting the marker.
 	PersonalDataErasedAt *time.Time `bun:"personal_data_erased_at,scanonly"`
 	// IsGuest and GuestOrganization come from the staff member's guest
-	// profile (users.guests, #3823); reads fill them, writes never send them.
+	// profile (users.external_caregivers, #3823); reads fill them, writes never send them.
 	IsGuest           bool   `bun:"is_guest,scanonly"`
 	GuestOrganization string `bun:"guest_organization,scanonly"`
 }
@@ -74,7 +74,7 @@ type teacherRow struct {
 }
 
 type guestRow struct {
-	bun.BaseModel     `bun:"table:guests,alias:guest"`
+	bun.BaseModel     `bun:"table:external_caregivers,alias:guest"`
 	ID                int64          `bun:"id,pk,autoincrement"`
 	CreatedAt         time.Time      `bun:"created_at,nullzero,notnull,default:current_timestamp"`
 	UpdatedAt         time.Time      `bun:"updated_at,nullzero,notnull,default:current_timestamp"`
@@ -497,7 +497,7 @@ func (s *Store) CreateGuest(ctx context.Context, fields schoolmembership.GuestFi
 	row.TenantID = scope.TenantID
 	stats := domain.OperationStats{Queries: 1}
 	started := time.Now()
-	err = db.NewInsert().Model(&row).ModelTableExpr(`users.guests`).Returning("*").Scan(ctx)
+	err = db.NewInsert().Model(&row).ModelTableExpr(`users.external_caregivers`).Returning("*").Scan(ctx)
 	stats.StatementDuration = time.Since(started)
 	if err != nil {
 		return schoolmembership.Guest{}, stats, wrapGuestWriteError("create", err)
@@ -516,7 +516,7 @@ func (s *Store) UpdateGuest(ctx context.Context, id int64, fields schoolmembersh
 		return schoolmembership.Guest{}, domain.OperationStats{}, err
 	}
 	query := withTenant(db.NewUpdate().Model(&row).
-		ModelTableExpr(`users.guests AS "guest"`).
+		ModelTableExpr(`users.external_caregivers AS "guest"`).
 		Column("staff_id", "organization", "contact_email", "contact_phone", "activity_expertise", "start_date", "end_date", "notes").
 		Set(`updated_at = NOW()`).
 		Where(`"guest".id = ?`, id), "guest", scope)
@@ -540,7 +540,7 @@ func (s *Store) DeleteGuest(ctx context.Context, id int64) (domain.OperationStat
 		return domain.OperationStats{}, err
 	}
 	query := withTenant(db.NewDelete().Model((*guestRow)(nil)).
-		ModelTableExpr(`users.guests AS "guest"`).
+		ModelTableExpr(`users.external_caregivers AS "guest"`).
 		Where(`"guest".id = ?`, id), "guest", scope)
 	stats := domain.OperationStats{Queries: 1}
 	started := time.Now()
@@ -572,13 +572,13 @@ func staffSelect(db bun.IDB, model any, includeInactiveGuests bool) *bun.SelectQ
 		ColumnExpr(`"staff".*`)
 	if includeInactiveGuests {
 		return query.
-			ColumnExpr(`EXISTS (SELECT 1 FROM users.guests AS "guest" WHERE "guest".tenant_id = "staff".tenant_id AND "guest".staff_id = "staff".id) AS is_guest`).
-			ColumnExpr(`COALESCE((SELECT "guest".organization FROM users.guests AS "guest" WHERE "guest".tenant_id = "staff".tenant_id AND "guest".staff_id = "staff".id), '') AS guest_organization`)
+			ColumnExpr(`EXISTS (SELECT 1 FROM users.external_caregivers AS "guest" WHERE "guest".tenant_id = "staff".tenant_id AND "guest".staff_id = "staff".id) AS is_guest`).
+			ColumnExpr(`COALESCE((SELECT "guest".organization FROM users.external_caregivers AS "guest" WHERE "guest".tenant_id = "staff".tenant_id AND "guest".staff_id = "staff".id), '') AS guest_organization`)
 	}
 	today := calendar.TodayDate()
 	return query.
-		ColumnExpr(`EXISTS (SELECT 1 FROM users.guests AS "guest" WHERE "guest".tenant_id = "staff".tenant_id AND "guest".staff_id = "staff".id AND ("guest".start_date IS NULL OR "guest".start_date <= ?) AND ("guest".end_date IS NULL OR "guest".end_date >= ?)) AS is_guest`, today, today).
-		ColumnExpr(`COALESCE((SELECT "guest".organization FROM users.guests AS "guest" WHERE "guest".tenant_id = "staff".tenant_id AND "guest".staff_id = "staff".id AND ("guest".start_date IS NULL OR "guest".start_date <= ?) AND ("guest".end_date IS NULL OR "guest".end_date >= ?)), '') AS guest_organization`, today, today)
+		ColumnExpr(`EXISTS (SELECT 1 FROM users.external_caregivers AS "guest" WHERE "guest".tenant_id = "staff".tenant_id AND "guest".staff_id = "staff".id AND ("guest".start_date IS NULL OR "guest".start_date <= ?) AND ("guest".end_date IS NULL OR "guest".end_date >= ?)) AS is_guest`, today, today).
+		ColumnExpr(`COALESCE((SELECT "guest".organization FROM users.external_caregivers AS "guest" WHERE "guest".tenant_id = "staff".tenant_id AND "guest".staff_id = "staff".id AND ("guest".start_date IS NULL OR "guest".start_date <= ?) AND ("guest".end_date IS NULL OR "guest".end_date >= ?)), '') AS guest_organization`, today, today)
 }
 
 func teacherSelect(db bun.IDB, model any) *bun.SelectQuery {
@@ -586,7 +586,7 @@ func teacherSelect(db bun.IDB, model any) *bun.SelectQuery {
 }
 
 func guestSelect(db bun.IDB, model any) *bun.SelectQuery {
-	return db.NewSelect().Model(model).ModelTableExpr(`users.guests AS "guest"`)
+	return db.NewSelect().Model(model).ModelTableExpr(`users.external_caregivers AS "guest"`)
 }
 
 func withTenant[Q interface {

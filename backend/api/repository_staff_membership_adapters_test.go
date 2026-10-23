@@ -422,7 +422,7 @@ func TestStaffMembershipAdapter_ExpiredGuestIsNotExternal(t *testing.T) {
 	guest := testpkg.CreateTestGuest(t, db, "Tanz")
 
 	_, err := db.NewUpdate().
-		TableExpr("users.guests").
+		TableExpr("users.external_caregivers").
 		Set("end_date = ?", testpkg.TodayDate().AddDays(-1)).
 		Where("id = ?", guest.ID).
 		Exec(ctx)

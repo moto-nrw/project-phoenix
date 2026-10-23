@@ -95,7 +95,7 @@ func setupStaffCompositionRoute(t *testing.T) *staffCompositionContext {
 		},
 		createAccountGuest: func(firstName, lastName string) int64 {
 			staff, _ := testpkg.CreateTestStaffWithAccount(t, db, firstName, lastName)
-			_, err := db.NewRaw(`INSERT INTO users.guests (tenant_id, staff_id, activity_expertise) VALUES (?, ?, ?)`,
+			_, err := db.NewRaw(`INSERT INTO users.external_caregivers (tenant_id, staff_id, activity_expertise) VALUES (?, ?, ?)`,
 				testpkg.Tenant(t), staff.ID, "Musik").Exec(context.Background())
 			require.NoError(t, err)
 			return staff.ID
