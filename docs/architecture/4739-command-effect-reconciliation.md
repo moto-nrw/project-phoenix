@@ -1,6 +1,8 @@
 # Command-effect reconciliation (#4739, all domain sources)
 
-Second census based on fetched `origin/development` `673652d030` (PR #4822).
+Second census starts at fetched `origin/development` `673652d030` (PR #4822),
+then integrates `62bc33f3c5` (#4826 and #4760). Regeneration after that merge
+changes no effect identities or fingerprints.
 Paths below start at `backend/`. The original hand inventory references its own
 immutable pre-change tree; no historical protocol evidence is silently replaced.
 
