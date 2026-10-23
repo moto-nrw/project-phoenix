@@ -18,7 +18,7 @@ type CLIDependencies struct {
 
 func RunCLI(args []string, dependencies CLIDependencies) error {
 	if len(args) == 0 {
-		return fmt.Errorf("command is required: check, explain, diagram, dependencies, cycles, audit-issues, or relocations")
+		return fmt.Errorf("command is required: check, effects, passthrough-snapshot, explain, diagram, dependencies, cycles, audit-issues, or relocations")
 	}
 
 	switch args[0] {
@@ -34,6 +34,16 @@ func RunCLI(args []string, dependencies CLIDependencies) error {
 			return dependencies.CheckProject(options.project, options.baseRef)
 		}
 		return nil
+	case "effects":
+		options, err := parseCheckOptions(args[1:])
+		if err != nil {
+			return err
+		}
+		policy, err := LoadPolicy(options.policy)
+		if err != nil {
+			return err
+		}
+		return GenerateCommandEffects(options.project, policy)
 	case "relocations":
 		return runRelocations(args[1:])
 	case "explain":
@@ -47,7 +57,7 @@ func RunCLI(args []string, dependencies CLIDependencies) error {
 	case "cycles":
 		return runCycles(args[1:])
 	default:
-		return fmt.Errorf("unknown command %q: expected check, explain, diagram, dependencies, cycles, audit-issues, or relocations", args[0])
+		return fmt.Errorf("unknown command %q: expected check, effects, passthrough-snapshot, explain, diagram, dependencies, cycles, audit-issues, or relocations", args[0])
 	}
 }
 
@@ -149,6 +159,7 @@ func compareWithBase(options checkOptions, policy *Policy, manifest *LegacyManif
 		CompareCandidateLegacyBaselines(options.project, options.baseRef, manifest, baseManifest, basePolicy, policy),
 		CompareCompositionSurface(options.project, options.baseRef, basePolicy, policy),
 		CompareRatchetBudgets(options.project, options.baseRef),
+		compareCommandEffectsIfEnabled(options.project, options.baseRef, policy),
 	)
 }
 
