@@ -11,7 +11,6 @@ import (
 	"github.com/moto-nrw/project-phoenix/modules/communication/internal/application"
 	"github.com/moto-nrw/project-phoenix/modules/communication/internal/domain"
 	"github.com/moto-nrw/project-phoenix/modules/communication/internal/ports"
-	"github.com/moto-nrw/project-phoenix/modules/staffannouncementaudience/contract"
 	"github.com/moto-nrw/project-phoenix/tenant"
 	"github.com/uptrace/bun"
 )
@@ -51,21 +50,6 @@ type transaction struct{}
 
 func (transaction) RunAdmin(ctx context.Context, callback func(context.Context) error) error {
 	return tenant.WithinAdminRetry(ctx, callback)
-}
-
-func AudienceMapping() contract.Rows[communication.Announcement, communication.AnnouncementViewDetail, domain.OperationStats] {
-	return contract.Rows[communication.Announcement, communication.AnnouncementViewDetail, domain.OperationStats]{
-		Announcement: func(row contract.Announcement) communication.Announcement { return communication.Announcement(row) },
-		Target: func(value communication.Announcement) contract.Target {
-			return contract.Target{PublishedAt: value.PublishedAt, TargetRoles: value.TargetRoles, TargetOrgIDs: value.TargetOrgIDs, TargetTenantIDs: value.TargetTenantIDs}
-		},
-		View: func(row contract.ViewDetail) communication.AnnouncementViewDetail {
-			return communication.AnnouncementViewDetail(row)
-		},
-		Stats: func(stats contract.Stats) domain.OperationStats {
-			return domain.OperationStats{Queries: stats.Queries, Rows: stats.Rows, StatementDuration: stats.StatementDuration}
-		},
-	}
 }
 
 // AnnouncementDatabase supplies the existing administrative runtime to the root.

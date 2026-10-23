@@ -67,3 +67,18 @@ their measurements and history; this ADR changes none of them.
 ADR 0058 with its addenda carries the decision; ADR 0032 is superseded by it,
 and ADR 0060 adds point 7. The full rule map is the
 [traceability appendix](../../backend/architecture/README.md#appendix-principle-traceability).
+
+## Enforcement addendum (#4540)
+
+From policy epoch 91 the policy loader rejects every rule whose selectors
+admit a domain source and a projection target, including `public` and
+`contract` targets and test scopes. There are no exceptions. Earlier epochs
+remain loadable as immutable PR bases. This enforces decision point 2 rather
+than adding a permitted dependency direction.
+
+Timetable's `ports.PresenceReader` owns its activity-instance and participant
+attendance values. The root translates the Presence projection's rows and
+filters at that port; tenant transactions and the projection's SQL stay
+unchanged. Communication already owns its audience port and values; its
+announcement-audience mapping moves from the owner composition to the root.
+The three domain-to-projection rules are deleted with no replacements.
