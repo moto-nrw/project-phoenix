@@ -334,6 +334,7 @@ const CONTEXTS: ReadonlyArray<{
     context: {
       deployment: "moto-app.de",
       surface: "caterer",
+      enabled: true,
       analyseFreigabe: true,
       recordingSamplePercent: 100,
       person: PERSON,

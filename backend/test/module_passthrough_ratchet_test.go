@@ -228,7 +228,7 @@ const modulePassthroughApplicationSegment = "/internal/application/"
 // for modules/communication and modules/schoolcalendar), by ADR 0077 (three
 // for modules/identityaccess) and by ADR 0078 (one for
 // workflows/parentportal), and by ADR 0079 (one for modules/communication).
-const modulePassthroughOwnerBudgetTotal = 1411
+const modulePassthroughOwnerBudgetTotal = 1410
 
 // modulePassthroughOwnerBudgets is the register: module directory →
 // pass-throughs measured in its application layer and its compositions
@@ -258,7 +258,7 @@ var modulePassthroughOwnerBudgets = map[string]int{
 	"modules/feedback":       2,
 	"modules/filestorage":    6,
 	// Raised by ADR 0077: the caterer flows.
-	"modules/identityaccess":      216,
+	"modules/identityaccess":      215,
 	"modules/mealplan":            3,
 	"modules/organizationtenancy": 11,
 	"modules/peopledirectory":     208,
