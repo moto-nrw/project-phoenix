@@ -253,6 +253,29 @@ func TestUploadStudentPhoto_HappyPath_ConsentOnRow(t *testing.T) {
 	stored := readStudentPhotoPath(t, tc, student.ID)
 	assert.True(t, strings.HasPrefix(stored, common.StudentPhotoStoredURLPrefix),
 		"DB must store the canonical /uploads/student-photos/ prefix, got %q", stored)
+	photoPath, err := (nativeUploads.UploadFiles{}).StoredPath("public", stored, common.StudentPhotoStoredURLPrefix)
+	require.NoError(t, err)
+	fileInfo, err := os.Stat(photoPath)
+	require.NoError(t, err)
+	assert.Equal(t, os.FileMode(0o600), fileInfo.Mode().Perm())
+	dirInfo, err := os.Stat(filepath.Dir(photoPath))
+	require.NoError(t, err)
+	assert.Equal(t, os.FileMode(0o700), dirInfo.Mode().Perm())
+
+	// Owner-only disk permissions must preserve authenticated image serving.
+	getReq, err := http.NewRequest(http.MethodGet, fmt.Sprintf("/%d/photo/%s", student.ID, filepath.Base(photoPath)), nil)
+	require.NoError(t, err)
+	getReq.Header.Set("Authorization", "Bearer "+adminBearer(t))
+	imageResponse := testutil.ExecuteRequest(tc.router(), getReq)
+	require.Equal(t, http.StatusOK, imageResponse.Code)
+	assert.Equal(t, jpegBytes(t), imageResponse.Body.Bytes())
+	assert.Equal(t, "private, no-cache", imageResponse.Header().Get("Cache-Control"))
+	lastModified := imageResponse.Header().Get("Last-Modified")
+	require.NotEmpty(t, lastModified)
+	getReq.Header.Set("If-Modified-Since", lastModified)
+	revalidated := testutil.ExecuteRequest(tc.router(), getReq)
+	assert.Equal(t, http.StatusNotModified, revalidated.Code)
+	assert.Empty(t, revalidated.Body.Bytes())
 
 	// Tenant-scoped broadcast emitted so SSE clients re-fetch the
 	// student. The RecordingBroadcaster captures every event; we
