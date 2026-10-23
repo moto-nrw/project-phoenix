@@ -227,3 +227,25 @@ edges, tenant permissions or concurrent #4639/#4641 files are changed here.
 - Audit guard-only bindings and non-prefix legacy names separately, keeping
   their existing behavior and testing their construction requirements. No
   follow-up issue is created by this decision.
+
+## Measurement correction of 2026-10-23 (#4548)
+
+The original shape table overstates translation. Re-running the unchanged
+measurement at `2c7907c2fe725dd7e124a8b866d5dce2d8b09718` reproduces its
+1,040 hits, but body review finds at least seven further guard-only forwards:
+
+- `roots/owners/care_plan_care_conflict_port.go:54,61,81`:
+  `LockStudentAndExceptionDay`, `CurrentStaffID`, `UpsertStudentPickupSchedule`.
+- `roots/owners/enrollment_decision_people.go:325`: `LinkGuardianAccount`.
+- `roots/owners/school_directories.go:25`: `RecordDueBillingKeyDates`.
+- `api/supervision_dashboard.go:297,304`: `InRooms`, `SupervisorStaffIDs`.
+
+These methods add a missing-dependency check, not value, argument or result
+translation; renaming the called method adds none either. Thus the original
+root-composition translation count is **at most 816**, not 823, and the
+recursive-superset count **at most 823**, not 830. Guard-only counts are at
+least 22 in each. Total hits and pure-forward counts are unchanged. These
+are bounds, not a claim that every other classifier result was audited.
+The script's default-to-translation branch is not semantic evidence.
+[ADR 0083](0083-ratchets-protect-invariants-and-expose-command-effects.md)
+records the replacement direction; this correction adds no floor or budget.

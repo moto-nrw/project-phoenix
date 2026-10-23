@@ -70,7 +70,7 @@ import (
 const moduleFuncLenThreshold = 60
 
 // Seeded 2026-09-18 from merge commit ecf0003369; module entries drained. Shrink-only:
-// never add an entry.
+// additions or raises require a new-numbered ADR cited by the entry (ADR 0070).
 // ADR 0082: newly covered sources, measured at 722c5aa147; no headroom.
 var moduleFuncLenAllowlist = map[string]int{
 	"api/active_test_helpers.go:buildActiveTestModule":                                       185,
