@@ -11,7 +11,9 @@ Decision of 2026-10-21 for
 the owner decision of 2026-10-20 on #4403 and changes no budget, no rule and
 no scanner condition. The [amendment of 2026-10-21](#amendment-of-2026-10-21)
 admits the owner-edge translations and four named exceptions into the floor,
-lowers every budget to its floor and replaces the measurement.
+lowers every budget to its floor and replaces the measurement. The
+[amendment of 2026-10-23](#amendment-of-2026-10-23) cuts the Care Plan lock
+round trip of decision point 3.
 
 ## Context
 
@@ -229,5 +231,54 @@ floor.
 - A named exception leaves with its blocker: the three Care Plan methods when
   the transaction register admits the rename, `TenantOperations.Schema` when a
   decision grants the `settings/http` to `settings/records` edge.
-- The Care Plan lock round trip (decision point 3) is the open contract-cut
-  candidate.
+- The Care Plan lock round trip (decision point 3) is cut by the amendment
+  of 2026-10-23.
+
+## Amendment of 2026-10-23
+
+Owner decision of 2026-10-23 on
+[#4531](https://github.com/moto-nrw/project-phoenix/issues/4531): option A,
+the contract cut. It replaces decision point 3 and the last sentence of
+amendment point 5. It adds no rule, alias, allowlist entry, exception or
+scanner condition, and no budget changes.
+
+1. **Care Plan locks and ends its own source bookings.** The care lifecycle
+   takes the lock in `lockPlanning` and the end in `endSourceBookingRows`
+   through Care Plan's own `OfferingBookings`
+   (`LockCareOfferingBookings`, `EndCareOfferingBookings`), which the Care
+   Plan composition binds. The request child ids still come from Enrollment
+   (`CreatedStudentRequestChildIDs`). The lock order inside `lockPlanning`
+   (planned roster, activity bookings, source bookings, weekly plans) and the
+   ambient tenant transaction stay as they were; both calls reach the same
+   `OfferingBookings` methods as before, so the `lock` and `end` observations
+   keep their names and now sit at the new boundary.
+2. **The end is cut with the lock.** `EndCareExitOfferingLinks` took the same
+   round trip; its only production caller passed no source child, so the
+   workflow's source-child narrowing did nothing but forward. Leaving it would
+   keep half of the round trip for a later decision.
+3. **The contract shrinks to what needs Enrollment.**
+   `LockCareExitOfferingLinks` and `EndCareExitOfferingLinks` leave
+   `ports.CareExitEnrollment`, the `roots/owners` bindings
+   (`careExitEnrollment`, `EnrollmentBookingProjection`) and
+   `workflows/careexit.Bookings`; the workflow's `BookingStore` loses
+   `LockCareOfferingBookings` and `EndCareOfferingBookings`. The snapshot and
+   the restore stay in the care exit workflow: they read the applications and
+   the submitted choice notes and keep the ledger's Enrollment-shaped snapshot.
+4. **The contract test moves with the boundary.**
+   `modules/careplan/contracttest/care_exit_storage_cutover_test.go` checks
+   the lock and the end on Care Plan's `OfferingBookings`: tenant scope,
+   rollback after a failed transaction and the error inside an aborted one,
+   with the same assertions as before. Snapshot and restore stay checked on
+   the composed projection.
+5. **Decision point 2 stands.** `careplan.OfferingBookings` stays in the
+   public package. Enrollment's booking projection
+   (`roots/owners/enrollment_bookings.go`) and the care exit workflow still
+   consume it there, and `LockCareOfferingBookings` remains an observation
+   around one store call, so moving the type into the application layer would
+   still add a counted hop. The round trip no longer blocks that move; the
+   remaining consumers do.
+
+Measurement: `TestModulePassthroughRatchet` requires every entry to equal its
+measured count and passes unchanged, so `modules/careplan` stays at 159 and the
+total at 1418. The removed methods lay in `roots/owners` and
+`workflows/careexit`, which the scan does not cover.
