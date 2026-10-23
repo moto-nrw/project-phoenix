@@ -27,7 +27,7 @@ The project-specific security reference. The load-bearing rules live where they 
 - **Signature**: RSA with PKCS#1 v1.5 padding
 - **Key exchange**: static RSA, anonymous Diffie-Hellman, DHE with weak primes
 
-**Use instead**: SHA-256+, AES-256-GCM, ChaCha20, ECDHE. Passwords/PINs: Argon2id (existing helpers in `backend/auth/userpass/` and `backend/auth/authorize/credentials.go`, served to compositions through `backend/modules/securityruntime` — reuse, never roll your own).
+**Use instead**: SHA-256+, AES-256-GCM, ChaCha20, ECDHE. Passwords/PINs: Argon2id (public helpers in `backend/modules/securityruntime/credentials.go`, backed by `backend/modules/securityruntime/internal/domain/userpass/` and bound to consumers at the root — reuse, never roll your own).
 
 ## Certificates
 
@@ -35,4 +35,4 @@ When touching X.509 material (`config/ssl/`, PEM strings, crypto calls): flag ex
 
 ## File uploads
 
-New upload endpoints must validate like the existing canonical implementation in `backend/modules/dataimport/inbound/file_upload.go`: size limit, extension check AND content (magic-number) verification — never trust the extension alone.
+New upload endpoints must validate like the existing canonical implementation in `backend/modules/dataimport/http/file_upload.go`: size limit, extension check AND content (magic-number) verification — never trust the extension alone.

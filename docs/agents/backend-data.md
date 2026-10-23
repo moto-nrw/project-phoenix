@@ -6,7 +6,7 @@ Paths in code spans start at `backend/` unless prefixed with `backend/`,
 
 ## Database Configuration
 
-DSN resolution is **fail-fast** (`database/database_config.go`) — there are no localhost fallbacks:
+DSN resolution is **fail-fast** (`modules/transactionruntime/internal/adapters/database/database_config.go`) — there are no localhost fallbacks:
 
 1. `APP_ENV=test` — requires `TEST_DB_DSN` and never falls through to `DB_DSN` (test DB on port 5433)
 2. Every other environment — requires `DB_DSN`; CLI commands connect as the `postgres` **superuser** (the seeder is API-based and opens no DB connection itself)

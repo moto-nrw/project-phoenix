@@ -9,31 +9,66 @@ Diese Datei ist keine Arbeitsliste mehr, sondern der Verlauf der Migration.
 
 ## Endstand
 
-Stand `development` @ `7c00e51003` (20.10.2026). Maßgeblich ist die jeweilige
-Quelle im Code; die Tabelle hält nur den Endstand fest.
+Neu gemessen auf `origin/development` @
+`f329ad46b8a45646cf34da8082db311c1da19f31` (23.10.2026, nach #4726).
+Maßgeblich bleiben Code und Policy; diese Tabelle ist eine datierte Messung,
+kein zusätzlicher Sollwert. Die Ratchets vergleichen ihre tatsächlich gescannten
+Werte mit den Registern; die Summen unten sind nicht aus früheren PRs übernommen.
 
-| Register | Endstand | Quelle |
+| Register | Gemessener Stand | Quelle |
 |---|---:|---|
 | Ratchet-Keys | 0 | `backend/architecture/legacy.jsonl` |
-| Legacy-Composition | 0 | `legacy_composition` in `policy.json` |
-| Policy-Epoche | 88 | `policy_epoch` in `policy.json` |
-| Regeln mit `issue`-Feld oder Übergangsmarker | 0 von 919 | `rules` in `policy.json`, `validateTargetOnlyRule` in `internal/architecture/target_rule.go` |
+| Legacy-Composition | 0 | `legacy_composition` in `backend/architecture/policy.json` |
+| Policy-Epoche | 91 | `policy_epoch` in `backend/architecture/policy.json` |
+| Regeln mit `issue`-Feld oder Übergangsmarker | 0 von 927 | `rules` in `backend/architecture/policy.json`, `validateTargetOnlyRule` in `backend/internal/architecture/target_rule.go` |
 | Composition-Surface | 0 | `scripts/backend-architecture.sh check` |
-| Legacy-LOC in `legacy/`-Bäumen und `legacy_*.go` | 0 und 0 | `backend/test/module_legacy_budget_ratchet_test.go` |
-| Compose-LOC | 12.489 in 54 Paketen | `moduleComposeBudgetTotal`, ebenda |
-| Pass-through-Methoden | 2.925 | `modulePassthroughOwnerBudgetTotal` in `backend/test/module_passthrough_ratchet_test.go` |
+| Legacy-LOC in `legacy/`-Bäumen | 0 | `moduleLegacyBudgetTotal` in `backend/test/module_legacy_budget_ratchet_test.go` |
+| Legacy-LOC in `legacy_*.go` außerhalb solcher Bäume | 246 in 1 Datei | `moduleLegacyFileBudgets`, ebenda; `backend/roots/owners/legacy_workforce_schedule_adapter.go` (ADR 0082) |
+| Compose-LOC | 12.384 in 55 Paketen | `moduleComposeBudgets` / `moduleComposeBudgetTotal`, ebenda |
+| Pass-through-Methoden | 1.408 in 30 Ownern | `modulePassthroughOwnerBudgets` / `modulePassthroughOwnerBudgetTotal` in `backend/test/module_passthrough_ratchet_test.go` |
+| Dateigrößen-Ausnahmen, inkl. Roots | 2 Dateien: 1.348 und 1.139 LOC | `moduleFileSizeAllowlist` in `backend/test/module_file_size_ratchet_test.go` |
+| Funktionslängen-Ausnahmen, inkl. Roots | 27 Funktionen, Summe 3.834 Body-Zeilen | `moduleFuncLenAllowlist` in `backend/test/module_function_length_ratchet_test.go` |
+| Komplexitäts-Ausnahmen, inkl. Roots | 13 Funktionen, Summe 285 | `moduleComplexityAllowlist` in `backend/test/module_complexity_ratchet_test.go` |
 
-Die Regeln, die weiter gelten, stehen in den Prinzip-ADRs 0066 bis 0071
-([Übersicht](README.md#architecture-principles)) und in `backend/CLAUDE.md`.
+Messbefehle vom Repository-Root:
+
+```bash
+git rev-parse origin/development
+wc -l backend/architecture/legacy.jsonl
+jq '{policy_epoch, rules: (.rules | length), issue_rules: ([.rules[] | select(has("issue"))] | length), legacy_composition: (.legacy_composition | length)}' backend/architecture/policy.json
+scripts/run-go-toolchain.sh scripts/backend-architecture.sh check
+scripts/run-go-toolchain.sh go -C backend test -tags=testhooks ./test -run '^(TestModulePassthroughRatchet|TestModuleLegacyBudgetRatchet|TestModuleFileSizeRatchet|TestModuleFunctionLengthRatchet|TestModuleComplexityRatchet)$' -count=1 -v
+```
+
+Die Register wurden zusätzlich nach Einträgen und Summen ausgezählt. Die
+Root-Erweiterung folgt ADR 0082, nicht einer neuen Pass-through-Freigabe.
+ADR 0083 verlangt getestete Nachfolger für Formzähler und Compose-LOC;
+die vorhandenen Gates bleiben bis dahin bestehen. Nicht alle Register haben
+null als sinnvolles Ziel.
+
+Die Regeln stehen in den Prinzip-ADRs 0066 bis 0071
+([Übersicht](README.md#architecture-principles)), ihren Nachträgen und in
+`backend/CLAUDE.md`.
 
 ## Folgearbeit außerhalb von #2580
 
-Den Stand zeigt jeweils das Issue:
+Issue-Status per GitHub API geprüft am 23.10.2026. Die früher hier als offen
+geführten #3423, #4408, #4407, #2809 und #2821 sind geschlossen.
+Tatsächlich offen sind unter anderem diese anschließenden Arbeiten:
 
-- #3423: Code-Shape-Register der Modul-Ratchets; die Pass-through-Entscheidung liegt in #4403.
-- #4408: ST1005-`nolint`-Direktiven.
-- #4407: Care-Resume bei unbekanntem oder ausgeschiedenem Kind.
-- #2809 und #2821: Träger-Portal an der Zielarchitektur.
+- #4605: Transaktionsregister und drei Verdachtsfälle prüfen.
+- #4601: maskierte oder verworfene Fehler sowie falsche Erfolgsantworten.
+- #4602: Fehler beim Einreihen der Eltern-Einladungsmail durchreichen.
+- #4611: Spec der Träger-App; Architekturentscheidungen dazu in #4646
+  (Settings), #4647 (Elternabrechnung/Vertrag) und #4648 (Personal).
+
+ADR 0083 nennt außerdem **Folge-Vorschläge ohne neu angelegte Issues**:
+typisierte Command-Effekte, methoden-/formgenaue Pass-through-Erfassung,
+vollständige Produktionsquellen-Gates, typisierte Liveness und semantische
+Nähte für Care-Workflows und delegierte Autorisierung. Die Trennung der
+Architektur-README in Live-Vertrag und Historie ist ein eigener späterer
+Dokumentationsschnitt, nicht Teil von #4541. Eine kompaktere Policy-Notation
+setzt eine gemessene Ersparnis und den Nachweis identischer Rechte voraus.
 
 ## Historischer Verlauf bis 19.10.2026
 

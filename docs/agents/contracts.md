@@ -58,7 +58,7 @@ in this table; the tests named after the table pin them.
 | `iot.staff_not_found` | 404 | staff not found |
 | `iot.staff_rfid_tag_unassigned` | 404 | staff has no RFID tag assigned |
 
-Device authentication codes come from `backend/auth/device/errors.go`, the
+Device authentication codes come from `backend/modules/devicefleet/internal/adapters/deviceauth/errors.go`, the
 others from `backend/modules/devicescan/scan.go`.
 `checkIoTErrorCodes` (`backend/api/iot_error_codes_contract_test.go`, run as
 `TestFullProductionRouterGolden/contracts/IoT_error_codes`) drives 17 of them
@@ -83,7 +83,7 @@ device's `device_id`) and `school_id` into every event item, replacing what
 the kiosk sent under these keys, and posts the envelope to that project's
 envelope endpoint, never to a host the envelope names. The device key does not
 leave the backend. Code: `backend/api/iot/error_reports.go` (handler and
-texts), `backend/api/iot/compose/error_reports.go` (forwarding),
+texts), `backend/api/iot_error_report_composition.go` (forwarding),
 `backend/observability/sentry_envelope.go` (envelope check and tags).
 
 | Status | `error` | When |
@@ -220,7 +220,7 @@ counterpart. Portal hostnames use the variables in the table above.
 and must use HTTPS in production. Env change checklist:
 `.claude/rules/env-docker-sync.md`.
 
-Reserved slug lists in `backend/models/platform/organization.go` and
+Reserved slug lists in `backend/modules/organizationtenancy/internal/domain/organization.go` and
 `frontend/src/lib/reserved-slugs.ts` must stay in sync; verify both when changed.
 
 ### Demo access (public demo, #3462)

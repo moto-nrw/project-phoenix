@@ -24,7 +24,7 @@ Do not authorize parent portal access or writes only from:
 
 Those facts prove school membership and a guardian relationship. They do not prove parent portal authority.
 
-Parent portal code must check explicit `parent_portal.*` permissions stored on `auth.guardian_student_access.permissions` through shared helpers in `backend/auth/authorize`.
+Parent portal code must check explicit `parent_portal.*` permissions stored on `auth.guardian_student_access.permissions` through the public helpers in `backend/modules/securityruntime`.
 
 ## Separate Permission Systems
 
@@ -49,10 +49,10 @@ Role presets such as `primary_guardian`, `legal_guardian`, `co_guardian`, `picku
 ## Expected Checks
 
 Parent portal flows resolve a permitted child with the required action through
-the gate in `backend/workflows/parentportal/care` (`ResolvePermittedChild`):
+the gate in `backend/workflows/parentportal/internal/care` (`ResolvePermittedChild`):
 
 ```go
-s.ResolvePermittedChild(ctx, accountID, studentID, authorize.GuardianPermissionSickNoteSubmit)
+s.ResolvePermittedChild(ctx, accountID, studentID, securityruntime.GuardianPermissionSickNoteSubmit)
 ```
 
 An owner command a flow calls (Care Plan, People Directory, Audit Platform)
@@ -75,7 +75,7 @@ School-level feature flags still apply after guardian permission passes.
 
 ## Where Code Belongs
 
-- Permission constants and pure helper functions belong in `backend/auth/authorize`.
+- Guardian permission constants and pure helpers are exposed through `backend/modules/securityruntime/guardian_role.go`; private decisions live in `backend/modules/securityruntime/internal/application/authorize/`.
 - Repository queries may filter by stored `parent_portal.*` permissions when they are the data-access boundary for parent portal visibility.
 - Services orchestrate permission checks and feature flags.
 - Handlers should not implement new inline guardian authorization rules.
