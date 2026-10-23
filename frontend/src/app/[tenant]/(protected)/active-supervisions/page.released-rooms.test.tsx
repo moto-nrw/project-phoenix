@@ -34,6 +34,8 @@ const defaultSupervisionState = vi.hoisted(() => ({
 // Mock auth-utils with hasRole that reads session roles
 vi.mock("~/lib/auth-utils", () => ({
   hasPermission: () => false,
+  canReadSupervisionData: (session: { user?: { isAdmin?: boolean } } | null) =>
+    !(session?.user?.isAdmin ?? false),
   isAdmin: (session: { user?: { isAdmin?: boolean } } | null) =>
     session?.user?.isAdmin ?? false,
   isCaregiver: (session: { user?: { isAdmin?: boolean } } | null) =>
@@ -944,9 +946,7 @@ describe("open-room tab onTabChange callback", () => {
 
     // Wait for tabs to render
     await waitFor(() => {
-      expect(
-        screen.getByRole("tab", { name: "Schulhof" }),
-      ).toBeInTheDocument();
+      expect(screen.getByRole("tab", { name: "Schulhof" })).toBeInTheDocument();
     });
 
     // A released room is addressed by its room id, never by a synthetic tab

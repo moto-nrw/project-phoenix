@@ -2027,16 +2027,24 @@ describe("Sidebar", () => {
       expect(screen.queryByText("Aktuelle Aufsichten")).not.toBeInTheDocument();
     });
 
-    it("marks Räume, not Aktuelle Aufsicht, for a released room opened from its room page", () => {
+    it("marks Räume, not Aktuelle Aufsicht, for a released room opened by a legacy session link", () => {
       mockUseSupervision.mockReturnValue(
         supervision([
           { id: "10", name: "Raum A", groupId: "1" },
-          { id: "7", name: "Schulhof", groupId: "", isOpenRoom: true },
+          {
+            id: "7",
+            name: "Schulhof",
+            groupId: "",
+            isOpenRoom: true,
+            sessionIds: ["active-schulhof"],
+          },
         ]),
       );
       mockUsePathname.mockReturnValue("/active-supervisions");
       mockUseSearchParams.mockReturnValue(
-        createMockSearchParams((key) => (key === "room" ? "7" : null)),
+        createMockSearchParams((key) =>
+          key === "session" ? "active-schulhof" : null,
+        ),
       );
 
       render(<Sidebar />);

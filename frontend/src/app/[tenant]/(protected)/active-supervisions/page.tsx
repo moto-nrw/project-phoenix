@@ -31,7 +31,11 @@ import {
 } from "~/lib/activity-occupancy";
 import { CompleteInstanceModal } from "~/components/active-supervisions/complete-instance-modal";
 import { useMinuteClock } from "~/lib/pickup-helpers";
-import { hasPermission, isCaregiver } from "~/lib/auth-utils";
+import {
+  canReadSupervisionData,
+  hasPermission,
+  isCaregiver,
+} from "~/lib/auth-utils";
 import { UnclaimedRooms } from "~/components/active/unclaimed-rooms";
 import { SSEErrorBoundary } from "~/components/sse/SSEErrorBoundary";
 import {
@@ -987,8 +991,9 @@ function ActiveSupervisionGate({
     );
   }
 
-  // Caregivers (user/teacher role) always have access
-  if (isCaregiver(session)) {
+  // An explicit permissions claim is authoritative. The caregiver role only
+  // remains a fallback for legacy sessions without that claim.
+  if (isCaregiver(session) && canReadSupervisionData(session)) {
     return <>{children}</>;
   }
 

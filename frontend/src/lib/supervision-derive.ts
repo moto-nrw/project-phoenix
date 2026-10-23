@@ -179,14 +179,30 @@ function ownSupervisionRoomEntries(
 }
 
 /**
- * The room id names a released room in which the caller runs no supervision
- * of their own. The navigation files such a room under „Räume“, not under
- * „Aktuelle Aufsicht“ (#4372).
+ * The room id or one of its legacy session ids names a released room in which
+ * the caller runs no supervision of their own. The navigation files such a
+ * room under „Räume“, not under „Aktuelle Aufsicht“ (#4372).
  */
 export function isSharedOpenRoom(
   rooms: readonly SupervisedRoom[],
-  roomId: string | null,
+  selection: Readonly<{
+    roomId: string | null;
+    sessionId: string | null;
+  }>,
 ): boolean {
+  const { roomId, sessionId } = selection;
+  if (sessionId) {
+    const selectedSession = rooms.find((room) =>
+      room.isOpenRoom
+        ? room.sessionIds?.includes(sessionId)
+        : room.groupId === sessionId,
+    );
+    if (selectedSession) {
+      return (
+        selectedSession.isOpenRoom === true && !selectedSession.isOwnSupervision
+      );
+    }
+  }
   return (
     roomId !== null &&
     rooms.some(

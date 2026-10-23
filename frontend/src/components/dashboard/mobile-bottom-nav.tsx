@@ -691,7 +691,10 @@ export function MobileBottomNav({ className = "" }: MobileBottomNavProps) {
   // Aufsicht (#4372), wie in der Seitenleiste.
   const isViewingSharedOpenRoom =
     pathname.startsWith("/active-supervisions") &&
-    isSharedOpenRoom(supervisedRooms, searchParams.get("room"));
+    isSharedOpenRoom(supervisedRooms, {
+      roomId: searchParams.get("room"),
+      sessionId: searchParams.get("session"),
+    });
 
   // Get shell auth mode
   const { mode, isSessionExpired, canStartStaffPreview, profileUrl } =

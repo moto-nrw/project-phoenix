@@ -507,6 +507,40 @@ describe("MobileBottomNav", () => {
       expect(screen.getByText("Start")).toBeInTheDocument();
     });
 
+    it("marks Räume for a shared room addressed by a legacy session link", () => {
+      mockUsePathname.mockReturnValue("/active-supervisions");
+      mockUseSearchParams.mockReturnValue(
+        createMockSearchParams((key) =>
+          key === "session" ? "active-schulhof" : null,
+        ),
+      );
+      mockUseSupervision.mockReturnValue({
+        hasGroups: true,
+        isSupervising: true,
+        isLoadingGroups: false,
+        isLoadingSupervision: false,
+        overviewEnabled: false,
+        supervisedRooms: [
+          {
+            id: "7",
+            name: "Schulhof",
+            groupId: "",
+            isOpenRoom: true,
+            sessionIds: ["active-schulhof"],
+          },
+        ],
+        groups: [],
+        refresh: vi.fn(),
+      });
+
+      render(<MobileBottomNav />);
+      fireEvent.click(screen.getByRole("button", { name: "Mehr" }));
+
+      expect(screen.getByRole("link", { name: "Räume" })).toHaveClass(
+        "bg-gray-100",
+      );
+    });
+
     it("detects active route from search params 'from' parameter", () => {
       mockUsePathname.mockReturnValue("/students/123");
       const mockGet = vi.fn().mockReturnValue("/ogs-groups/5");

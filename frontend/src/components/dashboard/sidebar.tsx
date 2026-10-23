@@ -942,7 +942,10 @@ function SidebarContent({
   // gehört in der Navigation zu „Räume“, nicht zu „Aktuelle Aufsicht“ (#4372).
   const isViewingSharedOpenRoom =
     pathname.startsWith("/active-supervisions") &&
-    isSharedOpenRoom(supervisedRooms, searchParams.get("room"));
+    isSharedOpenRoom(supervisedRooms, {
+      roomId: searchParams.get("room"),
+      sessionId: searchParams.get("session"),
+    });
 
   // Check if a navigation link should be highlighted as active
   const isActiveLink = (href: string) => {
