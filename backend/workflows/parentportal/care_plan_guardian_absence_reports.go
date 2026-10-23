@@ -20,6 +20,5 @@ type guardianAbsenceReports struct {
 }
 
 func (a guardianAbsenceReports) ReportGuardianAbsence(ctx context.Context, report care.GuardianAbsenceReport) ([]care.StudentStatusDay, error) {
-	value, err := a.callbacks.ReportGuardianAbsence(ctx, carePlanFromAppGuardianAbsenceReport(report))
-	return carePlanValueSlice(value, carePlanToAppStudentStatusDay), err
+	return a.callbacks.ReportGuardianAbsence(ctx, report)
 }

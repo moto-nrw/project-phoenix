@@ -69,13 +69,13 @@ and history; this ADR changes none of them.
    `target_package` name one classified package and intersect the other
    selectors. Adding one is narrowing; removing or changing one is compared as
    a possible widening (ADR 0057, addendum of 2026-10-16).
-9. **A retirement carries evidence with its provenance.** Every migration
-   record references the latest accepted runtime checkpoint, and every
-   required metric is `measured` with a source or `not_applicable` with a
-   reason; `historical_gap` exists only for the frozen pre-gate files. File
-   discovery fails closed, removal coverage is checked per key against the
-   CI event's base, and a renamed key is not a retirement
-   ([ADR 0026](0026-migration-evidence-gate-preserves-provenance.md)).
+9. **A retirement carries evidence with its provenance.** While the baseline
+   held debt, every retired key needed a migration record with measured or
+   justified runtime evidence
+   ([ADR 0026](0026-migration-evidence-gate-preserves-provenance.md)). The
+   baseline is empty and can only shrink, so the records and their gate are
+   removed ([amendment of 2026-10-23](0026-migration-evidence-gate-preserves-provenance.md#amendment-of-2026-10-23));
+   the completed records stay readable at the commit the amendment names.
 
 ## Consequences
 

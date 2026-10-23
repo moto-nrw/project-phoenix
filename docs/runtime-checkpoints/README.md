@@ -24,7 +24,7 @@ writes remain part of the unchanged workload lifecycle; this is a setup-time
 condition, not continuously refreshed statistics or populated-inbox evidence.
 
 This is a measurement-series break, recorded in the
-[checkpoint register](../../backend/architecture/runtime-checkpoints.json).
+[checkpoint register](https://github.com/moto-nrw/project-phoenix/blob/46506b00c695a6f102865cae2dc9f24010371b7c/backend/architecture/runtime-checkpoints.json).
 The accepted #3019, #3020 and #3021 evidence was captured without an explicit
 fixture `ANALYZE` and remains unchanged. Compare across this boundary only with
 a paired bridge or an explicit statistics-condition qualification. Workload
@@ -557,7 +557,7 @@ contract it asserts in a normal test as well.
 
 ## Acceptance
 
-The measurement command does not accept a baseline. Follow
-[the acceptance registry contract](../../backend/architecture/README.md#recording-acceptance):
-explicit issue acceptance precedes a reviewed registry entry. Neither this
-helper nor its report edits `runtime-checkpoints.json`, policy, or ratchets.
+The measurement command does not accept a baseline. A checkpoint is accepted
+explicitly in its issue; the repository keeps no acceptance registry since the
+[amendment to ADR 0026](../adr/0026-migration-evidence-gate-preserves-provenance.md#amendment-of-2026-10-23).
+Neither this helper nor its report edits policy or ratchets.

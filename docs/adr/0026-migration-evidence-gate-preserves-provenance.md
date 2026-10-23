@@ -1,8 +1,11 @@
 ---
-status: accepted
+status: historical
 ---
 
 # Migration evidence gates preserve provenance
+
+> Historical record since the [amendment of 2026-10-23](#amendment-of-2026-10-23):
+> the gate, its records and `validate-ticket` are removed.
 
 The design interview for [#3415](https://github.com/moto-nrw/project-phoenix/issues/3415)
 settled the following contract, confirmed on 2026-09-19. Acceptance records
@@ -157,3 +160,21 @@ choices within this contract, not further policy decisions. Preserve the
 single-ticket validation use case while adding aggregate CI validation.
 
 No product-domain term has been introduced; the product glossary is unchanged.
+
+## Amendment of 2026-10-23
+
+The migration (#2580, consolidation #4069) is closed and `legacy.jsonl` is
+empty. The architecture check accepts a candidate baseline only as a subset of
+the base baseline, so no key can enter it and none is left to retire. The gate
+therefore had nothing left to check, while each removed or moved test still
+forced edits to historical records whose evidence sources point at files.
+
+The per-ticket records under `backend/architecture/`, both templates,
+`runtime-checkpoints.json`, the `validate-ticket` command and its CI step are
+removed. The records stay readable at commit
+[`46506b00c6`](https://github.com/moto-nrw/project-phoenix/tree/46506b00c695a6f102865cae2dc9f24010371b7c/backend/architecture).
+The measurements remain in `docs/runtime-checkpoints/`, and the runtime
+measurement helper in `backend/test/runtime_checkpoint.go` is unchanged.
+
+A future migration that needs debt again starts with a new ADR; it does not
+revive this gate by default.

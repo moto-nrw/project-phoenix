@@ -7,7 +7,6 @@ import (
 
 	configModels "github.com/moto-nrw/project-phoenix/modules/settings/records"
 	"github.com/moto-nrw/project-phoenix/modules/workforce"
-	workforceCompose "github.com/moto-nrw/project-phoenix/modules/workforce/compose"
 )
 
 // WorkTimeModelRepository serves configModels.WorkTimeModelRepository from the
@@ -25,7 +24,7 @@ func NewWorkTimeModelRepository(capability workforce.Capability) configModels.Wo
 func (r *WorkTimeModelRepository) FindByID(ctx context.Context, id int64) (*configModels.WorkTimeModel, error) {
 	model, err := r.workforce.FindWorkTimeModel(ctx, id)
 	if err != nil {
-		return nil, workforceCompose.LegacyWorkTimeModelNotFound(err)
+		return nil, err
 	}
 	return modelToLegacy(model), nil
 }
@@ -64,7 +63,7 @@ func (r *WorkTimeModelRepository) Create(ctx context.Context, model *configModel
 }
 
 func (r *WorkTimeModelRepository) Delete(ctx context.Context, id int64) error {
-	return workforceCompose.LegacyWorkTimeModelNotFound(r.workforce.DeleteWorkTimeModel(ctx, id))
+	return r.workforce.DeleteWorkTimeModel(ctx, id)
 }
 
 // StaffWorkScheduleRepository serves configModels.StaffWorkScheduleRepository

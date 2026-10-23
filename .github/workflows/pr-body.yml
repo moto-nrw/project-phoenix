@@ -1,0 +1,29 @@
+name: PR body
+
+# The user TL;DR from PULL_REQUEST_TEMPLATE.md. `gh pr create --body` skips the
+# template, so this check catches bodies written without it. Bots (Dependabot,
+# release-please) and drafts are skipped. `edited` reruns it after a body fix.
+on:
+  pull_request:
+    types: [opened, edited, synchronize, reopened, ready_for_review]
+permissions: {}
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  user-tldr:
+    if: github.event.pull_request.draft == false && github.event.pull_request.user.type != 'Bot'
+    permissions:
+      contents: read
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          sparse-checkout: scripts/check-pr-body.mjs
+          sparse-checkout-cone-mode: false
+      - name: Check user TL;DR
+        env:
+          PR_BODY: ${{ github.event.pull_request.body }}
+        run: node scripts/check-pr-body.mjs
