@@ -129,7 +129,6 @@ func BuildCarePlanSchedules(
 ) (CarePlanSchedules, error) {
 	authoritative := bookingsAuthoritative(settings)
 	lifecycle, err := carePlanCompose.NewCareLifecycle(carePlanCompose.CareLifecycleDependencies{
-		Resumption:       NewCareResumption(rows.LifecycleOwners.Students, carePlan, rows.LifecycleOwners.ChangeTrail, nil, logger.With("service", "care_lifecycle")),
 		StudentDirectory: studentDirectoryView.NewReader(),
 		DB:               db.Pool(), Records: carePlan, Owners: rows.LifecycleOwners, LockCareBookingWrites: lockRecurrence,
 		BookingsAuthoritative: authoritative, Fingerprint: securityruntime.Fingerprint,

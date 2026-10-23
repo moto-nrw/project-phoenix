@@ -45,8 +45,6 @@ type Resumption struct {
 	logger   *slog.Logger
 }
 
-var _ careplan.CareResumption = (*Resumption)(nil)
-
 // NewResumption binds the workflow's required owner commands and outer unit.
 func NewResumption(students ResumptionStudents, records ResumptionRecords, trail ResumptionTrail,
 	unit func(context.Context, func(context.Context) error) error, today func() calendar.Date, logger *slog.Logger,

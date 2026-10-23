@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeEach } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
   render,
   screen,
@@ -15,14 +15,15 @@ const mockFetchOverview = vi.fn();
 const mockExport = vi.fn();
 vi.mock("~/lib/guardian-payment-api", () => ({
   fetchPaymentOverview: () => mockFetchOverview(),
-  exportPaymentOverview: (format: string) => mockExport(format),
+  exportPaymentOverview: (...args: unknown[]) => mockExport(...args),
 }));
 
 let mockPermissions: string[] = ["guardians:financial"];
+let mockSessionStatus: "authenticated" | "loading" = "authenticated";
 vi.mock("next-auth/react", () => ({
   useSession: () => ({
     data: { user: { permissions: mockPermissions } },
-    status: "authenticated",
+    status: mockSessionStatus,
   }),
 }));
 
@@ -31,14 +32,12 @@ vi.mock("~/lib/tenant-router", () => ({
   useTenantRouter: () => ({ push: mockPush, replace: mockPush }),
 }));
 
-// Load errors run through the real hook; the export error is spied at the
-// action path (#2517).
-const { mockShowActionError } = vi.hoisted(() => ({
-  mockShowActionError: vi.fn(),
-}));
+// Der Export-Dialog ist ein SlideOver; Vaul rendert in jsdom nichts.
+vi.mock("vaul", () => import("~/test/mocks/vaul"));
+
+// Load and export errors run through the real hooks (#2517, #4748).
 vi.mock("~/contexts/ToastContext", async (importOriginal) => ({
   ...(await importOriginal<typeof import("~/contexts/ToastContext")>()),
-  useApiErrorDisplay: () => ({ show: mockShowActionError }),
   useToast: () => ({
     success: vi.fn(),
     error: vi.fn(),
@@ -49,6 +48,11 @@ vi.mock("~/contexts/ToastContext", async (importOriginal) => ({
 }));
 
 import BankverbindungenPage from "./page";
+
+function openExportDialog() {
+  fireEvent.click(screen.getByRole("button", { name: "Weitere Aktionen" }));
+  fireEvent.click(screen.getByRole("menuitem", { name: "Exportieren" }));
+}
 
 function row(overrides: Partial<PaymentOverviewRow>): PaymentOverviewRow {
   return {
@@ -67,10 +71,14 @@ function row(overrides: Partial<PaymentOverviewRow>): PaymentOverviewRow {
 describe("BankverbindungenPage", () => {
   beforeEach(() => {
     mockPermissions = ["guardians:financial"];
+    mockSessionStatus = "authenticated";
     mockFetchOverview.mockReset();
     mockExport.mockReset();
-    mockShowActionError.mockReset();
     mockFetchOverview.mockResolvedValue([]);
+  });
+
+  afterEach(() => {
+    vi.restoreAllMocks();
   });
 
   it("refuses the page without the bank permission", () => {
@@ -139,10 +147,27 @@ describe("BankverbindungenPage", () => {
       expect(table().getByText("Mia Schneider")).toBeInTheDocument(),
     );
 
+    openExportDialog();
     fireEvent.click(screen.getByRole("button", { name: "PDF" }));
-    fireEvent.click(screen.getByRole("button", { name: /Herunterladen/ }));
+    fireEvent.click(screen.getByRole("button", { name: "Herunterladen" }));
 
     await waitFor(() => expect(mockExport).toHaveBeenCalledWith("pdf"));
+  });
+
+  it("prints the PDF in the tab opened from the dialog", async () => {
+    const target = {} as Window;
+    vi.spyOn(globalThis, "open").mockReturnValue(target);
+    mockFetchOverview.mockResolvedValue([row({})]);
+    mockExport.mockResolvedValue(undefined);
+
+    render(<BankverbindungenPage />);
+    await waitFor(() =>
+      expect(table().getByText("Mia Schneider")).toBeInTheDocument(),
+    );
+    openExportDialog();
+    fireEvent.click(screen.getByRole("button", { name: "Drucken" }));
+
+    await waitFor(() => expect(mockExport).toHaveBeenCalledWith("pdf", target));
   });
 
   // The defect this layout exists to fix: in the table the IBAN is a fourth
@@ -192,6 +217,55 @@ describe("BankverbindungenPage", () => {
     );
   });
 
+  it("disables export until a non-empty list is available", async () => {
+    let resolveOverview: (rows: PaymentOverviewRow[]) => void = () => undefined;
+    mockFetchOverview.mockReturnValue(
+      new Promise<PaymentOverviewRow[]>((resolve) => {
+        resolveOverview = resolve;
+      }),
+    );
+
+    render(<BankverbindungenPage />);
+
+    const actions = screen.getByRole("button", { name: "Weitere Aktionen" });
+    expect(actions).toBeDisabled();
+
+    resolveOverview([]);
+    expect(
+      await screen.findAllByText("Noch keine Kinder in der Liste"),
+    ).toHaveLength(2);
+    expect(actions).toBeDisabled();
+  });
+
+  it("keeps export available after a failed refetch with retained rows", async () => {
+    mockFetchOverview
+      .mockResolvedValueOnce([row({})])
+      .mockRejectedValueOnce(
+        new ApiError("down", 503, { code: "general.unavailable" }),
+      );
+
+    const { rerender } = render(<BankverbindungenPage />);
+    await waitFor(() =>
+      expect(table().getByText("Mia Schneider")).toBeInTheDocument(),
+    );
+
+    mockSessionStatus = "loading";
+    rerender(<BankverbindungenPage />);
+    mockSessionStatus = "authenticated";
+    rerender(<BankverbindungenPage />);
+
+    await waitFor(() => expect(mockFetchOverview).toHaveBeenCalledTimes(2));
+    expect(table().getByText("Mia Schneider")).toBeInTheDocument();
+    expect(
+      screen.getByRole("button", { name: "Weitere Aktionen" }),
+    ).toBeEnabled();
+
+    openExportDialog();
+    expect(
+      screen.getByRole("heading", { name: "Bankverbindungen exportieren" }),
+    ).toBeInTheDocument();
+  });
+
   // #2517: a failed load replaces the list, never "Noch keine Kinder".
   it("shows a failed load instead of the empty list and retries", async () => {
     mockFetchOverview
@@ -210,6 +284,9 @@ describe("BankverbindungenPage", () => {
     expect(
       screen.queryByText("Noch keine Kinder in der Liste"),
     ).not.toBeInTheDocument();
+    expect(
+      screen.getByRole("button", { name: "Weitere Aktionen" }),
+    ).toBeDisabled();
 
     fireEvent.click(screen.getByRole("button", { name: "Wiederholen" }));
 
@@ -218,21 +295,33 @@ describe("BankverbindungenPage", () => {
     );
   });
 
-  it("reports a failed download on the action path", async () => {
+  // #4748: der Export läuft über den gemeinsamen Export-Dialog; ein Fehler
+  // bleibt dort stehen, mit Katalogtext und Wiederholen.
+  it("keeps a failed download in the export dialog", async () => {
     mockFetchOverview.mockResolvedValue([row({})]);
-    const failure = new ApiError("boom", 500, { code: "general.server" });
-    mockExport.mockRejectedValue(failure);
+    mockExport
+      .mockRejectedValueOnce(
+        new ApiError("boom", 500, { code: "general.server" }),
+      )
+      .mockResolvedValueOnce(undefined);
 
     render(<BankverbindungenPage />);
-    fireEvent.click(
-      await screen.findByRole("button", { name: /Herunterladen/ }),
-    );
-
     await waitFor(() =>
-      expect(mockShowActionError).toHaveBeenCalledWith(failure, {
-        object: "das Herunterladen der Bankverbindungen",
-        retry: expect.any(Function),
-      }),
+      expect(table().getByText("Mia Schneider")).toBeInTheDocument(),
     );
+    openExportDialog();
+    fireEvent.click(screen.getByRole("button", { name: "Herunterladen" }));
+
+    const message = catalogText(
+      "general.server",
+      "das Herunterladen der Bankverbindungen",
+    );
+    expect(await screen.findByText(message)).toBeInTheDocument();
+    expect(screen.getByRole("dialog")).toContainElement(
+      screen.getByText(message),
+    );
+    fireEvent.click(screen.getByRole("button", { name: "Wiederholen" }));
+    await waitFor(() => expect(mockExport).toHaveBeenCalledTimes(2));
+    expect(mockExport).toHaveBeenLastCalledWith("xlsx");
   });
 });

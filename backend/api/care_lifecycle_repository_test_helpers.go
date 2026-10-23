@@ -18,6 +18,7 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/modules/careplan"
 	carePlanCompose "github.com/moto-nrw/project-phoenix/modules/careplan/compose"
+	carePlanHTTP "github.com/moto-nrw/project-phoenix/modules/careplan/http"
 
 	peoplePorts "github.com/moto-nrw/project-phoenix/modules/peopledirectory/ports"
 	"github.com/moto-nrw/project-phoenix/modules/securityruntime"
@@ -97,8 +98,13 @@ func (r CareLifecycleTestRepositories) NewCareLifecycle(config CareLifecycleTest
 	deps.LockCareBookingWrites = lock
 	deps.BookingsAuthoritative = config.BookingsAuthoritative
 	deps.Today = config.Today
-	deps.Resumption = owners.NewCareResumption(deps.Owners.Students, deps.Records, deps.Owners.ChangeTrail, deps.Today, deps.Logger)
 	return carePlanCompose.NewCareLifecycle(deps)
+}
+
+// NewCareResumption constructs the workflow entry independently of the domain.
+func (r CareLifecycleTestRepositories) NewCareResumption(config CareLifecycleTestConfig) carePlanHTTP.CareResumption {
+	return owners.NewCareResumption(r.lifecycle.Owners.Students, r.lifecycle.Records,
+		owners.NewCareEndRecorder(config.Audit), config.Today, r.lifecycle.Logger).Resume
 }
 
 // MustNewStudentCompanions composes the companion capability over a test

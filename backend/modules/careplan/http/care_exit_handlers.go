@@ -396,7 +396,7 @@ func (b *careResumeRequest) Bind(_ *http.Request) error {
 
 // resumeCare reopens one child's care from a new start day.
 func (rs *Resource) resumeCare(w http.ResponseWriter, r *http.Request) {
-	if rs.CareLifecycleService == nil {
+	if rs.CareResumption == nil {
 		renderError(w, r, common.ErrorInternalServer(errors.New("care lifecycle service not configured")))
 		return
 	}
@@ -414,7 +414,7 @@ func (rs *Resource) resumeCare(w http.ResponseWriter, r *http.Request) {
 		renderError(w, r, common.ErrorInvalidRequest(errors.New("bitte geben Sie den neuen Beginn im Format JJJJ-MM-TT an")))
 		return
 	}
-	err := rs.CareLifecycleService.Resume(r.Context(), careplan.CareResumeInput{
+	err := rs.CareResumption(r.Context(), careplan.CareResumeInput{
 		StudentID:      studentID,
 		NewStart:       start,
 		ActorAccountID: int64(sessiontoken.ClaimsFromCtx(r.Context()).ID),
