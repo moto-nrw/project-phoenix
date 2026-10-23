@@ -720,6 +720,42 @@ describe("proxy", () => {
 
       expect(res.status).toBe(404);
     });
+
+    it.each([
+      ["operator", OPERATOR_HOSTNAME],
+      ["school", SCHOOL_HOSTNAME],
+      ["tenant", "school-a.localhost:3000"],
+      ["bare domain", "localhost:3000"],
+    ])("keeps the caterer API off the %s host", (_, host) => {
+      for (const path of [
+        "/api/caterer",
+        "/api/caterer/schools",
+        "/api/caterer/auth/login",
+      ]) {
+        expect(proxy(makeRequest(`http://${host}${path}`, host)).status).toBe(
+          404,
+        );
+      }
+    });
+
+    it("still serves other API routes on the operator and tenant hosts", () => {
+      expect(
+        proxy(
+          makeRequest(
+            `http://${OPERATOR_HOSTNAME}/api/operator/organizations`,
+            OPERATOR_HOSTNAME,
+          ),
+        ).status,
+      ).toBe(200);
+      expect(
+        proxy(
+          makeRequest(
+            "http://school-a.localhost:3000/api/groups",
+            "school-a.localhost:3000",
+          ),
+        ).status,
+      ).toBe(200);
+    });
   });
 
   describe("school subdomain (moto schule, #2207)", () => {
