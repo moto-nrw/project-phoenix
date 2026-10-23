@@ -13,7 +13,9 @@ import (
 type seedCommandAdapter struct{ inner *Adapter }
 
 func newSeedCommandAdapter(baseURL string, verbose bool) seedCommandAdapter {
-	return seedCommandAdapter{inner: NewCommandAdapter(baseURL, verbose)}
+	inner := NewCommandAdapter(baseURL, verbose)
+	inner.tenantSessions = newTenantSessionCache(".seed-sessions")
+	return seedCommandAdapter{inner: inner}
 }
 
 func (a seedCommandAdapter) BaseURL() string { return a.inner.BaseURL() }

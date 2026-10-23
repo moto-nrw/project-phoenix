@@ -65,6 +65,7 @@ type Adapter struct {
 	httpClient         *http.Client
 	verbose            bool
 	fetchLatestMFACode func(context.Context, string, time.Time) (string, error)
+	tenantSessions     *tenantSessionCache
 }
 
 func NewCommandAdapter(baseURL string, verbose bool) *Adapter {
@@ -232,6 +233,13 @@ func (a *Adapter) completeMFAEnrollment(ctx context.Context, authPath, enrollmen
 }
 
 func (a *Adapter) LoginTenant(ctx context.Context, email, password, tenantSlug string) (AuthRef, error) {
+	if a.tenantSessions != nil {
+		return a.loginWithTenantSession(ctx, email, password, tenantSlug)
+	}
+	return a.loginTenant(ctx, email, password, tenantSlug)
+}
+
+func (a *Adapter) loginTenant(ctx context.Context, email, password, tenantSlug string) (AuthRef, error) {
 	body := map[string]string{
 		"email":    email,
 		"password": password,
@@ -316,7 +324,11 @@ func (a *Adapter) Raw(ctx context.Context, auth AuthRef, method, path string, bo
 	if err != nil {
 		return nil, 0, fmt.Errorf("%s %s failed: %w", method, path, err)
 	}
-	return a.send(req, auth, method, path)
+	raw, status, err := a.send(req, auth, method, path)
+	if err == nil && a.tenantSessions != nil {
+		err = a.tenantSessions.record(ctx, auth, method, path, body, raw)
+	}
+	return raw, status, err
 }
 
 // RawUpload sends a body that is already encoded — a multipart upload, say.
