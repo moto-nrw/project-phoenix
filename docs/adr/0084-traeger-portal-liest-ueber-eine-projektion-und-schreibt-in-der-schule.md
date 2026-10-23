@@ -242,5 +242,8 @@ zusammen mit dem Fachrecht.
   mehreren Schulen und braucht ein eigenes Ticket.
 - Wer das Feriengast-Modell besitzt, entscheidet eine spätere ADR. Hier steht
   nur die Zugriffsregel.
-- Nicht entschieden sind hier die Träger-Ebene im Settings-System und Personal
-  über Schulen (#1417, #2817). Dafür sind eigene ADRs der Spec vorgesehen.
+- Die Träger-Ebene im Settings-System und die Träger-Transaktion für Tabellen
+  des Trägers entscheidet
+  [ADR 0086](0086-traeger-werte-liegen-zwischen-standard-und-schule.md).
+- Nicht entschieden ist hier Personal über Schulen (#1417, #2817). Dafür ist
+  eine eigene ADR der Spec vorgesehen.

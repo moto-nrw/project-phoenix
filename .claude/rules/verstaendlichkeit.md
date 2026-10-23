@@ -2,7 +2,7 @@
 paths:
   - "frontend/src/**"
   - "backend/templates/email/**"
-  - "backend/email/**"
+  - "backend/modules/delivery/**"
 ---
 
 # Verständlichkeit — Build for the Worst Plausible Reading
