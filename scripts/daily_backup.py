@@ -21,6 +21,8 @@ from urllib.parse import urlparse
 
 
 FILES = ('database.dump', 'roles.sql', 'uploads.tar.gz')
+LOGIN_PASSWORDS = {'postgres': 'POSTGRES_PASSWORD', 'phoenix_auth': 'PHOENIX_AUTH_PASSWORD',
+                   'phoenix_demo': 'PHOENIX_DEMO_PASSWORD'}
 BUNDLE_NAME = r'daily-[0-9]{8}T[0-9]{6}Z-[a-f0-9]{16}\.tar\.age'
 step = 'configuration'
 
@@ -103,6 +105,16 @@ class Recovery:
         if self.transport == 's3':
             # Plaintext is transient and must not land on persistent host disks.
             require(command(['findmnt', '-n', '-o', 'FSTYPE', '-T', str(self.work_root)]).strip() == b'tmpfs')
+        self.cipher_root = Path(required('BACKUP_CIPHER_DIR'))
+        require(self.cipher_root.is_absolute() and self.cipher_root.is_dir())
+        work_path, cipher_path = self.work_root.resolve(), self.cipher_root.resolve()
+        require(work_path != cipher_path and work_path not in cipher_path.parents
+                and cipher_path not in work_path.parents)
+        minimum = required('BACKUP_MIN_FREE_BYTES')
+        require(re.fullmatch(r'[1-9][0-9]*', minimum))
+        self.min_free = int(minimum)
+        if self.transport == 's3':
+            require(command(['findmnt', '-n', '-o', 'FSTYPE', '-T', str(self.cipher_root)]).strip() != b'tmpfs')
         self.retention = 0
         if mode == 'backup':
             days = required('BACKUP_RETENTION_DAYS')
@@ -111,8 +123,16 @@ class Recovery:
             self.recipient = required('BACKUP_AGE_RECIPIENT')
             require(re.fullmatch(r'age1[0-9a-z]+', self.recipient))
         else:
+            self.passwords = {role: required(key) for role, key in LOGIN_PASSWORDS.items()}
             self.identity = Path(required('BACKUP_AGE_IDENTITY_FILE'))
             require(self.identity.is_absolute() and self.identity.is_file())
+
+    def check_capacity(self):
+        # Operator sizes this reservation from measured uncompressed data plus
+        # growth/headroom. Shared filesystems need room for both reservations.
+        same_device = self.work_root.stat().st_dev == self.cipher_root.stat().st_dev
+        for root in (self.work_root, self.cipher_root):
+            require(shutil.disk_usage(root).free >= self.min_free * (2 if same_device else 1))
 
     def dc(self, *args, **kwargs):
         return command(self.compose + list(args), **kwargs)
@@ -146,7 +166,7 @@ class Recovery:
                         (',readonly' if self.mode == 'backup' else ''),
                         '--entrypoint', 'tar', self.image, *args], stdin=stdin, stdout=stdout)
 
-    def backup(self, work):
+    def backup(self, work, cipher):
         global step
         step = 'database_dump'
         self.cluster()
@@ -163,18 +183,25 @@ class Recovery:
                     'pg_major': self.pg_major, 'database': 'postgres',
                     'sha256': {name: sha256(work / name) for name in FILES}}
         (work / 'manifest.json').write_text(json.dumps(manifest) + '\n')
-        plain = work / 'bundle.tar'
-        with tarfile.open(plain, 'w') as archive:
-            for name in (*FILES, 'manifest.json'):
-                archive.add(work / name, arcname=name, recursive=False)
         step = 'encryption'
         name = 'daily-' + created.replace('-', '').replace(':', '') + '-' + secrets.token_hex(8) + '.tar.age'
-        encrypted = work / name
-        command(['age', '-r', self.recipient, '-o', str(encrypted), str(plain)])
+        encrypted = cipher / name
+        # Stream the outer tar directly to age: no second plaintext bundle.
+        with subprocess.Popen(['age', '-r', self.recipient, '-o', str(encrypted)],
+                              stdin=subprocess.PIPE, stdout=subprocess.DEVNULL,
+                              stderr=subprocess.DEVNULL) as encrypt:
+            try:
+                with tarfile.open(fileobj=encrypt.stdin, mode='w|') as archive:
+                    for name in (*FILES, 'manifest.json'):
+                        archive.add(work / name, arcname=name, recursive=False)
+            finally:
+                encrypt.stdin.close()
+            require(encrypt.wait() == 0)
+        name = encrypted.name
         step = 'upload'
         self.rclone('copyto', encrypted, self.target + '/' + name, '--immutable')
         step = 'remote_verification'
-        downloaded = work / 'roundtrip.age'
+        downloaded = cipher / 'roundtrip.age'
         self.rclone('copyto', self.target + '/' + name, downloaded)
         require(sha256(downloaded) == sha256(encrypted))
         step = 'retention'
@@ -194,15 +221,16 @@ class Recovery:
                 timestamp = dt.datetime.strptime(obj['Path'][6:22], '%Y%m%dT%H%M%SZ').replace(tzinfo=dt.timezone.utc)
                 require(timestamp > cutoff)
 
-    def restore(self, work, name):
+    def restore(self, work, cipher, name):
         global step
         require(re.fullmatch(BUNDLE_NAME, name))
         step = 'download'
-        encrypted = work / 'bundle.age'
+        encrypted = cipher / 'bundle.age'
         self.rclone('copyto', self.target + '/' + name, encrypted)
         step = 'decryption'
         plain = work / 'bundle.tar'
         command(['age', '-d', '-i', str(self.identity), '-o', str(plain), str(encrypted)])
+        encrypted.unlink()
         step = 'checksums'
         regular_archive(plain, expected=(*FILES, 'manifest.json'))
         with tarfile.open(plain) as archive:
@@ -210,6 +238,7 @@ class Recovery:
             for member in archive:
                 with archive.extractfile(member) as source, (work / member.name).open('wb') as target:
                     shutil.copyfileobj(source, target)
+        plain.unlink()
         manifest = json.loads((work / 'manifest.json').read_text())
         require(manifest['format'] == 'moto-daily-backup-v1' and manifest['database'] == 'postgres')
         dt.datetime.strptime(manifest['created_at'], '%Y-%m-%dT%H:%M:%SZ')
@@ -240,6 +269,16 @@ class Recovery:
         roles = '\n'.join(line for line in roles.splitlines() if line != 'CREATE ROLE postgres;') + '\n'
         self.dc('exec', '-T', 'postgres', 'psql', '-X', '-U', 'postgres', '-d', 'postgres',
                 '-v', 'ON_ERROR_STOP=1', data=roles.encode())
+        step = 'role_passwords'
+        logins = self.sql('SELECT rolname FROM pg_roles WHERE rolcanlogin ORDER BY rolname;').splitlines()
+        require(set(logins) <= set(LOGIN_PASSWORDS))  # Unknown LOGIN roles need an explicit operator mapping.
+        for role in logins:
+            password = self.passwords[role]
+            # No TTY: psql reads the two hidden prompts from stdin and encrypts
+            # client-side. No plaintext password enters argv or SQL statements.
+            self.dc('exec', '-T', 'postgres', 'psql', '-X', '-U', 'postgres', '-d', 'postgres',
+                    '-v', 'ON_ERROR_STOP=1', '-c', '\\password ' + role,
+                    data=(password + '\n' + password + '\n').encode())
         step = 'database_restore'
         with (work / 'database.dump').open('rb') as file:
             self.dc('exec', '-T', 'postgres', 'pg_restore', '-U', 'postgres', '-d', 'postgres',
@@ -263,6 +302,7 @@ def main():
     label = 'restore' if mode == 'restore' else 'backup'
     work = None
     lock = None
+    cipher = None
     status = 1
     missing = ''
     try:
@@ -272,11 +312,14 @@ def main():
         lock_path = recovery.compose_file.parent / '.release-operation.lock'
         lock_path.mkdir(mode=0o700)
         lock = lock_path
+        step = 'workspace_capacity'
+        recovery.check_capacity()
+        cipher = Path(tempfile.mkdtemp(prefix='daily-', dir=recovery.cipher_root))
         work = Path(tempfile.mkdtemp(prefix='daily-', dir=recovery.work_root))
         if mode == 'backup':
-            recovery.backup(work)
+            recovery.backup(work, cipher)
         else:
-            recovery.restore(work, sys.argv[2])
+            recovery.restore(work, cipher, sys.argv[2])
         step = 'complete' if mode == 'backup' else 'deletion_review_required'
         status = 0
     except MissingConfiguration as error:
@@ -286,14 +329,13 @@ def main():
         # No raw exceptions or subprocess output: they may contain personal data.
         status = 1
     finally:
-        try:
-            if work is not None:
-                shutil.rmtree(work)
-            if lock is not None:
-                lock.rmdir()
-        except Exception:
-            step = 'cleanup'
-            status = 1
+        for path in (work, cipher, lock):
+            if path is not None:
+                try:
+                    path.rmdir() if path == lock else shutil.rmtree(path)
+                except Exception:
+                    step = 'cleanup'
+                    status = 1
     suffix = ' app_start=blocked' if mode == 'restore' else ''
     print(f'{label}_result={"ok" if status == 0 else "failed"} step={step}{missing}{suffix}', flush=True)
     return status

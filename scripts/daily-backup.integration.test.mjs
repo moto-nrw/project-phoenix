@@ -18,13 +18,14 @@ test('encrypted daily backup restores an isolated cluster and files, prunes by a
   const marker = randomBytes(24).toString('hex');
   const credential = randomBytes(24).toString('hex');
   const compose = join(root, 'compose.yml');
-  writeFileSync(join(root, '.env'), `PRIVATE_MARKER=${credential}\n`);
+  writeFileSync(join(root, '.env'), `PRIVATE_MARKER=${credential}\nPOSTGRES_PASSWORD=${credential}\n`);
   writeFileSync(compose, `services:
   postgres:
     image: postgres:17-alpine
     network_mode: none
     environment:
-      POSTGRES_HOST_AUTH_METHOD: trust
+      POSTGRES_PASSWORD: ${credential}
+      POSTGRES_INITDB_ARGS: --auth-host=scram-sha-256
     volumes: [database:/var/lib/postgresql/data]
     healthcheck:
       test: [CMD, pg_isready, -h, 127.0.0.1, -U, postgres]
@@ -39,7 +40,11 @@ volumes:
 `);
   const env = { ...process.env, BACKUP_COMPOSE_FILE: compose, BACKUP_PROJECT: project,
     BACKUP_UPLOADS_VOLUME: volume, BACKUP_TRANSPORT: 'local', BACKUP_TARGET: remote,
-    BACKUP_WORK_DIR: work, BACKUP_RETENTION_DAYS: '30' };
+    BACKUP_WORK_DIR: work, BACKUP_CIPHER_DIR: join(root, 'cipher'),
+    BACKUP_MIN_FREE_BYTES: '1048576', BACKUP_RETENTION_DAYS: '30',
+    POSTGRES_PASSWORD: credential, PHOENIX_AUTH_PASSWORD: randomBytes(24).toString('hex'),
+    PHOENIX_DEMO_PASSWORD: randomBytes(24).toString('hex') };
+  mkdirSync(env.BACKUP_CIPHER_DIR);
   for (const key of ['COMPOSE_FILE', 'COMPOSE_PROJECT_NAME', 'COMPOSE_PROFILES']) delete env[key];
   const invoke = (command, args, input, overrides = {}) => spawnSync(command, args,
     { cwd: root, env: { ...env, ...overrides }, input, encoding: 'utf8', timeout: 180000 });
@@ -52,7 +57,8 @@ volumes:
   };
   const docker = (...args) => run('docker', args);
   const dc = (...args) => docker('compose', '--env-file', join(root, '.env'), '-f', compose, '-p', project, ...args);
-  const sql = query => dc('exec', '-T', 'postgres', 'psql', '-X', '-U', 'postgres', '-d', 'postgres', '-At', '-v', 'ON_ERROR_STOP=1', '-c', query);
+  const sql = query => run('docker', ['compose', '--env-file', join(root, '.env'), '-f', compose, '-p', project,
+    'exec', '-T', 'postgres', 'psql', '-X', '-U', 'postgres', '-d', 'postgres', '-At', '-v', 'ON_ERROR_STOP=1'], query);
   const backup = (overrides = {}) => invoke('bash', [join(scripts, 'daily-backup.sh')], undefined, overrides);
   const restore = (name, overrides = {}) => invoke('bash', [join(scripts, 'restore-daily-backup.sh'), name], undefined,
     { BACKUP_UPLOADS_VOLUME: restoredVolume, BACKUP_AGE_IDENTITY_FILE: join(root, 'identity'), ...overrides });
@@ -61,13 +67,35 @@ volumes:
     invoke('docker', ['volume', 'rm', volume, restoredVolume]);
     rmSync(root, { recursive: true, force: true });
   });
+  const restoreConfig = JSON.parse(run('docker', ['compose', '--env-file', join(root, '.env'),
+    '-f', join(scripts, '../docs/operations/daily-restore.compose.yml'), 'config', '--format', 'json'], undefined,
+    { TZ: 'UTC', RESTORE_POSTGRES_PORT: '55432', RESTORE_DATABASE_VOLUME: `${project}-drill` }));
+  assert.deepEqual(Object.keys(restoreConfig.services), ['postgres']);
+  assert.equal(restoreConfig.services.postgres.restart, 'no');
+  assert.equal(restoreConfig.services.postgres.ports[0].host_ip, '127.0.0.1');
+  assert.equal(restoreConfig.services.postgres.ports[0].published, '55432');
+  assert.equal(restoreConfig.volumes.database.name, `${project}-drill`);
+  // Observe the real transport boundary: ciphertext never occupies the
+  // plaintext workspace, and backup must not materialize an outer tar there.
+  const guardedBin = join(root, 'guarded-bin'); mkdirSync(guardedBin);
+  const transport = run('which', ['rclone']);
+  writeFileSync(join(guardedBin, 'rclone'), `#!/bin/sh
+for arg in "$@"; do
+  case "$arg" in '${work}'/*.age) exit 29;; esac
+done
+[ -z "$(find '${work}' -name bundle.tar -print -quit)" ] || exit 30
+exec '${transport}' "$@"
+`);
+  chmodSync(join(guardedBin, 'rclone'), 0o700);
+  env.PATH = `${guardedBin}:${env.PATH}`;
   run('age-keygen', ['-o', join(root, 'identity')]);
   env.BACKUP_AGE_RECIPIENT = run('age-keygen', ['-y', join(root, 'identity')]);
   dc('up', '-d', '--wait', 'postgres', 'server');
   docker('volume', 'create', volume);
-  sql(`CREATE ROLE app_login LOGIN PASSWORD '${credential}';
+  sql(`CREATE ROLE phoenix_auth LOGIN PASSWORD '${credential}';
+CREATE ROLE phoenix_demo LOGIN;
 CREATE ROLE tenant_scope;
-GRANT tenant_scope TO app_login;
+GRANT tenant_scope TO phoenix_auth;
 CREATE TABLE records(tenant_id bigint, marker text);
 ALTER TABLE records ENABLE ROW LEVEL SECURITY;
 CREATE POLICY school_scope ON records USING (tenant_id = current_setting('test.school_id')::bigint);
@@ -79,14 +107,18 @@ INSERT INTO records VALUES (41, '${marker}'), (42, '${marker}');`);
   writeFileSync(join(remote, old), 'expired synthetic bundle');
   utimesSync(join(remote, old), new Date('2000-01-01'), new Date('2000-01-01'));
   writeFileSync(join(remote, 'unrelated'), 'keep');
-  let result = backup();
+  let result = backup({ BACKUP_MIN_FREE_BYTES: '999999999999999999' });
+  assert.notEqual(result.status, 0); assert.match(result.stdout, /backup_result=failed step=workspace_capacity/);
+  assert.deepEqual(readdirSync(remote).sort(), [old, 'unrelated'].sort());
+  assert.deepEqual(readdirSync(work), []);
+  result = backup();
   assert.equal(result.status, 0, result.stdout);
   assert.match(result.stdout, /backup_result=ok step=complete/);
   const names = readdirSync(remote);
   assert(!names.includes(old)); assert(names.includes('unrelated'));
   const name = names.find(n => n.endsWith('.age'));
   const ciphertext = readFileSync(join(remote, name));
-  for (const forbidden of [marker, credential, 'SCRAM-SHA-256$', 'PRIVATE_MARKER']) assert(!ciphertext.includes(Buffer.from(forbidden)));
+  for (const forbidden of [marker, credential, env.PHOENIX_AUTH_PASSWORD, env.PHOENIX_DEMO_PASSWORD, 'SCRAM-SHA-256$', 'PRIVATE_MARKER']) assert(!ciphertext.includes(Buffer.from(forbidden)));
   run('age', ['-d', '-i', join(root, 'identity'), '-o', join(root, 'bundle.tar'), join(remote, name)]);
   const members = run('tar', ['-tf', join(root, 'bundle.tar')]).split('\n').sort();
   assert.deepEqual(members, ['database.dump', 'manifest.json', 'roles.sql', 'uploads.tar.gz']);
@@ -101,11 +133,14 @@ with tarfile.open(sys.argv[1]) as source, tarfile.open(sys.argv[2],'w') as targe
   target.addfile(member,io.BytesIO(data))
 `, join(root, 'bundle.tar'), join(root, 'corrupt.tar')]);
   run('age', ['-r', env.BACKUP_AGE_RECIPIENT, '-o', join(remote, corrupted), join(root, 'corrupt.tar')]);
+  result = restore(name, { PHOENIX_AUTH_PASSWORD: '' });
+  assert.notEqual(result.status, 0); assert.match(result.stdout, /missing=PHOENIX_AUTH_PASSWORD/);
   result = restore(corrupted);
   assert.notEqual(result.status, 0); assert.match(result.stdout, /step=checksums/);
   result = restore(name);
-  assert.notEqual(result.status, 0); // Running application is never an eligible restore target.
+  assert.notEqual(result.status, 0); assert.match(result.stdout, /step=fresh_target/); // Running application is never an eligible restore target.
   assert.equal(sql('SELECT count(*) FROM records;'), '2');
+  const rowsBefore = createHash('sha256').update(sql('SELECT tenant_id, marker FROM records ORDER BY tenant_id, marker;')).digest('hex');
   dc('down', '-v'); // Destroy database storage, not just its rows.
   docker('volume', 'rm', volume);
   dc('up', '-d', '--wait', 'postgres');
@@ -113,7 +148,19 @@ with tarfile.open(sys.argv[1]) as source, tarfile.open(sys.argv[2],'w') as targe
   assert.equal(result.status, 0, result.stdout);
   assert.match(result.stdout, /restore_result=ok step=deletion_review_required app_start=blocked/);
   assert.equal(sql('SELECT count(*) FROM records;'), '2');
-  assert.equal(sql("SELECT rolpassword IS NULL FROM pg_authid WHERE rolname='app_login';"), 't');
+  assert.equal(createHash('sha256').update(sql('SELECT tenant_id, marker FROM records ORDER BY tenant_id, marker;')).digest('hex'), rowsBefore);
+  // Passwordless role dumps are not usable app logins until explicitly re-keyed.
+  for (const [role, key] of [['postgres', 'POSTGRES_PASSWORD'], ['phoenix_auth', 'PHOENIX_AUTH_PASSWORD'], ['phoenix_demo', 'PHOENIX_DEMO_PASSWORD']]) {
+    const login = invoke('docker', ['compose', '--env-file', join(root, '.env'), '-f', compose, '-p', project,
+      'exec', '-T', '-e', 'PGPASSWORD', 'postgres', 'psql', '-X', '-h', '127.0.0.1', '-U', role,
+      '-d', 'postgres', '-At', '-c', 'SELECT current_user;'], undefined, { PGPASSWORD: env[key] });
+    assert.equal(login.status, 0, `restored login ${role} must authenticate (diagnostics withheld)`);
+    assert.equal(login.stdout.trim(), role);
+    const wrongPassword = invoke('docker', ['compose', '--env-file', join(root, '.env'), '-f', compose, '-p', project,
+      'exec', '-T', '-e', 'PGPASSWORD', 'postgres', 'psql', '-X', '-h', '127.0.0.1', '-U', role,
+      '-d', 'postgres', '-At', '-c', 'SELECT current_user;'], undefined, { PGPASSWORD: randomBytes(24).toString('hex') });
+    assert.notEqual(wrongPassword.status, 0, `restored login ${role} must reject a wrong password`);
+  }
   assert.equal(sql("SET ROLE tenant_scope; SET test.school_id='41'; SELECT count(*) FROM records;" ).split('\n').at(-1), '1');
   assert.equal(sql("SET ROLE tenant_scope; SET test.school_id='42'; SELECT count(*) FROM records;" ).split('\n').at(-1), '1');
   for (const [file, value] of [['documents/41/file', 'first'], ['documents/42/file', 'second'], ['.hidden', 'hidden']]) {
@@ -151,4 +198,5 @@ with tarfile.open(sys.argv[1]) as source, tarfile.open(sys.argv[2],'w') as targe
   assert(!result.stdout.includes('backup_result=ok'));
   assert(!result.stdout.includes(credential)); assert(!result.stderr.includes(marker));
   assert.deepEqual(readdirSync(work), []);
+  assert.deepEqual(readdirSync(env.BACKUP_CIPHER_DIR), []);
 });

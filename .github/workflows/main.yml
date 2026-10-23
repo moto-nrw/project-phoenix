@@ -212,6 +212,7 @@ jobs:
             # Release, deploy and demo tooling and the workflow files the
             # script suites read. None of it feeds the test or lint suites.
             tooling:
+              - 'docs/operations/daily-restore.compose.yml'
               - 'scripts/daily-backup*'
               - 'scripts/daily_backup.py'
               - 'scripts/restore-daily-backup.sh'

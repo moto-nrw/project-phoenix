@@ -40,9 +40,9 @@ banner() {
   _clear
   printf '\n%s%s  %s%s\n' "$BOLD" "$BLUE" "$1" "$RESET"
   printf '%s  %s stages%s\n\n' "$DIM" "$TOTAL_STAGES" "$RESET"
-  printf '%s  You drive the browser; this wizard tells you exactly what to do and\n' "$DIM"
-  printf '  captures the values you copy back. Stop any time with Ctrl-C and re-run\n'
-  printf '  later — it remembers values already saved.%s\n' "$RESET"
+  printf '%s  Diese Checkliste erklärt die Einrichtung durch einen Menschen.\n' "$DIM"
+  printf '  Sie erfasst und speichert keine Werte und führt keine Einrichtung aus.\n'
+  printf '  Abbruch jederzeit mit Ctrl-C.%s\n' "$RESET"
   pause "Ready to start?"
 }
 
@@ -202,12 +202,13 @@ stage "SOPS und Werkzeuge"
 step "docs/operations/daily-backup.env.example in separates Betreiber-SOPS-Dokument außerhalb des Repos übernehmen."
 step "Alle Leerwerte aus tatsächlichen Compose-/Volume- und Anbieterangaben füllen. Keine environments/*.sops.env ändern."
 step "Mensch materialisiert /etc/moto-backup/backup.env mit SOPS, root 0600. Kein privater Backup-Schlüssel darin."
-step "Bash, Docker/Compose, Python 3.11+, age, rclone, findmnt und PATH prüfen; Arbeitsverzeichnis auf tmpfs, ohne Klartext-Swap."
-pause "Pflichtwerte, Werkzeuge und tatsächliches Upload-Volume geprüft? Enter."
+step "Bash, Docker/Compose, Python 3.11+, age, rclone, findmnt und PATH prüfen; Klartextpfad auf tmpfs ohne Klartext-Swap; separater Chiffratpfad auf Disk."
+step "Kapazität nach Runbook messen und BACKUP_MIN_FREE_BYTES mit Wachstumsreserve setzen; tmpfs/RAM passend bereitstellen."
+pause "Pflichtwerte, Platzreservierung, Werkzeuge und tatsächliches Upload-Volume geprüft? Enter."
 stage "Erster Lauf und isolierter Restore"
 step "daily-backup.sh und daily_backup.py nach /usr/local/lib/moto-backup installieren; Units aus scripts/systemd nach /etc/systemd/system kopieren."
 step "systemd-analyze verify für alle drei Units; systemctl daemon-reload; systemctl start moto-daily-backup.service"
-step "Nach Runbook in frische isolierte Umgebung wiederherstellen. Löschungen seit Sicherungszeitpunkt vor jedem App-Start erneut umsetzen."
+step "Nach Runbook auf GETRENNTER Maschine mit daily-restore.compose.yml wiederherstellen, nie parallel auf dem Produktionshost. Löschungen seit Sicherungszeitpunkt vor jedem App-Start erneut umsetzen."
 warn "OnFailure schreibt nur ins Journal. Alarmzustellung ist offen (3836-b)."
 pause "Wiederherstellung, Dateiabgleich, RLS und Löschprüfung nachgewiesen? Enter."
 stage "Timer und Nachweis"

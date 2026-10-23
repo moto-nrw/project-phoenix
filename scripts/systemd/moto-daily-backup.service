@@ -11,9 +11,10 @@ User=root
 UMask=0077
 LimitCORE=0
 EnvironmentFile=/etc/moto-backup/backup.env
-Environment=BACKUP_WORK_DIR=/run/moto-backup
 RuntimeDirectory=moto-backup
 RuntimeDirectoryMode=0700
+StateDirectory=moto-backup-cipher
+StateDirectoryMode=0700
 ExecStart=/usr/local/lib/moto-backup/daily-backup.sh
 TimeoutStartSec=6h
 KillMode=control-group
