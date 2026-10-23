@@ -23,7 +23,7 @@ func (s *Service) Submit(ctx context.Context, input feedback.CreateEntry) (feedb
 	value := toDomainInput(normalized)
 	var entry domain.Entry
 
-	err = s.run(ctx, "submit", func(txCtx context.Context) (domain.OperationStats, error) {
+	err = s.runWhenEnabled(ctx, "submit", func(txCtx context.Context) (domain.OperationStats, error) {
 		var stats domain.OperationStats
 		entry, stats, err = s.store.Create(txCtx, value)
 		return stats, err
@@ -59,7 +59,7 @@ func (s *Service) SubmitBatch(ctx context.Context, inputs []feedback.CreateEntry
 	}
 	var entries []domain.Entry
 
-	err := s.run(ctx, "submit_batch", func(txCtx context.Context) (stats domain.OperationStats, batchErr error) {
+	err := s.runWhenEnabled(ctx, "submit_batch", func(txCtx context.Context) (stats domain.OperationStats, batchErr error) {
 		entries = make([]domain.Entry, 0, len(values))
 		for _, input := range values {
 			entry, current, createErr := s.store.Create(txCtx, input)
@@ -88,7 +88,7 @@ func (s *Service) LookupEntry(ctx context.Context, id int64) (feedback.Entry, er
 	var entry domain.Entry
 
 	var err error
-	err = s.run(ctx, "read", func(txCtx context.Context) (domain.OperationStats, error) {
+	err = s.runWhenEnabled(ctx, "read", func(txCtx context.Context) (domain.OperationStats, error) {
 		var stats domain.OperationStats
 		entry, stats, err = s.store.Get(txCtx, id)
 		return stats, err
@@ -121,7 +121,7 @@ func (s *Service) FindEntries(ctx context.Context, filter feedback.Filter) ([]fe
 	value := toDomainFilter(normalized)
 	var entries []domain.Entry
 
-	err = s.run(ctx, "read_list", func(txCtx context.Context) (domain.OperationStats, error) {
+	err = s.runWhenEnabled(ctx, "read_list", func(txCtx context.Context) (domain.OperationStats, error) {
 		var stats domain.OperationStats
 		entries, stats, err = s.store.List(txCtx, value)
 		return stats, err
@@ -132,6 +132,7 @@ func (s *Service) FindEntries(ctx context.Context, filter feedback.Filter) ([]fe
 	return toPublicEntries(entries), nil
 }
 
+// CountForStudent supports deletion previews, including while feedback is off.
 func (s *Service) CountForStudent(ctx context.Context, studentID int64) (int, error) {
 	if studentID <= 0 {
 		err := &feedback.InvalidEntryDataError{Err: feedback.ErrInvalidParameters}

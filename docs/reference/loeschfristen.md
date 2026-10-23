@@ -5,6 +5,12 @@
 
 Diese Liste nennt jede Datenart mit Personenbezug, ihre Löschfrist, den Startzeitpunkt, wer die Frist einstellt und welcher Owner im Code löscht. Der Wächtertest `TestEveryTableHasARetentionPath` (`backend/database/migrations/retention_coverage_test.go`) hält die Tabellen dazu im Code fest: Jede Tabelle hat einen Löschweg, eine begründete Ausnahme oder steht als offene Lücke mit Ticket. Die Lückenliste darf nur schrumpfen.
 
+Für die vollständige Mandantenlöschung und Datenrückgabe gibt es zusätzlich
+einen [gemeinsamen Produktionskatalog](datenkatalog.md) nach
+[ADR 0092](../adr/0092-mandanten-datenlebenszyklus-nutzt-einen-gemeinsamen-katalog.md).
+Er klassifiziert den
+Bestand, setzt diese Verfahren aber noch nicht um und ändert keine Frist.
+
 ## Wie gelöscht wird
 
 - **Stündlicher Token-Aufräumjob.** Einladungen für Eltern, MFA-Codes per E-Mail, Passkey-Sitzungen und abgelaufene Refresh-Tokens löscht der stündliche Aufräumjob für alle Schulen und Operatoren gemeinsam (#3954). Derselbe Job löscht das Operator-Protokoll und deaktivierte Operator-Konten des moto-Teams (#4047) und anonymisiert Konten, die keine Schule mehr braucht (#4043). Diese Läufe stehen nicht im Löschprotokoll, weil sie keiner Schule zugeordnet sind.
@@ -60,6 +66,11 @@ Wiederherstellung älterer Sicherungen muss der Betrieb bestätigen. Ablauf und
 inhaltsfreie Zählabfrage: [Prüfablauf](../operations/gesundheitsangaben-aenderungsprotokoll-3840.md).
 Sicherungen folgen unabhängig davon #3836. Andere Freitextfelder werden durch
 diesen Slice nicht maskiert.
+
+**Nicht erfasst:** Elternportal-Direktänderungen speichern `health_info` weiter
+als Alt-/Neuwerte in `users.student_data_change_requests`. Diese Tabelle folgt
+der Kinderlöschung, nicht der oben genannten Protokollfrist. Befund, Leser und
+offene Abhilfe: [Risikobewertung gespeicherter Daten](schutz-gespeicherter-daten.md#bestätigter-befund-gesundheitskopien-im-elternportal).
 
 ## Technische Daten und Protokolle (fest für alle Schulen)
 

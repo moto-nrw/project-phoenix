@@ -500,10 +500,20 @@ function studentSearchTopic(
           // Live geprueft: mit Betreuer-Rechten fehlt der Reiter ganz. Er
           // bleibt trotzdem in der Liste -- die Leitung liest denselben
           // Artikel und sieht ihn (canViewEnrollments = `config:manage`).
-          "Wählen Sie `Anmeldungen` für Angaben aus der Halbjahresanmeldung. Diesen Reiter sieht nur die Leitung.",
+          "Wählen Sie `Anmeldungen` für Angaben aus der Halbjahresanmeldung. Diesen Reiter sieht nur die Leitung. Über `Herunterladen` wählen Sie dort `PDF`, `Word` oder `Excel`.",
           "Wählen Sie `Dokumente` für Dateien zum Kind.",
           "Wählen Sie `Änderungsprotokoll` für Änderungen an den Angaben.",
           "Wählen Sie `Historie` für Anwesenheit, Feedback und weitere Verläufe.",
+        ],
+      },
+      {
+        title: "Ein Anwesenheitsprotokoll herunterladen",
+        steps: [
+          "Öffnen Sie beim Kind `Historie` und danach `Anwesenheitsprotokoll`.",
+          "Wählen Sie im Drei-Punkte-Menü `Exportieren`.",
+          "Wählen Sie unter `Von` und `Bis` den Zeitraum.",
+          "Möglich sind nur die sichtbaren Tage bis heute.",
+          "Wählen Sie das Format und danach `Herunterladen`.",
         ],
       },
       {
@@ -1949,6 +1959,7 @@ function correctWorkTimeTopic(): HelpTopic {
     ],
     notes: [
       "Klappen Sie einen geänderten Tag auf, um die Änderungshistorie zu sehen.",
+      "Öffnen Sie für Ihren Zeitnachweis oben rechts das Drei-Punkte-Menü. Wählen Sie `Exportieren`, den Zeitraum und das Format. Mit `Herunterladen` bekommen Sie die Datei.",
     ],
     related: [HELP_TOPICS.trackWorkTime, HELP_TOPICS.vacation],
   };
@@ -4020,7 +4031,7 @@ function parentDeclarationTopic(): HelpTopic {
       "Mit `Widerruf erlauben` können Eltern eine Zustimmung später zurücknehmen, auch nach der Frist.",
       "Mit `Passwort vor dem Antworten abfragen` geben Eltern vor jeder Antwort ihr Passwort ein.",
       "`Offene erinnern` schickt eine Erinnerung an alle, die noch nicht geantwortet haben.",
-      "`Bericht als PDF` lädt den Stand und alle Antworten als PDF herunter. `Verlauf als CSV` enthält dieselben Antworten als Tabelle.",
+      "Unter `Herunterladen` lädt `Bericht als PDF` den Stand und alle Antworten als PDF herunter. `Verlauf als CSV` enthält dieselben Antworten als Tabelle.",
       "Das ist eine einfache Erklärung per Knopfdruck. Verlangt ein Gesetz eine Erklärung auf Papier, reicht sie nicht aus.",
     ],
     differences: [
@@ -4070,7 +4081,7 @@ function mealPlanTopic(): HelpTopic {
       "Der heutige Tag trägt das Kennzeichen `Heute`.",
       "Unter dem Plan steht die Liste für die Küche. Mit `Tag` und `Woche` wechseln Sie die Ansicht.",
       "Die Wochenliste zeigt jedes angemeldete Kind mit einem Haken je Tag. Darüber steht, wie viele Kinder an jedem Tag essen.",
-      "Beide Listen laden Sie als `PDF` oder `Excel` herunter.",
+      "Öffnen Sie `Tagesliste herunterladen` oder `Wochenliste herunterladen`. Wählen Sie `PDF` oder `Excel`.",
       "Bis wann Eltern ändern können, legen Sie in den Einstellungen fest: `Änderungsfrist für das Mittagessen` und `Vorlauf für das Mittagessen (Werktage)`.",
     ],
     differences: [
@@ -4106,10 +4117,13 @@ function bankDetailsTopic(): HelpTopic {
       "Klappen Sie in der Seitenleiste `Eltern` auf.",
       "Öffnen Sie `Bankverbindungen`.",
       "Wählen Sie `Alle Kinder` oder `Ohne IBAN`.",
-      "Wählen Sie das Format: `PDF`, `Excel` oder `Word`.",
+      "Öffnen Sie oben rechts das Menü mit den drei Punkten.",
+      "Wählen Sie `Exportieren`.",
+      "Wählen Sie unter `Format` `Excel`, `PDF` oder `Word`.",
       "Wählen Sie `Herunterladen`.",
     ],
-    result: "Die Liste wird als Datei erstellt und heruntergeladen.",
+    result:
+      "Die Liste wird als Datei erstellt und heruntergeladen. Sie enthält immer alle Kinder, auch wenn die Liste gerade gefiltert ist.",
     notes: [
       "Die IBAN tragen Sie beim Kind ein, im Reiter `Erziehungsberechtigte`.",
       "Die Datei enthält die vollständigen IBANs und wird protokolliert. Geben Sie sie nicht per E-Mail weiter.",
@@ -4120,7 +4134,7 @@ function bankDetailsTopic(): HelpTopic {
     ],
     troubleshootingDetails: [
       "Fehlt `Bankverbindungen` in der Seitenleiste? Dafür braucht es ein eigenes Recht. Fragen Sie Ihre Leitung.",
-      "`Herunterladen` bleibt grau? Dann ist die Liste leer.",
+      "`Exportieren` bleibt grau? Dann ist die Liste leer.",
     ],
     related: [
       HELP_TOPICS.leadInviteGuardians,
@@ -4404,7 +4418,7 @@ function enrollmentReviewTopic(): HelpTopic {
   };
 }
 
-/** Export einer Phase, `ExportMenuButton` in der Kopfzeile der Phasenseite. */
+/** Export einer Phase, Export-Menü in der Kopfzeile der Phasenseite. */
 function enrollmentExportTopic(): HelpTopic {
   return {
     id: HELP_TOPICS.leadEnrollmentExport,
@@ -4418,13 +4432,14 @@ function enrollmentExportTopic(): HelpTopic {
       "Öffnen Sie `Anmeldungen` und danach `Überblick`.",
       "Wählen Sie bei der Phase `Anmeldungen ansehen`.",
       "Wählen Sie oben `Anmeldungen exportieren`.",
-      "Wählen Sie `Als PDF exportieren`, `Als Word-Dokument exportieren` oder `Als Excel-Datei exportieren`.",
+      "Wählen Sie `PDF`, `Word` oder `Excel`.",
     ],
     result: "Die Datei wird erstellt und heruntergeladen.",
     notes: [
       "Oben steht, wie viele Eingänge die Phase hat und wie viele davon offen sind.",
       "Die Seite hat drei Exporte: `Anmeldungen exportieren`, `Klassenliste exportieren` und `Auswertung exportieren`.",
       "`Klassenliste exportieren` gilt für die Klasse, die Sie unter `Klasse für Klassenliste` wählen.",
+      "`Auswertung exportieren` bietet PDF und Word `ausführlich` oder als `kompakte Tabelle`.",
     ],
     differences: [
       "Auf dem Handy erscheint nur ein Hinweis. Der Export läuft am Computer.",
@@ -5059,7 +5074,7 @@ function leadCarePlanTopic(): HelpTopic {
       "Externe Personen wählen Sie im Schritt `Personal und Kinder` unter `Personal` wie alle anderen, auch mit `Kein Zugang`. Fehlt jemand, wählen Sie darunter `Externe Person eintragen`.",
       "Hat die externe Person `Kein Zugang`, startet eine OGS-Kraft den Termin. Mit `Eigene Termine betreuen` startet sie ihn selbst.",
       "Eine externe Person kann einen Termin allein betreuen. Sie kann auch die `Zuständige Person` sein.",
-      "Über das Menü mit den drei Punkten geht `Drucken oder exportieren`.",
+      "Wählen Sie im Drei-Punkte-Menü `Drucken oder exportieren`. Wählen Sie Vorlage, Fassung und Zeitraum. `Drucken` öffnet die Druckansicht. Für eine Datei wählen Sie das Format und `Herunterladen`.",
       "Betreut Ihre OGS am Wochenende? Dann zeigt die Wochenansicht auch Samstag und Sonntag. Dort gilt der Freitagsplan.",
     ],
     differences: [
@@ -5142,7 +5157,7 @@ function dutyRosterTopic(): HelpTopic {
       "Unter dem Plan steht `Stunden der Woche`. Dort sehen Sie je Person die Stunden je Schichtart und das Soll.",
       "Unter `Person` sehen Sie die Woche einer Person in Viertelstunden. Darunter stehen die Stunden je Tag und Schichtart.",
       "Ziehen Sie dort über die Viertelstunden, um eine Schicht anzulegen.",
-      "Über das Menü mit den drei Punkten geht `Drucken oder exportieren`.",
+      "Wählen Sie im Drei-Punkte-Menü `Drucken oder exportieren`. Wählen Sie Vorlage, Fassung und Zeitraum. `Drucken` öffnet die Druckansicht. Für eine Datei wählen Sie das Format und `Herunterladen`.",
       "Die Vorlage `Stundenübersicht` druckt diese Stunden als Liste.",
       "Eine Serie lässt Ferien, Schließtage und Feiertage aus. Arbeitet die Person auch in den Ferien, setzen Sie bei der Serie das Häkchen `Auch in den Ferien und an Schließtagen planen`.",
       "An Feiertagen plant eine Serie nie eine Schicht.",
@@ -5393,14 +5408,14 @@ function exportsTopic(): HelpTopic {
     steps: [
       "Öffnen Sie `Datenverwaltung` und danach `Exporte`.",
       "Suchen Sie die passende Liste und wählen Sie `Liste erstellen`.",
-      "Wählen Sie im Fenster unter `Format` `PDF`, `DOCX` oder `XLSX`.",
       "Haken Sie unter `Spalten` an, was in der Liste stehen soll.",
-      "Wählen Sie `Exportieren`.",
+      "Wählen Sie unter `Format` `PDF`, `Word` oder `Excel`.",
+      "Wählen Sie `Herunterladen`.",
     ],
     result: "Die Datei liegt im Download-Ordner Ihres Geräts.",
     notes: [
       "Die Listen sind in `Kinderlisten`, `Personallisten` und `Momentaufnahmen` geordnet.",
-      "Eine `Momentaufnahme` wie die `Notfallliste` zeigt den Stand von jetzt.",
+      "Eine `Momentaufnahme` wie die `Notfallliste` zeigt den Stand von jetzt. Dort öffnet `Liste erstellen` ein Menü: `Drucken` oder das Format.",
       "Die `Gesundheitsliste` zeigt Allergien, Medikamente und andere Gesundheitsinformationen.",
       "Sie enthält zuerst nur Kinder mit einem Eintrag.",
       "`Auch Kinder ohne Eintrag` nimmt alle Kinder auf.",
@@ -5468,7 +5483,8 @@ function payrollTopic(): HelpTopic {
 /**
  * `/settings`. Die Reiter kommen aus dem Schema des Servers und sind je Schule
  * verschieden (settings/page.tsx:32) -- deshalb nennt der Artikel keine feste
- * Liste, sondern den Weg und die Regeln.
+ * Liste, sondern den Weg und die Regeln. Die wichtigsten Einstellungen stehen
+ * in `settingsGuideTopic`.
  */
 function settingsTopic(): HelpTopic {
   return {
@@ -5504,9 +5520,139 @@ function settingsTopic(): HelpTopic {
       "Der Wechsel des Anwesenheitsmodus wird abgelehnt? Das geht nicht, solange Kinder eingecheckt sind.",
     ],
     related: [
+      HELP_TOPICS.settingsGuide,
       HELP_TOPICS.leadParentVisibility,
       HELP_TOPICS.leadDevices,
       HELP_TOPICS.leadMissingMenu,
+    ],
+  };
+}
+
+/**
+ * Die wichtigsten Einstellungen je Reiter (#3727). Bewusst eine Auswahl, keine
+ * vollständige Liste: Die vollständige Liste steht auf `/settings` selbst, mit
+ * einem Satz unter jeder Einstellung. Bezeichnungen stammen aus der Registry
+ * (`backend/modules/settings/internal/defaults/`) und aus `TAB_LABELS` in
+ * `components/settings/settings-page.tsx`. Wer dort umbenennt, ändert hier mit.
+ */
+function settingsGuideTopic(): HelpTopic {
+  return {
+    id: HELP_TOPICS.settingsGuide,
+    title: "Die wichtigsten Einstellungen im Überblick",
+    question: "Welche Einstellungen gibt es, und was bewirken sie?",
+    summary: "Was Sie in welchem Bereich der Einstellungen festlegen.",
+    group: "konfiguration",
+    audience: "lead",
+    icon: "SlidersHorizontal",
+    steps: [],
+    instructionGroups: [
+      {
+        title: "Betrieb",
+        description: "Wie Ihr Team im Alltag arbeitet.",
+        ordered: false,
+        steps: [
+          "`Arbeit mit festen Gruppen`: Ob Kinder festen Gruppen angehören oder alle mit allen Kindern arbeiten.",
+          "`Welche Gruppen und Blöcke sieht das Team?`: Was das Team im Überblick sieht. Was das Team bearbeiten darf, ändert das nicht.",
+          "`Wo darf das Team Kinder an- und abmelden?`: Nur bei den eigenen Gruppen und Blöcken oder überall.",
+          "`Wer darf Kinder krank oder entschuldigt melden?`: Nur OGS-Admins oder das ganze Team.",
+          "`Übliche Ankunftszeit` und `Übliche Abholzeit`: Diese Zeiten tragen Sie im Wochenplan eines Kindes mit einem Klick ein.",
+          "`Betreuungsplan nutzen`: Zeigt den Betreuungsplan im Menü.",
+          "`Benachrichtigungen senden`: Hinweise in moto und auf dem Handy. Was ankommt, wählt jede Person selbst.",
+          "`Team-Chat für Mitarbeitende`: Das Team schreibt sich Nachrichten. Eltern sehen davon nichts.",
+          "`Kinderfotos`: Fotos bei den Kindern. Nur mit Einwilligung der Eltern. Beim Ausschalten löscht moto alle Fotos sofort. Sie können sie nicht wiederherstellen.",
+          "`Automatisch ausstempeln`: moto wartet nach Dienstende die eingestellte Zeit. Dann stempelt es aus. Das gilt nur bei einem geplanten Dienst.",
+        ],
+      },
+      {
+        title: "Elternportal",
+        description: "Steht im Bereich `Betrieb` unter `Elternportal`.",
+        ordered: false,
+        steps: [
+          "`Nachrichten von Eltern`: Eltern schreiben dem Team zu ihrem Kind.",
+          "`Krankmeldung über Elternportal`: Eltern melden ihr Kind selbst krank.",
+          "`Essensplan`: Eltern sehen, was es diese und nächste Woche zu essen gibt.",
+          "Alle Schalter für Eltern erklärt die Anleitung „Festlegen, was Eltern in moto sehen“.",
+        ],
+      },
+      {
+        title: "Erinnerungen",
+        description: "Hinweise rund um Abholung und Termine.",
+        ordered: false,
+        steps: [
+          "`Anstehende Abholung`: Erinnert, wenn die Abholzeit eines Kindes näher rückt.",
+          "`Überfällige Abholung`: Erinnert, wenn ein Kind nach seiner Abholzeit noch da ist.",
+          "`Terminerinnerung für Eltern`: Eltern bekommen vor einem Termin eine E-Mail. Das gilt nur, wenn Sie beim Anlegen `Eltern per E-Mail benachrichtigen` wählen.",
+        ],
+      },
+      {
+        title: "Geräte",
+        description: "Nur wenn Ihre OGS NFC-Tablets nutzt.",
+        ordered: false,
+        steps: [
+          "`Geräte-PIN`: Mit dieser PIN meldet sich Ihr Team am Tablet an.",
+          "`„Nach Hause“ ab Uhrzeit`: Ab dieser Uhrzeit können Kinder am Tablet „Nach Hause“ wählen.",
+          "`„Toilette“ am Tablet anbieten`: Kinder können beim Auschecken „Toilette“ wählen. Für „Schulhof“ und „Raumwechsel“ gibt es eigene Schalter.",
+        ],
+      },
+      {
+        title: "Anmeldung",
+        description: "Wie Eltern ihr Kind bei Ihnen anmelden.",
+        ordered: false,
+        steps: [
+          "`Online-Anmeldung`: Eltern melden ihr Kind über ein Formular im Internet an.",
+          "`Empfänger für neue Anmeldungen`: Diese Adressen bekommen bei jeder neuen Anmeldung eine E-Mail.",
+          "`Rechtstexte`: Was Eltern im Formular lesen und bestätigen, zum Beispiel die Datenschutzinformation.",
+        ],
+      },
+      {
+        title: "Datenschutz",
+        description: "Was moto speichert und wie lange.",
+        ordered: false,
+        steps: [
+          "`Anwesenheitsprotokoll`: Das Team sieht bei jedem Kind, wann es da war und in welchen Räumen.",
+          "`Nutzungsanalyse`: moto erhält Nutzungsstatistiken Ihrer Schule, aber keine eingegebenen Inhalte.",
+          "Löschfristen wie `Anwesenheit aufbewahren (Tage)`: Wie lange moto Daten behält. Sie können sie nur lesen.",
+        ],
+      },
+      {
+        title: "Kalender und Export",
+        description: "Termine und Zeitkonten außerhalb von moto nutzen.",
+        ordered: false,
+        steps: [
+          "`Kalenderzugang mit App-Passwort erlauben`: Das Team sieht seine Termine in einem Kalenderprogramm.",
+          "`Zeitkonten per SFTP übertragen`: Nach der vollständigen Einrichtung können Sie die Zeitkonten im Export-Dialog selbst übertragen.",
+        ],
+      },
+      {
+        title: "Sicherheit",
+        description: "Wie gut Konten bei der Anmeldung geschützt sind.",
+        ordered: false,
+        steps: [
+          "`Zwei-Faktor-Anmeldung (Code per E-Mail)`: Beim Anmelden kommt zusätzlich ein Code per E-Mail.",
+          "`Fehlversuche bis zur Kontosperre`: Nach so vielen falschen Eingaben sperrt moto das Konto für eine Weile.",
+        ],
+      },
+      {
+        title: "Startseite für alle und Personalisierung",
+        ordered: false,
+        steps: [
+          "`Startseite für alle`: Welche Bereiche alle auf ihrer Startseite sehen.",
+          "`Personalisierung`: Ein eigenes Bild für die Login-Seite Ihrer OGS.",
+        ],
+      },
+    ],
+    notes: [
+      "Unter jeder Einstellung steht in moto ein Satz, der sagt, was sie bewirkt.",
+      "Sie suchen eine bestimmte Einstellung? Nutzen Sie oben das Feld `Einstellung suchen`. Es sucht in allen Bereichen.",
+    ],
+    differences: [
+      "Welche Bereiche und Einstellungen Sie sehen, hängt von Ihren Rechten und den Funktionen Ihrer OGS ab.",
+      "Manche Einstellungen erscheinen erst, wenn Sie eine andere einschalten.",
+    ],
+    related: [
+      HELP_TOPICS.settings,
+      HELP_TOPICS.leadParentVisibility,
+      HELP_TOPICS.leadNfcSettings,
     ],
   };
 }
@@ -5957,6 +6103,7 @@ function leadTopics(
 
     // --- Einstellungen und Geräte ---
     settingsTopic(),
+    settingsGuideTopic(),
     parentVisibilityTopic(),
     infoDisplaysTopic(),
     leadBirthdaysTopic(),

@@ -192,7 +192,9 @@ func (rs *StaffAdminResource) registerTimeTrackingRoutes(r chi.Router, withTx co
 	r.With(timeTracking, withTx).Get("/{id}/time-tracking/history", rs.getStaffHistory)
 	r.With(timeTracking, withTx).Get("/{id}/time-tracking/month-summary", rs.getStaffMonthSummary)
 	r.With(timeTracking, withTx).Get("/{id}/time-tracking/schedule-targets", rs.getStaffScheduleTargets)
-	r.With(timeTracking, withTx).Get("/{id}/time-tracking/export", rs.exportStaffSessions)
+	// Die eigene Zeiterfassung exportiert über dieselbe Route (#4748); der
+	// Handler prüft, dass time_tracking:own nur die eigene Person trifft.
+	r.With(common.RequiresAnyPermission(permissions.TimeTrackingManage, permissions.TimeTrackingOwn), withTx).Get("/{id}/time-tracking/export", rs.exportStaffSessions)
 }
 
 // registerBalanceRoutes serves the Stundenkonto lifecycle (#1420): payout /

@@ -112,24 +112,6 @@ func (s *BirthdayService) GetOptOut(ctx context.Context, accountID int64) (bool,
 	return staff.OptOut, nil
 }
 
-func (s *BirthdayService) SetOptOut(ctx context.Context, accountID int64, optOut bool) error {
-	staff, err := s.resolveOwnStaff(ctx, accountID)
-	if err != nil {
-		return err
-	}
-	if staff.OptOut == optOut {
-		return nil
-	}
-	if err := s.store.SetStaffBirthdayOptOut(ctx, staff.ID, optOut); err != nil {
-		return &userscontract.UsersError{Op: "set birthday display opt-out", Err: err}
-	}
-	s.logger.Debug("birthday display opt-out changed",
-		"staff_id", staff.ID,
-		"opt_out", optOut,
-	)
-	return nil
-}
-
 // Failures carry the users.<op> wrapper the retained service always used: the
 // HTTP layer renders the error text of an unexpected failure as-is, so it is
 // part of the response contract.

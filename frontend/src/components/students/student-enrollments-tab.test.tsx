@@ -74,7 +74,10 @@ describe("StudentEnrollmentsTab", () => {
     );
     renderTab();
 
-    fireEvent.click(screen.getByRole("button", { name: "PDF" }));
+    fireEvent.click(
+      screen.getByRole("button", { name: "Anmeldungen herunterladen" }),
+    );
+    fireEvent.click(screen.getByRole("menuitem", { name: "PDF" }));
 
     expect(
       await screen.findByText(

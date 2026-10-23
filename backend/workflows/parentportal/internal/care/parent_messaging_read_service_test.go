@@ -12,6 +12,8 @@ import (
 	"log/slog"
 	"testing"
 
+	parentportalcompose "github.com/moto-nrw/project-phoenix/workflows/parentportal/compose"
+
 	"github.com/moto-nrw/project-phoenix/workflows/parentportal"
 
 	"github.com/stretchr/testify/assert"
@@ -55,6 +57,7 @@ func buildReadServiceWithNotifier(t *testing.T, enabled bool, notifier parentpor
 		},
 	}
 	svc := parentportal.NewMessagingFlows(parentportal.MessagingConfig{
+		SharePolicy:           parentportalcompose.NewRequestSharePolicy(),
 		GuardianPolicy:        owners.NewParentGuardianPolicy(),
 		Fingerprints:          owners.SecurityFingerprints{},
 		Declarations:          owners.ParentDeclarationPolicy(),

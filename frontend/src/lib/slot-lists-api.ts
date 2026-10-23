@@ -263,7 +263,7 @@ export async function exportSlotList(
     }
 
     if (printTarget) {
-      openBlobForPrint(blob, printTarget);
+      await openBlobForPrint(blob, printTarget);
       return;
     }
 

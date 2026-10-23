@@ -123,7 +123,7 @@ export async function exportPlan(
 
     const blob = await response.blob();
     if (mode === "print") {
-      openBlobForPrint(blob, printTarget);
+      await openBlobForPrint(blob, printTarget);
       return;
     }
     downloadBlob(
