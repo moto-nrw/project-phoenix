@@ -31,6 +31,7 @@ import type { Staff } from "~/lib/staff-api";
 import { InvitationForm } from "~/components/admin/invitation-form";
 import { PendingInvitationsList } from "~/components/admin/pending-invitations-list";
 import { hasPermission } from "~/lib/auth-utils";
+import { canGrantExternalViewAccess } from "~/lib/external-caregiver-access";
 import {
   EXTERNAL_CAREGIVER_LABEL,
   getRoleDisplayName,
@@ -128,6 +129,8 @@ function TeachersPageContent() {
   // Externe Person anlegen und einladen (#4573): dasselbe Recht wie
   // POST /api/staff/externals und die Einladungsroute.
   const canCreateExternal = hasPermission(sessionData, "users:create");
+  // „Nur ansehen“ vergibt die Rolle „Gast“ und braucht users:manage (ADR 0083).
+  const canGrantView = canGrantExternalViewAccess(sessionData);
   const [showExternalModal, setShowExternalModal] = useState(false);
   const [inviteTarget, setInviteTarget] =
     useState<ExternalInvitationTarget | null>(null);
@@ -238,9 +241,8 @@ function TeachersPageContent() {
   >(
     () => ({
       role: (teacher) => {
-        // Externe Kräfte (#3823) bilden eine eigene Gruppe, auch mit Konto
-        // und Rolle „Extern“ (#4573); sie trennt sie von Personal, dem nur
-        // die Rolle fehlt.
+        // Externe Kräfte (#3823) bilden eine eigene Gruppe, mit jedem Zugang
+        // (ADR 0083); sie trennt sie von Personal, dem nur die Rolle fehlt.
         if (teacher.is_external) {
           return {
             id: "__external__",
@@ -267,6 +269,7 @@ function TeachersPageContent() {
 
   // Erfolg beim Anlegen oder Einladen einer externen Person (#4573). Eine
   // erneute Einladung ersetzt die alte; der Text sagt „neue Einladung“.
+  // „Kein Zugang“ verschickt keine Einladung (ADR 0083).
   const handleExternalSaved = useCallback(
     (staff: Staff, outcome: "created" | "invited" | "reinvited") => {
       const name = staffDisplayName(
@@ -274,8 +277,11 @@ function TeachersPageContent() {
         staff.firstName,
         staff.lastName,
       );
+      const invited = staff.externalAccountStatus === "invitation_pending";
       const messages = {
-        created: `${name} ist angelegt. Die Einladung ist per E-Mail unterwegs.`,
+        created: invited
+          ? `${name} ist angelegt. Die Einladung ist per E-Mail unterwegs.`
+          : `${name} ist angelegt.`,
         invited: `Die Einladung an ${name} ist unterwegs.`,
         reinvited: `Die neue Einladung an ${name} ist unterwegs.`,
       };
@@ -304,7 +310,6 @@ function TeachersPageContent() {
     [],
   );
 
-  // Aus der Einladung mit der Rolle „Extern“ in den richtigen Weg wechseln.
   const openExternalCreate = useCallback(() => {
     setShowInviteModal(false);
     setShowExternalModal(true);
@@ -352,9 +357,6 @@ function TeachersPageContent() {
             >
               <InvitationForm
                 existingPositions={existingPositions}
-                onAddExternal={
-                  canCreateExternal ? openExternalCreate : undefined
-                }
                 onCreated={() => {
                   setInvitationRefreshKey(Date.now());
                   setShowInviteModal(false);
@@ -368,9 +370,11 @@ function TeachersPageContent() {
                 isOpen={showExternalModal}
                 onClose={() => setShowExternalModal(false)}
                 onSaved={(staff) => handleExternalSaved(staff, "created")}
+                canGrantView={canGrantView}
               />
               <ExternalInvitationModal
                 target={inviteTarget}
+                canGrantView={canGrantView}
                 onClose={() => setInviteTarget(null)}
                 onInvited={(staff) =>
                   handleExternalSaved(

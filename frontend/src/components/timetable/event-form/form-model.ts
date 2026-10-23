@@ -1,6 +1,6 @@
 import { formatDate } from "~/lib/date-helpers";
 import type { Staff } from "~/lib/staff-api";
-import { externalStaffNote, isAssignableStaff } from "~/lib/staff-helpers";
+import { externalStaffNote } from "~/lib/staff-helpers";
 import { fetchStudents } from "~/lib/student-api";
 import { getSchoolYear } from "~/lib/student-helpers";
 import { resolveTemplateCalendarPeriodId } from "~/lib/timetable-helpers";
@@ -724,26 +724,22 @@ export function parseMaxParticipants(value: string): number | null {
 }
 
 /**
- * The Personal options of the event form (#4573): everyone who may be newly
- * assigned, plus whoever the event already has, so editing a series or an
- * occurrence never silently drops a person. Externals carry their mark in
- * the name, because the pickers take plain strings.
+ * The Personal options of the event form: the whole staff list, externals
+ * with any access included (ADR 0083; „Kein Zugang“ is a placeholder for
+ * exactly this planning). Externals carry their mark in the name, because
+ * the pickers take plain strings.
  */
 export function staffRosterOptions(
   directory: readonly Staff[],
-  assignedIds: readonly string[],
 ): PersonOption[] {
-  const assigned = new Set(assignedIds);
   return sortPeople(
-    directory
-      .filter((item) => isAssignableStaff(item) || assigned.has(item.id))
-      .map((item) => {
-        const note = externalStaffNote(item);
-        return {
-          id: item.id,
-          name: note ? `${item.name} (${note})` : item.name,
-        };
-      }),
+    directory.map((item) => {
+      const note = externalStaffNote(item);
+      return {
+        id: item.id,
+        name: note ? `${item.name} (${note})` : item.name,
+      };
+    }),
   );
 }
 

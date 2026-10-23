@@ -6,7 +6,6 @@ import {
   getStaffCardInfo,
   formatStaffNotes,
   sortStaff,
-  isAssignableStaff,
   externalAccountLabel,
   externalAccountMark,
   externalStaffLabel,
@@ -152,18 +151,18 @@ describe("getStaffDisplayType", () => {
     expect(result).toBe("Extern");
   });
 
-  // #4573: a new external has a caregiver profile and, once the invitation
-  // is redeemed, the school role „extern“, stored in lower case.
-  it("spells the school role of an external caregiver as „Extern“", () => {
+  // ADR 0083: „Eigene Termine betreuen“ redeems into the system role
+  // „ag-leitung“, stored in lower case.
+  it("spells the system role ag-leitung as „AG-Leitung“", () => {
     const staff = createSampleStaff({
       role: undefined,
       isTeacher: true,
       specialization: undefined,
-      accountRole: "extern",
+      accountRole: "ag-leitung",
       isExternal: true,
     });
 
-    expect(getStaffDisplayType(staff)).toBe("Extern");
+    expect(getStaffDisplayType(staff)).toBe("AG-Leitung");
   });
 
   it("returns specialization for teachers without role", () => {
@@ -433,22 +432,6 @@ describe("sortStaff", () => {
 });
 
 describe("external caregivers (#4573)", () => {
-  it("offers staff and externals with an account or open invitation", () => {
-    expect(isAssignableStaff({ isExternal: false })).toBe(true);
-    expect(
-      isAssignableStaff({ isExternal: true, externalAccountStatus: "account" }),
-    ).toBe(true);
-    expect(
-      isAssignableStaff({
-        isExternal: true,
-        externalAccountStatus: "invitation_pending",
-      }),
-    ).toBe(true);
-    expect(
-      isAssignableStaff({ isExternal: true, externalAccountStatus: "none" }),
-    ).toBe(false);
-  });
-
   it("names the account state only where it differs from a normal account", () => {
     expect(externalAccountLabel("invitation_pending")).toBe("Einladung offen");
     expect(externalAccountLabel("none")).toBe("Kein Konto");

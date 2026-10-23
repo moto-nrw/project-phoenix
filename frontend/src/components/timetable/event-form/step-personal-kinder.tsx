@@ -60,6 +60,8 @@ export interface StepPersonalKinderProps {
   addStaffOption: (person: Staff) => void;
   /** users:create: offer „Externe Person eintragen“ below the roster. */
   canCreateExternalCaregiver?: boolean;
+  /** Offer „Nur ansehen“ for an external person (users:manage, ADR 0083). */
+  canGrantExternalView?: boolean;
   loadingRefs: boolean;
   loadingStudents: boolean;
   /** The Kinderliste failed: the roster stays read-only and unchanged. */
@@ -142,6 +144,7 @@ export function StepPersonalKinder({
   staff,
   addStaffOption,
   canCreateExternalCaregiver = false,
+  canGrantExternalView = false,
   loadingRefs,
   loadingStudents,
   studentLoadFailed,
@@ -253,7 +256,10 @@ export function StepPersonalKinder({
     !loadingStaff &&
     !staffLoadFailed &&
     !preserveUnavailableWeekdayRoster ? (
-      <ExternalCaregiverEntry onAdded={handleExternalAdded} />
+      <ExternalCaregiverEntry
+        onAdded={handleExternalAdded}
+        canGrantView={canGrantExternalView}
+      />
     ) : null;
 
   let studentRosterField: React.ReactNode;

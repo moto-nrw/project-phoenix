@@ -1321,7 +1321,7 @@ describe("staff-api", () => {
       external_account_status: "invitation_pending" as const,
     };
 
-    it("creates an external caregiver with the invitation address", async () => {
+    it("creates an external caregiver with access and invitation address", async () => {
       const mockFetch = vi.mocked(globalThis.fetch);
       mockFetch.mockResolvedValueOnce({
         ok: true,
@@ -1333,6 +1333,7 @@ describe("staff-api", () => {
         lastName: "Gast",
         email: " lea@example.test ",
         organization: "Musikschule",
+        access: "supervise",
       });
 
       expect(mockFetch).toHaveBeenCalledWith(
@@ -1345,6 +1346,7 @@ describe("staff-api", () => {
         last_name: "Gast",
         email: "lea@example.test",
         organization: "Musikschule",
+        access: "supervise",
       });
       expect(staff).toMatchObject({
         id: "88",
@@ -1352,6 +1354,34 @@ describe("staff-api", () => {
         externalOrganization: "Musikschule",
         externalAccountStatus: "invitation_pending",
       });
+    });
+
+    // ADR 0083: Kein Zugang sends no email, even a typed one.
+    it("creates Kein Zugang without an email address", async () => {
+      const mockFetch = vi.mocked(globalThis.fetch);
+      mockFetch.mockResolvedValueOnce({
+        ok: true,
+        json: () =>
+          Promise.resolve({
+            data: { ...externalRecord, external_account_status: "none" },
+          }),
+      } as Response);
+
+      const staff = await staffService.createExternal({
+        firstName: "Lea",
+        lastName: "Gast",
+        email: "lea@example.test",
+        access: "none",
+      });
+
+      const init = mockFetch.mock.calls[0]?.[1];
+      expect(JSON.parse(String(init?.body))).toEqual({
+        first_name: "Lea",
+        last_name: "Gast",
+        organization: "",
+        access: "none",
+      });
+      expect(staff.externalAccountStatus).toBe("none");
     });
 
     it("invites an existing external caregiver under its id", async () => {
@@ -1364,13 +1394,14 @@ describe("staff-api", () => {
       const staff = await staffService.inviteExternal(
         "9007199254740993",
         "lea@example.test",
+        "view",
       );
 
       expect(mockFetch).toHaveBeenCalledWith(
         "/api/staff/externals/9007199254740993/invitation",
         expect.objectContaining({
           method: "POST",
-          body: JSON.stringify({ email: "lea@example.test" }),
+          body: JSON.stringify({ email: "lea@example.test", access: "view" }),
         }),
       );
       expect(staff.externalAccountStatus).toBe("invitation_pending");
@@ -1399,7 +1430,7 @@ describe("staff-api", () => {
       } as Response);
 
       await expect(
-        staffService.inviteExternal("12", "lea@example.test"),
+        staffService.inviteExternal("12", "lea@example.test", "supervise"),
       ).rejects.toMatchObject({
         status: 409,
         code: "identity.account_already_has_tenant_access",

@@ -540,6 +540,9 @@ describe("StepPersonalKinder — externe Person", () => {
     fireEvent.change(screen.getByLabelText("Nachname"), {
       target: { value: "Gast" },
     });
+    fireEvent.click(
+      screen.getByRole("radio", { name: /Eigene Termine betreuen/ }),
+    );
     fireEvent.change(screen.getByLabelText("E-Mail-Adresse"), {
       target: { value: "lea@example.test" },
     });
@@ -548,6 +551,32 @@ describe("StepPersonalKinder — externe Person", () => {
     await waitFor(() => expect(addStaffOption).toHaveBeenCalledWith(created));
     expect(update).toHaveBeenCalledWith("staffIds", ["1", "88"]);
   });
+
+  // ADR 0083: „Nur ansehen“ only where the planner may grant the role Gast.
+  it.each([
+    [true, true],
+    [false, false],
+  ])(
+    "offers „Nur ansehen“ only with canGrantExternalView=%s",
+    (canGrantExternalView, offered) => {
+      renderStep({
+        form: plainForm(),
+        staff: [{ id: "1", name: "Interne Kraft" }],
+        canCreateExternalCaregiver: true,
+        canGrantExternalView,
+      });
+
+      fireEvent.click(
+        screen.getByRole("button", { name: "Externe Person eintragen" }),
+      );
+
+      // Anker: die Zugangswahl ist offen.
+      expect(screen.getByRole("radio", { name: /Kein Zugang/ })).toBeChecked();
+      expect(
+        screen.queryByRole("radio", { name: /Nur ansehen/ }) !== null,
+      ).toBe(offered);
+    },
+  );
 
   it("offers no entry without permission to create users", () => {
     renderStep({

@@ -35,7 +35,7 @@ describe("POST /api/staff/externals", () => {
     } as Session);
   });
 
-  it("forwards names and email and maps the record out of the backend envelope", async () => {
+  it("forwards names, email and access and maps the record out of the backend envelope", async () => {
     mockApiPost.mockResolvedValueOnce({
       status: "success",
       data: {
@@ -63,6 +63,7 @@ describe("POST /api/staff/externals", () => {
         last_name: "Gast",
         email: "lea@example.test",
         organization: "Musikschule",
+        access: "supervise",
       }),
       context,
     );
@@ -76,6 +77,7 @@ describe("POST /api/staff/externals", () => {
         last_name: "Gast",
         email: "lea@example.test",
         organization: "Musikschule",
+        access: "supervise",
       },
     );
     const body = (await response.json()) as {
@@ -87,6 +89,57 @@ describe("POST /api/staff/externals", () => {
       is_external: true,
       external_organization: "Musikschule",
       external_account_status: "invitation_pending",
+    });
+  });
+
+  // ADR 0083: Kein Zugang records a placeholder without email.
+  it("forwards Kein Zugang without an email address", async () => {
+    mockApiPost.mockResolvedValueOnce({
+      status: "success",
+      data: {
+        id: "77",
+        person_id: "199",
+        is_teacher: false,
+        is_external: true,
+        external_account_status: "none",
+        person: {
+          id: 199,
+          first_name: "Tom",
+          last_name: "Platz",
+          created_at: "2026-10-09T07:00:00Z",
+          updated_at: "2026-10-09T07:00:00Z",
+        },
+        created_at: "2026-10-09T07:00:00Z",
+        updated_at: "2026-10-09T07:00:00Z",
+      },
+    });
+
+    const response = await POST(
+      postRequest({
+        first_name: "Tom",
+        last_name: "Platz",
+        organization: "",
+        access: "none",
+      }),
+      context,
+    );
+
+    expect(response.status).toBe(200);
+    expect(mockApiPost).toHaveBeenCalledWith(
+      "/api/staff/externals",
+      "test-token",
+      {
+        first_name: "Tom",
+        last_name: "Platz",
+        email: undefined,
+        organization: "",
+        access: "none",
+      },
+    );
+    const body = (await response.json()) as { data: Record<string, unknown> };
+    expect(body.data).toMatchObject({
+      id: "77",
+      external_account_status: "none",
     });
   });
 
@@ -106,7 +159,12 @@ describe("POST /api/staff/externals", () => {
     );
 
     const response = await POST(
-      postRequest({ first_name: "Lea", last_name: "Gast", email: "" }),
+      postRequest({
+        first_name: "Lea",
+        last_name: "Gast",
+        email: "",
+        access: "view",
+      }),
       context,
     );
 

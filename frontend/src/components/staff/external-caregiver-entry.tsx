@@ -5,11 +5,14 @@ import type { KeyboardEvent, RefObject } from "react";
 import { useId, useRef, useState } from "react";
 
 import { Button } from "~/components/ui/button";
+import { ChoiceTile } from "~/components/ui/choice-tile";
+import { FieldErrorHint } from "~/components/ui/field-error-hint";
 import { FormErrorAlert } from "~/components/ui/form-error-alert";
 import { Input } from "~/components/ui/input";
+import { Radio } from "~/components/ui/radio";
 import { useApiFormError } from "~/contexts/ToastContext";
 import { createLogger } from "~/lib/logger";
-import { staffService, type Staff } from "~/lib/staff-api";
+import { staffService, type ExternalAccess, type Staff } from "~/lib/staff-api";
 
 const logger = createLogger({ component: "ExternalCaregiverEntry" });
 
@@ -19,11 +22,52 @@ export const EXTERNAL_FIELDS = {
   lastName: "last_name",
   email: "email",
   organization: "organization",
+  access: "access",
 } as const;
 
 /** Shown above the fields wherever an external person is recorded. */
 export const EXTERNAL_CAREGIVER_HINT =
-  "Zum Beispiel die AG-Leitung der Musikschule. Die Person bekommt eine Einladung per E-Mail. Damit meldet sie sich selbst bei moto an. Sie können sie sofort einplanen.";
+  "Zum Beispiel jemand von der Musikschule oder vom Sportverein. Sie können die Person sofort einplanen.";
+
+/** Shown at the email field while the chosen access sends an invitation. */
+export const EXTERNAL_INVITATION_HINT =
+  "Die Person bekommt eine Einladung per E-Mail. Damit meldet sie sich selbst bei moto an.";
+
+/**
+ * The three access levels of ADR 0083, each with one line on what the person
+ * can do. The order is the order on screen.
+ */
+export const EXTERNAL_ACCESS_OPTIONS: Readonly<
+  Record<
+    ExternalAccess,
+    { readonly label: string; readonly description: string }
+  >
+> = {
+  none: {
+    label: "Kein Zugang",
+    description: "Nur für die Planung. Eine OGS-Kraft startet die Termine.",
+  },
+  view: {
+    label: "Nur ansehen",
+    description:
+      "Sieht Kinder, Räume und AGs. Keine Elterndaten, keine Änderungen.",
+  },
+  supervise: {
+    label: "Eigene Termine betreuen",
+    description:
+      "Startet und beendet eigene Termine. Checkt Kinder ein und aus.",
+  },
+};
+
+/**
+ * The levels this session may grant. „Nur ansehen“ needs `users:manage`
+ * (`canGrantExternalViewAccess`); without it the backend refuses the role.
+ */
+export function grantableExternalAccess(
+  canGrantView: boolean,
+): readonly ExternalAccess[] {
+  return canGrantView ? ["none", "view", "supervise"] : ["none", "supervise"];
+}
 
 // Deliberately loose: the backend decides; this only catches typing slips.
 const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
@@ -41,6 +85,7 @@ interface Values {
   readonly firstName: string;
   readonly lastName: string;
   readonly email: string;
+  readonly access: ExternalAccess;
 }
 
 function validate(
@@ -51,7 +96,9 @@ function validate(
     fields[EXTERNAL_FIELDS.firstName] = "Bitte Vornamen eingeben.";
   if (!values.lastName.trim())
     fields[EXTERNAL_FIELDS.lastName] = "Bitte Nachnamen eingeben.";
-  const emailHint = emailFieldHint(values.email);
+  // Kein Zugang needs no address; the field is hidden then.
+  const emailHint =
+    values.access === "none" ? null : emailFieldHint(values.email);
   if (emailHint) fields[EXTERNAL_FIELDS.email] = emailHint;
   const missingName =
     EXTERNAL_FIELDS.firstName in fields || EXTERNAL_FIELDS.lastName in fields;
@@ -65,24 +112,29 @@ function validate(
 }
 
 /**
- * State and submit of the external caregiver fields (#3823, #4573). The
+ * State and submit of the external caregiver fields (#3823, ADR 0083). The
  * inline entry and the dialog of the Personalverwaltung share it. A submit
  * always records a new person: a name says too little to pick an existing
  * one, and an existing person without account is invited only through
- * „Konto einladen“ in the Personalverwaltung. The backend refuses an address
- * that already signs in at the school, at the email field.
+ * „Konto einladen“ in the Personalverwaltung. The access starts at „Kein
+ * Zugang“; the other two levels invite by email. The backend refuses an
+ * address that already signs in at the school, at the email field.
  */
 export function useExternalCaregiverForm({
   onAdded,
   containerRef,
+  canGrantView = false,
 }: {
   readonly onAdded: (staff: Staff) => void;
   readonly containerRef?: RefObject<HTMLElement | null>;
+  /** Offer „Nur ansehen“ (`canGrantExternalViewAccess`). */
+  readonly canGrantView?: boolean;
 }) {
   const [firstName, setFirstName] = useState("");
   const [lastName, setLastName] = useState("");
   const [email, setEmail] = useState("");
   const [organization, setOrganization] = useState("");
+  const [access, setAccess] = useState<ExternalAccess>("none");
   const [isSaving, setIsSaving] = useState(false);
   const formErrors = useApiFormError(containerRef);
 
@@ -91,13 +143,14 @@ export function useExternalCaregiverForm({
     setLastName("");
     setEmail("");
     setOrganization("");
+    setAccess("none");
     formErrors.clear();
   }
 
-  /** Resolves true once the person is recorded and invited. */
+  /** Resolves true once the person is recorded (and invited, if chosen). */
   async function submit(): Promise<boolean> {
     if (isSaving) return false;
-    const invalid = validate({ firstName, lastName, email });
+    const invalid = validate({ firstName, lastName, email, access });
     if (invalid) {
       formErrors.invalid(invalid.message, invalid.fields);
       return false;
@@ -108,8 +161,9 @@ export function useExternalCaregiverForm({
       const staff = await staffService.createExternal({
         firstName: firstName.trim(),
         lastName: lastName.trim(),
-        email,
         organization,
+        access,
+        ...(access === "none" ? {} : { email }),
       });
       onAdded(staff);
       reset();
@@ -129,11 +183,13 @@ export function useExternalCaregiverForm({
   }
 
   return {
-    values: { firstName, lastName, email, organization },
+    values: { firstName, lastName, email, organization, access },
+    accessOptions: grantableExternalAccess(canGrantView),
     setFirstName,
     setLastName,
     setEmail,
     setOrganization,
+    setAccess,
     isSaving,
     error: formErrors.error,
     fieldError: formErrors.fieldError,
@@ -144,7 +200,83 @@ export function useExternalCaregiverForm({
 
 type ExternalCaregiverForm = ReturnType<typeof useExternalCaregiverForm>;
 
-/** Vorname, Nachname, E-Mail-Adresse and Organisation as kit inputs. */
+/**
+ * The access choice of ADR 0083 as radio tiles: each level with the one line
+ * that says what the person can do. A single level (the invitation without
+ * `users:manage`) is stated as text, not offered as a one-option choice.
+ * The radios carry the wire field name, so a server field error finds them.
+ */
+export function ExternalAccessChoice<T extends ExternalAccess>({
+  options,
+  value,
+  onChange,
+  error,
+  onKeyDown,
+}: {
+  readonly options: readonly T[];
+  readonly value: T;
+  readonly onChange: (next: T) => void;
+  readonly error?: string;
+  /** Enter and Escape of the inline entry, which renders no form. */
+  readonly onKeyDown?: (event: KeyboardEvent<HTMLInputElement>) => void;
+}) {
+  const uid = useId();
+  const errorId = `${uid}-access-error`;
+  const only = options.length === 1 ? options[0] : undefined;
+  if (only !== undefined) {
+    const option = EXTERNAL_ACCESS_OPTIONS[only];
+    return (
+      <div className="text-sm">
+        <p className="font-medium text-gray-700">Zugang</p>
+        <p className="mt-1 text-gray-900">{option.label}</p>
+        <p className="text-gray-600">{option.description}</p>
+        <FieldErrorHint id={errorId} message={error} />
+      </div>
+    );
+  }
+  return (
+    <fieldset className="min-w-0">
+      <legend className="mb-1 text-sm font-medium text-gray-700">Zugang</legend>
+      <div className="grid gap-2">
+        {options.map((option) => {
+          const { label, description } = EXTERNAL_ACCESS_OPTIONS[option];
+          const id = `${uid}-access-${option}`;
+          return (
+            <ChoiceTile
+              key={option}
+              selected={value === option}
+              className="items-start"
+            >
+              <Radio
+                id={id}
+                name={EXTERNAL_FIELDS.access}
+                value={option}
+                checked={value === option}
+                onChange={() => onChange(option)}
+                onKeyDown={onKeyDown}
+                aria-invalid={error ? true : undefined}
+                aria-describedby={error ? errorId : undefined}
+                className="mt-0.5"
+              />
+              <span className="min-w-0">
+                <span className="block text-gray-900">{label}</span>
+                <span className="block font-normal text-gray-600">
+                  {description}
+                </span>
+              </span>
+            </ChoiceTile>
+          );
+        })}
+      </div>
+      <FieldErrorHint id={errorId} message={error} />
+    </fieldset>
+  );
+}
+
+/**
+ * Vorname, Nachname, Organisation, the access choice and, for an access
+ * that invites, the E-Mail-Adresse with the invitation hint.
+ */
 export function ExternalCaregiverFields({
   form,
   onKeyDown,
@@ -157,6 +289,7 @@ export function ExternalCaregiverFields({
   // Two entries can be mounted at once (dialog over a page), so the ids are
   // unique while the names stay the wire field names.
   const uid = useId();
+  const invites = form.values.access !== "none";
   return (
     <>
       <div className="grid gap-3 sm:grid-cols-2">
@@ -187,22 +320,6 @@ export function ExternalCaregiverFields({
         />
       </div>
       <Input
-        id={`${uid}-email`}
-        name={EXTERNAL_FIELDS.email}
-        type="email"
-        label="E-Mail-Adresse"
-        controlSize="compact"
-        value={form.values.email}
-        onChange={(event) => form.setEmail(event.target.value)}
-        onKeyDown={onKeyDown}
-        error={form.fieldError(EXTERNAL_FIELDS.email)}
-        // No native `required`: the entry may sit inside another form, which
-        // must still submit while this panel is open and empty.
-        aria-required="true"
-        autoComplete="off"
-        maxLength={254}
-      />
-      <Input
         id={`${uid}-organization`}
         name={EXTERNAL_FIELDS.organization}
         label="Organisation (freiwillig)"
@@ -215,28 +332,64 @@ export function ExternalCaregiverFields({
         autoComplete="off"
         maxLength={150}
       />
+      <ExternalAccessChoice
+        options={form.accessOptions}
+        value={form.values.access}
+        onChange={form.setAccess}
+        error={form.fieldError(EXTERNAL_FIELDS.access)}
+        onKeyDown={onKeyDown}
+      />
+      {invites ? (
+        <div className="space-y-1">
+          <Input
+            id={`${uid}-email`}
+            name={EXTERNAL_FIELDS.email}
+            type="email"
+            label="E-Mail-Adresse"
+            controlSize="compact"
+            value={form.values.email}
+            onChange={(event) => form.setEmail(event.target.value)}
+            onKeyDown={onKeyDown}
+            error={form.fieldError(EXTERNAL_FIELDS.email)}
+            // No native `required`: the entry may sit inside another form,
+            // which must still submit while this panel is open and empty.
+            aria-required="true"
+            autoComplete="off"
+            maxLength={254}
+          />
+          <p className="text-sm text-gray-600">{EXTERNAL_INVITATION_HINT}</p>
+        </div>
+      ) : null}
     </>
   );
 }
 
 interface ExternalCaregiverEntryProps {
-  /** Called with the new, invited entry. */
+  /** Called with the new entry, with or without invitation. */
   readonly onAdded: (staff: Staff) => void;
   readonly disabled?: boolean;
+  /** Offer „Nur ansehen“ (`canGrantExternalViewAccess`). */
+  readonly canGrantView?: boolean;
 }
 
 /**
- * Records and invites an external caregiver (#3823, #4573) right where a
- * supervision is planned. It renders no `<form>`: the caller's dialog may be
- * a form already, so Enter is handled here instead of submitting the dialog.
+ * Records an external caregiver (#3823, ADR 0083) right where a supervision
+ * is planned, with the chosen access. It renders no `<form>`: the caller's
+ * dialog may be a form already, so Enter is handled here instead of
+ * submitting the dialog.
  */
 export function ExternalCaregiverEntry({
   onAdded,
   disabled = false,
+  canGrantView = false,
 }: ExternalCaregiverEntryProps) {
   const [isOpen, setIsOpen] = useState(false);
   const panelRef = useRef<HTMLDivElement>(null);
-  const form = useExternalCaregiverForm({ onAdded, containerRef: panelRef });
+  const form = useExternalCaregiverForm({
+    onAdded,
+    containerRef: panelRef,
+    canGrantView,
+  });
 
   function close() {
     form.reset();

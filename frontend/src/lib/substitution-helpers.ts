@@ -74,8 +74,8 @@ export interface RunningSupervision {
   roomName?: string;
   supervisors: SupervisionStaffRef[];
   /**
-   * isExternal: externe Kraft (#3823). Neu einteilbar sind nur externe Kräfte
-   * mit Konto oder offener Einladung; das filtert das Backend (#4573).
+   * isExternal: externe Kraft (#3823), mit jedem Zugang einteilbar
+   * (ADR 0083). Vertretungen bieten keine Externen an.
    */
   availableTargets: SupervisionStaffRef[];
   isCurrentUserSupervising: boolean;

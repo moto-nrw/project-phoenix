@@ -389,26 +389,13 @@ export function useEventForm({
   const [planningTracks, setPlanningTracks] = useState<PlanningTrack[]>([]);
   const [groups, setGroups] = useState<GroupOption[]>([]);
   const [students, setStudents] = useState<PersonOption[]>([]);
-  // The whole staff list, externals without account included (#4573). The
-  // roster options below offer only who may be newly assigned, plus whoever
-  // the event already names.
+  // The whole staff list, externals with any access included (ADR 0083).
   const [staffDirectory, setStaffDirectory] = useState<Staff[]>([]);
   const staff = useMemo(
-    () =>
-      staffRosterOptions(staffDirectory, [
-        ...initialStaffIDsSnapshot,
-        ...form.staffIds,
-        ...Object.values(form.weekdayRosters).flatMap(
-          (roster) => roster.staffIds,
-        ),
-      ]),
-    [
-      staffDirectory,
-      initialStaffIDsSnapshot,
-      form.staffIds,
-      form.weekdayRosters,
-    ],
+    () => staffRosterOptions(staffDirectory),
+    [staffDirectory],
   );
+
   /** Puts a just recorded or invited external person into the lists. */
   const addStaffOption = useCallback((person: Staff) => {
     setStaffDirectory((prev) => [

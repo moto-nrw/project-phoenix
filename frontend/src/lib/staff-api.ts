@@ -57,9 +57,20 @@ export interface BackendStaffResponse {
 
 /**
  * Account state of an external caregiver (#4573): `account` signs in,
- * `invitation_pending` has an unused invitation, `none` has neither.
+ * `invitation_pending` has an unused invitation, `none` has neither. `none`
+ * is a deliberate state (Kein Zugang), not a gap (ADR 0083).
  */
 export type ExternalAccountStatus = "account" | "invitation_pending" | "none";
+
+/**
+ * Access chosen for an external caregiver (ADR 0083): `none` records a
+ * placeholder without account, `view` invites into the system role „Gast“,
+ * `supervise` into „AG-Leitung“.
+ */
+export type ExternalAccess = "none" | "view" | "supervise";
+
+/** The two levels an invitation can grant. */
+export type ExternalInvitationAccess = Exclude<ExternalAccess, "none">;
 
 interface ActiveSupervisionResponse {
   id: number;
@@ -127,11 +138,15 @@ export interface Staff {
   externalAccountStatus?: ExternalAccountStatus | null;
 }
 
-/** An external caregiver recorded with an invitation (#3823, #4573). */
+/**
+ * An external caregiver to record (#3823, ADR 0083). The email address is
+ * only sent with an access that invites.
+ */
 interface ExternalStaffInput {
   firstName: string;
   lastName: string;
-  email: string;
+  access: ExternalAccess;
+  email?: string;
   organization?: string;
 }
 
@@ -505,8 +520,9 @@ class StaffService {
     return applyStaffFilters(mappedStaff, filters);
   }
 
-  // Records an external caregiver (#3823) and invites them by email (#4573).
-  // The new entry is selectable right away, before the invitation is used.
+  // Records an external caregiver (#3823) with the chosen access (ADR 0083);
+  // `view` and `supervise` invite by email. The new entry is selectable
+  // right away, with or without account.
   async createExternal(input: ExternalStaffInput): Promise<Staff> {
     const response = await sessionFetch("/api/staff/externals", {
       method: "POST",
@@ -514,8 +530,11 @@ class StaffService {
       body: JSON.stringify({
         first_name: input.firstName.trim(),
         last_name: input.lastName.trim(),
-        email: input.email.trim(),
         organization: input.organization?.trim() ?? "",
+        access: input.access,
+        ...(input.access === "none"
+          ? {}
+          : { email: input.email?.trim() ?? "" }),
       }),
     });
     if (!response.ok) {
@@ -528,15 +547,20 @@ class StaffService {
     return mapStaffMember(payload.data, {});
   }
 
-  // Invites an external caregiver who has no account yet (#4573). A second
-  // invitation replaces an open one, for example with a corrected address.
-  async inviteExternal(id: string, email: string): Promise<Staff> {
+  // Invites an external caregiver who has no account yet (#4573) with the
+  // chosen access (ADR 0083). A second invitation replaces an open one, for
+  // example with a corrected address.
+  async inviteExternal(
+    id: string,
+    email: string,
+    access: ExternalInvitationAccess,
+  ): Promise<Staff> {
     const response = await sessionFetch(
       `/api/staff/externals/${encodeURIComponent(id)}/invitation`,
       {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email: email.trim() }),
+        body: JSON.stringify({ email: email.trim(), access }),
       },
     );
     if (!response.ok) {

@@ -8,11 +8,16 @@ import { FormModal } from "~/components/ui/form-modal";
 import { Input } from "~/components/ui/input";
 import { useApiFormError } from "~/contexts/ToastContext";
 import { createLogger } from "~/lib/logger";
-import { staffService, type Staff } from "~/lib/staff-api";
+import {
+  staffService,
+  type ExternalInvitationAccess,
+  type Staff,
+} from "~/lib/staff-api";
 
 import {
   EXTERNAL_CAREGIVER_HINT,
   EXTERNAL_FIELDS,
+  ExternalAccessChoice,
   ExternalCaregiverFields,
   emailFieldHint,
   useExternalCaregiverForm,
@@ -22,22 +27,27 @@ const logger = createLogger({ component: "ExternalCaregiverDialogs" });
 
 /**
  * „Externe Person anlegen“ in the Personalverwaltung (#4573): the fields of
- * the inline entry in a dialog, worded like the page's create action. It always records a new person; an existing
- * one without account gets „Konto einladen“ from its row.
+ * the inline entry in a dialog, worded like the page's create action. It
+ * always records a new person; an existing one without account gets „Konto
+ * einladen“ from its row.
  */
 export function ExternalCaregiverCreateModal({
   isOpen,
   onClose,
   onSaved,
+  canGrantView = false,
 }: {
   readonly isOpen: boolean;
   readonly onClose: () => void;
   readonly onSaved: (staff: Staff) => void;
+  /** Offer „Nur ansehen“ (`canGrantExternalViewAccess`). */
+  readonly canGrantView?: boolean;
 }) {
   const bodyRef = useRef<HTMLDivElement>(null);
   const form = useExternalCaregiverForm({
     onAdded: onSaved,
     containerRef: bodyRef,
+    canGrantView,
   });
   // A reopened dialog starts empty: a successful save resets the form
   // itself, closing without saving resets it here.
@@ -109,8 +119,17 @@ export interface ExternalInvitationTarget {
   readonly invitationPending: boolean;
 }
 
+// „Eigene Termine betreuen“ first: an invitation is for someone who works
+// with the children; „Nur ansehen“ only with `users:manage`.
+function invitationAccessOptions(
+  canGrantView: boolean,
+): readonly ExternalInvitationAccess[] {
+  return canGrantView ? ["view", "supervise"] : ["supervise"];
+}
+
 /**
- * „Konto einladen“ for an external person without account (#4573). With an
+ * „Konto einladen“ for an external person without account (#4573) with the
+ * access „Nur ansehen“ or „Eigene Termine betreuen“ (ADR 0083). With an
  * open invitation the same dialog sends a new one, for example to a
  * corrected address; the backend revokes the old one in the same step.
  */
@@ -118,12 +137,16 @@ export function ExternalInvitationModal({
   target,
   onClose,
   onInvited,
+  canGrantView = false,
 }: {
   readonly target: ExternalInvitationTarget | null;
   readonly onClose: () => void;
   readonly onInvited: (staff: Staff) => void;
+  /** Offer „Nur ansehen“ (`canGrantExternalViewAccess`). */
+  readonly canGrantView?: boolean;
 }) {
   const [email, setEmail] = useState("");
+  const [access, setAccess] = useState<ExternalInvitationAccess>("supervise");
   const [isSaving, setIsSaving] = useState(false);
   const bodyRef = useRef<HTMLDivElement>(null);
   const formErrors = useApiFormError(bodyRef);
@@ -133,6 +156,7 @@ export function ExternalInvitationModal({
 
   useEffect(() => {
     setEmail("");
+    setAccess("supervise");
     clear();
   }, [targetId, clear]);
 
@@ -148,7 +172,7 @@ export function ExternalInvitationModal({
     formErrors.clear();
     setIsSaving(true);
     try {
-      const staff = await staffService.inviteExternal(target.id, email);
+      const staff = await staffService.inviteExternal(target.id, email, access);
       onInvited(staff);
       onClose();
     } catch (cause) {
@@ -204,6 +228,12 @@ export function ExternalInvitationModal({
           {/* The backend revokes every open invitation of the person first. */}
           {pending ? " Die alte Einladung gilt dann nicht mehr." : null}
         </p>
+        <ExternalAccessChoice
+          options={invitationAccessOptions(canGrantView)}
+          value={access}
+          onChange={setAccess}
+          error={formErrors.fieldError(EXTERNAL_FIELDS.access)}
+        />
         <Input
           id={`${inputId}-email`}
           name={EXTERNAL_FIELDS.email}

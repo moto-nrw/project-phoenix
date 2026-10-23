@@ -124,13 +124,7 @@ vi.mock("~/components/ui/page-header/PageHeaderWithSearch", () => ({
 }));
 
 vi.mock("~/components/admin/invitation-form", () => ({
-  // Stands in for the hint the real form shows for the role „Extern“.
-  InvitationForm: ({ onAddExternal }: { onAddExternal?: () => void }) =>
-    onAddExternal ? (
-      <button type="button" onClick={onAddExternal}>
-        Hinweis: Externe Person anlegen
-      </button>
-    ) : null,
+  InvitationForm: () => null,
 }));
 
 vi.mock("~/components/admin/pending-invitations-list", () => ({
@@ -187,6 +181,11 @@ describe("Personalverwaltung: externe Personen", () => {
       name: "Konto einladen",
     });
     expect(dialog).toHaveTextContent("Elli Alt bekommt eine Einladung");
+    // Ohne users:manage gibt es nur „Eigene Termine betreuen“ (ADR 0083).
+    expect(dialog).toHaveTextContent(
+      "Eigene Termine betreuenStartet und beendet eigene Termine.",
+    );
+    expect(screen.queryByRole("radio")).not.toBeInTheDocument();
     fireEvent.change(screen.getByLabelText("E-Mail-Adresse"), {
       target: { value: "elli@example.test" },
     });
@@ -196,6 +195,7 @@ describe("Personalverwaltung: externe Personen", () => {
       expect(mocks.inviteExternal).toHaveBeenCalledWith(
         "7",
         "elli@example.test",
+        "supervise",
       ),
     );
     await waitFor(() =>
@@ -243,6 +243,9 @@ describe("Personalverwaltung: externe Personen", () => {
     fireEvent.change(screen.getByLabelText("Nachname"), {
       target: { value: "Gast" },
     });
+    fireEvent.click(
+      screen.getByRole("radio", { name: /Eigene Termine betreuen/ }),
+    );
     fireEvent.change(screen.getByLabelText("E-Mail-Adresse"), {
       target: { value: "lea@example.test" },
     });
@@ -258,6 +261,7 @@ describe("Personalverwaltung: externe Personen", () => {
       lastName: "Gast",
       email: "lea@example.test",
       organization: "",
+      access: "supervise",
     });
   });
 
@@ -304,6 +308,7 @@ describe("Personalverwaltung: externe Personen", () => {
     expect(mocks.inviteExternal).toHaveBeenCalledWith(
       "8",
       "jonas@example.test",
+      "supervise",
     );
   });
 
@@ -330,6 +335,9 @@ describe("Personalverwaltung: externe Personen", () => {
     fireEvent.change(screen.getByLabelText("Nachname"), {
       target: { value: "Alt" },
     });
+    fireEvent.click(
+      screen.getByRole("radio", { name: /Eigene Termine betreuen/ }),
+    );
     fireEvent.change(screen.getByLabelText("E-Mail-Adresse"), {
       target: { value: "elli@example.test" },
     });
@@ -341,6 +349,7 @@ describe("Personalverwaltung: externe Personen", () => {
         lastName: "Alt",
         email: "elli@example.test",
         organization: "",
+        access: "supervise",
       }),
     );
     expect(mocks.inviteExternal).not.toHaveBeenCalled();
@@ -367,24 +376,97 @@ describe("Personalverwaltung: externe Personen", () => {
     ).toBeInTheDocument();
   });
 
-  it("switches from the general invitation to „Externe Person anlegen“", async () => {
+  // ADR 0083: „Kein Zugang“ records a placeholder without address and
+  // without invitation; the toast says only that the person is recorded.
+  it("creates an external person without access and without invitation", async () => {
     signInWith(["users:read", "users:create", "users:manage"]);
+    mocks.createExternal.mockResolvedValue({
+      id: "10",
+      name: "Tom Platz",
+      firstName: "Tom",
+      lastName: "Platz",
+      isExternal: true,
+      externalAccountStatus: "none",
+    });
     render(<TeachersPage />);
 
-    chooseCreate("Personal einladen");
-    await screen.findByRole("dialog", { name: "Personal einladen" });
-    fireEvent.click(
-      screen.getByRole("button", { name: "Hinweis: Externe Person anlegen" }),
-    );
+    chooseCreate("Externe Person anlegen");
+    await screen.findByRole("dialog", { name: "Externe Person anlegen" });
+    expect(screen.getByRole("radio", { name: /Kein Zugang/ })).toBeChecked();
+    expect(screen.queryByLabelText("E-Mail-Adresse")).not.toBeInTheDocument();
+    fireEvent.change(screen.getByLabelText("Vorname"), {
+      target: { value: "Tom" },
+    });
+    fireEvent.change(screen.getByLabelText("Nachname"), {
+      target: { value: "Platz" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Anlegen" }));
 
-    expect(
-      await screen.findByRole("dialog", { name: "Externe Person anlegen" }),
-    ).toBeInTheDocument();
     await waitFor(() =>
-      expect(
-        screen.queryByRole("dialog", { name: "Personal einladen" }),
-      ).not.toBeInTheDocument(),
+      expect(mocks.toastSuccess).toHaveBeenCalledWith(
+        "Tom Platz ist angelegt.",
+      ),
     );
+    expect(mocks.createExternal).toHaveBeenCalledWith({
+      firstName: "Tom",
+      lastName: "Platz",
+      organization: "",
+      access: "none",
+    });
+  });
+
+  // „Nur ansehen“ gives the role „Gast“ and needs users:manage.
+  it("offers „Nur ansehen“ in the invitation with users:manage", async () => {
+    signInWith(["users:read", "users:create", "users:manage"]);
+    mocks.inviteExternal.mockResolvedValue({
+      id: "7",
+      name: "Elli Alt",
+      firstName: "Elli",
+      lastName: "Alt",
+      isExternal: true,
+      externalAccountStatus: "invitation_pending",
+    });
+    render(<TeachersPage />);
+
+    fireEvent.click(
+      screen.getByRole("button", { name: "Aktionen für Elli Alt" }),
+    );
+    fireEvent.click(screen.getByRole("menuitem", { name: "Konto einladen" }));
+    await screen.findByRole("dialog", { name: "Konto einladen" });
+    expect(
+      screen.getByRole("radio", { name: /Eigene Termine betreuen/ }),
+    ).toBeChecked();
+    fireEvent.click(screen.getByRole("radio", { name: /Nur ansehen/ }));
+    fireEvent.change(screen.getByLabelText("E-Mail-Adresse"), {
+      target: { value: "elli@example.test" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Einladen" }));
+
+    await waitFor(() =>
+      expect(mocks.inviteExternal).toHaveBeenCalledWith(
+        "7",
+        "elli@example.test",
+        "view",
+      ),
+    );
+  });
+
+  it("hides „Nur ansehen“ when creating without users:manage", async () => {
+    signInWith(["users:read", "users:create"]);
+    render(<TeachersPage />);
+
+    fireEvent.click(
+      screen.getAllByRole("button", { name: "Externe Person anlegen" })[0]!,
+    );
+    await screen.findByRole("dialog", { name: "Externe Person anlegen" });
+
+    // Anker: die Zugangswahl steht da.
+    expect(
+      screen.getByRole("radio", { name: /Eigene Termine betreuen/ }),
+    ).toBeInTheDocument();
+    expect(
+      screen.queryByRole("radio", { name: /Nur ansehen/ }),
+    ).not.toBeInTheDocument();
   });
 
   it("opens „Externe Person anlegen“ directly without the right to invite staff", async () => {

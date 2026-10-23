@@ -40,7 +40,7 @@ describe("POST /api/staff/externals/[id]/invitation", () => {
     } as Session);
   });
 
-  it("forwards the address under the exact id and maps the staff record", async () => {
+  it("forwards address and access under the exact id and maps the staff record", async () => {
     mockApiPost.mockResolvedValueOnce({
       status: "success",
       data: {
@@ -63,7 +63,10 @@ describe("POST /api/staff/externals/[id]/invitation", () => {
     });
 
     const response = await POST(
-      postRequest("9007199254740993", { email: "lea@example.test" }),
+      postRequest("9007199254740993", {
+        email: "lea@example.test",
+        access: "view",
+      }),
       context("9007199254740993"),
     );
 
@@ -71,7 +74,7 @@ describe("POST /api/staff/externals/[id]/invitation", () => {
     expect(mockApiPost).toHaveBeenCalledWith(
       "/api/staff/externals/9007199254740993/invitation",
       "test-token",
-      { email: "lea@example.test" },
+      { email: "lea@example.test", access: "view" },
     );
     const body = (await response.json()) as { data: Record<string, unknown> };
     expect(body.data).toMatchObject({

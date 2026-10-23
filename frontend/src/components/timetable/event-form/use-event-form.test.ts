@@ -83,9 +83,10 @@ describe("useEventForm staff selection", () => {
     vi.spyOn(staffService, "getAllStaff").mockResolvedValue(staff);
   }
 
-  // #4573 changes the contract of #3823: externals with an account or an open
-  // invitation are plannable like staff; only those with neither stay out.
-  it("offers externals with account or open invitation, not those without", async () => {
+  // ADR 0083 changes the contract of #4573: an external without account
+  // („Kein Zugang“) is a placeholder for planning and is offered like the
+  // others, with its mark in the name.
+  it("offers externals with every access, also those without account", async () => {
     mockReferences([
       plannerStaff("1", "Interne Kraft", false),
       plannerStaff("2", "Konto Kraft", true, "account", "Musikschule"),
@@ -100,6 +101,7 @@ describe("useEventForm staff selection", () => {
         { id: "3", name: "Eingeladene Kraft (Extern, Einladung offen)" },
         { id: "1", name: "Interne Kraft" },
         { id: "2", name: "Konto Kraft (Extern · Musikschule)" },
+        { id: "4", name: "Ohne Konto (Extern, Kein Konto)" },
       ]),
     );
   });

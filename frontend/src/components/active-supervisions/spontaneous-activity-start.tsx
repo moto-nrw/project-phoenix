@@ -20,7 +20,7 @@ import {
   type PlannerRoomReference,
 } from "~/lib/planner-reference-api";
 import { staffService, type Staff } from "~/lib/staff-api";
-import { externalAccountMark, isAssignableStaff } from "~/lib/staff-helpers";
+import { externalAccountMark } from "~/lib/staff-helpers";
 import { ExternalBadge } from "~/components/staff/external-badge";
 import { StatusBadge } from "~/components/ui/status-badge";
 
@@ -44,6 +44,8 @@ export interface SpontaneousActivityStartPayload {
 
 interface SpontaneousActivityStartProps {
   readonly canCreateExternalCaregiver?: boolean;
+  /** Offer „Nur ansehen“ in the external entry (users:manage, ADR 0083). */
+  readonly canGrantExternalView?: boolean;
   readonly currentStaffId?: string;
   readonly defaultRoomId?: string;
   readonly disabled?: boolean;
@@ -98,6 +100,7 @@ function isRoomOccupied(
 
 export function SpontaneousActivityStart({
   canCreateExternalCaregiver = false,
+  canGrantExternalView = false,
   currentStaffId,
   defaultRoomId,
   disabled = false,
@@ -131,12 +134,6 @@ export function SpontaneousActivityStart({
   const [activityMenuOpen, setActivityMenuOpen] = useState(false);
   const [activeActivityIndex, setActiveActivityIndex] = useState(0);
   const activityFieldRef = useRef<HTMLDivElement>(null);
-  // Externe ohne Konto und ohne offene Einladung stehen nicht zur Wahl
-  // (#4573).
-  const assignableStaff = useMemo(
-    () => staff.filter(isAssignableStaff),
-    [staff],
-  );
   const occupiedRoomIdSet = useMemo(
     () => new Set(occupiedRoomIds),
     [occupiedRoomIds],
@@ -609,9 +606,9 @@ export function SpontaneousActivityStart({
                 <MotoConceptIcon concept="staff" size={16} />
                 Weitere Betreuer
               </div>
-              {assignableStaff.length > 0 ? (
+              {staff.length > 0 ? (
                 <div className="grid max-h-44 gap-2 overflow-y-auto rounded-lg border border-gray-200 bg-gray-50 p-2">
-                  {assignableStaff.map((item) => {
+                  {staff.map((item) => {
                     const accountMark = item.isExternal
                       ? externalAccountMark(item.externalAccountStatus)
                       : null;
@@ -647,7 +644,10 @@ export function SpontaneousActivityStart({
                 </div>
               ) : null}
               {canCreateExternalCaregiver ? (
-                <ExternalCaregiverEntry onAdded={addExternalCaregiver} />
+                <ExternalCaregiverEntry
+                  onAdded={addExternalCaregiver}
+                  canGrantView={canGrantExternalView}
+                />
               ) : null}
             </div>
           )}

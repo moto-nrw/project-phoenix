@@ -147,8 +147,9 @@ describe("SpontaneousActivityStart external caregivers", () => {
     expect(screen.getByText("Einladung offen")).toBeInTheDocument();
   });
 
-  // #4573: wer weder Konto noch offene Einladung hat, steht nicht zur Wahl.
-  it("does not offer an external person without account or invitation", async () => {
+  // ADR 0083: „Kein Zugang“ ist ein Platzhalter für die Planung. Wer weder
+  // Konto noch offene Einladung hat, steht wieder zur Wahl, mit Vermerk.
+  it("offers an external person without account, marked as such", async () => {
     render(
       <SpontaneousActivityStart
         canCreateExternalCaregiver
@@ -158,9 +159,10 @@ describe("SpontaneousActivityStart external caregivers", () => {
     );
     await openModalAndWaitForRefs();
 
-    // Anker: die Liste der weiteren Betreuer ist geladen.
     expect(screen.getByLabelText(/Jonas Becker/)).toBeInTheDocument();
-    expect(screen.queryByLabelText(/Elli Alt/)).not.toBeInTheDocument();
+    expect(
+      screen.getByLabelText(/Elli Alt/).closest("label"),
+    ).toHaveTextContent("Kein Konto");
   });
 
   // #4573 decision: the quick entry always records a new person. The
@@ -194,17 +196,30 @@ describe("SpontaneousActivityStart external caregivers", () => {
     fireEvent.change(screen.getByLabelText("Nachname"), {
       target: { value: "Alt" },
     });
+    fireEvent.click(
+      screen.getByRole("radio", { name: /Eigene Termine betreuen/ }),
+    );
     fireEvent.change(screen.getByLabelText("E-Mail-Adresse"), {
       target: { value: "elli@example.test" },
     });
     fireEvent.click(screen.getByRole("button", { name: "Eintragen" }));
 
-    expect(await screen.findByLabelText(/Elli Alt/)).toBeChecked();
+    // Die vorhandene Elli Alt ohne Konto und die neue stehen beide da; nur
+    // die neue ist angehakt.
+    await waitFor(() =>
+      expect(screen.getAllByLabelText(/Elli Alt/)).toHaveLength(2),
+    );
+    expect(
+      screen
+        .getAllByLabelText(/Elli Alt/)
+        .map((box) => (box as HTMLInputElement).checked),
+    ).toEqual([false, true]);
     expect(mocks.createExternal).toHaveBeenCalledWith({
       firstName: "Elli",
       lastName: "Alt",
       email: "elli@example.test",
       organization: "",
+      access: "supervise",
     });
     expect(mocks.inviteExternal).not.toHaveBeenCalled();
   });
@@ -229,6 +244,9 @@ describe("SpontaneousActivityStart external caregivers", () => {
     fireEvent.change(screen.getByLabelText("Nachname"), {
       target: { value: "Gast" },
     });
+    fireEvent.click(
+      screen.getByRole("radio", { name: /Eigene Termine betreuen/ }),
+    );
     fireEvent.change(screen.getByLabelText("E-Mail-Adresse"), {
       target: { value: "lea@example.test" },
     });

@@ -29,6 +29,8 @@ const logger = createLogger({ component: "AddSupervisorModal" });
 interface AddSupervisorModalProps {
   readonly activeGroupId: string | null;
   readonly canCreateExternalCaregiver?: boolean;
+  /** Offer „Nur ansehen“ in the external entry (users:manage, ADR 0083). */
+  readonly canGrantExternalView?: boolean;
   readonly isOpen: boolean;
   readonly onClose: () => void;
   readonly onAdded: () => Promise<unknown>;
@@ -79,6 +81,7 @@ function SupervisionDetails({
   selectedStaffId,
   setSelectedStaffId,
   canCreateExternalCaregiver,
+  canGrantExternalView,
   onExternalAdded,
 }: {
   overview: RunningSupervision;
@@ -86,6 +89,7 @@ function SupervisionDetails({
   selectedStaffId: string;
   setSelectedStaffId: (value: string) => void;
   canCreateExternalCaregiver: boolean;
+  canGrantExternalView: boolean;
   onExternalAdded: (staff: Staff) => void;
 }) {
   if (!overview.canAssign)
@@ -110,14 +114,17 @@ function SupervisionDetails({
         />
       )}
       {canCreateExternalCaregiver ? (
-        <ExternalCaregiverEntry onAdded={onExternalAdded} />
+        <ExternalCaregiverEntry
+          onAdded={onExternalAdded}
+          canGrantView={canGrantExternalView}
+        />
       ) : null}
     </div>
   );
 }
 
 // Wie in den anderen Auswahllisten: „Name (Extern · Musikschule, Einladung
-// offen)“ (#4573). Nur Externe mit Konto oder offener Einladung kommen hier an.
+// offen)“ (#4573). Externe mit jedem Zugang kommen hier an (ADR 0083).
 function targetLabel(target: SupervisionTarget): string {
   const note = externalStaffNote(target);
   return note ? `${target.fullName} (${note})` : target.fullName;
@@ -217,6 +224,7 @@ function ModalBody(props: {
   setSelectedStaffId: (value: string) => void;
   onExternalAdded: (staff: Staff) => void;
   canCreateExternalCaregiver: boolean;
+  canGrantExternalView: boolean;
 }) {
   return (
     <div className="space-y-5">
@@ -356,6 +364,7 @@ export function AddSupervisorModal(props: AddSupervisorModalProps) {
         targets={targets}
         onExternalAdded={onExternalAdded}
         canCreateExternalCaregiver={props.canCreateExternalCaregiver ?? false}
+        canGrantExternalView={props.canGrantExternalView ?? false}
         saveError={action.error}
         selectedStaffId={selectedStaffId}
         setSelectedStaffId={setSelectedStaffId}

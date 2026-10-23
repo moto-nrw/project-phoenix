@@ -154,6 +154,9 @@ describe("AddSupervisorModal external caregivers", () => {
     fireEvent.change(screen.getByLabelText("Nachname"), {
       target: { value: "Gast" },
     });
+    fireEvent.click(
+      screen.getByRole("radio", { name: /Eigene Termine betreuen/ }),
+    );
     fireEvent.change(screen.getByLabelText("E-Mail-Adresse"), {
       target: { value: "lea@example.test" },
     });
@@ -195,6 +198,9 @@ describe("AddSupervisorModal external caregivers", () => {
     fireEvent.change(screen.getByLabelText("Nachname"), {
       target: { value: "Extern" },
     });
+    fireEvent.click(
+      screen.getByRole("radio", { name: /Eigene Termine betreuen/ }),
+    );
     fireEvent.change(screen.getByLabelText("E-Mail-Adresse"), {
       target: { value: "elli@example.test" },
     });
@@ -208,6 +214,7 @@ describe("AddSupervisorModal external caregivers", () => {
       lastName: "Extern",
       email: "elli@example.test",
       organization: "",
+      access: "supervise",
     });
   });
 

@@ -93,8 +93,8 @@ const ROLE_DISPLAY_NAMES: Record<string, string> = {
 };
 
 // Role names are stored lowercase in auth.roles; lowercase before the lookup so
-// a raw system role name never reaches the UI in its stored spelling. School
-// roles moto provisions itself („extern“, #4573) take the shared label.
+// a raw system role name never reaches the UI in its stored spelling. Other
+// system roles („ag-leitung“, ADR 0083) take their shared label.
 function formatAccountRole(role: string): string {
   return ROLE_DISPLAY_NAMES[role.toLowerCase()] ?? getRoleDisplayName(role);
 }
@@ -178,21 +178,10 @@ export const employmentTypeLabels: Record<string, string> = {
 };
 
 /**
- * Whether a person may be picked for a NEW assignment (#4573): everyone on
- * the staff, plus external caregivers who have an account or an open
- * invitation. The only place the picker rule lives; existing assignments are
- * never dropped because of it.
- */
-export function isAssignableStaff(
-  staff: Pick<Staff, "isExternal" | "externalAccountStatus">,
-): boolean {
-  return !staff.isExternal || staff.externalAccountStatus !== "none";
-}
-
-/**
  * Account mark of an external caregiver (#4573): "Einladung offen" (orange)
- * while the invitation waits, "Kein Konto" (gray) without one. An account
- * needs no mark, the person signs in like everyone else.
+ * while the invitation waits, "Kein Konto" (gray) without one, the access
+ * „Kein Zugang“ (ADR 0083). An account needs no mark, the person signs in
+ * like everyone else.
  */
 export interface ExternalAccountMark {
   readonly label: string;
