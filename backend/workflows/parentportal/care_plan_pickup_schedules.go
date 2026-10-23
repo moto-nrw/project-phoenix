@@ -20,12 +20,8 @@ func NewPickupSchedules(callbacks PickupSchedulesCallbacks) PickupSchedules {
 type pickupSchedules struct{ callbacks PickupSchedulesCallbacks }
 
 func (a pickupSchedules) GetEffectivePickupTimeForDate(ctx context.Context, id int64, date calendar.Date) (*care.EffectivePickupTime, error) {
-	value, err := a.callbacks.GetEffectivePickupTimeForDate(ctx, id, date)
-	return carePlanValuePointer(value, carePlanToAppEffectivePickupTime), err
+	return a.callbacks.GetEffectivePickupTimeForDate(ctx, id, date)
 }
 func (a pickupSchedules) GetStudentPickupSchedules(ctx context.Context, id int64) ([]*care.PickupSchedule, error) {
-	value, err := a.callbacks.GetStudentPickupSchedules(ctx, id)
-	return carePlanValueSlice(value, func(v *PickupScheduleSnapshot) *care.PickupSchedule {
-		return carePlanValuePointer(v, carePlanToAppPickupSchedule)
-	}), err
+	return a.callbacks.GetStudentPickupSchedules(ctx, id)
 }
