@@ -36,7 +36,9 @@ export const SYSTEM_ROLE_LABELS: Record<
 
 function systemRoleKey(roleName: string): SystemRoleName | undefined {
   const key = roleName.trim().toLowerCase();
-  return key in SYSTEM_ROLE_LABELS ? (key as SystemRoleName) : undefined;
+  return Object.hasOwn(SYSTEM_ROLE_LABELS, key)
+    ? (key as SystemRoleName)
+    : undefined;
 }
 
 /** The German name of a system role, or undefined for a school's own role. */

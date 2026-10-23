@@ -1,11 +1,17 @@
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { describe, expect, it } from "vitest";
-import { BASE_ROLE_LABELS, getRoleDisplayName } from "./auth-helpers";
+import {
+  BASE_ROLE_LABELS,
+  getRoleDisplayDescription,
+  getRoleDisplayName,
+} from "./auth-helpers";
 import { SYSTEM_ROLE_LABELS as ANNOUNCEMENT_ROLE_LABELS } from "./operator/announcements-helpers";
 import {
   ROLE_TEMPLATES,
   SYSTEM_ROLE_LABELS,
+  isSystemRoleName,
+  systemRoleDescription,
   systemRoleLabel,
   type SystemRoleName,
 } from "./role-labels";
@@ -36,6 +42,19 @@ describe("role labels", () => {
       expect(name).toBe(EXPECTED[role as SystemRoleName]);
     }
   });
+
+  it.each(["constructor", "__proto__", "toString", "hasOwnProperty"])(
+    "preserves the custom role %s",
+    (name) => {
+      expect(isSystemRoleName(name)).toBe(false);
+      expect(systemRoleLabel(name)).toBeUndefined();
+      expect(systemRoleDescription(name)).toBeUndefined();
+      expect(getRoleDisplayName(name)).toBe(name);
+      expect(getRoleDisplayDescription(name, "Eigene Beschreibung")).toBe(
+        "Eigene Beschreibung",
+      );
+    },
+  );
 
   it("names the templates after their role", () => {
     expect(ROLE_TEMPLATES.map((template) => template.label)).toEqual([
