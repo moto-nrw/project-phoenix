@@ -285,7 +285,7 @@ jobs:
             error-codes:
               - 'error-registry.json'
               - 'scripts/generate-error-codes*'
-              - 'backend/api/common/error_codes.generated.go'
+              - 'backend/api/common/error_codes*.generated.go'
               - 'frontend/src/lib/error-codes.generated.ts'
               - '.github/workflows/lint.yml'
 

@@ -1,9 +1,11 @@
 package test
 
 import (
+	"bytes"
 	"encoding/json"
+	"fmt"
+	"go/format"
 	"os"
-	"os/exec"
 	"path/filepath"
 	"strings"
 	"testing"
@@ -13,6 +15,16 @@ import (
 // scanners and budgets as the backend gates. No repository output is mutated.
 func TestErrorCodeGenerationRatchetsAllowAdditionalCode(t *testing.T) {
 	t.Parallel()
+	for _, additions := range []int{1, 2000} {
+		t.Run(fmt.Sprintf("%d additional codes", additions), func(t *testing.T) {
+			t.Parallel()
+			generateAdditionalErrorCodes(t, additions)
+		})
+	}
+}
+
+func generateAdditionalErrorCodes(t *testing.T, additions int) {
+	t.Helper()
 	backendRoot, err := findBackendRoot()
 	if err != nil {
 		t.Fatal(err)
@@ -37,7 +49,11 @@ func TestErrorCodeGenerationRatchetsAllowAdditionalCode(t *testing.T) {
 	if err := json.Unmarshal(data, &registry); err != nil {
 		t.Fatal(err)
 	}
-	registry.Codes = append(registry.Codes, json.RawMessage(`{"code":"general.ratchet_probe","class":"server","parameters":[],"legacy":"general.ratchet_probe"}`))
+	for index := range additions {
+		code := fmt.Sprintf("general.ratchet_probe_%d", index)
+		entry := fmt.Sprintf(`{"code":%q,"class":"server","parameters":[],"legacy":%q}`, code, code)
+		registry.Codes = append(registry.Codes, json.RawMessage(entry))
+	}
 	data, err = json.Marshal(registry)
 	if err != nil {
 		t.Fatal(err)
@@ -45,12 +61,11 @@ func TestErrorCodeGenerationRatchetsAllowAdditionalCode(t *testing.T) {
 	if err := os.WriteFile(filepath.Join(root, "error-registry.json"), data, 0600); err != nil {
 		t.Fatal(err)
 	}
-	cmd := exec.Command("node", filepath.Join(root, "scripts/generate-error-codes.mjs"))
-	if output, err := cmd.CombinedOutput(); err != nil {
-		t.Fatalf("generate error codes: %v\n%s", err, output)
+	if err := runErrorCodeFixtureGenerator(filepath.Join(root, "scripts/generate-error-codes.mjs")); err != nil {
+		t.Fatal(err)
 	}
 	output, err := os.ReadFile(filepath.Join(root, "frontend/src/lib/error-codes.generated.ts"))
-	if err != nil || !strings.Contains(string(output), `"general.ratchet_probe"`) {
+	if err != nil || !strings.Contains(string(output), `"general.ratchet_probe_0"`) {
 		t.Fatalf("generator did not emit the additional code: %v", err)
 	}
 	assertGeneratedErrorCodeRatchets(t, filepath.Join(root, "backend"))
@@ -69,13 +84,21 @@ func copyErrorCodeGeneratorInput(t *testing.T, source, destination, rel string) 
 
 func assertGeneratedErrorCodeRatchets(t *testing.T, root string) {
 	t.Helper()
-	// Keep any current generated-file allowance so the red run demonstrates
-	// growth of the frozen baseline, rather than merely its existing size.
-	budget := make(map[string]int)
-	for path, size := range moduleFileSizeAllowlist {
-		if strings.HasPrefix(path, "api/common/error_codes") {
-			budget[path] = size
+	if err := walkModuleRatchetSources(root, func(path, rel string) error {
+		data, err := os.ReadFile(path)
+		if err != nil {
+			return err
 		}
+		formatted, err := format.Source(data)
+		if err != nil {
+			return err
+		}
+		if !bytes.Equal(data, formatted) {
+			return fmt.Errorf("generated source is not gofmt-clean: %s", rel)
+		}
+		return nil
+	}); err != nil {
+		t.Fatal(err)
 	}
 	sizes, err := moduleFileSizeScan(root)
 	if err != nil {
@@ -89,7 +112,7 @@ func assertGeneratedErrorCodeRatchets(t *testing.T, root string) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	violations := moduleFileSizeViolations(sizes, budget)
+	violations := moduleFileSizeViolations(sizes, nil)
 	violations = append(violations, moduleFuncLenViolations(lengths, nil)...)
 	violations = append(violations, moduleComplexityViolations(scores, nil)...)
 	if len(violations) != 0 {

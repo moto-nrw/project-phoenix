@@ -52,8 +52,7 @@ const moduleFileSizeThreshold = 800
 //
 // ADR 0082: newly covered sources, measured at 722c5aa147; no headroom.
 var moduleFileSizeAllowlist = map[string]int{
-	"api/common/error_codes.generated.go": 1348,
-	"cmd/cleanup.go":                      1139,
+	"cmd/cleanup.go": 1139,
 	// ADR 0087.
 	"database/migrations/request_child_storage_backfill.go": 1186,
 	// ADR 0087.
