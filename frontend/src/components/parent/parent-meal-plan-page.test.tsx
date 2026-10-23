@@ -1104,6 +1104,11 @@ describe("ParentMealPlanPage", () => {
         name: "Ganze Woche abmelden?",
       });
       expect(mocks.setMealParticipationDay).not.toHaveBeenCalled();
+      // The global next-intl mock leaves the plural unformatted; the
+      // wording per count is pinned in meal-cutoff-messages.test.ts.
+      expect(dialog).toHaveTextContent(
+        /Mia Muster wird an .* dieser Woche vom Mittagessen abgemeldet\./,
+      );
 
       fireEvent.click(
         within(dialog).getByRole("button", { name: "Ganze Woche abmelden" }),
