@@ -149,60 +149,138 @@ not as leaf calls. The lifecycle's separate `Bookings` port uses the Timetable
 owner through `careExitBookings`, not `careexit.Bookings`, and is not another
 workflow callback.
 
+### Allowed outer entries and workflow input adapters
+
+The root/API inventory also covers the outer HTTP entries for Parent Portal,
+Grade Transition, Student Deletion, Staff Offboarding, Session End, Open Room
+Move, Staff Clock, Reminder Delivery, Staff Person Merge, External Caregiver,
+Data Import and Device Scan, alongside resumption and pickup extensions.
+These are HTTP/root entries, not domain-application calls. Device Scan's
+Open Room Move / Staff Clock collaborators are workflow-to-workflow entries.
+A shared instance does not turn its separate platform callbacks into allowed
+entries. No additional production CLI binding was found.
+
+Root-created Parent Portal callback adapters, Device Scan configuration,
+directory/session adapters and Data Import config/observation wrappers feed
+ports of those workflows. Their callbacks reach domain capabilities; they do
+not bind workflow behavior into a domain application. Workflow input values,
+error translations and audit-value constructors alone likewise establish no
+runtime callback. The exceptions are the concrete domain bindings below,
+including the cutoff object forwarded back as a domain command input.
+
 ### Workflow entries, known debt and open platform-trigger question
 
-HTTP → root → workflow, direct root, Worker and CLI entries may invoke a
-workflow. A domain application's call through a root-bound port is not such
-an entry: point 2 also forbids that runtime dependency, unless an ADR grants
-a bounded exception. The E2 grant above covers Roster and Bookings only;
-it does not claim that these are the only existing domain callbacks.
+HTTP → root → workflow, direct root, workflow → workflow and CLI entries may
+invoke a workflow. A domain application's call through a root-bound port or
+an input value's interface/function is not such an entry: point 2 also
+forbids that runtime dependency, unless an ADR grants a bounded exception.
+Read-only helpers are not exempt. The E2 grant above covers Roster and
+Bookings only; it does not claim these are the only existing domain callbacks.
 
-The following existing bindings are known debt, **not granted exceptions**.
-Paths below are relative to `backend/`:
+The inventory uses every owner whose `kind` is `workflow` in
+`backend/architecture/policy.json`, including Data Import and Device Scan
+under `modules/`, not just imports below `workflows/`. It follows root/API
+bindings, direct functions, function/method values and forwarded input ports
+into domain applications. The 43 entries targeting workflow owners in
+`backend/architecture/command-effects.json` provide a cross-check, not proof
+of production liveness or permission: `query` describes effects, not direction.
+The full binding inventory and source locations are recorded in PR #4753's
+round-4 section; the runtime debts and platform questions are listed here.
+
+The following existing bindings are **known debt, not granted exceptions**.
+The follow-up scope of
+[#4825](https://github.com/moto-nrw/project-phoenix/issues/4825) includes these
+eight domain-port/input families; their removal is outside #4740. Paths are
+relative to `backend/`:
 
 - **Care Plan → Parent Portal share visibility:**
-  `roots/owners/root_careplan_requests.go:43-48` constructs
+  `roots/owners/root_careplan_requests.go:44` constructs
   `parentportalcompose.NewRequestShareVisibility` and binds it to the request
   queues' share-visibility ports. Domain calls include
-  `modules/careplan/internal/application/care_request_effects.go:305` and
+  `modules/careplan/internal/application/care_request_effects.go:305`,
+  `excused_request_effects.go:75`, `master_data_notices.go:96` and
   `offering_change_notices.go:130` (`SharedRecipientAccountIDs`).
 - **People Directory → Staff Offboarding live employment:**
   `modules/peopledirectory/internal/application/birthday.go:123` calls the
-  birthday-store port; the root adapter in
-  `roots/owners/staff_membership_adapters.go:545-551` constructs
-  `staffoffboarding.NewLiveStaffEmployment` and calls
-  `SetBirthdayDisplayOptOut`. The same adapter's `AddNotes` binding at
-  `:554-559` constructs that workflow for `AppendNotes`; the inventory found
-  no production caller of `AddNotes`, so it is not a second proven live path.
-
-[#4825](https://github.com/moto-nrw/project-phoenix/issues/4825) tracks those
-two bindings. Their presence does not widen E2; their removal is outside
-#4740. The broader root/API inventory also found these ungranted domain
-callbacks, outside #4825's two named paths:
-
-- **File Storage → Parent Portal:** `roots/owners/root_portal.go` passes the
-  portal as `GuardianAudience` to File Storage. Its attachment application
-  calls `GuardianAnnouncementTenant` and
-  `GuardianDeclarationProofAttachmentTenant` in
-  `modules/filestorage/internal/application/attachments.go:435,452`.
+  birthday-store port; `api/birthday_composition.go:95` forwards it to the
+  root adapter in `roots/owners/staff_membership_adapters.go:550,554`, which
+  constructs `staffoffboarding.NewLiveStaffEmployment` and calls
+  `SetBirthdayDisplayOptOut`. The same adapter's `AddNotes` at `:557-562`
+  constructs that workflow for `AppendNotes`; no production caller of
+  `AddNotes` was found, so this is not a second proven live path.
+- **Enrollment → Data Import relationship mapping:**
+  `roots/owners/enrollment_decision_composition.go:29` binds
+  `enrollmentPeopleRules` to `deps.People.Rules`;
+  `enrollment_decision_people.go:85-86` calls `dataimport.MapRelationshipType`.
+  `modules/enrollment/internal/application/contact_list.go:81` consumes it.
+  Data Import is a workflow owner even though its package is under `modules/`.
+  The register labels this pure value helper `query`; that grants no exception.
+- **File Storage → Parent Portal:** `api/root_serve.go:429` passes the
+  portal to `roots/owners/root_portal.go:109` as `GuardianAudience`.
+  `modules/filestorage/internal/application/attachments.go:435,452` calls
+  `GuardianAnnouncementTenant` and `GuardianDeclarationProofAttachmentTenant`.
 - **Workforce → Shift Plan Sync:** `roots/owners/root_workforce.go:101`
   constructs `NewSickCascade` and passes it through `WithSickCascade` to the
   absence application's `ShiftPlanSync` port. Creation and mutation call
   `MarkSickForRange`, `ReassignSickStamps`, `ReconcileSickRange` and
   `ClearSickForRange` inside `modules/workforce/internal/application/timetracking/`.
-- **School Structure → Shift Plan Sync:** `api/root_views.go:65,76` binds
-  `NewSubstitution` as `Schedule` and `NewGroupHandovers` through
-  `EducationHandovers` as `Substitutions`. The domain's
-  `modules/schoolstructure/internal/application/groups/substitution_module.go:112,298,397`
-  calls the
-  schedule workflow; `:338,453` reaches the handover workflow through the
-  adapter's `Create` / `Delete`. These are two bindings, neither covered by E2.
+- **School Structure → Shift Plan Sync Schedule:** `api/root_views.go:66`
+  binds `NewSubstitution` as `Schedule`.
+  `modules/schoolstructure/internal/application/groups/substitution_module.go:113,299,398`
+  calls `Overview`, `Assign` and `End`. `Overview` remains debt despite its
+  read-only effect, just like Enrollment's value helper.
+- **School Structure → Shift Plan Sync GroupHandovers:**
+  `api/root_views.go:77` binds `NewGroupHandovers` through `EducationHandovers`
+  as `Substitutions`. The same domain application at `:339,454` calls the
+  adapter's `Create` / `Delete`, reaching `CreateHandover` / `DeleteHandover`.
+  This is a separate port from Schedule, not an additional E2 exception.
+- **Care Plan → Parent Portal cutoff:**
+  `workflows/parentportal/internal/care/pickup_change_requests.go:59,115`
+  supplies `SameDayCutoff` as `EditInput.Cutoff` / `PickupChangeCreateInput.Cutoff`.
+  `modules/careplan/internal/application/request_edits.go:63` calls its
+  `Closed` method; `request_submissions.go:40` reaches it through
+  `modules/careplan/carerequests/submission.go:63`.
+  `workflows/parentportal/internal/care/care_plan_policy.go:29-33` forwards to
+  a root-supplied domain method value. This return to the domain does not erase
+  the intervening workflow-owned implementation or permit the callback.
+
+The register's Communication share-visibility surface names the interface
+consumed by Care Plan above, not a separate proven Communication application
+call. Its Workforce → Data Import observed opening-balance/vacation surfaces
+are import-owned wrappers constructed in
+`modules/dataimport/internal/application/importservice/opening_balance_import_config.go:43-44`
+around Workforce capabilities. They feed the import workflow, not Workforce
+applications. Neither type-level interface union proves another live callback.
+Test harnesses and workflow input adapters likewise do not by themselves add
+production domain callbacks.
 
 For runtime calls, this addendum applies point 2 to **domain applications**.
-It does not decide whether platform triggers count as workflow entries:
-`roots/owners/reminder_outbox.go:90,99` binds Reminder Delivery's
-`NewPushDelivery` behind the Delivery dispatcher/recovery provider, and
-`roots/owners/personal_reminder_notifications.go:23` binds
-`NewPersonalReminderNotifications().NotifyDue` to Scheduler Runtime's
-`ReminderNotificationTick`. Whether those platform callbacks are permitted
-entries remains open; this addendum neither grants nor rejects them.
+Scheduler Runtime is a platform, including when it constructs a Worker.
+Whether **platform triggers count as workflow entries remains open** for all
+four families below; none is silently treated as an allowed Worker entry:
+
+- **Scheduler Runtime retention:** `roots/owners/worker.go:105` supplies
+  `RetentionSteps`, built over `staffoffboarding.NewRetention` and
+  `studentdeletion.NewRetention` in `roots/owners/worker_retention.go:322,358`.
+  The subject callbacks at `:268,283` reach `DeleteExpiredStudents` /
+  `DeleteExpiredStaff`; Scheduler Runtime installs them in
+  `modules/schedulerruntime/internal/application/worker.go:16` and runs them
+  through `retention.go:171`.
+- **Scheduler Runtime appointment reminders:** `roots/owners/worker.go:138`
+  binds Reminder Delivery to `AppointmentReminders`;
+  `modules/schedulerruntime/internal/application/appointment_reminders.go:148`
+  calls `EnqueueDueAppointmentReminders`.
+- **Scheduler Runtime notification tick:**
+  `roots/owners/personal_reminder_notifications.go:23` binds
+  `NewPersonalReminderNotifications().NotifyDue` through
+  `roots/owners/worker.go:147` to `ReminderNotifications`;
+  `modules/schedulerruntime/internal/application/reminder_notifications.go:64`
+  invokes the tick.
+- **Delivery dispatcher/recovery:** `roots/owners/reminder_outbox.go:90,99`
+  binds Reminder Delivery's `NewPushDelivery` behind the Delivery dispatcher
+  and deferred-push recovery provider.
+
+This addendum neither grants nor rejects those platform callbacks. A CLI or
+HTTP entry that later installs a platform callback does not settle that
+callback's direction. The allowed HTTP entries and these open platform paths
+must be recorded separately even when they share a workflow instance.
