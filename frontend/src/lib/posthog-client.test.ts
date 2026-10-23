@@ -198,6 +198,73 @@ describe("posthog-client", () => {
     expect(pageview()).toBeNull();
   });
 
+  it.each(["parents", "school"] as const)(
+    "restores collection after initialization on the %s portal",
+    async (surface) => {
+      const { initializePostHog, setAnalyticsContext } =
+        await import("./posthog-client");
+      setAnalyticsContext({ surface, enabled: true });
+      await initializePostHog();
+
+      expect(mocks.init).toHaveBeenCalledOnce();
+      expect(mocks.optIn).toHaveBeenCalledWith({ captureEventName: false });
+      expect(mocks.optIn.mock.invocationCallOrder[0]).toBeGreaterThan(
+        mocks.init.mock.invocationCallOrder[0]!,
+      );
+    },
+  );
+
+  it.each(["parents", "school"] as const)(
+    "clears the previous %s session even while collection is blocked",
+    async (surface) => {
+      const { initializePostHog, setAnalyticsContext, clearPostHogContext } =
+        await import("./posthog-client");
+      setAnalyticsContext(
+        { surface, enabled: true },
+        {
+          properties: { role: "previous-role" },
+          resetFirst: false,
+        },
+      );
+      await initializePostHog();
+      expect(mocks.register).toHaveBeenCalledWith({ role: "previous-role" });
+      setAnalyticsContext({ enabled: false });
+      clearPostHogContext();
+
+      expect(mocks.unregister).toHaveBeenCalledWith("school_id");
+      expect(mocks.unregister).toHaveBeenCalledWith("role");
+      expect(mocks.reset).toHaveBeenCalledOnce();
+      expect(mocks.setConfig).toHaveBeenLastCalledWith(
+        expect.objectContaining({ disable_session_recording: true }),
+      );
+    },
+  );
+
+  it("discards a logged-out session's buffered registration before SDK initialization", async () => {
+    const { initializePostHog, setAnalyticsContext, clearPostHogContext } =
+      await import("./posthog-client");
+    setAnalyticsContext(
+      { surface: "parents", enabled: true },
+      {
+        properties: { role: "previous-role" },
+        resetFirst: false,
+      },
+    );
+    clearPostHogContext();
+    setAnalyticsContext(
+      { surface: "parents", enabled: true },
+      {
+        properties: { role: "guardian" },
+        resetFirst: false,
+      },
+    );
+    await initializePostHog();
+
+    expect(mocks.register).toHaveBeenCalledExactlyOnceWith({
+      role: "guardian",
+    });
+  });
+
   it("clears school and role and resets the identity at logout", async () => {
     const { initializePostHog, clearPostHogContext } =
       await import("./posthog-client");

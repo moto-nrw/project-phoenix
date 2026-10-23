@@ -87,7 +87,10 @@ export function TenantProvider({
       void resolveTenant(requestedSlug).then((fresh) => {
         if (token !== requestSeqRef.current) return;
         if (!fresh) {
-          setTenant(null);
+          // A failed privacy refresh must not erase operational settings.
+          setTenant((previous) =>
+            previous ? { ...previous, analyticsEnabled: false } : null,
+          );
           return;
         }
         // Defence-in-depth: also drop responses whose payload doesn't

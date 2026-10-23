@@ -180,7 +180,10 @@ export function clearPostHogContext(): void {
       enabled: previous.surface === "ogs" && previous.enabled === true,
     };
   const cleared = context;
-  execute("clear_context", (posthog) => {
+  // Never replay a previous session's buffered identity or registration.
+  pendingOperations.length = 0;
+  // Privacy cleanup must run even when collection is blocked.
+  runOperation("clear_context", (posthog) => {
     posthog.unregister("school_id");
     posthog.unregister("role");
     posthog.reset();
@@ -213,7 +216,11 @@ export function initializePostHog(): Promise<void> {
       // The context may have moved on while the SDK loaded (login with
       // Analyse-Freigabe); the buffered operations below apply it as well.
       const active = currentContext();
-      if (active) {
+      if (active && analyticsCollectionAllowed(active)) {
+        // The SDK can retain an opt-out independently of event persistence.
+        runOperation("opt_in", (loaded) =>
+          loaded.opt_in_capturing({ captureEventName: false }),
+        );
         execute("apply_context", (loaded) => applyContext(loaded, active));
       }
 
