@@ -99,6 +99,10 @@ describe("student export metadata", () => {
       "weekly_wednesday",
       "weekly_thursday",
       "weekly_friday",
+      "group",
+      "enrollment_summary",
+      "care_days",
+      "departure",
     ]);
   });
 });

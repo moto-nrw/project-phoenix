@@ -361,7 +361,7 @@ func TestDefaultColumnsForPreset(t *testing.T) {
 		want   []listrecords.ColumnID
 	}{
 		{listrecords.PresetOGSCompact, []listrecords.ColumnID{listrecords.ColumnName, listrecords.ColumnSchoolClass, listrecords.ColumnGroup, listrecords.ColumnCareDays, listrecords.ColumnDeparture, listrecords.ColumnPlannedPickup}},
-		{listrecords.PresetClassRoster, []listrecords.ColumnID{listrecords.ColumnName, listrecords.ColumnSchoolClass, listrecords.ColumnWeeklyMonday, listrecords.ColumnWeeklyTuesday, listrecords.ColumnWeeklyWednesday, listrecords.ColumnWeeklyThursday, listrecords.ColumnWeeklyFriday}},
+		{listrecords.PresetClassRoster, []listrecords.ColumnID{listrecords.ColumnName, listrecords.ColumnSchoolClass, listrecords.ColumnWeeklyMonday, listrecords.ColumnWeeklyTuesday, listrecords.ColumnWeeklyWednesday, listrecords.ColumnWeeklyThursday, listrecords.ColumnWeeklyFriday, listrecords.ColumnGroup, listrecords.ColumnEnrollmentSummary, listrecords.ColumnCareDays, listrecords.ColumnDeparture}},
 		{listrecords.PresetDailyPlanning, []listrecords.ColumnID{listrecords.ColumnName, listrecords.ColumnSchoolClass, listrecords.ColumnGroup, listrecords.ColumnDailyStatus, listrecords.ColumnPlannedArrival, listrecords.ColumnPlannedPickup, listrecords.ColumnDailyNotes}},
 		{listrecords.PresetAttendanceSnapshot, []listrecords.ColumnID{listrecords.ColumnName, listrecords.ColumnSchoolClass, listrecords.ColumnGroup, listrecords.ColumnCurrentLocation, listrecords.ColumnPlannedPickup}},
 		{listrecords.PresetPickupList, []listrecords.ColumnID{listrecords.ColumnName, listrecords.ColumnSchoolClass, listrecords.ColumnGroup, listrecords.ColumnDeparture, listrecords.ColumnPlannedPickup, listrecords.ColumnDailyNotes}},

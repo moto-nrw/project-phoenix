@@ -68,7 +68,14 @@ Der Tabellen-Builder liegt in
 Spalten (Name, Klasse, Montag bis Freitag), die Wochentagszelle und die
 Abschnitte je Klasse („alle Klassen“). Die Geh-/Abholregelung je Tag kommt aus
 `departure.DayRules`. Die Anmelde-Klassenliste hängt ihre Erziehungsberechtigten
-als eigene Spalte an. Die Kinderlisten-Vorlage hat keine Ankunftszeit mehr in
+als eigene Spalte an. Die Kinderlisten-Vorlage behält Gruppe,
+Betreuungs-/Anmeldestatus, Betreuungstage und Geh-/Abholweise hinter den
+gemeinsamen Spalten. Es kommen keine neuen Datenfelder hinzu.
+
+Die Wochentagszelle übernimmt das Format der Anmelde-Klassenliste: Abholzeit
+und taggenaue Geh-/Abholregelung stehen zusammen, damit die Liste für die
+Abholung lesbar bleibt. Tage ohne Betreuung bleiben „—“. Die
+Kinderlisten-Vorlage hat keine Ankunftszeit mehr in
 der Zelle; die bleibt der OGS Wochenliste vorbehalten.
 
 ## Offen

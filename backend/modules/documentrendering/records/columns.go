@@ -7,9 +7,9 @@ func DefaultColumnsForPreset(preset Preset) []ColumnID {
 	case PresetOGSCompact:
 		return []ColumnID{ColumnName, ColumnSchoolClass, ColumnGroup, ColumnCareDays, ColumnDeparture, ColumnPlannedPickup}
 	case PresetClassRoster:
-		// The columns of the shared class-list table (#4749); the weekday
-		// cells carry the care days and each day's Geh-/Abholregelung.
-		return ClassRosterColumnIDs()
+		// Shared columns first; retain the live source's existing extra
+		// columns rather than removing content while aligning the lists.
+		return append(ClassRosterColumnIDs(), ColumnGroup, ColumnEnrollmentSummary, ColumnCareDays, ColumnDeparture)
 	case PresetDailyPlanning:
 		return []ColumnID{ColumnName, ColumnSchoolClass, ColumnGroup, ColumnDailyStatus, ColumnPlannedArrival, ColumnPlannedPickup, ColumnDailyNotes}
 	case PresetAttendanceSnapshot:

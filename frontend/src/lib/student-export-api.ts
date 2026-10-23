@@ -260,7 +260,8 @@ export const STUDENT_EXPORT_PRESETS: Array<{
   {
     id: "class_roster",
     label: "Klassenliste",
-    description: "Ganze Klasse mit Abholzeit und Geh-/Abholweise je Wochentag.",
+    description:
+      "Ganze Klasse mit Anmeldestatus und Abholangaben je Wochentag.",
     // Same columns and weekday cell as the Klassenliste of an enrollment
     // phase (#4749): "14:30 Uhr, wird abgeholt".
     columns: [
@@ -271,6 +272,10 @@ export const STUDENT_EXPORT_PRESETS: Array<{
       "weekly_wednesday",
       "weekly_thursday",
       "weekly_friday",
+      "group",
+      "enrollment_summary",
+      "care_days",
+      "departure",
     ],
   },
   {

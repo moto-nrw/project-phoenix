@@ -23,8 +23,9 @@ func TestClassRosterColumnIDs(t *testing.T) {
 		records.ColumnWeeklyThursday,
 		records.ColumnWeeklyFriday,
 	}, records.ClassRosterColumnIDs())
-	assert.Equal(t, records.ClassRosterColumnIDs(), records.DefaultColumnsForPreset(records.PresetClassRoster),
-		"the Kinderlisten-Vorlage prints the shared columns by default")
+	assert.Equal(t, append(records.ClassRosterColumnIDs(), records.ColumnGroup, records.ColumnEnrollmentSummary, records.ColumnCareDays, records.ColumnDeparture),
+		records.DefaultColumnsForPreset(records.PresetClassRoster),
+		"the live preset retains its source-specific columns after the shared columns")
 }
 
 func TestClassRosterDayCell(t *testing.T) {
