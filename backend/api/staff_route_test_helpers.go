@@ -6,11 +6,14 @@ import (
 	"log/slog"
 	"time"
 
+	"github.com/moto-nrw/project-phoenix/workflows/staffoffboarding"
+
+	birthdaysAPI "github.com/moto-nrw/project-phoenix/modules/peopledirectory/inbound/birthdays"
+
 	owners "github.com/moto-nrw/project-phoenix/roots/owners"
 
 	devicefleetCompose "github.com/moto-nrw/project-phoenix/modules/devicefleet/compose"
 	facilitiesCompose "github.com/moto-nrw/project-phoenix/modules/facilities/compose"
-	"github.com/moto-nrw/project-phoenix/modules/peopledirectory"
 	timetableCompose "github.com/moto-nrw/project-phoenix/modules/timetable/compose"
 	timetablePorts "github.com/moto-nrw/project-phoenix/modules/timetable/ports"
 	transactionruntime "github.com/moto-nrw/project-phoenix/modules/transactionruntime/compose"
@@ -54,7 +57,7 @@ func NewAbsenceTypeTestModule(db transactionruntime.Database, clocks ...func() t
 
 // BirthdayTestModule is the People Directory's birthday capability.
 type BirthdayTestModule struct {
-	Birthdays peopledirectory.Birthdays
+	Birthdays birthdaysAPI.Service
 }
 
 // NewBirthdayTestModule composes the birthday capability over db and returns
@@ -70,21 +73,21 @@ func NewBirthdayTestModule(db transactionruntime.Database, unit tenant.UnitOfWor
 	}
 	birthdays := NewBirthdays(
 		BirthdayRepositories{Students: NewStudentLookupTestRepository(db), Staff: members.Staff, Persons: members.Person},
-		settings.Settings, slog.Default(), OptionalClock(clocks))
+		newBirthdayWritesForTests(db), settings.Settings, slog.Default(), OptionalClock(clocks))
 	return BirthdayTestModule{Birthdays: birthdays}, identity, settings, nil
 }
 
 // NewBirthdayCapabilityForTests composes the birthday capability over the
 // retained repositories the way the service graph does, with caller-supplied
 // settings and clock.
-func NewBirthdayCapabilityForTests(db transactionruntime.Database, settings BirthdaySettingsSource, now func() time.Time) peopledirectory.Birthdays {
+func NewBirthdayCapabilityForTests(db transactionruntime.Database, settings BirthdaySettingsSource, now func() time.Time) birthdaysAPI.Service {
 	members, err := owners.NewMembershipTestRepositories(db)
 	if err != nil {
 		panic(err)
 	}
 	return NewBirthdays(
 		BirthdayRepositories{Students: NewStudentLookupTestRepository(db), Staff: members.Staff, Persons: members.Person},
-		settings, slog.Default(), now)
+		newBirthdayWritesForTests(db), settings, slog.Default(), now)
 }
 
 // ShiftTypeTestModule is the Timetable side of the shift-type
@@ -140,4 +143,16 @@ func NewDeviceTestModule(db transactionruntime.Database, unit tenant.UnitOfWork)
 		return DeviceTestModule{}, err
 	}
 	return DeviceTestModule{IoT: devicefleetCompose.NewIoTService(fleet)}, nil
+}
+
+func newBirthdayWritesForTests(db transactionruntime.Database) staffoffboarding.StaffBirthdayWrites {
+	membership, err := owners.NewSchoolMembership(db)
+	if err != nil {
+		panic(err)
+	}
+	writes, err := owners.NewStaffBirthdayWrites(db, membership)
+	if err != nil {
+		panic(err)
+	}
+	return writes
 }
