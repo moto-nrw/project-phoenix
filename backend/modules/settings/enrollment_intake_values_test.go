@@ -10,7 +10,7 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-// intakeSource answers from tenant overrides; a key without one is unset.
+// intakeSource returns resolved values, including registered defaults when unset.
 type intakeSource struct {
 	overrides map[string]any
 	fail      error
@@ -25,7 +25,10 @@ func (s intakeSource) HasTenantOverride(_ context.Context, key string) (bool, er
 }
 
 func (s intakeSource) ResolveBool(_ context.Context, key string) (bool, error) {
-	value, _ := s.overrides[key].(bool)
+	value, ok := s.overrides[key].(bool)
+	if !ok && key == configModel.KeyEnrollmentAllowSubmissionEdit {
+		value = true
+	}
 	return value, s.fail
 }
 
@@ -35,18 +38,33 @@ func (s intakeSource) ResolveString(_ context.Context, key string) (string, erro
 }
 
 func (s intakeSource) ResolveInt(_ context.Context, key string) (int, error) {
-	value, _ := s.overrides[key].(int)
+	value, ok := s.overrides[key].(int)
+	if !ok && key == configModel.KeyEnrollmentStatusTokenTTLDays {
+		value = 365
+	}
 	return value, s.fail
 }
 
-func TestEnrollmentIntakeValuesFallBackWithoutAnOverride(t *testing.T) {
+func TestEnrollmentIntakeValuesUseResolvedDefaultsAndFailClosed(t *testing.T) {
 	t.Parallel()
 	ctx := context.Background()
 	for name, source := range map[string]intakeSource{"unset": {}, "failing": {fail: errors.New("down")}} {
 		values := NewEnrollmentIntakeValues(source)
 		assert.False(t, values.EnrollmentEnabled(ctx), name)
-		assert.True(t, values.AllowSubmissionEdit(ctx), name)
-		assert.Equal(t, 365, values.StatusTokenTTLDays(ctx), name)
+		allowed, editErr := values.AllowSubmissionEdit(ctx)
+		if source.fail != nil {
+			require.ErrorIs(t, editErr, source.fail)
+		} else {
+			require.NoError(t, editErr)
+			assert.True(t, allowed, name)
+		}
+		days, err := values.StatusTokenTTLDays(ctx)
+		if source.fail != nil {
+			require.ErrorIs(t, err, source.fail)
+		} else {
+			require.NoError(t, err)
+			assert.Equal(t, 365, days, name)
+		}
 		assert.Empty(t, values.AdminNotificationEmails(ctx), name)
 		assert.False(t, values.ChangeRequestMailsEnabled(ctx), name)
 	}
@@ -57,8 +75,12 @@ func TestEnrollmentIntakeValuesFallBackWithoutAnOverride(t *testing.T) {
 		configModel.KeyEnrollmentChangeRequestEmailNotificationsEnabled: true,
 	}})
 	assert.True(t, values.EnrollmentEnabled(ctx))
-	assert.False(t, values.AllowSubmissionEdit(ctx))
-	assert.Equal(t, 30, values.StatusTokenTTLDays(ctx))
+	allowed, editErr := values.AllowSubmissionEdit(ctx)
+	require.NoError(t, editErr)
+	assert.False(t, allowed)
+	days, err := values.StatusTokenTTLDays(ctx)
+	require.NoError(t, err)
+	assert.Equal(t, 30, days)
 	assert.Equal(t, "a@b.test", values.AdminNotificationEmails(ctx))
 	assert.True(t, values.ChangeRequestMailsEnabled(ctx))
 }

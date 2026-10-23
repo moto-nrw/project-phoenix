@@ -4,7 +4,7 @@ import (
 	slog "log/slog"
 	http "net/http"
 
-	settings "github.com/moto-nrw/project-phoenix/modules/settings"
+	parentrequests "github.com/moto-nrw/project-phoenix/modules/careplan/parentrequests"
 )
 
 // staffReasonRequired resolves operations.parent_request_reason_policy for the
@@ -26,18 +26,5 @@ func (rs *Resource) staffReasonRequired(r *http.Request) bool {
 		)
 		return true
 	}
-	return staffReasonRequiredBy(policy)
-}
-
-// staffReasonRequiredBy reads the school's reason policy for the deciding
-// staff side. An unknown value counts as "both": asking for a reason that was
-// not required is a nuisance, skipping one that was loses information nobody
-// can recover. The family side is the parents portal's question.
-func staffReasonRequiredBy(policy string) bool {
-	switch policy {
-	case settings.ReasonPolicyNobody, settings.ReasonPolicyGuardians:
-		return false
-	default:
-		return true
-	}
+	return parentrequests.ReasonRequired(policy, parentrequests.ReasonSideStaff)
 }

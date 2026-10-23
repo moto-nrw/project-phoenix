@@ -99,6 +99,10 @@ decision amends this ADR or names it.
    [ADR 0052](0052-time-tracking-dissolution-replaces-legacy-permissions.md)).
    It is named after the read it serves, not after a new concept: the
    Kinderliste is `student-directory-view` (ADR 0023).
+   [ADR 0081](0081-owner-granularity-follows-invariants-not-source-size.md#port-composed-read-models-and-adr-0066-point-6)
+   retains the existing port-composed Staff Directory and Emergency Snapshot
+   owners without SQL grants; it gives selection criteria for future cuts.
+   Consumer-port reads do not generally require a projection owner.
 7. **`tenant_safe` on an installation-wide read means operator scope only.**
    The read runs inside the cross-tenant administrative transaction, and its
    routes sit behind the operator gates. A projection that repeats another

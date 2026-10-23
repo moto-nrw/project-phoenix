@@ -3,7 +3,7 @@ package application
 import (
 	"context"
 	"errors"
-	"log/slog"
+	"fmt"
 
 	"github.com/moto-nrw/project-phoenix/modules/timetable"
 	scheduleModels "github.com/moto-nrw/project-phoenix/modules/timetable/internal/domain/schedulerecords"
@@ -49,7 +49,11 @@ func (s *operations) requireCanView(ctx context.Context, accountID int64, isAdmi
 	if err != nil {
 		return 0, err
 	}
-	if s.operationalOverview(ctx, isAdmin, hasStaff) {
+	overview, err := s.operationalOverview(ctx, isAdmin, hasStaff)
+	if err != nil {
+		return 0, err
+	}
+	if overview {
 		inst, err := s.loadInstance(ctx, instanceID)
 		if err != nil {
 			return 0, err
@@ -169,7 +173,11 @@ func (s *operations) requireCanReportAbsence(ctx context.Context, accountID int6
 	if !hasStaff || !s.isOGSActorToken(ctx, accountID) {
 		return timetable.ErrTimetableOperationForbidden
 	}
-	if s.operationalOverview(ctx, isAdmin, hasStaff) {
+	overview, err := s.operationalOverview(ctx, isAdmin, hasStaff)
+	if err != nil {
+		return err
+	}
+	if overview {
 		inst, err := s.loadInstance(ctx, instanceID)
 		if err != nil {
 			return err
@@ -271,7 +279,7 @@ func (s *operations) isAssignmentBoundPortal(ctx context.Context) bool {
 // block of the school (#2380) and today's finished ones. It reuses the resolved staff profile but asks
 // the same setting as every other surface, so a block PlannedNow lists can
 // never 403 on the detail call. Fails closed on a settings fault.
-func (s *operations) operationalOverview(ctx context.Context, isAdmin, hasStaff bool) bool {
+func (s *operations) operationalOverview(ctx context.Context, isAdmin, hasStaff bool) (bool, error) {
 	allowed, err := s.caller.OperationalOverview(
 		ctx,
 		s.deps.Settings,
@@ -280,9 +288,7 @@ func (s *operations) operationalOverview(ctx context.Context, isAdmin, hasStaff 
 		hasStaff,
 	)
 	if err != nil {
-		s.logger().WarnContext(ctx, "operational overview scope check failed for timetable operations",
-			slog.String("error", err.Error()))
-		return false
+		return false, fmt.Errorf("%w: resolve operational overview: %w", timetable.ErrLifecycleSettings, err)
 	}
-	return allowed
+	return allowed, nil
 }

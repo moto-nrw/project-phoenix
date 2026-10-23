@@ -29,7 +29,7 @@ func newPeriodsTestServer(t *testing.T) chi.Router {
 	testpkg.EnsureTestTenant(t, db, tenantID)
 
 	repos := mustTimetableTestRepositories(db)
-	res := NewResource(Dependencies{
+	res := newResourceForTest(Dependencies{
 		CalendarPeriods:     repos.SchoolCalendar(),
 		CalendarPeriodUsage: calendarPeriodUsageFor(repos.CalendarPeriodUsage()),
 	})

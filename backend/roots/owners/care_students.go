@@ -12,6 +12,7 @@ import (
 // CareMembershipCommands is bound by the root to School Membership. Care Plan
 // supplies the frozen day and keeps its ledger and membership write in one UOW.
 type CareMembershipCommands interface {
+	LockStudentClassWrites(context.Context, bool) error
 	EndCare(context.Context, []int64, string) (int64, error)
 	ResumeCare(context.Context, int64, string, string, string) (bool, error)
 }
@@ -43,6 +44,10 @@ type CareStudents struct {
 	persons    CarePersonRows
 	membership CareMembershipCommands
 	people     careStudentPeople
+}
+
+func (s CareStudents) LockCareStudentWrites(ctx context.Context) error {
+	return s.membership.LockStudentClassWrites(ctx, false)
 }
 
 func (s CareStudents) FindCareStudents(ctx context.Context, studentIDs []int64, lock bool) (map[int64]carePlanCompose.CareStudent, error) {

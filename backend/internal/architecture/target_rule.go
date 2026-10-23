@@ -11,6 +11,9 @@ import (
 // bases; every candidate from this epoch on is validated against the rule.
 const targetOnlyRulesEpoch = 47
 
+// Earlier policy epochs remain loadable as immutable PR bases (#4540).
+const domainProjectionRulesEpoch = 91
+
 // privateRoles are the roles no other owner may import (ADR 0057 point 1).
 // legacy-model is the role of the retained models/* ORM packages (point 4).
 var privateRoles = map[string]bool{
@@ -136,4 +139,20 @@ func selectedOwners(id, kind string, owners map[string]Owner) []Owner {
 		}
 	}
 	return selected
+}
+
+// validateDomainProjectionRule enforces ADR 0071 point 2, including public
+// and contract targets. There are no domain-to-projection exceptions.
+func validateDomainProjectionRule(rule Rule, owners map[string]Owner) error {
+	if rule.TargetClass != "" || rule.SameOwner {
+		return nil
+	}
+	for _, source := range selectedOwners(rule.SourceOwner, rule.SourceOwnerKind, owners) {
+		for _, target := range selectedOwners(rule.TargetOwner, rule.TargetOwnerKind, owners) {
+			if source.Kind == "domain" && target.Kind == "projection" {
+				return fmt.Errorf("rule %q lets domain %s import projection %s: a domain declares its own reader port and the root binds it (ADR 0071 point 2)", rule.ID, source.ID, target.ID)
+			}
+		}
+	}
+	return nil
 }

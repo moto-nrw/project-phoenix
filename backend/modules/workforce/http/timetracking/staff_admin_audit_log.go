@@ -53,7 +53,7 @@ func (rs *StaffAdminResource) getTimeTrackingAuditLog(w http.ResponseWriter, r *
 
 	page, err := rs.AuditLogService.ListAuditLog(r.Context(), req)
 	if err != nil {
-		common.RenderError(w, r, common.RenderWithRules(err, auditLogErrorRules, common.ErrorInternalServer))
+		common.RenderError(w, r, common.RenderWithRules(err, auditLogErrorRules, common.ErrorInternalServerRenderer("failed to load time tracking audit log")))
 		return
 	}
 	common.Respond(w, r, http.StatusOK, page, "Audit log retrieved")

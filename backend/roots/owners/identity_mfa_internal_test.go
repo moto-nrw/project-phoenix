@@ -40,3 +40,8 @@ func TestNewMFADependenciesRequiresEveryDependency(t *testing.T) {
 	_, err := NewMFADependencies(nil, nil, MFAMailer{Logger: slog.Default()}, nil, "secret", nil, slog.Default())
 	require.EqualError(t, err, "identity access composition: the second factor needs the challenge codec, the operator audit log and a logger")
 }
+
+func TestMFAPolicyRequiresSettings(t *testing.T) {
+	t.Parallel()
+	assert.Panics(t, func() { mfaSettingsFor(nil) })
+}

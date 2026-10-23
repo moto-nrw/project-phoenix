@@ -115,9 +115,3 @@ func (s PresenceSettings) WebParticipantLimitEnforced(ctx context.Context) (bool
 	}
 	return !allowed, nil
 }
-
-// TimeTrackingRetentionOverridden probes whether the tenant set its own
-// retention window. The cleanup logs a failing probe and falls back.
-func (s PresenceSettings) TimeTrackingRetentionOverridden(ctx context.Context) (bool, error) {
-	return s.source.HasTenantOverride(ctx, configModels.KeyGDPRTimeTrackingRetentionDays)
-}

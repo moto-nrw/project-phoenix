@@ -3,7 +3,11 @@ import type {
   OpenRoomPayload,
   SupervisedGroupPayload,
 } from "./supervision-derive";
-import { deriveSupervision, sameSupervision } from "./supervision-derive";
+import {
+  deriveSupervision,
+  isSharedOpenRoom,
+  sameSupervision,
+} from "./supervision-derive";
 
 // The navigation contract for released rooms (#3065). It replaces the previous
 // synthetic "schulhof" tab, which could only ever be one room, only appeared
@@ -25,6 +29,49 @@ const supervision = (
 const openRoom = (id: number, name: string): OpenRoomPayload => ({ id, name });
 
 describe("deriveSupervision with released rooms", () => {
+  it("recognizes a shared room through its room or legacy session id", () => {
+    const rooms = [
+      {
+        id: "7",
+        name: "Turnhalle",
+        groupId: "",
+        isOpenRoom: true,
+        sessionIds: ["active-turnhalle"],
+      },
+      {
+        id: "8",
+        name: "Kreativraum",
+        groupId: "",
+        isOpenRoom: true,
+        isOwnSupervision: true,
+        sessionIds: ["active-kreativraum"],
+      },
+      { id: "9", name: "Gruppenraum", groupId: "active-gruppe" },
+    ];
+
+    expect(isSharedOpenRoom(rooms, { roomId: "7", sessionId: null })).toBe(
+      true,
+    );
+    expect(
+      isSharedOpenRoom(rooms, {
+        roomId: null,
+        sessionId: "active-turnhalle",
+      }),
+    ).toBe(true);
+    expect(
+      isSharedOpenRoom(rooms, {
+        roomId: "7",
+        sessionId: "active-gruppe",
+      }),
+    ).toBe(false);
+    expect(
+      isSharedOpenRoom(rooms, {
+        roomId: null,
+        sessionId: "active-kreativraum",
+      }),
+    ).toBe(false);
+  });
+
   it("lists several released rooms at once, by their real room id", () => {
     const result = deriveSupervision(
       null,

@@ -7,7 +7,7 @@ production, workload versions, fixture builders, budgets and comparator
 tolerances stay unchanged.
 
 This is a measurement-series break, not a new checkpoint acceptance. The
-[register](../../backend/architecture/runtime-checkpoints.json) retains the
+[register](https://github.com/moto-nrw/project-phoenix/blob/46506b00c695a6f102865cae2dc9f24010371b7c/backend/architecture/runtime-checkpoints.json) retains the
 accepted #3019, #3020 and #3021 records and documents the boundary. Their
 original evidence remains valid for its original condition, without an explicit
 fixture `ANALYZE`. Cross-boundary latency claims need a paired bridge or an

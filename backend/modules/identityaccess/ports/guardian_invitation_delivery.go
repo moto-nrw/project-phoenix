@@ -11,7 +11,7 @@ import (
 // the tenant configured, the school name for the mail and the outbox
 // enqueue the worker dispatches from.
 type GuardianInvitationDelivery interface {
-	InvitationExpiry(ctx context.Context) time.Duration
+	InvitationExpiry(ctx context.Context) (time.Duration, error)
 	SchoolName(ctx context.Context, tenantID int64) string
 	EnqueueInvitationEmail(ctx context.Context, invitation identityaccess.GuardianInvitation, profile GuardianProfile, schoolName string) (outboxID int64, queued bool)
 	EnqueueExistingAccountEmail(ctx context.Context, profile GuardianProfile, schoolName string) (outboxID int64, queued bool)

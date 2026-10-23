@@ -89,17 +89,3 @@ func TestDerivePrivacyConsentExpiry(t *testing.T) {
 		}
 	})
 }
-
-func TestDataRetentionDaysOrDefault(t *testing.T) {
-	t.Parallel()
-
-	if got := studentpresence.DataRetentionDaysOrDefault(0); got != studentpresence.DefaultPrivacyConsentRetentionDays {
-		t.Errorf("DataRetentionDaysOrDefault(0) = %v, want %v", got, studentpresence.DefaultPrivacyConsentRetentionDays)
-	}
-	if got := studentpresence.DataRetentionDaysOrDefault(-3); got != studentpresence.DefaultPrivacyConsentRetentionDays {
-		t.Errorf("DataRetentionDaysOrDefault(-3) = %v, want %v", got, studentpresence.DefaultPrivacyConsentRetentionDays)
-	}
-	if got := studentpresence.DataRetentionDaysOrDefault(21); got != 21 {
-		t.Errorf("DataRetentionDaysOrDefault(21) = %v, want 21", got)
-	}
-}

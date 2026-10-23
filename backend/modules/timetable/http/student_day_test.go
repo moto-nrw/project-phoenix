@@ -55,7 +55,7 @@ func buildStudentDaySetup(t *testing.T) *studentDaySetup {
 	student := testpkg.CreateTestStudent(t, db, "SD", fmt.Sprintf("Stu-%d", suffix), "3a")
 
 	// Wire the full resource with real repos for the B11 path.
-	res := NewResource(Dependencies{
+	res := newResourceForTest(Dependencies{
 		TimetableData: testTimetableData(db).TimetableData(),
 		People:        must(RootCompositions.People(db)),
 		// UserContextService + SettingsService intentionally nil:

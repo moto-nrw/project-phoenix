@@ -20,15 +20,14 @@ type BookingApplications interface {
 }
 
 // BookingStore is the Care Plan half: the booked offering intervals of the
-// request children a care exit locks, ends, snapshots and restores.
+// request children a care exit snapshots and restores. Care Plan locks and
+// ends them itself.
 type BookingStore interface {
 	CareOfferingBookingHistory(ctx context.Context, childIDs []int64) ([]careplan.CareOfferingBooking, error)
-	LockCareOfferingBookings(ctx context.Context, childIDs []int64) error
-	EndCareOfferingBookings(ctx context.Context, childIDs []int64, until careplan.Date) (int64, error)
 	RestoreCareOfferingBookings(ctx context.Context, restores []careplan.CareOfferingBookingRestore) (int64, error)
 }
 
-// Bookings ends and restores the Care Plan offering bookings behind the
+// Bookings snapshots and restores the Care Plan offering bookings behind the
 // Enrollment applications of the children whose care ends. The ledger keeps
 // each ended booking as an Enrollment offering snapshot.
 type Bookings struct {
@@ -45,22 +44,6 @@ func NewBookings(applications BookingApplications, store BookingStore, tenantID 
 		panic("care exit bookings: enrollment applications, care plan bookings and the tenant are required")
 	}
 	return Bookings{applications: applications, store: store, tenantID: tenantID}
-}
-
-func (b Bookings) LockCareExitOfferingLinks(ctx context.Context, childIDs []int64, _ enrollment.Date) error {
-	return b.store.LockCareOfferingBookings(ctx, childIDs)
-}
-
-// EndCareExitOfferingLinks ends the bookings of the children. With a source
-// child only that child's bookings end, and only when it is one of them.
-func (b Bookings) EndCareExitOfferingLinks(ctx context.Context, childIDs []int64, sourceChildID *int64, until enrollment.Date) (int64, error) {
-	if sourceChildID != nil {
-		if !slices.Contains(childIDs, *sourceChildID) {
-			return 0, nil
-		}
-		childIDs = []int64{*sourceChildID}
-	}
-	return b.store.EndCareOfferingBookings(ctx, childIDs, careplan.Date(until))
 }
 
 // CareExitOfferingSnapshots snapshots the bookings the end would take: every

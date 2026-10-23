@@ -78,11 +78,11 @@ func (rs *Resource) getStudent(w http.ResponseWriter, r *http.Request) {
 	group := rs.getStudentGroup(r.Context(), student)
 	response, err := rs.buildStudentDetail(r, student, person, group)
 	if err != nil {
-		renderError(w, r, common.ErrorInternalServer(err))
+		renderError(w, r, common.ErrorInternalServerWrap("failed to load students", err))
 		return
 	}
 	if err := rs.enrichStudentDetailForToday(r.Context(), &response, student); err != nil {
-		renderError(w, r, common.ErrorInternalServer(err))
+		renderError(w, r, common.ErrorInternalServerWrap("failed to load students", err))
 		return
 	}
 
@@ -100,9 +100,18 @@ func (rs *Resource) buildStudentDetail(r *http.Request, student *peopleModule.St
 	hasFullAccess := rs.checkStudentReadAccess(r, student)
 	hasWriteAccess := rs.checkStudentFullAccess(r, student)
 
-	attendanceLogEnabled := resolveBoolSetting(r.Context(), rs.SettingsService, settingAttendanceLogEnabled, false, rs.Logger)
-	feedbackEnabled := resolveBoolSetting(r.Context(), rs.SettingsService, settingFeedbackEnabled, false, rs.Logger)
-	photosEnabled := resolveBoolSetting(r.Context(), rs.SettingsService, settingStudentPhotosEnabled, false, rs.Logger)
+	attendanceLogEnabled, err := rs.SettingsService.ResolveBool(r.Context(), settingAttendanceLogEnabled)
+	if err != nil {
+		return StudentDetailResponse{}, err
+	}
+	feedbackEnabled, err := rs.SettingsService.ResolveBool(r.Context(), settingFeedbackEnabled)
+	if err != nil {
+		return StudentDetailResponse{}, err
+	}
+	photosEnabled, err := rs.SettingsService.ResolveBool(r.Context(), settingStudentPhotosEnabled)
+	if err != nil {
+		return StudentDetailResponse{}, err
+	}
 
 	studentResponse, err := newStudentResponseWithOpts(r.Context(), StudentResponseOpts{
 		Student:       student,

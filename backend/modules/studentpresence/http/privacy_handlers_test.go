@@ -1,6 +1,8 @@
 package studentpresencehttp_test
 
 import (
+	"context"
+	"errors"
 	"fmt"
 	"net/http"
 	"testing"
@@ -26,6 +28,7 @@ func TestGetStudentPrivacyConsent(t *testing.T) {
 		assert.Equal(t, http.StatusOK, rr.Code, "Expected 200 OK. Body: %s", rr.Body.String())
 		// Default consent should have renewal_required: true
 		assert.Contains(t, rr.Body.String(), "renewal_required")
+		assert.Contains(t, rr.Body.String(), `"data_retention_days":30`)
 	})
 
 	t.Run("success_returns_configured_retention_default", func(t *testing.T) {
@@ -211,4 +214,17 @@ func TestPrivacyConsent_EdgeCases(t *testing.T) {
 
 		testutil.AssertForbidden(t, rr)
 	})
+}
+
+func TestPrivacyConsentRejectsUnreadableRetention(t *testing.T) {
+	t.Parallel()
+	tc := setupStudentsRoute(t)
+	student := testpkg.CreateTestStudent(t, tc.db, "Privacy", "Unavailable", "PT1")
+	account := testpkg.CreateTestAccount(t, tc.db, "privacy-settings-reader")
+	tc.resource.SettingsService = &settingsDouble{ResolveIntFn: func(context.Context, string) (int, error) { return 0, errors.New("private retention read failure") }}
+	req := testutil.NewRequest(http.MethodGet, fmt.Sprintf("/%d/privacy-consent", student.ID), nil)
+	rr := authExec(t, tc, req, testutil.AdminTestClaims(int(account.ID)), []string{"admin:*"})
+	assert.Equal(t, http.StatusInternalServerError, rr.Code, rr.Body.String())
+	assert.NotContains(t, rr.Body.String(), `"data_retention_days"`)
+	assert.NotContains(t, rr.Body.String(), "private retention read failure")
 }

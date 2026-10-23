@@ -100,14 +100,6 @@ const (
 	KeyRoomDetailVisibleDays = "gdpr.room_detail_visible_days"
 )
 
-// The room history (Raumverlauf) reads its switch and window with these
-// fallbacks when a school's value cannot be read: no attendance log and a
-// window of 7 days, the registry defaults.
-const (
-	AttendanceLogEnabledFallback  = false
-	RoomDetailVisibleDaysFallback = 7
-)
-
 // Feedback settings.
 const (
 	KeyFeedbackEnabled           = "feedback.enabled"
@@ -491,11 +483,6 @@ const (
 	KeyEmailReplyToAddress         = "email.reply_to_address"
 	KeyEnrollmentLegalPhotoEnabled = "enrollment.legal_photo_enabled"
 )
-
-// EnrollmentCareOfferingsEnabledFallback is what the enrollment reports read
-// for enrollment.care_offerings_enabled when no settings resolver is bound:
-// the registry default, care offerings on.
-const EnrollmentCareOfferingsEnabledFallback = true
 
 // Enrollment select-option values.
 const (

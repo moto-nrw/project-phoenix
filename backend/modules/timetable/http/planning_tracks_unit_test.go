@@ -59,7 +59,7 @@ func TestPlanningTrackListRouteAllowsSchedulesManage(t *testing.T) {
 	t.Parallel()
 
 	_, _ = RootCompositions.Module(t)
-	resource := NewResource(Dependencies{
+	resource := newResourceForTest(Dependencies{
 		PlanningTracks: new(planningTrackServiceStub),
 	})
 	router := chi.NewRouter()
@@ -80,7 +80,7 @@ func TestPlanningTrackHandlersCreateAndReorder(t *testing.T) {
 	t.Parallel()
 
 	service := new(planningTrackServiceStub)
-	resource := NewResource(Dependencies{PlanningTracks: service})
+	resource := newResourceForTest(Dependencies{PlanningTracks: service})
 
 	createRequest := httptest.NewRequest(http.MethodPost, "/planning-tracks", strings.NewReader(`{"name":"Mittag","color":"#F78C10","sort_order":2}`))
 	createRequest.Header.Set("Content-Type", "application/json")
@@ -108,7 +108,7 @@ func TestPlanningTrackHandlersCreateAndReorder(t *testing.T) {
 func TestPlanningTrackHandlerMapsNotFound(t *testing.T) {
 	t.Parallel()
 
-	resource := NewResource(Dependencies{PlanningTracks: new(planningTrackServiceStub)})
+	resource := newResourceForTest(Dependencies{PlanningTracks: new(planningTrackServiceStub)})
 	request := httptest.NewRequest(http.MethodDelete, "/planning-tracks/99", nil)
 	routeContext := chi.NewRouteContext()
 	routeContext.URLParams.Add("id", "99")
@@ -132,7 +132,7 @@ func TestPlanningTrackHandlerMapsNotFound(t *testing.T) {
 func TestPlanningTrackHandlersReturnInternalErrorWithoutService(t *testing.T) {
 	t.Parallel()
 
-	resource := NewResource(Dependencies{})
+	resource := newResourceForTest(Dependencies{})
 	tests := []struct {
 		name    string
 		handler http.HandlerFunc

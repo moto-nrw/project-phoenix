@@ -55,7 +55,7 @@ func TestAttachRosterMaintenance_DerivesEveryTemplateInOneRead(t *testing.T) {
 			DynamicTargetsManual: true,
 		},
 	}}
-	resource := NewResource(Dependencies{OfferingSourceOptions: sources})
+	resource := newResourceForTest(Dependencies{OfferingSourceOptions: sources})
 	templates := []templateResponse{
 		{
 			ID:              classTemplateID,
@@ -112,7 +112,7 @@ func TestAttachRosterMaintenance_ReadFailureOmitsIndicator(t *testing.T) {
 	t.Parallel()
 
 	sources := &rosterMaintenanceSources{err: errors.New("database unavailable")}
-	resource := NewResource(Dependencies{OfferingSourceOptions: sources})
+	resource := newResourceForTest(Dependencies{OfferingSourceOptions: sources})
 	templates := []templateResponse{{ID: 201}}
 	periodID := int64(42)
 
@@ -127,7 +127,7 @@ func TestAttachRosterMaintenance_PeriodFreeReadOmitsIndicator(t *testing.T) {
 
 	periodID := int64(42)
 	sources := &rosterMaintenanceSources{results: map[int64]timetable.TemplateRosterMaintenance{}}
-	resource := NewResource(Dependencies{OfferingSourceOptions: sources})
+	resource := newResourceForTest(Dependencies{OfferingSourceOptions: sources})
 	templates := []templateResponse{{
 		ID:                    202,
 		SourceCareOfferingIDs: []int64{7},
@@ -147,7 +147,7 @@ func TestAttachRosterMaintenance_UsesVisibleCalendarPeriod(t *testing.T) {
 	templatePeriodID := int64(42)
 	requestedPeriodID := int64(44)
 	sources := &rosterMaintenanceSources{results: map[int64]timetable.TemplateRosterMaintenance{}}
-	resource := NewResource(Dependencies{OfferingSourceOptions: sources})
+	resource := newResourceForTest(Dependencies{OfferingSourceOptions: sources})
 	templates := []templateResponse{
 		{
 			ID:                    301,

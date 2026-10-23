@@ -19,7 +19,7 @@ func TestOperationsCheckInStudentsValidatesAndDelegates(t *testing.T) {
 	service := &fakeOperationsService{
 		roster: &timetable.OperationRoster{Instance: timetable.OperationRosterInstance{ID: 250}},
 	}
-	res := NewResource(Dependencies{OperationsService: service})
+	res := newResourceForTest(Dependencies{OperationsService: service})
 	router := operationRouter(http.MethodPost, "/instances/{id}/students/check-in", res.operationsCheckInStudents)
 
 	rr := executeOperationRequest(t, router, http.MethodPost, "/instances/250/students/check-in",
@@ -54,13 +54,13 @@ func TestOperationsCheckInStudentsValidatesAndDelegates(t *testing.T) {
 	assert.Equal(t, http.StatusBadRequest, rr.Code)
 
 	errorRouter := operationRouter(http.MethodPost, "/instances/{id}/students/check-in",
-		NewResource(Dependencies{OperationsService: &fakeOperationsService{err: timetable.ErrTimetableOperationConflict}}).operationsCheckInStudents)
+		newResourceForTest(Dependencies{OperationsService: &fakeOperationsService{err: timetable.ErrTimetableOperationConflict}}).operationsCheckInStudents)
 	rr = executeOperationRequest(t, errorRouter, http.MethodPost, "/instances/250/students/check-in",
 		map[string]any{"student_ids": []int64{350}})
 	assert.Equal(t, http.StatusConflict, rr.Code)
 
 	nilRouter := operationRouter(http.MethodPost, "/instances/{id}/students/check-in",
-		NewResource(Dependencies{}).operationsCheckInStudents)
+		newResourceForTest(Dependencies{}).operationsCheckInStudents)
 	rr = executeOperationRequest(t, nilRouter, http.MethodPost, "/instances/250/students/check-in",
 		map[string]any{"student_ids": []int64{350}})
 	assert.Equal(t, http.StatusInternalServerError, rr.Code)

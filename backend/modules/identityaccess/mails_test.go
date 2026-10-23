@@ -56,9 +56,11 @@ func TestStaffWelcomeCancelledOnlyForSpentInvitations(t *testing.T) {
 func TestGuardianInvitationExpiryAndMail(t *testing.T) {
 	t.Parallel()
 
-	assert.Equal(t, 12*time.Hour, identityaccess.GuardianInvitationExpiry(12, 24*time.Hour))
-	assert.Equal(t, 24*time.Hour, identityaccess.GuardianInvitationExpiry(0, 24*time.Hour))
-	assert.Equal(t, 48*time.Hour, identityaccess.GuardianInvitationExpiry(0, 0))
+	expiry, err := identityaccess.GuardianInvitationExpiry(12)
+	require.NoError(t, err)
+	assert.Equal(t, 12*time.Hour, expiry)
+	_, err = identityaccess.GuardianInvitationExpiry(0)
+	require.Error(t, err)
 
 	recipient := identityaccess.GuardianMailRecipient{FirstName: " Kim ", LastName: "Beispiel", Email: " kim@example.test "}
 	invitation := identityaccess.GuardianInvitationMailOf(recipient, "", "tok", time.Now().Add(10*time.Minute), "")

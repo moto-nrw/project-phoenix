@@ -14,6 +14,7 @@ const {
   serviceDeleteMock,
   toastSuccessMock,
   toastErrorMock,
+  supervisionState,
 } = vi.hoisted(() => ({
   searchParams: new URLSearchParams(),
   pushMock: vi.fn(),
@@ -24,6 +25,7 @@ const {
   serviceDeleteMock: vi.fn(() => Promise.resolve(null)),
   toastSuccessMock: vi.fn(),
   toastErrorMock: vi.fn(),
+  supervisionState: { overviewEnabled: false },
 }));
 
 vi.mock("next-auth/react", () => ({ useSession: vi.fn() }));
@@ -37,6 +39,12 @@ vi.mock("next/navigation", () => ({
 
 vi.mock("~/lib/tenant-router", () => ({
   useTenantRouter: () => ({ push: pushMock, replace: vi.fn() }),
+}));
+
+vi.mock("~/lib/supervision-context", () => ({
+  useOptionalSupervision: () => ({
+    overviewEnabled: supervisionState.overviewEnabled,
+  }),
 }));
 
 vi.mock("~/lib/breadcrumb-context", () => ({
@@ -135,10 +143,10 @@ const room = {
   isOccupied: true,
 };
 
-function mockSession(permissions: string[]) {
+function mockSession(permissions: string[], roles: string[] = []) {
   vi.mocked(useSession).mockReturnValue({
     data: {
-      user: { id: "1", token: "t", permissions },
+      user: { id: "1", token: "t", permissions, roles },
       expires: "2099-01-01",
     },
     status: "authenticated",
@@ -152,6 +160,7 @@ describe("RoomDetailPage", () => {
     searchParams.delete("from");
     searchParams.delete("tab");
     presenceModeState.mode = "detailed";
+    supervisionState.overviewEnabled = false;
     useRoomDetailMock.mockReturnValue({
       room,
       history: [],
@@ -178,6 +187,101 @@ describe("RoomDetailPage", () => {
     expect(screen.queryByRole("tab")).not.toBeInTheDocument();
     expect(
       screen.queryByRole("button", { name: "Weitere Aktionen" }),
+    ).not.toBeInTheDocument();
+  });
+
+  // Offene Räume stehen seit #4372 nur noch unter „Räume“: ihre gemeinsame
+  // Aufsichtsansicht öffnet die Raumseite.
+  it("opens the shared supervision view of an open room", () => {
+    mockSession(["rooms:read", "groups:read"], ["user"]);
+    useRoomDetailMock.mockReturnValue({
+      room: { ...room, isOpenRoom: true },
+      history: [],
+      loading: false,
+      error: null,
+      historyDisabled: false,
+    });
+    render(<RoomDetailPage />);
+
+    expect(screen.getByRole("link", { name: "Zur Aufsicht" })).toHaveAttribute(
+      "href",
+      "/active-supervisions?room=7",
+    );
+  });
+
+  it("opens the shared supervision view for a custom staff role", () => {
+    mockSession(["rooms:read", "groups:read"], ["Honorarkraft"]);
+    useRoomDetailMock.mockReturnValue({
+      room: { ...room, isOpenRoom: true },
+      history: [],
+      loading: false,
+      error: null,
+      historyDisabled: false,
+    });
+    render(<RoomDetailPage />);
+
+    expect(screen.getByRole("link", { name: "Zur Aufsicht" })).toHaveAttribute(
+      "href",
+      "/active-supervisions?room=7",
+    );
+  });
+
+  it("hides the supervision view from a caregiver without groups:read", () => {
+    mockSession(["rooms:read"], ["user"]);
+    useRoomDetailMock.mockReturnValue({
+      room: { ...room, isOpenRoom: true },
+      history: [],
+      loading: false,
+      error: null,
+      historyDisabled: false,
+    });
+    render(<RoomDetailPage />);
+
+    expect(screen.getByText("Belegt")).toBeInTheDocument();
+    expect(
+      screen.queryByRole("link", { name: "Zur Aufsicht" }),
+    ).not.toBeInTheDocument();
+  });
+
+  it("offers the supervision view to staff covered by the school overview", () => {
+    supervisionState.overviewEnabled = true;
+    useRoomDetailMock.mockReturnValue({
+      room: { ...room, isOpenRoom: true },
+      history: [],
+      loading: false,
+      error: null,
+      historyDisabled: false,
+    });
+    render(<RoomDetailPage />);
+
+    expect(
+      screen.getByRole("link", { name: "Zur Aufsicht" }),
+    ).toBeInTheDocument();
+  });
+
+  it("offers no supervision view for a closed room or without access", () => {
+    mockSession(["rooms:read"], ["user"]);
+    const { unmount } = render(<RoomDetailPage />);
+    // Anker: die Raumseite ist geladen.
+    expect(screen.getByText("Belegt")).toBeInTheDocument();
+    expect(
+      screen.queryByRole("link", { name: "Zur Aufsicht" }),
+    ).not.toBeInTheDocument();
+    unmount();
+
+    // Ohne Betreuungsrolle und ohne Schulübersicht sperrt die Aufsichtsseite.
+    mockSession(["rooms:read"]);
+    useRoomDetailMock.mockReturnValue({
+      room: { ...room, isOpenRoom: true },
+      history: [],
+      loading: false,
+      error: null,
+      historyDisabled: false,
+    });
+    render(<RoomDetailPage />);
+    expect(screen.getByText("Belegt")).toBeInTheDocument();
+    expect(
+      screen.queryByRole("link", { name: "Zur Aufsicht" }),
     ).not.toBeInTheDocument();
   });
 

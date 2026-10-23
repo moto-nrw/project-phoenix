@@ -20,6 +20,8 @@ const navigationMockState = vi.hoisted(() => ({
 
 // Mock auth-utils with hasRole that reads session roles
 vi.mock("~/lib/auth-utils", () => ({
+  canReadSupervisionData: (session: { user?: { isAdmin?: boolean } } | null) =>
+    !(session?.user?.isAdmin ?? false),
   isAdmin: (session: { user?: { isAdmin?: boolean } } | null) =>
     session?.user?.isAdmin ?? false,
   isCaregiver: (session: { user?: { isAdmin?: boolean } } | null) =>

@@ -8,7 +8,9 @@ package presence_test
 
 import (
 	"context"
+	"errors"
 	"fmt"
+	"net/http"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -149,4 +151,22 @@ func TestOperationalOverviewScope_GroupModeIsNotAnAccessRule(t *testing.T) {
 		"open care is an organisational decision, not a freigabe")
 	assert.Equal(t, testutil.StatusForbidden,
 		getWithClaims(t, router, fmt.Sprintf("/active/groups/%d/visits/display", groupID), claims))
+}
+
+func TestGroupVisitsDisplayRejectsUnreadablePhotoSetting(t *testing.T) {
+	t.Parallel()
+	tc := setupActiveRoute(t, &settingsDouble{ResolveBoolFn: func(_ context.Context, key string) (bool, error) {
+		if key == tenantsettings.KeyStudentPhotosEnabled {
+			return false, errors.New("private photo setting failure")
+		}
+		return false, nil
+	}})
+	groupID := foreignActiveGroup(t, tc, "photo-failure")
+	account := testpkg.CreateTestAccount(t, tc.db, "photo-setting-reader")
+	request := testutil.NewJSONRequest(t, http.MethodGet, fmt.Sprintf("/active/groups/%d/visits/display", groupID), nil)
+	response := testutil.ExecuteWithAuthPermissions(t, mountActiveRouter(tc), request, testutil.AdminTestClaims(int(account.ID)), []string{"admin:*"})
+	require.Equal(t, http.StatusInternalServerError, response.Code, response.Body.String())
+	assert.Contains(t, response.Body.String(), `"code":"general.server"`)
+	assert.NotContains(t, response.Body.String(), "private photo setting failure")
+	assert.NotContains(t, response.Body.String(), `"data"`)
 }

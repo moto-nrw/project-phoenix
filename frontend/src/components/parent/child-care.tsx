@@ -137,6 +137,7 @@ const DEFAULT_FEATURES: ChildFeatures = {
   pickup_change_enabled: false,
   pickup_manage_allowed: false,
   guardian_contact_manage_allowed: false,
+  absence_request_edit_enabled: false,
   // Capability flags default to false on fetch failure (least privilege —
   // hide invite/remove if we can't confirm they're enabled; the backend
   // enforces the gate regardless).
@@ -1607,6 +1608,7 @@ export function SickStatusSummary({
   studentId,
   sickDays,
   excusedRequests = EMPTY_EXCUSED_REQUESTS,
+  canEdit = false,
   reasonRequired = true,
   onEdited,
 }: Readonly<{
@@ -1617,6 +1619,9 @@ export function SickStatusSummary({
   // ones show the decision reason. Confirmed (approved) requests arrive as
   // StatusDays instead.
   excusedRequests?: readonly ExcusedRequest[];
+  /** Ob die Person Abwesenheiten melden darf und eigene offene Anfragen damit
+   * ändern kann (features.absence_request_edit_enabled, #4603). */
+  canEdit?: boolean;
   /** Ob die OGS einen Grund verlangt (requiresGuardianReason). */
   reasonRequired?: boolean;
   /** Nach einer geänderten Anfrage: die Liste neu laden. */
@@ -1731,7 +1736,7 @@ export function SickStatusSummary({
             <span className="bg-moto-amber/15 text-moto-amber-strong inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium">
               {t("summary.pendingLabel")}
             </span>
-            {studentId && r.is_self && (
+            {studentId && canEdit && r.is_self && (
               <Button
                 type="button"
                 variant="outline"

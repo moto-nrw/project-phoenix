@@ -107,9 +107,23 @@ func (c ComposedAccountMFA) DisableMFA(ctx context.Context, accountID int64) err
 	return MFAError(c.Flows.Disable(c.ctx(ctx), accountID))
 }
 
+func (c ComposedAccountMFA) PrepareTrustedDevice(ctx context.Context, accountID, tenantID int64, userAgent string, ip net.IP) (identityaccess.TrustedDeviceIssue, error) {
+	issue, err := c.Flows.PrepareTrustedDevice(c.ctx(ctx), accountID, tenantID, userAgent, ip)
+	if err != nil || issue == nil {
+		return nil, MFAError(err)
+	}
+	return func(issueCtx context.Context) (string, time.Time, error) {
+		cookie, expiresAt, err := issue(c.ctx(issueCtx))
+		return cookie, expiresAt, MFAError(err)
+	}, nil
+}
+
 func (c ComposedAccountMFA) IssueTrustedDevice(ctx context.Context, accountID, tenantID int64, userAgent string, ip net.IP) (string, time.Time, error) {
-	cookie, expiresAt, err := c.Flows.IssueTrustedDevice(c.ctx(ctx), accountID, tenantID, userAgent, ip)
-	return cookie, expiresAt, MFAError(err)
+	issue, err := c.PrepareTrustedDevice(ctx, accountID, tenantID, userAgent, ip)
+	if err != nil || issue == nil {
+		return "", time.Time{}, err
+	}
+	return issue(ctx)
 }
 
 func (c ComposedAccountMFA) VerifyTrustedDevice(ctx context.Context, accountID, tenantID int64, signedCookie string) (bool, error) {

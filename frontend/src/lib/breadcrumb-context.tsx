@@ -21,6 +21,8 @@ interface BreadcrumbData {
   announcementTitle?: string;
   referrerPage?: string;
   activeSupervisionName?: string;
+  /** Offener Raum ohne eigene Aufsicht: steht unter „Räume“ (#4372). */
+  activeSupervisionIsSharedRoom?: boolean;
   ogsGroupName?: string;
   pageTitle?: string;
   helpTopic?: HelpTopicId;

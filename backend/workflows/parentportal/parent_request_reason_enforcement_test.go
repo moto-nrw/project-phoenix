@@ -14,6 +14,7 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/modules/careplan"
 	"github.com/moto-nrw/project-phoenix/modules/careplan/absencerecords"
+	"github.com/moto-nrw/project-phoenix/modules/careplan/parentrequests"
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	parentService "github.com/moto-nrw/project-phoenix/workflows/parentportal"
@@ -148,7 +149,7 @@ func TestStaffApprovalReasonFollowsReasonPolicy(t *testing.T) {
 					RequestID:      res.PendingRequest.ID,
 					Approve:        true,
 					ReviewedBy:     chain.AccountID,
-					ReasonRequired: parentService.RequestReasonPolicy(tc.policy).RequiresReason(true),
+					ReasonRequired: parentrequests.ReasonRequired(tc.policy, parentrequests.ReasonSideStaff),
 				})
 				return err
 			})

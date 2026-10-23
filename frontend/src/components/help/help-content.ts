@@ -1358,6 +1358,9 @@ function roomsTopic(presenceMode: HelpPresenceMode): HelpTopic {
     instructionGroups: [
       {
         title: "Einen Raum und seine Belegung ansehen",
+        // #4372: die drei Begriffe einheitlich erklärt.
+        description:
+          "`Belegt` heißt: Im Raum läuft gerade eine Aktivität. Ein offener Raum ist für Ortswechsel freigegeben, auch wenn dort nichts läuft. Unter `Aktuelle Aufsicht` stehen nur Aufsichten, die gerade laufen.",
         steps: [
           "Öffnen Sie `Räume` in der Seitenleiste.",
           // #4372 (01.14): offene Räume stehen als eigene Gruppe oben.
@@ -1370,6 +1373,8 @@ function roomsTopic(presenceMode: HelpPresenceMode): HelpTopic {
           "Grenzen Sie über `Alle Gebäude` auf ein Gebäude ein.",
           "Wählen Sie einen Raum aus.",
           "Prüfen Sie die aktuelle Aktivität, die Aufsicht und die Kinder im Raum.",
+          // #4372: offene Räume sind nur noch über `Räume` erreichbar.
+          "Bei einem offenen Raum wählen Sie oben `Zur Aufsicht`. Dort sehen Sie alle Kinder im Raum.",
           "Wählen Sie bei Bedarf ein Kind, um seine Angaben zu öffnen.",
         ],
       },
@@ -1452,7 +1457,8 @@ function activeSupervisionTopic(presenceMode: HelpPresenceMode): HelpTopic {
           "Öffnen Sie `Aktuelle Aufsicht`.",
           "Wählen Sie unter `Als Nächstes` einen geplanten Termin.",
           "Starten Sie ihn, sobald die Schaltfläche freigegeben ist.",
-          "Oder übernehmen Sie einen offenen Raum, zum Beispiel den Schulhof: Öffnen Sie ihn unter `Offene Räume` und wählen Sie oben `Beaufsichtigen`.",
+          "Öffnen Sie unter `Räume` einen offenen Raum, zum Beispiel den Schulhof.",
+          "Wählen Sie `Zur Aufsicht` und dann `Beaufsichtigen`.",
           // Live geprueft: der gruene Streifen steht immer oben auf der
           // Seite, auch ohne geplanten Block und ohne NFC.
           "Oder wählen Sie `Spontane Aktivität starten`, wenn nichts geplant ist.",
@@ -1500,9 +1506,9 @@ function activeSupervisionTopic(presenceMode: HelpPresenceMode): HelpTopic {
       "Steht am Termin `Nur für Eingeplante`? Dann dürfen hier nur eingeplante Kräfte starten. Ihre OGS kann das Starten für das ganze Team freigeben.",
       "Sie starten einen Termin, für den Sie nicht eingeplant sind? Dann werden Sie nicht zur Aufsicht. Wer beenden darf, legt Ihre OGS fest.",
       "Fehlt `Beenden`? Dann dürfen hier nur eingeplante Kräfte beenden. Ihre OGS kann das Beenden für das ganze Team freigeben.",
-      // #4349: der Raum steht nur einmal, unter den offenen Räumen.
-      "Läuft Ihre Aufsicht in einem offenen Raum? Dann steht sie unter `Offene Räume`. Ein Auge neben dem Raum zeigt Ihre Aufsicht.",
-      "Auf dem Handy stehen die offenen Räume nicht in der Seitenleiste, sondern oben auf der Seite `Aufsicht` als Reiter.",
+      // #4372: offene Räume ohne eigene Aufsicht stehen unter `Räume`.
+      "Läuft Ihre Aufsicht in einem offenen Raum? Dann steht der Raum unter `Aktuelle Aufsicht`. Alle anderen offenen Räume finden Sie unter `Räume`.",
+      "Haben Sie mehrere Aufsichten? Auf dem Handy stehen sie oben auf der Seite `Aufsicht` als Reiter.",
       "Welche Räume offen sind, legt Ihre OGS fest.",
       "Eine externe Person steht danach unter `Personal` in der Gruppe `Extern`. In Zeiterfassung und Dienstplan erscheint sie nicht.",
       "Fehlt `Spontane Aktivität starten`? Dann hat Ihre OGS in den `Einstellungen` unter `Betrieb` den Schalter `Spontane Aktivitäten erlauben` ausgeschaltet.",
@@ -6253,6 +6259,7 @@ function parentGuardiansTopic(): HelpTopic {
       "moto sagt, die Person verwalte ihre Daten über ein eigenes Konto? Dann ändert sie ihre Angaben selbst.",
       "moto sagt, die Kontaktdaten würden von der Schule verwaltet? Dann wenden Sie sich an die OGS.",
       "Die Verwaltung ist deaktiviert? Dann nimmt Ihre OGS das nicht über die App an.",
+      "`Einladen` fehlt? Dann dürfen Sie für dieses Kind niemanden einladen. Fragen Sie die OGS.",
     ],
     related: [
       HELP_TOPICS.parentChildData,
@@ -6297,6 +6304,7 @@ function parentReportAbsenceTopic(): HelpTopic {
     ],
     troubleshootingDetails: [
       "moto meldet, für einen Tag liege schon eine Abmeldung vor? Prüfen Sie die bestehende Meldung mit `Anfrage bearbeiten`.",
+      "Bei Ihrer offenen Anfrage fehlt `Anfrage bearbeiten`? Dann dürfen Sie für dieses Kind keine Abwesenheit melden. Fragen Sie die OGS.",
       "Ihr Kind kommt nur später? Ändern Sie stattdessen die Abholzeit oder schreiben Sie der OGS.",
     ],
     related: [

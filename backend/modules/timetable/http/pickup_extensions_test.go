@@ -48,7 +48,7 @@ func buildPickupExtensionSetup(t *testing.T, db *bun.DB) *pickupExtensionSetup {
 		StartHHMM: "14:45", EndHHMM: "16:00", Title: "Freies Spiel",
 	})
 	testpkg.CreateTestInstanceStudent(t, db, freePlay.ID, other.ID, timetable.SlotAttendanceExpected)
-	res := NewResource(Dependencies{
+	res := newResourceForTest(Dependencies{
 		PickupExtensions: module,
 		RecurrenceLock:   must(RootCompositions.RecurrenceLock(db)),
 		People:           must(RootCompositions.People(db)),

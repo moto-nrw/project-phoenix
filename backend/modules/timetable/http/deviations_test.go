@@ -63,7 +63,7 @@ func buildDevModule(t *testing.T) *devSetup {
 	// the deviation writes (#1886) to the real service so the DB-effect
 	// assertions keep exercising real rows.
 	mock := &mockInstanceService{real: serviceFactory.Instance}
-	res := NewResource(Dependencies{
+	res := newResourceForTest(Dependencies{
 		TimetableData:   testTimetableData(db, clock).TimetableData(),
 		People:          must(RootCompositions.People(db)),
 		InstanceService: mock,

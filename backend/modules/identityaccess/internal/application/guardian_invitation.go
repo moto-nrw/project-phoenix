@@ -54,13 +54,17 @@ func (l *AccountLifecycle) CreateGuardianInvitation(ctx context.Context, request
 		if _, _, _, err := l.logins.LockLoginAccountByEmail(txCtx, profile.Email); err != nil {
 			return failed(opGuardianInviteCreate, err)
 		}
+		expiry, err := l.delivery.InvitationExpiry(txCtx)
+		if err != nil {
+			return failed(opGuardianInviteCreate, err)
+		}
 		var insertErr error
 		invitation, insertErr = l.invitations.InsertGuardianInvitation(txCtx, domain.GuardianInvitation{
 			TenantID:          l.runtime.TenantID(txCtx),
 			Token:             uuid.Must(uuid.NewV4()).String(),
 			GuardianProfileID: profile.ID,
 			CreatedBy:         request.CreatedBy,
-			ExpiresAt:         time.Now().Add(l.delivery.InvitationExpiry(txCtx)),
+			ExpiresAt:         time.Now().Add(expiry),
 			ApprovalStatus:    domain.GuardianInvitationApprovalNotRequired,
 		})
 		if insertErr != nil {

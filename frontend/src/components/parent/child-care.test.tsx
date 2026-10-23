@@ -7,7 +7,7 @@ import {
   waitFor,
   within,
 } from "@testing-library/react";
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
   PickupTimeModal,
   resolveTodayPickup,
@@ -1150,6 +1150,57 @@ describe("SickStatusSummary — date rendering", () => {
     expect(excusedLines[0]!.textContent).not.toContain(de(today));
     // today is shown as sick instead.
     expect(screen.getByText(/^Krank:/).textContent).toContain(de(today));
+  });
+});
+
+// #4603: changing an open absence request needs the permission to report
+// one. Without it the request stays visible, but the edit action is gone.
+describe("SickStatusSummary — edit action", () => {
+  const ownPending = makeRequest({
+    id: "20",
+    dates: ["2026-03-16"],
+    is_self: true,
+  });
+
+  beforeEach(() => {
+    vi.spyOn(parentApi, "getRequestSharing").mockReturnValue(
+      new Promise(() => undefined),
+    );
+  });
+
+  afterEach(() => {
+    vi.restoreAllMocks();
+  });
+
+  it("offers editing an own pending request when the guardian may report absences", () => {
+    render(
+      <SickStatusSummary
+        studentId="1"
+        sickDays={[]}
+        excusedRequests={[ownPending]}
+        canEdit
+      />,
+    );
+
+    expect(
+      screen.getByRole("button", { name: "Anfrage bearbeiten" }),
+    ).toBeInTheDocument();
+  });
+
+  it("hides editing when the guardian may not report absences", () => {
+    render(
+      <SickStatusSummary
+        studentId="1"
+        sickDays={[]}
+        excusedRequests={[ownPending]}
+        canEdit={false}
+      />,
+    );
+
+    expect(screen.getByText("Freigabe ausstehend")).toBeInTheDocument();
+    expect(
+      screen.queryByRole("button", { name: "Anfrage bearbeiten" }),
+    ).not.toBeInTheDocument();
   });
 });
 

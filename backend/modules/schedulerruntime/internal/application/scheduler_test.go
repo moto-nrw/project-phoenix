@@ -1021,6 +1021,7 @@ func TestRunCleanupTask_ExecutesOnSchedule(t *testing.T) {
 			tasks:          make(map[string]*ScheduledTask),
 			done:           make(chan struct{}),
 			settings: &fakeSettingsResolver{
+				intValues:    map[string]int{settingDataCleanupTimeoutMinutes: 30},
 				boolValues:   map[string]bool{settingDataCleanupEnabled: true},
 				stringValues: map[string]string{settingDataCleanupTime: "02:00"},
 			}})

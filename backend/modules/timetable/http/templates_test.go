@@ -180,7 +180,7 @@ func buildTemplateModule(t *testing.T, mat timetable.MaterializationCapability, 
 	repoFactory := mustTimetableTestRepositories(db)
 
 	data := testTimetableData(db, clocks...)
-	res := NewResource(Dependencies{
+	res := newResourceForTest(Dependencies{
 		Templates:              data,
 		TimetableData:          data.TimetableData(),
 		CalendarPeriods:        repoFactory.SchoolCalendar(),
@@ -248,11 +248,6 @@ func templateGradeSettings(value int, resolveErr error) *settingsDouble {
 
 func TestResolveTemplateGradeLevelMax_FailsClosed(t *testing.T) {
 	t.Parallel()
-
-	t.Run("missing settings service", func(t *testing.T) {
-		_, err := (&Resource{}).resolveTemplateGradeLevelMax(context.Background())
-		assert.ErrorContains(t, err, "settings service is not configured")
-	})
 
 	t.Run("resolve failure", func(t *testing.T) {
 		resource := &Resource{Dependencies: Dependencies{
@@ -946,7 +941,7 @@ func TestTemplateUpdateValidationAndNotFound(t *testing.T) {
 	noTenant := doTemplateJSON(t, r, http.MethodPut, "/templates/500", valid)
 	assert.Equal(t, http.StatusInternalServerError, noTenant.Code)
 
-	unwired := templateRouter(s.ctx, NewResource(Dependencies{}), s.db)
+	unwired := templateRouter(s.ctx, newResourceForTest(Dependencies{}), s.db)
 	unwiredW := doTemplateJSON(t, unwired, http.MethodPut, "/templates/500", valid)
 	assert.Equal(t, http.StatusInternalServerError, unwiredW.Code)
 }
@@ -969,7 +964,7 @@ func TestTemplateRoutesRejectBadIDsAndMissingContext(t *testing.T) {
 	noTenantW := doTemplateJSON(t, r, http.MethodGet, "/templates", nil)
 	assert.Equal(t, http.StatusInternalServerError, noTenantW.Code)
 
-	unwired := NewResource(Dependencies{})
+	unwired := newResourceForTest(Dependencies{})
 	unwiredRouter := templateRouter(s.ctx, unwired, s.db)
 	assert.Equal(t, http.StatusInternalServerError, doTemplateJSON(t, unwiredRouter, http.MethodPost, "/templates", createTemplateBody(s, "Tpl-Unwired")).Code)
 	assert.Equal(t, http.StatusInternalServerError, doTemplateJSON(t, unwiredRouter, http.MethodGet, "/templates", nil).Code)

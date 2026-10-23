@@ -27,13 +27,13 @@ SettingAuditRepository → config.setting_audit (append-only)
 
 | File | Role |
 |------|------|
-| `models/config/keys.go` | Key constants (`KeySessionEndTime`, etc.) |
-| `models/config/registry.go` | `Definition` struct, `Register()`, field types, `AccessPolicy` |
-| `services/config/defaults/*.go` | Registry definitions grouped by category |
-| `services/config/settings_interface.go` | The `SettingsService` interface (authoritative method list) |
-| `services/config/settings_service.go` | Resolve, SetValue, ResetValue, validation |
-| `services/config/schema_builder.go` | Builds schema response for frontend (tabs are dynamic — built from whatever definitions declare) |
-| `database/repositories/config/` | DB access (setting_values + setting_audit) |
+| `modules/settings/records/keys.go` | Key constants (`KeySessionEndTime`, etc.) |
+| `modules/settings/records/registry.go` | `Definition` struct, `Register()`, field types, `AccessPolicy` |
+| `modules/settings/internal/defaults/*.go` | Registry definitions grouped by category |
+| `modules/settings/records/settings_interface.go` | The `SettingsService` interface (authoritative method list) |
+| `modules/settings/internal/application/settings_service.go` | Resolve, SetValue, ResetValue, validation |
+| `modules/settings/internal/application/schema_builder.go` | Builds schema response for frontend (tabs are dynamic — built from whatever definitions declare) |
+| `modules/settings/internal/adapters/configpostgres/` | DB access (setting_values + setting_audit) |
 | `modules/settings/http/settings_api.go` | HTTP handlers (GET /schema, PUT/DELETE /values/{key}, GET /values/{key}/reveal for passwords) |
 | `frontend/src/lib/settings-api.ts` | Frontend API client + TypeScript types |
 | `frontend/src/components/settings/` | Settings page, field components, auto-save (plus hand-written exceptions: `personalization-tab.tsx`, `enrollment-link-panel.tsx`) |
@@ -41,7 +41,7 @@ SettingAuditRepository → config.setting_audit (append-only)
 
 ### Registered Settings
 
-**The authoritative list is the code**: `config.Register()` calls in `backend/services/config/defaults/*.go`, guarded by `defaults_test.go`. There are ~86 registered settings across these files — do NOT trust any hand-maintained table of them:
+**The authoritative list is the code**: `config.Register()` calls in `backend/modules/settings/internal/defaults/*.go`, guarded by `defaults_test.go`. Do not use a hand-maintained setting count:
 
 | File | Group | Tab(s) |
 |------|-------|--------|
@@ -107,7 +107,7 @@ fallback should run. See [Step 3](#step-3-add-consuming-code).
 
 ### SettingsService Interface
 
-Authoritative list: `services/config/settings_interface.go`. Highlights:
+Authoritative list: `modules/settings/records/settings_interface.go`. Highlights:
 
 ```go
 GetSchema(ctx, permissions)            // Tenant schema — EXCLUDES operator-only settings
@@ -145,13 +145,13 @@ The settings page is auto-generated from the backend schema: field components re
 ### Step 1: Add Key Constant
 
 ```go
-// models/config/keys.go
+// modules/settings/records/keys.go
 const KeyMyNewSetting = "category.my_new_setting"  // Key + PascalCase; value lowercase dot-separated
 ```
 
 ### Step 2: Register Definition
 
-Create or edit `services/config/defaults/{category}.go`:
+Create or edit `modules/settings/internal/defaults/{category}.go`:
 
 ```go
 config.Register(config.Definition{
@@ -177,6 +177,35 @@ Use `Resolve*(ctx, key)` inside tenant middleware, or
 `Resolve*ForTenant(ctx, tenantID, key)` outside it (device auth, scheduler,
 login). Handle the error and use the resolved value directly.
 
+**Target rule:** privacy, permission and token-lifetime reads propagate lookup
+errors; HTTP readers return the shared error envelope without internal details
+or replacement data, and scheduler jobs skip the affected tenant. Require
+settings ports at construction, not on the first request. The history, export,
+consent, tenant-shell, enrollment edit/token, MFA lifetime/lockout and retention
+paths migrated in #4543 follow this contract. Parent invitation lifetimes never
+use the deployment lifetime configured for staff invitations.
+
+**Known exceptions, not patterns for new code:**
+
+- `security.ogs_device_pin` still converts a read failure or a missing resolver
+  into the legacy `OGS_DEVICE_PIN` chain. Removing that fail-open chain and
+  choosing the setup/default-PIN policy belongs to
+  [#3841](https://github.com/moto-nrw/project-phoenix/issues/3841), not #4543.
+- Existing fail-closed feature/display readers (for example trusted-device
+  availability, staff-name visibility and offering-change availability) still
+  suppress errors. Some older constructors still permit nil settings and the
+  affected consumers answer restrictive values. These are migration debt,
+  not proof that every required port is already checked at startup.
+- Existing operational readers still use literals on errors or nil resolvers.
+  The complete per-reader classification, including nil-only cases, lives in
+  [PR #4631, Literal-Fallback-Inventar](https://github.com/moto-nrw/project-phoenix/pull/4631#literal-fallback-inventar).
+  That inventory separates fixed paths, the #3841 exception and remaining
+  debt; it is not permission to add a fallback.
+
+`Resolve*OrDefault` resolves the registry default without an override; its
+caller literal applies only to a failed read. New consumers use `Resolve*`
+and handle the error; touching an inventoried consumer should remove its fallback.
+
 Require the settings service at composition time. A missing service is a
 configuration error, not a reason to read env vars or invent a local default.
 Do not compare a result with `Definition.Default` to infer whether the tenant
@@ -189,7 +218,7 @@ does not claim that every existing runtime consumer has already been migrated.
 
 ### Step 4: Update Tests
 
-Update affected registry tests in `services/config/defaults/defaults_test.go`
+Update affected registry tests in `modules/settings/internal/defaults/defaults_test.go`
 (registration, types, dependencies, validation, defaults). Consumer tests must
 cover explicit overrides, absent overrides using the registry default, and
 resolution failures. Include an override equal to the default and valid
@@ -199,7 +228,7 @@ change the result. Follow the backend test-fixture rules.
 ### Step 5: Verify
 
 ```bash
-cd backend && ../scripts/run-go-toolchain.sh go test ./services/config/... -v
+cd backend && ../scripts/run-go-toolchain.sh go test -tags=testhooks ./modules/settings/... -v
 ```
 
 Also run tests for affected consumers and the backend architecture checks.
@@ -213,7 +242,7 @@ Also run tests for affected consumers and the backend architecture checks.
 
 ## Deleting a Setting
 
-- [ ] Remove from `models/config/keys.go` and the `config.Register()` call
+- [ ] Remove from `modules/settings/records/keys.go` and the `config.Register()` call
 - [ ] Remove all consuming code references
 - [ ] Update `defaults_test.go`
 - [ ] Data migration: `DELETE FROM config.setting_values WHERE setting_key = 'old.key'` (same for `config.setting_audit`)
@@ -230,14 +259,14 @@ Also run tests for affected consumers and the backend architecture checks.
 
 - **Per-tenant runtime config uses tenant overrides and registry defaults only** — no env fallback, including legacy compatibility chains
 - **Handle settings-service errors explicitly** — do not hide them behind env values or local defaults
-- **NEVER hardcode key strings** — use constants from `models/config/keys.go`
+- **NEVER hardcode key strings** — use constants from `modules/settings/records/keys.go`
 - **`config:manage`** for sensitive settings (GDPR, security); **`config:update`** for operational ones
 - **Password fields are redacted** to `[REDACTED]` in the audit trail; reveal only via the dedicated endpoint
 - **Labels and descriptions must be in German** — the settings UI is German-only
 
 ## Available Field Types
 
-8 types (`models/config/registry.go`): `boolean`, `number`, `time` (HH:MM), `date`, `text`, `textarea`, `password`, `select` (requires `Options.Static`). Boolean/select save immediately; text/number/time debounce; password has an explicit save.
+8 types (`modules/settings/records/registry.go`): `boolean`, `number`, `time` (HH:MM), `date`, `text`, `textarea`, `password`, `select` (requires `Options.Static`). Boolean/select save immediately; text/number/time debounce; password has an explicit save.
 
 ## Conditional Visibility (DependsOn)
 

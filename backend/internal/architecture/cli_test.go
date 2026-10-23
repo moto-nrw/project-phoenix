@@ -10,6 +10,20 @@ import (
 	"testing"
 )
 
+func TestRunCLIRejectsMissingAndUnknownCommands(t *testing.T) {
+	t.Parallel()
+
+	const commands = "check, explain, diagram, dependencies, cycles, audit-issues, or relocations"
+	err := RunCLI(nil, CLIDependencies{})
+	if err == nil || err.Error() != "command is required: "+commands {
+		t.Fatalf("missing command error = %v", err)
+	}
+	err = RunCLI([]string{"validate-ticket"}, CLIDependencies{})
+	if err == nil || err.Error() != `unknown command "validate-ticket": expected `+commands {
+		t.Fatalf("unknown command error = %v", err)
+	}
+}
+
 func TestCheckRejectsUnknownPolicyFields(t *testing.T) {
 	t.Parallel()
 

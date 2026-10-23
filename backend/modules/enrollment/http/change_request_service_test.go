@@ -1780,3 +1780,26 @@ func TestChangeRequestService_PreservesReadFailures(t *testing.T) {
 	require.Equal(t, enrollmentNative.ChangeRequestStatusPendingReview, stored.ChangeRequest.Status)
 	require.Len(t, stored.Messages, len(created.Messages))
 }
+
+func TestChangeRequestServiceCreatePreservesSubmissionEditErrors(t *testing.T) {
+	t.Parallel()
+	env := setupRequestTest(t)
+	ctx := testpkg.Ctx(t)
+	submitted, err := env.svc.Submit(ctx, validSubmission(t, env.phaseID))
+	require.NoError(t, err)
+	enableChangeRequestMode(t, env, submitted.Children[0].ID)
+	svc := newChangeRequestServiceForTest(env)
+	input := enrollmentAPI.CreateChangeRequestInput{Submission: proposedChangeSubmission(t, env, submitted)}
+	failure := errors.New("submission edit policy unavailable")
+	env.settings.boolErrors[settingKeyAllowSubmissionEdit] = failure
+
+	result, err := svc.Create(ctx, submitted.Request.StatusToken, input)
+	require.ErrorIs(t, err, failure)
+	assert.Nil(t, result)
+
+	delete(env.settings.boolErrors, settingKeyAllowSubmissionEdit)
+	env.settings.boolValues[settingKeyAllowSubmissionEdit] = false
+	result, err = svc.Create(ctx, submitted.Request.StatusToken, input)
+	require.ErrorIs(t, err, enrollmentNative.ErrChangeRequestNotAllowed)
+	assert.Nil(t, result)
+}

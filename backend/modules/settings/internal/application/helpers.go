@@ -14,17 +14,14 @@ import (
 // every such mini-interface satisfy these implicitly.
 
 type boolResolver interface {
-	HasTenantOverride(ctx context.Context, key string) (bool, error)
 	ResolveBool(ctx context.Context, key string) (bool, error)
 }
 
 type intResolver interface {
-	HasTenantOverride(ctx context.Context, key string) (bool, error)
 	ResolveInt(ctx context.Context, key string) (int, error)
 }
 
 type stringResolver interface {
-	HasTenantOverride(ctx context.Context, key string) (bool, error)
 	ResolveString(ctx context.Context, key string) (string, error)
 }
 
@@ -32,52 +29,43 @@ type snapshotResolver interface {
 	ResolveMany(ctx context.Context, keys []string) (*settingsRecords.SettingsSnapshot, error)
 }
 
-// ResolveBoolOrDefault returns the tenant-override value for a boolean setting if
-// one exists, otherwise the provided fallback default.
-//
-// This wraps the mandatory HasTenantOverride + ResolveBool pattern documented in
-// .claude/rules/settings-system.md. Calling ResolveBool directly would return the
-// registry default when no tenant override exists, which hides the "no override"
-// vs "explicitly set to default" distinction from callers that want to fall back
-// to a different value (e.g. an environment variable).
-//
-// On any error (DB issue, missing definition) the fallback is returned and the
-// error logged, never propagated — the goal is fail-safe defaults for consumers.
+// ResolveBoolOrDefault resolves the tenant override or registry default.
+// Only a failed read uses fallback. Callers needing an error (in particular
+// privacy and authorization decisions) must use the typed Resolve* methods.
 func ResolveBoolOrDefault(ctx context.Context, svc boolResolver, key string, fallback bool, logger *slog.Logger) bool {
 	if svc == nil {
-		return fallback
+		panic("settings resolver is required")
 	}
-	snapshot, handled := overrideSnapshot(ctx, svc, key, logger)
+	snapshot, handled := resolvedSnapshot(ctx, svc, key, logger)
 	if handled {
-		return snapshotOverrideValue(snapshot, key, fallback, logger, (*settingsRecords.SettingsSnapshot).Bool, nil)
+		return snapshotResolvedValue(snapshot, key, fallback, logger, (*settingsRecords.SettingsSnapshot).Bool)
 	}
-	return liveOverrideValue(ctx, svc, key, fallback, logger, svc.ResolveBool, nil)
+	return liveResolvedValue(ctx, key, fallback, logger, svc.ResolveBool)
 }
 
 // ResolveIntOrDefault mirrors ResolveBoolOrDefault for integer settings.
 func ResolveIntOrDefault(ctx context.Context, svc intResolver, key string, fallback int, logger *slog.Logger) int {
 	if svc == nil {
-		return fallback
+		panic("settings resolver is required")
 	}
-	snapshot, handled := overrideSnapshot(ctx, svc, key, logger)
+	snapshot, handled := resolvedSnapshot(ctx, svc, key, logger)
 	if handled {
-		return snapshotOverrideValue(snapshot, key, fallback, logger, (*settingsRecords.SettingsSnapshot).Int, nil)
+		return snapshotResolvedValue(snapshot, key, fallback, logger, (*settingsRecords.SettingsSnapshot).Int)
 	}
-	return liveOverrideValue(ctx, svc, key, fallback, logger, svc.ResolveInt, nil)
+	return liveResolvedValue(ctx, key, fallback, logger, svc.ResolveInt)
 }
 
 // ResolveStringOrDefault mirrors ResolveBoolOrDefault for string settings.
-// An empty tenant-override value is treated as "no override" and returns the
-// fallback — matches the convention used elsewhere in the codebase.
+// An explicit empty value remains authoritative.
 func ResolveStringOrDefault(ctx context.Context, svc stringResolver, key string, fallback string, logger *slog.Logger) string {
 	if svc == nil {
-		return fallback
+		panic("settings resolver is required")
 	}
-	snapshot, handled := overrideSnapshot(ctx, svc, key, logger)
+	snapshot, handled := resolvedSnapshot(ctx, svc, key, logger)
 	if handled {
-		return snapshotOverrideValue(snapshot, key, fallback, logger, (*settingsRecords.SettingsSnapshot).String, func(value string) bool { return value == "" })
+		return snapshotResolvedValue(snapshot, key, fallback, logger, (*settingsRecords.SettingsSnapshot).String)
 	}
-	return liveOverrideValue(ctx, svc, key, fallback, logger, svc.ResolveString, func(value string) bool { return value == "" })
+	return liveResolvedValue(ctx, key, fallback, logger, svc.ResolveString)
 }
 
 func logSettingsFallback(logger *slog.Logger, message, key string, err error) {
@@ -90,11 +78,7 @@ func logSettingsFallback(logger *slog.Logger, message, key string, err error) {
 	)
 }
 
-type overrideResolver interface {
-	HasTenantOverride(context.Context, string) (bool, error)
-}
-
-func overrideSnapshot(ctx context.Context, service any, key string, logger *slog.Logger) (*settingsRecords.SettingsSnapshot, bool) {
+func resolvedSnapshot(ctx context.Context, service any, key string, logger *slog.Logger) (*settingsRecords.SettingsSnapshot, bool) {
 	batch, ok := service.(snapshotResolver)
 	if !ok {
 		return nil, false
@@ -107,16 +91,8 @@ func overrideSnapshot(ctx context.Context, service any, key string, logger *slog
 	return snapshot, snapshot != nil
 }
 
-func snapshotOverrideValue[T any](snapshot *settingsRecords.SettingsSnapshot, key string, fallback T, logger *slog.Logger, read func(*settingsRecords.SettingsSnapshot, string) (T, error), empty func(T) bool) T {
+func snapshotResolvedValue[T any](snapshot *settingsRecords.SettingsSnapshot, key string, fallback T, logger *slog.Logger, read func(*settingsRecords.SettingsSnapshot, string) (T, error)) T {
 	if snapshot == nil {
-		return fallback
-	}
-	has, err := snapshot.HasOverride(key)
-	if err != nil {
-		logSettingsFallback(logger, "settings override check failed, using fallback", key, err)
-		return fallback
-	}
-	if !has {
 		return fallback
 	}
 	value, err := read(snapshot, key)
@@ -124,27 +100,13 @@ func snapshotOverrideValue[T any](snapshot *settingsRecords.SettingsSnapshot, ke
 		logSettingsFallback(logger, "settings resolve failed, using fallback", key, err)
 		return fallback
 	}
-	if empty != nil && empty(value) {
-		return fallback
-	}
 	return value
 }
 
-func liveOverrideValue[T any](ctx context.Context, service overrideResolver, key string, fallback T, logger *slog.Logger, read func(context.Context, string) (T, error), empty func(T) bool) T {
-	has, err := service.HasTenantOverride(ctx, key)
-	if err != nil {
-		logSettingsFallback(logger, "settings override check failed, using fallback", key, err)
-		return fallback
-	}
-	if !has {
-		return fallback
-	}
+func liveResolvedValue[T any](ctx context.Context, key string, fallback T, logger *slog.Logger, read func(context.Context, string) (T, error)) T {
 	value, err := read(ctx, key)
 	if err != nil {
 		logSettingsFallback(logger, "settings resolve failed, using fallback", key, err)
-		return fallback
-	}
-	if empty != nil && empty(value) {
 		return fallback
 	}
 	return value

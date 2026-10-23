@@ -38,6 +38,9 @@ var _ enrollmentNative.ApprovedChildChanges = (*Decisions)(nil)
 
 // NewDecisions composes the decision flow over its owners.
 func NewDecisions(deps DecisionDependencies) *Decisions {
+	if deps.Settings == nil {
+		panic("enrollment decisions: settings are required")
+	}
 	if deps.Logger == nil {
 		deps.Logger = slog.Default()
 	}

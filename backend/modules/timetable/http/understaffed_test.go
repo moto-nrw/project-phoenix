@@ -26,7 +26,7 @@ func TestAcknowledgeUnderstaffed_SetWithNote(t *testing.T) {
 	instance.ID = int64(7)
 
 	mock := &mockInstanceService{ackRes: instance}
-	rs := NewResource(Dependencies{InstanceService: mock})
+	rs := newResourceForTest(Dependencies{InstanceService: mock})
 	router := setupLifecycleRouter(rs, "/instances/{id}/acknowledge-understaffed", rs.acknowledgeUnderstaffed)
 
 	w := doPost(t, router, "/instances/7/acknowledge-understaffed", map[string]any{
@@ -55,7 +55,7 @@ func TestAcknowledgeUnderstaffed_ClearDropsNote(t *testing.T) {
 	instance.ID = int64(8)
 
 	mock := &mockInstanceService{ackRes: instance}
-	rs := NewResource(Dependencies{InstanceService: mock})
+	rs := newResourceForTest(Dependencies{InstanceService: mock})
 	router := setupLifecycleRouter(rs, "/instances/{id}/acknowledge-understaffed", rs.acknowledgeUnderstaffed)
 
 	w := doPost(t, router, "/instances/8/acknowledge-understaffed", map[string]any{"ack": false})
@@ -77,7 +77,7 @@ func TestAcknowledgeUnderstaffed_EmptyNoteNormalized(t *testing.T) {
 	instance := &timetable.LifecycleInstance{Status: timetable.InstanceStatusPlanned, UnderstaffedAck: true}
 	instance.ID = int64(9)
 	mock := &mockInstanceService{ackRes: instance}
-	rs := NewResource(Dependencies{InstanceService: mock})
+	rs := newResourceForTest(Dependencies{InstanceService: mock})
 	router := setupLifecycleRouter(rs, "/instances/{id}/acknowledge-understaffed", rs.acknowledgeUnderstaffed)
 
 	w := doPost(t, router, "/instances/9/acknowledge-understaffed", map[string]any{"ack": true, "note": ""})
@@ -93,7 +93,7 @@ func TestAcknowledgeUnderstaffed_WhitespaceNoteNormalized(t *testing.T) {
 	instance := &timetable.LifecycleInstance{Status: timetable.InstanceStatusPlanned, UnderstaffedAck: true}
 	instance.ID = int64(10)
 	mock := &mockInstanceService{ackRes: instance}
-	rs := NewResource(Dependencies{InstanceService: mock})
+	rs := newResourceForTest(Dependencies{InstanceService: mock})
 	router := setupLifecycleRouter(rs, "/instances/{id}/acknowledge-understaffed", rs.acknowledgeUnderstaffed)
 
 	w := doPost(t, router, "/instances/10/acknowledge-understaffed", map[string]any{"ack": true, "note": "   "})
@@ -109,7 +109,7 @@ func TestAcknowledgeUnderstaffed_NoteTrimmed(t *testing.T) {
 	instance := &timetable.LifecycleInstance{Status: timetable.InstanceStatusPlanned, UnderstaffedAck: true}
 	instance.ID = int64(11)
 	mock := &mockInstanceService{ackRes: instance}
-	rs := NewResource(Dependencies{InstanceService: mock})
+	rs := newResourceForTest(Dependencies{InstanceService: mock})
 	router := setupLifecycleRouter(rs, "/instances/{id}/acknowledge-understaffed", rs.acknowledgeUnderstaffed)
 
 	w := doPost(t, router, "/instances/11/acknowledge-understaffed", map[string]any{"ack": true, "note": "  kein Ersatz  "})
@@ -121,7 +121,7 @@ func TestAcknowledgeUnderstaffed_NoteTrimmed(t *testing.T) {
 func TestAcknowledgeUnderstaffed_NoteTooLong(t *testing.T) {
 	t.Parallel()
 
-	rs := NewResource(Dependencies{InstanceService: &mockInstanceService{}})
+	rs := newResourceForTest(Dependencies{InstanceService: &mockInstanceService{}})
 	router := setupLifecycleRouter(rs, "/instances/{id}/acknowledge-understaffed", rs.acknowledgeUnderstaffed)
 
 	w := doPost(t, router, "/instances/1/acknowledge-understaffed", map[string]any{
@@ -133,7 +133,7 @@ func TestAcknowledgeUnderstaffed_NoteTooLong(t *testing.T) {
 func TestAcknowledgeUnderstaffed_InvalidID(t *testing.T) {
 	t.Parallel()
 
-	rs := NewResource(Dependencies{InstanceService: &mockInstanceService{}})
+	rs := newResourceForTest(Dependencies{InstanceService: &mockInstanceService{}})
 	router := setupLifecycleRouter(rs, "/instances/{id}/acknowledge-understaffed", rs.acknowledgeUnderstaffed)
 
 	w := doPost(t, router, "/instances/nope/acknowledge-understaffed", map[string]any{"ack": true})
@@ -143,7 +143,7 @@ func TestAcknowledgeUnderstaffed_InvalidID(t *testing.T) {
 func TestAcknowledgeUnderstaffed_NilService(t *testing.T) {
 	t.Parallel()
 
-	rs := NewResource(Dependencies{})
+	rs := newResourceForTest(Dependencies{})
 	router := setupLifecycleRouter(rs, "/instances/{id}/acknowledge-understaffed", rs.acknowledgeUnderstaffed)
 
 	w := doPost(t, router, "/instances/1/acknowledge-understaffed", map[string]any{"ack": true})
@@ -156,7 +156,7 @@ func TestAcknowledgeUnderstaffed_CompletedRejected(t *testing.T) {
 	// Service refuses a terminal-status instance → 409 via the shared lifecycle
 	// error mapper.
 	mock := &mockInstanceService{ackErr: timetable.ErrInvalidInstanceTransition}
-	rs := NewResource(Dependencies{InstanceService: mock})
+	rs := newResourceForTest(Dependencies{InstanceService: mock})
 	router := setupLifecycleRouter(rs, "/instances/{id}/acknowledge-understaffed", rs.acknowledgeUnderstaffed)
 
 	w := doPost(t, router, "/instances/5/acknowledge-understaffed", map[string]any{"ack": true})
@@ -167,7 +167,7 @@ func TestAcknowledgeUnderstaffed_NotFound(t *testing.T) {
 	t.Parallel()
 
 	mock := &mockInstanceService{ackErr: timetable.ErrInstanceNotFound}
-	rs := NewResource(Dependencies{InstanceService: mock})
+	rs := newResourceForTest(Dependencies{InstanceService: mock})
 	router := setupLifecycleRouter(rs, "/instances/{id}/acknowledge-understaffed", rs.acknowledgeUnderstaffed)
 
 	w := doPost(t, router, "/instances/5/acknowledge-understaffed", map[string]any{"ack": true})

@@ -149,8 +149,8 @@ jobs:
           if [ -n "$BASE_REF" ] && [ "$BASE_REF" != development ]; then
             refs+=("+refs/heads/$BASE_REF:refs/remotes/origin/$BASE_REF")
           fi
-          # Full ancestry keeps merge-base and the immutable architecture
-          # evidence anchor intact. Unrelated refs and tags are not test inputs.
+          # Full ancestry keeps merge-base intact for the architecture
+          # comparisons. Unrelated refs and tags are not test inputs.
           git fetch --no-tags --unshallow origin "${refs[@]}"
 
       - name: Setup Go
