@@ -96,7 +96,7 @@ var notifications_init_benachrichtigungen_1Definitions = []config.Definition{
 	{
 		Key:             config.KeyNotificationsAbsenceReportedEnabled,
 		Label:           "Hinweis bei Krankmeldung",
-		Description:     "Gruppe und Leitung bekommen einen Hinweis, wenn ein Kind krank oder entschuldigt gemeldet wird. Jede Person entscheidet zusätzlich im eigenen Profil.",
+		Description:     "OGS-Admins bekommen einen Hinweis, wenn ein Kind krank oder entschuldigt gemeldet wird. Bei festen Gruppen auch die Betreuung der Gruppe. Jede Person entscheidet zusätzlich im eigenen Profil.",
 		Type:            config.FieldBoolean,
 		Default:         true,
 		ReadPermission:  "config:read",
