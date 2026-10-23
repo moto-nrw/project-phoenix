@@ -16,6 +16,7 @@ import { useSession } from "next-auth/react";
 import { getDayData as getArrivalDayData } from "~/lib/arrival-schedule-helpers";
 import { useWeekendFollowsFriday } from "~/lib/tenant-context";
 import { setTestClock } from "~/test/clock";
+import { fetchStudentPickupData } from "~/lib/pickup-schedule-api";
 
 const { mockSWRMutate, MockStudentStatusDayConflictError } = vi.hoisted(() => ({
   mockSWRMutate: vi.fn(),
@@ -605,7 +606,14 @@ describe("StudentDetailPage", () => {
       data: {
         user: {
           token: "test-token",
-          permissions: ["config:manage", "users:checkin", "users:read"],
+          // Staff with absence rights; the route of every absence write
+          // checks users:update or users:absence (ADR 0083 gate).
+          permissions: [
+            "config:manage",
+            "users:checkin",
+            "users:read",
+            "users:absence",
+          ],
         },
       },
       status: "authenticated",
@@ -1791,7 +1799,7 @@ describe("StudentDetailPage", () => {
         data: {
           user: {
             token: "test-token",
-            permissions: ["config:manage", "users:update"],
+            permissions: ["config:manage", "users:update", "users:read"],
           },
         },
         status: "authenticated",
@@ -2339,12 +2347,47 @@ describe("StudentDetailPage", () => {
       },
     );
 
+    // ADR 0083: the backend may report full access and absence write for
+    // the Gast, but the routes behind Betreuungszeiten, pickup, arrival and
+    // status days need users:read, absence writes users:update or
+    // users:absence. Without them the page asks for nothing and offers no
+    // action: no tab, no request, no „Klassenfahrt planen“, no empty row.
+    it("loads and offers nothing a students:read session cannot use", () => {
+      vi.mocked(useSession).mockReturnValue({
+        data: {
+          user: { token: "test-token", permissions: ["students:read"] },
+        },
+        status: "authenticated",
+      } as ReturnType<typeof useSession>);
+      vi.mocked(fetchStudentPickupData).mockClear();
+      mockUseStudentData.mockReturnValue({
+        ...limitedAccess,
+        hasFullAccess: true,
+        hasAbsenceWriteAccess: true,
+        hasSickExcusedWriteAccess: false,
+      });
+
+      render(<StudentDetailPage />);
+
+      // Anker: die Akte ist geladen.
+      expect(getTab("Stammdaten")).toBeInTheDocument();
+      expect(queryTab("Betreuungszeiten")).not.toBeInTheDocument();
+      expect(
+        screen.queryByTestId("care-schedule-manager"),
+      ).not.toBeInTheDocument();
+      expect(screen.queryByText("Klassenfahrt planen")).not.toBeInTheDocument();
+      expect(
+        screen.queryByLabelText("Schnellaktionen"),
+      ).not.toBeInTheDocument();
+      expect(fetchStudentPickupData).not.toHaveBeenCalled();
+    });
+
     it("shows the Änderungsprotokoll tab with users:update", () => {
       vi.mocked(useSession).mockReturnValue({
         data: {
           user: {
             token: "test-token",
-            permissions: ["config:manage", "users:update"],
+            permissions: ["config:manage", "users:update", "users:read"],
           },
         },
         status: "authenticated",
@@ -2356,8 +2399,17 @@ describe("StudentDetailPage", () => {
     });
 
     it("hides the Änderungsprotokoll tab without users:update or users:absence", () => {
-      // Die Vorgabe-Sitzung hat nur config:manage — der Aggregations-Endpunkt
-      // würde 403 antworten, also gibt es den Reiter gar nicht erst (#2437).
+      // Ohne users:update und users:absence würde der Aggregations-Endpunkt
+      // 403 antworten, also gibt es den Reiter gar nicht erst (#2437).
+      vi.mocked(useSession).mockReturnValue({
+        data: {
+          user: {
+            token: "test-token",
+            permissions: ["config:manage", "users:read"],
+          },
+        },
+        status: "authenticated",
+      } as ReturnType<typeof useSession>);
       render(<StudentDetailPage />);
 
       // Anker: die geladene volle Ansicht. Nur sie rendert die
@@ -2369,7 +2421,12 @@ describe("StudentDetailPage", () => {
 
     it("hides the enrollment tab without config:manage", () => {
       vi.mocked(useSession).mockReturnValue({
-        data: { user: { token: "test-token", permissions: ["config:read"] } },
+        data: {
+          user: {
+            token: "test-token",
+            permissions: ["config:read", "users:read"],
+          },
+        },
         status: "authenticated",
       } as ReturnType<typeof useSession>);
 
@@ -2396,7 +2453,7 @@ describe("StudentDetailPage", () => {
         data: {
           user: {
             token: "test-token",
-            permissions: ["config:manage", "schedules:read"],
+            permissions: ["config:manage", "schedules:read", "users:read"],
           },
         },
         status: "authenticated",
@@ -2421,7 +2478,7 @@ describe("StudentDetailPage", () => {
         data: {
           user: {
             token: "test-token",
-            permissions: ["config:manage", "schedules:read"],
+            permissions: ["config:manage", "schedules:read", "users:read"],
           },
         },
         status: "authenticated",
@@ -2455,7 +2512,7 @@ describe("StudentDetailPage", () => {
         data: {
           user: {
             token: "test-token",
-            permissions: ["schedules:read"],
+            permissions: ["schedules:read", "users:read"],
           },
         },
         status: "authenticated",

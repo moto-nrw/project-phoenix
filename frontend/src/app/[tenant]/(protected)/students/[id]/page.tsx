@@ -455,10 +455,10 @@ function StudentDetailPageContent() {
     student,
     loading,
     error,
-    hasFullAccess,
+    hasFullAccess: childGrantsFullAccess,
     hasWriteAccess,
-    hasAbsenceWriteAccess,
-    hasSickExcusedWriteAccess,
+    hasAbsenceWriteAccess: childGrantsAbsenceWrite,
+    hasSickExcusedWriteAccess: childGrantsSickExcusedWrite,
     attendanceLogEnabled,
     feedbackEnabled,
     supervisors,
@@ -467,6 +467,22 @@ function StudentDetailPageContent() {
     mySupervisedRooms,
     refreshData,
   } = useStudentData(studentId);
+  // Die Antwort sagt, was dieses Kind dem Konto erlaubt; die Routen dahinter
+  // verlangen zusätzlich ein Recht der Sitzung. Der Gast liest das Kind nur
+  // mit students:read (ADR 0083): Betreuungszeiten, Abholung, Ankunft und
+  // Statustage hängen an users:read, Abwesenheiten und Klassenfahrten
+  // schreiben users:update oder users:absence. Ohne das Recht fehlt die
+  // Fläche, statt mit einem 403 zu scheitern.
+  const sessionReadsChildDetails =
+    sessionStatus === "authenticated" && hasPermission(session, "users:read");
+  const sessionWritesAbsences =
+    sessionStatus === "authenticated" &&
+    (hasPermission(session, "users:update") ||
+      hasPermission(session, "users:absence"));
+  const hasFullAccess = childGrantsFullAccess && sessionReadsChildDetails;
+  const hasAbsenceWriteAccess =
+    childGrantsAbsenceWrite && sessionWritesAbsences;
+  const hasSickExcusedWriteAccess = childGrantsSickExcusedWrite;
   // Ladefehler der Akte über den gemeinsamen Fehlerweg (#2513). Ein 404 ist
   // kein Fehler zum Wiederholen, sondern „Kind nicht gefunden“.
   const studentNotFound = error instanceof ApiError && error.status === 404;
@@ -525,8 +541,7 @@ function StudentDetailPageContent() {
       hasPermission(session, "student_documents:legal"));
   // Eltern, Notizen und Nachrichten hängen an users:read; die Rolle „Gast“
   // sieht das Kind nur mit students:read (ADR 0083).
-  const canReadParentData =
-    sessionStatus === "authenticated" && hasPermission(session, "users:read");
+  const canReadParentData = sessionReadsChildDetails;
   // Same gate the aggregate request route uses (#2437).
   const canViewRequestLog =
     sessionStatus === "authenticated" &&
@@ -1340,6 +1355,11 @@ function StudentDetailPageContent() {
     isAtSchoolLocation(student.current_location);
   const showCheckout = canCheckin && !isNotCheckedIn;
   const showCheckin = canCheckin && isNotCheckedIn;
+  const hasQuickActions =
+    showCheckout ||
+    showCheckin ||
+    hasAbsenceWriteAccess ||
+    hasSickExcusedWriteAccess;
 
   // =============================================================================
   // RENDER
@@ -1399,27 +1419,30 @@ function StudentDetailPageContent() {
         </span>
       }
       searchSlotHeight="natural"
+      // Ohne eine einzige Schnellaktion bliebe eine leere Zeile im Kopf.
       searchSlot={
-        <StudentQuickActions
-          student={student}
-          showCheckout={showCheckout}
-          showCheckin={showCheckin}
-          hasAbsenceWriteAccess={hasAbsenceWriteAccess}
-          hasSickExcusedWriteAccess={hasSickExcusedWriteAccess}
-          onCheckoutClick={() => {
-            setCheckoutNote("");
-            setCheckoutIsEarly(isEarlyCheckout(todayPickup.time));
-            setShowConfirmCheckout(true);
-          }}
-          onCheckinClick={() => setShowConfirmCheckin(true)}
-          onSickClick={handleSickClick}
-          sickLoading={sickLoading}
-          isQuickExcused={isQuickExcused}
-          onExcusedClick={handleExcusedClick}
-          excusedLoading={excusedLoading}
-          onClassTripClick={() => setPlannedStatusModal("class_trip")}
-          plannedStatusLoading={plannedStatusLoading}
-        />
+        hasQuickActions ? (
+          <StudentQuickActions
+            student={student}
+            showCheckout={showCheckout}
+            showCheckin={showCheckin}
+            hasAbsenceWriteAccess={hasAbsenceWriteAccess}
+            hasSickExcusedWriteAccess={hasSickExcusedWriteAccess}
+            onCheckoutClick={() => {
+              setCheckoutNote("");
+              setCheckoutIsEarly(isEarlyCheckout(todayPickup.time));
+              setShowConfirmCheckout(true);
+            }}
+            onCheckinClick={() => setShowConfirmCheckin(true)}
+            onSickClick={handleSickClick}
+            sickLoading={sickLoading}
+            isQuickExcused={isQuickExcused}
+            onExcusedClick={handleExcusedClick}
+            excusedLoading={excusedLoading}
+            onClassTripClick={() => setPlannedStatusModal("class_trip")}
+            plannedStatusLoading={plannedStatusLoading}
+          />
+        ) : undefined
       }
       tabs={{
         value: activeTab,
@@ -1869,7 +1892,12 @@ function LimitedAccessView({
         className={`${TAB_CONTENT_CLASS} space-y-4 sm:space-y-6`}
       >
         <SupervisorsCard supervisors={supervisors} studentName={student.name} />
-        <PersonalInfoReadOnly student={student} />
+        {/* Die Laufgemeinschaft hängt wie die Erziehungsberechtigten an
+            users:read; der Reiter steht nur mit diesem Recht da. */}
+        <PersonalInfoReadOnly
+          student={student}
+          showCompanions={tabs.includes("erziehungsberechtigte")}
+        />
       </StudentTabPanel>
 
       {tabs.includes("erziehungsberechtigte") ? (
