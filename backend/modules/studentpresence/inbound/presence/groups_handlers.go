@@ -233,20 +233,8 @@ func (rs *Resource) getActiveGroupVisitsWithDisplay(w http.ResponseWriter, r *ht
 	// The school-wide overview scope broadens the operational room scope.
 	// Per-student GDPR fields below still use DetermineStudentAccess and are
 	// never broadened by it.
-	overview, err := rs.operationalOverview(r.Context())
-	if err != nil {
-		common.RenderError(w, r, common.ErrorInternalServerWrap("failed to resolve operational overview", err))
+	if !rs.requireVisitDisplayAccess(w, r, id) {
 		return
-	}
-	if !overview {
-		staff, err := rs.extractStaffFromRequest(w, r)
-		if err != nil {
-			return
-		}
-
-		if rs.verifyStaffSupervisionAccess(w, r, staff.ID, id) != nil {
-			return
-		}
 	}
 
 	results, err := rs.Operations.SessionVisitsWithDisplay(r.Context(), id)
@@ -610,4 +598,22 @@ func (rs *Resource) endActiveGroup(w http.ResponseWriter, r *http.Request) {
 
 	// Return the updated active group
 	common.Respond(w, r, http.StatusOK, response, "Active group session ended successfully")
+}
+
+// requireVisitDisplayAccess permits the school-wide overview or the caller's
+// own supervised group; an unreadable scope grants neither path.
+func (rs *Resource) requireVisitDisplayAccess(w http.ResponseWriter, r *http.Request, groupID int64) bool {
+	overview, err := rs.operationalOverview(r.Context())
+	if err != nil {
+		common.RenderError(w, r, common.ErrorInternalServerWrap("failed to resolve operational overview", err))
+		return false
+	}
+	if overview {
+		return true
+	}
+	staff, err := rs.extractStaffFromRequest(w, r)
+	if err != nil {
+		return false
+	}
+	return rs.verifyStaffSupervisionAccess(w, r, staff.ID, groupID) == nil
 }
