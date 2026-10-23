@@ -1467,14 +1467,16 @@ function activeSupervisionTopic(presenceMode: HelpPresenceMode): HelpTopic {
         ],
       },
       {
-        // #3823, #4573: externe Kräfte bekommen eine Einladung per E-Mail.
+        // #3823, ADR 0083: externe Kräfte mit einer von drei Zugangsstufen.
         title: "Weitere Betreuer eintragen",
         steps: [
           "Wählen Sie in der laufenden Aufsicht `Betreuer hinzufügen`.",
           "Wählen Sie die Person unter `Betreuer auswählen` und dann `Hinzufügen`.",
-          "Fehlt die Person, zum Beispiel eine AG-Leitung von außen? Wählen Sie `Externe Person eintragen`.",
-          "Tragen Sie `Vorname`, `Nachname` und `E-Mail-Adresse` ein. Wählen Sie `Eintragen`.",
-          "Die Person bekommt eine Einladung per E-Mail. Sie können sie sofort auswählen. Bis sie die Einladung annimmt, steht bei ihr `Einladung offen`.",
+          "Fehlt die Person, zum Beispiel jemand von der Musikschule? Wählen Sie `Externe Person eintragen`.",
+          "Tragen Sie `Vorname` und `Nachname` ein.",
+          "Wählen Sie den `Zugang`: `Kein Zugang`, `Nur ansehen` oder `Eigene Termine betreuen`.",
+          "Bei `Nur ansehen` und `Eigene Termine betreuen` tragen Sie die `E-Mail-Adresse` ein. Die Person bekommt dann eine Einladung.",
+          "Wählen Sie `Eintragen`. Sie können die Person sofort auswählen.",
           "Beim Start einer spontanen Aktivität geht das genauso unter `Weitere Betreuer`.",
         ],
       },
@@ -1512,7 +1514,8 @@ function activeSupervisionTopic(presenceMode: HelpPresenceMode): HelpTopic {
       "Läuft Ihre Aufsicht in einem offenen Raum? Dann steht der Raum unter `Aktuelle Aufsicht`. Alle anderen offenen Räume finden Sie unter `Räume`.",
       "Haben Sie mehrere Aufsichten? Auf dem Handy stehen sie oben auf der Seite `Aufsicht` als Reiter.",
       "Welche Räume offen sind, legt Ihre OGS fest.",
-      "Eine externe Person steht danach unter `Personal` in der Gruppe `Extern`, auch mit Konto. In Zeiterfassung und Dienstplan erscheint sie nicht.",
+      "Eine externe Person steht danach unter `Personal` in der Gruppe `Extern`, mit jedem Zugang. In Zeiterfassung und Dienstplan erscheint sie nicht.",
+      "`Nur ansehen` fehlt? Diesen Zugang darf nur vergeben, wer Personal verwalten darf.",
       "Fehlt `Spontane Aktivität starten`? Dann hat Ihre OGS in den `Einstellungen` unter `Betrieb` den Schalter `Spontane Aktivitäten erlauben` ausgeschaltet.",
       "Fehlt ein Kind unter `Anwesende Kinder`? Ist seine Gehzeit schon erreicht, steht es nur unter `Alle anwesenden`. Ist es noch nicht angemeldet, suchen Sie es über `Kind hinzufügen`.",
       "Fehlt `Nach Angebot`? Dann hat Ihre OGS kein aktives Betreuungsangebot, das als Betreuungstag zählt.",
@@ -1520,9 +1523,6 @@ function activeSupervisionTopic(presenceMode: HelpPresenceMode): HelpTopic {
       "Fehlt `Aktuelle Aufsicht` in der Navigation? Öffnen Sie `Alle Kinder`. Wählen Sie im Menü mit den drei Punkten `Zur Aufsicht`.",
     ],
     troubleshooting: HELP_TOPICS.attendanceProblem,
-    troubleshootingDetails: [
-      "Eine externe Person fehlt unter `Betreuer auswählen`? Dann hat sie kein Konto und keine offene Einladung. Die Leitung lädt sie unter `Personal` mit `Konto einladen` ein.",
-    ],
     related: [HELP_TOPICS.rooms, HELP_TOPICS.ownGroups],
   };
 }
@@ -4506,26 +4506,37 @@ function inviteStaffTopic(): HelpTopic {
         ],
       },
       {
-        // #4573: Schnellanlage mit Einladung und Rolle `Extern`.
+        // ADR 0083: extern ist ein Merkmal, der Zugang eine eigene Wahl.
         title: "Eine externe Person anlegen",
         description:
-          "Zum Beispiel die AG-Leitung der Musikschule. Sie bekommt die Rolle `Extern` und eine Einladung. Nehmen Sie dafür nicht `Personal einladen`. Dort zählt sie als normales Personal, zum Beispiel in der Zeiterfassung.",
+          "Zum Beispiel jemand von der Musikschule. Externe Personen führen keine Zeiterfassung. Nehmen Sie dafür nicht `Personal einladen`. Dort zählt die Person als normales Personal.",
         steps: [
           "Öffnen Sie `Datenverwaltung` und danach `Personal`.",
           "Wählen Sie oben rechts `+ Personal` und danach `Externe Person anlegen`.",
-          "Tragen Sie `Vorname`, `Nachname` und `E-Mail-Adresse` ein.",
-          "Tragen Sie bei Bedarf die `Organisation (freiwillig)` ein.",
+          "Tragen Sie `Vorname` und `Nachname` ein. Tragen Sie bei Bedarf die `Organisation (freiwillig)` ein.",
+          "Wählen Sie den `Zugang`. Was jede Stufe erlaubt, steht unten.",
+          "Bei `Nur ansehen` und `Eigene Termine betreuen` tragen Sie die `E-Mail-Adresse` ein.",
           "Wählen Sie `Anlegen`.",
         ],
       },
       {
-        title: "Eine externe Person ohne Konto einladen",
+        title: "Welchen Zugang wählen?",
+        ordered: false,
+        steps: [
+          "`Kein Zugang`: Die Person bekommt kein Konto und keine E-Mail. Sie steht nur im Plan. Den Termin startet eine OGS-Kraft.",
+          "`Nur ansehen`: Die Person bekommt eine Einladung und die Rolle `Gast`. Sie sieht Kinder, Räume und AGs. Elterndaten und Nachrichten sieht sie nicht. Ändern kann sie nichts.",
+          "`Eigene Termine betreuen`: Die Person bekommt eine Einladung und die Rolle `AG-Leitung`. Sie startet ihre eigenen Termine, checkt Kinder ein und aus und beendet die Termine.",
+        ],
+      },
+      {
+        title: "Eine externe Person später einladen",
         description:
           "In der Liste steht bei ihr `Kein Konto`. Das gilt auch, wenn eine Einladung abgelaufen ist.",
         steps: [
           "Öffnen Sie `Personal` und suchen Sie die Person in der Gruppe `Extern`.",
           "Öffnen Sie das Menü mit den drei Punkten in ihrer Zeile.",
           "Wählen Sie `Konto einladen`.",
+          "Wählen Sie den `Zugang`: `Nur ansehen` oder `Eigene Termine betreuen`.",
           "Tragen Sie die `E-Mail-Adresse` ein und wählen Sie `Einladen`.",
         ],
       },
@@ -4549,7 +4560,7 @@ function inviteStaffTopic(): HelpTopic {
       "Wer eine E-Mail-Adresse hat, bekommt einen Link und legt sein Passwort selbst fest.",
     notes: [
       "Die `Rolle` bestimmt, was die Person später sehen und tun darf.",
-      "Eine externe Person können Sie sofort einplanen. Bis sie die Einladung annimmt, steht bei ihr `Einladung offen`.",
+      "Eine externe Person können Sie sofort einplanen, auch mit `Kein Zugang`. Bis sie eine Einladung annimmt, steht bei ihr `Einladung offen`.",
       "Steht bei einer externen Person `Einladung offen` und die E-Mail kam nicht an? Wählen Sie im Menü `Einladung erneut senden`. Dort können Sie auch die Adresse korrigieren.",
       "Nach der Annahme steht die Person unter `Mitarbeiter` und lässt sich einer Gruppe zuweisen.",
       "Bei `Wiederaufnahme` wird die frühere Beschäftigung fortgeführt. Ausgewählte Bereiche bleiben unverändert. Zurückgesetzte Angaben bleiben als Historie erhalten.",
@@ -4562,7 +4573,8 @@ function inviteStaffTopic(): HelpTopic {
     ],
     differences: [
       "Beim Import muss die Spalte `Rolle` genau einer vorhandenen Rolle entsprechen.",
-      "Zur Wahl stehen `Administrator`, `Betreuer`, `Gast`, `Erziehungsberechtigter`, `Lehrkraft`, `Extern` und die eigenen Rollen Ihrer OGS.",
+      "Zur Wahl stehen `Administrator`, `Betreuer`, `Gast`, `Erziehungsberechtigter`, `Lehrkraft`, `AG-Leitung` und die eigenen Rollen Ihrer OGS.",
+      "`Nur ansehen` fehlt bei einer externen Person? Diesen Zugang darf nur vergeben, wer Personal verwalten darf.",
       "Fehlt in einer Zeile die E-Mail-Adresse, gibt es keinen Zugang. Die Person steht dann nur in der Liste.",
       "Auf dem Handy steht `+ Personal` als runder Knopf unten rechts. Er öffnet dieselbe Auswahl.",
     ],
@@ -4571,7 +4583,6 @@ function inviteStaffTopic(): HelpTopic {
       "Eine Zeile wird als Fehler gemeldet? Dann gibt es die Person schon.",
       "moto erkennt eine bekannte Zeile an der Personalnummer, sonst an der E-Mail, sonst am Namen.",
       "Fehlt `Personal` in der Seitenleiste? Dafür braucht Ihre Rolle ein eigenes Recht.",
-      "moto meldet, dass die Rolle `Extern` fehlt? Dann wurde sie umbenannt oder gelöscht. Was Sie dann tun, steht unter `Mitarbeitende und Rechte verwalten`.",
     ],
     related: [
       HELP_TOPICS.leadStaffRecord,
@@ -4805,22 +4816,18 @@ function staffPermissionsTopic(): HelpTopic {
     notes: [
       "Unter `Berechtigungen` sehen Sie alle Rechte, die es in moto gibt. Ändern lässt sich dort nichts.",
       "Die Rolle entscheidet auch darüber, welche Menüpunkte jemand sieht.",
-      // #4573: Rolle `Extern`, Startrecht nur `schedules:read`.
-      "Jede OGS hat die Rolle `Extern` für externe Personen, etwa eine AG-Leitung. Sie sieht unter `Heute` nur ihre eigenen Termine. Dort startet sie den Termin und meldet die Kinder an und ab.",
-      "Mit `Extern` sieht die Person keine Zeiterfassung, keine Einstellungen, kein Personal und keine Nachrichten an Eltern.",
-      "Die Rechte der Rolle `Extern` können Sie unter `Rollen` ändern.",
+      // ADR 0083: die zwei Zugangsstufen externer Personen sind feste Rollen.
+      "`AG-Leitung` ist für Personen, die eigene Termine betreuen. Sie sieht unter `Heute` nur ihre eigenen Termine. Dort startet sie den Termin, checkt die Kinder ein und aus und beendet ihn.",
+      "`Gast` ist für Personen, die nur zuschauen. Sie sieht Kinder, Räume und AGs. Elterndaten, Nachrichten und Telefonnummern der Eltern sieht sie nicht. Ändern kann sie nichts.",
+      "Mit `AG-Leitung` oder `Gast` sieht die Person keine Zeiterfassung, keine Einstellungen und kein Personal.",
     ],
     differences: [
-      "Frisch eingerichtet bringt moto feste Rollen mit: `Administrator`, `Betreuer`, `Lehrkraft`, `Erziehungsberechtigter` und `Gast`. Dazu kommt die Rolle `Extern`.",
+      "Frisch eingerichtet bringt moto feste Rollen mit: `Administrator`, `Betreuer`, `Lehrkraft`, `AG-Leitung`, `Erziehungsberechtigter` und `Gast`.",
       "Bei den festen Rollen fehlen `Berechtigungen`, `Bearbeiten` und `Löschen`. Dort steht: `System-Rollen können nicht bearbeitet oder gelöscht werden.`",
       "Zum Ändern von Rechten legen Sie deshalb zuerst eine eigene Rolle an.",
     ],
     troubleshootingDetails: [
       "Eine Person sieht einen Bereich nicht? Prüfen Sie die Rechte ihrer Rolle.",
-      // #4573: moto findet die Rolle `Extern` am Namen. Die Rollenansicht
-      // sagt das selbst; hier steht, wie man es repariert.
-      "Externe Personen lassen sich nicht mehr anlegen? Dann fehlt die Rolle `Extern`. Sie wurde umbenannt oder gelöscht.",
-      "Geben Sie der Rolle wieder den Namen `Extern`. Fehlt sie ganz, legen Sie unter `Rollen` eine Rolle `Extern` an. Wählen Sie bei `Systemrolle` `Betreuer`.",
     ],
     related: [
       HELP_TOPICS.leadInviteStaff,
@@ -5035,8 +5042,9 @@ function leadCarePlanTopic(): HelpTopic {
     notes: [
       "Ein Regeltermin wiederholt sich. Die Ansicht `Serien` zeigt alle Regeltermine.",
       "Aufgaben ohne Kinder, etwa Busaufsicht oder Essensausgabe, legen Sie mit dem `Typ` `Dienst` an. Ein Dienst hat keine Kinderliste und wird nicht gestartet. Der Raum ist freiwillig.",
-      // #4573: Externe in Regelterminen, auch allein und zuständig.
-      "Externe Personen wählen Sie im Schritt `Personal und Kinder` unter `Personal` wie alle anderen. Fehlt jemand, wählen Sie darunter `Externe Person eintragen`.",
+      // #4573, ADR 0083: Externe in Regelterminen, auch allein und zuständig.
+      "Externe Personen wählen Sie im Schritt `Personal und Kinder` unter `Personal` wie alle anderen, auch mit `Kein Zugang`. Fehlt jemand, wählen Sie darunter `Externe Person eintragen`.",
+      "Hat die externe Person `Kein Zugang`, startet eine OGS-Kraft den Termin. Mit `Eigene Termine betreuen` startet sie ihn selbst.",
       "Eine externe Person kann einen Termin allein betreuen. Sie kann auch die `Zuständige Person` sein.",
       "Über das Menü mit den drei Punkten geht `Drucken oder exportieren`.",
       "Betreut Ihre OGS am Wochenende? Dann zeigt die Wochenansicht auch Samstag und Sonntag. Dort gilt der Freitagsplan.",
@@ -5046,7 +5054,6 @@ function leadCarePlanTopic(): HelpTopic {
       "`Monat` und `Serien` stehen nicht in jeder Ansicht zur Wahl.",
     ],
     troubleshootingDetails: [
-      "Eine externe Person fehlt unter `Personal`? Dann hat sie kein Konto und keine offene Einladung. Laden Sie sie unter `Personal` mit `Konto einladen` ein.",
       "Die Woche sagt `Noch kein Planungszeitraum`? Wählen Sie `Planungszeitraum anlegen` oder tragen Sie zuerst `Schuljahr und Ferien` ein.",
       "Ein Regeltermin lässt sich nur ab heute beenden. Vergangene Termine löschen Sie einzeln.",
     ],
