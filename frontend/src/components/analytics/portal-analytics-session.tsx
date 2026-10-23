@@ -23,6 +23,7 @@ export function PortalAnalyticsSession({
   const { data: session, status } = useSession();
   const { scope, role } = PORTALS[surface];
   const inScope = session?.user?.scope === scope;
+  const accountId = session?.user?.id;
   // Parent tokens carry no school: a guardian can have children in several.
   const schoolId = session?.user?.tenantId?.toString() ?? null;
   const registeredRef = useRef<string | null>(null);
@@ -31,7 +32,7 @@ export function PortalAnalyticsSession({
     let cancelled = false;
     setAnalyticsContext({ surface, enabled: false });
     if (status === "authenticated" && inScope) {
-      // Resolve on each session/school change. A failed read leaves collection off.
+      // Resolve on each account/school change. A failed read leaves collection off.
       void fetch(
         `/api/${scope === "parent" ? "parent" : "school"}/analytics-policy`,
         { cache: "no-store" },
@@ -43,7 +44,8 @@ export function PortalAnalyticsSession({
         )
         .then((result) => {
           if (cancelled) return;
-          const key = schoolId ?? "";
+          // Account IDs stay local; a different account starts a fresh SDK session.
+          const key = JSON.stringify([accountId, schoolId]);
           registerPortalSession(
             {
               surface,
@@ -66,7 +68,7 @@ export function PortalAnalyticsSession({
       cancelled = true;
       setAnalyticsContext({ surface, enabled: false });
     };
-  }, [status, inScope, schoolId, surface, scope, role]);
+  }, [status, inScope, accountId, schoolId, surface, scope, role]);
 
   return null;
 }

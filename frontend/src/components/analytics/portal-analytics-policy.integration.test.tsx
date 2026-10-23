@@ -82,6 +82,63 @@ describe("embedded enrollment analytics policy", () => {
     vi.unstubAllGlobals();
   });
 
+  it.each([false, true, "failure"] as const)(
+    "revokes the previous account policy until the new account resolves (%s)",
+    async (enabled) => {
+      vi.stubGlobal("location", {
+        host: "parents.localhost:3000",
+        hostname: "parents.localhost",
+      });
+      mocks.useSession.mockReturnValue({
+        status: "authenticated",
+        data: { user: { id: "7", scope: "parent" } },
+      });
+      vi.mocked(fetch).mockResolvedValueOnce(
+        Response.json({ data: { enabled: true } }),
+      );
+      const { PortalAnalyticsSession } =
+        await import("./portal-analytics-session");
+      const { initializePostHog, capturePostHog } =
+        await import("~/lib/posthog-client");
+      const view = render(<PortalAnalyticsSession surface="parents" />);
+      await act(async () => {});
+      await initializePostHog();
+      capturePostHog("login_failed");
+      expect(mocks.capture).toHaveBeenCalledWith("login_failed", undefined);
+      mocks.capture.mockClear();
+
+      let resolvePolicy!: (response: Response) => void;
+      let rejectPolicy!: (error: Error) => void;
+      vi.mocked(fetch).mockImplementationOnce(
+        () =>
+          new Promise<Response>((resolve, reject) => {
+            resolvePolicy = resolve;
+            rejectPolicy = reject;
+          }),
+      );
+      mocks.useSession.mockReturnValue({
+        status: "authenticated",
+        data: { user: { id: "8", scope: "parent" } },
+      });
+      view.rerender(<PortalAnalyticsSession surface="parents" />);
+      expect(fetch).toHaveBeenCalledTimes(2);
+      capturePostHog("login_failed");
+      expect(mocks.capture).not.toHaveBeenCalled();
+
+      await act(async () => {
+        if (enabled === "failure")
+          rejectPolicy(new Error("Policy unavailable"));
+        else resolvePolicy(Response.json({ data: { enabled } }));
+      });
+      capturePostHog("login_failed");
+      if (enabled === true) {
+        expect(mocks.capture).toHaveBeenCalledWith("login_failed", undefined);
+      } else {
+        expect(mocks.capture).not.toHaveBeenCalled();
+      }
+    },
+  );
+
   it.each([
     { host: "parents.localhost:3000", surface: "parents", scope: "parent" },
     { host: "schule.localhost:3000", surface: "school", scope: "school" },

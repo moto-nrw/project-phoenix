@@ -124,6 +124,42 @@ describe("PortalAnalyticsSession", () => {
     );
   });
 
+  it.each([
+    { surface: "parents", scope: "parent", schoolId: null },
+    { surface: "school", scope: "school", schoolId: "42" },
+  ] as const)(
+    "resets the $surface session when only the account changes",
+    async ({ surface, scope, schoolId }) => {
+      const user = { id: "7", scope, tenantId: schoolId };
+      mocks.useSession.mockReturnValue({
+        status: "authenticated",
+        data: { user },
+      });
+      const view = render(<PortalAnalyticsSession surface={surface} />);
+      await waitFor(() =>
+        expect(mocks.registerPortalSession).toHaveBeenCalledOnce(),
+      );
+
+      mocks.useSession.mockReturnValue({
+        status: "authenticated",
+        data: { user: { ...user, id: "8" } },
+      });
+      view.rerender(<PortalAnalyticsSession surface={surface} />);
+
+      await waitFor(() =>
+        expect(mocks.registerPortalSession).toHaveBeenLastCalledWith(
+          {
+            surface,
+            schoolId,
+            role: surface === "parents" ? "guardian" : "lehrkraft",
+            enabled: true,
+          },
+          true,
+        ),
+      );
+    },
+  );
+
   it("registers nothing for a session of another portal", () => {
     mocks.useSession.mockReturnValue({
       status: "authenticated",
