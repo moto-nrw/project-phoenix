@@ -76,7 +76,7 @@ func NewCareLifecycle(deps CareLifecycleDependencies) (careplan.CareLifecycle, e
 		today = calendar.TodayDate
 	}
 	return application.NewCareLifecycle(application.CareLifecycleDependencies{
-		Owners: deps.Owners, Records: deps.Records,
+		Owners: deps.Owners, Records: deps.Records, SourceBookings: NewOfferingBookings(),
 		Directory:             postgres.NewDirectoryStore(postgres.New(postgres.CarePlanDatabase(deps.DB)), deps.StudentDirectory),
 		Unit:                  tenant.NewTransactionRunner().RunInTx,
 		LockCareBookingWrites: deps.LockCareBookingWrites,

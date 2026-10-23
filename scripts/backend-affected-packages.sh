@@ -52,8 +52,14 @@ changed_dirs=$(printf '%s\n' "$backend_changes" | awk '
     next
   }
   /^backend\/templates\/email\/.*\.html$/ { print "test templates/email"; next }
-  /^backend\/localization\/locales\.json$/ { print "production localization"; next }
-  /^backend\/services\/listexport\/assets\// { print "production services/listexport" }
+  /^backend\/test\/[^\/]+\.json$/ { print "test test"; next }
+  /^backend\/modules\/delivery\/internal\/adapters\/localization\/locales\.json$/ {
+    print "production modules/delivery/internal/adapters/localization"
+    next
+  }
+  /^backend\/modules\/documentrendering\/internal\/application\/listrenderer\/assets\// {
+    print "production modules/documentrendering/internal/application/listrenderer"
+  }
 ' | sort -u)
 
 if [ -z "$changed_dirs" ]; then

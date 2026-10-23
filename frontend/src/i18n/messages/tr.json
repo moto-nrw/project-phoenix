@@ -2573,6 +2573,7 @@
         "care_exit_preview_changed": "{object} değiştirilemedi. Güncel durumu kontrol edin.",
         "care_exit_too_many_students": "{object} kaydedilemedi. Girdiğiniz bilgileri kontrol edin.",
         "care_offerings_disabled": "{object} şu anda burada kullanılamıyor. Lütfen ilgili kişinize danışın.",
+        "care_resume_alumnus": "{object} değiştirilemedi. Güncel durumu kontrol edin.",
         "care_resume_missing": "{object} değiştirilemedi. Güncel durumu kontrol edin.",
         "care_resume_not_checked": "{object} kaydedilemedi. Girdiğiniz bilgileri kontrol edin.",
         "care_resume_not_ended": "{object} değiştirilemedi. Güncel durumu kontrol edin.",

@@ -2573,6 +2573,7 @@
         "care_exit_preview_changed": "Не вдалося змінити: {object}. Перевірте поточний стан.",
         "care_exit_too_many_students": "Не вдалося зберегти: {object}. Перевірте введені дані.",
         "care_offerings_disabled": "Зараз тут недоступно: {object}. Зверніться до контактної особи.",
+        "care_resume_alumnus": "Не вдалося змінити: {object}. Перевірте поточний стан.",
         "care_resume_missing": "Не вдалося змінити: {object}. Перевірте поточний стан.",
         "care_resume_not_checked": "Не вдалося зберегти: {object}. Перевірте введені дані.",
         "care_resume_not_ended": "Не вдалося змінити: {object}. Перевірте поточний стан.",
