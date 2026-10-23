@@ -233,7 +233,12 @@ func (rs *Resource) getActiveGroupVisitsWithDisplay(w http.ResponseWriter, r *ht
 	// The school-wide overview scope broadens the operational room scope.
 	// Per-student GDPR fields below still use DetermineStudentAccess and are
 	// never broadened by it.
-	if !rs.operationalOverview(r.Context()) {
+	overview, err := rs.operationalOverview(r.Context())
+	if err != nil {
+		common.RenderError(w, r, common.ErrorInternalServerWrap("failed to resolve operational overview", err))
+		return
+	}
+	if !overview {
 		staff, err := rs.extractStaffFromRequest(w, r)
 		if err != nil {
 			return

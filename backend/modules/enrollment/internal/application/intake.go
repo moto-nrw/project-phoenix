@@ -232,6 +232,9 @@ var (
 
 // NewIntake composes the intake. A nil logger falls back to slog.Default().
 func NewIntake(deps IntakeDependencies) *Intake {
+	if deps.Settings == nil {
+		panic("enrollment intake: settings are required")
+	}
 	if deps.Logger == nil {
 		deps.Logger = slog.Default()
 	}

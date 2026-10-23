@@ -5,6 +5,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"net"
 	"net/http"
 	"net/http/httptest"
@@ -318,3 +319,18 @@ func TestMFAVerify_IssueTokensUnknownErrorMapsTo500(t *testing.T) {
 
 // Ensure the embedded stub still satisfies identityaccess.AccountMFA.
 var _ identityaccess.AccountMFA = (*trustedDeviceMFAStub)(nil)
+
+func TestMFAVerify_RememberDeviceSettingsFailureRefusesLogin(t *testing.T) {
+	t.Parallel()
+	auth := &completeMFAExchangeStub{access: "private-access-token", refresh: "private-refresh-token"}
+	mfa := &trustedDeviceMFAStub{verifyResult: identityaccess.VerifiedMFAChallenge{AccountID: 1, TenantID: testpkg.Tenant(t)}, issueErr: fmt.Errorf("private settings details: %w", identityaccess.ErrMFAStatusUnavailable)}
+	rs := &Resource{ConstraintViolation: transactionFailures.IsConstraintViolation, Sessions: auth, MFAService: mfa}
+	rr := httptest.NewRecorder()
+	rs.mfaVerify(rr, verifyRequest(t, MFAVerifyRequest{ChallengeToken: "challenge.tok", Code: "123456", RememberDevice: true}))
+	require.Equal(t, http.StatusServiceUnavailable, rr.Code, rr.Body.String())
+	assert.Contains(t, rr.Body.String(), `"code":"general.unavailable"`)
+	assert.NotContains(t, rr.Body.String(), "private settings details")
+	assert.NotContains(t, rr.Body.String(), "private-access-token")
+	assert.NotContains(t, rr.Body.String(), "private-refresh-token")
+	assert.Empty(t, rr.Result().Cookies())
+}

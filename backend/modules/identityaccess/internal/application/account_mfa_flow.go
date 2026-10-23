@@ -315,7 +315,9 @@ func (f *AccountMFAFlows) verifyChallengeBound(ctx context.Context, challengeTok
 
 	ok, verifyErr := f.codes.VerifyShortCode(code, active.CodeHash)
 	if verifyErr != nil || !ok {
-		f.handleFailedAttempt(ctx, account, claims.TenantID)
+		if err := f.handleFailedAttempt(ctx, account, claims.TenantID); err != nil {
+			return domain.VerifiedMFAChallenge{}, err
+		}
 		f.recordFailure(ctx, claims.AccountID, claims.TenantID, "code mismatch")
 		return domain.VerifiedMFAChallenge{}, identityaccess.ErrMFACodeInvalid
 	}
@@ -344,9 +346,8 @@ func (f *AccountMFAFlows) VerifyCodeForAccount(ctx context.Context, accountID, t
 	if domain.MFALocked(account.MFALockedUntil, f.now()) {
 		return identityaccess.ErrMFALocked
 	}
-	// The callers run inside a school context, so the zero school below lets
-	// the audit and the lockout fall back to the context. The tenantID
-	// argument narrows the challenge lookup, which is a different job.
+	// The challenge and lockout policy use the explicit school. Audit events
+	// below use the authenticated school context.
 	active, activeFound, err := f.records.FindActiveChallengeInScope(ctx, accountID, tenantID, expectedScope)
 	if err != nil || !activeFound {
 		f.recordFailure(ctx, accountID, 0, "no active challenge")
@@ -354,7 +355,9 @@ func (f *AccountMFAFlows) VerifyCodeForAccount(ctx context.Context, accountID, t
 	}
 	ok, verifyErr := f.codes.VerifyShortCode(code, active.CodeHash)
 	if verifyErr != nil || !ok {
-		f.handleFailedAttempt(ctx, account, 0)
+		if err := f.handleFailedAttempt(ctx, account, tenantID); err != nil {
+			return err
+		}
 		f.recordFailure(ctx, accountID, 0, "code mismatch")
 		return identityaccess.ErrMFACodeInvalid
 	}
@@ -409,14 +412,21 @@ func (f *AccountMFAFlows) resend(ctx context.Context, claims domain.MFAChallenge
 // cooldown exactly when this increment crossed the threshold. A read-modify-
 // write would let two concurrent failed verifies collapse into one counted
 // attempt and double an attacker's budget.
-func (f *AccountMFAFlows) handleFailedAttempt(ctx context.Context, account domain.AccountIdentity, tenantID int64) {
-	threshold := f.lockoutThreshold(ctx, tenantID)
-	result, err := f.records.IncrementMFAAttempts(ctx, account.ID, threshold, f.lockoutDuration(ctx, tenantID))
+func (f *AccountMFAFlows) handleFailedAttempt(ctx context.Context, account domain.AccountIdentity, tenantID int64) error {
+	threshold, err := f.settings.LockoutThreshold(ctx, tenantID)
+	if err != nil || threshold <= 0 {
+		return f.securitySettingsFailure("account lockout threshold", err)
+	}
+	duration, err := f.settings.LockoutDuration(ctx, tenantID)
+	if err != nil || duration <= 0 {
+		return f.securitySettingsFailure("account lockout duration", err)
+	}
+	result, err := f.records.IncrementMFAAttempts(ctx, account.ID, threshold, duration)
 	if err != nil {
 		f.logger.Warn("failed to persist MFA attempt counter",
 			slog.String("error", err.Error()),
 		)
-		return
+		return identityaccess.ErrMFAStatusUnavailable
 	}
 	// result.Attempts == threshold means this increment was the N-th, and
 	// only this caller sees it. Later attempts push the window forward
@@ -427,22 +437,17 @@ func (f *AccountMFAFlows) handleFailedAttempt(ctx context.Context, account domai
 			IPAddress: domain.MFAAuditFallbackIP, MFA: &domain.MFAEvidence{LockedUntil: result.LockedUntil},
 		})
 	}
+	return nil
 }
 
-func (f *AccountMFAFlows) lockoutThreshold(ctx context.Context, tenantID int64) int {
-	value, err := f.settings.LockoutThreshold(ctx, tenantID)
-	if err != nil || value <= 0 {
-		return domain.MFALockoutThreshold
-	}
-	return value
-}
-
-func (f *AccountMFAFlows) lockoutDuration(ctx context.Context, tenantID int64) time.Duration {
-	value, err := f.settings.LockoutDuration(ctx, tenantID)
-	if err != nil || value <= 0 {
-		return domain.MFALockoutDuration
-	}
-	return value
+// securitySettingsFailure keeps diagnostics in logs and the established MFA
+// unavailable identity on the wire.
+func (f *AccountMFAFlows) securitySettingsFailure(setting string, err error) error {
+	f.logger.Error("MFA security setting unavailable",
+		slog.String("setting", setting),
+		slog.Any("error", err),
+	)
+	return identityaccess.ErrMFAStatusUnavailable
 }
 
 // ===== Enrollment =====
@@ -507,14 +512,22 @@ func (f *AccountMFAFlows) IsTrustedDeviceEnabled(ctx context.Context, tenantID i
 	return enabled
 }
 
-// TrustedDeviceDays resolves the school's remember-device lifetime, falling
-// back to the default so the cookie still issues with a sane one.
+// TrustedDeviceDays is a display hint. An unreadable lifetime disables the
+// hint; issuance resolves the value with an error before minting anything.
 func (f *AccountMFAFlows) TrustedDeviceDays(ctx context.Context, tenantID int64) int {
-	days, err := f.settings.TrustedDeviceDays(ctx, tenantID)
-	if err != nil || days <= 0 {
-		return domain.MFATrustedDeviceCookieDefaultDays
+	days, err := f.resolveTrustedDeviceDays(ctx, tenantID)
+	if err != nil {
+		return 0
 	}
 	return days
+}
+
+func (f *AccountMFAFlows) resolveTrustedDeviceDays(ctx context.Context, tenantID int64) (int, error) {
+	days, err := f.settings.TrustedDeviceDays(ctx, tenantID)
+	if err != nil || days <= 0 {
+		return 0, f.securitySettingsFailure("trusted device lifetime", err)
+	}
+	return days, nil
 }
 
 // IssueTrustedDevice mints a remember-device cookie for one school. It
@@ -524,7 +537,10 @@ func (f *AccountMFAFlows) IssueTrustedDevice(ctx context.Context, accountID, ten
 	if !f.IsTrustedDeviceEnabled(ctx, tenantID) {
 		return "", time.Time{}, nil
 	}
-	days := f.TrustedDeviceDays(ctx, tenantID)
+	days, err := f.resolveTrustedDeviceDays(ctx, tenantID)
+	if err != nil {
+		return "", time.Time{}, err
+	}
 	expiresAt := f.now().Add(time.Duration(days) * 24 * time.Hour)
 	rawToken, err := domain.GenerateTrustedDeviceToken()
 	if err != nil {
@@ -600,7 +616,8 @@ func (f *AccountMFAFlows) trustedDeviceHint(ctx context.Context, tenantID int64)
 	if !f.IsTrustedDeviceEnabled(ctx, tenantID) {
 		return false, 0
 	}
-	return true, f.TrustedDeviceDays(ctx, tenantID)
+	days := f.TrustedDeviceDays(ctx, tenantID)
+	return days > 0, days
 }
 
 func (f *AccountMFAFlows) notifyTrustedDeviceAdded(ctx context.Context, accountID, deviceID int64, userAgent string, ip net.IP, days int) error {

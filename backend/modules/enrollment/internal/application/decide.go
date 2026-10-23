@@ -330,25 +330,16 @@ func checkApprovalDayRules(phaseID int64, links []*enrollmentNative.RequestChild
 }
 
 // waitlistEnabled, autoInviteGuardianOnApprove and careOfferingsEnabled
-// answer the registry default (on) when no settings are bound.
+// resolve tenant overrides or registry defaults through the required port.
 func (d *Decisions) waitlistEnabled(ctx context.Context) (bool, error) {
-	if d.deps.Settings == nil {
-		return true, nil
-	}
 	return d.deps.Settings.WaitlistEnabled(ctx)
 }
 
 func (d *Decisions) autoInviteGuardianOnApprove(ctx context.Context) (bool, error) {
-	if d.deps.Settings == nil {
-		return true, nil
-	}
 	return d.deps.Settings.AutoInviteGuardianOnApprove(ctx)
 }
 
 func (d *Decisions) careOfferingsEnabled(ctx context.Context) (bool, error) {
-	if d.deps.Settings == nil {
-		return true, nil
-	}
 	return d.deps.Settings.CareOfferingsEnabled(ctx)
 }
 
@@ -362,9 +353,6 @@ func (d *Decisions) careOfferingsEnabled(ctx context.Context) (bool, error) {
 // or momentarily-unreadable setting must never block a school from
 // approving a child.
 func (d *Decisions) resolveActivationMode(ctx context.Context) string {
-	if d.deps.Settings == nil {
-		return activationModeScheduled
-	}
 	mode, err := d.deps.Settings.DefaultActivationMode(ctx)
 	if err != nil {
 		d.logger().Warn("decision: resolve activation mode failed, defaulting to scheduled",

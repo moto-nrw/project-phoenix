@@ -169,7 +169,7 @@ type decisionTestEnv struct {
 }
 
 func setupDecisionTest(t *testing.T) *decisionTestEnv {
-	// nil Settings exercises the safe default (scheduled).
+	// The harness supplies explicit registry-default decision settings.
 	return setupDecisionTestWithSettings(t, nil)
 }
 
@@ -344,6 +344,9 @@ func composeDecisions(
 	lockTemplateRecurrence func(context.Context) error,
 	careWithdrawal enrollmentTest.CareWithdrawalReconciler,
 ) *enrollmentTest.Decisions {
+	if settings == nil {
+		settings = explicitDecisionSettings{}
+	}
 	if careWithdrawal == nil {
 		careWithdrawal = newTestCareLifecycle(db, api.CareLifecycleTestConfig{
 			BookingsAuthoritative: testBookingsAuthority(settings),
@@ -678,3 +681,11 @@ func runInTenantTx(t *testing.T, db *bun.DB, tenantID int64, fn func(ctx context
 		return fn(ctx)
 	})
 }
+
+// explicitDecisionSettings preserves the decision fixture's former nil defaults,
+// while production constructors now require a settings port.
+type explicitDecisionSettings struct {
+	registryDefaultDecisionSettings
+}
+
+func (explicitDecisionSettings) ResolveBool(context.Context, string) (bool, error) { return true, nil }

@@ -330,7 +330,12 @@ func (rs *Resource) completeMFAExchange(w http.ResponseWriter, r *http.Request, 
 
 	if rememberDevice {
 		if err := rs.issueTrustedDeviceCookie(w, r, accountID, tenantID); err != nil {
-			// Don't fail the whole login — log and proceed.
+			if errors.Is(err, identityaccess.ErrMFAStatusUnavailable) {
+				mapMFAError(w, r, identityaccess.ErrMFAStatusUnavailable)
+				return
+			}
+			// A storage failure issues no trusted device; the verified login
+			// remains usable. Security-policy read failures above refuse it.
 			slog.Default().Warn("failed to issue trusted-device cookie",
 				slog.Int64("account_id", accountID),
 				slog.String("error", err.Error()),
