@@ -43,8 +43,9 @@ large-domain cuts belong to [#4547](https://github.com/moto-nrw/project-phoenix/
    fixtures, so it is a separate implementation proposal, not part of this
    measurement PR. It does not block #4547.
 4. **Developer cost: keep the explicit read seam.** PR #4617 changed 29 files,
-   23 in the backend, of which 15 are production Go files. Two read owners,
-   the root and test support were touched. This is a concrete maintenance
+   23 in the backend, of which 15 are production Go files. The read change
+   touched one domain (People Directory), one projection (Request Review View),
+   the root and test support. This is a concrete maintenance
    cost, not a measured duration or evidence that every feature has this cost.
    Do not consolidate owners or add a gate from one sample. Reuse the
    file/owner accounting below when #4547 compares proposed cuts; review the
@@ -261,7 +262,7 @@ policy **at that merge** to classify exact package directories.
 
 | Surface | Files | Added / deleted lines |
 |---|---:|---:|
-| People Directory | 8 | 39 / 18 |
+| People Directory (`people-directory`, domain) | 8 | 39 / 18 |
 | Request Review View (`request-review-view`, projection) | 7 | 236 / 4 |
 | Root Composition | 7 | 94 / 5 |
 | Test Support | 1 | 3 / 1 |
@@ -270,15 +271,16 @@ policy **at that merge** to classify exact package directories.
 
 Backend: 23 files = 15 production + six `_test.go` + two fixture/helper files
 (`api/student_owner_http_test_helpers.go`, `test/request_review_fixture.go`).
-The 15 production files occupy two read owners and the root, not four business
-modules. Four existing queue bindings propagate `SubmittedBy`; the new
+The 15 production files occupy one domain (People Directory), one projection
+(Request Review View) and the root, not four business modules. Four existing
+queue bindings propagate `SubmittedBy`; the new
 `roots/requestreviewbinding/submitters.go` contributes 83 lines, and the
 consumer port/values in `modules/requestreview/ports.go` add 24. No policy,
 projection grant, owner registration or migration changed.
 
 This is also why "root LOC" is not automatically ceremony: the new binding
 resolves profiles and relationships and chooses the lowest profile ID when
-stale duplicates exist (`profilesByAccount`, lines 73-82). That selection rule
+stale duplicates exist (`profilesByAccount`, lines 72-83). That selection rule
 is a candidate for a separate owner-placement review under ADR 0068 point 4;
 replacing the file with a generic mapper would preserve the misplaced decision.
 No runtime failure is inferred from the file count. The PR's tenant, relationship
