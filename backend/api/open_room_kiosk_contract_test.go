@@ -91,6 +91,15 @@ func checkOpenRoomKioskBooking(t *testing.T, api *goldenRuntime) {
 	assert.Equal(t, http.StatusUnauthorized, wrongPIN.Code, wrongPIN.Body.String())
 	anonymous := postOpenRoomKiosk(t, api, "", "/api/iot/move-to-room", map[string]any{"student_rfid": tag, "room_id": gym.ID}, "1234")
 	assert.Equal(t, http.StatusUnauthorized, anonymous.Code, anonymous.Body.String())
+	assert.Equal(t, []int64{roomSession}, openVisitSessions(t, db, studentID), "failed authentication leaves the stay unchanged")
+
+	// KioskActor is school-wide, not cross-school: a valid device in another
+	// school cannot resolve this child's scanned card, even with the right PIN.
+	foreignKey := *testpkg.CreateTestDeviceForTenant(t, db, foreignTenant, "foreign-open-room-kiosk").APIKey
+	foreignCard := postOpenRoomKiosk(t, api, foreignKey, "/api/iot/move-to-room", map[string]any{"student_rfid": tag, "room_id": foreignGym.ID}, "1234")
+	assert.Equal(t, http.StatusNotFound, foreignCard.Code, foreignCard.Body.String())
+	assert.Contains(t, foreignCard.Body.String(), `"code":"iot.rfid_tag_not_found"`)
+	assert.Equal(t, []int64{roomSession}, openVisitSessions(t, db, studentID), "foreign device cannot move the child")
 }
 
 // postOpenRoomKiosk sends one kiosk request to handler, authenticated with
