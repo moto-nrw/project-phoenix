@@ -5536,8 +5536,8 @@ function settingsGuideTopic(): HelpTopic {
           "`Betreuungsplan nutzen`: Zeigt den Betreuungsplan im Menü.",
           "`Benachrichtigungen senden`: Hinweise in moto und auf dem Handy. Was ankommt, wählt jede Person selbst.",
           "`Team-Chat für Mitarbeitende`: Das Team schreibt sich Nachrichten. Eltern sehen davon nichts.",
-          "`Kinderfotos`: Fotos bei den Kindern. Nur mit Einwilligung der Eltern.",
-          "`Automatisch ausstempeln`: Wer das Ausstempeln vergisst, wird zum Dienstende ausgestempelt.",
+          "`Kinderfotos`: Fotos bei den Kindern. Nur mit Einwilligung der Eltern. Beim Ausschalten löscht moto alle Fotos sofort. Sie können sie nicht wiederherstellen.",
+          "`Automatisch ausstempeln`: moto wartet nach Dienstende die eingestellte Zeit. Dann stempelt es aus. Das gilt nur bei einem geplanten Dienst.",
         ],
       },
       {
@@ -5553,12 +5553,12 @@ function settingsGuideTopic(): HelpTopic {
       },
       {
         title: "Erinnerungen",
-        description: "Hinweise für das Team rund um Abholung und Termine.",
+        description: "Hinweise rund um Abholung und Termine.",
         ordered: false,
         steps: [
           "`Anstehende Abholung`: Erinnert, wenn die Abholzeit eines Kindes näher rückt.",
           "`Überfällige Abholung`: Erinnert, wenn ein Kind nach seiner Abholzeit noch da ist.",
-          "`Terminerinnerung für Eltern`: Eltern bekommen kurz vor einem Termin eine E-Mail.",
+          "`Terminerinnerung für Eltern`: Eltern bekommen vor einem Termin eine E-Mail. Das gilt nur, wenn Sie beim Anlegen `Eltern per E-Mail benachrichtigen` wählen.",
         ],
       },
       {
@@ -5597,7 +5597,7 @@ function settingsGuideTopic(): HelpTopic {
         ordered: false,
         steps: [
           "`Kalenderzugang mit App-Passwort erlauben`: Das Team sieht seine Termine in einem Kalenderprogramm.",
-          "`Zeitkonten per SFTP übertragen`: moto überträgt die Zeitkonten direkt an Ihre Lohnabrechnung.",
+          "`Zeitkonten per SFTP übertragen`: Nach der vollständigen Einrichtung können Sie die Zeitkonten im Export-Dialog selbst übertragen.",
         ],
       },
       {
