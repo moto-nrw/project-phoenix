@@ -10,6 +10,7 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/api"
 	"github.com/moto-nrw/project-phoenix/modules/communication"
+	composition "github.com/moto-nrw/project-phoenix/modules/communication/composition"
 	messaging "github.com/moto-nrw/project-phoenix/modules/communication/internal/parentmessages"
 	parentStore "github.com/moto-nrw/project-phoenix/modules/communication/parentstore"
 	deliveryPolicy "github.com/moto-nrw/project-phoenix/modules/delivery/devices"
@@ -275,4 +276,43 @@ func TestGroupThreadListsQueryBudgetStaysFlat(t *testing.T) {
 	require.NoError(t, err)
 	require.Len(t, guardianRows, 3)
 	testpkg.AssertQueryBudget(t, "modules.communication.parent_group_threads.list_for_guardian", guardianCounter.Queries())
+}
+
+type groupRetentionDays int
+
+func (d groupRetentionDays) ParentMessageRetentionDays(context.Context) (int, error) {
+	return int(d), nil
+}
+
+// TestGroupThread_RetentionDeletesExpiredGroupMessages: the nightly parent
+// message retention removes group messages past the window, their recipient
+// rows, and the thread left empty.
+func TestGroupThread_RetentionDeletesExpiredGroupMessages(t *testing.T) {
+	t.Parallel()
+	f, run := newGroupFixture(t)
+	db := testpkg.SetupTestDB(t)
+	createClassThread(t, f, run, "Alt")
+
+	_, err := db.ExecContext(testpkg.Ctx(t), `
+		UPDATE users.parent_group_messages SET created_at = NOW() - INTERVAL '400 days' WHERE tenant_id = ?;
+		UPDATE users.parent_group_threads SET created_at = NOW() - INTERVAL '400 days' WHERE tenant_id = ?;`,
+		testpkg.Tenant(t), testpkg.Tenant(t))
+	require.NoError(t, err)
+
+	cleanup := composition.NewParentMessageRetention(db, groupRetentionDays(365))
+	require.NoError(t, run(testpkg.Ctx(t), func(ctx context.Context) error {
+		result, err := cleanup.CleanupExpiredParentMessages(ctx)
+		require.NoError(t, err)
+		assert.Equal(t, 1, result.MessagesDeleted)
+		assert.Equal(t, 1, result.ThreadsDeleted)
+		return nil
+	}))
+
+	var remaining int
+	require.NoError(t, db.NewRaw(`SELECT
+		(SELECT COUNT(*) FROM users.parent_group_threads WHERE tenant_id = ?) +
+		(SELECT COUNT(*) FROM users.parent_group_messages WHERE tenant_id = ?) +
+		(SELECT COUNT(*) FROM users.parent_group_message_recipients WHERE tenant_id = ?)`,
+		testpkg.Tenant(t), testpkg.Tenant(t), testpkg.Tenant(t)).Scan(testpkg.Ctx(t), &remaining))
+	assert.Zero(t, remaining)
 }
