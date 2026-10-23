@@ -5377,6 +5377,7 @@ function statisticsTopic(): HelpTopic {
     ],
     differences: [
       "`Räume` zeigt nur mit eingeschaltetem `Anwesenheitsprotokoll` Zahlen.",
+      "Ohne `Anwesenheitsprotokoll` fehlt dort auch das Menü zum Exportieren.",
       "Ist die Raumhistorie ausgeschaltet? Ihre Administration kann das `Anwesenheitsprotokoll` einschalten. Die Einstellung steht unter `Einstellungen` und `Datenschutz`.",
       "`Kurse` zeigt nur dann Zahlen, wenn Ihre OGS damit arbeitet.",
     ],

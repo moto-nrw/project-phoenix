@@ -741,7 +741,12 @@ export default function StatisticsPage() {
   // Kursbereich zusätzlich den Wechsel zwischen Kurs- und Kind-Sicht. Das ist
   // eine Wertauswahl, kein Reiter, deshalb SegmentedControl.
   let sectionActions: ReactNode;
-  if (view === "rooms" && !roomDataAllBeforeWindow) {
+  if (
+    view === "rooms" &&
+    data &&
+    !data.room_history_disabled &&
+    !roomDataAllBeforeWindow
+  ) {
     sectionActions = (
       <OverflowMenu
         items={exportMenuItems("rooms")}

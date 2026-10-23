@@ -308,6 +308,9 @@ describe("Statistik — ausgeschaltete Raumhistorie (#3844)", () => {
       expect(
         screen.queryByRole("button", { name: "Einschalten" }),
       ).not.toBeInTheDocument();
+      expect(
+        screen.queryByRole("button", { name: "Raumtabelle exportieren" }),
+      ).not.toBeInTheDocument();
     },
   );
 
@@ -315,6 +318,9 @@ describe("Statistik — ausgeschaltete Raumhistorie (#3844)", () => {
     mockFetchReport.mockResolvedValue(report());
     render(<StatisticsPage />);
     fireEvent.click(await screen.findByRole("tab", { name: "Räume" }));
+    expect(
+      await screen.findByRole("button", { name: "Raumtabelle exportieren" }),
+    ).toBeVisible();
     // Anker: Der geladene Raumbereich zeigt den echten leeren Zustand.
     expect(
       await screen.findByText("Es sind keine Räume angelegt."),

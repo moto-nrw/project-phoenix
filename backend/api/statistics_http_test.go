@@ -6,12 +6,16 @@
 package api
 
 import (
+	"archive/zip"
+	"bytes"
 	"context"
 	"encoding/json"
+	"io"
 	"log/slog"
 	"net/http"
 	"net/http/httptest"
 	"strconv"
+	"strings"
 	"testing"
 	"time"
 
@@ -903,6 +907,38 @@ func TestStatisticsReport_ExplainsDisabledRoomHistory(t *testing.T) {
 			require.NotEmpty(t, payload.Data.Rooms)
 		} else {
 			assert.Empty(t, payload.Data.Rooms)
+		}
+	}
+}
+
+func TestStatisticsExport_ExplainsDisabledRoomHistory(t *testing.T) {
+	t.Parallel()
+	tc := setupStatisticsRoute(t)
+	_, account := testpkg.CreateTestStaffWithAccountForTenant(t, tc.db, testpkg.Tenant(t), "Raum", "Export")
+	for _, enabled := range []bool{false, true} {
+		if enabled {
+			enableStatisticsRoomHistory(t, tc.db)
+		}
+		req := httptest.NewRequest(http.MethodGet, "/export?section=rooms&format=xlsx&from="+weekFrom.String()+"&to="+weekTo.String(), nil)
+		rec := authExec(t, tc, req, claimsFor(t, account.ID), reportPermissions)
+		require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
+		workbook, err := zip.NewReader(bytes.NewReader(rec.Body.Bytes()), int64(rec.Body.Len()))
+		require.NoError(t, err)
+		var content bytes.Buffer
+		for _, file := range workbook.File {
+			r, err := file.Open()
+			require.NoError(t, err)
+			_, err = io.Copy(&content, r)
+			require.NoError(t, err)
+			require.NoError(t, r.Close())
+		}
+		if enabled {
+			assert.True(t, strings.Contains(content.String(), "Raumdaten können höchstens"), "enabled history must explain retention")
+			assert.False(t, strings.Contains(content.String(), "Raumhistorie ist ausgeschaltet."))
+		} else {
+			assert.True(t, strings.Contains(content.String(), "Raumhistorie ist ausgeschaltet."), "disabled history must explain why room data is unavailable")
+			assert.True(t, strings.Contains(content.String(), "Raumstatistiken brauchen das eingeschaltete Anwesenheitsprotokoll."), "export must name the prerequisite")
+			assert.False(t, strings.Contains(content.String(), "Raumdaten können höchstens"), "disabled history must not advertise a retention window")
 		}
 	}
 }
