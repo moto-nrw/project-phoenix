@@ -208,6 +208,10 @@ re-read the request. Terminal/version checks repeat under the request lock;
 authorization, catalog validation, tenant scope and mutations retain their
 existing contracts. No transition gate, owner, policy rule or root decision is
 added. Existing account-before-roster constraints are unchanged.
+#4639 also deliberately corrected two missing-request responses from HTTP 500
+to HTTP 404 (`general.input`): offering-change preview and offering-conflict
+resolution with a missing offering request ID. This was an error-contract
+correction, not a claim that every response stayed unchanged.
 
 `modules/careplan/contracttest/offering_lock_order_test.go` records real
 `40P01` failures before the fixes: admin correction versus grade Apply, and

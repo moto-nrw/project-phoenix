@@ -229,7 +229,11 @@ succeed, not merely avoid `40P01`. Request terminal state and expected version
 are checked again under `FOR UPDATE`; missing, terminal and stale requests may
 be rejected before the gates. The preliminary read supplies the immutable student
 ID, not authority to mutate. Authorization and the mutation still use locked state.
-Tenant transactions, errors, responses and preview fingerprints are unchanged.
+Tenant transactions and preview fingerprints are unchanged. #4639 deliberately
+changed two responses from HTTP 500 to HTTP 404 with the existing `general.input`
+code: previewing a missing offering-change request and resolving an offering
+conflict with a missing offering request ID. Other error/status contracts stay
+unchanged.
 The existing consumer-owned gates suffice; no new root logic or policy rule.
 
 Round-2 error-path regression: the unlocked `Rows.Find` must return
