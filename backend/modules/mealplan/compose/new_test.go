@@ -1264,3 +1264,68 @@ func TestSchoolParticipationSelectsTheScheduleAtTheRequestedDate(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, []mealplan.Weekday{1}, parent.Weekdays, "parents still edit the pattern for the next unfixed period")
 }
+
+func TestParentScheduleChangesPreserveFrozenWeeks(t *testing.T) {
+	t.Parallel()
+	for _, relaxRules := range []bool{false, true} {
+		t.Run(fmt.Sprintf("relaxed_rules=%t", relaxRules), func(t *testing.T) {
+			t.Parallel()
+			db := testpkg.SetupTestDB(t)
+			ctx := testpkg.OwnCtx(t)
+			student := testpkg.CreateTestStudent(t, db, "Mia", "Woche", "2a")
+			account := testpkg.CreateTestAccount(t, db, "meal-parent-frozen-week")
+			rules := singleDeadlineSettings("09:00")
+			rules.OrderRhythm = "weekly"
+			early := buildModuleWithRules(t, db, rules, time.Date(2026, 9, 7, 8, 0, 0, 0, testBerlin))
+			command := mealplan.ReplaceParticipationSchedule{StudentID: student.ID, GuardianAccountID: account.ID, Weekdays: []mealplan.Weekday{mealplan.Tuesday}}
+			_, err := early.ReplaceParticipationSchedule(ctx, command)
+			require.NoError(t, err)
+			now := time.Date(2026, 9, 7, 10, 0, 0, 0, testBerlin)
+			module := buildModuleWithRules(t, db, rules, now)
+			_, err = module.Orders(ctx, "2026-09-07", "2026-09-11")
+			require.NoError(t, err)
+			if relaxRules {
+				rules.OrderRhythm, rules.RegistrationTime = "daily", "12:00"
+				module = buildModuleWithRules(t, db, rules, now)
+			}
+			command.Weekdays = []mealplan.Weekday{mealplan.Wednesday}
+			from, err := module.ReplaceParticipationSchedule(ctx, command)
+			require.NoError(t, err)
+			assert.Equal(t, mealplan.Date("2026-09-14"), from)
+			week, err := module.Orders(ctx, "2026-09-07", "2026-09-11")
+			require.NoError(t, err)
+			for _, day := range week.Days {
+				assert.Empty(t, day.Changes, day.Date)
+			}
+			plan, err := module.Participation(ctx, student.ID, "2026-09-14", "2026-09-18")
+			require.NoError(t, err)
+			assert.Equal(t, command.Weekdays, plan.Weekdays)
+		})
+	}
+}
+
+func TestParentScheduleSkipsAnIsolatedFutureFrozenWeek(t *testing.T) {
+	t.Parallel()
+	db := testpkg.SetupTestDB(t)
+	ctx := testpkg.Ctx(t)
+	student := testpkg.CreateTestStudent(t, db, "Mia", "Voraus", "2a")
+	account := testpkg.CreateTestAccount(t, db, "meal-parent-future-week")
+	now := time.Date(2026, 9, 11, 10, 0, 0, 0, testBerlin)
+	rules := singleDeadlineSettings("09:00")
+	rules.OrderRhythm, rules.RegistrationLeadDays = "weekly", 7
+	module := buildModuleWithRules(t, db, rules, now)
+	_, err := module.Orders(ctx, "2026-09-14", "2026-09-18")
+	require.NoError(t, err)
+	// Only next week's order exists. Reopening today's deadline must not
+	// allow a new pattern to reach that future order through the gap.
+	rules.OrderRhythm, rules.RegistrationLeadDays, rules.RegistrationTime = "daily", 0, "12:00"
+	module = buildModuleWithRules(t, db, rules, now)
+	from, err := module.ReplaceParticipationSchedule(ctx, mealplan.ReplaceParticipationSchedule{StudentID: student.ID, GuardianAccountID: account.ID, Weekdays: []mealplan.Weekday{mealplan.Tuesday}})
+	require.NoError(t, err)
+	assert.Equal(t, mealplan.Date("2026-09-21"), from)
+	week, err := module.Orders(ctx, "2026-09-14", "2026-09-18")
+	require.NoError(t, err)
+	for _, day := range week.Days {
+		assert.Empty(t, day.Changes, day.Date)
+	}
+}

@@ -66,9 +66,17 @@ func (s *Service) participationPlan(ctx context.Context, studentID int64, from, 
 		if rulesErr != nil {
 			return domain.OperationStats{}, rulesErr
 		}
+		var scheduleStats domain.OperationStats
+		if scheduleDate == "" {
+			var dateErr error
+			scheduleDate, scheduleStats, dateErr = s.parentScheduleDate(txCtx, rules)
+			if dateErr != nil {
+				return scheduleStats, dateErr
+			}
+		}
 		var stats domain.OperationStats
 		plan, stats, err = s.readParticipation(txCtx, studentID, from, to, rules, scheduleDate)
-		return stats, err
+		return addStats(scheduleStats, stats), err
 	})
 	return plan, err
 }
@@ -115,7 +123,12 @@ func (s *Service) scheduleStart(ctx context.Context, rules domain.OrderingRules,
 	case schoolFrom == "" && !rules.ParentCanChangeSchedule(now):
 		return "", domain.OperationStats{}, ErrCutoffPassed
 	case schoolFrom == "":
-		return rules.NextEffectiveDate(now), domain.OperationStats{}, nil
+		stats, err := s.store.LockOrders(ctx)
+		if err != nil {
+			return "", stats, err
+		}
+		date, findStats, err := s.parentScheduleDate(ctx, rules)
+		return date, addStats(stats, findStats), err
 	case schoolFrom.Before(today):
 		return "", domain.OperationStats{}, ErrPastDay
 	case schoolFrom.After(today.AddDays(maxScheduleLeadDays)):
