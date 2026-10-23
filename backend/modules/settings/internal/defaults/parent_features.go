@@ -228,8 +228,8 @@ var parentFeaturesDefinitions = []config.Definition{
 	},
 	{
 		Key:             config.KeyMealRegistrationCutoffWeekday,
-		Label:           "Fester Wochentag für die Folgewoche",
-		Description:     "Für Küchen, die für eine ganze Woche bestellen. An diesem Tag endet um die Uhrzeit oben die Frist für die ganze nächste Woche.",
+		Label:           "Wochenfrist für das Mittagessen",
+		Description:     "Für Küchen, die für eine ganze Woche bestellen. An diesem Tag der Vorwoche endet um die Uhrzeit der Änderungsfrist die Frist für die ganze Woche.",
 		Type:            config.FieldSelect,
 		Default:         0,
 		ReadPermission:  "config:read",
@@ -265,7 +265,7 @@ var parentFeaturesDefinitions = []config.Definition{
 	},
 	{
 		Key:             config.KeyMealCancellationCutoffSeparate,
-		Label:           "Abmelden länger erlauben",
+		Label:           "Späteres Abmelden vom Mittagessen",
 		Description:     "Eltern können ihr Kind länger abmelden als anmelden. Zum Beispiel: anmelden bis Mittwoch für die Folgewoche, abmelden bis 9 Uhr am Vortag.",
 		Type:            config.FieldBoolean,
 		Default:         false,
@@ -291,7 +291,7 @@ var parentFeaturesDefinitions = []config.Definition{
 	},
 	{
 		Key:             config.KeyMealCancellationCutoffLeadDays,
-		Label:           "Vorlauf für das Abmelden (Werktage)",
+		Label:           "Vorlauf für das Abmelden vom Mittagessen (Werktage)",
 		Description:     "So viele Werktage vor dem Essenstag endet die Abmeldefrist. 0 heißt: am Essenstag selbst. Wochenende, Feiertage und Schließtage zählen nicht mit.",
 		Type:            config.FieldNumber,
 		Default:         0,
