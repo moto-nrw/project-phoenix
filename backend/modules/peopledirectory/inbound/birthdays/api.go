@@ -11,6 +11,7 @@
 package birthdays
 
 import (
+	"context"
 	"encoding/json"
 	"errors"
 	"log/slog"
@@ -26,9 +27,16 @@ import (
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 )
 
+// Service is the HTTP entry surface. The root binds display reads to People
+// Directory and the opt-out command to the staff lifecycle workflow.
+type Service interface {
+	peopledirectory.Birthdays
+	SetOptOut(context.Context, int64, bool) error
+}
+
 // Resource is the birthdays API resource.
 type Resource struct {
-	BirthdayService    peopledirectory.Birthdays
+	BirthdayService    Service
 	ListExportService  lists.Renderer
 	UserContextService common.StudentAccessSource
 	logger             *slog.Logger
@@ -38,7 +46,7 @@ type Resource struct {
 // applied inside the birthday service, so the resource takes no settings
 // dependency of its own.
 func NewResource(
-	birthdayService peopledirectory.Birthdays,
+	birthdayService Service,
 	listExportService lists.Renderer,
 	userContextService common.StudentAccessSource,
 	logger *slog.Logger,

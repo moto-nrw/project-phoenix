@@ -9,7 +9,7 @@ import (
 
 const (
 	teamChatOptInOffsVersion     = "1.15.482"
-	teamChatOptInOffsDescription = "Team-Chat: Abschaltungen aus der Opt-in-Zeit zurücksetzen (#3262, ADR 0095)"
+	teamChatOptInOffsDescription = "Team-Chat: Abschaltungen aus der Opt-in-Zeit zurücksetzen (#3262, ADR 0096)"
 
 	// teamChatOptOutSince is when the opt-out default (#3254, PR #3266)
 	// reached production with release PR #3307. Before it, "off" was the
@@ -29,7 +29,7 @@ func init() {
 
 // teamChatOptInOffsUp removes every stored "off" of the Team-Chat written
 // while the chat was opt-in, so those schools get the registry default (on)
-// like every school without a value (ADR 0095). An off stored or written
+// like every school without a value (ADR 0096). An off stored or written
 // again since the opt-out default stays: that school switched the chat off
 // on purpose. Each reset is recorded in the settings audit like a manual
 // reset by the system.
