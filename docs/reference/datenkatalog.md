@@ -71,7 +71,10 @@ Datei-Kinds verwenden `tenantDir` (`kind/tenant/name`), `tenantPrefix`
 (`kind/tenant_name`) oder `account` (`avatars/global/name` und die Altablage
 `avatars/<tenantId>/name`). Avatarverweise stehen in `auth.accounts.avatar` und
 `users.profiles.avatar`; offene Löschaufträge in `auth.account_avatar_file_cleanup`
-gehören ebenfalls zum Abgleich beider Ablagen. Originaldateien, Metadaten und
+gehören ebenfalls zum Abgleich beider Ablagen. Neue Avatar-Dateien erhalten
+`0600`, ihr Zielverzeichnis `0700`; die Altberechtigungen erfordern das Verfahren
+in [Private Fotodateien](../operations/private-fotodateien-3840.md).
+Originaldateien, Metadaten und
 offene Datei-Löschaufträge gehören zusammen. Ein verwaistes Objekt darf nicht stillschweigend fehlen.
 
 ## Pflege und Prüfung

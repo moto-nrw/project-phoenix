@@ -145,3 +145,24 @@ func TestAccountAvatarRemovalStaysInsideAvatarStorage(t *testing.T) {
 	_, err := os.Stat(outside)
 	require.NoError(t, err)
 }
+
+func TestAccountAvatarRemovalRejectsNonRegularFiles(t *testing.T) {
+	t.Parallel()
+	for _, relative := range []string{".", "global", "global/link.png", "global/missing-link.png"} {
+		t.Run(relative, func(t *testing.T) {
+			t.Parallel()
+			root := t.TempDir()
+			require.NoError(t, os.Mkdir(filepath.Join(root, "global"), 0o700))
+			if relative == "global/link.png" || relative == "global/missing-link.png" {
+				require.NoError(t, os.Symlink("missing.png", filepath.Join(root, "global", "missing-link.png")))
+				require.NoError(t, os.WriteFile(filepath.Join(root, "global", "target.png"), []byte("synthetic-avatar"), 0o600))
+				require.NoError(t, os.Symlink("target.png", filepath.Join(root, "global", "link.png")))
+			}
+			err := removeErasedAvatarFileFrom(root, "/uploads/avatars/"+relative)
+			require.Error(t, err)
+			assert.NotErrorIs(t, err, fs.ErrNotExist, "invalid entries must remain queued")
+			_, err = os.Lstat(filepath.Join(root, relative))
+			require.NoError(t, err, "non-regular entries must remain untouched")
+		})
+	}
+}

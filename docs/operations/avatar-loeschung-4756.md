@@ -76,128 +76,139 @@ werden ohne Filter einbezogen. Externe URLs sind keine lokalen Dateireferenzen.
 Andere Upload-Arten liegen außerhalb dieser Wurzel und werden nicht erfasst.
 Vor Anwendung auf einen späteren Release diese Quellen erneut prüfen.
 
-1. Wartungsfenster herstellen: Avatar-Uploads und Änderungen von Avatarverweisen
-   an **allen** App-Instanzen unterbinden und laufende Requests beenden lassen.
-   Diese Sperre bis zum vollständigen Abarbeiten der eingetragenen Aufträge
-   beibehalten. Der Worker muss weiterlaufen. Keine parallelen Deploys,
-   Wiederherstellungen, Datei-Importe oder manuellen Queue-Änderungen.
-   Die Altersgrenze allein ersetzt diese Sperre nicht: Upload und DB-Verweis
-   entstehen nicht atomar. Nur einen Durchlauf gleichzeitig durchführen.
+1. Nur einen Durchlauf gleichzeitig durchführen. Keine parallelen
+   Wiederherstellungen oder Datei-Importe, bis alle
+   eingetragenen Aufträge abgearbeitet sind. Uploads, API und Worker laufen weiter:
+   zufällige Dateinamen (`UploadFilenameSuffix`) verhindern die erneute Referenz
+   alter Dateien, die 24-Stunden-Grenze schließt frische Uploads aus und bereits
+   gelöschte Kandidaten quittiert der Cleaner mit `ErrNotExist`.
 
-2. In einer Bash-Sitzung ein privates Arbeitsverzeichnis und die lokale
-   administrative Datenbankverbindung vorbereiten. Der PostgreSQL-Container
-   verwendet `postgres` als administrativen Benutzer. `row_security = off`
-   lässt fehlende RLS-Umgehungsrechte als Fehler auffallen, statt Schulen
-   unbemerkt auszulassen. Kein Shell-Tracing, keine Terminal-Aufzeichnung.
+2. Den folgenden **zusammenhängenden Block** in einer Bash-Sitzung ausführen.
+   Er startet eine eigene Bash mit festem Arbeitsverzeichnis `~/production`.
+   Die drei SQL-Dateien müssen dort unter `docs/operations/sql/` liegen.
+   `row_security = off` lässt fehlende RLS-Umgehungsrechte als Fehler auffallen,
+   statt Schulen unbemerkt auszulassen. Kein Shell-Tracing und keine
+   Terminal-Aufzeichnung. Die private Arbeitsablage wird bei Erfolg, Fehler,
+   Abbruch oder regulärem Signal auf Host und im PostgreSQL-Container entfernt.
+   Bei `SIGKILL`, Rechnerausfall oder fehlgeschlagenem Container-Aufräumen muss
+   ein Mensch verbliebene `avatar-abgleich.*`-Verzeichnisse lokal entfernen.
+   Die aufrufende interaktive Sitzung bleibt bei Fehlern geöffnet.
 
-   ```bash
-   set -euo pipefail
-   set +x
-   umask 077
-   cd ~/production
-   compose=(docker compose --env-file "$PWD/.env" -f "$PWD/docker-compose.yml")
-   private=$(mktemp -d "${TMPDIR:-/tmp}/avatar-abgleich.XXXXXXXX")
-   # Auf die lokal bereitgestellten SQL-Dateien dieses Releases setzen:
-   sql_dir="$PWD/docs/operations/sql"
-   db() { "${compose[@]}" exec -T postgres psql -X -q -v ON_ERROR_STOP=1 -U postgres -d postgres "$@"; }
-   test -r "$sql_dir/avatar-referenzen-4756.sql"
-   test -r "$sql_dir/avatar-waisen-eintragen-4756.sql"
-   test -r "$sql_dir/avatar-waisen-status-4756.sql"
-   ```
+3. Der Block erfasst nur reguläre Dateien, deren Änderungszeit **mehr als
+   24 Stunden** zurückliegt. `find` folgt keinen Symlinks; nur genau zwei Ebenen
+   unter der Wurzel, bekannte Unterordner und einfache Upload-Dateinamen werden
+   übernommen. Andere Namen werden nicht automatisch gelöscht. Der Probelauf
+   verändert keine Dateien und schreibt nur temporäre Tabellen/Views.
 
-   Pfadlisten enthalten Konto-IDs. Sie bleiben nur im privaten Verzeichnis,
-   nie im Terminal, Ticket, PR, Nachweis oder Versionskontrollsystem. Bei einem
-   Fehler abbrechen, die Sperre beibehalten und den Fehler lokal prüfen;
-   auch Fehlerdateien können Pfade enthalten.
+4. Mengen des Probelaufs prüfen und erst dann `ja` eingeben. Der SQL-Pfad
+   validiert das Layout und gleicht erneut **alle drei Referenzquellen** ab.
+   Kurze Tabellensperren schützen den Abgleich gegen DB-Schreiber; nach fünf
+   Sekunden Sperrwartezeit wird abgebrochen. Vorhandene Aufträge erzeugen kein
+   Duplikat. Kein `rm` an der Avatarablage verwenden. Bei unterbrochener
+   Verbindung den Commit-Zustand administrativ klären, bevor der Ablauf erneut
+   gestartet wird. Die Shell überschreibt keine vorhandene Eintragsliste.
 
-3. Nur reguläre Dateien erfassen, deren Änderungszeit **mehr als 24 Stunden**
-   zurückliegt. `find` folgt keinen Symlinks; nur genau zwei Ebenen unter der
-   Wurzel, bekannte Unterordner und einfache Upload-Dateinamen werden übernommen.
-   Andere Namen werden bewusst nicht automatisch gelöscht. Die Prüfung findet
-   im laufenden `server`-Container statt; die Dateien bleiben unverändert.
+5. Nach regulären Worker-Läufen Enter drücken und ausschließlich Mengen prüfen.
+   Bei mehr als 100 Aufträgen sind mehrere Stunden möglich. Fehlende Wurzel,
+   Rechtefehler oder ungültige Pfade lassen Aufträge offen. Nur bei
+   `noch_offen = 0` mit `fertig` beenden. Bei einem Fehler abbrechen und die
+   Ursache lokal beheben; Wiederherstellungen und Importe bleiben untersagt,
+   solange Aufträge offen sind. Nachweis: Datum, Release und ausschließlich
+   **Anzahl gefunden, eingetragen, noch offen und abgearbeitet**. `abgearbeitet`
+   bedeutet: gelöscht oder innerhalb der vorhandenen Wurzel fehlend bestätigt.
+   Pfadlisten und Fehlerdateien enthalten möglicherweise Konto-IDs; sie bleiben
+   privat und gehören nie ins Terminal, Ticket, PR oder Versionskontrollsystem.
 
-   ```bash
-   "${compose[@]}" exec -T server sh -eu -c '
-     cd /app/public/uploads/avatars
-     find . -mindepth 2 -maxdepth 2 -type f -mmin +1440 -exec sh -eu -c '\''
-       for file do
-         relative=${file#./}
-         folder=${relative%%/*}
-         name=${relative#*/}
-         case "$folder" in
-           global) ;;
-           ""|0*|*[!0-9]*) continue ;;
-         esac
-         case "$name" in
-           ""|[!A-Za-z0-9_-]*|*[!A-Za-z0-9_.-]*) continue ;;
-         esac
-         printf "/uploads/avatars/%s\n" "$relative"
-       done
-     '\'' sh {} +
-   ' 2> "$private/inventory.err" | LC_ALL=C sort -u > "$private/files.txt"
-   db -At -f - < "$sql_dir/avatar-referenzen-4756.sql" \
-     > "$private/references.unsorted" 2> "$private/references.err"
-   LC_ALL=C sort -u "$private/references.unsorted" > "$private/references.txt"
-   LC_ALL=C comm -23 "$private/files.txt" "$private/references.txt" > "$private/candidates.txt"
-   printf 'Alte Dateien im bekannten Layout: '; wc -l < "$private/files.txt"
-   printf 'Unreferenzierte Kandidaten: '; wc -l < "$private/candidates.txt"
-   ```
+```bash
+bash -euo pipefail <<'EOF'
+set +x
+umask 077
+cd ~/production
+compose=(docker compose --env-file "$PWD/.env" -f "$PWD/docker-compose.yml")
+private=$(mktemp -d "${TMPDIR:-/tmp}/avatar-abgleich.XXXXXXXX")
+container_private=
+cleanup() {
+  result=$?
+  trap - EXIT
+  if [ "$result" -ne 0 ]; then
+    printf 'Abgleich abgebrochen; Ursache und gegebenenfalls Commit-Zustand lokal klären.\n' >&2
+  fi
+  if [ -n "$container_private" ]; then
+    if ! "${compose[@]}" exec -T postgres sh -eu -c \
+      'rm -rf -- "$1"' sh "$container_private" >/dev/null 2>&1; then
+      printf 'Container-Aufräumen fehlgeschlagen; temporäre Listen lokal entfernen.\n' >&2
+      result=1
+    fi
+  fi
+  rm -rf -- "$private" || result=1
+  exit "$result"
+}
+trap cleanup EXIT
+trap 'exit 130' INT
+trap 'exit 143' TERM
+# Auf die lokal bereitgestellten SQL-Dateien dieses Releases setzen:
+sql_dir="$PWD/docs/operations/sql"
+db() { "${compose[@]}" exec -T postgres psql -X -q -v ON_ERROR_STOP=1 -U postgres -d postgres "$@"; }
+test -r "$sql_dir/avatar-referenzen-4756.sql"
+test -r "$sql_dir/avatar-waisen-eintragen-4756.sql"
+test -r "$sql_dir/avatar-waisen-status-4756.sql"
 
-   `avatar-referenzen-4756.sql` läuft mit `BEGIN READ ONLY` und exportiert nur
-   referenzierte lokale Pfade in die private Datei. Für den Import müssen
-   Kandidaten und SQL-Datei im PostgreSQL-Container lesbar sein. Die folgende
-   Shell überträgt sie über stdin in ein privates temporäres Verzeichnis,
-   ohne Pfade auszugeben. Vor dem Eintragen erfolgt der **Probelauf ohne
-   dauerhafte Schreibzugriffe**; angelegt werden nur temporäre Tabellen/Views.
+# Inventur und Abgleich, nur Mengen ausgeben.
+"${compose[@]}" exec -T server sh -eu -c '
+  cd /app/public/uploads/avatars
+  find . -mindepth 2 -maxdepth 2 -type f -mmin +1440 -exec sh -eu -c '\''
+    for file do
+      relative=${file#./}
+      folder=${relative%%/*}
+      name=${relative#*/}
+      case "$folder" in
+        global) ;;
+        ""|0*|*[!0-9]*) continue ;;
+      esac
+      case "$name" in
+        ""|[!A-Za-z0-9_-]*|*[!A-Za-z0-9_.-]*) continue ;;
+      esac
+      printf "/uploads/avatars/%s\n" "$relative"
+    done
+  '\'' sh {} +
+' 2> "$private/inventory.err" | LC_ALL=C sort -u > "$private/files.txt"
+db -At -f - < "$sql_dir/avatar-referenzen-4756.sql" \
+  > "$private/references.unsorted" 2> "$private/references.err"
+LC_ALL=C sort -u "$private/references.unsorted" > "$private/references.txt"
+LC_ALL=C comm -23 "$private/files.txt" "$private/references.txt" > "$private/candidates.txt"
+printf 'Alte Dateien im bekannten Layout: '; wc -l < "$private/files.txt"
+printf 'Unreferenzierte Kandidaten: '; wc -l < "$private/candidates.txt"
 
-   ```bash
-   container_private=$("${compose[@]}" exec -T postgres sh -eu -c \
-     'umask 077; mktemp -d /tmp/avatar-abgleich.XXXXXXXX')
-   "${compose[@]}" exec -T postgres sh -eu -c \
-     'umask 077; cat > "$1/candidates.txt"' sh "$container_private" < "$private/candidates.txt"
-   "${compose[@]}" exec -T postgres sh -eu -c \
-     'umask 077; cat > "$1/enqueue.sql"' sh "$container_private" < "$sql_dir/avatar-waisen-eintragen-4756.sql"
-   "${compose[@]}" exec -T postgres sh -eu -c \
-     'cd "$1"; psql -X -q -v ON_ERROR_STOP=1 -v apply=false -U postgres -d postgres -f enqueue.sql' \
-     sh "$container_private" 2> "$private/preview.err"
-   ```
+# Probelauf im PostgreSQL-Container.
+container_private=$("${compose[@]}" exec -T postgres sh -eu -c \
+  'umask 077; mktemp -d /tmp/avatar-abgleich.XXXXXXXX')
+"${compose[@]}" exec -T postgres sh -eu -c \
+  'umask 077; cat > "$1/candidates.txt"' sh "$container_private" < "$private/candidates.txt"
+"${compose[@]}" exec -T postgres sh -eu -c \
+  'umask 077; cat > "$1/enqueue.sql"' sh "$container_private" < "$sql_dir/avatar-waisen-eintragen-4756.sql"
+"${compose[@]}" exec -T postgres sh -eu -c \
+  'cd "$1"; psql -X -q -v ON_ERROR_STOP=1 -v apply=false -U postgres -d postgres -f enqueue.sql' \
+  sh "$container_private" 2> "$private/preview.err"
 
-4. Mengen prüfen, dann dieselbe Liste eintragen. Der SQL-Pfad validiert erneut
-   das bekannte Layout (strenger als `fs.ValidPath`) und gleicht **erneut alle
-   drei Quellen** ab. Kurze Tabellensperren schützen diesen letzten Abgleich
-   gegen DB-Schreiber; nach fünf Sekunden Sperrwartezeit wird abgebrochen.
-   Ein Konflikt mit einem vorhandenen Auftrag erzeugt kein Duplikat. Kein `rm`
-   an der Avatarablage und keine direkte Dateilöschung verwenden.
+printf 'Probelauf prüfen. Nur bei plausiblen Mengen eintragen.\n'
+read -r -p 'Zum Eintragen ja eingeben: ' answer </dev/tty
+[ "$answer" = ja ] || exit 0
+"${compose[@]}" exec -T postgres sh -eu -c \
+  'cd "$1"; test ! -e enqueued.txt; psql -X -q -v ON_ERROR_STOP=1 -v apply=true -U postgres -d postgres -f enqueue.sql' \
+  sh "$container_private" 2> "$private/apply.err"
 
-   ```bash
-   "${compose[@]}" exec -T postgres sh -eu -c \
-     'cd "$1"; test ! -e enqueued.txt; psql -X -q -v ON_ERROR_STOP=1 -v apply=true -U postgres -d postgres -f enqueue.sql' \
-     sh "$container_private" 2> "$private/apply.err"
-   ```
-
-   Die Shell verweigert das Überschreiben einer vorhandenen Eintragsliste.
-   Nur bei erfolgreichem Commit weitergehen. `enqueued.txt` enthält privat die
-   tatsächlich neu eingetragenen Pfade. Bei unterbrochener Verbindung den
-   Commit-Zustand administrativ klären, nicht die Nachweisliste überschreiben.
-
-5. Nach den regulären Worker-Läufen nur Mengen abfragen. Bei mehr als 100
-   Aufträgen sind mehrere Stunden möglich. Fehlende Wurzel, Rechtefehler oder
-   ungültige Pfade lassen Aufträge offen und erfordern eine Fehlerbehebung.
-
-   ```bash
-   "${compose[@]}" exec -T postgres sh -eu -c \
-     'umask 077; cat > "$1/status.sql"' sh "$container_private" < "$sql_dir/avatar-waisen-status-4756.sql"
-   "${compose[@]}" exec -T postgres sh -eu -c \
-     'cd "$1"; psql -X -q -v ON_ERROR_STOP=1 -U postgres -d postgres -f status.sql' \
-     sh "$container_private" 2> "$private/status.err"
-   ```
-
-   Nachweis: Datum, Release und ausschließlich **Anzahl gefunden, eingetragen,
-   noch offen und abgearbeitet**. `abgearbeitet` bedeutet: vom getesteten Cleaner
-   gelöscht oder als innerhalb der vorhandenen Wurzel fehlend bestätigt. Erst
-   bei `noch_offen = 0` die Upload-/Verweissperre aufheben. Die privaten Listen
-   und Fehlerdateien danach gemäß internem Verfahren in beiden temporären
-   Verzeichnissen entfernen; keine Pfadliste als Nachweis aufbewahren.
+# Mengen bis zum Abschluss verfolgen.
+"${compose[@]}" exec -T postgres sh -eu -c \
+  'umask 077; cat > "$1/status.sql"' sh "$container_private" < "$sql_dir/avatar-waisen-status-4756.sql"
+while :; do
+  "${compose[@]}" exec -T postgres sh -eu -c \
+    'cd "$1"; psql -X -q -v ON_ERROR_STOP=1 -U postgres -d postgres -f status.sql' \
+    sh "$container_private" 2> "$private/status.err"
+  read -r -p 'Nach Worker-Lauf Enter; nur bei noch_offen = 0 fertig eingeben: ' answer </dev/tty
+  [ "$answer" != fertig ] || break
+done
+EOF
+```
 
 **Lokal geprüft, produktiv offen:** SQL-Export, Probelauf, erneuter
 Referenzabgleich, strenge Pfadprüfung, idempotentes Eintragen und

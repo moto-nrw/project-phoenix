@@ -91,10 +91,10 @@ func removeErasedAvatarFile(avatar string) error {
 	return removeErasedAvatarFileFrom("public/uploads/avatars", avatar)
 }
 
-func removeErasedAvatarFileFrom(directory, avatar string) error {
+func removeErasedAvatarFileFrom(directory, avatar string) (err error) {
 	const prefix = "/uploads/avatars/"
 	relative, ok := strings.CutPrefix(avatar, prefix)
-	if !ok || !fs.ValidPath(relative) {
+	if !ok || relative == "." || !fs.ValidPath(relative) {
 		return errors.New("invalid avatar path")
 	}
 	root, err := os.OpenRoot(directory)
@@ -103,6 +103,13 @@ func removeErasedAvatarFileFrom(directory, avatar string) error {
 		// expose ErrNotExist here: the caller would acknowledge every intent.
 		return errors.New("avatar storage root unavailable")
 	}
-	err = root.Remove(relative)
-	return errors.Join(err, root.Close())
+	defer func() { err = errors.Join(err, root.Close()) }()
+	info, err := root.Lstat(relative)
+	if err != nil {
+		return err
+	}
+	if !info.Mode().IsRegular() {
+		return errors.New("avatar path is not a regular file")
+	}
+	return root.Remove(relative)
 }
