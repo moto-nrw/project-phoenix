@@ -383,7 +383,11 @@ func (f *AccountMFAFlows) resolveTrustedDeviceDays(ctx context.Context, tenantID
 // PrepareTrustedDevice freezes this exchange's policy without creating a
 // device or notification before the session has been authorized and issued.
 func (f *AccountMFAFlows) PrepareTrustedDevice(ctx context.Context, accountID, tenantID int64, userAgent string, ip net.IP) (identityaccess.TrustedDeviceIssue, error) {
-	if !f.IsTrustedDeviceEnabled(ctx, tenantID) {
+	enabled, err := f.settings.TrustedDeviceEnabled(ctx, tenantID)
+	if err != nil {
+		return nil, f.securitySettingsFailure("trusted device availability", err)
+	}
+	if !enabled {
 		return nil, nil
 	}
 	days, err := f.resolveTrustedDeviceDays(ctx, tenantID)
