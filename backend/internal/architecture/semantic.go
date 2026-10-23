@@ -65,7 +65,7 @@ func analyzeSemantics(project string, policy *Policy) ([]Violation, error) {
 			violations = append(violations, packageViolations...)
 		}
 	}
-	return uniqueSortedViolations(violations), nil
+	return finishSemanticEffects(project, policy, loaded, violations)
 }
 
 func loadTypedPackages(project string, build Build) ([]*packages.Package, error) {

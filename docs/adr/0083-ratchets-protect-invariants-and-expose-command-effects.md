@@ -280,3 +280,12 @@ engineering days for implementation/tests/review preparation, not commitments:
 ADRs 0057, 0066–0071, 0075, 0080–0082 remain the invariant basis. This ADR
 narrows the interpretation of green gates; it grants no new exception to those
 invariants and authorizes no ownership merger, alias or policy widening.
+
+## Implementation addendum 2026-10-23 (#4739)
+
+[ADR 0089](0089-enrollment-interface-bindings-have-reviewed-command-effects.md)
+implements the first typed binding/effect slice for Enrollment, with exact
+reviewed entries, unresolved-binding diagnostics, fixtures and PR-base checks.
+It does not claim the full-source, transitive protocol analysis specified in
+section 2. The remaining source owners and effect categories remain follow-up
+work; no existing gate is removed.

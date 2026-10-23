@@ -7,6 +7,15 @@ Inspected fetched `origin/development` at
 that immutable **pre-change** tree unless marked “new”. Paths start at
 `backend/`; `roots/owners/` bindings preserve the passed context.
 
+## Machine-checked first slice (#4739)
+
+The generated/reviewed [command-effect inventory](../../backend/architecture/command-effects.json)
+checks Enrollment's supplied interface bindings to foreign domains/workflows/
+projections. The [40-row reconciliation](4739-command-effect-reconciliation.md)
+records coverage, additional method surfaces and explicit gaps. It is a
+conservative may-bind inventory, not a replacement for this protocol/lock
+evidence; the other source owners and one exact function field remain follow-up.
+
 ## Reading the table
 
 This inventories **every example in the issue and comment**, splitting target
