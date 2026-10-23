@@ -32,18 +32,23 @@ func (rs *ProvisioningResource) AuditReadAccess(view organizationtenancy.Operato
 func operatorReadTarget(w http.ResponseWriter, r *http.Request, access *organizationtenancy.OperatorReadAccess) bool {
 	var ok bool
 	switch access.View {
-	case organizationtenancy.ReadAnnouncementViews:
+	case organizationtenancy.ReadAnnouncementViews, organizationtenancy.ReadAnnouncement:
 		access.AnnouncementID, ok = common.ParseInt64IDWithError(w, r, "id", "invalid announcement ID")
 		if !ok {
 			return false
 		}
 	case organizationtenancy.ReadSchoolAccounts, organizationtenancy.ReadSchoolPersons,
+		organizationtenancy.ReadSchoolBookingAuthorityImpact,
+		organizationtenancy.ReadSchool, organizationtenancy.ReadSchoolAdminInvitation,
+		organizationtenancy.ReadSchoolAccountCreation, organizationtenancy.ReadSchoolSettingsSchema,
+		organizationtenancy.ReadSchoolSettingReveal,
 		organizationtenancy.ReadSchoolAccountMFA, organizationtenancy.ReadSchoolAccountCaregiver:
 		access.SchoolID, ok = common.ParseInt64IDWithError(w, r, "id", "invalid school ID")
 		if !ok {
 			return false
 		}
-	case organizationtenancy.ReadOrganizationAccounts, organizationtenancy.ReadOrganizationPersons:
+	case organizationtenancy.ReadOrganizationAccounts, organizationtenancy.ReadOrganizationPersons,
+		organizationtenancy.ReadOrganizationSchools:
 		access.OrganizationID, ok = common.ParseInt64IDWithError(w, r, "id", "invalid organization ID")
 		if !ok {
 			return false

@@ -15,13 +15,22 @@ func (p *Provisioning) RecordOperatorRead(ctx context.Context, access organizati
 	}
 	resource := domain.AuditResourceAccount
 	switch access.View {
+	case organizationtenancy.ReadSchoolBookingAuthorityImpact, organizationtenancy.ReadSchools,
+		organizationtenancy.ReadSchool, organizationtenancy.ReadSchoolSummaries, organizationtenancy.ReadOrganizationSchools,
+		organizationtenancy.ReadSchoolSettingsSchema, organizationtenancy.ReadSchoolSettingReveal:
+		resource = domain.AuditResourceSchool
+	case organizationtenancy.ReadSchoolAdminInvitation:
+		resource = domain.AuditResourceInvitation
+	case organizationtenancy.ReadUnregisteredTagScans:
+		resource = domain.AuditResourceTagScan
 	case organizationtenancy.ReadSchoolPersons, organizationtenancy.ReadOrganizationPersons:
 		resource = domain.AuditResourcePerson
-	case organizationtenancy.ReadAnnouncementViews:
+	case organizationtenancy.ReadAnnouncementViews, organizationtenancy.ReadAnnouncements, organizationtenancy.ReadAnnouncement:
 		resource = domain.AuditResourceAnnouncement
 	case organizationtenancy.ReadAllAccounts, organizationtenancy.ReadSchoolAccounts,
 		organizationtenancy.ReadOrganizationAccounts, organizationtenancy.ReadSchoolAccountCaregiver,
-		organizationtenancy.ReadSchoolAccountMFA, organizationtenancy.ReadAccountMFA, organizationtenancy.ReadAccountTenants:
+		organizationtenancy.ReadSchoolAccountMFA, organizationtenancy.ReadAccountMFA, organizationtenancy.ReadAccountTenants,
+		organizationtenancy.ReadSchoolAccountCreation:
 	default:
 		return invalidData("unknown operator read view")
 	}
@@ -36,8 +45,11 @@ func (p *Provisioning) RecordOperatorRead(ctx context.Context, access organizati
 	if access.AccountID > 0 {
 		resourceID = &access.AccountID
 	}
-	if access.View == organizationtenancy.ReadAnnouncementViews {
+	if access.AnnouncementID > 0 {
 		resourceID = &access.AnnouncementID
+	}
+	if resource == domain.AuditResourceSchool && access.SchoolID > 0 {
+		resourceID = &access.SchoolID
 	}
 	_, err := adminValue(ctx, p, func(adminCtx context.Context) (struct{}, error) {
 		return struct{}{}, p.recordAction(adminCtx, access.OperatorID, domain.AuditActionView, resource, resourceID, access.ClientIP, changes)

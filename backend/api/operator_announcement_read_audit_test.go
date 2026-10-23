@@ -57,6 +57,33 @@ func TestOperatorAuditAnnouncementViews(t *testing.T) {
 		assert.JSONEq(t, `{"view":"announcement_views"}`, string(entries[0].Changes))
 	}
 
+	for _, tc := range []struct{ path, view, changes string }{
+		{"/announcements/", "announcements", `{"view":"announcements"}`},
+		{fmt.Sprintf("/announcements/%d", announcement.ID), "announcement", `{"view":"announcement"}`},
+	} {
+		req := httptest.NewRequest(http.MethodGet, tc.path, nil)
+		req.RemoteAddr = "198.51.100.45:12345"
+		req = req.WithContext(context.WithValue(ctx, sessiontoken.CtxClaims, sessiontoken.AppClaims{ID: int(operatorID), Scope: "platform"}))
+		response := httptest.NewRecorder()
+		router.ServeHTTP(response, req)
+		require.Equal(t, http.StatusOK, response.Code)
+		var entries []struct {
+			ResourceID *int64
+			RequestIP  string
+			Changes    json.RawMessage
+		}
+		require.NoError(t, db.NewRaw(`SELECT resource_id, host(request_ip) AS request_ip, changes FROM platform.operator_audit_log
+			WHERE operator_id = ? AND action = 'view' AND changes->>'view' = ?`, operatorID, tc.view).Scan(ctx, &entries))
+		require.Len(t, entries, 1)
+		assert.JSONEq(t, tc.changes, string(entries[0].Changes))
+		assert.Equal(t, "198.51.100.45", entries[0].RequestIP)
+		if tc.view == "announcement" {
+			require.NotNil(t, entries[0].ResourceID)
+			assert.Equal(t, announcement.ID, *entries[0].ResourceID)
+		} else {
+			assert.Nil(t, entries[0].ResourceID)
+		}
+	}
 	_, err := db.ExecContext(ctx, `CREATE FUNCTION platform.reject_operator_audit() RETURNS trigger LANGUAGE plpgsql AS $$
 	BEGIN RAISE EXCEPTION 'injected audit failure'; END $$;
 	CREATE TRIGGER reject_operator_audit BEFORE INSERT ON platform.operator_audit_log
@@ -67,5 +94,22 @@ func TestOperatorAuditAnnouncementViews(t *testing.T) {
 	assert.Contains(t, response.Body.String(), `"code":"operator.audit_unavailable"`)
 	for _, private := range []string{"user_id", "user_name", "seen_at", "dismissed", "Audit Viewer", account.Email, "private-filter", "injected audit failure"} {
 		assert.NotContains(t, response.Body.String(), private)
+	}
+	// Announcement content is free text, not necessarily data about the
+	// internal author only. Its list/detail and write responses need the
+	// same disclosure barrier as the recipient view details.
+	for _, tc := range []struct{ method, path string }{
+		{http.MethodGet, "/announcements/"},
+		{http.MethodGet, fmt.Sprintf("/announcements/%d", announcement.ID)},
+		{http.MethodPost, "/announcements/"},
+		{http.MethodPut, fmt.Sprintf("/announcements/%d", announcement.ID)},
+	} {
+		req := httptest.NewRequest(tc.method, tc.path, nil)
+		req = req.WithContext(context.WithValue(ctx, sessiontoken.CtxClaims, sessiontoken.AppClaims{ID: int(operatorID), Scope: "platform"}))
+		response := httptest.NewRecorder()
+		router.ServeHTTP(response, req)
+		assert.Equal(t, http.StatusServiceUnavailable, response.Code, tc.method+" "+tc.path)
+		assert.Contains(t, response.Body.String(), `"code":"operator.audit_unavailable"`)
+		assert.NotContains(t, response.Body.String(), `"data"`)
 	}
 }

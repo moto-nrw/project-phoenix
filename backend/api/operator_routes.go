@@ -128,7 +128,7 @@ func operatorRouter(
 		mountOperatorSchoolRoutes(r, provisioningRoutes, identityRoutes.mfaAdmin, schoolSettings)
 		mountOperatorPersonRoutes(r, provisioningRoutes)
 		r.Mount("/staff-person-merges", staffPersonMerge)
-		mountOperatorTagScanRoutes(r, unregisteredTagScans)
+		mountOperatorTagScanRoutes(r, unregisteredTagScans, provisioningRoutes)
 		identityRoutes.mountAccountMFARoutes(r, provisioningRoutes)
 		identityRoutes.mountAccountTenantAccessRoutes(r, provisioningRoutes)
 		identityRoutes.mountProfileRoutes(r)
@@ -282,7 +282,7 @@ func mountOperatorProvisioningRoutes(r chi.Router, provisioning *provisioningOpe
 		r.Post("/{id}/restore", provisioning.RestoreOrganization)
 		r.Get("/{id}/accounts", provisioning.AuditReadAccess(organizationtenancy.ReadOrganizationAccounts, provisioning.ListOrganizationAccounts))
 		r.Get("/{id}/devices", provisioning.ListOrganizationDevices)
-		r.Get("/{id}/schools", provisioning.ListOrganizationSchoolSummaries)
+		r.Get("/{id}/schools", provisioning.AuditReadAccess(organizationtenancy.ReadOrganizationSchools, provisioning.ListOrganizationSchoolSummaries))
 		r.Get("/{id}/persons", provisioning.AuditReadAccess(organizationtenancy.ReadOrganizationPersons, provisioning.ListOrganizationPersons))
 	})
 }
@@ -296,19 +296,19 @@ func mountOperatorSchoolRoutes(
 	schoolSettings *operatorSchoolSettings,
 ) {
 	r.Route("/schools", func(r chi.Router) {
-		r.Get("/", provisioning.ListSchools)
-		r.Get("/summaries", provisioning.ListSchoolSummaries)
-		r.Post("/", provisioning.CreateSchool)
-		r.Put("/{id}", provisioning.UpdateSchool)
+		r.Get("/", provisioning.AuditReadAccess(organizationtenancy.ReadSchools, provisioning.ListSchools))
+		r.Get("/summaries", provisioning.AuditReadAccess(organizationtenancy.ReadSchoolSummaries, provisioning.ListSchoolSummaries))
+		r.Post("/", provisioning.AuditReadAccess(organizationtenancy.ReadSchools, provisioning.CreateSchool))
+		r.Put("/{id}", provisioning.AuditReadAccess(organizationtenancy.ReadSchool, provisioning.UpdateSchool))
 		r.Delete("/{id}", provisioning.SoftDeleteSchool)
 		r.Post("/{id}/restore", provisioning.RestoreSchool)
-		r.Post("/{id}/invite-admin", provisioning.InviteSchoolAdmin)
-		r.Post("/{id}/create-account", provisioning.CreateSchoolAccount)
+		r.Post("/{id}/invite-admin", provisioning.AuditReadAccess(organizationtenancy.ReadSchoolAdminInvitation, provisioning.InviteSchoolAdmin))
+		r.Post("/{id}/create-account", provisioning.AuditReadAccess(organizationtenancy.ReadSchoolAccountCreation, provisioning.CreateSchoolAccount))
 		r.Get("/{id}/accounts", provisioning.AuditReadAccess(organizationtenancy.ReadSchoolAccounts, provisioning.ListSchoolAccounts))
 		r.Route("/{id}/accounts/{accountId}/caregiver-capability", func(r chi.Router) {
 			r.Get("/", provisioning.AuditReadAccess(organizationtenancy.ReadSchoolAccountCaregiver, provisioning.GetSchoolAccountCaregiverCapability))
-			r.Post("/", provisioning.EnableSchoolAccountCaregiverCapability)
-			r.Delete("/", provisioning.DisableSchoolAccountCaregiverCapability)
+			r.Post("/", provisioning.AuditReadAccess(organizationtenancy.ReadSchoolAccountCaregiver, provisioning.EnableSchoolAccountCaregiverCapability))
+			r.Delete("/", provisioning.AuditReadAccess(organizationtenancy.ReadSchoolAccountCaregiver, provisioning.DisableSchoolAccountCaregiverCapability))
 		})
 		// MFA admin actions for school staff. Operator-side mirror of the
 		// tenant-admin MFA endpoints — same write semantics, separate
@@ -324,9 +324,9 @@ func mountOperatorSchoolRoutes(
 		if schoolSettings != nil {
 			values := schoolSettings.values
 			r.Route("/{id}/settings", func(r chi.Router) {
-				r.Get("/schema", values.GetSchoolSettingsSchema)
-				r.Method(http.MethodGet, "/booking-authority-impact", schoolSettings.bookingAuthorityImpact)
-				r.Get("/values/{key}/reveal", values.RevealSchoolSettingValue)
+				r.Get("/schema", provisioning.AuditReadAccess(organizationtenancy.ReadSchoolSettingsSchema, values.GetSchoolSettingsSchema))
+				r.Get("/booking-authority-impact", provisioning.AuditReadAccess(organizationtenancy.ReadSchoolBookingAuthorityImpact, schoolSettings.bookingAuthorityImpact.ServeHTTP))
+				r.Get("/values/{key}/reveal", provisioning.AuditReadAccess(organizationtenancy.ReadSchoolSettingReveal, values.RevealSchoolSettingValue))
 				r.Put("/values/{key}", values.SetSchoolSettingValue)
 				r.Delete("/values/{key}", values.ResetSchoolSettingValue)
 			})
@@ -343,11 +343,13 @@ func mountOperatorPersonRoutes(r chi.Router, provisioning *provisioningOperatorA
 
 // mountOperatorTagScanRoutes mounts the optional Device Fleet review of
 // unregistered RFID scans (GET / and POST /{id}/resolve).
-func mountOperatorTagScanRoutes(r chi.Router, unregisteredTagScans http.Handler) {
+func mountOperatorTagScanRoutes(r chi.Router, unregisteredTagScans http.Handler, provisioning *provisioningOperatorAPI.ProvisioningResource) {
 	if unregisteredTagScans == nil {
 		return
 	}
-	r.Mount("/unregistered-tag-scans", unregisteredTagScans)
+	r.With(func(next http.Handler) http.Handler {
+		return provisioning.AuditReadAccess(organizationtenancy.ReadUnregisteredTagScans, next.ServeHTTP)
+	}).Mount("/unregistered-tag-scans", unregisteredTagScans)
 }
 
 // mountAccountMFARoutes registers the account-wide MFA override surface
@@ -372,11 +374,11 @@ func (rs operatorIdentityRoutes) mountAccountTenantAccessRoutes(r chi.Router, pr
 	// routes. The operator client deliberately uses the canonical no-slash form.
 	r.Get("/accounts/{accountId}/tenants", provisioning.AuditReadAccess(organizationtenancy.ReadAccountTenants, rs.account.ListAccountTenantAccess))
 	r.Get("/accounts/{accountId}/tenants/", provisioning.AuditReadAccess(organizationtenancy.ReadAccountTenants, rs.account.ListAccountTenantAccess))
-	r.Post("/accounts/{accountId}/tenants", rs.account.GrantAccountTenantAccess)
-	r.Post("/accounts/{accountId}/tenants/", rs.account.GrantAccountTenantAccess)
+	r.Post("/accounts/{accountId}/tenants", provisioning.AuditReadAccess(organizationtenancy.ReadAccountTenants, rs.account.GrantAccountTenantAccess))
+	r.Post("/accounts/{accountId}/tenants/", provisioning.AuditReadAccess(organizationtenancy.ReadAccountTenants, rs.account.GrantAccountTenantAccess))
 	r.Get("/accounts/{accountId}/tenants/{tenantId}/roles", rs.account.ListAssignableSchoolRoles)
-	r.Put("/accounts/{accountId}/tenants/{tenantId}", rs.account.UpdateAccountTenantRole)
-	r.Delete("/accounts/{accountId}/tenants/{tenantId}", rs.account.RevokeAccountTenantAccess)
+	r.Put("/accounts/{accountId}/tenants/{tenantId}", provisioning.AuditReadAccess(organizationtenancy.ReadAccountTenants, rs.account.UpdateAccountTenantRole))
+	r.Delete("/accounts/{accountId}/tenants/{tenantId}", provisioning.AuditReadAccess(organizationtenancy.ReadAccountTenants, rs.account.RevokeAccountTenantAccess))
 }
 
 // mountProfileRoutes registers operator profile management.
@@ -414,10 +416,10 @@ func (rs operatorIdentityRoutes) mountInvitationRoutes(r chi.Router) {
 // mountOperatorAnnouncementRoutes registers announcements management.
 func mountOperatorAnnouncementRoutes(r chi.Router, announcements *operatorannouncements.AnnouncementsResource, provisioning *provisioningOperatorAPI.ProvisioningResource) {
 	r.Route("/announcements", func(r chi.Router) {
-		r.Get("/", announcements.ListAnnouncements)
-		r.Post("/", announcements.CreateAnnouncement)
-		r.Get("/{id}", announcements.GetAnnouncement)
-		r.Put("/{id}", announcements.UpdateAnnouncement)
+		r.Get("/", provisioning.AuditReadAccess(organizationtenancy.ReadAnnouncements, announcements.ListAnnouncements))
+		r.Post("/", provisioning.AuditReadAccess(organizationtenancy.ReadAnnouncements, announcements.CreateAnnouncement))
+		r.Get("/{id}", provisioning.AuditReadAccess(organizationtenancy.ReadAnnouncement, announcements.GetAnnouncement))
+		r.Put("/{id}", provisioning.AuditReadAccess(organizationtenancy.ReadAnnouncement, announcements.UpdateAnnouncement))
 		r.Delete("/{id}", announcements.DeleteAnnouncement)
 		r.Post("/{id}/publish", announcements.PublishAnnouncement)
 		r.Get("/{id}/stats", announcements.GetStats)

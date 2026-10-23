@@ -9,16 +9,28 @@ import (
 type OperatorReadView string
 
 const (
-	ReadAllAccounts            OperatorReadView = "accounts"
-	ReadSchoolAccounts         OperatorReadView = "school_accounts"
-	ReadOrganizationAccounts   OperatorReadView = "organization_accounts"
-	ReadSchoolPersons          OperatorReadView = "school_persons"
-	ReadOrganizationPersons    OperatorReadView = "organization_persons"
-	ReadSchoolAccountCaregiver OperatorReadView = "school_account_caregiver"
-	ReadSchoolAccountMFA       OperatorReadView = "school_account_mfa"
-	ReadAccountMFA             OperatorReadView = "account_mfa"
-	ReadAccountTenants         OperatorReadView = "account_tenants"
-	ReadAnnouncementViews      OperatorReadView = "announcement_views"
+	ReadAnnouncements                OperatorReadView = "announcements"
+	ReadAnnouncement                 OperatorReadView = "announcement"
+	ReadAllAccounts                  OperatorReadView = "accounts"
+	ReadSchoolAccounts               OperatorReadView = "school_accounts"
+	ReadOrganizationAccounts         OperatorReadView = "organization_accounts"
+	ReadSchoolPersons                OperatorReadView = "school_persons"
+	ReadOrganizationPersons          OperatorReadView = "organization_persons"
+	ReadSchoolAccountCaregiver       OperatorReadView = "school_account_caregiver"
+	ReadSchoolAccountMFA             OperatorReadView = "school_account_mfa"
+	ReadAccountMFA                   OperatorReadView = "account_mfa"
+	ReadAccountTenants               OperatorReadView = "account_tenants"
+	ReadAnnouncementViews            OperatorReadView = "announcement_views"
+	ReadSchoolBookingAuthorityImpact OperatorReadView = "school_booking_authority_impact"
+	ReadSchools                      OperatorReadView = "schools"
+	ReadSchool                       OperatorReadView = "school"
+	ReadSchoolSummaries              OperatorReadView = "school_summaries"
+	ReadOrganizationSchools          OperatorReadView = "organization_schools"
+	ReadSchoolAdminInvitation        OperatorReadView = "school_admin_invitation"
+	ReadSchoolAccountCreation        OperatorReadView = "school_account_creation"
+	ReadSchoolSettingsSchema         OperatorReadView = "school_settings_schema"
+	ReadSchoolSettingReveal          OperatorReadView = "school_setting_reveal"
+	ReadUnregisteredTagScans         OperatorReadView = "unregistered_tag_scans"
 )
 
 // OperatorReadAccess records an attempted disclosure, before reading its data.

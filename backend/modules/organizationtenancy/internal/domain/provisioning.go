@@ -25,6 +25,7 @@ const (
 	AuditResourceAccount      = "account"
 	AuditResourcePerson       = "person"
 	AuditResourceAnnouncement = "announcement"
+	AuditResourceTagScan      = "unregistered_tag_scan"
 )
 
 // Device vocabulary shared with Device Fleet.
