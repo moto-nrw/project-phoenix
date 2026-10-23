@@ -142,7 +142,7 @@ const moduleLegacyFileBudgetTotal = 246
 // counting, and their sum stays below the old entry.
 // ADR 0082: newly covered sources, measured at 722c5aa147; no headroom.
 var moduleLegacyFileBudgets = map[string]int{
-	"roots/owners/legacy_workforce_schedule_repositories.go": 246,
+	"roots/owners/legacy_workforce_schedule_adapter.go": 246,
 }
 
 // moduleComposeBudgetTotal is the sum of moduleComposeBudgets. Shrink-only,

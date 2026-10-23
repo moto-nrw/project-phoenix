@@ -380,7 +380,7 @@ Every production file in `backend/api/*.go` (381 files, excluding the 131 `testh
 | `workforce_absence_types_http.go` | wiring: nil guard, runtime binding, permission binding (`TimeTrackingOwn`/`TimeTrackingManage`/`VacationApprove` passed into fields of the same names), error mapping to the common envelope |
 | `workforce_admin_capabilities.go` | wiring: capability bundling, nil guards, setting key binding, type mapping (person/staff rows to Workforce public types) |
 | `workforce_composition.go` | wiring: constructors, binding of School Membership queries to Workforce ports (ID projection, lock call), dependency binding |
-| `legacy_workforce_schedule_repositories.go` | wiring: adapter over the Workforce capability, type mapping between legacy and public records, error binding (`LegacyWorkTimeModelNotFound`), nil guards |
+| `legacy_workforce_schedule_adapter.go` | wiring: adapter over the Workforce capability, type mapping between legacy and public records, error binding (`LegacyWorkTimeModelNotFound`), nil guards |
 | `workforce_plan_staff.go` | wiring: type mapping (People Directory staff rows to Workforce PlanStaff), error pass-through |
 | `workforce_schedule_records.go` | wiring: type mapping between retained schedule/model rows and Workforce compose rows, binding of owner functions (`config.DailyTargetFromSchedule`/`DailyTargetFromModel`), grouping by staff ID |
 | `workforce_shift_planning_http.go` | wiring: nil guards, runtime binding, permission binding (`TimeTrackingManage`/`SchedulesRead`/`UsersRead` into fields of the same names), owner predicate call (`common.CanExportInternalPlan`), error mapping of sentinels to common codes and envelopes, including rollback on `ErrStaffShiftDuplicate` |

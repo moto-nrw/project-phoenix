@@ -37,7 +37,7 @@ not the thresholds or the permitted architecture.
    service graph, shared construction state or late binding (ADRs 0059, 0068).
 4. Keep the legacy register's explicit `legacy_*.go` convention, and rename
    `roots/owners/workforce_legacy_schedule_repositories.go` to
-   `roots/owners/legacy_workforce_schedule_repositories.go`, unchanged at 246
+   `roots/owners/legacy_workforce_schedule_adapter.go`, unchanged at 246
    LOC. Its record conversion is retained compatibility glue, not native
    Workforce vocabulary. Add exactly that entry and a total of 246. A blanket
    `*legacy*.go` expansion would also count historical migrations and the
