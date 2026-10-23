@@ -59,15 +59,14 @@ type CareExitBookings interface {
 }
 
 // CareExitEnrollment is the Enrollment half: the applications that created
-// the children and the source bookings a care exit ends and restores. The
-// booking commands join the caller's transaction.
+// the children and the snapshots and restores of the source bookings, which
+// carry Enrollment's application data. The restore joins the caller's
+// transaction. Care Plan locks and ends its own source bookings (ADR 0075).
 type CareExitEnrollment interface {
 	CreatedStudentRequestChildIDs(ctx context.Context, studentIDs []int64) ([]int64, error)
 	CareExitApplicationLinks(ctx context.Context, studentIDs []int64) ([]domain.CareExitApplication, error)
 	CareExitOfferingLinks(ctx context.Context, studentIDs []int64) ([]domain.CareExitOfferingLink, error)
-	LockCareExitOfferingLinks(ctx context.Context, requestChildIDs []int64, from calendar.Date) error
 	CareExitOfferingSnapshots(ctx context.Context, studentIDs []int64, validUntil calendar.Date, sourceRequestChildID *int64) ([]domain.CareExitOfferingSnapshot, error)
-	EndCareExitOfferingLinks(ctx context.Context, requestChildIDs []int64, sourceRequestChildID *int64, validUntil calendar.Date) (int64, error)
 	RestoreCareExitOfferingLinks(ctx context.Context, restores []domain.CareExitOfferingRestore) (int64, error)
 }
 
