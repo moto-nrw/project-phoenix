@@ -9,7 +9,9 @@ import (
 // (#3873). It rises when the meaning of a field changes.
 const OrderFormatVersion = 1
 
-// Order is a school's order of a day or a week, fixed at its deadline.
+// Order is a school's order of a day or a week, fixed at its deadline. A
+// due order a read lays out before the worker or a write stored it has no
+// ID yet.
 type Order struct {
 	ID          int64
 	PeriodStart Date
@@ -28,7 +30,9 @@ type OrderLine struct {
 }
 
 // OrderChange is a change after the deadline: one child more (+1) or less
-// (-1) on a day. Sequence numbers the changes of a school.
+// (-1) on a day. Sequence numbers the changes of a school; a change a read
+// detected but nobody recorded yet has none (0) and follows every numbered
+// one.
 type OrderChange struct {
 	OrderID     int64
 	Sequence    int
@@ -79,7 +83,7 @@ func (s OrderState) OrderedChildren(date Date) map[int64]string {
 			changes = append(changes, change)
 		}
 	}
-	sort.Slice(changes, func(i, j int) bool { return changes[i].Sequence < changes[j].Sequence })
+	sort.SliceStable(changes, func(i, j int) bool { return changes[i].before(changes[j]) })
 	for _, change := range changes {
 		if change.Delta > 0 {
 			children[change.StudentID] = change.SchoolClass
@@ -88,6 +92,17 @@ func (s OrderState) OrderedChildren(date Date) map[int64]string {
 		}
 	}
 	return children
+}
+
+// before orders changes by sequence; an unnumbered change comes last.
+func (c OrderChange) before(other OrderChange) bool {
+	switch {
+	case c.Sequence == 0:
+		return false
+	case other.Sequence == 0:
+		return true
+	}
+	return c.Sequence < other.Sequence
 }
 
 // OrderFor returns the order a day belongs to.

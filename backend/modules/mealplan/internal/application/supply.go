@@ -13,8 +13,8 @@ import (
 var ErrOrderNotFound = errors.New("meal order not found")
 
 // catererOrders is the school's orders of [from, to] as its caterer reads
-// them: settled like every other read, from the start of its supply on, and
-// cut down to what the caterer may see. Who supplies the school is no Meal
+// them: laid out like every other read, without a write or a lock, from the
+// start of its supply on, and cut down to what the caterer may see. Who supplies the school is no Meal
 // Plan data (ADR 0077); the caterer portal checks it in the same school
 // transaction and hands in when the supply started.
 func (s *Service) catererOrders(ctx context.Context, since time.Time, from, to string) (mealplan.OrderWeek, error) {
@@ -26,7 +26,7 @@ func (s *Service) catererOrders(ctx context.Context, since time.Time, from, to s
 		}
 		var stats domain.OperationStats
 		var err error
-		view, stats, err = s.settleOrders(txCtx, rules, domain.Date(from), domain.Date(to))
+		view, stats, err = s.provisionalOrders(txCtx, rules, domain.Date(from), domain.Date(to))
 		return stats, err
 	})
 	if err != nil {
@@ -50,7 +50,8 @@ func daysSince(days []domain.OrderDay, start time.Time) []domain.OrderDay {
 
 // confirmOrder records that the caterer received a fixed order of its
 // supply. It is the caterer's only write (ADR 0077); confirming twice keeps
-// the first.
+// the first. A due order the worker has not stored yet has no ID, so it
+// cannot be confirmed before it is stored: confirming never fixes an order.
 func (s *Service) confirmOrder(ctx context.Context, orderID int64, since time.Time, accountID int64) error {
 	return mapPublicError(s.run(ctx, "confirm_order", func(txCtx context.Context) (domain.OperationStats, error) {
 		found, stats, err := s.store.ConfirmOrder(txCtx, orderID, accountID, since, s.now())

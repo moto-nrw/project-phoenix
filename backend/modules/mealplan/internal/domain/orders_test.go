@@ -36,6 +36,21 @@ func TestOrderedChildrenAppliesChangesInSequence(t *testing.T) {
 	assert.Equal(t, map[int64]string{9: "4a"}, state.OrderedChildren(tuesday))
 }
 
+// A change a read detected but nobody recorded yet has no sequence and
+// applies after every recorded one.
+func TestOrderedChildrenAppliesUnnumberedChangesLast(t *testing.T) {
+	t.Parallel()
+	monday := calendar.NewDate(2026, 9, 14)
+	state := OrderState{
+		Lines: []OrderLine{{Date: monday, StudentID: 1, SchoolClass: "2a"}},
+		Changes: []OrderChange{
+			{Date: monday, StudentID: 1, SchoolClass: "2a", Delta: 1},
+			{Sequence: 4, Date: monday, StudentID: 1, SchoolClass: "2a", Delta: -1},
+		},
+	}
+	assert.Equal(t, map[int64]string{1: "2a"}, state.OrderedChildren(monday), "removed, then back again")
+}
+
 func TestOrderPeriodIsTheDayOrItsWeek(t *testing.T) {
 	t.Parallel()
 	wednesday := calendar.NewDate(2026, 9, 16)

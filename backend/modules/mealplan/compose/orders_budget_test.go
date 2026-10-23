@@ -1,6 +1,7 @@
 package compose
 
 import (
+	"strings"
 	"testing"
 	"time"
 
@@ -12,15 +13,19 @@ import (
 )
 
 // TestOrders_QueryBudget pins the statements of reading a week of orders
-// (#3873, #2940): fixing the due orders and recording the changes read per
-// day in bulk, so the count must not grow with the number of children.
+// (#3873, #2940) in its most expensive shape: Monday is due and the worker
+// has not stored it yet, so the read lays it out as of its deadline beside
+// the current registration of every day. Each day is read in bulk, so the
+// count must not grow with the number of children, and the read writes
+// nothing.
 func TestOrders_QueryBudget(t *testing.T) {
 	t.Parallel()
 	db := testpkg.SetupIsolatedTestDB(t)
 	ctx := testpkg.Ctx(t)
 	account := testpkg.CreateTestAccount(t, db, "meal-order-budget")
-	addChildren := func(count int, now time.Time) {
-		register := buildModuleAt(t, db, true, nil, now)
+	// Registered before Monday's 09:00 deadline, so no write stores an order.
+	register := buildModuleAt(t, db, true, nil, time.Date(2026, 9, 7, 8, 0, 0, 0, testBerlin))
+	addChildren := func(count int) {
 		for range count {
 			student := testpkg.CreateTestStudent(t, db, "Budget", "Kind", "2a")
 			_, err := register.ReplaceParticipationSchedule(ctx, mealplan.ReplaceParticipationSchedule{StudentID: student.ID, GuardianAccountID: account.ID, Weekdays: []mealplan.Weekday{mealplan.Monday, mealplan.Tuesday, mealplan.Wednesday}})
@@ -28,19 +33,24 @@ func TestOrders_QueryBudget(t *testing.T) {
 		}
 	}
 	counter := testpkg.CaptureQueries(t, db)
-	read := func(now time.Time) int {
+	reader := buildModuleAt(t, db, true, nil, time.Date(2026, 9, 7, 10, 0, 0, 0, testBerlin))
+	read := func(children int) int {
 		counter.Reset()
-		_, err := buildModuleAt(t, db, true, nil, now).Orders(ctx, "2026-09-07", "2026-09-11")
+		week, err := reader.Orders(ctx, "2026-09-07", "2026-09-11")
 		require.NoError(t, err)
+		monday := orderDay(t, week, "2026-09-07")
+		assert.Equal(t, mealplan.OrderOrdered, monday.Status)
+		assert.Zero(t, monday.OrderID, "Monday is laid out, not stored")
+		assert.Equal(t, children, monday.Total)
 		return counter.Total()
 	}
 
-	addChildren(3, time.Date(2026, 9, 4, 8, 0, 0, 0, testBerlin))
-	read(time.Date(2026, 9, 7, 10, 0, 0, 0, testBerlin)) // fixes Monday's order
-	small := read(time.Date(2026, 9, 7, 10, 30, 0, 0, testBerlin))
-	// Registered after Monday's deadline: from Tuesday on, so no change.
-	addChildren(5, time.Date(2026, 9, 7, 10, 45, 0, 0, testBerlin))
-	large := read(time.Date(2026, 9, 7, 11, 0, 0, 0, testBerlin))
+	addChildren(3)
+	small := read(3)
+	addChildren(5)
+	large := read(8)
 	assert.Equal(t, small, large, "query count must not grow with the children")
+	assert.Empty(t, append(append(counter.Operation("INSERT"), counter.Operation("UPDATE")...), counter.Operation("DELETE")...), "a read writes nothing")
+	assert.Empty(t, counter.Matching(func(sql string) bool { return strings.Contains(sql, "pg_advisory") }), "a read takes no lock")
 	testpkg.AssertQueryBudget(t, "modules.mealplan.orders.read_week", counter.Queries())
 }

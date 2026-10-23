@@ -1074,11 +1074,22 @@ func TestOrdersFixAtTheDeadlineAndPreviewBefore(t *testing.T) {
 	require.NoError(t, err)
 	monday = orderDay(t, week, "2026-09-07")
 	assert.Equal(t, mealplan.OrderOrdered, monday.Status)
-	assert.NotZero(t, monday.OrderID)
+	assert.Zero(t, monday.OrderID, "the read lays the due order out; only the worker stores it")
+	assert.Zero(t, orderCountOf(t, db, student.TenantID))
 	assert.Contains(t, childIDs(monday.Children), student.ID)
 	assert.Equal(t, time.Date(2026, 9, 7, 9, 0, 0, 0, testBerlin).UTC(), monday.Deadline.UTC())
 	assert.Equal(t, mealplan.OrderOpen, orderDay(t, week, "2026-09-08").Status, "Tuesday's deadline lies ahead")
 	assert.Equal(t, "Bestellung", monday.Children[0].LastName)
+
+	require.NoError(t, late.SettleOrders(ctx))
+	stored, err := late.Orders(ctx, "2026-09-07", "2026-09-11")
+	require.NoError(t, err)
+	settled := orderDay(t, stored, "2026-09-07")
+	assert.NotZero(t, settled.OrderID)
+	settled.OrderID = 0
+	assert.True(t, monday.Deadline.Equal(settled.Deadline))
+	settled.Deadline = monday.Deadline
+	assert.Equal(t, monday, settled, "the stored order is the one the read showed")
 }
 
 // A late change is a numbered change of the order, recorded with who made
@@ -1184,8 +1195,7 @@ func TestPastOrdersStayAsTheyWere(t *testing.T) {
 	ctx := testpkg.Ctx(t)
 	early := buildModuleAt(t, db, true, nil, time.Date(2026, 9, 7, 8, 0, 0, 0, testBerlin))
 	require.NoError(t, early.SetParticipationForDay(ctx, mealplan.SetParticipationDay{StudentID: student.ID, GuardianAccountID: account.ID, Date: "2026-09-07", Participating: true}))
-	_, err := buildModuleAt(t, db, true, nil, time.Date(2026, 9, 7, 10, 0, 0, 0, testBerlin)).Orders(ctx, "2026-09-07", "2026-09-07")
-	require.NoError(t, err)
+	require.NoError(t, buildModuleAt(t, db, true, nil, time.Date(2026, 9, 7, 10, 0, 0, 0, testBerlin)).SettleOrders(ctx))
 	// The end-of-day archive dates the absence back to the morning.
 	createStatusDay(t, db, student.TenantID, student.ID, "2026-09-07", "excused", time.Date(2026, 9, 7, 7, 0, 0, 0, testBerlin))
 
@@ -1284,8 +1294,7 @@ func TestParentScheduleChangesPreserveFrozenWeeks(t *testing.T) {
 			require.NoError(t, err)
 			now := time.Date(2026, 9, 7, 10, 0, 0, 0, testBerlin)
 			module := buildModuleWithRules(t, db, rules, now)
-			_, err = module.Orders(ctx, "2026-09-07", "2026-09-11")
-			require.NoError(t, err)
+			require.NoError(t, module.SettleOrders(ctx))
 			if relaxRules {
 				rules.OrderRhythm, rules.RegistrationTime = "daily", "12:00"
 				module = buildModuleWithRules(t, db, rules, now)
@@ -1316,8 +1325,7 @@ func TestParentScheduleSkipsAnIsolatedFutureFrozenWeek(t *testing.T) {
 	rules := singleDeadlineSettings("09:00")
 	rules.OrderRhythm, rules.RegistrationLeadDays = "weekly", 7
 	module := buildModuleWithRules(t, db, rules, now)
-	_, err := module.Orders(ctx, "2026-09-14", "2026-09-18")
-	require.NoError(t, err)
+	require.NoError(t, module.SettleOrders(ctx))
 	// Only next week's order exists. Reopening today's deadline must not
 	// allow a new pattern to reach that future order through the gap.
 	rules.OrderRhythm, rules.RegistrationLeadDays, rules.RegistrationTime = "daily", 0, "12:00"

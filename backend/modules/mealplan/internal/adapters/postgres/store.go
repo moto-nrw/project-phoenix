@@ -440,18 +440,18 @@ func participationValues(schedules []participationScheduleRow, overrides []parti
 	return data
 }
 
+// loadDailySickness adds every absence change of the day up to cutoff; the
+// application resolves which of them hold at the instant it asks for.
 func loadDailySickness(ctx context.Context, db bun.IDB, tenantID int64, studentIDs []int64, date domain.Date, cutoff time.Time, states map[int64]domain.DailyParticipation, stats *domain.OperationStats) error {
 	var sickDays []sickDayRow
 	if err := timedQuery(stats, func() error {
 		return absenceHistory(db, &sickDays, tenantID).
-			DistinctOn(`"sickness_history".student_id, "sickness_history".status`).
 			Where(`"sickness_history".student_id IN (?)`, bun.List(studentIDs)).
 			Where(`"sickness_history".date = ?`, date).
 			Where(`"sickness_history".changed_at <= ?`, cutoff).
 			OrderExpr(`"sickness_history".student_id ASC`).
-			OrderExpr(`"sickness_history".status ASC`).
-			OrderExpr(`"sickness_history".changed_at DESC`).
-			OrderExpr(`"sickness_history".id DESC`).
+			OrderExpr(`"sickness_history".changed_at ASC`).
+			OrderExpr(`"sickness_history".id ASC`).
 			Scan(ctx)
 	}); err != nil {
 		return fmt.Errorf("meal plan postgres: find daily sickness history: %w", err)

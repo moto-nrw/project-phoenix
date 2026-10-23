@@ -240,9 +240,10 @@ type Ordering interface {
 	// every change of an ordered day since. The worker runs it every few
 	// minutes; without meal registration it does nothing.
 	SettleOrders(context.Context) error
-	// Orders returns the school's orders of [from, to]. Reading fixes every
-	// due order and numbers every change since, so all readers see the same
-	// state.
+	// Orders returns the school's orders of [from, to]. Reading writes
+	// nothing and takes no lock: a due order the worker has not stored yet
+	// shows as ordered without an ID, a change not recorded yet without a
+	// sequence, so all readers see the same numbers.
 	Orders(ctx context.Context, from, to Date) (OrderWeek, error)
 	// CatererOrders returns the school's orders of [from, to] as the caterer
 	// whose supply started at since reads them: only days from since on,
@@ -250,8 +251,8 @@ type Ordering interface {
 	// children's names only while the school shows them to the caterer.
 	CatererOrders(ctx context.Context, since time.Time, from, to Date) (OrderWeek, error)
 	// ConfirmOrder records that the caterer whose supply started at since
-	// received a fixed order of that supply; confirming twice keeps the
-	// first.
+	// received a stored order of that supply; confirming twice keeps the
+	// first. An order not stored yet has no ID and cannot be confirmed.
 	ConfirmOrder(ctx context.Context, orderID int64, since time.Time, accountID int64) error
 }
 
@@ -287,7 +288,8 @@ type OrderChild struct {
 }
 
 // OrderChange is a change after the deadline, numbered per school: one child
-// more (+1) or less (-1) on a day. It never says why.
+// more (+1) or less (-1) on a day. It never says why. Sequence is 0 while
+// the change is not recorded yet.
 type OrderChange struct {
 	Sequence   int
 	Date       Date
@@ -305,6 +307,7 @@ type ClassCount struct {
 // OrderDay is one weekday of the orders. Children are the children who eat
 // with every change applied; Total and Classes describe the frozen order.
 // An open day shows the registration as it stands in all three fields.
+// OrderID is 0 for a due order the worker has not stored yet.
 type OrderDay struct {
 	Date        Date
 	Closed      bool

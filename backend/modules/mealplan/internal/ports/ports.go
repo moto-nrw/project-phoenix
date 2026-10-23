@@ -17,6 +17,9 @@ type Store interface {
 	UpsertParticipationOverride(context.Context, int64, int64, domain.Date, bool) (domain.OperationStats, error)
 	UpsertParticipationOverrides(context.Context, int64, int64, []domain.Date, bool) (domain.OperationStats, error)
 	DeleteParticipationOverride(context.Context, int64, domain.Date) (domain.OperationStats, error)
+	// FindDailyParticipation reads the children's registration of a day with
+	// every absence change up to the instant given, so the caller can resolve
+	// the day at that instant or any earlier one.
 	FindDailyParticipation(context.Context, []int64, domain.Date, time.Time) (map[int64]domain.DailyParticipation, domain.OperationStats, error)
 	// InsertRegistrationChanges appends to the registration log.
 	InsertRegistrationChanges(context.Context, []domain.RegistrationChange) (domain.OperationStats, error)

@@ -32,8 +32,20 @@ func TestCatererReadsAndConfirmsOrdersOfItsSupply(t *testing.T) {
 	week, err := module.CatererOrders(ctx, since, "2026-09-07", "2026-09-07")
 	require.NoError(t, err)
 	require.Len(t, week.Days, 1)
+	provisional := week.Days[0]
+	assert.Equal(t, mealplan.OrderOrdered, provisional.Status, "due at 09:00, shown before the worker stores it")
+	assert.Zero(t, provisional.OrderID, "an order not stored yet has no ID")
+	assert.Zero(t, orderCountOf(t, db, student.TenantID), "the caterer's read writes nothing")
+	require.ErrorIs(t, module.ConfirmOrder(ctx, provisional.OrderID, since, caterer.ID), mealplan.ErrOrderNotFound, "confirming waits for the stored order")
+
+	require.NoError(t, module.SettleOrders(ctx))
+	week, err = module.CatererOrders(ctx, since, "2026-09-07", "2026-09-07")
+	require.NoError(t, err)
+	require.Len(t, week.Days, 1)
 	day := week.Days[0]
+	assert.NotZero(t, day.OrderID)
 	assert.Equal(t, mealplan.OrderOrdered, day.Status)
+	assert.Equal(t, provisional.Total, day.Total, "the stored order has the numbers the caterer saw")
 	assert.Equal(t, 1, day.Total)
 	assert.Equal(t, []mealplan.ClassCount{{SchoolClass: "4b", Count: 1}}, day.Classes)
 	assert.Empty(t, day.Children, "numbers only by default")
@@ -84,6 +96,7 @@ func TestNewCatererSeesNothingBeforeItsSupply(t *testing.T) {
 		require.NoError(t, register.SetParticipationForDay(ctx, mealplan.SetParticipationDay{StudentID: student.ID, GuardianAccountID: parent.ID, Date: date, Participating: true}))
 	}
 	monday := buildModuleWithRules(t, db, singleDeadlineSettings("09:00"), time.Date(2026, 9, 7, 10, 0, 0, 0, testBerlin))
+	require.NoError(t, monday.SettleOrders(ctx))
 	week, err := monday.CatererOrders(ctx, time.Date(2026, 9, 7, 8, 0, 0, 0, testBerlin), "2026-09-07", "2026-09-07")
 	require.NoError(t, err)
 	mondayOrder := week.Days[0].OrderID
@@ -95,6 +108,7 @@ func TestNewCatererSeesNothingBeforeItsSupply(t *testing.T) {
 	require.ErrorIs(t, monday.ConfirmOrder(ctx, mondayOrder, takeover, 0), mealplan.ErrOrderNotFound)
 
 	tuesday := buildModuleWithRules(t, db, singleDeadlineSettings("09:00"), time.Date(2026, 9, 8, 10, 0, 0, 0, testBerlin))
+	require.NoError(t, tuesday.SettleOrders(ctx))
 	week, err = tuesday.CatererOrders(ctx, takeover, "2026-09-07", "2026-09-08")
 	require.NoError(t, err)
 	require.Len(t, week.Days, 1, "Monday was ordered before the supply started")
@@ -116,6 +130,7 @@ func TestNewCatererCannotAccessPredecessorOrderSettledAfterTakeover(t *testing.T
 			settings := singleDeadlineSettings("09:00")
 			takeover := time.Date(2026, 9, 7, 10, 0, 0, 0, testBerlin)
 			settled := buildModuleWithRules(t, db, settings, time.Date(2026, 9, 7, 11, 0, 0, 0, testBerlin))
+			require.NoError(t, settled.SettleOrders(ctx))
 			week, err := settled.Orders(ctx, "2026-09-07", "2026-09-07")
 			require.NoError(t, err)
 			require.Len(t, week.Days, 1)
