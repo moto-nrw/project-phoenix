@@ -28,8 +28,10 @@ als Kontext liefern, nicht durch ungefilterten Export globaler Rollen.
 **Im Code umgesetzt (Datenbankteil, 3837-b):** Migration 1.15.481 stellt
 `platform.erase_school` und die getrennte Nachweistabelle
 `platform.school_erasures` bereit. Ein aus diesem Katalog abgeleiteter,
-installierter Plan enthält 222 Tabellen mit `tenant`, `tenantChild`, `school`
-oder `tenantReference`. Ein Wächter gleicht ihn mit dem Produktionskatalog ab.
+installierter Plan enthält 221 Löschziele mit `tenant`, `tenantChild` oder
+`school`. Die explizit gesperrten Rechnungsreferenzen
+`platform.billing_key_date_counts` bleiben zehn Jahre ab Kalenderjahresende
+erhalten und sind von der Datenrückgabe an Dritte ausgeschlossen (ADR 0092). Ein Wächter gleicht ihn mit dem Produktionskatalog ab.
 FK-Reihenfolge, Trigger-Nachläufe, Restprüfung, Mandantentrennung und
 Wiederholung nach DB-Fehlern werden lokal geprüft. Der Nachweis bleibt nach
 dem DB-Schritt bei `db_done`, nicht `completed`.

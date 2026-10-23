@@ -281,8 +281,6 @@ const schoolErasureResidualSQL = `CREATE OR REPLACE FUNCTION platform.school_era
     UNION ALL
     SELECT 1 FROM meta.parent_student_consent_permission_grants AS r WHERE to_jsonb(r."student_guardian_id") IN (SELECT value FROM jsonb_array_elements(v_child_keys->'meta.parent_student_consent_permission_grants'))
     UNION ALL
-    SELECT 1 FROM platform.billing_key_date_counts AS r WHERE r.school_id = p_school_id
-    UNION ALL
     SELECT 1 FROM platform.cleanup_runs AS r WHERE r.tenant_id = p_school_id
     UNION ALL
     SELECT 1 FROM platform.demo_school_states AS r WHERE r.tenant_id = p_school_id

@@ -3652,6 +3652,10 @@
   ],
   "data_objects": [
     {
+      "name": "platform.live_billing_key_date_counts",
+      "write_owner": "organization-tenancy"
+    },
+    {
       "name": "platform.school_erasures",
       "write_owner": "organization-tenancy"
     },

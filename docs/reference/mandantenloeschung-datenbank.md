@@ -8,8 +8,9 @@ Grundlage: [ADR 0092](../adr/0092-mandanten-datenlebenszyklus-nutzt-einen-gemein
 **Im Code umgesetzt:** Migration `1.15.481`, Owner `organization-tenancy`,
 benannte Ausnahme `organization-tenancy.tenant-data-lifecycle`. Sie führt
 keine neue HTTP-Route und keine allgemeine Cross-Owner-Berechtigung ein.
-Die bisherigen Schreib-Owner bleiben unverändert. Nur das neue Datenobjekt
-`platform.school_erasures` gehört zusätzlich zu Organisation & Tenancy.
+Die bisherigen Schreib-Owner bleiben unverändert. Die neue Nachweistabelle
+`platform.school_erasures` und die begrenzte Abrechnungs-View
+`platform.live_billing_key_date_counts` gehören zu Organisation & Tenancy.
 
 **Nicht als vollständiges Verfahren freigegeben:** 3837-c liefert CLI,
 Dateiinventar, Dateilöschung, Nebensystemschritte, Gesamtabschluss und Runbook.
@@ -26,7 +27,7 @@ Web-Login erhält Mitgliedschaft. Der spätere CLI-Zugang muss diese Rolle
 gezielt übernehmen können; dessen Einrichtung ist ein Mensch-Schritt in
 3837-c, nicht Teil dieser Migration.
 
-Alle ausführenden Funktionen sind `SECURITY DEFINER` mit festem
+Alle ausführenden Löschfunktionen sind `SECURITY DEFINER` mit festem
 `search_path = pg_catalog`; SQL nennt Schemas ausdrücklich. `PUBLIC`,
 `phoenix_auth`, `phoenix_tenant` und `phoenix_admin` dürfen sie nicht ausführen.
 Der Aufrufer liefert keine SQL-Fragmente, Tabellen- oder Spaltennamen.
@@ -45,9 +46,9 @@ bei einem Down erhalten.
 
 Vor Auftragserstellung prüft das interne Verfahren die Weisung, Berechtigung,
 Schule und Träger, Zeitpunkt, Rückgabe sowie anwendbare Abruf- und gesetzliche
-Aufbewahrungspflichten. Besteht eine notwendige Ausnahme, darf dieser
-unbedingte DB-Löschauftrag noch nicht ausgeführt werden. Der Slice führt
-keine neue Aufbewahrungsausnahme oder pauschale 30-Tage-Wartefrist ein.
+Aufbewahrungspflichten. Die unten beschriebene gesperrte Abrechnungs-
+aufbewahrung ist die ausdrücklich entschiedene Ausnahme. Weitere notwendige Aufbewahrungsausnahmen müssen vor
+Auftragserteilung geklärt werden. Keine pauschale 30-Tage-Wartefrist.
 
 Eine vorherige Soft-Delete-Bedienhandlung ist **nicht** nötig. Stattdessen
 ist der explizit angelegte Auftrag mit aktiver Operator-ID und einer nicht
@@ -101,11 +102,11 @@ möglichen Datensatzinhalten in Logs oder Ausgaben übernehmen.
 Die Migration installiert einen eingefrorenen, generierten Plan und statische
 SQL-Blöcke aus dem
 [gemeinsamen Katalog](datenkatalog.md), keinen zweiten fachlichen Katalog.
-Er umfasst `tenant`, `tenantChild`, die Schulwurzel und die losen
-`platform.billing_key_date_counts.school_id`-Referenzen. Diese Zählungen
-werden für die beauftragte Schule ausdrücklich mit gelöscht; es wird keine
-unbegründete gesetzliche Aufbewahrung behauptet. Ihre globale Konfiguration
-bleibt erhalten. `account`, `platform`, `demo` ohne Mandantenscope und die
+Er umfasst 221 Löschziele: `tenant`, `tenantChild` und die Schulwurzel.
+`platform.billing_key_date_counts.school_id` ist die explizite Ausnahme nach
+[ADR 0092](../adr/0092-mandanten-datenlebenszyklus-nutzt-einen-gemeinsamen-katalog.md#ergänzung-aufbewahrung-der-abrechnungszählungen-3837-b-runde-2).
+Diese Rechnungsreferenzen werden behalten und nach der Schulentfernung gesperrt,
+nicht gelöscht. Ihre globale Konfiguration bleibt erhalten. `account`, `platform`, `demo` ohne Mandantenscope und die
 Trägerwurzel bleiben unangetastet. `platform.demo_school_states` ist dagegen
 als `tenant` eingestuft und wird für die konkrete Schule entfernt.
 
@@ -128,9 +129,10 @@ Migrationsbackups, `active.presence_backfill_batches`,
 `auth.mfa_email_challenges` und `auth.parent_declaration_permission_grants`.
 1.15.481 ergänzt validierte Schul-FKs. So scheitert auch ein vorher wartender
 Schreibvorgang, wenn er nach dem Lösch-Commit neue Mandantenzeilen anlegen
-will. Vorhandene verwaiste Referenzen lassen bereits die Migration abbrechen;
-der Betrieb muss sie vor Rollout prüfen, nicht automatisch fremden Schulen
-zuordnen oder löschen. `TestEveryTenantTableHasASchoolErasureWriteFence`
+will. Die registrierte `Precondition` zählt verwaiste Referenzen bereits in
+`migrate preflight`, bevor der Deploy die App stoppt. `Up` wiederholt die
+Prüfung; die validierten FKs sichern auch konkurrierende Schreibvorgänge ab.
+Vor dem Deploy sind die unten genannten Mensch-Schritte nötig. `TestEveryTenantTableHasASchoolErasureWriteFence`
 verhindert neue ungeprüfte Nachlauf-Lücken.
 
 Vor der ersten Löschung prüft die Funktion jede eingehende FK-Kante. Eine
@@ -177,3 +179,84 @@ DELETE-Trigger verlangen eine Prüfung ihrer Seiteneffekte und Abhängigkeiten.
 Ein Laufzeitwächter verweigert unbekannte `tenant_id`-Tabellen zusätzlich.
 Das belegt Code und lokale Tests, nicht das produktive DB-Schema oder einen
 abgeschlossenen Kundenauftrag.
+
+## Gesperrte Abrechnungsreferenzen
+
+**Im Code umgesetzt:** Die Zählungen überdauern die Schule unverändert. Die
+bei Erfassung gespeicherten Schul-/Trägernamen gehören nach Migration
+1.15.416 zur Rechnungsreferenz: spätere Umbenennungen oder Löschungen dürfen
+diese historische Zuordnung nicht ändern. Deshalb werden sie nicht durch
+neutrale aktuelle Namen ersetzt. Es sind Organisationsnamen und Summen,
+keine Daten betroffener Personen; kein Export an Dritte.
+
+`phoenix_admin` hat `BYPASSRLS`. Deshalb entzieht die Migration dieser Rolle
+`SELECT` und `INSERT` auf der Basistabelle. Schreiben erfolgt ausschließlich
+über `platform.capture_billing_key_date_counts(...)`, einen eng berechtigten
+`SECURITY DEFINER`-Schreiber mit unverändertem Insert-once-Verhalten. So
+erhält der Operator auch nicht die von `ON CONFLICT` benötigten Basistabellen-
+Leserechte. Migration und passendes Backend müssen gemeinsam ausgerollt werden;
+das alte Backend kann mit diesen eingeschränkten Rechten nicht arbeiten.
+Der reguläre Abrechnungsleser und die Prüfung
+bereits erfasster Perioden nutzen ausschließlich die `security_barrier`-View
+`platform.live_billing_key_date_counts`, die nur Zeilen mit noch vorhandener
+Schulwurzel zeigt. Das gilt auch für normale Operator-Lesewege. Die separate
+Rolle `phoenix_billing_retention` ist `NOLOGIN NOINHERIT NOBYPASSRLS`, darf die
+Basis lesen und die Fristbereinigung aufrufen, aber keine Daten frei ändern.
+Keine Web-/Schul-/CLI-Löschrolle erhält Mitgliedschaft in dieser Rolle.
+Ein verspätetes Billing-INSERT darf den Rechnungsnachweis noch ergänzen; ohne
+Schulwurzel wird es im regulären Leser nicht sichtbar. Das bisherige
+Billing-Race ist damit kein Löschproblem mehr.
+
+`platform.delete_expired_billing_key_date_counts()` löscht nach zehn Jahren
+ab Ende des Kalenderjahres von `key_date`, unabhängig vom Schulbestand.
+Beispiel: Stichtage aus 2026 laufen am 31.12.2036 aus und werden ab
+01.01.2037 gelöscht. Die Berechnung nutzt das Kalenderjahr in Europe/Berlin.
+Die Frist ist die vorsorgliche Entscheidung des Orchestrators zu § 147 AO /
+§ 257 HGB, keine abgeschlossene rechtliche Einordnung. Die Bestätigung bleibt
+im Recht-Slice offen. 3837-c muss den regelmäßigen Aufruf mit der gesonderten
+Abrechnungsberechtigung einbinden; dieser Slice liefert die getestete
+Funktion, keinen Scheduler. Produktive Rollenvergabe, Sperrwirksamkeit und
+Fristausführung sind menschlich nachzuweisen.
+
+## Mensch-Schritte vor Deploy und erster Löschung
+
+1. **Vor dem Deploy** die nur lesende
+   [SQL-Vorprüfung](../operations/sql/mandantenloeschung-vorpruefung-3837.sql)
+   mit der freigegebenen Migrationsrolle ausführen. Sie muss RLS umgehen
+   können; `row_security = off` verhindert unbemerkt unvollständige Zählungen.
+   Die Datei enthält `BEGIN READ ONLY`, zeigt nur die fünf Spaltenbezeichnungen
+   und Anzahlen, keine IDs oder Zeileninhalte. Freigabe nur bei fünfmal
+   `orphaned_rows = 0` und `all_school_references_valid = true`.
+2. Bei Treffern den Deploy stoppen. Im freigegebenen internen Vorgang je
+   Tabelle Zweck, Ursache und Anzahl prüfen, ohne Zeileninhalte in Logs,
+   Tickets oder PRs zu kopieren. Nie pauschal einem anderen Mandanten zuordnen
+   oder `NULL` setzen. Existiert die Schule tatsächlich noch, muss ihre
+   korrekte Zuordnung anhand der autorisierten Unterlagen geklärt werden.
+   Ist sie nachweislich endgültig entfernt und besteht kein Aufbewahrungs-
+   oder Wiederherstellungszweck mehr, kann der berechtigte Betrieb ausschließlich
+   die verwaisten Hilfszeilen dieser Tabelle löschen: in einer separaten
+   Transaktion, mit dem identischen Prädikat `tenant_id IS NOT NULL AND NOT
+   EXISTS (SELECT FROM platform.schools s WHERE s.id = r.tenant_id)`, vorher
+   gezähltem Bestand und Kontrolle der betroffenen Anzahl. Bei Abweichung
+   zurückrollen; erst nach Freigabe committen. Keine automatische Reparatur.
+   `auth.mfa_email_challenges.tenant_id IS NULL` ist zulässig und kein Treffer.
+3. Bei `audit.room_color_migration_backup` und
+   `audit.wc_alias_migration_backup` zusätzlich prüfen, ob der historische
+   Migrations-Restore-Zweck vollständig entfallen ist. Dann eine gesonderte
+   geprüfte Migration zur Entfernung der ganzen Backup-Tabelle vorbereiten,
+   samt Anpassung von Katalog und Erasure-Plan. Nicht vor diesem Deploy spontan
+   die Tabelle droppen: 1.15.481 benötigt sie für FK und Löschplan. Bis zu einer
+   solchen Migration nur belegte verwaiste Zeilen wie in Schritt 2 behandeln.
+   Vorprüfung danach erneut ausführen; `migrate preflight` muss bestehen.
+4. Vor der ersten Löschung für alle `SECURITY DEFINER`-Funktionen den
+   tatsächlichen Produktions-Owner prüfen. Er muss die betroffenen RLS-
+   Tabellen vollständig sehen und löschen können, etwa als freigegebener
+   Superuser oder mit `BYPASSRLS`; die CLI-Rolle selbst darf dies nicht.
+   Ownerprüfung und Rollenmitgliedschaften ohne Zugangsdaten dokumentieren.
+   Nachweise im Produktivsystem sind noch offen.
+5. Das Wartungsfenster für 221 Löschziele und eingehende FK-Quellen einplanen.
+   `SHARE ROW EXCLUSIVE` kann Schreibzugriffe anderer Schulen blockieren.
+   Lock-/Statement-Zeitlimits und die Behandlung eines abgebrochenen Versuchs
+   bleiben Aufgabe von 3837-c. Der Write-Fence-Wächter prüft `tenant_id`, nicht
+   beliebige `school_id`-Spalten; die gesperrten Billing-Referenzen und die
+   absichtlich FK-freien Löschbelege dürfen die Schule überdauern.

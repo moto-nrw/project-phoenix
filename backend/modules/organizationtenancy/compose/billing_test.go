@@ -266,13 +266,14 @@ func withoutTransactionControl(queries []string) []string {
 }
 
 // TestBillingCountsCannotBeChangedByTheServerRoles pins the database side of
-// "captured once, never changed": the administrative role may insert and
-// read, but not update or delete; the request roles cannot touch the table.
+// "captured once, never changed": the administrative role may capture through
+// the narrow definer writer and read through the live-school view, but not update or delete; request roles
+// cannot touch the table. Erased-school evidence needs the separate billing role.
 func TestBillingCountsCannotBeChangedByTheServerRoles(t *testing.T) {
 	t.Parallel()
 	db := testpkg.SetupTestDB(t)
 	privileges := map[string]map[string]bool{
-		"phoenix_admin":  {"SELECT": true, "INSERT": true, "UPDATE": false, "DELETE": false, "TRUNCATE": false},
+		"phoenix_admin":  {"SELECT": false, "INSERT": false, "UPDATE": false, "DELETE": false, "TRUNCATE": false},
 		"phoenix_auth":   {"SELECT": false, "INSERT": false, "UPDATE": false, "DELETE": false},
 		"phoenix_tenant": {"SELECT": false, "INSERT": false, "UPDATE": false, "DELETE": false},
 	}
@@ -283,6 +284,16 @@ func TestBillingCountsCannotBeChangedByTheServerRoles(t *testing.T) {
 			require.NoError(t, err)
 			assert.Equal(t, allowed, has, "%s %s", role, privilege)
 		}
+	}
+	for _, role := range []string{"phoenix_admin", "phoenix_auth", "phoenix_tenant", "phoenix_school_erasure", "phoenix_billing_retention"} {
+		var capture, readLive, expire bool
+		require.NoError(t, db.NewRaw(`SELECT
+ has_function_privilege(?, 'platform.capture_billing_key_date_counts(bigint[],text[],text[],text[],text[],integer[],integer[])', 'EXECUTE'),
+ has_table_privilege(?, 'platform.live_billing_key_date_counts', 'SELECT'),
+ has_function_privilege(?, 'platform.delete_expired_billing_key_date_counts()', 'EXECUTE')`, role, role, role).Scan(t.Context(), &capture, &readLive, &expire))
+		assert.Equal(t, role == "phoenix_admin", capture, "%s capture", role)
+		assert.Equal(t, role == "phoenix_admin", readLive, "%s regular read", role)
+		assert.Equal(t, role == "phoenix_billing_retention", expire, "%s expiry", role)
 	}
 }
 

@@ -151,7 +151,6 @@ const schoolErasurePreflightSQL = `CREATE OR REPLACE FUNCTION platform.school_er
     iot.pwa_standalone_usage,
     meta.meal_participation_permission_grants,
     meta.parent_student_consent_permission_grants,
-    platform.billing_key_date_counts,
     platform.cleanup_runs,
     platform.demo_school_states,
     platform.email_delivery,

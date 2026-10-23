@@ -148,7 +148,6 @@ const schoolErasurePlanSQL = `CREATE OR REPLACE FUNCTION platform.school_erasure
   {"name": "iot.pwa_standalone_usage","predicate": "r.tenant_id = $1"},
   {"name": "meta.meal_participation_permission_grants","predicate": "r.student_guardian_id IN (SELECT p0.id FROM users.student_guardian_relationships AS p0 WHERE p0.tenant_id = $1)","keyColumn": "student_guardian_id"},
   {"name": "meta.parent_student_consent_permission_grants","predicate": "r.student_guardian_id IN (SELECT p0.id FROM users.student_guardian_relationships AS p0 WHERE p0.tenant_id = $1)","keyColumn": "student_guardian_id"},
-  {"name": "platform.billing_key_date_counts","predicate": "r.school_id = $1"},
   {"name": "platform.cleanup_runs","predicate": "r.tenant_id = $1"},
   {"name": "platform.demo_school_states","predicate": "r.tenant_id = $1"},
   {"name": "platform.email_delivery","predicate": "r.tenant_id = $1"},

@@ -62,7 +62,14 @@ func TestSchoolErasurePlanCoversCatalogAndDeleteTriggers(t *testing.T) {
 	expected := make(map[string]string)
 	for _, table := range catalog.Tables {
 		switch table.Scope {
-		case "tenant", "tenantChild", "school", "tenantReference":
+		case "tenantReference":
+			if table.Name == "platform.billing_key_date_counts" {
+				require.Equal(t, "excludeInternal", table.Export)
+				require.Equal(t, ownRetention, tableRetentions[table.Name].class)
+				continue // Explicit retained invoice exception, ADR 0092.
+			}
+			expected[table.Name] = erasureCatalogPredicate(table, byName, "r", 0)
+		case "tenant", "tenantChild", "school":
 			expected[table.Name] = erasureCatalogPredicate(table, byName, "r", 0)
 		}
 	}

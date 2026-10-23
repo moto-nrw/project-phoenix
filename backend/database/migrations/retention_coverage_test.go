@@ -223,7 +223,7 @@ var tableRetentions = map[string]tableRetention{
 	"meta.parent_student_consent_permission_grants":         parent("users.student_guardian_relationships"),
 	"platform.announcement_views":                           parent("auth.accounts"),
 	"platform.announcements":                                notPersonal("operator release announcements"),
-	"platform.billing_key_date_counts":                      notPersonal("aggregate per-school counts for billing"),
+	"platform.billing_key_date_counts":                      own("platform.delete_expired_billing_key_date_counts: 10 years after the end of the key_date calendar year, restricted billing evidence (ADR 0092)"),
 	"platform.billing_settings":                             notPersonal("billing configuration"),
 	"platform.cleanup_runs":                                 notPersonal("ledger of last successful cleanup per school and job"),
 	"platform.demo_school_states":                           own("demo process only: hourly demoExpiry -> RetireDemoSchools -> RetireMany -> SQL platform.erase_closed_demo_visitors (closed order without demo access; also replaces the visitor's name in the hidden demo schools)"),

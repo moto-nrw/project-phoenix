@@ -11,15 +11,19 @@ const schoolErasureVersion = "1.15.481"
 
 func init() {
 	MigrationRegistry.Register(&Migration{
-		Version:     schoolErasureVersion,
-		Description: "Erase a school's database with an isolated role and durable phase evidence (#3837)",
-		DependsOn:   []string{guestViewOnlyVersion},
+		Version:      schoolErasureVersion,
+		Description:  "Erase a school's database with an isolated role and durable phase evidence (#3837)",
+		DependsOn:    []string{guestViewOnlyVersion},
+		Precondition: schoolErasurePrecondition,
 	})
 	Migrations.MustRegister(schoolErasureUp, schoolErasureDown)
 }
 
 func schoolErasureUp(ctx context.Context, db *bun.DB) error {
 	return db.RunInTx(ctx, nil, func(ctx context.Context, tx bun.Tx) error {
+		if err := requireSchoolErasureReferences(ctx, tx); err != nil {
+			return err
+		}
 		if _, err := tx.ExecContext(ctx, schoolErasureSchemaSQL); err != nil {
 			return fmt.Errorf("create school erasure evidence: %w", err)
 		}
@@ -37,6 +41,9 @@ func schoolErasureUp(ctx context.Context, db *bun.DB) error {
 		}
 		if _, err := tx.ExecContext(ctx, schoolErasureFunctionsSQL); err != nil {
 			return fmt.Errorf("install school erasure functions: %w", err)
+		}
+		if err := installSchoolErasureBilling(ctx, tx); err != nil {
+			return fmt.Errorf("restrict retained billing evidence: %w", err)
 		}
 		return nil
 	})
@@ -214,6 +221,11 @@ func schoolErasureDown(ctx context.Context, db *bun.DB) error {
 			return fmt.Errorf("school erasure rollback would discard evidence; use a forward migration")
 		}
 		_, err := tx.ExecContext(ctx, `
+   DROP VIEW platform.live_billing_key_date_counts;
+   DROP FUNCTION platform.delete_expired_billing_key_date_counts();
+   REVOKE SELECT ON platform.billing_key_date_counts FROM phoenix_billing_retention;
+   DROP FUNCTION platform.capture_billing_key_date_counts(BIGINT[],TEXT[],TEXT[],TEXT[],TEXT[],INTEGER[],INTEGER[]);
+   GRANT SELECT, INSERT ON platform.billing_key_date_counts TO phoenix_admin;
    ALTER TABLE active.presence_backfill_batches DROP CONSTRAINT fk_presence_backfill_batches_school_erasure;
    ALTER TABLE audit.room_color_migration_backup DROP CONSTRAINT fk_room_color_backup_school_erasure;
    ALTER TABLE audit.wc_alias_migration_backup DROP CONSTRAINT fk_wc_alias_backup_school_erasure;
