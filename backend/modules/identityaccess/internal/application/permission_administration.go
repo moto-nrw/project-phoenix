@@ -77,8 +77,16 @@ func (r *RoleAdministration) AssignPermissionToRole(ctx context.Context, roleID,
 		if err := r.lockMutableRole(txCtx, roleID, opAssignPermissionToRole); err != nil {
 			return err
 		}
-		if _, found, err := r.store.FindPermission(txCtx, permissionID); err != nil || !found {
+		permission, found, err := r.store.FindPermission(txCtx, permissionID)
+		if err != nil || !found {
 			return failed(opAssignPermissionToRole, identityaccess.ErrPermissionNotFound)
+		}
+		current, err := r.rolePermissions(txCtx, roleID, opAssignPermissionToRole)
+		if err != nil {
+			return err
+		}
+		if err := requireNoNewReservedPermission(map[int64]domain.ManagedPermission{permission.ID: permission}, current, opAssignPermissionToRole); err != nil {
+			return err
 		}
 		if err := r.store.AssignRolePermission(txCtx, roleID, permissionID); err != nil {
 			return failed(opAssignPermissionToRole, err)
@@ -107,6 +115,9 @@ func (r *RoleAdministration) lockMutableRole(ctx context.Context, roleID int64, 
 // ReplaceRolePermissions applies a complete permission selection to a custom
 // role in one transaction. All requested permissions are validated before the
 // current selection is changed, so an invalid request leaves it untouched.
+// A reserved permission the role does not hold yet is refused (#4574); one it
+// already holds may stay or be removed, so a role from before the rule stays
+// editable.
 func (r *RoleAdministration) ReplaceRolePermissions(ctx context.Context, roleID int64, permissionIDs []int64) (err error) {
 	if r == nil {
 		return errRoleAdministrationUnavailable
@@ -126,20 +137,39 @@ func (r *RoleAdministration) ReplaceRolePermissions(ctx context.Context, roleID 
 		if err != nil {
 			return err
 		}
-		current, err := r.removeUnselectedPermissions(txCtx, roleID, desired)
+		current, err := r.rolePermissions(txCtx, roleID, op)
 		if err != nil {
 			return err
 		}
-		for permissionID := range desired {
-			if _, assigned := current[permissionID]; assigned {
-				continue
-			}
-			if err := r.store.AssignRolePermission(txCtx, roleID, permissionID); err != nil {
-				return failed(op, err)
-			}
+		if err := requireNoNewReservedPermission(desired, current, op); err != nil {
+			return err
 		}
-		return nil
+		return r.applyRolePermissionSelection(txCtx, roleID, desired, current, op)
 	})
+}
+
+// applyRolePermissionSelection removes the current permissions the selection
+// drops, in store order, and assigns the ones it adds.
+func (r *RoleAdministration) applyRolePermissionSelection(txCtx context.Context, roleID int64, desired map[int64]domain.ManagedPermission, current []domain.ManagedPermission, op string) error {
+	assigned := make(map[int64]struct{}, len(current))
+	for _, permission := range current {
+		assigned[permission.ID] = struct{}{}
+		if _, keep := desired[permission.ID]; keep {
+			continue
+		}
+		if err := r.store.RemoveRolePermission(txCtx, roleID, permission.ID); err != nil {
+			return failed(op, err)
+		}
+	}
+	for permissionID := range desired {
+		if _, held := assigned[permissionID]; held {
+			continue
+		}
+		if err := r.store.AssignRolePermission(txCtx, roleID, permissionID); err != nil {
+			return failed(op, err)
+		}
+	}
+	return nil
 }
 
 // RemovePermissionFromRole removes a permission from a custom role.
@@ -180,40 +210,57 @@ func (r *RoleAdministration) GetRolePermissions(ctx context.Context, roleID int6
 	return
 }
 
-func (r *RoleAdministration) desiredRolePermissions(txCtx context.Context, permissionIDs []int64) (map[int64]struct{}, error) {
-	desired := make(map[int64]struct{}, len(permissionIDs))
+func (r *RoleAdministration) desiredRolePermissions(txCtx context.Context, permissionIDs []int64) (map[int64]domain.ManagedPermission, error) {
+	desired := make(map[int64]domain.ManagedPermission, len(permissionIDs))
 	for _, permissionID := range permissionIDs {
 		if permissionID <= 0 {
 			return nil, failed("replace role permissions", identityaccess.ErrPermissionNotFound)
 		}
-		_, found, err := r.store.FindPermission(txCtx, permissionID)
+		permission, found, err := r.store.FindPermission(txCtx, permissionID)
 		if err != nil {
 			return nil, failed("replace role permissions", err)
 		}
 		if !found {
 			return nil, failed("replace role permissions", identityaccess.ErrPermissionNotFound)
 		}
-		desired[permissionID] = struct{}{}
+		desired[permissionID] = permission
 	}
 
 	return desired, nil
 }
 
-func (r *RoleAdministration) removeUnselectedPermissions(txCtx context.Context, roleID int64, desired map[int64]struct{}) (map[int64]struct{}, error) {
-	currentPermissions, err := r.store.ListRolePermissions(txCtx, roleID)
+// rolePermissions loads the role's current selection in store order.
+func (r *RoleAdministration) rolePermissions(txCtx context.Context, roleID int64, op string) ([]domain.ManagedPermission, error) {
+	current, err := r.store.ListRolePermissions(txCtx, roleID)
 	if err != nil {
-		return nil, failed("replace role permissions", err)
+		return nil, failed(op, err)
 	}
-	current := make(map[int64]struct{}, len(currentPermissions))
-	for _, permission := range currentPermissions {
-		current[permission.ID] = struct{}{}
-		if _, keep := desired[permission.ID]; keep {
+	return current, nil
+}
+
+// requireNoNewReservedPermission refuses a selection that adds a reserved
+// permission the role does not hold yet (#4574).
+func requireNoNewReservedPermission(desired map[int64]domain.ManagedPermission, current []domain.ManagedPermission, op string) error {
+	held := make(map[int64]struct{}, len(current))
+	for _, permission := range current {
+		held[permission.ID] = struct{}{}
+	}
+	for id, permission := range desired {
+		if _, ok := held[id]; ok {
 			continue
 		}
-		if err := r.store.RemoveRolePermission(txCtx, roleID, permission.ID); err != nil {
-			return nil, failed("replace role permissions", err)
+		if name := permissionKey(permission); identityaccess.IsReservedPermission(name) {
+			return failed(op, &identityaccess.ReservedPermissionError{Permission: name})
 		}
 	}
+	return nil
+}
 
-	return current, nil
+// permissionKey checks the canonical name before metadata so inconsistent
+// catalog entries cannot hide a reserved permission from guards or templates.
+func permissionKey(permission domain.ManagedPermission) string {
+	if identityaccess.IsReservedPermission(permission.Name) || (permission.Resource == "" && permission.Action == "") {
+		return permission.Name
+	}
+	return permission.Resource + ":" + permission.Action
 }

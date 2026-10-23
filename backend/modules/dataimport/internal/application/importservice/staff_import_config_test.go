@@ -67,7 +67,7 @@ func TestStaffImportConfig_PreloadReferenceData_LoadsRoleDisplayNamesAndSchool(t
 
 	require.NoError(t, config.PreloadReferenceData(ctx))
 
-	assert.Equal(t, []string{"Betreuer", "koordination"}, config.roleDisplayNames)
+	assert.Equal(t, []string{"Betreuung", "koordination"}, config.roleDisplayNames)
 	assert.Equal(t, "OGS Phoenix", config.schoolName)
 }
 
@@ -77,6 +77,9 @@ func TestStaffImportConfig_Validate_ResolvesGermanDisplayRole(t *testing.T) {
 	config := NewStaffImportConfig(ports.StaffImportDeps{RolePolicy: newTestRolePolicy(), Authorization: newTestAuthorization(), Transactions: newTestTransactions(),
 		Roles: stubStaffRoleRepo{
 			findByName: func(_ context.Context, name string) (*importModels.SchoolRole, error) {
+				if name == "Betreuer" {
+					return nil, importModels.ErrRoleNotFound
+				}
 				assert.Equal(t, "user", name)
 				return &importModels.SchoolRole{ID: staffImportTestRoleID, Name: name, IsSystem: true}, nil
 			},
@@ -101,12 +104,44 @@ func TestStaffImportConfig_Validate_ResolvesGermanDisplayRole(t *testing.T) {
 	assert.Equal(t, staffImportTestRoleID, row.RoleID)
 }
 
+// The roles page names each system role once (#4574); import files written
+// against the earlier names keep resolving.
+func TestStaffImportConfig_Validate_ResolvesCurrentAndEarlierRoleNames(t *testing.T) {
+	t.Parallel()
+
+	for display, raw := range map[string]string{
+		"Verwaltung": "admin", "Administrator": "admin",
+		"Betreuung": "user", "Betreuer": "user",
+	} {
+		var looked string
+		config := NewStaffImportConfig(ports.StaffImportDeps{RolePolicy: newTestRolePolicy(), Authorization: newTestAuthorization(), Transactions: newTestTransactions(),
+			Roles: stubStaffRoleRepo{
+				findByName: func(_ context.Context, name string) (*importModels.SchoolRole, error) {
+					looked = name
+					if name == display {
+						return nil, importModels.ErrRoleNotFound
+					}
+					return &importModels.SchoolRole{ID: staffImportTestRoleID, Name: name, IsSystem: true}, nil
+				},
+			},
+		})
+		row := &importModels.StaffImportRow{FirstName: "Anna", LastName: "Lehmann", Email: "anna@example.com", RoleName: display}
+
+		// The grant check behind the lookup is the stub's; this pins the name.
+		config.Validate(context.Background(), row)
+		assert.Equal(t, raw, looked, display)
+	}
+}
+
 func TestStaffImportConfig_Validate_NormalizesDisplayNameEmail(t *testing.T) {
 	t.Parallel()
 
 	config := NewStaffImportConfig(ports.StaffImportDeps{RolePolicy: newTestRolePolicy(), Authorization: newTestAuthorization(), Transactions: newTestTransactions(),
 		Roles: stubStaffRoleRepo{
 			findByName: func(_ context.Context, name string) (*importModels.SchoolRole, error) {
+				if name == "Betreuer" {
+					return nil, importModels.ErrRoleNotFound
+				}
 				return &importModels.SchoolRole{ID: staffImportTestRoleID, Name: name, IsSystem: true}, nil
 			},
 		},
@@ -400,4 +435,26 @@ func TestStaffImportConfig_EntityNameAndUpdate(t *testing.T) {
 	// Update writes the Stammdatensatz (#2600); without the repositories it
 	// must fail loudly instead of silently skipping the row.
 	require.Error(t, config.Update(context.Background(), 0, importModels.StaffImportRow{}))
+}
+
+func TestStaffImportConfig_Validate_ExactRolePrecedesAlias(t *testing.T) {
+	t.Parallel()
+	for _, name := range []string{"Betreuung", "Verwaltung", "Eltern", "Administrator", "Betreuer", "Erziehungsberechtigter"} {
+		t.Run(name, func(t *testing.T) {
+			baseRole := "user"
+			tenantID := staffImportTestTenantID
+			var looked []string
+			config := NewStaffImportConfig(ports.StaffImportDeps{RolePolicy: newTestRolePolicy(), Authorization: newTestAuthorization(), Transactions: newTestTransactions(),
+				Roles: stubStaffRoleRepo{findByName: func(_ context.Context, lookup string) (*importModels.SchoolRole, error) {
+					looked = append(looked, lookup)
+					return &importModels.SchoolRole{ID: staffImportTestRoleID, TenantID: &tenantID, Name: name, BaseRole: &baseRole}, nil
+				}},
+			})
+			row := &importModels.StaffImportRow{FirstName: "Anna", LastName: "Lehmann", Email: "anna@example.com", RoleName: name}
+			ctx := testpkg.ContextForTenant(context.Background(), tenantID)
+			require.Empty(t, config.Validate(ctx, row))
+			assert.Equal(t, []string{name}, looked)
+			assert.Equal(t, staffImportTestRoleID, row.RoleID)
+		})
+	}
 }

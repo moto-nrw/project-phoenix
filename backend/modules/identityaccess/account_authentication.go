@@ -113,10 +113,11 @@ type RefreshClaims struct {
 
 // AccountRole is one role an account holds at a school.
 type AccountRole struct {
-	ID       int64
-	Name     string
-	IsSystem bool
-	TenantID *int64
+	ID           int64
+	Name         string
+	IsSystem     bool
+	TenantID     *int64
+	SchoolPortal bool
 }
 
 // AccountClaims is the tenant-scoped claims material of an account: the
@@ -148,14 +149,16 @@ func (c AccountClaims) IsGuardianOnly() bool {
 	return true
 }
 
-// IsSchoolPortalOnly reports whether every role is a school-portal role
-// (the lehrkraft system role, #2207).
+// IsSchoolPortalOnly reports whether every role is a school-portal role:
+// the lehrkraft system role (#2207) or a school role made from its template
+// (#4574).
 func (c AccountClaims) IsSchoolPortalOnly() bool {
 	if len(c.Roles) == 0 {
 		return false
 	}
 	for _, role := range c.Roles {
-		if !role.IsSystem || !strings.EqualFold(strings.TrimSpace(role.Name), "lehrkraft") {
+		facts := RoleFacts{Name: role.Name, IsSystem: role.IsSystem, SchoolPortal: role.SchoolPortal}
+		if !IsLehrkraftRole(&facts) {
 			return false
 		}
 	}

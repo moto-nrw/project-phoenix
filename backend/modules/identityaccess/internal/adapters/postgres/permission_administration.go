@@ -9,6 +9,7 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess/internal/domain"
 	"github.com/uptrace/bun"
+	"github.com/uptrace/bun/driver/pgdriver"
 )
 
 type permissionRow struct {
@@ -157,6 +158,60 @@ func (s *Store) AssignRolePermission(ctx context.Context, roleID, permissionID i
 		return fmt.Errorf("assign permission to role: %w", err)
 	}
 	return nil
+}
+
+// copyRolePermissionsAttempts bounds the retries of AssignRolePermissions.
+// Each retry follows a catalog deletion that committed during the statement.
+const copyRolePermissionsAttempts = 3
+
+// AssignRolePermissions gives a role every listed permission the catalog
+// still holds, in one statement, so a permission deleted after the caller
+// read the catalog is skipped instead of failing the role (#4574). A deletion
+// that commits while the statement runs breaks its foreign key check; the
+// statement then rolls back to its savepoint and runs again on the new
+// catalog. phoenix_tenant may not lock catalog rows (no UPDATE grant), so the
+// retry stands in for a row lock.
+func (s *Store) AssignRolePermissions(ctx context.Context, roleID int64, permissionIDs []int64) error {
+	if len(permissionIDs) == 0 {
+		return nil
+	}
+	db, err := s.database(ctx)
+	if err != nil {
+		return err
+	}
+	for attempt := 1; ; attempt++ {
+		err = copyCatalogPermissions(ctx, db, roleID, permissionIDs)
+		if err == nil || attempt == copyRolePermissionsAttempts || !isDeletedPermission(err) {
+			return err
+		}
+	}
+}
+
+func copyCatalogPermissions(ctx context.Context, db bun.IDB, roleID int64, permissionIDs []int64) error {
+	if _, err := db.ExecContext(ctx, "SAVEPOINT copy_role_permissions"); err != nil {
+		return fmt.Errorf("copy permissions to role: %w", err)
+	}
+	_, err := db.NewRaw(`INSERT INTO auth.role_permissions (role_id, permission_id)
+		SELECT ?, permission.id FROM auth.permissions AS permission WHERE permission.id IN (?)
+		ON CONFLICT (role_id, permission_id) DO NOTHING`, roleID, bun.List(permissionIDs)).Exec(ctx)
+	if err != nil {
+		if _, rollbackErr := db.ExecContext(ctx, "ROLLBACK TO SAVEPOINT copy_role_permissions"); rollbackErr != nil {
+			return fmt.Errorf("copy permissions to role: %w", errors.Join(err, rollbackErr))
+		}
+		return fmt.Errorf("copy permissions to role: %w", err)
+	}
+	if _, err := db.ExecContext(ctx, "RELEASE SAVEPOINT copy_role_permissions"); err != nil {
+		return fmt.Errorf("copy permissions to role: %w", err)
+	}
+	return nil
+}
+
+// isDeletedPermission reports the foreign key violation of a role permission
+// whose catalog permission was deleted concurrently.
+func isDeletedPermission(err error) bool {
+	var postgresError pgdriver.Error
+	return errors.As(err, &postgresError) && postgresError.Field('C') == "23503" &&
+		postgresError.Field('n') == "fk_role_permissions_permission"
 }
 
 func (s *Store) RemoveRolePermission(ctx context.Context, roleID, permissionID int64) error {

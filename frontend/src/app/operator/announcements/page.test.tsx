@@ -382,10 +382,10 @@ describe("OperatorAnnouncementsPage", () => {
       expect(screen.getByTestId("modal")).toBeInTheDocument();
     });
 
-    // Find the Administratoren button inside the modal form
+    // Find the Verwaltung button inside the modal form
     const modal = screen.getByTestId("modal");
     const adminButtons = Array.from(modal.querySelectorAll("button")).filter(
-      (b) => b.textContent?.includes("Administratoren"),
+      (b) => b.textContent?.includes("Verwaltung"),
     );
     expect(adminButtons.length).toBeGreaterThan(0);
     fireEvent.click(adminButtons[0]!);
@@ -395,7 +395,7 @@ describe("OperatorAnnouncementsPage", () => {
       const updatedModal = screen.getByTestId("modal");
       const updatedAdminBtn = Array.from(
         updatedModal.querySelectorAll("button"),
-      ).find((b) => b.textContent?.includes("Administratoren"));
+      ).find((b) => b.textContent?.includes("Verwaltung"));
       expect(updatedAdminBtn?.className).toContain("border-moto-green");
     });
   });
