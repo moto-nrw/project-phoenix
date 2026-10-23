@@ -297,7 +297,7 @@ func TestCountAtSchoolToday(t *testing.T) {
 }
 
 func fullCaller(context.Context) (Caller, error) {
-	return Caller{CanReadGroups: true, CanReviewExcusedRequests: true}, nil
+	return Caller{CanReadStudentPlans: true, CanReadGroups: true, CanReviewExcusedRequests: true}, nil
 }
 
 const (
@@ -679,7 +679,7 @@ func TestGetRedactsRestrictedCallersButKeepsTheReviewersNote(t *testing.T) {
 	f := &fakes{
 		restricted: true,
 		caller: func(context.Context) (Caller, error) {
-			return Caller{CanReadGroups: true, CanReviewExcusedRequests: true}, nil
+			return Caller{CanReadStudentPlans: true, CanReadGroups: true, CanReviewExcusedRequests: true}, nil
 		},
 		supervisedGroups: func(context.Context) ([]GroupRecord, error) { return twoGroups(), nil },
 		members: func(context.Context, int64) ([]RosterStudent, error) {

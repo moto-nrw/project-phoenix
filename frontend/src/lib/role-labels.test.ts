@@ -27,6 +27,7 @@ const EXPECTED: Record<SystemRoleName, string> = {
   lehrkraft: "Lehrkraft",
   guardian: "Eltern",
   guest: "Gast",
+  "ag-leitung": "AG-Leitung",
 };
 
 describe("role labels", () => {
@@ -92,7 +93,10 @@ describe("role labels", () => {
         )?.[1];
       expect(block, source).toBeDefined();
       const entries = Object.fromEntries(
-        [...block!.matchAll(/"(\w+)":\s*"([^"]+)"/g)].map((m) => [m[1], m[2]]),
+        [...block!.matchAll(/"([\w-]+)":\s*"([^"]+)"/g)].map((m) => [
+          m[1],
+          m[2],
+        ]),
       );
       expect(entries, source).toEqual(EXPECTED);
     }

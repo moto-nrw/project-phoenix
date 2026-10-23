@@ -149,8 +149,11 @@ func (s *InstanceLifecycleService) requireStaff(ctx context.Context, staffID int
 	if staff == nil || staff.ID == 0 {
 		return timetable.DeviationNotFound("staff not found").WithCode(timetable.CodeStaffNotFound).OnField("staff_id")
 	}
-	if staff.IsGuest && staff.Person != nil && staff.Person.AccountID == nil {
-		return timetable.DeviationBadRequest("Diese Person kann nicht im Dienstplan eingeplant werden.").WithCode(timetable.CodeDeviationSelectionInvalid).OnField("staff_id")
+	// The move is the staff pool's replacement action, and an external
+	// caregiver is never replacement staff, account or not (#4573 D6). The
+	// plain read carries the raw marker, an active external caregiver record.
+	if staff.HasExternalCaregiverRecord {
+		return externalSubstituteRefusal("staff_id")
 	}
 	return nil
 }

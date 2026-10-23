@@ -917,6 +917,7 @@ Run commands from the repository root:
 
 ```bash
 scripts/backend-architecture.sh check
+scripts/backend-architecture.sh effects # regenerate identities; review unknown labels
 scripts/backend-architecture.sh audit-issues \
   --api-url https://api.github.com
 scripts/backend-architecture.sh explain \
@@ -930,6 +931,15 @@ scripts/backend-architecture.sh dependencies \
   --focus package:services/mealplan
 scripts/backend-architecture.sh cycles
 ```
+
+`effects` regenerates `backend/architecture/command-effects.json` for every
+policy domain source owner, preserving only exact reviewed identities. Review
+all new `unknown` labels before running `check`; do not label locking/audited
+reads as queries. `check` enforces canonical generator JSON and one effect per
+target method without rewriting files. E1–E5, workflow-backed bindings, known
+coordination debt and unresolved bindings remain distinct. See the
+[ADR 0083 domain-source addendum](../../docs/adr/0083-ratchets-protect-invariants-and-expose-command-effects.md#domain-source-expansion-2026-10-23-4739)
+and [all 40 reconciled hand rows](../../docs/architecture/4739-command-effect-reconciliation.md).
 
 `check` loads packages with `GOOS=linux`, `GOARCH=amd64`, and `CGO_ENABLED=0`.
 It checks production imports, same-package test imports, and external-package
@@ -3495,6 +3505,15 @@ existing object remains a policy loosening. Modified historical migrations
 never qualify for this exception, and historical unowned objects do not need
 rebaselining. The check uses the immutable local Git base, not GitHub.
 
+A table renamed by a new candidate migration keeps its write owner
+([ADR 0091](../../docs/adr/0091-extern-ist-ein-merkmal.md)).
+The scan reads top-level `ALTER TABLE [IF EXISTS] [ONLY] schema.old RENAME
+TO new` from the same statically resolved SQL; the new name stays in the old
+schema. The policy may then list `schema.new` only when the base policy owns
+`schema.old`, the candidate policy drops `schema.old`, and both carry the same
+write owner. Renames of columns or constraints, renames inside procedural
+bodies and unqualified renames grant nothing; the last fail closed.
+
 `audit-issues` performs the network-dependent GitHub liveness check separately.
 The wrapper supplies the committed baseline; the policy defaults to
 `architecture/policy.json` and can be selected with `--policy`. Callers must provide `--api-url`,
@@ -4638,6 +4657,34 @@ No key, alias or exception is added.
 The group handovers of School Structure's substitution module are written
 through Workforce's public commands by the existing `shift-plan-sync`
 workflow, whose public role already reaches Workforce.
+
+### External caregiver with an access level (#4573)
+
+Being external is the external caregiver record; the access is a separate
+choice ([ADR 0091](../../docs/adr/0091-extern-ist-ein-merkmal.md)):
+`none` (a placeholder without account or e-mail), `view` (an invitation into
+the platform system role `guest`, „Gast“) or `supervise` (an invitation into
+the platform system role `ag-leitung`, „AG-Leitung“). Recording an external
+caregiver writes across three owners: the person (People Directory), the
+staff member with its caregiver profile and external caregiver record
+(School Membership) and, for `view` and `supervise`, the invitation
+(Identity & Access). The application workflow `workflows/externalcaregiver`
+(owner `external-caregiver`, kind `workflow`, one `public` package) does
+both writes: `Record` for a new external and `Invite` („Konto einladen“,
+`view` or `supervise`) for an existing one without an account. It resolves
+the system role by name through Identity & Access's public `ListRoles` and
+`PlatformSystemRole`, so a school's own role of the same name never
+matches; no school provisions a role. It owns no data and issues no SQL. Its
+ports use the owners' public vocabulary, so the root binds the public
+capabilities directly (the care-exit shape) in `api/staff_composition.go`.
+The workflow is a local value of the staff mount, and the School Membership
+HTTP adapter reaches it through `Runtime` closures. Every call joins the
+request transaction, and both writes run in one savepoint: the request
+transaction commits 4xx answers, so a refused invitation must not leave a
+half-created person behind. Policy epoch 91 -> 92 registers the owner, its
+package and three production rules from `external-caregiver/public` into
+the `public` roles of `people-directory`, `school-membership` and
+`identity-access`. No key, alias or exception is added.
 
 The staff directory joins of the retained staff repository (account links,
 reachable and permitted staff, staff contacts, staff by role and the staff

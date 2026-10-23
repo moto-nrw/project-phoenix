@@ -15,8 +15,8 @@ import (
 // sessions (#2724). Credentials belong to the account and carry no tenant,
 // and a login ceremony is completed before a tenant is known, so every
 // operation runs through RunPlatform: it joins the administrative
-// transaction a caller opened and otherwise executes on the root
-// connection.
+// transaction a caller opened and otherwise opens an administrative
+// transaction, even when the caller supplies school context.
 type AccountPasskey struct {
 	service *Service
 	store   ports.AccountPasskeyStore
@@ -30,7 +30,7 @@ func NewAccountPasskey(service *Service, store ports.AccountPasskeyStore) *Accou
 }
 
 func (p *AccountPasskey) run(ctx context.Context, operation string, fn func(context.Context, *domain.OperationStats) error) error {
-	return p.service.run(ctx, p.service.tx.RunPlatform, operation, fn)
+	return p.service.run(withGlobalCredentialScope(ctx), p.service.tx.RunPlatform, operation, fn)
 }
 
 func (p *AccountPasskey) CreateCredential(ctx context.Context, credential domain.AccountPasskeyCredential) (result domain.AccountPasskeyCredential, err error) {

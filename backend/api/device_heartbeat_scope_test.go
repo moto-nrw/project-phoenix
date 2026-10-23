@@ -27,7 +27,12 @@ func TestDeviceAuthenticationPersistsSchoolScopedHeartbeat(t *testing.T) {
 
 	var previous *time.Time
 	for _, withPIN := range []bool{false, true} {
-		auth := deviceauth.New(deviceauth.Dependencies{Devices: fleet, FallbackPIN: "heartbeat-pin"})
+		auth := deviceauth.New(deviceauth.Dependencies{Devices: fleet, Settings: &configurationResolverStub{
+			ResolveStringForTenantFn: func(_ context.Context, tenantID int64, _ string) (string, error) {
+				require.Equal(t, own.TenantID, tenantID)
+				return "1234", nil
+			},
+		}})
 		middleware := auth.DeviceOnly()
 		if withPIN {
 			middleware = auth.Device()
@@ -35,7 +40,7 @@ func TestDeviceAuthenticationPersistsSchoolScopedHeartbeat(t *testing.T) {
 		requestCtx, cancel := context.WithCancel(base)
 		request := httptest.NewRequest(http.MethodGet, "/heartbeat", nil).WithContext(requestCtx)
 		request.Header.Set("Authorization", "Bearer "+*own.APIKey)
-		request.Header.Set("X-Staff-PIN", "heartbeat-pin")
+		request.Header.Set("X-Staff-PIN", "1234")
 		response := httptest.NewRecorder()
 		middleware(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) { w.WriteHeader(http.StatusNoContent) })).ServeHTTP(response, request)
 		require.Equal(t, http.StatusNoContent, response.Code)

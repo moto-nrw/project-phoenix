@@ -116,6 +116,7 @@ interface RenderOptions {
   onApply?: ApplyFn;
   onClose?: () => void;
   initialTab?: "bearbeiten" | "verlauf";
+  staffOptions?: { id: string; name: string; isExternal?: boolean }[];
 }
 
 function renderEditor(opts: RenderOptions = {}) {
@@ -126,7 +127,7 @@ function renderEditor(opts: RenderOptions = {}) {
     <SubstitutionSlideOver
       instance={instance}
       dayInstances={opts.dayInstances ?? [instance]}
-      staffOptions={STAFF_OPTIONS}
+      staffOptions={opts.staffOptions ?? STAFF_OPTIONS}
       staffNames={STAFF_NAMES}
       canManage={opts.canManage ?? true}
       onClose={onClose}
@@ -180,6 +181,27 @@ describe("SubstitutionSlideOver", () => {
         screen.queryByText(/Der Termin wird abgesagt/),
       ).not.toBeInTheDocument();
     });
+  });
+
+  it("bietet externe Kräfte nicht als Vertretung an (#4573)", () => {
+    renderEditor({
+      staffOptions: [
+        ...STAFF_OPTIONS,
+        { id: "14", name: "Erik Extern", isExternal: true },
+      ],
+    });
+
+    markAbsent();
+    chooseScope("Alle noch offenen Termine");
+    fireEvent.click(
+      screen.getByRole("combobox", { name: "Vertretung für Anna Alt" }),
+    );
+    expect(
+      screen.getByRole("option", { name: "Bernd Neu" }),
+    ).toBeInTheDocument();
+    expect(
+      screen.queryByRole("option", { name: "Erik Extern" }),
+    ).not.toBeInTheDocument();
   });
 
   describe("Ein-Request-Payload", () => {

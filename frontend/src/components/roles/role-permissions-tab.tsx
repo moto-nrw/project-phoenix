@@ -300,7 +300,7 @@ export function RolePermissionsTab({
         <p className="text-sm text-gray-600">
           {editing
             ? `${assignedCount} von ${allPermissions.length} Berechtigungen zugewiesen.`
-            : `${assignedCount} Berechtigungen zugewiesen.`}
+            : `${assignedCount} ${assignedCount === 1 ? "Berechtigung" : "Berechtigungen"} zugewiesen.`}
         </p>
         {viewGroups.length === 0 ? (
           <p className="text-sm text-gray-500">

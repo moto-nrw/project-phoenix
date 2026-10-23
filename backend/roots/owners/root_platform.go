@@ -154,8 +154,13 @@ func BuildMealPlanSettings(settings settingsCompose.SettingsService) (*mealplanC
 		func(ctx context.Context) (bool, error) {
 			return settings.ResolveBool(ctx, configModels.KeyMealRegistrationEnabled)
 		},
-		func(ctx context.Context) (string, error) {
-			return settings.ResolveString(ctx, configModels.KeyMealRegistrationCutoffTime)
+		func(ctx context.Context) (string, int, error) {
+			cutoff, err := settings.ResolveString(ctx, configModels.KeyMealRegistrationCutoffTime)
+			if err != nil {
+				return "", 0, err
+			}
+			leadDays, err := settings.ResolveInt(ctx, configModels.KeyMealRegistrationCutoffLeadDays)
+			return cutoff, leadDays, err
 		},
 	)
 }

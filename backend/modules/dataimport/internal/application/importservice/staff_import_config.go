@@ -20,11 +20,12 @@ import (
 // names a user sees on the roles page. Tenant-specific custom roles have no
 // translation — their raw name is also their display name.
 var systemRoleDisplayNames = map[string]string{
-	"admin":     "Verwaltung",
-	"user":      "Betreuung",
-	"guest":     "Gast",
-	"guardian":  "Eltern",
-	"lehrkraft": "Lehrkraft",
+	"admin":      "Verwaltung",
+	"user":       "Betreuung",
+	"guest":      "Gast",
+	"guardian":   "Eltern",
+	"lehrkraft":  "Lehrkraft",
+	"ag-leitung": "AG-Leitung",
 }
 
 // legacyRoleDisplayNames are the display names the roles page showed before

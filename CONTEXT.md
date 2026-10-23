@@ -80,10 +80,25 @@ Seiten und Funktionen, wo Nutzer hängen bleiben, wie Interessenten durch die
 öffentliche Demo gehen. Sie dient nur der Produktverbesserung; Schulen und
 Träger sehen sie nicht, und sie bewertet keine einzelnen Mitarbeitenden.
 
+Die Schule kann die Nutzungsanalyse unter **Datenschutz** ausschalten
+(`analytics.enabled`, Standard an). Das stoppt auch Aufzeichnungen,
+Kernaktionen, Kiosk-Nutzungsereignisse und die Benennung ihrer Analysegruppe.
+Fehlerdiagnose bleibt getrennt. Bei Lesefehlern bleibt die Erfassung aus.
+Im Elternportal müssen alle zugeordneten Schulen Analyse erlauben; vor der
+Zuordnung läuft dort keine Erfassung. Die Demo bleibt unverändert.
+Auf Formular-, Bearbeitungs- und Anpassungsseiten der Anmeldung muss
+zusätzlich die Zielschule Analyse erlauben. Außerhalb der Demo erfassen
+Token-Statusseiten der Anmeldung nie, auch nicht bei erlaubender Schule:
+Die Freigabe der Zielschule ist dort unbekannt. Eine Freigabe einer anderen Schule hebt deren Sperre
+nicht auf. Auf dem Schulhost bestimmt die Schule des Hosts die Freigabe; eine eingebettete Schule kann nur
+zusätzlich sperren.
+Abschaltbarkeit ist keine Rechtsgrundlage: deren Prüfung bleibt offen
+(#3843, Recht-Slice 3843-e). Produktive Wirksamkeit ist gesondert nachzuweisen.
+
 Eine **Sitzungsaufzeichnung** gibt eine Browsersitzung als Film wieder, mit
 ausgeblendeten Inhalten. In der öffentlichen Demo läuft sie immer. In einer
 echten Schule laufen sie und die Wiedererkennung einzelner Nutzer nur im
-OGS-Portal und nur mit **Analyse-Freigabe**: der schriftlichen Zustimmung der
+OGS-Portal bei eingeschalteter Nutzungsanalyse und nur mit **Analyse-Freigabe**: der schriftlichen Zustimmung der
 Schule bzw. ihres Trägers, die das moto-Team daraufhin für genau diese Schule
 erteilt. Ohne Analyse-Freigabe, im Eltern-Portal, im Schul-Portal der
 Lehrkräfte und im Träger-Büro bleibt die Nutzungsanalyse ohne Personenbezug.
@@ -199,12 +214,27 @@ Eine **zusätzliche Aufsicht** ordnet einer bereits laufenden Betreuung eine
 weitere Betreuungskraft zu. Sie ersetzt keine abwesende Person und verändert
 weder Gruppenübergaben noch geplante Termine.
 
-Eine **externe Betreuungskraft** ist eine Person ohne moto-Konto, etwa eine
-AG-Leitung der Musikschule (#3823). Sie wird als Personal mit Gastprofil
-(`users.guests`) geführt, kann einer spontanen Aktivität und einer zusätzlichen
-Aufsicht zugeordnet werden, übernimmt aber nie eine Gruppe. Zeiterfassung und
-Dienstplan führen sie nicht. Personal, das nur ohne E-Mail-Adresse importiert
-wurde, ist keine externe Betreuungskraft.
+Eine **externe Betreuungskraft** ist Personal mit einem aktiven Datensatz
+„externe Betreuungskraft“, etwa eine AG-Kraft der Musikschule (#3823, #4573,
+ADR 0091). Der Datensatz trägt die Organisation und einen optionalen Zeitraum.
+Extern ist ein Merkmal, keine Rolle: Nur der Datensatz macht extern, nicht ein
+Konto, eine Rolle oder eine fehlende E-Mail-Adresse. Externe sind in
+Regelterminen, einzelnen und spontanen Terminen und als zusätzliche Aufsicht
+planbar, auch allein und als zuständige Person. Sie übernehmen nie eine Gruppe,
+nie eine Vertretung und stehen nicht im Personalpool. Zeiterfassung,
+Mitarbeitenden-Status und Dienstplan führen sie nicht, und ein Aufsichtsstart
+stempelt keine Arbeitszeit.
+
+Der **Zugang** einer externen Betreuungskraft ist davon getrennt und eine von
+drei Stufen: **Kein Zugang** (Platzhalter ohne Konto, ohne E-Mail-Adresse),
+**Nur ansehen** (Einladung in die Systemrolle **Gast**) oder **Eigene Termine
+betreuen** (Einladung in die Systemrolle **AG-Leitung**). Ihr Kontostand ist
+`account`, `invitation_pending` oder `none`.
+
+**Gast** (`guest`) ist die Systemrolle fürs reine Ansehen: Kinder, Räume und
+AGs, ohne Elterndaten, Nachrichten und Schreibrechte. **AG-Leitung**
+(`ag-leitung`) ist die Systemrolle für Leute, die ihre eigenen Termine
+betreuen. Beide Rollen machen niemanden extern.
 
 Die **Vertretungsübersicht** ist die gemeinsame Arbeitsfläche für
 Gruppenübergaben, Vertretungen und zusätzliche Aufsichten. Die drei Vorgänge

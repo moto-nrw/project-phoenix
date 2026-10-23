@@ -447,3 +447,25 @@ test('frontend cached results survive docs but invalidate on source and generate
   f.commit('frontend/example.ts', 'export const changed = true;\n');
   assert.match(f.check().stdout, /\[frontend-quality\] cache miss/);
 });
+
+test('architecture decision changes invalidate architecture evidence without rerunning unrelated checks', t => {
+  const f = fixture(t);
+  f.commit('backend/example.go', 'package example\n');
+  f.commit('docs/adr/0083-effects.md', '# Accepted effects decision\n');
+  assert.equal(f.check().status, 0);
+  f.commit('docs/adr/0083-effects.md', '# Changed effects decision\n');
+  const result = f.check();
+  assert.equal(result.status, 0, result.stdout + result.stderr);
+  assert.match(result.stdout, /\[architecture\] cache miss/);
+  for (const stage of ['backend-quality', 'backend-lint']) assert.match(result.stdout, new RegExp(`\\[${stage}\\] cache hit`));
+});
+
+test('pass-through register changes invalidate architecture evidence', t => {
+  const f = fixture(t);
+  f.commit('backend/architecture/passthrough.json', '{"sites":[]}\n');
+  assert.equal(f.check().status, 0);
+  f.commit('backend/architecture/passthrough.json', '{"sites":[{"id":"changed"}]}\n');
+  const result = f.check();
+  assert.equal(result.status, 0, result.stdout + result.stderr);
+  assert.match(result.stdout, /\[architecture\] cache miss/);
+});

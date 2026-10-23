@@ -112,6 +112,7 @@ DELETE /school/notifications/preferences/
 DELETE /school/notifications/push/subscriptions
 GET /
 GET /.well-known/caldav
+GET /analytics-policy
 GET /api/absence-types/
 GET /api/absence-types/{id}/allowances/{staffId}
 GET /api/absence-types/{id}/allowances/{staffId}/preview
@@ -283,6 +284,8 @@ GET /api/me/teacher
 GET /api/meal-plan/
 GET /api/meal-plan/participants
 GET /api/meal-plan/participants/export
+GET /api/meal-plan/participants/week
+GET /api/meal-plan/participants/week/export
 GET /api/messages/
 GET /api/messages/count-scope
 GET /api/messages/reachable-students
@@ -749,6 +752,7 @@ POST /api/staff/absences/{absenceId}/approve
 POST /api/staff/absences/{absenceId}/deny
 POST /api/staff/absences/{absenceId}/question
 POST /api/staff/externals
+POST /api/staff/externals/{id}/invitation
 POST /api/staff/time-tracking/export/sftp
 POST /api/staff/time-tracking/month-close
 POST /api/staff/{id}/absences

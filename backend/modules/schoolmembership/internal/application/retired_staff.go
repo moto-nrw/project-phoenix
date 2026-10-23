@@ -12,7 +12,7 @@ import (
 // EraseNextRetiredStaff takes the next staff member above afterID who left
 // before the cutoff (#3963): it marks the tombstone erased and deletes the
 // Membership records that still name them, the teacher record and its group
-// assignments, the guest profile and the class assignments. The marking
+// assignments, the external caregiver record and the class assignments. The marking
 // comes first and locks the tombstone, so a concurrent run never takes the
 // same staff member. found is false when none is due.
 func (s *Service) EraseNextRetiredStaff(ctx context.Context, retiredBefore time.Time, afterID int64) (result schoolmembership.RetiredStaffErasure, found bool, err error) {
@@ -32,7 +32,7 @@ func (s *Service) EraseNextRetiredStaff(ctx context.Context, retiredBefore time.
 		}{
 			{&result.GroupAssignments, s.store.DeleteGroupAssignmentsByStaff},
 			{&result.Teachers, s.store.DeleteTeachersByStaff},
-			{&result.Guests, s.store.DeleteGuestsByStaff},
+			{&result.ExternalCaregiverRecords, s.store.DeleteExternalCaregiverRecordsByStaff},
 			{&result.ClassAssignments, s.store.DeleteClassAssignmentsByStaff},
 		} {
 			deleteStats, err := erase.run(txCtx, result.StaffID)

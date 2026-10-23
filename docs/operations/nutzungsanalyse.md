@@ -5,6 +5,120 @@ and `frontend/src/lib/analytics-policy.ts`. This page lists what lives outside
 the repository: the PostHog project settings the code relies on, and the
 paragraphs the privacy policy on the website needs (spec #3598, #3603).
 
+## Schulschalter: Implementierung und Nachweis (3843-b)
+
+**Im Code umgesetzt:** `analytics.enabled` ist standardmäßig an. Schuladmins
+mit `config:manage` können unter `Einstellungen` → `Datenschutz` →
+`Nutzungsanalyse` ausschalten; Operatoren im Schul-Einstellungsformular ebenso.
+Der Schalter beendet Nutzungsstatistiken und Sitzungsaufzeichnungen dieser
+Schule, nicht die separate Fehlerdiagnose. Eine vorhandene `analytics.freigabe`
+bleibt gespeichert, ist bei ausgeschalteter Grundeinstellung aber wirkungslos.
+Wiedereinschalten macht sie wieder wirksam. Auch der Operator sieht die
+Freigabe nur bei eingeschalteter Grundeinstellung.
+
+Bei „aus“ oder einem Lesefehler starten OGS und öffentliche Anmeldung des
+Schulhosts kein PostHog-SDK. Das Schulportal prüft die Schule seiner Sitzung.
+Im Elternportal müssen alle aktiven Schulen der Elternperson die Erfassung
+erlauben; fehlende Zuordnung oder ein einziger Fehler sperrt sie. Vor Anmeldung
+bleiben Eltern- und Schulportal ohne SDK. Demo-Verhalten bleibt unverändert.
+Auf dem OGS-Host entscheidet die Schule im Hostnamen, nicht die Schule eines
+fremden Anmelde- oder Bearbeitungslinks. Ein eingebetteter Schulkontext darf
+nur zusätzlich sperren: Ist dessen Analyse aus oder noch ungeklärt, bleibt die
+Erfassung aus. Das gilt auch im Eltern- und Schulportal. Dort bleibt die
+Portalentscheidung zusätzlich erforderlich. Eltern-Anmeldeformulare und
+Token-Bearbeitungsseiten sperren bereits während des Ladens der Zielschule
+und bei Ladefehlern, nicht erst beim Einblenden des Formulars. Bei einer Eltern-Anmeldung muss
+also neben allen aktiven Schulzuordnungen auch die Zielschule erlauben.
+Anonyme Anmeldeseiten auf dem Elternhost bleiben ohne SDK. Token-Statusseiten
+der Anmeldung erfassen außerhalb der Demo auf Eltern- und OGS-Hosts nie,
+auch bei angemeldeten Eltern und erlaubenden Schulen. Der Statusvertrag liefert keine Zielschulfreigabe;
+die zentrale Policy sperrt deshalb bereits vor dem Laden der Route und bis
+zum Verlassen der Statusseite. Das betrifft auch den Sprung nach dem Absenden
+(`?submitted=1`). Eine spätere Portal- oder Host-Neulesung hebt die Sperre nicht auf.
+Der SDK-Filter prüft die aktuelle Browserroute und die Ereignis-URL, bevor er
+ein Ereignis weitergibt. Damit gilt die Sperre auch beim synchronen
+History-Update, noch bevor React die Seiteneffekte ausführt, sowie für
+Aufzeichnungen ohne eigene Ereignis-URL. Eltern-Anmeldeformulare und
+Token-Bearbeitungs-/Anpassungsseiten benötigen eine Freigabe für genau ihre
+Route. Solange Routenparameter oder Zielschulmetadaten fehlen, bleibt die
+Erfassung gesperrt. Eine Freigabe für einen anderen Token oder eine andere
+Anmeldephase reicht nicht. Diese lokalen Routenfreigaben werden nicht übertragen.
+Die Oberfläche `public` (Hosts außerhalb Operator-, Eltern-, Schul- und
+OGS-Host) erfasst außerhalb der Demo nie. Diese bereits mit PR #4757
+wirksame Einschränkung wird hier ausdrücklich nachgetragen.
+Backend-Kernaktionen, Presence-Ereignisse und `$groupidentify` prüfen den
+Schulschalter vor der Erfassung. Öffentliche und Eltern-Anmeldungen lösen die
+Zielschule aus dem Routenparameter auf, nicht aus einer mitgesendeten Sitzung.
+`enrollment_submitted` bleibt bei Zielschule „aus“ auch mit `surface=parents`
+gesperrt; erlaubende Bestandsschulen ersetzen die Zielschulentscheidung nicht.
+Bei erlaubter Eltern-Anmeldung trägt das Ereignis die `school_id` der
+Zielschule, nicht die einer Bestandsschule.
+
+Eltern- und Schulportal lesen die Policy beim Sichtbarwerden eines Tabs und
+alle fünf Minuten bei sichtbarem Tab neu. Vor jedem Neulesen wird die Erfassung
+ausgeschaltet. Lesefehler lassen sie aus; eine überholte Antwort darf sie nicht
+wieder einschalten. OGS- und eingebettete Schulkontexte lesen wie bisher bei
+Einstellungs- und Sichtbarkeitssignalen neu. Die Neulesung ist keine sofortige
+Zustellung einer Änderung an alle Tabs; ohne Signal gilt im sichtbaren Eltern-
+oder Schultab das Fünf-Minuten-Intervall. Serverseitige Ereignisse prüfen pro
+Erfassung.
+Früher erfasste PostHog-Daten werden durch Ausschalten nicht gelöscht.
+
+**Lokal prüfbar:** Das Seed-Profil `manuell` (maßgeblich: `profiles.go`) speichert
+`analytics.enabled=false`; andere Schulen behalten den Registry-Standard.
+Die Demo-Umgebung ignoriert den Schalter absichtlich, daher für den Nachweis
+`APP_ENV=development`, nicht `demo`, verwenden.
+
+1. Lokal migrieren und seeden, keine externen Analyse- oder Diagnoseschlüssel
+   verwenden. Für den Browsernachweis darf ein nicht funktionsfähiger
+   Test-Platzhalter als `NEXT_PUBLIC_POSTHOG_KEY` dienen. Ausgehenden Verkehr
+   zusätzlich auf localhost begrenzen. Keine echten PostHog-Schlüssel benutzen.
+2. Schule mit „aus“ im OGS-Portal und ihre öffentliche Anmeldung öffnen.
+   Netzwerkaufzeichnung: keine Anfrage an `/ingest`, auch nach Interaktionen.
+3. Positive Kontrolle: dieselben Abläufe mit „an“ gegen einen lokalen
+   `/ingest`-Stub prüfen; der Stub darf nichts zu PostHog weiterleiten.
+4. Backendtests mit Tracker-Stub für Kernaktionen, `student_checked_in/out`,
+   `room_transfer` und `$groupidentify` ausführen. Sie prüfen „an“, „aus“,
+   Lesefehler, Schule A aus/B an und Eltern mit zwei Schulen, eine aus.
+   Tests: `analytics/collection_policy_mock_test.go`, Tenant-Resolve-Tests und
+   `lib/analytics-policy.test.ts` / `lib/posthog-client.test.ts`.
+5. `components/analytics/portal-analytics-policy.integration.test.tsx` prüft
+   echte Policy-, SDK-Client-, Tenant- und Portal-Module gegen ein PostHog-Stub:
+   Hostschule A aus, eingebettete Schule B an und B antwortet zuletzt nach
+   `visibilitychange`; außerdem A an/B aus und positive Kontrollen.
+   Eltern- und Schultabs sperren vor der Neulesung; eine verspätete alte
+   Freigabe überschreibt keine neuere Sperre. Eltern-Anmeldungen benötigen
+   zusätzlich eine erlaubende Zielschule. Die echten Token-Statusrouten auf
+   Eltern- und OGS-Hosts sperren auch bei erlaubender Portal-/Host-Policy,
+   während Suspense und nach `visibilitychange`. Beim Verlassen der
+   Statusseite ist die erlaubte Erfassung wieder möglich. Dieser Modultest
+   ersetzt keinen Netzwerknachweis.
+6. Für den lokalen und später menschlich auszuführenden Produktivnachweis
+   zusätzlich offene Eltern-/Schultabs, Zielschule aus bei erlaubenden
+   Bestandsschulen, fremde Token-Bearbeitungsseite auf einem gesperrten
+   OGS-Host, Token-Statusseiten auf Eltern- und OGS-Hosts (auch direkt nach
+   Absenden) und `public` außerhalb der Demo prüfen. Statusseiten müssen selbst
+   bei erlaubenden Schulen ohne Erfassung bleiben; positive Kontrollen auf den
+   benachbarten Formularseiten verwenden; Inhalte und Kennungen nicht als
+   unbereinigte HAR-Datei ablegen. Netzwerknachweis bleibt Slice 3843-c.
+
+**Lokal geprüft am 23.10.2026:** Nativer Entwicklungsstack, vollständig
+synthetische Seed-Daten, Test-Platzhalter statt Analyse-Schlüssel und
+abgefangene `/ingest`-Anfragen. Positive Kontrolle mit eingeschalteter Analyse:
+Anfragen an den lokalen Stub vorhanden. Gegenprobe: angemeldetes OGS-Portal
+von `manuell` und aktives öffentliches Anmeldeformular von `vollbetrieb`
+(nach Ausschalten über die Einstellungen), einschließlich Formularinteraktion:
+0 `/ingest`-Anfragen. Die öffentliche Gegenprobe verwendete ein frisch
+aufgerufenes Formular. Keine PostHog-Anfrage mit echtem Schlüssel.
+Schulschalter und getrennte Fehlerdiagnose auf Desktop und Mobilgerät angesehen.
+Der Netzwerknachweis aller Portale bleibt Slice 3843-c.
+
+**Produktiv nachzuweisen, offen:** Auslieferung und tatsächlicher Netzwerknachweis
+je Portal. Ein lokaler Test bestätigt keine produktive Abschaltung.
+Anbieter erst nach bestätigter Abschaltung aus Vertragsunterlagen streichen.
+Rechtsgrundlagen, Rollen und § 25 TDDDG bleiben Recht-Slice 3843-e; der folgende
+lit.-f-Entwurf bleibt unverändert und ist keine Freigabe.
+
 ## PostHog project settings (EU project)
 
 Session recording starts only when the project allows it (the SDK loads its

@@ -8,7 +8,8 @@ name: Frontend E2E
 #
 # Kein Required Check: die Flows hängen am echten Heute und an den Seed-Daten.
 # Nachts prüft der Lauf den development-Stand gegen UI-Drift; Änderungen an
-# den Specs, ihrer Konfiguration oder diesem Workflow laufen einmal auf dem PR.
+# den Specs, ihrer Konfiguration, den Abhängigkeiten oder diesem Workflow laufen
+# einmal auf dem PR.
 #
 # Alle Werte unten sind Wegwerfwerte für den CI-Stack, keine Secrets.
 
@@ -27,6 +28,9 @@ on:
       - "!frontend/e2e/layout/**"
       - "frontend/playwright.config.ts"
       - "frontend/scripts/seed-state.ts"
+      - "frontend/package.json"
+      - "frontend/pnpm-lock.yaml"
+      - "frontend/pnpm-workspace.yaml"
 
 concurrency:
   group: e2e-${{ github.head_ref || github.run_id }}
@@ -101,6 +105,7 @@ jobs:
       SCHOOL_URL: http://schule.localhost:3000
       TENANT_DOMAIN: localhost
       METRICS_BEARER_TOKEN: ci-metrics-token
+      # Seeder input for security.ogs_device_pin only; no runtime fallback.
       OGS_DEVICE_PIN: "1234"
       EMAIL_SMTP_HOST: localhost
       EMAIL_SMTP_PORT: 1025

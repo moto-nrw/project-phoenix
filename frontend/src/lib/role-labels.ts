@@ -6,7 +6,7 @@
 // same names.
 
 export type SystemRoleName =
-  "admin" | "user" | "lehrkraft" | "guardian" | "guest";
+  "admin" | "user" | "lehrkraft" | "guardian" | "guest" | "ag-leitung";
 
 export const SYSTEM_ROLE_LABELS: Record<
   SystemRoleName,
@@ -30,7 +30,14 @@ export const SYSTEM_ROLE_LABELS: Record<
   },
   guest: {
     name: "Gast",
-    description: "Alte Rolle. Sie wird nicht mehr vergeben.",
+    description:
+      "Nur ansehen: Kinder, Räume und AGs. Keine Elterndaten, keine Nachrichten.",
+  },
+  // ADR 0091: the access „Eigene Termine betreuen“ of external caregivers.
+  "ag-leitung": {
+    name: "AG-Leitung",
+    description:
+      "Betreut eigene Termine: starten, Kinder ein- und auschecken, beenden",
   },
 };
 

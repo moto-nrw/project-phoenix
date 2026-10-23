@@ -35,6 +35,7 @@ const (
 	ResourceSchedules     = "schedules"
 	ResourceCalendar      = "calendar"
 	ResourceDisplay       = "display"
+	ResourceStudents      = "students"
 )
 
 // Admin permissions
@@ -75,6 +76,14 @@ const (
 	// already holds users:read).
 	UsersAbsence = ResourceUsers + ":absence"
 )
+
+// StudentsRead opens only the read routes of the child list and detail
+// (list, detail, current visit, status-day overview, school classes, photo,
+// OGS group live view), never the guardian directory, parent messages,
+// student notes or exports. It is the child access of the system role guest
+// („Gast“, access level „Nur ansehen“, ADR 0091). Every staff role keeps
+// users:read, which opens the same routes and more, so no staff role needs it.
+const StudentsRead = ResourceStudents + ":" + ActionRead
 
 // Activity permissions
 const (

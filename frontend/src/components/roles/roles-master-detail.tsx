@@ -307,7 +307,8 @@ function RoleStammdatenTab({
             </span>
           ) : null}
           <span className="bg-moto-purple-soft text-moto-purple-strong rounded-full px-2.5 py-1 text-xs font-medium">
-            {role.permissions?.length ?? 0} Berechtigungen
+            {role.permissions?.length ?? 0}{" "}
+            {role.permissions?.length === 1 ? "Berechtigung" : "Berechtigungen"}
           </span>
         </div>
       </section>

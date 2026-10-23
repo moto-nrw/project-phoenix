@@ -10,7 +10,15 @@ let shellUser: { id: string } | null = { id: "74" };
 let preview = false;
 let onboarding: StaffOnboardingState | null = null;
 let pathname = "/dashboard";
-let permissions: string[] = ["calendar:own"];
+// Die Rechte einer Betreuungskraft, an denen die Schritte hängen (#4573).
+const CAREGIVER_PERMISSIONS = [
+  "calendar:own",
+  "users:read",
+  "groups:read",
+  "groups:update",
+  "time_tracking:own",
+];
+let permissions: string[] = CAREGIVER_PERMISSIONS;
 let groups: { id: string; is_personal?: boolean }[] = [{ id: "1" }];
 let presenceMode: "detailed" | "binary" = "detailed";
 let openCare = false;
@@ -118,7 +126,7 @@ describe("StaffOnboardingWizard", () => {
     preview = false;
     onboarding = newPerson();
     pathname = "/dashboard";
-    permissions = ["calendar:own"];
+    permissions = CAREGIVER_PERMISSIONS;
     groups = [{ id: "1" }];
     presenceMode = "detailed";
     openCare = false;
@@ -155,13 +163,43 @@ describe("StaffOnboardingWizard", () => {
     openCare = true;
     webAttendance = false;
     presenceMode = "binary";
-    permissions = [];
+    permissions = ["users:read", "time_tracking:own"];
     render(<StaffOnboardingWizard />);
 
     expect(stepTitles()).toEqual([
       "Ein Kind finden und Angaben ansehen",
       "Arbeitszeit erfassen",
     ]);
+  });
+
+  // ADR 0091: die AG-Leitung hält nur schedules:read. Sie findet keine
+  // Kinder über „Alle Kinder“ und erfasst keine Arbeitszeit.
+  it("offers an external person only the supervision step", () => {
+    permissions = ["schedules:read"];
+    groups = [];
+    render(<StaffOnboardingWizard />);
+
+    expect(stepTitles()).toEqual(["Eine Aufsicht starten"]);
+  });
+
+  // ADR 0091: der Gast sieht Gruppen und Aufsichten, startet aber keine.
+  // Ohne einen Schritt, der für ihn gilt, bleibt die Checkliste weg.
+  it("offers a guest no step and hides the checklist", () => {
+    permissions = [
+      "students:read",
+      "groups:read",
+      "rooms:read",
+      "activities:read",
+    ];
+    groups = [];
+    const guest = render(<StaffOnboardingWizard />);
+    expect(screen.queryByText(/Erste Schritte/)).toBeNull();
+    guest.unmount();
+
+    // Anker: mit dem Startrecht der AG-Leitung erscheint dieselbe Liste.
+    permissions = ["schedules:read"];
+    render(<StaffOnboardingWizard />);
+    expect(stepTitles()).toEqual(["Eine Aufsicht starten"]);
   });
 
   it("shows the group step only to a person with an own group", () => {

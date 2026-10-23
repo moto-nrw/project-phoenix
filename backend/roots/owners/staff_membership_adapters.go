@@ -85,7 +85,7 @@ func membershipError(op string, err error) error {
 	switch {
 	case errors.Is(err, schoolmembership.ErrStaffNotFound),
 		errors.Is(err, schoolmembership.ErrTeacherNotFound),
-		errors.Is(err, schoolmembership.ErrGuestNotFound):
+		errors.Is(err, schoolmembership.ErrExternalCaregiverRecordNotFound):
 		return membershipNotFound(op)
 	case errors.Is(err, schoolmembership.ErrPersonnelNumberConflict):
 		// Classified in the legacy vocabulary, so the service layer keeps
@@ -134,7 +134,9 @@ func applyStaffToLegacy(target *peopleValues.Staff, value schoolmembership.Staff
 	target.RotationAnchorDate = parseCalendarDate(value.RotationAnchorDate)
 	target.BirthdayDisplayOptOut = value.BirthdayDisplayOptOut
 	target.DeletedAt = value.DeletedAt
-	target.IsGuest = value.IsGuest
+	target.HasExternalCaregiverRecord = value.HasExternalCaregiverRecord
+	// Only the person-hydrated reads apply the rule (hydrateStaffPersons).
+	target.IsExternalCaregiver = false
 }
 
 func toLegacyStaff(value schoolmembership.Staff) *peopleValues.Staff {
@@ -265,9 +267,10 @@ func (r StaffMembershipRepository) hydrateStaffPersons(ctx context.Context, memb
 		if person, found := persons[member.PersonID]; found {
 			member.Person = person
 		}
-		// The People Directory owns the account link, so School Membership
-		// resolves the marker only after its projection is attached.
-		member.IsGuest = schoolmembership.ExternalCaregiver(member.IsGuest, member.Person != nil, member.Person != nil && member.Person.AccountID != nil)
+		// The People Directory owns the person, so School Membership's
+		// rule applies only after its projection is attached. An account
+		// does not change it (#4573).
+		member.IsExternalCaregiver = schoolmembership.ExternalCaregiver(member.HasExternalCaregiverRecord, member.Person != nil)
 	}
 	return nil
 }

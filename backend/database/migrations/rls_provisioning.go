@@ -18,8 +18,9 @@ import (
 // matching tenant_id against the app.current_tenant_id session setting that
 // TenantTxMiddleware sets per request.
 //
-// Every table passed in must be schema-qualified and carry a NOT NULL
-// tenant_id.
+// Every table passed in must be schema-qualified and carry tenant_id. A NULL
+// tenant_id never matches a school; pre-authentication tables with global rows
+// need a separate policy for their pre-auth role, not a tenant-visible NULL arm.
 //
 // Why this lives in the migrations package: DDL is the only channel the project
 // has for schema provisioning, and this DDL is not optional. The CLI connects

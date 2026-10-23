@@ -1,6 +1,7 @@
 package api
 
 import (
+	"encoding/json"
 	"fmt"
 	"net/http"
 	"testing"
@@ -35,6 +36,10 @@ func TestSeedStaffPersonMergeStepDoesNotDuplicateExistingExample(t *testing.T) {
 					}
 					_, _ = fmt.Fprint(w, `{"data":[]}`)
 				case r.Method == http.MethodPost && r.URL.Path == "/api/staff/externals":
+					var body map[string]string
+					require.NoError(t, json.NewDecoder(r.Body).Decode(&body))
+					assert.Equal(t, "none", body["access"], "the duplicate gets no invitation")
+					assert.NotContains(t, body, "email")
 					created++
 					_, _ = fmt.Fprint(w, `{"data":{"id":"2"}}`)
 				case r.Method == http.MethodPut && r.URL.Path == "/api/staff/2/stammdaten/kontakt":

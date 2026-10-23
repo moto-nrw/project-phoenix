@@ -128,6 +128,12 @@ export function getRoleDisplayName(roleName: string): string {
 }
 
 /**
+ * How an external caregiver is marked in lists, badges and select options:
+ * „Extern“. An attribute of the person, not a role (ADR 0091).
+ */
+export const EXTERNAL_CAREGIVER_LABEL = "Extern";
+
+/**
  * Get the German description for a system role.
  * Falls back to the original description if no translation exists.
  */
@@ -192,16 +198,11 @@ export interface RoleOption {
 
 /**
  * System roles that are legacy/relationship-derived and not assignable to
- * staff accounts. "guest" is a retired role (#4574): accounts that hold it
- * keep it, but no picker offers it again. "lehrkraft" (#1772) is assignable:
- * an invited Lehrkraft lands in the Klassenansicht of moto schule (#2207),
- * not in this portal.
+ * staff accounts. "lehrkraft" (#1772) is assignable: an invited Lehrkraft
+ * lands in the Klassenansicht of moto schule (#2207), not in this portal.
+ * "guest" is assignable as the view-only access (ADR 0091).
  */
-const NON_ASSIGNABLE_STAFF_ROLE_NAMES = new Set([
-  "guardian",
-  "teacher",
-  "guest",
-]);
+const NON_ASSIGNABLE_STAFF_ROLE_NAMES = new Set(["guardian", "teacher"]);
 
 /**
  * Whether a system role may be assigned to a staff account. Shared by every

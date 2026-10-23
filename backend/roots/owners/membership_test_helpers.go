@@ -89,26 +89,26 @@ func NewWorkforceWithClock(db transactionruntime.Database, membership schoolmemb
 // itself from MustNewSchoolMembership (#4080).
 type MembershipTestRepositories struct {
 	// People is the People Directory owner the student rows translate to.
-	People          peopledirectory.Capability
-	Person          peoplePorts.PersonRepository
-	Student         peoplePorts.StudentRepository
-	GuardianProfile peoplePorts.GuardianProfileRepository
-	StudentGuardian peoplePorts.StudentGuardianRepository
-	Staff           peoplePorts.StaffRepository
-	Teacher         peoplePorts.TeacherRepository
-	Guest           peoplePorts.GuestRepository
+	People                   peopledirectory.Capability
+	Person                   peoplePorts.PersonRepository
+	Student                  peoplePorts.StudentRepository
+	GuardianProfile          peoplePorts.GuardianProfileRepository
+	StudentGuardian          peoplePorts.StudentGuardianRepository
+	Staff                    peoplePorts.StaffRepository
+	Teacher                  peoplePorts.TeacherRepository
+	ExternalCaregiverRecords peoplePorts.ExternalCaregiverRecordRepository
 	// GroupSubstitution is the Workforce group substitution contract over the
 	// group store and School Membership.
 	GroupSubstitution GroupSubstitutions
 }
 
-// NewMembershipRepositories composes the staff, teacher and guest adapters
+// NewMembershipRepositories composes the staff, teacher and external caregiver record adapters
 // over membership, with the group store and the teaching assignments they
 // resolve through. members.People, Student and the guardian fields stay
 // unset; the caller composes them.
 func NewMembershipRepositories(db transactionruntime.Database, persons peoplePorts.PersonRepository, identity staffIdentityQuery, membership schoolmembership.Capability, rooms facilitiesModule.Query, workTime workforce.Capability) MembershipTestRepositories {
-	staff, teacher, guest, _, _, _ := newMembershipAdapters(db, persons, identity, membership, rooms, workTime)
-	return MembershipTestRepositories{Person: persons, Staff: staff, Teacher: teacher, Guest: guest}
+	staff, teacher, records, _, _, _ := newMembershipAdapters(db, persons, identity, membership, rooms, workTime)
+	return MembershipTestRepositories{Person: persons, Staff: staff, Teacher: teacher, ExternalCaregiverRecords: records}
 }
 
 // SchoolStructureSuiteRepositories are the School Structure group store and

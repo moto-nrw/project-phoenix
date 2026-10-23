@@ -146,6 +146,13 @@ find backend -maxdepth 1 -name '*.go' ! -name '*_test.go' -exec wc -l {} +
 
 ### Root pass-throughs
 
+The Python reproduction below is historical. ADR 0090 retires its executable
+after the Go scanner reproduced all 1,041 root method identities at
+`e417e90b4377d3b1cfe73b168bb8d6b45e145d7c`. Current tested reproduction:
+`PHOENIX_ARCHITECTURE_PROJECT="$PWD/backend" scripts/run-go-toolchain.sh /bin/sh -c
+'cd scripts/backend-architecture && go run . passthrough-snapshot'`.
+Unclassified bodies are not asserted to be translations.
+
 Run from the repository root on the measured checkout (the mechanical moves
 and filename rename do not change these counts):
 
@@ -154,7 +161,7 @@ python3 docs/architecture/4542-root-passthroughs.py
 python3 docs/architecture/4542-root-passthroughs.py --sites > /tmp/root-passthrough-sites.json
 ```
 
-The [measurement script](../architecture/4542-root-passthroughs.py) extracts
+The [historical measurement script](https://github.com/moto-nrw/project-phoenix/blob/e417e90b4377d3b1cfe73b168bb8d6b45e145d7c/docs/architecture/4542-root-passthroughs.py) extracts
 `modulePassthroughIsDelegation` and its helpers unchanged from the ratchet:
 exported receiver method, body at most 14 lines, exactly one receiver-field
 call. It prints every matched body for review. Shape classification is a

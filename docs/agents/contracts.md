@@ -50,6 +50,15 @@ cleans up old kiosk-host access logs. Follow-up 3841-k removes query import
 only after that inventory is complete. Implementation is not production
 evidence: [rollout and recovery](../operations/geraete-zugang-3841.md).
 
+### Device PIN resolution (slice 3841-b)
+
+The school setting `security.ogs_device_pin` is authoritative, including its
+unchanged registry default. Settings read errors and explicit empty values reject
+PIN-protected requests with the existing `401 / iot.device_pin_invalid` envelope;
+no `OGS_DEVICE_PIN` fallback exists. Missing resolver wiring fails at construction.
+Device-only routes remain PIN-free. Already deployed kiosks handle the same code
+and headers, so no wire transition or compatibility-removal slice is needed.
+
 ### Kiosk error codes
 
 Each kiosk refusal answers with its own `iot.*` code (#3939). The text in
@@ -179,6 +188,18 @@ pending → active → inactive.
 
 Parents' child access also requires relationship-level permissions; read
 `.claude/rules/guardian-parent-permissions.md`. Membership alone is insufficient.
+
+`TestEveryTenantTableHasRLS` in `backend/database/migrations/rls_coverage_test.go`
+checks all non-system, non-partition-leaf tables with a live `tenant_id` column
+after migrations: RLS enabled and forced, a policy, and a policy applicable to
+`phoenix_tenant` (including PUBLIC/inherited roles). Its shrink-only exceptions
+name administrative tables and their access boundary; effective table or column
+privileges for `phoenix_tenant`, missing tables and repaired exceptions fail.
+The guard checks coverage, not arbitrary SQL predicate semantics: text matching
+cannot prove isolation across OR clauses, functions and combined policies.
+Keep behavioral cross-school tests alongside policies. The code/test evidence
+does not prove the deployed catalog; human verification is described in
+[RLS coverage verification](../operations/rls-coverage-3842.md).
 
 ## Portal session isolation
 

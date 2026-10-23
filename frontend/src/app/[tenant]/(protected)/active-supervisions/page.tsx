@@ -32,6 +32,8 @@ import {
 import { CompleteInstanceModal } from "~/components/active-supervisions/complete-instance-modal";
 import { useMinuteClock } from "~/lib/pickup-helpers";
 import { canReadSupervisionData, hasPermission } from "~/lib/auth-utils";
+import { canGrantExternalViewAccess } from "~/lib/external-caregiver-access";
+import { canReadStudents } from "~/lib/student-access";
 import { UnclaimedRooms } from "~/components/active/unclaimed-rooms";
 import { SSEErrorBoundary } from "~/components/sse/SSEErrorBoundary";
 import {
@@ -61,7 +63,10 @@ import { useSupervisionDashboard } from "~/components/active-supervisions/use-su
 import { useTimetableRoster } from "~/components/active-supervisions/use-timetable-roster";
 import type { TimetableRosterRow } from "~/lib/timetable-operations-types";
 import { useStudentFilters } from "~/components/active-supervisions/use-student-filters";
-import { useReopenBanner } from "~/components/active-supervisions/use-reopen-banner";
+import {
+  reopenBannerMessage,
+  useReopenBanner,
+} from "~/components/active-supervisions/use-reopen-banner";
 import { useTimetableActions } from "~/components/active-supervisions/use-timetable-actions";
 import { useSchulhofActions } from "~/components/active-supervisions/use-schulhof-actions";
 import { AddUnplannedStudentModal } from "~/components/active-supervisions/add-unplanned-student-modal";
@@ -86,13 +91,7 @@ import { BELOW_MD, useMediaQuery } from "~/lib/hooks/use-media-query";
 import { useStudentPhotosEnabled } from "~/lib/hooks/use-student-photos-enabled";
 import { OpenRoomSections } from "~/components/active-supervisions/open-room-sections";
 import { AddSupervisorModal } from "~/components/active-supervisions/add-supervisor-modal";
-
-function reopenBannerMessage(title: string | null): string {
-  const ended = title
-    ? `„${title}“ wurde beendet.`
-    : "Die Aktivität wurde beendet.";
-  return `${ended} Sie können das fünf Minuten lang rückgängig machen.`;
-}
+import { OwnSupervisionView } from "~/components/active-supervisions/own-supervision-view";
 
 function hasSameGroupNames(
   previous: readonly string[] | undefined,
@@ -158,11 +157,18 @@ function MeinRaumPageContent() {
   const openRoomLayout = currentOpenRoom
     ? openRoomSections(currentOpenRoom)
     : null;
+  // Die Kinderliste eines Termins liest das Backend nur mit schedules:read.
+  // Der Gast (ADR 0091) hat es nicht und sieht die Kinder aus dem Raum.
+  // Eine Sitzung ohne Rechteliste (vor den Rechte-Claims) fragt weiter.
+  const sessionPermissions = session?.user?.permissions;
+  const canReadRosters =
+    !Array.isArray(sessionPermissions) ||
+    hasPermission(session, "schedules:read");
   const roster = useTimetableRoster({
-    selectedTimetableInstanceId: currentOpenRoom
-      ? null
-      : selectedTimetableInstanceId,
-    currentRoomId: currentOpenRoom ? undefined : currentRoom?.id,
+    selectedTimetableInstanceId:
+      currentOpenRoom || !canReadRosters ? null : selectedTimetableInstanceId,
+    currentRoomId:
+      currentOpenRoom || !canReadRosters ? undefined : currentRoom?.id,
   });
   const { currentTimetableRoster } = roster;
   const { overviewEnabled } = useOptionalSupervision();
@@ -444,6 +450,7 @@ function MeinRaumPageContent() {
   const spontaneousStartBanner = dashboard.webSpontaneousActivitiesEnabled ? (
     <SpontaneousActivityStart
       canCreateExternalCaregiver={hasPermission(session, "users:create")}
+      canGrantExternalView={canGrantExternalViewAccess(session)}
       currentStaffId={currentStaffId}
       defaultRoomId={currentRoom?.room_id ?? currentOpenRoom?.roomId}
       disabled={dashboard.spontaneousStartAvailability?.available === false}
@@ -641,9 +648,9 @@ function MeinRaumPageContent() {
   });
 
   // „Profil ansehen“ in den Block-Listen (#4356). Die Kinderseite lädt
-  // GET /api/students/{id}, das `users:read` verlangt; ohne das Recht fehlt
-  // der Link, statt auf eine Fehlerseite zu führen.
-  const studentProfileHref = hasPermission(session, "users:read")
+  // GET /api/students/{id}, das `users:read` oder `students:read` verlangt;
+  // ohne beides fehlt der Link, statt auf eine Fehlerseite zu führen.
+  const studentProfileHref = canReadStudents(session)
     ? (row: TimetableRosterRow) =>
         tenantPath(`/students/${row.studentId}?from=/active-supervisions`)
     : undefined;
@@ -859,6 +866,7 @@ function MeinRaumPageContent() {
                 session,
                 "users:create",
               )}
+              canGrantExternalView={canGrantExternalViewAccess(session)}
               isOpen
               onClose={() => setAddSupervisorTarget(null)}
               onAdded={mutateDashboard}
@@ -964,7 +972,9 @@ function MeinRaumPageContent() {
 }
 
 // Gate component: allows callers who can read supervision data, or callers
-// covered by the server-confirmed school-wide overview (#2380).
+// covered by the server-confirmed school-wide overview (#2380). `schedules:read`
+// alone (#4573) opens only the own running supervision, without any
+// school-wide request.
 function ActiveSupervisionGate({
   children,
 }: Readonly<{ children: React.ReactNode }>) {
@@ -998,6 +1008,12 @@ function ActiveSupervisionGate({
   // reachable for everyone and grants no supervision (#3065).
   if (overviewEnabled) {
     return <>{children}</>;
+  }
+
+  // Ohne groups:read zeigte die volle Seite die Anwesenheit der ganzen
+  // Schule. Wer Blöcke führt (schedules:read), sieht seine eigene Aufsicht.
+  if (hasPermission(session, "schedules:read")) {
+    return <OwnSupervisionView />;
   }
 
   // Fehlendes Recht ist ein Zustand der Seite, kein Fehler: dieselbe

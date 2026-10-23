@@ -6,6 +6,11 @@ import {
   getStaffCardInfo,
   formatStaffNotes,
   sortStaff,
+  externalAccountLabel,
+  externalAccountMark,
+  externalStaffLabel,
+  externalStaffNote,
+  staffDisplayName,
 } from "./staff-helpers";
 
 // Sample staff for testing
@@ -146,6 +151,20 @@ describe("getStaffDisplayType", () => {
     expect(result).toBe("Extern");
   });
 
+  // ADR 0091: „Eigene Termine betreuen“ redeems into the system role
+  // „ag-leitung“, stored in lower case.
+  it("spells the system role ag-leitung as „AG-Leitung“", () => {
+    const staff = createSampleStaff({
+      role: undefined,
+      isTeacher: true,
+      specialization: undefined,
+      accountRole: "ag-leitung",
+      isExternal: true,
+    });
+
+    expect(getStaffDisplayType(staff)).toBe("AG-Leitung");
+  });
+
   it("returns specialization for teachers without role", () => {
     const staff = createSampleStaff({
       role: undefined,
@@ -244,11 +263,12 @@ describe("getStaffDisplayType", () => {
       role: undefined,
       isTeacher: false,
       specialization: undefined,
-      accountRole: "extern",
+      // Not „extern“: moto provisions that role in every school (#4573).
+      accountRole: "hausmeister",
     });
     const result = getStaffDisplayType(staff);
 
-    expect(result).toBe("extern");
+    expect(result).toBe("hausmeister");
   });
 });
 
@@ -408,5 +428,55 @@ describe("sortStaff", () => {
 
     expect(staff[0]?.lastName).toBe("Zeta"); // Original unchanged
     expect(result[0]?.lastName).toBe("Alpha"); // Sorted copy
+  });
+});
+
+describe("external caregivers (#4573)", () => {
+  it("names the account state only where it differs from a normal account", () => {
+    expect(externalAccountLabel("invitation_pending")).toBe("Einladung offen");
+    expect(externalAccountLabel("none")).toBe("Kein Konto");
+    expect(externalAccountLabel("account")).toBeNull();
+    expect(externalAccountLabel(null)).toBeNull();
+  });
+
+  it("builds the option label from organization and account state", () => {
+    expect(
+      externalStaffNote({
+        isExternal: true,
+        externalOrganization: " Musikschule ",
+        externalAccountStatus: "invitation_pending",
+      }),
+    ).toBe("Extern · Musikschule, Einladung offen");
+    expect(
+      externalStaffNote({ isExternal: true, externalAccountStatus: "account" }),
+    ).toBe("Extern");
+    expect(externalStaffNote({ isExternal: false })).toBe("");
+  });
+
+  it("pairs each account state with one tone for its badge", () => {
+    expect(externalAccountMark("invitation_pending")).toEqual({
+      label: "Einladung offen",
+      tone: "orange",
+    });
+    expect(externalAccountMark("none")).toEqual({
+      label: "Kein Konto",
+      tone: "gray",
+    });
+    expect(externalAccountMark("account")).toBeNull();
+  });
+
+  it("marks an external person with the organization when there is one", () => {
+    expect(externalStaffLabel(" Sportverein ")).toBe("Extern · Sportverein");
+    expect(externalStaffLabel("  ")).toBe("Extern");
+    expect(externalStaffLabel(null)).toBe("Extern");
+  });
+});
+
+describe("staffDisplayName", () => {
+  it("prefers the full name and falls back to first and last name", () => {
+    expect(staffDisplayName("Anna Müller", "Anna", "M.")).toBe("Anna Müller");
+    expect(staffDisplayName("", "Anna", "Müller")).toBe("Anna Müller");
+    expect(staffDisplayName(undefined, "Anna", null)).toBe("Anna");
+    expect(staffDisplayName(null, null, undefined)).toBe("");
   });
 });

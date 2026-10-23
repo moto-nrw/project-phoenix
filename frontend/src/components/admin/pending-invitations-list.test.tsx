@@ -237,6 +237,29 @@ describe("PendingInvitationsList", () => {
     });
   });
 
+  // #4573: a revoked invitation puts an external back on „Kein Konto“, so
+  // the staff list around the card reloads; a failed revoke changes nothing.
+  it("reports a revoke only once it succeeded", async () => {
+    const onRevoked = vi.fn();
+    mockRevokeInvitation.mockRejectedValueOnce(
+      new ApiError("boom", 500, { code: "general.server" }),
+    );
+    render(<PendingInvitationsList refreshKey={0} onRevoked={onRevoked} />);
+
+    await openRowMenu(1);
+    fireEvent.click(screen.getByRole("menuitem", { name: "Löschen" }));
+    fireEvent.click(await screen.findByTestId("confirm-button"));
+    expect(
+      await screen.findByText(
+        catalogText("general.server", "das Widerrufen der Einladung"),
+      ),
+    ).toBeInTheDocument();
+    expect(onRevoked).not.toHaveBeenCalled();
+
+    fireEvent.click(screen.getByTestId("confirm-button"));
+    await waitFor(() => expect(onRevoked).toHaveBeenCalledTimes(1));
+  });
+
   it("shows empty state when no invitations", async () => {
     mockListPendingInvitations.mockResolvedValue([]);
 
