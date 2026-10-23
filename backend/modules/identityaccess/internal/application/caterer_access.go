@@ -177,6 +177,11 @@ func (c *CatererAccess) EndCatererSchool(ctx context.Context) (bool, error) {
 	if !c.inSchool(ctx) {
 		return false, catererError(failed("end caterer school", errSchoolTransactionRequired))
 	}
+	// Serialize the link and supply lifecycle, including an empty school.
+	// The workflow takes this lock before it ends the Meal Plan supply.
+	if err := c.runtime.AcquireLock(ctx, fmt.Sprintf("caterer-school:%d", c.runtime.TenantID(ctx))); err != nil {
+		return false, catererError(failed("lock caterer school", err))
+	}
 	ended, _, err := c.store.EndCatererSchool(ctx, c.now())
 	if err != nil {
 		return false, catererError(failed("end caterer school", err))
@@ -217,7 +222,11 @@ func (c *CatererAccess) preview(ctx context.Context, token string) (domain.Cater
 		return domain.CatererInvitationPreview{}, err
 	}
 	preview := domain.CatererInvitationPreview{Email: invitation.Email, CatererName: invitation.CatererName, ExpiresAt: invitation.ExpiresAt}
-	if school, found, schoolErr := c.schools.FindSchool(ctx, invitation.TenantID); schoolErr == nil && found {
+	school, found, err := c.schools.FindSchool(ctx, invitation.TenantID)
+	if err != nil {
+		return domain.CatererInvitationPreview{}, err
+	}
+	if found {
 		preview.SchoolName = strings.TrimSpace(school.Name)
 	}
 	account, found, _, err := c.store.FindLoginAccountByEmail(ctx, invitation.Email)
@@ -239,6 +248,11 @@ func (c *CatererAccess) AcceptCatererInvitation(ctx context.Context, token strin
 	ctx = c.attach(ctx)
 	if !c.inSchool(ctx) {
 		return identityaccess.CatererAcceptance{}, catererError(failed("accept caterer invitation", errSchoolTransactionRequired))
+	}
+	// Lock before the invitation, account and link rows, and hold it through
+	// the supply hook until the caller's school transaction ends.
+	if err := c.runtime.AcquireLock(ctx, fmt.Sprintf("caterer-school:%d", c.runtime.TenantID(ctx))); err != nil {
+		return identityaccess.CatererAcceptance{}, catererError(failed("lock caterer school", err))
 	}
 	accepted, err := c.accept(ctx, token, domain.CatererRegistration(registration))
 	acceptance := identityaccess.CatererAcceptance(accepted)

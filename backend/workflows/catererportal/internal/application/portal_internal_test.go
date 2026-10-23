@@ -53,6 +53,7 @@ func (f *fakeCaterers) LoginCatererWithAudit(context.Context, string, string, st
 }
 
 type fakeSupplies struct {
+	endHook     func()
 	supply      mealplan.Supply
 	active      bool
 	started     []int64
@@ -69,6 +70,9 @@ func (f *fakeSupplies) StartSupply(_ context.Context, catererID int64, _ string,
 	return f.err
 }
 func (f *fakeSupplies) EndSupply(context.Context, int64) (bool, error) {
+	if f.endHook != nil {
+		f.endHook()
+	}
 	f.ended = true
 	return f.active, f.err
 }
@@ -161,7 +165,9 @@ func TestPortalAcceptanceStartsTheSupplyInTheLinkedSchool(t *testing.T) {
 func TestPortalEndsSupplyAndLinkTogether(t *testing.T) {
 	t.Parallel()
 	caterers := &fakeCaterers{}
-	supplies := &fakeSupplies{active: true}
+	supplies := &fakeSupplies{active: true, endHook: func() {
+		assert.True(t, caterers.linkEnded, "the identity lifecycle lock is acquired before touching the supply")
+	}}
 	var opened schoolsOpened
 	ended, err := newTestPortal(t, caterers, supplies, &opened).EndSupply(context.Background(), 1)
 	require.NoError(t, err)

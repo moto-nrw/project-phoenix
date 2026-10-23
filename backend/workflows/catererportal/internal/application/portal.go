@@ -70,13 +70,14 @@ func (p *Portal) SchoolCaterer(ctx context.Context) (catererportal.SchoolCaterer
 }
 
 // EndSupply ends the supply and the caterer's link to the school in the
-// school's transaction.
+// school's transaction. End the identity link first: it takes the school
+// lifecycle lock also held by acceptance, before either owner changes rows.
 func (p *Portal) EndSupply(ctx context.Context, accountID int64) (bool, error) {
-	supplied, err := p.deps.Supplies.EndSupply(ctx, accountID)
+	linked, err := p.deps.Caterers.EndCatererSchool(ctx)
 	if err != nil {
 		return false, err
 	}
-	linked, err := p.deps.Caterers.EndCatererSchool(ctx)
+	supplied, err := p.deps.Supplies.EndSupply(ctx, accountID)
 	if err != nil {
 		return false, err
 	}
