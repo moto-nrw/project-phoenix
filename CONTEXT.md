@@ -200,30 +200,26 @@ weitere Betreuungskraft zu. Sie ersetzt keine abwesende Person und verändert
 weder Gruppenübergaben noch geplante Termine.
 
 Eine **externe Betreuungskraft** ist Personal mit einem aktiven Datensatz
-„externe Betreuungskraft“, etwa eine AG-Leitung der Musikschule (#3823,
-#4573). Der Datensatz trägt die Organisation und einen optionalen Zeitraum.
-Er macht die Person extern, nicht das Fehlen eines Kontos. Sie wird mit
-E-Mail-Adresse angelegt und eingeladen; nach der Annahme meldet sie sich mit
-eigenem Konto in der Schulrolle **Extern** an. Ihr Kontostand ist `account`,
-`invitation_pending` oder `none`. Neu zuordnen lässt sie sich nur mit Konto
-oder offener Einladung; dann in Regelterminen, einzelnen und spontanen
-Terminen und als zusätzliche Aufsicht, auch allein und als zuständige Person.
-Bestehende Zuordnungen bleiben. Sie übernimmt nie eine Gruppe, nie eine
-Vertretung und steht nicht im Personalpool. Zeiterfassung und Dienstplan
-führen sie nicht, und ein Aufsichtsstart stempelt keine Arbeitszeit. Personal,
-das nur ohne E-Mail-Adresse importiert wurde, ist keine externe
-Betreuungskraft; wer über die allgemeine Einladung die Rolle Extern bekommt,
-ohne den Datensatz, auch nicht.
+„externe Betreuungskraft“, etwa eine AG-Kraft der Musikschule (#3823, #4573,
+ADR 0083). Der Datensatz trägt die Organisation und einen optionalen Zeitraum.
+Extern ist ein Merkmal, keine Rolle: Nur der Datensatz macht extern, nicht ein
+Konto, eine Rolle oder eine fehlende E-Mail-Adresse. Externe sind in
+Regelterminen, einzelnen und spontanen Terminen und als zusätzliche Aufsicht
+planbar, auch allein und als zuständige Person. Sie übernehmen nie eine Gruppe,
+nie eine Vertretung und stehen nicht im Personalpool. Zeiterfassung,
+Mitarbeitenden-Status und Dienstplan führen sie nicht, und ein Aufsichtsstart
+stempelt keine Arbeitszeit.
 
-Die Schulrolle **Extern** legt moto in jeder Schule an (Basisrolle `user`,
-keine Systemrolle). Sie startet nur mit `schedules:read`: die Person sieht und
-betreut unter „Heute“ ihre eigenen Termine. Die Leitung darf die Rechte
-ändern. Die Schnellanlage findet die Rolle über ihren Namen; ist sie umbenannt
-oder gelöscht, antwortet sie mit `staff.external_role_missing`.
+Der **Zugang** einer externen Betreuungskraft ist davon getrennt und eine von
+drei Stufen: **Kein Zugang** (Platzhalter ohne Konto, ohne E-Mail-Adresse),
+**Nur ansehen** (Einladung in die Systemrolle **Gast**) oder **Eigene Termine
+betreuen** (Einladung in die Systemrolle **AG-Leitung**). Ihr Kontostand ist
+`account`, `invitation_pending` oder `none`.
 
-Der Datensatz entscheidet, wer extern ist; die Schulrolle **Extern** regelt
-nur Rechte. Die alte Systemrolle **Gast** (`guest`) ist davon unabhängig: eine
-Rolle mit eigenen Rechten, die niemanden extern macht (ADR 0083).
+**Gast** (`guest`) ist die Systemrolle fürs reine Ansehen: Kinder, Räume und
+AGs, ohne Elterndaten, Nachrichten und Schreibrechte. **AG-Leitung**
+(`ag-leitung`) ist die Systemrolle für Leute, die ihre eigenen Termine
+betreuen. Beide Rollen machen niemanden extern.
 
 Die **Vertretungsübersicht** ist die gemeinsame Arbeitsfläche für
 Gruppenübergaben, Vertretungen und zusätzliche Aufsichten. Die drei Vorgänge
