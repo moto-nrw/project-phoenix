@@ -43,7 +43,7 @@ The thresholds and all existing allowances stay unchanged.
    a generated banner or filename is not permission to hide handwritten code.
    Future generator expansion needs its own decision under ADR 0070.
 5. Add only the exact newly exposed entries below to the existing registers,
-   citing **ADR 0086 on each new entry**, not on the whole register. This is the
+   citing **ADR 0087 on each new entry**, not on the whole register. This is the
    new-numbered decision required by ADR 0057 point 5 and
    `internal/architecture/ratchet_budgets.go`. It does not authorize raises of
    existing entries. Every entry remains shrink-only: growth, missing entries,
@@ -148,7 +148,7 @@ measurement; keep existing register values unchanged. Reproduce/check from
 ```
 
 The initial red run at the revision above reported exactly 12/265/142 missing
-entries. The new entries live in the three test registers, each with `ADR 0086`.
+entries. The new entries live in the three test registers, each with `ADR 0087`.
 Their counts/sums are:
 
 | Register | Existing entries / sum | Added entries / sum | Complete entries / sum |
@@ -192,7 +192,7 @@ whether rewriting historical SQL is warranted.
 Do not edit the files owned by #4541 or #4736 in this change.
 
 - Rule 16 in `backend-conventions.md`: describe the three source gates as
-  backend-wide, cite ADR 0086's category audit, retain the thresholds and
+  backend-wide, cite ADR 0087's category audit, retain the thresholds and
   shrink-only rule, and distinguish the narrower facade/pass-through scopes.
 - `backend/architecture/WORKPLAN.md`: mark #4737's complete-source-gates cut
   done after merge; leave handler-complexity deduplication, typed composition
