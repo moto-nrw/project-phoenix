@@ -160,78 +160,12 @@ func classRosterDepartureByDayFromStudent(student *RosterStudent, companions []d
 	return classRosterFormatDepartureByDay(student.AllowedDepartureModes, student.DepartureDays, student.DepartureCompanionNote, companions)
 }
 
-// classRosterDayModeLabels phrase the departure modes so they read naturally
-// after a pickup time in a weekday cell ("14:30 Uhr, wird abgeholt").
-var classRosterDayModeLabels = map[departure.DepartureMode]string{
-	departure.DepartureAlone:       "geht alleine",
-	departure.DepartureBus:         "fährt Bus",
-	departure.DeparturePickup:      "wird abgeholt",
-	departure.DepartureAccompanied: "mit anderem Kind",
-}
-
-// classRosterFormatDepartureByDay renders the plan plus the "mit wem" detail,
-// keyed by weekday code — the weekday cells print each day's own rule instead
-// of one summarized week column (#2254). Every weekday gets an entry; a day
-// without an explicit rule carries the business default "geht alleine".
-//
-// Both "mit wem" sources travel: a child whose Laufgemeinschaft answers
-// "mit wem" needs no free-text note (the note requirement is satisfied per
-// weekday by a link), so cells built from the note alone would print
-// "mit anderem Kind" with no name on the sheet staff carry to the door.
-//
-// The links are printed only on the weekdays the rendered plan actually allows
-// "Anderes Kind". They are the CURRENT links of the live child, while the plan
-// may come from the approved enrollment phase — a plan that says Monday
-// accompanied and Tuesday bus, next to a link the child gained on Tuesday
-// since, would contradict itself in the Tuesday cell. Filtering is the honest
-// reading: a day the printed plan does not allow has no "mit wem" to print.
-// The free-text note answers the accompanied days no link covers — a day a
-// link already names does not repeat the note (#2254).
+// classRosterFormatDepartureByDay renders the per-weekday rule both class
+// lists print in their weekday cells (departure.DayRules, #4749).
 func classRosterFormatDepartureByDay(allowed departure.AllowedDepartureModes, fallback departure.DepartureDays, companionNote *string, companions []departure.CompanionLink) map[string]string {
-	allowed = allowed.Normalize()
-	if !allowed.HasAny() {
-		allowed = departure.AllowedDepartureModesFromDeparture(fallback)
-	}
 	note := ""
 	if companionNote != nil {
-		note = strings.TrimSpace(*companionNote)
+		note = *companionNote
 	}
-	out := make(map[string]string, len(departure.PickupDayOrder))
-	for _, day := range departure.PickupDayOrder {
-		out[day] = classRosterDepartureCell(allowed[day], day, note, companions)
-	}
-	return out
-}
-
-// classRosterDepartureCell renders one weekday's modes; an accompanied day
-// names its companions of that day, or the free-text note when none does.
-func classRosterDepartureCell(modes []departure.DepartureMode, day, note string, companions []departure.CompanionLink) string {
-	if len(modes) == 0 {
-		return classRosterDayModeLabels[departure.DepartureAlone]
-	}
-	labels := make([]string, 0, len(modes))
-	accompanied := false
-	for _, mode := range modes {
-		if mode == departure.DepartureAccompanied {
-			accompanied = true
-		}
-		labels = append(labels, classRosterDayModeLabels[mode])
-	}
-	cell := strings.Join(labels, " / ")
-	if !accompanied {
-		return cell
-	}
-	onDay := departure.FilterCompanionLinksToDays(companions, map[string]bool{day: true})
-	names := make([]string, 0, len(onDay))
-	for _, link := range onDay {
-		names = append(names, departure.CompanionDisplayName(link))
-	}
-	detail := strings.Join(names, ", ")
-	if detail == "" {
-		detail = note
-	}
-	if detail != "" {
-		cell += " (mit: " + detail + ")"
-	}
-	return cell
+	return departure.DayRules(allowed, fallback, note, companions)
 }
