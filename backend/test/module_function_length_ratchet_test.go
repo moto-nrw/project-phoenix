@@ -3,15 +3,13 @@ package test
 import (
 	"fmt"
 	"go/ast"
-	"os"
-	"path/filepath"
 	"sort"
 	"strings"
 	"testing"
 )
 
 // TestModuleFunctionLengthRatchet caps function body length in the modules
-// that migration #2580 already carved out of api/ and models/.
+// that migration #2580 carved out and in every root (ADR 0082).
 //
 // Why a length gate: #2580 moved 228,306 of 638,717 production LOC into
 // backend/modules/ and backend/workflows/, where no gate in this package
@@ -42,7 +40,8 @@ import (
 // gocognit CLI renders them ("(*service).ListOptions"), so entries here line
 // up with the neighbouring complexity ratchet's keys.
 //
-// Scope: every non-test .go file under modules/ and workflows/, including the
+// Scope: walkModuleRatchetSources covers modules/, workflows/, roots/, api/,
+// cmd/ recursively and direct backend-root .go files, including the
 // legacy/ subtrees. Those are counted deliberately — the retained legacy code
 // is the larger half of the problem, and exempting it would let a migration
 // move a 200-line method into legacy/ to silence the gate.
@@ -64,9 +63,38 @@ import (
 // statement that these 299 functions are acceptable.
 const moduleFuncLenThreshold = 60
 
-// Seeded 2026-09-18 from merge commit ecf0003369; empty now. Shrink-only:
+// Seeded 2026-09-18 from merge commit ecf0003369; module entries drained. Shrink-only:
 // never add an entry.
-var moduleFuncLenAllowlist = map[string]int{}
+// ADR 0082: newly covered sources, measured at 722c5aa147; no headroom.
+var moduleFuncLenAllowlist = map[string]int{
+	"api/active_test_helpers.go:buildActiveTestModule":                                       185,
+	"api/auth_test_helpers.go:NewAuthTestModule":                                             169,
+	"api/calendar_test_helpers.go:NewCalendarTestModule":                                     63,
+	"api/guardian_invitation_test_helpers.go:lifecycleTestModule":                            61,
+	"api/guardians_composition.go:newGuardiansResource":                                      108,
+	"api/import_test_helpers.go:NewImportTestModuleWithOwners":                               82,
+	"api/iot/compose/compose.go:(*Resource).Router":                                          110,
+	"api/reminders_test_helpers.go:NewRemindersTestModule":                                   64,
+	"api/root_serve.go:composeServeRoot":                                                     511,
+	"api/root_test_root.go:composeTestRootWith":                                              283,
+	"api/serve_mounts_portals.go:newOperatorRouter":                                          65,
+	"api/serve_mounts_students.go:mountStudentRoutes":                                        120,
+	"api/serve_mounts_students.go:requestReviewDependencies":                                 100,
+	"api/settings_composition.go:newSettingsResource":                                        61,
+	"api/student_owner_http_test_helpers.go:NewStudentHTTPTestResources":                     176,
+	"api/student_owner_http_test_helpers.go:newStudentHTTPTestReviews":                       103,
+	"api/student_test_helpers.go:newStudentTestModule":                                       315,
+	"api/timetable_http_test_helpers.go:NewTimetableHTTPTestModule":                          85,
+	"api/timetable_http_test_helpers.go:newTimetableHTTPTestReads":                           78,
+	"api/timetable_test_helpers.go:NewTimetableTestModule":                                   169,
+	"api/workforce_test_helpers.go:NewWorkforceTestModule":                                   102,
+	"cmd/devtools/command_adapter.go:(*Adapter).LoginOperator":                               65,
+	"cmd/gendoc.go:getSettingsSchemas":                                                       79,
+	"roots/owners/parent_messaging_announcement_access_port.go:BindParentAnnouncementAccess": 125,
+	"roots/owners/root_identity.go:BuildIdentityAccess":                                      106,
+	"roots/owners/root_worker.go:ComposeWorker":                                              358,
+	"roots/owners/worker.go:NewWorker":                                                       91,
+}
 
 func TestModuleFunctionLengthRatchet(t *testing.T) {
 	t.Parallel()
@@ -122,54 +150,33 @@ func moduleFuncLenViolations(lengths, allowlist map[string]int) []string {
 	return violations
 }
 
-// Moved root bindings retain their original coverage and thresholds (ADR 0064).
+// All roots retain coverage and thresholds after a move (ADRs 0064, 0082).
 // moduleFuncLenScan returns the body length of every named function over the
-// threshold in non-test .go files under modules/ and workflows/, keyed
+// threshold in the shared module/root scope, keyed
 // "relpath:FuncName" with methods rendered like the gocognit CLI. Declarations
 // without a body (assembly stubs, cgo) are skipped; function literals are not
 // counted.
 func moduleFuncLenScan(backendRoot string) (map[string]int, error) {
 	lengths := make(map[string]int)
-	for _, sub := range []string{"modules", "workflows", "roots/requestreviewbinding", "roots/sessionendbinding", "roots/openroommovebinding", "roots/owners/parent_announcement_audience_binding.go", "roots/owners/parent_inbox_binding.go", "roots/owners/staff_inbox_binding.go"} {
-		root := filepath.Join(backendRoot, sub)
-		err := filepath.WalkDir(root, func(path string, d os.DirEntry, err error) error {
-			if err != nil {
-				return err
-			}
-			if d.IsDir() {
-				if strings.HasPrefix(d.Name(), ".") && path != root {
-					return filepath.SkipDir
-				}
-				return nil
-			}
-			if !strings.HasSuffix(path, ".go") || strings.HasSuffix(path, "_test.go") {
-				return nil
-			}
-			rel, relErr := filepath.Rel(backendRoot, path)
-			if relErr != nil {
-				return relErr
-			}
-			rel = filepath.ToSlash(rel)
-
-			fset, file, parseErr := parseGoSourceCached(path, nil)
-			if parseErr != nil {
-				return fmt.Errorf("parse %s: %w", rel, parseErr)
-			}
-			for _, decl := range file.Decls {
-				fn, ok := decl.(*ast.FuncDecl)
-				if !ok || fn.Body == nil {
-					continue
-				}
-				length := fset.Position(fn.Body.Rbrace).Line - fset.Position(fn.Body.Lbrace).Line + 1
-				if length > moduleFuncLenThreshold {
-					lengths[rel+":"+moduleFuncLenDisplayName(fn)] = length
-				}
-			}
-			return nil
-		})
-		if err != nil {
-			return nil, err
+	err := walkModuleRatchetSources(backendRoot, func(path, rel string) error {
+		fset, file, parseErr := parseGoSourceCached(path, nil)
+		if parseErr != nil {
+			return fmt.Errorf("parse %s: %w", rel, parseErr)
 		}
+		for _, decl := range file.Decls {
+			fn, ok := decl.(*ast.FuncDecl)
+			if !ok || fn.Body == nil {
+				continue
+			}
+			length := fset.Position(fn.Body.Rbrace).Line - fset.Position(fn.Body.Lbrace).Line + 1
+			if length > moduleFuncLenThreshold {
+				lengths[rel+":"+moduleFuncLenDisplayName(fn)] = length
+			}
+		}
+		return nil
+	})
+	if err != nil {
+		return nil, err
 	}
 	return lengths, nil
 }
