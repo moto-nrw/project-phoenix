@@ -9,7 +9,7 @@ import (
 )
 
 const (
-	parentGroupThreadsVersion     = "1.15.480"
+	parentGroupThreadsVersion     = "1.15.484"
 	parentGroupThreadsDescription = "Create parent group threads: the OGS writes to a group, class or AG; recipients are frozen per message; parents answer only the OGS in their child's conversation (#4784)"
 )
 
@@ -18,8 +18,8 @@ func init() {
 		Version:     parentGroupThreadsVersion,
 		Description: parentGroupThreadsDescription,
 		DependsOn: []string{
-			parentMessagingVersion, // users.parent_messages gains the thread reference
-			guestViewOnlyVersion,   // previous head
+			parentMessagingVersion,         // users.parent_messages gains the thread reference
+			maskParentHealthHistoryVersion, // previous head
 		},
 	})
 	Migrations.MustRegister(parentGroupThreadsUp, parentGroupThreadsDown)

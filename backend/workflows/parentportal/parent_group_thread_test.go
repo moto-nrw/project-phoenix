@@ -10,11 +10,7 @@ import (
 	"github.com/uptrace/bun"
 
 	"github.com/moto-nrw/project-phoenix/api"
-	"github.com/moto-nrw/project-phoenix/modules/communication"
 	"github.com/moto-nrw/project-phoenix/modules/communication/communicationtest"
-	communicationCompose "github.com/moto-nrw/project-phoenix/modules/communication/composition"
-	parentStore "github.com/moto-nrw/project-phoenix/modules/communication/parentstore"
-	deliveryPolicy "github.com/moto-nrw/project-phoenix/modules/delivery/devices"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess/sessiontoken"
 	owners "github.com/moto-nrw/project-phoenix/roots/owners"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
@@ -26,7 +22,7 @@ import (
 // in the 1:1 conversation of their child, with a reference to the group
 // thread. No other family ever sees the answer.
 
-func buildGroupThreadPortal(t *testing.T) (*parentService.Portal, communication.ParentGroupThreadCapability, *bun.DB) {
+func buildGroupThreadPortal(t *testing.T) (*parentService.Portal, *bun.DB) {
 	t.Helper()
 	db := testpkg.SetupTestDB(t)
 	repos := api.NewRepositoryTestFactory(testpkg.NewDatabase(t, db))
@@ -56,47 +52,27 @@ func buildGroupThreadPortal(t *testing.T) (*parentService.Portal, communication.
 		MessageRepo:       owners.BindParentMessageReads(communicationtest.NewParentMessageRepository(db)),
 		MessageReadRepo:   owners.BindParentMessageInboxReads(reposMessages.ParentMessageRead),
 		Conversations:     api.NewParentConversationCore(reposMessages.ParentMessageThread, communicationtest.NewParentMessageRepository(db), reposMessages.ParentMessageRead, bc, slog.Default()),
-		GroupThreads:      owners.BindParentGroupThreads(parentStore.NewGroupThreadPortal(db)),
+		GroupThreads:      api.NewParentGroupThreadTestPort(testpkg.NewDatabase(t, db)),
 		Logger:            slog.Default(),
 		DataRequests:      owners.NewParentDataRequestCommands(repos.CarePlan()),
 		CarePlanPolicy:    owners.NewParentCarePlanPolicy(),
 	})
-	_, groups := communicationCompose.NewParentMessaging(communicationCompose.ParentMessagingConfig{
-		ThreadRepo: reposMessages.ParentMessageThread, MessageRepo: communicationtest.NewParentMessageRepository(db),
-		ReadRepo: reposMessages.ParentMessageRead, UserContext: owners.StaffStudentReads{}, Session: api.CommunicationSession{},
-		Settings: groupThreadSettings{}, Broadcaster: bc, DB: db, Logger: slog.Default(),
-		GroupAudience: owners.NewParentGroupAudience(testpkg.NewDatabase(t, db)),
-	}, testpkg.TenantTransactionRuntime{}, deliveryPolicy.ParentDeliveryPolicy{})
-	return portal, groups, db
-}
-
-// groupThreadSettings switches parent messaging on for the OGS side.
-type groupThreadSettings struct{}
-
-func (groupThreadSettings) ResolveBool(context.Context, string) (bool, error) { return true, nil }
-func (groupThreadSettings) ParentMessageStaffNameVisible(context.Context) (bool, error) {
-	return false, nil
+	return portal, db
 }
 
 func TestGroupThreadAnswer_GoesOnlyToTheOGS(t *testing.T) {
 	t.Parallel()
-	portal, groups, db := buildGroupThreadPortal(t)
+	portal, db := buildGroupThreadPortal(t)
 	a := testpkg.CreateTestParentGuardianChain(t, db)
 	b := testpkg.CreateTestParentGuardianChain(t, db)
 	_, staff := testpkg.CreateTestStaffWithAccount(t, db, "Olivia", "Berg")
 
 	staffCtx := context.WithValue(testpkg.Ctx(t), sessiontoken.CtxClaims, sessiontoken.AppClaims{ID: int(staff.ID)})
 	staffCtx = context.WithValue(staffCtx, sessiontoken.CtxPermissions, []string{"admin:*"})
-	class := "1a"
 	var threadID int64
 	require.NoError(t, testpkg.WithinTenantContext(t, staffCtx, db, testpkg.Tenant(t), func(ctx context.Context) error {
-		detail, err := groups.CreateParentGroupThread(ctx, communication.ParentGroupThreadInput{
-			Target: communication.ParentGroupTarget{Type: communication.ParentGroupTargetClass, RefText: &class, Label: "Klasse 1a"},
-			Title:  "Sommerfest", Body: "Wer bringt einen Kuchen mit?",
-		})
-		if err == nil {
-			threadID = detail.Thread.ID
-		}
+		var err error
+		threadID, err = api.CreateParentGroupClassThreadForTest(ctx, testpkg.NewDatabase(t, db), staff.ID, "1a", "Sommerfest", "Wer bringt einen Kuchen mit?")
 		return err
 	}))
 
@@ -138,8 +114,7 @@ func TestGroupThreadAnswer_GoesOnlyToTheOGS(t *testing.T) {
 
 	// Once closed, the thread takes no further answers.
 	require.NoError(t, testpkg.WithinTenantContext(t, staffCtx, db, testpkg.Tenant(t), func(ctx context.Context) error {
-		_, closeErr := groups.CloseParentGroupThread(ctx, threadID)
-		return closeErr
+		return api.CloseParentGroupThreadForTest(ctx, testpkg.NewDatabase(t, db), staff.ID, threadID)
 	}))
 	_, err = portal.PostChildReply(ctx, b.AccountID, b.StudentID, "Zu spät", threadID)
 	require.ErrorIs(t, err, parentService.ErrGroupThreadClosed)
