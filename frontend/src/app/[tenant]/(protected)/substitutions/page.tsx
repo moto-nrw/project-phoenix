@@ -27,6 +27,7 @@ import { ListSkeleton, SkeletonRegion } from "~/components/ui/page-skeletons";
 import { useApiFormError, useToast } from "~/contexts/ToastContext";
 import { ApiError } from "~/lib/api-error";
 import { hasEffectiveAdminScope, hasPermission } from "~/lib/auth-utils";
+import { canGrantExternalViewAccess } from "~/lib/external-caregiver-access";
 import { berlinTodayISO, formatDate } from "~/lib/date-helpers";
 import { createLogger } from "~/lib/logger";
 import { substitutionService } from "~/lib/substitution-api";
@@ -882,6 +883,7 @@ type PageOverlaysProps = Readonly<{
   data: ReturnType<typeof useOverviewData>;
   admin: boolean;
   canCreateExternalCaregiver: boolean;
+  canGrantExternalView: boolean;
   assignOpen: boolean;
   runningId: string | null;
   ending: Substitution | null;
@@ -909,6 +911,7 @@ function PageOverlays(props: PageOverlaysProps) {
         <AddSupervisorModal
           activeGroupId={props.runningId}
           canCreateExternalCaregiver={props.canCreateExternalCaregiver}
+          canGrantExternalView={props.canGrantExternalView}
           isOpen
           onClose={props.closeRunning}
           onAdded={data.mutate}
@@ -1023,6 +1026,7 @@ function LoadedPage({ session, data, openCare }: LoadedPageProps) {
           data={data}
           admin={hasEffectiveAdminScope(session)}
           canCreateExternalCaregiver={hasPermission(session, "users:create")}
+          canGrantExternalView={canGrantExternalViewAccess(session)}
           assignOpen={dialogs.assignOpen}
           runningId={dialogs.runningId}
           ending={dialogs.ending}

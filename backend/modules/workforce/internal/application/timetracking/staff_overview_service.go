@@ -482,5 +482,5 @@ func (s *staffOverviewService) activeStaff(ctx context.Context) ([]OverviewStaff
 	if err != nil {
 		return nil, fmt.Errorf("failed to list staff: %w", err)
 	}
-	return slices.DeleteFunc(staffMembers, func(member OverviewStaff) bool { return member.Guest }), nil
+	return slices.DeleteFunc(staffMembers, func(member OverviewStaff) bool { return member.ExternalCaregiver }), nil
 }

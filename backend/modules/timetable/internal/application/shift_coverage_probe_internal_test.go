@@ -457,6 +457,37 @@ func TestDetectShiftCoverageWarnings_ConvertedInstanceSurvivesRecurrenceFilterin
 	assert.Equal(t, 1, instanceStaff.calls)
 }
 
+// An external caregiver never has a Dienstplan shift (#4573: externals stay
+// out of the Dienstplan), so a block they run warns about nobody but staff.
+func TestDetectShiftCoverage_SkipsExternalCaregivers(t *testing.T) {
+	t.Parallel()
+
+	date := calendar.NewDate(2026, time.July, 6)
+	external := fakeStaff(2, "Erik", "Extern")
+	external.HasExternalCaregiverRecord, external.IsExternalCaregiver = true, true
+	staff := &fakeStaffReader{byID: map[int64]*timetable.StaffMember{1: fakeStaff(1, "Max", "Mustermann"), 2: external}}
+	deps := ports.ConflictDetectionDependencies{
+		Shifts:        &fakeShiftReader{rows: []*scheduleModel.StaffShift{testShift(t, 9, date, "07:00", "08:00")}},
+		InstanceStaff: &fakeInstanceStaffReader{}, Staff: staff, CalendarPeriods: &fakeCalendarPeriodReader{},
+	}
+
+	result, err := detectShiftCoverage(context.Background(), deps, timetable.ShiftCoverageProbe{
+		Dates: []calendar.Date{date}, StartTime: testClock(t, "08:00"), EndTime: testClock(t, "12:00"), StaffIDs: []int64{1, 2},
+	})
+	require.NoError(t, err)
+	require.Len(t, result.Warnings, 1)
+	assert.Equal(t, int64(1), result.Warnings[0].StaffID)
+	assert.Equal(t, 1, result.TotalWarningCount)
+	assert.Equal(t, 1, staff.findCalls)
+
+	onlyExternal, err := detectShiftCoverage(context.Background(), deps, timetable.ShiftCoverageProbe{
+		Dates: []calendar.Date{date}, StartTime: testClock(t, "08:00"), EndTime: testClock(t, "12:00"), StaffIDs: []int64{2},
+	})
+	require.NoError(t, err)
+	assert.Empty(t, onlyExternal.Warnings)
+	assert.Zero(t, onlyExternal.TotalWarningCount)
+}
+
 func TestDetectShiftCoverageWarnings_GapAndTenantUnusedCases(t *testing.T) {
 	t.Parallel()
 

@@ -116,9 +116,9 @@ type TimeExportStaff struct {
 	ID        int64
 	FirstName string
 	LastName  string
-	// Guest marks an external caregiver (#3823), who records no working
-	// time; the exports leave them out.
-	Guest bool
+	// ExternalCaregiver marks an external caregiver (#3823), who records no
+	// working time; the exports leave them out.
+	ExternalCaregiver bool
 }
 
 type TimeExportStaffQuery interface {
@@ -415,5 +415,5 @@ func compareExportStaff(a, b TimeExportStaff) int {
 // workingExportStaff leaves out the external caregivers (#3823), who record
 // no working time.
 func workingExportStaff(staff []TimeExportStaff) []TimeExportStaff {
-	return slices.DeleteFunc(staff, func(member TimeExportStaff) bool { return member.Guest })
+	return slices.DeleteFunc(staff, func(member TimeExportStaff) bool { return member.ExternalCaregiver })
 }

@@ -46,7 +46,7 @@ func formerStaffFixture() *fakeMembership {
 		5: {ID: 5, PersonID: 11, CreatedAt: berlinNoon(2021, 8, 1), DeletedAt: instant(berlinNoon(2022, 7, 31))},
 		6: {ID: 6, PersonID: 14, CreatedAt: berlinNoon(2019, 8, 1), DeletedAt: instant(berlinNoon(2020, 7, 31)),
 			PersonalDataErasedAt: instant(berlinNoon(2023, 8, 1))},
-		7: {ID: 7, PersonID: 15, CreatedAt: berlinNoon(2025, 3, 1), DeletedAt: instant(berlinNoon(2025, 6, 1)), IsGuest: true},
+		7: {ID: 7, PersonID: 15, CreatedAt: berlinNoon(2025, 3, 1), DeletedAt: instant(berlinNoon(2025, 6, 1)), HasExternalCaregiverRecord: true},
 	}}
 }
 

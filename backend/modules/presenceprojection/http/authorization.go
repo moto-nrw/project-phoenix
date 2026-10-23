@@ -110,14 +110,21 @@ func (rs *Resource) checkStudentFullAccess(r *http.Request, student *peopleModul
 	return ok
 }
 
-// checkStudentReadAccess determines if the current user has full read access
-// to a student's data (profile, location, visit info, privacy details, pickup
-// schedules): admin or verified staff. Other roles (guest, guardian) stay
-// redacted.
-//
-// Delegates to securityruntime.CanReadStudent so the same predicate is reusable
-// from other handlers (timetable, per-student day view).
+// canReadSensitiveStudentData keeps profile and planning notes behind users:read.
+// A staff record alone also permits photos, but does not grant this access.
+func canReadSensitiveStudentData(ctx context.Context) bool {
+	granted := sessiontoken.PermissionsFromCtx(ctx)
+	return securityruntime.HasAdminWildcard(granted) || securityruntime.HasPermission(permissions.UsersRead, granted)
+}
+
+// checkStudentReadAccess requires both users:read and the existing tenant staff
+// or admin check. students:read alone only opens the redacted child views.
 func (rs *Resource) checkStudentReadAccess(r *http.Request, student *peopleModule.StudentState) bool {
+	return canReadSensitiveStudentData(r.Context()) && rs.checkStudentPhotoReadAccess(r, student)
+}
+
+// Photo access remains available to verified staff with students:read.
+func (rs *Resource) checkStudentPhotoReadAccess(r *http.Request, student *peopleModule.StudentState) bool {
 	return securityruntime.CanReadStudent(
 		r.Context(),
 		sessiontoken.PermissionsFromCtx(r.Context()),

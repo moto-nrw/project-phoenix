@@ -330,15 +330,17 @@ type TeacherRepository interface {
 	FindWithStaffAndPersonByIDs(ctx context.Context, ids []int64) ([]*peopledirectory.Teacher, error)
 }
 
-// GuestRepository defines operations for managing guests
-type GuestRepository interface {
-	CRUDRepository[*peopledirectory.Guest]
+// ExternalCaregiverRecordRepository defines operations for managing
+// external caregiver records.
+type ExternalCaregiverRecordRepository interface {
+	CRUDRepository[*peopledirectory.ExternalCaregiverRecord]
 
-	// FindByStaffID retrieves a guest by their staff ID
-	FindByStaffID(ctx context.Context, staffID int64) (*peopledirectory.Guest, error)
+	// FindByStaffID retrieves the record of a staff member
+	FindByStaffID(ctx context.Context, staffID int64) (*peopledirectory.ExternalCaregiverRecord, error)
 
-	// ActiveGuests retrieves the guests whose start/end window covers today.
-	ActiveGuests(ctx context.Context) ([]*peopledirectory.Guest, error)
+	// ActiveExternalCaregiverRecords retrieves the records whose start/end
+	// window covers today.
+	ActiveExternalCaregiverRecords(ctx context.Context) ([]*peopledirectory.ExternalCaregiverRecord, error)
 }
 
 // StudentGuardianRepository is the retained composition seam over the

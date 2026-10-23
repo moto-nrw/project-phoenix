@@ -25,6 +25,12 @@ func WithWorkSessionHolidays(reader HolidayDatesReader) WorkSessionOption {
 	return func(s *workSessionService) { s.holidayReader = reader }
 }
 
+// WithWorkSessionExternalCaregivers supplies the external-caregiver lookup
+// the auto-stamp skips (#4573).
+func WithWorkSessionExternalCaregivers(externals ExternalCaregiverStaff) WorkSessionOption {
+	return func(s *workSessionService) { s.externalCaregivers = externals }
+}
+
 // WithWorkSessionTargetOverrides re-prices the weekly Soll of Sonderarbeitszeit
 // weeks (#3259) in the history summaries.
 func WithWorkSessionTargetOverrides(overrides WeeklyTargetOverrides) WorkSessionOption {

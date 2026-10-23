@@ -373,7 +373,7 @@ func composeServeRoot(
 		func() (err error) {
 			structureViews.Education = buildGroupManagement(db, hub, structure, people, substitutions, audit)
 			structureViews.Substitution, err = buildSubstitutions(db, env, hub, structure, people, substitutions, workTime,
-				caller.Caller(), presence.SessionRecords, supervisions, active, lifecycle.Deviations, timetableRows, audit, settings.Service)
+				caller.Caller(), presence.SessionRecords, supervisions, active, lifecycle.Deviations, timetableRows, audit, settings.Service, identity)
 			return
 		},
 		func() error {
@@ -533,7 +533,7 @@ func composeServeRoot(
 			return mountPresenceRoutes(tenant, db, logger, config.SentryPyrePortalDSN, deviceAuth, studentPresence, active, facilities,
 				timetableOwner, timetableRepos, days, persons, services.Users, caller, settings.Service, hub, emitter, groupLive,
 				dashboard, yard, iot, activities, structureViews.Education, schedules.Pickups, workforce.TimeTracking, facilitiesRooms,
-				feedback, organizations)
+				feedback, organizations, identity)
 		},
 		func() error {
 			return mountStaffRoutes(tenant, db, logger, membership, workTime, services.Users, staffAdmin, workforce, shifts,

@@ -60,6 +60,7 @@ func buildSubstitutions(
 	substitutions owners.GroupSubstitutions, workTime workforce.Capability, callerContext identityaccess.CallerContext,
 	sessions presenceCompose.SessionRecords, supervisions studentpresence.SupervisionRecords, active studentpresence.Presence,
 	deviations timetable.StaffDeviations, owner owners.TimetableOwner, audit owners.AuditOwner, settings settingsCompose.SettingsService,
+	invitations identityaccess.SchoolInvitations,
 ) (education.SubstitutionModule, error) {
 	repos := owner.Repositories
 	schedule, err := shiftplansyncCompose.NewSubstitution(shiftplansyncCompose.SubstitutionDependencies{
@@ -75,7 +76,7 @@ func buildSubstitutions(
 	return education.NewSubstitutionModule(education.SubstitutionDependencies{
 		Groups: structure.Groups, Substitutions: NewEducationHandovers(substitutions, shiftplansync.NewGroupHandovers(workTime)),
 		Persons: structure.SubstitutionPersons, Teachers: structure.Caregivers,
-		Staff: structure.StaffChecks, ExternalCaregivers: structure.ExternalCaregivers,
+		Staff: structure.StaffChecks, ExternalCaregivers: structure.ExternalCaregivers.WithInvitations(invitations),
 		Actors:       SubstitutionActorResolver{Identity: callerContext},
 		ActiveGroups: sessions, ActiveSupervisors: supervisions,
 		ActiveSupervisorCreator: active,

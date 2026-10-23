@@ -476,6 +476,31 @@ func TestScheduleSubstitutionExternalInterfaceReturnsNarrowOverview(t *testing.T
 	require.NotContains(t, string(payload), "person_id")
 }
 
+// An external caregiver is never a substitute (#4573 D6), so the overview
+// marks them among the schedule targets; the pickers leave them out while an
+// absence can still name them.
+func TestScheduleSubstitutionExternalInterfaceMarksExternalTargets(t *testing.T) {
+	t.Parallel()
+	db, _, service := newScheduleSubstitutionModule(t)
+
+	internal := testpkg.CreateTestStaff(t, db, "Ida", "Intern")
+	external := testpkg.CreateTestExternalCaregiverRecord(t, db, "Musik")
+	date := calendar.TodayDate().AddDays(1)
+
+	overview, err := testpkg.TenantQuery2(t, testpkg.Ctx(t), db, service.Overview, scheduleSubstitutionCaller(t), substitution.OverviewQuery{
+		ScheduleFrom: &date, ScheduleTo: &date, IncludeScheduleTargets: true,
+	})
+	require.NoError(t, err)
+	targets := make(map[int64]substitution.StaffRef, len(overview.ScheduleTargets))
+	for _, target := range overview.ScheduleTargets {
+		targets[target.ID] = target
+	}
+	require.Contains(t, targets, internal.ID)
+	require.False(t, targets[internal.ID].IsExternal)
+	require.Contains(t, targets, external.StaffID)
+	require.True(t, targets[external.StaffID].IsExternal)
+}
+
 func requireScheduleStaffState(t *testing.T, rows []*timetable.InstanceStaff, staffID int64, absent, substitute bool) {
 	t.Helper()
 	for _, row := range rows {

@@ -6,6 +6,8 @@ import (
 	"net/http"
 	"strings"
 
+	"github.com/spf13/viper"
+
 	"github.com/go-chi/chi/v5"
 	carePlanModule "github.com/moto-nrw/project-phoenix/modules/careplan"
 	classdayHTTP "github.com/moto-nrw/project-phoenix/modules/classday/http"
@@ -59,7 +61,7 @@ func mountStaffRoutes(
 	substitution schoolStructureCompose.SubstitutionModule, persons peopledirectory.Capability, settings settingsCompose.SettingsService,
 	hub *realtime.Hub, identity identityaccess.Owner, caller *owners.CallerRows, calendar schoolcalendar.Calendar,
 ) error {
-	staff, _, err := newStaffComposition(membership, workTime, users, staffAdmin, workforce.TimeTracking, education, persons, settings, hub, identity, db, logger.With("handler", "staff"))
+	staff, _, err := newStaffComposition(membership, workTime, users, staffAdmin, workforce.TimeTracking, education, persons, settings, hub, identity, viper.GetString("app_env"), db, logger.With("handler", "staff"))
 	if err != nil {
 		return err
 	}

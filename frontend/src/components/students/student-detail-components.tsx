@@ -755,6 +755,11 @@ interface PersonalInfoReadOnlyProps {
   onRetryEnrollmentExtra?: () => void;
   showEditButton?: boolean;
   onEditClick?: () => void;
+  /**
+   * Load and show „Geht mit“. GET /students/{id}/companions needs users:read;
+   * the role „Gast“ reads the child without it (ADR 0091).
+   */
+  showCompanions?: boolean;
 }
 
 const EMPTY_ENROLLMENT_EXTRA_GROUPS: StudentEnrollmentExtraFieldGroup[] = [];
@@ -767,6 +772,7 @@ export function PersonalInfoReadOnly({
   onRetryEnrollmentExtra = noop,
   showEditButton = false,
   onEditClick,
+  showCompanions = true,
 }: Readonly<PersonalInfoReadOnlyProps>) {
   const enrollmentExtraLoadError = useSwrLoadError(
     enrollmentExtraError,
@@ -822,7 +828,7 @@ export function PersonalInfoReadOnly({
     setCompanionsUnavailable(false);
   }
   useEffect(() => {
-    if (!student.id) return;
+    if (!student.id || !showCompanions) return;
     let cancelled = false;
     fetchStudentCompanions(student.id)
       .then((loaded) => {
@@ -849,6 +855,7 @@ export function PersonalInfoReadOnly({
     };
   }, [
     student.id,
+    showCompanions,
     companionsRevalidation,
     showCompanionsLoadError,
     clearCompanionsLoadError,
