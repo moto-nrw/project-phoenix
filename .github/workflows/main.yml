@@ -240,6 +240,7 @@ jobs:
               - 'scripts/runtime_checkpoint_*_test.py'
               - 'scripts/check-agent-context*'
               - 'scripts/check-test-runners*'
+              - 'scripts/check-pr-body*'
               - '**/*.test.{js,cjs,mjs,ts,cts,mts}'
               - '**/*_test.py'
               - '**/*_test.sh'
@@ -330,7 +331,7 @@ jobs:
       - name: Verify repository script suites
         if: matrix.suite == 'unit'
         run: |
-          node --test scripts/student-contract-monitor.test.mjs scripts/check-agent-context.test.mjs scripts/check-test-runners.test.mjs
+          node --test scripts/student-contract-monitor.test.mjs scripts/check-agent-context.test.mjs scripts/check-test-runners.test.mjs scripts/check-pr-body.test.mjs
           python3 -m unittest scripts/runtime_checkpoint_compare_test.py scripts/runtime_checkpoint_report_test.py
 
       # Lists test files that no workflow runs (#4436).

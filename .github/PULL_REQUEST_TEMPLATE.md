@@ -1,5 +1,11 @@
 # Pull Request
 
+## TL;DR: Was ändert sich für Nutzer?
+<!-- Pflicht, 1–3 Sätze in einfacher Sprache aus Sicht der Betroffenen:
+     Wer (Betreuer, Eltern, Schulleitung, Kiosk) merkt was, wo im Produkt?
+     Keine Dateien, Module oder Klassennamen.
+     Ohne sichtbare Wirkung: „Keine Änderung für Nutzer“ plus Halbsatz warum. -->
+
 ## Description
 <!-- Explain the changes you've made and why they're needed -->
 
