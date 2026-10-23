@@ -16,7 +16,6 @@ import (
 	deliveryPolicy "github.com/moto-nrw/project-phoenix/modules/delivery/devices"
 	configModels "github.com/moto-nrw/project-phoenix/modules/settings"
 	"github.com/moto-nrw/project-phoenix/realtime"
-	"github.com/moto-nrw/project-phoenix/realtime/realtimetest"
 	owners "github.com/moto-nrw/project-phoenix/roots/owners"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 )
@@ -28,7 +27,7 @@ import (
 type groupFixture struct {
 	svc         *messaging.Service
 	portal      communication.PortalGroupThreads
-	broadcaster *realtimetest.RecordingBroadcaster
+	broadcaster *testpkg.RecordingBroadcaster
 	staff       int64
 	a, b        testpkg.ParentChain
 }

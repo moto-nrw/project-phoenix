@@ -276,19 +276,16 @@ func (s *Service) GetChildConversation(ctx context.Context, accountID, studentID
 
 // PostChildMessage appends a guardian message to the child's conversation,
 // creating the conversation on the first message (get-or-create).
-func (s *Service) PostChildMessage(ctx context.Context, accountID, studentID int64, body string) (*MessageThreadView, error) {
-	return s.postChildMessage(ctx, accountID, studentID, body, 0)
-}
-
-// PostChildReply appends a guardian's answer to a group thread to the child's
-// 1:1 conversation with the OGS. No other family ever sees the answer. The
-// guardian may answer only a group thread that reached them for this child and
-// is still open.
-func (s *Service) PostChildReply(ctx context.Context, accountID, studentID int64, body string, groupThreadID int64) (*MessageThreadView, error) {
-	return s.postChildMessage(ctx, accountID, studentID, body, groupThreadID)
-}
-
-func (s *Service) postChildMessage(ctx context.Context, accountID, studentID int64, body string, groupThreadID int64) (*MessageThreadView, error) {
+//
+// An optional groupThreadID marks the message as the answer to that group
+// thread (#4784). The answer stays in the child's 1:1 conversation with the
+// OGS; no other family ever sees it. The guardian may answer only a group
+// thread that reached them for this child and is still open.
+func (s *Service) PostChildMessage(ctx context.Context, accountID, studentID int64, body string, groupThreadIDs ...int64) (*MessageThreadView, error) {
+	groupThreadID := int64(0)
+	if len(groupThreadIDs) > 0 {
+		groupThreadID = groupThreadIDs[0]
+	}
 	var err error
 	body, err = normalizeParentMessageBody(body)
 	if err != nil {
