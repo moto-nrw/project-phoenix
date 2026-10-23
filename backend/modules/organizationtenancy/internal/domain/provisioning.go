@@ -24,6 +24,7 @@ const (
 	AuditResourceDevice       = "device"
 	AuditResourceAccount      = "account"
 	AuditResourcePerson       = "person"
+	AuditResourceAnnouncement = "announcement"
 )
 
 // Device vocabulary shared with Device Fleet.

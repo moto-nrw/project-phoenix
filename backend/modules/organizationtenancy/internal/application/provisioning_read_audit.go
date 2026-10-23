@@ -17,6 +17,8 @@ func (p *Provisioning) RecordOperatorRead(ctx context.Context, access organizati
 	switch access.View {
 	case organizationtenancy.ReadSchoolPersons, organizationtenancy.ReadOrganizationPersons:
 		resource = domain.AuditResourcePerson
+	case organizationtenancy.ReadAnnouncementViews:
+		resource = domain.AuditResourceAnnouncement
 	case organizationtenancy.ReadAllAccounts, organizationtenancy.ReadSchoolAccounts,
 		organizationtenancy.ReadOrganizationAccounts, organizationtenancy.ReadSchoolAccountCaregiver,
 		organizationtenancy.ReadSchoolAccountMFA, organizationtenancy.ReadAccountMFA, organizationtenancy.ReadAccountTenants:
@@ -33,6 +35,9 @@ func (p *Provisioning) RecordOperatorRead(ctx context.Context, access organizati
 	var resourceID *int64
 	if access.AccountID > 0 {
 		resourceID = &access.AccountID
+	}
+	if access.View == organizationtenancy.ReadAnnouncementViews {
+		resourceID = &access.AnnouncementID
 	}
 	_, err := adminValue(ctx, p, func(adminCtx context.Context) (struct{}, error) {
 		return struct{}{}, p.recordAction(adminCtx, access.OperatorID, domain.AuditActionView, resource, resourceID, access.ClientIP, changes)

@@ -18,6 +18,7 @@ const (
 	ReadSchoolAccountMFA       OperatorReadView = "school_account_mfa"
 	ReadAccountMFA             OperatorReadView = "account_mfa"
 	ReadAccountTenants         OperatorReadView = "account_tenants"
+	ReadAnnouncementViews      OperatorReadView = "announcement_views"
 )
 
 // OperatorReadAccess records an attempted disclosure, before reading its data.
@@ -28,6 +29,7 @@ type OperatorReadAccess struct {
 	SchoolID       int64
 	OrganizationID int64
 	AccountID      int64
+	AnnouncementID int64
 	ClientIP       net.IP
 }
 

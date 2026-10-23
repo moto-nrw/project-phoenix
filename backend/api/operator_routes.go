@@ -134,7 +134,7 @@ func operatorRouter(
 		identityRoutes.mountProfileRoutes(r)
 		identityRoutes.mountTrustedDeviceRoutes(r)
 		identityRoutes.mountInvitationRoutes(r)
-		mountOperatorAnnouncementRoutes(r, announcementRoutes)
+		mountOperatorAnnouncementRoutes(r, announcementRoutes, provisioningRoutes)
 		mountOperatorBillingRoutes(r, billing)
 	})
 
@@ -412,7 +412,7 @@ func (rs operatorIdentityRoutes) mountInvitationRoutes(r chi.Router) {
 }
 
 // mountOperatorAnnouncementRoutes registers announcements management.
-func mountOperatorAnnouncementRoutes(r chi.Router, announcements *operatorannouncements.AnnouncementsResource) {
+func mountOperatorAnnouncementRoutes(r chi.Router, announcements *operatorannouncements.AnnouncementsResource, provisioning *provisioningOperatorAPI.ProvisioningResource) {
 	r.Route("/announcements", func(r chi.Router) {
 		r.Get("/", announcements.ListAnnouncements)
 		r.Post("/", announcements.CreateAnnouncement)
@@ -421,6 +421,6 @@ func mountOperatorAnnouncementRoutes(r chi.Router, announcements *operatorannoun
 		r.Delete("/{id}", announcements.DeleteAnnouncement)
 		r.Post("/{id}/publish", announcements.PublishAnnouncement)
 		r.Get("/{id}/stats", announcements.GetStats)
-		r.Get("/{id}/views", announcements.GetViewDetails)
+		r.Get("/{id}/views", provisioning.AuditReadAccess(organizationtenancy.ReadAnnouncementViews, announcements.GetViewDetails))
 	})
 }
