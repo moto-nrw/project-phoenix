@@ -547,14 +547,17 @@ export interface OperatorDevice {
   updatedAt: string;
 }
 
-export function mapOperatorDevice(data: BackendOperatorDevice): OperatorDevice {
+export function mapOperatorDevice(
+  data: BackendOperatorDevice,
+  includeCredential = false,
+): OperatorDevice {
   return {
     id: data.id.toString(),
     deviceId: data.device_id,
     deviceType: data.device_type,
     name: data.name ?? "",
     status: data.status,
-    apiKey: data.api_key ?? "",
+    apiKey: includeCredential ? (data.api_key ?? "") : "",
     maskedApiKey: data.masked_api_key,
     lastSeen: data.last_seen ?? null,
     isOnline: data.is_online,

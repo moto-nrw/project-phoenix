@@ -1,5 +1,6 @@
 import { apiErrorFromResponse, transportFetch } from "~/lib/api-error";
 import { berlinTodayISO, formatDate } from "~/lib/date-helpers";
+import { downloadBlob, filenameFromDisposition } from "~/lib/file-download";
 
 export type StudentExportFormat = "pdf" | "docx" | "xlsx";
 
@@ -435,22 +436,10 @@ export async function exportStudents(
     throw await apiErrorFromResponse(response, "Export fehlgeschlagen");
   }
 
-  const blob = await response.blob();
-  const url = URL.createObjectURL(blob);
-  const link = document.createElement("a");
-  link.href = url;
-  link.download =
-    filenameFromDisposition(response) ?? fallbackFilename(request);
-  document.body.append(link);
-  link.click();
-  link.remove();
-  URL.revokeObjectURL(url);
-}
-
-function filenameFromDisposition(response: Response): string | null {
-  const disposition = response.headers.get("content-disposition");
-  const match = /filename="([^"]+)"/.exec(disposition ?? "");
-  return match?.[1] ?? null;
+  downloadBlob(
+    await response.blob(),
+    filenameFromDisposition(response) ?? fallbackFilename(request),
+  );
 }
 
 function fallbackFilename(request: StudentExportRequest): string {

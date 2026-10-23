@@ -899,7 +899,7 @@ function dayLogTopic(groupMode: HelpGroupMode): HelpTopic {
                 "Bleiben Sie für alle Gruppen in der Übersicht.",
                 "Für eine einzelne Gruppe öffnen Sie deren `Details`.",
               ]),
-          "Wählen Sie `Drucken`, `PDF` oder `Excel`.",
+          "Wählen Sie `Drucken`, `PDF`, `Word` oder `Excel`.",
         ],
       },
     ],
@@ -910,7 +910,7 @@ function dayLogTopic(groupMode: HelpGroupMode): HelpTopic {
       "Steht dort `Anwesenheitsprotokoll ist ausgeschaltet`? Dann ist es für Ihre Schule nicht eingeschaltet.",
     ],
     notes: [
-      "Ist ein Kind früher gegangen, steht der Grund hinter `gegangen`. Er steht auch im `PDF` und in `Excel`.",
+      "Ist ein Kind früher gegangen, steht der Grund hinter `gegangen`. Er steht auch im `PDF`, in `Word` und in `Excel`.",
     ],
     related: [
       HELP_TOPICS.absences,

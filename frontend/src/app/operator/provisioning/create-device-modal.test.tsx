@@ -97,7 +97,7 @@ describe("CreateDeviceModal", () => {
     vi.clearAllMocks();
   });
 
-  it("submits a device with a manual api key", async () => {
+  it("submits a device with a generated api key", async () => {
     mockCreateDevice.mockResolvedValue({
       id: "200",
       deviceId: "DEV-001",
@@ -132,10 +132,6 @@ describe("CreateDeviceModal", () => {
     fireEvent.change(screen.getByLabelText("Name"), {
       target: { value: "  Eingang  " },
     });
-    fireEvent.click(screen.getByLabelText("Eigenen Key eingeben"));
-    fireEvent.change(screen.getByPlaceholderText("API-Key eingeben..."), {
-      target: { value: "  manual-key  " },
-    });
 
     fireEvent.click(screen.getByText("Erstellen"));
 
@@ -145,15 +141,27 @@ describe("CreateDeviceModal", () => {
         device_id: "DEV-001",
         device_type: "terminal",
         name: "Eingang",
-        api_key: "manual-key",
       });
       expect(onCreated).toHaveBeenCalledWith(
-        expect.objectContaining({ id: "200", apiKey: "manual-key" }),
+        expect.objectContaining({ id: "200", apiKey: "" }),
       );
       expect(
         screen.getByText("Gerät erfolgreich erstellt"),
       ).toBeInTheDocument();
     });
+
+    // Anker: Der Einmal-Hinweis und die Kopieraktion sind im Erfolgsdialog sichtbar.
+    expect(
+      screen.getByText(
+        "Kopieren Sie den API-Key jetzt. Er wird nur einmal angezeigt.",
+      ),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByRole("button", { name: "Kopieren" }),
+    ).toBeInTheDocument();
+    expect(
+      screen.queryByText(/jederzeit im Geräte-Tab kopiert/),
+    ).not.toBeInTheDocument();
   });
 
   it("shows duplicate api key conflict message", async () => {
@@ -177,10 +185,6 @@ describe("CreateDeviceModal", () => {
       target: { value: "DEV-001" },
     });
     selectCustomOption(/Typ/, "Terminal");
-    fireEvent.click(screen.getByLabelText("Eigenen Key eingeben"));
-    fireEvent.change(screen.getByPlaceholderText("API-Key eingeben..."), {
-      target: { value: "taken-key" },
-    });
     fireEvent.click(screen.getByText("Erstellen"));
 
     expect(
@@ -188,10 +192,6 @@ describe("CreateDeviceModal", () => {
         catalogText("general.business_rejection", "das Anlegen des Geräts"),
       ),
     ).toBeInTheDocument();
-    expect(screen.getByPlaceholderText("API-Key eingeben...")).toHaveAttribute(
-      "aria-invalid",
-      "true",
-    );
     expect(screen.queryByText("api_key already exists")).toBeNull();
   });
 

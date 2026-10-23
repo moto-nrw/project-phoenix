@@ -135,7 +135,7 @@ func TestDeviceRepository_ArchivedDevicesAreHistoricalOnly(t *testing.T) {
 	source := &devicefleet.Device{DeviceID: deviceID, DeviceType: "terminal", Status: devicefleet.DeviceStatusInactive, APIKey: &apiKey}
 	require.NoError(t, repo.Create(ctx, source))
 
-	_, err := db.NewRaw(`UPDATE iot.devices SET archived_at = NOW(), api_key = NULL WHERE id = ?`, source.ID).Exec(ctx)
+	_, err := db.NewRaw(`UPDATE iot.devices SET archived_at = NOW(), api_key_hash = NULL WHERE id = ?`, source.ID).Exec(ctx)
 	require.NoError(t, err)
 
 	_, err = repo.FindByID(ctx, source.ID)
@@ -298,8 +298,7 @@ func TestDeviceRepository_FindByAPIKey(t *testing.T) {
 		found, err := repo.FindByAPIKey(ctx, apiKey)
 		require.NoError(t, err)
 		assert.Equal(t, device.ID, found.ID)
-		assert.NotNil(t, found.APIKey)
-		assert.Equal(t, apiKey, *found.APIKey)
+		assert.Nil(t, found.APIKey)
 	})
 
 	t.Run("returns error for non-existent API key", func(t *testing.T) {

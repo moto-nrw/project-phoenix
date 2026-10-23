@@ -126,15 +126,16 @@ func newDeviceResponses(ctx context.Context, svc devicefleet.DeviceOnlineMonitor
 	return responses
 }
 
-// newDeviceCreationResponse converts a device model to a creation response object with API key
-func newDeviceCreationResponse(ctx context.Context, svc devicefleet.DeviceOnlineMonitoring, device *devicefleet.Device) DeviceCreationResponse {
+// newDeviceCreationResponse combines re-read metadata with the credential
+// issued by creation. A database read never supplies the one-time key.
+func newDeviceCreationResponse(ctx context.Context, svc devicefleet.DeviceOnlineMonitoring, device *devicefleet.Device, apiKey *string) DeviceCreationResponse {
 	response := DeviceCreationResponse{
 		DeviceResponse: newDeviceResponse(ctx, svc, device),
 	}
 
 	// Include API key only during creation
-	if device.APIKey != nil {
-		response.APIKey = *device.APIKey
+	if apiKey != nil {
+		response.APIKey = *apiKey
 	}
 
 	return response

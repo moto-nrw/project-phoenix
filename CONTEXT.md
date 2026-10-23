@@ -661,6 +661,167 @@ sie für die Betreuung braucht (Betreuungszeiten, Notfall, Abholung), und nur
 für die gebuchten Wochen. Ein Feriengast wird dadurch kein Kind dieser OGS.
 _Vermeiden_: Gastkind (unklar, ob mit Buchung), Ferienkind.
 
+## Betreuungsvertrag
+
+Ein **Betreuungsvertrag** ist die Vereinbarung zwischen dem Träger und den
+Eltern über die Betreuung eines Kindes an einem Betreuungsort. Er entsteht aus
+einer angenommenen Anmeldung oder aus einem Import; auch jede bestätigte
+Ferienbuchung ist einer. Er ist die einzige Grundlage für Elternbeiträge.
+_Vermeiden_: Vertrag allein (meint auch den Vertrag zwischen moto und einer
+Schule), Betreuungsvereinbarung.
+
+## Vertragsversion
+
+Eine **Vertragsversion** ist der Inhalt eines Betreuungsvertrags ab einem
+Wirkdatum: gebuchte Leistungen, Zeiten und der Preis, der beim Anlegen der
+Version galt. Jede Änderung erzeugt eine neue Version; spätere Tarifänderungen ändern
+keine bestehende Version.
+
+## Betreuungsort
+
+Der **Betreuungsort** eines Betreuungsvertrags ist die OGS, in der das Kind
+betreut wird. Für einen Feriengast ist das die ausrichtende OGS.
+_Vermeiden_: Heimschule (das ist die Schule, die das Kind besucht).
+
+## Elternabrechnung
+
+Die **Elternabrechnung** berechnet aus Betreuungsverträgen die Beiträge der
+Eltern und stellt Rechnungen oder Bescheide aus. moto zieht dabei kein Geld
+ein.
+_Vermeiden_: Abrechnung allein (meint im OGS-Portal die Lohnabrechnung),
+Billing (meint die Abrechnung zwischen moto und Schulen).
+
+## Zahler
+
+Ein **Zahler** ist die Person oder Stelle, an die der Träger Rechnungen oder
+Bescheide richtet und von der er den Beitrag bekommt. Ein Zahler muss kein
+Elternteil sein.
+_Vermeiden_: Rechnungsempfänger, Payer.
+
+## Familie
+
+Eine **Familie** ist beim Träger die bestätigte Gruppe aus Kindern mit
+Betreuungsvertrag und ihren Zahlern. Geschwister im Sinn der Beitragsregeln
+sind Kinder derselben Familie, auch an verschiedenen Schulen des Trägers. moto
+schlägt eine Familie vor, die Abrechnung bestätigt sie.
+_Vermeiden_: Haushalt.
+
+## Mensa-Monatsfreigabe
+
+Mit der **Mensa-Monatsfreigabe** bestätigt die OGS-Leitung, dass Anwesenheit und
+Abmeldungen eines Monats stimmen. Erst danach rechnet die Elternabrechnung die
+Mensa dieser OGS für den Monat spitz ab.
+
+## Beitragsposition
+
+Eine **Beitragsposition** ist eine einzelne, nachrechenbare Zeile einer
+Elternabrechnung: der Grundpreis eines Tarifs oder die Wirkung einer
+Beitragsregel (Einkommensstufe, Geschwister, Höchstbetrag, Kostenträger,
+Korrektur). Jede Position ist auf volle Cent gerundet. Ein Beitrag ist die
+Summe seiner Positionen.
+
+## Abrechnungslauf
+
+Ein **Abrechnungslauf** berechnet für einen Monat oder einen Ferienzeitraum die
+Beiträge aller Betreuungsverträge eines Trägers. Bis zur Freigabe darf die
+Abrechnung prüfen, korrigieren und neu berechnen. Mit der Freigabe werden alle
+Beitragsdokumente des Laufs ausgestellt.
+
+## Beitragsdokument
+
+Ein **Beitragsdokument** ist das, was ein Abrechnungslauf an einen Zahler
+richtet: eine Rechnung, ein Gebührenbescheid oder ein Bestätigungsschreiben.
+Welche Art es ist, legt der Träger je Leistung fest.
+_Vermeiden_: Rechnung als Oberbegriff (ein Bescheid ist keine Rechnung).
+
+## Rechnungssteller
+
+Der **Rechnungssteller** ist die Stelle, die ein Beitragsdokument ausstellt und
+den Beitrag bekommt: der Träger, eine Gemeinde oder ein Schulträger. Ein Träger
+kann mehrere haben. Mandate gelten für genau einen Rechnungssteller.
+
+## Kostenträger
+
+Ein **Kostenträger** ist eine Stelle, die einen Anteil am Beitrag eines Kindes
+übernimmt, etwa Bildung und Teilhabe oder das Jugendamt. Er ist ein Zahler und
+bekommt seinen Anteil in einem eigenen Beitragsdokument.
+_Vermeiden_: Zuschussgeber.
+
+## Nachberechnung
+
+Eine **Nachberechnung** ist eine Beitragsposition, die einen schon
+abgerechneten Zeitraum um die Differenz zu einer später wirksamen
+Vertragsversion korrigiert. Sie verweist auf das frühere Beitragsdokument und
+ändert es nicht.
+
+## Ausgestellt
+
+Ein Beitragsdokument ist **ausgestellt**, sobald sein Abrechnungslauf
+freigegeben ist. Erst dann bekommt das Dokument seine Nummer aus dem
+Nummernkreis. Ein ausgestelltes Dokument wird nie mehr geändert.
+_Vermeiden_: verschickt (Versand ist ein eigener Schritt), erstellt.
+
+## Storno und Gutschrift
+
+Ein **Storno** hebt ein ausgestelltes Beitragsdokument vollständig auf. Eine
+**Gutschrift** gibt einen Teil davon zurück. Beide sind eigene Dokumente mit
+eigener Nummer aus demselben Nummernkreis und verweisen auf das Original.
+_Vermeiden_: Rechnungskorrektur, Löschen einer Rechnung.
+
+## Personalstamm
+
+Der **Personalstamm** ist die eine Identität einer Person, die der Träger
+beschäftigt, über alle seine Schulen, mit der Personalnummer des Trägers.
+Personal, das der Träger nicht beschäftigt (Lehrkräfte des Landes, externe
+Betreuungskräfte, Kräfte von Kooperationspartnern), hat keinen Personalstamm
+und bleibt Personal der Schule.
+_Vermeiden_: Personalakte (meint das vollständige gesetzliche Archiv),
+Träger-Personensatz.
+
+## Arbeitsvertrag
+
+Ein **Arbeitsvertrag** ist ein Vertrag einer Person mit dem Träger, mit seiner
+Art (Vollzeit, Teilzeit, Minijob, Übungsleiter, Ehrenamt), seinem Soll und seinem
+eigenen Stundenkonto. Ein Personalstamm hat einen oder mehrere. Jede
+Beschäftigung an einer Schule gehört zu höchstens einem Arbeitsvertrag; ohne
+Arbeitsvertrag beschäftigt der Träger die Person nicht.
+_Vermeiden_: Beschäftigung (das ist der Verlauf an einer Schule), Stelle.
+
+Das **Vertragsende** beendet einen Arbeitsvertrag und mit ihm alle seine
+Beschäftigungen. Ein Personalaustritt an einer Schule beendet nur die
+Beschäftigung dort; der Arbeitsvertrag läuft weiter.
+_Vermeiden_: Austritt (für das Ende beim Träger), Kündigung.
+
+## Einsatzort
+
+Ein **Einsatzort** ist die Schule einer Beschäftigung, die zu einem
+Arbeitsvertrag gehört. Ein Arbeitsvertrag kann mehrere Einsatzorte haben.
+Genau einer davon ist der **Haupteinsatzort**; dessen Leitung entscheidet über
+Abwesenheitsanträge aus diesem Arbeitsvertrag.
+_Vermeiden_: Standort (meint die Schule allgemein), Stammschule.
+
+## Nachweis
+
+Ein **Nachweis** belegt am Personalstamm, dass eine gesetzlich oder vom Träger
+verlangte Voraussetzung erfüllt ist, etwa Führungszeugnis, Masernschutz oder
+Präventionsschulung, mit Datum der Vorlage, Ablaufdatum und Ergebnis. Beim
+Führungszeugnis hält moto nur die Einsichtnahme fest, keine Kopie. Eine Schule
+sieht für Personen an ihrem Einsatzort nur, ob der Nachweis vollständig ist,
+fehlt oder abläuft.
+_Vermeiden_: Qualifikation (ein Abschluss oder eine Fortbildung, je Schule),
+Personaldokument.
+
+## Vertretungspool
+
+Der **Vertretungspool** sind die Arbeitsverträge eines Trägers, die an jeder
+seiner Schulen eingesetzt werden können. Eine Person mit einem solchen
+Arbeitsvertrag ist ein **Springer**. Eine OGS-Leitung **blockt** einen
+Springer für Tage oder Zeiten; für genau diese Zeit ist ihre Schule sein
+Einsatzort. Andere Schulen sehen nur, dass und von welcher Schule er geblockt
+ist.
+_Vermeiden_: Springerpool, Vertretung (das ist die Zuordnung einer
+Ersatzperson zu Terminen innerhalb einer Schule), Reservierung.
+
 ## Personalaustritt
 
 Ein **Personalaustritt** beendet die Beschäftigung einer Person an einer

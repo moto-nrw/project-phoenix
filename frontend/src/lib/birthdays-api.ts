@@ -1,5 +1,6 @@
 import { apiErrorFromResponse, unavailableApiError } from "./api-error";
 import { fetchWithAuth } from "./fetch-with-auth";
+import { downloadBlob, filenameFromDisposition } from "~/lib/file-download";
 
 /** A request that never reached the API becomes `general.unavailable`. */
 async function authFetch(url: string, init?: RequestInit): Promise<Response> {
@@ -172,22 +173,9 @@ export async function exportStaffBirthdays(
     throw await apiErrorFromResponse(response, "Staff birthday export failed");
   }
 
-  const blob = await response.blob();
-  const url = URL.createObjectURL(blob);
-  const link = document.createElement("a");
-  link.href = url;
-  link.download =
+  downloadBlob(
+    await response.blob(),
     filenameFromDisposition(response) ??
-    `geburtstagsliste-personal.${request.format}`;
-  document.body.append(link);
-  link.click();
-  link.remove();
-  URL.revokeObjectURL(url);
-}
-
-function filenameFromDisposition(response: Response): string | null {
-  const disposition = response.headers.get("content-disposition");
-  if (!disposition) return null;
-  const match = /filename="?([^";]+)"?/i.exec(disposition);
-  return match?.[1] ?? null;
+      `geburtstagsliste-personal.${request.format}`,
+  );
 }

@@ -1007,10 +1007,13 @@ func TestOperatorProvisioningIntegration_TransferDevice_ArchivesSourceAndMovesKe
 	).Scan(dbCtx, &roomID))
 
 	deviceName := "Terminal Flur"
-	apiKey := fmt.Sprintf("transfer-key-%d", sourceSchoolID)
 	deviceID := fmt.Sprintf("transfer-device-%d", sourceSchoolID)
-	created, err := service.CreateDevice(ctx, sourceSchoolID, deviceID, "rfid_terminal", &deviceName, &apiKey, operatorID, provisioningTestClientIP)
+	created, err := service.CreateDevice(ctx, sourceSchoolID, deviceID, "rfid_terminal", &deviceName, nil, operatorID, provisioningTestClientIP)
 	require.NoError(t, err)
+	require.NotNil(t, created.APIKey)
+	apiKey := *created.APIKey
+	var originalHash string
+	require.NoError(t, db.NewRaw(`SELECT api_key_hash FROM iot.devices WHERE id = ?`, created.ID).Scan(dbCtx, &originalHash))
 	_, err = db.ExecContext(dbCtx, `UPDATE iot.devices SET room_id = ? WHERE id = ?`, roomID, created.ID)
 	require.NoError(t, err)
 
@@ -1029,13 +1032,13 @@ func TestOperatorProvisioningIntegration_TransferDevice_ArchivesSourceAndMovesKe
 
 	var source struct {
 		ArchivedAt            *string `bun:"archived_at"`
-		APIKey                *string `bun:"api_key"`
+		APIKey                *string `bun:"api_key_hash"`
 		Status                string  `bun:"status"`
 		RoomID                *int64  `bun:"room_id"`
 		TransferredToDeviceID *int64  `bun:"transferred_to_device_id"`
 	}
 	require.NoError(t, db.NewSelect().TableExpr("iot.devices").
-		Column("archived_at", "api_key", "status", "room_id", "transferred_to_device_id").
+		Column("archived_at", "api_key_hash", "status", "room_id", "transferred_to_device_id").
 		Where("id = ?", created.ID).Scan(dbCtx, &source))
 	assert.NotNil(t, source.ArchivedAt, "source device must be archived")
 	assert.Nil(t, source.APIKey, "source device must release its API key")
@@ -1046,16 +1049,18 @@ func TestOperatorProvisioningIntegration_TransferDevice_ArchivesSourceAndMovesKe
 
 	var target struct {
 		TenantID int64   `bun:"tenant_id"`
-		APIKey   *string `bun:"api_key"`
+		APIKey   *string `bun:"api_key_hash"`
 		Status   string  `bun:"status"`
 		RoomID   *int64  `bun:"room_id"`
 	}
 	require.NoError(t, db.NewSelect().TableExpr("iot.devices").
-		Column("tenant_id", "api_key", "status", "room_id").
+		Column("tenant_id", "api_key_hash", "status", "room_id").
 		Where("id = ?", transferred.ID).Scan(dbCtx, &target))
 	assert.Equal(t, targetSchoolID, target.TenantID)
 	require.NotNil(t, target.APIKey)
-	assert.Equal(t, apiKey, *target.APIKey, "the kiosk keeps its API key")
+	assert.Equal(t, originalHash, *target.APIKey, "the kiosk keeps its credential hash")
+	assert.True(t, *target.APIKey != apiKey, "the stored hash is not a bearer credential")
+	assert.Nil(t, transferred.APIKey)
 	assert.Equal(t, "active", target.Status)
 	assert.Nil(t, target.RoomID, "a room of the source school must not follow the device")
 
@@ -1067,4 +1072,38 @@ func TestOperatorProvisioningIntegration_TransferDevice_ArchivesSourceAndMovesKe
 
 	assert.Equal(t, 1, countOperatorAudit(t, db, "create", "device", created.ID))
 	assert.Equal(t, 1, countOperatorAudit(t, db, "transfer", "device", created.ID))
+}
+
+func TestOperatorProvisioningIntegration_KeysAreIssuedOnceAndCustomKeysRefused(t *testing.T) {
+	t.Parallel()
+	db := testpkg.SetupTestDB(t)
+	service := buildOperatorProvisioning(t, db)
+	ctx := provisioningContext(t, db)
+	operatorID := testpkg.CreateTestOperator(t, db).ID
+	_, schoolID := provisionTestSchool(t, db, service, operatorID, "credential")
+	created, err := service.CreateDevice(ctx, schoolID, "credential-terminal", "terminal", nil, nil, operatorID, provisioningTestClientIP)
+	require.NoError(t, err)
+	require.NotNil(t, created.APIKey)
+	require.True(t, len(*created.APIKey) >= 64, "generated device key carries 256 bits of entropy")
+	devices, err := service.ListSchoolDevices(ctx, schoolID)
+	require.NoError(t, err)
+	for _, device := range devices {
+		require.True(t, device.APIKey == nil, "operator reads must not disclose credentials")
+	}
+	rotated, err := service.SetDeviceAPIKey(ctx, created.ID, nil, operatorID, provisioningTestClientIP)
+	require.NoError(t, err)
+	require.NotNil(t, rotated.APIKey)
+	require.True(t, *rotated.APIKey != *created.APIKey, "rotation must issue a fresh credential")
+	weak := "weak"
+	_, err = service.CreateDevice(ctx, schoolID, "weak-terminal", "terminal", nil, &weak, operatorID, provisioningTestClientIP)
+	var invalid *organizationtenancy.InvalidProvisioningDataError
+	require.ErrorAs(t, err, &invalid)
+	_, err = service.SetDeviceAPIKey(ctx, created.ID, &weak, operatorID, provisioningTestClientIP)
+	require.ErrorAs(t, err, &invalid)
+	devices, err = service.ListAllDevices(ctx)
+	require.NoError(t, err)
+	for _, device := range devices {
+		require.True(t, device.APIKey == nil, "global operator reads must not disclose credentials")
+		require.NotEqual(t, "weak-terminal", device.DeviceID)
+	}
 }
