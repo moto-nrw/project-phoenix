@@ -12,7 +12,7 @@ func TestDeploymentNamesTheDemoOrTheTenantDomain(t *testing.T) {
 	assert.Equal(t, "schule.test", Deployment(false, " schule.test "))
 }
 
-func TestActorOfNamesOnlyOGSAccounts(t *testing.T) {
+func TestActorOfKeepsParentAccountInternalForSchoolPolicy(t *testing.T) {
 	t.Parallel()
 	_, ok := ActorOf(SessionFacts{Platform: true, TenantID: 21})
 	assert.False(t, ok, "operator sessions are no portal")
@@ -21,7 +21,7 @@ func TestActorOfNamesOnlyOGSAccounts(t *testing.T) {
 
 	actor, ok := ActorOf(SessionFacts{Parent: true, TenantID: 21, AccountID: 31})
 	assert.True(t, ok)
-	assert.Equal(t, Actor{Surface: SurfaceParents, Role: RoleGuardian}, actor)
+	assert.Equal(t, Actor{Surface: SurfaceParents, Role: RoleGuardian, AccountID: 31}, actor)
 	actor, _ = ActorOf(SessionFacts{School: true, TenantID: 21, AccountID: 31})
 	assert.Equal(t, Actor{Surface: SurfaceSchool, Role: RoleLehrkraft, SchoolID: 21}, actor)
 	actor, _ = ActorOf(SessionFacts{TenantID: 21, ReadOnlyPreview: true, Admin: true, AccountID: 31})

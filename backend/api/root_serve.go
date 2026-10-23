@@ -203,7 +203,7 @@ func composeServeRoot(
 		func() (err error) { membership, err = owners.ComposeSchoolMembership(db); return },
 		func() error { bookings = owners.NewEnrollmentBookings(); return nil },
 		func() (err error) {
-			settings, err = owners.BuildSettingsOwner(db, unit, env, organizations, hub, bookings)
+			settings, tracker, err = buildServeAnalyticsSettings(db, unit, env, organizations, hub, bookings, tracker)
 			return
 		},
 		func() (err error) {
@@ -511,7 +511,7 @@ func composeServeRoot(
 	}
 	registerRuntimeStatsProviders(hub, deliveryDevices.PWAUsage)
 	router := chi.NewRouter()
-	sessionAuth, err := mountServeMiddleware(router, unit, env.Logger, config, tracer, metrics, tracker, settings.Service)
+	sessionAuth, err := mountServeMiddleware(router, unit, env.Logger, config, tracer, metrics, tracker, settings.Service, analyticsCollectionPolicy(IsDemoEnvironment(env.Config.AppEnv), settings.Service, identity, organizations))
 	if err != nil {
 		return nil, nil, err
 	}

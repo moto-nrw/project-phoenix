@@ -856,6 +856,8 @@ export interface MealParticipation {
   readonly weekdays: number[];
   readonly effective_from?: string;
   readonly cutoff_time: string;
+  /** Werktage vor dem Essenstag, an denen die Frist gilt; 0 = am selben Tag. */
+  readonly cutoff_lead_days?: number;
   readonly days: MealParticipationDay[];
 }
 

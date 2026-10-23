@@ -3,22 +3,34 @@ import {
   render as rtlRender,
   screen,
   waitFor,
+  within,
 } from "@testing-library/react";
 import type { ReactElement } from "react";
 import { beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 import { setTestClock } from "~/test/clock";
 import { preloadDayPicker } from "~/components/ui/lazy-day-picker";
 import "@testing-library/jest-dom/vitest";
+import { NextIntlClientProvider } from "next-intl";
+import deMessages from "~/i18n/messages/de.json";
+
+// Real next-intl: the cutoff texts use ICU plurals the global mock cannot
+// render.
+vi.unmock("next-intl");
 
 const mocks = vi.hoisted(() => ({
   getDailyMealParticipants: vi.fn(),
   downloadDailyMealParticipants: vi.fn(),
+  getWeeklyMealParticipants: vi.fn(),
+  downloadWeeklyMealParticipants: vi.fn(),
   today: "2026-09-07",
 }));
 
-vi.mock("~/lib/meal-plan-api", () => ({
+vi.mock("~/lib/meal-plan-api", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("~/lib/meal-plan-api")>()),
   getDailyMealParticipants: mocks.getDailyMealParticipants,
   downloadDailyMealParticipants: mocks.downloadDailyMealParticipants,
+  getWeeklyMealParticipants: mocks.getWeeklyMealParticipants,
+  downloadWeeklyMealParticipants: mocks.downloadWeeklyMealParticipants,
 }));
 
 vi.mock("~/lib/hooks/use-berlin-today", () => ({
@@ -31,7 +43,17 @@ import { catalogText } from "~/test/error-catalog-text";
 import { MealParticipantList } from "./meal-participant-list";
 
 function render(ui: ReactElement) {
-  return rtlRender(ui, { wrapper: ToastProvider });
+  return rtlRender(ui, {
+    wrapper: ({ children }) => (
+      <NextIntlClientProvider
+        locale="de"
+        messages={deMessages}
+        timeZone="Europe/Berlin"
+      >
+        <ToastProvider>{children}</ToastProvider>
+      </NextIntlClientProvider>
+    ),
+  });
 }
 
 // The kit loads the calendar grid lazily; load it once up front so a cold
@@ -268,5 +290,105 @@ describe("MealParticipantList", () => {
     expect(
       (await screen.findAllByText("Keine Anmeldungen für diesen Tag")).length,
     ).toBeGreaterThan(0);
+  });
+
+  it("names the lead days of the cutoff on the daily list", async () => {
+    mocks.getDailyMealParticipants.mockResolvedValue({
+      date: "2026-09-07",
+      cutoffTime: "09:00",
+      cutoffLeadDays: 2,
+      participants: [],
+    });
+    render(<MealParticipantList />);
+
+    expect(
+      await screen.findByText(
+        "Änderungen für diesen Tag sind bis 09:00 Uhr 2 Werktage vorher möglich.",
+      ),
+    ).toBeInTheDocument();
+  });
+
+  it("shows the week with a mark per day and exports it", async () => {
+    mocks.getWeeklyMealParticipants.mockResolvedValue({
+      weekStart: "2026-09-07",
+      cutoffTime: "09:00",
+      cutoffLeadDays: 1,
+      days: [
+        {
+          date: "2026-09-07",
+          participants: [
+            {
+              studentId: "42",
+              firstName: "Mia",
+              lastName: "Muster",
+              schoolClass: "2a",
+            },
+            {
+              studentId: "43",
+              firstName: "Ben",
+              lastName: "Bauer",
+              schoolClass: "1b",
+            },
+          ],
+        },
+        { date: "2026-09-08", participants: [] },
+        {
+          date: "2026-09-09",
+          participants: [
+            {
+              studentId: "42",
+              firstName: "Mia",
+              lastName: "Muster",
+              schoolClass: "2a",
+            },
+          ],
+        },
+        { date: "2026-09-10", participants: [] },
+        { date: "2026-09-11", participants: [] },
+      ],
+    });
+    mocks.downloadWeeklyMealParticipants.mockResolvedValue(undefined);
+    render(<MealParticipantList />);
+    await screen.findByText("Mittagessen am 07.09.2026");
+
+    fireEvent.click(screen.getByRole("button", { name: "Woche" }));
+
+    expect(
+      await screen.findByText("Mittagessen vom 07.09.2026 bis 11.09.2026"),
+    ).toBeInTheDocument();
+    expect(mocks.getWeeklyMealParticipants).toHaveBeenCalledWith("2026-09-07");
+    expect(
+      screen.getByText(
+        "Änderungen sind bis 09:00 Uhr am Werktag davor möglich.",
+      ),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByRole("heading", { name: "Wochenliste für die Küche" }),
+    ).toBeInTheDocument();
+    expect(screen.getByText("Essen pro Tag:").parentElement).toHaveTextContent(
+      "Essen pro Tag: Mo 2 Kinder · Di 0 Kinder · Mi 1 Kind · Do 0 Kinder · Fr 0 Kinder",
+    );
+    expect(screen.getAllByText("Muster, Mia").length).toBeGreaterThan(0);
+    expect(screen.getAllByText("Bauer, Ben").length).toBeGreaterThan(0);
+    // Mia on Mon and Wed, Ben on Mon: three marks in all.
+    expect(
+      within(screen.getByRole("table")).getAllByText("angemeldet"),
+    ).toHaveLength(3);
+    expect(
+      screen.getByRole("table").querySelectorAll("svg.lucide-check"),
+    ).toHaveLength(3);
+
+    fireEvent.click(
+      screen.getByRole("button", {
+        name: "Wochenliste als Excel-Datei herunterladen",
+      }),
+    );
+    await waitFor(() => {
+      expect(mocks.downloadWeeklyMealParticipants).toHaveBeenCalledWith(
+        "2026-09-07",
+        "xlsx",
+      );
+    });
+    expect(mocks.downloadDailyMealParticipants).not.toHaveBeenCalled();
   });
 });
