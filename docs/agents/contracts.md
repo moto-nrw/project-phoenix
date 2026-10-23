@@ -237,7 +237,7 @@ cannot lower it. No new `force_off` exemption is accepted for privileged
 targets, even from operators; existing exemptions lose to the runtime floor.
 
 Every account session mint and refresh rechecks policy and permissions under
-policy/account locks. Migration 1.15.477 marks existing refresh sessions
+policy/account locks. Migration 1.15.480 marks existing refresh sessions
 unverified; their next refresh refuses privileged access and requires login.
 Completed email/passkey exchanges and valid school-bound trusted devices
 produce `auth.tokens.mfa_verified`; rotation and bounded hand-off recovery
