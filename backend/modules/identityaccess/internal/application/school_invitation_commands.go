@@ -3,9 +3,6 @@ package application
 import (
 	"context"
 	"errors"
-	"fmt"
-	"net/mail"
-	"strings"
 
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess/internal/domain"
@@ -87,20 +84,10 @@ func (s *SchoolInvitation) findFormerEmployment(ctx context.Context, email strin
 // transaction: the person and membership reads rely on its RLS scope.
 var errSchoolUnitRequired = errors.New("former employment lookup requires the school's transaction")
 
-// invitationAddress is the normalized address an invitation names.
+// invitationAddress is the normalized address an invitation names; the
+// public normalizer is shared with the external-caregiver workflow (#4573).
 func invitationAddress(raw string) (string, error) {
-	email := strings.TrimSpace(strings.ToLower(raw))
-	switch {
-	case email == "":
-		return "", fmt.Errorf("email is required")
-	case len(email) > maxInvitationEmailLength:
-		return "", fmt.Errorf("email address too long")
-	}
-	parsed, err := mail.ParseAddress(email)
-	if err != nil {
-		return "", fmt.Errorf("invalid email address")
-	}
-	return parsed.Address, nil
+	return identityaccess.NormalizeInvitationEmail(raw)
 }
 
 func (s *SchoolInvitation) CreateSchoolInvitation(ctx context.Context, request identityaccess.SchoolInvitationRequest) (identityaccess.SchoolInvitation, error) {

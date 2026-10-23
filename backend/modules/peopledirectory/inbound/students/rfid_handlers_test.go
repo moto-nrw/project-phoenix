@@ -16,7 +16,7 @@ import (
 
 // testDevicePIN is the OGS device PIN used to authenticate the RFID routes. It
 // matches the registry default of security.ogs_device_pin, which the Device
-// Fleet composition resolves per tenant before falling back to OGS_DEVICE_PIN.
+// Fleet composition resolves per tenant and rejects unreadable or empty PIN settings.
 const testDevicePIN = "1234"
 
 // deviceExec authenticates with the given RFID device's API key and runs the request through

@@ -40,8 +40,12 @@ func (rs *Resource) Router(protected func(chi.Router, func(chi.Router, common.Mi
 	return r
 }
 func (rs *Resource) Register(r chi.Router, withTx common.Middleware) {
+	// The school classes and the photo also open for students:read, the
+	// view-only child access of the role guest (ADR 0091); notes and the
+	// change history stay behind users:read.
+	childRead := common.RequiresAnyPermission(permissions.UsersRead, permissions.StudentsRead)
 	r.With(common.RequiresPermission(permissions.UsersDelete), withTx).Get("/child-quota", rs.getChildQuota)
-	r.With(common.RequiresPermission(permissions.UsersRead), withTx).Get("/school-classes", rs.listSchoolClasses)
+	r.With(childRead, withTx).Get("/school-classes", rs.listSchoolClasses)
 	r.With(common.RequiresPermission(permissions.UsersRead), withTx).Get("/{id}/change-history", rs.getStudentChangeHistory)
 	r.With(common.RequiresPermission(permissions.UsersRead), withTx).Get("/{id}/notes", rs.listStudentNotes)
 	r.With(common.RequiresPermission(permissions.UsersRead), withTx).Get("/{id}/note-subjects", rs.listStudentNoteSubjects)
@@ -52,7 +56,7 @@ func (rs *Resource) Register(r chi.Router, withTx common.Middleware) {
 	r.With(common.RequiresPermission(permissions.ConfigManage), withTx).Put("/{id}/family-protection", rs.setFamilyProtection)
 	r.With(common.RequiresPermission(permissions.UsersUpdate)).Post("/{id}/photo", rs.uploadStudentPhoto)
 	r.With(common.RequiresPermission(permissions.UsersUpdate), withTx).Delete("/{id}/photo", rs.deleteStudentPhoto)
-	r.With(common.RequiresPermission(permissions.UsersRead)).Get("/{id}/photo/{filename}", rs.serveStudentPhoto)
+	r.With(childRead).Get("/{id}/photo/{filename}", rs.serveStudentPhoto)
 }
 
 func (rs *Resource) mountDeviceRoutes(r chi.Router) {

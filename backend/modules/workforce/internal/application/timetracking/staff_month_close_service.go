@@ -176,7 +176,7 @@ func (s *staffMonthCloseService) CloseMonth(ctx context.Context, closedBy int64,
 	// External caregivers (#3823) record no working time to close.
 	staffIDs := make([]int64, 0, len(staffMembers))
 	for _, member := range staffMembers {
-		if !member.Guest {
+		if !member.ExternalCaregiver {
 			staffIDs = append(staffIDs, member.ID)
 		}
 	}

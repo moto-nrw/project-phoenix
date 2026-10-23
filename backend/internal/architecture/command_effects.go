@@ -3,10 +3,12 @@ package architecture
 import (
 	"bytes"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"os"
 	"path/filepath"
+	"sort"
 	"strings"
 
 	"golang.org/x/tools/go/packages"
@@ -66,16 +68,42 @@ func analyzeCommandEffects(project string, policy *Policy, loaded []*packages.Pa
 	if !commandEffectsEnabled(policy) {
 		return nil, nil
 	}
-	manifest, err := loadCommandEffects(project)
+	discovered := discoverCommandEffects(policy, loaded)
+	manifest, err := loadCanonicalCommandEffects(project)
+	if errors.Is(err, os.ErrNotExist) && len(discovered) == 0 {
+		return nil, nil
+	}
 	if err != nil {
 		return nil, err
 	}
-	discovered := discoverCommandEffects(policy, loaded)
+	return manifest.siteViolations(discovered), nil
+}
+
+func loadCanonicalCommandEffects(project string) (*commandEffectManifest, error) {
+	blob, err := os.ReadFile(filepath.Join(project, commandEffectInventory))
+	if err != nil {
+		return nil, fmt.Errorf("load command effects: %w", err)
+	}
+	manifest, err := decodeCommandEffects(blob)
+	if err != nil {
+		return nil, err
+	}
+	canonical, err := marshalCommandEffects(manifest)
+	if err != nil {
+		return nil, err
+	}
+	if !bytes.Equal(blob, canonical) {
+		return nil, fmt.Errorf("command effects must be canonical JSON; run scripts/backend-architecture.sh effects and review the result")
+	}
+	return manifest, nil
+}
+
+func (manifest *commandEffectManifest) siteViolations(discovered []commandEffectSite) []Violation {
 	entries := map[string]commandEffectEntry{}
 	for _, entry := range manifest.Entries {
 		entries[entry.key()] = entry
 	}
-	var violations []Violation
+	violations := manifest.targetEffectViolations()
 	for _, site := range discovered {
 		entry, present := entries[site.key()]
 		if !present {
@@ -83,7 +111,7 @@ func analyzeCommandEffects(project string, policy *Policy, loaded []*packages.Pa
 			if strings.HasPrefix(site.Target, "unresolved:") {
 				rule = "unresolved"
 			}
-			violations = append(violations, commandEffectViolation(rule, site, "binding effect has no exact inventory entry; generate and review command effects"))
+			violations = append(violations, commandEffectViolation(rule, site, "binding effect has no exact inventory entry; run scripts/backend-architecture.sh effects and review the result"))
 			continue
 		}
 		if entry.BindingDigest != site.BindingDigest {
@@ -97,7 +125,24 @@ func analyzeCommandEffects(project string, policy *Policy, loaded []*packages.Pa
 	for _, stale := range entries {
 		violations = append(violations, commandEffectViolation("stale", stale.commandEffectSite, "inventory entry has no typed binding; remove it"))
 	}
-	return violations, nil
+	return violations
+}
+
+func (manifest *commandEffectManifest) targetEffectViolations() []Violation {
+	var violations []Violation
+	targetEffects := map[string]string{}
+	for _, entry := range manifest.Entries {
+		if strings.HasPrefix(entry.Target, "unresolved:") {
+			continue
+		}
+		target := strings.TrimPrefix(entry.Target, "*")
+		if effect, found := targetEffects[target]; found && effect != entry.Effect {
+			violations = append(violations, commandEffectViolation("inconsistent", entry.commandEffectSite, "target method has conflicting effects: "+effect+" and "+entry.Effect))
+		} else {
+			targetEffects[target] = entry.Effect
+		}
+	}
+	return violations
 }
 
 // GenerateCommandEffects preserves exact reviewed entries but never invents effect labels.
@@ -123,11 +168,21 @@ func GenerateCommandEffects(project string, policy *Policy) error {
 		entry.commandEffectSite = site
 		manifest.Entries = append(manifest.Entries, entry)
 	}
-	blob, err := json.MarshalIndent(manifest, "", "  ")
+	blob, err := marshalCommandEffects(&manifest)
 	if err != nil {
 		return err
 	}
-	return os.WriteFile(filepath.Join(project, commandEffectInventory), append(blob, '\n'), 0644)
+	return os.WriteFile(filepath.Join(project, commandEffectInventory), blob, 0644)
+}
+
+func marshalCommandEffects(manifest *commandEffectManifest) ([]byte, error) {
+	entries := append([]commandEffectEntry{}, manifest.Entries...)
+	for i := range entries {
+		entries[i].SourceOwner = entries[i].sourceOwner()
+	}
+	sort.Slice(entries, func(i, j int) bool { return entries[i].key() < entries[j].key() })
+	blob, err := json.MarshalIndent(commandEffectManifest{SchemaVersion: manifest.SchemaVersion, Entries: entries}, "", "  ")
+	return append(blob, '\n'), err
 }
 
 func finishSemanticEffects(project string, policy *Policy, loaded []*packages.Package, violations []Violation) ([]Violation, error) {

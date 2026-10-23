@@ -43,7 +43,7 @@ func TestSchoolAccountCountsDeduplicateWithinBoundedGroups(t *testing.T) {
 	}
 	check(ctx, want)
 	require.NoError(t, testpkg.WithinTenantContext(t, testpkg.TenantContext(first), db, first, func(txCtx context.Context) error {
-		check(txCtx, want) // Memberships have no RLS; explicit school bounds remain decisive.
+		check(txCtx, map[int64]int{0: 1, 1: 1, 2: 0, 3: 0, 4: 0}) // An ambient school transaction must not count foreign memberships.
 		return nil
 	}))
 	rollback := errors.New("rollback count membership change")

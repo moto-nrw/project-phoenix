@@ -9,25 +9,25 @@ import (
 	"github.com/moto-nrw/project-phoenix/modules/workforce"
 )
 
-// bindMembershipAdapters binds the staff, teacher and guest adapters over
+// bindMembershipAdapters binds the staff, teacher and external caregiver record adapters over
 // membership, with the group store and the teaching assignments they resolve
 // through.
 func bindMembershipAdapters(persons staffPersonRows, identity staffIdentityQuery, membership schoolmembership.Capability, group *EducationGroupStore) (
-	StaffMembershipRepository, TeacherMembershipRepository, GuestMembershipRepository, *GroupTeacherRepositoryBinding, *ClassTeacherRepositoryBinding,
+	StaffMembershipRepository, TeacherMembershipRepository, ExternalCaregiverRecordMembershipRepository, *GroupTeacherRepositoryBinding, *ClassTeacherRepositoryBinding,
 ) {
 	groupTeachers := ComposeGroupTeacherRepository(membership, group)
 	deps := NewStaffMembershipDeps(persons, identity, groupTeachers)
 	return StaffMembershipRepository{Membership: membership, Deps: deps}, TeacherMembershipRepository{Membership: membership, Deps: deps},
-		GuestMembershipRepository{Membership: membership}, groupTeachers, &ClassTeacherRepositoryBinding{Membership: membership}
+		ExternalCaregiverRecordMembershipRepository{Membership: membership}, groupTeachers, &ClassTeacherRepositoryBinding{Membership: membership}
 }
 
-// newMembershipAdapters composes the staff, teacher, guest, group,
+// newMembershipAdapters composes the staff, teacher, external caregiver record, group,
 // teaching-assignment and class-teacher adapters over membership, with the
 // group store over db.
 func newMembershipAdapters(db transactionruntime.Database, persons staffPersonRows, identity staffIdentityQuery, membership schoolmembership.Capability, rooms facilitiesModule.Query, workTime workforce.Capability) (
-	StaffMembershipRepository, TeacherMembershipRepository, GuestMembershipRepository, *EducationGroupStore, *GroupTeacherRepositoryBinding, *ClassTeacherRepositoryBinding,
+	StaffMembershipRepository, TeacherMembershipRepository, ExternalCaregiverRecordMembershipRepository, *EducationGroupStore, *GroupTeacherRepositoryBinding, *ClassTeacherRepositoryBinding,
 ) {
 	group := NewGroupRepository(educationRepo.NewLegacyRepositoryRuntime(db.Pool()), rooms, membership, workTime)
-	staff, teacher, guest, groupTeachers, classTeachers := bindMembershipAdapters(persons, identity, membership, group)
-	return staff, teacher, guest, group, groupTeachers, classTeachers
+	staff, teacher, records, groupTeachers, classTeachers := bindMembershipAdapters(persons, identity, membership, group)
+	return staff, teacher, records, group, groupTeachers, classTeachers
 }

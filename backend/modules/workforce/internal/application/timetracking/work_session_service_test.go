@@ -684,9 +684,21 @@ func wsCreateTestService() (*workSessionService, *wsMockWorkSessionRepository, *
 		auditRepo:                 auditRepo,
 		absenceRepo:               absenceRepo,
 		GroupSupervisorRepository: supervisorRepo,
+		externalCaregivers:        wsExternalCaregivers{},
 	}
 
 	return service, sessionRepo, breakRepo, auditRepo, supervisorRepo
+}
+
+// wsExternalCaregivers answers the external-caregiver question from a set of
+// fake staff IDs; the zero value knows no external.
+type wsExternalCaregivers struct {
+	external map[int64]bool
+	err      error
+}
+
+func (f wsExternalCaregivers) IsExternalCaregiver(_ context.Context, staffID int64) (bool, error) {
+	return f.external[staffID], f.err
 }
 
 // ============================================================================
@@ -2696,6 +2708,54 @@ func TestWSEnsureCheckedIn_ForwardsAppSource(t *testing.T) {
 	_, err := svc.EnsureCheckedIn(context.Background(), staffID, WorkSessionSourceApp)
 	require.NoError(t, err)
 	assert.Equal(t, WorkSessionSourceApp, capturedSource)
+}
+
+// External caregivers record no working time (#3823), with or without an
+// account (#4573): starting or joining a supervision opens no block.
+func TestWSEnsureCheckedIn_SkipsExternalCaregiver(t *testing.T) {
+	t.Parallel()
+	svc, sessionRepo, _, _, _ := wsCreateTestService()
+	staffID := int64(100)
+	svc.externalCaregivers = wsExternalCaregivers{external: map[int64]bool{staffID: true}}
+
+	sessionRepo.getCurrentByStaffIDFunc = func(_ context.Context, _ int64) (*WorkSession, error) {
+		return nil, ErrNotFound
+	}
+	sessionRepo.listByStaffAndDateFunc = func(_ context.Context, _ int64, _ Date) ([]*WorkSession, error) {
+		return nil, nil
+	}
+	sessionRepo.createFunc = func(_ context.Context, _ *WorkSession) error {
+		t.Fatal("an external caregiver must not get a work session")
+		return nil
+	}
+
+	session, err := svc.EnsureCheckedIn(context.Background(), staffID, WorkSessionSourceNFC)
+	require.NoError(t, err)
+	assert.Nil(t, session)
+}
+
+// A failed lookup fails the stamp instead of recording working time for a
+// person who may be external.
+func TestWSEnsureCheckedIn_ExternalLookupFailureOpensNoSession(t *testing.T) {
+	t.Parallel()
+	svc, sessionRepo, _, _, _ := wsCreateTestService()
+	lookupErr := errors.New("staff lookup failed")
+	svc.externalCaregivers = wsExternalCaregivers{err: lookupErr}
+
+	sessionRepo.getCurrentByStaffIDFunc = func(_ context.Context, _ int64) (*WorkSession, error) {
+		return nil, ErrNotFound
+	}
+	sessionRepo.listByStaffAndDateFunc = func(_ context.Context, _ int64, _ Date) ([]*WorkSession, error) {
+		return nil, nil
+	}
+	sessionRepo.createFunc = func(_ context.Context, _ *WorkSession) error {
+		t.Fatal("no work session after a failed external lookup")
+		return nil
+	}
+
+	session, err := svc.EnsureCheckedIn(context.Background(), 100, WorkSessionSourceApp)
+	require.ErrorIs(t, err, lookupErr)
+	assert.Nil(t, session)
 }
 
 // ============================================================================

@@ -8,6 +8,7 @@ import {
   createDeleteHandler,
 } from "~/lib/route-wrapper.server";
 import { createLogger } from "~/lib/logger";
+import type { ExternalAccountStatus } from "~/lib/staff-api";
 import type { WireID } from "~/lib/wire-id";
 import { toIdString } from "~/lib/wire-id";
 
@@ -35,6 +36,7 @@ interface BackendStaffResponse {
   absence_type?: string;
   is_external?: boolean;
   external_organization?: string;
+  external_account_status?: ExternalAccountStatus;
   person?: {
     id: number;
     first_name: string;
@@ -154,6 +156,7 @@ export const GET = createGetHandler(
         absence_type: staff.absence_type ?? null,
         is_external: staff.is_external ?? false,
         external_organization: staff.external_organization ?? null,
+        external_account_status: staff.external_account_status ?? null,
         // Include person object if available
         person: staff.person,
       };
@@ -188,6 +191,7 @@ interface TeacherResponse {
   teacher_id?: string;
   is_external?: boolean;
   external_organization?: string | null;
+  external_account_status?: ExternalAccountStatus | null;
   person?: {
     id: number;
     first_name: string;
@@ -244,6 +248,7 @@ function mapStaffResponse(response: BackendStaffResponse): TeacherResponse {
     person_id: toIdString(response.person_id),
     is_external: response.is_external ?? false,
     external_organization: response.external_organization ?? null,
+    external_account_status: response.external_account_status ?? null,
     person: response.person,
   };
 }

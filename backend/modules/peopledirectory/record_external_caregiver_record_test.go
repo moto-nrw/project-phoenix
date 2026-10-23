@@ -8,28 +8,28 @@ import (
 
 func datePtr(d calendar.Date) *calendar.Date { return &d }
 
-func TestGuest_Validate(t *testing.T) {
+func TestExternalCaregiverRecord_Validate(t *testing.T) {
 	t.Parallel()
 
 	tests := []struct {
 		name    string
-		guest   *Guest
+		record  *ExternalCaregiverRecord
 		wantErr bool
 	}{
 		{
-			name: "valid guest with required fields only",
-			guest: &Guest{
+			name: "valid record with required fields only",
+			record: &ExternalCaregiverRecord{
 				StaffID:           1,
 				ActivityExpertise: "Soccer",
 			},
 			wantErr: false,
 		},
 		{
-			name: "valid guest with all fields",
-			guest: &Guest{
+			name: "valid record with all fields",
+			record: &ExternalCaregiverRecord{
 				StaffID:           1,
 				Organization:      "Sports Club",
-				ContactEmail:      "guest@example.com",
+				ContactEmail:      "extern@example.com",
 				ContactPhone:      "+49 123 456789",
 				ActivityExpertise: "Basketball",
 				StartDate:         datePtr(calendar.TodayDate()),
@@ -39,14 +39,14 @@ func TestGuest_Validate(t *testing.T) {
 		},
 		{
 			name: "missing staff ID",
-			guest: &Guest{
+			record: &ExternalCaregiverRecord{
 				ActivityExpertise: "Soccer",
 			},
 			wantErr: true,
 		},
 		{
 			name: "zero staff ID",
-			guest: &Guest{
+			record: &ExternalCaregiverRecord{
 				StaffID:           0,
 				ActivityExpertise: "Soccer",
 			},
@@ -54,7 +54,7 @@ func TestGuest_Validate(t *testing.T) {
 		},
 		{
 			name: "negative staff ID",
-			guest: &Guest{
+			record: &ExternalCaregiverRecord{
 				StaffID:           -1,
 				ActivityExpertise: "Soccer",
 			},
@@ -62,14 +62,14 @@ func TestGuest_Validate(t *testing.T) {
 		},
 		{
 			name: "missing activity expertise",
-			guest: &Guest{
+			record: &ExternalCaregiverRecord{
 				StaffID: 1,
 			},
 			wantErr: true,
 		},
 		{
 			name: "empty activity expertise",
-			guest: &Guest{
+			record: &ExternalCaregiverRecord{
 				StaffID:           1,
 				ActivityExpertise: "",
 			},
@@ -77,7 +77,7 @@ func TestGuest_Validate(t *testing.T) {
 		},
 		{
 			name: "invalid email format",
-			guest: &Guest{
+			record: &ExternalCaregiverRecord{
 				StaffID:           1,
 				ActivityExpertise: "Soccer",
 				ContactEmail:      "not-an-email",
@@ -86,7 +86,7 @@ func TestGuest_Validate(t *testing.T) {
 		},
 		{
 			name: "invalid phone format",
-			guest: &Guest{
+			record: &ExternalCaregiverRecord{
 				StaffID:           1,
 				ActivityExpertise: "Soccer",
 				ContactPhone:      "abc",
@@ -95,7 +95,7 @@ func TestGuest_Validate(t *testing.T) {
 		},
 		{
 			name: "end date before start date",
-			guest: &Guest{
+			record: &ExternalCaregiverRecord{
 				StaffID:           1,
 				ActivityExpertise: "Soccer",
 				StartDate:         datePtr(calendar.TodayDate().AddDays(1)),
@@ -105,11 +105,11 @@ func TestGuest_Validate(t *testing.T) {
 		},
 		{
 			name: "trimmed whitespace",
-			guest: &Guest{
+			record: &ExternalCaregiverRecord{
 				StaffID:           1,
 				ActivityExpertise: "  Soccer  ",
 				Organization:      "  Sports Club  ",
-				ContactEmail:      "  guest@example.com  ",
+				ContactEmail:      "  extern@example.com  ",
 				ContactPhone:      "  +49 123 456789  ",
 			},
 			wantErr: false,
@@ -118,9 +118,9 @@ func TestGuest_Validate(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			err := tt.guest.Validate()
+			err := tt.record.Validate()
 			if (err != nil) != tt.wantErr {
-				t.Errorf("Guest.Validate() error = %v, wantErr %v", err, tt.wantErr)
+				t.Errorf("ExternalCaregiverRecord.Validate() error = %v, wantErr %v", err, tt.wantErr)
 			}
 		})
 	}

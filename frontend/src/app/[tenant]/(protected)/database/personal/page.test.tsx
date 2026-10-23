@@ -58,7 +58,8 @@ vi.mock("~/components/ui/hooks/useIsMobile", () => ({
 
 const mockToastSuccess = vi.fn();
 const mockToastError = vi.fn();
-vi.mock("~/contexts/ToastContext", () => ({
+vi.mock("~/contexts/ToastContext", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("~/contexts/ToastContext")>()),
   useToast: vi.fn(() => ({
     success: mockToastSuccess,
     error: mockToastError,

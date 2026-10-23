@@ -134,13 +134,10 @@ func (s *Store) ListActiveTenantIDs(ctx context.Context, accountID int64) ([]int
 	}
 	var ids []int64
 	started := time.Now()
-	query := db.NewSelect().
-		TableExpr(`auth.account_tenants AS "account_tenant"`).
-		ColumnExpr(`"account_tenant".tenant_id`).
-		Where(`"account_tenant".account_id = ?`, accountID).
-		Where(`"account_tenant".status = ?`, "active").
-		OrderExpr(`"account_tenant".created_at ASC`)
-	err = query.Scan(ctx, &ids)
+	// The narrow database capability keeps the caller's transaction snapshot:
+	// offboarding needs other active schools of a locally active account, but
+	// must not gain direct access to foreign membership rows or feed tokens.
+	err = db.NewRaw(`SELECT tenant_id FROM auth.active_school_ids_for_account(?)`, accountID).Scan(ctx, &ids)
 	stats := domain.OperationStats{Queries: 1, StatementDuration: time.Since(started), Rows: int64(len(ids))}
 	if err != nil {
 		return nil, stats, fmt.Errorf("identity access postgres: list active tenant mappings: %w", err)

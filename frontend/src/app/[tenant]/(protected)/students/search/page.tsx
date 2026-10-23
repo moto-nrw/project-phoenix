@@ -104,6 +104,7 @@ import { useBulkCheckinActions } from "~/components/students/use-bulk-checkin-ac
 import { StudentCardGridSkeleton } from "~/components/students/student-card-skeleton";
 import { SchoolCheckinFab } from "~/components/students/school-checkin-fab";
 import { SchoolCheckinModeMobile } from "~/components/students/school-checkin-mode-mobile";
+import { canCheckInChildren, canExportStudents } from "~/lib/student-access";
 import { SchoolCheckinSelectionBar } from "~/components/students/school-checkin-selection-bar";
 import {
   checkoutConfirmationRoom,
@@ -1387,7 +1388,9 @@ function SearchPageContent() {
   // wrappers (mobile spacing, the grid's bottom padding) out of the tree when
   // the school has web attendance switched off.
   const attendanceWebEnabled = useAttendanceWebEnabled();
-  const checkinModeAvailable = isToday && attendanceWebEnabled;
+  // Ohne users:checkin (etwa als Gast, ADR 0091) scheiterte jeder Tipp.
+  const checkinModeAvailable =
+    isToday && attendanceWebEnabled && canCheckInChildren(session);
   const schoolCheckin = useSchoolCheckinMode();
   // A checkout well before today's pickup time asks for an optional reason
   // (#3324); every other checkout keeps its current behaviour.
@@ -3081,12 +3084,19 @@ function SearchPageContent() {
                     icon: <CalendarRange className="h-4 w-4" aria-hidden />,
                     onClick: () => router.push("/absences"),
                   },
-                  {
-                    label: "Exportieren",
-                    icon: <Download className="h-4 w-4" aria-hidden />,
-                    onClick: () => setIsExportOpen(true),
-                    badge: rowsLoaded ? filteredStudents.length : undefined,
-                  },
+                  // Der Export verlangt users:read; der Gast hat es nicht.
+                  ...(canExportStudents(session)
+                    ? [
+                        {
+                          label: "Exportieren",
+                          icon: <Download className="h-4 w-4" aria-hidden />,
+                          onClick: () => setIsExportOpen(true),
+                          badge: rowsLoaded
+                            ? filteredStudents.length
+                            : undefined,
+                        },
+                      ]
+                    : []),
                   // Die Spaltenwahl der Liste (#3834) steht hier und nicht
                   // als eigener Knopf neben dem Umschalter.
                   ...(showTable && !isPhone

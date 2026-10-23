@@ -20,11 +20,12 @@ import (
 // names a user sees on the roles page. Tenant-specific custom roles have no
 // translation — their raw name is also their display name.
 var systemRoleDisplayNames = map[string]string{
-	"admin":     "Administrator",
-	"user":      "Betreuer",
-	"guest":     "Gast",
-	"guardian":  "Erziehungsberechtigter",
-	"lehrkraft": "Lehrkraft",
+	"admin":      "Administrator",
+	"user":       "Betreuer",
+	"guest":      "Gast",
+	"guardian":   "Erziehungsberechtigter",
+	"lehrkraft":  "Lehrkraft",
+	"ag-leitung": "AG-Leitung",
 }
 
 // displayNameToRawRole is the reverse lookup (lowercased display name → raw name).

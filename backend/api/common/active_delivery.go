@@ -14,6 +14,14 @@ func RequireActiveGroupDelete() Middleware { return RequiresPermission(permissio
 func RequireActiveGroupAssign() Middleware { return RequiresPermission(permissions.GroupsAssign) }
 func RequireVisitUpdate() Middleware       { return RequiresPermission(permissions.VisitsUpdate) }
 
+// CanReadStudentAbsence reports users:read. Sick and excused status need it
+// like in the child list and group view (ADR 0091); a guest reads the active
+// groups with groups:read only.
+func CanReadStudentAbsence(ctx context.Context) bool {
+	principal, err := CurrentPrincipal(ctx)
+	return err == nil && HasPermission(permissions.UsersRead, principal.Permissions())
+}
+
 // VisitReadAccess projects the authenticated caller's legacy broad visit grant.
 // A resource wildcard alone is not a broad grant for this relationship policy.
 func VisitReadAccess(ctx context.Context) (accountID int64, readAll bool, err error) {

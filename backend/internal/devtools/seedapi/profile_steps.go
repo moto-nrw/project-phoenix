@@ -43,7 +43,7 @@ func (s configureProfileStep) Run(_ context.Context, rt *Runtime) error {
 
 // configureDevicePINStep makes the seed's staff PIN the school's device PIN.
 // Device auth resolves security.ogs_device_pin, whose registry default is
-// 1234, and uses OGS_DEVICE_PIN only when the setting resolves empty. Without
+// 1234. OGS_DEVICE_PIN is only a demo/seeder input, never a runtime fallback. Without
 // this write every device call of a school seeded with another PIN fails with
 // 401. The setting is admin-only, so the school admin writes it. Its
 // dependency on attendance.nfc_enabled only hides it in the settings screen;

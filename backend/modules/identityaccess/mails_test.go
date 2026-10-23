@@ -31,6 +31,8 @@ func TestSchoolInvitationMailPicksThePortalAndTheRoleName(t *testing.T) {
 	assert.Equal(t, 48, content(t, mail)["ExpiryHours"])
 	assert.Equal(t, "Einladung zu moto", identityaccess.SchoolInvitationMail(invitation, "", "o", time.Hour).Subject)
 	assert.Equal(t, "Förderkraft", identityaccess.RoleDisplayName("Förderkraft"), "a school's own role keeps its name")
+	assert.Equal(t, "AG-Leitung", identityaccess.RoleDisplayName(identityaccess.AGLeitungRoleName))
+	assert.Equal(t, "Gast", identityaccess.RoleDisplayName(identityaccess.GuestRoleName))
 }
 
 // A welcome is cancelled once its invitation can no longer be redeemed and

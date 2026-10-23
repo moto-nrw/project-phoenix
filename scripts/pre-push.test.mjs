@@ -459,3 +459,13 @@ test('architecture decision changes invalidate architecture evidence without rer
   assert.match(result.stdout, /\[architecture\] cache miss/);
   for (const stage of ['backend-quality', 'backend-lint']) assert.match(result.stdout, new RegExp(`\\[${stage}\\] cache hit`));
 });
+
+test('pass-through register changes invalidate architecture evidence', t => {
+  const f = fixture(t);
+  f.commit('backend/architecture/passthrough.json', '{"sites":[]}\n');
+  assert.equal(f.check().status, 0);
+  f.commit('backend/architecture/passthrough.json', '{"sites":[{"id":"changed"}]}\n');
+  const result = f.check();
+  assert.equal(result.status, 0, result.stdout + result.stderr);
+  assert.match(result.stdout, /\[architecture\] cache miss/);
+});

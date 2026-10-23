@@ -160,6 +160,7 @@ func (a groupLiveAccess) Caller(ctx context.Context) (grouplive.Caller, error) {
 	}
 	userPermissions := sessiontoken.PermissionsFromCtx(ctx)
 	return grouplive.Caller{
+		CanReadStudentPlans:      securityruntime.HasAdminWildcard(userPermissions) || securityruntime.HasPermission(permissions.UsersRead, userPermissions),
 		CanReadGroups:            securityruntime.HasPermission(groupLiveHTTP.GroupReadPermission, userPermissions),
 		CanReviewExcusedRequests: securityruntime.CanReviewExcusedAbsenceRequests(userPermissions),
 		OperationalOverview:      overview,

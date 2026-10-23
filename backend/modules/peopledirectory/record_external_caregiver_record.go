@@ -8,7 +8,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/modules/peopledirectory/contact"
 )
 
-func (g *Guest) Validate() error {
+func (g *ExternalCaregiverRecord) Validate() error {
 	if g.StaffID <= 0 {
 		return errors.New("staff ID is required")
 	}

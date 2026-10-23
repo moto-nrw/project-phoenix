@@ -83,31 +83,42 @@ func (s *staffDeviations) validateBulkStaff(ctx context.Context, in timetable.Bu
 			return timetable.DeviationBadRequest("absent and substitute staff must differ").WithCode(timetable.CodeSubstituteSelf).OnField("substitute_staff_id")
 		}
 	}
-	if err := s.ensureStaffExists(ctx, in.AbsentStaffID, "absent staff"); err != nil {
+	if _, err := s.findReferencedStaff(ctx, in.AbsentStaffID, "absent staff"); err != nil {
 		return err
 	}
 	if in.SubstituteStaffID != nil {
-		if err := s.ensureStaffExists(ctx, *in.SubstituteStaffID, "substitute staff"); err != nil {
-			return err
-		}
+		return s.ensureSubstituteStaff(ctx, *in.SubstituteStaffID)
 	}
 	return nil
 }
 
-// ensureStaffExists maps a missing staff reference to the same 404 the
+// ensureSubstituteStaff requires an existing staff member who may replace
+// others; an external caregiver never does (#4573 D6).
+func (s *staffDeviations) ensureSubstituteStaff(ctx context.Context, staffID int64) error {
+	staff, err := s.findReferencedStaff(ctx, staffID, "substitute staff")
+	if err != nil {
+		return err
+	}
+	if staff.HasExternalCaregiverRecord {
+		return externalSubstituteRefusal("substitute_staff_id")
+	}
+	return nil
+}
+
+// findReferencedStaff maps a missing staff reference to the same 404 the
 // single-day deviations save produces.
-func (s *staffDeviations) ensureStaffExists(ctx context.Context, staffID int64, label string) error {
+func (s *staffDeviations) findReferencedStaff(ctx context.Context, staffID int64, label string) (*timetable.StaffMember, error) {
 	staff, err := s.deps.Staff.FindByID(ctx, staffID)
 	if err != nil {
 		if domain.IsRecordNotFound(err) {
-			return timetable.DeviationNotFound(fmt.Sprintf("%s not found", label)).WithCode(timetable.CodeStaffNotFound).OnField(staffField(label))
+			return nil, timetable.DeviationNotFound(fmt.Sprintf("%s not found", label)).WithCode(timetable.CodeStaffNotFound).OnField(staffField(label))
 		}
-		return timetable.DeviationInternal("load staff failed", err)
+		return nil, timetable.DeviationInternal("load staff failed", err)
 	}
 	if staff == nil || staff.ID == 0 {
-		return timetable.DeviationNotFound(fmt.Sprintf("%s not found", label)).WithCode(timetable.CodeStaffNotFound).OnField(staffField(label))
+		return nil, timetable.DeviationNotFound(fmt.Sprintf("%s not found", label)).WithCode(timetable.CodeStaffNotFound).OnField(staffField(label))
 	}
-	return nil
+	return staff, nil
 }
 
 // staffField names the request field of a staff reference label
