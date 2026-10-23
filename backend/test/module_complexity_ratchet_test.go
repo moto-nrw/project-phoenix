@@ -3,8 +3,6 @@ package test
 import (
 	"fmt"
 	"go/ast"
-	"os"
-	"path/filepath"
 	"sort"
 	"strings"
 	"testing"
@@ -14,7 +12,7 @@ import (
 
 // TestModuleComplexityRatchet extends .claude/rules/backend-conventions.md
 // Rule 4 — gocognit cognitive complexity ≤ 15 — from api/ to the capability
-// modules and application workflows.
+// modules, application workflows and complete roots (ADR 0082).
 //
 // Why a second ratchet instead of a wider api/ one: migration #2580 moved
 // 228,306 of 638,717 production LOC into modules/ and workflows/, and the
@@ -22,8 +20,8 @@ import (
 // ratchet's reach without a single line changing. This
 // test closes that gap by freezing today's state under the new roots.
 //
-// TestHandlerComplexityRatchet keeps api/ separate and at zero (75 offenders
-// retired since 2026-07-12). This ratchet also scores the module handlers
+// TestHandlerComplexityRatchet keeps the default production api/ build at
+// zero. This ratchet includes test hooks too and scores the module handlers
 // (modules/*/http, modules/*/inbound, workflows/*/http) against the same
 // threshold; they have no register of their own.
 //
@@ -38,9 +36,9 @@ import (
 //
 // Keys are "relative/file.go:FuncName" with methods rendered exactly like the
 // gocognit CLI ("(*service).ListOptions"), so CLI output maps 1:1 onto
-// entries here. Scan roots are modules/ and workflows/, non-test .go files
-// only; "legacy" subdirectories are counted deliberately — the retained
-// legacy code is the bulk of the debt this ratchet is meant to drain.
+// entries here. walkModuleRatchetSources scans modules/, workflows/, roots/,
+// api/, cmd/ recursively and direct backend-root non-test .go files. Legacy
+// subdirectories stay counted so a move cannot silence the gate.
 const moduleComplexityThreshold = 15
 
 // Seeded 2026-09-18 at merge commit ecf0003369, the state of modules/ and
@@ -62,9 +60,23 @@ const moduleComplexityThreshold = 15
 // entries rose, three functions entered at 16, and two entries fell: the
 // register's sum went from 5,460 to 5,527 over 228 entries. This is a tool
 // rebaseline, not new debt; ADR 0072 records why the functions were not
-// refactored instead. The register is empty now: every function stays at or
-// below the threshold.
-var moduleComplexityAllowlist = map[string]int{}
+// refactored instead. The module register drained; ADR 0082 adds the root
+// baseline without headroom, measured at 722c5aa147.
+var moduleComplexityAllowlist = map[string]int{
+	"api/active_test_helpers.go:buildActiveTestModule":                                                        31,
+	"api/auth_test_helpers.go:NewAuthTestModule":                                                              28,
+	"api/enrollment_booking_repository_test_helpers.go:(EnrollmentBookingFixture).InsertRequestChildOffering": 18,
+	"api/enrollment_booking_repository_test_helpers.go:(EnrollmentBookingFixture).bookingCommandValues":       22,
+	"api/student_owner_http_test_helpers.go:NewStudentHTTPTestResources":                                      19,
+	"api/student_test_helpers.go:newStudentTestModule":                                                        32,
+	"api/timetable_test_helpers.go:NewTimetableTestModule":                                                    27,
+	"cmd/devtools/demo.go:provisionDemoSchool":                                                                18,
+	"cmd/devtools/demo_runtime.go:NewDemoRuntime":                                                             16,
+	"cmd/devtools/demo_scheduler.go:(*demoScheduler).drain":                                                   20,
+	"cmd/devtools/demo_scheduler.go:runDemoSchools":                                                           16,
+	"cmd/serve.go:scrubSentryEvent":                                                                           20,
+	"cmd/serve.go:validateServeConfig":                                                                        18,
+}
 
 func TestModuleComplexityRatchet(t *testing.T) {
 	t.Parallel()
@@ -121,53 +133,32 @@ func moduleComplexityViolations(scores, allowlist map[string]int) []string {
 	return violations
 }
 
-// Moved root bindings retain their original coverage and thresholds (ADR 0064).
+// All roots retain coverage and thresholds after a move (ADRs 0064, 0082).
 // moduleComplexityScan returns gocognit scores above the threshold for every
-// function in non-test .go files under modules/ and workflows/, keyed
+// function in the shared module/root scope, keyed
 // "relpath:FuncName" with methods rendered like the gocognit CLI
 // ("(*service).name"). It shares funcDisplayName with the api/ ratchet so
 // both registers speak the same key language.
 func moduleComplexityScan(backendRoot string) (map[string]int, error) {
 	scores := make(map[string]int)
-	for _, sub := range []string{"modules", "workflows", "roots/requestreviewbinding", "roots/sessionendbinding", "roots/openroommovebinding", "roots/owners/parent_announcement_audience_binding.go", "roots/owners/parent_inbox_binding.go", "roots/owners/staff_inbox_binding.go"} {
-		root := filepath.Join(backendRoot, sub)
-		err := filepath.WalkDir(root, func(path string, d os.DirEntry, err error) error {
-			if err != nil {
-				return err
-			}
-			if d.IsDir() {
-				if strings.HasPrefix(d.Name(), ".") && path != root {
-					return filepath.SkipDir
-				}
-				return nil
-			}
-			if !strings.HasSuffix(path, ".go") || strings.HasSuffix(path, "_test.go") {
-				return nil
-			}
-			rel, relErr := filepath.Rel(backendRoot, path)
-			if relErr != nil {
-				return relErr
-			}
-			rel = filepath.ToSlash(rel)
-
-			_, file, parseErr := parseGoSourceCached(path, nil)
-			if parseErr != nil {
-				return fmt.Errorf("parse %s: %w", rel, parseErr)
-			}
-			for _, decl := range file.Decls {
-				fn, ok := decl.(*ast.FuncDecl)
-				if !ok {
-					continue
-				}
-				if score := gocognit.Complexity(fn); score > moduleComplexityThreshold {
-					scores[rel+":"+funcDisplayName(fn)] = score
-				}
-			}
-			return nil
-		})
-		if err != nil {
-			return nil, err
+	err := walkModuleRatchetSources(backendRoot, func(path, rel string) error {
+		_, file, parseErr := parseGoSourceCached(path, nil)
+		if parseErr != nil {
+			return fmt.Errorf("parse %s: %w", rel, parseErr)
 		}
+		for _, decl := range file.Decls {
+			fn, ok := decl.(*ast.FuncDecl)
+			if !ok {
+				continue
+			}
+			if score := gocognit.Complexity(fn); score > moduleComplexityThreshold {
+				scores[rel+":"+funcDisplayName(fn)] = score
+			}
+		}
+		return nil
+	})
+	if err != nil {
+		return nil, err
 	}
 	return scores, nil
 }

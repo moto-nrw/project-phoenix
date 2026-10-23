@@ -384,7 +384,7 @@ Six ratchets freeze the state measured on **2026-09-18 at merge commit `ecf00033
 
 The seed column is history. The current budgets are the constants in each test file; driving them to 0 is #3423, and the pass-through floor per owner is ADR 0075 (#4403).
 
-Scope: non-test `.go` files under `modules/` and `workflows/`, **`legacy/` subtrees included** — a migration must not be able to silence a gate by moving code into `legacy/`. The pass-through ratchet is the deliberate exception and scans `*/internal/application/**` and the owner compositions, without `legacy/`. The `legacy_*.go` register scans the whole backend outside `legacy/` trees.
+Scope: non-test `.go` files under `modules/` and `workflows/`, **`legacy/` subtrees included** — a migration must not be able to silence a gate by moving code into `legacy/`. The pass-through ratchet is the deliberate exception and scans `*/internal/application/**` and the owner compositions, without `legacy/`. The `legacy_*.go` register scans the whole backend outside `legacy/` trees. Since ADR 0082 (#4542), file size, function length and cognitive complexity also scan `roots/`, `api/` and `cmd/` recursively and direct backend-root Go files, including hooks and generated sources. Root baselines are shrink-only; the measured root pass-through classification does not add a pass-through allowance.
 
 Two former rows are gone (#4427). The `bun` import in `*/http` and `*/inbound` is an `orm-sql` import the `http` role has no rule for, so `scripts/backend-architecture.sh check` rejects it. Temporary allow-rules in `policy.json` (a transition marker or an `issue` field) are rejected by the evaluator when it loads the policy (`validateTargetOnlyRule`, `internal/architecture/target_rule.go`, ADR 0057).
 
