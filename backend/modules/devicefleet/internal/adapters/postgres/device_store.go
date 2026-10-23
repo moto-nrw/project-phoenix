@@ -30,7 +30,8 @@ type deviceRow struct {
 	DeviceType            string     `bun:"device_type,notnull"`
 	Name                  *string    `bun:"name"`
 	Status                string     `bun:"status,notnull,default:'active'"`
-	APIKey                *string    `bun:"api_key"`
+	APIKeyHash            *string    `bun:"api_key_hash"`
+	MaskedAPIKey          string     `bun:"masked_api_key"`
 	LastSeen              *time.Time `bun:"last_seen"`
 	RegisteredByID        *int64     `bun:"registered_by_id"`
 	RoomID                *int64     `bun:"room_id"`
@@ -69,7 +70,7 @@ func (s *DeviceStore) Create(ctx context.Context, input devicefleet.CreateDevice
 	}
 	row := deviceRow{
 		TenantID: scope.TenantID, DeviceID: input.DeviceID, DeviceType: input.DeviceType, Name: input.Name,
-		Status: string(input.Status), APIKey: input.APIKey, LastSeen: input.LastSeen,
+		Status: string(input.Status), APIKeyHash: input.APIKeyHash, MaskedAPIKey: input.MaskedAPIKey, LastSeen: input.LastSeen,
 		RegisteredByID: input.RegisteredByID, RoomID: input.RoomID,
 	}
 	stats := domain.OperationStats{Queries: 1}
@@ -86,7 +87,7 @@ func (s *DeviceStore) Create(ctx context.Context, input devicefleet.CreateDevice
 // Update replaces every writable column of one device.
 func (s *DeviceStore) Update(ctx context.Context, input domain.UpdateDevice) (devicefleet.Device, domain.OperationStats, error) {
 	columns := []string{
-		"device_id", "device_type", "name", "status", "api_key", "last_seen",
+		"device_id", "device_type", "name", "status", "api_key_hash", "masked_api_key", "last_seen",
 		"registered_by_id", "room_id", "archived_at", "transferred_to_device_id", "updated_at",
 	}
 	db, scope, err := s.database(ctx)
@@ -227,7 +228,7 @@ func (s *DeviceStore) FindByDeviceID(ctx context.Context, deviceID string) (devi
 // unless the caller already established one.
 func (s *DeviceStore) FindByAPIKey(ctx context.Context, apiKey string) (devicefleet.Device, bool, domain.OperationStats, error) {
 	return s.findOne(ctx, "find device by api key", "", func(query *bun.SelectQuery) *bun.SelectQuery {
-		return query.Where(`"device".api_key = ?`, apiKey)
+		return query.Where(`"device".api_key_hash = ?`, apiKey)
 	})
 }
 
@@ -448,19 +449,20 @@ func applyDeviceFilter(query *bun.SelectQuery, filter devicefleet.DeviceFilter) 
 }
 
 func deviceRowFromUpdate(input domain.UpdateDevice) deviceRow {
-	return deviceRow{
+	row := deviceRow{
 		ID: input.ID, UpdatedAt: input.UpdatedAt, DeviceID: input.DeviceID, DeviceType: input.DeviceType, Name: input.Name,
-		Status: string(input.Status), APIKey: input.APIKey, LastSeen: input.LastSeen,
+		Status: string(input.Status), APIKeyHash: input.APIKeyHash, MaskedAPIKey: input.MaskedAPIKey, LastSeen: input.LastSeen,
 		RegisteredByID: input.RegisteredByID, RoomID: input.RoomID, ArchivedAt: input.ArchivedAt,
 		TransferredToDeviceID: input.TransferredToDeviceID,
 	}
+	return row
 }
 
 func toDeviceDomain(row deviceRow) devicefleet.Device {
 	return devicefleet.Device{
 		ID: row.ID, TenantID: row.TenantID, CreatedAt: row.CreatedAt, UpdatedAt: row.UpdatedAt,
 		DeviceID: row.DeviceID, DeviceType: row.DeviceType, Name: row.Name,
-		Status: devicefleet.DeviceStatus(row.Status), APIKey: row.APIKey, LastSeen: row.LastSeen,
+		Status: devicefleet.DeviceStatus(row.Status), APIKeyHash: row.APIKeyHash, MaskedAPIKey: row.MaskedAPIKey, LastSeen: row.LastSeen,
 		RegisteredByID: row.RegisteredByID, RoomID: row.RoomID, ArchivedAt: row.ArchivedAt,
 		TransferredToDeviceID: row.TransferredToDeviceID,
 	}

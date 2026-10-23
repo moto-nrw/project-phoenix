@@ -13,7 +13,8 @@ type UpdateDevice struct {
 	DeviceType            string
 	Name                  *string
 	Status                string
-	APIKey                *string
+	APIKeyHash            *string
+	MaskedAPIKey          string
 	LastSeen              *time.Time
 	RegisteredByID        *int64
 	RoomID                *int64

@@ -67,7 +67,7 @@ func (r *DeviceRepository) Create(ctx context.Context, entity *devicefleet.Devic
 	}
 	created, err := r.devices.CreateDevice(ctx, devicefleet.CreateDevice{
 		DeviceID: entity.DeviceID, DeviceType: entity.DeviceType, Name: entity.Name,
-		Status: devicefleet.DeviceStatus(entity.Status), APIKey: entity.APIKey,
+		Status: devicefleet.DeviceStatus(entity.Status), APIKey: entity.APIKey, APIKeyHash: entity.APIKeyHash, MaskedAPIKey: entity.MaskedAPIKey,
 		LastSeen: entity.LastSeen, RegisteredByID: entity.RegisteredByID, RoomID: entity.RoomID,
 	})
 	if err != nil {
@@ -87,7 +87,7 @@ func (r *DeviceRepository) Update(ctx context.Context, entity *devicefleet.Devic
 	}
 	updated, err := r.devices.UpdateDevice(ctx, devicefleet.UpdateDevice{
 		ID: entity.ID, DeviceID: entity.DeviceID, DeviceType: entity.DeviceType, Name: entity.Name,
-		Status: devicefleet.DeviceStatus(entity.Status), APIKey: entity.APIKey, LastSeen: entity.LastSeen,
+		Status: devicefleet.DeviceStatus(entity.Status), APIKey: entity.APIKey, APIKeyHash: entity.APIKeyHash, MaskedAPIKey: entity.MaskedAPIKey, LastSeen: entity.LastSeen,
 		RegisteredByID: entity.RegisteredByID, RoomID: entity.RoomID, ArchivedAt: entity.ArchivedAt,
 		TransferredToDeviceID: entity.TransferredToDeviceID,
 	})

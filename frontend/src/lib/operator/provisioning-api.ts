@@ -157,21 +157,21 @@ class OperatorProvisioningService {
     const data = await operatorFetch<BackendOperatorDevice[]>(
       "/api/operator/provisioning/devices",
     );
-    return data.map(mapOperatorDevice);
+    return data.map((device) => mapOperatorDevice(device));
   }
 
   async listSchoolDevices(schoolId: string): Promise<OperatorDevice[]> {
     const data = await operatorFetch<BackendOperatorDevice[]>(
       `/api/operator/provisioning/schools/${encodeURIComponent(schoolId)}/devices`,
     );
-    return data.map(mapOperatorDevice);
+    return data.map((device) => mapOperatorDevice(device));
   }
 
   async listOrganizationDevices(orgId: string): Promise<OperatorDevice[]> {
     const data = await operatorFetch<BackendOperatorDevice[]>(
       `/api/operator/provisioning/organizations/${encodeURIComponent(orgId)}/devices`,
     );
-    return data.map(mapOperatorDevice);
+    return data.map((device) => mapOperatorDevice(device));
   }
 
   async createDevice(data: CreateDeviceRequest): Promise<OperatorDevice> {
@@ -179,7 +179,7 @@ class OperatorProvisioningService {
       "/api/operator/provisioning/devices",
       { method: "POST", body: data },
     );
-    return mapOperatorDevice(result);
+    return mapOperatorDevice(result, true);
   }
 
   async deleteDevice(deviceId: string): Promise<void> {
@@ -197,7 +197,7 @@ class OperatorProvisioningService {
       `/api/operator/provisioning/devices/${encodeURIComponent(deviceId)}/set-api-key`,
       { method: "POST", body: apiKey ? { api_key: apiKey } : {} },
     );
-    return mapOperatorDevice(result);
+    return mapOperatorDevice(result, true);
   }
 
   async getDeviceTransferStatus(

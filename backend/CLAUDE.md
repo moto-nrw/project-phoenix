@@ -112,6 +112,7 @@ repoint both to the successor. Materialization/replans never touch dates
 `<= today`.
 
 ### RFID/IoT Integration
+- Device keys: SHA-256 fingerprints only; plaintext is returned once at creation/rotation, never by reads or transfers. Operator keys are generated only. Migration/rollout contract: `docs/agents/contracts.md` Device credentials; human evidence remains separate in `docs/operations/geraete-zugang-3841.md`.
 - Two-layer auth: Device API key (`Authorization: Bearer`) + Staff PIN (`X-Staff-PIN`); devices authenticate without tenant JWTs but are scoped to one school (hence `Resolve*ForTenant` in device auth)
 - The `X-Staff-PIN` header is checked against the per-tenant `security.ogs_device_pin` setting via constant-time compare. It is the shared device PIN of the school; there is no personal staff PIN (#3310). The `X-Staff-ID` header PyrePortal sends is caller-controlled and ignored, so kiosk writes stay attributed to the authenticated device
 - Real-time location comes from `active.visits` + `active.attendance`; scheduled statuses (sick/excused/class trip) in `active.student_status_days`

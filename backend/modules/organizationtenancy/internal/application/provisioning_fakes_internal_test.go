@@ -832,7 +832,7 @@ func (f *fakeDevices) CreateDevice(ctx context.Context, input domain.NewDevice) 
 	device := domain.Device{
 		ID: f.nextID, TenantID: input.TenantID, CreatedAt: fixedTime, UpdatedAt: fixedTime,
 		DeviceID: input.DeviceID, DeviceType: input.DeviceType, Name: input.Name,
-		Status: input.Status, APIKey: input.APIKey,
+		Status: input.Status, APIKey: input.APIKey, APIKeyHash: input.APIKeyHash, MaskedAPIKey: "...",
 	}
 	f.add(device)
 	return device, nil
