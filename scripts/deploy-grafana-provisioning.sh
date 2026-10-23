@@ -64,7 +64,11 @@ echo "Backup: $host:$backup"
 
 restore="Restore: ssh $host 'cp -a $backup/. $remote_provisioning/ && cd $remote_dir && docker compose restart grafana'; files that were new are not in the backup and must be removed by hand"
 
-(cd "$local_provisioning" && rsync -cR --chmod=D755,F644 "$@" "$host:$remote_provisioning/")
+for file in "$@"; do
+  target=$remote_provisioning/$file
+  ssh "$host" "mkdir -p \"\$(dirname $target)\" && cat > $target.tmp && chmod 644 $target.tmp && mv $target.tmp $target" \
+    < "$local_provisioning/$file"
+done
 
 since=$(ssh "$host" 'date -u +%Y-%m-%dT%H:%M:%SZ')
 ssh "$host" "cd $remote_dir && docker compose restart grafana"
@@ -74,8 +78,10 @@ if ! ssh "$host" "for i in \$(seq 1 30); do curl -fsS $grafana_health >/dev/null
   exit 1
 fi
 
+# A provisioning type without a directory on the host (plugins) is no error.
 errors=$(ssh "$host" "cd $remote_dir && docker compose logs --no-log-prefix --since $since grafana" \
-  | grep 'logger=provisioning' | grep -E 'level=(error|crit)' || true)
+  | grep 'logger=provisioning' | grep -E 'level=(error|crit)' \
+  | grep -Ev 'error="open /etc/grafana/provisioning/[a-z]+: no such file or directory"' || true)
 if [[ -n "$errors" ]]; then
   echo 'Grafana reported provisioning errors:' >&2
   echo "$errors" >&2
