@@ -14,18 +14,6 @@
     },
     {
       "source_owner": "care-plan",
-      "port": "github.com/moto-nrw/project-phoenix/modules/careplan.CareResumption.Resume",
-      "binding": "*github.com/moto-nrw/project-phoenix/workflows/careexit.Resumption.Resume",
-      "target": "*github.com/moto-nrw/project-phoenix/workflows/careexit.Resumption.Resume",
-      "target_owner": "care-exit",
-      "binding_digest": "d8f07ecd9eace493c49156a2bb732a08",
-      "effect": "mutation",
-      "classification": "workflow",
-      "adr": "0067",
-      "reason": "Workflow-backed outer HTTP entry supplied by the root (Care resumption / Timetable pickup-extension command), not evidence of a domain-application callback. Full supplied contract methods are retained, including unused promoted methods. Guarded target record/byte command; preserve ambient scope, target validation and existing failure propagation. Target-local locks/savepoints alone do not establish a new source coordinator. Target workflows/careexit.Resumption.Resume; workflows/careexit/resumption.go:70. "
-    },
-    {
-      "source_owner": "care-plan",
       "port": "github.com/moto-nrw/project-phoenix/modules/careplan.MasterDataDirectory.FindStudents",
       "binding": "github.com/moto-nrw/project-phoenix/roots/requestreviewbinding.masterDataDirectory.FindStudents",
       "target": "github.com/moto-nrw/project-phoenix/modules/peopledirectory.Capability.ListStudentsByID",

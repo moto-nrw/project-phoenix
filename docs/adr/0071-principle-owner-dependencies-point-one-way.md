@@ -82,3 +82,101 @@ filters at that port; tenant transactions and the projection's SQL stay
 unchanged. Communication already owns its audience port and values; its
 announcement-audience mapping moves from the owner composition to the root.
 The three domain-to-projection rules are deleted with no replacements.
+
+## Addendum 2026-10-23: explicit care-resumption entry (#4740)
+
+### Runtime dependency rule
+
+Point 2 applies to runtime calls from domain applications, not just imports.
+This includes interface ports, function/method values, closures, input ports
+passed back by a workflow, and pure functions belonging to an owner whose
+policy `kind` is `workflow`. Root binding does not make these calls valid.
+Read-only effects do not exempt a domain-to-workflow dependency.
+
+### Only granted runtime exception: care-exit E2 callbacks
+
+Grant only these two existing workflow-backed bindings as the runtime part of
+[ADR 0067's E2 exception](0067-principle-owners-meet-through-contracts-and-write-together-in-workflows.md#finite-retained-coordinator-exceptions).
+Paths below are relative to `backend/`:
+
+- **Roster:** `roots/owners/care_lifecycle_owners.go` binds
+  `careexit.NewRoster` to Care Plan's lifecycle roster port. It coordinates
+  Timetable participants, attendance and Presence pickup links within the
+  retained confirm/cancel/due protocol.
+- **Bookings, snapshot/restore only:**
+  `roots/owners/care_exit_enrollment_bookings.go` constructs
+  `careexit.NewBookings` as `EnrollmentBookingProjection.Bookings`.
+  `careExitEnrollment` in `roots/owners/care_exit_enrollment.go` forwards
+  Care Plan's `CareExitOfferingSnapshots` and `RestoreCareExitOfferingLinks`
+  calls from `modules/careplan/internal/application/care_exit_cleanup.go`.
+  Snapshot reads Enrollment applications and submitted choice notes; restore
+  replays the ledger's Enrollment-shaped snapshot, as decided in
+  [ADR 0075 (#4531)](0075-pass-throughs-keep-a-per-owner-floor.md#amendment-of-2026-10-23)
+  and retained by
+  [ADR 0083](0083-ratchets-protect-invariants-and-expose-command-effects.md#findings-the-successor-must-represent).
+  Locking and ending Care Plan's source bookings stay on its own
+  `OfferingBookings`; this exception does not restore that removed round trip.
+
+Moving constructors or adding forwarders would leave this coordination in
+the domain. The grant covers only the existing roster-port methods and the
+two Enrollment-port snapshot/restore methods within E2. The caller's tenant
+transaction, ledger snapshot/restore and class(shared) → recurrence →
+child/plan locking remain unchanged. No new method, owner, effect or
+independent transaction is covered. Resumption is not covered.
+
+Remove both callbacks from the domain application, and this exception, when
+E2's complete end/cancel/due and withdrawal protocol moves into an explicit
+workflow, keeping roster and booking snapshot/restore within that protocol.
+This full E2 workflow cut is outside #4740. The command-effect inventory must
+record both bindings as workflow-backed, not as leaf calls.
+
+### Other existing bindings are ungranted debt
+
+Every other existing runtime binding from a domain application to code owned
+by a workflow is direction debt, not a granted exception. No enumeration in
+this ADR is needed to establish that debt. New such bindings are forbidden.
+The maintained debt inventory is
+[#4825](https://github.com/moto-nrw/project-phoenix/issues/4825), including
+function fields and function parameters; it is authoritative for tracking and
+removal, not permission to retain or add callbacks. Removing this debt is
+outside #4740.
+
+The command-effect gate from
+[ADR 0083](0083-ratchets-protect-invariants-and-expose-command-effects.md#domain-source-expansion-2026-10-23-4739)
+inventories interface-port bindings. Its coverage of function fields and
+parameters is incomplete; a green check is not proof that no runtime callback
+exists or that a binding is permitted. This coverage limit is tracked in
+[#4836](https://github.com/moto-nrw/project-phoenix/issues/4836) /
+[PR #4837](https://github.com/moto-nrw/project-phoenix/pull/4837).
+
+### Allowed workflow entries
+
+HTTP, root, worker/CLI and workflow-to-workflow entries may invoke workflows;
+these are not domain-application callbacks. Binding a workflow at such an
+entry does not authorize passing it back into a domain application or settle
+the separate platform-trigger question below. These entry categories are not
+a complete binding inventory.
+
+### Open question: platform triggers
+
+Whether platform triggers count as workflow entries remains undecided.
+Examples include Scheduler Runtime retention, AppointmentReminders and the
+ReminderNotifications tick, and Delivery dispatcher/recovery callbacks.
+This addendum neither grants nor rejects those platform callbacks. An HTTP,
+root or CLI entry that installs a platform callback does not settle that
+callback's direction, even when both paths share a workflow instance.
+
+### Care resumption: domain command replaced by HTTP consumer port
+
+Care Plan no longer publishes `careplan.CareResumption` or embeds `Resume`
+in `CareExitCommands` / `CareLifecycle`. Its application and composition
+accept no resumption collaborator. This replaces ADR 0067's #4538
+compatibility binding with ADR 0083's preferred explicit workflow entry.
+
+`modules/careplan/http.CareResumption` is a consumer-owned transport port,
+not a domain command. `roots/owners/care_resumption.go` constructs
+`careexit.Resumption`; `api/root_serve.go` passes its `Resume` method value
+as a separate mount argument to HTTP. The handler in
+`modules/careplan/http/care_exit_handlers.go` calls this port directly;
+no Care Plan domain command calls it. Care Plan retains the input value and
+error identities, not the workflow command.
