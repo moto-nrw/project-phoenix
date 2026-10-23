@@ -1,0 +1,16 @@
+[Unit]
+Description=Expire moto release rollback snapshots (%i)
+
+[Service]
+Type=oneshot
+User=root
+UMask=0077
+Environment=DEPLOY_DIR=%i
+EnvironmentFile=/etc/moto-release-retention/%i.env
+ExecStart=/bin/bash /usr/local/lib/moto-release/release-backup-cleanup.sh ${DEPLOYMENT_DIRECTORY}
+StandardOutput=journal
+StandardError=journal
+TimeoutStartSec=1h
+PrivateTmp=true
+NoNewPrivileges=true
+ProtectSystem=full
