@@ -540,6 +540,8 @@ func (rs *Resource) canGrantRole(role *identityaccess.AssignableSchoolRole, perm
 		Name:     role.Name,
 		IsSystem: role.IsSystem,
 		BaseRole: role.BaseRole,
+		// A Lehrkraft copy is graded like the Lehrkraft role (#4574).
+		SchoolPortal: role.SchoolPortal,
 	}
 	return rs.RoleGrants.CanGrantRole(facts, permissions, append([]string(nil), role.Permissions...))
 }

@@ -798,7 +798,15 @@ export default function MealPlanPage() {
         </div>
       </SectionCard>
 
-      {canReadParticipants ? <MealParticipantList /> : null}
+      {canReadParticipants ? (
+        <MealParticipantList
+          canChange={
+            isAdmin(session) ||
+            (hasPermission(session, "config:update") &&
+              hasPermission(session, "users:read"))
+          }
+        />
+      ) : null}
 
       {/* Sticky save bar — only while there are unsaved changes. */}
       {canEdit && isDirty && !loading && !hasLoadError && (

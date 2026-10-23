@@ -83,20 +83,10 @@ export function getStaffLocationStatus(staff: Staff): LocationStatus {
   return buildLocationStatus("Anwesend", LOCATION_COLORS.GROUP_ROOM);
 }
 
-// Map auth role names to German display labels
-const ROLE_DISPLAY_NAMES: Record<string, string> = {
-  admin: "Admin",
-  user: "Betreuer",
-  guest: "Gast",
-  guardian: "Erziehungsberechtigte/r",
-  lehrkraft: "Lehrkraft",
-};
-
-// Role names are stored lowercase in auth.roles; lowercase before the lookup so
-// a raw system role name never reaches the UI in its stored spelling. Other
-// system roles („ag-leitung“, ADR 0091) take their shared label.
+// Role names are stored lowercase in auth.roles; the shared label lookup
+// lowercases too, so a raw system role name never reaches the UI.
 function formatAccountRole(role: string): string {
-  return ROLE_DISPLAY_NAMES[role.toLowerCase()] ?? getRoleDisplayName(role);
+  return getRoleDisplayName(role);
 }
 
 // Get a display-friendly role/type for staff

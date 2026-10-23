@@ -85,6 +85,9 @@ type TenantAccount struct {
 	Active    bool
 	Status    string
 	RoleNames []string
+	// HoldsSchoolPortalCopy reports a school role made from the Lehrkraft
+	// template among the roles; its name cannot tell (#4574).
+	HoldsSchoolPortalCopy bool
 }
 
 // StaffPreviewEvent is the audit evidence of one preview start or end.
@@ -121,11 +124,12 @@ var (
 // classification itself is the public package's; the application reads it
 // through the role policy port.
 type RoleFacts struct {
-	ID       int64
-	TenantID *int64
-	Name     string
-	IsSystem bool
-	BaseRole *string
+	ID           int64
+	TenantID     *int64
+	Name         string
+	IsSystem     bool
+	BaseRole     *string
+	SchoolPortal bool
 }
 
 // SchoolIdentityInput describes the identity to provision.

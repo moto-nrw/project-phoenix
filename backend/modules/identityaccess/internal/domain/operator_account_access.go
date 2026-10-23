@@ -55,19 +55,21 @@ type TenantMapping struct {
 
 // RoleFact is the auth.roles row the access rules decide on.
 type RoleFact struct {
-	ID       int64
-	Name     string
-	IsSystem bool
-	BaseRole *string
-	TenantID *int64
+	ID           int64
+	Name         string
+	IsSystem     bool
+	BaseRole     *string
+	TenantID     *int64
+	SchoolPortal bool
 }
 
 // AccountTenantRole is one role an account holds at one school.
 type AccountTenantRole struct {
-	ID       int64
-	Name     string
-	IsSystem bool
-	BaseRole *string
+	ID           int64
+	Name         string
+	IsSystem     bool
+	BaseRole     *string
+	SchoolPortal bool
 }
 
 // AccountRoleAssignment is one role assignment with the school it applies to.

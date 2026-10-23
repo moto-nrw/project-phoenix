@@ -997,4 +997,151 @@ describe("ParentMealPlanPage", () => {
       );
     });
   });
+
+  describe("#3164 weekday cutoff, closed days and the whole week", () => {
+    const plan = () => ({
+      weekdays: [4],
+      effective_from: "2026-08-10",
+      cutoff_time: "16:00",
+      cutoff_lead_days: 0,
+      cutoff_weekday: 3,
+      cancellation_cutoff_time: "09:00",
+      cancellation_cutoff_lead_days: 0,
+      days: [
+        {
+          date: "2026-08-10",
+          participating: false,
+          source: "none",
+          changeable: false,
+        },
+        {
+          date: "2026-08-11",
+          participating: false,
+          source: "none",
+          changeable: false,
+        },
+        {
+          date: "2026-08-12",
+          participating: false,
+          source: "none",
+          changeable: true,
+        },
+        {
+          date: "2026-08-13",
+          participating: true,
+          source: "regular",
+          changeable: true,
+        },
+        {
+          date: "2026-08-14",
+          participating: false,
+          source: "closed",
+          changeable: false,
+        },
+      ],
+    });
+
+    beforeEach(() => {
+      mocks.getChildFeatures.mockResolvedValue({
+        meal_plan_enabled: true,
+        meal_registration_enabled: true,
+      });
+      mocks.getMealParticipation.mockResolvedValue(plan());
+      mocks.setMealParticipationDay.mockResolvedValue(undefined);
+    });
+
+    it("names the weekday cutoff, the later cancellation and closed days", async () => {
+      render(<ParentMealPlanPage />);
+
+      expect(
+        await screen.findByText(
+          "Sie können die Anmeldung bis Mittwoch, 16:00 Uhr, für die ganze nächste Woche ändern.",
+        ),
+      ).toBeInTheDocument();
+      expect(
+        screen.getByText(/^Abmelden geht länger: bis 09:00 Uhr/),
+      ).toBeInTheDocument();
+      // A sick note counts until the cancellation cutoff.
+      expect(
+        screen.getByText(
+          "Eine bestätigte Krankmeldung bis 09:00 Uhr meldet Ihr Kind vom Essen ab. Danach bleibt die Anmeldung bestehen.",
+        ),
+      ).toBeInTheDocument();
+      expect(
+        screen.getByText("Kein Essen: Feiertag oder Schließtag"),
+      ).toBeInTheDocument();
+      // Monday and Tuesday are past, Friday is closed: only past days say so.
+      expect(screen.getAllByText("Nicht mehr änderbar")).toHaveLength(2);
+    });
+
+    it("signs the child up for every open day of the week", async () => {
+      render(<ParentMealPlanPage />);
+
+      fireEvent.click(
+        await screen.findByRole("button", { name: "Ganze Woche anmelden" }),
+      );
+
+      await waitFor(() => {
+        expect(mocks.setMealParticipationDay).toHaveBeenCalledTimes(1);
+      });
+      expect(mocks.setMealParticipationDay).toHaveBeenCalledWith(
+        "child-1",
+        "2026-08-12",
+        true,
+      );
+      await waitFor(() => {
+        expect(mocks.getMealParticipation).toHaveBeenCalledTimes(2);
+      });
+    });
+
+    it("asks before signing the child off for the whole week", async () => {
+      render(<ParentMealPlanPage />);
+
+      fireEvent.click(
+        await screen.findByRole("button", { name: "Ganze Woche abmelden" }),
+      );
+      const dialog = await screen.findByRole("dialog", {
+        name: "Ganze Woche abmelden?",
+      });
+      expect(mocks.setMealParticipationDay).not.toHaveBeenCalled();
+      // The global next-intl mock leaves the plural unformatted; the
+      // wording per count is pinned in meal-cutoff-messages.test.ts.
+      expect(dialog).toHaveTextContent(
+        /Mia Muster wird an .* dieser Woche vom Mittagessen abgemeldet\./,
+      );
+
+      fireEvent.click(
+        within(dialog).getByRole("button", { name: "Ganze Woche abmelden" }),
+      );
+
+      await waitFor(() => {
+        expect(mocks.setMealParticipationDay).toHaveBeenCalledWith(
+          "child-1",
+          "2026-08-13",
+          false,
+        );
+      });
+      expect(mocks.setMealParticipationDay).toHaveBeenCalledTimes(1);
+    });
+
+    it("shows a failed week change and reloads what was saved", async () => {
+      mocks.setMealParticipationDay.mockRejectedValue(unavailable());
+      render(<ParentMealPlanPage />);
+
+      fireEvent.click(
+        await screen.findByRole("button", { name: "Ganze Woche anmelden" }),
+      );
+
+      expect(
+        await screen.findByText(
+          catalogText(
+            "general.unavailable",
+            deMessages.parentMealPlan.errorObjectParticipation,
+          ),
+          { exact: false },
+        ),
+      ).toBeInTheDocument();
+      expect(mocks.getMealParticipation).toHaveBeenCalledTimes(2);
+    });
+  });
 });

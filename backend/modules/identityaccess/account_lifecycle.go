@@ -126,12 +126,14 @@ type StaffOffboardingAccess interface {
 
 // RoleFacts are the classification facts of a role: its tier (base_role)
 // and, for system roles seeded before the column existed, its name.
+// SchoolPortal marks a school role made from the Lehrkraft template (#4574).
 type RoleFacts struct {
-	ID       int64
-	TenantID *int64
-	Name     string
-	IsSystem bool
-	BaseRole *string
+	ID           int64
+	TenantID     *int64
+	Name         string
+	IsSystem     bool
+	BaseRole     *string
+	SchoolPortal bool
 }
 
 // Role tiers and the system role names the classification falls back to.
@@ -173,10 +175,15 @@ func EffectiveBaseRole(role *RoleFacts) string {
 	return ""
 }
 
-// IsLehrkraftSystemRole reports whether the role is the platform Lehrkraft
-// role (#1772): class_day-read-only by design, never a caregiver.
-func IsLehrkraftSystemRole(role *RoleFacts) bool {
-	return role != nil && role.IsSystem && strings.EqualFold(strings.TrimSpace(role.Name), lehrkraftRoleName)
+// IsLehrkraftRole reports whether the role is a Lehrkraft role (#1772):
+// class_day-read-only by design, never a caregiver, used in moto schule. That
+// is the platform role lehrkraft and every school role made from its
+// template (#4574).
+func IsLehrkraftRole(role *RoleFacts) bool {
+	if role == nil {
+		return false
+	}
+	return role.SchoolPortal || (role.IsSystem && strings.EqualFold(strings.TrimSpace(role.Name), lehrkraftRoleName))
 }
 
 // RoleNeedsStaffRecord reports whether an account holding this role at a
@@ -200,7 +207,7 @@ func RoleNeedsCaregiverProfile(role *RoleFacts) bool {
 	if role == nil {
 		return false
 	}
-	if IsLehrkraftSystemRole(role) {
+	if IsLehrkraftRole(role) {
 		return false
 	}
 	if strings.EqualFold(EffectiveBaseRole(role), BaseRoleUser) {
