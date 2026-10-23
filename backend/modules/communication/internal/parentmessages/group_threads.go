@@ -22,6 +22,7 @@ type GroupThreadStore interface {
 	FindThread(ctx context.Context, id int64, lock bool) (*deliveryPorts.ParentGroupThread, error)
 	AppendMessage(ctx context.Context, threadID int64, sender *int64, senderName, body string, recipients []deliveryPorts.ParentGroupRecipient) (*deliveryPorts.ParentGroupMessage, error)
 	CloseThread(ctx context.Context, id, accountID int64) (bool, error)
+	RecipientAccountIDs(ctx context.Context, threadID int64) ([]int64, error)
 	ListMessages(ctx context.Context, threadID int64) ([]deliveryPorts.ParentGroupMessage, error)
 	ListThreads(ctx context.Context) ([]deliveryPorts.ParentGroupThreadSummary, error)
 	TitlesByIDs(ctx context.Context, ids []int64) (map[int64]string, error)
@@ -148,13 +149,17 @@ func (s *Service) CloseParentGroupThread(ctx context.Context, threadID int64) (*
 		return nil, err
 	}
 	if thread.ClosedAt == nil {
+		recipientAccountIDs, err := s.GroupThreads.RecipientAccountIDs(ctx, thread.ID)
+		if err != nil {
+			return nil, fmt.Errorf("messaging: list group thread recipients: %w", err)
+		}
 		if _, err := s.GroupThreads.CloseThread(ctx, thread.ID, s.accountID(ctx)); err != nil {
 			return nil, fmt.Errorf("messaging: close group thread: %w", err)
 		}
 		if thread, err = s.GroupThreads.FindThread(ctx, threadID, false); err != nil {
 			return nil, fmt.Errorf("messaging: reload group thread: %w", err)
 		}
-		s.broadcastGroupThreadAfterCommit(ctx, thread)
+		s.broadcastGroupThreadAfterCommit(ctx, thread, recipientAccountIDs)
 	}
 	return s.groupThreadDetail(ctx, thread)
 }
@@ -192,7 +197,7 @@ func (s *Service) sendGroupMessage(ctx context.Context, thread *deliveryPorts.Pa
 	if err := s.notifyGroupRecipients(ctx, thread, message.ID, recipients); err != nil {
 		return err
 	}
-	s.broadcastGroupThreadAfterCommit(ctx, thread)
+	s.broadcastGroupThreadAfterCommit(ctx, thread, recipientAccountIDs(recipients))
 	return nil
 }
 

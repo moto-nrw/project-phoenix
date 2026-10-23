@@ -15,6 +15,8 @@ import (
 	parentStore "github.com/moto-nrw/project-phoenix/modules/communication/parentstore"
 	deliveryPolicy "github.com/moto-nrw/project-phoenix/modules/delivery/devices"
 	configModels "github.com/moto-nrw/project-phoenix/modules/settings"
+	"github.com/moto-nrw/project-phoenix/realtime"
+	"github.com/moto-nrw/project-phoenix/realtime/realtimetest"
 	owners "github.com/moto-nrw/project-phoenix/roots/owners"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 )
@@ -24,10 +26,11 @@ import (
 // reached them, never another family.
 
 type groupFixture struct {
-	svc    *messaging.Service
-	portal communication.PortalGroupThreads
-	staff  int64
-	a, b   testpkg.ParentChain
+	svc         *messaging.Service
+	portal      communication.PortalGroupThreads
+	broadcaster *realtimetest.RecordingBroadcaster
+	staff       int64
+	a, b        testpkg.ParentChain
 }
 
 func newGroupFixture(t *testing.T) (*groupFixture, func(context.Context, func(context.Context) error) error) {
@@ -36,6 +39,7 @@ func newGroupFixture(t *testing.T) (*groupFixture, func(context.Context, func(co
 	reposMessages := api.NewParentMessagingSuiteRepositories(testpkg.NewDatabase(t, db))
 	reposAccounts := api.NewAccountSuiteRepositories(testpkg.NewDatabase(t, db))
 	reposPeople := api.NewPeopleRepositorySuiteFactory(testpkg.NewDatabase(t, db))
+	broadcaster := testpkg.NewRecordingBroadcaster()
 	svc := messaging.NewService(messaging.Config{
 		UserContext:   owners.StaffStudentReads{},
 		Session:       api.CommunicationSession{},
@@ -44,7 +48,7 @@ func newGroupFixture(t *testing.T) (*groupFixture, func(context.Context, func(co
 		ReadRepo:      messaging.NewReadRepository(reposMessages.ParentMessageRead),
 		Persons:       newPersons(reposPeople, reposAccounts, db),
 		Settings:      configModels.NewParentMessagingValues(stubSettings{messagingEnabled: true}),
-		Broadcaster:   testpkg.NewRecordingBroadcaster(),
+		Broadcaster:   broadcaster,
 		Logger:        slog.Default(),
 		GroupThreads:  parentStore.NewGroupThreadStore(db),
 		GroupAudience: owners.NewParentGroupAudience(testpkg.NewDatabase(t, db)),
@@ -56,7 +60,7 @@ func newGroupFixture(t *testing.T) (*groupFixture, func(context.Context, func(co
 	run := func(ctx context.Context, fn func(context.Context) error) error {
 		return testpkg.WithinTenantContext(t, ctx, db, testpkg.Tenant(t), fn)
 	}
-	return &groupFixture{svc: svc, portal: parentStore.NewGroupThreadPortal(db), staff: staff.ID, a: a, b: b}, run
+	return &groupFixture{svc: svc, portal: parentStore.NewGroupThreadPortal(db), broadcaster: broadcaster, staff: staff.ID, a: a, b: b}, run
 }
 
 func classTarget(name string) communication.ParentGroupTarget {
@@ -163,6 +167,50 @@ func TestGroupThread_RecipientsAreFrozenPerMessage(t *testing.T) {
 		assert.Len(t, view.Messages, 2)
 		return nil
 	}))
+}
+
+func TestGroupThread_BroadcastsUpdatesToReachedGuardians(t *testing.T) {
+	t.Parallel()
+	f, run := newGroupFixture(t)
+	staffCtx := adminCtx(t, f.staff)
+
+	var threadID int64
+	require.NoError(t, run(staffCtx, func(ctx context.Context) error {
+		detail, err := f.svc.CreateParentGroupThread(ctx, communication.ParentGroupThreadInput{
+			Target: classTarget("1a"), Title: "Info", Body: "Erste Nachricht",
+		})
+		if err == nil {
+			threadID = detail.Thread.ID
+		}
+		return err
+	}))
+	assertGroupGuardianBroadcasts(t, f, "creating a thread")
+
+	f.broadcaster.Reset()
+	require.NoError(t, run(staffCtx, func(ctx context.Context) error {
+		_, err := f.svc.PostParentGroupMessage(ctx, threadID, "Zweite Nachricht")
+		return err
+	}))
+	assertGroupGuardianBroadcasts(t, f, "adding a message")
+
+	f.broadcaster.Reset()
+	require.NoError(t, run(staffCtx, func(ctx context.Context) error {
+		_, err := f.svc.CloseParentGroupThread(ctx, threadID)
+		return err
+	}))
+	assertGroupGuardianBroadcasts(t, f, "closing a thread")
+}
+
+func assertGroupGuardianBroadcasts(t *testing.T, f *groupFixture, action string) {
+	t.Helper()
+	calls := f.broadcaster.CallsByMethod("guardian")
+	require.Len(t, calls, 2, "%s must wake every reached guardian", action)
+	assert.ElementsMatch(t, []int64{f.a.AccountID, f.b.AccountID}, []int64{calls[0].GuardianID, calls[1].GuardianID})
+	for _, call := range calls {
+		assert.Equal(t, realtime.EventParentMessage, call.Event.Type)
+		assert.Nil(t, call.Event.Data.StudentID, "group updates must not expose a child through SSE")
+		assert.Nil(t, call.Event.Data.ThreadID, "group updates must not expose a conversation through SSE")
+	}
 }
 
 func TestGroupThread_ClosedThreadTakesNoAnswersOrMessages(t *testing.T) {

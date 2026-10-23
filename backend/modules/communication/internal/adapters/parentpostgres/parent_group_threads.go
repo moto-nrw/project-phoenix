@@ -187,6 +187,26 @@ func (s *GroupThreadStore) CloseThread(ctx context.Context, id, accountID int64)
 	return affected == 1, nil
 }
 
+// RecipientAccountIDs returns every account that has received at least one
+// message in the thread. These are the only parent tabs that need an update
+// when the thread closes.
+func (s *GroupThreadStore) RecipientAccountIDs(ctx context.Context, threadID int64) ([]int64, error) {
+	db, tenantID, err := s.tenantDB(ctx, "list parent group thread recipients")
+	if err != nil {
+		return nil, err
+	}
+	var accountIDs []int64
+	if err := db.NewSelect().
+		TableExpr("users.parent_group_message_recipients AS r").
+		ColumnExpr("DISTINCT r.guardian_account_id").
+		Where("r.thread_id = ? AND r.tenant_id = ?", threadID, tenantID).
+		OrderExpr("r.guardian_account_id ASC").
+		Scan(ctx, &accountIDs); err != nil {
+		return nil, fmt.Errorf("list parent group thread recipients: %w", err)
+	}
+	return accountIDs, nil
+}
+
 // ListMessages returns every message of a thread, oldest first. Staff only.
 func (s *GroupThreadStore) ListMessages(ctx context.Context, threadID int64) ([]communication.ParentGroupMessage, error) {
 	db, tenantID, err := s.tenantDB(ctx, "list parent group messages")

@@ -9,6 +9,7 @@ import (
 	"strings"
 
 	deliveryPorts "github.com/moto-nrw/project-phoenix/modules/communication/internal/application"
+	"github.com/moto-nrw/project-phoenix/realtime"
 )
 
 // notifyGroupRecipients tells every reached guardian about a new group
@@ -61,7 +62,7 @@ func (s *Service) pushGroupMessage(ctx context.Context, thread *deliveryPorts.Pa
 		}.Public())
 		switch {
 		case s.deliveryPolicy.IsNotificationsDisabled(err), s.deliveryPolicy.IsOutsideActiveWindow(err):
-			return
+			continue
 		case err != nil:
 			s.Logger.Warn("messaging: group message push failed",
 				slog.Int64("group_thread_id", thread.ID),
@@ -152,12 +153,41 @@ func (s *Service) guardianLocale(ctx context.Context, accountID int64) string {
 // broadcastGroupThreadAfterCommit wakes the school's staff tabs and the
 // parents' tabs after commit. The event carries no family data; parents
 // refetch their own list.
-func (s *Service) broadcastGroupThreadAfterCommit(ctx context.Context, thread *deliveryPorts.ParentGroupThread) {
+func (s *Service) broadcastGroupThreadAfterCommit(ctx context.Context, thread *deliveryPorts.ParentGroupThread, accountIDs []int64) {
 	if thread == nil {
 		return
 	}
 	tenantID := thread.TenantID
 	s.runtime.RegisterAfterCommit(ctx, func() {
 		s.broadcastValues(tenantID, 0, 0, 0)
+		if s.Broadcaster == nil {
+			return
+		}
+		event := realtime.NewParentMessageEvent(0, 0, 0)
+		for _, accountID := range accountIDs {
+			if err := s.Broadcaster.BroadcastToGuardian(tenantID, accountID, event); err != nil {
+				s.Logger.Warn("messaging: failed to broadcast group thread update",
+					slog.Int64("group_thread_id", thread.ID),
+					slog.Int64("guardian_account_id", accountID),
+					slog.String("error", err.Error()),
+				)
+			}
+		}
 	})
+}
+
+func recipientAccountIDs(recipients []deliveryPorts.ParentGroupRecipient) []int64 {
+	accountIDs := make([]int64, 0, len(recipients))
+	seen := make(map[int64]struct{}, len(recipients))
+	for _, recipient := range recipients {
+		if recipient.GuardianAccountID <= 0 {
+			continue
+		}
+		if _, ok := seen[recipient.GuardianAccountID]; ok {
+			continue
+		}
+		seen[recipient.GuardianAccountID] = struct{}{}
+		accountIDs = append(accountIDs, recipient.GuardianAccountID)
+	}
+	return accountIDs
 }

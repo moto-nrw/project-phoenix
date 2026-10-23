@@ -14,7 +14,7 @@ func (p *Portal) GetChildConversation(ctx context.Context, accountID, studentID 
 	return p.MessagingFlows.GetChildConversation(ctx, accountID, studentID)
 }
 func (p *Portal) PostChildMessage(ctx context.Context, accountID, studentID int64, body string) (*MessageThreadView, error) {
-	return p.MessagingFlows.PostChildMessage(ctx, accountID, studentID, body, 0)
+	return p.MessagingFlows.PostChildMessage(ctx, accountID, studentID, body)
 }
 func (p *Portal) ListAnnouncements(ctx context.Context, accountID int64) ([]*AnnouncementFeedItem, error) {
 	return p.MessagingFlows.ListAnnouncements(ctx, accountID)
