@@ -29,7 +29,7 @@ export function morningStatus(
 }
 
 /** Krank, entschuldigt und Klassenfahrt erklären ein Fehlen am Vormittag. */
-export function hasReportedAbsence(row: ClassDayRow): boolean {
+function hasReportedAbsence(row: ClassDayRow): boolean {
   return (
     row.status === "sick" ||
     row.status === "excused" ||
