@@ -6,6 +6,7 @@ import {
 import { createLogger } from "~/lib/logger";
 import { readEnrollmentError } from "~/lib/enrollment-api-error";
 import type { Translations } from "~/lib/enrollment-translations";
+import type { FileFieldOptions } from "~/lib/enrollment-uploads";
 
 const logger = createLogger({ component: "EnrollmentFormSchemaAPI" });
 
@@ -23,7 +24,8 @@ export type FormFieldType =
   | "weekday_boolean"
   | "weekday_mode"
   | "weekday_multi_mode"
-  | "contact_list";
+  | "contact_list"
+  | "file";
 
 /**
  * Source of a field's visibility condition. Mirrors the backend
@@ -190,6 +192,12 @@ export interface FormField {
    * everywhere else.
    */
   single_mode_grades?: number[];
+  /**
+   * Rules of a `file` field (#4783): allowed file kinds, the size limit per
+   * file and whether parents may attach several files (at most 5). Required
+   * on `file` fields, rejected by the backend on every other type.
+   */
+  file_options?: FileFieldOptions;
   validation?: FormFieldValidation | null;
   sort_order: number;
   applies_to_child?: boolean;

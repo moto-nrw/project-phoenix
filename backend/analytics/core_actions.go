@@ -171,6 +171,7 @@ var coreActions = map[RouteKey]CoreAction{
 	{http.MethodPatch, "/api/enrollment/schema/{id}"}:                                                      notCaptured,
 	{http.MethodPut, "/api/enrollment/schema/{id}"}:                                                        notCaptured,
 	{http.MethodPost, "/api/enrollment/{tenantSlug}/submit"}:                                               public("enrollment_submitted"),
+	{http.MethodPost, "/api/enrollment/{tenantSlug}/uploads"}:                                              notCaptured,
 	{http.MethodPost, "/api/feedback/"}:                                                                    notCaptured,
 	{http.MethodPost, "/api/feedback/batch"}:                                                               notCaptured,
 	{http.MethodDelete, "/api/feedback/{id}"}:                                                              notCaptured,

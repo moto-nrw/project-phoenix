@@ -1045,6 +1045,15 @@ func fullSeedAPIMock(t *testing.T, traces ...*fullSeedAPITrace) *seedHTTPTestSer
 			})
 			return
 		}
+		if r.Method == seedHTTPMethodPost && strings.HasPrefix(r.URL.Path, "/api/enrollment/") && strings.HasSuffix(r.URL.Path, "/uploads") {
+			// The income proof of #4783 is a multipart upload, too.
+			idCounter++
+			w.Header().Set("Content-Type", "application/json")
+			_ = json.NewEncoder(w).Encode(map[string]any{
+				"status": "success", "data": map[string]any{"token": fmt.Sprintf("upload-token-%d", idCounter)},
+			})
+			return
+		}
 		if serveExternalCaregiverSeedAPI(t, w, r, &idCounter) {
 			return
 		}

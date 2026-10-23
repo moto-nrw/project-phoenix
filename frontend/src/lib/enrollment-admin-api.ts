@@ -200,6 +200,16 @@ export interface AdminRequestSchemaField {
   options?: Array<{ label: string; value: string }>;
 }
 
+/** One proof file a parent attached to the request (#4783). */
+export interface AdminRequestUpload {
+  id: string;
+  field_key: string;
+  filename: string;
+  size_bytes: number;
+  content_type: string;
+  uploaded_at: string;
+}
+
 export interface AdminRequestSummary {
   id: string;
   phase_id: string;
@@ -235,6 +245,16 @@ export interface AdminRequestSummary {
    * only.
    */
   schema_legal_blocks?: Array<{ key: string; title: string }>;
+  /**
+   * The caller may open proof files (enrollment_uploads:read). Detail
+   * endpoint only; absent on endpoints that do not report uploads.
+   */
+  can_view_uploads?: boolean;
+  /**
+   * Proof files still stored for this request. An upload_id in custom_data
+   * that is missing here was deleted after the retention period.
+   */
+  uploads?: AdminRequestUpload[];
   children: AdminRequestChild[];
   /**
    * Co-guardians the parent added beyond the primary guardian above.
