@@ -73,6 +73,27 @@ const CSP_HEADER = [
   "form-action 'self'",
 ].join("; ");
 
+// Only the public tenant phase form mounts Turnstile. Parent-authenticated,
+// preview, status and staff pages keep the same-origin policy.
+const TURNSTILE_ORIGIN = "https://challenges.cloudflare.com";
+const TURNSTILE_CSP_HEADER =
+  CSP_HEADER.replace(
+    "script-src 'self'",
+    `script-src 'self' ${TURNSTILE_ORIGIN}`,
+  ) + `; frame-src ${TURNSTILE_ORIGIN}`;
+
+function isPublicEnrollmentForm(pathname: string): boolean {
+  const [, tenant, surface, phase, extra] = pathname.split("/");
+  return (
+    !!tenant &&
+    !RESERVED_SLUGS.has(tenant) &&
+    surface === "anmeldung" &&
+    !!phase &&
+    !["preview", "submitted", "status"].includes(phase) &&
+    extra === undefined
+  );
+}
+
 // --- PostHog reverse proxy (#3601) ---
 
 const POSTHOG_PROXY_PREFIX = "/ingest";
@@ -771,6 +792,12 @@ export function proxy(request: NextRequest): NextResponse {
     return withSecurityHeaders(
       new NextResponse(null, { status: 308, headers: { Location: target } }),
     );
+  }
+  const pagePath = new URL(
+    response.headers.get("x-middleware-rewrite") ?? request.url,
+  ).pathname;
+  if (servedAsIs && isPublicEnrollmentForm(pagePath)) {
+    response.headers.set("Content-Security-Policy", TURNSTILE_CSP_HEADER);
   }
   return response;
 }

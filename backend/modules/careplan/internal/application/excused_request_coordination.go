@@ -44,6 +44,9 @@ func (w *ExcusedRequests) GetExcusedBulkCandidate(ctx context.Context, requestID
 }
 
 func (w *ExcusedRequests) LockExcusedBulkRequest(ctx context.Context, requestID int64) error {
+	if _, err := w.lockRequestChild(ctx, requestID); err != nil {
+		return err
+	}
 	_, err := w.carePlan.FindPendingExcusedAbsenceRequest(ctx, requestID)
 	return err
 }

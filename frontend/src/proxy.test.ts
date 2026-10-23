@@ -143,6 +143,45 @@ describe("PostHog reverse proxy", () => {
   });
 });
 
+describe("Turnstile CSP", () => {
+  it.each([
+    ["school-a.localhost:3000", "/anmeldung/5"],
+    ["school-a.localhost:3000", "/school-a/anmeldung/5"],
+    ["localhost:3000", "/school-a/anmeldung/5"],
+  ])("allows only Turnstile scripts and frames on %s%s", (host, path) => {
+    const res = proxy(makeRequest(`http://${host}${path}`, host));
+    expect(res.status).toBe(200);
+    const csp = res.headers.get("Content-Security-Policy") ?? "";
+    const directives = csp.split("; ");
+    expect(directives.find((value) => value.startsWith("script-src "))).toBe(
+      "script-src 'self' https://challenges.cloudflare.com 'unsafe-inline'",
+    );
+    expect(directives).toContain("frame-src https://challenges.cloudflare.com");
+    expect(directives).toContain("connect-src 'self'");
+    expect(directives).toContain("frame-ancestors 'none'");
+    expect(csp).not.toMatch(/jsdelivr|worker-src/);
+  });
+
+  it.each([
+    ["school-a.localhost:3000", "/dashboard"],
+    ["school-a.localhost:3000", "/anmeldung"],
+    ["school-a.localhost:3000", "/anmeldung/preview"],
+    ["school-a.localhost:3000", "/anmeldung/submitted"],
+    ["school-a.localhost:3000", "/anmeldung/status/request/edit"],
+    [PARENTS_HOSTNAME, "/anmeldung/school-a/5"],
+    [PARENTS_HOSTNAME, "/parents/anmeldung/school-a/5"],
+    [SCHOOL_HOSTNAME, "/anmeldung/5"],
+    [OPERATOR_HOSTNAME, "/anmeldung/5"],
+    ["school-a.localhost:3000", "/api/enrollment/captcha-config/school-a"],
+  ])("keeps the original CSP on %s%s", (host, path) => {
+    const res = proxy(makeRequest(`http://${host}${path}`, host));
+    const csp = res.headers.get("Content-Security-Policy") ?? "";
+    expect(csp).toContain("script-src 'self' 'unsafe-inline';");
+    expect(csp).toContain("connect-src 'self';");
+    expect(csp).not.toContain("challenges.cloudflare.com");
+  });
+});
+
 describe("trailing slash", () => {
   it("drops the trailing slash of app paths, as Next.js did before", () => {
     const res = proxy(

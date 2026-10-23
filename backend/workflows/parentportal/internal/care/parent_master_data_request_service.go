@@ -284,27 +284,9 @@ func (s *Service) EditMasterDataRequest(
 func (s *Service) editMasterDataRequestInTx(
 	ctx context.Context, accountID, studentID, requestID int64, newValue json.RawMessage, expectedVersion string,
 ) (*StudentDataChangeRequest, error) {
-	req, err := s.ChangeRequestRepo.FindByIDForUpdate(ctx, requestID)
+	req, student, err := s.lockEditableMasterDataRequest(ctx, accountID, studentID, requestID, expectedVersion)
 	if err != nil {
 		return nil, err
-	}
-	// A request that is not the caller's own is reported as missing, never as
-	// forbidden: a stranger must not learn that the id exists.
-	if req.SubmittedBy != accountID || req.StudentID != studentID {
-		return nil, ErrMasterDataRequestNotFound
-	}
-	if req.Status != DataChangeStatusPending {
-		return nil, ErrMasterDataRequestNotPending
-	}
-	if expectedVersion != "" && excusedrequests.ParentRequestVersion(req.UpdatedAt) != expectedVersion {
-		return nil, parentrequests.ErrStale
-	}
-	student, err := s.StudentRepo.FindByIDForUpdate(ctx, studentID)
-	if err != nil {
-		return nil, err
-	}
-	if student.CareEndedOn(s.todayDate()) {
-		return nil, ErrChildCareEnded
 	}
 	person, err := s.PersonRepo.FindByID(ctx, student.PersonID)
 	if err != nil {
@@ -339,6 +321,49 @@ func (s *Service) editMasterDataRequestInTx(
 		return nil, err
 	}
 	return row, nil
+}
+
+// lockEditableMasterDataRequest rechecks ownership, status and version under
+// class(shared) -> child -> request locks before the edit reads live fields.
+func (s *Service) lockEditableMasterDataRequest(ctx context.Context, accountID, studentID, requestID int64, expectedVersion string) (*StudentDataChangeRequest, *PortalStudent, error) {
+	// Locate the immutable child without locking the request. Keep ownership
+	// ahead of the status distinction, including for another family's row.
+	snapshot, err := s.ChangeRequestRepo.FindByID(ctx, requestID)
+	if err != nil {
+		return nil, nil, err
+	}
+	if snapshot.SubmittedBy != accountID || snapshot.StudentID != studentID {
+		return nil, nil, ErrMasterDataRequestNotFound
+	}
+	// Match care end and staff review: class(shared) -> child -> request.
+	student, err := s.StudentRepo.FindByIDForUpdate(ctx, studentID)
+	if err != nil {
+		// Deletion may cascade to the request after the preliminary read.
+		// Preserve its old not-found error; unrelated read failures stay intact.
+		if _, requestErr := s.ChangeRequestRepo.FindByID(ctx, requestID); errors.Is(requestErr, ErrMasterDataRequestNotFound) {
+			return nil, nil, requestErr
+		}
+		return nil, nil, err
+	}
+	req, err := s.ChangeRequestRepo.FindByIDForUpdate(ctx, requestID)
+	if err != nil {
+		return nil, nil, err
+	}
+	// A request that is not the caller's own is reported as missing, never as
+	// forbidden: a stranger must not learn that the id exists.
+	if req.SubmittedBy != accountID || req.StudentID != studentID {
+		return nil, nil, ErrMasterDataRequestNotFound
+	}
+	if req.Status != DataChangeStatusPending {
+		return nil, nil, ErrMasterDataRequestNotPending
+	}
+	if expectedVersion != "" && excusedrequests.ParentRequestVersion(req.UpdatedAt) != expectedVersion {
+		return nil, nil, parentrequests.ErrStale
+	}
+	if student.CareEndedOn(s.todayDate()) {
+		return nil, nil, ErrChildCareEnded
+	}
+	return req, student, nil
 }
 
 func trackBFieldState(target, field string, person *MasterDataPerson, student *MasterDataStudent, value json.RawMessage, policy DeparturePolicy) (oldRaw, newRaw json.RawMessage, changed bool, err error) {

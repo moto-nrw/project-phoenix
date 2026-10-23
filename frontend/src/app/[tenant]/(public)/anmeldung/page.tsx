@@ -2,7 +2,6 @@
 
 import { ApiError } from "~/lib/api-error";
 import { useEffect, useState } from "react";
-import Link from "next/link";
 import { Check, Clock, RefreshCw, UserPlus } from "lucide-react";
 import { MotoConceptIcon } from "~/components/ui/moto-concept-icon";
 import { useLocale, useTranslations } from "next-intl";
@@ -136,7 +135,9 @@ export default function EnrollPhasePickerPage() {
                 <ul className="space-y-3">
                   {phases.map((phase) => (
                     <li key={phase.id}>
-                      <Link
+                      {/* A document navigation applies the form's Turnstile CSP;
+                          a Next Link would keep the picker's stricter policy. */}
+                      <a
                         href={tenantPath(
                           `/anmeldung/${encodeURIComponent(phase.id)}`,
                         )}
@@ -192,7 +193,7 @@ export default function EnrollPhasePickerPage() {
                         <span className="inline-flex h-9 w-full shrink-0 items-center justify-center rounded-lg bg-gray-900 px-3 text-sm font-medium text-white transition-colors group-hover:bg-gray-800 sm:w-auto">
                           {t("start")}
                         </span>
-                      </Link>
+                      </a>
                     </li>
                   ))}
                 </ul>

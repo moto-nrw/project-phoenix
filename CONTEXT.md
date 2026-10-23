@@ -606,6 +606,35 @@ zu mehreren OGS wechselt zwischen ihnen, das Träger-Büro sieht sie gemeinsam.
 _Vermeiden_: Träger-Admin, Organisationsadmin, Bereichsleitung (eine Person im
 Träger-Büro, nicht das Büro).
 
+## Träger-Portal
+
+Das **Träger-Portal** ist der eigene Arbeitsbereich des Träger-Büros. Eine
+Person meldet sich dort mit demselben Konto an, das sie vielleicht auch in einer
+OGS nutzt. Die Anmeldung im Träger-Portal ist aber getrennt von der Anmeldung in
+einer OGS, und keine beendet die andere.
+_Vermeiden_: Träger-Cockpit (Werbename), Org-Portal.
+
+## Träger-Rolle
+
+Eine **Träger-Rolle** legt fest, was eine Person im Träger-Büro darf:
+Verwaltung, Abrechnung, Personal oder nur lesen. Eine Person kann mehrere
+Träger-Rollen haben. Eine Träger-Rolle gilt für alle OGS des Trägers, auch für
+später hinzukommende. Sie ist unabhängig von einer Rolle in einer OGS.
+
+## Ausrichtende OGS
+
+Die **ausrichtende OGS** betreut in einer Ferienwoche die Kinder, die für diese
+Woche gebucht sind, auch Kinder anderer Schulen des Trägers und Kinder ohne
+Schule des Trägers.
+
+## Feriengast
+
+Ein **Feriengast** ist ein Kind, das die ausrichtende OGS nur wegen einer
+bestätigten Ferienbuchung betreut. Die ausrichtende OGS sieht von ihm nur, was
+sie für die Betreuung braucht (Betreuungszeiten, Notfall, Abholung), und nur
+für die gebuchten Wochen. Ein Feriengast wird dadurch kein Kind dieser OGS.
+_Vermeiden_: Gastkind (unklar, ob mit Buchung), Ferienkind.
+
 ## Personalaustritt
 
 Ein **Personalaustritt** beendet die Beschäftigung einer Person an einer

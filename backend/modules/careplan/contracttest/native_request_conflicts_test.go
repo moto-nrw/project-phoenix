@@ -60,7 +60,7 @@ func TestNativeConflictStaffPickupWritesOnlyRequestedDay(t *testing.T) {
 	})
 	require.NoError(t, err)
 	plans := &conflictPlanBoundary{pickupApprovalFixture: probe, PickupApprovals: approvals, owner: owner}
-	conflicts, err := compose.NewRequestConflicts(owner, plans, decisions, today)
+	conflicts, err := compose.NewRequestConflicts(owner, decisionPort, plans, decisions, today)
 	require.NoError(t, err)
 	err = testpkg.WithTenantTx(t, ctx, db, testpkg.Tenant(t), func(txCtx context.Context, _ bun.Tx) error {
 		candidate, err := conflicts.ConflictCandidate(txCtx, request.ID)

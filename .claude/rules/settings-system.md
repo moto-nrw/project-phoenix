@@ -185,14 +185,26 @@ consent, tenant-shell, enrollment edit/token, MFA lifetime/lockout and retention
 paths migrated in #4543 follow this contract. Parent invitation lifetimes never
 use the deployment lifetime configured for staff invitations.
 
+**Trusted-device policy (#4641):** fail closed for remembering the device,
+not for an otherwise verified login. In both tenant and school portals, errors
+reading `security.mfa_trusted_device_enabled` or
+`security.mfa_trusted_device_days` suppress device issuance and its cookie;
+the verified login still creates its normal session. Preparation propagates
+either read error, and issuance requires a readable, positive lifetime.
+Availability/display hints stay restrictive on read errors. Lockout-policy
+errors remain fatal before code comparison: no consumed challenge, session,
+tokens or cookie. These entries supersede the trusted-device rows in
+[PR #4631's inventory](https://github.com/moto-nrw/project-phoenix/pull/4631#literal-fallback-inventar);
+other inventoried debt remains unchanged.
+
 **Known exceptions, not patterns for new code:**
 
 - `security.ogs_device_pin` still converts a read failure or a missing resolver
   into the legacy `OGS_DEVICE_PIN` chain. Removing that fail-open chain and
   choosing the setup/default-PIN policy belongs to
   [#3841](https://github.com/moto-nrw/project-phoenix/issues/3841), not #4543.
-- Existing fail-closed feature/display readers (for example trusted-device
-  availability, staff-name visibility and offering-change availability) still
+- Existing fail-closed feature/display readers (for example staff-name
+  visibility and offering-change availability) still
   suppress errors. Some older constructors still permit nil settings and the
   affected consumers answer restrictive values. These are migration debt,
   not proof that every required port is already checked at startup.

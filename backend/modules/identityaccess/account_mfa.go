@@ -180,7 +180,9 @@ type TrustedDeviceIssue = func(context.Context) (cookieValue string, expiresAt t
 // AccountTrustedDevices is the remember-device cookie.
 type AccountTrustedDevices interface {
 	// PrepareTrustedDevice resolves policy without writes. A nil operation
-	// means the feature is disabled. The operation does not re-read settings.
+	// means the feature is disabled. Either policy read can return an error;
+	// login callers then skip remembering the device, not the verified login.
+	// The operation does not re-read settings.
 	PrepareTrustedDevice(ctx context.Context, accountID, tenantID int64, userAgent string, ip net.IP) (TrustedDeviceIssue, error)
 	// IssueTrustedDevice answers an empty cookie value without persisting a
 	// row when the school turned the feature off; the caller then writes no
