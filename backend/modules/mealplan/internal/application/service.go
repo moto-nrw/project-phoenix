@@ -107,7 +107,35 @@ func (s *Service) requireRegistration(ctx context.Context, from, to domain.Date)
 		Registration: domain.Deadline{Time: cutoffs.CutoffTime, LeadDays: cutoffs.CutoffLeadDays, Weekday: domain.Weekday(cutoffs.CutoffWeekday), Closed: closed},
 		Cancellation: domain.Deadline{Time: cutoffs.CancellationCutoffTime, LeadDays: cutoffs.CancellationCutoffLeadDays, Closed: closed},
 	}
-	return rules, cutoffs, nil
+	return rules, effectiveCutoffs(cutoffs, rules, from, to), nil
+}
+
+// effectiveCutoffs only exposes a separate cancellation cutoff when it is
+// later than the registration cutoff for every open day in the requested
+// range. Rules.CancellationAt clamps an earlier cancellation setting to the
+// registration cutoff, so displaying that setting would promise a deadline
+// the backend does not use.
+func effectiveCutoffs(cutoffs mealplan.Cutoffs, rules domain.Rules, from, to domain.Date) mealplan.Cutoffs {
+	if cutoffs.CancellationCutoffTime == "" {
+		return cutoffs
+	}
+	hasOpenDay := false
+	for date := from; !date.After(to); date = date.AddDays(1) {
+		if date.Weekday() == time.Saturday || date.Weekday() == time.Sunday || rules.Closed(date) {
+			continue
+		}
+		hasOpenDay = true
+		if !rules.CancellationAt(date).After(rules.Registration.At(date)) {
+			cutoffs.CancellationCutoffTime = ""
+			cutoffs.CancellationCutoffLeadDays = 0
+			return cutoffs
+		}
+	}
+	if !hasOpenDay {
+		cutoffs.CancellationCutoffTime = ""
+		cutoffs.CancellationCutoffLeadDays = 0
+	}
+	return cutoffs
 }
 
 // nonWorkingDays reads the requested window and continues in either direction

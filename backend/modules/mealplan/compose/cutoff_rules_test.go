@@ -131,6 +131,22 @@ func TestWeekdayCutoffWithLaterCancellation(t *testing.T) {
 	assert.Equal(t, []bool{true, false, false, true, true}, listed)
 }
 
+func TestEarlierCancellationCutoffUsesRegistrationDeadline(t *testing.T) {
+	t.Parallel()
+	db := testpkg.SetupTestDB(t)
+	settings := testMealPlanSettings{
+		mealPlanEnabled: true, mealRegistrationEnabled: true, cutoff: "09:00",
+		cancellationCutoff: "08:00",
+	}
+	module := buildRulesModule(t, db, settings, testCalendar{}, time.Date(2026, 9, 7, 8, 30, 0, 0, testBerlin))
+	student := testpkg.CreateTestStudent(t, db, "Omar", "Frist", "2a")
+
+	plan, err := module.Participation(testpkg.Ctx(t), student.ID, "2026-09-07", "2026-09-07")
+	require.NoError(t, err)
+	assert.Empty(t, plan.CancellationCutoffTime)
+	assert.Zero(t, plan.CancellationCutoffLeadDays)
+}
+
 // #3164: sickness changes the kitchen list, not the direction of a parent's
 // participation change. A late registration remains closed after sickness
 // has ended.
