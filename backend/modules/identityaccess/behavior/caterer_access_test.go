@@ -212,11 +212,23 @@ func TestCatererSuppliesSeveralSchools(t *testing.T) {
 
 	// The session pinned to the first school moves to the second on refresh,
 	// so the first school no longer logs the caterer's sign-ins.
-	_, _, err = module.RefreshTokenWithAudit(context.Background(), refresh, "", "192.0.2.11", "test")
+	_, successor, err := module.RefreshTokenWithAudit(context.Background(), refresh, "example-recovery-proof", "192.0.2.11", "test")
 	require.NoError(t, err)
 	var pinned, refreshedAt int64
 	require.NoError(t, db.NewRaw(`SELECT tenant_id FROM auth.tokens WHERE account_id = ? ORDER BY id DESC LIMIT 1`, acceptance.AccountID).Scan(context.Background(), &pinned))
 	assert.Equal(t, second, pinned)
+
+	// Retry the predecessor after losing the repinning response, with a fresh
+	// service instance so recovery must use the persisted handoff.
+	restarted := setupAuthFactory(t, db)
+	access, recovered, err := restarted.RefreshTokenWithAudit(context.Background(), refresh, "example-recovery-proof", "", "")
+	require.NoError(t, err)
+	_, err = restarted.ValidateSessionTokens(context.Background(), access, recovered, "caterer")
+	require.NoError(t, err)
+	assert.NotEmpty(t, successor)
+	var generations []int
+	require.NoError(t, db.NewRaw(`SELECT generation FROM auth.tokens WHERE account_id = ? ORDER BY generation`, acceptance.AccountID).Scan(context.Background(), &generations))
+	assert.Equal(t, []int{0, 1}, generations, "recovery reuses the repinned successor")
 	require.NoError(t, db.NewRaw(`SELECT tenant_id FROM audit.auth_events WHERE account_id = ? AND success ORDER BY id DESC LIMIT 1`, acceptance.AccountID).Scan(context.Background(), &refreshedAt))
 	assert.Equal(t, second, refreshedAt, "the refresh is logged at the school that still supplies the caterer")
 	_, _, err = caterers.LoginCatererWithAudit(context.Background(), email, catererPassword, "", "")

@@ -150,3 +150,48 @@ func TestRefreshToken_RejectionsRevokeFamilyWithoutIssuingTokens(t *testing.T) {
 		})
 	}
 }
+
+func TestRefreshHandoffAcrossCatererRepinning(t *testing.T) {
+	t.Parallel()
+	for _, test := range []struct {
+		name      string
+		alter     func(*domain.AccountSession)
+		proof     string
+		wantError bool
+	}{
+		{name: "authorized repinning", proof: "recovery"},
+		{name: "wrong proof", proof: "wrong", wantError: true},
+		{name: "changed account", proof: "recovery", wantError: true, alter: func(s *domain.AccountSession) { s.AccountID++ }},
+		{name: "changed family", proof: "recovery", wantError: true, alter: func(s *domain.AccountSession) { s.FamilyID += "-other" }},
+		{name: "skipped generation", proof: "recovery", wantError: true, alter: func(s *domain.AccountSession) { s.Generation++ }},
+		{name: "changed portal", proof: "recovery", wantError: true, alter: func(s *domain.AccountSession) { s.PortalScope = domain.PortalScopeTenant }},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			t.Parallel()
+			f := newAuthFixture(t)
+			now := time.Now()
+			replacement := "successor"
+			current := domain.AccountSession{ID: 1, AccountID: 1, TenantID: 10, PortalScope: domain.PortalScopeCaterer, FamilyID: "family", RotatedAt: &now, ReplacementToken: &replacement, RecoveryProofHash: fakeRotation{}.RecoveryProofHash(withProof(context.Background(), "recovery"))}
+			next := domain.AccountSession{ID: 2, Token: replacement, AccountID: current.AccountID, TenantID: 20, PortalScope: domain.PortalScopeCaterer, FamilyID: current.FamilyID, Generation: 1}
+			if test.alter != nil {
+				test.alter(&next)
+			}
+			f.store.sessions[next.ID] = next
+			recovered, ok, err := f.auth.resolveRefreshHandoff(withProof(context.Background(), test.proof), current, now)
+			if test.wantError {
+				require.ErrorIs(t, err, identityaccess.ErrInvalidToken)
+				return
+			}
+			require.NoError(t, err)
+			assert.True(t, ok)
+			assert.Equal(t, next, recovered)
+		})
+	}
+	// Tenant and school sessions must never recover a handoff to another tenant.
+	for _, scope := range []string{domain.PortalScopeTenant, domain.PortalScopeSchool, domain.PortalScopeParent} {
+		current := domain.AccountSession{AccountID: 1, TenantID: 10, FamilyID: "family", PortalScope: scope}
+		next := current
+		next.TenantID, next.Generation = 20, 1
+		assert.False(t, sameAccountSessionLineage(current, next))
+	}
+}

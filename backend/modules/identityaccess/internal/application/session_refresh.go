@@ -431,7 +431,8 @@ func (s *AccountAuthentication) resolveRefreshHandoff(ctx context.Context, prese
 			return current, false, fmt.Errorf("follow refresh-token handoff: %w", err)
 		}
 		// Tenant 0 is the legacy pre-tenant-claim state whose first successor
-		// may carry the resolved tenant; modern lineage stays pinned.
+		// may carry the resolved tenant. Only caterer sessions can repin
+		// between schools; they grant no tenant-portal access.
 		if !sameAccountSessionLineage(current, next) {
 			return current, false, identityaccess.ErrInvalidToken
 		}
@@ -630,5 +631,7 @@ func (s *AccountAuthentication) requireAccountRecoveryProof(ctx context.Context,
 }
 
 func sameAccountSessionLineage(current, next domain.AccountSession) bool {
-	return next.FamilyID == current.FamilyID && next.AccountID == current.AccountID && (current.TenantID == 0 || next.TenantID == current.TenantID) && next.Generation == current.Generation+1
+	sameTenant := current.TenantID == 0 || next.TenantID == current.TenantID
+	catererRepin := current.PortalScope == domain.PortalScopeCaterer && next.PortalScope == domain.PortalScopeCaterer
+	return next.FamilyID == current.FamilyID && next.AccountID == current.AccountID && (sameTenant || catererRepin) && next.Generation == current.Generation+1
 }
