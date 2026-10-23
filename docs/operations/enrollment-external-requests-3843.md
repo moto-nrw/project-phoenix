@@ -21,6 +21,8 @@ Stand: 23.10.2026, Slice 3843-a, Teil von #3843 / #3846.
   Policy. Der Proxy kennt die Schuleinstellung nicht: Die CSP erlaubt den
   Dienst auf dieser Seite, das Formular entscheidet anhand von `enabled`,
   ob es ihn lädt. Keine Erweiterung von `connect-src` oder `worker-src`.
+  Die Phasenauswahl öffnet das Formular als neues Dokument: Eine interne
+  Next.js-Navigation würde die strengere CSP der Übersichtsseite behalten.
 - `compressAvatar` verwendet `useWebWorker: false`. Damit startet die
   Bibliothek keinen Blob-Worker, der ihre Standard-`libURL` von jsdelivr lädt.
   JPEG-Ausgabe, 512-Pixel-Grenze, Größenlimit und bisheriger Fehler-Fallback
@@ -44,6 +46,7 @@ und Screenshots, keine Rohaufzeichnungen oder Sitzungsdaten.
 |---|---|
 | Vorher, Captcha an | Browser blockiert Turnstile durch `script-src-elem`; kein Token, Absenden gesperrt. |
 | Nachher, Captcha aus, Key absichtlich trotzdem gesetzt | 53 Same-Origin-Abrufe, keine fremde Origin; kein Turnstile-Skript/Widget, keine Captcha-Sperre. |
+| Übersicht → Formular, Captcha an | Vorher bleibt dieselbe Dokument-CSP wirksam und blockiert Turnstile. Nachher lädt ein neues Dokument; Test-Token entsteht. |
 | Nachher, Captcha an | Same-Origin-Abrufe und ausschließlich `https://challenges.cloudflare.com` als fremde Origin: Turnstile-JavaScript und Challenge-iframe, jeweils erfolgreich geladen. Test-Token vorhanden, Captcha-Sperre aufgehoben. |
 | Fotoauswahl, Captcha aus und an | Reale `StudentPhotoSection` mit realem `compressAvatar` in einer temporären lokalen Prüfseite: nur lokale Ressourcen/Blob-Vorschau, kein jsdelivr-Abruf. |
 
