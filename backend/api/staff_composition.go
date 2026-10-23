@@ -123,7 +123,7 @@ func newStaffComposition(
 	module schoolMembershipModule.Capability, workforce workforceModule.Capability, users peoplePorts.PersonDirectory,
 	documents *workforceModule.StaffAdmin, timeTracking *workforceCompose.TimeTracking, education schoolstructure.GroupManagement,
 	people peopleModule.Capability, settings settingsCompose.SettingsService, hub *realtime.Hub,
-	identity identityaccess.Owner, db transactionruntime.Database, logger *slog.Logger,
+	identity identityaccess.Owner, appEnv string, db transactionruntime.Database, logger *slog.Logger,
 ) (*staffHTTP.Resource, *timeTrackingHTTP.StaffAdminResource, error) {
 	exportTransfer, err := newExportTransferModule(settings, db, logger)
 	if err != nil {
@@ -131,9 +131,13 @@ func newStaffComposition(
 	}
 	capabilities := owners.NewWorkforceAdminCapabilities(users, documents, timeTracking)
 	staffAdmin := newStaffAdminResource(capabilities, workforce, staffTimeTrackingNotifier(hub), exportTransfer, db, logger)
-	return newStaffResource(module, people, func(hooks StaffMembershipHooks) StaffMembershipRuntime {
+	resource, err := newStaffResource(module, people, identity, appEnv, func(hooks StaffMembershipHooks) StaffMembershipRuntime {
 		return NewStaffMembershipRuntime(users, education, timeTracking.StaffDay, hub, db, identity, logger, hooks)
-	}, staffAdmin, logger), staffAdmin, nil
+	}, staffAdmin, logger)
+	if err != nil {
+		return nil, nil, err
+	}
+	return resource, staffAdmin, nil
 }
 
 // newExportTransferModule wires the Export Transfer capability (#3050) over
@@ -168,22 +172,20 @@ func newExportTransferModule(settings settingsCompose.SettingsService, db transa
 }
 
 // newStaffResource binds the School Membership HTTP adapter to the shared
-// renderer, the JWT identity and the legacy-service composition.
-func newStaffResource(module schoolMembershipModule.Capability, people peopleModule.Capability, buildRuntime func(StaffMembershipHooks) StaffMembershipRuntime, staffAdmin *timeTrackingHTTP.StaffAdminResource, logger *slog.Logger) *staffHTTP.Resource {
-	runtime := buildRuntime(StaffMembershipHooks{
-		ResolveEditorStaffID:           staffAdmin.ResolveEditorStaffID,
-		QueueOffboardedDocumentCleanup: staffAdmin.QueueOffboardedStaffDocumentCleanup,
-	})
+// renderer, the JWT identity, the legacy-service composition and the
+// external-caregiver workflow (#4573), built here as a local value. appEnv
+// gates the seed-only invitation token.
+func newStaffResource(
+	module schoolMembershipModule.Capability, people peopleModule.Capability, identity identityaccess.Owner, appEnv string,
+	buildRuntime func(StaffMembershipHooks) StaffMembershipRuntime, staffAdmin *timeTrackingHTTP.StaffAdminResource, logger *slog.Logger,
+) (*staffHTTP.Resource, error) {
+	externals, err := newExternalCaregiverBindings(module, people, identity, appEnv)
+	if err != nil {
+		return nil, err
+	}
+	runtime := buildStaffMembershipRuntime(buildRuntime, staffAdmin)
 	return staffHTTP.NewResource(module, staffHTTP.Runtime{
-		// Protected composes the shared /api/staff router: the membership
-		// routes register first, then the workforce admin routes from
-		// the Workforce module, both inside one protected tenant group.
-		Protected: func(router chi.Router, register func(chi.Router, staffHTTP.Middleware)) {
-			ProtectedTenantRoutes(router, func(protected chi.Router, withTx apiCommon.Middleware) {
-				register(protected, withTx)
-				staffAdmin.RegisterStaffRoutes(protected, withTx)
-			})
-		},
+		Protected:          staffProtectedRoutes(staffAdmin),
 		Permission:         staffPermissionGate,
 		Success:            apiCommon.Respond,
 		Failure:            renderStaffFailure,
@@ -201,7 +203,12 @@ func newStaffResource(module schoolMembershipModule.Capability, people peopleMod
 		Person:         staffPersonLookup(runtime),
 		PersonNotFound: apiCommon.IsNotFound,
 		Persons:        staffPersonsLookup(runtime),
-		CreatePerson:   staffPersonCreate(people),
+
+		CreateExternalCaregiver:   externals.create,
+		InviteExternalCaregiver:   externals.invite,
+		ExternalFailure:           renderExternalCaregiverFailure,
+		ExposeSeedInvitationToken: externals.exposeSeedToken,
+		PendingInvitationPersons:  externals.pendingPersons,
 
 		PresentStaffIDs:     runtime.PresentStaffIDs,
 		WorkStatusMap:       runtime.WorkStatusMap,
@@ -226,7 +233,28 @@ func newStaffResource(module schoolMembershipModule.Capability, people peopleMod
 		Offboard:    runtime.Offboard,
 
 		Log: logger,
+	}), nil
+}
+
+// buildStaffMembershipRuntime builds the legacy-service runtime with the
+// Workforce hooks it calls back into.
+func buildStaffMembershipRuntime(buildRuntime func(StaffMembershipHooks) StaffMembershipRuntime, staffAdmin *timeTrackingHTTP.StaffAdminResource) StaffMembershipRuntime {
+	return buildRuntime(StaffMembershipHooks{
+		ResolveEditorStaffID:           staffAdmin.ResolveEditorStaffID,
+		QueueOffboardedDocumentCleanup: staffAdmin.QueueOffboardedStaffDocumentCleanup,
 	})
+}
+
+// staffProtectedRoutes composes the shared /api/staff router: the membership
+// routes register first, then the workforce admin routes from the Workforce
+// module, both inside one protected tenant group.
+func staffProtectedRoutes(staffAdmin *timeTrackingHTTP.StaffAdminResource) func(chi.Router, func(chi.Router, staffHTTP.Middleware)) {
+	return func(router chi.Router, register func(chi.Router, staffHTTP.Middleware)) {
+		ProtectedTenantRoutes(router, func(protected chi.Router, withTx apiCommon.Middleware) {
+			register(protected, withTx)
+			staffAdmin.RegisterStaffRoutes(protected, withTx)
+		})
+	}
 }
 
 func staffPermissionGate(required ...string) staffHTTP.Middleware {
@@ -270,21 +298,6 @@ func staffPersonLookup(runtime StaffMembershipRuntime) func(context.Context, int
 			return staffHTTP.Person{}, err
 		}
 		return toStaffHTTPPerson(person), nil
-	}
-}
-
-// staffPersonCreate adds an account-less People Directory entry for the
-// external caregiver flow (#3823).
-func staffPersonCreate(people peopleModule.Capability) func(context.Context, string, string) (staffHTTP.Person, error) {
-	return func(ctx context.Context, firstName, lastName string) (staffHTTP.Person, error) {
-		person, err := people.CreatePerson(ctx, peopleModule.CreatePerson{FirstName: firstName, LastName: lastName})
-		if err != nil {
-			return staffHTTP.Person{}, err
-		}
-		return staffHTTP.Person{
-			ID: person.ID, FirstName: person.FirstName, LastName: person.LastName,
-			AccountID: person.AccountID, CreatedAt: person.CreatedAt, UpdatedAt: person.UpdatedAt,
-		}, nil
 	}
 }
 

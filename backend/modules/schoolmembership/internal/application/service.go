@@ -376,43 +376,43 @@ func (s *Service) DeleteTeacher(ctx context.Context, id int64) error {
 	})
 }
 
-// --- guests ---
+// --- external caregiver records ---
 
-func (s *Service) FindGuest(ctx context.Context, id int64) (result schoolmembership.Guest, err error) {
+func (s *Service) FindExternalCaregiverRecord(ctx context.Context, id int64) (result schoolmembership.ExternalCaregiverRecord, err error) {
 	if id <= 0 {
-		return schoolmembership.Guest{}, invalid("guest ID is required")
+		return schoolmembership.ExternalCaregiverRecord{}, invalid("external caregiver record ID is required")
 	}
-	err = s.runRead(ctx, "find_guest", func(txCtx context.Context, stats *domain.OperationStats) error {
+	err = s.runRead(ctx, "find_external_caregiver_record", func(txCtx context.Context, stats *domain.OperationStats) error {
 		var found bool
 		var queryStats domain.OperationStats
-		result, found, queryStats, err = s.store.FindGuest(txCtx, id, "")
+		result, found, queryStats, err = s.store.FindExternalCaregiverRecord(txCtx, id, "")
 		stats.Add(queryStats)
 		if err == nil && !found {
-			return schoolmembership.ErrGuestNotFound
+			return schoolmembership.ErrExternalCaregiverRecordNotFound
 		}
 		return err
 	})
 	return result, err
 }
 
-func (s *Service) FindGuestByStaff(ctx context.Context, staffID int64) (result schoolmembership.Guest, err error) {
+func (s *Service) FindExternalCaregiverRecordByStaff(ctx context.Context, staffID int64) (result schoolmembership.ExternalCaregiverRecord, err error) {
 	if staffID <= 0 {
-		return schoolmembership.Guest{}, invalid("staff ID is required")
+		return schoolmembership.ExternalCaregiverRecord{}, invalid("staff ID is required")
 	}
-	err = s.runRead(ctx, "find_guest_by_staff", func(txCtx context.Context, stats *domain.OperationStats) error {
+	err = s.runRead(ctx, "find_external_caregiver_record_by_staff", func(txCtx context.Context, stats *domain.OperationStats) error {
 		var found bool
 		var queryStats domain.OperationStats
-		result, found, queryStats, err = s.store.FindGuestByStaff(txCtx, staffID)
+		result, found, queryStats, err = s.store.FindExternalCaregiverRecordByStaff(txCtx, staffID)
 		stats.Add(queryStats)
 		if err == nil && !found {
-			return schoolmembership.ErrGuestNotFound
+			return schoolmembership.ErrExternalCaregiverRecordNotFound
 		}
 		return err
 	})
 	return result, err
 }
 
-func (s *Service) ListGuests(ctx context.Context, filter schoolmembership.GuestFilter) (result []schoolmembership.Guest, err error) {
+func (s *Service) ListExternalCaregiverRecords(ctx context.Context, filter schoolmembership.ExternalCaregiverRecordFilter) (result []schoolmembership.ExternalCaregiverRecord, err error) {
 	filter.IDs = uniquePositive(filter.IDs)
 	filter.StaffIDs = uniquePositive(filter.StaffIDs)
 	filter.OrganizationContains = strings.TrimSpace(filter.OrganizationContains)
@@ -420,61 +420,61 @@ func (s *Service) ListGuests(ctx context.Context, filter schoolmembership.GuestF
 	if err := validateDate(filter.ActiveOn, "active-on date"); err != nil {
 		return nil, err
 	}
-	err = s.runRead(ctx, "list_guests", func(txCtx context.Context, stats *domain.OperationStats) error {
+	err = s.runRead(ctx, "list_external_caregiver_records", func(txCtx context.Context, stats *domain.OperationStats) error {
 		var queryStats domain.OperationStats
-		result, queryStats, err = s.store.ListGuests(txCtx, filter)
+		result, queryStats, err = s.store.ListExternalCaregiverRecords(txCtx, filter)
 		stats.Add(queryStats)
 		return err
 	})
 	return result, err
 }
 
-func (s *Service) CreateGuest(ctx context.Context, input schoolmembership.CreateGuest) (result schoolmembership.Guest, err error) {
-	if err := validateGuestFields(&input.GuestFields); err != nil {
-		return schoolmembership.Guest{}, err
+func (s *Service) CreateExternalCaregiverRecord(ctx context.Context, input schoolmembership.CreateExternalCaregiverRecord) (result schoolmembership.ExternalCaregiverRecord, err error) {
+	if err := validateExternalCaregiverRecordFields(&input.ExternalCaregiverRecordFields); err != nil {
+		return schoolmembership.ExternalCaregiverRecord{}, err
 	}
-	fields := input.GuestFields
-	err = s.runWrite(ctx, "create_guest", func(txCtx context.Context, stats *domain.OperationStats) error {
+	fields := input.ExternalCaregiverRecordFields
+	err = s.runWrite(ctx, "create_external_caregiver_record", func(txCtx context.Context, stats *domain.OperationStats) error {
 		var createStats domain.OperationStats
-		result, createStats, err = s.store.CreateGuest(txCtx, fields)
+		result, createStats, err = s.store.CreateExternalCaregiverRecord(txCtx, fields)
 		stats.Add(createStats)
 		return err
 	})
 	return result, err
 }
 
-func (s *Service) UpdateGuest(ctx context.Context, input schoolmembership.UpdateGuest) (result schoolmembership.Guest, err error) {
+func (s *Service) UpdateExternalCaregiverRecord(ctx context.Context, input schoolmembership.UpdateExternalCaregiverRecord) (result schoolmembership.ExternalCaregiverRecord, err error) {
 	if input.ID <= 0 {
-		return schoolmembership.Guest{}, invalid("guest ID is required")
+		return schoolmembership.ExternalCaregiverRecord{}, invalid("external caregiver record ID is required")
 	}
-	if err := validateGuestFields(&input.GuestFields); err != nil {
-		return schoolmembership.Guest{}, err
+	if err := validateExternalCaregiverRecordFields(&input.ExternalCaregiverRecordFields); err != nil {
+		return schoolmembership.ExternalCaregiverRecord{}, err
 	}
-	id, fields := input.ID, input.GuestFields
-	err = s.runWrite(ctx, "update_guest", func(txCtx context.Context, stats *domain.OperationStats) error {
-		_, found, queryStats, err := s.store.FindGuest(txCtx, id, "UPDATE")
+	id, fields := input.ID, input.ExternalCaregiverRecordFields
+	err = s.runWrite(ctx, "update_external_caregiver_record", func(txCtx context.Context, stats *domain.OperationStats) error {
+		_, found, queryStats, err := s.store.FindExternalCaregiverRecord(txCtx, id, "UPDATE")
 		stats.Add(queryStats)
 		if err != nil {
 			return err
 		}
 		if !found {
-			return schoolmembership.ErrGuestNotFound
+			return schoolmembership.ErrExternalCaregiverRecordNotFound
 		}
 		var updateStats domain.OperationStats
-		result, updateStats, err = s.store.UpdateGuest(txCtx, id, fields)
+		result, updateStats, err = s.store.UpdateExternalCaregiverRecord(txCtx, id, fields)
 		stats.Add(updateStats)
 		return err
 	})
 	return result, err
 }
 
-// DeleteGuest removes the guest profile; guests carry no tombstone.
-func (s *Service) DeleteGuest(ctx context.Context, id int64) error {
+// DeleteExternalCaregiverRecord removes the record; records carry no tombstone.
+func (s *Service) DeleteExternalCaregiverRecord(ctx context.Context, id int64) error {
 	if id <= 0 {
-		return invalid("guest ID is required")
+		return invalid("external caregiver record ID is required")
 	}
-	return s.runWrite(ctx, "delete_guest", func(txCtx context.Context, stats *domain.OperationStats) error {
-		deleteStats, err := s.store.DeleteGuest(txCtx, id)
+	return s.runWrite(ctx, "delete_external_caregiver_record", func(txCtx context.Context, stats *domain.OperationStats) error {
+		deleteStats, err := s.store.DeleteExternalCaregiverRecord(txCtx, id)
 		stats.Add(deleteStats)
 		return err
 	})

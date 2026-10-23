@@ -88,6 +88,8 @@ import type { GuardianNoticeReach } from "~/lib/timetable-types";
 interface StaffOption {
   id: string;
   name: string;
+  /** Externe Kräfte (#4573) sind nie Vertretung, nur abwesend. */
+  isExternal?: boolean;
 }
 
 /** Die beiden Reiter des Editor-Panels (#1886). */
@@ -387,7 +389,7 @@ export function SubstitutionSlideOver({
     const targetIds = coverageIds(staffId, person);
     return staffOptions
       .filter((option) => {
-        if (assignedIds.has(option.id)) return false;
+        if (option.isExternal || assignedIds.has(option.id)) return false;
         return !targetIds.some((targetId) => {
           const target = dayInstances.find(
             (appointment) => appointment.id === targetId,

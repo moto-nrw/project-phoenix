@@ -77,7 +77,7 @@ func TestStudentResponseDistinguishesLocationReadFailureFromMissingVisit(t *test
 		{name: "no visit", svc: failedStudentLocationRead{}},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
-			response, err := newStudentResponseWithOpts(context.Background(), StudentResponseOpts{Student: &peopleState.StudentState{}, HasFullAccess: true}, StudentResponseServices{ActiveService: tc.svc})
+			response, err := newStudentResponseWithOpts(testpkg.WithPermissionsContext(context.Background(), []string{"users:read"}), StudentResponseOpts{Student: &peopleState.StudentState{}, HasFullAccess: true}, StudentResponseServices{ActiveService: tc.svc})
 			if tc.wantErr != nil {
 				require.ErrorIs(t, err, tc.wantErr)
 				assert.Empty(t, response.Location)

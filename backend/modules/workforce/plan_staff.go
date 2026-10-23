@@ -5,15 +5,16 @@ import "github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 // PlanStaff is a staff member as the Dienstplan and the substitution overview
 // read them from People Directory: the staff row, the work-time model and the
 // rotation anchor that set the weekly target, and the person behind it. A nil
-// Person is a staff row without a resolvable person. IsGuest marks an
-// external caregiver (#3823).
+// Person is a staff row without a resolvable person. IsExternalCaregiver
+// marks an external caregiver (#3823), with or without an account (#4573);
+// only the person-hydrated reads set it.
 type PlanStaff struct {
-	ID                 int64
-	PersonID           int64
-	WorkTimeModelID    *int64
-	RotationAnchorDate *calendar.Date
-	IsGuest            bool
-	Person             *PlanStaffPerson
+	ID                  int64
+	PersonID            int64
+	WorkTimeModelID     *int64
+	RotationAnchorDate  *calendar.Date
+	IsExternalCaregiver bool
+	Person              *PlanStaffPerson
 }
 
 // PlanStaffPerson is the name and the login account of a planned staff

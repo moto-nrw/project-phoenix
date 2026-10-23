@@ -1,6 +1,7 @@
 "use client";
 
 import { useSession } from "next-auth/react";
+import { hasPermission } from "~/lib/auth-utils";
 import { fetchUnreadCount } from "~/lib/parent-messages-api";
 import { useShellAuth } from "~/lib/shell-auth-context";
 import { useTenantSafe, useTenantSlugSafe } from "~/lib/tenant-context";
@@ -31,8 +32,12 @@ export function useMessagesUnread() {
   const tenantSlug = useTenantSlugSafe();
   const accountId = session?.user?.id ?? "";
   return useUnreadCount({
+    // The inbox requires users:read; the role „AG-Leitung“ (#4573) lacks it.
     enabled:
-      status === "authenticated" && mode === "teacher" && messagingEnabled,
+      status === "authenticated" &&
+      mode === "teacher" &&
+      messagingEnabled &&
+      hasPermission(session, "users:read"),
     fetcher: fetchUnreadCount,
     cacheKey: `messages_unread_count:${tenantSlug ?? ""}:${accountId}`,
     eventNames: ["messages-unread-refresh"],

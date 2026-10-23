@@ -7,7 +7,7 @@ import (
 )
 
 // The adapters in this file serve the legacy users.StaffRepository,
-// users.TeacherRepository and users.GuestRepository interfaces over the School
+// users.TeacherRepository and users.ExternalCaregiverRecordRepository interfaces over the School
 // Membership capability. The membership rows come from the owner; the person
 // half comes from the People Directory repository and the account, role and
 // permission half from identity access. Nothing here builds SQL — a

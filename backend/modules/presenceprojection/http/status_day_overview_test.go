@@ -52,6 +52,28 @@ type failingOverviewSchoolGroups struct {
 	students.SchoolGroups
 }
 
+func TestStatusDayOverviewRequiresUsersReadEvenForGroupStaff(t *testing.T) {
+	t.Parallel()
+	tc := setupStudentsRoute(t, fixedCalendarClock)
+	teacher, account := testpkg.CreateTestTeacherWithAccount(t, tc.db, "Gast", "Gruppe")
+	group := testpkg.CreateTestEducationGroup(t, tc.db, "Abwesenheiten")
+	testpkg.CreateTestGroupTeacher(t, tc.db, group.ID, teacher.ID)
+	child := testpkg.CreateTestStudent(t, tc.db, "Mila", "Kind", "2a")
+	testpkg.AssignStudentToGroup(t, tc.db, child.ID, group.ID)
+	testpkg.CreateTestStudentStatusDay(t, tc.db, child.ID, studentsTestToday.AddDays(1), absencerecords.StudentStatusDaySick)
+	for _, granted := range [][]string{{"students:read", "groups:read"}, {"users:read", "groups:read"}, {"admin:*"}} {
+		rr := authExec(t, tc, testutil.NewRequest("GET", "/status-days", nil), testutil.TeacherTestClaims(int(account.ID)), granted)
+		if granted[0] == "students:read" {
+			require.Equal(t, http.StatusForbidden, rr.Code, rr.Body.String())
+			require.NotContains(t, rr.Body.String(), "Mila")
+		} else {
+			require.Equal(t, http.StatusOK, rr.Code, rr.Body.String())
+			require.Contains(t, rr.Body.String(), "Mila")
+			require.Contains(t, rr.Body.String(), `"status":"sick"`)
+		}
+	}
+}
+
 func (failingOverviewSchoolGroups) ListGroups(context.Context) ([]*students.SchoolGroup, error) {
 	return nil, errors.New("group database unavailable")
 }

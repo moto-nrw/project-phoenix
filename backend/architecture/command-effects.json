@@ -22,7 +22,7 @@
       "effect": "mutation",
       "classification": "debt",
       "adr": "0083",
-      "approval_adr": "0091",
+      "approval_adr": "0092",
       "reason": "Workflow-backed direction-accounting debt #4825; not a new runtime exception. Workflow-backed outer HTTP entry supplied by the root (Care resumption / Timetable pickup-extension command), not evidence of a domain-application callback. Full supplied contract methods are retained, including unused promoted methods. Guarded target record/byte command; preserve ambient scope, target validation and existing failure propagation. Target-local locks/savepoints alone do not establish a new source coordinator. Target workflows/careexit.Resumption.Resume; workflows/careexit/resumption.go:70. "
     },
     {
@@ -12814,7 +12814,7 @@
       "effect": "unresolved",
       "classification": "unresolved",
       "adr": "0083",
-      "approval_adr": "0091",
+      "approval_adr": "0092",
       "reason": "Unresolved binding-flow boundary, not a query or approved leaf. Function-valued field; callable instance flow is deferred. Exact boundary: unresolved:function:github.com/moto-nrw/project-phoenix/roots/owners.TokenAdapter.Claims. See ADR 0083 domain-source expansion and reconciliation binding-flow follow-up. #4836 assignment-evidence review: fingerprint now includes typed callable assignments and referenced root helpers; existing unresolved boundary is retained, not approved as a query or leaf."
     },
     {
@@ -12827,7 +12827,7 @@
       "effect": "unresolved",
       "classification": "unresolved",
       "adr": "0083",
-      "approval_adr": "0091",
+      "approval_adr": "0092",
       "reason": "Unresolved binding-flow boundary, not a query or approved leaf. Function-valued field; callable instance flow is deferred. Exact boundary: unresolved:function:github.com/moto-nrw/project-phoenix/roots/owners.TokenAdapter.Claims. See ADR 0083 domain-source expansion and reconciliation binding-flow follow-up. #4836 assignment-evidence review: fingerprint now includes typed callable assignments and referenced root helpers; existing unresolved boundary is retained, not approved as a query or leaf."
     },
     {
@@ -12840,7 +12840,7 @@
       "effect": "unresolved",
       "classification": "unresolved",
       "adr": "0083",
-      "approval_adr": "0091",
+      "approval_adr": "0092",
       "reason": "Unresolved binding-flow boundary, not a query or approved leaf. Function-valued field; callable instance flow is deferred. Exact boundary: unresolved:function:github.com/moto-nrw/project-phoenix/roots/owners.TokenAdapter.Claims. See ADR 0083 domain-source expansion and reconciliation binding-flow follow-up. #4836 assignment-evidence review: fingerprint now includes typed callable assignments and referenced root helpers; existing unresolved boundary is retained, not approved as a query or leaf."
     },
     {
@@ -12853,7 +12853,7 @@
       "effect": "unresolved",
       "classification": "unresolved",
       "adr": "0083",
-      "approval_adr": "0091",
+      "approval_adr": "0092",
       "reason": "Unresolved binding-flow boundary, not a query or approved leaf. Function-valued field; callable instance flow is deferred. Exact boundary: unresolved:function:github.com/moto-nrw/project-phoenix/roots/owners.TokenAdapter.Permissions. See ADR 0083 domain-source expansion and reconciliation binding-flow follow-up. #4836 assignment-evidence review: fingerprint now includes typed callable assignments and referenced root helpers; existing unresolved boundary is retained, not approved as a query or leaf."
     },
     {
@@ -13772,7 +13772,7 @@
       "effect": "unresolved",
       "classification": "unresolved",
       "adr": "0083",
-      "approval_adr": "0091",
+      "approval_adr": "0092",
       "reason": "Unresolved binding-flow boundary, not a query or approved leaf. Function-valued field; callable instance flow is deferred. Exact boundary: unresolved:function:github.com/moto-nrw/project-phoenix/api.deviceSchools.lookup. See ADR 0083 domain-source expansion and reconciliation binding-flow follow-up. #4836 assignment-evidence review: fingerprint now includes typed callable assignments and referenced root helpers; existing unresolved boundary is retained, not approved as a query or leaf."
     },
     {
@@ -16083,7 +16083,7 @@
       "effect": "unresolved",
       "classification": "unresolved",
       "adr": "0083",
-      "approval_adr": "0091",
+      "approval_adr": "0092",
       "reason": "Exact function-field boundary: roots/owners/enrollment_decision_people.go enrollmentDepartureCompanions.delete is supplied by EnrollmentDecisionCompanions with Care Plan DeleteCompanionEdges (root_enrollment_services.go). Method-value instance flow is not resolved in this slice; retain E1 evidence from approved_child_sync.go/guardian_links.go, not a query or safe leaf. #4836 assignment-evidence review: fingerprint now includes typed callable assignments and referenced root helpers; existing unresolved boundary is retained, not approved as a query or leaf."
     },
     {
@@ -16638,10 +16638,10 @@
       "binding": "github.com/moto-nrw/project-phoenix/roots/owners.enrollmentReviewerStaff.StaffIDByPerson",
       "target": "*github.com/moto-nrw/project-phoenix/modules/peopledirectory.Staff.SetTenantID",
       "target_owner": "people-directory",
-      "binding_digest": "c4a2f91fe9b23ac1c08ee26cc72116ae",
+      "binding_digest": "5197f771c5e2d7c5b348b7d1464ac526",
       "effect": "query",
       "classification": "query",
-      "reason": "Value-only tenant metadata setter on a returned DTO, not a database write or transaction-scope switch. Target modules/peopledirectory.Staff.SetTenantID; modules/peopledirectory/record_metadata.go:14. May-bind method surface, not a production-call/liveness claim."
+      "reason": "Value-only tenant metadata setter on a returned DTO, not a database write or transaction-scope switch. Target modules/peopledirectory.Staff.SetTenantID; modules/peopledirectory/record_metadata.go:14. May-bind method surface, not a production-call/liveness claim. Re-reviewed for #4573 (ADR 0091): staff hydration now sets the external caregiver marker instead of the guest flag; value mapping only, no owned-row mutation or locking read added."
     },
     {
       "source_owner": "enrollment",
@@ -18616,7 +18616,7 @@
       "effect": "mutation",
       "classification": "leaf",
       "adr": "0067",
-      "approval_adr": "0091",
+      "approval_adr": "0092",
       "reason": "Newly exposed named-function argument binding: Care Plan HTTP StudentDocumentFileStore forwards to StudentDocuments cleanup bookkeeping (http/document_storage.go:12; internal/application/compose_bindings_care_lifecycle.go:22-29). The same target commands were already reviewed as mutation/leaf through native providers. Preserve caller context, owner-local cleanup validation and error propagation; no new coordinator or independent unit is introduced."
     },
     {
@@ -18653,7 +18653,7 @@
       "effect": "mutation",
       "classification": "leaf",
       "adr": "0067",
-      "approval_adr": "0091",
+      "approval_adr": "0092",
       "reason": "Newly exposed named-function argument binding: Care Plan HTTP StudentDocumentFileStore forwards to StudentDocuments cleanup bookkeeping (http/document_storage.go:12; internal/application/compose_bindings_care_lifecycle.go:22-29). The same target commands were already reviewed as mutation/leaf through native providers. Preserve caller context, owner-local cleanup validation and error propagation; no new coordinator or independent unit is introduced."
     },
     {
@@ -18690,7 +18690,7 @@
       "effect": "mutation",
       "classification": "leaf",
       "adr": "0067",
-      "approval_adr": "0091",
+      "approval_adr": "0092",
       "reason": "Newly exposed named-function argument binding: Care Plan HTTP StudentDocumentFileStore forwards to StudentDocuments cleanup bookkeeping (http/document_storage.go:12; internal/application/compose_bindings_care_lifecycle.go:22-29). The same target commands were already reviewed as mutation/leaf through native providers. Preserve caller context, owner-local cleanup validation and error propagation; no new coordinator or independent unit is introduced."
     },
     {
@@ -19301,10 +19301,10 @@
       "binding": "*github.com/moto-nrw/project-phoenix/roots/owners.CallerRows.NavigationRow",
       "target": "*github.com/moto-nrw/project-phoenix/modules/peopledirectory.Staff.SetTenantID",
       "target_owner": "people-directory",
-      "binding_digest": "2d535288ddc21d71592119b41814ec62",
+      "binding_digest": "2fb13ab2f198452b6aa9ba6d144c196c",
       "effect": "query",
       "classification": "query",
-      "reason": "Value-only tenant metadata setter on a returned DTO, not a database write or transaction-scope switch. Target modules/peopledirectory.Staff.SetTenantID; modules/peopledirectory/record_metadata.go:14. May-bind method surface, not a production-call/liveness claim."
+      "reason": "Value-only tenant metadata setter on a returned DTO, not a database write or transaction-scope switch. Target modules/peopledirectory.Staff.SetTenantID; modules/peopledirectory/record_metadata.go:14. May-bind method surface, not a production-call/liveness claim. Re-reviewed for #4573 (ADR 0091): staff hydration now sets the external caregiver marker instead of the guest flag; value mapping only, no owned-row mutation or locking read added."
     },
     {
       "source_owner": "identity-access",
@@ -19402,10 +19402,10 @@
       "binding": "*github.com/moto-nrw/project-phoenix/roots/owners.CallerRows.StaffRow",
       "target": "*github.com/moto-nrw/project-phoenix/modules/peopledirectory.Staff.SetTenantID",
       "target_owner": "people-directory",
-      "binding_digest": "c3c01a284199a458cc82b23ca68cd4ab",
+      "binding_digest": "a0deb19d733146a354ce726dc99da70b",
       "effect": "query",
       "classification": "query",
-      "reason": "Value-only tenant metadata setter on a returned DTO, not a database write or transaction-scope switch. Target modules/peopledirectory.Staff.SetTenantID; modules/peopledirectory/record_metadata.go:14. May-bind method surface, not a production-call/liveness claim."
+      "reason": "Value-only tenant metadata setter on a returned DTO, not a database write or transaction-scope switch. Target modules/peopledirectory.Staff.SetTenantID; modules/peopledirectory/record_metadata.go:14. May-bind method surface, not a production-call/liveness claim. Re-reviewed for #4573 (ADR 0091): staff hydration now sets the external caregiver marker instead of the guest flag; value mapping only, no owned-row mutation or locking read added."
     },
     {
       "source_owner": "identity-access",
@@ -20336,7 +20336,7 @@
       "effect": "unresolved",
       "classification": "unresolved",
       "adr": "0083",
-      "approval_adr": "0091",
+      "approval_adr": "0092",
       "reason": "Unresolved binding-flow boundary, not a query or approved leaf. Dynamic callable/parameter flow; typed assignments do not prove its runtime function target. Exact boundary: unresolved:callable:github.com/moto-nrw/project-phoenix/api.send. See ADR 0083 domain-source expansion and reconciliation binding-flow follow-up. #4836 assignment-evidence review: fingerprint now includes typed callable assignments and referenced root helpers; existing unresolved boundary is retained, not approved as a query or leaf."
     },
     {
@@ -20349,7 +20349,7 @@
       "effect": "unresolved",
       "classification": "unresolved",
       "adr": "0083",
-      "approval_adr": "0091",
+      "approval_adr": "0092",
       "reason": "Unresolved binding-flow boundary, not a query or approved leaf. Function-valued field; callable instance flow is deferred. Exact boundary: unresolved:function:github.com/moto-nrw/project-phoenix/roots/owners.MFAMailer.Deliver. See ADR 0083 domain-source expansion and reconciliation binding-flow follow-up. #4836 assignment-evidence review: fingerprint now includes typed callable assignments and referenced root helpers; existing unresolved boundary is retained, not approved as a query or leaf."
     },
     {
@@ -20362,7 +20362,7 @@
       "effect": "unresolved",
       "classification": "unresolved",
       "adr": "0083",
-      "approval_adr": "0091",
+      "approval_adr": "0092",
       "reason": "Unresolved binding-flow boundary, not a query or approved leaf. Function-valued field; callable instance flow is deferred. Exact boundary: unresolved:function:github.com/moto-nrw/project-phoenix/roots/owners.MFAMailer.Enqueue. See ADR 0083 domain-source expansion and reconciliation binding-flow follow-up. #4836 assignment-evidence review: fingerprint now includes typed callable assignments and referenced root helpers; existing unresolved boundary is retained, not approved as a query or leaf."
     },
     {
@@ -20388,7 +20388,7 @@
       "effect": "unresolved",
       "classification": "unresolved",
       "adr": "0083",
-      "approval_adr": "0091",
+      "approval_adr": "0092",
       "reason": "Unresolved binding-flow boundary, not a query or approved leaf. Function-valued field; callable instance flow is deferred. Exact boundary: unresolved:function:github.com/moto-nrw/project-phoenix/roots/owners.MFAMailer.Deliver. See ADR 0083 domain-source expansion and reconciliation binding-flow follow-up. #4836 assignment-evidence review: fingerprint now includes typed callable assignments and referenced root helpers; existing unresolved boundary is retained, not approved as a query or leaf."
     },
     {
@@ -20401,7 +20401,7 @@
       "effect": "unresolved",
       "classification": "unresolved",
       "adr": "0083",
-      "approval_adr": "0091",
+      "approval_adr": "0092",
       "reason": "Unresolved binding-flow boundary, not a query or approved leaf. Function-valued field; callable instance flow is deferred. Exact boundary: unresolved:function:github.com/moto-nrw/project-phoenix/roots/owners.MFAMailer.Enqueue. See ADR 0083 domain-source expansion and reconciliation binding-flow follow-up. #4836 assignment-evidence review: fingerprint now includes typed callable assignments and referenced root helpers; existing unresolved boundary is retained, not approved as a query or leaf."
     },
     {
@@ -20414,7 +20414,7 @@
       "effect": "unresolved",
       "classification": "unresolved",
       "adr": "0083",
-      "approval_adr": "0091",
+      "approval_adr": "0092",
       "reason": "Unresolved binding-flow boundary, not a query or approved leaf. Function-valued field; callable instance flow is deferred. Exact boundary: unresolved:function:github.com/moto-nrw/project-phoenix/roots/owners.MFAMailer.Deliver. See ADR 0083 domain-source expansion and reconciliation binding-flow follow-up. #4836 assignment-evidence review: fingerprint now includes typed callable assignments and referenced root helpers; existing unresolved boundary is retained, not approved as a query or leaf."
     },
     {
@@ -20427,7 +20427,7 @@
       "effect": "unresolved",
       "classification": "unresolved",
       "adr": "0083",
-      "approval_adr": "0091",
+      "approval_adr": "0092",
       "reason": "Unresolved binding-flow boundary, not a query or approved leaf. Function-valued field; callable instance flow is deferred. Exact boundary: unresolved:function:github.com/moto-nrw/project-phoenix/roots/owners.MFAMailer.Enqueue. See ADR 0083 domain-source expansion and reconciliation binding-flow follow-up. #4836 assignment-evidence review: fingerprint now includes typed callable assignments and referenced root helpers; existing unresolved boundary is retained, not approved as a query or leaf."
     },
     {
@@ -20453,7 +20453,7 @@
       "effect": "unresolved",
       "classification": "unresolved",
       "adr": "0083",
-      "approval_adr": "0091",
+      "approval_adr": "0092",
       "reason": "Unresolved binding-flow boundary, not a query or approved leaf. Function-valued field; callable instance flow is deferred. Exact boundary: unresolved:function:github.com/moto-nrw/project-phoenix/roots/owners.MFAMailer.Enqueue. See ADR 0083 domain-source expansion and reconciliation binding-flow follow-up. #4836 assignment-evidence review: fingerprint now includes typed callable assignments and referenced root helpers; existing unresolved boundary is retained, not approved as a query or leaf."
     },
     {
@@ -20466,7 +20466,7 @@
       "effect": "unresolved",
       "classification": "unresolved",
       "adr": "0083",
-      "approval_adr": "0091",
+      "approval_adr": "0092",
       "reason": "Unresolved binding-flow boundary, not a query or approved leaf. Dynamic callable/parameter flow; typed assignments do not prove its runtime function target. Exact boundary: unresolved:callable:github.com/moto-nrw/project-phoenix/roots/owners.cancel. See ADR 0083 domain-source expansion and reconciliation binding-flow follow-up. #4836 assignment-evidence review: fingerprint now includes typed callable assignments and referenced root helpers; existing unresolved boundary is retained, not approved as a query or leaf."
     },
     {
@@ -20625,7 +20625,7 @@
       "effect": "unresolved",
       "classification": "unresolved",
       "adr": "0083",
-      "approval_adr": "0091",
+      "approval_adr": "0092",
       "reason": "Unresolved binding-flow boundary, not a query or approved leaf. Function-valued field; callable instance flow is deferred. Exact boundary: unresolved:function:github.com/moto-nrw/project-phoenix/roots/owners.passwordResetDelivery.host. See ADR 0083 domain-source expansion and reconciliation binding-flow follow-up. #4836 assignment-evidence review: fingerprint now includes typed callable assignments and referenced root helpers; existing unresolved boundary is retained, not approved as a query or leaf."
     },
     {
@@ -20649,7 +20649,7 @@
       "effect": "unresolved",
       "classification": "unresolved",
       "adr": "0083",
-      "approval_adr": "0091",
+      "approval_adr": "0092",
       "reason": "Unresolved binding-flow boundary, not a query or approved leaf. Function-valued field; callable instance flow is deferred. Exact boundary: unresolved:function:github.com/moto-nrw/project-phoenix/roots/owners.precedingMails.status. See ADR 0083 domain-source expansion and reconciliation binding-flow follow-up. #4836 assignment-evidence review: fingerprint now includes typed callable assignments and referenced root helpers; existing unresolved boundary is retained, not approved as a query or leaf."
     },
     {
@@ -21395,10 +21395,10 @@
       "binding": "github.com/moto-nrw/project-phoenix/roots/owners.staffDirectory.FindStaff",
       "target": "*github.com/moto-nrw/project-phoenix/modules/peopledirectory.Staff.SetTenantID",
       "target_owner": "people-directory",
-      "binding_digest": "79ab37bf9c30fd60425e7521b50620ca",
+      "binding_digest": "43648f42250d2353fa31b7c997f36ec8",
       "effect": "query",
       "classification": "query",
-      "reason": "Value-only tenant metadata setter on a returned DTO, not a database write or transaction-scope switch. Target modules/peopledirectory.Staff.SetTenantID; modules/peopledirectory/record_metadata.go:14. May-bind method surface, not a production-call/liveness claim."
+      "reason": "Value-only tenant metadata setter on a returned DTO, not a database write or transaction-scope switch. Target modules/peopledirectory.Staff.SetTenantID; modules/peopledirectory/record_metadata.go:14. May-bind method surface, not a production-call/liveness claim. Re-reviewed for #4573 (ADR 0091): staff hydration now sets the external caregiver marker instead of the guest flag; value mapping only, no owned-row mutation or locking read added."
     },
     {
       "source_owner": "identity-access",
@@ -21708,7 +21708,7 @@
       "effect": "unresolved",
       "classification": "unresolved",
       "adr": "0083",
-      "approval_adr": "0091",
+      "approval_adr": "0092",
       "reason": "Unresolved binding-flow boundary, not a query or approved leaf. Function-valued field; callable instance flow is deferred. Exact boundary: unresolved:function:github.com/moto-nrw/project-phoenix/roots/owners.BillingCounts.Students. See ADR 0083 domain-source expansion and reconciliation binding-flow follow-up. #4836 assignment-evidence review: fingerprint now includes typed callable assignments and referenced root helpers; existing unresolved boundary is retained, not approved as a query or leaf."
     },
     {
@@ -21721,7 +21721,7 @@
       "effect": "unresolved",
       "classification": "unresolved",
       "adr": "0083",
-      "approval_adr": "0091",
+      "approval_adr": "0092",
       "reason": "Unresolved binding-flow boundary, not a query or approved leaf. Function-valued field; callable instance flow is deferred. Exact boundary: unresolved:function:github.com/moto-nrw/project-phoenix/roots/owners.BillingCounts.Terminals. See ADR 0083 domain-source expansion and reconciliation binding-flow follow-up. #4836 assignment-evidence review: fingerprint now includes typed callable assignments and referenced root helpers; existing unresolved boundary is retained, not approved as a query or leaf."
     },
     {
@@ -22013,7 +22013,7 @@
       "effect": "unresolved",
       "classification": "unresolved",
       "adr": "0083",
-      "approval_adr": "0091",
+      "approval_adr": "0092",
       "reason": "Unresolved binding-flow boundary, not a query or approved leaf. Dynamic callable/parameter flow; typed assignments do not prove its runtime function target. Exact boundary: unresolved:callable:github.com/moto-nrw/project-phoenix/roots/owners.fn. See ADR 0083 domain-source expansion and reconciliation binding-flow follow-up. #4836 assignment-evidence review: fingerprint now includes typed callable assignments and referenced root helpers; existing unresolved boundary is retained, not approved as a query or leaf."
     },
     {
@@ -22074,7 +22074,7 @@
       "effect": "unresolved",
       "classification": "unresolved",
       "adr": "0083",
-      "approval_adr": "0091",
+      "approval_adr": "0092",
       "reason": "Unresolved binding-flow boundary, not a query or approved leaf. Dynamic callable/parameter flow; typed assignments do not prove its runtime function target. Exact boundary: unresolved:callable:github.com/moto-nrw/project-phoenix/roots/owners.fn. See ADR 0083 domain-source expansion and reconciliation binding-flow follow-up. #4836 assignment-evidence review: fingerprint now includes typed callable assignments and referenced root helpers; existing unresolved boundary is retained, not approved as a query or leaf."
     },
     {
@@ -22263,7 +22263,7 @@
       "effect": "unresolved",
       "classification": "unresolved",
       "adr": "0083",
-      "approval_adr": "0091",
+      "approval_adr": "0092",
       "reason": "Unresolved binding-flow boundary, not a query or approved leaf. Dynamic callable/parameter flow; typed assignments do not prove its runtime function target. Exact boundary: unresolved:callable:github.com/moto-nrw/project-phoenix/roots/owners.fn. See ADR 0083 domain-source expansion and reconciliation binding-flow follow-up. #4836 assignment-evidence review: fingerprint now includes typed callable assignments and referenced root helpers; existing unresolved boundary is retained, not approved as a query or leaf."
     },
     {
@@ -22457,10 +22457,10 @@
       "binding": "github.com/moto-nrw/project-phoenix/roots/owners.provisioningPeople.FindStaff",
       "target": "*github.com/moto-nrw/project-phoenix/modules/peopledirectory.Staff.SetTenantID",
       "target_owner": "people-directory",
-      "binding_digest": "b939db4ddece56b5cc387588876328b4",
+      "binding_digest": "ef7b9492a6a843b3987beb604a4a20ec",
       "effect": "query",
       "classification": "query",
-      "reason": "Value-only tenant metadata setter on a returned DTO, not a database write or transaction-scope switch. Target modules/peopledirectory.Staff.SetTenantID; modules/peopledirectory/record_metadata.go:14. May-bind method surface, not a production-call/liveness claim."
+      "reason": "Value-only tenant metadata setter on a returned DTO, not a database write or transaction-scope switch. Target modules/peopledirectory.Staff.SetTenantID; modules/peopledirectory/record_metadata.go:14. May-bind method surface, not a production-call/liveness claim. Re-reviewed for #4573 (ADR 0091): staff hydration now sets the external caregiver marker instead of the guest flag; value mapping only, no owned-row mutation or locking read added."
     },
     {
       "source_owner": "organization-tenancy",
@@ -22538,7 +22538,7 @@
       "effect": "unresolved",
       "classification": "unresolved",
       "adr": "0083",
-      "approval_adr": "0091",
+      "approval_adr": "0092",
       "reason": "Unresolved binding-flow boundary, not a query or approved leaf. Function-valued field; callable instance flow is deferred. Exact boundary: unresolved:function:github.com/moto-nrw/project-phoenix/roots/owners.provisioningPeople.students. See ADR 0083 domain-source expansion and reconciliation binding-flow follow-up. #4836 assignment-evidence review: fingerprint now includes typed callable assignments and referenced root helpers; existing unresolved boundary is retained, not approved as a query or leaf."
     },
     {
@@ -22783,7 +22783,7 @@
       "effect": "unresolved",
       "classification": "unresolved",
       "adr": "0083",
-      "approval_adr": "0091",
+      "approval_adr": "0092",
       "reason": "Unresolved binding-flow boundary, not a query or approved leaf. Function-valued field; callable instance flow is deferred. Exact boundary: unresolved:function:github.com/moto-nrw/project-phoenix/roots/owners.StudentPhotoRuntime.Actor. See ADR 0083 domain-source expansion and reconciliation binding-flow follow-up. #4836 assignment-evidence review: fingerprint now includes typed callable assignments and referenced root helpers; existing unresolved boundary is retained, not approved as a query or leaf."
     },
     {
@@ -22796,7 +22796,7 @@
       "effect": "unresolved",
       "classification": "unresolved",
       "adr": "0083",
-      "approval_adr": "0091",
+      "approval_adr": "0092",
       "reason": "Unresolved binding-flow boundary, not a query or approved leaf. Function-valued field; callable instance flow is deferred. Exact boundary: unresolved:function:github.com/moto-nrw/project-phoenix/roots/owners.StudentPhotoRuntime.Cleanup. See ADR 0083 domain-source expansion and reconciliation binding-flow follow-up. #4836 assignment-evidence review: fingerprint now includes typed callable assignments and referenced root helpers; existing unresolved boundary is retained, not approved as a query or leaf."
     },
     {
@@ -23416,7 +23416,7 @@
       "effect": "unresolved",
       "classification": "unresolved",
       "adr": "0083",
-      "approval_adr": "0091",
+      "approval_adr": "0092",
       "reason": "Unresolved binding-flow boundary, not a query or approved leaf. Function-valued field; callable instance flow is deferred. Exact boundary: unresolved:function:github.com/moto-nrw/project-phoenix/roots/owners.StudentPhotoRuntime.Actor. See ADR 0083 domain-source expansion and reconciliation binding-flow follow-up. #4836 assignment-evidence review: fingerprint now includes typed callable assignments and referenced root helpers; existing unresolved boundary is retained, not approved as a query or leaf."
     },
     {
@@ -23429,7 +23429,7 @@
       "effect": "unresolved",
       "classification": "unresolved",
       "adr": "0083",
-      "approval_adr": "0091",
+      "approval_adr": "0092",
       "reason": "Unresolved binding-flow boundary, not a query or approved leaf. Function-valued field; callable instance flow is deferred. Exact boundary: unresolved:function:github.com/moto-nrw/project-phoenix/roots/owners.StudentPhotoRuntime.Cleanup. See ADR 0083 domain-source expansion and reconciliation binding-flow follow-up. #4836 assignment-evidence review: fingerprint now includes typed callable assignments and referenced root helpers; existing unresolved boundary is retained, not approved as a query or leaf."
     },
     {
@@ -23486,7 +23486,7 @@
       "effect": "mutation",
       "classification": "debt",
       "adr": "0083",
-      "approval_adr": "0091",
+      "approval_adr": "0092",
       "reason": "Workflow-backed direction-accounting debt #4825; not a new runtime exception. Workflow-backed, Schuld #4825: People BirthdayStore/StaffRepository reaches LiveStaffEmployment (staff_membership_adapters.go:545-551); not a normal leaf. Guarded target record/byte command; preserve ambient scope, target validation and existing failure propagation. Target-local locks/savepoints alone do not establish a new source coordinator. Target workflows/staffoffboarding.LiveStaffEmployment.SetBirthdayDisplayOptOut; workflows/staffoffboarding/live_staff_employment.go:42. "
     },
     {
@@ -23690,7 +23690,7 @@
       "effect": "unresolved",
       "classification": "unresolved",
       "adr": "0083",
-      "approval_adr": "0091",
+      "approval_adr": "0092",
       "reason": "Unresolved binding-flow boundary, not a query or approved leaf. Function-valued field; callable instance flow is deferred. Exact boundary: unresolved:function:github.com/moto-nrw/project-phoenix/roots/owners.StudentPhotoRuntime.Actor. See ADR 0083 domain-source expansion and reconciliation binding-flow follow-up. #4836 assignment-evidence review: fingerprint now includes typed callable assignments and referenced root helpers; existing unresolved boundary is retained, not approved as a query or leaf."
     },
     {
@@ -23703,7 +23703,7 @@
       "effect": "unresolved",
       "classification": "unresolved",
       "adr": "0083",
-      "approval_adr": "0091",
+      "approval_adr": "0092",
       "reason": "Unresolved binding-flow boundary, not a query or approved leaf. Function-valued field; callable instance flow is deferred. Exact boundary: unresolved:function:github.com/moto-nrw/project-phoenix/roots/owners.StudentPhotoRuntime.Cleanup. See ADR 0083 domain-source expansion and reconciliation binding-flow follow-up. #4836 assignment-evidence review: fingerprint now includes typed callable assignments and referenced root helpers; existing unresolved boundary is retained, not approved as a query or leaf."
     },
     {
@@ -23778,6 +23778,161 @@
     },
     {
       "source_owner": "people-directory",
+      "port": "github.com/moto-nrw/project-phoenix/modules/peopledirectory/ports.ExternalCaregiverRecordRepository.ActiveExternalCaregiverRecords",
+      "binding": "github.com/moto-nrw/project-phoenix/roots/owners.ExternalCaregiverRecordMembershipRepository.ActiveExternalCaregiverRecords",
+      "target": "unresolved:github.com/moto-nrw/project-phoenix/roots/owners.ExternalCaregiverRecordMembershipRepository.listExternalCaregiverRecords",
+      "target_owner": "",
+      "binding_digest": "89b00c174c477d71f2b78dd23f03d7f8",
+      "effect": "unresolved",
+      "classification": "unresolved",
+      "adr": "0083",
+      "approval_adr": "0091",
+      "reason": "Unresolved binding-flow boundary, not a query or approved leaf. No indexed concrete method body/provider after typed forwarding (including instantiated generic adapters and anonymous interfaces). Exact boundary: unresolved:github.com/moto-nrw/project-phoenix/roots/owners.ExternalCaregiverRecordMembershipRepository.listExternalCaregiverRecords. See ADR 0083 domain-source expansion and reconciliation binding-flow follow-up."
+    },
+    {
+      "source_owner": "people-directory",
+      "port": "github.com/moto-nrw/project-phoenix/modules/peopledirectory/ports.ExternalCaregiverRecordRepository.Create",
+      "binding": "github.com/moto-nrw/project-phoenix/roots/owners.ExternalCaregiverRecordMembershipRepository.Create",
+      "target": "github.com/moto-nrw/project-phoenix/modules/schoolmembership.Capability.CreateExternalCaregiverRecord",
+      "target_owner": "school-membership",
+      "binding_digest": "b60ba4ffc9df86b20dfec2e336d7c75b",
+      "effect": "mutation",
+      "classification": "leaf",
+      "adr": "0067",
+      "reason": "Guarded target record/byte command; preserve ambient scope, target validation and existing failure propagation. Target-local locks/savepoints alone do not establish a new source coordinator. Target modules/schoolmembership.Capability.CreateExternalCaregiverRecord; modules/schoolmembership.Capability (supplied contract method). "
+    },
+    {
+      "source_owner": "people-directory",
+      "port": "github.com/moto-nrw/project-phoenix/modules/peopledirectory/ports.ExternalCaregiverRecordRepository.Create",
+      "binding": "github.com/moto-nrw/project-phoenix/roots/owners.ExternalCaregiverRecordMembershipRepository.Create",
+      "target": "github.com/moto-nrw/project-phoenix/modules/schoolmembership.Owner.CreateExternalCaregiverRecord",
+      "target_owner": "school-membership",
+      "binding_digest": "b46423c38338c322a47d032fd6089d3e",
+      "effect": "mutation",
+      "classification": "leaf",
+      "adr": "0067",
+      "reason": "Guarded target record/byte command; preserve ambient scope, target validation and existing failure propagation. Target-local locks/savepoints alone do not establish a new source coordinator. Target modules/schoolmembership.Owner.CreateExternalCaregiverRecord; modules/schoolmembership.Owner (supplied contract method). "
+    },
+    {
+      "source_owner": "people-directory",
+      "port": "github.com/moto-nrw/project-phoenix/modules/peopledirectory/ports.ExternalCaregiverRecordRepository.Delete",
+      "binding": "github.com/moto-nrw/project-phoenix/roots/owners.ExternalCaregiverRecordMembershipRepository.Delete",
+      "target": "github.com/moto-nrw/project-phoenix/modules/schoolmembership.Capability.DeleteExternalCaregiverRecord",
+      "target_owner": "school-membership",
+      "binding_digest": "145dae53814041da8c3f7bb005e829d2",
+      "effect": "mutation",
+      "classification": "leaf",
+      "adr": "0067",
+      "reason": "Guarded target record/byte command; preserve ambient scope, target validation and existing failure propagation. Target-local locks/savepoints alone do not establish a new source coordinator. Target modules/schoolmembership.Capability.DeleteExternalCaregiverRecord; modules/schoolmembership.Capability (supplied contract method). "
+    },
+    {
+      "source_owner": "people-directory",
+      "port": "github.com/moto-nrw/project-phoenix/modules/peopledirectory/ports.ExternalCaregiverRecordRepository.Delete",
+      "binding": "github.com/moto-nrw/project-phoenix/roots/owners.ExternalCaregiverRecordMembershipRepository.Delete",
+      "target": "github.com/moto-nrw/project-phoenix/modules/schoolmembership.Owner.DeleteExternalCaregiverRecord",
+      "target_owner": "school-membership",
+      "binding_digest": "e14a389c503aa9f645df46e51550856b",
+      "effect": "mutation",
+      "classification": "leaf",
+      "adr": "0067",
+      "reason": "Guarded target record/byte command; preserve ambient scope, target validation and existing failure propagation. Target-local locks/savepoints alone do not establish a new source coordinator. Target modules/schoolmembership.Owner.DeleteExternalCaregiverRecord; modules/schoolmembership.Owner (supplied contract method). "
+    },
+    {
+      "source_owner": "people-directory",
+      "port": "github.com/moto-nrw/project-phoenix/modules/peopledirectory/ports.ExternalCaregiverRecordRepository.FindByID",
+      "binding": "github.com/moto-nrw/project-phoenix/roots/owners.ExternalCaregiverRecordMembershipRepository.FindByID",
+      "target": "github.com/moto-nrw/project-phoenix/modules/schoolmembership.Capability.FindExternalCaregiverRecord",
+      "target_owner": "school-membership",
+      "binding_digest": "c2d3de61e77ac7663dff16132d5cdb1a",
+      "effect": "query",
+      "classification": "query",
+      "reason": "Reviewed read/value/construction method; no owned-row mutation or locking read at this terminal. Target modules/schoolmembership.Capability.FindExternalCaregiverRecord; modules/schoolmembership.Capability (supplied contract method). May-bind method surface, not a production-call/liveness claim."
+    },
+    {
+      "source_owner": "people-directory",
+      "port": "github.com/moto-nrw/project-phoenix/modules/peopledirectory/ports.ExternalCaregiverRecordRepository.FindByID",
+      "binding": "github.com/moto-nrw/project-phoenix/roots/owners.ExternalCaregiverRecordMembershipRepository.FindByID",
+      "target": "github.com/moto-nrw/project-phoenix/modules/schoolmembership.Owner.FindExternalCaregiverRecord",
+      "target_owner": "school-membership",
+      "binding_digest": "7bd656802ada5b083b20841a112c732b",
+      "effect": "query",
+      "classification": "query",
+      "reason": "Reviewed read/value/construction method; no owned-row mutation or locking read at this terminal. Target modules/schoolmembership.Owner.FindExternalCaregiverRecord; modules/schoolmembership.Owner (supplied contract method). May-bind method surface, not a production-call/liveness claim."
+    },
+    {
+      "source_owner": "people-directory",
+      "port": "github.com/moto-nrw/project-phoenix/modules/peopledirectory/ports.ExternalCaregiverRecordRepository.FindByStaffID",
+      "binding": "github.com/moto-nrw/project-phoenix/roots/owners.ExternalCaregiverRecordMembershipRepository.FindByStaffID",
+      "target": "github.com/moto-nrw/project-phoenix/modules/schoolmembership.Capability.FindExternalCaregiverRecordByStaff",
+      "target_owner": "school-membership",
+      "binding_digest": "227229811a92f9b5f6738fe9b211f87e",
+      "effect": "query",
+      "classification": "query",
+      "reason": "Reviewed read/value/construction method; no owned-row mutation or locking read at this terminal. Target modules/schoolmembership.Capability.FindExternalCaregiverRecordByStaff; modules/schoolmembership.Capability (supplied contract method). May-bind method surface, not a production-call/liveness claim."
+    },
+    {
+      "source_owner": "people-directory",
+      "port": "github.com/moto-nrw/project-phoenix/modules/peopledirectory/ports.ExternalCaregiverRecordRepository.FindByStaffID",
+      "binding": "github.com/moto-nrw/project-phoenix/roots/owners.ExternalCaregiverRecordMembershipRepository.FindByStaffID",
+      "target": "github.com/moto-nrw/project-phoenix/modules/schoolmembership.Owner.FindExternalCaregiverRecordByStaff",
+      "target_owner": "school-membership",
+      "binding_digest": "2a3ec5d474ab06381fda33b31a6f4e77",
+      "effect": "query",
+      "classification": "query",
+      "reason": "Reviewed read/value/construction method; no owned-row mutation or locking read at this terminal. Target modules/schoolmembership.Owner.FindExternalCaregiverRecordByStaff; modules/schoolmembership.Owner (supplied contract method). May-bind method surface, not a production-call/liveness claim."
+    },
+    {
+      "source_owner": "people-directory",
+      "port": "github.com/moto-nrw/project-phoenix/modules/peopledirectory/ports.ExternalCaregiverRecordRepository.List",
+      "binding": "github.com/moto-nrw/project-phoenix/roots/owners.ExternalCaregiverRecordMembershipRepository.List",
+      "target": "unresolved:callable:github.com/moto-nrw/project-phoenix/roots/owners.apply",
+      "target_owner": "",
+      "binding_digest": "d3df00b0ca0acf1389a972243ac2b81d",
+      "effect": "unresolved",
+      "classification": "unresolved",
+      "adr": "0083",
+      "approval_adr": "0092",
+      "reason": "Unresolved binding-flow boundary, not a query or approved leaf. Dynamic callable/parameter flow; typed assignments do not prove its runtime function target. Exact boundary: unresolved:callable:github.com/moto-nrw/project-phoenix/roots/owners.apply. See ADR 0083 domain-source expansion and reconciliation binding-flow follow-up. #4836 assignment-evidence review: fingerprint now includes typed callable assignments and referenced root helpers; existing unresolved boundary is retained, not approved as a query or leaf."
+    },
+    {
+      "source_owner": "people-directory",
+      "port": "github.com/moto-nrw/project-phoenix/modules/peopledirectory/ports.ExternalCaregiverRecordRepository.List",
+      "binding": "github.com/moto-nrw/project-phoenix/roots/owners.ExternalCaregiverRecordMembershipRepository.List",
+      "target": "unresolved:github.com/moto-nrw/project-phoenix/roots/owners.ExternalCaregiverRecordMembershipRepository.listExternalCaregiverRecords",
+      "target_owner": "",
+      "binding_digest": "b3642948a1db1e38edad43177c7622b4",
+      "effect": "unresolved",
+      "classification": "unresolved",
+      "adr": "0083",
+      "approval_adr": "0091",
+      "reason": "Unresolved binding-flow boundary, not a query or approved leaf. No indexed concrete method body/provider after typed forwarding (including instantiated generic adapters and anonymous interfaces). Exact boundary: unresolved:github.com/moto-nrw/project-phoenix/roots/owners.ExternalCaregiverRecordMembershipRepository.listExternalCaregiverRecords. See ADR 0083 domain-source expansion and reconciliation binding-flow follow-up."
+    },
+    {
+      "source_owner": "people-directory",
+      "port": "github.com/moto-nrw/project-phoenix/modules/peopledirectory/ports.ExternalCaregiverRecordRepository.Update",
+      "binding": "github.com/moto-nrw/project-phoenix/roots/owners.ExternalCaregiverRecordMembershipRepository.Update",
+      "target": "github.com/moto-nrw/project-phoenix/modules/schoolmembership.Capability.UpdateExternalCaregiverRecord",
+      "target_owner": "school-membership",
+      "binding_digest": "385e46bab27fdd7633954b9a0a778888",
+      "effect": "mutation",
+      "classification": "leaf",
+      "adr": "0067",
+      "reason": "Guarded target record/byte command; preserve ambient scope, target validation and existing failure propagation. Target-local locks/savepoints alone do not establish a new source coordinator. Target modules/schoolmembership.Capability.UpdateExternalCaregiverRecord; modules/schoolmembership.Capability (supplied contract method). "
+    },
+    {
+      "source_owner": "people-directory",
+      "port": "github.com/moto-nrw/project-phoenix/modules/peopledirectory/ports.ExternalCaregiverRecordRepository.Update",
+      "binding": "github.com/moto-nrw/project-phoenix/roots/owners.ExternalCaregiverRecordMembershipRepository.Update",
+      "target": "github.com/moto-nrw/project-phoenix/modules/schoolmembership.Owner.UpdateExternalCaregiverRecord",
+      "target_owner": "school-membership",
+      "binding_digest": "cc0e4a918b4e53aed1045e29aa1c67b3",
+      "effect": "mutation",
+      "classification": "leaf",
+      "adr": "0067",
+      "reason": "Guarded target record/byte command; preserve ambient scope, target validation and existing failure propagation. Target-local locks/savepoints alone do not establish a new source coordinator. Target modules/schoolmembership.Owner.UpdateExternalCaregiverRecord; modules/schoolmembership.Owner (supplied contract method). "
+    },
+    {
+      "source_owner": "people-directory",
       "port": "github.com/moto-nrw/project-phoenix/modules/peopledirectory/ports.GroupTeacherBlockers.ListGroupTeacherBlockers",
       "binding": "github.com/moto-nrw/project-phoenix/roots/owners.GroupTeacherRepository.ListGroupTeacherBlockers",
       "target": "github.com/moto-nrw/project-phoenix/modules/schoolmembership.GroupTeacherBlockers",
@@ -23843,161 +23998,6 @@
       "effect": "query",
       "classification": "query",
       "reason": "Reviewed read/value/construction method; no owned-row mutation or locking read at this terminal. Target modules/identityaccess.Owner.ListRedeemableGuardianInvitations; modules/identityaccess.Owner (supplied contract method). May-bind method surface, not a production-call/liveness claim."
-    },
-    {
-      "source_owner": "people-directory",
-      "port": "github.com/moto-nrw/project-phoenix/modules/peopledirectory/ports.GuestRepository.ActiveGuests",
-      "binding": "github.com/moto-nrw/project-phoenix/roots/owners.GuestMembershipRepository.ActiveGuests",
-      "target": "unresolved:github.com/moto-nrw/project-phoenix/roots/owners.GuestMembershipRepository.listGuests",
-      "target_owner": "",
-      "binding_digest": "82bcde4c6792b6d8d6cf79d08d560d74",
-      "effect": "unresolved",
-      "classification": "unresolved",
-      "adr": "0083",
-      "approval_adr": "0083",
-      "reason": "Unresolved binding-flow boundary, not a query or approved leaf. No indexed concrete method body/provider after typed forwarding (including instantiated generic adapters and anonymous interfaces). Exact boundary: unresolved:github.com/moto-nrw/project-phoenix/roots/owners.GuestMembershipRepository.listGuests. See ADR 0083 domain-source expansion and reconciliation binding-flow follow-up."
-    },
-    {
-      "source_owner": "people-directory",
-      "port": "github.com/moto-nrw/project-phoenix/modules/peopledirectory/ports.GuestRepository.Create",
-      "binding": "github.com/moto-nrw/project-phoenix/roots/owners.GuestMembershipRepository.Create",
-      "target": "github.com/moto-nrw/project-phoenix/modules/schoolmembership.Capability.CreateGuest",
-      "target_owner": "school-membership",
-      "binding_digest": "a718f37faded0ac56ba1a22eca1b6d5e",
-      "effect": "mutation",
-      "classification": "leaf",
-      "adr": "0067",
-      "reason": "Guarded target record/byte command; preserve ambient scope, target validation and existing failure propagation. Target-local locks/savepoints alone do not establish a new source coordinator. Target modules/schoolmembership.Capability.CreateGuest; modules/schoolmembership.Capability (supplied contract method). "
-    },
-    {
-      "source_owner": "people-directory",
-      "port": "github.com/moto-nrw/project-phoenix/modules/peopledirectory/ports.GuestRepository.Create",
-      "binding": "github.com/moto-nrw/project-phoenix/roots/owners.GuestMembershipRepository.Create",
-      "target": "github.com/moto-nrw/project-phoenix/modules/schoolmembership.Owner.CreateGuest",
-      "target_owner": "school-membership",
-      "binding_digest": "d62b648f2171615de454705eb2ee1edd",
-      "effect": "mutation",
-      "classification": "leaf",
-      "adr": "0067",
-      "reason": "Guarded target record/byte command; preserve ambient scope, target validation and existing failure propagation. Target-local locks/savepoints alone do not establish a new source coordinator. Target modules/schoolmembership.Owner.CreateGuest; modules/schoolmembership.Owner (supplied contract method). "
-    },
-    {
-      "source_owner": "people-directory",
-      "port": "github.com/moto-nrw/project-phoenix/modules/peopledirectory/ports.GuestRepository.Delete",
-      "binding": "github.com/moto-nrw/project-phoenix/roots/owners.GuestMembershipRepository.Delete",
-      "target": "github.com/moto-nrw/project-phoenix/modules/schoolmembership.Capability.DeleteGuest",
-      "target_owner": "school-membership",
-      "binding_digest": "77f0768bc4188b345020ae92d95bdf74",
-      "effect": "mutation",
-      "classification": "leaf",
-      "adr": "0067",
-      "reason": "Guarded target record/byte command; preserve ambient scope, target validation and existing failure propagation. Target-local locks/savepoints alone do not establish a new source coordinator. Target modules/schoolmembership.Capability.DeleteGuest; modules/schoolmembership.Capability (supplied contract method). "
-    },
-    {
-      "source_owner": "people-directory",
-      "port": "github.com/moto-nrw/project-phoenix/modules/peopledirectory/ports.GuestRepository.Delete",
-      "binding": "github.com/moto-nrw/project-phoenix/roots/owners.GuestMembershipRepository.Delete",
-      "target": "github.com/moto-nrw/project-phoenix/modules/schoolmembership.Owner.DeleteGuest",
-      "target_owner": "school-membership",
-      "binding_digest": "5ffc2249ae599036b6af4f9e1dc1c531",
-      "effect": "mutation",
-      "classification": "leaf",
-      "adr": "0067",
-      "reason": "Guarded target record/byte command; preserve ambient scope, target validation and existing failure propagation. Target-local locks/savepoints alone do not establish a new source coordinator. Target modules/schoolmembership.Owner.DeleteGuest; modules/schoolmembership.Owner (supplied contract method). "
-    },
-    {
-      "source_owner": "people-directory",
-      "port": "github.com/moto-nrw/project-phoenix/modules/peopledirectory/ports.GuestRepository.FindByID",
-      "binding": "github.com/moto-nrw/project-phoenix/roots/owners.GuestMembershipRepository.FindByID",
-      "target": "github.com/moto-nrw/project-phoenix/modules/schoolmembership.Capability.FindGuest",
-      "target_owner": "school-membership",
-      "binding_digest": "38895d937021cda0e19417bb552a93c6",
-      "effect": "query",
-      "classification": "query",
-      "reason": "Reviewed read/value/construction method; no owned-row mutation or locking read at this terminal. Target modules/schoolmembership.Capability.FindGuest; modules/schoolmembership.Capability (supplied contract method). May-bind method surface, not a production-call/liveness claim."
-    },
-    {
-      "source_owner": "people-directory",
-      "port": "github.com/moto-nrw/project-phoenix/modules/peopledirectory/ports.GuestRepository.FindByID",
-      "binding": "github.com/moto-nrw/project-phoenix/roots/owners.GuestMembershipRepository.FindByID",
-      "target": "github.com/moto-nrw/project-phoenix/modules/schoolmembership.Owner.FindGuest",
-      "target_owner": "school-membership",
-      "binding_digest": "4a712630bdab610429cc8abaae8b93ef",
-      "effect": "query",
-      "classification": "query",
-      "reason": "Reviewed read/value/construction method; no owned-row mutation or locking read at this terminal. Target modules/schoolmembership.Owner.FindGuest; modules/schoolmembership.Owner (supplied contract method). May-bind method surface, not a production-call/liveness claim."
-    },
-    {
-      "source_owner": "people-directory",
-      "port": "github.com/moto-nrw/project-phoenix/modules/peopledirectory/ports.GuestRepository.FindByStaffID",
-      "binding": "github.com/moto-nrw/project-phoenix/roots/owners.GuestMembershipRepository.FindByStaffID",
-      "target": "github.com/moto-nrw/project-phoenix/modules/schoolmembership.Capability.FindGuestByStaff",
-      "target_owner": "school-membership",
-      "binding_digest": "5a128fe2378e1d9fe8ff05ee917df748",
-      "effect": "query",
-      "classification": "query",
-      "reason": "Reviewed read/value/construction method; no owned-row mutation or locking read at this terminal. Target modules/schoolmembership.Capability.FindGuestByStaff; modules/schoolmembership.Capability (supplied contract method). May-bind method surface, not a production-call/liveness claim."
-    },
-    {
-      "source_owner": "people-directory",
-      "port": "github.com/moto-nrw/project-phoenix/modules/peopledirectory/ports.GuestRepository.FindByStaffID",
-      "binding": "github.com/moto-nrw/project-phoenix/roots/owners.GuestMembershipRepository.FindByStaffID",
-      "target": "github.com/moto-nrw/project-phoenix/modules/schoolmembership.Owner.FindGuestByStaff",
-      "target_owner": "school-membership",
-      "binding_digest": "91fdfbc36944568b133ae2f91b3e882d",
-      "effect": "query",
-      "classification": "query",
-      "reason": "Reviewed read/value/construction method; no owned-row mutation or locking read at this terminal. Target modules/schoolmembership.Owner.FindGuestByStaff; modules/schoolmembership.Owner (supplied contract method). May-bind method surface, not a production-call/liveness claim."
-    },
-    {
-      "source_owner": "people-directory",
-      "port": "github.com/moto-nrw/project-phoenix/modules/peopledirectory/ports.GuestRepository.List",
-      "binding": "github.com/moto-nrw/project-phoenix/roots/owners.GuestMembershipRepository.List",
-      "target": "unresolved:callable:github.com/moto-nrw/project-phoenix/roots/owners.apply",
-      "target_owner": "",
-      "binding_digest": "d9d0f10e5a8c74f0812c4b87134cbebf",
-      "effect": "unresolved",
-      "classification": "unresolved",
-      "adr": "0083",
-      "approval_adr": "0091",
-      "reason": "Unresolved binding-flow boundary, not a query or approved leaf. Dynamic callable/parameter flow; typed assignments do not prove its runtime function target. Exact boundary: unresolved:callable:github.com/moto-nrw/project-phoenix/roots/owners.apply. See ADR 0083 domain-source expansion and reconciliation binding-flow follow-up. #4836 assignment-evidence review: fingerprint now includes typed callable assignments and referenced root helpers; existing unresolved boundary is retained, not approved as a query or leaf."
-    },
-    {
-      "source_owner": "people-directory",
-      "port": "github.com/moto-nrw/project-phoenix/modules/peopledirectory/ports.GuestRepository.List",
-      "binding": "github.com/moto-nrw/project-phoenix/roots/owners.GuestMembershipRepository.List",
-      "target": "unresolved:github.com/moto-nrw/project-phoenix/roots/owners.GuestMembershipRepository.listGuests",
-      "target_owner": "",
-      "binding_digest": "7df519faa25bbd031dedcb71486df144",
-      "effect": "unresolved",
-      "classification": "unresolved",
-      "adr": "0083",
-      "approval_adr": "0083",
-      "reason": "Unresolved binding-flow boundary, not a query or approved leaf. No indexed concrete method body/provider after typed forwarding (including instantiated generic adapters and anonymous interfaces). Exact boundary: unresolved:github.com/moto-nrw/project-phoenix/roots/owners.GuestMembershipRepository.listGuests. See ADR 0083 domain-source expansion and reconciliation binding-flow follow-up."
-    },
-    {
-      "source_owner": "people-directory",
-      "port": "github.com/moto-nrw/project-phoenix/modules/peopledirectory/ports.GuestRepository.Update",
-      "binding": "github.com/moto-nrw/project-phoenix/roots/owners.GuestMembershipRepository.Update",
-      "target": "github.com/moto-nrw/project-phoenix/modules/schoolmembership.Capability.UpdateGuest",
-      "target_owner": "school-membership",
-      "binding_digest": "07810452fc2bbb2421d6c0c4ede173b7",
-      "effect": "mutation",
-      "classification": "leaf",
-      "adr": "0067",
-      "reason": "Guarded target record/byte command; preserve ambient scope, target validation and existing failure propagation. Target-local locks/savepoints alone do not establish a new source coordinator. Target modules/schoolmembership.Capability.UpdateGuest; modules/schoolmembership.Capability (supplied contract method). "
-    },
-    {
-      "source_owner": "people-directory",
-      "port": "github.com/moto-nrw/project-phoenix/modules/peopledirectory/ports.GuestRepository.Update",
-      "binding": "github.com/moto-nrw/project-phoenix/roots/owners.GuestMembershipRepository.Update",
-      "target": "github.com/moto-nrw/project-phoenix/modules/schoolmembership.Owner.UpdateGuest",
-      "target_owner": "school-membership",
-      "binding_digest": "7a60c4cbe8e1306d1a32eef0c5319c0e",
-      "effect": "mutation",
-      "classification": "leaf",
-      "adr": "0067",
-      "reason": "Guarded target record/byte command; preserve ambient scope, target validation and existing failure propagation. Target-local locks/savepoints alone do not establish a new source coordinator. Target modules/schoolmembership.Owner.UpdateGuest; modules/schoolmembership.Owner (supplied contract method). "
     },
     {
       "source_owner": "people-directory",
@@ -24537,7 +24537,7 @@
       "effect": "mutation",
       "classification": "debt",
       "adr": "0083",
-      "approval_adr": "0091",
+      "approval_adr": "0092",
       "reason": "Workflow-backed direction-accounting debt #4825; not a new runtime exception. Workflow-backed, Schuld #4825: People BirthdayStore/StaffRepository reaches LiveStaffEmployment (staff_membership_adapters.go:545-551); not a normal leaf. E3 named People student/companion or staff-identity edit protocol. Preserve class gate, foreign row/cohort locks, in-lock checks and composite savepoint/best-effort caregiver behavior; hand rows 14-19, People student_write.go, student_enrollment.go, staff_directory.go. Target workflows/staffoffboarding.LiveStaffEmployment.SetBirthdayDisplayOptOut; workflows/staffoffboarding/live_staff_employment.go:42. "
     },
     {
@@ -24713,7 +24713,7 @@
       "effect": "unresolved",
       "classification": "unresolved",
       "adr": "0083",
-      "approval_adr": "0091",
+      "approval_adr": "0092",
       "reason": "Unresolved binding-flow boundary, not a query or approved leaf. Dynamic callable/parameter flow; typed assignments do not prove its runtime function target. Exact boundary: unresolved:callable:github.com/moto-nrw/project-phoenix/roots/owners.notify. See ADR 0083 domain-source expansion and reconciliation binding-flow follow-up. #4836 assignment-evidence review: fingerprint now includes typed callable assignments and referenced root helpers; existing unresolved boundary is retained, not approved as a query or leaf."
     },
     {
@@ -26815,7 +26815,7 @@
       "effect": "unresolved",
       "classification": "unresolved",
       "adr": "0083",
-      "approval_adr": "0091",
+      "approval_adr": "0092",
       "reason": "Unresolved binding-flow boundary, not a query or approved leaf. Dynamic callable/parameter flow; typed assignments do not prove its runtime function target. Exact boundary: unresolved:callable:github.com/moto-nrw/project-phoenix/roots/owners.apply. See ADR 0083 domain-source expansion and reconciliation binding-flow follow-up. #4836 assignment-evidence review: fingerprint now includes typed callable assignments and referenced root helpers; existing unresolved boundary is retained, not approved as a query or leaf."
     },
     {
@@ -28611,10 +28611,10 @@
       "binding": "github.com/moto-nrw/project-phoenix/roots/owners.calendarStaffPort.FindByPersonID",
       "target": "*github.com/moto-nrw/project-phoenix/modules/peopledirectory.Staff.SetTenantID",
       "target_owner": "people-directory",
-      "binding_digest": "7def96383a12555d95f36f4dfa4c6315",
+      "binding_digest": "202527b8c8fb68a5ee3f6d98722b85cd",
       "effect": "query",
       "classification": "query",
-      "reason": "Value-only tenant metadata setter on a returned DTO, not a database write or transaction-scope switch. Target modules/peopledirectory.Staff.SetTenantID; modules/peopledirectory/record_metadata.go:14. May-bind method surface, not a production-call/liveness claim."
+      "reason": "Value-only tenant metadata setter on a returned DTO, not a database write or transaction-scope switch. Target modules/peopledirectory.Staff.SetTenantID; modules/peopledirectory/record_metadata.go:14. May-bind method surface, not a production-call/liveness claim. Re-reviewed for #4573 (ADR 0091): staff hydration now sets the external caregiver marker instead of the guest flag; value mapping only, no owned-row mutation or locking read added."
     },
     {
       "source_owner": "school-calendar",
@@ -28690,10 +28690,10 @@
       "binding": "github.com/moto-nrw/project-phoenix/roots/owners.calendarStaffPort.FindWithPersonByIDs",
       "target": "*github.com/moto-nrw/project-phoenix/modules/peopledirectory.Staff.SetTenantID",
       "target_owner": "people-directory",
-      "binding_digest": "e24a35b20778b6a8725b0ca4a9b57c57",
+      "binding_digest": "7f2cb87eb49f39d7900843a38dd74da7",
       "effect": "query",
       "classification": "query",
-      "reason": "Value-only tenant metadata setter on a returned DTO, not a database write or transaction-scope switch. Target modules/peopledirectory.Staff.SetTenantID; modules/peopledirectory/record_metadata.go:14. May-bind method surface, not a production-call/liveness claim."
+      "reason": "Value-only tenant metadata setter on a returned DTO, not a database write or transaction-scope switch. Target modules/peopledirectory.Staff.SetTenantID; modules/peopledirectory/record_metadata.go:14. May-bind method surface, not a production-call/liveness claim. Re-reviewed for #4573 (ADR 0091): staff hydration now sets the external caregiver marker instead of the guest flag; value mapping only, no owned-row mutation or locking read added."
     },
     {
       "source_owner": "school-calendar",
@@ -28760,10 +28760,10 @@
       "binding": "github.com/moto-nrw/project-phoenix/roots/owners.calendarStaffPort.ListAllWithPerson",
       "target": "*github.com/moto-nrw/project-phoenix/modules/peopledirectory.Staff.SetTenantID",
       "target_owner": "people-directory",
-      "binding_digest": "e5f8b1fc832ae666a1d795cd0b5f1528",
+      "binding_digest": "eb2d459d7cd5aa6c5dd793fdd4d9bc12",
       "effect": "query",
       "classification": "query",
-      "reason": "Value-only tenant metadata setter on a returned DTO, not a database write or transaction-scope switch. Target modules/peopledirectory.Staff.SetTenantID; modules/peopledirectory/record_metadata.go:14. May-bind method surface, not a production-call/liveness claim."
+      "reason": "Value-only tenant metadata setter on a returned DTO, not a database write or transaction-scope switch. Target modules/peopledirectory.Staff.SetTenantID; modules/peopledirectory/record_metadata.go:14. May-bind method surface, not a production-call/liveness claim. Re-reviewed for #4573 (ADR 0091): staff hydration now sets the external caregiver marker instead of the guest flag; value mapping only, no owned-row mutation or locking read added."
     },
     {
       "source_owner": "school-calendar",
@@ -29511,7 +29511,7 @@
       "effect": "mutation",
       "classification": "debt",
       "adr": "0083",
-      "approval_adr": "0091",
+      "approval_adr": "0092",
       "reason": "Workflow-backed direction-accounting debt #4825; not a new runtime exception. Workflow-backed, known runtime-direction debt beyond the finite Roster/Bookings exception; no new ADR exception. Proposed follow-up: root-owned workflow entry or relocate the consumed capability to its domain/projection owner. See reconciliation callback audit. Guarded target record/byte command; preserve ambient scope, target validation and existing failure propagation. Target-local locks/savepoints alone do not establish a new source coordinator. Target workflows/shiftplansync/internal/application.SubstitutionAdapter.Assign; workflows/shiftplansync/internal/application/substitution.go:200. "
     },
     {
@@ -29524,7 +29524,7 @@
       "effect": "mutation",
       "classification": "debt",
       "adr": "0083",
-      "approval_adr": "0091",
+      "approval_adr": "0092",
       "reason": "Workflow-backed direction-accounting debt #4825; not a new runtime exception. Workflow-backed, known runtime-direction debt beyond the finite Roster/Bookings exception; no new ADR exception. Proposed follow-up: root-owned workflow entry or relocate the consumed capability to its domain/projection owner. See reconciliation callback audit. Guarded target record/byte command; preserve ambient scope, target validation and existing failure propagation. Target-local locks/savepoints alone do not establish a new source coordinator. Target workflows/shiftplansync/internal/application.SubstitutionAdapter.End; workflows/shiftplansync/internal/application/substitution.go:260. "
     },
     {
@@ -29955,21 +29955,21 @@
       "binding": "github.com/moto-nrw/project-phoenix/roots/owners.EducationExternalCaregivers.ListExternalCaregivers",
       "target": "*github.com/moto-nrw/project-phoenix/modules/peopledirectory.Staff.SetTenantID",
       "target_owner": "people-directory",
-      "binding_digest": "99ad2614f1afd65a9dea810beff00c3a",
+      "binding_digest": "05ae1ae67ddbcb64760e0874957bcf3d",
       "effect": "query",
       "classification": "query",
-      "reason": "Value-only tenant metadata setter on a returned DTO, not a database write or transaction-scope switch. Target modules/peopledirectory.Staff.SetTenantID; modules/peopledirectory/record_metadata.go:14. May-bind method surface, not a production-call/liveness claim."
+      "reason": "Value-only tenant metadata setter on a returned DTO, not a database write or transaction-scope switch. Target modules/peopledirectory.Staff.SetTenantID; modules/peopledirectory/record_metadata.go:14. May-bind method surface, not a production-call/liveness claim. Re-reviewed for #4573 (ADR 0091): staff hydration now sets the external caregiver marker instead of the guest flag; value mapping only, no owned-row mutation or locking read added."
     },
     {
       "source_owner": "school-structure",
       "port": "github.com/moto-nrw/project-phoenix/modules/schoolstructure/internal/application/groups.ExternalCaregiverDirectory.ListExternalCaregivers",
       "binding": "github.com/moto-nrw/project-phoenix/roots/owners.EducationExternalCaregivers.ListExternalCaregivers",
-      "target": "github.com/moto-nrw/project-phoenix/modules/peopledirectory/ports.GuestRepository.ActiveGuests",
+      "target": "github.com/moto-nrw/project-phoenix/modules/peopledirectory/ports.ExternalCaregiverRecordRepository.ActiveExternalCaregiverRecords",
       "target_owner": "people-directory",
-      "binding_digest": "5d2e4c0d9e7a47aa4e0b76a2092edeef",
+      "binding_digest": "9dad041d0c53af3a0f419d7165d38ca0",
       "effect": "query",
       "classification": "query",
-      "reason": "Reviewed read/value/construction method; no owned-row mutation or locking read at this terminal. Target modules/peopledirectory/ports.GuestRepository.ActiveGuests; modules/peopledirectory/ports/repository_contracts.go:341. May-bind method surface, not a production-call/liveness claim."
+      "reason": "Reviewed read/value/construction method; no owned-row mutation or locking read at this terminal. Target modules/peopledirectory/ports.ExternalCaregiverRecordRepository.ActiveExternalCaregiverRecords; modules/peopledirectory/ports/repository_contracts.go:341. May-bind method surface, not a production-call/liveness claim."
     },
     {
       "source_owner": "school-structure",
@@ -29977,10 +29977,10 @@
       "binding": "github.com/moto-nrw/project-phoenix/roots/owners.EducationExternalCaregivers.ListExternalCaregivers",
       "target": "github.com/moto-nrw/project-phoenix/modules/peopledirectory/ports.StaffRepository.ListAllWithPerson",
       "target_owner": "people-directory",
-      "binding_digest": "d18b1f97d2ec0fae8a362ae0655c3c5c",
+      "binding_digest": "a968cc7ad16a06d4135caac6857d14c1",
       "effect": "query",
       "classification": "query",
-      "reason": "Reviewed read/value/construction method; no owned-row mutation or locking read at this terminal. Target modules/peopledirectory/ports.StaffRepository.ListAllWithPerson; modules/peopledirectory/ports/repository_contracts.go:240. May-bind method surface, not a production-call/liveness claim."
+      "reason": "Reviewed read/value/construction method; no owned-row mutation or locking read at this terminal. Target modules/peopledirectory/ports.StaffRepository.ListAllWithPerson; modules/peopledirectory/ports/repository_contracts.go:240. May-bind method surface, not a production-call/liveness claim. Re-reviewed for #4573 (ADR 0091): staff hydration now sets the external caregiver marker instead of the guest flag; value mapping only, no owned-row mutation or locking read added."
     },
     {
       "source_owner": "school-structure",
@@ -29988,10 +29988,10 @@
       "binding": "github.com/moto-nrw/project-phoenix/roots/owners.EducationExternalCaregivers.ListExternalCaregivers",
       "target": "github.com/moto-nrw/project-phoenix/modules/schoolmembership.ActiveExternalCaregivers",
       "target_owner": "school-membership",
-      "binding_digest": "7c69e054e699646eddc2e1ac0053592d",
+      "binding_digest": "e73c4c51d790a07a3948d3bf9d588af1",
       "effect": "query",
       "classification": "query",
-      "reason": "Reviewed read/value/construction method; no owned-row mutation or locking read at this terminal. Target modules/schoolmembership.ActiveExternalCaregivers; modules/schoolmembership/external_caregivers.go:30. May-bind method surface, not a production-call/liveness claim."
+      "reason": "Reviewed read/value/construction method; no owned-row mutation or locking read at this terminal. Target modules/schoolmembership.ActiveExternalCaregivers; modules/schoolmembership/external_caregivers.go:30. May-bind method surface, not a production-call/liveness claim. Re-reviewed for #4573 (ADR 0091): staff hydration now sets the external caregiver marker instead of the guest flag; value mapping only, no owned-row mutation or locking read added."
     },
     {
       "source_owner": "school-structure",
@@ -29999,10 +29999,10 @@
       "binding": "github.com/moto-nrw/project-phoenix/roots/owners.EducationExternalCaregivers.ListExternalCaregivers",
       "target": "github.com/moto-nrw/project-phoenix/modules/schoolmembership.Capability.ListStaff",
       "target_owner": "school-membership",
-      "binding_digest": "f5bbcc8ea79e8fc212452d2836f53a02",
+      "binding_digest": "2694de89746a8201affed98a63af92db",
       "effect": "query",
       "classification": "query",
-      "reason": "Reviewed read/value/construction method; no owned-row mutation or locking read at this terminal. Target modules/schoolmembership.Capability.ListStaff; modules/schoolmembership.Capability (supplied contract method). May-bind method surface, not a production-call/liveness claim."
+      "reason": "Reviewed read/value/construction method; no owned-row mutation or locking read at this terminal. Target modules/schoolmembership.Capability.ListStaff; modules/schoolmembership.Capability (supplied contract method). May-bind method surface, not a production-call/liveness claim. Re-reviewed for #4573 (ADR 0091): staff hydration now sets the external caregiver marker instead of the guest flag; value mapping only, no owned-row mutation or locking read added."
     },
     {
       "source_owner": "school-structure",
@@ -30010,23 +30010,36 @@
       "binding": "github.com/moto-nrw/project-phoenix/roots/owners.EducationExternalCaregivers.ListExternalCaregivers",
       "target": "github.com/moto-nrw/project-phoenix/modules/schoolmembership.Owner.ListStaff",
       "target_owner": "school-membership",
-      "binding_digest": "48f0b50f73ef38c459dba47fb106357f",
+      "binding_digest": "e0d7aaef1bd7b5b1da85523f2ac3c87a",
       "effect": "query",
       "classification": "query",
-      "reason": "Reviewed read/value/construction method; no owned-row mutation or locking read at this terminal. Target modules/schoolmembership.Owner.ListStaff; modules/schoolmembership.Owner (supplied contract method). May-bind method surface, not a production-call/liveness claim."
+      "reason": "Reviewed read/value/construction method; no owned-row mutation or locking read at this terminal. Target modules/schoolmembership.Owner.ListStaff; modules/schoolmembership.Owner (supplied contract method). May-bind method surface, not a production-call/liveness claim. Re-reviewed for #4573 (ADR 0091): staff hydration now sets the external caregiver marker instead of the guest flag; value mapping only, no owned-row mutation or locking read added."
     },
     {
       "source_owner": "school-structure",
       "port": "github.com/moto-nrw/project-phoenix/modules/schoolstructure/internal/application/groups.ExternalCaregiverDirectory.ListExternalCaregivers",
       "binding": "github.com/moto-nrw/project-phoenix/roots/owners.EducationExternalCaregivers.ListExternalCaregivers",
-      "target": "unresolved:github.com/moto-nrw/project-phoenix/roots/owners.GuestMembershipRepository.listGuests",
+      "target": "unresolved:github.com/moto-nrw/project-phoenix/roots/owners.EducationExternalCaregivers.markOpenInvitations",
       "target_owner": "",
-      "binding_digest": "4e1c32b79dfafff81e32c9a2cfda254b",
+      "binding_digest": "e032bde638552fa0526102ce2b443611",
       "effect": "unresolved",
       "classification": "unresolved",
       "adr": "0083",
-      "approval_adr": "0083",
-      "reason": "Unresolved binding-flow boundary, not a query or approved leaf. No indexed concrete method body/provider after typed forwarding (including instantiated generic adapters and anonymous interfaces). Exact boundary: unresolved:github.com/moto-nrw/project-phoenix/roots/owners.GuestMembershipRepository.listGuests. See ADR 0083 domain-source expansion and reconciliation binding-flow follow-up."
+      "approval_adr": "0091",
+      "reason": "Unresolved binding-flow boundary, not a query or approved leaf. No indexed concrete method body/provider after typed forwarding (including instantiated generic adapters and anonymous interfaces). Exact boundary: unresolved:github.com/moto-nrw/project-phoenix/roots/owners.EducationExternalCaregivers.markOpenInvitations. See ADR 0083 domain-source expansion and reconciliation binding-flow follow-up."
+    },
+    {
+      "source_owner": "school-structure",
+      "port": "github.com/moto-nrw/project-phoenix/modules/schoolstructure/internal/application/groups.ExternalCaregiverDirectory.ListExternalCaregivers",
+      "binding": "github.com/moto-nrw/project-phoenix/roots/owners.EducationExternalCaregivers.ListExternalCaregivers",
+      "target": "unresolved:github.com/moto-nrw/project-phoenix/roots/owners.ExternalCaregiverRecordMembershipRepository.listExternalCaregiverRecords",
+      "target_owner": "",
+      "binding_digest": "b16f3fc7c0a4d4295fb2a7829730e19c",
+      "effect": "unresolved",
+      "classification": "unresolved",
+      "adr": "0083",
+      "approval_adr": "0091",
+      "reason": "Unresolved binding-flow boundary, not a query or approved leaf. No indexed concrete method body/provider after typed forwarding (including instantiated generic adapters and anonymous interfaces). Exact boundary: unresolved:github.com/moto-nrw/project-phoenix/roots/owners.ExternalCaregiverRecordMembershipRepository.listExternalCaregiverRecords. See ADR 0083 domain-source expansion and reconciliation binding-flow follow-up."
     },
     {
       "source_owner": "school-structure",
@@ -30034,12 +30047,12 @@
       "binding": "github.com/moto-nrw/project-phoenix/roots/owners.EducationExternalCaregivers.ListExternalCaregivers",
       "target": "unresolved:github.com/moto-nrw/project-phoenix/roots/owners.StaffMembershipRepository.hydrateStaffPersons",
       "target_owner": "",
-      "binding_digest": "2fb120ebc599787472ac202ca7ae6055",
+      "binding_digest": "68916649750b88a70395bd499ef0d8e4",
       "effect": "unresolved",
       "classification": "unresolved",
       "adr": "0083",
-      "approval_adr": "0083",
-      "reason": "Unresolved binding-flow boundary, not a query or approved leaf. No indexed concrete method body/provider after typed forwarding (including instantiated generic adapters and anonymous interfaces). Exact boundary: unresolved:github.com/moto-nrw/project-phoenix/roots/owners.StaffMembershipRepository.hydrateStaffPersons. See ADR 0083 domain-source expansion and reconciliation binding-flow follow-up."
+      "approval_adr": "0091",
+      "reason": "Unresolved binding-flow boundary, not a query or approved leaf. No indexed concrete method body/provider after typed forwarding (including instantiated generic adapters and anonymous interfaces). Exact boundary: unresolved:github.com/moto-nrw/project-phoenix/roots/owners.StaffMembershipRepository.hydrateStaffPersons. See ADR 0083 domain-source expansion and reconciliation binding-flow follow-up. Re-reviewed for #4573 (ADR 0091): staff hydration now sets the external caregiver marker instead of the guest flag; value mapping only, no owned-row mutation or locking read added."
     },
     {
       "source_owner": "school-structure",
@@ -30051,7 +30064,7 @@
       "effect": "mutation",
       "classification": "debt",
       "adr": "0083",
-      "approval_adr": "0091",
+      "approval_adr": "0092",
       "reason": "Workflow-backed direction-accounting debt #4825; not a new runtime exception. Workflow-backed, known runtime-direction debt beyond the finite Roster/Bookings exception; no new ADR exception. Proposed follow-up: root-owned workflow entry or relocate the consumed capability to its domain/projection owner. See reconciliation callback audit. Guarded target record/byte command; preserve ambient scope, target validation and existing failure propagation. Target-local locks/savepoints alone do not establish a new source coordinator. Target workflows/shiftplansync.GroupHandovers.CreateHandover; workflows/shiftplansync/group_handover.go:39. "
     },
     {
@@ -30064,7 +30077,7 @@
       "effect": "mutation",
       "classification": "debt",
       "adr": "0083",
-      "approval_adr": "0091",
+      "approval_adr": "0092",
       "reason": "Workflow-backed direction-accounting debt #4825; not a new runtime exception. Workflow-backed, known runtime-direction debt beyond the finite Roster/Bookings exception; no new ADR exception. Proposed follow-up: root-owned workflow entry or relocate the consumed capability to its domain/projection owner. See reconciliation callback audit. Guarded target record/byte command; preserve ambient scope, target validation and existing failure propagation. Target-local locks/savepoints alone do not establish a new source coordinator. Target workflows/shiftplansync.GroupHandovers.DeleteHandover; workflows/shiftplansync/group_handover.go:48. "
     },
     {
@@ -30526,10 +30539,10 @@
       "binding": "github.com/moto-nrw/project-phoenix/roots/owners.EducationStaff.StaffExists",
       "target": "*github.com/moto-nrw/project-phoenix/modules/peopledirectory.Staff.SetTenantID",
       "target_owner": "people-directory",
-      "binding_digest": "ff4afb223a0bbf3635ad4161645a3b08",
+      "binding_digest": "0a39b2192895fc73a27a47dc5dd42e62",
       "effect": "query",
       "classification": "query",
-      "reason": "Value-only tenant metadata setter on a returned DTO, not a database write or transaction-scope switch. Target modules/peopledirectory.Staff.SetTenantID; modules/peopledirectory/record_metadata.go:14. May-bind method surface, not a production-call/liveness claim."
+      "reason": "Value-only tenant metadata setter on a returned DTO, not a database write or transaction-scope switch. Target modules/peopledirectory.Staff.SetTenantID; modules/peopledirectory/record_metadata.go:14. May-bind method surface, not a production-call/liveness claim. Re-reviewed for #4573 (ADR 0091): staff hydration now sets the external caregiver marker instead of the guest flag; value mapping only, no owned-row mutation or locking read added."
     },
     {
       "source_owner": "school-structure",
@@ -30581,10 +30594,10 @@
       "binding": "interface{github.com/moto-nrw/project-phoenix/modules/schoolstructure/compose.StaffDirectory; github.com/moto-nrw/project-phoenix/modules/schoolstructure/compose.StaffLockStore}.StaffExists",
       "target": "*github.com/moto-nrw/project-phoenix/modules/peopledirectory.Staff.SetTenantID",
       "target_owner": "people-directory",
-      "binding_digest": "ff4afb223a0bbf3635ad4161645a3b08",
+      "binding_digest": "0a39b2192895fc73a27a47dc5dd42e62",
       "effect": "query",
       "classification": "query",
-      "reason": "Value-only tenant metadata setter on a returned DTO, not a database write or transaction-scope switch. Target modules/peopledirectory.Staff.SetTenantID; modules/peopledirectory/record_metadata.go:14. May-bind method surface, not a production-call/liveness claim."
+      "reason": "Value-only tenant metadata setter on a returned DTO, not a database write or transaction-scope switch. Target modules/peopledirectory.Staff.SetTenantID; modules/peopledirectory/record_metadata.go:14. May-bind method surface, not a production-call/liveness claim. Re-reviewed for #4573 (ADR 0091): staff hydration now sets the external caregiver marker instead of the guest flag; value mapping only, no owned-row mutation or locking read added."
     },
     {
       "source_owner": "school-structure",
@@ -30636,10 +30649,10 @@
       "binding": "github.com/moto-nrw/project-phoenix/roots/owners.EducationStaff.LockStaff",
       "target": "*github.com/moto-nrw/project-phoenix/modules/peopledirectory.Staff.SetTenantID",
       "target_owner": "people-directory",
-      "binding_digest": "bc37a622f70e912ef8b6ea1de80d4794",
+      "binding_digest": "d099e6556f613db872863b12ec6cff3e",
       "effect": "query",
       "classification": "query",
-      "reason": "Value-only tenant metadata setter on a returned DTO, not a database write or transaction-scope switch. Target modules/peopledirectory.Staff.SetTenantID; modules/peopledirectory/record_metadata.go:14. May-bind method surface, not a production-call/liveness claim."
+      "reason": "Value-only tenant metadata setter on a returned DTO, not a database write or transaction-scope switch. Target modules/peopledirectory.Staff.SetTenantID; modules/peopledirectory/record_metadata.go:14. May-bind method surface, not a production-call/liveness claim. Re-reviewed for #4573 (ADR 0091): staff hydration now sets the external caregiver marker instead of the guest flag; value mapping only, no owned-row mutation or locking read added."
     },
     {
       "source_owner": "school-structure",
@@ -30683,10 +30696,10 @@
       "binding": "interface{github.com/moto-nrw/project-phoenix/modules/schoolstructure/compose.StaffDirectory; github.com/moto-nrw/project-phoenix/modules/schoolstructure/compose.StaffLockStore}.LockStaff",
       "target": "*github.com/moto-nrw/project-phoenix/modules/peopledirectory.Staff.SetTenantID",
       "target_owner": "people-directory",
-      "binding_digest": "bc37a622f70e912ef8b6ea1de80d4794",
+      "binding_digest": "d099e6556f613db872863b12ec6cff3e",
       "effect": "query",
       "classification": "query",
-      "reason": "Value-only tenant metadata setter on a returned DTO, not a database write or transaction-scope switch. Target modules/peopledirectory.Staff.SetTenantID; modules/peopledirectory/record_metadata.go:14. May-bind method surface, not a production-call/liveness claim."
+      "reason": "Value-only tenant metadata setter on a returned DTO, not a database write or transaction-scope switch. Target modules/peopledirectory.Staff.SetTenantID; modules/peopledirectory/record_metadata.go:14. May-bind method surface, not a production-call/liveness claim. Re-reviewed for #4573 (ADR 0091): staff hydration now sets the external caregiver marker instead of the guest flag; value mapping only, no owned-row mutation or locking read added."
     },
     {
       "source_owner": "school-structure",
@@ -40082,7 +40095,7 @@
       "effect": "unresolved",
       "classification": "unresolved",
       "adr": "0083",
-      "approval_adr": "0091",
+      "approval_adr": "0092",
       "reason": "Unresolved binding-flow boundary, not a query or approved leaf. Function-valued field; callable instance flow is deferred. Exact boundary: unresolved:function:*github.com/moto-nrw/project-phoenix/api.statusDayStudents.authorize. See ADR 0083 domain-source expansion and reconciliation binding-flow follow-up. #4836 assignment-evidence review: fingerprint now includes typed callable assignments and referenced root helpers; existing unresolved boundary is retained, not approved as a query or leaf."
     },
     {
@@ -40747,10 +40760,10 @@
       "binding": "github.com/moto-nrw/project-phoenix/api.activePeople.GetStaffByPersonID",
       "target": "*github.com/moto-nrw/project-phoenix/modules/peopledirectory.Staff.SetTenantID",
       "target_owner": "people-directory",
-      "binding_digest": "44497a88e46379e800ed10035a60cbd8",
+      "binding_digest": "55748e53f7e6146a9081237bf0c07bf2",
       "effect": "query",
       "classification": "query",
-      "reason": "Value-only tenant metadata setter on a returned DTO, not a database write or transaction-scope switch. Target modules/peopledirectory.Staff.SetTenantID; modules/peopledirectory/record_metadata.go:14. May-bind method surface, not a production-call/liveness claim."
+      "reason": "Value-only tenant metadata setter on a returned DTO, not a database write or transaction-scope switch. Target modules/peopledirectory.Staff.SetTenantID; modules/peopledirectory/record_metadata.go:14. May-bind method surface, not a production-call/liveness claim. Re-reviewed for #4573 (ADR 0091): staff hydration now sets the external caregiver marker instead of the guest flag; value mapping only, no owned-row mutation or locking read added."
     },
     {
       "source_owner": "student-presence",
@@ -41108,10 +41121,10 @@
       "binding": "github.com/moto-nrw/project-phoenix/roots/owners.attendanceStaffDirectory.ExistingStaffIDs",
       "target": "*github.com/moto-nrw/project-phoenix/modules/peopledirectory.Staff.SetTenantID",
       "target_owner": "people-directory",
-      "binding_digest": "120322b5b130f2006ee3c7c598d12890",
+      "binding_digest": "bf9c7f96d9d454f3b73062acf21a01e0",
       "effect": "query",
       "classification": "query",
-      "reason": "Value-only tenant metadata setter on a returned DTO, not a database write or transaction-scope switch. Target modules/peopledirectory.Staff.SetTenantID; modules/peopledirectory/record_metadata.go:14. May-bind method surface, not a production-call/liveness claim."
+      "reason": "Value-only tenant metadata setter on a returned DTO, not a database write or transaction-scope switch. Target modules/peopledirectory.Staff.SetTenantID; modules/peopledirectory/record_metadata.go:14. May-bind method surface, not a production-call/liveness claim. Re-reviewed for #4573 (ADR 0091): staff hydration now sets the external caregiver marker instead of the guest flag; value mapping only, no owned-row mutation or locking read added."
     },
     {
       "source_owner": "student-presence",
@@ -41152,10 +41165,10 @@
       "binding": "github.com/moto-nrw/project-phoenix/roots/owners.attendanceStaffDirectory.LockStaffExists",
       "target": "*github.com/moto-nrw/project-phoenix/modules/peopledirectory.Staff.SetTenantID",
       "target_owner": "people-directory",
-      "binding_digest": "bb0d49fd9fe77e8cf0351dfa87927c86",
+      "binding_digest": "0ba1abda5af9e72519a2386f99dd4f6c",
       "effect": "query",
       "classification": "query",
-      "reason": "Value-only tenant metadata setter on a returned DTO, not a database write or transaction-scope switch. Target modules/peopledirectory.Staff.SetTenantID; modules/peopledirectory/record_metadata.go:14. May-bind method surface, not a production-call/liveness claim."
+      "reason": "Value-only tenant metadata setter on a returned DTO, not a database write or transaction-scope switch. Target modules/peopledirectory.Staff.SetTenantID; modules/peopledirectory/record_metadata.go:14. May-bind method surface, not a production-call/liveness claim. Re-reviewed for #4573 (ADR 0091): staff hydration now sets the external caregiver marker instead of the guest flag; value mapping only, no owned-row mutation or locking read added."
     },
     {
       "source_owner": "student-presence",
@@ -41199,10 +41212,10 @@
       "binding": "github.com/moto-nrw/project-phoenix/roots/owners.attendanceStaffDirectory.StaffTenantID",
       "target": "*github.com/moto-nrw/project-phoenix/modules/peopledirectory.Staff.SetTenantID",
       "target_owner": "people-directory",
-      "binding_digest": "c56dca3a972e8a3423aa73569c3efdb0",
+      "binding_digest": "610330835811c187bbf4c3e29a40c58a",
       "effect": "query",
       "classification": "query",
-      "reason": "Value-only tenant metadata setter on a returned DTO, not a database write or transaction-scope switch. Target modules/peopledirectory.Staff.SetTenantID; modules/peopledirectory/record_metadata.go:14. May-bind method surface, not a production-call/liveness claim."
+      "reason": "Value-only tenant metadata setter on a returned DTO, not a database write or transaction-scope switch. Target modules/peopledirectory.Staff.SetTenantID; modules/peopledirectory/record_metadata.go:14. May-bind method surface, not a production-call/liveness claim. Re-reviewed for #4573 (ADR 0091): staff hydration now sets the external caregiver marker instead of the guest flag; value mapping only, no owned-row mutation or locking read added."
     },
     {
       "source_owner": "student-presence",
@@ -41254,10 +41267,10 @@
       "binding": "github.com/moto-nrw/project-phoenix/roots/owners.attendanceStaffNames.StaffName",
       "target": "*github.com/moto-nrw/project-phoenix/modules/peopledirectory.Staff.SetTenantID",
       "target_owner": "people-directory",
-      "binding_digest": "1108f8db71b2032ec46cc0173689668b",
+      "binding_digest": "5326a7feaf4eb4c3bfe0f65064f79ce9",
       "effect": "query",
       "classification": "query",
-      "reason": "Value-only tenant metadata setter on a returned DTO, not a database write or transaction-scope switch. Target modules/peopledirectory.Staff.SetTenantID; modules/peopledirectory/record_metadata.go:14. May-bind method surface, not a production-call/liveness claim."
+      "reason": "Value-only tenant metadata setter on a returned DTO, not a database write or transaction-scope switch. Target modules/peopledirectory.Staff.SetTenantID; modules/peopledirectory/record_metadata.go:14. May-bind method surface, not a production-call/liveness claim. Re-reviewed for #4573 (ADR 0091): staff hydration now sets the external caregiver marker instead of the guest flag; value mapping only, no owned-row mutation or locking read added."
     },
     {
       "source_owner": "student-presence",
@@ -41756,7 +41769,7 @@
       "effect": "unresolved",
       "classification": "unresolved",
       "adr": "0083",
-      "approval_adr": "0091",
+      "approval_adr": "0092",
       "reason": "Unresolved binding-flow boundary, not a query or approved leaf. Function-valued field; callable instance flow is deferred. Exact boundary: unresolved:function:github.com/moto-nrw/project-phoenix/roots/owners.sessionDevices.window. See ADR 0083 domain-source expansion and reconciliation binding-flow follow-up. #4836 assignment-evidence review: fingerprint now includes typed callable assignments and referenced root helpers; existing unresolved boundary is retained, not approved as a query or leaf."
     },
     {
@@ -53283,7 +53296,7 @@
       "effect": "mutation",
       "classification": "debt",
       "adr": "0083",
-      "approval_adr": "0091",
+      "approval_adr": "0092",
       "reason": "Workflow-backed direction-accounting debt #4825; not a new runtime exception. Workflow-backed outer HTTP entry supplied by the root (Care resumption / Timetable pickup-extension command), not evidence of a domain-application callback. Full supplied contract methods are retained, including unused promoted methods. Guarded target record/byte command; preserve ambient scope, target validation and existing failure propagation. Target-local locks/savepoints alone do not establish a new source coordinator. Target workflows/careexit.pickupExtensions.ClearPickupDayExtension; workflows/careexit.pickupExtensions (supplied contract method). "
     },
     {
@@ -53296,7 +53309,7 @@
       "effect": "mutation",
       "classification": "debt",
       "adr": "0083",
-      "approval_adr": "0091",
+      "approval_adr": "0092",
       "reason": "Workflow-backed direction-accounting debt #4825; not a new runtime exception. Workflow-backed outer HTTP entry supplied by the root (Care resumption / Timetable pickup-extension command), not evidence of a domain-application callback. Full supplied contract methods are retained, including unused promoted methods. Guarded target record/byte command; preserve ambient scope, target validation and existing failure propagation. Target-local locks/savepoints alone do not establish a new source coordinator. Target workflows/careexit.pickupExtensions.ClearPickupWeekdayExtension; workflows/careexit.pickupExtensions (supplied contract method). "
     },
     {
@@ -53331,7 +53344,7 @@
       "effect": "mutation",
       "classification": "debt",
       "adr": "0083",
-      "approval_adr": "0091",
+      "approval_adr": "0092",
       "reason": "Workflow-backed direction-accounting debt #4825; not a new runtime exception. Workflow-backed outer HTTP entry supplied by the root (Care resumption / Timetable pickup-extension command), not evidence of a domain-application callback. Full supplied contract methods are retained, including unused promoted methods. Guarded target record/byte command; preserve ambient scope, target validation and existing failure propagation. Target-local locks/savepoints alone do not establish a new source coordinator. Target workflows/careexit.pickupExtensions.RecordPickupDayExtension; workflows/careexit.pickupExtensions (supplied contract method). "
     },
     {
@@ -53344,7 +53357,7 @@
       "effect": "mutation",
       "classification": "debt",
       "adr": "0083",
-      "approval_adr": "0091",
+      "approval_adr": "0092",
       "reason": "Workflow-backed direction-accounting debt #4825; not a new runtime exception. Workflow-backed outer HTTP entry supplied by the root (Care resumption / Timetable pickup-extension command), not evidence of a domain-application callback. Full supplied contract methods are retained, including unused promoted methods. Guarded target record/byte command; preserve ambient scope, target validation and existing failure propagation. Target-local locks/savepoints alone do not establish a new source coordinator. Target workflows/careexit.pickupExtensions.RecordPickupWeekdayExtension; workflows/careexit.pickupExtensions (supplied contract method). "
     },
     {
@@ -53357,7 +53370,7 @@
       "effect": "mutation",
       "classification": "debt",
       "adr": "0083",
-      "approval_adr": "0091",
+      "approval_adr": "0092",
       "reason": "Workflow-backed direction-accounting debt #4825; not a new runtime exception. Workflow-backed outer HTTP entry supplied by the root (Care resumption / Timetable pickup-extension command), not evidence of a domain-application callback. Full supplied contract methods are retained, including unused promoted methods. Guarded target record/byte command; preserve ambient scope, target validation and existing failure propagation. Target-local locks/savepoints alone do not establish a new source coordinator. Target workflows/careexit.pickupExtensions.ResolvePickupExtension; workflows/careexit/pickup_extensions.go:41. "
     },
     {
@@ -53915,10 +53928,10 @@
       "binding": "github.com/moto-nrw/project-phoenix/api.TimetablePeople.PersonStaffID",
       "target": "*github.com/moto-nrw/project-phoenix/modules/peopledirectory.Staff.SetTenantID",
       "target_owner": "people-directory",
-      "binding_digest": "13fae66a595fa88b011e56e0d302eeaf",
+      "binding_digest": "69b1c04fe5bc06890d638c838427b2cf",
       "effect": "query",
       "classification": "query",
-      "reason": "Value-only tenant metadata setter on a returned DTO, not a database write or transaction-scope switch. Target modules/peopledirectory.Staff.SetTenantID; modules/peopledirectory/record_metadata.go:14. May-bind method surface, not a production-call/liveness claim."
+      "reason": "Value-only tenant metadata setter on a returned DTO, not a database write or transaction-scope switch. Target modules/peopledirectory.Staff.SetTenantID; modules/peopledirectory/record_metadata.go:14. May-bind method surface, not a production-call/liveness claim. Re-reviewed for #4573 (ADR 0091): staff hydration now sets the external caregiver marker instead of the guest flag; value mapping only, no owned-row mutation or locking read added."
     },
     {
       "source_owner": "timetable-activities",
@@ -53981,10 +53994,10 @@
       "binding": "github.com/moto-nrw/project-phoenix/api.TimetablePeople.StaffNames",
       "target": "*github.com/moto-nrw/project-phoenix/modules/peopledirectory.Staff.SetTenantID",
       "target_owner": "people-directory",
-      "binding_digest": "f81cd2870667986a9f32cfbe451f5193",
+      "binding_digest": "c1bda4dc7dd1cad6766bd2eb9469be4d",
       "effect": "query",
       "classification": "query",
-      "reason": "Value-only tenant metadata setter on a returned DTO, not a database write or transaction-scope switch. Target modules/peopledirectory.Staff.SetTenantID; modules/peopledirectory/record_metadata.go:14. May-bind method surface, not a production-call/liveness claim."
+      "reason": "Value-only tenant metadata setter on a returned DTO, not a database write or transaction-scope switch. Target modules/peopledirectory.Staff.SetTenantID; modules/peopledirectory/record_metadata.go:14. May-bind method surface, not a production-call/liveness claim. Re-reviewed for #4573 (ADR 0091): staff hydration now sets the external caregiver marker instead of the guest flag; value mapping only, no owned-row mutation or locking read added."
     },
     {
       "source_owner": "timetable-activities",
@@ -54049,10 +54062,10 @@
       "binding": "github.com/moto-nrw/project-phoenix/api.TimetablePeople.StaffPersonID",
       "target": "*github.com/moto-nrw/project-phoenix/modules/peopledirectory.Staff.SetTenantID",
       "target_owner": "people-directory",
-      "binding_digest": "a70dc3b4c4c9e61fb6931572200735a2",
+      "binding_digest": "cc19777b0a9a8bbee8d489108d3418ac",
       "effect": "query",
       "classification": "query",
-      "reason": "Value-only tenant metadata setter on a returned DTO, not a database write or transaction-scope switch. Target modules/peopledirectory.Staff.SetTenantID; modules/peopledirectory/record_metadata.go:14. May-bind method surface, not a production-call/liveness claim."
+      "reason": "Value-only tenant metadata setter on a returned DTO, not a database write or transaction-scope switch. Target modules/peopledirectory.Staff.SetTenantID; modules/peopledirectory/record_metadata.go:14. May-bind method surface, not a production-call/liveness claim. Re-reviewed for #4573 (ADR 0091): staff hydration now sets the external caregiver marker instead of the guest flag; value mapping only, no owned-row mutation or locking read added."
     },
     {
       "source_owner": "timetable-activities",
@@ -54194,10 +54207,10 @@
       "binding": "github.com/moto-nrw/project-phoenix/api.TimetableSupervisorDirectory.GetStaffWithPersonByIDs",
       "target": "*github.com/moto-nrw/project-phoenix/modules/peopledirectory.Staff.SetTenantID",
       "target_owner": "people-directory",
-      "binding_digest": "4ba118033a406aff7fadf8ab7440a70c",
+      "binding_digest": "5dd25cc3db062ed9e6f09ed150e94224",
       "effect": "query",
       "classification": "query",
-      "reason": "Value-only tenant metadata setter on a returned DTO, not a database write or transaction-scope switch. Target modules/peopledirectory.Staff.SetTenantID; modules/peopledirectory/record_metadata.go:14. May-bind method surface, not a production-call/liveness claim."
+      "reason": "Value-only tenant metadata setter on a returned DTO, not a database write or transaction-scope switch. Target modules/peopledirectory.Staff.SetTenantID; modules/peopledirectory/record_metadata.go:14. May-bind method surface, not a production-call/liveness claim. Re-reviewed for #4573 (ADR 0091): staff hydration now sets the external caregiver marker instead of the guest flag; value mapping only, no owned-row mutation or locking read added."
     },
     {
       "source_owner": "timetable-activities",
@@ -54330,10 +54343,10 @@
       "binding": "github.com/moto-nrw/project-phoenix/api.TimetableSupervisorDirectory.ListStaffWithPerson",
       "target": "*github.com/moto-nrw/project-phoenix/modules/peopledirectory.Staff.SetTenantID",
       "target_owner": "people-directory",
-      "binding_digest": "8744fef4a5bfc6b49ce7db403463e5e7",
+      "binding_digest": "baab849164de74fc858f3adf2a68aa01",
       "effect": "query",
       "classification": "query",
-      "reason": "Value-only tenant metadata setter on a returned DTO, not a database write or transaction-scope switch. Target modules/peopledirectory.Staff.SetTenantID; modules/peopledirectory/record_metadata.go:14. May-bind method surface, not a production-call/liveness claim."
+      "reason": "Value-only tenant metadata setter on a returned DTO, not a database write or transaction-scope switch. Target modules/peopledirectory.Staff.SetTenantID; modules/peopledirectory/record_metadata.go:14. May-bind method surface, not a production-call/liveness claim. Re-reviewed for #4573 (ADR 0091): staff hydration now sets the external caregiver marker instead of the guest flag; value mapping only, no owned-row mutation or locking read added."
     },
     {
       "source_owner": "timetable-activities",
@@ -56078,10 +56091,10 @@
       "binding": "github.com/moto-nrw/project-phoenix/roots/owners.TimetableStaff.FindWithPersonByIDs",
       "target": "*github.com/moto-nrw/project-phoenix/modules/peopledirectory.Staff.SetTenantID",
       "target_owner": "people-directory",
-      "binding_digest": "15ca531dad7ab2ef33112586f31314ec",
+      "binding_digest": "edeabe8e472f915d6f283a00ed32a604",
       "effect": "query",
       "classification": "query",
-      "reason": "Value-only tenant metadata setter on a returned DTO, not a database write or transaction-scope switch. Target modules/peopledirectory.Staff.SetTenantID; modules/peopledirectory/record_metadata.go:14. May-bind method surface, not a production-call/liveness claim."
+      "reason": "Value-only tenant metadata setter on a returned DTO, not a database write or transaction-scope switch. Target modules/peopledirectory.Staff.SetTenantID; modules/peopledirectory/record_metadata.go:14. May-bind method surface, not a production-call/liveness claim. Re-reviewed for #4573 (ADR 0091): staff hydration now sets the external caregiver marker instead of the guest flag; value mapping only, no owned-row mutation or locking read added."
     },
     {
       "source_owner": "timetable-activities",
@@ -56148,10 +56161,10 @@
       "binding": "github.com/moto-nrw/project-phoenix/roots/owners.TimetableStaff.ListAllWithPerson",
       "target": "*github.com/moto-nrw/project-phoenix/modules/peopledirectory.Staff.SetTenantID",
       "target_owner": "people-directory",
-      "binding_digest": "618f3045d01576b30bedf503ae3ae7ad",
+      "binding_digest": "04ea27e26866b96448197050fde3e037",
       "effect": "query",
       "classification": "query",
-      "reason": "Value-only tenant metadata setter on a returned DTO, not a database write or transaction-scope switch. Target modules/peopledirectory.Staff.SetTenantID; modules/peopledirectory/record_metadata.go:14. May-bind method surface, not a production-call/liveness claim."
+      "reason": "Value-only tenant metadata setter on a returned DTO, not a database write or transaction-scope switch. Target modules/peopledirectory.Staff.SetTenantID; modules/peopledirectory/record_metadata.go:14. May-bind method surface, not a production-call/liveness claim. Re-reviewed for #4573 (ADR 0091): staff hydration now sets the external caregiver marker instead of the guest flag; value mapping only, no owned-row mutation or locking read added."
     },
     {
       "source_owner": "timetable-activities",
@@ -56229,10 +56242,10 @@
       "binding": "github.com/moto-nrw/project-phoenix/roots/owners.TimetableStaff.FindByIDs",
       "target": "*github.com/moto-nrw/project-phoenix/modules/peopledirectory.Staff.SetTenantID",
       "target_owner": "people-directory",
-      "binding_digest": "82bc9b597dba25950b12b0e7ea36ddc2",
+      "binding_digest": "6ebc8f5e8342013bb190d94b555047a2",
       "effect": "query",
       "classification": "query",
-      "reason": "Value-only tenant metadata setter on a returned DTO, not a database write or transaction-scope switch. Target modules/peopledirectory.Staff.SetTenantID; modules/peopledirectory/record_metadata.go:14. May-bind method surface, not a production-call/liveness claim."
+      "reason": "Value-only tenant metadata setter on a returned DTO, not a database write or transaction-scope switch. Target modules/peopledirectory.Staff.SetTenantID; modules/peopledirectory/record_metadata.go:14. May-bind method surface, not a production-call/liveness claim. Re-reviewed for #4573 (ADR 0091): staff hydration now sets the external caregiver marker instead of the guest flag; value mapping only, no owned-row mutation or locking read added."
     },
     {
       "source_owner": "timetable-activities",
@@ -56286,10 +56299,10 @@
       "binding": "github.com/moto-nrw/project-phoenix/roots/owners.TimetableStaff.FindByID",
       "target": "*github.com/moto-nrw/project-phoenix/modules/peopledirectory.Staff.SetTenantID",
       "target_owner": "people-directory",
-      "binding_digest": "3e60bd8458fec075f8c9d6234461dfb8",
+      "binding_digest": "6985374ed5aef00ed11376c4571774d2",
       "effect": "query",
       "classification": "query",
-      "reason": "Value-only tenant metadata setter on a returned DTO, not a database write or transaction-scope switch. Target modules/peopledirectory.Staff.SetTenantID; modules/peopledirectory/record_metadata.go:14. May-bind method surface, not a production-call/liveness claim."
+      "reason": "Value-only tenant metadata setter on a returned DTO, not a database write or transaction-scope switch. Target modules/peopledirectory.Staff.SetTenantID; modules/peopledirectory/record_metadata.go:14. May-bind method surface, not a production-call/liveness claim. Re-reviewed for #4573 (ADR 0091): staff hydration now sets the external caregiver marker instead of the guest flag; value mapping only, no owned-row mutation or locking read added."
     },
     {
       "source_owner": "timetable-activities",
@@ -56343,10 +56356,10 @@
       "binding": "github.com/moto-nrw/project-phoenix/roots/owners.TimetableStaff.FindWithPersonByIDs",
       "target": "*github.com/moto-nrw/project-phoenix/modules/peopledirectory.Staff.SetTenantID",
       "target_owner": "people-directory",
-      "binding_digest": "15ca531dad7ab2ef33112586f31314ec",
+      "binding_digest": "edeabe8e472f915d6f283a00ed32a604",
       "effect": "query",
       "classification": "query",
-      "reason": "Value-only tenant metadata setter on a returned DTO, not a database write or transaction-scope switch. Target modules/peopledirectory.Staff.SetTenantID; modules/peopledirectory/record_metadata.go:14. May-bind method surface, not a production-call/liveness claim."
+      "reason": "Value-only tenant metadata setter on a returned DTO, not a database write or transaction-scope switch. Target modules/peopledirectory.Staff.SetTenantID; modules/peopledirectory/record_metadata.go:14. May-bind method surface, not a production-call/liveness claim. Re-reviewed for #4573 (ADR 0091): staff hydration now sets the external caregiver marker instead of the guest flag; value mapping only, no owned-row mutation or locking read added."
     },
     {
       "source_owner": "timetable-activities",
@@ -56413,10 +56426,10 @@
       "binding": "github.com/moto-nrw/project-phoenix/roots/owners.TimetableStaff.ListAllWithPerson",
       "target": "*github.com/moto-nrw/project-phoenix/modules/peopledirectory.Staff.SetTenantID",
       "target_owner": "people-directory",
-      "binding_digest": "618f3045d01576b30bedf503ae3ae7ad",
+      "binding_digest": "04ea27e26866b96448197050fde3e037",
       "effect": "query",
       "classification": "query",
-      "reason": "Value-only tenant metadata setter on a returned DTO, not a database write or transaction-scope switch. Target modules/peopledirectory.Staff.SetTenantID; modules/peopledirectory/record_metadata.go:14. May-bind method surface, not a production-call/liveness claim."
+      "reason": "Value-only tenant metadata setter on a returned DTO, not a database write or transaction-scope switch. Target modules/peopledirectory.Staff.SetTenantID; modules/peopledirectory/record_metadata.go:14. May-bind method surface, not a production-call/liveness claim. Re-reviewed for #4573 (ADR 0091): staff hydration now sets the external caregiver marker instead of the guest flag; value mapping only, no owned-row mutation or locking read added."
     },
     {
       "source_owner": "timetable-activities",
@@ -56795,10 +56808,10 @@
       "binding": "github.com/moto-nrw/project-phoenix/roots/owners.TimetableStaff.FindByIDs",
       "target": "*github.com/moto-nrw/project-phoenix/modules/peopledirectory.Staff.SetTenantID",
       "target_owner": "people-directory",
-      "binding_digest": "82bc9b597dba25950b12b0e7ea36ddc2",
+      "binding_digest": "6ebc8f5e8342013bb190d94b555047a2",
       "effect": "query",
       "classification": "query",
-      "reason": "Value-only tenant metadata setter on a returned DTO, not a database write or transaction-scope switch. Target modules/peopledirectory.Staff.SetTenantID; modules/peopledirectory/record_metadata.go:14. May-bind method surface, not a production-call/liveness claim."
+      "reason": "Value-only tenant metadata setter on a returned DTO, not a database write or transaction-scope switch. Target modules/peopledirectory.Staff.SetTenantID; modules/peopledirectory/record_metadata.go:14. May-bind method surface, not a production-call/liveness claim. Re-reviewed for #4573 (ADR 0091): staff hydration now sets the external caregiver marker instead of the guest flag; value mapping only, no owned-row mutation or locking read added."
     },
     {
       "source_owner": "timetable-activities",
@@ -56852,10 +56865,10 @@
       "binding": "github.com/moto-nrw/project-phoenix/roots/owners.TimetableStaff.FindByID",
       "target": "*github.com/moto-nrw/project-phoenix/modules/peopledirectory.Staff.SetTenantID",
       "target_owner": "people-directory",
-      "binding_digest": "3e60bd8458fec075f8c9d6234461dfb8",
+      "binding_digest": "6985374ed5aef00ed11376c4571774d2",
       "effect": "query",
       "classification": "query",
-      "reason": "Value-only tenant metadata setter on a returned DTO, not a database write or transaction-scope switch. Target modules/peopledirectory.Staff.SetTenantID; modules/peopledirectory/record_metadata.go:14. May-bind method surface, not a production-call/liveness claim."
+      "reason": "Value-only tenant metadata setter on a returned DTO, not a database write or transaction-scope switch. Target modules/peopledirectory.Staff.SetTenantID; modules/peopledirectory/record_metadata.go:14. May-bind method surface, not a production-call/liveness claim. Re-reviewed for #4573 (ADR 0091): staff hydration now sets the external caregiver marker instead of the guest flag; value mapping only, no owned-row mutation or locking read added."
     },
     {
       "source_owner": "timetable-activities",
@@ -56909,10 +56922,10 @@
       "binding": "github.com/moto-nrw/project-phoenix/roots/owners.TimetableStaff.FindWithPersonByIDs",
       "target": "*github.com/moto-nrw/project-phoenix/modules/peopledirectory.Staff.SetTenantID",
       "target_owner": "people-directory",
-      "binding_digest": "15ca531dad7ab2ef33112586f31314ec",
+      "binding_digest": "edeabe8e472f915d6f283a00ed32a604",
       "effect": "query",
       "classification": "query",
-      "reason": "Value-only tenant metadata setter on a returned DTO, not a database write or transaction-scope switch. Target modules/peopledirectory.Staff.SetTenantID; modules/peopledirectory/record_metadata.go:14. May-bind method surface, not a production-call/liveness claim."
+      "reason": "Value-only tenant metadata setter on a returned DTO, not a database write or transaction-scope switch. Target modules/peopledirectory.Staff.SetTenantID; modules/peopledirectory/record_metadata.go:14. May-bind method surface, not a production-call/liveness claim. Re-reviewed for #4573 (ADR 0091): staff hydration now sets the external caregiver marker instead of the guest flag; value mapping only, no owned-row mutation or locking read added."
     },
     {
       "source_owner": "timetable-activities",
@@ -56979,10 +56992,10 @@
       "binding": "github.com/moto-nrw/project-phoenix/roots/owners.TimetableStaff.FindWithPerson",
       "target": "*github.com/moto-nrw/project-phoenix/modules/peopledirectory.Staff.SetTenantID",
       "target_owner": "people-directory",
-      "binding_digest": "7542f9c44cc4ee488805f1dbfcb635c3",
+      "binding_digest": "b9e96c4fb9372716db92711373877873",
       "effect": "query",
       "classification": "query",
-      "reason": "Value-only tenant metadata setter on a returned DTO, not a database write or transaction-scope switch. Target modules/peopledirectory.Staff.SetTenantID; modules/peopledirectory/record_metadata.go:14. May-bind method surface, not a production-call/liveness claim."
+      "reason": "Value-only tenant metadata setter on a returned DTO, not a database write or transaction-scope switch. Target modules/peopledirectory.Staff.SetTenantID; modules/peopledirectory/record_metadata.go:14. May-bind method surface, not a production-call/liveness claim. Re-reviewed for #4573 (ADR 0091): staff hydration now sets the external caregiver marker instead of the guest flag; value mapping only, no owned-row mutation or locking read added."
     },
     {
       "source_owner": "timetable-activities",
@@ -57219,7 +57232,7 @@
       "effect": "unresolved",
       "classification": "unresolved",
       "adr": "0083",
-      "approval_adr": "0091",
+      "approval_adr": "0092",
       "reason": "Unresolved binding-flow boundary, not a query or approved leaf. Function-valued field; callable instance flow is deferred. Exact boundary: unresolved:function:github.com/moto-nrw/project-phoenix/roots/owners.timetableOperationAttendance.withStaff. See ADR 0083 domain-source expansion and reconciliation binding-flow follow-up. #4836 assignment-evidence review: fingerprint now includes typed callable assignments and referenced root helpers; existing unresolved boundary is retained, not approved as a query or leaf."
     },
     {
@@ -57244,7 +57257,7 @@
       "effect": "unresolved",
       "classification": "unresolved",
       "adr": "0083",
-      "approval_adr": "0091",
+      "approval_adr": "0092",
       "reason": "Unresolved binding-flow boundary, not a query or approved leaf. Function-valued field; callable instance flow is deferred. Exact boundary: unresolved:function:github.com/moto-nrw/project-phoenix/roots/owners.timetableOperationAttendance.withStaff. See ADR 0083 domain-source expansion and reconciliation binding-flow follow-up. #4836 assignment-evidence review: fingerprint now includes typed callable assignments and referenced root helpers; existing unresolved boundary is retained, not approved as a query or leaf."
     },
     {
@@ -57269,7 +57282,7 @@
       "effect": "unresolved",
       "classification": "unresolved",
       "adr": "0083",
-      "approval_adr": "0091",
+      "approval_adr": "0092",
       "reason": "Unresolved binding-flow boundary, not a query or approved leaf. Function-valued field; callable instance flow is deferred. Exact boundary: unresolved:function:github.com/moto-nrw/project-phoenix/roots/owners.TokenAdapter.Claims. See ADR 0083 domain-source expansion and reconciliation binding-flow follow-up. #4836 assignment-evidence review: fingerprint now includes typed callable assignments and referenced root helpers; existing unresolved boundary is retained, not approved as a query or leaf."
     },
     {
@@ -57282,7 +57295,7 @@
       "effect": "unresolved",
       "classification": "unresolved",
       "adr": "0083",
-      "approval_adr": "0091",
+      "approval_adr": "0092",
       "reason": "Unresolved binding-flow boundary, not a query or approved leaf. Function-valued field; callable instance flow is deferred. Exact boundary: unresolved:function:github.com/moto-nrw/project-phoenix/roots/owners.TokenAdapter.Permissions. See ADR 0083 domain-source expansion and reconciliation binding-flow follow-up. #4836 assignment-evidence review: fingerprint now includes typed callable assignments and referenced root helpers; existing unresolved boundary is retained, not approved as a query or leaf."
     },
     {
@@ -57295,7 +57308,7 @@
       "effect": "unresolved",
       "classification": "unresolved",
       "adr": "0083",
-      "approval_adr": "0091",
+      "approval_adr": "0092",
       "reason": "Unresolved binding-flow boundary, not a query or approved leaf. Function-valued field; callable instance flow is deferred. Exact boundary: unresolved:function:github.com/moto-nrw/project-phoenix/roots/owners.TokenAdapter.Claims. See ADR 0083 domain-source expansion and reconciliation binding-flow follow-up. #4836 assignment-evidence review: fingerprint now includes typed callable assignments and referenced root helpers; existing unresolved boundary is retained, not approved as a query or leaf."
     },
     {
@@ -57319,7 +57332,7 @@
       "effect": "unresolved",
       "classification": "unresolved",
       "adr": "0083",
-      "approval_adr": "0091",
+      "approval_adr": "0092",
       "reason": "Unresolved binding-flow boundary, not a query or approved leaf. Function-valued field; callable instance flow is deferred. Exact boundary: unresolved:function:github.com/moto-nrw/project-phoenix/roots/owners.TokenAdapter.Claims. See ADR 0083 domain-source expansion and reconciliation binding-flow follow-up. #4836 assignment-evidence review: fingerprint now includes typed callable assignments and referenced root helpers; existing unresolved boundary is retained, not approved as a query or leaf."
     },
     {
@@ -57332,7 +57345,7 @@
       "effect": "unresolved",
       "classification": "unresolved",
       "adr": "0083",
-      "approval_adr": "0091",
+      "approval_adr": "0092",
       "reason": "Unresolved binding-flow boundary, not a query or approved leaf. Function-valued field; callable instance flow is deferred. Exact boundary: unresolved:function:github.com/moto-nrw/project-phoenix/roots/owners.TokenAdapter.Permissions. See ADR 0083 domain-source expansion and reconciliation binding-flow follow-up. #4836 assignment-evidence review: fingerprint now includes typed callable assignments and referenced root helpers; existing unresolved boundary is retained, not approved as a query or leaf."
     },
     {
@@ -57496,10 +57509,10 @@
       "binding": "github.com/moto-nrw/project-phoenix/roots/owners.timetableOperationPeople.GetStaffByPersonID",
       "target": "*github.com/moto-nrw/project-phoenix/modules/peopledirectory.Staff.SetTenantID",
       "target_owner": "people-directory",
-      "binding_digest": "2c8d6e415ee5792501b300e8639dc6c7",
+      "binding_digest": "32d06b23f72634384100ec3752d53ddf",
       "effect": "query",
       "classification": "query",
-      "reason": "Value-only tenant metadata setter on a returned DTO, not a database write or transaction-scope switch. Target modules/peopledirectory.Staff.SetTenantID; modules/peopledirectory/record_metadata.go:14. May-bind method surface, not a production-call/liveness claim."
+      "reason": "Value-only tenant metadata setter on a returned DTO, not a database write or transaction-scope switch. Target modules/peopledirectory.Staff.SetTenantID; modules/peopledirectory/record_metadata.go:14. May-bind method surface, not a production-call/liveness claim. Re-reviewed for #4573 (ADR 0091): staff hydration now sets the external caregiver marker instead of the guest flag; value mapping only, no owned-row mutation or locking read added."
     },
     {
       "source_owner": "timetable-activities",
@@ -57564,10 +57577,10 @@
       "binding": "github.com/moto-nrw/project-phoenix/roots/owners.TimetableOperationPeople.GetStaffWithPersonByIDs",
       "target": "*github.com/moto-nrw/project-phoenix/modules/peopledirectory.Staff.SetTenantID",
       "target_owner": "people-directory",
-      "binding_digest": "5a7b17f485672cd0abde8075320efaaf",
+      "binding_digest": "e0fc602f9459f0941148426fea656e3f",
       "effect": "query",
       "classification": "query",
-      "reason": "Value-only tenant metadata setter on a returned DTO, not a database write or transaction-scope switch. Target modules/peopledirectory.Staff.SetTenantID; modules/peopledirectory/record_metadata.go:14. May-bind method surface, not a production-call/liveness claim."
+      "reason": "Value-only tenant metadata setter on a returned DTO, not a database write or transaction-scope switch. Target modules/peopledirectory.Staff.SetTenantID; modules/peopledirectory/record_metadata.go:14. May-bind method surface, not a production-call/liveness claim. Re-reviewed for #4573 (ADR 0091): staff hydration now sets the external caregiver marker instead of the guest flag; value mapping only, no owned-row mutation or locking read added."
     },
     {
       "source_owner": "timetable-activities",
@@ -57658,10 +57671,10 @@
       "binding": "github.com/moto-nrw/project-phoenix/roots/owners.timetableOperationPeople.GetStaffWithPersonByIDs",
       "target": "*github.com/moto-nrw/project-phoenix/modules/peopledirectory.Staff.SetTenantID",
       "target_owner": "people-directory",
-      "binding_digest": "5a7b17f485672cd0abde8075320efaaf",
+      "binding_digest": "e0fc602f9459f0941148426fea656e3f",
       "effect": "query",
       "classification": "query",
-      "reason": "Value-only tenant metadata setter on a returned DTO, not a database write or transaction-scope switch. Target modules/peopledirectory.Staff.SetTenantID; modules/peopledirectory/record_metadata.go:14. May-bind method surface, not a production-call/liveness claim."
+      "reason": "Value-only tenant metadata setter on a returned DTO, not a database write or transaction-scope switch. Target modules/peopledirectory.Staff.SetTenantID; modules/peopledirectory/record_metadata.go:14. May-bind method surface, not a production-call/liveness claim. Re-reviewed for #4573 (ADR 0091): staff hydration now sets the external caregiver marker instead of the guest flag; value mapping only, no owned-row mutation or locking read added."
     },
     {
       "source_owner": "timetable-activities",
@@ -58343,7 +58356,7 @@
       "effect": "unresolved",
       "classification": "unresolved",
       "adr": "0083",
-      "approval_adr": "0091",
+      "approval_adr": "0092",
       "reason": "Unresolved binding-flow boundary, not a query or approved leaf. Function-valued field; callable instance flow is deferred. Exact boundary: unresolved:function:github.com/moto-nrw/project-phoenix/roots/owners.TokenAdapter.Claims. See ADR 0083 domain-source expansion and reconciliation binding-flow follow-up. #4836 assignment-evidence review: fingerprint now includes typed callable assignments and referenced root helpers; existing unresolved boundary is retained, not approved as a query or leaf."
     },
     {
@@ -58356,7 +58369,7 @@
       "effect": "unresolved",
       "classification": "unresolved",
       "adr": "0083",
-      "approval_adr": "0091",
+      "approval_adr": "0092",
       "reason": "Unresolved binding-flow boundary, not a query or approved leaf. Function-valued field; callable instance flow is deferred. Exact boundary: unresolved:function:github.com/moto-nrw/project-phoenix/roots/owners.TokenAdapter.Permissions. See ADR 0083 domain-source expansion and reconciliation binding-flow follow-up. #4836 assignment-evidence review: fingerprint now includes typed callable assignments and referenced root helpers; existing unresolved boundary is retained, not approved as a query or leaf."
     },
     {
@@ -59911,7 +59924,7 @@
       "effect": "mutation",
       "classification": "debt",
       "adr": "0083",
-      "approval_adr": "0091",
+      "approval_adr": "0092",
       "reason": "Workflow-backed direction-accounting debt #4825; not a new runtime exception. Workflow-backed import/helper or observed test-support provider in the type-level interface union; no live domain application coordinator is asserted. Do not label a workflow method as a normal leaf. Guarded target record/byte command; preserve ambient scope, target validation and existing failure propagation. Target-local locks/savepoints alone do not establish a new source coordinator. Target modules/dataimport/ports.observedOpeningBalanceBookings.CreateOpeningBalance; modules/dataimport/ports/observed_commands.go:232. "
     },
     {
@@ -59957,7 +59970,7 @@
       "effect": "mutation",
       "classification": "debt",
       "adr": "0083",
-      "approval_adr": "0091",
+      "approval_adr": "0092",
       "reason": "Workflow-backed direction-accounting debt #4825; not a new runtime exception. Workflow-backed, known runtime-direction debt beyond the finite Roster/Bookings exception; no new ADR exception. Proposed follow-up: root-owned workflow entry or relocate the consumed capability to its domain/projection owner. See reconciliation callback audit. Guarded target record/byte command; preserve ambient scope, target validation and existing failure propagation. Target-local locks/savepoints alone do not establish a new source coordinator. Target workflows/shiftplansync/internal/application.sickCascade.ClearSickForRange; workflows/shiftplansync/internal/application/sick_cascade.go:282. "
     },
     {
@@ -59970,7 +59983,7 @@
       "effect": "mutation",
       "classification": "debt",
       "adr": "0083",
-      "approval_adr": "0091",
+      "approval_adr": "0092",
       "reason": "Workflow-backed direction-accounting debt #4825; not a new runtime exception. Workflow-backed, known runtime-direction debt beyond the finite Roster/Bookings exception; no new ADR exception. Proposed follow-up: root-owned workflow entry or relocate the consumed capability to its domain/projection owner. See reconciliation callback audit. Guarded target record/byte command; preserve ambient scope, target validation and existing failure propagation. Target-local locks/savepoints alone do not establish a new source coordinator. Target workflows/shiftplansync/internal/application.sickCascade.MarkSickForRange; workflows/shiftplansync/internal/application/sick_cascade.go:130. "
     },
     {
@@ -59983,7 +59996,7 @@
       "effect": "mutation",
       "classification": "debt",
       "adr": "0083",
-      "approval_adr": "0091",
+      "approval_adr": "0092",
       "reason": "Workflow-backed direction-accounting debt #4825; not a new runtime exception. Workflow-backed, known runtime-direction debt beyond the finite Roster/Bookings exception; no new ADR exception. Proposed follow-up: root-owned workflow entry or relocate the consumed capability to its domain/projection owner. See reconciliation callback audit. Guarded target record/byte command; preserve ambient scope, target validation and existing failure propagation. Target-local locks/savepoints alone do not establish a new source coordinator. Target workflows/shiftplansync/internal/application.sickCascade.ReassignSickStamps; workflows/shiftplansync/internal/application/sick_cascade.go:636. "
     },
     {
@@ -59996,7 +60009,7 @@
       "effect": "mutation",
       "classification": "debt",
       "adr": "0083",
-      "approval_adr": "0091",
+      "approval_adr": "0092",
       "reason": "Workflow-backed direction-accounting debt #4825; not a new runtime exception. Workflow-backed, known runtime-direction debt beyond the finite Roster/Bookings exception; no new ADR exception. Proposed follow-up: root-owned workflow entry or relocate the consumed capability to its domain/projection owner. See reconciliation callback audit. Guarded target record/byte command; preserve ambient scope, target validation and existing failure propagation. Target-local locks/savepoints alone do not establish a new source coordinator. Target workflows/shiftplansync/internal/application.sickCascade.ReconcileSickRange; workflows/shiftplansync/internal/application/sick_cascade.go:309. "
     },
     {
@@ -60005,10 +60018,10 @@
       "binding": "github.com/moto-nrw/project-phoenix/roots/owners.staffAdminSubjects.LockStaff",
       "target": "*github.com/moto-nrw/project-phoenix/modules/peopledirectory.Staff.SetTenantID",
       "target_owner": "people-directory",
-      "binding_digest": "b9a3e96eeef855e522966079bba7ed66",
+      "binding_digest": "b669ed3e0dc1af6e24149a67c3000644",
       "effect": "query",
       "classification": "query",
-      "reason": "Value-only tenant metadata setter on a returned DTO, not a database write or transaction-scope switch. Target modules/peopledirectory.Staff.SetTenantID; modules/peopledirectory/record_metadata.go:14. May-bind method surface, not a production-call/liveness claim."
+      "reason": "Value-only tenant metadata setter on a returned DTO, not a database write or transaction-scope switch. Target modules/peopledirectory.Staff.SetTenantID; modules/peopledirectory/record_metadata.go:14. May-bind method surface, not a production-call/liveness claim. Re-reviewed for #4573 (ADR 0091): staff hydration now sets the external caregiver marker instead of the guest flag; value mapping only, no owned-row mutation or locking read added."
     },
     {
       "source_owner": "workforce",
@@ -60153,10 +60166,10 @@
       "binding": "github.com/moto-nrw/project-phoenix/roots/owners.staffAdminSubjects.StaffExists",
       "target": "*github.com/moto-nrw/project-phoenix/modules/peopledirectory.Staff.SetTenantID",
       "target_owner": "people-directory",
-      "binding_digest": "7d0a3842cea3539d2349ee7321bab907",
+      "binding_digest": "b3d29e116779dca2056bc5e1abeb7819",
       "effect": "query",
       "classification": "query",
-      "reason": "Value-only tenant metadata setter on a returned DTO, not a database write or transaction-scope switch. Target modules/peopledirectory.Staff.SetTenantID; modules/peopledirectory/record_metadata.go:14. May-bind method surface, not a production-call/liveness claim."
+      "reason": "Value-only tenant metadata setter on a returned DTO, not a database write or transaction-scope switch. Target modules/peopledirectory.Staff.SetTenantID; modules/peopledirectory/record_metadata.go:14. May-bind method surface, not a production-call/liveness claim. Re-reviewed for #4573 (ADR 0091): staff hydration now sets the external caregiver marker instead of the guest flag; value mapping only, no owned-row mutation or locking read added."
     },
     {
       "source_owner": "workforce",
@@ -60197,10 +60210,10 @@
       "binding": "github.com/moto-nrw/project-phoenix/roots/owners.staffAdminSubjects.StaffWithPerson",
       "target": "*github.com/moto-nrw/project-phoenix/modules/peopledirectory.Staff.SetTenantID",
       "target_owner": "people-directory",
-      "binding_digest": "cfc52da7837f4a3b713e61f4705b1b0f",
+      "binding_digest": "205f24f47961d7e2fc7b469b7f76176f",
       "effect": "query",
       "classification": "query",
-      "reason": "Value-only tenant metadata setter on a returned DTO, not a database write or transaction-scope switch. Target modules/peopledirectory.Staff.SetTenantID; modules/peopledirectory/record_metadata.go:14. May-bind method surface, not a production-call/liveness claim."
+      "reason": "Value-only tenant metadata setter on a returned DTO, not a database write or transaction-scope switch. Target modules/peopledirectory.Staff.SetTenantID; modules/peopledirectory/record_metadata.go:14. May-bind method surface, not a production-call/liveness claim. Re-reviewed for #4573 (ADR 0091): staff hydration now sets the external caregiver marker instead of the guest flag; value mapping only, no owned-row mutation or locking read added."
     },
     {
       "source_owner": "workforce",
@@ -60346,10 +60359,10 @@
       "binding": "github.com/moto-nrw/project-phoenix/roots/owners.staffDirectoryCapability.StaffByID",
       "target": "*github.com/moto-nrw/project-phoenix/modules/peopledirectory.Staff.SetTenantID",
       "target_owner": "people-directory",
-      "binding_digest": "99e351e910a53748f0f2659cdcd700a0",
+      "binding_digest": "38ec3cc2089af41c96f5a7586e43240a",
       "effect": "query",
       "classification": "query",
-      "reason": "Value-only tenant metadata setter on a returned DTO, not a database write or transaction-scope switch. Target modules/peopledirectory.Staff.SetTenantID; modules/peopledirectory/record_metadata.go:14. May-bind method surface, not a production-call/liveness claim."
+      "reason": "Value-only tenant metadata setter on a returned DTO, not a database write or transaction-scope switch. Target modules/peopledirectory.Staff.SetTenantID; modules/peopledirectory/record_metadata.go:14. May-bind method surface, not a production-call/liveness claim. Re-reviewed for #4573 (ADR 0091): staff hydration now sets the external caregiver marker instead of the guest flag; value mapping only, no owned-row mutation or locking read added."
     },
     {
       "source_owner": "workforce",
@@ -60401,10 +60414,10 @@
       "binding": "github.com/moto-nrw/project-phoenix/roots/owners.staffDirectoryCapability.StaffByPersonID",
       "target": "*github.com/moto-nrw/project-phoenix/modules/peopledirectory.Staff.SetTenantID",
       "target_owner": "people-directory",
-      "binding_digest": "1de218ba8c3da2be5ca8eb2011de5f52",
+      "binding_digest": "3005676f460b75de1bfe40db5fc33d8a",
       "effect": "query",
       "classification": "query",
-      "reason": "Value-only tenant metadata setter on a returned DTO, not a database write or transaction-scope switch. Target modules/peopledirectory.Staff.SetTenantID; modules/peopledirectory/record_metadata.go:14. May-bind method surface, not a production-call/liveness claim."
+      "reason": "Value-only tenant metadata setter on a returned DTO, not a database write or transaction-scope switch. Target modules/peopledirectory.Staff.SetTenantID; modules/peopledirectory/record_metadata.go:14. May-bind method surface, not a production-call/liveness claim. Re-reviewed for #4573 (ADR 0091): staff hydration now sets the external caregiver marker instead of the guest flag; value mapping only, no owned-row mutation or locking read added."
     },
     {
       "source_owner": "workforce",
@@ -60472,7 +60485,7 @@
       "effect": "unresolved",
       "classification": "unresolved",
       "adr": "0083",
-      "approval_adr": "0091",
+      "approval_adr": "0092",
       "reason": "Unresolved binding-flow boundary, not a query or approved leaf. Function-valued field; callable instance flow is deferred. Exact boundary: unresolved:function:github.com/moto-nrw/project-phoenix/modules/workforce.SubstitutionCaller.HasPermission. See ADR 0083 domain-source expansion and reconciliation binding-flow follow-up. #4836 assignment-evidence review: fingerprint now includes typed callable assignments and referenced root helpers; existing unresolved boundary is retained, not approved as a query or leaf."
     },
     {
@@ -60497,7 +60510,7 @@
       "effect": "unresolved",
       "classification": "unresolved",
       "adr": "0083",
-      "approval_adr": "0091",
+      "approval_adr": "0092",
       "reason": "Unresolved binding-flow boundary, not a query or approved leaf. Function-valued field; callable instance flow is deferred. Exact boundary: unresolved:function:github.com/moto-nrw/project-phoenix/modules/workforce.SubstitutionCaller.HasPermission. See ADR 0083 domain-source expansion and reconciliation binding-flow follow-up. #4836 assignment-evidence review: fingerprint now includes typed callable assignments and referenced root helpers; existing unresolved boundary is retained, not approved as a query or leaf."
     },
     {
@@ -60521,7 +60534,7 @@
       "effect": "unresolved",
       "classification": "unresolved",
       "adr": "0083",
-      "approval_adr": "0091",
+      "approval_adr": "0092",
       "reason": "Unresolved binding-flow boundary, not a query or approved leaf. Function-valued field; callable instance flow is deferred. Exact boundary: unresolved:function:github.com/moto-nrw/project-phoenix/modules/workforce.SubstitutionCaller.HasPermission. See ADR 0083 domain-source expansion and reconciliation binding-flow follow-up. #4836 assignment-evidence review: fingerprint now includes typed callable assignments and referenced root helpers; existing unresolved boundary is retained, not approved as a query or leaf."
     },
     {
@@ -60534,7 +60547,7 @@
       "effect": "mutation",
       "classification": "debt",
       "adr": "0083",
-      "approval_adr": "0091",
+      "approval_adr": "0092",
       "reason": "Workflow-backed direction-accounting debt #4825; not a new runtime exception. Workflow-backed import/helper or observed test-support provider in the type-level interface union; no live domain application coordinator is asserted. Do not label a workflow method as a normal leaf. Guarded target record/byte command; preserve ambient scope, target validation and existing failure propagation. Target-local locks/savepoints alone do not establish a new source coordinator. Target modules/dataimport/ports.observedVacationTakeovers.SetVacationOpening; modules/dataimport/ports/observed_commands.go:254. "
     },
     {
@@ -60547,7 +60560,7 @@
       "effect": "mutation",
       "classification": "debt",
       "adr": "0083",
-      "approval_adr": "0091",
+      "approval_adr": "0092",
       "reason": "Workflow-backed direction-accounting debt #4825; not a new runtime exception. Workflow-backed import/helper or observed test-support provider in the type-level interface union; no live domain application coordinator is asserted. Do not label a workflow method as a normal leaf. Guarded target record/byte command; preserve ambient scope, target validation and existing failure propagation. Target-local locks/savepoints alone do not establish a new source coordinator. Target modules/dataimport/ports.observedVacationTakeovers.UpsertVacationQuota; modules/dataimport/ports/observed_commands.go:249. "
     },
     {
@@ -60907,10 +60920,10 @@
       "binding": "github.com/moto-nrw/project-phoenix/roots/owners.planStaffDirectory.FindByID",
       "target": "*github.com/moto-nrw/project-phoenix/modules/peopledirectory.Staff.SetTenantID",
       "target_owner": "people-directory",
-      "binding_digest": "a76aafd8649bc5aee5345d294fc69910",
+      "binding_digest": "8ba27a9675e88a62cdf704582daed8ca",
       "effect": "query",
       "classification": "query",
-      "reason": "Value-only tenant metadata setter on a returned DTO, not a database write or transaction-scope switch. Target modules/peopledirectory.Staff.SetTenantID; modules/peopledirectory/record_metadata.go:14. May-bind method surface, not a production-call/liveness claim."
+      "reason": "Value-only tenant metadata setter on a returned DTO, not a database write or transaction-scope switch. Target modules/peopledirectory.Staff.SetTenantID; modules/peopledirectory/record_metadata.go:14. May-bind method surface, not a production-call/liveness claim. Re-reviewed for #4573 (ADR 0091): staff hydration now sets the external caregiver marker instead of the guest flag; value mapping only, no owned-row mutation or locking read added."
     },
     {
       "source_owner": "workforce",
@@ -60951,10 +60964,10 @@
       "binding": "github.com/moto-nrw/project-phoenix/roots/owners.planStaffDirectory.FindWithPersonByIDs",
       "target": "*github.com/moto-nrw/project-phoenix/modules/peopledirectory.Staff.SetTenantID",
       "target_owner": "people-directory",
-      "binding_digest": "c55ea24b5d477d24d7479bc29fcd90b5",
+      "binding_digest": "0fd2278eb626b50f8452c28b3d87d205",
       "effect": "query",
       "classification": "query",
-      "reason": "Value-only tenant metadata setter on a returned DTO, not a database write or transaction-scope switch. Target modules/peopledirectory.Staff.SetTenantID; modules/peopledirectory/record_metadata.go:14. May-bind method surface, not a production-call/liveness claim."
+      "reason": "Value-only tenant metadata setter on a returned DTO, not a database write or transaction-scope switch. Target modules/peopledirectory.Staff.SetTenantID; modules/peopledirectory/record_metadata.go:14. May-bind method surface, not a production-call/liveness claim. Re-reviewed for #4573 (ADR 0091): staff hydration now sets the external caregiver marker instead of the guest flag; value mapping only, no owned-row mutation or locking read added."
     },
     {
       "source_owner": "workforce",
@@ -61008,10 +61021,10 @@
       "binding": "github.com/moto-nrw/project-phoenix/roots/owners.planStaffDirectory.ListAllWithPerson",
       "target": "*github.com/moto-nrw/project-phoenix/modules/peopledirectory.Staff.SetTenantID",
       "target_owner": "people-directory",
-      "binding_digest": "9ef50c81d78f16c82c9e4e84530e06e9",
+      "binding_digest": "706a9bab1e206dc8edbcc6224d5205c3",
       "effect": "query",
       "classification": "query",
-      "reason": "Value-only tenant metadata setter on a returned DTO, not a database write or transaction-scope switch. Target modules/peopledirectory.Staff.SetTenantID; modules/peopledirectory/record_metadata.go:14. May-bind method surface, not a production-call/liveness claim."
+      "reason": "Value-only tenant metadata setter on a returned DTO, not a database write or transaction-scope switch. Target modules/peopledirectory.Staff.SetTenantID; modules/peopledirectory/record_metadata.go:14. May-bind method surface, not a production-call/liveness claim. Re-reviewed for #4573 (ADR 0091): staff hydration now sets the external caregiver marker instead of the guest flag; value mapping only, no owned-row mutation or locking read added."
     },
     {
       "source_owner": "workforce",
@@ -61065,10 +61078,10 @@
       "binding": "github.com/moto-nrw/project-phoenix/roots/owners.planStaffDirectory.ListMembershipsWithPerson",
       "target": "*github.com/moto-nrw/project-phoenix/modules/peopledirectory.Staff.SetTenantID",
       "target_owner": "people-directory",
-      "binding_digest": "efc224efe181de191d8960dfea813366",
+      "binding_digest": "48f3b6f31e056da1c85b487e34ef3c8c",
       "effect": "query",
       "classification": "query",
-      "reason": "Value-only tenant metadata setter on a returned DTO, not a database write or transaction-scope switch. Target modules/peopledirectory.Staff.SetTenantID; modules/peopledirectory/record_metadata.go:14. May-bind method surface, not a production-call/liveness claim."
+      "reason": "Value-only tenant metadata setter on a returned DTO, not a database write or transaction-scope switch. Target modules/peopledirectory.Staff.SetTenantID; modules/peopledirectory/record_metadata.go:14. May-bind method surface, not a production-call/liveness claim. Re-reviewed for #4573 (ADR 0091): staff hydration now sets the external caregiver marker instead of the guest flag; value mapping only, no owned-row mutation or locking read added."
     },
     {
       "source_owner": "workforce",
@@ -61122,10 +61135,10 @@
       "binding": "github.com/moto-nrw/project-phoenix/modules/workforce/compose.StaffDirectory.FindWithPersonByIDs",
       "target": "*github.com/moto-nrw/project-phoenix/modules/peopledirectory.Staff.SetTenantID",
       "target_owner": "people-directory",
-      "binding_digest": "c55ea24b5d477d24d7479bc29fcd90b5",
+      "binding_digest": "0fd2278eb626b50f8452c28b3d87d205",
       "effect": "query",
       "classification": "query",
-      "reason": "Value-only tenant metadata setter on a returned DTO, not a database write or transaction-scope switch. Target modules/peopledirectory.Staff.SetTenantID; modules/peopledirectory/record_metadata.go:14. May-bind method surface, not a production-call/liveness claim."
+      "reason": "Value-only tenant metadata setter on a returned DTO, not a database write or transaction-scope switch. Target modules/peopledirectory.Staff.SetTenantID; modules/peopledirectory/record_metadata.go:14. May-bind method surface, not a production-call/liveness claim. Re-reviewed for #4573 (ADR 0091): staff hydration now sets the external caregiver marker instead of the guest flag; value mapping only, no owned-row mutation or locking read added."
     },
     {
       "source_owner": "workforce",
@@ -61179,10 +61192,10 @@
       "binding": "github.com/moto-nrw/project-phoenix/modules/workforce/compose.StaffDirectory.ListAllWithPerson",
       "target": "*github.com/moto-nrw/project-phoenix/modules/peopledirectory.Staff.SetTenantID",
       "target_owner": "people-directory",
-      "binding_digest": "9ef50c81d78f16c82c9e4e84530e06e9",
+      "binding_digest": "706a9bab1e206dc8edbcc6224d5205c3",
       "effect": "query",
       "classification": "query",
-      "reason": "Value-only tenant metadata setter on a returned DTO, not a database write or transaction-scope switch. Target modules/peopledirectory.Staff.SetTenantID; modules/peopledirectory/record_metadata.go:14. May-bind method surface, not a production-call/liveness claim."
+      "reason": "Value-only tenant metadata setter on a returned DTO, not a database write or transaction-scope switch. Target modules/peopledirectory.Staff.SetTenantID; modules/peopledirectory/record_metadata.go:14. May-bind method surface, not a production-call/liveness claim. Re-reviewed for #4573 (ADR 0091): staff hydration now sets the external caregiver marker instead of the guest flag; value mapping only, no owned-row mutation or locking read added."
     },
     {
       "source_owner": "workforce",
@@ -61236,10 +61249,10 @@
       "binding": "github.com/moto-nrw/project-phoenix/modules/workforce/compose.StaffDirectory.ListMembershipsWithPerson",
       "target": "*github.com/moto-nrw/project-phoenix/modules/peopledirectory.Staff.SetTenantID",
       "target_owner": "people-directory",
-      "binding_digest": "efc224efe181de191d8960dfea813366",
+      "binding_digest": "48f3b6f31e056da1c85b487e34ef3c8c",
       "effect": "query",
       "classification": "query",
-      "reason": "Value-only tenant metadata setter on a returned DTO, not a database write or transaction-scope switch. Target modules/peopledirectory.Staff.SetTenantID; modules/peopledirectory/record_metadata.go:14. May-bind method surface, not a production-call/liveness claim."
+      "reason": "Value-only tenant metadata setter on a returned DTO, not a database write or transaction-scope switch. Target modules/peopledirectory.Staff.SetTenantID; modules/peopledirectory/record_metadata.go:14. May-bind method surface, not a production-call/liveness claim. Re-reviewed for #4573 (ADR 0091): staff hydration now sets the external caregiver marker instead of the guest flag; value mapping only, no owned-row mutation or locking read added."
     },
     {
       "source_owner": "workforce",
@@ -61297,7 +61310,7 @@
       "effect": "unresolved",
       "classification": "unresolved",
       "adr": "0083",
-      "approval_adr": "0091",
+      "approval_adr": "0092",
       "reason": "Unresolved binding-flow boundary, not a query or approved leaf. Function-valued field; callable instance flow is deferred. Exact boundary: unresolved:function:github.com/moto-nrw/project-phoenix/modules/workforce/http/timetracking.ExportTransferRequest.PrepareFile. See ADR 0083 domain-source expansion and reconciliation binding-flow follow-up. #4836 assignment-evidence review: fingerprint now includes typed callable assignments and referenced root helpers; existing unresolved boundary is retained, not approved as a query or leaf."
     },
     {
@@ -61405,6 +61418,63 @@
     },
     {
       "source_owner": "workforce",
+      "port": "github.com/moto-nrw/project-phoenix/modules/workforce/internal/application/timetracking.ExternalCaregiverStaff.IsExternalCaregiver",
+      "binding": "github.com/moto-nrw/project-phoenix/roots/owners.externalCaregiverStaff.IsExternalCaregiver",
+      "target": "*github.com/moto-nrw/project-phoenix/modules/peopledirectory.Staff.SetTenantID",
+      "target_owner": "people-directory",
+      "binding_digest": "3a9331007d01f96c81976ce51a677fc2",
+      "effect": "query",
+      "classification": "query",
+      "reason": "Value-only tenant metadata setter on a returned DTO, not a database write or transaction-scope switch. Target modules/peopledirectory.Staff.SetTenantID; modules/peopledirectory/record_metadata.go:14. May-bind method surface, not a production-call/liveness claim."
+    },
+    {
+      "source_owner": "workforce",
+      "port": "github.com/moto-nrw/project-phoenix/modules/workforce/internal/application/timetracking.ExternalCaregiverStaff.IsExternalCaregiver",
+      "binding": "github.com/moto-nrw/project-phoenix/roots/owners.externalCaregiverStaff.IsExternalCaregiver",
+      "target": "github.com/moto-nrw/project-phoenix/modules/peopledirectory/ports.StaffRepository.FindWithPersonByIDs",
+      "target_owner": "people-directory",
+      "binding_digest": "d23a4ea925a8a2a98293bc213d394c44",
+      "effect": "query",
+      "classification": "query",
+      "reason": "Reviewed read/value/construction method; no owned-row mutation or locking read at this terminal. Target modules/peopledirectory/ports.StaffRepository.FindWithPersonByIDs; modules/peopledirectory/ports/repository_contracts.go:257. May-bind method surface, not a production-call/liveness claim."
+    },
+    {
+      "source_owner": "workforce",
+      "port": "github.com/moto-nrw/project-phoenix/modules/workforce/internal/application/timetracking.ExternalCaregiverStaff.IsExternalCaregiver",
+      "binding": "github.com/moto-nrw/project-phoenix/roots/owners.externalCaregiverStaff.IsExternalCaregiver",
+      "target": "github.com/moto-nrw/project-phoenix/modules/schoolmembership.Capability.ListStaff",
+      "target_owner": "school-membership",
+      "binding_digest": "e9d12825e48074a4a7c5887dea4d1fda",
+      "effect": "query",
+      "classification": "query",
+      "reason": "Reviewed read/value/construction method; no owned-row mutation or locking read at this terminal. Target modules/schoolmembership.Capability.ListStaff; modules/schoolmembership.Capability (supplied contract method). May-bind method surface, not a production-call/liveness claim."
+    },
+    {
+      "source_owner": "workforce",
+      "port": "github.com/moto-nrw/project-phoenix/modules/workforce/internal/application/timetracking.ExternalCaregiverStaff.IsExternalCaregiver",
+      "binding": "github.com/moto-nrw/project-phoenix/roots/owners.externalCaregiverStaff.IsExternalCaregiver",
+      "target": "github.com/moto-nrw/project-phoenix/modules/schoolmembership.Owner.ListStaff",
+      "target_owner": "school-membership",
+      "binding_digest": "9a5949bf8a9e2ced1d4a21477900f1b1",
+      "effect": "query",
+      "classification": "query",
+      "reason": "Reviewed read/value/construction method; no owned-row mutation or locking read at this terminal. Target modules/schoolmembership.Owner.ListStaff; modules/schoolmembership.Owner (supplied contract method). May-bind method surface, not a production-call/liveness claim."
+    },
+    {
+      "source_owner": "workforce",
+      "port": "github.com/moto-nrw/project-phoenix/modules/workforce/internal/application/timetracking.ExternalCaregiverStaff.IsExternalCaregiver",
+      "binding": "github.com/moto-nrw/project-phoenix/roots/owners.externalCaregiverStaff.IsExternalCaregiver",
+      "target": "unresolved:github.com/moto-nrw/project-phoenix/roots/owners.StaffMembershipRepository.hydrateStaffPersons",
+      "target_owner": "",
+      "binding_digest": "362ee581059ac1ee7b2c68f8e32a4da7",
+      "effect": "unresolved",
+      "classification": "unresolved",
+      "adr": "0083",
+      "approval_adr": "0091",
+      "reason": "Unresolved binding-flow boundary, not a query or approved leaf. No indexed concrete method body/provider after typed forwarding (including instantiated generic adapters and anonymous interfaces). Exact boundary: unresolved:github.com/moto-nrw/project-phoenix/roots/owners.StaffMembershipRepository.hydrateStaffPersons. See ADR 0083 domain-source expansion and reconciliation binding-flow follow-up."
+    },
+    {
+      "source_owner": "workforce",
       "port": "github.com/moto-nrw/project-phoenix/modules/workforce/internal/application/timetracking.HolidayDatesReader.HolidayDates",
       "binding": "github.com/moto-nrw/project-phoenix/modules/schoolcalendar/internal/application.NonWorkingDays.HolidayDates",
       "target": "github.com/moto-nrw/project-phoenix/modules/schoolcalendar/internal/application.NonWorkingDays.HolidayDates",
@@ -61420,10 +61490,10 @@
       "binding": "github.com/moto-nrw/project-phoenix/roots/owners.monthCloseStaffQuery.ListMonthCloseStaff",
       "target": "*github.com/moto-nrw/project-phoenix/modules/peopledirectory.Staff.SetTenantID",
       "target_owner": "people-directory",
-      "binding_digest": "8ca7e4c1dc1a8bce52823d9f577ab000",
+      "binding_digest": "25f2c4084402412d904374ce3d2c6cba",
       "effect": "query",
       "classification": "query",
-      "reason": "Value-only tenant metadata setter on a returned DTO, not a database write or transaction-scope switch. Target modules/peopledirectory.Staff.SetTenantID; modules/peopledirectory/record_metadata.go:14. May-bind method surface, not a production-call/liveness claim."
+      "reason": "Value-only tenant metadata setter on a returned DTO, not a database write or transaction-scope switch. Target modules/peopledirectory.Staff.SetTenantID; modules/peopledirectory/record_metadata.go:14. May-bind method surface, not a production-call/liveness claim. Re-reviewed for #4573 (ADR 0091): staff hydration now sets the external caregiver marker instead of the guest flag; value mapping only, no owned-row mutation or locking read added."
     },
     {
       "source_owner": "workforce",
@@ -61431,10 +61501,10 @@
       "binding": "github.com/moto-nrw/project-phoenix/roots/owners.monthCloseStaffQuery.ListMonthCloseStaff",
       "target": "github.com/moto-nrw/project-phoenix/modules/peopledirectory/ports.StaffRepository.ListAllWithPerson",
       "target_owner": "people-directory",
-      "binding_digest": "d15538d0b4e9666cb6704cab6bde35ce",
+      "binding_digest": "5af0653c4a705ebeb2078e5e4eabd496",
       "effect": "query",
       "classification": "query",
-      "reason": "Reviewed read/value/construction method; no owned-row mutation or locking read at this terminal. Target modules/peopledirectory/ports.StaffRepository.ListAllWithPerson; modules/peopledirectory/ports/repository_contracts.go:240. May-bind method surface, not a production-call/liveness claim."
+      "reason": "Reviewed read/value/construction method; no owned-row mutation or locking read at this terminal. Target modules/peopledirectory/ports.StaffRepository.ListAllWithPerson; modules/peopledirectory/ports/repository_contracts.go:240. May-bind method surface, not a production-call/liveness claim. Re-reviewed for #4573 (ADR 0091): staff hydration now sets the external caregiver marker instead of the guest flag; value mapping only, no owned-row mutation or locking read added."
     },
     {
       "source_owner": "workforce",
@@ -61442,10 +61512,10 @@
       "binding": "github.com/moto-nrw/project-phoenix/roots/owners.monthCloseStaffQuery.ListMonthCloseStaff",
       "target": "github.com/moto-nrw/project-phoenix/modules/schoolmembership.Capability.ListStaff",
       "target_owner": "school-membership",
-      "binding_digest": "7f157fd369a81eb9e156036c04d6d2cc",
+      "binding_digest": "5353e0ae75e227f79aa9a3e6b9734a5c",
       "effect": "query",
       "classification": "query",
-      "reason": "Reviewed read/value/construction method; no owned-row mutation or locking read at this terminal. Target modules/schoolmembership.Capability.ListStaff; modules/schoolmembership.Capability (supplied contract method). May-bind method surface, not a production-call/liveness claim."
+      "reason": "Reviewed read/value/construction method; no owned-row mutation or locking read at this terminal. Target modules/schoolmembership.Capability.ListStaff; modules/schoolmembership.Capability (supplied contract method). May-bind method surface, not a production-call/liveness claim. Re-reviewed for #4573 (ADR 0091): staff hydration now sets the external caregiver marker instead of the guest flag; value mapping only, no owned-row mutation or locking read added."
     },
     {
       "source_owner": "workforce",
@@ -61453,10 +61523,10 @@
       "binding": "github.com/moto-nrw/project-phoenix/roots/owners.monthCloseStaffQuery.ListMonthCloseStaff",
       "target": "github.com/moto-nrw/project-phoenix/modules/schoolmembership.Owner.ListStaff",
       "target_owner": "school-membership",
-      "binding_digest": "1bf320b5c50938a66f1f945af372bf15",
+      "binding_digest": "b01c2e02d7d2665342647e04ab79fc75",
       "effect": "query",
       "classification": "query",
-      "reason": "Reviewed read/value/construction method; no owned-row mutation or locking read at this terminal. Target modules/schoolmembership.Owner.ListStaff; modules/schoolmembership.Owner (supplied contract method). May-bind method surface, not a production-call/liveness claim."
+      "reason": "Reviewed read/value/construction method; no owned-row mutation or locking read at this terminal. Target modules/schoolmembership.Owner.ListStaff; modules/schoolmembership.Owner (supplied contract method). May-bind method surface, not a production-call/liveness claim. Re-reviewed for #4573 (ADR 0091): staff hydration now sets the external caregiver marker instead of the guest flag; value mapping only, no owned-row mutation or locking read added."
     },
     {
       "source_owner": "workforce",
@@ -61464,12 +61534,12 @@
       "binding": "github.com/moto-nrw/project-phoenix/roots/owners.monthCloseStaffQuery.ListMonthCloseStaff",
       "target": "unresolved:github.com/moto-nrw/project-phoenix/roots/owners.StaffMembershipRepository.hydrateStaffPersons",
       "target_owner": "",
-      "binding_digest": "506498e7d95382e0456b3a2d311b3af3",
+      "binding_digest": "a3473d94e37810b910af6e42d1ec8e5b",
       "effect": "unresolved",
       "classification": "unresolved",
       "adr": "0083",
-      "approval_adr": "0083",
-      "reason": "Unresolved binding-flow boundary, not a query or approved leaf. No indexed concrete method body/provider after typed forwarding (including instantiated generic adapters and anonymous interfaces). Exact boundary: unresolved:github.com/moto-nrw/project-phoenix/roots/owners.StaffMembershipRepository.hydrateStaffPersons. See ADR 0083 domain-source expansion and reconciliation binding-flow follow-up."
+      "approval_adr": "0091",
+      "reason": "Unresolved binding-flow boundary, not a query or approved leaf. No indexed concrete method body/provider after typed forwarding (including instantiated generic adapters and anonymous interfaces). Exact boundary: unresolved:github.com/moto-nrw/project-phoenix/roots/owners.StaffMembershipRepository.hydrateStaffPersons. See ADR 0083 domain-source expansion and reconciliation binding-flow follow-up. Re-reviewed for #4573 (ADR 0091): staff hydration now sets the external caregiver marker instead of the guest flag; value mapping only, no owned-row mutation or locking read added."
     },
     {
       "source_owner": "workforce",
@@ -61477,10 +61547,10 @@
       "binding": "github.com/moto-nrw/project-phoenix/roots/owners.overviewStaffQuery.ListOverviewStaff",
       "target": "*github.com/moto-nrw/project-phoenix/modules/peopledirectory.Staff.SetTenantID",
       "target_owner": "people-directory",
-      "binding_digest": "68712044464d8f8a97514643d27bca13",
+      "binding_digest": "ff049b398903164a221c94d05b92be29",
       "effect": "query",
       "classification": "query",
-      "reason": "Value-only tenant metadata setter on a returned DTO, not a database write or transaction-scope switch. Target modules/peopledirectory.Staff.SetTenantID; modules/peopledirectory/record_metadata.go:14. May-bind method surface, not a production-call/liveness claim."
+      "reason": "Value-only tenant metadata setter on a returned DTO, not a database write or transaction-scope switch. Target modules/peopledirectory.Staff.SetTenantID; modules/peopledirectory/record_metadata.go:14. May-bind method surface, not a production-call/liveness claim. Re-reviewed for #4573 (ADR 0091): staff hydration now sets the external caregiver marker instead of the guest flag; value mapping only, no owned-row mutation or locking read added."
     },
     {
       "source_owner": "workforce",
@@ -61488,10 +61558,10 @@
       "binding": "github.com/moto-nrw/project-phoenix/roots/owners.overviewStaffQuery.ListOverviewStaff",
       "target": "github.com/moto-nrw/project-phoenix/modules/peopledirectory/ports.StaffRepository.ListAllWithPerson",
       "target_owner": "people-directory",
-      "binding_digest": "52180008f6ebba63f58da0f8dc7f4239",
+      "binding_digest": "8a1c55ee4de8213dae98dda46e9e457d",
       "effect": "query",
       "classification": "query",
-      "reason": "Reviewed read/value/construction method; no owned-row mutation or locking read at this terminal. Target modules/peopledirectory/ports.StaffRepository.ListAllWithPerson; modules/peopledirectory/ports/repository_contracts.go:240. May-bind method surface, not a production-call/liveness claim."
+      "reason": "Reviewed read/value/construction method; no owned-row mutation or locking read at this terminal. Target modules/peopledirectory/ports.StaffRepository.ListAllWithPerson; modules/peopledirectory/ports/repository_contracts.go:240. May-bind method surface, not a production-call/liveness claim. Re-reviewed for #4573 (ADR 0091): staff hydration now sets the external caregiver marker instead of the guest flag; value mapping only, no owned-row mutation or locking read added."
     },
     {
       "source_owner": "workforce",
@@ -61499,10 +61569,10 @@
       "binding": "github.com/moto-nrw/project-phoenix/roots/owners.overviewStaffQuery.ListOverviewStaff",
       "target": "github.com/moto-nrw/project-phoenix/modules/schoolmembership.Capability.ListStaff",
       "target_owner": "school-membership",
-      "binding_digest": "7573cd5f3ede49db8cc97061c0ea6b2f",
+      "binding_digest": "ab04c5601075a26a3001e850f01655cb",
       "effect": "query",
       "classification": "query",
-      "reason": "Reviewed read/value/construction method; no owned-row mutation or locking read at this terminal. Target modules/schoolmembership.Capability.ListStaff; modules/schoolmembership.Capability (supplied contract method). May-bind method surface, not a production-call/liveness claim."
+      "reason": "Reviewed read/value/construction method; no owned-row mutation or locking read at this terminal. Target modules/schoolmembership.Capability.ListStaff; modules/schoolmembership.Capability (supplied contract method). May-bind method surface, not a production-call/liveness claim. Re-reviewed for #4573 (ADR 0091): staff hydration now sets the external caregiver marker instead of the guest flag; value mapping only, no owned-row mutation or locking read added."
     },
     {
       "source_owner": "workforce",
@@ -61510,10 +61580,10 @@
       "binding": "github.com/moto-nrw/project-phoenix/roots/owners.overviewStaffQuery.ListOverviewStaff",
       "target": "github.com/moto-nrw/project-phoenix/modules/schoolmembership.Owner.ListStaff",
       "target_owner": "school-membership",
-      "binding_digest": "d96a438a6f974a175b36911a539c649a",
+      "binding_digest": "927058f46f47a0854179cd996eeacac6",
       "effect": "query",
       "classification": "query",
-      "reason": "Reviewed read/value/construction method; no owned-row mutation or locking read at this terminal. Target modules/schoolmembership.Owner.ListStaff; modules/schoolmembership.Owner (supplied contract method). May-bind method surface, not a production-call/liveness claim."
+      "reason": "Reviewed read/value/construction method; no owned-row mutation or locking read at this terminal. Target modules/schoolmembership.Owner.ListStaff; modules/schoolmembership.Owner (supplied contract method). May-bind method surface, not a production-call/liveness claim. Re-reviewed for #4573 (ADR 0091): staff hydration now sets the external caregiver marker instead of the guest flag; value mapping only, no owned-row mutation or locking read added."
     },
     {
       "source_owner": "workforce",
@@ -61521,12 +61591,12 @@
       "binding": "github.com/moto-nrw/project-phoenix/roots/owners.overviewStaffQuery.ListOverviewStaff",
       "target": "unresolved:github.com/moto-nrw/project-phoenix/roots/owners.StaffMembershipRepository.hydrateStaffPersons",
       "target_owner": "",
-      "binding_digest": "1f6ed68d40820b260f575cbab496a188",
+      "binding_digest": "249e98e2b6c41b44494b4dd4afc10b7c",
       "effect": "unresolved",
       "classification": "unresolved",
       "adr": "0083",
-      "approval_adr": "0083",
-      "reason": "Unresolved binding-flow boundary, not a query or approved leaf. No indexed concrete method body/provider after typed forwarding (including instantiated generic adapters and anonymous interfaces). Exact boundary: unresolved:github.com/moto-nrw/project-phoenix/roots/owners.StaffMembershipRepository.hydrateStaffPersons. See ADR 0083 domain-source expansion and reconciliation binding-flow follow-up."
+      "approval_adr": "0091",
+      "reason": "Unresolved binding-flow boundary, not a query or approved leaf. No indexed concrete method body/provider after typed forwarding (including instantiated generic adapters and anonymous interfaces). Exact boundary: unresolved:github.com/moto-nrw/project-phoenix/roots/owners.StaffMembershipRepository.hydrateStaffPersons. See ADR 0083 domain-source expansion and reconciliation binding-flow follow-up. Re-reviewed for #4573 (ADR 0091): staff hydration now sets the external caregiver marker instead of the guest flag; value mapping only, no owned-row mutation or locking read added."
     },
     {
       "source_owner": "workforce",
@@ -61534,10 +61604,10 @@
       "binding": "github.com/moto-nrw/project-phoenix/roots/owners.staffDisplayNameQuery.StaffDisplayNames",
       "target": "*github.com/moto-nrw/project-phoenix/modules/peopledirectory.Staff.SetTenantID",
       "target_owner": "people-directory",
-      "binding_digest": "8d3a75ce5dc7cb3cd9ec3c2d33fa56e4",
+      "binding_digest": "287c280a9b86338b87e3401e1ddb7654",
       "effect": "query",
       "classification": "query",
-      "reason": "Value-only tenant metadata setter on a returned DTO, not a database write or transaction-scope switch. Target modules/peopledirectory.Staff.SetTenantID; modules/peopledirectory/record_metadata.go:14. May-bind method surface, not a production-call/liveness claim."
+      "reason": "Value-only tenant metadata setter on a returned DTO, not a database write or transaction-scope switch. Target modules/peopledirectory.Staff.SetTenantID; modules/peopledirectory/record_metadata.go:14. May-bind method surface, not a production-call/liveness claim. Re-reviewed for #4573 (ADR 0091): staff hydration now sets the external caregiver marker instead of the guest flag; value mapping only, no owned-row mutation or locking read added."
     },
     {
       "source_owner": "workforce",
@@ -61591,10 +61661,10 @@
       "binding": "github.com/moto-nrw/project-phoenix/roots/owners.timeExportStaffQuery.ListExportStaff",
       "target": "*github.com/moto-nrw/project-phoenix/modules/peopledirectory.Staff.SetTenantID",
       "target_owner": "people-directory",
-      "binding_digest": "99e6e5d412635eaa249ce98ce4489c9e",
+      "binding_digest": "b5dd696a680d702a5f51b3169490d14c",
       "effect": "query",
       "classification": "query",
-      "reason": "Value-only tenant metadata setter on a returned DTO, not a database write or transaction-scope switch. Target modules/peopledirectory.Staff.SetTenantID; modules/peopledirectory/record_metadata.go:14. May-bind method surface, not a production-call/liveness claim."
+      "reason": "Value-only tenant metadata setter on a returned DTO, not a database write or transaction-scope switch. Target modules/peopledirectory.Staff.SetTenantID; modules/peopledirectory/record_metadata.go:14. May-bind method surface, not a production-call/liveness claim. Re-reviewed for #4573 (ADR 0091): staff hydration now sets the external caregiver marker instead of the guest flag; value mapping only, no owned-row mutation or locking read added."
     },
     {
       "source_owner": "workforce",
@@ -61602,10 +61672,10 @@
       "binding": "github.com/moto-nrw/project-phoenix/roots/owners.timeExportStaffQuery.ListExportStaff",
       "target": "github.com/moto-nrw/project-phoenix/modules/peopledirectory/ports.StaffRepository.ListAllWithPerson",
       "target_owner": "people-directory",
-      "binding_digest": "e564c990b692f036d9e768f50c2e8b78",
+      "binding_digest": "c016985aba33dc618735fffeaf907f44",
       "effect": "query",
       "classification": "query",
-      "reason": "Reviewed read/value/construction method; no owned-row mutation or locking read at this terminal. Target modules/peopledirectory/ports.StaffRepository.ListAllWithPerson; modules/peopledirectory/ports/repository_contracts.go:240. May-bind method surface, not a production-call/liveness claim."
+      "reason": "Reviewed read/value/construction method; no owned-row mutation or locking read at this terminal. Target modules/peopledirectory/ports.StaffRepository.ListAllWithPerson; modules/peopledirectory/ports/repository_contracts.go:240. May-bind method surface, not a production-call/liveness claim. Re-reviewed for #4573 (ADR 0091): staff hydration now sets the external caregiver marker instead of the guest flag; value mapping only, no owned-row mutation or locking read added."
     },
     {
       "source_owner": "workforce",
@@ -61613,10 +61683,10 @@
       "binding": "github.com/moto-nrw/project-phoenix/roots/owners.timeExportStaffQuery.ListExportStaff",
       "target": "github.com/moto-nrw/project-phoenix/modules/schoolmembership.Capability.ListStaff",
       "target_owner": "school-membership",
-      "binding_digest": "ee61f0b8b4d44ca62f88a1c5867b490e",
+      "binding_digest": "22be3612aa82e239942a7771fe111362",
       "effect": "query",
       "classification": "query",
-      "reason": "Reviewed read/value/construction method; no owned-row mutation or locking read at this terminal. Target modules/schoolmembership.Capability.ListStaff; modules/schoolmembership.Capability (supplied contract method). May-bind method surface, not a production-call/liveness claim."
+      "reason": "Reviewed read/value/construction method; no owned-row mutation or locking read at this terminal. Target modules/schoolmembership.Capability.ListStaff; modules/schoolmembership.Capability (supplied contract method). May-bind method surface, not a production-call/liveness claim. Re-reviewed for #4573 (ADR 0091): staff hydration now sets the external caregiver marker instead of the guest flag; value mapping only, no owned-row mutation or locking read added."
     },
     {
       "source_owner": "workforce",
@@ -61624,10 +61694,10 @@
       "binding": "github.com/moto-nrw/project-phoenix/roots/owners.timeExportStaffQuery.ListExportStaff",
       "target": "github.com/moto-nrw/project-phoenix/modules/schoolmembership.Owner.ListStaff",
       "target_owner": "school-membership",
-      "binding_digest": "7f01862b62fad50fd578569eb7de9657",
+      "binding_digest": "27588710e6dd6973b3aed6ad2db76473",
       "effect": "query",
       "classification": "query",
-      "reason": "Reviewed read/value/construction method; no owned-row mutation or locking read at this terminal. Target modules/schoolmembership.Owner.ListStaff; modules/schoolmembership.Owner (supplied contract method). May-bind method surface, not a production-call/liveness claim."
+      "reason": "Reviewed read/value/construction method; no owned-row mutation or locking read at this terminal. Target modules/schoolmembership.Owner.ListStaff; modules/schoolmembership.Owner (supplied contract method). May-bind method surface, not a production-call/liveness claim. Re-reviewed for #4573 (ADR 0091): staff hydration now sets the external caregiver marker instead of the guest flag; value mapping only, no owned-row mutation or locking read added."
     },
     {
       "source_owner": "workforce",
@@ -61635,12 +61705,12 @@
       "binding": "github.com/moto-nrw/project-phoenix/roots/owners.timeExportStaffQuery.ListExportStaff",
       "target": "unresolved:github.com/moto-nrw/project-phoenix/roots/owners.StaffMembershipRepository.hydrateStaffPersons",
       "target_owner": "",
-      "binding_digest": "6e8aae995fec1d06caecf5cff41a24a5",
+      "binding_digest": "8b077ba60bb8b4db3a5ce1417d08a929",
       "effect": "unresolved",
       "classification": "unresolved",
       "adr": "0083",
-      "approval_adr": "0083",
-      "reason": "Unresolved binding-flow boundary, not a query or approved leaf. No indexed concrete method body/provider after typed forwarding (including instantiated generic adapters and anonymous interfaces). Exact boundary: unresolved:github.com/moto-nrw/project-phoenix/roots/owners.StaffMembershipRepository.hydrateStaffPersons. See ADR 0083 domain-source expansion and reconciliation binding-flow follow-up."
+      "approval_adr": "0091",
+      "reason": "Unresolved binding-flow boundary, not a query or approved leaf. No indexed concrete method body/provider after typed forwarding (including instantiated generic adapters and anonymous interfaces). Exact boundary: unresolved:github.com/moto-nrw/project-phoenix/roots/owners.StaffMembershipRepository.hydrateStaffPersons. See ADR 0083 domain-source expansion and reconciliation binding-flow follow-up. Re-reviewed for #4573 (ADR 0091): staff hydration now sets the external caregiver marker instead of the guest flag; value mapping only, no owned-row mutation or locking read added."
     },
     {
       "source_owner": "workforce",
@@ -61652,7 +61722,7 @@
       "effect": "unresolved",
       "classification": "unresolved",
       "adr": "0083",
-      "approval_adr": "0091",
+      "approval_adr": "0092",
       "reason": "Unresolved binding-flow boundary, not a query or approved leaf. Function-valued field; callable instance flow is deferred. Exact boundary: unresolved:function:github.com/moto-nrw/project-phoenix/roots/owners.workSessionStaff.bindSchedule. See ADR 0083 domain-source expansion and reconciliation binding-flow follow-up. #4836 assignment-evidence review: fingerprint now includes typed callable assignments and referenced root helpers; existing unresolved boundary is retained, not approved as a query or leaf."
     },
     {
@@ -61661,10 +61731,10 @@
       "binding": "github.com/moto-nrw/project-phoenix/roots/owners.workSessionStaff.StaffNames",
       "target": "*github.com/moto-nrw/project-phoenix/modules/peopledirectory.Staff.SetTenantID",
       "target_owner": "people-directory",
-      "binding_digest": "cf0598ee3bf6e5992cb9f9e6abde05bf",
+      "binding_digest": "878d5de73f87ed4501babb694cc51e8f",
       "effect": "query",
       "classification": "query",
-      "reason": "Value-only tenant metadata setter on a returned DTO, not a database write or transaction-scope switch. Target modules/peopledirectory.Staff.SetTenantID; modules/peopledirectory/record_metadata.go:14. May-bind method surface, not a production-call/liveness claim."
+      "reason": "Value-only tenant metadata setter on a returned DTO, not a database write or transaction-scope switch. Target modules/peopledirectory.Staff.SetTenantID; modules/peopledirectory/record_metadata.go:14. May-bind method surface, not a production-call/liveness claim. Re-reviewed for #4573 (ADR 0091): staff hydration now sets the external caregiver marker instead of the guest flag; value mapping only, no owned-row mutation or locking read added."
     },
     {
       "source_owner": "workforce",
@@ -61979,10 +62049,10 @@
       "binding": "github.com/moto-nrw/project-phoenix/modules/workforce/compose.StaffOverviewReader.FindWithPersonByIDs",
       "target": "*github.com/moto-nrw/project-phoenix/modules/peopledirectory.Staff.SetTenantID",
       "target_owner": "people-directory",
-      "binding_digest": "c55ea24b5d477d24d7479bc29fcd90b5",
+      "binding_digest": "0fd2278eb626b50f8452c28b3d87d205",
       "effect": "query",
       "classification": "query",
-      "reason": "Value-only tenant metadata setter on a returned DTO, not a database write or transaction-scope switch. Target modules/peopledirectory.Staff.SetTenantID; modules/peopledirectory/record_metadata.go:14. May-bind method surface, not a production-call/liveness claim."
+      "reason": "Value-only tenant metadata setter on a returned DTO, not a database write or transaction-scope switch. Target modules/peopledirectory.Staff.SetTenantID; modules/peopledirectory/record_metadata.go:14. May-bind method surface, not a production-call/liveness claim. Re-reviewed for #4573 (ADR 0091): staff hydration now sets the external caregiver marker instead of the guest flag; value mapping only, no owned-row mutation or locking read added."
     },
     {
       "source_owner": "workforce",
@@ -62036,10 +62106,10 @@
       "binding": "github.com/moto-nrw/project-phoenix/modules/workforce/compose.StaffOverviewReader.ListAllWithPerson",
       "target": "*github.com/moto-nrw/project-phoenix/modules/peopledirectory.Staff.SetTenantID",
       "target_owner": "people-directory",
-      "binding_digest": "9ef50c81d78f16c82c9e4e84530e06e9",
+      "binding_digest": "706a9bab1e206dc8edbcc6224d5205c3",
       "effect": "query",
       "classification": "query",
-      "reason": "Value-only tenant metadata setter on a returned DTO, not a database write or transaction-scope switch. Target modules/peopledirectory.Staff.SetTenantID; modules/peopledirectory/record_metadata.go:14. May-bind method surface, not a production-call/liveness claim."
+      "reason": "Value-only tenant metadata setter on a returned DTO, not a database write or transaction-scope switch. Target modules/peopledirectory.Staff.SetTenantID; modules/peopledirectory/record_metadata.go:14. May-bind method surface, not a production-call/liveness claim. Re-reviewed for #4573 (ADR 0091): staff hydration now sets the external caregiver marker instead of the guest flag; value mapping only, no owned-row mutation or locking read added."
     },
     {
       "source_owner": "workforce",
@@ -62093,10 +62163,10 @@
       "binding": "github.com/moto-nrw/project-phoenix/modules/workforce/compose.StaffOverviewReader.ListMembershipsWithPerson",
       "target": "*github.com/moto-nrw/project-phoenix/modules/peopledirectory.Staff.SetTenantID",
       "target_owner": "people-directory",
-      "binding_digest": "efc224efe181de191d8960dfea813366",
+      "binding_digest": "48f3b6f31e056da1c85b487e34ef3c8c",
       "effect": "query",
       "classification": "query",
-      "reason": "Value-only tenant metadata setter on a returned DTO, not a database write or transaction-scope switch. Target modules/peopledirectory.Staff.SetTenantID; modules/peopledirectory/record_metadata.go:14. May-bind method surface, not a production-call/liveness claim."
+      "reason": "Value-only tenant metadata setter on a returned DTO, not a database write or transaction-scope switch. Target modules/peopledirectory.Staff.SetTenantID; modules/peopledirectory/record_metadata.go:14. May-bind method surface, not a production-call/liveness claim. Re-reviewed for #4573 (ADR 0091): staff hydration now sets the external caregiver marker instead of the guest flag; value mapping only, no owned-row mutation or locking read added."
     },
     {
       "source_owner": "workforce",
@@ -62150,10 +62220,10 @@
       "binding": "github.com/moto-nrw/project-phoenix/modules/workforce/compose.StaffDirectory.FindByID",
       "target": "*github.com/moto-nrw/project-phoenix/modules/peopledirectory.Staff.SetTenantID",
       "target_owner": "people-directory",
-      "binding_digest": "a76aafd8649bc5aee5345d294fc69910",
+      "binding_digest": "8ba27a9675e88a62cdf704582daed8ca",
       "effect": "query",
       "classification": "query",
-      "reason": "Value-only tenant metadata setter on a returned DTO, not a database write or transaction-scope switch. Target modules/peopledirectory.Staff.SetTenantID; modules/peopledirectory/record_metadata.go:14. May-bind method surface, not a production-call/liveness claim."
+      "reason": "Value-only tenant metadata setter on a returned DTO, not a database write or transaction-scope switch. Target modules/peopledirectory.Staff.SetTenantID; modules/peopledirectory/record_metadata.go:14. May-bind method surface, not a production-call/liveness claim. Re-reviewed for #4573 (ADR 0091): staff hydration now sets the external caregiver marker instead of the guest flag; value mapping only, no owned-row mutation or locking read added."
     },
     {
       "source_owner": "workforce",
@@ -62194,10 +62264,10 @@
       "binding": "github.com/moto-nrw/project-phoenix/modules/workforce/compose.StaffDirectory.FindWithPersonByIDs",
       "target": "*github.com/moto-nrw/project-phoenix/modules/peopledirectory.Staff.SetTenantID",
       "target_owner": "people-directory",
-      "binding_digest": "c55ea24b5d477d24d7479bc29fcd90b5",
+      "binding_digest": "0fd2278eb626b50f8452c28b3d87d205",
       "effect": "query",
       "classification": "query",
-      "reason": "Value-only tenant metadata setter on a returned DTO, not a database write or transaction-scope switch. Target modules/peopledirectory.Staff.SetTenantID; modules/peopledirectory/record_metadata.go:14. May-bind method surface, not a production-call/liveness claim."
+      "reason": "Value-only tenant metadata setter on a returned DTO, not a database write or transaction-scope switch. Target modules/peopledirectory.Staff.SetTenantID; modules/peopledirectory/record_metadata.go:14. May-bind method surface, not a production-call/liveness claim. Re-reviewed for #4573 (ADR 0091): staff hydration now sets the external caregiver marker instead of the guest flag; value mapping only, no owned-row mutation or locking read added."
     },
     {
       "source_owner": "workforce",
@@ -62251,10 +62321,10 @@
       "binding": "github.com/moto-nrw/project-phoenix/modules/workforce/compose.StaffDirectory.ListAllWithPerson",
       "target": "*github.com/moto-nrw/project-phoenix/modules/peopledirectory.Staff.SetTenantID",
       "target_owner": "people-directory",
-      "binding_digest": "9ef50c81d78f16c82c9e4e84530e06e9",
+      "binding_digest": "706a9bab1e206dc8edbcc6224d5205c3",
       "effect": "query",
       "classification": "query",
-      "reason": "Value-only tenant metadata setter on a returned DTO, not a database write or transaction-scope switch. Target modules/peopledirectory.Staff.SetTenantID; modules/peopledirectory/record_metadata.go:14. May-bind method surface, not a production-call/liveness claim."
+      "reason": "Value-only tenant metadata setter on a returned DTO, not a database write or transaction-scope switch. Target modules/peopledirectory.Staff.SetTenantID; modules/peopledirectory/record_metadata.go:14. May-bind method surface, not a production-call/liveness claim. Re-reviewed for #4573 (ADR 0091): staff hydration now sets the external caregiver marker instead of the guest flag; value mapping only, no owned-row mutation or locking read added."
     },
     {
       "source_owner": "workforce",

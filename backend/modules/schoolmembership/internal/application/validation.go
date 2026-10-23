@@ -36,7 +36,7 @@ func validateTeacherFields(fields *schoolmembership.TeacherFields) error {
 	return nil
 }
 
-func validateGuestFields(fields *schoolmembership.GuestFields) error {
+func validateExternalCaregiverRecordFields(fields *schoolmembership.ExternalCaregiverRecordFields) error {
 	if fields.StaffID <= 0 {
 		return invalid("staff ID is required")
 	}
@@ -67,7 +67,7 @@ func validateGuestFields(fields *schoolmembership.GuestFields) error {
 	return nil
 }
 
-// validPhone mirrors the shared phone rule of the legacy guest model: an
+// validPhone mirrors the shared phone rule of the legacy external caregiver record model: an
 // optional leading plus, then digits with spaces, slashes, dashes or
 // parentheses, at least six digits in total.
 func validPhone(value string) bool {

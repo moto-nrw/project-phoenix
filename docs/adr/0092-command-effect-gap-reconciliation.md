@@ -26,3 +26,17 @@ A semantic edit to a still-unresolved closure requires fresh ADR evidence even
 if its author believes no foreign effect changed. We retain that review cost:
 without resolving runtime dispatch the checker cannot prove that claim.
 Comments, formatting and unrelated closures do not change its fingerprint.
+
+## Development merge reconciliation
+
+Development commit `3e625a1f5d` already uses ADR 0091 for external caregiver
+records. This decision therefore uses the fresh number 0092; unchanged base
+approvals continue to cite 0091. Regeneration removes all 15 obsolete branch
+identities, including the old GuestRepository callbacks, rather than preserving
+them as debt. Replacement identities retain the base's reviewed classifications.
+
+Against that development commit the merged register contains 5,350 entries:
+3 added, 0 removed and 48 changed fingerprints. There are 7 workflow, 92 debt
+and 642 unresolved entries. The 70 gap-repair approvals cite 0092, including
+the renamed callable whose assignment fingerprint changes. The original
+pre-merge measurements in ADR 0083 remain historical evidence.

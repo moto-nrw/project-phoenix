@@ -151,6 +151,13 @@ interface TimetableEventModalProps {
   canManageCategories: boolean;
   canManagePlanningTracks?: boolean;
   /**
+   * users:create, the gate of POST /api/staff/externals: the step „Personal“
+   * may record and invite an external person (#4573).
+   */
+  canCreateExternalCaregiver?: boolean;
+  /** Offer „Nur ansehen“ for an external person (users:manage, ADR 0091). */
+  canGrantExternalView?: boolean;
+  /**
    * OGS-Schließtage des Tenants (#2032). Fällt das gewählte Datum auf einen
    * davon, fragt das Speichern einmal nach — angelegt wird trotzdem, sobald
    * bestätigt wurde. Ohne die Liste verhält sich der Dialog wie bisher.
@@ -183,6 +190,8 @@ export function TimetableEventModal({
   canCheckShiftCoverage,
   canManageCategories,
   canManagePlanningTracks = false,
+  canCreateExternalCaregiver = false,
+  canGrantExternalView = false,
   closingDayRanges,
   closingDaysLoading = false,
 }: TimetableEventModalProps) {
@@ -207,6 +216,7 @@ export function TimetableEventModal({
     groups,
     students,
     staff,
+    addStaffOption,
     loadingRefs,
     loadingStudents,
     studentLoadFailed,
@@ -693,6 +703,9 @@ export function TimetableEventModal({
                 groups={groups}
                 students={students}
                 staff={staff}
+                addStaffOption={addStaffOption}
+                canCreateExternalCaregiver={canCreateExternalCaregiver}
+                canGrantExternalView={canGrantExternalView}
                 loadingRefs={loadingRefs}
                 loadingStudents={loadingStudents}
                 studentLoadFailed={studentLoadFailed}
