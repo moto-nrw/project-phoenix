@@ -37,7 +37,7 @@ type decisionTarget struct {
 // same tenant tx the handler provides - failure of any one rolls the
 // whole approval back. Parent decision emails are enqueued via the
 // outbox in the same tx; guardian invitation creation is returned as a
-// PendingGuardianInvite for the handler to fire post-commit.
+// PendingGuardianInvite for the handler to enqueue before that tx commits.
 //
 // Idempotency: applying the same status twice is a no-op. Re-applying
 // any new status to an already-terminal child (approved/rejected/
