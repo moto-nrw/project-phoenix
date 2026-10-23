@@ -129,6 +129,22 @@ Name files one by one on purpose: the host carries dashboards that exist only
 there, and copying the whole directory would also switch on alert rules
 whose prerequisites (see their sections) are not met yet.
 
+## Provisioned state on the monitoring host
+
+Since 2026-10-23 every dashboard under `grafana/provisioning/dashboards/json`
+matches the host, including the five that used to exist only there
+(`iot-checkin-performance`, `phoenix-overview`, `phoenix-production`,
+`phoenix-scaling`, `phoenix-staging`). Change a dashboard here and deploy it
+with `scripts/deploy-grafana-provisioning.sh`, not in the Grafana UI: a
+provisioned dashboard edited in the UI is overwritten on the next restart.
+
+`alerting/server-errors.yml` is deployed and the hand-made "Error Spike" rule
+is paused. `alerting/student-contract.yml` is not deployed: its collector is
+not installed, and the rule alerts on missing data. Thirteen further alert
+rules (backup, host, DB pool, 5xx, server down) were created in the Grafana
+UI and are not in this repository; neither are contact points, which name
+recipients.
+
 ## Student storage Contract observation
 
 Before the #2760 rollback window, install the read-only collector and Grafana
