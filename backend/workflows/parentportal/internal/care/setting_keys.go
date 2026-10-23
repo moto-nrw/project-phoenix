@@ -1,5 +1,7 @@
 package care
 
+import "github.com/moto-nrw/project-phoenix/modules/careplan/parentrequests"
+
 // These keys and policy values are the guardian workflow's settings protocol.
 // The root binds the port to the tenant registry; no defaults are supplied here.
 const (
@@ -28,8 +30,8 @@ const (
 	ParentInviteModeDirect              = "direct"
 	ParentInviteModeDisabled            = "disabled"
 	ParentInviteModeStaffApproval       = "staff_approval"
-	ReasonPolicyBoth                    = "both"
-	ReasonPolicyGuardians               = "guardians"
-	ReasonPolicyNobody                  = "nobody"
-	ReasonPolicyStaff                   = "staff"
+	ReasonPolicyBoth                    = parentrequests.ReasonPolicyBoth
+	ReasonPolicyGuardians               = parentrequests.ReasonPolicyGuardians
+	ReasonPolicyNobody                  = parentrequests.ReasonPolicyNobody
+	ReasonPolicyStaff                   = parentrequests.ReasonPolicyStaff
 )

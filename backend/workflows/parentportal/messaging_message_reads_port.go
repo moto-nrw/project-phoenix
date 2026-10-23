@@ -16,8 +16,5 @@ func NewMessageReads(c MessageReadsCallbacks) MessageReads { return messageReads
 type messageReadsBinding struct{ callbacks MessageReadsCallbacks }
 
 func (p messageReadsBinding) ListByThread(ctx context.Context, threadID int64, limit int) ([]*messaging.ParentMessage, error) {
-	result0, result1 := p.callbacks.ListByThread(ctx, threadID, limit)
-	return messagingValueSlice(result0, func(row *ParentMessage) *messaging.ParentMessage {
-		return messagingValuePointer(row, messagingToAppParentMessage)
-	}), result1
+	return p.callbacks.ListByThread(ctx, threadID, limit)
 }

@@ -21,16 +21,11 @@ func NewArrivalSchedules(callbacks ArrivalSchedulesCallbacks) ArrivalSchedules {
 type arrivalSchedules struct{ callbacks ArrivalSchedulesCallbacks }
 
 func (a arrivalSchedules) GetStudentArrivalExceptionForDate(ctx context.Context, id int64, date calendar.Date) (*care.ArrivalException, error) {
-	value, err := a.callbacks.GetStudentArrivalExceptionForDate(ctx, id, date)
-	return carePlanValuePointer(value, carePlanToAppArrivalException), err
+	return a.callbacks.GetStudentArrivalExceptionForDate(ctx, id, date)
 }
 func (a arrivalSchedules) GetStudentArrivalScheduleForWeekday(ctx context.Context, id int64, weekday int) (*care.ArrivalSchedule, error) {
-	value, err := a.callbacks.GetStudentArrivalScheduleForWeekday(ctx, id, weekday)
-	return carePlanValuePointer(value, carePlanToAppArrivalSchedule), err
+	return a.callbacks.GetStudentArrivalScheduleForWeekday(ctx, id, weekday)
 }
 func (a arrivalSchedules) GetStudentArrivalSchedules(ctx context.Context, id int64) ([]*care.ArrivalSchedule, error) {
-	value, err := a.callbacks.GetStudentArrivalSchedules(ctx, id)
-	return carePlanValueSlice(value, func(v *ArrivalScheduleSnapshot) *care.ArrivalSchedule {
-		return carePlanValuePointer(v, carePlanToAppArrivalSchedule)
-	}), err
+	return a.callbacks.GetStudentArrivalSchedules(ctx, id)
 }

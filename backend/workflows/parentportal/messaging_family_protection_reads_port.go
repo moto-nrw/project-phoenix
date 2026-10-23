@@ -22,8 +22,5 @@ type familyProtectionReadsBinding struct {
 }
 
 func (p familyProtectionReadsBinding) CurrentForStudents(ctx context.Context, studentIDs []int64) (map[int64]*messaging.FamilyProtectionEvent, error) {
-	result0, result1 := p.callbacks.CurrentForStudents(ctx, studentIDs)
-	return messagingValueMap(result0, func(row *FamilyProtectionEvent) *messaging.FamilyProtectionEvent {
-		return messagingValuePointer(row, messagingToAppFamilyProtectionEvent)
-	}), result1
+	return p.callbacks.CurrentForStudents(ctx, studentIDs)
 }
