@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/moto-nrw/project-phoenix/internal/architecture"
+	"github.com/moto-nrw/project-phoenix/internal/passthrough"
 )
 
 func main() {
@@ -21,15 +22,26 @@ func main() {
 		fmt.Fprintf(os.Stderr, "change to backend project: %v\n", err)
 		os.Exit(1)
 	}
+	if len(os.Args) > 1 && os.Args[1] == "passthrough-snapshot" {
+		if err := passthrough.WriteSnapshot(os.Stdout, project, "0090"); err != nil {
+			fmt.Fprintln(os.Stderr, err)
+			os.Exit(1)
+		}
+		return
+	}
 	dependencies := architecture.CLIDependencies{
 		IssueClient: issueHTTPClient{inner: &http.Client{Timeout: 15 * time.Second}},
 		Getenv:      os.Getenv,
 		ProjectRoot: filepath.Dir(project),
+		CheckProject: func(scanProject, baseRef string) error {
+			return passthrough.CheckProject(project, scanProject, baseRef)
+		},
 	}
 	if err := architecture.RunCLI(os.Args[1:], dependencies); err != nil {
 		fmt.Fprintln(os.Stderr, err)
 		os.Exit(1)
 	}
+
 }
 
 type issueHTTPClient struct{ inner *http.Client }

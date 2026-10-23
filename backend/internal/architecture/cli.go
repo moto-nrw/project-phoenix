@@ -10,19 +10,30 @@ import (
 )
 
 type CLIDependencies struct {
-	IssueClient IssueClient
-	Getenv      func(string) string
-	ProjectRoot string
+	IssueClient  IssueClient
+	Getenv       func(string) string
+	ProjectRoot  string
+	CheckProject func(project, baseRef string) error
 }
 
 func RunCLI(args []string, dependencies CLIDependencies) error {
 	if len(args) == 0 {
-		return fmt.Errorf("command is required: check, effects, explain, diagram, dependencies, cycles, audit-issues, or relocations")
+		return fmt.Errorf("command is required: check, effects, passthrough-snapshot, explain, diagram, dependencies, cycles, audit-issues, or relocations")
 	}
 
 	switch args[0] {
 	case "check":
-		return runCheck(args[1:])
+		options, err := parseCheckOptions(args[1:])
+		if err != nil {
+			return err
+		}
+		if err := runCheck(options); err != nil {
+			return err
+		}
+		if dependencies.CheckProject != nil {
+			return dependencies.CheckProject(options.project, options.baseRef)
+		}
+		return nil
 	case "effects":
 		options, err := parseCheckOptions(args[1:])
 		if err != nil {
@@ -46,7 +57,7 @@ func RunCLI(args []string, dependencies CLIDependencies) error {
 	case "cycles":
 		return runCycles(args[1:])
 	default:
-		return fmt.Errorf("unknown command %q: expected check, effects, explain, diagram, dependencies, cycles, audit-issues, or relocations", args[0])
+		return fmt.Errorf("unknown command %q: expected check, effects, passthrough-snapshot, explain, diagram, dependencies, cycles, audit-issues, or relocations", args[0])
 	}
 }
 
@@ -74,11 +85,7 @@ func runExplain(args []string) error {
 	return nil
 }
 
-func runCheck(args []string) error {
-	options, err := parseCheckOptions(args)
-	if err != nil {
-		return err
-	}
+func runCheck(options checkOptions) error {
 	policy, err := LoadPolicy(options.policy)
 	if err != nil {
 		return err
