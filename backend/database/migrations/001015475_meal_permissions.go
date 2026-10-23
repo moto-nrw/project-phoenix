@@ -45,7 +45,26 @@ func mealPermissionsUp(ctx context.Context, db *bun.DB) error {
 		`); err != nil {
 			return fmt.Errorf("insert meal permissions: %w", err)
 		}
-		if _, err := tx.ExecContext(ctx, `
+		if _, err := tx.ExecContext(ctx, grantMealPermissionsSQL); err != nil {
+			return fmt.Errorf("grant meal permissions where the old ones were: %w", err)
+		}
+		return nil
+	})
+}
+
+func mealPermissionsDown(ctx context.Context, db *bun.DB) error {
+	for _, name := range []string{"meals:read", "meals:manage", "meals:orders"} {
+		if _, err := db.ExecContext(ctx, `DELETE FROM auth.account_permissions WHERE permission_id IN (SELECT id FROM auth.permissions WHERE name = ?)`, name); err != nil {
+			return fmt.Errorf("remove account grants of %s: %w", name, err)
+		}
+		if err := dropPermission(ctx, db, name); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+const grantMealPermissionsSQL = `
 			WITH grants (meal, required) AS (
 				VALUES ('meals:read', ARRAY['config:read']),
 					('meals:manage', ARRAY['config:update']),
@@ -95,21 +114,4 @@ func mealPermissionsUp(ctx context.Context, db *bun.DB) error {
 			HAVING array_agg(held.name) @> ARRAY['config:read', 'users:read']
 				AND NOT bool_or(held.name = 'meals:orders')
 			ON CONFLICT DO NOTHING;
-		`); err != nil {
-			return fmt.Errorf("grant meal permissions where the old ones were: %w", err)
-		}
-		return nil
-	})
-}
-
-func mealPermissionsDown(ctx context.Context, db *bun.DB) error {
-	for _, name := range []string{"meals:read", "meals:manage", "meals:orders"} {
-		if _, err := db.ExecContext(ctx, `DELETE FROM auth.account_permissions WHERE permission_id IN (SELECT id FROM auth.permissions WHERE name = ?)`, name); err != nil {
-			return fmt.Errorf("remove account grants of %s: %w", name, err)
-		}
-		if err := dropPermission(ctx, db, name); err != nil {
-			return err
-		}
-	}
-	return nil
-}
+		`

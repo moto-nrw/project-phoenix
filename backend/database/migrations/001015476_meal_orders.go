@@ -29,7 +29,34 @@ func init() {
 // child a year after its exit removes them, long after the bill.
 func mealOrdersUp(ctx context.Context, db *bun.DB) error {
 	return db.RunInTx(ctx, &sql.TxOptions{}, func(ctx context.Context, tx bun.Tx) error {
-		if _, err := tx.ExecContext(ctx, `
+		if _, err := tx.ExecContext(ctx, createMealOrderTablesSQL); err != nil {
+			return fmt.Errorf("create meal order tables: %w", err)
+		}
+		if err := provisionTenantRLS(ctx, tx,
+			"schedule.meal_orders",
+			"schedule.meal_order_days",
+			"schedule.meal_order_lines",
+			"schedule.meal_order_changes",
+		); err != nil {
+			return fmt.Errorf("provision meal order tenant isolation: %w", err)
+		}
+		return nil
+	})
+}
+
+func mealOrdersDown(ctx context.Context, db *bun.DB) error {
+	if _, err := db.ExecContext(ctx, `
+		DROP TABLE IF EXISTS schedule.meal_order_changes;
+		DROP TABLE IF EXISTS schedule.meal_order_lines;
+		DROP TABLE IF EXISTS schedule.meal_order_days;
+		DROP TABLE IF EXISTS schedule.meal_orders;
+	`); err != nil {
+		return fmt.Errorf("drop meal order tables: %w", err)
+	}
+	return nil
+}
+
+const createMealOrderTablesSQL = `
 			CREATE TABLE schedule.meal_orders (
 				id BIGSERIAL PRIMARY KEY,
 				tenant_id BIGINT NOT NULL REFERENCES platform.schools(id) ON DELETE CASCADE,
@@ -104,29 +131,4 @@ func mealOrdersUp(ctx context.Context, db *bun.DB) error {
 			GRANT SELECT, INSERT ON schedule.meal_order_changes TO phoenix_tenant;
 			GRANT USAGE ON SEQUENCE schedule.meal_orders_id_seq TO phoenix_tenant;
 			GRANT USAGE ON SEQUENCE schedule.meal_order_changes_id_seq TO phoenix_tenant;
-		`); err != nil {
-			return fmt.Errorf("create meal order tables: %w", err)
-		}
-		if err := provisionTenantRLS(ctx, tx,
-			"schedule.meal_orders",
-			"schedule.meal_order_days",
-			"schedule.meal_order_lines",
-			"schedule.meal_order_changes",
-		); err != nil {
-			return fmt.Errorf("provision meal order tenant isolation: %w", err)
-		}
-		return nil
-	})
-}
-
-func mealOrdersDown(ctx context.Context, db *bun.DB) error {
-	if _, err := db.ExecContext(ctx, `
-		DROP TABLE IF EXISTS schedule.meal_order_changes;
-		DROP TABLE IF EXISTS schedule.meal_order_lines;
-		DROP TABLE IF EXISTS schedule.meal_order_days;
-		DROP TABLE IF EXISTS schedule.meal_orders;
-	`); err != nil {
-		return fmt.Errorf("drop meal order tables: %w", err)
-	}
-	return nil
-}
+		`

@@ -213,45 +213,7 @@ func (s printSummaryStep) Run(_ context.Context, rt *Runtime) error {
 }
 
 func fullDemoWorkflow(seeder *Seeder) Workflow {
-	steps := []Step{
-		healthCheckStep{},
-		operatorLoginStep{},
-		bootstrapTenantStep{seeder: seeder},
-		configureProfileStep{definition: seeder.definition},
-		// Before the first step that authenticates as a device.
-		configureDevicePINStep{},
-		seedMasterDataStep{seeder: seeder},
-		seedPlanningDemoStep{},
-		seedStudentStatusVariantsStep{},
-		seedOperationsDemoStep{},
-		seedShiftSeriesStep{},
-		seedVisitorDayStep{},
-		seedHomeLayoutStep{},
-		seedStaffMasterDataStep{},
-		seedImportAuditStep{},
-		seedAuditLifecycleStep{},
-		seedPrivacyConsentsStep{},
-		seedFamilyProtectionStep{},
-		markStudentsSickStep{},
-		seedCareExitsStep{},
-		seedAnnouncementsStep{},
-		seedStaffMessagingStep{},
-		seedParentMessageCountScopeStep{},
-		seedStaffNoticesStep{},
-		seedExternalCaregiversStep{},
-		seedStudentNotesStep{},
-		seedFileStorageStep{},
-		// Der einzige Block, der über die Stempeluhr läuft: nach ihm stempelt
-		// niemand mehr live, und die Historie kann neben der Simulation laufen.
-		seedWorkSessionBreakStep{},
-		// Vor der App-Historie: der IoT-Sitzungsstart erzeugt den echten
-		// NFC-Arbeitsblock. Nach einem App-Checkout am selben Tag verhindert
-		// die Zeiterfassung bewusst einen erneuten Auto-Check-in.
-		seedStatisticsDemoStep{},
-		// Nach den Live-Stempeln: deren sofortiges Ausstempeln wiche sonst vom
-		// geplanten Dienst ab und bräuchte eine Begründung.
-		seedTodaysShiftsStep{},
-	}
+	steps := fullDemoSetupSteps(seeder)
 	if !seeder.options.DeferHistory {
 		steps = append(steps, deferredPastSteps()...)
 	}
@@ -316,4 +278,47 @@ func deferredDemoSteps(seeder *Seeder) []Step {
 	return append(deferredPastSteps(),
 		parentRequestsSeedStep{seeder: seeder}, seedOfferingRosterStep{seeder: seeder}, seedFamilyAppAccountsStep{seeder: seeder},
 		seedChildQuotaStep{}, seedBillingKeyDateCountsStep{})
+}
+
+// fullDemoSetupSteps prepares the school before its history and parent flows.
+func fullDemoSetupSteps(seeder *Seeder) []Step {
+	return []Step{
+		healthCheckStep{},
+		operatorLoginStep{},
+		bootstrapTenantStep{seeder: seeder},
+		configureProfileStep{definition: seeder.definition},
+		// Before the first step that authenticates as a device.
+		configureDevicePINStep{},
+		seedMasterDataStep{seeder: seeder},
+		seedPlanningDemoStep{},
+		seedStudentStatusVariantsStep{},
+		seedOperationsDemoStep{},
+		seedShiftSeriesStep{},
+		seedVisitorDayStep{},
+		seedHomeLayoutStep{},
+		seedStaffMasterDataStep{},
+		seedImportAuditStep{},
+		seedAuditLifecycleStep{},
+		seedPrivacyConsentsStep{},
+		seedFamilyProtectionStep{},
+		markStudentsSickStep{},
+		seedCareExitsStep{},
+		seedAnnouncementsStep{},
+		seedStaffMessagingStep{},
+		seedParentMessageCountScopeStep{},
+		seedStaffNoticesStep{},
+		seedExternalCaregiversStep{},
+		seedStudentNotesStep{},
+		seedFileStorageStep{},
+		// Der einzige Block, der über die Stempeluhr läuft: nach ihm stempelt
+		// niemand mehr live, und die Historie kann neben der Simulation laufen.
+		seedWorkSessionBreakStep{},
+		// Vor der App-Historie: der IoT-Sitzungsstart erzeugt den echten
+		// NFC-Arbeitsblock. Nach einem App-Checkout am selben Tag verhindert
+		// die Zeiterfassung bewusst einen erneuten Auto-Check-in.
+		seedStatisticsDemoStep{},
+		// Nach den Live-Stempeln: deren sofortiges Ausstempeln wiche sonst vom
+		// geplanten Dienst ab und bräuchte eine Begründung.
+		seedTodaysShiftsStep{},
+	}
 }

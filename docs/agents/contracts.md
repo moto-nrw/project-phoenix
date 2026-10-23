@@ -58,7 +58,7 @@ in this table; the tests named after the table pin them.
 | `iot.staff_not_found` | 404 | staff not found |
 | `iot.staff_rfid_tag_unassigned` | 404 | staff has no RFID tag assigned |
 
-Device authentication codes come from `backend/auth/device/errors.go`, the
+Device authentication codes come from `backend/modules/devicefleet/internal/adapters/deviceauth/errors.go`, the
 others from `backend/modules/devicescan/scan.go`.
 `checkIoTErrorCodes` (`backend/api/iot_error_codes_contract_test.go`, run as
 `TestFullProductionRouterGolden/contracts/IoT_error_codes`) drives 17 of them
@@ -83,7 +83,7 @@ device's `device_id`) and `school_id` into every event item, replacing what
 the kiosk sent under these keys, and posts the envelope to that project's
 envelope endpoint, never to a host the envelope names. The device key does not
 leave the backend. Code: `backend/api/iot/error_reports.go` (handler and
-texts), `backend/api/iot/compose/error_reports.go` (forwarding),
+texts), `backend/api/iot_error_report_composition.go` (forwarding),
 `backend/observability/sentry_envelope.go` (envelope check and tags).
 
 | Status | `error` | When |
@@ -150,9 +150,10 @@ pending → active → inactive.
 |---|---|
 | JWT | `tenant_id`, `org_id`, `scope`: `""` tenant, `org`, `platform`, `parent`, `school`, `caterer` (no tenant; ADR 0077) |
 | Context | `tenant.WithTenantID(ctx, id)` / `tenant.FromContext(ctx)` |
-| Database | `TenantTxMiddleware` sets local role and RLS configuration; rolls back on 5xx |
-| Models | `base.TenantModel` and `TenantScoped` |
-| Repositories | `base.GetDB(ctx, db)` uses the context transaction; `base.EnsureTenantID` populates tenant ID |
+| Database | `common.TenantTxMiddleware` (`backend/api/common/tenant_middleware.go`) runs the request through the root-bound `tenant.UnitOfWork`; rolls back on 5xx or a rollback marker. `PostgresUnitOfWork.WithinTenant` (`backend/modules/transactionruntime/internal/adapters/postgres/tenant_runtime.go`) sets `SET LOCAL ROLE phoenix_tenant` and transaction-local `app.current_tenant_id` |
+| RLS | `provisionTenantRLS` (`backend/database/migrations/rls_provisioning.go`) enables and forces RLS; `USING` and `WITH CHECK` match `tenant_id` to `app.current_tenant_id` |
+| Rows | Owner-local tenant fields, e.g. `TenantModel.TenantID` with `bun:"tenant_id,notnull"` in `backend/modules/peopledirectory/internal/rows/model.go`; no shared model base |
+| Repositories | Owner-private bindings consume `tenant.TransactionFromContext`. People Directory's `NewDatabase` and `ResolveDatabase` validate the ambient transaction and school scope (`backend/modules/peopledirectory/internal/adapters/postgres/native_compose_bindings_callback_database.go`, `scope.go` in that package); `StudentStore.InsertRecord` / `UpdateRecord` in `student_write.go` require a positive tenant, attribute inserts from scope and filter updates by tenant ID |
 
 Parents' child access also requires relationship-level permissions; read
 `.claude/rules/guardian-parent-permissions.md`. Membership alone is insufficient.
@@ -230,7 +231,7 @@ counterpart. Portal hostnames use the variables in the table above.
 and must use HTTPS in production. Env change checklist:
 `.claude/rules/env-docker-sync.md`.
 
-Reserved slug lists in `backend/models/platform/organization.go` and
+Reserved slug lists in `backend/modules/organizationtenancy/internal/domain/organization.go` and
 `frontend/src/lib/reserved-slugs.ts` must stay in sync; verify both when changed.
 
 ### Demo access (public demo, #3462)

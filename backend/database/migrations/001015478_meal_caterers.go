@@ -132,7 +132,40 @@ func init() {
 // only the hash of its link token, so a database copy opens no account.
 func mealCaterersUp(ctx context.Context, db *bun.DB) error {
 	return db.RunInTx(ctx, &sql.TxOptions{}, func(ctx context.Context, tx bun.Tx) error {
-		if _, err := tx.ExecContext(ctx, `
+		if _, err := tx.ExecContext(ctx, createMealCatererTablesSQL); err != nil {
+			return fmt.Errorf("create caterer tables: %w", err)
+		}
+		if err := provisionTenantRLS(ctx, tx, "auth.caterer_invitations", "auth.caterer_schools", "schedule.meal_caterer_supplies"); err != nil {
+			return fmt.Errorf("provision caterer tenant isolation: %w", err)
+		}
+		if _, err := tx.ExecContext(ctx, catererAccountReferences+accountIsUnusedSQL+catererAccountsInUse+accountIsUnusedEnd); err != nil {
+			return fmt.Errorf("keep caterer accounts from the account erasure: %w", err)
+		}
+		return nil
+	})
+}
+
+func mealCaterersDown(ctx context.Context, db *bun.DB) error {
+	if _, err := db.ExecContext(ctx, accountIsUnusedSQL+accountIsUnusedEnd); err != nil {
+		return fmt.Errorf("restore the account erasure without caterers: %w", err)
+	}
+	if _, err := db.ExecContext(ctx, `
+		DELETE FROM auth.tokens WHERE portal_scope = 'caterer';
+		ALTER TABLE auth.tokens DROP CONSTRAINT IF EXISTS chk_tokens_portal_scope;
+		ALTER TABLE auth.tokens ADD CONSTRAINT chk_tokens_portal_scope
+			CHECK (portal_scope IN ('tenant', 'org', 'parent', 'school', 'unknown'));
+		DROP TABLE IF EXISTS schedule.meal_caterer_supplies;
+		DROP TABLE IF EXISTS auth.caterer_schools;
+		DROP TABLE IF EXISTS auth.caterer_invitations;
+		DROP TABLE IF EXISTS auth.caterer_accounts;
+		DROP TABLE IF EXISTS auth.caterers;
+	`); err != nil {
+		return fmt.Errorf("drop caterer tables: %w", err)
+	}
+	return nil
+}
+
+const createMealCatererTablesSQL = `
 			CREATE TABLE auth.caterers (
 				id BIGSERIAL PRIMARY KEY,
 				name TEXT NOT NULL,
@@ -219,35 +252,4 @@ func mealCaterersUp(ctx context.Context, db *bun.DB) error {
 			ALTER TABLE auth.tokens DROP CONSTRAINT IF EXISTS chk_tokens_portal_scope;
 			ALTER TABLE auth.tokens ADD CONSTRAINT chk_tokens_portal_scope
 				CHECK (portal_scope IN ('tenant', 'org', 'parent', 'school', 'caterer', 'unknown'));
-		`); err != nil {
-			return fmt.Errorf("create caterer tables: %w", err)
-		}
-		if err := provisionTenantRLS(ctx, tx, "auth.caterer_invitations", "auth.caterer_schools", "schedule.meal_caterer_supplies"); err != nil {
-			return fmt.Errorf("provision caterer tenant isolation: %w", err)
-		}
-		if _, err := tx.ExecContext(ctx, catererAccountReferences+accountIsUnusedSQL+catererAccountsInUse+accountIsUnusedEnd); err != nil {
-			return fmt.Errorf("keep caterer accounts from the account erasure: %w", err)
-		}
-		return nil
-	})
-}
-
-func mealCaterersDown(ctx context.Context, db *bun.DB) error {
-	if _, err := db.ExecContext(ctx, accountIsUnusedSQL+accountIsUnusedEnd); err != nil {
-		return fmt.Errorf("restore the account erasure without caterers: %w", err)
-	}
-	if _, err := db.ExecContext(ctx, `
-		DELETE FROM auth.tokens WHERE portal_scope = 'caterer';
-		ALTER TABLE auth.tokens DROP CONSTRAINT IF EXISTS chk_tokens_portal_scope;
-		ALTER TABLE auth.tokens ADD CONSTRAINT chk_tokens_portal_scope
-			CHECK (portal_scope IN ('tenant', 'org', 'parent', 'school', 'unknown'));
-		DROP TABLE IF EXISTS schedule.meal_caterer_supplies;
-		DROP TABLE IF EXISTS auth.caterer_schools;
-		DROP TABLE IF EXISTS auth.caterer_invitations;
-		DROP TABLE IF EXISTS auth.caterer_accounts;
-		DROP TABLE IF EXISTS auth.caterers;
-	`); err != nil {
-		return fmt.Errorf("drop caterer tables: %w", err)
-	}
-	return nil
-}
+		`

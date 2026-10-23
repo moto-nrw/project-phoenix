@@ -28,7 +28,7 @@ commit. Terms: `CONTEXT.md`, section „Nutzungsanalyse"; spec #3598.
 | Core actions: writing route → backend event | `backend/analytics/core_actions.go` |
 | Backend tracker (batching, `deployment`, `$session_id`) | `backend/analytics/analytics.go` |
 | Browser session to the backend (`X-POSTHOG-SESSION-ID`) | `frontend/src/lib/analytics-session-header.server.ts` |
-| Analyse-Freigabe settings (`analytics.*`, operator-only) | `backend/services/config/defaults/analytics.go`; reaches the OGS portal through tenant resolve |
+| Analyse-Freigabe settings (`analytics.*`, operator-only) | `backend/modules/settings/internal/defaults/analytics.go`; reaches the OGS portal through tenant resolve |
 | Pseudonymous user ID (same hash on both sides) | `frontend/src/lib/analytics-pseudonym.ts`, `backend/analytics/pseudonym.go` |
 | PostHog project settings, privacy text draft | `docs/operations/nutzungsanalyse.md` |
 | The PostHog dashboards, their insights, and the feature areas (`FEATURES`) | `scripts/posthog-dashboards.mjs` |
