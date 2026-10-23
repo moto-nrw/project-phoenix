@@ -46,8 +46,9 @@ import (
 //   - An interface NOT in the allowlist must declare ≤ 12 methods.
 //   - An allowlisted interface may never exceed its recorded width.
 //   - When a split lowers a width (or drops it to ≤ 12), the test fails until
-//     the entry is lowered/removed — the ratchet only turns one way. Never
-//     raise a number, never add an entry.
+//     the entry is lowered/removed — the ratchet only turns one way.
+//     Additions or raises require a new-numbered ADR cited by the entry
+//     (ADR 0070).
 //
 // Keys are "relative/file.go:InterfaceName", paths starting at "modules/" or
 // "workflows/".
