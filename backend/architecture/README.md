@@ -3450,6 +3450,15 @@ existing object remains a policy loosening. Modified historical migrations
 never qualify for this exception, and historical unowned objects do not need
 rebaselining. The check uses the immutable local Git base, not GitHub.
 
+A table renamed by a new candidate migration keeps its write owner
+([ADR 0080](../../docs/adr/0080-gastprofil-heisst-externe-betreuungskraft.md)).
+The scan reads top-level `ALTER TABLE [IF EXISTS] [ONLY] schema.old RENAME
+TO new` from the same statically resolved SQL; the new name stays in the old
+schema. The policy may then list `schema.new` only when the base policy owns
+`schema.old`, the candidate policy drops `schema.old`, and both carry the same
+write owner. Renames of columns or constraints, renames inside procedural
+bodies and unqualified renames grant nothing; the last fail closed.
+
 `audit-issues` performs the network-dependent GitHub liveness check separately.
 The wrapper supplies the committed baseline; the policy defaults to
 `architecture/policy.json` and can be selected with `--policy`. Callers must provide `--api-url`,
@@ -4747,8 +4756,8 @@ workflow, whose public role already reaches Workforce.
 ### External caregiver with an invitation (#4573)
 
 Recording an external caregiver writes across three owners: the person
-(People Directory), the staff member with its caregiver and guest profile
-(School Membership) and the invitation in the school role „Extern“
+(People Directory), the staff member with its caregiver profile and
+external caregiver record (School Membership) and the invitation in the school role „Extern“
 (Identity & Access). The application workflow `workflows/externalcaregiver`
 (owner `external-caregiver`, kind `workflow`, one `public` package) does
 both writes: `Record` for a new external and `Invite` („Konto einladen“) for

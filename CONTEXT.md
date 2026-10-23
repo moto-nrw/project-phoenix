@@ -199,9 +199,10 @@ Eine **zusätzliche Aufsicht** ordnet einer bereits laufenden Betreuung eine
 weitere Betreuungskraft zu. Sie ersetzt keine abwesende Person und verändert
 weder Gruppenübergaben noch geplante Termine.
 
-Eine **externe Betreuungskraft** ist Personal mit aktivem Gastprofil
-(`users.guests`), etwa eine AG-Leitung der Musikschule (#3823, #4573). Das
-Gastprofil macht sie extern, nicht das Fehlen eines Kontos. Sie wird mit
+Eine **externe Betreuungskraft** ist Personal mit einem aktiven Datensatz
+„externe Betreuungskraft“, etwa eine AG-Leitung der Musikschule (#3823,
+#4573). Der Datensatz trägt die Organisation und einen optionalen Zeitraum.
+Er macht die Person extern, nicht das Fehlen eines Kontos. Sie wird mit
 E-Mail-Adresse angelegt und eingeladen; nach der Annahme meldet sie sich mit
 eigenem Konto in der Schulrolle **Extern** an. Ihr Kontostand ist `account`,
 `invitation_pending` oder `none`. Neu zuordnen lässt sie sich nur mit Konto
@@ -212,13 +213,17 @@ Vertretung und steht nicht im Personalpool. Zeiterfassung und Dienstplan
 führen sie nicht, und ein Aufsichtsstart stempelt keine Arbeitszeit. Personal,
 das nur ohne E-Mail-Adresse importiert wurde, ist keine externe
 Betreuungskraft; wer über die allgemeine Einladung die Rolle Extern bekommt,
-ohne Gastprofil, auch nicht.
+ohne den Datensatz, auch nicht.
 
 Die Schulrolle **Extern** legt moto in jeder Schule an (Basisrolle `user`,
 keine Systemrolle). Sie startet nur mit `schedules:read`: die Person sieht und
 betreut unter „Heute“ ihre eigenen Termine. Die Leitung darf die Rechte
 ändern. Die Schnellanlage findet die Rolle über ihren Namen; ist sie umbenannt
 oder gelöscht, antwortet sie mit `staff.external_role_missing`.
+
+Der Datensatz entscheidet, wer extern ist; die Schulrolle **Extern** regelt
+nur Rechte. Die alte Systemrolle **Gast** (`guest`) ist davon unabhängig: eine
+Rolle mit eigenen Rechten, die niemanden extern macht (ADR 0080).
 
 Die **Vertretungsübersicht** ist die gemeinsame Arbeitsfläche für
 Gruppenübergaben, Vertretungen und zusätzliche Aufsichten. Die drei Vorgänge
