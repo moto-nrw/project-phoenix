@@ -10,7 +10,13 @@
 // chips, white per-group cards in a two-column grid, click opens the
 // per-group detail modal with the status sections and group-scoped exports.
 
-import { ArrowRight, Download, FileSpreadsheet, Printer } from "lucide-react";
+import {
+  ArrowRight,
+  Download,
+  FileSpreadsheet,
+  FileText,
+  Printer,
+} from "lucide-react";
 import Link from "~/components/ui/navigation-link";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Button } from "~/components/ui/button";
@@ -53,6 +59,11 @@ import {
   parseISODate,
   toISODate,
 } from "~/lib/date-helpers";
+import {
+  downloadBlob,
+  filenameFromDisposition,
+  openBlobForPrint,
+} from "~/lib/file-download";
 import { createLogger } from "~/lib/logger";
 import { useMinuteClock } from "~/lib/pickup-helpers";
 import { useTenantAwarePath } from "~/lib/tenant-path";
@@ -105,7 +116,7 @@ const MODAL_SECTION_TITLES: Record<DayLogStatus, string> = {
   absent: "Unentschuldigt abwesend",
 };
 
-type ExportFormat = "pdf" | "xlsx";
+type ExportFormat = "pdf" | "docx" | "xlsx";
 
 function counterFor(
   counters: DayLogGroup["counters"],
@@ -379,19 +390,11 @@ export default function DayLogPage() {
         if (!res.ok) {
           throw await apiErrorFromResponse(res, "day log export failed");
         }
-        const blob = await res.blob();
-        const disposition = res.headers.get("Content-Disposition") ?? "";
-        const filename =
-          /filename="([^"]+)"/.exec(disposition)?.[1] ??
-          `tagesauswertung-${dateISO}.${format}`;
-        const url = URL.createObjectURL(blob);
-        const anchor = document.createElement("a");
-        anchor.href = url;
-        anchor.download = filename;
-        document.body.appendChild(anchor);
-        anchor.click();
-        anchor.remove();
-        URL.revokeObjectURL(url);
+        downloadBlob(
+          await res.blob(),
+          filenameFromDisposition(res) ??
+            `tagesauswertung-${dateISO}.${format}`,
+        );
       } catch (error) {
         logger.error("day_log_export_failed", {
           error: error instanceof Error ? error.message : String(error),
@@ -408,17 +411,14 @@ export default function DayLogPage() {
     [dateISO, showActionError],
   );
 
-  // Drucken: open the PDF in a new tab (blob URL, so the browser's viewer
-  // shows it instead of forcing the attachment download) and print from there.
+  // Drucken: the same PDF in a new tab with the browser's print dialog, like
+  // every other print action (Notfallliste, Tageslisten, Pläne).
   const printPdf = useCallback(
     async (groupId?: string) => {
       // The tab must open synchronously inside the click gesture; popup
-      // blockers discard windows opened after an await. Navigate it to the
-      // blob URL once the PDF arrives; close it again if the export fails.
-      // (window.open with the "noopener" feature returns null, so the opener
-      // is severed manually instead.)
+      // blockers discard windows opened after an await. Close it again if
+      // the export fails.
       const tab = window.open("", "_blank");
-      if (tab) tab.opener = null;
       setExporting(`print-${groupId ?? "all"}`);
       try {
         const res = await transportFetch(
@@ -427,17 +427,9 @@ export default function DayLogPage() {
         if (!res.ok) {
           throw await apiErrorFromResponse(res, "day log print failed");
         }
-        const blob = await res.blob();
-        const url = URL.createObjectURL(blob);
-        if (tab) {
-          tab.location.href = url;
-        } else {
-          // Popup blocked even in the gesture; last resort, may be blocked
-          // too, but the blob URL stays valid for a manual retry.
-          window.open(url, "_blank");
-        }
-        // Give the new tab time to load before releasing the object URL.
-        setTimeout(() => URL.revokeObjectURL(url), 60_000);
+        // Without a tab (popup blocked even in the gesture) the helper makes
+        // a last attempt itself and throws if that is blocked too.
+        openBlobForPrint(await res.blob(), tab);
       } catch (error) {
         tab?.close();
         logger.error("day_log_print_failed", {
@@ -466,6 +458,13 @@ export default function DayLogPage() {
         exporting === `pdf-${groupId ?? "all"}` ? "Wird exportiert…" : "PDF",
       icon: <Download className="h-4 w-4" aria-hidden />,
       onClick: () => void downloadExport("pdf", groupId),
+      disabled: !data || exporting !== null,
+    },
+    {
+      label:
+        exporting === `docx-${groupId ?? "all"}` ? "Wird exportiert…" : "Word",
+      icon: <FileText className="h-4 w-4" aria-hidden />,
+      onClick: () => void downloadExport("docx", groupId),
       disabled: !data || exporting !== null,
     },
     {
