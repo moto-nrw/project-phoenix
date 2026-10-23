@@ -122,7 +122,8 @@ func (rs *Resource) exportStudents(w http.ResponseWriter, r *http.Request) {
 // enrichExportCompanions loads the structured "mit wem" names, but only for an
 // export that actually renders them.
 //
-// Only the departure column reads DepartureCompanions, so any other column would
+// Only the departure column and the weekday cells of the "Klassenliste"
+// (exportPrintsDepartureRules) read DepartureCompanions, so any other column would
 // pay for the links of every exported child, their far-end students and the
 // authorization behind them and then throw the result away. At the export cap of
 // 5.000 rows that is the most expensive lookup in this handler, so it is skipped
@@ -131,8 +132,8 @@ func (rs *Resource) exportStudents(w http.ResponseWriter, r *http.Request) {
 // Which is also why the error is fatal to the caller: it now only runs where a
 // missing name makes the document wrong rather than merely less detailed — see
 // enrichWithCompanionLinks.
-func (rs *Resource) enrichExportCompanions(r *http.Request, responses []StudentResponse, columns []lists.Column, accessCtx *common.StudentAccessContext) error {
-	if !exportHasColumn(columns, lists.ColumnDeparture) {
+func (rs *Resource) enrichExportCompanions(r *http.Request, responses []StudentResponse, preset lists.Preset, columns []lists.Column, accessCtx *common.StudentAccessContext) error {
+	if !exportPrintsDepartureRules(preset, columns) {
 		return nil
 	}
 	return rs.enrichWithCompanionLinks(r.Context(), responses, accessCtx)
@@ -575,7 +576,7 @@ func (rs *Resource) buildExportSources(r *http.Request, req studentExportRequest
 		return nil, nil, common.ErrorInternalServer(err)
 	}
 	columns := lists.ResolveColumns(req.Columns, req.Preset)
-	if err := rs.enrichExportCompanions(r, responses, columns, selection.accessCtx); err != nil {
+	if err := rs.enrichExportCompanions(r, responses, req.Preset, columns, selection.accessCtx); err != nil {
 		return nil, nil, common.ErrorInternalServer(err)
 	}
 	enrollmentSummaries, err := rs.loadActiveEnrollmentSummaries(r, collectResponseIDs(responses), planningDate, columns)
@@ -584,6 +585,9 @@ func (rs *Resource) buildExportSources(r *http.Request, req studentExportRequest
 	}
 
 	sources := responseRowSources(responses, weekly, enrollmentSummaries, planningDate, isToday)
+	if req.Preset == lists.PresetClassRoster {
+		applyClassRosterRows(sources, responses, weekly)
+	}
 	// Class-list-only entries (#2382) complete the Klassenverband of the
 	// "Klassenliste" preset; filters on properties they don't have exclude
 	// them (classListEntryExportEligible).
