@@ -303,9 +303,9 @@ func (s *workSessionService) sessionToRow(sr *SessionResponse) []string {
 
 	// Status carries the underlying work mode and is never overwritten by
 	// system events. The OGS-Leitung must always be able to see whether
-	// the row was Vor Ort or Homeoffice, even if the session was later
+	// the row was In der OGS or Unterwegs, even if the session was later
 	// auto-closed or manually corrected.
-	status := "Vor Ort"
+	status := "In der OGS"
 	if sess.Status == WorkSessionStatusHomeOffice {
 		status = "Unterwegs"
 	}

@@ -1051,6 +1051,9 @@ describe("VertretungView", () => {
     render(<VertretungView />);
 
     expect(screen.getByTestId("vertretung-disabled-state")).toBeVisible();
+    expect(
+      screen.getByText("Der Vertretungsplan ist ausgeschaltet"),
+    ).toBeVisible();
     expect(screen.queryByTestId("day-list")).not.toBeInTheDocument();
   });
 
