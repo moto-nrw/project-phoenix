@@ -115,6 +115,9 @@ func (p *Portal) Schools(ctx context.Context, accountID int64) (catererportal.Ca
 	}
 	result := catererportal.CatererSchools{CatererName: caterer.Name, Schools: make([]catererportal.School, 0, len(ids))}
 	for _, id := range ids {
+		if _, live := names[id]; !live {
+			continue
+		}
 		result.Schools = append(result.Schools, catererportal.School{ID: id, Name: names[id]})
 	}
 	return result, nil
@@ -123,15 +126,11 @@ func (p *Portal) Schools(ctx context.Context, accountID int64) (catererportal.Ca
 // SchoolOrders reads one school's orders in that school's transaction, only
 // while the caterer supplies it.
 func (p *Portal) SchoolOrders(ctx context.Context, accountID, schoolID int64, from, to mealplan.Date) (catererportal.SchoolOrders, error) {
-	caterer, err := p.supplier(ctx, accountID, schoolID)
+	caterer, schoolName, err := p.supplier(ctx, accountID, schoolID)
 	if err != nil {
 		return catererportal.SchoolOrders{}, err
 	}
-	names, err := p.deps.SchoolNames(ctx, []int64{schoolID})
-	if err != nil {
-		return catererportal.SchoolOrders{}, err
-	}
-	result := catererportal.SchoolOrders{School: catererportal.School{ID: schoolID, Name: names[schoolID]}}
+	result := catererportal.SchoolOrders{School: catererportal.School{ID: schoolID, Name: schoolName}}
 	err = p.deps.WithinSchool(ctx, schoolID, func(txCtx context.Context) error {
 		supply, _, supplyErr := p.deps.Supplies.CurrentSupply(txCtx)
 		if supplyErr != nil {
@@ -147,7 +146,7 @@ func (p *Portal) SchoolOrders(ctx context.Context, accountID, schoolID int64, fr
 // ConfirmOrder records that the caterer received one of the school's fixed
 // orders.
 func (p *Portal) ConfirmOrder(ctx context.Context, accountID, schoolID, orderID int64) error {
-	caterer, err := p.supplier(ctx, accountID, schoolID)
+	caterer, _, err := p.supplier(ctx, accountID, schoolID)
 	if err != nil {
 		return err
 	}
@@ -156,17 +155,25 @@ func (p *Portal) ConfirmOrder(ctx context.Context, accountID, schoolID, orderID 
 	})
 }
 
-// supplier is the account's caterer when it supplies the school; the Meal
-// Plan checks the supply again inside the school's transaction.
-func (p *Portal) supplier(ctx context.Context, accountID, schoolID int64) (identityaccess.Caterer, error) {
+// supplier is the account's caterer when it supplies a non-deleted school;
+// the Meal Plan checks the supply again inside the school's transaction.
+func (p *Portal) supplier(ctx context.Context, accountID, schoolID int64) (identityaccess.Caterer, string, error) {
 	caterer, schools, err := p.deps.Caterers.CatererSchools(ctx, accountID)
 	if err != nil {
-		return identityaccess.Caterer{}, err
+		return identityaccess.Caterer{}, "", err
 	}
 	if !slices.Contains(schools, schoolID) {
-		return identityaccess.Caterer{}, catererportal.ErrSchoolNotSupplied
+		return identityaccess.Caterer{}, "", catererportal.ErrSchoolNotSupplied
 	}
-	return caterer, nil
+	names, err := p.deps.SchoolNames(ctx, []int64{schoolID})
+	if err != nil {
+		return identityaccess.Caterer{}, "", err
+	}
+	name, live := names[schoolID]
+	if !live {
+		return identityaccess.Caterer{}, "", catererportal.ErrSchoolNotSupplied
+	}
+	return caterer, name, nil
 }
 
 // SchoolDeliveryExport lays out the school's own orders of [from, to] as the
@@ -209,6 +216,9 @@ func (p *Portal) DeliveryExport(ctx context.Context, accountID int64, from, to m
 	}
 	var lines [][]string
 	for _, schoolID := range schools {
+		if _, live := names[schoolID]; !live {
+			continue
+		}
 		err := p.deps.WithinSchool(ctx, schoolID, func(txCtx context.Context) error {
 			supply, _, supplyErr := p.deps.Supplies.CurrentSupply(txCtx)
 			if supplyErr != nil {

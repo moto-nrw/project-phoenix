@@ -55,7 +55,7 @@ func mountCatererPortal(root, tenantRouter chi.Router, limiters authRateLimiters
 	return nil
 }
 
-// schoolNames names schools by ID in one read of Organisation & Tenancy.
+// schoolNames names non-deleted schools by ID in one read of Organisation & Tenancy.
 func schoolNames(schools organizationtenancy.Capability) func(context.Context, []int64) (map[int64]string, error) {
 	return func(ctx context.Context, ids []int64) (map[int64]string, error) {
 		names := make(map[int64]string, len(ids))
@@ -67,6 +67,9 @@ func schoolNames(schools organizationtenancy.Capability) func(context.Context, [
 			return nil, err
 		}
 		for _, school := range found {
+			if school.IsDeleted() {
+				continue
+			}
 			names[school.ID] = school.Name
 		}
 		return names, nil

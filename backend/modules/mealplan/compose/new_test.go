@@ -1061,7 +1061,13 @@ func TestOrdersFixAtTheDeadlineAndPreviewBefore(t *testing.T) {
 	assert.Equal(t, mealplan.OrderOpen, monday.Status)
 	assert.Contains(t, childIDs(monday.Children), student.ID, "the preview shows the registration")
 
-	late := buildModuleAt(t, db, true, nil, time.Date(2026, 9, 7, 10, 0, 0, 0, testBerlin))
+	deadline := time.Date(2026, 9, 7, 9, 0, 0, 0, testBerlin)
+	before := buildModuleAt(t, db, true, nil, deadline.Add(-time.Nanosecond))
+	week, err = before.Orders(ctx, "2026-09-07", "2026-09-11")
+	require.NoError(t, err)
+	assert.Equal(t, mealplan.OrderOpen, orderDay(t, week, "2026-09-07").Status)
+
+	late := buildModuleAt(t, db, true, nil, deadline)
 	week, err = late.Orders(ctx, "2026-09-07", "2026-09-11")
 	require.NoError(t, err)
 	monday = orderDay(t, week, "2026-09-07")

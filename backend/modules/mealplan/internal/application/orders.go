@@ -58,7 +58,7 @@ func (s *Service) childrenOn(ctx context.Context, date domain.Date, cutoff time.
 	return result, stats, nil
 }
 
-// fixDueOrders fixes every order of [from, to] whose deadline has passed and
+// fixDueOrders fixes every order of [from, to] whose deadline has been reached and
 // that does not exist yet (#3873). The caller holds the order lock. A weekly
 // order fixes all open days of its week at the earliest deadline among them;
 // a day that already belongs to an order is never ordered again, and a day
@@ -70,7 +70,7 @@ func (s *Service) fixDueOrders(ctx context.Context, rules domain.OrderingRules, 
 	for start := from; !start.After(to); {
 		periodStart, periodEnd := domain.OrderPeriod(rules.Rhythm, start)
 		open, deadline := openDays(rules, state, periodStart, periodEnd, today)
-		if len(open) > 0 && now.After(deadline) {
+		if len(open) > 0 && !now.Before(deadline) {
 			orderStats, err := s.fixOrder(ctx, open, deadline, days, now)
 			stats = addStats(stats, orderStats)
 			if err != nil {

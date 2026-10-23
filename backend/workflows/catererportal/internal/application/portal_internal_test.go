@@ -239,3 +239,44 @@ func TestSchoolDeliveryExportRequiresActiveSupply(t *testing.T) {
 	assert.Empty(t, export.Lines)
 	assert.False(t, supplies.ordersRead, "an inactive supply must not settle or read orders")
 }
+
+func TestPortalRejectsDeletedSchools(t *testing.T) {
+	t.Parallel()
+	caterers := &fakeCaterers{caterer: identityaccess.Caterer{ID: 7}, schools: []int64{11, 12}}
+	supplies := &fakeSupplies{active: true, supply: mealplan.Supply{DeliveryAddress: "Hof"}, week: mealplan.OrderWeek{
+		Detail: "total", Days: []mealplan.OrderDay{{Date: "2026-09-07", Status: mealplan.OrderOrdered, Total: 3}},
+	}}
+	var opened schoolsOpened
+	portal := newTestPortal(t, caterers, supplies, &opened)
+	// The link survives deletion, but the school directory omits deleted schools.
+	portal.deps.SchoolNames = func(context.Context, []int64) (map[int64]string, error) {
+		return map[int64]string{11: "Schule"}, nil
+	}
+	_, err := portal.SchoolOrders(context.Background(), 3, 12, "2026-09-07", "2026-09-11")
+	require.ErrorIs(t, err, catererportal.ErrSchoolNotSupplied)
+	require.ErrorIs(t, portal.ConfirmOrder(context.Background(), 3, 12, 5), catererportal.ErrSchoolNotSupplied)
+	assert.Empty(t, opened, "a deleted school is never opened")
+	assert.Zero(t, supplies.read)
+	assert.Zero(t, supplies.confirmedBy)
+	schools, err := portal.Schools(context.Background(), 3)
+	require.NoError(t, err)
+	assert.Equal(t, []catererportal.School{{ID: 11, Name: "Schule"}}, schools.Schools)
+	export, err := portal.DeliveryExport(context.Background(), 3, "2026-09-07", "2026-09-11")
+	require.NoError(t, err)
+	assert.Equal(t, schoolsOpened{11}, opened)
+	assert.Len(t, export.Lines, 1, "only the live school's delivery is exported")
+}
+
+func TestPortalRejectsOrdersWhenSchoolLookupFails(t *testing.T) {
+	t.Parallel()
+	var opened schoolsOpened
+	supplies := &fakeSupplies{}
+	portal := newTestPortal(t, &fakeCaterers{schools: []int64{11}}, supplies, &opened)
+	lookupErr := errors.New("school directory unavailable")
+	portal.deps.SchoolNames = func(context.Context, []int64) (map[int64]string, error) { return nil, lookupErr }
+	_, err := portal.SchoolOrders(context.Background(), 3, 11, "2026-09-07", "2026-09-11")
+	require.ErrorIs(t, err, lookupErr)
+	require.ErrorIs(t, portal.ConfirmOrder(context.Background(), 3, 11, 5), lookupErr)
+	assert.Empty(t, opened)
+	assert.Zero(t, supplies.confirmedBy)
+}

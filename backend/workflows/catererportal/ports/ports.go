@@ -33,7 +33,8 @@ type Supplies interface {
 	ConfirmOrder(ctx context.Context, catererID, orderID, accountID int64) error
 }
 
-// SchoolNames names schools by ID in one read; an unknown school is absent.
+// SchoolNames names non-deleted schools by ID in one read; unknown or deleted
+// schools are absent. Presence in the result is required for caterer access.
 type SchoolNames func(ctx context.Context, ids []int64) (map[int64]string, error)
 
 // CurrentSchool is the school of the caller's transaction.
