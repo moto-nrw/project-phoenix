@@ -134,7 +134,10 @@ func (rs *Resource) buildStudentListPage(ctx context.Context, students []*people
 		return studentListPage{}, err
 	}
 	// Resolve once per request. populatePhotoFields runs per student.
-	photosEnabled := resolveBoolSetting(ctx, rs.SettingsService, settingStudentPhotosEnabled, false, rs.Logger)
+	photosEnabled, err := rs.SettingsService.ResolveBool(ctx, settingStudentPhotosEnabled)
+	if err != nil {
+		return studentListPage{}, err
+	}
 
 	responses := rs.buildStudentResponses(ctx, students, plan.params, accessCtx, dataSnapshot, groups, photosEnabled)
 

@@ -20,7 +20,11 @@ func (rs *Resource) RespondUpdatedStudent(w http.ResponseWriter, r *http.Request
 
 	group := rs.getStudentGroup(r.Context(), updatedStudent)
 
-	photosEnabled := resolveBoolSetting(r.Context(), rs.SettingsService, settingStudentPhotosEnabled, false, rs.Logger)
+	photosEnabled, err := rs.SettingsService.ResolveBool(r.Context(), settingStudentPhotosEnabled)
+	if err != nil {
+		renderError(w, r, common.ErrorInternalServer(err))
+		return
+	}
 	response, err := newStudentResponseWithOpts(r.Context(), StudentResponseOpts{
 		Student:       updatedStudent,
 		Person:        person,

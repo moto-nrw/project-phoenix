@@ -28,7 +28,7 @@ type Dependencies struct {
 	Facilities RoomReads
 	// RoomHistorySettings resolves whether the room history is shown and how
 	// many days it spans; the root binds it to the Settings Platform.
-	RoomHistorySettings func(context.Context) (context.Context, bool, int)
+	RoomHistorySettings func(context.Context) (context.Context, bool, int, error)
 	UserContext         CallerStaff
 	Active              studentpresence.Presence
 	Users               Students

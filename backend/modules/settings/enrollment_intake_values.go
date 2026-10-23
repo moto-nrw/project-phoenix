@@ -18,8 +18,8 @@ type EnrollmentIntakeSource interface {
 }
 
 // EnrollmentIntakeValues are the settings of the enrollment intake. The
-// switches the intake reads without an error path fall back when a school
-// set nothing or the read fails: the intake stays closed, a submission stays
+// switches use the resolved override or registry default. On read failures
+// the intake stays closed, a submission stays
 // editable, a status link lives 365 days and no admin is mailed.
 type EnrollmentIntakeValues struct{ source EnrollmentIntakeSource }
 

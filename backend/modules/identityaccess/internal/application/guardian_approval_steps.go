@@ -109,7 +109,11 @@ func (l *AccountLifecycle) requeueRoleUpgrade(ctx context.Context, req domain.In
 		openInvitation.ApprovedAt = nil
 		// Restart the window and drop the stale email tracking, exactly
 		// like the pending -> not_required branch.
-		openInvitation.ExpiresAt = time.Now().Add(l.delivery.InvitationExpiry(ctx))
+		expiry, err := l.delivery.InvitationExpiry(ctx)
+		if err != nil {
+			return domain.GuardianInvitation{}, failed(opGuardianInviteToStudent, err)
+		}
+		openInvitation.ExpiresAt = time.Now().Add(expiry)
 		openInvitation.EmailSentAt = nil
 		openInvitation.EmailError = nil
 		if req.RequestedByParentAccountID != nil {

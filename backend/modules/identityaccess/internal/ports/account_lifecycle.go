@@ -170,7 +170,7 @@ type GuardianEnrollments interface {
 // EnqueueExistingAccountEmail tells an account holder who got access without
 // a token invitation to sign in to the parents portal with their credentials.
 type GuardianInvitationDelivery interface {
-	InvitationExpiry(ctx context.Context) time.Duration
+	InvitationExpiry(ctx context.Context) (time.Duration, error)
 	SchoolName(ctx context.Context, tenantID int64) string
 	// EnqueueInvitationEmail reports whether the primary access mail was
 	// queued. A welcome must not follow a failed primary mail.

@@ -88,7 +88,7 @@ type Runtime struct {
 	Delete     string
 
 	Occupancy        func(context.Context, []facilities.Room) ([]RoomView, error)
-	HistoryConfig    func(context.Context) (context.Context, bool, int)
+	HistoryConfig    func(context.Context) (context.Context, bool, int, error)
 	HistoryAllowed   func(context.Context) (bool, error)
 	History          func(context.Context, int64, time.Time, time.Time) ([]RoomSessionEntry, error)
 	TodayBounds      func() (time.Time, time.Time)
@@ -416,7 +416,11 @@ func (rs *Resource) GetRoomHistory(w http.ResponseWriter, r *http.Request) {
 		rs.runtime.Failure(w, r, FailureInvalid, errors.New("invalid room ID"), "invalid_request")
 		return
 	}
-	ctx, enabled, capDays := rs.runtime.HistoryConfig(r.Context())
+	ctx, enabled, capDays, err := rs.runtime.HistoryConfig(r.Context())
+	if err != nil {
+		rs.runtime.Failure(w, r, FailureInternal, err, "internal_error")
+		return
+	}
 	r = r.WithContext(ctx)
 	if !enabled {
 		rs.runtime.Failure(w, r, FailureForbidden, ErrHistoryDisabled, "forbidden")

@@ -15,6 +15,7 @@
 package presence_test
 
 import (
+	"context"
 	"fmt"
 	"log/slog"
 	"testing"
@@ -71,7 +72,7 @@ func TestCreateVisit_EnrichesCheckInEventWithAttendance(t *testing.T) {
 		ActivityGroupRepo:  owners.NewSessionActivities(timetableRepos.GroupReads()),
 		ActivityCatRepo:    api.NewAttendanceActivityCategories(timetableRepos.ActivityCategory),
 		EducationGroupRepo: owners.NewAttendanceEducationGroups(reposStructure.Group, repos.Student),
-		DeviceRepo:         owners.NewSessionDeviceDirectory(devices, nil, nil),
+		DeviceRepo:         owners.NewSessionDeviceDirectory(devices, &settingsDouble{ResolveIntFn: func(context.Context, string) (int, error) { return 5, nil }}, nil),
 		DB:                 db,
 		Broadcaster:        owners.NewPresenceEvents(broadcaster, nil),
 		AttendanceSyncer:   syncer,
@@ -227,7 +228,7 @@ func TestCreateVisit_WalkInLeavesAttendanceFieldsUnset(t *testing.T) {
 		ActivityGroupRepo:  owners.NewSessionActivities(timetableRepos.GroupReads()),
 		ActivityCatRepo:    api.NewAttendanceActivityCategories(timetableRepos.ActivityCategory),
 		EducationGroupRepo: owners.NewAttendanceEducationGroups(reposStructure.Group, repos.Student),
-		DeviceRepo:         owners.NewSessionDeviceDirectory(devices, nil, nil),
+		DeviceRepo:         owners.NewSessionDeviceDirectory(devices, &settingsDouble{ResolveIntFn: func(context.Context, string) (int, error) { return 5, nil }}, nil),
 		DB:                 db,
 		Broadcaster:        owners.NewPresenceEvents(broadcaster, nil),
 		AttendanceSyncer:   syncer,

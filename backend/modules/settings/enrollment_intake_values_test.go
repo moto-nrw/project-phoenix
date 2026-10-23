@@ -10,7 +10,7 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-// intakeSource answers from tenant overrides; a key without one is unset.
+// intakeSource returns resolved values, including registered defaults when unset.
 type intakeSource struct {
 	overrides map[string]any
 	fail      error
@@ -25,7 +25,10 @@ func (s intakeSource) HasTenantOverride(_ context.Context, key string) (bool, er
 }
 
 func (s intakeSource) ResolveBool(_ context.Context, key string) (bool, error) {
-	value, _ := s.overrides[key].(bool)
+	value, ok := s.overrides[key].(bool)
+	if !ok && key == configModel.KeyEnrollmentAllowSubmissionEdit {
+		value = true
+	}
 	return value, s.fail
 }
 
@@ -35,11 +38,14 @@ func (s intakeSource) ResolveString(_ context.Context, key string) (string, erro
 }
 
 func (s intakeSource) ResolveInt(_ context.Context, key string) (int, error) {
-	value, _ := s.overrides[key].(int)
+	value, ok := s.overrides[key].(int)
+	if !ok && key == configModel.KeyEnrollmentStatusTokenTTLDays {
+		value = 365
+	}
 	return value, s.fail
 }
 
-func TestEnrollmentIntakeValuesFallBackWithoutAnOverride(t *testing.T) {
+func TestEnrollmentIntakeValuesUseResolvedDefaultsAndFailClosed(t *testing.T) {
 	t.Parallel()
 	ctx := context.Background()
 	for name, source := range map[string]intakeSource{"unset": {}, "failing": {fail: errors.New("down")}} {

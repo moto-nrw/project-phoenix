@@ -145,7 +145,7 @@ type TenantReader interface {
 
 // Resolver resolves the request tenant's settings inside its tenant
 // middleware: the tenant override, else the registry default.
-// HasTenantOverride tells the two apart for the Resolve*OrDefault helpers.
+// HasTenantOverride distinguishes explicit choices from registry defaults.
 type Resolver interface {
 	HasTenantOverride(ctx context.Context, key string) (bool, error)
 	ResolveBool(ctx context.Context, key string) (bool, error)
@@ -153,9 +153,9 @@ type Resolver interface {
 	ResolveString(ctx context.Context, key string) (string, error)
 }
 
-// ResolveBoolOrDefault returns the tenant override of a boolean setting, or
-// fallback when the tenant has none, the resolver is missing or the read
-// fails. Failures are logged, never returned.
+// ResolveBoolOrDefault resolves the tenant override or registry default.
+// Only unavailable reads use fallback. Privacy and authorization callers must
+// use ResolveBool and propagate errors instead.
 func ResolveBoolOrDefault(ctx context.Context, resolver interface {
 	HasTenantOverride(context.Context, string) (bool, error)
 	ResolveBool(context.Context, string) (bool, error)

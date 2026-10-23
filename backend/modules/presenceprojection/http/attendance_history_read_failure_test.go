@@ -51,3 +51,53 @@ func TestAttendanceHistoryRejectsFailedVisitReadAndCanRetry(t *testing.T) {
 	assert.Equal(t, http.StatusOK, response.Code, response.Body.String())
 	assert.Contains(t, response.Body.String(), `"room_detail_available":true`)
 }
+
+type failedHistorySettings struct {
+	interfaceSettings
+	key string
+}
+
+type interfaceSettings interface {
+	ResolveBool(context.Context, string) (bool, error)
+	ResolveInt(context.Context, string) (int, error)
+	ResolveString(context.Context, string) (string, error)
+}
+
+func (s failedHistorySettings) ResolveInt(ctx context.Context, key string) (int, error) {
+	if key == s.key {
+		return 0, errors.New("private visibility settings read failure")
+	}
+	return s.interfaceSettings.ResolveInt(ctx, key)
+}
+
+func (s failedHistorySettings) ResolveBool(ctx context.Context, key string) (bool, error) {
+	if key == s.key {
+		return false, errors.New("private visibility settings read failure")
+	}
+	return s.interfaceSettings.ResolveBool(ctx, key)
+}
+
+func TestAttendanceHistoryRejectsUnreadableVisibilitySettings(t *testing.T) {
+	t.Parallel()
+	tc := setupStudentsRoute(t, func() time.Time { return time.Date(2026, 10, 20, 12, 0, 0, 0, calendar.Berlin) })
+	enableAttendanceLog(t, tc)
+	require.NoError(t, tc.settings().SetValue(testpkg.Ctx(t), "gdpr.attendance_visible_days", 3, nil, nil))
+	student := testpkg.CreateTestStudent(t, tc.db, "History", "Settings", "3a")
+	account := testpkg.CreateTestAccount(t, tc.db, "history-settings-reader")
+	for _, key := range []string{"gdpr.attendance_visible_days", "gdpr.room_detail_visible_days", "gdpr.attendance_log_enabled"} {
+		routes := []string{"attendance-history"}
+		if key != "gdpr.room_detail_visible_days" {
+			routes = append(routes, "attendance-history/export?format=xlsx")
+		}
+		for _, route := range routes {
+			t.Run(key+"/"+route, func(t *testing.T) {
+				tc.resource.SettingsService = failedHistorySettings{tc.settingsService, key}
+				response := authExec(t, tc, testutil.NewRequest(http.MethodGet, fmt.Sprintf("/%d/%s", student.ID, route), nil), testutil.AdminTestClaims(int(account.ID)), []string{"admin:*"})
+				assert.Equal(t, http.StatusInternalServerError, response.Code, response.Body.String())
+				assert.Contains(t, response.Header().Get("Content-Type"), "application/json")
+				assert.NotContains(t, response.Body.String(), `"days"`)
+				assert.NotContains(t, response.Body.String(), "private visibility settings read failure")
+			})
+		}
+	}
+}

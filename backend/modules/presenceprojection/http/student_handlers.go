@@ -100,9 +100,18 @@ func (rs *Resource) buildStudentDetail(r *http.Request, student *peopleModule.St
 	hasFullAccess := rs.checkStudentReadAccess(r, student)
 	hasWriteAccess := rs.checkStudentFullAccess(r, student)
 
-	attendanceLogEnabled := resolveBoolSetting(r.Context(), rs.SettingsService, settingAttendanceLogEnabled, false, rs.Logger)
-	feedbackEnabled := resolveBoolSetting(r.Context(), rs.SettingsService, settingFeedbackEnabled, false, rs.Logger)
-	photosEnabled := resolveBoolSetting(r.Context(), rs.SettingsService, settingStudentPhotosEnabled, false, rs.Logger)
+	attendanceLogEnabled, err := rs.SettingsService.ResolveBool(r.Context(), settingAttendanceLogEnabled)
+	if err != nil {
+		return StudentDetailResponse{}, err
+	}
+	feedbackEnabled, err := rs.SettingsService.ResolveBool(r.Context(), settingFeedbackEnabled)
+	if err != nil {
+		return StudentDetailResponse{}, err
+	}
+	photosEnabled, err := rs.SettingsService.ResolveBool(r.Context(), settingStudentPhotosEnabled)
+	if err != nil {
+		return StudentDetailResponse{}, err
+	}
 
 	studentResponse, err := newStudentResponseWithOpts(r.Context(), StudentResponseOpts{
 		Student:       student,

@@ -713,7 +713,7 @@ func TestOperationsCapabilitiesDefaultsToEnabled(t *testing.T) {
 		TimetableData: operationTimetableData(operationDataDeps{ActiveGroupRepo: &fakeOperationActiveGroupRepo{}}),
 		SettingsService: &fakeOperationSettingsService{
 			hasOverride: false,
-			boolValue:   false,
+			boolValue:   true,
 		},
 	})
 	router := operationRouter(http.MethodGet, "/capabilities", res.operationsCapabilities)

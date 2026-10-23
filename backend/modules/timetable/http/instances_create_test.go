@@ -325,6 +325,7 @@ func setupDuplicateInstanceRoute(
 	_, serviceFactory := RootCompositions.Module(t)
 	resource := NewResource(Dependencies{
 		TimetableData:   testTimetableData(db, clock).TimetableData(),
+		SettingsService: &settingsDouble{ResolveIntFn: func(context.Context, string) (int, error) { return 12, nil }},
 		InstanceService: serviceFactory.Instance,
 	})
 	return createRouter(ctx, resource)

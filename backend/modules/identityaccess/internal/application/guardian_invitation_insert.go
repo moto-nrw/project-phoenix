@@ -25,13 +25,17 @@ func (l *AccountLifecycle) insertStudentInvitation(ctx context.Context, req doma
 		if _, _, _, lockErr := l.logins.LockLoginAccountByEmail(txCtx, profile.Email); lockErr != nil {
 			return failed(opGuardianInviteToStudent, lockErr)
 		}
+		expiry, err := l.delivery.InvitationExpiry(txCtx)
+		if err != nil {
+			return failed(opGuardianInviteToStudent, err)
+		}
 		var insertErr error
 		invitation, insertErr = l.invitations.InsertGuardianInvitation(txCtx, domain.GuardianInvitation{
 			TenantID:                    tenantID,
 			Token:                       uuid.Must(uuid.NewV4()).String(),
 			GuardianProfileID:           profile.ID,
 			CreatedBy:                   req.CreatedBy,
-			ExpiresAt:                   time.Now().Add(l.delivery.InvitationExpiry(txCtx)),
+			ExpiresAt:                   time.Now().Add(expiry),
 			StudentID:                   &studentID,
 			RequestedByAccountID:        req.RequestedByParentAccountID,
 			ApprovalStatus:              approvalStatus,

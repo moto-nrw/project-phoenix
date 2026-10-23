@@ -18,7 +18,11 @@ func (rs *Resource) RespondCreatedStudent(w http.ResponseWriter, r *http.Request
 	userPermissions := sessiontoken.PermissionsFromCtx(r.Context())
 	hasFullAccess := securityruntime.HasAdminWildcard(userPermissions)
 
-	photosEnabled := resolveBoolSetting(r.Context(), rs.SettingsService, settingStudentPhotosEnabled, false, rs.Logger)
+	photosEnabled, err := rs.SettingsService.ResolveBool(r.Context(), settingStudentPhotosEnabled)
+	if err != nil {
+		renderError(w, r, common.ErrorInternalServer(err))
+		return
+	}
 	response, err := newStudentResponseWithOpts(r.Context(), StudentResponseOpts{
 		Student:       student,
 		Person:        person,

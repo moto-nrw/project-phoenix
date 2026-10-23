@@ -294,7 +294,7 @@ func NewAuthTestModule(db transactionruntime.Database, unit tenant.UnitOfWork, o
 	}
 	mfa.Capability = settingsOverrides.mfaCapability
 	guardianMail, enrollmentClaims, err := owners.GuardianInvitationDependencies(settings.Settings, organizations, owners.OutboxEnqueuer{Outbox: deliveryModule.EmailOutbox},
-		parentPortal.ParentEnrollmentRequest, parentsURL, time.Duration(inviteHours)*time.Hour, logger)
+		parentPortal.ParentEnrollmentRequest, parentsURL, logger)
 	if err != nil {
 		return AuthTestModule{}, err
 	}

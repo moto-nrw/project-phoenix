@@ -102,7 +102,8 @@ func TestListTemplates_WithoutPeriodSkipsWeekdayRosterRead(t *testing.T) {
 
 	repo := &catalogTemplateListing{}
 	resource := NewResource(Dependencies{
-		TimetableData: repo.data(),
+		SettingsService: &settingsDouble{ResolveIntFn: func(context.Context, string) (int, error) { return 12, nil }},
+		TimetableData:   repo.data(),
 	})
 	request := httptest.NewRequest(http.MethodGet, "/templates", nil)
 	request = request.WithContext(tenant.WithTenantID(request.Context(), 42))

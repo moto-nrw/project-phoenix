@@ -185,6 +185,6 @@ func TestResolveOrDefaultReturnsFallbackForSnapshotFailures(t *testing.T) {
 			"fallback",
 			logger,
 		)
-		assert.Equal(t, "fallback", got)
+		assert.Empty(t, got)
 	})
 }
