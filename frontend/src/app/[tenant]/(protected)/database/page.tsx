@@ -188,7 +188,7 @@ const baseDataSections: DataSection[] = [
   {
     id: "shiftTypes",
     title: "Dienstarten",
-    description: "Aufgabe einer Schicht im Dienstplan benennen",
+    description: "Aufgabe eines Dienstes im Dienstplan benennen",
     href: "/database/shift-types",
     concept: "staffPlan",
     requiresPlanning: true,

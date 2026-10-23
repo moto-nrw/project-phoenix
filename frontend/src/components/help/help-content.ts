@@ -2274,7 +2274,7 @@ function nfcWorkTimeTopic(nfcEnabled: boolean | null): HelpTopic {
       "Ihre Schule kann das Einstempeln erst kurz vor Ihrer Schicht erlauben. Dann zeigt das Tablet, ab wann es geht.",
     ],
     notes: [
-      "Am Tablet stempeln Sie immer `In der OGS` ein. Arbeiten Sie unterwegs, stempeln Sie in der moto-App unter `Zeiterfassung` ein.",
+      "Am Tablet gibt es keine Wahl des Arbeitsorts. Wer dort einstempelt, ist in der OGS. Arbeiten Sie unterwegs, stempeln Sie in der moto-App unter `Zeiterfassung` ein.",
     ],
     troubleshooting: HELP_TOPICS.nfcProblem,
     related: [HELP_TOPICS.trackWorkTime, HELP_TOPICS.tagAssignment],
@@ -3353,7 +3353,7 @@ function goLiveTopic(
             : []),
           "Übernehmen Sie die Kinder aus einer Liste. Oder legen Sie sie einzeln an.",
           "Tragen Sie die Betreuungszeiten der Kinder ein.",
-          "Tragen Sie `Schuljahr und Kalender` ein.",
+          "Tragen Sie unter `Schuljahr und Kalender` Schuljahr, Ferien und Schließtage ein.",
           ...(usesNfc
             ? ["Richten Sie die NFC-Geräte und die Armbänder ein."]
             : []),
@@ -4960,7 +4960,7 @@ function staffNoticesTopic(): HelpTopic {
 function calendarPeriodsTopic(): HelpTopic {
   return {
     id: HELP_TOPICS.leadCalendarPeriods,
-    title: "Schuljahr und Kalender eintragen",
+    title: "Schuljahr, Ferien und Schließtage eintragen",
     question: "Wo trage ich Schuljahr, Ferien und Schließtage ein?",
     summary: "moto plant nur an Tagen, an denen Ihre OGS geöffnet hat.",
     group: "planung",
@@ -5075,7 +5075,7 @@ function leadCarePlanTopic(): HelpTopic {
       "`Monat` und `Serien` stehen nicht in jeder Ansicht zur Wahl.",
     ],
     troubleshootingDetails: [
-      "Die Woche sagt `Noch kein Planungszeitraum`? Wählen Sie `Planungszeitraum anlegen` oder tragen Sie zuerst `Schuljahr und Kalender` ein.",
+      "Die Woche sagt `Noch kein Planungszeitraum`? Wählen Sie `Planungszeitraum anlegen` oder tragen Sie zuerst unter `Schuljahr und Kalender` einen Zeitraum ein.",
       "Ein Regeltermin lässt sich nur ab heute beenden. Vergangene Termine löschen Sie einzeln.",
     ],
     related: [

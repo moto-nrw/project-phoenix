@@ -162,7 +162,7 @@ describe("CarePlanView", () => {
     );
     // No data fetched -> empty state, and the parent is not asked to widen.
     expect(
-      screen.getByText("Kein Tages- und Wochenplan für diesen Tag."),
+      screen.getByText("Für diesen Tag ist nichts geplant."),
     ).toBeInTheDocument();
     expect(onVisibleDateRangeChange).not.toHaveBeenCalled();
   });
