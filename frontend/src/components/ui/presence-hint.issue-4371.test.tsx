@@ -76,4 +76,31 @@ describe("one pill per child", () => {
     expect(pills[0]).toHaveTextContent(LOCATION_STATUSES.SICK);
     expect(container.querySelector("[data-sick-indicator]")).toBeNull();
   });
+
+  it("matches the large location pill's text size", () => {
+    const { container } = render(
+      <LocationBadge
+        student={{ current_location: "Anwesend - Raum 101", sick: true }}
+        displayMode="roomName"
+        size="lg"
+      />,
+    );
+
+    expect(container.querySelector("[data-sick-indicator]")).toHaveClass(
+      "text-sm",
+    );
+  });
+
+  it("matches the large binary presence pill's text size", () => {
+    const { container } = render(
+      <PresenceBadge
+        student={{ current_location: "Anwesend", sick: true }}
+        size="lg"
+      />,
+    );
+
+    expect(container.querySelector("[data-sick-indicator]")).toHaveClass(
+      "text-sm",
+    );
+  });
 });

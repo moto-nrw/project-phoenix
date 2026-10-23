@@ -233,10 +233,12 @@ export function PresenceBadge({
           seit {formattedTime} Uhr
         </span>
       )}
-      {showUnplannedOverlay && <PresenceHint kind="notArrival" />}
-      {showSickOverlay && <PresenceHint kind="sick" />}
-      {showClassTripOverlay && <PresenceHint kind="classTrip" />}
-      {showExcusedOverlay && <PresenceHint kind="excused" />}
+      {showUnplannedOverlay && (
+        <PresenceHint kind="notArrival" size={sizeKey} />
+      )}
+      {showSickOverlay && <PresenceHint kind="sick" size={sizeKey} />}
+      {showClassTripOverlay && <PresenceHint kind="classTrip" size={sizeKey} />}
+      {showExcusedOverlay && <PresenceHint kind="excused" size={sizeKey} />}
     </div>
   );
 }

@@ -259,14 +259,15 @@ export function LocationBadge({
   // further fact becomes a neutral line below it.
   const hint =
     sickMode === "additional" ? (
-      <PresenceHint kind="sick" />
+      <PresenceHint kind="sick" size={sizeKey} />
     ) : classTripMode === "additional" ? (
-      <PresenceHint kind="classTrip" />
+      <PresenceHint kind="classTrip" size={sizeKey} />
     ) : excusedMode === "additional" ? (
-      <PresenceHint kind="excused" />
+      <PresenceHint kind="excused" size={sizeKey} />
     ) : notArrivalMode === "additional" ? (
       <PresenceHint
         kind="notArrival"
+        size={sizeKey}
         title={student.not_arrival_reason ?? undefined}
       />
     ) : null;

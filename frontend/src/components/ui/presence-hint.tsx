@@ -11,6 +11,13 @@ import { LOCATION_STATUSES } from "~/lib/location-helper";
  * borrows the glyph of the plan it contradicts ("Kommt heute nicht").
  */
 export type PresenceHintKind = "notArrival" | "sick" | "classTrip" | "excused";
+export type PresenceHintSize = "sm" | "md" | "lg";
+
+const HINT_TEXT_SIZE: Record<PresenceHintSize, string> = {
+  sm: "text-[11px]",
+  md: "text-xs",
+  lg: "text-sm",
+};
 
 const HINTS = {
   notArrival: {
@@ -35,14 +42,21 @@ const HINTS = {
   },
 } as const;
 
+interface PresenceHintProps {
+  readonly kind: PresenceHintKind;
+  readonly title?: string;
+  readonly size?: PresenceHintSize;
+}
+
 export function PresenceHint({
   kind,
   title,
-}: Readonly<{ kind: PresenceHintKind; title?: string }>) {
+  size = "md",
+}: PresenceHintProps) {
   const hint = HINTS[kind];
   return (
     <span
-      className="mt-1 inline-flex items-center gap-1 text-xs font-medium whitespace-nowrap text-gray-600"
+      className={`mt-1 inline-flex items-center gap-1 font-medium whitespace-nowrap text-gray-600 ${HINT_TEXT_SIZE[size]}`}
       title={title}
       {...{ [hint.dataAttr]: "true" }}
     >
