@@ -255,6 +255,16 @@ func (s *raStore) AssignRolePermission(_ context.Context, roleID, permissionID i
 	return nil
 }
 
+func (s *raStore) AssignRolePermissions(_ context.Context, roleID int64, permissionIDs []int64) error {
+	s.record("assign role permissions")
+	for _, id := range permissionIDs {
+		if _, found := s.permissions[id]; found && !slices.Contains(s.rolePerms[roleID], id) {
+			s.rolePerms[roleID] = append(s.rolePerms[roleID], id)
+		}
+	}
+	return nil
+}
+
 func (s *raStore) RemoveRolePermission(_ context.Context, roleID, permissionID int64) error {
 	s.record("remove role permission")
 	s.rolePerms[roleID] = slices.DeleteFunc(s.rolePerms[roleID], func(id int64) bool { return id == permissionID })

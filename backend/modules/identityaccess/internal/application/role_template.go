@@ -28,10 +28,14 @@ func (r *RoleAdministration) createRoleFromTemplate(ctx context.Context, name, d
 	if err != nil {
 		return domain.ManagedRole{}, failed(opCreateRoleFromTemplate, err)
 	}
+	// One statement copies the list, skipping a permission deleted since the
+	// catalog was read, instead of failing the new role with a 500.
+	permissionIDs := make([]int64, 0, len(permissions))
 	for _, permission := range permissions {
-		if err := r.store.AssignRolePermission(ctx, role.ID, permission.ID); err != nil {
-			return domain.ManagedRole{}, failed(opCreateRoleFromTemplate, err)
-		}
+		permissionIDs = append(permissionIDs, permission.ID)
+	}
+	if err := r.store.AssignRolePermissions(ctx, role.ID, permissionIDs); err != nil {
+		return domain.ManagedRole{}, failed(opCreateRoleFromTemplate, err)
 	}
 	return role, nil
 }
