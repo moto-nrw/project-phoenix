@@ -28,6 +28,7 @@ test('real PostgreSQL snapshot restores data, outbox schema, roles, uploads and 
 services:
   postgres:
     image: ${image}
+    network_mode: none
     environment:
       POSTGRES_HOST_AUTH_METHOD: trust
     volumes:
@@ -39,14 +40,17 @@ services:
       retries: 30
   server:
     image: ${image}
+    network_mode: none
     entrypoint: [sleep, infinity]
     volumes:
       - uploads:/app/public/uploads
   frontend:
     image: ${image}
+    network_mode: none
     entrypoint: [sleep, infinity]
   migrate:
     image: ${image}
+    network_mode: none
     entrypoint: ["true"]
     profiles: [maintenance]
 volumes:
