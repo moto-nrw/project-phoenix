@@ -94,9 +94,10 @@ func (rs *StaffAdminResource) exportStaffSessions(w http.ResponseWriter, r *http
 		return
 	}
 
-	format := r.URL.Query().Get("format")
-	if format != "csv" && format != "xlsx" && format != "pdf" {
-		format = "csv"
+	format, err := parseSessionExportFormat(r)
+	if err != nil {
+		common.RenderError(w, r, common.ErrorInvalidRequest(err))
+		return
 	}
 
 	file, err := rs.WorkSessionService.ExportSessions(r.Context(), staffID, from.String(), to.String(), format)

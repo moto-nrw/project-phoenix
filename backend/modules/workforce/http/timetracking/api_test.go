@@ -1233,6 +1233,25 @@ func TestExportSessions_DefaultCSV(t *testing.T) {
 	assert.Equal(t, http.StatusOK, w.Code)
 }
 
+func TestExportSessions_UnknownFormatRejected(t *testing.T) {
+	t.Parallel()
+
+	wsSvc := &mockWorkSessionService{
+		exportSessionsFn: func(_ context.Context, _ int64, _, _, _ string) (*workforce.ExportFile, error) {
+			t.Fatal("an unknown format must not reach the export service")
+			return nil, nil
+		},
+	}
+	rs := testResource(wsSvc, &mockStaffAbsenceService{}, defaultPersonSvc(), nil)
+
+	r := httptest.NewRequest(http.MethodGet, "/export?from=2026-01-01&to=2026-01-31&format=docx", nil)
+	r = withCaller(r, testpkg.Tenant(t))
+	w := httptest.NewRecorder()
+
+	rs.exportSessions(w, r)
+	assert.Equal(t, http.StatusBadRequest, w.Code)
+}
+
 func TestExportSessions_MissingDates(t *testing.T) {
 	t.Parallel()
 

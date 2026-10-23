@@ -181,6 +181,12 @@ describe("dayLogExportUrl", () => {
       "/api/students/day-log/export?date=2026-07-24&format=xlsx&group_id=7",
     );
   });
+
+  it("builds the Word export URL the backend already accepts", () => {
+    expect(dayLogExportUrl("2026-07-24", "docx")).toBe(
+      "/api/students/day-log/export?date=2026-07-24&format=docx",
+    );
+  });
 });
 
 describe("dayLogSourceLabel", () => {

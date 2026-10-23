@@ -73,7 +73,7 @@ export async function fetchDayLog(
 
 export function dayLogExportUrl(
   dateISO: string,
-  format: "pdf" | "xlsx",
+  format: "pdf" | "docx" | "xlsx",
   groupId?: string,
 ): string {
   const params = new URLSearchParams({ date: dateISO, format });
