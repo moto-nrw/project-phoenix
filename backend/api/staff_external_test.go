@@ -161,7 +161,7 @@ func uniqueAddress(t *testing.T, local string) string {
 
 // TestBetreuerRecordsAnExternalCaregiver pins #3823 and #4573: a Betreuer
 // records an external caregiver with an e-mail address; person, staff
-// member, caregiver and guest profile exist, an invitation in the role
+// member, caregiver and external caregiver record exist, an invitation in the role
 // „Extern“ names the person, its mail sits in the outbox, and the directory
 // marks the entry as external with an open invitation.
 func TestBetreuerRecordsAnExternalCaregiver(t *testing.T) {
@@ -186,7 +186,7 @@ func TestBetreuerRecordsAnExternalCaregiver(t *testing.T) {
 	assert.Nil(t, created.Person.AccountID, "the account exists once the invitation is accepted")
 
 	assert.Equal(t, 1, e.count(t, `SELECT count(*) FROM users.teachers WHERE staff_id = ?`, created.ID))
-	assert.Equal(t, 1, e.count(t, `SELECT count(*) FROM users.guests WHERE staff_id = ? AND organization = 'Musikschule'`, created.ID))
+	assert.Equal(t, 1, e.count(t, `SELECT count(*) FROM users.external_caregivers WHERE staff_id = ? AND organization = 'Musikschule'`, created.ID))
 	_, invitedRole, invitedTenant := e.pendingToken(t, created.PersonID)
 	assert.Equal(t, roleID, invitedRole)
 	assert.Equal(t, e.tenantID, invitedTenant, "the invitation belongs to the caller's school")
@@ -282,7 +282,7 @@ func TestExternalCaregiverRefusesAnAddressAlreadyAtTheSchool(t *testing.T) {
 	require.Len(t, wire.Errors, 1)
 	assert.Equal(t, "email", wire.Errors[0].Field)
 	assert.Zero(t, e.personsNamed(t, "Angelegt"))
-	assert.Zero(t, e.count(t, `SELECT count(*) FROM users.guests g JOIN users.staff_school_memberships s ON s.id = g.staff_id
+	assert.Zero(t, e.count(t, `SELECT count(*) FROM users.external_caregivers g JOIN users.staff_school_memberships s ON s.id = g.staff_id
 		JOIN users.persons p ON p.id = s.person_id WHERE p.last_name = 'Angelegt'`))
 }
 
@@ -370,7 +370,7 @@ func TestInviteExistingExternalCaregiver(t *testing.T) {
 
 	e := setupExternalCaregiverRoute(t, "")
 	externRole(t, e.db, e.tenantID, "schedules:read")
-	legacy := testpkg.CreateTestGuest(t, e.db, "Musik")
+	legacy := testpkg.CreateTestExternalCaregiverRecord(t, e.db, "Musik")
 	path := fmt.Sprintf("/staff/externals/%d/invitation", legacy.StaffID)
 	personID := strconv.FormatInt(legacy.Staff.PersonID, 10)
 
@@ -409,9 +409,9 @@ func TestInviteRefusesStaffThatIsNoExternalCaregiver(t *testing.T) {
 	foreignTenantID, _ := testpkg.CreateTestTenant(t, e.db)
 	foreign, _ := testpkg.CreateTestStaffWithAccountForTenant(t, e.db, foreignTenantID, "Fremde", "Schule")
 
-	// A real external of another school: staff member with a guest profile
+	// A real external of another school: staff member with an external caregiver record
 	// and without an account, which its own school could invite.
-	foreignExternal := foreignGuest(t, e.db, foreignTenantID)
+	foreignExternal := recordForeignExternal(t, e.db, foreignTenantID)
 
 	status, body := e.post(t, fmt.Sprintf("/staff/externals/%d/invitation", internal.ID), map[string]any{"email": uniqueAddress(t, "intern")}, e.betreuer(t))
 	require.Equal(t, http.StatusConflict, status, string(body))
@@ -454,14 +454,14 @@ func TestExternalCaregiverSeedTokenOnlyForTheLocalSeeder(t *testing.T) {
 	assert.Empty(t, decodeExternal(t, body).InvitationToken)
 }
 
-// TestAccountBackedGuestIsAnExternalCaregiver pins #4573 (it inverts the
-// #3823 rule): a guest profile makes a staff member external, with or without
+// TestAccountBackedExternalCaregiverRecordIsAnExternalCaregiver pins #4573 (it inverts the
+// #3823 rule): an external caregiver record makes a staff member external, with or without
 // an account, and the directory reports the account status.
-func TestAccountBackedGuestIsAnExternalCaregiver(t *testing.T) {
+func TestAccountBackedExternalCaregiverRecordIsAnExternalCaregiver(t *testing.T) {
 	t.Parallel()
 
 	ctx := setupStaffCompositionRoute(t)
-	accountGuestID := ctx.createAccountGuest("Konto", "Gast")
+	accountExternalID := ctx.createAccountExternal("Konto", "Extern")
 	betreuer := testutil.WithJWTBearer(staffCompositionToken(t, betreuerPermissions...))
 
 	rr := testutil.ExecuteRequest(ctx.router, testutil.NewAuthenticatedRequest(t, http.MethodGet, "/staff", nil, betreuer))
@@ -471,21 +471,21 @@ func TestAccountBackedGuestIsAnExternalCaregiver(t *testing.T) {
 	}
 	require.NoError(t, json.Unmarshal(rr.Body.Bytes(), &listed))
 	for _, entry := range listed.Data {
-		if entry.ID == strconv.FormatInt(accountGuestID, 10) {
+		if entry.ID == strconv.FormatInt(accountExternalID, 10) {
 			assert.True(t, entry.IsExternal)
 			assert.Equal(t, "account", entry.ExternalAccountStatus)
 			return
 		}
 	}
-	t.Fatalf("account-backed guest %d missing from staff directory", accountGuestID)
+	t.Fatalf("account-backed external caregiver %d missing from staff directory", accountExternalID)
 }
 
-// foreignGuest records an external caregiver without an account at another
+// recordForeignExternal records an external caregiver without an account at another
 // school.
-func foreignGuest(t *testing.T, db *bun.DB, tenantID int64) *testpkg.Staff {
+func recordForeignExternal(t *testing.T, db *bun.DB, tenantID int64) *testpkg.Staff {
 	t.Helper()
 	staff := testpkg.CreateTestStaffForTenant(t, db, tenantID, "Fremde", "Externe")
-	_, err := db.NewRaw(`INSERT INTO users.guests (tenant_id, staff_id, activity_expertise) VALUES (?, ?, 'AG')`, tenantID, staff.ID).
+	_, err := db.NewRaw(`INSERT INTO users.external_caregivers (tenant_id, staff_id, activity_expertise) VALUES (?, ?, 'AG')`, tenantID, staff.ID).
 		Exec(context.Background())
 	require.NoError(t, err)
 	return staff
@@ -530,7 +530,7 @@ func TestExternalCaregiverKeepsAnotherPersonsOpenInvitation(t *testing.T) {
 	assert.Zero(t, e.personsNamed(t, "Eingeladen"), "nothing is written")
 	assert.True(t, e.stillOpen(t, staffInvitation), "the staff invitation stays redeemable")
 
-	legacy := testpkg.CreateTestGuest(t, e.db, "Musik")
+	legacy := testpkg.CreateTestExternalCaregiverRecord(t, e.db, "Musik")
 	path := fmt.Sprintf("/staff/externals/%d/invitation", legacy.StaffID)
 	status, body = e.post(t, path, map[string]any{"email": address}, e.betreuer(t))
 	require.Equal(t, http.StatusConflict, status, string(body))
@@ -567,7 +567,7 @@ func TestExternalCaregiverCannotReachAnotherSchoolsInvitation(t *testing.T) {
 	status, body := e.post(t, "/staff/externals",
 		map[string]any{"first_name": "Zwei", "last_name": "Schulen", "email": created}, e.betreuer(t))
 	require.Equal(t, http.StatusCreated, status, string(body))
-	legacy := testpkg.CreateTestGuest(t, e.db, "Musik")
+	legacy := testpkg.CreateTestExternalCaregiverRecord(t, e.db, "Musik")
 	status, body = e.post(t, fmt.Sprintf("/staff/externals/%d/invitation", legacy.StaffID), map[string]any{"email": invited}, e.betreuer(t))
 	require.Equal(t, http.StatusOK, status, string(body))
 

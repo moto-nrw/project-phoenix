@@ -235,8 +235,8 @@ func TestMoveStaffBetweenBlocks_RejectsExternalCaregiver(t *testing.T) {
 	t.Parallel()
 
 	s := makeMoveSetup(t)
-	external := &testpkg.Guest{TenantID: s.tenantID, StaffID: s.otherID, ActivityExpertise: "Musik"}
-	_, err := s.db.NewInsert().Model(external).ModelTableExpr(`users.guests`).Exec(s.ctx)
+	external := &testpkg.ExternalCaregiverRecord{TenantID: s.tenantID, StaffID: s.otherID, ActivityExpertise: "Musik"}
+	_, err := s.db.NewInsert().Model(external).ModelTableExpr(`users.external_caregivers`).Exec(s.ctx)
 	require.NoError(t, err)
 
 	_, err = s.instance.MoveStaffBetweenBlocks(s.ctx, s.target.ID, timetable.MoveStaffInput{

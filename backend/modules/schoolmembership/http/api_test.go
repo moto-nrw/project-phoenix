@@ -815,16 +815,16 @@ func TestUpdateStaffKeepsExternalOrganizationInItsResponse(t *testing.T) {
 
 	membership := directoryFixture()
 	membership.staff[1] = schoolmembership.Staff{
-		ID: 1, PersonID: 11, IsGuest: true, GuestOrganization: "Musikschule Bergstadt",
+		ID: 1, PersonID: 11, HasExternalCaregiverRecord: true, ExternalOrganization: "Musikschule Bergstadt",
 	}
 	h := withPersons(newHarness(t, membership))
 	// An external caregiver has no moto account.
 	h.persons[11] = staffHTTP.Person{ID: 11, FirstName: "Ada", LastName: "Lovelace"}
 	h.allow("staff:manage")
-	// The legacy update result does not carry the guest relation. The handler
+	// The legacy update result does not carry the external caregiver record. The handler
 	// must retain the organization it read with the staff membership.
 	h.updateResult = staffHTTP.UpdateStaffResult{
-		Staff:  schoolmembership.Staff{ID: 1, PersonID: 11, IsGuest: true},
+		Staff:  schoolmembership.Staff{ID: 1, PersonID: 11, HasExternalCaregiverRecord: true},
 		Action: staffHTTP.TeacherActionNone,
 	}
 

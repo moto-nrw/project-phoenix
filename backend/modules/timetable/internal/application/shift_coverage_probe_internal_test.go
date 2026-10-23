@@ -464,7 +464,7 @@ func TestDetectShiftCoverage_SkipsExternalCaregivers(t *testing.T) {
 
 	date := calendar.NewDate(2026, time.July, 6)
 	external := fakeStaff(2, "Erik", "Extern")
-	external.IsGuest = true
+	external.HasExternalCaregiverRecord, external.IsExternalCaregiver = true, true
 	staff := &fakeStaffReader{byID: map[int64]*timetable.StaffMember{1: fakeStaff(1, "Max", "Mustermann"), 2: external}}
 	deps := ports.ConflictDetectionDependencies{
 		Shifts:        &fakeShiftReader{rows: []*scheduleModel.StaffShift{testShift(t, 9, date, "07:00", "08:00")}},

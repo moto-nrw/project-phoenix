@@ -117,7 +117,7 @@ func TestActiveCaregiversOfASchool(t *testing.T) {
 func TestActiveCaregiversLeaveExternalCaregiversOut(t *testing.T) {
 	t.Parallel()
 	membership, directory := caregiverFixture()
-	membership.staff[0].IsGuest = true
+	membership.staff[0].HasExternalCaregiverRecord = true
 	caregivers, err := schoolmembership.ActiveCaregivers(context.Background(), membership, directory, caregiverSchool, nil)
 	require.NoError(t, err)
 	assert.Empty(t, caregivers)
@@ -135,8 +135,9 @@ func TestCaregiverStatusNeedsTheUserRoleToBeActive(t *testing.T) {
 	assert.True(t, active)
 }
 
-// An external caregiver is a guest, with or without an account (#4573).
-func TestExternalCaregiverIsAGuestWithOrWithoutAccount(t *testing.T) {
+// A staff member with an external caregiver record and a known person is an
+// external caregiver, with or without an account (#4573).
+func TestExternalCaregiverNeedsARecordWithOrWithoutAccount(t *testing.T) {
 	t.Parallel()
 	assert.True(t, schoolmembership.ExternalCaregiver(true, true))
 	assert.False(t, schoolmembership.ExternalCaregiver(true, false), "without the person nothing is known")

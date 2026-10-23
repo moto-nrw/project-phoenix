@@ -23,16 +23,20 @@ func (p *Person) FullName() string {
 }
 
 // StaffMember is a staff member as the timetable plans and names them. A nil
-// Person is a staff row without a resolvable person. IsGuest marks an
-// external caregiver (#3823), with or without an account (#4573): the
-// person-hydrated reads apply School Membership's rule, the plain reads
-// carry the raw marker, an active guest profile. Externals are planned like
-// staff but never replace anyone.
+// Person is a staff row without a resolvable person. Externals are planned
+// like staff but never replace anyone.
 type StaffMember struct {
 	ID       int64
 	PersonID int64
-	IsGuest  bool
-	Person   *Person
+	// HasExternalCaregiverRecord is the raw marker every read carries: the
+	// staff member has an active external caregiver record (ADR 0080).
+	HasExternalCaregiverRecord bool
+	// IsExternalCaregiver applies School Membership's rule (#3823, #4573):
+	// an active record and a known person, with or without an account. Only
+	// the person-hydrated reads (FindWithPersonByIDs, ListAllWithPerson) set
+	// it; the plain reads leave it false.
+	IsExternalCaregiver bool
+	Person              *Person
 }
 
 // DisplayName renders "First Last"; a person-less staff row degrades to an

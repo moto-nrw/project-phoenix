@@ -95,11 +95,11 @@ func (rs *Resource) updateStaff(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	// The retained update runtime projects a legacy Staff value, which knows
-	// the guest marker but not its organization. Updating ordinary staff fields
-	// cannot change the guest profile, so retain the relation loaded before the
+	// the external caregiver record marker but not its organization. Updating
+	// ordinary staff fields cannot change the record, so retain the relation loaded before the
 	// update for the response contract.
-	result.Staff.IsGuest = staff.IsGuest
-	result.Staff.GuestOrganization = staff.GuestOrganization
+	result.Staff.HasExternalCaregiverRecord = staff.HasExternalCaregiverRecord
+	result.Staff.ExternalOrganization = staff.ExternalOrganization
 
 	response, message := rs.updateResponseFor(ctx, result, person)
 	rs.respond(w, r, http.StatusOK, response, message)

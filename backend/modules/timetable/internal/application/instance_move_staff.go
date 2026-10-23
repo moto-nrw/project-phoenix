@@ -151,8 +151,8 @@ func (s *InstanceLifecycleService) requireStaff(ctx context.Context, staffID int
 	}
 	// The move is the staff pool's replacement action, and an external
 	// caregiver is never replacement staff, account or not (#4573 D6). The
-	// raw marker is an active guest profile.
-	if staff.IsGuest {
+	// plain read carries the raw marker, an active external caregiver record.
+	if staff.HasExternalCaregiverRecord {
 		return externalSubstituteRefusal("staff_id")
 	}
 	return nil

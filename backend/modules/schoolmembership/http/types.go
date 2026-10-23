@@ -301,7 +301,7 @@ func newPersonResponse(person *Person, email, avatar string) *PersonResponse {
 // single constructor every staff response goes through, so a new endpoint
 // cannot forget it.
 func buildStaffResponse(access staffFieldAccess, staff schoolmembership.Staff, person *Person, isTeacher bool, data enrichment) StaffResponse {
-	isExternal := schoolmembership.ExternalCaregiver(staff.IsGuest, person != nil)
+	isExternal := schoolmembership.ExternalCaregiver(staff.HasExternalCaregiverRecord, person != nil)
 	response := StaffResponse{
 		ID:               staff.ID,
 		StartedOn:        calendar.DateFromTime(staff.CreatedAt),
@@ -320,7 +320,7 @@ func buildStaffResponse(access staffFieldAccess, staff schoolmembership.Staff, p
 		UpdatedAt:        staff.UpdatedAt,
 	}
 	if isExternal {
-		response.ExternalOrganization = staff.GuestOrganization
+		response.ExternalOrganization = staff.ExternalOrganization
 		response.ExternalAccountStatus = schoolmembership.ExternalAccountStatus(person.AccountID != nil, data.invitationPending)
 	}
 	if person != nil {

@@ -74,8 +74,8 @@ type Caregiver struct {
 	FullName  string
 	// The external caregiver directory (#4573) sets these three: Assignable
 	// tells whether a new assignment may name the person, AccountStatus is
-	// "account" | "invitation_pending" | "none", Organization is the guest
-	// profile's organization.
+	// "account" | "invitation_pending" | "none", Organization is the
+	// organization of the external caregiver record.
 	Assignable    bool
 	AccountStatus string
 	Organization  string

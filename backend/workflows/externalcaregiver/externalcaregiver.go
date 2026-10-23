@@ -2,7 +2,7 @@
 // invitation to a moto account in the school role „Extern“ (#4573), and
 // invites an existing external caregiver who has no account yet. The writes
 // span the People Directory (person), School Membership (staff, caregiver
-// and guest profile) and Identity & Access (invitation).
+// profile and external caregiver record) and Identity & Access (invitation).
 //
 // The workflow owns no data and issues no SQL. It declares the owner
 // surfaces it coordinates as consumer-owned ports in the owners' public
@@ -28,8 +28,8 @@ var (
 	ErrEmailInvalid = errors.New("email is invalid")
 	// ErrRoleMissing: the school has no role „Extern“ (renamed or deleted).
 	ErrRoleMissing = errors.New("the school has no role Extern")
-	// ErrNotExternal: the staff member has no active guest profile.
-	ErrNotExternal = errors.New("staff member has no active guest profile")
+	// ErrNotExternal: the staff member has no active external caregiver record.
+	ErrNotExternal = errors.New("staff member has no active external caregiver record")
 	// ErrHasAccount: the external caregiver already has an account.
 	ErrHasAccount = errors.New("external caregiver already has an account")
 	// ErrStaffNotFound: no live staff member of the school has the ID.
@@ -39,7 +39,7 @@ var (
 	ErrEmailInvited = errors.New("the address has an open invitation for someone else")
 )
 
-// Expertise fills the guest profile's required expertise: what the person
+// Expertise fills the required expertise of the external caregiver record: what the person
 // does follows from the blocks they are planned for.
 const Expertise = "Externe Betreuung"
 
@@ -84,14 +84,14 @@ type People interface {
 	FindPerson(context.Context, int64) (peopledirectory.Person, error)
 }
 
-// Membership records the staff member and its caregiver and guest profiles.
+// Membership records the staff member and its caregiver profile and external caregiver record.
 type Membership interface {
 	CreateStaff(context.Context, schoolmembership.CreateStaff) (schoolmembership.Staff, error)
 	CreateTeacher(context.Context, schoolmembership.CreateTeacher) (schoolmembership.Teacher, error)
-	CreateGuest(context.Context, schoolmembership.CreateGuest) (schoolmembership.Guest, error)
+	CreateExternalCaregiverRecord(context.Context, schoolmembership.CreateExternalCaregiverRecord) (schoolmembership.ExternalCaregiverRecord, error)
 	FindTeacherByStaff(context.Context, int64) (schoolmembership.Teacher, error)
-	// ListStaff reads live staff of the school in context; IsGuest is the
-	// active guest profile.
+	// ListStaff reads live staff of the school in context; HasExternalCaregiverRecord
+	// is the active external caregiver record.
 	ListStaff(context.Context, schoolmembership.StaffFilter) ([]schoolmembership.Staff, error)
 }
 
@@ -124,8 +124,8 @@ func New(people People, membership Membership, invitations Invitations, savepoin
 	return &Workflow{people: people, membership: membership, invitations: invitations, savepoint: savepoint}, nil
 }
 
-// Record records person, staff member, caregiver profile and guest profile
-// and invites the address to the role „Extern“. Everything runs in one
+// Record records person, staff member, caregiver profile and external
+// caregiver record and invites the address to the role „Extern“. Everything runs in one
 // savepoint: the request transaction commits 4xx answers, so a refused
 // invitation (address already at the school, role grant denied) must not
 // leave a half-created person behind. An open invitation of the school for
@@ -168,7 +168,7 @@ func (w *Workflow) createRecords(ctx context.Context, in RecordInput, email stri
 	if err := w.ensureCaregiverProfile(ctx, staff.ID); err != nil {
 		return Result{}, err
 	}
-	if _, err := w.membership.CreateGuest(ctx, schoolmembership.CreateGuest{GuestFields: schoolmembership.GuestFields{
+	if _, err := w.membership.CreateExternalCaregiverRecord(ctx, schoolmembership.CreateExternalCaregiverRecord{ExternalCaregiverRecordFields: schoolmembership.ExternalCaregiverRecordFields{
 		StaffID: staff.ID, Organization: in.Organization, ActivityExpertise: Expertise,
 	}}); err != nil {
 		return Result{}, err
@@ -236,7 +236,7 @@ func (w *Workflow) invitablePerson(ctx context.Context, staffID int64) (peopledi
 		return peopledirectory.Person{}, err
 	case len(staff) == 0:
 		return peopledirectory.Person{}, ErrStaffNotFound
-	case !staff[0].IsGuest:
+	case !staff[0].HasExternalCaregiverRecord:
 		return peopledirectory.Person{}, ErrNotExternal
 	}
 	person, err := w.people.FindPerson(ctx, staff[0].PersonID)

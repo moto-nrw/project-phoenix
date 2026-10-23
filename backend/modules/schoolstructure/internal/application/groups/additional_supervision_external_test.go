@@ -14,7 +14,7 @@ import (
 )
 
 // renameTestPerson gives a fixture person a name the assertions can tell
-// apart; every CreateTestGuest person is called „Guest Instructor“.
+// apart; every CreateTestExternalCaregiverRecord person is called „Extern Kursleitung“.
 func renameTestPerson(t *testing.T, db *bun.DB, personID int64, firstName, lastName string) {
 	t.Helper()
 	_, err := db.NewRaw(`UPDATE users.persons SET first_name = ?, last_name = ? WHERE id = ?`, firstName, lastName, personID).
@@ -38,7 +38,7 @@ func inviteTestPerson(t *testing.T, db *bun.DB, personID, createdBy int64) {
 // assigned, but stays labelled external where it already supervises. Group
 // handover targets keep offering caregivers only, and an external with an
 // account in a caregiver role never becomes one. Targets and supervisors
-// carry the guest profile's organization.
+// carry the external caregiver record's organization.
 func TestAdditionalSupervisionOffersExternalCaregivers(t *testing.T) {
 	t.Parallel()
 	db := testpkg.SetupTestDB(t)
@@ -59,22 +59,22 @@ func TestAdditionalSupervisionOffersExternalCaregivers(t *testing.T) {
 	owner, ownerAccountID := activeTeacher(t, db, "Robin", "Owner")
 	colleague, _ := activeTeacher(t, db, "Toni", "Kollege")
 
-	invited := testpkg.CreateTestGuest(t, db, "Trommeln").Staff
+	invited := testpkg.CreateTestExternalCaregiverRecord(t, db, "Trommeln").Staff
 	renameTestPerson(t, db, invited.PersonID, "Ina", "Eingeladen")
 	inviteTestPerson(t, db, invited.PersonID, ownerAccountID)
-	uninvited := testpkg.CreateTestGuest(t, db, "Gitarre").Staff
+	uninvited := testpkg.CreateTestExternalCaregiverRecord(t, db, "Gitarre").Staff
 	renameTestPerson(t, db, uninvited.PersonID, "Uwe", "Ohneeinladung")
 	withAccount, _ := activeTeacher(t, db, "Anna", "Konto")
-	_, err = db.NewRaw(`INSERT INTO users.guests (tenant_id, staff_id, activity_expertise) VALUES (?, ?, ?)`,
+	_, err = db.NewRaw(`INSERT INTO users.external_caregivers (tenant_id, staff_id, activity_expertise) VALUES (?, ?, ?)`,
 		testpkg.Tenant(t), withAccount.StaffID, "Theater").Exec(context.Background())
 	require.NoError(t, err)
 
-	expiredFixture := testpkg.CreateTestGuest(t, db, "Abgelaufen")
-	expired, err := repos.Guest.FindByID(ctx, expiredFixture.ID)
+	expiredFixture := testpkg.CreateTestExternalCaregiverRecord(t, db, "Abgelaufen")
+	expired, err := repos.ExternalCaregiverRecords.FindByID(ctx, expiredFixture.ID)
 	require.NoError(t, err)
 	expiredUntil := calendar.DateFromTime(now).AddDays(-1)
 	expired.EndDate = &expiredUntil
-	require.NoError(t, repos.Guest.Update(ctx, expired))
+	require.NoError(t, repos.ExternalCaregiverRecords.Update(ctx, expired))
 	inviteTestPerson(t, db, expiredFixture.Staff.PersonID, ownerAccountID)
 	testpkg.CreateTestStaff(t, db, "Ohne", "Konto")
 	testpkg.CreateTestGroupSupervisor(t, db, owner.StaffID, running.ID, "supervisor")
@@ -88,7 +88,7 @@ func TestAdditionalSupervisionOffersExternalCaregivers(t *testing.T) {
 		{ID: withAccount.StaffID, FullName: "Anna Konto", IsExternal: true, ExternalAccountStatus: "account"},
 		{ID: invited.ID, FullName: "Ina Eingeladen", IsExternal: true, ExternalAccountStatus: "invitation_pending", ExternalOrganization: "Test Organization"},
 	}, overview.RunningSupervisions[0].AvailableTargets,
-		"neither the uninvited external nor the expired guest profile is offered")
+		"neither the uninvited external nor the expired external caregiver record is offered")
 	for _, target := range overview.Targets {
 		require.NotEqual(t, invited.ID, target.ID, "a person without an account never takes over a group")
 		require.NotEqual(t, withAccount.StaffID, target.ID, "an external caregiver never takes over a group")

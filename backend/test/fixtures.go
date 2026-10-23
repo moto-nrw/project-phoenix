@@ -1326,34 +1326,35 @@ func CreateTestGroupSubstitution(tb testing.TB, db *bun.DB, groupID int64, regul
 	return substitution
 }
 
-// CreateTestGuest creates a guest instructor in the database.
+// CreateTestExternalCaregiverRecord creates an external caregiver record in
+// the database.
 // This requires a Staff record, which is created automatically.
-func CreateTestGuest(tb testing.TB, db *bun.DB, expertise string) *Guest {
+func CreateTestExternalCaregiverRecord(tb testing.TB, db *bun.DB, expertise string) *ExternalCaregiverRecord {
 	tb.Helper()
 
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 
 	// Create staff first (which creates person)
-	staff := CreateTestStaff(tb, db, "Guest", "Instructor")
+	staff := CreateTestStaff(tb, db, "Extern", "Kursleitung")
 
-	guest := &Guest{
+	record := &ExternalCaregiverRecord{
 		StaffID:           staff.ID,
 		ActivityExpertise: expertise,
 		Organization:      "Test Organization",
 	}
-	guest.TenantID = fixtureTenantID(tb)
+	record.TenantID = fixtureTenantID(tb)
 
 	err := db.NewInsert().
-		Model(guest).
-		ModelTableExpr(`users.guests`).
+		Model(record).
+		ModelTableExpr(`users.external_caregivers`).
 		Scan(ctx)
-	require.NoError(tb, err, "Failed to create test guest")
+	require.NoError(tb, err, "Failed to create test external caregiver record")
 
 	// Store staff reference for cleanup
-	guest.Staff = staff
+	record.Staff = staff
 
-	return guest
+	return record
 }
 
 // This requires a Student, which is created automatically.

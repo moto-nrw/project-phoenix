@@ -36,8 +36,8 @@ func ExternalCaregiverAssignable(hasAccount, invitationPending bool) bool {
 // directory looks at (#3823), with the People Directory and Identity & Access
 // facts it needs.
 type ExternalCaregiverCandidate struct {
-	StaffID int64
-	IsGuest bool
+	StaffID                    int64
+	HasExternalCaregiverRecord bool
 	// HasPerson is false for a staff row whose person is missing.
 	HasPerson bool
 	// HasAccount is true when the person has a moto account.
@@ -59,20 +59,20 @@ type ExternalCaregiverOption struct {
 }
 
 // ActiveExternalCaregivers keeps the currently valid external caregivers:
-// the candidates ExternalCaregiver accepts whose guest profile is active
-// (activeGuestStaffIDs), with or without an account. They may help with a
-// running supervision but never take over a group. Other staff without a
-// guest profile stay out. The order is the caregiver picker's
+// the candidates ExternalCaregiver accepts whose external caregiver record
+// is active (activeRecordStaffIDs), with or without an account. They may help with a
+// running supervision but never take over a group. Other staff without an
+// external caregiver record stay out. The order is the caregiver picker's
 // (SortActiveCaregivers), so both halves of the picker sort alike.
-func ActiveExternalCaregivers(activeGuestStaffIDs []int64, candidates []ExternalCaregiverCandidate) []ExternalCaregiverOption {
-	active := make(map[int64]struct{}, len(activeGuestStaffIDs))
-	for _, staffID := range activeGuestStaffIDs {
+func ActiveExternalCaregivers(activeRecordStaffIDs []int64, candidates []ExternalCaregiverCandidate) []ExternalCaregiverOption {
+	active := make(map[int64]struct{}, len(activeRecordStaffIDs))
+	for _, staffID := range activeRecordStaffIDs {
 		active[staffID] = struct{}{}
 	}
 	kept := make([]ActiveCaregiver, 0, len(candidates))
 	byStaffID := make(map[int64]ExternalCaregiverCandidate, len(candidates))
 	for _, candidate := range candidates {
-		if !ExternalCaregiver(candidate.IsGuest, candidate.HasPerson) {
+		if !ExternalCaregiver(candidate.HasExternalCaregiverRecord, candidate.HasPerson) {
 			continue
 		}
 		if _, ok := active[candidate.StaffID]; ok {

@@ -484,7 +484,7 @@ func TestScheduleSubstitutionExternalInterfaceMarksExternalTargets(t *testing.T)
 	db, _, service := newScheduleSubstitutionModule(t)
 
 	internal := testpkg.CreateTestStaff(t, db, "Ida", "Intern")
-	external := testpkg.CreateTestGuest(t, db, "Musik")
+	external := testpkg.CreateTestExternalCaregiverRecord(t, db, "Musik")
 	date := calendar.TodayDate().AddDays(1)
 
 	overview, err := testpkg.TenantQuery2(t, testpkg.Ctx(t), db, service.Overview, scheduleSubstitutionCaller(t), substitution.OverviewQuery{

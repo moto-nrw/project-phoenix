@@ -121,7 +121,7 @@ func TimetableStaffMember(row *peopleValues.Staff) *timetable.StaffMember {
 	if row == nil {
 		return nil
 	}
-	return &timetable.StaffMember{ID: row.ID, PersonID: row.PersonID, IsGuest: row.IsGuest, Person: TimetablePerson(row.Person)}
+	return &timetable.StaffMember{ID: row.ID, PersonID: row.PersonID, HasExternalCaregiverRecord: row.HasExternalCaregiverRecord, IsExternalCaregiver: row.IsExternalCaregiver, Person: TimetablePerson(row.Person)}
 }
 
 func TimetablePerson(row *peopleValues.DirectoryPersonSnapshot) *timetable.Person {

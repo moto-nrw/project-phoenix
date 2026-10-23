@@ -19,12 +19,12 @@ import (
 // substitute with timetable.deviation_selection_invalid.
 
 // devAccountBackedExternal creates an external caregiver with an account in
-// the test's tenant: a staff member with a login and an active guest profile.
+// the test's tenant: a staff member with a login and an active external caregiver record.
 func devAccountBackedExternal(t *testing.T, s *devSetup) int64 {
 	t.Helper()
 	staff, _ := testpkg.CreateTestStaffWithAccount(t, s.db, "Extern", fmt.Sprintf("MitKonto-%d", time.Now().UnixNano()))
-	guest := &testpkg.Guest{TenantID: testpkg.Tenant(t), StaffID: staff.ID, ActivityExpertise: "Musik"}
-	_, err := s.db.NewInsert().Model(guest).ModelTableExpr(`users.guests`).Exec(s.ctx)
+	record := &testpkg.ExternalCaregiverRecord{TenantID: testpkg.Tenant(t), StaffID: staff.ID, ActivityExpertise: "Musik"}
+	_, err := s.db.NewInsert().Model(record).ModelTableExpr(`users.external_caregivers`).Exec(s.ctx)
 	require.NoError(t, err)
 	return staff.ID
 }
@@ -72,7 +72,7 @@ func TestApplyDeviations_RejectsExternalCaregiverAsSubstitute(t *testing.T) {
 	router := devRouter(s.ctx, s.res, s.db)
 	_, date := futureSubDate(1)
 	externalID := devAccountBackedExternal(t, s)
-	accountless := testpkg.CreateTestGuest(t, s.db, "Trommeln")
+	accountless := testpkg.CreateTestExternalCaregiverRecord(t, s.db, "Trommeln")
 	inst := testpkg.CreateTestActivityInstance(t, s.db, date, s.roomID, testpkg.ActivityInstanceOpts{Title: "Vertretung"})
 	testpkg.CreateTestInstanceStaff(t, s.db, inst.ID, s.staffA, testpkg.InstanceStaffOpts{})
 

@@ -31,10 +31,17 @@ type Staff struct {
 	// shown at all and this flag lets an individual step out of it.
 	BirthdayDisplayOptOut bool       `json:"birthday_display_opt_out"`
 	DeletedAt             *time.Time `json:"-"`
-	// IsGuest marks an external caregiver without a moto account (#3823).
-	// School Membership derives it from the guest profile; time tracking and
-	// the duty roster skip these people.
-	IsGuest bool `json:"-"`
+	// HasExternalCaregiverRecord is School Membership's raw marker: the staff
+	// member has an active external caregiver record (#3823, ADR 0080). Every
+	// read fills it.
+	HasExternalCaregiverRecord bool `json:"-"`
+	// IsExternalCaregiver applies School Membership's rule
+	// (schoolmembership.ExternalCaregiver): an active record and a known
+	// person, with or without a moto account (#4573). Only the reads that
+	// attach the person (ListAllWithPerson, FindWithPersonByIDs) set it;
+	// every other read leaves it false. Time tracking and the duty roster
+	// skip these people.
+	IsExternalCaregiver bool `json:"-"`
 
 	// Relations
 	Person *DirectoryPersonSnapshot `json:"person,omitempty"`

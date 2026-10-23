@@ -84,7 +84,7 @@ func (d *conflictDetection) DetectShiftCoverage(ctx context.Context, probe timet
 func externalCoverageStaff(staff map[int64]*timetable.StaffMember) map[int64]bool {
 	externals := make(map[int64]bool)
 	for id, member := range staff {
-		if member != nil && member.IsGuest {
+		if member != nil && member.IsExternalCaregiver {
 			externals[id] = true
 		}
 	}

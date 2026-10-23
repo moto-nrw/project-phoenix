@@ -175,7 +175,7 @@ type StaffRef struct {
 	// IsExternal marks an external caregiver, with or without a moto account
 	// (#3823, #4573), and ExternalAccountStatus is then "account" |
 	// "invitation_pending" | "none", ExternalOrganization the organization
-	// of the guest profile (empty when none is recorded). The running
+	// of the external caregiver record (empty when none is recorded). The running
 	// supervisions' targets and supervisors carry all three; the schedule
 	// targets carry IsExternal only.
 	IsExternal            bool   `json:"is_external,omitempty"`

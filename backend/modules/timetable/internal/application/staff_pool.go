@@ -100,7 +100,7 @@ func (d *conflictDetection) loadStaffPoolFacts(ctx context.Context, instance *sc
 	// caregiver, with or without an account (#4573 D6). The hydrated marker
 	// already means "external", whatever the account.
 	staff = slices.DeleteFunc(staff, func(member *timetable.StaffMember) bool {
-		return member != nil && member.IsGuest
+		return member != nil && member.IsExternalCaregiver
 	})
 	timetable.SortStaffByName(staff)
 	return buildStaffPoolFacts(instance, plannable, rows, shifts), len(usedWeeks) > 0, staff, nil

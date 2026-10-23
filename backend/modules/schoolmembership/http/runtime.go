@@ -187,7 +187,7 @@ type Runtime struct {
 	// Directory, School Membership and Identity & Access. ExternalFailure
 	// renders (and observes) its refusals: missing or invalid address ->
 	// 400 on field email, unknown staff -> 404, role grant denied -> 403,
-	// role „Extern“ missing, no guest profile, account exists, address
+	// role „Extern“ missing, no external caregiver record, account exists, address
 	// already at the school -> 409, else 500.
 	CreateExternalCaregiver func(context.Context, ExternalCaregiverInput) (ExternalCaregiverResult, error)
 	InviteExternalCaregiver func(context.Context, ExternalInvitationInput) (ExternalCaregiverResult, error)

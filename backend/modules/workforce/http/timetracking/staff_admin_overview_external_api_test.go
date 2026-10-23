@@ -11,18 +11,18 @@ import (
 
 // TestTimeTrackingOverviewAPI_LeavesExternalCaregiversOut pins #3823: an
 // external caregiver records no working time, so the school-wide overview
-// has no row for the guest profile while regular staff keep theirs.
+// has no row for the external caregiver record while regular staff keep theirs.
 func TestTimeTrackingOverviewAPI_LeavesExternalCaregiversOut(t *testing.T) {
 	t.Parallel()
 
 	ctx := setupOverviewAPI(t)
-	guest := testpkg.CreateTestGuest(t, ctx.tc.db, "Trommeln")
+	external := testpkg.CreateTestExternalCaregiverRecord(t, ctx.tc.db, "Trommeln")
 	testpkg.CreateTestStaff(t, ctx.tc.db, "Regulaere", "Kraft")
 
 	rec := ctx.get("/staff/time-tracking/overview", "time_tracking:manage")
 	require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
 	assert.Contains(t, rec.Body.String(), "Regulaere")
-	assert.NotContains(t, rec.Body.String(), "Instructor", "guest %d must not appear", guest.StaffID)
+	assert.NotContains(t, rec.Body.String(), "Kursleitung", "external caregiver %d must not appear", external.StaffID)
 }
 
 // TestTimeTrackingAPI_LeavesAccountBackedExternalCaregiversOut pins #4573:
@@ -33,8 +33,8 @@ func TestTimeTrackingAPI_LeavesAccountBackedExternalCaregiversOut(t *testing.T) 
 
 	ctx := setupOverviewAPI(t)
 	external, _ := testpkg.CreateTestStaffWithAccount(t, ctx.tc.db, "Externe", "MitKonto")
-	guest := &testpkg.Guest{TenantID: testpkg.Tenant(t), StaffID: external.ID, ActivityExpertise: "Musik"}
-	_, err := ctx.tc.db.NewInsert().Model(guest).ModelTableExpr(`users.guests`).Exec(testpkg.Ctx(t))
+	record := &testpkg.ExternalCaregiverRecord{TenantID: testpkg.Tenant(t), StaffID: external.ID, ActivityExpertise: "Musik"}
+	_, err := ctx.tc.db.NewInsert().Model(record).ModelTableExpr(`users.external_caregivers`).Exec(testpkg.Ctx(t))
 	require.NoError(t, err)
 	testpkg.CreateTestStaff(t, ctx.tc.db, "Regulaere", "Kraft")
 

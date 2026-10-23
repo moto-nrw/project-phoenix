@@ -148,7 +148,7 @@ func TestGetAvailableTeachers_OffersOnlyAssignableExternals(t *testing.T) {
 	uninvited := testpkg.CreateTestTeacher(t, db, "Uwe", "Ohneeinladung")
 	for _, staffID := range []int64{withAccount.StaffID, invited.StaffID, uninvited.StaffID} {
 		_, err := db.ExecContext(context.Background(),
-			`INSERT INTO users.guests (tenant_id, staff_id, activity_expertise) VALUES (?, ?, 'AG')`, testpkg.Tenant(t), staffID)
+			`INSERT INTO users.external_caregivers (tenant_id, staff_id, activity_expertise) VALUES (?, ?, 'AG')`, testpkg.Tenant(t), staffID)
 		require.NoError(t, err)
 	}
 	role := testpkg.GetOrCreateTestRole(t, db, "user")

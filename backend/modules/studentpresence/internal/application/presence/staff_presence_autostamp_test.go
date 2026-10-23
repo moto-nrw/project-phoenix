@@ -138,12 +138,12 @@ func TestCreateGroupSupervisor_SkipsWorkSessionForExternalCaregiver(t *testing.T
 }
 
 // createAccountBackedExternal creates an external caregiver with an account:
-// a staff member with a login and an active guest profile (#4573).
+// a staff member with a login and an active external caregiver record (#4573).
 func createAccountBackedExternal(t *testing.T, db *testpkg.DB, lastName string) int64 {
 	t.Helper()
 	staff, _ := testpkg.CreateTestStaffWithAccount(t, db, "Extern", lastName)
-	guest := &testpkg.Guest{TenantID: testpkg.Tenant(t), StaffID: staff.ID, ActivityExpertise: "Musik"}
-	_, err := db.NewInsert().Model(guest).ModelTableExpr(`users.guests`).Exec(testpkg.Ctx(t))
+	record := &testpkg.ExternalCaregiverRecord{TenantID: testpkg.Tenant(t), StaffID: staff.ID, ActivityExpertise: "Musik"}
+	_, err := db.NewInsert().Model(record).ModelTableExpr(`users.external_caregivers`).Exec(testpkg.Ctx(t))
 	require.NoError(t, err)
 	return staff.ID
 }

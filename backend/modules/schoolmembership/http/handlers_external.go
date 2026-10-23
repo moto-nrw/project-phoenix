@@ -17,7 +17,7 @@ type externalStaffResponse struct {
 
 // createExternalStaff records an external caregiver and invites them to a
 // moto account in the school role „Extern“ (#3823, #4573). The workflow
-// writes person, staff member, caregiver and guest profile and the
+// writes person, staff member, caregiver profile and external caregiver record and the
 // invitation in one savepoint, so a refused invitation leaves nothing behind.
 func (rs *Resource) createExternalStaff(w http.ResponseWriter, r *http.Request) {
 	req := &ExternalStaffRequest{}
@@ -80,7 +80,7 @@ func (rs *Resource) respondExternal(w http.ResponseWriter, r *http.Request, stat
 	rs.respond(w, r, status, response, message)
 }
 
-// externalCaregiver reads the staff member with its guest marker and person.
+// externalCaregiver reads the staff member with its external caregiver record marker and person.
 func (rs *Resource) externalCaregiver(ctx context.Context, staffID int64) (schoolmembership.Staff, *Person, error) {
 	members, err := rs.membership.ListStaff(ctx, schoolmembership.StaffFilter{IDs: []int64{staffID}})
 	if err != nil {

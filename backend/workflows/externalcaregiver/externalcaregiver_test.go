@@ -28,7 +28,7 @@ type fakeOwners struct {
 	pending    []identityaccess.SchoolInvitation
 	invited    []identityaccess.SchoolInvitationRequest
 	revoked    []int64
-	guest      schoolmembership.GuestFields
+	record     schoolmembership.ExternalCaregiverRecordFields
 	expires    time.Time
 }
 
@@ -64,9 +64,9 @@ func (f *fakeOwners) CreateTeacher(_ context.Context, input schoolmembership.Cre
 	return schoolmembership.Teacher{ID: 701, StaffID: input.StaffID}, f.step("create_teacher")
 }
 
-func (f *fakeOwners) CreateGuest(_ context.Context, input schoolmembership.CreateGuest) (schoolmembership.Guest, error) {
-	f.guest = input.GuestFields
-	return schoolmembership.Guest{}, f.step("create_guest")
+func (f *fakeOwners) CreateExternalCaregiverRecord(_ context.Context, input schoolmembership.CreateExternalCaregiverRecord) (schoolmembership.ExternalCaregiverRecord, error) {
+	f.record = input.ExternalCaregiverRecordFields
+	return schoolmembership.ExternalCaregiverRecord{}, f.step("create_external_caregiver_record")
 }
 
 func (f *fakeOwners) FindTeacherByStaff(context.Context, int64) (schoolmembership.Teacher, error) {
@@ -149,10 +149,10 @@ func TestRecordWritesInOrderInsideOneSavepoint(t *testing.T) {
 	result, err := workflow.Record(context.Background(), createInput())
 	require.NoError(t, err)
 
-	assert.Equal(t, []string{"external_role", "pending_invitations", "create_person", "create_staff", "find_teacher", "create_teacher", "create_guest", "invite"}, owners.calls)
+	assert.Equal(t, []string{"external_role", "pending_invitations", "create_person", "create_staff", "find_teacher", "create_teacher", "create_external_caregiver_record", "invite"}, owners.calls)
 	assert.Equal(t, 1, savepoint.opened)
 	assert.Equal(t, externalcaregiver.Result{StaffID: 601, PersonID: 501, InvitationExpiresAt: expires, InvitationToken: "token"}, result)
-	assert.Equal(t, schoolmembership.GuestFields{StaffID: 601, Organization: "Musikschule", ActivityExpertise: externalcaregiver.Expertise}, owners.guest)
+	assert.Equal(t, schoolmembership.ExternalCaregiverRecordFields{StaffID: 601, Organization: "Musikschule", ActivityExpertise: externalcaregiver.Expertise}, owners.record)
 	require.Len(t, owners.invited, 1)
 	assert.Equal(t, identityaccess.SchoolInvitationRequest{
 		Email: "jonas@example.test", RoleID: 31, PersonID: int64Ptr(501),
@@ -163,7 +163,7 @@ func TestRecordWritesInOrderInsideOneSavepoint(t *testing.T) {
 
 func TestRecordRollsTheSavepointBackWhenAStepFails(t *testing.T) {
 	t.Parallel()
-	for _, step := range []string{"create_person", "create_staff", "find_teacher", "create_teacher", "create_guest", "invite"} {
+	for _, step := range []string{"create_person", "create_staff", "find_teacher", "create_teacher", "create_external_caregiver_record", "invite"} {
 		t.Run(step, func(t *testing.T) {
 			t.Parallel()
 			owners := &fakeOwners{roleID: 31, failAt: step}
@@ -209,7 +209,7 @@ func TestRecordRefusesBeforeAnyWrite(t *testing.T) {
 func inviteOwners() *fakeOwners {
 	return &fakeOwners{
 		roleID: 31,
-		staff:  []schoolmembership.Staff{{ID: 601, PersonID: 501, IsGuest: true}},
+		staff:  []schoolmembership.Staff{{ID: 601, PersonID: 501, HasExternalCaregiverRecord: true}},
 		person: &peopledirectory.Person{ID: 501, FirstName: "Selin", LastName: "Aydın"},
 		pending: []identityaccess.SchoolInvitation{
 			{ID: 91, PersonID: int64Ptr(501), Email: "selin@example.test"},
@@ -274,11 +274,11 @@ func TestInviteRefusesWhoCannotBeInvited(t *testing.T) {
 		edit func(*fakeOwners)
 		want error
 	}{
-		"unknown or foreign staff": {edit: func(f *fakeOwners) { f.staff = nil }, want: externalcaregiver.ErrStaffNotFound},
-		"no active guest profile":  {edit: func(f *fakeOwners) { f.staff[0].IsGuest = false }, want: externalcaregiver.ErrNotExternal},
-		"person gone":              {edit: func(f *fakeOwners) { f.person = nil }, want: externalcaregiver.ErrStaffNotFound},
-		"already has an account":   {edit: func(f *fakeOwners) { f.person.AccountID = int64Ptr(44) }, want: externalcaregiver.ErrHasAccount},
-		"school has no role":       {edit: func(f *fakeOwners) { f.noRole = true }, want: externalcaregiver.ErrRoleMissing},
+		"unknown or foreign staff":            {edit: func(f *fakeOwners) { f.staff = nil }, want: externalcaregiver.ErrStaffNotFound},
+		"no active external caregiver record": {edit: func(f *fakeOwners) { f.staff[0].HasExternalCaregiverRecord = false }, want: externalcaregiver.ErrNotExternal},
+		"person gone":                         {edit: func(f *fakeOwners) { f.person = nil }, want: externalcaregiver.ErrStaffNotFound},
+		"already has an account":              {edit: func(f *fakeOwners) { f.person.AccountID = int64Ptr(44) }, want: externalcaregiver.ErrHasAccount},
+		"school has no role":                  {edit: func(f *fakeOwners) { f.noRole = true }, want: externalcaregiver.ErrRoleMissing},
 	}
 	for name, tc := range cases {
 		t.Run(name, func(t *testing.T) {

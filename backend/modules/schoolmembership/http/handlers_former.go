@@ -31,7 +31,7 @@ type formerStaffResponse struct {
 func (rs *Resource) listFormerStaff(w http.ResponseWriter, r *http.Request, filters listStaffFilters) {
 	ctx := r.Context()
 	members, err := rs.membership.ListStaff(ctx, schoolmembership.StaffFilter{
-		IncludeDeleted: true, IncludeInactiveGuests: true, MembershipOnly: true,
+		IncludeDeleted: true, IncludeInactiveExternalCaregiverRecords: true, MembershipOnly: true,
 	})
 	if err != nil {
 		rs.internal(w, r, err)
@@ -61,7 +61,7 @@ func (rs *Resource) listFormerStaff(w http.ResponseWriter, r *http.Request, filt
 	for _, staff := range former {
 		person := persons[staff.PersonID]
 		if person == nil ||
-			schoolmembership.ExternalCaregiver(staff.IsGuest, true) ||
+			schoolmembership.ExternalCaregiver(staff.HasExternalCaregiverRecord, true) ||
 			!matchesBatchRoleFilter(person, filters.filterByRole, roleMatches) ||
 			!matchesNameFilter(person, filters.firstName, filters.lastName) {
 			continue
@@ -99,7 +99,7 @@ func matchesBatchRoleFilter(person *Person, role string, matches map[int64]bool)
 // there only, so a resumed person is never listed twice. External
 // caregivers without an account are no employment and stay out, as they do
 // on the current list. The handler applies that check after loading people,
-// because a guest profile with a moto account is not an external caregiver.
+// because an external caregiver record with a moto account is not an external caregiver.
 func formerEmployments(members []schoolmembership.Staff) []schoolmembership.Staff {
 	live := make(map[int64]bool, len(members))
 	latest := make(map[int64]schoolmembership.Staff, len(members))

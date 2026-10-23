@@ -23,13 +23,13 @@ import (
 // existing assignments of accountless externals stay editable.
 
 // createAccountBackedExternal creates a staff member of the tenant with a
-// login account and an active guest profile: an external caregiver with an
+// login account and an active external caregiver record: an external caregiver with an
 // account (#4573).
 func createAccountBackedExternal(t *testing.T, db *bun.DB, ctx context.Context, tenantID int64) int64 {
 	t.Helper()
 	staff, _ := testpkg.CreateTestStaffWithAccountForTenant(t, db, tenantID, "Extern", fmt.Sprintf("MitKonto-%d", time.Now().UnixNano()))
-	guest := &testpkg.Guest{TenantID: tenantID, StaffID: staff.ID, ActivityExpertise: "Musik"}
-	_, err := db.NewInsert().Model(guest).ModelTableExpr(`users.guests`).Exec(ctx)
+	record := &testpkg.ExternalCaregiverRecord{TenantID: tenantID, StaffID: staff.ID, ActivityExpertise: "Musik"}
+	_, err := db.NewInsert().Model(record).ModelTableExpr(`users.external_caregivers`).Exec(ctx)
 	require.NoError(t, err)
 	return staff.ID
 }
@@ -40,7 +40,7 @@ func TestInstance_CreatePlanned_AcceptsExternalCaregiver(t *testing.T) {
 	t.Parallel()
 
 	s := buildLifecycle(t)
-	external := testpkg.CreateTestGuest(t, s.db, "Musik")
+	external := testpkg.CreateTestExternalCaregiverRecord(t, s.db, "Musik")
 
 	created, err := s.svc.CreateInstance(s.ctx, timetable.CreateInstanceInput{
 		Date:            calendar.TodayDate().AddDays(7),
@@ -62,7 +62,7 @@ func TestInstance_CreateSpontaneous_AllowsExternalCaregiver(t *testing.T) {
 	t.Parallel()
 
 	s := buildLifecycle(t)
-	external := testpkg.CreateTestGuest(t, s.db, "Musik")
+	external := testpkg.CreateTestExternalCaregiverRecord(t, s.db, "Musik")
 	spontaneous := true
 
 	created, err := s.svc.CreateInstance(s.ctx, timetable.CreateInstanceInput{
@@ -86,7 +86,7 @@ func TestInstance_UpdateSpontaneous_PreservesExternalCaregiver(t *testing.T) {
 
 	s := buildLifecycle(t)
 	instance := seedSpontaneousInstance(t, s, false)
-	external := testpkg.CreateTestGuest(t, s.db, "Musik")
+	external := testpkg.CreateTestExternalCaregiverRecord(t, s.db, "Musik")
 	staff := fixtures.NewInstanceStaff(func(fixtureRow *fixtures.InstanceStaff) {
 		fixtureRow.InstanceID = instance.ID
 		fixtureRow.StaffID = external.StaffID
@@ -117,7 +117,7 @@ func TestInstance_UpdateSpontaneousToPlanned_KeepsExternalCaregiver(t *testing.T
 
 	s := buildLifecycle(t)
 	instance := seedSpontaneousInstance(t, s, false)
-	external := testpkg.CreateTestGuest(t, s.db, "Musik")
+	external := testpkg.CreateTestExternalCaregiverRecord(t, s.db, "Musik")
 	staff := fixtures.NewInstanceStaff(func(fixtureRow *fixtures.InstanceStaff) {
 		fixtureRow.InstanceID = instance.ID
 		fixtureRow.StaffID = external.StaffID

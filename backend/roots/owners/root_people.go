@@ -87,7 +87,7 @@ func BuildStructureRows(
 	db transactionruntime.Database, persons peopledirectory.Capability, people PeopleRows, peopleIdentity identityaccess.Owner,
 	rooms facilitiesModule.Query, membership schoolmembership.Capability, workTime workforce.Capability,
 ) StructureRows {
-	staff, teachers, guests, groups, groupTeachers, classTeachers := newMembershipAdapters(db, people.Persons, peopleIdentity, membership, rooms, workTime)
+	staff, teachers, externalCaregiverRecords, groups, groupTeachers, classTeachers := newMembershipAdapters(db, people.Persons, peopleIdentity, membership, rooms, workTime)
 	return StructureRows{
 		Groups: groups, GroupTeachers: groupTeachers, ClassTeachers: classTeachers,
 		GroupRooms:            NewEducationRooms(rooms),
@@ -95,7 +95,7 @@ func BuildStructureRows(
 		StaffChecks:           NewEducationStaff(staff),
 		SubstitutionPersons:   NewEducationPersonQuery(persons),
 		Caregivers:            NewEducationCaregivers(teachers),
-		ExternalCaregivers:    NewEducationExternalCaregivers(staff, guests),
+		ExternalCaregivers:    NewEducationExternalCaregivers(staff, externalCaregiverRecords),
 	}
 }
 

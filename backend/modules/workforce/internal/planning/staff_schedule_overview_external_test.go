@@ -19,7 +19,7 @@ func TestStaffScheduleOverview_LeavesExternalCaregiversOut(t *testing.T) {
 
 	employee := fakeStaff(1, "Ada", "Lovelace")
 	external := fakeStaff(2, "Ella", "Extern")
-	external.IsGuest = true
+	external.IsExternalCaregiver = true
 	employee.ID, external.ID = 1, 2
 	monday := calendar.NewDate(2026, time.July, 6)
 	instance := &timetable.ScheduledInstance{
@@ -43,14 +43,14 @@ func TestStaffScheduleOverview_LeavesExternalCaregiversOut(t *testing.T) {
 
 // TestStaffScheduleOverview_LeavesAccountBackedExternalCaregiversOut pins
 // #4573: an account does not make an external caregiver Dienstplan staff.
-// Before #4573 an account-backed guest kept their row and assignments.
+// Before #4573 an account-backed external caregiver kept their row and assignments.
 func TestStaffScheduleOverview_LeavesAccountBackedExternalCaregiversOut(t *testing.T) {
 	t.Parallel()
 
 	employee := fakeStaff(1, "Ada", "Lovelace")
 	external := fakeStaff(2, "Grace", "Hopper")
 	accountID := int64(42)
-	external.IsGuest = true
+	external.IsExternalCaregiver = true
 	external.Person.AccountID = &accountID
 	employee.ID, external.ID = 1, 2
 	monday := calendar.NewDate(2026, time.July, 6)

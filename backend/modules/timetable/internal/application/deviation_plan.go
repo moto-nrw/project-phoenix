@@ -79,7 +79,7 @@ type deviationProjection struct {
 type deviationReadSet struct {
 	staffExists map[int64]bool
 	// externalStaff marks the referenced external caregivers (an active
-	// guest profile), who are never replacement staff (#4573 D6).
+	// external caregiver record), who are never replacement staff (#4573 D6).
 	externalStaff  map[int64]bool
 	rowsByStaff    map[int64][]*scheduleModel.InstanceStaff
 	instances      map[int64]*scheduleModel.ActivityInstance
@@ -119,7 +119,7 @@ func (s *staffDeviations) loadDeviationReadSet(
 	}
 	for id, member := range staff {
 		readSet.staffExists[id] = true
-		if member != nil && member.IsGuest {
+		if member != nil && member.HasExternalCaregiverRecord {
 			readSet.externalStaff[id] = true
 		}
 	}

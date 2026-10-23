@@ -20,12 +20,12 @@ func TestSubstitutionCapabilityKeepsTheExternalMarker(t *testing.T) {
 	t.Parallel()
 	db := testpkg.SetupTestDB(t)
 	caregiver := testpkg.CreateTestStaff(t, db, "Interne", "Kraft")
-	external := testpkg.CreateTestGuest(t, db, "Trommeln").Staff
+	external := testpkg.CreateTestExternalCaregiverRecord(t, db, "Trommeln").Staff
 	capability := api.SubstitutionCapability(substitutionContract{overview: func(context.Context, education.Caller, education.OverviewQuery) (*education.OverviewResult, error) {
 		return &education.OverviewResult{RunningSupervisions: []education.RunningSupervision{{
 			ID: caregiver.ID, AvailableTargets: []education.StaffRef{
 				{ID: caregiver.ID, FullName: "Interne Kraft"},
-				{ID: external.ID, FullName: "Guest Instructor", IsExternal: true, ExternalAccountStatus: "invitation_pending", ExternalOrganization: "Musikschule"},
+				{ID: external.ID, FullName: "Extern Kursleitung", IsExternal: true, ExternalAccountStatus: "invitation_pending", ExternalOrganization: "Musikschule"},
 			},
 		}}}, nil
 	}})
@@ -34,6 +34,6 @@ func TestSubstitutionCapabilityKeepsTheExternalMarker(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, []workforce.StaffRef{
 		{ID: caregiver.ID, FullName: "Interne Kraft"},
-		{ID: external.ID, FullName: "Guest Instructor", IsExternal: true, ExternalAccountStatus: "invitation_pending", ExternalOrganization: "Musikschule"},
+		{ID: external.ID, FullName: "Extern Kursleitung", IsExternal: true, ExternalAccountStatus: "invitation_pending", ExternalOrganization: "Musikschule"},
 	}, out.RunningSupervisions[0].AvailableTargets)
 }

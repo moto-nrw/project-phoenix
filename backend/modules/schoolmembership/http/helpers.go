@@ -209,7 +209,7 @@ func (rs *Resource) withInvitations(ctx context.Context, d directory, members []
 	needed := false
 	for _, staff := range members {
 		person := persons[staff.PersonID]
-		if staff.IsGuest && person != nil && person.AccountID == nil {
+		if staff.HasExternalCaregiverRecord && person != nil && person.AccountID == nil {
 			needed = true
 			break
 		}
@@ -286,7 +286,7 @@ func (rs *Resource) parseAndFindStaffForRead(w http.ResponseWriter, r *http.Requ
 	if !ok {
 		return schoolmembership.Staff{}, false
 	}
-	members, err := rs.membership.ListStaff(r.Context(), schoolmembership.StaffFilter{IDs: []int64{id}, IncludeDeleted: true, IncludeInactiveGuests: true})
+	members, err := rs.membership.ListStaff(r.Context(), schoolmembership.StaffFilter{IDs: []int64{id}, IncludeDeleted: true, IncludeInactiveExternalCaregiverRecords: true})
 	if err != nil {
 		rs.internal(w, r, err)
 		return schoolmembership.Staff{}, false

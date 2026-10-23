@@ -133,9 +133,9 @@ func (p DeviceScanPeople) ListTeachersWithStaffAndPerson(ctx context.Context) ([
 }
 
 // accountlessExternal reports the person of an external caregiver without an
-// account; the raw guest marker is an active guest profile.
+// account; the raw marker is an active external caregiver record.
 func accountlessExternal(teacher *peopledirectory.Teacher) (int64, bool) {
-	if teacher == nil || teacher.Staff == nil || !teacher.Staff.IsGuest {
+	if teacher == nil || teacher.Staff == nil || !teacher.Staff.HasExternalCaregiverRecord {
 		return 0, false
 	}
 	person := teacher.Staff.Person

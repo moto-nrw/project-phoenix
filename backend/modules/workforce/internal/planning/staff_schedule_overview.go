@@ -299,7 +299,7 @@ func (s *staffScheduleOverviewService) loadPlannableStaff(ctx context.Context) (
 		if member == nil {
 			continue
 		}
-		if member.IsGuest {
+		if member.IsExternalCaregiver {
 			externalStaffIDs[member.ID] = struct{}{}
 			continue
 		}

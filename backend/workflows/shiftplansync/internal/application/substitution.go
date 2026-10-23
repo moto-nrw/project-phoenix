@@ -193,7 +193,7 @@ func (a *SubstitutionAdapter) loadTargets(ctx context.Context, include bool) ([]
 	// (#4573 D6); the mark lets the pickers leave them out.
 	for _, member := range members {
 		if member != nil {
-			targets = append(targets, education.StaffRef{ID: member.ID, FullName: member.FullName(), IsExternal: member.IsGuest})
+			targets = append(targets, education.StaffRef{ID: member.ID, FullName: member.FullName(), IsExternal: member.IsExternalCaregiver})
 		}
 	}
 	return targets, nil

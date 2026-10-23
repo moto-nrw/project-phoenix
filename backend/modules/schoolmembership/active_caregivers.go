@@ -148,7 +148,7 @@ func teacherCaregiverCandidate(teacher Teacher, staffByID map[int64]Staff, perso
 	staff, found := staffByID[teacher.StaffID]
 	// An external caregiver never takes over a group or a substitution, even
 	// with an account in a caregiver role (#4573).
-	if !found || staff.IsGuest {
+	if !found || staff.HasExternalCaregiverRecord {
 		return caregiverCandidate{}, false
 	}
 	if teacher.TenantID != staff.TenantID || (!scope.acrossSchools && teacher.TenantID != scope.schoolID) {

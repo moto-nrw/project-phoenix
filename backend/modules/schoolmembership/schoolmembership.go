@@ -1,5 +1,5 @@
 // Package schoolmembership is the public School Membership capability. It
-// owns users.staff_school_memberships, users.teachers, users.guests,
+// owns users.staff_school_memberships, users.teachers, users.external_caregivers,
 // users.class_list_entries, education.class_teachers and
 // education.group_teacher. Every read or write of those rows by another owner
 // goes through Query or Command instead of a foreign SQL join.
@@ -31,17 +31,17 @@ const (
 const DateLayout = "2006-01-02"
 
 var (
-	ErrStaffNotFound     = errors.New("staff member not found")
-	ErrTeacherNotFound   = errors.New("teacher not found")
-	ErrGuestNotFound     = errors.New("guest not found")
-	ErrInvalidMembership = errors.New("invalid membership")
+	ErrStaffNotFound                   = errors.New("staff member not found")
+	ErrTeacherNotFound                 = errors.New("teacher not found")
+	ErrExternalCaregiverRecordNotFound = errors.New("external caregiver record not found")
+	ErrInvalidMembership               = errors.New("invalid membership")
 	// ErrStaffPersonMergeNoLongerEligible reports an employment set that no
 	// longer satisfies the reviewed staff person repair predicates.
-	ErrStaffPersonMergeNoLongerEligible = errors.New("staff person merge no longer eligible")
-	ErrStaffPersonConflict              = errors.New("person already has a staff record")
-	ErrTeacherStaffConflict             = errors.New("staff member already has a teacher record")
-	ErrGuestStaffConflict               = errors.New("staff member already has a guest record")
-	ErrPersonnelNumberConflict          = errors.New("personnel number is already assigned")
+	ErrStaffPersonMergeNoLongerEligible     = errors.New("staff person merge no longer eligible")
+	ErrStaffPersonConflict                  = errors.New("person already has a staff record")
+	ErrTeacherStaffConflict                 = errors.New("staff member already has a teacher record")
+	ErrExternalCaregiverRecordStaffConflict = errors.New("staff member already has an external caregiver record")
+	ErrPersonnelNumberConflict              = errors.New("personnel number is already assigned")
 	// ErrStaffStillReferenced refuses offboarding a staff member other rows
 	// still point at. It is user-facing copy and keeps its capital letter.
 	ErrStaffStillReferenced = errors.New("personal kann nicht gelöscht werden: Mitarbeiter/in wird noch in anderen Bereichen referenziert")
@@ -74,12 +74,13 @@ type Staff struct {
 	// PersonalDataErasedAt marks a retired membership the automatic deletion
 	// of staff erased (#3963); no Wiederaufnahme continues it.
 	PersonalDataErasedAt *time.Time `json:"-"`
-	// IsGuest marks an active guest profile (#3823). Readers that attach the
+	// HasExternalCaregiverRecord marks an active external caregiver record
+	// (#3823), the raw store fact. Readers that attach the
 	// person narrow it to an external caregiver (ExternalCaregiver), with or
 	// without a moto account (#4573). Time tracking and the duty roster leave
 	// these people out; supervision pickers offer them.
-	IsGuest           bool   `json:"is_guest"`
-	GuestOrganization string `json:"guest_organization,omitempty"`
+	HasExternalCaregiverRecord bool   `json:"has_external_caregiver_record"`
+	ExternalOrganization       string `json:"external_organization,omitempty"`
 }
 
 func (s Staff) IsDeleted() bool { return s.DeletedAt != nil }
@@ -99,9 +100,11 @@ type Teacher struct {
 
 func (t Teacher) IsDeleted() bool { return t.DeletedAt != nil }
 
-// Guest is the guest-instructor profile of a staff member. StartDate and
-// EndDate are calendar dates in DateLayout, empty when open-ended.
-type Guest struct {
+// ExternalCaregiverRecord makes a staff member an external caregiver
+// (#3823, #4573, ADR 0080): the organization the person comes from and an
+// optional window. StartDate and EndDate are calendar dates in DateLayout,
+// empty when open-ended.
+type ExternalCaregiverRecord struct {
 	ID                int64     `json:"id"`
 	TenantID          int64     `json:"tenant_id"`
 	CreatedAt         time.Time `json:"created_at"`
@@ -149,7 +152,7 @@ type UpdateTeacher struct {
 	TeacherFields
 }
 
-type GuestFields struct {
+type ExternalCaregiverRecordFields struct {
 	StaffID           int64
 	Organization      string
 	ContactEmail      string
@@ -160,11 +163,11 @@ type GuestFields struct {
 	Notes             string
 }
 
-type CreateGuest struct{ GuestFields }
+type CreateExternalCaregiverRecord struct{ ExternalCaregiverRecordFields }
 
-type UpdateGuest struct {
+type UpdateExternalCaregiverRecord struct {
 	ID int64
-	GuestFields
+	ExternalCaregiverRecordFields
 }
 
 // StaffFilter narrows a staff listing. Every field is optional; an empty
@@ -180,10 +183,10 @@ type StaffFilter struct {
 	// IncludeDeleted also returns soft-deleted rows; history readers use it
 	// to keep resolving offboarded colleagues.
 	IncludeDeleted bool
-	// IncludeInactiveGuests keeps the guest marker after the guest's activity
-	// window ended. Historical readers use it to classify former employments;
+	// IncludeInactiveExternalCaregiverRecords keeps the external caregiver
+	// record marker after the record's window ended. Historical readers use it to classify former employments;
 	// ordinary staff reads keep the active-window semantics.
-	IncludeInactiveGuests bool
+	IncludeInactiveExternalCaregiverRecords bool
 	// MembershipOnly skips the Workforce employment half (#2753): the staff
 	// values carry ID, person, tenant and lifecycle only. Callers that read no
 	// employment field set it and save a statement.
@@ -203,9 +206,10 @@ type TeacherFilter struct {
 	IncludeDeleted         bool
 }
 
-// GuestFilter narrows a guest listing. ActiveOn is a calendar date in
-// DateLayout: only guests whose start/end window covers that day match.
-type GuestFilter struct {
+// ExternalCaregiverRecordFilter narrows a listing of external caregiver
+// records. ActiveOn is a calendar date in DateLayout: only records whose
+// start/end window covers that day match.
+type ExternalCaregiverRecordFilter struct {
 	IDs                  []int64
 	StaffIDs             []int64
 	ActiveOn             string
@@ -214,7 +218,7 @@ type GuestFilter struct {
 	HasOrganization      *bool
 }
 
-// StaffQuery reads the staff rows and their teacher and guest profiles.
+// StaffQuery reads the staff rows and their teacher profiles and external caregiver records.
 type StaffQuery interface {
 	// FindStaff returns one live staff member visible in the caller's
 	// transaction.
@@ -231,9 +235,9 @@ type StaffQuery interface {
 	FindTeacherByStaff(context.Context, int64) (Teacher, error)
 	ListTeachers(context.Context, TeacherFilter) ([]Teacher, error)
 
-	FindGuest(context.Context, int64) (Guest, error)
-	FindGuestByStaff(context.Context, int64) (Guest, error)
-	ListGuests(context.Context, GuestFilter) ([]Guest, error)
+	FindExternalCaregiverRecord(context.Context, int64) (ExternalCaregiverRecord, error)
+	FindExternalCaregiverRecordByStaff(context.Context, int64) (ExternalCaregiverRecord, error)
+	ListExternalCaregiverRecords(context.Context, ExternalCaregiverRecordFilter) ([]ExternalCaregiverRecord, error)
 }
 
 // ClassListQuery reads the Klassenliste entries.
@@ -264,7 +268,7 @@ type Query interface {
 	TeachingAssignmentQuery
 }
 
-// StaffCommand writes the staff rows and their teacher and guest profiles.
+// StaffCommand writes the staff rows and their teacher profiles and external caregiver records.
 type StaffCommand interface {
 	StaffEmploymentCommands
 	CreateStaff(context.Context, CreateStaff) (Staff, error)
@@ -277,10 +281,10 @@ type StaffCommand interface {
 	// DeleteTeacher soft-deletes the teacher profile.
 	DeleteTeacher(context.Context, int64) error
 
-	CreateGuest(context.Context, CreateGuest) (Guest, error)
-	UpdateGuest(context.Context, UpdateGuest) (Guest, error)
-	// DeleteGuest removes the guest profile; guests carry no tombstone.
-	DeleteGuest(context.Context, int64) error
+	CreateExternalCaregiverRecord(context.Context, CreateExternalCaregiverRecord) (ExternalCaregiverRecord, error)
+	UpdateExternalCaregiverRecord(context.Context, UpdateExternalCaregiverRecord) (ExternalCaregiverRecord, error)
+	// DeleteExternalCaregiverRecord removes the record; records carry no tombstone.
+	DeleteExternalCaregiverRecord(context.Context, int64) error
 }
 
 // ClassListCommand writes the Klassenliste entries.
@@ -344,14 +348,14 @@ func ErrorCode(err error) string {
 	switch {
 	case err == nil:
 		return "none"
-	case errors.Is(err, ErrStaffNotFound), errors.Is(err, ErrTeacherNotFound), errors.Is(err, ErrGuestNotFound),
+	case errors.Is(err, ErrStaffNotFound), errors.Is(err, ErrTeacherNotFound), errors.Is(err, ErrExternalCaregiverRecordNotFound),
 		errors.Is(err, ErrClassListEntryNotFound), errors.Is(err, ErrClassAssignmentNotFound), errors.Is(err, ErrGroupAssignmentNotFound):
 		return "not_found"
 	case errors.Is(err, ErrOffboardingConflict):
 		return "offboarding_conflict"
 	case errors.Is(err, ErrInvalidMembership):
 		return "invalid"
-	case errors.Is(err, ErrStaffPersonConflict), errors.Is(err, ErrTeacherStaffConflict), errors.Is(err, ErrGuestStaffConflict):
+	case errors.Is(err, ErrStaffPersonConflict), errors.Is(err, ErrTeacherStaffConflict), errors.Is(err, ErrExternalCaregiverRecordStaffConflict):
 		return "membership_conflict"
 	case errors.Is(err, ErrPersonnelNumberConflict):
 		return "personnel_number_conflict"
@@ -370,9 +374,9 @@ func ErrorCode(err error) string {
 }
 
 // ExternalCaregiver reports whether a staff member is an external caregiver
-// (#3823, #4573): a staff member with an active guest profile whose person is
+// (#3823, #4573): a staff member with an active external caregiver record whose person is
 // known, with or without a moto account. Whether a new assignment may name
 // the person is ExternalCaregiverAssignable.
-func ExternalCaregiver(guestProfile, personKnown bool) bool {
-	return guestProfile && personKnown
+func ExternalCaregiver(hasRecord, personKnown bool) bool {
+	return hasRecord && personKnown
 }

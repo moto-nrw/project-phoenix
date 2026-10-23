@@ -11,26 +11,26 @@ import (
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 )
 
-// GuestMembershipRepository serves users.GuestRepository over the School
-// Membership capability.
-type GuestMembershipRepository struct {
+// ExternalCaregiverRecordMembershipRepository serves the People Directory's
+// ExternalCaregiverRecordRepository over the School Membership capability.
+type ExternalCaregiverRecordMembershipRepository struct {
 	Membership schoolmembership.Capability
 }
 
-func guestFieldsFromLegacy(guest *peopleValues.Guest) schoolmembership.GuestFields {
-	return schoolmembership.GuestFields{
-		StaffID:           guest.StaffID,
-		Organization:      guest.Organization,
-		ContactEmail:      guest.ContactEmail,
-		ContactPhone:      guest.ContactPhone,
-		ActivityExpertise: guest.ActivityExpertise,
-		StartDate:         calendarDateString(guest.StartDate),
-		EndDate:           calendarDateString(guest.EndDate),
-		Notes:             guest.Notes,
+func externalCaregiverRecordFieldsFromLegacy(record *peopleValues.ExternalCaregiverRecord) schoolmembership.ExternalCaregiverRecordFields {
+	return schoolmembership.ExternalCaregiverRecordFields{
+		StaffID:           record.StaffID,
+		Organization:      record.Organization,
+		ContactEmail:      record.ContactEmail,
+		ContactPhone:      record.ContactPhone,
+		ActivityExpertise: record.ActivityExpertise,
+		StartDate:         calendarDateString(record.StartDate),
+		EndDate:           calendarDateString(record.EndDate),
+		Notes:             record.Notes,
 	}
 }
 
-func applyGuestToLegacy(target *peopleValues.Guest, value schoolmembership.Guest) {
+func applyExternalCaregiverRecordToLegacy(target *peopleValues.ExternalCaregiverRecord, value schoolmembership.ExternalCaregiverRecord) {
 	target.ID = value.ID
 	target.CreatedAt = value.CreatedAt
 	target.UpdatedAt = value.UpdatedAt
@@ -45,81 +45,81 @@ func applyGuestToLegacy(target *peopleValues.Guest, value schoolmembership.Guest
 	target.Notes = value.Notes
 }
 
-func toLegacyGuest(value schoolmembership.Guest) *peopleValues.Guest {
-	guest := new(peopleValues.Guest)
-	applyGuestToLegacy(guest, value)
-	return guest
+func toLegacyExternalCaregiverRecord(value schoolmembership.ExternalCaregiverRecord) *peopleValues.ExternalCaregiverRecord {
+	record := new(peopleValues.ExternalCaregiverRecord)
+	applyExternalCaregiverRecordToLegacy(record, value)
+	return record
 }
 
-func toLegacyGuestList(values []schoolmembership.Guest) []*peopleValues.Guest {
-	result := make([]*peopleValues.Guest, 0, len(values))
+func toLegacyExternalCaregiverRecordList(values []schoolmembership.ExternalCaregiverRecord) []*peopleValues.ExternalCaregiverRecord {
+	result := make([]*peopleValues.ExternalCaregiverRecord, 0, len(values))
 	for _, value := range values {
-		result = append(result, toLegacyGuest(value))
+		result = append(result, toLegacyExternalCaregiverRecord(value))
 	}
 	return result
 }
 
-func (r GuestMembershipRepository) Create(ctx context.Context, entity *peopleValues.Guest) error {
+func (r ExternalCaregiverRecordMembershipRepository) Create(ctx context.Context, entity *peopleValues.ExternalCaregiverRecord) error {
 	if entity == nil {
-		return repositoryError("create guest", errors.New("guest cannot be nil"))
+		return repositoryError("create external caregiver record", errors.New("record cannot be nil"))
 	}
-	created, err := r.Membership.CreateGuest(ctx, schoolmembership.CreateGuest{GuestFields: guestFieldsFromLegacy(entity)})
+	created, err := r.Membership.CreateExternalCaregiverRecord(ctx, schoolmembership.CreateExternalCaregiverRecord{ExternalCaregiverRecordFields: externalCaregiverRecordFieldsFromLegacy(entity)})
 	if err != nil {
-		return membershipError("create guest", err)
+		return membershipError("create external caregiver record", err)
 	}
-	applyGuestToLegacy(entity, created)
+	applyExternalCaregiverRecordToLegacy(entity, created)
 	return nil
 }
 
-func (r GuestMembershipRepository) Update(ctx context.Context, entity *peopleValues.Guest) error {
+func (r ExternalCaregiverRecordMembershipRepository) Update(ctx context.Context, entity *peopleValues.ExternalCaregiverRecord) error {
 	if entity == nil {
-		return repositoryError("update guest", errors.New("guest cannot be nil"))
+		return repositoryError("update external caregiver record", errors.New("record cannot be nil"))
 	}
-	updated, err := r.Membership.UpdateGuest(ctx, schoolmembership.UpdateGuest{ID: entity.ID, GuestFields: guestFieldsFromLegacy(entity)})
+	updated, err := r.Membership.UpdateExternalCaregiverRecord(ctx, schoolmembership.UpdateExternalCaregiverRecord{ID: entity.ID, ExternalCaregiverRecordFields: externalCaregiverRecordFieldsFromLegacy(entity)})
 	if err != nil {
-		return membershipError("update guest", err)
+		return membershipError("update external caregiver record", err)
 	}
-	applyGuestToLegacy(entity, updated)
+	applyExternalCaregiverRecordToLegacy(entity, updated)
 	return nil
 }
 
-func (r GuestMembershipRepository) Delete(ctx context.Context, id any) error {
-	guestID, err := MembershipID(id)
+func (r ExternalCaregiverRecordMembershipRepository) Delete(ctx context.Context, id any) error {
+	recordID, err := MembershipID(id)
 	if err != nil {
-		return repositoryError("delete guest", err)
+		return repositoryError("delete external caregiver record", err)
 	}
-	return membershipError("delete guest", r.Membership.DeleteGuest(ctx, guestID))
+	return membershipError("delete external caregiver record", r.Membership.DeleteExternalCaregiverRecord(ctx, recordID))
 }
 
-func (r GuestMembershipRepository) FindByID(ctx context.Context, id any) (*peopleValues.Guest, error) {
-	guestID, err := MembershipID(id)
+func (r ExternalCaregiverRecordMembershipRepository) FindByID(ctx context.Context, id any) (*peopleValues.ExternalCaregiverRecord, error) {
+	recordID, err := MembershipID(id)
 	if err != nil {
-		return nil, repositoryError("find guest by id", err)
+		return nil, repositoryError("find record by id", err)
 	}
-	value, err := r.Membership.FindGuest(ctx, guestID)
+	value, err := r.Membership.FindExternalCaregiverRecord(ctx, recordID)
 	if err != nil {
-		return nil, membershipError("find guest by id", err)
+		return nil, membershipError("find record by id", err)
 	}
-	return toLegacyGuest(value), nil
+	return toLegacyExternalCaregiverRecord(value), nil
 }
 
-func (r GuestMembershipRepository) FindByStaffID(ctx context.Context, staffID int64) (*peopleValues.Guest, error) {
-	value, err := r.Membership.FindGuestByStaff(ctx, staffID)
+func (r ExternalCaregiverRecordMembershipRepository) FindByStaffID(ctx context.Context, staffID int64) (*peopleValues.ExternalCaregiverRecord, error) {
+	value, err := r.Membership.FindExternalCaregiverRecordByStaff(ctx, staffID)
 	if err != nil {
 		return nil, membershipError("find by staff ID", err)
 	}
-	return toLegacyGuest(value), nil
+	return toLegacyExternalCaregiverRecord(value), nil
 }
 
-func guestFilterFromLegacy(filters map[string]any) (schoolmembership.GuestFilter, error) {
-	filter := schoolmembership.GuestFilter{}
+func externalCaregiverRecordFilterFromLegacy(filters map[string]any) (schoolmembership.ExternalCaregiverRecordFilter, error) {
+	filter := schoolmembership.ExternalCaregiverRecordFilter{}
 	for field, value := range filters {
 		if value == nil {
 			continue
 		}
-		apply, ok := guestFilterFields[field]
+		apply, ok := externalCaregiverRecordFilterFields[field]
 		if !ok {
-			return filter, fmt.Errorf("unsupported guest filter %q", field)
+			return filter, fmt.Errorf("unsupported record filter %q", field)
 		}
 		if err := apply(&filter, field, value); err != nil {
 			return filter, err
@@ -128,49 +128,49 @@ func guestFilterFromLegacy(filters map[string]any) (schoolmembership.GuestFilter
 	return filter, nil
 }
 
-// guestFilterFields translates each supported legacy filter key.
-var guestFilterFields = map[string]func(*schoolmembership.GuestFilter, string, any) error{
-	"id": func(filter *schoolmembership.GuestFilter, _ string, value any) error {
+// externalCaregiverRecordFilterFields translates each supported legacy filter key.
+var externalCaregiverRecordFilterFields = map[string]func(*schoolmembership.ExternalCaregiverRecordFilter, string, any) error{
+	"id": func(filter *schoolmembership.ExternalCaregiverRecordFilter, _ string, value any) error {
 		id, err := MembershipID(value)
 		if err == nil {
 			filter.IDs = append(filter.IDs, id)
 		}
 		return err
 	},
-	"staff_id": func(filter *schoolmembership.GuestFilter, _ string, value any) error {
+	"staff_id": func(filter *schoolmembership.ExternalCaregiverRecordFilter, _ string, value any) error {
 		id, err := MembershipID(value)
 		if err == nil {
 			filter.StaffIDs = append(filter.StaffIDs, id)
 		}
 		return err
 	},
-	"organization_like": func(filter *schoolmembership.GuestFilter, field string, value any) error {
-		text, err := legacyFilterString("guest", field, value)
+	"organization_like": func(filter *schoolmembership.ExternalCaregiverRecordFilter, field string, value any) error {
+		text, err := legacyFilterString("external caregiver record", field, value)
 		filter.OrganizationContains = text
 		return err
 	},
-	"expertise_like": func(filter *schoolmembership.GuestFilter, field string, value any) error {
-		text, err := legacyFilterString("guest", field, value)
+	"expertise_like": func(filter *schoolmembership.ExternalCaregiverRecordFilter, field string, value any) error {
+		text, err := legacyFilterString("external caregiver record", field, value)
 		filter.ExpertiseContains = text
 		return err
 	},
-	"active": func(filter *schoolmembership.GuestFilter, field string, value any) error {
-		active, err := legacyFilterBool("guest", field, value)
+	"active": func(filter *schoolmembership.ExternalCaregiverRecordFilter, field string, value any) error {
+		active, err := legacyFilterBool("external caregiver record", field, value)
 		if err == nil && active {
 			filter.ActiveOn = calendar.TodayDate().String()
 		}
 		return err
 	},
-	"current_date": func(filter *schoolmembership.GuestFilter, field string, value any) error {
+	"current_date": func(filter *schoolmembership.ExternalCaregiverRecordFilter, field string, value any) error {
 		day, ok := value.(interface{ String() string })
 		if !ok {
-			return fmt.Errorf("guest filter %q must be a calendar date", field)
+			return fmt.Errorf("record filter %q must be a calendar date", field)
 		}
 		filter.ActiveOn = day.String()
 		return nil
 	},
-	"has_organization": func(filter *schoolmembership.GuestFilter, field string, value any) error {
-		has, err := legacyFilterBool("guest", field, value)
+	"has_organization": func(filter *schoolmembership.ExternalCaregiverRecordFilter, field string, value any) error {
+		has, err := legacyFilterBool("external caregiver record", field, value)
 		if err == nil {
 			filter.HasOrganization = &has
 		}
@@ -198,23 +198,23 @@ func legacyFilterBool(kind, field string, value any) (bool, error) {
 	return flag, nil
 }
 
-func (r GuestMembershipRepository) List(ctx context.Context, filters map[string]any) ([]*peopleValues.Guest, error) {
-	filter, err := guestFilterFromLegacy(filters)
+func (r ExternalCaregiverRecordMembershipRepository) List(ctx context.Context, filters map[string]any) ([]*peopleValues.ExternalCaregiverRecord, error) {
+	filter, err := externalCaregiverRecordFilterFromLegacy(filters)
 	if err != nil {
-		return nil, repositoryError("list guests", err)
+		return nil, repositoryError("list external caregiver records", err)
 	}
-	return r.listGuests(ctx, filter)
+	return r.listExternalCaregiverRecords(ctx, filter)
 }
 
-// ActiveGuests lists the guests whose window covers today's calendar date.
-func (r GuestMembershipRepository) ActiveGuests(ctx context.Context) ([]*peopleValues.Guest, error) {
-	return r.listGuests(ctx, schoolmembership.GuestFilter{ActiveOn: calendar.TodayDate().String()})
+// ActiveExternalCaregiverRecords lists the records whose window covers today's calendar date.
+func (r ExternalCaregiverRecordMembershipRepository) ActiveExternalCaregiverRecords(ctx context.Context) ([]*peopleValues.ExternalCaregiverRecord, error) {
+	return r.listExternalCaregiverRecords(ctx, schoolmembership.ExternalCaregiverRecordFilter{ActiveOn: calendar.TodayDate().String()})
 }
 
-func (r GuestMembershipRepository) listGuests(ctx context.Context, filter schoolmembership.GuestFilter) ([]*peopleValues.Guest, error) {
-	values, err := r.Membership.ListGuests(ctx, filter)
+func (r ExternalCaregiverRecordMembershipRepository) listExternalCaregiverRecords(ctx context.Context, filter schoolmembership.ExternalCaregiverRecordFilter) ([]*peopleValues.ExternalCaregiverRecord, error) {
+	values, err := r.Membership.ListExternalCaregiverRecords(ctx, filter)
 	if err != nil {
-		return nil, membershipError("list guests", err)
+		return nil, membershipError("list external caregiver records", err)
 	}
-	return toLegacyGuestList(values), nil
+	return toLegacyExternalCaregiverRecordList(values), nil
 }

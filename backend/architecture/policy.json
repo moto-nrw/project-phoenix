@@ -4397,16 +4397,16 @@
       "write_owner": "school-membership"
     },
     {
+      "name": "users.external_caregivers",
+      "write_owner": "school-membership"
+    },
+    {
       "name": "users.guardian_phone_numbers",
       "write_owner": "people-directory"
     },
     {
       "name": "users.guardian_profiles",
       "write_owner": "people-directory"
-    },
-    {
-      "name": "users.guests",
-      "write_owner": "school-membership"
     },
     {
       "name": "users.notification_preferences",
@@ -12266,7 +12266,7 @@
     },
     {
       "id": "external-caregiver.public.school-membership.public",
-      "description": "External Caregiver records the staff member with its caregiver and guest profile through the School Membership public contract (#4573).",
+      "description": "External Caregiver records the staff member with its caregiver profile and external caregiver record through the School Membership public contract (#4573).",
       "scopes": [
         "production"
       ],
