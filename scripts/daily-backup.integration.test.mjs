@@ -101,8 +101,9 @@ CREATE ROLE "diagnose synthetic" LOGIN NOINHERIT;
 GRANT phoenix_diagnostics TO "diagnose synthetic";
 CREATE ROLE tenant_scope;
 CREATE SCHEMA platform;
-CREATE TABLE platform.schools(id bigint PRIMARY KEY);
+CREATE TABLE platform.schools(id bigserial PRIMARY KEY);
 INSERT INTO platform.schools VALUES (41), (42);
+SELECT setval('platform.schools_id_seq',42);
 GRANT tenant_scope TO phoenix_auth;
 CREATE TABLE records(tenant_id bigint, marker text);
 ALTER TABLE records ENABLE ROW LEVEL SECURITY;
@@ -205,6 +206,16 @@ exec '${realDocker}' "$@"
   assert.equal(JSON.parse(readFileSync(reviewMarker, 'utf8')).app_start, 'blocked');
   assert.equal(sql('SELECT string_agg(id::text,\',\' ORDER BY id) FROM platform.schools;'), '41,42');
   sql('DELETE FROM platform.schools WHERE id=41;'); // Repeat A, B is untouched.
+  assert.equal(verifyErasures().status, 0);
+  assert.equal(sql('SELECT id FROM platform.schools;'), '42');
+  // A was created and erased AFTER the old backup: no root to find, but the
+  // restored sequence must be fenced before creating new schools.
+  const laterEntry = JSON.stringify({ school_id: 77, order_reference: 'ORDER-LATER',
+    completed_at: '2026-10-24T12:00:00Z', receipt_sha256: 'b'.repeat(64) });
+  const laterDigest = createHash('sha256').update(`${digest}\n${laterEntry}`).digest('hex');
+  writeFileSync(ledger, `${header}${digest} ${entry}\n${laterDigest} ${laterEntry}\n`);
+  assert.match(verifyErasures().stdout, /failed step=erasure_sequence_review_required app_start=blocked/);
+  sql("SELECT setval('platform.schools_id_seq',77);");
   assert.equal(verifyErasures().status, 0);
   assert.equal(sql('SELECT id FROM platform.schools;'), '42');
   // Neither missing nor damaged independent state can grant release.

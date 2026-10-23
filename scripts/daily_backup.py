@@ -176,6 +176,13 @@ class Recovery:
         # query/output bounded and read-only; retry uses the dedicated CLI.
         for school in {entry['school_id'] for entry in entries}:
             require(self.sql(f'SELECT count(*) FROM platform.schools WHERE id = {school};') == '0')
+        if entries:
+            # A school created AND erased after the backup is absent there,
+            # but its ID must never be reissued after restoring an older sequence.
+            step = 'erasure_sequence_review_required'
+            highest = max(entry['school_id'] for entry in entries)
+            require(self.sql('SELECT CASE WHEN is_called AND last_value >= '
+                             f'{highest} THEN 1 ELSE 0 END FROM platform.schools_id_seq;') == '1')
 
     def check_capacity(self):
         # Operator sizes this reservation from measured uncompressed data plus

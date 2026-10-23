@@ -120,7 +120,10 @@ Aktualitätsnachweis: eine getrennte aktuelle Kopie und ein unabhängig
 verwahrter Dateiprüfwert gehören zwingend zum Betriebsverfahren.
 
 Der Restore prüft diese Liste nach dem Import und sperrt die Freigabe bei
-wieder vorhandenen Schulen oder unlesbarer/beschädigter Liste. Wiederholung
+wieder vorhandenen Schulen, rückständiger Schul-ID-Sequenz oder
+unlesbarer/beschädigter Liste. Später angelegte und wieder gelöschte Schulen
+dürfen nach einem älteren Restore keine wiederverwendbaren IDs hinterlassen.
+Wiederholung
 läuft bewusst durch den bestehenden CLI, nicht durch einen neuen
 Superuser-Löschpfad. Die schreibfreie Nachprüfung hebt den Review-Marker
 nicht selbst auf. Die Liste läuft nach 97 Tagen aus (maximal 90 Tage für alle

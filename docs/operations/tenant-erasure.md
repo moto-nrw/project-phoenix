@@ -288,4 +288,8 @@ Die Tests für 3837-d prüfen zusätzlich Listenausfall nach DB-Abschluss,
 Wiederaufnahme ohne doppelte Einträge, Beschädigung, Dateirechte,
 Symlinks und konkurrierende Schreiber. Restore-/Fristprüfung:
 `devbox run -- python3 scripts/erasure-ledger.test.py` und
+`devbox run -- node --test scripts/erasure-ledger.integration.test.mjs`.
+Der zweite Test stellt einen echten PostgreSQL-Dump zweier synthetischer
+Schulen wieder her und prüft außerdem, dass später gelöschte IDs nicht erneut
+vergeben werden können. Der breitere Backup-Gesamttest bleibt
 `devbox run -- node --test scripts/daily-backup.integration.test.mjs`.

@@ -488,6 +488,25 @@ weder den Produktionshost noch den Monitoring-Host dafür gelesen.
    Review-Marker und ausschließlich `postgres` als laufenden Compose-Dienst.
    Erfolg: `restore_result=ok step=erasure_review_complete app_start=blocked`.
    Die Prüfung gibt keine Schul-/Personendaten aus und hebt keine Sperre auf.
+   Sie prüft außerdem die Schul-ID-Sequenz. Wurde eine Schule erst **nach**
+   dem Sicherungszeitpunkt angelegt und wieder gelöscht, fehlt ihre Wurzel im
+   Restore, aber ihre ID darf nicht erneut vergeben werden. Bei
+   `erasure_sequence_review_required` die höchste Schul-ID der bestätigten
+   aktuellen Liste ermitteln. Im isolierten Wartungsbetrieb mit dem bestehenden
+   administrativen Restore-Zugang die Sequenz ausschließlich vorwärts setzen
+   (`highest_erased_school_id` als geprüfte interne numerische psql-Variable):
+
+   ```sql
+   SELECT setval(pg_get_serial_sequence('platform.schools', 'id'),
+     GREATEST((SELECT last_value FROM platform.schools_id_seq),
+              (SELECT COALESCE(max(id), 1) FROM platform.schools),
+              :'highest_erased_school_id'::bigint), true);
+   ```
+
+   Danach `verify-erasures` erneut ausführen. Kein Schulinhalt wird dabei
+   geändert. Den Prüfschritt auch auf anderen Restore-/Rollbackwegen vor
+   erneuter Nutzung anwenden; die Liste darf nicht mit einem DB-Stand
+   zurückgesetzt werden.
    Ihre Grenze ist die Schulwurzel: Dateien/Nebensysteme und Widerrufe bleiben
    im folgenden fachlichen Abgleich zu prüfen, auch wenn die Schulwurzel fehlt.
    Alle seit dem Sicherungszeitpunkt ausgeführten Löschungen anhand der

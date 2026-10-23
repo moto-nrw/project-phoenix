@@ -60,6 +60,8 @@ class ErasureLedgerTest(unittest.TestCase):
 
             def sql(query):
                 queries.append(query)
+                if 'schools_id_seq' in query:
+                    return '1'  # Restored sequence already above erased IDs.
                 return str(int(17 in schools))
 
             recovery.sql = sql
@@ -71,6 +73,12 @@ class ErasureLedgerTest(unittest.TestCase):
             recovery.check_erasures(path)
             self.assertEqual(schools, {29})
             self.assertTrue(all(q.startswith('SELECT ') for q in queries))
+            # A school created and erased after the backup is absent in the
+            # restored DB but its ID must not be issued to a new school.
+            recovery.sql = lambda query: '0'
+            with self.assertRaises(Exception):
+                recovery.check_erasures(path)
+            self.assertEqual(backup.step, 'erasure_sequence_review_required')
 
 
 if __name__ == '__main__':
