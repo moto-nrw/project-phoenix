@@ -1,0 +1,325 @@
+{
+  "uid": "phoenix-error-codes",
+  "title": "Phoenix Error Codes",
+  "description": "Which error code, how often, at which school (#2512). Frontend client logs from Loki; tenant IDs only, no names or message text.",
+  "schemaVersion": 39,
+  "version": 1,
+  "refresh": "15m",
+  "timezone": "browser",
+  "tags": [
+    "phoenix",
+    "errors",
+    "frontend"
+  ],
+  "time": {
+    "from": "now-7d",
+    "to": "now"
+  },
+  "timepicker": {},
+  "templating": {
+    "list": [
+      {
+        "name": "env",
+        "label": "Environment",
+        "type": "custom",
+        "query": "prod,staging",
+        "current": {
+          "text": "prod",
+          "value": "prod"
+        },
+        "options": [
+          {
+            "text": "prod",
+            "value": "prod",
+            "selected": true
+          },
+          {
+            "text": "staging",
+            "value": "staging",
+            "selected": false
+          }
+        ],
+        "hide": 0,
+        "includeAll": false,
+        "multi": false,
+        "skipUrlSync": false
+      }
+    ]
+  },
+  "links": [
+    {
+      "title": "Runbook",
+      "type": "link",
+      "url": "https://github.com/moto-nrw/project-phoenix/blob/main/monitoring/README.md#error-codes",
+      "targetBlank": true
+    }
+  ],
+  "panels": [
+    {
+      "id": 1,
+      "type": "stat",
+      "title": "Angezeigte Fehler im Zeitraum",
+      "description": "One error_displayed entry per failure a person saw (toast, form alert, load alert, crash page).",
+      "datasource": {
+        "type": "loki",
+        "uid": "P8E80F9AEF21F6940"
+      },
+      "gridPos": {
+        "x": 0,
+        "y": 0,
+        "w": 8,
+        "h": 5
+      },
+      "fieldConfig": {
+        "defaults": {
+          "decimals": 0,
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "text",
+                "value": null
+              }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "colorMode": "none",
+        "graphMode": "none",
+        "justifyMode": "auto",
+        "orientation": "auto",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "textMode": "auto",
+        "wideLayout": true
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "sum(count_over_time({env=\"$env\",service=\"frontend\"} |= \"error_displayed\" | json msg, error_code, error_class, surface, tenant_id, portal | msg=\"error_displayed\" [$__range])) or vector(0)",
+          "queryType": "instant",
+          "editorMode": "code",
+          "legendFormat": "errors"
+        }
+      ]
+    },
+    {
+      "id": 2,
+      "type": "timeseries",
+      "title": "Angezeigte Fehler nach Klasse",
+      "description": "error_class: the registry class of the code; crash = exception without an API answer; local = the screen found the failure itself.",
+      "datasource": {
+        "type": "loki",
+        "uid": "P8E80F9AEF21F6940"
+      },
+      "gridPos": {
+        "x": 8,
+        "y": 0,
+        "w": 16,
+        "h": 5
+      },
+      "fieldConfig": {
+        "defaults": {
+          "decimals": 0,
+          "custom": {
+            "drawStyle": "bars",
+            "stacking": {
+              "mode": "normal",
+              "group": "A"
+            },
+            "fillOpacity": 80,
+            "lineWidth": 1
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "right",
+          "showLegend": true
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "sum by (error_class) (count_over_time({env=\"$env\",service=\"frontend\"} |= \"error_displayed\" | json msg, error_code, error_class, surface, tenant_id, portal | msg=\"error_displayed\" [$__interval]))",
+          "queryType": "range",
+          "editorMode": "code",
+          "legendFormat": "{{error_class}}"
+        }
+      ]
+    },
+    {
+      "id": 3,
+      "type": "table",
+      "title": "Welcher Code, wie oft, an welcher Schule",
+      "description": "Displayed errors per code and tenant. tenant_id comes from the verified session of the client log route; entries carry no names or message text (#2512).",
+      "datasource": {
+        "type": "loki",
+        "uid": "P8E80F9AEF21F6940"
+      },
+      "gridPos": {
+        "x": 0,
+        "y": 5,
+        "w": 24,
+        "h": 10
+      },
+      "options": {
+        "showHeader": true,
+        "sortBy": [
+          {
+            "displayName": "Anzahl",
+            "desc": true
+          }
+        ],
+        "cellHeight": "sm",
+        "footer": {
+          "show": false,
+          "reducer": [
+            "sum"
+          ],
+          "fields": ""
+        }
+      },
+      "fieldConfig": {
+        "defaults": {
+          "decimals": 0
+        },
+        "overrides": []
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "sum by (error_code, error_class, surface, tenant_id, portal) (count_over_time({env=\"$env\",service=\"frontend\"} |= \"error_displayed\" | json msg, error_code, error_class, surface, tenant_id, portal | msg=\"error_displayed\" [$__range]))",
+          "queryType": "instant",
+          "editorMode": "code",
+          "legendFormat": ""
+        }
+      ],
+      "transformations": [
+        {
+          "id": "reduce",
+          "options": {
+            "reducers": [
+              "lastNotNull"
+            ],
+            "mode": "seriesToRows",
+            "labelsToFields": true
+          }
+        },
+        {
+          "id": "organize",
+          "options": {
+            "excludeByName": {
+              "Field": true
+            },
+            "renameByName": {
+              "Last *": "Anzahl",
+              "Last": "Anzahl"
+            },
+            "indexByName": {
+              "tenant_id": 0,
+              "portal": 1,
+              "error_code": 2,
+              "error_class": 3,
+              "surface": 4,
+              "Anzahl": 5
+            }
+          }
+        }
+      ]
+    },
+    {
+      "id": 4,
+      "type": "table",
+      "title": "Fehler ohne Anzeige (Hintergrund)",
+      "description": "Failed background loads (SWR) and dropped live-update streams (SSE). They show nothing until a screen displays them.",
+      "datasource": {
+        "type": "loki",
+        "uid": "P8E80F9AEF21F6940"
+      },
+      "gridPos": {
+        "x": 0,
+        "y": 15,
+        "w": 24,
+        "h": 10
+      },
+      "options": {
+        "showHeader": true,
+        "sortBy": [
+          {
+            "displayName": "Anzahl",
+            "desc": true
+          }
+        ],
+        "cellHeight": "sm",
+        "footer": {
+          "show": false,
+          "reducer": [
+            "sum"
+          ],
+          "fields": ""
+        }
+      },
+      "fieldConfig": {
+        "defaults": {
+          "decimals": 0
+        },
+        "overrides": []
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "sum by (msg, error_code, error_class, tenant_id, portal) (count_over_time({env=\"$env\",service=\"frontend\"} |~ \"swr_fetch_failed|swr_fetch_rate_limited|sse connection error\" | json msg, error_code, error_class, tenant_id, portal | msg=~\"swr_fetch_failed|swr_fetch_rate_limited|sse connection error\" [$__range]))",
+          "queryType": "instant",
+          "editorMode": "code",
+          "legendFormat": ""
+        }
+      ],
+      "transformations": [
+        {
+          "id": "reduce",
+          "options": {
+            "reducers": [
+              "lastNotNull"
+            ],
+            "mode": "seriesToRows",
+            "labelsToFields": true
+          }
+        },
+        {
+          "id": "organize",
+          "options": {
+            "excludeByName": {
+              "Field": true
+            },
+            "renameByName": {
+              "Last *": "Anzahl",
+              "Last": "Anzahl"
+            },
+            "indexByName": {
+              "tenant_id": 0,
+              "portal": 1,
+              "msg": 2,
+              "error_code": 3,
+              "error_class": 4,
+              "Anzahl": 5
+            }
+          }
+        }
+      ]
+    }
+  ]
+}

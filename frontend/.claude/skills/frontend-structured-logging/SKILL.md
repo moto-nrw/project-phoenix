@@ -99,9 +99,19 @@ Configure via `NEXT_PUBLIC_LOG_LEVEL` environment variable (default: `debug` in 
 names a dropped connection (`error` ends in `Failed to fetch` / `Load failed`) or
 `status` 401/409 is written as `warn` with `expected_failure` (`src/lib/expected-failure.ts`).
 So pass `status: errorStatus(err)` when the caught error carries one. 403, 5xx and
-exceptions stay `error`. Report an owned exception at its boundary; logging
-does not report it. The global test mock skips level adjustment, so tests still
-see `console.error`.
+exceptions stay `error`. An `error_class: "unavailable"` without `status`
+(a request without a response) counts as a dropped connection too. Report an
+owned exception at its boundary; logging does not report it. The global test
+mock skips level adjustment, so tests still see `console.error`.
+
+### Error entries for Grafana (#2512)
+
+The display hooks in `ToastContext.tsx` already write `error_displayed` for
+every failure they show; do not log the shown text again. For a failure that
+shows nothing (background load, dropped stream), log
+`errorLogFields(err)` from `~/lib/error-log` instead of `err.message`: code,
+class, status and request ID, no text. A message, backend `detail`, SWR cache
+key or field reason can name a child; `error-log.ts` lists these fields.
 
 ## Error Handling Pattern (Copy-Paste Ready)
 

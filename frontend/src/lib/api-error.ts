@@ -20,6 +20,8 @@ export class ApiError extends Error {
   instance?: string;
   requestId?: string;
   retryAfterSeconds?: number;
+  /** No HTTP response arrived; the status is a stand-in (unavailableApiError). */
+  noResponse?: boolean;
 
   constructor(
     message: string,
@@ -67,6 +69,7 @@ export function unavailableApiError(cause?: unknown): ApiError {
     code: "general.unavailable",
   });
   if (cause instanceof Error && cause.name) error.name = cause.name;
+  error.noResponse = true;
   return error;
 }
 

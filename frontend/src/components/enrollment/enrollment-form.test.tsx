@@ -46,6 +46,30 @@ vi.mock("~/lib/enrollment-submission-api", async (importOriginal) => {
   };
 });
 
+vi.mock("@marsidev/react-turnstile", () => ({
+  Turnstile: ({
+    onSuccess,
+    onExpire,
+    onError,
+  }: {
+    onSuccess: (token: string) => void;
+    onExpire: () => void;
+    onError: () => void;
+  }) => (
+    <div data-testid="turnstile">
+      <button type="button" onClick={() => onSuccess("test-captcha-response")}>
+        Solve captcha
+      </button>
+      <button type="button" onClick={onExpire}>
+        Expire captcha
+      </button>
+      <button type="button" onClick={onError}>
+        Fail captcha
+      </button>
+    </div>
+  ),
+}));
+
 vi.mock("next-intl", async () => {
   const de = (await import("~/i18n/messages/de.json")).default as Record<
     string,
@@ -434,6 +458,86 @@ describe("EnrollmentForm", () => {
     });
     mockFetchMyEnrollmentProfile.mockResolvedValue(null);
     mockSubmitEnrollment.mockResolvedValue({ status_url: "/status/abc" });
+  });
+
+  it("does not mount Turnstile or block submission when captcha is disabled with a site key", async () => {
+    mockFetchPublicCareOfferings.mockResolvedValue({
+      offerings: [],
+      careOfferingSelectionMode: "optional",
+      careRequired: false,
+    });
+    mockFetchPublicCaptchaConfig.mockResolvedValue({
+      enabled: false,
+      site_key: "test-site-key",
+    });
+    renderForm();
+    await waitForLoaded();
+
+    const submit = screen.getByRole("button", { name: "Anmeldung absenden" });
+    expect(submit).toBeEnabled();
+    expect(screen.queryByTestId("turnstile")).not.toBeInTheDocument();
+    await fillRequiredFields();
+    fireEvent.click(submit);
+    await waitFor(() => expect(mockSubmitEnrollment).toHaveBeenCalledOnce());
+    expect(
+      mockSubmitEnrollment.mock.calls[0]?.[1].captcha_token,
+    ).toBeUndefined();
+  });
+
+  it("requires a fresh Turnstile response when captcha is enabled", async () => {
+    mockFetchPublicCaptchaConfig.mockResolvedValue({
+      enabled: true,
+      site_key: "test-site-key",
+    });
+    mockFetchPublicCareOfferings.mockResolvedValue({
+      offerings: [],
+      careOfferingSelectionMode: "optional",
+      careRequired: false,
+    });
+    renderForm();
+    await waitForLoaded();
+
+    expect(screen.getByTestId("turnstile")).toBeInTheDocument();
+    const submit = screen.getByRole("button", { name: "Anmeldung absenden" });
+    expect(submit).toBeDisabled();
+    fireEvent.click(screen.getByRole("button", { name: "Solve captcha" }));
+    expect(submit).toBeEnabled();
+    fireEvent.click(screen.getByRole("button", { name: "Expire captcha" }));
+    expect(submit).toBeDisabled();
+    fireEvent.click(screen.getByRole("button", { name: "Solve captcha" }));
+    expect(submit).toBeEnabled();
+    fireEvent.click(screen.getByRole("button", { name: "Fail captcha" }));
+    expect(submit).toBeDisabled();
+    fireEvent.click(screen.getByRole("button", { name: "Solve captcha" }));
+    await fillRequiredFields();
+    fireEvent.click(submit);
+    await waitFor(() => expect(mockSubmitEnrollment).toHaveBeenCalledOnce());
+    expect(mockSubmitEnrollment.mock.calls[0]?.[1].captcha_token).toBe(
+      "test-captcha-response",
+    );
+  });
+
+  it("does not mount Turnstile on an authenticated path that skips captcha", async () => {
+    mockFetchPublicCaptchaConfig.mockResolvedValue({
+      enabled: true,
+      site_key: "test-site-key",
+    });
+    renderForm({
+      skipCaptcha: true,
+      prefetchedData: {
+        schema: schema(),
+        offerings: offerings(),
+        careOfferingSelectionMode: "optional",
+        captchaConfig: { enabled: true, site_key: "test-site-key" },
+        legalTexts: legalTexts(),
+      },
+    });
+    await waitForLoaded();
+
+    expect(
+      screen.getByRole("button", { name: "Anmeldung absenden" }),
+    ).toBeEnabled();
+    expect(screen.queryByTestId("turnstile")).not.toBeInTheDocument();
   });
 
   it("loads schema, offerings, and renders validation for missing required fields", async () => {

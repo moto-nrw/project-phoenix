@@ -91,4 +91,22 @@ describe("SSEErrorBoundary", () => {
       }),
     );
   });
+
+  it("logs the shown notice for Loki without the crash message (#2512)", () => {
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+
+    render(
+      <SSEErrorBoundary>
+        <ThrowError />
+      </SSEErrorBoundary>,
+    );
+
+    expect(warn).toHaveBeenCalledWith("error_displayed", {
+      surface: "page",
+      error_class: "crash",
+      error_name: "Error",
+    });
+    expect(JSON.stringify(warn.mock.calls)).not.toContain("Test error");
+    warn.mockRestore();
+  });
 });

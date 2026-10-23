@@ -44,7 +44,7 @@
     "ui-kit/require-checkbox-label": "error",
     "ui-kit/no-rounded-3xl": "error",
     "ui-kit/no-tenant-kicker": "error",
-    "ui-kit/no-handrolled-surface": "error",
+    "ui-kit/no-hand-rolled-page-card": "error",
     "ui-kit/no-tabs-as-value-switcher": "error",
     "ui-kit/no-tiny-text": "error",
     "no-restricted-imports": [

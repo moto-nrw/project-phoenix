@@ -6,6 +6,8 @@ import (
 	"log/slog"
 	"time"
 
+	"github.com/moto-nrw/project-phoenix/modules/transactionruntime"
+
 	"github.com/moto-nrw/project-phoenix/modules/careplan"
 	carePlanCompose "github.com/moto-nrw/project-phoenix/modules/careplan/compose"
 	"github.com/moto-nrw/project-phoenix/modules/peopledirectory"
@@ -94,11 +96,15 @@ func (d excusedRequestStudentDirectory) FindStudents(ctx context.Context, ids []
 
 func (d excusedRequestStudentDirectory) LockStudent(ctx context.Context, id int64) (carePlanCompose.ReviewStudent, error) {
 	row, err := d.students.FindByIDForUpdate(ctx, id)
+	// The child may disappear after the unlocked request lookup.
+	if errors.Is(err, transactionruntime.ErrNoRows) {
+		return carePlanCompose.ReviewStudent{}, careplan.ErrExcusedRequestNotFound
+	}
 	if err != nil {
 		return carePlanCompose.ReviewStudent{}, err
 	}
 	if row == nil {
-		return carePlanCompose.ReviewStudent{}, errors.New("student not found")
+		return carePlanCompose.ReviewStudent{}, careplan.ErrExcusedRequestNotFound
 	}
 	return reviewStudent(row), nil
 }

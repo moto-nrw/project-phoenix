@@ -72,10 +72,8 @@ type ParentRequestReviewDependencies struct {
 		ResolveBool(ctx context.Context, key string) (bool, error)
 		ResolveString(ctx context.Context, key string) (string, error)
 	}
-	GroupLeaderSettingKey string
-	RequestSettingKey     string
-	AbsenceSettingKey     string
-	AbsenceReadRequired   error
+	GroupLeaderSettingKey, RequestSettingKey, AbsenceSettingKey, GroupModeSettingKey string
+	AbsenceReadRequired                                                              error
 }
 
 // NewCallerContext composes the caller-context capability.
@@ -128,6 +126,7 @@ func newParentRequestReview(caller *application.CallerContext, deps ParentReques
 		GroupLeaderSettingKey: deps.GroupLeaderSettingKey,
 		RequestSettingKey:     deps.RequestSettingKey,
 		AbsenceSettingKey:     deps.AbsenceSettingKey,
+		GroupModeSettingKey:   deps.GroupModeSettingKey,
 		AbsenceReadRequired:   deps.AbsenceReadRequired,
 	}
 	if deps.Settings != nil {
