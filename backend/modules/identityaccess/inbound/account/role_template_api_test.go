@@ -68,6 +68,9 @@ func (e *accountIsolationEnv) systemRole(t *testing.T, name string) identityacce
 
 func TestCreateRoleFromTemplateCopiesTheTemplatePermissions(t *testing.T) {
 	t.Parallel()
+	// The admin template reads the global catalog; parallel permission tests
+	// create and delete catalog entries outside tenant isolation.
+	testpkg.SetupIsolatedTestDB(t)
 	e := newAccountIsolationEnv(t)
 
 	for _, template := range identityaccess.RoleTemplates() {
