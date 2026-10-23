@@ -11,7 +11,7 @@ paths:
 where an example below shows the old Handler → Service → Repository layout,
 the target wins.
 
-Current paths and enforcement were checked against `development` @ `f329ad46b8`
+Current paths and enforcement were checked against `development` @ `8aca1925f7`
 (2026-10-23). Historical seed counts below are not current budgets. ADR 0083
 keeps the gates until tested successors cover their invariants; green shape
 counts alone do not establish correct command effects or runtime protocols.

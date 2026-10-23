@@ -10,7 +10,7 @@ Diese Datei ist keine Arbeitsliste mehr, sondern der Verlauf der Migration.
 ## Endstand
 
 Neu gemessen auf `origin/development` @
-`f329ad46b8a45646cf34da8082db311c1da19f31` (23.10.2026, nach #4726).
+`8aca1925f79c1e723e35f14e65398cc82877fd7f` (23.10.2026, nach #4726 und #4729).
 Maßgeblich bleiben Code und Policy; diese Tabelle ist eine datierte Messung,
 kein zusätzlicher Sollwert. Die Ratchets vergleichen ihre tatsächlich gescannten
 Werte mit den Registern; die Summen unten sind nicht aus früheren PRs übernommen.
