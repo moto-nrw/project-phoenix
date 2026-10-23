@@ -8,6 +8,9 @@ import { StaffBirthdayExportModal } from "./staff-birthday-export-modal";
 
 const exportStaffBirthdays = vi.hoisted(() => vi.fn());
 
+// Der Dialog ist ein SlideOver; Vaul rendert in jsdom nichts.
+vi.mock("vaul", () => import("~/test/mocks/vaul"));
+
 vi.mock("~/lib/birthdays-api", () => ({ exportStaffBirthdays }));
 
 function renderModal(onClose = vi.fn()) {
@@ -28,7 +31,7 @@ describe("StaffBirthdayExportModal", () => {
     exportStaffBirthdays.mockResolvedValue(undefined);
     const onClose = renderModal();
 
-    fireEvent.click(screen.getByRole("button", { name: "Exportieren" }));
+    fireEvent.click(screen.getByRole("button", { name: "Herunterladen" }));
 
     expect(
       await screen.findByText("Die Geburtstagsliste ist erstellt."),
@@ -46,7 +49,7 @@ describe("StaffBirthdayExportModal", () => {
     exportStaffBirthdays.mockResolvedValueOnce(undefined);
     const onClose = renderModal();
 
-    fireEvent.click(screen.getByRole("button", { name: "Exportieren" }));
+    fireEvent.click(screen.getByRole("button", { name: "Herunterladen" }));
 
     const message = catalogText("general.server", "die Geburtstagsliste");
     expect(await screen.findByText(message)).toBeInTheDocument();

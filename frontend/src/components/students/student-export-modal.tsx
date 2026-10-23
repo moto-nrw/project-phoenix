@@ -1,8 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import type { ReactNode } from "react";
-import { Download, FileSpreadsheet, FileText, Info } from "lucide-react";
+import { Info } from "lucide-react";
 import {
   BIRTHDAY_MONTH_OPTIONS,
   HEALTH_LIST_FIXED_COLUMNS,
@@ -19,23 +18,11 @@ import {
   type StudentExportPreset,
 } from "~/lib/student-export-api";
 import { parseMultiValueParam } from "~/lib/multi-value-param";
-import { useApiFormError, useToast } from "~/contexts/ToastContext";
-import { createLogger } from "~/lib/logger";
-import {
-  SlideOver,
-  SlideOverCloseButton,
-  SlideOverContent,
-  SlideOverDescription,
-  SlideOverFooter,
-  SlideOverHeader,
-  SlideOverTitle,
-} from "~/components/ui/slide-over";
 import { Checkbox } from "~/components/ui/checkbox";
-import { FormErrorAlert } from "~/components/ui/form-error-alert";
+import { ExportDialog } from "~/components/ui/export-dialog";
+import { Input } from "~/components/ui/input";
 import { ChoiceTile } from "~/components/ui/choice-tile";
 import { ToggleChip } from "~/components/ui/toggle-chip";
-
-const logger = createLogger({ component: "StudentExportModal" });
 
 interface StudentExportModalProps {
   readonly isOpen: boolean;
@@ -57,21 +44,15 @@ interface StudentExportModalProps {
    * unset to keep the full template picker.
    */
   readonly lockedPreset?: StudentExportPreset;
+  /** Filters of the calling page as readable labels („Klasse 3a“). */
+  readonly appliedFilters?: readonly string[];
   readonly onClose: () => void;
 }
 
-const FORMAT_OPTIONS: Array<{
-  value: StudentExportFormat;
-  label: string;
-  icon: ReactNode;
-}> = [
-  { value: "pdf", label: "PDF", icon: <FileText className="h-4 w-4" /> },
-  { value: "docx", label: "DOCX", icon: <FileText className="h-4 w-4" /> },
-  {
-    value: "xlsx",
-    label: "XLSX",
-    icon: <FileSpreadsheet className="h-4 w-4" />,
-  },
+const STUDENT_EXPORT_FORMATS: readonly StudentExportFormat[] = [
+  "pdf",
+  "docx",
+  "xlsx",
 ];
 
 // A class filter may now name several classes (#2218). Only a selection of
@@ -92,10 +73,10 @@ export function StudentExportModal({
   resultCount,
   heading = "Alle Kinder exportieren",
   lockedPreset,
+  appliedFilters,
   onClose,
 }: StudentExportModalProps) {
   const [preset, setPreset] = useState<StudentExportPreset>("ogs_weekly");
-  const [format, setFormat] = useState<StudentExportFormat>("pdf");
   const [title, setTitle] = useState("OGS Wochenliste");
   const [columns, setColumns] = useState<StudentExportColumn[]>(
     STUDENT_EXPORT_PRESETS[0]?.columns ?? [],
@@ -104,15 +85,7 @@ export function StudentExportModal({
   const [months, setMonths] = useState<string[]>([]);
   const [includeWithoutHealthInfo, setIncludeWithoutHealthInfo] =
     useState(false);
-  const [exporting, setExporting] = useState(false);
-  const toast = useToast();
-  const errors = useApiFormError();
-  const clearErrors = errors.clear;
   const isHealthList = preset === "health_list";
-
-  useEffect(() => {
-    if (!isOpen) clearErrors();
-  }, [isOpen, clearErrors]);
 
   useEffect(() => {
     if (!isOpen) return;
@@ -215,271 +188,185 @@ export function StudentExportModal({
     );
   };
 
-  const handleExport = async () => {
-    if (columns.length === 0) {
-      errors.invalid("Bitte wählen Sie mindestens eine Spalte aus.");
-      return;
-    }
-    errors.clear();
-    setExporting(true);
-    try {
-      await exportStudents({
-        format,
-        preset,
-        title,
-        filters: {
-          ...filters,
-          ...(groupByClass && !isSingleClassSelection(filters.school_class)
-            ? { group_by_class: true }
-            : {}),
-          // A birthday list is only readable in calendar order, so the preset
-          // carries its own sort rather than inheriting the page's.
-          ...(preset === "birthday_list" ? { months, sort: "birthday" } : {}),
-          ...(isHealthList
-            ? { include_without_health_info: includeWithoutHealthInfo }
-            : {}),
-        },
-        columns,
-      });
-      toast.success("Die Datei ist heruntergeladen.");
-      onClose();
-    } catch (error) {
-      logger.error("student_export_failed", {
-        error: error instanceof Error ? error.message : String(error),
-      });
-      // Ohne „Wiederholen“: „Exportieren“ wiederholt mit der aktuellen
-      // Auswahl. Eine Ref dafür bräuchte einen Hook nach dem return null.
-      await errors.show(error, {
-        object: "die Exportdatei",
-      });
-    } finally {
-      setExporting(false);
-    }
-  };
+  const validate = () =>
+    columns.length === 0
+      ? "Bitte wählen Sie mindestens eine Spalte aus."
+      : null;
 
-  const footer = (
-    <>
-      <button
-        type="button"
-        onClick={onClose}
-        disabled={exporting}
-        className="inline-flex h-9 items-center justify-center rounded-lg border border-gray-200 bg-white px-3 text-sm font-medium text-gray-700 shadow-sm transition-colors hover:bg-gray-50 focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none disabled:cursor-not-allowed disabled:opacity-50"
-      >
-        Abbrechen
-      </button>
-      <button
-        type="button"
-        onClick={() => void handleExport()}
-        disabled={exporting}
-        className="inline-flex h-9 items-center justify-center gap-2 rounded-lg bg-gray-900 px-3 text-sm font-medium text-white shadow-sm transition-colors hover:bg-gray-700 focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none disabled:cursor-not-allowed disabled:opacity-50"
-      >
-        <Download className="h-4 w-4" aria-hidden />
-        {exporting ? "Exportiert..." : "Exportieren"}
-      </button>
-    </>
-  );
+  const download = (format: StudentExportFormat) =>
+    exportStudents({
+      format,
+      preset,
+      title,
+      filters: {
+        ...filters,
+        ...(groupByClass && !isSingleClassSelection(filters.school_class)
+          ? { group_by_class: true }
+          : {}),
+        // A birthday list is only readable in calendar order, so the preset
+        // carries its own sort rather than inheriting the page's.
+        ...(preset === "birthday_list" ? { months, sort: "birthday" } : {}),
+        ...(isHealthList
+          ? { include_without_health_info: includeWithoutHealthInfo }
+          : {}),
+      },
+      columns,
+    });
+
+  const description = showsResultCount
+    ? selectedCount !== undefined
+      ? `${selectedCount} ${selectedCount === 1 ? "ausgewähltes Kind" : "ausgewählte Kinder"}.`
+      : `${resultCount} Kinder aus der aktuellen Filterung.`
+    : scopeWithoutCount;
 
   return (
-    <SlideOver
-      open={isOpen}
-      onOpenChange={(open) => {
-        if (!open && !exporting) onClose();
-      }}
+    <ExportDialog
+      isOpen={isOpen}
+      onClose={onClose}
+      title={heading}
+      description={description}
+      appliedFilters={appliedFilters}
+      formats={STUDENT_EXPORT_FORMATS}
+      onDownload={download}
+      validate={validate}
+      errorObject="die Exportdatei"
+      widthClass="sm:w-[640px]"
     >
-      <SlideOverContent widthClass="sm:w-[640px]">
-        <SlideOverHeader className="flex-row items-start justify-between gap-3">
-          <div className="min-w-0">
-            <SlideOverTitle>{heading}</SlideOverTitle>
-            <SlideOverDescription>
-              {showsResultCount
-                ? selectedCount !== undefined
-                  ? `${selectedCount} ${selectedCount === 1 ? "ausgewähltes Kind" : "ausgewählte Kinder"}.`
-                  : `${resultCount} Kinder aus der aktuellen Filterung.`
-                : scopeWithoutCount}
-            </SlideOverDescription>
-          </div>
-          <SlideOverCloseButton
-            aria-label="Export schließen"
-            disabled={exporting}
-          />
-        </SlideOverHeader>
-        <div className="flex-1 space-y-5 overflow-y-auto px-5 py-4">
-          <FormErrorAlert message={errors.error} />
-          <section>
-            <label
-              htmlFor="student-export-title-input"
-              className="text-sm font-medium text-gray-900"
-            >
-              Titel
-            </label>
-            <input
-              id="student-export-title-input"
-              value={title}
-              onChange={(event) => setTitle(event.target.value)}
-              className="mt-2 h-10 w-full rounded-lg border border-gray-200 bg-white px-3 text-sm shadow-sm transition-colors hover:border-gray-300 focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none"
-            />
-          </section>
+      <section>
+        <Input
+          id="student-export-title-input"
+          label="Titel"
+          value={title}
+          onChange={(event) => setTitle(event.target.value)}
+        />
+      </section>
 
-          {!lockedPreset && (
-            <section>
-              <p className="text-sm font-medium text-gray-900">Vorlage</p>
-              <div className="mt-2 grid gap-2 sm:grid-cols-2">
-                {presets.map((item) => (
-                  <button
-                    key={item.id}
-                    type="button"
-                    onClick={() => setPreset(item.id)}
-                    className={`rounded-lg border px-3 py-3 text-left shadow-sm transition-colors focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none ${
-                      preset === item.id
-                        ? "border-gray-900 bg-gray-950 text-white"
-                        : "border-gray-200 bg-white text-gray-800 hover:bg-gray-50"
-                    }`}
-                  >
-                    <span className="block text-sm font-semibold">
-                      {item.label}
-                    </span>
-                    <span
-                      className={`mt-1 block text-xs ${
-                        preset === item.id ? "text-gray-200" : "text-gray-500"
-                      }`}
-                    >
-                      {item.description}
-                    </span>
-                  </button>
-                ))}
-              </div>
-            </section>
-          )}
-
-          <section>
-            <p className="text-sm font-medium text-gray-900">Format</p>
-            <div className="mt-2 flex flex-wrap gap-2">
-              {FORMAT_OPTIONS.map((item) => (
-                <button
-                  key={item.value}
-                  type="button"
-                  onClick={() => setFormat(item.value)}
-                  className={`inline-flex h-9 items-center gap-2 rounded-lg border px-3 text-sm font-medium shadow-sm transition-colors focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none ${
-                    format === item.value
-                      ? "border-gray-900 bg-gray-950 text-white"
-                      : "border-gray-200 bg-white text-gray-700 hover:bg-gray-50"
-                  }`}
-                >
-                  {item.icon}
+      {!lockedPreset && (
+        <section>
+          <p className="text-sm font-medium text-gray-900">Vorlage</p>
+          <div className="mt-2 grid gap-2 sm:grid-cols-2">
+            {presets.map((item) => (
+              <ChoiceTile
+                key={item.id}
+                as="button"
+                aria-pressed={preset === item.id}
+                selected={preset === item.id}
+                onClick={() => setPreset(item.id)}
+                className="block p-3"
+              >
+                <span className="block text-sm font-semibold text-gray-900">
                   {item.label}
-                </button>
-              ))}
-            </div>
-          </section>
+                </span>
+                <span className="mt-1 block text-xs font-normal text-gray-500">
+                  {item.description}
+                </span>
+              </ChoiceTile>
+            ))}
+          </div>
+        </section>
+      )}
 
-          {preset === "birthday_list" && (
-            <section>
-              <div className="flex items-start justify-between gap-3">
-                <div>
-                  <p className="text-sm font-medium text-gray-900">
-                    Geburtsmonate
-                  </p>
-                  <p className="text-xs text-gray-500">
-                    {months.length === 0
-                      ? "Alle Geburtstage des Jahres werden aufgelistet."
-                      : "Nur Kinder, die in den gewählten Monaten Geburtstag haben."}
-                  </p>
-                </div>
-                <ToggleChip
-                  pressed={months.length === 0}
-                  onPressedChange={() => setMonths([])}
-                  className="shrink-0"
-                >
-                  Ganzes Jahr
-                </ToggleChip>
-              </div>
-              <div className="mt-2 grid grid-cols-4 gap-2 sm:grid-cols-6">
-                {BIRTHDAY_MONTH_OPTIONS.map((month) => {
-                  const selected = months.includes(month.value);
-                  return (
-                    <ToggleChip
-                      key={month.value}
-                      pressed={selected}
-                      onPressedChange={() => toggleMonth(month.value)}
-                      ariaLabel={month.label}
-                    >
-                      {month.label.slice(0, 3)}
-                    </ToggleChip>
-                  );
-                })}
-              </div>
-            </section>
-          )}
-
-          {isHealthList && (
-            <section>
-              <p className="text-sm font-medium text-gray-900">Kinder</p>
+      {preset === "birthday_list" && (
+        <section>
+          <div className="flex items-start justify-between gap-3">
+            <div>
+              <p className="text-sm font-medium text-gray-900">Geburtsmonate</p>
               <p className="text-xs text-gray-500">
-                {includeWithoutHealthInfo
-                  ? "Alle Kinder. Ohne Eintrag steht „Nicht hinterlegt“ in der Liste."
-                  : "Nur Kinder mit hinterlegten Gesundheitsinformationen."}
+                {months.length === 0
+                  ? "Alle Geburtstage des Jahres werden aufgelistet."
+                  : "Nur Kinder, die in den gewählten Monaten Geburtstag haben."}
               </p>
-              <div className="mt-2">
-                <ExportToggleCheckbox
-                  checked={includeWithoutHealthInfo}
-                  label="Auch Kinder ohne Eintrag"
-                  description="So sehen Sie auf einen Blick, bei wem noch nichts eingetragen ist."
-                  onChange={() =>
-                    setIncludeWithoutHealthInfo((current) => !current)
-                  }
-                />
-              </div>
-            </section>
-          )}
-
-          {!lockedPreset && !isSingleClassSelection(filters.school_class) && (
-            <section>
-              <p className="text-sm font-medium text-gray-900">Gliederung</p>
-              <div className="mt-2">
-                <ExportToggleCheckbox
-                  checked={groupByClass}
-                  label="Nach Klassen getrennt"
-                  description="Jede Klasse beginnt mit einer eigenen Überschrift, im PDF auf einer neuen Seite."
-                  onChange={() => setGroupByClass((current) => !current)}
-                />
-              </div>
-            </section>
-          )}
-
-          <section>
-            <div className="flex items-center justify-between gap-3">
-              <div>
-                <p className="text-sm font-medium text-gray-900">Spalten</p>
-                <p className="text-xs text-gray-500">
-                  {isHealthList
-                    ? "Name und Gesundheitsinformationen sind immer enthalten."
-                    : `${activePreset?.label ?? "Vorlage"} kann angepasst werden.`}
-                </p>
-              </div>
-              <span className="shrink-0 rounded-full bg-gray-100 px-2 py-1 text-xs font-medium whitespace-nowrap text-gray-600">
-                {columns.length} aktiv
-              </span>
             </div>
-            <div className="mt-3 grid gap-2 sm:grid-cols-2">
-              {availableColumns.map((column) => {
-                const checked = columns.includes(column.id);
-                return (
-                  <ExportColumnCheckbox
-                    key={column.id}
-                    checked={checked}
-                    column={column}
-                    onChange={() => toggleColumn(column.id)}
-                  />
-                );
-              })}
-            </div>
-          </section>
+            <ToggleChip
+              pressed={months.length === 0}
+              onPressedChange={() => setMonths([])}
+              className="shrink-0"
+            >
+              Ganzes Jahr
+            </ToggleChip>
+          </div>
+          <div className="mt-2 grid grid-cols-4 gap-2 sm:grid-cols-6">
+            {BIRTHDAY_MONTH_OPTIONS.map((month) => {
+              const selected = months.includes(month.value);
+              return (
+                <ToggleChip
+                  key={month.value}
+                  pressed={selected}
+                  onPressedChange={() => toggleMonth(month.value)}
+                  ariaLabel={month.label}
+                >
+                  {month.label.slice(0, 3)}
+                </ToggleChip>
+              );
+            })}
+          </div>
+        </section>
+      )}
+
+      {isHealthList && (
+        <section>
+          <p className="text-sm font-medium text-gray-900">Kinder</p>
+          <p className="text-xs text-gray-500">
+            {includeWithoutHealthInfo
+              ? "Alle Kinder. Ohne Eintrag steht „Nicht hinterlegt“ in der Liste."
+              : "Nur Kinder mit hinterlegten Gesundheitsinformationen."}
+          </p>
+          <div className="mt-2">
+            <ExportToggleCheckbox
+              checked={includeWithoutHealthInfo}
+              label="Auch Kinder ohne Eintrag"
+              description="So sehen Sie auf einen Blick, bei wem noch nichts eingetragen ist."
+              onChange={() =>
+                setIncludeWithoutHealthInfo((current) => !current)
+              }
+            />
+          </div>
+        </section>
+      )}
+
+      {!lockedPreset && !isSingleClassSelection(filters.school_class) && (
+        <section>
+          <p className="text-sm font-medium text-gray-900">Gliederung</p>
+          <div className="mt-2">
+            <ExportToggleCheckbox
+              checked={groupByClass}
+              label="Nach Klassen getrennt"
+              description="Jede Klasse beginnt mit einer eigenen Überschrift, im PDF auf einer neuen Seite."
+              onChange={() => setGroupByClass((current) => !current)}
+            />
+          </div>
+        </section>
+      )}
+
+      <section>
+        <div className="flex items-center justify-between gap-3">
+          <div>
+            <p className="text-sm font-medium text-gray-900">Spalten</p>
+            <p className="text-xs text-gray-500">
+              {isHealthList
+                ? "Name und Gesundheitsinformationen sind immer enthalten."
+                : `${activePreset?.label ?? "Vorlage"} kann angepasst werden.`}
+            </p>
+          </div>
+          <span className="shrink-0 rounded-full bg-gray-100 px-2 py-1 text-xs font-medium whitespace-nowrap text-gray-600">
+            {columns.length} aktiv
+          </span>
         </div>
-        <SlideOverFooter className="flex-row justify-end gap-2">
-          {footer}
-        </SlideOverFooter>
-      </SlideOverContent>
-    </SlideOver>
+        <div className="mt-3 grid gap-2 sm:grid-cols-2">
+          {availableColumns.map((column) => {
+            const checked = columns.includes(column.id);
+            return (
+              <ExportColumnCheckbox
+                key={column.id}
+                checked={checked}
+                column={column}
+                onChange={() => toggleColumn(column.id)}
+              />
+            );
+          })}
+        </div>
+      </section>
+    </ExportDialog>
   );
 }
 

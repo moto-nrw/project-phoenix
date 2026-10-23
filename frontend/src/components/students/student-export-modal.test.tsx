@@ -4,68 +4,9 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 // leer. Derselbe Ersatz wie in components/ui/slide-over.test.tsx - die
 // Struktur bleibt, nur die Animationsschicht fällt weg. Close meldet den
 // Schliessvorgang wie im Original an onOpenChange.
-vi.mock("vaul", async () => {
-  const React = await import("react");
-  const CloseContext = React.createContext<
-    ((open: boolean) => void) | undefined
-  >(undefined);
-
-  return {
-    Drawer: {
-      Root: ({
-        children,
-        open,
-        onOpenChange,
-      }: {
-        children: React.ReactNode;
-        open?: boolean;
-        onOpenChange?: (open: boolean) => void;
-      }) =>
-        open === false ? null : (
-          <CloseContext.Provider value={onOpenChange}>
-            <div>{children}</div>
-          </CloseContext.Provider>
-        ),
-      Portal: ({ children }: { children: React.ReactNode }) => <>{children}</>,
-      Overlay: React.forwardRef<
-        HTMLDivElement,
-        React.HTMLAttributes<HTMLDivElement>
-      >((props, ref) => <div ref={ref} {...props} />),
-      Content: React.forwardRef<
-        HTMLDivElement,
-        React.HTMLAttributes<HTMLDivElement>
-      >((props, ref) => <div ref={ref} role="dialog" {...props} />),
-      Close: React.forwardRef<
-        HTMLButtonElement,
-        React.ButtonHTMLAttributes<HTMLButtonElement>
-      >(({ onClick, ...props }, ref) => {
-        const onOpenChange = React.useContext(CloseContext);
-        return (
-          <button
-            ref={ref}
-            {...props}
-            onClick={(event) => {
-              onClick?.(event);
-              onOpenChange?.(false);
-            }}
-          />
-        );
-      }),
-      Title: React.forwardRef<
-        HTMLHeadingElement,
-        React.HTMLAttributes<HTMLHeadingElement>
-      >(({ children, ...props }, ref) => (
-        <h2 ref={ref} {...props}>
-          {children ?? "Titel"}
-        </h2>
-      )),
-      Description: React.forwardRef<
-        HTMLParagraphElement,
-        React.HTMLAttributes<HTMLParagraphElement>
-      >((props, ref) => <p ref={ref} {...props} />),
-    },
-  };
-});
+// Vaul (SlideOver) rendert in jsdom nichts: der Export-Dialog bliebe im Test
+// leer. Der gemeinsame Ersatz behält die Struktur.
+vi.mock("vaul", () => import("~/test/mocks/vaul"));
 
 import { ApiError } from "~/lib/api-error";
 import { StudentExportModal } from "./student-export-modal";
@@ -181,10 +122,10 @@ describe("StudentExportModal", () => {
     fireEvent.change(screen.getByLabelText("Titel"), {
       target: { value: "Meine Liste" },
     });
-    fireEvent.click(screen.getByRole("button", { name: "XLSX" }));
+    fireEvent.click(screen.getByRole("button", { name: "Excel" }));
     fireEvent.click(screen.getByRole("checkbox", { name: /Freitag/ }));
     fireEvent.click(screen.getByRole("checkbox", { name: /Tageshinweise/ }));
-    fireEvent.click(screen.getByRole("button", { name: "Exportieren" }));
+    fireEvent.click(screen.getByRole("button", { name: "Herunterladen" }));
 
     await waitFor(() => {
       expect(mockExportStudents).toHaveBeenCalledWith({
@@ -218,7 +159,7 @@ describe("StudentExportModal", () => {
         fireEvent.click(checkbox);
       }
     }
-    fireEvent.click(screen.getByRole("button", { name: "Exportieren" }));
+    fireEvent.click(screen.getByRole("button", { name: "Herunterladen" }));
 
     expect(
       screen.getByText("Bitte wählen Sie mindestens eine Spalte aus."),
@@ -237,7 +178,7 @@ describe("StudentExportModal", () => {
         screen.getByRole("checkbox", { name: /Nach Klassen getrennt/ }),
       ).toBeChecked();
     });
-    fireEvent.click(screen.getByRole("button", { name: "Exportieren" }));
+    fireEvent.click(screen.getByRole("button", { name: "Herunterladen" }));
 
     await waitFor(() => {
       expect(mockExportStudents).toHaveBeenCalledWith(
@@ -261,7 +202,7 @@ describe("StudentExportModal", () => {
     fireEvent.click(
       screen.getByRole("checkbox", { name: /Nach Klassen getrennt/ }),
     );
-    fireEvent.click(screen.getByRole("button", { name: "Exportieren" }));
+    fireEvent.click(screen.getByRole("button", { name: "Herunterladen" }));
 
     await waitFor(() => {
       expect(mockExportStudents).toHaveBeenCalledWith(
@@ -314,8 +255,8 @@ describe("StudentExportModal", () => {
     );
     const { onClose } = await openModal();
 
-    fireEvent.click(screen.getByRole("button", { name: "DOCX" }));
-    fireEvent.click(screen.getByRole("button", { name: "Exportieren" }));
+    fireEvent.click(screen.getByRole("button", { name: "Word" }));
+    fireEvent.click(screen.getByRole("button", { name: "Herunterladen" }));
 
     expect(
       await screen.findByText(
@@ -326,7 +267,7 @@ describe("StudentExportModal", () => {
     expect(mockToastError).not.toHaveBeenCalled();
     expect(onClose).not.toHaveBeenCalled();
     // „Exportieren“ wiederholt mit der aktuellen Auswahl.
-    fireEvent.click(screen.getByRole("button", { name: "Exportieren" }));
+    fireEvent.click(screen.getByRole("button", { name: "Herunterladen" }));
     await waitFor(() => expect(mockExportStudents).toHaveBeenCalledTimes(2));
     expect(screen.getByRole("dialog")).toBeInTheDocument();
   });
@@ -382,7 +323,7 @@ describe("StudentExportModal", () => {
       selectBirthdayPreset();
       await screen.findByRole("button", { name: "September" });
 
-      fireEvent.click(screen.getByRole("button", { name: "Exportieren" }));
+      fireEvent.click(screen.getByRole("button", { name: "Herunterladen" }));
 
       await waitFor(() => {
         expect(mockExportStudents).toHaveBeenCalledWith({
@@ -409,7 +350,7 @@ describe("StudentExportModal", () => {
       fireEvent.click(await screen.findByRole("button", { name: "September" }));
       fireEvent.click(screen.getByRole("button", { name: "Dezember" }));
       fireEvent.click(screen.getByRole("button", { name: "Januar" }));
-      fireEvent.click(screen.getByRole("button", { name: "Exportieren" }));
+      fireEvent.click(screen.getByRole("button", { name: "Herunterladen" }));
 
       await waitFor(() => {
         expect(mockExportStudents).toHaveBeenCalledWith(
@@ -432,7 +373,7 @@ describe("StudentExportModal", () => {
         screen.getByText("Alle Geburtstage des Jahres werden aufgelistet."),
       ).toBeInTheDocument();
 
-      fireEvent.click(screen.getByRole("button", { name: "Exportieren" }));
+      fireEvent.click(screen.getByRole("button", { name: "Herunterladen" }));
 
       await waitFor(() => {
         expect(mockExportStudents).toHaveBeenCalledWith(
@@ -513,7 +454,7 @@ describe("StudentExportModal", () => {
       });
       await screen.findByRole("dialog");
 
-      fireEvent.click(screen.getByRole("button", { name: "Exportieren" }));
+      fireEvent.click(screen.getByRole("button", { name: "Herunterladen" }));
 
       await waitFor(() => {
         expect(mockExportStudents).toHaveBeenCalledWith({
@@ -573,7 +514,7 @@ describe("StudentExportModal", () => {
       expect(
         screen.queryByText("Alle Kinder der Schule."),
       ).not.toBeInTheDocument();
-      fireEvent.click(screen.getByRole("button", { name: "Exportieren" }));
+      fireEvent.click(screen.getByRole("button", { name: "Herunterladen" }));
 
       await waitFor(() => {
         expect(mockExportStudents).toHaveBeenCalledWith({
@@ -602,7 +543,7 @@ describe("StudentExportModal", () => {
           "Alle Kinder. Ohne Eintrag steht „Nicht hinterlegt“ in der Liste.",
         ),
       ).toBeInTheDocument();
-      fireEvent.click(screen.getByRole("button", { name: "Exportieren" }));
+      fireEvent.click(screen.getByRole("button", { name: "Herunterladen" }));
 
       await waitFor(() => {
         expect(mockExportStudents).toHaveBeenCalledWith(
@@ -639,7 +580,7 @@ describe("StudentExportModal", () => {
       ).not.toBeInTheDocument();
 
       fireEvent.click(screen.getByRole("checkbox", { name: /Gruppe/ }));
-      fireEvent.click(screen.getByRole("button", { name: "Exportieren" }));
+      fireEvent.click(screen.getByRole("button", { name: "Herunterladen" }));
 
       await waitFor(() => {
         expect(mockExportStudents).toHaveBeenCalledWith(
@@ -681,7 +622,7 @@ describe("StudentExportModal", () => {
       expect(
         screen.getByText("12 Kinder aus der aktuellen Filterung."),
       ).toBeInTheDocument();
-      fireEvent.click(screen.getByRole("button", { name: "Exportieren" }));
+      fireEvent.click(screen.getByRole("button", { name: "Herunterladen" }));
 
       await waitFor(() => {
         expect(mockExportStudents).toHaveBeenCalledWith(

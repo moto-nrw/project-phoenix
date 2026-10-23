@@ -3243,6 +3243,7 @@ function SearchPageContent() {
               <StudentExportModal
                 isOpen={isExportOpen}
                 filters={exportFilters}
+                appliedFilters={activeFilters.map((filter) => filter.label)}
                 resultCount={filteredStudents.length}
                 onClose={() => setIsExportOpen(false)}
               />
