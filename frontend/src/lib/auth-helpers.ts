@@ -49,6 +49,8 @@ export interface Role {
   description: string;
   isSystem: boolean;
   baseRole?: string;
+  /** Made from the template „Wie Lehrkraft“: works in moto schule (#4574). */
+  schoolPortal?: boolean;
   createdAt: string;
   updatedAt: string;
   permissions?: Permission[];
@@ -77,6 +79,7 @@ interface FlexibleRoleData {
   is_system?: boolean;
   BaseRole?: string;
   base_role?: string;
+  school_portal?: boolean;
   CreatedAt?: string;
   created_at?: string;
   UpdatedAt?: string;
@@ -96,6 +99,7 @@ export function mapRoleResponse(
     description: roleData.Description ?? roleData.description ?? "",
     isSystem: roleData.IsSystem ?? roleData.is_system ?? false,
     baseRole: roleData.BaseRole ?? roleData.base_role,
+    schoolPortal: roleData.school_portal ?? false,
     createdAt: roleData.CreatedAt ?? roleData.created_at ?? "",
     updatedAt: roleData.UpdatedAt ?? roleData.updated_at ?? "",
     permissions:

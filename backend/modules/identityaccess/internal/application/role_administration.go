@@ -350,7 +350,7 @@ func (r *RoleAdministration) accountHoldsLehrkraftRole(ctx context.Context, acco
 		return false, err
 	}
 	for _, role := range roles {
-		if r.policy.IsLehrkraftSystemRole(role.Facts()) {
+		if r.policy.IsLehrkraftRole(role.Facts()) {
 			return true, nil
 		}
 	}
@@ -585,8 +585,8 @@ type AccountAdministrationSeam struct {
 // port.
 type RoleAssignmentPolicy struct{}
 
-func (RoleAssignmentPolicy) IsLehrkraftSystemRole(role *domain.RoleFacts) bool {
-	return identityaccess.IsLehrkraftSystemRole(publicRoleFacts(role))
+func (RoleAssignmentPolicy) IsLehrkraftRole(role *domain.RoleFacts) bool {
+	return identityaccess.IsLehrkraftRole(publicRoleFacts(role))
 }
 
 func (RoleAssignmentPolicy) IsGuardianTierRole(role *domain.RoleFacts) bool {
@@ -602,7 +602,7 @@ func (RoleAssignmentPolicy) ValidateAssignableSchoolRole(role *domain.RoleFacts,
 }
 
 func (r *RoleAdministration) requireLehrkraftPreserved(txCtx context.Context, accountID int64, facts *domain.RoleFacts) error {
-	if !r.policy.IsLehrkraftSystemRole(facts) {
+	if !r.policy.IsLehrkraftRole(facts) {
 		isLehrkraft, roleErr := r.accountHoldsLehrkraftRole(txCtx, accountID)
 		if roleErr != nil {
 			return failed("assign role", roleErr)
@@ -622,7 +622,7 @@ func (r *RoleAdministration) requireNoCaregiverForLehrkraft(txCtx context.Contex
 	// endpoint would otherwise strand users.teachers and its group
 	// supervisions under a class_day-only JWT. Same rule as the operator
 	// school access and the invitation flow.
-	if r.policy.IsLehrkraftSystemRole(facts) {
+	if r.policy.IsLehrkraftRole(facts) {
 		hasProfile, profErr := r.profiles.HasLiveCaregiverProfile(txCtx, accountID)
 		if profErr != nil {
 			return failed("assign role", profErr)

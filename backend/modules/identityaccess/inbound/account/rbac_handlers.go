@@ -18,13 +18,14 @@ import (
 // toRoleResponse maps a role to its API response representation.
 func toRoleResponse(role identityaccess.Role) *RoleResponse {
 	return &RoleResponse{
-		ID:          role.ID,
-		Name:        role.Name,
-		Description: role.Description,
-		IsSystem:    role.IsSystem,
-		BaseRole:    role.BaseRole,
-		CreatedAt:   role.CreatedAt.Format(time.RFC3339),
-		UpdatedAt:   role.UpdatedAt.Format(time.RFC3339),
+		ID:           role.ID,
+		Name:         role.Name,
+		Description:  role.Description,
+		IsSystem:     role.IsSystem,
+		BaseRole:     role.BaseRole,
+		SchoolPortal: role.SchoolPortal,
+		CreatedAt:    role.CreatedAt.Format(time.RFC3339),
+		UpdatedAt:    role.UpdatedAt.Format(time.RFC3339),
 	}
 }
 

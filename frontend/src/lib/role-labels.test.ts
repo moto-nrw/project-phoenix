@@ -11,6 +11,7 @@ import {
   ROLE_TEMPLATES,
   SYSTEM_ROLE_LABELS,
   isHiddenSystemRole,
+  isLehrkraftRole,
   isSystemRoleName,
   systemRoleDescription,
   systemRoleLabel,
@@ -57,6 +58,20 @@ describe("role labels", () => {
       );
     },
   );
+
+  it("counts the system role Lehrkraft and its template copies", () => {
+    expect(isLehrkraftRole({ name: "lehrkraft", isSystem: true })).toBe(true);
+    expect(
+      isLehrkraftRole({
+        name: "klassenleitung",
+        isSystem: false,
+        schoolPortal: true,
+      }),
+    ).toBe(true);
+    // A school role that merely carries the name is not one.
+    expect(isLehrkraftRole({ name: "lehrkraft", isSystem: false })).toBe(false);
+    expect(isLehrkraftRole({ name: "user", isSystem: true })).toBe(false);
+  });
 
   it("hides only the system role Eltern from the role management", () => {
     expect(isHiddenSystemRole({ name: "guardian", isSystem: true })).toBe(true);

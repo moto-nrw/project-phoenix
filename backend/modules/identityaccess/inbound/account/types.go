@@ -500,14 +500,17 @@ func validateBaseRole(br *string) error {
 
 // RoleResponse represents a role response
 type RoleResponse struct {
-	ID          int64    `json:"id,string"`
-	Name        string   `json:"name"`
-	Description string   `json:"description"`
-	IsSystem    bool     `json:"is_system"`
-	BaseRole    *string  `json:"base_role,omitempty"`
-	CreatedAt   string   `json:"created_at"`
-	UpdatedAt   string   `json:"updated_at"`
-	Permissions []string `json:"permissions,omitempty"`
+	ID          int64   `json:"id,string"`
+	Name        string  `json:"name"`
+	Description string  `json:"description"`
+	IsSystem    bool    `json:"is_system"`
+	BaseRole    *string `json:"base_role,omitempty"`
+	// SchoolPortal marks a school role made from the Lehrkraft template: its
+	// accounts use moto schule like the Lehrkraft role (#4574).
+	SchoolPortal bool     `json:"school_portal"`
+	CreatedAt    string   `json:"created_at"`
+	UpdatedAt    string   `json:"updated_at"`
+	Permissions  []string `json:"permissions,omitempty"`
 }
 
 // CreatePermissionRequest represents the create permission request payload

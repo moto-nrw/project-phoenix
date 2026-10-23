@@ -1,4 +1,5 @@
 import { toAssignableRoleOptions, type RoleOption } from "~/lib/auth-helpers";
+import { isLehrkraftRole } from "~/lib/role-labels";
 import { authService } from "~/lib/auth-service";
 
 /**
@@ -26,23 +27,20 @@ export async function loadAccountRoleAssignment(
     authService.getRoles(),
   ]);
   return {
-    // Die Systemrolle lehrkraft ist bewusst NICHT wählbar: der Rollen-Tausch
-    // würde nur die auth-Rolle wechseln und das Betreuungsprofil samt aktiver
+    // Lehrkraft-Rollen (die Systemrolle und Kopien aus „Wie Lehrkraft“,
+    // #4574) sind bewusst NICHT wählbar: der Rollen-Tausch würde nur die
+    // auth-Rolle wechseln und das Betreuungsprofil samt aktiver
     // Gruppen-Aufsichten stehen lassen, genau die Kombination, die Einladung
     // und Operator-Provisioning verbieten. Gleichnamige Rollen der Schule
     // bleiben dagegen regulär wählbar.
     options: toAssignableRoleOptions(
       allRoles.filter(
         (role) =>
-          (role.isSystem !== true || role.name.toLowerCase() !== "lehrkraft") &&
-          role.baseRole?.toLowerCase() !== "guardian",
+          !isLehrkraftRole(role) && role.baseRole?.toLowerCase() !== "guardian",
       ),
     ),
     currentRoleIds: accountRoles.map((role) => role.id),
-    currentIsLehrkraft: accountRoles.some(
-      (role) =>
-        role.isSystem === true && role.name.toLowerCase() === "lehrkraft",
-    ),
+    currentIsLehrkraft: accountRoles.some((role) => isLehrkraftRole(role)),
   };
 }
 

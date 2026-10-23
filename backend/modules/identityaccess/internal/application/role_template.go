@@ -24,7 +24,9 @@ func (r *RoleAdministration) createRoleFromTemplate(ctx context.Context, name, d
 	if err != nil {
 		return domain.ManagedRole{}, err
 	}
-	role, err := r.store.CreateRole(ctx, domain.ManagedRole{Name: name, Description: description, BaseRole: &baseRole})
+	// A copy of the Lehrkraft role opens moto schule like the original (#4574).
+	schoolPortal := templates[0] == identityaccess.RoleTemplateLehrkraft
+	role, err := r.store.CreateRole(ctx, domain.ManagedRole{Name: name, Description: description, BaseRole: &baseRole, SchoolPortal: schoolPortal})
 	if err != nil {
 		return domain.ManagedRole{}, failed(opCreateRoleFromTemplate, err)
 	}

@@ -4824,6 +4824,7 @@ function staffPermissionsTopic(): HelpTopic {
     notes: [
       "Eine neue Rolle bekommt einmal die Rechte ihrer Vorlage. Danach ändern Sie die Rechte nur noch an der Rolle selbst.",
       "`Wie Verwaltung` gibt fast alle Rechte der Verwaltung. Einiges kann nur die Rolle `Verwaltung` selbst, zum Beispiel Mitteilungen an Eltern schreiben.",
+      "Eine Rolle aus `Wie Lehrkraft` arbeitet wie die Rolle `Lehrkraft` in moto schule. Wer sie hat, meldet sich dort an. Später lässt sie sich nicht gegen eine andere Rolle tauschen.",
       "Bei manchen Rechten steht ein Hinweis. Damit kann eine Person Rollen, Konten oder Einstellungen ändern. Geben Sie diese Rechte nur der Leitung.",
       "`Position` im Reiter `Konto` ist nur ein Text für die Personalliste. Sie ändert keine Rechte.",
       "Unter `Datenverwaltung` → `Berechtigungen` sehen Sie alle verfügbaren Rechte. Diese Übersicht können Sie nur ansehen. Die Rechte einer eigenen Rolle ändern Sie unter `Rollen`.",

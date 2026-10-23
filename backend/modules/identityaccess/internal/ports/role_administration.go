@@ -59,7 +59,7 @@ type RoleStore interface {
 // RoleAssignmentPolicy classifies roles for the assignment rules; the public
 // package owns the decisions, the composition binds them.
 type RoleAssignmentPolicy interface {
-	IsLehrkraftSystemRole(role *domain.RoleFacts) bool
+	IsLehrkraftRole(role *domain.RoleFacts) bool
 	IsGuardianTierRole(role *domain.RoleFacts) bool
 	// IsPlatformCaregiverRole reports whether the role already is the
 	// platform caregiver role, so the caregiver upgrade adds nothing.

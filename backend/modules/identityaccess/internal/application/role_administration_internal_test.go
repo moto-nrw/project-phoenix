@@ -320,7 +320,7 @@ func (p raProfiles) HasLiveCaregiverProfile(_ context.Context, accountID int64) 
 // raPolicy mirrors the public school-role policy over the domain facts.
 type raPolicy struct{}
 
-func (raPolicy) IsLehrkraftSystemRole(role *domain.RoleFacts) bool {
+func (raPolicy) IsLehrkraftRole(role *domain.RoleFacts) bool {
 	return role != nil && role.IsSystem && strings.EqualFold(strings.TrimSpace(role.Name), "lehrkraft")
 }
 
@@ -955,6 +955,7 @@ func TestRoleAdministration_CreateRoleFromTemplate(t *testing.T) {
 		require.NoError(t, err)
 		require.NotNil(t, role.BaseRole)
 		assert.Equal(t, "user", *role.BaseRole)
+		assert.False(t, role.SchoolPortal, "only a Lehrkraft copy opens moto schule")
 		assert.ElementsMatch(t, []string{"groups:read", "visits:create"}, f.store.permissionNames(role.ID))
 
 		// A permission the template gains later does not reach the copy.
@@ -987,6 +988,9 @@ func TestRoleAdministration_CreateRoleFromTemplate(t *testing.T) {
 		require.NoError(t, err)
 		require.NotNil(t, role.BaseRole)
 		assert.Equal(t, "user", *role.BaseRole)
+		// The copy opens moto schule like the Lehrkraft role itself (#4574).
+		assert.True(t, role.SchoolPortal)
+		assert.True(t, f.store.roles[role.ID].SchoolPortal, "the mark is stored with the role")
 		assert.Equal(t, []string{"class_day:read"}, f.store.permissionNames(role.ID))
 	})
 

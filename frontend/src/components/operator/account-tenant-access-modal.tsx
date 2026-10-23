@@ -23,7 +23,7 @@ import {
 } from "~/contexts/ToastContext";
 import { isAssignableStaffRole } from "~/lib/auth-helpers";
 import { createLogger } from "~/lib/logger";
-import { systemRoleLabel } from "~/lib/role-labels";
+import { isLehrkraftRole, systemRoleLabel } from "~/lib/role-labels";
 import {
   accountTenantAccessService,
   type AccountTenantAccess,
@@ -83,7 +83,10 @@ export function AccountTenantAccessModal({
   const [access, setAccess] = useState<AccountTenantAccess[]>([]);
   const [schools, setSchools] = useState<{ id: string; label: string }[]>([]);
   const [rolesBySchool, setRolesBySchool] = useState<
-    Record<string, { id: string; name: string; isSystem: boolean }[]>
+    Record<
+      string,
+      { id: string; name: string; isSystem: boolean; schoolPortal: boolean }[]
+    >
   >({});
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
@@ -281,7 +284,7 @@ export function AccountTenantAccessModal({
   }
 
   function entryIsLehrkraft(entry: AccountTenantAccess): boolean {
-    return entry.roles.some((role) => role.name.toLowerCase() === "lehrkraft");
+    return entry.roles.some((role) => isLehrkraftRole(role));
   }
 
   // Eine bestehende Lehrkraft-Rolle ist unveränderlich. Der Wechsel würde
@@ -291,9 +294,9 @@ export function AccountTenantAccessModal({
   function roleChangeOptions(entry: AccountTenantAccess) {
     const options = rolesForSchool(entry.tenantId);
     if (entryIsLehrkraft(entry)) {
-      return options.filter((role) => role.name.toLowerCase() === "lehrkraft");
+      return options.filter((role) => isLehrkraftRole(role));
     }
-    return options.filter((role) => role.name.toLowerCase() !== "lehrkraft");
+    return options.filter((role) => !isLehrkraftRole(role));
   }
 
   async function runMutation(

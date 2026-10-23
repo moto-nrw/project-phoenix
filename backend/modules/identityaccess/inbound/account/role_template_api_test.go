@@ -90,6 +90,8 @@ func TestCreateRoleFromTemplateCopiesTheTemplatePermissions(t *testing.T) {
 		assert.ElementsMatch(t, want, e.permissionNamesOf(t, role.ID), template)
 		require.NotNil(t, role.BaseRole, template)
 		assert.False(t, role.IsSystem, template)
+		// Only the Lehrkraft copy opens moto schule (#4574).
+		assert.Equal(t, template == identityaccess.RoleTemplateLehrkraft, role.SchoolPortal, template)
 	}
 }
 

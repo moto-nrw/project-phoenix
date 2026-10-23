@@ -96,8 +96,11 @@ type Role struct {
 	Description string
 	IsSystem    bool
 	BaseRole    *string
-	CreatedAt   time.Time
-	UpdatedAt   time.Time
+	// SchoolPortal marks a school role made from the Lehrkraft template: it
+	// opens moto schule like the system role lehrkraft (#4574).
+	SchoolPortal bool
+	CreatedAt    time.Time
+	UpdatedAt    time.Time
 }
 
 // AssignableSchoolRole is a role the policy allows for a school, with the

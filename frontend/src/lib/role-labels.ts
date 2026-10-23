@@ -105,3 +105,20 @@ export function baseRoleOptions(
     .filter(([value]) => value !== "guardian")
     .map(([value, label]) => ({ value, label }));
 }
+
+/**
+ * Whether a role is a Lehrkraft role (#1772): the system role lehrkraft or a
+ * school role made from the template „Wie Lehrkraft“ (#4574). Such a role
+ * works in moto schule, never with a caregiver profile. A school role that
+ * merely carries the name is not one.
+ */
+export function isLehrkraftRole(role: {
+  name: string;
+  isSystem: boolean;
+  schoolPortal?: boolean;
+}): boolean {
+  return (
+    role.schoolPortal === true ||
+    (role.isSystem && role.name.trim().toLowerCase() === "lehrkraft")
+  );
+}
