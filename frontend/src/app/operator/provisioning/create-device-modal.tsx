@@ -161,9 +161,6 @@ export function CreateDeviceModal({
                   {copied ? "Kopiert!" : "Kopieren"}
                 </button>
               </div>
-              <p className="text-xs text-gray-500">
-                Der API-Key kann jederzeit im Geräte-Tab kopiert werden.
-              </p>
             </div>
           )}
 

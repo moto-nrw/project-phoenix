@@ -149,6 +149,19 @@ describe("CreateDeviceModal", () => {
         screen.getByText("Gerät erfolgreich erstellt"),
       ).toBeInTheDocument();
     });
+
+    // Anker: Der Einmal-Hinweis und die Kopieraktion sind im Erfolgsdialog sichtbar.
+    expect(
+      screen.getByText(
+        "Kopieren Sie den API-Key jetzt. Er wird nur einmal angezeigt.",
+      ),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByRole("button", { name: "Kopieren" }),
+    ).toBeInTheDocument();
+    expect(
+      screen.queryByText(/jederzeit im Geräte-Tab kopiert/),
+    ).not.toBeInTheDocument();
   });
 
   it("shows duplicate api key conflict message", async () => {
