@@ -374,6 +374,9 @@ describe("MealParticipantList", () => {
     expect(
       within(screen.getByRole("table")).getAllByText("angemeldet"),
     ).toHaveLength(3);
+    expect(
+      screen.getByRole("table").querySelectorAll("svg.lucide-check"),
+    ).toHaveLength(3);
 
     fireEvent.click(
       screen.getByRole("button", {

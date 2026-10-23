@@ -9,7 +9,7 @@ import {
   useState,
 } from "react";
 import { useLocale, useTranslations } from "next-intl";
-import { Download, FileSpreadsheet, Utensils } from "lucide-react";
+import { Check, Download, FileSpreadsheet, Utensils } from "lucide-react";
 
 import { Button } from "~/components/ui/button";
 import { SegmentedControl } from "~/components/ui/segmented-control";
@@ -186,7 +186,10 @@ export function MealParticipantList() {
         render: (row) =>
           row.dates.has(day) ? (
             <>
-              <span aria-hidden="true">✓</span>
+              <Check
+                className="text-moto-green-strong inline-block h-4 w-4"
+                aria-hidden="true"
+              />
               <span className="sr-only">{t("weekRegistered")}</span>
             </>
           ) : (
