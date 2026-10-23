@@ -71,6 +71,7 @@ type Filter struct {
 }
 
 var (
+	ErrFeatureDisabled   = errors.New("feature_disabled")
 	ErrEntryNotFound     = errors.New("feedback entry not found")
 	ErrInvalidEntryData  = errors.New("invalid feedback entry data")
 	ErrStudentNotFound   = errors.New("student not found")
@@ -111,6 +112,8 @@ func (e *BatchOperationError) Unwrap() []error { return e.Errors }
 
 func ErrorCode(err error) string {
 	switch {
+	case errors.Is(err, ErrFeatureDisabled):
+		return "feature_disabled"
 	case errors.Is(err, ErrEntryNotFound):
 		return "entry_not_found"
 	case errors.Is(err, ErrInvalidEntryData):
