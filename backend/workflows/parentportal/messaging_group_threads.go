@@ -26,7 +26,7 @@ var (
 // ListGroupThreads resolves the guardian's children through the child list
 // and reads the group threads that reached them.
 func (p *Portal) ListGroupThreads(ctx context.Context, accountID int64) ([]*GroupThreadListItem, error) {
-	children, err := p.ChildFlows.ListChildrenForAccount(ctx, accountID)
+	children, err := p.ListChildrenForAccount(ctx, accountID)
 	if err != nil {
 		return nil, err
 	}
@@ -35,7 +35,7 @@ func (p *Portal) ListGroupThreads(ctx context.Context, accountID int64) ([]*Grou
 
 // GetGroupThread opens one group thread for the guardian's children.
 func (p *Portal) GetGroupThread(ctx context.Context, accountID, threadID int64) (*GroupThreadDetail, error) {
-	children, err := p.ChildFlows.ListChildrenForAccount(ctx, accountID)
+	children, err := p.ListChildrenForAccount(ctx, accountID)
 	if err != nil {
 		return nil, err
 	}

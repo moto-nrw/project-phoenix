@@ -65,7 +65,7 @@ func (s *GroupThreadStore) ListThreadsForGuardian(ctx context.Context, accountID
 	for i := range rows {
 		at := rows[i].LastVisibleAt
 		out = append(out, communication.PortalGuardianGroupThread{
-			Thread: *rows[i].groupThreadRow.value(), LastMessageBody: rows[i].LastMessageBody,
+			Thread: *rows[i].value(), LastMessageBody: rows[i].LastMessageBody,
 			LastMessageAt: &at, UnreadCount: rows[i].UnreadCount, StudentIDs: rows[i].StudentIDs,
 		})
 	}

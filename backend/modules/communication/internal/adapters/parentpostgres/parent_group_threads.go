@@ -274,7 +274,7 @@ func (s *GroupThreadStore) ListThreads(ctx context.Context) ([]communication.Par
 	out := make([]communication.ParentGroupThreadSummary, 0, len(rows))
 	for i := range rows {
 		out = append(out, communication.ParentGroupThreadSummary{
-			Thread: *rows[i].groupThreadRow.value(), LastMessageBody: rows[i].LastMessageBody,
+			Thread: *rows[i].value(), LastMessageBody: rows[i].LastMessageBody,
 			MessageCount: rows[i].MessageCount, FamilyCount: rows[i].FamilyCount, ReadCount: rows[i].ReadCount,
 		})
 	}
