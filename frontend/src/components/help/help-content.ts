@@ -1943,6 +1943,7 @@ function correctWorkTimeTopic(): HelpTopic {
     ],
     notes: [
       "Klappen Sie einen geänderten Tag auf, um die Änderungshistorie zu sehen.",
+      "Ihren Zeitnachweis als Datei bekommen Sie oben rechts im Menü mit den drei Punkten unter `Exportieren`. Wählen Sie dort den Zeitraum und `PDF`, `Excel` oder `CSV`.",
     ],
     related: [HELP_TOPICS.trackWorkTime, HELP_TOPICS.vacation],
   };
@@ -4014,7 +4015,7 @@ function parentDeclarationTopic(): HelpTopic {
       "Mit `Widerruf erlauben` können Eltern eine Zustimmung später zurücknehmen, auch nach der Frist.",
       "Mit `Passwort vor dem Antworten abfragen` geben Eltern vor jeder Antwort ihr Passwort ein.",
       "`Offene erinnern` schickt eine Erinnerung an alle, die noch nicht geantwortet haben.",
-      "`Bericht als PDF` lädt den Stand und alle Antworten als PDF herunter. `Verlauf als CSV` enthält dieselben Antworten als Tabelle.",
+      "Unter `Herunterladen` lädt `Bericht als PDF` den Stand und alle Antworten als PDF herunter. `Verlauf als CSV` enthält dieselben Antworten als Tabelle.",
       "Das ist eine einfache Erklärung per Knopfdruck. Verlangt ein Gesetz eine Erklärung auf Papier, reicht sie nicht aus.",
     ],
     differences: [
@@ -4096,10 +4097,13 @@ function bankDetailsTopic(): HelpTopic {
       "Klappen Sie in der Seitenleiste `Eltern` auf.",
       "Öffnen Sie `Bankverbindungen`.",
       "Wählen Sie `Alle Kinder` oder `Ohne IBAN`.",
-      "Wählen Sie das Format: `PDF`, `Excel` oder `Word`.",
+      "Öffnen Sie oben rechts das Menü mit den drei Punkten.",
+      "Wählen Sie `Exportieren`.",
+      "Wählen Sie unter `Format` `Excel`, `PDF` oder `Word`.",
       "Wählen Sie `Herunterladen`.",
     ],
-    result: "Die Liste wird als Datei erstellt und heruntergeladen.",
+    result:
+      "Die Liste wird als Datei erstellt und heruntergeladen. Sie enthält immer alle Kinder, auch wenn die Liste gerade gefiltert ist.",
     notes: [
       "Die IBAN tragen Sie beim Kind ein, im Reiter `Erziehungsberechtigte`.",
       "Die Datei enthält die vollständigen IBANs und wird protokolliert. Geben Sie sie nicht per E-Mail weiter.",
@@ -4110,7 +4114,7 @@ function bankDetailsTopic(): HelpTopic {
     ],
     troubleshootingDetails: [
       "Fehlt `Bankverbindungen` in der Seitenleiste? Dafür braucht es ein eigenes Recht. Fragen Sie Ihre Leitung.",
-      "`Herunterladen` bleibt grau? Dann ist die Liste leer.",
+      "`Exportieren` bleibt grau? Dann ist die Liste leer.",
     ],
     related: [
       HELP_TOPICS.leadInviteGuardians,
@@ -4394,7 +4398,7 @@ function enrollmentReviewTopic(): HelpTopic {
   };
 }
 
-/** Export einer Phase, `ExportMenuButton` in der Kopfzeile der Phasenseite. */
+/** Export einer Phase, Export-Menü in der Kopfzeile der Phasenseite. */
 function enrollmentExportTopic(): HelpTopic {
   return {
     id: HELP_TOPICS.leadEnrollmentExport,
@@ -4408,13 +4412,14 @@ function enrollmentExportTopic(): HelpTopic {
       "Öffnen Sie `Anmeldungen` und danach `Überblick`.",
       "Wählen Sie bei der Phase `Anmeldungen ansehen`.",
       "Wählen Sie oben `Anmeldungen exportieren`.",
-      "Wählen Sie `Als PDF exportieren`, `Als Word-Dokument exportieren` oder `Als Excel-Datei exportieren`.",
+      "Wählen Sie `PDF`, `Word` oder `Excel`.",
     ],
     result: "Die Datei wird erstellt und heruntergeladen.",
     notes: [
       "Oben steht, wie viele Eingänge die Phase hat und wie viele davon offen sind.",
       "Die Seite hat drei Exporte: `Anmeldungen exportieren`, `Klassenliste exportieren` und `Auswertung exportieren`.",
       "`Klassenliste exportieren` gilt für die Klasse, die Sie unter `Klasse für Klassenliste` wählen.",
+      "`Auswertung exportieren` bietet PDF und Word `ausführlich` oder als `kompakte Tabelle`.",
     ],
     differences: [
       "Auf dem Handy erscheint nur ein Hinweis. Der Export läuft am Computer.",
@@ -5327,14 +5332,14 @@ function exportsTopic(): HelpTopic {
     steps: [
       "Öffnen Sie `Datenverwaltung` und danach `Exporte`.",
       "Suchen Sie die passende Liste und wählen Sie `Liste erstellen`.",
-      "Wählen Sie im Fenster unter `Format` `PDF`, `DOCX` oder `XLSX`.",
       "Haken Sie unter `Spalten` an, was in der Liste stehen soll.",
-      "Wählen Sie `Exportieren`.",
+      "Wählen Sie unter `Format` `PDF`, `Word` oder `Excel`.",
+      "Wählen Sie `Herunterladen`.",
     ],
     result: "Die Datei liegt im Download-Ordner Ihres Geräts.",
     notes: [
       "Die Listen sind in `Kinderlisten`, `Personallisten` und `Momentaufnahmen` geordnet.",
-      "Eine `Momentaufnahme` wie die `Notfallliste` zeigt den Stand von jetzt.",
+      "Eine `Momentaufnahme` wie die `Notfallliste` zeigt den Stand von jetzt. Dort öffnet `Liste erstellen` ein Menü: `Drucken` oder das Format.",
       "Die `Gesundheitsliste` zeigt Allergien, Medikamente und andere Gesundheitsinformationen.",
       "Sie enthält zuerst nur Kinder mit einem Eintrag.",
       "`Auch Kinder ohne Eintrag` nimmt alle Kinder auf.",
