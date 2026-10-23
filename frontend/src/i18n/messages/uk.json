@@ -2399,6 +2399,7 @@
         "email_change_rate_limited": "{object} зараз недоступний. Спробуйте ще раз.",
         "email_change_same_email": "Не вдалося зберегти: {object}. Перевірте введені дані.",
         "email_change_link_invalid": "Не вдалося змінити: {object}. Перевірте поточний стан.",
+        "mfa_session_required": "Щоб перейти до іншої школи, увійдіть знову та підтвердьте вхід.",
         "mfa_not_enrolled": "Не вдалося змінити: {object}. Перевірте поточний стан.",
         "mfa_already_enrolled": "Не вдалося змінити: {object}. Перевірте поточний стан.",
         "passkey_not_found": "Не вдалося змінити: {object}. Перевірте поточний стан.",

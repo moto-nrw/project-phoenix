@@ -256,6 +256,7 @@ const (
 	CodeIdentityMfaBlocked                               = "identity.mfa_blocked"
 	CodeIdentityMfaCodeInvalid                           = "identity.mfa_code_invalid"
 	CodeIdentityMfaNotEnrolled                           = "identity.mfa_not_enrolled"
+	CodeIdentityMfaSessionRequired                       = "identity.mfa_session_required"
 	CodeIdentityOperatorInvitationInvalid                = "identity.operator_invitation_invalid"
 	CodeIdentityOperatorSelfDeactivation                 = "identity.operator_self_deactivation"
 	CodeIdentityPasskeyLoginFailed                       = "identity.passkey_login_failed"
@@ -301,7 +302,6 @@ const (
 	CodeIotNoAttendanceRecordToday                       = "iot.no_attendance_record_today"
 	CodeIotNoRoomAvailable                               = "iot.no_room_available"
 	CodeIotNoSessionToEnd                                = "iot.no_session_to_end"
-	CodeIotOpenRoomBinaryMode                            = "iot.open_room_binary_mode"
 )
 
 var errorCodeClasses0 = map[string]string{
@@ -559,6 +559,7 @@ var errorCodeClasses0 = map[string]string{
 	"identity.mfa_blocked":                                 "unavailable",
 	"identity.mfa_code_invalid":                            "input",
 	"identity.mfa_not_enrolled":                            "business_rejection",
+	"identity.mfa_session_required":                        "permission",
 	"identity.operator_invitation_invalid":                 "business_rejection",
 	"identity.operator_self_deactivation":                  "business_rejection",
 	"identity.passkey_login_failed":                        "business_rejection",
@@ -604,7 +605,6 @@ var errorCodeClasses0 = map[string]string{
 	"iot.no_attendance_record_today":                       "input",
 	"iot.no_room_available":                                "input",
 	"iot.no_session_to_end":                                "input",
-	"iot.open_room_binary_mode":                            "business_rejection",
 }
 
 func init() {

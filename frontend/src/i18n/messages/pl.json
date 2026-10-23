@@ -2399,6 +2399,7 @@
         "email_change_rate_limited": "{object} jest teraz niedostępne. Spróbuj ponownie.",
         "email_change_same_email": "Nie udało się zapisać: {object}. Sprawdź wpisane dane.",
         "email_change_link_invalid": "Nie udało się zmienić: {object}. Sprawdź aktualny stan.",
+        "mfa_session_required": "Aby zmienić szkołę, zaloguj się ponownie i potwierdź logowanie.",
         "mfa_not_enrolled": "Nie udało się zmienić: {object}. Sprawdź aktualny stan.",
         "mfa_already_enrolled": "Nie udało się zmienić: {object}. Sprawdź aktualny stan.",
         "passkey_not_found": "Nie udało się zmienić: {object}. Sprawdź aktualny stan.",

@@ -12,6 +12,8 @@ import (
 // seeder never changes roles or permissions of an account that already logged
 // in, so the claims of a reused token stay current. Failed logins are not
 // cached. Operator logins pass through because they drive the MFA flow.
+// Successful tenant switches invalidate the presented login: its refresh
+// family is retired even though its access JWT has not expired yet.
 type loginCachingAdapter struct {
 	Adapter
 	mu     sync.Mutex
@@ -45,6 +47,28 @@ func (a *loginCachingAdapter) LoginParent(ctx context.Context, email, password s
 	return a.login(loginCacheKey{"parent", email, password, ""}, func() (AuthRef, error) {
 		return a.Adapter.LoginParent(ctx, email, password)
 	})
+}
+
+func (a *loginCachingAdapter) Raw(ctx context.Context, auth AuthRef, method, path string, body any, headers map[string]string) ([]byte, int, error) {
+	raw, status, err := a.Adapter.Raw(ctx, auth, method, path, body, headers)
+	if err == nil && status >= 200 && status < 300 && method == "POST" && path == "/auth/switch-tenant" {
+		a.mu.Lock()
+		entries := make([]*cachedLogin, 0, len(a.logins))
+		for key, entry := range a.logins {
+			if key.portal == "tenant" {
+				entries = append(entries, entry)
+			}
+		}
+		a.mu.Unlock()
+		for _, entry := range entries {
+			entry.mu.Lock()
+			if entry.auth.Token == auth.Token {
+				entry.auth, entry.done = AuthRef{}, false
+			}
+			entry.mu.Unlock()
+		}
+	}
+	return raw, status, err
 }
 
 // login locks per account, so concurrent workers signing in as the same

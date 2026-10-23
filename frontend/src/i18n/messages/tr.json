@@ -2399,6 +2399,7 @@
         "email_change_rate_limited": "{object} şu anda kullanılamıyor. Yeniden deneyin.",
         "email_change_same_email": "{object} kaydedilemedi. Girdiğiniz bilgileri kontrol edin.",
         "email_change_link_invalid": "{object} değiştirilemedi. Güncel durumu kontrol edin.",
+        "mfa_session_required": "Okul değiştirmek için yeniden giriş yapın ve girişinizi doğrulayın.",
         "mfa_not_enrolled": "{object} değiştirilemedi. Güncel durumu kontrol edin.",
         "mfa_already_enrolled": "{object} değiştirilemedi. Güncel durumu kontrol edin.",
         "passkey_not_found": "{object} değiştirilemedi. Güncel durumu kontrol edin.",

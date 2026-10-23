@@ -26,11 +26,17 @@ Personalfinanzrechte verlangen MFA unabhängig von der Schuleinstellung.
    Sperren erneut. Elternsitzungen sind ein eigener Bereich ohne Personalrechte.
 4. Der Schulwechsel selbst ist keine zweite Authentisierung. Er erhält den
    vorhandenen Nachweis nur aus der vorgelegten, lebenden OGS-Sitzungsfamilie
-   desselben Kontos. Identity & Access liest ihn unter der Kontosperre erneut;
-   MFA-Zurücksetzung, Widerruf, Ablauf und fremde Portalbereiche dürfen keinen
+   desselben Kontos, auch beim Wechsel in einen anderen Träger. Nicht die Schule
+   oder der Träger, sondern diese Sitzung bindet den Nachweis. Identity & Access
+   liest ihn unter der Kontosperre erneut. MFA-Zurücksetzung, Widerruf, Ablauf
+   und fremde Portalbereiche dürfen keinen
    Nachweis liefern. Die Rechte und MFA-Regel der Zielschule gelten unverändert.
    Ohne gültigen Nachweis verlangt eine MFA-pflichtige Zielschule eine direkte
-   Anmeldung; die API lehnt den Wechsel mit 401 statt 500 ab. Die bisherigen
+   Anmeldung; die API lehnt den Wechsel mit 401 und
+   `identity.mfa_session_required` ab. Das gilt auch nach Ablauf der Schonfrist
+   einer durch Schulwechsel stillgelegten Familie. Ein Login-Cache muss den
+   vorgelegten Eintrag nach erfolgreichem Wechsel verwerfen; die nächste
+   Anmeldung durchläuft unverändert den regulären MFA-Weg. Die bisherigen
    Operator- und Eltern-Anmeldeverfahren bleiben unverändert.
 
 ## Folgen

@@ -1081,6 +1081,8 @@ export const ERROR_CATALOG = {
         "Die neue E-Mail-Adresse ist dieselbe wie die bisherige. Bitte geben Sie eine andere ein.",
       "identity.email_change_link_invalid":
         "Dieser Bestätigungslink ist abgelaufen oder ungültig. Bitte ändern Sie die E-Mail-Adresse erneut.",
+      "identity.mfa_session_required":
+        "Der Schulwechsel braucht eine neue Anmeldung. Bitte melden Sie sich erneut an und bestätigen Sie die Anmeldung.",
       "identity.mfa_not_enrolled":
         "Die Zwei-Faktor-Anmeldung ist noch nicht eingerichtet. Bitte richten Sie sie zuerst ein.",
       "identity.mfa_already_enrolled":
@@ -1456,6 +1458,8 @@ export const ERROR_CATALOG = {
         "The status of this change request has changed. Please reload the page.",
       "identity.operator_self_deactivation":
         "You cannot deactivate your own account. Ask another team member to do this.",
+      "identity.mfa_session_required":
+        "Switching schools requires a new sign-in. Please sign in again and complete the verification.",
       "staff.external_email_required": "Please enter an email address.",
       "staff.external_email_invalid":
         "This email address is not valid. Please check it.",
@@ -1734,6 +1738,8 @@ export const ERROR_CATALOG = {
         "Статус этого запроса на изменение изменился. Обновите страницу.",
       "identity.operator_self_deactivation":
         "Вы не можете деактивировать свою учётную запись. Попросите об этом другого участника команды.",
+      "identity.mfa_session_required":
+        "Для перехода в другую школу войдите снова и подтвердите вход.",
     },
   },
   sq: {
@@ -2015,6 +2021,8 @@ export const ERROR_CATALOG = {
         "Gjendja e kësaj kërkese për ndryshim ka ndryshuar. Ju lutemi ringarkoni faqen.",
       "identity.operator_self_deactivation":
         "Nuk mund ta çaktivizoni llogarinë tuaj. Kërkojini një personi tjetër nga ekipi ta bëjë këtë.",
+      "identity.mfa_session_required":
+        "Për të kaluar në një shkollë tjetër, hyni përsëri dhe konfirmoni hyrjen.",
     },
   },
   pl: {
@@ -2283,6 +2291,8 @@ export const ERROR_CATALOG = {
         "Stan tej prośby o zmianę się zmienił. Odśwież stronę.",
       "identity.operator_self_deactivation":
         "Nie możesz dezaktywować własnego konta. Poproś o to inną osobę z zespołu.",
+      "identity.mfa_session_required":
+        "Aby zmienić szkołę, zaloguj się ponownie i potwierdź logowanie.",
     },
   },
   tr: {
@@ -2558,6 +2568,8 @@ export const ERROR_CATALOG = {
         "Bu değişiklik talebinin durumu değişti. Lütfen sayfayı yenileyin.",
       "identity.operator_self_deactivation":
         "Kendi hesabınızı devre dışı bırakamazsınız. Bunu ekipten başka bir kişiden isteyin.",
+      "identity.mfa_session_required":
+        "Okul değiştirmek için yeniden giriş yapın ve girişinizi doğrulayın.",
     },
   },
   uk: {
@@ -2823,6 +2835,8 @@ export const ERROR_CATALOG = {
         "Статус цього запиту на зміну змінився. Оновіть сторінку.",
       "identity.operator_self_deactivation":
         "Ви не можете деактивувати власний обліковий запис. Попросіть іншу людину з команди зробити це.",
+      "identity.mfa_session_required":
+        "Щоб перейти до іншої школи, увійдіть знову та підтвердьте вхід.",
     },
   },
 } as const;

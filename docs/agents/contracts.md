@@ -276,6 +276,14 @@ refresh, tenant switching, and wrong-portal rejection for affected flows.
 `[tenant]/layout.tsx` resolves slugs through `/auth/tenant/resolve?slug=...`
 (cached five minutes). `POST /auth/switch-tenant` returns a tenant-session JWT
 for the target school, not a `scope=school` portal token.
+Verified MFA belongs to the live tenant-session family of the same account,
+not its school or organization. A permitted switch across organizations preserves
+that proof while rechecking the target school's permissions and MFA policy.
+After reset, logout, expiry or elapsed switch-retirement grace, a privileged
+target requires a fresh MFA login: 401 `identity.mfa_session_required`. Clients
+must replace the presented session with the returned tokens; login caches must
+invalidate the retired login after a successful switch. See
+[ADR 0093](../adr/0093-privilegierte-rechte-erzwingen-einen-zweiten-anmeldenachweis.md).
 A switch to a school the account cannot access answers 401 with the code
 `identity.tenant_access_denied`, which `frontend/src/lib/tenant-api.ts` reads;
 coordinate producer and consumer changes.
