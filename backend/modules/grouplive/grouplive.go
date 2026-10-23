@@ -626,16 +626,22 @@ func (s *service) finishProjection(ctx context.Context, state *buildState) (*Pro
 	if err != nil {
 		return nil, fmt.Errorf("load tracking indicators: %w", err)
 	}
+	projection.RoomStatus = roomStatuses(state.projected, state.presence, state.selected.RoomID)
+	projection.TrackingIndicators = tracking
+
+	// Transfers name the substituting staff. A guest reads groups without
+	// users:read and sees no staff (ADR 0090); the substitution owner would
+	// refuse the guest role and fail the whole roster.
+	if !state.caller.CanReadStudentPlans {
+		return projection, nil
+	}
 	transfers, err := s.deps.Transfers.GroupHandovers(ctx, state.selected.ID, state.today)
 	if err != nil {
 		return nil, fmt.Errorf("load group transfers: %w", err)
 	}
-	if transfers == nil {
-		transfers = []Transfer{}
+	if transfers != nil {
+		projection.Transfers = transfers
 	}
-	projection.RoomStatus = roomStatuses(state.projected, state.presence, state.selected.RoomID)
-	projection.TrackingIndicators = tracking
-	projection.Transfers = transfers
 	return projection, nil
 }
 
