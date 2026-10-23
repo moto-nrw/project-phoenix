@@ -48,9 +48,11 @@ HTTP-Auslieferung und 0600/0700 ersetzen den Datenträger-/Schlüsselnachweis ni
    Den Bestandsschritt nach dem [Foto-Runbook](private-fotodateien-3840.md)
    prüfen; HTTP-Authentifizierung oder Volume-
    Verschlüsselung allein schließen lokalen Lesezugriff nicht aus.
-   Die Diagnose-Leserolle 3840-f muss sensible Spalten und
-   Umgehungen über Views, Funktionen oder Rollenwechsel ausschließen; keine
-   Abnahme allein anhand eines Rollennamens. Bestehende Dumps, cron-Sicherungen,
+   Die im Code umgesetzte Diagnose-Leserolle 3840-f nach dem
+   [Diagnose-Runbook](diagnose-lesezugang-3840.md) einrichten und ihre effektiven
+   Rechte ohne Kundeninhalte prüfen. Sensible Spalten und Umgehungen über Views,
+   Funktionen oder Rollenwechsel ausschließen; keine Abnahme allein anhand
+   eines Rollennamens. Bestehende Dumps, cron-Sicherungen,
    Release-Snapshots und temporäre Kopien inventarisieren. Getrennte
    Verschlüsselung, Zugriff und Ablauf nach dem [Backup-Runbook](daily-backup.md)
    belegen. Volume-Verschlüsselung schützt keine bereits exportierte Klartextkopie.
@@ -89,9 +91,9 @@ Screenshots mit Kundendaten und Schlüssel bleiben außerhalb dieses Repos.
 - Ein belegter Datenträgerschutz schließt nur den geprüften Teil von 3840-c.
   Backupbetrieb/Restore (#3836), Leserolle (3840-f) und Maskierungsrollout
   haben getrennte Nachweise.
-- Der Befund `users.student_data_change_requests` aus der Risikobewertung
-  bleibt bis zur gezielten Abhilfe in #4844 (Slice 4844-a) einschließlich
-  Altbestand und Restore offen.
+- Die Gesundheitskopien in `users.student_data_change_requests` sind durch
+  #4844 (Slice 4844-a, Migration `1.15.483`) im Code maskiert. Produktiver
+  Rollout und Abnahme einschließlich Altbestand und Restore bleiben offen.
 - Foto-/Avatar-Code-Abhilfe umgesetzt (#4852): neue Dateien 0600/0700.
   Bestand, Rollout und produktiver Nachweis einschließlich Auslieferung
   bleiben in 3840-h offen; ein Datenträgernachweis schließt diesen Befund nicht.
