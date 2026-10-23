@@ -149,3 +149,62 @@ func TestSchoolTrackerRejectsMissingSchoolMetadata(t *testing.T) {
 	tracker.Capture("", "$groupidentify", map[string]any{"$group_key": "not-a-school"})
 	assert.Empty(t, target.captured())
 }
+
+func TestParentEnrollmentRequiresTargetAndMembershipSchools(t *testing.T) {
+	t.Parallel()
+	for _, tc := range []struct {
+		name       string
+		target     int64
+		off        int64
+		lookupErr  bool
+		settingErr bool
+		want       int
+	}{
+		{name: "all permit", target: 44, want: 1},
+		{name: "target denies", target: 44, off: 44},
+		{name: "membership denies", target: 44, off: 43},
+		{name: "unknown target"},
+		{name: "target lookup fails", target: 44, lookupErr: true},
+		{name: "target setting fails", target: 44, settingErr: true},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			target := &recordingTracker{}
+			policy := CollectionPolicy{
+				ParentSchools: func(_ context.Context, account int64) (map[int64][]int64, error) {
+					return map[int64][]int64{account: {42, 43}}, nil
+				},
+				PublicSchool: func(_ context.Context, slug string) (int64, error) {
+					require.Equal(t, "school-c", slug)
+					if tc.lookupErr {
+						return 0, errors.New("unavailable")
+					}
+					return tc.target, nil
+				},
+				SchoolEnabled: func(_ context.Context, school int64) (bool, error) {
+					if school == tc.target && tc.settingErr {
+						return true, errors.New("unavailable")
+					}
+					return school != tc.off, nil
+				},
+			}
+			router := chi.NewRouter()
+			router.Use(CoreActionMiddleware(CoreActionConfig{Tracker: target, Policy: policy,
+				RequestActor: func(*http.Request) (Actor, bool) {
+					return Actor{Surface: SurfaceParents, AccountID: 91}, true
+				}}))
+			router.Post("/parent/enrollments/{tenantSlug}/submit", func(w http.ResponseWriter, _ *http.Request) {
+				w.WriteHeader(http.StatusCreated)
+			})
+			response := httptest.NewRecorder()
+			router.ServeHTTP(response, httptest.NewRequest(http.MethodPost, "/parent/enrollments/school-c/submit", nil))
+			require.Equal(t, http.StatusCreated, response.Code)
+			events := target.captured()
+			require.Len(t, events, tc.want)
+			if tc.want > 0 {
+				assert.Equal(t, "enrollment_submitted", events[0].event)
+				assert.Equal(t, SurfaceParents, events[0].props["surface"])
+				assert.Equal(t, "44", events[0].props["school_id"])
+			}
+		})
+	}
+}

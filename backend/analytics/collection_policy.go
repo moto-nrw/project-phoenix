@@ -36,6 +36,9 @@ func (p CollectionPolicy) AllowsActor(ctx context.Context, actor Actor) bool {
 	if actor.Surface != SurfaceParents {
 		return p.AllowsSchool(ctx, actor.SchoolID)
 	}
+	if actor.SchoolID > 0 && !p.AllowsSchool(ctx, actor.SchoolID) {
+		return false
+	}
 	if actor.AccountID <= 0 || p.ParentSchools == nil {
 		return false
 	}
@@ -51,10 +54,11 @@ func (p CollectionPolicy) AllowsActor(ctx context.Context, actor Actor) bool {
 	return true
 }
 
-// PublicActor resolves the school of the public enrollment route, not a
-// caller-supplied school ID. An unknown school never produces an event.
-func (p CollectionPolicy) PublicActor(r *http.Request, actor Actor) (Actor, bool) {
-	if actor.SchoolID > 0 || actor.Surface != SurfacePublic || p.Demo {
+// EnrollmentActor resolves the route target, never a caller-supplied school
+// ID. Parents must additionally allow that school, even before membership.
+func (p CollectionPolicy) EnrollmentActor(r *http.Request, actor Actor) (Actor, bool) {
+	parentEnrollment := actor.Surface == SurfaceParents && chi.URLParam(r, "tenantSlug") != ""
+	if p.Demo || (!parentEnrollment && (actor.SchoolID > 0 || actor.Surface != SurfacePublic)) {
 		return actor, true
 	}
 	if p.PublicSchool == nil {
