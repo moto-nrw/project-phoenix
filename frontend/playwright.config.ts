@@ -57,7 +57,7 @@ const webServerEnvPrefix = Object.entries(webServerEnv)
 export default defineConfig({
   testDir: "./e2e",
   // Serverlose Layouttests laufen über playwright.layout.config.ts.
-  testIgnore: "layout/**",
+  testIgnore: ["layout/**", "network/**"],
   fullyParallel: true,
   forbidOnly: !!process.env.CI,
   workers: process.env.CI ? 1 : undefined,
