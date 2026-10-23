@@ -138,12 +138,19 @@ matches the host, including the five that used to exist only there
 with `scripts/deploy-grafana-provisioning.sh`, not in the Grafana UI: a
 provisioned dashboard edited in the UI is overwritten on the next restart.
 
-`alerting/server-errors.yml` is deployed and the hand-made "Error Spike" rule
-is paused. `alerting/student-contract.yml` is not deployed: its collector is
-not installed, and the rule alerts on missing data. Thirteen further alert
-rules (backup, host, DB pool, 5xx, server down) were created in the Grafana
-UI and are not in this repository; neither are contact points, which name
-recipients.
+`alerting/server-errors.yml` is deployed. `alerting/student-contract.yml` is
+not deployed: its collector is not installed, and the rule alerts on missing
+data.
+
+`alerting/infrastructure.yml` (backup, host, DB pool, event loop, Postgres
+connections) and `alerting/production.yml` (5xx, DB connection, server down)
+hold the rules that were created in the Grafana UI, moved to files on
+2026-10-23 with their UIDs. The hand-made "Error Spike" rule was removed; the
+server error rule replaces it. Every alert rule on the host is now provisioned
+from this directory. Create a new rule here, not in the UI: Grafana refuses to
+provision a file rule whose UID already exists in the UI, and it does not
+allow editing a file rule there. Contact points and the notification policy
+stay on the host because they name recipients.
 
 ## Student storage Contract observation
 
