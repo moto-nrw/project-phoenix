@@ -57,7 +57,10 @@ not the thresholds or the permitted architecture.
 
 Fetched `origin/development` before branching. Baseline:
 `722c5aa147a1baaf33d19adb8910663d9b9974db`, including #4631, #4635 and #4637.
-Issue #4542 had no comments. All before figures use that immutable tree;
+Issue #4542 had no comments. Before final verification, development
+`c40cab16f5` (#4639) was merged without conflicts; all root pass-through counts
+and all three source-ratchet budgets remained unchanged. All before figures
+use the original immutable tree;
 "after" adds this change's scan expansion, rename and mechanical split.
 No app servers or remote moto API are used for measurement.
 
