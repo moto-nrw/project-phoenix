@@ -286,6 +286,8 @@ export const ERROR_CATALOG = {
         "Für diese E-Mail-Adresse gibt es schon ein Konto. Bitte verwenden Sie eine andere Adresse.",
       "identity.role_name_taken":
         "Eine Rolle mit diesem Namen gibt es schon. Bitte wählen Sie einen anderen Namen.",
+      "identity.role_platform_permission":
+        "Eigene Rollen können dieses Recht nicht bekommen.",
       "identity.invitation_account_login_required":
         "Für diese E-Mail-Adresse gibt es schon ein Konto. Bitte melden Sie sich zuerst damit an und öffnen Sie dann die Einladung erneut.",
       "identity.invitation_account_mismatch":

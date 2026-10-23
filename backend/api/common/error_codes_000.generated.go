@@ -272,6 +272,7 @@ const (
 	CodeIdentityPreviewTokenInvalid                      = "identity.preview_token_invalid"
 	CodeIdentityReadOnlyPreview                          = "identity.read_only_preview"
 	CodeIdentityRoleNameTaken                            = "identity.role_name_taken"
+	CodeIdentityRolePlatformPermission                   = "identity.role_platform_permission"
 	CodeIdentitySessionAccountInactive                   = "identity.session_account_inactive"
 	CodeIdentityTenantAccessDenied                       = "identity.tenant_access_denied"
 	CodeIdentityTenantAccessNotFound                     = "identity.tenant_access_not_found"
@@ -301,7 +302,6 @@ const (
 	CodeIotInvalidStaffClockState                        = "iot.invalid_staff_clock_state"
 	CodeIotNoActiveGroupsInRoom                          = "iot.no_active_groups_in_room"
 	CodeIotNoActiveSession                               = "iot.no_active_session"
-	CodeIotNoAttendanceRecordToday                       = "iot.no_attendance_record_today"
 )
 
 var errorCodeClasses0 = map[string]string{
@@ -575,6 +575,7 @@ var errorCodeClasses0 = map[string]string{
 	"identity.preview_token_invalid":                       "permission",
 	"identity.read_only_preview":                           "permission",
 	"identity.role_name_taken":                             "business_rejection",
+	"identity.role_platform_permission":                    "input",
 	"identity.session_account_inactive":                    "permission",
 	"identity.tenant_access_denied":                        "permission",
 	"identity.tenant_access_not_found":                     "business_rejection",
@@ -604,7 +605,6 @@ var errorCodeClasses0 = map[string]string{
 	"iot.invalid_staff_clock_state":                        "business_rejection",
 	"iot.no_active_groups_in_room":                         "input",
 	"iot.no_active_session":                                "input",
-	"iot.no_attendance_record_today":                       "input",
 }
 
 func init() {

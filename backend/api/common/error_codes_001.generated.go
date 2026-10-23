@@ -2,6 +2,7 @@
 package common
 
 const (
+	CodeIotNoAttendanceRecordToday                    = "iot.no_attendance_record_today"
 	CodeIotNoRoomAvailable                            = "iot.no_room_available"
 	CodeIotNoSessionToEnd                             = "iot.no_session_to_end"
 	CodeIotOpenRoomBinaryMode                         = "iot.open_room_binary_mode"
@@ -301,10 +302,10 @@ const (
 	CodeTimetableTemplateNotFound                     = "timetable.template_not_found"
 	CodeTimetableTemplatePlanningTrackUnavailable     = "timetable.template_planning_track_unavailable"
 	CodeTimetableTemplateRosterRebaseConflict         = "timetable.template_roster_rebase_conflict"
-	CodeTimetableTemplateSplitInPast                  = "timetable.template_split_in_past"
 )
 
 var errorCodeClasses1 = map[string]string{
+	"iot.no_attendance_record_today":                      "input",
 	"iot.no_room_available":                               "input",
 	"iot.no_session_to_end":                               "input",
 	"iot.open_room_binary_mode":                           "business_rejection",
@@ -604,7 +605,6 @@ var errorCodeClasses1 = map[string]string{
 	"timetable.template_not_found":                        "business_rejection",
 	"timetable.template_planning_track_unavailable":       "business_rejection",
 	"timetable.template_roster_rebase_conflict":           "business_rejection",
-	"timetable.template_split_in_past":                    "input",
 }
 
 func init() {

@@ -22,7 +22,7 @@ describe("permission-labels", () => {
       expect(resourceLabels.visits).toBe("Besuche");
       expect(resourceLabels.substitutions).toBe("Vertretungen");
       expect(resourceLabels.schedules).toBe("Zeitpläne");
-      expect(resourceLabels.config).toBe("Konfiguration");
+      expect(resourceLabels.config).toBe("Einstellungen");
       expect(resourceLabels.feedback).toBe("Feedback");
       expect(resourceLabels.iot).toBe("Geräte");
       expect(resourceLabels.system).toBe("System");
@@ -233,19 +233,19 @@ describe("permission-labels", () => {
         "Feedback auflisten",
       );
       expect(localizeDescription("config", "update")).toBe(
-        "Konfiguration bearbeiten",
+        "Einstellungen der Schule ändern",
       );
       expect(localizeDescription("iot", "manage")).toBe(
-        "IoT-Geräteverwaltung (Vollzugriff)",
+        "Tablets und Geräte anlegen und entfernen",
       );
       expect(localizeDescription("auth", "manage")).toBe(
-        "Authentifizierungsverwaltung (Vollzugriff)",
+        "Zahlen zu Rollen und Berechtigungen in der Übersicht sehen",
       );
       expect(localizeDescription("system", "manage")).toBe(
-        "Systemeinstellungen verwalten",
+        "Einstellungen von moto verwalten (nur moto-Team)",
       );
       expect(localizeDescription("admin", "*")).toBe(
-        "Vollzugriff auf alle Ressourcen",
+        "Darf alles in der Schule (nur Rolle Verwaltung)",
       );
     });
   });

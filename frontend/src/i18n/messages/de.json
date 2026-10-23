@@ -2390,6 +2390,7 @@
         "preview_token_invalid": "{object} enthält ungültige Angaben. Bitte prüfen Sie Ihre Eingaben.",
         "read_only_preview": "In der Vorschau können Sie nur lesen. Bitte beenden Sie die Vorschau, um etwas zu ändern.",
         "role_name_taken": "Eine Rolle mit diesem Namen gibt es schon. Bitte wählen Sie einen anderen Namen.",
+        "role_platform_permission": "Eigene Rollen können dieses Recht nicht bekommen.",
         "session_account_inactive": "Ihr Konto ist ausgeschaltet. Bitte wenden Sie sich an die Leitung Ihrer Schule.",
         "tenant_access_denied": "Ihr Konto hat keinen Zugang zu dieser Schule. Bitte melden Sie sich neu an.",
         "use_parent_portal": "Für {object} fehlt Ihnen die Berechtigung. Bitte fragen Sie die Schule.",

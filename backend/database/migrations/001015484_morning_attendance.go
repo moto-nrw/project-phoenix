@@ -20,6 +20,7 @@ func init() {
 			schoolContentRetentionVersion,  // previous subject check of audit.data_deletions
 			lehrkraftRoleVersion,           // the role the write permission goes to
 			classListEntriesVersion,        // the class-list-only children a row may name
+			schoolErasureVersion,           // the erasure phases the table is spliced into
 		},
 	})
 	Migrations.MustRegister(morningAttendanceUp, morningAttendanceDown)
@@ -200,6 +201,9 @@ func morningAttendanceUp(ctx context.Context, db *bun.DB) error {
 	if _, err := tx.ExecContext(ctx, morningAttendanceUpSQL); err != nil {
 		return fmt.Errorf("create active.morning_attendance: %w", err)
 	}
+	if err := installMorningAttendanceErasure(ctx, tx); err != nil {
+		return err
+	}
 	if err := tx.Commit(); err != nil {
 		return err
 	}
@@ -230,6 +234,9 @@ func morningAttendanceDown(ctx context.Context, db *bun.DB) error {
 		return fmt.Errorf("failed to begin transaction: %w", err)
 	}
 	defer rollbackMorningAttendance(ctx, tx)
+	if err := restoreSchoolErasurePhases(ctx, tx); err != nil {
+		return err
+	}
 	if _, err := tx.ExecContext(ctx, morningAttendanceDownSQL); err != nil {
 		return fmt.Errorf("drop active.morning_attendance: %w", err)
 	}

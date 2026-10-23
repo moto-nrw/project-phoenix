@@ -2390,6 +2390,7 @@
         "preview_token_invalid": "У вас нет доступа к: {object}. Обратитесь в школу.",
         "read_only_preview": "У вас нет доступа к: {object}. Обратитесь в школу.",
         "role_name_taken": "Не удалось изменить: {object}. Проверьте текущее состояние.",
+        "role_platform_permission": "Не удалось сохранить: {object}. Проверьте введённые данные.",
         "session_account_inactive": "Ваш аккаунт отключён. Обратитесь к руководству вашей школы.",
         "tenant_access_denied": "У вас нет доступа к: {object}. Обратитесь в школу.",
         "use_parent_portal": "У вас нет доступа к: {object}. Обратитесь в школу.",

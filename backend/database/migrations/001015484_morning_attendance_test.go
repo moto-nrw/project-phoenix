@@ -48,14 +48,25 @@ func TestMorningAttendanceRollsBack(t *testing.T) {
 		return err
 	}
 
+	inErasurePlan := func() bool {
+		for _, entry := range readErasurePlan(t, db) {
+			if entry.Name == "active.morning_attendance" {
+				return true
+			}
+		}
+		return false
+	}
+
 	require.NoError(t, morningAttendanceDown(ctx, db))
 	assert.False(t, tableExists())
 	assert.False(t, lehrkraftHolds())
+	assert.False(t, inErasurePlan(), "the down migration restores the 1.15.481 erasure plan")
 	require.ErrorContains(t, logRow(), "chk_data_deletions_subject", "before 1.15.484 the data kind needs a subject")
 
 	require.NoError(t, morningAttendanceUp(ctx, db))
 	assert.True(t, tableExists())
 	assert.True(t, lehrkraftHolds())
+	assert.True(t, inErasurePlan())
 
 	var enabled, forced bool
 	require.NoError(t, db.NewRaw(`SELECT relrowsecurity, relforcerowsecurity FROM pg_class
@@ -74,4 +85,21 @@ func TestMorningAttendanceRollsBack(t *testing.T) {
 	require.NoError(t, logRow())
 	assert.ErrorContains(t, morningAttendanceDown(ctx, db), "morning attendance retention rows exist",
 		"the subject check cannot be restored over logged retention rows")
+}
+
+// TestSchoolErasureDeletesMorningAttendance proves the erasure phases of
+// 1.15.481 cover the table after 1.15.484 spliced it in.
+func TestSchoolErasureDeletesMorningAttendance(t *testing.T) {
+	t.Parallel()
+	db := testpkg.SetupTestDB(t)
+	school := testpkg.Tenant(t)
+	student := testpkg.CreateTestStudentForTenant(t, db, school, "Morgen", "Kind", "2b")
+	entry := testpkg.CreateTestClassListEntryForTenant(t, db, school, "Liste", "Kind", "2b")
+	erasureExec(t, db, `INSERT INTO active.morning_attendance (tenant_id, date, student_id, class_list_entry_id, status)
+		VALUES (?, '2026-10-21', ?, NULL, 'present'), (?, '2026-10-21', NULL, ?, 'absent')`, school, student.ID, school, entry.ID)
+
+	assert.Equal(t, "db_done", eraseSchoolAsCLI(t, db, school, beginErasure(t, db, school)).Status)
+	var left int
+	require.NoError(t, db.NewRaw(`SELECT count(*) FROM active.morning_attendance WHERE tenant_id = ?`, school).Scan(t.Context(), &left))
+	assert.Zero(t, left)
 }
