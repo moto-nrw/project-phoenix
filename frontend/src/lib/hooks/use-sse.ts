@@ -233,8 +233,14 @@ export function useSSE(
             return;
           }
 
-          // Log detailed error information
+          // readyState CLOSED: the server answered, but not with a stream
+          // (401, 5xx). Otherwise the stream dropped without an answer:
+          // unavailable, which the logger records as an expected network
+          // failure (#2512).
           logger.error("sse connection error", {
+            ...(eventSource.readyState !== 2 && {
+              error_class: "unavailable",
+            }),
             endpoint,
             ready_state: eventSource?.readyState,
             error_type: err.type,

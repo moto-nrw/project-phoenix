@@ -36,6 +36,7 @@ interface StashedSaveFailure {
   readonly status?: number;
   readonly code?: string;
   readonly instance?: string;
+  readonly noResponse?: boolean;
 }
 
 function stashSaveFailure(locale: AppLocale, error: unknown): boolean {
@@ -45,6 +46,7 @@ function stashSaveFailure(locale: AppLocale, error: unknown): boolean {
     status: error instanceof ApiError ? error.status : undefined,
     code: error instanceof ApiError ? error.code : undefined,
     instance: error instanceof ApiError ? error.requestId : undefined,
+    noResponse: error instanceof ApiError ? error.noResponse : undefined,
   };
   try {
     window.sessionStorage.setItem(
@@ -73,14 +75,18 @@ function takeSaveFailure(): { locale: AppLocale; error: unknown } | null {
     return {
       locale: normalizeLocale(failure.locale),
       // Status, code and request ID travel: what the shared error path
-      // shows, including the Vorgangskennung to copy.
+      // shows, including the Vorgangskennung to copy. A save that got no
+      // answer stays marked as such for the log (#2512).
       error:
         failure.status === undefined && failure.code === undefined
           ? new Error("parent locale save failed")
-          : new ApiError("parent locale save failed", failure.status, {
-              code: failure.code,
-              instance: failure.instance,
-            }),
+          : Object.assign(
+              new ApiError("parent locale save failed", failure.status, {
+                code: failure.code,
+                instance: failure.instance,
+              }),
+              failure.noResponse ? { noResponse: true } : {},
+            ),
     };
   } catch (storageError) {
     logger.warn("parent_locale_save_failure_read_failed", {

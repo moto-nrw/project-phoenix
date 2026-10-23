@@ -180,6 +180,7 @@ vi.mock("~/contexts/ToastContext", async (importOriginal) => ({
 vi.mock("~/lib/logger", () => ({
   createLogger: () => ({
     error: vi.fn(),
+    warn: vi.fn(),
   }),
 }));
 

@@ -1,0 +1,369 @@
+{
+  "uid": "phoenix-overview",
+  "title": "Phoenix Overview",
+  "tags": ["phoenix"],
+  "timezone": "Europe/Berlin",
+  "refresh": "30s",
+  "time": { "from": "now-1h", "to": "now" },
+  "templating": {
+    "list": [
+      {
+        "name": "env",
+        "type": "custom",
+        "current": { "text": "All", "value": "$__all" },
+        "options": [
+          { "text": "All", "value": "$__all", "selected": true },
+          { "text": "prod", "value": "prod", "selected": false },
+          { "text": "staging", "value": "staging", "selected": false },
+          { "text": "demo", "value": "demo", "selected": false }
+        ],
+        "includeAll": true,
+        "multi": true,
+        "query": "prod,staging,demo"
+      },
+      {
+        "name": "service",
+        "type": "custom",
+        "current": { "text": "All", "value": "$__all" },
+        "options": [
+          { "text": "All", "value": "$__all", "selected": true },
+          { "text": "server", "value": "server", "selected": false },
+          { "text": "frontend", "value": "frontend", "selected": false },
+          { "text": "postgres", "value": "postgres", "selected": false }
+        ],
+        "includeAll": true,
+        "multi": true,
+        "query": "server,frontend,postgres"
+      }
+    ]
+  },
+  "panels": [
+    {
+      "id": 10,
+      "title": "Total Logs",
+      "type": "stat",
+      "gridPos": { "h": 4, "w": 6, "x": 0, "y": 0 },
+      "datasource": { "type": "loki", "uid": "P8E80F9AEF21F6940" },
+      "targets": [
+        {
+          "expr": "sum(count_over_time({env=~\"$env\", service=~\"$service\"} [$__range]))",
+          "refId": "A"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "fixed", "fixedColor": "blue" },
+          "thresholds": { "mode": "absolute", "steps": [{ "color": "blue", "value": null }] }
+        }
+      },
+      "options": { "reduceOptions": { "calcs": ["lastNotNull"] }, "colorMode": "background", "textMode": "auto" }
+    },
+    {
+      "id": 11,
+      "title": "Errors",
+      "type": "stat",
+      "gridPos": { "h": 4, "w": 6, "x": 6, "y": 0 },
+      "datasource": { "type": "loki", "uid": "P8E80F9AEF21F6940" },
+      "targets": [
+        {
+          "expr": "sum(count_over_time({env=~\"$env\", service=~\"$service\"} | json | __error__=\"\" | level = \"ERROR\" [$__range]))",
+          "refId": "A"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "thresholds": { "mode": "absolute", "steps": [
+            { "color": "green", "value": null },
+            { "color": "yellow", "value": 1 },
+            { "color": "red", "value": 10 }
+          ]}
+        }
+      },
+      "options": { "reduceOptions": { "calcs": ["lastNotNull"] }, "colorMode": "background", "textMode": "auto" }
+    },
+    {
+      "id": 12,
+      "title": "Warnings",
+      "type": "stat",
+      "gridPos": { "h": 4, "w": 6, "x": 12, "y": 0 },
+      "datasource": { "type": "loki", "uid": "P8E80F9AEF21F6940" },
+      "targets": [
+        {
+          "expr": "sum(count_over_time({env=~\"$env\", service=~\"$service\"} | json | __error__=\"\" | level = \"WARN\" [$__range]))",
+          "refId": "A"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "thresholds": { "mode": "absolute", "steps": [
+            { "color": "green", "value": null },
+            { "color": "orange", "value": 5 },
+            { "color": "red", "value": 50 }
+          ]}
+        }
+      },
+      "options": { "reduceOptions": { "calcs": ["lastNotNull"] }, "colorMode": "background", "textMode": "auto" }
+    },
+    {
+      "id": 13,
+      "title": "HTTP 5xx",
+      "type": "stat",
+      "gridPos": { "h": 4, "w": 6, "x": 18, "y": 0 },
+      "datasource": { "type": "loki", "uid": "P8E80F9AEF21F6940" },
+      "targets": [
+        {
+          "expr": "sum(count_over_time({env=~\"$env\", service=~\"$service\"} | json | __error__=\"\" | msg =~ \"5[0-9][0-9]: .*\" [$__range]))",
+          "refId": "A"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "thresholds": { "mode": "absolute", "steps": [
+            { "color": "green", "value": null },
+            { "color": "red", "value": 1 }
+          ]}
+        }
+      },
+      "options": { "reduceOptions": { "calcs": ["lastNotNull"] }, "colorMode": "background", "textMode": "auto" }
+    },
+    {
+      "id": 1,
+      "title": "Log Volume by Environment",
+      "type": "timeseries",
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 4 },
+      "datasource": { "type": "loki", "uid": "P8E80F9AEF21F6940" },
+      "targets": [
+        {
+          "expr": "sum by (env) (count_over_time({env=~\"$env\", service=~\"$service\"} [1m]))",
+          "legendFormat": "{{env}}",
+          "refId": "A"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "palette-classic" },
+          "custom": {
+            "drawStyle": "bars",
+            "fillOpacity": 80,
+            "stacking": { "mode": "normal" },
+            "lineWidth": 0
+          },
+          "unit": "short"
+        }
+      }
+    },
+    {
+      "id": 2,
+      "title": "Error Rate",
+      "type": "timeseries",
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 4 },
+      "datasource": { "type": "loki", "uid": "P8E80F9AEF21F6940" },
+      "targets": [
+        {
+          "expr": "sum by (env) (count_over_time({env=~\"$env\", service=~\"$service\"} | json | __error__=\"\" | level = \"ERROR\" [5m]))",
+          "legendFormat": "{{env}} errors",
+          "refId": "A"
+        },
+        {
+          "expr": "sum by (env) (count_over_time({env=~\"$env\", service=~\"$service\"} | json | __error__=\"\" | level = \"WARN\" [5m]))",
+          "legendFormat": "{{env}} warnings",
+          "refId": "B"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "palette-classic" },
+          "custom": {
+            "drawStyle": "line",
+            "fillOpacity": 20,
+            "pointSize": 5,
+            "lineWidth": 2
+          }
+        }
+      }
+    },
+    {
+      "id": 3,
+      "title": "Log Volume by Service",
+      "type": "piechart",
+      "gridPos": { "h": 8, "w": 6, "x": 0, "y": 12 },
+      "datasource": { "type": "loki", "uid": "P8E80F9AEF21F6940" },
+      "targets": [
+        {
+          "expr": "sum by (service) (count_over_time({env=~\"$env\", service=~\"$service\"} [$__range]))",
+          "legendFormat": "{{service}}",
+          "refId": "A"
+        }
+      ]
+    },
+    {
+      "id": 4,
+      "title": "Log Level Distribution",
+      "description": "Only counts structured JSON logs (slog). BUN debug lines and non-JSON logs are excluded.",
+      "type": "piechart",
+      "gridPos": { "h": 8, "w": 6, "x": 6, "y": 12 },
+      "datasource": { "type": "loki", "uid": "P8E80F9AEF21F6940" },
+      "targets": [
+        {
+          "expr": "sum(count_over_time({env=~\"$env\", service=~\"$service\"} | json | __error__=\"\" | level = \"INFO\" [$__range]))",
+          "legendFormat": "INFO",
+          "refId": "A"
+        },
+        {
+          "expr": "sum(count_over_time({env=~\"$env\", service=~\"$service\"} | json | __error__=\"\" | level = \"WARN\" [$__range]))",
+          "legendFormat": "WARN",
+          "refId": "B"
+        },
+        {
+          "expr": "sum(count_over_time({env=~\"$env\", service=~\"$service\"} | json | __error__=\"\" | level = \"ERROR\" [$__range]))",
+          "legendFormat": "ERROR",
+          "refId": "C"
+        },
+        {
+          "expr": "sum(count_over_time({env=~\"$env\", service=~\"$service\"} | json | __error__=\"\" | level = \"DEBUG\" [$__range]))",
+          "legendFormat": "DEBUG",
+          "refId": "D"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "fixed" }
+        },
+        "overrides": [
+          { "matcher": { "id": "byName", "options": "INFO" }, "properties": [{ "id": "color", "value": { "fixedColor": "green", "mode": "fixed" } }] },
+          { "matcher": { "id": "byName", "options": "WARN" }, "properties": [{ "id": "color", "value": { "fixedColor": "orange", "mode": "fixed" } }] },
+          { "matcher": { "id": "byName", "options": "ERROR" }, "properties": [{ "id": "color", "value": { "fixedColor": "red", "mode": "fixed" } }] },
+          { "matcher": { "id": "byName", "options": "DEBUG" }, "properties": [{ "id": "color", "value": { "fixedColor": "blue", "mode": "fixed" } }] }
+        ]
+      }
+    },
+    {
+      "id": 5,
+      "title": "HTTP Requests per Minute",
+      "type": "timeseries",
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 12 },
+      "datasource": { "type": "loki", "uid": "P8E80F9AEF21F6940" },
+      "targets": [
+        {
+          "expr": "sum by (env) (count_over_time({env=~\"$env\", service=~\"$service\"} | json | __error__=\"\" | msg =~ \"[0-9]+: .*\" [1m]))",
+          "legendFormat": "{{env}} total",
+          "refId": "A"
+        },
+        {
+          "expr": "sum by (env) (count_over_time({env=~\"$env\", service=~\"$service\"} | json | __error__=\"\" | msg =~ \"5[0-9][0-9]: .*\" [1m]))",
+          "legendFormat": "{{env}} 5xx",
+          "refId": "B"
+        },
+        {
+          "expr": "sum by (env) (count_over_time({env=~\"$env\", service=~\"$service\"} | json | __error__=\"\" | msg =~ \"4[0-9][0-9]: .*\" [1m]))",
+          "legendFormat": "{{env}} 4xx",
+          "refId": "C"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "custom": {
+            "drawStyle": "line",
+            "fillOpacity": 10,
+            "lineWidth": 2
+          }
+        }
+      }
+    },
+    {
+      "id": 14,
+      "title": "Top Endpoints",
+      "description": "Most requested API paths (structured logs only)",
+      "type": "table",
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 20 },
+      "datasource": { "type": "loki", "uid": "P8E80F9AEF21F6940" },
+      "targets": [
+        {
+          "expr": "topk(15, sum by (request_path) (count_over_time({env=~\"$env\", service=\"server\"} | json | __error__=\"\" | request_path!=\"\" [$__range])))",
+          "legendFormat": "{{request_path}}",
+          "refId": "A",
+          "instant": true
+        }
+      ],
+      "transformations": [
+        { "id": "sortBy", "options": { "sort": [{ "field": "Value", "desc": true }] } }
+      ],
+      "fieldConfig": {
+        "overrides": [
+          { "matcher": { "id": "byName", "options": "request_path" }, "properties": [{ "id": "displayName", "value": "Endpoint" }] },
+          { "matcher": { "id": "byName", "options": "Value" }, "properties": [{ "id": "displayName", "value": "Requests" }] }
+        ]
+      }
+    },
+    {
+      "id": 15,
+      "title": "Slow BUN Queries (>100ms)",
+      "description": "Database queries taking more than 100ms",
+      "type": "logs",
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 20 },
+      "datasource": { "type": "loki", "uid": "P8E80F9AEF21F6940" },
+      "targets": [
+        {
+          "expr": "{env=~\"$env\", service=\"server\"} |= \"[bun]\" | pattern \"<_> <time> <op> <duration> <query>\" | duration > \"100ms\"",
+          "refId": "A"
+        }
+      ],
+      "options": {
+        "showTime": true,
+        "showLabels": true,
+        "wrapLogMessage": true,
+        "prettifyLogMessage": false,
+        "enableLogDetails": true,
+        "sortOrder": "Descending"
+      }
+    },
+    {
+      "id": 6,
+      "title": "Recent Errors & Warnings",
+      "type": "logs",
+      "gridPos": { "h": 10, "w": 24, "x": 0, "y": 28 },
+      "datasource": { "type": "loki", "uid": "P8E80F9AEF21F6940" },
+      "targets": [
+        {
+          "expr": "{env=~\"$env\", service=~\"$service\"} | json | __error__=\"\" | level =~ \"ERROR|WARN\"",
+          "refId": "A"
+        }
+      ],
+      "options": {
+        "showTime": true,
+        "showLabels": true,
+        "showCommonLabels": false,
+        "wrapLogMessage": true,
+        "prettifyLogMessage": true,
+        "enableLogDetails": true,
+        "sortOrder": "Descending",
+        "dedupStrategy": "none"
+      }
+    },
+    {
+      "id": 7,
+      "title": "Live Log Stream",
+      "type": "logs",
+      "gridPos": { "h": 12, "w": 24, "x": 0, "y": 38 },
+      "datasource": { "type": "loki", "uid": "P8E80F9AEF21F6940" },
+      "targets": [
+        {
+          "expr": "{env=~\"$env\", service=~\"$service\"}",
+          "refId": "A"
+        }
+      ],
+      "options": {
+        "showTime": true,
+        "showLabels": true,
+        "showCommonLabels": false,
+        "wrapLogMessage": true,
+        "prettifyLogMessage": true,
+        "enableLogDetails": true,
+        "sortOrder": "Descending",
+        "dedupStrategy": "none"
+      }
+    }
+  ],
+  "schemaVersion": 39,
+  "version": 2
+}
