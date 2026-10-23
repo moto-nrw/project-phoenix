@@ -198,3 +198,37 @@ func testCleanupSchoolFailure(t *testing.T, failure string) {
 	assert.Equal(t, "completed", outcome)
 	assert.False(t, visitExists(t, admin, failed.expired), "the failed run stays due across a restart")
 }
+
+// Recording only the tenant at this consumer boundary keeps storage behavior
+// in the owners' suites; this contract covers all three scheduler recovery jobs.
+type recordingFileCleanup struct{ schools []int64 }
+
+func (r *recordingFileCleanup) CleanupOrphanedStaffDocumentFiles(ctx context.Context) (int, error) {
+	r.schools = append(r.schools, testpkg.TenantIDFromContext(ctx))
+	return 0, nil
+}
+func (r *recordingFileCleanup) CleanupOrphanedStudentDocumentFiles(ctx context.Context) (int, error) {
+	r.schools = append(r.schools, testpkg.TenantIDFromContext(ctx))
+	return 0, nil
+}
+func (r *recordingFileCleanup) CleanupOrphanedFiles(ctx context.Context) (int, error) {
+	r.schools = append(r.schools, testpkg.TenantIDFromContext(ctx))
+	return 0, nil
+}
+
+func TestFileCleanupIncludesInactiveAndSoftDeletedSchools(t *testing.T) {
+	t.Parallel()
+	admin, deps := cleanupTestDependencies(t, nil)
+	active := seedCleanupSchool(t, admin, false, false, 0)
+	inactive := seedCleanupSchool(t, admin, true, false, 0)
+	deleted := seedCleanupSchool(t, admin, true, true, 0)
+	staff, students, files := &recordingFileCleanup{}, &recordingFileCleanup{}, &recordingFileCleanup{}
+	deps.StaffDocumentCleaner, deps.StudentDocumentCleaner, deps.FileStoreCleaner = staff, students, files
+	scheduler.NewFileCleanupTestRunner(deps)()
+	for name, cleaner := range map[string]*recordingFileCleanup{"staff": staff, "students": students, "files and photos": files} {
+		for _, school := range []int64{active.id, inactive.id, deleted.id} {
+			assert.Contains(t, cleaner.schools, school, "%s must drain cleanup intents regardless of school status", name)
+		}
+		assert.NotContains(t, cleaner.schools, int64(0), "%s must always have a tenant scope", name)
+	}
+}

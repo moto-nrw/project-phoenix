@@ -7,13 +7,22 @@ Slice 4728-a, Teil von #4728 und #3846. Keine vollständige Mandantenlöschung
 
 **Im Code umgesetzt:** Die nächtlichen DSGVO-Jobs bekommen eine eigene
 Schulliste einschließlich inaktiver und soft-gelöschter Schulen. Die übrigen
-Jobs behalten ihre bisherigen Listen. Je Schule gelten weiter ihre Settings,
+Jobs behalten ihre bisherigen Listen, ausgenommen die Datei-Aufräumjobs.
+Für die nächtlichen Läufe gelten je Schule weiter ihre Settings,
 die Tenant-Transaktion mit RLS und der dauerhafte Erfolgsvermerk in
 `platform.cleanup_runs`. Eine vorhandene Notbremse
 (`gdpr.data_cleanup_enabled = false`) bleibt wirksam. Ohne Erfolgsvermerk
 wartet eine Schule auf ihre eingestellte Minute; verpasste Läufe mit älterem
 Erfolgsvermerk werden beim nächsten Tick nachgeholt. Zurückgegebene Fehler
 setzen keinen Erfolgsvermerk und hindern andere Schulen nicht am Lauf.
+
+Die drei Datei-Aufräumjobs erfassen ebenfalls alle vorhandenen Schulzeilen
+und entfernen offene Dateien weiter im Fünf-Minuten-Takt. Das umfasst
+Personal- und Kinderdokumente, die Dateiablage, Anhänge von Elternbriefen,
+Kinderfotos und Anmeldedokumente. Die Aufträge kommen aus den mandantengetrennten
+Warteschlangen; die Schulliste allein löst keine Dateilöschung aus.
+Bereits beauftragte Datei-Löschungen werden unabhängig von der nächtlichen
+Notbremse abgearbeitet und haben keinen Eintrag in `platform.cleanup_runs`.
 
 **Lokal geprüft:** `backend/modules/schedulerruntime/compose/cleanup_schools_test.go`
 prüft mit synthetischen Daten und der Rolle `phoenix_auth` aktive, inaktive
@@ -23,6 +32,15 @@ Settings- und Transaktionsfehler. Ausführen aus `backend/`:
 
 ```sh
 ../scripts/run-go-toolchain.sh go test -tags=testhooks ./modules/schedulerruntime/compose -run 'Test(NightlyCleanup|Cleanup.*Failure)' -count=1
+```
+
+Der Regressionstest `backend/modules/schedulerruntime/compose/cleanup_files_test.go`
+prüft AU-Retention und echte Datei-Entfernung einer soft-gelöschten Schule;
+die Datei einer anderen Schule bleibt erhalten. Der Scheduler-Vertragstest
+prüft die Schulliste aller drei Datei-Jobs. Beide laufen aus dem Repo-Root:
+
+```sh
+scripts/run-go-toolchain.sh go -C backend test -tags=testhooks ./modules/schedulerruntime/compose -run 'Test(SoftDeletedSchoolRetentionRemovesSickNoteFile|FileCleanupIncludesInactiveAndSoftDeletedSchools)$' -count=1
 ```
 
 **Produktiv nachgewiesen: offen.** Dieser Slice greift weder auf Produktion
@@ -46,7 +64,17 @@ fachliche Quelle; die lokalen Tests belegen keinen produktiven Stand.
    Gewollte Notbremsen getrennt prüfen. Der Worker meldet einen Lauf mit
    Schulfehler als `failed`, nicht als Gesamterfolg. Fehler beheben und den
    Nachhollauf abwarten; Erfolgsvermerke niemals von Hand setzen.
-4. Zeitpunkt, Release, aggregierte Zählwerte, Ergebnis und offene Fehler im
+4. Datei-Löschung gesondert prüfen: Ein nächtlicher Erfolgsvermerk oder
+   `audit.data_deletions` bestätigt nicht die Entfernung der gespeicherten
+   Bytes. Nach dem nächsten Datei-Aufräumjob die offenen Aufträge je
+   Schulstatus in `users.staff_document_file_cleanup`,
+   `users.student_document_file_cleanup`, `documents.file_cleanup` und
+   `documents.announcement_attachment_cleanup`
+   prüfen. Auch die Aufträge für Kinderfotos und Anmeldedokumente liegen
+   in `documents.file_cleanup`. Bei verbleibenden fälligen Aufträgen den
+   Fehler beheben und den nächsten Versuch prüfen. Keine Pfade oder
+   Dokumentinhalte in den Nachweis kopieren.
+5. Zeitpunkt, Release, aggregierte Zählwerte, Ergebnis und offene Fehler im
    internen Betriebsnachweis festhalten. Erst danach den produktiven Nachweis
    dieses Slices als erbracht markieren. Vollständige Mandantenlöschung und
    Sicherungskopien bleiben die separaten Verfahren #3837 und #3836.
@@ -80,5 +108,6 @@ Die Zählung allein belegt weder die Löschung jeder Datenart noch, ob eine
 Schule bewusst angehalten wurde. Abweichungen werden anhand der bestehenden
 Settings und der Job-Fehlermeldungen untersucht, ohne Personeninhalte in den
 Nachweis zu kopieren. In der isolierten Demo-Umgebung gilt dieselbe Änderung
-auch für stillgelegte Demo-Schulen (ADR 0029); der stündliche Demo-Betrieb
-für Besuchernamen bleibt ein eigener Löschweg.
+auch für stillgelegte Demo-Schulen (ADR 0029), sofern
+`CLEANUP_SCHEDULER_ENABLED` den nächtlichen Lauf dort zulässt. Der stündliche
+Demo-Betrieb für Besuchernamen bleibt ein eigener Löschweg.

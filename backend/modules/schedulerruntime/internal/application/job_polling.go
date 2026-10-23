@@ -86,9 +86,9 @@ func (s *Scheduler) forEachTenant(ctx context.Context, opName string, fn func(ct
 	return result.Err
 }
 
-// forEachTenantIncludingInactive runs a maintenance operation for every
-// non-deleted tenant. It is reserved for recovery work that must continue
-// after a school has been deactivated.
+// forEachTenantIncludingInactive drains durable cleanup work for every school whose
+// data still exists, including inactive and soft-deleted schools. The same
+// directory supplies the nightly retention that produces these intents.
 func (s *Scheduler) forEachTenantIncludingInactive(ctx context.Context, opName string, fn func(ctx context.Context) error) error {
 	if s.tenantRuntime == nil || (s.allTenantIDsLoader == nil && s.schoolRepo == nil) {
 		err := fmt.Errorf("tenant runtime is not configured for %s: %w", opName, errTenantRuntimeRequired)
@@ -110,7 +110,7 @@ func (s *Scheduler) forEachTenantIncludingInactive(ctx context.Context, opName s
 	} else {
 		if err := s.tenantRuntime.WithinAdmin(ctx, func(txCtx context.Context) error {
 			var listErr error
-			tenantIDs, listErr = s.schoolRepo.ListNonDeletedTenantIDs(txCtx)
+			tenantIDs, listErr = s.schoolRepo.ListCleanupTenantIDs(txCtx)
 			return listErr
 		}); err != nil {
 			recordJobCommandFailure(ctx, err)

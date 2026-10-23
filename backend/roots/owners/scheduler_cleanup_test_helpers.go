@@ -3,16 +3,19 @@
 package owners
 
 import (
+	"context"
 	"log/slog"
 	"time"
 
 	auditCompose "github.com/moto-nrw/project-phoenix/modules/auditlog/compose"
 	schedulerCompose "github.com/moto-nrw/project-phoenix/modules/schedulerruntime/compose"
 	schedulerPorts "github.com/moto-nrw/project-phoenix/modules/schedulerruntime/ports"
+	"github.com/moto-nrw/project-phoenix/modules/securityruntime"
 	settingsCompose "github.com/moto-nrw/project-phoenix/modules/settings/compose"
 	presenceCompose "github.com/moto-nrw/project-phoenix/modules/studentpresence/compose"
 	"github.com/moto-nrw/project-phoenix/modules/studentpresence/compose/presenceservice"
 	transactionruntime "github.com/moto-nrw/project-phoenix/modules/transactionruntime/compose"
+	workforceCompose "github.com/moto-nrw/project-phoenix/modules/workforce/compose"
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 	"github.com/moto-nrw/project-phoenix/tenant"
 )
@@ -57,3 +60,42 @@ func NewSchedulerCleanupTestDependencies(db transactionruntime.Database, unit te
 		ActiveCleanup: newSchedulerPresenceCleanup(cleanup),
 	}, nil
 }
+
+// NewSchedulerFileRetentionTestDependencies composes real retention and file
+// recovery over a private upload directory, without starting unrelated jobs.
+func NewSchedulerFileRetentionTestDependencies(db transactionruntime.Database, unit tenant.UnitOfWork, now func() time.Time, publicDir string) (schedulerPorts.WorkerDependencies, error) {
+	deps, err := NewSchedulerCleanupTestDependencies(db, unit, now)
+	if err != nil {
+		return deps, err
+	}
+	audit, _, steps, err := NewRetentionTestOwners(db, unit)
+	if err != nil {
+		return deps, err
+	}
+	deps.RetentionSteps = steps
+	deps.RetentionLog = func(ctx context.Context, kind string, outcome schedulerPorts.RetentionOutcome) error {
+		return audit.LogRetention(ctx, kind, outcome.Deleted, outcome.RetentionDays)
+	}
+	membership, err := NewSchoolMembership(db)
+	if err != nil {
+		return deps, err
+	}
+	// Recovery reads Workforce records and offboarded membership IDs; it does
+	// not invoke personnel edits or their audit trail.
+	documents, err := workforceCompose.NewStaffAdmin(workforceCompose.StaffAdminDependencies{
+		DB: db.Pool(), Subjects: staffAdminSubjects{membership: membership}, Audit: staffAdminAudit{}, Allows: securityruntime.HasPermission,
+	})
+	if err != nil {
+		return deps, err
+	}
+	queue, err := workforceCompose.NewDocumentCleanup(db.Pool(), nil)
+	if err != nil {
+		return deps, err
+	}
+	deps.StaffDocumentCleaner, err = workforceCompose.NewStaffDocumentFileRecovery(documents, queue, cleanupTestUploads{dir: publicDir}, deps.Logger)
+	return deps, err
+}
+
+type cleanupTestUploads struct{ dir string }
+
+func (u cleanupTestUploads) PublicDir() (string, error) { return u.dir, nil }
