@@ -10620,6 +10620,17 @@
       "target_role": "public"
     },
     {
+      "id": "data-import.public.people-directory-contact",
+      "description": "The import maps a relationship label through People Directory's own relationship vocabulary (#4825).",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "data-import",
+      "source_role": "public",
+      "target_owner": "people-directory",
+      "target_role": "contract"
+    },
+    {
       "id": "data-import.public.identity-role",
       "description": "The import contract names the native Identity & Access role facts (#2744).",
       "scopes": [

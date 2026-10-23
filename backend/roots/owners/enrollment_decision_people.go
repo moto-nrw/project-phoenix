@@ -5,13 +5,12 @@ import (
 	"encoding/json"
 	"errors"
 
-	importModels "github.com/moto-nrw/project-phoenix/modules/dataimport"
-
 	"github.com/moto-nrw/project-phoenix/modules/peopledirectory/departure"
 
 	enrollmentCompose "github.com/moto-nrw/project-phoenix/modules/enrollment/compose"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
 	"github.com/moto-nrw/project-phoenix/modules/peopledirectory"
+	"github.com/moto-nrw/project-phoenix/modules/peopledirectory/contact"
 
 	"github.com/moto-nrw/project-phoenix/modules/securityruntime"
 	"github.com/moto-nrw/project-phoenix/modules/transactionruntime"
@@ -83,7 +82,7 @@ func (enrollmentPeopleRules) IsFullGuardianRole(role string) bool {
 }
 
 func (enrollmentPeopleRules) MapRelationshipType(label string) string {
-	return importModels.MapRelationshipType(label)
+	return contact.MapRelationshipType(label)
 }
 
 // enrollmentGuardianRoleName is the stored role of a decision's role preset.
