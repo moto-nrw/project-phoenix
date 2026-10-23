@@ -285,7 +285,7 @@ jobs:
             error-codes:
               - 'error-registry.json'
               - 'scripts/generate-error-codes*'
-              - 'backend/api/common/error_codes.generated.go'
+              - 'backend/api/common/error_codes*.generated.go'
               - 'frontend/src/lib/error-codes.generated.ts'
               - '.github/workflows/lint.yml'
 
@@ -357,6 +357,12 @@ jobs:
           sudo install -d /usr/local/lib/moto-backup
           sudo install scripts/daily-backup.sh /usr/local/lib/moto-backup/
           systemd-analyze verify scripts/systemd/moto-daily-backup.service scripts/systemd/moto-daily-backup.timer scripts/systemd/moto-backup-failure@.service
+
+      - name: Setup Node.js for error-code generator fixtures
+        if: matrix.suite == 'ratchets'
+        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v6
+        with:
+          node-version: "24"
 
       # TestToolchainPinsRatchet reads the files of the toolchain filter.
       # Changed-test selection adds ./test only for backend changes, so such a

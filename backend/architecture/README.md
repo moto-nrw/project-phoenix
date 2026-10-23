@@ -1185,6 +1185,13 @@ records the earlier root baselines, the mechanical mount split and the
 pass-through decision: existing consumer-attributed root paths stay counted;
 no new root pass-through allowance is granted.
 
+The [ADR 0087 addendum for #4746](../../docs/adr/0087-every-backend-source-tree-stays-in-the-ratchets.md#addendum-2026-10-23-bounded-error-code-generation-4746)
+keeps generated output inside these same gates: error-code declarations are
+split into chunks of at most 300 codes (615 lines), with no size allowance or
+banner exemption. `node scripts/generate-error-codes.mjs --check` validates the
+entry file, every numbered shard and the unchanged TypeScript output without
+writing; CI also selects this check for changes to any shard.
+
 ### Converting temporary permissions to exact debt
 
 A rule states the target
