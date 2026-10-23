@@ -65,6 +65,17 @@ describe("rolesConfig", () => {
     );
   });
 
+  it("does not offer Eltern under „Gilt als“ (#4574)", () => {
+    const options = roleEditSections[0]?.fields.find(
+      (f) => f.name === "baseRole",
+    )?.options;
+
+    expect(options).toEqual([
+      { value: "admin", label: "Verwaltung" },
+      { value: "user", label: "Betreuung" },
+    ]);
+  });
+
   it("sends the template instead of base_role when creating", () => {
     const mapRequest = rolesConfig.service?.mapRequest;
     expect(

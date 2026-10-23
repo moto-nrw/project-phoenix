@@ -10,6 +10,7 @@ import { SYSTEM_ROLE_LABELS as ANNOUNCEMENT_ROLE_LABELS } from "./operator/annou
 import {
   ROLE_TEMPLATES,
   SYSTEM_ROLE_LABELS,
+  isHiddenSystemRole,
   isSystemRoleName,
   systemRoleDescription,
   systemRoleLabel,
@@ -55,6 +56,18 @@ describe("role labels", () => {
       );
     },
   );
+
+  it("hides only the system role Eltern from the role management", () => {
+    expect(isHiddenSystemRole({ name: "guardian", isSystem: true })).toBe(true);
+    expect(isHiddenSystemRole({ name: "Guardian", isSystem: true })).toBe(true);
+    // A school's own role may carry the same name; it stays listed.
+    expect(isHiddenSystemRole({ name: "guardian", isSystem: false })).toBe(
+      false,
+    );
+    for (const name of ["admin", "user", "lehrkraft", "guest"]) {
+      expect(isHiddenSystemRole({ name, isSystem: true })).toBe(false);
+    }
+  });
 
   it("names the templates after their role", () => {
     expect(ROLE_TEMPLATES.map((template) => template.label)).toEqual([

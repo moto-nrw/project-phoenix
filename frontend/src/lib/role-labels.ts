@@ -74,3 +74,27 @@ export const ROLE_TEMPLATES = [
   { value: "admin", label: `Wie ${SYSTEM_ROLE_LABELS.admin.name}` },
   { value: "lehrkraft", label: `Wie ${SYSTEM_ROLE_LABELS.lehrkraft.name}` },
 ] as const;
+
+/**
+ * Eltern is a system role the parent-app invitation gives (#4574). Nobody
+ * picks it by hand, so the role management neither lists it nor offers it
+ * under „Gilt als“. Parent accounts and the role itself stay as they are.
+ */
+export function isHiddenSystemRole(role: {
+  name: string;
+  isSystem: boolean;
+}): boolean {
+  return role.isSystem && systemRoleKey(role.name) === "guardian";
+}
+
+/**
+ * The „Gilt als“ choices for a school's own role. Eltern is left out: a role
+ * that counts as Eltern can never be given to an account (#4574).
+ */
+export function baseRoleOptions(
+  labels: Record<string, string>,
+): Array<{ value: string; label: string }> {
+  return Object.entries(labels)
+    .filter(([value]) => value !== "guardian")
+    .map(([value, label]) => ({ value, label }));
+}

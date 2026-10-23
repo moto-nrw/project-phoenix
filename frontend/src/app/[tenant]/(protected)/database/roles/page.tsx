@@ -26,6 +26,7 @@ import { createCrudService } from "@/lib/database/service-factory";
 import { rolesConfig } from "@/components/database/configs/roles.config";
 import type { Role } from "@/lib/auth-helpers";
 import { getRoleDisplayName } from "@/lib/auth-helpers";
+import { isHiddenSystemRole } from "@/lib/role-labels";
 import { hasPermission, isAdmin } from "~/lib/auth-utils";
 import { RolesMasterDetail } from "@/components/roles/roles-master-detail";
 import { DatabaseFormModal } from "~/components/ui/database/database-form-modal";
@@ -107,7 +108,8 @@ function RolesPageContent() {
       setLoading(true);
       const data = await service.getList({ page: 1, pageSize: 500 });
       const arr = Array.isArray(data.data) ? data.data : [];
-      setRoles(arr);
+      // Eltern vergibt die Einladung zur Eltern-App, nicht diese Seite (#4574).
+      setRoles(arr.filter((role) => !isHiddenSystemRole(role)));
       clearRolesLoadError();
     } catch (err) {
       logger.error("failed to fetch roles", {

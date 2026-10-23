@@ -11,7 +11,7 @@ import {
   getBaseRoleLabel,
   BASE_ROLE_LABELS,
 } from "@/lib/auth-helpers";
-import { ROLE_TEMPLATES } from "@/lib/role-labels";
+import { ROLE_TEMPLATES, baseRoleOptions } from "@/lib/role-labels";
 
 const nameField = {
   name: "name",
@@ -32,7 +32,8 @@ const descriptionField = {
 /**
  * Stammdaten einer bestehenden Rolle (#4574). „Gilt als" ist base_role: es
  * steuert Mitteilungen und Einladungen, nicht die Rechte. Die Vorlage gibt
- * es nur beim Anlegen.
+ * es nur beim Anlegen. „Eltern" steht nicht zur Wahl: eine solche Rolle
+ * ließe sich keinem Konto geben.
  */
 export const roleEditSections: SectionConfig[] = [
   {
@@ -50,10 +51,7 @@ export const roleEditSections: SectionConfig[] = [
         placeholder: "Bitte wählen",
         helperText:
           "Bestimmt, welche Mitteilungen die Rolle bekommt. Ändert keine Rechte.",
-        options: Object.entries(BASE_ROLE_LABELS).map(([value, label]) => ({
-          value,
-          label,
-        })),
+        options: baseRoleOptions(BASE_ROLE_LABELS),
       },
     ],
   },

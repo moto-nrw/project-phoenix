@@ -4781,7 +4781,7 @@ function staffPermissionsTopic(): HelpTopic {
       "Die Rolle entscheidet auch darüber, welche Menüpunkte jemand sieht.",
     ],
     differences: [
-      "moto bringt einige Rollen schon mit: `Verwaltung`, `Betreuung`, `Lehrkraft`, `Eltern` und `Gast`. Sie sind als `Vorgegeben` markiert.",
+      "moto bringt einige Rollen schon mit: `Verwaltung`, `Betreuung`, `Lehrkraft` und `Gast`. Sie sind als `Vorgegeben` markiert.",
       "Bei einer vorgegebenen Rolle fehlen `Bearbeiten` und `Löschen`. Zum Ändern von Rechten legen Sie deshalb eine eigene Rolle an.",
       "`Gast` ist eine alte Rolle. Sie lässt sich nicht mehr vergeben. Wer sie schon hat, behält sie.",
       "Einige Rechte stehen nicht zur Auswahl. Sie gehören nur der Rolle `Verwaltung` oder dem moto-Team.",
