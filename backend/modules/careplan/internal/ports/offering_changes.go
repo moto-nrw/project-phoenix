@@ -9,7 +9,7 @@ import (
 )
 
 // OfferingChangeRows reads and writes enrollment.offering_change_requests in
-// the caller's tenant transaction. FindForUpdate reports a missing row as
+// the caller's tenant transaction. Find and FindForUpdate report a missing row as
 // careplan.ErrOfferingChangeNotFound; the guarded writes report a decided row
 // as careplan.ErrOfferingChangeNotPending. Every other failure keeps the
 // shape the staff and parent routes render.
