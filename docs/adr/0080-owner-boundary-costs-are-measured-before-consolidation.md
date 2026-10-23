@@ -21,7 +21,7 @@ large-domain cuts belong to [#4547](https://github.com/moto-nrw/project-phoenix/
    [ADR 0071](0071-principle-owner-dependencies-point-one-way.md). No candidate
    is merged, renamed or reclassified here.
 2. **Wiring: keep explicit bindings, do not add a generic binding framework.**
-   The three measured seams cost 1.21, 1.00 and 0.34 wiring LOC per read-
+   The three measured seams cost 1.17, 1.00 and 0.34 wiring LOC per read-
    implementation LOC. They solve different problems: row-source selection,
    ambient-transaction enforcement, and result conversion. Reuse the existing
    ambient database runtime and direct constructors where their contracts fit.
@@ -133,7 +133,7 @@ value are not attributed. It describes fan-out, and is not added to `W`.
 | Projection directory | Owner LOC | C | K | A | R | W ≥ | S |
 |---|---:|---:|---:|---:|---:|---:|---:|
 | `timetableenrollmentprovenance` | 80 | 10 | 0 | 13 | 0 | 23 | 1 |
-| `guardianlinkview` | 90 | 8 | 0 | 25 | 0 | 33 | 8 |
+| `guardianlinkview` | 90 | 8 | 0 | 24 | 0 | 32 | 8 |
 | `timetableblockdisplay` | 93 | 9 | 0 | 0 | 0 | 9 | 1 |
 | `parentrequestfeedprojection` | 159 | 11 | 0 | 0 | 40 | 51 | 2 |
 | `staffmessageinbox` | 205 | 6 | 16 | 0 | 29 | 51 | 2 |
@@ -154,10 +154,14 @@ Selection manifest, all line ranges inclusive at the measured SHA:
   `guardianlinkview/internal/adapters/postgres/reader.go`; Staff Announcement
   Audience and Operator Dashboard's `internal/adapters/postgres/mapped.go`;
   `emergencysnapshot/internal/adapters/nameorder/legacy.go`.
-- R: `backend/api/parent_request_feed.go`, `backend/api/emergency_snapshot.go`;
-  `backend/roots/owners/staff_inbox_binding.go`, `parent_inbox_binding.go`,
-  `operator_dashboard_projection.go`, `student_deletion_projection.go`;
-  `staff_membership_adapters.go:348-543` for Staff Directory View only.
+- R (paths relative to `backend/`):
+  - Parent Request Feed: `api/parent_request_feed.go`.
+  - Emergency Snapshot: `api/emergency_snapshot.go`.
+  - Staff Message Inbox: `roots/owners/staff_inbox_binding.go`.
+  - Parent Message Inbox: `roots/owners/parent_inbox_binding.go`.
+  - Operator Dashboard: `roots/owners/operator_dashboard_projection.go`.
+  - Timetable Legacy View (`timetableprojection`): `roots/owners/student_deletion_projection.go`.
+  - Staff Directory View: `roots/owners/staff_membership_adapters.go:348-543` only.
 
 Zero means no selected source, not no dependency or no port. For example,
 Student Directory's 20 direct reference lines and Guardian Link's eight are
@@ -180,7 +184,7 @@ are not allocated per seam. Port/adaptation code can itself enforce behavior.
 
 | Consumer ← projection | F | Port/contract P | Adapter A | Binding B | (P+A+B)/F |
 |---|---:|---:|---:|---:|---:|
-| People Directory ← Guardian Link View | 57 | 9 | 51 | 9 | 69/57 = 1.21 |
+| People Directory ← Guardian Link View | 58 | 9 | 50 | 9 | 68/58 = 1.17 |
 | Timetable ← Block Display | 84 | 3 | 47 | 34 | 84/84 = 1.00 |
 | Communication ← Staff Message Inbox | 183 | 25 | 29 | 9 | 63/183 = 0.34 |
 
@@ -188,7 +192,7 @@ Exact allocations (paths relative to `backend/`):
 
 - **Guardian Link.** F: `modules/guardianlinkview/internal/adapters/postgres/projection.go`.
   P: `modules/peopledirectory/internal/adapters/peoplepostgres/projection_rows.go:21-29`.
-  A: Guardian Link's `reader.go` (25), plus that consumer file's
+  A: Guardian Link's `reader.go` (24), plus that consumer file's
   `38-43` (6, required reader) and `55-74` (20, tenant/all-school selection).
   B: Guardian Link's `compose/new.go` (8), plus
   `roots/owners/people_directory_composition.go:41` (1). This measures the
@@ -355,7 +359,9 @@ sets.update({k: {f for f in files if '/' + k + '/' in f} for k in ('ports', 'com
 for key, paths in sets.items():
     print(key, sum(loc[f] for f in paths))
 union = sum(loc[f] for f in set.union(*sets.values()))
-print('union', union, 'share', union / sum(loc.values()))
+print('overlapping files', sum(map(len, sets.values())) - len(set.union(*sets.values())))
+print('union', union, 'share', union / sum(loc.values()), 'share without migrations',
+      union / sum(n for f, n in loc.items() if not f.startswith('backend/database/migrations/')))
 p = json.loads(subprocess.check_output(['git', 'show', ref + ':backend/architecture/policy.json']))
 print('owner kinds', dict(collections.Counter(o['kind'] for o in p['owners'])))
 packages = {x['path']: x for x in p['packages']}
@@ -387,19 +393,143 @@ done
 
 ### File and range allocations
 
-Use the selection manifest above with these functions. Whole-file counts include
-imports, comments and blanks; range counts include only the named inclusive
-lines. Shared mixed-file import blocks are not silently allocated several times.
+This block prints every inventory column, every allocated file/range and all
+three seam numerators, denominators and ratios. It uses the same LOC filter
+as the totals block, checks range bounds and rejects overlaps within each
+inventory row or seam. Whole-file counts include imports, comments and blanks;
+shared mixed-file import blocks remain unallocated.
 
 ```bash
-ref=068511c21700c6dac166cfc3c22a29d524bf7e7e
-file_loc() { git show "$ref:$1" | wc -l; }
-range_loc() { git show "$ref:$1" | sed -n "$2,${3}p" | wc -l; }
-file_loc backend/modules/guardianlinkview/internal/adapters/postgres/projection.go
-range_loc backend/modules/peopledirectory/internal/adapters/peoplepostgres/projection_rows.go 21 29
-range_loc backend/roots/owners/staff_membership_adapters.go 348 543
-# Repeat file_loc/range_loc for each named allocation; add the disjoint spans.
-git diff ebad9bbaac50e0b9b2151a4ec14c3929bb07a899 "$ref" -- backend/architecture/policy.json backend/test/module_passthrough_ratchet_test.go
+python3 - <<'PY'
+import fnmatch, json, pathlib, re, subprocess
+ref = '068511c21700c6dac166cfc3c22a29d524bf7e7e'
+paths = subprocess.check_output(
+    ['git', 'ls-tree', '-r', '--name-only', ref, 'backend'], text=True).splitlines()
+files = {}
+proc = subprocess.Popen(['git', 'cat-file', '--batch'],
+                        stdin=subprocess.PIPE, stdout=subprocess.PIPE)
+for path in paths:
+    if not path.endswith('.go') or path.endswith('_test.go'):
+        continue
+    proc.stdin.write((ref + ':' + path + '\n').encode())
+    proc.stdin.flush()
+    size = int(proc.stdout.readline().split()[2])
+    data = proc.stdout.read(size)
+    proc.stdout.read(1)
+    if not re.search(rb'^//go:build .*\btesthooks\b', data, re.M):
+        files[path.removeprefix('backend/')] = data.decode().splitlines()
+proc.stdin.close()
+proc.wait()
+policy = json.loads(subprocess.check_output(
+    ['git', 'show', ref + ':backend/architecture/policy.json']))
+roles = {p['path']: p['role'] for p in policy['packages']}
+
+def select(pattern, start=None, end=None):
+    matches = sorted(p for p in files if fnmatch.fnmatchcase(p, pattern))
+    assert matches, pattern
+    selected = set()
+    for path in matches:
+        first, last = (1, len(files[path])) if start is None else (start, end)
+        assert 1 <= first <= last <= len(files[path]), (path, first, last)
+        print('allocation', path, f'{first}-{last}', last - first + 1)
+        selected.update((path, line) for line in range(first, last + 1))
+    return selected
+
+mods = '''timetableenrollmentprovenance guardianlinkview timetableblockdisplay
+parentrequestfeedprojection staffmessageinbox timetableprojection studentdirectoryview
+staffannouncementaudience staffdirectoryview operatordashboard emergencysnapshot
+parentmessageinbox'''.split()
+# Values are (path pattern, inclusive start, inclusive end); None means whole file.
+manifest = {
+    'timetableenrollmentprovenance': {'A': [
+        ('modules/timetableenrollmentprovenance/internal/adapters/postgres/query.go', 58, 70)]},
+    'guardianlinkview': {'A': [
+        ('modules/guardianlinkview/internal/adapters/postgres/reader.go', None, None)]},
+    'parentrequestfeedprojection': {'R': [('api/parent_request_feed.go', None, None)]},
+    'staffmessageinbox': {
+        'K': [('modules/staffmessageinbox/contract/*.go', None, None)],
+        'R': [('roots/owners/staff_inbox_binding.go', None, None)]},
+    'timetableprojection': {'R': [('roots/owners/student_deletion_projection.go', None, None)]},
+    'staffannouncementaudience': {
+        'K': [('modules/staffannouncementaudience/contract/*.go', None, None)],
+        'A': [('modules/staffannouncementaudience/internal/adapters/postgres/mapped.go', None, None)]},
+    'staffdirectoryview': {
+        'K': [('modules/staffdirectoryview/staffdirectoryview.go', 34, 64)],
+        'R': [('roots/owners/staff_membership_adapters.go', 348, 543)]},
+    'operatordashboard': {
+        'K': [('modules/operatordashboard/contract/*.go', None, None)],
+        'A': [('modules/operatordashboard/internal/adapters/postgres/mapped.go', None, None)],
+        'R': [('roots/owners/operator_dashboard_projection.go', None, None)]},
+    'emergencysnapshot': {
+        'K': [('modules/emergencysnapshot/ports.go', None, None)],
+        'A': [('modules/emergencysnapshot/internal/adapters/nameorder/legacy.go', None, None)],
+        'R': [('api/emergency_snapshot.go', None, None)]},
+    'parentmessageinbox': {
+        'K': [('modules/parentmessageinbox/contract/*.go', None, None)],
+        'R': [('roots/owners/parent_inbox_binding.go', None, None)]},
+}
+print('SHA', ref)
+for mod in mods:
+    prefix = 'modules/' + mod + '/'
+    owner_files = [p for p in files if p.startswith(prefix)]
+    parts = {'C': set(), 'K': set(), 'A': set(), 'R': set()}
+    for path in sorted(owner_files):
+        if roles[str(pathlib.PurePosixPath(path).parent)] == 'compose':
+            parts['C'].update(select(path))
+    for key, specs in manifest.get(mod, {}).items():
+        for spec in specs:
+            parts[key].update(select(*spec))
+    assert sum(map(len, parts.values())) == len(set.union(*parts.values())), mod
+    hits = set()
+    for path, lines in files.items():
+        if not path.startswith(('roots/', 'api/')):
+            continue
+        pattern = r'(?m)^\s*(\w+)?\s*"github.com/moto-nrw/project-phoenix/modules/' + mod + r'(/[^"\n]*)?"'
+        for match in re.finditer(pattern, '\n'.join(lines)):
+            suffix = match[2] or ''
+            alias = match[1] or (suffix.split('/')[-1] if suffix else mod)
+            hits.update((path, i + 1) for i, line in enumerate(lines)
+                        if re.search(r'\b' + alias + r'\.', line))
+    counts = [len(parts[key]) for key in ('C', 'K', 'A', 'R')]
+    print('inventory', mod, sum(len(files[p]) for p in owner_files),
+          *counts, sum(counts), len(hits), '(Owner C K A R W S)')
+
+seams = {
+    'Guardian Link': {
+        'F': [('modules/guardianlinkview/internal/adapters/postgres/projection.go', None, None)],
+        'P': [('modules/peopledirectory/internal/adapters/peoplepostgres/projection_rows.go', 21, 29)],
+        'A': [('modules/guardianlinkview/internal/adapters/postgres/reader.go', None, None),
+              ('modules/peopledirectory/internal/adapters/peoplepostgres/projection_rows.go', 38, 43),
+              ('modules/peopledirectory/internal/adapters/peoplepostgres/projection_rows.go', 55, 74)],
+        'B': [('modules/guardianlinkview/compose/new.go', None, None),
+              ('roots/owners/people_directory_composition.go', 41, 41)]},
+    'Block Display': {
+        'F': [('modules/timetableblockdisplay/internal/adapters/postgres/projection.go', None, None)],
+        'P': [('modules/timetable/ports/timetable_data.go', 50, 52)],
+        'A': [('modules/timetable/internal/adapters/postgres/native_compose_bindings_timetable_data_runtime.go', None, None)],
+        'B': [('modules/timetableblockdisplay/compose/compose.go', None, None),
+              ('modules/timetable/compose/timetable_data_runtime.go', None, None),
+              ('roots/owners/root_timetable.go', 65, 65)]},
+    'Staff Inbox': {
+        'F': [('modules/staffmessageinbox/internal/adapters/postgres/*.go', None, None)],
+        'P': [('modules/staffmessageinbox/contract/rows.go', None, None),
+              ('modules/communication/staff_inbox_port.go', None, None)],
+        'A': [('roots/owners/staff_inbox_binding.go', None, None)],
+        'B': [('modules/staffmessageinbox/new.go', None, None),
+              ('roots/owners/communication_projection_roots.go', 53, 55)]},
+}
+for name, specs in seams.items():
+    parts = {key: set() for key in ('F', 'P', 'A', 'B')}
+    for key, allocations in specs.items():
+        for allocation in allocations:
+            parts[key].update(select(*allocation))
+    assert sum(map(len, parts.values())) == len(set.union(*parts.values())), name
+    f, p, a, b = [len(parts[key]) for key in ('F', 'P', 'A', 'B')]
+    print('seam', name, f, p, a, b, f'{p+a+b}/{f} = {(p+a+b)/f:.2f}', '(F P A B ratio)')
+# The feature's selection function, including signature and closing brace.
+print('profilesByAccount', len(select('roots/requestreviewbinding/submitters.go', 72, 83)))
+PY
+git diff ebad9bbaac50e0b9b2151a4ec14c3929bb07a899 068511c21700c6dac166cfc3c22a29d524bf7e7e -- backend/architecture/policy.json backend/test/module_passthrough_ratchet_test.go
 ```
 
 ### Pass-through total and the twelve sampled translations
@@ -451,6 +581,7 @@ import collections, json, pathlib, subprocess
 sha = '082940f7afc1318de738315f81b47fb12edf3df2'
 p = json.loads(subprocess.check_output(['git', 'show', sha + ':backend/architecture/policy.json']))
 packages = {x['path']: x for x in p['packages']}
+owner_kinds = {o['id']: o['kind'] for o in p['owners']}
 rows = collections.defaultdict(list)
 kinds = collections.Counter()
 for line in subprocess.check_output(['git', 'diff', '--numstat', sha + '^', sha], text=True).splitlines():
@@ -462,7 +593,8 @@ for line in subprocess.check_output(['git', 'diff', '--numstat', sha + '^', sha]
         kinds['test' if path.endswith('_test.go') else 'helper' if
               'test_helpers' in path or path.startswith('backend/test/') else 'production'] += 1
 for owner, changes in rows.items():
-    print(owner, len(changes), 'files', sum(a for a, _ in changes), '/', sum(d for _, d in changes))
+    print(owner, owner_kinds.get(owner, 'outside backend'), len(changes), 'files',
+          sum(a for a, _ in changes), '/', sum(d for _, d in changes))
 print('backend', dict(kinds))
 PY
 ```
