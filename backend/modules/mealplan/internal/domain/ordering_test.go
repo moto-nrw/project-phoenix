@@ -179,3 +179,19 @@ func defaultOrderingRules(clock string) OrderingRules {
 		AnnualChanges: AnnualParentsCancel, Sick: SickStaysOrdered, Rhythm: RhythmDaily, Detail: DetailByClass,
 	}
 }
+
+func TestAnnualModelWithoutDeadlineKeepsRegistrationOpenAfterCancellationCutoff(t *testing.T) {
+	t.Parallel()
+	rules := defaultOrderingRules("09:00")
+	rules.Model = ModelAnnual
+	rules.AnnualDeadline = ""
+	rules.Cancellation = Deadline{Kind: DeadlineDaysBefore, LeadDays: 1, Clock: "18:00"}
+	now := berlin(thursday, 12, 0)
+
+	assert.True(t, rules.ParentCanRegister(now, thursday))
+	assert.True(t, rules.ParentCanRegister(thursday.EndOfDay(), thursday))
+	assert.False(t, rules.ParentCanRegister(berlin(thursday.AddDays(1), 0, 0), thursday), "past days stay closed")
+	assert.False(t, rules.ParentCanCancel(now, thursday), "cancellation keeps its own deadline")
+	assert.Equal(t, rules.CancellationAt(thursday), rules.FreezeAt(thursday), "orders still freeze at the cancellation deadline")
+	assert.Equal(t, thursday.EndOfDay(), rules.ParentRegistrationUntil(thursday))
+}

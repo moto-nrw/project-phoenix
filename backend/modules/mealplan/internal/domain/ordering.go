@@ -137,11 +137,14 @@ func (r OrderingRules) Valid() bool {
 }
 
 // RegistrationAt is when registering for day ends. Under the annual model a
-// day follows the cancellation deadline while the annual registration is
-// open; the annual deadline itself is checked separately.
+// day follows the cancellation deadline when an annual deadline is set.
+// Without one, registration stays open until the meal day ends.
 func (r OrderingRules) RegistrationAt(day Date) time.Time {
 	switch r.Model {
 	case ModelAnnual:
+		if r.AnnualDeadline == "" {
+			return day.EndOfDay()
+		}
 		return r.Cancellation.At(day)
 	default:
 		return r.Registration.At(day)

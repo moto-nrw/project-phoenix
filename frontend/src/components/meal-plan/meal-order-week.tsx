@@ -276,25 +276,25 @@ export function MealOrderWeek({
               </Button>
             </div>
           ) : null}
-          {/* Die Lieferliste ist dieselbe Vorlage, die der Caterer bekommt:
-              ohne Namen, darum schon mit meals:read (#3873). */}
-          <OverflowMenu
-            ariaLabel={t("deliveryMenu")}
-            items={[
-              {
-                label: t("deliveryPdf"),
-                onClick: () => void downloadDeliveries("pdf"),
-              },
-              {
-                label: t("deliveryExcel"),
-                onClick: () => void downloadDeliveries("xlsx"),
-              },
-              {
-                label: t("deliveryCsv"),
-                onClick: () => void downloadDeliveries("csv"),
-              },
-            ]}
-          />
+          {canExportMonth ? (
+            <OverflowMenu
+              ariaLabel={t("deliveryMenu")}
+              items={[
+                {
+                  label: t("deliveryPdf"),
+                  onClick: () => void downloadDeliveries("pdf"),
+                },
+                {
+                  label: t("deliveryExcel"),
+                  onClick: () => void downloadDeliveries("xlsx"),
+                },
+                {
+                  label: t("deliveryCsv"),
+                  onClick: () => void downloadDeliveries("csv"),
+                },
+              ]}
+            />
+          ) : null}
         </div>
       }
     >

@@ -93,6 +93,11 @@ describe("MealOrderWeek", () => {
       wrapper: ToastProvider,
     });
 
+    expect(
+      screen.getByRole("button", {
+        name: "Lieferliste der Woche herunterladen",
+      }),
+    ).toBeInTheDocument();
     fireEvent.click(
       await screen.findByRole("button", { name: "September als Excel" }),
     );
@@ -143,12 +148,17 @@ describe("MealOrderWeek", () => {
     expect(screen.queryByText(/07\.09\., 09:00/)).not.toBeInTheDocument();
   });
 
-  it("offers the month only with the lists permission", async () => {
+  it("offers exports only with the lists permission", async () => {
     render(<MealOrderWeek mondayISO="2026-09-07" canExportMonth={false} />, {
       wrapper: ToastProvider,
     });
 
     await screen.findAllByText("Vom Caterer bestätigt");
+    expect(
+      screen.queryByRole("button", {
+        name: "Lieferliste der Woche herunterladen",
+      }),
+    ).not.toBeInTheDocument();
     expect(
       screen.queryByRole("button", { name: /als PDF/ }),
     ).not.toBeInTheDocument();

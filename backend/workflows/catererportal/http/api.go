@@ -52,12 +52,12 @@ func (rs *Resource) currentAccountID(ctx context.Context) int64 {
 
 // SchoolRouter serves the school's caterer under the tenant API, each route
 // in the school's transaction. The caterer needs meals:manage; the delivery
-// list holds no names and needs meals:read only.
-func (rs *Resource) SchoolRouter(protected func(chi.Router, func(chi.Router, common.Middleware)), manage, read common.Middleware) chi.Router {
+// list needs meals:orders, like the other school exports.
+func (rs *Resource) SchoolRouter(protected func(chi.Router, func(chi.Router, common.Middleware)), manage, orders common.Middleware) chi.Router {
 	router := chi.NewRouter()
 	router.Use(render.SetContentType(render.ContentTypeJSON))
 	protected(router, func(r chi.Router, withTx common.Middleware) {
-		r.With(read, withTx).Get("/orders/export", rs.exportSchoolDeliveries)
+		r.With(orders, withTx).Get("/orders/export", rs.exportSchoolDeliveries)
 		r.With(manage, withTx).Get("/", rs.getSchoolCaterer)
 		r.With(manage, withTx).Post("/invitations", rs.inviteCaterer)
 		r.With(manage, withTx).Delete("/invitations/{invitationId}", rs.revokeInvitation)
