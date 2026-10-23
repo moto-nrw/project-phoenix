@@ -2,6 +2,8 @@ package architecture
 
 import (
 	"encoding/json"
+	"errors"
+	"fmt"
 	"os"
 	"path/filepath"
 	"runtime"
@@ -9,6 +11,36 @@ import (
 	"strings"
 	"testing"
 )
+
+func TestCheckPassesParsedOptionsToProjectCheck(t *testing.T) {
+	t.Parallel()
+	for _, prefix := range []string{"-", "--"} {
+		for _, joined := range []bool{false, true} {
+			t.Run(fmt.Sprintf("%s/joined=%t", prefix, joined), func(t *testing.T) {
+				t.Parallel()
+				repo, base := ratchetRepository(t, legacyRecord(2583))
+				args := []string{"check"}
+				for _, option := range [][2]string{{"project", repo}, {"baseline", "architecture/legacy.jsonl"}, {"base-ref", base}} {
+					if joined {
+						args = append(args, prefix+option[0]+"="+option[1])
+					} else {
+						args = append(args, prefix+option[0], option[1])
+					}
+				}
+				failure := errors.New("project evidence rejected")
+				err := RunCLI(args, CLIDependencies{CheckProject: func(project, baseRef string) error {
+					if project != repo || baseRef != base {
+						t.Fatalf("project check received (%q, %q), want (%q, %q)", project, baseRef, repo, base)
+					}
+					return failure
+				}})
+				if !errors.Is(err, failure) {
+					t.Fatalf("project evidence failure must propagate: %v", err)
+				}
+			})
+		}
+	}
+}
 
 func TestRunCLIRejectsMissingAndUnknownCommands(t *testing.T) {
 	t.Parallel()

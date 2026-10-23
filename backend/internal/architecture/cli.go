@@ -10,9 +10,10 @@ import (
 )
 
 type CLIDependencies struct {
-	IssueClient IssueClient
-	Getenv      func(string) string
-	ProjectRoot string
+	IssueClient  IssueClient
+	Getenv       func(string) string
+	ProjectRoot  string
+	CheckProject func(project, baseRef string) error
 }
 
 func RunCLI(args []string, dependencies CLIDependencies) error {
@@ -22,7 +23,17 @@ func RunCLI(args []string, dependencies CLIDependencies) error {
 
 	switch args[0] {
 	case "check":
-		return runCheck(args[1:])
+		options, err := parseCheckOptions(args[1:])
+		if err != nil {
+			return err
+		}
+		if err := runCheck(options); err != nil {
+			return err
+		}
+		if dependencies.CheckProject != nil {
+			return dependencies.CheckProject(options.project, options.baseRef)
+		}
+		return nil
 	case "relocations":
 		return runRelocations(args[1:])
 	case "explain":
@@ -64,11 +75,7 @@ func runExplain(args []string) error {
 	return nil
 }
 
-func runCheck(args []string) error {
-	options, err := parseCheckOptions(args)
-	if err != nil {
-		return err
-	}
+func runCheck(options checkOptions) error {
 	policy, err := LoadPolicy(options.policy)
 	if err != nil {
 		return err
