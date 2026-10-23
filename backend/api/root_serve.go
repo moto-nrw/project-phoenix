@@ -3,6 +3,8 @@ package api
 import (
 	"net/http"
 
+	birthdaysAPI "github.com/moto-nrw/project-phoenix/modules/peopledirectory/inbound/birthdays"
+
 	"github.com/moto-nrw/project-phoenix/modules/devicefleet/deviceauth"
 
 	owners "github.com/moto-nrw/project-phoenix/roots/owners"
@@ -179,7 +181,7 @@ func composeServeRoot(
 		outbox           *deliveryModule.Worker
 		iot              devicefleetCompose.IoTService
 		guardianProfiles *peopleCompose.GuardianProfileLoader
-		birthdays        peopledirectory.Birthdays
+		birthdays        birthdaysAPI.Service
 		dataImports      imports
 		databaseStats    DatabaseStatsReader
 		staffGroups      schoolstructure.StaffGroupQuery
@@ -489,14 +491,14 @@ func composeServeRoot(
 			calendarAdmin, err = buildCalendarAdministration(db, owners.ObserveSchoolCalendar, calendar, timetableRows.RecurrenceLock, requests.CareOfferings)
 			return
 		},
-		func() error {
+		func() (err error) {
 			iot = devicefleetCompose.NewIoTService(deviceFleet)
 			guardianProfiles = peopleCompose.NewGuardianProfileLoader(people.GuardianProfiles, db.Pool(), env.Logger.With("service", "guardian-profile-loader"))
-			birthdays = NewBirthdays(BirthdayRepositories{Students: people.Students, Staff: people.Staff, Persons: people.Persons},
+			birthdays, err = buildBirthdayEntry(db, membership, BirthdayRepositories{Students: people.Students, Staff: people.Staff, Persons: people.Persons},
 				settings.Service, env.Logger.With("service", "birthdays"), nil)
 			dataImports = newServeImports(audit, identity, groups, rooms, persons, carePlan, presence, organizations, membership, workTime, workforce)
 			databaseStats = newDatabaseStats(people.Repositories, structure.Groups, facilities, timetableRepos, identity, devices, env.Logger)
-			return nil
+			return err
 		},
 		func() (err error) {
 			outbox, err = owners.BuildDeliveryWorker(db, env, mailSender, mailFrom, pushVAPID, mailIdentity, delivery, owners.BuildCalendarAppointmentRenderer(db, mailFrom, people),
@@ -527,7 +529,7 @@ func composeServeRoot(
 			return mountStudentRoutes(tenant, db, logger, deviceAuth, studentPresence, persons, services, membership, caller, reviewPolicy,
 				settings.Service, hub, carePlan, carePlanRows.Companions, schedules, requests, planning, emitter, activities,
 				lifecycle, reports, structureViews, organizations, presence.StatusDays, notifications.AbsenceNotifier, studentDeletion,
-				groupLive, enrollmentCompose.PublicDecisions(decisions), active)
+				groupLive, enrollmentCompose.PublicDecisions(decisions), active, owners.NewCareResumption(carePlanRows.LifecycleOwners.Students, carePlan, carePlanRows.LifecycleOwners.ChangeTrail, nil, logger.With("service", "care_lifecycle")).Resume)
 		},
 		func() error {
 			return mountPresenceRoutes(tenant, db, logger, config.SentryPyrePortalDSN, deviceAuth, studentPresence, active, facilities,

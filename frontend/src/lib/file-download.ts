@@ -28,7 +28,8 @@ export function downloadBlob(blob: Blob, filename: string): void {
 }
 
 /**
- * Opens a blob in a tab and triggers the print dialog.
+ * Opens a blob in a tab and triggers the print dialog. The returned promise
+ * settles after the delayed print attempt, so callers can surface failures.
  *
  * `target` is a tab the caller already opened synchronously inside the
  * click handler. That matters: after an `await`, popup blockers (Safari,
@@ -36,7 +37,10 @@ export function downloadBlob(blob: Blob, filename: string): void {
  * first can only print into a tab opened before the fetch. Callers that do no
  * async work before printing may omit it and let this open the tab.
  */
-export function openBlobForPrint(blob: Blob, target?: Window | null): void {
+export async function openBlobForPrint(
+  blob: Blob,
+  target?: Window | null,
+): Promise<void> {
   const url = URL.createObjectURL(blob);
   const tab = target ?? globalThis.open(url, "_blank");
   if (!tab) {
@@ -48,9 +52,17 @@ export function openBlobForPrint(blob: Blob, target?: Window | null): void {
   }
   // PDF viewer documents fire no reliable load event across browsers, so
   // printing keeps the pragmatic delay every print export here has used.
-  globalThis.setTimeout(() => {
-    tab.focus();
-    tab.print();
-    URL.revokeObjectURL(url);
-  }, 250);
+  return new Promise((resolve, reject) => {
+    globalThis.setTimeout(() => {
+      try {
+        tab.focus();
+        tab.print();
+        resolve();
+      } catch (error) {
+        reject(error);
+      } finally {
+        URL.revokeObjectURL(url);
+      }
+    }, 250);
+  });
 }

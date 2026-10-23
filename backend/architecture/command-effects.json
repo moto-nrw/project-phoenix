@@ -14,18 +14,6 @@
     },
     {
       "source_owner": "care-plan",
-      "port": "github.com/moto-nrw/project-phoenix/modules/careplan.CareResumption.Resume",
-      "binding": "*github.com/moto-nrw/project-phoenix/workflows/careexit.Resumption.Resume",
-      "target": "*github.com/moto-nrw/project-phoenix/workflows/careexit.Resumption.Resume",
-      "target_owner": "care-exit",
-      "binding_digest": "d8f07ecd9eace493c49156a2bb732a08",
-      "effect": "mutation",
-      "classification": "workflow",
-      "adr": "0067",
-      "reason": "Workflow-backed outer HTTP entry supplied by the root (Care resumption / Timetable pickup-extension command), not evidence of a domain-application callback. Full supplied contract methods are retained, including unused promoted methods. Guarded target record/byte command; preserve ambient scope, target validation and existing failure propagation. Target-local locks/savepoints alone do not establish a new source coordinator. Target workflows/careexit.Resumption.Resume; workflows/careexit/resumption.go:70. "
-    },
-    {
-      "source_owner": "care-plan",
       "port": "github.com/moto-nrw/project-phoenix/modules/careplan.MasterDataDirectory.FindStudents",
       "binding": "github.com/moto-nrw/project-phoenix/roots/requestreviewbinding.masterDataDirectory.FindStudents",
       "target": "github.com/moto-nrw/project-phoenix/modules/peopledirectory.Capability.ListStudentsByID",
@@ -5936,23 +5924,23 @@
       "source_owner": "care-plan",
       "port": "github.com/moto-nrw/project-phoenix/modules/careplan/internal/ports.ShareVisibility.SharedRecipientAccountIDs",
       "binding": "github.com/moto-nrw/project-phoenix/modules/communication/eventcontract.ShareVisibilityResolver.SharedRecipientAccountIDs",
-      "target": "*github.com/moto-nrw/project-phoenix/workflows/parentportal/internal/messaging.ShareRecipients.SharedRecipientAccountIDs",
-      "target_owner": "parent-portal",
-      "binding_digest": "3fea75116517eaf1b654269ea8fc82da",
-      "effect": "query",
-      "classification": "query",
-      "reason": "Workflow-backed, Schuld #4825: Care Share-Visibility via Communication interface, root_careplan_requests.go:43-48 and care_request_effects.go:305; not a normal leaf or approved callback exception. Reviewed read/value/construction method; no owned-row mutation or locking read at this terminal. Target workflows/parentportal/internal/messaging.ShareRecipients.SharedRecipientAccountIDs; workflows/parentportal/internal/messaging/parent_request_sharing_service.go:566. May-bind method surface, not a production-call/liveness claim."
-    },
-    {
-      "source_owner": "care-plan",
-      "port": "github.com/moto-nrw/project-phoenix/modules/careplan/internal/ports.ShareVisibility.SharedRecipientAccountIDs",
-      "binding": "github.com/moto-nrw/project-phoenix/modules/communication/eventcontract.ShareVisibilityResolver.SharedRecipientAccountIDs",
       "target": "github.com/moto-nrw/project-phoenix/modules/communication/eventcontract.ShareVisibilityResolver.SharedRecipientAccountIDs",
       "target_owner": "communication",
       "binding_digest": "06555276c8cb095b0eaf28b0708b4f5d",
       "effect": "query",
       "classification": "query",
-      "reason": "Workflow-backed, Schuld #4825 behind this first-hop Communication contract; concrete parentportal ShareRecipients is inventoried separately. Reviewed read/value/construction method; no owned-row mutation or locking read at this terminal. Target modules/communication/eventcontract.ShareVisibilityResolver.SharedRecipientAccountIDs; modules/communication/eventcontract/events.go:76. May-bind method surface, not a production-call/liveness claim."
+      "reason": "Reviewed #4825: first-hop Communication ShareVisibilityResolver contract; the exact People Directory RequestShareVisibility provider is inventoried separately. Read-only owner-local sharing and family-protection evaluation in caller tenant scope; no Parent Portal workflow callback."
+    },
+    {
+      "source_owner": "care-plan",
+      "port": "github.com/moto-nrw/project-phoenix/modules/careplan/internal/ports.ShareVisibility.SharedRecipientAccountIDs",
+      "binding": "github.com/moto-nrw/project-phoenix/modules/communication/eventcontract.ShareVisibilityResolver.SharedRecipientAccountIDs",
+      "target": "github.com/moto-nrw/project-phoenix/modules/peopledirectory.RequestShareVisibility.SharedRecipientAccountIDs",
+      "target_owner": "people-directory",
+      "binding_digest": "edb61d98db0b14ee8f43194fba6a9b41",
+      "effect": "query",
+      "classification": "query",
+      "reason": "Reviewed #4825: root_careplan_requests.go binds People Directory RequestShareVisibility. RequestShareRecipients reads the sharing and family-protection ledgers in caller tenant scope and computes recipients; no locks, writes or Parent Portal workflow callback."
     },
     {
       "source_owner": "care-plan",
@@ -12761,13 +12749,13 @@
     {
       "source_owner": "communication",
       "port": "github.com/moto-nrw/project-phoenix/modules/communication/eventcontract.ShareVisibilityResolver.SharedRecipientAccountIDs",
-      "binding": "*github.com/moto-nrw/project-phoenix/workflows/parentportal/internal/messaging.ShareRecipients.SharedRecipientAccountIDs",
-      "target": "*github.com/moto-nrw/project-phoenix/workflows/parentportal/internal/messaging.ShareRecipients.SharedRecipientAccountIDs",
-      "target_owner": "parent-portal",
-      "binding_digest": "3fea75116517eaf1b654269ea8fc82da",
+      "binding": "github.com/moto-nrw/project-phoenix/modules/peopledirectory.RequestShareVisibility.SharedRecipientAccountIDs",
+      "target": "github.com/moto-nrw/project-phoenix/modules/peopledirectory.RequestShareVisibility.SharedRecipientAccountIDs",
+      "target_owner": "people-directory",
+      "binding_digest": "edb61d98db0b14ee8f43194fba6a9b41",
       "effect": "query",
       "classification": "query",
-      "reason": "Workflow-backed, Schuld #4825: Care Share-Visibility via Communication interface, root_careplan_requests.go:43-48 and care_request_effects.go:305; not a normal leaf or approved callback exception. Reviewed read/value/construction method; no owned-row mutation or locking read at this terminal. Target workflows/parentportal/internal/messaging.ShareRecipients.SharedRecipientAccountIDs; workflows/parentportal/internal/messaging/parent_request_sharing_service.go:566. May-bind method surface, not a production-call/liveness claim."
+      "reason": "Reviewed #4825: root_careplan_requests.go binds People Directory RequestShareVisibility. RequestShareRecipients reads the sharing and family-protection ledgers in caller tenant scope and computes recipients; no locks, writes or Parent Portal workflow callback."
     },
     {
       "source_owner": "communication",
@@ -22761,6 +22749,62 @@
     },
     {
       "source_owner": "people-directory",
+      "port": "github.com/moto-nrw/project-phoenix/modules/peopledirectory/inbound/birthdays.Service.GetOptOut",
+      "binding": "*github.com/moto-nrw/project-phoenix/workflows/staffoffboarding.BirthdayPreferences.GetOptOut",
+      "target": "*github.com/moto-nrw/project-phoenix/workflows/staffoffboarding.BirthdayPreferences.GetOptOut",
+      "target_owner": "staff-offboarding",
+      "binding_digest": "2081e949c0cde1baea6daf0f9fbe2c44",
+      "effect": "query",
+      "classification": "query",
+      "reason": "Reviewed #4825: inbound birthdays.Service HTTP binding to BirthdayPreferences.GetOptOut is a promoted People Directory Birthdays read. birthdayView and BirthdayService only resolve/read scoped birthday facts; no locking read or mutation. The workflow wrapper does not turn this HTTP read into a domain application callback."
+    },
+    {
+      "source_owner": "people-directory",
+      "port": "github.com/moto-nrw/project-phoenix/modules/peopledirectory/inbound/birthdays.Service.ListStaffBirthdays",
+      "binding": "*github.com/moto-nrw/project-phoenix/workflows/staffoffboarding.BirthdayPreferences.ListStaffBirthdays",
+      "target": "*github.com/moto-nrw/project-phoenix/workflows/staffoffboarding.BirthdayPreferences.ListStaffBirthdays",
+      "target_owner": "staff-offboarding",
+      "binding_digest": "77e50b24a871a5c2a0a74c43ef1079da",
+      "effect": "query",
+      "classification": "query",
+      "reason": "Reviewed #4825: inbound birthdays.Service HTTP binding to BirthdayPreferences.ListStaffBirthdays is a promoted People Directory Birthdays read. birthdayView and BirthdayService only resolve/read scoped birthday facts; no locking read or mutation. The workflow wrapper does not turn this HTTP read into a domain application callback."
+    },
+    {
+      "source_owner": "people-directory",
+      "port": "github.com/moto-nrw/project-phoenix/modules/peopledirectory/inbound/birthdays.Service.Overview",
+      "binding": "*github.com/moto-nrw/project-phoenix/workflows/staffoffboarding.BirthdayPreferences.Overview",
+      "target": "*github.com/moto-nrw/project-phoenix/workflows/staffoffboarding.BirthdayPreferences.Overview",
+      "target_owner": "staff-offboarding",
+      "binding_digest": "26667dace89cfb921bbe29f308ae0a25",
+      "effect": "query",
+      "classification": "query",
+      "reason": "Reviewed #4825: inbound birthdays.Service HTTP binding to BirthdayPreferences.Overview is a promoted People Directory Birthdays read. birthdayView and BirthdayService only resolve/read scoped birthday facts; no locking read or mutation. The workflow wrapper does not turn this HTTP read into a domain application callback."
+    },
+    {
+      "source_owner": "people-directory",
+      "port": "github.com/moto-nrw/project-phoenix/modules/peopledirectory/inbound/birthdays.Service.OwnStaffBirthday",
+      "binding": "*github.com/moto-nrw/project-phoenix/workflows/staffoffboarding.BirthdayPreferences.OwnStaffBirthday",
+      "target": "*github.com/moto-nrw/project-phoenix/workflows/staffoffboarding.BirthdayPreferences.OwnStaffBirthday",
+      "target_owner": "staff-offboarding",
+      "binding_digest": "b2c276ecbdb8eda25488dbb6f9ea98fb",
+      "effect": "query",
+      "classification": "query",
+      "reason": "Reviewed #4825: inbound birthdays.Service HTTP binding to BirthdayPreferences.OwnStaffBirthday is a promoted People Directory Birthdays read. birthdayView and BirthdayService only resolve/read scoped birthday facts; no locking read or mutation. The workflow wrapper does not turn this HTTP read into a domain application callback."
+    },
+    {
+      "source_owner": "people-directory",
+      "port": "github.com/moto-nrw/project-phoenix/modules/peopledirectory/inbound/birthdays.Service.SetOptOut",
+      "binding": "*github.com/moto-nrw/project-phoenix/workflows/staffoffboarding.BirthdayPreferences.SetOptOut",
+      "target": "*github.com/moto-nrw/project-phoenix/workflows/staffoffboarding.BirthdayPreferences.SetOptOut",
+      "target_owner": "staff-offboarding",
+      "binding_digest": "656398f4b552e4c2ee414a24b5b80f50",
+      "effect": "mutation",
+      "classification": "workflow",
+      "adr": "0067",
+      "reason": "Reviewed #4825: birthdays.Service is the inbound HTTP entry, not a People Directory application port. BirthdayPreferences.SetOptOut resolves the caller staff row, preserves unchanged-value no-op, then runs LiveStaffEmployment under the existing membership-before-employment lock and ambient tenant transaction. Error mapping and failure propagation are unchanged; ADR 0067 workflow entry, not a domain callback."
+    },
+    {
+      "source_owner": "people-directory",
       "port": "github.com/moto-nrw/project-phoenix/modules/peopledirectory/inbound/students.ActiveEnrollments.ActiveEnrollmentGroups",
       "binding": "github.com/moto-nrw/project-phoenix/api.studentActiveEnrollments.ActiveEnrollmentGroups",
       "target": "github.com/moto-nrw/project-phoenix/modules/timetable/activitycontract.ActivityService.GetActiveStudentEnrollmentsByStudentIDs",
@@ -23435,29 +23479,6 @@
       "effect": "query",
       "classification": "query",
       "reason": "Reviewed read/value/construction method; no owned-row mutation or locking read at this terminal. Target modules/schoolmembership.Owner.FindStaffByPerson; modules/schoolmembership.Owner (supplied contract method). May-bind method surface, not a production-call/liveness claim."
-    },
-    {
-      "source_owner": "people-directory",
-      "port": "github.com/moto-nrw/project-phoenix/modules/peopledirectory/internal/ports.BirthdayStore.SetStaffBirthdayOptOut",
-      "binding": "github.com/moto-nrw/project-phoenix/api.birthdayStore.SetStaffBirthdayOptOut",
-      "target": "*github.com/moto-nrw/project-phoenix/workflows/staffoffboarding.LiveStaffEmployment.SetBirthdayDisplayOptOut",
-      "target_owner": "staff-offboarding",
-      "binding_digest": "4991369c1107cbfedc56fde1c3107d3c",
-      "effect": "mutation",
-      "classification": "workflow",
-      "adr": "0067",
-      "reason": "Workflow-backed, Schuld #4825: People BirthdayStore/StaffRepository reaches LiveStaffEmployment (staff_membership_adapters.go:545-551); not a normal leaf. Guarded target record/byte command; preserve ambient scope, target validation and existing failure propagation. Target-local locks/savepoints alone do not establish a new source coordinator. Target workflows/staffoffboarding.LiveStaffEmployment.SetBirthdayDisplayOptOut; workflows/staffoffboarding/live_staff_employment.go:42. "
-    },
-    {
-      "source_owner": "people-directory",
-      "port": "github.com/moto-nrw/project-phoenix/modules/peopledirectory/internal/ports.BirthdayStore.SetStaffBirthdayOptOut",
-      "binding": "github.com/moto-nrw/project-phoenix/api.birthdayStore.SetStaffBirthdayOptOut",
-      "target": "github.com/moto-nrw/project-phoenix/workflows/staffoffboarding.NewLiveStaffEmployment",
-      "target_owner": "staff-offboarding",
-      "binding_digest": "70d57f1131cb2d8b68327be70d4cd856",
-      "effect": "query",
-      "classification": "query",
-      "reason": "Workflow-backed, Schuld #4825: People BirthdayStore/StaffRepository reaches LiveStaffEmployment (staff_membership_adapters.go:545-551); not a normal leaf. Reviewed read/value/construction method; no owned-row mutation or locking read at this terminal. Target workflows/staffoffboarding.NewLiveStaffEmployment; workflows/staffoffboarding/live_staff_employment.go:33. May-bind method surface, not a production-call/liveness claim."
     },
     {
       "source_owner": "people-directory",
@@ -24485,29 +24506,6 @@
       "effect": "query",
       "classification": "query",
       "reason": "Reviewed read/value/construction method; no owned-row mutation or locking read at this terminal. Target modules/schoolmembership.Owner.ListStaff; modules/schoolmembership.Owner (supplied contract method). May-bind method surface, not a production-call/liveness claim."
-    },
-    {
-      "source_owner": "people-directory",
-      "port": "github.com/moto-nrw/project-phoenix/modules/peopledirectory/ports.StaffRepository.SetBirthdayDisplayOptOut",
-      "binding": "github.com/moto-nrw/project-phoenix/roots/owners.StaffMembershipRepository.SetBirthdayDisplayOptOut",
-      "target": "*github.com/moto-nrw/project-phoenix/workflows/staffoffboarding.LiveStaffEmployment.SetBirthdayDisplayOptOut",
-      "target_owner": "staff-offboarding",
-      "binding_digest": "7ba0562bfc366e619ce385d0934b0012",
-      "effect": "mutation",
-      "classification": "workflow",
-      "adr": "0067",
-      "reason": "Workflow-backed, Schuld #4825: People BirthdayStore/StaffRepository reaches LiveStaffEmployment (staff_membership_adapters.go:545-551); not a normal leaf. E3 named People student/companion or staff-identity edit protocol. Preserve class gate, foreign row/cohort locks, in-lock checks and composite savepoint/best-effort caregiver behavior; hand rows 14-19, People student_write.go, student_enrollment.go, staff_directory.go. Target workflows/staffoffboarding.LiveStaffEmployment.SetBirthdayDisplayOptOut; workflows/staffoffboarding/live_staff_employment.go:42. "
-    },
-    {
-      "source_owner": "people-directory",
-      "port": "github.com/moto-nrw/project-phoenix/modules/peopledirectory/ports.StaffRepository.SetBirthdayDisplayOptOut",
-      "binding": "github.com/moto-nrw/project-phoenix/roots/owners.StaffMembershipRepository.SetBirthdayDisplayOptOut",
-      "target": "github.com/moto-nrw/project-phoenix/workflows/staffoffboarding.NewLiveStaffEmployment",
-      "target_owner": "staff-offboarding",
-      "binding_digest": "9be50d530b5fd9c07e5cf1fb56af9a70",
-      "effect": "query",
-      "classification": "query",
-      "reason": "Workflow-backed, Schuld #4825: People BirthdayStore/StaffRepository reaches LiveStaffEmployment (staff_membership_adapters.go:545-551); not a normal leaf. Reviewed read/value/construction method; no owned-row mutation or locking read at this terminal. Target workflows/staffoffboarding.NewLiveStaffEmployment; workflows/staffoffboarding/live_staff_employment.go:33. May-bind method surface, not a production-call/liveness claim."
     },
     {
       "source_owner": "people-directory",

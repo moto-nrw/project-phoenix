@@ -149,8 +149,8 @@ var moduleLegacyFileBudgets = map[string]int{
 // like every entry; raised by ADR 0063 and by ADR 0073 (the parent
 // announcement retention of modules/communication/composition).
 // Raised by ADR 0076: the restricted staff person repair compositions (+53).
-// ADR 0093: the isolated tenant return constructor adds exactly 18 LOC.
-const moduleComposeBudgetTotal = 12402
+// ADR 0097: the isolated tenant return constructor adds exactly 18 LOC.
+const moduleComposeBudgetTotal = 12400
 
 // moduleComposeBudgets maps every owner composition package to its production
 // LOC, first measured on 2026-10-15 on top of development c49b81c3a9: 61
@@ -183,11 +183,11 @@ var moduleComposeBudgets = map[string]int{
 	"modules/guardianlinkview/compose":              8,
 	"modules/identityaccess/compose":                1303,
 	"modules/mealplan/compose":                      69,
-	// ADR 0093: the isolated tenant return constructor, no retained logic moved.
+	// ADR 0097: the isolated tenant return constructor, no retained logic moved.
 	"modules/organizationtenancy/compose":         271,
 	"modules/parentrequestfeedprojection/compose": 11,
 	// Raised by ADR 0076: the restricted administrative repair constructor.
-	"modules/peopledirectory/compose":       974,
+	"modules/peopledirectory/compose":       973,
 	"modules/presenceprojection/compose":    7,
 	"modules/requestreview/compose":         12,
 	"modules/schedulerruntime/compose":      45,
@@ -210,7 +210,7 @@ var moduleComposeBudgets = map[string]int{
 	"modules/workforce/compose":                       888,
 	"workflows/gradetransition/compose":               49,
 	"workflows/openroommove/compose":                  46,
-	"workflows/parentportal/compose":                  279,
+	"workflows/parentportal/compose":                  278,
 	"workflows/reminderdelivery/compose":              30,
 	"workflows/sessionend/compose":                    59,
 	"workflows/shiftplansync/compose":                 124,

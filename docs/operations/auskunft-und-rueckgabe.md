@@ -1,7 +1,8 @@
 # Interne Auskunft und Datenrückgabe
 
 Stand: 23.10.2026, Slice 3838-a, Refs #3838, Teil von #3846.
-Grundlage: [ADR 0092](../adr/0092-mandanten-datenlebenszyklus-nutzt-einen-gemeinsamen-katalog.md)
+Grundlage: [ADR 0092](../adr/0092-mandanten-datenlebenszyklus-nutzt-einen-gemeinsamen-katalog.md),
+[ADR 0097](../adr/0097-mandantenrueckgabe-hat-einen-eigenen-leseadapter.md)
 und [Datenkatalog](../reference/datenkatalog.md).
 
 ## Stand und Grenzen

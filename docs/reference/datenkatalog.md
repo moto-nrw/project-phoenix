@@ -1,7 +1,8 @@
 # Gemeinsamer Datenkatalog für Löschung und Rückgabe
 
 Stand: 23.10.2026. Entscheidung:
-[ADR 0092](../adr/0092-mandanten-datenlebenszyklus-nutzt-einen-gemeinsamen-katalog.md).
+[ADR 0092](../adr/0092-mandanten-datenlebenszyklus-nutzt-einen-gemeinsamen-katalog.md) und
+[ADR 0097](../adr/0097-mandantenrueckgabe-hat-einen-eigenen-leseadapter.md).
 Grundlage für #3837 und #3838, Slice 3837-a.
 
 ## Stand und Quelle

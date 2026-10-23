@@ -15,10 +15,6 @@ func NewInstanceLifecycle(deps ports.InstanceLifecycleDependencies) (ports.Insta
 	return application.NewInstanceLifecycle(deps)
 }
 
-func NewInstanceAutoEnd(instances ports.LegacyInstanceReads, completion timetable.InstanceLifecycle) (timetable.InstanceAutoEnd, error) {
-	return application.NewInstanceAutoEnd(instances, completion)
-}
-
 func NewInstanceStatusSlots(rows ports.ParticipantRows) ports.InstanceStatusSlots {
 	return application.NewInstanceStatusSlots(rows)
 }

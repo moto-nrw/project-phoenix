@@ -43,8 +43,9 @@ func (b birthdayView) GetOptOut(ctx context.Context, accountID int64) (bool, err
 	return optOut, mapBirthdayError(err)
 }
 
-func (b birthdayView) SetOptOut(ctx context.Context, accountID int64, optOut bool) error {
-	return mapBirthdayError(b.service.SetOptOut(ctx, accountID, optOut))
+func (b birthdayView) OwnStaffBirthday(ctx context.Context, accountID int64) (peopledirectory.StaffBirthdayPreference, error) {
+	staff, err := b.service.resolveOwnStaff(ctx, accountID)
+	return peopledirectory.StaffBirthdayPreference{StaffID: staff.ID, OptOut: staff.OptOut}, mapBirthdayError(err)
 }
 
 func (b birthdayView) ListStaffBirthdays(ctx context.Context, months map[time.Month]bool) ([]peopledirectory.StaffBirthday, error) {

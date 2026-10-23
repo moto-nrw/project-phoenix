@@ -111,6 +111,8 @@ for effect completeness; behavior tests and review still establish semantics.
   that compatibility surface under a separately justified, bounded runtime
   exception. Prefer the explicit workflow entry seam; neither option is
   implemented or granted as a new general exception here.
+  [ADR 0071's #4740 addendum](0071-principle-owner-dependencies-point-one-way.md#care-resumption-domain-command-replaced-by-http-consumer-port)
+  records the later HTTP entry cut and bounds the remaining E2 callbacks.
 - **The reported unused port is live through promotion.**
   `CareStudentDirectory.ResumeCare` in
   `modules/careplan/internal/ports/care_lifecycle.go:38` has no direct Care Plan

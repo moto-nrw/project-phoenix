@@ -166,7 +166,7 @@ describe("exportPlan", () => {
       .spyOn(HTMLAnchorElement.prototype, "click")
       .mockImplementation(() => undefined);
 
-    await exportPlan(
+    const printing = exportPlan(
       "dienstplan",
       request,
       "pdf",
@@ -174,6 +174,7 @@ describe("exportPlan", () => {
       target as unknown as Window,
     );
     await vi.runAllTimersAsync();
+    await printing;
 
     expect(target.print).toHaveBeenCalledOnce();
     expect(click).not.toHaveBeenCalled();

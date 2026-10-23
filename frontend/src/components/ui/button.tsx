@@ -44,7 +44,7 @@ type ButtonLinkNavigationEvent = Parameters<
   NonNullable<ButtonLinkProps["onNavigate"]>
 >[0];
 
-function buttonClassName({
+export function buttonClassName({
   variant,
   size,
   className,
