@@ -47,7 +47,7 @@ const moduleFileSizeThreshold = 800
 // Shrink-only. Reproduce the measurement with:
 //
 //	cd backend && find modules workflows -name '*.go' ! -name '*_test.go' \
-//	  -exec wc -l {} + | awk '$1 > 800 {print $2, $1}' | sort
+//	  -exec wc -l {} + | awk '$1 > 800 && $2 != "total" {print $2, $1}' | sort
 //
 // ADR 0082: newly covered sources, measured at 722c5aa147; no headroom.
 var moduleFileSizeAllowlist = map[string]int{

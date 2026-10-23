@@ -53,6 +53,12 @@ import (
 //
 //	cd backend && ../scripts/run-go-toolchain.sh go run ./tmp/moduleFuncLen
 //
+// The temporary seed helper was not retained. Re-measure the current tree
+// with the ratchet itself (a mismatch prints the measured values):
+//
+//	cd backend && ../scripts/run-go-toolchain.sh go test -tags=testhooks ./test/ \
+//	  -run '^TestModuleFunctionLengthRatchet$' -count=1 -v
+//
 // The first seed was taken at 19feca2822 and re-measured here after the merge
 // of origin/development (a47f77b2c3): PR #3408 (issue #3350) moved seven
 // over-threshold functions into modules/, which the ratchet cannot absorb

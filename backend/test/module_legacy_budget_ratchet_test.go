@@ -51,6 +51,12 @@ import (
 // program (walk modules/ and workflows/ for directories named "legacy", sum
 // the lines of all non-test .go files per topmost tree), run as
 // `cd backend && ../scripts/run-go-toolchain.sh go run ./tmp/moduleLegacyBudget`.
+// The temporary seed helper was not retained. Re-measure the current tree
+// with the ratchet itself (a mismatch prints the measured values):
+//
+//	cd backend && ../scripts/run-go-toolchain.sh go test -tags=testhooks ./test/ \
+//	  -run '^TestModuleLegacyBudgetRatchet$' -count=1 -v
+//
 // The first seed was taken at 19feca2822 and re-measured here after the merge
 // of origin/development (a47f77b2c3): PR #3408 (issue #3350) moved the
 // care-exit, companion and care-document code out of services/users into the
