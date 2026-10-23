@@ -386,6 +386,9 @@ type CreateRoleRequest struct {
 	Name        string  `json:"name"`
 	Description string  `json:"description"`
 	BaseRole    *string `json:"base_role,omitempty"`
+	// Template names the system role the new role copies (#4574). It sets
+	// the tier as well, so it replaces base_role.
+	Template *string `json:"template,omitempty"`
 }
 
 // Bind validates the create role request
@@ -395,8 +398,16 @@ func (req *CreateRoleRequest) Bind(_ *http.Request) error {
 	// Empty/blank base_role trims to nil, treated as "field not sent" (preserve
 	// existing value): once set, a base_role cannot be cleared back to NULL via the API.
 	req.BaseRole = trimPtrToNil(req.BaseRole)
+	req.Template = trimPtrToNil(req.Template)
 
-	if err := validateBaseRole(req.BaseRole); err != nil {
+	if req.Template != nil {
+		if req.BaseRole != nil {
+			return errors.New("send either template or base_role, not both")
+		}
+		if !identityaccess.RoleTemplate(*req.Template).Valid() {
+			return fmt.Errorf("template must be one of: %v", identityaccess.RoleTemplates())
+		}
+	} else if err := validateBaseRole(req.BaseRole); err != nil {
 		return err
 	}
 
@@ -489,14 +500,17 @@ func validateBaseRole(br *string) error {
 
 // RoleResponse represents a role response
 type RoleResponse struct {
-	ID          int64    `json:"id,string"`
-	Name        string   `json:"name"`
-	Description string   `json:"description"`
-	IsSystem    bool     `json:"is_system"`
-	BaseRole    *string  `json:"base_role,omitempty"`
-	CreatedAt   string   `json:"created_at"`
-	UpdatedAt   string   `json:"updated_at"`
-	Permissions []string `json:"permissions,omitempty"`
+	ID          int64   `json:"id,string"`
+	Name        string  `json:"name"`
+	Description string  `json:"description"`
+	IsSystem    bool    `json:"is_system"`
+	BaseRole    *string `json:"base_role,omitempty"`
+	// SchoolPortal marks a school role made from the Lehrkraft template: its
+	// accounts use moto schule like the Lehrkraft role (#4574).
+	SchoolPortal bool     `json:"school_portal"`
+	CreatedAt    string   `json:"created_at"`
+	UpdatedAt    string   `json:"updated_at"`
+	Permissions  []string `json:"permissions,omitempty"`
 }
 
 // CreatePermissionRequest represents the create permission request payload

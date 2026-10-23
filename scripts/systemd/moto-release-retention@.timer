@@ -1,0 +1,11 @@
+[Unit]
+Description=Daily moto release snapshot retention (%i)
+
+[Timer]
+OnCalendar=*-*-* 01:15:00 UTC
+Persistent=true
+RandomizedDelaySec=5m
+Unit=moto-release-retention@%i.service
+
+[Install]
+WantedBy=timers.target

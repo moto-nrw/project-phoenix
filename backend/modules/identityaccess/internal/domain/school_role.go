@@ -11,4 +11,6 @@ type SchoolRole struct {
 	IsSystem    bool
 	BaseRole    *string
 	Permissions []string
+	// SchoolPortal marks a school role made from the Lehrkraft template (#4574).
+	SchoolPortal bool
 }

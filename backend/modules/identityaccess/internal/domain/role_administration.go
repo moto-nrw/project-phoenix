@@ -28,13 +28,16 @@ type ManagedRole struct {
 	Description string
 	IsSystem    bool
 	BaseRole    *string
-	CreatedAt   time.Time
-	UpdatedAt   time.Time
+	// SchoolPortal marks a school role made from the Lehrkraft template: it
+	// opens moto schule like the system role lehrkraft (#4574).
+	SchoolPortal bool
+	CreatedAt    time.Time
+	UpdatedAt    time.Time
 }
 
 // Facts projects the role onto its classification facts.
 func (r ManagedRole) Facts() *RoleFacts {
-	return &RoleFacts{ID: r.ID, TenantID: r.TenantID, Name: r.Name, IsSystem: r.IsSystem, BaseRole: r.BaseRole}
+	return &RoleFacts{ID: r.ID, TenantID: r.TenantID, Name: r.Name, IsSystem: r.IsSystem, BaseRole: r.BaseRole, SchoolPortal: r.SchoolPortal}
 }
 
 // ManagedPermission is one auth.permissions row.

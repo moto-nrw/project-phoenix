@@ -267,7 +267,7 @@ func (s *SchoolInvitation) ensureRoleAssignable(ctx context.Context, request dom
 	// The caregiver upgrade would hand a Lehrkraft the full user role plus a
 	// caregiver profile; the combination is refused before a link exists
 	// (#1772), for operator-issued invitations too.
-	if request.CaregiverEnabled && s.policy.IsLehrkraftSystemRole(&facts) {
+	if request.CaregiverEnabled && s.policy.IsLehrkraftRole(&facts) {
 		return domain.ManagedRole{}, failed(opCreateInvitation, domain.ErrLehrkraftNoCaregiver)
 	}
 	if request.OperatorGrant {
@@ -666,7 +666,7 @@ func (s *SchoolInvitation) redeemable(ctx context.Context, token string) (domain
 // portalOf decides where the invitee accepts: a school-portal role accepts
 // on the school portal, because that is where its login lives (#2207).
 func (s *SchoolInvitation) portalOf(role domain.ManagedRole) domain.InvitationPortal {
-	if s.policy.IsLehrkraftSystemRole(role.Facts()) {
+	if s.policy.IsLehrkraftRole(role.Facts()) {
 		return domain.InvitationPortalSchool
 	}
 	return domain.InvitationPortalTenant

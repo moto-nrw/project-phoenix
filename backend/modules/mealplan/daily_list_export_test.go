@@ -10,7 +10,7 @@ import (
 
 func TestDailyListExportLaysOutTheTagesliste(t *testing.T) {
 	t.Parallel()
-	list := mealplan.DailyList{Date: "2026-10-19", CutoffTime: "09:30", Participants: []mealplan.DailyParticipant{
+	list := mealplan.DailyList{Date: "2026-10-19", Cutoffs: mealplan.Cutoffs{CutoffTime: "09:30"}, Participants: []mealplan.DailyParticipant{
 		{StudentID: 11, FirstName: "Mia", LastName: "Meier", SchoolClass: "2a"},
 		{StudentID: 12, FirstName: "Ben", LastName: "Bauer", SchoolClass: "3b"},
 	}}
@@ -36,9 +36,9 @@ func TestWeeklyListExportLaysOutTheWochenliste(t *testing.T) {
 	mia := mealplan.DailyParticipant{StudentID: 11, FirstName: "Mia", LastName: "Meier", SchoolClass: "2a"}
 	ben := mealplan.DailyParticipant{StudentID: 12, FirstName: "Ben", LastName: "Bauer", SchoolClass: "3b"}
 	day := func(date mealplan.Date, participants ...mealplan.DailyParticipant) mealplan.DailyList {
-		return mealplan.DailyList{Date: date, CutoffTime: "09:30", CutoffLeadDays: 2, Participants: participants}
+		return mealplan.DailyList{Date: date, Cutoffs: mealplan.Cutoffs{CutoffTime: "09:30", CutoffLeadDays: 2}, Participants: participants}
 	}
-	week := mealplan.WeeklyList{WeekStart: "2026-10-19", CutoffTime: "09:30", CutoffLeadDays: 2, Days: []mealplan.DailyList{
+	week := mealplan.WeeklyList{WeekStart: "2026-10-19", Cutoffs: mealplan.Cutoffs{CutoffTime: "09:30", CutoffLeadDays: 2}, Days: []mealplan.DailyList{
 		day("2026-10-19", ben, mia), day("2026-10-20"), day("2026-10-21", ben), day("2026-10-22", mia), day("2026-10-23", ben, mia),
 	}}
 
@@ -67,9 +67,27 @@ func TestWeeklyListExportLaysOutTheWochenliste(t *testing.T) {
 
 func TestDailyListExportNamesOneLeadDay(t *testing.T) {
 	t.Parallel()
-	export, err := mealplan.DailyList{Date: "2026-10-19", CutoffTime: "14:00", CutoffLeadDays: 1}.Export()
+	export, err := mealplan.DailyList{Date: "2026-10-19", Cutoffs: mealplan.Cutoffs{CutoffTime: "14:00", CutoffLeadDays: 1}}.Export()
 	require.NoError(t, err)
 	assert.Equal(t, "Änderungsfrist: 14:00 Uhr, 1 Werktag vorher", export.Filters[0])
+}
+
+func TestExportsNameTheWeekdayCancellationAndClosedDays(t *testing.T) {
+	t.Parallel()
+	cutoffs := mealplan.Cutoffs{CutoffTime: "16:00", CutoffWeekday: mealplan.Wednesday, CancellationCutoffTime: "09:00", CancellationCutoffLeadDays: 1}
+	daily, err := mealplan.DailyList{Cutoffs: cutoffs, Date: "2026-10-19", Closed: true}.Export()
+	require.NoError(t, err)
+	assert.Equal(t, []string{"Änderungsfrist: 16:00 Uhr, Mittwoch der Vorwoche", "Abmeldefrist: 09:00 Uhr, 1 Werktag vorher", "0 Kinder", "Kein Essen: Feiertag oder Schließtag"}, daily.Filters)
+
+	days := make([]mealplan.DailyList, 0, 5)
+	for _, date := range []mealplan.Date{"2026-10-19", "2026-10-20", "2026-10-21", "2026-10-22", "2026-10-23"} {
+		days = append(days, mealplan.DailyList{Cutoffs: cutoffs, Date: date})
+	}
+	days[2].Closed = true
+	weekly, err := mealplan.WeeklyList{Cutoffs: cutoffs, WeekStart: "2026-10-19", Days: days}.Export()
+	require.NoError(t, err)
+	assert.Equal(t, []string{"Summe", "", "0", "0", "kein Essen", "0", "0"}, weekly.Lines[len(weekly.Lines)-1])
+	assert.Equal(t, "Abmeldefrist: 09:00 Uhr, 1 Werktag vorher", weekly.Filters[1])
 }
 
 func TestFaultsCarryTheirClientTexts(t *testing.T) {

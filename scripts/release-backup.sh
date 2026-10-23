@@ -236,6 +236,43 @@ SQL
   echo 'Database, roles, uploads and previous configuration restored; application is still stopped'
 }
 
+# Caller must hold the environment's .release-operation.lock. Deploy already
+# owns it; independent runs use release-backup-cleanup.sh, never this primitive.
+prune() {
+  local root=$1 retention=$2 days=$3 current=${4:-} current_count=0 cutoff path id stamp remove_count index
+  local LC_ALL=C
+  [[ "$root" = /* && "$root" != / && ! -L "$root" ]] || fail 'Invalid snapshot root'
+  [[ "$retention" =~ ^[1-9][0-9]*$ ]] || fail 'Invalid BACKUP_RETENTION'
+  [[ "$days" =~ ^([1-9]|[1-8][0-9]|90)$ ]] || fail 'RELEASE_SNAPSHOT_MAX_AGE_DAYS must be 1 to 90'
+  # GNU date on the deployment host; BSD date for the local macOS test loop.
+  cutoff=$(date -u -d "$days days ago" +%Y%m%dT%H%M%SZ 2>/dev/null) ||
+    cutoff=$(date -u -v-"${days}"d +%Y%m%dT%H%M%SZ) || fail 'Cannot determine snapshot cutoff'
+  [ -d "$root" ] || return 0
+  local snapshots=()
+  for path in "$root"/release-*; do
+    [ -d "$path" ] && [ ! -L "$path" ] || continue
+    id=${path##*/}
+    [[ "$id" =~ ^release-([0-9]{8}T[0-9]{6}Z)-[a-f0-9]{7,40}$ ]] || continue
+    stamp=${BASH_REMATCH[1]}
+    # Use the UTC creation ID, not filesystem mtime. Interrupted snapshots also
+    # contain sensitive data and must expire, even without a completion marker.
+    if [[ "$stamp" < "$cutoff" || "$stamp" = "$cutoff" ]]; then
+      rm -rf -- "$path"
+    elif [ -f "$path/complete" ] && [ ! -L "$path/complete" ]; then
+      # A backward clock change can sort the just-created snapshot before older
+      # ones. Keep the deploy's current rollback point within the count limit.
+      if [ "$path" = "$current" ]; then current_count=1; else snapshots+=("$path"); fi
+    fi
+  done
+  # An arbitrarily large configured count needs no shell integer conversion.
+  local snapshot_count=$((${#snapshots[@]} + current_count))
+  [ "${#retention}" -le "${#snapshot_count}" ] || return 0
+  remove_count=$((snapshot_count - retention))
+  for ((index=0; index<remove_count; index++)); do
+    rm -rf -- "${snapshots[$index]}"
+  done
+}
+
 case "${1:-}" in
   create|verify|restore|verify-files)
     [ "$#" = 2 ] || fail 'Usage: release-backup.sh {create|verify|restore} /absolute/backup-directory'
@@ -245,5 +282,9 @@ case "${1:-}" in
     ;;
   app-services) app_services;;
   keep-images) keep_images;;
-  *) fail 'Expected create, verify or restore';;
+  prune)
+    [ "$#" = 4 ] || [ "$#" = 5 ] || fail 'Usage: release-backup.sh prune /absolute/snapshot-root count max-age-days [current-snapshot]'
+    prune "$2" "$3" "$4" "${5:-}"
+    ;;
+  *) fail 'Expected create, verify, restore or prune';;
 esac

@@ -17,8 +17,10 @@ type MealPlanSource[D ~string, E, P, R, C any] interface {
 	ClearParticipationForDay(context.Context, C) error
 }
 type MealPlanRows[D ~string, E, P any, W ~int, Day, R, C any] struct {
-	Entry            func(E) MealPlanEntry
-	Plan             func(P) (string, string, int, []W, []Day)
+	Entry func(E) MealPlanEntry
+	// Plan splits a plan into its cutoffs and effective date, its weekdays
+	// and its days.
+	Plan             func(P) (MealParticipationPlan, []W, []Day)
 	ParticipationDay func(Day) MealParticipationDay
 	Schedule         func(int64, int64, []W) R
 	Change           func(int64, int64, D, bool) C
@@ -44,8 +46,9 @@ func portalSchedule[W ~int, R any](schedule MealParticipationSchedule, convert f
 	return convert(schedule.StudentID, schedule.GuardianAccountID, weekdays)
 }
 func portalParticipation[D ~string, E, P any, W ~int, Day, R, C any](plan P, rows MealPlanRows[D, E, P, W, Day, R, C]) MealParticipationPlan {
-	effective, cutoff, leadDays, weekdays, days := rows.Plan(plan)
-	out := MealParticipationPlan{EffectiveFrom: effective, CutoffTime: cutoff, CutoffLeadDays: leadDays, Weekdays: make([]MealWeekday, 0, len(weekdays)), Days: make([]MealParticipationDay, 0, len(days))}
+	out, weekdays, days := rows.Plan(plan)
+	out.Weekdays = make([]MealWeekday, 0, len(weekdays))
+	out.Days = make([]MealParticipationDay, 0, len(days))
 	for _, weekday := range weekdays {
 		out.Weekdays = append(out.Weekdays, MealWeekday(weekday))
 	}
