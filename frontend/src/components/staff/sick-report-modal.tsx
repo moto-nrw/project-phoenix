@@ -193,7 +193,7 @@ export function SickReportModal({
             type="success"
             message={
               halfDay
-                ? `${staffName} ist am ${formatDate(createdStart)} für einen halben Tag krank gemeldet. Dienstplan sowie Tages- und Wochenplan wurden nicht automatisch geändert.`
+                ? `${staffName} ist am ${formatDate(createdStart)} für einen halben Tag krank gemeldet. Dienst- und Betreuungsplan wurden nicht automatisch geändert.`
                 : `${staffName} ist ab dem ${formatDate(createdStart)} als krank gemeldet. Reguläre Schichten wurden storniert und Betreuungsblöcke als abwesend markiert.`
             }
           />
@@ -256,8 +256,8 @@ export function SickReportModal({
               </span>
             </label>
             <p className="mt-1 text-xs text-gray-500">
-              Halbe Tage gelten für ein einzelnes Datum und ändern den
-              Dienstplan sowie den Tages- und Wochenplan nicht automatisch.
+              Halbe Tage gelten für ein einzelnes Datum und ändern den Dienst-
+              und Betreuungsplan nicht automatisch.
             </p>
           </div>
 

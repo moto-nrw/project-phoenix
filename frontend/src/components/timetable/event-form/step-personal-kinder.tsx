@@ -779,7 +779,7 @@ export function StepPersonalKinder({
         />
         <p className="mt-1 text-xs text-gray-500">
           {isDuty
-            ? "So viele Personen braucht der Dienst. Sind weniger da, zeigt die Vertretung bei Ausfall eine Lücke."
+            ? "So viele Personen braucht der Dienst. Sind weniger da, zeigt der Vertretungsplan eine Lücke."
             : "Leer = automatisch: Es gilt der Wert der Terminreihe, sonst die Berechnung aus dem Betreuungsschlüssel (Kinderzahl). Eine Zahl legt den Bedarf fest und überschreibt beides."}
         </p>
       </Field>

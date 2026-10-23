@@ -248,7 +248,7 @@ export function CarePlanView({
       return;
     }
     void showLoadError(error, {
-      object: "die Ansicht des Tages- und Wochenplans",
+      object: "die Ansicht des Betreuungsplans",
       retry: () => void reloadRef.current(),
     });
   }, [error, showLoadError, clearLoadError]);
@@ -258,7 +258,7 @@ export function CarePlanView({
       <>
         <ConceptSectionHeader
           className="border-b border-gray-100 p-4 sm:p-5"
-          title="Tages- und Wochenplan"
+          title="Betreuungsplan"
           concept="carePlan"
           subtitle={
             viewMode === "day"
@@ -353,12 +353,12 @@ export function CarePlanView({
             load.error ? (
               <LoadErrorAlert error={load.error} />
             ) : (
-              <SkeletonRegion label="Tages- und Wochenplan wird geladen">
+              <SkeletonRegion label="Betreuungsplan wird geladen">
                 <DetailSectionSkeleton fields={4} />
               </SkeletonRegion>
             )
           ) : loading ? (
-            <SkeletonRegion label="Tages- und Wochenplan wird geladen">
+            <SkeletonRegion label="Betreuungsplan wird geladen">
               <DetailSectionSkeleton fields={4} />
             </SkeletonRegion>
           ) : viewMode === "day" ? (

@@ -118,7 +118,7 @@ export function SupervisionsOverview({
   const description =
     instances.length === 0
       ? `Ihr Tag am ${formatDate(today)}.`
-      : `Ihre Aufsichten am ${formatDate(today)}. Sie sehen nur die Termine, für die Sie im Tages- und Wochenplan eingeteilt sind.`;
+      : `Ihre Aufsichten am ${formatDate(today)}. Sie sehen nur die Termine, für die Sie im Betreuungsplan eingeteilt sind.`;
 
   return (
     <SectionCard
@@ -129,7 +129,7 @@ export function SupervisionsOverview({
       {instances.length === 0 ? (
         <EmptyState
           title="Heute keine Aufsicht für Sie"
-          description="Für heute sind Sie im Tages- und Wochenplan keiner Aufsicht zugeteilt. Die Einteilung macht das OGS-Büro."
+          description="Für heute sind Sie im Betreuungsplan keiner Aufsicht zugeteilt. Die Einteilung macht das OGS-Büro."
         />
       ) : (
         <div className="space-y-4">

@@ -324,7 +324,7 @@ const SchoolPlanReadView = dynamic(
   {
     ssr: false,
     loading: () => (
-      <SkeletonRegion label="Tages- und Wochenplan wird geladen…">
+      <SkeletonRegion label="Betreuungsplan wird geladen…">
         <TableSkeleton rows={7} columns={5} />
       </SkeletonRegion>
     ),
@@ -994,7 +994,7 @@ function StaffCalendarPageInner() {
               onChange: handleCalendarTabChange,
               items: [
                 { value: "meine", label: "Meine Termine" },
-                { value: "schule", label: "Tages- und Wochenplan" },
+                { value: "schule", label: "Betreuungsplan" },
               ],
               label: "Kalenderbereiche",
             }

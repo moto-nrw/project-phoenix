@@ -182,7 +182,7 @@ keine zweite Ansicht.
 
 ## Bauart 3 — Werkzeug
 
-Flächen, auf denen über Zeit gearbeitet wird: Tages- und Wochenplan, Dienstplan,
+Flächen, auf denen über Zeit gearbeitet wird: Betreuungsplan, Dienstplan,
 Vertretung, Kalender, Zeiterfassung, Statistik, Tagesauswertung, Abrechnung.
 
 1. **Zeitnavigation immer im `searchSlot` der Kopfkarte, immer als
@@ -452,7 +452,7 @@ Knopf, Hilfe, E-Mail. Verbindlich:
 
 Zwei sichtbare Namen teilen keinen Wortstamm ohne sichtbare Abgrenzung.
 Der Wortstamm „Betreuungs-" darf nur noch EINMAL als Navigationsname
-vorkommen (Tages- und Wochenplan).
+vorkommen (Betreuungsplan).
 
 ## Farbe in der Navigation
 

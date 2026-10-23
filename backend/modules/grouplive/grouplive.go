@@ -555,7 +555,7 @@ func planningLabel(decision DayDecision) string {
 	case DayReasonPickupSchedule:
 		return "Abholplan heute"
 	case DayReasonTimetable:
-		return "Tages- und Wochenplan heute"
+		return "Betreuungsplan heute"
 	default:
 		return "kein Plan für heute"
 	}

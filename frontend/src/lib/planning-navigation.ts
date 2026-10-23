@@ -31,13 +31,13 @@ export interface PlanningSubPage {
 export const PLANNING_SUB_PAGES: readonly PlanningSubPage[] = [
   {
     href: "/betreuungsplan",
-    label: "Tages- und Wochenplan",
+    label: "Betreuungsplan",
     legacyPrefixes: ["/timetables"],
     showInMobileNav: true,
     // Der Planungsbereich gehört der Leitung: wer den Plan bearbeiten darf
     // (schedules:manage, das Recht der Schreibrouten), sieht den Eintrag, ob
     // Admin oder eine eigene Leitungsrolle der Schule (#3469). Alle anderen
-    // erreichen die Leseansicht (#2283) als Tab "Tages- und Wochenplan" in "Mein
+    // erreichen die Leseansicht (#2283) als Tab "Betreuungsplan" in "Mein
     // Kalender" (eine Kalenderfläche), nicht über die Planungsgruppe.
     nonAdminPermission: "schedules:manage",
   },
@@ -51,11 +51,12 @@ export const PLANNING_SUB_PAGES: readonly PlanningSubPage[] = [
     nonAdminPermission: "time_tracking:manage",
   },
   {
-    // „Vertretung bei Ausfall" ist der Name aus dem Modulkatalog (#4778).
-    // Die Tagesübersicht im Tagesbetrieb heißt deshalb „Übergaben"; kein
-    // Navigationseintrag trägt mehr zweimal das Wort „Vertretung" (#2826).
+    // „Vertretungsplan", nicht „Terminvertretungen": neben Betreuungsplan und
+    // Dienstplan die dritte Planung. Die Tagesübersicht im Tagesbetrieb heißt
+    // „Übergaben" (#4778), damit kein Navigationseintrag mit „Vertretung"
+    // daneben steht (#2826).
     href: "/vertretung",
-    label: "Vertretung bei Ausfall",
+    label: "Vertretungsplan",
     legacyPrefixes: ["/vertretungsplan"],
     showInMobileNav: true,
     nonAdminPermission: "schedules:manage",

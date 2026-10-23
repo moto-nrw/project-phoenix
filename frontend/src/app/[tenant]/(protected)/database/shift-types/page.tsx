@@ -135,7 +135,7 @@ function ShiftTypesPageContent() {
             ? [
                 {
                   name: "categoryIds",
-                  label: "Kategorien des Tages- und Wochenplans",
+                  label: "Kategorien des Betreuungsplans",
                   type: "multiselect" as const,
                   colSpan: 2 as const,
                   placeholder: "Kategorie hinzufügen…",
@@ -287,7 +287,7 @@ function ShiftTypesPageContent() {
       <PlanningDisabledState
         pageTitle="Dienstarten"
         heading="Dienstarten sind nicht verfügbar"
-        description="Der Tages- und Wochenplan ist für diese Schule ausgeschaltet."
+        description="Der Betreuungsplan ist für diese Schule ausgeschaltet."
         testId="shift-types-disabled-state"
       />
     );

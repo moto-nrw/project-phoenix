@@ -98,7 +98,7 @@ async function createGapInstance(
   return { id, startTime, endTime };
 }
 
-test.describe("Tages- und Wochenplan UI-Flow (Inkrement 4)", () => {
+test.describe("Betreuungsplan UI-Flow (Inkrement 4)", () => {
   test.beforeEach(async ({ page }) => {
     test.skip(access === null, MISSING_SEED_ACCESS);
     if (!access) return;
@@ -139,7 +139,7 @@ test.describe("Tages- und Wochenplan UI-Flow (Inkrement 4)", () => {
     // Kopfzeile + Kalenderraster (Tageskopfzeile "N P.") als erstes
     // Inhaltselement; keine Alt-Chrome-Texte mehr.
     await expect(
-      page.getByRole("heading", { name: "Tages- und Wochenplan" }),
+      page.getByRole("heading", { name: "Betreuungsplan" }),
     ).toBeVisible({ timeout: 20000 });
     await expect(page.getByText(/\d+\s*P\./).first()).toBeVisible(DATA);
     await expect(page.getByText("Betreuungsplan im Blick")).toHaveCount(0);
@@ -205,7 +205,7 @@ test.describe("Tages- und Wochenplan UI-Flow (Inkrement 4)", () => {
 
     expect(
       deviationCalls,
-      "Der Tages- und Wochenplan darf keinen Deviations-Endpunkt aufrufen",
+      "Der Betreuungsplan darf keinen Deviations-Endpunkt aufrufen",
     ).toBe(0);
   });
 
@@ -217,7 +217,7 @@ test.describe("Tages- und Wochenplan UI-Flow (Inkrement 4)", () => {
 
     // nextWorkdayISO: die Woche zeigt Mo–Fr, ein Wochenendtag würde snappen.
     const day = nextWorkdayISO(berlinTodayISO());
-    const title = `Playwright Tages- und Wochenplan ${Date.now()}`;
+    const title = `Playwright Betreuungsplan ${Date.now()}`;
     const { id, startTime, endTime } = await createGapInstance(
       page,
       day,
@@ -293,7 +293,7 @@ test.describe("Tages- und Wochenplan UI-Flow (Inkrement 4)", () => {
       waitUntil: "domcontentloaded",
     });
     await expect(
-      page.getByRole("heading", { name: "Tages- und Wochenplan" }),
+      page.getByRole("heading", { name: "Betreuungsplan" }),
     ).toBeVisible({ timeout: 20000 });
 
     // "+ Neu" -> "Einmaliger Termin" öffnet das Event-Modal.

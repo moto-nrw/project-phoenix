@@ -179,7 +179,7 @@ const baseDataSections: DataSection[] = [
   {
     id: "planningTracks",
     title: "Planungsspuren",
-    description: "Regeltermine im Tages- und Wochenplan farblich bündeln",
+    description: "Regeltermine im Betreuungsplan farblich bündeln",
     href: "/database/planning-tracks",
     concept: "carePlan",
     requiresPlanning: true,

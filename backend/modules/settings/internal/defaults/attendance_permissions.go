@@ -62,7 +62,7 @@ var studentAbsenceScopeDefinitions = []config.Definition{
 	{
 		Key:             config.KeyAttendanceEditScope,
 		Label:           "Wo darf das Team Kinder an- und abmelden?",
-		Description:     "Überall geht nur, wenn das Team alle Gruppen und Blöcke sieht. Die Auswahl ändert keine Aufsicht und keinen Tages- und Wochenplan.",
+		Description:     "Überall geht nur, wenn das Team alle Gruppen und Blöcke sieht. Die Auswahl ändert keine Aufsicht und keinen Betreuungsplan.",
 		Type:            config.FieldSelect,
 		Default:         config.AttendanceEditScopeOwn,
 		ReadPermission:  "config:read",

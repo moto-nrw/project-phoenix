@@ -438,7 +438,7 @@ export function WeeklyCalendarGrid({
           Spalten summiert sich das sichtbar auf. Die Maximalhöhe umfasst den
           Rasterkörper (720px) und die Sticky-Zeilen. Die optionale
           Kapazitätszeile bekommt ihr eigenes Höhenbudget, damit sie im
-          Tages- und Wochenplan nicht sichtbare Rasterhöhe wegnimmt. Waagrecht
+          Betreuungsplan nicht sichtbare Rasterhöhe wegnimmt. Waagrecht
           scrollt derselbe Container, wenn die Tage ihre Mindestbreite
           brauchen; der innere Rahmen trägt diese Breite für alle drei
           Zeilen, damit Kopf und Raster gemeinsam scrollen. */}

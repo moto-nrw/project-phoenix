@@ -80,7 +80,7 @@ var (
 	// ErrTimetableTemplateProtected prevents the legacy activities API from
 	// bypassing recurring-template locks, lineage checks, and care-offering
 	// validation. Timetable templates must be mutated through /timetables.
-	ErrTimetableTemplateProtected = errors.New("regeltermine müssen im Tages- und Wochenplan bearbeitet werden")
+	ErrTimetableTemplateProtected = errors.New("regeltermine müssen im Betreuungsplan bearbeitet werden")
 
 	// ErrSystemCategoryProtected is returned when a write targets an
 	// auto-provisioned system category (Schulhof, WC). Those are infrastructure

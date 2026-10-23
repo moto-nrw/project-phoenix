@@ -164,7 +164,7 @@ const TAB_LABELS: Record<StudentTabId, string> = {
   notizen: "Notizen",
   nachrichten: "Nachrichten",
   erziehungsberechtigte: "Erziehungsberechtigte",
-  betreuungsplan: "Tages- und Wochenplan",
+  betreuungsplan: "Betreuungsplan",
   betreuungszeiten: "Betreuungszeiten",
   anmeldungen: "Anmeldungen",
   dokumente: "Dokumente",

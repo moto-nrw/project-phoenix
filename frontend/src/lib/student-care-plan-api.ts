@@ -195,7 +195,7 @@ async function parseApiResult<T>(
 
 // --- Fetchers ---------------------------------------------------------------
 
-const LOAD_ERROR = "Tages- und Wochenplan konnte nicht geladen werden";
+const LOAD_ERROR = "Betreuungsplan konnte nicht geladen werden";
 
 /** Fetch one child's plan for a single day. */
 export async function fetchStudentCarePlanDay(

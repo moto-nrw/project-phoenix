@@ -66,7 +66,7 @@ func appendClassMismatchWarnings(warnings map[int64][]timetable.OperationRosterW
 		}
 		warnings[studentID] = append(warnings[studentID], timetable.OperationRosterWarning{
 			Kind:                  "template_class_mismatch",
-			Message:               "Kind passt nicht zur Klassengruppe der Vorlage im Tages- und Wochenplan.",
+			Message:               "Kind passt nicht zur Klassengruppe der Betreuungsplan-Vorlage.",
 			ExpectedGroupID:       expectedGroupID,
 			ExpectedGroupName:     expectedGroupName,
 			CurrentEducationGroup: st.GroupID,

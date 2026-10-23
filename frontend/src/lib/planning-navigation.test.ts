@@ -95,7 +95,7 @@ describe("navigation labels follow the module catalog (#4778)", () => {
 
   it("names exactly one navigation entry with the word Vertretung", () => {
     expect(labels.filter((label) => label.includes("Vertretung"))).toEqual([
-      "Vertretung bei Ausfall",
+      "Vertretungsplan",
     ]);
   });
 

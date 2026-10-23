@@ -278,7 +278,7 @@ describe("getParentHelpTopicForPath", () => {
     });
     expect(caregiverTopics[6]?.troubleshooting).toBeUndefined();
     expect(caregiverTopics[6]?.troubleshootingDetails).toEqual([
-      "Der Tab `Tages- und Wochenplan` fehlt? Bitten Sie Ihre Leitung, Ihren Zugang zu prüfen.",
+      "Der Tab `Betreuungsplan` fehlt? Bitten Sie Ihre Leitung, Ihren Zugang zu prüfen.",
       "Steht dort `Noch kein Planungszeitraum`? Dann hat Ihre Leitung den Zeitraum noch nicht angelegt.",
     ]);
     expect(caregiverTopics[6]?.differences).toEqual([
@@ -382,7 +382,7 @@ describe("getParentHelpTopicForPath", () => {
       "Stammdaten",
       "Nachrichten",
       "Erziehungsberechtigte",
-      "Tages- und Wochenplan",
+      "Betreuungsplan",
       "Betreuungszeiten",
       "Anmeldungen",
       "Dokumente",

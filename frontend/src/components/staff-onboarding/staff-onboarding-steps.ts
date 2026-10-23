@@ -327,7 +327,7 @@ export const STAFF_ONBOARDING_TOURS: Readonly<
       ),
       ...childTab(
         "betreuungsplan",
-        "Tages- und Wochenplan",
+        "Betreuungsplan",
         "Hier sehen Sie, was für das Kind an einem Tag oder in einer Woche geplant ist.",
       ),
       ...childTab(

@@ -166,8 +166,8 @@ const targetPickerLabels: Record<Exclude<FormFieldTarget, "">, string> = {
   "student.bus_days": "Buskind beim Kind speichern",
   "student.bus": "Buskind beim Kind speichern",
   "student.pickup_status": "Abholregelung beim Kind speichern",
-  "schedule.pickup": "Abholzeiten beim Kind speichern",
-  "schedule.arrival": "Ankunftszeiten beim Kind speichern",
+  "schedule.pickup": "Abholzeiten im Betreuungsplan speichern",
+  "schedule.arrival": "Ankunftszeiten im Betreuungsplan speichern",
   "student.contacts":
     "Weitere Kontakte, Abholberechtigte und Notfallkontakte speichern",
 };

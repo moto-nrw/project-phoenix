@@ -673,7 +673,7 @@ describe("VertretungView", () => {
     // Anker: das Skelett des Gerüsts.
     expect(
       screen.getByRole("status", {
-        name: "Der Bereich „Vertretung bei Ausfall“ wird geladen…",
+        name: "Der Bereich „Vertretungsplan“ wird geladen…",
       }),
     ).toHaveAttribute("aria-busy", "true");
     expect(screen.queryByTestId("calendar-grid")).not.toBeInTheDocument();

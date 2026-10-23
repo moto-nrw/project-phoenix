@@ -314,7 +314,7 @@ describe("CareRequestReviewItem after a later pickup (#3261)", () => {
     expect(screen.queryByText("Längere Betreuung eintragen")).toBeNull();
   });
 
-  it("fragt ohne Recht am Tages- und Wochenplan nicht nach", async () => {
+  it("fragt ohne Recht am Betreuungsplan nicht nach", async () => {
     const onDecided = vi.fn();
     render(
       <CareRequestReviewItem row={laterPickupRow()} onDecided={onDecided} />,

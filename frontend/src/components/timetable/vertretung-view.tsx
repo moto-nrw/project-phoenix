@@ -731,7 +731,7 @@ function VertretungContent() {
   return (
     <TenantPage
       overlays={overlays}
-      title="Vertretung bei Ausfall"
+      title="Vertretungsplan"
       stats={statusLine}
       statsLoading={showSkeleton || isLoading}
       actions={
@@ -755,7 +755,7 @@ function VertretungContent() {
           ) : null}
           {/* Bauart 3, Regel 4: Drucken und Exportieren stehen im Kebab der
               Kopfkarte, rechts der Hauptaktion, mit demselben Wortlaut wie im
-              Tages- und Wochenplan. */}
+              Betreuungsplan. */}
           {menuItems.length > 0 && (
             <OverflowMenu ariaLabel="Weitere Aktionen" items={menuItems} />
           )}
@@ -905,7 +905,7 @@ function VertretungContent() {
         )}
         {/* Das Raster läuft auch unterhalb lg mit, dort einspaltig unter der
             Liste: es war früher desktop-only, wodurch die Vertretung mobil
-            weniger zeigte als am Rechner — anders als der Tages- und Wochenplan, der
+            weniger zeigte als am Rechner — anders als der Betreuungsplan, der
             dasselbe Raster auf demselben Gerät sehr wohl darstellt.
             WeeklyCalendarGrid bringt die mobile Tagesauswahl selbst mit
             (eigener Tagesstreifen, alle übrigen Spalten unter sm verborgen),
@@ -966,9 +966,9 @@ function VertretungContent() {
 function VertretungDisabledState() {
   return (
     <PlanningDisabledState
-      pageTitle="Vertretung bei Ausfall"
+      pageTitle="Vertretungsplan"
       heading="Vertretung ist deaktiviert"
-      description="Vertretung bei Ausfall gehört zum Tages- und Wochenplan, der für diese Schule ausgeschaltet ist. Er kann in den Einstellungen unter „Betrieb“ wieder aktiviert werden."
+      description="Die Vertretung gehört zum Betreuungsplan, der für diese Schule ausgeschaltet ist. Er kann in den Einstellungen unter „Betrieb“ wieder aktiviert werden."
       testId="vertretung-disabled-state"
     />
   );

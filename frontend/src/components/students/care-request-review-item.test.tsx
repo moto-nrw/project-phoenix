@@ -299,7 +299,7 @@ describe("CareRequestReviewItem", () => {
     expect(screen.getByText("Nach dem Freigeben")).toBeInTheDocument();
     expect(
       screen.getByText(
-        "Im Tages- und Wochenplan wird das Kind von diesen Terminen abgemeldet:",
+        "Im Betreuungsplan wird das Kind von diesen Terminen abgemeldet:",
       ),
     ).toBeInTheDocument();
     expect(
@@ -324,7 +324,7 @@ describe("CareRequestReviewItem", () => {
     expand();
     expect(
       screen.getByText(
-        "Das Kind bleibt im Tages- und Wochenplan für alle Termine eingeplant.",
+        "Das Kind bleibt im Betreuungsplan für alle Termine eingeplant.",
       ),
     ).toBeInTheDocument();
   });

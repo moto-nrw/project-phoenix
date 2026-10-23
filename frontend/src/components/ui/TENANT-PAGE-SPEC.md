@@ -257,7 +257,7 @@ gilt unverändert auf allen Breiten.
 
 ## Planungsflächen
 
-Tages- und Wochenplan, Dienstplan, Vertretung und Kalender haben keinen zweiten
+Betreuungsplan, Dienstplan, Vertretung und Kalender haben keinen zweiten
 Kopf: `PlanningContextBar` ist keine Karte mehr, sondern das Bedienband IN
 der Kopfkarte (`TenantPage` Slot `searchSlot`) — dieselbe Stelle, an der eine
 Liste ihre Suche trägt. Der Ansichtsumschalter darin ist ein

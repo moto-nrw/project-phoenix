@@ -111,7 +111,7 @@ export function dayLogSourceLabel(source?: string): string {
     case "parent":
       return "Eltern-App";
     case "care_plan_cancelled":
-      return "Abmeldung im Tages- und Wochenplan";
+      return "Abmeldung im Betreuungsplan";
     default:
       return "";
   }

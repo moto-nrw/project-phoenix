@@ -70,7 +70,7 @@ async function openSeriesScopeDialog(page: Page): Promise<boolean> {
   await openSidebarGroup(page, "Planung");
   await page
     .locator("aside")
-    .getByRole("link", { name: "Tages- und Wochenplan", exact: true })
+    .getByRole("link", { name: "Betreuungsplan", exact: true })
     .click();
   await page.waitForURL((url) => url.pathname.endsWith("/betreuungsplan"));
 

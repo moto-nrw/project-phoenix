@@ -516,7 +516,7 @@ export const ERROR_CATALOG = {
       "students.pickup_change_expired":
         "Der Tag liegt in der Vergangenheit. Bitte lehnen Sie {object} ab.",
       "students.pickup_change_impact_changed":
-        "Der Tages- und Wochenplan hat sich geändert. Bitte laden Sie die Seite neu.",
+        "Der Betreuungsplan hat sich geändert. Bitte laden Sie die Seite neu.",
       "students.reason_required":
         "Für {object} fehlt eine Begründung. Bitte tragen Sie eine ein.",
       "students.request_not_decided":
@@ -544,7 +544,7 @@ export const ERROR_CATALOG = {
       "timetable.activity_system_protected":
         "Diese Aktivität gehört fest zu moto. Sie lässt sich nicht umbenennen oder löschen.",
       "timetable.activity_template_protected":
-        "Diese Aktivität ist ein Regeltermin. Bitte ändern Sie sie im Tages- und Wochenplan.",
+        "Diese Aktivität ist ein Regeltermin. Bitte ändern Sie sie im Betreuungsplan.",
       "timetable.ambiguous_template_instance_delete":
         "Dieser Termin lässt sich nicht einzeln löschen. Die Serie hat an diesem Tag mehrere Termine.",
       "timetable.attendance_entry_not_found":

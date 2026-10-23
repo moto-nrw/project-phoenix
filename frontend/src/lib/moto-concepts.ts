@@ -203,7 +203,7 @@ export const MOTO_CONCEPTS = {
 
   calendar: concept("Kalender", CalendarIcon, "indigo", "function", "planning"),
   carePlan: concept(
-    "Tages- und Wochenplan",
+    "Betreuungsplan",
     CalendarDotsIcon,
     "indigo",
     "function",

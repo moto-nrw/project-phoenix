@@ -697,7 +697,7 @@ describe("StaffCalendarPage", () => {
   // Eine Kalenderfläche (#2283): Nicht-Admins mit schedules:read bekommen
   // den Betreuungsplan als zweiten Tab; Admins und Konten ohne die
   // Permission sehen den Kalender unverändert ohne Tabs.
-  it("shows the Tages- und Wochenplan tab for non-admin staff with schedules:read", () => {
+  it("shows the Betreuungsplan tab for non-admin staff with schedules:read", () => {
     mockUseSession.mockReturnValue({
       data: { user: { permissions: ["calendar:own", "schedules:read"] } },
       status: "authenticated",
@@ -706,9 +706,7 @@ describe("StaffCalendarPage", () => {
     render(<StaffCalendarPage />);
 
     expect(screen.getByRole("tab", { name: "Meine Termine" })).toBeVisible();
-    expect(
-      screen.getByRole("tab", { name: "Tages- und Wochenplan" }),
-    ).toBeVisible();
+    expect(screen.getByRole("tab", { name: "Betreuungsplan" })).toBeVisible();
     // Ohne Plan-Parameter startet die Fläche bei den eigenen Terminen.
     expect(screen.getByRole("tab", { name: "Meine Termine" })).toHaveAttribute(
       "aria-selected",
@@ -727,9 +725,10 @@ describe("StaffCalendarPage", () => {
 
     render(<StaffCalendarPage />);
 
-    expect(
-      screen.getByRole("tab", { name: "Tages- und Wochenplan" }),
-    ).toHaveAttribute("aria-selected", "true");
+    expect(screen.getByRole("tab", { name: "Betreuungsplan" })).toHaveAttribute(
+      "aria-selected",
+      "true",
+    );
   });
 
   it("follows Plan-Parameter after client-side navigation", async () => {
@@ -746,7 +745,7 @@ describe("StaffCalendarPage", () => {
 
     await waitFor(() =>
       expect(
-        screen.getByRole("tab", { name: "Tages- und Wochenplan" }),
+        screen.getByRole("tab", { name: "Betreuungsplan" }),
       ).toHaveAttribute("aria-selected", "true"),
     );
 
@@ -778,12 +777,12 @@ describe("StaffCalendarPage", () => {
 
     // Die Seitenreiter des Tenant-Gerüsts sind einfache Buttons (click),
     // keine Radix-Tabs mehr (mousedown).
-    fireEvent.click(screen.getByRole("tab", { name: "Tages- und Wochenplan" }));
+    fireEvent.click(screen.getByRole("tab", { name: "Betreuungsplan" }));
     rerender(<StaffCalendarPage />);
 
     await waitFor(() =>
       expect(
-        screen.getByRole("tab", { name: "Tages- und Wochenplan" }),
+        screen.getByRole("tab", { name: "Betreuungsplan" }),
       ).toHaveAttribute("aria-selected", "true"),
     );
     const dayParam = new URLSearchParams(window.location.search).get("d");
@@ -792,17 +791,19 @@ describe("StaffCalendarPage", () => {
     // Termin öffnen: der Betreuungsplan schreibt `block` dazu.
     window.history.replaceState(null, "", `?d=${dayParam}&block=42`);
     rerender(<StaffCalendarPage />);
-    expect(
-      screen.getByRole("tab", { name: "Tages- und Wochenplan" }),
-    ).toHaveAttribute("aria-selected", "true");
+    expect(screen.getByRole("tab", { name: "Betreuungsplan" })).toHaveAttribute(
+      "aria-selected",
+      "true",
+    );
 
     // Termin schließen: `block` verschwindet, der Tag bleibt.
     window.history.replaceState(null, "", `?d=${dayParam}`);
     rerender(<StaffCalendarPage />);
 
-    expect(
-      screen.getByRole("tab", { name: "Tages- und Wochenplan" }),
-    ).toHaveAttribute("aria-selected", "true");
+    expect(screen.getByRole("tab", { name: "Betreuungsplan" })).toHaveAttribute(
+      "aria-selected",
+      "true",
+    );
     expect(new URLSearchParams(window.location.search).get("d")).toBe(dayParam);
   });
 
@@ -817,9 +818,10 @@ describe("StaffCalendarPage", () => {
     );
 
     render(<StaffCalendarPage />);
-    expect(
-      screen.getByRole("tab", { name: "Tages- und Wochenplan" }),
-    ).toHaveAttribute("aria-selected", "true");
+    expect(screen.getByRole("tab", { name: "Betreuungsplan" })).toHaveAttribute(
+      "aria-selected",
+      "true",
+    );
     fireEvent.click(screen.getByRole("tab", { name: "Meine Termine" }));
 
     expect(window.location.search).toBe("");

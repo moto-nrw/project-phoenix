@@ -231,7 +231,7 @@ export function StepTermin({
               disabled={loadingRefs}
             />
             <p className="mt-1 text-[11px] leading-4 text-gray-500">
-              Optional. Farbe und Reihenfolge gelten im Tages- und Wochenplan.
+              Optional. Farbe und Reihenfolge gelten im Betreuungsplan.
             </p>
           </Field>
         </>

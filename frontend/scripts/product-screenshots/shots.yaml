@@ -210,7 +210,7 @@ shots:
   # --- Planung --------------------------------------------------------------
   # Hilfe betreuungsplan-erstellen; PostHog: 364 Aufrufe in 11 Schulen
   - id: betreuungsplan
-    titel: Tages- und Wochenplan
+    titel: Betreuungsplan der Woche
     portal: tenant
     rolle: admin
     pfad: /betreuungsplan

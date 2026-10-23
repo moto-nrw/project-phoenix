@@ -50,7 +50,7 @@ function sections(): SectionConfig[] {
           component: CatalogColorField,
           componentProps: {
             defaultHex: DEFAULT_COLOR,
-            hint: "Die Farbe kennzeichnet die Spur im Tages- und Wochenplan.",
+            hint: "Die Farbe kennzeichnet die Spur im Betreuungsplan.",
           },
         },
       ],
@@ -104,7 +104,7 @@ function PlanningTracksPageContent() {
         "Planungsspuren bündeln Regeltermine farblich, zum Beispiel nach Jahrgang.",
       searchPlaceholder: "Planungsspur suchen…",
       emptyDescription:
-        "Legen Sie eine Planungsspur an, um Regeltermine im Tages- und Wochenplan farblich zu bündeln.",
+        "Legen Sie eine Planungsspur an, um Regeltermine im Betreuungsplan farblich zu bündeln.",
       stats: (tracks) => {
         const archived = tracks.filter((track) => track.archivedAt).length;
         const active = tracks.length - archived;
@@ -162,7 +162,7 @@ function PlanningTracksPageContent() {
       <PlanningDisabledState
         pageTitle="Planungsspuren"
         heading="Planungsspuren sind nicht verfügbar"
-        description="Der Tages- und Wochenplan ist für diese Schule ausgeschaltet."
+        description="Der Betreuungsplan ist für diese Schule ausgeschaltet."
         testId="planning-tracks-disabled-state"
       />
     );

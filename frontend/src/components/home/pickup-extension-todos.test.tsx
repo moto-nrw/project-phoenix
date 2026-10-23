@@ -72,7 +72,7 @@ describe("PickupExtensionTodos (#3261)", () => {
     state.error = undefined;
   });
 
-  it("fragt ohne Recht am Tages- und Wochenplan nichts ab und zeigt nichts", () => {
+  it("fragt ohne Recht am Betreuungsplan nichts ab und zeigt nichts", () => {
     state.tasks = [task("1", "Lina Schröder")];
     const { container } = render(<PickupExtensionTodos enabled={false} />);
 

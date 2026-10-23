@@ -56,7 +56,7 @@ export const categoryLabels: Record<string, string> = {
   sitzungsbereinigung: "Nicht genutzte Sitzungen bereinigen",
   sitzungsende: "Sitzungen beenden",
   standort: "Bundesland",
-  stundenplan: "Tages- und Wochenplan",
+  stundenplan: "Betreuungsplan",
   team: "Team-Chat",
   termine: "Termine",
   zeiterfassung: "Zeiterfassung",

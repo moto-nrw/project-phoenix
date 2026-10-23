@@ -4245,7 +4245,7 @@ function TimeTrackingContent() {
       </div>
 
       {/* Heute geplante Betreuungsplan-Einsätze (Ort/Aufgabe + Vertretungen,
-          #1844). Rendert nichts, wenn die Schule keinen Tages- und Wochenplan pflegt. */}
+          #1844). Rendert nichts, wenn die Schule keinen Betreuungsplan pflegt. */}
       <BetreuungsplanHeuteCard />
 
       <LeaveRequestsCard />

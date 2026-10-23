@@ -83,9 +83,7 @@ describe("CarePlanView", () => {
   it("shows the loading state while fetching", () => {
     setSWR({ data: undefined, isLoading: true, error: null });
     render(<CarePlanView studentId="1" statusDays={[]} />);
-    expect(
-      screen.getByText("Tages- und Wochenplan wird geladen"),
-    ).toBeInTheDocument();
+    expect(screen.getByText("Betreuungsplan wird geladen")).toBeInTheDocument();
   });
 
   it("shows a failed load in place with the catalog text and a retry", async () => {
@@ -100,7 +98,7 @@ describe("CarePlanView", () => {
     render(<CarePlanView studentId="1" statusDays={[]} />);
     expect(
       await screen.findByText(
-        "Die Ansicht des Tages- und Wochenplans ist gerade nicht erreichbar. Bitte versuchen Sie es erneut.",
+        "Die Ansicht des Betreuungsplans ist gerade nicht erreichbar. Bitte versuchen Sie es erneut.",
       ),
     ).toBeInTheDocument();
     expect(screen.queryByText("Boom")).not.toBeInTheDocument();
@@ -162,7 +160,7 @@ describe("CarePlanView", () => {
     );
     // No data fetched -> empty state, and the parent is not asked to widen.
     expect(
-      screen.getByText("Für diesen Tag ist nichts geplant."),
+      screen.getByText("Kein Betreuungsplan für diesen Tag."),
     ).toBeInTheDocument();
     expect(onVisibleDateRangeChange).not.toHaveBeenCalled();
   });

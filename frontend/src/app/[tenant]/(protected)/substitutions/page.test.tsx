@@ -229,11 +229,11 @@ describe("SubstitutionPage", () => {
     );
   });
 
-  it("links today's substitutions to the planning page Vertretung bei Ausfall (#4778)", () => {
+  it("links today's substitutions to the planning page Vertretungsplan (#4778)", () => {
     render(<SubstitutionPage />);
 
     expect(
-      screen.getByRole("link", { name: "Vertretung bei Ausfall öffnen" }),
+      screen.getByRole("link", { name: "Vertretungsplan öffnen" }),
     ).toHaveAttribute(
       "href",
       expect.stringMatching(/^\/test\/vertretung\?d=\d{4}-\d{2}-\d{2}$/),

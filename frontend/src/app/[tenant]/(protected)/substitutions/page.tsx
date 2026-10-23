@@ -806,7 +806,7 @@ function ScheduleCard({
           size="compact"
           href={data.scheduleHref()}
         >
-          Vertretung bei Ausfall öffnen
+          Vertretungsplan öffnen
         </ButtonLink>
       ) : null}
     </InfoCard>

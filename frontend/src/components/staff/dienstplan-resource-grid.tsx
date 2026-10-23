@@ -628,7 +628,7 @@ export function DienstplanResourceGrid({
           />
         ))}
         {/* Anlege-Geste in einer GEFÜLLTEN Zelle: dieselbe Fläche wie in einer
-            leeren Zelle und im Stundenraster des Tages- und Wochenplans (#2031), nur
+            leeren Zelle und im Stundenraster des Betreuungsplans (#2031), nur
             schmaler, weil darüber schon Inhalt steht. Ein- und Ausblendung
             steckt in PlanAddAffordance; `group` hier am Button, damit auch
             Tastaturfokus die Fläche zeigt (die Zelle selbst ist nicht
@@ -700,7 +700,7 @@ export function DienstplanResourceGrid({
           Breite, sichtbar blieb rund eine Tagesspalte, und der Rest der Woche
           lag hinter einer Wischgeste. Gezeigt wird EIN Tag, die Personen
           untereinander. Es ist bewusst dieselbe Darstellung wie im
-          Tages- und Wochenplan, damit die drei Planungsflächen sich mobil gleich
+          Betreuungsplan, damit die drei Planungsflächen sich mobil gleich
           verhalten. Zeilenkopf und Zelleninhalt sind exakt dieselben
           Render-Funktionen wie in der Matrix, also bleiben Menüs, Blöcke und
           die Anlege-Geste identisch. */}

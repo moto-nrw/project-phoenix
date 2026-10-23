@@ -603,7 +603,7 @@ describe("TagesplanView", () => {
     expect(timetableOperationsApi.start).toHaveBeenLastCalledWith("4");
   });
 
-  it("keeps the previous start path visible when the Tages- und Wochenplan is disabled", () => {
+  it("keeps the previous start path visible when the Betreuungsplan is disabled", () => {
     vi.mocked(useTimetableEnabled).mockReturnValue(false);
 
     render(<TagesplanView />);

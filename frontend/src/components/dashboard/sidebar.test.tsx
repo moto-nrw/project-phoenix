@@ -377,9 +377,9 @@ describe("Sidebar", () => {
       // Die Planungsbereiche sind Unterpunkte des Planung-Akkordeons (#1946),
       // inklusive Schuljahr und Ferien.
       expect(screen.getByText("Planung")).toBeInTheDocument();
-      expect(screen.getByText("Tages- und Wochenplan")).toBeInTheDocument();
+      expect(screen.getByText("Betreuungsplan")).toBeInTheDocument();
       expect(screen.getByText("Dienstplan")).toBeInTheDocument();
-      expect(screen.getByText("Vertretung bei Ausfall")).toBeInTheDocument();
+      expect(screen.getByText("Vertretungsplan")).toBeInTheDocument();
       expect(screen.getByText("Schuljahr und Kalender")).toBeInTheDocument();
     });
 
@@ -623,13 +623,9 @@ describe("Sidebar", () => {
       expect(screen.getByText("Aktuelle Aufsicht")).toBeInTheDocument();
       // Admin-only items should NOT be visible
       expect(screen.queryByText("Datenverwaltung")).not.toBeInTheDocument();
-      expect(
-        screen.queryByText("Tages- und Wochenplan"),
-      ).not.toBeInTheDocument();
+      expect(screen.queryByText("Betreuungsplan")).not.toBeInTheDocument();
       expect(screen.queryByText("Dienstplan")).not.toBeInTheDocument();
-      expect(
-        screen.queryByText("Vertretung bei Ausfall"),
-      ).not.toBeInTheDocument();
+      expect(screen.queryByText("Vertretungsplan")).not.toBeInTheDocument();
     });
 
     it("shows student search when staff has groups", () => {
@@ -761,7 +757,7 @@ describe("Sidebar", () => {
         .getByText("Schuljahr und Kalender")
         .closest("a");
       const betreuungsplanLink = screen
-        .getByText("Tages- und Wochenplan")
+        .getByText("Betreuungsplan")
         .closest("a");
       // Der /calendar-Eintrag heißt "Mein Kalender" (wie die H1 der Seite).
       const kalenderLink = screen.getByText("Mein Kalender").closest("a");
@@ -2283,9 +2279,9 @@ describe("Sidebar", () => {
       render(<Sidebar />);
 
       for (const label of [
-        "Tages- und Wochenplan",
+        "Betreuungsplan",
         "Dienstplan",
-        "Vertretung bei Ausfall",
+        "Vertretungsplan",
         "Tageslisten",
         "Schuljahr und Kalender",
         "Abrechnung",
@@ -2310,7 +2306,7 @@ describe("Sidebar", () => {
 
       for (const label of [
         "Planung",
-        "Tages- und Wochenplan",
+        "Betreuungsplan",
         "Dienstplan",
         "Anmeldungen",
         "Elternzugänge",
@@ -2459,7 +2455,7 @@ describe("Sidebar", () => {
       expect(screen.queryByText("Mein Dienstplan")).not.toBeInTheDocument();
     });
 
-    it("blendet „Mein Dienstplan“ aus, wenn die Schule keinen Tages- und Wochenplan nutzt", () => {
+    it("blendet „Mein Dienstplan“ aus, wenn die Schule keinen Betreuungsplan nutzt", () => {
       mockHasPermission.mockImplementation(
         (_session: unknown, permission: string) =>
           CAREGIVER_PERMISSIONS.has(permission) ||
@@ -2551,13 +2547,9 @@ describe("Sidebar", () => {
       // daran; nur die timetable-spezifischen Seiten verschwinden.
       expect(screen.getByText("Planung")).toBeInTheDocument();
       expect(screen.getByText("Schuljahr und Kalender")).toBeInTheDocument();
-      expect(
-        screen.queryByText("Tages- und Wochenplan"),
-      ).not.toBeInTheDocument();
+      expect(screen.queryByText("Betreuungsplan")).not.toBeInTheDocument();
       expect(screen.queryByText("Dienstplan")).not.toBeInTheDocument();
-      expect(
-        screen.queryByText("Vertretung bei Ausfall"),
-      ).not.toBeInTheDocument();
+      expect(screen.queryByText("Vertretungsplan")).not.toBeInTheDocument();
       expect(screen.getByText("Abrechnung")).toBeInTheDocument();
     });
 
@@ -2653,9 +2645,9 @@ describe("Sidebar", () => {
       expect(screen.getByText("Abrechnung").closest("a")).toHaveClass(
         "bg-gray-100",
       );
-      expect(
-        screen.getByText("Tages- und Wochenplan").closest("a"),
-      ).not.toHaveClass("bg-gray-100");
+      expect(screen.getByText("Betreuungsplan").closest("a")).not.toHaveClass(
+        "bg-gray-100",
+      );
     });
 
     it("keeps Abrechnung visible for non-admins holding config:manage", () => {
@@ -2672,15 +2664,13 @@ describe("Sidebar", () => {
         "href",
         "/test-tenant/payroll",
       );
-      expect(
-        screen.queryByText("Tages- und Wochenplan"),
-      ).not.toBeInTheDocument();
+      expect(screen.queryByText("Betreuungsplan")).not.toBeInTheDocument();
     });
 
     // Leseansicht (#2283): Nicht-Admins erreichen den Betreuungsplan als Tab
     // in "Mein Kalender" — die Sidebar zeigt ihnen KEINEN eigenen Eintrag,
     // auch nicht mit schedules:read.
-    it("shows no Tages- und Wochenplan entry for non-admins with schedules:read", () => {
+    it("shows no Betreuungsplan entry for non-admins with schedules:read", () => {
       mockIsAdmin.mockReturnValue(false);
       mockUseSession.mockReturnValue(createMockSession(false));
       mockHasPermission.mockImplementation(
@@ -2691,13 +2681,11 @@ describe("Sidebar", () => {
       render(<Sidebar />);
 
       expect(screen.queryByText("Planung")).not.toBeInTheDocument();
-      expect(
-        screen.queryByText("Tages- und Wochenplan"),
-      ).not.toBeInTheDocument();
+      expect(screen.queryByText("Betreuungsplan")).not.toBeInTheDocument();
       expect(screen.getByText("Mein Kalender")).toBeInTheDocument();
     });
 
-    it("hides Tages- und Wochenplan for non-admins without schedules:read", () => {
+    it("hides Betreuungsplan for non-admins without schedules:read", () => {
       mockIsAdmin.mockReturnValue(false);
       mockUseSession.mockReturnValue(createMockSession(false));
       mockHasPermission.mockReturnValue(false);
@@ -2708,9 +2696,7 @@ describe("Sidebar", () => {
       // die Zeiterfassung braucht seit #4573 time_tracking:own).
       expect(screen.getByText("Dateien")).toBeInTheDocument();
       expect(screen.queryByText("Planung")).not.toBeInTheDocument();
-      expect(
-        screen.queryByText("Tages- und Wochenplan"),
-      ).not.toBeInTheDocument();
+      expect(screen.queryByText("Betreuungsplan")).not.toBeInTheDocument();
     });
   });
 

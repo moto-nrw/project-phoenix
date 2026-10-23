@@ -47,13 +47,13 @@ test.describe("Planung navigation", () => {
     await planung.click();
     await expect(planung).toHaveAttribute("aria-expanded", "true");
 
-    await expect(sidebar.getByText("Tages- und Wochenplan")).toBeVisible();
+    await expect(sidebar.getByText("Betreuungsplan")).toBeVisible();
     // exact: "Mein Dienstplan" (Gruppe Team) enthält "Dienstplan" ebenfalls.
     await expect(
       sidebar.getByText("Dienstplan", { exact: true }),
     ).toBeVisible();
     await expect(
-      sidebar.getByText("Vertretung bei Ausfall", { exact: true }),
+      sidebar.getByText("Vertretungsplan", { exact: true }),
     ).toBeVisible();
     await expect(sidebar.getByText("Schuljahr und Kalender")).toBeVisible();
     await expect(sidebar.getByText("Planungsübersicht")).toHaveCount(0);
@@ -62,13 +62,13 @@ test.describe("Planung navigation", () => {
     await expect(sidebar.getByText("Übergaben", { exact: true })).toBeVisible();
     await expect(sidebar.getByText("Übergaben")).toHaveCount(0);
 
-    await sidebar.getByText("Tages- und Wochenplan").click();
+    await sidebar.getByText("Betreuungsplan").click();
     await page.waitForURL((url) => url.pathname.endsWith("/betreuungsplan"));
 
     await sidebar.getByText("Dienstplan", { exact: true }).click();
     await page.waitForURL((url) => url.pathname.endsWith("/dienstplan"));
 
-    await sidebar.getByText("Vertretung bei Ausfall", { exact: true }).click();
+    await sidebar.getByText("Vertretungsplan", { exact: true }).click();
     await page.waitForURL((url) => url.pathname.endsWith("/vertretung"));
   });
 
@@ -143,11 +143,11 @@ test.describe("Planung navigation", () => {
     // bleibt im DOM und trägt dieselben Beschriftungen.
     const drawer = page.getByRole("dialog", { name: "Navigation" });
 
-    await expect(drawer.getByText("Tages- und Wochenplan")).toBeVisible();
+    await expect(drawer.getByText("Betreuungsplan")).toBeVisible();
     // exact: "Mein Dienstplan" (Gruppe Team) enthält "Dienstplan" ebenfalls.
     await expect(drawer.getByText("Dienstplan", { exact: true })).toBeVisible();
     await expect(
-      drawer.getByText("Vertretung bei Ausfall", { exact: true }),
+      drawer.getByText("Vertretungsplan", { exact: true }),
     ).toBeVisible();
     await expect(drawer.getByText("Übergaben", { exact: true })).toBeVisible();
     await expect(drawer.getByText("Planung", { exact: true })).toBeVisible();

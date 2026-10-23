@@ -211,7 +211,7 @@ export function PlanningContextBar({
             `flex-wrap` ist nötig, weil einzelne Aktionen ihre eigene mobile
             Breite mitbringen: `TimetableAddMenu` ist unter sm `w-full`. Ohne
             Umbruch kämpften zwei Elemente um dieselbe Zeile und der breitere
-            drückte den Umschalter auf null (im Tages- und Wochenplan lag der
+            drückte den Umschalter auf null (im Betreuungsplan lag der
             "Neu"-Knopf über den Ansichts-Tabs). Mit Umbruch nimmt jeder, was er
             braucht, und beide bleiben vollständig sichtbar. */}
         {(viewSwitcher ?? actions) && (

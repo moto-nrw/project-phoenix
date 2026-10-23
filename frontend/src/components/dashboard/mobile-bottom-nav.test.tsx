@@ -686,9 +686,9 @@ describe("MobileBottomNav", () => {
       fireEvent.click(screen.getByRole("button", { name: "Mehr" }));
 
       for (const label of [
-        "Tages- und Wochenplan",
+        "Betreuungsplan",
         "Dienstplan",
-        "Vertretung bei Ausfall",
+        "Vertretungsplan",
         "Schuljahr und Kalender",
         "Anmeldungen",
         "Elternzugänge",
@@ -712,7 +712,7 @@ describe("MobileBottomNav", () => {
       fireEvent.click(screen.getByRole("button", { name: "Mehr" }));
 
       for (const label of [
-        "Tages- und Wochenplan",
+        "Betreuungsplan",
         "Dienstplan",
         "Anmeldungen",
         "Elternzugänge",
@@ -749,9 +749,9 @@ describe("MobileBottomNav", () => {
       fireEvent.click(moreButton!);
 
       // Admin-only items should be visible in the drawer
-      expect(screen.getByText("Tages- und Wochenplan")).toBeInTheDocument();
+      expect(screen.getByText("Betreuungsplan")).toBeInTheDocument();
       expect(screen.getByText("Dienstplan")).toBeInTheDocument();
-      expect(screen.getByText("Vertretung bei Ausfall")).toBeInTheDocument();
+      expect(screen.getByText("Vertretungsplan")).toBeInTheDocument();
       // Die Gruppen der Seitenleiste stehen im Menü als Überschrift, nicht
       // als Link (#2826).
       expect(screen.getByText("Planung")).toBeInTheDocument();
@@ -804,9 +804,7 @@ describe("MobileBottomNav", () => {
         "href",
         "/test-tenant/payroll",
       );
-      expect(
-        screen.queryByText("Tages- und Wochenplan"),
-      ).not.toBeInTheDocument();
+      expect(screen.queryByText("Betreuungsplan")).not.toBeInTheDocument();
     });
 
     it("prefixes all planning links in tenant path-routing mode", () => {
@@ -815,16 +813,18 @@ describe("MobileBottomNav", () => {
       const moreButton = screen.getByRole("button", { name: "Mehr" });
       fireEvent.click(moreButton);
 
-      expect(
-        screen.getByText("Tages- und Wochenplan").closest("a"),
-      ).toHaveAttribute("href", "/test-tenant/betreuungsplan");
+      expect(screen.getByText("Betreuungsplan").closest("a")).toHaveAttribute(
+        "href",
+        "/test-tenant/betreuungsplan",
+      );
       expect(screen.getByText("Dienstplan").closest("a")).toHaveAttribute(
         "href",
         "/test-tenant/dienstplan",
       );
-      expect(
-        screen.getByText("Vertretung bei Ausfall").closest("a"),
-      ).toHaveAttribute("href", "/test-tenant/vertretung");
+      expect(screen.getByText("Vertretungsplan").closest("a")).toHaveAttribute(
+        "href",
+        "/test-tenant/vertretung",
+      );
     });
 
     it("keeps planning links bare in subdomain mode", () => {
@@ -833,16 +833,18 @@ describe("MobileBottomNav", () => {
       render(<MobileBottomNav />);
       fireEvent.click(screen.getByRole("button", { name: "Mehr" }));
 
-      expect(
-        screen.getByText("Tages- und Wochenplan").closest("a"),
-      ).toHaveAttribute("href", "/betreuungsplan");
+      expect(screen.getByText("Betreuungsplan").closest("a")).toHaveAttribute(
+        "href",
+        "/betreuungsplan",
+      );
       expect(screen.getByText("Dienstplan").closest("a")).toHaveAttribute(
         "href",
         "/dienstplan",
       );
-      expect(
-        screen.getByText("Vertretung bei Ausfall").closest("a"),
-      ).toHaveAttribute("href", "/vertretung");
+      expect(screen.getByText("Vertretungsplan").closest("a")).toHaveAttribute(
+        "href",
+        "/vertretung",
+      );
     });
 
     it("highlights Dienstplan without also highlighting Mitarbeiter in the overflow menu", () => {
@@ -896,9 +898,9 @@ describe("MobileBottomNav", () => {
         screen.getByText("Schuljahr und Kalender").closest("a"),
       ).toHaveClass("bg-gray-100");
       expect(screen.getByText("Tageslisten").closest("a")).toBeInTheDocument();
-      expect(
-        screen.getByText("Tages- und Wochenplan").closest("a"),
-      ).not.toHaveClass("bg-gray-100");
+      expect(screen.getByText("Betreuungsplan").closest("a")).not.toHaveClass(
+        "bg-gray-100",
+      );
     });
   });
 
@@ -1828,7 +1830,7 @@ describe("MobileBottomNav", () => {
 
       expect(screen.getByText("Übergaben")).toBeInTheDocument();
       // Planung-Einträge bleiben sichtbar (timetable.enabled ungesetzt).
-      expect(screen.getByText("Tages- und Wochenplan")).toBeInTheDocument();
+      expect(screen.getByText("Betreuungsplan")).toBeInTheDocument();
     });
 
     it("shows Übergaben to staff", () => {
@@ -1889,13 +1891,9 @@ describe("MobileBottomNav", () => {
       render(<MobileBottomNav />);
       openDrawer();
 
-      expect(
-        screen.queryByText("Tages- und Wochenplan"),
-      ).not.toBeInTheDocument();
+      expect(screen.queryByText("Betreuungsplan")).not.toBeInTheDocument();
       expect(screen.queryByText("Dienstplan")).not.toBeInTheDocument();
-      expect(
-        screen.queryByText("Vertretung bei Ausfall"),
-      ).not.toBeInTheDocument();
+      expect(screen.queryByText("Vertretungsplan")).not.toBeInTheDocument();
       expect(screen.getByText("Schuljahr und Kalender")).toBeInTheDocument();
       expect(screen.getByText("Abrechnung")).toBeInTheDocument();
       expect(screen.getByText("Übergaben")).toBeInTheDocument();

@@ -48,7 +48,7 @@ func (s *service) ExportDienstplan(ctx context.Context, params Params) (listexpo
 
 	title := "Dienstplan"
 	rowLabel := "Mitarbeitende"
-	legend := "Fett: Dienstzeit · darunter die Aufgaben aus dem Tages- und Wochenplan"
+	legend := "Fett: Dienstzeit · darunter die Aufgaben aus dem Betreuungsplan"
 	build := data.rowsByPerson
 	if params.Template == TemplateByArea {
 		rowLabel = "Einsatzbereich"

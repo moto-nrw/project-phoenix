@@ -1481,8 +1481,8 @@ function PhaseForm(props: PhaseFormProps) {
             </span>
             {!draft.calendar_period_id && (
               <span className="text-moto-orange mt-1 block text-xs">
-                Ohne Verknüpfung können Dienstplan sowie Tages- und Wochenplan
-                später nicht auf diese Phase aufbauen.
+                Ohne Verknüpfung können Betreuungsplan und Dienstplan später
+                nicht auf diese Phase aufbauen.
               </span>
             )}
             {linkedPeriodDrift && (

@@ -45,8 +45,8 @@ func init() {
 var timetable_init_stundenplan_0Definitions = []config.Definition{
 	{
 		Key:             config.KeyTimetableEnabled,
-		Label:           "Tages- und Wochenplan nutzen",
-		Description:     "Zeigt den Tages- und Wochenplan im Menü. Die Einstellungen dazu erscheinen darunter.",
+		Label:           "Betreuungsplan nutzen",
+		Description:     "Zeigt den Betreuungsplan im Menü. Die Einstellungen dazu erscheinen darunter.",
 		Type:            config.FieldBoolean,
 		Default:         true,
 		ReadPermission:  "config:read",
@@ -125,7 +125,7 @@ var timetable_init_stundenplan_0Definitions = []config.Definition{
 	{
 		Key:             config.KeyTimetableAutoEndEnabled,
 		Label:           "Laufende Termine automatisch beenden",
-		Description:     "Beendet gestartete Termine aus dem Tages- und Wochenplan nach Endzeit und Puffer. Spontane Aktivitäten bleiben offen.",
+		Description:     "Beendet gestartete Termine aus dem Betreuungsplan nach Endzeit und Puffer. Spontane Aktivitäten bleiben offen.",
 		Type:            config.FieldBoolean,
 		Default:         false,
 		ReadPermission:  "config:read",
@@ -233,8 +233,8 @@ var timetable_init_stundenplan_0Definitions = []config.Definition{
 	},
 	{
 		Key:             config.KeyGDPRTimetableRetentionDays,
-		Label:           "Tages- und Wochenplan sowie Termine aufbewahren (Tage)",
-		Description:     "So lange bleiben beendete oder abgesagte Einträge im Tages- und Wochenplan gespeichert. Vergangene Termine im Kalender löscht moto nach derselben Zeit.",
+		Label:           "Betreuungsplan und Termine aufbewahren (Tage)",
+		Description:     "So lange bleiben beendete oder abgesagte Einträge im Betreuungsplan gespeichert. Vergangene Termine im Kalender löscht moto nach derselben Zeit.",
 		Type:            config.FieldNumber,
 		Default:         365,
 		ReadPermission:  "config:read",

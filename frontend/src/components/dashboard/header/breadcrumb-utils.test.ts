@@ -127,12 +127,12 @@ describe("breadcrumb-utils", () => {
       it("titles the three planning areas and their redirect frames", () => {
         // Die Bereiche sind flache Hauptrouten; die Redirect-Frames behalten
         // Titel, damit während des Client-Redirects nichts Falsches aufblitzt.
-        expect(getPageTitle("/betreuungsplan")).toBe("Tages- und Wochenplan");
+        expect(getPageTitle("/betreuungsplan")).toBe("Betreuungsplan");
         expect(getPageTitle("/dienstplan")).toBe("Dienstplan");
-        expect(getPageTitle("/vertretung")).toBe("Vertretung bei Ausfall");
+        expect(getPageTitle("/vertretung")).toBe("Vertretungsplan");
         expect(getPageTitle("/planung")).toBe("Planung");
-        expect(getPageTitle("/timetables")).toBe("Tages- und Wochenplan");
-        expect(getPageTitle("/vertretungsplan")).toBe("Vertretung bei Ausfall");
+        expect(getPageTitle("/timetables")).toBe("Betreuungsplan");
+        expect(getPageTitle("/vertretungsplan")).toBe("Vertretungsplan");
         expect(getPageTitle("/staff/dienstplan")).toBe("Dienstplan");
       });
 
@@ -384,7 +384,7 @@ describe("breadcrumb-utils", () => {
       it("should resolve a planning page without a section link", () => {
         const result = getSectionBreadcrumb("/betreuungsplan");
         expect(result?.sectionLabel).toBe("Planung");
-        expect(result?.pageLabel).toBe("Tages- und Wochenplan");
+        expect(result?.pageLabel).toBe("Betreuungsplan");
         // Planung hat keine Hub-Seite: ohne href rendert die Sektion als
         // Text statt als Link ins Leere.
         expect(result?.sectionHref).toBeUndefined();
@@ -397,7 +397,7 @@ describe("breadcrumb-utils", () => {
           "Dienstplan",
         );
         expect(getSectionBreadcrumb("/vertretung")?.pageLabel).toBe(
-          "Vertretung bei Ausfall",
+          "Vertretungsplan",
         );
         expect(getSectionBreadcrumb("/lists")?.pageLabel).toBe("Tageslisten");
         expect(getSectionBreadcrumb("/calendar-periods")?.pageLabel).toBe(
@@ -414,10 +414,10 @@ describe("breadcrumb-utils", () => {
 
       it("should map legacy planning paths to their current entry", () => {
         expect(getSectionBreadcrumb("/timetables")?.pageLabel).toBe(
-          "Tages- und Wochenplan",
+          "Betreuungsplan",
         );
         expect(getSectionBreadcrumb("/vertretungsplan")?.pageLabel).toBe(
-          "Vertretung bei Ausfall",
+          "Vertretungsplan",
         );
         expect(getSectionBreadcrumb("/staff/dienstplan")?.pageLabel).toBe(
           "Dienstplan",
@@ -430,7 +430,7 @@ describe("breadcrumb-utils", () => {
       it("should keep sub-paths of a planning page on that page", () => {
         expect(getSectionBreadcrumb("/betreuungsplan/2026-07-30")).toEqual({
           sectionLabel: "Planung",
-          pageLabel: "Tages- und Wochenplan",
+          pageLabel: "Betreuungsplan",
         });
       });
     });

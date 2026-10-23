@@ -56,7 +56,7 @@ function sections(): SectionConfig[] {
           component: CatalogColorField,
           componentProps: {
             defaultHex: DEFAULT_COLOR,
-            hint: "Die Farbe kennzeichnet die Kategorie im Tages- und Wochenplan.",
+            hint: "Die Farbe kennzeichnet die Kategorie im Betreuungsplan.",
           },
         },
         {

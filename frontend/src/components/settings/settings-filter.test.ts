@@ -59,7 +59,7 @@ const tabs: SchemaTab[] = [
         items: [
           setting({
             key: "timetable.enabled",
-            label: "Tages- und Wochenplan anzeigen",
+            label: "Betreuungsplan anzeigen",
           }),
           setting({
             key: "timetable.ratio",
@@ -153,7 +153,10 @@ describe("filterCategoryItems", () => {
   });
 
   it("keeps every item when the displayed category name matches", () => {
-    const items = filterCategoryItems(tabs[0]!.categories[1]!, "wochenplan");
+    const items = filterCategoryItems(
+      tabs[0]!.categories[1]!,
+      "betreuungsplan",
+    );
     expect(items).toHaveLength(2);
   });
 });

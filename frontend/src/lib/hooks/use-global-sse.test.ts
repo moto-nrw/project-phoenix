@@ -650,7 +650,7 @@ describe("useGlobalSSE — companion announcements", () => {
     ).toBe(true);
   });
 
-  it("invalidates the per-child Tages- und Wochenplan on attendance, arrival, timetable, and student-update events", () => {
+  it("invalidates the per-child Betreuungsplan on attendance, arrival, timetable, and student-update events", () => {
     renderHook(() => useGlobalSSE());
 
     // The Betreuungsplan day/week view (care-plan-*) must stay live: a

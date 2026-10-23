@@ -284,7 +284,7 @@ function CareRequestDetails({ row }: Readonly<{ row: StaffCareRequest }>) {
         )}
         <RequestDiffRows diff={row.diff} />
         {/* Nur eine neue Abholzeit verschiebt Termine; eine Abholart allein
-            ändert am Tages- und Wochenplan nichts (#3945). */}
+            ändert am Betreuungsplan nichts (#3945). */}
         {row.request_kind === "pickup_change" &&
           pickupChangeLegs(row.diff).time && <PickupImpact row={row} />}
       </ReviewDiffPanel>
@@ -313,16 +313,14 @@ function RequestDiffRows({
 
 function PickupImpact({ row }: Readonly<{ row: StaffCareRequest }>) {
   let content = (
-    <p>Das Kind bleibt im Tages- und Wochenplan für alle Termine eingeplant.</p>
+    <p>Das Kind bleibt im Betreuungsplan für alle Termine eingeplant.</p>
   );
   if (!row.impact_available) {
     content = <p>Die Liste der betroffenen Termine ist nicht verfügbar.</p>;
   } else if (row.affected_blocks.length > 0) {
     content = (
       <>
-        <p>
-          Im Tages- und Wochenplan wird das Kind von diesen Terminen abgemeldet:
-        </p>
+        <p>Im Betreuungsplan wird das Kind von diesen Terminen abgemeldet:</p>
         <ul className="mt-1 list-disc space-y-0.5 pl-5">
           {row.affected_blocks.map((block) => (
             <li key={block.id}>

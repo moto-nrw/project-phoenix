@@ -42,7 +42,7 @@ func (s *service) ExportBetreuungsplan(ctx context.Context, params Params) (list
 	weeks = narrowWeeks(weeks, data.plannedDays())
 
 	doc := s.document(
-		"Tages- und Wochenplan", "Angebot",
+		"Betreuungsplan", "Angebot",
 		"Fett: Zeit und Raum · darunter das Personal",
 		params, weeks, data.rows, data.emptyWeekRows,
 	)
@@ -54,7 +54,7 @@ func (s *service) ExportBetreuungsplan(ctx context.Context, params Params) (list
 		"format", string(params.Format),
 		"week_count", len(weeks),
 	)
-	return s.deps.Renderer.Render(doc, params.Format, filename("Tages- und Wochenplan", weeks))
+	return s.deps.Renderer.Render(doc, params.Format, filename("Betreuungsplan", weeks))
 }
 
 // betreuungsplanData is the loaded care week indexed by block title.

@@ -2568,7 +2568,7 @@
         "pickup_change_completed": "Das Kind ist schon abgemeldet. Die Abholzeit lässt sich nicht mehr ändern.",
         "pickup_change_conflict": "Für diesen Tag hat die OGS schon etwas eingetragen. Bitte prüfen Sie den Tag.",
         "pickup_change_expired": "Der Tag liegt in der Vergangenheit. Bitte lehnen Sie {object} ab.",
-        "pickup_change_impact_changed": "Der Tages- und Wochenplan hat sich geändert. Bitte laden Sie die Seite neu.",
+        "pickup_change_impact_changed": "Der Betreuungsplan hat sich geändert. Bitte laden Sie die Seite neu.",
         "pickup_reset_requires_offering": "{object} konnte nicht geändert werden. Bitte prüfen Sie den aktuellen Stand.",
         "reason_required": "Für {object} fehlt eine Begründung. Bitte tragen Sie eine ein.",
         "request_not_decided": "{object} ist noch nicht entschieden. Bitte entscheiden Sie zuerst.",
@@ -2594,7 +2594,7 @@
       "timetable": {
         "activity_not_owner": "Sie können nur Aktivitäten ändern, die Sie angelegt haben oder betreuen.",
         "activity_system_protected": "Diese Aktivität gehört fest zu moto. Sie lässt sich nicht umbenennen oder löschen.",
-        "activity_template_protected": "Diese Aktivität ist ein Regeltermin. Bitte ändern Sie sie im Tages- und Wochenplan.",
+        "activity_template_protected": "Diese Aktivität ist ein Regeltermin. Bitte ändern Sie sie im Betreuungsplan.",
         "ambiguous_template_instance_delete": "Dieser Termin lässt sich nicht einzeln löschen. Die Serie hat an diesem Tag mehrere Termine.",
         "attendance_entry_not_found": "Diesen Eintrag gibt es nicht mehr. Bitte laden Sie die Seite neu.",
         "attendance_frozen": "Der Termin ist abgeschlossen. Bitte ändern Sie die Anwesenheit über die Korrektur.",

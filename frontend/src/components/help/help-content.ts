@@ -495,7 +495,7 @@ function studentSearchTopic(
           "Wählen Sie `Stammdaten` für persönliche Angaben.",
           "Wählen Sie `Nachrichten` für den Nachrichtenaustausch mit den Eltern.",
           "Wählen Sie `Erziehungsberechtigte` für Kontaktangaben.",
-          "Wählen Sie `Tages- und Wochenplan` für den geplanten Tages- oder Wochenablauf.",
+          "Wählen Sie `Betreuungsplan` für den geplanten Tages- oder Wochenablauf.",
           "Wählen Sie `Betreuungszeiten` für regelmäßige Ankunfts- und Abholzeiten.",
           // Live geprueft: mit Betreuer-Rechten fehlt der Reiter ganz. Er
           // bleibt trotzdem in der Liste -- die Leitung liest denselben
@@ -538,7 +538,7 @@ function studentSearchTopic(
       "Ansicht und Spalten bleiben auf diesem Gerät so, wie Sie sie gewählt haben.",
       // Einstellung „Kinder nur über ‚Alle Kinder‘ finden“ (#1321).
       "Fehlen `Gruppen` und `Aktuelle Aufsicht` in der Navigation? Dann wählen Sie in `Alle Kinder` oben `Meine Gruppe` oder `Meine Aufsicht`.",
-      "Einige Bereiche brauchen zusätzliche Rechte: `Tages- und Wochenplan`, `Dokumente` und `Änderungsprotokoll`. Fehlt ein Bereich? Fragen Sie Ihre Leitung.",
+      "Einige Bereiche brauchen zusätzliche Rechte: `Betreuungsplan`, `Dokumente` und `Änderungsprotokoll`. Fehlt ein Bereich? Fragen Sie Ihre Leitung.",
       ...(presenceDifference ? [presenceDifference] : []),
     ],
     troubleshooting: HELP_TOPICS.missingChildOrGroup,
@@ -1171,7 +1171,7 @@ function myScheduleTopic(): HelpTopic {
     title: "Meine Termine und Einsätze ansehen",
     question: "Wo sehe ich meine Termine und Einsätze?",
     summary:
-      "Prüfen Sie persönliche Termine, geplante Schichten und Ihre Einsätze im Tages- und Wochenplan.",
+      "Prüfen Sie persönliche Termine, geplante Schichten und Ihre Einsätze im Betreuungsplan.",
     group: "tagesplanung",
     audience: ["caregiver", "lead"],
     icon: "CalendarDays",
@@ -1192,7 +1192,7 @@ function myScheduleTopic(): HelpTopic {
         ordered: false,
         steps: [
           "Grün zeigt Termine und Einladungen.",
-          "Blau zeigt Ihre Einsätze im Tages- und Wochenplan.",
+          "Blau zeigt Ihre Einsätze im Betreuungsplan.",
           "Orange zeigt Ihre Schichten aus dem Dienstplan.",
         ],
       },
@@ -1224,8 +1224,8 @@ function myScheduleTopic(): HelpTopic {
 function carePlanTopic(presenceMode: HelpPresenceMode): HelpTopic {
   return {
     id: HELP_TOPICS.carePlan,
-    title: "Den Tages- und Wochenplan ansehen",
-    question: "Wie sehe ich den Tages- und Wochenplan an?",
+    title: "Den Betreuungsplan ansehen",
+    question: "Wie sehe ich den Betreuungsplan an?",
     summary:
       "Prüfen Sie, welche Betreuung für die Schule geplant ist und wo Sie selbst eingesetzt sind.",
     group: "tagesplanung",
@@ -1233,7 +1233,7 @@ function carePlanTopic(presenceMode: HelpPresenceMode): HelpTopic {
     icon: "Table",
     steps: [
       "Klappen Sie in der Seitenleiste `Team` auf und öffnen Sie `Mein Kalender`.",
-      "Wählen Sie den Tab `Tages- und Wochenplan`.",
+      "Wählen Sie den Tab `Betreuungsplan`.",
       "Wählen Sie oben `Tag` oder `Woche`.",
       "Nutzen Sie die Pfeile oder `Heute`, um zum passenden Tag zu wechseln.",
       presenceMode === "binary"
@@ -1252,7 +1252,7 @@ function carePlanTopic(presenceMode: HelpPresenceMode): HelpTopic {
       "Betreut Ihre OGS am Wochenende? Dann zeigt die Wochenansicht auch Samstag und Sonntag. Dort gilt der Freitagsplan.",
     ],
     troubleshootingDetails: [
-      "Der Tab `Tages- und Wochenplan` fehlt? Bitten Sie Ihre Leitung, Ihren Zugang zu prüfen.",
+      "Der Tab `Betreuungsplan` fehlt? Bitten Sie Ihre Leitung, Ihren Zugang zu prüfen.",
       "Steht dort `Noch kein Planungszeitraum`? Dann hat Ihre Leitung den Zeitraum noch nicht angelegt.",
     ],
     related: [HELP_TOPICS.mySchedule, HELP_TOPICS.activeSupervision],
@@ -1278,8 +1278,8 @@ function dayPlanTopic(presenceMode: HelpPresenceMode): HelpTopic {
     audience: "caregiver",
     icon: "ClockAfternoon",
     requirements: [
-      "Ihre OGS hat den Tages- und Wochenplan eingeschaltet.",
-      "Sie dürfen den Tages- und Wochenplan sehen.",
+      "Ihre OGS hat den Betreuungsplan eingeschaltet.",
+      "Sie dürfen den Betreuungsplan sehen.",
     ],
     steps: [
       "Öffnen Sie `Heute` in der Seitenleiste.",
@@ -1308,8 +1308,8 @@ function dayPlanTopic(presenceMode: HelpPresenceMode): HelpTopic {
     troubleshootingDetails: [
       // Live geprueft: der haeufigste Leerzustand einer Betreuungskraft.
       "Steht dort `Heute ist keine Betreuung geplant`? Dann sind Sie für diesen Tag nicht eingeteilt. Die Einteilung macht Ihre Leitung.",
-      "Steht dort `Der Tages- und Wochenplan ist ausgeschaltet`? Dann nutzt Ihre OGS diese Funktion nicht.",
-      "Steht dort `Kein Zugriff auf den Tages- und Wochenplan`? Bitten Sie Ihre Leitung, Ihren Zugang zu prüfen.",
+      "Steht dort `Der Betreuungsplan ist ausgeschaltet`? Dann nutzt Ihre OGS diese Funktion nicht.",
+      "Steht dort `Kein Zugriff auf den Betreuungsplan`? Bitten Sie Ihre Leitung, Ihren Zugang zu prüfen.",
     ],
     related: [HELP_TOPICS.carePlan, HELP_TOPICS.activeSupervision],
   };
@@ -1555,7 +1555,7 @@ function manageActivityTopic(
       audience: "caregiver",
       icon: "Sparkles",
       steps: [
-        "Nutzen Sie den `Tages- und Wochenplan`, um geplante Angebote anzusehen.",
+        "Nutzen Sie den `Betreuungsplan`, um geplante Angebote anzusehen.",
         // Live geprueft: der Katalog `Aktivitäten` haengt an NFC, der
         // spontane Start in `Aktuelle Aufsicht` nicht.
         "Für heute können Sie in `Aktuelle Aufsicht` eine `Spontane Aktivität starten`.",
@@ -1607,7 +1607,7 @@ function manageActivityTopic(
     result:
       "Die Aktivität ist sofort am NFC-Tablet verfügbar. Suche und Filter helfen in der Liste.",
     differences: [
-      "Eine Aktivität kann am Tablet mehrfach gewählt werden. Termine mit Uhrzeit stehen im Tages- und Wochenplan.",
+      "Eine Aktivität kann am Tablet mehrfach gewählt werden. Termine mit Uhrzeit stehen im Betreuungsplan.",
       "Aktivitäten anderer Personen können Sie ansehen, aber nicht immer bearbeiten.",
     ],
     related: [HELP_TOPICS.activeSupervision, HELP_TOPICS.carePlan],
@@ -3430,7 +3430,7 @@ function manageStudentTopic(): HelpTopic {
           "`Notizen`: Einträge zu diesem Kind, mit Datum und Verfasser.",
           "`Erziehungsberechtigte`: wer das Kind abholen darf und wer erreichbar ist.",
           "`Betreuungszeiten`: der Wochenplan und einzelne Ausnahmen.",
-          "`Tages- und Wochenplan`: die geplante Betreuung Woche für Woche.",
+          "`Betreuungsplan`: die geplante Betreuung Woche für Woche.",
           "`Nachrichten`: die Unterhaltungen mit den Bezugspersonen.",
           "`Dokumente`: hochgeladene Dateien zu diesem Kind.",
           "`Änderungsprotokoll`: wer wann was geändert hat.",
@@ -5013,7 +5013,7 @@ function calendarPeriodsTopic(): HelpTopic {
       },
     ],
     result:
-      "Im Tages- und Wochenplan plant moto an Schließtagen und gesetzlichen Feiertagen keine Termine. Abgesagte Termine verschwinden aus dem Plan. Eltern bekommen keine Nachricht.",
+      "Im Betreuungsplan plant moto an Schließtagen und gesetzlichen Feiertagen keine Termine. Abgesagte Termine verschwinden aus dem Plan. Eltern bekommen keine Nachricht.",
     notes: [
       "Ein Zeitraum, den noch nichts benutzt, trägt `Nicht verwendet`.",
       "Ferienbetreuung an Schließtagen: Wählen Sie beim Speichern der Serie `Auch an Schließtagen planen`. Tragen Sie bei `Letzter Tag` den letzten Ferientag ein. Dann endet die Serie mit den Ferien.",
@@ -5021,14 +5021,14 @@ function calendarPeriodsTopic(): HelpTopic {
       "Mit `Auch in den Ferien und an Schließtagen planen` planen Sie auch dann Schichten.",
       "An gesetzlichen Feiertagen plant eine Serie nie Schichten.",
       "Schichten, die schon geplant waren, bleiben stehen.",
-      "Termine ohne Schließtag absagen: Wählen Sie im Tages- und Wochenplan im Menü `Termine im Zeitraum absagen`.",
+      "Termine ohne Schließtag absagen: Wählen Sie im Betreuungsplan im Menü `Termine im Zeitraum absagen`.",
     ],
     differences: [
       "Legen Sie eine Schicht auf einen Schließtag, fragt moto vorher nach.",
-      "Sie sehen `Termine absagen` nicht? Dann fehlt Ihnen das Recht, den Tages- und Wochenplan zu bearbeiten.",
+      "Sie sehen `Termine absagen` nicht? Dann fehlt Ihnen das Recht, den Betreuungsplan zu bearbeiten.",
     ],
     troubleshootingDetails: [
-      "Der Tages- und Wochenplan sagt `Noch kein Planungszeitraum`? Dann fehlt für diese Woche ein Zeitraum.",
+      "Der Betreuungsplan sagt `Noch kein Planungszeitraum`? Dann fehlt für diese Woche ein Zeitraum.",
     ],
     related: [
       HELP_TOPICS.leadCarePlan,
@@ -5046,16 +5046,15 @@ function calendarPeriodsTopic(): HelpTopic {
 function leadCarePlanTopic(): HelpTopic {
   return {
     id: HELP_TOPICS.leadCarePlan,
-    title: "Einen Tages- und Wochenplan erstellen",
+    title: "Einen Betreuungsplan erstellen",
     question: "Wie plane ich die Woche der Betreuung?",
-    summary:
-      "Der Tages- und Wochenplan legt fest, wer wann welche Kinder betreut.",
+    summary: "Der Betreuungsplan legt fest, wer wann welche Kinder betreut.",
     group: "planung",
     audience: "lead",
     icon: "Table",
     steps: [
       "Klappen Sie in der Seitenleiste `Planung` auf.",
-      "Öffnen Sie `Tages- und Wochenplan`.",
+      "Öffnen Sie `Betreuungsplan`.",
       "Wählen Sie oben die Ansicht `Tag`, `Woche`, `Monat` oder `Serien`.",
       "Blättern Sie mit den Pfeilen zur gewünschten Woche.",
       "Legen Sie die Termine der Woche an.",
@@ -5103,10 +5102,10 @@ function leadCancelBlockTopic(): HelpTopic {
     group: "planung",
     audience: "lead",
     icon: "CalendarCheck",
-    requirements: ["Sie dürfen den Tages- und Wochenplan bearbeiten."],
+    requirements: ["Sie dürfen den Betreuungsplan bearbeiten."],
     steps: [
       "Klappen Sie in der Seitenleiste `Planung` auf.",
-      "Öffnen Sie `Tages- und Wochenplan` und wählen Sie den Termin.",
+      "Öffnen Sie `Betreuungsplan` und wählen Sie den Termin.",
       "Wählen Sie `Absagen`.",
       "Lassen Sie den Haken bei `Eltern per App und E-Mail informieren` gesetzt, wenn die Familien Bescheid bekommen sollen.",
       "Prüfen Sie `Betreff` und `Text an die Eltern`. moto schlägt beides vor.",
@@ -5172,7 +5171,7 @@ function dutyRosterTopic(): HelpTopic {
   };
 }
 
-/** `/vertretung`. Heisst in Seitenleiste und Kopfzeile `Vertretung bei Ausfall` (#4778). */
+/** `/vertretung`. Heisst in Seitenleiste und Kopfzeile `Vertretungsplan` (#4778). */
 function substitutionPlanTopic(): HelpTopic {
   return {
     id: HELP_TOPICS.leadSubstitutionPlan,
@@ -5184,7 +5183,7 @@ function substitutionPlanTopic(): HelpTopic {
     icon: "Repeat",
     steps: [
       "Klappen Sie in der Seitenleiste `Planung` auf.",
-      "Öffnen Sie `Vertretung bei Ausfall`.",
+      "Öffnen Sie `Vertretungsplan`.",
       "Wählen Sie oben `Tag` oder `Woche`.",
       "Wählen Sie den Einsatz, der vertreten werden soll.",
       "Wählen Sie die Person, die übernimmt.",
@@ -5199,7 +5198,7 @@ function substitutionPlanTopic(): HelpTopic {
       "`Übergaben` im `Tagesbetrieb` ist etwas anderes: dort übergeben Sie Gruppen für heute. Unter `Vertretungen heute` sehen Sie dort auch die Vertretungen des Tages.",
     ],
     troubleshootingDetails: [
-      "Fehlt der Einsatz? Dann ist er noch nicht im Tages- und Wochenplan angelegt.",
+      "Fehlt der Einsatz? Dann ist er noch nicht im Betreuungsplan angelegt.",
       "Eine externe Person steht nicht zur Wahl? Externe Personen übernehmen keine Vertretung.",
     ],
     related: [
@@ -5550,7 +5549,7 @@ function settingsGuideTopic(): HelpTopic {
           "`Wo darf das Team Kinder an- und abmelden?`: Nur bei den eigenen Gruppen und Blöcken oder überall.",
           "`Wer darf Kinder krank oder entschuldigt melden?`: Nur OGS-Admins oder das ganze Team.",
           "`Übliche Ankunftszeit` und `Übliche Abholzeit`: Diese Zeiten tragen Sie im Wochenplan eines Kindes mit einem Klick ein.",
-          "`Tages- und Wochenplan nutzen`: Zeigt den Tages- und Wochenplan im Menü.",
+          "`Betreuungsplan nutzen`: Zeigt den Betreuungsplan im Menü.",
           "`Benachrichtigungen senden`: Hinweise in moto und auf dem Handy. Was ankommt, wählt jede Person selbst.",
           "`Team-Chat für Mitarbeitende`: Das Team schreibt sich Nachrichten. Eltern sehen davon nichts.",
           "`Kinderfotos`: Fotos bei den Kindern. Nur mit Einwilligung der Eltern. Beim Ausschalten löscht moto alle Fotos sofort. Sie können sie nicht wiederherstellen.",

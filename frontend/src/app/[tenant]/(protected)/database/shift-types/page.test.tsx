@@ -235,7 +235,7 @@ describe("Dienstarten — Kategorie-Zuordnung (#1837, #3114)", () => {
 
     fireEvent.click(
       screen.getByRole("combobox", {
-        name: "Kategorien des Tages- und Wochenplans",
+        name: "Kategorien des Betreuungsplans",
       }),
     );
 
@@ -300,7 +300,7 @@ describe("Dienstarten — Kategorie-Zuordnung (#1837, #3114)", () => {
     render(<ShiftTypesPage />);
 
     expect(
-      screen.queryByText("Kategorien des Tages- und Wochenplans"),
+      screen.queryByText("Kategorien des Betreuungsplans"),
     ).not.toBeInTheDocument();
 
     save();

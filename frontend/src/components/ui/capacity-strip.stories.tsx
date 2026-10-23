@@ -63,7 +63,7 @@ export const DivModeDayHeader: Story = {
     as: "div",
     position: "header",
     gridTemplateColumns: "180px repeat(5, 1fr)",
-    rowLabel: "Tages- und Wochenplan",
+    rowLabel: "Betreuungsplan",
     cells: [
       { key: "mo", content: 42 },
       { key: "di", content: 40 },
