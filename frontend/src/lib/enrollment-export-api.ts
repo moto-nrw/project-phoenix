@@ -8,6 +8,7 @@
 import { unavailableApiError } from "~/lib/api-error";
 import { readEnrollmentError } from "~/lib/enrollment-api-error";
 import { createLogger } from "~/lib/logger";
+import { downloadBlob, filenameFromDisposition } from "~/lib/file-download";
 
 const logger = createLogger({ component: "EnrollmentExportAPI" });
 
@@ -50,19 +51,8 @@ export async function exportPhaseRegistrations(
     );
   }
 
-  const blob = await response.blob();
-  const url = URL.createObjectURL(blob);
-  const link = document.createElement("a");
-  link.href = url;
-  link.download = filenameFromDisposition(response) ?? `anmeldungen.${format}`;
-  document.body.append(link);
-  link.click();
-  link.remove();
-  URL.revokeObjectURL(url);
-}
-
-function filenameFromDisposition(response: Response): string | null {
-  const disposition = response.headers.get("content-disposition");
-  const match = /filename="([^"]+)"/.exec(disposition ?? "");
-  return match?.[1] ?? null;
+  downloadBlob(
+    await response.blob(),
+    filenameFromDisposition(response) ?? `anmeldungen.${format}`,
+  );
 }

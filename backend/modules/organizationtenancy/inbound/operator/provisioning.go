@@ -656,6 +656,7 @@ func (rs *ProvisioningResource) CreateDevice(w http.ResponseWriter, r *http.Requ
 		common.RenderError(w, r, ProvisioningErrorRenderer(err))
 		return
 	}
+	w.Header().Set("Cache-Control", "no-store")
 	common.Respond(w, r, http.StatusCreated, device, "Device created successfully")
 }
 
@@ -679,6 +680,7 @@ func (rs *ProvisioningResource) SetDeviceAPIKey(w http.ResponseWriter, r *http.R
 		common.RenderError(w, r, ProvisioningErrorRenderer(err))
 		return
 	}
+	w.Header().Set("Cache-Control", "no-store")
 	common.Respond(w, r, http.StatusOK, device, "Device API key updated successfully")
 }
 
