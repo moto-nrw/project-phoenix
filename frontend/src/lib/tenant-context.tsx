@@ -14,6 +14,7 @@ import {
   type PresenceMode,
   type TenantInfo,
 } from "~/lib/tenant-api";
+import { setAnalyticsContext } from "~/lib/posthog-client";
 import { subscribeSettingsChanged } from "~/lib/settings-broadcast";
 
 interface TenantContextValue {
@@ -59,6 +60,14 @@ export function TenantProvider({
     setTenant(serverTenant);
   }, [serverTenant]);
 
+  useEffect(() => {
+    setAnalyticsContext({
+      enabled:
+        tenant?.subdomain === tenantSlug && tenant.analyticsEnabled === true,
+    });
+    return () => setAnalyticsContext({ enabled: false });
+  }, [tenantSlug, tenant]);
+
   // Sequence-token to drop out-of-order resolveTenant responses when
   // multiple signals land in the same tick. Kept monotonic across slug
   // changes so an in-flight resolve from a previous slug can't satisfy
@@ -72,11 +81,15 @@ export function TenantProvider({
     if (!tenantSlug) return undefined;
 
     const refetch = () => {
+      setAnalyticsContext({ enabled: false });
       const token = ++requestSeqRef.current;
       const requestedSlug = tenantSlug;
       void resolveTenant(requestedSlug).then((fresh) => {
         if (token !== requestSeqRef.current) return;
-        if (!fresh) return;
+        if (!fresh) {
+          setTenant(null);
+          return;
+        }
         // Defence-in-depth: also drop responses whose payload doesn't
         // match the tenant we asked for. The counter-bump on slug change
         // already invalidates stale responses, but the explicit compare

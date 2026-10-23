@@ -2,6 +2,7 @@
 
 import { useEffect, useRef } from "react";
 import { useSession } from "next-auth/react";
+import { setAnalyticsContext } from "~/lib/posthog-client";
 import { clearPortalSession, registerPortalSession } from "~/lib/analytics";
 
 const PORTALS = {
@@ -27,18 +28,45 @@ export function PortalAnalyticsSession({
   const registeredRef = useRef<string | null>(null);
 
   useEffect(() => {
+    let cancelled = false;
+    setAnalyticsContext({ enabled: false });
     if (status === "authenticated" && inScope) {
-      const key = schoolId ?? "";
-      registerPortalSession(
-        { surface, schoolId, role },
-        registeredRef.current !== null && registeredRef.current !== key,
-      );
-      registeredRef.current = key;
+      // Resolve on each session/school change. A failed read leaves collection off.
+      void fetch(
+        `/api/${scope === "parent" ? "parent" : "school"}/analytics-policy`,
+        { cache: "no-store" },
+      )
+        .then(async (response) =>
+          response.ok
+            ? (response.json() as Promise<{ data?: { enabled?: boolean } }>)
+            : null,
+        )
+        .then((result) => {
+          if (cancelled) return;
+          const key = schoolId ?? "";
+          registerPortalSession(
+            {
+              surface,
+              schoolId,
+              role,
+              enabled: result?.data?.enabled === true,
+            },
+            registeredRef.current !== null && registeredRef.current !== key,
+          );
+          registeredRef.current = key;
+        })
+        .catch(() => {
+          /* Privacy lookup failures intentionally keep collection off. */
+        });
     } else if (status === "unauthenticated" || status === "authenticated") {
       clearPortalSession();
       registeredRef.current = null;
     }
-  }, [status, inScope, schoolId, surface, role]);
+    return () => {
+      cancelled = true;
+      setAnalyticsContext({ enabled: false });
+    };
+  }, [status, inScope, schoolId, surface, scope, role]);
 
   return null;
 }

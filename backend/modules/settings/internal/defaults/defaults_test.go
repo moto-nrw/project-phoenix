@@ -2355,3 +2355,17 @@ func TestEarlyCheckoutNoteSettings(t *testing.T) {
 	assert.Equal(t, "eq", tolerance.DependsOn.Condition)
 	assert.Equal(t, true, tolerance.DependsOn.Value)
 }
+
+func TestAnalyticsCollectionSwitch(t *testing.T) {
+	t.Parallel()
+	enabled := config.GetDefinition(config.KeyAnalyticsEnabled)
+	require.NotNil(t, enabled)
+	assert.Equal(t, config.FieldBoolean, enabled.Type)
+	assert.Equal(t, true, enabled.Default)
+	assert.Equal(t, config.AccessShared, enabled.AccessPolicy)
+	assert.Equal(t, "config:manage", enabled.WritePermission)
+	freigabe := config.GetDefinition(config.KeyAnalyticsFreigabe)
+	require.NotNil(t, freigabe.DependsOn)
+	assert.Equal(t, config.KeyAnalyticsEnabled, freigabe.DependsOn.Key)
+	assert.Equal(t, true, freigabe.DependsOn.Value)
+}

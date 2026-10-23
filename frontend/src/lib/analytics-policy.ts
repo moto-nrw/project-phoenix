@@ -51,6 +51,8 @@ export interface AnalyticsContext {
   readonly deployment: string;
   /** The portal. An unknown value gets the strictest rules. */
   readonly surface: string;
+  /** Resolved school switch. Unknown means no collection outside the demo. */
+  readonly enabled?: boolean;
   /** Analyse-Freigabe of the school; only effective on `ogs`. */
   readonly analyseFreigabe: boolean;
   /**
@@ -72,7 +74,7 @@ const ANALYTICS_ROLES = ["admin", "staff", "lehrkraft", "guardian"] as const;
 
 export type AnalyticsRole = (typeof ANALYTICS_ROLES)[number];
 
-type Tier = "demo" | "ogs" | "ogs_freigabe" | "strict";
+type Tier = "off" | "demo" | "ogs" | "ogs_freigabe" | "strict";
 
 type Recording = "demo" | "school" | null;
 
@@ -86,6 +88,7 @@ interface TierRules {
 }
 
 const TIER_RULES: Readonly<Record<Tier, TierRules>> = {
+  off: { elementText: false, recording: null, person: false },
   // The demo shows invented data only; the element text makes the funnel
   // readable, and every session is recorded. URLs stay templates there as
   // well. The visitor is the demo access, never a person profile.
@@ -161,7 +164,12 @@ function isKnownSurface(surface: string): surface is AnalyticsSurface {
   return KNOWN_SURFACES.has(surface);
 }
 
+export function analyticsCollectionAllowed(context: AnalyticsContext): boolean {
+  return context.deployment === DEMO_DEPLOYMENT || context.enabled === true;
+}
+
 function tierOf(context: AnalyticsContext): Tier {
+  if (!analyticsCollectionAllowed(context)) return "off";
   if (!isKnownSurface(context.surface)) return "strict";
   if (context.deployment === DEMO_DEPLOYMENT) return "demo";
   if (context.surface === "ogs") {
@@ -867,7 +875,7 @@ export function filterAnalyticsEvent(
   context: AnalyticsContext,
   captureResult: CaptureResult | null,
 ): CaptureResult | null {
-  if (!captureResult) return null;
+  if (!captureResult || !analyticsCollectionAllowed(context)) return null;
   const { event } = captureResult;
   const identity = analyticsIdentity(context);
   if (!isAllowedEvent(context, event, identity)) return null;

@@ -80,10 +80,19 @@ Seiten und Funktionen, wo Nutzer hängen bleiben, wie Interessenten durch die
 öffentliche Demo gehen. Sie dient nur der Produktverbesserung; Schulen und
 Träger sehen sie nicht, und sie bewertet keine einzelnen Mitarbeitenden.
 
+Die Schule kann die Nutzungsanalyse unter **Datenschutz** ausschalten
+(`analytics.enabled`, Standard an). Das stoppt auch Aufzeichnungen,
+Kernaktionen, Kiosk-Nutzungsereignisse und die Benennung ihrer Analysegruppe.
+Fehlerdiagnose bleibt getrennt. Bei Lesefehlern bleibt die Erfassung aus.
+Im Elternportal müssen alle zugeordneten Schulen Analyse erlauben; vor der
+Zuordnung läuft dort keine Erfassung. Die Demo bleibt unverändert.
+Abschaltbarkeit ist keine Rechtsgrundlage: deren Prüfung bleibt offen
+(#3843, Recht-Slice 3843-e). Produktive Wirksamkeit ist gesondert nachzuweisen.
+
 Eine **Sitzungsaufzeichnung** gibt eine Browsersitzung als Film wieder, mit
 ausgeblendeten Inhalten. In der öffentlichen Demo läuft sie immer. In einer
 echten Schule laufen sie und die Wiedererkennung einzelner Nutzer nur im
-OGS-Portal und nur mit **Analyse-Freigabe**: der schriftlichen Zustimmung der
+OGS-Portal bei eingeschalteter Nutzungsanalyse und nur mit **Analyse-Freigabe**: der schriftlichen Zustimmung der
 Schule bzw. ihres Trägers, die das moto-Team daraufhin für genau diese Schule
 erteilt. Ohne Analyse-Freigabe, im Eltern-Portal, im Schul-Portal der
 Lehrkräfte und im Träger-Büro bleibt die Nutzungsanalyse ohne Personenbezug.

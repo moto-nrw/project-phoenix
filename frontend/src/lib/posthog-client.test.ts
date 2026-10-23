@@ -16,6 +16,9 @@ const mocks = vi.hoisted(() => ({
   unregister: vi.fn(),
   setConfig: vi.fn(),
   identify: vi.fn(),
+  stopRecording: vi.fn(),
+  optOut: vi.fn(),
+  optIn: vi.fn(),
   distinctId: vi.fn(() => "0199aa2b-anon"),
 }));
 
@@ -23,6 +26,9 @@ vi.mock("~/env.client", () => ({ clientEnv: mocks.env }));
 vi.mock("posthog-js", () => ({
   default: {
     init: mocks.init,
+    stopSessionRecording: mocks.stopRecording,
+    opt_out_capturing: mocks.optOut,
+    opt_in_capturing: mocks.optIn,
     capture: mocks.capture,
     register: mocks.register,
     reset: mocks.reset,
@@ -46,16 +52,67 @@ function initOptions(): Partial<PostHogConfig> {
 }
 
 describe("posthog-client", () => {
-  beforeEach(() => {
+  beforeEach(async () => {
     vi.resetModules();
     vi.clearAllMocks();
     mocks.env.NEXT_PUBLIC_POSTHOG_KEY = "phc_test_key_123";
     mocks.distinctId.mockReturnValue("0199aa2b-anon");
     stubHost("school-a.localhost:3000");
+    vi.stubGlobal("requestIdleCallback", vi.fn());
+    const { setAnalyticsContext } = await import("./posthog-client");
+    setAnalyticsContext({ enabled: true });
   });
 
   afterEach(() => {
     vi.unstubAllGlobals();
+  });
+
+  it.each([false, undefined])(
+    "never initializes while the school switch is %s",
+    async (enabled) => {
+      const {
+        setAnalyticsContext,
+        initializePostHog,
+        capturePostHog,
+        schedulePostHogInitialization,
+      } = await import("./posthog-client");
+      setAnalyticsContext({ enabled });
+      schedulePostHogInitialization();
+      capturePostHog("login_failed");
+      await initializePostHog();
+      expect(mocks.init).not.toHaveBeenCalled();
+      expect(mocks.capture).not.toHaveBeenCalled();
+    },
+  );
+
+  it("stops collection and drops future events when a school opts out", async () => {
+    const { setAnalyticsContext, initializePostHog, capturePostHog } =
+      await import("./posthog-client");
+    await initializePostHog();
+    expect(mocks.init).toHaveBeenCalledOnce();
+    setAnalyticsContext({ enabled: false });
+    capturePostHog("login_failed");
+    expect(mocks.stopRecording).toHaveBeenCalledOnce();
+    expect(mocks.optOut).toHaveBeenCalledOnce();
+    expect(mocks.capture).not.toHaveBeenCalled();
+    const beforeSend = initOptions().before_send as BeforeSendFn;
+    expect(
+      beforeSend({ uuid: "u", event: "$pageview", properties: {} }),
+    ).toBeNull();
+  });
+
+  it("keeps collection off even if SDK shutdown throws", async () => {
+    const { setAnalyticsContext, initializePostHog, capturePostHog } =
+      await import("./posthog-client");
+    await initializePostHog();
+    expect(mocks.init).toHaveBeenCalledOnce();
+    mocks.stopRecording.mockImplementationOnce(() => {
+      throw new Error("recorder unavailable");
+    });
+    expect(() => setAnalyticsContext({ enabled: false })).not.toThrow();
+    capturePostHog("login_failed");
+    expect(mocks.optOut).toHaveBeenCalledOnce();
+    expect(mocks.capture).not.toHaveBeenCalled();
   });
 
   it("loads the SDK only from the idle callback", async () => {
@@ -138,7 +195,7 @@ describe("posthog-client", () => {
     });
 
     clearPostHogContext();
-    expect(pageview()?.properties).toMatchObject({ surface: "ogs" });
+    expect(pageview()).toBeNull();
   });
 
   it("clears school and role and resets the identity at logout", async () => {
@@ -203,6 +260,7 @@ describe("posthog-client", () => {
   });
 
   it("never loads the SDK on the operator host", async () => {
+    vi.resetModules();
     stubHost("operator.localhost:3000");
     const requestIdleCallback = vi.fn();
     vi.stubGlobal("requestIdleCallback", requestIdleCallback);

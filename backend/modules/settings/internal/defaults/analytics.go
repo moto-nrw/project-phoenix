@@ -4,8 +4,8 @@ import (
 	config "github.com/moto-nrw/project-phoenix/modules/settings/records"
 )
 
-// Usage analytics (Nutzungsanalyse, #3603). Operator-only: the moto team
-// switches the Analyse-Freigabe on after the school or its Träger agreed in
+// Usage analytics: schools control collection; only the moto team
+// switches the recording Freigabe on after the school or its Träger agreed in
 // writing, so a school admin can neither grant nor widen it.
 func init() {
 	registerDefinitions(analytics_init_nutzungsanalyse_0Definitions)
@@ -14,7 +14,21 @@ func init() {
 
 var analytics_init_nutzungsanalyse_0Definitions = []config.Definition{
 	{
+		Key:             config.KeyAnalyticsEnabled,
+		Label:           "Nutzungsanalyse",
+		Description:     "moto erhält Nutzungsstatistiken dieser Schule, aber keine eingegebenen Inhalte. Ausschalten beendet auch Sitzungsaufzeichnungen. Die Fehlerdiagnose bleibt davon getrennt.",
+		Type:            config.FieldBoolean,
+		Default:         true,
+		ReadPermission:  "config:read",
+		WritePermission: "config:manage",
+		Tab:             "gdpr",
+		Category:        "nutzungsanalyse",
+		SortOrder:       9,
+		AccessPolicy:    config.AccessShared,
+	},
+	{
 		Key:             config.KeyAnalyticsFreigabe,
+		DependsOn:       config.DependsOnEq(config.KeyAnalyticsEnabled, true),
 		Label:           "Analyse-Freigabe",
 		Description:     "Nur einschalten, wenn die Schule oder ihr Träger schriftlich zugestimmt hat. Dann zeichnet moto im OGS-Portal dieser Schule Sitzungen auf. Texte, Eingaben und Bilder sind dabei ausgeblendet. Wer wiederkommt, wird an einer Kennung ohne Namen erkannt. Das Personal sieht dazu einen Hinweis. Eltern-Portal und Schul-Portal werden nie aufgezeichnet.",
 		Type:            config.FieldBoolean,
