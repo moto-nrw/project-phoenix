@@ -136,7 +136,7 @@ these protocols and Provisioning's explicit split units.
 | E1 | `EN/decide.go:116`: parent request → sibling children in stable sort order, then inspect terminal/idempotent status. Existing-student tail `EN/approval_existing_student.go:40,102`: shared class gate → recurrence → student state; `:56` ensures account attachment precedes roster/instance FK locks. `CP/booking_materialization.go:126` applies class gate → recurrence before booking-derived changes. Decision mail and handler-created invitation enqueue are in the outer unit, not losable after-commit work. | `modules/enrollment/http/decision_approval_rollback_test.go`: `TestDecisionService_ApprovalRollsBackEveryOwnerAfterMaterialization`, `TestExistingStudentApprovalGrantsAccountBeforeClassRosterResync`; sibling digest serialization in `decision_service_test.go`. |
 | E2 | `CP/care_lifecycle.go`, `lockCareExitWrites`: shared class gate → booking-write/recurrence gate → locked child read → open requests → planned roster → activity bookings → own source bookings → weekly plans → quoted offering/person/presence rows. Confirm (including withdrawal completion), cancel, booking-expiry reconciliation and due-effect pages use the same gate helper (#4636). Rebuild the confirmation token before mutations; mismatch/blocked preview rejects all. Cancel restores the ledger before rewriting last care day. Due effects remain in this exception, not resumption. | `api/care_exit_lock_order_test.go`: real two-connection interleavings against grade-transition Apply for confirm, cancel and due effects with and without an ambient unit. Existing lifecycle, storage-cutover and booking-authority contract suites retain the preview/rollback and ledger coverage. |
 | E3 | Identity upgrade: foreign relationship `FOR UPDATE` → role recheck → promote (`IA/guardian_relative_access.go:145`). People student edits: class gate → subject/companion locks, sorted far ends → compare plan → profile/membership/care writes inside savepoint (`PD/student_write.go:33,234,251,307`; enrollment patch `student_enrollment.go:42`). Staff identity: account-state guard before writes (`PD/staff_directory.go:114`); caregiver creation failure stays non-fatal. Workforce: lock foreign staff → derive diff → Audit → apply person/employment command (`WF/staffadmin.go:66,272`). | `modules/peopledirectory/compose/guardian_lifecycle_commands_test.go`; `guardian_link_owners_test.go` (`TestGuardianPortalLinkRollsBackAfterEveryOwnerCommand`); People student/staff behavioral suites; `modules/schoolmembership/compose/student_enrollment_test.go` and staff-employment savepoint tests. These protect named scenarios, not every interleaving. |
-| E4 | Offering adjustment: `CP/offering_adjustment.go:100` reads request/child, takes recurrence protocol then locks the student before deriving new intervals/roster; template resync requires its caller's recurrence lock (`sourced_roster_resync.go:60`). Master-data: request lock → child lock/current authorization → apply → decision/history (`master_data_decisions.go:128,151,188`). HTTP child create opens its unit at `student_create_handlers.go:292`; person → student/owner halves → guardians → attachments. Business-error rollback and cleanup order stay unchanged. | Care Plan contract suites for template roster maintenance, offering changes, master-data review and HTTP student creation. `TestFullProductionRouterGolden` pins route/middleware/error shape, not transactional semantics. |
+| E4 | Offering adjustment: `CP/offering_adjustment.go`, `loadOfferingAdjustmentSubject`, reads request/child, takes class(shared) → recurrence then locks the student before deriving new intervals/roster (#4638); template resync requires its caller's recurrence lock (`sourced_roster_resync.go:60`). Master-data: request lock → child lock/current authorization → apply → decision/history (`master_data_decisions.go:128,151,188`). HTTP child create opens its unit at `student_create_handlers.go:292`; person → student/owner halves → guardians → attachments. Business-error rollback and cleanup order stay unchanged. | Care Plan contract suites for template roster maintenance, offering changes, master-data review and HTTP student creation. `TestFullProductionRouterGolden` pins route/middleware/error shape, not transactional semantics. |
 | E5 | School creation: organization mutation guard → school → categories/manual device in admin unit (`OT/provisioning_schools.go:36`). Device transfer order above. Account creation **does not** re-read school/role under a lock in its later tenant unit (`provisioning_accounts.go:67,85`); no atomic admin-to-tenant guarantee is claimed. Person retirement checks supervision, deactivates/anonymizes/unlinks account, then anonymizes person; some failures are logged by design (`provisioning_people.go:87,149,166`). | `modules/organizationtenancy/internal/application/provisioning_*_internal_test.go`, notably `TestProvisioningCreateSchoolAccount`, `TestProvisioningTransferDevice`, `TestProvisioningSoftDeletePerson`. Double-based tests do not establish cross-owner database atomicity. |
 
 ### Scope and follow-up proposals
@@ -192,8 +192,8 @@ consumer-owned port bound to School Membership. No policy rule or owner changes.
 | Student-deletion withdrawal completion (`workflows/studentdeletion/deletion.go:335`) | Unchanged: class(shared) → recurrence → withdrawal/student rows. Ordinary deletion has no recurrence gate. |
 | Existing-child approval and due class switch (`EN/approval_existing_student.go:102`, `class_switch.go:60`) | Unchanged: class(shared) → recurrence → student state. Enrollment approved-child sync and form-change apply use `CP/booking_materialization.go:126` before their child writes. Fresh child creation already holds the shared class gate before later booking materialization. |
 | Offering-derived gate / direct pickup editor (`CP/booking_materialization.go:126`, `direct_offering_adjustments.go:30`) | Unchanged: class(shared) → recurrence → child/booking rows. Later locked reads reacquire class safely. |
-| Offering adjustment without the preceding gate (`CP/offering_adjustment.go:113,116`, `EN/decision_bookings.go:105`) | The public booking command itself takes recurrence → class(shared) through its locked student read. The admin `UpdateChildOfferings` path does not prepend `LockOfferingDerivedWrites`. **Separate static finding**, not fixed by #4636: it can close the same class/recurrence cycle against grade transition. Form-change apply and the direct pickup editor have the earlier gate above. |
-| Offering-change review and pickup reset (`CP/offering_change_decisions.go:22,71`, `offering_pickup_times.go:59`) | Review locks the request, then class(shared)/child before entering the recurrence-taking adjustment. Reset takes class(shared)/child → recurrence. The two gates agree with grade transition, but the child-before-recurrence order can conflict with a care confirmation holding recurrence while waiting for that child. **Separate static row-lock finding**, unchanged here. |
+| Offering adjustment, including admin correction (`CP/offering_adjustment.go`, `loadOfferingAdjustmentSubject`; `EN/decision_bookings.go`, `UpdateChildOfferings`) | **Before #4638:** recurrence → class(shared) → child. **After:** the booking command itself takes class(shared) → recurrence → child via `LockOfferingDerivedWrites`. Form-change apply and the direct pickup editor retain their earlier acquisition of the same gates. |
+| Offering-change review and pickup reset (`CP/offering_change_decisions.go`, `lockPendingRow`; `offering_pickup_times.go`, `ResetStudentPickupDayToOffering`) | **Before #4638:** review request → class(shared)/child → recurrence; reset class(shared)/child → recurrence. **After:** class(shared) → recurrence → child → offering-change request (review), or pickup rows (reset). Review includes approve, reject, MarkDone and offering conflict resolution. No transition gate. |
 | Booking-authority setting (`CP/care_participation.go`), offering catalog, enrollment phase updates/deletes | Recurrence only at these boundaries; the booking-fact projection does not acquire class or child row locks. Sourced-roster resync inherits the caller's recurrence gate. |
 | School Membership class writes, People directory locked reads and class-gate CTE | Class only, before child rows; no recurrence lock in these implementations. Care resumption remains class(shared) → child, with no recurrence or old-plan restore. |
 
@@ -208,8 +208,67 @@ has no unrelated stale-token failure. The test uses an isolated database, real
 fixture IDs and bounded waits, not sleeps to arrange the race.
 
 This proves the named interleavings, not global deadlock freedom. The two static
-findings above need separate regression tests and protocol changes; #4636 does
-not weaken the E2 preview, rollback, tenant scope, ledger or error contracts.
+findings recorded by #4636 are corrected below in #4638. Neither correction weakens the E2 preview, rollback, tenant scope, ledger or error contracts.
+
+### Offering lock-order correction and row audit (#4638)
+
+`CP/contracttest/offering_lock_order_test.go` exercises the public Enrollment
+correction and Care Plan review/reset commands on isolated PostgreSQL databases.
+The correction/grade test holds class(exclusive), observes the correction waiting
+through `pg_locks`/`pg_blocking_pids`, then runs real grade-transition Apply.
+The care tests hold class(shared) → recurrence before starting approve/reset;
+a second interleaving also holds the child before approve, reject, MarkDone or
+offering conflict resolution. Only after PostgreSQL reports the writer blocked
+does the first connection run real care confirmation. No sleeps arrange a race.
+All seven cases reproduce `40P01` before their fixes and pass afterwards.
+A further two-connection test edits the request while review waits on the gate:
+the locked re-read must reject the old version and leave the request pending.
+
+The care exit is scheduled after the offering switch, so both commands must
+succeed, not merely avoid `40P01`. Request terminal state and expected version
+are checked again under `FOR UPDATE`; missing, terminal and stale requests may
+be rejected before the gates. The preliminary read supplies the immutable student
+ID, not authority to mutate. Authorization and the mutation still use locked state.
+Tenant transactions, errors, responses and preview fingerprints are unchanged.
+The existing consumer-owned gates suffice; no new root logic or policy rule.
+
+Round-2 error-path regression: the unlocked `Rows.Find` must return
+`ErrOfferingChangeNotFound`, just like `FindForUpdate`, for missing and
+tenant-hidden IDs. Review can also lose the child (and its cascading request)
+while waiting on the gates; its locked child read maps a missing row to the
+same sentinel. Other database failures retain their wrappers. Service and real
+HTTP regressions cover approve/reject/MarkDone (404, existing `general.input`);
+service tests also cover offering conflict pre-lock/decision and preview. Four
+two-connection deletion cases pin the gate-wait race. Missing request/child
+adjustments and missing/foreign-child pickup reset retain their existing errors.
+
+All unlocked `Rows.Find` callers were audited: `pendingRow` serves conflict
+candidates and the new review pre-read; `previewableRow` serves decision preview.
+Both now expose the domain not-found outcome. `Edit` reloads after its guarded
+update and `recordOfferingDecision` reloads after deciding; both already hold
+the request lock in the same tenant transaction, so concurrent deletion cannot
+remove that row before either reload. Those reloads still wrap other failures.
+
+Additional request/child audit (static evidence, not a claim of global freedom):
+
+| Flow that takes both request and child rows | Current order / disposition |
+|---|---|
+| Care confirm / effective-day cleanup (`CP/care_exit_preview.go`, `care_exit_cleanup.go`) | Gates → sorted child rows → open family requests (care-schedule, excused, master-data and offering changes). Confirmation locks requests even for a future exit; closing pending requests is an effective-day effect. |
+| Offering approve/reject/MarkDone and conflict resolution | Gates → child → offering request, including the pre-lock used by `ParentRequestCoordinator.prepareConflictGroup`. Repeated downstream gate/child acquisition is transaction-reentrant. |
+| Offering guardian edit / course withdrawal (`CP/offering_change_submissions.go`, `Edit`; `course_requests.go`, `WithdrawCourseRequest`) | Request only; these paths take no child row lock or class/recurrence gate. Their catalog reads do not call `assertCareReaches`. No row inversion was introduced by moving review locks. |
+| Enrollment approval / approved-child sync / form-change apply (`EN/decide.go`, `approved_child_sync.go`, `change_request_apply.go`) | Enrollment request/children first, then class → recurrence → directory child. These are **Enrollment** request rows, not the family-request rows locked by care end. Existing account-before-roster protocol remains unchanged. |
+| Care-schedule review (`CP/request_decisions.go:65,76`) and schedule conflicts (`request_conflicts.go:31`) | **Remaining static finding:** request → child. Against care end's child → open requests, concurrent review can form a row cycle. Not changed by this bounded offering correction. |
+| Excused review/MarkDone and excused conflicts (`CP/excused_request_decisions.go`, `lockDecidableRequest`, `MarkDone`) | **Remaining static finding:** pending request → child, followed by child/day plan locks. Same care-end row-cycle risk. |
+| Excused correction (`CP/excused_request_decisions.go`, `lockCorrectableRequest`) | Decided request → child → child/day plan locks. Care end locks only pending requests (`CP/internal/adapters/postgres/requests.go`, `LockOpenCareRequests`), so this order alone does **not** establish a direct same-request cycle with care end. |
+| Master-data review (`CP/master_data_decisions.go:113,152`), bulk (`parent_request_coordinator.go:105,109`) and non-offering conflicts (`parent_request_resolution.go:91,99`) | **Remaining static finding:** request(s) → child(ren). Bulk takes master-data/excused requests in kind/id order, then sorted children. Changing this shared protocol needs a separate regression and coordinated fix across those kinds. |
+| Withdrawal deletion (`workflows/studentdeletion/deletion.go`, `ExecuteWithdrawal`) | class(shared) → recurrence → withdrawal-completion row → child, then family-request cleanup. Care withdrawal confirmation uses the same recurrence prefix, so its later completion re-read cannot invert that pair. Ordinary deletion and resumption do not take recurrence. |
+
+The earlier gate table also audits transition creation/update (transition only),
+Apply/Revert (class → recurrence → transition → rows), timetable materialization
+(recurrence → transition → rows), class writes/locked directory reads and
+resumption (class → child), and offering catalog/phase/participation (recurrence
+only). The remaining request-kind findings above predate #4638; they need a
+separate issue, not a new exception to ADR 0067 point 5.
 
 ### Checker proposal for #4548
 

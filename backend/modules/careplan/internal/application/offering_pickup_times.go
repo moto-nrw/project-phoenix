@@ -61,10 +61,11 @@ func (m *BookingMaterialization) ResetStudentPickupDayToOffering(ctx context.Con
 	if weekday < 1 || weekday > 5 {
 		return errors.New("pickup reset date must be Monday through Friday")
 	}
-	if err := m.lockPickupStudents(ctx, []int64{studentID}); err != nil {
+	// Match care end: class -> recurrence before the student and pickup rows.
+	if err := m.LockOfferingDerivedWrites(ctx); err != nil {
 		return err
 	}
-	if err := m.lockTemplateRecurrence(ctx); err != nil {
+	if err := m.lockPickupStudents(ctx, []int64{studentID}); err != nil {
 		return err
 	}
 	offering, err := m.deps.Pickup.OfferingPickupForDate(ctx, studentID, date)

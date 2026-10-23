@@ -190,7 +190,7 @@ func (s *CareLifecycle) lockCareExitWrites(ctx context.Context) error {
 
 func (s *CareLifecycle) prepareLockedCareExitPreview(ctx context.Context, state *careExitConfirmation) error {
 	if err := s.lockCareExitWrites(ctx); err != nil {
-		return fmt.Errorf("care lifecycle: lock care booking writes: %w", err)
+		return fmt.Errorf("care lifecycle: lock care exit writes: %w", err)
 	}
 	preview, err := s.buildPreview(ctx, state.input, true, withdrawalOfferings(state.completion))
 	if err != nil {
@@ -329,7 +329,7 @@ func (s *CareLifecycle) Cancel(ctx context.Context, studentIDs []int64, actorAcc
 
 func (s *CareLifecycle) cancelCareExits(ctx context.Context, ids []int64, actorAccountID int64) error {
 	if err := s.lockCareExitWrites(ctx); err != nil {
-		return fmt.Errorf("care lifecycle: lock care booking writes for cancellation: %w", err)
+		return fmt.Errorf("care lifecycle: lock care exit writes for cancellation: %w", err)
 	}
 	exits, before, err := s.plannedCareExits(ctx, ids)
 	if err != nil {
