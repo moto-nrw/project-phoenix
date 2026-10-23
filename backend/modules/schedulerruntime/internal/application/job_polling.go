@@ -128,7 +128,15 @@ func (s *Scheduler) forEachTenantIncludingInactive(ctx context.Context, opName s
 // Missing runtime wiring skips work rather than invoking fn as tenant zero.
 // Production jobs share one cross-tenant settings snapshot per minute.
 func (s *Scheduler) forEachTenantSettings(ctx context.Context, opName string, fn func(ctx context.Context, tenantID int64) error) []int64 {
-	if s.tenantRuntime == nil || (s.minuteSnapshotLoader == nil && s.schoolRepo == nil) {
+	return s.forEachTenantSettingsSnapshot(ctx, opName, fn, s.getMinuteSnapshot)
+}
+
+func (s *Scheduler) forEachCleanupTenantSettings(ctx context.Context, opName string, fn func(context.Context, int64) error) []int64 {
+	return s.forEachTenantSettingsSnapshot(ctx, opName, fn, s.getCleanupMinuteSnapshot)
+}
+
+func (s *Scheduler) forEachTenantSettingsSnapshot(ctx context.Context, opName string, fn func(context.Context, int64) error, load func(context.Context) (*schedulerMinuteSnapshot, error)) []int64 {
+	if s.tenantRuntime == nil {
 		recordJobCommandFailure(ctx, fmt.Errorf("%w for %s", errTenantRuntimeRequired, opName))
 		s.observeTenantRuntime("missing_tenant")
 		s.getLogger().Error("tenant runtime is not configured",
@@ -138,7 +146,7 @@ func (s *Scheduler) forEachTenantSettings(ctx context.Context, opName string, fn
 		return nil
 	}
 
-	minuteSnapshot, err := s.getMinuteSnapshot(ctx)
+	minuteSnapshot, err := load(ctx)
 	if err != nil {
 		// Older unit-test fakes implement only the narrow per-key resolver.
 		// Production SettingsService always implements the batch loader.
