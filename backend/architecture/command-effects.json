@@ -21614,7 +21614,7 @@
     {
       "source_owner": "meal-plan",
       "port": "github.com/moto-nrw/project-phoenix/modules/mealplan/internal/ports.Calendar.NonWorkingDayDates",
-      "binding": "interface{NonWorkingDayDates(ctx context.Context, from string, to string) (map[string]bool, error)}.NonWorkingDayDates",
+      "binding": "github.com/moto-nrw/project-phoenix/modules/schoolcalendar.NonWorkingDayQuery.NonWorkingDayDates",
       "target": "github.com/moto-nrw/project-phoenix/modules/schoolcalendar.Calendar.NonWorkingDayDates",
       "target_owner": "school-calendar",
       "binding_digest": "f09a242cc89a9044c6c0322c0953940a",
@@ -21625,7 +21625,7 @@
     {
       "source_owner": "meal-plan",
       "port": "github.com/moto-nrw/project-phoenix/modules/mealplan/internal/ports.Calendar.NonWorkingDayDates",
-      "binding": "interface{NonWorkingDayDates(ctx context.Context, from string, to string) (map[string]bool, error)}.NonWorkingDayDates",
+      "binding": "github.com/moto-nrw/project-phoenix/modules/schoolcalendar.NonWorkingDayQuery.NonWorkingDayDates",
       "target": "github.com/moto-nrw/project-phoenix/modules/schoolcalendar.Days.NonWorkingDayDates",
       "target_owner": "school-calendar",
       "binding_digest": "7031fc9be73b56a372e0462e768eea6b",
@@ -21636,7 +21636,7 @@
     {
       "source_owner": "meal-plan",
       "port": "github.com/moto-nrw/project-phoenix/modules/mealplan/internal/ports.Calendar.NonWorkingDayDates",
-      "binding": "interface{NonWorkingDayDates(ctx context.Context, from string, to string) (map[string]bool, error)}.NonWorkingDayDates",
+      "binding": "github.com/moto-nrw/project-phoenix/modules/schoolcalendar.NonWorkingDayQuery.NonWorkingDayDates",
       "target": "github.com/moto-nrw/project-phoenix/modules/schoolcalendar.NonWorkingDayQuery.NonWorkingDayDates",
       "target_owner": "school-calendar",
       "binding_digest": "7d33cdd0dfc6c3b7fdccd40d4eab8e80",
