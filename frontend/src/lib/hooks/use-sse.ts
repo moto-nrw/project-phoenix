@@ -233,8 +233,10 @@ export function useSSE(
             return;
           }
 
-          // Log detailed error information
+          // The stream dropped without an HTTP answer: unavailable, which
+          // the logger records as an expected network failure (#2512).
           logger.error("sse connection error", {
+            error_class: "unavailable",
             endpoint,
             ready_state: eventSource?.readyState,
             error_type: err.type,

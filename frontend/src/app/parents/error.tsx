@@ -5,6 +5,7 @@ import { useTranslations } from "next-intl";
 import { useEffect } from "react";
 import { ParentPage, ParentPageHeader } from "~/components/parent/parent-page";
 import { ButtonLink } from "~/components/ui/button";
+import { errorLogFields, logDisplayedError } from "~/lib/error-log";
 import { LoadErrorAlert } from "~/components/ui/form-error-alert";
 import { parentPath } from "~/lib/parent-url";
 
@@ -27,6 +28,10 @@ export default function ParentError({
 
   useEffect(() => {
     Sentry.captureException(error);
+    logDisplayedError("page", {
+      ...errorLogFields(error),
+      error_class: "crash",
+    });
   }, [error]);
 
   const message = catalog("crash", { object: t("object") });

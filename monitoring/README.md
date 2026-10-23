@@ -92,6 +92,27 @@ UI so the two do not fire side by side. Verify in Explore that
 rule; a different label means the Alloy mapping differs and both rules need
 the same correction. Runbook: [`runbooks/server-errors.md`](runbooks/server-errors.md).
 
+## Error codes
+
+`grafana/provisioning/dashboards/json/phoenix-error-codes.json` answers
+"which error code, how often, at which school" from the frontend client logs
+(#2512). The browser writes one `error_displayed` entry per failure a person
+saw (`surface`: `toast`, `form`, `load`, `page`). Failed background loads
+(`swr_fetch_failed`, `swr_fetch_rate_limited`) and dropped live-update
+streams (`sse connection error`) get their own table. All of them carry only
+identifiers: `error_code`, `error_class`, `status`, `request_id`,
+`error_name`, and field names. The client log route adds `tenant_id`,
+`portal` and `user_id` from the verified session. The list of fields that can
+name a person and are never logged is in `frontend/src/lib/error-log.ts`.
+
+The queries read `{env="$env",service="frontend"}` and parse the JSON line;
+`tenant_id` and `msg` are no Loki labels. Parent sessions are not bound to one
+school, so parent portal rows carry no `tenant_id`. Join `request_id` with
+the server's request line to find the API route.
+
+Copy the dashboard file with the rest of `grafana/provisioning` and restart
+Grafana as described under Deploy.
+
 ## Student storage Contract observation
 
 Before the #2760 rollback window, install the read-only collector and Grafana
