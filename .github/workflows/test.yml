@@ -153,6 +153,11 @@ jobs:
           # comparisons. Unrelated refs and tags are not test inputs.
           git fetch --no-tags --unshallow origin "${refs[@]}"
 
+      - name: Setup Node.js for error-code generator fixtures
+        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v6
+        with:
+          node-version: "24"
+
       - name: Setup Go
         id: go
         uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
