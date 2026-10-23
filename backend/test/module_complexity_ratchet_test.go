@@ -32,7 +32,8 @@ import (
 //   - An allowlisted function may never exceed its recorded score.
 //   - When refactoring lowers a score (or drops it to ≤ 15), the test fails
 //     until the entry is lowered/removed — the ratchet only turns one way.
-//     Never raise a number, never add an entry.
+//     Additions or raises require a new-numbered ADR cited by the entry
+//     (ADR 0070).
 //
 // Keys are "relative/file.go:FuncName" with methods rendered exactly like the
 // gocognit CLI ("(*service).ListOptions"), so CLI output maps 1:1 onto

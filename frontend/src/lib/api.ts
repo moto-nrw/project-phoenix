@@ -143,6 +143,8 @@ function handleApiError(error: unknown, context: string): Error {
   }
 
   const handled = new ApiError(`${context}: ${errorMessage}`, status);
+  // The 503 of a transport failure is a stand-in, not an answer (#2512).
+  if (error instanceof ApiError && error.noResponse) handled.noResponse = true;
   if (error && typeof error === "object") {
     const structured = error as {
       code?: unknown;

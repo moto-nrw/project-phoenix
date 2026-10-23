@@ -15,11 +15,12 @@ import { Toast } from "~/components/ui/toast";
 import { clientEnv } from "~/env.client";
 import { normalizeLocale, type AppLocale } from "~/i18n/locales";
 import { ApiError } from "~/lib/api-error";
-import { createLogger } from "~/lib/logger";
+import {
+  errorLogFields,
+  logDisplayedError,
+  type ErrorSurface,
+} from "~/lib/error-log";
 import { BELOW_MD, useMediaQuery } from "~/lib/hooks/use-media-query";
-
-// Logger instance for toast notifications
-const logger = createLogger({ component: "ToastContext" });
 
 type ToastType = "success" | "error" | "info" | "warning";
 
@@ -354,16 +355,6 @@ export function ToastProvider({
             ? 4000
             : (options?.duration ?? 1500);
 
-      // A breadcrumb, not a Sentry event: the caller that failed reports the
-      // cause itself, so an error here would count every failure twice (#3694).
-      if (type === "error") {
-        logger.warn("user-facing error displayed", {
-          message: message.substring(0, 100), // Truncate for logging
-          toast_type: type,
-          source: "toast_context",
-        });
-      }
-
       setItems((prev) => {
         const next: ToastItemData[] = [
           ...prev,
@@ -465,22 +456,38 @@ interface DisplayedError {
 }
 
 /**
- * The part both display paths share: load the catalog on demand, send a 401
- * to the login screen, mark the failed fields and focus the first of them.
- * `deliver` decides where the message goes.
+ * The part all display paths share: load the catalog on demand, send a 401
+ * to the login screen, mark the failed fields and focus the first of them,
+ * and log what was shown (#2512). `deliver` decides where the message goes;
+ * a failed load marks no fields.
  */
 function useApiErrorCore(
   formRef: RefObject<HTMLElement | null> | undefined,
   deliver: (shown: DisplayedError, locale: AppLocale) => void,
-  markFields = true,
+  surface: ErrorSurface,
 ) {
+  const markFields = surface !== "load";
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
   // A catalog import can finish after the caller has cleared the error, shown
   // another one, or unmounted. Only the latest request may update its state.
   const showVersion = useRef(0);
+  // A failed load stays on screen while SWR retries it, and every retry
+  // hands `show` a new error. Count it once until the caller clears it.
+  const loadLogged = useRef(false);
   const invalidatePendingShow = useCallback(() => {
     showVersion.current += 1;
+    loadLogged.current = false;
   }, []);
+  const logShown = useCallback(
+    (fields: Parameters<typeof logDisplayedError>[1]) => {
+      if (surface === "load") {
+        if (loadLogged.current) return;
+        loadLogged.current = true;
+      }
+      logDisplayedError(surface, fields);
+    },
+    [surface],
+  );
 
   useEffect(() => invalidatePendingShow, [invalidatePendingShow]);
 
@@ -537,6 +544,7 @@ function useApiErrorCore(
           return;
         }
         setFieldErrors({});
+        logShown(errorLogFields(error));
         const message = emergencyErrorByLocale[locale].replace(
           "{object}",
           options.object,
@@ -563,6 +571,13 @@ function useApiErrorCore(
         );
         return presentation;
       }
+      const logged = errorLogFields(error);
+      logShown({
+        ...logged,
+        // The class of the code; an exception keeps the class of its cause.
+        error_class: presentation.errorClass ?? logged.error_class,
+        ...(presentation.fields.length > 0 && { fields: presentation.fields }),
+      });
       const labels = errorDisplayLabels(locale);
       setFieldErrors(
         markFields
@@ -587,7 +602,7 @@ function useApiErrorCore(
       );
       return presentation;
     },
-    [deliver, markFields],
+    [deliver, logShown, markFields],
   );
 
   const clearFieldErrors = useCallback(() => setFieldErrors({}), []);
@@ -613,14 +628,17 @@ export function useApiErrorDisplay(formRef?: RefObject<HTMLElement | null>) {
       }),
     [toast],
   );
-  const core = useApiErrorCore(formRef, deliver);
+  const core = useApiErrorCore(formRef, deliver, "toast");
   /**
    * A failure the screen found itself, without an API answer: copying
    * failed, the file is too large, the browser blocked a window. The text is
    * already worded for the reader. A failed API call goes through `show`.
    */
   const showMessage = useCallback(
-    (message: string) => toast.error(message),
+    (message: string) => {
+      logDisplayedError("toast", { error_class: "local" });
+      toast.error(message);
+    },
     [toast],
   );
   return { ...core, showMessage };
@@ -664,7 +682,7 @@ export function useApiFormError(formRef?: RefObject<HTMLElement | null>) {
     clearFieldErrors,
     setFieldErrors,
     invalidatePendingShow,
-  } = useApiErrorCore(formRef, deliver);
+  } = useApiErrorCore(formRef, deliver, "form");
   const clear = useCallback(() => {
     invalidatePendingShow();
     setError(null);
@@ -678,6 +696,13 @@ export function useApiFormError(formRef?: RefObject<HTMLElement | null>) {
   const invalid = useCallback(
     (message: string, fields: Readonly<Record<string, string>> = {}) => {
       invalidatePendingShow();
+      const names = Object.keys(fields);
+      // The form's own check: the class and code of an invalid input.
+      logDisplayedError("form", {
+        error_class: "input",
+        error_code: "general.input",
+        ...(names.length > 0 && { fields: names }),
+      });
       setError(message);
       setFieldErrors({ ...fields });
     },
@@ -709,7 +734,7 @@ export function useApiLoadError() {
   const { show, invalidatePendingShow } = useApiErrorCore(
     undefined,
     deliver,
-    false,
+    "load",
   );
   const clear = useCallback(() => {
     invalidatePendingShow();
