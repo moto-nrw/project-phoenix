@@ -339,7 +339,7 @@ func ComposeWorker(db transactionruntime.Database, env RootEnvironment, hub *rea
 		func() error { operatorAuditLog = NewOperatorAuditLog(db); return nil },
 		func() (err error) { mealPlanSettings, err = BuildMealPlanSettings(settings.Service); return },
 		func() (err error) {
-			mealPlan, err = BuildServeMealPlan(db, mealPlanSettings, NewStudentRootReads(people.Students))
+			mealPlan, err = BuildServeMealPlan(db, mealPlanSettings, NewStudentRootReads(people.Students), persons, calendar)
 			return
 		},
 		func() (err error) { feedbackSettings, err = BuildFeedbackSettings(settings.Service); return },
@@ -552,5 +552,5 @@ func ComposeWorker(db transactionruntime.Database, env RootEnvironment, hub *rea
 	return NewWorker(db, env.Logger, tracer, hub, settings.Service, audit.Command, deviceFleet, carePlan, persons, people,
 		organizations, identity, facilities, timetableRepos, workTime, staffAdmin, workforce, active, reports, lifecycle, days,
 		materialization, schedules, requests.Documents, services, studentAudit, notices, flows, studentDeletion, feedback, calendarApp,
-		notifications, deliveryDevices.PWAUsage, chat.StaffMessaging, outbox, reminders, fileStore, announcements, schoolNames)
+		notifications, deliveryDevices.PWAUsage, chat.StaffMessaging, outbox, reminders, fileStore, announcements, mealPlan, schoolNames)
 }

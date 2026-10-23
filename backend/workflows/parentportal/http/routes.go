@@ -96,6 +96,7 @@ func (rs *Resource) mountChildStatusRoutes(r chi.Router) {
 	r.Get("/me/children/{studentId}/meal-participation", rs.getMealParticipation)
 	r.Put("/me/children/{studentId}/meal-participation", rs.replaceMealParticipation)
 	r.Put("/me/children/{studentId}/meal-participation/{date}", rs.setMealParticipationDay)
+	r.Put("/me/children/{studentId}/meal-participation/weeks/{date}", rs.setMealParticipationWeek)
 	r.Delete("/me/children/{studentId}/meal-participation/{date}", rs.clearMealParticipationDay)
 	r.Get("/me/children/{studentId}/sick-note", rs.listSickDays)
 	r.Post("/me/children/{studentId}/sick-note", rs.submitSickNote)

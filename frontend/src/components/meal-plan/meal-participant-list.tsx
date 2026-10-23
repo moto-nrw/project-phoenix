@@ -16,6 +16,7 @@ import { DataTable, type DataTableColumn } from "~/components/ui/data-table";
 import { ISODatePicker } from "~/components/ui/date-picker";
 import { EmptyState } from "~/components/ui/empty-state";
 import { LoadErrorAlert } from "~/components/ui/form-error-alert";
+import { MealRegistrationChangeModal } from "~/components/meal-plan/meal-registration-change-modal";
 import { useApiErrorDisplay, useApiLoadError } from "~/contexts/ToastContext";
 import { formatDate, parseISODate, toISODate } from "~/lib/date-helpers";
 import { useBerlinToday } from "~/lib/hooks/use-berlin-today";
@@ -39,7 +40,14 @@ function nextWeekday(date: string): string {
   return toISODate(candidate);
 }
 
-export function MealParticipantList() {
+/**
+ * Die Tagesliste für die Küche. Mit `canRegister` (meals:register) lädt sie
+ * auch die Kinder, die nicht essen, und bietet „Anmeldung ändern“ an.
+ */
+export function MealParticipantList({
+  canRegister,
+  canExport = true,
+}: Readonly<{ canRegister: boolean; canExport?: boolean }>) {
   const t = useTranslations("mealParticipantList");
   const locale = useLocale();
   const datePicker = useLocalizedDatePicker();
@@ -57,8 +65,12 @@ export function MealParticipantList() {
   );
   const [selectedDate, setSelectedDate] = useState<string | null>(null);
   const date = selectedDate ?? nextWeekday(today);
-  const [cutoffTime, setCutoffTime] = useState("");
+  const [deadline, setDeadline] = useState("");
+  const [closed, setClosed] = useState(false);
   const [participants, setParticipants] = useState<DailyMealParticipant[]>([]);
+  // Die übrigen Kinder des Tages, für Änderungen durch die Schule (#3873).
+  const [others, setOthers] = useState<DailyMealParticipant[]>([]);
+  const [changing, setChanging] = useState(false);
   const [loading, setLoading] = useState(true);
   const [exporting, setExporting] = useState<"pdf" | "xlsx" | null>(null);
 
@@ -66,14 +78,17 @@ export function MealParticipantList() {
     setLoading(true);
     clearLoadError();
     try {
-      const list = await getDailyMealParticipants(date);
+      const list = await getDailyMealParticipants(date, canRegister);
       setParticipants(list.participants);
-      setCutoffTime(list.cutoffTime);
+      setOthers(list.others);
+      setDeadline(list.deadline);
+      setClosed(list.closed);
     } catch (cause) {
       logger.error("meal_participant_list_load_failed", {
         error: cause instanceof Error ? cause.message : String(cause),
       });
       setParticipants([]);
+      setOthers([]);
       void showLoadError(cause, {
         object: t("errorObject"),
         retry: () => reloadRef.current(),
@@ -81,7 +96,7 @@ export function MealParticipantList() {
     } finally {
       setLoading(false);
     }
-  }, [date, t, showLoadError, clearLoadError]);
+  }, [canRegister, date, t, showLoadError, clearLoadError]);
   useLayoutEffect(() => {
     reloadRef.current = () => void load();
   });
@@ -145,9 +160,22 @@ export function MealParticipantList() {
               {t("title")}
             </h2>
             <p className="mt-1 text-sm text-gray-600">{t("description")}</p>
-            {cutoffTime ? (
+            {closed ? (
               <p className="mt-1 text-sm font-medium text-gray-700">
-                {t("cutoff", { time: cutoffTime })}
+                {t("closedDay")}
+              </p>
+            ) : deadline ? (
+              <p className="mt-1 text-sm font-medium text-gray-700">
+                {t("cutoff", {
+                  date: new Date(deadline).toLocaleString(locale, {
+                    weekday: "short",
+                    day: "2-digit",
+                    month: "2-digit",
+                    hour: "2-digit",
+                    minute: "2-digit",
+                    timeZone: "Europe/Berlin",
+                  }),
+                })}
               </p>
             ) : null}
           </div>
@@ -170,49 +198,66 @@ export function MealParticipantList() {
               triggerClassName="w-full min-w-44 flex-none justify-between rounded-lg text-sm font-medium"
             />
 
-            <div
-              role="group"
-              aria-label={t("downloadGroup")}
-              className="flex flex-wrap gap-2 sm:justify-end"
-            >
+            {canRegister ? (
               <Button
                 type="button"
                 variant="outline"
                 size="md"
-                className="gap-2 bg-white"
-                aria-label={t("downloadPdf")}
-                aria-busy={exporting === "pdf"}
-                onClick={() => void download("pdf")}
-                isLoading={exporting === "pdf"}
-                loadingText={t("downloadLoading")}
-                disabled={loading || Boolean(loadError) || exporting !== null}
+                className="bg-white"
+                onClick={() => setChanging(true)}
+                disabled={
+                  loading || Boolean(loadError) || closed || date < today
+                }
               >
-                <Download className="h-4 w-4" aria-hidden="true" />
-                {t("pdf")}
+                {t("change")}
               </Button>
-              <Button
-                type="button"
-                variant="outline"
-                size="md"
-                className="gap-2 bg-white"
-                aria-label={t("downloadExcel")}
-                aria-busy={exporting === "xlsx"}
-                onClick={() => void download("xlsx")}
-                isLoading={exporting === "xlsx"}
-                loadingText={t("downloadLoading")}
-                disabled={loading || Boolean(loadError) || exporting !== null}
+            ) : null}
+
+            {canExport ? (
+              <div
+                role="group"
+                aria-label={t("downloadGroup")}
+                className="flex flex-wrap gap-2 sm:justify-end"
               >
-                <FileSpreadsheet className="h-4 w-4" aria-hidden="true" />
-                {t("excel")}
-              </Button>
-              <span className="sr-only" role="status" aria-live="polite">
-                {exporting === "pdf"
-                  ? t("pdfDownloadStatus")
-                  : exporting === "xlsx"
-                    ? t("excelDownloadStatus")
-                    : ""}
-              </span>
-            </div>
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="md"
+                  className="gap-2 bg-white"
+                  aria-label={t("downloadPdf")}
+                  aria-busy={exporting === "pdf"}
+                  onClick={() => void download("pdf")}
+                  isLoading={exporting === "pdf"}
+                  loadingText={t("downloadLoading")}
+                  disabled={loading || Boolean(loadError) || exporting !== null}
+                >
+                  <Download className="h-4 w-4" aria-hidden="true" />
+                  {t("pdf")}
+                </Button>
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="md"
+                  className="gap-2 bg-white"
+                  aria-label={t("downloadExcel")}
+                  aria-busy={exporting === "xlsx"}
+                  onClick={() => void download("xlsx")}
+                  isLoading={exporting === "xlsx"}
+                  loadingText={t("downloadLoading")}
+                  disabled={loading || Boolean(loadError) || exporting !== null}
+                >
+                  <FileSpreadsheet className="h-4 w-4" aria-hidden="true" />
+                  {t("excel")}
+                </Button>
+                <span className="sr-only" role="status" aria-live="polite">
+                  {exporting === "pdf"
+                    ? t("pdfDownloadStatus")
+                    : exporting === "xlsx"
+                      ? t("excelDownloadStatus")
+                      : ""}
+                </span>
+              </div>
+            ) : null}
           </div>
         </div>
       </div>
@@ -238,6 +283,14 @@ export function MealParticipantList() {
           }
         />
       )}
+      <MealRegistrationChangeModal
+        isOpen={canRegister && changing}
+        onClose={() => setChanging(false)}
+        onSaved={() => void load()}
+        date={date}
+        participants={participants}
+        others={others}
+      />
     </section>
   );
 }

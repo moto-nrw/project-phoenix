@@ -2,8 +2,11 @@ package owners
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"time"
+
+	timezone "github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 
 	appointmentsModule "github.com/moto-nrw/project-phoenix/modules/appointments"
 	appointmentsCompose "github.com/moto-nrw/project-phoenix/modules/appointments/compose"
@@ -159,7 +162,10 @@ func ObservePeopleDirectory(observation peopleCompose.Observation) {
 
 // BuildServeMealPlan composes the Meal Plan over its settings and the
 // participants of the day.
-func BuildServeMealPlan(db transactionruntime.Database, settings *mealplanCompose.Settings, students StudentRootReads) (mealplanModule.Capability, error) {
+func BuildServeMealPlan(db transactionruntime.Database, settings *mealplanCompose.Settings, students StudentRootReads, names studentNames, calendarRecords schoolcalendar.Days) (mealplanModule.Capability, error) {
+	if calendarRecords == nil {
+		return nil, errors.New("meal plan: the school calendar is required")
+	}
 	return mealplanCompose.New(mealplanCompose.Dependencies{
 		DB:       db.Pool(),
 		Settings: settings,
@@ -168,7 +174,63 @@ func BuildServeMealPlan(db transactionruntime.Database, settings *mealplanCompos
 		},
 		Now:          time.Now,
 		Participants: mealPlanParticipantFinder(students, time.Now),
+		StudentNames: mealPlanStudentNames(names),
+		Calendar:     mealPlanCalendar(calendarRecords),
 	})
+}
+
+// studentNames is the People Directory's lookup of children by ID.
+type studentNames interface {
+	ListStudentNamesByID(context.Context, []int64) ([]peopledirectory.StudentName, error)
+}
+
+// mealPlanStudentNames names the children of past orders (#3873); their
+// class comes from the order itself.
+func mealPlanStudentNames(names studentNames) mealplanModule.StudentNameFinder {
+	return func(ctx context.Context, ids []int64) ([]mealplanModule.ParticipantCandidate, error) {
+		rows, err := names.ListStudentNamesByID(ctx, ids)
+		if err != nil {
+			return nil, err
+		}
+		result := make([]mealplanModule.ParticipantCandidate, 0, len(rows))
+		for _, row := range rows {
+			result = append(result, mealplanModule.ParticipantCandidate{StudentID: row.StudentID, FirstName: row.FirstName, LastName: row.LastName})
+		}
+		return result, nil
+	}
+}
+
+// mealPlanCalendar binds the School Calendar for the Meal Plan: closing days
+// and public holidays close a day, school holiday periods suspend the weekly
+// registration pattern (#3873).
+func mealPlanCalendar(records schoolcalendar.Days) mealplanModule.CalendarFinder {
+	return func(ctx context.Context, from, to string) (map[string]bool, map[string]bool, error) {
+		closed, err := records.NonWorkingDayDates(ctx, from, to)
+		if err != nil {
+			return nil, nil, err
+		}
+		periods, err := records.ListCalendarPeriods(ctx, schoolcalendar.HolidaysOverlapping(from, to))
+		if err != nil {
+			return nil, nil, err
+		}
+		holiday := make(map[string]bool)
+		for _, period := range periods {
+			for day := max(period.StartDate, from); day <= min(period.EndDate, to); day = calendarNextDay(day) {
+				holiday[day] = true
+			}
+		}
+		return closed, holiday, nil
+	}
+}
+
+// calendarNextDay advances a YYYY-MM-DD day by one. The School Calendar
+// validated it, so a parse failure only ends the loop.
+func calendarNextDay(day string) string {
+	value, err := timezone.ParseDate(day)
+	if err != nil {
+		return "9999-12-31"
+	}
+	return value.AddDays(1).String()
 }
 
 // BuildServeFeedback composes Feedback over its settings.

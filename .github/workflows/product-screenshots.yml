@@ -127,6 +127,7 @@ jobs:
       TURNSTILE_SITE_KEY: 1x00000000000000000000AA
       TURNSTILE_SECRET_KEY: 1x0000000000000000000000000000000AA
       SCHOOL_URL: http://schule.localhost:3000
+      CATERER_URL: http://caterer.localhost:3000
       TENANT_DOMAIN: localhost
       METRICS_BEARER_TOKEN: ci-metrics-token
       OGS_DEVICE_PIN: "1234"
@@ -145,6 +146,7 @@ jobs:
       NEXT_PUBLIC_OPERATOR_HOSTNAME: operator.localhost:3000
       NEXT_PUBLIC_PARENTS_HOSTNAME: eltern.localhost:3000
       NEXT_PUBLIC_SCHOOL_HOSTNAME: schule.localhost:3000
+      NEXT_PUBLIC_CATERER_HOSTNAME: caterer.localhost:3000
       NEXT_PUBLIC_APP_ENV: development
       NEXTAUTH_URL: http://localhost:3000
       NEXTAUTH_SECRET: ci-product-screenshots-throwaway-secret

@@ -68,7 +68,7 @@ appear in any recording carries `data-analytics-block`.
 ## New writing route
 
 Every POST, PUT, PATCH, or DELETE route of the portal routers (`/api`,
-`/auth`, `/parent`, `/school`, `/demo`) is classified in `coreActions` in
+`/auth`, `/parent`, `/school`, `/caterer`, `/demo`) is classified in `coreActions` in
 `backend/analytics/core_actions.go`. The operator dashboard, the kiosk
 (`/api/iot`), and CalDAV are not portals and stay out.
 

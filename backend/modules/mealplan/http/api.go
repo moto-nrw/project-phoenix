@@ -6,6 +6,9 @@ import (
 	"fmt"
 	"net/http"
 	"strconv"
+	"time"
+
+	"context"
 
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/render"
@@ -20,6 +23,10 @@ const (
 	AccessRead Access = iota + 1
 	AccessWrite
 	AccessParticipants
+	// AccessRegister changes a child's registration for the school (#3873).
+	AccessRegister
+	// AccessDailyParticipants reads the child list needed to change registrations.
+	AccessDailyParticipants
 )
 
 type ExportFile struct {
@@ -29,12 +36,21 @@ type ExportFile struct {
 }
 
 type Runtime struct {
-	Protected       func(chi.Router, func(chi.Router, Middleware))
-	Permission      func(Access) Middleware
-	Success         func(http.ResponseWriter, *http.Request, int, any, string)
-	InvalidRequest  func(http.ResponseWriter, *http.Request, error)
-	ModuleFailure   func(http.ResponseWriter, *http.Request, error, string)
-	ExportDailyList func(mealplanModule.DailyList, string) (ExportFile, error)
+	Protected      func(chi.Router, func(chi.Router, Middleware))
+	Permission     func(Access) Middleware
+	Success        func(http.ResponseWriter, *http.Request, int, any, string)
+	InvalidRequest func(http.ResponseWriter, *http.Request, error)
+	// ParseIDParam reads an int64 path parameter: api/common.ParseIDParam.
+	ParseIDParam  func(*http.Request, string) (int64, error)
+	ModuleFailure func(http.ResponseWriter, *http.Request, error, string)
+	// RenderList renders a list export as PDF or XLSX.
+	RenderList func(mealplanModule.ListExport, string) (ExportFile, error)
+	// CurrentAccountID is the staff account of the request, recorded on a
+	// school's change.
+	CurrentAccountID func(context.Context) int64
+	// Allowed reports whether the caller passes an access level, for a
+	// response part only some readers see.
+	Allowed func(context.Context, Access) bool
 }
 
 type Resource struct {
@@ -43,7 +59,7 @@ type Resource struct {
 }
 
 func NewResource(module mealplanModule.Capability, runtime Runtime) *Resource {
-	if module == nil || runtime.Protected == nil || runtime.Permission == nil || runtime.Success == nil || runtime.InvalidRequest == nil || runtime.ModuleFailure == nil || runtime.ExportDailyList == nil {
+	if module == nil || runtime.Protected == nil || runtime.Permission == nil || runtime.Success == nil || runtime.InvalidRequest == nil || runtime.ModuleFailure == nil || runtime.RenderList == nil || runtime.CurrentAccountID == nil || runtime.Allowed == nil {
 		panic("meal plan HTTP: all dependencies are required")
 	}
 	return &Resource{module: module, runtime: runtime}
@@ -56,8 +72,14 @@ func (rs *Resource) Router() chi.Router {
 		protected.With(rs.runtime.Permission(AccessRead), withTx).Get("/", rs.getWeek)
 		protected.With(rs.runtime.Permission(AccessWrite), withTx).Put("/{date}", rs.setDay)
 		protected.With(rs.runtime.Permission(AccessWrite), withTx).Delete("/{date}", rs.deleteDay)
-		protected.With(rs.runtime.Permission(AccessParticipants), withTx).Get("/participants", rs.getParticipants)
+		protected.With(rs.runtime.Permission(AccessDailyParticipants), withTx).Get("/participants", rs.getParticipants)
 		protected.With(rs.runtime.Permission(AccessParticipants), withTx).Get("/participants/export", rs.exportParticipants)
+		protected.With(rs.runtime.Permission(AccessRead), withTx).Get("/orders", rs.getOrders)
+		protected.With(rs.runtime.Permission(AccessParticipants), withTx).Get("/orders/month/export", rs.exportMonth)
+		protected.With(rs.runtime.Permission(AccessRegister), withTx).Get("/participation/{studentId}", rs.getChildParticipation)
+		protected.With(rs.runtime.Permission(AccessRegister), withTx).Put("/participation/{studentId}/days/{date}", rs.setChildDay)
+		protected.With(rs.runtime.Permission(AccessRegister), withTx).Delete("/participation/{studentId}/days/{date}", rs.clearChildDay)
+		protected.With(rs.runtime.Permission(AccessRegister), withTx).Put("/participation/{studentId}/schedule", rs.replaceChildSchedule)
 	})
 	return router
 }
@@ -79,7 +101,12 @@ type DailyParticipantResponse struct {
 type DailyListResponse struct {
 	Date         string                     `json:"date"`
 	CutoffTime   string                     `json:"cutoff_time"`
+	Deadline     time.Time                  `json:"deadline"`
+	Closed       bool                       `json:"closed"`
 	Participants []DailyParticipantResponse `json:"participants"`
+	// Others are the enrolled children who do not eat that day; only with
+	// include=all, for the school's late changes (#3873).
+	Others []DailyParticipantResponse `json:"others,omitempty"`
 }
 
 type DishRequest struct {
@@ -161,11 +188,21 @@ func (rs *Resource) getParticipants(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
-	participants := make([]DailyParticipantResponse, 0, len(list.Participants))
-	for _, participant := range list.Participants {
-		participants = append(participants, DailyParticipantResponse{StudentID: strconv.FormatInt(participant.StudentID, 10), FirstName: participant.FirstName, LastName: participant.LastName, SchoolClass: participant.SchoolClass})
+	response := DailyListResponse{Date: string(list.Date), CutoffTime: list.CutoffTime, Deadline: list.Deadline, Closed: list.Closed, Participants: participantResponses(list.Participants)}
+	// The children who do not eat are there to register them, so only a
+	// caller who may change a registration sees them.
+	if r.URL.Query().Get("include") == "all" && rs.runtime.Allowed(r.Context(), AccessRegister) {
+		response.Others = participantResponses(list.Others)
 	}
-	rs.runtime.Success(w, r, http.StatusOK, DailyListResponse{Date: string(list.Date), CutoffTime: list.CutoffTime, Participants: participants}, "Meal participation list retrieved successfully")
+	rs.runtime.Success(w, r, http.StatusOK, response, "Meal participation list retrieved successfully")
+}
+
+func participantResponses(participants []mealplanModule.DailyParticipant) []DailyParticipantResponse {
+	responses := make([]DailyParticipantResponse, 0, len(participants))
+	for _, participant := range participants {
+		responses = append(responses, DailyParticipantResponse{StudentID: strconv.FormatInt(participant.StudentID, 10), FirstName: participant.FirstName, LastName: participant.LastName, SchoolClass: participant.SchoolClass})
+	}
+	return responses
 }
 
 func (rs *Resource) exportParticipants(w http.ResponseWriter, r *http.Request) {
@@ -181,16 +218,17 @@ func (rs *Resource) exportParticipants(w http.ResponseWriter, r *http.Request) {
 		rs.runtime.InvalidRequest(w, r, fmt.Errorf("unsupported format %q", format))
 		return
 	}
-	file, err := rs.runtime.ExportDailyList(list, format)
+	export, err := list.Export()
 	if err != nil {
 		rs.runtime.ModuleFailure(w, r, err, "failed to export meal participation list")
 		return
 	}
-	w.Header().Set("Content-Type", file.ContentType)
-	w.Header().Set("Content-Disposition", fmt.Sprintf(`attachment; filename="%s"`, file.Filename))
-	w.Header().Set("Content-Length", strconv.Itoa(len(file.Data)))
-	w.WriteHeader(http.StatusOK)
-	_, _ = w.Write(file.Data)
+	file, err := rs.runtime.RenderList(export, format)
+	if err != nil {
+		rs.runtime.ModuleFailure(w, r, err, "failed to export meal participation list")
+		return
+	}
+	writeFile(w, file)
 }
 
 func (rs *Resource) dailyList(w http.ResponseWriter, r *http.Request) (mealplanModule.DailyList, bool) {

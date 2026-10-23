@@ -163,6 +163,14 @@ export const TRACKED_SCHOOL_ROUTE_TEMPLATES = [
   "/tagesinformationen",
 ] as const;
 
+/** Pages of the caterer portal (ADR 0077), as its host shows them. */
+export const TRACKED_CATERER_ROUTE_TEMPLATES = [
+  "/",
+  "/einladung/:schoolId/:token",
+  "/login",
+  "/reset-password",
+] as const;
+
 /** Public pages of the bare domain: school choice, start, demo, help. */
 export const TRACKED_PUBLIC_ROUTE_TEMPLATES = [
   "/",
@@ -177,7 +185,8 @@ export const TRACKED_PUBLIC_ROUTE_TEMPLATES = [
   "/start",
 ] as const;
 
-export type AnalyticsRouteSurface = "ogs" | "parents" | "school" | "public";
+export type AnalyticsRouteSurface =
+  "ogs" | "parents" | "school" | "caterer" | "public";
 
 /** Path of every page without a template; never the raw browser path. */
 export const UNKNOWN_ANALYTICS_PATH = "/unknown";
@@ -215,6 +224,7 @@ const matchersBySurface: Readonly<
   ]),
   parents: buildMatchers(TRACKED_PARENT_ROUTE_TEMPLATES),
   school: buildMatchers(TRACKED_SCHOOL_ROUTE_TEMPLATES),
+  caterer: buildMatchers(TRACKED_CATERER_ROUTE_TEMPLATES),
   public: buildMatchers(TRACKED_PUBLIC_ROUTE_TEMPLATES),
 };
 
@@ -250,6 +260,11 @@ function resolveOnSurface(
         "school",
         withoutPrefix(pathname, "/school") ?? pathname,
       );
+    case "caterer":
+      return matchTemplate(
+        "caterer",
+        withoutPrefix(pathname, "/caterer") ?? pathname,
+      );
     case "ogs": {
       // Path routing (`/<slug>/dashboard`) puts the tenant slug first. A
       // single segment stays as it is, so an unknown page never counts as
@@ -268,6 +283,8 @@ function resolveOnSurface(
       if (parentsPath) return matchTemplate("parents", parentsPath);
       const schoolPath = withoutPrefix(pathname, "/school");
       if (schoolPath) return matchTemplate("school", schoolPath);
+      const catererPath = withoutPrefix(pathname, "/caterer");
+      if (catererPath) return matchTemplate("caterer", catererPath);
       return (
         matchTemplate("public", pathname) ?? resolveOnSurface("ogs", pathname)
       );

@@ -263,6 +263,10 @@ func TestAccountGuardianRetentionRollsBack(t *testing.T) {
 		return err
 	}
 
+	// The caterer tables of 1.15.479 fence their account references with
+	// this migration's trigger function; they go first and come back last.
+	require.NoError(t, mealCaterersDown(ctx, db))
+	t.Cleanup(func() { require.NoError(t, mealCaterersUp(ctx, db)) })
 	require.NoError(t, accountGuardianRetentionDown(ctx, db))
 	require.ErrorContains(t, logRow(), "chk_data_deletions_subject", "before 1.15.464 the data kind needs a subject")
 	_, err := db.ExecContext(ctx, `INSERT INTO audit.data_deletions (tenant_id, deletion_type, records_deleted, deleted_by)

@@ -15,6 +15,17 @@ test("every registered code generates one Go constant and one TypeScript union m
   assert.equal((generated.ts.match(/^  "[a-z][a-z0-9_]*\.[a-z][a-z0-9_]*",$/gm) ?? []).length, entries.length);
 });
 
+test("error classes are assembled from shards with every registered mapping", () => {
+  const generated = generate(registry);
+  assert.ok(generated.goFiles["error_codes.generated.go"].includes("var errorClassByCode = make(map[string]string)"));
+  const shards = Object.entries(generated.goFiles)
+    .filter(([name]) => name !== "error_codes.generated.go")
+    .map(([, content]) => content).join("\n");
+  for (const entry of validateRegistry(registry)) {
+    assert.match(shards, new RegExp(`"${entry.code.replaceAll(".", "\\.")}":\\s+"${entry.class}"`));
+  }
+});
+
 test("duplicate codes are rejected", () => {
   const entry = registry.codes[0];
   assert.ok(entry);

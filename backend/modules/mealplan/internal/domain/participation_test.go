@@ -1,16 +1,14 @@
-package application
+package domain
 
 import (
 	"testing"
-
-	"github.com/moto-nrw/project-phoenix/modules/mealplan"
 
 	"github.com/stretchr/testify/assert"
 )
 
 func TestSortDailyParticipantsOrdersByClassNameAndID(t *testing.T) {
 	t.Parallel()
-	participants := []mealplan.DailyParticipant{
+	participants := []DailyParticipant{
 		{StudentID: 14, FirstName: "Ana", LastName: "Zorn", SchoolClass: "2a"},
 		{StudentID: 13, FirstName: "Ben", LastName: "Adam", SchoolClass: "3b"},
 		{StudentID: 12, FirstName: "Mia", LastName: "Adam", SchoolClass: "2a"},

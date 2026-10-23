@@ -121,3 +121,38 @@ func TestPasskeySessionsAreDeletedSevenDaysAfterExpiry(t *testing.T) {
 	assert.True(t, retentionRowExists(t, db, accountTable, accountRecent), "a ceremony expired less than 7 days ago stays")
 	assert.True(t, retentionRowExists(t, db, operatorTable, operatorLive), "a live ceremony stays")
 }
+
+// #3873: a school's invitation to its caterer holds an e-mail address and
+// goes 30 days after its acceptance, revocation or expiry, like one for
+// parents.
+func TestCatererInvitationsAreDeletedThirtyDaysAfterTheyEnd(t *testing.T) {
+	t.Parallel()
+	db := testpkg.SetupIsolatedTestDB(t)
+	module := newOperatorTokens(t, db)
+	now := time.Now()
+	daysAgo := func(days int) time.Time { return now.Add(-time.Duration(days) * 24 * time.Hour) }
+	invitation := func(expiresAt time.Time, acceptedAt, revokedAt *time.Time) int64 {
+		var id int64
+		require.NoError(t, db.NewRaw(`INSERT INTO auth.caterer_invitations (tenant_id, token_hash, email, caterer_name, expires_at, accepted_at, revoked_at)
+			VALUES (?, ?, 'kueche@example.com', 'Küche am Markt', ?, ?, ?) RETURNING id`,
+			testpkg.Tenant(t), uuid.Must(uuid.NewV4()).String(), expiresAt, acceptedAt, revokedAt).Scan(context.Background(), &id))
+		return id
+	}
+	longAgo, recently := daysAgo(31), daysAgo(29)
+
+	expired := invitation(daysAgo(31), nil, nil)
+	accepted := invitation(now.Add(48*time.Hour), &longAgo, nil)
+	revoked := invitation(now.Add(48*time.Hour), nil, &longAgo)
+	recentlyRevoked := invitation(daysAgo(60), nil, &recently)
+	open := invitation(now.Add(48*time.Hour), nil, nil)
+
+	deleted, err := module.DeleteExpiredCatererInvitations(context.Background())
+	require.NoError(t, err)
+
+	assert.Equal(t, 3, deleted)
+	for _, id := range []int64{expired, accepted, revoked} {
+		assert.False(t, retentionRowExists(t, db, "auth.caterer_invitations", id))
+	}
+	assert.True(t, retentionRowExists(t, db, "auth.caterer_invitations", recentlyRevoked), "the revocation starts the window")
+	assert.True(t, retentionRowExists(t, db, "auth.caterer_invitations", open))
+}

@@ -7,6 +7,8 @@ import (
 	"net/http"
 	"time"
 
+	"github.com/moto-nrw/project-phoenix/modules/identityaccess/sessiontoken"
+
 	importModels "github.com/moto-nrw/project-phoenix/modules/dataimport"
 
 	"github.com/go-chi/chi/v5"
@@ -91,6 +93,10 @@ var mealPlanErrorRules = []apiCommon.ErrorRule{
 	{Target: mealplanModule.ErrRegistrationDisabled, Render: apiCommon.FixedCodedRenderer(apiCommon.ErrorForbiddenWithCode, errors.New(mealplanModule.ErrRegistrationDisabled.Detail), apiCommon.CodeMealsRegistrationDisabled)},
 	{Target: mealplanModule.ErrInvalidParticipation, Render: apiCommon.ErrorInvalidRequest},
 	{Target: mealplanModule.ErrParticipationCutoff, Render: apiCommon.FixedCodedRenderer(apiCommon.ErrorConflictWithCode, errors.New(mealplanModule.ErrParticipationCutoff.Detail), apiCommon.CodeMealsParticipationCutoffPassed)},
+	{Target: mealplanModule.ErrPastDay, Render: apiCommon.FixedCodedRenderer(apiCommon.ErrorConflictWithCode, errors.New(mealplanModule.ErrPastDay.Detail), apiCommon.CodeMealsDayPast)},
+	{Target: mealplanModule.ErrDayClosed, Render: apiCommon.FixedCodedRenderer(apiCommon.ErrorConflictWithCode, errors.New(mealplanModule.ErrDayClosed.Detail), apiCommon.CodeMealsDayClosed)},
+	{Target: mealplanModule.ErrChildNotEnrolled, Render: apiCommon.FixedCodedRenderer(apiCommon.ErrorConflictWithCode, errors.New(mealplanModule.ErrChildNotEnrolled.Detail), apiCommon.CodeMealsChildNotEnrolled)},
+	{Target: mealplanModule.ErrStudentNotFound, Render: apiCommon.FixedRenderer(apiCommon.ErrorNotFound, errors.New(mealplanModule.ErrStudentNotFound.Detail))},
 }
 
 func renderMealPlanFailure(w http.ResponseWriter, r *http.Request, err error, internalMessage string) {
@@ -106,24 +112,23 @@ func newMealPlanResource(module mealplanModule.Capability, renderer SimpleListRe
 		Permission: func(access mealplanAPI.Access) mealplanAPI.Middleware {
 			return requireMealPlanAccess(access)
 		},
-		Success: apiCommon.Respond,
+		Success:      apiCommon.Respond,
+		ParseIDParam: apiCommon.ParseIDParam,
 		InvalidRequest: func(w http.ResponseWriter, r *http.Request, err error) {
 			apiCommon.RenderError(w, r, apiCommon.ErrorInvalidRequest(err))
 		},
 		ModuleFailure: func(w http.ResponseWriter, r *http.Request, err error, internalMessage string) {
 			renderMealPlanFailure(w, r, err, internalMessage)
 		},
-		ExportDailyList: func(list mealplanModule.DailyList, format string) (mealplanAPI.ExportFile, error) {
-			return renderMealParticipationExport(renderer, list, format)
+		RenderList: func(export mealplanModule.ListExport, format string) (mealplanAPI.ExportFile, error) {
+			return renderMealList(renderer, export, format)
 		},
+		CurrentAccountID: func(ctx context.Context) int64 { return int64(sessiontoken.ClaimsFromCtx(ctx).ID) },
+		Allowed:          mealPlanAllowed,
 	})
 }
 
-func renderMealParticipationExport(renderer SimpleListRenderer, list mealplanModule.DailyList, format string) (mealplanAPI.ExportFile, error) {
-	export, err := list.Export()
-	if err != nil {
-		return mealplanAPI.ExportFile{}, err
-	}
+func renderMealList(renderer SimpleListRenderer, export mealplanModule.ListExport, format string) (mealplanAPI.ExportFile, error) {
 	columns := make([]SimpleListColumn, 0, len(export.Columns))
 	for _, column := range export.Columns {
 		columns = append(columns, SimpleListColumn{ID: column.ID, Label: column.Label})

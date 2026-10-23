@@ -2,26 +2,31 @@ package mealplan_test
 
 import (
 	"testing"
+	"time"
 
 	"github.com/moto-nrw/project-phoenix/modules/mealplan"
+	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
 func TestDailyListExportLaysOutTheTagesliste(t *testing.T) {
 	t.Parallel()
-	list := mealplan.DailyList{Date: "2026-10-19", CutoffTime: "09:30", Participants: []mealplan.DailyParticipant{
+	// #3873: the deadline of the day, which lies days before it under a lead
+	// time, replaces the bare clock time.
+	deadline := time.Date(2026, 10, 16, 9, 30, 0, 0, calendar.Berlin)
+	list := mealplan.DailyList{Date: "2026-10-19", CutoffTime: "09:30", Deadline: deadline, Participants: []mealplan.DailyParticipant{
 		{StudentID: 11, FirstName: "Mia", LastName: "Meier", SchoolClass: "2a"},
 		{StudentID: 12, FirstName: "Ben", LastName: "Bauer", SchoolClass: "3b"},
 	}}
 
 	export, err := list.Export()
 	require.NoError(t, err)
-	assert.Equal(t, mealplan.DailyListExport{
+	assert.Equal(t, mealplan.ListExport{
 		Title:    "Mittagessen – Tagesliste",
 		Subtitle: "Tagesliste für den 19.10.2026",
-		Filters:  []string{"Änderungsfrist: 09:30 Uhr", "2 Kinder"},
-		Columns:  []mealplan.DailyListExportColumn{{ID: "student_name", Label: "Kind"}, {ID: "student_class", Label: "Klasse"}},
+		Filters:  []string{"Frist: 16.10.2026, 09:30 Uhr", "2 Kinder"},
+		Columns:  []mealplan.ListExportColumn{{ID: "student_name", Label: "Kind"}, {ID: "student_class", Label: "Klasse"}},
 		Lines:    [][]string{{"Meier, Mia", "2a"}, {"Bauer, Ben", "3b"}},
 		Footer:   "Vertraulich behandeln und nach dem Küchendienst sicher entsorgen.",
 		Filename: "mittagessen-2026-10-19",

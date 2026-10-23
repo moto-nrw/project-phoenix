@@ -117,11 +117,12 @@ type AccountRetention interface {
 }
 
 // SignInDataCleaner exposes the fixed retention of the short-lived sign-in
-// data Identity & Access owns (#3954): invitations for parents, e-mail codes
+// data Identity & Access owns (#3954): invitations for parents and caterers, e-mail codes
 // and passkey ceremonies of accounts and operators, and expired operator
 // sessions.
 type SignInDataCleaner interface {
 	DeleteExpiredGuardianInvitations(ctx context.Context) (int, error)
+	DeleteExpiredCatererInvitations(ctx context.Context) (int, error)
 	DeleteExpiredMFAEmailChallenges(ctx context.Context) (int, error)
 	DeleteExpiredPasskeySessions(ctx context.Context) (int, error)
 	DeleteExpiredOperatorSessions(ctx context.Context, now time.Time) (int, error)

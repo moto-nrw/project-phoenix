@@ -349,17 +349,25 @@ type MealPlanEntryResponse struct {
 }
 
 type MealParticipationDayResponse struct {
-	Date          string `json:"date"`
-	Participating bool   `json:"participating"`
-	Source        string `json:"source"`
-	Changeable    bool   `json:"changeable"`
+	Date          string    `json:"date"`
+	Participating bool      `json:"participating"`
+	Regular       bool      `json:"regular_participating"`
+	Source        string    `json:"source"`
+	Changeable    bool      `json:"changeable"`
+	CanRegister   bool      `json:"can_register"`
+	CanCancel     bool      `json:"can_cancel"`
+	RegisterUntil time.Time `json:"register_until"`
+	CancelUntil   time.Time `json:"cancel_until"`
 }
 
 type MealParticipationResponse struct {
-	Weekdays      []parentService.MealWeekday    `json:"weekdays"`
-	EffectiveFrom string                         `json:"effective_from,omitempty"`
-	CutoffTime    string                         `json:"cutoff_time"`
-	Days          []MealParticipationDayResponse `json:"days"`
+	Weekdays           []parentService.MealWeekday    `json:"weekdays"`
+	EffectiveFrom      string                         `json:"effective_from,omitempty"`
+	CutoffTime         string                         `json:"cutoff_time"`
+	Model              string                         `json:"model"`
+	ScheduleChangeable bool                           `json:"schedule_changeable"`
+	SickCancels        bool                           `json:"sick_cancels_after_deadline"`
+	Days               []MealParticipationDayResponse `json:"days"`
 }
 
 type ReplaceMealParticipationRequest struct {
@@ -478,6 +486,40 @@ func (rs *Resource) setMealParticipationDay(w http.ResponseWriter, r *http.Reque
 	common.Respond(w, r, http.StatusOK, nil, "Meal participation day saved")
 }
 
+// MealWeekChangeResponse lists the days a week change changed and the days
+// it left because their deadline had passed.
+type MealWeekChangeResponse struct {
+	Changed []string `json:"changed"`
+	Locked  []string `json:"locked"`
+}
+
+func (rs *Resource) setMealParticipationWeek(w http.ResponseWriter, r *http.Request) {
+	accountID, ok := rs.parentAccountID(w, r)
+	if !ok {
+		return
+	}
+	studentID, ok := parsePathStudentID(w, r)
+	if !ok {
+		return
+	}
+	date, err := timezone.ParseDate(chi.URLParam(r, "date"))
+	if err != nil {
+		common.RenderError(w, r, common.ErrorInvalidRequest(errors.New("date must be in YYYY-MM-DD format")))
+		return
+	}
+	var request SetMealParticipationDayRequest
+	if err := json.NewDecoder(r.Body).Decode(&request); err != nil || request.Participating == nil {
+		common.RenderError(w, r, common.ErrorInvalidRequest(errors.New("participating is required")))
+		return
+	}
+	change, err := rs.ParentService.SetMealParticipationWeek(r.Context(), accountID, studentID, date, *request.Participating)
+	if err != nil {
+		renderParentWriteError(w, r, err)
+		return
+	}
+	common.Respond(w, r, http.StatusOK, MealWeekChangeResponse{Changed: change.Changed, Locked: change.Locked}, "Meal participation week saved")
+}
+
 func (rs *Resource) clearMealParticipationDay(w http.ResponseWriter, r *http.Request) {
 	accountID, ok := rs.parentAccountID(w, r)
 	if !ok {
@@ -502,9 +544,12 @@ func (rs *Resource) clearMealParticipationDay(w http.ResponseWriter, r *http.Req
 func mealParticipationResponse(plan parentService.MealParticipationPlan) MealParticipationResponse {
 	days := make([]MealParticipationDayResponse, 0, len(plan.Days))
 	for _, day := range plan.Days {
-		days = append(days, MealParticipationDayResponse{Date: string(day.Date), Participating: day.Participating, Source: string(day.Source), Changeable: day.Changeable})
+		days = append(days, MealParticipationDayResponse{
+			Date: string(day.Date), Participating: day.Participating, Regular: day.Regular, Source: string(day.Source), Changeable: day.Changeable,
+			CanRegister: day.CanRegister, CanCancel: day.CanCancel, RegisterUntil: day.RegisterUntil, CancelUntil: day.CancelUntil,
+		})
 	}
-	return MealParticipationResponse{Weekdays: plan.Weekdays, EffectiveFrom: string(plan.EffectiveFrom), CutoffTime: plan.CutoffTime, Days: days}
+	return MealParticipationResponse{Weekdays: plan.Weekdays, EffectiveFrom: string(plan.EffectiveFrom), CutoffTime: plan.CutoffTime, Model: plan.Model, ScheduleChangeable: plan.ScheduleChangeable, SickCancels: plan.SickCancels, Days: days}
 }
 
 // --- shared helpers ---

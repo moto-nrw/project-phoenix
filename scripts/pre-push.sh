@@ -34,8 +34,14 @@ frontend=false
 context=false
 env_sync=false
 hooks=false
-changed=$(mktemp)
-trap 'rm -f "$changed"' EXIT
+# Keep the diff and child-tool scratch files off a quota-limited system /tmp.
+# Git metadata also works in linked worktrees without dirtying the checkout.
+workspace_parent=$(git rev-parse --path-format=absolute --git-path pre-push-cache)
+mkdir -p "$workspace_parent"
+workspace=$(mktemp -d "$workspace_parent/work.XXXXXX")
+trap 'rm -r -- "$workspace"' EXIT
+export TMPDIR="${TMPDIR:-$workspace}"
+changed="$workspace/changed"
 git diff --name-only -z "$merge_base" "$head" > "$changed"
 while IFS= read -r -d '' file; do
   case "$file" in

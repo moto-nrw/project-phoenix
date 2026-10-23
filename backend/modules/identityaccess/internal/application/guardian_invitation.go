@@ -225,7 +225,7 @@ func (l *AccountLifecycle) provisionGuardianAccount(ctx context.Context, email s
 		return domain.LoginAccount{}, failed(opGuardianInviteAccept, err)
 	}
 	if found {
-		return account, nil
+		return account, refuseCatererAccount(ctx, l.logins, account.ID, opGuardianInviteAccept)
 	}
 	hash, err := l.passwords.HashPassword(registration.Password)
 	if err != nil {

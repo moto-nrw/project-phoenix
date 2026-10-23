@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
+	"slices"
 	"time"
 
 	"github.com/gofrs/uuid"
@@ -98,18 +99,76 @@ func (s *AccountAuthentication) doRefreshTokenWithAudit(ctx context.Context, ref
 		return nil, failed("refresh session", fmt.Errorf("refresh claims payload missing after rotation"))
 	}
 	access, refresh := buildClaims(account, newSession, metadata, account.Email)
-	// The audit event is filed at the tenant the refresh validated against;
-	// the route carries no tenant and the fallback would attribute a
-	// multi-school account's refresh to its first mapping.
-	auditCtx := ctx
-	if claims.TenantID > 0 {
-		auditCtx = s.runtime.WithTenantID(ctx, claims.TenantID)
-	}
-	accessToken, refreshTokenString, err := s.generateAndLogTokens(auditCtx, account.ID, access, refresh, ipAddress, userAgent, domain.AuthEventTokenRefresh)
+	accessToken, refreshTokenString, err := s.generateAndLogTokens(s.refreshAuditContext(ctx, claims, newSession), account.ID, access, refresh, ipAddress, userAgent, domain.AuthEventTokenRefresh)
 	if err != nil {
 		return nil, err
 	}
 	return &refreshResult{accessToken: accessToken, refreshToken: refreshTokenString}, nil
+}
+
+// refreshAuditContext is where a refresh is filed: at the tenant the refresh
+// validated against, since the route carries no tenant and the fallback
+// would attribute a multi-school account's refresh to its first mapping. A
+// caterer has no school membership; its refresh is filed at the school its
+// successor session is pinned to (ADR 0077).
+func (s *AccountAuthentication) refreshAuditContext(ctx context.Context, claims domain.RefreshClaims, session domain.AccountSession) context.Context {
+	switch {
+	case claims.Scope == domain.ScopeCaterer:
+		return s.runtime.WithTenantID(ctx, session.TenantID)
+	case claims.TenantID > 0:
+		return s.runtime.WithTenantID(ctx, claims.TenantID)
+	default:
+		return ctx
+	}
+}
+
+// catererRefreshClaims keeps a caterer session a caterer session, and only
+// while the account still belongs to a caterer (ADR 0077).
+func (s *AccountAuthentication) catererRefreshClaims(ctx context.Context, account domain.LoginAccount, out **domain.AccountClaimsPayload) error {
+	if s.caterers == nil {
+		return domain.ErrAccountNotCaterer
+	}
+	if _, isCaterer, _, err := s.caterers.FindCatererOfAccount(ctx, account.ID); err != nil {
+		return fmt.Errorf("find caterer: %w", err)
+	} else if !isCaterer {
+		return domain.ErrAccountNotCaterer
+	}
+	*out = buildCatererMetadata(account)
+	return nil
+}
+
+// catererSessionSchool is the school a caterer's successor session is pinned
+// to: the current live school while its supply is active, else the first
+// live school it supplies. A caterer without a live supplied school has
+// nothing left to see (ADR 0077).
+func (s *AccountAuthentication) catererSessionSchool(ctx context.Context, accountID, pinned int64) (int64, error) {
+	caterer, isCaterer, _, err := s.caterers.FindCatererOfAccount(ctx, accountID)
+	if err != nil {
+		return 0, fmt.Errorf("find caterer: %w", err)
+	}
+	if !isCaterer {
+		return 0, domain.ErrAccountNotCaterer
+	}
+	schools, _, err := s.caterers.ListCatererSchools(ctx, caterer.ID)
+	if err != nil {
+		return 0, fmt.Errorf("list caterer schools: %w", err)
+	}
+	active, err := s.schools.ListActiveSchoolsByID(ctx, schools)
+	if err != nil {
+		return 0, fmt.Errorf("resolve caterer schools: %w", err)
+	}
+	live := make(map[int64]bool, len(active))
+	for _, school := range active {
+		live[school.ID] = true
+	}
+	schools = slices.DeleteFunc(schools, func(id int64) bool { return !live[id] })
+	if len(schools) == 0 {
+		return 0, identityaccess.ErrCatererWithoutSchool
+	}
+	if slices.Contains(schools, pinned) {
+		return pinned, nil
+	}
+	return schools[0], nil
 }
 
 // refreshClaimsGuard assembles the claims of a non-school refresh (tenant and
@@ -121,6 +180,9 @@ func (s *AccountAuthentication) refreshClaimsGuard(scope string, tenantID int64,
 		if scope == domain.ScopeParent {
 			*out = buildParentMetadata(account)
 			return nil
+		}
+		if scope == domain.ScopeCaterer {
+			return s.catererRefreshClaims(ctx, account, out)
 		}
 		guardianOnly, err := s.isGuardianOnlyAccountInTx(ctx, account.ID, tenantID)
 		if err != nil {
@@ -283,6 +345,15 @@ func (r *refreshRotation) persist(ctx context.Context, current domain.AccountSes
 	// Pre-tenant-claim tokens carry tenant 0; the successor gets the
 	// account's default mapping.
 	effectiveTenantID := r.tenantID
+	// A caterer belongs to no school: its successor stays pinned to a
+	// school that still supplies it (ADR 0077).
+	if effectiveTenantID == 0 && r.claims.Scope == domain.ScopeCaterer {
+		pinned, err := r.service.catererSessionSchool(ctx, r.account.ID, current.TenantID)
+		if err != nil {
+			return err
+		}
+		effectiveTenantID = pinned
+	}
 	if effectiveTenantID == 0 {
 		resolved, _, err := r.service.resolveAccountTenant(ctx, r.account.ID, "")
 		if err != nil {
@@ -531,6 +602,21 @@ func (s *AccountAuthentication) auditLogout(ctx context.Context, revoked domain.
 
 func (s *AccountAuthentication) validateTenantAccess(ctx context.Context, claims domain.RefreshClaims) error {
 	return globalIdentityRead(ctx, s.runtime, func(txCtx context.Context) error { return s.validateTenantAccessInTransaction(txCtx, claims) })
+}
+
+// isCatererAccount reports whether the account belongs to a caterer, read
+// through the global identity read: a caterer has no school to read in.
+func (s *AccountAuthentication) isCatererAccount(ctx context.Context, accountID int64) (bool, error) {
+	if s.caterers == nil {
+		return false, nil
+	}
+	var isCaterer bool
+	err := globalIdentityRead(ctx, s.runtime, func(readCtx context.Context) error {
+		var err error
+		_, isCaterer, _, err = s.caterers.FindCatererOfAccount(readCtx, accountID)
+		return err
+	})
+	return isCaterer, err
 }
 
 func (s *AccountAuthentication) requireAccountRecoveryProof(ctx context.Context, proofHash []byte, alreadyValidated bool) error {

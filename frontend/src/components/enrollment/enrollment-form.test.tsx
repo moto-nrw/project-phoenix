@@ -7,6 +7,7 @@ import {
   within,
 } from "@testing-library/react";
 import "@testing-library/jest-dom/vitest";
+import userEvent from "@testing-library/user-event";
 
 const {
   mockFetchPublicActiveSchema,
@@ -4434,6 +4435,7 @@ describe("EnrollmentForm restrictToOfferings (#2251)", () => {
   });
 
   it("submits the unchanged draft data with only the offering change applied", async () => {
+    const user = userEvent.setup();
     const submitter = vi
       .fn()
       .mockResolvedValue({ status_url: "/enroll/status/tok-1" });
@@ -4462,11 +4464,13 @@ describe("EnrollmentForm restrictToOfferings (#2251)", () => {
     const flexibleOffering = screen.getByRole("checkbox", {
       name: /Flexible Betreuung/,
     });
-    fireEvent.click(flexibleOffering);
+    await user.click(flexibleOffering);
     await waitFor(() => expect(flexibleOffering).toBeChecked());
-    fireEvent.click(await screen.findByRole("button", { name: "Mo" }));
+    await user.click(await screen.findByRole("button", { name: "Mo" }));
 
-    fireEvent.click(screen.getByRole("button", { name: "Anmeldung absenden" }));
+    await user.click(
+      screen.getByRole("button", { name: "Anmeldung absenden" }),
+    );
 
     await waitFor(() => expect(submitter).toHaveBeenCalledTimes(1));
     const payload = submitter.mock.calls[0]?.[0] as {

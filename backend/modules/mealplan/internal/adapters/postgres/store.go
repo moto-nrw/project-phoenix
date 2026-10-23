@@ -51,6 +51,7 @@ type sickDayRow struct {
 	ID         int64         `bun:"id"`
 	StudentID  int64         `bun:"student_id"`
 	Date       calendar.Date `bun:"date,type:date"`
+	Status     string        `bun:"status"`
 	ChangedAt  time.Time     `bun:"changed_at"`
 	ReportedAt time.Time     `bun:"reported_at"`
 	ClearedAt  *time.Time    `bun:"cleared_at"`
@@ -179,14 +180,7 @@ func (s *Store) FindParticipation(ctx context.Context, studentID int64, start, e
 
 	var sickDays []sickDayRow
 	if err := timedQuery(&stats, func() error {
-		return db.NewSelect().Model(&sickDays).
-			ModelTableExpr(`schedule.meal_sickness_status_history AS "sickness_history"`).
-			ColumnExpr(`"sickness_history".id`).
-			ColumnExpr(`"sickness_history".date`).
-			ColumnExpr(`"sickness_history".changed_at`).
-			ColumnExpr(`"sickness_history".reported_at`).
-			ColumnExpr(`"sickness_history".cleared_at`).
-			Where(`"sickness_history".tenant_id = ?`, tenantID).
+		return absenceHistory(db, &sickDays, tenantID).
 			Where(`"sickness_history".student_id = ?`, studentID).
 			Where(`"sickness_history".date BETWEEN ? AND ?`, start, end).
 			OrderExpr(`"sickness_history".date ASC, "sickness_history".changed_at ASC, "sickness_history".id ASC`).
@@ -220,14 +214,27 @@ func (s *Store) InsertParticipationSchedule(ctx context.Context, studentID, acco
 		}
 	}
 	stats := domain.OperationStats{}
+	// The newest decision holds from its day on: regular days set for a
+	// later day before it give way (#3873).
+	if err := timedQuery(&stats, func() error {
+		_, deleteErr := db.NewDelete().Model((*participationScheduleRow)(nil)).
+			ModelTableExpr(`schedule.meal_participation_schedules AS "meal_participation_schedule"`).
+			Where(`"meal_participation_schedule".tenant_id = ?`, tenantID).
+			Where(`"meal_participation_schedule".student_id = ?`, studentID).
+			Where(`"meal_participation_schedule".effective_from > ?`, effectiveFrom).
+			Exec(ctx)
+		return deleteErr
+	}); err != nil {
+		return stats, fmt.Errorf("meal plan postgres: drop later participation schedules: %w", err)
+	}
 	started := time.Now()
 	result, err := db.NewInsert().Model(&row).
 		ModelTableExpr(`schedule.meal_participation_schedules`).
 		On(`CONFLICT (tenant_id, student_id, effective_from) DO UPDATE`).
 		Set(`monday = EXCLUDED.monday, tuesday = EXCLUDED.tuesday, wednesday = EXCLUDED.wednesday, thursday = EXCLUDED.thursday, friday = EXCLUDED.friday, changed_by_account_id = EXCLUDED.changed_by_account_id, updated_at = NOW()`).
 		Exec(ctx)
-	stats.Queries = 1
-	stats.StatementDuration = time.Since(started)
+	stats.Queries++
+	stats.StatementDuration += time.Since(started)
 	if err != nil {
 		return stats, fmt.Errorf("meal plan postgres: save participation schedule: %w", err)
 	}
@@ -252,6 +259,36 @@ func (s *Store) UpsertParticipationOverride(ctx context.Context, studentID, acco
 	stats.StatementDuration = time.Since(started)
 	if err != nil {
 		return stats, fmt.Errorf("meal plan postgres: save participation override: %w", err)
+	}
+	stats.Rows, _ = result.RowsAffected()
+	return stats, nil
+}
+
+// UpsertParticipationOverrides writes the same exception for several days in
+// one statement.
+func (s *Store) UpsertParticipationOverrides(ctx context.Context, studentID, accountID int64, dates []domain.Date, participating bool) (domain.OperationStats, error) {
+	if len(dates) == 0 {
+		return domain.OperationStats{}, nil
+	}
+	db, tenantID, err := s.database(ctx)
+	if err != nil {
+		return domain.OperationStats{}, err
+	}
+	rows := make([]participationOverrideRow, 0, len(dates))
+	for _, date := range dates {
+		rows = append(rows, participationOverrideRow{TenantID: tenantID, StudentID: studentID, Date: date, Participating: participating, ChangedBy: accountID})
+	}
+	stats := domain.OperationStats{}
+	started := time.Now()
+	result, err := db.NewInsert().Model(&rows).
+		ModelTableExpr(`schedule.meal_participation_overrides`).
+		On(`CONFLICT (tenant_id, student_id, date) DO UPDATE`).
+		Set(`participating = EXCLUDED.participating, changed_by_account_id = EXCLUDED.changed_by_account_id, updated_at = NOW()`).
+		Exec(ctx)
+	stats.Queries = 1
+	stats.StatementDuration = time.Since(started)
+	if err != nil {
+		return stats, fmt.Errorf("meal plan postgres: save participation overrides: %w", err)
 	}
 	stats.Rows, _ = result.RowsAffected()
 	return stats, nil
@@ -336,6 +373,19 @@ func (s *Store) FindDailyParticipation(ctx context.Context, studentIDs []int64, 
 	return states, stats, nil
 }
 
+// absenceHistory selects the tenant's recorded absence changes (#3873).
+func absenceHistory(db bun.IDB, rows *[]sickDayRow, tenantID int64) *bun.SelectQuery {
+	return db.NewSelect().Model(rows).
+		ModelTableExpr(`schedule.meal_sickness_status_history AS "sickness_history"`).
+		ColumnExpr(`"sickness_history".id, "sickness_history".student_id, "sickness_history".date, "sickness_history".status`).
+		ColumnExpr(`"sickness_history".changed_at, "sickness_history".reported_at, "sickness_history".cleared_at`).
+		Where(`"sickness_history".tenant_id = ?`, tenantID)
+}
+
+func (row sickDayRow) absence() domain.SickDay {
+	return domain.SickDay{ID: row.ID, Date: row.Date, Status: row.Status, ChangedAt: row.ChangedAt, ReportedAt: row.ReportedAt, ClearedAt: row.ClearedAt}
+}
+
 func scheduleIncludes(row participationScheduleRow, weekday time.Weekday) bool {
 	switch weekday {
 	case time.Monday:
@@ -385,7 +435,7 @@ func participationValues(schedules []participationScheduleRow, overrides []parti
 		data.Overrides = append(data.Overrides, domain.DayOverride{Date: override.Date, Participating: override.Participating})
 	}
 	for _, sick := range sickDays {
-		data.SickDays = append(data.SickDays, domain.SickDay{ID: sick.ID, Date: sick.Date, ChangedAt: sick.ChangedAt, ReportedAt: sick.ReportedAt, ClearedAt: sick.ClearedAt})
+		data.SickDays = append(data.SickDays, sick.absence())
 	}
 	return data
 }
@@ -393,20 +443,13 @@ func participationValues(schedules []participationScheduleRow, overrides []parti
 func loadDailySickness(ctx context.Context, db bun.IDB, tenantID int64, studentIDs []int64, date domain.Date, cutoff time.Time, states map[int64]domain.DailyParticipation, stats *domain.OperationStats) error {
 	var sickDays []sickDayRow
 	if err := timedQuery(stats, func() error {
-		return db.NewSelect().Model(&sickDays).
-			ModelTableExpr(`schedule.meal_sickness_status_history AS "sickness_history"`).
-			ColumnExpr(`"sickness_history".id`).
-			ColumnExpr(`"sickness_history".student_id`).
-			ColumnExpr(`"sickness_history".date`).
-			ColumnExpr(`"sickness_history".changed_at`).
-			ColumnExpr(`"sickness_history".reported_at`).
-			ColumnExpr(`"sickness_history".cleared_at`).
-			DistinctOn(`"sickness_history".student_id`).
-			Where(`"sickness_history".tenant_id = ?`, tenantID).
+		return absenceHistory(db, &sickDays, tenantID).
+			DistinctOn(`"sickness_history".student_id, "sickness_history".status`).
 			Where(`"sickness_history".student_id IN (?)`, bun.List(studentIDs)).
 			Where(`"sickness_history".date = ?`, date).
 			Where(`"sickness_history".changed_at <= ?`, cutoff).
 			OrderExpr(`"sickness_history".student_id ASC`).
+			OrderExpr(`"sickness_history".status ASC`).
 			OrderExpr(`"sickness_history".changed_at DESC`).
 			OrderExpr(`"sickness_history".id DESC`).
 			Scan(ctx)
@@ -416,9 +459,7 @@ func loadDailySickness(ctx context.Context, db bun.IDB, tenantID int64, studentI
 	stats.Rows += int64(len(sickDays))
 	for _, sickDay := range sickDays {
 		state := states[sickDay.StudentID]
-		reportedAt := sickDay.ReportedAt
-		state.SickReportedAt = &reportedAt
-		state.SickClearedAt = sickDay.ClearedAt
+		state.Absences = append(state.Absences, sickDay.absence())
 		states[sickDay.StudentID] = state
 	}
 	return nil

@@ -21,24 +21,29 @@ func (fn TransactionFunc) Run(ctx context.Context, callback func(context.Context
 
 type Observation = ports.Observation
 
+// OrderingSettings are the school's meal ordering settings as stored.
+type OrderingSettings = ports.OrderingSettings
+
 type Dependencies struct {
 	DB       *bun.DB
 	Settings interface {
 		MealPlanEnabled(context.Context) (bool, error)
 		MealRegistrationEnabled(context.Context) (bool, error)
-		MealRegistrationCutoff(context.Context) (string, error)
+		MealOrderingSettings(context.Context) (OrderingSettings, error)
 	}
 	Observe      func(Observation)
 	Now          func() time.Time
 	Participants mealplan.ParticipantFinder
+	StudentNames mealplan.StudentNameFinder
+	Calendar     mealplan.CalendarFinder
 }
 
 func New(dependencies Dependencies) (mealplan.Capability, error) {
-	if dependencies.DB == nil || dependencies.Settings == nil || dependencies.Observe == nil || dependencies.Now == nil || dependencies.Participants == nil {
+	if dependencies.DB == nil || dependencies.Settings == nil || dependencies.Observe == nil || dependencies.Now == nil || dependencies.Participants == nil || dependencies.StudentNames == nil || dependencies.Calendar == nil {
 		return nil, errors.New("meal plan compose: all dependencies are required")
 	}
 	store := postgres.New(postgres.NewDatabase(tenant.TransactionFromContext, tenant.TenantFromContext))
-	service := application.New(store, application.NewParticipantDirectory(dependencies.Participants), dependencies.Settings, TransactionFunc(tenant.NewTransactionRunner().RunInTx), dependencies.Observe, dependencies.Now)
+	service := application.New(store, application.NewParticipantDirectory(dependencies.Participants, dependencies.StudentNames), application.NewSchoolCalendar(dependencies.Calendar), dependencies.Settings, TransactionFunc(tenant.NewTransactionRunner().RunInTx), dependencies.Observe, dependencies.Now)
 	return service, nil
 }
 
@@ -46,16 +51,16 @@ func New(dependencies Dependencies) (mealplan.Capability, error) {
 type Settings struct {
 	mealPlanEnabled         func(context.Context) (bool, error)
 	mealRegistrationEnabled func(context.Context) (bool, error)
-	mealRegistrationCutoff  func(context.Context) (string, error)
+	orderingSettings        func(context.Context) (OrderingSettings, error)
 }
 
 // NewBoundSettings binds the resolvers; a missing one is a construction
 // error.
-func NewBoundSettings(mealPlanEnabled, mealRegistrationEnabled func(context.Context) (bool, error), mealRegistrationCutoff func(context.Context) (string, error)) (*Settings, error) {
-	if mealPlanEnabled == nil || mealRegistrationEnabled == nil || mealRegistrationCutoff == nil {
+func NewBoundSettings(mealPlanEnabled, mealRegistrationEnabled func(context.Context) (bool, error), orderingSettings func(context.Context) (OrderingSettings, error)) (*Settings, error) {
+	if mealPlanEnabled == nil || mealRegistrationEnabled == nil || orderingSettings == nil {
 		return nil, errors.New("meal plan settings: resolvers are required")
 	}
-	return &Settings{mealPlanEnabled: mealPlanEnabled, mealRegistrationEnabled: mealRegistrationEnabled, mealRegistrationCutoff: mealRegistrationCutoff}, nil
+	return &Settings{mealPlanEnabled: mealPlanEnabled, mealRegistrationEnabled: mealRegistrationEnabled, orderingSettings: orderingSettings}, nil
 }
 
 func (s *Settings) MealPlanEnabled(ctx context.Context) (bool, error) { return s.mealPlanEnabled(ctx) }
@@ -64,6 +69,6 @@ func (s *Settings) MealRegistrationEnabled(ctx context.Context) (bool, error) {
 	return s.mealRegistrationEnabled(ctx)
 }
 
-func (s *Settings) MealRegistrationCutoff(ctx context.Context) (string, error) {
-	return s.mealRegistrationCutoff(ctx)
+func (s *Settings) MealOrderingSettings(ctx context.Context) (OrderingSettings, error) {
+	return s.orderingSettings(ctx)
 }

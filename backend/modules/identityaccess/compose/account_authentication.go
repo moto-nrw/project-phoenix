@@ -17,7 +17,7 @@ import (
 // public values so the root can implement them without the module's
 // internal vocabulary; this package adapts them to the consumer-owned ports.
 
-func newAccountAuthentication(service *application.Service, store ports.AccountLoginStore, deps *identityPorts.SessionDependencies, mfa ports.MFAGate) (*application.AccountAuthentication, error) {
+func newAccountAuthentication(service *application.Service, store ports.AccountLoginStore, caterers ports.CatererStore, deps *identityPorts.SessionDependencies, mfa ports.MFAGate) (*application.AccountAuthentication, error) {
 	if deps == nil {
 		return nil, nil
 	}
@@ -40,7 +40,8 @@ func newAccountAuthentication(service *application.Service, store ports.AccountL
 		Runtime:   tenantRuntime{attach: attach, runner: application.NewTransactionRunner()},
 		Attach:    attach,
 		Rotation:  rotation.RotationPolicy{}, WithRecoveryProof: rotation.WithRecoveryProof,
-		Logger: deps.Logger,
+		Caterers: caterers,
+		Logger:   deps.Logger,
 	})
 }
 

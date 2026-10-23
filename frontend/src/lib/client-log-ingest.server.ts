@@ -17,7 +17,7 @@ import { parseRequestBody } from "~/lib/route-wrapper-utils.server";
 import { validateSessionToken } from "~/server/auth/token-validation";
 import { redactSensitiveLogData } from "~/lib/log-redaction";
 
-export type ClientLogPortal = "tenant" | "parent";
+export type ClientLogPortal = "tenant" | "parent" | "caterer";
 
 // Per-process limits are bounded independently of caller-controlled identities.
 // The global budget is shared by all portals on purpose.

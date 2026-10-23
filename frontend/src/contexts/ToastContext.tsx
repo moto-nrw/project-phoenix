@@ -437,6 +437,7 @@ export function loginUrl(host: string, path: string): string {
   for (const [hostname, prefix] of [
     [clientEnv.NEXT_PUBLIC_PARENTS_HOSTNAME, "/parents"],
     [clientEnv.NEXT_PUBLIC_SCHOOL_HOSTNAME, "/school"],
+    [clientEnv.NEXT_PUBLIC_CATERER_HOSTNAME, "/caterer"],
     [clientEnv.NEXT_PUBLIC_OPERATOR_HOSTNAME, "/operator"],
   ]) {
     if (host === hostname || path.startsWith(`${prefix}/`)) {

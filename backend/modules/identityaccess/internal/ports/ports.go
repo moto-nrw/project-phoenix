@@ -278,6 +278,9 @@ type AccountLoginStore interface {
 	// address with account retention.
 	LockLoginAccountByEmail(ctx context.Context, email string) (domain.LoginAccount, bool, domain.OperationStats, error)
 	FindLoginAccount(ctx context.Context, id int64, forUpdate bool) (domain.LoginAccount, bool, domain.OperationStats, error)
+	// FindCatererOfAccount names the caterer of a caterer account; a
+	// caterer account joins no school and no family (ADR 0077).
+	FindCatererOfAccount(ctx context.Context, accountID int64) (domain.Caterer, bool, domain.OperationStats, error)
 	// RecordAccountLogin stamps the last login; on the login path it also
 	// takes the account row lock the session cap serializes on.
 	RecordAccountLogin(ctx context.Context, id int64, at time.Time) (domain.OperationStats, error)

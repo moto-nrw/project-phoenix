@@ -11,6 +11,10 @@ import (
 // feed, so it must never be written to logs where it could be replayed.
 var feedPathMarkers = []string{"/public/calendar/", "/public/request-feed/"}
 
+// invitationPathMarkers precede a school's ID and then the caterer's mailed
+// invitation token (ADR 0077): the token alone accepts the invitation.
+var invitationPathMarkers = []string{"/caterer/invitations/", "/einladung/"}
+
 // attrRedactor wraps a slog.Handler and rewrites the message and every string
 // attribute (including nested groups) through transform. transform receives the
 // attribute key ("" for the record message) so implementations can redact
@@ -109,29 +113,51 @@ func (h *attrRedactor) redactAttr(a slog.Attr) slog.Attr {
 // feed URL with "[REDACTED]", preserving any trailing path or query.
 func RedactFeedToken(s string) string {
 	for _, marker := range feedPathMarkers {
-		searchFrom := 0
-		for {
-			relative := strings.Index(s[searchFrom:], marker)
-			if relative < 0 {
-				break
-			}
-			start := searchFrom + relative + len(marker)
-			end := start
-			for end < len(s) {
-				if c := s[end]; c == '/' || c == '?' || c == ' ' || c == '"' {
-					break
-				}
-				end++
-			}
-			if end == start {
-				searchFrom = start
-				continue
-			}
-			s = s[:start] + "[REDACTED]" + s[end:]
-			searchFrom = start + len("[REDACTED]")
-		}
+		s = redactAfter(s, marker, 0)
+	}
+	for _, marker := range invitationPathMarkers {
+		s = redactAfter(s, marker, 1)
 	}
 	return s
+}
+
+// redactAfter replaces the path segment that follows marker and skip more
+// segments, wherever marker occurs.
+func redactAfter(s, marker string, skip int) string {
+	searchFrom := 0
+	for {
+		relative := strings.Index(s[searchFrom:], marker)
+		if relative < 0 {
+			return s
+		}
+		start := searchFrom + relative + len(marker)
+		for range skip {
+			start = segmentEnd(s, start)
+			if start >= len(s) || s[start] != '/' {
+				break
+			}
+			start++
+		}
+		end := segmentEnd(s, start)
+		if end == start {
+			searchFrom = start
+			continue
+		}
+		s = s[:start] + "[REDACTED]" + s[end:]
+		searchFrom = start + len("[REDACTED]")
+	}
+}
+
+// segmentEnd is where the path segment starting at start ends.
+func segmentEnd(s string, start int) int {
+	end := start
+	for end < len(s) {
+		if c := s[end]; c == '/' || c == '?' || c == ' ' || c == '"' {
+			break
+		}
+		end++
+	}
+	return end
 }
 
 // RedactQueryValues strips the values from a raw query string, keeping only

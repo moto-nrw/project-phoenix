@@ -23,6 +23,7 @@ func testServiceConfig() owners.ServiceConfig {
 		PublicAPIURL:     "http://localhost:8080",
 		ParentsURL:       "http://parents.localhost:3000",
 		SchoolURL:        "http://schule.localhost:3000",
+		CatererURL:       "http://caterer.localhost:3000",
 		TenantDomain:     "localhost",
 		OperatorHostname: "operator.localhost:3000",
 	}
@@ -227,6 +228,7 @@ func TestServiceGraph_PortalURLs_Required(t *testing.T) {
 	}{
 		{"parents", "PARENTS_URL", func(cfg *owners.ServiceConfig) { cfg.ParentsURL = "" }},
 		{"school", "SCHOOL_URL", func(cfg *owners.ServiceConfig) { cfg.SchoolURL = "" }},
+		{"caterer", "CATERER_URL", func(cfg *owners.ServiceConfig) { cfg.CatererURL = "" }},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			cfg := testServiceConfig()

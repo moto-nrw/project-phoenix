@@ -17,13 +17,24 @@ type MealPlanSource[D ~string, E, P, R, C any] interface {
 	ClearParticipationForDay(context.Context, C) error
 }
 type MealPlanRows[D ~string, E, P any, W ~int, Day, R, C any] struct {
-	Entry            func(E) MealPlanEntry
-	Plan             func(P) (string, string, []W, []Day)
+	Entry func(E) MealPlanEntry
+	// Plan carries the plan's own fields (deadline clock, model, whether
+	// the regular days are changeable, the sick-note rule) and its rows.
+	Plan             func(P) (MealParticipationPlan, []W, []Day)
 	ParticipationDay func(Day) MealParticipationDay
 	Schedule         func(int64, int64, []W) R
 	Change           func(int64, int64, D, bool) C
+	// Week changes the open days of a week in one write (#3873).
+	Week func(context.Context, MealParticipationChange) (MealWeekChange, error)
 }
-type MealPlanErrors struct{ Disabled, RegistrationDisabled, Cutoff, Invalid error }
+
+// MealPlanErrors are the owner's refusals: Cutoff lists every refusal of a
+// day the guardian can no longer change (deadline passed, school closed,
+// day over).
+type MealPlanErrors struct {
+	Disabled, RegistrationDisabled, Invalid error
+	Cutoff                                  []error
+}
 type mealPlan[D ~string, E, P any, W ~int, Day, R, C any] struct {
 	provider MealPlanSource[D, E, P, R, C]
 	rows     MealPlanRows[D, E, P, W, Day, R, C]
@@ -44,8 +55,8 @@ func portalSchedule[W ~int, R any](schedule MealParticipationSchedule, convert f
 	return convert(schedule.StudentID, schedule.GuardianAccountID, weekdays)
 }
 func portalParticipation[D ~string, E, P any, W ~int, Day, R, C any](plan P, rows MealPlanRows[D, E, P, W, Day, R, C]) MealParticipationPlan {
-	effective, cutoff, weekdays, days := rows.Plan(plan)
-	out := MealParticipationPlan{EffectiveFrom: effective, CutoffTime: cutoff, Weekdays: make([]MealWeekday, 0, len(weekdays)), Days: make([]MealParticipationDay, 0, len(days))}
+	out, weekdays, days := rows.Plan(plan)
+	out.Weekdays, out.Days = make([]MealWeekday, 0, len(weekdays)), make([]MealParticipationDay, 0, len(days))
 	for _, weekday := range weekdays {
 		out.Weekdays = append(out.Weekdays, MealWeekday(weekday))
 	}
@@ -95,6 +106,11 @@ func (m mealPlan[D, E, P, W, Day, R, C]) SetParticipationForDay(ctx context.Cont
 	return mealPlanError(m.provider.SetParticipationForDay(ctx, mealParticipationDay(change, m.rows.Change)), m.errors)
 }
 
+func (m mealPlan[D, E, P, W, Day, R, C]) SetParticipationForWeek(ctx context.Context, change MealParticipationChange) (MealWeekChange, error) {
+	result, err := m.rows.Week(ctx, change)
+	return result, mealPlanError(err, m.errors)
+}
+
 func (m mealPlan[D, E, P, W, Day, R, C]) ClearParticipationForDay(ctx context.Context, change MealParticipationChange) error {
 	change.Participating = false
 	return mealPlanError(m.provider.ClearParticipationForDay(ctx, mealParticipationDay(change, m.rows.Change)), m.errors)
@@ -108,11 +124,20 @@ func mealPlanError(err error, kinds MealPlanErrors) error {
 		return errors.Join(ErrMealPlanDisabled, err)
 	case errors.Is(err, kinds.RegistrationDisabled):
 		return errors.Join(ErrMealRegistrationDisabled, err)
-	case errors.Is(err, kinds.Cutoff):
+	case isAny(err, kinds.Cutoff):
 		return errors.Join(ErrMealParticipationCutoff, err)
 	case errors.Is(err, kinds.Invalid):
 		return errors.Join(ErrInvalidMealParticipation, err)
 	default:
 		return err
 	}
+}
+
+func isAny(err error, targets []error) bool {
+	for _, target := range targets {
+		if errors.Is(err, target) {
+			return true
+		}
+	}
+	return false
 }

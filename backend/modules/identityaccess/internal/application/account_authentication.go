@@ -36,7 +36,10 @@ type AccountAuthentication struct {
 	// context, where the rotation policy reads its hash.
 	withRecoveryProof func(ctx context.Context, proof string) context.Context
 	rotation          ports.Rotation
-	logger            *slog.Logger
+	// caterers lets a caterer session refresh only while its account
+	// belongs to a caterer (ADR 0077).
+	caterers ports.CatererStore
+	logger   *slog.Logger
 	// refreshSF deduplicates concurrent refresh calls for the same refresh
 	// token and recovery proof.
 	refreshSF singleflight.Group
@@ -60,7 +63,9 @@ type AccountAuthenticationDependencies struct {
 	// context, where the rotation policy reads its hash.
 	WithRecoveryProof func(ctx context.Context, proof string) context.Context
 	Rotation          ports.Rotation
-	Logger            *slog.Logger
+	// Caterers is optional: without it no caterer session refreshes.
+	Caterers ports.CatererStore
+	Logger   *slog.Logger
 }
 
 // NewAccountAuthentication composes the flows over the session service that
@@ -99,7 +104,7 @@ func NewAccountAuthentication(sessions *Service, deps AccountAuthenticationDepen
 	return &AccountAuthentication{
 		sessions: sessions, store: deps.Store, schools: deps.Schools, persons: deps.Persons, passwords: deps.Passwords,
 		codec: deps.Codec, mfa: deps.MFA, mfaLock: deps.MFALock, audit: deps.Audit, push: deps.Push,
-		runtime: deps.Runtime, attach: deps.Attach, withRecoveryProof: deps.WithRecoveryProof, rotation: deps.Rotation, logger: logger,
+		runtime: deps.Runtime, attach: deps.Attach, withRecoveryProof: deps.WithRecoveryProof, rotation: deps.Rotation, caterers: deps.Caterers, logger: logger,
 	}, nil
 }
 

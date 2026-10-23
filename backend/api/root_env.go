@@ -28,8 +28,8 @@ func newRootEnvironment(cfg owners.ServiceConfig, logger *slog.Logger, clock fun
 	}, nil
 }
 
-// resolveServiceLinks validates the staff, API, parents-portal and
-// school-portal bases the mails and the CalDAV feed link to: production
+// resolveServiceLinks validates the staff, API, parents-portal,
+// school-portal and caterer-portal bases the mails and the CalDAV feed link to: production
 // requires https.
 func resolveServiceLinks(cfg owners.ServiceConfig) (owners.ServiceLinks, error) {
 	production := strings.ToLower(cfg.AppEnv) == "production"
@@ -50,6 +50,9 @@ func resolveServiceLinks(cfg owners.ServiceConfig) (owners.ServiceLinks, error) 
 		// Lehrkraft invitation links land on the school portal, where the
 		// accept flow lives (#2207).
 		{"SCHOOL_URL", cfg.SchoolURL, &links.SchoolURL},
+		// The caterer's invitation link lands on the caterer portal
+		// (ADR 0077).
+		{"CATERER_URL", cfg.CatererURL, &links.CatererURL},
 	} {
 		value, err := requiredLink(link.name, link.raw, production)
 		if err != nil {

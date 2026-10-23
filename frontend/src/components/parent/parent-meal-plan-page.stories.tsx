@@ -111,10 +111,10 @@ function mealPlanForWeek(mondayISO: string): MealPlanEntry[] {
   ];
 }
 
-function participationForTwoWeeks(): MealParticipation {
+function participationForFourWeeks(): MealParticipation {
   const monday = mondayISOFromOffset(0);
   const today = toISODate(new Date());
-  const days = Array.from({ length: 12 }, (_, offset) => ({
+  const days = Array.from({ length: 26 }, (_, offset) => ({
     date: dateFromMonday(monday, offset),
     offset,
   }))
@@ -125,14 +125,22 @@ function participationForTwoWeeks(): MealParticipation {
     .map(({ date, offset }) => ({
       date,
       participating: offset !== 4,
+      regular_participating: true,
       source: offset === 4 ? ("override" as const) : ("regular" as const),
       changeable: date >= today,
+      can_register: date >= today,
+      can_cancel: date >= today,
+      register_until: `${date}T07:00:00Z`,
+      cancel_until: `${date}T07:00:00Z`,
     }));
 
   return {
     weekdays: [1, 2, 3, 4, 5],
     effective_from: monday,
     cutoff_time: "09:00",
+    model: "ongoing_single",
+    schedule_changeable: true,
+    sick_cancels_after_deadline: false,
     days,
   };
 }
@@ -165,11 +173,11 @@ function mockParentMealPlan({
     }
 
     const participationMatch = pathname.match(
-      /^\/api\/parent\/me\/children\/([^/]+)\/meal-participation(?:\/[^/]+)?$/,
+      /^\/api\/parent\/me\/children\/([^/]+)\/meal-participation(?:\/weeks)?(?:\/[^/]+)?$/,
     );
     if (participationMatch) {
       if (method === "GET") {
-        return jsonResponse({ data: participationForTwoWeeks() });
+        return jsonResponse({ data: participationForFourWeeks() });
       }
       return jsonResponse({ data: { effective_from: mondayISOFromOffset(1) } });
     }

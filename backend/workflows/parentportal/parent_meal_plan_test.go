@@ -78,6 +78,7 @@ type fakeMealPlan struct {
 	err              error
 	entries          []mealplanModule.Entry
 	lastClearCommand *mealplanModule.SetParticipationDay
+	lastWeekCommand  *mealplanModule.SetParticipationWeek
 }
 
 func availableMealPlan(enabled bool) *fakeMealPlan { return &fakeMealPlan{available: enabled} }
@@ -103,6 +104,11 @@ func (f *fakeMealPlan) ReplaceParticipationSchedule(context.Context, mealplanMod
 }
 func (f *fakeMealPlan) SetParticipationForDay(context.Context, mealplanModule.SetParticipationDay) error {
 	return f.err
+}
+
+func (f *fakeMealPlan) SetParticipationForWeek(_ context.Context, command mealplanModule.SetParticipationWeek) (mealplanModule.WeekChange, error) {
+	f.lastWeekCommand = &command
+	return mealplanModule.WeekChange{Changed: []mealplanModule.Date{command.WeekOf}}, f.err
 }
 
 func (f *fakeMealPlan) ClearParticipationForDay(_ context.Context, command mealplanModule.SetParticipationDay) error {
@@ -170,6 +176,9 @@ func TestMealParticipationWrites_CareEndedChildIsRejected(t *testing.T) {
 
 	err = svc.ClearMealParticipationDay(ctx, chain.AccountID, chain.StudentID, calendar.NewDate(2026, 8, 25))
 	require.ErrorIs(t, err, parentService.ErrChildCareEnded)
+
+	_, err = svc.SetMealParticipationWeek(ctx, chain.AccountID, chain.StudentID, calendar.NewDate(2026, 8, 31), false)
+	require.ErrorIs(t, err, parentService.ErrChildCareEnded)
 }
 
 func TestMealParticipationWrites_RequireManagePermission(t *testing.T) {
@@ -200,6 +209,9 @@ func TestMealParticipationWrites_RequireManagePermission(t *testing.T) {
 	require.ErrorIs(t, err, parentService.ErrGuardianPermissionDenied)
 
 	err = svc.ClearMealParticipationDay(ctx, chain.AccountID, chain.StudentID, date)
+	require.ErrorIs(t, err, parentService.ErrGuardianPermissionDenied)
+
+	_, err = svc.SetMealParticipationWeek(ctx, chain.AccountID, chain.StudentID, date, false)
 	require.ErrorIs(t, err, parentService.ErrGuardianPermissionDenied)
 
 	flags, err := svc.ChildFeatures(ctx, chain.AccountID, chain.StudentID)
@@ -308,4 +320,28 @@ func TestMealParticipationRejectsChildWithoutGuardianAccess(t *testing.T) {
 	_, err := svc.MealParticipation(testpkg.WithPackageTenantRuntime(context.Background()), chain.AccountID, other.ID, calendar.NewDate(2026, 8, 24), calendar.NewDate(2026, 9, 4))
 	require.Error(t, err)
 	assert.NotErrorIs(t, err, parentService.ErrMealRegistrationDisabled)
+}
+
+func TestSetMealParticipationWeek_AnchorsOnMondayWithinRange(t *testing.T) {
+	t.Parallel()
+
+	db := testpkg.SetupTestDB(t)
+	chain := testpkg.CreateTestParentGuardianChain(t, db)
+	mealPlan := availableMealPlan(true)
+	svc := buildMealPlanService(t, db, mealPlanSettings(true, nil), mealPlan)
+	ctx := testpkg.WithPackageTenantRuntime(context.Background())
+
+	// Today is Monday 2026-08-24; the parent reaches four weeks.
+	change, err := svc.SetMealParticipationWeek(ctx, chain.AccountID, chain.StudentID, calendar.NewDate(2026, 9, 17), false)
+	require.NoError(t, err)
+	require.NotNil(t, mealPlan.lastWeekCommand)
+	assert.Equal(t, mealplanModule.Date("2026-09-14"), mealPlan.lastWeekCommand.WeekOf)
+	assert.Equal(t, chain.AccountID, mealPlan.lastWeekCommand.GuardianAccountID)
+	assert.False(t, mealPlan.lastWeekCommand.Participating)
+	assert.Equal(t, []string{"2026-09-14"}, change.Changed)
+
+	_, err = svc.SetMealParticipationWeek(ctx, chain.AccountID, chain.StudentID, calendar.NewDate(2026, 9, 21), false)
+	require.ErrorIs(t, err, parentService.ErrMealParticipationOutOfRange, "the fifth week is out of reach")
+	_, err = svc.SetMealParticipationWeek(ctx, chain.AccountID, chain.StudentID, calendar.NewDate(2026, 8, 21), false)
+	require.ErrorIs(t, err, parentService.ErrMealParticipationOutOfRange, "a past week is out of reach")
 }

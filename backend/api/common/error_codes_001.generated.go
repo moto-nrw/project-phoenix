@@ -2,6 +2,8 @@
 package common
 
 const (
+	CodeIotNoSessionToEnd                             = "iot.no_session_to_end"
+	CodeIotOpenRoomBinaryMode                         = "iot.open_room_binary_mode"
 	CodeIotPersonNotStudent                           = "iot.person_not_student"
 	CodeIotPickupStudentRfidRequired                  = "iot.pickup_student_rfid_required"
 	CodeIotPlannedStartNotReached                     = "iot.planned_start_not_reached"
@@ -19,14 +21,20 @@ const (
 	CodeIotStudentNotPresent                          = "iot.student_not_present"
 	CodeIotWcNeedsStaff                               = "iot.wc_needs_staff"
 	CodeIotWcNotConfigured                            = "iot.wc_not_configured"
+	CodeMealsChildNotEnrolled                         = "meals.child_not_enrolled"
+	CodeMealsDayClosed                                = "meals.day_closed"
+	CodeMealsDayPast                                  = "meals.day_past"
 	CodeMealsInvalidDishes                            = "meals.invalid_dishes"
 	CodeMealsInvalidMealDate                          = "meals.invalid_meal_date"
 	CodeMealsInvalidParticipation                     = "meals.invalid_participation"
+	CodeMealsNotSupplied                              = "meals.not_supplied"
+	CodeMealsOrderNotFound                            = "meals.order_not_found"
 	CodeMealsParticipationCutoffPassed                = "meals.participation_cutoff_passed"
 	CodeMealsParticipationOutOfRange                  = "meals.participation_out_of_range"
 	CodeMealsPlanDisabled                             = "meals.plan_disabled"
 	CodeMealsPlanWeekOutOfRange                       = "meals.plan_week_out_of_range"
 	CodeMealsRegistrationDisabled                     = "meals.registration_disabled"
+	CodeMealsSupplyActive                             = "meals.supply_active"
 	CodePickupBulkExceptionConfirmationRequired       = "pickup.bulk_exception_confirmation_required"
 	CodePickupFutureManualReset                       = "pickup.future_manual_reset"
 	CodePickupInvalid                                 = "pickup.invalid"
@@ -294,17 +302,11 @@ const (
 	CodeTimetableTemplateRosterRebaseConflict         = "timetable.template_roster_rebase_conflict"
 	CodeTimetableTemplateSplitInPast                  = "timetable.template_split_in_past"
 	CodeTimetableTemplateSplitInvalid                 = "timetable.template_split_invalid"
-	CodeTimetableTemplateStartInPast                  = "timetable.template_start_in_past"
-	CodeTimetableTemplateStartNotEarlier              = "timetable.template_start_not_earlier"
-	CodeTimetableTemplateStartOutsidePeriod           = "timetable.template_start_outside_period"
-	CodeTimetableTemplateStartPredecessorOverlap      = "timetable.template_start_predecessor_overlap"
-	CodeTimetableTemplateWeekPatternInvalid           = "timetable.template_week_pattern_invalid"
-	CodeTimetableTemplateWeekend                      = "timetable.template_weekend"
-	CodeTimetableTooManyDates                         = "timetable.too_many_dates"
-	CodeTimetableUnderstaffedStillStaffed             = "timetable.understaffed_still_staffed"
 )
 
 var errorCodeClasses1 = map[string]string{
+	"iot.no_session_to_end":                               "input",
+	"iot.open_room_binary_mode":                           "business_rejection",
 	"iot.person_not_student":                              "input",
 	"iot.pickup_student_rfid_required":                    "input",
 	"iot.planned_start_not_reached":                       "business_rejection",
@@ -322,14 +324,20 @@ var errorCodeClasses1 = map[string]string{
 	"iot.student_not_present":                             "business_rejection",
 	"iot.wc_needs_staff":                                  "server",
 	"iot.wc_not_configured":                               "server",
+	"meals.child_not_enrolled":                            "business_rejection",
+	"meals.day_closed":                                    "business_rejection",
+	"meals.day_past":                                      "business_rejection",
 	"meals.invalid_dishes":                                "input",
 	"meals.invalid_meal_date":                             "input",
 	"meals.invalid_participation":                         "input",
+	"meals.not_supplied":                                  "permission",
+	"meals.order_not_found":                               "input",
 	"meals.participation_cutoff_passed":                   "business_rejection",
 	"meals.participation_out_of_range":                    "input",
 	"meals.plan_disabled":                                 "permission",
 	"meals.plan_week_out_of_range":                        "input",
 	"meals.registration_disabled":                         "permission",
+	"meals.supply_active":                                 "business_rejection",
 	"pickup.bulk_exception_confirmation_required":         "input",
 	"pickup.future_manual_reset":                          "business_rejection",
 	"pickup.invalid":                                      "input",
@@ -597,14 +605,6 @@ var errorCodeClasses1 = map[string]string{
 	"timetable.template_roster_rebase_conflict":           "business_rejection",
 	"timetable.template_split_in_past":                    "input",
 	"timetable.template_split_invalid":                    "input",
-	"timetable.template_start_in_past":                    "input",
-	"timetable.template_start_not_earlier":                "input",
-	"timetable.template_start_outside_period":             "input",
-	"timetable.template_start_predecessor_overlap":        "input",
-	"timetable.template_week_pattern_invalid":             "input",
-	"timetable.template_weekend":                          "input",
-	"timetable.too_many_dates":                            "input",
-	"timetable.understaffed_still_staffed":                "business_rejection",
 }
 
 func init() {

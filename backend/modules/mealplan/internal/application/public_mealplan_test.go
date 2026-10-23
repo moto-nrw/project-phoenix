@@ -11,36 +11,12 @@ import (
 
 type recordingEngine struct {
 	available bool
-	entries   []mealplan.Entry
 	replaced  mealplan.ReplaceDay
-	weekdays  []mealplan.Weekday
 }
 
-func (e *recordingEngine) Available(context.Context) (bool, error) { return e.available, nil }
-func (e *recordingEngine) Week(context.Context, string) ([]mealplan.Entry, error) {
-	return e.entries, nil
-}
 func (e *recordingEngine) Replace(_ context.Context, date string, dishes []mealplan.Dish) error {
 	e.replaced = mealplan.ReplaceDay{Date: mealplan.Date(date), Dishes: dishes}
 	return nil
-}
-func (e *recordingEngine) Clear(context.Context, string) error                 { return nil }
-func (e *recordingEngine) RegistrationAvailable(context.Context) (bool, error) { return true, nil }
-func (e *recordingEngine) Participation(context.Context, int64, string, string) (mealplan.ParticipationPlan, error) {
-	return mealplan.ParticipationPlan{}, nil
-}
-func (e *recordingEngine) ReplaceParticipationSchedule(_ context.Context, _ int64, _ int64, weekdays []mealplan.Weekday) (mealplan.Date, error) {
-	e.weekdays = weekdays
-	return "2026-09-07", nil
-}
-func (e *recordingEngine) SetParticipationDay(context.Context, int64, int64, string, bool) error {
-	return nil
-}
-func (e *recordingEngine) ClearParticipationDay(context.Context, int64, int64, string) error {
-	return nil
-}
-func (e *recordingEngine) DailyParticipants(context.Context, string) (mealplan.DailyList, error) {
-	return mealplan.DailyList{}, nil
 }
 
 func TestModuleRejectsWeekendWritesAtPublicSeam(t *testing.T) {
@@ -64,22 +40,16 @@ func TestModuleRejectsWeekendWritesAtPublicSeam(t *testing.T) {
 func TestModuleNormalizesRegularParticipationWeekdays(t *testing.T) {
 	t.Parallel()
 
-	engine := &recordingEngine{available: true}
-	module := newTestModule(engine)
-	effectiveFrom, err := module.ReplaceParticipationSchedule(context.Background(), mealplan.ReplaceParticipationSchedule{
-		StudentID: 42, GuardianAccountID: 7,
-		Weekdays: []mealplan.Weekday{mealplan.Friday, mealplan.Monday, mealplan.Friday},
-	})
-
-	if err != nil {
-		t.Fatalf("ReplaceParticipationSchedule() error = %v", err)
-	}
-	if effectiveFrom != "2026-09-07" {
-		t.Fatalf("effective from = %s", effectiveFrom)
+	weekdays, ok := normalizeWeekdays([]mealplan.Weekday{mealplan.Friday, mealplan.Monday, mealplan.Friday})
+	if !ok {
+		t.Fatal("normalizeWeekdays() refused valid weekdays")
 	}
 	want := []mealplan.Weekday{mealplan.Monday, mealplan.Friday}
-	if !slices.Equal(engine.weekdays, want) {
-		t.Fatalf("weekdays = %v, want %v", engine.weekdays, want)
+	if !slices.Equal(weekdays, want) {
+		t.Fatalf("weekdays = %v, want %v", weekdays, want)
+	}
+	if _, ok := normalizeWeekdays([]mealplan.Weekday{mealplan.Monday, 6}); ok {
+		t.Fatal("normalizeWeekdays() accepted a Saturday")
 	}
 }
 
@@ -121,5 +91,47 @@ func TestModuleNormalizesDishesAtPublicSeam(t *testing.T) {
 	}
 	if engine.replaced.Dishes[0].Note == nil || *engine.replaced.Dishes[0].Note != "vegetarisch" {
 		t.Fatalf("normalized note = %#v", engine.replaced.Dishes[0].Note)
+	}
+}
+
+func TestModuleRefusesInvalidWeekChanges(t *testing.T) {
+	t.Parallel()
+
+	module := newTestModule(&recordingEngine{available: true})
+	for _, command := range []mealplan.SetParticipationWeek{
+		{StudentID: 0, GuardianAccountID: 7, WeekOf: "2026-09-10"},
+		{StudentID: 42, GuardianAccountID: 0, WeekOf: "2026-09-10"},
+		{StudentID: 42, GuardianAccountID: 7, WeekOf: "10.09.2026"},
+	} {
+		if _, err := module.SetParticipationForWeek(context.Background(), command); !errors.Is(err, mealplan.ErrInvalidParticipation) {
+			t.Fatalf("SetParticipationForWeek(%+v) error = %v, want ErrInvalidParticipation", command, err)
+		}
+	}
+}
+
+func TestModuleRefusesInvalidSchoolChanges(t *testing.T) {
+	t.Parallel()
+
+	module := newTestModule(&recordingEngine{available: true})
+	for _, command := range []mealplan.SchoolSchedule{
+		{StudentID: 42, StaffAccountID: 9, Weekdays: []mealplan.Weekday{mealplan.Monday}},
+		{StudentID: 42, StaffAccountID: 0, Weekdays: []mealplan.Weekday{mealplan.Monday}, EffectiveFrom: "2026-09-14"},
+		{StudentID: 42, StaffAccountID: 9, Weekdays: []mealplan.Weekday{6}, EffectiveFrom: "2026-09-14"},
+	} {
+		if _, err := module.ReplaceScheduleBySchool(context.Background(), command); !errors.Is(err, mealplan.ErrInvalidParticipation) {
+			t.Fatalf("ReplaceScheduleBySchool(%+v) error = %v, want ErrInvalidParticipation", command, err)
+		}
+	}
+	for _, command := range []mealplan.SchoolChange{
+		{StudentID: 0, StaffAccountID: 9, Date: "2026-09-10"},
+		{StudentID: 42, StaffAccountID: 0, Date: "2026-09-10"},
+		{StudentID: 42, StaffAccountID: 9, Date: "2026-09-12"},
+	} {
+		if err := module.SetParticipationBySchool(context.Background(), command); !errors.Is(err, mealplan.ErrInvalidParticipation) {
+			t.Fatalf("SetParticipationBySchool(%+v) error = %v, want ErrInvalidParticipation", command, err)
+		}
+		if err := module.ClearParticipationBySchool(context.Background(), command); !errors.Is(err, mealplan.ErrInvalidParticipation) {
+			t.Fatalf("ClearParticipationBySchool(%+v) error = %v, want ErrInvalidParticipation", command, err)
+		}
 	}
 }

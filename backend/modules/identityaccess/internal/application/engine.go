@@ -34,6 +34,9 @@ type OwnerParts struct {
 	// DemoAccess is the demo-only capability; nil outside the demo
 	// environment.
 	DemoAccess *identityaccess.DemoAccess
+	// Caterers are the caterer flows (ADR 0077); nil without their
+	// dependencies.
+	Caterers *identityaccess.CatererAccess
 }
 
 // NewOwner serves the Identity & Access capability from its services
@@ -68,6 +71,7 @@ func NewOwner(parts OwnerParts) identityaccess.Owner {
 		AccountPasskeyFlows:         parts.MFAFlows.AccountPasskey,
 		accountMFACapability:        newAccountMFACapability(parts.MFAFlows.Capability),
 		demoAccess:                  parts.DemoAccess,
+		caterers:                    parts.Caterers,
 	}
 }
 
@@ -75,8 +79,8 @@ func NewOwner(parts OwnerParts) identityaccess.Owner {
 // its public capability itself and reports it unavailable when the owner was
 // composed without its dependencies. The records, the second factor and the
 // passkey ceremonies are embedded through their public capabilities because
-// their own steps share names with each other. Its only own method is the
-// DemoAccess accessor.
+// their own steps share names with each other. Its own methods are the
+// DemoAccess and Caterers accessors.
 type engine struct {
 	CalendarFeeds
 	*AccountRetention
@@ -108,8 +112,14 @@ type engine struct {
 	// demoAccess is the demo-only capability; nil outside the demo
 	// environment.
 	demoAccess *identityaccess.DemoAccess
+	// caterers are the caterer flows; nil without their dependencies.
+	caterers *identityaccess.CatererAccess
 }
 
 // DemoAccess returns the demo-only capability when the owner was composed in
 // the demo environment.
 func (e engine) DemoAccess() *identityaccess.DemoAccess { return e.demoAccess }
+
+// Caterers returns the caterer flows (ADR 0077), nil when the owner was
+// composed without them.
+func (e engine) Caterers() *identityaccess.CatererAccess { return e.caterers }
