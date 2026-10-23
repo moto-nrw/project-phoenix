@@ -9,7 +9,7 @@ import { performance } from 'node:perf_hooks';
 const scopes = {
   'backend-quality': ['backend', 'scripts', '.github', '.claude/hooks', 'lefthook.yml', 'devbox.json', 'devbox.lock', 'package.json', 'frontend/package.json'],
   'backend-lint': ['backend', 'scripts/check-backend-quality.sh', 'scripts/backend-affected-packages.sh', 'scripts/run-go-toolchain.sh'],
-  architecture: ['backend', 'scripts/backend-architecture', 'scripts/backend-architecture.sh', 'scripts/run-go-toolchain.sh'],
+  architecture: ['backend', 'docs/adr', 'scripts/backend-architecture', 'scripts/backend-architecture.sh', 'scripts/run-go-toolchain.sh'],
   'frontend-quality': ['frontend', 'scripts/check-frontend-quality.sh', 'package.json'],
   'react-doctor': ['frontend', 'scripts/check-frontend-quality.sh', 'package.json'],
   'hook-tests': ['scripts/pre-push.test.mjs', 'scripts/pre-push.sh', 'scripts/pre-push-cache.mjs', 'scripts/check-secrets.sh', 'scripts/check-secrets.test.mjs', '.gitleaks.toml', 'scripts/run-go-toolchain.sh', 'scripts/dev-native.sh', 'scripts/dev-native.test.mjs', 'scripts/go-package-workers.sh', 'scripts/total-memory-gb.sh', 'scripts/check-quality.sh', 'scripts/check-backend-quality.sh', 'scripts/check-frontend-quality.sh', 'lefthook.yml', '.github/workflows'],
