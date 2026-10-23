@@ -50,7 +50,7 @@ Die Inhalte aus #4045 haben keine eigene Einstellung. Sie folgen der Frist der D
 
 Die Uhrzeit des nächtlichen Laufs (`gdpr.data_cleanup_time`) stellt die Schule selbst ein. Den Schalter `gdpr.data_cleanup_enabled` ändert nur das moto-Team (#3951).
 
-## Gesundheitsangaben im Änderungsprotokoll (#3840, Slice 3840-b)
+## Gesundheitsangaben in Änderungsnachweisen (#3840, Slices 3840-b und 4844-a)
 
 **Im Code umgesetzt:** Bei `health_info` hält das Änderungsprotokoll nur noch
 fest, dass eine Angabe hinzugefügt, geändert oder entfernt wurde. Alter und
@@ -60,6 +60,15 @@ Zuordnung zu löschen. Das ist eine begrenzte, irreversible Ausnahme von
 Append-only durch den Migrations-Superuser; Schulrechte und RLS bleiben
 unverändert. Die Frist für den verbleibenden Änderungsnachweis bleibt bei
 90 Tagen als Voreinstellung (je Schule 30 bis 365 Tage).
+
+Auch direkte Gesundheitsänderungen aus dem Elternportal speichern in
+`users.student_data_change_requests` nur diese Marker (#4844). Migration
+`1.15.483` maskiert den Bestand aller Schulen, nur für `student/health_info`
+und unabhängig vom Status, ohne Metadaten zu ändern. Gesundheitsangaben sind
+nicht zur Freigabe beantragbar; ein Klartext-Zwischenspeicher ist daher nicht
+nötig. Für die verbleibenden Anfragen gilt keine eigene Protokollfrist: Sie
+werden mit dem Kind oder dem einreichenden Konto gelöscht. Die 90-Tage-Frist
+oben gilt nur für `audit.student_field_edits`, nicht für Elternanfragen.
 
 **Produktiver Nachweis offen:** Rollout und Bereinigung einschließlich einer
 Wiederherstellung älterer Sicherungen muss der Betrieb bestätigen. Ablauf und
@@ -101,6 +110,54 @@ offene Abhilfe: [Risikobewertung gespeicherter Daten](schutz-gespeicherter-daten
 | Operator-Konten ausgeschiedener Teammitglieder | Ende des Folgejahres | Deaktivierung | Identity Access | Bis dahin bleibt nachweisbar, wer im Protokoll gehandelt hat; danach verweist kein Eintrag mehr auf das Konto | umgesetzt (#4047) |
 | Konten, die keine Schule mehr braucht (E-Mail-Adresse, Benutzername, Passwort, Profilbild, Kalender-Link, Anmeldedaten) | sofort, stündlich geprüft | letzter Verweis einer Schule | Identity Access | Die Fristen der Daten, die das Konto nannten (Personal, Kinder, Elternkontakte), sind schon abgelaufen; danach hat das Konto keinen Zweck | umgesetzt (#4043) |
 | Besucher der öffentlichen Demo: Demo-Zugang (E-Mail, Name), Bestellung der Demo-Schule (Name, Konto-IDs, Zugangsdaten) und der Name des Besuchers in der Demo-Schule | 14 Tage, fest für alle Demo-Schulen | letzte Nutzung | Identity Access (Zugang), Organization Tenancy (Bestellung und Name) | Die Frist der Demo aus Spec #3456: Danach ist der Zugang abgelaufen, die Schule stillgelegt und niemand kommt mehr hinein | umgesetzt (#4048) |
+
+## Betriebsprotokolle
+
+**Slice 3842-f, Stand 23.10.2026:** Diese Quellen liegen überwiegend außerhalb
+der Anwendungsdatenbank. Die oben so bezeichneten Betriebsprotokolle zu
+Klassenlisten, Vertretungen und Dateiablage sind dagegen DB-Auditdaten und
+behalten ihre eigenen Fristen. Auch Anmeldeereignisse und Operator-Auditdaten
+werden nicht durch die kürzeren Diagnosefristen ersetzt.
+
+Die folgende Tabelle trennt belegte Repository-Vorgaben von **Vorschlägen**.
+Sie bestätigt keinen produktiven Zustand. Die vorgeschlagenen Fristen sind
+zweckbezogene Ausgangswerte, keine gesetzlichen 30-Tage-Fristen und noch keine
+freigegebene Änderung des Löschkonzepts. Betrieb und Datenschutzrolle müssen
+Zweck, Weisungen, technische Löschverzögerung und tatsächliche Löschung je
+Quelle bestätigen. Prüfablauf: [Betriebsprotokolle prüfen](../operations/betriebsprotokolle-pruefen-3842.md).
+
+| Quelle | Inhalt und Personenbezug | Aktueller bekannter Stand | Frist ab Ereignis, soweit nicht anders genannt | Zweck und noch erforderlicher Nachweis |
+|---|---|---|---|---|
+| journald: Backend, Frontend, PostgreSQL und Hostdienste | Ja: Fehler, Request-/Konto-/Schul-/Gerätekennungen; je Erzeuger auch IPs, Pfade oder Fehlermeldungen mit Nutzdaten möglich. IDs sind nicht anonym. | **Im Repo festgelegt:** `journald` mit getrennten Tags in `environments/{production,staging,demo}.compose.yml`. Keine journald-Retention im Repo; Hostwerte unbelegt. | **Vorschlag: 14 Tage** für Diagnose; Größenlimit zusätzlich, nicht statt Altersgrenze. | Zwei Wochen zur zeitnahen Störungsanalyse; effektive Hostkonfiguration, Rotation, Zugriff und Löschung prüfen, auch weitere Journal-Weiterleitungen. |
+| Caddy-Zugriffs- und Fehlerlogs | Ja: IP, User-Agent, Host und URL-Pfad; Pfade können IDs oder Zugriffstokens tragen. Das Beispiel entfernt Queries und ausgewählte Zugangsdaten-Header und maskiert IPs, nicht sämtliche Pfadgeheimnisse. | **Im Repo als Beispiel:** `monitoring/caddy/Caddyfile.observability.example`, `roll_size 100MiB`, `roll_keep 10`, `roll_keep_for 168h`; kein Nachweis der Hostübernahme. Fehlerlogs können separat in journald liegen. | **Vorschlag: 7 Tage** für Zugriffsdiagnose; Fehlerlogs wie journald. Die 168h gelten für rotierte Dateien, nicht als garantierte Höchstfrist aller Einträge. | Kurze Proxy-Diagnose; aktive Datei, Rotation bei wenig/keinem Verkehr, Filter und alle Kopien prüfen. |
+| Loki einschließlich Alloy-Zwischenablagen | Ja: Kopien der eingesammelten Logs, einschließlich IDs und möglicher Nutzdaten. Grafana-Auswertungen machen sie nicht anonym. | **Nur auf dem Host, unbelegt:** Basis-Compose, Loki und Alloy unter `/root/monitoring` laut `monitoring/README.md`; keine Retention-Konfiguration im Repo. Prometheus' `30d` betrifft Metriken, nicht Loki. | **Vorschlag: 14 Tage**; kürzere Quellenfristen, etwa Caddy 7 Tage, für deren Kopien erhalten. | Gemeinsame Störungsanalyse; Compactor, quellbezogene Regeln, Altbestand, Chunk-Löschung und Spool-/Speicherkopien prüfen. |
+| Sentry: Fehlerereignisse, Traces, Geräteberichte | Ja: Stacktraces, URL-Pfade, Konto-IDs; Geräteberichte erhalten Geräte- und Schul-ID. Frontend-Scrubbing begrenzt Daten, anonymisiert aber nicht alle Ereignisse. | **Im Code:** `frontend/src/sentry.shared.ts` entfernt u. a. Queries, Fragmente, Feed-Tokens und persönliche Nutzerfelder außer ID; `backend/observability/sentry_envelope.go` setzt Gerätetags. Retention, aktive Projekte und Anbieter-/Hostkonfiguration nicht im Repo belegt. | **Vorschlag: 14 Tage**, sofern für den zulässigen Diagnosezweck erforderlich. | Fehlerkorrelation; alle aktiven Projekte, Traces, Anhänge und Exporte separat erfassen, Löschmöglichkeiten und Frist am eingesetzten Dienst nachweisen. |
+| PostHog-Ereignisse und gegebenenfalls Aufzeichnungen | Ja: Ereignisse mit Schulgruppe, Sitzung, Rolle und teils pseudonymer Konto-ID; je Freigabe auch Aufzeichnungen. Pseudonymisierung ist keine Anonymisierung. | **Im Code:** Erfassungsregeln in `frontend/src/lib/analytics-policy.ts` und `backend/analytics/collection_policy.go`; keine Speicherfrist im Repo. Aktive Erfassung und Dienstkonfiguration unbelegt. | **Vorschlag: höchstens 30 Tage** für zulässige Ereignisse; Aufzeichnungen nicht allein dadurch freigegeben, gesondert begründen und kürzer begrenzen oder deaktivieren. | Kurzfristige Nutzungsanalyse; Rechtsgrundlage, Erforderlichkeit und tatsächliche Abschaltung bzw. Löschung unter #3843 klären. Keine Aktivierung durch diesen Vorschlag. |
+| GitHub-Actions-Logs und Artefakte | Entwickler-/Commitkennungen und Diagnoseausgaben, bei Fehlkonfiguration auch Secrets oder Test-/Nutzdaten. Ausschließlich synthetische Testdaten zulässig. | **Im Repo:** einzelne Artefakte 7/14/30 Tage (`e2e.yml`, `product-screenshots.yml`, `lint.yml`, `perf-nightly.yml`). Das setzt keine Workflow-Logfrist. Repository-/Organisationswerte und Altbestand unbelegt. | **Vorschlag: 30 Tage** für Workflow-Logs und höchstens 30 Tage für Artefakte; bestehende kürzere Artefaktfristen beibehalten. | Fehlgeschlagene Builds und Releases nachvollziehen; effektive Einstellungen, alte Runs/Artefakte und getrennte Release-Assets prüfen. |
+| Mail-Outbox-Ergebnisse und Zustellprotokolle | Ja: Empfänger, Inhalt, verknüpfte IDs, Providerantwort und letzter Fehler. Kein rein technisches anonymes Protokoll. | **Im Code festgelegt:** 30 Tage in `backend/modules/delivery/internal/domain/retention.go`; schulbezogener Löschweg in `internal/application/retention.go`, Systemmails im Worker. Produktive Läufe unbelegt. | **Bestehend: 30 Tage** ab Versand, endgültigem Fehlschlag oder Abbruch; verwaiste Zustellprotokolle ab Eintrag. Noch versuchte Zustellungen bleiben. | Zustellklärung; erfolgreiche Löschläufe und hängende Aufträge prüfen. `guardian_welcome` behält nur den Idempotenzschlüssel nach Inhaltsbereinigung. Providerkopien folgen eigenen, noch nachzuweisenden Fristen. |
+
+### Zugriff und Datenminimierung: Soll, produktiv offen
+
+1. Nur persönlich berechtigte Betriebs-/Supportrollen erhalten zweckgebundenen
+   Lesezugriff. Schreib-, Export-, Lösch- und Rechteverwaltung gesondert
+   begrenzen. Eine Docker- oder Host-Adminberechtigung ist kein beschränkter
+   Diagnosezugang. Tatsächliche Rechte und Entzug ausgeschiedener Mitglieder
+   müssen für Host, Grafana/Loki, Sentry, PostHog und GitHub belegt werden.
+2. Keine Namen, Gesundheitsangaben, Dokumentinhalte, Mailinhalte, Zugangsdaten
+   oder vollständigen URLs als Diagnoseinhalt vorsehen. Nötige IDs und
+   Fehlertypen verwenden; freie Fehler-/Providertexte und Tokenpfade gesondert
+   prüfen. Vorhandene Filter sind Teilmaßnahmen, kein vollständiger Nachweis.
+3. Exporte, Weiterleitungen, Spools und Sicherungskopien mit eigenem Löschweg
+   erfassen. Kürzere Quellfristen dürfen durch Kopien nicht still verlängert
+   werden. Ein konkreter Sicherheitsvorfall kann eine getrennte, zugriffsbeschränkte
+   Beweissicherung mit dokumentiertem Zweck, Umfang, Verantwortlichem und
+   Löschtermin erfordern, nicht die pauschale Verlängerung aller Logs.
+
+**Offener Vertragsabgleich, Slice 3842-i:** AVV Anhang 1 Ziff. 6 nennt für
+Anmelde- und Sicherheitsprotokolle sechs Monate, die Anwendung für
+Anmeldeereignisse 90 Tage. Das ist weder durch die obigen Vorschläge gelöst
+noch ein Grund, alle Diagnoseprotokolle sechs Monate zu behalten.
+Gesamtstand und notwendige Abhilfe: [Ergebnisbericht #3842](../operations/sicherheitshaertung-3842.md).
 
 ## Inhalte, die die Schule selbst löscht
 

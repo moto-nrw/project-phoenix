@@ -1,6 +1,6 @@
 # Produktionsstörungen erkennen und bearbeiten
 
-Slice 3845-a, Refs #3845, Teil von #3846. Stand: 23.10.2026.
+Slices 3845-a und 3845-b, Refs #3845, Teil von #3846. Stand: 23.10.2026.
 
 ## Stand und Zuständigkeit
 
@@ -21,12 +21,33 @@ Kanäle in der geschützten Betriebsablage, nicht im Repository:
 
 - **Betriebsdienst:** nimmt Alarme an, bestätigt Übernahme und führt das Störungsprotokoll.
 - **Vertretung:** übernimmt bei ausbleibender Bestätigung; Betriebsleitung legt
-  Reaktions- und Eskalationszeiten fest und prüft die Erreichbarkeit.
+  Reaktions- und Eskalationszeiten nach den folgenden Vorgaben fest und prüft
+  die Erreichbarkeit.
 - **Technische Einsatzleitung:** grenzt Ursache ein und koordiniert Wiederherstellung.
 - **Datenschutzrolle:** bewertet mögliche Datenschutzverletzungen und koordiniert
   erforderliche Meldungen nach dem geltenden Vorfallverfahren.
 - **Betriebsleitung:** entscheidet über Kundeninformation und prüft Abschluss,
   offene Maßnahmen und SLA-Nachweise.
+
+### Reaktions- und Eskalationszeiten
+
+Die jeweils vereinbarten Vertragsfristen dürfen durch interne Eskalationszeiten
+nicht überschritten werden. Der aktuelle [AGB-Entwurf, Anhang B](https://github.com/moto-nrw/legal/blob/main/vertragspaket/02-agb.md#anhang-b-service-level-und-support)
+verlangt die erste qualifizierte Rückmeldung in der Supportzeit (Montag bis
+Freitag 08:00–16:00 Uhr):
+
+- **Kritisch:** innerhalb von 2 Stunden, insbesondere wenn ein Standort nicht
+  arbeiten kann, der Check-in ausfällt oder ein Sicherheitsvorfall vermutet wird.
+- **Hoch:** innerhalb von 1 Werktag bei Störung einer wichtigen Funktion.
+- **Normal:** innerhalb von 3 Werktagen bei einzelner Funktion mit Umgehung.
+- **Niedrig:** innerhalb von 5 Werktagen bei Fragen oder Wünschen.
+
+Das sind Rückmelde-, keine Behebungsfristen. Die Betriebsleitung legt kürzere
+interne Bestätigungs- und Eskalationsfristen fest, damit Vertretung und
+qualifizierte Rückmeldung noch innerhalb der Vertragsfrist möglich sind.
+Eine automatische Alarmzustellung zählt nicht als qualifizierte Rückmeldung.
+Sicherheits- und Datenschutzverdacht sofort intern eskalieren; die Supportzeit
+ist kein Grund, das Vorfallverfahren oder dessen Meldefristen aufzuschieben.
 
 ## Erkennungswege und Grenzen
 
@@ -79,8 +100,9 @@ Produktions-/Staging-Requests und keinen Serverzugriff aus.
    API-Listener bestätigen: 200 bei erreichbarer DB. Zuerst in einer isolierten
    Testumgebung DB-Unerreichbarkeit prüfen: 503, höchstens zwei Sekunden für den
    Ping, keine DB-Details. Keine produktive DB für einen Test abschalten.
-2. Die server-lokale Compose-/Probe-Quelle für `monitoring-healthcheck-prod-1`
-   und `monitoring-healthcheck-staging-1` finden und geschützt sichern. Bestehende
+2. Die server-lokale Basis `/root/monitoring/docker-compose.yml` mit den Proben
+   für `monitoring-healthcheck-prod-1` und `monitoring-healthcheck-staging-1`
+   prüfen und geschützt sichern (Quelle: [Monitoring-README](../../monitoring/README.md#deploy)). Bestehende
    Ziele, Netzpfad, Intervall, HTTP-Timeout und Erfolgskriterium feststellen, ohne
    Umgebungsvariablen oder Geheimnisse in Nachweise zu kopieren.
 3. Beim API-Ziel nur `/health` durch `/ready` ersetzen. Kein Frontend-Ziel durch
@@ -95,8 +117,12 @@ Produktions-/Staging-Requests und keinen Serverzugriff aus.
 5. Produktion ohne künstlichen Ausfall auf erfolgreiche `/ready`-Proben prüfen.
    Version, Zeitpunkt, Zielpfad/Netzabdeckung, Intervall/Timeout, getestete Fälle,
    Alarm-ID, Zustellnachweis und verbleibende Lücken geschützt dokumentieren.
-   Bei Rücknahme die gesicherte Probe-Konfiguration wiederherstellen und
-   ausdrücklich festhalten: `/health` erkennt keinen DB-Ausfall.
+   Bei Rücknahme **zuerst** die gesicherte Probe-Konfiguration mit `/health`
+   wiederherstellen, Probe-Container neu erstellen und erfolgreiche Proben samt
+   Loki-Zustellung bestätigen. **Erst danach** das Backend auf eine Version
+   ohne `/ready` zurückrollen. Sonst erzeugt `/ready` HTTP 404 und einen
+   Fehlalarm. Den Zeitraum der Rücknahme festhalten: `/health` erkennt keinen
+   DB-Ausfall; diese Erkennung bleibt bis zur erneuten Umstellung offen.
 
 ## Ablauf bei einer Störung
 
@@ -142,6 +168,23 @@ Wiederherstellung praktisch prüfen; fehlende/stumme Zeiträume sind **unbekannt
 nicht automatisch verfügbar. Auch Betriebszeiträume ohne Vorfälle brauchen
 einen vollständigen Probe-/Überwachungsnachweis. Rohlogs mit Personenbezug nicht
 ungeprüft exportieren. Zuständige Rolle und Ablage im Betriebsnachweis benennen.
+
+Die Betriebsleitung benennt eine Rolle für den manuellen Monatsnachweis:
+
+1. Je Kalendermonat Grafana-Alarmhistorie, zugehörige Loki-Proben und
+   Störungsprotokolle geschützt ablegen, bevor die jeweilige Aufbewahrung abläuft.
+   Bei kürzerer Aufbewahrung entsprechend häufiger sichern; auf Anfrage einen
+   monatsbezogenen Export aus der Ablage bereitstellen.
+2. Ausfallintervalle und nachgewiesene Betriebszeiten je betroffener Leistung
+   zusammenführen. Datenlücken und unsichere Grenzen ausdrücklich ausweisen.
+3. Für die manuelle Auswertung Vertragsfassung, Standort/Feiertage, Kernzeit,
+   begründete Ausschlüsse und zusammengeführte Ausfallzeiten festhalten.
+   Verfügbarkeit als `(Kernzeit − anrechenbare Ausfallzeit) / Kernzeit × 100`
+   berechnen, soweit die Zeiten belegt sind. Jahreswert aus den Jahressummen,
+   nicht als ungewichtetes Mittel der Monatsprozente bilden.
+4. Betriebsleitung prüft Monatswerte für das Sonderkündigungsrecht und den
+   Jahreswert gegen 99 %. Werte mit Datenlücken nicht als vollständigen
+   SLA-Nachweis ausgeben. Kein automatischer Monatsbericht in diesem Verfahren.
 
 Wartung/Deploys als tatsächliche Unterbrechungen erfassen, auch bei erlaubten
 Deploys zu jeder Zeit. Einen vertraglichen Ausschluss (angekündigte Wartung

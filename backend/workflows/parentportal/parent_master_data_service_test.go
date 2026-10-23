@@ -8,6 +8,7 @@ import (
 	"strconv"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -269,30 +270,50 @@ func TestUpdateMasterDataField_HealthInfo_AppliesAndAudits(t *testing.T) {
 
 	svc, db := buildMasterDataService(t, true)
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
-
-	data, err := svc.UpdateMasterDataField(
-		testpkg.WithPackageTenantRuntime(context.Background()), chain.AccountID, chain.StudentID,
-		parentService.DataChangeTargetStudent, "health_info",
-		json.RawMessage(`"Penicillin-Allergie"`),
-	)
-	require.NoError(t, err)
-	require.NotNil(t, data.HealthInfo)
-	assert.Equal(t, "Penicillin-Allergie", *data.HealthInfo)
-
-	// The live student record was updated.
-	student, err := testpkg.TenantQuery1(t, testpkg.ContextForTenant(testpkg.WithPackageTenantRuntime(context.Background()), chain.TenantID), db, api.NewPeopleRepositorySuiteFactory(testpkg.NewDatabase(t, db)).Student.FindByID, any(chain.StudentID))
-	require.NoError(t, err)
-	require.NotNil(t, student.HealthInfo)
-	assert.Equal(t, "Penicillin-Allergie", *student.HealthInfo)
-
-	// An auto_applied audit row was written.
-	var count int
-	err = db.NewRaw(
-		`SELECT count(*) FROM users.student_data_change_requests WHERE student_id = ? AND status = ?`,
-		chain.StudentID, "auto_applied",
-	).Scan(testpkg.WithPackageTenantRuntime(context.Background()), &count)
-	require.NoError(t, err)
-	assert.Equal(t, 1, count)
+	ctx := testpkg.WithPackageTenantRuntime(context.Background())
+	steps := []struct {
+		value, oldMarker, newMarker string
+		count                       int
+	}{
+		{"synthetic-value-a", "", "Angabe hinzugefügt", 1},
+		{"synthetic-value-b", "Angabe vorhanden", "Angabe geändert", 2},
+		{"synthetic-value-b", "Angabe vorhanden", "Angabe geändert", 2},
+		{"", "Angabe vorhanden", "", 3},
+		{"", "Angabe vorhanden", "", 3},
+	}
+	for _, step := range steps {
+		data, err := svc.UpdateMasterDataField(ctx, chain.AccountID, chain.StudentID,
+			parentService.DataChangeTargetStudent, "health_info", json.RawMessage(strconv.Quote(step.value)))
+		require.NoError(t, err)
+		if step.value == "" {
+			assert.Nil(t, data.HealthInfo)
+		} else {
+			require.NotNil(t, data.HealthInfo)
+			assert.Equal(t, step.value, *data.HealthInfo)
+		}
+		// Read through the public interface again, not only the write response.
+		persisted, err := svc.GetChildMasterData(ctx, chain.AccountID, chain.StudentID)
+		require.NoError(t, err)
+		assert.Equal(t, data.HealthInfo, persisted.HealthInfo)
+		var rows []struct {
+			OldValue    json.RawMessage
+			NewValue    json.RawMessage
+			Status      string
+			TenantID    int64
+			SubmittedBy int64
+			AppliedAt   *time.Time
+		}
+		require.NoError(t, db.NewRaw(`SELECT old_value, new_value, status, tenant_id, submitted_by, applied_at
+			FROM users.student_data_change_requests WHERE student_id = ? ORDER BY id`, chain.StudentID).Scan(ctx, &rows))
+		require.Len(t, rows, step.count)
+		row := rows[len(rows)-1]
+		assert.JSONEq(t, string(json.RawMessage(strconv.Quote(step.oldMarker))), string(row.OldValue))
+		assert.JSONEq(t, string(json.RawMessage(strconv.Quote(step.newMarker))), string(row.NewValue))
+		assert.Equal(t, "auto_applied", row.Status)
+		assert.Equal(t, chain.TenantID, row.TenantID)
+		assert.Equal(t, chain.AccountID, row.SubmittedBy)
+		assert.NotNil(t, row.AppliedAt)
+	}
 }
 
 func TestUpdateMasterDataField_NormalizedNoopSkipsAudit(t *testing.T) {
