@@ -373,16 +373,6 @@ func checkMissingSetupTestDB(t *testing.T, root string) []string {
 
 	var violations []string
 
-	// Patterns indicating DB operations
-	dbPatterns := []string{
-		"bun.DB",
-		".NewSelect()",
-		".NewInsert()",
-		".NewUpdate()",
-		".NewDelete()",
-		"repositories.",
-	}
-
 	// Patterns indicating direct or indirect shared test DB setup.
 	setupPatterns := []string{
 		"SetupTestDB",
@@ -442,8 +432,6 @@ func checkMissingSetupTestDB(t *testing.T, root string) []string {
 			"test/handler_layer_ratchet_test.go",                         // Source-scanning ratchet (issue #584); same as above, no DB is used
 			"test/route_sized_api_builders_analyzer_test.go",             // Source-scanning gate fixtures; *bun.DB is a fixture return type, no DB is used
 			"modules/timetable/http/timetable_data_test_helpers_test.go", // Shared fixture helper; caller tests own DB setup
-			"test/module_file_size_ratchet_test.go",                      // Source-scanning ratchet (#2580); allowlist keys name *_repositories.go files, no DB is used
-			"test/module_complexity_ratchet_test.go",                     // Source-scanning ratchet (#2580); same as above, no DB is used
 			"modules/identityaccess/behavior/owner_contracts_test.go",    // Shared row readers of the behaviour suites (#3446); caller tests own DB setup
 		}
 		skip := false
@@ -459,15 +447,12 @@ func checkMissingSetupTestDB(t *testing.T, root string) []string {
 
 		contentStr := string(f.content)
 
-		// Check if file has DB operations
-		hasDBOps := false
-		for _, pattern := range dbPatterns {
-			if strings.Contains(contentStr, pattern) {
-				hasDBOps = true
-				break
-			}
+		// Only code counts: register keys and prose are not database operations.
+		_, syntax, err := parseGoSourceCached(filepath.Join(root, f.rel), f.content)
+		if err != nil {
+			t.Fatalf("parse database operations in %s: %v", f.rel, err)
 		}
-
+		hasDBOps := hasDatabaseOperations(syntax)
 		if !hasDBOps {
 			continue
 		}
@@ -500,6 +485,43 @@ func checkMissingSetupTestDB(t *testing.T, root string) []string {
 	}
 
 	return violations
+}
+
+// hasDatabaseOperations preserves the gate's selector/call shapes, without
+// matching comments or string literals that only describe database code.
+func hasDatabaseOperations(file *ast.File) bool {
+	found := false
+	ast.Inspect(file, func(node ast.Node) bool {
+		if sel, ok := node.(*ast.SelectorExpr); ok {
+			if pkg, ok := sel.X.(*ast.Ident); ok {
+				found = found || (pkg.Name == "bun" && sel.Sel.Name == "DB") || pkg.Name == "repositories"
+			}
+		}
+		if call, ok := node.(*ast.CallExpr); ok && len(call.Args) == 0 {
+			if sel, ok := call.Fun.(*ast.SelectorExpr); ok {
+				switch sel.Sel.Name {
+				case "NewSelect", "NewInsert", "NewUpdate", "NewDelete":
+					found = true
+				}
+			}
+		}
+		return !found
+	})
+	return found
+}
+
+func TestHermeticSetupScanIgnoresProseButRequiresRealSetup(t *testing.T) {
+	t.Parallel()
+	root := t.TempDir()
+	for name, body := range map[string]string{
+		"prose":      "// repositories.Find() and bun.DB\nvar key = `foo_repositories.go .NewSelect()`",
+		"query":      "func f() { db.NewSelect() }",
+		"type":       "var db *bun.DB",
+		"repository": "func f() { repositories.Find() }",
+	} {
+		require.NoError(t, os.WriteFile(filepath.Join(root, name+"_test.go"), []byte("package probe\n"+body), 0600))
+	}
+	require.ElementsMatch(t, []string{"  - query_test.go", "  - type_test.go", "  - repository_test.go"}, checkMissingSetupTestDB(t, root))
 }
 
 // tenantContext1Baseline is empty: tests must generate or locally own tenant

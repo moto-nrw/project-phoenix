@@ -9,11 +9,13 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/modules/careplan"
 	carePlanCompose "github.com/moto-nrw/project-phoenix/modules/careplan/compose"
+	"github.com/moto-nrw/project-phoenix/modules/careplan/masterdatarequests"
 	"github.com/moto-nrw/project-phoenix/modules/careplan/parentrequests"
 	"github.com/moto-nrw/project-phoenix/modules/peopledirectory"
 	peopleCompose "github.com/moto-nrw/project-phoenix/modules/peopledirectory/compose"
 	peoplePorts "github.com/moto-nrw/project-phoenix/modules/peopledirectory/ports"
 	"github.com/moto-nrw/project-phoenix/modules/securityruntime"
+	"github.com/moto-nrw/project-phoenix/modules/transactionruntime"
 	"github.com/moto-nrw/project-phoenix/realtime"
 	timezone "github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 )
@@ -173,6 +175,10 @@ func (r MasterDataRecords) FindStudent(ctx context.Context, id int64) (carePlanC
 
 func (r MasterDataRecords) LockStudent(ctx context.Context, id int64) (carePlanCompose.MasterDataStudent, error) {
 	student, err := r.Students.FindByIDForUpdate(ctx, id)
+	// Deletion can cascade to the request while its preliminary read waits.
+	if errors.Is(err, transactionruntime.ErrNoRows) {
+		return carePlanCompose.MasterDataStudent{}, masterdatarequests.ErrReviewNotFound
+	}
 	if err != nil {
 		return carePlanCompose.MasterDataStudent{}, err
 	}

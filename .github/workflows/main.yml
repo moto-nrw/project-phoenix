@@ -212,10 +212,16 @@ jobs:
             # Release, deploy and demo tooling and the workflow files the
             # script suites read. None of it feeds the test or lint suites.
             tooling:
+              - 'docs/operations/daily-restore.compose.yml'
+              - 'scripts/daily-backup*'
+              - 'scripts/daily_backup.py'
+              - 'scripts/restore-daily-backup.sh'
+              - 'scripts/systemd/moto-*backup*'
               - 'scripts/check-release-architecture*'
               - 'scripts/release-backup*'
               - 'scripts/demo-environment.test.mjs'
               - 'scripts/report-sentry-deploy*'
+              - 'scripts/deploy-grafana-provisioning*'
               - 'scripts/posthog-dashboards*'
               - 'scripts/create-demo-env.py'
               - 'scripts/test-support/release-docker.mjs'
@@ -322,7 +328,7 @@ jobs:
 
       - name: Verify pre-push failure and selection behavior
         if: matrix.suite == 'unit'
-        run: node --test scripts/pre-push.test.mjs scripts/check-secrets.test.mjs scripts/dev-native.test.mjs scripts/check-release-architecture.test.mjs scripts/release-backup.test.mjs scripts/demo-environment.test.mjs scripts/report-sentry-deploy.test.mjs scripts/posthog-dashboards.test.mjs
+        run: node --test scripts/pre-push.test.mjs scripts/check-secrets.test.mjs scripts/dev-native.test.mjs scripts/check-release-architecture.test.mjs scripts/release-backup.test.mjs scripts/demo-environment.test.mjs scripts/report-sentry-deploy.test.mjs scripts/deploy-grafana-provisioning.test.mjs scripts/posthog-dashboards.test.mjs
 
       - name: Verify repository script suites
         if: matrix.suite == 'unit'
@@ -338,6 +344,18 @@ jobs:
       - name: Verify complete release restore with PostgreSQL
         if: matrix.suite == 'restore'
         run: node --test scripts/release-backup.integration.test.mjs
+
+      - name: Install daily backup test tools
+        if: matrix.suite == 'restore'
+        run: sudo apt-get update -qq && sudo apt-get install -y age rclone
+
+      - name: Verify encrypted daily backup and isolated restore
+        if: matrix.suite == 'restore'
+        run: |
+          node --test scripts/daily-backup.integration.test.mjs
+          sudo install -d /usr/local/lib/moto-backup
+          sudo install scripts/daily-backup.sh /usr/local/lib/moto-backup/
+          systemd-analyze verify scripts/systemd/moto-daily-backup.service scripts/systemd/moto-daily-backup.timer scripts/systemd/moto-backup-failure@.service
 
       # TestToolchainPinsRatchet reads the files of the toolchain filter.
       # Changed-test selection adds ./test only for backend changes, so such a

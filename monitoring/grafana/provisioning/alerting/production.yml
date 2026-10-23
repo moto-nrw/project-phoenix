@@ -1,0 +1,167 @@
+# Production availability alerting. Created in the Grafana UI and moved to
+# file provisioning on 2026-10-23 with unchanged UIDs, queries and
+# thresholds. The former "Error Spike" rule of this group is replaced by
+# server-errors.yml (#2953) and was removed.
+
+apiVersion: 1
+groups:
+  - orgId: 1
+    name: Phoenix Production
+    folder: Phoenix Alerts
+    interval: 1m
+    rules:
+      - uid: afc9s3c35zq4gd
+        title: HTTP 5xx Spike
+        condition: C
+        data:
+          - refId: A
+            relativeTimeRange:
+              from: 300
+              to: 0
+            datasourceUid: P8E80F9AEF21F6940
+            model:
+              expr: 'sum(count_over_time({env="prod", service="server"} | json | __error__=""
+                | msg =~ "5[0-9][0-9]: .*" [5m]))'
+              instant: true
+              intervalMs: 1000
+              maxDataPoints: 43200
+              refId: A
+          - refId: B
+            datasourceUid: __expr__
+            model:
+              expression: A
+              intervalMs: 1000
+              maxDataPoints: 43200
+              reducer: last
+              refId: B
+              type: reduce
+          - refId: C
+            datasourceUid: __expr__
+            model:
+              conditions:
+                - evaluator:
+                    params:
+                      - 5
+                    type: gt
+                  operator:
+                    type: and
+                  reducer:
+                    type: last
+              expression: B
+              intervalMs: 1000
+              maxDataPoints: 43200
+              refId: C
+              type: threshold
+        noDataState: OK
+        execErrState: OK
+        for: 5m
+        annotations:
+          summary: More than 5 HTTP 5xx responses in 5 minutes on production. API
+            may be failing.
+        labels:
+          env: prod
+          severity: warning
+        isPaused: false
+      - uid: afc9s3up3rcowa
+        title: DB Connection Error
+        condition: C
+        data:
+          - refId: A
+            relativeTimeRange:
+              from: 300
+              to: 0
+            datasourceUid: P8E80F9AEF21F6940
+            model:
+              expr: count_over_time({env="prod"} |= "connection refused" [5m])
+              instant: true
+              intervalMs: 1000
+              maxDataPoints: 43200
+              refId: A
+          - refId: B
+            datasourceUid: __expr__
+            model:
+              expression: A
+              intervalMs: 1000
+              maxDataPoints: 43200
+              reducer: last
+              refId: B
+              type: reduce
+          - refId: C
+            datasourceUid: __expr__
+            model:
+              conditions:
+                - evaluator:
+                    params:
+                      - 1
+                    type: gt
+                  operator:
+                    type: and
+                  reducer:
+                    type: last
+              expression: B
+              intervalMs: 1000
+              maxDataPoints: 43200
+              refId: C
+              type: threshold
+        noDataState: OK
+        execErrState: OK
+        for: 2m
+        annotations:
+          summary: Database connection refused detected in production logs. PostgreSQL
+            may be down or unreachable.
+        labels:
+          env: prod
+          severity: critical
+        isPaused: false
+      - uid: dfcf3nj1iydq8b
+        title: Production Server Down
+        condition: C
+        data:
+          - refId: A
+            relativeTimeRange:
+              from: 300
+              to: 0
+            datasourceUid: P8E80F9AEF21F6940
+            model:
+              expr: count_over_time({env="prod", service="healthcheck"} |= "health
+                check passed" [5m])
+              instant: true
+              intervalMs: 1000
+              maxDataPoints: 43200
+              refId: A
+          - refId: B
+            datasourceUid: __expr__
+            model:
+              expression: A
+              intervalMs: 1000
+              maxDataPoints: 43200
+              reducer: last
+              refId: B
+              type: reduce
+          - refId: C
+            datasourceUid: __expr__
+            model:
+              conditions:
+                - evaluator:
+                    params:
+                      - 1
+                    type: lt
+                  operator:
+                    type: and
+                  reducer:
+                    type: last
+              expression: B
+              intervalMs: 1000
+              maxDataPoints: 43200
+              refId: C
+              type: threshold
+        noDataState: Alerting
+        execErrState: Alerting
+        for: 5m
+        annotations:
+          summary: Production server health probe has returned zero successful responses
+            in the last 5 minutes. The /health endpoint is unreachable.
+        labels:
+          env: prod
+          severity: critical
+        isPaused: false

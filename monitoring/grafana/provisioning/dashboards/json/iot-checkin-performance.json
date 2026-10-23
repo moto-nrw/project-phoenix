@@ -1,0 +1,458 @@
+{
+  "panels": [
+    {
+      "datasource": {
+        "type": "loki",
+        "uid": "P8E80F9AEF21F6940"
+      },
+      "description": "Current checkin latency. Green < 50ms, Yellow < 100ms, Red > 100ms.",
+      "fieldConfig": {
+        "defaults": {
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              },
+              {
+                "color": "yellow",
+                "value": 50000000
+              },
+              {
+                "color": "red",
+                "value": 100000000
+              }
+            ]
+          },
+          "unit": "ns"
+        }
+      },
+      "gridPos": {
+        "h": 5,
+        "w": 12,
+        "x": 0,
+        "y": 0
+      },
+      "id": 1,
+      "options": {
+        "colorMode": "background",
+        "graphMode": "area",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ]
+        }
+      },
+      "targets": [
+        {
+          "expr": "quantile_over_time(0.50, {env=\"prod\", service=\"server\"} |= \"/api/iot/checkin\" | json | __error__=\"\" | response_status != \"\" | unwrap response_latency [15m]) by ()",
+          "legendFormat": "P50",
+          "refId": "A"
+        },
+        {
+          "expr": "quantile_over_time(0.95, {env=\"prod\", service=\"server\"} |= \"/api/iot/checkin\" | json | __error__=\"\" | response_status != \"\" | unwrap response_latency [15m]) by ()",
+          "legendFormat": "P95",
+          "refId": "B"
+        }
+      ],
+      "title": "Checkin P50 / P95 (last 15min)",
+      "type": "stat"
+    },
+    {
+      "datasource": {
+        "type": "loki",
+        "uid": "P8E80F9AEF21F6940"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "blue",
+                "value": null
+              }
+            ]
+          },
+          "unit": "short"
+        }
+      },
+      "gridPos": {
+        "h": 5,
+        "w": 6,
+        "x": 12,
+        "y": 0
+      },
+      "id": 2,
+      "options": {
+        "colorMode": "background",
+        "graphMode": "none",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ]
+        }
+      },
+      "targets": [
+        {
+          "expr": "sum(count_over_time({env=\"prod\", service=\"server\"} |= \"/api/iot/checkin\" | json | __error__=\"\" | response_status =~ \"2..\" [15m]))",
+          "legendFormat": "Requests",
+          "refId": "A"
+        }
+      ],
+      "title": "Checkin Volume (last 15min)",
+      "type": "stat"
+    },
+    {
+      "datasource": {
+        "type": "loki",
+        "uid": "P8E80F9AEF21F6940"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              },
+              {
+                "color": "red",
+                "value": 1
+              }
+            ]
+          },
+          "unit": "short"
+        }
+      },
+      "gridPos": {
+        "h": 5,
+        "w": 6,
+        "x": 18,
+        "y": 0
+      },
+      "id": 3,
+      "options": {
+        "colorMode": "background",
+        "graphMode": "none",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ]
+        }
+      },
+      "targets": [
+        {
+          "expr": "sum(count_over_time({env=\"prod\", service=\"server\"} |= \"/api/iot/checkin\" | json | __error__=\"\" | response_status =~ \"5..\" [15m]))",
+          "legendFormat": "5xx Errors",
+          "refId": "A"
+        }
+      ],
+      "title": "Error Rate (last 15min)",
+      "type": "stat"
+    },
+    {
+      "datasource": {
+        "type": "loki",
+        "uid": "P8E80F9AEF21F6940"
+      },
+      "description": "Response time percentiles for POST /api/iot/checkin. 5-minute buckets.",
+      "fieldConfig": {
+        "defaults": {
+          "custom": {
+            "drawStyle": "line",
+            "fillOpacity": 5,
+            "lineWidth": 2,
+            "pointSize": 4,
+            "showPoints": "auto"
+          },
+          "unit": "ns"
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "P50 (median)"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "fixedColor": "green",
+                  "mode": "fixed"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "P95"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "fixedColor": "orange",
+                  "mode": "fixed"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "P99"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "fixedColor": "red",
+                  "mode": "fixed"
+                }
+              }
+            ]
+          }
+        ]
+      },
+      "gridPos": {
+        "h": 9,
+        "w": 24,
+        "x": 0,
+        "y": 5
+      },
+      "id": 4,
+      "targets": [
+        {
+          "expr": "quantile_over_time(0.50, {env=\"prod\", service=\"server\"} |= \"/api/iot/checkin\" | json | __error__=\"\" | response_status != \"\" | unwrap response_latency [5m]) by ()",
+          "legendFormat": "P50 (median)",
+          "refId": "A"
+        },
+        {
+          "expr": "quantile_over_time(0.95, {env=\"prod\", service=\"server\"} |= \"/api/iot/checkin\" | json | __error__=\"\" | response_status != \"\" | unwrap response_latency [5m]) by ()",
+          "legendFormat": "P95",
+          "refId": "B"
+        },
+        {
+          "expr": "quantile_over_time(0.99, {env=\"prod\", service=\"server\"} |= \"/api/iot/checkin\" | json | __error__=\"\" | response_status != \"\" | unwrap response_latency [5m]) by ()",
+          "legendFormat": "P99",
+          "refId": "C"
+        }
+      ],
+      "title": "Checkin Latency Over Time (P50 / P95 / P99)",
+      "type": "timeseries"
+    },
+    {
+      "datasource": {
+        "type": "loki",
+        "uid": "P8E80F9AEF21F6940"
+      },
+      "description": "Request count per 5min bucket, split by status code category.",
+      "fieldConfig": {
+        "defaults": {
+          "custom": {
+            "drawStyle": "bars",
+            "fillOpacity": 80,
+            "lineWidth": 0,
+            "stacking": {
+              "mode": "normal"
+            }
+          },
+          "unit": "short"
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Success (2xx)"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "fixedColor": "green",
+                  "mode": "fixed"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Client Error (4xx)"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "fixedColor": "yellow",
+                  "mode": "fixed"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Server Error (5xx)"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "fixedColor": "red",
+                  "mode": "fixed"
+                }
+              }
+            ]
+          }
+        ]
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 0,
+        "y": 14
+      },
+      "id": 5,
+      "targets": [
+        {
+          "expr": "sum(count_over_time({env=\"prod\", service=\"server\"} |= \"/api/iot/checkin\" | json | __error__=\"\" | response_status =~ \"2..\" [5m]))",
+          "legendFormat": "Success (2xx)",
+          "refId": "A"
+        },
+        {
+          "expr": "sum(count_over_time({env=\"prod\", service=\"server\"} |= \"/api/iot/checkin\" | json | __error__=\"\" | response_status =~ \"4..\" [5m]))",
+          "legendFormat": "Client Error (4xx)",
+          "refId": "B"
+        },
+        {
+          "expr": "sum(count_over_time({env=\"prod\", service=\"server\"} |= \"/api/iot/checkin\" | json | __error__=\"\" | response_status =~ \"5..\" [5m]))",
+          "legendFormat": "Server Error (5xx)",
+          "refId": "C"
+        }
+      ],
+      "title": "Checkin Volume & Errors",
+      "type": "timeseries"
+    },
+    {
+      "datasource": {
+        "type": "loki",
+        "uid": "P8E80F9AEF21F6940"
+      },
+      "description": "Compare staging and production checkin latency side by side.",
+      "fieldConfig": {
+        "defaults": {
+          "custom": {
+            "drawStyle": "line",
+            "fillOpacity": 10,
+            "lineWidth": 2,
+            "pointSize": 4,
+            "showPoints": "auto"
+          },
+          "unit": "ns"
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Production P50"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "fixedColor": "green",
+                  "mode": "fixed"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Staging P50"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "fixedColor": "blue",
+                  "mode": "fixed"
+                }
+              }
+            ]
+          }
+        ]
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 12,
+        "y": 14
+      },
+      "id": 6,
+      "targets": [
+        {
+          "expr": "quantile_over_time(0.50, {env=\"prod\", service=\"server\"} |= \"/api/iot/checkin\" | json | __error__=\"\" | response_status != \"\" | unwrap response_latency [5m]) by ()",
+          "legendFormat": "Production P50",
+          "refId": "A"
+        },
+        {
+          "expr": "quantile_over_time(0.50, {env=\"staging\", service=\"server\"} |= \"/api/iot/checkin\" | json | __error__=\"\" | response_status != \"\" | unwrap response_latency [5m]) by ()",
+          "legendFormat": "Staging P50",
+          "refId": "B"
+        }
+      ],
+      "title": "Checkin Latency: Staging vs Production (P50)",
+      "type": "timeseries"
+    },
+    {
+      "datasource": {
+        "type": "loki",
+        "uid": "P8E80F9AEF21F6940"
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 24,
+        "x": 0,
+        "y": 22
+      },
+      "id": 7,
+      "options": {
+        "enableLogDetails": true,
+        "prettifyLogMessage": true,
+        "showCommonLabels": false,
+        "showLabels": false,
+        "showTime": true,
+        "sortOrder": "Descending",
+        "wrapLogMessage": true
+      },
+      "targets": [
+        {
+          "expr": "{service=\"server\", env=\"prod\"} |= \"checkin\"",
+          "refId": "A"
+        }
+      ],
+      "title": "Recent Checkin Logs",
+      "type": "logs"
+    }
+  ],
+  "refresh": "1m",
+  "tags": [
+    "iot",
+    "checkin",
+    "performance"
+  ],
+  "time": {
+    "from": "now-24h",
+    "to": "now"
+  },
+  "timezone": "browser",
+  "title": "IoT Checkin Performance",
+  "uid": "bfga91jrbj3lsf",
+  "id": null
+}

@@ -606,6 +606,52 @@ zu mehreren OGS wechselt zwischen ihnen, das Träger-Büro sieht sie gemeinsam.
 _Vermeiden_: Träger-Admin, Organisationsadmin, Bereichsleitung (eine Person im
 Träger-Büro, nicht das Büro).
 
+## Träger-Portal
+
+Das **Träger-Portal** ist der eigene Arbeitsbereich des Träger-Büros. Eine
+Person meldet sich dort mit demselben Konto an, das sie vielleicht auch in einer
+OGS nutzt. Die Anmeldung im Träger-Portal ist aber getrennt von der Anmeldung in
+einer OGS, und keine beendet die andere.
+_Vermeiden_: Träger-Cockpit (Werbename), Org-Portal.
+
+## Träger-Rolle
+
+Eine **Träger-Rolle** legt fest, was eine Person im Träger-Büro darf:
+Verwaltung, Abrechnung, Personal oder nur lesen. Eine Person kann mehrere
+Träger-Rollen haben. Eine Träger-Rolle gilt für alle OGS des Trägers, auch für
+später hinzukommende. Sie ist unabhängig von einer Rolle in einer OGS.
+
+## Träger-Wert
+
+Ein **Träger-Wert** ist der Wert einer Einstellung, den das Träger-Büro für
+alle OGS des Trägers setzt. Er gilt in jeder OGS des Trägers ohne eigene
+Schul-Abweichung, auch in später hinzukommenden. Manche Einstellungen gibt es
+nur beim Träger; dort kann keine OGS abweichen. Tarife, Vorlagen,
+Nummernkreise und Bankverbindungen sind keine Träger-Werte, sondern eigene
+Objekte des Trägers.
+_Vermeiden_: Träger-Default, Vorgabe (klingt nach Sperre), Org-Setting.
+
+## Schul-Abweichung
+
+Eine **Schul-Abweichung** ist der eigene Wert einer OGS für eine Einstellung.
+Er ersetzt dort den Träger-Wert oder den Standardwert. Setzt die OGS ihn
+zurück, gilt wieder der Träger-Wert, ohne Träger-Wert der Standardwert.
+_Vermeiden_: Override (nur im Code), Ausnahme.
+
+## Ausrichtende OGS
+
+Die **ausrichtende OGS** betreut in einer Ferienwoche die Kinder, die für diese
+Woche gebucht sind, auch Kinder anderer Schulen des Trägers und Kinder ohne
+Schule des Trägers.
+
+## Feriengast
+
+Ein **Feriengast** ist ein Kind, das die ausrichtende OGS nur wegen einer
+bestätigten Ferienbuchung betreut. Die ausrichtende OGS sieht von ihm nur, was
+sie für die Betreuung braucht (Betreuungszeiten, Notfall, Abholung), und nur
+für die gebuchten Wochen. Ein Feriengast wird dadurch kein Kind dieser OGS.
+_Vermeiden_: Gastkind (unklar, ob mit Buchung), Ferienkind.
+
 ## Personalaustritt
 
 Ein **Personalaustritt** beendet die Beschäftigung einer Person an einer

@@ -34,27 +34,17 @@ func decisionReason(input careplan.ExcusedRequestDecideInput) (string, error) {
 // lockDecidableRequest locks the pending request and its child and checks the
 // caller may still decide it.
 func (w *ExcusedRequests) lockDecidableRequest(ctx context.Context, input careplan.ExcusedRequestDecideInput) (careplan.ExcusedAbsenceRequest, careplan.ReviewStudent, error) {
-	// Lock the row and re-verify it is still pending so two staff deciding
-	// the same request (or a decide racing the guardian's withdrawal)
-	// serialize.
-	req, err := w.carePlan.FindPendingExcusedAbsenceRequest(ctx, input.RequestID)
+	req, student, err := w.lockRequestStudent(ctx, input.RequestID, true)
 	if err != nil {
 		return careplan.ExcusedAbsenceRequest{}, careplan.ReviewStudent{}, err
+	}
+	if req.Status != careplan.ExcusedRequestStatusPending {
+		return careplan.ExcusedAbsenceRequest{}, careplan.ReviewStudent{}, careplan.ErrExcusedRequestNotPending
 	}
 	if input.ExpectedVersion != "" && careplan.ParentRequestVersion(req.UpdatedAt) != input.ExpectedVersion {
 		return careplan.ExcusedAbsenceRequest{}, careplan.ReviewStudent{}, careplan.ErrParentRequestStale
 	}
 	req.AbsenceStatus = normalizedAbsenceRequestStatus(req.AbsenceStatus)
-
-	// Per-child write authorization: decided by the parent-request review
-	// scope. Taken FOR UPDATE so the alumnus gate below decides on a state a
-	// concurrent grade transition cannot change underneath it. This is the
-	// only student row this transaction locks, so the ascending-id order
-	// every student-row locker follows is preserved.
-	student, err := w.students.LockStudent(ctx, req.StudentID)
-	if err != nil {
-		return careplan.ExcusedAbsenceRequest{}, careplan.ReviewStudent{}, fmt.Errorf("care plan: load student for absence request decision: %w", err)
-	}
 	today := w.today()
 	// The child graduated or left care after filing this request. Approving
 	// would write absence status days for a child no longer in care: same 404
@@ -178,16 +168,15 @@ func (w *ExcusedRequests) MarkDone(ctx context.Context, requestID int64, expecte
 	if requestID <= 0 {
 		return careplan.ErrExcusedRequestNotFound
 	}
-	req, err := w.carePlan.FindPendingExcusedAbsenceRequest(ctx, requestID)
+	req, student, err := w.lockRequestStudent(ctx, requestID, true)
 	if err != nil {
 		return err
 	}
+	if req.Status != careplan.ExcusedRequestStatusPending {
+		return careplan.ErrExcusedRequestNotPending
+	}
 	if expectedVersion != "" && careplan.ParentRequestVersion(req.UpdatedAt) != expectedVersion {
 		return careplan.ErrParentRequestStale
-	}
-	student, err := w.students.LockStudent(ctx, req.StudentID)
-	if err != nil {
-		return fmt.Errorf("care plan: load student for absence request completion: %w", err)
 	}
 	if err := w.requireReviewer(ctx, &student); err != nil {
 		return err
@@ -278,7 +267,7 @@ func (w *ExcusedRequests) Correct(ctx context.Context, requestID int64, approve 
 // caller's scope and brings the child's absence days in line with the new
 // verdict.
 func (w *ExcusedRequests) lockCorrectableRequest(ctx context.Context, requestID int64, expectedVersion string, approve bool) (careplan.ExcusedAbsenceRequest, error) {
-	req, err := w.carePlan.FindExcusedAbsenceRequest(ctx, requestID, true)
+	req, student, err := w.lockRequestStudent(ctx, requestID, false)
 	if err != nil {
 		return careplan.ExcusedAbsenceRequest{}, err
 	}
@@ -289,12 +278,6 @@ func (w *ExcusedRequests) lockCorrectableRequest(ctx context.Context, requestID 
 		return careplan.ExcusedAbsenceRequest{}, careplan.ErrParentRequestStale
 	}
 	req.AbsenceStatus = normalizedAbsenceRequestStatus(req.AbsenceStatus)
-	// Re-authorize against the current scope: a group leader who has since
-	// lost the group must not be able to correct its decisions.
-	student, err := w.students.LockStudent(ctx, req.StudentID)
-	if err != nil {
-		return careplan.ExcusedAbsenceRequest{}, fmt.Errorf("care plan: load student for absence request correction: %w", err)
-	}
 	if err := w.requireReviewer(ctx, &student); err != nil {
 		return careplan.ExcusedAbsenceRequest{}, err
 	}
@@ -314,4 +297,34 @@ func (w *ExcusedRequests) correctAbsenceDays(ctx context.Context, req *careplan.
 		return err
 	}
 	return w.applyAbsenceRequest(ctx, req)
+}
+
+// lockRequestStudent follows class(shared) -> child -> request for decisions,
+// corrections, guardian edits and coordinator pre-locks. The first read only
+// locates the immutable child ID; all guards use the locked second read.
+func (w *ExcusedRequests) lockRequestStudent(ctx context.Context, id int64, pending bool) (careplan.ExcusedAbsenceRequest, careplan.ReviewStudent, error) {
+	student, err := w.lockRequestChild(ctx, id)
+	if err != nil {
+		return careplan.ExcusedAbsenceRequest{}, careplan.ReviewStudent{}, err
+	}
+	if pending {
+		row, err := w.carePlan.FindPendingExcusedAbsenceRequest(ctx, id)
+		return row, student, err
+	}
+	row, err := w.carePlan.FindExcusedAbsenceRequest(ctx, id, true)
+	return row, student, err
+}
+
+// lockRequestChild locates the immutable student without locking the request.
+// Pending readers and correction readers share this child-first prefix.
+func (w *ExcusedRequests) lockRequestChild(ctx context.Context, id int64) (careplan.ReviewStudent, error) {
+	snapshot, err := w.carePlan.FindExcusedAbsenceRequest(ctx, id, false)
+	if err != nil {
+		return careplan.ReviewStudent{}, err
+	}
+	student, err := w.students.LockStudent(ctx, snapshot.StudentID)
+	if err != nil {
+		return careplan.ReviewStudent{}, fmt.Errorf("care plan: lock absence request student: %w", err)
+	}
+	return student, nil
 }

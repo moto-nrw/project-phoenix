@@ -268,7 +268,7 @@ export interface EnrollmentFormPrefetchedData {
  * Public enrollment form. Loads the active schema + open care offerings,
  * collects guardian info + 1..n children + offering selections, and
  * submits to /api/enrollment/{tenantSlug}/submit. The captcha widget is
- * inlined when the payload carries the platform's Turnstile site key;
+ * inlined only when captcha is enabled and the payload carries a site key;
  * captcha verification happens server-side.
  *
  * The form intentionally renders core fields (guardian + child names,
@@ -489,6 +489,7 @@ export function EnrollmentForm({
   const [captchaToken, setCaptchaToken] = useState("");
   const [captchaConfig, setCaptchaConfig] =
     useState<PublicCaptchaConfig | null>(prefetchedData?.captchaConfig ?? null);
+  const captchaRequired = !skipCaptcha && captchaConfig?.enabled === true;
   // Per-tenant legal block contract. null until fetched.
   const [legalTexts, setLegalTexts] = useState<PublicLegalTexts | null>(
     prefetchedData?.legalTexts ?? null,
@@ -1406,7 +1407,7 @@ export function EnrollmentForm({
               guardianCtx,
             ),
         children: payloadChildren,
-        captcha_token: skipCaptcha ? undefined : captchaToken || undefined,
+        captcha_token: captchaRequired ? captchaToken || undefined : undefined,
         late_invite_token: lateInviteToken?.trim()
           ? lateInviteToken.trim()
           : undefined,
@@ -1572,7 +1573,7 @@ export function EnrollmentForm({
           so families read it before they fill anything in. */}
       <LoadErrorAlert
         error={
-          !skipCaptcha && captchaConfig?.enabled && !captchaConfig.site_key
+          captchaRequired && !captchaConfig.site_key
             ? tr("captchaMisconfigured")
             : null
         }
@@ -2514,14 +2515,14 @@ export function EnrollmentForm({
       {/*
         Cloudflare Turnstile widget. Only rendered when:
         - the caller didn't skip captcha (parent JWT path skips), and
-        - the captcha config carries a site key (the server requires the
+        - the school enabled captcha and the config carries a site key (the server requires the
           platform's TURNSTILE_SITE_KEY at startup).
         When require_captcha=true but no site_key arrives, we still
         render a warning to the parent and disable submit; failing
         closed is safer than letting bots through silently.
         The hidden input ships the token along with the form post.
       */}
-      {!skipCaptcha && captchaConfig?.site_key && (
+      {captchaRequired && captchaConfig.site_key && (
         <section aria-labelledby="captcha-heading" className="space-y-2">
           <h2 id="captcha-heading" className="sr-only">
             Sicherheitsprüfung
@@ -2541,8 +2542,7 @@ export function EnrollmentForm({
         disabled={
           submitting ||
           previewMode ||
-          (!skipCaptcha && !!captchaConfig?.site_key && !captchaToken) ||
-          (!skipCaptcha && !!captchaConfig?.enabled && !captchaConfig.site_key)
+          (captchaRequired && (!captchaConfig.site_key || !captchaToken))
         }
         className="h-11 w-full rounded-lg bg-gray-900 text-sm font-semibold text-white shadow-sm transition-colors duration-200 hover:bg-gray-800 focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none disabled:cursor-not-allowed disabled:bg-gray-400"
       >

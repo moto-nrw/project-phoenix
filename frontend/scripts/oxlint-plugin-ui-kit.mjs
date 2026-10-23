@@ -1,3 +1,5 @@
+import { dirname, normalize } from "node:path/posix";
+
 // UI-kit drift ratchet (issue #1629).
 //
 // Five hard-zero rules that stop drift away from the shared UI kit. The
@@ -29,9 +31,11 @@
 //   ui-kit/no-tiny-text             — sub-12px text utilities; shrink-only
 //                                     baseline
 //   ui-kit/no-tenant-kicker         — no blue mini-heading in the tenant portal
-//   ui-kit/no-handrolled-surface    — no `moto-content-surface … rounded-2xl`
+//   ui-kit/no-hand-rolled-page-card — no `moto-content-surface … rounded-2xl`
 //                                     spelled out in a tenant page/loading
-//                                     file; use the kit cards
+//                                     file; use the kit cards (unlike
+//                                     no-hand-rolled-surface, which bans the
+//                                     plain-Tailwind card chain everywhere)
 //   ui-kit/no-tabs-as-value-switcher — ui/Tabs is for content panels; values
 //                                     go on SegmentedControl
 //
@@ -560,21 +564,21 @@ const noTenantKicker = {
   },
 };
 
-// ui-kit/no-handrolled-surface — eine Seite baut keine Kartenfläche mehr aus
+// ui-kit/no-hand-rolled-page-card — eine Seite baut keine Kartenfläche mehr aus
 // einer eigenen Klassenkette. Für jede Form gibt es ein Kit-Bauteil:
 // SectionCard (Fläche mit oder ohne Kopf), TileCard (anklickbare Kachel),
 // StatCard (Kennzahl), TenantPageHeaderSkeleton (Ladezustand). Die Regel
 // greift nur in Seitendateien des Tenant-Portals — Kit- und
 // Komponentendateien dürfen die Fläche definieren, sie sind die Quelle.
 const TENANT_PAGE_FILE_RE =
-  /app\/\[tenant\]\/\(protected\)\/.*\/(page|loading)\.tsx$/;
+  /app\/\[tenant\]\/\(protected\)\/(?:.*\/)?(page|loading)\.tsx$/;
 // Nur die KARTE ist gemeint: `moto-content-surface` zusammen mit dem
 // Kartenradius. Dieselbe Klasse an einer Pille oder einem Auswahlfeld
 // (rounded-full, h-9) ist eine Bedienfläche und bleibt erlaubt.
 const HANDROLLED_SURFACE_RE =
   /moto-content-surface[^"'`]*rounded-2xl|rounded-2xl[^"'`]*moto-content-surface/;
 
-const noHandrolledSurface = {
+const noHandRolledPageCard = {
   meta: {
     docs: {
       description:
@@ -609,6 +613,26 @@ const noHandrolledSurface = {
           context.report({ node, messageId: "surface" });
         }
       },
+      JSXAttribute(node) {
+        if (
+          node.name.type !== "JSXIdentifier" ||
+          node.name.name !== "className"
+        )
+          return;
+
+        const chunks = [];
+        collectStaticStrings(node.value, chunks);
+        if (chunks.some((chunk) => HANDROLLED_SURFACE_RE.test(chunk))) {
+          return; // already reported by the Literal/TemplateElement visitors
+        }
+        const combos = classCombinations(node.value) ?? [chunks.join(" ")];
+        const rendered = combos.find((combo) =>
+          HANDROLLED_SURFACE_RE.test(combo),
+        );
+        if (rendered !== undefined) {
+          context.report({ node, messageId: "surface" });
+        }
+      },
     };
   },
 };
@@ -629,6 +653,143 @@ const VALUE_SWITCHER_LABELS = new Set([
   "Ganzer Tag",
   "Dieser Block",
 ]);
+const VALUE_SWITCHER_VALUES = new Set([
+  "week",
+  "month",
+  "day",
+  "half-year",
+  "series",
+  "week-a",
+  "week-b",
+  "whole-day",
+  "this-block",
+]);
+const UI_KIT_TABS_MODULES = new Set([
+  "~/components/ui/tabs",
+  "@/components/ui/tabs",
+]);
+
+function isUiKitTabsModule(source, filename) {
+  if (UI_KIT_TABS_MODULES.has(source)) return true;
+  if (!source.startsWith(".")) return false;
+  const posixFilename = filename.replaceAll("\\", "/");
+  const sourceStart = posixFilename.lastIndexOf("/src/");
+  const importer =
+    sourceStart === -1 ? posixFilename : posixFilename.slice(sourceStart + 1);
+  return normalize(`${dirname(importer)}/${source}`) === "src/components/ui/tabs";
+}
+
+function collectStaticTabText(children, texts) {
+  for (const child of children) {
+    if (child.type === "JSXText") {
+      texts.push(child.value);
+    } else if (child.type === "JSXElement" || child.type === "JSXFragment") {
+      collectStaticTabText(child.children, texts);
+    } else if (child.type === "JSXExpressionContainer") {
+      collectStaticStrings(child.expression, texts);
+    }
+  }
+}
+
+function isTabsElement(node, tabsNames, tabsPrimitiveNamespaces) {
+  const name = node.openingElement?.name;
+  if (tabsNames.has(jsxName(name))) return true;
+  return (
+    name?.type === "JSXMemberExpression" &&
+    tabsPrimitiveNamespaces.has(jsxName(name.object)) &&
+    jsxName(name.property) === "Root"
+  );
+}
+
+function isTabsTriggerElement(node, tabsTriggerNames, tabsPrimitiveNamespaces) {
+  const name = node.openingElement?.name;
+  if (tabsTriggerNames.has(jsxName(name))) return true;
+  return (
+    name?.type === "JSXMemberExpression" &&
+    tabsPrimitiveNamespaces.has(jsxName(name.object)) &&
+    jsxName(name.property) === "Trigger"
+  );
+}
+
+function isTabsContentElement(
+  node,
+  tabsContentNames,
+  tabsPrimitiveNamespaces,
+) {
+  const name = node.openingElement?.name;
+  if (tabsContentNames.has(jsxName(name))) return true;
+  return (
+    name?.type === "JSXMemberExpression" &&
+    tabsPrimitiveNamespaces.has(jsxName(name.object)) &&
+    jsxName(name.property) === "Content"
+  );
+}
+
+function hasTabsContent(
+  node,
+  tabsNames,
+  tabsContentNames,
+  tabsPrimitiveNamespaces,
+  seen = new WeakSet(),
+  isRoot = true,
+) {
+  if (!node || typeof node !== "object" || seen.has(node)) return false;
+  if (node.type === "JSXElement") {
+    if (isTabsContentElement(node, tabsContentNames, tabsPrimitiveNamespaces)) {
+      return true;
+    }
+    if (!isRoot && isTabsElement(node, tabsNames, tabsPrimitiveNamespaces)) {
+      return false;
+    }
+  }
+  seen.add(node);
+
+  return Object.entries(node).some(([key, value]) => {
+    if (key === "parent") return false;
+    if (Array.isArray(value)) {
+      return value.some((child) =>
+        hasTabsContent(
+          child,
+          tabsNames,
+          tabsContentNames,
+          tabsPrimitiveNamespaces,
+          seen,
+          false,
+        ),
+      );
+    }
+    return hasTabsContent(
+      value,
+      tabsNames,
+      tabsContentNames,
+      tabsPrimitiveNamespaces,
+      seen,
+      false,
+    );
+  });
+}
+
+function isTabsWithoutContent(
+  node,
+  tabsNames,
+  tabsContentNames,
+  tabsPrimitiveNamespaces,
+) {
+  for (let ancestor = node.parent; ancestor; ancestor = ancestor.parent) {
+    if (
+      ancestor.type === "JSXElement" &&
+      isTabsElement(ancestor, tabsNames, tabsPrimitiveNamespaces)
+    ) {
+      return !hasTabsContent(
+        ancestor,
+        tabsNames,
+        tabsContentNames,
+        tabsPrimitiveNamespaces,
+      );
+    }
+  }
+  return false;
+}
 
 const noTabsAsValueSwitcher = {
   meta: {
@@ -649,14 +810,69 @@ const noTabsAsValueSwitcher = {
     ).replace(/\\/g, "/");
     if (OTHER_PORTALS_RE.test(filename)) return {};
     if (/\.(test|stories)\.[jt]sx?$/.test(filename)) return {};
+    const tabsNames = new Set();
+    const tabsTriggerNames = new Set();
+    const tabsContentNames = new Set();
+    const tabsPrimitiveNamespaces = new Set();
 
     return {
+      ImportDeclaration(node) {
+        const source = node.source.value;
+        if (typeof source !== "string") return;
+
+        for (const specifier of node.specifiers) {
+          if (isUiKitTabsModule(source, filename)) {
+            if (specifier.type !== "ImportSpecifier") continue;
+            if (specifier.imported.name === "Tabs") {
+              tabsNames.add(specifier.local.name);
+            } else if (specifier.imported.name === "TabsTrigger") {
+              tabsTriggerNames.add(specifier.local.name);
+            } else if (specifier.imported.name === "TabsContent") {
+              tabsContentNames.add(specifier.local.name);
+            }
+            continue;
+          }
+          if (source !== "@radix-ui/react-tabs") continue;
+          if (specifier.type === "ImportSpecifier") {
+            if (specifier.imported.name === "Root") {
+              tabsNames.add(specifier.local.name);
+            } else if (specifier.imported.name === "Trigger") {
+              tabsTriggerNames.add(specifier.local.name);
+            } else if (specifier.imported.name === "Content") {
+              tabsContentNames.add(specifier.local.name);
+            }
+          }
+          if (specifier.type === "ImportNamespaceSpecifier") {
+            tabsPrimitiveNamespaces.add(specifier.local.name);
+          }
+        }
+      },
       JSXElement(node) {
-        const name = node.openingElement?.name?.name;
-        if (name !== "TabsTrigger") return;
-        const child = node.children?.find((c) => c.type === "JSXText");
-        const label = child?.value?.trim();
-        if (label && VALUE_SWITCHER_LABELS.has(label)) {
+        if (
+          !isTabsTriggerElement(
+            node,
+            tabsTriggerNames,
+            tabsPrimitiveNamespaces,
+          )
+        )
+          return;
+        const texts = [];
+        collectStaticTabText(node.children, texts);
+        if (
+          texts.some((text) => {
+            const token = text.trim();
+            return (
+              VALUE_SWITCHER_LABELS.has(token) ||
+              VALUE_SWITCHER_VALUES.has(token)
+            );
+          }) ||
+          isTabsWithoutContent(
+            node,
+            tabsNames,
+            tabsContentNames,
+            tabsPrimitiveNamespaces,
+          )
+        ) {
           context.report({ node, messageId: "valueSwitcher" });
         }
       },
@@ -730,10 +946,10 @@ export default {
   rules: {
     "no-generic-brand-colors": noGenericBrandColors,
     "no-hand-rolled-overlay": noHandRolledOverlay,
+    "no-hand-rolled-page-card": noHandRolledPageCard,
     "no-hand-rolled-surface": noHandRolledSurface,
     "no-rounded-3xl": noRounded3xl,
     "no-tenant-kicker": noTenantKicker,
-    "no-handrolled-surface": noHandrolledSurface,
     "no-tabs-as-value-switcher": noTabsAsValueSwitcher,
     "no-tiny-text": noTinyText,
     "require-checkbox-label": requireCheckboxLabel,

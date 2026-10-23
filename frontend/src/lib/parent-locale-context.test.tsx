@@ -11,7 +11,7 @@ import { fetchParentProfile, updateParentPortalLocale } from "./parent-api";
 import { useSession } from "next-auth/react";
 import { useLocale } from "next-intl";
 import { writeLocaleCookie } from "~/i18n/locales";
-import { ApiError } from "~/lib/api-error";
+import { ApiError, unavailableApiError } from "~/lib/api-error";
 
 const reloadMock = vi.hoisted(() => vi.fn());
 vi.mock("~/lib/parent-locale-navigation", () => ({
@@ -272,6 +272,30 @@ describe("ParentLocaleProvider — setLocale when authenticated", () => {
     );
     expect(screen.getByTestId("locale").textContent).toBe("ru");
     expect(mockedWriteCookie).not.toHaveBeenCalledWith("de");
+  });
+
+  it("keeps a save that got no answer marked as such across the reload (#2512)", async () => {
+    setSession("authenticated");
+    mockedUseLocale.mockReturnValue("de");
+    mockedFetchProfile.mockResolvedValue({ portal_locale: "de" });
+    mockedUpdateLocale.mockRejectedValue(
+      unavailableApiError(new TypeError("Failed to fetch")),
+    );
+
+    const { unmount } = renderProvider();
+    await waitFor(() => expect(mockedFetchProfile).toHaveBeenCalled());
+    fireEvent.click(screen.getByText("set-ru"));
+    await waitFor(() => expect(reloadMock).toHaveBeenCalled());
+
+    unmount();
+    mockedUseLocale.mockReturnValue("ru");
+    renderProvider();
+
+    await waitFor(() => expect(showErrorMock).toHaveBeenCalledTimes(1));
+    expect(showErrorMock.mock.calls[0]![0]).toMatchObject({
+      code: "general.unavailable",
+      noResponse: true,
+    });
   });
 
   it("shows the failed persist at once when the reload could not keep it", async () => {
