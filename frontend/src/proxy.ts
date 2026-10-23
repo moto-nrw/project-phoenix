@@ -54,12 +54,15 @@ const TENANT_DOMAIN: string = (() => {
 
 // PostHog runs behind the same-origin /ingest rewrite (next.config.js), so
 // the policy names no analytics host.
+// Keep Next.js inline bootstrap/hydration scripts working without a nonce
+// migration. This is not a strict XSS policy; see docs/operations/browser-csp-3842.md.
 const CSP_HEADER = [
   "default-src 'self'",
   `script-src 'self' 'unsafe-inline'${isDev ? " 'unsafe-eval'" : ""}`,
   "style-src 'self' 'unsafe-inline'",
   "img-src 'self' data: blob:",
   "connect-src 'self'",
+  "object-src 'none'",
   "frame-ancestors 'none'",
   "base-uri 'self'",
   "form-action 'self'",
