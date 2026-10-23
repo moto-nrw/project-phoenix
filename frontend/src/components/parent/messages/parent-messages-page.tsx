@@ -105,6 +105,7 @@ function buildRows(
 
 export function ParentMessagesPage() {
   const t = useTranslations("parentMessages");
+  const tGroupThreads = useTranslations("parentGroupThreads");
   const [children, setChildren] = useState<Child[]>([]);
   const [rows, setRows] = useState<ChildConversation[]>([]);
   const [groupThreads, setGroupThreads] = useState<GroupThreadSummary[]>([]);
@@ -115,10 +116,16 @@ export function ParentMessagesPage() {
     show: showLoadError,
     clear: clearLoadError,
   } = useApiLoadError();
+  const {
+    error: groupThreadsError,
+    show: showGroupThreadsLoadError,
+    clear: clearGroupThreadsLoadError,
+  } = useApiLoadError();
 
   // Latest-wins: Fokus und SSE loesen beide einen stillen Nachladelauf aus,
   // ein aelterer darf einen neueren nie ueberschreiben.
   const loadSeqRef = useRef(0);
+  const groupLoadSeqRef = useRef(0);
   const mountedRef = useRef(true);
   useEffect(() => {
     mountedRef.current = true;
@@ -127,21 +134,34 @@ export function ParentMessagesPage() {
     };
   }, []);
 
+  const loadGroupThreads = useCallback(async () => {
+    const seq = ++groupLoadSeqRef.current;
+    try {
+      const nextGroupThreads = await listGroupThreads();
+      if (!mountedRef.current || seq !== groupLoadSeqRef.current) return;
+      setGroupThreads(nextGroupThreads);
+      clearGroupThreadsLoadError();
+    } catch (err) {
+      logger.warn("parent_group_threads_load_failed", {
+        error: err instanceof Error ? err.message : String(err),
+      });
+      if (!mountedRef.current || seq !== groupLoadSeqRef.current) return;
+      void showGroupThreadsLoadError(err, {
+        object: tGroupThreads("errorObjectList"),
+        retry: () => void loadGroupThreadsRef.current(),
+      });
+    }
+  }, [clearGroupThreadsLoadError, showGroupThreadsLoadError, tGroupThreads]);
+  const loadGroupThreadsRef = useRef(loadGroupThreads);
+  useLayoutEffect(() => {
+    loadGroupThreadsRef.current = loadGroupThreads;
+  });
+
   const load = useCallback(
     async (opts?: { silent?: boolean }) => {
       const silent = opts?.silent ?? false;
       const seq = ++loadSeqRef.current;
       if (!silent) setLoading(true);
-      void listGroupThreads()
-        .then((nextGroupThreads) => {
-          if (!mountedRef.current || seq !== loadSeqRef.current) return;
-          setGroupThreads(nextGroupThreads);
-        })
-        .catch((err: unknown) => {
-          logger.warn("parent_group_threads_load_failed", {
-            error: err instanceof Error ? err.message : String(err),
-          });
-        });
       try {
         const childList = await listMyChildren();
         // Nur die Mehr-Kinder-Liste braucht die Uebersicht der Unterhaltungen.
@@ -180,20 +200,29 @@ export function ParentMessagesPage() {
   useEffect(() => {
     void load();
   }, [load]);
+  useEffect(() => {
+    void loadGroupThreads();
+  }, [loadGroupThreads]);
 
-  const refreshThreads = useCallback(() => void load({ silent: true }), [load]);
+  const refreshThreads = useCallback(() => {
+    void load({ silent: true });
+    void loadGroupThreads();
+  }, [load, loadGroupThreads]);
   useMessagesActivity({
     eventName: "parent-threads-refresh",
     onMatch: refreshThreads,
     marksRead: false,
   });
   useEffect(() => {
-    const refresh = () => void load({ silent: true });
+    const refresh = () => {
+      void load({ silent: true });
+      void loadGroupThreads();
+    };
     window.addEventListener("focus", refresh);
     return () => {
       window.removeEventListener("focus", refresh);
     };
-  }, [load]);
+  }, [load, loadGroupThreads]);
 
   if (loading) {
     return (
@@ -243,9 +272,13 @@ export function ParentMessagesPage() {
         </div>
         {/* Gruppennachrichten der OGS (#4784) stehen kompakt ueber dem Chat,
             der den Rest des Bildschirms fuellt. */}
-        {groupThreads.length > 0 && (
+        {(groupThreads.length > 0 || groupThreadsError) && (
           <div className="in-data-chat-keyboard:hidden">
-            <GroupThreadsSection threads={groupThreads} compact />
+            <GroupThreadsSection
+              threads={groupThreads}
+              compact
+              error={groupThreadsError}
+            />
           </div>
         )}
         <OgsConversation studentId={children[0]!.student_id} showChild />
@@ -286,7 +319,7 @@ export function ParentMessagesPage() {
           </li>
         ))}
       </ul>
-      <GroupThreadsSection threads={groupThreads} />
+      <GroupThreadsSection threads={groupThreads} error={groupThreadsError} />
     </ParentPage>
   );
 }

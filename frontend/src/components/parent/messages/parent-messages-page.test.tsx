@@ -120,9 +120,9 @@ describe("ParentMessagesPage – Gruppennachrichten (#4784)", () => {
     ).not.toBeInTheDocument();
   });
 
-  // Die neue, optionale Gruppennachrichten-Abfrage darf die bestehende
-  // Unterhaltungsliste nicht verdecken, wenn ihr Endpunkt vorübergehend fehlt.
-  it("zeigt die Unterhaltungen trotz fehlender Gruppennachrichten", async () => {
+  // Die unabhängige Gruppennachrichten-Abfrage darf die bestehende
+  // Unterhaltungsliste nicht verdecken, ihr Fehler bleibt aber sichtbar.
+  it("zeigt den Fehler bei fehlenden Gruppennachrichten neben den Unterhaltungen", async () => {
     mockedChildren.mockResolvedValue([felix, mia]);
     mockedThreads.mockResolvedValue([
       {
@@ -136,7 +136,11 @@ describe("ParentMessagesPage – Gruppennachrichten (#4784)", () => {
         unread: 0,
       },
     ]);
-    mockedGroupThreads.mockRejectedValue(new Error("nicht erreichbar"));
+    mockedGroupThreads
+      .mockRejectedValueOnce(
+        new ApiError("diag", 503, { code: "general.unavailable" }),
+      )
+      .mockResolvedValueOnce([sommerfest]);
 
     renderPage();
 
@@ -145,8 +149,19 @@ describe("ParentMessagesPage – Gruppennachrichten (#4784)", () => {
       await screen.findByRole("link", { name: /Felix Schneider/ }),
     ).toBeInTheDocument();
     expect(
-      screen.queryByRole("heading", { name: "Gruppennachrichten der OGS" }),
-    ).not.toBeInTheDocument();
+      await screen.findByText(
+        catalogText("general.unavailable", "die Gruppennachrichten"),
+      ),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByRole("button", { name: "Wiederholen" }),
+    ).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("button", { name: "Wiederholen" }));
+
+    expect(
+      await screen.findByRole("link", { name: /Sommerfest am Freitag/ }),
+    ).toBeInTheDocument();
   });
 });
 

@@ -229,8 +229,9 @@ func (s *GroupThreadStore) ListMessages(ctx context.Context, threadID int64) ([]
 
 // staffThreadListSQL lists the school's threads, newest activity first, with
 // the newest message and the family read count. A family is one reached
-// child; it has read the thread once one of its guardians read the newest
-// message that reached the child.
+// guardian account; it has read the thread after it read the newest message
+// that reached the account. The detail page keeps its separate per-child
+// status below.
 const staffThreadListSQL = `
 SELECT gt.*,
 	COALESCE(latest.body, '') AS last_message_body,
@@ -248,8 +249,8 @@ LEFT JOIN LATERAL (
 	WHERE gm.thread_id = gt.id AND gm.tenant_id = gt.tenant_id
 ) AS stats ON TRUE
 LEFT JOIN LATERAL (
-	SELECT COUNT(*) AS family_count, COUNT(*) FILTER (WHERE child.read) AS read_count
-	FROM (` + groupChildReadSQL + `) AS child
+	SELECT COUNT(*) AS family_count, COUNT(*) FILTER (WHERE family.read) AS read_count
+	FROM (` + groupFamilyReadSQL + `) AS family
 ) AS families ON TRUE
 WHERE gt.tenant_id = ?
 ORDER BY gt.last_message_at DESC NULLS LAST, gt.id DESC`
@@ -272,6 +273,21 @@ const groupChildReadSQL = `
 		WHERE r.thread_id = gt.id AND r.tenant_id = gt.tenant_id
 		GROUP BY r.student_id
 	) AS per_child`
+
+// groupFamilyReadSQL is one row per guardian account a thread reached with
+// whether it read the newest message that reached the account. It correlates
+// with gt and is only used for the staff list's family totals.
+const groupFamilyReadSQL = `
+	SELECT per_family.guardian_account_id,
+		COALESCE(rd.last_read_message_id >= per_family.latest_message_id, FALSE) AS read
+	FROM (
+		SELECT r.guardian_account_id, MAX(r.message_id) AS latest_message_id
+		FROM users.parent_group_message_recipients AS r
+		WHERE r.thread_id = gt.id AND r.tenant_id = gt.tenant_id
+		GROUP BY r.guardian_account_id
+	) AS per_family
+	LEFT JOIN users.parent_group_thread_reads AS rd
+		ON rd.thread_id = gt.id AND rd.account_id = per_family.guardian_account_id`
 
 type staffThreadListRow struct {
 	groupThreadRow

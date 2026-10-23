@@ -2,6 +2,8 @@
 
 import { useLocale, useTranslations } from "next-intl";
 import { CaretRightIcon } from "@phosphor-icons/react/ssr";
+import type { FormErrorInput } from "~/components/ui/form-error";
+import { LoadErrorAlert } from "~/components/ui/form-error-alert";
 import NavigationLink from "~/components/ui/navigation-link";
 import { UnreadBadge } from "~/components/messaging/unread-badge";
 import { ParentSection } from "~/components/parent/shell/parent-section";
@@ -12,8 +14,8 @@ import { parentPath } from "~/lib/parent-url";
 /**
  * Gruppennachrichten der OGS (#4784): what the OGS wrote to the group, class
  * or AG of the guardian's children. Each row opens the thread; an answer goes
- * only to the OGS. Renders nothing while there is no thread, so a family
- * without one keeps the page it knows.
+ * only to the OGS. Renders nothing while there is neither a thread nor a
+ * load error, so a family without one keeps the page it knows.
  *
  * `compact` caps the list height for the single-child page, where the chat
  * below fills the rest of the screen.
@@ -21,28 +23,33 @@ import { parentPath } from "~/lib/parent-url";
 export function GroupThreadsSection({
   threads,
   compact = false,
+  error,
 }: Readonly<{
   threads: readonly GroupThreadSummary[];
   compact?: boolean;
+  error?: FormErrorInput;
 }>) {
   const t = useTranslations("parentGroupThreads");
-  if (threads.length === 0) return null;
+  if (threads.length === 0 && !error) return null;
   return (
     <ParentSection
       title={t("sectionTitle")}
       description={t("sectionDescription")}
       concept="groups"
     >
-      <ul
-        className={`divide-y divide-gray-100 ${compact ? "max-h-44 overflow-y-auto" : ""}`}
-        data-testid="parent-group-threads"
-      >
-        {threads.map((thread) => (
-          <li key={thread.id}>
-            <GroupThreadRow thread={thread} />
-          </li>
-        ))}
-      </ul>
+      {error && <LoadErrorAlert error={error} />}
+      {threads.length > 0 && (
+        <ul
+          className={`divide-y divide-gray-100 ${compact ? "max-h-44 overflow-y-auto" : ""}`}
+          data-testid="parent-group-threads"
+        >
+          {threads.map((thread) => (
+            <li key={thread.id}>
+              <GroupThreadRow thread={thread} />
+            </li>
+          ))}
+        </ul>
+      )}
     </ParentSection>
   );
 }

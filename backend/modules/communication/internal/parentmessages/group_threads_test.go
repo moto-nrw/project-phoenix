@@ -135,6 +135,39 @@ func TestGroupThread_ReachesEachFamilyAndKeepsThemApart(t *testing.T) {
 	}))
 }
 
+func TestGroupThread_StaffListCountsMultiChildFamilyOnce(t *testing.T) {
+	t.Parallel()
+	f, run := newGroupFixture(t)
+	staffCtx := adminCtx(t, f.staff)
+	sibling := testpkg.CreateTestStudent(t, testpkg.SetupTestDB(t), "Lena", "Schneider", "1a")
+	testpkg.CreateTestStudentGuardianLink(t, testpkg.SetupTestDB(t), sibling.ID, f.a.GuardianProfileID, "parent")
+
+	var threadID int64
+	require.NoError(t, run(staffCtx, func(ctx context.Context) error {
+		detail, err := f.svc.CreateParentGroupThread(ctx, communication.ParentGroupThreadInput{
+			Target: classTarget("1a"), Title: "Ausflug", Body: "Am Freitag gehen wir in den Zoo.",
+		})
+		if err == nil {
+			threadID = detail.Thread.ID
+		}
+		return err
+	}))
+
+	require.NoError(t, run(testpkg.Ctx(t), func(ctx context.Context) error {
+		_, _, err := f.portal.PortalReadGroupThread(ctx, threadID, f.a.AccountID, []int64{f.a.StudentID})
+		return err
+	}))
+
+	require.NoError(t, run(staffCtx, func(ctx context.Context) error {
+		rows, err := f.svc.ListParentGroupThreads(ctx)
+		require.NoError(t, err)
+		require.Len(t, rows, 1)
+		assert.Equal(t, 2, rows[0].FamilyCount, "one guardian account reaches both siblings")
+		assert.Equal(t, 1, rows[0].ReadCount)
+		return nil
+	}))
+}
+
 func TestGroupThread_RecipientsAreFrozenPerMessage(t *testing.T) {
 	t.Parallel()
 	f, run := newGroupFixture(t)
