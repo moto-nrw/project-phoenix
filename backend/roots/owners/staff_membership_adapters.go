@@ -16,8 +16,6 @@ import (
 	"github.com/moto-nrw/project-phoenix/modules/schoolmembership"
 	"github.com/moto-nrw/project-phoenix/modules/securityruntime"
 	"github.com/moto-nrw/project-phoenix/modules/staffdirectoryview"
-	"github.com/moto-nrw/project-phoenix/modules/workforce"
-	"github.com/moto-nrw/project-phoenix/workflows/staffoffboarding"
 )
 
 // staffIdentityQuery is the consumer-owned account-facts port for staff projections.
@@ -33,9 +31,6 @@ type staffIdentityQuery interface {
 type staffMembershipDeps struct {
 	persons  staffPersonRows
 	identity staffIdentityQuery
-	// employment is Workforce's owner of the employment-only staff writes
-	// (#2753): notes and the birthday opt-out.
-	employment staffEmploymentWrites
 	// groupTeachers are the teaching assignments the teacher projections
 	// resolve their groups through.
 	groupTeachers groupTeacherRows
@@ -46,21 +41,14 @@ type groupTeacherRows interface {
 	FindByGroup(ctx context.Context, groupID int64) ([]*schoolmembership.GroupAssignment, error)
 }
 
-// staffEmploymentWrites are Workforce's employment-only staff writes the
-// live staff employment runs inside the membership lock.
-type staffEmploymentWrites interface {
-	AppendStaffNotes(ctx context.Context, membershipID int64, notes string) (workforce.StaffEmployment, error)
-	SetStaffBirthdayDisplayOptOut(ctx context.Context, membershipID int64, optOut bool) error
-}
-
 // staffPersonRows are the person reads the staff projections attach.
 type staffPersonRows interface {
 	FindByID(ctx context.Context, id interface{}) (*peopleValues.DirectoryPersonSnapshot, error)
 	FindByIDs(ctx context.Context, ids []int64) (map[int64]*peopleValues.DirectoryPersonSnapshot, error)
 }
 
-func NewStaffMembershipDeps(persons staffPersonRows, identity staffIdentityQuery, employment workforce.StaffEmploymentCommand, groupTeachers groupTeacherRows) *staffMembershipDeps {
-	return &staffMembershipDeps{persons: persons, identity: identity, employment: employment, groupTeachers: groupTeachers}
+func NewStaffMembershipDeps(persons staffPersonRows, identity staffIdentityQuery, groupTeachers groupTeacherRows) *staffMembershipDeps {
+	return &staffMembershipDeps{persons: persons, identity: identity, groupTeachers: groupTeachers}
 }
 
 // StaffMembershipRepository serves users.StaffRepository.
@@ -540,13 +528,4 @@ func (r StaffMembershipRepository) ListBirthdaysForExport(ctx context.Context) (
 		return nil, staffDirectoryError(op, err)
 	}
 	return staffBirthdayEntries(birthdays), nil
-}
-
-func (r StaffMembershipRepository) SetBirthdayDisplayOptOut(ctx context.Context, staffID int64, optOut bool) error {
-	const op = "set staff birthday display opt-out"
-	employment, err := staffoffboarding.NewLiveStaffEmployment(r.Membership, r.Deps.employment)
-	if err != nil {
-		return membershipError(op, err)
-	}
-	return membershipError(op, MembershipEmploymentError(employment.SetBirthdayDisplayOptOut(ctx, staffID, optOut)))
 }

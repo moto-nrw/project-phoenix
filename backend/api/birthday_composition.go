@@ -8,6 +8,11 @@ import (
 
 	peopleModule "github.com/moto-nrw/project-phoenix/modules/peopledirectory"
 	peopleCompose "github.com/moto-nrw/project-phoenix/modules/peopledirectory/compose"
+	birthdaysAPI "github.com/moto-nrw/project-phoenix/modules/peopledirectory/inbound/birthdays"
+	"github.com/moto-nrw/project-phoenix/modules/schoolmembership"
+	transactionruntime "github.com/moto-nrw/project-phoenix/modules/transactionruntime/compose"
+	"github.com/moto-nrw/project-phoenix/roots/owners"
+	"github.com/moto-nrw/project-phoenix/workflows/staffoffboarding"
 
 	configModel "github.com/moto-nrw/project-phoenix/modules/settings/records"
 )
@@ -29,7 +34,6 @@ type (
 		FindBirthdaysOn(ctx context.Context, days []peopleCompose.BirthdayMonthDay) ([]peopleCompose.BirthdayEntry, error)
 		ListBirthdaysForExport(ctx context.Context) ([]peopleCompose.BirthdayEntry, error)
 		FindByPersonID(ctx context.Context, personID int64) (*peopleModule.Staff, error)
-		SetBirthdayDisplayOptOut(ctx context.Context, staffID int64, optOut bool) error
 	}
 	birthdayPersons interface {
 		FindByAccountID(ctx context.Context, accountID int64) (*peopleModule.DirectoryPersonSnapshot, error)
@@ -38,13 +42,14 @@ type (
 
 // NewBirthdays binds the People Directory birthday capability over the
 // retained repositories and the tenant settings.
-func NewBirthdays(repos BirthdayRepositories, settings BirthdaySettingsSource, logger *slog.Logger, now func() time.Time) peopleModule.Birthdays {
-	return peopleCompose.NewBirthdays(peopleCompose.BirthdayDependencies{
+func NewBirthdays(repos BirthdayRepositories, writes staffoffboarding.StaffBirthdayWrites, settings BirthdaySettingsSource, logger *slog.Logger, now func() time.Time) birthdaysAPI.Service {
+	reads := peopleCompose.NewBirthdays(peopleCompose.BirthdayDependencies{
 		Store:    birthdayStore{repos: repos},
 		Settings: birthdaySettings{settings: settings},
 		Logger:   logger,
 		Now:      now,
 	})
+	return staffoffboarding.NewBirthdayPreferences(reads, writes, logger)
 }
 
 type birthdayStore struct{ repos BirthdayRepositories }
@@ -92,10 +97,6 @@ func (s birthdayStore) FindStaffByPerson(ctx context.Context, personID int64) (p
 	return peopleCompose.BirthdayStaff{ID: staff.ID, OptOut: staff.BirthdayDisplayOptOut}, true, nil
 }
 
-func (s birthdayStore) SetStaffBirthdayOptOut(ctx context.Context, staffID int64, optOut bool) error {
-	return s.repos.Staff.SetBirthdayDisplayOptOut(ctx, staffID, optOut)
-}
-
 // BirthdaySettingsSource is the slice of the tenant settings service the
 // birthday display reads: two boolean settings.
 type BirthdaySettingsSource interface {
@@ -119,4 +120,12 @@ func (s birthdaySettings) BirthdayDisplayIncludesStaff(ctx context.Context) (boo
 func isRepositoryNotFound(err error) bool {
 	var notFound interface{ RepositoryNotFound() }
 	return errors.As(err, &notFound)
+}
+
+func buildBirthdayEntry(db transactionruntime.Database, membership schoolmembership.Capability, repos BirthdayRepositories, settings BirthdaySettingsSource, logger *slog.Logger, now func() time.Time) (birthdaysAPI.Service, error) {
+	writes, err := owners.NewStaffBirthdayWrites(db, membership)
+	if err != nil {
+		return nil, err
+	}
+	return NewBirthdays(repos, writes, settings, logger, now), nil
 }

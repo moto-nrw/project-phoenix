@@ -289,9 +289,6 @@ type StaffRepository interface {
 	// date, opt-outs included. Backs the administrative Geburtstagsliste,
 	// which is gated on the same permission as the Stammdaten it reads.
 	ListBirthdaysForExport(ctx context.Context) ([]peopleBirthday.BirthdayEntry, error)
-
-	// SetBirthdayDisplayOptOut flips one staff member's dashboard opt-out.
-	SetBirthdayDisplayOptOut(ctx context.Context, staffID int64, optOut bool) error
 }
 
 // TeacherRepository defines operations for managing teachers
