@@ -188,7 +188,7 @@ func (entry commandEffectEntry) reviewedPortKey() string {
 }
 
 func (entry commandEffectEntry) effectBaseFailures(was commandEffectEntry, existed, newADR bool) []string {
-	isException := strings.HasPrefix(entry.Classification, "E") || entry.Classification == "unresolved" || entry.Classification == "debt"
+	isException := strings.HasPrefix(entry.Classification, "E") || entry.Classification == "unresolved" || entry.Classification == "debt" || entry.Classification == "workflow"
 	if !existed {
 		if isException && !newADR {
 			return []string{"new exception needs approval_adr naming an ADR added in this change: " + entry.key()}
