@@ -965,8 +965,8 @@ ever created by a migration. Access to an obsolete table with no target owner
 therefore remains a `tables.unclassified` finding until that access and table
 are removed; do not invent an owner merely to make the check quiet.
 
-The current backend still violates the target policy, so the normal `check`
-loads the committed exact baseline from `architecture/legacy.jsonl`. It passes
+The normal `check` loads the committed exact baseline from
+`architecture/legacy.jsonl`, which is empty after the migration. It passes
 only when the current violation set is exactly equal to that baseline. Pull
 request CI additionally reads the policy and baseline from the event's full
 base-commit SHA. Debt is shrink-only, except when a policy tightening exposes

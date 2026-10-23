@@ -268,7 +268,7 @@ settings work.
   tests and transaction/lock placement. This is optional local deepening,
   not approval for a module split or a layer-wide migration.
 
-No runtime defect or small incidental fix is claimed. No implementation issue
+No runtime defect is claimed. No implementation issue
 for a merger or split is required by these keep decisions. Reopen with concrete
 independent lifecycle/team evidence if those conditions change.
 
