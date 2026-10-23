@@ -203,7 +203,7 @@ var parentFeaturesDefinitions = []config.Definition{
 	{
 		Key:             config.KeyMealRegistrationEnabled,
 		Label:           "Anmeldung zum Mittagessen",
-		Description:     "Eltern melden ihr Kind für feste Wochentage oder einzelne Tage zum Essen an. Das Team bekommt daraus eine Tagesliste für die Küche.",
+		Description:     "Eltern melden ihr Kind für feste Wochentage oder einzelne Tage zum Essen an. Das Team bekommt daraus eine Tages- und eine Wochenliste für die Küche.",
 		Type:            config.FieldBoolean,
 		Default:         false,
 		ReadPermission:  "config:read",
