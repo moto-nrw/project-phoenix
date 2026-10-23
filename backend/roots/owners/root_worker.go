@@ -561,5 +561,5 @@ func buildWorkerAnalyticsSettings(db transactionruntime.Database, unit rootUnitO
 	if err != nil {
 		return SettingsOwner{}, nil, err
 	}
-	return values, bind(tracker, values.Service, env.Config.AppEnv == "demo"), nil
+	return values, bind(tracker, values.Service, email.IsDemoEnvironment(env.Config.AppEnv)), nil
 }
