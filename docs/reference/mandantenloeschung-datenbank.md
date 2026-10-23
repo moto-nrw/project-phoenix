@@ -123,6 +123,16 @@ warten; normale Lesezugriffe bleiben möglich. Der spätere CLI-Aufrufer muss
 passende Lock-/Statement-Zeitlimits setzen und fehlgeschlagene Versuche
 sichtbar behandeln. Keine App-Server werden für die Tests gestartet.
 
+Fünf Tabellen hatten vorher keinen direkten Schul-FK: die beiden Audit-
+Migrationsbackups, `active.presence_backfill_batches`,
+`auth.mfa_email_challenges` und `auth.parent_declaration_permission_grants`.
+1.15.481 ergänzt validierte Schul-FKs. So scheitert auch ein vorher wartender
+Schreibvorgang, wenn er nach dem Lösch-Commit neue Mandantenzeilen anlegen
+will. Vorhandene verwaiste Referenzen lassen bereits die Migration abbrechen;
+der Betrieb muss sie vor Rollout prüfen, nicht automatisch fremden Schulen
+zuordnen oder löschen. `TestEveryTenantTableHasASchoolErasureWriteFence`
+verhindert neue ungeprüfte Nachlauf-Lücken.
+
 Vor der ersten Löschung prüft die Funktion jede eingehende FK-Kante. Eine
 Zeile außerhalb des Auftrags, die auf dessen Daten verweist, führt zu
 `failed`, auch bei `CASCADE` oder `SET NULL`. So kann ein alter einfacher FK

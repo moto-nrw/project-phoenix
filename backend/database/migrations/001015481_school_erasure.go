@@ -49,6 +49,21 @@ const schoolErasureSchemaSQL = `
   END IF;
  END $role$;
  GRANT USAGE ON SCHEMA platform TO phoenix_school_erasure;
+ -- Every tenant writer must be fenced by the school root. Otherwise a
+ -- transaction queued behind the erasure locks could recreate personal rows
+ -- after the school has disappeared. Validate existing references; orphaned
+ -- legacy data blocks rollout rather than being silently reassigned/deleted.
+ ALTER TABLE active.presence_backfill_batches ADD CONSTRAINT fk_presence_backfill_batches_school_erasure
+  FOREIGN KEY (tenant_id) REFERENCES platform.schools(id);
+ ALTER TABLE audit.room_color_migration_backup ADD CONSTRAINT fk_room_color_backup_school_erasure
+  FOREIGN KEY (tenant_id) REFERENCES platform.schools(id);
+ ALTER TABLE audit.wc_alias_migration_backup ADD CONSTRAINT fk_wc_alias_backup_school_erasure
+  FOREIGN KEY (tenant_id) REFERENCES platform.schools(id);
+ ALTER TABLE auth.mfa_email_challenges ADD CONSTRAINT fk_mfa_email_challenges_school_erasure
+  FOREIGN KEY (tenant_id) REFERENCES platform.schools(id);
+ ALTER TABLE auth.parent_declaration_permission_grants ADD CONSTRAINT fk_parent_declaration_grants_school_erasure
+  FOREIGN KEY (tenant_id) REFERENCES platform.schools(id);
+
  -- 1.15.92 gave PUBLIC DML on MFA overrides. PUBLIC applies even to an
  -- isolated NOINHERIT role. Preserve the existing runtime roles' rights and
  -- RLS while preventing this new CLI role from inheriting generic writes.
@@ -199,6 +214,11 @@ func schoolErasureDown(ctx context.Context, db *bun.DB) error {
 			return fmt.Errorf("school erasure rollback would discard evidence; use a forward migration")
 		}
 		_, err := tx.ExecContext(ctx, `
+   ALTER TABLE active.presence_backfill_batches DROP CONSTRAINT fk_presence_backfill_batches_school_erasure;
+   ALTER TABLE audit.room_color_migration_backup DROP CONSTRAINT fk_room_color_backup_school_erasure;
+   ALTER TABLE audit.wc_alias_migration_backup DROP CONSTRAINT fk_wc_alias_backup_school_erasure;
+   ALTER TABLE auth.mfa_email_challenges DROP CONSTRAINT fk_mfa_email_challenges_school_erasure;
+   ALTER TABLE auth.parent_declaration_permission_grants DROP CONSTRAINT fk_parent_declaration_grants_school_erasure;
    DROP FUNCTION platform.delete_expired_school_erasures();
    DROP FUNCTION platform.read_school_erasure(BIGINT);
    DROP FUNCTION platform.erase_school(BIGINT,BIGINT);

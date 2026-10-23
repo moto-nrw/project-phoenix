@@ -431,3 +431,40 @@ func TestSchoolErasureDetectsSuppressedIndirectChild(t *testing.T) {
 	erasureExec(t, db, `DROP TRIGGER suppress_child_fixture ON auth.role_permissions; DROP FUNCTION platform.suppress_child_fixture()`)
 	assert.Equal(t, "db_done", eraseSchoolAsCLI(t, db, schoolID, orderID).Status)
 }
+
+func TestSchoolErasureRejectsPostCommitTenantWrites(t *testing.T) {
+	t.Parallel()
+	db := testpkg.SetupTestDB(t)
+	schoolID := testpkg.Tenant(t)
+	account := testpkg.CreateTestAccount(t, db, "erasure-late-writer")
+	orderID := beginErasure(t, db, schoolID)
+	require.Equal(t, "db_done", eraseSchoolAsCLI(t, db, schoolID, orderID).Status)
+	_, err := db.ExecContext(t.Context(), `INSERT INTO auth.mfa_email_challenges(account_id,tenant_id,scope,code_hash,expires_at)
+  VALUES (?,?,'','test-placeholder',NOW()+interval '1 hour')`, account.ID, schoolID)
+	require.Error(t, err, "a writer queued before erasure must not recreate personal tenant rows after commit")
+}
+
+func TestEveryTenantTableHasASchoolErasureWriteFence(t *testing.T) {
+	t.Parallel()
+	db := testpkg.SetupTestDB(t)
+	var missing []string
+	require.NoError(t, db.NewRaw(`SELECT n.nspname||'.'||c.relname FROM pg_class c JOIN pg_namespace n ON n.oid=c.relnamespace
+  JOIN pg_attribute a ON a.attrelid=c.oid AND a.attname='tenant_id' AND NOT a.attisdropped
+  WHERE c.relkind IN ('r','p') AND NOT c.relispartition AND n.nspname NOT IN ('pg_catalog','information_schema') AND n.nspname !~ '^pg_'
+  AND NOT EXISTS (SELECT FROM pg_constraint f JOIN pg_attribute parent_id ON parent_id.attrelid=f.confrelid AND parent_id.attname='id'
+   WHERE f.contype='f' AND f.conrelid=c.oid AND f.confrelid='platform.schools'::regclass
+    AND f.conkey=ARRAY[a.attnum] AND f.confkey=ARRAY[parent_id.attnum] AND f.convalidated)
+  ORDER BY 1`).Scan(t.Context(), &missing))
+	require.Empty(t, missing, "every tenant table needs a validated school FK so queued writers cannot recreate erased rows")
+}
+
+func TestSchoolErasureMigrationRoundTripPreservesEvidence(t *testing.T) {
+	t.Parallel()
+	db := testpkg.SetupTestDB(t)
+	schoolID := testpkg.Tenant(t)
+	require.NoError(t, schoolErasureDown(t.Context(), db))
+	require.NoError(t, schoolErasureUp(t.Context(), db))
+	orderID := beginErasure(t, db, schoolID)
+	require.Error(t, schoolErasureDown(t.Context(), db), "rollback must not discard any pending or completed proof")
+	assert.Equal(t, "db_done", eraseSchoolAsCLI(t, db, schoolID, orderID).Status, "failed rollback preserves evidence and executable procedure")
+}
