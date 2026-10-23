@@ -998,19 +998,6 @@
     },
     {
       "source_owner": "care-plan",
-      "port": "github.com/moto-nrw/project-phoenix/modules/careplan/carerequests.DayCutoff.Closed",
-      "binding": "github.com/moto-nrw/project-phoenix/workflows/parentportal/internal/care.SameDayCutoff.Closed",
-      "target": "github.com/moto-nrw/project-phoenix/workflows/parentportal/internal/care.SameDayCutoff.Closed",
-      "target_owner": "parent-portal",
-      "binding_digest": "e04bbf4824b373241486bd560103764f",
-      "effect": "query",
-      "classification": "debt",
-      "adr": "0083",
-      "approval_adr": "0094",
-      "reason": "Workflow-backed, known runtime-direction debt beyond the finite Roster/Bookings exception; no new ADR exception. Proposed follow-up: root-owned workflow entry or relocate the consumed capability to its domain/projection owner. See reconciliation callback audit. Reviewed read/value/construction method; no owned-row mutation or locking read at this terminal. Target workflows/parentportal/internal/care.SameDayCutoff.Closed; workflows/parentportal/internal/care/care_plan_policy.go:29. May-bind method surface, not a production-call/liveness claim. Runtime direction debt #4825 (ADR 0071 point 2): this read/construction may-bind is not a granted Domain-to-Workflow exception; move the binding out of the domain in the follow-up."
-    },
-    {
-      "source_owner": "care-plan",
       "port": "github.com/moto-nrw/project-phoenix/modules/careplan/carerequests.Service.Decide",
       "binding": "*github.com/moto-nrw/project-phoenix/roots/owners.CareScheduleRequestService.Decide",
       "target": "unresolved:cycle:*github.com/moto-nrw/project-phoenix/roots/owners.CareScheduleRequestService.Decide",
@@ -16416,14 +16403,12 @@
       "source_owner": "enrollment",
       "port": "github.com/moto-nrw/project-phoenix/modules/enrollment/internal/application.PeopleRules.MapRelationshipType",
       "binding": "github.com/moto-nrw/project-phoenix/roots/owners.enrollmentPeopleRules.MapRelationshipType",
-      "target": "github.com/moto-nrw/project-phoenix/modules/dataimport.MapRelationshipType",
-      "target_owner": "data-import",
-      "binding_digest": "015c528725c2cc455a43315cfa5f7a5c",
+      "target": "github.com/moto-nrw/project-phoenix/modules/peopledirectory/contact.MapRelationshipType",
+      "target_owner": "people-directory",
+      "binding_digest": "ffeb7f3ea6132b1a7aa1816f4bbe978f",
       "effect": "query",
-      "classification": "debt",
-      "adr": "0083",
-      "approval_adr": "0094",
-      "reason": "Read or pure value helper on the supplied interface: modules/dataimport.MapRelationshipType. No mutation or locking read at this terminal; type-level binding coverage, not proof that Enrollment calls every exposed method. Runtime direction debt #4825 (ADR 0071 point 2): this read/construction may-bind is not a granted Domain-to-Workflow exception; move the binding out of the domain in the follow-up."
+      "classification": "query",
+      "reason": "Read or pure value helper on the supplied interface: modules/peopledirectory/contact.MapRelationshipType. No mutation or locking read at this terminal; type-level binding coverage, not proof that Enrollment calls every exposed method."
     },
     {
       "source_owner": "enrollment",
