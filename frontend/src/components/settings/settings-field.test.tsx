@@ -73,6 +73,155 @@ describe("SettingsField", () => {
     );
   });
 
+  it.each([
+    ["admin", "switch"],
+    ["operator", "switch"],
+    ["admin", "reset"],
+    ["operator", "reset"],
+  ] as const)(
+    "confirms irreversible room history deletion for %s %s",
+    async (audience, action) => {
+      const onSave = vi.fn().mockResolvedValue(undefined);
+      const onReset = vi.fn().mockResolvedValue(undefined);
+      const { getByRole } = renderWithProviders(
+        <SettingsField
+          audience={audience}
+          setting={makeSetting({
+            key: "gdpr.attendance_log_enabled",
+            label: "Anwesenheitsprotokoll",
+            type: "boolean",
+            value: true,
+            default: false,
+          })}
+          onSave={onSave}
+          onReset={onReset}
+        />,
+      );
+      const trigger = () =>
+        fireEvent.click(
+          action === "switch"
+            ? getByRole("switch", { name: "Anwesenheitsprotokoll" })
+            : getByRole("button", { name: "Zurücksetzen" }),
+        );
+      trigger();
+      // Anker: The destructive dialog is open, not an empty field render.
+      expect(
+        getByRole("dialog", { name: "Anwesenheitsprotokoll ausschalten?" }),
+      ).toHaveTextContent(
+        "Alle abgeschlossenen Raumbesuche vor heute werden sofort gelöscht.",
+      );
+      expect(onSave).not.toHaveBeenCalled();
+      expect(onReset).not.toHaveBeenCalled();
+      expect(
+        getByRole("button", { name: "Ausschalten und löschen" }),
+      ).toBeDisabled();
+      fireEvent.change(getByRole("textbox"), { target: { value: "LÖSCHEN" } });
+      fireEvent.click(getByRole("button", { name: "Abbrechen" }));
+      // Anker: Cancel keeps the persisted switch on.
+      expect(
+        getByRole("switch", { name: "Anwesenheitsprotokoll" }),
+      ).toHaveAttribute("aria-checked", "true");
+      expect(onSave).not.toHaveBeenCalled();
+      expect(onReset).not.toHaveBeenCalled();
+      trigger();
+      expect(
+        getByRole("button", { name: "Ausschalten und löschen" }),
+      ).toBeDisabled();
+      fireEvent.change(getByRole("textbox"), { target: { value: "LÖSCHEN" } });
+      fireEvent.click(getByRole("button", { name: "Ausschalten und löschen" }));
+      await waitFor(() => {
+        if (action === "switch")
+          expect(onSave).toHaveBeenCalledExactlyOnceWith(
+            "gdpr.attendance_log_enabled",
+            false,
+          );
+        else
+          expect(onReset).toHaveBeenCalledExactlyOnceWith(
+            "gdpr.attendance_log_enabled",
+          );
+      });
+      expect(
+        getByRole("switch", { name: "Anwesenheitsprotokoll" }),
+      ).toHaveAttribute("aria-checked", "false");
+      expect(action === "switch" ? onReset : onSave).not.toHaveBeenCalled();
+    },
+  );
+
+  it.each(["switch", "reset"] as const)(
+    "keeps a failed history deletion open for %s",
+    async (action) => {
+      const failure = new ApiError("boom", 500);
+      const onSave = vi
+        .fn()
+        .mockRejectedValueOnce(failure)
+        .mockResolvedValue(undefined);
+      const onReset = vi
+        .fn()
+        .mockRejectedValueOnce(failure)
+        .mockResolvedValue(undefined);
+      const { getByRole } = renderWithProviders(
+        <SettingsField
+          setting={makeSetting({
+            key: "gdpr.attendance_log_enabled",
+            label: "Anwesenheitsprotokoll",
+            type: "boolean",
+            value: true,
+            default: false,
+          })}
+          onSave={onSave}
+          onReset={onReset}
+        />,
+      );
+      fireEvent.click(
+        action === "switch"
+          ? getByRole("switch")
+          : getByRole("button", { name: "Zurücksetzen" }),
+      );
+      fireEvent.change(getByRole("textbox"), { target: { value: "LÖSCHEN" } });
+      fireEvent.click(getByRole("button", { name: "Ausschalten und löschen" }));
+      const dialog = getByRole("dialog", {
+        name: "Anwesenheitsprotokoll ausschalten?",
+      });
+      await waitFor(() =>
+        expect(dialog).toHaveTextContent(
+          catalogText(
+            "general.server",
+            "die Einstellung „Anwesenheitsprotokoll“",
+          ),
+        ),
+      );
+      expect(getByRole("switch")).toHaveAttribute("aria-checked", "true");
+      fireEvent.click(getByRole("button", { name: "Ausschalten und löschen" }));
+      await waitFor(() =>
+        expect(getByRole("switch")).toHaveAttribute("aria-checked", "false"),
+      );
+      expect(action === "switch" ? onSave : onReset).toHaveBeenCalledTimes(2);
+    },
+  );
+
+  it("resets to an enabled default without deleting room history", async () => {
+    const onReset = vi.fn().mockResolvedValue(undefined);
+    const { getByRole } = renderWithProviders(
+      <SettingsField
+        setting={makeSetting({
+          key: "gdpr.attendance_log_enabled",
+          label: "Anwesenheitsprotokoll",
+          type: "boolean",
+          value: true,
+          default: true,
+        })}
+        onSave={vi.fn()}
+        onReset={onReset}
+      />,
+    );
+    fireEvent.click(getByRole("button", { name: "Zurücksetzen" }));
+    await waitFor(() =>
+      expect(onReset).toHaveBeenCalledExactlyOnceWith(
+        "gdpr.attendance_log_enabled",
+      ),
+    );
+  });
+
   const visibilityKey = "operations.operational_overview_scope";
   const attendanceKey = "operations.attendance_edit_scope";
 

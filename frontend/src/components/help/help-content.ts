@@ -5619,7 +5619,7 @@ function settingsGuideTopic(): HelpTopic {
         description: "Was moto speichert und wie lange.",
         ordered: false,
         steps: [
-          "`Anwesenheitsprotokoll`: Das Team sieht die Anwesenheit und frühere Räume. Ausgeschaltet bleiben frühere Raumbesuche nur für den heutigen Tag. Ältere abgeschlossene Raumbesuche werden beim Ausschalten und nachts gelöscht. Der aktuelle Raum bleibt sichtbar.",
+          "`Anwesenheitsprotokoll`: Das Team sieht die Anwesenheit und frühere Räume. Ausgeschaltet bleiben frühere Raumbesuche nur für den heutigen Tag. Beim Ausschalten bestätigen Sie zuerst die endgültige Löschung. Geben Sie dafür `LÖSCHEN` ein. Das gilt auch bei `Zurücksetzen` auf den ausgeschalteten Standard. Abgeschlossene Raumbesuche vor heute werden sofort gelöscht. Das lässt sich nicht rückgängig machen. Erneutes Einschalten stellt nichts wieder her. Heutige Raumbesuche bleiben bis zum nächtlichen Löschen erhalten. Der aktuelle Raum und die Anwesenheitszeiten bleiben erhalten.",
           "Vor dem Einschalten prüft die Schule die Rechtsgrundlage. Sie ist für die Nutzung verantwortlich.",
           "`Nutzungsanalyse`: moto erhält Nutzungsstatistiken Ihrer Schule, aber keine eingegebenen Inhalte.",
           "Löschfristen wie `Anwesenheit aufbewahren (Tage)`: Wie lange moto Daten behält. Sie können sie nur lesen.",
