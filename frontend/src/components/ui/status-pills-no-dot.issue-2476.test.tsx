@@ -24,6 +24,17 @@ function expectPlainPill(pill: Element | null, label?: string) {
   expect(el.className).not.toMatch(/\bgap-|\bmr-/);
 }
 
+// #4371: a fact next to the location is a neutral text line with a concept
+// icon, never a second tinted pill.
+function expectHintLine(hint: Element | null, label: string) {
+  expect(hint).not.toBeNull();
+  const el = hint as HTMLElement;
+  expect(el.textContent).toBe(label);
+  expect(el.className).not.toMatch(/\brounded-full\b/);
+  expect(el.style.backgroundColor).toBe("");
+  expect(el.querySelector("svg")).toHaveAttribute("aria-hidden", "true");
+}
+
 const SIZES = ["sm", "md", "lg"] as const;
 const VARIANTS = ["modern", "simple"] as const;
 
@@ -51,7 +62,7 @@ describe("LocationBadge without decorative dot", () => {
         LOCATION_STATUSES.UNPLANNED_PRESENT,
       ],
     ] as const)(
-      "renders the %s overlay pill as plain text",
+      "renders the %s hint as a text line, not a second pill",
       (flag, attr, label) => {
         const { container } = render(
           <LocationBadge
@@ -60,7 +71,8 @@ describe("LocationBadge without decorative dot", () => {
             variant={variant}
           />,
         );
-        expectPlainPill(container.querySelector(`[${attr}]`), label);
+        expectHintLine(container.querySelector(`[${attr}]`), label);
+        expect(container.querySelectorAll(".rounded-full")).toHaveLength(1);
       },
     );
   });
@@ -105,7 +117,7 @@ describe("PresenceBadge without decorative dot", () => {
         LOCATION_STATUSES.UNPLANNED_PRESENT,
       ],
     ] as const)(
-      "renders the %s overlay pill as plain text",
+      "renders the %s hint as a text line, not a second pill",
       (flag, attr, label) => {
         const { container } = render(
           <PresenceBadge
@@ -113,7 +125,8 @@ describe("PresenceBadge without decorative dot", () => {
             variant={variant}
           />,
         );
-        expectPlainPill(container.querySelector(`[${attr}]`), label);
+        expectHintLine(container.querySelector(`[${attr}]`), label);
+        expect(container.querySelectorAll(".rounded-full")).toHaveLength(1);
       },
     );
   });
