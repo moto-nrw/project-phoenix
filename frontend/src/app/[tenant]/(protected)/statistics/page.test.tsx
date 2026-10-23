@@ -66,6 +66,7 @@ function report(overrides: Partial<StatisticsReport> = {}): StatisticsReport {
     students: [],
     groups: [],
     rooms: [],
+    room_history_disabled: false,
     room_data_days: 30,
     room_data_from: "2026-06-01",
     courses: [
@@ -256,5 +257,57 @@ describe("Statistik — Bereich Kurse (#2891)", () => {
         screen.getByText("Keine Kurstermine für diesen Zeitraum"),
       ).toBeVisible(),
     );
+  });
+});
+
+describe("Statistik — ausgeschaltete Raumhistorie (#3844)", () => {
+  beforeEach(() => mockFetchReport.mockReset());
+
+  it.each(["2026-06-01", "2026-09-09"])(
+    "erklärt ausgeschaltete Historie unabhängig von der Zeitgrenze %s",
+    async (roomDataFrom) => {
+      mockFetchReport.mockResolvedValue(
+        report({
+          room_history_disabled: true,
+          room_data_days: 0,
+          room_data_from: roomDataFrom,
+        }),
+      );
+      render(<StatisticsPage />);
+      fireEvent.click(await screen.findByRole("tab", { name: "Räume" }));
+      // Anker: Der geladene Raumbereich erklärt die fehlende Voraussetzung.
+      expect(
+        await screen.findByText("Raumhistorie ist ausgeschaltet"),
+      ).toBeVisible();
+      expect(
+        screen.getByText(
+          /Raumstatistiken brauchen das eingeschaltete Anwesenheitsprotokoll/,
+        ),
+      ).toHaveTextContent(
+        "Ihre Administration kann es unter Einstellungen > Datenschutz einschalten.",
+      );
+      expect(
+        screen.queryByText("Es sind keine Räume angelegt."),
+      ).not.toBeInTheDocument();
+      expect(
+        screen.queryByText(/Wählen Sie einen Zeitraum ab/),
+      ).not.toBeInTheDocument();
+      expect(
+        screen.queryByRole("button", { name: "Einschalten" }),
+      ).not.toBeInTheDocument();
+    },
+  );
+
+  it("zeigt ohne angelegte Räume bei eingeschalteter Historie weiterhin den leeren Zustand", async () => {
+    mockFetchReport.mockResolvedValue(report());
+    render(<StatisticsPage />);
+    fireEvent.click(await screen.findByRole("tab", { name: "Räume" }));
+    // Anker: Der geladene Raumbereich zeigt den echten leeren Zustand.
+    expect(
+      await screen.findByText("Es sind keine Räume angelegt."),
+    ).toBeVisible();
+    expect(
+      screen.queryByText("Raumhistorie ist ausgeschaltet"),
+    ).not.toBeInTheDocument();
   });
 });

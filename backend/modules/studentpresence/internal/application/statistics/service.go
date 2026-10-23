@@ -220,6 +220,7 @@ func (s *service) fillRoomSection(ctx context.Context, report *studentpresence.S
 	}
 	report.RoomDataFrom = today.AddDays(-report.RoomDataDays)
 	if report.RoomDataDays == 0 {
+		report.RoomHistoryDisabled = true
 		report.Rooms = []studentpresence.StatisticsRoomRow{}
 		return nil
 	}

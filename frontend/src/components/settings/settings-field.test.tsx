@@ -53,7 +53,7 @@ describe("SettingsField", () => {
       name: "Anwesenheitsprotokoll einschalten?",
     });
     expect(dialog).toHaveTextContent(
-      "Das Team sieht Anwesenheitszeiten und Raumverläufe der Kinder. Ausschalten beendet die Erfassung nicht und löscht keine Daten. Die Schule ist für die Nutzung verantwortlich. Prüfen Sie vor dem Einschalten die Rechtsgrundlage.",
+      "Das Team sieht Anwesenheitszeiten und Raumverläufe der Kinder. Ausgeschaltet bleiben frühere Raumbesuche nur für den heutigen Tag. Ältere abgeschlossene Raumbesuche werden beim Ausschalten und nachts gelöscht. Der aktuelle Raum bleibt sichtbar. Vor dem Einschalten prüft die Schule die Rechtsgrundlage.",
     );
     expect(onSave).not.toHaveBeenCalled();
 

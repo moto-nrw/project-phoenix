@@ -81,16 +81,17 @@ type excludedDaysResponse struct {
 }
 
 type reportResponse struct {
-	From         string               `json:"from"`
-	To           string               `json:"to"`
-	CareDays     int                  `json:"care_days"`
-	ExcludedDays excludedDaysResponse `json:"excluded_days"`
-	Totals       groupResponse        `json:"totals"`
-	Students     []studentResponse    `json:"students"`
-	Groups       []groupResponse      `json:"groups"`
-	Rooms        []roomResponse       `json:"rooms"`
-	RoomDataDays int                  `json:"room_data_days"`
-	RoomDataFrom string               `json:"room_data_from"`
+	From                string               `json:"from"`
+	To                  string               `json:"to"`
+	CareDays            int                  `json:"care_days"`
+	ExcludedDays        excludedDaysResponse `json:"excluded_days"`
+	Totals              groupResponse        `json:"totals"`
+	Students            []studentResponse    `json:"students"`
+	Groups              []groupResponse      `json:"groups"`
+	Rooms               []roomResponse       `json:"rooms"`
+	RoomDataDays        int                  `json:"room_data_days"`
+	RoomHistoryDisabled bool                 `json:"room_history_disabled"`
+	RoomDataFrom        string               `json:"room_data_from"`
 
 	Courses        []courseResponse        `json:"courses"`
 	CourseStudents []courseStudentResponse `json:"course_students"`
@@ -110,12 +111,13 @@ func toReportResponse(report *studentpresence.StatisticsReport) reportResponse {
 			ClosingDays:    report.ExcludedDays.ClosingDays,
 			HolidayPeriods: report.ExcludedDays.HolidayPeriods,
 		},
-		Totals:       toGroupResponse(report.Totals),
-		Students:     make([]studentResponse, 0, len(report.Students)),
-		Groups:       make([]groupResponse, 0, len(report.Groups)),
-		Rooms:        make([]roomResponse, 0, len(report.Rooms)),
-		RoomDataDays: report.RoomDataDays,
-		RoomDataFrom: report.RoomDataFrom.String(),
+		Totals:              toGroupResponse(report.Totals),
+		Students:            make([]studentResponse, 0, len(report.Students)),
+		Groups:              make([]groupResponse, 0, len(report.Groups)),
+		Rooms:               make([]roomResponse, 0, len(report.Rooms)),
+		RoomDataDays:        report.RoomDataDays,
+		RoomHistoryDisabled: report.RoomHistoryDisabled,
+		RoomDataFrom:        report.RoomDataFrom.String(),
 
 		Courses:        make([]courseResponse, 0, len(report.Courses)),
 		CourseStudents: make([]courseStudentResponse, 0, len(report.CourseStudents)),

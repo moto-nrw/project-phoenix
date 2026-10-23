@@ -106,8 +106,9 @@ type reportPayload struct {
 			PeakOccupancy          int      `json:"peak_occupancy"`
 			PeakUtilizationPercent *float64 `json:"peak_utilization_percent"`
 		} `json:"rooms"`
-		RoomDataDays int `json:"room_data_days"`
-		Courses      []struct {
+		RoomDataDays        int   `json:"room_data_days"`
+		RoomHistoryDisabled *bool `json:"room_history_disabled"`
+		Courses             []struct {
 			CourseID           string   `json:"course_id"`
 			Name               string   `json:"name"`
 			CategoryName       string   `json:"category_name"`
@@ -879,4 +880,29 @@ func enableStatisticsRoomHistory(t *testing.T, db *bun.DB) {
 	t.Helper()
 	_, err := db.NewRaw(`INSERT INTO config.setting_values (tenant_id, setting_key, value) VALUES (?, 'gdpr.attendance_log_enabled', 'true'::jsonb) ON CONFLICT (tenant_id, setting_key) DO UPDATE SET value = EXCLUDED.value`, testpkg.Tenant(t)).Exec(testpkg.Ctx(t))
 	require.NoError(t, err)
+}
+
+func TestStatisticsReport_ExplainsDisabledRoomHistory(t *testing.T) {
+	t.Parallel()
+	tc := setupStatisticsRoute(t)
+	_, account := testpkg.CreateTestStaffWithAccountForTenant(t, tc.db, testpkg.Tenant(t), "Raum", "Statistik")
+	testpkg.CreateTestRoom(t, tc.db, "Gruppenraum")
+
+	for _, enabled := range []bool{false, true} {
+		if enabled {
+			enableStatisticsRoomHistory(t, tc.db)
+		}
+		req := httptest.NewRequest(http.MethodGet, "/report?section=rooms&from="+weekFrom.String()+"&to="+weekTo.String(), nil)
+		rec := authExec(t, tc, req, claimsFor(t, account.ID), reportPermissions)
+		require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
+		var payload reportPayload
+		require.NoError(t, json.Unmarshal(rec.Body.Bytes(), &payload))
+		require.NotNil(t, payload.Data.RoomHistoryDisabled, "the response must explicitly name the room history state")
+		assert.Equal(t, !enabled, *payload.Data.RoomHistoryDisabled)
+		if enabled {
+			require.NotEmpty(t, payload.Data.Rooms)
+		} else {
+			assert.Empty(t, payload.Data.Rooms)
+		}
+	}
 }
