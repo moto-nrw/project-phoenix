@@ -162,7 +162,10 @@ func (r *PasswordReset) portalEligible(ctx context.Context, accountID int64, sco
 	case domain.PasswordResetScopeCaterer:
 		return r.auth.isCatererAccount(ctx, accountID)
 	default:
-		return true, nil
+		// The staff portal serves every account but a caterer's, as the
+		// caterer portal serves caterers only (ADR 0077).
+		isCaterer, err := r.auth.isCatererAccount(ctx, accountID)
+		return !isCaterer, err
 	}
 }
 

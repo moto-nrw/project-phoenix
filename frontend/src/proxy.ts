@@ -272,7 +272,7 @@ function handleOperatorSubdomain(request: NextRequest): NextResponse {
   // Block tenant auth endpoints on the operator host. Tenant session cookies
   // are domain-scoped and sent to subdomains, so allowing /api/auth/* here
   // would expose tenant session data on operator.moto-app.de.
-  if (pathname.startsWith("/api/auth/")) {
+  if (pathname.startsWith("/api/auth/") || isCatererApiPath(pathname)) {
     return withSecurityHeaders(new NextResponse(null, { status: 404 }));
   }
 
@@ -387,7 +387,7 @@ function handleParentsSubdomain(request: NextRequest): NextResponse {
   if (
     pathname.startsWith("/api/auth/") ||
     pathname.startsWith("/api/operator/auth/") ||
-    pathname.startsWith("/api/caterer/")
+    isCatererApiPath(pathname)
   ) {
     return withSecurityHeaders(new NextResponse(null, { status: 404 }));
   }
@@ -531,6 +531,13 @@ function handleSchoolSubdomain(request: NextRequest): NextResponse {
 /** Paths the caterer host serves (without /caterer prefix); the overview
  * itself lives at the root ("/" → /caterer). */
 const CATERER_PATHS = ["/login", "/reset-password", "/einladung"];
+
+/** The caterer portal's BFF routes. Only the caterer host serves them; every
+ * other host answers 404, so a caterer route never runs beside another
+ * portal's cookies (ADR 0077). */
+function isCatererApiPath(pathname: string): boolean {
+  return pathname === "/api/caterer" || pathname.startsWith("/api/caterer/");
+}
 
 function isCatererHost(hostname: string): boolean {
   return hostname === CATERER_HOSTNAME;
@@ -857,7 +864,11 @@ function routeRequest(request: NextRequest): NextResponse {
   const legacySelection = redirectLegacySelection(request);
   if (legacySelection) return legacySelection;
 
-  // 2. /api/* and /monitoring (Sentry tunnel): pass through with security headers.
+  // 2. /api/* and /monitoring (Sentry tunnel): pass through with security
+  // headers. The caterer API runs on the caterer host only (ADR 0077).
+  if (isCatererApiPath(pathname)) {
+    return withSecurityHeaders(new NextResponse(null, { status: 404 }));
+  }
   if (pathname.startsWith("/api") || pathname.startsWith("/monitoring")) {
     return secureNext(request);
   }

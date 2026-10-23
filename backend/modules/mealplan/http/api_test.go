@@ -245,7 +245,9 @@ func TestStaffWeekendWriteKeepsItsErrorContract(t *testing.T) {
 		Observe: func(mealplanCompose.Observation) {}, Now: time.Now,
 		Participants: func(context.Context, string) ([]mealplanModule.ParticipantCandidate, error) { return nil, nil },
 		StudentNames: func(context.Context, []int64) ([]mealplanModule.ParticipantCandidate, error) { return nil, nil },
-		Calendar:     func(context.Context, string, string) (map[string]bool, map[string]bool, error) { return nil, nil, nil },
+		Calendar: func(context.Context, string, string) (map[string]bool, []mealplanModule.HolidayPeriod, error) {
+			return nil, nil, nil
+		},
 	})
 	require.NoError(t, err)
 

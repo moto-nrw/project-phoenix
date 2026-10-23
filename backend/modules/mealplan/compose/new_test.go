@@ -51,25 +51,27 @@ func testStudentNames(ctx context.Context, ids []int64) ([]mealplan.ParticipantC
 }
 
 // openCalendar is a school calendar without closing days or holidays.
-func openCalendar(context.Context, string, string) (map[string]bool, map[string]bool, error) {
-	return map[string]bool{}, map[string]bool{}, nil
+func openCalendar(context.Context, string, string) (map[string]bool, []mealplan.HolidayPeriod, error) {
+	return map[string]bool{}, nil, nil
 }
 
-// fixedCalendar is a school calendar with the given closed and holiday days.
+// fixedCalendar is a school calendar with the given closed days and one
+// single-day holiday period per holiday day.
 func fixedCalendar(closed, holiday []string) mealplan.CalendarFinder {
-	return func(_ context.Context, from, to string) (map[string]bool, map[string]bool, error) {
-		closedDays, holidayDays := map[string]bool{}, map[string]bool{}
+	return func(_ context.Context, from, to string) (map[string]bool, []mealplan.HolidayPeriod, error) {
+		closedDays := map[string]bool{}
 		for _, day := range closed {
 			if day >= from && day <= to {
 				closedDays[day] = true
 			}
 		}
+		var holidays []mealplan.HolidayPeriod
 		for _, day := range holiday {
 			if day >= from && day <= to {
-				holidayDays[day] = true
+				holidays = append(holidays, mealplan.HolidayPeriod{Start: day, End: day})
 			}
 		}
-		return closedDays, holidayDays, nil
+		return closedDays, holidays, nil
 	}
 }
 
