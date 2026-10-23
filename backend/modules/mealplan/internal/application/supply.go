@@ -92,7 +92,7 @@ func (s *Service) catererOrders(ctx context.Context, catererID int64, from, to s
 func daysSince(days []domain.OrderDay, start time.Time) []domain.OrderDay {
 	kept := days[:0:0]
 	for _, day := range days {
-		if !day.Date.Before(domain.DateFromInstant(start)) && (day.Order == nil || !day.Order.FrozenAt.Before(start)) {
+		if !day.Date.Before(domain.DateFromInstant(start)) && (day.Order == nil || !day.Order.DeadlineAt.Before(start)) {
 			kept = append(kept, day)
 		}
 	}

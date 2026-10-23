@@ -19,11 +19,11 @@ func TestCatererTotalWithNamesHidesClassesInChildrenAndChanges(t *testing.T) {
 	assert.Equal(t, want, got.Days[0].Changes[0].Child)
 }
 
-func TestDaysSinceExcludesEarlierFrozenOrdersEvenForFutureDays(t *testing.T) {
+func TestDaysSinceUsesDeadlineEvenWhenSettledAfterSupplyStarted(t *testing.T) {
 	t.Parallel()
 	start := time.Date(2026, 9, 7, 11, 0, 0, 0, time.UTC)
-	day := domain.OrderDay{Date: "2026-09-08", Order: &domain.Order{FrozenAt: start.Add(-time.Hour)}}
-	own := domain.OrderDay{Date: "2026-09-09", Order: &domain.Order{FrozenAt: start}}
+	day := domain.OrderDay{Date: "2026-09-08", Order: &domain.Order{DeadlineAt: start.Add(-time.Hour), FrozenAt: start.Add(time.Hour)}}
+	own := domain.OrderDay{Date: "2026-09-09", Order: &domain.Order{DeadlineAt: start, FrozenAt: start.Add(time.Hour)}}
 	open := domain.OrderDay{Date: "2026-09-10"}
 	assert.Equal(t, []domain.OrderDay{own, open}, daysSince([]domain.OrderDay{day, own, open}, start))
 }

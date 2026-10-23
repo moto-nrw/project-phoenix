@@ -77,7 +77,7 @@ func TestCatererReadsAndConfirmsOrdersOnlyWhileItSupplies(t *testing.T) {
 	module := buildModuleWithRules(t, db, settings, time.Date(2026, 9, 7, 10, 0, 0, 0, testBerlin))
 	_, err := module.CatererOrders(ctx, supplier, "2026-09-07", "2026-09-07")
 	require.ErrorIs(t, err, mealplan.ErrNotSupplied, "no supply, no orders")
-	require.NoError(t, module.StartSupply(ctx, supplier, "", 0))
+	require.NoError(t, buildModuleWithRules(t, db, settings, time.Date(2026, 9, 7, 8, 0, 0, 0, testBerlin)).StartSupply(ctx, supplier, "", 0))
 
 	week, err := module.CatererOrders(ctx, supplier, "2026-09-07", "2026-09-07")
 	require.NoError(t, err)
@@ -121,7 +121,7 @@ func TestCatererReadsNoClassesWhenTheSchoolOrdersTotals(t *testing.T) {
 	settings := singleDeadlineSettings("09:00")
 	settings.OrderDetail = "total"
 	module := buildModuleWithRules(t, db, settings, time.Date(2026, 9, 7, 10, 0, 0, 0, testBerlin))
-	require.NoError(t, module.StartSupply(ctx, supplier, "", 0))
+	require.NoError(t, buildModuleWithRules(t, db, settings, time.Date(2026, 9, 7, 8, 0, 0, 0, testBerlin)).StartSupply(ctx, supplier, "", 0))
 
 	week, err := module.CatererOrders(ctx, supplier, "2026-09-07", "2026-09-07")
 	require.NoError(t, err)
@@ -143,7 +143,7 @@ func TestNewCatererSeesNothingBeforeItsSupply(t *testing.T) {
 		require.NoError(t, register.SetParticipationForDay(ctx, mealplan.SetParticipationDay{StudentID: student.ID, GuardianAccountID: parent.ID, Date: date, Participating: true}))
 	}
 	monday := buildModuleWithRules(t, db, singleDeadlineSettings("09:00"), time.Date(2026, 9, 7, 10, 0, 0, 0, testBerlin))
-	require.NoError(t, monday.StartSupply(ctx, former, "", 0))
+	require.NoError(t, buildModuleWithRules(t, db, singleDeadlineSettings("09:00"), time.Date(2026, 9, 7, 8, 0, 0, 0, testBerlin)).StartSupply(ctx, former, "", 0))
 	week, err := monday.CatererOrders(ctx, former, "2026-09-07", "2026-09-07")
 	require.NoError(t, err)
 	mondayOrder := week.Days[0].OrderID
@@ -165,4 +165,40 @@ func TestNewCatererSeesNothingBeforeItsSupply(t *testing.T) {
 	assert.Equal(t, mealplan.Date("2026-09-08"), week.Days[0].Date)
 	require.ErrorIs(t, tuesday.ConfirmOrder(ctx, successor, mondayOrder, 0), mealplan.ErrOrderNotFound)
 	require.NoError(t, tuesday.ConfirmOrder(ctx, successor, week.Days[0].OrderID, 0))
+}
+
+// Delayed settlement must not transfer an order to the successor, including
+// the idempotent confirmation path for an already confirmed order.
+func TestNewCatererCannotAccessPredecessorOrderSettledAfterTakeover(t *testing.T) {
+	t.Parallel()
+	for _, confirmed := range []bool{false, true} {
+		t.Run(fmt.Sprintf("confirmed=%t", confirmed), func(t *testing.T) {
+			t.Parallel()
+			testpkg.OwnTenant(t)
+			db := testpkg.SetupTestDB(t)
+			ctx := testpkg.Ctx(t)
+			former, successor := createTestCaterer(t, db, "Former"), createTestCaterer(t, db, "Successor")
+			settings := singleDeadlineSettings("09:00")
+			before := buildModuleWithRules(t, db, settings, time.Date(2026, 9, 7, 8, 0, 0, 0, testBerlin))
+			require.NoError(t, before.StartSupply(ctx, former, "", 0))
+			takeover := buildModuleWithRules(t, db, settings, time.Date(2026, 9, 7, 10, 0, 0, 0, testBerlin))
+			_, err := takeover.EndSupply(ctx, 0)
+			require.NoError(t, err)
+			require.NoError(t, takeover.StartSupply(ctx, successor, "", 0))
+			settled := buildModuleWithRules(t, db, settings, time.Date(2026, 9, 7, 11, 0, 0, 0, testBerlin))
+			week, err := settled.Orders(ctx, "2026-09-07", "2026-09-07")
+			require.NoError(t, err)
+			require.Len(t, week.Days, 1)
+			orderID := week.Days[0].OrderID
+			require.NotZero(t, orderID)
+			if confirmed {
+				_, err = db.NewRaw(`UPDATE schedule.meal_orders SET confirmed_at = ? WHERE tenant_id = ? AND id = ?`, time.Date(2026, 9, 7, 11, 0, 0, 0, testBerlin), testpkg.TenantIDFromContext(ctx), orderID).Exec(ctx)
+				require.NoError(t, err)
+			}
+			visible, err := settled.CatererOrders(ctx, successor, "2026-09-07", "2026-09-07")
+			require.NoError(t, err)
+			assert.Empty(t, visible.Days, "the deadline preceded the new supply")
+			require.ErrorIs(t, settled.ConfirmOrder(ctx, successor, orderID, 0), mealplan.ErrOrderNotFound)
+		})
+	}
 }
