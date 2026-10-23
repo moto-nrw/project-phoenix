@@ -121,7 +121,7 @@ func measureRuntimeCheckpoint(t *testing.T, production *Runtime) {
 		{"appointments.calendar", "GET", "/api/calendar/my?from=2026-09-01&to=2026-09-30", 200, true, ""},
 		{"settings.schema", "GET", "/api/settings/schema", 200, true, ""},
 		{"meal-plan.list", "GET", "/api/meal-plan/?week_start=2026-08-31", 200, true, ""},
-		{"feedback.list", "GET", "/api/feedback/", 200, true, ""},
+		{"feedback.list", "GET", "/api/feedback/", http.StatusForbidden, true, ""},
 		{"school-membership.staff", "GET", "/api/staff/", 200, true, ""},
 		{"facilities.invalid-id", "GET", "/api/rooms/invalid", 400, true, ""},
 		{"timetable.invalid-id", "GET", "/api/activities/invalid", 400, true, ""},
