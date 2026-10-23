@@ -55,7 +55,7 @@ func parentCursorFacts(rows []*communication.PortalParentMessage) []*ParentMessa
 	values := make([]*ParentMessage, len(rows))
 	for i, v := range rows {
 		if v != nil {
-			values[i] = &ParentMessage{ID: v.ID, CreatedAt: v.CreatedAt, UpdatedAt: v.UpdatedAt, TenantID: v.TenantID, ThreadID: v.ThreadID, StudentID: v.StudentID, SenderAccountID: v.SenderAccountID, SenderKind: v.SenderKind, SenderName: v.SenderName, StaffNameVisible: v.StaffNameVisible, Body: v.Body, Kind: v.Kind, EventType: v.EventType, EventActorKind: v.EventActorKind, RequestType: v.RequestType, RequestStatus: v.RequestStatus, RefTable: v.RefTable, RefID: v.RefID, AppliedAt: v.AppliedAt, AppliedBy: v.AppliedBy, DecisionReason: v.DecisionReason, ReadByStaff: v.ReadByStaff, ReadByGuardian: v.ReadByGuardian}
+			values[i] = &ParentMessage{ID: v.ID, CreatedAt: v.CreatedAt, UpdatedAt: v.UpdatedAt, TenantID: v.TenantID, ThreadID: v.ThreadID, StudentID: v.StudentID, SenderAccountID: v.SenderAccountID, SenderKind: v.SenderKind, SenderName: v.SenderName, StaffNameVisible: v.StaffNameVisible, Body: v.Body, Kind: v.Kind, EventType: v.EventType, EventActorKind: v.EventActorKind, RequestType: v.RequestType, RequestStatus: v.RequestStatus, RefTable: v.RefTable, RefID: v.RefID, AppliedAt: v.AppliedAt, AppliedBy: v.AppliedBy, DecisionReason: v.DecisionReason, GroupThreadID: v.GroupThreadID, GroupThreadTitle: v.GroupThreadTitle, ReadByStaff: v.ReadByStaff, ReadByGuardian: v.ReadByGuardian}
 		}
 	}
 	return values

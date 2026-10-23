@@ -55,6 +55,8 @@ type ParentMessage struct {
 	AppliedAt        *time.Time     `json:"applied_at,omitempty"`
 	AppliedBy        *int64         `json:"applied_by,omitempty"`
 	DecisionReason   string         `json:"decision_reason,omitempty"`
+	GroupThreadID    *int64         `json:"group_thread_id,omitempty"`
+	GroupThreadTitle string         `json:"group_thread_title,omitempty"`
 	ReadByStaff      bool           `json:"read_by_staff,omitempty"`
 	ReadByGuardian   bool           `json:"read_by_guardian,omitempty"`
 }

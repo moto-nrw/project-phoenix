@@ -35,20 +35,20 @@ type ParentMessagingConfig struct {
 	LoginImages      parentMessages.LoginImageResolver
 	ParentsURL       string
 	Observe          func(Observation)
+	GroupAudience    communication.ParentGroupAudienceReads
 }
 
-func NewParentMessaging(cfg ParentMessagingConfig, runtime parentMessages.Runtime, policy deliveryPorts.ParentDeliveryPolicy) communication.ParentMessagingCapability {
+// NewParentMessaging also returns the OGS side of the group threads (#4784).
+func NewParentMessaging(cfg ParentMessagingConfig, runtime parentMessages.Runtime, policy deliveryPorts.ParentDeliveryPolicy) (communication.ParentMessagingCapability, communication.ParentGroupThreadCapability) {
 	service := parentMessages.NewService(parentMessages.Config{
 		ThreadRepo: parentMessages.NewThreadRepository(cfg.ThreadRepo), MessageRepo: parentMessages.NewMessageRepository(cfg.MessageRepo), ReadRepo: parentMessages.NewReadRepository(cfg.ReadRepo),
 		Persons: cfg.Persons, UserContext: cfg.UserContext, Session: cfg.Session, Settings: cfg.Settings,
-		Broadcaster: cfg.Broadcaster, Logger: cfg.Logger,
-		Notifier: deliveryPorts.NewNotificationSender(cfg.Notifier), Preferences: cfg.Preferences, Outbox: cfg.Outbox,
-		GuardianProfiles: cfg.GuardianProfiles, Schools: cfg.Schools,
-		LoginImages: cfg.LoginImages, ParentsURL: cfg.ParentsURL,
-		CountPreferences: newCountPreferences(cfg.DB),
-		Groups:           cfg.UserContext,
+		Broadcaster: cfg.Broadcaster, Logger: cfg.Logger, Notifier: deliveryPorts.NewNotificationSender(cfg.Notifier), Preferences: cfg.Preferences, Outbox: cfg.Outbox,
+		GuardianProfiles: cfg.GuardianProfiles, Schools: cfg.Schools, LoginImages: cfg.LoginImages, ParentsURL: cfg.ParentsURL,
+		CountPreferences: newCountPreferences(cfg.DB), Groups: cfg.UserContext,
+		GroupThreads: parentpostgres.NewGroupThreadStore(parentDatabase(cfg.DB)), GroupAudience: cfg.GroupAudience,
 	}, runtime, policy)
-	return deliveryPorts.NewParentMessagingFacade(service, parentMessages.NativeFacadeRows(), parentMessages.NativeFacadeErrors(), communicationPostgres.NewMessageObservation(cfg.Observe))
+	return deliveryPorts.NewParentMessagingFacade(service, parentMessages.NativeFacadeRows(), parentMessages.NativeFacadeErrors(), communicationPostgres.NewMessageObservation(cfg.Observe)), service
 }
 
 // newCountPreferences builds the store behind the personal count scope

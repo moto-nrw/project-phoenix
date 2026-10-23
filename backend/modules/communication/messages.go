@@ -50,6 +50,10 @@ type ParentMessage struct {
 	DecisionReason string
 	ReadByStaff    bool
 	ReadByGuardian bool
+	// GroupThreadID and GroupThreadTitle name the group thread a guardian's
+	// message answers (#4784).
+	GroupThreadID    *int64
+	GroupThreadTitle string
 }
 
 type ParentMessageInboxThread struct {

@@ -2216,7 +2216,9 @@
         "staff_messaging_disabled": "Nuk keni qasje te: {object}. Kontaktoni shkollën.",
         "staff_notice_outdated": "Nuk u ndryshua: {object}. Kontrolloni gjendjen aktuale.",
         "system_announcement_immutable": "Nuk u ndryshua: {object}. Kontrolloni gjendjen aktuale.",
-        "announcement_not_found": "Nuk u ndryshua: {object}. Kontrolloni gjendjen aktuale."
+        "announcement_not_found": "Nuk u ndryshua: {object}. Kontrolloni gjendjen aktuale.",
+        "group_thread_closed": "Ky mesazh grupi është mbyllur. Nuk mund të përgjigjeni më.",
+        "group_thread_no_recipients": "Asnjë fëmijë në këtë grup nuk ka prindër me qasje në moto. Mesazhi nuk u dërgua."
       },
       "enrollment": {
         "form_attachment_invalid": "Ju lutemi kontrolloni emrin dhe skedarin PDF.",

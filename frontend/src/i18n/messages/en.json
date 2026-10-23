@@ -2216,7 +2216,9 @@
         "staff_messaging_disabled": "You cannot access {object}. Please contact the school.",
         "staff_notice_outdated": "{object} could not be changed. Please check its current status.",
         "system_announcement_immutable": "{object} could not be changed. Please check its current status.",
-        "announcement_not_found": "{object} could not be changed. Please check its current status."
+        "announcement_not_found": "{object} could not be changed. Please check its current status.",
+        "group_thread_closed": "This group message is closed. You can no longer reply.",
+        "group_thread_no_recipients": "No child in this group has parents with access to moto. The message was not sent."
       },
       "enrollment": {
         "form_attachment_invalid": "Please check the label and the PDF file.",

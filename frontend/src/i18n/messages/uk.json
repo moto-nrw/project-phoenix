@@ -2216,7 +2216,9 @@
         "staff_messaging_disabled": "У вас немає доступу до: {object}. Зверніться до школи.",
         "staff_notice_outdated": "Не вдалося змінити: {object}. Перевірте поточний стан.",
         "system_announcement_immutable": "Не вдалося змінити: {object}. Перевірте поточний стан.",
-        "announcement_not_found": "Не вдалося змінити: {object}. Перевірте поточний стан."
+        "announcement_not_found": "Не вдалося змінити: {object}. Перевірте поточний стан.",
+        "group_thread_closed": "Це групове повідомлення закрито. Відповісти більше не можна.",
+        "group_thread_no_recipients": "Жодна дитина в цій групі не має батьків із доступом до moto. Повідомлення не надіслано."
       },
       "enrollment": {
         "form_attachment_invalid": "Перевірте назву та PDF-файл.",

@@ -51,8 +51,7 @@ type Dependencies struct {
 	ExcusedRequests  care.ExcusedAbsenceRequests
 	// CarePlan supplies native day locks, absence reports and pickup commands.
 	CarePlan parentportal.CarePlanCommands
-	// CareExceptions overrides the day-exception reads and locks; nil uses
-	// CarePlan.
+	// CareExceptions overrides the day-exception reads and locks (nil: CarePlan).
 	CareExceptions care.CareExceptions
 
 	CarePeriods      care.CarePeriodReads
@@ -81,6 +80,7 @@ type Dependencies struct {
 	MessageReadRepo           messaging.MessageInboxReads
 	Conversations             messaging.ConversationCore
 	MessagingEnabled          messaging.MessagingGate
+	GroupThreads              messaging.GroupThreads
 	AnnouncementRepo          messaging.AnnouncementAccess
 	CareRequestRepo           messaging.CareRequestReads
 	ExcusedRequestRepo        messaging.ExcusedRequestReads
@@ -150,7 +150,7 @@ func messagingConfig(deps Dependencies, resolver messaging.ChildResolver) messag
 		StudentRepo: deps.StudentRepo, StudentGuardianRepo: deps.StudentGuardianRepo, GuardianProfileRepo: deps.GuardianProfileRepo,
 		AnnouncementRepo:  deps.AnnouncementRepo,
 		MessageThreadRepo: deps.MessageThreadRepo, MessageRepo: deps.MessageRepo, MessageReadRepo: deps.MessageReadRepo,
-		Conversations: deps.Conversations, MessagingEnabled: deps.MessagingEnabled, ParentMessageNotifier: deps.ParentMessageNotifier, Emitter: deps.Emitter,
+		Conversations: deps.Conversations, MessagingEnabled: deps.MessagingEnabled, GroupThreads: deps.GroupThreads, ParentMessageNotifier: deps.ParentMessageNotifier, Emitter: deps.Emitter,
 		ChangeRequestRepo: deps.ChangeRequestRepo, CareRequestRepo: deps.CareRequestRepo,
 		ExcusedRequestRepo: deps.ExcusedRequestRepo, OfferingChangeRequestRepo: deps.OfferingChangeRequestRepo,
 		FamilyProtectionEvents: deps.FamilyProtectionEvents, ParentRequestShares: deps.ParentRequestShares,

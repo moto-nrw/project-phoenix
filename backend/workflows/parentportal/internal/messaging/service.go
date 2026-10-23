@@ -74,6 +74,7 @@ type Config struct {
 	MessageReadRepo       MessageInboxReads
 	Conversations         ConversationCore
 	MessagingEnabled      MessagingGate
+	GroupThreads          GroupThreads
 	ParentMessageNotifier care.StaffParentMessageNotifier
 	Emitter               care.ChildEvents
 

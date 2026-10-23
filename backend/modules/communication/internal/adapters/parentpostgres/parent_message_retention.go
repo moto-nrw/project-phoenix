@@ -5,6 +5,8 @@ import (
 	"errors"
 	"fmt"
 	"time"
+
+	"github.com/uptrace/bun"
 )
 
 // RetentionStore deletes the parent/OGS messages of a school past their
@@ -60,6 +62,20 @@ WHERE thread.tenant_id = ?
   AND thread.created_at < ?
   AND NOT EXISTS (SELECT 1 FROM users.parent_messages AS message WHERE message.thread_id = thread.id)`
 
+// deleteExpiredGroupMessagesSQL removes the group thread messages (#4784)
+// written before the cutoff; their recipient rows go with them.
+const deleteExpiredGroupMessagesSQL = `DELETE FROM users.parent_group_messages
+WHERE tenant_id = ?
+  AND created_at < ?`
+
+// deleteEmptyGroupThreadsSQL removes the group threads without any message
+// left. Their read cursors go with them; answers in the 1:1 conversations
+// keep their text and lose only the reference.
+const deleteEmptyGroupThreadsSQL = `DELETE FROM users.parent_group_threads AS thread
+WHERE thread.tenant_id = ?
+  AND thread.created_at < ?
+  AND NOT EXISTS (SELECT 1 FROM users.parent_group_messages AS message WHERE message.thread_id = thread.id)`
+
 // DeleteMessagesBefore removes the school's messages written before cutoff,
 // repairs the previews they leave behind and removes the conversations left
 // empty. It reports how many messages and conversations went.
@@ -90,6 +106,29 @@ func (s *RetentionStore) DeleteMessagesBefore(ctx context.Context, cutoff time.T
 	}
 	if threads, err = result.RowsAffected(); err != nil {
 		return 0, 0, fmt.Errorf("count empty parent message threads: %w", err)
+	}
+	groupMessages, groupThreads, err := deleteExpiredGroupThreads(ctx, db, scope.TenantID, cutoff)
+	if err != nil {
+		return 0, 0, err
+	}
+	return messages + groupMessages, threads + groupThreads, nil
+}
+
+// deleteExpiredGroupThreads applies the same retention to the group threads.
+func deleteExpiredGroupThreads(ctx context.Context, db bun.IDB, tenantID int64, cutoff time.Time) (messages, threads int64, err error) {
+	result, err := db.ExecContext(ctx, deleteExpiredGroupMessagesSQL, tenantID, cutoff)
+	if err != nil {
+		return 0, 0, fmt.Errorf("delete expired parent group messages: %w", err)
+	}
+	if messages, err = result.RowsAffected(); err != nil {
+		return 0, 0, fmt.Errorf("count expired parent group messages: %w", err)
+	}
+	result, err = db.ExecContext(ctx, deleteEmptyGroupThreadsSQL, tenantID, cutoff)
+	if err != nil {
+		return 0, 0, fmt.Errorf("delete empty parent group threads: %w", err)
+	}
+	if threads, err = result.RowsAffected(); err != nil {
+		return 0, 0, fmt.Errorf("count empty parent group threads: %w", err)
 	}
 	return messages, threads, nil
 }
