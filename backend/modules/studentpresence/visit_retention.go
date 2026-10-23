@@ -5,12 +5,19 @@ import (
 	"time"
 )
 
-// VisitRetentionCount is one student's expired visits and the retention
-// window that expired them.
+// VisitRetentionPolicy selects rolling consent windows or a completed-day cutoff.
+type VisitRetentionPolicy struct {
+	DefaultDays int
+	// CompletedBefore selects only visits closed before this instant, ignoring consent windows.
+	CompletedBefore *time.Time
+}
+
+// VisitRetentionCount carries the exact policy used to select a student's expired visits.
 type VisitRetentionCount struct {
-	StudentID     int64
-	Count         int
-	RetentionDays int
+	CompletedBefore *time.Time
+	StudentID       int64
+	Count           int
+	RetentionDays   int
 }
 type VisitMonthCount struct {
 	Month string
@@ -18,11 +25,11 @@ type VisitMonthCount struct {
 }
 
 // VisitRetentionQuery reads completed visits past their retention window: the
-// shortest accepted consent window of the child, otherwise defaultDays, the
-// tenant's gdpr.privacy_consent_retention_days (#3835).
+// shortest accepted consent window, otherwise DefaultDays. CompletedBefore
+// overrides both for schools whose attendance log is disabled.
 type VisitRetentionQuery interface {
-	ListVisitRetentionCounts(ctx context.Context, defaultDays int) ([]VisitRetentionCount, error)
-	CountExpiredVisits(ctx context.Context, defaultDays int) (int64, error)
-	OldestExpiredVisitDate(ctx context.Context, defaultDays int) (*time.Time, error)
-	ListExpiredVisitMonths(ctx context.Context, defaultDays int) ([]VisitMonthCount, error)
+	ListVisitRetentionCounts(ctx context.Context, policy VisitRetentionPolicy) ([]VisitRetentionCount, error)
+	CountExpiredVisits(ctx context.Context, policy VisitRetentionPolicy) (int64, error)
+	OldestExpiredVisitDate(ctx context.Context, policy VisitRetentionPolicy) (*time.Time, error)
+	ListExpiredVisitMonths(ctx context.Context, policy VisitRetentionPolicy) ([]VisitMonthCount, error)
 }

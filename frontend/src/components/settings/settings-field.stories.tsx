@@ -1,3 +1,4 @@
+import { useState } from "react";
 import type { Meta, StoryObj } from "@storybook/nextjs-vite";
 import { ToastProvider } from "~/contexts/ToastContext";
 import { SettingsField } from "~/components/settings/settings-field";
@@ -103,5 +104,40 @@ export const ReadOnlySetting: Story = {
       writable: false,
       is_default: true,
     }),
+  },
+};
+
+/** Local fixture: both portals share the same irreversible-deletion gate. */
+export const AttendanceHistory: Story = {
+  args: {
+    setting: makeSetting({
+      key: "gdpr.attendance_log_enabled",
+      label: "Anwesenheitsprotokoll",
+      description:
+        "Das Team sieht Anwesenheitszeiten und frühere Räume der Kinder.",
+      type: "boolean",
+      default: false,
+      value: true,
+      is_default: false,
+    }),
+  },
+  render: function AttendanceHistoryFixture(args) {
+    const [value, setValue] = useState(args.setting.value);
+    return (
+      <SettingsField
+        {...args}
+        setting={{
+          ...args.setting,
+          value,
+          is_default: value === args.setting.default,
+        }}
+        onSave={async (_key, next) => {
+          setValue(next);
+        }}
+        onReset={async () => {
+          setValue(args.setting.default);
+        }}
+      />
+    );
   },
 };

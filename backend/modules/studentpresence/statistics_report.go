@@ -169,6 +169,8 @@ type StatisticsReport struct {
 	// this report covers — the group filter narrows it with the population.
 	// Individual children may have shorter windows.
 	RoomDataDays int
+	// RoomHistoryDisabled distinguishes a switched-off history from an empty room list.
+	RoomHistoryDisabled bool
 	// RoomDataFrom is the earliest date room data can still exist for.
 	RoomDataFrom calendar.Date
 	Totals       StatisticsGroupRow
