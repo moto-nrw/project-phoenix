@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-import { readFileSync, readdirSync, unlinkSync, writeFileSync } from "node:fs";
+import { readFileSync, readdirSync, realpathSync, unlinkSync, writeFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { dirname, join } from "node:path";
 
@@ -111,7 +111,7 @@ export function writeGenerated(root, { goFiles, ts }, { check = false } = {}) {
   for (const [path, content] of outputs) writeFileSync(path, content);
 }
 
-if (process.argv[1] && fileURLToPath(import.meta.url) === process.argv[1]) {
+if (process.argv[1] && fileURLToPath(import.meta.url) === realpathSync(process.argv[1])) {
   const registry = JSON.parse(readFileSync(registryPath, "utf8"));
   writeGenerated(root, generate(registry), { check: process.argv.includes("--check") });
 }

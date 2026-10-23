@@ -1,6 +1,7 @@
-import { mkdirSync, mkdtempSync, readFileSync, rmSync, unlinkSync, writeFileSync } from "node:fs";
+import { mkdirSync, mkdtempSync, readFileSync, rmSync, symlinkSync, unlinkSync, writeFileSync } from "node:fs";
 import { test } from "node:test";
 import { tmpdir } from "node:os";
+import { spawnSync } from "node:child_process";
 import { join } from "node:path";
 import assert from "node:assert/strict";
 import { generate, validateRegistry, writeGenerated } from "./generate-error-codes.mjs";
@@ -80,4 +81,29 @@ test("freshness check rejects missing, changed and obsolete shards without repai
   assert.throws(() => readFileSync(stale), { code: "ENOENT" });
   assert.equal(readFileSync(handwritten, "utf8"), "package common\n");
   assert.doesNotThrow(() => writeGenerated(root, generated, { check: true }));
+});
+
+test("CLI generation and freshness checks work through a symlinked checkout", (t) => {
+  const root = mkdtempSync(join(tmpdir(), "error-code-cli-"));
+  const alias = `${root}-alias`;
+  t.after(() => {
+    rmSync(alias, { force: true });
+    rmSync(root, { recursive: true, force: true });
+  });
+  for (const directory of ["scripts", "backend/api/common", "frontend/src/lib"]) {
+    mkdirSync(join(root, directory), { recursive: true });
+  }
+  writeFileSync(join(root, "scripts/generate-error-codes.mjs"),
+    readFileSync(new URL("./generate-error-codes.mjs", import.meta.url)));
+  writeFileSync(join(root, "error-registry.json"), JSON.stringify(registry));
+  symlinkSync(root, alias, "dir");
+  const script = join(alias, "scripts/generate-error-codes.mjs");
+  const generated = spawnSync(process.execPath, [script], { encoding: "utf8" });
+  assert.equal(generated.status, 0, generated.stderr);
+  const shard = join(root, "backend/api/common/error_codes_000.generated.go");
+  assert.match(readFileSync(shard, "utf8"), /Code generated/);
+  unlinkSync(shard);
+  const stale = spawnSync(process.execPath, [script, "--check"], { encoding: "utf8" });
+  assert.notEqual(stale.status, 0);
+  assert.match(stale.stderr, /generated error codes are stale/);
 });
