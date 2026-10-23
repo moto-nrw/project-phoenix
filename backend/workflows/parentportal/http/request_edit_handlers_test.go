@@ -1,6 +1,7 @@
 package parent_test
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"net/http"
@@ -8,6 +9,7 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"github.com/uptrace/bun"
 
 	"time"
 
@@ -138,6 +140,67 @@ func TestEditExcusedRequestEndpoint(t *testing.T) {
 		fmt.Sprintf("/me/children/%d/excused-requests/999999999", chain.StudentID), token,
 		map[string]any{"dates": []string{corrected.String()}, "note": "Fremd"})
 	assert.Equal(t, http.StatusNotFound, missing.Code, missing.Body.String())
+}
+
+// TestEditRequestsNeedTheSubmitPermission pins #4603: changing an open
+// request needs the permission that filing it needs. A guardian whose
+// sick_note.submit or request.submit was taken away keeps seeing their open
+// request but can no longer rewrite it.
+func TestEditRequestsNeedTheSubmitPermission(t *testing.T) {
+	t.Parallel()
+
+	db := testpkg.SetupTestDB(t)
+	chain := testpkg.CreateTestParentGuardianChain(t, db)
+	router := newWriteRouterWithSettings(t, db, absenceApprovalOnSettings{})
+	token := parentToken(t, chain.AccountID)
+	day := testDay(5)
+
+	created := doRequest(t, router, http.MethodPost,
+		fmt.Sprintf("/me/children/%d/sick-note?envelope=1", chain.StudentID), token,
+		map[string]any{"dates": []string{day.String()}, "reason": "Familienfeier", "status": absenceStatusExcused})
+	require.Equal(t, http.StatusCreated, created.Code, created.Body.String())
+	var createdEnv envelope
+	require.NoError(t, json.Unmarshal(created.Body.Bytes(), &createdEnv))
+	var result struct {
+		PendingRequest *struct {
+			ID string `json:"id"`
+		} `json:"pending_request"`
+	}
+	require.NoError(t, json.Unmarshal(createdEnv.Data, &result))
+	require.NotNil(t, result.PendingRequest)
+
+	setGuardianPermissions(t, db, chain, `{"parent_portal.access": true}`)
+
+	excused := doRequest(t, router, http.MethodPut,
+		fmt.Sprintf("/me/children/%d/excused-requests/%s", chain.StudentID, result.PendingRequest.ID), token,
+		map[string]any{"dates": []string{testDayPlus(day, 1).String()}, "note": "Doch später"})
+	require.Equal(t, http.StatusForbidden, excused.Code, excused.Body.String())
+	assert.Contains(t, excused.Body.String(), `"code":"care.guardian_permission_denied"`)
+
+	// The router under test has no weekly-plan requests, so a permitted edit
+	// ends in 404; the permission check comes first and answers 403.
+	careSchedulePath := fmt.Sprintf("/me/children/%d/care-schedule/requests/%s", chain.StudentID, result.PendingRequest.ID)
+	careSchedule := doRequest(t, router, http.MethodPut, careSchedulePath, token, map[string]any{"monday": true})
+	require.Equal(t, http.StatusForbidden, careSchedule.Code, careSchedule.Body.String())
+	assert.Contains(t, careSchedule.Body.String(), `"code":"care.guardian_permission_denied"`)
+
+	setGuardianPermissions(t, db, chain, `{"parent_portal.access": true, "parent_portal.request.submit": true}`)
+	permitted := doRequest(t, router, http.MethodPut, careSchedulePath, token, map[string]any{"monday": true})
+	assert.Equal(t, http.StatusNotFound, permitted.Code, permitted.Body.String())
+}
+
+// setGuardianPermissions replaces the stored permissions of the chain's
+// guardian relationship.
+func setGuardianPermissions(t *testing.T, db *bun.DB, chain testpkg.ParentChain, permissions string) {
+	t.Helper()
+	_, err := db.ExecContext(testpkg.WithPackageTenantRuntime(context.Background()), `
+		UPDATE auth.guardian_student_access AS a
+		SET permissions = ?::jsonb
+		FROM users.student_guardian_relationships AS r
+		WHERE r.tenant_id = a.tenant_id AND r.id = a.relationship_id
+		  AND r.tenant_id = ? AND r.student_id = ? AND r.guardian_profile_id = ?
+	`, permissions, chain.TenantID, chain.StudentID, chain.GuardianProfileID)
+	require.NoError(t, err)
 }
 
 // absenceStatusExcused is the wire value of the "excused" absence kind. It is
