@@ -271,3 +271,51 @@ func flipCareExitTokenHex(t *testing.T, token string) string {
 	}
 	return string(flipped)
 }
+
+// The transport reaches the workflow even without the domain lifecycle. The
+// real root binding must retain membership, ledger and audit effects.
+func TestCareResumeHandlerUsesIndependentWorkflowEntry(t *testing.T) {
+	t.Parallel()
+	tc := setupStudentsRouteWithCareLifecycle(t, false, fixedCalendarClock)
+	tc.resource.CareLifecycleService = nil
+	today := studentsTestToday
+	student := testpkg.CreateTestStudent(t, tc.db, "Returning", "Child", "2a")
+	actor := testpkg.CreateTestAccount(t, tc.db, "resume-entry")
+	ctx := testpkg.Ctx(t)
+	ended := today.AddDays(-1)
+	_, err := tc.db.NewUpdate().TableExpr("users.student_school_memberships").
+		Set("enrolled_until = ?", ended).Set("status = ?", careplan.StudentStatusInactive).
+		Where("student_profile_id = ? AND deleted_at IS NULL", student.ID).Exec(ctx)
+	require.NoError(t, err)
+	_, err = tc.db.NewRaw(`INSERT INTO users.student_care_exits (tenant_id, student_id, reason) VALUES (?, ?, 'moved_away')`, testpkg.Tenant(t), student.ID).Exec(ctx)
+	require.NoError(t, err)
+	path := fmt.Sprintf("/%d/care-end/resume", student.ID)
+	request := testutil.NewAuthenticatedRequest(t, http.MethodPost, path, map[string]any{"new_start": today.String(), "checked": true})
+	response := authExec(t, tc, request, testutil.AdminTestClaims(int(actor.ID)), []string{"admin:*"})
+	require.Equal(t, http.StatusOK, response.Code, "Body: %s", response.Body.String())
+	var body struct {
+		Data struct {
+			Resumed  bool   `json:"resumed"`
+			NewStart string `json:"new_start"`
+		} `json:"data"`
+	}
+	require.NoError(t, json.Unmarshal(response.Body.Bytes(), &body))
+	assert.True(t, body.Data.Resumed)
+	assert.Equal(t, today.String(), body.Data.NewStart)
+	var membership struct {
+		EnrolledFrom  *calendar.Date `bun:"enrolled_from"`
+		EnrolledUntil *calendar.Date `bun:"enrolled_until"`
+		Status        string         `bun:"status"`
+	}
+	require.NoError(t, tc.db.NewSelect().TableExpr("users.student_school_memberships").Column("enrolled_from", "enrolled_until", "status").Where("student_profile_id = ? AND deleted_at IS NULL", student.ID).Scan(ctx, &membership))
+	require.NotNil(t, membership.EnrolledFrom)
+	assert.Equal(t, today, *membership.EnrolledFrom)
+	assert.Nil(t, membership.EnrolledUntil)
+	assert.Equal(t, careplan.StudentStatusActive, membership.Status)
+	exits, err := tc.db.NewSelect().TableExpr("users.student_care_exits").Where("student_id = ?", student.ID).Count(ctx)
+	require.NoError(t, err)
+	assert.Zero(t, exits)
+	edits, err := tc.db.NewSelect().TableExpr("audit.student_field_edits").Where("student_id = ?", student.ID).Where("field_name = ?", "care_end").Where("edited_by = ?", actor.ID).Count(ctx)
+	require.NoError(t, err)
+	assert.Equal(t, int64(1), edits, "the workflow keeps the care-end audit")
+}
