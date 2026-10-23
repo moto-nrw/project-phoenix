@@ -35,3 +35,23 @@ it("does not load iframe pages or stylesheets from rendered component markup", a
   expect(stylesheet).toBeInTheDocument();
   expect(attempts).toEqual([]);
 });
+
+it("does not fetch documents opened in a new window", async () => {
+  const attempts: string[] = [];
+  browser.settings.fetch.interceptor = {
+    beforeAsyncRequest: async ({ request, window: browserWindow }) => {
+      attempts.push(new URL(request.url).origin);
+      return new browserWindow.Response(null, { status: 204 });
+    },
+  };
+  const link = document.createElement("a");
+  link.href = "http://localhost:3000/network-isolation-proof";
+  link.target = "_blank";
+  link.textContent = "Open local fixture";
+  document.body.append(link);
+  // Anker: a real, connected link exercises Happy DOM's native navigation.
+  expect(link).toBeInTheDocument();
+  link.click();
+  await browser.waitUntilComplete();
+  expect(attempts).toEqual([]);
+});

@@ -98,7 +98,11 @@ export default defineConfig({
               // Component markup must not fetch marketing pages or vendor
               // resources. Tests mock fetch explicitly when that is their seam.
               settings: {
-                disableIframePageLoading: true,
+                navigation: {
+                  disableMainFrameNavigation: true,
+                  disableChildFrameNavigation: true,
+                  disableChildPageNavigation: true,
+                },
                 disableCSSFileLoading: true,
                 disableJavaScriptFileLoading: true,
                 enableImageFileLoading: false,
