@@ -916,7 +916,7 @@ function dayLogTopic(groupMode: HelpGroupMode): HelpTopic {
     result:
       "Sie sehen für heute, welches Kind da ist. Die Liste ist danach geordnet. Kinder ohne Meldung stehen unter `Unentschuldigt abwesend`. Vergangene Tage können Sie hier nicht auswählen.",
     differences: [
-      "Fehlt `Tagesauswertung`? Bitten Sie Ihre Leitung, das `Anwesenheitsprotokoll` unter `Einstellungen` und `Datenschutz` einzuschalten.",
+      "Fehlt `Tagesauswertung`? Fragen Sie Ihre Leitung nach dem `Anwesenheitsprotokoll`. Sie finden es unter `Einstellungen` und `Datenschutz`.",
       "Steht dort `Anwesenheitsprotokoll ist ausgeschaltet`? Dann ist es für Ihre Schule nicht eingeschaltet.",
     ],
     notes: [
@@ -5604,6 +5604,8 @@ function settingsGuideTopic(): HelpTopic {
         ordered: false,
         steps: [
           "`Anwesenheitsprotokoll`: Das Team sieht bei jedem Kind, wann es da war und in welchen Räumen.",
+          "Vor dem Einschalten prüft die Schule die Rechtsgrundlage. Sie ist für die Nutzung verantwortlich.",
+          "Ausschalten beendet die Erfassung nicht und löscht keine Daten. Der aktuelle Aufenthaltsort bleibt davon unabhängig.",
           "`Nutzungsanalyse`: moto erhält Nutzungsstatistiken Ihrer Schule, aber keine eingegebenen Inhalte.",
           "Löschfristen wie `Anwesenheit aufbewahren (Tage)`: Wie lange moto Daten behält. Sie können sie nur lesen.",
         ],
