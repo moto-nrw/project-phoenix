@@ -30,8 +30,8 @@ type CareStudentDirectory interface {
 	// EndCare sets the last care day of every given child; nil clears it. It
 	// reports how many rows it changed.
 	EndCare(ctx context.Context, studentIDs []int64, lastCareDay *calendar.Date) (changed int64, err error)
-	// ResumeCare reopens one child's interval from start with status, frozen
-	// on the given day. resumed is false when the care had not ended.
+	// ResumeCare is consumed by the root's resumption workflow binding, not
+	// the Care Plan application. resumed is false when care had not ended.
 	ResumeCare(ctx context.Context, studentID int64, start calendar.Date, status string, on calendar.Date) (resumed bool, err error)
 }
 
