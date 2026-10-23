@@ -142,4 +142,16 @@ describe("Gruppennachricht: Objektseite", () => {
       screen.getByText("Gruppe Bären · 2 Familien · 1 gelesen · Geschlossen"),
     ).toBeInTheDocument();
   });
+
+  it("aktualisiert die offene Ansicht nach einer Nachricht aus einem anderen Tab", async () => {
+    render(<GroupMessagePage />);
+    expect(
+      await screen.findByText("Wer bringt einen Kuchen mit?"),
+    ).toBeInTheDocument();
+    mutate.mockClear();
+
+    window.dispatchEvent(new CustomEvent("messages-activity"));
+
+    await waitFor(() => expect(mutate).toHaveBeenCalledTimes(1));
+  });
 });

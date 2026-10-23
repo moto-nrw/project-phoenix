@@ -132,11 +132,18 @@ export function ParentMessagesPage() {
       const silent = opts?.silent ?? false;
       const seq = ++loadSeqRef.current;
       if (!silent) setLoading(true);
+      void listGroupThreads()
+        .then((nextGroupThreads) => {
+          if (!mountedRef.current || seq !== loadSeqRef.current) return;
+          setGroupThreads(nextGroupThreads);
+        })
+        .catch((err: unknown) => {
+          logger.warn("parent_group_threads_load_failed", {
+            error: err instanceof Error ? err.message : String(err),
+          });
+        });
       try {
-        const [childList, nextGroupThreads] = await Promise.all([
-          listMyChildren(),
-          listGroupThreads(),
-        ]);
+        const childList = await listMyChildren();
         // Nur die Mehr-Kinder-Liste braucht die Uebersicht der Unterhaltungen.
         const nextRows =
           childList.length > 1
@@ -145,7 +152,6 @@ export function ParentMessagesPage() {
         if (!mountedRef.current || seq !== loadSeqRef.current) return;
         setChildren(childList);
         setRows(nextRows);
-        setGroupThreads(nextGroupThreads);
         clearLoadError();
       } catch (err) {
         logger.warn("parent_messages_load_failed", {

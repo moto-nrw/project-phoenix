@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useCallback, useState } from "react";
 import { useParams } from "next/navigation";
 import useSWR from "swr";
 import { Alert } from "~/components/ui/alert";
@@ -15,6 +15,7 @@ import { ChatBubble } from "~/components/messaging/chat-bubble";
 import { MessageComposer } from "~/components/messaging/message-composer";
 import { useApiErrorDisplay, useApiFormError } from "~/contexts/ToastContext";
 import { useSwrLoadError } from "~/lib/hooks/use-swr-load-error";
+import { useMessagesActivity } from "~/lib/hooks/use-messages-activity";
 import { createLogger } from "~/lib/logger";
 import {
   type GroupThreadDetail,
@@ -50,6 +51,16 @@ function GroupMessageContent() {
     { revalidateOnFocus: false },
   );
   const loadError = useSwrLoadError(error, "die Gruppennachricht", mutate);
+
+  // Group-thread broadcasts deliberately omit the thread id from staff events,
+  // so refetch any open group detail. This view does not advance a read cursor.
+  const refreshThread = useCallback(() => void mutate(), [mutate]);
+  useMessagesActivity({
+    onMatch: refreshThread,
+    debounceMs: 500,
+    marksRead: false,
+    refetchOnFocus: true,
+  });
 
   const [draft, setDraft] = useState("");
   const [sending, setSending] = useState(false);

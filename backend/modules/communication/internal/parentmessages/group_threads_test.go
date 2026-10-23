@@ -4,6 +4,7 @@ import (
 	"context"
 	"log/slog"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -81,6 +82,8 @@ func TestGroupThread_ReachesEachFamilyAndKeepsThemApart(t *testing.T) {
 	}))
 	require.Len(t, detail.Messages, 1)
 	assert.Equal(t, "Olivia Berg", detail.Messages[0].SenderName)
+	require.NotNil(t, detail.Thread.LastMessageAt)
+	assert.Equal(t, detail.Messages[0].CreatedAt, *detail.Thread.LastMessageAt)
 	require.Len(t, detail.Children, 2, "both families of class 1a are recipients")
 	for _, child := range detail.Children {
 		assert.False(t, child.Read)
@@ -150,10 +153,15 @@ func TestGroupThread_RecipientsAreFrozenPerMessage(t *testing.T) {
 
 	// A third family joins class 1a after the first message.
 	late := testpkg.CreateTestParentGuardianChain(t, testpkg.SetupTestDB(t))
+	var second *communication.ParentGroupThreadDetail
 	require.NoError(t, run(staffCtx, func(ctx context.Context) error {
-		_, err := f.svc.PostParentGroupMessage(ctx, threadID, "Zweite Nachricht")
+		var err error
+		second, err = f.svc.PostParentGroupMessage(ctx, threadID, "Zweite Nachricht")
 		return err
 	}))
+	require.Len(t, second.Messages, 2)
+	require.NotNil(t, second.Thread.LastMessageAt)
+	assert.Equal(t, second.Messages[1].CreatedAt, *second.Thread.LastMessageAt)
 
 	require.NoError(t, run(testpkg.Ctx(t), func(ctx context.Context) error {
 		view, _, err := f.portal.PortalReadGroupThread(ctx, threadID, late.AccountID, []int64{late.StudentID})
@@ -362,4 +370,53 @@ func TestGroupThread_RetentionDeletesExpiredGroupMessages(t *testing.T) {
 		(SELECT COUNT(*) FROM users.parent_group_message_recipients WHERE tenant_id = ?)`,
 		testpkg.Tenant(t), testpkg.Tenant(t), testpkg.Tenant(t)).Scan(testpkg.Ctx(t), &remaining))
 	assert.Zero(t, remaining)
+}
+
+func TestGroupThread_RetentionRepairsLatestActivity(t *testing.T) {
+	t.Parallel()
+	f, run := newGroupFixture(t)
+	db := testpkg.SetupTestDB(t)
+	staffCtx := adminCtx(t, f.staff)
+
+	var detail *communication.ParentGroupThreadDetail
+	require.NoError(t, run(staffCtx, func(ctx context.Context) error {
+		var err error
+		detail, err = f.svc.CreateParentGroupThread(ctx, communication.ParentGroupThreadInput{
+			Target: classTarget("1a"), Title: "Aktivität", Body: "Erste Nachricht",
+		})
+		return err
+	}))
+	require.NoError(t, run(staffCtx, func(ctx context.Context) error {
+		var err error
+		detail, err = f.svc.PostParentGroupMessage(ctx, detail.Thread.ID, "Zweite Nachricht")
+		return err
+	}))
+	require.Len(t, detail.Messages, 2)
+
+	latestID := detail.Messages[1].ID
+	_, err := db.ExecContext(testpkg.Ctx(t), `
+		UPDATE users.parent_group_messages
+		SET created_at = NOW() - INTERVAL '400 days'
+		WHERE id = ? AND tenant_id = ?`, latestID, testpkg.Tenant(t))
+	require.NoError(t, err)
+
+	cleanup := composition.NewParentMessageRetention(db, groupRetentionDays(365))
+	require.NoError(t, run(testpkg.Ctx(t), func(ctx context.Context) error {
+		result, err := cleanup.CleanupExpiredParentMessages(ctx)
+		require.NoError(t, err)
+		assert.Equal(t, 1, result.MessagesDeleted)
+		assert.Zero(t, result.ThreadsDeleted)
+		return nil
+	}))
+
+	var lastMessageAt, remainingMessageAt time.Time
+	require.NoError(t, db.NewRaw(`
+		SELECT last_message_at FROM users.parent_group_threads
+		WHERE id = ? AND tenant_id = ?`, detail.Thread.ID, testpkg.Tenant(t)).
+		Scan(testpkg.Ctx(t), &lastMessageAt))
+	require.NoError(t, db.NewRaw(`
+		SELECT created_at FROM users.parent_group_messages
+		WHERE thread_id = ? AND tenant_id = ?`, detail.Thread.ID, testpkg.Tenant(t)).
+		Scan(testpkg.Ctx(t), &remainingMessageAt))
+	assert.Equal(t, remainingMessageAt, lastMessageAt)
 }

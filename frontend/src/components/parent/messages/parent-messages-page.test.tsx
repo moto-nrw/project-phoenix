@@ -119,6 +119,35 @@ describe("ParentMessagesPage – Gruppennachrichten (#4784)", () => {
       screen.queryByRole("heading", { name: "Gruppennachrichten der OGS" }),
     ).not.toBeInTheDocument();
   });
+
+  // Die neue, optionale Gruppennachrichten-Abfrage darf die bestehende
+  // Unterhaltungsliste nicht verdecken, wenn ihr Endpunkt vorübergehend fehlt.
+  it("zeigt die Unterhaltungen trotz fehlender Gruppennachrichten", async () => {
+    mockedChildren.mockResolvedValue([felix, mia]);
+    mockedThreads.mockResolvedValue([
+      {
+        thread_id: "t1",
+        student_id: "42",
+        student_name: "Felix Schneider",
+        school_name: "Schule am Berg",
+        counterpart_name: "OGS Schule am Berg",
+        last_message_kind: "message",
+        last_message_read_by_staff: false,
+        unread: 0,
+      },
+    ]);
+    mockedGroupThreads.mockRejectedValue(new Error("nicht erreichbar"));
+
+    renderPage();
+
+    // Anker: die bestehende Unterhaltungsliste ist geladen.
+    expect(
+      await screen.findByRole("link", { name: /Felix Schneider/ }),
+    ).toBeInTheDocument();
+    expect(
+      screen.queryByRole("heading", { name: "Gruppennachrichten der OGS" }),
+    ).not.toBeInTheDocument();
+  });
 });
 
 describe("ParentMessagesPage", () => {

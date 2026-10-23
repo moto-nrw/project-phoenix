@@ -68,6 +68,26 @@ const deleteExpiredGroupMessagesSQL = `DELETE FROM users.parent_group_messages
 WHERE tenant_id = ?
   AND created_at < ?`
 
+// repairGroupThreadActivitySQL rebuilds a surviving thread's activity after
+// retention removed its recorded latest message. Group-thread lists order by
+// last_message_at, so retaining a timestamp for a deleted message would leave
+// the thread in the wrong position until its next write.
+const repairGroupThreadActivitySQL = `UPDATE users.parent_group_threads AS thread
+SET last_message_at = latest.created_at
+FROM users.parent_group_threads AS stale
+JOIN LATERAL (
+    SELECT message.created_at
+    FROM users.parent_group_messages AS message
+    WHERE message.thread_id = stale.id
+      AND message.tenant_id = stale.tenant_id
+    ORDER BY message.created_at DESC, message.id DESC
+    LIMIT 1
+) AS latest ON TRUE
+WHERE thread.id = stale.id
+  AND thread.tenant_id = stale.tenant_id
+  AND stale.tenant_id = ?
+  AND (stale.last_message_at IS NULL OR stale.last_message_at <> latest.created_at)`
+
 // deleteEmptyGroupThreadsSQL removes the group threads without any message
 // left. Their read cursors go with them; answers in the 1:1 conversations
 // keep their text and lose only the reference.
@@ -122,6 +142,9 @@ func deleteExpiredGroupThreads(ctx context.Context, db bun.IDB, tenantID int64, 
 	}
 	if messages, err = result.RowsAffected(); err != nil {
 		return 0, 0, fmt.Errorf("count expired parent group messages: %w", err)
+	}
+	if _, err := db.ExecContext(ctx, repairGroupThreadActivitySQL, tenantID); err != nil {
+		return 0, 0, fmt.Errorf("repair parent group thread activity: %w", err)
 	}
 	result, err = db.ExecContext(ctx, deleteEmptyGroupThreadsSQL, tenantID, cutoff)
 	if err != nil {

@@ -194,6 +194,7 @@ func (s *Service) sendGroupMessage(ctx context.Context, thread *deliveryPorts.Pa
 	if err != nil {
 		return fmt.Errorf("messaging: append group message: %w", err)
 	}
+	thread.LastMessageAt = &message.CreatedAt
 	if err := s.notifyGroupRecipients(ctx, thread, message.ID, recipients); err != nil {
 		return err
 	}
