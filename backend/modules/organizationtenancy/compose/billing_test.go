@@ -285,7 +285,12 @@ func TestBillingCountsCannotBeChangedByTheServerRoles(t *testing.T) {
 			assert.Equal(t, allowed, has, "%s %s", role, privilege)
 		}
 	}
-	for _, role := range []string{"phoenix_admin", "phoenix_auth", "phoenix_tenant", "phoenix_school_erasure", "phoenix_billing_retention"} {
+	for _, role := range []string{"phoenix_admin", "phoenix_auth", "phoenix_tenant", "phoenix_demo", "phoenix_school_erasure", "phoenix_billing_retention"} {
+		for _, privilege := range []string{"INSERT", "UPDATE", "DELETE", "TRUNCATE", "REFERENCES", "TRIGGER"} {
+			var has bool
+			require.NoError(t, db.NewRaw(`SELECT has_table_privilege(?, 'platform.live_billing_key_date_counts', ?)`, role, privilege).Scan(t.Context(), &has))
+			assert.False(t, has, "%s must not inherit %s on the live billing view", role, privilege)
+		}
 		var capture, readLive, expire bool
 		require.NoError(t, db.NewRaw(`SELECT
  has_function_privilege(?, 'platform.capture_billing_key_date_counts(bigint[],text[],text[],text[],text[],integer[],integer[])', 'EXECUTE'),

@@ -24,8 +24,11 @@ const schoolErasureBillingSQL = `
  CREATE VIEW platform.live_billing_key_date_counts WITH (security_barrier = true) AS
   SELECT r.* FROM platform.billing_key_date_counts r
   WHERE EXISTS (SELECT FROM platform.schools s WHERE s.id = r.school_id);
- REVOKE SELECT, INSERT ON platform.billing_key_date_counts FROM phoenix_admin;
- REVOKE ALL ON platform.live_billing_key_date_counts FROM PUBLIC, phoenix_auth, phoenix_tenant;
+ -- 1.14.1 grants phoenix_admin ALL on new platform relations, including
+ -- views. security_barrier protects reads, not writes through this otherwise
+ -- automatically updatable owner-rights view. Reset every runtime grant first.
+ REVOKE ALL ON platform.billing_key_date_counts, platform.live_billing_key_date_counts
+  FROM phoenix_admin, phoenix_tenant, phoenix_auth, PUBLIC;
  GRANT SELECT ON platform.live_billing_key_date_counts TO phoenix_admin;
  GRANT SELECT ON platform.billing_key_date_counts TO phoenix_billing_retention;
 
@@ -45,7 +48,7 @@ const schoolErasureBillingSQL = `
   SELECT count(*) FROM inserted;
  $body$;
  REVOKE ALL ON FUNCTION platform.capture_billing_key_date_counts(BIGINT[],TEXT[],TEXT[],TEXT[],TEXT[],INTEGER[],INTEGER[])
-  FROM PUBLIC, phoenix_auth, phoenix_tenant, phoenix_school_erasure, phoenix_billing_retention;
+  FROM PUBLIC, phoenix_auth, phoenix_tenant, phoenix_admin, phoenix_school_erasure, phoenix_billing_retention;
  GRANT EXECUTE ON FUNCTION platform.capture_billing_key_date_counts(BIGINT[],TEXT[],TEXT[],TEXT[],TEXT[],INTEGER[],INTEGER[]) TO phoenix_admin;
 
  CREATE FUNCTION platform.delete_expired_billing_key_date_counts()

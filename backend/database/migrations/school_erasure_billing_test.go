@@ -2,6 +2,7 @@ package migrations
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"testing"
 
@@ -11,6 +12,44 @@ import (
 	"github.com/stretchr/testify/require"
 	"github.com/uptrace/bun"
 )
+
+func TestSchoolErasureBillingRejectsRuntimeWrites(t *testing.T) {
+	t.Parallel()
+	db := testpkg.SetupTestDB(t)
+	schoolID := testpkg.Tenant(t)
+	erasureExec(t, db, `INSERT INTO platform.billing_key_date_counts
+ (school_id,period,key_date,school_name,organization_name,active_students,active_terminals)
+ VALUES (?,'2026-01-01','2026-01-15','Fixture school','Fixture organization',1,1)`, schoolID)
+	rollback := errors.New("roll back unexpected billing write")
+	for _, role := range []string{"phoenix_admin", "phoenix_tenant", "phoenix_auth"} {
+		for _, relation := range []string{"platform.live_billing_key_date_counts", "platform.billing_key_date_counts"} {
+			for _, operation := range []struct {
+				name  string
+				query string
+				args  []any
+			}{
+				{"insert", `INSERT INTO ` + relation + `
+ (id,school_id,period,key_date,school_name,organization_name,active_students,active_terminals)
+ VALUES (?,?,'2026-02-01','2026-02-15','Fixture school','Fixture organization',1,1)`, []any{-schoolID, schoolID}},
+				{"update", `UPDATE ` + relation + ` SET active_students=999 WHERE school_id=?`, []any{schoolID}},
+				{"delete", `DELETE FROM ` + relation + ` WHERE school_id=?`, []any{schoolID}},
+			} {
+				t.Run(role+"/"+relation+"/"+operation.name, func(t *testing.T) {
+					err := db.RunInTx(t.Context(), nil, func(ctx context.Context, tx bun.Tx) error {
+						if _, err := tx.ExecContext(ctx, `SET LOCAL ROLE `+role); err != nil {
+							return err
+						}
+						if _, err := tx.ExecContext(ctx, operation.query, operation.args...); err != nil {
+							return err
+						}
+						return rollback
+					})
+					require.ErrorContains(t, err, "SQLSTATE=42501", "runtime writes must fail at the privilege boundary")
+				})
+			}
+		}
+	}
+}
 
 func TestSchoolErasureRetainsBillingOnlyForRestrictedBillingRole(t *testing.T) {
 	t.Parallel()
