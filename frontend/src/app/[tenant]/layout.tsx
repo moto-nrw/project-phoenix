@@ -46,6 +46,7 @@ interface TenantResolveResponse {
   meal_registration_enabled?: boolean;
   waitlist_enabled?: boolean;
   grade_level_max: number;
+  analytics_enabled?: boolean;
   analytics_freigabe?: boolean;
   analytics_recording_sample_percent?: number;
   early_checkout_note_enabled?: boolean;
@@ -109,6 +110,7 @@ async function fetchTenantInfo(slug: string): Promise<TenantInfo | null> {
     mealRegistrationEnabled: data.meal_registration_enabled === true,
     waitlistEnabled: data.waitlist_enabled !== false,
     gradeLevelMax: data.grade_level_max,
+    analyticsEnabled: data.analytics_enabled === true,
     analyticsFreigabe: data.analytics_freigabe === true,
     analyticsRecordingSamplePercent: normalizeRecordingSamplePercent(
       data.analytics_recording_sample_percent,

@@ -229,6 +229,7 @@ type Registration interface {
 	SetParticipationBySchool(context.Context, SchoolChange) error
 	ClearParticipationBySchool(context.Context, SchoolChange) error
 	DailyList(context.Context, Date) (DailyList, error)
+	WeeklyList(context.Context, Date) (WeeklyList, error)
 }
 
 // Ordering is the school's meal orders and its supply by a caterer
@@ -327,4 +328,10 @@ type OrderWeek struct {
 	Rhythm string
 	Detail string
 	Days   []OrderDay
+}
+
+// WeeklyList is the kitchen list for Monday to Friday.
+type WeeklyList struct {
+	WeekStart Date
+	Days      []DailyList
 }

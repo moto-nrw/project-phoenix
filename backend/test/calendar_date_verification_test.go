@@ -73,12 +73,6 @@ var unmappedDateColumns = map[string]string{
 	"schedule.meal_participation_schedules.effective_from": "meal-participation Postgres adapter-local row uses calendar.Date — no models/ struct",
 	"schedule.meal_participation_overrides.date":           "meal-participation Postgres adapter-local row uses calendar.Date — no models/ struct",
 	"schedule.meal_sickness_status_history.date":           "meal-participation sickness history is queried through adapter-local calendar.Date rows — no models/ struct",
-	"schedule.meal_orders.period_start":                    "meal-order Postgres adapter-local row uses calendar.Date — no models/ struct",
-	"schedule.meal_orders.period_end":                      "meal-order Postgres adapter-local row uses calendar.Date — no models/ struct",
-	"schedule.meal_order_days.date":                        "meal-order Postgres adapter-local row uses calendar.Date — no models/ struct",
-	"schedule.meal_order_lines.date":                       "meal-order Postgres adapter-local row uses calendar.Date — no models/ struct",
-	"schedule.meal_order_changes.date":                     "meal-order Postgres adapter-local row uses calendar.Date — no models/ struct",
-	"schedule.meal_registration_changes.date":              "meal registration log Postgres adapter-local row uses calendar.Date — no models/ struct",
 	// Later-pickup tasks (#3261) are owned by the Timetable module. Its
 	// adapter-local rows use the module's distinct Date value, because the
 	// target architecture forbids a dependency on the former date wrapper.
@@ -97,9 +91,6 @@ var unmappedDateColumns = map[string]string{
 // The scanner only sees declarations; renames are direction-blind in
 // migration+rollback strings, so they are recorded explicitly.
 var renamedDateColumns = map[string]string{
-	// 001015480_external_caregivers_table.go renames the table, keeping its dates.
-	"users.guests.start_date": "users.external_caregivers.start_date",
-	"users.guests.end_date":   "users.external_caregivers.end_date",
 	// Student owner cutover moves the dates to school membership; the Student
 	// DTO no longer declares the removed compatibility table as owned storage.
 	"users.students.enrolled_from":  "users.student_school_memberships.enrolled_from",
@@ -112,6 +103,9 @@ var renamedDateColumns = map[string]string{
 	// the Contract (#2754) removed users.staff, and the Staff DTO no longer
 	// declares it as its table.
 	"users.staff.rotation_anchor_date": "users.staff_employment_profiles.rotation_anchor_date",
+	// 001015477_external_caregivers_table.go renames users.guests (ADR 0091).
+	"users.guests.start_date": "users.external_caregivers.start_date",
+	"users.guests.end_date":   "users.external_caregivers.end_date",
 	// 001015034_template_extensions.go renames enrollment_date to valid_from.
 	"activities.student_enrollments.enrollment_date": "activities.student_enrollments.valid_from",
 }

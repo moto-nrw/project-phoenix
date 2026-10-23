@@ -38,7 +38,7 @@ type Actor struct {
 	Surface  string
 	Role     string
 	SchoolID int64 // 0 when the session has no school (parents portal)
-	// AccountID is the OGS account of the session, 0 on every other surface.
+	// AccountID stays internal: OGS pseudonym or parent school-membership lookup.
 	AccountID int64
 }
 
@@ -46,6 +46,7 @@ type Actor struct {
 // live with the composition root, which owns token verification.
 type CoreActionConfig struct {
 	Tracker Tracker
+	Policy  CollectionPolicy
 	// RequestActor reads the actor from the verified session of the request.
 	RequestActor func(*http.Request) (Actor, bool)
 	// SessionActor reads the actor from an access token the response mints
@@ -106,7 +107,11 @@ func captureCoreAction(cfg CoreActionConfig, r *http.Request, action CoreAction,
 	if !ok {
 		return
 	}
-	ctx, distinct := identify(r.Context(), cfg, actor)
+	actor, ok = cfg.Policy.EnrollmentActor(r, actor)
+	if !ok || !cfg.Policy.AllowsActor(r.Context(), actor) {
+		return
+	}
+	ctx, distinct := identify(context.WithValue(r.Context(), collectionPermissionKey{}, true), cfg, actor)
 	cfg.Tracker.CaptureContext(ctx, distinct, action.Event, action.properties(actor))
 }
 
@@ -154,6 +159,9 @@ func responseCreated(body []byte) bool {
 // takes the session of the request, or the route's own surface when it is
 // public.
 func resolveActor(cfg CoreActionConfig, r *http.Request, action CoreAction, body *cappedBuffer) (Actor, bool) {
+	if action.Surface == SurfacePublic {
+		return Actor{Surface: SurfacePublic}, true
+	}
 	if action.Session {
 		if actor, ok := mintedSessionActor(cfg, body); ok {
 			return actor, true

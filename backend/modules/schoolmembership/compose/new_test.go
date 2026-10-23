@@ -16,12 +16,12 @@ import (
 // The fixed calendar dates every date assertion here uses. Deriving them from
 // the wall clock would make the expectations drift across midnight.
 const (
-	anchorDate     = "2026-03-01"
-	rebasedAnchor  = "2026-09-07"
-	guestStartDate = "2026-03-01"
-	guestEndDate   = "2026-03-31"
-	insideWindow   = "2026-03-15"
-	afterWindow    = "2026-04-01"
+	anchorDate      = "2026-03-01"
+	rebasedAnchor   = "2026-09-07"
+	recordStartDate = "2026-03-01"
+	recordEndDate   = "2026-03-31"
+	insideWindow    = "2026-03-15"
+	afterWindow     = "2026-04-01"
 )
 
 func buildModule(t *testing.T, db *bun.DB, observations ...func(Observation)) schoolmembership.Owner {
@@ -198,14 +198,14 @@ func TestModuleReportsMembershipConflicts(t *testing.T) {
 	_, err = module.CreateTeacher(ctx, schoolmembership.CreateTeacher{TeacherFields: schoolmembership.TeacherFields{StaffID: staff.ID}})
 	require.ErrorIs(t, err, schoolmembership.ErrTeacherStaffConflict)
 
-	_, err = module.CreateGuest(ctx, schoolmembership.CreateGuest{GuestFields: schoolmembership.GuestFields{
+	_, err = module.CreateExternalCaregiverRecord(ctx, schoolmembership.CreateExternalCaregiverRecord{ExternalCaregiverRecordFields: schoolmembership.ExternalCaregiverRecordFields{
 		StaffID: staff.ID, ActivityExpertise: "Zirkus",
 	}})
 	require.NoError(t, err)
-	_, err = module.CreateGuest(ctx, schoolmembership.CreateGuest{GuestFields: schoolmembership.GuestFields{
+	_, err = module.CreateExternalCaregiverRecord(ctx, schoolmembership.CreateExternalCaregiverRecord{ExternalCaregiverRecordFields: schoolmembership.ExternalCaregiverRecordFields{
 		StaffID: staff.ID, ActivityExpertise: "Theater",
 	}})
-	require.ErrorIs(t, err, schoolmembership.ErrGuestStaffConflict)
+	require.ErrorIs(t, err, schoolmembership.ErrExternalCaregiverRecordStaffConflict)
 }
 
 func TestModuleRunsTheTeacherLifecycle(t *testing.T) {
@@ -313,95 +313,95 @@ func TestModuleFiltersTeacherListings(t *testing.T) {
 	assert.Empty(t, empty)
 }
 
-func TestModuleRunsTheGuestLifecycle(t *testing.T) {
+func TestModuleRunsTheExternalCaregiverRecordLifecycle(t *testing.T) {
 	t.Parallel()
 	db := testpkg.SetupTestDB(t)
 	module := buildModule(t, db)
 	ctx := testpkg.Ctx(t)
-	staff := createStaff(t, ctx, db, module, "Guest", "Instructor", schoolmembership.StaffFields{})
+	staff := createStaff(t, ctx, db, module, "Extern", "Kursleitung", schoolmembership.StaffFields{})
 
-	created, err := module.CreateGuest(ctx, schoolmembership.CreateGuest{GuestFields: schoolmembership.GuestFields{
+	created, err := module.CreateExternalCaregiverRecord(ctx, schoolmembership.CreateExternalCaregiverRecord{ExternalCaregiverRecordFields: schoolmembership.ExternalCaregiverRecordFields{
 		StaffID: staff.ID, ActivityExpertise: "Zirkus", Organization: "Circus e.V.",
 		ContactEmail: "gast@example.com", ContactPhone: "+49 221 1234567",
-		StartDate: guestStartDate, EndDate: guestEndDate, Notes: "Kommt dienstags",
+		StartDate: recordStartDate, EndDate: recordEndDate, Notes: "Kommt dienstags",
 	}})
 	require.NoError(t, err)
 	assert.Equal(t, testpkg.Tenant(t), created.TenantID)
-	assert.Equal(t, guestStartDate, created.StartDate)
-	assert.Equal(t, guestEndDate, created.EndDate)
+	assert.Equal(t, recordStartDate, created.StartDate)
+	assert.Equal(t, recordEndDate, created.EndDate)
 
-	found, err := module.FindGuest(ctx, created.ID)
+	found, err := module.FindExternalCaregiverRecord(ctx, created.ID)
 	require.NoError(t, err)
 	assert.Equal(t, "Circus e.V.", found.Organization)
 
-	byStaff, err := module.FindGuestByStaff(ctx, staff.ID)
+	byStaff, err := module.FindExternalCaregiverRecordByStaff(ctx, staff.ID)
 	require.NoError(t, err)
 	assert.Equal(t, created.ID, byStaff.ID)
 
-	updated, err := module.UpdateGuest(ctx, schoolmembership.UpdateGuest{ID: created.ID, GuestFields: schoolmembership.GuestFields{
+	updated, err := module.UpdateExternalCaregiverRecord(ctx, schoolmembership.UpdateExternalCaregiverRecord{ID: created.ID, ExternalCaregiverRecordFields: schoolmembership.ExternalCaregiverRecordFields{
 		StaffID: staff.ID, ActivityExpertise: "Theater", Organization: "Circus e.V.",
 	}})
 	require.NoError(t, err)
 	assert.Equal(t, "Theater", updated.ActivityExpertise)
 	assert.Empty(t, updated.StartDate, "clearing the window writes NULL rather than keeping the old date")
 
-	require.NoError(t, module.DeleteGuest(ctx, created.ID))
-	_, err = module.FindGuest(ctx, created.ID)
-	require.ErrorIs(t, err, schoolmembership.ErrGuestNotFound)
-	require.ErrorIs(t, module.DeleteGuest(ctx, created.ID), schoolmembership.ErrGuestNotFound,
-		"guests carry no tombstone, the delete is final")
+	require.NoError(t, module.DeleteExternalCaregiverRecord(ctx, created.ID))
+	_, err = module.FindExternalCaregiverRecord(ctx, created.ID)
+	require.ErrorIs(t, err, schoolmembership.ErrExternalCaregiverRecordNotFound)
+	require.ErrorIs(t, module.DeleteExternalCaregiverRecord(ctx, created.ID), schoolmembership.ErrExternalCaregiverRecordNotFound,
+		"records carry no tombstone, the delete is final")
 
-	remaining, err := module.ListGuests(ctx, schoolmembership.GuestFilter{})
+	remaining, err := module.ListExternalCaregiverRecords(ctx, schoolmembership.ExternalCaregiverRecordFilter{})
 	require.NoError(t, err)
 	assert.Empty(t, remaining)
 }
 
-func TestModuleFiltersGuestListings(t *testing.T) {
+func TestModuleFiltersExternalCaregiverRecordListings(t *testing.T) {
 	t.Parallel()
 	db := testpkg.SetupTestDB(t)
 	module := buildModule(t, db)
 	ctx := testpkg.Ctx(t)
 
-	boundStaff := createStaff(t, ctx, db, module, "Bound", "Guest", schoolmembership.StaffFields{})
-	openStaff := createStaff(t, ctx, db, module, "Open", "Guest", schoolmembership.StaffFields{})
+	boundStaff := createStaff(t, ctx, db, module, "Bound", "Extern", schoolmembership.StaffFields{})
+	openStaff := createStaff(t, ctx, db, module, "Open", "Extern", schoolmembership.StaffFields{})
 
-	bound, err := module.CreateGuest(ctx, schoolmembership.CreateGuest{GuestFields: schoolmembership.GuestFields{
+	bound, err := module.CreateExternalCaregiverRecord(ctx, schoolmembership.CreateExternalCaregiverRecord{ExternalCaregiverRecordFields: schoolmembership.ExternalCaregiverRecordFields{
 		StaffID: boundStaff.ID, ActivityExpertise: "Zirkus", Organization: "Circus e.V.",
-		StartDate: guestStartDate, EndDate: guestEndDate,
+		StartDate: recordStartDate, EndDate: recordEndDate,
 	}})
 	require.NoError(t, err)
-	open, err := module.CreateGuest(ctx, schoolmembership.CreateGuest{GuestFields: schoolmembership.GuestFields{
+	open, err := module.CreateExternalCaregiverRecord(ctx, schoolmembership.CreateExternalCaregiverRecord{ExternalCaregiverRecordFields: schoolmembership.ExternalCaregiverRecordFields{
 		StaffID: openStaff.ID, ActivityExpertise: "Theater", Organization: "Buehne gGmbH",
 	}})
 	require.NoError(t, err)
 
-	inWindow, err := module.ListGuests(ctx, schoolmembership.GuestFilter{ActiveOn: insideWindow})
+	inWindow, err := module.ListExternalCaregiverRecords(ctx, schoolmembership.ExternalCaregiverRecordFilter{ActiveOn: insideWindow})
 	require.NoError(t, err)
-	assert.Len(t, inWindow, 2, "an open-ended guest is active on every day")
+	assert.Len(t, inWindow, 2, "an open-ended record is active on every day")
 
-	afterEnd, err := module.ListGuests(ctx, schoolmembership.GuestFilter{ActiveOn: afterWindow})
+	afterEnd, err := module.ListExternalCaregiverRecords(ctx, schoolmembership.ExternalCaregiverRecordFilter{ActiveOn: afterWindow})
 	require.NoError(t, err)
 	require.Len(t, afterEnd, 1)
 	assert.Equal(t, open.ID, afterEnd[0].ID)
 
-	byStaff, err := module.ListGuests(ctx, schoolmembership.GuestFilter{StaffIDs: []int64{boundStaff.ID}})
+	byStaff, err := module.ListExternalCaregiverRecords(ctx, schoolmembership.ExternalCaregiverRecordFilter{StaffIDs: []int64{boundStaff.ID}})
 	require.NoError(t, err)
 	require.Len(t, byStaff, 1)
 	assert.Equal(t, bound.ID, byStaff[0].ID)
 
-	byOrganization, err := module.ListGuests(ctx, schoolmembership.GuestFilter{OrganizationContains: "circus"})
+	byOrganization, err := module.ListExternalCaregiverRecords(ctx, schoolmembership.ExternalCaregiverRecordFilter{OrganizationContains: "circus"})
 	require.NoError(t, err)
 	require.Len(t, byOrganization, 1)
 	assert.Equal(t, bound.ID, byOrganization[0].ID)
 
-	byExpertise, err := module.ListGuests(ctx, schoolmembership.GuestFilter{ExpertiseContains: "heate"})
+	byExpertise, err := module.ListExternalCaregiverRecords(ctx, schoolmembership.ExternalCaregiverRecordFilter{ExpertiseContains: "heate"})
 	require.NoError(t, err)
 	require.Len(t, byExpertise, 1)
 	assert.Equal(t, open.ID, byExpertise[0].ID)
 
 	// The organization filter reads the column, not the trimmed value: a
-	// guest whose organization was never set carries SQL NULL.
-	noOrganizationStaff := createStaff(t, ctx, db, module, "Anonymous", "Guest", schoolmembership.StaffFields{})
+	// record whose organization was never set carries SQL NULL.
+	noOrganizationStaff := createStaff(t, ctx, db, module, "Anonymous", "Extern", schoolmembership.StaffFields{})
 	var withoutOrganizationID int64
 	require.NoError(t, db.NewRaw(
 		`INSERT INTO users.external_caregivers (tenant_id, staff_id, activity_expertise, organization)
@@ -409,21 +409,21 @@ func TestModuleFiltersGuestListings(t *testing.T) {
 		testpkg.Tenant(t), noOrganizationStaff.ID, "Kochen",
 	).Scan(context.Background(), &withoutOrganizationID))
 
-	withOrganization, err := module.ListGuests(ctx, schoolmembership.GuestFilter{HasOrganization: boolPtr(true)})
+	withOrganization, err := module.ListExternalCaregiverRecords(ctx, schoolmembership.ExternalCaregiverRecordFilter{HasOrganization: boolPtr(true)})
 	require.NoError(t, err)
 	assert.Len(t, withOrganization, 2)
 
-	withoutOrganization, err := module.ListGuests(ctx, schoolmembership.GuestFilter{HasOrganization: boolPtr(false)})
+	withoutOrganization, err := module.ListExternalCaregiverRecords(ctx, schoolmembership.ExternalCaregiverRecordFilter{HasOrganization: boolPtr(false)})
 	require.NoError(t, err)
 	require.Len(t, withoutOrganization, 1)
 	assert.Equal(t, withoutOrganizationID, withoutOrganization[0].ID)
 
-	empty, err := module.ListGuests(ctx, schoolmembership.GuestFilter{IDs: []int64{}})
+	empty, err := module.ListExternalCaregiverRecords(ctx, schoolmembership.ExternalCaregiverRecordFilter{IDs: []int64{}})
 	require.NoError(t, err)
 	assert.Empty(t, empty)
 }
 
-func TestModuleListsGuestMarkerAfterActivityWindowWhenRequested(t *testing.T) {
+func TestModuleListsExternalCaregiverRecordMarkerAfterActivityWindowWhenRequested(t *testing.T) {
 	t.Parallel()
 	db := testpkg.SetupTestDB(t)
 	module := buildModule(t, db)
@@ -434,12 +434,12 @@ func TestModuleListsGuestMarkerAfterActivityWindowWhenRequested(t *testing.T) {
 		db,
 		module,
 		"Former",
-		"Guest",
+		"Extern",
 		schoolmembership.StaffFields{},
 	)
 
-	_, err := module.CreateGuest(ctx, schoolmembership.CreateGuest{
-		GuestFields: schoolmembership.GuestFields{
+	_, err := module.CreateExternalCaregiverRecord(ctx, schoolmembership.CreateExternalCaregiverRecord{
+		ExternalCaregiverRecordFields: schoolmembership.ExternalCaregiverRecordFields{
 			StaffID: staff.ID, ActivityExpertise: "Musik",
 			StartDate: "2000-01-01", EndDate: "2000-01-02",
 		},
@@ -447,12 +447,12 @@ func TestModuleListsGuestMarkerAfterActivityWindowWhenRequested(t *testing.T) {
 	require.NoError(t, err)
 
 	loaded, err := module.ListStaff(ctx, schoolmembership.StaffFilter{
-		IDs: []int64{staff.ID}, IncludeInactiveGuests: true,
+		IDs: []int64{staff.ID}, IncludeInactiveExternalCaregiverRecords: true,
 	})
 	require.NoError(t, err)
 	require.Len(t, loaded, 1)
-	assert.True(t, loaded[0].IsGuest,
-		"the guest marker identifies an external caregiver even after the activity window")
+	assert.True(t, loaded[0].HasExternalCaregiverRecord,
+		"the record marker identifies an external caregiver even after the activity window")
 }
 
 func TestModuleTenantIsolationHidesAnotherTenantsMemberships(t *testing.T) {
@@ -466,7 +466,7 @@ func TestModuleTenantIsolationHidesAnotherTenantsMemberships(t *testing.T) {
 		StaffID: staff.ID, Specialization: "Mathematik",
 	}})
 	require.NoError(t, err)
-	guest, err := module.CreateGuest(ctx, schoolmembership.CreateGuest{GuestFields: schoolmembership.GuestFields{
+	record, err := module.CreateExternalCaregiverRecord(ctx, schoolmembership.CreateExternalCaregiverRecord{ExternalCaregiverRecordFields: schoolmembership.ExternalCaregiverRecordFields{
 		StaffID: staff.ID, ActivityExpertise: "Zirkus",
 	}})
 	require.NoError(t, err)
@@ -481,10 +481,10 @@ func TestModuleTenantIsolationHidesAnotherTenantsMemberships(t *testing.T) {
 	require.ErrorIs(t, err, schoolmembership.ErrTeacherNotFound)
 	_, err = module.FindTeacherByStaff(otherCtx, staff.ID)
 	require.ErrorIs(t, err, schoolmembership.ErrTeacherNotFound)
-	_, err = module.FindGuest(otherCtx, guest.ID)
-	require.ErrorIs(t, err, schoolmembership.ErrGuestNotFound)
-	_, err = module.FindGuestByStaff(otherCtx, staff.ID)
-	require.ErrorIs(t, err, schoolmembership.ErrGuestNotFound)
+	_, err = module.FindExternalCaregiverRecord(otherCtx, record.ID)
+	require.ErrorIs(t, err, schoolmembership.ErrExternalCaregiverRecordNotFound)
+	_, err = module.FindExternalCaregiverRecordByStaff(otherCtx, staff.ID)
+	require.ErrorIs(t, err, schoolmembership.ErrExternalCaregiverRecordNotFound)
 
 	listedStaff, err := module.ListStaff(otherCtx, schoolmembership.StaffFilter{IncludeDeleted: true})
 	require.NoError(t, err)
@@ -492,22 +492,22 @@ func TestModuleTenantIsolationHidesAnotherTenantsMemberships(t *testing.T) {
 	listedTeachers, err := module.ListTeachers(otherCtx, schoolmembership.TeacherFilter{IncludeDeleted: true})
 	require.NoError(t, err)
 	assert.Empty(t, listedTeachers)
-	listedGuests, err := module.ListGuests(otherCtx, schoolmembership.GuestFilter{})
+	listedRecords, err := module.ListExternalCaregiverRecords(otherCtx, schoolmembership.ExternalCaregiverRecordFilter{})
 	require.NoError(t, err)
-	assert.Empty(t, listedGuests)
+	assert.Empty(t, listedRecords)
 
 	_, err = module.UpdateStaff(otherCtx, schoolmembership.UpdateStaff{ID: staff.ID, StaffFields: schoolmembership.StaffFields{PersonID: staff.PersonID}})
 	require.ErrorIs(t, err, schoolmembership.ErrStaffNotFound)
 	_, err = module.UpdateTeacher(otherCtx, schoolmembership.UpdateTeacher{ID: teacher.ID, TeacherFields: schoolmembership.TeacherFields{StaffID: staff.ID}})
 	require.ErrorIs(t, err, schoolmembership.ErrTeacherNotFound)
-	_, err = module.UpdateGuest(otherCtx, schoolmembership.UpdateGuest{ID: guest.ID, GuestFields: schoolmembership.GuestFields{
+	_, err = module.UpdateExternalCaregiverRecord(otherCtx, schoolmembership.UpdateExternalCaregiverRecord{ID: record.ID, ExternalCaregiverRecordFields: schoolmembership.ExternalCaregiverRecordFields{
 		StaffID: staff.ID, ActivityExpertise: "Zirkus",
 	}})
-	require.ErrorIs(t, err, schoolmembership.ErrGuestNotFound)
+	require.ErrorIs(t, err, schoolmembership.ErrExternalCaregiverRecordNotFound)
 
 	require.ErrorIs(t, module.DeleteStaff(otherCtx, staff.ID), schoolmembership.ErrStaffNotFound)
 	require.ErrorIs(t, module.DeleteTeacher(otherCtx, teacher.ID), schoolmembership.ErrTeacherNotFound)
-	require.ErrorIs(t, module.DeleteGuest(otherCtx, guest.ID), schoolmembership.ErrGuestNotFound)
+	require.ErrorIs(t, module.DeleteExternalCaregiverRecord(otherCtx, record.ID), schoolmembership.ErrExternalCaregiverRecordNotFound)
 
 	// Everything the other tenant tried left the owner's rows untouched.
 	stillThere, err := module.FindStaff(ctx, staff.ID)

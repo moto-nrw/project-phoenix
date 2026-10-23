@@ -174,6 +174,9 @@ export const PROXY_ROUTES: Record<string, readonly string[]> = {
   "api/meal-plan/participation/[studentId]/schedule": [
     "PUT tenant /api/meal-plan/participation/studentId%2F1/schedule",
   ],
+  "api/meal-plan/participants/week": [
+    "GET tenant /api/meal-plan/participants/week",
+  ],
   "api/messages/reachable-students": [
     "GET tenant /api/messages/reachable-students",
   ],
@@ -272,6 +275,7 @@ export const PROXY_ROUTES: Record<string, readonly string[]> = {
   "api/operator/provisioning/unregistered-tag-scans": [
     "GET operator /operator/unregistered-tag-scans",
   ],
+  "api/parent/analytics-policy": ["GET parent /analytics-policy"],
   "api/parent/calendar": ["GET parent /parent/me/calendar"],
   "api/parent/calendar/appointments/[appointmentId]/overview": [
     "GET parent /parent/me/calendar/appointments/appointmentId%2F1/overview",
@@ -439,6 +443,7 @@ export const PROXY_ROUTES: Record<string, readonly string[]> = {
   "api/school-setup/steps/[step]": [
     "PUT tenant /api/school-setup/steps/step%2F1",
   ],
+  "api/school/analytics-policy": ["GET school /analytics-policy"],
   "api/school/class-day": ["GET school /school/class-day/"],
   "api/school/class-day/arrival-exceptions": [
     "GET school /school/class-day/arrival-exceptions",

@@ -18,11 +18,14 @@ vi.mock("next/navigation", () => ({
   }),
 }));
 
-// Load errors use the real hook; the export's toast path is a spy.
-const mockShowExportError = vi.fn();
+// Der Export-Dialog ist ein SlideOver; Vaul rendert in jsdom nichts.
+vi.mock("vaul", () => import("~/test/mocks/vaul"));
+
+// Die Seite rendert hier ohne ToastProvider; der Erfolgs-Toast des Exports
+// ist für diese Tests ohne Belang.
 vi.mock("~/contexts/ToastContext", async (importOriginal) => ({
   ...(await importOriginal<typeof import("~/contexts/ToastContext")>()),
-  useApiErrorDisplay: () => ({ show: mockShowExportError }),
+  useToast: () => ({ success: vi.fn(), error: vi.fn() }),
 }));
 
 vi.mock("next-auth/react", () => ({
@@ -479,7 +482,9 @@ describe("StudentRoomHistoryPage", () => {
 
   // ─── Table content (uses getAllByText since desktop+mobile both render) ─────
 
-  it("hands a failed export to the toast error path with a retry", async () => {
+  // #4748: der Export fragt den Zeitraum im Export-Dialog ab (höchstens die
+  // sichtbaren Tage, keine Zukunft); ein Fehler bleibt im offenen Dialog.
+  it("exports the visible days from the dialog and keeps a failure there", async () => {
     mockFetch.mockImplementation((url: string) => {
       if (url.includes("/attendance-history/export")) {
         return Promise.resolve({ ok: false, status: 500 });
@@ -494,13 +499,22 @@ describe("StudentRoomHistoryPage", () => {
     fireEvent.click(
       await screen.findByRole("button", { name: "Weitere Aktionen" }),
     );
-    fireEvent.click(await screen.findByRole("menuitem", { name: "PDF" }));
+    fireEvent.click(
+      await screen.findByRole("menuitem", { name: "Exportieren" }),
+    );
+    fireEvent.click(screen.getByRole("button", { name: "Herunterladen" }));
 
-    await waitFor(() =>
-      expect(mockShowExportError).toHaveBeenCalledWith(
-        expect.objectContaining({ status: 500, code: "general.server" }),
-        { object: "die Exportdatei", retry: expect.any(Function) },
+    const message = catalogText("general.server", "die Exportdatei");
+    expect(await screen.findByText(message)).toBeInTheDocument();
+    expect(screen.getByRole("dialog")).toContainElement(
+      screen.getByText(message),
+    );
+    // 30 sichtbare Tage bis heute (Testuhr 09.09.2026), im gewählten Format.
+    expect(mockFetch).toHaveBeenCalledWith(
+      expect.stringContaining(
+        "/api/students/42/attendance-history/export?format=pdf&from=2026-08-11&to=2026-09-09",
       ),
+      undefined,
     );
   });
 

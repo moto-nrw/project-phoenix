@@ -264,7 +264,9 @@
     "cancelWeekConfirm": "Anulo",
     "cancelWeekDone": "Java është anuluar.",
     "cancelWeekLocked": "Këto ditë ishin porositur tashmë dhe mbeten të regjistruara: {days}.",
-    "errorObjectWeekCancel": "anulimin për javën"
+    "errorObjectWeekCancel": "anulimin për javën",
+    "participationCutoffLead": "Mund ta ndryshoni regjistrimin deri në orën {time} {days, plural, one {një ditë pune para drekës} other {# ditë pune para drekës}}.",
+    "participationSicknessLead": "Një njoftim i konfirmuar për sëmundje deri në orën {time} {days, plural, one {një ditë pune para drekës} other {# ditë pune para drekës}} e anulon drekën. Pas kësaj, regjistrimi mbetet i pandryshuar."
   },
   "mealOrders": {
     "title": "Porosia",
@@ -338,7 +340,26 @@
     "errorObjectChange": "regjistrimin",
     "asRegular": "Si në ditët e rregullta",
     "scheduleLoading": "Po ngarkohen ditët e rregullta…",
-    "errorObjectSchedule": "ditët e rregullta"
+    "errorObjectSchedule": "ditët e rregullta",
+    "cutoffLead": "Ndryshimet për këtë ditë janë të mundura deri në orën {time} {days, plural, one {një ditë pune më parë} other {# ditë pune më parë}}.",
+    "viewAria": "Pamja e listës për kuzhinën",
+    "viewDay": "Dita",
+    "viewWeek": "Java",
+    "weekTitle": "Lista javore për kuzhinën",
+    "weekDescription": "Lista tregon të gjithë fëmijët e regjistruar për drekë këtë javë.",
+    "weekCutoff": "Ndryshimet janë të mundura deri në orën {time} {days, plural, =0 {në ditën e drekës} one {një ditë pune më parë} other {# ditë pune më parë}}.",
+    "weekDateAria": "Java nga {from}",
+    "weekDownloadGroup": "Shkarko listën javore",
+    "weekDownloadPdf": "Shkarko listën javore si PDF",
+    "weekDownloadExcel": "Shkarko listën javore si skedar Excel",
+    "weekErrorObject": "lista javore",
+    "weekCaption": "Dreka nga {from} deri më {to}",
+    "weekEmptyTitle": "Asnjë regjistrim këtë javë",
+    "weekEmptyDescription": "Asnjë fëmijë nuk është në listën e kuzhinës për këtë javë.",
+    "weekRegistered": "i regjistruar",
+    "weekNotRegistered": "i paregjistruar",
+    "weekCountsLabel": "Numri i drekave për ditë",
+    "weekCount": "{count, plural, one {# fëmijë} other {# fëmijë}}"
   },
   "parentDashboard": {
     "eyebrow": "Portali i prindërve",
@@ -2902,6 +2923,14 @@
       },
       "feedback": {
         "disabled": "Nuk keni qasje te: {object}. Kontaktoni shkollën."
+      },
+      "staff": {
+        "external_access_invalid": "Nuk u ruajt: {object}. Kontrolloni të dhënat.",
+        "external_email_invalid": "Nuk u ruajt: {object}. Kontrolloni të dhënat.",
+        "external_email_invited": "Nuk u ndryshua: {object}. Kontrolloni gjendjen aktuale.",
+        "external_email_required": "Nuk u ruajt: {object}. Kontrolloni të dhënat.",
+        "external_has_account": "Nuk u ndryshua: {object}. Kontrolloni gjendjen aktuale.",
+        "not_external": "Nuk u ndryshua: {object}. Kontrolloni gjendjen aktuale."
       }
     },
     "actions": {

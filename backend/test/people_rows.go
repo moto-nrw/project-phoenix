@@ -132,9 +132,9 @@ type StudentGuardian struct {
 	AccessAccountID    *int64         `bun:"access_account_id,scanonly"`
 }
 
-// Guest is one users.external_caregivers row.
-type Guest struct {
-	bun.BaseModel     `bun:"table:users.external_caregivers,alias:guest"`
+// ExternalCaregiverRecord is one users.external_caregivers row.
+type ExternalCaregiverRecord struct {
+	bun.BaseModel     `bun:"table:users.external_caregivers,alias:external_caregiver"`
 	ID                int64          `bun:"id,pk,autoincrement"`
 	TenantID          int64          `bun:"tenant_id,notnull"`
 	CreatedAt         time.Time      `bun:"created_at,nullzero,notnull,default:current_timestamp"`
@@ -148,7 +148,7 @@ type Guest struct {
 	EndDate           *calendar.Date `bun:"end_date"`
 	Notes             string         `bun:"notes"`
 
-	// Staff is the fixture's staff row; it is not stored with the guest row.
+	// Staff is the fixture's staff row; it is not stored with the record.
 	Staff *Staff `bun:"-"`
 }
 

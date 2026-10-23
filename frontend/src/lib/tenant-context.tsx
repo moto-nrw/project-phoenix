@@ -14,6 +14,8 @@ import {
   type PresenceMode,
   type TenantInfo,
 } from "~/lib/tenant-api";
+import { setTenantAnalyticsPolicy } from "~/lib/posthog-client";
+import { useAnalyticsSchoolPolicy } from "~/lib/hooks/use-analytics-school-policy";
 import { subscribeSettingsChanged } from "~/lib/settings-broadcast";
 
 interface TenantContextValue {
@@ -59,6 +61,11 @@ export function TenantProvider({
     setTenant(serverTenant);
   }, [serverTenant]);
 
+  const analyticsSource = useAnalyticsSchoolPolicy(
+    tenantSlug,
+    tenant?.subdomain === tenantSlug && tenant.analyticsEnabled === true,
+  );
+
   // Sequence-token to drop out-of-order resolveTenant responses when
   // multiple signals land in the same tick. Kept monotonic across slug
   // changes so an in-flight resolve from a previous slug can't satisfy
@@ -67,16 +74,24 @@ export function TenantProvider({
   // any A-resolve still in flight, even if no B-refetch fires before
   // A's response lands.
   const requestSeqRef = useRef(0);
+  const needsInitialResolve = serverTenant === null;
 
   useEffect(() => {
     if (!tenantSlug) return undefined;
 
     const refetch = () => {
+      setTenantAnalyticsPolicy(analyticsSource, { tenantSlug, enabled: false });
       const token = ++requestSeqRef.current;
       const requestedSlug = tenantSlug;
       void resolveTenant(requestedSlug).then((fresh) => {
         if (token !== requestSeqRef.current) return;
-        if (!fresh) return;
+        if (!fresh) {
+          // A failed privacy refresh must not erase operational settings.
+          setTenant((previous) =>
+            previous ? { ...previous, analyticsEnabled: false } : null,
+          );
+          return;
+        }
         // Defence-in-depth: also drop responses whose payload doesn't
         // match the tenant we asked for. The counter-bump on slug change
         // already invalidates stale responses, but the explicit compare
@@ -85,9 +100,16 @@ export function TenantProvider({
         // is the subdomain, while the payload slug column can
         // legitimately differ from it (#1975).
         if (fresh.subdomain !== requestedSlug) return;
+        setTenantAnalyticsPolicy(analyticsSource, {
+          tenantSlug: requestedSlug,
+          enabled: fresh.analyticsEnabled === true,
+        });
         setTenant(fresh);
       });
     };
+
+    // Token edit/adjust pages initially know only the target slug.
+    if (needsInitialResolve) refetch();
 
     const unsubscribeBroadcast = subscribeSettingsChanged(refetch);
 
@@ -134,7 +156,7 @@ export function TenantProvider({
         document.removeEventListener("visibilitychange", onVisibilityChange);
       }
     };
-  }, [tenantSlug]);
+  }, [tenantSlug, analyticsSource, needsInitialResolve]);
 
   const value = useMemo(
     () => ({ tenantSlug, tenant, routingMode }),

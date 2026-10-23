@@ -126,6 +126,7 @@ type TenantResolveResponse struct {
 	// user IDs only while it is true, and shows staff a notice. Shell metadata
 	// because every page load reads it, so switching it off takes effect at
 	// the next load. A resolution error fails the shell request.
+	AnalyticsEnabled  bool `json:"analytics_enabled"`
 	AnalyticsFreigabe bool `json:"analytics_freigabe"`
 	// AnalyticsRecordingSamplePercent is the share of OGS sessions recorded
 	// with the Freigabe (analytics.recording_sample_percent). A lookup error
@@ -173,6 +174,7 @@ type tenantShellSettings struct {
 	reasonPolicy              string
 	showTimetableCounts       bool
 	waitlistEnabled           bool
+	analyticsEnabled          bool
 	analyticsFreigabe         bool
 	analyticsSamplePercent    int
 	earlyCheckoutNote         bool

@@ -1,14 +1,11 @@
 "use client";
 
-import { useLayoutEffect, useRef, useState } from "react";
-import type { ReactNode } from "react";
-import { Download, FileSpreadsheet, FileText } from "lucide-react";
+import { useEffect, useState } from "react";
 
-import { FormErrorAlert } from "~/components/ui/form-error-alert";
-import { Modal } from "~/components/ui/modal";
+import { ExportDialog } from "~/components/ui/export-dialog";
+import { Input } from "~/components/ui/input";
 import { ToggleChip } from "~/components/ui/toggle-chip";
-import { useApiFormError, useToast } from "~/contexts/ToastContext";
-import { createLogger } from "~/lib/logger";
+import { useExportRun } from "~/hooks/use-export-run";
 import {
   exportStaffBirthdays,
   type StaffBirthdayExportFormat,
@@ -18,20 +15,10 @@ import {
   currentBirthdayMonth,
 } from "~/lib/student-export-api";
 
-const logger = createLogger({ component: "StaffBirthdayExportModal" });
-
-const FORMAT_OPTIONS: Array<{
-  value: StaffBirthdayExportFormat;
-  label: string;
-  icon: ReactNode;
-}> = [
-  { value: "pdf", label: "PDF", icon: <FileText className="h-4 w-4" /> },
-  { value: "docx", label: "DOCX", icon: <FileText className="h-4 w-4" /> },
-  {
-    value: "xlsx",
-    label: "XLSX",
-    icon: <FileSpreadsheet className="h-4 w-4" />,
-  },
+const STAFF_BIRTHDAY_FORMATS: readonly StaffBirthdayExportFormat[] = [
+  "pdf",
+  "docx",
+  "xlsx",
 ];
 
 /**
@@ -48,15 +35,15 @@ export function StaffBirthdayExportModal({
   readonly isOpen: boolean;
   readonly onClose: () => void;
 }) {
-  const toast = useToast();
-  const [format, setFormat] = useState<StaffBirthdayExportFormat>("pdf");
   const [title, setTitle] = useState("Geburtstagsliste Personal");
   const [months, setMonths] = useState<string[]>([currentBirthdayMonth()]);
-  const [exporting, setExporting] = useState(false);
-  // Fehler stehen im offenen Dialog; ein Toast läge hinter dem Modal (#2514).
-  const formErrors = useApiFormError();
-  // „Wiederholen“ exportiert mit der aktuellen Auswahl.
-  const latestExportRef = useRef<() => Promise<void>>(async () => undefined);
+
+  // Ein neu geöffneter Dialog beginnt wieder beim aktuellen Monat.
+  useEffect(() => {
+    if (!isOpen) return;
+    setTitle("Geburtstagsliste Personal");
+    setMonths([currentBirthdayMonth()]);
+  }, [isOpen]);
 
   const toggleMonth = (month: string) => {
     setMonths((current) =>
@@ -66,144 +53,67 @@ export function StaffBirthdayExportModal({
     );
   };
 
-  const handleClose = () => {
-    formErrors.clear();
-    onClose();
-  };
-
-  const handleExport = async () => {
-    setExporting(true);
-    formErrors.clear();
-    try {
-      await exportStaffBirthdays({ format, title, months });
-      toast.success("Die Geburtstagsliste ist erstellt.");
-      handleClose();
-    } catch (error) {
-      logger.error("staff_birthday_export_failed", {
-        error: error instanceof Error ? error.message : String(error),
-      });
-      await formErrors.show(error, {
-        object: "die Geburtstagsliste",
-        retry: () => void latestExportRef.current(),
-      });
-    } finally {
-      setExporting(false);
-    }
-  };
-
-  useLayoutEffect(() => {
-    latestExportRef.current = handleExport;
+  const run = useExportRun({
+    isOpen,
+    onDownload: (format: StaffBirthdayExportFormat) =>
+      exportStaffBirthdays({ format, title, months }),
+    onPrint: (target) =>
+      exportStaffBirthdays({ format: "pdf", title, months }, target),
+    errorObject: "die Geburtstagsliste",
+    successMessage: "Die Geburtstagsliste ist erstellt.",
+    onDone: onClose,
+    logName: "staff_birthdays",
   });
 
-  const footer = (
-    <>
-      <button
-        type="button"
-        onClick={handleClose}
-        disabled={exporting}
-        className="inline-flex h-9 items-center justify-center rounded-lg border border-gray-200 bg-white px-3 text-sm font-medium text-gray-700 shadow-sm transition-colors hover:bg-gray-50 focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none disabled:cursor-not-allowed disabled:opacity-50"
-      >
-        Abbrechen
-      </button>
-      <button
-        type="button"
-        onClick={() => void handleExport()}
-        disabled={exporting}
-        className="inline-flex h-9 items-center justify-center gap-2 rounded-lg bg-gray-900 px-3 text-sm font-medium text-white shadow-sm transition-colors hover:bg-gray-700 focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none disabled:cursor-not-allowed disabled:opacity-50"
-      >
-        <Download className="h-4 w-4" aria-hidden />
-        {exporting ? "Exportiert..." : "Exportieren"}
-      </button>
-    </>
-  );
-
   return (
-    <Modal
+    <ExportDialog
       isOpen={isOpen}
-      onClose={handleClose}
+      onClose={onClose}
       title="Geburtstagsliste Personal exportieren"
-      closeLabel="Export schließen"
-      widthClass="mx-4 w-[calc(100%-2rem)] max-w-2xl"
-      isDismissDisabled={exporting}
-      footer={footer}
+      description="Alle Mitarbeitenden mit hinterlegtem Geburtsdatum. Wer kein Datum hinterlegt hat, fehlt in dieser Liste."
+      formats={STAFF_BIRTHDAY_FORMATS}
+      run={run}
     >
-      <FormErrorAlert message={formErrors.error} className="mb-4" />
-      <p className="mb-5 text-sm text-gray-500">
-        Alle Mitarbeitenden mit hinterlegtem Geburtsdatum. Wer kein Datum
-        hinterlegt hat, fehlt in dieser Liste.
-      </p>
-      <div className="space-y-5">
-        <section>
-          <label
-            htmlFor="staff-birthday-export-title"
-            className="text-sm font-medium text-gray-900"
+      <section>
+        <Input
+          id="staff-birthday-export-title"
+          label="Titel"
+          value={title}
+          onChange={(event) => setTitle(event.target.value)}
+        />
+      </section>
+
+      <section>
+        <div className="flex items-start justify-between gap-3">
+          <div>
+            <p className="text-sm font-medium text-gray-900">Geburtsmonate</p>
+            <p className="text-xs text-gray-500">
+              {months.length === 0
+                ? "Alle Geburtstage des Jahres werden aufgelistet."
+                : "Nur Personen, die in den gewählten Monaten Geburtstag haben."}
+            </p>
+          </div>
+          <ToggleChip
+            pressed={months.length === 0}
+            onPressedChange={() => setMonths([])}
+            className="shrink-0"
           >
-            Titel
-          </label>
-          <input
-            id="staff-birthday-export-title"
-            value={title}
-            onChange={(event) => setTitle(event.target.value)}
-            className="mt-2 h-10 w-full rounded-lg border border-gray-200 bg-white px-3 text-sm shadow-sm transition-colors hover:border-gray-300 focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none"
-          />
-        </section>
-
-        <section>
-          <p className="text-sm font-medium text-gray-900">Format</p>
-          <div className="mt-2 flex flex-wrap gap-2">
-            {FORMAT_OPTIONS.map((item) => (
-              <button
-                key={item.value}
-                type="button"
-                onClick={() => setFormat(item.value)}
-                className={`inline-flex h-9 items-center gap-2 rounded-lg border px-3 text-sm font-medium shadow-sm transition-colors focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none ${
-                  format === item.value
-                    ? "border-gray-900 bg-gray-950 text-white"
-                    : "border-gray-200 bg-white text-gray-700 hover:bg-gray-50"
-                }`}
-              >
-                {item.icon}
-                {item.label}
-              </button>
-            ))}
-          </div>
-        </section>
-
-        <section>
-          <div className="flex items-start justify-between gap-3">
-            <div>
-              <p className="text-sm font-medium text-gray-900">Geburtsmonate</p>
-              <p className="text-xs text-gray-500">
-                {months.length === 0
-                  ? "Alle Geburtstage des Jahres werden aufgelistet."
-                  : "Nur Personen, die in den gewählten Monaten Geburtstag haben."}
-              </p>
-            </div>
+            Ganzes Jahr
+          </ToggleChip>
+        </div>
+        <div className="mt-2 grid grid-cols-4 gap-2 sm:grid-cols-6">
+          {BIRTHDAY_MONTH_OPTIONS.map((month) => (
             <ToggleChip
-              pressed={months.length === 0}
-              onPressedChange={() => setMonths([])}
-              className="shrink-0"
+              key={month.value}
+              pressed={months.includes(month.value)}
+              onPressedChange={() => toggleMonth(month.value)}
+              ariaLabel={month.label}
             >
-              Ganzes Jahr
+              {month.label.slice(0, 3)}
             </ToggleChip>
-          </div>
-          <div className="mt-2 grid grid-cols-4 gap-2 sm:grid-cols-6">
-            {BIRTHDAY_MONTH_OPTIONS.map((month) => {
-              const selected = months.includes(month.value);
-              return (
-                <ToggleChip
-                  key={month.value}
-                  pressed={selected}
-                  onPressedChange={() => toggleMonth(month.value)}
-                  ariaLabel={month.label}
-                >
-                  {month.label.slice(0, 3)}
-                </ToggleChip>
-              );
-            })}
-          </div>
-        </section>
-      </div>
-    </Modal>
+          ))}
+        </div>
+      </section>
+    </ExportDialog>
   );
 }

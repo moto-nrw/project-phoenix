@@ -684,6 +684,7 @@ const (
 // user IDs; the parents and school portals never do. The sample percentage
 // has no effect without the Freigabe. Both are operator-only.
 const (
+	KeyAnalyticsEnabled                = "analytics.enabled"
 	KeyAnalyticsFreigabe               = "analytics.freigabe"
 	KeyAnalyticsRecordingSamplePercent = "analytics.recording_sample_percent"
 )

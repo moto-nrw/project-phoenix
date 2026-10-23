@@ -106,7 +106,6 @@ services:
       CLEANUP_SCHEDULER_ENABLED: ${CLEANUP_SCHEDULER_ENABLED:?CLEANUP_SCHEDULER_ENABLED is required}
       SESSION_END_SCHEDULER_ENABLED: ${SESSION_END_SCHEDULER_ENABLED:?SESSION_END_SCHEDULER_ENABLED is required}
       STUDENT_DAILY_CHECKOUT_TIME: ${STUDENT_DAILY_CHECKOUT_TIME:?STUDENT_DAILY_CHECKOUT_TIME is required}
-      OGS_DEVICE_PIN: ${OGS_DEVICE_PIN:?OGS_DEVICE_PIN is required}
     logging:
       driver: journald
       options:
@@ -200,6 +199,7 @@ services:
       PHOENIX_DEMO_PASSWORD: ${PHOENIX_DEMO_PASSWORD:?PHOENIX_DEMO_PASSWORD is required}
       OPERATOR_EMAIL: ${OPERATOR_EMAIL:?OPERATOR_EMAIL is required}
       OPERATOR_PASSWORD: ${OPERATOR_PASSWORD:?OPERATOR_PASSWORD is required}
+      # Seed value of security.ogs_device_pin only; never a serving fallback.
       OGS_DEVICE_PIN: ${OGS_DEVICE_PIN:?OGS_DEVICE_PIN is required}
     logging:
       driver: journald

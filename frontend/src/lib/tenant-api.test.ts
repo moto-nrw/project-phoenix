@@ -174,6 +174,7 @@ describe("tenant-api", () => {
         gradeLevelMax: 13,
         // Older backends omit the Analyse-Freigabe (#3603): off, and nothing
         // is recorded.
+        analyticsEnabled: false,
         analyticsFreigabe: false,
         analyticsRecordingSamplePercent: 0,
         // Older backends omit the early-checkout question (#3324): no note
@@ -276,6 +277,7 @@ describe("tenant-api", () => {
       vi.mocked(global.fetch)
         .mockResolvedValueOnce(
           respond({
+            analytics_enabled: true,
             analytics_freigabe: true,
             analytics_recording_sample_percent: 25,
           }),

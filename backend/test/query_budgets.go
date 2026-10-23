@@ -33,6 +33,10 @@ type queryBudget struct {
 // The counts are what the fixture-sized scenario in the referenced test
 // issues; small fixtures are enough because N+1 shows up at N=3 already.
 var queryBudgets = map[string]queryBudget{
+	// modules/mealplan — GET /api/meal-plan/participants/week (#3164): the
+	// tenant settings, then per school day one candidate read and the
+	// participation reads of the Tagesliste. Flat in the number of children.
+	"modules.mealplan.weekly_participants": {max: 24},
 	// Operator-reviewed staff person repairs read all school people and
 	// employments in two bulk queries, independent of the number of cases.
 	"api.operator.staff_person_merge.preview": {max: 2, exact: true},

@@ -235,7 +235,7 @@ func TestMoveStaffBetweenBlocks_RejectsExternalCaregiver(t *testing.T) {
 	t.Parallel()
 
 	s := makeMoveSetup(t)
-	external := &testpkg.Guest{TenantID: s.tenantID, StaffID: s.otherID, ActivityExpertise: "Musik"}
+	external := &testpkg.ExternalCaregiverRecord{TenantID: s.tenantID, StaffID: s.otherID, ActivityExpertise: "Musik"}
 	_, err := s.db.NewInsert().Model(external).ModelTableExpr(`users.external_caregivers`).Exec(s.ctx)
 	require.NoError(t, err)
 
@@ -246,6 +246,29 @@ func TestMoveStaffBetweenBlocks_RejectsExternalCaregiver(t *testing.T) {
 	assert.Equal(t, http.StatusBadRequest, de.Status)
 	assert.Equal(t, timetable.CodeDeviationSelectionInvalid, de.Code)
 	assert.Empty(t, loadInstanceStaffRows(t, s.db, s.ctx, s.target.ID))
+}
+
+// An account does not make an external caregiver replacement staff (#4573
+// D6): the pool move refuses them, from the pool and out of their own block.
+func TestMoveStaffBetweenBlocks_RejectsAccountBackedExternalCaregiver(t *testing.T) {
+	t.Parallel()
+
+	s := makeMoveSetup(t)
+	externalID := createAccountBackedExternal(t, s.db, s.ctx, s.tenantID)
+	createMoveStaffRow(t, s, s.source.ID, externalID, nil)
+
+	for name, in := range map[string]timetable.MoveStaffInput{
+		"from the pool":  {StaffID: externalID},
+		"out of a block": {StaffID: externalID, SourceInstanceID: &s.source.ID},
+	} {
+		_, err := s.instance.MoveStaffBetweenBlocks(s.ctx, s.target.ID, in)
+		de := requireDeviationErr(t, err)
+		assert.Equal(t, http.StatusBadRequest, de.Status, name)
+		assert.Equal(t, timetable.CodeDeviationSelectionInvalid, de.Code, name)
+		assert.Equal(t, "staff_id", de.Field, name)
+	}
+	assert.Empty(t, loadInstanceStaffRows(t, s.db, s.ctx, s.target.ID))
+	require.Len(t, loadInstanceStaffRows(t, s.db, s.ctx, s.source.ID), 1, "the external keeps their own block")
 }
 
 func TestMoveStaffBetweenBlocks_RetryIsIdempotent(t *testing.T) {

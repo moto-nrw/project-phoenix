@@ -264,7 +264,9 @@
     "cancelWeekConfirm": "Скасувати",
     "cancelWeekDone": "Тиждень скасовано.",
     "cancelWeekLocked": "Ці дні вже були замовлені й залишаються в записі: {days}.",
-    "errorObjectWeekCancel": "скасування на тиждень"
+    "errorObjectWeekCancel": "скасування на тиждень",
+    "participationCutoffLead": "Ви можете змінити запис до {time} {days, plural, one {за # робочий день до обіду} few {за # робочі дні до обіду} many {за # робочих днів до обіду} other {за # робочого дня до обіду}}.",
+    "participationSicknessLead": "Підтверджене повідомлення про хворобу до {time} {days, plural, one {за # робочий день до обіду} few {за # робочі дні до обіду} many {за # робочих днів до обіду} other {за # робочого дня до обіду}} скасовує обід для вашої дитини. Після цього запис залишається."
   },
   "mealOrders": {
     "title": "Замовлення",
@@ -338,7 +340,26 @@
     "errorObjectChange": "запис",
     "asRegular": "Як у постійні дні",
     "scheduleLoading": "Завантажуємо постійні дні…",
-    "errorObjectSchedule": "постійні дні"
+    "errorObjectSchedule": "постійні дні",
+    "cutoffLead": "Зміни на цей день можливі до {time} {days, plural, one {за # робочий день} few {за # робочі дні} many {за # робочих днів} other {за # робочого дня}}.",
+    "viewAria": "Вигляд списку для кухні",
+    "viewDay": "День",
+    "viewWeek": "Тиждень",
+    "weekTitle": "Список на тиждень для кухні",
+    "weekDescription": "У списку всі діти, записані на обід цього тижня.",
+    "weekCutoff": "Зміни можливі до {time} {days, plural, =0 {у день обіду} one {за # робочий день} few {за # робочі дні} many {за # робочих днів} other {за # робочого дня}}.",
+    "weekDateAria": "Тиждень з {from}",
+    "weekDownloadGroup": "Завантажити список на тиждень",
+    "weekDownloadPdf": "Завантажити список на тиждень у PDF",
+    "weekDownloadExcel": "Завантажити список на тиждень як файл Excel",
+    "weekErrorObject": "список на тиждень",
+    "weekCaption": "Обід з {from} по {to}",
+    "weekEmptyTitle": "Цього тижня немає записів",
+    "weekEmptyDescription": "Цього тижня у списку для кухні немає дітей.",
+    "weekRegistered": "записано",
+    "weekNotRegistered": "не записано",
+    "weekCountsLabel": "Кількість обідів на день",
+    "weekCount": "{count, plural, one {# дитина} few {# дитини} many {# дітей} other {# дитини}}"
   },
   "parentDashboard": {
     "eyebrow": "Батьківський портал",
@@ -2902,6 +2923,14 @@
       },
       "feedback": {
         "disabled": "У вас немає доступу до: {object}. Зверніться до школи."
+      },
+      "staff": {
+        "external_access_invalid": "Не вдалося зберегти: {object}. Перевірте введені дані.",
+        "external_email_invalid": "Не вдалося зберегти: {object}. Перевірте введені дані.",
+        "external_email_invited": "Не вдалося змінити: {object}. Перевірте поточний стан.",
+        "external_email_required": "Не вдалося зберегти: {object}. Перевірте введені дані.",
+        "external_has_account": "Не вдалося змінити: {object}. Перевірте поточний стан.",
+        "not_external": "Не вдалося змінити: {object}. Перевірте поточний стан."
       }
     },
     "actions": {

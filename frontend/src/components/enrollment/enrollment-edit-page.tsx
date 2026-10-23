@@ -7,6 +7,7 @@ import { useTranslations } from "next-intl";
 import { EnrollmentForm } from "~/components/enrollment/enrollment-form";
 import { PublicEnrollmentContentSkeleton } from "~/components/enrollment/public-enrollment-shell";
 import { TenantProvider } from "~/lib/tenant-context";
+import { useAnalyticsSchoolPolicy } from "~/lib/hooks/use-analytics-school-policy";
 import { isSupportedGradeLevelMax } from "~/lib/grade-level";
 import {
   createEnrollmentChangeRequest,
@@ -37,9 +38,11 @@ export function EnrollmentEditPage({ params, adjustOnly = false }: Props) {
   const router = useRouter();
   const pathname = usePathname();
   const statusHref = pathname?.replace(/\/(edit|adjust)\/?$/, "") || ".";
-  const [bootstrap, setBootstrap] = useState<EnrollmentEditBootstrap | null>(
-    null,
-  );
+  const [loaded, setLoaded] = useState<{
+    token: string;
+    bootstrap: EnrollmentEditBootstrap;
+  } | null>(null);
+  const bootstrap = loaded?.token === token ? loaded.bootstrap : null;
   const [changeReason, setChangeReason] = useState("");
   const [loading, setLoading] = useState(true);
   const toast = useToast();
@@ -51,6 +54,17 @@ export function EnrollmentEditPage({ params, adjustOnly = false }: Props) {
   } = useApiLoadError();
   const [loadAttempt, setLoadAttempt] = useState(0);
 
+  // The target school is unknown until bootstrap completes. Never inherit
+  // an already allowed host/parent policy while loading or after a failure.
+  useAnalyticsSchoolPolicy(
+    "",
+    !loading &&
+      !loadError &&
+      bootstrap !== null &&
+      isSupportedGradeLevelMax(bootstrap.grade_level_max),
+    `/anmeldung/status/${encodeURIComponent(token)}/${adjustOnly ? "adjust" : "edit"}`,
+  );
+
   useEffect(() => {
     let cancelled = false;
     async function load() {
@@ -61,7 +75,7 @@ export function EnrollmentEditPage({ params, adjustOnly = false }: Props) {
           token,
           t("editLoadError"),
         );
-        if (!cancelled) setBootstrap(result);
+        if (!cancelled) setLoaded({ token, bootstrap: result });
       } catch (err) {
         logger.warn("enrollment_edit_bootstrap_failed", {
           error: err instanceof Error ? err.message : String(err),

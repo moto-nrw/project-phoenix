@@ -9,6 +9,7 @@ import {
 } from "~/lib/api-error";
 import { createLogger } from "~/lib/logger";
 import type { Activity } from "./activity-helpers";
+import type { ExternalAccountStatus } from "./staff-api";
 
 const logger = createLogger({ component: "TeacherAPI" });
 
@@ -156,9 +157,11 @@ export interface Teacher {
   /** Konto-ID als Dezimalzeichenfolge; PostgreSQL `int64` bleibt exakt. */
   account_id?: string;
   is_teacher?: boolean;
-  /** Externe Betreuungskraft ohne moto-Konto (#3823). */
+  /** Externe Betreuungskraft, mit oder ohne moto-Konto (#3823, #4573). */
   is_external?: boolean;
   external_organization?: string | null;
+  /** Kontostand der externen Kraft (#4573); fehlt bei allen anderen. */
+  external_account_status?: ExternalAccountStatus | null;
   person?: unknown; // For nested person object
   // ID fields for proper mapping
   staff_id?: string;

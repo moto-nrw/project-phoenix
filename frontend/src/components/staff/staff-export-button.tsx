@@ -1,11 +1,52 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useState } from "react";
 import { Download } from "lucide-react";
+import type { DateRange } from "react-day-picker";
 
-import { ExportRangeForm } from "~/components/ui/export-range-form";
+import {
+  buildDefaultPresets,
+  RangeCalendarInline,
+} from "~/components/ui/date-range-picker";
+import { ExportDialog } from "~/components/ui/export-dialog";
 import { OverflowMenu } from "~/components/ui/page-header/OverflowMenu";
+import { useExportRun } from "~/hooks/use-export-run";
+import {
+  berlinTodayISO,
+  formatDate,
+  parseISODate,
+  toISODate,
+} from "~/lib/date-helpers";
+import {
+  exportStaffTimeTracking,
+  type TimeTrackingExportFormat,
+} from "~/lib/time-tracking-export-api";
 
+// PDF ist der gestaltete Zeitnachweis (#1568) und deshalb vorne; Excel und
+// CSV bleiben die Datenformate.
+const TIME_TRACKING_FORMATS: readonly TimeTrackingExportFormat[] = [
+  "pdf",
+  "xlsx",
+  "csv",
+];
+
+function addDays(date: Date, days: number): Date {
+  const next = new Date(date);
+  next.setDate(next.getDate() + days);
+  return next;
+}
+
+function defaultRange(yearStart: Date): DateRange {
+  const today = parseISODate(berlinTodayISO());
+  const from = addDays(today, -29);
+  return { from: from < yearStart ? yearStart : from, to: today };
+}
+
+/**
+ * Zeitnachweis einer Person (eigene Zeiterfassung und Personal, Reiter
+ * Zeiterfassung). Der Eintrag im Menü der Kopfkarte öffnet den gemeinsamen
+ * Export-Dialog mit dem Zeitraum als Option.
+ */
 export function StaffExportButton({
   staffId,
   yearStart,
@@ -13,53 +54,87 @@ export function StaffExportButton({
   readonly staffId: string;
   readonly yearStart: Date;
 }) {
-  // The kebab trigger and its menu are ui/OverflowMenu (portal-rendered,
-  // outside-click and Escape handled there). Only the range form stays local:
-  // it is a form popover, not a menu entry.
-  const [formOpen, setFormOpen] = useState(false);
-  const containerRef = useRef<HTMLDivElement>(null);
+  const yearStartISO = toISODate(yearStart);
+  const [open, setOpen] = useState(false);
+  const [range, setRange] = useState<DateRange | undefined>(() =>
+    defaultRange(yearStart),
+  );
 
+  // Nur beim Öffnen oder bei einer anderen Datumsgrenze neu vorbelegen.
   useEffect(() => {
-    if (!formOpen) return;
-    function handleClickOutside(event: MouseEvent) {
-      if (
-        containerRef.current &&
-        !containerRef.current.contains(event.target as Node)
-      ) {
-        setFormOpen(false);
-      }
-    }
-    document.addEventListener("mousedown", handleClickOutside);
-    return () => document.removeEventListener("mousedown", handleClickOutside);
-  }, [formOpen]);
+    if (open) setRange(defaultRange(parseISODate(yearStartISO)));
+  }, [open, yearStartISO]);
+
+  const run = useExportRun({
+    isOpen: open,
+    onDownload: (format: TimeTrackingExportFormat) =>
+      range?.from && range.to
+        ? exportStaffTimeTracking(
+            staffId,
+            toISODate(range.from),
+            toISODate(range.to),
+            format,
+          )
+        : Promise.resolve(),
+    onPrint: (target) =>
+      range?.from && range.to
+        ? exportStaffTimeTracking(
+            staffId,
+            toISODate(range.from),
+            toISODate(range.to),
+            "pdf",
+            target,
+          )
+        : Promise.resolve(),
+    validate: () =>
+      range?.from && range.to ? null : "Bitte wählen Sie einen Zeitraum aus.",
+    errorObject: "den Zeitnachweis",
+    onDone: () => setOpen(false),
+    logName: "time_tracking",
+  });
+
+  const today = parseISODate(berlinTodayISO());
+  const hasRange = Boolean(range?.from && range.to);
 
   return (
-    // `data-icon-only`: in den Aktionen der Kopfkarte ist dieses Div das
-    // Kind, das die Kopfkarte unter sm sortiert -- ohne die Markierung
-    // hielte sie das Kebab für einen Textknopf und gäbe ihm eine eigene,
-    // volle Zeile unter der Statuszeile (Zeiterfassung).
-    <div className="relative" data-icon-only="" ref={containerRef}>
+    <>
       <OverflowMenu
         ariaLabel="Menü öffnen"
-        onOpen={() => setFormOpen(false)}
         items={[
           {
             label: "Exportieren",
             icon: <Download className="h-4 w-4" />,
-            onClick: () => setFormOpen(true),
+            onClick: () => setOpen(true),
           },
         ]}
       />
-
-      {formOpen && (
-        <div className="moto-popover-surface fixed inset-x-4 top-20 z-50 max-h-[calc(100vh-6rem)] overflow-y-auto rounded-xl border sm:absolute sm:inset-auto sm:top-full sm:right-0 sm:mt-1 sm:max-h-none sm:overflow-visible">
-          <ExportRangeForm
-            exportUrl={`/api/staff/${staffId}/time-tracking/export`}
-            anchor={yearStart}
-            onDone={() => setFormOpen(false)}
-          />
-        </div>
-      )}
-    </div>
+      <ExportDialog
+        isOpen={open}
+        onClose={() => setOpen(false)}
+        title="Zeitnachweis exportieren"
+        description={
+          range?.from && range.to
+            ? `Arbeitszeiten vom ${formatDate(toISODate(range.from))} bis ${formatDate(toISODate(range.to))}.`
+            : "Arbeitszeiten für den gewählten Zeitraum."
+        }
+        formats={TIME_TRACKING_FORMATS}
+        run={run}
+        blocked={!hasRange}
+        widthClass="sm:w-[640px]"
+      >
+        <section>
+          <p className="text-sm font-medium text-gray-900">Zeitraum</p>
+          <div className="mt-2">
+            <RangeCalendarInline
+              value={range}
+              onChange={setRange}
+              presets={buildDefaultPresets(yearStart, today)}
+              fromMin={yearStart}
+              toMax={today}
+            />
+          </div>
+        </section>
+      </ExportDialog>
+    </>
   );
 }

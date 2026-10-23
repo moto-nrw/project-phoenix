@@ -528,6 +528,8 @@ func (rs *Resource) withdrawStatus(w http.ResponseWriter, r *http.Request) {
 		switch {
 		case errors.Is(err, capability.ErrRequestNotFound):
 			common.RenderError(w, r, common.ErrorNotFoundWithCode(err, common.CodeEnrollmentStatusLinkInvalid))
+		case errors.Is(err, capability.ErrRequestChildNotFound):
+			common.RenderError(w, r, common.ErrorNotFound(err))
 		case errors.Is(err, capability.ErrWithdrawNotAllowed):
 			common.RenderError(w, r, common.ErrorForbiddenWithCode(err, common.CodeEnrollmentWithdrawNotAllowed))
 		default:

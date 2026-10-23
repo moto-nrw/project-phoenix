@@ -188,7 +188,7 @@ var moduleComposeBudgets = map[string]int{
 	"modules/organizationtenancy/compose":           253,
 	"modules/parentrequestfeedprojection/compose":   11,
 	// Raised by ADR 0076: the restricted administrative repair constructor.
-	"modules/peopledirectory/compose":       974,
+	"modules/peopledirectory/compose":       973,
 	"modules/presenceprojection/compose":    7,
 	"modules/requestreview/compose":         12,
 	"modules/schedulerruntime/compose":      45,

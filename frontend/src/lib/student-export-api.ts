@@ -1,6 +1,10 @@
 import { apiErrorFromResponse, transportFetch } from "~/lib/api-error";
 import { berlinTodayISO, formatDate } from "~/lib/date-helpers";
-import { downloadBlob, filenameFromDisposition } from "~/lib/file-download";
+import {
+  downloadBlob,
+  filenameFromDisposition,
+  openBlobForPrint,
+} from "~/lib/file-download";
 
 export type StudentExportFormat = "pdf" | "docx" | "xlsx";
 
@@ -164,7 +168,7 @@ export const STUDENT_EXPORT_COLUMNS: StudentExportColumnOption[] = [
     id,
     label,
     group: "weekly" as const,
-    description: `Regelmäßige ${weekday}-Ankunft und ${weekday}-Abholung aus dem Wochenplan.`,
+    description: `Regelmäßige ${weekday}-Ankunft und ${weekday}-Abholung aus dem Wochenplan. In der Klassenliste: Abholzeit und Geh-/Abholweise.`,
   })),
   {
     id: "planned_arrival",
@@ -261,18 +265,20 @@ export const STUDENT_EXPORT_PRESETS: Array<{
     id: "class_roster",
     label: "Klassenliste",
     description:
-      "Gesamter Klassenverband mit Anmeldestatus, Betreuungstagen und Geh-/Abholweise.",
+      "Ganze Klasse mit Anmeldestatus und Abholangaben je Wochentag.",
+    // Same columns and weekday cell as the Klassenliste of an enrollment
+    // phase (#4749): "14:30 Uhr, wird abgeholt".
     columns: [
       "name",
       "school_class",
-      "group",
-      "enrollment_summary",
-      "care_days",
       "weekly_monday",
       "weekly_tuesday",
       "weekly_wednesday",
       "weekly_thursday",
       "weekly_friday",
+      "group",
+      "enrollment_summary",
+      "care_days",
       "departure",
     ],
   },
@@ -425,6 +431,7 @@ export function buildStudentExportPresets(
 
 export async function exportStudents(
   request: StudentExportRequest,
+  printTarget?: Window,
 ): Promise<void> {
   const response = await transportFetch("/api/students/export", {
     method: "POST",
@@ -436,8 +443,13 @@ export async function exportStudents(
     throw await apiErrorFromResponse(response, "Export fehlgeschlagen");
   }
 
+  const blob = await response.blob();
+  if (printTarget) {
+    await openBlobForPrint(blob, printTarget);
+    return;
+  }
   downloadBlob(
-    await response.blob(),
+    blob,
     filenameFromDisposition(response) ?? fallbackFilename(request),
   );
 }

@@ -129,6 +129,7 @@ export interface TenantInfo {
    * is true does the OGS portal record masked sessions, send a pseudonymous
    * user ID, and show staff the notice. Missing metadata is off.
    */
+  analyticsEnabled?: boolean;
   analyticsFreigabe?: boolean;
   /** Share of OGS sessions recorded with the Freigabe, 0 to 100. */
   analyticsRecordingSamplePercent?: number;
@@ -195,6 +196,7 @@ interface TenantResolveResponse {
   meal_registration_enabled?: boolean;
   waitlist_enabled?: boolean;
   grade_level_max: number;
+  analytics_enabled?: boolean;
   analytics_freigabe?: boolean;
   analytics_recording_sample_percent?: number;
   early_checkout_note_enabled?: boolean;
@@ -347,7 +349,9 @@ export async function resolveTenant(slug: string): Promise<TenantInfo | null> {
       mealRegistrationEnabled: data.meal_registration_enabled === true,
       waitlistEnabled: data.waitlist_enabled !== false,
       gradeLevelMax: data.grade_level_max,
-      analyticsFreigabe: data.analytics_freigabe === true,
+      analyticsEnabled: data.analytics_enabled === true,
+      analyticsFreigabe:
+        data.analytics_enabled === true && data.analytics_freigabe === true,
       analyticsRecordingSamplePercent: normalizeRecordingSamplePercent(
         data.analytics_recording_sample_percent,
       ),

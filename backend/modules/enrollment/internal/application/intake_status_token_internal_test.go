@@ -1,11 +1,16 @@
 package application
 
 import (
+	"context"
 	"encoding/base64"
+	"errors"
+	"fmt"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	enrollmentNative "github.com/moto-nrw/project-phoenix/modules/enrollment"
 )
 
 // Status tokens of an intake. The root binds the CSPRNG as the entropy
@@ -74,4 +79,38 @@ func TestNewStatusToken_RequiresEntropySource(t *testing.T) {
 	token, err := NewIntake(IntakeDependencies{Settings: intakeSettingsFake{}}).newStatusToken()
 	require.Error(t, err)
 	assert.Empty(t, token)
+}
+
+// tokenLookupRequests answers RequestByToken with a fixed error; the token
+// lookup reads nothing else.
+type tokenLookupRequests struct {
+	IntakeRequests
+	err error
+}
+
+func (r tokenLookupRequests) RequestByToken(context.Context, string, bool) (*enrollmentNative.Request, error) {
+	return nil, r.err
+}
+
+// #4601: only a missing row means an invalid status link. A failed read is a
+// server error and must not reach the parent as "request not found".
+func TestRequestByStatusToken_SeparatesMissingRowFromReadFailure(t *testing.T) {
+	t.Parallel()
+
+	errNoRow := errors.New("no row")
+	errRead := errors.New("connection reset")
+	intake := func(lookupErr error) *Intake {
+		return NewIntake(IntakeDependencies{
+			Settings: intakeSettingsFake{},
+			Requests: tokenLookupRequests{err: lookupErr},
+			Runtime:  Runtime{NotFound: func(err error) bool { return errors.Is(err, errNoRow) }},
+		})
+	}
+
+	_, err := intake(fmt.Errorf("lookup: %w", errNoRow)).requestByStatusToken(context.Background(), "token", false)
+	require.ErrorIs(t, err, enrollmentNative.ErrRequestNotFound)
+
+	_, err = intake(errRead).requestByStatusToken(context.Background(), "token", false)
+	require.ErrorIs(t, err, errRead)
+	assert.NotErrorIs(t, err, enrollmentNative.ErrRequestNotFound)
 }

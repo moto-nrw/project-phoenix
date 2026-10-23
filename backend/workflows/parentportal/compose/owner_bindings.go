@@ -48,3 +48,8 @@ func newStudentRecords(profiles careplan.StudentProfileCommands, people PeopleDi
 func newGuardianChanges(log auditlog.GuardianChangeLog) care.GuardianChangeLog {
 	return care.NewGuardianChanges(log, func(record care.GuardianChange) auditlog.GuardianChange { return auditlog.GuardianChange(record) })
 }
+
+// NewRequestSharePolicy binds the sharing ledger owner's pure visibility rule.
+func NewRequestSharePolicy() peopledirectory.RequestSharePolicy {
+	return peopledirectory.RequestSharePolicy{}
+}

@@ -28,7 +28,7 @@ commit. Terms: `CONTEXT.md`, section „Nutzungsanalyse"; spec #3598.
 | Core actions: writing route → backend event | `backend/analytics/core_actions.go` |
 | Backend tracker (batching, `deployment`, `$session_id`) | `backend/analytics/analytics.go` |
 | Browser session to the backend (`X-POSTHOG-SESSION-ID`) | `frontend/src/lib/analytics-session-header.server.ts` |
-| Analyse-Freigabe settings (`analytics.*`, operator-only) | `backend/modules/settings/internal/defaults/analytics.go`; reaches the OGS portal through tenant resolve |
+| School collection switch (`analytics.enabled`, shared, default on) and recording Freigabe (operator-only) | `backend/modules/settings/internal/defaults/analytics.go`; reaches the OGS portal through tenant resolve |
 | Pseudonymous user ID (same hash on both sides) | `frontend/src/lib/analytics-pseudonym.ts`, `backend/analytics/pseudonym.go` |
 | PostHog project settings, privacy text draft | `docs/operations/nutzungsanalyse.md` |
 | The PostHog dashboards, their insights, and the feature areas (`FEATURES`) | `scripts/posthog-dashboards.mjs` |
@@ -38,6 +38,41 @@ The floor for real schools: route templates instead of URLs, the deployment
 instead of the real host (the OGS portal runs on `{slug}.TENANT_DOMAIN`), no
 element text, no person profile, no IP. A privacy rule belongs in
 `analytics-policy.ts` and its table test, never in a component.
+
+`analytics.enabled` is the school-controlled collection gate (default `true`,
+`config:manage`; operators may also change it). Resolve errors deny collection,
+never fall back to an environment value. The OGS tenant resolve carries the
+switch, including on public enrollment pages. School sessions resolve their
+school; parents collect only if **every** active guardian school permits it.
+Until that decision arrives, neither portal loads the SDK. Anonymous parents
+and school login pages stay off because their schools are not yet known.
+The host owns the decision: `posthog-client.ts` accepts session updates only
+from that host's surface. On OGS, only the `TenantProvider` matching the host
+slug may permit collection. Every mounted school provider is also a separate
+restrictive gate: embedded enrollment/edit/adjust targets must allow collection
+in addition to the host or portal decision, never instead of it. Unknown or
+refreshing target policies deny collection; unmount removes only that gate.
+Keep enrollment target gates mounted during loading and errors, including
+Suspense fallback on the parent enrollment form, not just around the loaded form.
+Parents and school sessions refresh on `visibilitychange` and every five
+minutes while visible, disabling collection before reading. Errors deny; stale
+responses cannot restore permission. Anonymous parents enrollment pages stay
+off. Outside the demo, token status pages on parents and OGS hosts never
+collect, including for
+authenticated parents, allowed schools and the redirect after submission:
+their contract cannot establish the target school policy. Mount the unresolved
+school gate outside Suspense until the status route unmounts.
+The `public` surface (hosts outside operator/parents/school/tenant)
+never collects outside the demo, an intentional behavior change since #4757.
+Parent `enrollment_submitted` additionally resolves and checks its target school,
+even if every existing membership school permits analytics.
+The demo is exempt. Disabling collection also suppresses recording Freigabe,
+backend core actions, kiosk presence events and school `$groupidentify`.
+`analytics.CollectionPolicy` owns actor/public-school decisions;
+`analytics.GateSchoolTracker` gates school-scoped backend captures in both
+API and worker roots. Page and writing-route guards still classify code,
+independently of the runtime switch. The switch establishes no legal basis;
+that review remains open in #3843, legal slice 3843-e.
 
 Session recording runs only in the public demo and in the OGS portal of a
 school with Analyse-Freigabe; a person (pseudonymous ID) exists only in the

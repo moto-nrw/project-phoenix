@@ -546,6 +546,40 @@ describe("ParentMealPlanPage", () => {
     });
   });
 
+  it("shows the school's per-day deadlines", async () => {
+    mocks.getChildFeatures.mockResolvedValue({
+      meal_plan_enabled: true,
+      meal_registration_enabled: true,
+    });
+    mocks.getMealParticipation.mockResolvedValue({
+      weekdays: [1],
+      effective_from: "2026-08-10",
+      cutoff_time: "14:00",
+      cutoff_lead_days: 1,
+      days: [
+        {
+          date: "2026-08-10",
+          participating: true,
+          source: "regular",
+          changeable: false,
+        },
+      ],
+    });
+
+    render(<ParentMealPlanPage />);
+
+    expect(
+      await screen.findByText(
+        "Bis wann Sie ändern können, steht bei jedem Tag.",
+      ),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByText(
+        "Eine bestätigte Krankmeldung oder Abwesenheit bis zur Frist eines Tages meldet Ihr Kind vom Essen ab. Danach bleibt das Essen bestellt.",
+      ),
+    ).toBeInTheDocument();
+  });
+
   it("marks each participation state with its own icon next to the text", async () => {
     mocks.getChildFeatures.mockResolvedValue({
       meal_plan_enabled: true,

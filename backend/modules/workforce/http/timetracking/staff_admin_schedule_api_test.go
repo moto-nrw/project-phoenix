@@ -129,6 +129,46 @@ func TestGetSchedule_RejectsOtherStaffWithTimeTrackingOwn(t *testing.T) {
 	testutil.AssertErrorResponse(t, rr, http.StatusForbidden)
 }
 
+// The own Zeiterfassung exports through /staff/{id}/time-tracking/export
+// (#4748): time_tracking:own reaches the own record and nobody else's.
+func TestExportStaffSessions_AllowsOwnStaffWithTimeTrackingOwn(t *testing.T) {
+	t.Parallel()
+
+	ctx := setupStaffRoute(t)
+
+	staff, account := testpkg.CreateTestStaffWithAccount(t, ctx.db, "ExportOwn", "Read")
+
+	claims := testutil.DefaultTestClaims()
+	claims.ID = int(account.ID)
+	claims.Permissions = []string{"time_tracking:own"}
+	token := testutil.MintTestJWT(t, claims)
+
+	req := testutil.NewAuthenticatedRequest(t, http.MethodGet, fmt.Sprintf("/staff/%d/time-tracking/export?from=2026-09-01&to=2026-09-07&format=csv", staff.ID), nil, testutil.WithJWTBearer(token))
+	rr := testutil.ExecuteRequest(ctx.router, req)
+
+	require.Equal(t, http.StatusOK, rr.Code, rr.Body.String())
+	require.Contains(t, rr.Header().Get("Content-Disposition"), "attachment")
+}
+
+func TestExportStaffSessions_RejectsOtherStaffWithTimeTrackingOwn(t *testing.T) {
+	t.Parallel()
+
+	ctx := setupStaffRoute(t)
+
+	_, account := testpkg.CreateTestStaffWithAccount(t, ctx.db, "ExportOwn", "Only")
+	otherStaff := testpkg.CreateTestStaff(t, ctx.db, "ExportOther", "Denied")
+
+	claims := testutil.DefaultTestClaims()
+	claims.ID = int(account.ID)
+	claims.Permissions = []string{"time_tracking:own"}
+	token := testutil.MintTestJWT(t, claims)
+
+	req := testutil.NewAuthenticatedRequest(t, http.MethodGet, fmt.Sprintf("/staff/%d/time-tracking/export?from=2026-09-01&to=2026-09-07&format=csv", otherStaff.ID), nil, testutil.WithJWTBearer(token))
+	rr := testutil.ExecuteRequest(ctx.router, req)
+
+	testutil.AssertErrorResponse(t, rr, http.StatusForbidden)
+}
+
 // =============================================================================
 // GET STAFF GROUPS - INVALID ID TEST
 // =============================================================================

@@ -293,9 +293,11 @@ describe("DeclarationStatusPanel (#3430)", () => {
     expect(
       screen.queryByRole("link", { name: /Bericht drucken/ }),
     ).not.toBeInTheDocument();
-    fireEvent.click(screen.getByRole("button", { name: /Bericht als PDF/ }));
+    fireEvent.click(screen.getByRole("button", { name: "Herunterladen" }));
+    fireEvent.click(screen.getByRole("menuitem", { name: /Bericht als PDF/ }));
     await waitFor(() => expect(downloadMock).toHaveBeenCalledWith("42", "pdf"));
-    fireEvent.click(screen.getByRole("button", { name: /Verlauf als CSV/ }));
+    fireEvent.click(screen.getByRole("button", { name: "Herunterladen" }));
+    fireEvent.click(screen.getByRole("menuitem", { name: /Verlauf als CSV/ }));
     await waitFor(() => expect(downloadMock).toHaveBeenCalledWith("42", "csv"));
   });
 
@@ -309,7 +311,8 @@ describe("DeclarationStatusPanel (#3430)", () => {
     expect(
       screen.queryByRole("button", { name: /Offene erinnern/ }),
     ).not.toBeInTheDocument();
-    fireEvent.click(screen.getByRole("button", { name: /Verlauf als CSV/ }));
+    fireEvent.click(screen.getByRole("button", { name: "Herunterladen" }));
+    fireEvent.click(screen.getByRole("menuitem", { name: /Verlauf als CSV/ }));
     expect(
       await screen.findByText(
         catalogText("general.server", "das Erstellen der Datei"),

@@ -13,6 +13,8 @@ import (
 	"testing"
 	"time"
 
+	parentportalcompose "github.com/moto-nrw/project-phoenix/workflows/parentportal/compose"
+
 	"github.com/moto-nrw/project-phoenix/modules/communication"
 
 	"github.com/moto-nrw/project-phoenix/workflows/parentportal"
@@ -41,6 +43,7 @@ func buildAnnouncementServiceOn(t *testing.T, db *bun.DB, newsEnabled bool) (*pa
 	reposPeople := api.NewPeopleRepositorySuiteFactory(testpkg.NewDatabase(t, db))
 	reposMessages := api.NewParentMessagingSuiteRepositories(testpkg.NewDatabase(t, db))
 	svc := parentportal.NewMessagingFlows(parentportal.MessagingConfig{
+		SharePolicy:           parentportalcompose.NewRequestSharePolicy(),
 		GuardianPolicy:        owners.NewParentGuardianPolicy(),
 		Fingerprints:          owners.SecurityFingerprints{},
 		Declarations:          owners.ParentDeclarationPolicy(),

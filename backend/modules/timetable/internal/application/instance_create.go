@@ -60,10 +60,9 @@ func (s *InstanceLifecycleService) createInTenantTransaction(
 			return nil, &ports.ScheduleError{Op: "create instance: validate calendar period", Err: err}
 		}
 	}
-	allowExternalCaregivers := req.IsSpontaneous != nil && *req.IsSpontaneous
 	templateType, err := s.validateInstanceReferences(ctx, req.Date, instanceReferences{
 		roomID: req.RoomID, activityGroupID: req.ActivityGroupID, staffIDs: req.StaffIDs,
-		studentIDs: req.StudentIDs, createdByStaffID: req.CreatedByStaffID, allowExternalCaregivers: allowExternalCaregivers,
+		studentIDs: req.StudentIDs, createdByStaffID: req.CreatedByStaffID,
 	})
 	if err != nil {
 		return nil, &ports.ScheduleError{Op: "create instance: validate references", Err: err}

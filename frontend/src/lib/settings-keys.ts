@@ -11,6 +11,9 @@ export const TENANT_RESOLVE_AFFECTING_KEYS: ReadonlySet<string> = new Set([
   // switching them leaves the navigation stale for up to 300s.
   "operations.meal_plan_enabled",
   "operations.meal_registration_enabled",
+  // Expire the analytics policy immediately so reloads and new tabs cannot
+  // start capturing with a stale enabled value after the school opts out.
+  "analytics.enabled",
   "calendar.caldav_enabled",
   "operations.student_photos_enabled",
   // presence_mode is served via /auth/tenant/resolve and drives the

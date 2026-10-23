@@ -233,6 +233,30 @@ func readWindow(from, to mealplan.Date) (calendar.Date, calendar.Date, error) {
 	return start, end, nil
 }
 
+// WeeklyList reads each day's kitchen list with the school's ordering rules.
+func (s *Service) WeeklyList(ctx context.Context, weekStart mealplan.Date) (mealplan.WeeklyList, error) {
+	date, err := calendar.ParseDate(string(weekStart))
+	if err != nil {
+		return mealplan.WeeklyList{}, mealplan.ErrInvalidParticipation
+	}
+	monday := date.StartOfISOWeek()
+	week := mealplan.WeeklyList{WeekStart: mealplan.Date(monday.String()), Days: make([]mealplan.DailyList, 0, 5)}
+	err = s.run(ctx, "read_weekly_participants", func(txCtx context.Context) (domain.OperationStats, error) {
+		for offset := range 5 {
+			list, err := s.DailyList(txCtx, mealplan.Date(monday.AddDays(offset).String()))
+			if err != nil {
+				return domain.OperationStats{}, err
+			}
+			week.Days = append(week.Days, list)
+		}
+		return domain.OperationStats{}, nil
+	})
+	if err != nil {
+		return mealplan.WeeklyList{}, err
+	}
+	return week, nil
+}
+
 func participationDate(value mealplan.Date) (calendar.Date, error) {
 	date, err := calendar.ParseDate(string(value))
 	if err != nil || date.Weekday() == time.Saturday || date.Weekday() == time.Sunday {

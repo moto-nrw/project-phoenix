@@ -1185,6 +1185,18 @@ export const ERROR_CATALOG = {
         "Diese Bestellung gibt es nicht. Bitte laden Sie die Seite neu.",
       "meals.supply_active":
         "{object} geht gerade nicht. Ein Caterer beliefert die Schule noch. Beenden Sie zuerst diese Belieferung.",
+      "staff.external_email_required":
+        "Bitte geben Sie eine E-Mail-Adresse ein.",
+      "staff.external_email_invalid":
+        "Diese E-Mail-Adresse ist nicht gültig. Bitte prüfen Sie sie.",
+      "staff.not_external":
+        "Diese Person ist nicht als extern eingetragen. Bitte laden Sie sie wie andere Mitarbeitende ein.",
+      "staff.external_has_account":
+        "Diese Person hat schon ein Konto. Eine Einladung ist nicht nötig.",
+      "staff.external_email_invited":
+        "Diese E-Mail-Adresse hat schon eine offene Einladung für eine andere Person. Bitte nehmen Sie eine andere Adresse.",
+      "staff.external_access_invalid":
+        "Bitte wählen Sie, welchen Zugang die Person bekommt.",
     },
   },
   en: {
@@ -1475,6 +1487,17 @@ export const ERROR_CATALOG = {
         "This order does not exist. Please reload the page.",
       "meals.supply_active":
         "{object} is not possible right now. A caterer still supplies the school. Please end that supply first.",
+      "staff.external_email_required": "Please enter an email address.",
+      "staff.external_email_invalid":
+        "This email address is not valid. Please check it.",
+      "staff.not_external":
+        "This person is not listed as external. Please invite them like other staff members.",
+      "staff.external_has_account":
+        "This person already has an account. No invitation is needed.",
+      "staff.external_email_invited":
+        "This email address already has an open invitation for someone else. Please use another address.",
+      "staff.external_access_invalid":
+        "Please choose which access this person gets.",
     },
   },
   ru: {

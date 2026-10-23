@@ -2,10 +2,14 @@ import type { Properties } from "posthog-js";
 import { clientEnv } from "~/env.client";
 import { analyticsDeployment } from "~/lib/analytics-deployment";
 import {
+  analyticsCollectionAllowed,
+  analyticsContextUpdateAllowed,
   analyticsIdentity,
   analyticsInitOptions,
   analyticsRuntimeOptions,
   analyticsSurfaceForHost,
+  analyticsSchoolsAllowCollection,
+  type AnalyticsSchoolPolicy,
   filterAnalyticsEvent,
   type AnalyticsContext,
   type AnalyticsSurface,
@@ -15,6 +19,10 @@ import { createLogger } from "~/lib/logger";
 
 type PostHog = (typeof import("posthog-js"))["default"];
 type Operation = (posthog: PostHog) => void;
+type SessionRegistration = {
+  readonly properties: Properties;
+  readonly resetFirst: boolean;
+};
 
 const logger = createLogger({ component: "PostHogClient" });
 const pendingOperations: Array<{
@@ -29,6 +37,8 @@ let initializationFailed = false;
 // undefined: not resolved yet; null: this host has no analytics (operator).
 let hostSurface: AnalyticsSurface | null | undefined;
 let context: AnalyticsContext | null = null;
+const schoolPolicies = new Map<symbol, AnalyticsSchoolPolicy>();
+let pendingRegistration: SessionRegistration | undefined;
 
 function startSurface(): AnalyticsSurface | null {
   if (hostSurface === undefined) {
@@ -55,7 +65,43 @@ function startContext(): AnalyticsContext | null {
 
 function currentContext(): AnalyticsContext | null {
   context ??= startContext();
-  return context;
+  if (!context) return null;
+  const schools = [...schoolPolicies.values()];
+  return {
+    ...context,
+    enrollmentTargetPath: schools.some(
+      (school) =>
+        school.enabled &&
+        school.enrollmentTargetPath &&
+        window.location.pathname
+          .replace(/\/+$/, "")
+          .endsWith(school.enrollmentTargetPath),
+    )
+      ? window.location.pathname
+      : undefined,
+    enabled: analyticsSchoolsAllowCollection(
+      context,
+      window.location.host,
+      clientEnv.NEXT_PUBLIC_TENANT_DOMAIN,
+      schools,
+    ),
+  };
+}
+
+/** Each mounted school context owns one gate, including during refresh. */
+export function setTenantAnalyticsPolicy(
+  source: symbol,
+  policy: AnalyticsSchoolPolicy | null,
+): void {
+  const previous = schoolPolicies.get(source);
+  if (policy) schoolPolicies.set(source, policy);
+  else schoolPolicies.delete(source);
+  const removedHost =
+    !policy &&
+    previous &&
+    window.location.hostname ===
+      `${previous.tenantSlug}.${clientEnv.NEXT_PUBLIC_TENANT_DOMAIN}`;
+  setAnalyticsContext(removedHost ? { enabled: false } : {});
 }
 
 function analyticsEnabled(): boolean {
@@ -63,7 +109,8 @@ function analyticsEnabled(): boolean {
     Boolean(clientEnv.NEXT_PUBLIC_POSTHOG_KEY) &&
     !initializationFailed &&
     typeof window !== "undefined" &&
-    currentContext() !== null
+    currentContext() !== null &&
+    analyticsCollectionAllowed(currentContext()!)
   );
 }
 
@@ -75,6 +122,11 @@ function execute(name: string, run: Operation): void {
     return;
   }
 
+  runOperation(name, run);
+}
+
+function runOperation(name: string, run: Operation): void {
+  if (!instance) return;
   try {
     run(instance);
   } catch (error) {
@@ -126,12 +178,49 @@ function applyContext(posthog: PostHog, active: AnalyticsContext): void {
  */
 export function setAnalyticsContext(
   update: Partial<Omit<AnalyticsContext, "deployment">>,
+  registration?: SessionRegistration,
 ): void {
-  const current = currentContext();
+  context ??= startContext();
+  const current = context;
   if (!current) return;
-  const next: AnalyticsContext = { ...current, ...update };
-  context = next;
-  execute("apply_context", (posthog) => applyContext(posthog, next));
+  if (
+    !analyticsContextUpdateAllowed(
+      startSurface(),
+      update.surface ?? current.surface,
+    )
+  )
+    return;
+  if (registration) {
+    pendingRegistration = {
+      ...registration,
+      // Policy refreshes must not cancel a deferred account/school reset.
+      resetFirst:
+        registration.resetFirst || pendingRegistration?.resetFirst === true,
+    };
+  }
+  context = { ...current, ...update };
+  const next = currentContext()!;
+  if (!analyticsCollectionAllowed(next)) {
+    pendingOperations.length = 0;
+    runOperation("opt_out", (posthog) => posthog.opt_out_capturing());
+    runOperation("stop_recording", (posthog) => posthog.stopSessionRecording());
+    return;
+  }
+  runOperation("opt_in", (posthog) =>
+    posthog.opt_in_capturing({ captureEventName: false }),
+  );
+  execute("apply_context", (posthog) => {
+    // A school switch resets and registers before identifying, atomically
+    // with the new policy, so no event can inherit the previous school.
+    if (pendingRegistration) {
+      if (pendingRegistration.resetFirst) posthog.reset();
+      posthog.register(pendingRegistration.properties);
+      pendingRegistration = undefined;
+    }
+    const active = currentContext();
+    if (active) applyContext(posthog, active);
+  });
+  schedulePostHogInitialization();
 }
 
 export function setPostHogContext(
@@ -145,9 +234,18 @@ export function setPostHogContext(
 }
 
 export function clearPostHogContext(): void {
-  if (currentContext()) context = startContext();
+  pendingRegistration = undefined;
+  const previous = currentContext();
+  if (previous)
+    context = {
+      ...startContext()!,
+      enabled: previous.surface === "ogs" && previous.enabled === true,
+    };
   const cleared = context;
-  execute("clear_context", (posthog) => {
+  // Never replay a previous session's buffered identity or registration.
+  pendingOperations.length = 0;
+  // Privacy cleanup must run even when collection is blocked.
+  runOperation("clear_context", (posthog) => {
     posthog.unregister("school_id");
     posthog.unregister("role");
     posthog.reset();
@@ -160,23 +258,37 @@ export function initializePostHog(): Promise<void> {
   const key = clientEnv.NEXT_PUBLIC_POSTHOG_KEY;
   const startingContext =
     typeof window === "undefined" ? null : currentContext();
-  if (!key || !startingContext) return Promise.resolve();
+  if (!key || !startingContext || !analyticsCollectionAllowed(startingContext))
+    return Promise.resolve();
   if (initialization) return initialization;
 
   initialization = import("posthog-js")
     .then(({ default: posthog }) => {
+      const activeBeforeInit = currentContext();
+      if (!activeBeforeInit || !analyticsCollectionAllowed(activeBeforeInit))
+        return;
       posthog.init(key, {
-        ...analyticsInitOptions(startingContext, window.location.hostname),
+        ...analyticsInitOptions(activeBeforeInit, window.location.hostname),
         before_send: (captureResult) => {
           const active = currentContext();
-          return active ? filterAnalyticsEvent(active, captureResult) : null;
+          return active
+            ? filterAnalyticsEvent(
+                active,
+                captureResult,
+                window.location.pathname,
+              )
+            : null;
         },
       });
       instance = posthog;
       // The context may have moved on while the SDK loaded (login with
       // Analyse-Freigabe); the buffered operations below apply it as well.
       const active = currentContext();
-      if (active) {
+      if (active && analyticsCollectionAllowed(active)) {
+        // The SDK can retain an opt-out independently of event persistence.
+        runOperation("opt_in", (loaded) =>
+          loaded.opt_in_capturing({ captureEventName: false }),
+        );
         execute("apply_context", (loaded) => applyContext(loaded, active));
       }
 
@@ -190,13 +302,16 @@ export function initializePostHog(): Promise<void> {
       logger.warn("posthog_initialization_failed", {
         error: error instanceof Error ? error.message : String(error),
       });
+    })
+    .finally(() => {
+      if (!instance) initialization = null;
     });
 
   return initialization;
 }
 
 export function schedulePostHogInitialization(): void {
-  if (!analyticsEnabled()) return;
+  if (!analyticsEnabled() || instance || initialization) return;
 
   const initialize = () => void initializePostHog();
   if (typeof window.requestIdleCallback === "function") {

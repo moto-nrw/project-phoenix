@@ -413,6 +413,8 @@ func TestFullProductionRouterGolden(t *testing.T) {
 			t.Run("rate limited operator invitations", func(t *testing.T) { checkOperatorInvitationMount(t, api) })
 			t.Run("caterer portal", func(t *testing.T) { checkCatererPortal(t, api) })
 			t.Run("caterer scope matrix", func(t *testing.T) { checkCatererScopeMatrix(t, api) })
+			t.Run("ag-leitung route permissions", func(t *testing.T) { checkAGLeitungRoutePermissions(t, api) })
+			t.Run("guest route permissions", func(t *testing.T) { checkGuestRoutePermissions(t, api) })
 		})
 		return nil
 	})

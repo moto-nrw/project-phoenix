@@ -62,7 +62,8 @@ function TeacherSpecificHooks() {
   const registeredSchoolIdRef = useRef<string | null>(null);
   // The school context carries the Freigabe; it is re-read on every page load
   // and when the moto team changes it, so a revocation applies at once.
-  const freigabe = tenantMatchesSession && tenant?.analyticsFreigabe === true;
+  const enabled = tenantMatchesSession && tenant?.analyticsEnabled === true;
+  const freigabe = enabled && tenant?.analyticsFreigabe === true;
   const samplePercent = tenant?.analyticsRecordingSamplePercent ?? 0;
   const person = useAnalyticsPerson(
     freigabe,
@@ -87,6 +88,7 @@ function TeacherSpecificHooks() {
       registerPortalSession(
         {
           surface: "ogs",
+          enabled,
           schoolId,
           role,
           ...(freigabe
@@ -113,6 +115,7 @@ function TeacherSpecificHooks() {
     schoolId,
     tenantMatchesSession,
     role,
+    enabled,
     freigabe,
     samplePercent,
     person,

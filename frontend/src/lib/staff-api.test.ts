@@ -1309,6 +1309,135 @@ describe("staff-api", () => {
     });
   });
 
+  describe("external caregivers (#4573)", () => {
+    const externalRecord = {
+      ...sampleBackendStaff,
+      id: "88",
+      name: "Lea Gast",
+      firstName: "Lea",
+      lastName: "Gast",
+      is_external: true,
+      external_organization: "Musikschule",
+      external_account_status: "invitation_pending" as const,
+    };
+
+    it("creates an external caregiver with access and invitation address", async () => {
+      const mockFetch = vi.mocked(globalThis.fetch);
+      mockFetch.mockResolvedValueOnce({
+        ok: true,
+        json: () => Promise.resolve({ data: externalRecord }),
+      } as Response);
+
+      const staff = await staffService.createExternal({
+        firstName: " Lea ",
+        lastName: "Gast",
+        email: " lea@example.test ",
+        organization: "Musikschule",
+        access: "supervise",
+      });
+
+      expect(mockFetch).toHaveBeenCalledWith(
+        "/api/staff/externals",
+        expect.objectContaining({ method: "POST" }),
+      );
+      const init = mockFetch.mock.calls[0]?.[1];
+      expect(JSON.parse(String(init?.body))).toEqual({
+        first_name: "Lea",
+        last_name: "Gast",
+        email: "lea@example.test",
+        organization: "Musikschule",
+        access: "supervise",
+      });
+      expect(staff).toMatchObject({
+        id: "88",
+        isExternal: true,
+        externalOrganization: "Musikschule",
+        externalAccountStatus: "invitation_pending",
+      });
+    });
+
+    // ADR 0091: Kein Zugang sends no email, even a typed one.
+    it("creates Kein Zugang without an email address", async () => {
+      const mockFetch = vi.mocked(globalThis.fetch);
+      mockFetch.mockResolvedValueOnce({
+        ok: true,
+        json: () =>
+          Promise.resolve({
+            data: { ...externalRecord, external_account_status: "none" },
+          }),
+      } as Response);
+
+      const staff = await staffService.createExternal({
+        firstName: "Lea",
+        lastName: "Gast",
+        email: "lea@example.test",
+        access: "none",
+      });
+
+      const init = mockFetch.mock.calls[0]?.[1];
+      expect(JSON.parse(String(init?.body))).toEqual({
+        first_name: "Lea",
+        last_name: "Gast",
+        organization: "",
+        access: "none",
+      });
+      expect(staff.externalAccountStatus).toBe("none");
+    });
+
+    it("invites an existing external caregiver under its id", async () => {
+      const mockFetch = vi.mocked(globalThis.fetch);
+      mockFetch.mockResolvedValueOnce({
+        ok: true,
+        json: () => Promise.resolve({ data: externalRecord }),
+      } as Response);
+
+      const staff = await staffService.inviteExternal(
+        "9007199254740993",
+        "lea@example.test",
+        "view",
+      );
+
+      expect(mockFetch).toHaveBeenCalledWith(
+        "/api/staff/externals/9007199254740993/invitation",
+        expect.objectContaining({
+          method: "POST",
+          body: JSON.stringify({ email: "lea@example.test", access: "view" }),
+        }),
+      );
+      expect(staff.externalAccountStatus).toBe("invitation_pending");
+    });
+
+    it("throws the API error of a refused invitation", async () => {
+      vi.mocked(globalThis.fetch).mockResolvedValueOnce({
+        ok: false,
+        status: 409,
+        statusText: "Conflict",
+        headers: new Headers({ "Content-Type": "application/problem+json" }),
+        text: () =>
+          Promise.resolve(
+            JSON.stringify({
+              status: 409,
+              code: "identity.account_already_has_tenant_access",
+              detail: "has access",
+            }),
+          ),
+        json: () =>
+          Promise.resolve({
+            status: 409,
+            code: "identity.account_already_has_tenant_access",
+            detail: "has access",
+          }),
+      } as Response);
+
+      await expect(
+        staffService.inviteExternal("12", "lea@example.test", "supervise"),
+      ).rejects.toMatchObject({
+        status: 409,
+        code: "identity.account_already_has_tenant_access",
+      });
+    });
+  });
+
   describe("staffService.getStaffById", () => {
     it("maps the retained employment period without converting calendar dates", async () => {
       vi.mocked(globalThis.fetch).mockResolvedValueOnce({

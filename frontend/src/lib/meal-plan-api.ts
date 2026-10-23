@@ -51,6 +51,11 @@ export interface DailyMealList {
   others: DailyMealParticipant[];
 }
 
+export interface WeeklyMealList {
+  weekStart: string;
+  days: Array<{ date: string; participants: DailyMealParticipant[] }>;
+}
+
 function mapEntry(entry: BackendMealPlanEntry): MealPlanEntry {
   return {
     date: entry.date,
@@ -233,21 +238,67 @@ export async function replaceChildMealSchedule(
   }
 }
 
-export async function downloadDailyMealParticipants(
-  date: string,
-  format: "pdf" | "xlsx",
-): Promise<void> {
+/** Kitchen list of every school day in the week containing weekStart. */
+export async function getWeeklyMealParticipants(
+  weekStart: string,
+): Promise<WeeklyMealList> {
   const response = await sessionFetch(
-    `/api/meal-plan/participants/export?date=${encodeURIComponent(date)}&format=${format}`,
+    `/api/meal-plan/participants/week?week_start=${encodeURIComponent(weekStart)}`,
     { credentials: "include" },
   );
+  if (!response.ok) {
+    throw await apiErrorFromResponse(
+      response,
+      "weekly meal participants load failed",
+    );
+  }
+  const json = (await response.json()) as {
+    data?: {
+      week_start: string;
+      days: Array<{ date: string; participants: BackendDailyParticipant[] }>;
+    };
+  };
+  const data = json.data;
+  if (!data)
+    throw new Error("Weekly meal participant response is missing data");
+  return {
+    weekStart: data.week_start,
+    days: data.days.map((day) => ({
+      date: day.date,
+      participants: day.participants.map(dailyParticipant),
+    })),
+  };
+}
+
+async function downloadMealList(path: string, filename: string): Promise<void> {
+  const response = await sessionFetch(path, { credentials: "include" });
   if (!response.ok) {
     throw await apiErrorFromResponse(
       response,
       "meal participants export failed",
     );
   }
-  downloadBlob(await response.blob(), `mittagessen-${date}.${format}`);
+  downloadBlob(await response.blob(), filename);
+}
+
+export async function downloadDailyMealParticipants(
+  date: string,
+  format: "pdf" | "xlsx",
+): Promise<void> {
+  await downloadMealList(
+    `/api/meal-plan/participants/export?date=${encodeURIComponent(date)}&format=${format}`,
+    `mittagessen-${date}.${format}`,
+  );
+}
+
+export async function downloadWeeklyMealParticipants(
+  weekStart: string,
+  format: "pdf" | "xlsx",
+): Promise<void> {
+  await downloadMealList(
+    `/api/meal-plan/participants/week/export?week_start=${encodeURIComponent(weekStart)}&format=${format}`,
+    `mittagessen-woche-${weekStart}.${format}`,
+  );
 }
 
 /** Monday (ISO) of the week containing the given Date. */

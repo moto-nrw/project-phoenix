@@ -125,7 +125,8 @@ func newTenantResolveResponse(school *TenantSchool, resolved tenantShellSettings
 		MealPlanEnabled:           resolved.mealPlanEnabled,
 		MealRegistrationEnabled:   resolved.mealRegistrationEnabled,
 		WaitlistEnabled:           resolved.waitlistEnabled,
-		AnalyticsFreigabe:         resolved.analyticsFreigabe,
+		AnalyticsEnabled:          resolved.analyticsEnabled,
+		AnalyticsFreigabe:         resolved.analyticsEnabled && resolved.analyticsFreigabe,
 		// Without the Freigabe the sample has no effect; the client never sees
 		// a recording share for a school that did not agree.
 		AnalyticsRecordingSamplePercent:   analyticsSamplePercent(resolved),
@@ -137,7 +138,7 @@ func newTenantResolveResponse(school *TenantSchool, resolved tenantShellSettings
 }
 
 func analyticsSamplePercent(resolved tenantShellSettings) int {
-	if !resolved.analyticsFreigabe {
+	if !resolved.analyticsEnabled || !resolved.analyticsFreigabe {
 		return 0
 	}
 	return resolved.analyticsSamplePercent
@@ -166,6 +167,7 @@ func tenantShellSettingKeys() []string {
 		settings.KeyParentRequestReasonPolicy,
 		settings.KeyParentNotesEnabled,
 		settings.KeyStaffMessagingEnabled,
+		settings.KeyAnalyticsEnabled,
 		settings.KeyAnalyticsFreigabe,
 		settings.KeyAnalyticsRecordingSamplePercent,
 		settings.KeyEarlyCheckoutNoteEnabled,
@@ -271,6 +273,7 @@ func (resolved *tenantShellSettings) resolveFeatureFlags(readBool func(string) (
 		{settings.KeyChildSearchOnlyNavigation, &resolved.childSearchOnlyNavigation},
 		{settings.KeyParentNotesEnabled, &resolved.parentMessagingEnabled},
 		{settings.KeyStaffMessagingEnabled, &resolved.staffMessagingEnabled},
+		{settings.KeyAnalyticsEnabled, &resolved.analyticsEnabled},
 		{settings.KeyAnalyticsFreigabe, &resolved.analyticsFreigabe},
 		{settings.KeyEarlyCheckoutNoteEnabled, &resolved.earlyCheckoutNote},
 	}

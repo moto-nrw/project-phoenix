@@ -162,9 +162,43 @@ func SanitizeUserText(text string) string {
 	return records.SanitizeUserText(text)
 }
 
-// ClassGroupTitle labels a per-class section of a grouped class list.
-func ClassGroupTitle(schoolClass string) string {
-	return records.ClassGroupTitle(schoolClass)
+// The shared class-list table (#4749): both class lists, the
+// Kinderlisten-Vorlage and the one of an enrollment phase, render their
+// children through it.
+type (
+	// ClassRosterChild is one child of a class list.
+	ClassRosterChild = records.ClassRosterChild
+	// ClassRosterDay is one weekday of a child on a class list.
+	ClassRosterDay = records.ClassRosterDay
+	// ClassSectionRow is one table row with the class it belongs to.
+	ClassSectionRow = records.ClassSectionRow
+)
+
+// ClassRosterNoCareLabel marks a class-list-only entry.
+const ClassRosterNoCareLabel = records.ClassRosterNoCareLabel
+
+// ClassRosterWeekdayColumns are the weekday columns of a class list, Monday
+// first.
+var ClassRosterWeekdayColumns = records.ClassRosterWeekdayColumns
+
+// ClassRosterColumnIDs are the columns both class lists print, in order.
+func ClassRosterColumnIDs() []ColumnID {
+	return records.ClassRosterColumnIDs()
+}
+
+// ClassRosterRow renders one child into a row of the shared table.
+func ClassRosterRow(child ClassRosterChild) Row {
+	return records.ClassRosterRow(child)
+}
+
+// ClassRosterRows renders class-sorted children into the table rows.
+func ClassRosterRows(children []ClassRosterChild, grouped bool) []Row {
+	return records.ClassRosterRows(children, grouped)
+}
+
+// ClassSectionRows puts a heading row before each class when grouped.
+func ClassSectionRows(rows []ClassSectionRow, grouped bool) []Row {
+	return records.ClassSectionRows(rows, grouped)
 }
 
 // Columns of the guardian finance export.

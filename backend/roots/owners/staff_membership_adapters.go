@@ -16,8 +16,6 @@ import (
 	"github.com/moto-nrw/project-phoenix/modules/schoolmembership"
 	"github.com/moto-nrw/project-phoenix/modules/securityruntime"
 	"github.com/moto-nrw/project-phoenix/modules/staffdirectoryview"
-	"github.com/moto-nrw/project-phoenix/modules/workforce"
-	"github.com/moto-nrw/project-phoenix/workflows/staffoffboarding"
 )
 
 // staffIdentityQuery is the consumer-owned account-facts port for staff projections.
@@ -33,9 +31,6 @@ type staffIdentityQuery interface {
 type staffMembershipDeps struct {
 	persons  staffPersonRows
 	identity staffIdentityQuery
-	// employment is Workforce's owner of the employment-only staff writes
-	// (#2753): notes and the birthday opt-out.
-	employment staffEmploymentWrites
 	// groupTeachers are the teaching assignments the teacher projections
 	// resolve their groups through.
 	groupTeachers groupTeacherRows
@@ -46,21 +41,14 @@ type groupTeacherRows interface {
 	FindByGroup(ctx context.Context, groupID int64) ([]*schoolmembership.GroupAssignment, error)
 }
 
-// staffEmploymentWrites are Workforce's employment-only staff writes the
-// live staff employment runs inside the membership lock.
-type staffEmploymentWrites interface {
-	AppendStaffNotes(ctx context.Context, membershipID int64, notes string) (workforce.StaffEmployment, error)
-	SetStaffBirthdayDisplayOptOut(ctx context.Context, membershipID int64, optOut bool) error
-}
-
 // staffPersonRows are the person reads the staff projections attach.
 type staffPersonRows interface {
 	FindByID(ctx context.Context, id interface{}) (*peopleValues.DirectoryPersonSnapshot, error)
 	FindByIDs(ctx context.Context, ids []int64) (map[int64]*peopleValues.DirectoryPersonSnapshot, error)
 }
 
-func NewStaffMembershipDeps(persons staffPersonRows, identity staffIdentityQuery, employment workforce.StaffEmploymentCommand, groupTeachers groupTeacherRows) *staffMembershipDeps {
-	return &staffMembershipDeps{persons: persons, identity: identity, employment: employment, groupTeachers: groupTeachers}
+func NewStaffMembershipDeps(persons staffPersonRows, identity staffIdentityQuery, groupTeachers groupTeacherRows) *staffMembershipDeps {
+	return &staffMembershipDeps{persons: persons, identity: identity, groupTeachers: groupTeachers}
 }
 
 // StaffMembershipRepository serves users.StaffRepository.
@@ -85,7 +73,7 @@ func membershipError(op string, err error) error {
 	switch {
 	case errors.Is(err, schoolmembership.ErrStaffNotFound),
 		errors.Is(err, schoolmembership.ErrTeacherNotFound),
-		errors.Is(err, schoolmembership.ErrGuestNotFound):
+		errors.Is(err, schoolmembership.ErrExternalCaregiverRecordNotFound):
 		return membershipNotFound(op)
 	case errors.Is(err, schoolmembership.ErrPersonnelNumberConflict):
 		// Classified in the legacy vocabulary, so the service layer keeps
@@ -134,7 +122,9 @@ func applyStaffToLegacy(target *peopleValues.Staff, value schoolmembership.Staff
 	target.RotationAnchorDate = parseCalendarDate(value.RotationAnchorDate)
 	target.BirthdayDisplayOptOut = value.BirthdayDisplayOptOut
 	target.DeletedAt = value.DeletedAt
-	target.IsGuest = value.IsGuest
+	target.HasExternalCaregiverRecord = value.HasExternalCaregiverRecord
+	// Only the person-hydrated reads apply the rule (hydrateStaffPersons).
+	target.IsExternalCaregiver = false
 }
 
 func toLegacyStaff(value schoolmembership.Staff) *peopleValues.Staff {
@@ -265,9 +255,10 @@ func (r StaffMembershipRepository) hydrateStaffPersons(ctx context.Context, memb
 		if person, found := persons[member.PersonID]; found {
 			member.Person = person
 		}
-		// The People Directory owns the account link, so School Membership
-		// resolves the marker only after its projection is attached.
-		member.IsGuest = schoolmembership.ExternalCaregiver(member.IsGuest, member.Person != nil, member.Person != nil && member.Person.AccountID != nil)
+		// The People Directory owns the person, so School Membership's
+		// rule applies only after its projection is attached. An account
+		// does not change it (#4573).
+		member.IsExternalCaregiver = schoolmembership.ExternalCaregiver(member.HasExternalCaregiverRecord, member.Person != nil)
 	}
 	return nil
 }
@@ -540,21 +531,4 @@ func (r StaffMembershipRepository) ListBirthdaysForExport(ctx context.Context) (
 		return nil, staffDirectoryError(op, err)
 	}
 	return staffBirthdayEntries(birthdays), nil
-}
-
-func (r StaffMembershipRepository) SetBirthdayDisplayOptOut(ctx context.Context, staffID int64, optOut bool) error {
-	const op = "set staff birthday display opt-out"
-	employment, err := staffoffboarding.NewLiveStaffEmployment(r.Membership, r.Deps.employment)
-	if err != nil {
-		return membershipError(op, err)
-	}
-	return membershipError(op, MembershipEmploymentError(employment.SetBirthdayDisplayOptOut(ctx, staffID, optOut)))
-}
-
-func (r StaffMembershipRepository) AddNotes(ctx context.Context, id int64, notes string) error {
-	employment, err := staffoffboarding.NewLiveStaffEmployment(r.Membership, r.Deps.employment)
-	if err != nil {
-		return membershipError("add notes", err)
-	}
-	return membershipError("add notes", MembershipEmploymentError(employment.AppendNotes(ctx, id, notes)))
 }

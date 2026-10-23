@@ -294,7 +294,14 @@ describe("getParentHelpTopicForPath", () => {
       id: HELP_TOPICS.studentSearch,
       group: "kinder",
     });
-    expect(caregiverTopics[8]?.instructionGroups).toHaveLength(4);
+    expect(caregiverTopics[8]?.instructionGroups).toHaveLength(5);
+    expect(caregiverTopics[8]?.instructionGroups?.[3]).toMatchObject({
+      title: "Ein Anwesenheitsprotokoll herunterladen",
+      steps: expect.arrayContaining([
+        "Möglich sind nur die sichtbaren Tage bis heute.",
+        "Wählen Sie das Format und danach `Herunterladen`.",
+      ]),
+    });
     expect(caregiverTopics[8]?.troubleshooting).toBe(
       HELP_TOPICS.missingChildOrGroup,
     );
@@ -540,8 +547,8 @@ describe("getParentHelpTopicForPath", () => {
     // des Tagesbetriebs, der Umgang mit dem NFC-Tablet und die Notizen zu
     // einem Kind.
     // 83 seit #3821: der eigene Dienstplan ist ein geteilter Artikel.
-    // 84 seit #3873: die Fristen für das Mittagessen.
-    expect(leadTopics).toHaveLength(85);
+    // 86 mit den neuen Einstellungs- und Mittagessen-Artikeln.
+    expect(leadTopics).toHaveLength(86);
     expect(
       leadTopics.every(
         (topic) =>

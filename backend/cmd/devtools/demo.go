@@ -306,6 +306,7 @@ func provisionDemoSchool(ctx context.Context, schools *DemoRuntime, adapter seed
 	return result.Deferred, nil
 }
 
+// demoProvisioningCredentials reads seed inputs, not device-auth fallbacks.
 func demoProvisioningCredentials() (email, password, pin string) {
 	return viper.GetString("operator_email"), viper.GetString("operator_password"), viper.GetString("ogs_device_pin")
 }

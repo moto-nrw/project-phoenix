@@ -287,6 +287,7 @@ var coreActions = map[RouteKey]CoreAction{
 	{http.MethodPost, "/api/staff/absences/{absenceId}/deny"}:                                              notCaptured,
 	{http.MethodPost, "/api/staff/absences/{absenceId}/question"}:                                          notCaptured,
 	{http.MethodPost, "/api/staff/externals"}:                                                              event("external_caregiver_created"),
+	{http.MethodPost, "/api/staff/externals/{id}/invitation"}:                                              event("external_caregiver_invited"),
 	{http.MethodPost, "/api/staff/time-tracking/export/sftp"}:                                              export("time_tracking_sftp"),
 	{http.MethodPost, "/api/staff/time-tracking/month-close"}:                                              notCaptured,
 	{http.MethodDelete, "/api/staff/{id}"}:                                                                 notCaptured,

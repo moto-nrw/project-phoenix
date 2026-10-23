@@ -300,6 +300,10 @@
     "action": "legal"
   },
   {
+    "resource": "students",
+    "action": "read"
+  },
+  {
     "resource": "substitutions",
     "action": "create"
   },

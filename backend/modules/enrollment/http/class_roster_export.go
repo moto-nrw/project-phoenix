@@ -4,11 +4,10 @@ import (
 	"fmt"
 	"sort"
 	"strings"
-	"time"
 
 	"github.com/moto-nrw/project-phoenix/modules/documentrendering/lists"
 	capability "github.com/moto-nrw/project-phoenix/modules/enrollment"
-	"github.com/moto-nrw/project-phoenix/sharedkernel/collation"
+	"github.com/moto-nrw/project-phoenix/modules/peopledirectory/departure"
 )
 
 func buildClassRosterExportFile(svc lists.DocumentRenderer, report *capability.ClassRosterReport, format lists.Format) (lists.File, error) {
@@ -23,54 +22,30 @@ func buildClassRosterExportFile(svc lists.DocumentRenderer, report *capability.C
 }
 
 func buildClassRosterTableDocument(report *capability.ClassRosterReport) lists.Document {
-	cols := []lists.Column{
-		{ID: lists.ColumnName, Label: "Name"},
-		{ID: lists.ColumnSchoolClass, Label: "Klasse"},
-		{ID: lists.ColumnWeeklyMonday, Label: "Montag"},
-		{ID: lists.ColumnWeeklyTuesday, Label: "Dienstag"},
-		{ID: lists.ColumnWeeklyWednesday, Label: "Mittwoch"},
-		{ID: lists.ColumnWeeklyThursday, Label: "Donnerstag"},
-		{ID: lists.ColumnWeeklyFriday, Label: "Freitag"},
-		{ID: lists.ColumnGuardianContacts, Label: "Erziehungsberechtigte"},
-	}
-	rows := make([]lists.Row, 0, len(report.Rows))
-	currentClass := ""
-	for i, row := range report.Rows {
-		// All-classes rosters arrive class-sorted from the service; a
-		// heading row starts each class section (new page in the PDF).
-		// Boundaries use the sort comparator's equivalence so label
-		// variants like "1a"/"1A" share one heading (first-seen label).
-		if class := strings.TrimSpace(row.SchoolClass); report.Filters.AllClasses && (i == 0 || collation.CompareSchoolClasses(class, currentClass) != 0) {
-			currentClass = class
-			rows = append(rows, lists.Row{GroupTitle: lists.ClassGroupTitle(class)})
+	children := make([]lists.ClassRosterChild, 0, len(report.Rows))
+	for _, row := range report.Rows {
+		// A class-list-only entry (#2382) has no OGS record at all: the
+		// shared table marks its name and leaves every weekday "—".
+		child := lists.ClassRosterChild{
+			Name:        row.FirstName + " " + row.LastName,
+			SchoolClass: row.SchoolClass,
+			NoCare:      row.ListEntry,
+			Extra: map[lists.ColumnID]string{
+				lists.ColumnGuardianContacts: classRosterGuardianContactsLabel(row.Guardians),
+			},
 		}
-		name := strings.TrimSpace(row.FirstName + " " + row.LastName)
-		if row.ListEntry {
-			// Class-list-only entry (#2382): the child has no OGS record at
-			// all. The marker sits in the name cell because the roster table
-			// has no status column — every weekday cell stays "—".
-			name += " (" + capability.ClassListEntryNoCareLabel + ")"
+		for i, day := range departure.PickupDayOrder {
+			child.Days[i] = classRosterDay(row, day)
 		}
-		rows = append(rows, lists.Row{Values: map[lists.ColumnID]string{
-			lists.ColumnName:             name,
-			lists.ColumnSchoolClass:      row.SchoolClass,
-			lists.ColumnWeeklyMonday:     classRosterWeeklyCell(row, "mon"),
-			lists.ColumnWeeklyTuesday:    classRosterWeeklyCell(row, "tue"),
-			lists.ColumnWeeklyWednesday:  classRosterWeeklyCell(row, "wed"),
-			lists.ColumnWeeklyThursday:   classRosterWeeklyCell(row, "thu"),
-			lists.ColumnWeeklyFriday:     classRosterWeeklyCell(row, "fri"),
-			lists.ColumnGuardianContacts: classRosterGuardianContactsLabel(row.Guardians),
-		}})
+		children = append(children, child)
 	}
-	return lists.Document{
-		Title:       classRosterTitle(report),
-		Subtitle:    classRosterSubtitle(report),
-		GeneratedAt: time.Now(),
-		Filters:     classRosterFilterLabels(report),
-		Columns:     cols,
-		Rows:        rows,
-		Footer:      exportConfidentialityNote,
+	head := enrollmentExportHead{
+		Title:    classRosterTitle(report),
+		Subtitle: classRosterSubtitle(report),
+		Filters:  classRosterFilterLabels(report),
 	}
+	// All-classes rosters arrive class-sorted from the service.
+	return enrollmentClassRosterDocument(head, "Klasse", children, report.Filters.AllClasses)
 }
 
 func classRosterTitle(report *capability.ClassRosterReport) string {
@@ -115,47 +90,21 @@ func classRosterFilterLabels(report *capability.ClassRosterReport) []string {
 	}
 }
 
-// classRosterWeeklyCell renders one weekday cell: the pickup time plus the
-// day's own Geh-/Abholregelung ("14:30 Uhr, wird abgeholt"). The former
-// summarized "Geh-/Abholweise" week column is folded in here per day (#2254);
-// days without care stay "—" and carry no departure text.
-func classRosterWeeklyCell(row capability.ClassRosterRow, day string) string {
-	isCareDay := containsReportDay(row.CareDays, day)
-	cell := weeklyPickupCell(
-		isCareDay,
-		row.SchedulePickupByDay[day],
-		row.PickupByDay[day],
-		classRosterDailyOfferings(row, day),
-	)
-	if !isCareDay {
-		return cell
+// classRosterDay reads one weekday of an enrollment row for the shared
+// class-list cell: the maintained Kind-Gehzeit (manual rows and rolled-out
+// Angebots-Gehzeiten) outranks the enrollment-form snapshot (#2290), and the
+// day's own Geh-/Abholregelung follows it (#2254).
+func classRosterDay(row capability.ClassRosterRow, day string) lists.ClassRosterDay {
+	pickup := strings.TrimSpace(row.SchedulePickupByDay[day])
+	if pickup == "" {
+		pickup = strings.TrimSpace(row.PickupByDay[day])
 	}
-	if rule := strings.TrimSpace(row.DepartureByDay[day]); rule != "" {
-		cell += ", " + rule
+	return lists.ClassRosterDay{
+		Care:      containsReportDay(row.CareDays, day),
+		Pickup:    pickup,
+		Offerings: classRosterDailyOfferings(row, day),
+		Departure: row.DepartureByDay[day],
 	}
-	return cell
-}
-
-// weeklyPickupCell renders one weekday cell of the roster-style tables
-// (class roster and compact care-usage export): "—" outside care days; the
-// maintained Kind-Gehzeit (manual rows and rolled-out Angebots-Gehzeiten)
-// outranks the enrollment-form snapshot (#2290); offering names are the
-// fallback for schools whose form encodes the care window in the offering
-// name ("Betreuung bis 14:30 Uhr") instead of a pickup-time field.
-func weeklyPickupCell(isCareDay bool, schedulePickup, snapshotPickup string, offeringNames []string) string {
-	if !isCareDay {
-		return "—"
-	}
-	if pickup := strings.TrimSpace(schedulePickup); pickup != "" {
-		return pickup + " Uhr"
-	}
-	if pickup := strings.TrimSpace(snapshotPickup); pickup != "" {
-		return pickup + " Uhr"
-	}
-	if len(offeringNames) > 0 {
-		return strings.Join(offeringNames, "; ")
-	}
-	return "Keine Abholzeit"
 }
 
 func classRosterDailyOfferings(row capability.ClassRosterRow, day string) []string {

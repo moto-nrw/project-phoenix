@@ -175,12 +175,27 @@ const mockIsCaregiver = vi.mocked(isCaregiver);
 const mockCanReadSupervisionData = vi.mocked(canReadSupervisionData);
 const mockHasEffectiveAdminScope = vi.mocked(hasEffectiveAdminScope);
 const mockHasPermission = vi.mocked(hasPermission);
-// Standardverhalten des geteilten hasPermission-Mocks: Rechte hat nur der
-// Admin. Tests, die einzelne Rechte gezielt vergeben, stellen darüber wieder
-// den Ausgangszustand her (vi.clearAllMocks setzt Implementierungen nicht
-// zurück).
+// Standardverhalten des geteilten hasPermission-Mocks: der Admin hält alles,
+// eine Betreuungskraft die Rechte der Systemrolle „user“, die die
+// Navigation prüft (users:read, time_tracking:own, rooms:read,
+// activities:read, substitutions:read). Seit #4573 hängen Alle Kinder,
+// Mitarbeiter, Zeiterfassung, Elternnachrichten, Räume, Aktivitäten,
+// Vertretungen und Notfall an diesen Rechten. Tests, die einzelne Rechte gezielt vergeben, stellen darüber
+// wieder den Ausgangszustand her (vi.clearAllMocks setzt Implementierungen
+// nicht zurück).
+const CAREGIVER_NAV_PERMISSIONS = new Set([
+  "users:read",
+  "time_tracking:own",
+  "rooms:read",
+  "activities:read",
+  "substitutions:read",
+]);
 const restoreDefaultHasPermission = () =>
-  mockHasPermission.mockImplementation((session) => mockIsAdmin(session));
+  mockHasPermission.mockImplementation(
+    (session, permission) =>
+      mockIsAdmin(session) ||
+      (!mockIsAdmin(session) && CAREGIVER_NAV_PERMISSIONS.has(permission)),
+  );
 const mockUseShellAuth = vi.mocked(useShellAuth);
 const mockUseStaffAbsencesPending = vi.mocked(useStaffAbsencesPending);
 const mockUseChangeRequestsPending = vi.mocked(useChangeRequestsPending);
@@ -267,8 +282,13 @@ describe("Sidebar", () => {
     });
     mockIsAdmin.mockReturnValue(false);
     mockIsCaregiver.mockImplementation((session) => !mockIsAdmin(session));
-    mockCanReadSupervisionData.mockImplementation((session) =>
-      mockIsCaregiver(session),
+    // Wie die echte Funktion: Adminzuschnitt, groups:read oder (ohne
+    // Rechteliste) die Betreuungsrolle. canOpenActiveSupervision baut darauf.
+    mockCanReadSupervisionData.mockImplementation(
+      (session) =>
+        mockHasEffectiveAdminScope(session) ||
+        mockHasPermission(session, "groups:read") ||
+        mockIsCaregiver(session),
     );
     mockHasEffectiveAdminScope.mockImplementation((session) =>
       mockIsAdmin(session),
@@ -376,13 +396,15 @@ describe("Sidebar", () => {
       expect(screen.queryByText("Kalender")).not.toBeInTheDocument();
     });
 
-    it("shows group navigation but hides room supervision for admins", () => {
+    // canReadSupervisionData gilt für den Adminzuschnitt (auch auf
+    // development); nur der frühere Mock sprach Admins die Aufsicht ab.
+    it("shows group navigation and room supervision for admins", () => {
       render(<Sidebar />);
 
       expect(
         screen.getByRole("button", { name: "Gruppen" }),
       ).toBeInTheDocument();
-      expect(screen.queryByText("Aktuelle Aufsicht")).not.toBeInTheDocument();
+      expect(screen.getByText("Aktuelle Aufsicht")).toBeInTheDocument();
     });
 
     // #4351: ein Eintrag „Gruppen“; fremde Gruppen stehen auf der
@@ -601,12 +623,16 @@ describe("Sidebar", () => {
     });
 
     it("keeps the Team group without its internal pages when none is accessible", () => {
-      mockHasPermission.mockReturnValue(false);
+      // Nur die eigene Zeiterfassung, kein users:read (#4573: Mitarbeiter
+      // und Tagesinformationen hängen daran).
+      mockHasPermission.mockImplementation(
+        (_session, permission) => permission === "time_tracking:own",
+      );
 
       render(<Sidebar />);
 
       // Team-Chat ist aus, Tagesinformationen brauchen users:read — die
-      // Gruppe bleibt wegen Zeiterfassung und Mitarbeiter trotzdem da.
+      // Gruppe bleibt wegen der Zeiterfassung trotzdem da.
       expect(screen.queryByText("Team-Chat")).not.toBeInTheDocument();
       expect(screen.queryByText("Tagesinformationen")).not.toBeInTheDocument();
       expect(screen.getByRole("button", { name: "Team" })).toBeInTheDocument();
@@ -913,8 +939,10 @@ describe("Sidebar", () => {
 
     it("hides the Statistik entry unless staff have both required permissions", () => {
       mockIsAdmin.mockReturnValue(false);
+      // Ohne users:read; time_tracking:own hält die Zeiterfassung als Anker.
       mockHasPermission.mockImplementation(
-        (_session, permission) => permission === "config:read",
+        (_session, permission) =>
+          permission === "config:read" || permission === "time_tracking:own",
       );
 
       render(<Sidebar />);
@@ -2313,6 +2341,111 @@ describe("Sidebar", () => {
       expect(screen.getByText("Mein Kalender")).toBeInTheDocument();
     });
 
+    // ADR 0091: die AG-Leitung hält nur schedules:read. Einträge, deren
+    // Route ein anderes Recht verlangt, wären für sie Sackgassen.
+    const EXTERN_GATED_LABELS = [
+      "Alle Kinder",
+      "Mitarbeiter",
+      "Zeiterfassung",
+      "Nachrichten",
+      "Räume",
+      "Aktivitäten",
+      "Vertretungen",
+      "Notfall",
+    ];
+
+    it("zeigt der AG-Leitung keine Einträge, deren Route sie nicht öffnen darf", () => {
+      mockHasPermission.mockImplementation(
+        (_session: unknown, permission: string) =>
+          permission === "schedules:read",
+      );
+
+      render(<Sidebar />);
+
+      // Anker: „Heute“ ist der Arbeitsplatz der Rolle und geladen.
+      expect(screen.getByText("Heute")).toBeInTheDocument();
+      for (const label of EXTERN_GATED_LABELS) {
+        expect(screen.queryByText(label)).not.toBeInTheDocument();
+      }
+    });
+
+    // ADR 0091: der Gast hält students:read statt users:read. „Alle Kinder“
+    // öffnet er; Elternnachrichten und Notfall bleiben an users:read.
+    it("zeigt dem Gast „Alle Kinder“, aber keine Elterndaten", () => {
+      mockIsCaregiver.mockReturnValue(false);
+      mockHasPermission.mockImplementation(
+        (_session: unknown, permission: string) =>
+          [
+            "students:read",
+            "groups:read",
+            "rooms:read",
+            "activities:read",
+          ].includes(permission),
+      );
+      try {
+        render(<Sidebar />);
+
+        expect(screen.getByText("Alle Kinder")).toBeInTheDocument();
+        expect(screen.getByText("Räume")).toBeInTheDocument();
+        for (const label of ["Nachrichten", "Notfall", "Mitarbeiter"]) {
+          expect(screen.queryByText(label)).not.toBeInTheDocument();
+        }
+      } finally {
+        mockIsCaregiver.mockImplementation((session) => !mockIsAdmin(session));
+      }
+    });
+
+    // Review #4573: „Aktuelle Aufsicht“ hängt am Recht der Seite, nicht am
+    // Rollennamen. Eine selbst benannte Betreuungsrolle (groups:read) und
+    // die AG-Leitung (schedules:read) behalten den Eintrag; ohne beide
+    // Rechte fehlt er.
+    it.each([
+      ["einer selbst benannten Betreuungsrolle", "groups:read", true],
+      ["der AG-Leitung", "schedules:read", true],
+      ["einer Rolle ohne beide Rechte", "users:read", false],
+    ])(
+      "zeigt „Aktuelle Aufsicht“ %s nach Recht",
+      (_who, permission, visible) => {
+        mockIsCaregiver.mockReturnValue(false);
+        mockHasPermission.mockImplementation(
+          (_session: unknown, granted: string) =>
+            granted === permission || granted === "calendar:own",
+        );
+        try {
+          render(<Sidebar />);
+
+          // Anker: die Navigation ist geladen.
+          expect(screen.getByText("Mein Kalender")).toBeInTheDocument();
+          if (visible) {
+            expect(screen.getByText("Aktuelle Aufsicht")).toBeInTheDocument();
+          } else {
+            expect(
+              screen.queryByText("Aktuelle Aufsicht"),
+            ).not.toBeInTheDocument();
+          }
+        } finally {
+          mockIsCaregiver.mockImplementation(
+            (session) => !mockIsAdmin(session),
+          );
+        }
+      },
+    );
+
+    it("zeigt dieselben Einträge einer Betreuungsrolle mit ihren Rechten", () => {
+      mockHasPermission.mockImplementation(
+        (_session: unknown, permission: string) =>
+          CAREGIVER_PERMISSIONS.has(permission) ||
+          CAREGIVER_NAV_PERMISSIONS.has(permission),
+      );
+
+      render(<Sidebar />);
+
+      expect(screen.getByText("Heute")).toBeInTheDocument();
+      for (const label of EXTERN_GATED_LABELS) {
+        expect(screen.getByText(label)).toBeInTheDocument();
+      }
+    });
+
     // Eigener Dienstplan (#3821): Eintrag unter Team für alle, die ihre
     // eigene Zeit erfassen, solange die Schule den Betreuungsplan nutzt.
     it("zeigt Mitarbeitenden mit eigener Zeiterfassung „Mein Dienstplan“", () => {
@@ -2337,8 +2470,10 @@ describe("Sidebar", () => {
 
       render(<Sidebar />);
 
-      // Anker: die Staff-Navigation ist geladen.
-      expect(screen.getByText("Zeiterfassung")).toBeInTheDocument();
+      // Anker: die Staff-Navigation ist geladen (Mitarbeiter über
+      // users:read; die Zeiterfassung hängt seit #4573 selbst an
+      // time_tracking:own).
+      expect(screen.getByText("Mitarbeiter")).toBeInTheDocument();
       expect(screen.queryByText("Mein Dienstplan")).not.toBeInTheDocument();
     });
 
@@ -2579,8 +2714,9 @@ describe("Sidebar", () => {
 
       render(<Sidebar />);
 
-      // Anker: die Staff-Navigation ist geladen.
-      expect(screen.getByText("Zeiterfassung")).toBeInTheDocument();
+      // Anker: die Staff-Navigation ist geladen (Dateien stehen für alle da;
+      // die Zeiterfassung braucht seit #4573 time_tracking:own).
+      expect(screen.getByText("Dateien")).toBeInTheDocument();
       expect(screen.queryByText("Planung")).not.toBeInTheDocument();
       expect(screen.queryByText("Betreuungsplan")).not.toBeInTheDocument();
     });
@@ -3157,7 +3293,7 @@ describe("Sidebar", () => {
       render(<Sidebar />);
 
       // Anker: die Staff-Navigation ist geladen.
-      expect(screen.getByText("Zeiterfassung")).toBeInTheDocument();
+      expect(screen.getByText("Mitarbeiter")).toBeInTheDocument();
       expect(
         screen.queryByLabelText(/ungelesene Anmeldungen/),
       ).not.toBeInTheDocument();

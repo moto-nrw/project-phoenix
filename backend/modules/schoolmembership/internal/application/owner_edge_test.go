@@ -36,8 +36,8 @@ type recordingStore struct {
 	createdTeacher schoolmembership.CreateTeacher
 	teacherFilter  schoolmembership.TeacherFilter
 
-	createdGuest schoolmembership.CreateGuest
-	guestFilter  schoolmembership.GuestFilter
+	createdRecord schoolmembership.CreateExternalCaregiverRecord
+	recordFilter  schoolmembership.ExternalCaregiverRecordFilter
 
 	entryLock    string
 	createdEntry schoolmembership.CreateClassListEntry
@@ -109,16 +109,16 @@ func (e *recordingStore) CreateTeacher(_ context.Context, fields schoolmembershi
 	return schoolmembership.Teacher{StaffID: fields.StaffID}, domain.OperationStats{}, nil
 }
 
-func (e *recordingStore) ListGuests(_ context.Context, filter schoolmembership.GuestFilter) ([]schoolmembership.Guest, domain.OperationStats, error) {
+func (e *recordingStore) ListExternalCaregiverRecords(_ context.Context, filter schoolmembership.ExternalCaregiverRecordFilter) ([]schoolmembership.ExternalCaregiverRecord, domain.OperationStats, error) {
 	e.calls++
-	e.guestFilter = filter
+	e.recordFilter = filter
 	return nil, domain.OperationStats{}, nil
 }
 
-func (e *recordingStore) CreateGuest(_ context.Context, fields schoolmembership.GuestFields) (schoolmembership.Guest, domain.OperationStats, error) {
+func (e *recordingStore) CreateExternalCaregiverRecord(_ context.Context, fields schoolmembership.ExternalCaregiverRecordFields) (schoolmembership.ExternalCaregiverRecord, domain.OperationStats, error) {
 	e.calls++
-	e.createdGuest = schoolmembership.CreateGuest{GuestFields: fields}
-	return schoolmembership.Guest{StaffID: fields.StaffID}, domain.OperationStats{}, nil
+	e.createdRecord = schoolmembership.CreateExternalCaregiverRecord{ExternalCaregiverRecordFields: fields}
+	return schoolmembership.ExternalCaregiverRecord{StaffID: fields.StaffID}, domain.OperationStats{}, nil
 }
 
 func (e *recordingStore) FindClassListEntry(_ context.Context, id int64, lock string) (schoolmembership.ClassListEntry, bool, domain.OperationStats, error) {
@@ -226,11 +226,11 @@ func TestReadsRequirePositiveIDs(t *testing.T) {
 	requireInvalid(t, engine, err, "staff ID is required")
 
 	module, engine = newModule()
-	_, err = module.FindGuest(ctx, 0)
-	requireInvalid(t, engine, err, "guest ID is required")
+	_, err = module.FindExternalCaregiverRecord(ctx, 0)
+	requireInvalid(t, engine, err, "external caregiver record ID is required")
 
 	module, engine = newModule()
-	_, err = module.FindGuestByStaff(ctx, 0)
+	_, err = module.FindExternalCaregiverRecordByStaff(ctx, 0)
 	requireInvalid(t, engine, err, "staff ID is required")
 }
 
@@ -271,11 +271,11 @@ func TestCommandsRequirePositiveIDs(t *testing.T) {
 	requireInvalid(t, engine, module.DeleteTeacher(ctx, 0), "teacher ID is required")
 
 	module, engine = newModule()
-	_, err = module.UpdateGuest(ctx, schoolmembership.UpdateGuest{GuestFields: schoolmembership.GuestFields{StaffID: 7, ActivityExpertise: "Sport"}})
-	requireInvalid(t, engine, err, "guest ID is required")
+	_, err = module.UpdateExternalCaregiverRecord(ctx, schoolmembership.UpdateExternalCaregiverRecord{ExternalCaregiverRecordFields: schoolmembership.ExternalCaregiverRecordFields{StaffID: 7, ActivityExpertise: "Sport"}})
+	requireInvalid(t, engine, err, "external caregiver record ID is required")
 
 	module, engine = newModule()
-	requireInvalid(t, engine, module.DeleteGuest(ctx, 0), "guest ID is required")
+	requireInvalid(t, engine, module.DeleteExternalCaregiverRecord(ctx, 0), "external caregiver record ID is required")
 }
 
 func TestCreateStaffValidatesEmploymentTypeAndWorkTimeModel(t *testing.T) {
@@ -411,62 +411,62 @@ func TestListTeachersTrimsFiltersAndDeduplicatesIDs(t *testing.T) {
 	}
 }
 
-func TestGuestWritesValidateContactDataAndDates(t *testing.T) {
+func TestExternalCaregiverRecordWritesValidateContactDataAndDates(t *testing.T) {
 	t.Parallel()
 	ctx := context.Background()
-	base := schoolmembership.GuestFields{StaffID: 7, ActivityExpertise: "Zirkus"}
+	base := schoolmembership.ExternalCaregiverRecordFields{StaffID: 7, ActivityExpertise: "Zirkus"}
 
 	module, engine := newModule()
-	_, err := module.CreateGuest(ctx, schoolmembership.CreateGuest{})
+	_, err := module.CreateExternalCaregiverRecord(ctx, schoolmembership.CreateExternalCaregiverRecord{})
 	requireInvalid(t, engine, err, "staff ID is required")
 
 	module, engine = newModule()
-	_, err = module.CreateGuest(ctx, schoolmembership.CreateGuest{GuestFields: schoolmembership.GuestFields{StaffID: 7, ActivityExpertise: "   "}})
+	_, err = module.CreateExternalCaregiverRecord(ctx, schoolmembership.CreateExternalCaregiverRecord{ExternalCaregiverRecordFields: schoolmembership.ExternalCaregiverRecordFields{StaffID: 7, ActivityExpertise: "   "}})
 	requireInvalid(t, engine, err, "activity expertise is required")
 
 	invalidEmail := base
 	invalidEmail.ContactEmail = "not-an-address"
 	module, engine = newModule()
-	_, err = module.CreateGuest(ctx, schoolmembership.CreateGuest{GuestFields: invalidEmail})
+	_, err = module.CreateExternalCaregiverRecord(ctx, schoolmembership.CreateExternalCaregiverRecord{ExternalCaregiverRecordFields: invalidEmail})
 	requireInvalid(t, engine, err, "invalid contact email format")
 
 	invalidPhone := base
 	invalidPhone.ContactPhone = "0221-abc"
 	module, engine = newModule()
-	_, err = module.CreateGuest(ctx, schoolmembership.CreateGuest{GuestFields: invalidPhone})
+	_, err = module.CreateExternalCaregiverRecord(ctx, schoolmembership.CreateExternalCaregiverRecord{ExternalCaregiverRecordFields: invalidPhone})
 	requireInvalid(t, engine, err, "invalid contact phone format")
 
 	shortPhone := base
 	shortPhone.ContactPhone = "12345"
 	module, engine = newModule()
-	_, err = module.CreateGuest(ctx, schoolmembership.CreateGuest{GuestFields: shortPhone})
+	_, err = module.CreateExternalCaregiverRecord(ctx, schoolmembership.CreateExternalCaregiverRecord{ExternalCaregiverRecordFields: shortPhone})
 	requireInvalid(t, engine, err, "invalid contact phone format")
 
 	badStart := base
 	badStart.StartDate = "2026-3-1"
 	module, engine = newModule()
-	_, err = module.CreateGuest(ctx, schoolmembership.CreateGuest{GuestFields: badStart})
+	_, err = module.CreateExternalCaregiverRecord(ctx, schoolmembership.CreateExternalCaregiverRecord{ExternalCaregiverRecordFields: badStart})
 	requireInvalid(t, engine, err, "start date must be a calendar date in YYYY-MM-DD format")
 
 	badEnd := base
 	badEnd.EndDate = "31.03.2026"
 	module, engine = newModule()
-	_, err = module.CreateGuest(ctx, schoolmembership.CreateGuest{GuestFields: badEnd})
+	_, err = module.CreateExternalCaregiverRecord(ctx, schoolmembership.CreateExternalCaregiverRecord{ExternalCaregiverRecordFields: badEnd})
 	requireInvalid(t, engine, err, "end date must be a calendar date in YYYY-MM-DD format")
 
 	reversed := base
 	reversed.StartDate = "2026-03-31"
 	reversed.EndDate = "2026-03-01"
 	module, engine = newModule()
-	_, err = module.CreateGuest(ctx, schoolmembership.CreateGuest{GuestFields: reversed})
+	_, err = module.CreateExternalCaregiverRecord(ctx, schoolmembership.CreateExternalCaregiverRecord{ExternalCaregiverRecordFields: reversed})
 	requireInvalid(t, engine, err, "end date cannot be before start date")
 }
 
-func TestCreateGuestTrimsTheContactFields(t *testing.T) {
+func TestCreateExternalCaregiverRecordTrimsTheContactFields(t *testing.T) {
 	t.Parallel()
 	module, engine := newModule()
 
-	_, err := module.CreateGuest(context.Background(), schoolmembership.CreateGuest{GuestFields: schoolmembership.GuestFields{
+	_, err := module.CreateExternalCaregiverRecord(context.Background(), schoolmembership.CreateExternalCaregiverRecord{ExternalCaregiverRecordFields: schoolmembership.ExternalCaregiverRecordFields{
 		StaffID: 7, ActivityExpertise: "  Zirkus  ", Organization: "  Circus e.V. ",
 		ContactEmail: "  gast@example.com ", ContactPhone: " +49 221 1234567 ",
 		StartDate: "2026-03-01", EndDate: "2026-03-31",
@@ -474,36 +474,36 @@ func TestCreateGuestTrimsTheContactFields(t *testing.T) {
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
-	created := engine.createdGuest
+	created := engine.createdRecord
 	if created.ActivityExpertise != "Zirkus" || created.Organization != "Circus e.V." {
-		t.Fatalf("guest fields were not trimmed: %+v", created)
+		t.Fatalf("external caregiver record fields were not trimmed: %+v", created)
 	}
 	if created.ContactEmail != "gast@example.com" || created.ContactPhone != "+49 221 1234567" {
 		t.Fatalf("contact data was not trimmed: %+v", created)
 	}
 }
 
-func TestListGuestsTrimsFiltersAndValidatesTheActiveOnDate(t *testing.T) {
+func TestListExternalCaregiverRecordsTrimsFiltersAndValidatesTheActiveOnDate(t *testing.T) {
 	t.Parallel()
 	ctx := context.Background()
 
 	module, engine := newModule()
-	if _, err := module.ListGuests(ctx, schoolmembership.GuestFilter{
+	if _, err := module.ListExternalCaregiverRecords(ctx, schoolmembership.ExternalCaregiverRecordFilter{
 		IDs: []int64{2, 2}, StaffIDs: []int64{0},
 		OrganizationContains: " Circus ", ExpertiseContains: " Zirkus ", ActiveOn: "2026-03-15",
 	}); err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
-	filter := engine.guestFilter
+	filter := engine.recordFilter
 	if len(filter.IDs) != 1 || filter.StaffIDs == nil || len(filter.StaffIDs) != 0 {
-		t.Fatalf("guest ID filters were not normalized: %+v", filter)
+		t.Fatalf("external caregiver record ID filters were not normalized: %+v", filter)
 	}
 	if filter.OrganizationContains != "Circus" || filter.ExpertiseContains != "Zirkus" {
-		t.Fatalf("guest filter was not trimmed: %+v", filter)
+		t.Fatalf("external caregiver record filter was not trimmed: %+v", filter)
 	}
 
 	module, engine = newModule()
-	_, err := module.ListGuests(ctx, schoolmembership.GuestFilter{ActiveOn: "15.03.2026"})
+	_, err := module.ListExternalCaregiverRecords(ctx, schoolmembership.ExternalCaregiverRecordFilter{ActiveOn: "15.03.2026"})
 	requireInvalid(t, engine, err, "active-on date must be a calendar date in YYYY-MM-DD format")
 }
 

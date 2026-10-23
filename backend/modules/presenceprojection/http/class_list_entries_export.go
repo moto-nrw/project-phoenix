@@ -2,14 +2,14 @@ package presenceprojectionhttp
 
 import (
 	http "net/http"
+	slices "slices"
 	sort "sort"
 	strings "strings"
 
 	lists "github.com/moto-nrw/project-phoenix/modules/documentrendering/lists"
 	peopleModule "github.com/moto-nrw/project-phoenix/modules/peopledirectory"
+	departure "github.com/moto-nrw/project-phoenix/modules/peopledirectory/departure"
 )
-
-const classListEntryNoCareLabel = "Keine Betreuung"
 
 // classListEntryExportEligible reports whether the export may carry list
 // entries at all. Entries only exist as name + class, so any active filter on
@@ -74,21 +74,71 @@ func classListEntryMatchesSearch(entry peopleModule.StudentClassListEntry, searc
 		containsFold(fullName, search)
 }
 
-// classListEntryExportRow renders one entry: name with the "Keine Betreuung"
-// marker, class, and "—" in the weekday cells like a non-care day of a
-// student row. Every other column stays empty — the entry has no data there,
-// and an invented value is exactly what #2382 forbids.
+// classListEntryExportRow renders one entry through the shared class-list
+// table: name with the "Keine Betreuung" marker, class, and "—" in the
+// weekday cells like a non-care day of a student row. Every other column
+// stays empty — the entry has no data there, and an invented value is
+// exactly what #2382 forbids.
 func classListEntryExportRow(entry peopleModule.StudentClassListEntry) lists.Row {
-	return lists.Row{Values: map[lists.ColumnID]string{
-		lists.ColumnName:              strings.TrimSpace(entry.FirstName+" "+entry.LastName) + " (" + classListEntryNoCareLabel + ")",
-		lists.ColumnSchoolClass:       entry.SchoolClass,
-		lists.ColumnEnrollmentSummary: classListEntryNoCareLabel,
-		lists.ColumnWeeklyMonday:      "—",
-		lists.ColumnWeeklyTuesday:     "—",
-		lists.ColumnWeeklyWednesday:   "—",
-		lists.ColumnWeeklyThursday:    "—",
-		lists.ColumnWeeklyFriday:      "—",
-	}}
+	return lists.ClassRosterRow(lists.ClassRosterChild{
+		Name:        entry.FirstName + " " + entry.LastName,
+		SchoolClass: entry.SchoolClass,
+		NoCare:      true,
+		Extra:       map[lists.ColumnID]string{lists.ColumnEnrollmentSummary: lists.ClassRosterNoCareLabel},
+	})
+}
+
+// classRosterWeekdays are the plan weekdays of the class-list cells, Monday
+// first like departure.PickupDayOrder.
+var classRosterWeekdays = [5]int{weekdayMonday, weekdayTuesday, weekdayWednesday, weekdayThursday, weekdayFriday}
+
+// applyClassRosterRows re-renders the student rows of the "Klassenliste"
+// preset through the shared class-list table (#4749): the weekday cells carry
+// the Kind-Gehzeit and the day's Geh-/Abholregelung ("14:30 Uhr, wird
+// abgeholt") like the Klassenliste of an enrollment phase. The other columns
+// keep the values buildExportRow rendered. sources and students are parallel
+// (responseRowSources keeps the order).
+func applyClassRosterRows(sources []exportRowSource, students []StudentResponse, weekly map[int64]weeklySchedule) {
+	for i, student := range students {
+		sources[i].row = classRosterExportRow(student, weekly[student.ID], sources[i].row)
+	}
+}
+
+func classRosterExportRow(student StudentResponse, plan weeklySchedule, base lists.Row) lists.Row {
+	rules := departure.DayRules(student.AllowedDepartureModes, student.DepartureDays, student.DepartureCompanionNote, student.DepartureCompanions)
+	child := lists.ClassRosterChild{
+		Name:        student.FirstName + " " + student.LastName,
+		SchoolClass: student.SchoolClass,
+		Extra:       base.Values,
+	}
+	for i, weekday := range classRosterWeekdays {
+		pickup := plan.PickupByWeekday[weekday]
+		child.Days[i] = lists.ClassRosterDay{
+			// A care day as careDays counts it: a planned arrival or pickup
+			// makes the day a care day even without its own marker.
+			Care:      plan.CareDaysByWeekday[weekday] || plan.ArrivalByWeekday[weekday] != "" || pickup != "",
+			Pickup:    pickup,
+			Departure: rules[departure.PickupDayOrder[i]],
+		}
+	}
+	return lists.ClassRosterRow(child)
+}
+
+// exportPrintsDepartureRules reports whether the export prints a departure
+// rule: the departure column, or a weekday cell of the "Klassenliste".
+func exportPrintsDepartureRules(preset lists.Preset, columns []lists.Column) bool {
+	if exportHasColumn(columns, lists.ColumnDeparture) {
+		return true
+	}
+	if preset != lists.PresetClassRoster {
+		return false
+	}
+	for _, column := range columns {
+		if slices.Contains(lists.ClassRosterWeekdayColumns[:], column.ID) {
+			return true
+		}
+	}
+	return false
 }
 
 // exportRowSource is one future document row with the sort keys the merge
@@ -194,17 +244,13 @@ func (rs *Resource) stableSortRowSources(sources []exportRowSource, nameSorted b
 }
 
 // buildExportRowSources renders the final rows (grouped or flat) from the
-// merged sources, reusing the exact heading semantics of
-// the grouped export builder.
+// merged sources with the class sections of the shared class-list table
+// (#4749), so a grouped child list and both class lists open each class the
+// same way.
 func (rs *Resource) buildExportRowSources(sources []exportRowSource, grouped bool) []lists.Row {
-	rows := make([]lists.Row, 0, len(sources))
-	currentClass := ""
-	for i, source := range sources {
-		if class := strings.TrimSpace(source.schoolClass); grouped && (i == 0 || rs.CompareSchoolClasses(class, currentClass) != 0) {
-			currentClass = class
-			rows = append(rows, lists.Row{GroupTitle: lists.ClassGroupTitle(class)})
-		}
-		rows = append(rows, source.row)
+	rows := make([]lists.ClassSectionRow, 0, len(sources))
+	for _, source := range sources {
+		rows = append(rows, lists.ClassSectionRow{SchoolClass: source.schoolClass, Row: source.row})
 	}
-	return rows
+	return lists.ClassSectionRows(rows, grouped)
 }

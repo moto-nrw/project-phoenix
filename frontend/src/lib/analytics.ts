@@ -70,6 +70,7 @@ export interface PortalAnalyticsSession {
    * pseudonymous ID of the account. The analytics policy honours them on the
    * OGS portal only; every other portal leaves them out.
    */
+  readonly enabled?: boolean;
   readonly analyseFreigabe?: boolean;
   readonly recordingSamplePercent?: number;
   readonly person?: string | null;
@@ -86,24 +87,25 @@ export function registerPortalSession(
   session: PortalAnalyticsSession,
   resetFirst: boolean,
 ): void {
-  // The registered properties first: a reset for a school change must not
-  // undo the identity the context applies next.
-  setPostHogContext(
+  setAnalyticsContext(
     {
-      ...(session.schoolId && /^\d+$/.test(session.schoolId)
-        ? { school_id: session.schoolId }
-        : {}),
+      enabled: session.enabled === true,
+      surface: session.surface,
       role: session.role,
+      analyseFreigabe: session.analyseFreigabe === true,
+      recordingSamplePercent: session.recordingSamplePercent ?? 0,
+      person: session.person ?? null,
     },
-    resetFirst,
+    {
+      properties: {
+        ...(session.schoolId && /^\d+$/.test(session.schoolId)
+          ? { school_id: session.schoolId }
+          : {}),
+        role: session.role,
+      },
+      resetFirst,
+    },
   );
-  setAnalyticsContext({
-    surface: session.surface,
-    role: session.role,
-    analyseFreigabe: session.analyseFreigabe === true,
-    recordingSamplePercent: session.recordingSamplePercent ?? 0,
-    person: session.person ?? null,
-  });
 }
 
 /** Logout or school change: back to an anonymous visit of the host. */

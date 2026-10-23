@@ -91,6 +91,12 @@ const (
 	CodeSettingsManagedByUpload                       = "settings.managed_by_upload"
 	CodeSettingsNotFound                              = "settings.not_found"
 	CodeSettingsPresenceModeSwitchBlocked             = "settings.presence_mode_switch_blocked"
+	CodeStaffExternalAccessInvalid                    = "staff.external_access_invalid"
+	CodeStaffExternalEmailInvalid                     = "staff.external_email_invalid"
+	CodeStaffExternalEmailInvited                     = "staff.external_email_invited"
+	CodeStaffExternalEmailRequired                    = "staff.external_email_required"
+	CodeStaffExternalHasAccount                       = "staff.external_has_account"
+	CodeStaffNotExternal                              = "staff.not_external"
 	CodeStudentsAbsenceReadRequired                   = "students.absence_read_required"
 	CodeStudentsBulkApprovalIneligible                = "students.bulk_approval_ineligible"
 	CodeStudentsCareDayManagedByBooking               = "students.care_day_managed_by_booking"
@@ -296,12 +302,6 @@ const (
 	CodeTimetableTemplateEndBeforeStart               = "timetable.template_end_before_start"
 	CodeTimetableTemplateGradeAboveMax                = "timetable.template_grade_above_max"
 	CodeTimetableTemplateInvalid                      = "timetable.template_invalid"
-	CodeTimetableTemplateMaxParticipantsInvalid       = "timetable.template_max_participants_invalid"
-	CodeTimetableTemplateNotFound                     = "timetable.template_not_found"
-	CodeTimetableTemplatePlanningTrackUnavailable     = "timetable.template_planning_track_unavailable"
-	CodeTimetableTemplateRosterRebaseConflict         = "timetable.template_roster_rebase_conflict"
-	CodeTimetableTemplateSplitInPast                  = "timetable.template_split_in_past"
-	CodeTimetableTemplateSplitInvalid                 = "timetable.template_split_invalid"
 )
 
 var errorCodeClasses1 = map[string]string{
@@ -394,6 +394,12 @@ var errorCodeClasses1 = map[string]string{
 	"settings.managed_by_upload":                          "business_rejection",
 	"settings.not_found":                                  "business_rejection",
 	"settings.presence_mode_switch_blocked":               "business_rejection",
+	"staff.external_access_invalid":                       "input",
+	"staff.external_email_invalid":                        "input",
+	"staff.external_email_invited":                        "business_rejection",
+	"staff.external_email_required":                       "input",
+	"staff.external_has_account":                          "business_rejection",
+	"staff.not_external":                                  "business_rejection",
 	"students.absence_read_required":                      "permission",
 	"students.bulk_approval_ineligible":                   "business_rejection",
 	"students.care_day_managed_by_booking":                "business_rejection",
@@ -599,12 +605,6 @@ var errorCodeClasses1 = map[string]string{
 	"timetable.template_end_before_start":                 "input",
 	"timetable.template_grade_above_max":                  "input",
 	"timetable.template_invalid":                          "input",
-	"timetable.template_max_participants_invalid":         "input",
-	"timetable.template_not_found":                        "business_rejection",
-	"timetable.template_planning_track_unavailable":       "business_rejection",
-	"timetable.template_roster_rebase_conflict":           "business_rejection",
-	"timetable.template_split_in_past":                    "input",
-	"timetable.template_split_invalid":                    "input",
 }
 
 func init() {

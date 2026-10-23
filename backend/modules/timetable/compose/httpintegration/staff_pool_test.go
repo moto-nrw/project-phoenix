@@ -212,7 +212,7 @@ func TestStaffPoolForInstance_LeavesExternalCaregiversOut(t *testing.T) {
 	t.Parallel()
 
 	s := makePoolSetup(t)
-	external := &testpkg.Guest{TenantID: s.tenantID, StaffID: s.otherID, ActivityExpertise: "Musik"}
+	external := &testpkg.ExternalCaregiverRecord{TenantID: s.tenantID, StaffID: s.otherID, ActivityExpertise: "Musik"}
 	_, err := s.db.NewInsert().Model(external).ModelTableExpr(`users.external_caregivers`).Exec(s.ctx)
 	require.NoError(t, err)
 
@@ -220,6 +220,22 @@ func TestStaffPoolForInstance_LeavesExternalCaregiversOut(t *testing.T) {
 	require.NoError(t, err)
 	for _, entry := range pool.Entries {
 		assert.NotEqual(t, external.StaffID, entry.StaffID)
+	}
+}
+
+// The pool is replacement staffing, which an account does not open to an
+// external caregiver (#4573 D6).
+func TestStaffPoolForInstance_LeavesAccountBackedExternalCaregiversOut(t *testing.T) {
+	t.Parallel()
+
+	s := makePoolSetup(t)
+	externalID := createAccountBackedExternal(t, s.db, s.ctx, s.tenantID)
+
+	pool, err := s.detection.StaffPoolForInstance(s.ctx, s.target.ID)
+	require.NoError(t, err)
+	poolEntryOf(t, pool, s.staffID) // positive anchor: regular staff is listed
+	for _, entry := range pool.Entries {
+		assert.NotEqual(t, externalID, entry.StaffID)
 	}
 }
 

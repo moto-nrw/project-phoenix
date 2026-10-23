@@ -128,7 +128,8 @@ const SYSTEM_ROLE_TRANSLATIONS: Record<
   },
   guest: {
     name: "Gast",
-    description: "Eingeschränkter Zugriff für nicht authentifizierte Benutzer",
+    description:
+      "Nur ansehen: Kinder, Räume und AGs. Keine Elterndaten, keine Nachrichten.",
   },
   guardian: {
     name: "Erziehungsberechtigter",
@@ -137,6 +138,12 @@ const SYSTEM_ROLE_TRANSLATIONS: Record<
   lehrkraft: {
     name: "Lehrkraft",
     description: "Lesezugriff auf die Tagesansicht der zugewiesenen Klassen",
+  },
+  // ADR 0091: the access „Eigene Termine betreuen“ of external caregivers.
+  "ag-leitung": {
+    name: "AG-Leitung",
+    description:
+      "Betreut eigene Termine: starten, Kinder ein- und auschecken, beenden",
   },
 };
 
@@ -147,6 +154,12 @@ const SYSTEM_ROLE_TRANSLATIONS: Record<
 export function getRoleDisplayName(roleName: string): string {
   return SYSTEM_ROLE_TRANSLATIONS[roleName.toLowerCase()]?.name ?? roleName;
 }
+
+/**
+ * How an external caregiver is marked in lists, badges and select options:
+ * „Extern“. An attribute of the person, not a role (ADR 0091).
+ */
+export const EXTERNAL_CAREGIVER_LABEL = "Extern";
 
 /**
  * Get the German description for a system role.
