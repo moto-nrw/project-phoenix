@@ -90,11 +90,19 @@ type ChildFeatureFlags struct {
 	// GuardianContactManageAllowed is true when the caller may create and edit
 	// accountless contacts for this child.
 	GuardianContactManageAllowed bool
+	// AbsenceRequestEditEnabled is true when the guardian holds
+	// parent_portal.sick_note.submit and may therefore change their own open
+	// absence requests (#4603). It deliberately ignores the school's report
+	// switches: a request filed before the school turned reporting off stays
+	// correctable.
+	AbsenceRequestEditEnabled bool
 	// RelatedAccountsInviteEnabled is true when parents may invite further
-	// guardians (guardians.parent_invite_mode != disabled).
+	// guardians (guardians.parent_invite_mode != disabled) AND the guardian
+	// holds parent_portal.related_accounts.manage for this child (#4603).
 	RelatedAccountsInviteEnabled bool
 	// RelatedAccountsRemoveEnabled is true when parents may remove another
-	// account's access (guardians.parent_can_remove).
+	// account's access (guardians.parent_can_remove) AND the guardian holds
+	// parent_portal.related_accounts.manage for this child (#4603).
 	RelatedAccountsRemoveEnabled bool
 	// MasterDataEditEnabled is true when parents may directly edit the
 	// non-guardian Track A Stammdaten fields (setting AND the relationship

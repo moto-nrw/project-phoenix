@@ -274,6 +274,7 @@ type ChildFeaturesResponse struct {
 	PickupChangeTodayClosed      bool   `json:"pickup_change_today_closed"`
 	PickupManageAllowed          bool   `json:"pickup_manage_allowed"`
 	GuardianContactManageAllowed bool   `json:"guardian_contact_manage_allowed"`
+	AbsenceRequestEditEnabled    bool   `json:"absence_request_edit_enabled"`
 	RelatedAccountsInviteEnabled bool   `json:"related_accounts_invite_enabled"`
 	RelatedAccountsRemoveEnabled bool   `json:"related_accounts_remove_enabled"`
 	MasterDataEditEnabled        bool   `json:"master_data_edit_enabled"`
@@ -323,6 +324,7 @@ func (rs *Resource) getChildFeatures(w http.ResponseWriter, r *http.Request) {
 		PickupChangeTodayClosed:      flags.PickupChangeTodayClosed,
 		PickupManageAllowed:          flags.PickupManageAllowed,
 		GuardianContactManageAllowed: flags.GuardianContactManageAllowed,
+		AbsenceRequestEditEnabled:    flags.AbsenceRequestEditEnabled,
 		RelatedAccountsInviteEnabled: flags.RelatedAccountsInviteEnabled,
 		RelatedAccountsRemoveEnabled: flags.RelatedAccountsRemoveEnabled,
 		MasterDataEditEnabled:        flags.MasterDataEditEnabled,

@@ -244,6 +244,10 @@ export interface ChildFeatures {
   readonly pickup_change_today_closed?: boolean;
   readonly pickup_manage_allowed?: boolean;
   readonly guardian_contact_manage_allowed: boolean;
+  // Ob die Person ihre eigenen offenen Abwesenheitsanfragen ändern darf
+  // (parent_portal.sick_note.submit, #4603). Fehlt das Feld (älteres
+  // Backend), bleibt der Knopf aus.
+  readonly absence_request_edit_enabled?: boolean;
   readonly related_accounts_invite_enabled: boolean;
   readonly related_accounts_remove_enabled: boolean;
   readonly master_data_edit_enabled: boolean;

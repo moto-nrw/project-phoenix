@@ -175,6 +175,39 @@ func TestRelatedAccountsEndpoint_RemoveGate(t *testing.T) {
 	})
 }
 
+// TestRelatedAccountsEndpoint_ManagePermission pins #4603: inviting and
+// removing accounts needs parent_portal.related_accounts.manage on the child,
+// while the list stays open to every account with portal access.
+func TestRelatedAccountsEndpoint_ManagePermission(t *testing.T) {
+	t.Parallel()
+
+	db := testpkg.SetupTestDB(t)
+	chain := testpkg.CreateTestParentGuardianChain(t, db)
+	router := newRelAcctRouter(t, db, settings.ParentInviteModeDirect, true)
+	token := parentToken(t, chain.AccountID)
+	base := "/me/children/" + strconv.FormatInt(chain.StudentID, 10) + "/related-accounts"
+	removePath := base + "/" + strconv.FormatInt(chain.GuardianProfileID, 10)
+
+	setGuardianPermissions(t, db, chain, `{"parent_portal.access": true}`)
+
+	listed := doRequest(t, router, http.MethodGet, base, token, nil)
+	assert.Equal(t, http.StatusOK, listed.Code, listed.Body.String())
+
+	invited := doRequest(t, router, http.MethodPost, base, token, map[string]any{"email": "neu@example.test"})
+	require.Equal(t, http.StatusForbidden, invited.Code, invited.Body.String())
+	assert.Contains(t, invited.Body.String(), `"code":"care.guardian_permission_denied"`)
+
+	removed := doRequest(t, router, http.MethodDelete, removePath, token, nil)
+	require.Equal(t, http.StatusForbidden, removed.Code, removed.Body.String())
+	assert.Contains(t, removed.Body.String(), `"code":"care.guardian_permission_denied"`)
+
+	setGuardianPermissions(t, db, chain, `{"parent_portal.access": true, "parent_portal.related_accounts.manage": true}`)
+	invited = doRequest(t, router, http.MethodPost, base, token, map[string]any{"email": "neu@example.test"})
+	assert.Equal(t, http.StatusCreated, invited.Code, invited.Body.String())
+	removed = doRequest(t, router, http.MethodDelete, removePath, token, nil)
+	assert.Equal(t, http.StatusOK, removed.Code, removed.Body.String())
+}
+
 // relAcctCaptureInvites records the invite request and returns a canned result,
 // so the handler's confirm_role_upgrade/existing_role passthrough is testable.
 type relAcctCaptureInvites struct {

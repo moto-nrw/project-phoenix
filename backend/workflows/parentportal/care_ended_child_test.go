@@ -85,6 +85,7 @@ func TestParentPortal_CareEndedChildIsReadOnly(t *testing.T) {
 		assert.False(t, flags.MasterDataEditEnabled)
 		assert.False(t, flags.MasterDataRequestEnabled)
 		assert.False(t, flags.RelatedAccountsInviteEnabled)
+		assert.False(t, flags.AbsenceRequestEditEnabled)
 		assert.False(t, flags.RelatedAccountsRemoveEnabled)
 	})
 
