@@ -104,7 +104,7 @@ Aktivitäten, Gruppen, Rollen, Geräte, Dateien, Nachrichten, Anfragen.
    nur im Zustand des Formulars, ein Wechsel im selben Tab wirft ihn weg.
    Beim Zurückkommen lädt die Auswahl ihre Einträge neu (`focus`), sodass
    der eben angelegte Eintrag ohne Zutun dasteht. Eine Kopf-Aktion einer
-   Seite („Schichtarten verwalten") hat keinen Entwurf zu verlieren und
+   Seite („Dienstarten verwalten") hat keinen Entwurf zu verlieren und
    führt im selben Tab auf die Route.
 
    Nicht gemeint sind die Einträge des Objekts, um das der Dialog ohnehin
@@ -182,7 +182,7 @@ keine zweite Ansicht.
 
 ## Bauart 3 — Werkzeug
 
-Flächen, auf denen über Zeit gearbeitet wird: Betreuungsplan, Dienstplan,
+Flächen, auf denen über Zeit gearbeitet wird: Tages- und Wochenplan, Dienstplan,
 Vertretung, Kalender, Zeiterfassung, Statistik, Tagesauswertung, Abrechnung.
 
 1. **Zeitnavigation immer im `searchSlot` der Kopfkarte, immer als
@@ -452,7 +452,7 @@ Knopf, Hilfe, E-Mail. Verbindlich:
 
 Zwei sichtbare Namen teilen keinen Wortstamm ohne sichtbare Abgrenzung.
 Der Wortstamm „Betreuungs-" darf nur noch EINMAL als Navigationsname
-vorkommen (Betreuungsplan).
+vorkommen (Tages- und Wochenplan).
 
 ## Farbe in der Navigation
 

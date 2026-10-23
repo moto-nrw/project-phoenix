@@ -317,7 +317,7 @@ describe("TimetableRosterContent late arrivals", () => {
               {
                 kind: "template_class_mismatch",
                 message:
-                  "Kind passt nicht zur Klassengruppe der Betreuungsplan-Vorlage.",
+                  "Kind passt nicht zur Klassengruppe der Vorlage im Tages- und Wochenplan.",
                 expectedArrival: null,
                 slotStart: null,
                 expectedGroupId: "12",
@@ -334,7 +334,7 @@ describe("TimetableRosterContent late arrivals", () => {
 
     expect(
       screen.getByText(
-        "Kind passt nicht zur Klassengruppe der Betreuungsplan-Vorlage.",
+        "Kind passt nicht zur Klassengruppe der Vorlage im Tages- und Wochenplan.",
       ),
     ).toBeInTheDocument();
   });

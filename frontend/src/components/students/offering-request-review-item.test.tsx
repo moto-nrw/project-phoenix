@@ -719,7 +719,7 @@ describe("OfferingRequestReviewItem", () => {
       ).toBeInTheDocument();
       expect(
         screen.getByText(
-          "Angebotsgebundene Gruppen im Betreuungsplan und Gehzeiten werden angepasst.",
+          "Angebotsgebundene Gruppen im Tages- und Wochenplan und Gehzeiten werden angepasst.",
         ),
       ).toBeInTheDocument();
       expect(
@@ -756,7 +756,7 @@ describe("OfferingRequestReviewItem", () => {
       ).toHaveTextContent("Di, ab 02.02.2027 · 8 Termine");
       expect(
         screen.getByText(
-          "Nach der Freigabe: Öffnen Sie den Betreuungsplan. Entfernen Sie Lara Beispiel an den genannten Tagen aus diesen Gruppen oder ändern Sie die Gruppentage.",
+          "Nach der Freigabe: Öffnen Sie den Tages- und Wochenplan. Entfernen Sie Lara Beispiel an den genannten Tagen aus diesen Gruppen oder ändern Sie die Gruppentage.",
         ),
       ).toBeInTheDocument();
     });

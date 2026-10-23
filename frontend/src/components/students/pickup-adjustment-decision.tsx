@@ -227,8 +227,9 @@ function PlanningConflicts({
         ))}
       </ul>
       <p className="text-sm text-gray-700">
-        Nach dem Speichern: Öffnen Sie den Betreuungsplan. Entfernen Sie das
-        Kind an diesen Tagen aus den Gruppen oder ändern Sie die Gruppentage.
+        Nach dem Speichern: Öffnen Sie den Tages- und Wochenplan. Entfernen Sie
+        das Kind an diesen Tagen aus den Gruppen oder ändern Sie die
+        Gruppentage.
       </p>
     </div>
   );

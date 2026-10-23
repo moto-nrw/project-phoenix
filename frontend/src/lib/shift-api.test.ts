@@ -444,7 +444,7 @@ describe("ownShiftService assignments (#1844)", () => {
     vi.clearAllMocks();
   });
 
-  it("loads and maps the own Betreuungsplan assignments", async () => {
+  it("loads and maps the own Tages- und Wochenplan assignments", async () => {
     mockSessionFetch.mockResolvedValueOnce(
       Response.json({ data: [backendAssignment] }, { status: 200 }),
     );

@@ -179,7 +179,7 @@ const baseDataSections: DataSection[] = [
   {
     id: "planningTracks",
     title: "Planungsspuren",
-    description: "Regeltermine im Betreuungsplan farblich bündeln",
+    description: "Regeltermine im Tages- und Wochenplan farblich bündeln",
     href: "/database/planning-tracks",
     concept: "carePlan",
     requiresPlanning: true,
@@ -187,7 +187,7 @@ const baseDataSections: DataSection[] = [
   },
   {
     id: "shiftTypes",
-    title: "Schichtarten",
+    title: "Dienstarten",
     description: "Aufgabe einer Schicht im Dienstplan benennen",
     href: "/database/shift-types",
     concept: "staffPlan",
@@ -204,7 +204,7 @@ const baseDataSections: DataSection[] = [
   },
   {
     id: "gradeTransitions",
-    title: "Jahrgangswechsel",
+    title: "Schuljahreswechsel",
     description:
       "Kinder zum Schuljahreswechsel in die nächste Klasse versetzen",
     href: "/database/grade-transitions",

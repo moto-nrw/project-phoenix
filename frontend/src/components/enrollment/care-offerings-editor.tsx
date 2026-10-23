@@ -847,7 +847,7 @@ export function CareOfferingsEditor({
               <FeaturePill label="Ferienbetreuung" />
             ) : null}
             {offering.activity_group_id ? (
-              <FeaturePill label="Betreuungsplan" />
+              <FeaturePill label="Tages- und Wochenplan" />
             ) : null}
             <FeaturePill
               label={

@@ -39,8 +39,8 @@ const DEFAULT_COLOR: string = LOCATION_COLORS.GROUP_ROOM;
 function describeDeletion(type: ShiftType) {
   return (
     <>
-      Die Schichtart <strong>{type.name}</strong> wird gelöscht. Bereits
-      geplante Schichten bleiben erhalten, verlieren aber diese Kennzeichnung.
+      Die Dienstart <strong>{type.name}</strong> wird gelöscht. Bereits geplante
+      Dienste bleiben erhalten, verlieren aber diese Kennzeichnung.
     </>
   );
 }
@@ -64,10 +64,8 @@ function ShiftTypesPageContent() {
   );
   // Ladefehler mit Katalogtext und Wiederholen statt eines eigenen Satzes
   // (#2517).
-  const loadError = useSwrLoadError(
-    swrError,
-    "die Liste der Schichtarten",
-    () => mutate(),
+  const loadError = useSwrLoadError(swrError, "die Liste der Dienstarten", () =>
+    mutate(),
   );
 
   // Die Kategorien tragen ihre aktuelle Schichtart; daraus kommt die
@@ -100,7 +98,7 @@ function ShiftTypesPageContent() {
 
     const sections = (type: ShiftType | null): SectionConfig[] => [
       {
-        title: "Schichtart",
+        title: "Dienstart",
         fields: [
           {
             name: "name",
@@ -117,7 +115,7 @@ function ShiftTypesPageContent() {
             component: CatalogColorField,
             componentProps: {
               defaultHex: DEFAULT_COLOR,
-              hint: "Die Farbe kennzeichnet die Schichtart im Wochenplan.",
+              hint: "Die Farbe kennzeichnet die Dienstart im Wochenplan.",
             },
           },
           {
@@ -129,7 +127,7 @@ function ShiftTypesPageContent() {
           },
           {
             name: "isActive",
-            label: "In der Auswahl neuer Schichten anbieten",
+            label: "In der Auswahl neuer Dienste anbieten",
             type: "checkbox",
             colSpan: 2,
           },
@@ -137,7 +135,7 @@ function ShiftTypesPageContent() {
             ? [
                 {
                   name: "categoryIds",
-                  label: "Kategorien des Betreuungsplans",
+                  label: "Kategorien des Tages- und Wochenplans",
                   type: "multiselect" as const,
                   colSpan: 2 as const,
                   placeholder: "Kategorie hinzufügen…",
@@ -158,7 +156,7 @@ function ShiftTypesPageContent() {
                         : category.name,
                     })),
                   helperText:
-                    "Betreuungsblöcke dieser Kategorien gehören zu dieser Schichtart. Eine Kategorie kann nur zu einer Schichtart gehören.",
+                    "Betreuungsblöcke dieser Kategorien gehören zu dieser Dienstart. Eine Kategorie kann nur zu einer Dienstart gehören.",
                 },
               ]
             : []),
@@ -186,20 +184,20 @@ function ShiftTypesPageContent() {
 
     return {
       concept: "staffPlan",
-      title: "Schichtarten",
-      singular: "Schichtart",
+      title: "Dienstarten",
+      singular: "Dienstart",
       purpose:
-        "Schichtarten benennen die Aufgabe einer geplanten Schicht, zum Beispiel Betreuung, Vorbereitung oder Pause.",
-      searchPlaceholder: "Schichtart suchen…",
+        "Dienstarten benennen die Aufgabe eines geplanten Dienstes, zum Beispiel Betreuung, Vorbereitung oder Pause.",
+      searchPlaceholder: "Dienstart suchen…",
       emptyDescription:
-        "Legen Sie eine Schichtart an oder fügen Sie die Beispiele hinzu, damit der Dienstplan Schichten benennen kann.",
+        "Legen Sie eine Dienstart an oder fügen Sie die Beispiele hinzu, damit der Dienstplan Dienste benennen kann.",
       preserveDraftOnSectionsChange: true,
       stats: (types) => {
         const inactive = types.filter((type) => !type.isActive).length;
         const active = types.length - inactive;
         return inactive > 0
           ? `${formatCount(active)} in der Auswahl · ${formatCount(inactive)} ausgeschaltet`
-          : `${formatCount(active)} ${active === 1 ? "Schichtart" : "Schichtarten"}`;
+          : `${formatCount(active)} ${active === 1 ? "Dienstart" : "Dienstarten"}`;
       },
       toRow: (type) => ({
         name: type.name,
@@ -230,10 +228,10 @@ function ShiftTypesPageContent() {
         shiftTypeService.updateShiftType(type.id, payloadOf(values, type)),
       retire: {
         menuLabel: "Nicht mehr anbieten",
-        confirmTitle: "Schichtart nicht mehr anbieten?",
+        confirmTitle: "Dienstart nicht mehr anbieten?",
         confirmLabel: "Nicht mehr anbieten",
         describe: (type) =>
-          `Die Schichtart „${type.name}“ steht bei neuen Schichten nicht mehr zur Auswahl. Geplante Schichten behalten sie.`,
+          `Die Dienstart „${type.name}“ steht bei neuen Diensten nicht mehr zur Auswahl. Geplante Dienste behalten sie.`,
         run: (type) =>
           shiftTypeService.updateShiftType(type.id, {
             name: type.name,
@@ -242,7 +240,7 @@ function ShiftTypesPageContent() {
             isActive: false,
           }),
         toast: (type) =>
-          `Die Schichtart „${type.name}“ wird nicht mehr angeboten.`,
+          `Die Dienstart „${type.name}“ wird nicht mehr angeboten.`,
       },
       restore: {
         menuLabel: "Wieder anbieten",
@@ -253,14 +251,14 @@ function ShiftTypesPageContent() {
             description: type.description,
             isActive: true,
           }),
-        toast: (type) => `Die Schichtart „${type.name}“ wird wieder angeboten.`,
+        toast: (type) => `Die Dienstart „${type.name}“ wird wieder angeboten.`,
       },
       remove: {
         menuLabel: "Löschen",
-        confirmTitle: "Schichtart löschen",
+        confirmTitle: "Dienstart löschen",
         describe: describeDeletion,
         run: (type) => shiftTypeService.deleteShiftType(type.id),
-        toast: (type) => `Die Schichtart „${type.name}“ ist gelöscht.`,
+        toast: (type) => `Die Dienstart „${type.name}“ ist gelöscht.`,
       },
     };
   }, [categories, categoriesReady]);
@@ -287,9 +285,9 @@ function ShiftTypesPageContent() {
   if (!timetableEnabled) {
     return (
       <PlanningDisabledState
-        pageTitle="Schichtarten"
-        heading="Schichtarten sind nicht verfügbar"
-        description="Der Betreuungsplan ist für diese Schule ausgeschaltet."
+        pageTitle="Dienstarten"
+        heading="Dienstarten sind nicht verfügbar"
+        description="Der Tages- und Wochenplan ist für diese Schule ausgeschaltet."
         testId="shift-types-disabled-state"
       />
     );

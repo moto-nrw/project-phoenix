@@ -742,8 +742,8 @@ func TestWSSessionToRow_HomeOffice(t *testing.T) {
 
 	row := svc.sessionToRow(sr)
 
-	assert.Equal(t, "Homeoffice", row[6]) // Status (Issue #1368)
-	assert.Equal(t, "App", row[7])        // Quelle (Issue #1368)
+	assert.Equal(t, "Unterwegs", row[6]) // Status (Issue #1368)
+	assert.Equal(t, "App", row[7])       // Quelle (Issue #1368)
 }
 
 func TestWSSessionToRow_Quelle_AutoCheckedOut(t *testing.T) {
@@ -801,7 +801,7 @@ func TestWSSessionToRow_Quelle_ManuelCorrected(t *testing.T) {
 	}
 
 	row := svc.sessionToRow(sr)
-	assert.Equal(t, "Homeoffice", row[6], "Status survives Manuell-korrigiert overlay")
+	assert.Equal(t, "Unterwegs", row[6], "Status survives Manuell-korrigiert overlay")
 	assert.Equal(t, "Manuell korrigiert", row[7])
 }
 

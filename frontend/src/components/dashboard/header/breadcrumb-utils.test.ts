@@ -120,24 +120,26 @@ describe("breadcrumb-utils", () => {
         expect(getPageTitle("/activities")).toBe("Aktivitäten");
       });
 
-      it("should return 'Vertretungen' for /substitutions", () => {
-        expect(getPageTitle("/substitutions")).toBe("Vertretungen");
+      it("should return 'Übergaben' for /substitutions", () => {
+        expect(getPageTitle("/substitutions")).toBe("Übergaben");
       });
 
       it("titles the three planning areas and their redirect frames", () => {
         // Die Bereiche sind flache Hauptrouten; die Redirect-Frames behalten
         // Titel, damit während des Client-Redirects nichts Falsches aufblitzt.
-        expect(getPageTitle("/betreuungsplan")).toBe("Betreuungsplan");
+        expect(getPageTitle("/betreuungsplan")).toBe("Tages- und Wochenplan");
         expect(getPageTitle("/dienstplan")).toBe("Dienstplan");
-        expect(getPageTitle("/vertretung")).toBe("Vertretungsplan");
+        expect(getPageTitle("/vertretung")).toBe("Vertretung bei Ausfall");
         expect(getPageTitle("/planung")).toBe("Planung");
-        expect(getPageTitle("/timetables")).toBe("Betreuungsplan");
-        expect(getPageTitle("/vertretungsplan")).toBe("Vertretungsplan");
+        expect(getPageTitle("/timetables")).toBe("Tages- und Wochenplan");
+        expect(getPageTitle("/vertretungsplan")).toBe("Vertretung bei Ausfall");
         expect(getPageTitle("/staff/dienstplan")).toBe("Dienstplan");
       });
 
-      it("should return 'Schuljahr und Ferien' for /calendar-periods", () => {
-        expect(getPageTitle("/calendar-periods")).toBe("Schuljahr und Ferien");
+      it("should return 'Schuljahr und Kalender' for /calendar-periods", () => {
+        expect(getPageTitle("/calendar-periods")).toBe(
+          "Schuljahr und Kalender",
+        );
       });
 
       it("should return 'Tageslisten' for /lists", () => {
@@ -187,7 +189,7 @@ describe("breadcrumb-utils", () => {
         expect(getPageTitle("/messages")).toBe("Nachrichten");
         expect(getPageTitle("/messages/thread-1")).toBe("Nachrichten");
         expect(getPageTitle("/parent-announcements")).toBe("Mitteilungen");
-        expect(getPageTitle("/meal-plan")).toBe("Essensplan");
+        expect(getPageTitle("/meal-plan")).toBe("Speiseplan");
       });
 
       it("should return titles for operator navigation entries", () => {
@@ -382,7 +384,7 @@ describe("breadcrumb-utils", () => {
       it("should resolve a planning page without a section link", () => {
         const result = getSectionBreadcrumb("/betreuungsplan");
         expect(result?.sectionLabel).toBe("Planung");
-        expect(result?.pageLabel).toBe("Betreuungsplan");
+        expect(result?.pageLabel).toBe("Tages- und Wochenplan");
         // Planung hat keine Hub-Seite: ohne href rendert die Sektion als
         // Text statt als Link ins Leere.
         expect(result?.sectionHref).toBeUndefined();
@@ -395,11 +397,11 @@ describe("breadcrumb-utils", () => {
           "Dienstplan",
         );
         expect(getSectionBreadcrumb("/vertretung")?.pageLabel).toBe(
-          "Vertretungsplan",
+          "Vertretung bei Ausfall",
         );
         expect(getSectionBreadcrumb("/lists")?.pageLabel).toBe("Tageslisten");
         expect(getSectionBreadcrumb("/calendar-periods")?.pageLabel).toBe(
-          "Schuljahr und Ferien",
+          "Schuljahr und Kalender",
         );
       });
 
@@ -412,10 +414,10 @@ describe("breadcrumb-utils", () => {
 
       it("should map legacy planning paths to their current entry", () => {
         expect(getSectionBreadcrumb("/timetables")?.pageLabel).toBe(
-          "Betreuungsplan",
+          "Tages- und Wochenplan",
         );
         expect(getSectionBreadcrumb("/vertretungsplan")?.pageLabel).toBe(
-          "Vertretungsplan",
+          "Vertretung bei Ausfall",
         );
         expect(getSectionBreadcrumb("/staff/dienstplan")?.pageLabel).toBe(
           "Dienstplan",
@@ -428,7 +430,7 @@ describe("breadcrumb-utils", () => {
       it("should keep sub-paths of a planning page on that page", () => {
         expect(getSectionBreadcrumb("/betreuungsplan/2026-07-30")).toEqual({
           sectionLabel: "Planung",
-          pageLabel: "Betreuungsplan",
+          pageLabel: "Tages- und Wochenplan",
         });
       });
     });
@@ -461,7 +463,7 @@ describe("breadcrumb-utils", () => {
           "Mitteilungen",
         );
         expect(getSectionBreadcrumb("/meal-plan")?.pageLabel).toBe(
-          "Essensplan",
+          "Speiseplan",
         );
       });
 

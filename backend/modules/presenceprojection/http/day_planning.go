@@ -454,7 +454,7 @@ func dayPlanningLabel(decision careplan.DayPlanningDecision, isToday bool) strin
 	case dayPlanningReasonPickupSchedule:
 		return dayLabel("Abholplan heute", "Abholplan", isToday)
 	case dayPlanningReasonTimetable:
-		return dayLabel("Betreuungsplan heute", "Betreuungsplan", isToday)
+		return dayLabel("Tages- und Wochenplan heute", "Tages- und Wochenplan", isToday)
 	default:
 		return dayLabel("kein Plan für heute", "kein Plan für diesen Tag", isToday)
 	}

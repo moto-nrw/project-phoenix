@@ -416,7 +416,7 @@ export const HOME_BLOCKS: readonly HomeBlockDefinition[] = [
     kind: "section",
     label: "Ablauf des Tages",
     description:
-      "Die Blöcke des Betreuungsplans, die gerade laufen oder als Nächstes anstehen.",
+      "Die Blöcke des Tages- und Wochenplans, die gerade laufen oder als Nächstes anstehen.",
     concept: "carePlan",
     spans: SECTION_SPANS,
     permitted: (access) => access.has(PERMISSION.schedulesRead),

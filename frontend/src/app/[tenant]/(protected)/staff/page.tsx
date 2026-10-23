@@ -495,7 +495,6 @@ function StaffPageContent() {
     "Anwesend",
     "Schulhof",
     "Unterwegs",
-    "Homeoffice",
     "Krank",
     "Urlaub",
     "Fortbildung",
@@ -519,7 +518,7 @@ function StaffPageContent() {
     if (filter === "abwesend_nicht_eingecheckt")
       return location === "Zuhause" || location === "Abwesend";
     if (filter === "anwesend") return location === "Anwesend";
-    if (filter === "homeoffice") return location === "Homeoffice";
+    if (filter === "homeoffice") return location === "Unterwegs";
     // "abwesend" - all absence types.
     if (filter === "abwesend") return absenceLocations.has(location);
     if (filter === "im_raum") {
@@ -596,7 +595,7 @@ function StaffPageContent() {
         },
         {
           value: "homeoffice",
-          label: "Homeoffice",
+          label: "Unterwegs",
           icon: "M9.75 17L9 20l-1 1h8l-1-1-.75-3M3 13h18M5 17h14a2 2 0 002-2V5a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z",
         },
         {
@@ -668,7 +667,7 @@ function StaffPageContent() {
         anwesend: "Anwesend",
         abwesend_nicht_eingecheckt: "Abwesend",
         im_raum: "Im Raum",
-        homeoffice: "Homeoffice",
+        homeoffice: "Unterwegs",
         abwesend: "Krank/Urlaub",
         ehemalige: "Ehemalige",
       };

@@ -333,7 +333,7 @@ Die **Leseansicht** ist der Betreuungsplan, wie ihn Teammitglieder ohne
 Admin-Rechte sehen: der Wochenplan der ganzen Schule (wer macht was, wann,
 wo, mit wem), ohne jede Editier-Kontrolle und ohne Planungswerkzeuge
 (Monats-/Serienansicht, Lücken- und Konflikthinweise, Export). Sie lebt als
-Tab „Betreuungsplan" in „Mein Kalender" — der einen Kalenderfläche neben dem
+Tab „Tages- und Wochenplan" in „Mein Kalender" — der einen Kalenderfläche neben dem
 Tab „Meine Termine" — und trägt den Hinweis „Nur ansehen". Kindernamen
 erscheinen nur in der Teilnehmerliste eines Termin-Details.
 

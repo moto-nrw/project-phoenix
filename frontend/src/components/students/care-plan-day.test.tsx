@@ -259,14 +259,14 @@ describe("CarePlanDayTimeline", () => {
       />,
     );
     expect(
-      screen.getByText("Kein Betreuungsplan für diesen Tag."),
+      screen.getByText("Kein Tages- und Wochenplan für diesen Tag."),
     ).toBeInTheDocument();
   });
 
   it("renders null day (no data) as the empty state", () => {
     render(<CarePlanDayTimeline day={null} deviation={null} />);
     expect(
-      screen.getByText("Kein Betreuungsplan für diesen Tag."),
+      screen.getByText("Kein Tages- und Wochenplan für diesen Tag."),
     ).toBeInTheDocument();
   });
 

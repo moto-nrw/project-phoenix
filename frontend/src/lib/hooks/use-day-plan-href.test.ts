@@ -38,14 +38,14 @@ describe("useDayPlanHref (#2180)", () => {
     );
   });
 
-  it("führt ein reines Adminkonto in den Betreuungsplan", () => {
+  it("führt ein reines Adminkonto in den Tages- und Wochenplan", () => {
     session.current = withRoles(["admin"], ["admin:*"]);
 
     expect(renderHook(() => useDayPlanHref()).result.current).toBe(
       "/test-tenant/betreuungsplan",
     );
     expect(renderHook(() => useDayPlanLabel()).result.current).toBe(
-      "Zum Betreuungsplan",
+      "Zum Tages- und Wochenplan",
     );
   });
 

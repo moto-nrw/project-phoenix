@@ -345,14 +345,16 @@ export default function DatabaseExportsPage() {
           )}
           {canUseSlotLists && !timetableDisabled && (
             <InfoCard
-              title="Betreuungsplan"
+              title="Tages- und Wochenplan"
               icon={<CalendarCheck className="h-5 w-5" />}
             >
               <ExportDescription>
                 Die Betreuungswoche mit Zeiten, Räumen, Personal und Kinderzahl.
-                Der Export liegt im Betreuungsplan.
+                Der Export liegt im Tages- und Wochenplan.
               </ExportDescription>
-              <ExportLink href="/betreuungsplan">Zum Betreuungsplan</ExportLink>
+              <ExportLink href="/betreuungsplan">
+                Zum Tages- und Wochenplan
+              </ExportLink>
             </InfoCard>
           )}
           {/* /admin/enrollments verlangt config:manage (#3469); ohne das Recht

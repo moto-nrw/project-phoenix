@@ -6,7 +6,7 @@ var attendanceLimitsDefinitions = []config.Definition{
 	{
 		Key:             config.KeyWebSpontaneousActivities,
 		Label:           "Spontane Aktivitäten erlauben",
-		Description:     "Mitarbeitende können am Computer oder Handy unter \"Aktuelle Aufsicht\" spontan eine Aktivität starten. Die Aktivität belegt den Raum und steht danach im Betreuungsplan.",
+		Description:     "Mitarbeitende können am Computer oder Handy unter \"Aktuelle Aufsicht\" spontan eine Aktivität starten. Die Aktivität belegt den Raum und steht danach im Tages- und Wochenplan.",
 		Type:            config.FieldBoolean,
 		Default:         true,
 		ReadPermission:  "config:read",

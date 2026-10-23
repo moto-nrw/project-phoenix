@@ -162,7 +162,7 @@ func dayLogExportDetails(student dayLogStudent) string {
 		return "gemeldet " + student.ReportedAt.In(calendar.Berlin).Format("02.01. 15:04") + dayLogSourceSuffix(student.Source)
 	}
 	if student.Source == dayLogSourceCancelledCareDay {
-		return "Abmeldung im Betreuungsplan"
+		return "Abmeldung im Tages- und Wochenplan"
 	}
 	return ""
 }

@@ -128,7 +128,7 @@ export function PlanExportModal({
       title={
         plan === "dienstplan"
           ? "Dienstplan drucken oder exportieren"
-          : "Betreuungsplan drucken oder exportieren"
+          : "Tages- und Wochenplan drucken oder exportieren"
       }
       formats={PLAN_EXPORT_FORMATS}
       run={run}

@@ -173,7 +173,7 @@ func TestResolveDayPlanningForDateNonToday(t *testing.T) {
 		)
 		assert.Equal(t, DayPlanningStatusComesToday, status)
 		assert.Equal(t, dayPlanningReasonTimetable, reason)
-		assert.Equal(t, "Betreuungsplan", label)
+		assert.Equal(t, "Tages- und Wochenplan", label)
 	})
 }
 

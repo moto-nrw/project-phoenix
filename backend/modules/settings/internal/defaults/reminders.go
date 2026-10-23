@@ -88,7 +88,7 @@ var reminders_init_aktivitaeten_1Definitions = []config.Definition{
 	{
 		Key:             config.KeyRemindersActivityOverdueEnabled,
 		Label:           "Überfällige Aktivität",
-		Description:     "Zeigt eine Erinnerung an, wenn eine geplante Aktivität nicht rechtzeitig gestartet wurde. Wann das ist, legen Sie unter „Betrieb“ beim Betreuungsplan fest.",
+		Description:     "Zeigt eine Erinnerung an, wenn eine geplante Aktivität nicht rechtzeitig gestartet wurde. Wann das ist, legen Sie unter „Betrieb“ beim Tages- und Wochenplan fest.",
 		Type:            config.FieldBoolean,
 		Default:         false,
 		ReadPermission:  "config:read",

@@ -157,7 +157,7 @@ describe("AnfragenPage", () => {
     );
   });
 
-  it("deaktiviert die Terminauswahl ohne Betreuungsplan", () => {
+  it("deaktiviert die Terminauswahl ohne Tages- und Wochenplan", () => {
     mockUseSession.mockReturnValue(
       sessionWith(["users:update", "schedules:manage"]),
     );

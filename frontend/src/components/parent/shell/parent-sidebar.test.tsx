@@ -199,7 +199,7 @@ describe("ParentSidebar", () => {
     await waitFor(() => expect(logoutMock).toHaveBeenCalledOnce());
   });
 
-  it("hides Elternbriefe and Essensplan when no school offers them", () => {
+  it("hides Elternbriefe and Speiseplan when no school offers them", () => {
     renderSidebar({ gates: { news: false, mealPlan: false } });
 
     // Anker: die Hauptnavigation mit den immer vorhandenen Zielen steht.

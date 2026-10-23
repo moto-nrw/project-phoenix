@@ -963,7 +963,7 @@ export function SubstitutionSlideOver({
                     <p
                       className={`${timetableMutedSurface} p-3 text-sm text-gray-500`}
                     >
-                      Sie haben nur Leserechte für den Vertretungsplan.
+                      Sie haben nur Leserechte für die Vertretung bei Ausfall.
                       Änderungen können nur Personen mit Verwaltungsrechten
                       vornehmen.
                     </p>

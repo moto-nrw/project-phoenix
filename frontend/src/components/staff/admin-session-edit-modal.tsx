@@ -283,7 +283,7 @@ export function AdminSessionEditModal({
               onChange={(next) => setStatus(next as "present" | "home_office")}
               options={[
                 { value: "present", label: "Vor Ort" },
-                { value: "home_office", label: "Homeoffice" },
+                { value: "home_office", label: "Unterwegs" },
               ]}
             />
           </Field>

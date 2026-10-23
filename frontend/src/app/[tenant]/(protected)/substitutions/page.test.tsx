@@ -164,7 +164,9 @@ describe("SubstitutionPage", () => {
     const running = screen.getByRole("heading", {
       name: "Laufende Betreuungen",
     });
-    const appointments = screen.getByRole("heading", { name: "Termine" });
+    const appointments = screen.getByRole("heading", {
+      name: "Vertretungen heute",
+    });
     const groups = screen.getByRole("heading", { name: "Gruppen" });
     expect(running.compareDocumentPosition(appointments)).toBe(
       Node.DOCUMENT_POSITION_FOLLOWING,
@@ -224,6 +226,17 @@ describe("SubstitutionPage", () => {
       expect.stringMatching(
         /^\/test\/vertretung\?d=\d{4}-\d{2}-\d{2}&block=77$/,
       ),
+    );
+  });
+
+  it("links today's substitutions to the planning page Vertretung bei Ausfall (#4778)", () => {
+    render(<SubstitutionPage />);
+
+    expect(
+      screen.getByRole("link", { name: "Vertretung bei Ausfall öffnen" }),
+    ).toHaveAttribute(
+      "href",
+      expect.stringMatching(/^\/test\/vertretung\?d=\d{4}-\d{2}-\d{2}$/),
     );
   });
 
@@ -319,7 +332,7 @@ describe("SubstitutionPage", () => {
 
     expect(
       await screen.findByText(
-        catalogText("general.unavailable", "die Übersicht der Vertretungen"),
+        catalogText("general.unavailable", "die Übersicht der Übergaben"),
       ),
     ).toBeInTheDocument();
     expect(screen.queryByText(/Failed to fetch/)).not.toBeInTheDocument();
@@ -353,9 +366,9 @@ describe("SubstitutionPage", () => {
     expect(
       screen.getByText("Ihnen fehlt eine Berechtigung"),
     ).toBeInTheDocument();
-    expect(
-      screen.getAllByRole("heading", { name: "Vertretungen" }),
-    ).toHaveLength(1);
+    expect(screen.getAllByRole("heading", { name: "Übergaben" })).toHaveLength(
+      1,
+    );
     expect(screen.queryByText("Laufende Betreuungen")).not.toBeInTheDocument();
   });
 

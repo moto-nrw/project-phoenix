@@ -148,7 +148,7 @@ export function MyDayBlock() {
             <EmptyState
               className="py-4"
               title="Heute sind Sie für keinen Block eingeteilt"
-              description="Ihre Einsätze aus dem Betreuungsplan erscheinen hier, mit Raum, Kindern und dem Starten-Knopf."
+              description="Ihre Einsätze aus dem Tages- und Wochenplan erscheinen hier, mit Raum, Kindern und dem Starten-Knopf."
             />
           );
         }

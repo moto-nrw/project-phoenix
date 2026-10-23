@@ -160,7 +160,7 @@ shots:
     pfad: /parent-announcements
   # Hilfe essensplan-veroeffentlichen
   - id: essensplan
-    titel: Essensplan der Woche
+    titel: Speiseplan der Woche
     portal: tenant
     rolle: admin
     pfad: /meal-plan
@@ -210,7 +210,7 @@ shots:
   # --- Planung --------------------------------------------------------------
   # Hilfe betreuungsplan-erstellen; PostHog: 364 Aufrufe in 11 Schulen
   - id: betreuungsplan
-    titel: Betreuungsplan der Woche
+    titel: Tages- und Wochenplan
     portal: tenant
     rolle: admin
     pfad: /betreuungsplan

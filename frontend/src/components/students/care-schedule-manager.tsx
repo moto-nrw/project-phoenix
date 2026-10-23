@@ -508,7 +508,7 @@ export function CareScheduleManager({
       const message =
         err instanceof Error
           ? err.message
-          : "Betreuungsplan konnte nicht geladen werden";
+          : "Tages- und Wochenplan konnte nicht geladen werden";
       logger.error("care_schedule_load_failed", {
         error: message,
         student_id: studentId,

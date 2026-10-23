@@ -990,7 +990,7 @@ describe("BetreuungsplanView", () => {
     render(<BetreuungsplanView />);
 
     expect(
-      screen.getByRole("heading", { name: "Betreuungsplan" }),
+      screen.getByRole("heading", { name: "Tages- und Wochenplan" }),
     ).toBeVisible();
     expect(screen.getByText("week-grid")).toBeVisible();
     expect(screen.getByTestId("grid-week-days")).toHaveTextContent("5");
@@ -2009,11 +2009,13 @@ describe("BetreuungsplanView", () => {
     // Chrome (PlanningContextBar title/navigation) renders immediately —
     // only the calendar-grid content region skeletonizes (showSkeleton
     // pattern, mirrors staff/page.tsx and rooms/page.tsx).
-    expect(screen.getByText("Betreuungsplan")).toBeVisible();
+    expect(screen.getByText("Tages- und Wochenplan")).toBeVisible();
     // Der Ladezustand kommt aus dem TenantPage-Gerüst, nicht aus einem
     // eigenen Seiten-Skelett.
     expect(
-      screen.getByRole("status", { name: "Betreuungsplan wird geladen…" }),
+      screen.getByRole("status", {
+        name: "Tages- und Wochenplan wird geladen…",
+      }),
     ).toBeVisible();
     expect(
       screen.queryByTestId("timetable-page-skeleton"),
@@ -2039,7 +2041,9 @@ describe("BetreuungsplanView", () => {
     // Der Ladezustand kommt aus dem TenantPage-Gerüst, nicht aus einem
     // eigenen Seiten-Skelett.
     expect(
-      screen.getByRole("status", { name: "Betreuungsplan wird geladen…" }),
+      screen.getByRole("status", {
+        name: "Tages- und Wochenplan wird geladen…",
+      }),
     ).toBeVisible();
     expect(screen.queryByTestId("loading")).not.toBeInTheDocument();
   });
@@ -2177,7 +2181,7 @@ describe("BetreuungsplanView", () => {
             categories: [
               {
                 id: "timetable",
-                label: "Betreuungsplan",
+                label: "Tages- und Wochenplan",
                 items: [{ key: "timetable.enabled", value: false }],
               },
             ],
@@ -2188,7 +2192,9 @@ describe("BetreuungsplanView", () => {
     render(<BetreuungsplanView />);
 
     expect(screen.getByTestId("timetable-disabled-state")).toBeVisible();
-    expect(screen.getByText("Betreuungsplan ist deaktiviert")).toBeVisible();
+    expect(
+      screen.getByText("Tages- und Wochenplan ist deaktiviert"),
+    ).toBeVisible();
     expect(screen.queryByText("week-grid")).not.toBeInTheDocument();
     expect(mockBootstrap).not.toHaveBeenCalled();
   });
@@ -2200,11 +2206,13 @@ describe("BetreuungsplanView", () => {
     // Chrome renders immediately; only the content region skeletonizes
     // while the settings schema (and therefore timetableDisabled) is
     // still unresolved.
-    expect(screen.getByText("Betreuungsplan")).toBeVisible();
+    expect(screen.getByText("Tages- und Wochenplan")).toBeVisible();
     // Der Ladezustand kommt aus dem TenantPage-Gerüst, nicht aus einem
     // eigenen Seiten-Skelett.
     expect(
-      screen.getByRole("status", { name: "Betreuungsplan wird geladen…" }),
+      screen.getByRole("status", {
+        name: "Tages- und Wochenplan wird geladen…",
+      }),
     ).toBeVisible();
     expect(
       screen.queryByTestId("timetable-page-skeleton"),

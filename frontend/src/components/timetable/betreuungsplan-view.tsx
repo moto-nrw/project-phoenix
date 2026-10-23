@@ -1019,7 +1019,7 @@ function TimetablesContent() {
     planningTrackLegend.length > 0 ? (
       <PlanLegend
         entries={planningTrackLegend}
-        aria-label="Planungsspuren im sichtbaren Betreuungsplan"
+        aria-label="Planungsspuren im sichtbaren Tages- und Wochenplan"
       />
     ) : null;
 
@@ -1469,9 +1469,9 @@ function TimetablesContent() {
   if (!showSkeleton && timetableDisabled) {
     return (
       <PlanningDisabledState
-        pageTitle="Betreuungsplan"
-        heading="Betreuungsplan ist deaktiviert"
-        description="Der Betreuungsplan ist für diese Schule ausgeschaltet. Er kann in den Einstellungen unter „Betrieb“ wieder aktiviert werden."
+        pageTitle="Tages- und Wochenplan"
+        heading="Tages- und Wochenplan ist deaktiviert"
+        description="Der Tages- und Wochenplan ist für diese Schule ausgeschaltet. Er kann in den Einstellungen unter „Betrieb“ wieder aktiviert werden."
         testId="timetable-disabled-state"
       />
     );
@@ -1847,7 +1847,7 @@ function TimetablesContent() {
             </>
           ) : null}{" "}
           verschwindet aus der Liste. Bereits eingetragene Termine bleiben im
-          Betreuungsplan erhalten.
+          Tages- und Wochenplan erhalten.
         </p>
       </ConfirmationModal>
     </>
@@ -1856,7 +1856,7 @@ function TimetablesContent() {
   return (
     <TenantPage
       overlays={overlays}
-      title="Betreuungsplan"
+      title="Tages- und Wochenplan"
       stats={statusLine}
       statsLoading={statsLoading}
       actions={
@@ -1873,7 +1873,7 @@ function TimetablesContent() {
             <StatusBadge
               label="Nur ansehen"
               tone="gray"
-              title="Sie können den Betreuungsplan ansehen. Ändern können ihn nur Admins."
+              title="Sie können den Tages- und Wochenplan ansehen. Ändern können ihn nur Admins."
             />
           )}
           {/* Ein Menü statt dreier Einstiege: Zeilenhöhe, ausgeblendete
@@ -1948,7 +1948,7 @@ function TimetablesContent() {
       loading={
         contentLoading ? <TimetableContentSkeleton view={view} /> : false
       }
-      loadingLabel="Betreuungsplan wird geladen…"
+      loadingLabel="Tages- und Wochenplan wird geladen…"
       error={contentError}
       empty={
         showEmptyPeriodState
@@ -1956,7 +1956,7 @@ function TimetablesContent() {
               icon: <MotoConceptIcon concept="closingDays" size={42} />,
               title: "Noch kein Planungszeitraum",
               description: canManageSchedules
-                ? "Legen Sie einen Planungszeitraum an, um Angebote und Termine im Betreuungsplan zu planen."
+                ? "Legen Sie einen Planungszeitraum an, um Angebote und Termine im Tages- und Wochenplan zu planen."
                 : "Es gibt noch keinen Planungszeitraum. Eine Person mit Administrationsrechten muss ihn zuerst anlegen.",
               action: canManageSchedules ? (
                 <Button

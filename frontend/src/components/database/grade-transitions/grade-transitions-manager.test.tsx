@@ -158,16 +158,18 @@ describe("GradeTransitionsManager", () => {
   it("shows an empty state and the new-transition action", async () => {
     render(<GradeTransitionsManager />);
     expect(
-      await screen.findByRole("button", { name: /Neuer Jahrgangswechsel/i }),
+      await screen.findByRole("button", { name: /Neuer Schuljahreswechsel/i }),
     ).toBeInTheDocument();
-    expect(screen.getByText(/Noch kein Jahrgangswechsel/i)).toBeInTheDocument();
+    expect(
+      screen.getByText(/Noch kein Schuljahreswechsel/i),
+    ).toBeInTheDocument();
   });
 
   it("prefills the editor from suggestions", async () => {
     render(<GradeTransitionsManager />);
 
     fireEvent.click(
-      await screen.findByRole("button", { name: /Neuer Jahrgangswechsel/i }),
+      await screen.findByRole("button", { name: /Neuer Schuljahreswechsel/i }),
     );
 
     // Both suggested rows appear with counts
@@ -183,7 +185,7 @@ describe("GradeTransitionsManager", () => {
     render(<GradeTransitionsManager />);
 
     fireEvent.click(
-      await screen.findByRole("button", { name: /Neuer Jahrgangswechsel/i }),
+      await screen.findByRole("button", { name: /Neuer Schuljahreswechsel/i }),
     );
     await screen.findByText("1a");
 
@@ -225,7 +227,7 @@ describe("GradeTransitionsManager", () => {
     render(<GradeTransitionsManager />);
 
     fireEvent.click(
-      await screen.findByRole("button", { name: /Neuer Jahrgangswechsel/i }),
+      await screen.findByRole("button", { name: /Neuer Schuljahreswechsel/i }),
     );
     await screen.findByText("1a");
     fireEvent.click(
@@ -234,7 +236,7 @@ describe("GradeTransitionsManager", () => {
     await screen.findByText(/10 Kinder verlassen die OGS/i);
 
     fireEvent.click(
-      screen.getByRole("button", { name: /Jahrgangswechsel anwenden/i }),
+      screen.getByRole("button", { name: /Schuljahreswechsel anwenden/i }),
     );
     // Second, explicit confirmation
     const dialog = await screen.findByText(/Wirklich anwenden/i);

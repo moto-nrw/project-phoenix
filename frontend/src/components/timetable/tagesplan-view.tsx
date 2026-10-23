@@ -442,8 +442,8 @@ export function TagesplanView() {
     return (
       <PlanningDisabledState
         pageTitle={STAFF_FLAT_PAGES.tagesplan.label}
-        heading="Der Betreuungsplan ist ausgeschaltet"
-        description="Ihre Schule nutzt den Betreuungsplan zurzeit nicht. Ihre Aufsichten finden Sie unter „Aktuelle Aufsicht“."
+        heading="Der Tages- und Wochenplan ist ausgeschaltet"
+        description="Ihre Schule nutzt den Tages- und Wochenplan zurzeit nicht. Ihre Aufsichten finden Sie unter „Aktuelle Aufsicht“."
         testId="tagesplan-disabled"
       />
     );
@@ -534,8 +534,8 @@ export function TagesplanView() {
             }
             description={
               overviewScope === "all_staff"
-                ? "Sobald für diesen Tag Termine im Betreuungsplan stehen, sehen Sie sie hier."
-                : "Für diesen Tag sind Sie im Betreuungsplan nicht eingeteilt. Die Einteilung machen die Admins Ihrer Schule."
+                ? "Sobald für diesen Tag Termine im Tages- und Wochenplan stehen, sehen Sie sie hier."
+                : "Für diesen Tag sind Sie im Tages- und Wochenplan nicht eingeteilt. Die Einteilung machen die Admins Ihrer Schule."
             }
           />
         ) : null}

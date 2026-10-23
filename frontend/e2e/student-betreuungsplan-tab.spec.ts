@@ -63,9 +63,9 @@ test.describe("Kinderprofil Betreuungsplan-Tab", () => {
     expect(dayResponse.status()).toBe(200);
 
     // Tab is present and active.
-    await expect(page.getByRole("tab", { name: "Betreuungsplan" })).toBeVisible(
-      DATA,
-    );
+    await expect(
+      page.getByRole("tab", { name: "Tages- und Wochenplan" }),
+    ).toBeVisible(DATA);
     // The day/week toggle + the fetch confirm the view mounted end-to-end.
     // Seit 7b2e83b328 ist der Umschalter ein SegmentedControl (Toggle-Buttons
     // mit aria-pressed in der Gruppe "Ansicht"), keine Tabs mehr.

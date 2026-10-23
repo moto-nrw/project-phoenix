@@ -203,7 +203,7 @@ export const MOTO_CONCEPTS = {
 
   calendar: concept("Kalender", CalendarIcon, "indigo", "function", "planning"),
   carePlan: concept(
-    "Betreuungsplan",
+    "Tages- und Wochenplan",
     CalendarDotsIcon,
     "indigo",
     "function",
@@ -330,7 +330,7 @@ export const MOTO_CONCEPTS = {
     "communication",
   ),
   mealPlan: concept(
-    "Essensplan",
+    "Speiseplan",
     ForkKnifeIcon,
     "greenDeep",
     "function",
@@ -404,7 +404,7 @@ export const MOTO_CONCEPTS = {
     "system",
   ),
   gradeTransitions: concept(
-    "Jahrgangswechsel",
+    "Schuljahreswechsel",
     TrendUpIcon,
     "gold",
     "function",

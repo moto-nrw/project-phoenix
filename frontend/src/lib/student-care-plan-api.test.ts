@@ -125,7 +125,7 @@ describe("student-care-plan-api", () => {
     it("throws when the response is not ok", async () => {
       vi.mocked(fetch).mockResolvedValueOnce(mockResponse(false, {}));
       await expect(fetchStudentCarePlanDay("1", "2026-07-21")).rejects.toThrow(
-        "Betreuungsplan konnte nicht geladen werden",
+        "Tages- und Wochenplan konnte nicht geladen werden",
       );
     });
 
@@ -134,7 +134,7 @@ describe("student-care-plan-api", () => {
         mockResponse(true, { status: "success" }),
       );
       await expect(fetchStudentCarePlanDay("1", "2026-07-21")).rejects.toThrow(
-        "Betreuungsplan konnte nicht geladen werden",
+        "Tages- und Wochenplan konnte nicht geladen werden",
       );
     });
   });
@@ -182,7 +182,7 @@ describe("student-care-plan-api", () => {
     it("throws when the response is not ok", async () => {
       vi.mocked(fetch).mockResolvedValueOnce(mockResponse(false, {}));
       await expect(fetchStudentCarePlanWeek("1", "a", "b")).rejects.toThrow(
-        "Betreuungsplan konnte nicht geladen werden",
+        "Tages- und Wochenplan konnte nicht geladen werden",
       );
     });
   });

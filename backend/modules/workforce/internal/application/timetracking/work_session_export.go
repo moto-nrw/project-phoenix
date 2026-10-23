@@ -307,7 +307,7 @@ func (s *workSessionService) sessionToRow(sr *SessionResponse) []string {
 	// auto-closed or manually corrected.
 	status := "Vor Ort"
 	if sess.Status == WorkSessionStatusHomeOffice {
-		status = "Homeoffice"
+		status = "Unterwegs"
 	}
 
 	// Quelle records the originating channel, with system-event overlays:

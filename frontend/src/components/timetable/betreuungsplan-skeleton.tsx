@@ -239,7 +239,7 @@ export function TimetableContentSkeleton({ view }: { view: TimetableView }) {
  * Anordnung wie im geladenen Zustand, damit beim Laden nichts springt.
  */
 export function PlanningContextBarSkeleton({
-  ariaLabel = "Betreuungsplan-Kopfzeile wird geladen",
+  ariaLabel = "Kopfzeile des Tages- und Wochenplans wird geladen",
   testId = "timetable-header-skeleton",
 }: {
   readonly ariaLabel?: string;

@@ -122,7 +122,7 @@ export function DayFlowBlock() {
             <EmptyState
               className="py-4"
               title="Gerade steht nichts an"
-              description="Hier erscheinen die Blöcke des Betreuungsplans, sobald der nächste beginnt."
+              description="Hier erscheinen die Blöcke des Tages- und Wochenplans, sobald der nächste beginnt."
             />
           );
         }

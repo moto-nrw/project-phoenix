@@ -155,7 +155,7 @@ describe("PersonalCalendar", () => {
     ).not.toBeInTheDocument();
   });
 
-  it("labels a duty from the Betreuungsplan as Dienst, not Betreuung (#3822)", () => {
+  it("labels a duty from the Tages- und Wochenplan as Dienst, not Betreuung (#3822)", () => {
     const duty: CalendarEvent = {
       ...shift,
       id: "timetable:9",

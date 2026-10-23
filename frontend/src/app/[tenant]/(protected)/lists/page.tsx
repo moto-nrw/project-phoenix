@@ -2105,7 +2105,7 @@ export default function SlotListsPage() {
       <PlanningDisabledState
         pageTitle="Tageslisten"
         heading="Tageslisten sind deaktiviert"
-        description="Tageslisten gehören zum Betreuungsplan, der für diese Schule ausgeschaltet ist. Er kann in den Einstellungen unter „Betrieb“ wieder aktiviert werden."
+        description="Tageslisten gehören zum Tages- und Wochenplan, der für diese Schule ausgeschaltet ist. Er kann in den Einstellungen unter „Betrieb“ wieder aktiviert werden."
         testId="slot-lists-disabled-state"
       />
     );

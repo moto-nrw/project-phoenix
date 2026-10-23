@@ -154,7 +154,7 @@ export function BetreuungsplanHeuteCard({
         <EmptyState
           className="py-4"
           title="Heute ist für Sie nichts geplant"
-          description="Ihre Einsätze aus dem Betreuungsplan erscheinen hier."
+          description="Ihre Einsätze aus dem Tages- und Wochenplan erscheinen hier."
         />
       </InfoCard>
     );

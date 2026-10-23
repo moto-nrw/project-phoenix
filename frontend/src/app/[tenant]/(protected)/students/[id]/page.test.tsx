@@ -2437,18 +2437,18 @@ describe("StudentDetailPage", () => {
       expect(queryTab("Anmeldungen")).not.toBeInTheDocument();
     });
 
-    it("hides the Betreuungsplan tab without schedules:read", () => {
+    it("hides the Tages- und Wochenplan tab without schedules:read", () => {
       // Default mock session is config:manage only -> no schedules:read.
       render(<StudentDetailPage />);
 
       // Anker: die geladene volle Ansicht (Betreuungszeiten).
       expect(screen.getByTestId("care-schedule-manager")).toBeInTheDocument();
       expect(
-        screen.queryByRole("tab", { name: "Betreuungsplan" }),
+        screen.queryByRole("tab", { name: "Tages- und Wochenplan" }),
       ).not.toBeInTheDocument();
     });
 
-    it("shows the Betreuungsplan tab with schedules:read", () => {
+    it("shows the Tages- und Wochenplan tab with schedules:read", () => {
       vi.mocked(useSession).mockReturnValue({
         data: {
           user: {
@@ -2462,11 +2462,11 @@ describe("StudentDetailPage", () => {
       render(<StudentDetailPage />);
 
       expect(
-        screen.getByRole("tab", { name: "Betreuungsplan" }),
+        screen.getByRole("tab", { name: "Tages- und Wochenplan" }),
       ).toBeInTheDocument();
     });
 
-    it("hides the Betreuungsplan tab in the limited-access view despite schedules:read", () => {
+    it("hides the Tages- und Wochenplan tab in the limited-access view despite schedules:read", () => {
       // Deliberate, not an oversight: has_full_access on the student response is
       // authorize.CanReadStudent, the SAME predicate the backend applies inside
       // GET /timetable/student/{id}/{day,week} (api/timetable/api.go gates the
@@ -2489,11 +2489,11 @@ describe("StudentDetailPage", () => {
       // Anker: Inhalt der geladenen eingeschränkten Ansicht.
       expect(screen.getByTestId("supervisors-card")).toBeInTheDocument();
       expect(
-        screen.queryByRole("tab", { name: "Betreuungsplan" }),
+        screen.queryByRole("tab", { name: "Tages- und Wochenplan" }),
       ).not.toBeInTheDocument();
     });
 
-    it("shows the Betreuungsplan tab to a non-supervisor under gdpr.student_data_scope=all_staff", () => {
+    it("shows the Tages- und Wochenplan tab to a non-supervisor under gdpr.student_data_scope=all_staff", () => {
       // The complement of the test above, and the case worth pinning: under
       // `all_staff` the backend's read predicate (authorize.CanReadStudent)
       // returns true for EVERY staff member, so has_full_access arrives true
@@ -2521,7 +2521,7 @@ describe("StudentDetailPage", () => {
       render(<StudentDetailPage />);
 
       expect(
-        screen.getByRole("tab", { name: "Betreuungsplan" }),
+        screen.getByRole("tab", { name: "Tages- und Wochenplan" }),
       ).toBeInTheDocument();
     });
 

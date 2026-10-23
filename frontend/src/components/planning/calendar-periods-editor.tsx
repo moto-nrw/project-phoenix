@@ -259,7 +259,7 @@ export function CalendarPeriodsEditor({
           </span>
         }
         title="Noch keine Kalenderzeiträume"
-        description="Legen Sie das nächste Halbjahr an, damit Anmeldephasen und Betreuungsplan darauf verweisen können."
+        description="Legen Sie das nächste Halbjahr an, damit Anmeldephasen sowie der Tages- und Wochenplan darauf verweisen können."
         action={
           <Button
             type="button"
@@ -295,7 +295,7 @@ export function CalendarPeriodsEditor({
     <div className="space-y-4">
       <SectionCard
         title="Angelegte Zeiträume"
-        description="Halbjahre, Schuljahre, Ferien und Sonderzeiträume. Anmeldephasen und Betreuungsplan verweisen auf diese Zeiträume."
+        description="Halbjahre, Schuljahre, Ferien und Sonderzeiträume. Anmeldephasen sowie der Tages- und Wochenplan verweisen auf diese Zeiträume."
       >
         <LoadErrorAlert
           error={error}

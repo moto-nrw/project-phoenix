@@ -301,7 +301,7 @@ export function CarePlanDayTimeline({
         )
       ) : isEmpty ? (
         <p className="py-6 text-center text-sm text-gray-500">
-          Kein Betreuungsplan für diesen Tag.
+          Kein Tages- und Wochenplan für diesen Tag.
         </p>
       ) : (
         <>

@@ -11,7 +11,7 @@ const LOADING_TABS = [
   "Stammdaten",
   "Nachrichten",
   "Erziehungsberechtigte",
-  "Betreuungsplan",
+  "Tages- und Wochenplan",
   "Betreuungszeiten",
   "Anmeldungen",
   "Dokumente",

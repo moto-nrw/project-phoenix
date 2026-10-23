@@ -790,7 +790,7 @@ function ScheduleCard({
 }: Readonly<{ data: ReturnType<typeof useOverviewData> }>) {
   return (
     <InfoCard
-      title="Termine"
+      title="Vertretungen heute"
       icon={
         <CalendarClock className="h-5 w-5 text-gray-600" aria-hidden="true" />
       }
@@ -806,7 +806,7 @@ function ScheduleCard({
           size="compact"
           href={data.scheduleHref()}
         >
-          Alle Termine öffnen
+          Vertretung bei Ausfall öffnen
         </ButtonLink>
       ) : null}
     </InfoCard>
@@ -966,13 +966,13 @@ function OverviewLoadError({
 }: Readonly<{ error: unknown; retry: () => unknown }>) {
   const loadError = useSwrLoadError(
     error,
-    "die Übersicht der Vertretungen",
+    "die Übersicht der Übergaben",
     retry,
   );
   if (loadError === null) {
     // Bis der Katalogtext da ist: Skelett statt leerer Fläche.
     return (
-      <SkeletonRegion label="Vertretungen werden geladen">
+      <SkeletonRegion label="Übergaben werden geladen">
         <ListSkeleton rows={6} />
       </SkeletonRegion>
     );
@@ -1020,7 +1020,7 @@ function LoadedPage({ session, data, openCare }: LoadedPageProps) {
     // Die Kopfkarte des Gerüsts ersetzt den früheren PageHeader; Dialoge
     // stehen im overlays-Slot, damit sie in jedem Zustand gemountet bleiben.
     <TenantPage
-      title="Vertretungen"
+      title="Übergaben"
       overlays={
         <PageOverlays
           data={data}
@@ -1064,11 +1064,11 @@ function SubstitutionPageContent() {
 function LoadingFallback() {
   return (
     <TenantPage
-      title="Vertretungen"
+      title="Übergaben"
       // Das Gerüst trägt die vorlesbare Ankündigung selbst — ein zweites
       // role="status" darunter wäre eine doppelte Meldung.
       loading={<ListSkeleton rows={6} />}
-      loadingLabel="Vertretungen werden geladen"
+      loadingLabel="Übergaben werden geladen"
     />
   );
 }

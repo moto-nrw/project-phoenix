@@ -186,7 +186,7 @@ describe("PlanExportModal", () => {
 
     // Anker: der Export-Dialog des Betreuungsplans ist offen.
     expect(
-      screen.getByText("Betreuungsplan drucken oder exportieren"),
+      screen.getByText("Tages- und Wochenplan drucken oder exportieren"),
     ).toBeInTheDocument();
     expect(screen.queryByText("Vorlage")).not.toBeInTheDocument();
   });

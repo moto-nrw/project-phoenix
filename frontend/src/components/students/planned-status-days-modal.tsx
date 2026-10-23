@@ -999,7 +999,10 @@ export function PlannedStatusDaysModal({
                     placeholder="z. B. Arzttermin"
                   />
                   {isLoadingCarePlan ? (
-                    <Alert type="info" message="Betreuungsplan wird geprüft…" />
+                    <Alert
+                      type="info"
+                      message="Tages- und Wochenplan wird geprüft…"
+                    />
                   ) : null}
                   {overlappingInstances.map((instance) => (
                     <Alert

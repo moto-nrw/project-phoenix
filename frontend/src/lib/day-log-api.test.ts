@@ -196,7 +196,7 @@ describe("dayLogSourceLabel", () => {
 
   it("labels cancelled care days", () => {
     expect(dayLogSourceLabel("care_plan_cancelled")).toBe(
-      "Abmeldung im Betreuungsplan",
+      "Abmeldung im Tages- und Wochenplan",
     );
   });
 

@@ -31,13 +31,13 @@ export interface PlanningSubPage {
 export const PLANNING_SUB_PAGES: readonly PlanningSubPage[] = [
   {
     href: "/betreuungsplan",
-    label: "Betreuungsplan",
+    label: "Tages- und Wochenplan",
     legacyPrefixes: ["/timetables"],
     showInMobileNav: true,
     // Der Planungsbereich gehört der Leitung: wer den Plan bearbeiten darf
     // (schedules:manage, das Recht der Schreibrouten), sieht den Eintrag, ob
     // Admin oder eine eigene Leitungsrolle der Schule (#3469). Alle anderen
-    // erreichen die Leseansicht (#2283) als Tab "Betreuungsplan" in "Mein
+    // erreichen die Leseansicht (#2283) als Tab "Tages- und Wochenplan" in "Mein
     // Kalender" (eine Kalenderfläche), nicht über die Planungsgruppe.
     nonAdminPermission: "schedules:manage",
   },
@@ -51,11 +51,11 @@ export const PLANNING_SUB_PAGES: readonly PlanningSubPage[] = [
     nonAdminPermission: "time_tracking:manage",
   },
   {
-    // „Vertretungsplan", nicht „Terminvertretungen": neben Betreuungsplan und
-    // Dienstplan die dritte Planung; die Endung zeigt die Grenze zur
-    // Tagesübersicht „Vertretungen" im Tagesbetrieb (#2826).
+    // „Vertretung bei Ausfall" ist der Name aus dem Modulkatalog (#4778).
+    // Die Tagesübersicht im Tagesbetrieb heißt deshalb „Übergaben"; kein
+    // Navigationseintrag trägt mehr zweimal das Wort „Vertretung" (#2826).
     href: "/vertretung",
-    label: "Vertretungsplan",
+    label: "Vertretung bei Ausfall",
     legacyPrefixes: ["/vertretungsplan"],
     showInMobileNav: true,
     nonAdminPermission: "schedules:manage",
@@ -79,7 +79,7 @@ export const PLANNING_SUB_PAGES: readonly PlanningSubPage[] = [
     // Zeiträume und Schließtage schreibt das Backend mit den schedules-
     // Rechten; schedules:manage steht für die Leitung, die sie pflegt.
     href: "/calendar-periods",
-    label: "Schuljahr und Ferien",
+    label: "Schuljahr und Kalender",
     legacyPrefixes: [],
     showInMobileNav: true,
     nonAdminPermission: "schedules:manage",

@@ -1180,7 +1180,7 @@ func TestPlanningLabelDescribesEveryPlanningReason(t *testing.T) {
 		{DayDecision{Reason: DayReasonPickupException, ExceptionNotes: "Familientag"}, "Familientag"},
 		{DayDecision{Reason: DayReasonPickupException}, "Tagesausnahme"},
 		{DayDecision{Reason: DayReasonPickupSchedule}, "Abholplan heute"},
-		{DayDecision{Reason: DayReasonTimetable}, "Betreuungsplan heute"},
+		{DayDecision{Reason: DayReasonTimetable}, "Tages- und Wochenplan heute"},
 		{DayDecision{Reason: DayReasonNoPlan}, "kein Plan für heute"},
 	}
 

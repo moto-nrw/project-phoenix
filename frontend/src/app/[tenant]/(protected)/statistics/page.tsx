@@ -950,7 +950,7 @@ export default function StatisticsPage() {
                       emptyState={
                         <EmptyState
                           title="Keine Kurse im Zeitraum"
-                          description="Im gewählten Zeitraum gab es keine Kurstermine. Termine entstehen aus dem Betreuungsplan."
+                          description="Im gewählten Zeitraum gab es keine Kurstermine. Termine entstehen aus dem Tages- und Wochenplan."
                         />
                       }
                     />

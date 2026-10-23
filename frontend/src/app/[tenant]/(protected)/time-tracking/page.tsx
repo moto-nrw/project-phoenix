@@ -313,7 +313,7 @@ function getSessionStatusBadge(
     return { tone: "orange", label: "Pause" };
   }
   if (status === "home_office") {
-    return { tone: "blue", label: "Homeoffice" };
+    return { tone: "blue", label: "Unterwegs" };
   }
   return { tone: "green", label: "In der OGS" };
 }
@@ -324,7 +324,7 @@ function getSessionStatusBadge(
 // (Issue #1368 — no pre-selection on an audit-relevant choice).
 const WORK_MODE_ITEMS: readonly SegmentedControlItem<WorkMode>[] = [
   { value: "present", label: "In der OGS", tone: "green" },
-  { value: "home_office", label: "Homeoffice", tone: "blue" },
+  { value: "home_office", label: "Unterwegs", tone: "blue" },
   { value: "absent", label: "Abwesend", tone: "red" },
 ];
 
@@ -938,7 +938,7 @@ function ClockInCard({
       {/* Ziel der Tour „Arbeitszeit erfassen“ (#3748). */}
       <div className="relative" data-setup-tour="time-clock">
         {/* Heute geplante Schichten (Dienstplan) — dezente Zeilen unter dem
-            Titel: Schichtart als farbiger Chip, Vertretungen und entfallene
+            Titel: Dienstart als farbiger Chip, Vertretungen und entfallene
             Schichten sichtbar (#1844). Geteilte Dienste zeigen jede Schicht. */}
         <PlannedShiftsInfo
           plannedShifts={plannedShifts}
@@ -956,6 +956,11 @@ function ClockInCard({
               value={mode}
               onChange={setMode}
             />
+            {/* „Unterwegs“ ersetzt „Homeoffice“ (#4778); der API-Wert bleibt
+                home_office. Die Zeile sagt, was alles darunter fällt. */}
+            <p className="-mt-2 text-center text-sm text-gray-500">
+              Unterwegs: zum Beispiel Ausflug, Fortbildung oder zu Hause.
+            </p>
 
             {/* Action button: play (check-in) or calendar (absence) */}
             {mode === "absent" ? (
@@ -2687,7 +2692,7 @@ function EditSessionModal({
                     onChange={(next) => setStatus(next as SessionStatus)}
                     options={[
                       { value: "present", label: "In der OGS" },
-                      { value: "home_office", label: "Homeoffice" },
+                      { value: "home_office", label: "Unterwegs" },
                     ]}
                   />
                 </div>
@@ -4240,7 +4245,7 @@ function TimeTrackingContent() {
       </div>
 
       {/* Heute geplante Betreuungsplan-Einsätze (Ort/Aufgabe + Vertretungen,
-          #1844). Rendert nichts, wenn die Schule keinen Betreuungsplan pflegt. */}
+          #1844). Rendert nichts, wenn die Schule keinen Tages- und Wochenplan pflegt. */}
       <BetreuungsplanHeuteCard />
 
       <LeaveRequestsCard />

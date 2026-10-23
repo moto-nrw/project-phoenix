@@ -266,7 +266,7 @@ func registerActivityTypes() {
 	RegisterType(TypeDefinition{
 		Key:         TypeMyActivityStarting,
 		Label:       "Ihr nächster Einsatz",
-		Description: "Kurz bevor ein Einsatz aus Ihrem Betreuungsplan beginnt, auch wenn Sie gerade keine Aufsicht führen.",
+		Description: "Kurz bevor ein Einsatz aus Ihrem Tages- und Wochenplan beginnt, auch wenn Sie gerade keine Aufsicht führen.",
 		Group:       GroupActivities,
 		Portal:      PortalStaff,
 		SortOrder:   3,

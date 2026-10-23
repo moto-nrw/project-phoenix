@@ -166,7 +166,7 @@ const permissionDescriptions: Record<string, string> = {
   "schedules:update": "Stundenpläne bearbeiten",
   "schedules:delete": "Stundenpläne löschen",
   "schedules:list": "Stundenpläne auflisten",
-  "schedules:manage": "Betreuungsplanverwaltung (Vollzugriff)",
+  "schedules:manage": "Tages- und Wochenplan verwalten (Vollzugriff)",
 
   // Visits
   "visits:create": "Neue Besuche erstellen",
@@ -235,7 +235,8 @@ const permissionDescriptions: Record<string, string> = {
   "class_day:arrival_exception_write":
     "Für eine eigene Klasse an einem Tag eine andere Ankunftszeit eintragen",
   "staff_notices:read": "Tagesinformationen der Leitung lesen und bestätigen",
-  "supervision:own": "Eigene Aufsichten aus dem Betreuungsplan durchführen",
+  "supervision:own":
+    "Eigene Aufsichten aus dem Tages- und Wochenplan durchführen",
 
   // Guardian payment data
   "guardians:financial":

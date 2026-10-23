@@ -73,7 +73,7 @@ describe("SettingsCategory", () => {
     expect(getByText("Aktivitäten")).toBeDefined();
   });
 
-  it("uses the product term Betreuungsplan for timetable settings", () => {
+  it("uses the product term Tages- und Wochenplan for timetable settings", () => {
     const { getByText } = renderWithProviders(
       <SettingsCategory
         category={makeCategory({ key: "stundenplan", label: "Stundenplan" })}
@@ -81,7 +81,7 @@ describe("SettingsCategory", () => {
         onReset={vi.fn().mockResolvedValue(null)}
       />,
     );
-    expect(getByText("Betreuungsplan")).toBeDefined();
+    expect(getByText("Tages- und Wochenplan")).toBeDefined();
   });
 
   it("renders all visible items", () => {

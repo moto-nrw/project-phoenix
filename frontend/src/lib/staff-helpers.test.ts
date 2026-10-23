@@ -51,11 +51,11 @@ describe("getStaffLocationStatus", () => {
     expect(result.customBgColor).toBe("#83CD2D");
   });
 
-  it("returns Homeoffice status with light blue styling", () => {
-    const staff = createSampleStaff({ currentLocation: "Homeoffice" });
+  it("returns Unterwegs status with light blue styling", () => {
+    const staff = createSampleStaff({ currentLocation: "Unterwegs" });
     const result = getStaffLocationStatus(staff);
 
-    expect(result.label).toBe("Homeoffice");
+    expect(result.label).toBe("Unterwegs");
     expect(result.customBgColor).toBe("#0EA5E9");
   });
 

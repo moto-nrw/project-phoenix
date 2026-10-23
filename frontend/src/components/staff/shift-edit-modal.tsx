@@ -469,7 +469,7 @@ export function ShiftEditModal({
 
   const typeOptions = useMemo(() => {
     const opts: { value: string; label: string }[] = [
-      { value: "", label: "Keine Schichtart" },
+      { value: "", label: "Keine Dienstart" },
     ];
     for (const type of shiftTypes) {
       if (type.isActive || type.id === shift?.shiftTypeId) {
@@ -1144,15 +1144,15 @@ export function ShiftEditModal({
                   </Field>
                 </div>
                 {typeOptions.length > 1 && (
-                  <Field label="Schichtart">
+                  <Field label="Dienstart">
                     <CustomSelect
                       value={shiftTypeId}
                       options={typeOptions}
                       onChange={setShiftTypeId}
                       name="shift_type_id"
                       invalid={!!formErrors.fieldError("shift_type_id")}
-                      ariaLabel="Schichtart"
-                      placeholder="Keine Schichtart"
+                      ariaLabel="Dienstart"
+                      placeholder="Keine Dienstart"
                     />
                   </Field>
                 )}

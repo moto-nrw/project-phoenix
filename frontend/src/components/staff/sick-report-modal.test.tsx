@@ -187,7 +187,7 @@ describe("SickReportModal", () => {
     );
     expect(
       await screen.findByText(
-        /Dienst- und Betreuungsplan wurden nicht automatisch geändert/,
+        /Dienstplan sowie Tages- und Wochenplan wurden nicht automatisch geändert/,
       ),
     ).toBeInTheDocument();
   });

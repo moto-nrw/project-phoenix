@@ -437,7 +437,7 @@ function OpenRoomOccupancy({
       description={withOverbookedHint(
         section.independent
           ? "Diese Kinder nutzen nur den Raum."
-          : "Diese Aktivität läuft ohne Block aus dem Betreuungsplan.",
+          : "Diese Aktivität läuft ohne Block aus dem Tages- und Wochenplan.",
         occupancy,
         nfcEnabled,
       )}

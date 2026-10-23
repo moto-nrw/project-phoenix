@@ -556,8 +556,8 @@ export function TimetableEventModal({
                     ? "Regelmäßigen Dienst ohne Kinder planen."
                     : "Regelmäßigen Termin mit Kindern und Personal planen."
                   : isEditingInstance
-                    ? "Termin im Betreuungsplan bearbeiten."
-                    : "Einmaligen Termin im Betreuungsplan anlegen."}
+                    ? "Termin im Tages- und Wochenplan bearbeiten."
+                    : "Einmaligen Termin im Tages- und Wochenplan anlegen."}
               </SlideOverDescription>
             </div>
             <SlideOverCloseButton />

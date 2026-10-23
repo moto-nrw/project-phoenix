@@ -198,7 +198,7 @@ export function OfferingRequestReviewItem({
         approve
           ? approvalPreview &&
             approvalPreview.manual_planning_conflicts.length > 0
-            ? `Die Änderung ist übernommen und gilt ab ${formatDate(effectiveFrom)}. Bitte prüfen Sie jetzt im Betreuungsplan: ${joinNames(approvalPreview.manual_planning_conflicts.map((conflict) => conflict.activity_group_name))}.`
+            ? `Die Änderung ist übernommen und gilt ab ${formatDate(effectiveFrom)}. Bitte prüfen Sie jetzt im Tages- und Wochenplan: ${joinNames(approvalPreview.manual_planning_conflicts.map((conflict) => conflict.activity_group_name))}.`
             : `Die Änderung ist übernommen und gilt ab ${formatDate(effectiveFrom)}. Die angezeigten Folgeänderungen sind auch übernommen.`
           : "Die Anfrage zum Angebot ist abgelehnt.",
       );
@@ -604,8 +604,8 @@ export function OfferingRequestReviewItem({
                   Die neuen Buchungen gelten ab {formatDate(effectiveFrom)}.
                 </li>
                 <li>
-                  Angebotsgebundene Gruppen im Betreuungsplan und Gehzeiten
-                  werden angepasst.
+                  Angebotsgebundene Gruppen im Tages- und Wochenplan und
+                  Gehzeiten werden angepasst.
                 </li>
                 <li>
                   {approvalPreview.arrival_expectations_follow_bookings
@@ -631,9 +631,9 @@ export function OfferingRequestReviewItem({
                   ))}
                 </ul>
                 <p className="text-sm text-gray-700">
-                  Nach der Freigabe: Öffnen Sie den Betreuungsplan. Entfernen
-                  Sie {row.student_name} an den genannten Tagen aus diesen
-                  Gruppen oder ändern Sie die Gruppentage.
+                  Nach der Freigabe: Öffnen Sie den Tages- und Wochenplan.
+                  Entfernen Sie {row.student_name} an den genannten Tagen aus
+                  diesen Gruppen oder ändern Sie die Gruppentage.
                 </p>
               </div>
             )}
