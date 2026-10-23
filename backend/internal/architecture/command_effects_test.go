@@ -112,7 +112,7 @@ func TestCommandEffectsCannotExpandExceptionAtPRBase(t *testing.T) {
 	project, _ := commandEffectFixture(t)
 	runGit(t, project, "init", "--quiet")
 	runGit(t, project, "-c", "user.name=Fixture", "-c", "user.email=fixture@example.test", "add", ".")
-	runGit(t, project, "-c", "user.name=Fixture", "-c", "user.email=fixture@example.test", "commit", "--quiet", "-m", "base")
+	runGit(t, project, "-c", "user.name=Fixture", "-c", "user.email=fixture@example.test", "-c", "commit.gpgsign=false", "commit", "--quiet", "-m", "base")
 	base := strings.TrimSpace(runGit(t, project, "rev-parse", "HEAD"))
 	writeFile(t, filepath.Join(project, commandEffectInventory), `{"schema_version":1,"entries":[{
  "port":"enrollment.Writer.Record","binding":"roots.binding.Record","target":"foreign.Ledger.Record","target_owner":"foreign",
@@ -124,37 +124,80 @@ func TestCommandEffectsCannotExpandExceptionAtPRBase(t *testing.T) {
 
 func TestCommandEffectsFollowEmbeddedPortsPromotedMethodsAndMethodValues(t *testing.T) {
 	t.Parallel()
-	project, policy := commandEffectFixture(t)
-	writeFile(t, filepath.Join(project, "enrollment", "port.go"), `package enrollment
+	for _, declaration := range []string{
+		"command := b.target.Record",
+		"var command = b.target.Record",
+		"var command func() = b.target.Record",
+		"var command, other = b.target.Record, b.target.Record; other()",
+	} {
+		t.Run(declaration, func(t *testing.T) {
+			t.Parallel()
+			project, policy := commandEffectFixture(t)
+			writeFile(t, filepath.Join(project, "enrollment", "port.go"), `package enrollment
 type Base interface { Record() }
 type Writer interface { Base }
 func Run(writer Writer) { command := writer.Record; command() }
 `)
-	writeFile(t, filepath.Join(project, "roots", "binding.go"), `package roots
+			writeFile(t, filepath.Join(project, "roots", "binding.go"), `package roots
 import (
  "example.test/effects/enrollment"
  "example.test/effects/foreign"
 )
 type base struct { target foreign.Ledger }
-func (b base) Record() { command := b.target.Record; command() }
+func (b base) Record() { `+declaration+`; command() }
 type binding struct { base }
 func Build() { var port enrollment.Writer = binding{}; enrollment.Run(port) }
 `)
-	graph, err := LoadGraph(project, policy)
-	if err != nil {
-		t.Fatal(err)
+			graph, err := LoadGraph(project, policy)
+			if err != nil {
+				t.Fatal(err)
+			}
+			found := false
+			for _, v := range Check(policy, graph) {
+				if v.Rule == "effects.unresolved" {
+					t.Fatalf("statically bound method value reported dynamic: %+v", v)
+				}
+				if v.Rule == "effects.uninventoried" && strings.Contains(v.Source, "Writer.Record") && strings.Contains(v.Target, "Ledger.Record") {
+					found = true
+				}
+			}
+			if !found {
+				t.Fatal("embedded interface, promoted implementation or method value hid a command")
+			}
+		})
 	}
-	found := false
-	for _, v := range Check(policy, graph) {
-		if v.Rule == "effects.unresolved" {
-			t.Fatalf("statically bound method value reported dynamic: %+v", v)
-		}
-		if v.Rule == "effects.uninventoried" && strings.Contains(v.Source, "Writer.Record") && strings.Contains(v.Target, "Ledger.Record") {
-			found = true
-		}
-	}
-	if !found {
-		t.Fatal("embedded interface, promoted implementation or method value hid a command")
+}
+
+func TestCommandEffectsKeepDynamicCallableDeclarationsUnresolved(t *testing.T) {
+	t.Parallel()
+	for _, declaration := range []string{
+		"var command = b.command",
+		"var command = b.command; command = b.target.Record",
+		"var command = b.target.Record; command = b.command",
+	} {
+		t.Run(declaration, func(t *testing.T) {
+			t.Parallel()
+			project, policy := commandEffectFixture(t)
+			writeFile(t, filepath.Join(project, "roots", "binding.go"), `package roots
+import (
+ "example.test/effects/enrollment"
+ "example.test/effects/foreign"
+)
+type binding struct { target foreign.Ledger; command func() }
+func (b binding) Record() { `+declaration+`; command() }
+func Build() { enrollment.Run(binding{}) }
+`)
+			graph, err := LoadGraph(project, policy)
+			if err != nil {
+				t.Fatal(err)
+			}
+			for _, violation := range Check(policy, graph) {
+				if violation.Rule == "effects.unresolved" && strings.Contains(violation.Target, "unresolved:callable:") {
+					return
+				}
+			}
+			t.Fatal("dynamic callable declaration or reassignment was treated as static")
+		})
 	}
 }
 

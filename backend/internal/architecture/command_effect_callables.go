@@ -12,12 +12,21 @@ import (
 func knownEffectCallables(pkg *packages.Package, body *ast.BlockStmt) map[*types.Var]bool {
 	known := map[*types.Var]bool{}
 	ast.Inspect(body, func(node ast.Node) bool {
-		assignment, ok := node.(*ast.AssignStmt)
-		if !ok || len(assignment.Lhs) != len(assignment.Rhs) {
-			return true
-		}
-		for index, left := range assignment.Lhs {
-			recordKnownEffectCallable(pkg, known, left, assignment.Rhs[index])
+		switch value := node.(type) {
+		case *ast.AssignStmt:
+			if len(value.Lhs) != len(value.Rhs) {
+				return true
+			}
+			for index, left := range value.Lhs {
+				recordKnownEffectCallable(pkg, known, left, value.Rhs[index])
+			}
+		case *ast.ValueSpec:
+			if len(value.Names) != len(value.Values) {
+				return true
+			}
+			for index, name := range value.Names {
+				recordKnownEffectCallable(pkg, known, name, value.Values[index])
+			}
 		}
 		return true
 	})
