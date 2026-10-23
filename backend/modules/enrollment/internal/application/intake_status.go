@@ -209,6 +209,8 @@ func (s *Intake) GuardiansByStatusToken(ctx context.Context, token string) ([]*e
 }
 
 // Edit patches the guardian fields while every child is still submitted.
+// The tenant transaction re-reads the request and its children locked, so a
+// staff decision that commits after the token lookup still blocks the edit.
 func (s *Intake) Edit(ctx context.Context, token string, patch enrollmentNative.EditPatch) error {
 	consentFlags, err := decodeJSONMap(patch.ConsentFlags, "consent flags")
 	if err != nil {
@@ -218,20 +220,12 @@ func (s *Intake) Edit(ctx context.Context, token string, patch enrollmentNative.
 	if err != nil {
 		return err
 	}
-	req, children, err := s.statusByToken(ctx, token)
+	req, err := s.requestByStatusToken(ctx, token, false)
 	if err != nil {
 		return err
 	}
 	if !s.allowSubmissionEdit(ctx) {
 		return enrollmentNative.ErrEditNotAllowed
-	}
-	for _, c := range children {
-		if c.Status != enrollmentNative.ChildStatusSubmitted {
-			return enrollmentNative.ErrEditNotAllowed
-		}
-	}
-	if err := applyEditPatch(req, patch, consentFlags, customData); err != nil {
-		return err
 	}
 	if s.deps.Runtime.IsAdminTx(ctx) {
 		// The token lookup runs in an administrative transaction; the write
@@ -240,11 +234,43 @@ func (s *Intake) Edit(ctx context.Context, token string, patch enrollmentNative.
 	}
 	tenantCtx := s.deps.Runtime.WithTenant(ctx, req.TenantID)
 	return s.deps.Runtime.TenantTx(tenantCtx, req.TenantID, func(txCtx context.Context) error {
-		if err := s.writeEditPatch(txCtx, req, consentFlags != nil); err != nil {
-			return err
-		}
-		return s.markParentChanged(txCtx, req.ID)
+		return s.editInTenant(txCtx, token, patch, consentFlags, customData)
 	})
+}
+
+func (s *Intake) editInTenant(ctx context.Context, token string, patch enrollmentNative.EditPatch, consentFlags, customData map[string]any) error {
+	lockedReq, children, err := s.lockedStatusByToken(ctx, token)
+	if err != nil {
+		return err
+	}
+	for _, c := range children {
+		if c.Status != enrollmentNative.ChildStatusSubmitted {
+			return enrollmentNative.ErrEditNotAllowed
+		}
+	}
+	if err := applyEditPatch(lockedReq, patch, consentFlags, customData); err != nil {
+		return err
+	}
+	if err := s.writeEditPatch(ctx, lockedReq, consentFlags != nil); err != nil {
+		return err
+	}
+	return s.markParentChanged(ctx, lockedReq.ID)
+}
+
+// lockedStatusByToken re-reads the request behind a status token and its
+// children locked inside the tenant transaction. A parent write checks the
+// child statuses it reads here: a staff decision that committed after the
+// token lookup is visible, and one still open waits for the write.
+func (s *Intake) lockedStatusByToken(ctx context.Context, token string) (*Request, []*RequestChild, error) {
+	req, err := s.requestByStatusToken(ctx, token, true)
+	if err != nil {
+		return nil, nil, err
+	}
+	children, err := decodedChildrenOfRequest(ctx, s.deps.Children, req.ID, true)
+	if err != nil {
+		return nil, nil, fmt.Errorf("lock request children: %w", err)
+	}
+	return req, children, nil
 }
 
 func applyEditPatch(req *Request, patch enrollmentNative.EditPatch, consentFlags, customData map[string]any) error {
@@ -301,7 +327,7 @@ func (s *Intake) Withdraw(ctx context.Context, token string, childID int64) erro
 	var req *Request
 	if err := s.deps.Runtime.AdminTx(ctx, func(adminCtx context.Context) error {
 		var loadErr error
-		req, _, loadErr = s.statusByToken(adminCtx, token)
+		req, loadErr = s.requestByStatusToken(adminCtx, token, false)
 		return loadErr
 	}); err != nil {
 		return err
@@ -313,16 +339,9 @@ func (s *Intake) Withdraw(ctx context.Context, token string, childID int64) erro
 }
 
 func (s *Intake) withdrawInTenant(ctx context.Context, token string, childID int64) error {
-	lockedReq, err := decodedRequestByToken(ctx, s.deps.Requests, strings.TrimSpace(token), true)
-	if err != nil || lockedReq == nil {
-		return enrollmentNative.ErrRequestNotFound
-	}
-	if lockedReq.StatusTokenExpires != nil && time.Now().After(*lockedReq.StatusTokenExpires) {
-		return enrollmentNative.ErrRequestNotFound
-	}
-	children, err := decodedChildrenOfRequest(ctx, s.deps.Children, lockedReq.ID, true)
+	lockedReq, children, err := s.lockedStatusByToken(ctx, token)
 	if err != nil {
-		return fmt.Errorf("withdraw: lock request children: %w", err)
+		return err
 	}
 	anyWithdrawn, err := s.withdrawChildren(ctx, children, childID)
 	if err != nil || !anyWithdrawn {
@@ -382,9 +401,10 @@ func (s *Intake) enqueueWithdrawDecision(ctx context.Context, request *Request) 
 
 // ConfirmRenewal moves every pending_renewal child of the request to
 // submitted. Idempotent: other rows are skipped, so a double click is no
-// error.
+// error. The statuses come from the locked re-read in the tenant
+// transaction, so a staff decision in between is never overwritten.
 func (s *Intake) ConfirmRenewal(ctx context.Context, token string) (int, error) {
-	req, children, err := s.statusByToken(ctx, token)
+	req, err := s.requestByStatusToken(ctx, token, false)
 	if err != nil {
 		return 0, err
 	}
@@ -396,19 +416,9 @@ func (s *Intake) ConfirmRenewal(ctx context.Context, token string) (int, error) 
 	tenantCtx := s.deps.Runtime.WithTenant(ctx, req.TenantID)
 	var confirmed int
 	if err := s.deps.Runtime.TenantTx(tenantCtx, req.TenantID, func(txCtx context.Context) error {
-		for _, c := range children {
-			if c.Status != enrollmentNative.ChildStatusPendingRenewal {
-				continue
-			}
-			if err := s.deps.Children.UpdateChildStatus(txCtx, c.ID, enrollmentNative.ChildStatusSubmitted, nil, 0); err != nil {
-				return err
-			}
-			confirmed++
-		}
-		if confirmed == 0 {
-			return nil
-		}
-		return s.markParentChanged(txCtx, req.ID)
+		var confirmErr error
+		confirmed, confirmErr = s.confirmRenewalInTenant(txCtx, token)
+		return confirmErr
 	}); err != nil {
 		return 0, err
 	}
@@ -419,6 +429,27 @@ func (s *Intake) ConfirmRenewal(ctx context.Context, token string) (int, error) 
 		)
 	}
 	return confirmed, nil
+}
+
+func (s *Intake) confirmRenewalInTenant(ctx context.Context, token string) (int, error) {
+	lockedReq, children, err := s.lockedStatusByToken(ctx, token)
+	if err != nil {
+		return 0, err
+	}
+	confirmed := 0
+	for _, c := range children {
+		if c.Status != enrollmentNative.ChildStatusPendingRenewal {
+			continue
+		}
+		if err := s.deps.Children.UpdateChildStatus(ctx, c.ID, enrollmentNative.ChildStatusSubmitted, nil, 0); err != nil {
+			return 0, err
+		}
+		confirmed++
+	}
+	if confirmed == 0 {
+		return 0, nil
+	}
+	return confirmed, s.markParentChanged(ctx, lockedReq.ID)
 }
 
 // markParentChanged makes the request unread for the staff again (#3778).
