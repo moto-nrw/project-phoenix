@@ -1,5 +1,5 @@
 {
-  "scope": "all-backend/non-hidden/non-_test.go/exported-method/14-lines/one-receiver-field-call:v1",
+  "scope": "all-backend/non-hidden/non-_test.go/exported-method/14-lines/one-receiver-field-call:fnv128a:4b2fb3659e1a5db96bc8147d95a41971",
   "decision": "0090",
   "sites": [
     {"id":"analytics/cappedBuffer.Write","owner":"source/analytics","build":"production","form":"unclassified-evidence","evidence":"func (b *cappedBuffer) Write(p []byte) (int, error) {\n\tif b.overflow {\n\t\treturn len(p), nil\n\t}\n\tif b.Len()+len(p) \u003e b.limit {\n\t\tb.overflow = true\n\t\tb.Reset()\n\t\treturn len(p), nil\n\t}\n\treturn b.Buffer.Write(p)\n}","reason":"Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending.","decision":"0090"},

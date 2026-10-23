@@ -5,8 +5,8 @@ status: accepted
 # Exact method evidence supplements pass-through floors
 
 Decision of 2026-10-23 for [#4738](https://github.com/moto-nrw/project-phoenix/issues/4738).
-First implementation cut of ADR 0083 section 3. ADR 0089 is reserved by open
-PR #4758; 0090 was the next free number on development and in open PRs.
+First implementation cut of ADR 0083 section 3. ADR 0089 is accepted on
+`development`; this PR uses the following decision number, 0090.
 
 ## Decision and scope
 
@@ -21,17 +21,21 @@ PR #4758; 0090 was the next free number on development and in open PRs.
    signature and body, ignores comments/formatting and is filename-independent.
    Keeping the normalized AST rendering itself avoids hash collisions and
    cryptographic permissions for test tooling.
-   Changing a translation to an unchanged forward fails even when the owner's
-   sum stays equal. A package relocation changes the identity and fails;
+   Changing a root translation to an unchanged forward fails even when the owner's
+   sum stays equal. Relocating debt to a new identity also needs a new ADR;
    renaming a file in one package retains evidence. Root bindings keep the
    existing seven consumer-attributed prefixes/files without double counting.
 3. Scan **all backend trees**, not another location allowlist. The ADR 0087
    exclusions remain: hidden directories and `_test.go` only. Roots, new trees,
    legacy, tools, generated sources and fixtures cannot become an unmeasured
-   destination. The scope manifest records the exclusions and the four-condition
-   predicate; compare it against the PR base. A new scope needs a newly numbered
-   ADR. Package role/kind metadata separates tools, migrations and untagged test
-   support; `go:build` constraints separate files requiring `testhooks` regardless
+   destination. The scope binds a deterministic FNV-128a source digest of
+   `predicate.go`, `scanner.go`, `forms.go` and `register.go`, embedded from the
+   compiled sources, including scan roots, filters and comparison logic. This is
+   a change detector, not a cryptographic trust boundary. Compare it against the
+   PR base: any change to those sources needs a newly numbered ADR, even after
+   regenerating the snapshot. Source-only formatting changes conservatively
+   require the same review as semantic changes. Package role/kind metadata
+   separates tools, migrations and untagged test support; `go:build` constraints separate files requiring `testhooks` regardless
    of platform. Tagged sites do not consume production entries. Existing source,
    import, tenant and composition checks still cover every category.
 4. The register is **finite evidence, not a new blanket floor**. Each root
@@ -46,17 +50,28 @@ PR #4758; 0090 was the next free number on development and in open PRs.
    Nil guards and method renames alone earn no translation classification.
    Syntactic casts and field copies remain unclassified: no claim of vocabulary
    translation is made. Existing ADR 0075 floor eligibility is unchanged.
-5. New or modified registrations, including bodies, forms, attribution and
-   reasons, need an ADR number absent at the immutable PR base and present in
-   this change, cited **on that entry**. A removed entry cannot fund another.
+5. Align with ADR 0057 point 5: a newly numbered ADR is needed only for an
+   increase in debt or a changed scope/scan semantics (point 3). A new
+   `forward-debt` or `guard-debt` entry, or a change from another form into either
+   debt form, needs an ADR number absent at the immutable PR base and present
+   in this change, cited **on that entry**. A switch between debt forms is also
+   reviewed as a new form. Body, attribution and reason updates with the same
+   form, including `unclassified-evidence` to `unclassified-evidence`, and
+   improvements from debt to evidence or removal update only the register.
+   They remain source-checked and visible in review, without a new ADR.
+   A removed entry cannot fund another. For each missing base entry, inspect
+   the head package directly, independently of the scan's traversal filters:
+   the method must actually be gone or no longer satisfy the pass-through
+   predicate. A still-matching method is an error even with a new scope ADR.
    `scripts/backend-architecture.sh check` validates actual source plus this
    delta after the existing architecture checks, using the same `--base-ref`.
    The host inventory applies when the CLI checks its host repository, including
-   explicit `--project` pointing to the host. Independent synthetic projects
-   have their own contracts, even when they use moto’s module name. A missing
+   explicit `--project` pointing to the host through a symlink. Independent
+   synthetic projects have their own contracts, even when they use moto’s module name. A missing
    host inventory is always an error.
-   Bootstrap is subject to exactly the same rule: removing this ADR makes the
-   initial register red. Existing numeric budget comparison is unchanged.
+   Bootstrap needs a scope decision and decisions for its initial debt entries:
+   removing this ADR makes the initial register red. Existing numeric budget
+   comparison is unchanged.
 6. Retire the executable Python snapshot after comparing its complete root
    method identity set with the Go snapshot at the measured base. The tested
    Go scanner and `passthrough-snapshot` command replace its copied predicate.
@@ -88,7 +103,8 @@ scripts/run-go-toolchain.sh scripts/backend-architecture.sh check
 ```
 
 The snapshot command records this initial decision; future source changes edit
-only the reviewed entries and cite their own new decision. It is not an acceptor
+only the reviewed entries, citing a new decision only for worsened debt or
+changed scan semantics. It is not an acceptor
 or a rebaseline switch. Generated registry lines are evidence for review, not a
 second checker. Missing/duplicate/stale/changed entries fail the source check.
 The PR records exact category counts, root identity equivalence, negative ADR

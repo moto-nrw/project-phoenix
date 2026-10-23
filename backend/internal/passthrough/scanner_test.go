@@ -118,11 +118,11 @@ func TestPassthroughGuardsAndRenamesAreNotTranslations(t *testing.T) {
 
 func TestPassthroughRegisterCannotBeRebaselined(t *testing.T) {
 	t.Parallel()
-	old := passthrough.Registry{Scope: "all-backend-v1", Sites: []passthrough.Site{{ID: "modules/example/Service.Find", Evidence: "old", Decision: "0075"}}}
+	old := passthrough.Registry{Scope: "all-backend-v1", Sites: []passthrough.Site{{ID: "modules/example/Service.Find", Evidence: "old", Form: "forward-debt", Decision: "0075"}}}
 	for name, candidate := range map[string]passthrough.Registry{
-		"same-size swap":     {Scope: old.Scope, Sites: []passthrough.Site{{ID: "modules/example/Service.Other", Evidence: "new", Decision: "0075"}}},
-		"fingerprint update": {Scope: old.Scope, Sites: []passthrough.Site{{ID: "modules/example/Service.Find", Evidence: "new", Decision: "0075"}}},
-		"narrow selectors":   {Scope: "modules-only", Sites: old.Sites},
+		"same-size swap":   {Scope: old.Scope, Sites: []passthrough.Site{{ID: "modules/example/Service.Other", Evidence: "new", Form: "forward-debt", Decision: "0075"}}},
+		"worsened form":    {Scope: old.Scope, Sites: []passthrough.Site{{ID: "modules/example/Service.Find", Evidence: "new", Form: "guard-debt", Decision: "0075"}}},
+		"narrow selectors": {Scope: "modules-only", Sites: old.Sites},
 	} {
 		t.Run(name, func(t *testing.T) {
 			t.Parallel()
@@ -238,7 +238,7 @@ func TestPassthroughSnapshotExportsReviewableFiniteEvidence(t *testing.T) {
 	if err := json.Unmarshal(output.Bytes(), &registry); err != nil {
 		t.Fatal(err)
 	}
-	if registry.Scope != "all-backend/non-hidden/non-_test.go/exported-method/14-lines/one-receiver-field-call:v1" {
+	if !strings.HasPrefix(registry.Scope, "all-backend/non-hidden/non-_test.go/exported-method/14-lines/one-receiver-field-call:fnv128a:") || len(strings.Split(registry.Scope, ":")[2]) != 32 {
 		t.Fatalf("unexpected scanner scope: %s", registry.Scope)
 	}
 	if len(registry.Sites) != 1 {
@@ -250,5 +250,31 @@ func TestPassthroughSnapshotExportsReviewableFiniteEvidence(t *testing.T) {
 	}
 	if !strings.Contains(site.Evidence, "s.store.Renamed(ctx)") || strings.Contains(site.Evidence, "comment") {
 		t.Fatalf("unreviewable normalized evidence: %q", site.Evidence)
+	}
+}
+
+func TestPassthroughSourceFormChangesOnlyGateWorsenedDebt(t *testing.T) {
+	t.Parallel()
+	root := t.TempDir()
+	path := "api/port.go"
+	put(t, root, path, `package api
+func (s *Port) Find(ctx Context) (Public, error) {
+ row, err := s.store.Find(ctx)
+ return Public{ID: row.ID}, err
+}`)
+	translation := scan(t, root)
+	put(t, root, path, `package api
+func (s *Port) Find(ctx Context) (Public, error) { return s.store.Find(ctx) }`)
+	forward := scan(t, root)
+	if len(translation) != 1 || len(forward) != 1 || translation[0].Form != "unclassified-evidence" || forward[0].Form != "forward-debt" {
+		t.Fatalf("fixture must preserve the owner's sum and change only form: %v -> %v", translation, forward)
+	}
+	base := passthrough.Registry{Scope: "same", Sites: translation}
+	head := passthrough.Registry{Scope: "same", Sites: forward}
+	if problems := passthrough.CompareRegisters(base, head, nil); len(problems) != 1 {
+		t.Fatalf("translation to forwarding debt must need a new ADR: %v", problems)
+	}
+	if problems := passthrough.CompareRegisters(head, base, nil); len(problems) != 0 {
+		t.Fatalf("deepening debt to evidence must not need a new ADR: %v", problems)
 	}
 }

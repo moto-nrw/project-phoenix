@@ -1,8 +1,10 @@
 package passthrough
 
 import (
+	"embed"
 	"encoding/json"
 	"fmt"
+	"hash/fnv"
 	"io"
 	"os"
 	"os/exec"
@@ -14,20 +16,34 @@ import (
 
 // Registry is a finite inventory, not a budget or an ADR 0075 blanket floor.
 // Scope pins scan semantics against the PR base. A future semantic/scope change
-// needs a new-numbered decision, just like an individual new/changed site.
+// needs a new-numbered decision, just like a new or worsened debt form.
 type Registry struct {
 	Scope    string `json:"scope"`
 	Decision string `json:"decision"`
 	Sites    []Site `json:"sites"`
 }
 
+// Embed the code actually compiled into the scanner, including all roots,
+// filters, classification and comparison logic. Even a refreshed snapshot
+// cannot conceal a source change from the immutable base scope.
+//
+//go:embed predicate.go scanner.go forms.go register.go
+var scanSources embed.FS
+
 func scope() string {
-	return fmt.Sprintf("all-backend/non-hidden/non-_test.go/exported-method/%d-lines/one-receiver-field-call:v1", MaxBodyLines)
+	digest := fnv.New128a()              // Change detector, not a cryptographic trust boundary.
+	files, _ := scanSources.ReadDir(".") // Embedded files always exist, sorted by name.
+	for _, file := range files {
+		source, _ := scanSources.ReadFile(file.Name())
+		_, _ = fmt.Fprintf(digest, "%s:%d:", file.Name(), len(source))
+		_, _ = digest.Write(source)
+	}
+	return fmt.Sprintf("all-backend/non-hidden/non-_test.go/exported-method/%d-lines/one-receiver-field-call:fnv128a:%x", MaxBodyLines, digest.Sum(nil))
 }
 
-// CompareRegisters prevents spending a deleted method's allowance elsewhere,
-// or updating its hash/shape/owner to make a regression green. New decisions
-// are supplied from actual ADR numbers absent at the immutable PR base.
+// CompareRegisters requires a newly numbered ADR only for a changed scan scope
+// or new/worsened debt forms. Body/reason/owner changes remain visible in the
+// source-checked register diff but do not spend an ADR number (ADR 0057).
 func CompareRegisters(base, candidate Registry, addedADRs map[string]bool) []string {
 	var problems []string
 	if base.Scope != candidate.Scope && !addedADRs[candidate.Decision] {
@@ -39,17 +55,90 @@ func CompareRegisters(base, candidate Registry, addedADRs map[string]bool) []str
 	}
 	for _, site := range candidate.Sites {
 		old, exists := previous[site.ID]
-		if (!exists || old != site) && !addedADRs[site.Decision] {
-			problems = append(problems, "new/changed registration needs a new ADR: "+site.ID)
+		debt := site.Form == "forward-debt" || site.Form == "guard-debt"
+		if debt && (!exists || old.Form != site.Form) && !addedADRs[site.Decision] {
+			problems = append(problems, "new/worsened debt needs a new ADR: "+site.ID)
 		}
 	}
 	sort.Strings(problems)
 	return problems
 }
 
+// Check removals directly in each base package, independently of Scan's tree
+// traversal. A selector excluding api/ must not masquerade as deleted methods,
+// even when a new scope ADR is present. The head predicate must prove that the
+// method was deleted or no longer meets the pass-through conditions.
+func checkRemovedSites(root string, base, candidate []Site) ([]string, error) {
+	present := map[string]bool{}
+	for _, site := range candidate {
+		present[site.ID] = true
+	}
+	packages := map[string]bool{}
+	for _, site := range base {
+		if !present[site.ID] {
+			packages[filepath.Dir(site.ID)] = true
+		}
+	}
+	remaining := map[string]bool{}
+	for dir := range packages {
+		sites, err := packageSites(root, dir)
+		if err != nil {
+			return nil, err
+		}
+		for _, site := range sites {
+			remaining[site.ID] = true
+		}
+	}
+
+	var problems []string
+	for _, site := range base {
+		if !present[site.ID] && remaining[site.ID] {
+			problems = append(problems, "disappeared method still matches: "+site.ID)
+		}
+	}
+	sort.Strings(problems)
+	return problems, nil
+}
+
+// Read a base package directly so Scan's tree filters cannot hide its methods.
+func packageSites(root, dir string) ([]Site, error) {
+	path := filepath.Join(root, dir)
+	files, err := os.ReadDir(path)
+	if os.IsNotExist(err) {
+		return nil, nil
+	}
+	if err != nil {
+		return nil, err
+	}
+	var sites []Site
+	for _, file := range files {
+		if file.IsDir() || !strings.HasSuffix(file.Name(), ".go") || strings.HasSuffix(file.Name(), "_test.go") {
+			continue
+		}
+		found, err := scanFile(root, filepath.Join(path, file.Name()), nil)
+		if err != nil {
+			return nil, err
+		}
+		sites = append(sites, found...)
+	}
+	return sites, nil
+}
+
+func compareBase(root, baseRef string, candidate Registry) ([]string, error) {
+	base, adrs, err := baseEvidence(root, baseRef)
+	if err != nil {
+		return nil, err
+	}
+	removed, err := checkRemovedSites(root, base.Sites, candidate.Sites)
+	if err != nil {
+		return nil, err
+	}
+	return append(CompareRegisters(base, candidate, adrs), removed...), nil
+}
+
 // WriteSnapshot prints measured evidence for review. It never writes the
-// registry itself and cannot authorize an addition. Check validates the result
-// against the base and checks every cited new decision exists.
+// registry itself and cannot authorize new debt. Check validates the result
+// against the base and verifies each required newly numbered decision.
 func WriteSnapshot(out io.Writer, root, decision string) error {
 	sites, err := Scan(root)
 	if err != nil {
@@ -83,8 +172,8 @@ func WriteSnapshot(out io.Writer, root, decision string) error {
 }
 
 // Check validates source evidence and the register's immutable-base delta.
-// An absent base inventory is a bootstrap, not permission to add debt: each
-// entry must cite a newly added ADR, and removing that ADR turns the gate red.
+// An absent base inventory is a bootstrap, not permission to add debt: its
+// scope and initial debt need newly added ADRs; removing them turns the gate red.
 func Check(root, baseRef string) error {
 	candidate, err := readRegistry(filepath.Join(root, "architecture/passthrough.json"))
 	if err != nil {
@@ -104,11 +193,11 @@ func Check(root, baseRef string) error {
 		}
 	}
 	if baseRef != "" {
-		base, adrs, err := baseEvidence(root, baseRef)
+		baseProblems, err := compareBase(root, baseRef, candidate)
 		if err != nil {
 			return err
 		}
-		problems = append(problems, CompareRegisters(base, candidate, adrs)...)
+		problems = append(problems, baseProblems...)
 	}
 	if len(problems) != 0 {
 		return fmt.Errorf("method pass-through evidence failed:\n  %s", strings.Join(problems, "\n  "))
@@ -233,11 +322,19 @@ func prepareSnapshot(sites []Site, decision string) {
 // some of which deliberately use moto's module path. They have their own
 // architecture contracts, not the host's finite source inventory.
 func CheckProject(host, project, baseRef string) error {
-	hostPath, err := filepath.Abs(host)
+	hostPath, err := filepath.EvalSymlinks(host)
 	if err != nil {
 		return err
 	}
-	projectPath, err := filepath.Abs(project)
+	projectPath, err := filepath.EvalSymlinks(project)
+	if err != nil {
+		return err
+	}
+	hostPath, err = filepath.Abs(hostPath)
+	if err != nil {
+		return err
+	}
+	projectPath, err = filepath.Abs(projectPath)
 	if err != nil {
 		return err
 	}
