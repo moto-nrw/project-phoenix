@@ -1109,6 +1109,13 @@
       "external_test_role": "adapter-test"
     },
     {
+      "path": "internal/passthrough",
+      "owner": "test-support",
+      "role": "test-support",
+      "internal_test_role": "e2e-test",
+      "external_test_role": "e2e-test"
+    },
+    {
       "path": "internal/careplanning",
       "owner": "care-plan",
       "role": "domain",
@@ -5134,7 +5141,15 @@
       "class": "standard"
     },
     {
+      "path": "go/build/constraint",
+      "class": "standard"
+    },
+    {
       "path": "go/constant",
+      "class": "standard"
+    },
+    {
+      "path": "go/format",
       "class": "standard"
     },
     {

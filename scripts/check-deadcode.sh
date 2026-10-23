@@ -34,13 +34,13 @@ fi
 
 # Production mode excludes, line for line:
 # - test-support packages (test/, testutil/, testdb/, *test/): they serve tests only.
-# - internal/architecture/: its production entry point is the architecture
+# - internal/architecture/ and internal/passthrough/: their production entry point is the architecture
 #   command in scripts/backend-architecture, a module of its own that no
 #   backend main reaches. The last run below checks the package from that
 #   command, so it is not exempt, only measured there.
 production_output=$(run_deadcode production)
 if production_findings=$(printf '%s\n' "$production_output" | grep -Ev \
-  '(^|/)(test|testutil|testdb|[[:alpha:]]+test)/|^internal/architecture/'); then
+  '(^|/)(test|testutil|testdb|[[:alpha:]]+test)/|^internal/(architecture|passthrough)/'); then
   :
 else
   production_filter_status=$?
@@ -62,10 +62,10 @@ tool_directory=$(mktemp -d)
 trap 'rm -rf -- "$tool_directory"' EXIT
 deadcode_binary="$tool_directory/deadcode"
 go build -o "$deadcode_binary" golang.org/x/tools/cmd/deadcode
-# The filter reports internal/architecture as well as the command itself.
+# The filter reports both tooling packages as well as the command itself.
 tool_output=$(
   cd "$repo_root/scripts/backend-architecture"
-  "$deadcode_binary" -filter '^github\.com/moto-nrw/project-phoenix/(internal/architecture|tools/architecturecmd)($|/)' ./...
+  "$deadcode_binary" -filter '^github\.com/moto-nrw/project-phoenix/(internal/architecture|internal/passthrough|tools/architecturecmd)($|/)' ./...
 )
 tool_findings=$(printf '%s\n' "$tool_output" | grep -v '^go: ' || true)
 if [[ -n "$tool_findings" ]]; then
