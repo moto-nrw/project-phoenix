@@ -22,6 +22,19 @@ describe("GlobalError", () => {
     expect(Sentry.captureException).toHaveBeenCalledWith(testError);
   });
 
+  it("logs the crash for Loki without its message (#2512)", () => {
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+
+    render(<GlobalError error={testError} reset={mockReset} />);
+
+    expect(warn).toHaveBeenCalledWith("error_displayed", {
+      surface: "page",
+      error_class: "crash",
+      error_name: "Error",
+    });
+    warn.mockRestore();
+  });
+
   it("renders the German error message", () => {
     render(<GlobalError error={testError} reset={mockReset} />);
 

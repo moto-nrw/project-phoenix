@@ -64,6 +64,7 @@ vi.mock("~/lib/staff-role-api", () => ({
 vi.mock("~/lib/logger", () => ({
   createLogger: () => ({
     error: vi.fn(),
+    warn: vi.fn(),
   }),
 }));
 

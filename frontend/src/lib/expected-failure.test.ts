@@ -23,6 +23,19 @@ describe("expectedFailure", () => {
     expect(expectedFailure({ error }, "client")).toBe("aborted");
   });
 
+  it("treats an unavailable entry without a response as a network failure", () => {
+    expect(expectedFailure({ error_class: "unavailable" }, "client")).toBe(
+      "network",
+    );
+    // A status means the server answered; that 503 stays an error.
+    expect(
+      expectedFailure({ error_class: "unavailable", status: 503 }, "client"),
+    ).toBeNull();
+    expect(
+      expectedFailure({ error_class: "unavailable" }, "server"),
+    ).toBeNull();
+  });
+
   it("keeps server-side aborts and aborted 5xx responses as errors", () => {
     expect(
       expectedFailure({ error: "The operation was aborted." }, "server"),

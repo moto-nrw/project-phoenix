@@ -6,6 +6,7 @@
  */
 
 import type { SWRConfiguration } from "swr";
+import { errorLogFields } from "~/lib/error-log";
 import { createLogger } from "~/lib/logger";
 import { swrDataEqual } from "~/lib/swr/compare";
 import {
@@ -20,24 +21,24 @@ const logger = createLogger({ component: "useSWRAuth" });
  *
  * SWR fires onError for every failed attempt (each retry counts), so a flaky
  * endpoint logs multiple times — that retry behavior is itself useful signal.
- * The cache key is the de-facto event identifier so dashboards can group
- * failures by domain (e.g., "tenant-slug:database-devices-list").
+ * The entry carries identifiers only (#2512): the cache key can hold the
+ * Kindersuche search term and the message the backend detail. `route` names
+ * the page, `request_id` joins the server's request line.
  */
-function logSWRError(error: unknown, key: string): void {
-  const errorMessage = error instanceof Error ? error.message : String(error);
-  const isRateLimited = isRateLimitError(error);
-  const logContext = {
-    key,
-    error: errorMessage,
-    ...(isRateLimited && { rate_limited: true }),
-  };
+function logSWRError(error: unknown): void {
+  const fields = errorLogFields(error);
 
-  if (isRateLimited) {
-    logger.warn("swr_fetch_rate_limited", logContext);
+  if (isRateLimitError(error)) {
+    logger.warn("swr_fetch_rate_limited", {
+      ...fields,
+      error_class: "unavailable",
+      status: 429,
+      rate_limited: true,
+    });
     return;
   }
 
-  logger.error("swr_fetch_failed", logContext);
+  logger.error("swr_fetch_failed", { ...fields });
 }
 
 /**
