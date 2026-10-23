@@ -179,11 +179,12 @@ func newStaffResource(
 	module schoolMembershipModule.Capability, people peopleModule.Capability, identity identityaccess.Owner, appEnv string,
 	buildRuntime func(StaffMembershipHooks) StaffMembershipRuntime, staffAdmin *timeTrackingHTTP.StaffAdminResource, logger *slog.Logger,
 ) (*staffHTTP.Resource, error) {
-	runtime := buildRuntime(StaffMembershipHooks{
-		ResolveEditorStaffID:           staffAdmin.ResolveEditorStaffID,
-		QueueOffboardedDocumentCleanup: staffAdmin.QueueOffboardedStaffDocumentCleanup,
-	})
-	resourceRuntime := staffHTTP.Runtime{
+	externals, err := newExternalCaregiverBindings(module, people, identity, appEnv)
+	if err != nil {
+		return nil, err
+	}
+	runtime := buildStaffMembershipRuntime(buildRuntime, staffAdmin)
+	return staffHTTP.NewResource(module, staffHTTP.Runtime{
 		Protected:          staffProtectedRoutes(staffAdmin),
 		Permission:         staffPermissionGate,
 		Success:            apiCommon.Respond,
@@ -202,6 +203,12 @@ func newStaffResource(
 		Person:         staffPersonLookup(runtime),
 		PersonNotFound: apiCommon.IsNotFound,
 		Persons:        staffPersonsLookup(runtime),
+
+		CreateExternalCaregiver:   externals.create,
+		InviteExternalCaregiver:   externals.invite,
+		ExternalFailure:           renderExternalCaregiverFailure,
+		ExposeSeedInvitationToken: externals.exposeSeedToken,
+		PendingInvitationPersons:  externals.pendingPersons,
 
 		PresentStaffIDs:     runtime.PresentStaffIDs,
 		WorkStatusMap:       runtime.WorkStatusMap,
@@ -226,11 +233,16 @@ func newStaffResource(
 		Offboard:    runtime.Offboard,
 
 		Log: logger,
-	}
-	if err := bindExternalCaregivers(&resourceRuntime, module, people, identity, appEnv); err != nil {
-		return nil, err
-	}
-	return staffHTTP.NewResource(module, resourceRuntime), nil
+	}), nil
+}
+
+// buildStaffMembershipRuntime builds the legacy-service runtime with the
+// Workforce hooks it calls back into.
+func buildStaffMembershipRuntime(buildRuntime func(StaffMembershipHooks) StaffMembershipRuntime, staffAdmin *timeTrackingHTTP.StaffAdminResource) StaffMembershipRuntime {
+	return buildRuntime(StaffMembershipHooks{
+		ResolveEditorStaffID:           staffAdmin.ResolveEditorStaffID,
+		QueueOffboardedDocumentCleanup: staffAdmin.QueueOffboardedStaffDocumentCleanup,
+	})
 }
 
 // staffProtectedRoutes composes the shared /api/staff router: the membership

@@ -16,27 +16,34 @@ import (
 	"github.com/moto-nrw/project-phoenix/workflows/externalcaregiver"
 )
 
-// bindExternalCaregivers builds the external-caregiver workflow (#4573) as a
-// local value of the staff mount and binds it into the School Membership
-// HTTP runtime. The owners' public capabilities satisfy the workflow's
-// ports; its savepoint runs inside the request's tenant transaction. appEnv
-// gates the seed-only invitation token.
-func bindExternalCaregivers(
-	runtime *staffHTTP.Runtime, module schoolMembershipModule.Capability, people peopleModule.Capability,
-	identity identityaccess.Owner, appEnv string,
-) error {
+// externalCaregiverBindings are the closures the School Membership HTTP
+// runtime reaches the external-caregiver workflow (#4573) through.
+type externalCaregiverBindings struct {
+	create          func(context.Context, staffHTTP.ExternalCaregiverInput) (staffHTTP.ExternalCaregiverResult, error)
+	invite          func(context.Context, staffHTTP.ExternalInvitationInput) (staffHTTP.ExternalCaregiverResult, error)
+	exposeSeedToken func(*http.Request) bool
+	pendingPersons  func(context.Context) (map[int64]bool, error)
+}
+
+// newExternalCaregiverBindings builds the workflow as a local value of the
+// staff mount. The owners' public capabilities satisfy its ports; its
+// savepoint runs inside the request's tenant transaction. appEnv gates the
+// seed-only invitation token.
+func newExternalCaregiverBindings(
+	module schoolMembershipModule.Capability, people peopleModule.Capability, identity identityaccess.Owner, appEnv string,
+) (externalCaregiverBindings, error) {
 	externals, err := externalcaregiver.New(people, module, identity, tenant.WithSavepoint)
 	if err != nil {
-		return err
+		return externalCaregiverBindings{}, err
 	}
-	runtime.CreateExternalCaregiver = externalCaregiverCreate(externals)
-	runtime.InviteExternalCaregiver = externalCaregiverInvite(externals)
-	runtime.ExternalFailure = renderExternalCaregiverFailure
-	runtime.ExposeSeedInvitationToken = func(r *http.Request) bool {
-		return apiCommon.ShouldExposeSeedInvitationToken(r, appEnv)
-	}
-	runtime.PendingInvitationPersons = pendingInvitationPersons(identity)
-	return nil
+	return externalCaregiverBindings{
+		create: externalCaregiverCreate(externals),
+		invite: externalCaregiverInvite(externals),
+		exposeSeedToken: func(r *http.Request) bool {
+			return apiCommon.ShouldExposeSeedInvitationToken(r, appEnv)
+		},
+		pendingPersons: pendingInvitationPersons(identity),
+	}, nil
 }
 
 // externalCaregiverErrorRules map the refusals of the external-caregiver
