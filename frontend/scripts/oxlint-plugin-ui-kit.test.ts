@@ -240,6 +240,8 @@ describe("ui-kit/no-tenant-kicker", () => {
 describe("ui-kit/no-hand-rolled-page-card", () => {
   it("reports the kit card chain spelled out in a tenant page or loading file", () => {
     for (const path of [
+      "src/app/[tenant]/(protected)/page.tsx",
+      "src/app/[tenant]/(protected)/loading.tsx",
       "src/app/[tenant]/(protected)/rooms/page.tsx",
       "src/app/[tenant]/(protected)/rooms/[id]/loading.tsx",
     ]) {
@@ -382,7 +384,7 @@ describe("ui-kit/no-tabs-as-value-switcher", () => {
     expect(output).toContain("ui-kit(no-tabs-as-value-switcher)");
   });
 
-  it("accepts dynamic labels when tabs render content panels", () => {
+  it("does not count content panels in nested tab groups", () => {
     const result = lintSource(
       `function Tabs(_: { children: unknown }) {
         return null;
@@ -400,7 +402,37 @@ describe("ui-kit/no-tabs-as-value-switcher", () => {
       function Probe() {
         return <Tabs>
           <TabsList><TabsTrigger value={tab.id}>{tab.label}</TabsTrigger></TabsList>
-          <TabsContent value={tab.id}>Inhalt</TabsContent>
+          <Tabs><TabsContent value="inner">Inhalt</TabsContent></Tabs>
+        </Tabs>;
+      }
+      void Probe;`,
+      "src/components/probe.tsx",
+    );
+    const output = `${result.stdout}${result.stderr}`;
+
+    expect(result.status).toBe(1);
+    expect(output).toContain("ui-kit(no-tabs-as-value-switcher)");
+  });
+
+  it("accepts dynamic labels with kit, Radix, and aliased content panels", () => {
+    const result = lintSource(
+      `import * as TabsPrimitive from "@radix-ui/react-tabs";
+      import { TabsContent as Content } from "~/components/ui/tabs";
+      function Tabs(_: { children: unknown }) {
+        return null;
+      }
+      function TabsList(_: { children: unknown }) {
+        return null;
+      }
+      function TabsTrigger(_: { value: string; children: unknown }) {
+        return null;
+      }
+      const tab = { id: "custom", label: "Eigene Ansicht" };
+      function Probe() {
+        return <Tabs>
+          <TabsList><TabsTrigger value={tab.id}>{tab.label}</TabsTrigger></TabsList>
+          <TabsPrimitive.Content value={tab.id}>Inhalt</TabsPrimitive.Content>
+          <Content value={tab.id}>Inhalt</Content>
         </Tabs>;
       }
       void Probe;`,

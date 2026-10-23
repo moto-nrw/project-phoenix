@@ -569,7 +569,7 @@ const noTenantKicker = {
 // greift nur in Seitendateien des Tenant-Portals — Kit- und
 // Komponentendateien dürfen die Fläche definieren, sie sind die Quelle.
 const TENANT_PAGE_FILE_RE =
-  /app\/\[tenant\]\/\(protected\)\/.*\/(page|loading)\.tsx$/;
+  /app\/\[tenant\]\/\(protected\)\/(?:.*\/)?(page|loading)\.tsx$/;
 // Nur die KARTE ist gemeint: `moto-content-surface` zusammen mit dem
 // Kartenradius. Dieselbe Klasse an einer Pille oder einem Auswahlfeld
 // (rounded-full, h-9) ist eine Bedienfläche und bleibt erlaubt.
@@ -694,29 +694,71 @@ function staticAttributeValue(openingElement, name) {
   return null;
 }
 
-function hasTabsContent(node, seen = new WeakSet()) {
+function isTabsElement(node) {
+  return jsxName(node.openingElement?.name) === "Tabs";
+}
+
+function isTabsContentElement(
+  node,
+  tabsContentNames,
+  tabsPrimitiveNamespaces,
+) {
+  const name = node.openingElement?.name;
+  if (tabsContentNames.has(jsxName(name))) return true;
+  return (
+    name?.type === "JSXMemberExpression" &&
+    tabsPrimitiveNamespaces.has(jsxName(name.object)) &&
+    jsxName(name.property) === "Content"
+  );
+}
+
+function hasTabsContent(
+  node,
+  tabsContentNames,
+  tabsPrimitiveNamespaces,
+  seen = new WeakSet(),
+  isRoot = true,
+) {
   if (!node || typeof node !== "object" || seen.has(node)) return false;
-  if (node.type === "JSXElement" && node.openingElement.name?.name === "TabsContent") {
-    return true;
+  if (node.type === "JSXElement") {
+    if (isTabsContentElement(node, tabsContentNames, tabsPrimitiveNamespaces)) {
+      return true;
+    }
+    if (!isRoot && isTabsElement(node)) return false;
   }
   seen.add(node);
 
   return Object.entries(node).some(([key, value]) => {
     if (key === "parent") return false;
     if (Array.isArray(value)) {
-      return value.some((child) => hasTabsContent(child, seen));
+      return value.some((child) =>
+        hasTabsContent(
+          child,
+          tabsContentNames,
+          tabsPrimitiveNamespaces,
+          seen,
+          false,
+        ),
+      );
     }
-    return hasTabsContent(value, seen);
+    return hasTabsContent(
+      value,
+      tabsContentNames,
+      tabsPrimitiveNamespaces,
+      seen,
+      false,
+    );
   });
 }
 
-function isTabsWithoutContent(node) {
+function isTabsWithoutContent(node, tabsContentNames, tabsPrimitiveNamespaces) {
   for (let ancestor = node.parent; ancestor; ancestor = ancestor.parent) {
-    if (
-      ancestor.type === "JSXElement" &&
-      ancestor.openingElement.name?.name === "Tabs"
-    ) {
-      return !hasTabsContent(ancestor);
+    if (ancestor.type === "JSXElement" && isTabsElement(ancestor)) {
+      return !hasTabsContent(
+        ancestor,
+        tabsContentNames,
+        tabsPrimitiveNamespaces,
+      );
     }
   }
   return false;
@@ -741,8 +783,34 @@ const noTabsAsValueSwitcher = {
     ).replace(/\\/g, "/");
     if (OTHER_PORTALS_RE.test(filename)) return {};
     if (/\.(test|stories)\.[jt]sx?$/.test(filename)) return {};
+    const tabsContentNames = new Set(["TabsContent"]);
+    const tabsPrimitiveNamespaces = new Set(["TabsPrimitive"]);
 
     return {
+      ImportDeclaration(node) {
+        const source = node.source.value;
+        if (typeof source !== "string") return;
+
+        for (const specifier of node.specifiers) {
+          if (
+            source === "~/components/ui/tabs" &&
+            specifier.type === "ImportSpecifier" &&
+            specifier.imported.name === "TabsContent"
+          ) {
+            tabsContentNames.add(specifier.local.name);
+          }
+          if (source !== "@radix-ui/react-tabs") continue;
+          if (
+            specifier.type === "ImportSpecifier" &&
+            specifier.imported.name === "Content"
+          ) {
+            tabsContentNames.add(specifier.local.name);
+          }
+          if (specifier.type === "ImportNamespaceSpecifier") {
+            tabsPrimitiveNamespaces.add(specifier.local.name);
+          }
+        }
+      },
       JSXElement(node) {
         const name = node.openingElement?.name?.name;
         if (name !== "TabsTrigger") return;
@@ -758,7 +826,11 @@ const noTabsAsValueSwitcher = {
             );
           }) ||
           (value !== null && VALUE_SWITCHER_VALUES.has(value)) ||
-          isTabsWithoutContent(node)
+          isTabsWithoutContent(
+            node,
+            tabsContentNames,
+            tabsPrimitiveNamespaces,
+          )
         ) {
           context.report({ node, messageId: "valueSwitcher" });
         }
