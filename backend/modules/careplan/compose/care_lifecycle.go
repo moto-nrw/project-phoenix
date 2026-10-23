@@ -15,8 +15,7 @@ import (
 	"github.com/uptrace/bun"
 )
 
-// Root binds the lifecycle, companion and document ports (#3427), including
-// the care-exit workflow's resumption command (ADR 0067, #4538).
+// Root binds the lifecycle, companion and document ports (#3427).
 type (
 	CareLifecycleOwners      = application.CareLifecycleOwners
 	CareStudentDirectory     = ports.CareStudentDirectory
@@ -49,10 +48,9 @@ type (
 // CareLifecycleDependencies wires the care lifecycle over the Care Plan
 // records the same graph composed.
 type CareLifecycleDependencies struct {
-	Resumption careplan.CareResumption
-	DB         *bun.DB
-	Records    careplan.Capability
-	Owners     CareLifecycleOwners
+	DB      *bun.DB
+	Records careplan.Capability
+	Owners  CareLifecycleOwners
 	// LockCareBookingWrites is the transaction-scoped gate authoritative
 	// booking writes take.
 	LockCareBookingWrites func(context.Context) error
@@ -67,6 +65,8 @@ type CareLifecycleDependencies struct {
 }
 
 // NewCareLifecycle composes the one care-lifecycle capability.
+// Workflow entries belong to their transport consumer, not these dependencies.
+// Root binds resumption separately so this capability cannot invoke it.
 func NewCareLifecycle(deps CareLifecycleDependencies) (careplan.CareLifecycle, error) {
 	if deps.DB == nil || deps.StudentDirectory == nil {
 		return nil, errors.New("care lifecycle compose: database and student directory are required")
@@ -76,7 +76,7 @@ func NewCareLifecycle(deps CareLifecycleDependencies) (careplan.CareLifecycle, e
 		today = calendar.TodayDate
 	}
 	return application.NewCareLifecycle(application.CareLifecycleDependencies{
-		Resumption: deps.Resumption, Owners: deps.Owners, Records: deps.Records, SourceBookings: NewOfferingBookings(),
+		Owners: deps.Owners, Records: deps.Records, SourceBookings: NewOfferingBookings(),
 		Directory:             postgres.NewDirectoryStore(postgres.New(postgres.CarePlanDatabase(deps.DB)), deps.StudentDirectory),
 		Unit:                  tenant.NewTransactionRunner().RunInTx,
 		LockCareBookingWrites: deps.LockCareBookingWrites,

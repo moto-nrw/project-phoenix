@@ -16,6 +16,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/modules/careplan"
 	"github.com/moto-nrw/project-phoenix/modules/careplan/carerequests"
 	careplanCompose "github.com/moto-nrw/project-phoenix/modules/careplan/compose"
+	carePlanHTTP "github.com/moto-nrw/project-phoenix/modules/careplan/http"
 	"github.com/moto-nrw/project-phoenix/modules/careplan/masterdatarequests"
 	"github.com/moto-nrw/project-phoenix/modules/careplan/parentrequests"
 	communicationCompose "github.com/moto-nrw/project-phoenix/modules/communication/composition"
@@ -45,6 +46,7 @@ import (
 // the offering changes and the pickup adjustments. The other owners'
 // services of the graph come beside it (NewStudentTestModule).
 type StudentTestModule struct {
+	CareResumption    carePlanHTTP.CareResumption
 	CareLifecycle     careplan.CareLifecycle
 	PartialAbsence    careplan.PartialAbsenceService
 	CareRequests      carerequests.Service
@@ -423,7 +425,7 @@ func newStudentTestModule(db transactionruntime.Database, unit tenant.UnitOfWork
 	}
 	return StudentTestModule{
 			NewPickupAdjustments: newPickupAdjustmentsFor,
-			CareLifecycle:        careLifecycleService, PartialAbsence: partialAbsenceService, CareRequests: careRequestService,
+			CareResumption:       care.CareResumption, CareLifecycle: careLifecycleService, PartialAbsence: partialAbsenceService, CareRequests: careRequestService,
 			OfferingChanges: offeringChanges, PickupAdjustments: pickupAdjustments, ExcusedRequests: excusedRequestService,
 			MasterDataReview: masterDataDecisions, ParentRequests: parentRequestCoordinator, OfferingDays: offeringDays,
 		}, live, StudentTestPeople{PeopleDirectory: persons, StudentAudit: studentAuditService, StudentPhotos: studentPhotoService},

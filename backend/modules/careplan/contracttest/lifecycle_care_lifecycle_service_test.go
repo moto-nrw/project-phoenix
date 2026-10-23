@@ -66,6 +66,16 @@ func newCareLifecycleServiceWithLockAt(
 	return svc
 }
 
+// newCareResumptionAt binds the workflow independently of the domain lifecycle.
+func newCareResumptionAt(t *testing.T, db *bun.DB, today func() calendar.Date) func(context.Context, careplan.CareResumeInput) error {
+	t.Helper()
+	repos, err := api.NewCareLifecycleTestRepositories(testpkg.NewDatabase(t, db), nil)
+	require.NoError(t, err)
+	return repos.NewCareResumption(api.CareLifecycleTestConfig{
+		Audit: api.NewPeopleDirectorySuiteStudentAudit(testpkg.RequestAuditActor, api.NewStudentAudit(testpkg.NewDatabase(t, db))), Today: today,
+	})
+}
+
 // carePlanRecords is the Care Plan record capability the suites stage and
 // read exit reasons through.
 func carePlanRecords(db *bun.DB) careplan.Capability {
@@ -487,7 +497,7 @@ func TestCareLifecycle_Resume(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	ctx := testpkg.Ctx(t)
 	today := calendar.NewDate(2026, 8, 24)
-	svc := newCareLifecycleServiceAt(t, db, today)
+	resume := newCareResumptionAt(t, db, func() calendar.Date { return today })
 	actorID := careActor(t, db)
 
 	student := testpkg.CreateTestStudent(t, db, "Yara", "Lorenz", "1c")
@@ -506,7 +516,7 @@ func TestCareLifecycle_Resume(t *testing.T) {
 	}))
 
 	t.Run("refuses without the explicit review", func(t *testing.T) {
-		err := testpkg.TenantCommand1(t, ctx, db, svc.Resume, careplan.CareResumeInput{
+		err := testpkg.TenantCommand1(t, ctx, db, resume, careplan.CareResumeInput{
 			StudentID:      student.ID,
 			NewStart:       calendar.NewDate(2026, 8, 24),
 			ActorAccountID: actorID,
@@ -516,7 +526,7 @@ func TestCareLifecycle_Resume(t *testing.T) {
 	})
 
 	t.Run("refuses a start in the past", func(t *testing.T) {
-		err := testpkg.TenantCommand1(t, ctx, db, svc.Resume, careplan.CareResumeInput{
+		err := testpkg.TenantCommand1(t, ctx, db, resume, careplan.CareResumeInput{
 			StudentID:      student.ID,
 			NewStart:       yesterday,
 			ActorAccountID: actorID,
@@ -526,7 +536,7 @@ func TestCareLifecycle_Resume(t *testing.T) {
 	})
 
 	t.Run("reopens the care from the new start", func(t *testing.T) {
-		require.NoError(t, testpkg.TenantCommand1(t, ctx, db, svc.Resume, careplan.CareResumeInput{
+		require.NoError(t, testpkg.TenantCommand1(t, ctx, db, resume, careplan.CareResumeInput{
 			StudentID:      student.ID,
 			NewStart:       calendar.NewDate(2026, 8, 24),
 			ActorAccountID: actorID,
@@ -543,7 +553,7 @@ func TestCareLifecycle_Resume(t *testing.T) {
 
 	t.Run("refuses a child whose care is running", func(t *testing.T) {
 		running := testpkg.CreateTestStudent(t, db, "Noah", "Lorenz", "1c")
-		err := testpkg.TenantCommand1(t, ctx, db, svc.Resume, careplan.CareResumeInput{
+		err := testpkg.TenantCommand1(t, ctx, db, resume, careplan.CareResumeInput{
 			StudentID:      running.ID,
 			NewStart:       calendar.NewDate(2026, 8, 24),
 			ActorAccountID: actorID,
@@ -562,7 +572,7 @@ func TestCareLifecycle_Resume(t *testing.T) {
 			Exec(context.Background())
 		require.NoError(t, err)
 
-		err = testpkg.TenantCommand1(t, ctx, db, svc.Resume, careplan.CareResumeInput{
+		err = testpkg.TenantCommand1(t, ctx, db, resume, careplan.CareResumeInput{
 			StudentID:      naturalEnd.ID,
 			NewStart:       calendar.NewDate(2026, 8, 24),
 			ActorAccountID: actorID,
@@ -577,7 +587,7 @@ func TestCareLifecycle_ResumeForAFutureStartWaitsForTheScheduler(t *testing.T) {
 
 	db := testpkg.SetupTestDB(t)
 	ctx := testpkg.Ctx(t)
-	svc := newCareLifecycleService(t, db)
+	resume := newCareResumptionAt(t, db, nil)
 	actorID := careActor(t, db)
 
 	student := testpkg.CreateTestStudent(t, db, "Emil", "Roth", "2c")
@@ -595,7 +605,7 @@ func TestCareLifecycle_ResumeForAFutureStartWaitsForTheScheduler(t *testing.T) {
 	}))
 
 	start := calendar.TodayDate().AddDays(10)
-	require.NoError(t, testpkg.TenantCommand1(t, ctx, db, svc.Resume, careplan.CareResumeInput{
+	require.NoError(t, testpkg.TenantCommand1(t, ctx, db, resume, careplan.CareResumeInput{
 		StudentID:      student.ID,
 		NewStart:       start,
 		ActorAccountID: actorID,
@@ -873,6 +883,7 @@ func TestCareLifecycle_ResumeDoesNotBringThePlanBack(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	ctx := testpkg.Ctx(t)
 	svc := newCareLifecycleService(t, db)
+	resume := newCareResumptionAt(t, db, nil)
 	actorID := careActor(t, db)
 	timetableRepos := testTimetableRepositories(db)
 
@@ -899,7 +910,7 @@ func TestCareLifecycle_ResumeDoesNotBringThePlanBack(t *testing.T) {
 		Exec(context.Background())
 	require.NoError(t, err)
 
-	require.NoError(t, testpkg.TenantCommand1(t, ctx, db, svc.Resume, careplan.CareResumeInput{
+	require.NoError(t, testpkg.TenantCommand1(t, ctx, db, resume, careplan.CareResumeInput{
 		StudentID:      student.ID,
 		NewStart:       today,
 		ActorAccountID: actorID,

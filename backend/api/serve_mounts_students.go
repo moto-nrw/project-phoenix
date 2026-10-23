@@ -197,9 +197,9 @@ func mountStudentRoutes(
 			UserContextService:     caller,
 		},
 		careStudentsHTTP.ResourceConfig{
-			ArrivalScheduleService:       schedules.Arrivals,
-			Broadcaster:                  hub,
-			CareLifecycleService:         schedules.Lifecycle,
+			ArrivalScheduleService: schedules.Arrivals,
+			Broadcaster:            hub,
+			CareLifecycleService:   schedules.Lifecycle, CareResumption: schedules.Resumption,
 			CareRequestReviews:           careReviews,
 			CareRequestService:           requests.CareRequests,
 			CompanionService:             companions,

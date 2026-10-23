@@ -96,10 +96,10 @@ func NewStudentHTTPTestResources(store transactionruntime.Database, unit tenant.
 	if err != nil {
 		return nil, nil, nil, nil, nil, nil, nil, err
 	}
-	lifecycle := svc.CareLifecycle
+	lifecycle, resumption := svc.CareLifecycle, svc.CareResumption
 	if authoritative != nil {
 		bookings := *authoritative
-		lifecycle, err = NewStudentHTTPTestCareLifecycle(store, StudentHTTPTestCareLifecycle{
+		lifecycle, resumption, err = NewStudentHTTPTestCareLifecycle(store, StudentHTTPTestCareLifecycle{
 			AuditActor: auditActor, BookingsAuthoritative: func(context.Context) (bool, error) { return bookings, nil }, Today: func() calendar.Date { return calendar.DateFromTime(clock()) },
 		})
 		if err != nil {
@@ -130,9 +130,9 @@ func NewStudentHTTPTestResources(store transactionruntime.Database, unit tenant.
 			UserContextService:  caller,
 		},
 		careStudentsHTTP.ResourceConfig{
-			ArrivalScheduleService:   live.ArrivalSchedule,
-			Broadcaster:              broadcaster,
-			CareLifecycleService:     lifecycle,
+			ArrivalScheduleService: live.ArrivalSchedule,
+			Broadcaster:            broadcaster,
+			CareLifecycleService:   lifecycle, CareResumption: resumption,
 			CareRequestReviews:       careReviews,
 			CareRequestService:       svc.CareRequests,
 			CompanionService:         NewStudentHTTPTestCompanions(students, repoFactory.Student, peopleServices.PeopleDirectory, peopleServices.StudentAudit),

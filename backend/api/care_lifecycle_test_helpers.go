@@ -26,7 +26,8 @@ import (
 // CareLifecycleTestModule is the Care Plan lifecycle; the student audit it
 // records through comes beside it from NewCareLifecycleTestModule (#4080).
 type CareLifecycleTestModule struct {
-	CareLifecycle careplan.CareLifecycle
+	CareLifecycle  careplan.CareLifecycle
+	CareResumption carePlanHTTP.CareResumption
 }
 
 func NewCareLifecycleTestModule(db transactionruntime.Database, unit tenant.UnitOfWork) (CareLifecycleTestModule, peoplePorts.StudentAuditService, error) {
@@ -47,17 +48,18 @@ func NewCareLifecycleTestModule(db transactionruntime.Database, unit tenant.Unit
 	if err != nil {
 		return CareLifecycleTestModule{}, nil, err
 	}
-	lifecycle, err := r.NewCareLifecycle(CareLifecycleTestConfig{
+	config := CareLifecycleTestConfig{
 		Audit:                 audit,
 		LockCareBookingWrites: recurrenceLock.LockRecurrenceWrites,
 		BookingsAuthoritative: func(ctx context.Context) (bool, error) {
 			return settings.Settings.ResolveBool(ctx, configModels.KeyEnrollmentBookingsAuthoritative)
 		},
-	})
+	}
+	lifecycle, err := r.NewCareLifecycle(config)
 	if err != nil {
 		return CareLifecycleTestModule{}, nil, err
 	}
-	return CareLifecycleTestModule{CareLifecycle: lifecycle}, audit, nil
+	return CareLifecycleTestModule{CareLifecycle: lifecycle, CareResumption: r.NewCareResumption(config)}, audit, nil
 }
 
 // NewStudentDocumentsTestModule composes the production child document

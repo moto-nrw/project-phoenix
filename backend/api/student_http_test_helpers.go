@@ -10,6 +10,7 @@ import (
 	auditModels "github.com/moto-nrw/project-phoenix/modules/auditlog/records"
 	"github.com/moto-nrw/project-phoenix/modules/careplan"
 	carePlanCompose "github.com/moto-nrw/project-phoenix/modules/careplan/compose"
+	carePlanHTTP "github.com/moto-nrw/project-phoenix/modules/careplan/http"
 	"github.com/moto-nrw/project-phoenix/modules/peopledirectory"
 	peopleCompose "github.com/moto-nrw/project-phoenix/modules/peopledirectory/compose"
 	peoplePorts "github.com/moto-nrw/project-phoenix/modules/peopledirectory/ports"
@@ -87,16 +88,18 @@ type StudentHTTPTestCareLifecycle struct {
 // NewStudentHTTPTestCareLifecycle composes the native Care Plan lifecycle
 // over the test database, recording care-end history through the owner's
 // change history.
-func NewStudentHTTPTestCareLifecycle(db transactionruntime.Database, config StudentHTTPTestCareLifecycle) (careplan.CareLifecycle, error) {
+func NewStudentHTTPTestCareLifecycle(db transactionruntime.Database, config StudentHTTPTestCareLifecycle) (careplan.CareLifecycle, carePlanHTTP.CareResumption, error) {
 	repos, err := NewCareLifecycleTestRepositories(db, nil)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
-	return repos.NewCareLifecycle(CareLifecycleTestConfig{
+	deps := CareLifecycleTestConfig{
 		Audit:                 peopleCompose.NewStudentAuditService(config.AuditActor, NewStudentAudit(db)),
 		BookingsAuthoritative: config.BookingsAuthoritative,
 		Today:                 config.Today,
-	})
+	}
+	lifecycle, err := repos.NewCareLifecycle(deps)
+	return lifecycle, repos.NewCareResumption(deps), err
 }
 
 // MustNewStudentHTTPTestRows is the Care Plan side of NewStudentHTTPTestRows

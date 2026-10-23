@@ -56,16 +56,15 @@ func TestCareResumptionWorkflowRollsBackMembershipAndLedgerOnAuditFailure(t *tes
 			repos, err := api.NewCareLifecycleTestRepositories(testpkg.NewDatabase(t, db), nil)
 			require.NoError(t, err)
 			failure := &resumptionAuditFailure{err: errors.New("resumption audit unavailable")}
-			svc, err := repos.NewCareLifecycle(api.CareLifecycleTestConfig{
+			svc := repos.NewCareResumption(api.CareLifecycleTestConfig{
 				Audit: failure, Today: func() calendar.Date { return today },
 				BookingsAuthoritative: func(context.Context) (bool, error) { return false, nil },
 			})
-			require.NoError(t, err)
 			input := careplan.CareResumeInput{StudentID: student.ID, NewStart: today, Checked: true, ActorAccountID: actor}
 			if ambient {
-				err = testpkg.TenantCommand1(t, ctx, db, svc.Resume, input)
+				err = testpkg.TenantCommand1(t, ctx, db, svc, input)
 			} else {
-				err = svc.Resume(testpkg.WithTenantRuntime(t, ctx, db), input)
+				err = svc(testpkg.WithTenantRuntime(t, ctx, db), input)
 			}
 			require.ErrorIs(t, err, failure.err)
 			require.True(t, failure.called, "failure occurs after membership and both Care Plan deletes")
@@ -91,8 +90,8 @@ func TestCareResumptionWorkflowHidesForeignStudent(t *testing.T) {
 	testpkg.OwnTenantRows(t, db, otherTenant)
 	student := testpkg.CreateTestStudentForTenant(t, db, otherTenant, "Other", "School", "2a")
 	today := calendar.NewDate(2026, 10, 23)
-	svc := newCareLifecycleServiceAt(t, db, today)
-	err := testpkg.TenantCommand1(t, ctx, db, svc.Resume, careplan.CareResumeInput{
+	resume := newCareResumptionAt(t, db, func() calendar.Date { return today })
+	err := testpkg.TenantCommand1(t, ctx, db, resume, careplan.CareResumeInput{
 		StudentID: student.ID, NewStart: today, Checked: true, ActorAccountID: careActor(t, db),
 	})
 	require.ErrorIs(t, err, careplan.ErrCareResumeUnknownStudent)
