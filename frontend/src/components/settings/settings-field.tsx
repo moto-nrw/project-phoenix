@@ -45,10 +45,14 @@ import {
 } from "./retention-shortening";
 
 /** Settings keys that require a confirmation dialog before enabling. */
-const CONFIRM_ON_ENABLE: Record<string, { title: string; body: string }> = {
+const CONFIRM_ON_ENABLE: Record<
+  string,
+  { title: string; body: string; confirmText?: string }
+> = {
   "gdpr.attendance_log_enabled": {
-    title: "Anwesenheitshistorie aktivieren",
-    body: "Die Aktivierung erfordert die datenschutzrechtliche Einwilligung der Erziehungsberechtigten gem. § 120 Abs. 2 SchulG NRW i.V.m. Art. 6 Abs. 1 lit. a DSGVO.",
+    title: "Anwesenheitsprotokoll einschalten?",
+    body: "Das Team sieht Anwesenheitszeiten und Raumverläufe der Kinder. Ausschalten beendet die Erfassung nicht und löscht keine Daten. Die Schule ist für die Nutzung verantwortlich. Prüfen Sie vor dem Einschalten die Rechtsgrundlage.",
+    confirmText: "Einschalten",
   },
 };
 
@@ -1034,7 +1038,7 @@ export function SettingsField({
             pendingScopeChangeRef.current?.confirmText ??
             (pendingValueRef.current === false
               ? (disableConfig?.confirmText ?? "Deaktivieren")
-              : "Aktivieren")
+              : (enableConfig?.confirmText ?? "Aktivieren"))
           }
           cancelText="Abbrechen"
           confirmVariant={

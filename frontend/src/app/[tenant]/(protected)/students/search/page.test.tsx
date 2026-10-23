@@ -12,6 +12,7 @@ import type { TrackingIndicatorsResponse } from "~/lib/active-helpers";
 import { roomService } from "~/lib/api";
 import { ApiError } from "~/lib/api-error";
 import { catalogText } from "~/test/error-catalog-text";
+import { takeAnnouncementStudents } from "~/lib/announcement-prefill";
 import StudentSearchPage from "./page";
 
 const STUDENT_SEARCH_FILTER_STORAGE_KEY =
@@ -33,6 +34,14 @@ vi.mock("next/navigation", () => ({
     replace: vi.fn(),
   })),
   useSearchParams: vi.fn(() => mockSearchParams),
+}));
+
+// „Elternbrief schreiben" (#4779) hängt an admin:* und
+// operations.parent_news_enabled. Die Bedingung selbst prüfen die Tests des
+// Anmeldephasen-Rücklaufs, der denselben Hook nutzt; hier zählt nur, was die
+// Seite daraus macht.
+vi.mock("~/lib/hooks/use-parent-announcements-available", () => ({
+  useParentAnnouncementsAvailable: vi.fn(() => false),
 }));
 
 // Mock breadcrumb context
@@ -1645,6 +1654,180 @@ describe("StudentSearchPage", () => {
       await waitFor(() => {
         expect(screen.getByTestId("filter-attendance")).toHaveValue("all");
       });
+    });
+  });
+
+  describe("Elternbrief aus der Kindersuche (#4779)", () => {
+    async function allowParentAnnouncements(available: boolean) {
+      const hookModule =
+        await import("~/lib/hooks/use-parent-announcements-available");
+      vi.mocked(hookModule.useParentAnnouncementsAvailable).mockReturnValue(
+        available,
+      );
+    }
+
+    async function mockRouterPush() {
+      const mockPush = vi.fn();
+      const navigation = await import("next/navigation");
+      vi.mocked(navigation.useRouter).mockReturnValue({
+        push: mockPush,
+        replace: vi.fn(),
+        back: vi.fn(),
+        forward: vi.fn(),
+        refresh: vi.fn(),
+        prefetch: vi.fn(),
+        bfcacheId: "test",
+      });
+      return mockPush;
+    }
+
+    afterEach(async () => {
+      await allowParentAnnouncements(false);
+      window.sessionStorage.clear();
+    });
+
+    it("hands exactly the children without photo consent to the letter composer", async () => {
+      // Der Fotofilter läuft im Backend: Die Antwort enthält nur Anna und Tom.
+      mockSearchParams.set("photo_consent", "no");
+      await allowParentAnnouncements(true);
+      const mockPush = await mockRouterPush();
+      const swrModule = await import("~/lib/swr");
+      mockUseSWRAuthWithStudents(swrModule, {
+        data: {
+          students: mockStudents
+            .filter((student) => !student.photo_consent_given)
+            .map((student) => ({
+              ...student,
+              name: `${student.first_name} ${student.second_name}`,
+            })),
+        },
+        isLoading: false,
+        error: null,
+      } as ReturnType<typeof swrModule.useSWRAuth>);
+
+      render(<StudentSearchPage />);
+
+      fireEvent.click(
+        await screen.findByTestId("overflow-Elternbrief schreiben"),
+      );
+
+      expect(mockPush).toHaveBeenCalledTimes(1);
+      const target = new URL(
+        mockPush.mock.calls[0]?.[0] as string,
+        "http://localhost",
+      );
+      expect(target.pathname).toBe("/test-tenant/parent-announcements");
+      expect(target.searchParams.get("art")).toBe("elternbriefe");
+      expect(target.searchParams.get("neu")).toBe("kinder");
+      // Keine Namen in der Adresse, nur der Verweis auf die Ablage.
+      expect(target.search).not.toMatch(/Anna|Tom|Schmidt|Weber/);
+      const token = target.searchParams.get("vorbelegung");
+      expect(token).toBeTruthy();
+      expect(takeAnnouncementStudents("test-tenant", token!)).toEqual([
+        { id: "2", name: "Anna Schmidt" },
+        { id: "3", name: "Tom Weber" },
+      ]);
+    });
+
+    it("offers no letter when the school or person cannot write parent announcements", async () => {
+      await allowParentAnnouncements(false);
+
+      render(<StudentSearchPage />);
+
+      // Anker: das Menü ist da, nur der Eintrag fehlt.
+      expect(
+        await screen.findByTestId("overflow-Abwesenheiten"),
+      ).toBeInTheDocument();
+      expect(
+        screen.queryByTestId("overflow-Elternbrief schreiben"),
+      ).not.toBeInTheDocument();
+    });
+
+    it("offers no letter while the filtered list is empty", async () => {
+      await allowParentAnnouncements(true);
+      const swrModule = await import("~/lib/swr");
+      mockUseSWRAuthWithStudents(swrModule, {
+        data: { students: [] },
+        isLoading: false,
+        error: null,
+      } as ReturnType<typeof swrModule.useSWRAuth>);
+
+      render(<StudentSearchPage />);
+
+      expect(
+        await screen.findByText("Keine Kinder gefunden"),
+      ).toBeInTheDocument();
+      expect(
+        screen.queryByTestId("overflow-Elternbrief schreiben"),
+      ).not.toBeInTheDocument();
+    });
+
+    it("offers no letter for an incomplete result", async () => {
+      await allowParentAnnouncements(true);
+      const swrModule = await import("~/lib/swr");
+      mockUseSWRAuthWithStudents(swrModule, {
+        data: {
+          students: mockStudents,
+          truncatedTotal: 25000,
+        },
+        isLoading: false,
+        error: null,
+      } as ReturnType<typeof swrModule.useSWRAuth>);
+
+      render(<StudentSearchPage />);
+
+      // Anker: die vollständige Aktionsliste ist geladen.
+      expect(
+        await screen.findByTestId("overflow-Abwesenheiten"),
+      ).toBeInTheDocument();
+      expect(
+        screen.queryByTestId("overflow-Elternbrief schreiben"),
+      ).not.toBeInTheDocument();
+    });
+
+    it("offers no letter while a new search result is loading", async () => {
+      await allowParentAnnouncements(true);
+      const swrModule = await import("~/lib/swr");
+      mockUseSWRAuthWithStudents(swrModule, {
+        // keepPreviousData still exposes these children for the old filter.
+        data: { students: mockStudents },
+        isLoading: false,
+        isValidating: true,
+        error: undefined,
+      } as ReturnType<typeof swrModule.useSWRAuth>);
+
+      render(<StudentSearchPage />);
+
+      // Anker: das Aktionsmenü bleibt während der Neuladung sichtbar.
+      expect(
+        await screen.findByTestId("overflow-Abwesenheiten"),
+      ).toBeInTheDocument();
+      expect(
+        screen.queryByTestId("overflow-Elternbrief schreiben"),
+      ).not.toBeInTheDocument();
+    });
+
+    it("offers no letter after a new search request failed", async () => {
+      await allowParentAnnouncements(true);
+      const swrModule = await import("~/lib/swr");
+      mockUseSWRAuthWithStudents(swrModule, {
+        // keepPreviousData can retain children from the failed request's
+        // preceding filter.
+        data: { students: mockStudents },
+        isLoading: false,
+        isValidating: false,
+        error: new Error("Die Suche ist fehlgeschlagen"),
+      } as ReturnType<typeof swrModule.useSWRAuth>);
+
+      render(<StudentSearchPage />);
+
+      // Anker: das Aktionsmenü bleibt auch beim Ladefehler sichtbar.
+      expect(
+        await screen.findByTestId("overflow-Abwesenheiten"),
+      ).toBeInTheDocument();
+      expect(
+        screen.queryByTestId("overflow-Elternbrief schreiben"),
+      ).not.toBeInTheDocument();
     });
   });
 
