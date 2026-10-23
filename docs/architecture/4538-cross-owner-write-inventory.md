@@ -134,7 +134,7 @@ these protocols and Provisioning's explicit split units.
 | Exception | Current order and invariants | Existing executable coverage |
 |---|---|---|
 | E1 | `EN/decide.go:116`: parent request → sibling children in stable sort order, then inspect terminal/idempotent status. Existing-student tail `EN/approval_existing_student.go:40,102`: shared class gate → recurrence → student state; `:56` ensures account attachment precedes roster/instance FK locks. `CP/booking_materialization.go:126` applies class gate → recurrence before booking-derived changes. Decision mail and handler-created invitation enqueue are in the outer unit, not losable after-commit work. | `modules/enrollment/http/decision_approval_rollback_test.go`: `TestDecisionService_ApprovalRollsBackEveryOwnerAfterMaterialization`, `TestExistingStudentApprovalGrantsAccountBeforeClassRosterResync`; sibling digest serialization in `decision_service_test.go`. |
-| E2 | `CP/care_lifecycle.go:176`: booking-write/recurrence gate → shared class gate and locked child read (`care_exit_preview.go:72`, `PD/student_records.go:60`) → open requests → planned roster → activity bookings → own source bookings → weekly plans → quoted offering/person/presence rows (`care_exit_cleanup.go:108,145`). Rebuild token before mutations; mismatch/blocked preview rejects all. Cancel takes booking gate then locked students/exits, restores the ledger before rewriting last care day (`care_lifecycle.go:315,352`). Due effects are not resumption and remain in this exception. | `modules/careplan/contracttest/lifecycle_care_lifecycle_service_test.go`; `care_exit_storage_cutover_test.go`; `lifecycle_care_booking_authority_integration_test.go`. #4619 moves only own source booking lock/end, preserving observations and order. |
+| E2 | `CP/care_lifecycle.go`, `lockCareExitWrites`: shared class gate → booking-write/recurrence gate → locked child read → open requests → planned roster → activity bookings → own source bookings → weekly plans → quoted offering/person/presence rows. Confirm (including withdrawal completion), cancel and due-effect pages use the same gate helper (#4636). Rebuild the confirmation token before mutations; mismatch/blocked preview rejects all. Cancel restores the ledger before rewriting last care day. Due effects remain in this exception, not resumption. | `api/care_exit_lock_order_test.go`: real two-connection interleavings against grade-transition Apply for confirm, cancel and due effects. Existing lifecycle, storage-cutover and booking-authority contract suites retain the preview/rollback and ledger coverage. |
 | E3 | Identity upgrade: foreign relationship `FOR UPDATE` → role recheck → promote (`IA/guardian_relative_access.go:145`). People student edits: class gate → subject/companion locks, sorted far ends → compare plan → profile/membership/care writes inside savepoint (`PD/student_write.go:33,234,251,307`; enrollment patch `student_enrollment.go:42`). Staff identity: account-state guard before writes (`PD/staff_directory.go:114`); caregiver creation failure stays non-fatal. Workforce: lock foreign staff → derive diff → Audit → apply person/employment command (`WF/staffadmin.go:66,272`). | `modules/peopledirectory/compose/guardian_lifecycle_commands_test.go`; `guardian_link_owners_test.go` (`TestGuardianPortalLinkRollsBackAfterEveryOwnerCommand`); People student/staff behavioral suites; `modules/schoolmembership/compose/student_enrollment_test.go` and staff-employment savepoint tests. These protect named scenarios, not every interleaving. |
 | E4 | Offering adjustment: `CP/offering_adjustment.go:100` reads request/child, takes recurrence protocol then locks the student before deriving new intervals/roster; template resync requires its caller's recurrence lock (`sourced_roster_resync.go:60`). Master-data: request lock → child lock/current authorization → apply → decision/history (`master_data_decisions.go:128,151,188`). HTTP child create opens its unit at `student_create_handlers.go:292`; person → student/owner halves → guardians → attachments. Business-error rollback and cleanup order stay unchanged. | Care Plan contract suites for template roster maintenance, offering changes, master-data review and HTTP student creation. `TestFullProductionRouterGolden` pins route/middleware/error shape, not transactional semantics. |
 | E5 | School creation: organization mutation guard → school → categories/manual device in admin unit (`OT/provisioning_schools.go:36`). Device transfer order above. Account creation **does not** re-read school/role under a lock in its later tenant unit (`provisioning_accounts.go:67,85`); no atomic admin-to-tenant guarantee is claimed. Person retirement checks supervision, deactivates/anonymizes/unlinks account, then anonymizes person; some failures are logged by design (`provisioning_people.go:87,149,166`). | `modules/organizationtenancy/internal/application/provisioning_*_internal_test.go`, notably `TestProvisioningCreateSchoolAccount`, `TestProvisioningTransferDevice`, `TestProvisioningSoftDeletePerson`. Double-based tests do not establish cross-owner database atomicity. |
@@ -175,32 +175,39 @@ This decision chooses one complete small workflow over partial relocation of
 several large coordinators. None of these estimates authorizes a policy or
 ratchet-budget increase.
 
-### New finding: care-end / grade-transition lock-order inversion
+### Lock-order audit and correction (#4636)
 
-**Static finding, not a reproduced database deadlock.** The serving root passes
-`timetableRows.RecurrenceLock.LockRecurrenceWrites` as the care lifecycle's
-booking-write gate (`api/root_serve.go:320`, `roots/owners/root_careplan.go:133`
-in the base). Confirmation calls it first (`CP/care_lifecycle.go:176`), then
-`FindCareStudents(..., true)` (`CP/care_exit_preview.go:76`). That root binding
-calls People's `StudentRecords.FindByIDsForUpdate` (`student_records_boundary.go:152`)
-→ `StudentService.LockRecordsByIDs` (`student_records.go:60`) →
-`LockEnrollmentClassWrites` (`internal/adapters/postgres/enrollment_read.go:11`),
-which takes the shared class gate, before sorted joined student row locks
-(`directory_record_reads.go:127`). Cancel uses the same first two stages.
+At `a8df171694`, a real two-connection test reproduces PostgreSQL `40P01`
+for care confirmation, cancellation and due-effect pages against grade-transition
+Apply. The serving root supplies the recurrence lock as `LockCareBookingWrites`;
+the later locked People read takes School Membership's shared class gate.
+The correction acquires that class gate explicitly before recurrence, through a
+consumer-owned port bound to School Membership. No policy rule or owner changes.
 
-Grade transition instead acquires the **exclusive class gate → recurrence**
-(`workflows/gradetransition/apply.go:62`). If care end holds recurrence while
-transition holds the exclusive class gate, each waits for the other. PostgreSQL
-can abort one operation as a deadlock. Exception E2 records the current cut;
-it does not certify this order as safe or override ADR 0067 point 5.
+| Entry point / shared helper | Gate order and following locks |
+|---|---|
+| Care confirm / withdrawal confirm, cancel, due-effect page (`CP/care_lifecycle.go`, `CP/care_due_effects.go`) | **Before:** recurrence → class(shared) → sorted joined child rows. **After:** class(shared) → recurrence → those same rows. Confirmation then locks open requests, roster, activity bookings, source bookings, weekly plans, offering/person/presence rows; withdrawal completion is re-read `FOR UPDATE` after the binding preview. Cancel reads children/exits before restoring the ledger. Due effects revalidate children before presence/request/tag/plan cleanup. No transition gate is taken. |
+| Grade transition Apply and Revert (`workflows/gradetransition/apply.go:63`, `revert.go`) | Unchanged: class(exclusive) → recurrence → transition → transition row / sorted cohort rows. The early gates precede the cohort and fingerprint re-read. |
+| Timetable materializer (`TT/materialization.go:146`) | Unchanged: recurrence → transition → materialization rows. **No class gate** is acquired. Its order is the matching suffix of ADR 0067 point 5, not a second class-gate implementation. Replan takes recurrence before ascending day locks and planned-row deletion, then enters this suffix. Template writes/splits, instance lifecycle/conversion and pickup-extension resolution also start with recurrence before recurrence-derived rows; none adds a class gate in its own gate helper. |
+| Student-deletion withdrawal completion (`workflows/studentdeletion/deletion.go:335`) | Unchanged: class(shared) → recurrence → withdrawal/student rows. Ordinary deletion has no recurrence gate. |
+| Existing-child approval and due class switch (`EN/approval_existing_student.go:102`, `class_switch.go:60`) | Unchanged: class(shared) → recurrence → student state. Enrollment approved-child sync and form-change apply use `CP/booking_materialization.go:126` before their child writes. Fresh child creation already holds the shared class gate before later booking materialization. |
+| Offering-derived gate / direct pickup editor (`CP/booking_materialization.go:126`, `direct_offering_adjustments.go:30`) | Unchanged: class(shared) → recurrence → child/booking rows. Later locked reads reacquire class safely. |
+| Offering adjustment without the preceding gate (`CP/offering_adjustment.go:113,116`, `EN/decision_bookings.go:105`) | The public booking command itself takes recurrence → class(shared) through its locked student read. The admin `UpdateChildOfferings` path does not prepend `LockOfferingDerivedWrites`. **Separate static finding**, not fixed by #4636: it can close the same class/recurrence cycle against grade transition. Form-change apply and the direct pickup editor have the earlier gate above. |
+| Offering-change review and pickup reset (`CP/offering_change_decisions.go:22,71`, `offering_pickup_times.go:59`) | Review locks the request, then class(shared)/child before entering the recurrence-taking adjustment. Reset takes class(shared)/child → recurrence. The two gates agree with grade transition, but the child-before-recurrence order can conflict with a care confirmation holding recurrence while waiting for that child. **Separate static row-lock finding**, unchanged here. |
+| Booking expiry / authority setting (`CP/care_due_effects.go`, `care_participation.go`), offering catalog, enrollment phase updates/deletes | Recurrence only at these boundaries; the booking-fact projection does not acquire class or child row locks. Sourced-roster resync inherits the caller's recurrence gate. |
+| School Membership class writes, People directory locked reads and class-gate CTE | Class only, before child rows; no recurrence lock in these implementations. Care resumption remains class(shared) → child, with no recurrence or old-plan restore. |
 
-Proposed follow-up: put class → recurrence acquisition explicitly at the
-care-end/withdrawal/cancel boundary, preserve the preview/rollback contract,
-and add a real two-connection regression test against grade transition.
-Estimated 200–400 changed production/test lines. This is beyond a placement-only
-resumption extraction: it changes a separate multi-entry lock protocol, so no
-unverified lock-order fix is bundled here. The moved resumption retains the
-existing class → student order and takes no recurrence gate.
+The test holds class exclusively on connection 1, starts the care operation on
+connection 2 and waits for `pg_locks` plus `pg_blocking_pids` to confirm the class
+wait. It then runs the real grade-transition Apply in connection 1. Before the
+fix this closes the cycle and reports `40P01`; afterwards both operations commit.
+The transition promotes a different child in the **same school**, so confirmation
+has no unrelated stale-token failure. The test uses an isolated database, real
+fixture IDs and bounded waits, not sleeps to arrange the race.
+
+This proves the named interleavings, not global deadlock freedom. The two static
+findings above need separate regression tests and protocol changes; #4636 does
+not weaken the E2 preview, rollback, tenant scope, ledger or error contracts.
 
 ### Checker proposal for #4548
 
@@ -227,8 +234,8 @@ after-commit durability. No such checker is implemented by #4538.
   own source-booking lock/end no longer make the Enrollment/root/workflow
   round trip. Snapshot/restore still live in `workflows/careexit/bookings.go`.
   Membership end/resume stayed in Care Plan until this PR moves resumption.
-- The table classifies placement; the additional lock-order finding is static,
-  not a reproduced production incident. Provisioning's split scope and tolerated failures predate this PR. No new
+- The table classifies placement; the E2 gate inversion is reproduced in a local test,
+  not a production incident; the additional audit findings remain static. Provisioning's split scope and tolerated failures predate this PR. No new
   all-or-nothing or school-liveness guarantee is inferred from them.
 - Policy inspected: epoch 91, 927 rules, 68 owners, zero `legacy.jsonl` keys.
   `enrollment` and `care-plan` application packages remain their domain roles;

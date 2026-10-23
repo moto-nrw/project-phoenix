@@ -76,7 +76,7 @@ func (s *CareLifecycle) ApplyDueEffects(ctx context.Context, asOf calendar.Date)
 
 func (s *CareLifecycle) applyDueEffects(ctx context.Context, ids []int64, asOf calendar.Date) (careDueEffects, error) {
 	var effects careDueEffects
-	if err := s.lockCareBookingWrites(ctx); err != nil {
+	if err := s.lockCareExitWrites(ctx); err != nil {
 		return effects, fmt.Errorf("care lifecycle: lock care booking writes for due effects: %w", err)
 	}
 	// The candidate lookup ran outside this transaction. An operator can
