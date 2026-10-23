@@ -7,6 +7,9 @@ status: accepted
 Entscheidung für #3841, Slice 3841-f, Teil von #3846, am 23.10.2026.
 Die Nutzerentscheidung ist Option B: Verwaltungsrechte sowie Gesundheits- und
 Personalfinanzrechte verlangen MFA unabhängig von der Schuleinstellung.
+Ergänzung vom 24.10.2026: Das gilt auch für `staff:stammdaten`,
+`staff:documents`, `time_tracking:manage` und `vacation:approve`.
+Grundlage ist die [Zugriffsbewertung für Gesundheits- und Personaldaten](../security/zugriff-gesundheits-und-personaldaten.md).
 
 ## Entscheidung
 
@@ -14,6 +17,11 @@ Personalfinanzrechte verlangen MFA unabhängig von der Schuleinstellung.
    Eine benannte Mindestmenge und ein vollständiger Registry-Klassifikationstest
    halten neue administrative Rechte sichtbar. Wildcards folgen der bestehenden
    Rechte-Semantik; neue Gesundheitsrechte fallen direkt unter die Untergrenze.
+   `users:read` bleibt ausdrücklich außerhalb der Untergrenze, da sonst praktisch
+   alle Betreuungskräfte erfasst würden. Gesundheitsangaben der Kinder
+   (`health_info`) bleiben über dieses Recht sichtbar, ohne eigene Zugriffsstufe.
+   Das ist keine Aussage, dass diese Angaben unbedenklich sind. Die Bewertung
+   ihrer übrigen Zugriffsschutzmaßnahmen bleibt bestehen.
 2. Kein `force_off` darf diese Untergrenze umgehen, auch nicht durch Operatoren.
    Bestehende Ausnahmen werden zur Laufzeit unwirksam. Die historischen Werte
    und Auditnachweise bleiben erhalten. Wiederherstellung repariert den zweiten
@@ -45,6 +53,7 @@ Personalfinanzrechte verlangen MFA unabhängig von der Schuleinstellung.
 - Bestehende privilegierte Sitzungen verlangen beim nächsten Refresh eine neue
   Anmeldung. Bereits ausgegebene Access-Token laufen regulär ab.
 - Berechtigte Konten ohne zweiten Faktor gelangen in die bestehende Einrichtung.
+  Das gilt auch für Konten mit ausschließlich einem der vier ergänzten Rechte.
   Ohne erreichbares Postfach oder gültigen Passkey muss Support zunächst diesen
   Anmeldeweg wiederherstellen. Es gibt keine Passwort-Notfallausnahme.
 - Der dev-only Seed-Adapter bestätigt dieselben E-Mail-Codes über Mailpit.

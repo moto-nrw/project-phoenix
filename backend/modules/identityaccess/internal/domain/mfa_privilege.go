@@ -11,7 +11,9 @@ var PrivilegedMFAPermissions = []string{
 	"users:manage",
 	"roles:create", "roles:read", "roles:update", "roles:delete",
 	"permissions:create", "permissions:read", "permissions:update", "permissions:delete",
-	"staff:manage", "staff:financial", "staff_documents:health", "student_documents:health",
+	"staff:manage", "staff:stammdaten", "staff:documents", "staff:financial",
+	"time_tracking:manage", "vacation:approve",
+	"staff_documents:health", "student_documents:health",
 }
 
 // HasPrivilegedMFAPermission uses the authorization contract's per-segment

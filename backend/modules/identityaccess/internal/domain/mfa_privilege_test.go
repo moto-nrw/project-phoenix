@@ -11,10 +11,13 @@ import (
 
 func TestMFAPrivilegedPermissionsCannotBeExempted(t *testing.T) {
 	t.Parallel()
-	for _, grant := range []string{"users:manage", "roles:update", "permissions:create", "auth:manage", "config:manage", "system:manage", "staff_documents:health", "student_documents:health", "staff:financial", "admin:*", "*:*", "*:health", "*:manage", "user*:manage", "staff*:h*"} {
+	for _, grant := range []string{"users:manage", "roles:update", "permissions:create", "auth:manage", "config:manage", "system:manage", "staff_documents:health", "student_documents:health", "staff:financial", "staff:stammdaten", "staff:documents", "time_tracking:manage", "vacation:approve", "admin:*", "*:*", "*:health", "*:manage", "user*:manage", "staff*:h*"} {
 		for _, policy := range []MFAPolicy{MFAPolicyForMode(MFAModeOff), MFAPolicyForMode(MFAModeRequiredAdmins), MFAPolicyForced(false)} {
 			assert.True(t, policy.RequiredFor([]string{grant}), "grant %q must require MFA even with off/force_off", grant)
 		}
+	}
+	for _, policy := range []MFAPolicy{MFAPolicyForMode(MFAModeOff), MFAPolicyForMode(MFAModeRequiredAdmins), MFAPolicyForced(false)} {
+		assert.False(t, policy.RequiredFor([]string{"users:read"}), "child health_info stays readable without imposing the privileged MFA floor")
 	}
 	assert.False(t, MFAPolicyForMode(MFAModeOff).RequiredFor([]string{"users:read", "users:create", "users:update", "users:delete"}), "person-record editing does not administer accounts or grant roles")
 	assert.False(t, MFAPolicyForMode(MFAModeRequiredAdmins).RequiredFor([]string{"admin"}), "role names are not permissions")
@@ -99,10 +102,10 @@ func TestMFAPermissionCatalogIsClassified(t *testing.T) {
 		"schedules:manage":                  false,
 		"schedules:read":                    false,
 		"schedules:update":                  false,
-		"staff:documents":                   false,
+		"staff:documents":                   true,
 		"staff:financial":                   true,
 		"staff:manage":                      true,
-		"staff:stammdaten":                  false,
+		"staff:stammdaten":                  true,
 		"staff_documents:health":            true,
 		"staff_notices:read":                false,
 		"student_documents:health":          true,
@@ -116,7 +119,7 @@ func TestMFAPermissionCatalogIsClassified(t *testing.T) {
 		"substitutions:update":              false,
 		"supervision:own":                   false,
 		"system:manage":                     true,
-		"time_tracking:manage":              false,
+		"time_tracking:manage":              true,
 		"time_tracking:own":                 false,
 		"users:absence":                     false,
 		"users:checkin":                     false,
@@ -126,7 +129,7 @@ func TestMFAPermissionCatalogIsClassified(t *testing.T) {
 		"users:manage":                      true,
 		"users:read":                        false,
 		"users:update":                      false,
-		"vacation:approve":                  false,
+		"vacation:approve":                  true,
 		"visits:create":                     false,
 		"visits:delete":                     false,
 		"visits:list":                       false,

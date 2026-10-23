@@ -43,6 +43,41 @@ func TestPrivilegedMFAIsSchoolScopedAndIgnoresLegacyExemptions(t *testing.T) {
 	require.ErrorIs(t, module.MFA.OperatorSetGlobalMFAOverride(context.Background(), operator.ID, accountID, identityaccess.MFAAdminOverrideForceOff, "test refusal"), identityaccess.ErrMFAPermissionDenied)
 }
 
+func TestStaffDataMFAPermissionRequiresEnrollment(t *testing.T) {
+	t.Parallel()
+	for _, grant := range []string{"staff:stammdaten", "staff:documents", "time_tracking:manage", "vacation:approve", "users:read"} {
+		t.Run(grant, func(t *testing.T) {
+			t.Parallel()
+			testpkg.OwnTenant(t)
+			db := testpkg.SetupTestDB(t)
+			module := newMFATestModule(t, db, withDeliveringMailer(nil)...)
+			service := newFixtureAuthService(t, db, module.Auth)
+			email, accountID, school, slug := registerAccountAtTenant(t, db, service, "staff-mfa-floor")
+			_, legacyRefresh, err := service.LoginWithAudit(context.Background(), email, testPassword, "", "", slug)
+			require.NoError(t, err)
+			testpkg.GrantTestPermission(t, db, school, accountID, grant)
+			result, err := service.LoginWithMFAGate(context.Background(), email, testPassword, "", "", slug, "")
+			require.NoError(t, err, "existing accounts must reach enrollment, not be locked out")
+			if grant == "users:read" {
+				assert.Equal(t, identityaccess.LoginStatusAuthenticated, result.Status)
+				assert.NotEmpty(t, result.RefreshToken)
+				_, _, err = service.RefreshTokenWithAudit(context.Background(), legacyRefresh, "", "", "")
+				require.NoError(t, err)
+				return
+			}
+			assert.Equal(t, identityaccess.LoginStatusMFAEnrollmentRequired, result.Status)
+			assert.Empty(t, result.RefreshToken)
+			_, _, err = service.RefreshTokenWithAudit(context.Background(), legacyRefresh, "", "", "")
+			require.ErrorIs(t, err, identityaccess.ErrInvalidToken, "old password-only sessions cannot bypass the extended floor")
+			require.NoError(t, module.MFA.EnrollMFA(testpkg.TenantContext(school), accountID))
+			result, err = service.LoginWithMFAGate(context.Background(), email, testPassword, "", "", slug, "")
+			require.NoError(t, err)
+			assert.Equal(t, identityaccess.LoginStatusMFARequired, result.Status)
+			assert.Empty(t, result.RefreshToken)
+		})
+	}
+}
+
 func TestPrivilegedMFAVerifiedSessionRotatesButResetRemovesProof(t *testing.T) {
 	t.Parallel()
 	db := testpkg.SetupTestDB(t)

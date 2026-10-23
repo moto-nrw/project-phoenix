@@ -232,7 +232,7 @@ function loginTopic(
     ],
     result: loginResult(presenceMode, groupMode),
     differences: [
-      "Für Verwaltung, Gesundheitsdaten und Personalfinanzen ist ein zweiter Nachweis immer Pflicht. Das gilt auch bei ausgeschalteter Sicherheitsabfrage der Schule.",
+      "Für Verwaltung ist ein zweiter Nachweis immer Pflicht. Ebenso für Personalstammdaten, Personaldokumente und Personalfinanzen. Das gilt auch für Gesundheitsdokumente und das Verwalten fremder Arbeitszeiten. Ebenso, wenn Sie Urlaub genehmigen dürfen. Diese Pflicht gilt auch bei ausgeschalteter Sicherheitsabfrage der Schule. Gesundheitshinweise der Kinder allein lösen diese Pflicht nicht aus.",
       "Richten Sie die Sicherheitsabfrage erstmals ein? Wählen Sie `Code an meine E-Mail senden`.",
       "Geben Sie danach den sechsstelligen Code ein.",
       "Wenn Sie bereits einen Passkey eingerichtet haben, können Sie `Mit Passkey anmelden` wählen.",
@@ -7223,7 +7223,7 @@ function teacherLoginTopic(): HelpTopic {
     ],
     differences: [
       "Oben steht `Willkommen im Schulportal`. So erkennen Sie, dass Sie richtig sind.",
-      "Bei besonderen Zugriffsrechten verlangt moto immer einen zusätzlichen Nachweis. Das gilt für Verwaltung, Gesundheitsdaten und Personalfinanzen.",
+      "Für Verwaltung ist ein zweiter Nachweis immer Pflicht. Ebenso für Personalstammdaten, Personaldokumente und Personalfinanzen. Das gilt auch für Gesundheitsdokumente und das Verwalten fremder Arbeitszeiten. Ebenso, wenn Sie Urlaub genehmigen dürfen. Gesundheitshinweise der Kinder allein lösen diese Pflicht nicht aus.",
     ],
     troubleshootingDetails: [
       "moto sagt, das Konto habe keinen Zugang zum Schul-Portal? Dann fehlt Ihnen die Rolle. Wenden Sie sich an die OGS-Verwaltung.",

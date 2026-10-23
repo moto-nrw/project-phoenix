@@ -5,10 +5,15 @@
 **Im Code umgesetzt:** Die effektiven Rechte einer Schule entscheiden, nicht
 Rollennamen. Nutzerverwaltung, Rollen-/Rechteverwaltung, Auth-Verwaltung,
 Sicherheits-/Systemeinstellungen, Personalverwaltung, Gesundheitsrechte und
-`staff:financial` verlangen einen zweiten Nachweis. Die genaue Untergrenze steht
+`staff:financial` verlangen einen zweiten Nachweis. Seit der Nutzerentscheidung
+vom 24.10.2026 gehören auch `staff:stammdaten`, `staff:documents`,
+`time_tracking:manage` und `vacation:approve` dazu. Die genaue Untergrenze steht
 in `backend/modules/identityaccess/internal/domain/mfa_privilege.go`.
 `users:create/update/delete` verwalten Personen-/Kinderdaten, nicht Konten oder
 Rollen (siehe `mountAdminRoutes`); allein diese Rechte erzwingen keine MFA.
+Auch `users:read` bleibt ausdrücklich außerhalb dieser Untergrenze.
+Gesundheitshinweise der Kinder (`health_info`) bleiben damit sichtbar, ohne
+eigene Zugriffsstufe. Gesundheitsdokumente behalten dagegen ihre eigenen Rechte.
 Wildcards zählen entsprechend ihrem tatsächlichen Zugriff. Neue Registry-Rechte
 müssen im Klassifikationstest ausdrücklich bewertet werden.
 
@@ -87,6 +92,7 @@ Die Abfrage liefert ausschließlich Schul-IDs und Anzahlen, keine Konten,
 Adressen, Codes oder Schlüssel. `without_any_second_factor` zählt Konten ohne
 E-Mail-MFA und ohne gültigen Passkey. `without_email_address` zeigt Fälle ohne
 E-Mail-Weg, nicht die tatsächliche Zustellbarkeit.
+Die Zählmenge enthält auch die vier ergänzten Personalrechte, nicht `users:read`.
 
 ```sh
 PGOPTIONS='-c default_transaction_read_only=on' \
@@ -111,8 +117,11 @@ Passkey. Mailpit-Automatik gehört nur in `cmd/devtools`, nicht in die API.
 Anhang 1, Ziff. 2 „Zugang“, als konkreten Text prüfen:
 
 > Privilegierte Kundenkonten einschließlich Verwaltungsrechten sowie Zugriffe
-> auf Gesundheitsdaten und Personalfinanzdaten verlangen einen zusätzlichen
-> Anmeldenachweis unabhängig von der Schuleinstellung. Sitzungen ohne diesen
+> auf Gesundheitsdokumente, Personalstammdaten, allgemeine Personaldokumente und
+> Personalfinanzdaten verlangen einen zusätzlichen Anmeldenachweis unabhängig
+> von der Schuleinstellung. Das gilt auch für das Verwalten fremder Arbeitszeiten
+> und das Genehmigen von Urlaub. Das alleinige Leserecht `users:read`, auch für
+> Gesundheitshinweise der Kinder, löst diese Pflicht nicht aus. Sitzungen ohne diesen
 > Nachweis werden bei der nächsten Erneuerung zur erneuten Anmeldung gezwungen.
 > Wiederherstellung stellt einen geeigneten Anmeldeweg wieder her und hebt die
 > Pflicht nicht auf. Gemerkte Geräte sind schulgebunden und widerrufbar.

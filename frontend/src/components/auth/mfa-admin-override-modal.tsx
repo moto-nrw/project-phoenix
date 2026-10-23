@@ -469,10 +469,14 @@ export function MFAAdminOverrideModal({
                 Zusätzlichen Anmeldecode festlegen
               </h3>
               <p className="mb-3 text-sm text-gray-600">
-                Für Verwaltung, Gesundheitsdaten und Personalfinanzen bleibt der
-                zusätzliche Nachweis immer Pflicht. Sie können ihn dafür nicht
-                ausschalten. Bei verlorenem Zugang helfen Sie zuerst, den Zugang
-                zum E-Mail-Postfach wiederherzustellen.
+                Für Verwaltung bleibt der zusätzliche Nachweis immer Pflicht.
+                Ebenso für Personalstammdaten, Personaldokumente und
+                Personalfinanzen. Das gilt auch für Gesundheitsdokumente und das
+                Verwalten fremder Arbeitszeiten. Ebenso, wenn Sie Urlaub
+                genehmigen dürfen. Sie können diese Pflicht nicht ausschalten.
+                Gesundheitshinweise der Kinder allein lösen diese Pflicht nicht
+                aus. Bei verlorenem Zugang helfen Sie zuerst, den Zugang zum
+                E-Mail-Postfach wiederherzustellen.
               </p>
               <div className="border-moto-amber/20 bg-moto-amber-soft text-moto-amber-strong mb-3 rounded-md border p-3 text-xs">
                 <strong className="font-semibold">Wichtig:</strong> Diese
