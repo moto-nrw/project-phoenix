@@ -138,6 +138,15 @@ export function SpontaneousActivityStart({
     () => new Set(occupiedRoomIds),
     [occupiedRoomIds],
   );
+  // The dashboard poll hands over a new occupancy every few seconds. The
+  // load below only needs it to preselect a free room, so it reads the latest
+  // value instead of reloading on every poll: a reload hid the staff section
+  // and discarded a half-typed external person. The room list itself marks
+  // occupied rooms from the live value.
+  const occupiedRoomIdSetRef = useRef(occupiedRoomIdSet);
+  useEffect(() => {
+    occupiedRoomIdSetRef.current = occupiedRoomIdSet;
+  }, [occupiedRoomIdSet]);
 
   useEffect(() => {
     if (!isOpen) return;
@@ -195,18 +204,15 @@ export function SpontaneousActivityStart({
             .filter((item) => item.id !== currentStaffId)
             .sort((a, b) => staffLabel(a).localeCompare(staffLabel(b), "de")),
         );
+        const occupied = occupiedRoomIdSetRef.current;
         setRoomId((prev) => {
           const firstAvailableRoom =
-            spontaneousRooms.find(
-              (room) => !isRoomOccupied(room, occupiedRoomIdSet),
-            ) ?? null;
+            spontaneousRooms.find((room) => !isRoomOccupied(room, occupied)) ??
+            null;
           const previousRoom = spontaneousRooms.find(
             (room) => room.id === prev,
           );
-          if (
-            previousRoom &&
-            !isRoomOccupied(previousRoom, occupiedRoomIdSet)
-          ) {
+          if (previousRoom && !isRoomOccupied(previousRoom, occupied)) {
             return prev;
           }
           const configuredDefaultRoom = spontaneousRooms.find(
@@ -214,7 +220,7 @@ export function SpontaneousActivityStart({
           );
           if (
             configuredDefaultRoom &&
-            !isRoomOccupied(configuredDefaultRoom, occupiedRoomIdSet)
+            !isRoomOccupied(configuredDefaultRoom, occupied)
           ) {
             return configuredDefaultRoom.id;
           }
@@ -231,7 +237,6 @@ export function SpontaneousActivityStart({
     currentStaffId,
     defaultRoomId,
     isOpen,
-    occupiedRoomIdSet,
     loadAttempt,
     clearFormErrors,
     clearLoadError,

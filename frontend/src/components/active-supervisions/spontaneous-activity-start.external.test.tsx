@@ -224,6 +224,40 @@ describe("SpontaneousActivityStart external caregivers", () => {
     expect(mocks.inviteExternal).not.toHaveBeenCalled();
   });
 
+  // The dashboard poll hands over a new occupied-room array every few
+  // seconds. That must not reload the lists: the reload hid the staff section
+  // and threw away a half-typed external person.
+  it("keeps a half-typed external person when the room occupancy refreshes", async () => {
+    const view = render(
+      <SpontaneousActivityStart
+        canCreateExternalCaregiver
+        currentStaffId="11"
+        occupiedRoomIds={[]}
+        onStart={vi.fn()}
+      />,
+    );
+    await openModalAndWaitForRefs();
+    fireEvent.click(
+      screen.getByRole("button", { name: "Externe Person eintragen" }),
+    );
+    fireEvent.change(screen.getByLabelText("Vorname"), {
+      target: { value: "Lea" },
+    });
+
+    view.rerender(
+      <SpontaneousActivityStart
+        canCreateExternalCaregiver
+        currentStaffId="11"
+        occupiedRoomIds={["5"]}
+        onStart={vi.fn()}
+      />,
+    );
+
+    await waitFor(() => expect(getRoomCombobox()).toBeEnabled());
+    expect(screen.getByLabelText("Vorname")).toHaveValue("Lea");
+    expect(mocks.getAllStaff).toHaveBeenCalledTimes(1);
+  });
+
   it("records a new external person, ticks it and starts with it", async () => {
     const onStart = vi.fn();
     render(
