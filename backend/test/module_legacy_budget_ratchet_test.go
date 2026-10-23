@@ -149,7 +149,7 @@ var moduleLegacyFileBudgets = map[string]int{
 // like every entry; raised by ADR 0063 and by ADR 0073 (the parent
 // announcement retention of modules/communication/composition).
 // Raised by ADR 0076: the restricted staff person repair compositions (+53).
-const moduleComposeBudgetTotal = 12385
+const moduleComposeBudgetTotal = 12384
 
 // moduleComposeBudgets maps every owner composition package to its production
 // LOC, first measured on 2026-10-15 on top of development c49b81c3a9: 61
@@ -180,7 +180,7 @@ var moduleComposeBudgets = map[string]int{
 	"modules/filestorage/compose":                   217,
 	"modules/grouplive/compose":                     14,
 	"modules/guardianlinkview/compose":              8,
-	"modules/identityaccess/compose":                1304,
+	"modules/identityaccess/compose":                1303,
 	"modules/mealplan/compose":                      69,
 	"modules/organizationtenancy/compose":           253,
 	"modules/parentrequestfeedprojection/compose":   11,
