@@ -1,5 +1,5 @@
 ---
-status: proposed
+status: accepted
 ---
 
 # Personal wird beim Träger geführt und in der Schule eingesetzt
@@ -16,7 +16,7 @@ Ausschluss eines Dienstplans auf Träger-Ebene aus
 auf [ADR 0084](0084-traeger-portal-liest-ueber-eine-projektion-und-schreibt-in-der-schule.md),
 [ADR 0086](0086-traeger-werte-liegen-zwischen-standard-und-schule.md) und
 [ADR 0021](0021-wiederaufnahme-fuehrt-die-fruehere-beschaeftigung-fort.md) auf.
-Sie wartet auf die Annahme durch den Product Owner.
+Der Product Owner hat sie am 23.10.2026 angenommen.
 
 Eine Person, die der Träger beschäftigt, hat beim Träger einen
 **Personalstamm** mit der Personalnummer des Trägers und einen oder mehrere
