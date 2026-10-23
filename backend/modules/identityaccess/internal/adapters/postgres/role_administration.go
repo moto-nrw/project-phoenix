@@ -26,18 +26,19 @@ type managedRoleRow struct {
 	Description   string    `bun:"description"`
 	IsSystem      bool      `bun:"is_system"`
 	BaseRole      *string   `bun:"base_role"`
+	SchoolPortal  bool      `bun:"school_portal"`
 	CreatedAt     time.Time `bun:"created_at,nullzero,notnull,default:current_timestamp"`
 	UpdatedAt     time.Time `bun:"updated_at,nullzero,notnull,default:current_timestamp"`
 }
 
 func managedRoleRecord(role domain.ManagedRole) managedRoleRow {
 	return managedRoleRow{ID: role.ID, TenantID: role.TenantID, Name: role.Name, Description: role.Description,
-		IsSystem: role.IsSystem, BaseRole: role.BaseRole, CreatedAt: role.CreatedAt, UpdatedAt: role.UpdatedAt}
+		IsSystem: role.IsSystem, BaseRole: role.BaseRole, SchoolPortal: role.SchoolPortal, CreatedAt: role.CreatedAt, UpdatedAt: role.UpdatedAt}
 }
 
 func (role managedRoleRow) domain() domain.ManagedRole {
 	return domain.ManagedRole{ID: role.ID, TenantID: role.TenantID, Name: role.Name, Description: role.Description,
-		IsSystem: role.IsSystem, BaseRole: role.BaseRole, CreatedAt: role.CreatedAt, UpdatedAt: role.UpdatedAt}
+		IsSystem: role.IsSystem, BaseRole: role.BaseRole, SchoolPortal: role.SchoolPortal, CreatedAt: role.CreatedAt, UpdatedAt: role.UpdatedAt}
 }
 
 func (s *RoleStore) CreateRole(ctx context.Context, role domain.ManagedRole) (domain.ManagedRole, error) {
@@ -122,7 +123,8 @@ func (s *RoleStore) UpdateRole(ctx context.Context, role domain.ManagedRole) err
 		return err
 	}
 	row := managedRoleRecord(role)
-	query := db.NewUpdate().Model(&row).ModelTableExpr("auth.roles AS role").Where("role.id = ?", role.ID)
+	// The template sets school_portal once at creation (#4574); an edit keeps it.
+	query := db.NewUpdate().Model(&row).ModelTableExpr("auth.roles AS role").ExcludeColumn("school_portal").Where("role.id = ?", role.ID)
 	query = scopeTenantQuery(s.scope(ctx), query, "role.tenant_id = ?")
 	result, err := query.Exec(ctx)
 	return roleMutationResult(result, roleNameConflict(err))

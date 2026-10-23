@@ -2,6 +2,7 @@
 package common
 
 const (
+	CodeIotOpenRoomBinaryMode                         = "iot.open_room_binary_mode"
 	CodeIotPersonNotStudent                           = "iot.person_not_student"
 	CodeIotPickupStudentRfidRequired                  = "iot.pickup_student_rfid_required"
 	CodeIotPlannedStartNotReached                     = "iot.planned_start_not_reached"
@@ -305,6 +306,7 @@ const (
 )
 
 var errorCodeClasses1 = map[string]string{
+	"iot.open_room_binary_mode":                           "business_rejection",
 	"iot.person_not_student":                              "input",
 	"iot.pickup_student_rfid_required":                    "input",
 	"iot.planned_start_not_reached":                       "business_rejection",

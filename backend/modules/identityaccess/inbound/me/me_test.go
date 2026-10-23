@@ -785,8 +785,19 @@ func TestUploadAvatar_Success(t *testing.T) {
 		_ = os.Remove(avatarFilePath)
 	})
 
-	_, err = os.Stat(avatarFilePath)
+	fileInfo, err := os.Stat(avatarFilePath)
 	require.NoError(t, err)
+	assert.Equal(t, os.FileMode(0o600), fileInfo.Mode().Perm())
+	dirInfo, err := os.Stat(filepath.Dir(avatarFilePath))
+	require.NoError(t, err)
+	assert.Equal(t, os.FileMode(0o700), dirInfo.Mode().Perm())
+
+	getReq := testutil.NewAuthenticatedRequest(t, http.MethodGet, "/profile/avatar/"+filepath.Base(avatar), nil,
+		testutil.WithJWTBearer(testutil.MintTestJWT(t, claims)))
+	imageResponse := testutil.ExecuteRequest(tc.router, getReq)
+	require.Equal(t, http.StatusOK, imageResponse.Code)
+	assert.Equal(t, pngContent, imageResponse.Body.String())
+	assert.Equal(t, "private, max-age=86400", imageResponse.Header().Get("Cache-Control"))
 }
 
 // =============================================================================

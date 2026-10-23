@@ -92,13 +92,22 @@ func TestIsPlatformCaregiverRole(t *testing.T) {
 }
 
 // The lehrkraft SYSTEM role is the school-portal role; a school's custom
-// role sharing the label is a different role.
-func TestIsLehrkraftSystemRole(t *testing.T) {
+// role sharing the label is a different role. A school role made from the
+// Lehrkraft template carries the mark and counts, whatever its name (#4574).
+func TestIsLehrkraftRole(t *testing.T) {
 	t.Parallel()
 
-	require.True(t, identityaccess.IsLehrkraftSystemRole(systemRole("lehrkraft")))
-	require.True(t, identityaccess.IsLehrkraftSystemRole(systemRole(" Lehrkraft ")))
-	require.False(t, identityaccess.IsLehrkraftSystemRole(&identityaccess.RoleFacts{Name: "lehrkraft"}))
-	require.False(t, identityaccess.IsLehrkraftSystemRole(systemRole("user")))
-	require.False(t, identityaccess.IsLehrkraftSystemRole(nil))
+	copied := customRole("Klassenleitung", ptr(identityaccess.BaseRoleUser))
+	copied.SchoolPortal = true
+	require.True(t, identityaccess.IsLehrkraftRole(copied))
+	require.False(t, identityaccess.RoleNeedsCaregiverProfile(copied), "a Lehrkraft copy never gets a caregiver profile")
+	require.True(t, identityaccess.RoleNeedsStaffRecord(copied))
+	require.True(t, identityaccess.AccountClaims{Roles: []identityaccess.AccountRole{{Name: "klassenleitung", SchoolPortal: true}}}.IsSchoolPortalOnly())
+	require.False(t, identityaccess.AccountClaims{Roles: []identityaccess.AccountRole{{Name: "klassenleitung", SchoolPortal: true}, {Name: "user", IsSystem: true}}}.IsSchoolPortalOnly())
+
+	require.True(t, identityaccess.IsLehrkraftRole(systemRole("lehrkraft")))
+	require.True(t, identityaccess.IsLehrkraftRole(systemRole(" Lehrkraft ")))
+	require.False(t, identityaccess.IsLehrkraftRole(&identityaccess.RoleFacts{Name: "lehrkraft"}))
+	require.False(t, identityaccess.IsLehrkraftRole(systemRole("user")))
+	require.False(t, identityaccess.IsLehrkraftRole(nil))
 }

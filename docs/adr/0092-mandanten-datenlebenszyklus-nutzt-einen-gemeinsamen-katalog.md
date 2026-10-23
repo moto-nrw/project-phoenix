@@ -123,3 +123,26 @@ Dateien, Aufbewahrung und Geheimnisse. Es wird nicht als Verfahren freigegeben.
 - Legal-Repo, nur gelesen: `research/14-dsgvo-mindestumfang.md`,
   `vertragspaket/intern/checkliste.md`, `vertragspaket/03-avv.md`,
   Fassungen vom 23.10.2026. Sie sind kein Nachweis produktiver Wirksamkeit.
+
+## Ergänzung: Aufbewahrung der Abrechnungszählungen (3837-b, Runde 2)
+
+Die ausdrückliche Orchestrator-Entscheidung vom 23.10.2026 lautet:
+`platform.billing_key_date_counts` wird bei der Mandantenlöschung **behalten
+und gesperrt**, nicht gelöscht. Es enthält Organisationsnamen und Summen,
+keine Daten betroffener Personen. Die unveränderten historischen Namen bleiben
+als Rechnungsreferenz erforderlich (Migration 1.15.416); eine neutrale Kennung
+würde die damalige Zuordnung nicht mehr allein belegen.
+
+Nach der Schulentfernung darf nur die separate Abrechnungsrolle die Zeilen
+lesen, nicht der reguläre Operator-Leser. Kein Export an Dritte. Die
+Basistabellenrechte werden entzogen, weil `phoenix_admin` RLS umgeht; der
+reguläre Leser nutzt eine View für noch vorhandene Schulen.
+
+Die Frist beträgt vorsorglich **zehn Jahre ab Ende des Kalenderjahres des
+Stichtags** mit Bezug auf § 147 AO / § 257 HGB. Die rechtliche Bestätigung
+bleibt im Recht-Slice offen. Das Behalten ist später korrigierbar, das Löschen
+der einmal erfassten Rechnungszahlen wäre unumkehrbar. Der getestete eigene
+Löschweg und die Sperre sind im Code umgesetzt; regelmäßiger Aufruf,
+Produktiv-Rollenprüfung und Wirksamkeitsnachweis bleiben offen.
+Details: [DB-Vertrag](../reference/mandantenloeschung-datenbank.md) und
+[Fristenliste](../reference/loeschfristen.md).

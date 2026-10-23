@@ -916,7 +916,7 @@ function dayLogTopic(groupMode: HelpGroupMode): HelpTopic {
     result:
       "Sie sehen für heute, welches Kind da ist. Die Liste ist danach geordnet. Kinder ohne Meldung stehen unter `Unentschuldigt abwesend`. Vergangene Tage können Sie hier nicht auswählen.",
     differences: [
-      "Fehlt `Tagesauswertung`? Bitten Sie Ihre Leitung, das `Anwesenheitsprotokoll` unter `Einstellungen` und `Datenschutz` einzuschalten.",
+      "Fehlt `Tagesauswertung`? Fragen Sie Ihre Leitung nach dem `Anwesenheitsprotokoll`. Sie finden es unter `Einstellungen` und `Datenschutz`.",
       "Steht dort `Anwesenheitsprotokoll ist ausgeschaltet`? Dann ist es für Ihre Schule nicht eingeschaltet.",
     ],
     notes: [
@@ -4595,7 +4595,7 @@ function inviteStaffTopic(): HelpTopic {
     ],
     differences: [
       "Beim Import muss die Spalte `Rolle` genau einer vorhandenen Rolle entsprechen.",
-      "Zur Wahl stehen `Administrator`, `Betreuer`, `Gast`, `Erziehungsberechtigter`, `Lehrkraft`, `AG-Leitung` und die eigenen Rollen Ihrer OGS.",
+      "Zur Wahl stehen `Verwaltung`, `Betreuung`, `Lehrkraft`, `AG-Leitung`, `Gast` und die eigenen Rollen der Schule. Die alten Namen `Administrator` und `Betreuer` erkennt moto auch.",
       "`Nur ansehen` fehlt bei einer externen Person? Diesen Zugang darf nur vergeben, wer Personal verwalten darf.",
       "Fehlt in einer Zeile die E-Mail-Adresse, gibt es keinen Zugang. Die Person steht dann nur in der Liste.",
       "Auf dem Handy steht `+ Personal` als runder Knopf unten rechts. Er öffnet dieselbe Auswahl.",
@@ -4792,8 +4792,9 @@ function removeStaffTopic(): HelpTopic {
 
 /**
  * Rollen unter `/database/roles`, Rechteliste unter `/database/permissions`.
- * Systemrollen sind gesperrt: `role.isSystem` blendet die Kopfaktionen aus
- * (roles-master-detail.tsx:146).
+ * Vorgegebene Rollen (`role.isSystem`) haben keine Kopfaktionen
+ * (roles-master-detail.tsx). Eine neue Rolle startet mit den Rechten ihrer
+ * Vorlage; gesperrte Rechte bietet der Reiter nicht an (#4574).
  */
 function staffPermissionsTopic(): HelpTopic {
   return {
@@ -4812,6 +4813,7 @@ function staffPermissionsTopic(): HelpTopic {
           "Öffnen Sie `Datenverwaltung` und danach `Rollen`.",
           "Wählen Sie oben rechts `+ Rolle`.",
           "Tragen Sie `Name` und `Beschreibung` ein.",
+          "Wählen Sie eine `Vorlage`: `Wie Betreuung`, `Wie Verwaltung` oder `Wie Lehrkraft`.",
           "Wählen Sie `Erstellen`.",
         ],
       },
@@ -4819,9 +4821,9 @@ function staffPermissionsTopic(): HelpTopic {
         title: "Die Rechte einer Rolle ändern",
         steps: [
           "Öffnen Sie `Rollen` und wählen Sie die Rolle aus der Liste.",
-          "Wählen Sie oben rechts `Berechtigungen`.",
+          "Öffnen Sie den Reiter `Berechtigungen` und wählen Sie `Bearbeiten`.",
           "Haken Sie an, was die Rolle dürfen soll.",
-          "Speichern Sie die Auswahl.",
+          "Wählen Sie `Speichern`.",
         ],
       },
       {
@@ -4829,14 +4831,20 @@ function staffPermissionsTopic(): HelpTopic {
         steps: [
           "Öffnen Sie `Datenverwaltung` und danach `Personal`.",
           "Wählen Sie die Person aus der Liste.",
-          "Ändern Sie die Rolle und wählen Sie `Speichern`.",
+          "Öffnen Sie den Reiter `Konto` und wählen Sie `Bearbeiten`.",
+          "Wählen Sie bei `Rolle` die neue Rolle und dann `Speichern`.",
         ],
       },
     ],
     result:
       "Die neue Rolle gilt, sobald sich die Person das nächste Mal anmeldet.",
     notes: [
-      "Unter `Berechtigungen` sehen Sie alle Rechte, die es in moto gibt. Ändern lässt sich dort nichts.",
+      "Eine neue Rolle bekommt einmal die Rechte ihrer Vorlage. Danach ändern Sie die Rechte nur noch an der Rolle selbst.",
+      "`Wie Verwaltung` gibt fast alle Rechte der Verwaltung. Einiges kann nur die Rolle `Verwaltung` selbst, zum Beispiel Mitteilungen an Eltern schreiben.",
+      "Eine Rolle aus `Wie Lehrkraft` arbeitet wie die Rolle `Lehrkraft` in moto schule. Wer sie hat, meldet sich dort an. Später lässt sie sich nicht gegen eine andere Rolle tauschen.",
+      "Bei manchen Rechten steht ein Hinweis. Damit kann eine Person Rollen, Konten oder Einstellungen ändern. Geben Sie diese Rechte nur der Leitung.",
+      "`Position` im Reiter `Konto` ist nur ein Text für die Personalliste. Sie ändert keine Rechte.",
+      "Unter `Datenverwaltung` → `Berechtigungen` sehen Sie alle verfügbaren Rechte. Diese Übersicht können Sie nur ansehen. Die Rechte einer eigenen Rolle ändern Sie unter `Rollen`.",
       "Die Rolle entscheidet auch darüber, welche Menüpunkte jemand sieht.",
       // ADR 0091: die zwei Zugangsstufen externer Personen sind feste Rollen.
       "`AG-Leitung` ist für Personen, die eigene Termine betreuen. Sie sieht unter `Heute` nur ihre eigenen Termine. Dort startet sie den Termin, checkt die Kinder ein und aus und beendet ihn.",
@@ -4844,9 +4852,9 @@ function staffPermissionsTopic(): HelpTopic {
       "Mit `AG-Leitung` oder `Gast` sieht die Person keine Zeiterfassung, keine Einstellungen und kein Personal.",
     ],
     differences: [
-      "Frisch eingerichtet bringt moto feste Rollen mit: `Administrator`, `Betreuer`, `Lehrkraft`, `AG-Leitung`, `Erziehungsberechtigter` und `Gast`.",
-      "Bei den festen Rollen fehlen `Berechtigungen`, `Bearbeiten` und `Löschen`. Dort steht: `System-Rollen können nicht bearbeitet oder gelöscht werden.`",
-      "Zum Ändern von Rechten legen Sie deshalb zuerst eine eigene Rolle an.",
+      "moto bringt einige Rollen schon mit: `Verwaltung`, `Betreuung`, `Lehrkraft`, `AG-Leitung` und `Gast`. Sie sind als `Vorgegeben` markiert.",
+      "Bei einer vorgegebenen Rolle fehlen `Bearbeiten` und `Löschen`. Zum Ändern von Rechten legen Sie deshalb eine eigene Rolle an.",
+      "Einige Rechte stehen nicht zur Auswahl. Sie gehören nur der Rolle `Verwaltung` oder dem moto-Team.",
     ],
     troubleshootingDetails: [
       "Eine Person sieht einen Bereich nicht? Prüfen Sie die Rechte ihrer Rolle.",
@@ -5604,6 +5612,8 @@ function settingsGuideTopic(): HelpTopic {
         ordered: false,
         steps: [
           "`Anwesenheitsprotokoll`: Das Team sieht bei jedem Kind, wann es da war und in welchen Räumen.",
+          "Vor dem Einschalten prüft die Schule die Rechtsgrundlage. Sie ist für die Nutzung verantwortlich.",
+          "Ausschalten beendet die Erfassung nicht und löscht keine Daten. Der aktuelle Aufenthaltsort bleibt davon unabhängig.",
           "`Nutzungsanalyse`: moto erhält Nutzungsstatistiken Ihrer Schule, aber keine eingegebenen Inhalte.",
           "Löschfristen wie `Anwesenheit aufbewahren (Tage)`: Wie lange moto Daten behält. Sie können sie nur lesen.",
         ],

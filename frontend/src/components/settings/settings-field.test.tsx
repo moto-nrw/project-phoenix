@@ -33,6 +33,46 @@ function makeSetting(
 }
 
 describe("SettingsField", () => {
+  it("explains attendance history without prescribing a legal basis before saving", async () => {
+    const onSave = vi.fn().mockResolvedValue(null);
+    const { getByRole } = renderWithProviders(
+      <SettingsField
+        setting={makeSetting({
+          key: "gdpr.attendance_log_enabled",
+          label: "Anwesenheitsprotokoll",
+          type: "boolean",
+          value: false,
+        })}
+        onSave={onSave}
+        onReset={vi.fn()}
+      />,
+    );
+
+    fireEvent.click(getByRole("switch", { name: "Anwesenheitsprotokoll" }));
+    const dialog = getByRole("dialog", {
+      name: "Anwesenheitsprotokoll einschalten?",
+    });
+    expect(dialog).toHaveTextContent(
+      "Das Team sieht Anwesenheitszeiten und Raumverläufe der Kinder. Ausschalten beendet die Erfassung nicht und löscht keine Daten. Die Schule ist für die Nutzung verantwortlich. Prüfen Sie vor dem Einschalten die Rechtsgrundlage.",
+    );
+    expect(onSave).not.toHaveBeenCalled();
+
+    fireEvent.click(getByRole("button", { name: "Abbrechen" }));
+    expect(
+      getByRole("switch", { name: "Anwesenheitsprotokoll" }),
+    ).toHaveAttribute("aria-checked", "false");
+    expect(onSave).not.toHaveBeenCalled();
+
+    fireEvent.click(getByRole("switch", { name: "Anwesenheitsprotokoll" }));
+    fireEvent.click(getByRole("button", { name: "Einschalten" }));
+    await waitFor(() =>
+      expect(onSave).toHaveBeenCalledExactlyOnceWith(
+        "gdpr.attendance_log_enabled",
+        true,
+      ),
+    );
+  });
+
   const visibilityKey = "operations.operational_overview_scope";
   const attendanceKey = "operations.attendance_edit_scope";
 

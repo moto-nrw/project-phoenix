@@ -218,7 +218,10 @@ describe("AdminEnrollmentsList setup guide", () => {
       screen.queryByText("Noch keine Anmeldephase"),
     ).not.toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Wiederholen" })).toBeVisible();
-    expect(onSummaryChange).toHaveBeenLastCalledWith("unavailable");
+    // The summary is published by an effect after the error is rendered.
+    await waitFor(() => {
+      expect(onSummaryChange).toHaveBeenLastCalledWith("unavailable");
+    });
   });
 
   it("fails the whole overview instead of guessing setup steps", async () => {

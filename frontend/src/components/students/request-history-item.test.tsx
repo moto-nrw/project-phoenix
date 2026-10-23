@@ -45,6 +45,38 @@ function aufklappen() {
 }
 
 describe("RequestHistoryItem", () => {
+  it.each([
+    ["", "Angabe hinzugefügt", "leer → Angabe hinzugefügt"],
+    [
+      "Angabe vorhanden",
+      "Angabe geändert",
+      "Angabe vorhanden → Angabe geändert",
+    ],
+    ["Angabe vorhanden", "", "Angabe vorhanden → leer"],
+  ])(
+    "zeigt Gesundheitsänderungen ohne Freitext: %s → %s",
+    (oldValue, newValue, expected) => {
+      render(
+        <RequestHistoryItem
+          item={masterDataItem({
+            target: "student",
+            field_key: "health_info",
+            old_value: oldValue,
+            new_value: newValue,
+            status: "auto_applied",
+            decided_by_name: undefined,
+            review_reason: undefined,
+          })}
+        />,
+      );
+      aufklappen();
+
+      expect(screen.getByText("Gesundheitshinweise")).toBeInTheDocument();
+      expect(screen.getByText(expected)).toBeInTheDocument();
+      expect(screen.getByText("Automatisch übernommen")).toBeInTheDocument();
+    },
+  );
+
   it("zeigt bei Stammdaten Status, Person, Begründung und alt → neu", () => {
     render(<RequestHistoryItem item={masterDataItem()} />);
     aufklappen();
