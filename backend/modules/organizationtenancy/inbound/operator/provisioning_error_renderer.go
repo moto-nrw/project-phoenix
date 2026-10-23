@@ -13,6 +13,10 @@ import (
 // ProvisioningErrorRenderer maps provisioning errors to HTTP responses. Each
 // outcome carries its registered code (#2519).
 func ProvisioningErrorRenderer(err error) render.Renderer {
+	var auditUnavailable *organizationtenancy.OperatorAuditUnavailableError
+	if errors.As(err, &auditUnavailable) {
+		return common.OperatorRejection(http.StatusServiceUnavailable, common.CodeOperatorAuditUnavailable, "Operator audit unavailable")
+	}
 	var invalidProvisioningData *organizationtenancy.InvalidProvisioningDataError
 	var provisioningConflict *organizationtenancy.ProvisioningConflictError
 	var organizationNotFound *organizationtenancy.OrganizationNotFoundError

@@ -2853,6 +2853,9 @@
         "external_email_required": "Bitte geben Sie eine E-Mail-Adresse ein.",
         "external_has_account": "Diese Person hat schon ein Konto. Eine Einladung ist nicht nötig.",
         "not_external": "Diese Person ist nicht als extern eingetragen. Bitte laden Sie sie wie andere Mitarbeitende ein."
+      },
+      "operator": {
+        "audit_unavailable": "Die Anfrage konnte nicht sicher protokolliert werden. Bitte versuchen Sie es später erneut."
       }
     },
     "actions": {

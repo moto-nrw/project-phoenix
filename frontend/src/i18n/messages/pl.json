@@ -2853,6 +2853,9 @@
         "external_email_required": "Nie udało się zapisać: {object}. Sprawdź wpisane dane.",
         "external_has_account": "Nie udało się zmienić: {object}. Sprawdź aktualny stan.",
         "not_external": "Nie udało się zmienić: {object}. Sprawdź aktualny stan."
+      },
+      "operator": {
+        "audit_unavailable": "{object} jest teraz niedostępne. Spróbuj ponownie."
       }
     },
     "actions": {

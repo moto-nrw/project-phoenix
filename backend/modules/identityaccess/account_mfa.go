@@ -39,6 +39,8 @@ var (
 	ErrMFAPermissionDenied = errors.New("permission denied")
 	// ErrMFAInvalidOverride refuses an override value outside the allow
 	// list.
+	ErrOperatorAuditUnavailable = errors.New("operator audit unavailable")
+
 	ErrMFAInvalidOverride = errors.New("invalid mfa override value")
 	// ErrMFAUnsupportedScope refuses a challenge of another portal.
 	ErrMFAUnsupportedScope = errors.New("operator-scope MFA is wired up in a separate phase")

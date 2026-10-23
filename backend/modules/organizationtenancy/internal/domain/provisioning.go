@@ -9,6 +9,7 @@ import (
 // Operator audit vocabulary the provisioning flows record (#3253). The
 // values are the stored platform.operator_audit_log strings.
 const (
+	AuditActionView         = "view"
 	AuditActionCreate       = "create"
 	AuditActionUpdate       = "update"
 	AuditActionDelete       = "delete"

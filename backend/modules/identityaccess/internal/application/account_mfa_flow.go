@@ -322,16 +322,7 @@ func (f *AccountMFAFlows) Enroll(ctx context.Context, accountID int64) error {
 // while devices still verify, say.
 func (f *AccountMFAFlows) Disable(ctx context.Context, accountID int64) error {
 	err := f.runtime.WithAdminTx(ctx, func(txCtx context.Context) error {
-		if err := f.records.DeleteCredentials(txCtx, accountID); err != nil {
-			return fmt.Errorf("delete credential: %w", err)
-		}
-		if err := f.records.RevokeAllTrustedDevices(txCtx, accountID, f.now()); err != nil {
-			return fmt.Errorf("revoke trusted devices: %w", err)
-		}
-		if err := f.records.ResetMFAAttempts(txCtx, accountID); err != nil {
-			return fmt.Errorf("reset mfa attempts: %w", err)
-		}
-		return nil
+		return f.disableInTransaction(txCtx, accountID)
 	})
 	if err != nil {
 		return err
@@ -669,4 +660,17 @@ func (f *AccountMFAFlows) challengeClaims(challengeToken, expectedScope string, 
 		return domain.MFAChallengeClaims{}, identityaccess.ErrMFAChallengeTokenInvalid
 	}
 	return claims, nil
+}
+
+func (f *AccountMFAFlows) disableInTransaction(txCtx context.Context, accountID int64) error {
+	if err := f.records.DeleteCredentials(txCtx, accountID); err != nil {
+		return fmt.Errorf("delete credential: %w", err)
+	}
+	if err := f.records.RevokeAllTrustedDevices(txCtx, accountID, f.now()); err != nil {
+		return fmt.Errorf("revoke trusted devices: %w", err)
+	}
+	if err := f.records.ResetMFAAttempts(txCtx, accountID); err != nil {
+		return fmt.Errorf("reset mfa attempts: %w", err)
+	}
+	return nil
 }
