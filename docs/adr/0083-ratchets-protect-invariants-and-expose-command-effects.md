@@ -425,6 +425,9 @@ Portal's `ShareRecipients` instead of hiding the workflow behind a read label.
 Forwarded tuple returns bind corresponding result slots, including
 `return factory()` returning `(contract, error)`. General tuple assignments,
 variadic/container/generic instance flow remain separate follow-up work.
+Anonymous-only source ports, foreign interfaces used solely as parameters and
+embedded foreign dependency-object inputs also need that flow cut; anonymous
+bindings reached behind the named source surface remain explicit diagnostics.
 
 Builtin/external interfaces such as `error` are outside this policy-owned port
 surface. Unioning every returned error's `Error` method invents unrelated domain

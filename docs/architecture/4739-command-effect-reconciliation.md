@@ -1,8 +1,9 @@
 # Command-effect reconciliation (#4739, all domain sources)
 
 Second census starts at fetched `origin/development` `673652d030` (PR #4822),
-then integrates `62bc33f3c5` (#4826 and #4760). Regeneration after that merge
-changes no effect identities or fingerprints.
+then integrates `62bc33f3c5` (#4826 and #4760) and `e2ac57ec88`
+(#4828, #4829 and #4757). Regeneration after those merges changes no effect
+identities or fingerprints.
 Paths below start at `backend/`. The original hand inventory references its own
 immutable pre-change tree; no historical protocol evidence is silently replaced.
 
@@ -193,7 +194,8 @@ prove the labels true.
 Remaining recognition cuts, proposed but not created:
 
 1. **Binding flow / instance provenance:** function-valued, generic,
-   tuple-assignment, variadic/container and embedded foreign dependency-object
+   tuple-assignment, variadic/container, anonymous-only source ports, foreign
+   interfaces used solely as parameters and embedded foreign dependency-object
    flows; direct foreign calls outside supplied interfaces; precise instances,
    liveness and relocation evidence. Current exact unresolveds stay visible.
 2. **Platform and protocol effects:** complete platform durable/scope/notice
@@ -203,3 +205,28 @@ Remaining recognition cuts, proposed but not created:
 
 The original 17-source-domain follow-up is complete. Issue closure concerns the
 inventory gate's acceptance criteria, not migrating the new placement findings.
+
+## Local verification and warm check measurements
+
+Measured serially with the pinned Go 1.27.3 toolchain (default `-p=4`,
+`GOMAXPROCS=4`), from this worktree. An unmeasured check warmed each initial
+sample; the final integration check followed regeneration with warm build caches.
+No own tests/linter ran concurrently with the timed checks.
+
+| State / immutable comparison base | Entries | Warm wall time | User CPU | System CPU |
+|---|---:|---:|---:|---:|
+| Before: Enrollment, `673652d030` | 128 | 29.95 s | 84.87 s | 19.13 s |
+| All domains, `62bc33f3c5` | 5,341 | 41.58 s | 91.11 s | 22.63 s |
+| Final development integration, `e2ac57ec88` | 5,341 | 56.33 s | 103.45 s | 23.26 s |
+
+Inputs and possible machine contention differ, so these samples establish
+neither an isolated causal slowdown nor a CI SLA/job duration. No average or
+unmeasured speedup is claimed. The final check reports 5,213 added entries,
+0 changed fingerprints, 0 legacy violations and composition surface 0 → 0.
+
+The real counterprobe removes only this PR's new domain-source ADR addendum,
+runs the normal `check`, and restores the exact original bytes in `finally`.
+It rejects **877** new exception/debt/unresolved identities (exit 1); restoring
+the addendum makes the normal check green. Fixture/base tests separately reject
+reuse after merge, new Enrollment ports, changed existing exceptions and fake
+approval identifiers. All 40 original hand rows remain accounted for above.
