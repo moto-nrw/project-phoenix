@@ -104,7 +104,7 @@ func captureCoreAction(cfg CoreActionConfig, r *http.Request, action CoreAction,
 	if !ok {
 		return
 	}
-	actor, ok = cfg.Policy.PublicActor(r, actor)
+	actor, ok = cfg.Policy.EnrollmentActor(r, actor)
 	if !ok || !cfg.Policy.AllowsActor(r.Context(), actor) {
 		return
 	}

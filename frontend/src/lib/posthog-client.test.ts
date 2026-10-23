@@ -85,6 +85,35 @@ describe("posthog-client", () => {
     },
   );
 
+  it("registers the session after an embedded school's veto is removed", async () => {
+    const { setTenantAnalyticsPolicy, setAnalyticsContext, initializePostHog } =
+      await import("./posthog-client");
+    const host = Symbol();
+    const embedded = Symbol();
+    setTenantAnalyticsPolicy(host, { tenantSlug: "school-a", enabled: true });
+    setTenantAnalyticsPolicy(embedded, {
+      tenantSlug: "school-b",
+      enabled: false,
+    });
+    setAnalyticsContext(
+      { surface: "ogs", enabled: true, role: "staff" },
+      {
+        properties: { school_id: "42", role: "staff" },
+        resetFirst: true,
+      },
+    );
+    await initializePostHog();
+    expect(mocks.init).not.toHaveBeenCalled();
+    setTenantAnalyticsPolicy(embedded, null);
+    await initializePostHog();
+    expect(mocks.init).toHaveBeenCalledOnce();
+    expect(mocks.register).toHaveBeenCalledWith({
+      school_id: "42",
+      role: "staff",
+    });
+    expect(mocks.reset).toHaveBeenCalledOnce();
+  });
+
   it("stops collection and drops future events when a school opts out", async () => {
     const { setAnalyticsContext, initializePostHog, capturePostHog } =
       await import("./posthog-client");

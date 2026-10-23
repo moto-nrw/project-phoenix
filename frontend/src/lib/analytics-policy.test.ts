@@ -6,6 +6,7 @@ import {
   analyticsIdentity,
   analyticsInitOptions,
   analyticsRuntimeOptions,
+  analyticsSchoolsAllowCollection,
   analyticsSurfaceForHost,
   filterAnalyticsEvent,
   type AnalyticsContext,
@@ -37,6 +38,90 @@ const OTHER_PERSON = "pseudo_0123456789abcdef0123456789abcdef";
 
 describe("school analytics switch", () => {
   it.each([
+    { surface: "parents", path: "/parents/anmeldung/school-c/5" },
+    { surface: "parents", path: "/anmeldung/status/example-test-token/edit" },
+    { surface: "parents", path: "/anmeldung/status/example-test-token/adjust" },
+    {
+      surface: "ogs",
+      path: "/school-a/anmeldung/status/example-test-token/edit",
+    },
+    { surface: "ogs", path: "/anmeldung/status/example-test-token/adjust" },
+  ])(
+    "requires a resolved target for the exact enrollment route ($surface, $path)",
+    ({ surface, path }) => {
+      const context = {
+        deployment: "localhost",
+        surface,
+        enabled: true,
+        analyseFreigabe: false,
+      };
+      const event = capture("$pageview", {
+        $current_url: `http://localhost:3000${path}`,
+      });
+      // Anker: the known, allowed target permits this form route.
+      expect(
+        filterAnalyticsEvent({ ...context, enrollmentTargetPath: path }, event),
+      ).not.toBeNull();
+      expect(filterAnalyticsEvent(context, event)).toBeNull();
+      expect(
+        filterAnalyticsEvent(
+          { ...context, enrollmentTargetPath: "/another-route" },
+          event,
+        ),
+      ).toBeNull();
+      expect(
+        filterAnalyticsEvent({ ...context, deployment: "demo" }, event),
+      ).not.toBeNull();
+    },
+  );
+
+  it.each([
+    { surface: "parents", path: "/anmeldung/status/example-test-token" },
+    {
+      surface: "parents",
+      path: "/parents/anmeldung/status/example-test-token?submitted=1",
+    },
+    { surface: "ogs", path: "/anmeldung/status/example-test-token/" },
+    { surface: "ogs", path: "/school-a/anmeldung/status/example-test-token" },
+  ])(
+    "drops status-route events before component gates mount ($surface, $path)",
+    ({ surface, path }) => {
+      const context = {
+        deployment: "localhost",
+        surface,
+        enabled: true,
+        analyseFreigabe: true,
+        recordingSamplePercent: 100,
+      };
+      const properties = { $current_url: `http://localhost:3000${path}` };
+      // Anker: an allowed page reaches the filter with the same school policy.
+      expect(
+        filterAnalyticsEvent(
+          context,
+          capture("$pageview", { $current_url: "http://localhost:3000/" }),
+        ),
+      ).not.toBeNull();
+      for (const event of ["$pageview", "$autocapture", "$snapshot"]) {
+        expect(
+          filterAnalyticsEvent(context, capture(event, properties)),
+        ).toBeNull();
+      }
+      expect(
+        filterAnalyticsEvent(
+          { ...context, enrollmentTargetPath: path },
+          capture("$pageview", properties),
+        ),
+      ).toBeNull();
+      expect(
+        filterAnalyticsEvent(
+          { ...context, deployment: "demo" },
+          capture("$pageview", properties),
+        ),
+      ).not.toBeNull();
+    },
+  );
+
+  it.each([
     { host: "ogs", source: "ogs", allowed: true },
     { host: "parents", source: "parents", allowed: true },
     { host: "school", source: "school", allowed: true },
@@ -50,6 +135,69 @@ describe("school analytics switch", () => {
     "accepts $source policy on $host only when it owns the host ($allowed)",
     ({ host, source, allowed }) => {
       expect(analyticsContextUpdateAllowed(host, source)).toBe(allowed);
+    },
+  );
+
+  it.each([
+    {
+      surface: "ogs",
+      enabled: true,
+      schools: [{ tenantSlug: "school-b", enabled: true }],
+      want: false,
+    },
+    {
+      surface: "ogs",
+      enabled: false,
+      schools: [{ tenantSlug: "school-a", enabled: true }],
+      want: true,
+    },
+    {
+      surface: "ogs",
+      enabled: true,
+      schools: [
+        { tenantSlug: "school-a", enabled: false },
+        { tenantSlug: "school-b", enabled: true },
+      ],
+      want: false,
+    },
+    {
+      surface: "ogs",
+      enabled: true,
+      schools: [
+        { tenantSlug: "school-a", enabled: true },
+        { tenantSlug: "school-b", enabled: false },
+      ],
+      want: false,
+    },
+    {
+      surface: "parents",
+      enabled: true,
+      schools: [{ tenantSlug: "school-c", enabled: false }],
+      want: false,
+    },
+    {
+      surface: "parents",
+      enabled: false,
+      schools: [{ tenantSlug: "school-c", enabled: true }],
+      want: false,
+    },
+    {
+      surface: "parents",
+      enabled: true,
+      schools: [{ tenantSlug: "school-c", enabled: true }],
+      want: true,
+    },
+  ])(
+    "combines host and embedded school policies ($surface, $want)",
+    ({ surface, enabled, schools, want }) => {
+      expect(
+        analyticsSchoolsAllowCollection(
+          { deployment: "localhost", surface, enabled, analyseFreigabe: false },
+          "school-a.localhost:3000",
+          "localhost",
+          schools,
+        ),
+      ).toBe(want);
     },
   );
 
