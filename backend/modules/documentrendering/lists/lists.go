@@ -162,11 +162,6 @@ func SanitizeUserText(text string) string {
 	return records.SanitizeUserText(text)
 }
 
-// ClassGroupTitle labels a per-class section of a grouped class list.
-func ClassGroupTitle(schoolClass string) string {
-	return records.ClassGroupTitle(schoolClass)
-}
-
 // The shared class-list table (#4749): both class lists, the
 // Kinderlisten-Vorlage and the one of an enrollment phase, render their
 // children through it.
@@ -189,11 +184,6 @@ var ClassRosterWeekdayColumns = records.ClassRosterWeekdayColumns
 // ClassRosterColumnIDs are the columns both class lists print, in order.
 func ClassRosterColumnIDs() []ColumnID {
 	return records.ClassRosterColumnIDs()
-}
-
-// ClassRosterDayCell renders one weekday cell ("14:30 Uhr, wird abgeholt").
-func ClassRosterDayCell(day ClassRosterDay) string {
-	return records.ClassRosterDayCell(day)
 }
 
 // ClassRosterRow renders one child into a row of the shared table.

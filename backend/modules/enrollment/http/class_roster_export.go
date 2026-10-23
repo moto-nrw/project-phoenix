@@ -4,7 +4,6 @@ import (
 	"fmt"
 	"sort"
 	"strings"
-	"time"
 
 	"github.com/moto-nrw/project-phoenix/modules/documentrendering/lists"
 	capability "github.com/moto-nrw/project-phoenix/modules/enrollment"
@@ -23,7 +22,6 @@ func buildClassRosterExportFile(svc lists.DocumentRenderer, report *capability.C
 }
 
 func buildClassRosterTableDocument(report *capability.ClassRosterReport) lists.Document {
-	cols := lists.ResolveColumns(append(lists.ClassRosterColumnIDs(), lists.ColumnGuardianContacts), lists.PresetClassRoster)
 	children := make([]lists.ClassRosterChild, 0, len(report.Rows))
 	for _, row := range report.Rows {
 		// A class-list-only entry (#2382) has no OGS record at all: the
@@ -41,16 +39,13 @@ func buildClassRosterTableDocument(report *capability.ClassRosterReport) lists.D
 		}
 		children = append(children, child)
 	}
-	return lists.Document{
-		Title:       classRosterTitle(report),
-		Subtitle:    classRosterSubtitle(report),
-		GeneratedAt: time.Now(),
-		Filters:     classRosterFilterLabels(report),
-		Columns:     cols,
-		// All-classes rosters arrive class-sorted from the service.
-		Rows:   lists.ClassRosterRows(children, report.Filters.AllClasses),
-		Footer: exportConfidentialityNote,
+	head := enrollmentExportHead{
+		Title:    classRosterTitle(report),
+		Subtitle: classRosterSubtitle(report),
+		Filters:  classRosterFilterLabels(report),
 	}
+	// All-classes rosters arrive class-sorted from the service.
+	return enrollmentClassRosterDocument(head, "Klasse", children, report.Filters.AllClasses)
 }
 
 func classRosterTitle(report *capability.ClassRosterReport) string {
