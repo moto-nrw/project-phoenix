@@ -29,9 +29,11 @@
 //   ui-kit/no-tiny-text             — sub-12px text utilities; shrink-only
 //                                     baseline
 //   ui-kit/no-tenant-kicker         — no blue mini-heading in the tenant portal
-//   ui-kit/no-handrolled-surface    — no `moto-content-surface … rounded-2xl`
+//   ui-kit/no-hand-rolled-page-card — no `moto-content-surface … rounded-2xl`
 //                                     spelled out in a tenant page/loading
-//                                     file; use the kit cards
+//                                     file; use the kit cards (unlike
+//                                     no-hand-rolled-surface, which bans the
+//                                     plain-Tailwind card chain everywhere)
 //   ui-kit/no-tabs-as-value-switcher — ui/Tabs is for content panels; values
 //                                     go on SegmentedControl
 //
@@ -560,7 +562,7 @@ const noTenantKicker = {
   },
 };
 
-// ui-kit/no-handrolled-surface — eine Seite baut keine Kartenfläche mehr aus
+// ui-kit/no-hand-rolled-page-card — eine Seite baut keine Kartenfläche mehr aus
 // einer eigenen Klassenkette. Für jede Form gibt es ein Kit-Bauteil:
 // SectionCard (Fläche mit oder ohne Kopf), TileCard (anklickbare Kachel),
 // StatCard (Kennzahl), TenantPageHeaderSkeleton (Ladezustand). Die Regel
@@ -574,7 +576,7 @@ const TENANT_PAGE_FILE_RE =
 const HANDROLLED_SURFACE_RE =
   /moto-content-surface[^"'`]*rounded-2xl|rounded-2xl[^"'`]*moto-content-surface/;
 
-const noHandrolledSurface = {
+const noHandRolledPageCard = {
   meta: {
     docs: {
       description:
@@ -730,10 +732,10 @@ export default {
   rules: {
     "no-generic-brand-colors": noGenericBrandColors,
     "no-hand-rolled-overlay": noHandRolledOverlay,
+    "no-hand-rolled-page-card": noHandRolledPageCard,
     "no-hand-rolled-surface": noHandRolledSurface,
     "no-rounded-3xl": noRounded3xl,
     "no-tenant-kicker": noTenantKicker,
-    "no-handrolled-surface": noHandrolledSurface,
     "no-tabs-as-value-switcher": noTabsAsValueSwitcher,
     "no-tiny-text": noTinyText,
     "require-checkbox-label": requireCheckboxLabel,

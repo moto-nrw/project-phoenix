@@ -161,6 +161,172 @@ describe("ui-kit/no-hand-rolled-surface", () => {
   });
 });
 
+describe("ui-kit/no-rounded-3xl", () => {
+  it("reports rounded-3xl, also inside the kit", () => {
+    for (const path of ["src/probe.tsx", "src/components/ui/probe.tsx"]) {
+      const result = lintSource(
+        `function Probe() {
+          return <div className="rounded-3xl p-4" />;
+        }
+        void Probe;`,
+        path,
+      );
+      const output = `${result.stdout}${result.stderr}`;
+
+      expect(result.status, path).toBe(1);
+      expect(output.match(/ui-kit\(no-rounded-3xl\)/g), path).toHaveLength(1);
+    }
+  });
+
+  it("accepts the canonical radius and exempts test files", () => {
+    const canonical = lintSource(
+      `function Probe() {
+        return <div className="moto-content-surface rounded-2xl border p-4" />;
+      }
+      void Probe;`,
+      "src/probe.tsx",
+    );
+    const fixture = lintSource(
+      `const className = "rounded-3xl";
+      void className;`,
+      "src/probe.test.tsx",
+    );
+
+    for (const result of [canonical, fixture]) {
+      const output = `${result.stdout}${result.stderr}`;
+      expect(result.status, output).toBe(0);
+      expect(output).not.toContain("no-rounded-3xl");
+    }
+  });
+});
+
+describe("ui-kit/no-tenant-kicker", () => {
+  const kickerSource = `function SectionCard(_: { kicker?: string; title: string }) {
+      return null;
+    }
+    function Probe() {
+      return <SectionCard kicker="Verwaltung" title="Räume" />;
+    }
+    void Probe;`;
+
+  it("reports a kicker in the tenant portal", () => {
+    const result = lintSource(
+      kickerSource,
+      "src/app/[tenant]/(protected)/rooms/page.tsx",
+    );
+    const output = `${result.stdout}${result.stderr}`;
+
+    expect(result.status).toBe(1);
+    expect(output.match(/ui-kit\(no-tenant-kicker\)/g)).toHaveLength(1);
+  });
+
+  it("leaves the other portals and test files alone", () => {
+    for (const path of [
+      "src/components/parent/probe.tsx",
+      "src/app/parents/probe/page.tsx",
+      "src/components/school/probe.tsx",
+      "src/app/operator/probe/page.tsx",
+      "src/app/[tenant]/(protected)/rooms/page.test.tsx",
+    ]) {
+      const result = lintSource(kickerSource, path);
+      const output = `${result.stdout}${result.stderr}`;
+
+      expect(result.status, `${path}\n${output}`).toBe(0);
+      expect(output).not.toContain("no-tenant-kicker");
+    }
+  });
+});
+
+describe("ui-kit/no-hand-rolled-page-card", () => {
+  it("reports the kit card chain spelled out in a tenant page or loading file", () => {
+    for (const path of [
+      "src/app/[tenant]/(protected)/rooms/page.tsx",
+      "src/app/[tenant]/(protected)/rooms/[id]/loading.tsx",
+    ]) {
+      const result = lintSource(
+        `function Probe({ wide }: { wide: boolean }) {
+          return <>
+            <div className="moto-content-surface rounded-2xl border p-6" />
+            <div className={\`rounded-2xl border p-4 moto-content-surface \${wide ? "w-full" : ""}\`} />
+          </>;
+        }
+        void Probe;`,
+        path,
+      );
+      const output = `${result.stdout}${result.stderr}`;
+
+      expect(result.status, path).toBe(1);
+      expect(
+        output.match(/ui-kit\(no-hand-rolled-page-card\)/g),
+        path,
+      ).toHaveLength(2);
+    }
+  });
+
+  it("accepts control surfaces in pages and the chain in components", () => {
+    const pageControl = lintSource(
+      `function Probe() {
+        return <span className="moto-content-surface h-9 rounded-full border px-3" />;
+      }
+      void Probe;`,
+      "src/app/[tenant]/(protected)/rooms/page.tsx",
+    );
+    const componentCard = lintSource(
+      `function Probe() {
+        return <div className="moto-content-surface rounded-2xl border p-6" />;
+      }
+      void Probe;`,
+      "src/components/rooms/room-card.tsx",
+    );
+
+    for (const result of [pageControl, componentCard]) {
+      const output = `${result.stdout}${result.stderr}`;
+      expect(result.status, output).toBe(0);
+      expect(output).not.toContain("no-hand-rolled-page-card");
+    }
+  });
+});
+
+describe("ui-kit/no-tabs-as-value-switcher", () => {
+  const tabsSource = (
+    label: string,
+  ) => `function TabsTrigger(_: { value: string; children: string }) {
+      return null;
+    }
+    function Probe() {
+      return <TabsTrigger value="probe">${label}</TabsTrigger>;
+    }
+    void Probe;`;
+
+  it("reports a value choice on ui/Tabs", () => {
+    for (const label of ["Woche", "Monat", "Woche A", "Ganzer Tag"]) {
+      const result = lintSource(tabsSource(label), "src/components/probe.tsx");
+      const output = `${result.stdout}${result.stderr}`;
+
+      expect(result.status, label).toBe(1);
+      expect(
+        output.match(/ui-kit\(no-tabs-as-value-switcher\)/g),
+        label,
+      ).toHaveLength(1);
+    }
+  });
+
+  it("accepts content tabs and leaves the other portals alone", () => {
+    for (const [label, path] of [
+      ["Bearbeiten", "src/components/probe.tsx"],
+      ["Verlauf", "src/components/probe.tsx"],
+      ["Woche", "src/components/parent/probe.tsx"],
+      ["Woche", "src/components/probe.test.tsx"],
+    ] as const) {
+      const result = lintSource(tabsSource(label), path);
+      const output = `${result.stdout}${result.stderr}`;
+
+      expect(result.status, `${label} ${path}\n${output}`).toBe(0);
+      expect(output).not.toContain("no-tabs-as-value-switcher");
+    }
+  });
+});
+
 afterEach(() => {
   for (const directory of temporaryDirectories.splice(0)) {
     rmSync(directory, { recursive: true, force: true });
