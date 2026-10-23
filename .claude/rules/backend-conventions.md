@@ -286,8 +286,6 @@ The four violations this rule originally named were all extracted in issue #586 
 | `Group` default duration (hardcoded 30 min) | settings registry |
 | `Account.HasPermission()` | `modules/identityaccess` caller context / `modules/securityruntime` |
 
-Remaining known hits: `RFIDCard.Activate/Deactivate` (`modules/identityaccess/internal/domain/rfid_card.go`) — don't copy that pattern.
-
 ### Why
 
 Business rules drift constantly. "Offline after 5 minutes" becomes "10 minutes for school A, 2 for school B." **Models hold facts (the timestamp). Services hold rules (what counts as online). Settings hold the parameters.**
