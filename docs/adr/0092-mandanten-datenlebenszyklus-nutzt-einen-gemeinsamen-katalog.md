@@ -103,6 +103,33 @@ von CASCADE-FKs ist unvollständig und kann gemeinsam genutzte Daten treffen.
   Schritt verhindert den Gesamterfolg; ein DB-Erfolg bestätigt noch keine
   Dateilöschung oder Bereinigung von Sicherungen.
 
+## Ergänzung: unabhängige Wiederholungsliste (3837-d)
+
+Ein DB-Nachweis kann nach Restore eines älteren Stands die später vollzogene
+Löschung nicht kennen. Organisation & Tenancy führt deshalb zusätzlich eine
+append-only Hostdatei außerhalb der DB-/Upload-Volumes und Tagesbundles.
+Sie enthält ausschließlich Schul-ID, Vorgangsreferenz, Abschlusszeitpunkt und
+Quittungs-Prüfsumme. Erst ein synchronisierter Eintrag erlaubt CLI-Erfolg;
+ein fehlgeschlagener Schritt wird mit demselben Auftrag nachgeholt.
+
+Der owner-private Datei-Adapter ist als `adapter` klassifiziert. Seine exakt
+paketgebundene Kryptografie-Regel erlaubt SHA-256 für Nachweise und Kette,
+keine neue Cross-Owner-Schreibberechtigung. Der bestehende Owner, DB-Vertrag,
+Transaktionen und Rollen bleiben unverändert. Die Kette ist kein authentischer
+Aktualitätsnachweis: eine getrennte aktuelle Kopie und ein unabhängig
+verwahrter Dateiprüfwert gehören zwingend zum Betriebsverfahren.
+
+Der Restore prüft diese Liste nach dem Import und sperrt die Freigabe bei
+wieder vorhandenen Schulen oder unlesbarer/beschädigter Liste. Wiederholung
+läuft bewusst durch den bestehenden CLI, nicht durch einen neuen
+Superuser-Löschpfad. Die schreibfreie Nachprüfung hebt den Review-Marker
+nicht selbst auf. Die Liste läuft nach 97 Tagen aus (maximal 90 Tage für alle
+Sicherungen plus sieben Tage Puffer), bei täglicher Bereinigung mit bis zu
+24 Stunden Nachlauf und getrennten Vorgängerkopien für höchstens weitere
+sieben Tage also insgesamt höchstens 105 Tage. Fristbereinigung setzt nachgewiesenen
+Sicherungsablauf voraus. Produktive Rechte, Aktualität und Wirksamkeit bleiben
+nachzuweisen, siehe [Runbook](../operations/tenant-erasure.md).
+
 ## Verworfene Alternativen
 
 **Neuer Workflow-Owner mit Kommandos je Owner:** entspricht dem üblichen

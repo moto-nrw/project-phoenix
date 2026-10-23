@@ -33,7 +33,10 @@ Journal-Ereignis. Alloy-Anbindung und Zustellung muss ein Mensch einrichten
 und Ende-zu-Ende prüfen (siehe unten).
 Release-Snapshots haben eine eigene [Altersbereinigung](release-backup-rollback.md#snapshot-retention-slice-3836-c)
 (3836-c); deren Timer muss separat eingerichtet und nachgewiesen werden.
-Die Wiederholungsliste für Löschungen (3837-d) ist nicht Teil dieses Slices.
+Slice 3837-d ergänzt die unabhängige Löschungsliste und deren sperrende
+Restore-Prüfung. Einrichtung und getrennte Sicherung sind Mensch-Schritte
+im [Löschverfahren](tenant-erasure.md#unabhängige-löschungsliste-einrichten-3837-d-mensch),
+kein Bestandteil des täglichen DB-/Upload-Bundles.
 
 Die Skripte sind ein **Gesamtsystem-Restore**, kein Mandantenexport und keine
 selektive Löschung. Ein geteilter PostgreSQL-Cluster, zusätzliche Datenbanken
@@ -130,7 +133,8 @@ installiert oder aktiviert nichts. Der Mensch führt die Befehle aus.
    prüfen. Nur verwaiste Dateien entfernen, keinen Lock eines laufenden
    Backups/Deployments. Alle Betriebswerkzeuge serialisieren über denselben
    Release-Lock. Ein Konflikt ist ein Fehler, kein übersprungener Erfolg.
-5. **Timer installieren:** `daily-backup.sh` und `daily_backup.py` zusammen
+5. **Timer installieren:** `daily-backup.sh`, `daily_backup.py` und für die
+   getrennte Listenpflege `compact-erasure-ledger.py` zusammen
    unter `/usr/local/lib/moto-backup/` installieren (root, nicht durch
    App-Nutzer schreibbar). Units aus `scripts/systemd/` nach
    `/etc/systemd/system/` kopieren. `systemd-analyze verify` über alle drei
@@ -376,14 +380,15 @@ weder den Produktionshost noch den Monitoring-Host dafür gelesen.
    Identität setzen, nur für den Restore und niemals auf dem Quellhost.
    Schlüssel nicht in Befehlsargumente oder Protokolle schreiben.
 3. **Restore ausführen:** Mit geladener Umgebung
-   `bash scripts/restore-daily-backup.sh <daily-Zeitstempel-Zufallskennung.tar.age>`
+   `bash scripts/restore-daily-backup.sh <daily-Zeitstempel-Zufallskennung.tar.age> /var/lib/moto-erasure/completed.ledger`
    ausführen. Das Skript lädt herunter, entschlüsselt lokal auf tmpfs, prüft
    Manifest, alle Prüfsummen, Archive und frisches Ziel vor dem ersten Schreibzugriff.
    Dann legt es Rollen aus dem passwortfreien Dump an, setzt die Passwörter
    für sämtliche bekannten LOGIN-Rollen neu und stellt Daten und Dateien her.
    Es startet keine App. `.daily-restore-review-required` hält den
    Sicherungszeitpunkt und die ausstehende Löschprüfung fest. Bei Teilfehler
-   Exit-Code ungleich 0, Umgebung isoliert lassen und frisch neu aufsetzen;
+   Exit-Code ungleich 0, Umgebung isoliert lassen und bei Importfehler frisch
+   neu aufsetzen (bei `erasure_*` nach vollständigem Import Schritt 4 nutzen);
    keine teilweise wiederhergestellte Umgebung freigeben. Fehlt ein Pflichtwert,
    lautet die sichere Meldung z. B.
    `restore_result=failed step=configuration missing=PHOENIX_AUTH_PASSWORD app_start=blocked`.
@@ -393,7 +398,7 @@ weder den Produktionshost noch den Monitoring-Host dafür gelesen.
    Compose-Datei `.daily-restore-review-required`. Bei einem späteren Fehler
    bleibt er absichtlich erhalten: Daten oder Rollen können bereits teilweise
    geschrieben sein. Nicht als Fehlerbehebung einfach löschen und weiterarbeiten.
-   Nach Fehler oder Stromausfall alle beteiligten Prozesse stoppen bzw. deren
+   Nach Importfehler oder Stromausfall alle beteiligten Prozesse stoppen bzw. deren
    Ende prüfen, die isolierte fehlgeschlagene DB und das Upload-Volume verwerfen
    oder nach Vorfallverfahren getrennt halten. Erst wenn das Ziel nachweislich
    wieder frisch ist und kein anderer Restore läuft, darf ein berechtigter Mensch
@@ -443,18 +448,59 @@ weder den Produktionshost noch den Monitoring-Host dafür gelesen.
    [PostgreSQL-Vertrag für `\password`](https://www.postgresql.org/docs/17/app-psql.html#APP-PSQL-META-COMMAND-PASSWORD).
    Das lokale Integrationstestverfahren erzwingt SCRAM und belegt die echte
    Anmeldung aller drei Rollen nach Restore, nicht nur deren Existenz.
-4. **Löschungen vor Start erneut umsetzen:** Seit dem Sicherungszeitpunkt
-   ausgeführte Löschungen je Schule anhand der **außerhalb der Sicherung**
-   aufbewahrten Weisungen, Löschbelege und Vorgänge abgleichen. Auch Dateien,
-   Mandantenlöschungen, Widerrufe und Folgeaufträge berücksichtigen. Wiederholung
-   mit berechtigtem, mandantenbezogenem Verfahren ausführen und nachweisen.
-   Solange die Wiederholungsliste aus 3837-d fehlt, verantwortet ein benannter
-   Mensch diesen manuellen Abgleich. Ist er nicht vollständig möglich, bleibt
-   die App gestoppt. Ein nächtlicher Fristenlauf ersetzt keine Einzel-Löschweisung.
+4. **Löschungen vor Start erneut umsetzen (3837-d):** Vor dem Restore die
+   **aktuelle unabhängige** `completed.ledger` aus dem getrennten Betriebsziel
+   bergen und mit dem unabhängig verwahrten SHA-256-Dateiwert und den offenen
+   Vorgängen abgleichen. Nicht aus der alten DB/Sicherung gewinnen und nicht
+   neu initialisieren. Ablage außerhalb von DB-/Upload-Volumes, 0600 und nur
+   für den berechtigten Betrieb les-/schreibbar. Der zusätzliche absolute
+   Pfad ist ein Pflichtargument des Restore-Aufrufs, keine neue Env-Variable.
+   Ein benannter Mensch muss Vollständigkeit und Aktualität bestätigen:
+   eine Prüfsummenkette allein beweist das nicht.
+
+   Nach DB- und Upload-Wiederherstellung validiert das Skript Format und
+   gesamte Prüfsummenkette. Fehlende/beschädigte/unsichere Datei führt zu
+   `restore_result=failed step=erasure_ledger app_start=blocked`.
+   Für jede gelistete Schul-ID prüft es ausschließlich lesend, ob sie in
+   `platform.schools` wieder existiert. Wenn ja, endet es mit
+   `restore_result=failed step=erasure_replay_required app_start=blocked`.
+   Die Markerdatei bleibt in beiden Fällen erhalten. Das ist ein vollständig
+   importierter, aber **nicht freigegebener** Restore, kein Anlass, ihn auf
+   derselben DB erneut zu starten oder den Marker als Fehlerbehebung zu löschen.
+
+   Jede wieder vorhandene Schule mit `tenant erase` gemäß
+   [Löschverfahren](tenant-erasure.md#2-probelauf-und-ausführung) erneut
+   entfernen: gleiche Schul-ID und Vorgangsreferenz aus der Liste, gültige
+   Operator-ID, geprüftes Upload-Volume und aktuelle Liste als Host-Bind-Mount.
+   Die DB-Funktion muss auf dem restaurierten Schema vorhanden sein; auf
+   älteren Sicherungen zuerst die geprüften Migrationen im isolierten
+   Wartungsbetrieb nachholen. Kein Roh-SQL als Ersatz für die Löschung.
+   Neue Quittungen und aktualisierte Liste getrennt sichern. Danach mit
+   derselben Restore-Konfiguration, aber ohne Offline-Identität oder
+   Passwortwerte für den Restore, die schreibfreie Prüfung wiederholen:
+
+   ```sh
+   python3 scripts/daily_backup.py verify-erasures \
+     /var/lib/moto-erasure/completed.ledger
+   ```
+
+   Das funktioniert auf der bereits importierten DB, verlangt den bestehenden
+   Review-Marker und ausschließlich `postgres` als laufenden Compose-Dienst.
+   Erfolg: `restore_result=ok step=erasure_review_complete app_start=blocked`.
+   Die Prüfung gibt keine Schul-/Personendaten aus und hebt keine Sperre auf.
+   Ihre Grenze ist die Schulwurzel: Dateien/Nebensysteme und Widerrufe bleiben
+   im folgenden fachlichen Abgleich zu prüfen, auch wenn die Schulwurzel fehlt.
+   Alle seit dem Sicherungszeitpunkt ausgeführten Löschungen anhand der
+   Weisungen, Belege und Vorgänge abgleichen. Gesundheitsmarker/Widerrufe aus
+   #4828/#4854 gemäß deren Verfahren wiederholen; die neue Liste erfasst nur
+   abgeschlossene **Schullöschungen**, nicht Einzelpersonen oder Marker.
+   Ist der Abgleich nicht vollständig möglich, bleibt die App gestoppt.
+   Ein nächtlicher Fristenlauf ersetzt keine Einzel-Löschweisung.
    Zusätzlich DB-Dateiverweise/Dateien abgleichen, RLS mit mindestens zwei
    Schulen, Rollen/ACLs und zentrale Abläufe prüfen. Fällige Fristlöschungen
    im isolierten Betrieb vor Freigabe nachholen; der nächtliche Lauf setzt sie fort.
-5. **Freigabe und Nachweis:** Erst nach dokumentierter Prüfung aller Löschungen,
+5. **Freigabe und Nachweis:** Erst nach erfolgreicher `verify-erasures`-Prüfung
+   gegen die bestätigte aktuelle Liste, dokumentierter Prüfung aller Löschungen,
    neu gesetzten Betriebsgeheimnissen, Dateiabgleich und fachlicher Prüfung
    darf ein berechtigter Mensch die Markerdatei entfernen und die neue Umgebung
    gezielt starten. Auf der Testmaschine bleibt die App aus; die separate

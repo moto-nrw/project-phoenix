@@ -14,15 +14,16 @@ import (
 )
 
 type Erasure struct {
-	store ports.ErasureStore
-	files organizationtenancy.ErasureFiles
+	store  ports.ErasureStore
+	files  organizationtenancy.ErasureFiles
+	ledger ports.ErasureLedger
 }
 
-func NewErasure(store ports.ErasureStore, files organizationtenancy.ErasureFiles) (*Erasure, error) {
-	if store == nil || files == nil {
-		return nil, errors.New("erasure: database and file store required")
+func NewErasure(store ports.ErasureStore, files organizationtenancy.ErasureFiles, ledger ports.ErasureLedger) (*Erasure, error) {
+	if store == nil || files == nil || ledger == nil {
+		return nil, errors.New("erasure: database, file store and external ledger required")
 	}
-	return &Erasure{store: store, files: files}, nil
+	return &Erasure{store: store, files: files, ledger: ledger}, nil
 }
 
 var orderReferencePattern = regexp.MustCompile(`^[A-Z][A-Z0-9-]{2,39}$`)
@@ -88,6 +89,11 @@ func (s *Erasure) Run(ctx context.Context, r organizationtenancy.ErasureRequest)
 		}
 		return []json.RawMessage{proof}, nil
 	}
+	if !r.DryRun {
+		if err := s.ledger.Check(); err != nil {
+			return nil, err
+		}
+	}
 	kinds, err := erasureFileCatalog()
 	if err != nil {
 		return nil, err
@@ -100,6 +106,13 @@ func (s *Erasure) Run(ctx context.Context, r organizationtenancy.ErasureRequest)
 	for _, id := range ids {
 		err = s.store.WithSchoolLock(ctx, id, func(lockCtx context.Context) error {
 			proof, err := s.eraseSchool(lockCtx, s.store, r, id, kinds)
+			if err == nil && !r.DryRun {
+				if err = s.ledger.Record(proof); err != nil {
+					// DB completion alone is not overall success. A retry of the
+					// same order repairs the external record without deleting again.
+					return err
+				}
+			}
 			if proof != nil {
 				results = append(results, proof)
 			}
@@ -227,8 +240,16 @@ func (s *Erasure) eraseSchool(ctx context.Context, store ports.ErasureStore, r o
 		return s.previewSchool(ctx, store, r, id, kinds)
 	}
 	proof, raw, err := s.prepareSchoolErasure(ctx, store, r, id, kinds)
-	if err != nil || proof.Status == "completed" {
+	if err != nil {
 		return raw, err
+	}
+	if proof.Status == "completed" {
+		// A non-atomic DB/upload backup may restore files after a completed
+		// DB receipt. Recheck/remove namespaces even on an idempotent retry.
+		if err := s.removeAndVerifyFiles(ctx, id, kinds); err != nil {
+			return nil, err
+		}
+		return raw, nil
 	}
 	if proof.DBDoneAt == nil {
 		raw, err = eraseSchoolDatabase(ctx, store, r, id, proof.ID)

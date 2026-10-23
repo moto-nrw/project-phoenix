@@ -5,6 +5,7 @@ Only ciphertext crosses the transport boundary. Subprocess diagnostics are not
 forwarded: tools can print SQL, paths, credentials or upload names on failure.
 """
 import datetime as dt
+import fcntl
 import hashlib
 import json
 import os
@@ -13,6 +14,7 @@ import re
 import secrets
 import shutil
 import signal
+import stat
 import subprocess
 import sys
 import tarfile
@@ -53,6 +55,44 @@ def command(args, *, stdin=None, stdout=None, data=None, env=None):
 def sha256(path):
     with path.open('rb') as file:
         return hashlib.file_digest(file, 'sha256').hexdigest()
+
+
+def read_erasure_ledger(path):
+    """Read the independently retained, hash-chained ledger, never a dump copy.
+
+    Hashes detect damage, not an administrator replacing/truncating the whole
+    ledger. Operators verify its current head against the separate catalog.
+    """
+    require(path.is_absolute())
+    fd = os.open(path, os.O_RDONLY | os.O_NOFOLLOW | os.O_NONBLOCK)
+    with os.fdopen(fd, 'rb') as file:
+        fcntl.flock(file, fcntl.LOCK_SH | fcntl.LOCK_NB)
+        info = os.fstat(file.fileno())
+        require(stat.S_ISREG(info.st_mode) and stat.S_IMODE(info.st_mode) == 0o600)
+        require(os.path.samestat(info, path.stat()))
+        header = file.readline(4096)
+        require(header == b'moto-erasure-ledger-v1\n')
+        previous = hashlib.sha256(header).hexdigest().encode()
+        schools = {}
+        entries = []
+        while line := file.readline(4096):
+            require(line.endswith(b'\n') and len(line) < 4096)
+            checksum, payload = line[:-1].split(b' ', 1)
+            require(hashlib.sha256(previous + b'\n' + payload).hexdigest().encode() == checksum)
+            entry = json.loads(payload)
+            require(set(entry) == {'school_id', 'order_reference', 'completed_at', 'receipt_sha256'})
+            school = entry['school_id']
+            require(type(school) is int and 0 < school <= 9223372036854775807)
+            require(re.fullmatch(r'[A-Z][A-Z0-9-]{2,39}', entry['order_reference']))
+            require(re.fullmatch(r'[0-9a-f]{64}', entry['receipt_sha256']))
+            timestamp = entry['completed_at']
+            require(re.fullmatch(r'\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(\.\d{1,9})?Z', timestamp))
+            dt.datetime.fromisoformat(timestamp.replace('Z', '+00:00'))
+            require(school not in schools or schools[school] == entry['order_reference'])
+            schools[school] = entry['order_reference']
+            entries.append(entry)
+            previous = checksum
+        return entries
 
 
 def regular_archive(path, *, expected=None):
@@ -122,10 +162,20 @@ class Recovery:
             self.retention = int(days)
             self.recipient = required('BACKUP_AGE_RECIPIENT')
             require(re.fullmatch(r'age1[0-9a-z]+', self.recipient))
-        else:
+        elif mode == 'restore':
             self.passwords = {role: required(key) for role, key in LOGIN_PASSWORDS.items()}
             self.identity = Path(required('BACKUP_AGE_IDENTITY_FILE'))
             require(self.identity.is_absolute() and self.identity.is_file())
+
+    def check_erasures(self, ledger):
+        global step
+        step = 'erasure_ledger'
+        entries = read_erasure_ledger(ledger)
+        step = 'erasure_replay_required'
+        # IDs are strictly parsed positive int64s, not SQL fragments. Keep the
+        # query/output bounded and read-only; retry uses the dedicated CLI.
+        for school in {entry['school_id'] for entry in entries}:
+            require(self.sql(f'SELECT count(*) FROM platform.schools WHERE id = {school};') == '0')
 
     def check_capacity(self):
         # Operator sizes this reservation from measured uncompressed data plus
@@ -221,7 +271,7 @@ class Recovery:
                 timestamp = dt.datetime.strptime(obj['Path'][6:22], '%Y%m%dT%H%M%SZ').replace(tzinfo=dt.timezone.utc)
                 require(timestamp > cutoff)
 
-    def restore(self, work, cipher, name):
+    def restore(self, work, cipher, name, ledger):
         global step
         require(re.fullmatch(BUNDLE_NAME, name))
         step = 'download'
@@ -329,6 +379,7 @@ class Recovery:
         command(['docker', 'volume', 'create', self.volume])
         with (work / 'uploads.tar.gz').open('rb') as file:
             self.uploads('-xzf', '-', '-C', '/uploads', stdin=file)
+        self.check_erasures(ledger)
 
 
 def interrupted(_signum, _frame):
@@ -341,28 +392,37 @@ def main():
     signal.signal(signal.SIGTERM, interrupted)
     signal.signal(signal.SIGINT, interrupted)
     mode = sys.argv[1] if len(sys.argv) > 1 else 'backup'
-    label = 'restore' if mode == 'restore' else 'backup'
+    label = 'backup' if mode == 'backup' else 'restore'
     work = None
     lock = None
     cipher = None
     status = 1
     missing = ''
     try:
-        require((mode == 'backup' and len(sys.argv) == 2) or (mode == 'restore' and len(sys.argv) == 3))
+        require((mode == 'backup' and len(sys.argv) == 2)
+                or (mode == 'restore' and len(sys.argv) == 4)
+                or (mode == 'verify-erasures' and len(sys.argv) == 3))
         recovery = Recovery(mode)
         step = 'operation_lock'
         lock_path = recovery.compose_file.parent / '.release-operation.lock'
         lock_path.mkdir(mode=0o700)
         lock = lock_path
-        step = 'workspace_capacity'
-        recovery.check_capacity()
-        cipher = Path(tempfile.mkdtemp(prefix='daily-', dir=recovery.cipher_root))
-        work = Path(tempfile.mkdtemp(prefix='daily-', dir=recovery.work_root))
-        if mode == 'backup':
-            recovery.backup(work, cipher)
+        if mode == 'verify-erasures':
+            step = 'erasure_review'
+            require((recovery.compose_file.parent / '.daily-restore-review-required').is_file())
+            require(recovery.dc('ps', '--status', 'running', '--services').decode().split() == ['postgres'])
+            recovery.check_erasures(Path(sys.argv[2]))
+            step = 'erasure_review_complete'
         else:
-            recovery.restore(work, cipher, sys.argv[2])
-        step = 'complete' if mode == 'backup' else 'deletion_review_required'
+            step = 'workspace_capacity'
+            recovery.check_capacity()
+            cipher = Path(tempfile.mkdtemp(prefix='daily-', dir=recovery.cipher_root))
+            work = Path(tempfile.mkdtemp(prefix='daily-', dir=recovery.work_root))
+            if mode == 'backup':
+                recovery.backup(work, cipher)
+            else:
+                recovery.restore(work, cipher, sys.argv[2], Path(sys.argv[3]))
+            step = 'complete' if mode == 'backup' else 'deletion_review_required'
         status = 0
     except MissingConfiguration as error:
         missing = f' missing={error.args[0]}'
@@ -378,7 +438,7 @@ def main():
                 except Exception:
                     step = 'cleanup'
                     status = 1
-    suffix = ' app_start=blocked' if mode == 'restore' else ''
+    suffix = ' app_start=blocked' if mode != 'backup' else ''
     print(f'{label}_result={"ok" if status == 0 else "failed"} step={step}{missing}{suffix}', flush=True)
     return status
 
