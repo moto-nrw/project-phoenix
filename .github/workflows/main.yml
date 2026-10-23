@@ -214,6 +214,7 @@ jobs:
             tooling:
               - 'docs/operations/daily-restore.compose.yml'
               - 'scripts/daily-backup*'
+              - 'monitoring/grafana/provisioning/alerting/daily-backup.yml'
               - 'scripts/daily_backup.py'
               - 'scripts/restore-daily-backup.sh'
               - 'scripts/systemd/moto-*backup*'
@@ -352,7 +353,7 @@ jobs:
       - name: Verify encrypted daily backup and isolated restore
         if: matrix.suite == 'restore'
         run: |
-          node --test scripts/daily-backup.integration.test.mjs
+          node --test scripts/daily-backup.integration.test.mjs scripts/daily-backup-alerts.integration.test.mjs
           sudo install -d /usr/local/lib/moto-backup
           sudo install scripts/daily-backup.sh /usr/local/lib/moto-backup/
           systemd-analyze verify scripts/systemd/moto-daily-backup.service scripts/systemd/moto-daily-backup.timer scripts/systemd/moto-backup-failure@.service
