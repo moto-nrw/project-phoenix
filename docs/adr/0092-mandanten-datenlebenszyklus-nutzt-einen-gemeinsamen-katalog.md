@@ -112,9 +112,14 @@ Sie enthält ausschließlich Schul-ID, Vorgangsreferenz, Abschlusszeitpunkt und
 Quittungs-Prüfsumme. Erst ein synchronisierter Eintrag erlaubt CLI-Erfolg;
 ein fehlgeschlagener Schritt wird mit demselben Auftrag nachgeholt.
 
-Der owner-private Datei-Adapter ist als `adapter` klassifiziert. Seine exakt
-paketgebundene Kryptografie-Regel erlaubt SHA-256 für Nachweise und Kette,
-keine neue Cross-Owner-Schreibberechtigung. Der bestehende Owner, DB-Vertrag,
+Die Dateifähigkeit `organizationtenancy/erasureledger` ist als `public`
+klassifiziert, analog zur bereits öffentlich konstruierten Dateiablage
+`delivery/objects`. Der Root konstruiert sie und bindet sie an den
+`ErasureLedger`-Port des Löschbefehls; die Owner-Composition baut weiterhin
+DB-Adapter und Anwendung. Das hält die bestehende Compose-Fläche konstant.
+Der Root bindet die bestehende `securityruntime.Fingerprint`-Fähigkeit für
+SHA-256; es braucht keine neue Kryptografie-Freigabe und keine neue
+Cross-Owner-Schreibberechtigung. Der bestehende Owner, DB-Vertrag,
 Transaktionen und Rollen bleiben unverändert. Die Kette ist kein authentischer
 Aktualitätsnachweis: eine getrennte aktuelle Kopie und ein unabhängig
 verwahrter Dateiprüfwert gehören zwingend zum Betriebsverfahren.

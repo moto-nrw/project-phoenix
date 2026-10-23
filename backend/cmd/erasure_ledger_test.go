@@ -1,4 +1,4 @@
-package erasureledger_test
+package cmd
 
 import (
 	"encoding/json"
@@ -8,7 +8,8 @@ import (
 	"sync"
 	"testing"
 
-	"github.com/moto-nrw/project-phoenix/modules/organizationtenancy/internal/adapters/erasureledger"
+	"github.com/moto-nrw/project-phoenix/modules/organizationtenancy/erasureledger"
+	"github.com/moto-nrw/project-phoenix/modules/securityruntime"
 	"github.com/stretchr/testify/require"
 )
 
@@ -17,7 +18,7 @@ const receipt = `{"school_id":17,"order_reference":"ORDER-RESTORE","status":"com
 func TestLedgerDurabilityIdempotenceAndDamage(t *testing.T) {
 	t.Parallel()
 	path := filepath.Join(t.TempDir(), "ledger")
-	ledger := erasureledger.New(path)
+	ledger := erasureledger.New(path, securityruntime.Fingerprint)
 	require.Error(t, ledger.Check())
 	require.Error(t, ledger.Record(json.RawMessage(receipt)))
 	require.NoError(t, erasureledger.Initialize(path))
@@ -42,15 +43,15 @@ func TestLedgerRejectsUnsafePathsAndIncompleteReceipts(t *testing.T) {
 	t.Parallel()
 	path := filepath.Join(t.TempDir(), "ledger")
 	require.NoError(t, erasureledger.Initialize(path))
-	ledger := erasureledger.New(path)
+	ledger := erasureledger.New(path, securityruntime.Fingerprint)
 	require.Error(t, ledger.Record(json.RawMessage(strings.Replace(receipt, "completed", "failed", 1))))
 	require.NoError(t, os.Chmod(path, 0644))
 	require.Error(t, ledger.Check())
 	require.NoError(t, os.Chmod(path, 0600))
 	link := path + "-link"
 	require.NoError(t, os.Symlink(path, link))
-	require.Error(t, erasureledger.New(link).Check())
-	require.Error(t, erasureledger.New("relative-ledger").Check())
+	require.Error(t, erasureledger.New(link, securityruntime.Fingerprint).Check())
+	require.Error(t, erasureledger.New("relative-ledger", securityruntime.Fingerprint).Check())
 }
 
 func TestLedgerConcurrentWritersNeverCorruptList(t *testing.T) {
@@ -59,12 +60,12 @@ func TestLedgerConcurrentWritersNeverCorruptList(t *testing.T) {
 	require.NoError(t, erasureledger.Initialize(path))
 	var wg sync.WaitGroup
 	for range 8 {
-		wg.Go(func() { _ = erasureledger.New(path).Record(json.RawMessage(receipt)) })
+		wg.Go(func() { _ = erasureledger.New(path, securityruntime.Fingerprint).Record(json.RawMessage(receipt)) })
 	}
 	wg.Wait()
 	// Failed lock contenders retry; success and retries produce one record.
-	require.NoError(t, erasureledger.New(path).Record(json.RawMessage(receipt)))
-	require.NoError(t, erasureledger.New(path).Check())
+	require.NoError(t, erasureledger.New(path, securityruntime.Fingerprint).Record(json.RawMessage(receipt)))
+	require.NoError(t, erasureledger.New(path, securityruntime.Fingerprint).Check())
 	data, err := os.ReadFile(path)
 	require.NoError(t, err)
 	require.Equal(t, 2, strings.Count(string(data), "\n"))

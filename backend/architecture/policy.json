@@ -1039,9 +1039,9 @@
       "external_test_role": "module-behavior-test"
     },
     {
-      "path": "modules/organizationtenancy/internal/adapters/erasureledger",
+      "path": "modules/organizationtenancy/erasureledger",
       "owner": "organization-tenancy",
-      "role": "adapter",
+      "role": "public",
       "internal_test_role": "adapter-test",
       "external_test_role": "adapter-test"
     },
@@ -7057,17 +7057,6 @@
         "external_test"
       ],
       "target_class": "concurrency"
-    },
-    {
-      "id": "external.crypto.organization-tenancy.erasure-ledger",
-      "description": "The independent erasure ledger hashes receipts and its append-only chain with SHA-256 (3837-d).",
-      "scopes": [
-        "production"
-      ],
-      "source_owner": "organization-tenancy",
-      "source_role": "adapter",
-      "source_package": "modules/organizationtenancy/internal/adapters/erasureledger",
-      "target_class": "crypto"
     },
     {
       "id": "external.crypto.device-fleet.adapter",

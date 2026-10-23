@@ -8,6 +8,8 @@ import (
 	"github.com/moto-nrw/project-phoenix/modules/delivery/objects"
 	"github.com/moto-nrw/project-phoenix/modules/organizationtenancy"
 	tenancyCompose "github.com/moto-nrw/project-phoenix/modules/organizationtenancy/compose"
+	"github.com/moto-nrw/project-phoenix/modules/organizationtenancy/erasureledger"
+	"github.com/moto-nrw/project-phoenix/modules/securityruntime"
 	transactionruntime "github.com/moto-nrw/project-phoenix/modules/transactionruntime/compose"
 	"github.com/spf13/cobra"
 )
@@ -23,7 +25,7 @@ func newTenantCommand() *cobra.Command {
 				return errors.New("erasure: database connection unavailable")
 			}
 			defer func() { _ = db.Close() }()
-			service, err := tenancyCompose.NewErasure(db.Pool(), objects.NewLocal(root), ledgerPath)
+			service, err := tenancyCompose.NewErasure(db.Pool(), objects.NewLocal(root), erasureledger.New(ledgerPath, securityruntime.Fingerprint))
 			if err != nil {
 				return err
 			}
@@ -57,7 +59,7 @@ func newTenantCommand() *cobra.Command {
 				return errors.New("erasure: database connection unavailable")
 			}
 			defer func() { _ = db.Close() }()
-			service, err := tenancyCompose.NewErasure(db.Pool(), objects.NewLocal(""), "")
+			service, err := tenancyCompose.NewErasure(db.Pool(), objects.NewLocal(""), erasureledger.New("", securityruntime.Fingerprint))
 			if err != nil {
 				return err
 			}
@@ -68,13 +70,17 @@ func newTenantCommand() *cobra.Command {
 			return json.NewEncoder(cmd.OutOrStdout()).Encode(results[0])
 		}}
 	receipt.Flags().Int64Var(&receiptID, "id", 0, "Erasure evidence ID")
+	parent.AddCommand(erase, receipt, newErasureLedgerInitCommand())
+	return parent
+}
+
+func newErasureLedgerInitCommand() *cobra.Command {
 	var initPath string
 	initialize := &cobra.Command{Use: "ledger-init", Short: "Initialize a NEW installation's independent erasure ledger; never use after restore", Args: cobra.NoArgs, SilenceUsage: true, SilenceErrors: true,
-		RunE: func(_ *cobra.Command, _ []string) error { return tenancyCompose.InitializeErasureLedger(initPath) }}
+		RunE: func(_ *cobra.Command, _ []string) error { return erasureledger.Initialize(initPath) }}
 	initialize.Flags().StringVar(&initPath, "erasure-ledger", "", "Absolute ledger path in a protected existing host directory")
 	_ = initialize.MarkFlagRequired("erasure-ledger")
-	parent.AddCommand(erase, receipt, initialize)
-	return parent
+	return initialize
 }
 
 func init() { RootCmd.AddCommand(newTenantCommand()) }

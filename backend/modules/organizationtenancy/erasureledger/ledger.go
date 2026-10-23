@@ -5,8 +5,6 @@ package erasureledger
 import (
 	"bufio"
 	"bytes"
-	"crypto/sha256"
-	"encoding/hex"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -33,9 +31,18 @@ type entry struct {
 	ReceiptSHA256 string `json:"receipt_sha256"`
 }
 
-type Ledger struct{ path string }
+type Ledger struct {
+	path        string
+	fingerprint func([]byte) string
+}
 
-func New(path string) *Ledger { return &Ledger{path: path} }
+// New binds the root's existing SHA-256 content identity capability.
+func New(path string, fingerprint func([]byte) string) *Ledger {
+	if fingerprint == nil {
+		panic("erasure ledger requires SHA-256 content identity")
+	}
+	return &Ledger{path: path, fingerprint: fingerprint}
+}
 
 func Initialize(path string) error {
 	if !filepath.IsAbs(path) {
@@ -90,35 +97,27 @@ func (l *Ledger) open() (*os.File, error) {
 	return file, nil
 }
 
-func checksum(previous, payload string) string {
-	sum := sha256.Sum256([]byte(previous + "\n" + payload))
-	return hex.EncodeToString(sum[:])
+func (l *Ledger) checksum(previous, payload string) string {
+	return l.fingerprint([]byte(previous + "\n" + payload))
 }
 
-func read(file *os.File, visit func(entry) error) (string, error) {
+func (l *Ledger) read(file *os.File, visit func(entry) error) (string, error) {
 	scanner := bufio.NewScanner(file)
 	scanner.Split(terminatedLines)
 	scanner.Buffer(make([]byte, 4096), 4096)
 	if !scanner.Scan() || scanner.Text()+"\n" != header {
 		return "", errLedger
 	}
-	sum := sha256.Sum256([]byte(header))
-	previous := hex.EncodeToString(sum[:])
+	previous := l.fingerprint([]byte(header))
 	schools := map[int64]string{}
 	for scanner.Scan() {
 		digest, payload, ok := strings.Cut(scanner.Text(), " ")
-		if !ok || digest != checksum(previous, payload) || !json.Valid([]byte(payload)) {
+		if !ok || digest != l.checksum(previous, payload) || !json.Valid([]byte(payload)) {
 			return "", errLedger
 		}
-		var item entry
-		decoder := json.NewDecoder(strings.NewReader(payload))
-		decoder.DisallowUnknownFields()
-		if err := decoder.Decode(&item); err != nil {
-			return "", errLedger
-		}
-		when, err := time.Parse(time.RFC3339Nano, item.CompletedAt)
-		if err != nil || when.UTC().Format(time.RFC3339Nano) != item.CompletedAt || item.SchoolID <= 0 || !reference.MatchString(item.Reference) || !digestPattern.MatchString(item.ReceiptSHA256) {
-			return "", errLedger
+		item, err := decodeEntry(payload)
+		if err != nil {
+			return "", err
 		}
 		if order, ok := schools[item.SchoolID]; ok && order != item.Reference {
 			return "", errLedger
@@ -133,6 +132,20 @@ func read(file *os.File, visit func(entry) error) (string, error) {
 		return "", errLedger
 	}
 	return previous, nil
+}
+
+func decodeEntry(payload string) (entry, error) {
+	var item entry
+	decoder := json.NewDecoder(strings.NewReader(payload))
+	decoder.DisallowUnknownFields()
+	if err := decoder.Decode(&item); err != nil {
+		return item, errLedger
+	}
+	when, err := time.Parse(time.RFC3339Nano, item.CompletedAt)
+	if err != nil || when.UTC().Format(time.RFC3339Nano) != item.CompletedAt || item.SchoolID <= 0 || !reference.MatchString(item.Reference) || !digestPattern.MatchString(item.ReceiptSHA256) {
+		return item, errLedger
+	}
+	return item, nil
 }
 
 // Unlike bufio.ScanLines, an incomplete final write is an error, not a record.
@@ -152,33 +165,22 @@ func (l *Ledger) Check() error {
 		return err
 	}
 	defer func() { _ = file.Close() }()
-	_, err = read(file, func(entry) error { return nil })
+	_, err = l.read(file, func(entry) error { return nil })
 	return err
 }
 
 func (l *Ledger) Record(raw json.RawMessage) error {
-	var proof struct {
-		SchoolID    int64      `json:"school_id"`
-		Reference   string     `json:"order_reference"`
-		Status      string     `json:"status"`
-		CompletedAt *time.Time `json:"completed_at"`
+	item, err := l.receiptEntry(raw)
+	if err != nil {
+		return err
 	}
-	if err := json.Unmarshal(raw, &proof); err != nil || proof.Status != "completed" || proof.CompletedAt == nil || proof.SchoolID <= 0 || !reference.MatchString(proof.Reference) {
-		return errLedger
-	}
-	var compact bytes.Buffer
-	if err := json.Compact(&compact, raw); err != nil {
-		return errLedger
-	}
-	sum := sha256.Sum256(compact.Bytes())
-	item := entry{proof.SchoolID, proof.Reference, proof.CompletedAt.UTC().Format(time.RFC3339Nano), hex.EncodeToString(sum[:])}
 	file, err := l.open()
 	if err != nil {
 		return err
 	}
 	defer func() { _ = file.Close() }()
 	found := false
-	previous, err := read(file, func(old entry) error {
+	previous, err := l.read(file, func(old entry) error {
 		if old.SchoolID == item.SchoolID && old.Reference != item.Reference {
 			return errLedger
 		}
@@ -195,7 +197,7 @@ func (l *Ledger) Record(raw json.RawMessage) error {
 		if err != nil {
 			return errLedger
 		}
-		if _, err = fmt.Fprintf(file, "%s %s\n", checksum(previous, string(payload)), payload); err != nil {
+		if _, err = fmt.Fprintf(file, "%s %s\n", l.checksum(previous, string(payload)), payload); err != nil {
 			return errLedger
 		}
 	}
@@ -205,4 +207,21 @@ func (l *Ledger) Record(raw json.RawMessage) error {
 		return errLedger
 	}
 	return nil
+}
+
+func (l *Ledger) receiptEntry(raw json.RawMessage) (entry, error) {
+	var proof struct {
+		SchoolID    int64      `json:"school_id"`
+		Reference   string     `json:"order_reference"`
+		Status      string     `json:"status"`
+		CompletedAt *time.Time `json:"completed_at"`
+	}
+	if err := json.Unmarshal(raw, &proof); err != nil || proof.Status != "completed" || proof.CompletedAt == nil || proof.SchoolID <= 0 || !reference.MatchString(proof.Reference) {
+		return entry{}, errLedger
+	}
+	var compact bytes.Buffer
+	if err := json.Compact(&compact, raw); err != nil {
+		return entry{}, errLedger
+	}
+	return entry{proof.SchoolID, proof.Reference, proof.CompletedAt.UTC().Format(time.RFC3339Nano), l.fingerprint(compact.Bytes())}, nil
 }

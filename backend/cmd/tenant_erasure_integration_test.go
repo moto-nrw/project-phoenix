@@ -14,6 +14,8 @@ import (
 	"github.com/moto-nrw/project-phoenix/modules/delivery/objects"
 	"github.com/moto-nrw/project-phoenix/modules/organizationtenancy"
 	tenancyCompose "github.com/moto-nrw/project-phoenix/modules/organizationtenancy/compose"
+	"github.com/moto-nrw/project-phoenix/modules/organizationtenancy/erasureledger"
+	"github.com/moto-nrw/project-phoenix/modules/securityruntime"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/require"
 	"github.com/uptrace/bun"
@@ -109,7 +111,7 @@ func TestErasureCLISeparatesSchoolsAndResumesBothPhases(t *testing.T) {
 	require.NoError(t, os.MkdirAll(filepath.Join(root, "avatars/global"), 0700))
 	require.NoError(t, os.WriteFile(filepath.Join(root, "avatars/global/shared.bin"), []byte("synthetic"), 0600))
 	files := &failingErasureFiles{Local: objects.NewLocal(root)}
-	service, err := tenancyCompose.NewErasure(db, files, newTestErasureLedger(t))
+	service, err := tenancyCompose.NewErasure(db, files, erasureledger.New(newTestErasureLedger(t), securityruntime.Fingerprint))
 	require.NoError(t, err)
 	request := organizationtenancy.ErasureRequest{SchoolID: a, OperatorID: operator.ID, OrderReference: "ORDER-3837", Confirmation: fmt.Sprintf("school:%d", a), PrerequisitesChecked: true, WritersStopped: true, LockTimeout: time.Second, StatementTimeout: time.Minute, DryRun: true}
 	beforeA := erasureTableCounts(t, db, a)
@@ -195,7 +197,7 @@ func TestErasureCLITimeoutAndRoleBoundaries(t *testing.T) {
 	db := testpkg.SetupIsolatedTestDB(t)
 	id := testpkg.Tenant(t)
 	operator := testpkg.CreateTestOperator(t, db)
-	service, err := tenancyCompose.NewErasure(db, objects.NewLocal(t.TempDir()), newTestErasureLedger(t))
+	service, err := tenancyCompose.NewErasure(db, objects.NewLocal(t.TempDir()), erasureledger.New(newTestErasureLedger(t), securityruntime.Fingerprint))
 	require.NoError(t, err)
 	request := organizationtenancy.ErasureRequest{SchoolID: id, OperatorID: operator.ID, OrderReference: "ORDER-TIMEOUT", Confirmation: fmt.Sprintf("school:%d", id), PrerequisitesChecked: true, WritersStopped: true, LockTimeout: 20 * time.Millisecond, StatementTimeout: time.Minute}
 	invalid := request
@@ -249,7 +251,7 @@ func TestErasureCLIOrganizationKeepsRootAndResumesSchoolReceipts(t *testing.T) {
 	_, err := db.ExecContext(t.Context(), `UPDATE platform.schools SET organization_id=? WHERE id=?`, organizationID, b)
 	require.NoError(t, err)
 	operator := testpkg.CreateTestOperator(t, db)
-	service, err := tenancyCompose.NewErasure(db, objects.NewLocal(t.TempDir()), newTestErasureLedger(t))
+	service, err := tenancyCompose.NewErasure(db, objects.NewLocal(t.TempDir()), erasureledger.New(newTestErasureLedger(t), securityruntime.Fingerprint))
 	require.NoError(t, err)
 	request := organizationtenancy.ErasureRequest{OrganizationID: organizationID, OperatorID: operator.ID, OrderReference: "ORDER-ORGANIZATION", Confirmation: fmt.Sprintf("organization:%d", organizationID), PrerequisitesChecked: true, WritersStopped: true, LockTimeout: time.Second, StatementTimeout: time.Minute, DryRun: true}
 	results, err := service.Run(t.Context(), request)
@@ -278,7 +280,7 @@ func TestErasureCLIOrganizationKeepsRootAndResumesSchoolReceipts(t *testing.T) {
 func newTestErasureLedger(t *testing.T) string {
 	t.Helper()
 	path := filepath.Join(t.TempDir(), "ledger")
-	require.NoError(t, tenancyCompose.InitializeErasureLedger(path))
+	require.NoError(t, erasureledger.Initialize(path))
 	return path
 }
 
@@ -294,7 +296,7 @@ func TestErasureCLIExternalLedgerFailureNeverReportsCompletion(t *testing.T) {
 	files := &failingErasureFiles{Local: objects.NewLocal(t.TempDir()), onRemove: func() {
 		require.NoError(t, os.Chmod(path, 0400))
 	}}
-	service, err := tenancyCompose.NewErasure(db, files, path)
+	service, err := tenancyCompose.NewErasure(db, files, erasureledger.New(path, securityruntime.Fingerprint))
 	require.NoError(t, err)
 	request := organizationtenancy.ErasureRequest{SchoolID: a, OperatorID: operator.ID, OrderReference: "ORDER-LEDGER", Confirmation: fmt.Sprintf("school:%d", a), PrerequisitesChecked: true, WritersStopped: true, LockTimeout: time.Second, StatementTimeout: time.Minute}
 	results, err := service.Run(t.Context(), request)

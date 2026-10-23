@@ -32,3 +32,10 @@ type ErasureProof struct {
 	DBDoneAt    *time.Time `json:"db_done_at"`
 	InventoryAt *time.Time `json:"files_inventory_at"`
 }
+
+// ErasureLedger survives database restores. Check never creates a missing list.
+// The root binds the independently protected host store to the erasure command.
+type ErasureLedger interface {
+	Check() error
+	Record(json.RawMessage) error
+}

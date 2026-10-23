@@ -16,10 +16,10 @@ import (
 type Erasure struct {
 	store  ports.ErasureStore
 	files  organizationtenancy.ErasureFiles
-	ledger ports.ErasureLedger
+	ledger organizationtenancy.ErasureLedger
 }
 
-func NewErasure(store ports.ErasureStore, files organizationtenancy.ErasureFiles, ledger ports.ErasureLedger) (*Erasure, error) {
+func NewErasure(store ports.ErasureStore, files organizationtenancy.ErasureFiles, ledger organizationtenancy.ErasureLedger) (*Erasure, error) {
 	if store == nil || files == nil || ledger == nil {
 		return nil, errors.New("erasure: database, file store and external ledger required")
 	}
@@ -78,8 +78,36 @@ func erasureSchoolIDs(ctx context.Context, store ports.ErasureStore, r organizat
 	return ids, nil
 }
 
-func (s *Erasure) Run(ctx context.Context, r organizationtenancy.ErasureRequest) ([]json.RawMessage, error) {
+func (s *Erasure) validate(r organizationtenancy.ErasureRequest) error {
 	if err := validateErasureRequest(r); err != nil {
+		return err
+	}
+	if r.ReceiptID != 0 || r.DryRun {
+		return nil
+	}
+	return s.ledger.Check()
+}
+
+func (s *Erasure) runSchool(ctx context.Context, r organizationtenancy.ErasureRequest, id int64, kinds []organizationtenancy.LifecycleFileKind) (json.RawMessage, error) {
+	var proof json.RawMessage
+	err := s.store.WithSchoolLock(ctx, id, func(lockCtx context.Context) error {
+		var err error
+		proof, err = s.eraseSchool(lockCtx, s.store, r, id, kinds)
+		if err != nil || r.DryRun {
+			return err
+		}
+		if err = s.ledger.Record(proof); err != nil {
+			// DB completion alone is not overall success. A retry repairs the
+			// external record; never emit completed evidence before it is durable.
+			proof = nil
+		}
+		return err
+	})
+	return proof, err
+}
+
+func (s *Erasure) Run(ctx context.Context, r organizationtenancy.ErasureRequest) ([]json.RawMessage, error) {
+	if err := s.validate(r); err != nil {
 		return nil, err
 	}
 	if r.ReceiptID != 0 {
@@ -88,11 +116,6 @@ func (s *Erasure) Run(ctx context.Context, r organizationtenancy.ErasureRequest)
 			return nil, err
 		}
 		return []json.RawMessage{proof}, nil
-	}
-	if !r.DryRun {
-		if err := s.ledger.Check(); err != nil {
-			return nil, err
-		}
 	}
 	kinds, err := erasureFileCatalog()
 	if err != nil {
@@ -104,20 +127,10 @@ func (s *Erasure) Run(ctx context.Context, r organizationtenancy.ErasureRequest)
 	}
 	var results []json.RawMessage
 	for _, id := range ids {
-		err = s.store.WithSchoolLock(ctx, id, func(lockCtx context.Context) error {
-			proof, err := s.eraseSchool(lockCtx, s.store, r, id, kinds)
-			if err == nil && !r.DryRun {
-				if err = s.ledger.Record(proof); err != nil {
-					// DB completion alone is not overall success. A retry of the
-					// same order repairs the external record without deleting again.
-					return err
-				}
-			}
-			if proof != nil {
-				results = append(results, proof)
-			}
-			return err
-		})
+		proof, err := s.runSchool(ctx, r, id, kinds)
+		if proof != nil {
+			results = append(results, proof)
+		}
 		if err != nil {
 			return results, err
 		}
