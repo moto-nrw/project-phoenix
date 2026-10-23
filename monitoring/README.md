@@ -114,8 +114,20 @@ The queries read `{env="$env",service="frontend"}` and parse the JSON line;
 school, so parent portal rows carry no `tenant_id`. Join `request_id` with
 the server's request line to find the API route.
 
-Copy the dashboard file with the rest of `grafana/provisioning` and restart
-Grafana as described under Deploy.
+Deploy and restart from a checkout with SSH access to the monitoring host:
+
+```bash
+scripts/deploy-grafana-provisioning.sh --dry-run <ssh-host> dashboards/json/phoenix-error-codes.json
+scripts/deploy-grafana-provisioning.sh <ssh-host> dashboards/json/phoenix-error-codes.json
+```
+
+The script copies only the named files below `grafana/provisioning`, saves
+their previous versions to `/root/monitoring/backups/grafana-provisioning-<UTC>`,
+restarts Grafana, waits for `/api/health` and fails on a `logger=provisioning`
+error in the Grafana log. It prints the restore command when a check fails.
+Name files one by one on purpose: the host carries dashboards that exist only
+there, and copying the whole directory would also switch on alert rules
+whose prerequisites (see their sections) are not met yet.
 
 ## Student storage Contract observation
 
