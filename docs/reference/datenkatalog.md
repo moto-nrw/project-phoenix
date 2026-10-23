@@ -1,7 +1,7 @@
 # Gemeinsamer Datenkatalog für Löschung und Rückgabe
 
 Stand: 23.10.2026. Entscheidung:
-[ADR 0091](../adr/0091-mandanten-datenlebenszyklus-nutzt-einen-gemeinsamen-katalog.md).
+[ADR 0092](../adr/0092-mandanten-datenlebenszyklus-nutzt-einen-gemeinsamen-katalog.md).
 Grundlage für #3837 und #3838, Slice 3837-a.
 
 ## Stand und Quelle
@@ -12,6 +12,17 @@ Grundlage für #3837 und #3838, Slice 3837-a.
 Laufzeit als `embed.FS` bereit. `ReadFile("data_lifecycle_catalog.json")` liefert
 eine unabhängige Byte-Kopie; JSON wird in `DataLifecycleCatalog` dekodiert. Kein zweiter
 Lösch-/Exportkatalog. Der JSON-Drahtvertrag hat Version 1.
+
+Schemaabgleich mit Migrationen bis 1.15.479: `users.external_caregivers`
+ersetzt `users.guests` (1.15.477, ADR 0091). Der Eintrag bleibt `tenant` mit
+`export: include` und dem Personen-FK `staff_id` auf
+`users.staff_school_memberships.id`. Die Migrationen 1.15.478 (`ag-leitung`)
+und 1.15.479 (Gast nur lesend) ändern Datensätze in den bereits erfassten
+Tabellen `auth.roles`, `auth.role_permissions` und `auth.permissions`, keine
+Tabellen oder Spalten. Die Tabellenzahl und die Spaltenausschlüsse bleiben
+unverändert. Globale Systemrollen mit `tenant_id IS NULL` sind kein
+Schulbestand; erforderliche Rollenbedeutung muss die spätere Rückgabe
+als Kontext liefern, nicht durch ungefilterten Export globaler Rollen.
 
 **Noch nicht umgesetzt:** vollständige Mandantenlöschung, Personen-/Gesamtexport,
 CLI, Durchführungsnachweis und Wiederholung nach Teilausfällen. Die Einträge

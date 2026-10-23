@@ -24,6 +24,8 @@ type Date string
 // Caller carries the request principal's projection-relevant rights. The
 // access port resolves them once per request from the shared authorize rules.
 type Caller struct {
+	// CanReadStudentPlans is users:read, required for plans, notes and absence statuses.
+	CanReadStudentPlans bool
 	// CanReadGroups is the groups:read permission gating the group-derived
 	// sections (room status, transfers, tracking indicators).
 	CanReadGroups bool
@@ -37,9 +39,9 @@ type Caller struct {
 // Access resolves the caller's rights for the current request.
 type Access interface {
 	Caller(ctx context.Context) (Caller, error)
-	// FullStudentAccess reports whether the caller sees unredacted student
-	// records (admin or verified staff, #2329). It is resolved only once a
-	// roster is about to be projected.
+	// FullStudentAccess reports staff/admin eligibility (#2329), used for
+	// photos and locations. Planning additionally requires CanReadStudentPlans.
+	// It is resolved only once a roster is about to be projected.
 	FullStudentAccess(ctx context.Context) (bool, error)
 }
 

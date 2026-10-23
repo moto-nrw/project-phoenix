@@ -497,8 +497,8 @@ jobs:
       # api/server.go refuses to build the server without it.
       METRICS_BEARER_TOKEN: ci-metrics-token
       # Device auth checks the school's security.ogs_device_pin setting, whose
-      # registry default is 1234, and uses this env var only when the setting
-      # resolves empty. The seeder writes its --pin into that setting. A PIN
+      # registry default is 1234. This is only the seeder input, never a runtime
+      # fallback. The seeder writes its --pin into that setting. A PIN
       # other than the default proves that write; with 1234 a missing write
       # stays green here and every RFID call on the public demo returns 401.
       OGS_DEVICE_PIN: "4711"

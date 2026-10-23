@@ -280,9 +280,10 @@ func (s *staffScheduleOverviewService) loadAssignmentData(
 	return assignmentRows, staff, roomNames, nil
 }
 
-// loadPlannableStaff reads the staff directory without accountless guest
-// caregivers (#3823): they have no shifts to plan, so the duty roster carries
-// no row for them.
+// loadPlannableStaff reads the staff directory without external caregivers
+// (#3823), with or without an account (#4573): they have no shifts to plan,
+// so the duty roster carries no row for them. The hydrated marker applies
+// School Membership's rule.
 func (s *staffScheduleOverviewService) loadPlannableStaff(ctx context.Context) ([]*workforce.PlanStaff, map[int64]struct{}, error) {
 	readStaff := s.deps.Staff.ListAllWithPerson
 	if s.deps.PlanningProfiles != nil {
@@ -298,7 +299,7 @@ func (s *staffScheduleOverviewService) loadPlannableStaff(ctx context.Context) (
 		if member == nil {
 			continue
 		}
-		if member.IsGuest && member.Person != nil && member.Person.AccountID == nil {
+		if member.IsExternalCaregiver {
 			externalStaffIDs[member.ID] = struct{}{}
 			continue
 		}

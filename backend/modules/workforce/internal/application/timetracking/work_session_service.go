@@ -32,14 +32,16 @@ type workSessionService struct {
 	// GroupSupervisorRepository answers GetStaffIDsWithSupervisionToday
 	// for the staff list directly; its other methods serve the checkout.
 	GroupSupervisorRepository
-	groupRepo      GroupRepository
-	db             DatabaseHandle
-	staffRepo      WorkSessionStaff
-	scheduleRepo   WorkSessionSchedules
-	workModelRepo  WorkSessionTimeModels
-	settings       settingsResolver
-	staffShiftRepo WorkSessionShifts
-	holidayReader  HolidayDatesReader
+	groupRepo GroupRepository
+	db        DatabaseHandle
+	staffRepo WorkSessionStaff
+	// externalCaregivers keeps the auto-stamp off external caregivers.
+	externalCaregivers ExternalCaregiverStaff
+	scheduleRepo       WorkSessionSchedules
+	workModelRepo      WorkSessionTimeModels
+	settings           settingsResolver
+	staffShiftRepo     WorkSessionShifts
+	holidayReader      HolidayDatesReader
 	// weeklyOverrides re-prices Sonderarbeitszeit weeks; nil keeps them.
 	weeklyOverrides WeeklyTargetOverrides
 	broadcaster     EventPublisher

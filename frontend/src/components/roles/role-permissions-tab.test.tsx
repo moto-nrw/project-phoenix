@@ -104,7 +104,7 @@ describe("RolePermissionsTab", () => {
     );
 
     expect(
-      await screen.findByText("1 Berechtigungen zugewiesen."),
+      await screen.findByText("1 Berechtigung zugewiesen."),
     ).toBeInTheDocument();
     expect(screen.getByText("students:read")).toBeInTheDocument();
     expect(screen.queryByText("rooms:read")).not.toBeInTheDocument();
@@ -271,7 +271,7 @@ describe("RolePermissionsTab", () => {
         onCancelEdit={onCancelEdit}
       />,
     );
-    await screen.findByText("1 Berechtigungen zugewiesen.");
+    await screen.findByText("1 Berechtigung zugewiesen.");
 
     rerender(
       <RolePermissionsTab

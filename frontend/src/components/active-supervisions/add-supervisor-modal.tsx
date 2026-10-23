@@ -20,16 +20,17 @@ import { createLogger } from "~/lib/logger";
 import { substitutionService } from "~/lib/substitution-api";
 import type { RunningSupervision } from "~/lib/substitution-helpers";
 
-import {
-  ExternalCaregiverEntry,
-  type ExternalCaregiverResult,
-} from "./external-caregiver-entry";
+import { ExternalCaregiverEntry } from "~/components/staff/external-caregiver-entry";
+import type { Staff } from "~/lib/staff-api";
+import { externalStaffNote } from "~/lib/staff-helpers";
 
 const logger = createLogger({ component: "AddSupervisorModal" });
 
 interface AddSupervisorModalProps {
   readonly activeGroupId: string | null;
   readonly canCreateExternalCaregiver?: boolean;
+  /** Offer „Nur ansehen“ in the external entry (users:manage, ADR 0091). */
+  readonly canGrantExternalView?: boolean;
   readonly isOpen: boolean;
   readonly onClose: () => void;
   readonly onAdded: () => Promise<unknown>;
@@ -80,6 +81,7 @@ function SupervisionDetails({
   selectedStaffId,
   setSelectedStaffId,
   canCreateExternalCaregiver,
+  canGrantExternalView,
   onExternalAdded,
 }: {
   overview: RunningSupervision;
@@ -87,7 +89,8 @@ function SupervisionDetails({
   selectedStaffId: string;
   setSelectedStaffId: (value: string) => void;
   canCreateExternalCaregiver: boolean;
-  onExternalAdded: (result: ExternalCaregiverResult) => void;
+  canGrantExternalView: boolean;
+  onExternalAdded: (staff: Staff) => void;
 }) {
   if (!overview.canAssign)
     return (
@@ -112,28 +115,19 @@ function SupervisionDetails({
       )}
       {canCreateExternalCaregiver ? (
         <ExternalCaregiverEntry
-          existing={[
-            ...targets.map((target) => ({
-              id: target.id,
-              fullName: target.fullName,
-              isExternal: target.isExternal === true,
-            })),
-            ...overview.supervisors.map((supervisor) => ({
-              id: supervisor.id,
-              fullName: supervisor.fullName,
-              isExternal: supervisor.isExternal === true,
-              isAlreadyAssigned: true,
-            })),
-          ]}
           onAdded={onExternalAdded}
+          canGrantView={canGrantExternalView}
         />
       ) : null}
     </div>
   );
 }
 
+// Wie in den anderen Auswahllisten: „Name (Extern · Musikschule, Einladung
+// offen)“ (#4573). Externe mit jedem Zugang kommen hier an (ADR 0091).
 function targetLabel(target: SupervisionTarget): string {
-  return target.isExternal ? `${target.fullName} (extern)` : target.fullName;
+  const note = externalStaffNote(target);
+  return note ? `${target.fullName} (${note})` : target.fullName;
 }
 
 function SupervisorSelect({
@@ -228,8 +222,9 @@ function ModalBody(props: {
   isLoading: boolean;
   selectedStaffId: string;
   setSelectedStaffId: (value: string) => void;
-  onExternalAdded: (result: ExternalCaregiverResult) => void;
+  onExternalAdded: (staff: Staff) => void;
   canCreateExternalCaregiver: boolean;
+  canGrantExternalView: boolean;
 }) {
   return (
     <div className="space-y-5">
@@ -308,19 +303,25 @@ function useSupervisionTargets(
     ...offered,
     ...added.filter((extra) => !offered.some((item) => item.id === extra.id)),
   ];
-  const onExternalAdded = (result: ExternalCaregiverResult) => {
-    if (result.kind === "created") {
-      const { staff } = result;
-      const fullName =
-        staff.name || [staff.firstName, staff.lastName].join(" ").trim();
-      setAdded((prev) => [
-        ...prev,
-        { id: staff.id, fullName, isExternal: true },
-      ]);
-      setSelectedStaffId(staff.id);
-      return;
-    }
-    setSelectedStaffId(result.id);
+  // A new entry is selectable right away, with its open invitation.
+  const onExternalAdded = (staff: Staff) => {
+    const fullName =
+      staff.name || [staff.firstName, staff.lastName].join(" ").trim();
+    setAdded((prev) => [
+      ...prev.filter((item) => item.id !== staff.id),
+      {
+        id: staff.id,
+        fullName,
+        isExternal: true,
+        ...(staff.externalOrganization
+          ? { externalOrganization: staff.externalOrganization }
+          : {}),
+        ...(staff.externalAccountStatus
+          ? { externalAccountStatus: staff.externalAccountStatus }
+          : {}),
+      },
+    ]);
+    setSelectedStaffId(staff.id);
   };
   return { targets, onExternalAdded };
 }
@@ -363,6 +364,7 @@ export function AddSupervisorModal(props: AddSupervisorModalProps) {
         targets={targets}
         onExternalAdded={onExternalAdded}
         canCreateExternalCaregiver={props.canCreateExternalCaregiver ?? false}
+        canGrantExternalView={props.canGrantExternalView ?? false}
         saveError={action.error}
         selectedStaffId={selectedStaffId}
         setSelectedStaffId={setSelectedStaffId}

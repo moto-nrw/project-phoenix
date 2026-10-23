@@ -34,7 +34,7 @@ func (q monthCloseStaffQuery) ListMonthCloseStaff(ctx context.Context) ([]workfo
 	}
 	staff := make([]workforceModule.MonthCloseStaff, 0, len(rows))
 	for _, row := range rows {
-		staff = append(staff, workforceModule.MonthCloseStaff{ID: row.ID, Guest: row.IsGuest})
+		staff = append(staff, workforceModule.MonthCloseStaff{ID: row.ID, ExternalCaregiver: row.IsExternalCaregiver})
 	}
 	return staff, nil
 }
@@ -55,7 +55,7 @@ func (q overviewStaffQuery) ListOverviewStaff(ctx context.Context) ([]workforceC
 	for _, row := range rows {
 		member := workforceCompose.OverviewStaff{
 			ID: row.ID, EmploymentType: row.EmploymentType, PersonnelNumber: row.PersonnelNumber,
-			WorkTimeModelID: row.WorkTimeModelID, RotationAnchorDate: row.RotationAnchorDate, Guest: row.IsGuest,
+			WorkTimeModelID: row.WorkTimeModelID, RotationAnchorDate: row.RotationAnchorDate, ExternalCaregiver: row.IsExternalCaregiver,
 		}
 		if row.Person != nil {
 			member.FirstName = row.Person.FirstName
@@ -80,7 +80,7 @@ func (q timeExportStaffQuery) ListExportStaff(ctx context.Context) ([]workforceC
 	}
 	staff := make([]workforceCompose.TimeExportStaff, 0, len(rows))
 	for _, row := range rows {
-		member := workforceCompose.TimeExportStaff{ID: row.ID, Guest: row.IsGuest}
+		member := workforceCompose.TimeExportStaff{ID: row.ID, ExternalCaregiver: row.IsExternalCaregiver}
 		if row.Person != nil {
 			member.FirstName = row.Person.FirstName
 			member.LastName = row.Person.LastName
@@ -109,6 +109,24 @@ func (q staffDisplayNameQuery) StaffDisplayNames(ctx context.Context, ids []int6
 		}
 	}
 	return names, nil
+}
+
+type externalCaregiverStaff struct{ source staffNameRecords }
+
+// externalCaregiverLookup answers whether a staff member is an external
+// caregiver by School Membership's rule (#4573), which the person-hydrated
+// staff rows apply: an active external caregiver record, whatever the account.
+func externalCaregiverLookup(source staffNameRecords) externalCaregiverStaff {
+	return externalCaregiverStaff{source: source}
+}
+
+func (q externalCaregiverStaff) IsExternalCaregiver(ctx context.Context, staffID int64) (bool, error) {
+	rows, err := q.source.FindWithPersonByIDs(ctx, []int64{staffID})
+	if err != nil {
+		return false, err
+	}
+	row := rows[staffID]
+	return row != nil && row.IsExternalCaregiver, nil
 }
 
 type workSessionStaffRecords interface {

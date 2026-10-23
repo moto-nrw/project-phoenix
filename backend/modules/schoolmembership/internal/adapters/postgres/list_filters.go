@@ -50,36 +50,36 @@ func teacherListQuery(query *bun.SelectQuery, filter schoolmembership.TeacherFil
 	return query, true
 }
 
-// guestListQuery applies a guest filter; false means it matches nothing.
-func guestListQuery(query *bun.SelectQuery, filter schoolmembership.GuestFilter) (*bun.SelectQuery, bool, error) {
+// externalCaregiverRecordListQuery applies an external caregiver record filter; false means it matches nothing.
+func externalCaregiverRecordListQuery(query *bun.SelectQuery, filter schoolmembership.ExternalCaregiverRecordFilter) (*bun.SelectQuery, bool, error) {
 	if matchesNothing(filter.IDs, filter.StaffIDs) {
 		return query, false, nil
 	}
 	if filter.IDs != nil {
-		query = query.Where(`"guest".id IN (?)`, bun.List(filter.IDs))
+		query = query.Where(`"external_caregiver".id IN (?)`, bun.List(filter.IDs))
 	}
 	if filter.StaffIDs != nil {
-		query = query.Where(`"guest".staff_id IN (?)`, bun.List(filter.StaffIDs))
+		query = query.Where(`"external_caregiver".staff_id IN (?)`, bun.List(filter.StaffIDs))
 	}
 	if filter.ActiveOn != "" {
 		activeOn, err := optionalDate(filter.ActiveOn, "active-on date")
 		if err != nil {
 			return query, false, err
 		}
-		query = query.Where(`("guest".start_date IS NULL OR "guest".start_date <= ?)`, activeOn).
-			Where(`("guest".end_date IS NULL OR "guest".end_date >= ?)`, activeOn)
+		query = query.Where(`("external_caregiver".start_date IS NULL OR "external_caregiver".start_date <= ?)`, activeOn).
+			Where(`("external_caregiver".end_date IS NULL OR "external_caregiver".end_date >= ?)`, activeOn)
 	}
 	if filter.OrganizationContains != "" {
-		query = query.Where(`"guest".organization ILIKE ?`, "%"+escapeLike(filter.OrganizationContains)+"%")
+		query = query.Where(`"external_caregiver".organization ILIKE ?`, "%"+escapeLike(filter.OrganizationContains)+"%")
 	}
 	if filter.ExpertiseContains != "" {
-		query = query.Where(`"guest".activity_expertise ILIKE ?`, "%"+escapeLike(filter.ExpertiseContains)+"%")
+		query = query.Where(`"external_caregiver".activity_expertise ILIKE ?`, "%"+escapeLike(filter.ExpertiseContains)+"%")
 	}
 	if filter.HasOrganization != nil {
 		if *filter.HasOrganization {
-			query = query.Where(`"guest".organization IS NOT NULL`)
+			query = query.Where(`"external_caregiver".organization IS NOT NULL`)
 		} else {
-			query = query.Where(`"guest".organization IS NULL`)
+			query = query.Where(`"external_caregiver".organization IS NULL`)
 		}
 	}
 	return query, true, nil

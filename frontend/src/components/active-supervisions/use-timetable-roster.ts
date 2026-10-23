@@ -14,6 +14,7 @@ export interface TimetableRosterState {
   readonly isWaitingForTimetableRoster: boolean;
   /** The roster request failed (e.g. no permission to view the block). */
   readonly hasRosterError: boolean;
+  readonly rosterError: unknown;
   readonly mutateRoster: (
     data?: TimetableRoster | null,
     opts?: { revalidate?: boolean },
@@ -102,6 +103,7 @@ export function useTimetableRoster(options: {
     isWaitingForTimetableRoster,
     hasRosterError:
       timetableRosterKey !== null && Boolean(timetableRosterError),
+    rosterError: timetableRosterKey !== null ? timetableRosterError : undefined,
     mutateRoster,
   };
 }

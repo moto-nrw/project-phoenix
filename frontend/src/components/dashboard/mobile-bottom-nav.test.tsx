@@ -156,6 +156,13 @@ const mockIsCaregiver = vi.mocked(isCaregiver);
 const mockCanReadSupervisionData = vi.mocked(canReadSupervisionData);
 const mockHasEffectiveAdminScope = vi.mocked(hasEffectiveAdminScope);
 const mockHasPermission = vi.mocked(hasPermission);
+const CAREGIVER_NAV_PERMISSIONS = new Set([
+  "users:read",
+  "time_tracking:own",
+  "rooms:read",
+  "activities:read",
+  "substitutions:read",
+]);
 const mockUseShellAuth = vi.mocked(useShellAuth);
 const mockUseChangeRequestAccess = vi.mocked(useChangeRequestAccess);
 const mockUseAttendanceLogEnabled = vi.mocked(useAttendanceLogEnabled);
@@ -241,13 +248,25 @@ describe("MobileBottomNav", () => {
     });
     mockIsAdmin.mockReturnValue(false);
     mockIsCaregiver.mockImplementation((session) => !mockIsAdmin(session));
-    mockCanReadSupervisionData.mockImplementation((session) =>
-      mockIsCaregiver(session),
+    // Wie die echte Funktion: Adminzuschnitt, groups:read oder (ohne
+    // Rechteliste) die Betreuungsrolle. canOpenActiveSupervision baut darauf.
+    mockCanReadSupervisionData.mockImplementation(
+      (session) =>
+        mockHasEffectiveAdminScope(session) ||
+        mockHasPermission(session, "groups:read") ||
+        mockIsCaregiver(session),
     );
     mockHasEffectiveAdminScope.mockImplementation((session) =>
       mockIsAdmin(session),
     );
-    mockHasPermission.mockReturnValue(false);
+    // Eine Betreuungskraft hält die Rechte der Systemrolle „user“, die die
+    // Navigation prüft. Seit #4573 hängen Suchen/Alle Kinder, Mitarbeiter,
+    // Zeiterfassung, Elternnachrichten, Räume, Aktivitäten, Vertretungen
+    // und Notfall am Recht ihrer Route.
+    mockHasPermission.mockImplementation(
+      (session, permission) =>
+        !mockIsAdmin(session) && CAREGIVER_NAV_PERMISSIONS.has(permission),
+    );
     mockUseNFCEnabled.mockReturnValue(true);
     mockUsePresenceMode.mockReturnValue("detailed");
     mockUseOpenCareGroupMode.mockReturnValue(false);
@@ -1283,6 +1302,121 @@ describe("MobileBottomNav", () => {
 
       expect(screen.queryByText("Dienstpläne")).not.toBeInTheDocument();
       expect(screen.getByText("Statistik")).toBeInTheDocument();
+    });
+  });
+
+  // ADR 0091: die AG-Leitung hält nur schedules:read und heißt nicht
+  // `user`. Reiter und Menüeinträge, deren Route sie nicht öffnen darf,
+  // fehlen; eine Betreuungskraft sieht sie. Die Aufsicht öffnet sie mit
+  // schedules:read (nur die eigene laufende Aufsicht), also behält sie den
+  // Reiter.
+  describe("AG-Leitung und Gast", () => {
+    const GATED_MENU_LABELS = [
+      "Zeiterfassung",
+      "Mitarbeiter",
+      "Nachrichten",
+      "Räume",
+      "Aktivitäten",
+      "Vertretungen",
+      "Notfall",
+    ];
+    const getMoreButton = () => {
+      const navButtons = screen.getAllByRole("button");
+      return navButtons.find((btn) => !btn.hasAttribute("data-testid"))!;
+    };
+
+    function mainHrefs(): (string | null)[] {
+      return screen
+        .getAllByRole("link")
+        .map((link) => link.getAttribute("href"));
+    }
+
+    it("zeigt keine Sackgassen in Leiste und Mehr-Menü", () => {
+      mockIsCaregiver.mockReturnValue(false);
+      mockHasPermission.mockImplementation(
+        (_session, permission) => permission === "schedules:read",
+      );
+
+      render(<MobileBottomNav />);
+
+      // Anker: die Leiste ist geladen und führt zur Startseite.
+      const hrefs = mainHrefs();
+      expect(hrefs).toContain("/home");
+      expect(hrefs).not.toContain("/students/search");
+      expect(hrefs).toContain("/active-supervisions");
+
+      fireEvent.click(getMoreButton());
+      // Anker: das Mehr-Menü ist offen.
+      expect(screen.getByText("Dateien")).toBeInTheDocument();
+      for (const label of [...GATED_MENU_LABELS, "Alle Kinder"]) {
+        expect(screen.queryByText(label)).not.toBeInTheDocument();
+      }
+    });
+
+    // Review #4573: eine Betreuungsrolle, die die Schule selbst benannt hat,
+    // heißt nicht `user`. Die Aufsicht hängt am Recht, nicht am Namen.
+    it("zeigt einer selbst benannten Betreuungsrolle die Aufsicht", () => {
+      mockIsCaregiver.mockReturnValue(false);
+      mockHasPermission.mockImplementation(
+        (_session, permission) =>
+          CAREGIVER_NAV_PERMISSIONS.has(permission) ||
+          permission === "groups:read",
+      );
+
+      render(<MobileBottomNav />);
+
+      expect(mainHrefs()).toContain("/active-supervisions");
+    });
+
+    it("zeigt die Aufsicht ohne groups:read und schedules:read nicht", () => {
+      mockIsCaregiver.mockReturnValue(false);
+      mockHasPermission.mockImplementation((_session, permission) =>
+        CAREGIVER_NAV_PERMISSIONS.has(permission),
+      );
+
+      render(<MobileBottomNav />);
+
+      const hrefs = mainHrefs();
+      // Anker: die Leiste ist geladen.
+      expect(hrefs).toContain("/home");
+      expect(hrefs).not.toContain("/active-supervisions");
+    });
+
+    // Der Gast hält students:read statt users:read: „Suchen“ führt auf
+    // Alle Kinder, Elternnachrichten und Notfall fehlen.
+    it("zeigt dem Gast die Suche nach Kindern, aber keine Elterndaten", () => {
+      mockIsCaregiver.mockReturnValue(false);
+      mockHasPermission.mockImplementation((_session, permission) =>
+        [
+          "students:read",
+          "groups:read",
+          "rooms:read",
+          "activities:read",
+        ].includes(permission),
+      );
+
+      render(<MobileBottomNav />);
+
+      expect(mainHrefs()).toContain("/students/search");
+      fireEvent.click(getMoreButton());
+      // Anker: das Mehr-Menü ist offen.
+      expect(screen.getByText("Dateien")).toBeInTheDocument();
+      for (const label of ["Nachrichten", "Notfall", "Mitarbeiter"]) {
+        expect(screen.queryByText(label)).not.toBeInTheDocument();
+      }
+    });
+
+    it("zeigt dieselben Einträge einer Betreuungskraft", () => {
+      render(<MobileBottomNav />);
+
+      const hrefs = mainHrefs();
+      expect(hrefs).toContain("/students/search");
+      expect(hrefs).toContain("/active-supervisions");
+
+      fireEvent.click(getMoreButton());
+      for (const label of GATED_MENU_LABELS) {
+        expect(screen.getByText(label)).toBeInTheDocument();
+      }
     });
   });
 

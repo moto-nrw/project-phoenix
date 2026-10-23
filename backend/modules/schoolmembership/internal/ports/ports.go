@@ -51,12 +51,12 @@ type Store interface {
 	// ErrTeacherNotFound when there is none to reinstate.
 	ReinstateTeacher(context.Context, int64) (schoolmembership.Teacher, domain.OperationStats, error)
 
-	FindGuest(ctx context.Context, id int64, lock string) (schoolmembership.Guest, bool, domain.OperationStats, error)
-	FindGuestByStaff(context.Context, int64) (schoolmembership.Guest, bool, domain.OperationStats, error)
-	ListGuests(context.Context, schoolmembership.GuestFilter) ([]schoolmembership.Guest, domain.OperationStats, error)
-	CreateGuest(context.Context, schoolmembership.GuestFields) (schoolmembership.Guest, domain.OperationStats, error)
-	UpdateGuest(context.Context, int64, schoolmembership.GuestFields) (schoolmembership.Guest, domain.OperationStats, error)
-	DeleteGuest(context.Context, int64) (domain.OperationStats, error)
+	FindExternalCaregiverRecord(ctx context.Context, id int64, lock string) (schoolmembership.ExternalCaregiverRecord, bool, domain.OperationStats, error)
+	FindExternalCaregiverRecordByStaff(context.Context, int64) (schoolmembership.ExternalCaregiverRecord, bool, domain.OperationStats, error)
+	ListExternalCaregiverRecords(context.Context, schoolmembership.ExternalCaregiverRecordFilter) ([]schoolmembership.ExternalCaregiverRecord, domain.OperationStats, error)
+	CreateExternalCaregiverRecord(context.Context, schoolmembership.ExternalCaregiverRecordFields) (schoolmembership.ExternalCaregiverRecord, domain.OperationStats, error)
+	UpdateExternalCaregiverRecord(context.Context, int64, schoolmembership.ExternalCaregiverRecordFields) (schoolmembership.ExternalCaregiverRecord, domain.OperationStats, error)
+	DeleteExternalCaregiverRecord(context.Context, int64) (domain.OperationStats, error)
 
 	FindClassListEntry(ctx context.Context, id int64, lock string) (schoolmembership.ClassListEntry, bool, domain.OperationStats, error)
 	ListClassListEntries(context.Context, schoolmembership.ClassListEntryFilter) ([]schoolmembership.ClassListEntry, domain.OperationStats, error)
@@ -84,7 +84,7 @@ type Store interface {
 	MarkNextRetiredStaffErased(ctx context.Context, before time.Time, afterID int64) (schoolmembership.RetiredStaffErasure, bool, domain.OperationStats, error)
 	DeleteGroupAssignmentsByStaff(context.Context, int64) (domain.OperationStats, error)
 	DeleteTeachersByStaff(context.Context, int64) (domain.OperationStats, error)
-	DeleteGuestsByStaff(context.Context, int64) (domain.OperationStats, error)
+	DeleteExternalCaregiverRecordsByStaff(context.Context, int64) (domain.OperationStats, error)
 }
 
 // StaffEmployment is the consumer-owned Workforce port over the employment

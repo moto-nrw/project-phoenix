@@ -2,7 +2,7 @@ package organizationtenancy
 
 import "embed"
 
-// DataLifecycleCatalogSource embeds the single production catalog (ADR 0091).
+// DataLifecycleCatalogSource embeds the single production catalog (ADR 0092).
 // Read data_lifecycle_catalog.json and decode it into DataLifecycleCatalog.
 // embed.FS returns a fresh byte slice on ReadFile; readers do not share mutable
 // maps or slices. Migration guards read the same serialized source directly.
@@ -12,7 +12,7 @@ import "embed"
 var DataLifecycleCatalogSource embed.FS
 
 // DataLifecycleCatalog is the common inventory for tenant erasure and return
-// (ADR 0091). Classification is not an implemented erasure or export procedure.
+// (ADR 0092). Classification is not an implemented erasure or export procedure.
 // Scope and export values are documented in docs/reference/datenkatalog.md.
 type DataLifecycleCatalog struct {
 	Version int                 `json:"version"`
