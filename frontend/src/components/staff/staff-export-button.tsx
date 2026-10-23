@@ -54,15 +54,16 @@ export function StaffExportButton({
   readonly staffId: string;
   readonly yearStart: Date;
 }) {
+  const yearStartISO = toISODate(yearStart);
   const [open, setOpen] = useState(false);
   const [range, setRange] = useState<DateRange | undefined>(() =>
     defaultRange(yearStart),
   );
 
-  // Jeder neue Export beginnt mit den letzten 30 Tagen.
+  // Nur beim Öffnen oder bei einer anderen Datumsgrenze neu vorbelegen.
   useEffect(() => {
-    if (open) setRange(defaultRange(yearStart));
-  }, [open, yearStart]);
+    if (open) setRange(defaultRange(parseISODate(yearStartISO)));
+  }, [open, yearStartISO]);
 
   const run = useExportRun({
     isOpen: open,

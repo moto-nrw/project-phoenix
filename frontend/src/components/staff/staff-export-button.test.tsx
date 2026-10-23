@@ -58,6 +58,38 @@ describe("StaffExportButton", () => {
     );
   });
 
+  it("keeps the selected range when the parent recreates the same year start", async () => {
+    exportStaffTimeTracking.mockResolvedValue(undefined);
+    const view = () => (
+      <ToastProvider>
+        <StaffExportButton staffId="7" yearStart={new Date(2026, 0, 1)} />
+      </ToastProvider>
+    );
+    const { rerender } = render(view());
+    fireEvent.click(screen.getByRole("button", { name: "Menü öffnen" }));
+    fireEvent.click(screen.getByRole("menuitem", { name: "Exportieren" }));
+    fireEvent.click(screen.getByRole("button", { name: "Letzte 7 Tage" }));
+
+    expect(
+      screen.getByText("Arbeitszeiten vom 03.09.2026 bis 09.09.2026."),
+    ).toBeInTheDocument();
+
+    rerender(view());
+
+    expect(
+      screen.getByRole("heading", { name: "Zeitnachweis exportieren" }),
+    ).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Herunterladen" }));
+    await waitFor(() =>
+      expect(exportStaffTimeTracking).toHaveBeenCalledWith(
+        "7",
+        "2026-09-03",
+        "2026-09-09",
+        "pdf",
+      ),
+    );
+  });
+
   it("starts at the beginning of the year when fewer than 30 days have passed", async () => {
     setTestClock("2026-01-12T12:00:00+01:00");
     exportStaffTimeTracking.mockResolvedValue(undefined);
