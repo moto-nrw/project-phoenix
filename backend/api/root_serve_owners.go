@@ -8,6 +8,7 @@ import (
 	owners "github.com/moto-nrw/project-phoenix/roots/owners"
 
 	staffAudience "github.com/moto-nrw/project-phoenix/modules/staffannouncementaudience"
+	"github.com/moto-nrw/project-phoenix/modules/staffannouncementaudience/contract"
 
 	"github.com/moto-nrw/project-phoenix/modules/careplan"
 	communicationModule "github.com/moto-nrw/project-phoenix/modules/communication"
@@ -53,5 +54,22 @@ func buildCommunicationModule(db transactionruntime.Database, env owners.RootEnv
 
 // NewCommunicationAnnouncements binds the staff audience projection at the root.
 func NewCommunicationAnnouncements(deps communicationCompose.Dependencies) (communicationModule.Capability, error) {
-	return communicationCompose.New(deps, staffAudience.Map(staffAudience.New(communicationCompose.AnnouncementDatabase()), communicationCompose.AudienceMapping()))
+	return communicationCompose.New(deps, staffAudience.Map(staffAudience.New(communicationCompose.AnnouncementDatabase()), announcementAudienceMapping()))
+}
+
+func announcementAudienceMapping() contract.Rows[communicationModule.Announcement, communicationModule.AnnouncementViewDetail, communicationCompose.OperationStats] {
+	return contract.Rows[communicationModule.Announcement, communicationModule.AnnouncementViewDetail, communicationCompose.OperationStats]{
+		Announcement: func(row contract.Announcement) communicationModule.Announcement {
+			return communicationModule.Announcement(row)
+		},
+		Target: func(value communicationModule.Announcement) contract.Target {
+			return contract.Target{PublishedAt: value.PublishedAt, TargetRoles: value.TargetRoles, TargetOrgIDs: value.TargetOrgIDs, TargetTenantIDs: value.TargetTenantIDs}
+		},
+		View: func(row contract.ViewDetail) communicationModule.AnnouncementViewDetail {
+			return communicationModule.AnnouncementViewDetail(row)
+		},
+		Stats: func(stats contract.Stats) communicationCompose.OperationStats {
+			return communicationCompose.OperationStats{Queries: stats.Queries, Rows: stats.Rows, StatementDuration: stats.StatementDuration}
+		},
+	}
 }
