@@ -31,6 +31,7 @@ The directory is owner-only. These files contain secrets and personal data;
 keep them on the server, never in Git or CI logs. Host certificates and the
 Docker installation are unchanged infrastructure, not part of this
 application rollback. This snapshot is not an off-host disaster-recovery copy.
+Release snapshots are rollback points; the [encrypted daily backup](daily-backup.md) is the disaster-recovery backup for #3836.
 The PostgreSQL container must be dedicated to the application: one `postgres`
 database and default tablespaces. The scripts reject shared clusters. Restore
 recreates non-system roles as well as the database, so newer role memberships
