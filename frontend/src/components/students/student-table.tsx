@@ -170,8 +170,9 @@ export function statusColumn<T extends Student>(
     header,
     className: "whitespace-nowrap",
     stacked: "meta",
-    // One line per child on a phone: the badges side by side instead of
-    // stacked. A second badge (Krank, Ungeplant anwesend) stays visible.
+    // One line per child on a phone: the pill and its hint line (Krank,
+    // Ungeplant anwesend) side by side instead of stacked; the hint stays
+    // visible.
     stackedClassName:
       "[&>span]:flex-row [&>span]:flex-wrap [&>span]:items-center [&>span]:justify-end [&_.items-end]:flex-row [&_.items-end]:flex-wrap [&_.items-end]:justify-end [&_.items-end]:gap-1 [&_.mt-1]:mt-0 [&_span]:whitespace-nowrap",
     render: (student) => (
