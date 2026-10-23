@@ -133,6 +133,8 @@ func TestCommandEffectsChangedCallableAssignmentsNeedFreshApproval(t *testing.T)
 		{"field assignment", "type binding struct { command func() }", "b.command()", "b := binding{}; b.command = func() { marker() }; enrollment.Run(b)"},
 		{"constructor parameter", "type binding struct { command func() }; func makeBinding(command func()) binding { return binding{command: command} }", "b.command()", "enrollment.Run(makeBinding(func() { marker() }))"},
 		{"callable variable", "type binding struct { command func() }", "command := b.command; command()", "enrollment.Run(binding{command: func() { marker() }})"},
+		{"tuple constructor argument", "type binding struct { command func() }; func makeBinding(_ int, command func()) binding { return binding{command: command} }; func supply() (int, func()) { return 0, func() { marker() } }", "b.command()", "enrollment.Run(makeBinding(supply()))"},
+		{"variadic tuple constructor argument", "type binding struct { command func() }; func makeBinding(_ int, commands ...func()) binding { return binding{command: commands[0]} }; func supply() (int, func()) { return 0, func() { marker() } }", "b.command()", "enrollment.Run(makeBinding(supply()))"},
 		{"tuple factory", "type binding struct { command func() }; func factory() (func(), error) { return func() { marker() }, nil }", "b.command()", "command, _ := factory(); enrollment.Run(binding{command: command})"},
 		{"container source", "type binding struct { command func() }", "b.command()", "commands := []func(){func() { marker() }}; enrollment.Run(binding{command: commands[0]})"},
 		{"called helper", "type binding struct { command func() }; func helper() { marker() }", "b.command()", "enrollment.Run(binding{command: helper})"},

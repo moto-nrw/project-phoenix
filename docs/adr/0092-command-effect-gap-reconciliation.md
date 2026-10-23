@@ -40,3 +40,12 @@ Against that development commit the merged register contains 5,350 entries:
 and 642 unresolved entries. The 70 gap-repair approvals cite 0092, including
 the renamed callable whose assignment fingerprint changes. The original
 pre-merge measurements in ADR 0083 remain historical evidence.
+
+The subsequent integrations of `c69f73f218` (#4755) and `b8c42a3cda` (#4832) leave these register counts
+unchanged. The tuple-argument evidence correction adds no production identity
+or digest change; its normal/variadic fixtures are red before and green after.
+
+Final tuple-corrected warm `check` against full merge-base
+`b8c42a3cdac13d1270017eee39fcd79a207b8fba`: 33.80 s wall, 93.69 s user,
+20.87 s system, after an untimed warmup and without concurrent own tests/lint.
+The fresh-base no-new-ADR counterprobe remains red (67 existing changes).

@@ -605,3 +605,14 @@ Full platform effects, transaction/savepoint, authorization, lock-order and
 after-commit protocol proofs remain a separate 2–4 day follow-up. Combining
 those cuts here would require a broad new register review rather than a bounded
 gate repair. No follow-up issue is created.
+
+### Tuple-valued callable arguments (quorum follow-up)
+
+The first quorum review of PR #4837 found that `makeBinding(supply())` lost
+callback evidence when `supply` returned `(int, func())`: the sole AST argument
+was assigned only to parameter zero. Two new fixtures reproduced the unchanged
+fingerprint and missing fresh-ADR refusal, for ordinary and variadic callable
+parameters. Callable collection now expands the typed tuple's parameter slots,
+retaining the supplying expression as evidence for each callable slot. Both
+fixtures reject the changed returned closure through generation, base comparison
+and CLI `check`. Comments and unrelated wiring remain unaffected.

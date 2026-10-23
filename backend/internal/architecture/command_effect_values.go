@@ -167,7 +167,13 @@ func (values effectValues) collectCall(pkg *packages.Package, n *ast.CallExpr) {
 	if !ok {
 		return
 	}
-	for i, arg := range n.Args {
+	// A sole multi-result expression supplies multiple parameters. Retain that
+	// expression for every callable slot so its factory body joins the evidence.
+	for i := range effectArgumentTypes(pkg, n.Args) {
+		arg := n.Args[0]
+		if len(n.Args) > 1 {
+			arg = n.Args[i]
+		}
 		if signature.Variadic() && i >= signature.Params().Len()-1 {
 			i = signature.Params().Len() - 1
 		}
