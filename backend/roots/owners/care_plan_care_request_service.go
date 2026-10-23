@@ -179,7 +179,7 @@ func newRequestCapabilities(s *CareScheduleRequestService, messenger compose.Req
 		Plans: decisionAdapter, Effects: effects}); err != nil {
 		return c, fmt.Errorf("care request corrections: %w", err)
 	}
-	if c.conflicts, err = compose.NewRequestConflicts(s.RequestRecords, requestConflictPlans{s}, c.decisions, s.todayDate); err != nil {
+	if c.conflicts, err = compose.NewRequestConflicts(s.RequestRecords, decisionAdapter, requestConflictPlans{s}, c.decisions, s.todayDate); err != nil {
 		return c, fmt.Errorf("care request conflicts: %w", err)
 	}
 	return c, nil
