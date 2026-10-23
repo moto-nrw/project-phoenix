@@ -37,9 +37,10 @@ Wiederholung nach DB-Fehlern werden lokal geprüft. Der Nachweis bleibt nach
 dem DB-Schritt bei `db_done`, nicht `completed`.
 [Vertrag und Grenzen](mandantenloeschung-datenbank.md).
 
-**Noch nicht umgesetzt:** vollständiges Löschverfahren mit CLI, Dateien,
-Nebensystemen und Gesamtabschluss (3837-c), Wiederholung nach Restore
-(3837-d), Personen-/Gesamtexport (#3838). Die Katalogeinträge selbst sind
+**CLI und Dateiphase im Code umgesetzt (3837-c):**
+[Runbook](../operations/tenant-erasure.md), Migration `1.15.490`.
+**Offen:** produktiver Nachweis, manuelle Nebensystemschritte, Trägerwurzel,
+Wiederholung nach Restore (3837-d), Personen-/Gesamtexport (#3838). Die Katalogeinträge selbst sind
 keine Berechtigungen und kein produktiver Durchführungsnachweis.
 
 **Produktiv nachzuweisen:** Einsatz und Wirksamkeit der späteren Verfahren,
