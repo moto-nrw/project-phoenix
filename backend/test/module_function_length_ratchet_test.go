@@ -74,7 +74,7 @@ const moduleFuncLenThreshold = 60
 // ADR 0082: newly covered sources, measured at 722c5aa147; no headroom.
 var moduleFuncLenAllowlist = map[string]int{
 	"api/active_test_helpers.go:buildActiveTestModule":                                       185,
-	"api/auth_test_helpers.go:NewAuthTestModule":                                             169,
+	"api/auth_test_helpers.go:NewAuthTestModule":                                             164,
 	"api/calendar_test_helpers.go:NewCalendarTestModule":                                     63,
 	"api/guardian_invitation_test_helpers.go:lifecycleTestModule":                            61,
 	"api/guardians_composition.go:newGuardiansResource":                                      108,
@@ -99,7 +99,7 @@ var moduleFuncLenAllowlist = map[string]int{
 	"roots/owners/parent_messaging_announcement_access_port.go:BindParentAnnouncementAccess": 125,
 	"roots/owners/root_identity.go:BuildIdentityAccess":                                      106,
 	"roots/owners/root_worker.go:ComposeWorker":                                              358,
-	"roots/owners/worker.go:NewWorker":                                                       91,
+	"roots/owners/worker.go:NewWorker":                                                       89,
 }
 
 func TestModuleFunctionLengthRatchet(t *testing.T) {

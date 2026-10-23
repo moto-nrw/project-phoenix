@@ -215,8 +215,7 @@ func composeServeRoot(
 		},
 		func() (err error) { guardian, err = owners.BuildGuardianService(db, people, audit); return },
 		func() error {
-			unlinker := peopledirectory.NewPhotoUnlinker(env.Logger.With("component", "student-photo-unlinker"), "public", nativeUploads.UploadFiles{})
-			photoRuntime = owners.BuildStudentPhotoRuntime(db, env, settings.Service, hub, audit, unlinker, actingAccountID)
+			photoRuntime = buildServeStudentPhotoRuntime(db, env, settings.Service, hub, audit)
 			return nil
 		},
 		func() (err error) {

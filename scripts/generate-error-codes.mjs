@@ -48,8 +48,8 @@ export function generate(registry) {
   const symbolWidth = Math.max(...entries.map((entry) => goSymbol(entry.code).length));
   const codeKeyWidth = Math.max(...entries.map((entry) => JSON.stringify(entry.code).length + 1));
   const go = header + "package common\n\nconst (\n" + entries.map((entry) =>
-    `\t${goSymbol(entry.code).padEnd(symbolWidth)} = ${JSON.stringify(entry.code)}\n`).join("") + ")\n\n" +
-    "var errorClassByCode = map[string]string{\n" + entries.map((entry) =>
+    `\t${goSymbol(entry.code).padEnd(symbolWidth)} = ${JSON.stringify(entry.code)}\n`).join("") + ")\n";
+  const goClasses = header + "package common\n\nvar errorClassByCode = map[string]string{\n" + entries.map((entry) =>
       `\t${(`${JSON.stringify(entry.code)}:`).padEnd(codeKeyWidth)} ${JSON.stringify(entry.class)},\n`).join("") + "}\n";
   const ts = header + "export const ERROR_CODES = [\n" + entries.map((entry) =>
     `  ${JSON.stringify(entry.code)},\n`).join("") + "] as const;\n\n" +
@@ -65,12 +65,13 @@ export function generate(registry) {
         ? `${prefix}${inline},\n`
         : `${prefix}[\n${values.map((value) => `    ${value},\n`).join("")}  ],\n`;
     }).join("") + "};\n";
-  return { go, ts };
+  return { go, goClasses, ts };
 }
 
 if (process.argv[1] && fileURLToPath(import.meta.url) === process.argv[1]) {
   const registry = JSON.parse(readFileSync(registryPath, "utf8"));
-  const { go, ts } = generate(registry);
+  const { go, goClasses, ts } = generate(registry);
   writeFileSync(join(root, "backend", "api", "common", "error_codes.generated.go"), go);
+  writeFileSync(join(root, "backend", "api", "common", "error_classes.generated.go"), goClasses);
   writeFileSync(join(root, "frontend", "src", "lib", "error-codes.generated.ts"), ts);
 }

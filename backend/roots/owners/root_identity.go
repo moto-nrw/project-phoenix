@@ -51,11 +51,7 @@ func BuildIdentityAccess(
 	cfg, links := env.Config, env.Links
 	authLogger := env.Logger.With("service", "auth")
 	platformLogger := env.Logger.With("service", "platform")
-	tenantDomain := strings.TrimSpace(cfg.TenantDomain)
-	if tenantDomain == "" {
-		return nil, nil, fmt.Errorf("TENANT_DOMAIN is required")
-	}
-	operatorFrontendURL, err := operatorFrontendURLOf(cfg.OperatorHostname, links.FrontendURL)
+	tenantDomain, operatorFrontendURL, err := identityPortalHosts(cfg.TenantDomain, cfg.OperatorHostname, links.FrontendURL)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -180,4 +176,17 @@ func IdentityDeliveryRenderers(module identityaccess.Owner, defaultFrom email.Em
 			InvitationDeliverySent: module.SchoolInvitationDeliverySent,
 		}),
 	}
+}
+
+// identityPortalHosts validates the host configuration before composing sessions.
+func identityPortalHosts(tenantDomain, operatorHostname, frontendURL string) (string, string, error) {
+	tenantDomain = strings.TrimSpace(tenantDomain)
+	if tenantDomain == "" {
+		return "", "", fmt.Errorf("TENANT_DOMAIN is required")
+	}
+	operatorURL, err := operatorFrontendURLOf(operatorHostname, frontendURL)
+	if err != nil {
+		return "", "", err
+	}
+	return tenantDomain, operatorURL, nil
 }

@@ -64,7 +64,7 @@ const moduleComplexityThreshold = 15
 // baseline without headroom, measured at 722c5aa147.
 var moduleComplexityAllowlist = map[string]int{
 	"api/active_test_helpers.go:buildActiveTestModule":                                                        31,
-	"api/auth_test_helpers.go:NewAuthTestModule":                                                              28,
+	"api/auth_test_helpers.go:NewAuthTestModule":                                                              25,
 	"api/enrollment_booking_repository_test_helpers.go:(EnrollmentBookingFixture).InsertRequestChildOffering": 18,
 	"api/enrollment_booking_repository_test_helpers.go:(EnrollmentBookingFixture).bookingCommandValues":       22,
 	"api/student_owner_http_test_helpers.go:NewStudentHTTPTestResources":                                      19,

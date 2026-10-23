@@ -227,18 +227,8 @@ func NewAuthTestModule(db transactionruntime.Database, unit tenant.UnitOfWork, o
 	parentsURL := strings.TrimRight(cfg.ParentsURL, "/")
 	schoolURL := strings.TrimRight(cfg.SchoolURL, "/")
 	catererURL := strings.TrimRight(cfg.CatererURL, "/")
-	resetMinutes := cfg.PasswordResetExpiryMinutes
-	if resetMinutes <= 0 {
-		resetMinutes = 30
-	} else if resetMinutes > 1440 {
-		resetMinutes = 1440
-	}
-	inviteHours := cfg.InvitationTokenExpiryHours
-	if inviteHours <= 0 {
-		inviteHours = 48
-	} else if inviteHours > 168 {
-		inviteHours = 168
-	}
+	resetMinutes := authTestTokenExpiry(cfg.PasswordResetExpiryMinutes, 30, 1440)
+	inviteHours := authTestTokenExpiry(cfg.InvitationTokenExpiryHours, 48, 168)
 	codec, err := NewConfiguredSessionTokens(cfg.JWTSecret, cfg.JWTExpiry, cfg.JWTRefreshExpiry)
 	if err != nil {
 		return AuthTestModule{}, err
@@ -440,3 +430,14 @@ func (d failingStaffMembership) CreateStaff(context.Context, schoolmembership.Cr
 // trusted-device HMAC key from: the process configuration, exactly as the
 // production root reads it, so no key is stored in source.
 func mfaTestSecret() string { return CurrentServiceConfig().JWTSecret }
+
+// authTestTokenExpiry bounds fixture lifetimes while accepting an unset config.
+func authTestTokenExpiry(value, fallback, maximum int) int {
+	if value <= 0 {
+		return fallback
+	}
+	if value > maximum {
+		return maximum
+	}
+	return value
+}
