@@ -41,6 +41,78 @@ var (
 	ErrArrivalExceptionNotFound = errors.New("class arrival exception not found")
 )
 
+// ErrClassTripsNotConfigured is returned by the class-trip capability when
+// the projection was composed without its write seams. The HTTP adapter
+// keeps its route table stable and answers 500.
+var ErrClassTripsNotConfigured = errors.New("class trips are not configured")
+
+// Sentinels the HTTP layer classifies for a class trip a Lehrkraft reports
+// through moto schule (#4799).
+var (
+	// ErrClassTripsDisabled means the school keeps class trips closed in
+	// operations.school_portal_write_scope.
+	ErrClassTripsDisabled = errors.New("the school has not opened class trips for moto schule")
+	// ErrClassTripPastDate refuses a trip that starts before today.
+	ErrClassTripPastDate = errors.New("class trip starts in the past")
+	// ErrClassTripInvalidRange refuses an end before the start or a trip
+	// longer than ClassTripMaxDays.
+	ErrClassTripInvalidRange = errors.New("class trip date range is invalid")
+	// ErrClassTripReturnTimeMultiDay refuses a return time on a trip of more
+	// than one day: the arrival in the OGS is set for one day only.
+	ErrClassTripReturnTimeMultiDay = errors.New("a return time is only possible for a one-day trip")
+	// ErrClassTripReturnTimeWeekend refuses a return time on Saturday or
+	// Sunday, where no arrival in the OGS is planned.
+	ErrClassTripReturnTimeWeekend = errors.New("a return time can only be set from Monday to Friday")
+	// ErrClassTripNoStudents refuses a report without children.
+	ErrClassTripNoStudents = errors.New("class trip names no children")
+	// ErrClassTripStudentNotInClass refuses a child that is not an OGS child
+	// of the reported class.
+	ErrClassTripStudentNotInClass = errors.New("a child of the class trip is not in this class")
+	// ErrClassTripStatusConflict means a child already has a status (sick,
+	// excused, class trip) or a partial absence on one of the days. Nothing
+	// is written; the OGS clears the old entry first.
+	ErrClassTripStatusConflict = errors.New("a child already has a status on a day of the class trip")
+	// ErrClassTripArrivalConflict means the OGS already entered another
+	// arrival time for a child on that day. Nothing is written.
+	ErrClassTripArrivalConflict = errors.New("a child already has another arrival time on the day of the trip")
+)
+
+// ClassTripMaxDays is the longest trip one report covers, the limit of the
+// OGS's class-trip dialog.
+const ClassTripMaxDays = 31
+
+// ClassTripKind says what a class trip report wrote.
+const (
+	// ClassTripKindStatusDays: the status "Klassenfahrt" for every day.
+	ClassTripKindStatusDays = "class_trip"
+	// ClassTripKindReturnTime: a one-day outing with a return time; the
+	// children's arrival in the OGS is set to that time.
+	ClassTripKindReturnTime = "return_time"
+)
+
+// ClassTripWrite is a class trip or day outing a Lehrkraft reports for an
+// assigned class (#4799).
+type ClassTripWrite struct {
+	SchoolClass string
+	From        Date
+	To          Date
+	StudentIDs  []int64
+	// ReturnTime is set only for a one-day outing; only hour and minute are
+	// used.
+	ReturnTime *time.Time
+	// Reason is the optional destination or occasion ("Zoo").
+	Reason *string
+	// CreatedBy is the users.staff row the entries are attributed to.
+	CreatedBy int64
+}
+
+// ClassTripResult says what a class trip report wrote.
+type ClassTripResult struct {
+	Kind         string `json:"kind"`
+	StudentCount int    `json:"student_count"`
+	DateCount    int    `json:"date_count"`
+}
+
 // ArrivalExceptionOriginSchool marks an entry a Lehrkraft made through the
 // school portal; ArrivalExceptionOriginOGS one the OGS made, and every entry
 // older than the origin stamp.
@@ -188,6 +260,14 @@ type ClassDay interface {
 	// EarliestBlockStart returns the "HH:MM" start of the first block of the
 	// date that addresses the class, "" when there is none.
 	EarliestBlockStart(ctx context.Context, schoolClass string, date Date) (string, error)
+	// MayReportClassTrips applies operations.school_portal_write_scope to
+	// class trips (#4799).
+	MayReportClassTrips(ctx context.Context) (bool, error)
+	// ReportClassTrip records a class trip or day outing of an assigned
+	// class: the status "Klassenfahrt" for every day through the OGS's
+	// status-day write, or, for one day with a return time, the children's
+	// arrival in the OGS at that time. All or nothing.
+	ReportClassTrip(ctx context.Context, in ClassTripWrite) (*ClassTripResult, error)
 	// SupervisionStudentSheet is the per-child pickup and emergency sheet a
 	// supervisor opens from a running block (#2527). It carries guardian
 	// names and phone numbers, which the day report deliberately does not,

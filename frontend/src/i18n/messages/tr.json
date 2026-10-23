@@ -2230,6 +2230,14 @@
         "arrival_exception_editor_required": "{object} için erişim izniniz yok. Okulla iletişime geçin.",
         "arrival_exception_past_date": "{object} kaydedilemedi. Girdiğiniz bilgileri kontrol edin.",
         "arrival_exception_weekend": "{object} kaydedilemedi. Girdiğiniz bilgileri kontrol edin.",
+        "class_trip_arrival_conflict": "{object} değiştirilemedi. Güncel durumu kontrol edin.",
+        "class_trip_invalid_range": "{object} kaydedilemedi. Girdiğiniz bilgileri kontrol edin.",
+        "class_trip_no_students": "{object} kaydedilemedi. Girdiğiniz bilgileri kontrol edin.",
+        "class_trip_past_date": "{object} kaydedilemedi. Girdiğiniz bilgileri kontrol edin.",
+        "class_trip_return_time_multi_day": "{object} kaydedilemedi. Girdiğiniz bilgileri kontrol edin.",
+        "class_trip_return_time_weekend": "{object} kaydedilemedi. Girdiğiniz bilgileri kontrol edin.",
+        "class_trip_status_conflict": "{object} değiştirilemedi. Güncel durumu kontrol edin.",
+        "class_trip_student_not_in_class": "{object} değiştirilemedi. Güncel durumu kontrol edin.",
         "school_write_disabled": "{object} için erişim izniniz yok. Okulla iletişime geçin."
       },
       "communication": {

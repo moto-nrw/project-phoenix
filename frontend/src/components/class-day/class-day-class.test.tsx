@@ -70,6 +70,45 @@ vi.mock("./class-arrival-exception-dialog", () => ({
     ) : null,
 }));
 
+vi.mock("~/components/students/class-trip-bulk-status-modal", () => ({
+  ClassTripBulkStatusModal: ({
+    isOpen,
+    students,
+    onSuccess,
+    onClose,
+    schoolReport,
+  }: {
+    isOpen: boolean;
+    students: { id: string; name: string }[];
+    onSuccess?: () => void;
+    onClose: () => void;
+    schoolReport?: { save: (input: unknown) => Promise<void> };
+  }) =>
+    isOpen ? (
+      <div role="dialog" aria-label="Ausflug melden">
+        {students.map((student) => student.name).join(", ")}
+        <button
+          type="button"
+          onClick={() =>
+            void schoolReport
+              ?.save({
+                studentIds: students.map((student) => student.id),
+                from: "2026-09-07",
+                to: "2026-09-07",
+                returnTime: "13:30",
+              })
+              .then(() => {
+                onSuccess?.();
+                onClose();
+              })
+          }
+        >
+          Melden
+        </button>
+      </div>
+    ) : null,
+}));
+
 import { ClassDayClass, classArrivalExceptionLine } from "./class-day-class";
 
 function report(overrides: Partial<ClassDayReport> = {}): ClassDayReport {
@@ -306,6 +345,104 @@ describe("ClassDayClass", () => {
     expect(await screen.findByText("Klassentag, Klara")).toBeInTheDocument();
     expect(
       screen.queryByRole("button", { name: /Ankunft/ }),
+    ).not.toBeInTheDocument();
+  });
+});
+
+describe("ClassDayClass class trips (#4799)", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    mockSearchParams.delete("tag");
+    setTestClock(new Date("2026-09-07T12:00:00+02:00"));
+  });
+
+  const withListEntry = () =>
+    report({
+      rows: [
+        ...report().rows,
+        {
+          student_id: 0,
+          list_entry: true,
+          list_entry_id: "77",
+          first_name: "Lena",
+          last_name: "Liste",
+          registered: false,
+          stays_today: false,
+          offerings: [],
+        },
+      ],
+    });
+
+  it("reports a trip for the OGS children of the class and confirms it on the page", async () => {
+    const reportClassTrip = vi.fn().mockResolvedValue({
+      kind: "return_time",
+      student_count: 1,
+      date_count: 1,
+    });
+    render(
+      <ClassDayClass
+        schoolClass="4a"
+        fetchClassDay={() => Promise.resolve(withListEntry())}
+        fetchClasses={() =>
+          Promise.resolve({
+            classes: ["4a"],
+            can_write_arrival_exception: false,
+            can_report_class_trip: true,
+          })
+        }
+        reportClassTrip={reportClassTrip}
+      />,
+    );
+
+    fireEvent.click(
+      await screen.findByRole("button", {
+        name: "Ausflug oder Klassenfahrt melden",
+      }),
+    );
+    const dialog = screen.getByRole("dialog", { name: "Ausflug melden" });
+    // Only children with an OGS record can be reported.
+    expect(dialog).toHaveTextContent("Klara Klassentag");
+    expect(dialog).not.toHaveTextContent("Lena Liste");
+
+    fireEvent.click(screen.getByRole("button", { name: "Melden" }));
+    await waitFor(() => {
+      expect(reportClassTrip).toHaveBeenCalledWith("4a", {
+        studentIds: ["1"],
+        from: "2026-09-07",
+        to: "2026-09-07",
+        returnTime: "13:30",
+      });
+    });
+    expect(
+      await screen.findByText(
+        "Gespeichert. 1 Kind kommt um 13:30 Uhr in die OGS.",
+      ),
+    ).toBeInTheDocument();
+  });
+
+  it("offers no trip report without the release of the OGS", async () => {
+    render(
+      <ClassDayClass
+        schoolClass="4a"
+        fetchClassDay={() => Promise.resolve(report())}
+        fetchClasses={() =>
+          Promise.resolve({
+            classes: ["4a"],
+            can_write_arrival_exception: true,
+            can_report_class_trip: false,
+          })
+        }
+        reportClassTrip={vi.fn()}
+      />,
+    );
+
+    expect(
+      await screen.findByRole("button", { name: "Ankunft heute ändern" }),
+    ).toBeInTheDocument();
+    expect(
+      screen.queryByRole("button", {
+        name: "Ausflug oder Klassenfahrt melden",
+      }),
     ).not.toBeInTheDocument();
   });
 });

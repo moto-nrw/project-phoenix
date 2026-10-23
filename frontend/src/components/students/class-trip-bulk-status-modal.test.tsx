@@ -258,3 +258,138 @@ describe("ClassTripBulkStatusModal", () => {
     expect(toastError).not.toHaveBeenCalled();
   });
 });
+
+describe("ClassTripBulkStatusModal in moto schule (#4799)", () => {
+  const classChildren = [
+    {
+      id: "11",
+      name: "Anna Ausflug",
+      first_name: "Anna",
+      second_name: "Ausflug",
+    },
+    {
+      id: "12",
+      name: "Ben Ausflug",
+      first_name: "Ben",
+      second_name: "Ausflug",
+    },
+  ];
+
+  afterEach(() => {
+    vi.clearAllMocks();
+  });
+
+  it("preselects the whole class, lets the teacher deselect a child and saves through the school seam", async () => {
+    const save = vi.fn().mockResolvedValue(undefined);
+    const onSuccess = vi.fn();
+    const onClose = vi.fn();
+    render(
+      <ClassTripBulkStatusModal
+        isOpen
+        onClose={onClose}
+        onSuccess={onSuccess}
+        targetLabel="Klasse 3b"
+        students={classChildren}
+        schoolReport={{ save }}
+      />,
+    );
+
+    expect(
+      screen.getByRole("dialog", {
+        name: "Ausflug oder Klassenfahrt melden: Klasse 3b",
+      }),
+    ).toBeInTheDocument();
+    expect(screen.getByLabelText("Anna Ausflug")).toBeChecked();
+    expect(screen.getByLabelText("Ben Ausflug")).toBeChecked();
+
+    fireEvent.click(screen.getByLabelText("Ben Ausflug"));
+    fireEvent.change(screen.getByLabelText("Bis"), {
+      target: { value: "2026-09-11" },
+    });
+    // A trip over several days has no return time.
+    expect(screen.queryByLabelText(/Rückkehrzeit/)).not.toBeInTheDocument();
+    expect(screen.getByLabelText("Von")).toBeInTheDocument();
+    fireEvent.change(screen.getByPlaceholderText("z. B. Zoo"), {
+      target: { value: "Jugendherberge" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Für 1 Kind melden" }));
+
+    await waitFor(() => {
+      expect(save).toHaveBeenCalledWith({
+        studentIds: ["11"],
+        from: "2026-09-09",
+        to: "2026-09-11",
+        reason: "Jugendherberge",
+        returnTime: undefined,
+      });
+    });
+    expect(onSuccess).toHaveBeenCalled();
+    expect(onClose).toHaveBeenCalled();
+    expect(bulkCreateStudentStatusDays).not.toHaveBeenCalled();
+  });
+
+  it("offers a return time for one day and sends it", async () => {
+    const save = vi.fn().mockResolvedValue(undefined);
+    render(
+      <ClassTripBulkStatusModal
+        isOpen
+        onClose={vi.fn()}
+        targetLabel="Klasse 3b"
+        students={classChildren}
+        schoolReport={{ save }}
+      />,
+    );
+
+    fireEvent.change(screen.getByLabelText(/Rückkehrzeit/), {
+      target: { value: "13:30" },
+    });
+    fireEvent.click(
+      screen.getByRole("button", { name: "Für 2 Kinder melden" }),
+    );
+
+    await waitFor(() => {
+      expect(save).toHaveBeenCalledWith(
+        expect.objectContaining({
+          studentIds: ["11", "12"],
+          from: "2026-09-09",
+          to: "2026-09-09",
+          returnTime: "13:30",
+        }),
+      );
+    });
+  });
+
+  it("blocks the save without a child and shows a refusal in the form", async () => {
+    const save = vi.fn().mockRejectedValue(
+      new ApiError("conflict", 409, {
+        code: "classday.class_trip_status_conflict",
+      }),
+    );
+    const onClose = vi.fn();
+    render(
+      <ClassTripBulkStatusModal
+        isOpen
+        onClose={onClose}
+        targetLabel="Klasse 3b"
+        students={classChildren}
+        schoolReport={{ save }}
+      />,
+    );
+
+    fireEvent.click(screen.getByLabelText("Alle auswählen"));
+    expect(
+      screen.getByRole("button", { name: "Für 0 Kinder melden" }),
+    ).toBeDisabled();
+
+    fireEvent.click(screen.getByLabelText("Alle auswählen"));
+    fireEvent.click(
+      screen.getByRole("button", { name: "Für 2 Kinder melden" }),
+    );
+    await waitFor(() => {
+      expect(screen.getByRole("alert")).toHaveTextContent(
+        "Für ein Kind steht an einem dieser Tage schon etwas",
+      );
+    });
+    expect(onClose).not.toHaveBeenCalled();
+  });
+});

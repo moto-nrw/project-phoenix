@@ -78,6 +78,14 @@ const (
 	CodeClassdayArrivalExceptionEditorRequired           = "classday.arrival_exception_editor_required"
 	CodeClassdayArrivalExceptionPastDate                 = "classday.arrival_exception_past_date"
 	CodeClassdayArrivalExceptionWeekend                  = "classday.arrival_exception_weekend"
+	CodeClassdayClassTripArrivalConflict                 = "classday.class_trip_arrival_conflict"
+	CodeClassdayClassTripInvalidRange                    = "classday.class_trip_invalid_range"
+	CodeClassdayClassTripNoStudents                      = "classday.class_trip_no_students"
+	CodeClassdayClassTripPastDate                        = "classday.class_trip_past_date"
+	CodeClassdayClassTripReturnTimeMultiDay              = "classday.class_trip_return_time_multi_day"
+	CodeClassdayClassTripReturnTimeWeekend               = "classday.class_trip_return_time_weekend"
+	CodeClassdayClassTripStatusConflict                  = "classday.class_trip_status_conflict"
+	CodeClassdayClassTripStudentNotInClass               = "classday.class_trip_student_not_in_class"
 	CodeClassdaySchoolWriteDisabled                      = "classday.school_write_disabled"
 	CodeCommunicationAnnouncementNotFound                = "communication.announcement_not_found"
 	CodeCommunicationAnnouncementNotPublished            = "communication.announcement_not_published"
@@ -294,14 +302,6 @@ const (
 	CodeIotDeviceInactive                                = "iot.device_inactive"
 	CodeIotDevicePinInvalid                              = "iot.device_pin_invalid"
 	CodeIotDevicePinRequired                             = "iot.device_pin_required"
-	CodeIotInvalidRfidTag                                = "iot.invalid_rfid_tag"
-	CodeIotInvalidStaffClockRequest                      = "iot.invalid_staff_clock_request"
-	CodeIotInvalidStaffClockState                        = "iot.invalid_staff_clock_state"
-	CodeIotNoActiveGroupsInRoom                          = "iot.no_active_groups_in_room"
-	CodeIotNoActiveSession                               = "iot.no_active_session"
-	CodeIotNoAttendanceRecordToday                       = "iot.no_attendance_record_today"
-	CodeIotNoRoomAvailable                               = "iot.no_room_available"
-	CodeIotNoSessionToEnd                                = "iot.no_session_to_end"
 )
 
 var errorCodeClasses0 = map[string]string{
@@ -381,6 +381,14 @@ var errorCodeClasses0 = map[string]string{
 	"classday.arrival_exception_editor_required":           "permission",
 	"classday.arrival_exception_past_date":                 "input",
 	"classday.arrival_exception_weekend":                   "input",
+	"classday.class_trip_arrival_conflict":                 "business_rejection",
+	"classday.class_trip_invalid_range":                    "input",
+	"classday.class_trip_no_students":                      "input",
+	"classday.class_trip_past_date":                        "input",
+	"classday.class_trip_return_time_multi_day":            "input",
+	"classday.class_trip_return_time_weekend":              "input",
+	"classday.class_trip_status_conflict":                  "business_rejection",
+	"classday.class_trip_student_not_in_class":             "business_rejection",
 	"classday.school_write_disabled":                       "permission",
 	"communication.announcement_not_found":                 "business_rejection",
 	"communication.announcement_not_published":             "business_rejection",
@@ -597,14 +605,6 @@ var errorCodeClasses0 = map[string]string{
 	"iot.device_inactive":                                  "permission",
 	"iot.device_pin_invalid":                               "permission",
 	"iot.device_pin_required":                              "permission",
-	"iot.invalid_rfid_tag":                                 "input",
-	"iot.invalid_staff_clock_request":                      "input",
-	"iot.invalid_staff_clock_state":                        "business_rejection",
-	"iot.no_active_groups_in_room":                         "input",
-	"iot.no_active_session":                                "input",
-	"iot.no_attendance_record_today":                       "input",
-	"iot.no_room_available":                                "input",
-	"iot.no_session_to_end":                                "input",
 }
 
 func init() {

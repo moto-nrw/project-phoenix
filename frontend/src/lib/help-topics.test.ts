@@ -607,7 +607,7 @@ describe("getParentHelpTopicForPath", () => {
     ).filter((topic) => helpTopicMatchesRole(topic, "teacher"));
     const visible = new Set(teacherTopics.map((topic) => topic.id));
 
-    expect(teacherTopics).toHaveLength(16);
+    expect(teacherTopics).toHaveLength(17);
     expect(
       teacherTopics.every(
         (topic) =>

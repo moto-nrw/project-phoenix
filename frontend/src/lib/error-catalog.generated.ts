@@ -123,6 +123,22 @@ export const ERROR_CATALOG = {
         "Für {object} fehlt eine Angabe. Bitte ergänzen Sie das markierte Feld.",
       "classday.arrival_exception_past_date":
         "Das Datum für {object} liegt in der Vergangenheit. Bitte wählen Sie ein anderes Datum.",
+      "classday.class_trip_arrival_conflict":
+        "Die OGS hat für ein Kind schon eine andere Ankunftszeit eingetragen. Es wurde nichts gespeichert. Bitte sprechen Sie mit der OGS.",
+      "classday.class_trip_invalid_range":
+        "Dieser Zeitraum geht nicht. Bitte wählen Sie höchstens 31 Tage, das Ende nach dem Beginn.",
+      "classday.class_trip_no_students":
+        "Bitte wählen Sie mindestens ein Kind aus.",
+      "classday.class_trip_past_date":
+        "Der erste Tag liegt in der Vergangenheit. Bitte wählen Sie heute oder einen späteren Tag.",
+      "classday.class_trip_return_time_multi_day":
+        "Eine Rückkehrzeit geht nur für einen einzelnen Tag. Bitte löschen Sie die Uhrzeit oder wählen Sie einen Tag.",
+      "classday.class_trip_return_time_weekend":
+        "Am Wochenende kommt kein Kind in die OGS. Bitte löschen Sie die Rückkehrzeit.",
+      "classday.class_trip_status_conflict":
+        "Für ein Kind steht an einem dieser Tage schon etwas, zum Beispiel krank. Es wurde nichts gespeichert. Bitte sprechen Sie mit der OGS.",
+      "classday.class_trip_student_not_in_class":
+        "Ein Kind ist nicht mehr in dieser Klasse. Bitte laden Sie die Seite neu.",
       "classday.school_write_disabled":
         "{object} ist hier zurzeit nicht verfügbar. Bitte fragen Sie Ihre Ansprechperson.",
       "communication.announcement_reminder_sent":

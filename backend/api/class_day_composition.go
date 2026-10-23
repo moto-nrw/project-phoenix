@@ -2,6 +2,8 @@ package api
 
 import (
 	"context"
+	"errors"
+	"fmt"
 	"log/slog"
 	"time"
 
@@ -14,6 +16,8 @@ import (
 	deliveryCompose "github.com/moto-nrw/project-phoenix/modules/delivery/compose"
 	enrollmentOwner "github.com/moto-nrw/project-phoenix/modules/enrollment"
 	"github.com/moto-nrw/project-phoenix/modules/peopledirectory"
+	"github.com/moto-nrw/project-phoenix/modules/schoolstructure"
+	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
 	"github.com/moto-nrw/project-phoenix/realtime"
 
 	timezone "github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
@@ -54,6 +58,42 @@ func NewClassDay(
 		deps.AccessLog = classDayAccessLog{repo: accessLog}
 	}
 	return classdayCompose.NewClassDay(deps)
+}
+
+// classDayTripRecorder is Student Presence's status-day write for a class
+// trip moto schule reports (#4799).
+type classDayTripRecorder interface {
+	RecordClassTrip(ctx context.Context, studentIDs []int64, dates []timezone.Date, reason string, inClass func(schoolClass string) bool) error
+}
+
+// NewClassDayTripStatusDays binds the class-trip status-day write. The class
+// check on the locked child compares the normalized class names, like the
+// caller's class assignment does, and the write's refusals answer the
+// projection's sentinels.
+func NewClassDayTripStatusDays(recorder classDayTripRecorder) classdayCompose.ClassTripStatusDays {
+	if recorder == nil {
+		return nil
+	}
+	return classDayTripStatusDays{recorder: recorder}
+}
+
+type classDayTripStatusDays struct{ recorder classDayTripRecorder }
+
+func (b classDayTripStatusDays) RecordClassTrip(ctx context.Context, schoolClass string, studentIDs []int64, dates []timezone.Date, reason string) error {
+	want := schoolstructure.NormalizeClass(schoolClass)
+	err := b.recorder.RecordClassTrip(ctx, studentIDs, dates, reason, func(class string) bool {
+		return schoolstructure.NormalizeClass(class) == want
+	})
+	var conflict *studentpresence.StudentStatusDayConflictError
+	switch {
+	case err == nil:
+		return nil
+	case errors.As(err, &conflict), errors.Is(err, studentpresence.ErrStudentStatusDayPartialAbsenceConflict):
+		return fmt.Errorf("%w: %w", classday.ErrClassTripStatusConflict, err)
+	case errors.Is(err, studentpresence.ErrStudentStatusDayReassigned):
+		return fmt.Errorf("%w: %w", classday.ErrClassTripStudentNotInClass, err)
+	}
+	return err
 }
 
 // classDayRosters reads Enrollment's class roster of a day.

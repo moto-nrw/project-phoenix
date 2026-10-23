@@ -61,6 +61,10 @@
   },
   {
     "resource": "class_day",
+    "action": "class_trip_write"
+  },
+  {
+    "resource": "class_day",
     "action": "read"
   },
   {

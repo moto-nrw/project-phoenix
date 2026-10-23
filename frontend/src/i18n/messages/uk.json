@@ -2230,6 +2230,14 @@
         "arrival_exception_editor_required": "У вас немає доступу до: {object}. Зверніться до школи.",
         "arrival_exception_past_date": "Не вдалося зберегти: {object}. Перевірте введені дані.",
         "arrival_exception_weekend": "Не вдалося зберегти: {object}. Перевірте введені дані.",
+        "class_trip_arrival_conflict": "Не вдалося змінити: {object}. Перевірте поточний стан.",
+        "class_trip_invalid_range": "Не вдалося зберегти: {object}. Перевірте введені дані.",
+        "class_trip_no_students": "Не вдалося зберегти: {object}. Перевірте введені дані.",
+        "class_trip_past_date": "Не вдалося зберегти: {object}. Перевірте введені дані.",
+        "class_trip_return_time_multi_day": "Не вдалося зберегти: {object}. Перевірте введені дані.",
+        "class_trip_return_time_weekend": "Не вдалося зберегти: {object}. Перевірте введені дані.",
+        "class_trip_status_conflict": "Не вдалося змінити: {object}. Перевірте поточний стан.",
+        "class_trip_student_not_in_class": "Не вдалося змінити: {object}. Перевірте поточний стан.",
         "school_write_disabled": "У вас немає доступу до: {object}. Зверніться до школи."
       },
       "communication": {
