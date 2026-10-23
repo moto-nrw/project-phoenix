@@ -560,6 +560,11 @@ func (p *Policy) validateRules(owners map[string]Owner, roles, classes map[strin
 				return err
 			}
 		}
+		if p.PolicyEpoch >= domainProjectionRulesEpoch {
+			if err := validateDomainProjectionRule(rule, owners); err != nil {
+				return err
+			}
+		}
 		for _, previous := range validated {
 			if scope, overlaps := p.overlappingScope(previous, rule, owners); overlaps {
 				return fmt.Errorf("rule %q overlaps rule %q for scope %q", rule.ID, previous.ID, scope)

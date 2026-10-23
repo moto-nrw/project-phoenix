@@ -1184,6 +1184,13 @@ policy epoch 47 the loader rejects these rules
   "compatibility permission", "compatibility binding", "compatibility
   adapter", "temporary"/"temporarily", "until #N" and "tracked by #N".
 
+From epoch 91 the loader also rejects every domain-to-projection rule,
+including `public` and `contract` targets and test scopes. The selectors may
+not admit such a pair; there are no exceptions. A domain declares its own
+reader port and the root binds it ([ADR 0071, enforcement addendum
+#4540](../../docs/adr/0071-principle-owner-dependencies-point-one-way.md#enforcement-addendum-4540)).
+Earlier epochs remain loadable as immutable PR bases.
+
 From epoch 48 a policy whose target graph closes a cycle is rejected too
 ([ADR 0058](../../docs/adr/0058-owner-dependencies-form-a-dag.md), #3417); a
 second direction between two domains is rejected as part of a cycle. The
