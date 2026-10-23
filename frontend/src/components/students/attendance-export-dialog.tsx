@@ -2,8 +2,8 @@
 
 import { useEffect, useState } from "react";
 
-import { ISODatePicker } from "~/components/ui/date-picker";
 import { ExportDialog } from "~/components/ui/export-dialog";
+import { Input } from "~/components/ui/input";
 import { useExportRun } from "~/hooks/use-export-run";
 import { apiErrorFromResponse, transportFetch } from "~/lib/api-error";
 import { formatDate, parseISODate, toISODate } from "~/lib/date-helpers";
@@ -130,14 +130,13 @@ export function AttendanceExportDialog({
             >
               Von
             </label>
-            <ISODatePicker
+            <Input
               id="attendance-export-from"
-              controlSize="lg"
+              type="date"
               value={from}
               min={earliest}
               max={to || today}
-              onChange={setFrom}
-              calendarLayout="popover"
+              onChange={(event) => setFrom(event.target.value)}
             />
           </div>
           <div>
@@ -147,14 +146,13 @@ export function AttendanceExportDialog({
             >
               Bis
             </label>
-            <ISODatePicker
+            <Input
               id="attendance-export-to"
-              controlSize="lg"
+              type="date"
               value={to}
               min={from || earliest}
               max={today}
-              onChange={setTo}
-              calendarLayout="popover"
+              onChange={(event) => setTo(event.target.value)}
             />
           </div>
         </div>
