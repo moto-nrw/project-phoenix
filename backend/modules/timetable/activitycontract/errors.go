@@ -18,9 +18,6 @@ var (
 	// ErrSupervisorNotFound returned when a supervisor doesn't exist
 	ErrSupervisorNotFound = errors.New("supervisor not found")
 
-	// ErrEnrollmentNotFound returned when an enrollment doesn't exist
-	ErrEnrollmentNotFound = errors.New("enrollment not found")
-
 	// ErrStudentNotFound returned when a student is unavailable to activity
 	// enrollment reads. Graduated students are soft-deleted and must be
 	// indistinguishable from absent students on staff-facing routes.
@@ -68,6 +65,14 @@ var (
 	// ErrOnlySupervisorRequiresReplacement is returned when removing the last
 	// remaining supervisor would leave an activity without any supervisor.
 	ErrOnlySupervisorRequiresReplacement = errors.New("cannot remove the only supervisor from an activity without a replacement")
+
+	// ErrSupervisorAlreadyAssigned is returned when the staff member already
+	// supervises the activity.
+	ErrSupervisorAlreadyAssigned = errors.New("supervisor already assigned to this group")
+
+	// ErrPrimarySupervisorRequired is returned when a primary supervisor is
+	// demoted directly; another supervisor has to be made primary instead.
+	ErrPrimarySupervisorRequired = errors.New("at least one supervisor must remain primary")
 
 	// ErrSystemActivityProtected is returned when trying to delete or rename a system activity (Schulhof Freispiel, WC).
 	ErrSystemActivityProtected = errors.New("systemaktivität kann nicht gelöscht oder umbenannt werden")

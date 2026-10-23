@@ -31,7 +31,7 @@ var submitErrorRenderer = common.RulesRenderer(append(append(
 ), func(err error) render.Renderer {
 	// A captcha the server cannot check (missing secret, provider down)
 	// lands here as a server error, not as the parent's mistake.
-	return common.ErrorInternalServer(err)
+	return common.ErrorInternalServerWrap("enrollment operation failed", err)
 })
 
 // submitEligibilityErrorRules covers the phase gate and the child
@@ -61,6 +61,8 @@ func submitEligibilityErrorRules() []common.ErrorRule {
 // contact and the day choices, then the generic invalid submission.
 func submitSelectionErrorRules() []common.ErrorRule {
 	return []common.ErrorRule{
+		// Wraps ErrCareOfferingRule and so ErrInvalidSubmission (#4514).
+		invalidWithCode(capability.ErrCareOfferingDayConflict, common.CodeEnrollmentCareOfferingDayConflict),
 		invalidWithCode(capability.ErrCareOfferingUnavailable, common.CodeEnrollmentCareOfferingUnavailable),
 		invalidWithCode(capability.ErrCareOfferingMissing, common.CodeEnrollmentCareOfferingMissing),
 		invalidWithCode(capability.ErrCareOfferingExactlyOneRequired, common.CodeEnrollmentCareOfferingExactlyOne),

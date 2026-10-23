@@ -161,14 +161,14 @@ func TestMFAService_TrustedDeviceDays_TenantOverrideRespected(t *testing.T) {
 	assert.Equal(t, 14, days, "tenant override must override the registry default")
 }
 
-func TestMFAService_TrustedDeviceDays_NegativeOverrideFallsBackToDefault(t *testing.T) {
+func TestMFAService_TrustedDeviceDays_NegativeOverrideDisablesHint(t *testing.T) {
 	t.Parallel()
 
 	fix := newWiredMFAFixture(t)
-	// A bad value (≤0) must fall through to the package constant default.
+	// An invalid lifetime must not be advertised as a usable default.
 	fix.setOverride(t, settingKeyMFATrustedDeviceDays, -5)
 	days := fix.svc.TrustedDeviceDays(context.Background(), fix.tenantID)
-	assert.Positive(t, days, "negative override must not break the resolver — it must fall back to the default")
+	assert.Zero(t, days, "invalid lifetime must disable the remember-device hint")
 }
 
 // --- IssueTrustedDevice: trusted-device-disabled short-circuit ---

@@ -2,6 +2,7 @@ package application
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"log/slog"
 	"strings"
@@ -502,7 +503,10 @@ func (s *ChangeRequests) flipRenewalChildrenToSubmitted(ctx context.Context, chi
 
 func (s *ChangeRequests) ensureCanCreate(ctx context.Context, req *Request, children []*RequestChild) error {
 	if err := s.intake.ensureChangeRequestDraftAvailable(ctx, req, children); err != nil {
-		return enrollmentNative.ErrChangeRequestNotAllowed
+		if errors.Is(err, enrollmentNative.ErrEditNotAllowed) {
+			return enrollmentNative.ErrChangeRequestNotAllowed
+		}
+		return err
 	}
 	phase, err := s.intake.intakePhase(ctx, req.PhaseID)
 	if err != nil && !s.deps.Runtime.NotFound(err) {

@@ -6,6 +6,7 @@ import (
 	"testing"
 
 	"github.com/moto-nrw/project-phoenix/modules/careplan"
+	"github.com/moto-nrw/project-phoenix/modules/careplan/selection"
 	"github.com/moto-nrw/project-phoenix/modules/enrollment"
 	"github.com/stretchr/testify/assert"
 )
@@ -50,4 +51,20 @@ func TestPublicErrorPassesUnrelatedErrorsThrough(t *testing.T) {
 	other := errors.New("database unavailable")
 	assert.Same(t, other, publicError(other), "an error without an originating value stays unchanged")
 	assert.Equal(t, publicError(careplan.ErrCareOfferingsDisabled).Error(), PublicError(careplan.ErrCareOfferingsDisabled).Error())
+}
+
+// A weekday conflict (#4514) reaches the handlers as Enrollment's value,
+// from the selection engine at submission and from a Care Plan adjustment,
+// where it also stays an invalid adjustment.
+func TestPublicErrorMarksAWeekdayConflict(t *testing.T) {
+	t.Parallel()
+
+	submitted := publicError(fmt.Errorf("child 0: %w", &selection.DayConflictError{Group: "Betreuungszeit", Day: "mon"}))
+	assert.ErrorIs(t, submitted, enrollment.ErrCareOfferingDayConflict)
+	assert.ErrorIs(t, submitted, enrollment.ErrCareOfferingRule)
+	assert.ErrorIs(t, submitted, enrollment.ErrInvalidSubmission)
+
+	adjusted := publicError(fmt.Errorf("%w: %w: engine refusal", careplan.ErrOfferingAdjustmentInvalid, careplan.ErrCareOfferingDayConflict))
+	assert.ErrorIs(t, adjusted, enrollment.ErrCareOfferingDayConflict)
+	assert.ErrorIs(t, adjusted, enrollment.ErrOfferingAdjustmentInvalid)
 }

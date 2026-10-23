@@ -140,7 +140,7 @@ func setupPlatformPermissionRoute(t *testing.T) chi.Router {
 	t.Cleanup(func() { require.NoError(t, serveDB.Close()) })
 
 	svc := setupAuthModuleOn(t, serveDB)
-	authResource := authAPI.NewResource(svc.Auth, svc.Invitation, nil, svc.AccountAuthentication, identityaccessCompose.TenantUnitOfWork{}, transactionFailures.IsConstraintViolation)
+	authResource := authAPI.NewResource(svc.Auth, svc.Invitation, nil, svc.AccountAuthentication, identityaccessCompose.TenantUnitOfWork{}, transactionFailures.IsConstraintViolation, &settingsDouble{})
 	authResource.RoleGrants = api.AccountRoleGrantPolicy()
 	router := testutil.NewTenantRouter(serveDB)
 	router.Mount("/auth", authResource.Router(api.TenantSessionChain))

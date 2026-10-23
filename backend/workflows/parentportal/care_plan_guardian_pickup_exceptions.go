@@ -21,8 +21,8 @@ type guardianPickupExceptions struct {
 }
 
 func (a guardianPickupExceptions) ApplyGuardianPickupException(ctx context.Context, change care.GuardianPickupChange) error {
-	return a.callbacks.ApplyGuardianPickupException(ctx, carePlanFromAppGuardianPickupChange(change))
+	return a.callbacks.ApplyGuardianPickupException(ctx, change)
 }
 func (a guardianPickupExceptions) WithdrawGuardianPickupException(ctx context.Context, change care.PickupException) error {
-	return a.callbacks.WithdrawGuardianPickupException(ctx, carePlanFromAppPickupException(change))
+	return a.callbacks.WithdrawGuardianPickupException(ctx, change)
 }

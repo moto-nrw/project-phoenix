@@ -39,7 +39,10 @@ func (s *Scheduler) checkAndRunTimeTrackingCleanup(ctx context.Context, task *Sc
 			slog.String("cleanup_time", cleanupTime),
 		)
 
-		timeoutMinutes := s.resolveIntSetting(tenantCtx, settingDataCleanupTimeoutMinutes, 30)
+		timeoutMinutes, err := s.resolveRequiredPositiveIntSetting(tenantCtx, settingDataCleanupTimeoutMinutes)
+		if err != nil {
+			return fmt.Errorf("resolve %s: %w", settingDataCleanupTimeoutMinutes, err)
+		}
 		cleanupCtx, cleanupCancel := context.WithTimeout(tenantCtx, time.Duration(timeoutMinutes)*time.Minute)
 		defer cleanupCancel()
 
@@ -98,7 +101,10 @@ func (s *Scheduler) checkAndRunStudentChangeLogCleanup(ctx context.Context, task
 			slog.String("cleanup_time", cleanupTime),
 		)
 
-		timeoutMinutes := s.resolveIntSetting(tenantCtx, settingDataCleanupTimeoutMinutes, 30)
+		timeoutMinutes, err := s.resolveRequiredPositiveIntSetting(tenantCtx, settingDataCleanupTimeoutMinutes)
+		if err != nil {
+			return fmt.Errorf("resolve %s: %w", settingDataCleanupTimeoutMinutes, err)
+		}
 		cleanupCtx, cleanupCancel := context.WithTimeout(tenantCtx, time.Duration(timeoutMinutes)*time.Minute)
 		defer cleanupCancel()
 
@@ -150,7 +156,10 @@ func (s *Scheduler) runPWAUsageCleanupTaskPolling(task *ScheduledTask) {
 // other retention jobs.
 func (s *Scheduler) checkAndRunPWAUsageCleanup(ctx context.Context, task *ScheduledTask) {
 	s.checkAndRunDailyGDPRCleanup(ctx, task, &s.lastPWAUsageCleanup, "pwa-usage-cleanup-check", func(tenantCtx context.Context, tenantID int64, cleanupTime string) error {
-		timeoutMinutes := s.resolveIntSetting(tenantCtx, settingDataCleanupTimeoutMinutes, 30)
+		timeoutMinutes, err := s.resolveRequiredPositiveIntSetting(tenantCtx, settingDataCleanupTimeoutMinutes)
+		if err != nil {
+			return fmt.Errorf("resolve %s: %w", settingDataCleanupTimeoutMinutes, err)
+		}
 		cleanupCtx, cleanupCancel := context.WithTimeout(tenantCtx, time.Duration(timeoutMinutes)*time.Minute)
 		defer cleanupCancel()
 

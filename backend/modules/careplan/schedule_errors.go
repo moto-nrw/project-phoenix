@@ -21,6 +21,9 @@ var (
 	// ErrCareExceptionDayConflict means a staff-authored exception already existed
 	// for the day when a create came in.
 	ErrCareExceptionDayConflict = errors.New("schedule exception for this day was just changed")
+	// ErrCareExceptionDateTaken means another exception of the student already
+	// holds the requested day, so the row cannot be created or moved there.
+	ErrCareExceptionDateTaken = errors.New("exception already exists for this date")
 )
 
 // ScheduleError represents a schedule-related error

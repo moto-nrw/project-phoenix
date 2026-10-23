@@ -94,6 +94,7 @@ const (
 	CodeDevicesTagScanAlreadyResolved                    = "devices.tag_scan_already_resolved"
 	CodeDevicesTagScanNotFound                           = "devices.tag_scan_not_found"
 	CodeDisplayDisabled                                  = "display.disabled"
+	CodeEnrollmentApprovalCareOfferingDayConflict        = "enrollment.approval_care_offering_day_conflict"
 	CodeEnrollmentApprovalCareOfferingExactlyOne         = "enrollment.approval_care_offering_exactly_one"
 	CodeEnrollmentApprovalCareOfferingMissing            = "enrollment.approval_care_offering_missing"
 	CodeEnrollmentApprovalDataInvalid                    = "enrollment.approval_data_invalid"
@@ -102,6 +103,7 @@ const (
 	CodeEnrollmentCareOfferingAutoAddInvalid             = "enrollment.care_offering_auto_add_invalid"
 	CodeEnrollmentCareOfferingCapacityInvalid            = "enrollment.care_offering_capacity_invalid"
 	CodeEnrollmentCareOfferingClosed                     = "enrollment.care_offering_closed"
+	CodeEnrollmentCareOfferingDayConflict                = "enrollment.care_offering_day_conflict"
 	CodeEnrollmentCareOfferingDaysRequired               = "enrollment.care_offering_days_required"
 	CodeEnrollmentCareOfferingExactlyOne                 = "enrollment.care_offering_exactly_one"
 	CodeEnrollmentCareOfferingFull                       = "enrollment.care_offering_full"
@@ -403,6 +405,7 @@ const (
 	CodeStudentsCareExitPreviewChanged                   = "students.care_exit_preview_changed"
 	CodeStudentsCareExitTooManyStudents                  = "students.care_exit_too_many_students"
 	CodeStudentsCareOfferingsDisabled                    = "students.care_offerings_disabled"
+	CodeStudentsCareResumeAlumnus                        = "students.care_resume_alumnus"
 	CodeStudentsCareResumeMissing                        = "students.care_resume_missing"
 	CodeStudentsCareResumeNotChecked                     = "students.care_resume_not_checked"
 	CodeStudentsCareResumeNotEnded                       = "students.care_resume_not_ended"
@@ -770,6 +773,7 @@ var errorClassByCode = map[string]string{
 	"devices.tag_scan_already_resolved":                    "business_rejection",
 	"devices.tag_scan_not_found":                           "business_rejection",
 	"display.disabled":                                     "permission",
+	"enrollment.approval_care_offering_day_conflict":       "business_rejection",
 	"enrollment.approval_care_offering_exactly_one":        "business_rejection",
 	"enrollment.approval_care_offering_missing":            "business_rejection",
 	"enrollment.approval_data_invalid":                     "input",
@@ -778,6 +782,7 @@ var errorClassByCode = map[string]string{
 	"enrollment.care_offering_auto_add_invalid":            "input",
 	"enrollment.care_offering_capacity_invalid":            "input",
 	"enrollment.care_offering_closed":                      "business_rejection",
+	"enrollment.care_offering_day_conflict":                "input",
 	"enrollment.care_offering_days_required":               "input",
 	"enrollment.care_offering_exactly_one":                 "input",
 	"enrollment.care_offering_full":                        "business_rejection",
@@ -1079,6 +1084,7 @@ var errorClassByCode = map[string]string{
 	"students.care_exit_preview_changed":                   "business_rejection",
 	"students.care_exit_too_many_students":                 "input",
 	"students.care_offerings_disabled":                     "permission",
+	"students.care_resume_alumnus":                         "business_rejection",
 	"students.care_resume_missing":                         "business_rejection",
 	"students.care_resume_not_checked":                     "input",
 	"students.care_resume_not_ended":                       "business_rejection",

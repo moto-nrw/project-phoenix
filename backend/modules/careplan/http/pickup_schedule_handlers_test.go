@@ -2,6 +2,7 @@ package careplanhttp_test
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"net/http"
 	"testing"
@@ -549,6 +550,32 @@ func TestUpdateStudentPickupException(t *testing.T) {
 		rr := authExec(t, tc, req, testutil.AdminTestClaims(1), []string{"admin:*"})
 
 		testutil.AssertForbidden(t, rr)
+	})
+
+	// #4599: moving an exception onto a day that already has one is a
+	// refusal the staff can resolve, not a server error.
+	t.Run("conflict_moving_onto_a_taken_date", func(t *testing.T) {
+		student := testpkg.CreateTestStudent(t, tc.db, "ExceptionUpdateTaken", "Test", "EUTK1")
+		_, account := testpkg.CreateTestTeacherWithAccount(t, tc.db, "Update", "TakenPickupExc")
+		staffID := createStudentsAPITestStaffID(t, tc)
+		reason := "Existing day"
+		testpkg.InsertStudentPickupExceptionRow(t, tc.db, testpkg.StudentPickupExceptionRow{
+			TenantID: testpkg.Tenant(t), StudentID: student.ID, ExceptionDate: calendar.NewDate(2026, 4, 21),
+			Reason: &reason, CreatedBy: staffID,
+		})
+		moved := testpkg.InsertStudentPickupExceptionRow(t, tc.db, testpkg.StudentPickupExceptionRow{
+			TenantID: testpkg.Tenant(t), StudentID: student.ID, ExceptionDate: calendar.NewDate(2026, 4, 22),
+			Reason: &reason, CreatedBy: staffID,
+		})
+
+		body := map[string]any{"exception_date": "2026-04-21", "pickup_time": "12:00", "reason": "Moved"}
+		req := testutil.NewAuthenticatedRequest(t, "PUT", fmt.Sprintf("/%d/pickup-exceptions/%d", student.ID, moved.ID), body)
+		rr := authExec(t, tc, req, testutil.AdminTestClaims(int(account.ID)), []string{"admin:*"})
+
+		require.Equal(t, http.StatusConflict, rr.Code, rr.Body.String())
+		var response map[string]any
+		require.NoError(t, json.Unmarshal(rr.Body.Bytes(), &response))
+		assert.Equal(t, "general.business_rejection", response["code"])
 	})
 
 	t.Run("bad_request_invalid_exception_id", func(t *testing.T) {

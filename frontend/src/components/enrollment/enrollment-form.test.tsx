@@ -3789,6 +3789,148 @@ describe("EnrollmentForm", () => {
     expect(mockSubmitEnrollment).not.toHaveBeenCalled();
   });
 
+  describe("per-day selection group (#4514)", () => {
+    const perDayVariant = (
+      id: string,
+      name: string,
+      overrides: Record<string, unknown> = {},
+    ) => ({
+      id,
+      phase_id: "5",
+      name,
+      description: null,
+      days_of_week_mode: "parent_choice",
+      available_days: ["mon", "tue", "wed", "thu", "fri"],
+      includes_holiday_care: false,
+      includes_lunch: false,
+      is_active: true,
+      is_required: false,
+      counts_as_care: true,
+      selection_group: "Betreuungszeit",
+      selection_rule: "at_most_one_per_day",
+      capacity: null,
+      ...overrides,
+    });
+    const shortCare = perDayVariant("41", "Verlässlichkeit bis 13 Uhr");
+    const longCare = perDayVariant("42", "Nachmittagsgruppe bis 17 Uhr");
+    const conflictOnMonday =
+      "Am Montag sind „Verlässlichkeit bis 13 Uhr“ und „Nachmittagsgruppe bis 17 Uhr“ gewählt. Bitte wählen Sie pro Tag nur ein Angebot.";
+
+    function pick(offeringId: string, day: string) {
+      const input = document.querySelector<HTMLInputElement>(
+        `input[name="children_0_offering_${offeringId}"]`,
+      );
+      expect(input).not.toBeNull();
+      if (!(input as HTMLInputElement).checked) {
+        fireEvent.click(input as HTMLInputElement);
+      }
+      fireEvent.click(
+        dayButton(offeringCard(`children_0_offering_${offeringId}`), day),
+      );
+    }
+
+    it("names the day and both variants at selection, keeps both and blocks the submit", async () => {
+      mockFetchPublicCareOfferings.mockResolvedValueOnce({
+        offerings: [shortCare, longCare],
+        careOfferingSelectionMode: "optional",
+        careRequired: false,
+      });
+      renderForm();
+      await waitForLoaded();
+      await fillRequiredFields();
+
+      expect(screen.getByText("Höchstens eines pro Tag")).toBeInTheDocument();
+      pick("41", "Mo");
+      pick("42", "Di");
+      expect(screen.queryByText(conflictOnMonday)).not.toBeInTheDocument();
+      fireEvent.click(dayButton(offeringCard("children_0_offering_42"), "Mo"));
+
+      expect(screen.getByText(conflictOnMonday)).toBeInTheDocument();
+      expect(
+        dayButton(offeringCard("children_0_offering_41"), "Mo"),
+      ).toHaveAttribute("aria-pressed", "true");
+      expect(
+        dayButton(offeringCard("children_0_offering_42"), "Mo"),
+      ).toHaveAttribute("aria-pressed", "true");
+
+      fireEvent.click(
+        screen.getByRole("button", { name: "Anmeldung absenden" }),
+      );
+      expect(
+        await screen.findByText(`Kind 1: ${conflictOnMonday}`),
+      ).toBeInTheDocument();
+      expect(mockSubmitEnrollment).not.toHaveBeenCalled();
+
+      fireEvent.click(dayButton(offeringCard("children_0_offering_42"), "Mo"));
+      expect(screen.queryByText(conflictOnMonday)).not.toBeInTheDocument();
+      fireEvent.click(
+        screen.getByRole("button", { name: "Anmeldung absenden" }),
+      );
+      await waitFor(() => expect(mockSubmitEnrollment).toHaveBeenCalled());
+    });
+
+    it("counts the days of a fixed variant", async () => {
+      mockFetchPublicCareOfferings.mockResolvedValueOnce({
+        offerings: [
+          shortCare,
+          perDayVariant("43", "Freitag bis 15 Uhr", {
+            days_of_week_mode: "fixed",
+            available_days: ["fri"],
+          }),
+        ],
+        careOfferingSelectionMode: "optional",
+        careRequired: false,
+      });
+      renderForm();
+      await waitForLoaded();
+
+      pick("41", "Fr");
+      fireEvent.click(
+        screen.getByRole("checkbox", { name: /Freitag bis 15 Uhr/ }),
+      );
+
+      expect(
+        screen.getByText(
+          "Am Freitag sind „Verlässlichkeit bis 13 Uhr“ und „Freitag bis 15 Uhr“ gewählt. Bitte wählen Sie pro Tag nur ein Angebot.",
+        ),
+      ).toBeInTheDocument();
+    });
+
+    it("counts the days an automatic addition brings in", async () => {
+      mockFetchPublicCareOfferings.mockResolvedValueOnce({
+        offerings: [
+          perDayVariant("44", "Hausaufgabenkurs", {
+            selection_group: null,
+            selection_rule: "optional",
+            counts_as_care: false,
+          }),
+          perDayVariant("45", "Nachmittag bis 15 Uhr", {
+            auto_add_trigger_offering_ids: ["44"],
+          }),
+          shortCare,
+        ],
+        careOfferingSelectionMode: "optional",
+        careRequired: false,
+      });
+      renderForm();
+      await waitForLoaded();
+
+      pick("44", "Mi");
+      pick("41", "Di");
+      expect(
+        screen.queryByText(/Bitte wählen Sie pro Tag nur ein Angebot/),
+      ).not.toBeInTheDocument();
+      expect(screen.getByText("Höchstens eines pro Tag")).toBeInTheDocument();
+      fireEvent.click(dayButton(offeringCard("children_0_offering_41"), "Mi"));
+
+      expect(
+        screen.getByText(
+          "Am Mittwoch sind „Nachmittag bis 15 Uhr“ und „Verlässlichkeit bis 13 Uhr“ gewählt. Bitte wählen Sie pro Tag nur ein Angebot.",
+        ),
+      ).toBeInTheDocument();
+    });
+  });
+
   it("counts only choosable offerings for exactly_one when a required offering is present", async () => {
     mockFetchPublicCareOfferings.mockResolvedValueOnce({
       offerings: [

@@ -174,6 +174,7 @@ func TestCheckAndRunTimetableCleanup_Disabled(t *testing.T) {
 		logger:           slog.Default(),
 		timetableCleanup: svc,
 		settings: &fakeSettingsResolver{
+			intValues: map[string]int{settingDataCleanupTimeoutMinutes: 30},
 			boolValues: map[string]bool{
 				settingDataCleanupEnabled: false,
 			},
@@ -203,6 +204,7 @@ func TestCheckAndRunTimetableCleanup_WrongTime(t *testing.T) {
 		timetableCleanup: svc,
 		cleanupClock:     func() time.Time { return scheduleNow },
 		settings: &fakeSettingsResolver{
+			intValues: map[string]int{settingDataCleanupTimeoutMinutes: 30},
 			boolValues: map[string]bool{
 				settingDataCleanupEnabled: true,
 			},
@@ -230,6 +232,7 @@ func TestCheckAndRunTimetableCleanup_WasRunToday(t *testing.T) {
 		timetableCleanup: svc,
 		cleanupClock:     func() time.Time { return scheduleNow },
 		settings: &fakeSettingsResolver{
+			intValues: map[string]int{settingDataCleanupTimeoutMinutes: 30},
 			boolValues: map[string]bool{
 				settingDataCleanupEnabled: true,
 			},
@@ -298,6 +301,7 @@ func TestCheckAndRunTimetableCleanup_ServiceError_ClearsTodayStamp(t *testing.T)
 		timetableCleanup: svc,
 		cleanupClock:     func() time.Time { return scheduleNow },
 		settings: &fakeSettingsResolver{
+			intValues: map[string]int{settingDataCleanupTimeoutMinutes: 30},
 			boolValues: map[string]bool{
 				settingDataCleanupEnabled: true,
 			},
@@ -337,6 +341,7 @@ func TestCheckAndRunTimetableCleanup_ZeroCounters_SuppressesInfoLog(t *testing.T
 		timetableCleanup: svc,
 		cleanupClock:     func() time.Time { return scheduleNow },
 		settings: &fakeSettingsResolver{
+			intValues: map[string]int{settingDataCleanupTimeoutMinutes: 30},
 			boolValues: map[string]bool{
 				settingDataCleanupEnabled: true,
 			},

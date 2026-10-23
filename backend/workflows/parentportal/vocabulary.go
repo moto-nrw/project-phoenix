@@ -125,6 +125,8 @@ var (
 	ErrMasterDataInvalidValue           = care.ErrMasterDataInvalidValue
 	ErrMasterDataNoChanges              = care.ErrMasterDataNoChanges
 	ErrMasterDataRequestDisabled        = care.ErrMasterDataRequestDisabled
+	ErrMasterDataRequestNotFound        = care.ErrMasterDataRequestNotFound
+	ErrMasterDataRequestNotPending      = care.ErrMasterDataRequestNotPending
 	ErrMealParticipationCutoff          = care.ErrMealParticipationCutoff
 	ErrMealParticipationOutOfRange      = care.ErrMealParticipationOutOfRange
 	ErrMealPlanDisabled                 = care.ErrMealPlanDisabled
@@ -157,7 +159,6 @@ type (
 	EnrollablePhase          = care.EnrollablePhase
 	EnrollmentRequestSummary = care.EnrollmentRequestSummary
 	GuardianSubmitStatus     = care.GuardianSubmitStatus
-	RequestReasonPolicy      = care.RequestReasonPolicy
 	SettingsService          = care.SettingsService
 	SettingsSnapshot         = care.SettingsSnapshot
 	BatchSettingsService     = care.BatchSettingsService

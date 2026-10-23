@@ -46,7 +46,7 @@ func TestResolveTenant_WeekendFollowsFriday_DefaultOff(t *testing.T) {
 	db, authRoute := setupAuthDependenciesRoute(t)
 	_, slug := newTenantResolveScope(t, db)
 
-	resource := authAPI.NewResource(authRoute.AuthService, authRoute.Invitations, authRoute.SchoolService, authRoute.Sessions, identityaccessCompose.TenantUnitOfWork{}, transactionFailures.IsConstraintViolation)
+	resource := authAPI.NewResource(authRoute.AuthService, authRoute.Invitations, authRoute.SchoolService, authRoute.Sessions, identityaccessCompose.TenantUnitOfWork{}, transactionFailures.IsConstraintViolation, authRoute.SettingsService)
 	resource.SettingsService = authRoute.SettingsService
 
 	assert.False(t, resolveWeekendFollowsFriday(t, resource, slug))
@@ -59,22 +59,27 @@ func TestResolveTenant_WeekendFollowsFriday_SchoolOverride(t *testing.T) {
 	scope, slug := newTenantResolveScope(t, db)
 	require.NoError(t, tenantSettings.SetValue(scope.Context(), settings.KeyWeekendFollowsFriday, true, nil, nil))
 
-	resource := authAPI.NewResource(authRoute.AuthService, authRoute.Invitations, authRoute.SchoolService, authRoute.Sessions, identityaccessCompose.TenantUnitOfWork{}, transactionFailures.IsConstraintViolation)
+	resource := authAPI.NewResource(authRoute.AuthService, authRoute.Invitations, authRoute.SchoolService, authRoute.Sessions, identityaccessCompose.TenantUnitOfWork{}, transactionFailures.IsConstraintViolation, authRoute.SettingsService)
 	resource.SettingsService = authRoute.SettingsService
 
 	assert.True(t, resolveWeekendFollowsFriday(t, resource, slug))
 }
 
 // An unreadable value keeps the weekend closed instead of guessing.
-func TestResolveTenant_WeekendFollowsFriday_UnreadableValueFailsClosed(t *testing.T) {
+func TestResolveTenant_WeekendFollowsFriday_UnreadableValueFailsRequest(t *testing.T) {
 	t.Parallel()
 
 	db, authRoute := setupAuthDependenciesRoute(t)
 	scope, slug := newTenantResolveScope(t, db)
 	storeRawTenantSetting(t, db, scope.TenantID, settings.KeyWeekendFollowsFriday, json.RawMessage(`"ja"`))
 
-	resource := authAPI.NewResource(authRoute.AuthService, authRoute.Invitations, authRoute.SchoolService, authRoute.Sessions, identityaccessCompose.TenantUnitOfWork{}, transactionFailures.IsConstraintViolation)
+	resource := authAPI.NewResource(authRoute.AuthService, authRoute.Invitations, authRoute.SchoolService, authRoute.Sessions, identityaccessCompose.TenantUnitOfWork{}, transactionFailures.IsConstraintViolation, authRoute.SettingsService)
 	resource.SettingsService = authRoute.SettingsService
 
-	assert.False(t, resolveWeekendFollowsFriday(t, resource, slug))
+	router := chi.NewRouter()
+	router.Mount("/auth", resource.Router(rootAPI.TenantSessionChain))
+	response := httptest.NewRecorder()
+	router.ServeHTTP(response, httptest.NewRequest(http.MethodGet, "/auth/tenant/resolve?slug="+slug, nil))
+	require.Equal(t, http.StatusInternalServerError, response.Code, response.Body.String())
+	assert.NotContains(t, response.Body.String(), `"data"`)
 }

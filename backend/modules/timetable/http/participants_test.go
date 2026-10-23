@@ -83,7 +83,7 @@ func buildParticipantsSetup(t *testing.T) *participantsSetup {
 		})
 	}
 
-	setup.res = NewResource(Dependencies{
+	setup.res = newResourceForTest(Dependencies{
 		TimetableData: testTimetableData(db).TimetableData(),
 		People:        must(RootCompositions.People(db)),
 		// UserContextService intentionally nil: the admin-perm path

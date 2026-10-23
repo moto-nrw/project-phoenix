@@ -133,7 +133,7 @@ type TimetableTestLegacyRows struct {
 	reads timetableCompose.PresenceReads
 }
 
-func NewTimetableTestLegacyRows(tb TestTimetableTB, projection directoryPorts.PresenceProjection) TimetableTestLegacyRows {
+func NewTimetableTestLegacyRows(tb TestTimetableTB, projection directoryPorts.PresenceReader) TimetableTestLegacyRows {
 	tb.Helper()
 	reads, err := timetableCompose.NewPresenceReads(projection)
 	if err != nil {

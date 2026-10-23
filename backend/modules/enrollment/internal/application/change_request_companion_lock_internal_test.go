@@ -21,7 +21,7 @@ func (busyCompanionGraph) VerifyCompanionStrandingBatch(context.Context) error {
 var errStudentCompanionLockBusy = errors.New("companion lock busy")
 
 func companionLockChangeRequests(graph CompanionGraphCoordinator) *ChangeRequests {
-	return NewChangeRequests(ChangeRequestDependencies{
+	return NewChangeRequests(ChangeRequestDependencies{Settings: intakeSettingsFake{},
 		Companions:        graph,
 		CompanionLockBusy: errStudentCompanionLockBusy,
 		ParentsURL:        "https://parents.example.test",

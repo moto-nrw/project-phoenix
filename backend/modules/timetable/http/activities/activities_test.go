@@ -24,6 +24,7 @@ import (
 	"github.com/uptrace/bun"
 
 	"github.com/moto-nrw/project-phoenix/api/testutil"
+	"github.com/moto-nrw/project-phoenix/api/testutil/routetest"
 	activitiesAPI "github.com/moto-nrw/project-phoenix/modules/timetable/http/activities"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 )
@@ -546,6 +547,26 @@ func TestAssignSupervisor_Success(t *testing.T) {
 	testutil.AssertSuccessResponse(t, rr, http.StatusCreated)
 }
 
+// Assigning a staff member who already supervises the activity is an
+// expected refusal (#4599): 409 with the class code, not a server error.
+func TestAssignSupervisor_AlreadyAssignedAnswersConflict(t *testing.T) {
+	t.Parallel()
+	ctx := setupActivitiesRoute(t)
+
+	activity := testpkg.CreateTestActivityGroup(t, ctx.db, fmt.Sprintf("DupSup-%d", time.Now().UnixNano()))
+	staff := testpkg.CreateTestStaff(t, ctx.db, "Duplicate", "Supervisor")
+	_, err := ctx.resource.ActivityService.AddSupervisor(testpkg.Ctx(t), activity.ID, staff.ID, true)
+	require.NoError(t, err)
+
+	body := map[string]interface{}{"staff_id": staff.ID, "is_primary": false}
+	req := testutil.NewAuthenticatedRequest(t, "POST", fmt.Sprintf("/activities/%d/supervisors", activity.ID), body)
+
+	rr := testutil.ExecuteWithAuth(t, ctx.router, req, testutil.DefaultTestClaims())
+
+	require.Equal(t, http.StatusConflict, rr.Code, rr.Body.String())
+	assert.Equal(t, routetest.ClassCode(http.StatusConflict), testutil.ParseJSONResponse(t, rr.Body.Bytes())["code"])
+}
+
 func TestAssignSupervisor_BadRequest_MissingStaffID(t *testing.T) {
 	t.Parallel()
 	ctx := setupActivitiesRoute(t)
@@ -1005,6 +1026,27 @@ func TestUpdateSupervisorRole_Success(t *testing.T) {
 	rr := testutil.ExecuteWithAuth(t, ctx.router, req, testutil.DefaultTestClaims())
 
 	testutil.AssertSuccessResponse(t, rr, http.StatusOK)
+}
+
+// Demoting the primary supervisor would leave the activity without one, an
+// expected refusal (#4599): 409 with the class code, not a server error.
+func TestUpdateSupervisorRole_DemotingThePrimaryAnswersConflict(t *testing.T) {
+	t.Parallel()
+	ctx := setupActivitiesRoute(t)
+
+	activity := testpkg.CreateTestActivityGroup(t, ctx.db, fmt.Sprintf("DemoteSup-%d", time.Now().UnixNano()))
+	staff := testpkg.CreateTestStaff(t, ctx.db, "Primary", "Supervisor")
+	supervisor, err := ctx.resource.ActivityService.AddSupervisor(testpkg.Ctx(t), activity.ID, staff.ID, true)
+	require.NoError(t, err)
+
+	body := map[string]interface{}{"is_primary": false}
+	req := testutil.NewAuthenticatedRequest(t, "PUT",
+		fmt.Sprintf("/activities/%d/supervisors/%d", activity.ID, supervisor.ID), body)
+
+	rr := testutil.ExecuteWithAuth(t, ctx.router, req, testutil.DefaultTestClaims())
+
+	require.Equal(t, http.StatusConflict, rr.Code, rr.Body.String())
+	assert.Equal(t, routetest.ClassCode(http.StatusConflict), testutil.ParseJSONResponse(t, rr.Body.Bytes())["code"])
 }
 
 func TestUpdateSupervisorRole_NotFound(t *testing.T) {

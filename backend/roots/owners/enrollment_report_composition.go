@@ -13,6 +13,9 @@ import (
 // A missing read stays unbound, so the report that needs it answers "not
 // configured" instead of dereferencing nothing.
 func NewEnrollmentReports(sources EnrollmentReportSources) enrollmentOwner.Reports {
+	if sources.Settings == nil {
+		panic("enrollment reports: settings resolver is required")
+	}
 	deps := enrollmentCompose.ReportDependencies{
 		Requests:          sources.Owner,
 		Children:          sources.Owner,
@@ -101,8 +104,7 @@ func (b enrollmentRosterGuardianContacts) GuardianContacts(ctx context.Context, 
 	return out, nil
 }
 
-// enrollmentReportSettings resolves enrollment.care_offerings_enabled; a nil
-// resolver leaves the reports on the registry default.
+// enrollmentReportSettings resolves enrollment.care_offerings_enabled through Settings Platform.
 type enrollmentReportSettings struct {
 	settings interface {
 		ResolveBool(ctx context.Context, key string) (bool, error)
@@ -110,9 +112,6 @@ type enrollmentReportSettings struct {
 }
 
 func (s enrollmentReportSettings) CareOfferingsEnabled(ctx context.Context) (bool, error) {
-	if s.settings == nil {
-		return configModels.EnrollmentCareOfferingsEnabledFallback, nil
-	}
 	return s.settings.ResolveBool(ctx, configModels.KeyEnrollmentCareOfferingsEnabled)
 }
 

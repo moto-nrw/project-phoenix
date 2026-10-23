@@ -31,8 +31,7 @@ import {
 } from "~/lib/activity-occupancy";
 import { CompleteInstanceModal } from "~/components/active-supervisions/complete-instance-modal";
 import { useMinuteClock } from "~/lib/pickup-helpers";
-import { hasPermission } from "~/lib/auth-utils";
-import { canReadSupervisionDashboard } from "~/lib/active-supervision-access";
+import { canReadSupervisionData, hasPermission } from "~/lib/auth-utils";
 import { UnclaimedRooms } from "~/components/active/unclaimed-rooms";
 import { SSEErrorBoundary } from "~/components/sse/SSEErrorBoundary";
 import {
@@ -269,9 +268,14 @@ function MeinRaumPageContent() {
   // Set breadcrumb so the header names what is open — a shared room by its
   // room name, an own supervision by its session (parallel sessions can share
   // one room, #2265).
+  // Ein offener Raum ohne eigene Aufsicht ist keine Aufsicht der Person: er
+  // gehört zu „Räume“ und führt dorthin zurück (#4372).
+  const isSharedRoomView =
+    currentOpenRoom !== null && !currentOpenRoom.isUserSupervising;
   useSetBreadcrumb({
     activeSupervisionName:
       currentOpenRoom?.name ?? currentRoom?.name ?? currentRoom?.room_name,
+    activeSupervisionIsSharedRoom: isSharedRoomView || undefined,
   });
 
   // Opening a shared room is a pure selection: its occupancy already arrived
@@ -282,7 +286,9 @@ function MeinRaumPageContent() {
       if (!room) return;
       dashboard.selectOpenRoom(roomId);
       router.push(`/active-supervisions?room=${roomId}`);
-      localStorage.removeItem("supervision-last-session");
+      if (room.isUserSupervising) {
+        localStorage.removeItem("supervision-last-session");
+      }
       localStorage.setItem("sidebar-last-room", roomId);
       localStorage.setItem("sidebar-last-room-name", room.name);
     },
@@ -377,10 +383,14 @@ function MeinRaumPageContent() {
   );
 
   // Reiterleiste. Am Desktop wechselt die Seitenleiste, deshalb stehen die
-  // Reiter nur darunter. Offene Räume stehen hinter den eigenen Aufsichten:
-  // sie sind gemeinsam, nicht die eigene Aufsicht der Person (#3065).
+  // Reiter nur darunter. Wie in der Seitenleiste stehen hier nur Aufsichten:
+  // ein offener Raum nur mit eigener Aufsicht (#4349) oder solange er
+  // geöffnet ist. Die übrigen offenen Räume stehen unter „Räume“ (#4372).
   const ownSessions = sessionsOutsideOpenRooms(allRooms, openRoomIds);
-  const totalSupervisions = ownSessions.length + openRooms.length;
+  const tabOpenRooms = openRooms.filter(
+    (room) => room.isUserSupervising || room.roomId === currentOpenRoom?.roomId,
+  );
+  const totalSupervisions = ownSessions.length + tabOpenRooms.length;
   const supervisionTabItems = [
     ...ownSessions.map((room) => ({
       value: `session:${room.id}`,
@@ -391,7 +401,7 @@ function MeinRaumPageContent() {
     })),
     // Wie bei den eigenen Reitern: läuft die eigene Aufsicht im offenen
     // Raum, trägt sein Reiter den Hinweis (#4349).
-    ...openRooms.map((room) => ({
+    ...tabOpenRooms.map((room) => ({
       value: `room:${room.roomId}`,
       label: room.isUserSupervising
         ? `${room.name} · Eigene Aufsicht`
@@ -408,7 +418,7 @@ function MeinRaumPageContent() {
               : "",
           onChange: handleTabChange,
           items: supervisionTabItems,
-          label: "Aufsichten und offene Räume",
+          label: "Aufsichten",
         }
       : undefined;
 
@@ -546,7 +556,7 @@ function MeinRaumPageContent() {
     !isPageLoading &&
     !hasNoAccess &&
     allRooms.length === 0 &&
-    openRooms.length === 0 &&
+    currentOpenRoom === null &&
     plannedNow.length === 0;
 
   // Kacheln oder Tabelle (#3834). Die Tabelle gilt für die Kinderliste der
@@ -752,6 +762,11 @@ function MeinRaumPageContent() {
       // nennt deshalb nur den Namen statt die Aufsicht ein zweites Mal (#3312).
       title={supervisionName ?? "Aktuelle Aufsicht"}
       stats={supervisionSummary}
+      back={isSharedRoomView}
+      backHref={
+        currentOpenRoom ? `/rooms/${currentOpenRoom.roomId}` : undefined
+      }
+      backLabel="Zurück zum Raum"
       actions={
         hasHeadActions || tableApplies ? (
           <>
@@ -945,10 +960,10 @@ function MeinRaumPageContent() {
   );
 }
 
-// Gate component, by permission rather than role name (#4573): `groups:read`
-// opens the full page, so does a server-confirmed school-wide overview
-// (#2380). `schedules:read` alone (role „Extern“) opens only the own running
-// supervision, without any school-wide request.
+// Gate component: allows callers who can read supervision data, or callers
+// covered by the server-confirmed school-wide overview (#2380). `schedules:read`
+// alone (#4573) opens only the own running supervision, without any
+// school-wide request.
 function ActiveSupervisionGate({
   children,
 }: Readonly<{ children: React.ReactNode }>) {
@@ -971,7 +986,7 @@ function ActiveSupervisionGate({
     );
   }
 
-  if (canReadSupervisionDashboard(session)) {
+  if (canReadSupervisionData(session)) {
     return <>{children}</>;
   }
 

@@ -217,7 +217,11 @@ func (s *Intake) planStatusToken(ctx context.Context, plan *submissionPlan) erro
 		return fmt.Errorf("submit: generate status token: %w", err)
 	}
 	plan.statusToken = token
-	plan.statusExpiresAt = time.Now().Add(s.resolveStatusTokenExpiry(ctx))
+	lifetime, err := s.resolveStatusTokenExpiry(ctx)
+	if err != nil {
+		return err
+	}
+	plan.statusExpiresAt = time.Now().Add(lifetime)
 	plan.statusURL = enrollmentNative.StatusURL(s.deps.ParentsURL, token)
 	return nil
 }

@@ -51,6 +51,12 @@ import (
 // program (walk modules/ and workflows/ for directories named "legacy", sum
 // the lines of all non-test .go files per topmost tree), run as
 // `cd backend && ../scripts/run-go-toolchain.sh go run ./tmp/moduleLegacyBudget`.
+// The temporary seed helper was not retained. Re-measure the current tree
+// with the ratchet itself (a mismatch prints the measured values):
+//
+//	cd backend && ../scripts/run-go-toolchain.sh go test -tags=testhooks ./test/ \
+//	  -run '^TestModuleLegacyBudgetRatchet$' -count=1 -v
+//
 // The first seed was taken at 19feca2822 and re-measured here after the merge
 // of origin/development (a47f77b2c3): PR #3408 (issue #3350) moved the
 // care-exit, companion and care-document code out of services/users into the
@@ -120,7 +126,8 @@ const moduleLegacyBudgetTotal = 0
 
 // moduleLegacyFileBudgetTotal is the sum of moduleLegacyFileBudgets.
 // Shrink-only, like every entry.
-const moduleLegacyFileBudgetTotal = 0
+// ADR 0082: retained Workforce translation renamed into the legacy register.
+const moduleLegacyFileBudgetTotal = 246
 
 // moduleLegacyFileBudgets maps every legacy_*.go file outside a legacy tree
 // to its LOC, first measured on 2026-10-15 on top of development c49b81c3a9:
@@ -133,13 +140,16 @@ const moduleLegacyFileBudgetTotal = 0
 // name out of modules/timetable/internal/application/legacy_repository_options.go
 // into modules/timetable/ports/legacy_repository_options.go. Both halves keep
 // counting, and their sum stays below the old entry.
-var moduleLegacyFileBudgets = map[string]int{}
+// ADR 0082: newly covered sources, measured at 722c5aa147; no headroom.
+var moduleLegacyFileBudgets = map[string]int{
+	"roots/owners/legacy_workforce_schedule_adapter.go": 246,
+}
 
 // moduleComposeBudgetTotal is the sum of moduleComposeBudgets. Shrink-only,
 // like every entry; raised by ADR 0063 and by ADR 0073 (the parent
 // announcement retention of modules/communication/composition).
 // Raised by ADR 0076: the restricted staff person repair compositions (+53).
-const moduleComposeBudgetTotal = 12408
+const moduleComposeBudgetTotal = 12385
 
 // moduleComposeBudgets maps every owner composition package to its production
 // LOC, first measured on 2026-10-15 on top of development c49b81c3a9: 61
@@ -154,7 +164,7 @@ var moduleComposeBudgets = map[string]int{
 	"modules/careplan/requestfeed/compose": 53,
 	"modules/classday/compose":             213,
 	// Raised by ADR 0073: the parent announcement retention.
-	"modules/communication/composition":             367,
+	"modules/communication/composition":             351,
 	"modules/dataimport/compose":                    85,
 	"modules/dataimport/compose/imports":            29,
 	"modules/delivery/compose":                      361,
@@ -195,7 +205,7 @@ var moduleComposeBudgets = map[string]int{
 	"modules/timetableenrollmentprovenance/compose":   10,
 	"modules/timetableprojection/compose":             7,
 	"modules/transactionruntime/compose":              133,
-	"modules/workforce/compose":                       895,
+	"modules/workforce/compose":                       888,
 	"workflows/gradetransition/compose":               49,
 	"workflows/openroommove/compose":                  46,
 	"workflows/parentportal/compose":                  279,

@@ -12,7 +12,7 @@ import (
 const ExternalCaregiverRoleName = "Extern"
 
 // ExternalCaregiverRoleDescription is the description the role starts with.
-// Migration 1.15.472 stores the same text for existing schools; keep both in
+// Migration 1.15.474 stores the same text for existing schools; keep both in
 // sync.
 const ExternalCaregiverRoleDescription = "Für externe Betreuungskräfte. Kann den Betreuungsplan ansehen und eigene Termine betreuen."
 
@@ -24,7 +24,7 @@ const ExternalCaregiverRoleDescription = "Für externe Betreuungskräfte. Kann d
 // history), a child's day and week with arrival and pickup times, and, when
 // the school sets operational_overview_scope to all_staff, the school-wide
 // „Heute“ view. Time tracking, staff, settings, roles, parent communication
-// and student documents stay closed. Migration 1.15.472 provisions the same
+// and student documents stay closed. Migration 1.15.474 provisions the same
 // list for existing schools; keep both in sync.
 var ExternalCaregiverDefaultPermissions = []string{"schedules:read"}
 

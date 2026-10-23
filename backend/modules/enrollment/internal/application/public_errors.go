@@ -20,6 +20,8 @@ var publicErrorAliases = []struct {
 	origin error
 	public error
 }{
+	{selection.ErrCareOfferingDayConflict, enrollment.ErrCareOfferingDayConflict},
+	{careplan.ErrCareOfferingDayConflict, enrollment.ErrCareOfferingDayConflict},
 	{selection.ErrCareOfferingRule, enrollment.ErrCareOfferingRule},
 	{selection.ErrSelectedDayNotAvailable, enrollment.ErrSelectedDayNotAvailable},
 	{selection.ErrDaySelectionRequired, enrollment.ErrDaySelectionRequired},

@@ -52,8 +52,24 @@ func validateDecisionInput(input careplan.OfferingChangeDecisionInput) (string, 
 	return reason, nil
 }
 
-// lockPendingRow locks the request and refuses a decided or outdated one.
+// lockPendingRow follows care end's class -> recurrence -> child -> request
+// order, including rejection, completion and conflict resolution. The unlocked
+// snapshot only locates the immutable student ID. Terminal/version checks are
+// repeated under the request lock before authorization or any mutation.
 func (s *OfferingChanges) lockPendingRow(ctx context.Context, requestID int64, expectedVersion string) (careplan.OfferingChangeRequest, error) {
+	snapshot, err := s.pendingRow(ctx, requestID)
+	if err != nil {
+		return careplan.OfferingChangeRequest{}, err
+	}
+	if expectedVersion != "" && careplan.ParentRequestVersion(snapshot.UpdatedAt) != expectedVersion {
+		return careplan.OfferingChangeRequest{}, careplan.ErrParentRequestStale
+	}
+	if err := s.lockOfferingDerivedWrites(ctx); err != nil {
+		return careplan.OfferingChangeRequest{}, err
+	}
+	if _, err := s.deps.Students.LockStudent(ctx, snapshot.StudentID); err != nil {
+		return careplan.OfferingChangeRequest{}, fmt.Errorf("offering change: lock request student: %w", err)
+	}
 	row, err := s.deps.Rows.FindForUpdate(ctx, requestID)
 	if err != nil {
 		return careplan.OfferingChangeRequest{}, err

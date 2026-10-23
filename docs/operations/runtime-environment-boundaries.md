@@ -46,8 +46,10 @@ and telemetry settings already come from the final image.
 
 `GUARDIAN_INVITATION_TOKEN_EXPIRY_HOURS` no longer exists: the guardian token
 lifetime resolves through the tenant setting
-`invitations.guardian_token_expiry_hours` and the deployment's invitation
-lifetime, as the settings rule requires (#2722). Enrollment CAPTCHA
+`invitations.guardian_token_expiry_hours` alone: tenant override, then the
+registry default of 48 hours (maximum 168 hours). Only operators can change
+this setting for a school. `INVITATION_TOKEN_EXPIRY_HOURS` still configures
+staff invitations; it is not a guardian-invitation fallback (#4543). Enrollment CAPTCHA
 environment settings remain absent from both encrypted deployment
 configurations. The allowlist does not introduce these optional features.
 Adding deployment support requires the usual settings/environment review and

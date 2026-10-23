@@ -68,7 +68,13 @@ func materializeAdjustmentChild(
 	if err := validateOfferingGroupRulesWithMissingRequiredAllowed(
 		[]Child{*child}, availableByID, completeWithdrawal,
 	); err != nil {
-		return nil, err
+		return nil, withChildIndex(err, index)
+	}
+	// Grandfathered automatic offerings are part of the materialized booking
+	// and must take part in per-day conflicts, while they remain unavailable
+	// for the ordinary group rules above.
+	if err := CheckDayRules(*child, materializeByID); err != nil {
+		return nil, withChildIndex(err, index)
 	}
 	choosable := len(openByID) == 0 || hasChoosableCareOffering(availableByID)
 	if err := validateAdjustmentRequirements(*child, manualChild, availableByID, selectionMode, choosable, completeWithdrawal); err != nil {
@@ -146,7 +152,7 @@ func MaterializeChild(index int, child *Child, catalog map[int64]*Offering, sele
 	}
 	child.OfferingIDs, child.OfferingDays = selectionPayload(selections, available)
 	if err := validateOfferingGroupRulesWithMissingRequiredAllowed([]Child{*child}, available, false); err != nil {
-		return nil, err
+		return nil, withChildIndex(err, index)
 	}
 	if err := validateRequiredOfferings([]Child{*child}, available); err != nil {
 		return nil, err
@@ -696,11 +702,33 @@ func validateOfferingGroupRulesWithMissingRequiredAllowed(
 	groups := slices.Sorted(maps.Keys(groupRule))
 
 	for idx := range children {
-		counts := offeringGroupCounts(children[idx], openByID)
-		for _, group := range groups {
-			if err := checkGroupRuleAllowingMissingRequired(idx, group, groupRule[group], counts[group], allowMissingRequired); err != nil {
+		if err := checkChildGroupRules(idx, children[idx], groups, groupRule, openByID, allowMissingRequired); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+// checkChildGroupRules applies every group's rule to one child: the per-day
+// rule reads the child's days, the others count the group's offerings.
+func checkChildGroupRules(
+	idx int,
+	child Child,
+	groups []string,
+	groupRule map[string]string,
+	openByID map[int64]*Offering,
+	allowMissingRequired bool,
+) error {
+	counts := offeringGroupCounts(child, openByID)
+	for _, group := range groups {
+		if groupRule[group] == SelectionRuleAtMostOnePerDay {
+			if err := checkDayRule(idx, group, child, openByID); err != nil {
 				return err
 			}
+			continue
+		}
+		if err := checkGroupRuleAllowingMissingRequired(idx, group, groupRule[group], counts[group], allowMissingRequired); err != nil {
+			return err
 		}
 	}
 	return nil

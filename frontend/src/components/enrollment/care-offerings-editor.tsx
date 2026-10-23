@@ -2525,6 +2525,13 @@ function CareOfferingForm({
             />
           </label>
         </div>
+        {draft.selection_rule === "at_most_one_per_day" && (
+          <p className="mt-3 text-sm leading-6 text-gray-600">
+            Eltern können Angebote dieser Gruppe kombinieren, aber pro Wochentag
+            nur eines wählen. Bestehende Buchungen bleiben, wie sie sind. Bei
+            einer späteren Änderung gilt dann pro Tag ein Angebot.
+          </p>
+        )}
       </fieldset>
 
       <CareOfferingWeekdayFields draft={draft} onChange={update} />

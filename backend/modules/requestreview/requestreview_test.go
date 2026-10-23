@@ -118,11 +118,23 @@ func (p fakeProtection) CurrentFamilyProtection(context.Context, []int64) (map[i
 	return p.protected, p.err
 }
 
+type fakeSubmitters struct {
+	known map[SubmitterKey]Submitter
+	err   error
+	got   [][]SubmitterKey
+}
+
+func (s *fakeSubmitters) Submitters(_ context.Context, keys []SubmitterKey) (map[SubmitterKey]Submitter, error) {
+	s.got = append(s.got, keys)
+	return s.known, s.err
+}
+
 type fixture struct {
 	master, care, offering, excused, corrections *fakeQueue
 	access                                       *fakeAccess
 	students                                     *fakeStudents
 	protection                                   *fakeProtection
+	submitters                                   *fakeSubmitters
 }
 
 func newFixture() *fixture {
@@ -145,6 +157,9 @@ func (f *fixture) query() Query {
 	}
 	if f.protection != nil {
 		deps.FamilyProtection = f.protection
+	}
+	if f.submitters != nil {
+		deps.Submitters = f.submitters
 	}
 	return New(deps)
 }
@@ -576,6 +591,53 @@ func TestOpenPageDecoratesGroupsAndFamilyProtection(t *testing.T) {
 	assert.Empty(t, history.Items)
 }
 
+func submittedRow(row Row, accountID int64) Row {
+	row.SubmittedBy = accountID
+	return row
+}
+
+func TestListNamesWhoFiledEachRequest(t *testing.T) {
+	t.Parallel()
+	f := newFixture()
+	f.submitters = &fakeSubmitters{known: map[SubmitterKey]Submitter{
+		{StudentID: 1, AccountID: 10}: {Name: "Klaus Schneider", RelationshipType: "parent"},
+		{StudentID: 2, AccountID: 10}: {Name: "Klaus Schneider"},
+	}}
+	f.master.open = []Row{
+		submittedRow(openRow(TypeMasterData, 1, 1, "Felix", base), 10),
+		submittedRow(openRow(TypeMasterData, 2, 1, "Felix", base.Add(-time.Minute)), 10),
+		submittedRow(openRow(TypeMasterData, 3, 2, "Mia", base.Add(-2*time.Minute)), 10),
+		submittedRow(openRow(TypeMasterData, 4, 3, "Ole", base.Add(-3*time.Minute)), 11),
+	}
+
+	page, err := f.query().ListRequests(context.Background(), parse(t, ""))
+	require.NoError(t, err)
+	require.Len(t, page.Items, 4)
+	assert.Equal(t, "Klaus Schneider", page.Items[0].SubmittedByName)
+	assert.Equal(t, "parent", page.Items[0].SubmittedByRelationship)
+	assert.Equal(t, "Klaus Schneider", page.Items[2].SubmittedByName, "a filer known to the school without a stored relationship to this child")
+	assert.Empty(t, page.Items[2].SubmittedByRelationship)
+	assert.Empty(t, page.Items[3].SubmittedByName, "a filer the school no longer knows stays unnamed")
+	assert.Empty(t, page.Items[3].SubmittedByRelationship)
+	require.Len(t, f.submitters.got, 1, "one read for the whole page")
+	assert.Equal(t, []SubmitterKey{{StudentID: 1, AccountID: 10}, {StudentID: 2, AccountID: 10}, {StudentID: 3, AccountID: 11}}, f.submitters.got[0],
+		"each filing once, in page order")
+
+	f.master.history = []Row{submittedRow(historyRow(TypeMasterData, 5, 1, "Felix", base, "approved"), 10)}
+	f.corrections.history = []Row{historyRow(TypeDirectCorrection, 6, 1, "Felix", base.Add(-time.Minute), "")}
+	history, err := f.query().ListRequests(context.Background(), parse(t, "view=history"))
+	require.NoError(t, err)
+	require.Len(t, history.Items, 2)
+	assert.Equal(t, "Klaus Schneider", history.Items[0].SubmittedByName, "the history names the filer too")
+	assert.Empty(t, history.Items[1].SubmittedByName, "an office correction has no filer")
+	assert.Equal(t, []SubmitterKey{{StudentID: 1, AccountID: 10}}, f.submitters.got[1])
+
+	f.master.open, f.master.history, f.corrections.history = nil, nil, nil
+	_, err = f.query().ListRequests(context.Background(), parse(t, ""))
+	require.NoError(t, err)
+	assert.Len(t, f.submitters.got, 2, "an empty page reads nobody")
+}
+
 func TestOwnerFailuresSurfaceThroughTheExistingContract(t *testing.T) {
 	t.Parallel()
 	queueErr := errors.New("care queue: review policy refused the caller")
@@ -604,6 +666,13 @@ func TestOwnerFailuresSurfaceThroughTheExistingContract(t *testing.T) {
 	f.protection = &fakeProtection{err: queueErr}
 	_, err = f.query().ListRequests(context.Background(), parse(t, ""))
 	assert.Equal(t, "load family protection for request queue: "+queueErr.Error(), err.Error())
+
+	f = newFixture()
+	f.master.open = []Row{submittedRow(openRow(TypeMasterData, 1, 1, "Anna", base), 10)}
+	f.submitters = &fakeSubmitters{err: queueErr}
+	_, err = f.query().ListRequests(context.Background(), parse(t, ""))
+	require.ErrorIs(t, err, queueErr)
+	assert.Equal(t, "load request submitters: "+queueErr.Error(), err.Error())
 
 	f = newFixture()
 	f.access.accessErr = queueErr
@@ -659,7 +728,9 @@ func TestItemWireShapeIsStable(t *testing.T) {
 	row.CurrentStatusByDate = map[string]string{"2026-08-10": "present"}
 	row.BulkEligible = true
 	row.ConflictKeys = []string{"absence:2026-08-10"}
+	row.SubmittedBy = 10
 	f.excused.open = []Row{row}
+	f.submitters = &fakeSubmitters{known: map[SubmitterKey]Submitter{{StudentID: 1, AccountID: 10}: {Name: "Klaus Adler", RelationshipType: "parent"}}}
 
 	page, err := f.query().ListRequests(context.Background(), parse(t, "types=excused"))
 	require.NoError(t, err)
@@ -679,6 +750,8 @@ func TestItemWireShapeIsStable(t *testing.T) {
 			"current_value_changed": true,
 			"current_status_by_date": {"2026-08-10": "present"},
 			"family_protected": false,
+			"submitted_by_name": "Klaus Adler",
+			"submitted_by_relationship": "parent",
 			"data": {"id": 1}
 		}],
 		"review_access": "admin"

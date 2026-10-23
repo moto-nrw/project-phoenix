@@ -419,7 +419,11 @@ func (l *AccountLifecycle) approveInvitation(ctx context.Context, invitationID, 
 	}
 
 	// No account yet: refresh expiry, clear stale email tracking, dispatch.
-	invitation.ExpiresAt = now.Add(l.delivery.InvitationExpiry(ctx))
+	expiry, err := l.delivery.InvitationExpiry(ctx)
+	if err != nil {
+		return failed(opGuardianInviteApprove, err)
+	}
+	invitation.ExpiresAt = now.Add(expiry)
 	invitation.EmailSentAt = nil
 	invitation.EmailError = nil
 	if err := l.invitations.UpdateGuardianInvitation(ctx, invitation); err != nil {
@@ -753,7 +757,11 @@ func (l *AccountLifecycle) waiveInvitationApproval(ctx context.Context, openInvi
 		openInvitation.ApprovalStatus = domain.GuardianInvitationApprovalNotRequired
 		openInvitation.ApprovedBy = nil
 		openInvitation.ApprovedAt = nil
-		openInvitation.ExpiresAt = time.Now().Add(l.delivery.InvitationExpiry(ctx))
+		expiry, err := l.delivery.InvitationExpiry(ctx)
+		if err != nil {
+			return domain.GuardianInvitation{}, failed(opGuardianInviteToStudent, err)
+		}
+		openInvitation.ExpiresAt = time.Now().Add(expiry)
 		openInvitation.EmailSentAt = nil
 		openInvitation.EmailError = nil
 		if err := l.invitations.UpdateGuardianInvitation(ctx, openInvitation); err != nil {

@@ -55,8 +55,8 @@ type DeviationEventRetention interface {
 }
 
 // TimetableCleanupDependencies wires the retention. Timetable and Audit are
-// required; Settings falls back to 365 days and DeviationEvents skips the
-// protocol step when nil. Clock defaults to the wall clock.
+// required, as are Settings. DeviationEvents skips the protocol step when nil.
+// Clock defaults to the wall clock.
 type TimetableCleanupDependencies struct {
 	Timetable       CleanupTimetable
 	Audit           DeletionAudit

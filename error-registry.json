@@ -529,6 +529,12 @@
       "legacy": "display.disabled"
     },
     {
+      "code": "enrollment.approval_care_offering_day_conflict",
+      "class": "business_rejection",
+      "parameters": [],
+      "legacy": "enrollment.approval_care_offering_day_conflict"
+    },
+    {
       "code": "enrollment.approval_care_offering_exactly_one",
       "class": "business_rejection",
       "parameters": [],
@@ -539,6 +545,12 @@
       "class": "business_rejection",
       "parameters": [],
       "legacy": "enrollment.approval_care_offering_missing"
+    },
+    {
+      "code": "enrollment.care_offering_day_conflict",
+      "class": "input",
+      "parameters": [],
+      "legacy": "enrollment.care_offering_day_conflict"
     },
     {
       "code": "enrollment.care_offering_days_required",
@@ -1695,6 +1707,12 @@
       "class": "permission",
       "parameters": [],
       "legacy": "care_offerings_disabled"
+    },
+    {
+      "code": "students.care_resume_alumnus",
+      "class": "business_rejection",
+      "parameters": [],
+      "legacy": "students.care_resume_alumnus"
     },
     {
       "code": "students.care_resume_missing",

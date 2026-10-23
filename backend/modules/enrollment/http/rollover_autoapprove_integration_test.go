@@ -47,6 +47,9 @@ func setupAutoApproveIntegrationEnvWithSettings(
 ) *rolloverTestEnv {
 	t.Helper()
 	env := setupRolloverTest(t)
+	if settings == nil {
+		settings = env.settings
+	}
 
 	repoFactory, repoFactoryCare, _, _, _, _ := testRepositories(t, env.db)
 

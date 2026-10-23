@@ -223,7 +223,7 @@ oder gelöscht, antwortet sie mit `staff.external_role_missing`.
 
 Der Datensatz entscheidet, wer extern ist; die Schulrolle **Extern** regelt
 nur Rechte. Die alte Systemrolle **Gast** (`guest`) ist davon unabhängig: eine
-Rolle mit eigenen Rechten, die niemanden extern macht (ADR 0080).
+Rolle mit eigenen Rechten, die niemanden extern macht (ADR 0083).
 
 Die **Vertretungsübersicht** ist die gemeinsame Arbeitsfläche für
 Gruppenübergaben, Vertretungen und zusätzliche Aufsichten. Die drei Vorgänge

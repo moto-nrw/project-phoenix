@@ -1297,6 +1297,74 @@ func TestRequestService_Edit_LocksAfterReviewStarted(t *testing.T) {
 	assert.True(t, errors.Is(err, enrollmentNative.ErrEditNotAllowed))
 }
 
+// A staff decision that commits between the token lookup and the write
+// must stop the edit: the parent may no longer change the request (#4600).
+func TestRequestService_Edit_RejectsAfterConcurrentDecision(t *testing.T) {
+	t.Parallel()
+
+	env := setupRequestTest(t)
+	ctx := testpkg.Ctx(t)
+
+	result, err := env.svc.Submit(ctx, validSubmission(t, env.phaseID))
+	require.NoError(t, err)
+	token := result.Request.StatusToken
+	before, _, err := env.svc.GetByStatusToken(ctx, token)
+	require.NoError(t, err)
+
+	newName := "Zu spät"
+	err = decideWhileParentWrites(t, ctx, env.db, result.Request.ID, result.Children[0].ID, enrollmentNative.ChildStatusApproved,
+		func(parentCtx context.Context) error {
+			return env.svc.Edit(parentCtx, token, enrollmentAPI.EditPatch{GuardianFirstName: &newName})
+		})
+	require.ErrorIs(t, err, enrollmentNative.ErrEditNotAllowed)
+
+	after, _, err := env.svc.GetByStatusToken(ctx, token)
+	require.NoError(t, err)
+	assert.Equal(t, before.GuardianFirstName, after.GuardianFirstName, "the rejected edit must not reach the request")
+}
+
+// decideWhileParentWrites holds a staff decision on one child open the way
+// Decide takes it (request, then its children locked), starts the parent
+// write, waits until that write blocks on the decision and commits it. It
+// returns the parent write's error.
+func decideWhileParentWrites(t *testing.T, ctx context.Context, db *bun.DB, requestID, childID int64, status string, parentWrite func(context.Context) error) error {
+	t.Helper()
+	ctx, cancel := context.WithTimeout(ctx, 15*time.Second)
+	defer cancel()
+	repos, _, _, _, _, _ := flowRepositories(t, db)
+	parentDone := make(chan error, 1)
+	err := testpkg.WithTenantTx(t, ctx, db, testpkg.Tenant(t), func(txCtx context.Context, tx bun.Tx) error {
+		var pid int
+		if err := tx.NewRaw("SELECT pg_backend_pid()").Scan(txCtx, &pid); err != nil {
+			return err
+		}
+		if _, err := tx.NewRaw("SELECT id FROM enrollment.requests WHERE id = ? FOR UPDATE", requestID).Exec(txCtx); err != nil {
+			return err
+		}
+		if _, err := tx.NewRaw("SELECT id FROM enrollment.request_children WHERE request_id = ? FOR UPDATE", requestID).Exec(txCtx); err != nil {
+			return err
+		}
+		if err := repos.Enrollment().UpdateChildStatus(txCtx, childID, status, nil, 0); err != nil {
+			return err
+		}
+		go func() { parentDone <- parentWrite(ctx) }()
+		require.Eventually(t, func() bool {
+			var blocked int
+			err := db.NewRaw("SELECT count(*) FROM pg_stat_activity WHERE ? = ANY(pg_blocking_pids(pid))", pid).Scan(ctx, &blocked)
+			return err == nil && blocked > 0
+		}, 5*time.Second, 10*time.Millisecond, "the parent write must wait for the open decision")
+		return nil
+	})
+	require.NoError(t, err)
+	select {
+	case err := <-parentDone:
+		return err
+	case <-ctx.Done():
+		t.Fatal("the parent write did not finish after the decision committed")
+		return nil
+	}
+}
+
 func TestRequestService_Edit_RespectsAllowSubmissionEditFalse(t *testing.T) {
 	t.Parallel()
 
@@ -3379,4 +3447,55 @@ func TestRequestService_NoticeAttachmentEvidenceSurvivesLaterPublication(t *test
 	pinned, err := testpkg.TenantQuery1(t, ctx, env.db, forms.SchemaVersion, first.ID)
 	require.NoError(t, err)
 	require.Equal(t, documents, pinned.Fields[0].Attachments)
+}
+
+func TestRequestServiceRejectsUnreadableStatusTokenLifetime(t *testing.T) {
+	t.Parallel()
+	env := setupRequestTest(t)
+	failure := errors.New("status token lifetime unavailable")
+	env.settings.intErrors[settingKeyStatusTokenTTLDays] = failure
+	result, err := env.svc.Submit(testpkg.Ctx(t), validSubmission(t, env.phaseID))
+	require.ErrorIs(t, err, failure)
+	assert.Nil(t, result)
+}
+
+func TestRequestServiceRejectsUnreadableSubmissionEditPolicy(t *testing.T) {
+	t.Parallel()
+	env := setupRequestTest(t)
+	ctx := testpkg.Ctx(t)
+	submitted, err := env.svc.Submit(ctx, validSubmission(t, env.phaseID))
+	require.NoError(t, err)
+	failure := errors.New("submission edit policy unavailable")
+	env.settings.boolErrors[settingKeyAllowSubmissionEdit] = failure
+	name := "Unchanged"
+	err = testpkg.TenantCommand2(t, ctx, env.db, env.svc.Edit, submitted.Request.StatusToken, enrollmentAPI.EditPatch{GuardianFirstName: &name})
+	require.ErrorIs(t, err, failure)
+}
+
+func TestRequestServiceEditModePreservesSubmissionEditErrors(t *testing.T) {
+	t.Parallel()
+	for _, status := range []string{enrollmentNative.ChildStatusSubmitted, enrollmentNative.ChildStatusWaitlisted} {
+		t.Run(status, func(t *testing.T) {
+			testpkg.OwnTenant(t)
+			env := setupRequestTest(t)
+			ctx := testpkg.Ctx(t)
+			submitted, err := env.svc.Submit(ctx, validSubmission(t, env.phaseID))
+			require.NoError(t, err)
+			for _, child := range submitted.Children {
+				child.Status = status
+			}
+			failure := errors.New("submission edit policy unavailable")
+			env.settings.boolErrors[settingKeyAllowSubmissionEdit] = failure
+
+			mode, err := env.svc.EditModeForStatus(ctx, submitted.Request, submitted.Children)
+			require.ErrorIs(t, err, failure)
+			assert.Equal(t, enrollmentNative.EditModeNone, mode)
+
+			delete(env.settings.boolErrors, settingKeyAllowSubmissionEdit)
+			env.settings.boolValues[settingKeyAllowSubmissionEdit] = false
+			mode, err = env.svc.EditModeForStatus(ctx, submitted.Request, submitted.Children)
+			require.NoError(t, err)
+			assert.Equal(t, enrollmentNative.EditModeNone, mode)
+		})
+	}
 }

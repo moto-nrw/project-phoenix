@@ -2,7 +2,6 @@ package timetablehttp
 
 import (
 	"context"
-	"errors"
 	"fmt"
 
 	"github.com/moto-nrw/project-phoenix/modules/settings"
@@ -10,9 +9,6 @@ import (
 )
 
 func (rs *Resource) resolveTemplateGradeLevelMax(ctx context.Context) (int, error) {
-	if rs.SettingsService == nil {
-		return 0, errors.New("settings service is not configured")
-	}
 	value, err := rs.SettingsService.ResolveInt(ctx, settings.KeyEnrollmentGradeLevelMax)
 	if err != nil {
 		return 0, fmt.Errorf("resolve %s: %w", settings.KeyEnrollmentGradeLevelMax, err)

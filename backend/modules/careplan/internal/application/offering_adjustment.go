@@ -110,7 +110,8 @@ func (m *BookingMaterialization) loadOfferingAdjustmentSubject(ctx context.Conte
 		return fmt.Errorf("%w: only approved children with a linked student can be adjusted", careplan.ErrOfferingAdjustmentInvalid)
 	}
 	work.child = child
-	if err := m.lockTemplateRecurrence(ctx); err != nil {
+	// All callers, including the admin correction, acquire gates before rows.
+	if err := m.LockOfferingDerivedWrites(ctx); err != nil {
 		return err
 	}
 	student, err := m.deps.Students.Student(ctx, *child.CreatedStudentID, true)

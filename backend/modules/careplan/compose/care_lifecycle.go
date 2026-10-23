@@ -15,9 +15,8 @@ import (
 	"github.com/uptrace/bun"
 )
 
-// The care lifecycle, the companion graph and the child documents (#3427)
-// drive owners around Care Plan through consumer-owned ports. The composition
-// that holds those owners binds them here.
+// Root binds the lifecycle, companion and document ports (#3427), including
+// the care-exit workflow's resumption command (ADR 0067, #4538).
 type (
 	CareLifecycleOwners      = application.CareLifecycleOwners
 	CareStudentDirectory     = ports.CareStudentDirectory
@@ -50,9 +49,10 @@ type (
 // CareLifecycleDependencies wires the care lifecycle over the Care Plan
 // records the same graph composed.
 type CareLifecycleDependencies struct {
-	DB      *bun.DB
-	Records careplan.Capability
-	Owners  CareLifecycleOwners
+	Resumption careplan.CareResumption
+	DB         *bun.DB
+	Records    careplan.Capability
+	Owners     CareLifecycleOwners
 	// LockCareBookingWrites is the transaction-scoped gate authoritative
 	// booking writes take.
 	LockCareBookingWrites func(context.Context) error
@@ -76,7 +76,7 @@ func NewCareLifecycle(deps CareLifecycleDependencies) (careplan.CareLifecycle, e
 		today = calendar.TodayDate
 	}
 	return application.NewCareLifecycle(application.CareLifecycleDependencies{
-		Owners: deps.Owners, Records: deps.Records,
+		Resumption: deps.Resumption, Owners: deps.Owners, Records: deps.Records, SourceBookings: NewOfferingBookings(),
 		Directory:             postgres.NewDirectoryStore(postgres.New(postgres.CarePlanDatabase(deps.DB)), deps.StudentDirectory),
 		Unit:                  tenant.NewTransactionRunner().RunInTx,
 		LockCareBookingWrites: deps.LockCareBookingWrites,

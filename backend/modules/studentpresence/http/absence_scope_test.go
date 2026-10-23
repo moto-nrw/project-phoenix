@@ -142,6 +142,8 @@ func TestDirectAbsenceScopeFailsClosed(t *testing.T) {
 			switch mode {
 			case "missing":
 				tc.resource.SettingsService = nil
+				require.Panics(t, func() { tc.router() }, "missing settings must fail during route composition")
+				return
 			case "error", "unknown":
 				tc.resource.SettingsService = &settingsDouble{ResolveStringFn: func(context.Context, string) (string, error) {
 					if mode == "error" {

@@ -110,8 +110,10 @@ jobs:
               - 'backend/go.sum'
               - 'backend/architecture/policy.json'
               - 'backend/**/testdata/**'
+              # Shrink-only ratchet registers, read by ./test.
+              - 'backend/test/*.json'
               - 'backend/modules/delivery/internal/adapters/localization/locales.json'
-              - 'backend/services/listexport/assets/**'
+              - 'backend/modules/documentrendering/internal/application/listrenderer/assets/**'
               - 'backend/templates/email/**'
               - 'scripts/backend-architecture.sh'
               - 'scripts/backend-architecture/**'
@@ -140,10 +142,7 @@ jobs:
               - 'backend/internal/architecture/**'
               - 'scripts/backend-architecture.sh'
               - 'scripts/backend-architecture/**'
-              - 'docs/runtime-checkpoints/**'
-              - 'docs/operations/**'
-              - 'scripts/check-migration-evidence*'
-              # The evidence gate reads docs/ markdown, never backend/ notes.
+              # The architecture check reads Go and policy, never backend/ notes.
               - '!backend/**/*.md'
             backend-lint-full:
               - 'backend/go.mod'
@@ -158,7 +157,7 @@ jobs:
               - 'backend/go.mod'
               - 'backend/go.sum'
               - 'backend/modules/delivery/internal/adapters/localization/locales.json'
-              - 'backend/services/listexport/assets/**'
+              - 'backend/modules/documentrendering/internal/application/listrenderer/assets/**'
               - 'backend/templates/email/**'
             seed-smoke-infra:
               - '.github/workflows/main.yml'
@@ -214,7 +213,6 @@ jobs:
             # script suites read. None of it feeds the test or lint suites.
             tooling:
               - 'scripts/check-release-architecture*'
-              - 'scripts/check-migration-evidence*'
               - 'scripts/release-backup*'
               - 'scripts/demo-environment.test.mjs'
               - 'scripts/report-sentry-deploy*'
@@ -238,6 +236,7 @@ jobs:
               - 'scripts/runtime_checkpoint_*_test.py'
               - 'scripts/check-agent-context*'
               - 'scripts/check-test-runners*'
+              - 'scripts/check-pr-body*'
               - '**/*.test.{js,cjs,mjs,ts,cts,mts}'
               - '**/*_test.py'
               - '**/*_test.sh'
@@ -323,12 +322,12 @@ jobs:
 
       - name: Verify pre-push failure and selection behavior
         if: matrix.suite == 'unit'
-        run: node --test scripts/pre-push.test.mjs scripts/check-secrets.test.mjs scripts/dev-native.test.mjs scripts/check-release-architecture.test.mjs scripts/check-migration-evidence.test.mjs scripts/release-backup.test.mjs scripts/demo-environment.test.mjs scripts/report-sentry-deploy.test.mjs scripts/posthog-dashboards.test.mjs
+        run: node --test scripts/pre-push.test.mjs scripts/check-secrets.test.mjs scripts/dev-native.test.mjs scripts/check-release-architecture.test.mjs scripts/release-backup.test.mjs scripts/demo-environment.test.mjs scripts/report-sentry-deploy.test.mjs scripts/posthog-dashboards.test.mjs
 
       - name: Verify repository script suites
         if: matrix.suite == 'unit'
         run: |
-          node --test scripts/student-contract-monitor.test.mjs scripts/check-agent-context.test.mjs scripts/check-test-runners.test.mjs
+          node --test scripts/student-contract-monitor.test.mjs scripts/check-agent-context.test.mjs scripts/check-test-runners.test.mjs scripts/check-pr-body.test.mjs
           python3 -m unittest scripts/runtime_checkpoint_compare_test.py scripts/runtime_checkpoint_report_test.py
 
       # Lists test files that no workflow runs (#4436).
@@ -450,13 +449,6 @@ jobs:
           else
             scripts/backend-architecture.sh check
           fi
-      - name: Validate migration evidence and retirement coverage
-        # The validator discovers every architecture JSON except the named
-        # policy, composition, checkpoint registry and contract-active-2737-progress.json
-        # documents. The progress file is historical notes, not cutover evidence.
-        env:
-          GH_TOKEN: ${{ github.token }}
-        run: node scripts/check-migration-evidence.mjs
       - name: Generate and validate current architecture projections
         run: |
           output_directory=$(mktemp -d)

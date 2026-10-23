@@ -83,10 +83,10 @@ func NewGuardianStore(database Database, memberships PortalMembershipQuery, link
 	return &GuardianStore{database: database, memberships: memberships, links: links}
 }
 
-// ListLinksByAccount joins the two owned tables once: every link of every
-// profile of the account, in the tenant of the context or, inside an admin
+// ListLinksByAccounts joins the two owned tables once: every link of every
+// profile of the accounts, in the tenant of the context or, inside an admin
 // transaction, across every tenant. Profile and link must share the tenant.
-func (s *GuardianStore) ListLinksByAccount(ctx context.Context, accountID int64) ([]peopledirectory.GuardianLink, domain.OperationStats, error) {
+func (s *GuardianStore) ListLinksByAccounts(ctx context.Context, accountIDs []int64) ([]peopledirectory.GuardianLink, domain.OperationStats, error) {
 	if s.links == nil {
 		return nil, domain.OperationStats{}, errGuardianLinksUnbound
 	}
@@ -97,7 +97,7 @@ func (s *GuardianStore) ListLinksByAccount(ctx context.Context, accountID int64)
 	rows := []guardianLinkRow{}
 	query := s.linkModelRows(db, scope, &rows).
 		Join(`JOIN users.guardian_profiles AS "guardian_profile" ON "guardian_profile".id = "student_guardian".guardian_profile_id AND "guardian_profile".tenant_id = "student_guardian".tenant_id`).
-		Where(`"guardian_profile".account_id = ?`, accountID)
+		Where(`"guardian_profile".account_id IN (?)`, bun.List(accountIDs))
 	if !scope.AcrossSchools {
 		query = query.Where(`"student_guardian".tenant_id = ?`, scope.TenantID)
 	}
@@ -190,7 +190,7 @@ func (s *GuardianStore) CountLinks(ctx context.Context, guardianIDs []int64) (ma
 // ListAccountLinksByStudents returns the links of the given children whose
 // guardian holds a portal account with an active school membership. What such
 // a link may do is decided by the caller from its permissions, exactly as for
-// ListLinksByAccount.
+// ListLinksByAccounts.
 func (s *GuardianStore) ListAccountLinksByStudents(ctx context.Context, studentIDs []int64) ([]peopledirectory.GuardianLink, domain.OperationStats, error) {
 	if s.memberships == nil {
 		return nil, domain.OperationStats{}, fmt.Errorf("people directory postgres: list account links by students: portal account queries are required")

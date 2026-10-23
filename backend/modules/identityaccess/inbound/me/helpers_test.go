@@ -77,6 +77,11 @@ func TestErrorRenderer_GroupNotFound(t *testing.T) {
 	assertRenderedStatus(t, wrapError(identityaccess.ErrCallerGroupNotFound), http.StatusNotFound)
 }
 
+func TestErrorRenderer_SessionNotFound(t *testing.T) {
+	t.Parallel()
+	assertRenderedStatus(t, wrapError(identityaccess.ErrCallerSessionNotFound), http.StatusNotFound)
+}
+
 // The old TestErrorRenderer_NoActiveGroups (404) and
 // TestErrorRenderer_InvalidOperation (400) covered the sentinels
 // ErrNoActiveGroups and ErrInvalidOperation, which no production path ever

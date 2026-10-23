@@ -22,6 +22,9 @@ type Captcha struct {
 // NewCaptcha binds captcha verification to the tenant settings and the
 // provider. A nil logger falls back to slog.Default().
 func NewCaptcha(settings CaptchaSettings, provider CaptchaSiteVerify, logger *slog.Logger) *Captcha {
+	if settings == nil {
+		panic("enrollment captcha: settings are required")
+	}
 	if logger == nil {
 		logger = slog.Default()
 	}
@@ -31,9 +34,6 @@ func NewCaptcha(settings CaptchaSettings, provider CaptchaSiteVerify, logger *sl
 // IsEnabled reports the enrollment.require_captcha setting of the tenant in
 // context. Default false: captcha is opt-in for each school.
 func (s *Captcha) IsEnabled(ctx context.Context) (bool, error) {
-	if s.settings == nil {
-		return false, nil
-	}
 	return s.settings.CaptchaRequired(ctx)
 }
 
